@@ -35,8 +35,9 @@ trust anew.
 | Parent | none: a root (self-signed); else the authority that signs it |
 | Path length | how many authorities may be under it (empty: no limit; under a parent with a limit: one less than the parent's). 0: it signs only end entities |
 | CRL days | how long each CRL it makes is valid (`nextUpdate`), 7 by default |
-| CRL address | the URL put into what it signs (`crlDistributionPoints`) - where you publish its CRL |
-| CA certificate address | the URL of its own certificate put into what it signs (`authorityInfoAccess caIssuers`) - lets clients find a missing intermediate |
+| Publish on acme | on (the default while `pki_publish` is on): its CRL and certificate are served by acme itself at `/pki/` - see [Publishing on acme](#publishing-on-acme) - and the two addresses below, when left empty, are acme's own |
+| CRL address | the URL put into what it signs (`crlDistributionPoints`) - where its CRL is published. Empty: acme's own (`http://NAME/pki/<slug>.crl`) when it is published on acme, else none |
+| CA certificate address | the URL of its own certificate put into what it signs (`authorityInfoAccess caIssuers`) - lets clients find a missing intermediate. Empty: acme's own (`http://NAME/pki/<slug>.crt`) when published |
 | OCSP address | put into what it signs (`authorityInfoAccess OCSP`) when you run a responder (acme does not run one) |
 | Name constraints | what it may sign for: `corp.example` (that domain and below), `IP:10.0.0.0/8`, `email:corp.example`, `URI:.corp.example`; `!DNS:bad.corp.example` excludes. Written into its certificate (critical), checked by acme before signing and by every client after. An intermediate under a constrained parent takes the parent's constraints unless given its own |
 
@@ -108,11 +109,85 @@ cannot.
 
 Each CRL (`openssl ca -gencrl`) carries the next CRL number and the
 authority's key identifier, and is valid for *CRL days*. acme keeps the
-newest in the authority (`crl_pem`, `crl_at`); export it (*Export → CRL*,
-PEM or DER) and publish it at the CRL address - e.g. a deployment that copies
-it to a web server. Make it again before half its life is over
-(`ca.crl_due()` says when); a client with an expired CRL may refuse every
-certificate of the authority.
+newest in the authority (`crl_pem`, `crl_at`). The node that leads (the
+renewer's lease, docs/certificates.md "Two nodes") makes every authority's
+CRL anew once half its life is over (`ca.crl_due()`), at its look every
+`certs_check_min` minutes, and after every revocation - so a CRL never runs
+out; a client with an expired CRL may refuse every certificate of the
+authority. acme publishes it itself ([below](#publishing-on-acme)); or export
+it (*Export → CRL*, PEM or DER) and publish it elsewhere - e.g. a deployment
+that copies it to a web server.
+
+## Publishing on acme
+
+With `pki_publish` on (the default; *Settings → Renewal and notices*), every
+node and the VIP address serve the CRL and the certificate of each authority
+that is published, over plain HTTP, to anybody:
+
+| URL | |
+|---|---|
+| `http://NAME/pki/` | a page listing what is published (the authority, its CRL and certificate, SHA-256, the next CRL by) |
+| `http://NAME/pki/<slug>.crl` | the newest CRL, DER, `application/pkix-crl` - what goes into `crlDistributionPoints` |
+| `http://NAME/pki/<slug>.crl.pem` | the same, PEM |
+| `http://NAME/pki/<slug>.crt` | the authority's certificate, DER, `application/pkix-cert` - what goes into `authorityInfoAccess caIssuers` |
+| `http://NAME/pki/<slug>.pem` | the same, PEM |
+
+`NAME/pki/` is `pki_base_url` when set (`http://pki.example.com/pki/` - a name
+of your own that points at acme); else `http://` and the VIP address's name
+when the VIP address is on, else this server's name. `<slug>` is made from
+the authority's name the first time it is needed (`Example Issuing CA` →
+`example-issuing-ca`) and kept in the authority, so it never changes once
+certificates carry it.
+
+**What happens.** nginx sends `/pki/` - on port 80 and on 443, with no sign-in
+and, on port 80, never a redirect to HTTPS (a CRL fetcher seldom follows one,
+and fetching the CRL must not depend on a certificate the CRL decides about)
+- to `web/pki.php`, which asks the daemon's public, read-only routes
+`GET /api/pki/index`, `/api/pki/crl?ca=<slug>[&format=pem]` and
+`/api/pki/cert?ca=<slug>[&format=pem]`. They give only what is published: an
+unknown slug, an authority whose switch is off, one without a certificate
+yet, or anything with `pki_publish` off is 404. nginx limits each address
+(`acme_all`, 10 a second, bursts of 40), the daemon all of them together (50
+a second). A CRL may be kept by caches for 5 minutes, a certificate for an
+hour.
+
+**Two nodes.** Everything comes from the database, so each node and the VIP
+address answer the same, and whichever node holds the VIP address serves its
+name. The CRL is made by the node that leads and is in the database for both
+at once.
+
+**The firewall.** Port 80 is let in by the card *HTTP / HTTPS* of the
+firewall. When *Who may reach the pages* keeps the pages to some networks,
+port 80 is still let in from anywhere while publishing is on (as for HTTP-01:
+`fw_auto` in the engine) - a client anywhere checks a certificate against the
+CRL. Only `/.well-known/acme-challenge/` and `/pki/` answer there; everything
+else on port 80 goes to HTTPS, where the lists apply.
+
+**New authorities.** Made or imported with publishing on, an authority is
+published and its CRL and CA certificate addresses are acme's own unless
+given - so every certificate it signs carries a `crlDistributionPoints` and
+an `authorityInfoAccess caIssuers` that point at acme. Switch *Publish on
+acme* off in the form (`"published": false` in `POST /api/cas/create`) for
+one that is not to be.
+
+**An authority made before.** Its detail on *Authorities* has the section
+*Published on acme*: the URLs (each with a copy button), whether it is
+published (a switch: `POST /api/cas/publish {id, published}`, `acme
+--ca-publish CA on|off`), the last CRL and its next update, when it is made
+again, and whether what it signs carries acme's addresses. *Use acme's own
+URLs* (`POST /api/cas/pki_urls {id}`, `acme --ca-pki-urls CA`) puts them into
+what it signs **from then on**; certificates issued before keep the
+addresses they have until they are renewed.
+
+**Check it** (`POST /api/cas/pki_check {id}`, `acme --ca-pki-check CA`)
+fetches the CRL and the certificate at their URLs over HTTP from the daemon,
+as a client would, and checks them: `openssl crl -inform DER` reads it, its
+issuer is the authority, its signature is the authority's, its nextUpdate is
+in the future, and the certificate is the authority's. A failure says what -
+the name not pointing at acme, port 80 closed, a proxy in between.
+
+**Later.** acme runs no OCSP responder; the *OCSP address* stays for one of
+your own. One served from the same database is a possible next step.
 
 ## Exports
 

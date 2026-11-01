@@ -112,14 +112,18 @@ they were shown keeps what is set.
 | `POST /api/certs/csr` | `{id}` → a CSR for an issuer acme does not speak to: `{csr_pem}`; `POST /api/certs/csr_answer {id, data_b64}` takes the certificate back |
 | `GET /api/certs/jobs` `?cert_id= &kind= &ok= &page=` | `{rows, total}` |
 | `GET /api/certs/job?id=` | one job, every step; `POST /api/certs/job_stop {id}` |
-| `GET /api/cas` · `GET /api/cas/one?id=` | the authorities; one with what it signed |
+| `GET /api/cas` · `GET /api/cas/one?id=` | the authorities (each with `is_default`, `published`); one with what it signed and `pki` (its URLs on acme, the last CRL, its next update) |
+| `POST /api/cas/default` | `{id}` - the default authority (`''`: none) |
+| `POST /api/cas/publish` · `/api/cas/pki_urls` · `/api/cas/pki_check` | `{id, published}` · `{id}` · `{id}` - publishing on acme (docs/own-ca.md) |
+| `GET /api/pki/index` · `/api/pki/crl?ca=` · `/api/pki/cert?ca=` | public, no session (web/pki.php): what is published, a CRL, a certificate (`&format=pem`) - `{mime, filename, data_b64}`; 404 for anything not published |
 | `POST /api/cas/create` | `{name, subject{CN,O,OU,C,ST,L}, key_type, days, parent_id?, path_len, crl_days, crl_url, aia_url, name_constraints[]}` |
 | `POST /api/cas/import` · `/api/cas/delete` · `/api/cas/crl` · `/api/cas/export` | `{..}` |
 | `POST /api/cas/sign_csr` | `{id, csr_pem, days, eku[]}` → a certificate for a CSR from elsewhere |
 | `GET /api/plugins` | `{issuer:[…], challenge:[…], target:[…], broken:[…]}` - each with `fields` (and `deploy_fields`) |
-| `GET /api/sources` · `POST /api/sources/save` · `/delete` · `/test` · `/action` | the issuers (`cert_issuers`); each row says `actions` and `is_default` |
-| `GET /api/validations` · `POST /api/validations/save` · `/delete` · `/test` · `/action` | the challenges (`cert_challenges`) |
-| `GET /api/targets` · `POST /api/targets/save` · `/delete` · `/test` · `/action` | the targets |
+| `GET /api/sources` · `POST /api/sources/save` · `/delete` · `/test` · `/action` · `/default` | the issuers (`cert_issuers`); each row says `actions` and `is_default`; `/default {name}` makes it the default (`''`: none) |
+| `GET /api/validations` · `POST /api/validations/save` · `/delete` · `/test` · `/action` · `/default` | the challenges (`cert_challenges`) |
+| `GET /api/validations/info?name=` · `POST /api/validations/check` | HTTP-01 answered here: how it works (nodes, VIP, port 80, the names and where they point) · `{id, host}` a probe token fetched |
+| `GET /api/targets` · `POST /api/targets/save` · `/delete` · `/test` · `/action` · `/default` | the targets |
 | `POST /api/{sources,validations,targets}/action` | `{id, action}` - one of the module's `actions`, in a job: `{ok, said, job_id, steps}` |
 | `POST /api/sources/contact` | `{email, all?}` - the contact e-mail of the ACME sources that have none |
 | `GET /api/deploys` `?target= &cert=` | the deployments (of a target, of a certificate), each with `cert_name`, `cert_version`, `outdated` |

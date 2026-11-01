@@ -71,8 +71,10 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 
 | | |
 |---|---|
-| `acme --sources` · `--validations` · `--targets` | the list; `*` marks the default a new certificate takes |
-| `acme --source-show NAME` | one: every setting (a secret: eight dots and its last two characters), what uses it, its last test, its actions. `--target-show` also lists the target's deployments |
+| `acme --sources` · `--validations` · `--targets` | the list; `*` marks the default (what a new certificate takes; for targets: offered first for a new deployment) |
+| `acme --source-default NAME` · `--validation-default NAME` · `--target-default NAME` | make it the default of its list (`none`: no default). A switched-off one is refused; deleting the default leaves none; renaming it keeps it the default. Written to the events |
+| `acme --source-show NAME` | one: every setting (a secret: eight dots and its last two characters), what uses it, its last test, its actions, whether it is the default. `--target-show` also lists the target's deployments; `--validation-show` of HTTP-01 answered here (`http_local`) also says how it works on this installation: the URL the CA fetches, the nodes and the VIP address that answer it, port 80 in their firewall, and every name that uses it with what it resolves to (✔ one of acme's addresses, ✘ elsewhere) |
+| `acme --validation-check NAME HOST` | HTTP-01 answered here: a probe token put in place and fetched at `http://HOST/.well-known/acme-challenge/` from this node, step by step (exit code 0 when it answers). Behind NAT, a router that does not loop back to its own public address (hairpin NAT) fails here although the CA from outside is answered |
 | `acme --source-add NAME --kind KIND --set KEY=VALUE ...` | a new one of that module (`acme --plugins`) |
 | `acme --source-edit NAME [--set ...] [--name NEW] [--note TEXT] [--enabled on\|off] [--kind KIND]` | change it; what is not said stays. Another `--kind` starts its settings from nothing. A new name is carried into the certificates and deployments that use it |
 | `acme --source-del NAME [--yes]` | delete one nothing uses |
@@ -98,7 +100,7 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 | | |
 |---|---|
 | `acme --cas` | the authorities, each under the one that signed it |
-| `acme --ca-show CA` | one authority and what it signed (`--limit`) |
+| `acme --ca-show CA` | one authority, where it is published on acme (the URLs, the last CRL, its next update) and what it signed (`--limit`) |
 | `acme --ca-create NAME --subject "CN=Example Root CA,O=Example" [--key-type ec-384] [--days 3650] [--set ...]` | a new root authority. `--set crl_days=7 crl_url=... aia_url=... ocsp_url=... path_len=0 name_constraints=example.com` |
 | `acme --ca-sub NAME --parent CA [--subject ...] [--key-type ec-256] [--days 1825] [--set ...]` | a new intermediate, signed by CA |
 | `acme --ca-import FILE [--key FILE] [--name N] [--password]` | an authority from a file (PEM or PFX with its key, or the key in a file of its own; its password in `ACME_KEY_PASSWORD`) |
@@ -106,7 +108,11 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 | `acme --ca-crl CA [--out FILE]` | a new CRL, printed (or written) |
 | `acme --ca-export CA --what FORMAT --out FILE [--password]` | `cert`, `cert-der`, `chain`, `crl`, `crl-der`, `p7b`, `bundle`, `csr`, `key`, `p12` (the key and the P12 into a file only, mode 0600; a P12 asks for its password) |
 | `acme --ca-sign CA --csr FILE [--days N] [--set eku=serverAuth,clientAuth] [--out FILE]` | a certificate for a CSR from elsewhere |
-| `acme --ca-del CA [--yes]` | delete an authority no source signs with |
+| `acme --ca-del CA [--yes]` | delete an authority no source signs with (when it was the default, there is none then) |
+| `acme --ca-default CA` | make it the default authority: offered first for a new own-CA source and for signing a CSR (`none`: no default). One that cannot sign (no certificate yet, no key, switched off, run out) is refused |
+| `acme --ca-publish CA on\|off` | its CRL and certificate published on acme at `/pki/` (port 80, every node and the VIP address), or not ([own-ca.md](own-ca.md#publishing-on-acme)) |
+| `acme --ca-pki-urls CA` | acme's own `/pki/` addresses put into what it signs from now on (CRL and CA certificate); what it signed before keeps its addresses |
+| `acme --ca-pki-check CA` | its published CRL and certificate fetched over HTTP from here and checked with openssl (the issuer, the signature, nextUpdate in the future); exit code 0 when right |
 
 ## acme's own DNS server
 

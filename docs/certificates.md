@@ -42,6 +42,68 @@ command line). An ACME account works without a contact e-mail; where an ACME
 source has none, the Sources page and `acme --certs` / `--sources` ask for one
 (`acme --acme-contact MAIL`, `POST /api/sources/contact {email}`).
 
+### The default of each list
+
+Every list - **Sources**, **Validation**, **Targets**, **Authorities** - has
+one entry a full administrator makes the default: the star in its row, or
+*Make it the default* in its popup (pressed on the default: *No default*).
+The list marks it with the green *default* tag (`is_default` on its row,
+`*` on the command line and in the console). What it is used for:
+
+| list | the default is | kept in `meta` |
+|---|---|---|
+| Sources | where a new certificate comes from when none is said; preselected in the new certificate's wizard | `certs:default_issuer` (a name) |
+| Validation | how a new certificate from an ACME CA is proved when nothing else is said; preselected in the wizard | `certs:default_challenge` (a name) |
+| Targets | offered first - and ticked - in the wizard's *Deployments* step, and preselected in a new deployment | `certs:default_target` (a name) |
+| Authorities | preselected in a new source of the kind *own certificate authority* (every field with `options_from: 'cas'` gets it as its `default` in `GET /api/plugins`), as the parent of a new intermediate, and for *Sign a CSR* | `certs:default_ca` (an id) |
+
+`POST /api/sources/default`, `/api/validations/default`, `/api/targets/default`
+`{name}` and `POST /api/cas/default {id}` set it (`''`: no default),
+`acme --source-default NAME` (`--validation-default`, `--target-default`,
+`--ca-default`; `none` for no default) the same. One that is switched off,
+an authority that cannot sign (no certificate yet, no key, off, run out),
+and one that is not there are refused. Each change is an event. Renamed, it
+stays the default; deleted, there is none (an event says so) - nothing is
+taken in its place. An installation that never set one keeps "Let's
+Encrypt" and "This server (HTTP-01)" where they are there.
+`GET /api/certs/overview` says all four (`defaults`).
+
+### Always current
+
+The pages keep what they asked of the daemon - the lists, the modules with
+the choices of their fields (the authorities, sources, validations and
+targets inside a select), the authorities - only until something changes:
+after every request that changes something (a save, a delete, a default,
+an import, an approval, an action) all of it is asked anew, and so is what a
+tab shows when it is opened and what a popup that offers choices (the
+wizard, the deployment editor, a module's form, the authority pickers) is
+opened with. What is made in one tab is offered in every other at once,
+without reloading the page (`test/fresh_lists_page.js`).
+
+### HTTP-01 answered by acme ("This server")
+
+A validation of the kind `http_local` says, in its popup and on its row,
+how it works on this installation (`GET /api/validations/info?name=`,
+`acme --validation-show NAME`): the URL the CA fetches -
+`http://NAME/.well-known/acme-challenge/<token>`, port 80, plain HTTP; the
+path and the port are fixed by the ACME standard (RFC 8555) -, which
+machines answer it now (every node with its address, and the VIP address
+with its name when it is on), port 80 in each node's firewall, and every
+name of the certificates that use it with what it resolves to: ✔ one of
+acme's addresses, or ✘ *points elsewhere* - then set its DNS to the VIP
+address, or put a proxy there that forwards `/.well-known/acme-challenge/` to
+acme. What can be set is the module's own: *Check before the CA is asked*
+and the address *Test* tries. *Check a name* (`POST /api/validations/check
+{id, host}`, `acme --validation-check NAME HOST`) puts a probe token in place
+(`meta acme:chal:<token>`, taken away after) and fetches it at that name from
+the daemon, step by step in a job. Behind NAT a router may not loop back to
+its own public address (hairpin NAT): the check fails here although the CA
+from outside is answered.
+
+While a validation of this kind is switched on, the firewall lets port 80
+in from anywhere even when *Who may reach the pages* keeps the pages to
+some networks (as for the engine's own ACME and for `/pki/`).
+
 ### States of a certificate
 
 `new` (not issued yet) → `renewing` → `ok`. Then `failed` (the last renewal
@@ -339,6 +401,8 @@ approval and the mails - is in [certificate-portal.md](certificate-portal.md).
 | `certs_notify_ok` | 0 | tell renewals and deployments that went well too |
 | `certs_keep_versions` | 10 | old certificates kept, each |
 | `certs_keep_jobs_days` | 90 | jobs kept |
+| `pki_publish` | 1 | the CRLs and certificates of acme's own authorities served at `/pki/` on port 80 (docs/own-ca.md) |
+| `pki_base_url` | '' | where: `http://NAME/pki/`; empty: the VIP address's name when it is on, else this server's |
 | `portal_cert`, `portal_cert_suffixes`, `portal_cert_issuers`, `portal_cert_challenge`, `portal_cert_max`, `portal_cert_auto`, `portal_cert_keys` | 0, '', '', '', 10, 0, 0 | the certificate portal |
 | `dns_server`, `dns_listen`, `dns_port`, `dns_zone`, `dns_ns_names`, `dns_ns_addresses`, `dns_soa_mail`, `dns_ttl`, `dns_static` | 0, `0.0.0.0,::`, 53, ..., 60 | acme's own DNS server |
 
