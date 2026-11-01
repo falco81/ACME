@@ -44,6 +44,7 @@ import re
 import secrets as _rand
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -768,3 +769,98 @@ def _try(h, s):
 
 
 install()
+
+
+# ---------------------------------------------------------------------------
+# The command line: acme --target-key NAME WHAT, --validation-key NAME WHAT
+# ---------------------------------------------------------------------------
+CLI_WHAT = ('make', 'show', 'public', 'own', 'private', 'forget', 'try')
+
+
+def cli(c, family, words):
+    """What the key card does, from the command line (acmelib/certs/cli.py's Cli
+    is `c`): the same functions, as the command line's full administrator."""
+    words = list(words or [])
+    if len(words) < 2 or words[1] not in CLI_WHAT:
+        raise SystemExit('acme: --%s-key NAME %s' % (FAMILY_WORDS[family], '|'.join(CLI_WHAT)))
+    name, what, more = words[0], words[1], words[2:]
+    row = c.fam_row(family, name)
+    cls = S.plugin_class(family, row.get('kind'))
+    if not sshkey_fields(cls):
+        raise SystemExit('acme: %s (%s) signs in with no SSH key' % (name, row.get('kind')))
+    b = {'family': family, 'id': row['id']}
+    by = c.WHO
+    store = c.store
+
+    def shown(v):
+        if c.json:
+            c.out(v)
+            return 0
+        if not v.get('has'):
+            print('  no key yet - make one (--%s-key %s make), or let it sign in with a '
+                  'password' % (FAMILY_WORDS[family], name))
+            return 0
+        c.kv([('the key', '%s %s' % (v.get('type') or '', v.get('fp') or '')),
+              ('how', {'made': 'made here', 'own': 'your own, given here'}.get(
+                  v.get('how'), 'your own key, pasted before')),
+              ('when', _when(v.get('made'))), ('by', v.get('by')),
+              ('passphrase', 'kept, sealed' if v.get('locked') else ''),
+              ('public half', v.get('public'))])
+        return 0
+
+    def out_text(text, file):
+        dest = c.args.out
+        if not dest or dest == '-':
+            sys.stdout.write(text)
+            return 0
+        fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            f.write(text)
+        return c.done('written to %s' % dest, {'ok': True, 'file': dest})
+
+    if what == 'show':
+        return shown(key_view(store, Ref(store, b)))
+    if what == 'make':
+        if more and more[0] not in KEY_TYPES:
+            raise SystemExit('acme: make ed25519 or make rsa4096')
+        b['key_type'] = more[0] if more else ''
+        v = do_make(store, {k: x for k, x in b.items() if x}, by)
+        c.done('a new key was made - put the public half on %s' % name, v)
+        return shown(v) if not c.json else 0
+    if what == 'own':
+        if not more:
+            raise SystemExit('acme: own FILE (a private key; its passphrase from '
+                             'ACME_KEY_PASSWORD)')
+        text = c._read(more[0], 64000).decode('utf-8', 'replace')
+        b.update(pem=text, passphrase=os.environ.get('ACME_KEY_PASSWORD', ''))
+        try:
+            v = do_use_own(store, b, by)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        return c.done('the key was stored', v)
+    if what == 'forget':
+        c.sure('forget the SSH key of %s' % name)
+        return c.done('the key is gone', do_forget(store, b, by))
+    if what in ('public', 'private'):
+        b['half'] = what
+        try:
+            got = do_download(store, b, {'name': by, 'role': 'fulladmin'})
+        except LookupError as e:
+            raise SystemExit('acme: %s' % e)
+        return out_text(got['text'], got['file'])
+    got = do_try(store, b, by)
+    if c.json:
+        c.out(got)
+    else:
+        for step in got.get('steps') or []:
+            c.echo(step)
+    return 0 if got.get('reached') else 1
+
+
+def _when(ts):
+    if not ts:
+        return ''
+    try:
+        return time.strftime('%Y-%m-%d %H:%M', time.localtime(float(ts)))
+    except (TypeError, ValueError):
+        return ''

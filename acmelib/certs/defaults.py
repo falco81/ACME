@@ -3,17 +3,17 @@
 Let's Encrypt first: what a new installation starts with, so that the first
 certificate needs nothing but its names.
 
-    sources       "Let's Encrypt" (production) and "Let's Encrypt (staging)", kind acme
-    validations   "This server (HTTP-01)" (http_local), and - once dns_zone is set -
-                  "acme's DNS server" (dns_builtin)
+    sources       "LetsEncrypt" (production) and "LetsEncrypt staging", kind acme
+    validations   "This server HTTP-01" (http_local), and - once dns_zone is set -
+                  "acme DNS server" (dns_builtin)
 
 made the first time the daemon starts (or the command line opens the
 database) with no source (no validation) at all. Each is made once only: a
 flag in meta (certs:default:<what>) says it was, so one an administrator
 deleted is never made again. A new certificate with no issuer said comes from
-the default source (meta certs:default_issuer, else "Let's Encrypt") and, when
+the default source (meta certs:default_issuer, else "LetsEncrypt") and, when
 that is an ACME CA, is proved by the default validation ("This server
-(HTTP-01)"). Every list has a default a person chooses (set_default): the
+HTTP-01"). Every list has a default a person chooses (set_default): the
 source, the validation, the target (offered first for a deployment) and the
 authority (offered first for an own-CA source and for signing a CSR) - in
 meta certs:default_issuer / _challenge / _target / _ca. The ACME account works without a contact e-mail; the pages and
@@ -27,10 +27,14 @@ import time
 from acmelib import engine as E
 from acmelib.certs import store as S
 
-LE = "Let's Encrypt"
-LE_STAGING = "Let's Encrypt (staging)"
-HTTP_LOCAL = 'This server (HTTP-01)'
-DNS_OWN = "acme's DNS server"
+# Names a shell, a file and a device take (store.NAME_RE): no quotes, no
+# brackets. An installation that has the names of before ("Let's Encrypt",
+# "This server (HTTP-01)"...) has them renamed to these at its next start
+# (names.migrate), with every reference.
+LE = 'LetsEncrypt'
+LE_STAGING = 'LetsEncrypt staging'
+HTTP_LOCAL = 'This server HTTP-01'
+DNS_OWN = 'acme DNS server'
 FLAG = 'certs:default:'
 BY = 'acme (first start)'
 
@@ -74,7 +78,13 @@ def _empty(store, table):
 
 
 def ensure(store):
-    """What a new installation starts with (see the top). Returns the names made."""
+    """What a new installation starts with (see the top). Returns the names made.
+    Names an older version made unsafe are made safe first (names.migrate)."""
+    try:
+        from acmelib.certs import names as N
+        N.migrate(store)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-names', 'making the names safe: %s' % e, 'warn', every=3600)
     made = []
     try:
         if not _flagged(store, 'sources'):
@@ -114,8 +124,8 @@ def ensure(store):
 # The default of each list (Sources, Validation, Targets, Authorities)
 # ---------------------------------------------------------------------------
 # meta holds the name (an authority: its id). Never set (an installation from
-# before, or one that had sources already): the source falls back to "Let's
-# Encrypt" and the validation to "This server (HTTP-01)" where they are there.
+# before, or one that had sources already): the source falls back to
+# "LetsEncrypt" and the validation to "This server HTTP-01" where they are there.
 # Set to '' by a person: there is none, and nothing is taken in its place.
 META = {'issuer': 'certs:default_issuer', 'challenge': 'certs:default_challenge',
         'target': 'certs:default_target', 'ca': 'certs:default_ca'}

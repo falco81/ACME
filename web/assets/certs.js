@@ -118,6 +118,68 @@ function said(d, fallback) {
   return (d && (d.message || d.said || d.result || d.words)) || fallback || 'done';
 }
 function wordsOf(e) { return String((e && e.message) || e || ''); }
+/* ---- names that are safe ------------------------------------------------------
+   The name of a source, a validation, a target, an authority, a certificate
+   reaches shell commands, files and devices: letters, digits, spaces and
+   . _ @ + - only, starting with a letter or a digit (store.NAME_RE). Every
+   name this page suggests is made so (safeName - as store.safe_name does on
+   the daemon), and every name box says at once what it would refuse. */
+var NAME_OK = /^[A-Za-z0-9][A-Za-z0-9 ._@+-]{0,119}$/;
+var LETTERS = {'\u00df': 'ss', '\u0141': 'L', '\u0142': 'l', '\u00d8': 'O', '\u00f8': 'o', '\u0110': 'D', '\u0111': 'd', '\u00c6': 'AE', '\u00e6': 'ae'};
+function safeName(text, taken, fallback) {
+  var t = String(text || '');
+  try { t = t.normalize('NFKD').replace(/[\u0300-\u036f]/g, ''); } catch (e) { }
+  t = t.replace(/[\u00df\u0141\u0142\u00d8\u00f8\u0110\u0111\u00c6\u00e6]/g, function (c) { return LETTERS[c]; });
+  t = t.replace(/['\u2019\u2018\u02bc`"\u201c\u201d\u201e]/g, '');
+  t = t.replace(/[()\[\]{}<>:,\/\\;|=*?!#$%^&~\s\u2013\u2014]+/g, ' ');
+  t = t.replace(/[^A-Za-z0-9 ._@+-]+/g, '').replace(/ {2,}/g, ' ').replace(/^[ ._@+-]+|[ ._@+-]+$/g, '');
+  t = t.slice(0, 120).replace(/[ ._@+-]+$/, '') || fallback || 'unnamed';
+  if (!/^[A-Za-z0-9]/.test(t)) t = fallback || 'unnamed';
+  var have = {};
+  arr(taken).forEach(function (x) { have[String(x)] = true; });
+  if (!have[t]) return t;
+  for (var n = 2; ; n++) {
+    var cand = t.slice(0, 120 - String(n).length - 1).replace(/\s+$/, '') + ' ' + n;
+    if (!have[cand]) return cand;
+  }
+}
+/** A certificate's name made from its first DNS name: a wildcard as "wildcard.". */
+function certName(first, taken) { return safeName(String(first || '').replace(/^\*\./, 'wildcard.'), taken, 'certificate'); }
+/** What is wrong with a name typed, or ''. */
+function nameProblem(v, required, taken) {
+  v = String(v || '').trim();
+  if (!v) return required ? 'it needs a name' : '';
+  if (!NAME_OK.test(v)) return 'letters, digits, spaces and . _ @ + - only (no quotes, no brackets), starting with a letter or a digit - e.g. ' + safeName(v);
+  if (taken && arr(taken).indexOf(v) >= 0) return 'there is one called ' + v + ' already';
+  return '';
+}
+/** A name box that says at once what it would refuse, under itself, and
+    keeps the popup's main button off meanwhile. `taken`: names already there. */
+function guardName(input, required, taken) {
+  var said = el('div', 'ct-name-said small');
+  var paint = function () {
+    var bad = nameProblem(input.value, required, taken);
+    said.textContent = bad;
+    said.hidden = !bad;
+    var item = input.closest ? input.closest('.set-item') : null;
+    if (item) item.classList.toggle('refused', !!bad);
+    input.setAttribute('aria-invalid', bad ? 'true' : 'false');
+    var foot = $('modal-foot');
+    if (foot) Array.prototype.forEach.call(foot.querySelectorAll('button.primary'), function (b) {
+      b.disabled = !!bad;
+      if (bad) b.title = bad; else b.removeAttribute('title');
+    });
+    return bad;
+  };
+  input.addEventListener('input', paint);
+  input._nameCheck = paint;
+  setTimeout(function () {
+    if (input.parentNode) input.parentNode.appendChild(said);
+    paint();
+  }, 0);
+  return paint;
+}
+
 /** Words in the page's language, for where they go into data (an option of a
     select marked as data): i18n.js's own, English where there is none. */
 function tr(words) {
@@ -1545,8 +1607,10 @@ function modForm(key, row, p, fromPick) {
     if (dn) body.appendChild(dn);
     if (p.missing) body.appendChild(el('p', 'ct-bad', 'The module of this kind is not installed (or would not load): its settings are shown as they are kept.'));
     var g = el('div', 'formgrid ct-basic');
-    name = textBox(row ? row.name : (p.title || p.kind), 'a name of its own', '');
+    var others = arr(LISTS[key]).filter(function (x) { return !row || x.id !== row.id; }).map(function (x) { return x.name; });
+    name = textBox(row ? row.name : safeName(p.default_name || p.title || p.kind, others), 'a name of its own', '');
     noI18n(name);
+    if (FULL) guardName(name, true, others);
     g.appendChild(formField('Name', name, 'What it is called here, in the certificates and the jobs.'));
     on = switchBox(row ? (row.enabled === undefined || truthy(row.enabled)) : true);
     g.appendChild(formField('In use', on, 'Off: kept, but not used for anything.'));
@@ -2482,7 +2546,8 @@ function certWizard(cert, detail) {
     g.appendChild(chips);
     var name = textBox(W.d.name, 'the first name', '');
     noI18n(name);
-    var autoName = !W.d.name || W.d.name === (names()[0] || '');
+    var autoName = !W.d.name || W.d.name === certName(names()[0] || '');
+    guardName(name, false);
     g.appendChild(formField('Name in acme', name, 'What it is called here. The first name, unless you say otherwise.'));
     var tags = textBox(W.d.tags, 'prod web', '');
     noI18n(tags);
@@ -2495,7 +2560,7 @@ function certWizard(cert, detail) {
     var check = function () {
       clear(chips);
       var list = splitNames(ta.value);
-      if (autoName) name.value = list[0] || '';
+      if (autoName) { name.value = list[0] ? certName(list[0]) : ''; if (name._nameCheck) name._nameCheck(); }
       list.forEach(function (n, i) {
         var k = nameKind(n);
         var refused = k === 'bad' || (k === 'wild' && !cn.wildcards) || (k === 'ip' && !cn.ip);
@@ -2511,7 +2576,7 @@ function certWizard(cert, detail) {
     ta.addEventListener('input', check);
     name.addEventListener('input', function () { autoName = false; });
     check();
-    read = function () { W.d.names = ta.value; W.d.name = name.value.trim() || names()[0] || ''; W.d.tags = tags.value; W.d.owner = owner.value; W.d.note = note.value; };
+    read = function () { W.d.names = ta.value; W.d.name = name.value.trim() || (names()[0] ? certName(names()[0]) : ''); W.d.tags = tags.value; W.d.owner = owner.value; W.d.note = note.value; };
   }
   /* -- 3. key -- */
   function drawKey(host) {
@@ -2731,7 +2796,7 @@ function certWizard(cert, detail) {
     var list = names();
     var pairs = [
       ['Source', s ? s.name + ' · ' + plugTitle('issuer', s.kind) : W.d.issuer],
-      ['Name in acme', W.d.name || list[0] || '–'],
+      ['Name in acme', W.d.name || (list[0] ? certName(list[0]) : '–')],
       ['Names', namesChips(list)],
       ['Key', keyWords(W.d.key_type)]
     ];
@@ -2763,7 +2828,7 @@ function certWizard(cert, detail) {
     Object.keys(d.subject).forEach(function (k) { if (d.subject[k]) subject[k] = d.subject[k]; });
     if (Object.keys(subject).length) profile.subject = subject;
     var useChallenge = can().challenge;
-    return {id: c.id, name: d.name || names()[0], names: names(), key_type: d.key_type, issuer: d.issuer,
+    return {id: c.id, name: d.name || certName(names()[0]), names: names(), key_type: d.key_type, issuer: d.issuer,
             challenge: useChallenge ? d.challenge : '', challenge_map: useChallenge ? d.challenge_map : {},
             auto_renew: !!d.auto_renew, renew_days: Number(d.renew_days || 30), reuse_key: !!d.reuse_key,
             profile: profile, tags: splitNames(d.tags), note: d.note, owner: d.owner};
@@ -2937,6 +3002,7 @@ function importDialog(into) {
     var g = el('div', 'formgrid');
     name = textBox(into ? into.name : '', 'from the certificate', '');
     noI18n(name);
+    if (!into) guardName(name, false);
     tags = textBox('', 'prod web', '');
     noI18n(tags);
     note = textBox('', '', '');
@@ -2983,6 +3049,7 @@ function selfSigned() {
       f.name = textBox('', 'the first name', '');
       noI18n(f.name);
       g.appendChild(formField('Name in acme', f.name));
+      guardName(f.name, false);
       f.key = selectBox(KEY_TYPES.map(function (k) { return [k[0], k[1]]; }), 'ec-256');
       g.appendChild(formField('Key', f.key));
       f.days = numberBox(825, '825', 1, 36500);
@@ -3014,7 +3081,7 @@ function selfSigned() {
         var subject = {};
         if (f.O.value.trim()) subject.O = f.O.value.trim();
         if (f.C.value.trim()) subject.C = f.C.value.trim();
-        return capi('certs/save', {name: f.name.value.trim() || list[0], names: list, key_type: f.key.value, issuer: s,
+        return capi('certs/save', {name: f.name.value.trim() || certName(list[0]), names: list, key_type: f.key.value, issuer: s,
           challenge: '', challenge_map: {}, auto_renew: !!f.auto._get(), renew_days: 30, reuse_key: false,
           profile: {days: Number(f.days.value || 825), eku: ['serverAuth'], subject: subject}, tags: [], note: '', owner: ''});
       }).then(function (d) {
@@ -3039,6 +3106,7 @@ function csrDialog() {
     f.name = textBox('', 'the first name', '');
     noI18n(f.name);
     g.appendChild(formField('Name in acme', f.name));
+    guardName(f.name, false);
     f.key = selectBox(KEY_TYPES.map(function (k) { return [k[0], k[1]]; }), 'rsa-2048');
     g.appendChild(formField('Key', f.key, 'Many commercial CAs still want RSA.'));
     [['O', 'Organisation', 'Example s.r.o.'], ['OU', 'Unit', 'IT'], ['C', 'Country', 'CZ'], ['ST', 'Region', 'Praha'],
@@ -3054,11 +3122,11 @@ function csrDialog() {
     var subject = {};
     ['O', 'OU', 'C', 'ST', 'L', 'emailAddress'].forEach(function (k) { if (f[k].value.trim()) subject[k] = f[k].value.trim(); });
     busy(b, true);
-    capi('certs/save', {name: f.name.value.trim() || list[0], names: list, key_type: f.key.value, issuer: '', source: 'csr',
+    capi('certs/save', {name: f.name.value.trim() || certName(list[0]), names: list, key_type: f.key.value, issuer: '', source: 'csr',
                         challenge: '', challenge_map: {}, auto_renew: false, renew_days: 30, reuse_key: false,
                         profile: {subject: subject}, tags: [], note: '', owner: ''}).then(function (d) {
       CT.refresh();
-      return capi('certs/csr', {id: d.id}).then(function (x) { showCsr({id: d.id, name: f.name.value.trim() || list[0]}, x.csr_pem || x.csr || ''); });
+      return capi('certs/csr', {id: d.id}).then(function (x) { showCsr({id: d.id, name: f.name.value.trim() || certName(list[0])}, x.csr_pem || x.csr || ''); });
     }).catch(fail).then(function () { busy(b, false); });
   }}], 'medium');
 }
@@ -3544,6 +3612,7 @@ function caCreateForm(parent) {
     var ni = formField('Name in acme', f.name);
     ni.classList.add('ct-req');
     g.appendChild(ni);
+    guardName(f.name, true, CAS.map(function (c) { return c.name; }));
     if (!isRoot) {
       var signers = CAS.filter(caSigns);
       var dca = defaultOf(signers);
@@ -3609,6 +3678,7 @@ function caImport() {
     f.name = textBox('', 'Example Issuing CA', '');
     noI18n(f.name);
     g.appendChild(formField('Name in acme', f.name));
+    guardName(f.name, false, CAS.map(function (c) { return c.name; }));
     f.pass = secretBox('', 'only if the key is locked', 'mono');
     g.appendChild(formField('Password of the key', f.pass));
     f.cert = pemBox('', '-----BEGIN CERTIFICATE-----', 5);

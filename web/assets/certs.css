@@ -390,3 +390,5 @@ table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:
 .ct-url .iconbtn{padding:2px}
 .ct-inline-switch{margin-left:10px;vertical-align:middle}
 .ct-pki-line{margin:0 0 12px}
+.ct-name-said{color:var(--crit,#f85149);margin-top:4px}
+.set-item.refused input{border-color:var(--crit,#f85149)}

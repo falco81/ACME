@@ -234,29 +234,29 @@ class CertsCore(unittest.TestCase):
     def test_00_first_start(self):
         """Let's Encrypt first: the sources and the validation a new installation has."""
         src = {r['name']: r for r in self.ok('GET', '/api/sources')['rows']}
-        self.assertIn("Let's Encrypt", src)
-        self.assertIn("Let's Encrypt (staging)", src)
-        self.assertEqual(src["Let's Encrypt"]['kind'], 'acme')
-        self.assertEqual(src["Let's Encrypt"]['config']['directory'], 'letsencrypt')
-        self.assertEqual(src["Let's Encrypt (staging)"]['config']['directory'],
+        self.assertIn('LetsEncrypt', src)
+        self.assertIn('LetsEncrypt staging', src)
+        self.assertEqual(src['LetsEncrypt']['kind'], 'acme')
+        self.assertEqual(src['LetsEncrypt']['config']['directory'], 'letsencrypt')
+        self.assertEqual(src['LetsEncrypt staging']['config']['directory'],
                          'letsencrypt-staging')
-        self.assertTrue(src["Let's Encrypt"]['is_default'])
+        self.assertTrue(src['LetsEncrypt']['is_default'])
         vals = {r['name']: r for r in self.ok('GET', '/api/validations')['rows']}
-        self.assertEqual(vals['This server (HTTP-01)']['kind'], 'http_local')
-        self.assertTrue(vals['This server (HTTP-01)']['is_default'])
-        self.assertNotIn("acme's DNS server", vals)          # no dns_zone set
+        self.assertEqual(vals['This server HTTP-01']['kind'], 'http_local')
+        self.assertTrue(vals['This server HTTP-01']['is_default'])
+        self.assertNotIn('acme DNS server', vals)          # no dns_zone set
         ov = self.ok('GET', '/api/certs/overview')
         self.assertEqual({k: ov['defaults'][k] for k in ('issuer', 'challenge')},
-                         {'issuer': "Let's Encrypt", 'challenge': 'This server (HTTP-01)'})
+                         {'issuer': 'LetsEncrypt', 'challenge': 'This server HTTP-01'})
         self.assertEqual((ov['defaults']['target'], ov['defaults']['ca']), ('', ''))
-        self.assertIn("Let's Encrypt", ov['contact_missing'])
+        self.assertIn('LetsEncrypt', ov['contact_missing'])
         # A new certificate with nothing said: Let's Encrypt, proved by HTTP-01 here.
         cid = self.ok('POST', '/api/certs/save', {'name': 'le-default',
                                                   'names': ['le.example.test'],
                                                   'auto_renew': 0})['id']
         one = self.ok('GET', '/api/certs/one', args={'id': cid})['cert']
-        self.assertEqual((one['issuer'], one['challenge']), ("Let's Encrypt",
-                                                             'This server (HTTP-01)'))
+        self.assertEqual((one['issuer'], one['challenge']), ('LetsEncrypt',
+                                                             'This server HTTP-01'))
         # ... and with an empty issuer said, nothing (a CSR for outside).
         cid2 = self.ok('POST', '/api/certs/save', {'name': 'le-none', 'names': ['n.example.test'],
                                                    'issuer': '', 'auto_renew': 0})['id']
@@ -265,18 +265,18 @@ class CertsCore(unittest.TestCase):
         for i in (cid, cid2):
             self.ok('POST', '/api/certs/delete', {'id': i})
         # Deleted by an administrator: never made again (the meta flag).
-        self.ok('POST', '/api/sources/delete', {'id': src["Let's Encrypt (staging)"]['id']})
+        self.ok('POST', '/api/sources/delete', {'id': src['LetsEncrypt staging']['id']})
         got = self.py('from acmelib.certs import defaults; print(json.dumps(defaults.ensure(st)))')
         self.assertEqual(got, [])
-        self.assertNotIn("Let's Encrypt (staging)",
+        self.assertNotIn('LetsEncrypt staging',
                          [r['name'] for r in self.ok('GET', '/api/sources')['rows']])
         # The contact e-mail, asked for when missing.
         st, err = self.call('POST', '/api/sources/contact', {'email': 'nope'}, self.admin)
         self.assertEqual(st, 400, err)
         got = self.cli_ok('--acme-contact', 'pki@example.test')
-        self.assertIn("Let's Encrypt", got.stdout)
+        self.assertIn('LetsEncrypt', got.stdout)
         src = {r['name']: r for r in self.ok('GET', '/api/sources')['rows']}
-        self.assertEqual(src["Let's Encrypt"]['config']['contacts'], ['pki@example.test'])
+        self.assertEqual(src['LetsEncrypt']['config']['contacts'], ['pki@example.test'])
         self.assertEqual(self.ok('GET', '/api/certs/overview')['contact_missing'], [])
 
     def test_01_plugins(self):
@@ -537,7 +537,7 @@ class CertsCore(unittest.TestCase):
         st, err = self.call('POST', '/api/targets/action', {'id': t3['id'], 'action': 'nope'},
                             self.admin)
         self.assertEqual(st, 400, err)
-        st, err = self.call('POST', '/api/validations/action', {'name': 'This server (HTTP-01)',
+        st, err = self.call('POST', '/api/validations/action', {'name': 'This server HTTP-01',
                                                                 'action': 'prepare'}, self.admin)
         self.assertEqual(st, 400, err)
         bad = self.cli('--target-action', 'fake3', 'nope')
@@ -603,14 +603,14 @@ class CertsCore(unittest.TestCase):
                     '--set', 'renew_days=21', '--set', 'tags+=c', '--set', 'owner=novak',
                     '--set', 'profile.eku=serverAuth,clientAuth', '--set',
                     'profile.must_staple=no', '--set', 'challenge_map.cli2.example.test=' +
-                    'This server (HTTP-01)', '--note', 'from the cli')
+                    'This server HTTP-01', '--note', 'from the cli')
         one = self.cli_json('--cert', 'clicert')['cert']
         self.assertEqual(one['names'], ['cli.example.test', 'cli2.example.test'])
         self.assertEqual((one['renew_days'], one['tags'], one['owner'], one['note']),
                          (21, ['a', 'b', 'c'], 'novak', 'from the cli'))
         self.assertEqual(one['profile'], {'eku': ['serverAuth', 'clientAuth'],
                                           'must_staple': False})
-        self.assertEqual(one['challenge_map'], {'cli2.example.test': 'This server (HTTP-01)'})
+        self.assertEqual(one['challenge_map'], {'cli2.example.test': 'This server HTTP-01'})
         bad = self.cli('--cert-edit', 'clicert', '--set', 'colour=red')
         self.assertIn('has no colour', bad.stderr)
         # Renewed here, then revoked where it was issued (an authority of acme's own).

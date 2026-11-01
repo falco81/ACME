@@ -345,6 +345,40 @@ def clean_names(names):
     return out
 
 
+def safe_name(text, taken=(), most=120, fallback='unnamed'):
+    """A name that NAME_RE takes, made from any text - a module's title, a
+    certificate's CN, a name kept by an older version: letters with accents
+    as their plain letters (Šifrování -> Sifrovani), a possessive 's and
+    apostrophes and quotes dropped (Let's -> Lets), brackets, colons, commas, slashes and the
+    like as spaces, anything else outside the rule dropped, spaces squeezed,
+    starting with a letter or a digit; and, against `taken` (case kept),
+    unique: "name 2", "name 3"... Names reach shell commands, files and
+    devices: no quotes, no parentheses, ever."""
+    import unicodedata
+    t = unicodedata.normalize('NFKD', str(text or ''))
+    t = ''.join(c for c in t if not unicodedata.combining(c))
+    t = t.replace('\u00df', 'ss').replace('\u0141', 'L').replace('\u0142', 'l') \
+        .replace('\u00d8', 'O').replace('\u00f8', 'o').replace('\u0110', 'D') \
+        .replace('\u0111', 'd').replace('\u00c6', 'AE').replace('\u00e6', 'ae')
+    t = re.sub(r"['\u2019\u2018\u02bc`\"\u201c\u201d\u201e]", '', t)
+    t = re.sub(r'[()\[\]{}<>:,/\\;|=*?!#$%^&~\s\u2013\u2014]+', ' ', t)
+    t = re.sub(r'[^A-Za-z0-9 ._@+-]+', '', t)
+    t = re.sub(r' {2,}', ' ', t).strip(' ._@+-')
+    t = t[:most].rstrip(' ._@+-') or fallback
+    if not re.match(r'^[A-Za-z0-9]', t):
+        t = fallback
+    have = {str(x) for x in (taken or ())}
+    if t not in have:
+        return t
+    n = 2
+    while True:
+        tail = ' %d' % n
+        cand = t[:most - len(tail)].rstrip() + tail
+        if cand not in have:
+            return cand
+        n += 1
+
+
 def clean_name(name, what='a name'):
     name = str(name or '').strip()
     if not NAME_RE.match(name):

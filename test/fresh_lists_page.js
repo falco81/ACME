@@ -20,7 +20,8 @@ const { chromium } = require('playwright');
   const page = await browser.newPage({viewport: {width: 1400, height: 1000}});
   const out = {checks: {}};
   const tag = Date.now().toString(36).slice(-5);
-  const ca = 'Fresh CA ' + tag, src = 'Fresh source ' + tag, tg = 'Fresh target ' + tag;
+  // Names that read as data in any language (the pages may be in Czech).
+  const ca = 'fr-ca-' + tag, src = 'fr-src-' + tag, tg = 'fr-tg-' + tag;
   const shot = async (n) => { if (shots) await page.screenshot({path: shots + '/' + n + '.png', fullPage: false}); };
   const tab = async (t) => {
     await page.click('.tabs button[data-tab="' + t + '"]');
@@ -60,6 +61,12 @@ const { chromium } = require('playwright');
     // ---- 2. a source, then the wizard lists it -----------------------------------
     await caSel.selectOption({label: caOpts.find((t) => t.indexOf(ca) >= 0)});
     const nameBox = page.locator('#modal-body .ct-basic input').first();
+    // The name offered is a safe one; one typed with brackets is refused at once,
+    // under the box, and Save is off until it is right.
+    out.checks.offered_name_safe = /^[A-Za-z0-9][A-Za-z0-9 ._@+-]{0,119}$/.test(await nameBox.inputValue());
+    await nameBox.fill("Bad (name)'s");
+    out.checks.bad_name_said = await page.locator('#modal-body .ct-name-said:not([hidden])').count() > 0
+      && await primary().isDisabled();
     await nameBox.fill(src);
     await primary().click();
     await modalClosed();
@@ -131,7 +138,7 @@ const { chromium } = require('playwright');
     out.error = String(e && e.stack || e);
     try { await shot('error'); } catch (e2) { /* nothing */ }
   }
-  out.ok = !out.error && Object.values(out.checks).every(Boolean) && Object.keys(out.checks).length >= 7;
+  out.ok = !out.error && Object.values(out.checks).every(Boolean) && Object.keys(out.checks).length >= 9;
   await browser.close();
   console.log(JSON.stringify(out));
   process.exit(out.ok ? 0 : 1);

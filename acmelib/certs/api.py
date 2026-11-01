@@ -288,8 +288,12 @@ def cert_save(store, b, by):
     t = time.time()
     ident = b.get('id')
     row = S.cert_need(store, _id(ident)) if ident not in (None, '', 0) else None
-    name = S.clean_name(b.get('name') if 'name' in b or not row else row['name'],
-                        'the certificate\'s name')
+    given = b.get('name') if 'name' in b or not row else row['name']
+    if not row and not str(given or '').strip():
+        # None said: made from its first name, safe (a wildcard as "wildcard.").
+        first_ = (_list(b.get('names'), 'names') or ['certificate'])[0]
+        given = S.safe_name(re.sub(r'^\*\.', 'wildcard.', first_), _names_in(store, 'certs'))
+    name = S.clean_name(given, 'the certificate\'s name')
     other = store.db.row('SELECT id FROM certs WHERE name = ?', (name,))
     if other and (not row or other['id'] != row['id']):
         raise ValueError('there is a certificate called %s already' % name)
@@ -550,8 +554,9 @@ def cert_import(store, b, by):
             key = S.cert_key(row)       # a new certificate for the key it has (a CSR's answer)
         cid = row['id']
     else:
-        name = S.clean_name(b.get('name') or info.get('cn') or (info.get('names') or [''])[0],
-                            'the certificate\'s name')
+        name = S.clean_name(b.get('name'), 'the certificate\'s name') if b.get('name') else \
+            S.safe_name(info.get('cn') or (info.get('names') or [''])[0] or 'imported',
+                        _names_in(store, 'certs'))
         if store.db.row('SELECT id FROM certs WHERE name = ?', (name,)):
             raise ValueError('there is a certificate called %s already' % name)
         names = list(info.get('names') or ([info['cn']] if info.get('cn') else []))
@@ -797,7 +802,8 @@ def _ca_create(h, s):
     subject = _subject_of(b.get('subject') or {})
     if not subject.get('CN'):
         raise ValueError('the subject needs a CN (the authority\'s name as people see it)')
-    name = S.clean_name(b.get('name') or subject.get('CN'), 'the authority\'s name')
+    name = S.clean_name(b.get('name'), 'the authority\'s name') if b.get('name') else \
+        S.safe_name(subject.get('CN'), _names_in(h.store, 'cert_cas'))
     kt = str(b.get('key_type') or 'ec-384')
     if kt not in schema.KEY_TYPES:
         raise ValueError('the key type is one of %s' % ', '.join(schema.KEY_TYPES))
@@ -861,7 +867,8 @@ def _ca_import(h, s):
         raise ValueError('no certificate of the authority was given')
     if not key_pem:
         raise ValueError('no key of the authority was given: without it, it cannot sign')
-    name = S.clean_name(b.get('name') or S.info_of(cert_pem).get('cn'), 'the authority\'s name')
+    name = S.clean_name(b.get('name'), 'the authority\'s name') if b.get('name') else \
+        S.safe_name(S.info_of(cert_pem).get('cn') or 'imported CA', _names_in(h.store, 'cert_cas'))
     got = call(ca.ca_import, h.store, name, cert_pem, key_pem, chain_pems=chain,
                password=_text(b, 'key_password', 1000) or None, by=who(s))
     ident = _ident(got)
@@ -1072,11 +1079,21 @@ def _resolve(store, fields):
     return out
 
 
+def _names_in(store, table):
+    return {str(r['name']) for r in store.db.rows('SELECT name FROM %s' % table)}
+
+
+# The name a new one of these is offered with, where the module says none.
+SUGGESTED = {('challenge', 'dns_builtin'): DF.DNS_OWN, ('challenge', 'http_local'): DF.HTTP_LOCAL}
+
+
 def plugins_view(store, again=False):
     reg = S.registry(again)
     d = reg.describe()
     for fam in d:
         for one in d[fam]:
+            one['default_name'] = S.safe_name(one.get('default_name') or SUGGESTED.get(
+                (fam, one.get('kind'))) or one.get('title') or one.get('kind'))
             one['fields'] = _resolve(store, one.get('fields'))
             if 'deploy_fields' in one:
                 one['deploy_fields'] = _resolve(store, one.get('deploy_fields'))

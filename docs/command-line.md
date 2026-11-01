@@ -45,7 +45,7 @@ other setting as it is.
 |---|---|
 | `acme --certs [--search TEXT]` | every certificate: state, days left, end, issuer, deployments, names |
 | `acme --cert NAME` | one certificate: its details, versions, deployments and last jobs |
-| `acme --cert-add NAME --names a.example.com,b.example.com [--issuer X] [--challenge Y] [--key-type ec-256] [--set ...]` | a certificate to keep, renewed by itself. Without `--issuer`: the default source (**Let's Encrypt**), and for an ACME CA without `--challenge` the default validation (**This server (HTTP-01)**). The renewer issues it at its next look, or `--renew NAME` issues it now |
+| `acme --cert-add NAME --names a.example.com,b.example.com [--issuer X] [--challenge Y] [--key-type ec-256] [--set ...]` | a certificate to keep, renewed by itself. Without `--issuer`: the default source (**LetsEncrypt**), and for an ACME CA without `--challenge` the default validation (**This server HTTP-01**). The renewer issues it at its next look, or `--renew NAME` issues it now |
 | `acme --cert-edit NAME [--names ...] [--issuer X] [--challenge Y] [--key-type T] [--name NEW] [--note TEXT] [--enabled on\|off] [--set ...]` | change it. `--set` takes `auto_renew`, `renew_days` (0: the setting's), `reuse_key`, `tags` (`tags+=x`), `owner`, `note`, `enabled`, `challenge_map.NAME=VALIDATION` (empty: taken out), `profile.KEY` (`profile.eku=serverAuth,clientAuth`, `profile.must_staple=yes`, `profile.days=90`, `profile.acme_profile=shortlived`, `profile.subject.O=Example`) |
 | `acme --cert-del NAME [--yes]` | delete it with its versions and deployments (the devices keep what they have) |
 | `acme --renew NAME` | renew it now, due or not |

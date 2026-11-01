@@ -26707,6 +26707,642 @@
   "sc1609": {
    "source": "publishing is switched off (Settings → Certificates: Publish CRLs on acme)",
    "text": "publikování je vypnuté (Nastavení → Certifikáty: Publikovat CRL na acme)"
+  },
+  "sc1610": {
+   "source": "A key is better than a password: the key never leaves this machine and the server holds only its public half.",
+   "text": "Klíč je lepší než heslo: klíč nikdy neopustí tento stroj a server má jen jeho veřejnou část."
+  },
+  "sc1611": {
+   "source": "A key is better than a password: the key never leaves this machine and the Windows server holds only its public half.",
+   "text": "Klíč je lepší než heslo: klíč nikdy neopustí tento stroj a server Windows má jen jeho veřejnou část."
+  },
+  "sc1612": {
+   "source": "A key is better than a password: the key never leaves this machine and the router holds only its public half.",
+   "text": "Klíč je lepší než heslo: klíč nikdy neopustí tento stroj a router má jen jeho veřejnou část."
+  },
+  "sc1613": {
+   "source": "A key is better than a password: the key never leaves this machine and the firewall holds only its public half.",
+   "text": "Klíč je lepší než heslo: klíč nikdy neopustí tento stroj a firewall má jen jeho veřejnou část."
+  },
+  "sc1614": {
+   "source": "A key is better than a password: the key never leaves this machine and the machine holds only its public half.",
+   "text": "Klíč je lepší než heslo: klíč nikdy neopustí tento stroj a počítač má jen jeho veřejnou část."
+  },
+  "sc1615": {
+   "source": "A key is better than a password: the key never leaves this machine and the web servers holds only its public half.",
+   "text": "Klíč je lepší než heslo: klíč nikdy neopustí tento stroj a webové servery mají jen jeho veřejnou část."
+  },
+  "sc1616": {
+   "source": "A key is better than a password: the key never leaves this machine and the DNS server holds only its public half.",
+   "text": "Klíč je lepší než heslo: klíč nikdy neopustí tento stroj a DNS server má jen jeho veřejnou část."
+  },
+  "sc1617": {
+   "source": "How to set it up on the server…",
+   "text": "Jak to nastavit na serveru…"
+  },
+  "sc1618": {
+   "source": "How to set it up on the Windows server…",
+   "text": "Jak to nastavit na serveru Windows…"
+  },
+  "sc1619": {
+   "source": "How to set it up on the router…",
+   "text": "Jak to nastavit na routeru…"
+  },
+  "sc1620": {
+   "source": "How to set it up on the firewall…",
+   "text": "Jak to nastavit na firewallu…"
+  },
+  "sc1621": {
+   "source": "How to set it up on the machine…",
+   "text": "Jak to nastavit na počítači…"
+  },
+  "sc1622": {
+   "source": "How to set it up on the web servers…",
+   "text": "Jak to nastavit na webových serverech…"
+  },
+  "sc1623": {
+   "source": "How to set it up on the DNS server…",
+   "text": "Jak to nastavit na DNS serveru…"
+  },
+  "sc1624": {
+   "source": "How to set the server up for this machine, step by step, with its commands: the account, its key let in from acme alone, its host key.",
+   "text": "Jak připravit server pro tento stroj, krok za krokem a s příkazy: účet, jeho klíč povolený jen z acme, jeho klíč hostitele."
+  },
+  "sc1625": {
+   "source": "How to set the Windows server up for this machine, step by step, with its commands: the account, its key let in from acme alone, its host key.",
+   "text": "Jak připravit server Windows pro tento stroj, krok za krokem a s příkazy: účet, jeho klíč povolený jen z acme, jeho klíč hostitele."
+  },
+  "sc1626": {
+   "source": "How to set the router up for this machine, step by step, with its commands: the account, its key let in from acme alone, its host key.",
+   "text": "Jak připravit router pro tento stroj, krok za krokem a s příkazy: účet, jeho klíč povolený jen z acme, jeho klíč hostitele."
+  },
+  "sc1627": {
+   "source": "How to set the firewall up for this machine, step by step, with its commands: the account, its key let in from acme alone, its host key.",
+   "text": "Jak připravit firewall pro tento stroj, krok za krokem a s příkazy: účet, jeho klíč povolený jen z acme, jeho klíč hostitele."
+  },
+  "sc1628": {
+   "source": "How to set the machine up for this machine, step by step, with its commands: the account, its key let in from acme alone, its host key.",
+   "text": "Jak připravit počítač pro tento stroj, krok za krokem a s příkazy: účet, jeho klíč povolený jen z acme, jeho klíč hostitele."
+  },
+  "sc1629": {
+   "source": "How to set the web servers up for this machine, step by step, with its commands: the account, its key let in from acme alone, its host key.",
+   "text": "Jak připravit webové servery pro tento stroj, krok za krokem a s příkazy: účet, jeho klíč povolený jen z acme, jeho klíč hostitele."
+  },
+  "sc1630": {
+   "source": "How to set the DNS server up for this machine, step by step, with its commands: the account, its key let in from acme alone, its host key.",
+   "text": "Jak připravit DNS server pro tento stroj, krok za krokem a s příkazy: účet, jeho klíč povolený jen z acme, jeho klíč hostitele."
+  },
+  "sc1631": {
+   "source": "The key is made here and never leaves this machine except when you download it. Put the public half on the server and it will let acme in without a password. Keep the private half safe: anybody holding it can sign in as that account.",
+   "text": "Klíč se vytváří zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Veřejnou polovinu vložte na server a acme se pak přihlásí bez hesla. Soukromou polovinu dobře chraňte: kdokoli ji má, se může přihlásit jako ten účet."
+  },
+  "sc1632": {
+   "source": "The key is made here and never leaves this machine except when you download it. Put the public half on the Windows server and it will let acme in without a password. Keep the private half safe: anybody holding it can sign in as that account.",
+   "text": "Klíč se vytváří zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Veřejnou polovinu vložte na server Windows a acme se pak přihlásí bez hesla. Soukromou polovinu dobře chraňte: kdokoli ji má, se může přihlásit jako ten účet."
+  },
+  "sc1633": {
+   "source": "The key is made here and never leaves this machine except when you download it. Put the public half on the router and it will let acme in without a password. Keep the private half safe: anybody holding it can sign in as that account.",
+   "text": "Klíč se vytváří zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Veřejnou polovinu vložte na router a acme se pak přihlásí bez hesla. Soukromou polovinu dobře chraňte: kdokoli ji má, se může přihlásit jako ten účet."
+  },
+  "sc1634": {
+   "source": "The key is made here and never leaves this machine except when you download it. Put the public half on the firewall and it will let acme in without a password. Keep the private half safe: anybody holding it can sign in as that account.",
+   "text": "Klíč se vytváří zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Veřejnou polovinu vložte na firewall a acme se pak přihlásí bez hesla. Soukromou polovinu dobře chraňte: kdokoli ji má, se může přihlásit jako ten účet."
+  },
+  "sc1635": {
+   "source": "The key is made here and never leaves this machine except when you download it. Put the public half on the machine and it will let acme in without a password. Keep the private half safe: anybody holding it can sign in as that account.",
+   "text": "Klíč se vytváří zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Veřejnou polovinu vložte na počítač a acme se pak přihlásí bez hesla. Soukromou polovinu dobře chraňte: kdokoli ji má, se může přihlásit jako ten účet."
+  },
+  "sc1636": {
+   "source": "The key is made here and never leaves this machine except when you download it. Put the public half on the web servers and it will let acme in without a password. Keep the private half safe: anybody holding it can sign in as that account.",
+   "text": "Klíč se vytváří zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Veřejnou polovinu vložte na webové servery a acme se pak přihlásí bez hesla. Soukromou polovinu dobře chraňte: kdokoli ji má, se může přihlásit jako ten účet."
+  },
+  "sc1637": {
+   "source": "The key is made here and never leaves this machine except when you download it. Put the public half on the DNS server and it will let acme in without a password. Keep the private half safe: anybody holding it can sign in as that account.",
+   "text": "Klíč se vytváří zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Veřejnou polovinu vložte na DNS server a acme se pak přihlásí bez hesla. Soukromou polovinu dobře chraňte: kdokoli ji má, se může přihlásit jako ten účet."
+  },
+  "sc1638": {
+   "source": "Make a fresh ed25519 pair here (or RSA 4096, for something old that needs RSA). The private half stays on this machine and the public half is shown below for you to put on the server. Any key already stored is replaced, so until the new public half is there this will not be able to sign in.",
+   "text": "Vytvoří zde nový pár ed25519 (nebo RSA 4096 pro něco staršího, co potřebuje RSA). Soukromá polovina zůstane na tomto stroji a veřejná se ukáže níže, abyste ji vložili na server. Klíč, který je už uložený, se nahradí, takže dokud tam nebude nová veřejná polovina, nepůjde se přihlásit."
+  },
+  "sc1639": {
+   "source": "Make a fresh ed25519 pair here (or RSA 4096, for something old that needs RSA). The private half stays on this machine and the public half is shown below for you to put on the Windows server. Any key already stored is replaced, so until the new public half is there this will not be able to sign in.",
+   "text": "Vytvoří zde nový pár ed25519 (nebo RSA 4096 pro něco staršího, co potřebuje RSA). Soukromá polovina zůstane na tomto stroji a veřejná se ukáže níže, abyste ji vložili na server Windows. Klíč, který je už uložený, se nahradí, takže dokud tam nebude nová veřejná polovina, nepůjde se přihlásit."
+  },
+  "sc1640": {
+   "source": "Make a fresh ed25519 pair here (or RSA 4096, for something old that needs RSA). The private half stays on this machine and the public half is shown below for you to put on the router. Any key already stored is replaced, so until the new public half is there this will not be able to sign in.",
+   "text": "Vytvoří zde nový pár ed25519 (nebo RSA 4096 pro něco staršího, co potřebuje RSA). Soukromá polovina zůstane na tomto stroji a veřejná se ukáže níže, abyste ji vložili na router. Klíč, který je už uložený, se nahradí, takže dokud tam nebude nová veřejná polovina, nepůjde se přihlásit."
+  },
+  "sc1641": {
+   "source": "Make a fresh ed25519 pair here (or RSA 4096, for something old that needs RSA). The private half stays on this machine and the public half is shown below for you to put on the firewall. Any key already stored is replaced, so until the new public half is there this will not be able to sign in.",
+   "text": "Vytvoří zde nový pár ed25519 (nebo RSA 4096 pro něco staršího, co potřebuje RSA). Soukromá polovina zůstane na tomto stroji a veřejná se ukáže níže, abyste ji vložili na firewall. Klíč, který je už uložený, se nahradí, takže dokud tam nebude nová veřejná polovina, nepůjde se přihlásit."
+  },
+  "sc1642": {
+   "source": "Make a fresh ed25519 pair here (or RSA 4096, for something old that needs RSA). The private half stays on this machine and the public half is shown below for you to put on the machine. Any key already stored is replaced, so until the new public half is there this will not be able to sign in.",
+   "text": "Vytvoří zde nový pár ed25519 (nebo RSA 4096 pro něco staršího, co potřebuje RSA). Soukromá polovina zůstane na tomto stroji a veřejná se ukáže níže, abyste ji vložili na počítač. Klíč, který je už uložený, se nahradí, takže dokud tam nebude nová veřejná polovina, nepůjde se přihlásit."
+  },
+  "sc1643": {
+   "source": "Make a fresh ed25519 pair here (or RSA 4096, for something old that needs RSA). The private half stays on this machine and the public half is shown below for you to put on the web servers. Any key already stored is replaced, so until the new public half is there this will not be able to sign in.",
+   "text": "Vytvoří zde nový pár ed25519 (nebo RSA 4096 pro něco staršího, co potřebuje RSA). Soukromá polovina zůstane na tomto stroji a veřejná se ukáže níže, abyste ji vložili na webové servery. Klíč, který je už uložený, se nahradí, takže dokud tam nebude nová veřejná polovina, nepůjde se přihlásit."
+  },
+  "sc1644": {
+   "source": "Make a fresh ed25519 pair here (or RSA 4096, for something old that needs RSA). The private half stays on this machine and the public half is shown below for you to put on the DNS server. Any key already stored is replaced, so until the new public half is there this will not be able to sign in.",
+   "text": "Vytvoří zde nový pár ed25519 (nebo RSA 4096 pro něco staršího, co potřebuje RSA). Soukromá polovina zůstane na tomto stroji a veřejná se ukáže níže, abyste ji vložili na DNS server. Klíč, který je už uložený, se nahradí, takže dokud tam nebude nová veřejná polovina, nepůjde se přihlásit."
+  },
+  "sc1645": {
+   "source": "Delete the private key from this machine. Unless the server is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Smaže soukromý klíč z tohoto stroje. Pokud server nemá nastavené přihlašování heslem, nic odsud se k serveru nedostane, dokud se nevytvoří nový klíč a nevloží se tam."
+  },
+  "sc1646": {
+   "source": "Delete the private key from this machine. Unless the Windows server is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Smaže soukromý klíč z tohoto stroje. Pokud server Windows nemá nastavené přihlašování heslem, nic odsud se k serveru Windows nedostane, dokud se nevytvoří nový klíč a nevloží se tam."
+  },
+  "sc1647": {
+   "source": "Delete the private key from this machine. Unless the router is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Smaže soukromý klíč z tohoto stroje. Pokud router nemá nastavené přihlašování heslem, nic odsud se k routeru nedostane, dokud se nevytvoří nový klíč a nevloží se tam."
+  },
+  "sc1648": {
+   "source": "Delete the private key from this machine. Unless the firewall is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Smaže soukromý klíč z tohoto stroje. Pokud firewall nemá nastavené přihlašování heslem, nic odsud se k firewallu nedostane, dokud se nevytvoří nový klíč a nevloží se tam."
+  },
+  "sc1649": {
+   "source": "Delete the private key from this machine. Unless the machine is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Smaže soukromý klíč z tohoto stroje. Pokud počítač nemá nastavené přihlašování heslem, nic odsud se k počítači nedostane, dokud se nevytvoří nový klíč a nevloží se tam."
+  },
+  "sc1650": {
+   "source": "Delete the private key from this machine. Unless the web servers is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Smaže soukromý klíč z tohoto stroje. Pokud webové servery nemají nastavené přihlašování heslem, nic odsud se k webovým serverům nedostane, dokud se nevytvoří nový klíč a nevloží se tam."
+  },
+  "sc1651": {
+   "source": "Delete the private key from this machine. Unless the DNS server is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Smaže soukromý klíč z tohoto stroje. Pokud DNS server nemá nastavené přihlašování heslem, nic odsud se k DNS serveru nedostane, dokud se nevytvoří nový klíč a nevloží se tam."
+  },
+  "sc1652": {
+   "source": "Sign in to the server and ask it who acme is there. Nothing is written and nothing is changed - it is the quickest way to find out whether the address, the account and the key are right.",
+   "text": "Přihlásí se k serveru a zeptá se, kdo tam acme je. Nic se nezapíše a nic se nezmění – je to nejrychlejší způsob, jak zjistit, zda je správně adresa, účet a klíč."
+  },
+  "sc1653": {
+   "source": "Sign in to the Windows server and ask it who acme is there. Nothing is written and nothing is changed - it is the quickest way to find out whether the address, the account and the key are right.",
+   "text": "Přihlásí se k serveru Windows a zeptá se, kdo tam acme je. Nic se nezapíše a nic se nezmění – je to nejrychlejší způsob, jak zjistit, zda je správně adresa, účet a klíč."
+  },
+  "sc1654": {
+   "source": "Sign in to the router and ask it who acme is there. Nothing is written and nothing is changed - it is the quickest way to find out whether the address, the account and the key are right.",
+   "text": "Přihlásí se k routeru a zeptá se, kdo tam acme je. Nic se nezapíše a nic se nezmění – je to nejrychlejší způsob, jak zjistit, zda je správně adresa, účet a klíč."
+  },
+  "sc1655": {
+   "source": "Sign in to the firewall and ask it who acme is there. Nothing is written and nothing is changed - it is the quickest way to find out whether the address, the account and the key are right.",
+   "text": "Přihlásí se k firewallu a zeptá se, kdo tam acme je. Nic se nezapíše a nic se nezmění – je to nejrychlejší způsob, jak zjistit, zda je správně adresa, účet a klíč."
+  },
+  "sc1656": {
+   "source": "Sign in to the machine and ask it who acme is there. Nothing is written and nothing is changed - it is the quickest way to find out whether the address, the account and the key are right.",
+   "text": "Přihlásí se k počítači a zeptá se, kdo tam acme je. Nic se nezapíše a nic se nezmění – je to nejrychlejší způsob, jak zjistit, zda je správně adresa, účet a klíč."
+  },
+  "sc1657": {
+   "source": "Sign in to the web servers and ask it who acme is there. Nothing is written and nothing is changed - it is the quickest way to find out whether the address, the account and the key are right.",
+   "text": "Přihlásí se k webovým serverům a zeptá se, kdo tam acme je. Nic se nezapíše a nic se nezmění – je to nejrychlejší způsob, jak zjistit, zda je správně adresa, účet a klíč."
+  },
+  "sc1658": {
+   "source": "Sign in to the DNS server and ask it who acme is there. Nothing is written and nothing is changed - it is the quickest way to find out whether the address, the account and the key are right.",
+   "text": "Přihlásí se k DNS serveru a zeptá se, kdo tam acme je. Nic se nezapíše a nic se nezmění – je to nejrychlejší způsob, jak zjistit, zda je správně adresa, účet a klíč."
+  },
+  "sc1659": {
+   "source": "A key is better: it never leaves this machine, the server holds only its public half, and it cannot be read out of the settings by anybody who gets this far.",
+   "text": "Klíč je lepší: nikdy neopustí tento stroj, server drží jen jeho veřejnou polovinu a nikdo, kdo se dostane až sem, ho nemůže vyčíst z nastavení."
+  },
+  "sc1660": {
+   "source": "A key is better: it never leaves this machine, the Windows server holds only its public half, and it cannot be read out of the settings by anybody who gets this far.",
+   "text": "Klíč je lepší: nikdy neopustí tento stroj, server Windows drží jen jeho veřejnou polovinu a nikdo, kdo se dostane až sem, ho nemůže vyčíst z nastavení."
+  },
+  "sc1661": {
+   "source": "A key is better: it never leaves this machine, the router holds only its public half, and it cannot be read out of the settings by anybody who gets this far.",
+   "text": "Klíč je lepší: nikdy neopustí tento stroj, router drží jen jeho veřejnou polovinu a nikdo, kdo se dostane až sem, ho nemůže vyčíst z nastavení."
+  },
+  "sc1662": {
+   "source": "A key is better: it never leaves this machine, the firewall holds only its public half, and it cannot be read out of the settings by anybody who gets this far.",
+   "text": "Klíč je lepší: nikdy neopustí tento stroj, firewall drží jen jeho veřejnou polovinu a nikdo, kdo se dostane až sem, ho nemůže vyčíst z nastavení."
+  },
+  "sc1663": {
+   "source": "A key is better: it never leaves this machine, the machine holds only its public half, and it cannot be read out of the settings by anybody who gets this far.",
+   "text": "Klíč je lepší: nikdy neopustí tento stroj, počítač drží jen jeho veřejnou polovinu a nikdo, kdo se dostane až sem, ho nemůže vyčíst z nastavení."
+  },
+  "sc1664": {
+   "source": "A key is better: it never leaves this machine, the web servers holds only its public half, and it cannot be read out of the settings by anybody who gets this far.",
+   "text": "Klíč je lepší: nikdy neopustí tento stroj, webové servery drží jen jeho veřejnou polovinu a nikdo, kdo se dostane až sem, ho nemůže vyčíst z nastavení."
+  },
+  "sc1665": {
+   "source": "A key is better: it never leaves this machine, the DNS server holds only its public half, and it cannot be read out of the settings by anybody who gets this far.",
+   "text": "Klíč je lepší: nikdy neopustí tento stroj, DNS server drží jen jeho veřejnou polovinu a nikdo, kdo se dostane až sem, ho nemůže vyčíst z nastavení."
+  },
+  "sc1666": {
+   "source": "Its fingerprint, as ssh-keygen -lf says it of the public half - the same as the server shows for the key it lets in.",
+   "text": "Jeho otisk, jak ho z veřejné poloviny vypíše ssh-keygen -lf – stejný, jaký server ukazuje u klíče, který pouští dovnitř."
+  },
+  "sc1667": {
+   "source": "Its fingerprint, as ssh-keygen -lf says it of the public half - the same as the Windows server shows for the key it lets in.",
+   "text": "Jeho otisk, jak ho z veřejné poloviny vypíše ssh-keygen -lf – stejný, jaký server Windows ukazuje u klíče, který pouští dovnitř."
+  },
+  "sc1668": {
+   "source": "Its fingerprint, as ssh-keygen -lf says it of the public half - the same as the router shows for the key it lets in.",
+   "text": "Jeho otisk, jak ho z veřejné poloviny vypíše ssh-keygen -lf – stejný, jaký router ukazuje u klíče, který pouští dovnitř."
+  },
+  "sc1669": {
+   "source": "Its fingerprint, as ssh-keygen -lf says it of the public half - the same as the firewall shows for the key it lets in.",
+   "text": "Jeho otisk, jak ho z veřejné poloviny vypíše ssh-keygen -lf – stejný, jaký firewall ukazuje u klíče, který pouští dovnitř."
+  },
+  "sc1670": {
+   "source": "Its fingerprint, as ssh-keygen -lf says it of the public half - the same as the machine shows for the key it lets in.",
+   "text": "Jeho otisk, jak ho z veřejné poloviny vypíše ssh-keygen -lf – stejný, jaký počítač ukazuje u klíče, který pouští dovnitř."
+  },
+  "sc1671": {
+   "source": "Its fingerprint, as ssh-keygen -lf says it of the public half - the same as the web servers shows for the key it lets in.",
+   "text": "Jeho otisk, jak ho z veřejné poloviny vypíše ssh-keygen -lf – stejný, jaký webové servery ukazují u klíče, který pouští dovnitř."
+  },
+  "sc1672": {
+   "source": "Its fingerprint, as ssh-keygen -lf says it of the public half - the same as the DNS server shows for the key it lets in.",
+   "text": "Jeho otisk, jak ho z veřejné poloviny vypíše ssh-keygen -lf – stejný, jaký DNS server ukazuje u klíče, který pouští dovnitř."
+  },
+  "sc1673": {
+   "source": "Click to copy. This is the half that goes ON the server; the private half stays here.",
+   "text": "Kliknutím zkopírujete. Tato polovina patří NA server; soukromá polovina zůstává zde."
+  },
+  "sc1674": {
+   "source": "Click to copy. This is the half that goes ON the Windows server; the private half stays here.",
+   "text": "Kliknutím zkopírujete. Tato polovina patří NA server Windows; soukromá polovina zůstává zde."
+  },
+  "sc1675": {
+   "source": "Click to copy. This is the half that goes ON the router; the private half stays here.",
+   "text": "Kliknutím zkopírujete. Tato polovina patří NA router; soukromá polovina zůstává zde."
+  },
+  "sc1676": {
+   "source": "Click to copy. This is the half that goes ON the firewall; the private half stays here.",
+   "text": "Kliknutím zkopírujete. Tato polovina patří NA firewall; soukromá polovina zůstává zde."
+  },
+  "sc1677": {
+   "source": "Click to copy. This is the half that goes ON the machine; the private half stays here.",
+   "text": "Kliknutím zkopírujete. Tato polovina patří NA počítač; soukromá polovina zůstává zde."
+  },
+  "sc1678": {
+   "source": "Click to copy. This is the half that goes ON the web servers; the private half stays here.",
+   "text": "Kliknutím zkopírujete. Tato polovina patří NA webové servery; soukromá polovina zůstává zde."
+  },
+  "sc1679": {
+   "source": "Click to copy. This is the half that goes ON the DNS server; the private half stays here.",
+   "text": "Kliknutím zkopírujete. Tato polovina patří NA DNS server; soukromá polovina zůstává zde."
+  },
+  "sc1680": {
+   "source": "A fresh pair is made here. The private half stays on this machine and the public half is shown for you to put on the server.",
+   "text": "Zde se vytvoří nový pár klíčů. Soukromá polovina zůstane na tomto stroji a veřejná se zobrazí, abyste ji vložili na server."
+  },
+  "sc1681": {
+   "source": "A fresh pair is made here. The private half stays on this machine and the public half is shown for you to put on the Windows server.",
+   "text": "Zde se vytvoří nový pár klíčů. Soukromá polovina zůstane na tomto stroji a veřejná se zobrazí, abyste ji vložili na server Windows."
+  },
+  "sc1682": {
+   "source": "A fresh pair is made here. The private half stays on this machine and the public half is shown for you to put on the router.",
+   "text": "Zde se vytvoří nový pár klíčů. Soukromá polovina zůstane na tomto stroji a veřejná se zobrazí, abyste ji vložili na router."
+  },
+  "sc1683": {
+   "source": "A fresh pair is made here. The private half stays on this machine and the public half is shown for you to put on the firewall.",
+   "text": "Zde se vytvoří nový pár klíčů. Soukromá polovina zůstane na tomto stroji a veřejná se zobrazí, abyste ji vložili na firewall."
+  },
+  "sc1684": {
+   "source": "A fresh pair is made here. The private half stays on this machine and the public half is shown for you to put on the machine.",
+   "text": "Zde se vytvoří nový pár klíčů. Soukromá polovina zůstane na tomto stroji a veřejná se zobrazí, abyste ji vložili na počítač."
+  },
+  "sc1685": {
+   "source": "A fresh pair is made here. The private half stays on this machine and the public half is shown for you to put on the web servers.",
+   "text": "Zde se vytvoří nový pár klíčů. Soukromá polovina zůstane na tomto stroji a veřejná se zobrazí, abyste ji vložili na webové servery."
+  },
+  "sc1686": {
+   "source": "A fresh pair is made here. The private half stays on this machine and the public half is shown for you to put on the DNS server.",
+   "text": "Zde se vytvoří nový pár klíčů. Soukromá polovina zůstane na tomto stroji a veřejná se zobrazí, abyste ji vložili na DNS server."
+  },
+  "sc1687": {
+   "source": "a new key was made — put the public half on the Windows server",
+   "text": "byl vytvořen nový klíč — vložte veřejnou polovinu na server Windows"
+  },
+  "sc1688": {
+   "source": "a new key was made — put the public half on the router",
+   "text": "byl vytvořen nový klíč — vložte veřejnou polovinu na router"
+  },
+  "sc1689": {
+   "source": "a new key was made — put the public half on the firewall",
+   "text": "byl vytvořen nový klíč — vložte veřejnou polovinu na firewall"
+  },
+  "sc1690": {
+   "source": "a new key was made — put the public half on the machine",
+   "text": "byl vytvořen nový klíč — vložte veřejnou polovinu na počítač"
+  },
+  "sc1691": {
+   "source": "a new key was made — put the public half on the web servers",
+   "text": "byl vytvořen nový klíč — vložte veřejnou polovinu na webové servery"
+  },
+  "sc1692": {
+   "source": "a new key was made — put the public half on the DNS server",
+   "text": "byl vytvořen nový klíč — vložte veřejnou polovinu na DNS server"
+  },
+  "sc1693": {
+   "source": "The private key is deleted from this machine. Unless the server is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Soukromý klíč se z tohoto stroje smaže. Pokud server nemá nastavené přihlašování heslem, nic odsud se k serveru nedostane, dokud se nevytvoří nový klíč a nenahraje se tam."
+  },
+  "sc1694": {
+   "source": "The private key is deleted from this machine. Unless the Windows server is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Soukromý klíč se z tohoto stroje smaže. Pokud server Windows nemá nastavené přihlašování heslem, nic odsud se k serveru Windows nedostane, dokud se nevytvoří nový klíč a nenahraje se tam."
+  },
+  "sc1695": {
+   "source": "The private key is deleted from this machine. Unless the router is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Soukromý klíč se z tohoto stroje smaže. Pokud router nemá nastavené přihlašování heslem, nic odsud se k routeru nedostane, dokud se nevytvoří nový klíč a nenahraje se tam."
+  },
+  "sc1696": {
+   "source": "The private key is deleted from this machine. Unless the firewall is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Soukromý klíč se z tohoto stroje smaže. Pokud firewall nemá nastavené přihlašování heslem, nic odsud se k firewallu nedostane, dokud se nevytvoří nový klíč a nenahraje se tam."
+  },
+  "sc1697": {
+   "source": "The private key is deleted from this machine. Unless the machine is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Soukromý klíč se z tohoto stroje smaže. Pokud počítač nemá nastavené přihlašování heslem, nic odsud se k počítači nedostane, dokud se nevytvoří nový klíč a nenahraje se tam."
+  },
+  "sc1698": {
+   "source": "The private key is deleted from this machine. Unless the web servers is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Soukromý klíč se z tohoto stroje smaže. Pokud webové servery nemají nastavené přihlašování heslem, nic odsud se k webovým serverům nedostane, dokud se nevytvoří nový klíč a nenahraje se tam."
+  },
+  "sc1699": {
+   "source": "The private key is deleted from this machine. Unless the DNS server is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+   "text": "Soukromý klíč se z tohoto stroje smaže. Pokud DNS server nemá nastavené přihlašování heslem, nic odsud se k DNS serveru nedostane, dokud se nevytvoří nový klíč a nenahraje se tam."
+  },
+  "sc1700": {
+   "source": "This signed in to the server, asked it who acme is there, and came back. Nothing was written and nothing was changed.",
+   "text": "Toto se přihlásilo k serveru, zeptalo se, kdo tam acme je, a vrátilo se. Nic nebylo zapsáno ani změněno."
+  },
+  "sc1701": {
+   "source": "This signed in to the Windows server, asked it who acme is there, and came back. Nothing was written and nothing was changed.",
+   "text": "Toto se přihlásilo k serveru Windows, zeptalo se, kdo tam acme je, a vrátilo se. Nic nebylo zapsáno ani změněno."
+  },
+  "sc1702": {
+   "source": "This signed in to the router, asked it who acme is there, and came back. Nothing was written and nothing was changed.",
+   "text": "Toto se přihlásilo k routeru, zeptalo se, kdo tam acme je, a vrátilo se. Nic nebylo zapsáno ani změněno."
+  },
+  "sc1703": {
+   "source": "This signed in to the firewall, asked it who acme is there, and came back. Nothing was written and nothing was changed.",
+   "text": "Toto se přihlásilo k firewallu, zeptalo se, kdo tam acme je, a vrátilo se. Nic nebylo zapsáno ani změněno."
+  },
+  "sc1704": {
+   "source": "This signed in to the machine, asked it who acme is there, and came back. Nothing was written and nothing was changed.",
+   "text": "Toto se přihlásilo k počítači, zeptalo se, kdo tam acme je, a vrátilo se. Nic nebylo zapsáno ani změněno."
+  },
+  "sc1705": {
+   "source": "This signed in to the web servers, asked it who acme is there, and came back. Nothing was written and nothing was changed.",
+   "text": "Toto se přihlásilo k webovým serverům, zeptalo se, kdo tam acme je, a vrátilo se. Nic nebylo zapsáno ani změněno."
+  },
+  "sc1706": {
+   "source": "This signed in to the DNS server, asked it who acme is there, and came back. Nothing was written and nothing was changed.",
+   "text": "Toto se přihlásilo k DNS serveru, zeptalo se, kdo tam acme je, a vrátilo se. Nic nebylo zapsáno ani změněno."
+  },
+  "sc1707": {
+   "source": "What ssh said when reaching the server, step by step:",
+   "text": "Co ssh řeklo při připojování k serveru, krok za krokem:"
+  },
+  "sc1708": {
+   "source": "What ssh said when reaching the Windows server, step by step:",
+   "text": "Co ssh řeklo při připojování k serveru Windows, krok za krokem:"
+  },
+  "sc1709": {
+   "source": "What ssh said when reaching the router, step by step:",
+   "text": "Co ssh řeklo při připojování k routeru, krok za krokem:"
+  },
+  "sc1710": {
+   "source": "What ssh said when reaching the firewall, step by step:",
+   "text": "Co ssh řeklo při připojování k firewallu, krok za krokem:"
+  },
+  "sc1711": {
+   "source": "What ssh said when reaching the machine, step by step:",
+   "text": "Co ssh řeklo při připojování k počítači, krok za krokem:"
+  },
+  "sc1712": {
+   "source": "What ssh said when reaching the web servers, step by step:",
+   "text": "Co ssh řeklo při připojování k webovým serverům, krok za krokem:"
+  },
+  "sc1713": {
+   "source": "What ssh said when reaching the DNS server, step by step:",
+   "text": "Co ssh řeklo při připojování k DNS serveru, krok za krokem:"
+  },
+  "sc1714": {
+   "source": "The usual causes, in the order they usually are: the public half of the key is not on the server yet; the account may not sign in over ssh; its host key is not trusted yet; the address or port is wrong; or it is not reachable from this machine at all.",
+   "text": "Obvyklé příčiny v pořadí, v jakém obvykle bývají: veřejná část klíče ještě není na serveru; účet se nesmí přihlásit přes ssh; jeho klíč hostitele ještě není důvěryhodný; adresa nebo port je chybný; nebo z tohoto stroje server vůbec není dosažitelný."
+  },
+  "sc1715": {
+   "source": "The usual causes, in the order they usually are: the public half of the key is not on the Windows server yet; the account may not sign in over ssh; its host key is not trusted yet; the address or port is wrong; or it is not reachable from this machine at all.",
+   "text": "Obvyklé příčiny v pořadí, v jakém obvykle bývají: veřejná část klíče ještě není na serveru Windows; účet se nesmí přihlásit přes ssh; jeho klíč hostitele ještě není důvěryhodný; adresa nebo port je chybný; nebo z tohoto stroje server Windows vůbec není dosažitelný."
+  },
+  "sc1716": {
+   "source": "The usual causes, in the order they usually are: the public half of the key is not on the router yet; the account may not sign in over ssh; its host key is not trusted yet; the address or port is wrong; or it is not reachable from this machine at all.",
+   "text": "Obvyklé příčiny v pořadí, v jakém obvykle bývají: veřejná část klíče ještě není na routeru; účet se nesmí přihlásit přes ssh; jeho klíč hostitele ještě není důvěryhodný; adresa nebo port je chybný; nebo z tohoto stroje router vůbec není dosažitelný."
+  },
+  "sc1717": {
+   "source": "The usual causes, in the order they usually are: the public half of the key is not on the firewall yet; the account may not sign in over ssh; its host key is not trusted yet; the address or port is wrong; or it is not reachable from this machine at all.",
+   "text": "Obvyklé příčiny v pořadí, v jakém obvykle bývají: veřejná část klíče ještě není na firewallu; účet se nesmí přihlásit přes ssh; jeho klíč hostitele ještě není důvěryhodný; adresa nebo port je chybný; nebo z tohoto stroje firewall vůbec není dosažitelný."
+  },
+  "sc1718": {
+   "source": "The usual causes, in the order they usually are: the public half of the key is not on the machine yet; the account may not sign in over ssh; its host key is not trusted yet; the address or port is wrong; or it is not reachable from this machine at all.",
+   "text": "Obvyklé příčiny v pořadí, v jakém obvykle bývají: veřejná část klíče ještě není na počítači; účet se nesmí přihlásit přes ssh; jeho klíč hostitele ještě není důvěryhodný; adresa nebo port je chybný; nebo z tohoto stroje počítač vůbec není dosažitelný."
+  },
+  "sc1719": {
+   "source": "The usual causes, in the order they usually are: the public half of the key is not on the web servers yet; the account may not sign in over ssh; its host key is not trusted yet; the address or port is wrong; or it is not reachable from this machine at all.",
+   "text": "Obvyklé příčiny v pořadí, v jakém obvykle bývají: veřejná část klíče ještě není na webových serverech; účet se nesmí přihlásit přes ssh; jeho klíč hostitele ještě není důvěryhodný; adresa nebo port je chybný; nebo z tohoto stroje webové servery vůbec nejsou dosažitelné."
+  },
+  "sc1720": {
+   "source": "The usual causes, in the order they usually are: the public half of the key is not on the DNS server yet; the account may not sign in over ssh; its host key is not trusted yet; the address or port is wrong; or it is not reachable from this machine at all.",
+   "text": "Obvyklé příčiny v pořadí, v jakém obvykle bývají: veřejná část klíče ještě není na DNS serveru; účet se nesmí přihlásit přes ssh; jeho klíč hostitele ještě není důvěryhodný; adresa nebo port je chybný; nebo z tohoto stroje DNS server vůbec není dosažitelný."
+  },
+  "sc1721": {
+   "source": "On the server, as root - or use an account you have:",
+   "text": "Na serveru, jako root – nebo použijte účet, který už máte:"
+  },
+  "sc1722": {
+   "source": "On the Windows server, as root - or use an account you have:",
+   "text": "Na serveru Windows, jako root – nebo použijte účet, který už máte:"
+  },
+  "sc1723": {
+   "source": "On the router, as root - or use an account you have:",
+   "text": "Na routeru, jako root – nebo použijte účet, který už máte:"
+  },
+  "sc1724": {
+   "source": "On the firewall, as root - or use an account you have:",
+   "text": "Na firewallu, jako root – nebo použijte účet, který už máte:"
+  },
+  "sc1725": {
+   "source": "On the machine, as root - or use an account you have:",
+   "text": "Na počítači, jako root – nebo použijte účet, který už máte:"
+  },
+  "sc1726": {
+   "source": "On the web servers, as root - or use an account you have:",
+   "text": "Na webových serverech, jako root – nebo použijte účet, který už máte:"
+  },
+  "sc1727": {
+   "source": "On the DNS server, as root - or use an account you have:",
+   "text": "Na DNS serveru, jako root – nebo použijte účet, který už máte:"
+  },
+  "sc1728": {
+   "source": "Right now",
+   "text": "Právě teď"
+  },
+  "sc1729": {
+   "source": "Signing in with",
+   "text": "Přihlašování přes"
+  },
+  "sc1730": {
+   "source": "set up",
+   "text": "nastaveno"
+  },
+  "sc1731": {
+   "source": "not tried yet",
+   "text": "zatím nezkoušeno"
+  },
+  "sc1732": {
+   "source": "not saved yet",
+   "text": "zatím neuloženo"
+  },
+  "sc1733": {
+   "source": "Switched off means nothing is ever done there, while everything about how to reach it stays where it is. Not set up means there is no address yet. Set up means the last time this tried to reach it, it got in. Trouble means the last time this tried to reach it, it could not - the words beside it are whatever ssh said.",
+   "text": "Vypnuto znamená, že se tam nikdy nic nedělá, a vše o tom, jak se tam dostat, zůstává, kde je. Nenastaveno znamená, že zatím chybí adresa. Nastaveno znamená, že když se to sem naposledy zkusilo dostat, dostalo se dovnitř. Potíže znamenají, že když se to naposledy zkusilo, nedostalo se – slova vedle jsou to, co řeklo ssh."
+  },
+  "sc1734": {
+   "source": "a key this machine holds",
+   "text": "klíč uložený na tomto stroji"
+  },
+  "sc1735": {
+   "source": "a key — but there is none yet",
+   "text": "klíč — ale zatím žádný není"
+  },
+  "sc1736": {
+   "source": "a key",
+   "text": "klíč"
+  },
+  "sc1737": {
+   "source": "your own, given here",
+   "text": "váš vlastní, vložený zde"
+  },
+  "sc1738": {
+   "source": "your own key, pasted before",
+   "text": "váš vlastní klíč, vložený dříve"
+  },
+  "sc1739": {
+   "source": "Given",
+   "text": "Vložen"
+  },
+  "sc1740": {
+   "source": "made",
+   "text": "vytvořen"
+  },
+  "sc1741": {
+   "source": "given",
+   "text": "vložen"
+  },
+  "sc1742": {
+   "source": "Not saved yet: the key is kept for this form, and becomes the target’s when it is saved.",
+   "text": "Zatím neuloženo: klíč se drží pro tento formulář a uložením se stane klíčem cíle."
+  },
+  "sc1743": {
+   "source": "Not saved yet: the key is kept for this form, and becomes the validation’s when it is saved.",
+   "text": "Zatím neuloženo: klíč se drží pro tento formulář a uložením se stane klíčem validace."
+  },
+  "sc1744": {
+   "source": "A key is kept, and its public half cannot be worked out here.",
+   "text": "Klíč je uložen, ale jeho veřejnou polovinu tu nelze dopočítat."
+  },
+  "sc1745": {
+   "source": "Read it from a file…",
+   "text": "Načíst ze souboru…"
+  },
+  "sc1746": {
+   "source": "Asked for here and checked at once: a key it does not open is refused. It is kept sealed beside the key, for ssh.",
+   "text": "Zadává se zde a hned se ověří: klíč, který neotevře, se odmítne. Uloží se zapečetěné vedle klíče, pro ssh."
+  },
+  "sc1747": {
+   "source": "Use a private key you already have. Paste it whole, including its BEGIN and END lines, or read it from a file; its public half is worked out here so you do not have to hand that over as well. A passphrase it is locked with is asked for and checked.",
+   "text": "Použije soukromý klíč, který už máte. Vložte ho celý, včetně řádků BEGIN a END, nebo ho načtěte ze souboru; jeho veřejná polovina se dopočítá tady, takže ji nemusíte dávat zvlášť. Heslo, kterým je zamčený, se vyžádá a ověří."
+  },
+  "sc1748": {
+   "source": "Download the private half as a file, for keeping somewhere safe or for using the same key elsewhere. It is written into Events that it was downloaded, and by whom.",
+   "text": "Stáhne soukromou polovinu jako soubor, k uschování na bezpečném místě nebo k použití téhož klíče jinde. Že byla stažena a kým, se zapíše do Událostí."
+  },
+  "sc1749": {
+   "source": "Good",
+   "text": "Dobře"
+  },
+  "sc1750": {
+   "source": "It did not answer",
+   "text": "Neodpověděl"
+  },
+  "sc1751": {
+   "source": "(it said nothing)",
+   "text": "(nic neřekl)"
+  },
+  "sc1752": {
+   "source": "An account for acme",
+   "text": "Účet pro acme"
+  },
+  "sc1753": {
+   "source": "Its host key",
+   "text": "Jeho klíč hostitele"
+  },
+  "sc1754": {
+   "source": "sudo, without a password",
+   "text": "sudo, bez hesla"
+  },
+  "sc1755": {
+   "source": "The OpenSSH server",
+   "text": "Server OpenSSH"
+  },
+  "sc1756": {
+   "source": "An account that may put certificates there",
+   "text": "Účet, který tam smí dávat certifikáty"
+  },
+  "sc1757": {
+   "source": "Switch ssh on",
+   "text": "Zapněte ssh"
+  },
+  "sc1758": {
+   "source": "The account and its key",
+   "text": "Účet a jeho klíč"
+  },
+  "sc1759": {
+   "source": "In PowerShell, as an administrator:",
+   "text": "V PowerShellu, jako administrátor:"
+  },
+  "sc1760": {
+   "source": "On the Mikrotik, a group allowed ssh, ftp, read and write, and an account in it:",
+   "text": "Na Mikrotiku skupina s povoleným ssh, ftp, čtením a zápisem a účet v ní:"
+  },
+  "sc1761": {
+   "source": "that passphrase does not open the key",
+   "text": "to heslo klíč neotevře"
+  },
+  "sc1762": {
+   "source": "that is the public half - the private one is needed (the file without .pub)",
+   "text": "to je veřejná polovina – potřeba je soukromá (soubor bez .pub)"
+  },
+  "sc1763": {
+   "source": "that is not a private key: it starts -----BEGIN OPENSSH PRIVATE KEY----- (or another PEM private key)",
+   "text": "to není soukromý klíč: začíná -----BEGIN OPENSSH PRIVATE KEY----- (nebo jiným soukromým klíčem PEM)"
+  },
+  "sc1764": {
+   "source": "nothing was given: paste the private key, or read it from a file",
+   "text": "nic nebylo zadáno: vložte soukromý klíč, nebo ho načtěte ze souboru"
+  },
+  "sc1765": {
+   "source": "the key made in this form is no longer here (a day old, or the form was saved already): make it again",
+   "text": "klíč vytvořený v tomto formuláři už tu není (je den starý, nebo byl formulář už uložen): vytvořte ho znovu"
+  },
+  "sc1766": {
+   "source": "that key was made for another form: make it again",
+   "text": "ten klíč byl vytvořen pro jiný formulář: vytvořte ho znovu"
+  },
+  "sc1767": {
+   "source": "there is no key",
+   "text": "žádný klíč tu není"
+  },
+  "sc1768": {
+   "source": "a new key was made",
+   "text": "byl vytvořen nový klíč"
   }
  },
  "patterns": {
@@ -34461,6 +35097,46 @@
   "pc0367": {
    "source": "HTTP-01 check of {0} ({1})",
    "text": "kontrola HTTP-01 jména {0} ({1})"
+  },
+  "pc0368": {
+   "source": "letters, digits, spaces and . _ @ + - only (no quotes, no brackets), starting with a letter or a digit - e.g. {0}",
+   "text": "jen písmena, číslice, mezery a . _ @ + - (žádné uvozovky ani závorky), na začátku písmeno nebo číslice – např. {0}"
+  },
+  "pc0369": {
+   "source": "names made safe (letters, digits, spaces and . _ @ + - only - no quotes, no brackets): {0}",
+   "text": "jména upravena na bezpečná (jen písmena, číslice, mezery a . _ @ + - – žádné uvozovky ani závorky): {0}"
+  },
+  "pc0370": {
+   "source": "source \"{0}\" is now \"{1}\"",
+   "text": "zdroj „{0}“ je teď „{1}“"
+  },
+  "pc0371": {
+   "source": "validation \"{0}\" is now \"{1}\"",
+   "text": "validace „{0}“ je teď „{1}“"
+  },
+  "pc0372": {
+   "source": "target \"{0}\" is now \"{1}\"",
+   "text": "cíl „{0}“ je teď „{1}“"
+  },
+  "pc0373": {
+   "source": "authority \"{0}\" is now \"{1}\"",
+   "text": "autorita „{0}“ je teď „{1}“"
+  },
+  "pc0374": {
+   "source": "certificate \"{0}\" is now \"{1}\"",
+   "text": "certifikát „{0}“ je teď „{1}“"
+  },
+  "pc0375": {
+   "source": "Download the private key for {0}",
+   "text": "Stáhnout soukromý klíč pro {0}"
+  },
+  "pc0376": {
+   "source": "Forget the key for {0}",
+   "text": "Zapomenout klíč pro {0}"
+  },
+  "pc0377": {
+   "source": "Setting it up: {0}",
+   "text": "Nastavení: {0}"
   }
  },
  "rich": {
@@ -35083,6 +35759,182 @@
   "r0155": {
    "source": "Two ways. <b>One shared PostgreSQL</b> (both nodes open the same database) is done on the pages alone: <b>Make the bundle…</b> here asks for the second node's address, lets it through this node's firewall and into PostgreSQL here at once, and saves the bundle; <b>Join a cluster…</b> on the second node's pages takes it. <b>Replicated</b> (a PostgreSQL on each node) is done on the command line, as root, because it installs and restarts PostgreSQL there. The pages show the result and look after it afterwards. In the examples the first node is <code>acme1</code> at <code>192.0.2.11</code> and the second <code>acme2</code> at <code>192.0.2.12</code>; put your own names and addresses in.",
    "text": "Dva způsoby. <b>Jedna sdílená PostgreSQL</b> (oba uzly otevírají stejnou databázi) se udělá jen na stránkách: <b>Vytvořit balíček…</b> zde se zeptá na adresu druhého uzlu, hned ho pustí přes firewall tohoto uzlu a do zdejší PostgreSQL a uloží balíček; <b>Připojit ke clusteru…</b> na stránkách druhého uzlu ho převezme. <b>Replikovaný</b> (PostgreSQL na každém uzlu) se dělá na příkazové řádce jako root, protože tam instaluje a restartuje PostgreSQL. Stránky pak ukazují výsledek a starají se o něj. V příkladech je první uzel <code>acme1</code> na <code>192.0.2.11</code> a druhý <code>acme2</code> na <code>192.0.2.12</code>; dosaďte svá jména a adresy."
+  },
+  "r0156": {
+   "source": "Made here, and it never leaves this machine except when you download it. Put the <b>public</b> half on the server.",
+   "text": "Vytvořen zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Na server vložte <b>veřejnou</b> polovinu."
+  },
+  "r0157": {
+   "source": "Made here, and it never leaves this machine except when you download it. Put the <b>public</b> half on the Windows server.",
+   "text": "Vytvořen zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Na server Windows vložte <b>veřejnou</b> polovinu."
+  },
+  "r0158": {
+   "source": "Made here, and it never leaves this machine except when you download it. Put the <b>public</b> half on the router.",
+   "text": "Vytvořen zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Na router vložte <b>veřejnou</b> polovinu."
+  },
+  "r0159": {
+   "source": "Made here, and it never leaves this machine except when you download it. Put the <b>public</b> half on the firewall.",
+   "text": "Vytvořen zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Na firewall vložte <b>veřejnou</b> polovinu."
+  },
+  "r0160": {
+   "source": "Made here, and it never leaves this machine except when you download it. Put the <b>public</b> half on the machine.",
+   "text": "Vytvořen zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Na počítač vložte <b>veřejnou</b> polovinu."
+  },
+  "r0161": {
+   "source": "Made here, and it never leaves this machine except when you download it. Put the <b>public</b> half on the web servers.",
+   "text": "Vytvořen zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Na webové servery vložte <b>veřejnou</b> polovinu."
+  },
+  "r0162": {
+   "source": "Made here, and it never leaves this machine except when you download it. Put the <b>public</b> half on the DNS server.",
+   "text": "Vytvořen zde a tento stroj nikdy neopustí, leda když si ho stáhnete. Na DNS server vložte <b>veřejnou</b> polovinu."
+  },
+  "r0163": {
+   "source": "The private half leaves this machine as a file. Anybody holding it can sign in to the server as <code>{0}</code>. That it was downloaded, and by whom, is written into Events.",
+   "text": "Soukromá polovina opustí tento stroj jako soubor. Kdokoli ji drží, se může k serveru přihlásit jako <code>{0}</code>. Že byla stažena a kým, se zapíše do Událostí."
+  },
+  "r0164": {
+   "source": "The private half leaves this machine as a file. Anybody holding it can sign in to the Windows server as <code>{0}</code>. That it was downloaded, and by whom, is written into Events.",
+   "text": "Soukromá polovina opustí tento stroj jako soubor. Kdokoli ji drží, se může k serveru Windows přihlásit jako <code>{0}</code>. Že byla stažena a kým, se zapíše do Událostí."
+  },
+  "r0165": {
+   "source": "The private half leaves this machine as a file. Anybody holding it can sign in to the router as <code>{0}</code>. That it was downloaded, and by whom, is written into Events.",
+   "text": "Soukromá polovina opustí tento stroj jako soubor. Kdokoli ji drží, se může k routeru přihlásit jako <code>{0}</code>. Že byla stažena a kým, se zapíše do Událostí."
+  },
+  "r0166": {
+   "source": "The private half leaves this machine as a file. Anybody holding it can sign in to the firewall as <code>{0}</code>. That it was downloaded, and by whom, is written into Events.",
+   "text": "Soukromá polovina opustí tento stroj jako soubor. Kdokoli ji drží, se může k firewallu přihlásit jako <code>{0}</code>. Že byla stažena a kým, se zapíše do Událostí."
+  },
+  "r0167": {
+   "source": "The private half leaves this machine as a file. Anybody holding it can sign in to the machine as <code>{0}</code>. That it was downloaded, and by whom, is written into Events.",
+   "text": "Soukromá polovina opustí tento stroj jako soubor. Kdokoli ji drží, se může k počítači přihlásit jako <code>{0}</code>. Že byla stažena a kým, se zapíše do Událostí."
+  },
+  "r0168": {
+   "source": "The private half leaves this machine as a file. Anybody holding it can sign in to the web servers as <code>{0}</code>. That it was downloaded, and by whom, is written into Events.",
+   "text": "Soukromá polovina opustí tento stroj jako soubor. Kdokoli ji drží, se může k webovým serverům přihlásit jako <code>{0}</code>. Že byla stažena a kým, se zapíše do Událostí."
+  },
+  "r0169": {
+   "source": "The private half leaves this machine as a file. Anybody holding it can sign in to the DNS server as <code>{0}</code>. That it was downloaded, and by whom, is written into Events.",
+   "text": "Soukromá polovina opustí tento stroj jako soubor. Kdokoli ji drží, se může k DNS serveru přihlásit jako <code>{0}</code>. Že byla stažena a kým, se zapíše do Událostí."
+  },
+  "r0170": {
+   "source": "What the server proves itself with - compare it with the fingerprint <b>Try reaching it</b> shows the first time:",
+   "text": "Čím se server prokazuje – porovnejte to s otiskem, který při prvním pokusu ukáže <b>Zkusit spojení</b>:"
+  },
+  "r0171": {
+   "source": "What the Windows server proves itself with - compare it with the fingerprint <b>Try reaching it</b> shows the first time:",
+   "text": "Čím se server Windows prokazuje – porovnejte to s otiskem, který při prvním pokusu ukáže <b>Zkusit spojení</b>:"
+  },
+  "r0172": {
+   "source": "What the router proves itself with - compare it with the fingerprint <b>Try reaching it</b> shows the first time:",
+   "text": "Čím se router prokazuje – porovnejte to s otiskem, který při prvním pokusu ukáže <b>Zkusit spojení</b>:"
+  },
+  "r0173": {
+   "source": "What the firewall proves itself with - compare it with the fingerprint <b>Try reaching it</b> shows the first time:",
+   "text": "Čím se firewall prokazuje – porovnejte to s otiskem, který při prvním pokusu ukáže <b>Zkusit spojení</b>:"
+  },
+  "r0174": {
+   "source": "What the machine proves itself with - compare it with the fingerprint <b>Try reaching it</b> shows the first time:",
+   "text": "Čím se počítač prokazuje – porovnejte to s otiskem, který při prvním pokusu ukáže <b>Zkusit spojení</b>:"
+  },
+  "r0175": {
+   "source": "What the web servers proves itself with - compare it with the fingerprint <b>Try reaching it</b> shows the first time:",
+   "text": "Čím se webové servery prokazují – porovnejte to s otiskem, který při prvním pokusu ukáže <b>Zkusit spojení</b>:"
+  },
+  "r0176": {
+   "source": "What the DNS server proves itself with - compare it with the fingerprint <b>Try reaching it</b> shows the first time:",
+   "text": "Čím se DNS server prokazuje – porovnejte to s otiskem, který při prvním pokusu ukáže <b>Zkusit spojení</b>:"
+  },
+  "r0177": {
+   "source": "<b>Make a key</b> below and put its public half where the server takes keys for <code>{0}</code> - on most, <code>~/.ssh/authorized_keys</code> of that account, let in from acme alone:",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte tam, kde server bere klíče pro <code>{0}</code> – většinou do <code>~/.ssh/authorized_keys</code> toho účtu, povolenou jen z acme:"
+  },
+  "r0178": {
+   "source": "<b>Make a key</b> below and put its public half where the Windows server takes keys for <code>{0}</code> - on most, <code>~/.ssh/authorized_keys</code> of that account, let in from acme alone:",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte tam, kde server Windows bere klíče pro <code>{0}</code> – většinou do <code>~/.ssh/authorized_keys</code> toho účtu, povolenou jen z acme:"
+  },
+  "r0179": {
+   "source": "<b>Make a key</b> below and put its public half where the router takes keys for <code>{0}</code> - on most, <code>~/.ssh/authorized_keys</code> of that account, let in from acme alone:",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte tam, kde router bere klíče pro <code>{0}</code> – většinou do <code>~/.ssh/authorized_keys</code> toho účtu, povolenou jen z acme:"
+  },
+  "r0180": {
+   "source": "<b>Make a key</b> below and put its public half where the firewall takes keys for <code>{0}</code> - on most, <code>~/.ssh/authorized_keys</code> of that account, let in from acme alone:",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte tam, kde firewall bere klíče pro <code>{0}</code> – většinou do <code>~/.ssh/authorized_keys</code> toho účtu, povolenou jen z acme:"
+  },
+  "r0181": {
+   "source": "<b>Make a key</b> below and put its public half where the machine takes keys for <code>{0}</code> - on most, <code>~/.ssh/authorized_keys</code> of that account, let in from acme alone:",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte tam, kde počítač bere klíče pro <code>{0}</code> – většinou do <code>~/.ssh/authorized_keys</code> toho účtu, povolenou jen z acme:"
+  },
+  "r0182": {
+   "source": "<b>Make a key</b> below and put its public half where the web servers takes keys for <code>{0}</code> - on most, <code>~/.ssh/authorized_keys</code> of that account, let in from acme alone:",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte tam, kde webové servery berou klíče pro <code>{0}</code> – většinou do <code>~/.ssh/authorized_keys</code> toho účtu, povolenou jen z acme:"
+  },
+  "r0183": {
+   "source": "<b>Make a key</b> below and put its public half where the DNS server takes keys for <code>{0}</code> - on most, <code>~/.ssh/authorized_keys</code> of that account, let in from acme alone:",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte tam, kde DNS server bere klíče pro <code>{0}</code> – většinou do <code>~/.ssh/authorized_keys</code> toho účtu, povolenou jen z acme:"
+  },
+  "r0184": {
+   "source": "<b>Any key already stored for it is replaced</b>, so until the new public half is on it this will not be able to sign in.",
+   "text": "<b>Klíč, který je pro něj už uložený, se nahradí</b>, takže dokud na něm nebude nová veřejná polovina, nepůjde se přihlásit."
+  },
+  "r0185": {
+   "source": "Then, here: fill the settings in, <b>Save</b>, and <b>Try reaching it</b>.",
+   "text": "Potom zde: vyplňte nastavení, <b>Uložte</b> a <b>Zkusit spojení</b>."
+  },
+  "r0186": {
+   "source": "There is no key yet: the commands above say <code>ssh-ed25519 AAAA…</code> where its public half goes. <b>Make a key</b> first and open this again - they are then the very commands to copy.",
+   "text": "Zatím tu není klíč: příkazy výše mají <code>ssh-ed25519 AAAA…</code> tam, kam patří jeho veřejná polovina. Nejdřív <b>Vytvořte klíč</b> a otevřete tohle znovu – pak jsou to přesně příkazy ke zkopírování."
+  },
+  "r0187": {
+   "source": "Rather not let root in? Put an account of its own into <i>User</i> and switch <i>Use sudo</i> on: this then says the sudoers line it needs too.",
+   "text": "Raději nepouštět roota? Dejte do <i>Uživatel</i> vlastní účet a zapněte <i>Použít sudo</i>: tohle pak řekne i řádek sudoers, který potřebuje."
+  },
+  "r0188": {
+   "source": "Not root: switch <i>Use sudo</i> on here, and let the account run what acme does there without being asked for a password (or give it the sudo password here):",
+   "text": "Ne root: zapněte zde <i>Použít sudo</i> a dovolte účtu spouštět to, co tam acme dělá, bez ptaní na heslo (nebo mu zde zadejte heslo pro sudo):"
+  },
+  "r0189": {
+   "source": "<b>Make a key</b> below and put its public half into the administrators’ file, let in from acme alone, and the file readable by nobody else:",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte do souboru administrátorů, povolenou jen z acme, a soubor ať nikdo jiný nečte:"
+  },
+  "r0190": {
+   "source": "<b>System → Settings → Administration → Secure Shell</b>: enabled, and <i>Permit root user login</i> if the account is root.",
+   "text": "<b>System → Settings → Administration → Secure Shell</b>: zapnuto, a <i>Permit root user login</i>, je-li účet root."
+  },
+  "r0191": {
+   "source": "<b>System → Advanced → Admin Access → Secure Shell</b>: enabled, with <i>Public Key Only</i>.",
+   "text": "<b>System → Advanced → Admin Access → Secure Shell</b>: zapnuto, s <i>Public Key Only</i>."
+  },
+  "r0192": {
+   "source": "acme signs in as <code>{0}</code> with the key made here and nothing else. The key is let in only from acme’s own addresses, with <code>from=</code> in front of it: copied anywhere else, it opens nothing.",
+   "text": "acme se přihlašuje jako <code>{0}</code> klíčem vytvořeným zde a ničím jiným. Klíč se pouští dovnitř jen z vlastních adres acme, s <code>from=</code> před ním: zkopírovaný kamkoli jinam nic neotevře."
+  },
+  "r0193": {
+   "source": "<b>Make a key</b> below and put its public half into <code>{0}/.ssh/authorized_keys</code>, let in from acme alone:",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte do <code>{0}/.ssh/authorized_keys</code>, povolenou jen z acme:"
+  },
+  "r0194": {
+   "source": "acme signs in to the Windows OpenSSH server as <code>{0}</code>, an administrator, with the key made here. For an account in Administrators, Windows reads the key from <code>administrators_authorized_keys</code> and nowhere else - and only while SYSTEM and Administrators alone may read that file.",
+   "text": "acme se k serveru Windows OpenSSH přihlašuje jako <code>{0}</code>, administrátor, klíčem vytvořeným zde. Pro účet ve skupině Administrators čte Windows klíč z <code>administrators_authorized_keys</code> a odnikud jinud – a jen dokud ten soubor smí číst pouze SYSTEM a Administrators."
+  },
+  "r0195": {
+   "source": "acme signs in to the router over ssh as <code>{0}</code> to put the certificate files there and import them. RouterOS 6 takes RSA keys only: there, <b>Make a key</b> as RSA 4096.",
+   "text": "acme se k routeru přihlašuje přes ssh jako <code>{0}</code>, aby tam dalo soubory certifikátu a naimportovalo je. RouterOS 6 bere jen klíče RSA: tam použijte <b>Vytvořit klíč</b> jako RSA 4096."
+  },
+  "r0196": {
+   "source": "<b>Make a key</b> below, copy its public half into a file <code>{0}</code> on the Mikrotik (<i>Files</i>, or scp) and import it for that account:",
+   "text": "<b>Vytvořte klíč</b> níže, jeho veřejnou polovinu zkopírujte do souboru <code>{0}</code> na Mikrotiku (<i>Files</i>, nebo scp) a naimportujte ji pro ten účet:"
+  },
+  "r0197": {
+   "source": "acme signs in over ssh as <code>{0}</code> with the key made here.",
+   "text": "acme se přihlašuje přes ssh jako <code>{0}</code> klíčem vytvořeným zde."
+  },
+  "r0198": {
+   "source": "<b>Make a key</b> below and put its public half into <b>Authorized keys</b> of the account <code>{0}</code> (<b>System → Access → Users</b>):",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte do <b>Authorized keys</b> účtu <code>{0}</code> (<b>System → Access → Users</b>):"
+  },
+  "r0199": {
+   "source": "<b>Make a key</b> below and put its public half into <b>Authorized keys</b> of the account <code>{0}</code> (<b>System → User Manager</b>):",
+   "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte do <b>Authorized keys</b> účtu <code>{0}</code> (<b>System → User Manager</b>):"
   }
  }
 }

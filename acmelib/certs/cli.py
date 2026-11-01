@@ -50,7 +50,7 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'target_show', 'target_add', 'target_edit', 'target_del', 'target_action',
         'source_default', 'validation_default', 'target_default', 'ca_default',
         'ca_publish', 'ca_pki_urls', 'ca_pki_check', 'validation_check',
-        'check_names', 'cert_check', 'dry_run')
+        'check_names', 'cert_check', 'dry_run', 'target_key', 'validation_key')
 
 # family: (the word of the options, the API's path, the words of one)
 FAMILIES = {'issuer': ('source', 'sources', 'source'),
@@ -165,6 +165,13 @@ def add_args(p):
                         'http://HOST/.well-known/acme-challenge/ from here, step by step')
     g.add_argument('--target-test', metavar='NAME', help='try a target: reach it, sign in, '
                    'change nothing')
+    for word in ('target', 'validation'):
+        g.add_argument('--%s-key' % word, dest='%s_key' % word, nargs='+', metavar='ARG',
+                       help='NAME WHAT - the SSH key of a %s, as the key card of the page: '
+                            'make [ed25519|rsa4096], show, public (its public half; --out), '
+                            'own FILE (a private key of your own; its passphrase from '
+                            'ACME_KEY_PASSWORD), private (the private half; --out), forget '
+                            '(--yes), try (a sign-in that changes nothing)' % word)
     g.add_argument('--kind', metavar='KIND', help='with --*-add, --*-edit: the module '
                    '(acme --plugins)')
     g.add_argument('--enabled', choices=('on', 'off'), help='with --*-edit, --deploy-edit, '
@@ -499,6 +506,10 @@ class Cli(object):
         a = self.args
         self.read_files()
         self.open()
+        for fam, word in (('target', 'target'), ('challenge', 'validation')):
+            if getattr(a, '%s_key' % word, None):
+                from acmelib.certs import api_sshkeys
+                return api_sshkeys.cli(self, fam, getattr(a, '%s_key' % word))
         for fam, (word, _p, _o) in FAMILIES.items():
             if getattr(a, '%s_add' % word, None):
                 return self.fam_add(fam, getattr(a, '%s_add' % word))

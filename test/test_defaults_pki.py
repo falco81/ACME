@@ -233,18 +233,18 @@ class DefaultsPki(unittest.TestCase):
     # ---- the defaults ---------------------------------------------------------------------
     def test_10_source_default(self):
         src = self.rows('/api/sources')
-        self.assertTrue(src["Let's Encrypt"]['is_default'])
-        got = self.ok('POST', '/api/sources/default', {'name': "Let's Encrypt (staging)"})
-        self.assertEqual(got['default'], "Let's Encrypt (staging)")
+        self.assertTrue(src['LetsEncrypt']['is_default'])
+        got = self.ok('POST', '/api/sources/default', {'name': 'LetsEncrypt staging'})
+        self.assertEqual(got['default'], 'LetsEncrypt staging')
         src = self.rows('/api/sources')
-        self.assertTrue(src["Let's Encrypt (staging)"]['is_default'])
-        self.assertFalse(src["Let's Encrypt"]['is_default'])
+        self.assertTrue(src['LetsEncrypt staging']['is_default'])
+        self.assertFalse(src['LetsEncrypt']['is_default'])
         self.assertEqual(self.ok('GET', '/api/certs/overview')['defaults']['issuer'],
-                         "Let's Encrypt (staging)")
+                         'LetsEncrypt staging')
         cid = self.ok('POST', '/api/certs/save', {'name': 'd1', 'names': ['d1.example.test'],
                                                   'auto_renew': 0})['id']
         self.assertEqual(self.ok('GET', '/api/certs/one', args={'id': cid})['cert']['issuer'],
-                         "Let's Encrypt (staging)")
+                         'LetsEncrypt staging')
         self.assertTrue(self.events('is now the default source'))
         # Refused: missing, switched off, a reader.
         self.refused(404, 'POST', '/api/sources/default', {'name': 'nothing such'})
@@ -252,7 +252,7 @@ class DefaultsPki(unittest.TestCase):
                                                     'config': {}, 'enabled': 0})['id']
         got = self.refused(400, 'POST', '/api/sources/default', {'name': 'off-src'})
         self.assertIn('switched off', got['error'])
-        self.refused(403, 'POST', '/api/sources/default', {'name': "Let's Encrypt"},
+        self.refused(403, 'POST', '/api/sources/default', {'name': 'LetsEncrypt'},
                      session=self.ro)
         # None: '' - and a new certificate then has no source (a CSR for outside).
         self.assertEqual(self.ok('POST', '/api/sources/default', {'name': ''})['default'], '')
@@ -271,8 +271,8 @@ class DefaultsPki(unittest.TestCase):
         self.assertEqual(self.ok('GET', '/api/certs/overview')['defaults']['issuer'], '')
         self.assertTrue(self.events('was the default source: there is none now'))
         # Back to Let's Encrypt, from the command line.
-        self.cli_ok('--source-default', "Let's Encrypt")
-        self.assertTrue(self.rows('/api/sources')["Let's Encrypt"]['is_default'])
+        self.cli_ok('--source-default', 'LetsEncrypt')
+        self.assertTrue(self.rows('/api/sources')['LetsEncrypt']['is_default'])
 
     def test_11_validation_and_target_default(self):
         self.ok('POST', '/api/validations/save', {'name': 'dns-x', 'kind': 'manual',
@@ -280,12 +280,12 @@ class DefaultsPki(unittest.TestCase):
         self.ok('POST', '/api/validations/default', {'name': 'dns-x'})
         vals = self.rows('/api/validations')
         self.assertTrue(vals['dns-x']['is_default'])
-        self.assertFalse(vals['This server (HTTP-01)']['is_default'])
+        self.assertFalse(vals['This server HTTP-01']['is_default'])
         self.cli_ok('--validation-default', 'none')
         self.assertFalse(any(r['is_default'] for r in self.rows('/api/validations').values()))
-        self.cli_ok('--validation-default', 'This server (HTTP-01)')
+        self.cli_ok('--validation-default', 'This server HTTP-01')
         self.ok('POST', '/api/validations/delete', {'name': 'dns-x', 'id': vals['dns-x']['id']})
-        self.assertTrue(self.rows('/api/validations')['This server (HTTP-01)']['is_default'])
+        self.assertTrue(self.rows('/api/validations')['This server HTTP-01']['is_default'])
         # Targets: none at first; one made the default; is_default on its row.
         tid = self.ok('POST', '/api/targets/save', {'name': 'pages', 'kind': 'appliance',
                                                     'config': {}})['id']
@@ -494,10 +494,10 @@ class DefaultsPki(unittest.TestCase):
     # ---- HTTP-01 answered here ---------------------------------------------------------------
     def test_40_http01_info_and_check(self):
         self.ok('POST', '/api/certs/save', {'name': 'here', 'names': ['localhost'],
-                                            'issuer': "Let's Encrypt",
-                                            'challenge': 'This server (HTTP-01)',
+                                            'issuer': 'LetsEncrypt',
+                                            'challenge': 'This server HTTP-01',
                                             'auto_renew': 0})
-        got = self.ok('GET', '/api/validations/info', args={'name': 'This server (HTTP-01)'})
+        got = self.ok('GET', '/api/validations/info', args={'name': 'This server HTTP-01'})
         self.assertTrue(got['applies'])
         self.assertEqual(got['url'], 'http://<NAME>/.well-known/acme-challenge/<token>')
         self.assertEqual((got['port'], got['path_fixed']), (80, True))
@@ -514,7 +514,7 @@ class DefaultsPki(unittest.TestCase):
         self.assertFalse(self.ok('GET', '/api/validations/info',
                                  args={'name': 'by-hand'})['applies'])
         # Check a name: a probe token, fetched, taken away again.
-        st, chk = self.call('POST', '/api/validations/check', {'name': 'This server (HTTP-01)',
+        st, chk = self.call('POST', '/api/validations/check', {'name': 'This server HTTP-01',
                                                                'host': 'localhost'},
                             self.admin)
         self.assertEqual(st, 200, chk)          # nothing answers port 80 here: ok is false
@@ -524,13 +524,122 @@ class DefaultsPki(unittest.TestCase):
                        '\'acme:chal:acme-probe-%\'")))')
         self.assertEqual(left, 0)
         _st, wild = self.call('POST', '/api/validations/check',
-                              {'name': 'This server (HTTP-01)', 'host': '*.example.test'},
+                              {'name': 'This server HTTP-01', 'host': '*.example.test'},
                               self.admin)
         self.assertFalse(wild['ok'])
         self.assertIn('wildcard', wild['said'])
-        out = self.cli_ok('--validation-show', 'This server (HTTP-01)').stdout
+        out = self.cli_ok('--validation-show', 'This server HTTP-01').stdout
         self.assertIn('/.well-known/acme-challenge/<token>', out)
         self.assertIn('localhost', out)
+
+    # ---- safe names -------------------------------------------------------------------------
+    def test_60_safe_name(self):
+        from acmelib.certs.store import safe_name, NAME_RE
+        cases = {"Let's Encrypt": 'Lets Encrypt', "Let's Encrypt (staging)": 'Lets Encrypt staging',
+                 'This server (HTTP-01)': 'This server HTTP-01', 'Šifrování': 'Sifrovani',
+                 'Žluťoučký kůň: CA/1': 'Zlutoucky kun CA 1', 'Straße Łódź': 'Strasse Lodz',
+                 'a"b`c<d>e': 'abc d e', '  -.x y  ': 'x y', '((()))': 'unnamed',
+                 '*.example.com': 'example.com', 'ok-name_1.2@x+y': 'ok-name_1.2@x+y',
+                 'tab\there\nnl': 'tab here nl', '中文': 'unnamed'}
+        for given, want in cases.items():
+            got = safe_name(given)
+            self.assertEqual(got, want, given)
+            self.assertTrue(NAME_RE.match(got), got)
+        self.assertEqual(safe_name('x' * 300), 'x' * 120)
+        self.assertEqual(safe_name('dup', ['dup']), 'dup 2')
+        self.assertEqual(safe_name('dup', ['dup', 'dup 2']), 'dup 3')
+        self.assertTrue(NAME_RE.match(safe_name('y' * 130, ['y' * 120])))
+        # The plugins offer safe names to start from.
+        plug = self.ok('GET', '/api/plugins')
+        for fam in ('issuer', 'challenge', 'target'):
+            for one in plug[fam]:
+                self.assertTrue(NAME_RE.match(one['default_name']), (fam, one['default_name']))
+        hl = [x for x in plug['challenge'] if x['kind'] == 'http_local'][0]
+        self.assertEqual(hl['default_name'], 'This server HTTP-01')
+        # A certificate with no name said: from its first name, a wildcard as "wildcard.".
+        cid = self.ok('POST', '/api/certs/save', {'names': ['*.wild.example.test'],
+                                                  'auto_renew': 0, 'issuer': ''})['id']
+        self.assertEqual(self.ok('GET', '/api/certs/one', args={'id': cid})['cert']['name'],
+                         'wildcard.wild.example.test')
+        # An authority with no name said: from its CN, made safe.
+        got = self.ok('POST', '/api/cas/create', {'subject': {'CN': "Bob's CA (test)"},
+                                                  'key_type': 'ec-256', 'published': False})
+        self.assertEqual(self.ok('GET', '/api/cas/one', args={'id': got['id']})['ca']['name'],
+                         'Bobs CA test')
+        # A name typed that is not safe is still refused.
+        self.refused(400, 'POST', '/api/sources/save', {'name': "Bad (name)", 'kind': 'selfsigned',
+                                                        'config': {}})
+
+    def test_61_names_made_safe_at_start(self):
+        """An installation of before: unsafe names renamed, every reference with them."""
+        ca = self.make_ca('mig-ca', published=False)['id']
+        self.ok('POST', '/api/sources/save', {'name': 'mig-src', 'kind': 'internal_ca',
+                                              'config': {'ca': 'mig-ca'}})
+        self.ok('POST', '/api/sources/save', {'name': 'Src old', 'kind': 'selfsigned',
+                                              'config': {}})
+        self.ok('POST', '/api/validations/save', {'name': 'mig-val', 'kind': 'manual',
+                                                  'config': {}})
+        self.ok('POST', '/api/targets/save', {'name': 'mig-tg', 'kind': 'appliance', 'config': {}})
+        cid = self.ok('POST', '/api/certs/save', {
+            'name': 'mig-cert', 'names': ['m.example.test', 'n.example.test'], 'auto_renew': 0,
+            'issuer': 'mig-src', 'challenge': 'mig-val',
+            'challenge_map': {'n.example.test': 'mig-val'}})['id']
+        self.ok('POST', '/api/deploys/save', {'cert_id': cid, 'target': 'mig-tg',
+                                              'options': {}, 'enabled': False})
+        got = self.py(
+            'from acmelib.certs import names as N\n'
+            'db = st.db\n'
+            'old = {"ca": "Šifrovací CA\'s", "src": "Src (old)", "val": \'Val: "x"\', '
+            '"tg": "Tg/1", "cert": "cert\'s one"}\n'
+            'db.run("UPDATE cert_cas SET name = ? WHERE name = ?", (old["ca"], "mig-ca"))\n'
+            'r = db.row("SELECT id, config FROM cert_issuers WHERE name = ?", ("mig-src",))\n'
+            'db.run("UPDATE cert_issuers SET name = ?, config = ? WHERE id = ?", (old["src"], '
+            'json.dumps({"ca": old["ca"]}), r["id"]))\n'
+            'db.run("UPDATE cert_challenges SET name = ? WHERE name = ?", (old["val"], "mig-val"))\n'
+            'db.run("UPDATE cert_targets SET name = ? WHERE name = ?", (old["tg"], "mig-tg"))\n'
+            'db.run("UPDATE certs SET name = ?, issuer = ?, challenge = ?, challenge_map = ? '
+            'WHERE name = ?", (old["cert"], old["src"], old["val"], '
+            'json.dumps({"n.example.test": old["val"]}), "mig-cert"))\n'
+            'db.run("UPDATE cert_deploys SET target = ? WHERE target = ?", (old["tg"], "mig-tg"))\n'
+            'st.set_meta("certs:default_issuer", old["src"])\n'
+            'st.set_meta("certs:default_challenge", old["val"])\n'
+            'st.set_meta("certs:default_target", old["tg"])\n'
+            'st.set_meta("certs:kv:challenge:" + old["val"] + ":last", "7")\n'
+            'st.save_setting("portal_cert_issuers", old["src"] + ", LetsEncrypt")\n'
+            'st.save_setting("portal_cert_challenge", old["val"])\n'
+            'before = N.check_now(st)\n'
+            'done = N.migrate(st)\n'
+            'again = N.migrate(st)\n'
+            'saved = st.settings_saved()\n'
+            'print(json.dumps({"before": before, "done": done, "again": again, '
+            '"portal": [saved.get("portal_cert_issuers"), saved.get("portal_cert_challenge")], '
+            '"kv": st.get_meta("certs:kv:challenge:Val x:last"), '
+            '"meta": [st.get_meta("certs:default_" + k) for k in ("issuer", "challenge", "target")]}))')
+        done = {(f, o): n for f, o, n in got['done']}
+        self.assertEqual(done[('ca', "Šifrovací CA's")], 'Sifrovaci CAs')
+        self.assertEqual(done[('issuer', 'Src (old)')], 'Src old 2')        # "Src old" is taken
+        self.assertEqual(done[('challenge', 'Val: "x"')], 'Val x')
+        self.assertEqual(done[('target', 'Tg/1')], 'Tg 1')
+        self.assertEqual(done[('cert', "cert's one")], 'certs one')
+        self.assertEqual(len(got['before']), len(got['done']))
+        self.assertEqual(got['again'], [])                                  # once only
+        self.assertEqual(got['meta'], ['Src old 2', 'Val x', 'Tg 1'])
+        self.assertEqual(got['portal'], ['Src old 2, LetsEncrypt', 'Val x'])
+        self.assertEqual(got['kv'], '7')
+        one = self.ok('GET', '/api/certs/one', args={'id': cid})
+        c = one['cert']
+        self.assertEqual((c['name'], c['issuer'], c['challenge']), ('certs one', 'Src old 2', 'Val x'))
+        self.assertEqual(c['challenge_map'], {'n.example.test': 'Val x'})
+        self.assertEqual([d['target'] for d in one['deploys']], ['Tg 1'])
+        self.assertEqual(self.rows('/api/sources')['Src old 2']['config']['ca'], 'Sifrovaci CAs')
+        self.assertTrue(self.rows('/api/sources')['Src old 2']['is_default'])
+        self.assertEqual(self.ok('GET', '/api/cas/one', args={'id': ca})['ca']['name'],
+                         'Sifrovaci CAs')
+        self.assertTrue(self.events('names made safe'))
+        # Every row editable again (a save of its own name).
+        self.ok('POST', '/api/sources/save', {'id': self.rows('/api/sources')['Src old 2']['id'],
+                                              'enabled': 1})
+        self.cli_ok('--source-default', 'LetsEncrypt')
 
     # ---- nginx -------------------------------------------------------------------------------
     def test_50_nginx_pki_location(self):

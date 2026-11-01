@@ -236,6 +236,9 @@ class Plugin(object):
     family = ''             # 'issuer' | 'challenge' | 'target'
     kind = ''               # unique within the family: 'acme', 'f5', 'cloudflare'
     title = ''              # 'F5 BIG-IP'
+    # The name a new one is offered with on the page (store.NAME_RE: letters,
+    # digits, spaces and . _ @ + -). Empty: made from the title, made safe.
+    default_name = ''
     description = ''        # a sentence or two for the page
     vendor = ''             # grouping on the page: 'Linux', 'F5', 'Fortinet', 'Public CA'
     fields = []             # the form of its settings
@@ -280,6 +283,7 @@ class Plugin(object):
     @classmethod
     def describe(cls):
         return {'family': cls.family, 'kind': cls.kind, 'title': cls.title or cls.kind,
+                'default_name': cls.default_name,
                 'description': cls.description, 'vendor': cls.vendor,
                 'fields': list(cls.fields), 'doc': cls.doc,
                 'actions': [dict(a) for a in (cls.actions or [])],

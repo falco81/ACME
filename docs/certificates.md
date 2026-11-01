@@ -27,17 +27,17 @@ plugs it into the engine. The modules (issuers, challenges, targets) are in
 
 A new installation starts ready for Let's Encrypt. The first time the daemon
 starts (or the command line opens the database) with no source at all, it
-makes the sources **Let's Encrypt** (production) and **Let's Encrypt
-(staging)** (module `acme`); with no validation at all, **This server
-(HTTP-01)** (`http_local`); and once `dns_zone` is set, **acme's DNS server**
+makes the sources **LetsEncrypt** (production) and **LetsEncrypt
+staging** (module `acme`); with no validation at all, **This server
+HTTP-01** (`http_local`); and once `dns_zone` is set, **acme DNS server**
 (`dns_builtin`). Each is made once: a flag in `meta` (`certs:default:sources`,
 `:validations`, `:dns`) says so, and one an administrator deleted is never
 made again.
 
 A new certificate with no issuer said comes from the default source (`meta
-certs:default_issuer`, "Let's Encrypt"), and one from an ACME CA with no
+certs:default_issuer`, "LetsEncrypt"), and one from an ACME CA with no
 validation said is proved by the default validation (`certs:default_challenge`,
-"This server (HTTP-01)"); the lists mark them (`is_default`, `*` on the
+"This server HTTP-01"); the lists mark them (`is_default`, `*` on the
 command line). An ACME account works without a contact e-mail; where an ACME
 source has none, the Sources page and `acme --certs` / `--sources` ask for one
 (`acme --acme-contact MAIL`, `POST /api/sources/contact {email}`).
@@ -64,8 +64,34 @@ The list marks it with the green *default* tag (`is_default` on its row,
 an authority that cannot sign (no certificate yet, no key, off, run out),
 and one that is not there are refused. Each change is an event. Renamed, it
 stays the default; deleted, there is none (an event says so) - nothing is
-taken in its place. An installation that never set one keeps "Let's
-Encrypt" and "This server (HTTP-01)" where they are there.
+taken in its place. An installation that never set one keeps "LetsEncrypt" and
+"This server HTTP-01" where they are there.
+
+### Names
+
+Every source, validation, target, authority and certificate has a name of
+letters, digits, spaces and `. _ @ + -`, starting with a letter or a digit
+(120 at most; `store.NAME_RE`) - names reach shell commands, files and
+devices, so never a quote or a bracket. The pages say what a name box would
+refuse as it is typed (and keep *Save* off meanwhile). Every name acme
+suggests is made so (`store.safe_name`, `safeName` on the pages): a module's
+`default_name`, else its title; a certificate's first name (a wildcard as
+`wildcard.`); an authority's or an imported certificate's CN - letters with
+accents as plain letters (`Šifrování` → `Sifrovani`), apostrophes and quotes
+dropped, brackets, colons, commas and slashes as spaces, unique in its list
+(`name 2`, `name 3`...).
+
+An installation from before had names that are not safe ("Let's Encrypt",
+"Let's Encrypt (staging)", "This server (HTTP-01)", "acme's DNS server", and
+names taken from a CN). At its next start (`names.migrate`, before the first
+start's defaults) each is renamed - the four to "LetsEncrypt", "LetsEncrypt
+staging", "This server HTTP-01", "acme DNS server", the rest to their safe
+name - in one transaction with every place that refers to it: the
+certificates' source, validation and per-name validations, the deployments'
+target, the defaults, the settings `portal_cert_issuers` and
+`portal_cert_challenge`, the values a module keeps, and every module setting
+that names it (an own-CA source's authority). One event says what was
+renamed.
 `GET /api/certs/overview` says all four (`defaults`).
 
 ### Always current

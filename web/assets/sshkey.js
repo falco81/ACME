@@ -26,12 +26,9 @@
     }
     return SK_ASK;
   }
-  function skFull() {
-    return typeof FULL !== 'undefined' ? !!FULL : !!(typeof ADMIN !== 'undefined' && ADMIN);
-  }
-  function skManage() {
-    return typeof MANAGE !== 'undefined' ? !!MANAGE : skFull();
-  }
+  function skRole() { return (typeof ME === 'object' && ME && ME.role) || 'readonly'; }
+  function skFull() { return skRole() === 'fulladmin'; }
+  function skManage() { return skFull() || skRole() === 'certadmin' || skRole() === 'tokenadmin'; }
 
   /* One fact of the card, a name and its value - isemon's kvInto. */
   function skKv(host, k, v, d2, why) {
@@ -41,7 +38,8 @@
     line.appendChild(key);
     var value = el('span', 'v');
     if (v instanceof Node) value.appendChild(v); else value.textContent = v;
-    if (d2) value.appendChild(el('span', 'd', d2));
+    if (d2 instanceof Node) { var dd = el('span', 'd'); dd.appendChild(d2); value.appendChild(dd); }
+    else if (d2) value.appendChild(el('span', 'd', d2));
     line.appendChild(value);
     host.appendChild(line);
     return line;
@@ -82,7 +80,37 @@
     p.innerHTML = html;
     body.appendChild(p);
   }
-  function skMono(t) { return '<span class="mono">' + htmlText(t) + '</span>'; }
+  /* The sentences that name the machine at the other end ({W}: "the server",
+     "the router"...), each said whole - web/lang/cs.json has each of them whole,
+     for each machine, in its own grammatical case. {0} is a name. */
+  var SK_T = {
+    lede: "A key is better than a password: the key never leaves this machine and {W} holds only its public half.",
+    guide: "How to set it up on {W}\u2026",
+    guideWhy: "How to set {W} up for this machine, step by step, with its commands: the account, its key let in from acme alone, its host key.",
+    keynote: "Made here, and it never leaves this machine except when you download it. Put the <b>public</b> half on {W}.",
+    keynoteWhy: "The key is made here and never leaves this machine except when you download it. Put the public half on {W} and it will let acme in without a password. Keep the private half safe: anybody holding it can sign in as that account.",
+    mkWhy: "Make a fresh ed25519 pair here (or RSA 4096, for something old that needs RSA). The private half stays on this machine and the public half is shown below for you to put on {W}. Any key already stored is replaced, so until the new public half is there this will not be able to sign in.",
+    forgetWhy: "Delete the private key from this machine. Unless {W} is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+    testWhy: "Sign in to {W} and ask it who acme is there. Nothing is written and nothing is changed - it is the quickest way to find out whether the address, the account and the key are right.",
+    authWhy: "A key is better: it never leaves this machine, {W} holds only its public half, and it cannot be read out of the settings by anybody who gets this far.",
+    fpWhy: "Its fingerprint, as ssh-keygen -lf says it of the public half - the same as {W} shows for the key it lets in.",
+    copyWhy: "Click to copy. This is the half that goes ON {W}; the private half stays here.",
+    make: "A fresh pair is made here. The private half stays on this machine and the public half is shown for you to put on {W}.",
+    made: "a new key was made \u2014 put the public half on {W}",
+    download: "The private half leaves this machine as a file. Anybody holding it can sign in to {W} as <code>{0}</code>. That it was downloaded, and by whom, is written into Events.",
+    forget: "The private key is deleted from this machine. Unless {W} is set to take a password instead, nothing here will reach it until a new key is made and put on it.",
+    answered: "This signed in to {W}, asked it who acme is there, and came back. Nothing was written and nothing was changed.",
+    failed: "What ssh said when reaching {W}, step by step:",
+    causes: "The usual causes, in the order they usually are: the public half of the key is not on {W} yet; the account may not sign in over ssh; its host key is not trusted yet; the address or port is wrong; or it is not reachable from this machine at all.",
+    onAsRoot: "On {W}, as root - or use an account you have:",
+    hostkey: "What {W} proves itself with - compare it with the fingerprint <b>Try reaching it</b> shows the first time:",
+    generic: "<b>Make a key</b> below and put its public half where {W} takes keys for <code>{0}</code> - on most, <code>~/.ssh/authorized_keys</code> of that account, let in from acme alone:"
+  };
+  function skT(k, w, a) {
+    var t = SK_T[k].split('{W}').join(w);
+    return a === undefined ? t : t.split('{0}').join(a);
+  }
+  function skMono(t) { return '<code>' + htmlText(t) + '</code>'; }
 
   /* What the thing at the other end is called, by the kind of guide. */
   var SK_WORDS = {linux: 'the server', windows: 'the Windows server', mikrotik: 'the router',
@@ -94,22 +122,26 @@
   function skGuideLinux(body, g) {
     var home = g.user === 'root' ? '/root' : '~' + g.user;
     skGuideNote(body, 'acme signs in as ' + skMono(g.user) + ' with the key made here and nothing '
-      + 'else. The key is let in only from acme\u2019s own address' + (g.from.indexOf(',') >= 0 ? 'es' : '')
-      + ', with <span class="mono">from=</span> in front of it: copied anywhere else, it opens '
+      + 'else. The key is let in only from acme\u2019s own addresses'
+      + ', with <code>from=</code> in front of it: copied anywhere else, it opens '
       + 'nothing.');
     var n = 1;
     if (g.user !== 'root') {
       skGuideStep(body, n++, 'An account for acme',
-        'On ' + g.words + ', as root - or use an account you have:',
+        skT('onAsRoot', g.words),
         'useradd -m -s /bin/sh ' + g.user);
     }
     skGuideStep(body, n++, 'Its key',
-      '<b>Make a key</b> below and put its public half into <span class="mono">' + htmlText(home)
-      + '/.ssh/authorized_keys</span>, let in from acme alone:',
+      '<b>Make a key</b> below and put its public half into <code>' + htmlText(home)
+      + '/.ssh/authorized_keys</code>, let in from acme alone:',
       'install -d -m 700 -o ' + g.user + ' -g ' + g.user + ' ' + home + '/.ssh\n'
       + 'echo \'' + g.line + '\' >> ' + home + '/.ssh/authorized_keys\n'
       + 'chown ' + g.user + ': ' + home + '/.ssh/authorized_keys && chmod 600 ' + home
       + '/.ssh/authorized_keys');
+    if (g.user === 'root' && g.sudo !== undefined) {
+      skGuideNote(body, 'Rather not let root in? Put an account of its own into <i>User</i> and '
+        + 'switch <i>Use sudo</i> on: this then says the sudoers line it needs too.');
+    }
     if (g.user !== 'root') {
       skGuideStep(body, n++, 'sudo, without a password',
         'Not root: switch <i>Use sudo</i> on here, and let the account run what acme does there '
@@ -117,14 +149,13 @@
         'echo \'' + g.user + ' ALL=(root) NOPASSWD: ALL\' > /etc/sudoers.d/acme\n'
         + 'chmod 440 /etc/sudoers.d/acme && visudo -cf /etc/sudoers.d/acme');
     }
-    skGuideStep(body, n++, 'Its host key',
-      'What ' + g.words + ' proves itself with - compare it with the fingerprint <b>Try reaching '
-      + 'it</b> shows the first time:', 'ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub');
+    skGuideStep(body, n++, 'Its host key', skT('hostkey', g.words),
+      'ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub');
   }
   function skGuideWindows(body, g) {
     skGuideNote(body, 'acme signs in to the Windows OpenSSH server as ' + skMono(g.user)
       + ', an administrator, with the key made here. For an account in Administrators, Windows '
-      + 'reads the key from <span class="mono">administrators_authorized_keys</span> and nowhere '
+      + 'reads the key from <code>administrators_authorized_keys</code> and nowhere '
       + 'else - and only while SYSTEM and Administrators alone may read that file.');
     skGuideStep(body, 1, 'The OpenSSH server',
       'In PowerShell, as an administrator:',
@@ -137,9 +168,8 @@
       + g.line + '\'\n'
       + 'icacls.exe C:\\ProgramData\\ssh\\administrators_authorized_keys /inheritance:r '
       + '/grant "Administrators:F" /grant "SYSTEM:F"');
-    skGuideStep(body, 3, 'Its host key',
-      'What it proves itself with - compare it with the fingerprint <b>Try reaching it</b> shows '
-      + 'the first time:', 'ssh-keygen -lf C:\\ProgramData\\ssh\\ssh_host_ed25519_key.pub');
+    skGuideStep(body, 3, 'Its host key', skT('hostkey', g.words),
+      'ssh-keygen -lf C:\\ProgramData\\ssh\\ssh_host_ed25519_key.pub');
   }
   function skGuideMikrotik(body, g) {
     skGuideNote(body, 'acme signs in to the router over ssh as ' + skMono(g.user) + ' to put the '
@@ -155,9 +185,7 @@
       '<b>Make a key</b> below, copy its public half into a file ' + skMono(g.file)
       + ' on the Mikrotik (<i>Files</i>, or scp) and import it for that account:',
       '/user ssh-keys import public-key-file=' + g.file + ' user=' + g.user);
-    skGuideStep(body, 3, 'Its host key',
-      'What the router proves itself with - compare it with the fingerprint <b>Try reaching '
-      + 'it</b> shows the first time:', '/ip ssh print');
+    skGuideStep(body, 3, 'Its host key', skT('hostkey', g.words), '/ip ssh print');
   }
   function skGuidePf(body, g, opn) {
     skGuideNote(body, 'acme signs in over ssh as ' + skMono(g.user) + ' with the key made here.');
@@ -168,19 +196,14 @@
             + 'with <i>Public Key Only</i>.');
     skGuideStep(body, 2, 'The account and its key',
       '<b>Make a key</b> below and put its public half into <b>Authorized keys</b> of the '
-      + 'account <span class="mono">' + htmlText(g.user) + '</span> ('
+      + 'account <code>' + htmlText(g.user) + '</code> ('
       + (opn ? '<b>System \u2192 Access \u2192 Users</b>' : '<b>System \u2192 User Manager</b>')
       + '):', g.line);
-    skGuideStep(body, 3, 'Its host key',
-      'What the firewall proves itself with - compare it with the fingerprint <b>Try reaching '
-      + 'it</b> shows the first time, from its shell:',
+    skGuideStep(body, 3, 'Its host key', skT('hostkey', g.words),
       'ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub');
   }
   function skGuideGeneric(body, g) {
-    skGuideStep(body, 1, 'Its key',
-      '<b>Make a key</b> below and put its public half where ' + g.words + ' takes keys for '
-      + skMono(g.user) + ' - on most, <span class="mono">~/.ssh/authorized_keys</span> of that '
-      + 'account, let in from acme alone:', g.line);
+    skGuideStep(body, 1, 'Its key', skT('generic', g.words, htmlText(g.user)), g.line);
   }
   var SK_GUIDES = {linux: skGuideLinux, windows: skGuideWindows, mikrotik: skGuideMikrotik,
                    pfsense: function (b, g) { skGuidePf(b, g, false); },
@@ -209,8 +232,8 @@
           (SK_GUIDES[how] || skGuideGeneric)(body, g);
         }
         if (!c.state.public) {
-          skGuideNote(body, 'There is no key yet: the commands above say <span class="mono">'
-            + 'ssh-ed25519 AAAA\u2026</span> where its public half goes. <b>Make a key</b> first and '
+          skGuideNote(body, 'There is no key yet: the commands above say <code>'
+            + 'ssh-ed25519 AAAA\u2026</code> where its public half goes. <b>Make a key</b> first and '
             + 'open this again - they are then the very commands to copy.', 'warn');
         }
         skGuideNote(body, 'Then, here: fill the settings in, <b>Save</b>, and <b>Try reaching it</b>.', '');
@@ -253,7 +276,7 @@
       var from = ((SK_INFO && SK_INFO.from) || []).filter(Boolean);
       var pub = c.state.public || 'ssh-ed25519 AAAA\u2026 acme';
       var file = 'acme-' + String(nameNow()).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, 60) + '.pub';
-      return {user: userOf(), words: words, from: from.join(','), fromList: from,
+      return {user: userOf(), words: words, from: from.join(','), fromList: from, sudo: x.sudo,
               host: String(x.host || x.hosts || 'HOST'), file: file, pubText: pub,
               line: (from.length ? 'from="' + from.join(',') + '" ' : '') + pub};
     };
@@ -269,16 +292,14 @@
     var when = el('span', 'right');
     h2.appendChild(when);
     card.appendChild(h2);
-    var lede = el('p', 'note', 'A key is better than a password: the key never leaves this machine and '
-      + words + ' holds only its public half.');
+    var lede = el('p', 'note', skT('lede', words));
     card.appendChild(lede);
     var facts = el('div', 'sshk-facts');
     card.appendChild(facts);
     var gRow = el('div', 'btnrow');
     gRow.style.marginTop = '12px';
-    var guide = cmdButton('How to set it up on ' + words + '\u2026', 'info');
-    explain(guide, 'How to set ' + words + ' up for this machine, step by step, with its '
-      + 'commands: the account, its key let in from acme alone, its host key.');
+    var guide = cmdButton(skT('guide', words), 'info');
+    explain(guide, skT('guideWhy', words));
     guide.onclick = function () { skInfo().then(function () { skGuide(c); }); };
     gRow.appendChild(guide);
     card.appendChild(gRow);
@@ -286,12 +307,8 @@
     var keybox = el('div', 'subpanel');
     keybox.style.marginTop = '16px';
     var keynote = el('p', 'note');
-    keynote.innerHTML = 'Made here, and it never leaves this machine except when you download it. '
-      + 'Put the <b>public</b> half on ' + words + '.';
-    explain(keynote, 'The key is made here and never leaves this machine except when you '
-      + 'download it. Put the public half on ' + words + ' and it will let acme in without a '
-      + 'password. Keep the private half safe: anybody holding it can sign in to ' + words
-      + ' as that account.');
+    keynote.innerHTML = skT('keynote', words);
+    explain(keynote, skT('keynoteWhy', words));
     keybox.appendChild(keynote);
     var missing = el('p', 'note', 'ssh-keygen is not on this machine, so a key cannot be made or '
       + 'read here: dnf install openssh-clients. A password still works.');
@@ -304,20 +321,16 @@
     var down = cmdButton('Download it', 'download', 'admin-only');
     var forget = cmdButton('Forget it', 'forget', 'danger admin-only');
     var test = cmdButton('Try reaching it', 'pulse', 'primary');
-    explain(mk, 'Make a fresh ed25519 pair here (or RSA 4096, for something old that needs RSA). '
-      + 'The private half stays on this machine and the public half is shown below for you to put '
-      + 'on ' + words + '. Any key already stored is replaced, so until the new public half is '
-      + 'there this will not be able to sign in.');
+    explain(mk, skT('mkWhy', words));
     explain(own, 'Use a private key you already have. Paste it whole, including its BEGIN and END '
       + 'lines, or read it from a file; its public half is worked out here so you do not have to '
       + 'hand that over as well. A passphrase it is locked with is asked for and checked.');
     explain(down, 'Download the private half as a file, for keeping somewhere safe or for using '
       + 'the same key elsewhere. It is written into Events that it was downloaded, and by whom.');
-    explain(forget, 'Delete the private key from this machine. Unless ' + words + ' is set to take '
-      + 'a password instead, nothing here will reach it until a new key is made and put on it.');
-    explain(test, 'Sign in to ' + words + ' and ask it who acme is there. Nothing is written and '
-      + 'nothing is changed - it is the quickest way to find out whether the address, the account '
-      + 'and the key are right.');
+    explain(forget, skT('forgetWhy', words));
+    explain(test, skT('testWhy', words));
+    mk.dataset.sk = 'make'; own.dataset.sk = 'own'; down.dataset.sk = 'download';
+    forget.dataset.sk = 'forget'; test.dataset.sk = 'try'; guide.dataset.sk = 'guide';
     [mk, own, down, forget].forEach(function (b) { bar.appendChild(b); });
     bar.appendChild(el('span', 'spacer'));
     bar.appendChild(test);
@@ -355,7 +368,7 @@
       if (!on) tag.appendChild(el('span', 'tag dim', 'switched off'));
       else if (!host) tag.appendChild(el('span', 'tag dim', 'not set up'));
       else if (row && row.last_error) { tag.appendChild(el('span', 'tag crit', 'trouble')); d2 = String(row.last_error).slice(0, 300); }
-      else if (row && row.last_ok) { tag.appendChild(el('span', 'tag ok', 'set up')); d2 = 'reached ' + ago(row.last_ok); }
+      else if (row && row.last_ok) { tag.appendChild(el('span', 'tag ok', 'set up')); d2 = ago(row.last_ok); }
       else tag.appendChild(el('span', 'tag dim', row ? 'not tried yet' : 'not saved yet'));
       skKv(facts, 'Right now', tag, d2,
         'Switched off means nothing is ever done there, while everything about how to reach it '
@@ -365,27 +378,40 @@
       var auth = authNow();
       var how = auth === 'password' ? 'a password'
         : (st.has ? 'a key this machine holds' : (f.auth_key ? 'a key \u2014 but there is none yet' : 'a password'));
-      skKv(facts, 'Signing in with', how, '',
-        'A key is better: it never leaves this machine, ' + words + ' holds only its public half, '
-        + 'and it cannot be read out of the settings by anybody who gets this far.');
+      skKv(facts, 'Signing in with', how, '', skT('authWhy', words));
       if (st.has) {
         var kind = st.type ? (st.type === 'ED25519' ? 'Ed25519' : st.type + (st.bits ? ' ' + st.bits : '')) : 'a key';
         var fp = noI18n(el('span', 'mono', st.fp || '\u2013'));
-        var kv = skKv(facts, 'The key', fp, kind,
-          'Its fingerprint, as ssh-keygen -lf says it of the public half - the same as ' + words
-          + ' shows for the key it lets in.');
+        var kv = skKv(facts, 'The key', fp, kind, skT('fpWhy', words));
         kv.querySelector('.v').classList.add('sshk-fp');
         var made = st.how === 'made' ? 'made here' : (st.how === 'own' ? 'your own, given here' : 'your own key, pasted before');
-        skKv(facts, st.how === 'made' ? 'Made' : 'Given', st.made ? stamp(st.made) : made,
-          st.made ? made + (st.by ? ' by ' + st.by : '') + ' \u00b7 ' + ago(st.made) : '');
-        when.textContent = st.made ? (st.how === 'made' ? 'made ' : 'given ') + ago(st.made) : '';
+        var line = null;
+        if (st.made) {
+          line = el('span');
+          line.appendChild(el('span', '', made));
+          if (st.by) {
+            line.appendChild(document.createTextNode(' \u00b7 '));
+            line.appendChild(el('span', '', 'by'));
+            line.appendChild(document.createTextNode(' '));
+            line.appendChild(noI18n(el('span', '', st.by)));
+          }
+          line.appendChild(document.createTextNode(' \u00b7 '));
+          line.appendChild(el('span', '', ago(st.made)));
+        }
+        skKv(facts, st.how === 'made' ? 'Made' : 'Given', st.made ? stamp(st.made) : made, line);
+        clear(when);
+        if (st.made) {
+          when.appendChild(el('span', '', st.how === 'made' ? 'made' : 'given'));
+          when.appendChild(document.createTextNode(' '));
+          when.appendChild(el('span', '', ago(st.made)));
+        }
       } else {
-        when.textContent = '';
+        clear(when);
       }
       if (st.draft) {
-        facts.appendChild(el('p', 'note sshk-draft', 'Not saved yet: the key is kept for this form, '
-          + 'and becomes ' + (family === 'target' ? 'the target\u2019s' : 'the validation\u2019s')
-          + ' when it is saved.'));
+        facts.appendChild(el('p', 'note sshk-draft', family === 'target'
+          ? 'Not saved yet: the key is kept for this form, and becomes the target\u2019s when it is saved.'
+          : 'Not saved yet: the key is kept for this form, and becomes the validation\u2019s when it is saved.'));
       }
     };
     var paint = function () {
@@ -409,8 +435,7 @@
       }
       keyHost.appendChild(el('p', 'btnhelp', 'The public half. Click it to copy.'));
       var code = noI18n(el('code', 'copyme', st.public));
-      explain(code, 'Click to copy. This is the half that goes ON ' + words + '; the private half '
-        + 'stays here. How to put it there: <b>How to set it up on ' + words + '\u2026</b>');
+      explain(code, skT('copyWhy', words));
       code.onclick = function () { copyText(st.public, code, 'the public key is on the clipboard'); };
       keyHost.appendChild(code);
     };
@@ -421,10 +446,14 @@
       modalOver(function () {
         modal('Make a key for ' + nameNow(), function (body) {
           var p = el('p', 'note');
-          p.innerHTML = 'A fresh pair is made here. The private half stays on this machine and the '
-            + 'public half is shown for you to put on ' + words + '.'
-            + (replace ? '<br><br><b>Any key already stored for it is replaced</b>, so until the new '
-              + 'public half is on it this will not be able to sign in.' : '');
+          p.innerHTML = skT('make', words);
+          if (replace) {
+            var p2 = el('p', 'note');
+            p2.innerHTML = '<b>Any key already stored for it is replaced</b>, so until the new '
+              + 'public half is on it this will not be able to sign in.';
+            body.appendChild(p);
+            p = p2;
+          }
           body.appendChild(p);
           var sg = el('div', 'seg');
           [['ed25519', 'Ed25519 (the strongest, and short)'], ['rsa4096', 'RSA 4096 (where something old needs RSA)']].forEach(function (o) {
@@ -447,7 +476,7 @@
               q.key_type = kind;
               skCall('make', q, 150).then(function (d) {
                 closeModal();
-                toast('a new key was made \u2014 put the public half on ' + words, 'good');
+                toast(skT('made', words), 'good');
                 took(d);
               }).catch(function (e) { busy(b, false); oops(e); });
             }}], true);
@@ -459,8 +488,8 @@
       modalOver(function () {
         modal('Use my own key for ' + nameNow(), function (body) {
           var p = el('p', 'note');
-          p.innerHTML = 'An OpenSSH private key, whole, including its <span class="mono">BEGIN</span> '
-            + 'and <span class="mono">END</span> lines. It is kept in this machine\u2019s database, '
+          p.innerHTML = 'An OpenSSH private key, whole, including its <code>BEGIN</code> '
+            + 'and <code>END</code> lines. It is kept in this machine\u2019s database, '
             + 'sealed, and never shown back. Its public half is worked out here, so you do not have '
             + 'to hand that over as well.';
           body.appendChild(p);
@@ -514,9 +543,7 @@
     down.onclick = function () {
       modalOver(function () {
         confirmThen('Download the private key for ' + nameNow(),
-          'The private half leaves this machine as a file. Anybody holding it can sign in to '
-          + words + ' as <span class="mono">' + htmlText(userOf() || 'that account')
-          + '</span>. That it was downloaded, and by whom, is written into Events.',
+          skT('download', words, htmlText(userOf() || 'that account')),
           'Download it', function () {
             var q = ref();
             q.half = 'private';
@@ -530,8 +557,7 @@
     forget.onclick = function () {
       modalOver(function () {
         confirmThen('Forget the key for ' + nameNow(),
-          'The private key is deleted from this machine. Unless ' + words + ' is set to take a '
-          + 'password instead, nothing here will reach it until a new key is made and put on it.',
+          skT('forget', words),
           'Forget it', function () {
             skCall('forget', ref()).then(function () {
               toast('the key is gone');
@@ -566,20 +592,16 @@
         if (d.reached) {
           modalOver(function () {
             modal('It answered', function (body) {
-              body.appendChild(el('p', 'note', 'This signed in to ' + words + ', asked it who acme '
-                + 'is there, and came back. Nothing was written and nothing was changed.'));
+              body.appendChild(el('p', 'note', skT('answered', words)));
               body.appendChild(stepLines(d.steps));
             }, [{words: 'Good', cls: 'primary', close: true}], true);
           });
         } else {
           modalOver(function () {
             modal('It did not answer', function (body) {
-              body.appendChild(el('p', 'note', 'What ssh said when reaching ' + words + ', step by step:'));
+              body.appendChild(el('p', 'note', skT('failed', words)));
               body.appendChild(stepLines(d.steps));
-              body.appendChild(el('p', 'note', 'The usual causes, in the order they usually are: '
-                + 'the public half of the key is not on ' + words + ' yet; the account may not '
-                + 'sign in over ssh; its host key is not trusted yet; the address or port is wrong; '
-                + 'or it is not reachable from this machine at all.'));
+              body.appendChild(el('p', 'note', skT('causes', words)));
             }, [{words: 'Close', close: true}], true);
           });
         }
