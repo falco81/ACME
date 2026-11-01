@@ -4,6 +4,21 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.9 - 2026-11-01
+
+- **Columns of a list no longer jump** when it is drawn again - a switch in a
+  row, the auto refresh, "2 min ago" become "3 min ago": the widths it had
+  first are kept (as shares, so a window made wider or narrower still fits);
+  a long word that does not fit is laid out once more before the page is
+  painted. A layout set by hand (the columns editor) comes first.
+- **Add and issue now** shows the job already issuing a new certificate (the
+  look starts it as soon as it is saved) instead of "a job is working"; the
+  popup closes whatever the issuing says. "Renew now" on a certificate being
+  worked on shows that job too.
+- HTTP-01 over SSH guide: a CNAME to the name that has the public address is
+  suggested, or a redirect of /.well-known/acme-challenge/ from another web
+  server; a name acme's own block adds by itself is not a thing to set up.
+
 ## 1.0.8 - 2026-11-01
 
 - **acme-dns: Register an account** from the validation's form - one, or one a
