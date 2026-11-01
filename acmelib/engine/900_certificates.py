@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib as _importlib
 
 from acmelib.certs import schema as _cert_schema
+from acmelib.certs import texts as _cert_texts
 
 for _cs_name, _cs_ddl in _cert_schema.SCHEMA:
     if _cs_name not in TABLES:
@@ -30,6 +31,7 @@ CERT_DEFAULTS = {
     'certs_notify_days': 14,
     'certs_notify_mail': '',
     'certs_notify_sms': '',
+    'certs_notify_ok': 0,
     'certs_keep_versions': 10,
     'certs_keep_jobs_days': 90,
     # --- the certificate portal (on the enrolment pages) -------------------------------
@@ -67,6 +69,7 @@ NAMES.update({
     'certs_notify_days': 'Warn this many days before the end',
     'certs_notify_mail': 'Tell by mail',
     'certs_notify_sms': 'Tell by SMS',
+    'certs_notify_ok': 'Tell what went well too',
     'certs_keep_versions': 'Old certificates kept (each)',
     'certs_keep_jobs_days': 'Jobs kept (days)',
     'portal_cert': 'Certificates on the portal',
@@ -103,6 +106,9 @@ SAYS.update({
                          'certificate is about to end (comma between them). Empty: nobody.',
     'certs_notify_sms': 'Numbers told the same by SMS (Settings → Codes by mail and SMS '
                         'says how SMS go out). Empty: nobody.',
+    'certs_notify_ok': 'Also a mail and an SMS when a certificate is renewed or deployed - not '
+                       'only when something fails or runs out. The words are on Settings → '
+                       'Message texts.',
     'certs_keep_versions': 'Each certificate keeps this many of the certificates it had.',
     'certs_keep_jobs_days': 'Jobs older than this are deleted, with their steps.',
     'portal_cert': 'People signed in on the portal see the certificates they own - their '
@@ -142,7 +148,7 @@ SAYS_SHORT.update({
 })
 TUNABLE.update({
     'certs_renew_days': (1, 3650), 'certs_check_min': (1, 1440), 'certs_parallel': (1, 32),
-    'certs_retry_max_h': (1, 168), 'certs_notify_days': (0, 365),
+    'certs_retry_max_h': (1, 168), 'certs_notify_days': (0, 365), 'certs_notify_ok': (0, 1),
     'certs_keep_versions': (1, 1000), 'certs_keep_jobs_days': (1, 3650),
     'portal_cert': (0, 1), 'portal_cert_max': (1, 1000), 'portal_cert_auto': (0, 1),
     'portal_cert_keys': (0, 1),
@@ -151,7 +157,7 @@ TUNABLE.update({
 })
 PANES['certs'] = ['certs_renew_days', 'certs_check_min', 'certs_parallel', 'certs_retry_max_h',
                   'certs_notify_days', 'certs_notify_mail', 'certs_notify_sms',
-                  'certs_keep_versions', 'certs_keep_jobs_days']
+                  'certs_notify_ok', 'certs_keep_versions', 'certs_keep_jobs_days']
 # The certificate portal's settings, on the pane of the portal (the enrolment
 # pages), after the engine's own of who may sign in there.
 PORTAL_CERT_KEYS = ['portal_cert', 'portal_cert_suffixes', 'portal_cert_issuers',
@@ -165,6 +171,18 @@ PANES['dnssrv'] = ['dns_server', 'dns_listen', 'dns_port', 'dns_zone', 'dns_ns_n
 ONLY_WHEN.update({k: ['dns_server', '1'] for k in PANES['dnssrv'] if k != 'dns_server'})
 ONLY_WHEN.update({k: ['portal_cert', '1'] for k in PORTAL_CERT_KEYS if k != 'portal_cert'})
 SETTING_TALL = tuple(SETTING_TALL) + ('dns_static',)
+
+# The words of its notifications (acmelib/certs/texts.py) into the registry of
+# Settings → Message texts: both languages, edited there as every other.
+for _ct_m in _cert_texts.messages():
+    if not any(m['id'] == _ct_m['id'] for m in TEXT_MESSAGES):
+        TEXT_MESSAGES.append(_ct_m)
+TEXT_GROUPS[_cert_texts.GROUP] = _cert_texts.W
+for _ct_k, _ct_v in _cert_texts.PLACEHOLDERS.items():
+    TEXT_PLACEHOLDERS.setdefault(_ct_k, _ct_v)
+for _ct_k, _ct_v in _cert_texts.SAMPLES.items():
+    TEXT_SAMPLES.setdefault(_ct_k, _ct_v)
+del _ct_m, _ct_k, _ct_v
 
 
 def certs_mod(name):
@@ -182,6 +200,10 @@ def _certs_hook(kind):
 @_certs_hook('daemon_start')
 def certs_daemon_start(daemon):
     certs_mod('api')                    # the routes
+    # The notifications in the words of Settings → Message texts.
+    certs_mod('notices').install(certs_mod('renewer'))
+    # Let's Encrypt first: the sources and validations a new installation has.
+    certs_mod('defaults').ensure(daemon.store)
     certs_mod('renewer').start(daemon)
 
 
@@ -226,7 +248,19 @@ def certs_report(store, since):
 
 @_certs_hook('metrics')
 def certs_metrics(store):
-    return certs_mod('renewer').metrics(store)
+    return certs_mod('monitor').metrics(store)
+
+
+@_certs_hook('snmp')
+def certs_snmp(store):
+    return certs_mod('monitor').snmp_rows(store)
+
+
+@_certs_hook('event_fields')
+def certs_event_fields(kind, words, level):
+    if kind != 'certificates':
+        return {}
+    return certs_mod('monitor').event_fields(kind, words, level)
 
 
 # The configuration's tables (Export and import of the configuration): what is

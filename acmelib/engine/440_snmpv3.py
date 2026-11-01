@@ -327,6 +327,19 @@ def snmp_mib(daemon, agent):
                          (B + (6, 1, 1, 5, i), 'int', end)]
     except Exception:                                   # noqa: BLE001
         pass
+    # What a module answers under acme's subtree (HOOKS['snmp']: fn(store) ->
+    # [(oid under acme, kind, value)]) - the certificate manager's table of the
+    # certificates it keeps (acmeManagedCertTable, ACME-MIB).
+    for fn in HOOKS.get('snmp') or () if db_ok else ():
+        try:
+            for sub, kind, value in list(fn(store) or []):
+                sub = tuple(int(x) for x in sub)
+                if sub and sub[0] not in (1, 3, 5, 7, 9) and kind in (
+                        'int', 'str', 'oid', 'counter', 'gauge', 'ticks', 'counter64'):
+                    rows.append((B + sub, kind, value))
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('snmp-hook', 'SNMP, a module: %s: %s' % (
+                getattr(fn, '__qualname__', fn), e), 'warn', every=600)
     if CONFIG.get('ha_mode') and db_ok:
         try:
             for i, n in enumerate(ha_nodes(store), 1):

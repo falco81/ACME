@@ -232,6 +232,73 @@ class RunContext(base.Context):
     def http_token_drop(self, token):
         self.store.db.run('DELETE FROM meta WHERE k = ?', (CHAL_PREFIX + str(token),))
 
+    # ---- acme's own pages (targets/appliance.py) ----------------------------------------
+    # Through the engine's Certificates and TLS: the profile of a node or of the
+    # VIP address (meta web:tls:<where>) - each node puts its own into nginx
+    # within seconds (web_tick), the VIP's whichever node holds the address.
+    def pages_where(self):
+        """{'node': this node, 'nodes': every node, 'cluster': bool, 'vip': {'on', 'fqdn'}}"""
+        nodes = [t for t in E.tls_targets(self.store) if t != 'vip']
+        v = E.vip_conf(self.store) or {}
+        return {'node': E.node_name(), 'nodes': nodes, 'cluster': bool(E.CONFIG.get('ha_mode')),
+                'vip': {'on': bool(v.get('on')) and bool(E.CONFIG.get('ha_mode')),
+                        'fqdn': v.get('fqdn') or '', 'address': v.get('address') or ''}}
+
+    @staticmethod
+    def _pages_check(where):
+        if not re.match(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,62}\Z', str(where or '')):
+            raise base.PluginError('%r is not a node or vip' % where, retry=False)
+        return str(where)
+
+    def pages_get(self, where):
+        """What the pages of `where` (a node, or vip) hold now, or None."""
+        prof = E.tls_profile(self.store, self._pages_check(where)) or {}
+        if not prof.get('cert'):
+            return None
+        info = prof.get('info') or {}
+        return {'fingerprint': str(info.get('fingerprint') or '').replace(':', '').lower(),
+                'cn': info.get('cn') or '', 'not_after': info.get('not_after'),
+                'subject': info.get('subject') or '', 'how': prof.get('how') or '',
+                'at': prof.get('at')}
+
+    def pages_put(self, where, cert_pem, key_pem, chain_pems=None, how='the certificate manager'):
+        """The certificate (and its key and chain) as the one of the pages of
+        `where`, as Certificates and TLS would take an upload: its TLS settings
+        kept, the engine's own ACME no longer renewing it."""
+        where = self._pages_check(where)
+        chain = ''.join(str(p).strip() + '\n' for p in (chain_pems or []) if str(p).strip())
+        try:
+            got = E.cert_bundle(cert_pem, key_pem, chain)
+        except ValueError as e:
+            raise base.PluginError('the pages do not take it: %s' % e, retry=False)
+        info = got.get('info') or {}
+        if info.get('not_after') and float(info['not_after']) < time.time():
+            raise base.PluginError('the certificate has run out', retry=False)
+        prof = E.tls_profile(self.store, where) or {}
+        prof.update(cert=got['cert'], chain=got['chain'], root=got['root'],
+                    key=E.seal_secret(got['key'], 'web:tls'), info=info,
+                    chain_info=got['chain_info'], root_info=got['root_info'],
+                    verify=got['verify'], how=str(how)[:190])
+        for k in ('pending_key', 'csr', 'alt'):
+            prof.pop(k, None)
+        prof.setdefault('preset', 'standard')
+        prof.setdefault('dh', 'none')
+        by = 'certificates (%s)' % (self.scope or 'a job')
+        E.tls_save(self.store, where, prof, by)
+        try:
+            E.acme_care_set(self.store, where, False, by, 'the certificate manager keeps it')
+        except Exception as e:                          # noqa: BLE001
+            self.step('the engine\'s own ACME could not be told to leave it: %s' % e, 'warn')
+        self.store.add_event('settings', 'the certificate of the pages of %s is now %s (until %s), '
+                             'from the certificate manager' % (
+                                 'the VIP address' if where == 'vip' else where,
+                                 info.get('subject') or '?',
+                                 E.stamp(info.get('not_after')) if info.get('not_after') else '?'),
+                             who=by)
+        return {'cn': info.get('cn'), 'not_after': info.get('not_after'),
+                'fingerprint': str(info.get('fingerprint') or '').replace(':', '').lower(),
+                'verify': got.get('verify') or ''}
+
     def tidy(self):
         """Whatever the job left in the DNS server or on port 80 taken away."""
         for name, rtype, value in self.record_names:

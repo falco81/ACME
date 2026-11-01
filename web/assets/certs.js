@@ -141,8 +141,11 @@ if (typeof ICONS === 'object') {
 var STATE = {
   'new': ['not issued yet', 'dim'], ok: ['valid', 'ok'], due: ['due', 'warn'],
   renewing: ['renewing', 'info'], failed: ['failed', 'crit'], expired: ['has expired', 'crit'],
-  pending: ['waiting for a CA', 'violet'], revoked: ['revoked', 'crit'], disabled: ['switched off', 'dim']
+  pending: ['waiting for a CA', 'violet'], revoked: ['revoked', 'crit'], disabled: ['switched off', 'dim'],
+  /* asked for on the portal (acmelib/certs/portal.py) */
+  'pending-approval': ['waiting for approval', 'warn'], declined: ['declined', 'crit']
 };
+function asked(c) { return c.state === 'pending-approval' || c.state === 'declined'; }
 function stateTag(st) {
   var s = STATE[st] || [st || '–', 'dim'];
   var t = el('span', 'tag ' + s[1] + ' ct-state', s[0]);
@@ -1471,12 +1474,51 @@ function loadCerts(live) {
     }, live);
     pager('ct-pager', CL.page, f.per, CL.total, function (p) { CL.page = p; loadCerts(); });
     explainWhatWasDrawn(host);
+    approvalsBadge();
   }).catch(function (e) {
     if (e && e.stopped) return;
     $('ct-said').textContent = '';
     clear($('ct-pager'));
     failInto(host, 'the certificates')(e);
   });
+}
+/** How many requests of the portal wait for an administrator: a badge that filters them. */
+function approvalsBadge() {
+  var b = $('ct-approvals');
+  if (!b) return;
+  capi('certs' + qs({state: 'pending-approval', per: 1})).then(function (d) {
+    var n = Number(first(d.total, 0)) || 0;
+    b.hidden = !n;
+    setButtonIcon(b, 'clock', n + ' waiting for approval');
+    b.style.color = 'var(--warn)';
+    b.onclick = function () { openCerts({state: 'pending-approval'}); };
+  }).catch(function () { b.hidden = true; });
+}
+function approveDialog(c, ok, back) {
+  popup(ok ? 'Approve the request' : 'Decline the request', null, function () {
+    var why = areaBox('', ok ? 'a word to the person (not needed)' : 'why - the person who asked is told', 3);
+    var s = el('div', 'said');
+    return {
+      size: 'medium',
+      build: function (body) {
+        body.appendChild(namesChips(c.names));
+        body.appendChild(el('p', 'note', ok
+          ? 'It is issued now from ' + (c.issuer || '?') + ' and renewed by itself after; ' + (c.owner || 'the person') + ' is told by mail, if the directory has their mail.'
+          : 'It is not issued. ' + (c.owner || 'The person') + ' sees it declined on the portal, with what you write, and is told by mail.'));
+        body.appendChild(wideField(ok ? 'A word to them' : 'Why', why, ''));
+        body.appendChild(s);
+      },
+      buttons: [{words: 'Cancel', close: true}, {words: ok ? 'Approve and issue' : 'Decline', cls: ok ? 'primary' : 'danger', once: true, icon: ok ? 'check' : 'ban', go: function (b) {
+        busy(b, true);
+        capi('certs/approve', {id: c.id, ok: ok, why: why.value}).then(function (d) {
+          CT.refresh();
+          toast(said(d, ok ? 'approved' : 'declined'), 'good');
+          /* Its job in this popup's place: closed, the certificate is there again, drawn afresh. */
+          if (ok && d.job_id) jobPeek(d.job_id); else closeModal();
+        }).catch(function (e) { s.className = 'said bad'; s.textContent = wordsOf(e); }).then(function () { busy(b, false); });
+      }}]
+    };
+  }, 'medium');
 }
 function certsBlank() {
   var b = el('div', 'ct-blank big');
@@ -1537,7 +1579,7 @@ function certRow(c) {
   if (c.last_error && (c.state === 'failed')) explain(jc, String(c.last_error));
   tr.appendChild(jc);
   var tools = el('td', 'rowtools');
-  if (MANAGE && c.state !== 'revoked' && c.state !== 'pending') {
+  if (MANAGE && c.state !== 'revoked' && c.state !== 'pending' && !asked(c)) {
     var r = iconButton('refresh', 'Renew it now');
     r.onclick = function (ev) { ev.stopPropagation(); certRenew(c, r); };
     tools.appendChild(r);
@@ -1591,7 +1633,11 @@ function certPeek(id) {
     if (MANAGE && waiting) buttons.push({words: 'Upload the answer', cls: 'primary', icon: 'upload', go: function () { over(function () { csrAnswer(c); }, back); }});
     if (MANAGE && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
     if (MANAGE && deploys.length && c.not_after && c.state !== 'revoked') buttons.push({words: 'Deploy now', icon: 'deploy', go: function (b) { certDeploy(c, b, back); }});
-    if (MANAGE && c.issuer && c.state !== 'revoked' && !waiting) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
+    if (MANAGE && c.issuer && c.state !== 'revoked' && !waiting && !asked(c)) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
+    if (MANAGE && c.state === 'pending-approval') {
+      buttons.push({words: 'Decline', icon: 'ban', go: function () { over(function () { approveDialog(c, false, back); }, back); }});
+      buttons.push({words: 'Approve', cls: 'primary', icon: 'check', go: function () { over(function () { approveDialog(c, true, back); }, back); }});
+    }
     return {
       title: c.name,
       size: 'large',

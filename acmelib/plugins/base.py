@@ -88,6 +88,14 @@ class Context(object):
         ctx.cancelled() -> bool             the job was stopped: give up at the next step
         ctx.node                            this node's name
         ctx.settings                        the settings (read only)
+
+    For a target that is acme itself (targets/appliance.py) - the certificate
+    of its own pages, as Settings → Certificates and TLS keeps it:
+        ctx.pages_where() -> {'node', 'nodes': [...], 'cluster', 'vip': {'on', 'fqdn'}}
+        ctx.pages_get(where) -> {'fingerprint', 'cn', 'not_after', 'how'} or None
+        ctx.pages_put(where, cert_pem, key_pem, chain_pems, how) -> {'cn', 'not_after', ...}
+                                            where: a node's name or 'vip'; every node puts
+                                            its own in place within seconds
     """
     node = ''
     settings = {}
@@ -193,6 +201,12 @@ class Plugin(object):
     vendor = ''             # grouping on the page: 'Linux', 'F5', 'Fortinet', 'Public CA'
     fields = []             # the form of its settings
     doc = ''                # docs/<file>.md, said on the page as "read more"
+    # Things it can do besides its work, offered as buttons on the page, in the
+    # console and as `acme --validation-action NAME KEY` (and --source-action,
+    # --target-action): [{'key': 'prepare', 'label': 'Prepare the hosts',
+    # 'help': '...', 'confirm': 'words asked first' (optional), 'changes': True}]
+    # Each is run by action(key) in a job of its own, its steps written down.
+    actions = []
 
     def __init__(self, config, ctx):
         self.config = dict(config or {})
@@ -213,11 +227,18 @@ class Plugin(object):
         Returns words to show; raises PluginError when it does not work."""
         return 'nothing to try for %s' % self.title
 
+    def action(self, key):
+        """Do one of `actions` (by its key). Returns words to show; raises
+        PluginError when it does not work. ctx.step() tells how it goes."""
+        raise PluginError('%s can do nothing called "%s"' % (self.title or self.kind, key),
+                          retry=False)
+
     @classmethod
     def describe(cls):
         return {'family': cls.family, 'kind': cls.kind, 'title': cls.title or cls.kind,
                 'description': cls.description, 'vendor': cls.vendor,
                 'fields': list(cls.fields), 'doc': cls.doc,
+                'actions': [dict(a) for a in (cls.actions or [])],
                 'module': getattr(cls, '_module_file', '')}
 
 

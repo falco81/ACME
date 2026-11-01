@@ -63,15 +63,64 @@ def kv_quote(value):
     return '"%s"' % said.replace('\\', '\\\\').replace('"', '\\"')
 
 
-def event_kv(kind, words, level, who, node=''):
-    """One event as the key=value words of its syslog line."""
+def event_kv(kind, words, level, who, node='', fields=None):
+    """One event as the key=value words of its syslog line - with what a
+    module says of it (`fields`: cert=www action=renewed ...) before msg."""
     out = ['level=%s' % kv_quote(level or 'info'), 'kind=%s' % kv_quote(kind)]
     if node:
         out.append('node=%s' % kv_quote(node))
     if who:
         out.append('who=%s' % kv_quote(who))
+    for k, v in sorted((fields or {}).items()):
+        if k not in ('level', 'kind', 'node', 'who', 'msg'):
+            out.append('%s=%s' % (k, kv_quote(v)))
     out.append('msg=%s' % kv_quote(words))
     return ' '.join(out)
+
+
+# What an event is about, in fields of their own (the certificate, its serial,
+# the target, how it went), for isemon and the SIEM to search by: said by the
+# one who writes the event (with event_with(...): store.add_event(...)), else
+# read out of its words by a module (HOOKS['event_fields']: fn(kind, words,
+# level) -> {key: value}). Keys are a-z0-9_, at most 32; values one line.
+EVENT_LOCAL = threading.local()
+EVENT_KEY_RE = re.compile(r'^[a-z][a-z0-9_]{0,31}\Z')
+
+
+@contextlib.contextmanager
+def event_with(**fields):
+    """with event_with(cert='www', action='renewed'): store.add_event(...)"""
+    was = getattr(EVENT_LOCAL, 'fields', None)
+    EVENT_LOCAL.fields = dict(was or {}, **fields)
+    try:
+        yield
+    finally:
+        EVENT_LOCAL.fields = was
+
+
+def event_fields(kind, words, level):
+    """The fields of one event (see above) - {} when nobody says any. Never raises."""
+    got = {}
+    try:
+        said = getattr(EVENT_LOCAL, 'fields', None)
+        if said:
+            got.update(said)
+        else:
+            for fn in HOOKS.get('event_fields') or ():
+                try:
+                    got.update(fn(kind, words, level) or {})
+                except Exception:                       # noqa: BLE001
+                    pass
+    except Exception:                                   # noqa: BLE001
+        return {}
+    out = {}
+    for k, v in got.items():
+        if v in (None, '') or not EVENT_KEY_RE.match(str(k)):
+            continue
+        if isinstance(v, (list, tuple)):
+            v = ','.join(str(x) for x in v)
+        out[str(k)] = re.sub(r'[\r\n\t]+', ' ', str(v))[:500]
+    return out
 
 
 def _conn_alive(sock):
@@ -165,7 +214,7 @@ class Shipper(object):
         cert = kind in ISEMON_KINDS
         if not cert and not CONFIG.get('isemon_events'):
             return
-        line = event_kv(kind, words, level, who, log_node())
+        line = event_kv(kind, words, level, who, log_node(), event_fields(kind, words, level))
         if cert:
             self.put('acme-certs', 'daemon', line, file_name='acme-certs.log')
         else:

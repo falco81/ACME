@@ -15,6 +15,7 @@ from acmelib.plugins.challenges._common import (HttpChallenge, as_bool, as_list,
                                                 ssh_fields)
 
 WEBROOT = '/var/www/acme-challenge/.well-known/acme-challenge'
+NGINX_CONF = '/etc/nginx/conf.d/acme-challenge.conf'
 
 
 class HttpSsh(HttpChallenge):
@@ -46,8 +47,29 @@ class HttpSsh(HttpChallenge):
                        ['none', 'no check']],
               help='The token is fetched over HTTP on port 80 and compared.'),
         field('check_port', 'HTTP port for the check', 'number', default=80, advanced=True),
+        field('nginx_conf', 'nginx file "Prepare" writes', 'text', default=NGINX_CONF,
+              advanced=True,
+              help='The server block for /.well-known/acme-challenge/ that the action '
+                   '"Prepare the hosts" puts on each machine.'),
+        field('prepare_names', 'Names that block answers for', 'list', default='',
+              advanced=True, placeholder='www.example.com\nexample.com',
+              help='Empty: it is the default server of port 80 (it answers for any name). '
+                   'Where another block is the default server already, name the names here.'),
+        field('prepare_ipv6', 'That block listens on IPv6 too', 'bool', default=True,
+              advanced=True),
+        field('prepare_redirect', 'Everything else to HTTPS', 'bool', default=True,
+              advanced=True,
+              help='Off: the block answers 404 for anything but the challenge files.'),
     ]
     parallel = True
+    actions = [{'key': 'prepare', 'label': 'Prepare the hosts',
+                'help': 'On every web server: find nginx, write the server block for '
+                        '/.well-known/acme-challenge/ (nginx_conf) and make the webroot, check '
+                        'it with nginx -t, reload nginx - then the probe of Test. Needs root or '
+                        'sudo there.',
+                'confirm': 'Write the nginx server block for the challenge files on every web '
+                           'server and reload nginx there?',
+                'changes': True}]
 
     # -- where -------------------------------------------------------------------
     def hosts(self):
@@ -167,6 +189,129 @@ class HttpSsh(HttpChallenge):
         failed = self._each(lambda s, h: self._remove(s, path), 'remove')
         for host, err in failed:
             self.ctx.step('%s could not be taken away on %s: %s' % (path, host, err), 'warn')
+
+    # -- the action "prepare": nginx made ready on every machine ------------------------
+    def nginx_block(self):
+        """The server block written by prepare: the challenge files from the webroot,
+        everything else to HTTPS (or 404)."""
+        names = [n for n in as_list(self.c('prepare_names', '')) if n]
+        for n in names:
+            if not all(c.isalnum() or c in '.-*_' for c in n):
+                raise PluginError('"%s" is not a name for nginx' % n, retry=False)
+        dflt = '' if names else ' default_server'
+        lines = ['# acme: the answers to HTTP-01 (written by acme, "Prepare the hosts" -',
+                 '# docs/validation.md). Written again by the same action; changed by hand,',
+                 '# it is replaced then.',
+                 'server {',
+                 '    listen 80%s;' % dflt]
+        if as_bool(self.c('prepare_ipv6', True)):
+            lines.append('    listen [::]:80%s;' % dflt)
+        lines += ['    server_name %s;' % (' '.join(names) if names else '_'),
+                  '',
+                  '    location ^~ /.well-known/acme-challenge/ {',
+                  '        alias %s/;' % self.webroot(),
+                  '        default_type text/plain;',
+                  '        autoindex off;',
+                  '    }',
+                  '',
+                  '    location / {',
+                  '        return %s;' % ('301 https://$host$request_uri'
+                                          if as_bool(self.c('prepare_redirect', True)) else '404'),
+                  '    }',
+                  '}', '']
+        return '\n'.join(lines)
+
+    def nginx_conf(self):
+        p = posixpath.normpath(str(self.c('nginx_conf', NGINX_CONF) or NGINX_CONF))
+        if not p.startswith('/etc/') or not p.endswith('.conf') or \
+                any(c in p for c in '\'"`$;&|\n\\ '):
+            raise PluginError('the nginx file %r will not be written (a .conf under /etc)' % p,
+                              retry=False)
+        return p
+
+    def prepare_script(self, owner=''):
+        """What runs on one machine (as root, or through sudo -n), as sh -s."""
+        conf, root = self.nginx_conf(), self.webroot()
+        block = self.nginx_block()
+        if 'ACME_EOF' in block:
+            raise PluginError('that block cannot be written', retry=False)
+        return '\n'.join([
+            'set -u',
+            'conf=%s' % shq(conf),
+            'root=%s' % shq(root),
+            'PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin"',
+            'command -v nginx >/dev/null 2>&1 || { echo "ACME: no nginx here"; exit 3; }',
+            '[ -d "$(dirname "$conf")" ] || { echo "ACME: no folder $(dirname "$conf")"; exit 4; }',
+            'mkdir -p "$root" && chmod 755 "$root" || exit 7',
+            ('chown %s "$root" || exit 7' % shq(owner)) if owner else ':',
+            'new=$(mktemp) || exit 7',
+            "cat > \"$new\" <<'ACME_EOF'",
+            block.rstrip('\n'),
+            'ACME_EOF',
+            'if [ -f "$conf" ] && cmp -s "$new" "$conf"; then',
+            '    rm -f "$new"',
+            '    nginx -t >/dev/null 2>&1 || { nginx -t 2>&1; echo "ACME: nginx -t fails"; exit 5; }',
+            '    echo "ACME: already in place"; exit 0',
+            'fi',
+            '[ -f "$conf" ] && cp -p "$conf" "$conf.acme-old"',
+            'install -m 644 "$new" "$conf"; rc=$?; rm -f "$new"; [ $rc -eq 0 ] || exit 7',
+            'if ! nginx -t 2>&1; then',
+            '    if [ -f "$conf.acme-old" ]; then mv -f "$conf.acme-old" "$conf"; else rm -f "$conf"; fi',
+            '    echo "ACME: nginx -t fails - put back as it was"; exit 5',
+            'fi',
+            'rm -f "$conf.acme-old"',
+            '{ systemctl reload nginx 2>/dev/null || nginx -s reload; } || '
+            '{ echo "ACME: nginx did not reload"; exit 6; }',
+            'echo "ACME: written and reloaded"', ''])
+
+    def prepare_one(self, s, host):
+        """One machine made ready: (words). Raises PluginError."""
+        rc, out, _err = s.run('id -u', check=False)
+        root = (out.decode() if isinstance(out, bytes) else str(out or '')).strip() == '0'
+        user = str(self.c('user', '') or '')
+        # Written as the SSH account later (no sudo for the token files): the
+        # folder made its own.
+        owner = user if (not root and not self._sudo() and user and
+                         all(c.isalnum() or c in '._-' for c in user)) else ''
+        script = self.prepare_script(owner)
+        rc, out, err = s.run('sh -s' if root else 'sudo -n sh -s', input=script.encode(),
+                             timeout=120, check=False)
+        said = (out.decode('utf-8', 'replace') if isinstance(out, bytes) else str(out or '')) + \
+            (err.decode('utf-8', 'replace') if isinstance(err, bytes) else str(err or ''))
+        last = [ln for ln in said.splitlines() if ln.startswith('ACME: ')]
+        words = last[-1][6:] if last else said.strip()[-300:]
+        if rc:
+            if 'duplicate default server' in said:
+                words += ' (another server block is the default server of port 80: name the ' \
+                         'names in "Names that block answers for", or put the location into ' \
+                         'that block by hand - docs/validation.md)'
+            elif 'a password is required' in said or 'a terminal is required' in said:
+                words = 'sudo asks for a password: root, or a sudoers line for sh (NOPASSWD)'
+            elif rc == 3:
+                words = 'nginx is not installed there - for Apache or another server put the ' \
+                        'alias in by hand (docs/validation.md)'
+            raise PluginError(words or 'exit %d' % rc, detail=said[-4000:])
+        self.ctx.step('%s: %s (%s)' % (host, words, self.nginx_conf()), 'ok')
+        return words
+
+    def action(self, key):
+        if key != 'prepare':
+            return HttpChallenge.action(self, key)
+        self.webroot()
+        self.nginx_conf()
+        self.nginx_block()
+        done = []
+
+        def one(s, host):
+            done.append('%s: %s' % (host, self.prepare_one(s, host)))
+        failed = self._each(one, 'prepare')
+        if failed:
+            raise PluginError('; '.join('%s: %s' % f for f in failed),
+                              detail='\n'.join(done + ['%s: %s' % f for f in failed]))
+        if str(self.c('check', 'each')) != 'none':
+            self.ctx.step('the probe of Test, on every machine')
+            done.append(self.test())
+        return '\n'.join(done)
 
     def test(self):
         root = self.webroot()

@@ -21863,6 +21863,354 @@
   "sc0483": {
    "source": "the file",
    "text": "soubor"
+  },
+  "scp0001": {
+   "source": "You are signed in",
+   "text": "Jste přihlášeni"
+  },
+  "scp0002": {
+   "source": "Nothing is offered here yet.",
+   "text": "Zatím se tu nic nenabízí."
+  },
+  "scp0003": {
+   "source": "being issued",
+   "text": "vydává se"
+  },
+  "scp0004": {
+   "source": "waiting for approval",
+   "text": "čeká na schválení"
+  },
+  "scp0005": {
+   "source": "declined",
+   "text": "zamítnuto"
+  },
+  "scp0006": {
+   "source": "With its private key",
+   "text": "S privátním klíčem"
+  },
+  "scp0007": {
+   "source": "The certificate and the chain above it - what nginx, Apache and most servers want.",
+   "text": "Certifikát a řetězec nad ním – to, co chce nginx, Apache a většina serverů."
+  },
+  "scp0008": {
+   "source": "The certificate alone, as text (.crt).",
+   "text": "Jen certifikát, jako text (.crt)."
+  },
+  "scp0009": {
+   "source": "The certificate alone, binary (.cer) - what Windows opens with a double click.",
+   "text": "Jen certifikát, binárně (.cer) – to, co Windows otevřou dvojklikem."
+  },
+  "scp0010": {
+   "source": "PKCS#7: the certificate and its chain in one file, for Windows and Java.",
+   "text": "PKCS#7: certifikát a jeho řetězec v jednom souboru, pro Windows a Javu."
+  },
+  "scp0011": {
+   "source": "PKCS#12: the certificate, the chain and the private key, locked with a password you choose.",
+   "text": "PKCS#12: certifikát, řetězec a privátní klíč, zamčené heslem, které si zvolíte."
+  },
+  "scp0012": {
+   "source": "not yours to ask",
+   "text": "o to žádat nemůžete"
+  },
+  "scp0013": {
+   "source": "Your certificates",
+   "text": "Vaše certifikáty"
+  },
+  "scp0014": {
+   "source": "Ask for a certificate",
+   "text": "Požádat o certifikát"
+  },
+  "scp0015": {
+   "source": "The certificates that are yours, or a group’s you are in. Each is renewed by itself before it runs out - download it again after that. Click one for everything about it.",
+   "text": "Certifikáty, které jsou vaše nebo skupiny, ve které jste. Každý se před koncem platnosti sám obnoví – pak si ho stáhněte znovu. Kliknutím na certifikát zobrazíte vše o něm."
+  },
+  "scp0016": {
+   "source": "You have asked for as many certificates as one person may. Ask the administrator for more.",
+   "text": "Požádali jste o tolik certifikátů, kolik smí jeden člověk. O další požádejte správce."
+  },
+  "scp0017": {
+   "source": "issued at once",
+   "text": "vydává se hned"
+  },
+  "scp0018": {
+   "source": "an administrator approves each one",
+   "text": "každý schvaluje správce"
+  },
+  "scp0019": {
+   "source": "No certificate of yours yet",
+   "text": "Zatím nemáte žádný certifikát"
+  },
+  "scp0020": {
+   "source": "When an administrator gives you one (or a group you are in), it is here.",
+   "text": "Až vám (nebo skupině, ve které jste) správce nějaký dá, bude tady."
+  },
+  "scp0021": {
+   "source": "Ask for one above: its names, where it comes from and its key.",
+   "text": "Požádejte o něj výše: jeho jména, odkud má být a jeho klíč."
+  },
+  "scp0022": {
+   "source": "group",
+   "text": "skupina"
+  },
+  "scp0023": {
+   "source": "being issued…",
+   "text": "vydává se…"
+  },
+  "scp0024": {
+   "source": "Waiting for an administrator",
+   "text": "Čeká na správce"
+  },
+  "scp0025": {
+   "source": "You asked for it; an administrator approves it (or not). You are told by mail when they have.",
+   "text": "Požádali jste o něj; správce ho schválí (nebo ne). Až se tak stane, dostanete e-mail."
+  },
+  "scp0026": {
+   "source": "Declined",
+   "text": "Zamítnuto"
+  },
+  "scp0027": {
+   "source": "An administrator declined it.",
+   "text": "Správce ho zamítl."
+  },
+  "scp0028": {
+   "source": "It could not be issued",
+   "text": "Nepodařilo se ho vydat"
+  },
+  "scp0029": {
+   "source": "by itself, before it runs out",
+   "text": "sám, před koncem platnosti"
+  },
+  "scp0030": {
+   "source": "not by itself",
+   "text": "ne sám"
+  },
+  "scp0031": {
+   "source": "you",
+   "text": "vy"
+  },
+  "scp0032": {
+   "source": "Asked for",
+   "text": "Vyžádán"
+  },
+  "scp0033": {
+   "source": "Its latest job",
+   "text": "Jeho poslední úloha"
+  },
+  "scp0034": {
+   "source": "Waiting to begin…",
+   "text": "Čeká na začátek…"
+  },
+  "scp0035": {
+   "source": "waiting to begin",
+   "text": "čeká na začátek"
+  },
+  "scp0036": {
+   "source": "working…",
+   "text": "pracuje se…"
+  },
+  "scp0037": {
+   "source": "The certificate as your server or device wants it. Pick a format.",
+   "text": "Certifikát tak, jak ho chce váš server nebo zařízení. Vyberte formát."
+  },
+  "scp0038": {
+   "source": "the password is at least 8 characters",
+   "text": "heslo má aspoň 8 znaků"
+  },
+  "scp0039": {
+   "source": "The private key stays where it was made: the server that uses the certificate has it.",
+   "text": "Privátní klíč zůstává tam, kde vznikl: má ho server, který certifikát používá."
+  },
+  "scp0040": {
+   "source": "It is issued as soon as you ask, and renewed by itself before it runs out.",
+   "text": "Vydá se, jakmile o něj požádáte, a před koncem platnosti se sám obnoví."
+  },
+  "scp0041": {
+   "source": "An administrator approves it first; you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.",
+   "text": "Nejdřív ho schválí správce; až se tak stane, dostanete e-mail. Pak se vydá a před koncem platnosti se sám obnoví."
+  },
+  "scp0042": {
+   "source": "Its names",
+   "text": "Jeho jména"
+  },
+  "scp0043": {
+   "source": "One name a line - the first is the one it is called by.",
+   "text": "Jedno jméno na řádek – podle prvního se certifikát jmenuje."
+  },
+  "scp0044": {
+   "source": "Names under:",
+   "text": "Jména pod:"
+  },
+  "scp0045": {
+   "source": "Where it comes from",
+   "text": "Odkud bude"
+  },
+  "scp0046": {
+   "source": "The certificate authority that issues it.",
+   "text": "Certifikační autorita, která ho vydá."
+  },
+  "scp0047": {
+   "source": "Its key",
+   "text": "Jeho klíč"
+  },
+  "scp0048": {
+   "source": "EC P-256 suits nearly everything; RSA 2048 for old devices that know nothing else.",
+   "text": "EC P-256 se hodí skoro na všechno; RSA 2048 pro stará zařízení, která nic jiného neumí."
+  },
+  "scp0049": {
+   "source": "what it is for (the administrator sees this)",
+   "text": "k čemu je (správce to uvidí)"
+  },
+  "scp0050": {
+   "source": "Ask and issue",
+   "text": "Požádat a vydat"
+  },
+  "scp0051": {
+   "source": "Ask for it",
+   "text": "Požádat"
+  },
+  "scp0052": {
+   "source": "Which names? One a line.",
+   "text": "Jaká jména? Jedno na řádek."
+  },
+  "scp0053": {
+   "source": "asked for - it waits for an administrator",
+   "text": "požádáno – čeká na správce"
+  },
+  "scp0054": {
+   "source": "asked for - it is being issued",
+   "text": "požádáno – vydává se"
+  },
+  "scp0055": {
+   "source": "Certificates asked for on the portal that wait for an administrator: click one, then Approve or Decline.",
+   "text": "Certifikáty vyžádané na portálu, které čekají na správce: klikněte na jeden a pak Schválit nebo Zamítnout."
+  },
+  "scp0056": {
+   "source": "a word to the person (not needed)",
+   "text": "slovo pro žadatele (není nutné)"
+  },
+  "scp0057": {
+   "source": "why - the person who asked is told",
+   "text": "proč – žadatel se to dozví"
+  },
+  "scp0058": {
+   "source": "A word to them",
+   "text": "Slovo pro žadatele"
+  },
+  "scp0059": {
+   "source": "Approve and issue",
+   "text": "Schválit a vydat"
+  },
+  "scp0060": {
+   "source": "Approve",
+   "text": "Schválit"
+  },
+  "scp0061": {
+   "source": "Decline",
+   "text": "Zamítnout"
+  },
+  "scp0062": {
+   "source": "approved",
+   "text": "schváleno"
+  },
+  "scp0063": {
+   "source": "Certificates on the portal",
+   "text": "Certifikáty na portálu"
+  },
+  "scp0064": {
+   "source": "Names people may ask for",
+   "text": "Jména, o která smějí lidé žádat"
+  },
+  "scp0065": {
+   "source": "Sources people may ask",
+   "text": "Zdroje, u kterých smějí lidé žádat"
+  },
+  "scp0066": {
+   "source": "How their names are proved (ACME)",
+   "text": "Jak se jejich jména prokazují (ACME)"
+  },
+  "scp0067": {
+   "source": "Requests one person may make",
+   "text": "Žádostí na jednoho člověka"
+  },
+  "scp0068": {
+   "source": "Issued without an administrator",
+   "text": "Vydat bez správce"
+  },
+  "scp0069": {
+   "source": "People may take their key (PFX)",
+   "text": "Lidé si smějí vzít klíč (PFX)"
+  },
+  "scp0070": {
+   "source": "People signed in on the portal see the certificates they own - their own, or owned by a directory group they are in - with when each runs out, download the certificate and its chain, and may ask for a new one.",
+   "text": "Lidé přihlášení na portálu vidí certifikáty, které vlastní – své nebo skupiny z adresáře, ve které jsou – a kdy kterému končí platnost, stáhnou si certifikát a jeho řetězec a mohou požádat o nový."
+  },
+  "scp0071": {
+   "source": "The names they may ask for: these domains and the names under them (comma between them). Empty: nobody may ask.",
+   "text": "Jména, o která smějí žádat: tyto domény a jména pod nimi (oddělené čárkou). Prázdné: nikdo žádat nesmí."
+  },
+  "scp0072": {
+   "source": "The sources (Certificates → Sources) a certificate asked for there may come from, by name, comma between them. Empty: nobody may ask.",
+   "text": "Zdroje (Certifikáty → Zdroje), ze kterých smí certifikát vyžádaný na portálu pocházet, podle jména, oddělené čárkou. Prázdné: nikdo žádat nesmí."
+  },
+  "scp0073": {
+   "source": "The validation (Certificates → Validation) that proves the names of a certificate asked for there, for a source that needs one - ACME. Empty: only sources that need none (own CA, self-signed).",
+   "text": "Validace (Certifikáty → Validace), která prokazuje jména certifikátu vyžádaného na portálu, u zdroje, který ji potřebuje – ACME. Prázdné: jen zdroje, které žádnou nepotřebují (vlastní CA, self-signed)."
+  },
+  "scp0074": {
+   "source": "How many certificates one person may ask for there; those declined do not count, deleted ones neither.",
+   "text": "Kolik certifikátů smí jeden člověk na portálu vyžádat; zamítnuté se nepočítají, smazané také ne."
+  },
+  "scp0075": {
+   "source": "On: what is asked for is issued at once. Off: it waits under Certificates (waiting for approval) until an administrator approves or declines it - and the person is told by mail.",
+   "text": "Zapnuto: co si kdo vyžádá, se hned vydá. Vypnuto: čeká v Certifikátech (čeká na schválení), dokud to správce neschválí nebo nezamítne – a žadatel dostane e-mail."
+  },
+  "scp0076": {
+   "source": "On: people may download their certificate with its private key, as a PFX file locked with a password they choose. Off: the certificate and the chain only.",
+   "text": "Zapnuto: lidé si mohou stáhnout certifikát i s privátním klíčem, jako soubor PFX zamčený heslem, které si zvolí. Vypnuto: jen certifikát a řetězec."
+  },
+  "scp0077": {
+   "source": "there is no such certificate of yours",
+   "text": "takový certifikát nemáte"
+  },
+  "scp0078": {
+   "source": "there is no such job",
+   "text": "taková úloha není"
+  },
+  "scp0079": {
+   "source": "which names?",
+   "text": "jaká jména?"
+  },
+  "scp0080": {
+   "source": "at most 50 names in one certificate",
+   "text": "nejvýš 50 jmen v jednom certifikátu"
+  },
+  "scp0081": {
+   "source": "asking for certificates here is not set up",
+   "text": "žádání o certifikáty tu není nastavené"
+  },
+  "scp0082": {
+   "source": "certificates are not offered on these pages",
+   "text": "certifikáty se na těchto stránkách nenabízejí"
+  },
+  "scp0083": {
+   "source": "a PFX file with the key needs a password of at least 8 characters",
+   "text": "soubor PFX s klíčem potřebuje heslo aspoň o 8 znacích"
+  },
+  "scp0084": {
+   "source": "acme does not hold the key of this certificate",
+   "text": "acme klíč tohoto certifikátu nemá"
+  },
+  "scp0085": {
+   "source": "say why it is declined - the person who asked is told",
+   "text": "napište, proč se zamítá – žadatel se to dozví"
+  },
+  "scp0086": {
+   "source": "Approve the request",
+   "text": "Schválit žádost"
+  },
+  "scp0087": {
+   "source": "Decline the request",
+   "text": "Zamítnout žádost"
   }
  },
  "patterns": {
@@ -28369,6 +28717,82 @@
   "pc0075": {
    "source": "Deployed on {0} target(s).",
    "text": "Nasazen na {0} {0:cíli|cílech|cílech}."
+  },
+  "pcp0001": {
+   "source": "{0} · the certificates this portal offers you are below.",
+   "text": "{0} · certifikáty, které vám tento portál nabízí, jsou níže."
+  },
+  "pcp0002": {
+   "source": "{0} of {1} requests used",
+   "text": "využito {0} z {1} žádostí"
+  },
+  "pcp0003": {
+   "source": "{0} waiting for approval",
+   "text": "{0} čeká na schválení"
+  },
+  "pcp0006": {
+   "source": "downloaded: {0}",
+   "text": "staženo: {0}"
+  },
+  "pcp0007": {
+   "source": "Yours through the directory group {0}.",
+   "text": "Váš přes skupinu z adresáře {0}."
+  },
+  "pcp0008": {
+   "source": "The administrator said: {0}",
+   "text": "Správce napsal: {0}"
+  },
+  "pcp0009": {
+   "source": "{0} (a group of yours)",
+   "text": "{0} (vaše skupina)"
+  },
+  "pcp0010": {
+   "source": "{0} - it is tried again by itself; the administrators know.",
+   "text": "{0} – zkusí se znovu sám; správci o tom vědí."
+  },
+  "pcp0011": {
+   "source": "Only names under {0} may be asked for here.",
+   "text": "Tady lze žádat jen o jména pod {0}."
+  },
+  "pcp0012": {
+   "source": "It is issued now from {0} and renewed by itself after; {1} is told by mail, if the directory has their mail.",
+   "text": "Teď se vydá z {0} a pak se bude obnovovat sám; {1} dostane e-mail, pokud má v adresáři adresu."
+  },
+  "pcp0013": {
+   "source": "It is not issued. {0} sees it declined on the portal, with what you write, and is told by mail.",
+   "text": "Nevydá se. {0} ho na portálu uvidí zamítnutý i s tím, co napíšete, a dostane e-mail."
+  },
+  "pcp0014": {
+   "source": "{0} approved - it is being issued",
+   "text": "{0} schválen – vydává se"
+  },
+  "pcp0015": {
+   "source": "{0} declined - {1} is told",
+   "text": "{0} zamítnut – {1} se to dozví"
+  },
+  "pcp0016": {
+   "source": "{0} is not waiting for approval",
+   "text": "{0} nečeká na schválení"
+  },
+  "pcp0017": {
+   "source": "not under the names you may ask for ({0}): {1}",
+   "text": "není pod jmény, o která smíte žádat ({0}): {1}"
+  },
+  "pcp0018": {
+   "source": "the issuer is one of {0}",
+   "text": "vydavatel je jeden z: {0}"
+  },
+  "pcp0019": {
+   "source": "you have asked for as many certificates as one person may ({0})",
+   "text": "požádali jste o tolik certifikátů, kolik smí jeden člověk ({0})"
+  },
+  "pcp0020": {
+   "source": "the format is one of {0}",
+   "text": "formát je jeden z: {0}"
+  },
+  "pcp0021": {
+   "source": "the key type is one of {0}",
+   "text": "typ klíče je jeden z: {0}"
   }
  },
  "rich": {

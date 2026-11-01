@@ -270,10 +270,16 @@ def tell(store, cid, what, why=''):
             msg['From'] = E.mail_sender() or 'acme@%s' % E.node_name()
             msg['To'] = to
             msg.set_content((body % fill) + '\n\n-- acme, %s\n' % site)
-            E.mail_deliver(store, msg, [to], kind='certs', name=who.get('who') or '',
-                           purpose='portal certificate %s' % what)
-            store.add_event('certificates', 'the portal told %s by mail that %s was %s' % (
-                to, row['name'], what), who=who.get('who') or '')
+            said = 'told %s by mail' % to
+            try:
+                E.mail_deliver(store, msg, [to], kind='certs', name=who.get('who') or '',
+                               purpose='portal certificate %s' % what)
+            except E.MailError as e:
+                if getattr(e, 'queued', None) != 'waiting':
+                    raise
+                said = 'a mail to %s waits in the outgoing mail (%s)' % (to, e)
+            store.add_event('certificates', '%s was %s: %s' % (row['name'], what, said),
+                            who=who.get('who') or '')
         except Exception as e:                          # noqa: BLE001
             E.log('the certificate portal could not mail about %s (%s): %s' % (cid, what, e),
                   'warn')

@@ -111,7 +111,7 @@ DOWNGRADE_FLOOR = '1.0.0'
 #       'port', 'source'}]}]   what a module needs open on a node (its DNS server, say)
 HOOKS = {'daemon_start': [], 'daemon_stop': [], 'cli_args': [], 'cli_run': [],
          'console_main': [], 'status': [], 'alerts': [], 'report': [], 'metrics': [],
-         'carry_tables': [], 'firewall': []}
+         'carry_tables': [], 'firewall': [], 'snmp': [], 'event_fields': []}
 
 
 def hook(kind):

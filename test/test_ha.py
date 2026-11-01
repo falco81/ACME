@@ -57,7 +57,6 @@ PG_PORT = int(os.environ.get('ACME_TEST_PG_PORT', '5432'))
 PG2_PORT = int(os.environ.get('ACME_TEST_PG2_PORT', '5433'))
 PG2_DB = os.environ.get('ACME_TEST_PG2_DB', 'acme')
 MY_PORT = int(os.environ.get('ACME_TEST_MY_PORT', '3306'))
-LONG_PEM = '-----BEGIN CERTIFICATE-----\n' + ('A' * 64 + '\n') * 2000 + '-----END CERTIFICATE-----\n'
 
 
 def free_port():
@@ -265,6 +264,8 @@ class Node(object):
         self.py('st.add_account(%r, %r, %r)' % (name, role, PW))
 
     def start(self, wait=90):
+        if getattr(self, "log", None):
+            self.log.close()
         self.log = open(os.path.join(self.tmp, 'daemon.out'), 'ab')
         self.proc = subprocess.Popen([sys.executable, os.path.join(ROOT, 'acme.py'), '--daemon'],
                                      env=self.env, stdout=self.log, stderr=subprocess.STDOUT,
@@ -310,6 +311,8 @@ class Node(object):
 
     def cleanup(self):
         self.stop()
+        if getattr(self, 'log', None):
+            self.log.close()
         if os.environ.get('ACME_TEST_KEEP'):
             print('kept: %s' % self.tmp)
         else:
@@ -428,3 +431,402 @@ class Populated(object):
         cls.made = {'node': node, 'backup': os.path.join(bdir, files[-1]), 'ids': ids,
                     'counts': counts}
         return cls.made
+
+
+PG = {'db_engine': 'postgres', 'db_host': '127.0.0.1', 'db_port': PG_PORT, 'db_name': 'acme',
+      'db_user': 'acme', 'db_password': DB_PW}
+PG2 = dict(PG, db_port=PG2_PORT, db_name=PG2_DB)
+MY = {'db_engine': 'mariadb', 'db_host': '127.0.0.1', 'db_port': MY_PORT, 'db_name': 'acme',
+      'db_user': 'acme', 'db_password': DB_PW}
+
+
+def wait_for(fn, secs, every=1.0, what='it'):
+    end = time.time() + secs
+    last = None
+    while time.time() < end:
+        try:
+            last = fn()
+            if last:
+                return last
+        except Exception as e:                          # noqa: BLE001
+            last = e
+        time.sleep(every)
+    raise AssertionError('%s did not happen within %d s (last: %r)' % (what, secs, last))
+
+
+def need_pg(test):
+    try:
+        import psycopg2  # noqa: F401
+    except ImportError:
+        raise unittest.SkipTest('psycopg2 is not in this python')
+    if not have_pg():
+        raise unittest.SkipTest('no PostgreSQL with a database acme for acme/%s on 127.0.0.1:%d'
+                                % (DB_PW, PG_PORT))
+
+
+def need_my(test):
+    try:
+        import pymysql  # noqa: F401
+    except ImportError:
+        raise unittest.SkipTest('pymysql is not in this python')
+    if not have_my():
+        raise unittest.SkipTest('no MariaDB with a database acme for acme/%s on 127.0.0.1:%d'
+                                % (DB_PW, MY_PORT))
+
+
+def pg_admin_ok(port):
+    """psql as postgres on this machine reaches the cluster on `port` (the
+    wizard of the replicated layout needs root and that)."""
+    if os.geteuid() != 0 or not shutil.which('runuser'):
+        return False
+    got = subprocess.run(['runuser', '-u', 'postgres', '--', 'psql', '-XAtq', '-p', str(port),
+                          '-c', 'SELECT 1'], capture_output=True, text=True)
+    return got.returncode == 0 and got.stdout.strip() == '1'
+
+
+def read_back(node):
+    return json.loads(node.py(READ_BACK).strip().splitlines()[-1])
+
+
+# ---------------------------------------------------------------------------------------------
+class RestoreIntoEngines(unittest.TestCase):
+    """The SQLite backup with certificates put back into MariaDB and PostgreSQL:
+    every row there, every sealed thing opened."""
+
+    def restore_into(self, db, empty):
+        src = Populated.get()
+        empty()
+        node = Node('restored', db)
+        try:
+            key = src['backup'][:-len('.json.gz')] + '.key'
+            shutil.copy(key, os.path.join(node.tmp, 'state', 'secrets.key'))
+            got = node.cli('--restore', src['backup'], '--yes')
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+            here = read_back(node)
+            for k, v in src['counts'].items():
+                self.assertEqual(here.get(k), v, '%s: %s here, %s in the copy' % (k, here.get(k), v))
+            # A new row numbered past those put back.
+            got = node.cli('--renew', 'intranet')
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+            self.assertIn('issued: version 2', got.stdout)
+            again = read_back(node)
+            self.assertEqual(again['cert_versions'], here['cert_versions'] + 1)
+            self.assertEqual(again['cert_jobs'], here['cert_jobs'] + 1)
+        finally:
+            node.cleanup()
+
+    def test_postgres(self):
+        need_pg(self)
+        self.restore_into(PG, pg_empty)
+
+    def test_mariadb(self):
+        need_my(self)
+        self.restore_into(MY, my_empty)
+
+
+# ---------------------------------------------------------------------------------------------
+class EngineMove(unittest.TestCase):
+    """Settings → The database: everything carried from SQLite into PostgreSQL,
+    the daemon started again on it; then from PostgreSQL into MariaDB."""
+
+    def move(self, node, target):
+        st, got = node.call('POST', '/api/db', {'action': 'try', 'settings': target})
+        self.assertEqual(st, 200, got)
+        self.assertTrue(got.get('reached'), got)
+        st, got = node.call('POST', '/api/db', {'action': 'move', 'settings': target})
+        self.assertEqual(st, 200, got)
+
+        def done():
+            st, j = node.call('POST', '/api/db', {'action': 'job'})
+            j = j.get('job') or j
+            return j if not j.get('running') and j.get('ended') else None
+        job = wait_for(done, 300, 1, 'the move')
+        self.assertFalse(job.get('error'), job)
+        self.assertFalse((job.get('result') or {}).get('short'), job)
+        st, got = node.call('POST', '/api/db', {'action': 'use', 'settings': target})
+        self.assertEqual(st, 200, got)
+        self.assertTrue(got.get('restarting'), got)
+        wait_for(lambda: node.proc.poll() is not None, 60, 0.5, 'the daemon stopping')
+        self.assertEqual(node.conf['db_engine'], target['db_engine'])
+        node.start()
+        here = read_back(node)
+        return here
+
+    def test_sqlite_postgres_mariadb(self):
+        need_pg(self)
+        need_my(self)
+        pg_empty()
+        my_empty()
+        node = Node('mover')
+        try:
+            node.add_account()
+            node.start()
+            populate(node)
+            before = read_back(node)
+            on_pg = self.move(node, PG)
+            for k in COUNTED:
+                self.assertEqual(on_pg[k], before[k], k)
+            for k in ('web_key', 'ca_key'):
+                self.assertTrue(on_pg[k], k)
+            self.assertEqual(on_pg['target_pw'], 's3cret')
+            on_my = self.move(node, MY)
+            for k in COUNTED:
+                self.assertEqual(on_my[k], on_pg[k], k)
+            self.assertTrue(on_my['web_key'] and on_my['ca_key'])
+            self.assertEqual(on_my['target_pw'], 's3cret')
+            job = node.wait_job(node.ok('POST', '/api/certs/renew',
+                                        {'id': node.ok('GET', '/api/certs',
+                                                       args={'search': 'intranet'})['rows'][0]['id']}
+                                        )['job_id'])
+            self.assertEqual(job['state'], 'ok', job)
+        finally:
+            node.cleanup()
+
+
+# ---------------------------------------------------------------------------------------------
+class MariaDbSingle(unittest.TestCase):
+    """One node on MariaDB: the certificate manager's tables in the engine's
+    types, a long PEM, names compared byte for byte, the daemon at work."""
+
+    @classmethod
+    def setUpClass(cls):
+        need_my(cls)
+        my_empty()
+        cls.node = Node('maria', MY)
+        cls.node.add_account()
+        cls.node.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.node.cleanup()
+
+    def test_01_types(self):
+        c = my_conn()
+        cur = c.cursor()
+        cur.execute("SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, COLLATION_NAME FROM "
+                    "information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()")
+        cols = {(t, n): (ty, co) for t, n, ty, co in cur.fetchall()}
+        c.close()
+        for t in ('certs', 'cert_versions', 'cert_cas', 'cert_ca_issued', 'cert_issuers',
+                  'cert_challenges', 'cert_targets', 'cert_deploys', 'cert_jobs', 'dns_records'):
+            self.assertIn((t, 'id'), cols, t)
+        self.assertEqual(cols[('certs', 'cert_pem')][0], 'mediumtext')
+        self.assertEqual(cols[('cert_jobs', 'steps')][0], 'mediumtext')
+        self.assertEqual(cols[('certs', 'name')], ('varchar(190)', 'utf8mb4_bin'))
+        self.assertEqual(cols[('certs', 'not_after')][0], 'double')
+        self.assertEqual(cols[('meta', 'k')][0], 'varchar(255)')
+
+    def test_02_long_pem_and_names(self):
+        out = self.node.py(r'''
+long = '-----BEGIN CERTIFICATE-----\n' + ('A' * 64 + '\n') * 2000 + '-----END CERTIFICATE-----\n'
+ident = st.db.insert('cert_versions', {'cert_id': 999999, 'version': 1, 'cert_pem': long,
+                                      'chain_pem': long, 'created': 1.5})
+back = st.db.value('SELECT cert_pem FROM cert_versions WHERE id = ?', (ident,))
+print(json.dumps({'id': ident, 'same': back == long}))
+n190 = 'n' * 189 + 'X'
+st.db.insert('cert_targets', {'name': n190, 'kind': 'fake'})
+st.db.insert('cert_targets', {'name': n190[:-1] + 'x', 'kind': 'fake'})  # another, by case
+try:
+    st.db.insert('cert_targets', {'name': n190, 'kind': 'fake'})
+    print('DUPLICATE TAKEN')
+except Exception as e:
+    print('refused', type(e).__name__)
+st.db.insert('cert_targets', {'name': 'novák', 'kind': 'fake'})
+st.db.insert('cert_targets', {'name': 'novak', 'kind': 'fake'})
+print(json.dumps({'n': st.db.value("SELECT COUNT(*) FROM cert_targets WHERE name IN ('novák', 'novak')")}))
+st.db.run('DELETE FROM cert_versions WHERE cert_id = 999999')
+st.db.run("DELETE FROM cert_targets WHERE kind = 'fake'")
+''')
+        lines = out.strip().splitlines()
+        self.assertTrue(json.loads(lines[0])['same'])
+        self.assertTrue(lines[1].startswith('refused'), lines[1])
+        self.assertEqual(int(json.loads(lines[2])['n']), 2)
+
+    def test_03_at_work(self):
+        populate(self.node)
+        here = read_back(self.node)
+        self.assertEqual(here['certs'], 2)
+        self.assertEqual(here['cert_versions'], 3)
+        self.assertTrue(here['web_key'] and here['ca_key'])
+        self.assertEqual(here['target_pw'], 's3cret')
+        # The deployment did go out, with the PFX's password opened.
+        with open(os.path.join(self.node.tmp, 'out', 'web.pem.opts')) as f:
+            self.assertIn("('pfx_password', 'pfxpw')", f.read())
+        self.assertEqual(self.node.leader(), 'maria')
+        self.assertEqual(dns_txt_api(self.node), ['populated-txt'])
+
+
+def dns_txt_api(node, name='_acme-challenge.www.example.test'):
+    return [r['value'] for r in node.ok('GET', '/api/dns')['records'] if r['name'] == name]
+
+
+# ---------------------------------------------------------------------------------------------
+LEASE_WAIT = 90 + 30 + 20        # renewer.LEASE_S + LEASE_EVERY + a scan's pause, and some
+
+
+def leader_events(node):
+    """How often a node took the lead, by the events (both nodes' events are
+    in the database, or come over)."""
+    return json.loads(node.py(
+        "print(json.dumps([r['words'] for r in st.db.rows(\"SELECT words FROM events WHERE "
+        "kind = 'certificates' AND words LIKE '%now renews and deploys%' ORDER BY id\")]))")
+        .strip().splitlines()[-1])
+
+
+def passphrase_of(out):
+    for line in out.splitlines():
+        if 'passphrase' in line and ':' in line:
+            return line.rsplit(':', 1)[1].strip()
+    raise AssertionError('no passphrase in: %s' % out)
+
+
+class PairChecks(object):
+    """What both layouts must do; a, b are the two nodes, running."""
+
+    def test_01_one_leader(self):
+        lead = wait_for(lambda: self.a.leader() if self.a.leader() == self.b.leader() else None,
+                        60, 1, 'one leader seen alike by both nodes')
+        self.assertIn(lead, ('n1', 'n2'))
+        time.sleep(35)                  # a look of the lease more on each
+        self.assertEqual(self.a.leader(), lead)
+        self.assertEqual(self.b.leader(), lead)
+        took = leader_events(self.a)
+        self.assertEqual(len(took), 1, took)
+        self.__class__.lead = lead
+
+    def test_02_renewed_once_seen_on_both(self):
+        self.a.ok('POST', '/api/sources/save', {'name': 'self', 'kind': 'selfsigned',
+                                                'config': {'days': 40}})
+        self.sync()
+        ids = []
+        for i in range(4):
+            on = (self.a, self.b)[i % 2]
+            ids.append(on.ok('POST', '/api/certs/save', {
+                'name': 'auto%d' % i, 'names': ['auto%d.example.test' % i], 'issuer': 'self',
+                'auto_renew': 1})['id'])
+            self.sync()
+        self.assertEqual(len(set(ids)), 4, ids)
+
+        def all_ok(node):
+            rows = {r['id']: r for r in node.ok('GET', '/api/certs', args={'per': 100})['rows']}
+            return all(rows.get(i, {}).get('state') == 'ok' for i in ids)
+        wait_for(lambda: all_ok(self.a) and all_ok(self.b), 200, 2, 'the four renewed')
+        time.sleep(10)
+        for node in (self.a, self.b):
+            for cid in ids:
+                jobs = node.ok('GET', '/api/certs/jobs', args={'cert_id': cid})['rows']
+                renews = [j for j in jobs if j['kind'] == 'renew']
+                self.assertEqual(len(renews), 1, (node.name, cid, jobs))
+                self.assertEqual(renews[0]['node'], self.lead, renews[0])
+                one = node.ok('GET', '/api/certs/one', args={'id': cid})
+                self.assertEqual(one['cert']['version'], 1)
+                self.assertEqual([v['version'] for v in one['versions']], [1])
+        self.__class__.ids = ids
+
+    def test_03_dns_both(self):
+        self.a.ok('POST', '/api/dns/record', {'name': '_acme-challenge.both.acme.test',
+                                              'rtype': 'TXT', 'value': 'same-on-both', 'ttl': 30})
+        self.sync()
+        for node in (self.a, self.b):
+            got = wait_for(lambda: dns_txt(node.dns_port, '_acme-challenge.both.acme.test'),
+                           30, 1, '%s answering the TXT record' % node.name)
+            self.assertEqual(got, ['same-on-both'])
+            self.assertEqual(dns_txt(node.dns_port, '_acme-challenge.both.acme.test', tcp=True),
+                             ['same-on-both'])
+
+    def test_09_leader_killed(self):
+        lead = self.lead
+        dead, live = (self.a, self.b) if lead == self.a.name else (self.b, self.a)
+        t0 = time.time()
+        dead.stop(kill=True)
+        got = wait_for(lambda: live.leader() == live.name, self.TAKEOVER, 2,
+                       '%s taking over' % live.name)
+        took = time.time() - t0
+        self.assertTrue(got)
+        print('\n  %s led again %.0f s after %s was killed' % (live.name, took, dead.name))
+        # And renews by itself there.
+        cid = live.ok('POST', '/api/certs/save', {'name': 'after', 'names': ['after.example.test'],
+                                                  'issuer': 'self', 'auto_renew': 1})['id']
+        wait_for(lambda: live.ok('GET', '/api/certs/one', args={'id': cid})['cert']['state'] == 'ok',
+                 120, 2, 'a renewal on the node left')
+
+
+class SharedPair(PairChecks, unittest.TestCase):
+    """Two daemons on one PostgreSQL, set up with the wizard
+    (acme --ha-setup --ha-shared on the first, acme --ha-join on the second)."""
+    TAKEOVER = LEASE_WAIT
+
+    def sync(self):
+        pass
+
+    @classmethod
+    def setUpClass(cls):
+        need_pg(cls)
+        if os.geteuid() != 0:
+            raise unittest.SkipTest('the wizard runs as root')
+        pg_empty()
+        extra = {'dns_server': 1, 'dns_zone': 'acme.test', 'certs_check_min': 1}
+        cls.a = Node('n1', PG, extra)
+        cls.b = Node('n2', {'db_engine': 'sqlite'}, extra)
+        cls.a.add_account()
+        bundle = os.path.join(cls.a.tmp, 'bundle.json')
+        for n in (cls.a, cls.b):
+            n.env['ACME_HA_NO_RESTART'] = '1'
+        got = cls.a.cli('--ha-setup', '--ha-shared', '--ha-peer', '127.0.0.1', '--ha-db-host',
+                        '127.0.0.1', '--node-name', 'n1', '--ha-bundle', bundle, '--yes')
+        if got.returncode != 0:
+            raise RuntimeError('--ha-setup --ha-shared: %s %s' % (got.stdout, got.stderr))
+        phrase = passphrase_of(got.stdout)
+        cls.b.env['ACME_HA_PASSPHRASE'] = phrase
+        got = cls.b.cli('--ha-join', bundle, '--node-name', 'n2', '--yes')
+        if got.returncode != 0:
+            raise RuntimeError('--ha-join: %s %s' % (got.stdout, got.stderr))
+        for n in (cls.a, cls.b):
+            # Each its own ports on this one machine.
+            n.set_conf(api_port=n.port, dns_port=n.dns_port)
+        cls.setup_said = got.stdout
+        cls.a.start()
+        cls.b.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        for n in ('a', 'b'):
+            if getattr(cls, n, None):
+                getattr(cls, n).cleanup()
+
+    def test_00_wizard(self):
+        self.assertEqual(self.b.conf['db_engine'], 'postgres')
+        self.assertEqual(self.b.conf['node_name'], 'n2')
+        for n in (self.a, self.b):
+            self.assertEqual(n.conf.get('ha_mode'), 'shared', n.name)
+        with open(os.path.join(self.a.tmp, 'state', 'secrets.key')) as f1, \
+                open(os.path.join(self.b.tmp, 'state', 'secrets.key')) as f2:
+            self.assertEqual(f1.read(), f2.read())
+        nodes = wait_for(lambda: [x for x in self.a.ok('GET', '/api/ha')['nodes']
+                                  if x.get('alive')] if len([
+                                      x for x in self.a.ok('GET', '/api/ha')['nodes']
+                                      if x.get('alive')]) == 2 else None, 40, 1, 'both nodes alive')
+        self.assertEqual(sorted(x['name'] for x in nodes), ['n1', 'n2'])
+
+    def test_04_lease_is_one_write(self):
+        """Many takers at the same moment of a lease that ran out: one wins."""
+        code = r'''
+import threading
+from acmelib.certs import renewer
+acme.CONFIG['node_name'] = sys.argv[-1] if False else acme.CONFIG.get('node_name')
+st.set_meta(renewer.LEASE_KEY, json.dumps({'node': 'gone', 'until': 1, 'vip': False}))
+won = []
+def one(name):
+    s2 = acme.Storage(acme.open_db())
+    import acmelib.engine as E
+    old = E.node_name
+    won.append((name, renewer.lease_tick(s2)))
+ts = [threading.Thread(target=one, args=(i,)) for i in range(8)]
+[t.start() for t in ts]; [t.join() for t in ts]
+print(json.dumps(sum(1 for _n, w in won if w)))
+'''
+        # Lease ticks of one process race each other as two nodes would; the
+        # live daemons may take it too - so they are not asked here: at most
+        # one of these and of them.
+        n = int(self.a.py(code).strip().splitlines()[-1])
+        self.assertLessEqual(n, 1)

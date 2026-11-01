@@ -25,6 +25,7 @@ from acmelib import engine as E
 from acmelib.plugins import base
 from acmelib.certs import store as S
 from acmelib.certs import jobs, deployer, renewer, runtime, schema
+from acmelib.certs import defaults as DF
 
 # ---------------------------------------------------------------------------
 # Who may
@@ -229,7 +230,12 @@ def _overview(h, s):
     recent = jobs.job_rows(store, per=10)['rows']
     lead = renewer.leader(store)
     days = int(E.CONFIG.get('certs_notify_days') or 14)
-    return {'by_state': by_state, 'total': sum(by_state.values()), 'soonest': soon,
+    DF.ensure(store)
+    di = DF.default_issuer(store)
+    dc = DF.default_challenge(store, di) if di else None
+    return {'defaults': {'issuer': di['name'] if di else '', 'challenge': dc['name'] if dc else ''},
+            'contact_missing': DF.contact_missing(store),
+            'by_state': by_state, 'total': sum(by_state.values()), 'soonest': soon,
             'expiring': int(store.db.value('SELECT COUNT(*) FROM certs WHERE not_after > ? AND '
                                            'not_after < ?', (t, t + days * 86400), 0) or 0),
             'expired': int(store.db.value("SELECT COUNT(*) FROM certs WHERE not_after < ? AND "
@@ -293,6 +299,16 @@ def cert_save(store, b, by):
         if kt not in schema.KEY_TYPES:
             raise ValueError('the key type is one of %s' % ', '.join(schema.KEY_TYPES))
         fields['key_type'] = kt
+    if not row and 'issuer' not in b:
+        # Not said at all (not said empty): Let's Encrypt first (defaults.py),
+        # proved by this server's HTTP-01 unless a validation is said.
+        di = DF.default_issuer(store)
+        if di:
+            b = dict(b, issuer=di['name'])
+            if 'challenge' not in b and not b.get('challenge_map'):
+                dc = DF.default_challenge(store, di)
+                if dc:
+                    b['challenge'] = dc['name']
     if 'issuer' in b or not row:
         iss = str(b.get('issuer') or '').strip()
         if iss and not S.plugin_row(store, 'issuer', iss):
@@ -1070,10 +1086,66 @@ def family_test(store, family, b, by, echo=None):
     return {'ok': bool(job.ok), 'said': job.said, 'job_id': job.id, 'steps': job.steps}
 
 
+def family_action(store, family, b, by, echo=None):
+    """One of a module's actions (Plugin.actions) run on a saved row, in a job of
+    its own: {ok, said, job_id, steps}."""
+    row = S.plugin_row(store, family, b.get('id') if b.get('id') not in (None, '', 0)
+                       else b.get('name'))
+    if not row:
+        raise LookupError('there is no such %s' % family)
+    cls = S.plugin_class(family, row.get('kind'))
+    if cls is None:
+        raise ValueError('there is no %s module "%s"' % (family, row.get('kind')))
+    key = str(b.get('action') or '').strip()
+    act = next((a for a in (cls.actions or []) if a.get('key') == key), None)
+    if not act:
+        raise ValueError('%s (%s) can do %s' % (row['name'], row['kind'], ', '.join(
+            a['key'] for a in cls.actions or []) or 'nothing besides its work'))
+    cfg = S.plugin_config(family, row)
+
+    def fn(job):
+        if family == 'target':
+            ctx = deployer.target_context(store, job, row)
+        else:
+            ctx = runtime.RunContext(store, job, scope='%s:%s' % (family, row['name']))
+        try:
+            job.step('%s %s (%s): %s' % (family, row['name'], row['kind'], act.get('label') or key))
+            said = cls(cfg, ctx).action(key)
+            job.step(str(said or 'done'), 'ok')
+            return True, str(said or 'done')
+        finally:
+            ctx.tidy()
+    job = jobs.run_now(store, 'action', fn, target=row['name'] if family == 'target' else None,
+                       by=by, said='%s %s: %s' % (family, row['name'], key), echo=echo)
+    store.add_event('certificates', '%s %s: "%s" run by %s - %s' % (
+        family, row['name'], act.get('label') or key, by, 'done' if job.ok else 'failed: %s'
+        % job.said), 'info' if job.ok else 'warn', who=by)
+    return {'ok': bool(job.ok), 'said': job.said, 'job_id': job.id, 'steps': job.steps,
+            'action': key}
+
+
+def action_role(family, b, store):
+    """An action that changes something elsewhere needs a full administrator."""
+    row = S.plugin_row(store, family, b.get('id') if b.get('id') not in (None, '', 0)
+                       else b.get('name'))
+    cls = S.plugin_class(family, row.get('kind')) if row else None
+    act = next((a for a in (getattr(cls, 'actions', None) or [])
+                if a.get('key') == str(b.get('action') or '')), None)
+    return 'fulladmin' if (act or {}).get('changes', True) else 'certadmin'
+
+
 def _family_routes(family, path):
     @api('GET', '/api/%s' % path)
     def _rows(h, s):
+        DF.ensure(h.store)
         return {'rows': family_rows(h.store, family)}
+
+    @api('POST', '/api/%s/action' % path, 'certadmin')
+    def _action(h, s):
+        b = h.body()
+        if not may(s, action_role(family, b, h.store)):
+            raise E.ApiError(403, ROLE_WORDS['fulladmin'])
+        return family_action(h.store, family, b, who(s))
 
     @api('POST', '/api/%s/save' % path, 'fulladmin')
     def _save(h, s):
@@ -1091,6 +1163,37 @@ def _family_routes(family, path):
 _family_routes('issuer', 'sources')
 _family_routes('challenge', 'validations')
 _family_routes('target', 'targets')
+
+
+def acme_contact(store, email, by, every=False):
+    """The contact e-mail set on the ACME sources that have none (every: on all)."""
+    email = str(email or '').strip()
+    if email.startswith('mailto:'):
+        email = email[7:]
+    if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+\Z', email) or len(email) > 254:
+        raise ValueError('%r is not an e-mail address' % email)
+    missing = set(DF.contact_missing(store))
+    done = []
+    for r in store.db.rows("SELECT * FROM cert_issuers WHERE kind = 'acme' ORDER BY name"):
+        if not every and r['name'] not in missing:
+            continue
+        cfg = S.jload(r.get('config'), {}) or {}
+        cfg['contacts'] = [email]
+        store.db.update('cert_issuers', r['id'], {'config': json.dumps(cfg),
+                                                  'updated': time.time()})
+        done.append(r['name'])
+    if done:
+        store.add_event('certificates', 'the contact e-mail of %s set to %s by %s' % (
+            ', '.join(done), email, by), who=by)
+    return done
+
+
+@api('POST', '/api/sources/contact', 'fulladmin')
+def _sources_contact(h, s):
+    b = h.body()
+    done = acme_contact(h.store, b.get('email'), who(s), every=_flag(b.get('all')))
+    return {'sources': done, 'message': ('set on %s' % ', '.join(done)) if done else
+            'every ACME source has a contact e-mail already'}
 
 
 # ---------------------------------------------------------------------------
@@ -1141,6 +1244,42 @@ def deploy_save(store, b, by):
         cert['name'], trow['name'], by), who=by)
     _wake()
     return row['id']
+
+
+def deploy_rows(store, target='', cert=''):
+    """The deployments, of one target or one certificate (or all), each with its
+    certificate's name and version."""
+    where, args = [], []
+    if target:
+        trow = S.plugin_row(store, 'target', target)
+        if not trow:
+            raise LookupError('there is no target %s' % target)
+        where.append('d.target = ?')
+        args.append(trow['name'])
+    if cert:
+        c = S.cert_need(store, cert)
+        where.append('d.cert_id = ?')
+        args.append(c['id'])
+    rows = store.db.rows(
+        'SELECT d.*, c.name AS cert_name, c.version AS cert_version, c.state AS cert_state '
+        'FROM cert_deploys d JOIN certs c ON c.id = d.cert_id%s ORDER BY c.name, d.position, d.id'
+        % (' WHERE ' + ' AND '.join(where) if where else ''), args)
+    out = []
+    kinds = {r['name']: r['kind'] for r in store.db.rows('SELECT name, kind FROM cert_targets')}
+    for r in rows:
+        one = S.deploy_public(store, r)
+        one['target_kind'] = kinds.get(r['target'])
+        one['outdated'] = bool(r.get('cert_version') and r.get('deployed_version') and
+                               int(r['deployed_version']) < int(r['cert_version']))
+        out.append(one)
+    return out
+
+
+@api('GET', '/api/deploys')
+def _deploys(h, s):
+    rows = deploy_rows(h.store, h.arg('target').strip(), h.arg('cert').strip() or
+                       h.arg('cert_id').strip())
+    return {'rows': rows, 'deploys': rows, 'total': len(rows)}
 
 
 @api('POST', '/api/deploys/save', 'certadmin')

@@ -49,6 +49,8 @@ function acme_certs_tab_panels(): void
 <section class="panel" id="tab-certs" hidden>
   <div class="card full ct-held" data-hold>
     <h2>Certificates <span class="right btnrow ct-acts">
+      <button class="btn small ct-approvals" id="ct-approvals" data-icon="clock" hidden
+              title="Certificates asked for on the portal that wait for an administrator: click one, then Approve or Decline."></button>
       <button class="btn cmd small ct-manage" id="ct-import" data-icon="upload"
               title="Bring in a certificate you already have - PEM, CRT, CER, DER, P7B, PFX/P12, JKS or a key - by dropping the file here.">Import</button>
       <button class="btn cmd small ct-manage" id="ct-self" data-icon="lock"
@@ -72,6 +74,8 @@ function acme_certs_tab_panels(): void
         <option value="failed">renewal failed</option>
         <option value="expired">has expired</option>
         <option value="pending">waiting for an outside CA</option>
+        <option value="pending-approval">waiting for approval</option>
+        <option value="declined">declined</option>
         <option value="new">not issued yet</option>
         <option value="revoked">revoked</option>
         <option value="disabled">switched off</option>

@@ -1,0 +1,33 @@
+/* certs-portal.css - the certificate portal's own few pieces (certs-portal.js),
+   beside certs.css's ct- classes and acme.css's cards, tables and tags. */
+.cp-card h2{display:flex;align-items:center;gap:10px}
+.cp-card h2 .right{margin-left:auto}
+.cp-said{margin:-6px 0 10px}
+.cp-table td{vertical-align:top}
+.cp-table .ct-names{margin-top:4px}
+.cp-via{margin-left:4px;text-transform:none;letter-spacing:0}
+.cp-note{display:flex;flex-direction:column;gap:2px;padding:10px 14px;border-radius:10px;margin:0 0 12px;
+  border:1px solid var(--line);background:var(--panel2);font-size:13px}
+.cp-note.warn{border-color:rgba(210,153,34,.45);background:var(--warn-bg)}
+.cp-note.warn b{color:var(--warn)}
+.cp-note.crit{border-color:rgba(248,81,73,.45);background:var(--crit-bg)}
+.cp-note.crit b{color:var(--crit)}
+.cp-note span{color:var(--tx-dim);overflow-wrap:anywhere}
+.cp-jobhead{display:flex;align-items:baseline;gap:10px;margin:16px 0 6px}
+.cp-good{color:var(--ok)}
+.cp-formats{display:flex;flex-direction:column;gap:8px}
+.cp-format{display:flex;align-items:center;gap:14px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel2)}
+.cp-format-w{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.cp-format-w .tag{text-transform:none;letter-spacing:0;margin-left:2px}
+.cp-pw{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.cp-pw input{flex:1;min-width:150px}
+textarea.cp-names{width:100%;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.cp-chips{margin-top:6px}
+.cp-chips .ct-name i{margin-left:2px}
+@media (max-width:640px){
+  .cp-format{flex-direction:column;align-items:stretch}
+  .cp-card h2{flex-wrap:wrap}
+  .cp-table th:nth-child(3),.cp-table td:nth-child(3){display:none}
+  .cp-table td,.cp-table th{padding-left:6px;padding-right:6px}
+}

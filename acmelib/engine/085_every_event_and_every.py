@@ -134,8 +134,12 @@ class Siem(object):
                           'level': level, 'who': who or ''}, '%s: %s' % (kind, words))
             return
         if CONFIG.get('siem_events', 1):
+            # What a module says of the event (event_fields: cert, serial,
+            # target, result ...) beside the engine's own, never over them.
+            extra = {k: v for k, v in event_fields(kind, words, level).items()
+                     if k not in ('event', 'kind', 'level', 'who', 'node', 'type', 'message')}
             self.put('event', SIEM_SEVERITY.get(level, 6),
-                     {'event': 'event', 'kind': kind, 'level': level, 'who': who or ''},
+                     dict(extra, event='event', kind=kind, level=level, who=who or ''),
                      '%s: %s' % (kind, words))
 
     def test(self, by):

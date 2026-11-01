@@ -92,13 +92,9 @@ function namesChips(names, most, sufs) {
   (most ? names.slice(0, most) : names).forEach(function (n) {
     var wild = n.indexOf('*.') === 0;
     var ok = isHost(wild ? n.slice(2) : n) && (!sufs || underSuffix(n, sufs));
-    var c = noI18n(el('span', 'ct-name ' + (!ok ? 'refused' : (wild ? 'wild' : 'dns')), n));
-    if (!ok && sufs) {
-      var why = el('i', '', isHost(wild ? n.slice(2) : n) ? 'not yours to ask' : 'not a name');
-      why.removeAttribute('data-no-i18n');
-      c.appendChild(document.createTextNode(' '));
-      c.appendChild(why);
-    }
+    var c = el('span', 'ct-name ' + (!ok ? 'refused' : (wild ? 'wild' : 'dns')));
+    c.appendChild(data('span', '', n));
+    if (!ok && sufs) c.appendChild(el('i', '', isHost(wild ? n.slice(2) : n) ? 'not yours to ask' : 'not a name'));
     box.appendChild(c);
   });
   if (most && names.length > most) {
@@ -196,7 +192,7 @@ function draw(d) {
   }
   clear(host);
   if (!rows.length) {
-    var b = el('div', 'ct-blank');
+    var b = el('div', 'ct-blank big');
     var ic = el('div', 'ct-blank-ic');
     ic.innerHTML = iconMarkup('cert', 30);
     b.appendChild(ic);
@@ -275,7 +271,9 @@ function certDialog(id, fresh) {
   clearTimeout(CP.jobTimer);
   var logHost = null, jobId = c.job && c.job.id;
   var buttons = [{words: 'Close', close: true}];
-  if (c.not_after && c.state !== 'revoked') buttons.push({words: 'Download', cls: 'primary', icon: 'download', go: function () { downloadDialog(c); }});
+  if (c.not_after && c.state !== 'revoked') buttons.push({words: 'Download', cls: 'primary', icon: 'download', go: function () {
+    modalOver(function () { downloadDialog(c); });
+  }});
   modal(c.cn || c.name, function (body) {
     var head = el('div', 'ct-head');
     var ic = el('div', 'ct-head-ic ' + ((STATE[c.state] || [0, 'dim'])[1]));
@@ -383,7 +381,8 @@ function followJob(jobId, host, ticket) {
 function downloadDialog(c) {
   var fmts = (CP.d && CP.d.formats) || ['fullchain-pem', 'cert-pem', 'chain-pem'];
   var order = ['fullchain-pem', 'cert-pem', 'chain-pem', 'cert-der', 'p7b', 'pfx'];
-  modal('Download ' + (c.cn || c.name), function (body) {
+  modal('Download', function (body) {
+    body.appendChild(namesChips([c.cn || c.name]));
     body.appendChild(el('p', 'note', 'The certificate as your server or device wants it. Pick a format.'));
     var list = el('div', 'cp-formats');
     order.filter(function (f) { return fmts.indexOf(f) >= 0; }).forEach(function (f) {
@@ -454,11 +453,13 @@ function askDialog() {
     namesBox.spellcheck = false;
     namesBox.placeholder = 'www.' + (sufs[0] || 'example.com') + '\n' + 'app.' + (sufs[0] || 'example.com');
     namesBox.oninput = check;
-    var under = el('span', '', 'One name a line - the first is the one it is called by. Names under: ');
-    under.appendChild(data('b', 'mono', sufs.join(', ')));
     body.appendChild(formField('Its names', namesBox, ''));
     var hint = el('div', 'says small muted');
-    hint.appendChild(under);
+    hint.appendChild(el('span', '', 'One name a line - the first is the one it is called by.'));
+    hint.appendChild(document.createTextNode(' '));
+    hint.appendChild(el('span', '', 'Names under:'));
+    hint.appendChild(document.createTextNode(' '));
+    hint.appendChild(data('b', 'mono', sufs.join(', ')));
     body.lastChild.appendChild(hint);
     chips = el('div', 'cp-chips');
     body.lastChild.appendChild(chips);

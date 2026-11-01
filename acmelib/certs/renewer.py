@@ -3,10 +3,30 @@
 The scheduler: certificates renewed and deployed by themselves.
 
 One node works at a time. A lease in meta ('certs:leader' = {node, until,
-vip}) says which: renewed every 30 s, it runs out after 90 s; the node that
-holds the VIP address in a cluster takes it over from one that does not, and
-any node takes it once it ran out. Every certs_check_min minutes the leader
-looks for what is due:
+vip}) says which: renewed every 30 s, it runs out after 90 s.
+
+* One database (alone, or two nodes on one - ha_mode "shared"): the database
+  is the judge. The lease is taken and kept with a conditional write (INSERT
+  of a key not there, UPDATE ... WHERE v = what was read), so of two nodes
+  asking at the same moment one wins. The node that holds the VIP address
+  takes it over from one that does not; any node takes it once it ran out.
+* Two databases (ha_mode "replicated"): each has a copy of the row, and a
+  copy can be late - or not come at all while the replication is paused or
+  broken - so the row cannot be the judge: both nodes would see a lease that
+  ran out and both would lead. Who leads is decided by a rule both nodes
+  reach alone: the node holding the VIP address; else the first by name of
+  the nodes alive (engine ha_lead: heartbeats, and a node that sorts first
+  and looks stale here asked in its own database). Only that node writes the
+  lease, which then only says who it is. A node that should lead waits while
+  the row names another node and has not run out (that one lets it go at its
+  next look - 30 s - and the row's removal comes over); one that should not
+  lets its lease go. Both lead only when neither can reach the other's
+  database at all (a network cut between them) - see docs/high-availability.md.
+
+A node trusts its own lead for LEASE_S - LEASE_EVERY seconds after it last
+got it: one that cannot reach its database stops before another may start.
+
+Every certs_check_min minutes the leader looks for what is due:
 
     auto_renew, and not_after - renew_days * 86400 <= now
     or inside the window the issuer suggests (ACME ARI, issuer.renewal_window):
@@ -66,22 +86,67 @@ def lease_read(store):
     return got if isinstance(got, dict) else None
 
 
+def replicated():
+    return E.CONFIG.get('ha_mode') == 'replicated'
+
+
+def vip_elsewhere(store):
+    """Another node, alive, says it holds the VIP address."""
+    try:
+        if not E.CONFIG.get('ha_mode') or not E.vip_conf(store).get('on'):
+            return False
+        return any(n.get('alive') and not n.get('me') and (n.get('web') or {}).get('vip_here')
+                   for n in E.ha_nodes(store))
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+def lease_swap(store, was_raw, new_raw):
+    """The lease row from what was read to the new one, in one conditional
+    statement: True when this write is the one that went in."""
+    if was_raw is None:
+        try:
+            store.db.run('INSERT INTO meta (k, v) VALUES (?, ?)', (LEASE_KEY, new_raw))
+            return True
+        except Exception:                               # noqa: BLE001
+            return False                                # another node made it first
+    return bool(store.db.run('UPDATE meta SET v = ? WHERE k = ? AND v = ?',
+                             (new_raw, LEASE_KEY, was_raw)))
+
+
 def lease_tick(store):
     """Take or keep the lease where this node should. True: this node leads."""
     me = E.node_name()
     t = time.time()
-    cur = lease_read(store)
+    raw = store.get_meta(LEASE_KEY)
+    cur = S.jload(raw, None)
+    if not isinstance(cur, dict):
+        cur = None
     vip = vip_mine(store)
-    take = (not cur or float(cur.get('until') or 0) < t or cur.get('node') == me or
-            (vip and not cur.get('vip')))
-    if not take:
-        return False
-    store.set_meta(LEASE_KEY, json.dumps({'node': me, 'until': t + LEASE_S, 'vip': vip,
-                                          'at': t}))
-    if not cur or cur.get('node') != me:
+    live = bool(cur) and float(cur.get('until') or 0) >= t
+    if replicated():
+        want = vip or (not vip_elsewhere(store) and bool(E.ha_lead(store)))
+        if not want:
+            if cur and cur.get('node') == me:
+                lease_drop(store)
+            return False
+        if live and cur.get('node') != me and not (vip and not cur.get('vip')):
+            return False                # the other lets it go at its next look
+        store.set_meta(LEASE_KEY, json.dumps({'node': me, 'until': t + LEASE_S, 'vip': vip,
+                                              'at': t}))
+        won = True
+    else:
+        take = not live or cur.get('node') == me or (vip and not cur.get('vip'))
+        if not take:
+            return False
+        won = lease_swap(store, raw, json.dumps({'node': me, 'until': t + LEASE_S, 'vip': vip,
+                                                 'at': t}))
+        if not won:
+            return False                # another node wrote it first
+    if not cur or cur.get('node') != me or not live:
         store.add_event('certificates', '%s now renews and deploys the certificates%s' % (
             me, ' (it holds the VIP address)' if vip else ''))
-    return True
+    return won
 
 
 def leader(store):
@@ -94,9 +159,11 @@ def leader(store):
 
 
 def lease_drop(store):
-    cur = lease_read(store)
-    if cur and cur.get('node') == E.node_name():
-        store.db.run('DELETE FROM meta WHERE k = ?', (LEASE_KEY,))
+    """This node's lease let go (only if it is still this node's)."""
+    raw = store.get_meta(LEASE_KEY)
+    cur = S.jload(raw, None)
+    if isinstance(cur, dict) and cur.get('node') == E.node_name():
+        store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (LEASE_KEY, raw))
 
 
 # ---------------------------------------------------------------------------
@@ -476,6 +543,7 @@ class Renewer(object):
         self.dns_sig = None
         self.dns_said = ''
         self.leading = False
+        self.lead_until = 0.0
         self.last_scan = 0.0
         self.last_lease = 0.0
 
@@ -513,9 +581,13 @@ class Renewer(object):
             try:
                 if time.time() - self.last_lease >= LEASE_EVERY:
                     self.last_lease = time.time()
+                    self.leading = False
                     self.leading = lease_tick(self.store)
+                    if self.leading:
+                        self.lead_until = self.last_lease + LEASE_S - LEASE_EVERY
                 every = max(1, int(E.CONFIG.get('certs_check_min') or 5)) * 60
-                if self.leading and time.time() - self.last_scan >= every:
+                if self.leading and time.time() < self.lead_until and \
+                        time.time() - self.last_scan >= every:
                     self.last_scan = time.time()
                     scan(self.store)
             except Exception as e:                      # noqa: BLE001

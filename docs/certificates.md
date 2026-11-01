@@ -204,8 +204,13 @@ With `portal_cert` on, people signed in on the enrolment pages:
 * see the certificates whose `owner` is them;
 * can download the certificate, its chain or both (never the key);
 * can ask for a certificate for names under `portal_cert_suffixes`, from
-  one of `portal_cert_issuers`, up to `portal_cert_max` certificates each.
-  acme issues it with a job and renews it by itself.
+  one of `portal_cert_issuers`, up to `portal_cert_max` requests each.
+  acme issues it at once (`portal_cert_auto`) or after an administrator
+  approves it (state `pending-approval`; `POST /api/certs/approve`), and
+  renews it by itself.
+
+The whole of it - group ownership, PFX downloads (`portal_cert_keys`), the
+approval and the mails - is in [certificate-portal.md](certificate-portal.md).
 
 ## Settings
 
@@ -219,7 +224,8 @@ With `portal_cert` on, people signed in on the enrolment pages:
 | `certs_notify_mail`, `certs_notify_sms` | | who is told |
 | `certs_keep_versions` | 10 | old certificates kept, each |
 | `certs_keep_jobs_days` | 90 | jobs kept |
-| `portal_cert`, `portal_cert_suffixes`, `portal_cert_issuers`, `portal_cert_max` | 0, '', '', 10 | the certificate portal |
+| `portal_cert`, `portal_cert_suffixes`, `portal_cert_issuers`, `portal_cert_challenge`, `portal_cert_max`, `portal_cert_auto`, `portal_cert_keys` | 0, '', '', '', 10, 0, 0 | the certificate portal |
 | `dns_server`, `dns_listen`, `dns_port`, `dns_zone`, `dns_ns_names`, `dns_ns_addresses`, `dns_soa_mail`, `dns_ttl`, `dns_static` | 0, `0.0.0.0,::`, 53, ..., 60 | acme's own DNS server |
 
-On the settings pages these are in the panes `certs` and `dnssrv`.
+On the settings pages these are in the panes `certs` and `dnssrv`; the
+`portal_cert*` ones are on the portal's pane (`portal`).

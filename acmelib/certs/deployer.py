@@ -92,8 +92,11 @@ def deploy_one(store, job, cert, dep, force=False):
         store.db.update('cert_targets', trow['id'], {'last_error': why[:2000]})
         step('%s: %s (tried again in %s)' % (trow['name'], why,
                                              E.human_span(S.backoff(fails))), 'bad')
-        store.add_event('certificates', 'deploying %s to %s failed: %s' % (
-            cert['name'], trow['name'], why), 'bad')
+        with E.event_with(**_fields(store, cert, trow, 'deploy', 'failed')):
+            store.add_event('certificates', 'deploying %s to %s failed: %s' % (
+                cert['name'], trow['name'], why), 'bad')
+        _tell(store, 'cert_deploy_failed', 'deploy-one:%s' % dep['id'], cert, trow,
+              error=why[:500], retry=_notices().T.span(S.backoff(fails), _notices().lang()))
         return False, why
     finally:
         ctx.tidy()
@@ -103,9 +106,41 @@ def deploy_one(store, job, cert, dep, force=False):
         'deployed_fp': cert.get('fingerprint'), 'last_ok': t2, 'last_error': '', 'fails': 0,
         'next_try': None})
     store.db.update('cert_targets', trow['id'], {'last_ok': t2, 'last_error': ''})
-    store.add_event('certificates', '%s (version %s) deployed to %s' % (
-        cert['name'], cert.get('version'), trow['name']))
+    with E.event_with(**_fields(store, cert, trow, 'deployed', 'ok')):
+        store.add_event('certificates', '%s (version %s) deployed to %s' % (
+            cert['name'], cert.get('version'), trow['name']))
+    if _notices().ok_wanted():
+        _tell(store, 'cert_deployed', 'deployed:%s:%s' % (dep['id'], cert.get('version')), cert,
+              trow)
     return True, 'deployed to %s' % trow['name']
+
+
+def _notices():
+    from acmelib.certs import notices
+    return notices
+
+
+def _fields(store, cert, trow, action, result):
+    try:
+        from acmelib.certs import monitor
+        return monitor.fields_of(store, cert, action=action, result=result,
+                                 target=trow['name'], target_kind=trow.get('kind'),
+                                 version=cert.get('version'))
+    except Exception:                                   # noqa: BLE001
+        return {'cert': cert.get('name'), 'target': trow.get('name'), 'action': action,
+                'result': result}
+
+
+def _tell(store, mid, key, cert, trow, **more):
+    """A notification about one deployment, in the words of the texts. Never raises."""
+    try:
+        n = _notices()
+        if mid == 'cert_deploy_failed':
+            # The renewer says the same of the whole renewal: not twice.
+            store.set_meta('certs:notified:deploycert:%s' % cert['id'], str(time.time()))
+        n.send(store, mid, key, n.cert_values(store, cert, target=trow['name'], **more))
+    except Exception as e:                              # noqa: BLE001
+        E.log('telling about the deployment of %s: %s' % (cert.get('name'), e), 'warn')
 
 
 def _failed(store, dep, why):
@@ -130,6 +165,7 @@ def deploys_of(store, cert_id, only=None, enabled=True):
 def run_deploys(store, job, cert_id, only=None, force=False):
     """Every enabled deployment of the certificate (or those asked). (all_ok, words)."""
     cert = S.cert_need(store, cert_id)
+    told_renewed(store, job, cert_id)
     rows = deploys_of(store, cert_id, only)
     if not rows:
         job.step('no deployment to run')
@@ -145,6 +181,21 @@ def run_deploys(store, job, cert_id, only=None, force=False):
     if bad:
         return False, '%d of %d deployment(s) failed - %s' % (len(bad), len(rows), '; '.join(bad))
     return True, '%d deployment(s) done' % good
+
+
+def told_renewed(store, job, cert_id):
+    """After a renewal (a job of kind renew that made a version): told, when
+    certs_notify_ok says so. Never raises."""
+    try:
+        n = _notices()
+        if getattr(job, 'kind', '') != 'renew' or not getattr(job, 'version', None) or \
+                not n.ok_wanted():
+            return
+        cert = S.cert_need(store, cert_id)
+        n.send(store, 'cert_renewed', 'renewed:%s:%s' % (cert_id, job.version),
+               n.cert_values(store, cert))
+    except Exception as e:                              # noqa: BLE001
+        E.log('telling about a renewal: %s' % e, 'warn')
 
 
 def deploy_job(cert_id, only=None, force=False):
