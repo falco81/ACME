@@ -2398,7 +2398,7 @@ function importDialog() {
     if (!held.main) { toast('drop a file first', 'bad'); return; }
     busy(b, true);
     capi('certs/import', {name: name.value.trim() || undefined, data_b64: held.mainB64, filename: held.main.name,
-                          password: pass.value || undefined, key_b64: held.keyB64 || undefined,
+                          password: pass.value || undefined, key_b64: held.keyB64 || undefined, key_filename: held.key ? held.key.name : undefined,
                           key_password: keyPass.value || undefined, tags: splitNames(tags.value), note: note.value}).then(function (d) {
       toast(said(d, 'imported'), 'good');
       closeModal();
@@ -2537,7 +2537,11 @@ function answerDrop(c) {
       said0.textContent = said(d, 'taken: the certificate is in use');
       toast(said(d, 'the certificate is in use'), 'good');
       CT.refresh();
-      setTimeout(function () { closeModal(); certPeek(c.id); }, 700);
+      setTimeout(function () {
+        closeModal();
+        certPeek(c.id);
+        if (d && d.job_id) setTimeout(function () { over(function () { jobPeek(d.job_id); }); }, 400);
+      }, 700);
     }).catch(function (e) { said0.className = 'said bad'; said0.textContent = e.missing ? 'not available yet' : wordsOf(e); });
   }, '.pem,.crt,.cer,.der,.p7b,.p7c,.txt', false);
   box.appendChild(dz);
@@ -3633,11 +3637,16 @@ var MY_TABS = {
 };
 var MY_PANES = {dnssrv: loadDns, certs: loadCertSettings};
 var LAST = {};
-function drawTab(name, live) {
+/* How often a tab is asked again on the live tick, unless the daemon's serial
+   moved (something happened): then at the next tick. */
+var EVERY = {overview: 30000, certs: 30000, jobs: 10000, cas: 60000, sources: 60000, validation: 60000, targets: 60000};
+function drawTab(name, live, moved) {
   var fn = name === 'overview' ? loadOverviewCerts : MY_TABS[name];
   if (!fn) return;
   var t = Date.now();
-  if (LAST[name] && t - LAST[name] < (live ? 4000 : 350)) return;
+  var gap = live ? (moved ? 4500 : (EVERY[name] || 30000)) : 350;
+  if (LAST[name] && t - LAST[name] < gap) return;
+  if (live && name === 'certs' && CL.page > 0 && !moved) return;
   LAST[name] = t;
   try { fn(!!live); } catch (e) { oops(e); }
 }
@@ -3663,14 +3672,18 @@ CT.deployEdit = deployEdit;
 CT.api = capi;
 
 window.ACME_EXTRA_TABS = window.ACME_EXTRA_TABS || [];
-Object.keys(MY_TABS).forEach(function (name) {
-  if (window.ACME_EXTRA_TABS.some(function (t) { return t && t.name === name; })) return;
-  window.ACME_EXTRA_TABS.push({name: name, draw: function () { drawTab(name); },
-                               live: function () { liveRun(function () { drawTab(name, true); }); }});
+Object.keys(MY_TABS).concat(['overview']).forEach(function (name) {
+  if (window.ACME_EXTRA_TABS.some(function (t) { return t && t.name === name && t._certs; })) return;
+  window.ACME_EXTRA_TABS.push({name: name, live: true, _certs: true, draw: function (ctx) {
+    ctx = ctx || {};
+    if (ctx.live) liveRun(function () { drawTab(name, true, !!ctx.moved); });
+    else drawTab(name, false);
+  }});
 });
+var PAGE_KNOWS = typeof allTabs === 'function';
 window.ACME_EXTRA_PANES = window.ACME_EXTRA_PANES || {};
 Object.keys(MY_PANES).forEach(function (p) {
-  if (!window.ACME_EXTRA_PANES[p]) window.ACME_EXTRA_PANES[p] = function (live) { drawPane(p, live); };
+  if (!window.ACME_EXTRA_PANES[p]) window.ACME_EXTRA_PANES[p] = function () { drawPane(p); };
 });
 
 /* A tab of ours shown even where the page does not know it yet. */
@@ -3693,13 +3706,15 @@ function afterTab() {
   var tab = typeof TAB === 'string' ? TAB : '';
   if (tab === 'overview' || MY_TABS[tab]) drawTab(tab);
 }
+/* An older page that does not know ACME_EXTRA_TABS: our tabs made to work
+   all the same. */
 var theirShow = window.optShowTab;
-window.optShowTab = function (name) {
+if (!PAGE_KNOWS) window.optShowTab = function (name) {
   if (typeof theirShow === 'function') theirShow.apply(this, arguments);
   if (MY_TABS[name] && TAB !== name && !tabHidden(name)) showMine(name);
   afterTab();
 };
-if (typeof window.showPane === 'function') {
+if (!PAGE_KNOWS && typeof window.showPane === 'function') {
   var theirPane = window.showPane;
   window.showPane = function (name) {
     var r = theirPane.apply(this, arguments);
@@ -3708,9 +3723,9 @@ if (typeof window.showPane === 'function') {
   };
 }
 
-/* Live, while nobody is working in it: what is shown asked again now and then. */
-var EVERY = {overview: 30000, certs: 30000, jobs: 12000, cas: 60000, sources: 60000, validation: 60000, targets: 60000};
-setInterval(function () {
+/* Live, while nobody is working in it - by the page's own tick where it has
+   one (ACME_EXTRA_TABS live), else by this. */
+if (!PAGE_KNOWS) setInterval(function () {
   if (document.hidden || (typeof LIVE !== 'undefined' && !LIVE)) return;
   if (document.querySelector('.modal:not([hidden])')) return;
   var tab = typeof TAB === 'string' ? TAB : '';
@@ -3760,19 +3775,25 @@ document.querySelectorAll('[data-cicon]').forEach(function (b) {
 });
 
 /* ---- the first draw ------------------------------------------------------- */
-(function start() {
-  var want = (location.hash || '').replace(/^#/, '').split('/')[0];
-  if (MY_TABS[want] && TAB !== want) showTab(want);
-  else afterTab();
-  if (typeof TAB === 'string' && TAB === 'settings' && typeof PANE === 'string' && MY_PANES[PANE]) drawPane(PANE);
-  /* The count on the tab, on whatever tab the page opens. */
-  if (TAB !== 'overview') {
-    capi('certs/overview').then(function (d) {
-      var counts = d.counts || d.by_state || {};
-      var total = Number(first(d.total, Object.keys(counts).reduce(function (a, k) { return a + Number(counts[k] || 0); }, 0)));
-      tabCount('tabn-certs', total, Number(counts.failed || 0) + Number(counts.expired || 0) > 0);
-    }).catch(function () { });
+function start() {
+  if (!PAGE_KNOWS) {
+    var want = (location.hash || '').replace(/^#/, '').split('/')[0];
+    if (MY_TABS[want] && TAB !== want) showTab(want);
+    else afterTab();
+    if (typeof TAB === 'string' && TAB === 'settings' && typeof PANE === 'string' && MY_PANES[PANE]) drawPane(PANE);
   }
-}());
+  /* The count on the tab, on whatever tab the page opens. */
+  setTimeout(function () {
+    if (TAB === 'overview') return;
+    capi('certs/overview').then(function (d) {
+      var counts = d.by_state || d.counts || {};
+      var total = Number(first(d.total, Object.keys(counts).reduce(function (a, k) { return a + Number(counts[k] || 0); }, 0)));
+      tabCount('tabn-certs', total, Number(counts.failed || 0) + Number(first(d.expired, counts.expired, 0)) > 0);
+      tabCount('tabn-jobs', Number(d.running || 0), false);
+    }).catch(function () { });
+  }, 300);
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+else setTimeout(start, 0);
 
 }());
