@@ -1896,6 +1896,14 @@ function modForm(key, row, p, fromPick) {
     body.appendChild(el('h4', 'ct-formh', 'Settings of the module'));
     form = fieldForm(p.fields || [], cfg, secretsOf(row), {noneWords: 'This module needs nothing set.', family: m.family, row: row, plug: p});
     body.appendChild(form.node);
+    /* Where the files, the script and the roles of Windows are set: each certificate's
+       deployment, not here (this is how acme reaches the machine). */
+    if (key === 'targets' && p.files_ui) {
+      var hint = el('div', 'note ct-deploy-hint');
+      hint.appendChild(el('b', '', 'Files, their format, the script after them' + (p.kind === 'windows_ssh' ? ' and the roles of the server (IIS, RDS, AD FS, SQL…)' : '') + ': '));
+      hint.appendChild(el('span', '', 'set for each certificate in its deployment - Certificates → the certificate → Deployments → "Deploy it on a target", or "Deploy a certificate here" in the detail of this target. Here only how acme reaches the machine, and the script it runs when a deployment says nothing.'));
+      body.appendChild(hint);
+    }
     testSaid = saidLine('', '');
     body.appendChild(testSaid);
     if (HTTP_HERE[p.kind]) body.appendChild(httpHere(row));

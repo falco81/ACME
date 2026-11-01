@@ -4,6 +4,12 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.12 - 2026-11-01
+
+- The form of an SSH, Windows or local target says where its files, their
+  format, the script after them and (Windows) the roles of the server are set:
+  in each certificate's deployment ("Deploy it on a target").
+
 ## 1.0.11 - 2026-11-01
 
 - The self-signed and the CSR dialogs pick the owner and the tags from Settings

@@ -39663,6 +39663,18 @@
   "sx9286": {
    "source": "slots",
    "text": "sloty"
+  },
+  "sq9915": {
+   "source": "Files, their format, the script after them: ",
+   "text": "Soubory, jejich formát a skript po nich: "
+  },
+  "sq9916": {
+   "source": "Files, their format, the script after them and the roles of the server (IIS, RDS, AD FS, SQL…): ",
+   "text": "Soubory, jejich formát, skript po nich a role serveru (IIS, RDS, AD FS, SQL…): "
+  },
+  "sq9917": {
+   "source": "set for each certificate in its deployment - Certificates → the certificate → Deployments → \"Deploy it on a target\", or \"Deploy a certificate here\" in the detail of this target. Here only how acme reaches the machine, and the script it runs when a deployment says nothing.",
+   "text": "nastavují se u každého certifikátu v jeho nasazení – Certifikáty → certifikát → Nasazení → „Nasadit na cíl“, nebo „Nasadit sem certifikát“ v detailu tohoto cíle. Zde je jen to, jak se acme na stroj dostane, a skript, který spustí, když nasazení neřekne jinak."
   }
  },
  "patterns": {
