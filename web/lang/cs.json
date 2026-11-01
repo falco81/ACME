@@ -27903,6 +27903,1438 @@
   "sc1908": {
    "source": "Caddy",
    "text": "Caddy"
+  },
+  "sc1909": {
+   "source": "EST (RFC 7030)",
+   "text": "EST (RFC 7030)"
+  },
+  "sc1910": {
+   "source": "Certificates from a CA that speaks EST (Enrollment over Secure Transport, RFC 7030): Cisco, EJBCA, Keyfactor, Entrust, GlobalSign and others, signed in with a password or a client certificate. Requests the CA holds are asked for again.",
+   "text": "Certifikáty od autority, která mluví EST (Enrollment over Secure Transport, RFC 7030): Cisco, EJBCA, Keyfactor, Entrust, GlobalSign a další, přihlášení heslem nebo klientským certifikátem. Na požadavky, které autorita podrží, se acme zeptá znovu."
+  },
+  "sc1911": {
+   "source": "EST server",
+   "text": "Server EST"
+  },
+  "sc1912": {
+   "source": "The server's address; /.well-known/est is added when the path does not have it already.",
+   "text": "Adresa serveru; /.well-known/est se doplní, když ho cesta ještě nemá."
+  },
+  "sc1913": {
+   "source": "CA label",
+   "text": "Označení CA"
+  },
+  "sc1914": {
+   "source": "The label of the CA on a server that hosts several (EJBCA: the EST alias). Empty: the server's default CA.",
+   "text": "Označení CA na serveru, který jich hostí několik (EJBCA: alias EST). Prázdné: výchozí CA serveru."
+  },
+  "sc1915": {
+   "source": "User and password (HTTP Basic)",
+   "text": "Uživatel a heslo (HTTP Basic)"
+  },
+  "sc1916": {
+   "source": "Client certificate and password",
+   "text": "Klientský certifikát a heslo"
+  },
+  "sc1917": {
+   "source": "Nothing (the server lets anybody enroll)",
+   "text": "Nic (server nechá žádat kohokoli)"
+  },
+  "sc1918": {
+   "source": "The certificate acme signs in to the EST server with (PEM, with its chain).",
+   "text": "Certifikát, kterým se acme přihlašuje k serveru EST (PEM, s řetězcem)."
+  },
+  "sc1919": {
+   "source": "CA certificate of the server (trust anchor)",
+   "text": "Certifikát CA serveru (kotva důvěry)"
+  },
+  "sc1920": {
+   "source": "The root the EST server's TLS certificate is checked against (RFC 7030 explicit trust anchor). Empty: the system's roots.",
+   "text": "Kořen, proti kterému se ověřuje TLS certifikát serveru EST (explicitní kotva důvěry podle RFC 7030). Prázdné: kořeny systému."
+  },
+  "sc1921": {
+   "source": "Renewals by simplereenroll",
+   "text": "Obnovy přes simplereenroll"
+  },
+  "sc1922": {
+   "source": "Off: every certificate is asked for with simpleenroll. On: a renewal goes to simplereenroll (servers that want it, with a client certificate that may renew).",
+   "text": "Vypnuto: každý certifikát se žádá přes simpleenroll. Zapnuto: obnova jde na simplereenroll (pro servery, které to chtějí, s klientským certifikátem, který smí obnovovat)."
+  },
+  "sc1923": {
+   "source": "How long a try waits for a request the CA holds (202); it is asked for again at later tries anyway.",
+   "text": "Jak dlouho pokus čeká na požadavek, který autorita podržela (202); při dalších pokusech se na něj acme stejně zeptá znovu."
+  },
+  "sc1924": {
+   "source": "CMP (RFC 4210 / 9480)",
+   "text": "CMP (RFC 4210 / 9480)"
+  },
+  "sc1925": {
+   "source": "Certificates by the Certificate Management Protocol (CMPv2, RFC 4210 and 9480; the Lightweight CMP Profile): EJBCA, Nokia, Siemens, Insta and other CAs, with a shared secret or a signing certificate - spoken by openssl cmp.",
+   "text": "Certifikáty přes Certificate Management Protocol (CMPv2, RFC 4210 a 9480; Lightweight CMP Profile): EJBCA, Nokia, Siemens, Insta a další autority, se sdíleným heslem nebo podpisovým certifikátem – mluví jím openssl cmp."
+  },
+  "sc1926": {
+   "source": "CMP server",
+   "text": "Server CMP"
+  },
+  "sc1927": {
+   "source": "The CMP endpoint (HTTP transfer): EJBCA .../ejbca/publicweb/cmp/ALIAS; Lightweight CMP .../.well-known/cmp[/p/LABEL].",
+   "text": "Koncový bod CMP (přenos přes HTTP): EJBCA .../ejbca/publicweb/cmp/ALIAS; Lightweight CMP .../.well-known/cmp[/p/LABEL]."
+  },
+  "sc1928": {
+   "source": "What the CA expects: ir for an entity it does not know yet, cr otherwise; p10cr where the CA wants the CSR itself.",
+   "text": "Co autorita čeká: ir pro entitu, kterou ještě nezná, jinak cr; p10cr tam, kde autorita chce samotné CSR."
+  },
+  "sc1929": {
+   "source": "ir - initialization request (the first certificate)",
+   "text": "ir – inicializační požadavek (první certifikát)"
+  },
+  "sc1930": {
+   "source": "cr - certification request",
+   "text": "cr – certifikační požadavek"
+  },
+  "sc1931": {
+   "source": "p10cr - the PKCS#10 request as it is",
+   "text": "p10cr – požadavek PKCS#10 tak, jak je"
+  },
+  "sc1932": {
+   "source": "Protection",
+   "text": "Ochrana"
+  },
+  "sc1933": {
+   "source": "Shared secret (PBM: reference and password)",
+   "text": "Sdílené heslo (PBM: reference a heslo)"
+  },
+  "sc1934": {
+   "source": "Signature (a client certificate and its key)",
+   "text": "Podpis (klientský certifikát a jeho klíč)"
+  },
+  "sc1935": {
+   "source": "Reference (senderKID)",
+   "text": "Reference (senderKID)"
+  },
+  "sc1936": {
+   "source": "The name the secret belongs to at the CA (EJBCA: the end entity's name, or what its alias wants).",
+   "text": "Jméno, ke kterému heslo u autority patří (EJBCA: jméno koncové entity, nebo co chce její alias)."
+  },
+  "sc1937": {
+   "source": "The password the CA gave for the reference (EJBCA: the enrollment code).",
+   "text": "Heslo, které autorita k referenci dala (EJBCA: enrollment code)."
+  },
+  "sc1938": {
+   "source": "Signing certificate",
+   "text": "Podpisový certifikát"
+  },
+  "sc1939": {
+   "source": "The certificate acme signs the messages with, its chain after it.",
+   "text": "Certifikát, kterým acme zprávy podepisuje, za ním jeho řetězec."
+  },
+  "sc1940": {
+   "source": "Signing certificate's key",
+   "text": "Klíč podpisového certifikátu"
+  },
+  "sc1941": {
+   "source": "CA name (recipient)",
+   "text": "Jméno CA (příjemce)"
+  },
+  "sc1942": {
+   "source": "The CA's name, as /C=../O=../CN=.. Empty: \"/\" (a null name, as many servers accept) or the subject of the CA certificate below.",
+   "text": "Jméno autority ve tvaru /C=../O=../CN=.. Prázdné: „/“ (prázdné jméno, které mnoho serverů přijme), nebo subjekt certifikátu CA níže."
+  },
+  "sc1943": {
+   "source": "CA certificate (answers)",
+   "text": "Certifikát CA (odpovědi)"
+  },
+  "sc1944": {
+   "source": "The certificate(s) the CA's signed answers are checked against, and the new certificate. Needed with signature protection; with a shared secret the answers are checked by the secret.",
+   "text": "Certifikát(y), proti kterým se ověřují podepsané odpovědi autority i nový certifikát. Nutné u ochrany podpisem; se sdíleným heslem se odpovědi ověřují heslem."
+  },
+  "sc1945": {
+   "source": "Certificate profile",
+   "text": "Profil certifikátu"
+  },
+  "sc1946": {
+   "source": "Sent as the certProfile of the header (RFC 9480 / Lightweight CMP), where the CA chooses by it. Needs openssl 3.3 or later.",
+   "text": "Posílá se jako certProfile v hlavičce (RFC 9480 / Lightweight CMP), kde podle něj autorita vybírá. Potřebuje openssl 3.3 nebo novější."
+  },
+  "sc1947": {
+   "source": "Implicit confirmation",
+   "text": "Implicitní potvrzení"
+  },
+  "sc1948": {
+   "source": "Ask the CA not to wait for certConf (where it allows it) - also for servers that keep a transaction only on one open connection.",
+   "text": "Požádat autoritu, ať nečeká na certConf (kde to dovolí) – také pro servery, které drží transakci jen na jednom otevřeném spojení."
+  },
+  "sc1949": {
+   "source": "Take unprotected error answers",
+   "text": "Přijímat nechráněné chybové odpovědi"
+  },
+  "sc1950": {
+   "source": "Many CAs answer an error without protection; on, its words are shown.",
+   "text": "Mnoho autorit odpovídá na chybu bez ochrany; zapnuto: její slova se zobrazí."
+  },
+  "sc1951": {
+   "source": "CA certificate of the server's TLS",
+   "text": "Certifikát CA pro TLS serveru"
+  },
+  "sc1952": {
+   "source": "How long a CA that answers \"waiting\" is polled.",
+   "text": "Jak dlouho se autorita, která odpovídá „waiting“, opakovaně dotazuje."
+  },
+  "sc1953": {
+   "source": "HashiCorp Vault PKI",
+   "text": "HashiCorp Vault PKI"
+  },
+  "sc1954": {
+   "source": "Certificates signed by the PKI secrets engine of HashiCorp Vault (or OpenBao) under a role, signed in with a token or AppRole; acme's key never leaves acme.",
+   "text": "Certifikáty podepsané PKI secrets enginem HashiCorp Vaultu (nebo OpenBao) pod rolí, přihlášení tokenem nebo AppRole; klíč acme nikdy neopustí acme."
+  },
+  "sc1955": {
+   "source": "PKI mount",
+   "text": "Mount PKI"
+  },
+  "sc1956": {
+   "source": "The path the PKI engine is mounted at.",
+   "text": "Cesta, na které je PKI engine připojen."
+  },
+  "sc1957": {
+   "source": "The role whose rules the certificate follows (allowed domains, TTL, key types). A certificate's own profile \"role\" wins.",
+   "text": "Role, jejíž pravidla certifikát dodržuje (povolené domény, TTL, typy klíčů). Vlastní „role“ v profilu certifikátu má přednost."
+  },
+  "sc1958": {
+   "source": "An issuer of the mount by its name or id (/issuer/REF/sign/ROLE). Empty: the role's.",
+   "text": "Vydavatel v mountu podle jména nebo id (/issuer/REF/sign/ROLE). Prázdné: ten z role."
+  },
+  "sc1959": {
+   "source": "Token",
+   "text": "Token"
+  },
+  "sc1960": {
+   "source": "AppRole (role ID and secret ID)",
+   "text": "AppRole (role ID a secret ID)"
+  },
+  "sc1961": {
+   "source": "A token whose policy allows update on MOUNT/sign/ROLE (and MOUNT/revoke to revoke).",
+   "text": "Token, jehož politika povoluje update na MOUNT/sign/ROLE (a MOUNT/revoke pro revokaci)."
+  },
+  "sc1962": {
+   "source": "Role ID",
+   "text": "Role ID"
+  },
+  "sc1963": {
+   "source": "Namespace",
+   "text": "Namespace"
+  },
+  "sc1964": {
+   "source": "Vault Enterprise / HCP Vault: the namespace (X-Vault-Namespace).",
+   "text": "Vault Enterprise / HCP Vault: namespace (X-Vault-Namespace)."
+  },
+  "sc1965": {
+   "source": "TTL",
+   "text": "TTL"
+  },
+  "sc1966": {
+   "source": "The validity asked for (a certificate's days win). Empty: the role's ttl.",
+   "text": "Požadovaná platnost (dny certifikátu mají přednost). Prázdné: ttl role."
+  },
+  "sc1967": {
+   "source": "Common name not in the SANs",
+   "text": "Common name ne do SAN"
+  },
+  "sc1968": {
+   "source": "Leave roots out of the chain",
+   "text": "Vynechat kořeny z řetězce"
+  },
+  "sc1969": {
+   "source": "CA certificate of Vault's TLS",
+   "text": "Certifikát CA pro TLS Vaultu"
+  },
+  "sc1970": {
+   "source": "Check Vault's TLS certificate",
+   "text": "Ověřovat TLS certifikát Vaultu"
+  },
+  "sc1971": {
+   "source": "EJBCA (REST API)",
+   "text": "EJBCA (REST API)"
+  },
+  "sc1972": {
+   "source": "Certificates from EJBCA (Keyfactor, Community or Enterprise) through its REST API: the request enrolled with a certificate profile, an end entity profile and a CA, signed in with an administrator's client certificate.",
+   "text": "Certifikáty z EJBCA (Keyfactor, Community nebo Enterprise) přes její REST API: požadavek se zapíše s profilem certifikátu, profilem koncové entity a CA, přihlášení klientským certifikátem administrátora."
+  },
+  "sc1973": {
+   "source": "EJBCA address",
+   "text": "Adresa EJBCA"
+  },
+  "sc1974": {
+   "source": "The server; /ejbca/ejbca-rest-api is added when the path does not have it.",
+   "text": "Server; /ejbca/ejbca-rest-api se doplní, když ho cesta nemá."
+  },
+  "sc1975": {
+   "source": "Administrator's client certificate",
+   "text": "Klientský certifikát administrátora"
+  },
+  "sc1976": {
+   "source": "A certificate EJBCA knows as an administrator (a role with \"/ra_functionality\" rights on the profiles and the CA). PEM, its chain after it.",
+   "text": "Certifikát, který EJBCA zná jako administrátora (role s právy „/ra_functionality“ na profily a CA). PEM, za ním jeho řetězec."
+  },
+  "sc1977": {
+   "source": "CA",
+   "text": "CA"
+  },
+  "sc1978": {
+   "source": "The name of the CA in EJBCA (\"Try it\" lists them).",
+   "text": "Jméno CA v EJBCA („Vyzkoušet“ je vypíše)."
+  },
+  "sc1979": {
+   "source": "A certificate's own profile \"template\" wins.",
+   "text": "Vlastní „template“ v profilu certifikátu má přednost."
+  },
+  "sc1980": {
+   "source": "End entity profile",
+   "text": "Profil koncové entity"
+  },
+  "sc1981": {
+   "source": "End entity name",
+   "text": "Jméno koncové entity"
+  },
+  "sc1982": {
+   "source": "The end entity the certificate is enrolled for: {cn} is the first name of the certificate, {id} acme's id of it.",
+   "text": "Koncová entita, pro kterou se certifikát zapisuje: {cn} je první jméno certifikátu, {id} jeho id v acme."
+  },
+  "sc1983": {
+   "source": "Enrollment code",
+   "text": "Enrollment code"
+  },
+  "sc1984": {
+   "source": "The end entity's password (enrollment code). Empty: one made for each request.",
+   "text": "Heslo koncové entity (enrollment code). Prázdné: pro každý požadavek se vytvoří nové."
+  },
+  "sc1985": {
+   "source": "Account binding ID",
+   "text": "Account binding ID"
+  },
+  "sc1986": {
+   "source": "CA certificate of EJBCA's TLS",
+   "text": "Certifikát CA pro TLS EJBCA"
+  },
+  "sc1987": {
+   "source": "Check EJBCA's TLS certificate",
+   "text": "Ověřovat TLS certifikát EJBCA"
+  },
+  "sc1988": {
+   "source": "Smallstep step-ca (JWK provisioner)",
+   "text": "Smallstep step-ca (JWK provisioner)"
+  },
+  "sc1989": {
+   "source": "Certificates from step-ca by its own API: each request carries a one-time token signed with a JWK provisioner's key - no ACME validation, for internal names. Revocation included.",
+   "text": "Certifikáty ze step-ca přes jeho vlastní API: každý požadavek nese jednorázový token podepsaný klíčem JWK provisioneru – bez ověřování ACME, pro interní jména. Včetně revokace."
+  },
+  "sc1990": {
+   "source": "step-ca address",
+   "text": "Adresa step-ca"
+  },
+  "sc1991": {
+   "source": "Root certificate of the CA",
+   "text": "Kořenový certifikát CA"
+  },
+  "sc1992": {
+   "source": "step-ca's root (root_ca.crt): its TLS is checked against it, and its fingerprint goes in the token.",
+   "text": "Kořen step-ca (root_ca.crt): ověřuje se proti němu TLS a jeho otisk jde do tokenu."
+  },
+  "sc1993": {
+   "source": "Provisioner",
+   "text": "Provisioner"
+  },
+  "sc1994": {
+   "source": "The name of a JWK provisioner (step ca provisioner list).",
+   "text": "Jméno JWK provisioneru (step ca provisioner list)."
+  },
+  "sc1995": {
+   "source": "Provisioner key",
+   "text": "Klíč provisioneru"
+  },
+  "sc1996": {
+   "source": "The provisioner's private key, decrypted: the JWK JSON of `step crypto jwe decrypt` (EC or RSA), or a PEM key.",
+   "text": "Soukromý klíč provisioneru, dešifrovaný: JWK JSON z `step crypto jwe decrypt` (EC nebo RSA), nebo klíč PEM."
+  },
+  "sc1997": {
+   "source": "Key ID",
+   "text": "ID klíče"
+  },
+  "sc1998": {
+   "source": "The provisioner key's id (kid). Empty: the JWK's, else asked of the CA.",
+   "text": "Id klíče provisioneru (kid). Prázdné: to z JWK, jinak se zeptá CA."
+  },
+  "sc1999": {
+   "source": "Check the CA's TLS certificate",
+   "text": "Ověřovat TLS certifikát CA"
+  },
+  "sc2000": {
+   "source": "AWS Private CA",
+   "text": "AWS Private CA"
+  },
+  "sc2001": {
+   "source": "Certificates issued by a private CA of AWS Private CA (ACM PCA) from acme's request, signed in with an IAM access key. Revocation included.",
+   "text": "Certifikáty vydané soukromou CA služby AWS Private CA (ACM PCA) z požadavku acme, přihlášení přístupovým klíčem IAM. Včetně revokace."
+  },
+  "sc2002": {
+   "source": "CA ARN",
+   "text": "ARN CA"
+  },
+  "sc2003": {
+   "source": "The private CA (AWS Private CA → the CA → ARN); its region is taken from it.",
+   "text": "Soukromá CA (AWS Private CA → CA → ARN); region se vezme z něj."
+  },
+  "sc2004": {
+   "source": "Of an IAM user (or role) allowed acm-pca:IssueCertificate, GetCertificate, DescribeCertificateAuthority and RevokeCertificate on the CA.",
+   "text": "Uživatele IAM (nebo role), který smí na této CA acm-pca:IssueCertificate, GetCertificate, DescribeCertificateAuthority a RevokeCertificate."
+  },
+  "sc2005": {
+   "source": "For temporary credentials only.",
+   "text": "Jen pro dočasné přihlašovací údaje."
+  },
+  "sc2006": {
+   "source": "A certificate's own days win; at most what the CA's own validity allows.",
+   "text": "Vlastní dny certifikátu mají přednost; nejvýš tolik, kolik dovolí platnost samotné CA."
+  },
+  "sc2007": {
+   "source": "Empty: AWS's default (EndEntityCertificate/V1). A certificate's profile \"template\" wins.",
+   "text": "Prázdné: výchozí AWS (EndEntityCertificate/V1). „template“ v profilu certifikátu má přednost."
+  },
+  "sc2008": {
+   "source": "Signing algorithm",
+   "text": "Podpisový algoritmus"
+  },
+  "sc2009": {
+   "source": "As the CA signs (from the CA)",
+   "text": "Jak podepisuje CA (zjistí se od CA)"
+  },
+  "sc2010": {
+   "source": "SHA256WITHECDSA",
+   "text": "SHA256WITHECDSA"
+  },
+  "sc2011": {
+   "source": "SHA384WITHECDSA",
+   "text": "SHA384WITHECDSA"
+  },
+  "sc2012": {
+   "source": "SHA512WITHECDSA",
+   "text": "SHA512WITHECDSA"
+  },
+  "sc2013": {
+   "source": "SHA256WITHRSA",
+   "text": "SHA256WITHRSA"
+  },
+  "sc2014": {
+   "source": "SHA384WITHRSA",
+   "text": "SHA384WITHRSA"
+  },
+  "sc2015": {
+   "source": "SHA512WITHRSA",
+   "text": "SHA512WITHRSA"
+  },
+  "sc2016": {
+   "source": "API endpoint",
+   "text": "Koncový bod API"
+  },
+  "sc2017": {
+   "source": "Empty: the region's (a VPC endpoint or FIPS endpoint otherwise).",
+   "text": "Prázdné: ten regionu (jinak koncový bod VPC nebo FIPS)."
+  },
+  "sc2018": {
+   "source": "Google Cloud CA Service",
+   "text": "Google Cloud CA Service"
+  },
+  "sc2019": {
+   "source": "Certificates from a CA pool of Google Cloud Certificate Authority Service (private CAs), signed in with a service account's key. Revocation included.",
+   "text": "Certifikáty z poolu CA služby Google Cloud Certificate Authority Service (soukromé CA), přihlášení klíčem servisního účtu. Včetně revokace."
+  },
+  "sc2020": {
+   "source": "IAM → Service accounts → Keys → Add key → JSON, pasted whole. The account needs \"CA Service Certificate Requester\" on the pool (and \"Certificate Manager\" to revoke).",
+   "text": "IAM → Service accounts → Keys → Add key → JSON, vložený celý. Účet potřebuje na poolu „CA Service Certificate Requester“ (a pro revokaci „Certificate Manager“)."
+  },
+  "sc2021": {
+   "source": "CA pool",
+   "text": "Pool CA"
+  },
+  "sc2022": {
+   "source": "CA in the pool",
+   "text": "CA v poolu"
+  },
+  "sc2023": {
+   "source": "A CA of the pool to issue (issuingCertificateAuthorityId). Empty: Google chooses one.",
+   "text": "CA z poolu, která vydá (issuingCertificateAuthorityId). Prázdné: Google některou vybere."
+  },
+  "sc2024": {
+   "source": "A certificate template's full name. A certificate's profile \"template\" wins.",
+   "text": "Úplné jméno šablony certifikátu. „template“ v profilu certifikátu má přednost."
+  },
+  "sc2025": {
+   "source": "A certificate's own days win; the pool's policy may cap it.",
+   "text": "Vlastní dny certifikátu mají přednost; politika poolu je může omezit."
+  },
+  "sc2026": {
+   "source": "FreeIPA / Red Hat IdM",
+   "text": "FreeIPA / Red Hat IdM"
+  },
+  "sc2027": {
+   "source": "Certificates from the CA of FreeIPA (Red Hat Identity Management, Dogtag) for a service principal, through the IPA JSON-RPC API with a user and password. Revocation included.",
+   "text": "Certifikáty od CA FreeIPA (Red Hat Identity Management, Dogtag) pro principal služby, přes JSON-RPC API IPA s uživatelem a heslem. Včetně revokace."
+  },
+  "sc2028": {
+   "source": "IPA server",
+   "text": "Server IPA"
+  },
+  "sc2029": {
+   "source": "A user with the role \"Certificate Administrators\" (or rights to request certificates for the services, and the CA ACL of the profile).",
+   "text": "Uživatel s rolí „Certificate Administrators“ (nebo s právy žádat o certifikáty pro služby a s CA ACL profilu)."
+  },
+  "sc2030": {
+   "source": "The principal is SERVICE/first-name@REALM.",
+   "text": "Principal je SLUŽBA/první-jméno@REALM."
+  },
+  "sc2031": {
+   "source": "Add the service when missing",
+   "text": "Přidat službu, když chybí"
+  },
+  "sc2032": {
+   "source": "A certificate profile of IPA. A certificate's profile \"template\" wins.",
+   "text": "Profil certifikátu v IPA. „template“ v profilu certifikátu má přednost."
+  },
+  "sc2033": {
+   "source": "A sub-CA of IPA by its name; ipa is the main one.",
+   "text": "Podřízená CA v IPA podle jména; ipa je hlavní."
+  },
+  "sc2034": {
+   "source": "IPA's CA certificate",
+   "text": "Certifikát CA IPA"
+  },
+  "sc2035": {
+   "source": "/etc/ipa/ca.crt - for the server's TLS.",
+   "text": "/etc/ipa/ca.crt – pro TLS serveru."
+  },
+  "sc2036": {
+   "source": "GlobalSign Atlas (HVCA)",
+   "text": "GlobalSign Atlas (HVCA)"
+  },
+  "sc2037": {
+   "source": "Certificates from GlobalSign Atlas through its HVCA API, signed in with the account's client certificate and an API key; the names must be verified domains of the account. Revocation included.",
+   "text": "Certifikáty z GlobalSign Atlas přes jeho HVCA API, přihlášení klientským certifikátem účtu a API klíčem; jména musí být ověřené domény účtu. Včetně revokace."
+  },
+  "sc2038": {
+   "source": "As GlobalSign gave it for the account (with /v2).",
+   "text": "Jak ji GlobalSign pro účet dal (s /v2)."
+  },
+  "sc2039": {
+   "source": "mTLS certificate",
+   "text": "Certifikát mTLS"
+  },
+  "sc2040": {
+   "source": "The client certificate of the Atlas account (made in the Atlas portal with the API credentials).",
+   "text": "Klientský certifikát účtu Atlas (vytvořený v portálu Atlas spolu s přístupem k API)."
+  },
+  "sc2041": {
+   "source": "mTLS certificate's key",
+   "text": "Klíč certifikátu mTLS"
+  },
+  "sc2042": {
+   "source": "0: the longest the account's policy allows. A certificate's own days win.",
+   "text": "0: nejdéle, co politika účtu dovolí. Vlastní dny certifikátu mají přednost."
+  },
+  "sc2043": {
+   "source": "More of the subject",
+   "text": "Další části subjektu"
+  },
+  "sc2044": {
+   "source": "key=value lines added to subject_dn (as the account's policy wants: organization, country, locality ...).",
+   "text": "Řádky klíč=hodnota přidané do subject_dn (jak chce politika účtu: organization, country, locality ...)."
+  },
+  "sc2045": {
+   "source": "CA certificate of the API's TLS",
+   "text": "Certifikát CA pro TLS API"
+  },
+  "sc2046": {
+   "source": "Check the API's TLS certificate",
+   "text": "Ověřovat TLS certifikát API"
+  },
+  "sc2047": {
+   "source": "DigiCert CertCentral (API)",
+   "text": "DigiCert CertCentral (API)"
+  },
+  "sc2048": {
+   "source": "Commercial DigiCert, GeoTrust and RapidSSL certificates through the CertCentral Services API: reissued inside a paid order, the DCV record put in place by the certificate's challenge. New (paid) orders only when allowed.",
+   "text": "Komerční certifikáty DigiCert, GeoTrust a RapidSSL přes CertCentral Services API: znovu vydávané v rámci zaplacené objednávky, záznam DCV umístí ověření certifikátu. Nové (placené) objednávky jen tam, kde jsou povoleny."
+  },
+  "sc2049": {
+   "source": "CertCentral",
+   "text": "CertCentral"
+  },
+  "sc2050": {
+   "source": "CertCentral (www.digicert.com)",
+   "text": "CertCentral (www.digicert.com)"
+  },
+  "sc2051": {
+   "source": "CertCentral Europe",
+   "text": "CertCentral Europe"
+  },
+  "sc2052": {
+   "source": "Another address",
+   "text": "Jiná adresa"
+  },
+  "sc2053": {
+   "source": "CertCentral → Automation → API Keys: a key of a user who may order and reissue. Sent as X-DC-DEVKEY.",
+   "text": "CertCentral → Automation → API Keys: klíč uživatele, který smí objednávat a znovu vydávat. Posílá se jako X-DC-DEVKEY."
+  },
+  "sc2054": {
+   "source": "An order bought already (a multi-year plan): the certificate is reissued inside it. Empty: the order acme made last for the certificate.",
+   "text": "Už zakoupená objednávka (víceletý plán): certifikát se v ní znovu vydá. Prázdné: objednávka, kterou acme pro certifikát udělalo naposledy."
+  },
+  "sc2055": {
+   "source": "Off: acme never buys anything - it only reissues inside orders paid already, and stops with words where a purchase would be needed.",
+   "text": "Vypnuto: acme nikdy nic nekupuje – jen znovu vydává v už zaplacených objednávkách a tam, kde by byl potřeba nákup, se zastaví a řekne proč."
+  },
+  "sc2056": {
+   "source": "Product of a new order",
+   "text": "Produkt nové objednávky"
+  },
+  "sc2057": {
+   "source": "Basic OV (ssl_basic)",
+   "text": "Basic OV (ssl_basic)"
+  },
+  "sc2058": {
+   "source": "Secure Site OV (ssl_securesite_flex)",
+   "text": "Secure Site OV (ssl_securesite_flex)"
+  },
+  "sc2059": {
+   "source": "Basic EV (ssl_ev_basic)",
+   "text": "Basic EV (ssl_ev_basic)"
+  },
+  "sc2060": {
+   "source": "Secure Site EV (ssl_ev_securesite_flex)",
+   "text": "Secure Site EV (ssl_ev_securesite_flex)"
+  },
+  "sc2061": {
+   "source": "GeoTrust DV (ssl_dv_geotrust)",
+   "text": "GeoTrust DV (ssl_dv_geotrust)"
+  },
+  "sc2062": {
+   "source": "RapidSSL DV (ssl_dv_rapidssl)",
+   "text": "RapidSSL DV (ssl_dv_rapidssl)"
+  },
+  "sc2063": {
+   "source": "RapidSSL Wildcard DV (wildcard_dv_rapidssl)",
+   "text": "RapidSSL Wildcard DV (wildcard_dv_rapidssl)"
+  },
+  "sc2064": {
+   "source": "Another product (its name_id)",
+   "text": "Jiný produkt (jeho name_id)"
+  },
+  "sc2065": {
+   "source": "Product name_id",
+   "text": "name_id produktu"
+  },
+  "sc2066": {
+   "source": "Organization ID",
+   "text": "ID organizace"
+  },
+  "sc2067": {
+   "source": "The organization of a new OV/EV order (CertCentral → Organizations).",
+   "text": "Organizace nové objednávky OV/EV (CertCentral → Organizations)."
+  },
+  "sc2068": {
+   "source": "Order validity (years)",
+   "text": "Platnost objednávky (roky)"
+  },
+  "sc2069": {
+   "source": "Payment of a new order",
+   "text": "Platba nové objednávky"
+  },
+  "sc2070": {
+   "source": "Account balance",
+   "text": "Zůstatek účtu"
+  },
+  "sc2071": {
+   "source": "Credit card on file",
+   "text": "Uložená platební karta"
+  },
+  "sc2072": {
+   "source": "As the account sets it",
+   "text": "Jak to má účet nastavené"
+  },
+  "sc2073": {
+   "source": "DNS CNAME record",
+   "text": "Záznam DNS CNAME"
+  },
+  "sc2074": {
+   "source": "HTTP file in /.well-known/pki-validation/",
+   "text": "Soubor HTTP v /.well-known/pki-validation/"
+  },
+  "sc2075": {
+   "source": "E-mail (a person clicks)",
+   "text": "E-mail (člověk klikne)"
+  },
+  "sc2076": {
+   "source": "LABEL.domain holds the random value (@ for the domain itself).",
+   "text": "LABEL.doména nese náhodnou hodnotu (@ pro doménu samotnou)."
+  },
+  "sc2077": {
+   "source": "Under the API address; {order}, {product} and {certificate} are filled in.",
+   "text": "Pod adresou API; {order}, {product} a {certificate} se doplní."
+  },
+  "sc2078": {
+   "source": "Path: DCV random value",
+   "text": "Cesta: náhodná hodnota DCV"
+  },
+  "sc2079": {
+   "source": "Path: DCV check",
+   "text": "Cesta: kontrola DCV"
+  },
+  "sc2080": {
+   "source": "Path: Download",
+   "text": "Cesta: stažení"
+  },
+  "sc2081": {
+   "source": "Actalis (EAB)",
+   "text": "Actalis (EAB)"
+  },
+  "sc2082": {
+   "source": "Certum (EAB)",
+   "text": "Certum (EAB)"
+  },
+  "sc2083": {
+   "source": "Sectigo DV (EAB)",
+   "text": "Sectigo DV (EAB)"
+  },
+  "sc2084": {
+   "source": "Sectigo OV (EAB)",
+   "text": "Sectigo OV (EAB)"
+  },
+  "sc2085": {
+   "source": "The ACME directory of your server (step-ca: https://HOST/acme/PROVISIONER/directory; HARICA, SwissSign, Sectigo Certificate Manager: the URL of your account).",
+   "text": "ACME adresář vašeho serveru (step-ca: https://HOST/acme/PROVISIONER/directory; HARICA, SwissSign, Sectigo Certificate Manager: URL vašeho účtu)."
+  },
+  "sc2086": {
+   "source": "the address below (the bucket's or the site's own)",
+   "text": "adresa níže (vlastní adresa bucketu nebo webu)"
+  },
+  "sc2087": {
+   "source": "The token is fetched over HTTP and compared before the CA is told to look.",
+   "text": "Token se stáhne přes HTTP a porovná, než se CA řekne, ať se podívá."
+  },
+  "sc2088": {
+   "source": "Address the folder is served at",
+   "text": "Adresa, na které je složka vystavená"
+  },
+  "sc2089": {
+   "source": "For \"the address below\": where the uploaded folder can be fetched from (.well-known/acme-challenge/TOKEN is added).",
+   "text": "Pro „adresa níže“: odkud lze nahranou složku stáhnout (přidá se .well-known/acme-challenge/TOKEN)."
+  },
+  "sc2090": {
+   "source": "The name points at the site the files are uploaded to",
+   "text": "Jméno míří na web, kam se soubory nahrávají"
+  },
+  "sc2091": {
+   "source": "only a real file shows that the folder set is the one the site serves",
+   "text": "až skutečný soubor ukáže, že nastavená složka je ta, kterou web vystavuje"
+  },
+  "sc2092": {
+   "source": "Run a dry run: a test file is uploaded, fetched and taken away",
+   "text": "Spusťte zkušební běh: nahraje se zkušební soubor, stáhne se a zase odebere"
+  },
+  "sc2093": {
+   "source": "wrote a probe file but read back something else",
+   "text": "zkušební soubor se zapsal, ale zpět se přečetlo něco jiného"
+  },
+  "sc2094": {
+   "source": "The address set is not where the folder is served",
+   "text": "Nastavená adresa není tam, kde je složka vystavená"
+  },
+  "sc2095": {
+   "source": "Correct the settings of the validation (address, credentials, folder), then check again",
+   "text": "Opravte nastavení validace (adresu, přihlašovací údaje, složku) a zkontrolujte znovu"
+  },
+  "sc2096": {
+   "source": "This machine may not reach the name (the CA asks from the internet); a dry run tells more",
+   "text": "Tento stroj se možná na jméno nedostane (CA se ptá z internetu); víc řekne zkušební běh"
+  },
+  "sc2097": {
+   "source": "Akamai Edge DNS",
+   "text": "Akamai Edge DNS"
+  },
+  "sc2098": {
+   "source": "TXT records in a primary zone at Akamai Edge DNS, with an EdgeGrid API client.",
+   "text": "TXT záznamy v primární zóně Akamai Edge DNS, s API klientem EdgeGrid."
+  },
+  "sc2099": {
+   "source": "API host",
+   "text": "Hostitel API"
+  },
+  "sc2100": {
+   "source": "Akamai Control Center → Identity and access → API clients → a client with \"DNS—Zone Record Management\" READ-WRITE: its host, client token, client secret and access token (the .edgerc section).",
+   "text": "Akamai Control Center → Identity and access → API clients → klient s „DNS—Zone Record Management“ READ-WRITE: jeho host, client token, client secret a access token (sekce .edgerc)."
+  },
+  "sc2101": {
+   "source": "Client token",
+   "text": "Client token"
+  },
+  "sc2102": {
+   "source": "Access token",
+   "text": "Access token"
+  },
+  "sc2103": {
+   "source": "Empty: the longest zone the client sees that the name is in.",
+   "text": "Prázdné: nejdelší zóna, kterou klient vidí a ve které jméno je."
+  },
+  "sc2104": {
+   "source": "no API host is set",
+   "text": "není nastaven hostitel API"
+  },
+  "sc2105": {
+   "source": "Alibaba Cloud DNS",
+   "text": "Alibaba Cloud DNS"
+  },
+  "sc2106": {
+   "source": "TXT records in a domain at Alibaba Cloud DNS (Aliyun), with a RAM AccessKey.",
+   "text": "TXT záznamy v doméně u Alibaba Cloud DNS (Aliyun), s RAM AccessKey."
+  },
+  "sc2107": {
+   "source": "AccessKey ID",
+   "text": "AccessKey ID"
+  },
+  "sc2108": {
+   "source": "RAM console → Users → a user for acme → AccessKey: create one. Give the user the policy AliyunDNSFullAccess (or a policy with alidns:DescribeDomains, DescribeDomainRecords, AddDomainRecord and DeleteDomainRecord).",
+   "text": "Konzole RAM → Users → uživatel pro acme → AccessKey: vytvořte ho. Dejte uživateli politiku AliyunDNSFullAccess (nebo politiku s alidns:DescribeDomains, DescribeDomainRecords, AddDomainRecord a DeleteDomainRecord)."
+  },
+  "sc2109": {
+   "source": "AccessKey secret",
+   "text": "AccessKey secret"
+  },
+  "sc2110": {
+   "source": "The free edition takes 600 or more; paid editions less.",
+   "text": "Bezplatná edice bere 600 a víc; placené méně."
+  },
+  "sc2111": {
+   "source": "The endpoint of the region, e.g. https://alidns.ap-southeast-1.aliyuncs.com.",
+   "text": "Endpoint regionu, např. https://alidns.ap-southeast-1.aliyuncs.com."
+  },
+  "sc2112": {
+   "source": "TXT records in a domain at CZECHIA.COM (ZONER), with an API token.",
+   "text": "TXT záznamy v doméně u CZECHIA.COM (ZONER), s API tokenem."
+  },
+  "sc2113": {
+   "source": "API token",
+   "text": "API token"
+  },
+  "sc2114": {
+   "source": "The CZECHIA.COM administration → API: the authorization token of the account.",
+   "text": "Administrace CZECHIA.COM → API: autorizační token účtu."
+  },
+  "sc2115": {
+   "source": "Empty: found by its SOA (the API cannot list the domains).",
+   "text": "Prázdné: najde se podle SOA (API neumí vypsat domény)."
+  },
+  "sc2116": {
+   "source": "no API token is set",
+   "text": "není nastaven API token"
+  },
+  "sc2117": {
+   "source": "DNS Made Easy",
+   "text": "DNS Made Easy"
+  },
+  "sc2118": {
+   "source": "TXT records in a managed domain at DNS Made Easy, with an API key and secret.",
+   "text": "TXT záznamy ve spravované doméně u DNS Made Easy, s API klíčem a tajemstvím."
+  },
+  "sc2119": {
+   "source": "DNS Made Easy control panel → Account Information → API key and secret key (a user with access to the domains).",
+   "text": "Ovládací panel DNS Made Easy → Account Information → API key a secret key (uživatel s přístupem k doménám)."
+  },
+  "sc2120": {
+   "source": "Empty: the longest managed domain the name is in.",
+   "text": "Prázdné: nejdelší spravovaná doména, ve které jméno je."
+  },
+  "sc2121": {
+   "source": "TXT records in a domain at Domeneshop, with an API token and secret.",
+   "text": "TXT záznamy v doméně u Domeneshop, s API tokenem a tajemstvím."
+  },
+  "sc2122": {
+   "source": "domene.shop → My page → API access (https://domene.shop/admin?view=api): make new API credentials.",
+   "text": "domene.shop → Moje stránka → API přístup (https://domene.shop/admin?view=api): vytvořte nové API údaje."
+  },
+  "sc2123": {
+   "source": "TXT records in a domain hosted at DreamHost, with an API key.",
+   "text": "TXT záznamy v doméně hostované u DreamHost, s API klíčem."
+  },
+  "sc2124": {
+   "source": "panel.dreamhost.com → Advanced → API: generate a key with \"All dns functions\" (dns-list_records, dns-add_record, dns-remove_record).",
+   "text": "panel.dreamhost.com → Advanced → API: vygenerujte klíč s „All dns functions“ (dns-list_records, dns-add_record, dns-remove_record)."
+  },
+  "sc2125": {
+   "source": "DreamHost answered something that is not JSON",
+   "text": "DreamHost odpověděl něčím, co není JSON"
+  },
+  "sc2126": {
+   "source": "Duck DNS",
+   "text": "Duck DNS"
+  },
+  "sc2127": {
+   "source": "The TXT value of a name at Duck DNS (duckdns.org), with the account's token. One value a name at a time.",
+   "text": "TXT hodnota jména u Duck DNS (duckdns.org), s tokenem účtu. Jedna hodnota na jméno najednou."
+  },
+  "sc2128": {
+   "source": "duckdns.org → signed in: the token shown at the top of the page.",
+   "text": "duckdns.org → po přihlášení: token zobrazený nahoře na stránce."
+  },
+  "sc2129": {
+   "source": "Duck DNS names",
+   "text": "Jména v Duck DNS"
+  },
+  "sc2130": {
+   "source": "The names of the account acme may set the TXT value of (with or without .duckdns.org). A name of your own is proved through one of them by a CNAME: _acme-challenge.www.example.com CNAME myhome.duckdns.org.",
+   "text": "Jména účtu, jejichž TXT hodnotu smí acme nastavovat (s .duckdns.org nebo bez). Vlastní jméno se přes některé z nich prokáže CNAME záznamem: _acme-challenge.www.example.com CNAME myhome.duckdns.org."
+  },
+  "sc2131": {
+   "source": "Empty: the Duck DNS name the record is under.",
+   "text": "Prázdné: jméno v Duck DNS, pod kterým záznam je."
+  },
+  "sc2132": {
+   "source": "no Duck DNS name is set",
+   "text": "není nastaveno žádné jméno Duck DNS"
+  },
+  "sc2133": {
+   "source": "no token is set",
+   "text": "není nastaven token"
+  },
+  "sc2134": {
+   "source": "TXT records in a domain at Dynu, with an API key.",
+   "text": "TXT záznamy v doméně u Dynu, s API klíčem."
+  },
+  "sc2135": {
+   "source": "dynu.com → Control Panel → API Credentials: the API key.",
+   "text": "dynu.com → Control Panel → API Credentials: API klíč."
+  },
+  "sc2136": {
+   "source": "Gcore DNS",
+   "text": "Gcore DNS"
+  },
+  "sc2137": {
+   "source": "TXT records in a zone at Gcore Managed DNS, with a permanent API token.",
+   "text": "TXT záznamy v zóně u Gcore Managed DNS, s trvalým API tokenem."
+  },
+  "sc2138": {
+   "source": "Gcore portal → Profile → API tokens → create a permanent token (a role that may edit DNS zones).",
+   "text": "Portál Gcore → Profile → API tokens → vytvořte trvalý token (role, která smí upravovat DNS zóny)."
+  },
+  "sc2139": {
+   "source": "TXT records in a domain at GleSYS, with a project and an API key.",
+   "text": "TXT záznamy v doméně u GleSYS, s projektem a API klíčem."
+  },
+  "sc2140": {
+   "source": "GleSYS Cloud → the project → API: its name (CL...), and an API key made there with the permissions domain: list, listrecords, addrecord, deleterecord - and acme's address allowed.",
+   "text": "GleSYS Cloud → projekt → API: jeho jméno (CL...) a API klíč vytvořený tam s oprávněními domain: list, listrecords, addrecord, deleterecord – a s povolenou adresou acme."
+  },
+  "sc2141": {
+   "source": "Empty: the longest domain of the project the name is in.",
+   "text": "Prázdné: nejdelší doména projektu, ve které jméno je."
+  },
+  "sc2142": {
+   "source": "hosting.de / http.net",
+   "text": "hosting.de / http.net"
+  },
+  "sc2143": {
+   "source": "TXT records in a zone at hosting.de (or http.net), with an API key.",
+   "text": "TXT záznamy v zóně u hosting.de (nebo http.net), s API klíčem."
+  },
+  "sc2144": {
+   "source": "hosting.de: Profile → API keys → new key, with the rights \"DNS: list zones\", \"DNS: edit zones\" (and list records). For http.net set its API address below.",
+   "text": "hosting.de: Profil → API klíče → nový klíč s právy „DNS: list zones“, „DNS: edit zones“ (a výpis záznamů). Pro http.net nastavte níže jeho adresu API."
+  },
+  "sc2145": {
+   "source": "Empty: the longest zone the key sees that the name is in.",
+   "text": "Prázdné: nejdelší zóna, kterou klíč vidí a ve které jméno je."
+  },
+  "sc2146": {
+   "source": "HTTP-01 uploaded to Azure Blob Storage",
+   "text": "HTTP-01 nahráním do Azure Blob Storage"
+  },
+  "sc2147": {
+   "source": "The token file is uploaded to an Azure Storage container that serves the name - a static website ($web) or a CDN in front of it. Not for wildcards.",
+   "text": "Soubor s tokenem se nahraje do kontejneru Azure Storage, ze kterého se jméno obsluhuje – statický web ($web) nebo CDN před ním. Ne pro wildcardy."
+  },
+  "sc2148": {
+   "source": "Azure Storage answers; these credentials may not read the container's properties (writing may still be allowed - a dry run tells)",
+   "text": "Azure Storage odpovídá; tyto údaje nesmějí číst vlastnosti kontejneru (zápis může být povolen i tak – řekne to zkušební běh)"
+  },
+  "sc2149": {
+   "source": "the account key is not base64 (Storage account → Access keys)",
+   "text": "klíč účtu není v base64 (Storage account → Access keys)"
+  },
+  "sc2150": {
+   "source": "Storage account",
+   "text": "Storage account"
+  },
+  "sc2151": {
+   "source": "$web for a static website.",
+   "text": "$web pro statický web."
+  },
+  "sc2152": {
+   "source": "a SAS token",
+   "text": "SAS token"
+  },
+  "sc2153": {
+   "source": "the account key (Shared Key)",
+   "text": "klíč účtu (Shared Key)"
+  },
+  "sc2154": {
+   "source": "SAS token",
+   "text": "SAS token"
+  },
+  "sc2155": {
+   "source": "Storage account → Shared access signature (or the container's): Blob, Object, permissions Read, Write, Create, Delete; the part after \"?\".",
+   "text": "Storage account → Shared access signature (nebo kontejneru): Blob, Object, oprávnění Read, Write, Create, Delete; část za „?“."
+  },
+  "sc2156": {
+   "source": "Storage account → Access keys: key1 or key2 (base64).",
+   "text": "Storage account → Access keys: key1 nebo key2 (base64)."
+  },
+  "sc2157": {
+   "source": "Folder in the container",
+   "text": "Složka v kontejneru"
+  },
+  "sc2158": {
+   "source": "Where the site's root is in the container; empty: its root.",
+   "text": "Kde je kořen webu v kontejneru; prázdné: jeho kořen."
+  },
+  "sc2159": {
+   "source": "Blob endpoint",
+   "text": "Blob endpoint"
+  },
+  "sc2160": {
+   "source": "Empty: https://ACCOUNT.blob.core.windows.net (another cloud: its own).",
+   "text": "Prázdné: https://ACCOUNT.blob.core.windows.net (jiný cloud: jeho vlastní)."
+  },
+  "sc2161": {
+   "source": "Azure Storage",
+   "text": "Azure Storage"
+  },
+  "sc2162": {
+   "source": "HTTP-01 uploaded over FTP, FTPS or SFTP",
+   "text": "HTTP-01 nahráním přes FTP, FTPS nebo SFTP"
+  },
+  "sc2163": {
+   "source": "The token file is uploaded over FTP, FTPS or SFTP into the web space of a hosting that serves the name; the CA fetches it from there. Not for wildcards.",
+   "text": "Soubor s tokenem se nahraje přes FTP, FTPS nebo SFTP do webového prostoru hostingu, který jméno obsluhuje; CA si ho stáhne odtamtud. Ne pro wildcardy."
+  },
+  "sc2164": {
+   "source": "FTPS (FTP with explicit TLS)",
+   "text": "FTPS (FTP s explicitním TLS)"
+  },
+  "sc2165": {
+   "source": "FTP (no encryption)",
+   "text": "FTP (bez šifrování)"
+  },
+  "sc2166": {
+   "source": "SFTP (over SSH)",
+   "text": "SFTP (přes SSH)"
+  },
+  "sc2167": {
+   "source": "host or host:port (21 for FTP and FTPS, 22 for SFTP).",
+   "text": "host nebo host:port (21 pro FTP a FTPS, 22 pro SFTP)."
+  },
+  "sc2168": {
+   "source": "Web root of the site",
+   "text": "Kořen webu"
+  },
+  "sc2169": {
+   "source": "The folder http://NAME/ is served from, as the account sees it (often /www, /public_html, /httpdocs or /web). .well-known/acme-challenge/ is made in it.",
+   "text": "Složka, ze které se obsluhuje http://JMÉNO/, jak ji vidí účet (často /www, /public_html, /httpdocs nebo /web). Vytvoří se v ní .well-known/acme-challenge/."
+  },
+  "sc2170": {
+   "source": "Check the server's certificate (FTPS)",
+   "text": "Kontrolovat certifikát serveru (FTPS)"
+  },
+  "sc2171": {
+   "source": "HTTP-01 uploaded to an S3 bucket",
+   "text": "HTTP-01 nahráním do bucketu S3"
+  },
+  "sc2172": {
+   "source": "The token file is uploaded to an S3 (or S3-compatible) bucket that serves the name - a static site or a CDN in front of it. Not for wildcards.",
+   "text": "Soubor s tokenem se nahraje do bucketu S3 (nebo kompatibilního s S3), ze kterého se jméno obsluhuje – statický web nebo CDN před ním. Ne pro wildcardy."
+  },
+  "sc2173": {
+   "source": "The bucket's region (\"auto\" for Cloudflare R2).",
+   "text": "Region bucketu („auto“ pro Cloudflare R2)."
+  },
+  "sc2174": {
+   "source": "An IAM user (or the S3 service's key) allowed s3:PutObject, s3:GetObject and s3:DeleteObject on BUCKET/FOLDER.well-known/acme-challenge/*.",
+   "text": "IAM uživatel (nebo klíč služby S3) s povolením s3:PutObject, s3:GetObject a s3:DeleteObject na BUCKET/SLOŽKA.well-known/acme-challenge/*."
+  },
+  "sc2175": {
+   "source": "Folder in the bucket",
+   "text": "Složka v bucketu"
+  },
+  "sc2176": {
+   "source": "Where the site's root is in the bucket; empty: the bucket's root.",
+   "text": "Kde je kořen webu v bucketu; prázdné: kořen bucketu."
+  },
+  "sc2177": {
+   "source": "Empty: Amazon S3 of the region. For another service its S3 address.",
+   "text": "Prázdné: Amazon S3 daného regionu. Pro jinou službu její adresa S3."
+  },
+  "sc2178": {
+   "source": "Path style (endpoint/bucket/key)",
+   "text": "Path style (endpoint/bucket/klíč)"
+  },
+  "sc2179": {
+   "source": "For S3-compatible services without bucket names in the host (MinIO, Ceph, most self-hosted).",
+   "text": "Pro služby kompatibilní s S3 bez jména bucketu v hostiteli (MinIO, Ceph, většina vlastních instalací)."
+  },
+  "sc2180": {
+   "source": "ACL of the file",
+   "text": "ACL souboru"
+  },
+  "sc2181": {
+   "source": "none (the bucket policy decides)",
+   "text": "žádné (rozhoduje politika bucketu)"
+  },
+  "sc2182": {
+   "source": "HTTP-01 uploaded over WebDAV",
+   "text": "HTTP-01 nahráním přes WebDAV"
+  },
+  "sc2183": {
+   "source": "The token file is uploaded over WebDAV into the folder the site of the name is served from. Not for wildcards.",
+   "text": "Soubor s tokenem se nahraje přes WebDAV do složky, ze které se web jména obsluhuje. Ne pro wildcardy."
+  },
+  "sc2184": {
+   "source": "WebDAV address of the web root",
+   "text": "WebDAV adresa kořene webu"
+  },
+  "sc2185": {
+   "source": "The WebDAV address of the folder http://NAME/ is served from; .well-known/acme-challenge/ is made in it.",
+   "text": "WebDAV adresa složky, ze které se obsluhuje http://JMÉNO/; vytvoří se v ní .well-known/acme-challenge/."
+  },
+  "sc2186": {
+   "source": "TXT records in a zone at Infomaniak, with an API token.",
+   "text": "TXT záznamy v zóně u Infomaniak, s API tokenem."
+  },
+  "sc2187": {
+   "source": "Infomaniak: the token is set; the zones cannot be listed - set the zone to have it checked here",
+   "text": "Infomaniak: token je nastaven; zóny nelze vypsat – nastavte zónu, aby se zde ověřila"
+  },
+  "sc2188": {
+   "source": "manager.infomaniak.com → (your profile) → Developer → API tokens → create a token with the scope \"domain:read\" and \"dns:write\" (or \"accounts\" and \"domain\" for older tokens).",
+   "text": "manager.infomaniak.com → (váš profil) → Developer → API tokens → vytvořte token se scope „domain:read“ a „dns:write“ (u starších tokenů „accounts“ a „domain“)."
+  },
+  "sc2189": {
+   "source": "Empty: the longest name the name is in that Infomaniak says is a zone.",
+   "text": "Prázdné: nejdelší jméno, ve kterém jméno je a o kterém Infomaniak řekne, že je zóna."
+  },
+  "sc2190": {
+   "source": "Infomaniak takes 300 or more.",
+   "text": "Infomaniak bere 300 a víc."
+  },
+  "sc2191": {
+   "source": "TXT records in a domain at Loopia, through LoopiaAPI (XML-RPC).",
+   "text": "TXT záznamy v doméně u Loopia, přes LoopiaAPI (XML-RPC)."
+  },
+  "sc2192": {
+   "source": "Loopia customer zone → Account settings → LoopiaAPI → create an API user, with getDomains, getZoneRecords, addSubdomain, addZoneRecord, removeZoneRecord and removeSubdomain allowed.",
+   "text": "Zákaznická zóna Loopia → Account settings → LoopiaAPI → vytvořte API uživatele s povolenými getDomains, getZoneRecords, addSubdomain, addZoneRecord, removeZoneRecord a removeSubdomain."
+  },
+  "sc2193": {
+   "source": "Loopia takes 300 or more.",
+   "text": "Loopia bere 300 a víc."
+  },
+  "sc2194": {
+   "source": "Loopia said AUTH_ERROR - the API user or password is wrong",
+   "text": "Loopia řekla AUTH_ERROR – API uživatel nebo heslo nejsou správné"
+  },
+  "sc2195": {
+   "source": "Mythic Beasts",
+   "text": "Mythic Beasts"
+  },
+  "sc2196": {
+   "source": "TXT records in a zone at Mythic Beasts, with a DNS API key.",
+   "text": "TXT záznamy v zóně u Mythic Beasts, s klíčem DNS API."
+  },
+  "sc2197": {
+   "source": "API key ID",
+   "text": "ID API klíče"
+  },
+  "sc2198": {
+   "source": "Mythic Beasts control panel → API keys → create a key with DNS API access to the zone (it can be limited to _acme-challenge records of type TXT).",
+   "text": "Ovládací panel Mythic Beasts → API keys → vytvořte klíč s přístupem DNS API k zóně (lze omezit na TXT záznamy _acme-challenge)."
+  },
+  "sc2199": {
+   "source": "Sign-in address",
+   "text": "Adresa přihlášení"
+  },
+  "sc2200": {
+   "source": "Mythic Beasts: signed in, but no token came back",
+   "text": "Mythic Beasts: přihlášeno, ale nevrátil se žádný token"
+  },
+  "sc2201": {
+   "source": "TXT records in a domain at Name.com, with a user name and an API token.",
+   "text": "TXT záznamy v doméně u Name.com, s uživatelským jménem a API tokenem."
+  },
+  "sc2202": {
+   "source": "name.com → Account → Settings → Security → API access: turn it on and make a production token; the user name is the account's.",
+   "text": "name.com → Account → Settings → Security → API access: zapněte ho a vytvořte produkční token; uživatelské jméno je jméno účtu."
+  },
+  "sc2203": {
+   "source": "Name.com takes 300 or more.",
+   "text": "Name.com bere 300 a víc."
+  },
+  "sc2204": {
+   "source": "TXT records in a domain at NameSilo, with an API key.",
+   "text": "TXT záznamy v doméně u NameSilo, s API klíčem."
+  },
+  "sc2205": {
+   "source": "namesilo.com → Account → API Manager (https://www.namesilo.com/account/api-manager): generate a key; best limited to the address acme calls from.",
+   "text": "namesilo.com → Account → API Manager (https://www.namesilo.com/account/api-manager): vygenerujte klíč; nejlépe omezený na adresu, ze které acme volá."
+  },
+  "sc2206": {
+   "source": "NameSilo takes 3600 or more.",
+   "text": "NameSilo bere 3600 a víc."
+  },
+  "sc2207": {
+   "source": "NameSilo answered something that is not JSON",
+   "text": "NameSilo odpověděl něčím, co není JSON"
+  },
+  "sc2208": {
+   "source": "Netlify DNS",
+   "text": "Netlify DNS"
+  },
+  "sc2209": {
+   "source": "TXT records in a zone at Netlify DNS, with a personal access token.",
+   "text": "TXT záznamy v zóně u Netlify DNS, s osobním přístupovým tokenem."
+  },
+  "sc2210": {
+   "source": "app.netlify.com → User settings → Applications → Personal access tokens → New access token.",
+   "text": "app.netlify.com → User settings → Applications → Personal access tokens → New access token."
+  },
+  "sc2211": {
+   "source": "TXT records in a domain at Njalla, with an API token.",
+   "text": "TXT záznamy v doméně u Njalla, s API tokenem."
+  },
+  "sc2212": {
+   "source": "njal.la → Settings → API access → Add token (best limited to the address acme calls from).",
+   "text": "njal.la → Settings → API access → Add token (nejlépe omezený na adresu, ze které acme volá)."
+  },
+  "sc2213": {
+   "source": "Oracle Cloud (OCI) DNS",
+   "text": "Oracle Cloud (OCI) DNS"
+  },
+  "sc2214": {
+   "source": "TXT records in a public zone of Oracle Cloud Infrastructure DNS, with a user's API signing key.",
+   "text": "TXT záznamy ve veřejné zóně Oracle Cloud Infrastructure DNS, s podpisovým API klíčem uživatele."
+  },
+  "sc2215": {
+   "source": "Tenancy OCID",
+   "text": "OCID tenancy"
+  },
+  "sc2216": {
+   "source": "User OCID",
+   "text": "OCID uživatele"
+  },
+  "sc2217": {
+   "source": "Identity → Users → a user for acme → API keys → Add API key: the private key below, its fingerprint shown there. A policy such as \"Allow group acme-dns to manage dns in compartment X\".",
+   "text": "Identity → Users → uživatel pro acme → API keys → Add API key: soukromý klíč níže, jeho otisk se zobrazí tam. Politika např. „Allow group acme-dns to manage dns in compartment X“."
+  },
+  "sc2218": {
+   "source": "Key fingerprint",
+   "text": "Otisk klíče"
+  },
+  "sc2219": {
+   "source": "API private key",
+   "text": "Soukromý API klíč"
+  },
+  "sc2220": {
+   "source": "The PEM private key of that API key (RSA, without a passphrase).",
+   "text": "PEM soukromý klíč toho API klíče (RSA, bez hesla)."
+  },
+  "sc2221": {
+   "source": "Compartment OCID",
+   "text": "OCID compartmentu"
+  },
+  "sc2222": {
+   "source": "Where the zones are; empty: the tenancy (the root compartment).",
+   "text": "Kde jsou zóny; prázdné: tenancy (kořenový compartment)."
+  },
+  "sc2223": {
+   "source": "Empty: the longest zone of the compartment the name is in.",
+   "text": "Prázdné: nejdelší zóna compartmentu, ve které jméno je."
+  },
+  "sc2224": {
+   "source": "Empty: https://dns.<region>.oci.oraclecloud.com",
+   "text": "Prázdné: https://dns.<region>.oci.oraclecloud.com"
+  },
+  "sc2225": {
+   "source": "no region is set",
+   "text": "není nastaven region"
+  },
+  "sc2226": {
+   "source": "TXT records in a domain at Simply.com (UnoEuro), with an API key.",
+   "text": "TXT záznamy v doméně u Simply.com (UnoEuro), s API klíčem."
+  },
+  "sc2227": {
+   "source": "Account number",
+   "text": "Číslo účtu"
+  },
+  "sc2228": {
+   "source": "Simply.com control panel → Account → API: the account number shown there. Empty: the API key alone is sent (as a bearer token).",
+   "text": "Ovládací panel Simply.com → Account → API: zobrazené číslo účtu. Prázdné: posílá se jen API klíč (jako bearer token)."
+  },
+  "sc2229": {
+   "source": "no API key is set",
+   "text": "není nastaven API klíč"
+  },
+  "sc2230": {
+   "source": "TXT records in a domain at Subreg.cz (or Gransy), through its SOAP API.",
+   "text": "TXT záznamy v doméně u Subreg.cz (nebo Gransy), přes jeho SOAP API."
+  },
+  "sc2231": {
+   "source": "API login",
+   "text": "API login"
+  },
+  "sc2232": {
+   "source": "Subreg administration → Settings → API: the login of the API user (it may be the account's own), and the IP address acme calls from allowed there.",
+   "text": "Administrace Subreg → Nastavení → API: login API uživatele (může to být vlastní login účtu) a povolená IP adresa, ze které acme volá."
+  },
+  "sc2233": {
+   "source": "Gransy and Subreg's test system have their own address of the same API.",
+   "text": "Gransy a testovací systém Subregu mají pro stejné API vlastní adresu."
+  },
+  "sc2234": {
+   "source": "Subreg: signed in, but no session came back",
+   "text": "Subreg: přihlášeno, ale nevrátila se žádná relace"
+  },
+  "sc2235": {
+   "source": "Tencent Cloud DNSPod",
+   "text": "Tencent Cloud DNSPod"
+  },
+  "sc2236": {
+   "source": "TXT records in a domain at Tencent Cloud DNSPod, with an API key (SecretId).",
+   "text": "TXT záznamy v doméně u Tencent Cloud DNSPod, s API klíčem (SecretId)."
+  },
+  "sc2237": {
+   "source": "Tencent Cloud console → CAM → Users → a user for acme → API keys. Give the user the policy QcloudDNSPodFullAccess (or one with DescribeDomainList, DescribeRecordList, CreateRecord and DeleteRecord).",
+   "text": "Konzole Tencent Cloud → CAM → Users → uživatel pro acme → API keys. Dejte uživateli politiku QcloudDNSPodFullAccess (nebo politiku s DescribeDomainList, DescribeRecordList, CreateRecord a DeleteRecord)."
+  },
+  "sc2238": {
+   "source": "The free plan takes 600 or more.",
+   "text": "Bezplatný tarif bere 600 a víc."
+  },
+  "sc2239": {
+   "source": "Vercel DNS",
+   "text": "Vercel DNS"
+  },
+  "sc2240": {
+   "source": "TXT records in a domain at Vercel DNS, with an access token.",
+   "text": "TXT záznamy v doméně u Vercel DNS, s přístupovým tokenem."
+  },
+  "sc2241": {
+   "source": "vercel.com → Account settings → Tokens → Create (scoped to the team that holds the domains).",
+   "text": "vercel.com → Account settings → Tokens → Create (pro tým, který domény drží)."
+  },
+  "sc2242": {
+   "source": "Team ID",
+   "text": "ID týmu"
+  },
+  "sc2243": {
+   "source": "For domains of a team: its ID (Team settings → General). Empty: your own.",
+   "text": "Pro domény týmu: jeho ID (Team settings → General). Prázdné: vaše vlastní."
+  },
+  "sc2244": {
+   "source": "Empty: the longest domain the token sees that the name is in.",
+   "text": "Prázdné: nejdelší doména, kterou token vidí a ve které jméno je."
+  },
+  "sc2245": {
+   "source": "Subreg.cz",
+   "text": "Subreg.cz"
+  },
+  "sc2246": {
+   "source": "TTL (s)",
+   "text": "TTL (s)"
+  },
+  "sc2247": {
+   "source": "CZECHIA.COM (ZONER)",
+   "text": "CZECHIA.COM (ZONER)"
+  },
+  "sc2248": {
+   "source": "Loopia",
+   "text": "Loopia"
+  },
+  "sc2249": {
+   "source": "https://api.loopia.rs/RPCSERV for Loopia Serbia.",
+   "text": "https://api.loopia.rs/RPCSERV pro Loopia Srbsko."
+  },
+  "sc2250": {
+   "source": "Simply.com",
+   "text": "Simply.com"
+  },
+  "sc2251": {
+   "source": "http.net: https://partner.http.net/api/dns/v1/json",
+   "text": "http.net: https://partner.http.net/api/dns/v1/json"
+  },
+  "sc2252": {
+   "source": "Domeneshop",
+   "text": "Domeneshop"
+  },
+  "sc2253": {
+   "source": "GleSYS",
+   "text": "GleSYS"
+  },
+  "sc2254": {
+   "source": "Project",
+   "text": "Projekt"
+  },
+  "sc2255": {
+   "source": "Infomaniak",
+   "text": "Infomaniak"
+  },
+  "sc2256": {
+   "source": "SecretId",
+   "text": "SecretId"
+  },
+  "sc2257": {
+   "source": "SecretKey",
+   "text": "SecretKey"
+  },
+  "sc2258": {
+   "source": "https://api.sandbox.dnsmadeeasy.com/V2.0 for the sandbox.",
+   "text": "https://api.sandbox.dnsmadeeasy.com/V2.0 pro sandbox."
+  },
+  "sc2259": {
+   "source": "Name.com",
+   "text": "Name.com"
+  },
+  "sc2260": {
+   "source": "NameSilo",
+   "text": "NameSilo"
+  },
+  "sc2261": {
+   "source": "Dynu",
+   "text": "Dynu"
+  },
+  "sc2262": {
+   "source": "Njalla",
+   "text": "Njalla"
+  },
+  "sc2263": {
+   "source": "DreamHost",
+   "text": "DreamHost"
+  },
+  "sc2264": {
+   "source": "Bucket",
+   "text": "Bucket"
+  },
+  "sc2265": {
+   "source": "public-read",
+   "text": "public-read"
+  },
+  "sc2266": {
+   "source": "Container",
+   "text": "Kontejner"
   }
  },
  "patterns": {
@@ -35697,6 +37129,278 @@
   "pc0377": {
    "source": "Setting it up: {0}",
    "text": "Nastavení: {0}"
+  },
+  "pc0378": {
+   "source": "{0}: a probe file written to {1}{2} and taken away",
+   "text": "{0}: zkušební soubor zapsán do {1}{2} a zase odebrán"
+  },
+  "pc0379": {
+   "source": "the folder {0} will not be written to",
+   "text": "do složky {0} se zapisovat nebude"
+  },
+  "pc0380": {
+   "source": "{0} written to {1}",
+   "text": "{0} zapsán do {1}"
+  },
+  "pc0381": {
+   "source": "Point {0} at the web hosting, CDN or bucket website that serves {1}",
+   "text": "Nasměrujte {0} na webhosting, CDN nebo web bucketu, který obsluhuje {1}"
+  },
+  "pc0382": {
+   "source": "A dry run shows whether the uploaded file is what http://{0}/ serves",
+   "text": "Zkušební běh ukáže, zda nahraný soubor je to, co obsluhuje http://{0}/"
+  },
+  "pc0383": {
+   "source": "{0} could not be taken away from {1}: {2}",
+   "text": "{0} se nepodařilo odebrat z {1}: {2}"
+  },
+  "pc0384": {
+   "source": "{0} answers HTTP",
+   "text": "{0} odpovídá přes HTTP"
+  },
+  "pc0385": {
+   "source": "it answers ({0} for a file that is not there)",
+   "text": "odpovídá ({0} pro soubor, který tam není)"
+  },
+  "pc0386": {
+   "source": "The test file is served at {0}",
+   "text": "Zkušební soubor je vystaven na {0}"
+  },
+  "pc0387": {
+   "source": "Alibaba Cloud DNS said {0}: {1}",
+   "text": "Alibaba Cloud DNS řekl {0}: {1}"
+  },
+  "pc0388": {
+   "source": "CZECHIA.COM: a token is set{0}; the API has no call that only reads, so a dry run is what tries it",
+   "text": "CZECHIA.COM: token je nastaven{0}; API nemá žádné volání, které jen čte, takže to vyzkouší až zkušební běh"
+  },
+  "pc0389": {
+   "source": "CZECHIA.COM said no: {0}",
+   "text": "CZECHIA.COM odmítl: {0}"
+  },
+  "pc0390": {
+   "source": "Domeneshop has no domain {0} on this account",
+   "text": "Domeneshop nemá na tomto účtu doménu {0}"
+  },
+  "pc0391": {
+   "source": "DreamHost said no to {0}: {1}",
+   "text": "DreamHost odmítl {0}: {1}"
+  },
+  "pc0392": {
+   "source": "Duck DNS: {0} (the token cannot be tried without changing the TXT value)",
+   "text": "Duck DNS: {0} (token nelze vyzkoušet, aniž by se změnila TXT hodnota)"
+  },
+  "pc0393": {
+   "source": "{0} is not under a Duck DNS name - point it there by a CNAME",
+   "text": "{0} není pod žádným jménem Duck DNS – nasměrujte ho tam CNAME záznamem"
+  },
+  "pc0394": {
+   "source": "Duck DNS said \"{0}\" for {1} - check the token and that the name is one of the account",
+   "text": "Duck DNS řekl „{0}“ pro {1} – zkontrolujte token a že jméno patří účtu"
+  },
+  "pc0395": {
+   "source": "{0} holds the value of another order now, and Duck DNS keeps one value a name - it is tried again once that order is done",
+   "text": "{0} teď drží hodnotu jiné objednávky a Duck DNS drží jednu hodnotu na jméno – zkusí se znovu, až ta objednávka skončí"
+  },
+  "pc0396": {
+   "source": "the name servers of duckdns.org could not be found: {0}",
+   "text": "jmenné servery duckdns.org se nepodařilo najít: {0}"
+  },
+  "pc0397": {
+   "source": "Dynu has no domain {0} on this account",
+   "text": "Dynu nemá na tomto účtu doménu {0}"
+  },
+  "pc0398": {
+   "source": "Gcore has no zone for {0} that this token may see",
+   "text": "Gcore nemá pro {0} zónu, kterou by tento token viděl"
+  },
+  "pc0399": {
+   "source": "GleSYS said {0}: {1}",
+   "text": "GleSYS řekl {0}: {1}"
+  },
+  "pc0400": {
+   "source": "hosting.de: the key sees the zone {0} ({1})",
+   "text": "hosting.de: klíč vidí zónu {0} ({1})"
+  },
+  "pc0401": {
+   "source": "hosting.de said no to {0}: {1}",
+   "text": "hosting.de odmítl {0}: {1}"
+  },
+  "pc0402": {
+   "source": "hosting.de has no zone {0} that the key may see",
+   "text": "hosting.de nemá zónu {0}, kterou by klíč viděl"
+  },
+  "pc0403": {
+   "source": "the container {0} of {1} is there",
+   "text": "kontejner {0} účtu {1} existuje"
+  },
+  "pc0404": {
+   "source": "\"{0}/{1}\" is not a storage account and container",
+   "text": "„{0}/{1}“ není storage account a kontejner"
+  },
+  "pc0405": {
+   "source": "there is no container {0} in {1}",
+   "text": "kontejner {0} v {1} neexistuje"
+  },
+  "pc0406": {
+   "source": "{0}: signed in over {1}, the folder {2} is there",
+   "text": "{0}: přihlášeno přes {1}, složka {2} existuje"
+  },
+  "pc0407": {
+   "source": "{0}: signed in over SFTP",
+   "text": "{0}: přihlášeno přes SFTP"
+  },
+  "pc0408": {
+   "source": "\"{0}\" is not a server",
+   "text": "„{0}“ není server"
+  },
+  "pc0409": {
+   "source": "{0} did not let {1} in: {2}",
+   "text": "{0} nepustil {1} dovnitř: {2}"
+  },
+  "pc0410": {
+   "source": "{0}:{1} could not be reached over {2}: {3}",
+   "text": "{0}:{1} není dosažitelný přes {2}: {3}"
+  },
+  "pc0411": {
+   "source": "{0} could not be written: {1}",
+   "text": "{0} se nepodařilo zapsat: {1}"
+  },
+  "pc0412": {
+   "source": "{0} could not be taken away: {1}",
+   "text": "{0} se nepodařilo odebrat: {1}"
+  },
+  "pc0413": {
+   "source": "{0} could not be read back: {1}",
+   "text": "{0} se nepodařilo přečíst zpět: {1}"
+  },
+  "pc0414": {
+   "source": "signed in to {0}, but the folder {1} is not there: {2}",
+   "text": "přihlášeno k {0}, ale složka {1} neexistuje: {2}"
+  },
+  "pc0415": {
+   "source": "{0} could not be removed (no shell there): emptied instead",
+   "text": "{0} nešlo smazat (není tam shell): místo toho vyprázdněn"
+  },
+  "pc0416": {
+   "source": "the key sees the bucket {0}",
+   "text": "klíč vidí bucket {0}"
+  },
+  "pc0417": {
+   "source": "S3 answers; the key may not list the bucket {0} (writing may still be allowed - a dry run tells)",
+   "text": "S3 odpovídá; klíč nesmí vypsat bucket {0} (zápis může být povolen i tak – řekne to zkušební běh)"
+  },
+  "pc0418": {
+   "source": "\"{0}\" is not a bucket",
+   "text": "„{0}“ není bucket"
+  },
+  "pc0419": {
+   "source": "there is no bucket {0} there",
+   "text": "bucket {0} tam neexistuje"
+  },
+  "pc0420": {
+   "source": "the WebDAV folder {0} is there",
+   "text": "WebDAV složka {0} existuje"
+  },
+  "pc0421": {
+   "source": "\"{0}\" is not a WebDAV address (https://...)",
+   "text": "„{0}“ není adresa WebDAV (https://...)"
+  },
+  "pc0422": {
+   "source": "the WebDAV server said {0} - the user or password is wrong, or may not see the folder",
+   "text": "WebDAV server řekl {0} – uživatel nebo heslo nejsou správné, nebo složku nesmí vidět"
+  },
+  "pc0423": {
+   "source": "there is no folder {0}",
+   "text": "složka {0} neexistuje"
+  },
+  "pc0424": {
+   "source": "Infomaniak: the token sees the zone {0}",
+   "text": "Infomaniak: token vidí zónu {0}"
+  },
+  "pc0425": {
+   "source": "Infomaniak said no: {0} ({1})",
+   "text": "Infomaniak odmítl: {0} ({1})"
+  },
+  "pc0426": {
+   "source": "Infomaniak has no zone for {0} that this token may see",
+   "text": "Infomaniak nemá pro {0} zónu, kterou by tento token viděl"
+  },
+  "pc0427": {
+   "source": "Infomaniak says there is no zone {0} for this token",
+   "text": "Infomaniak říká, že pro tento token zóna {0} neexistuje"
+  },
+  "pc0428": {
+   "source": "Loopia said {0} to {1}",
+   "text": "Loopia řekla {0} na {1}"
+  },
+  "pc0429": {
+   "source": "Loopia said {0}",
+   "text": "Loopia řekla {0}"
+  },
+  "pc0430": {
+   "source": "Loopia said no to {0}: {1}",
+   "text": "Loopia odmítla {0}: {1}"
+  },
+  "pc0431": {
+   "source": "Loopia answered something that is not XML-RPC ({0})",
+   "text": "Loopia odpověděla něčím, co není XML-RPC ({0})"
+  },
+  "pc0432": {
+   "source": "NameSilo said {0}: {1}",
+   "text": "NameSilo řekl {0}: {1}"
+  },
+  "pc0433": {
+   "source": "Netlify has no DNS zone {0} on this account",
+   "text": "Netlify nemá na tomto účtu DNS zónu {0}"
+  },
+  "pc0434": {
+   "source": "Njalla said no to {0}: {1}",
+   "text": "Njalla odmítla {0}: {1}"
+  },
+  "pc0435": {
+   "source": "Subreg said no to {0}: {1}",
+   "text": "Subreg odmítl {0}: {1}"
+  },
+  "pc0436": {
+   "source": "Subreg has no zone for {0} that this login may see",
+   "text": "Subreg nemá pro {0} zónu, kterou by tento login viděl"
+  },
+  "pc0437": {
+   "source": "Subreg said: {0}",
+   "text": "Subreg řekl: {0}"
+  },
+  "pc0438": {
+   "source": "Subreg said {0}, and not in SOAP",
+   "text": "Subreg řekl {0}, a ne v SOAP"
+  },
+  "pc0439": {
+   "source": "DNSPod said {0}: {1}",
+   "text": "DNSPod řekl {0}: {1}"
+  },
+  "pc0440": {
+   "source": "Loopia said {0} to {1} - the API user or password is wrong, or it may not call this",
+   "text": "Loopia řekla {0} na {1} – API uživatel nebo heslo nejsou správné, nebo to nesmí volat"
+  },
+  "pc0441": {
+   "source": "DNSPod said {0}: {1} - the SecretId/SecretKey are wrong, or this machine's clock is",
+   "text": "DNSPod řekl {0}: {1} – SecretId/SecretKey nejsou správné, nebo nejdou hodiny tohoto stroje"
+  },
+  "pc0442": {
+   "source": "NameSilo said {0}: {1} - the API key is wrong, or this address may not use it",
+   "text": "NameSilo řekl {0}: {1} – API klíč není správný, nebo ho tato adresa nesmí použít"
+  },
+  "pc0443": {
+   "source": "Subreg said no to {0}: {1} ({2}.{3})",
+   "text": "Subreg odmítl {0}: {1} ({2}.{3})"
+  },
+  "pc0444": {
+   "source": "{0}; Loopia's name servers can take many minutes",
+   "text": "{0}; jmenným serverům Loopia to může trvat mnoho minut"
+  },
+  "pc0445": {
+   "source": "{0}; NameSilo's name servers often take 15 minutes",
+   "text": "{0}; jmenným serverům NameSilo to často trvá 15 minut"
   }
  },
  "rich": {

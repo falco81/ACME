@@ -1233,6 +1233,28 @@ class TestDescribed(unittest.TestCase):
                             kind)
             self.assertIn('Source', sys.modules[cls.__module__].__doc__, kind)
 
+    def test_every_word_has_czech(self):
+        from acmelib.plugins.base import Registry
+        cs = json.load(open(os.path.join(os.path.dirname(HERE), 'web', 'lang', 'cs.json'),
+                            encoding='utf-8'))
+        sources = {v['source'] for v in cs['strings'].values()}
+        reg = Registry(extra_dirs=[]).reload()
+
+        def words_of(d):
+            out = [d['title'], d['description']]
+            for f in d['fields']:
+                out += [f['label'], f.get('help', '')]
+                out += [o[1] for o in f.get('options') or []]
+            return [w for w in out if w]
+        new = set(self.DNS + self.HTTP)
+        shared = set()                          # the fields shared with the older modules
+        for k, cls in reg.all('challenge').items():
+            if k not in new:
+                shared.update(words_of(cls.describe()))
+        missing = sorted({w for k in new for w in words_of(reg.get('challenge', k).describe())
+                          if w not in sources and w not in shared})
+        self.assertEqual(missing, [], 'web/lang/cs.json lacks these')
+
     def test_guide_says_access_without_changing(self):
         f = DynuFake(self)
         f.throttled = True

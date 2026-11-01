@@ -21,12 +21,18 @@ SCHEMA = [
         subject_dn {T}, source {K}, state {K}, state_at {N}, last_try {N}, last_ok {N},
         last_error {T}, next_try {N}, fails {I}, ari {T}, version {I}, tags {T},
         note {T}, owner {K}, created {N}, created_by {K}, updated {N}, updated_by {K},
-        csr_pending {B}, enabled {I})'''),
-    # Every certificate one of them has had, the current one too.
+        csr_pending {B}, enabled {I}, key_type_alt {K}, alt_cert_pem {B}, alt_chain_pem {B},
+        alt_key_sealed {B}, alt_serial {K}, alt_fingerprint {K}, alt_not_before {N},
+        alt_not_after {N}, alt_issuer_dn {T}, alt_ari {T}, alt_version {I}, alt_state {K},
+        alt_error {T}, alt_fails {I}, alt_next_try {N})'''),
+    # Every certificate one of them has had, the current one too. A dual
+    # certificate's twin (key_type_alt) has rows of its own, variant 'alt',
+    # numbered in the same sequence as the main ones (variant '').
     ('cert_versions', '''CREATE TABLE IF NOT EXISTS cert_versions (
         id {ID}, cert_id {I} NOT NULL, version {I}, cert_pem {B}, chain_pem {B},
         key_sealed {B}, serial {K}, fingerprint {K}, not_before {N}, not_after {N},
-        issuer_dn {T}, created {N}, why {K}, by_who {K}, revoked {N}, UNIQUE (cert_id, version))'''),
+        issuer_dn {T}, created {N}, why {K}, by_who {K}, variant {K}, revoked {N},
+        UNIQUE (cert_id, version))'''),
     # A certificate authority of acme's own.
     ('cert_cas', '''CREATE TABLE IF NOT EXISTS cert_cas (
         id {ID}, name {K} NOT NULL UNIQUE, parent_id {I}, subject_dn {T}, key_type {K},
@@ -81,6 +87,14 @@ INDEXES = [
     'CREATE INDEX IF NOT EXISTS cert_ca_issued_ca ON cert_ca_issued (ca_id, serial)',
     'CREATE INDEX IF NOT EXISTS dns_records_name ON dns_records (name, rtype)',
 ]
+
+# A dual certificate (docs/certificates.md "Dual certificates"): the main key
+# type and a twin of the same names with another kind of key - ECDSA beside
+# RSA - kept in the alt_* columns of the same row of certs. alt_version is the
+# twin's version (in cert_versions, variant 'alt'), alt_state '' | 'ok' |
+# 'failed' with alt_error, alt_fails and alt_next_try for its own retries;
+# its key is sealed under 'certs:<id>:alt_key_sealed:<alt_version>'.
+VARIANTS = ('main', 'alt')
 
 # The states of a certificate.
 STATES = {

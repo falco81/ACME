@@ -392,3 +392,37 @@ table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:
 .ct-pki-line{margin:0 0 12px}
 .ct-name-said{color:var(--crit,#f85149);margin-top:4px}
 .set-item.refused input{border-color:var(--crit,#f85149)}
+
+/* ---- before a certificate: what its validation needs (readiness) ------------ */
+.ct-rd{display:flex;flex-direction:column;gap:10px}
+.ct-rd-bar{margin:0}
+.ct-rd-plan{display:flex;flex-direction:column;gap:10px}
+.ct-rd-group{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.ct-rd-group.bad{border-color:rgba(248,81,73,.45)}
+.ct-rd-group.ok{border-color:rgba(63,185,80,.35)}
+.ct-rd-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:9px 12px;background:var(--panel2);
+  border-bottom:1px solid var(--line)}
+.ct-rd-domain{font-size:14px}
+.ct-rd-val{margin-left:auto;display:flex;gap:6px;align-items:center}
+.ct-rd-sugg{display:flex;flex-direction:column;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.ct-rd-sone{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ct-rd-steps{display:flex;flex-direction:column;padding:4px 0}
+.ct-rd-name{padding:8px 12px 2px;font-size:12px;color:var(--tx-mut);font-weight:600}
+.ct-rd-step{display:flex;gap:10px;align-items:flex-start;padding:7px 12px}
+.ct-rd-step + .ct-rd-step{border-top:1px dashed var(--line)}
+.ct-rd-step > .tag{flex:none;min-width:22px;text-align:center}
+.ct-rd-w{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.ct-rd-what{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.ct-rd-what b{font-weight:600;font-size:13px}
+.ct-rd-said{overflow-wrap:anywhere}
+.ct-rd-fix{font-size:12.5px;color:var(--tx);overflow-wrap:anywhere}
+.ct-rd-step.bad .ct-rd-fix{color:var(--crit)}
+.ct-rd-step.warn .ct-rd-fix{color:var(--warn)}
+.ct-rd-rec{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px;padding:6px 8px;border-radius:8px;
+  background:var(--bg);border:1px solid var(--line)}
+.ct-rd-rec code{font-size:12px;overflow-wrap:anywhere;flex:1;min-width:200px}
+.ct-rd-tools{display:flex;gap:4px}
+.ct-rd-copy{padding:2px 8px}
+.ct-rd-dry .ct-log{max-height:260px;min-height:60px}
+.ct-rd-review{margin-top:12px}
+.ct-rd-review .ct-errbox .ct-rd-step{padding:6px 0}

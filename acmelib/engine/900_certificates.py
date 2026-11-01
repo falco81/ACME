@@ -378,4 +378,8 @@ SEAL_BINDS[('cert_cas', 'key_sealed')] = lambda r: 'cert_cas:%d:key' % int(r['id
 SEAL_BINDS[('certs', 'key_sealed')] = \
     lambda r: 'certs:%s:key_sealed:%s' % (r['id'], r.get('version') or 0)
 SEAL_BINDS[('cert_versions', 'key_sealed')] = \
-    lambda r: 'certs:%s:key_sealed:%s' % (r['cert_id'], r.get('version') or 0)
+    lambda r: 'certs:%s:%s:%s' % (r['cert_id'], 'alt_key_sealed' if r.get('variant') == 'alt'
+                                  else 'key_sealed', r.get('version') or 0)
+# The twin of a dual certificate (key_type_alt): its key under a bind of its own.
+SEAL_BINDS[('certs', 'alt_key_sealed')] = \
+    lambda r: 'certs:%s:alt_key_sealed:%s' % (r['id'], r.get('alt_version') or 0)

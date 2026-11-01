@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 
-from test_issuers import FakeContext, TestCA, make_key_csr, openssl, rd, wr   # noqa: E402
+from test_issuers import FakeContext, TestCA, make_key_csr, openssl, rd   # noqa: E402
 
 from acmelib.plugins.base import CertRequest, Challenge, PluginError, Registry   # noqa: E402
 from acmelib.plugins.issuers import _acme_client as ac                         # noqa: E402
@@ -870,8 +870,7 @@ class TestDigicert(Base):
         out = d.issue(req)
         self.check_issued(out, req)
         self.assertEqual((state['orders'], state['reissues']), (0, 1))
-        self.assertEqual(board.records, {'_dnsauth.example.test': []} if '_dnsauth.example.test'
-                         in board.records else board.records)
+        self.assertEqual(board.records, {'_dnsauth.www.example.test': []})   # put, then taken away
         self.assertIn('9001', d.revoke(out.cert_pem, 'superseded'))
 
     def test_new_order_when_allowed_with_dcv(self):
@@ -953,8 +952,6 @@ class TestRegistry(unittest.TestCase):
                     missing.append('%s: %s' % (kind, s))
         self.assertEqual(missing, [])
 
-
-_ = (wr, time)
 
 if __name__ == '__main__':
     unittest.main()

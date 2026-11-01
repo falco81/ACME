@@ -224,9 +224,14 @@ class Bundle(object):
             'cert-pem' 'cert-der' 'key-pem' (PKCS#8) 'key-rsa' (PKCS#1) 'key-der'
             'chain-pem' 'fullchain-pem' 'combined-pem' (key + fullchain) 'p7b'
             'pfx' / 'p12' (PKCS#12, AES) 'p12-legacy' (3DES/RC2, for old devices) 'jks'
+    A dual certificate (the same names with two kinds of key):
+        b.alt                 the twin, a Bundle of its own, or None
+        b.variant(v)          'main' | 'alt' | 'ec' | 'rsa' -> that one (PluginError: none)
+        b.as_format('fullchain-pem@rsa')   a format of one of them
     The real one is acmelib.certs.bundle.CertBundle."""
     FORMATS = ('cert-pem', 'cert-der', 'key-pem', 'key-rsa', 'key-der', 'chain-pem',
                'fullchain-pem', 'combined-pem', 'p7b', 'pfx', 'p12', 'p12-legacy', 'jks')
+    alt = None
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +305,31 @@ class Issuer(Plugin):
     wildcards = True
     ip_names = False
     choose_days = False             # the validity can be asked for
+    # A dual certificate (docs/certificates.md): the same names issued twice in one
+    # job, the main key type and a twin of another kind (ECDSA beside RSA) - two
+    # keys, two CSRs, two issue() calls. True: this source can give the twin. A
+    # source where the second one costs (a paid order) says False and names a bool
+    # setting in `dual_field` that allows it; dual_for() is what counts.
+    dual = False
+    dual_field = ''
+
+    @classmethod
+    def dual_for(cls, config):
+        """Whether a source of this kind, with these settings, gives a twin."""
+        if cls.dual_field:
+            v = (config or {}).get(cls.dual_field)
+            return v is True or str(v).strip().lower() in ('1', 'true', 'yes', 'on')
+        return bool(cls.dual)
+
+    def can_dual(self):
+        return type(self).dual_for(self.config)
+
+    @classmethod
+    def describe(cls):
+        d = Plugin.describe.__func__(cls)
+        d['dual'] = bool(cls.dual) or bool(cls.dual_field)
+        d['dual_field'] = cls.dual_field
+        return d
 
     def issue(self, req):
         """-> Issued. Raise PluginError when it does not."""
@@ -486,12 +516,40 @@ class Challenge(Plugin):
         return None
 
 
+def dual_order_field(key='dual_order'):
+    """The switch of a source whose second certificate is a second (paid) order."""
+    return field(key, 'Allow a second (paid) order for a dual certificate', 'bool',
+                 default=False, advanced=True,
+                 help='A dual certificate (ECDSA and RSA of the same names) is two orders '
+                      'here, each paid for. Off: a twin is not ordered from this source.')
+
+
+# The deploy option of a target that serves one certificate at a time, added to its
+# deployment's form by itself (Target.describe): which of a dual certificate's two
+# it gets. 'auto' is the RSA one where there is one - what every client can use.
+VARIANT_FIELD = {
+    'key': 'variant', 'label': 'Which certificate (when it is dual)', 'type': 'select',
+    'default': 'auto',
+    'options': [['auto', 'RSA where there is one (works with every client)'],
+                ['main', 'the main one (its own key type)'],
+                ['alt', 'the twin'], ['rsa', 'the RSA one'], ['ec', 'the ECDSA one']],
+    'advanced': True, 'dual_only': True,
+    'help': 'This target holds one certificate at a time: of a dual certificate (ECDSA and '
+            'RSA of the same names) it gets the one chosen here. Nothing changes for a '
+            'certificate that is not dual.'}
+
+
 class Target(Plugin):
     """Where a certificate is put, and what is told to take it."""
     family = 'target'
     # The options of one certificate on this target (a deployment): paths,
     # formats, the profile it goes into, the commands after.
     deploy_fields = []
+    # True: deploy() is handed a dual certificate whole (bundle.alt the twin, None
+    # when it is not dual) and puts both in place - nginx, Apache, HAProxy, F5,
+    # acme's own pages... False: the target holds one at a time, and is handed the
+    # one its deployment's 'variant' option says (VARIANT_FIELD), bundle.alt None.
+    dual = False
 
     def deploy(self, bundle, options):
         """Put `bundle` in place as `options` say and make the service take
@@ -510,6 +568,9 @@ class Target(Plugin):
     def describe(cls):
         d = Plugin.describe.__func__(cls)
         d['deploy_fields'] = list(cls.deploy_fields)
+        if not cls.dual and not any(f.get('key') == 'variant' for f in cls.deploy_fields):
+            d['deploy_fields'].append(dict(VARIANT_FIELD))
+        d['dual'] = bool(cls.dual)
         return d
 
 

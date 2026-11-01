@@ -50,12 +50,39 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `wedos` | WEDOS WAPI (JSON) | WAPI login + WAPI password, acme's IP allowed in WAPI |
 | `active24` | Active24 REST API v2 (Websupport-group signing) | API key + secret |
 | `websupport` | Websupport.sk / .cz REST API v1 (HMAC-SHA1 signed) | API key + secret |
+| `subreg` | Subreg.cz / Gransy SOAP API (envelope written by hand) | API login + password, acme's IP allowed |
+| `czechia` | CZECHIA.COM (ZONER) REST API; zone by SOA - no read call, so a dry run is the test | the account's API token |
+| `loopia` | LoopiaAPI (XML-RPC); slow name servers | API user + password with the zone functions |
+| `simply` | Simply.com (UnoEuro) API v2 | account number + API key (or a bearer key) |
+| `hostingde` | hosting.de / http.net JSON API (zoneUpdate) | an API key with DNS rights |
+| `domeneshop` | Domeneshop API v0 | API token + secret |
+| `glesys` | GleSYS API (domain/*) | project (CL…) + API key |
+| `mythic_beasts` | Mythic Beasts DNS API v2 (OAuth2 client credentials) | API key ID + secret |
+| `infomaniak` | Infomaniak API v2 (zones) | an API token |
+| `alidns` | Alibaba Cloud DNS (RPC, signature v1 HMAC-SHA1 here); TTL ≥ 600 on the free edition | RAM AccessKey with the alidns record actions |
+| `tencentcloud` | Tencent Cloud DNSPod API 3.0 (TC3-HMAC-SHA256 here); TTL ≥ 600 on the free plan | CAM SecretId + SecretKey |
+| `oci_dns` | Oracle Cloud Infrastructure DNS (OCI request signing, RSA by openssl) | tenancy, user, fingerprint, the API private key, region |
+| `akamai_edgedns` | Akamai Edge DNS Zone Management v2 (EdgeGrid signed here) | an API client with DNS Zone Record Management READ-WRITE |
+| `dnsmadeeasy` | DNS Made Easy V2.0 (HMAC-SHA1 of the date) | API key + secret |
+| `gcore` | Gcore Managed DNS v2 (RRsets) | a permanent API token |
+| `netlify` | Netlify DNS | a personal access token |
+| `vercel` | Vercel DNS | an access token (+ team ID) |
+| `namecom` | Name.com API v4; TTL ≥ 300 | user name + API token |
+| `namesilo` | NameSilo API; TTL ≥ 3600, slow name servers | an API key |
+| `dynu` | Dynu API v2 | an API key |
+| `njalla` | Njalla JSON-RPC API | an API token |
+| `dreamhost` | DreamHost DNS API | an API key with the dns-* functions |
+| `duckdns` | Duck DNS - **one TXT value per name** (proved one after another) | the account's token; your own names by CNAME to a duckdns.org name |
 | `acme_dns` | an [acme-dns](https://github.com/joohoi/acme-dns) server | account(s); `_acme-challenge.NAME CNAME <fulldomain>` once |
 | `ssh_dns` | commands on the DNS server over SSH: `nsupdate -l`, `nsupdate -k`, PowerShell `Add-DnsServerResourceRecord` (Windows DNS via OpenSSH), or your own (edit a zone file + `rndc reload`) | an SSH account there (sudo optional) |
 | `script` | a program on this machine (`present`/`cleanup`, dehydrated- or lego-style), `ACME_*` variables | the program |
 | `manual` | shows the record to put in by hand; waits until the zone's name servers have it (or until it is confirmed) | someone there |
 | `http_local` | HTTP-01 answered by acme's own nginx on port 80 | the name pointing at acme, port 80 open |
 | `http_ssh` | HTTP-01: the token file written over SSH on **every** web server the name points at | an SSH account on each, the nginx block below |
+| `http_ftp` | HTTP-01: the token file uploaded over **FTPS, FTP or SFTP** into a web hosting's web root | the hosting's FTP or SFTP account |
+| `http_s3` | HTTP-01: the token file uploaded to an **S3 or S3-compatible bucket** (SigV4) behind a static site or CDN | a key with PutObject, GetObject, DeleteObject |
+| `http_azure_blob` | HTTP-01: the token file uploaded to **Azure Blob Storage** (`$web` static website or a container behind a CDN) | a SAS token or the account key |
+| `http_webdav` | HTTP-01: the token file uploaded over **WebDAV** (PUT, MKCOL, DELETE) | a WebDAV user on the web root |
 
 ### Waiting for DNS
 
@@ -112,6 +139,7 @@ What each kind checks:
 | `dns_builtin` | acme's DNS server answers for its zone; the zone is delegated to it (`NS` records in the parent zone, and glue `A`/`AAAA` for name servers inside the zone) reaching the addresses acme answers on (`dns_expose`: the VIP, the nodes, or both); `_acme-challenge.NAME. CNAME NAME.<zone>.` (or the fixed label) in the name's own DNS - asked of that zone's own name servers, so no cached "not there" fools it; the firewall lets UDP and TCP 53 in | the CNAME leads the CA to the test value; every name server of acme's zone answers it; public resolvers see it |
 | `http_local` | a wildcard refused (DNS-01 only); `A`/`AAAA` of the name are acme's (the VIP or a node - or one of *Addresses in front of acme*, for a NAT or a proxy); TCP 80 let in by the firewall; a probe acme answers on port 80 fetched from each of its addresses (Host: NAME) and by the name | the test file at `http://NAME/` and at each of acme's addresses with `Host: NAME` |
 | `http_ssh` | a wildcard refused; the name points at the web servers (or at *Load balancer in front*); acme signs in to each over SSH; each answers HTTP on the check port | the test file at `http://NAME/` and at each web server's address with `Host: NAME` |
+| `http_ftp`, `http_s3`, `http_azure_blob`, `http_webdav` | a wildcard refused; signing in and the folder (read only); the name has an address and answers HTTP | the test file at `http://NAME/` (and at *Address the folder is served at*) |
 | a DNS provider's API (`desec`, `wedos`, `cloudflare`, `route53`, ... every `ApiDns` and the other API modules) | the credentials work (the module's `test()`); `_acme-challenge.NAME`'s CNAME followed - the TXT record goes where it ends, and that zone must be at the provider; the provider holds the zone (else: add it there, or point `_acme-challenge.NAME` by CNAME into a zone that is); the internet asks that zone (no subzone delegated elsewhere, name servers there); how long acme waits (the TTL - deSEC: its minimum, 3600 s, and 60 s more for its anycast) | every name server of the zone answers the test value; public resolvers see it |
 | `rfc2136` | the primary answers DNS; the zone is found; a trial UPDATE that changes nothing (a prerequisite only) is accepted with the key | as above |
 | `acme_dns` | the server's `/health`; `_acme-challenge.NAME. CNAME <fulldomain>.` | as above |
@@ -381,6 +409,243 @@ API v1 (`/v1/user/self/zone/{domain}/record`); Websupport has a v2 beside it
 (the one Active24 uses), and *API address* can be pointed elsewhere should
 v1 go away.
 
+### Modules added in acme 1.1: what was checked, and how
+
+The DNS and upload modules below were written from each vendor's API
+documentation (named in each section and in the module's docstring) - but
+the vendors' pages could not be fetched from where they were written, so
+every call was compared with what lego, acme.sh, Posh-ACME or the vendor's
+own SDK send. The signatures are tested against the vendors' **published
+worked examples** where there are any (Alibaba Cloud, Tencent Cloud, Oracle
+Cloud, Akamai EdgeGrid, AWS SigV4; `test/test_dns_providers_more.py`).
+Where a part is less certain, the section says so; a dry run (Settings →
+Validations → *Dry run*) tries it for real without asking a CA.
+
+### Subreg.cz (`subreg`)
+
+Subreg administration → *Settings* → **API**: an API user (or the account
+itself) and the **IP address** acme calls from allowed. Gransy runs the same
+system: set its address under *API address*. The SOAP calls are `Login`,
+`Domains_List`, `Get_DNS_Zone`, `Add_DNS_Record`, `Delete_DNS_Record`
+(https://soap.subreg.cz/manual/), sent as a hand-written envelope
+(`SOAPAction: http://soap.subreg.cz/soap#COMMAND`). Each value is a record of
+its own; cleanup deletes only the records holding ours. A domain in Subreg's
+DNS that is not registered there is found by asking `Get_DNS_Zone` name by
+name. **Less certain**: whether `Get_DNS_Zone` gives names relative to the
+domain - both forms are read.
+
+```
+login: (API login)      password: (API password)      zone: example.cz (or empty)
+```
+
+### CZECHIA.COM / ZONER (`czechia`)
+
+The CZECHIA.COM administration → **API**: the authorization token.
+`POST`/`DELETE https://api.czechia.com/api/DNS/{zone}/TXT` with
+`{hostName, text, ttl, publishZone: 1}` (header `AuthorizationToken`) - a value
+is added and removed by itself (https://api.czechia.com/swagger/). The API
+has no call acme knows that only reads: the zone is found by its SOA (or
+set), *Test* cannot try the token, and **a dry run is the real test**.
+
+### Other Central-European providers
+
+Forpsi, Zoner (other than CZECHIA.COM), Vshosting, Blueboard and Thinline
+publish no DNS API acme could find: use their name servers' delegation of
+`_acme-challenge` by CNAME to a zone acme can write (acme's own DNS server,
+deSEC, ...), or RFC 2136 where they offer it. WEDOS, Active24, Websupport,
+Subreg (and Gransy) and CZECHIA.COM have modules of their own.
+
+### Loopia (`loopia`)
+
+Customer zone → *Account settings* → **LoopiaAPI** → create an API user
+(`name@loopiaapi`) with `getDomains`, `getZoneRecords`, `addSubdomain`,
+`addZoneRecord`, `removeZoneRecord`, `removeSubdomain`. XML-RPC at
+`https://api.loopia.se/RPCSERV` (`api.loopia.rs` for Serbia;
+https://www.loopia.com/api/). TTL at least 300. Loopia's name servers may
+take many minutes to have a record - keep *Wait until it is seen* at the
+zone's name servers. The subdomain `_acme-challenge...` acme made is removed
+again once no record is left in it.
+
+### Simply.com (`simply`)
+
+Control panel → *Account* → **API**: the account number (S123456) and the API
+key - sent as basic authentication; a newer key alone is sent as a bearer
+token (leave *Account number* empty). API v2
+(https://www.simply.com/en/docs/api/), records under
+`/my/products/{domain}/dns/records/`.
+
+### hosting.de / http.net (`hostingde`)
+
+hosting.de → *Profile* → **API keys**: a key with the DNS rights (list
+zones, list records, edit zones). http.net: *API address*
+`https://partner.http.net/api/dns/v1/json`. Calls `zoneConfigsFind`,
+`recordsFind`, `zoneUpdate` (`recordsToAdd` / `recordsToDelete`;
+https://www.hosting.de/api/#dns). **Less certain**: `recordsFind` and its
+filter fields, and listing every zone with the filter value `*` in *Test*
+(set the zone and *Test* asks only for it); should `recordsFind` be refused,
+a value is added and deleted by its content without looking first.
+
+### Domeneshop (`domeneshop`)
+
+domene.shop → *My page* → **API** (https://api.domeneshop.no/docs/): a token
+and a secret (basic authentication). TTL at least 60.
+
+### GleSYS (`glesys`)
+
+GleSYS Cloud → the project → **API keys**: a key allowed `domain` list,
+listrecords, addrecord, deleterecord, and acme's address (*Allowed hosts*).
+*Project* is its name (CL12345). https://github.com/GleSYS/API/wiki/API-Documentation.
+**Less certain**: the field names of the `list` and `listrecords` answers.
+
+### Mythic Beasts (`mythic_beasts`)
+
+Control panel → **API keys** → a key with DNS API access to the zone (it can
+be limited to TXT records at `_acme-challenge`). acme gets a token from
+`https://auth.mythic-beasts.com/login` (client credentials) and uses DNS API
+v2 (https://www.mythic-beasts.com/support/api/dnsv2); a value is removed by
+`DELETE ...?data=VALUE`.
+
+### Infomaniak (`infomaniak`)
+
+manager.infomaniak.com → *Developer* → **API tokens**: a token with the
+domain/DNS scopes. API v2: `/2/zones/{zone}/records`
+(https://developer.infomaniak.com/docs/api). The API lists products, not
+zones: the zone is found by asking `/2/zones/{name}/exists` name by name -
+set the zone to have *Test* check it. TTL at least 300.
+
+### Alibaba Cloud DNS (`alidns`)
+
+RAM console → **Users** → a user for acme → *AccessKey*; the policy
+`AliyunDNSFullAccess` or one allowing `alidns:DescribeDomains`,
+`DescribeDomainRecords`, `AddDomainRecord`, `DeleteDomainRecord`. RPC API
+2015-01-09 at `https://alidns.aliyuncs.com` (a region's endpoint under *API
+address*), signed with signature version 1.0 (HMAC-SHA1;
+https://www.alibabacloud.com/help/en/sdk/product-overview/rpc-mechanism -
+the test checks the signature page's own example). The free edition takes
+no TTL under **600**.
+
+### Tencent Cloud DNSPod (`tencentcloud`)
+
+Tencent Cloud console → **CAM** → a user → *API keys* (SecretId +
+SecretKey); policy `QcloudDNSPodFullAccess` or the four actions
+`DescribeDomainList`, `DescribeRecordList`, `CreateRecord`, `DeleteRecord`.
+API 3.0 (version 2021-03-23) at `dnspod.tencentcloudapi.com`, signed
+TC3-HMAC-SHA256 (https://www.tencentcloud.com/document/api/1157/49029) - the
+test checks the hashed canonical request of Tencent's own worked example.
+The record line is the default (`默认`); the free plan takes no TTL under
+**600**. This machine's clock must be right.
+
+### Oracle Cloud Infrastructure DNS (`oci_dns`)
+
+Identity → **Users** → a user (in a group with *manage dns* in the
+compartment) → **API keys** → *Add API key*: paste the private key (PEM RSA,
+no passphrase) into acme and copy the fingerprint, the user's and the
+tenancy's OCIDs. *Region* as `eu-frankfurt-1`; *Compartment* where the
+public zones are (empty: the tenancy). Every request is signed as OCI wants
+(https://docs.oracle.com/en-us/iaas/Content/API/Concepts/signingrequests.htm;
+the test checks Oracle's published test key and both its signatures); the
+value is added and removed with `PATCH .../records/{name}/TXT` (`ADD` /
+`REMOVE`), so other values stay.
+
+### Akamai Edge DNS (`akamai_edgedns`)
+
+Control Center → *Identity and access* → **API clients** → a client with
+*DNS—Zone Record Management* READ-WRITE: its host, client token, client
+secret and access token (the `.edgerc` section). EdgeGrid signing
+(https://techdocs.akamai.com/developer/docs/authenticate-with-edgegrid -
+checked against Akamai's own test cases); Zone Management API v2, the RRset
+read, our value added and written back. Primary zones only.
+
+### DNS Made Easy (`dnsmadeeasy`)
+
+Control panel → *Account Information* → the API key and secret key. Each
+request carries `x-dnsme-requestDate` and its HMAC-SHA1 (this machine's
+clock must be right; https://api-docs.dnsmadeeasy.com/). The sandbox: *API
+address* `https://api.sandbox.dnsmadeeasy.com/V2.0`.
+
+### Gcore DNS (`gcore`)
+
+Gcore portal → *Profile* → **API tokens** → a permanent token (a role that
+may edit DNS). API v2 RRsets at `https://api.gcore.com/dns/v2/zones/{zone}/{name}/TXT`
+(https://api.gcore.com/docs/dns), read, changed, written back. **Less
+certain**: the zone list (`GET /v2/zones`); without it the zone is asked
+name by name.
+
+### Netlify DNS (`netlify`)
+
+app.netlify.com → *User settings* → *Applications* → **Personal access
+tokens**. https://open-api.netlify.com/ (`dns_zones`, `dns_records`).
+
+### Vercel DNS (`vercel`)
+
+vercel.com → *Account settings* → **Tokens** (scoped to the team that holds
+the domains), and the team's ID for a team's domains. **Less certain**: the
+versions of the two lists (`/v5/domains`, `/v4/domains/{domain}/records`);
+records are added and deleted through `/v2/domains/{domain}/records`
+(https://vercel.com/docs/rest-api).
+
+### Name.com (`namecom`)
+
+name.com → *Account settings* → *Security* → **API access**: turn it on, make
+a production token. API v4 with basic authentication (user name + token;
+https://www.name.com/api-docs/). TTL at least 300. **Less certain**: Name.com
+has announced a newer API; when v4 goes, its address goes under *API
+address*.
+
+### NameSilo (`namesilo`)
+
+namesilo.com → *Account* → **API Manager**: generate a key (best limited to
+acme's address). https://www.namesilo.com/api-reference. NameSilo takes no
+TTL under **3600** and its name servers often need **15 minutes** or more:
+acme waits for them (keep *Wait until it is seen* on the zone's name
+servers), and the CA is not asked before.
+
+### Dynu (`dynu`)
+
+dynu.com → *Control Panel* → **API Credentials**: the API key (header
+`API-Key`; https://www.dynu.com/Support/API).
+
+### Njalla (`njalla`)
+
+njal.la → *Settings* → **API access** → *Add token* (best limited to acme's
+address). JSON-RPC at `https://njal.la/api/1/` (https://njal.la/api/).
+
+### DreamHost (`dreamhost`)
+
+panel.dreamhost.com → *Advanced* → **API** → a key with *All dns functions*
+(https://help.dreamhost.com/hc/en-us/articles/217555707-DNS-API-commands). A
+value is added and removed by itself; DreamHost sets the TTL.
+
+### Duck DNS (`duckdns`)
+
+duckdns.org → signed in: the **token** at the top; *Duck DNS names* lists
+the account's names acme may use (`myhome` or `myhome.duckdns.org`). Duck DNS
+keeps **one TXT value per name** and answers it for every name under it:
+`myhome.duckdns.org` and `*.myhome.duckdns.org` in one certificate are
+proved one after the other (the module is not parallel; a second value is
+refused while the first is in use and tried again). A name of your own is
+proved through it by a CNAME: `_acme-challenge.www.example.com. CNAME
+myhome.duckdns.org.` (one Duck DNS name per name proved at a time). *Test*
+cannot try the token without changing the value. https://www.duckdns.org/spec.jsp
+
+### Not added
+
+* Selectel, Reg.ru, Yandex, Timeweb and the other Russian providers: left
+  out on purpose (sanctions).
+* Microsoft DNS over WinRM: WS-Management needs NTLM (or Kerberos) on one
+  kept-open connection and, by default, the SOAP body sealed by NTLM -
+  ctx.http keeps no connection between requests. Windows DNS is reached
+  over OpenSSH by `ssh_dns` (its PowerShell flavour) or by RFC 2136.
+* PowerDNS-Admin: it fronts a PowerDNS server whose own API `powerdns`
+  speaks; PowerDNS-Admin's own API keys were not added.
+* Joker, Variomedia, UltraDNS, Constellix, Rackspace, EasyDNS, Hostinger,
+  One.com: not this time (Joker's and One.com's APIs rewrite whole zones or
+  are not documented; the rest maybe later).
+* TLS-ALPN-01: acme's nginx answers port 443 for its own pages; answering
+  `acme-tls/1` with a validation certificate for other names would need a
+  TLS front acme does not have (and the name pointing at acme, as
+  `http_local` does already). DNS-01 or HTTP-01 instead.
+
 ## HTTP-01 on web servers over SSH (`http_ssh`)
 
 acme never takes connections from the internet. The names point at your web
@@ -468,6 +733,73 @@ With a server block of your own on port 80 already, put just the `location
 Behind a load balancer: let `/.well-known/acme-challenge/` through on port 80
 to every pool member (no redirect to HTTPS before it - a redirect to HTTPS is
 followed by the CA, but only to port 443 of the same name).
+
+## HTTP-01 by uploading the file (`http_ftp`, `http_s3`, `http_azure_blob`, `http_webdav`)
+
+For a site acme cannot sign in to with a shell: a web hosting with an FTP
+account, a static site in a bucket, a CDN in front of storage. Each
+validation acme uploads `.well-known/acme-challenge/TOKEN` under the folder
+set, fetches `http://NAME/.well-known/acme-challenge/TOKEN` as the CA will
+(*Check before the CA is asked*: by the name, by *Address the folder is
+served at* - the bucket's own website address - or not at all) and takes
+the file away afterwards. *Test* uploads a probe, reads it back where it can
+and takes it away. The guide checks the sign-in and the folder (read only),
+that the name has an address and answers HTTP; only a dry run shows that the
+folder set is the one the site serves. Wildcards: DNS-01 only.
+
+### FTP, FTPS, SFTP (`http_ftp`)
+
+*Protocol*: **FTPS** (explicit TLS, `AUTH TLS`, the data channel protected
+too - RFC 4217) wherever the hosting has it; plain FTP sends the password in
+the clear. *Web root of the site* as the FTP account sees it: often `/www`,
+`/public_html`, `/httpdocs`, `/web` or `/www/example.com`. FTP goes straight
+from this machine (passive mode), not through the HTTP proxy. **SFTP** goes
+through acme's SSH: an SSH key or password, the host key pinned as for
+`http_ssh`; the file is put with scp and removed with `rm` - an SFTP-only
+account (no shell) cannot run `rm`, so the file is emptied instead (an empty
+file is harmless) and the job says so. Wherever the account has a shell,
+`http_ssh` is the better choice.
+
+```
+protocol: ftps   host: ftp.example.com   ftp_user: example.com   folder: /www
+```
+
+### S3 and S3-compatible buckets (`http_s3`)
+
+An IAM user (or the service's key) allowed `s3:PutObject`, `s3:GetObject`
+and `s3:DeleteObject` on `BUCKET/FOLDER.well-known/acme-challenge/*`
+(`s3:ListBucket` too for the guide's check). Signed SigV4 (the code that
+signs Route 53, checked against AWS's documented S3 example). For MinIO,
+Ceph, Wasabi, Backblaze B2, Cloudflare R2 (*Region* `auto`), Hetzner, OVH,
+Exoscale: their address under *Endpoint*, *Path style* for those that want
+`endpoint/bucket/key`. The file must be readable by the CA: a bucket policy
+for `.well-known/acme-challenge/*` (or *ACL of the file* `public-read` where
+ACLs are on), and a CloudFront or other CDN in front must pass
+`/.well-known/acme-challenge/*` through to the bucket over HTTP (no cache, or
+a short one). https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
+
+```json
+{"Effect": "Allow", "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+ "Resource": "arn:aws:s3:::www-example-com/.well-known/acme-challenge/*"}
+```
+
+### Azure Blob Storage (`http_azure_blob`)
+
+A static website's container is `$web`. Sign in with a **SAS token** (the
+container's, or the account's: service Blob, resource Object, permissions
+Read, Write, Create, Delete - the part after `?`) or the **account key**
+(Shared Key, signed here as
+https://learn.microsoft.com/en-us/rest/api/storageservices/authorize-with-shared-key
+says; Microsoft publishes no full worked example to test it against, so the
+test checks the string to sign rule by rule). Behind Azure Front Door or
+CDN: let `/.well-known/acme-challenge/*` through without caching.
+
+### WebDAV (`http_webdav`)
+
+*WebDAV address of the web root*: the WebDAV URL of the folder the site is
+served from (a hosting's WebDAV access, Nextcloud, Apache `mod_dav`, IIS).
+`MKCOL` makes `.well-known/acme-challenge/` (405 - already there - is fine),
+then `PUT` and `DELETE` (RFC 4918). Basic authentication: use HTTPS.
 
 ## DNS-01 over SSH (`ssh_dns`)
 

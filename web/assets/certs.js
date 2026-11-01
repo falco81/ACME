@@ -43,7 +43,7 @@ function capi(path, body, wait) {
    that changes something, so the next tab, popup or form asks again: a
    thing made in one tab is in every other at once, without F5. POSTs that
    only read (a file looked into, an export, a test, a check) keep them. */
-var READS = /(^|\/)(parse|export|test|pki_check|check|csr)$/;
+var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|dry_run)$/;
 var FRESH = {n: 0};
 function forgetAll() {
   FRESH.n++;
@@ -264,7 +264,8 @@ function stateTag(st) {
   return t;
 }
 var JOB_KIND = {issue: 'issue', renew: 'renewal', deploy: 'deployment', revoke: 'revocation',
-                'import': 'import', test: 'test', csr: 'CSR', crl: 'CRL', verify: 'check', export: 'export'};
+                'import': 'import', test: 'test', csr: 'CSR', crl: 'CRL', verify: 'check', export: 'export',
+                'dry-run': 'dry run'};
 function jobState(j) {
   var st = j.state || (j.finished ? (j.ok ? 'ok' : 'failed') : 'running');
   if (st === 'done') st = j.ok ? 'ok' : 'failed';
@@ -1488,6 +1489,51 @@ function httpHere(row) {
   return box;
 }
 
+/** The section of a validation's popup: for each certificate that uses it,
+    the records to create (the CNAMEs, the delegation) and their state. */
+function setupHere(row) {
+  var box = el('div', 'ct-http ct-rd-setup');
+  box.appendChild(el('h4', 'ct-formh', 'What to set up'));
+  box.appendChild(el('p', 'note', 'For each certificate that uses it: what its names need, where, and whether it is there now. Nothing is changed.'));
+  var bar = el('div', 'btnrow');
+  var again = cmdButton('Check again', 'refresh', 'small');
+  bar.appendChild(again);
+  box.appendChild(bar);
+  var host = el('div');
+  box.appendChild(host);
+  var ticket = modalTicket();
+  var load = function () {
+    busy(again, true);
+    clear(host);
+    host.appendChild(el('p', 'muted', 'Asking…'));
+    capi('validations/setup' + qs({id: row.id})).then(function (d) {
+      if (!modalStill(ticket)) return;
+      clear(host);
+      var certs = arr(d.certs);
+      if (!certs.length) { host.appendChild(emptyNote('No certificate uses it yet.')); return; }
+      certs.forEach(function (c) {
+        var card = el('div', 'ct-rd-group ' + (c.ok ? 'ok' : 'bad'));
+        var head = el('div', 'ct-rd-head');
+        head.appendChild(okMark(!!c.ok));
+        head.appendChild(data('b', 'ct-rd-domain', c.name));
+        head.appendChild(namesChips(arr(c.names), 8));
+        card.appendChild(head);
+        var steps = arr(c.steps).filter(function (st) { return (st.record && String(st.record.value || '').charAt(0) !== '(') || st.done === false; });
+        var sb = el('div', 'ct-rd-steps');
+        if (!steps.length) sb.appendChild(el('p', 'muted small', 'Nothing to create for its names.'));
+        rdSteps(sb, steps);
+        card.appendChild(sb);
+        host.appendChild(card);
+      });
+      if (d.more) host.appendChild(el('p', 'muted small', 'and ' + d.more + ' more'));
+    }).catch(function (e) { if (modalStill(ticket)) { clear(host); host.appendChild(failedBox(e, 'what to set up')); } })
+      .then(function () { busy(again, false); });
+  };
+  again.onclick = load;
+  load();
+  return box;
+}
+
 /* ---- the default of a list ------------------------------------------------ */
 var DEFAULT_WORDS = {
   sources: 'A new certificate comes from it when no source is said.',
@@ -1629,6 +1675,7 @@ function modForm(key, row, p, fromPick) {
     testSaid = saidLine('', '');
     body.appendChild(testSaid);
     if (HTTP_HERE[p.kind]) body.appendChild(httpHere(row));
+    if (row && row.id && MANAGE && m.family === 'challenge') body.appendChild(setupHere(row));
     if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { if (!x.closest('.ct-http')) x.disabled = true; });
   }, buttons, 'medium');
 }
@@ -2148,6 +2195,24 @@ function certBody(body, c, versions, deploys, jobs, back) {
     le.appendChild(saidBox(c.last_error));
     body.appendChild(le);
   }
+  /* What its validation needs: at the top when the renewer did not ask the CA
+     because of it (certs_precheck), else a section of its own below. */
+  var proves = !!(c.issuer && (c.challenge || Object.keys(obj(c.challenge_map)).length));
+  var blocked = /^the CA was not asked/.test(String(c.last_error || ''));
+  var valSection = null;
+  if (proves && MANAGE) {
+    valSection = section('Validation', blocked
+      ? 'The CA was not asked: what is missing is marked ✘, with the record to create. Once it is there, acme tries again by itself.'
+      : 'What its names need for their validation, and where - checked now, nothing is changed.', true);
+    valSection.classList.add('ct-rd-sect');
+    var cview = readinessView({
+      auto: blocked || c.state === 'new' || c.state === 'failed',
+      ask: function () { return capi('certs/check', {id: c.id}).then(function (d) { return d.plan || d; }); },
+      dry: function () { return capi('certs/dry_run', {id: c.id}); }
+    });
+    valSection._body.appendChild(cview.node);
+    if (blocked) body.appendChild(valSection);
+  }
   var grid = el('div', 'msects');
   /* the certificate itself */
   var cs = section('The certificate');
@@ -2228,6 +2293,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
     ch._body.appendChild(list);
     grid.appendChild(ch);
   }
+  if (valSection && !blocked) grid.appendChild(valSection);
   /* deployments */
   var ds = section('Deployments', 'Where it is put each time it is renewed.', true);
   ds._body.appendChild(deployTable(deploys, {cert: c, back: back}));
@@ -2384,6 +2450,208 @@ function sourceIcon(kind) {
   if (/scep/i.test(k)) return 'router';
   return 'source';
 }
+/* ==========================================================================
+   Before a certificate: what its validation needs, where (readiness)
+   POST certs/plan {names, issuer, challenge, challenge_map}, certs/check {id},
+   certs/dry_run -> {job_id}, GET certs/dry_run_result?job= (acmelib/certs/
+   api_readiness.py). A step: {key, what, where, record, done, said, fix,
+   blocking, name}. Its words are the daemon's, translated as they stand; the
+   names and the records are data.
+   ========================================================================== */
+function rdRecordText(rec) {
+  if (!rec || !rec.type) return '';
+  var v = String(rec.value || '');
+  if (rec.type === 'TXT' && v.charAt(0) !== '(') v = '"' + v + '"';
+  return String(rec.name || '').replace(/\.$/, '') + '. ' + (rec.ttl ? rec.ttl + ' ' : '') + rec.type + ' ' + v;
+}
+function rdCopy(words, text) {
+  var b = el('button', 'btn small ct-rd-copy', words);
+  b.type = 'button';
+  copyOnClick(b, text, 'copied');
+  return b;
+}
+function rdRecord(rec) {
+  var box = el('div', 'ct-rd-rec');
+  var line = data('code', 'mono', rdRecordText(rec));
+  box.appendChild(line);
+  var tools = el('span', 'ct-rd-tools');
+  tools.appendChild(rdCopy('Copy', rdRecordText(rec)));
+  tools.appendChild(rdCopy('Name', String(rec.name || '').replace(/\.$/, '')));
+  tools.appendChild(rdCopy('Value', String(rec.value || '')));
+  box.appendChild(tools);
+  return box;
+}
+function rdStep(st) {
+  var row = el('div', 'ct-rd-step ' + (st.done === true ? 'ok' : (st.done === false ? (st.blocking ? 'bad' : 'warn') : 'unk')));
+  row.appendChild(okMark(st.done === true ? true : (st.done === false ? false : null)));
+  var w = el('div', 'ct-rd-w');
+  var top = el('div', 'ct-rd-what');
+  top.appendChild(el('b', '', st.what || ''));
+  if (st.where) top.appendChild(el('span', 'tag dim small ct-rd-where', st.where));
+  if (st.done === false && !st.blocking) top.appendChild(el('span', 'tag warn small', 'does not block'));
+  w.appendChild(top);
+  if (st.said) w.appendChild(el('div', 'muted small ct-rd-said', st.said));
+  if (st.fix && st.done !== true) w.appendChild(el('div', 'ct-rd-fix', st.fix));
+  var rec = st.record;
+  if (rec && rec.type && st.done !== true && String(rec.value || '').charAt(0) !== '(') w.appendChild(rdRecord(rec));
+  else if (rec && rec.type && st.done === true) w.appendChild(data('div', 'mono small muted', rdRecordText(rec)));
+  row.appendChild(w);
+  return row;
+}
+function rdSteps(host, steps) {
+  var by = {}, order = [];
+  arr(steps).forEach(function (st) {
+    var k = st.name || '';
+    if (!by[k]) { by[k] = []; order.push(k); }
+    by[k].push(st);
+  });
+  order.forEach(function (k) {
+    if (order.length > 1 && k) host.appendChild(data('div', 'ct-rd-name mono', k));
+    by[k].forEach(function (st) { host.appendChild(rdStep(st)); });
+  });
+}
+function rdGroup(g, o) {
+  var guide = obj(g.guide);
+  var card = el('div', 'ct-rd-group ' + (guide.ok === true ? 'ok' : (guide.ok === false ? 'bad' : 'unk')));
+  var head = el('div', 'ct-rd-head');
+  head.appendChild(okMark(guide.ok === true ? true : (guide.ok === false ? false : null)));
+  head.appendChild(data('b', 'ct-rd-domain', g.domain || '–'));
+  head.appendChild(namesChips(arr(g.names), 8));
+  var vt = el('span', 'ct-rd-val');
+  if (g.validation) {
+    vt.appendChild(el('span', 'muted small', 'proved by '));
+    vt.appendChild(data('span', 'tag info', g.validation));
+  } else vt.appendChild(el('span', 'tag crit', 'no validation'));
+  head.appendChild(vt);
+  card.appendChild(head);
+  var sug = arr(g.suggested);
+  if (sug.length) {
+    var sbox = el('div', 'ct-rd-sugg');
+    sbox.appendChild(el('span', 'muted small', guide.ok === false ? 'This would do:' : 'Could also be:'));
+    sug.forEach(function (s) {
+      var one = el('span', 'ct-rd-sone');
+      if (s.validation && o.onUse) {
+        var b = el('button', 'btn small' + (guide.ok === false ? ' primary' : ''), '');
+        b.type = 'button';
+        b.appendChild(el('span', '', 'Use '));
+        b.appendChild(data('span', '', s.validation));
+        b.onclick = function () { o.onUse(g, s.validation); };
+        one.appendChild(b);
+      } else one.appendChild(data('b', '', s.validation || plugTitle('challenge', s.kind)));
+      one.appendChild(el('span', 'muted small', s.why || ''));
+      sbox.appendChild(one);
+    });
+    card.appendChild(sbox);
+  }
+  var body = el('div', 'ct-rd-steps');
+  rdSteps(body, guide.steps);
+  if (!arr(guide.steps).length) body.appendChild(el('p', 'muted small', 'Nothing to check for these names.'));
+  card.appendChild(body);
+  return card;
+}
+/** The plan (or what a dry run found), a card a domain. */
+function rdPlan(host, plan, o) {
+  clear(host);
+  plan = obj(plan);
+  var head = obj(plan.head);
+  if (arr(head.steps).length) {
+    var hb = el('div', 'ct-rd-steps');
+    rdSteps(hb, head.steps);
+    host.appendChild(hb);
+  }
+  if (plan.issuer_needs_validation === false) host.appendChild(el('p', 'note', 'This source needs no validation: nothing has to be set up for the names.'));
+  arr(plan.groups).forEach(function (g) { host.appendChild(rdGroup(g, o)); });
+  if (plan.complete === false) host.appendChild(saidLine('', 'Not every check finished in time - a DNS server or an API answers slowly. Check again in a moment.'));
+}
+function rdSummary(plan) {
+  var n = arr(obj(plan).blocking).length;
+  if (!plan) return saidLine('', '');
+  if (!n) return saidLine('good', 'Everything that can be checked from here is in place. A dry run tries it for real, with no CA asked.');
+  return saidLine('bad', n === 1 ? '1 thing to set up first - see the ✘ below.' : n + ' things to set up first - see the ✘ below.');
+}
+/** The whole view: Check again, Dry run, the plan, the dry run's steps live.
+    o: {ask() -> Promise(plan), dry() -> Promise({job_id}), onUse(group, validation),
+        auto (check at once), onPlan(plan)} */
+function readinessView(o) {
+  var V = {plan: null, ticket: null};
+  var node = el('div', 'ct-rd');
+  var bar = el('div', 'btnrow ct-rd-bar');
+  var again = cmdButton(o.auto === false ? 'Check' : 'Check again', 'refresh', 'small');
+  var dry = cmdButton('Dry run', 'play', 'small');
+  dry.title = 'A test record or file put in place, looked for from outside and taken away - no CA is asked';
+  bar.appendChild(again);
+  if (MANAGE && o.dry) bar.appendChild(dry);
+  node.appendChild(bar);
+  var sumHost = el('div');
+  node.appendChild(sumHost);
+  var dryHost = el('div', 'ct-rd-dry');
+  node.appendChild(dryHost);
+  var planHost = el('div', 'ct-rd-plan');
+  node.appendChild(planHost);
+  var check = function () {
+    busy(again, true);
+    clear(sumHost);
+    sumHost.appendChild(saidLine('', 'Checking DNS, the addresses and the validations…'));
+    var t = V.ticket = {};
+    return o.ask().then(function (plan) {
+      if (V.ticket !== t) return plan;
+      V.plan = plan;
+      clear(sumHost);
+      sumHost.appendChild(rdSummary(plan));
+      rdPlan(planHost, plan, o);
+      if (o.onPlan) o.onPlan(plan);
+      return plan;
+    }).catch(function (e) {
+      if (V.ticket !== t) return;
+      clear(sumHost);
+      sumHost.appendChild(failedBox(e, 'the check of the validation'));
+    }).then(function (x) { busy(again, false); return x; });
+  };
+  var runDry = function () {
+    busy(dry, true);
+    clear(dryHost);
+    dryHost.appendChild(el('h4', 'ct-formh', 'Dry run'));
+    var log = el('div', 'ct-loghost');
+    dryHost.appendChild(log);
+    log.appendChild(el('p', 'muted small', 'Starting…'));
+    var t = V.ticket = {};
+    var ticket = modalTicket();
+    o.dry().then(function (d) {
+      var id = d && d.job_id;
+      var poll = function () {
+        if (V.ticket !== t || !modalStill(ticket)) return;
+        capi('certs/job' + qs({id: id})).then(function (x) {
+          if (V.ticket !== t || !modalStill(ticket)) return;
+          var j = x.job || x;
+          clear(log);
+          log.appendChild(jobLog(j.steps, j.ts));
+          var box = log.querySelector('.ct-log');
+          if (box) box.scrollTop = box.scrollHeight;
+          if (jobRunning(j)) { setTimeout(poll, 1000); return; }
+          busy(dry, false);
+          if (j.said) log.appendChild(saidLine(jobState(j) === 'ok' ? 'good' : 'bad', String(j.said)));
+          capi('certs/dry_run_result' + qs({job: id})).then(function (r) {
+            if (V.ticket !== t || !r || !r.result) return;
+            clear(sumHost);
+            sumHost.appendChild(saidLine(r.result.ok ? 'good' : 'bad', r.result.ok
+              ? 'The dry run worked: the CA will find what it looks for.'
+              : 'The dry run found what is missing - see the ✘ below.'));
+            rdPlan(planHost, r.result, o);
+          }).catch(function () { });
+        }).catch(function () { setTimeout(poll, 2000); });
+      };
+      poll();
+    }).catch(function (e) { clear(log); log.appendChild(failedBox(e, 'the dry run')); busy(dry, false); });
+  };
+  again.onclick = check;
+  dry.onclick = runDry;
+  if (o.auto !== false) check();
+  else planHost.appendChild(el('p', 'muted small', 'Check asks DNS, the addresses and the validations now - nothing is changed.'));
+  V.node = node;
+  V.check = check;
+  return V;
+}
+
 function certWizard(cert, detail) {
   var editing = !!(cert && cert.id);
   var W = {step: 0, seen: {0: true}, sources: [], vals: [], targets: [], deploys: {}};
@@ -2433,7 +2701,11 @@ function certWizard(cert, detail) {
     if (W.step > 0) buttons.push({words: 'Back', icon: 'prev', left: true, go: function () { go(W.step - 1); }});
     buttons.push({words: 'Close', close: true});
     if (editing && st.key !== 'review') buttons.push({words: 'Save', icon: 'save', go: function (b) { if (read) read(); finish(b, false); }});
-    if (st.key === 'review') {
+    if (st.key === 'review' && !editing && planBlocks()) {
+      var vstep = list.map(function (x) { return x.key; }).indexOf('validation');
+      if (vstep >= 0) buttons.push({words: 'Back to the validation', icon: 'prev', go: function () { go(vstep); }});
+      buttons.push({words: 'Create anyway (it will wait until this is in place)', cls: 'primary', icon: 'save', go: function (b) { finish(b, false); }});
+    } else if (st.key === 'review') {
       if (!editing) buttons.push({words: 'Add only', icon: 'save', go: function (b) { finish(b, false); }});
       buttons.push({words: editing ? 'Save' : 'Add and issue now', cls: 'primary', icon: editing ? 'save' : 'play', go: function (b) { finish(b, !editing); }});
     } else {
@@ -2650,12 +2922,54 @@ function certWizard(cert, detail) {
       }, 'plain ct-cmaptable'));
     };
     drawMap();
-    read = function () {
-      W.d.challenge = def.value;
+    var curMap = function () {
       var m = {};
       Object.keys(sels).forEach(function (n) { if (sels[n].value) m[n] = sels[n].value; });
-      W.d.challenge_map = m;
+      return m;
     };
+    read = function () {
+      W.d.challenge = def.value;
+      W.d.challenge_map = curMap();
+    };
+    /* What each domain needs, checked now; a suggestion taken writes the
+       group's names into the map (or clears them when it is the one for all). */
+    host.appendChild(el('h4', 'ct-formh', 'What each domain needs'));
+    host.appendChild(el('p', 'muted small', 'The names grouped by their DNS zone, each with what its validation needs and where - checked now, nothing is changed. A record to create is shown exactly, with Copy.'));
+    var view = readinessView({
+      ask: function () { read(); return planNow(); },
+      dry: function () { read(); return capi('certs/dry_run', planBody()); },
+      onUse: function (g, v) {
+        arr(g.names).forEach(function (n) {
+          if (!sels[n]) return;
+          sels[n].value = v === def.value ? '' : v;
+          if (sels[n].onchange) sels[n].onchange();
+        });
+        read();
+        view.check();
+      }
+    });
+    host.appendChild(view.node);
+    var soon = null;
+    var later = function () { clearTimeout(soon); soon = setTimeout(function () { if (modalStill(tick)) view.check(); }, 700); };
+    var tick = modalTicket();
+    def.addEventListener('change', later);
+    Object.keys(sels).forEach(function (n) { sels[n].addEventListener('change', later); });
+  }
+  /* The plan of what is in W.d now, asked once for the same question. */
+  function planBody() {
+    return {names: names(), issuer: W.d.issuer, challenge: W.d.challenge, challenge_map: W.d.challenge_map};
+  }
+  function planNow() {
+    var key = JSON.stringify(planBody());
+    if (W.plan && W.planKey === key) return Promise.resolve(W.plan);
+    return capi('certs/plan', planBody()).then(function (d) {
+      W.plan = d.plan || d;
+      W.planKey = key;
+      return W.plan;
+    });
+  }
+  function planBlocks() {
+    return !!(can().challenge && W.plan && W.planKey === JSON.stringify(planBody()) && arr(W.plan.blocking).length);
   }
   /* -- 5. renewal -- */
   function drawRenewal(host) {
@@ -2814,6 +3128,32 @@ function certWizard(cert, detail) {
     host.appendChild(kvTable(pairs));
     var bad = checkNames();
     if (bad) host.appendChild(el('p', 'ct-bad', bad));
+    /* Before the first certificate: what the validation needs, checked at once.
+       While something is missing the CA is not asked (certs_precheck). */
+    if (can().challenge && !bad) {
+      var rh = el('div', 'ct-rd-review');
+      host.appendChild(rh);
+      rh.appendChild(saidLine('', 'Checking what the validation needs…'));
+      var had = planBlocks();
+      var tick = modalTicket();
+      planNow().then(function (plan) {
+        if (!modalStill(tick) || steps()[W.step].key !== 'review') return;
+        if (planBlocks() !== had) { paint(); return; }
+        clear(rh);
+        var block = arr(plan.blocking);
+        if (!block.length) { rh.appendChild(saidLine('good', 'The validation looks ready: nothing that blocks was found.')); return; }
+        var box = el('div', 'ct-errbox');
+        var hh = el('div', 'ct-errbox-h');
+        hh.appendChild(el('b', '', 'Not in place yet'));
+        hh.appendChild(el('span', 'muted small', 'Created now, it waits: acme does not ask the CA until this is there, and tries again by itself.'));
+        box.appendChild(hh);
+        block.forEach(function (b) {
+          box.appendChild(rdStep({what: b.what, said: b.said, fix: b.fix, record: b.record, done: false, blocking: true,
+                                  where: b.domain || ''}));
+        });
+        rh.appendChild(box);
+      }).catch(function (e) { if (modalStill(tick)) { clear(rh); rh.appendChild(failedBox(e, 'the check of the validation')); } });
+    }
   }
 
   function body() {
