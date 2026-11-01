@@ -22211,6 +22211,22 @@
   "scp0087": {
    "source": "Decline the request",
    "text": "Zamítnout žádost"
+  },
+  "sx0001": {
+   "source": "default",
+   "text": "výchozí"
+  },
+  "sx0002": {
+   "source": "These ACME sources have no contact e-mail - the CA mails about expiry and policy there; certificates are issued without one too:",
+   "text": "Tyto zdroje ACME nemají kontaktní e-mail – CA na něj píše o vypršení a změnách pravidel; certifikáty se vystaví i bez něj:"
+  },
+  "sx0003": {
+   "source": "Set the contact e-mail…",
+   "text": "Nastavit kontaktní e-mail…"
+  },
+  "sx0004": {
+   "source": "The contact e-mail of the ACME sources",
+   "text": "Kontaktní e-mail zdrojů ACME"
   }
  },
  "patterns": {
