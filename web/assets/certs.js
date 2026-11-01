@@ -1174,14 +1174,33 @@ function contactAsk(host, names) {
   var b = el('button', 'btn small', 'Set the contact e-mail…');
   b.type = 'button';
   b.onclick = function () {
-    var mail = window.prompt(typeof i18nText === 'function' && i18nText('The contact e-mail of the ACME sources') || 'The contact e-mail of the ACME sources', '');
-    if (!mail) return;
-    capi('sources/contact', {email: mail.trim()}).then(function (d) {
-      toast(said(d, 'set'), 'good');
-      box.remove();
-      delete LISTS.sources;
-      drawModTab('sources', true);
-    }).catch(fail);
+    var input;
+    modal('The contact e-mail of the ACME sources', function (body) {
+      body.appendChild(el('p', 'note', 'Set on every ACME source that has none: ' + names.join(', ') + '. The CA writes there before a certificate runs out unrenewed and when its rules change; nothing else is sent.'));
+      input = textBox('', 'admin@example.com', 'mono');
+      input.type = 'email';
+      input.autocomplete = 'email';
+      body.appendChild(formField('E-mail', input, 'One address, or several with a comma between them.'));
+      setTimeout(function () { try { input.focus(); } catch (e) { } }, 0);
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); var ok = $('modal-foot') && $('modal-foot').querySelector('button.primary'); if (ok) ok.click(); }
+      });
+    }, [{words: 'Close', close: true}, {words: 'Set it', cls: 'primary', icon: 'save', go: function (btn) {
+      var mail = String(input.value || '').trim();
+      if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+(\s*[,;]\s*[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+)*$/.test(mail)) {
+        toast('That is not an e-mail address', 'bad');
+        try { input.focus(); } catch (e) { }
+        return;
+      }
+      busy(btn, true);
+      capi('sources/contact', {email: mail}).then(function (d) {
+        closeModal();
+        toast(said(d, 'set'), 'good');
+        box.remove();
+        delete LISTS.sources;
+        drawModTab('sources', true);
+      }).catch(fail).then(function () { busy(btn, false); });
+    }}], 'narrow');
   };
   box.appendChild(b);
   host.insertBefore(box, host.firstChild);
