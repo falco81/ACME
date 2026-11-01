@@ -236,7 +236,10 @@ def _overview(h, s):
     DF.ensure(store)
     di = DF.default_issuer(store)
     dc = DF.default_challenge(store, di) if di else None
-    return {'defaults': {'issuer': di['name'] if di else '', 'challenge': dc['name'] if dc else ''},
+    dt, dca = DF.default_target(store), DF.default_ca(store)
+    return {'defaults': {'issuer': di['name'] if di else '', 'challenge': dc['name'] if dc else '',
+                         'target': dt['name'] if dt else '', 'ca': dca['name'] if dca else '',
+                         'ca_id': int(dca['id']) if dca else None},
             'contact_missing': DF.contact_missing(store),
             'by_state': by_state, 'total': sum(by_state.values()), 'soonest': soon,
             'expiring': int(store.db.value('SELECT COUNT(*) FROM certs WHERE not_after > ? AND '
@@ -734,14 +737,31 @@ def ca_list(store):
     except ImportError:
         rows = [{k: r.get(k) for k in CA_COLS} for r in
                 store.db.rows('SELECT * FROM cert_cas ORDER BY id')]
+    dflt = DF.default_name(store, 'ca')
+    pub = _lib('publish')
     for r in rows:
         r['has_key'] = keys.get(int(r['id']), False)
+        r['is_default'] = bool(dflt) and str(r['id']) == dflt
+        try:
+            r['published'] = pub.is_published(store, r['id'])
+        except Exception:                               # noqa: BLE001
+            r['published'] = False
     return rows
 
 
 @api('GET', '/api/cas')
 def _cas(h, s):
     return {'rows': ca_list(h.store)}
+
+
+@api('POST', '/api/cas/default', 'fulladmin')
+def _ca_default(h, s):
+    """{id} - the authority offered first; '' (or 0) for none."""
+    b = h.body()
+    ref = b.get('id') if 'id' in b else b.get('name')
+    got = DF.set_default(h.store, 'ca', '' if ref in (None, 0, '0') else ref, who(s))
+    return {'default': got, 'message': ('%s is the default authority now' % got) if got else
+            'there is no default authority now'}
 
 
 @api('GET', '/api/cas/one')
@@ -752,7 +772,12 @@ def _ca_one(h, s):
     one['has_key'] = bool(r.get('key_sealed'))
     one['cert_pem'] = r.get('cert_pem')
     one['crl_pem'] = r.get('crl_pem')
-    return {'ca': one, 'issued': ca.ca_issued(h.store, r['id'], limit=h.num('per', 500, 1, 5000),
+    one['is_default'] = DF.default_name(h.store, 'ca') == str(r['id'])
+    try:
+        pki_view = _lib('publish').view(h.store, r['id'])
+    except Exception as e:                              # noqa: BLE001
+        pki_view = {'error': str(e)}
+    return {'ca': one, 'pki': pki_view, 'issued': ca.ca_issued(h.store, r['id'], limit=h.num('per', 500, 1, 5000),
                                               offset=h.num('offset', 0, 0)),
             'children': [ca_row(h.store, c)['name'] for c in one.get('children') or []]}
 
@@ -785,8 +810,25 @@ def _ca_create(h, s):
                aia_url=_text(b, 'aia_url', 500), ocsp_url=_text(b, 'ocsp_url', 500),
                name_constraints=_list(b.get('name_constraints'), 'name_constraints'),
                by=who(s))
-    h.store.add_event('certificates', 'authority %s made by %s' % (name, who(s)), who=who(s))
-    return {'id': _ident(got)}
+    ident = _ident(got)
+    filled = _published_new(h.store, ident, b, who(s))
+    h.store.add_event('certificates', 'authority %s made by %s%s' % (
+        name, who(s), (' - its CRL and certificate published on acme (%s)' % filled['crl_url'])
+        if filled else ''), who=who(s))
+    return {'id': ident, 'published': bool(filled), 'crl_url': (filled or {}).get('crl_url', ''),
+            'aia_url': (filled or {}).get('aia_url', '')}
+
+
+def _published_new(store, ident, b, by):
+    """A new authority's publishing: its own switch (published: on unless said
+    otherwise) and, with publishing on, acme's own addresses where none were given."""
+    pub = _lib('publish')
+    if not ident:
+        return {}
+    if 'published' in b and not _flag(b.get('published'), 1):
+        pub.set_published(store, ident, False, by)
+        return {}
+    return pub.fill_new(store, ident, _text(b, 'crl_url', 500), _text(b, 'aia_url', 500))
 
 
 def _ident(got):
@@ -822,8 +864,12 @@ def _ca_import(h, s):
     name = S.clean_name(b.get('name') or S.info_of(cert_pem).get('cn'), 'the authority\'s name')
     got = call(ca.ca_import, h.store, name, cert_pem, key_pem, chain_pems=chain,
                password=_text(b, 'key_password', 1000) or None, by=who(s))
-    h.store.add_event('certificates', 'authority %s imported by %s' % (name, who(s)), who=who(s))
-    return {'id': _ident(got)}
+    ident = _ident(got)
+    filled = _published_new(h.store, ident, b, who(s))
+    h.store.add_event('certificates', 'authority %s imported by %s%s' % (
+        name, who(s), (' - published on acme (%s)' % filled['crl_url']) if filled else ''),
+        who=who(s))
+    return {'id': ident, 'published': bool(filled)}
 
 
 @api('POST', '/api/cas/delete', 'fulladmin')
@@ -836,6 +882,9 @@ def _ca_delete(h, s):
         raise ValueError('the issuer(s) %s sign with %s: change them first' % (
             ', '.join(used), r['name']))
     _lib('ca').ca_delete(h.store, r['id'])
+    if DF.forget(h.store, 'ca', r['id']):
+        h.store.add_event('certificates', '%s was the default authority: there is none now'
+                          % r['name'], 'warn', who=who(s))
     h.store.add_event('certificates', 'authority %s deleted by %s' % (r['name'], who(s)), 'warn',
                       who=who(s))
     return {'message': '%s deleted' % r['name']}
@@ -914,6 +963,74 @@ def _ca_revoke(h, s):
     return {'message': 'serial %s revoked' % serial}
 
 
+# ---- publishing on acme (publish.py): the authority's side -------------------------
+@api('GET', '/api/cas/pki')
+def _ca_pki(h, s):
+    r = ca_row(h.store, h.arg('id') or h.arg('name'))
+    return {'pki': _lib('publish').view(h.store, r['id'])}
+
+
+@api('POST', '/api/cas/publish', 'fulladmin')
+def _ca_publish(h, s):
+    """{id, published} - the authority's CRL and certificate on acme, or not."""
+    b = h.body()
+    r = ca_row(h.store, b.get('id'))
+    pub = _lib('publish')
+    yes = pub.set_published(h.store, r['id'], _flag(b.get('published'), 1), who(s))
+    return {'published': pub.is_published(h.store, r['id']), 'switch': yes,
+            'pki': pub.view(h.store, r['id']),
+            'message': '%s %s' % (r['name'], 'published' if yes else 'no longer published')}
+
+
+@api('POST', '/api/cas/pki_urls', 'fulladmin')
+def _ca_pki_urls(h, s):
+    """{id} - acme's own addresses put into what the authority signs from now on."""
+    r = ca_row(h.store, h.body().get('id'))
+    pub = _lib('publish')
+    u = pub.use_own_urls(h.store, r['id'], who(s))
+    return {'crl_url': u['crl'], 'aia_url': u['cert'], 'pki': pub.view(h.store, r['id']),
+            'message': 'what %s signs from now on points at acme' % r['name']}
+
+
+@api('POST', '/api/cas/pki_check', 'certadmin')
+def _ca_pki_check(h, s):
+    """{id} - the published CRL and certificate fetched over HTTP and checked."""
+    r = ca_row(h.store, h.body().get('id'))
+    got = _lib('publish').check(h.store, r['id'])
+    got['said'] = got['steps'][-1][1] if got.get('steps') else ''
+    return got
+
+
+# ---- publishing on acme: what anybody may fetch (web/pki.php, no sign-in) --------------
+def _pki_public(h, what):
+    pub = _lib('publish')
+    if not pub.allowed():
+        raise E.ApiError(429, 'too many requests - try again in a moment')
+    try:
+        if what == 'index':
+            return {'published': pub.index(h.store), 'on': pub.on()}
+        fmt = 'pem' if str(h.arg('format') or '').lower() == 'pem' else 'der'
+        data, mime, filename = pub.serve(h.store, what, h.arg('ca'), fmt)
+    except LookupError:
+        raise E.ApiError(404, 'not found')
+    return {'mime': mime, 'filename': filename, 'data_b64': base64.b64encode(data).decode('ascii')}
+
+
+@E.route('GET', '/api/pki/index')
+def _pki_index(h):
+    return _pki_public(h, 'index')
+
+
+@E.route('GET', '/api/pki/crl')
+def _pki_crl(h):
+    return _pki_public(h, 'crl')
+
+
+@E.route('GET', '/api/pki/cert')
+def _pki_cert(h):
+    return _pki_public(h, 'cert')
+
+
 # ---------------------------------------------------------------------------
 # The modules
 # ---------------------------------------------------------------------------
@@ -937,11 +1054,20 @@ def options_for(store, source):
 
 
 def _resolve(store, fields):
+    """The fields with the choices of their options_from - an authority's
+    field preselecting the default authority."""
     out = []
+    dca = None
     for f in fields or []:
         f = dict(f)
         if f.get('options_from'):
             f['options'] = options_for(store, f['options_from'])
+            if f['options_from'] == 'cas':
+                if dca is None:
+                    row = DF.default_ca(store)
+                    dca = row['name'] if row else ''
+                if dca and any(o[0] == dca for o in f['options']):
+                    f['default'] = dca
         out.append(f)
     return out
 
@@ -1026,6 +1152,7 @@ def family_save(store, family, b, by):
 def _renamed(store, family, old, new):
     """What referred to it by name, made to refer to the new name."""
     db = store.db
+    DF.renamed(store, family, old, new)
     if family == 'issuer':
         db.run('UPDATE certs SET issuer = ? WHERE issuer = ?', (new, old))
     elif family == 'target':
@@ -1049,6 +1176,9 @@ def family_delete(store, family, b, by):
     store.db.run('DELETE FROM %s WHERE id = ?' % S.TABLE_OF[family], (row['id'],))
     store.db.run('DELETE FROM meta WHERE k LIKE ?', ('%s%s:%s:%%' % (
         runtime.KV_PREFIX, family, row['name']),))
+    if DF.forget(store, family, row['name']):
+        store.add_event('certificates', '%s was the default %s: there is none now' % (
+            row['name'], DF.WORDS[family]), 'warn', who=by)
     store.add_event('certificates', '%s %s deleted by %s' % (family, row['name'], by), 'warn',
                     who=by)
     return row['name']
@@ -1163,6 +1293,15 @@ def _family_routes(family, path):
     @api('POST', '/api/%s/test' % path, 'certadmin')
     def _test(h, s):
         return family_test(h.store, family, h.body(), who(s))
+
+    @api('POST', '/api/%s/default' % path, 'fulladmin')
+    def _default(h, s):
+        """{name} - made the default; '' for none."""
+        b = h.body()
+        ref = b.get('name') if 'name' in b else b.get('id')
+        got = DF.set_default(h.store, family, '' if ref in (None, 0) else ref, who(s))
+        return {'default': got, 'message': ('%s is the default now' % got) if got else
+                'there is no default now'}
 
 
 _family_routes('issuer', 'sources')

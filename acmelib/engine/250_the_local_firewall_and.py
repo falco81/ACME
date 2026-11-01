@@ -376,11 +376,15 @@ def fw_auto(store, node):
     for s in srcs:
         for f in ((4, 6) if not s else (_fam(s),)):
             web.append({'family': f, 'proto': 'tcp', 'port': '80,443', 'source': s})
-    if '' not in srcs and CONFIG.get('acme') and \
-            (CONFIG.get('acme_challenge') or 'http-01') == 'http-01':
+    acme80 = bool(CONFIG.get('acme')) and \
+        (CONFIG.get('acme_challenge') or 'http-01') == 'http-01'
+    if '' not in srcs and (acme80 or certs_port80_why(store)):
         # The CA asks from the internet (1.0.209): with the pages kept to some
         # networks, port 80 was too - and no certificate was renewed. Port 80
-        # answers the CA's question and sends everything else to HTTPS.
+        # answers the CA's question and sends everything else to HTTPS. The
+        # same for the certificate manager: HTTP-01 answered here (a validation
+        # "This server") and the CRLs of acme's own authorities (/pki/), which
+        # every client checking a certificate fetches - from anywhere.
         for f in (4, 6):
             web.append({'family': f, 'proto': 'tcp', 'port': '80', 'source': ''})
     out.append({'key': 'web', 'title': 'HTTP / HTTPS', 'why': 'the enrolment and '

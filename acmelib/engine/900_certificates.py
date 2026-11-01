@@ -34,6 +34,9 @@ CERT_DEFAULTS = {
     'certs_notify_ok': 0,
     'certs_keep_versions': 10,
     'certs_keep_jobs_days': 90,
+    # --- the CRLs and certificates of acme's own authorities, on acme (port 80) --------
+    'pki_publish': 1,
+    'pki_base_url': '',
     # --- the certificate portal (on the enrolment pages) -------------------------------
     'portal_cert': 0,
     'portal_cert_suffixes': '',
@@ -73,6 +76,8 @@ NAMES.update({
     'certs_notify_ok': 'Tell what went well too',
     'certs_keep_versions': 'Old certificates kept (each)',
     'certs_keep_jobs_days': 'Jobs kept (days)',
+    'pki_publish': 'Publish CRLs on acme',
+    'pki_base_url': 'Their address',
     'portal_cert': 'Certificates on the portal',
     'portal_cert_suffixes': 'Names people may ask for',
     'portal_cert_issuers': 'Sources people may ask',
@@ -113,6 +118,12 @@ SAYS.update({
                        'Message texts.',
     'certs_keep_versions': 'Each certificate keeps this many of the certificates it had.',
     'certs_keep_jobs_days': 'Jobs older than this are deleted, with their steps.',
+    'pki_publish': 'Every node and the VIP address serve the CRL and the certificate of each of '
+                   'acme’s own authorities over plain HTTP at /pki/ (port 80, no sign-in, '
+                   'from the database), and keep each CRL fresh. A new authority puts these '
+                   'addresses into what it signs; port 80 is let in from anywhere.',
+    'pki_base_url': 'Where they are found, http://NAME/pki/. Empty: http:// and the VIP '
+                    'address’s name when it is on, else this server’s name, and /pki/.',
     'portal_cert': 'People signed in on the portal see the certificates they own - their '
                    'own, or owned by a directory group they are in - with when each runs out, '
                    'download the certificate and its chain, and may ask for a new one.',
@@ -156,6 +167,7 @@ TUNABLE.update({
     'certs_renew_days': (1, 3650), 'certs_check_min': (1, 1440), 'certs_parallel': (1, 32),
     'certs_retry_max_h': (1, 168), 'certs_notify_days': (0, 365), 'certs_notify_ok': (0, 1),
     'certs_keep_versions': (1, 1000), 'certs_keep_jobs_days': (1, 3650),
+    'pki_publish': (0, 1),
     'portal_cert': (0, 1), 'portal_cert_max': (1, 1000), 'portal_cert_auto': (0, 1),
     'portal_cert_keys': (0, 1),
     'dns_server': (0, 1), 'dns_port': (1, 65535), 'dns_ttl': (0, 86400),
@@ -164,7 +176,8 @@ TUNABLE.update({
 })
 PANES['certs'] = ['certs_renew_days', 'certs_check_min', 'certs_parallel', 'certs_retry_max_h',
                   'certs_notify_days', 'certs_notify_mail', 'certs_notify_sms',
-                  'certs_notify_ok']
+                  'certs_notify_ok', 'pki_publish', 'pki_base_url']
+ONLY_WHEN.update({'pki_base_url': ['pki_publish', '1']})
 # How long the certificate manager keeps things, on The database pane beside
 # how long the events are kept - where otp kept its own retention.
 PANES['db'] = list(PANES['db']) + ['certs_keep_jobs_days', 'certs_keep_versions']
@@ -292,6 +305,27 @@ def certs_carry_row_out(table, row, whole):
 @_certs_hook('carry_row_in')
 def certs_carry_row_in(store, table, ident, old):
     return certs_mod('store').carry_in(store, table, ident, old)
+
+
+def certs_port80_why(store):
+    """Why the certificate manager needs port 80 from anywhere, even when "Who
+    may reach the pages" keeps the pages to some networks: [reasons] - the CRLs
+    and certificates of acme's own authorities published at /pki/, and HTTP-01
+    answered here (a validation of kind http_local switched on)."""
+    out = []
+    try:
+        if int(CONFIG.get('pki_publish', 1) or 0):
+            out.append('pki')
+    except (TypeError, ValueError):
+        pass
+    try:
+        if store is not None and store.db.value(
+                "SELECT COUNT(*) FROM cert_challenges WHERE kind = 'http_local' AND "
+                "COALESCE(enabled, 1) <> 0", (), 0):
+            out.append('http-01')
+    except Exception:                                   # noqa: BLE001
+        pass
+    return out
 
 
 # acme's own DNS server (Settings → DNS server) let in by the firewall on every

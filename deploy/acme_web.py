@@ -291,6 +291,7 @@ def checked(r):
     else:
         out['fw'] = None
     out['access'] = access_checked(r.get('access'))
+    out['pki'] = bool(r.get('pki'))
     names = r.get('acme')
     if names is None:
         out['acme'] = None
@@ -857,6 +858,61 @@ def acme_into(main, names):
     return main[:where[0]] + new + main[where[1]:] if new != block else main
 
 
+PKI_MARK = 'location ^~ /pki/'
+
+
+def pki_location(pad, sock, tls):
+    """/pki/ to pki.php: the CRLs and certificates of acme's own authorities,
+    for everybody - on port 80 never sent to HTTPS."""
+    lines = ['# The CRLs and certificates of acme\'s own authorities (docs/own-ca.md):',
+             '# for everybody, plain HTTP - a CRL fetcher seldom follows a redirect.',
+             '# PKI-BEGIN',
+             'location = /pki { return 301 /pki/; }',
+             PKI_MARK + ' {',
+             '    limit_req     zone=acme_all burst=40 nodelay;',
+             '    limit_req_status 429;',
+             '    fastcgi_pass  %s;' % sock,
+             '    fastcgi_param SCRIPT_FILENAME /var/www/acme/pki.php;']
+    if tls:
+        lines.append('    fastcgi_param HTTPS on;')
+    lines += ['    include       fastcgi_params;', '    fastcgi_read_timeout 15s;', '}',
+              '# PKI-END']
+    return ''.join(pad + ln + '\n' for ln in lines)
+
+
+def pki_into(main):
+    """/pki/ put into the port-80 server (in front of the redirect to HTTPS)
+    and into the HTTPS server (in front of /assets/), where it is missing."""
+    sockm = re.search(r'fastcgi_pass\s+([^;]+);', main)
+    sock = sockm.group(1).strip() if sockm else 'unix:/run/php-fpm/acme.sock'
+    zone = re.search(r'limit_req_zone\s+\$binary_remote_addr\s+zone=([A-Za-z0-9_]+):', main)
+    where = http_block(main)
+    if where:
+        block = main[where[0]:where[1]]
+        if PKI_MARK not in block:
+            m = re.search(r'(?m)^([ \t]*)location[ \t]+/[ \t]*\{', block)
+            if m:
+                new = block[:m.start()] + pki_location(m.group(1), sock, False) + block[m.start():]
+                main = main[:where[0]] + new + main[where[1]:]
+    where = server_block(main)
+    if where:
+        block = main[where[0]:where[1]]
+        if PKI_MARK not in block:
+            m = re.search(r'(?m)^([ \t]*)location[ \t]+/assets/', block) or \
+                re.search(r'(?m)^([ \t]*)location[ \t]+~[ \t]+\\\.php', block)
+            if m:
+                new = block[:m.start()] + pki_location(m.group(1), sock, True) + '\n' + \
+                    block[m.start():]
+                main = main[:where[0]] + new + main[where[1]:]
+    if zone and zone.group(1) != 'acme_all':
+        main = main.replace('limit_req     zone=acme_all burst=40', 'limit_req     zone=%s burst=40'
+                            % zone.group(1))
+    elif not zone:
+        main = re.sub(r'(?m)^[ \t]*limit_req +zone=acme_all burst=40 nodelay;\n[ \t]*'
+                      r'limit_req_status 429;\n', '', main)
+    return main
+
+
 def nginx_part(r, last):
     """This node's server and the web address's, with their TLS."""
     said, dh = [], {}
@@ -894,6 +950,13 @@ def nginx_part(r, last):
                 main, changed = new_main, True
                 said.append('nginx: port 80 answers the ACME CA (%s)' % (', '.join(r['acme']) or
                                                                         'no name yet'))
+        if r.get('pki'):
+            new_main = pki_into(main)
+            if new_main != main:
+                write_root(NGINX_MAIN, new_main, 0o644)
+                main, changed = new_main, True
+                said.append('nginx: /pki/ serves the CRLs of acme\'s own authorities, port 80 '
+                            'and 443, for everybody')
         if r.get('access'):
             new_main = access_into(main, r['access'])
             if new_main != main:

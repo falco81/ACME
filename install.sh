@@ -836,6 +836,32 @@ if '/.well-known/acme-challenge/' not in text:
                  pad + '    fastcgi_read_timeout 10s;\n' + pad + '}\n')
         text = text[:m80.start()] + block + text[m80.start():]
         said.append('the CAs\' HTTP-01 challenges on port 80 go to acme.php')
+# The CRLs and certificates of acme's own authorities at /pki/, on port 80
+# (never sent to HTTPS) and 443, for everybody - to pki.php.
+if 'location ^~ /pki/' not in text:
+    sockm = re.search(r'fastcgi_pass\s+([^;]+);', text)
+    zone = re.search(r'limit_req_zone\s+\$binary_remote_addr\s+zone=([A-Za-z0-9_]+):', text)
+    def pki_block(pad, tls):
+        lines = ['# The CRLs and certificates of acme\'s own authorities (docs/own-ca.md)',
+                 '# PKI-BEGIN', 'location = /pki { return 301 /pki/; }', 'location ^~ /pki/ {']
+        if zone:
+            lines += ['    limit_req zone=%s burst=40 nodelay;' % zone.group(1),
+                      '    limit_req_status 429;']
+        lines += ['    fastcgi_pass  %s;' % sockm.group(1),
+                  '    fastcgi_param SCRIPT_FILENAME /var/www/acme/pki.php;']
+        if tls:
+            lines.append('    fastcgi_param HTTPS on;')
+        lines += ['    include       fastcgi_params;', '    fastcgi_read_timeout 15s;', '}',
+                  '# PKI-END']
+        return ''.join(pad + ln + '\n' for ln in lines)
+    m80 = re.search(r'(?m)^([ \t]*)location / \{\n\s*return 301 https://\$host\$request_uri;', text)
+    if m80 and sockm:
+        text = text[:m80.start()] + pki_block(m80.group(1), False) + text[m80.start():]
+    ma = re.search(r'(?m)^([ \t]*)location /assets/', text)
+    if ma and sockm:
+        text = text[:ma.start()] + pki_block(ma.group(1), True) + '\n' + text[ma.start():]
+    if m80 or ma:
+        said.append('/pki/ serves the CRLs of acme\'s own authorities (port 80 and 443)')
 # the health check rate-limited like everything else (the zone is
 # whichever one the conf keeps for everybody; acme_all, as shipped).
 # Looked for in the whole block: the access lists put in front of

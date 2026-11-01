@@ -163,6 +163,13 @@ def web_desired(store):
     # address's on every node, wherever it is now.
     if CONFIG.get('acme'):
         out['acme'] = acme_http_names(store)
+    # The CRLs of acme's own authorities at /pki/ (port 80 and 443): asked
+    # only while publishing is on, so a request from before keeps its hash.
+    try:
+        if int(CONFIG.get('pki_publish', 1) or 0):
+            out['pki'] = True
+    except (TypeError, ValueError):
+        pass
     return out
 
 

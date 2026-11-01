@@ -464,6 +464,13 @@ def scan(store, by='the renewer'):
         tidy(store)
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('certs-tidy', 'tidying the certificates: %s' % e, 'warn', every=3600)
+    # The CRLs of acme's own authorities made again past half their life, so
+    # one published on acme (publish.py) never runs out.
+    try:
+        from acmelib.certs import publish
+        publish.refresh(store)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-crl', 'making the CRLs again: %s' % e, 'warn', every=3600)
     rows = store.db.rows("SELECT * FROM certs WHERE COALESCE(enabled, 1) <> 0 AND "
                          "COALESCE(auto_renew, 0) <> 0 AND COALESCE(issuer, '') <> ''")
     for r in rows:

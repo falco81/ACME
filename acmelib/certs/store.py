@@ -292,9 +292,9 @@ def plugin_public(store, family, row, full=False):
     out['title'] = (cls.title or cls.kind) if cls else row.get('kind')
     out['module_missing'] = cls is None
     out['actions'] = [dict(a) for a in (getattr(cls, 'actions', None) or [])] if cls else []
-    if family in ('issuer', 'challenge'):
-        dflt = store.get_meta('certs:default_%s' % family)
-        out['is_default'] = bool(dflt) and dflt == row.get('name')
+    from acmelib.certs import defaults as DF
+    dflt = DF.default_name(store, family)
+    out['is_default'] = bool(dflt) and dflt == row.get('name')
     if family == 'issuer':
         out['used_by'] = int(store.db.value('SELECT COUNT(*) FROM certs WHERE issuer = ?',
                                             (row['name'],), 0) or 0)
