@@ -858,7 +858,7 @@ function modStateCell(r) {
   var c = el('td', 'ct-modstate');
   var on = r.enabled === undefined || truthy(r.enabled);
   c.appendChild(el('span', 'tag ' + (on ? 'ok' : 'dim'), on ? 'on' : 'off'));
-  if (r.last_error && (!r.last_ok || (r.updated_error || r.last_try || 0) >= (r.last_ok || 0))) {
+  if (r.last_error) {
     var b = el('span', 'tag crit', 'failing');
     explain(b, String(r.last_error));
     c.appendChild(b);
@@ -868,7 +868,7 @@ function modStateCell(r) {
   return c;
 }
 function usedCount(r) {
-  var n = first(r.used, r.certs, r.cert_count, r.deploys_count, r.deploy_count,
+  var n = first(r.used_by, r.used, r.certs, r.cert_count, r.deploys_count, r.deploy_count,
                 Array.isArray(r.deploys) ? r.deploys.length : undefined);
   return n === undefined ? null : Number(n);
 }
@@ -906,9 +906,9 @@ function drawModTab(key, live) {
         tr.appendChild(nc);
         var kc = el('td');
         var p = plugOf(m.family, r.kind);
-        kc.appendChild(data('div', '', p ? p.title : r.kind));
-        kc.appendChild(data('div', 'muted small', p ? (p.vendor || r.kind) : (PLUG ? 'module missing: ' + r.kind : r.kind)));
-        if (PLUG && !p) kc.querySelector('.small').className = 'small ct-badtext';
+        var missingMod = r.module_missing || (PLUG && !p);
+        kc.appendChild(data('div', '', p ? p.title : (r.title || r.kind)));
+        kc.appendChild(data('div', missingMod ? 'small ct-badtext' : 'muted small', missingMod ? 'module missing: ' + r.kind : (p ? (p.vendor || r.kind) : r.kind)));
         tr.appendChild(kc);
         tr.appendChild(td('', modSummary(m, r)));
         var n = usedCount(r);
@@ -937,22 +937,50 @@ function drawModTab(key, live) {
   });
   var s = $(m.said);
 }
+/** A test answers {ok, said, job_id, steps} - `ok: false` is its answer, not
+    a fault of the request, so it is read whatever it says (api() would turn
+    it into an error without the words). */
+function askRaw(path, body, wait) {
+  var opts = {credentials: 'same-origin', method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(body || {})};
+  var timer = null;
+  if (typeof AbortController === 'function') {
+    var ac = new AbortController();
+    opts.signal = ac.signal;
+    timer = setTimeout(function () { ac.abort(); }, (wait || 120) * 1000);
+  }
+  return fetch('?api=' + apiName(path), opts).then(function (r) {
+    clearTimeout(timer);
+    return r.text().then(function (t) {
+      var d = null;
+      try { d = JSON.parse(t); } catch (e) { }
+      if (!d) { var e1 = new Error(r.status === 404 ? 'not available yet' : 'HTTP ' + r.status); e1.status = r.status; e1.missing = r.status === 404; throw e1; }
+      if (!r.ok) {
+        var e2 = new Error(d.error || ('HTTP ' + r.status));
+        e2.status = r.status;
+        e2.missing = r.status === 404 && /no such endpoint|unknown endpoint/i.test(String(d.error || ''));
+        throw e2;
+      }
+      return d;
+    });
+  }, function () { clearTimeout(timer); throw new Error('the server could not be reached'); });
+}
 function modTest(key, r, button, form) {
   var m = MODS[key];
   busy(button, true);
   var body = {id: r && r.id, name: r && r.name};
-  if (form) { body.kind = form.kind; body.config = form.config; body.name = form.name || body.name; }
-  return capi(m.list + '/test', body, 120).then(function (d) {
-    var words = said(d, 'it works');
-    if (d && (d.ok === false || d.works === false)) throw new Error(words);
-    if (d && d.job_id && !form) { jobStarted(d, words); return {ok: true, words: words}; }
-    toast(words, 'good');
-    return {ok: true, words: words};
+  if (form) { body.kind = form.kind; body.config = form.config; body.name = form.name || body.name; if (!r) delete body.id; }
+  return askRaw(m.list + '/test', body, 150).then(function (d) {
+    var good = d.ok !== false && !d.error;
+    var words = String(d.said || d.message || d.error || (good ? 'it works' : 'it does not work'));
+    toast(words, good ? 'good' : 'bad');
+    if (!good && d.job_id && !form) over(function () { jobPeek(d.job_id); });
+    return {ok: good, words: words, job_id: d.job_id};
   }).catch(function (e) {
     if (e && e.missing) { fail(e); return {ok: false, words: 'not available yet'}; }
     toast(wordsOf(e), 'bad');
-    return {ok: false, words: wordsOf(e), detail: e && e.detail};
-  }).then(function (x) { busy(button, false); if (!form) drawModTab(key, true); return x; });
+    return {ok: false, words: wordsOf(e)};
+  }).then(function (x) { busy(button, false); if (!form) { delete LISTS[key]; drawModTab(key, true); } return x; });
 }
 function modDelete(key, r) {
   var m = MODS[key];
@@ -999,8 +1027,15 @@ function modForm(key, row, p, fromPick) {
     testSaid.className = 'said';
     testSaid.textContent = 'Trying…';
     modTest(key, row, b, g).then(function (x) {
+      clear(testSaid);
       testSaid.className = 'said ' + (x.ok ? 'good' : 'bad');
-      testSaid.textContent = x.words;
+      testSaid.appendChild(data('span', '', x.words));
+      if (x.job_id) {
+        var st = el('button', 'btn small ct-steps-btn', 'every step');
+        st.type = 'button';
+        st.onclick = function () { over(function () { jobPeek(x.job_id); }); };
+        testSaid.appendChild(st);
+      }
     });
   }});
   if (row && FULL) buttons.push({words: 'Take it away', cls: 'danger', icon: 'trash', go: function () {
@@ -1062,9 +1097,27 @@ function deployTag(d, certVersion) {
   if (st === 'failed' && d.last_error) explain(t, String(d.last_error));
   return t;
 }
+/* What is deployed on one target. The daemon lists deployments by
+   certificate; where it does not answer GET /api/deploys?target=, they are
+   gathered from the certificates that have any. */
 function deploysOfTarget(r) {
+  if (Array.isArray(r.deploys)) return Promise.resolve(r.deploys);
   return capi('deploys' + qs({target: r.name})).then(function (d) { return rowsOf(d, 'deploys'); })
-    .catch(function (e) { if (Array.isArray(r.deploys)) return r.deploys; throw e; });
+    .catch(function (e) {
+      if (!e || !e.missing) throw e;
+      return capi('certs' + qs({per: 1000})).then(function (d) {
+        var some = rowsOf(d, 'certs').filter(function (c) { return Number(c.deploys || 0) > 0; }).slice(0, 60);
+        return Promise.all(some.map(function (c) {
+          return capi('certs/one' + qs({id: c.id})).then(function (x) {
+            return rowsOf(x.deploys).filter(function (dp) { return dp.target === r.name; }).map(function (dp) {
+              dp.cert_name = dp.cert_name || c.name;
+              dp.cert_version = (x.cert && x.cert.version) || c.version;
+              return dp;
+            });
+          }).catch(function () { return []; });
+        })).then(function (lists) { return [].concat.apply([], lists); });
+      });
+    });
 }
 function targetPeek(r) {
   var m = MODS.targets;
@@ -1156,7 +1209,7 @@ function deployTable(rows, o) {
       if (tg) nc.appendChild(data('div', 'muted small', plugTitle('target', tg.kind)));
     }
     tr.appendChild(nc);
-    tr.appendChild(td('', deployTag(d, o.cert && o.cert.version)));
+    tr.appendChild(td('', deployTag(d, (o.cert && o.cert.version) || d.cert_version)));
     tr.appendChild(td('num', d.deployed_version ? 'v' + d.deployed_version : '–'));
     tr.appendChild(d.last_ok ? stampCell(d.last_ok) : td('muted', d.last_try ? 'tried ' + ago(d.last_try) : 'never'));
     var opt = obj(d.options);
@@ -2247,38 +2300,44 @@ function importDialog() {
   };
   var drawFound = function (d) {
     clear(found);
-    if (d.needs_password || d.encrypted && !rowsOf(d.certs || d.certificates).length) { found.appendChild(askPass(d.message || '')); return; }
     var certs = rowsOf(d.certs || d.certificates || (d.cert ? [d.cert] : []));
-    var key = d.key || (d.has_key ? {} : null);
+    if (d.needs_password && !certs.length) { found.appendChild(askPass('')); return; }
+    var hasKey = !!(d.has_key || d.key);
     var box = el('div', 'ct-found');
     var sum = el('div', 'ct-found-sum');
-    sum.appendChild(el('span', 'tag info', String(d.format || d.kind || (held.main.name.split('.').pop() || '')).toUpperCase()));
+    sum.appendChild(data('span', 'tag info', String(d.format || (held.main.name.split('.').pop() || '')).toUpperCase()));
     sum.appendChild(el('span', '', certs.length === 1 ? '1 certificate' : certs.length + ' certificates'));
-    sum.appendChild(el('span', 'tag ' + (key ? 'ok' : 'dim'), key ? 'with its key' : 'no key'));
-    if (key && key.matches === false) sum.appendChild(el('span', 'tag crit', 'the key does not match'));
+    sum.appendChild(el('span', 'tag ' + (hasKey ? 'ok' : 'dim'), hasKey ? 'with its key' : 'no key'));
+    if (d.key_matches === true) sum.appendChild(el('span', 'tag ok', 'the key fits'));
+    if (d.key_matches === false) sum.appendChild(el('span', 'tag crit', 'the key does not fit'));
     box.appendChild(sum);
+    /* The certificate itself first, then the chain above it. */
+    var leafAt = certs.map(function (x) { return !!x.leaf; }).indexOf(true);
+    if (leafAt > 0) certs.unshift(certs.splice(leafAt, 1)[0]);
     certs.forEach(function (one, i) {
-      var r = el('div', 'ct-found-one' + (i === 0 ? ' leaf' : ''));
+      var leaf = one.leaf || (leafAt < 0 && i === 0);
+      var r = el('div', 'ct-found-one' + (leaf ? ' leaf' : ''));
       var t = el('div', 'ct-found-t');
-      t.appendChild(data('b', '', one.cn || one.subject || one.subject_dn || '?'));
-      if (one.is_ca || one.ca) t.appendChild(el('span', 'tag violet', one.self_signed ? 'root' : 'authority'));
-      else if (i === 0) t.appendChild(el('span', 'tag info', 'the certificate'));
+      t.appendChild(data('b', '', first(one.cn, one.subject_dn, '?')));
+      if (one.is_ca) t.appendChild(el('span', 'tag violet', one.self_signed ? 'root' : 'authority'));
+      else if (leaf) t.appendChild(el('span', 'tag info', 'the certificate'));
       if (one.not_after) t.appendChild(daysTag(one.not_after));
       r.appendChild(t);
-      if (arr(one.names).length) r.appendChild(namesChips(one.names, 6));
+      if (one.error) r.appendChild(data('div', 'ct-bad small', one.error));
+      if (arr(one.names).length && !one.is_ca) r.appendChild(namesChips(one.names, 6));
       var sub = el('div', 'muted small');
       sub.appendChild(document.createTextNode('issued by '));
-      sub.appendChild(mono(one.issuer || one.issuer_dn || '?'));
+      sub.appendChild(mono(first(one.issuer_dn, typeof one.issuer === 'string' ? one.issuer : '', '?')));
       if (one.not_before) sub.appendChild(document.createTextNode(' · ' + dayOnly(one.not_before) + ' – ' + dayOnly(one.not_after)));
-      if (one.key_type) sub.appendChild(document.createTextNode(' · ' + keyWords(one.key_type)));
+      if (one.key_type) sub.appendChild(document.createTextNode(' · ' + keyWords(one.key_type) + (one.key_bits ? ' ' + one.key_bits : '')));
       r.appendChild(sub);
       box.appendChild(r);
     });
-    if (key && (key.type || key.key_type)) box.appendChild(el('div', 'muted small', 'Key: ' + keyWords(key.type || key.key_type) + (key.matches ? ' · matches the certificate' : '')));
-    rowsOf(d.warnings).forEach(function (w) { box.appendChild(data('div', 'ct-warnline', String(w))); });
+    rowsOf(d.notes || d.warnings).forEach(function (w) { box.appendChild(data('div', 'ct-warnline', String(w))); });
     found.appendChild(box);
-    keyRow.hidden = !!key;
-    if (!name.value && certs[0]) name.value = certs[0].cn || arr(certs[0].names)[0] || '';
+    keyRow.hidden = hasKey;
+    var lf = certs[0];
+    if (!name.value && lf) name.value = lf.cn || arr(lf.names)[0] || '';
   };
   var take = function (files) {
     files.forEach(function (f) {
@@ -2563,6 +2622,11 @@ function caNode(c, depth, kids) {
   t.appendChild(data('b', '', c.name));
   t.appendChild(el('span', 'tag ' + (depth ? 'info' : 'violet'), depth ? 'intermediate' : 'root'));
   if (truthy(c.external)) t.appendChild(el('span', 'tag dim', 'imported'));
+  if (c.has_key === false) {
+    var nk = el('span', 'tag warn', 'no key');
+    explain(nk, 'acme has only its certificate: it cannot sign with it.');
+    t.appendChild(nk);
+  }
   if (c.disabled && truthy(c.disabled)) t.appendChild(el('span', 'tag dim', 'off'));
   w.appendChild(t);
   w.appendChild(data('div', 'mono small muted ct-node-dn', c.subject_dn || ''));
@@ -2600,13 +2664,13 @@ function caPeek(id) {
     var issued = rowsOf(d.issued || d.signed || c.issued_list);
     var back = function () { caPeek(c.id); };
     var buttons = [{words: 'Close', close: true}];
+    if (MANAGE) buttons.push({words: 'New CRL', icon: 'refresh', go: function (b) {
+      busy(b, true);
+      capi('cas/crl', {id: c.id}).then(function (x) { toast(said(x, 'a new CRL was made'), 'good'); back(); }).catch(fail).then(function () { busy(b, false); });
+    }});
     if (FULL) {
       buttons.unshift({words: 'Delete', cls: 'danger', icon: 'trash', left: true, go: function () {
         capi('cas/delete', {id: c.id}).then(function (x) { toast(said(x, 'deleted'), 'good'); closeModal(); loadCas(); }).catch(fail);
-      }});
-      buttons.push({words: 'New CRL', icon: 'refresh', go: function (b) {
-        busy(b, true);
-        capi('cas/crl', {id: c.id}).then(function (x) { toast(said(x, 'a new CRL was made'), 'good'); back(); }).catch(fail).then(function () { busy(b, false); });
       }});
       buttons.push({words: 'Create an intermediate', icon: 'add', go: function () { over(function () { caCreate(c); }, back); }});
       buttons.push({words: 'Sign a CSR', cls: 'primary', icon: 'key', go: function () { over(function () { signCsr(c); }, back); }});
@@ -2623,6 +2687,7 @@ function caPeek(id) {
         t.appendChild(data('span', 'ct-head-name', c.name));
         t.appendChild(el('span', 'tag ' + (c.parent_id ? 'info' : 'violet'), c.parent_id ? 'intermediate' : 'root'));
         if (c.not_after) t.appendChild(daysTag(c.not_after));
+        if (c.has_key === false) t.appendChild(el('span', 'tag warn', 'no key - it cannot sign'));
         hw.appendChild(t);
         hw.appendChild(data('div', 'mono small muted', c.subject_dn || ''));
         head.appendChild(hw);
@@ -2655,11 +2720,13 @@ function caPeek(id) {
           c.ocsp_url ? ['OCSP', mono(c.ocsp_url)] : null
         ]));
         var ex = el('div', 'btnrow');
-        [['cert', 'Certificate'], ['chain', 'Chain'], ['crl', 'CRL']].forEach(function (w) {
+        [['cert-pem', 'Certificate', 'cert'], ['cert-der', 'DER', 'cert-der'], ['chain-pem', 'Chain', 'chain'], ['crl', 'CRL', 'crl']].forEach(function (w) {
           var b = cmdButton(w[1], 'download', 'small');
           b.onclick = function () {
             busy(b, true);
-            capi('cas/export', {id: c.id, what: w[0], format: w[0]}).then(download).catch(fail).then(function () { busy(b, false); });
+            /* The CRL as it is made now (cas/crl makes it and hands it over). */
+            var ask = w[0] === 'crl' && MANAGE ? capi('cas/crl', {id: c.id}) : capi('cas/export', {id: c.id, format: w[0], what: w[2]});
+            ask.then(function (x) { download(x); if (w[0] === 'crl') loadCas(true); }).catch(fail).then(function () { busy(b, false); });
           };
           ex.appendChild(b);
         });
@@ -3384,7 +3451,7 @@ function weekPeek(p) {
    Settings: Renewal and notices, DNS server
    ========================================================================== */
 var DNS = {d: null};
-var RTYPES = ['TXT', 'A', 'AAAA', 'CNAME', 'NS', 'CAA', 'MX', 'SRV'];
+var RTYPES = ['TXT', 'A', 'AAAA', 'CNAME', 'NS', 'CAA', 'MX', 'SRV', 'PTR'];
 function loadDns(live) {
   var st = $('dns-state'), host = $('dns-table');
   if (!st || !host) return;
@@ -3400,27 +3467,42 @@ function loadDns(live) {
   });
 }
 function drawDnsState(box, d) {
-  var listen = arr(d.listen || d.listening_on);
-  var on = d.listening === undefined ? !!listen.length : !!(Array.isArray(d.listening) ? d.listening.length : d.listening);
-  var enabled = d.enabled === undefined ? true : truthy(d.enabled);
+  var sv = obj(d.server), set = obj(d.settings);
+  var listen = arr(first(sv.listening && arr(sv.listening).length ? sv.listening : null, sv.listen, set.dns_listen, d.listen));
+  var enabled = set.dns_server === undefined ? (d.enabled === undefined || truthy(d.enabled)) : truthy(set.dns_server);
+  var running = sv.running === undefined ? !!listen.length : !!sv.running;
+  var good = sv.ok === undefined ? running : !!sv.ok;
   var h = el('h2', '', 'The server');
-  var pill = el('span', 'pill ' + (!enabled ? 'unknown' : (on ? 'ok' : 'crit')) + ' ct-dnspill');
+  var pill = el('span', 'pill ' + (!enabled ? 'unknown' : (good ? 'ok' : (running ? 'warn' : 'crit'))) + ' ct-dnspill');
   pill.appendChild(el('span', 'dot'));
-  pill.appendChild(el('span', '', !enabled ? 'switched off' : (on ? 'answering' : 'not listening')));
+  pill.appendChild(el('span', '', !enabled ? 'switched off' : (good ? 'answering' : (running ? 'answering, with trouble' : 'not listening'))));
+  if (sv.said) explain(pill, String(sv.said));
   var right = el('span', 'right');
   right.appendChild(pill);
   h.appendChild(right);
   box.appendChild(h);
-  var ns = arr(d.ns || d.ns_names || d.nameservers);
+  var ns = arr(first(arr(sv.ns).length ? sv.ns : null, set.dns_ns_names, d.ns));
+  var zone = first(d.zone, arr(sv.zones)[0], set.dns_zone, '');
+  d.zone = zone;
   box.appendChild(factsRow([
-    ['Zone', d.zone ? mono(d.zone) : 'not set'],
+    ['Zone', zone ? mono(String(zone)) : 'not set'],
     ['Name servers', ns.length ? mono(ns.join(', ')) : '–'],
-    ['Listens on', (Array.isArray(d.listening) && d.listening.length ? d.listening : listen).length
-      ? mono((Array.isArray(d.listening) && d.listening.length ? d.listening : listen).join(', ')) : '–'],
+    ['Listens on', listen.length ? mono(listen.join(', ') + (sv.port && String(listen.join('')).indexOf(':') < 0 ? ' · ' + sv.port : '')) : '–'],
     ['Records', num(rowsOf(d.records).length)],
-    d.queries !== undefined ? ['Answered', num(Number(d.queries))] : null
+    sv.queries !== undefined ? ['Answered', num(Number(sv.queries))] : null,
+    sv.started ? ['Up since', ago(sv.started)] : null
   ]));
-  if (d.error || d.last_error) box.appendChild(data('div', 'ct-errbox', String(d.error || d.last_error)));
+  rowsOf(sv.failed).forEach(function (f) {
+    box.appendChild(data('div', 'ct-errbox', String(f.words || f.error || f.said || JSON.stringify(f))));
+  });
+  rowsOf(sv.problems).forEach(function (p) { box.appendChild(data('div', 'ct-warnline', String(p))); });
+  if (sv.records_error) box.appendChild(data('div', 'ct-errbox', String(sv.records_error)));
+  if (sv.last_error) box.appendChild(data('div', 'ct-warnline', String(sv.last_error) + (sv.last_error_at ? ' · ' + ago(sv.last_error_at) : '')));
+  if (d.installed === false) box.appendChild(el('p', 'ct-bad', 'The DNS server is not installed with this version of acme.'));
+  if (!enabled) box.appendChild(el('p', 'note', 'It is switched off: switch it on below, with the zone it answers for.'));
+  d.ns = ns;
+  d.ns_addresses = arr(set.dns_ns_addresses);
+  if (d.error) box.appendChild(data('div', 'ct-errbox', String(d.error)));
   if (d.zone) {
     var g = el('div', 'ct-guide');
     g.appendChild(el('b', 'small', 'In your DNS'));
@@ -3429,7 +3511,11 @@ function drawDnsState(box, d) {
     if (!lines.length) {
       var parent = String(d.zone).replace(/^[^.]+\./, '');
       ns.forEach(function (n) { lines.push(d.zone + '.  IN NS  ' + n + '.'); });
-      arr(d.ns_addresses || d.glue).forEach(function (a) { lines.push(String(a)); });
+      arr(d.ns_addresses || d.glue).forEach(function (a, i) {
+        var n = ns[i] || ns[0];
+        if (n && /^[0-9.]+$/.test(a)) lines.push(n + '.  IN A  ' + a);
+        else if (n && /:/.test(a)) lines.push(n + '.  IN AAAA  ' + a);
+      });
       lines.push('_acme-challenge.www.example.com.  IN CNAME  www.example.com.' + d.zone + '.');
       if (parent && !ns.length) lines.push('; ' + parent);
     }
@@ -3464,7 +3550,7 @@ function drawDnsRecords(live) {
       var ex = r.expires ? (r.expires > now() ? 'in ' + span(r.expires - now()) : 'now') : 'kept';
       tr.appendChild(td('muted small', ex));
       var by = td('muted small', '');
-      by.appendChild(data('span', '', r.owner || (r.expires ? 'a job' : 'by hand')));
+      by.appendChild(data('span', '', String(r.owner || (r.expires ? 'a job' : 'by hand')).replace(/^admin:/, '')));
       if (r.note) by.appendChild(data('div', '', r.note));
       tr.appendChild(by);
       var tools = el('td', 'rowtools');
@@ -3487,9 +3573,9 @@ function dnsAdd() {
   var f = {};
   var zone = (DNS.d && DNS.d.zone) || '';
   modal('A record of your own', function (body) {
-    body.appendChild(el('p', 'note', 'Answered by acme’s DNS server as long as it is here. A name without a dot at its end is taken inside the zone' + (zone ? ' (' + zone + ')' : '') + '.'));
+    body.appendChild(el('p', 'note', 'Answered by acme’s DNS server as long as it is here. The whole name, or @ for the zone itself' + (zone ? ' (' + zone + ')' : '') + '.'));
     var g = el('div', 'formgrid');
-    f.name = textBox('', zone ? 'www.' + zone : 'www', 'mono');
+    f.name = textBox('', zone ? 'www.' + zone : 'www.acme.example.com', 'mono');
     noI18n(f.name);
     g.appendChild(formField('Name', f.name));
     f.type = selectBox(RTYPES.map(function (t) { return [t, t]; }), 'TXT');

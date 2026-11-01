@@ -244,7 +244,7 @@ the other node in - it asks before restarting PostgreSQL.
 
 Either on the pages - *Settings → The database*: *Try it → Set it up → Carry
 everything across → Start using it* - or on the command line as below. Both
-carry everything: settings, tokens, accounts, logs, events.
+carry everything: settings, certificates and keys, accounts, jobs, logs, events.
 
 1. PostgreSQL ready as in [section 3](#3-postgresql-16-on-almalinux-9), and the
    driver installed (`dnf install python3-psycopg2`, or `./install.sh
@@ -282,8 +282,8 @@ carry everything: settings, tokens, accounts, logs, events.
    ```bash
    systemctl start acme
    acme --status                 # "the database: acme@127.0.0.1:5432/acme (PostgreSQL 16...)"
-   acme --tokens | tail -1       # the same number of tokens as before
-   acme --radtest you@example.cz 123456
+   acme --certs | tail -1        # the same certificates as before
+   acme --renew NAME             # one renewal through the new database
    ```
 
 **Going back** if something is wrong: `systemctl stop acme`, then
@@ -295,7 +295,7 @@ touched and is used again as it was.
 ## 5. Building a cluster of two
 
 Two nodes, each with its own PostgreSQL, replicating both ways; both answer
-RADIUS and the pages. Read [high-availability.md](high-availability.md) once
+the pages, one renews at a time. Read [high-availability.md](high-availability.md) once
 for how it works.
 
 **Before you start**
@@ -318,22 +318,21 @@ acme --ha-setup --ha-peer 192.0.2.12 --node-name acme1
 It asks before restarting PostgreSQL (`wal_level = logical`, listening on the
 network), lets acme2 in (`pg_hba.conf`, firewalld), publishes every table,
 numbers acme1's rows odd, and writes `/root/acme-join-acme1.json` - the bundle
-that carries the database account and the key of the tokens, locked with a
+that carries the database account and the sealing key, locked with a
 passphrase printed **once**. Write the passphrase down.
 
 **On acme2 (the second node)**
 
 ```bash
 tar xzf acme-X.Y.Z.tar.gz && cd acme-X.Y.Z
-./install.sh --server-name acme2.example.cz --with-db postgres \
-             --radius-from 198.51.100.1/32,198.51.100.2/32 --yes
+./install.sh --server-name acme2.example.cz --with-db postgres --yes
 scp root@192.0.2.11:/root/acme-join-acme1.json /root/
 acme --ha-join /root/acme-join-acme1.json --node-name acme2
 ```
 
 It installs PostgreSQL 16 if it is missing, prepares it the same way, copies
-every row from acme1, sets both directions of replication up, puts the key of
-the tokens in place and restarts acme. The accounts of acme2's own fresh
+every row from acme1, sets both directions of replication up, puts the sealing
+key in place and restarts acme. The accounts of acme2's own fresh
 database are gone: sign in with the cluster's accounts.
 
 **Check it, on either node**
@@ -341,7 +340,7 @@ database are gone: sign in with the cluster's accounts.
 ```bash
 acme --ha-status          # both nodes "ok", "in ... running", "out ... taken"
 acme --ha-compare         # "both nodes hold the same rows"
-acme --radtest you@example.cz 123456      # on each node
+acme --certs              # the same on each node
 ```
 
 On the pages, *Test → On the node* asks either node.
@@ -352,9 +351,11 @@ On the pages, *Test → On the node* asks either node.
 - your own load balancer: [load-balancers.md](load-balancers.md); then tell
   both nodes its address: `acme --trusted-proxy 192.0.2.5/32` (on each node).
 
-**RADIUS**: give the VPN both nodes as servers of one group (Cisco ASA: two
-`aaa-server` hosts with the same key - [load-balancers.md](load-balancers.md#cisco-asa--radius-without-a-balancer)).
-The clients' addresses and secrets are entered once and are used by both nodes.
+**Renewals** run on one node at a time (the one holding the VIP address, or
+the leader of the lease); the targets and their secrets are entered once and
+used by whichever node renews. Both nodes need to reach the CAs and the
+targets, and - for HTTP-01 and acme's own DNS server - to be reachable on 80
+and 53 where the CA looks (the VIP address, or both behind the names).
 
 ---
 
@@ -372,7 +373,6 @@ Things to watch (a monitoring system can ask the same over HTTP):
 | What | How | Healthy |
 |---|---|---|
 | node answers the pages | `GET https://NODE/healthz` | `200 ok NODE` |
-| node answers RADIUS | `GET https://NODE/healthz?check=radius` | `200` |
 | replication | `GET https://NODE/healthz?check=all` | `200` (`503 degraded: replication ...` when not) |
 | certificates | `acme --web-status`, *Settings → Certificates* | more than 21 days left |
 | disk | `df -h /var/lib/pgsql /var/lib/acme` | replication keeps up to 16 GB for a node that is away |
@@ -469,8 +469,8 @@ A reboot, a network cut, a power failure - hours, or days.
 
 **What happens by itself**
 
-- The other node goes on answering RADIUS and the pages alone. The VPN uses
-  the RADIUS server that answers; the VIP address (if on) moves to it within
+- The other node goes on renewing, deploying and answering the pages alone;
+  the VIP address (if on) moves to it within
   a few seconds; a load balancer stops sending to the node that fails `/healthz`.
 - Everything written meanwhile on the working node waits for the other in a
   replication slot, up to 16 GB of changes (far more than months of normal use).
@@ -505,7 +505,7 @@ The exceptions, which need a rebuild of the node that was away
   ([section 10](#10-split-network-both-nodes-ran-alone)).
 
 If `acme --ha-compare` still says *DIFFERENT* a minute after the node is back
-(and not only in `radius_log`, `acme_log` or `events`, which grow all the
+(and not only in `cert_jobs`, `acme_log` or `events`, which grow all the
 time), rebuild the node that was away.
 
 ---
@@ -518,7 +518,7 @@ back, both streams of changes flow again; a row changed on both sides ends
 up as whichever change arrived last on each node - the two may disagree.
 
 1. Decide which node holds the truth - usually the one that answered most
-   (the VPN's primary server, or the one holding the VIP address).
+   (the one holding the VIP address).
 2. On **the other** node:
 
    ```bash
@@ -530,8 +530,9 @@ up as whichever change arrived last on each node - the two may disagree.
    both directions up afresh and starts acme again.
 3. `acme --ha-compare` on either node: the same rows.
 
-Tokens enrolled or changed only on the rebuilt node during the split are in
-its safety copy, not in the cluster: enrol them again.
+Certificates renewed or changed only on the rebuilt node during the split are
+in its safety copy, not in the cluster: renew them again (`acme --renew NAME
+--force`), and check its deployments.
 
 If the VIP address was on both nodes during the split, see
 [tls-and-vip.md, "On both nodes at once"](tls-and-vip.md#on-both-nodes-at-once-split-brain).
@@ -553,14 +554,13 @@ acme --ha-standalone --yes
 
 It takes the replication away (and the slot that kept changes for acme1 - so
 they stop filling the disk), forgets acme1, and makes `/etc/acme/config.json`
-a single server's again. The database, the key, the settings and the tokens
+a single server's again. The database, the key, the settings and the certificates
 stay. acme restarts once (a few seconds).
 
 **Build the new acme1** - a fresh AlmaLinux 9, the same acme version:
 
 ```bash
-./install.sh --server-name acme1.example.cz --with-db postgres \
-             --radius-from 198.51.100.1/32,198.51.100.2/32 --yes
+./install.sh --server-name acme1.example.cz --with-db postgres --yes
 ```
 
 **On acme2: make it the first node of a new pair**
@@ -620,10 +620,10 @@ other…*. Then `acme --ha-compare`.
 
 ## 13. Leaving the cluster: back to one server
 
-Without losing settings, tokens or accounts. Decide which node stays (here
+Without losing settings, certificates or accounts. Decide which node stays (here
 acme1).
 
-1. Take acme2 out of the VPN's RADIUS group and out of the load balancer.
+1. Take acme2 out of the load balancer (and out of DNS where the CAs look).
 2. On **acme1**:
 
    ```bash
@@ -687,7 +687,9 @@ address and tells the other node, which puts its own side right by itself.
 Both changed, a node that cannot be reached, what is never changed by it,
 checking and troubleshooting: [renaming-and-readdressing.md](renaming-and-readdressing.md).
 
-Change the RADIUS server's address on the VPN and the load balancer too.
+Change the address on the load balancer, in DNS (the names the CAs look up for
+HTTP-01, the NS of a delegated `_acme-challenge`) and on the targets that
+allow acme in by address too.
 
 ---
 
@@ -711,7 +713,7 @@ acme --restore /var/lib/acme/backups/acme-YYYYMMDD-HHMMSS.json.gz --yes
 
 In a cluster: put it back on **one** node - the rows go over to the other by
 replication. A copy sealed with a different key is refused in a cluster (the
-other node could not open its tokens). A *dump* (`.pgc`, `.sql.gz`) is
+other node could not open its sealed keys). A *dump* (`.pgc`, `.sql.gz`) is
 refused while replication runs: switch replication off
 ([section 13](#13-leaving-the-cluster-back-to-one-server)), restore on one
 node, and build the cluster again.
@@ -733,7 +735,7 @@ where it was made: the node, its database, its place in a cluster and its
 `config.json` (the database password left out). That file is only to read -
 it is never put back, as it belongs to the machine, not to the data.
 
-A copy holds **everything**: tokens, settings, clients, realms, directories,
+A copy holds **everything**: certificates and their keys, authorities, settings, issuers, challenges, targets,
 accounts, the certificates of the pages and the VIP address with their keys,
 the firewall and who may reach which page. Put back on a new machine with its
 `.key` file beside it, the new machine is the old one. On the command line a
@@ -741,9 +743,9 @@ copy without a full administrator in it can be put back too (an account is
 made after it with `acme --add-user NAME --role fulladmin`); the pages refuse
 it, so as not to lock you out.
 
-### The configuration alone, as JSON (1.0.62)
+### The configuration alone, as JSON
 
-Everything except the tokens and the logs - for moving a setup to another
+Everything except the certificates, their keys and the logs - for moving a setup to another
 installation, or keeping it under version control:
 
 ```bash
@@ -753,12 +755,11 @@ acme --import-config /root/acme-config.json --yes           # added to what is h
 acme --import-config /root/acme-config.json --yes --replace # exactly the file
 ```
 
-Secrets kept off the command line, where `ps` would show them (1.0.136):
+Secrets kept off the command line, where `ps` would show them:
 
 ```bash
-ACME_SECRET='…' acme --add-client ASA --address 192.0.2.1 --secret -   # or asked
 ACME_VALUE_SMTP_PASSWORD='…' acme --set smtp_password=@env
-ACME_RADTEST_PASSWORD='…' acme --radtest novak@example.cz -              # or asked
+acme --set smtp_password=-                                               # or asked
 ```
 
 `acme --set` refuses what the pages refuse: `ha_*` (the cluster has its own
@@ -766,11 +767,11 @@ steps) and, without `--yes`, `db_*` - a database named that way opens empty at
 the next restart; `--yes` only to point at the same data somewhere new.
 
 On the pages (*Settings → Export and import*) *Export with the secrets* gives
-a file **locked with a passphrase** made there and shown once (1.0.136) - the
+a file **locked with a passphrase** made there and shown once - the
 file leaves the machine with every secret in it. Importing it asks for the
 passphrase; on the command line `acme --import-config FILE --yes` asks for it
 too (or reads `--passphrase-file FILE`, or `ACME_PASSPHRASE`). In it: the settings
-(each node's own too), the RADIUS clients, the realms, the directories, the
+(each node's own too), the issuers, the challenges, the targets, the
 accounts of the pages, the certificates and keys of the pages and the web
 address, the VIP address, who may reach which page, the firewall and the mail
 server's authorities. Without `--with-secrets` the client secrets, passwords,
@@ -831,7 +832,7 @@ lockout still runs - and clears one (*Clear*) or all of them (*Clear them all*),
 written into Events. The counts live in each node's memory, so
 `systemctl restart acme` forgets them as well. How many tries and how long the
 wait are: *Settings → Accounts* (`login_tries`, `login_wait_min`) and *The
-enrolment pages* (`portal_tries`, `portal_wait_min`). Behind a load balancer
+portal* (`portal_tries`, `portal_wait_min`). Behind a load balancer
 or proxy that hides the people's addresses, everybody shares one - see
 load-balancers.md.
 
@@ -864,29 +865,21 @@ acme --vip off                          # off: keepalived stops on both
 ```
 
 It moves by itself when the node holding it goes into maintenance, is
-upgraded or rebuilt, stops answering its own `/healthz`, stops listening for
-RADIUS, or is gone; and comes back to the node it is meant to be on once
+upgraded or rebuilt, stops answering its own `/healthz`, or is gone; and comes back to the node it is meant to be on once
 that is well.
 
 ---
 
 ## 20. The picture on the sign-in
 
-*Settings → The enrolment pages → The picture on the sign-in* has two tabs:
-**The enrolment pages** and **The administration**. Each sign-in has its own
+*Settings → The portal → The picture on the sign-in* has two tabs:
+**The portal** and **The administration**. Each sign-in has its own
 picture, picked with a preview (full admin only). A press on one, an upload,
 *Back to the default* and *Take my own picture away* only mark the change;
 it is made with *Save the changes* at the bottom, as every other setting:
 
 - the drawings that come with acme, in the pages' own colours (they follow
-  the light and the dark look): the phone, the check and the way in (the
-  enrolment pages' default); RADIUS, the code and Active Directory (the
-  administration's default); the authenticator app with its codes; how a
-  code is made (the key and the time - TOTP); the six digits with the 30
-  seconds running down; the name, the password and the code; the VPN asking
-  for the code; the codes in time, a step either side; recovery codes for
-  when the phone is gone; a 30-second clock; two keys for one door; the QR
-  code and the app; a padlock with six digits;
+  the light and the dark look);
 - *No picture* - only the sign-in;
 - *A picture of your own* - a logo: PNG, JPEG, GIF, WebP or SVG, at most
   512 KB, one for each sign-in. An SVG with a script, an event handler or a

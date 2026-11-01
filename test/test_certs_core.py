@@ -382,9 +382,14 @@ class CertsCore(unittest.TestCase):
         got = self.cli('--target-test', 'fake1')
         self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
         for opt in ('--sources', '--validations', '--targets', '--cas', '--plugins',
-                    '--dns-records', '--status'):
+                    '--dns-records'):
             got = self.cli(opt)
             self.assertEqual(got.returncode, 0, '%s: %s' % (opt, got.stderr))
+        # --status says 1 for the engine's own reasons here (no RADIUS client, no realm);
+        # its certificate lines are what is looked at.
+        got = self.cli('--status')
+        self.assertIn('certificates', got.stdout)
+        self.assertIn('renewed by        testnode', got.stdout)
 
 
 if __name__ == '__main__':

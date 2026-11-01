@@ -139,7 +139,9 @@ class Zones(object):
                 serial = max(serial, int(float(r.get('created') or 0)))
             except (TypeError, ValueError):
                 pass
-        cfgsum = zlib.crc32(repr(sorted((k, str(cfg.get(k))) for k in DEFAULTS)).encode())
+        cfgsum = zlib.crc32(repr([str(cfg.get(k)) for k in (       # what is answered, not where
+            'dns_zone', 'dns_ns_names', 'dns_ns_addresses', 'dns_soa_mail', 'dns_ttl',
+            'dns_static')]).encode())
         self.serial = (serial + cfgsum % 1000) & 0xFFFFFFFF or 1
         for z in self.zones:
             self.data.setdefault(z, {})[6] = [(self.ttl, '%s %s %d 3600 600 1209600 %d' % (

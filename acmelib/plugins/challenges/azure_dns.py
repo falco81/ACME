@@ -40,7 +40,7 @@ class AzureDns(DnsChallenge):
 
     _token = None
     _token_until = 0.0
-    _zone_ids = None
+    _zone_ids = None  # {zone: its ARM id}
 
     def _urls(self):
         return CLOUDS.get(self.c('cloud', 'public'), CLOUDS['public'])
@@ -68,7 +68,7 @@ class AzureDns(DnsChallenge):
                    {'Authorization': 'Bearer ' + self.token()}, who='Azure',
                    missing_ok=missing_ok)
 
-    def _zones(self):
+    def _zone_list(self):
         if self._zone_ids is None:
             sub = urllib.parse.quote(str(self.c('subscription_id', '')))
             rg = self.c('resource_group', '')
@@ -89,7 +89,7 @@ class AzureDns(DnsChallenge):
 
     def zone_hint(self, fqdn):
         z = DnsChallenge.zone_hint(self, fqdn)
-        zones = self._zones()
+        zones = self._zone_list()
         if z:
             return z
         best = None
@@ -103,7 +103,7 @@ class AzureDns(DnsChallenge):
 
     def _rs(self, fqdn):
         zone = self.zone_for(fqdn)
-        zid = self._zones().get(zone)
+        zid = self._zone_list().get(zone)
         if not zid:
             raise PluginError('the zone %s is not in the subscription/resource group' % zone,
                               retry=False)
@@ -137,5 +137,5 @@ class AzureDns(DnsChallenge):
             self._put(path, [v for v in have if v != value])
 
     def test(self):
-        zones = self._zones()
+        zones = self._zone_list()
         return 'signed in to Azure; %d DNS zone(s): %s' % (len(zones), ', '.join(sorted(zones)))
