@@ -34615,6 +34615,10 @@
   "stm0125": {
    "source": "me",
    "text": "já"
+  },
+  "sr8653": {
+   "source": "Made here (ed25519) or your own (OpenSSH or PEM); its public half goes on the machine. Shown whatever \"Sign in with\" says, as isemon shows it.",
+   "text": "Vytvořený zde (ed25519) nebo vlastní (OpenSSH nebo PEM); jeho veřejná polovina patří na stroj. Ukazuje se bez ohledu na „Přihlašovat se“, stejně jako v isemonu."
   }
  },
  "patterns": {
