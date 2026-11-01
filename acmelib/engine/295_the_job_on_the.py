@@ -74,7 +74,7 @@ def net_cert_again(store, w, by):
     return 'this node\'s own certificate made again for %s' % ', '.join(new_names[:6])
 
 
-NET_UNDO_KEYS = ('radius_bind', 'mail_helo', 'isemon_hostname')
+NET_UNDO_KEYS = ('snmp_bind', 'mail_helo', 'isemon_hostname')
 NET_UNDO_FILE_KEYS = ('db_host', 'ha_address')
 
 
@@ -189,17 +189,13 @@ def net_job_run(daemon, ask):
             CONFIG['ha_address'] = w['new_ip']
         # 3. This node's own settings that name the old address or name.
         changes = {}
-        rb = str(CONFIG.get('radius_bind') or '0.0.0.0')
+        sb = str(CONFIG.get('snmp_bind') or '')
         if undo:
             # Back to the values it had, as they were.
             changes = {k: v for k, v in (undo.get('settings') or {}).items()
                        if str(CONFIG.get(k) or '') != str(v or '')}
-        elif w['ip_changed'] and rb == w['old_ip']:
-            changes['radius_bind'] = w['new_ip']
-        elif w['ipv6']['on'] and rb in ('0.0.0.0', ''):
-            changes['radius_bind'] = '::'
-        elif not w['ipv6']['on'] and rb == '::':
-            changes['radius_bind'] = '0.0.0.0'
+        elif w['ip_changed'] and sb == w['old_ip']:
+            changes['snmp_bind'] = w['new_ip']
         if not undo and w['hostname'] and w['old_hostname'] and \
                 w['hostname'] != w['old_hostname']:
             for k in ('mail_helo', 'isemon_hostname'):

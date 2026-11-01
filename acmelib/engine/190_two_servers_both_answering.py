@@ -4,27 +4,25 @@ from __future__ import annotations
 # Two servers, both answering: high availability, active/active (1.0.13)
 # ---------------------------------------------------------------------------
 # Both nodes open the same PostgreSQL and keep nothing that matters anywhere
-# else, so that a load balancer may send any request - a RADIUS packet, a
-# page, the second half of an enrolment - to either, round robin and without
-# stickiness:
+# else, so that a load balancer may send any request - a page, the second
+# half of a sign-in - to either, round robin and without stickiness:
 #
-#   * every setting, client, realm, directory and token is in the database,
+#   * every setting, account, directory and certificate is in the database,
 #     and a node that sees another node's change (`conf_serial`) reads it in
 #     within five seconds;
 #   * a sign-in is a row in the database, and so is what belongs to it (the
 #     "Edit the columns" switch); a job's progress (a move, an erase) is in
 #     the database too, so the bar keeps moving whichever node is asked;
-#   * a code is used up with one conditional UPDATE, and a row of its own in
-#     token_once that nothing ever writes over (1.0.101). With two
+#   * an administrator's code from the app is used up with a row of its own
+#     in used_once that nothing ever writes over (1.0.101). With two
 #     replicating databases (ha_mode "replicated") a node also looks in the
-#     other node's database before it lets a code in - so the same code sent
-#     to both nodes at the same moment is let in once, not once on each, and
-#     a used recovery code does not come back when replication writes an
-#     older copy of the token's row. Only while the other node's database
-#     cannot be reached at all is a code checked against this node's rows
-#     alone (said in the log);
-#   * the nightly dump is claimed by one node, with one conditional UPDATE;
-#   * the key that seals the tokens is the same file on both, carried to the
+#     other node's database before it takes a code - so the same code sent to
+#     both nodes at the same moment is taken once, not once on each. Only
+#     while the other node's database cannot be reached at all is a code
+#     checked against this node's rows alone (said in the log);
+#   * the nightly dump is claimed by one node, with one conditional UPDATE -
+#     and so is whatever only one node is to do (ha_lead, claim_once);
+#   * the key that seals the secrets is the same file on both, carried to the
 #     second node once in a bundle locked with a passphrase.
 #
 # Each node writes a heartbeat into the database every fifteen seconds; the
@@ -97,7 +95,6 @@ def heartbeat(store, daemon=None):
         return {}                       # nothing written while the rows come over (1.0.44)
     beat = {'at': time.time(), 'version': __version__, 'address': node_address(),
             'host': socket.gethostname(), 'started': daemon.started if daemon else None,
-            'radius': list(getattr(getattr(daemon, 'radius', None), 'bound', []) or []),
             'engine': store.db.engine,
             'maintenance': bool(maintenance_now(store).get('on')),
             # What its own settings are in effect (1.0.67), its config.json's
@@ -374,7 +371,7 @@ def bundle_lock(data, passphrase, kind=None):
     sign = hmac.new(key, b'sign', hashlib.sha256).digest()
     body = bytes(a ^ b for a, b in zip(raw, _seal_stream(hide, nonce, len(raw))))
     # Format 2 (1.0.101): what kind of bundle it is is signed too, so a
-    # backup of tokens cannot be handed in as a cluster's bundle, nor the
+    # locked export cannot be handed in as a cluster's bundle, nor the
     # other way round.
     tag = hmac.new(sign, (kind or HA_KIND).encode('utf-8') + b'\n' + salt + nonce + body,
                    hashlib.sha256).digest()
@@ -432,8 +429,8 @@ def ha_checks(store):
          'the database is %s: a cluster needs PostgreSQL, which both nodes open - move to it '
          'first (Settings → The database)' % ENGINE_WORDS.get(db.engine, db.engine)},
         {'key': 'key', 'ok': bool(sealing_key()),
-         'says': 'the key that seals the tokens is there' if sealing_key() else
-         'the key that seals the tokens is missing'},
+         'says': 'the key that seals the secrets is there' if sealing_key() else
+         'the key that seals the secrets is missing'},
     ]
     if mode == 'replicated' and db.engine == 'postgres':
         # Made two already (1.0.43): each node has its own PostgreSQL here,
@@ -455,12 +452,13 @@ def ha_checks(store):
 
 def ha_bundle_data(store, peer_db_host='', with_tls=None):
     """What the second node needs and nothing else: how to open the
-    database, the key that opens the tokens, and the name of the cluster."""
+    database, the key that opens the sealed secrets, and the name of the
+    cluster."""
     if store.db.engine != 'postgres':
         raise ValueError('a cluster needs PostgreSQL: move to it first (Settings → The database)')
     key = sealing_key()
     if not key:
-        raise ValueError('the key that seals the tokens is missing')
+        raise ValueError('the key that seals the secrets is missing')
     db = {k: CONFIG.get(k) for k in DB_KEYS}
     host = str(db.get('db_host') or '')
     if peer_db_host:
@@ -518,16 +516,16 @@ def ha_join(data, name='', even_if_data=False, by=''):
     if now and now.hex() != key_hex and not even_if_data:
         # This node has a key of its own: whatever it sealed would be lost.
         store = HA_STORE.get('store')
-        mine = 0
+        mine = False
         if store and store.db.engine == 'sqlite':
             try:
-                mine = int(store.db.value('SELECT COUNT(*) FROM tokens') or 0)
+                mine = sealed_held(store.db)
             except Exception:                           # noqa: BLE001
-                mine = 0
+                mine = False
         if mine:
-            raise ValueError('this node holds %d token(s) of its own, sealed with another key; '
-                             'joining replaces both its database and its key. Say so to go on '
-                             '(--discard-local, or tick it on the page)' % mine)
+            raise ValueError('this node holds secrets of its own (private keys, passwords), '
+                             'sealed with another key; joining replaces both its database and '
+                             'its key. Say so to go on (--discard-local, or tick it on the page)')
     if now and now.hex() != key_hex:
         backup = sealing_key_path().with_name('secrets.key.before-join')
         write_replacing(backup, now.hex() + '\n', 0o600)

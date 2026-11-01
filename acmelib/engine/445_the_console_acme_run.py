@@ -4,8 +4,8 @@ from __future__ import annotations
 # `acme --console` - and, with `acme --console-at-login on`, what root sees first
 # after signing in at the console or over SSH. Everything is done by the same
 # `acme ...` commands the command line has (each one run as it would be typed,
-# so nothing here can do more than they do), plus the live log and the live
-# RADIUS requests. q leaves it for the ordinary shell; ! opens a shell and
+# so nothing here can do more than they do), plus the live log and the
+# journal. q leaves it for the ordinary shell; ! opens a shell and
 # comes back when it is closed. English, coloured with colorama when present.
 import textwrap
 # In /etc itself, where only root writes (1.0.136) - not in /etc/acme, whose
@@ -289,7 +289,7 @@ class Console(object):
         self._put(0, len(left) + 1, svc, A['sel'] if active == 'active' else
                   (A['head'] if active == '...' else self.curses.A_REVERSE | A['bad']))
         # As --status --json says it (1.0.133): maintenance is {'on': …}, the
-        # nodes a list, the tokens counted by state.
+        # nodes a list.
         bits = []
         if st.get('node'):
             bits.append('node ' + str(st['node']))
@@ -311,15 +311,11 @@ class Console(object):
             else:
                 bits.append('VIP %s on NO node' % vip['address'])
                 vip_bad = True
-        tok = (st.get('tokens') or {}).get('active')
-        if tok is not None:
-            bits.append('%s tokens' % tok)
-        # Too long for the bar: the tokens give way, then the words get
-        # shorter; still too long, it goes on the line under the bar.
+        # Too long for the bar: the words get shorter; still too long, it goes
+        # on the line under the bar.
         short = [b.replace(' of ', '/').replace('replication', 'repl.')
                  .replace('node ', '', 1 if b.startswith('node ') else 0) for b in bits]
-        tries = [bits, bits[:-1] if tok is not None else bits, short[:-1] if tok is not None
-                 else short]
+        tries = [bits, short]
         y = 1
         for b in tries:
             right = ' ' + ' | '.join(b) + ' '
@@ -327,7 +323,7 @@ class Console(object):
                 self._put(0, w - len(right), right, A['head'])
                 break
         else:
-            self._put(1, 1, ' | '.join(bits[:-1] if tok is not None else bits), A['key'])
+            self._put(1, 1, ' | '.join(bits), A['key'])
             y = 2
         if vip_bad:
             self._put(y, 1, 'the VIP address %s is held by %s' % (
@@ -337,7 +333,7 @@ class Console(object):
         if ((st.get('maintenance') or {}).get('on') if isinstance(st.get('maintenance'), dict)
                 else st.get('maintenance') is True):
             why = (st.get('maintenance') or {}).get('why') or ''
-            self._put(y, 1, 'THIS NODE IS IN MAINTENANCE - it answers no RADIUS request%s' % (
+            self._put(y, 1, 'THIS NODE IS IN MAINTENANCE - it does no work of its own%s' % (
                 (' (%s)' % why) if why else ''), A['warn'])
             y += 1
         others = [n for n in (st.get('maint_nodes') or []) if str(n) != str(st.get('node'))]
@@ -505,17 +501,15 @@ class Console(object):
         main = [
             ('1', 'Status and checks', self.m_status),
             ('2', 'Live log', self.m_live_log),
-            ('3', 'Live RADIUS requests', self.m_live_radius),
-            ('4', 'Tokens', self.m_tokens),
-            ('5', 'Accounts of the administration', self.m_accounts),
-            ('6', 'Settings', self.m_settings),
-            ('7', 'RADIUS clients, realms and directories', self.m_radius),
-            ('8', 'Cluster, VIP address and maintenance', self.m_cluster),
-            ('9', 'Backups', self.m_backups),
-            ('10', 'Upgrades', self.m_upgrades),
-            ('11', 'The service', self.m_service),
-            ('12', 'Certificates, updates, restarts, tests', self.m_ops),
-            ('13', 'Encryption, sending out, time, network, high security', self.m_more),
+            ('3', 'Accounts of the administration', self.m_accounts),
+            ('4', 'Settings', self.m_settings),
+            ('5', 'Directories (Active Directory, LDAP)', self.m_directories),
+            ('6', 'Cluster, VIP address and maintenance', self.m_cluster),
+            ('7', 'Backups', self.m_backups),
+            ('8', 'Upgrades', self.m_upgrades),
+            ('9', 'The service', self.m_service),
+            ('10', 'The pages\' certificates, updates, restarts, tests', self.m_ops),
+            ('11', 'Encryption, sending out, time, network, high security', self.m_more),
         ]
         for fn in HOOKS['console_main']:
             main[:0] = list(fn(self) or [])
@@ -727,19 +721,11 @@ class Console(object):
                 self.act('--events', '--limit', got['n'], *(['--search', got['q']]
                                                              if got['q'] else []))
 
-        def request():
-            n = self.ask_one('One request in detail', 'its number', help_=(
-                'The number the list of requests (and the live view) shows by it.'),
-                check=lambda v, _: None if v.isdigit() else 'a number')
-            if n:
-                self.act('--request', n)
         return self.sub('Status and checks', [
             ('1', 'Status', lambda: self.act('--status')),
-            ('2', 'Checks (the database, the key, RADIUS, the directories…)',
+            ('2', 'Checks (the database, the key, the directories…)',
              lambda: self.act('--check')),
             ('3', 'Events', events),
-            ('4', 'Rejected requests (the last 24 h)', lambda: self.act('--rejects')),
-            ('5', 'One request in detail', request),
         ])
 
     # ---- 2 live log -------------------------------------------------------------
@@ -749,7 +735,7 @@ class Console(object):
         self.live(lambda: self.live_log(''))
 
     # ---- live views: scrolled, and what is typed is a grep (1.0.135) ------------
-    # The log, the RADIUS requests and the journal come into one screen of
+    # The log and the journal come into one screen of
     # their own: the newest at the bottom, followed while the view is at the
     # end. Up/PgUp/Home scroll back (the view then stays where it is and counts
     # what came meanwhile), End follows again; a bar on the right shows where
@@ -818,48 +804,6 @@ class Console(object):
         finally:
             if st['f']:
                 st['f'].close()
-
-    def live_radius(self, what=''):
-        p = self.pal
-        q = collections.deque()
-        state = {'seen': None, 'stop': False}
-
-        def one(r):
-            ok = r.get('result') == 'accept'
-            return '%s %s %s %s %s %s' % (
-                p.dim(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(r.get('ts') or 0))),
-                (p.good if ok else p.bad)((r.get('result') or '?').ljust(9)),
-                p.bold(str(r.get('username') or '')),
-                p.addr(str(r.get('calling') or r.get('src') or '')),
-                p.dim(str(r.get('client') or '')), r.get('reason') or r.get('acme') or '')
-
-        def poll():
-            while not state['stop']:
-                got = self.out('--log', '--hours', '24' if state['seen'] is None else '1',
-                               '--limit', '500' if state['seen'] is None else '1000') or {}
-                rows = sorted(got.get('rows') or [], key=lambda r: r.get('id') or 0)
-                for r in rows:
-                    if state['seen'] is not None and (r.get('id') or 0) <= state['seen']:
-                        continue
-                    q.append(one(r))
-                    state['seen'] = max(state['seen'] or 0, r.get('id') or 0)
-                if state['seen'] is None:
-                    state['seen'] = 0
-                for _ in range(12):
-                    if state['stop']:
-                        break
-                    time.sleep(0.25)
-        threading.Thread(target=poll, name='acme-console-radius', daemon=True).start()
-
-        def more():
-            out = []
-            while q:
-                out.append(q.popleft())
-            return out
-        try:
-            self.live_view('Live RADIUS requests', lambda: [], more, None, what)
-        finally:
-            state['stop'] = True
 
     def journal(self):
         """journalctl -u acme -f, in the live view."""
@@ -1106,134 +1050,9 @@ class Console(object):
     def _log_line(self, ln):
         print(self._log_text(ln))
 
-    # ---- 3 live RADIUS ----------------------------------------------------------
-    def m_live_radius(self):
-        self.live(lambda: self.live_radius(''))
-
-    # ---- 4 tokens ---------------------------------------------------------------
-    TOKEN_TONES = {'active': 'ok', 'disabled': 'dim', 'pending': 'warn'}
-
-    def _token_state(self, t):
-        if t.get('locked_until') and float(t['locked_until']) > time.time():
-            return 'locked'
-        return str(t.get('state') or '?')
-
-    def m_tokens(self):
-        def load():
-            # Every one (1.0.146): the command gives 1000 unless asked.
-            return self._rows(self.out('--tokens', '--limit', '1000000'), 'rows')
-
-        def tone(t):
-            st = self._token_state(t)
-            return 'bad' if st == 'locked' else self.TOKEN_TONES.get(st, '')
-
-        cols = [('token', lambda t: t.get('name'), 34, None),
-                ('state', self._token_state, 9, tone),
-                ('codes by', lambda t: t.get('kind') or 'app', 8, None),
-                ('last used', lambda t: self._when(t.get('last_used')), 16, None),
-                ('wrong', lambda t: t.get('failures') or '', 5,
-                 lambda t: 'bad' if t.get('failures') else ''),
-                ('note', lambda t: t.get('note') or t.get('display') or '', 40,
-                 lambda t: 'dim')]
-        return self.sub('Tokens', [
-            ('1', 'Browse them (Enter: what to do with one)',
-             lambda: self.pick('Tokens', load, cols, self.token_do, 'no token yet')),
-            ('2', 'Make one (enrol)', self.token_new),
-            ('3', 'Try a sign-in (radtest)', lambda: self.radtest('')),
-        ])
-
-    def token_do(self, t):
-        name = t['name']
-        st = self._token_state(t)
-        opts = [('show', 'Show it all')]
-        opts.append(('on', 'Switch it on again') if st == 'disabled' else ('off', 'Switch it off'))
-        if st == 'locked' or t.get('failures'):
-            opts.append(('unlock', 'Unlock it (the wrong codes forgotten)'))
-        opts += [('scratch', 'New recovery codes'), ('try', 'Try a sign-in with it'),
-                 ('delete', 'Delete it')]
-        what = self.choose(name, opts, '%s, codes by %s, last used %s' % (
-            st, t.get('kind') or 'app', self._when(t.get('last_used'))))
-        if what == 'show':
-            self.act('--token', name)
-        elif what == 'off':
-            if self.confirm('Switch off', '%s can no longer sign in to the VPN until it is '
-                            'switched on again.' % name, 'Switch it off'):
-                self.act('--disable-token', name)
-        elif what == 'on':
-            self.act('--enable-token', name)
-        elif what == 'unlock':
-            self.act('--unlock', name)
-        elif what == 'scratch':
-            if self.confirm('New recovery codes', 'The recovery codes %s has now stop working; '
-                            'new ones are shown once.' % name, 'Make new ones'):
-                self.act('--scratch', name)
-        elif what == 'try':
-            self.radtest(name)
-        elif what == 'delete':
-            if self.confirm('Delete', 'The token of %s is deleted - its app stops working '
-                            'here and a new one must be enrolled. This cannot be undone.' % name,
-                            'Delete it', danger=True):
-                # Asked here already: the command has no terminal to ask on
-                # and refused without --yes (1.0.139).
-                self.act('--delete-token', name, '--yes')
-
-    def token_new(self):
-        got = self.form('Make a token (enrol)', [
-            {'key': 'name', 'label': 'for whom', 'need': True,
-             'help': 'name@realm - as the user signs in to the VPN.',
-             'check': lambda v, _: None if re.match(r'^[^\s@]+(@[^\s@]+)?$', v)
-             else 'a name, or name@realm, without spaces'},
-            {'key': 'by', 'label': 'its codes', 'kind': 'choice', 'value': 'app',
-             'options': [('app', 'from an authenticator app'), ('mail', 'sent by e-mail'),
-                         ('sms', 'sent by SMS')],
-             'help': 'An app shows a code that changes every 30 s; by mail or SMS a code '
-                     'is sent at each sign-in.'},
-            {'key': 'to', 'label': 'sent to', 'need': True,
-             'when': lambda v: v.get('by') != 'app',
-             'help': 'The address the codes go to (mail), or the number (+420…) (SMS).',
-             'check': lambda v, vals: None if (
-                 re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', v) if vals.get('by') == 'mail'
-                 else re.match(r'^\+?[0-9 ]{6,20}$', v)) else (
-                 'not an e-mail address' if vals.get('by') == 'mail'
-                 else 'not a phone number (+420…)')}])
-        if not got:
-            return
-        extra = ['--by', got['by']] + (['--to', got['to']] if got['by'] != 'app' else [])
-        had = ((self.out('--token', got['name']) or {}).get('token') or {})
-        if had and had.get('state') != 'pending':
-            if not self.confirm('Replace', 'The token of %s in use is replaced, and stops '
-                                'working now.' % got['name'], 'Replace it', danger=True):
-                return
-            extra.append('--yes')
-        self.act('--enroll', got['name'], *extra)
-
-    def radtest(self, name):
-        got = self.form('Try a sign-in (radtest)', [
-            {'key': 'name', 'label': 'name', 'value': name, 'need': True,
-             'help': 'As the VPN asks it: name@realm, or the name alone.'},
-            {'key': 'pw', 'label': 'password + code', 'kind': 'secret', 'need': True,
-             'help': 'What the VPN client would send - the password and the code after '
-                     'it (or as the realm asks for it).'}])
-        if got:
-            # On the terminal, so a challenge (a code by mail or SMS) can be
-            # answered; the password in the environment, not on the command
-            # line where `ps` shows it (1.0.136).
-            env = dict(os.environ, ACME_RADTEST_PASSWORD=got['pw'])
-            argv = acme_argv(self.me) + ['--radtest', got['name'], '-']
-
-            def go():
-                self.clear_screen()
-                print(self.pal.dim('$ acme --radtest %s ****' % got['name']))
-                try:
-                    subprocess.call(argv + ([] if self.pal.on else ['--no-color']), env=env)
-                except KeyboardInterrupt:
-                    print()
-                self.pause()
-            self.live(go)
-
-    # ---- 5 accounts -------------------------------------------------------------
+    # ---- 3 accounts -------------------------------------------------------------
     ROLES = [('fulladmin', 'fulladmin - everything'),
-             ('tokenadmin', 'tokenadmin - tokens and their users'),
+             ('certadmin', 'certadmin - the certificates, no settings'),
              ('readonly', 'readonly - looks, changes nothing')]
 
     def _pw_fields(self):
@@ -1315,7 +1134,7 @@ class Console(object):
              else 'letters, digits and . _ - @ only'},
             {'key': 'role', 'label': 'role', 'kind': 'choice', 'value': 'readonly',
              'options': self.ROLES,
-             'help': 'fulladmin may do everything; tokenadmin the tokens; readonly looks.'}]
+             'help': 'fulladmin may do everything; certadmin the certificates; readonly looks.'}]
             + self._pw_fields())
         if got:
             self.act('--add-user', got['name'], '--role', got['role'],
@@ -1369,124 +1188,18 @@ class Console(object):
             ('4', 'Export them to a file', export),
         ])
 
-    # ---- 7 RADIUS ---------------------------------------------------------------
-    def m_radius(self):
-        def clients():
-            return self.pick('RADIUS clients', lambda: self._rows(self.out('--clients')), [
-                ('client', lambda r: r.get('name'), 20, None),
-                ('address', lambda r: r.get('address'), 22, None),
-                ('realm', lambda r: r.get('realm') or '-', 16, None),
-                ('state', lambda r: 'on' if r.get('enabled') else 'off', 5,
-                 lambda r: 'ok' if r.get('enabled') else 'dim'),
-                ('last seen', lambda r: self._when(r.get('last_seen')), 16, None),
-                ('note', lambda r: r.get('note') or '', 40, lambda r: 'dim')],
-                self.client_do, 'no client yet')
-
-        def realms():
-            return self.pick('Realms', lambda: self._rows(self.out('--realms')), [
-                ('realm', lambda r: r.get('name'), 18, None),
-                ('takes @', lambda r: (r.get('suffix') or '(none)') + ''.join(
-                    ' +' + a for a in r.get('aliases') or []), 26, None),
-                ('password is', lambda r: r.get('auth_mode'), 11, None),
-                ('directory', lambda r: r.get('directory') or '-', 12, None),
-                ('codes', lambda r: ', '.join(r.get('methods') or []), 16, None),
-                ('groups', lambda r: '; '.join(g.get('group', '') for g in r.get('groups') or [])
-                 or '(anybody)', 40, None)], self.realm_do)
-
+    # ---- 5 directories ----------------------------------------------------------
+    def m_directories(self):
         def directories():
             return self.pick('Directories', lambda: self._rows(self.out('--directories')), [
                 ('directory', lambda r: r.get('name'), 14, None),
                 ('hosts', lambda r: r.get('hosts'), 34, None),
                 ('tls', lambda r: '%s:%s' % (r.get('tls'), r.get('port')), 12, None),
                 ('base', lambda r: r.get('base'), 40, None)], self.directory_do)
-        return self.sub('RADIUS clients, realms and directories', [
-            ('1', 'Clients (Enter: what to do with one)', clients),
-            ('2', 'Add a client', lambda: self.client_edit(None)),
-            ('3', 'Realms (Enter: change one)', realms),
-            ('4', 'Add a realm', lambda: self.realm_edit(None)),
-            ('5', 'Directories (Enter: try one, change it)', directories),
-            ('6', 'Add a directory', lambda: self.directory_edit(None)),
+        return self.sub('Directories (Active Directory, LDAP)', [
+            ('1', 'Directories (Enter: try one, change it)', directories),
+            ('2', 'Add a directory', lambda: self.directory_edit(None)),
         ])
-
-    def client_edit(self, r):
-        realms = [x.get('name') for x in self._rows(self.out('--realms'))]
-        got = self.form('Change the client %s' % r['name'] if r else 'Add a RADIUS client', [
-            {'key': 'name', 'label': 'name', 'value': (r or {}).get('name', ''), 'need': True,
-             'when': lambda v: r is None,
-             'check': lambda v, _: None if re.match(r'^[\w.-]{1,64}$', v)
-             else 'letters, digits and . _ - only'},
-            {'key': 'address', 'label': 'address or network',
-             'value': (r or {}).get('address', ''), 'need': True,
-             'help': 'Where its requests come from: 192.0.2.1, 192.0.2.0/24 or an IPv6 one.',
-             'check': lambda v, _: self._net_bad(v)},
-            {'key': 'secret', 'label': 'shared secret', 'kind': 'secret', 'need': r is None,
-             'help': 'The same as on the client. ' + ('Empty: it stays as it is.' if r else
-                                                     'At least 8 characters.'),
-             'check': lambda v, _: None if len(v) >= 8 else 'at least 8 characters'},
-            {'key': 'realm', 'label': 'its realm', 'kind': 'choice',
-             'value': (r or {}).get('realm') or '',
-             'options': [('', '(any - by the name signing in)')] + [(x, x) for x in realms],
-             'help': 'Names without @ from this client are taken as of this realm.'}])
-        if not got:
-            return None
-        name = r['name'] if r else got['name']
-        args = ['--add-client', name, '--address', got['address'], '--realm', got['realm']]
-        env = None
-        if got.get('secret'):
-            args += ['--secret', '-']
-            env = {'ACME_SECRET': got['secret']}
-        self.act(*args, env=env, title='$ acme --add-client %s --address %s%s' % (
-            name, got['address'], ' --secret ****' if got.get('secret') else ''))
-
-    @staticmethod
-    def _net_bad(v):
-        try:
-            ipaddress.ip_network(v, strict=False)
-            return None
-        except ValueError:
-            return 'not an address or a network'
-
-    def client_do(self, r):
-        what = self.choose(r['name'], [('show', 'Show it all'), ('edit', 'Change it'),
-                                        ('delete', 'Delete it')],
-                           '%s, realm %s' % (r.get('address'), r.get('realm') or '(any)'))
-        if what == 'show':
-            self.details(r['name'], r, skip=('secret',))
-        elif what == 'edit':
-            self.client_edit(r)
-        elif what == 'delete' and self.confirm(
-                'Delete', 'The client %s (%s) is deleted - its requests are no longer '
-                'answered.' % (r['name'], r.get('address')), 'Delete it', danger=True):
-            self.act('--del-client', r['name'])
-
-    def realm_edit(self, r):
-        """A realm made, or changed (1.0.187): it could only be shown or deleted here."""
-        r = r or {}
-        dirs = [d.get('name') for d in (self.out('--directories') or []) if isinstance(d, dict)]
-        got = self.form('Change the realm %s' % r['name'] if r.get('name') else 'Add a realm', ([] if r.get('name') else [
-            {'key': 'name', 'label': 'its name', 'need': True,
-             'check': lambda v, _: None if re.match(r'^[A-Za-z0-9_.-]+$', v) else 'letters, digits, . _ -'}]) + [
-            {'key': 'suffix', 'label': 'takes @', 'value': r.get('suffix', ''),
-             'help': 'What follows the @ (example.cz); * every name; empty: names without one.'},
-            {'key': 'aliases', 'label': 'other suffixes', 'value': ','.join(r.get('aliases') or []),
-             'help': 'example.local,old.cz - taken as the realm\'s own suffix too.'},
-            {'key': 'mode', 'label': 'the password is', 'kind': 'choice', 'value': r.get('auth_mode') or 'acme',
-             'options': [('acme', 'the code alone'), ('password_acme', 'the directory password and the code'),
-                         ('challenge', 'the password, then the code in a second window'),
-                         ('password', 'the directory password alone')]},
-            {'key': 'directory', 'label': 'directory', 'kind': 'choice', 'value': r.get('directory') or '',
-             'options': [('', '(none)')] + [(d, d) for d in dirs]},
-            {'key': 'lookup', 'label': 'looked up by', 'kind': 'choice', 'value': r.get('lookup') or 'upn',
-             'options': [('upn', 'UPN (novak@example.cz)'), ('sam', 'sAMAccountName'), ('none', 'not looked up')]},
-            {'key': 'groups', 'label': 'groups', 'value': ';'.join(g.get('group', '') for g in r.get('groups') or []),
-             'help': 'G1;G2 - any one of them lets in; empty: anybody. Their replies are kept.'},
-            {'key': 'methods', 'label': 'codes people may choose', 'value': ','.join(r.get('methods') or ['totp']),
-             'help': 'totp,mail,sms'}])
-        if not got:
-            return
-        self.act('--add-realm', got.get('name') or r['name'], '--suffix', got['suffix'], '--aliases', got['aliases'],
-                 '--mode', got['mode'], '--directory', got['directory'], '--lookup', got['lookup'],
-                 '--groups', got['groups'], '--methods', got['methods'] or 'totp')
 
     def directory_edit(self, r):
         """A directory added, or changed (1.0.187); its password asked, never shown."""
@@ -1514,17 +1227,6 @@ class Console(object):
             env = {'ACME_BIND_PW': got['bind_pw']}
         self.act(*args, env=env, title='$ acme --add-directory %s' % (got.get('name') or r['name']))
 
-    def realm_do(self, r):
-        what = self.choose(r['name'], [('show', 'Show it all'), ('edit', 'Change it'), ('delete', 'Delete it')])
-        if what == 'show':
-            self.details(r['name'], r)
-        elif what == 'edit':
-            self.realm_edit(r)
-        elif what == 'delete' and self.confirm(
-                'Delete', 'The realm %s is deleted - names of it no longer sign in.'
-                % r['name'], 'Delete it', danger=True):
-            self.act('--del-realm', r['name'])
-
     def directory_do(self, r):
         what = self.choose(r['name'], [('test', 'Try it (and look somebody up)'),
                                         ('show', 'Show it all'), ('edit', 'Change it'),
@@ -1544,11 +1246,11 @@ class Console(object):
         elif what == 'show':
             self.details(r['name'], r, skip=('bind_pw', 'ca'))
         elif what == 'delete' and self.confirm(
-                'Delete', 'The directory %s is deleted; the realms using it stop working.'
+                'Delete', 'The directory %s is deleted; nobody signs in from it any more.'
                 % r['name'], 'Delete it', danger=True):
             self.act('--del-directory', r['name'])
 
-    # ---- 8 cluster --------------------------------------------------------------
+    # ---- 6 cluster --------------------------------------------------------------
     def _nodes(self):
         got = self.out('--ha-status') or {}
         return [n.get('name') for n in (got.get('nodes') or []) if n.get('name')]
@@ -1559,7 +1261,7 @@ class Console(object):
             m = st.get('maintenance')
             on = m.get('on') if isinstance(m, dict) else bool(m)
             r = self.choose('Maintenance of this node', [
-                ('on', 'Into maintenance - it answers no RADIUS request'),
+                ('on', 'Into maintenance - it does no work of its own'),
                 ('off', 'Back into service')], 'It is %s now.' % (
                     'IN MAINTENANCE' if on else 'in service'), cur=1 if on else 0)
             if r == 'on':
@@ -1629,12 +1331,16 @@ class Console(object):
         ])
 
     # ---- settings on the text screen: arrows, Enter, a window to change one (1.0.134)
-    PANE_TITLES = [('radius', 'The RADIUS server'), ('guard', 'Sign-in protection'),
-                   ('realms', 'Realms'), ('tokens', 'Tokens'),
-                   ('codes', 'Codes by e-mail and SMS'), ('portal', 'The enrolment pages'),
-                   ('mail', 'Mail'), ('people', 'Accounts'), ('isemon', 'isemon'),
-                   ('db', 'The database'), ('backup', 'Backups'), ('ha', 'High availability'),
-                   ('upgrade', 'Upgrades'), ('about', 'About and debugging')]
+    PANE_TITLES = [('codes', 'Codes by e-mail and SMS'), ('portal', 'The enrolment pages'),
+                   ('mail', 'Mail'), ('people', 'Accounts'), ('hisec', 'High security'),
+                   ('acme', 'Automatic certificates'), ('fw', 'Firewall and access'),
+                   ('network', 'Network'), ('proxy', 'Proxy'), ('ha', 'High availability'),
+                   ('power', 'Restart and power off'), ('logs', 'Disks and logs'),
+                   ('db', 'The database'), ('backup', 'Backups'),
+                   ('alerts', 'Alerts and reports'), ('monitor', 'Monitoring'),
+                   ('isemon', 'isemon'), ('siem', 'Syslog and SIEM'),
+                   ('osup', 'System updates'), ('upgrade', 'Upgrades'),
+                   ('about', 'About and debugging')]
 
     def _settings_rows(self):
         got = self.out('--settings') or []
@@ -2070,7 +1776,7 @@ class Console(object):
     # ---- windows on the text screen for every menu: arrows and Enter (1.0.135) ----
     # Nothing is typed at a bare prompt any more: a question is a window (a
     # form) whose fields are moved between by the arrows, a choice is picked
-    # by the arrows, a list (tokens, accounts, clients, files…) is scrolled and
+    # by the arrows, a list (accounts, directories, files…) is scrolled and
     # Enter on one offers what can be done with it. What is typed is checked
     # before anything is run; Esc closes the window and goes back. The screen
     # under a window is drawn again by `self.backdrop` - so a window made
@@ -2698,14 +2404,14 @@ class Console(object):
             self.act('--backup-info', f['path'])
         elif what == 'restore':
             if self.confirm('Put a copy back', 'Everything in the database is replaced by '
-                            '%s. The tokens, accounts and settings made since are lost.'
+                            '%s. The certificates, accounts and settings changed since are lost.'
                             % f['name'], 'Put it back', danger=True):
                 self.act('--restore', f['path'], '--yes')
 
     # ---- 10 upgrades ------------------------------------------------------------
     def m_ops(self):
-        """What the pages do, for a server without them (1.0.187): ACME, the updates
-        of the system, restarts, a test mail or SMS, the SSH tokens, lockouts."""
+        """What the pages do, for a server without them (1.0.187): ACME for the
+        pages, the updates of the system, restarts, a test mail or SMS, lockouts."""
         def nodes():
             got = self.out('--updates', 'status') or {}
             return [n.get('name') for n in got.get('nodes') or [] if n.get('name')]
@@ -2756,36 +2462,6 @@ class Console(object):
             if got:
                 self.act('--sms-test', got['to'])
 
-        def ssh_new():
-            got = self.form('An SSH token', [
-                {'key': 'name', 'label': 'the account', 'need': True,
-                 'help': 'The account it signs in to over SSH (root, an admin\'s own).'},
-                {'key': 'by', 'label': 'its codes', 'kind': 'choice', 'value': 'app',
-                 'options': [('app', 'from an authenticator app'), ('mail', 'sent by e-mail'),
-                             ('sms', 'sent by SMS')]},
-                {'key': 'to', 'label': 'sent to', 'need': True, 'when': lambda v: v.get('by') != 'app'}])
-            if not got:
-                return
-            extra = ['--by', got['by']] + (['--to', got['to']] if got['by'] != 'app' else [])
-            had = [r for r in (self.out('--ssh-tokens') or []) if isinstance(r, dict) and
-                   r.get('name', '').lower() == got['name'].lower()]
-            if had:
-                if not self.confirm('Replace', 'The SSH token of %s in use stops working now.'
-                                    % got['name'], 'Replace it', danger=True):
-                    return
-                extra.append('--yes')
-            self.act('--ssh-token-add', got['name'], *extra)
-
-        def ssh_del():
-            rows = [r for r in (self.out('--ssh-tokens') or []) if isinstance(r, dict)]
-            if not rows:
-                self.note('SSH tokens', 'There is none.')
-                return
-            which = self.choose('Take an SSH token away', [(r['name'], r['name']) for r in rows])
-            if which is not None and self.confirm('Take it away', 'The SSH token of %s stops '
-                                                  'working now.' % which, 'Take it away', danger=True):
-                self.act('--ssh-token-del', which)
-
         def lockout_clear():
             rows = [r for r in (self.out('--lockouts') or []) if isinstance(r, dict)]
             if not rows:
@@ -2797,9 +2473,9 @@ class Console(object):
             if which is not None:
                 self.act('--lockouts-clear', which)
 
-        return self.sub('Certificates, updates, restarts, tests', [
-            ('1', 'Certificates by ACME: how they stand', lambda: self.act('--acme')),
-            ('2', 'Order a certificate by ACME now', acme_order),
+        return self.sub('The pages\' certificates, updates, restarts, tests', [
+            ('1', 'The pages\' certificates by ACME: how they stand', lambda: self.act('--acme')),
+            ('2', 'Order a certificate for the pages by ACME now', acme_order),
             ('3', 'Updates of the system: how they stand', lambda: self.act('--updates', 'status')),
             ('4', 'Look for updates now', lambda: self.act('--updates', 'check')),
             ('5', 'Put the updates in (one node at a time)', updates_start),
@@ -2808,11 +2484,8 @@ class Console(object):
             ('8', 'Restart a machine (the service kept)', restart),
             ('9', 'Send a test mail', mail_test),
             ('10', 'Send a test SMS', sms_test),
-            ('11', 'SSH tokens', lambda: self.act('--ssh-tokens')),
-            ('12', 'Make an SSH token', ssh_new),
-            ('13', 'Take an SSH token away', ssh_del),
-            ('14', 'Lockouts: who is locked out now', lambda: self.act('--lockouts')),
-            ('15', 'Forget a lockout', lockout_clear),
+            ('11', 'Lockouts: who is locked out now', lambda: self.act('--lockouts')),
+            ('12', 'Forget a lockout', lockout_clear),
         ])
 
     def m_more(self):
@@ -2910,7 +2583,8 @@ class Console(object):
             if not self.confirm('Upgrade to %s' % ver, (
                     'The nodes %s are upgraded one at a time - each in maintenance while '
                     'it is, the other answering.' % ', '.join(nodes)) if len(nodes) > 1 else
-                    'This server is upgraded - for a minute nobody can sign in to the VPN.',
+                    'This server is upgraded - for a minute nothing is renewed or deployed and '
+                    'the pages do not answer.',
                     'Upgrade'):
                 return
             self.live(lambda: self.show_live('--upgrade-online', ver, '--yes'))
@@ -2949,13 +2623,20 @@ class Console(object):
             if not os.path.isfile(script):
                 self.note('Upgrade', 'there is no install.sh in %s' % folder, 'bad')
                 return
-            # The version the package's acme.py says (1.0.146), not its folder's name.
+            # The version the package says (1.0.146), not its folder's name: in
+            # acmelib/__init__.py, beside acme.py (acme.py itself in a package
+            # made before the engine was split).
             m = None
-            try:
-                with open(os.path.join(folder, 'acme.py'), encoding='utf-8') as f:
-                    m = re.search(r"^__version__ = '(\d+\.\d+\.\d+)'", f.read(), re.M)
-            except OSError:
-                pass
+            for one in (os.path.join(folder, 'acmelib', '__init__.py'),
+                        os.path.join(folder, 'acme.py')):
+                try:
+                    with open(one, encoding='utf-8') as f:
+                        m = re.search(r"^__version__ = ['\"](\d+\.\d+\.\d+)['\"]", f.read(),
+                                      re.M)
+                except OSError:
+                    continue
+                if m:
+                    break
             if m and _ver_tuple(m.group(1)) < _ver_tuple(__version__):
                 # Never past the checks (1.0.143): an older one goes the safe way.
                 self.note('Upgrade', '%s is older than %s, which runs here. Going back is '
@@ -3017,7 +2698,8 @@ class Console(object):
             if not self.confirm('Go back to %s' % ver, (
                     'The nodes %s go back one at a time - each in maintenance while it is, '
                     'the other answering.' % ', '.join(nodes) if len(nodes) > 1 else
-                    'This server goes back - for a minute nobody can sign in to the VPN.') +
+                    'This server goes back - for a minute nothing is renewed or deployed and the '
+                    'pages do not answer.') +
                     ' The package is checked against the database first. What came in the '
                     'newer versions is gone until you upgrade again.', 'Go back',
                     danger=True):
@@ -3037,8 +2719,8 @@ class Console(object):
     # ---- 11 the service ---------------------------------------------------------
     def m_service(self):
         def restart():
-            if self.confirm('Restart the service', 'RADIUS is not answered for a few seconds '
-                            '(the other node answers, if there is one).', 'Restart'):
+            if self.confirm('Restart the service', 'The pages do not answer for a few seconds '
+                            '(the other node does, if there is one).', 'Restart'):
                 self.act_argv(['systemctl', 'restart', 'acme'], '$ systemctl restart acme',
                               quiet_ok='restarted')
                 self.st_now = True

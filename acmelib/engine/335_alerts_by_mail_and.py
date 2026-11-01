@@ -80,10 +80,9 @@ def health_publish(daemon):
            'siem': daemon.siem.state() if getattr(daemon, 'siem', None) else {},
            'isemon': daemon.shipper.state() if getattr(daemon, 'shipper', None) else {},
            'snmp': dict(SNMP_STATE) if getattr(daemon, 'snmp', None) else {},
-           # RADIUS left without the database in the last 5 minutes (1.0.186).
+           # The daemon left without the database in the last 5 minutes (1.0.186).
            'db_trouble': DB_TROUBLE_SEEN['said'] if now - DB_TROUBLE_SEEN['at'] < 300 else '',
-           'last_backup': last, 'radius': list(getattr(getattr(daemon, 'radius', None),
-                                                       'bound', []) or [])}
+           'last_backup': last}
     daemon.store.set_meta('host:health:' + node_name(), json.dumps(row))
     return row
 
@@ -160,25 +159,16 @@ def alert_problems(store, lang='en'):
         except ValueError:
             beats[node_name()] = {}
     health = {n: _meta_json(store, 'host:health:' + n) or {} for n in names}
-    # The nodes, RADIUS, the replication, the database.
+    # The nodes, the replication, the database.
     if CONFIG.get('alerts_nodes', 1):
         for n in nodes:
             if not n.get('me') and not n.get('alive'):
                 add('node:' + n['name'], 'bad', n['name'],
                     _al(lang, 'Uzel %s neodpovídá' % n['name'], '%s is not heard from' % n['name']),
-                    _al(lang, 'Naposledy se ozval před %s. RADIUS obsluhuje druhý uzel - je-li '
+                    _al(lang, 'Naposledy se ozval před %s. Práci dělá druhý uzel - je-li '
                               'naživu, nebo nefunguje replikace.' % _al_ago(now - n['age'], lang),
-                        'Last heard from %s ago. The other node answers RADIUS - if it is up, '
+                        'Last heard from %s ago. The other node does the work - if it is up, '
                         'or the replication is down.' % _al_ago(now - n['age'], lang)), 'ha')
-        for n in names:
-            b = beats.get(n) or {}
-            alive = b.get('alive', True) or b.get('me')
-            if alive and b and not (b.get('radius') or (health.get(n) or {}).get('radius')):
-                add('radius:' + n, 'bad', n,
-                    _al(lang, 'RADIUS na %s neposlouchá' % n, 'RADIUS is not listening on %s' % n),
-                    _al(lang, 'Server nemá otevřený port RADIUS - přihlášení přes tento uzel '
-                              'neprojdou.', 'The server holds no RADIUS port - sign-ins through '
-                              'this node do not pass.'), 'radius')
         vers = sorted({str(b.get('version')) for b in beats.values()
                        if b.get('version') and b.get('alive', True)})
         if len(vers) > 1:
@@ -209,8 +199,8 @@ def alert_problems(store, lang='en'):
             if trouble:
                 add('db:%s' % n, 'bad', n, _al(lang, 'Potíže s databází', 'The database is in '
                                                      'trouble'),
-                    _al(lang, 'RADIUS na %s nemohl použít databázi: %s',
-                        'RADIUS on %s could not use the database: %s') % (n, str(trouble)[:300]),
+                    _al(lang, 'acme na %s nemohl použít databázi: %s',
+                        'acme on %s could not use the database: %s') % (n, str(trouble)[:300]),
                     'db')
     # The VIP address (1.0.194): where keepalived put it, from each node's heartbeat.
     if CONFIG.get('alerts_vrrp', 1) and cluster and not quiet:
@@ -226,8 +216,8 @@ def alert_problems(store, lang='en'):
             if up and not holders:
                 add('vip:none', 'bad', '', _al(lang, 'VIP adresu %s nedrží žádný uzel' % addr,
                                                'No node holds the VIP address %s' % addr),
-                    _al(lang, 'Kdo se na ni ptá, nedostane odpověď - stránky ani RADIUS přes ni.',
-                        'Whoever asks it gets no answer - neither the pages nor RADIUS through it.'), 'ha')
+                    _al(lang, 'Kdo se na ni ptá, nedostane odpověď - ani stránky.',
+                        'Whoever asks it gets no answer - the pages neither.'), 'ha')
             elif len(holders) > 1:
                 add('vip:both', 'bad', '', _al(lang, 'VIP adresu %s drží oba uzly' % addr,
                                                'Both nodes hold the VIP address %s' % addr),
@@ -326,7 +316,7 @@ def alert_problems(store, lang='en'):
                             '%s is running out of room (%s)' % (n, d['path'])),
                         _al(lang, 'Zaplněno %s %% - volných %s.', '%s %% full - %s free.')
                         % (d['pct'], human_bytes(d.get('free') or 0)), 'osup')
-    # The clocks: codes are worked out from them.
+    # The clocks: the certificates' dates and the app's codes are worked out from them.
     if CONFIG.get('alerts_time', 1):
         for n in names:
             data = ((_meta_json(store, 'ntp:now:' + n) or {}).get('data') or {})
@@ -338,9 +328,10 @@ def alert_problems(store, lang='en'):
             if unsynced or off > 0.5:
                 add('time:' + n, 'bad' if off > 5 or unsynced else 'warn', n,
                     _al(lang, 'Hodiny na %s nejdou přesně' % n, 'The clock of %s is off' % n),
-                    _al(lang, 'chrony %s, odchylka %.2f s - kódy z telefonu se počítají z hodin.',
-                        'chrony %s, off by %.2f s - the codes from the phones are worked out '
-                        'from the clock.') % (_al(lang, 'není synchronizované', 'is not in sync')
+                    _al(lang, 'chrony %s, odchylka %.2f s - platnost certifikátů i kódy z '
+                              'aplikace se počítají z hodin.',
+                        'chrony %s, off by %.2f s - the dates of the certificates and the codes '
+                        'of the app are worked out from the clock.') % (_al(lang, 'není synchronizované', 'is not in sync')
                                               if unsynced else 'OK', off), 'time')
     # The updates of the system.
     if CONFIG.get('alerts_updates', 1):
@@ -368,9 +359,9 @@ def alert_problems(store, lang='en'):
                 add('dir:%s:%s' % (n, d), 'bad', n,
                     _al(lang, 'Active Directory %s je nedostupná' % d,
                         'The directory %s cannot be reached' % d),
-                    _al(lang, 'Z uzlu %s neodpovídá žádný její server - přihlášení přes ni '
-                              'neprojdou.' % n, 'None of its servers answers %s - sign-ins '
-                              'through it do not pass.' % n), 'dir')
+                    _al(lang, 'Z uzlu %s neodpovídá žádný její server - přihlášení '
+                              'administrátorů z ní neprojdou.' % n, 'None of its servers '
+                              'answers %s - administrators from it cannot sign in.' % n), 'dir')
     if CONFIG.get('alerts_sms', 1) and (CONFIG.get('sms_mode') or 'off') != 'off':
         for n in names:
             s = (health.get(n) or {}).get('sms') or {}
@@ -380,6 +371,21 @@ def alert_problems(store, lang='en'):
                     _al(lang, '%d SMS z %s za sebou se nepovedlo: %s',
                         '%d SMS from %s failed in a row: %s') % (int(s['fails']), n,
                                                               s.get('said') or '?'), 'codes')
+    # What a module sees wrong (HOOKS['alerts']): mailed like the engine's own.
+    for fn in HOOKS['alerts']:
+        try:
+            got = list(fn(store) or [])
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('alerts-hook', 'a module\'s alerts could not be asked: %s: %s'
+                        % (getattr(fn, '__qualname__', fn), e), 'warn', every=600)
+            continue
+        for a in got:
+            if not isinstance(a, dict) or not a.get('key') or not a.get('words'):
+                continue
+            words = str(a['words'])
+            add('mod:%s' % a['key'], 'bad' if a.get('level') == 'bad' else 'warn',
+                str(a.get('node') or ''), str(a.get('title') or words)[:300],
+                words if a.get('title') else '', str(a.get('pane') or 'certs'))
     return out
 
 
@@ -403,7 +409,7 @@ AL_COLORS = {'bad': ('#dc2626', '#fef2f2', '#991b1b'), 'warn': ('#d97706', '#fff
 
 def _al_page(lang, title, kicker, band, body, foot, width=640):
     """The frame every alert and report mail has: tables and styles on each
-    element, as the token's mail - what every mail program draws the same."""
+    element, as acme's other mails - what every mail program draws the same."""
     return ('<!doctype html><html lang="%s"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1"><title>%s</title>'
             '</head><body style="margin:0;padding:0;background:#f3f4f6;%s">'
@@ -616,28 +622,7 @@ def alerts_evaluate(store, force=False):
             p = known.pop(k)
             if p.get('sent') and CONFIG.get('alerts_resolved', 1):
                 gone.append(p)
-    # Events: a source blocked for guessing, as it happens.
     events = []
-    if CONFIG.get('alerts_guard'):
-        last = int(st.get('event_id') or 0)
-        try:
-            rows = store.db.rows("SELECT id, ts, words, node FROM events WHERE id > ? AND "
-                                 "kind = 'radius' AND words LIKE '% is blocked for %' "
-                                 "ORDER BY id LIMIT 20", (last,))
-        except Exception:                               # noqa: BLE001
-            rows = []
-        if not last:
-            try:
-                st['event_id'] = int(store.db.value('SELECT MAX(id) FROM events', (), 0) or 0)
-            except Exception:                           # noqa: BLE001
-                st['event_id'] = 0
-            rows = []
-        for r in rows:
-            st['event_id'] = max(int(st.get('event_id') or 0), int(r['id']))
-            events.append({'level': 'info', 'node': r.get('node') or '',
-                           'title': _al(lang, 'Zablokovaný zdroj', 'A source blocked'),
-                           'said': str(r.get('words') or '')[:300], 'pane': 'guard',
-                           'since': r.get('ts')})
     st['problems'] = known
     st['checked'] = now
     store.set_meta('alerts:state', json.dumps(st))
@@ -732,8 +717,9 @@ def _rep_tiles(tiles):
 
 
 def _rep_bars(series, lang):
-    """The sign-ins per day as bars: a table of cells, which every mail
-    program draws (no pictures, no SVG)."""
+    """The events per day as bars - those that went well green, those worth
+    a look red: a table of cells, which every mail program draws (no
+    pictures, no SVG)."""
     if not series:
         return ''
     top = max([s['accept'] + s['reject'] for s in series] or [1]) or 1
@@ -754,69 +740,56 @@ def _rep_bars(series, lang):
                _h(day)))
     legend = ('<div style="margin-top:6px;font-size:11.5px;color:#6b7280;%s">'
               '<span style="color:#16a34a">■</span> %s &nbsp; <span style="color:#dc2626">■</span>'
-              ' %s</div>' % (AL_FONT, _h(_al(lang, 'přijato', 'let in')),
-                             _h(_al(lang, 'odmítnuto', 'refused'))))
+              ' %s</div>' % (AL_FONT, _h(_al(lang, 'v pořádku', 'went well')),
+                             _h(_al(lang, 'k pozornosti', 'worth a look'))))
     return ('<table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" '
             'style="margin:4px 0 4px;table-layout:fixed"><tr>%s</tr></table>%s'
             % (''.join(cols), legend))
 
 
 def report_build(store, since, until, lang='cs'):
-    """The report of a period, as a mail: (subject, html, text)."""
+    """The report of a period, as a mail: (subject, html, text) - the engine's
+    own (the events, the sign-ins to the administration, what is wrong, the
+    servers) and a section of each module's (HOOKS['report'])."""
     site = str(CONFIG.get('site_name') or socket.gethostname())
     db = store.db
-    ov = store.overview_now(since=since, until=until)
     days = max(1, int(round((until - since) / 86400)))
-    # By day, whatever the period (the overview bars by 6 h over 3 days).
-    # Counted by the database, a day a row (never the rows themselves read in).
+    # By day, whatever the period: the events that went well and those worth a
+    # look. Counted by the database, a day a row (never the rows themselves read in).
     slot = ('CAST((ts - ?) / 86400 AS INTEGER)' if db.engine == 'sqlite'
             else 'FLOOR((ts - ?) / 86400)')
-    rows = db.rows("SELECT %s AS d, result, COUNT(*) AS n FROM radius_log WHERE ts >= ? AND "
-                   "ts < ? AND packet = 'Access-Request' AND result IN ('accept', 'reject', "
-                   "'drop') GROUP BY 1, 2" % slot, (since, since, until)) if days <= 62 else []
+    rows = db.rows("SELECT %s AS d, CASE WHEN level IN ('warn', 'bad') THEN 'warn' ELSE 'info' "
+                   "END AS lv, COUNT(*) AS n FROM events WHERE ts >= ? AND ts < ? GROUP BY 1, 2"
+                   % slot, (since, since, until)) if days <= 62 else []
     per = collections.OrderedDict()
     for i in range(min(days, 62)):
         per[i] = {'t': since + i * 86400, 'accept': 0, 'reject': 0}
     for r in rows:
         i = int(r['d'] or 0)
         if i in per:
-            per[i]['accept' if r['result'] == 'accept' else 'reject'] += int(r['n'] or 0)
-    acc, rej = int(ov.get('accepted') or 0), int(ov.get('refused') or 0)
-    total = acc + rej
-    users_bad = db.rows(
-        "SELECT username AS who, COUNT(*) AS n, MAX(ts) AS last FROM radius_log WHERE ts >= ? "
-        "AND ts < ? AND packet = 'Access-Request' AND result <> 'accept' AND result <> 'acct' "
-        "GROUP BY username ORDER BY n DESC LIMIT 15", (since, until))
-    for u in users_bad:
-        r = db.rows("SELECT reason FROM radius_log WHERE username = ? AND ts >= ? AND ts < ? AND "
-                    "result <> 'accept' ORDER BY ts DESC LIMIT 1", (u['who'], since, until))
-        u['why'] = (r[0].get('reason') if r else '') or ''
-        u['good'] = int(db.value("SELECT COUNT(*) FROM radius_log WHERE username = ? AND ts >= ? "
-                                 "AND ts < ? AND result = 'accept'", (u['who'], since, until), 0)
-                        or 0)
-    users_top = db.rows(
-        "SELECT username AS who, COUNT(*) AS n, MAX(ts) AS last FROM radius_log WHERE ts >= ? "
-        "AND ts < ? AND result = 'accept' GROUP BY username ORDER BY n DESC LIMIT 10",
-        (since, until))
-    tokens = int(db.value('SELECT COUNT(*) FROM tokens', (), 0) or 0)
-    tok_new = int(db.value('SELECT COUNT(*) FROM tokens WHERE created >= ? AND created < ?',
-                           (since, until), 0) or 0)
-    tok_locked = int(db.value('SELECT COUNT(*) FROM tokens WHERE locked_until > ?',
-                              (time.time(),), 0) or 0)
-    tok_idle = int(db.value('SELECT COUNT(*) FROM tokens WHERE (last_used IS NULL OR last_used '
-                            '< ?) AND created < ?', (time.time() - 90 * 86400,
-                                                     time.time() - 90 * 86400), 0) or 0)
+            per[i]['reject' if r['lv'] == 'warn' else 'accept'] += int(r['n'] or 0)
+    total = int(db.value('SELECT COUNT(*) FROM events WHERE ts >= ? AND ts < ?',
+                         (since, until), 0) or 0)
+    worth = int(db.value("SELECT COUNT(*) FROM events WHERE ts >= ? AND ts < ? AND level IN "
+                         "('warn', 'bad')", (since, until), 0) or 0)
     admins = db.rows("SELECT words, ts, level FROM events WHERE ts >= ? AND ts < ? AND "
                      "kind = 'sign-ins' ORDER BY ts DESC LIMIT 400", (since, until))
     adm_bad = [a for a in admins if a.get('level') in ('warn', 'bad')]
-    blocks = db.rows("SELECT words, ts FROM events WHERE ts >= ? AND ts < ? AND kind = 'radius' "
-                     "AND words LIKE '% is blocked for %' ORDER BY ts DESC LIMIT 20", (since, until))
     important = db.rows("SELECT ts, kind, level, who, words FROM events WHERE ts >= ? AND ts < ? "
                         "AND level IN ('warn', 'bad') AND kind <> 'sign-ins' ORDER BY ts DESC "
                         "LIMIT 25", (since, until))
     kinds = db.rows("SELECT kind, COUNT(*) AS n FROM events WHERE ts >= ? AND ts < ? GROUP BY "
                     "kind ORDER BY n DESC", (since, until))
     probs = alert_problems(store, lang)
+    # The modules' own sections (HOOKS['report']): (heading, [lines]) each.
+    sections = []
+    for fn in HOOKS['report']:
+        try:
+            for heading, lines in list(fn(store, since) or []):
+                sections.append((str(heading), [str(x) for x in (lines or [])]))
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('report-hook', 'a module\'s part of the report: %s: %s'
+                        % (getattr(fn, '__qualname__', fn), e), 'warn', every=600)
     period = '%s – %s' % (time.strftime('%d.%m.%Y', time.localtime(since)),
                           time.strftime('%d.%m.%Y', time.localtime(until - 1)))
     every = CONFIG.get('report_every') or 'weekly'
@@ -827,17 +800,18 @@ def report_build(store, since, until, lang='cs'):
     body.append('<p style="margin:0 0 12px;font-size:14px;color:#374151">%s <b>%s</b></p>'
                 % (_h(_al(lang, 'Období:', 'Period:')), _h(period)))
     body.append(_rep_tiles([
-        (_al(lang, 'přihlášení', 'sign-ins'), str(total), 'info'),
-        (_al(lang, 'přijato', 'let in'), str(acc), 'good'),
-        (_al(lang, 'odmítnuto', 'refused'), str(rej), 'bad' if rej else 'good'),
-        (_al(lang, 'lidí', 'people'), str(int(ov.get('people') or 0)), 'info')]))
-    body.append(_rep_tiles([
-        (_al(lang, 'tokenů', 'tokens'), str(tokens), 'info'),
-        (_al(lang, 'nových', 'new'), str(tok_new), 'info'),
-        (_al(lang, 'zamčených teď', 'locked now'), str(tok_locked), 'warn' if tok_locked else 'good'),
+        (_al(lang, 'událostí', 'events'), str(total), 'info'),
+        (_al(lang, 'k pozornosti', 'worth a look'), str(worth), 'warn' if worth else 'good'),
+        (_al(lang, 'neúspěšných přihlášení', 'sign-ins refused'), str(len(adm_bad)),
+         'warn' if adm_bad else 'good'),
         (_al(lang, 'problémů teď', 'problems now'), str(len(probs)), 'bad' if probs else 'good')]))
+    for heading, lines in sections:
+        body.append(_al_h(heading))
+        body.append(''.join('<p style="margin:0 0 4px;font-size:13.5px;color:#374151">%s</p>'
+                            % _h(x) for x in lines) or
+                    '<p style="margin:0 0 4px;font-size:13px;color:#9ca3af">–</p>')
     if per:
-        body.append(_al_h(_al(lang, 'Přihlášení po dnech', 'Sign-ins by day')))
+        body.append(_al_h(_al(lang, 'Události po dnech', 'Events by day')))
         body.append(_rep_bars(list(per.values()), lang))
     if probs:
         body.append(_al_h(_al(lang, 'Co je teď špatně', 'What is wrong now')))
@@ -846,29 +820,6 @@ def report_build(store, since, until, lang='cs'):
                 ['<span style="color:#6b7280">%s %s</span>' % (_h(_al(lang, 'Uzel:', 'Node:')),
                                                                 _h(p['node']))]
                 if p.get('node') else [])))
-    body.append(_al_h(_al(lang, 'Kdo byl odmítnut', 'Who was refused')))
-    body.append(_rep_table([_al(lang, 'Uživatel', 'User'), '#' + _al(lang, 'Odmítnuto', 'Refused'),
-                            '#' + _al(lang, 'Přijato', 'Let in'), _al(lang, 'Poslední důvod', 'Last reason'),
-                            '#' + _al(lang, 'Naposledy', 'Last')],
-                           [[_h(u['who'] or '?'), str(u['n']), str(u['good']),
-                             '<span style="color:#6b7280">%s</span>' % _h(str(u['why'])[:400]),
-                             _h(_al_when(u['last']))] for u in users_bad]))
-    body.append(_al_h(_al(lang, 'Proč odmítnuto', 'Why refused')))
-    body.append(_rep_table([_al(lang, 'Důvod', 'Reason'), '#' + _al(lang, 'Kolikrát', 'Times')],
-                           [[_h(str(r.get('said') or '?')[:400]), str(r['n'])]
-                            for r in ov.get('top_reasons') or []]))
-    body.append(_al_h(_al(lang, 'Nejčastěji přihlášení', 'Signed in most')))
-    body.append(_rep_table([_al(lang, 'Uživatel', 'User'), '#' + _al(lang, 'Přihlášení', 'Sign-ins'),
-                            '#' + _al(lang, 'Naposledy', 'Last')],
-                           [[_h(u['who'] or '?'), str(u['n']), _h(_al_when(u['last']))]
-                            for u in users_top]))
-    body.append(_al_h(_al(lang, 'Odkud (klienti RADIUS)', 'From where (RADIUS clients)')))
-    body.append(_rep_table([_al(lang, 'Klient', 'Client'), '#' + _al(lang, 'Požadavků', 'Requests')],
-                           [[_h(r.get('said') or '?'), str(r['n'])]
-                            for r in ov.get('top_clients') or []]))
-    body.append(_al_h(_al(lang, 'Ochrana přihlášení', 'Sign-in protection')))
-    body.append(_rep_table([_al(lang, 'Kdy', 'When'), _al(lang, 'Zablokováno', 'Blocked')],
-                           [[_h(_al_when(b['ts'])), _h(str(b['words'])[:600])] for b in blocks]))
     body.append(_al_h(_al(lang, 'Přihlášení do administrace', 'Sign-ins to the administration')))
     body.append('<p style="margin:0 0 6px;font-size:13.5px;color:#374151">%s</p>' % _h(
         _al(lang, 'Celkem %d záznamů, z toho %d neúspěšných nebo s varováním.',
@@ -913,18 +864,21 @@ def report_build(store, since, until, lang='cs'):
     page = _al_page(lang, title, 'acme · ' + site, AL_COLORS['info'][2], ''.join(body), foot,
                     width=0)
     text = ['%s - %s' % (title, site), period, '',
-            _al(lang, 'Přihlášení: %d, přijato %d, odmítnuto %d, lidí %d.',
-                'Sign-ins: %d, let in %d, refused %d, people %d.')
-            % (total, acc, rej, int(ov.get('people') or 0)),
-            _al(lang, 'Tokeny: %d, nových %d, zamčených %d.', 'Tokens: %d, new %d, locked %d.')
-            % (tokens, tok_new, tok_locked), '']
+            _al(lang, 'Událostí: %d, k pozornosti %d. Přihlášení do administrace: %d, '
+                      'neúspěšných %d.',
+                'Events: %d, worth a look %d. Sign-ins to the administration: %d, refused %d.')
+            % (total, worth, len(admins), len(adm_bad)), '']
+    for heading, lines in sections:
+        text.append(heading.upper())
+        text += ['- %s' % x for x in lines] or ['-']
+        text.append('')
     if probs:
         text.append(_al(lang, 'Co je teď špatně:', 'What is wrong now:'))
         text += ['- %s: %s' % (p['title'], p['said']) for p in probs.values()]
         text.append('')
-    text.append(_al(lang, 'Kdo byl odmítnut:', 'Who was refused:'))
-    text += ['- %s: %d (%s)' % (u['who'], u['n'], u['why']) for u in users_bad] or ['-']
-    text += ['', _al(lang, 'Neaktivní tokeny (90 dní): %d', 'Tokens idle for 90 days: %d') % tok_idle]
+    text.append(_al(lang, 'Důležité události:', 'Events worth a look:'))
+    text += ['- %s %s: %s' % (_al_when(e['ts']), e.get('kind') or '', str(e.get('words') or '')[:300])
+             for e in important] or ['-']
     subject = _al(lang, '[acme] %s report %s - %s', '[acme] %s report %s - %s') % (kind_w, period,
                                                                                  site)
     return subject, page, '\n'.join(text)

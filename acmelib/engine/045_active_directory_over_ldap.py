@@ -318,8 +318,8 @@ LDAP_SCOPE_WORDS = {0: 'that entry only', 1: 'one level down', 2: 'everything be
 # Attributes never written to the log, whatever the debug switches say. None
 # of these is ever asked for by this program; they are named here because a
 # debug log is a file somebody copies into a ticket, and "it cannot happen"
-# is not a reason to leave the door open. See the rule the FreeRADIUS reading
-# follows for the same reason: a password never reaches a row or a log.
+# is not a reason to leave the door open: a password never reaches a row or
+# a log.
 LDAP_NEVER_LOG = ('userpassword', 'unicodepwd', 'dbcspwd', 'lmpwdhistory',
                   'ntpwdhistory', 'supplementalcredentials', 'msds-keycredentiallink',
                   'clearpassword', 'currentvalue', 'msds-managedpassword',
@@ -878,8 +878,8 @@ class Ldap(object):
                       + _ber_bool(False) + filter_ber + _ber(0x30, want))
             mid = self._send(op, self._paging_control(cookie) if paged else b'')
             # Per page (1.0.36), and never past the whole search's (1.0.59):
-            # a server handing out page after page slowly held a RADIUS
-            # worker for as long as two hundred pages took.
+            # a server handing out page after page slowly held a sign-in
+            # for as long as two hundred pages took.
             self._deadline = min(time.time() + self.timeout * 3, began + self.timeout * 6)
             if self._deadline <= time.time():
                 raise LdapUnreachable('%s did not finish the search within %d s'

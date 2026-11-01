@@ -3,9 +3,10 @@
 """
 mockldap.py - a directory that is not there, answering the way one does.
 
-Taken from isemon's tests, with a few people added the way a VPN realm sees
-them: names in another UPN suffix than the domain's, a VPN group, a group
-inside it, a disabled account.
+Taken from isemon's tests, with a few people added the way acme's sign-ins
+see them (the administrators', the enrolment pages'): names in another UPN
+suffix than the domain's, a group of certificate users, a group inside it, a
+disabled account.
 
 It speaks enough LDAP to be asked the questions acme asks: is this password
 right, who is this, which groups are they in, and what groups are there.
@@ -133,14 +134,14 @@ PEOPLE = {
         '_password': 'the-service-password',
     },
 }
-# The people a VPN realm asks about: names ending in @corpnet.cz while the
+# The people the sign-ins ask about: names ending in @corpnet.cz while the
 # domain is corpnet.loc, as on the site this was written for.
 PEOPLE.update({
     'CN=Falco Tester,OU=People,DC=corpnet,DC=loc': {
         'sAMAccountName': ['falco'], 'userPrincipalName': ['falco@corpnet.cz'],
         'displayName': ['Falco Tester'], 'objectClass': ['top', 'person', 'user'],
         'userAccountControl': ['512'],
-        'memberOf': ['CN=VPN_2FACT_USERS,OU=Groups,DC=corpnet,DC=loc'],
+        'memberOf': ['CN=CERT_USERS,OU=Groups,DC=corpnet,DC=loc'],
         '_password': 'falco-password-1',
     },
     # With a mail and a mobile in the directory (1.0.91).
@@ -149,14 +150,14 @@ PEOPLE.update({
         'displayName': ['Marta Mobilni'], 'objectClass': ['top', 'person', 'user'],
         'mail': ['marta.mobilni@corpnet.cz'], 'mobile': ['+420 777 111 222'],
         'userAccountControl': ['512'],
-        'memberOf': ['CN=VPN_2FACT_USERS,OU=Groups,DC=corpnet,DC=loc'],
+        'memberOf': ['CN=CERT_USERS,OU=Groups,DC=corpnet,DC=loc'],
         '_password': 'marta-password-1',
     },
     'CN=Nested Person,OU=People,DC=corpnet,DC=loc': {
         'sAMAccountName': ['nested'], 'userPrincipalName': ['nested@corpnet.cz'],
         'displayName': ['Nested Person'], 'objectClass': ['top', 'person', 'user'],
         'userAccountControl': ['512'],
-        'memberOf': ['CN=VPN_SUPPLIER_X,OU=Groups,DC=corpnet,DC=loc'],
+        'memberOf': ['CN=CERT_SUPPLIER_X,OU=Groups,DC=corpnet,DC=loc'],
         '_password': 'nested-password-1',
     },
     'CN=Outsider,OU=People,DC=corpnet,DC=loc': {
@@ -167,7 +168,7 @@ PEOPLE.update({
     'CN=Gone Away,OU=People,DC=corpnet,DC=loc': {
         'sAMAccountName': ['gone'], 'userPrincipalName': ['gone@corpnet.cz'],
         'objectClass': ['top', 'person', 'user'], 'userAccountControl': ['514'],
-        'memberOf': ['CN=VPN_2FACT_USERS,OU=Groups,DC=corpnet,DC=loc'],
+        'memberOf': ['CN=CERT_USERS,OU=Groups,DC=corpnet,DC=loc'],
         '_password': 'gone-password-1',
     },
     'CN=acme,OU=Service,DC=corpnet,DC=loc': {
@@ -178,16 +179,16 @@ PEOPLE.update({
 })
 
 GROUPS = {
-    'CN=VPN_2FACT_USERS,OU=Groups,DC=corpnet,DC=loc': {
-        'cn': ['VPN_2FACT_USERS'], 'objectClass': ['top', 'group'],
+    'CN=CERT_USERS,OU=Groups,DC=corpnet,DC=loc': {
+        'cn': ['CERT_USERS'], 'objectClass': ['top', 'group'],
         'member': ['CN=Falco Tester,OU=People,DC=corpnet,DC=loc',
                    'CN=Gone Away,OU=People,DC=corpnet,DC=loc',
-                   'CN=VPN_SUPPLIER_X,OU=Groups,DC=corpnet,DC=loc'],
+                   'CN=CERT_SUPPLIER_X,OU=Groups,DC=corpnet,DC=loc'],
     },
-    'CN=VPN_SUPPLIER_X,OU=Groups,DC=corpnet,DC=loc': {
-        'cn': ['VPN_SUPPLIER_X'], 'objectClass': ['top', 'group'],
+    'CN=CERT_SUPPLIER_X,OU=Groups,DC=corpnet,DC=loc': {
+        'cn': ['CERT_SUPPLIER_X'], 'objectClass': ['top', 'group'],
         'member': ['CN=Nested Person,OU=People,DC=corpnet,DC=loc'],
-        'memberOf': ['CN=VPN_2FACT_USERS,OU=Groups,DC=corpnet,DC=loc'],
+        'memberOf': ['CN=CERT_USERS,OU=Groups,DC=corpnet,DC=loc'],
     },
     'CN=ISE Admins,OU=Groups,DC=corpnet,DC=loc': {
         'cn': ['ISE Admins'], 'objectClass': ['top', 'group'],

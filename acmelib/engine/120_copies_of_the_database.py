@@ -31,7 +31,7 @@ def backup_room_check(store, folder=None):
 
 def make_backup(store, why='by hand'):
     """A copy of everything into the backups folder - and the key that opens
-    the tokens beside it, because one without the other is nothing."""
+    its sealed secrets beside it, because one without the other is nothing."""
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     backup_room_check(store)
     stamp_ = datetime.now().strftime('%Y%m%d-%H%M%S')
@@ -107,3 +107,31 @@ def backups():
     return out
 
 
+
+
+STALE_WORK = ('acme-rbackup-', 'acme-putback-', 'acme-download-', 'acme-dl-', 'acme-peek-',
+              'acme-fetch-')
+
+
+def stale_work_away(older=6 * 3600):
+    """What a backup, a download or a putting back left in the state folder
+    when the program stopped in the middle of it (1.0.146) - a copy of the
+    database, unlocked, for nobody. Hours old only: the command line may be
+    at one just now."""
+    try:
+        items = list(STATE_DIR.iterdir())
+    except OSError:
+        return
+    for p in items:
+        if not p.name.startswith(STALE_WORK):
+            continue
+        try:
+            if time.time() - p.lstat().st_mtime < older:
+                continue
+            if p.is_dir() and not p.is_symlink():
+                shutil.rmtree(str(p), ignore_errors=True)
+            else:
+                p.unlink()
+            log('left from before, taken away: %s' % p.name, 'info')
+        except OSError:
+            pass

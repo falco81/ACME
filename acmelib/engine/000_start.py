@@ -1,26 +1,19 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 """
-acme - a one-time password server: RADIUS, TOTP and the enrolment of tokens,
-in one Python file.
+acme - certificates kept, renewed and deployed by themselves.
 
-A VPN concentrator asks over RADIUS whether somebody may come in. acme answers:
-it checks the six digits against the token the person enrolled, looks the
-person up in Active Directory, holds them against the groups the realm asks
-for, and says yes or no - with the reasons written down, every one of them,
-and sent on to isemon in the very shape isemon already reads from a token
-server.
-
-Everything is here: the RADIUS server, the token arithmetic (RFC 4226 / 6238),
-the QR codes the phones scan, the one-off recovery codes, Active Directory over
-LDAP, the database, the JSON API the web pages ask and the command line. The
-web pages (PHP) only relay to the API; they hold nothing and decide nothing.
+Let's Encrypt (and any ACME CA), your own certificate authorities, Microsoft
+AD CS and SCEP on one side; the servers, load balancers, firewalls and
+appliances that use the certificates on the other. This is the engine under
+it: the settings, the database (SQLite, MariaDB or PostgreSQL), the sealed
+secrets, the cluster of two nodes, mail and SMS, the administrators and their
+second step, backups, the firewall, the network, time, updates, the JSON API
+the web pages ask, the command line and the console. The certificate manager
+(acmelib/certs) plugs into it through HOOKS below.
 
     acme --status              what it is doing, in one screen
-    acme --tokens              who has a token
-    acme --enroll NAME         make one, and show the QR code in the terminal
-    acme --radtest NAME CODE   ask this server the way the VPN does
-    acme --log                 the RADIUS requests, newest first
+    acme --console             the menus, on the server's own screen
     acme --help                all of it
 
 With nothing at all on the command line it runs the daemon in the foreground.
@@ -84,8 +77,8 @@ from urllib.parse import urlparse, parse_qs
 # in /etc/environment or a shell are not for acme - the proxy is for the updates
 # only (Settings → Proxy, handed over by itself). Gone before anything opens a
 # connection, and from what acme runs too (smbclient, nsupdate, openssl…), so a
-# proxy never stands between RADIUS, the VIP address's check, ACME or SMS and
-# what they ask.
+# proxy never stands between the VIP address's check, ACME or SMS and what
+# they ask.
 for _pk in ('http_proxy', 'https_proxy', 'ftp_proxy', 'all_proxy', 'no_proxy',
             'HTTP_PROXY', 'HTTPS_PROXY', 'FTP_PROXY', 'ALL_PROXY', 'NO_PROXY'):
     os.environ.pop(_pk, None)
@@ -113,10 +106,12 @@ DOWNGRADE_FLOOR = '1.0.0'
 #   alerts(store) -> [{'key', 'level' ('warn'|'bad'), 'words'}]   what Alerts and reports mails
 #   report(store, since) -> [(heading, [lines])]                  sections of the weekly report
 #   metrics(store) -> [(name, help, 'gauge'|'counter', [({labels}, value)])]   for Prometheus
-#   carry_tables -> table names that belong to the configuration (Export and import)
+#   carry_tables() -> [table names] that belong to the configuration (Export and import)
+#   firewall(store, node) -> [{'key', 'title', 'why', 'rules': [{'family', 'proto',
+#       'port', 'source'}]}]   what a module needs open on a node (its DNS server, say)
 HOOKS = {'daemon_start': [], 'daemon_stop': [], 'cli_args': [], 'cli_run': [],
          'console_main': [], 'status': [], 'alerts': [], 'report': [], 'metrics': [],
-         'carry_tables': []}
+         'carry_tables': [], 'firewall': []}
 
 
 def hook(kind):

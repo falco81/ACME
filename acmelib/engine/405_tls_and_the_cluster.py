@@ -5,7 +5,7 @@ def web_unmapped(web, me):
     """A node's web state without the firewall's rules and the access lists for
     an account that only reads (1.0.205): /api/firewall keeps them from it as
     the map of the network, and /api/web, /api/ha gave them all the same."""
-    if (me or {}).get('role') in ('fulladmin', 'tokenadmin') or not isinstance(web, dict):
+    if (me or {}).get('role') in ('fulladmin', 'certadmin') or not isinstance(web, dict):
         return web
     return {k: v for k, v in web.items() if k not in ('fw', 'access')}
 

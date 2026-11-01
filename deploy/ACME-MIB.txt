@@ -1,13 +1,16 @@
 ACME-MIB DEFINITIONS ::= BEGIN
 
--- acme, the one-time password server: what each node's own SNMPv3 agent
+-- acme - certificates kept, renewed and deployed by themselves: what each
+-- node's own SNMPv3 agent
 -- answers (1.0.182). Read only. Under netSnmpPlaypen (net-snmp's subtree for
 -- objects of one's own), .7 - acme has no enterprise number of its own.
--- Every sample of https://NODE/metrics is in acmeMetricTable too.
+-- Every sample of https://NODE/metrics is in acmeMetricTable too - the
+-- certificates the certificate manager keeps among them. { acme 2 } and
+-- { acme 4 } are not used (they were RADIUS and the tokens of otp).
 
 IMPORTS
     MODULE-IDENTITY, OBJECT-TYPE, NOTIFICATION-TYPE,
-    Integer32, Gauge32, Counter64, TimeTicks
+    Integer32, Gauge32, TimeTicks
         FROM SNMPv2-SMI
     DisplayString
         FROM SNMPv2-TC
@@ -15,20 +18,21 @@ IMPORTS
         FROM NET-SNMP-MIB;
 
 acme MODULE-IDENTITY
-    LAST-UPDATED "202610300000Z"
+    LAST-UPDATED "202611010000Z"
     ORGANIZATION "acme"
     CONTACT-INFO "The administrators of the acme servers - Settings, Monitoring."
-    DESCRIPTION  "acme: RADIUS, the tokens, the database, the alerts, the
-                  certificates and the cluster of one node."
+    DESCRIPTION  "acme, certificates kept, renewed and deployed by themselves:
+                  the database, the alerts, the certificates of the pages, the
+                  cluster and every metric of one node."
+    REVISION     "202611010000Z"
+    DESCRIPTION  "acme: the RADIUS and token objects of otp taken out."
     REVISION     "202610300000Z"
     DESCRIPTION  "First: 1.0.182."
     ::= { netSnmpPlaypen 7 }
 
 acmeNotifications OBJECT IDENTIFIER ::= { acme 0 }
 acmeInfo          OBJECT IDENTIFIER ::= { acme 1 }
-acmeRadius        OBJECT IDENTIFIER ::= { acme 2 }
 acmeDatabase      OBJECT IDENTIFIER ::= { acme 3 }
-acmeTokens        OBJECT IDENTIFIER ::= { acme 4 }
 acmeAlerts        OBJECT IDENTIFIER ::= { acme 5 }
 acmeCertificates  OBJECT IDENTIFIER ::= { acme 6 }
 acmeCluster       OBJECT IDENTIFIER ::= { acme 7 }
@@ -59,51 +63,6 @@ acmeUptime OBJECT-TYPE
     SYNTAX TimeTicks MAX-ACCESS read-only STATUS current
     DESCRIPTION "Since the daemon started." ::= { acmeInfo 7 }
 
--- acmeRadius ----------------------------------------------------------------------
-
-acmeRadiusListening OBJECT-TYPE
-    SYNTAX Integer32 (0..1) MAX-ACCESS read-only STATUS current
-    DESCRIPTION "1 while RADIUS listens." ::= { acmeRadius 1 }
-acmeRadiusQueued OBJECT-TYPE
-    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Requests waiting for a worker." ::= { acmeRadius 2 }
-acmeRadiusPackets OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Packets since the daemon started." ::= { acmeRadius 3 }
-acmeRadiusAccepts OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Access-Accept sent." ::= { acmeRadius 4 }
-acmeRadiusRejects OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Access-Reject sent." ::= { acmeRadius 5 }
-acmeRadiusChallenges OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Access-Challenge sent." ::= { acmeRadius 6 }
-acmeRadiusAccounting OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Accounting-Request answered." ::= { acmeRadius 7 }
-acmeRadiusStatus OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Status-Server answered." ::= { acmeRadius 8 }
-acmeRadiusDropped OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Requests dropped." ::= { acmeRadius 9 }
-acmeRadiusMalformed OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Packets that were not RADIUS." ::= { acmeRadius 10 }
-acmeRadiusUnknown OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Packets from addresses that are not clients." ::= { acmeRadius 11 }
-acmeRadiusRepeated OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Requests sent again and answered as before." ::= { acmeRadius 12 }
-acmeRadiusNoDatabase OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Requests the database could not answer." ::= { acmeRadius 13 }
-acmeRadiusMaintenance OBJECT-TYPE
-    SYNTAX Counter64 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Requests not answered in maintenance." ::= { acmeRadius 14 }
-
 -- acmeDatabase --------------------------------------------------------------------
 
 acmeDbUp OBJECT-TYPE
@@ -112,27 +71,6 @@ acmeDbUp OBJECT-TYPE
 acmeDbLatency OBJECT-TYPE
     SYNTAX Gauge32 UNITS "microseconds" MAX-ACCESS read-only STATUS current
     DESCRIPTION "How long SELECT 1 took." ::= { acmeDatabase 2 }
-
--- acmeTokens ----------------------------------------------------------------------
-
-acmeTokensAll OBJECT-TYPE
-    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Every token." ::= { acmeTokens 1 }
-acmeTokensActive OBJECT-TYPE
-    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Tokens in use." ::= { acmeTokens 2 }
-acmeTokensPending OBJECT-TYPE
-    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Tokens not confirmed yet." ::= { acmeTokens 3 }
-acmeTokensDisabled OBJECT-TYPE
-    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Tokens switched off." ::= { acmeTokens 4 }
-acmeTokensUsed30d OBJECT-TYPE
-    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Tokens used in the last 30 days." ::= { acmeTokens 5 }
-acmeTokensNeverUsed OBJECT-TYPE
-    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Tokens never used." ::= { acmeTokens 6 }
 
 -- acmeAlerts ----------------------------------------------------------------------
 

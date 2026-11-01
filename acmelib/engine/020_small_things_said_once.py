@@ -51,10 +51,10 @@ def name_letters_problem(name):
         return ''
     if home:
         return ('the name %s has letters of another language (%s) - only Czech and Slovak ones '
-                'are taken (Settings - The tokens - Letters of other languages in names)'
+                'are taken (Settings - Accounts - Letters of other languages in names)'
                 % (said[:60], ' '.join(odd[:8])))
     return ('the name %s has letters with accents or of another language (%s) - only letters '
-            'without accents are taken (Settings - The tokens - Czech and Slovak letters in '
+            'without accents are taken (Settings - Accounts - Czech and Slovak letters in '
             'names, Letters of other languages in names)' % (said[:60], ' '.join(odd[:8])))
 
 

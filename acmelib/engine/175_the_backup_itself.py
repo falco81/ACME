@@ -47,12 +47,14 @@ def rb_restore_md(m):
                                else 'one server')),
         '| Locked | %s |' % ('yes - AES-256-CBC, PBKDF2-SHA256, %d rounds (openssl enc)'
                              % RB_ITER if enc else '**no** - anybody with the file has every '
-                             'token: keep it as you would the server'),
-        '| Tokens | %s |' % m.get('tokens', '?'),
-        '', 'Everything is in it: the whole database (tokens and their recovery codes, the RADIUS',
-        'clients, realms, directories, accounts, every setting, the certificates and keys of the',
-        'pages, the VIP address, the firewall, the message texts, the logs), the key that opens',
-        'the tokens (`secrets.key`) and this machine\'s `/etc/acme/config.json`.', '',
+                             'private key: keep it as you would the server'),
+        '| Rows | %s |' % (', '.join('%s %s' % (t, n) for t, n in sorted(
+            (m.get('counts') or {}).items()) if n) or '?'),
+        '', 'Everything is in it: the whole database (the certificates with their private keys,',
+        'the authorities, the issuers, the targets, the directories, the accounts, every setting,',
+        'the certificates and keys of the pages, the VIP address, the firewall, the message',
+        'texts, the logs), the key that opens its sealed secrets (`secrets.key`) and this',
+        'machine\'s `/etc/acme/config.json`.', '',
         'Keep the password of the backups apart from the backups (a password vault): without it',
         'the file cannot be opened - by anybody.', '',
         '## 0. Check the file', '', '```bash',
@@ -114,10 +116,10 @@ def rb_restore_md(m):
         ]
     lines += [
         '## %d. Check it' % (5 if ha else 4), '', '```bash',
-        'acme --status                     # tokens, clients, realms, the database',
-        'acme --radtest NAME CODE          # one sign-in', '```', '',
-        'Then sign in to the pages with an account from the backup. RADIUS clients, DNS and a',
-        'load balancer point at the new machine\'s address if it has another one',
+        'acme --status                     # the daemon, the database, the certificates',
+        '```', '',
+        'Then sign in to the pages with an account from the backup. DNS and a load balancer',
+        'point at the new machine\'s address if it has another one',
         '(docs/renaming-and-readdressing.md).', '',
         '## By hand, without --restore-bundle', '', '```bash',
         'systemctl stop acme',
@@ -130,7 +132,19 @@ def rb_restore_md(m):
     return '\n'.join(lines)
 
 
-def rb_manifest(store, base, tokens='?'):
+def rb_counts(store):
+    """How many rows each table of SCHEMA holds - for the manifest, and the
+    check of a backup against it; {} where the database cannot be asked."""
+    out = {}
+    for t in TABLES:
+        try:
+            out[t] = int(store.db.value('SELECT COUNT(*) FROM %s' % t) or 0)
+        except Exception:                               # noqa: BLE001
+            continue                    # a table not made (yet) in this database
+    return out
+
+
+def rb_manifest(store, base, counts=None):
     """What a backup made now is: the head of its manifest and of RESTORE.md."""
     pw = rb_password()
     m = {'acme': __version__, 'made': time.time(),
@@ -139,7 +153,7 @@ def rb_manifest(store, base, tokens='?'):
          'host': socket.getfqdn(), 'engine': store.db.engine,
          'engine_words': ENGINE_WORDS.get(store.db.engine, store.db.engine),
          'ha_mode': CONFIG.get('ha_mode') or '', 'ha_slot': CONFIG.get('ha_slot'),
-         'ha_peer': CONFIG.get('ha_peer') or '', 'tokens': tokens,
+         'ha_peer': CONFIG.get('ha_peer') or '', 'counts': counts or {},
          'encrypted': bool(pw), 'iter': RB_ITER if pw else 0,
          'file': base + ('.tar.gz.enc' if pw else '.tar.gz'), 'files': {}}
     return m
@@ -150,12 +164,8 @@ def rb_restore_guide(store):
     on the pages before anything is lost. No secret is in it."""
     site = rb_slug(CONFIG.get('site_name') or 'acme')
     node = rb_slug(node_name())
-    try:
-        tokens = int(store.db.value('SELECT COUNT(*) FROM tokens') or 0)
-    except Exception:                                   # noqa: BLE001
-        tokens = '?'
     base = 'acme-backup-%s-%s-%s' % (site, node, datetime.now().strftime('%Y%m%d-%H%M%S'))
-    m = rb_manifest(store, base, tokens)
+    m = rb_manifest(store, base, rb_counts(store))
     return {'md': rb_restore_md(m), 'name': 'RESTORE-%s-%s.md' % (site, node),
             'file': m['file']}
 
@@ -178,7 +188,8 @@ def rb_build(store, work, progress=None):
         dump_tables(store.db, f)
     key = sealing_key()
     if not key:
-        raise RbError('this machine has no key that opens the tokens - nothing worth sending')
+        raise RbError('this machine has no key that opens its sealed secrets - nothing worth '
+                      'sending')
     with open(os.path.join(inner, 'secrets.key'), 'w') as f:
         f.write(key.hex() + '\n')
     try:
@@ -191,12 +202,8 @@ def rb_build(store, work, progress=None):
         for p in extra:
             shutil.copyfile(p, os.path.join(inner, 'files', os.path.basename(p)))
     say(2, 'what is in it is counted')
-    try:
-        tokens = int(store.db.value('SELECT COUNT(*) FROM tokens') or 0)
-    except Exception:                                   # noqa: BLE001
-        tokens = '?'
     pw = rb_password()
-    m = rb_manifest(store, base, tokens)
+    m = rb_manifest(store, base, rb_counts(store))
     for root, _dirs, files in os.walk(inner):
         for n in sorted(files):
             p = os.path.join(root, n)
@@ -285,13 +292,13 @@ def rb_run(store, by, only=None, progress=None):
                if (only and t['id'] in only) or (not only and t.get('enabled'))]
     if not targets:
         raise RbError('no destination is switched on')
-    # Never sent unlocked (1.0.136): it holds the key every token is sealed
+    # Never sent unlocked (1.0.136): it holds the key every secret is sealed
     # with, the whole database and config.json - whoever reads the share
-    # could unseal every token.
+    # could unseal every private key.
     if not rb_password():
         raise RbError('the backups have no password: set one (Settings - Backups - '
-                      'Backups to other machines) - unlocked, a copy would hand the key of '
-                      'every token to whoever can read the destination')
+                      'Backups to other machines) - unlocked, a copy would hand every private '
+                      'key to whoever can read the destination')
     work = tempfile.mkdtemp(prefix='acme-rbackup-', dir=str(STATE_DIR))
     os.chmod(work, 0o700)
     began = time.time()
@@ -304,7 +311,7 @@ def rb_run(store, by, only=None, progress=None):
             raise RbError('the backup came out unlocked (its password was taken away meanwhile) '
                           '- not sent anywhere')
         run.update(file=m['file'], bytes=m['bytes'], encrypted=m['encrypted'],
-                   tokens=m['tokens'])
+                   rows=sum((m.get('counts') or {}).values()))
         sha = os.path.join(work, m['file'] + '.sha256')
         md = os.path.join(work, m['file'].split('.tar.gz')[0] + '-RESTORE.md')
         for i, t in enumerate(targets):

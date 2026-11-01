@@ -3,12 +3,13 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # Every event and every sign-in to a syslog server / SIEM (1.0.166)
 # ---------------------------------------------------------------------------
-# isemon's shapes are isemon's own; this is for whatever else collects the
+# isemon's lines are isemon's own; this is for whatever else collects the
 # logs - rsyslog, syslog-ng, Graylog, Splunk, Wazuh, QRadar, Sentinel: every
-# event of the Events page and every RADIUS sign-in with its result, as RFC
-# 5424 syslog over UDP, TCP or TLS (RFC 5425), the message as JSON, CEF or
-# key="value" pairs. A queue and a thread of its own: a sign-in only puts a
-# line into the queue, never waits for any of it; a full queue drops lines and
+# event of the Events page (the certificates' too) and every sign-in to the
+# administration and the enrolment pages with its result, as RFC 5424 syslog
+# over UDP, TCP or TLS (RFC 5425), the message as JSON, CEF or key="value"
+# pairs. A queue and a thread of its own: whatever happens only puts a line
+# into the queue, never waits for any of it; a full queue drops lines and
 # counts them.
 SIEM_PEN = 32473                    # the example enterprise number of RFC 5612
 SIEM_SEVERITY = {'bad': 3, 'warn': 4, 'info': 6}
@@ -123,31 +124,19 @@ class Siem(object):
             self.dropped += 1
 
     def event_line(self, kind, words, level, who):
+        """An event of the engine's (store.add_event). A sign-in (kind
+        sign-ins) goes as one, with siem_signins; every other with siem_events."""
+        if kind == 'sign-ins':
+            if CONFIG.get('siem_signins', 1):
+                ok = level not in ('warn', 'bad')
+                self.put('signin', 6 if ok else 4,
+                         {'event': 'signin-' + ('ok' if ok else 'refused'), 'kind': kind,
+                          'level': level, 'who': who or ''}, '%s: %s' % (kind, words))
+            return
         if CONFIG.get('siem_events', 1):
             self.put('event', SIEM_SEVERITY.get(level, 6),
                      {'event': 'event', 'kind': kind, 'level': level, 'who': who or ''},
                      '%s: %s' % (kind, words))
-
-    def signin_line(self, row):
-        """A RADIUS request as the log has it - its result and why."""
-        if not CONFIG.get('siem_signins', 1) or row.get('packet') != 'Access-Request':
-            return
-        res = row.get('result') or ''
-        if res not in ('accept', 'reject', 'drop', 'challenge'):
-            return
-        fields = {'event': 'signin-' + res, 'user': row.get('username') or '',
-                  'realm': row.get('realm') or '', 'result': res,
-                  'reason': row.get('reason') or '', 'client': row.get('client') or '',
-                  'nas_ip': row.get('nas_ip') or '', 'src': row.get('src') or '',
-                  'calling': row.get('calling') or '', 'device': row.get('device') or '',
-                  'ms': row.get('took_ms')}
-        words = '%s %s%s%s' % ('let in' if res == 'accept' else
-                               ('asked for a code' if res == 'challenge' else 'refused'),
-                               fields['user'] or '?',
-                               ' from %s' % fields['calling'] if fields['calling'] else '',
-                               ': %s' % fields['reason'] if fields['reason'] and res != 'accept'
-                               else '')
-        self.put('signin', 6 if res in ('accept', 'challenge') else 4, fields, words)
 
     def test(self, by):
         """A line to every target, sent before this returns where it can be."""

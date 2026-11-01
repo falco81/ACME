@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 # ---- a ZIP locked with a passphrase: WinZip AES-256 (1.0.167) ----------------------------
-# The .totp files of the tokens, as the export gives them: every entry AES-256
-# in CTR mode with an HMAC-SHA1 over it (WinZip's AE-2, compression method 99),
-# its key from the passphrase by PBKDF2-HMAC-SHA1 - what 7-Zip, WinRAR, PeaZip
-# and `7z x` open, and acme reads back. AES itself from `cryptography` where the
-# system has it, else here in Python: a few kilobytes a token, not much to do.
+# What leaves acme with a key in it (the bundle of isemon's TLS, a module's
+# export): every entry AES-256 in CTR mode with an HMAC-SHA1 over it (WinZip's
+# AE-2, compression method 99), its key from the passphrase by PBKDF2-HMAC-SHA1
+# - what 7-Zip, WinRAR, PeaZip and `7z x` open, and acme reads back. AES itself
+# from `cryptography` where the system has it, else here in Python: a few
+# kilobytes, not much to do.
 _AES_SBOX = None
 
 

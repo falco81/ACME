@@ -23,10 +23,7 @@ def is_masked(value):
 
 
 def norm_name(name):
-    said = str(name or '').strip()
-    if CONFIG.get('token_names_case', 'lower') == 'lower':
-        said = said.lower()
-    return said[:190]
+    return str(name or '').strip().lower()[:190]
 
 
 PLAIN_ADDR_RE = re.compile(r'^[0-9A-Fa-f:.]+(/[0-9]{1,3})?\Z')

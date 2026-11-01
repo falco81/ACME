@@ -3,10 +3,10 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # Maintenance, and a new version put in from the pages (1.0.37)
 # ---------------------------------------------------------------------------
-# Maintenance is per node: the node stops answering RADIUS (the VPN goes to
-# the other one, as it would to a node that is down) and /healthz says 503
-# (the load balancer takes it out). The pages go on working, so the node can
-# be looked at and brought back.
+# Maintenance is per node: the node does no work of its own (the other one
+# renews and deploys, as it would for a node that is down) and /healthz says
+# 503 (the load balancer takes it out). The pages go on working, so the node
+# can be looked at and brought back.
 #
 # An upgrade: the package goes into the database, in pieces (so the other
 # node of a cluster has it too), and a plan says which nodes, in which
@@ -81,13 +81,13 @@ def maintenance_row(store, name=None):
 
 
 def maintenance_now(store):
-    """This node's maintenance, read at most every two seconds - asked for
-    every RADIUS packet."""
+    """This node's maintenance, read at most every two seconds - asked
+    before every piece of work."""
     if HA_REBUILDING.is_set():
         return {'on': True, 'why': 'rebuilt from the other node'}
     if RESTORE_RUNNING.is_set():
-        # A backup put back (1.0.149): RADIUS waited for the whole of it with
-        # the database held, or met tables being made again and refused. Room
+        # A backup put back (1.0.149): the work waited for the whole of it with
+        # the database held, or met tables being made again and failed. Room
         # given back in a cluster too (1.0.150): VACUUM FULL holds each table
         # shut - the other node answers meanwhile.
         return {'on': True, 'why': RESTORE_WHY[0] or 'a backup is being put back'}

@@ -4,7 +4,7 @@ from __future__ import annotations
 def vip_health_check(daemon):
     """One look at everything the pages need, from outside the daemon: its
     own /healthz through nginx and PHP to the daemon and the database - and
-    RADIUS listening, and no maintenance, upgrade or rebuild. A node that is
+    the API listening, and no maintenance, upgrade or rebuild. A node that is
     not healthy lets the address go to the other."""
     store = daemon.store
     why = ''
@@ -12,8 +12,8 @@ def vip_health_check(daemon):
         why = 'being rebuilt from the other node'
     elif maintenance_now(store).get('on'):
         why = 'in maintenance'
-    elif not getattr(getattr(daemon, 'radius', None), 'bound', None):
-        why = 'RADIUS is not listening'
+    elif not getattr(getattr(daemon, 'api', None), 'httpd', None):
+        why = 'the API is not listening'
     elif VIP_HEALTH_URL == 'none':
         pass                            # a test bed whose nginx is another node's
     else:
@@ -57,9 +57,8 @@ def vip_watch(daemon):
             else:
                 VIP_HEALTH['fails'] = 0
             # Maintenance asked for (1.0.186): said at once, not after two looks -
-            # RADIUS of this node stops answering, and the VIP address went
-            # silent for seconds before keepalived moved it. Meanwhile, while the
-            # address is still here, RADIUS goes on answering (handle()).
+            # the node stops its work, and the VIP address went silent for
+            # seconds before keepalived moved it.
             planned = maintenance_now(store).get('on')
             if planned:
                 VIP_HEALTH['fails'] = max(VIP_HEALTH['fails'], VIP_FAILS_BEFORE)

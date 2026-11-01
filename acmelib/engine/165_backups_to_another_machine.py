@@ -5,8 +5,9 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # One file that brings any loss back - one server or a cluster, onto a
 # machine installed from nothing: the whole database (an engine-independent
-# copy: tokens, settings, accounts, certificates, the VIP address, the
-# firewall, the texts, the logs), the key that opens the tokens, the machine's
+# copy: the certificates and their keys, the authorities, the targets,
+# settings, accounts, the VIP address, the firewall, the texts, the logs - every
+# table of SCHEMA), the key that opens its sealed secrets, the machine's
 # config.json and the files it names, a manifest with the checksum of each,
 # and RESTORE.md - the exact steps. Locked with a password kept in the
 # settings (openssl enc, AES-256-CBC, PBKDF2-SHA256: opened with acme, or with

@@ -1,6 +1,25 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 # ---- the texts of the messages (1.0.103) -------------------------------------------
+def text_mail(to, drawn):
+    """A mail of what text_render drew ({'subject', 'html', 'text'})."""
+    site = str(CONFIG.get('site_name') or socket.gethostname())
+    sender = mail_sender()
+    if not sender:
+        raise MailError('no sender address is set - Settings → Mail → From (address)')
+    msg = EmailMessage()
+    msg['Subject'] = str(drawn.get('subject') or site)
+    msg['From'] = formataddr((str(CONFIG.get('mail_from_name') or site), sender))
+    msg['To'] = to
+    msg['Date'] = formatdate(localtime=True)
+    msg['Message-ID'] = make_msgid(domain=sender.rsplit('@', 1)[-1] or None)
+    msg['Auto-Submitted'] = 'auto-generated'
+    msg.set_content(str(drawn.get('text') or ''))
+    if drawn.get('html'):
+        msg.add_alternative(str(drawn['html']), subtype='html')
+    return msg
+
+
 @route('GET', '/api/texts')
 def _texts(h):
     s = h.me()
@@ -85,22 +104,17 @@ def _texts_do(h):
                 if m['group'] == 'code':
                     msg = code_message('mail', to, smp['code'], m['purpose'], lang=lang,
                                        name=smp['account'], display=smp['name'], fmt='html', w=w)
+                elif callable(m.get('render')):
+                    # A module's own mail: the preview it draws, sent as it is.
+                    msg = text_mail(to, m['render'](w, smp, lang) or {})
                 else:
-                    picture = {'issuer': smp['site'], 'digits': smp['digits'],
-                               'period': smp['period'], 'secret': 'JBSWY3DPEHPK3PXP',
-                               'secret_spaced': 'JBSW Y3DP EHPK 3PXP', 'label': smp['account'],
-                               'uri': 'otpauth://totp/example?secret=JBSWY3DPEHPK3PXP'}
-                    msg = token_mail(to, smp['account'], picture,
-                                     codes=['10473829', '58261047', '39182754', '74629103',
-                                            '21857364'],
-                                     lang=lang, display=smp['name'], by=s['name'], pending=True,
-                                     w=w)
+                    raise ApiError(400, 'this message has no mail to send')
                 steps = mail_deliver(h.store, msg, [to], kind='test', by=s['name'],
                                      purpose='texts')
                 last = [x for x in steps if x.get('ok')]
                 said = (last[-1].get('said') or 'sent') if last else 'sent'
             else:
-                raise ApiError(400, 'what the VPN shows cannot be sent')
+                raise ApiError(400, 'this text is not sent by itself - it is part of a page')
         except ValueError as e:
             raise ApiError(400, str(e))
         except (MailError, SmsError) as e:
@@ -114,7 +128,7 @@ def _texts_do(h):
 # do nothing yet but its second step (MFA_ALLOWED): a code from an app, or one
 # sent by mail or SMS. The first time the account chooses how and proves it
 # (enrol); after that it gives the code each time (check). The way chosen is
-# the account's own - not a VPN token - kept in meta 'adm2fa:<name>':
+# the account's own, kept in meta 'adm2fa:<name>':
 #   {'kind': 'app'|'mail'|'sms', 'secret': sealed (app), 'dest': (mail/sms),
 #    'at', 'step': the last app code's step, used once}
 # Accounts → Reset the second step and acme --reset-2fa NAME take it away.
@@ -375,10 +389,9 @@ def _mfa_do(h):
                 secret = unseal_secret(rec.get('secret'), mfa_key(name))
                 step = totp_match(secret, code, digits=6,
                                   window=mfa_window()) if secret else None
-                # A code is good once (as a token's is).
-                # And on either node (1.0.205): the step taken as a token's is, in
-                # token_once - the other node's own lock did not keep a code used
-                # here from being used there too.
+                # A code is good once, and on either node (1.0.205): the step
+                # taken in used_once - the other node's own lock did not keep a
+                # code used here from being used there too.
                 if step is not None and step > int(rec.get('step') or 0) and \
                         not once_take(h.store, 'step', 'adm2fa:' + name, step):
                     h.failed(key)

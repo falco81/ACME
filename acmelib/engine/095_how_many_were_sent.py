@@ -813,19 +813,19 @@ def sms_send(to, text):
 
 
 def code_mail_html(code, purpose, lang, name='', display='', w=None):
-    """The mail of a code in the same shape and colours as a token's mail
-    with its QR code (1.0.79): the blue band, the white card, the code in a
-    grey box, the warning in orange - tables and styles on each element, as
-    every mail program shows them alike. Its words as Settings → Message
+    """The mail of a code in the shape and colours of acme's other mails
+    (1.0.79): the blue band, the white card, the code in a grey box, the
+    warning in orange - tables and styles on each element, as every mail
+    program shows them alike. Its words as Settings → Message
     texts has them (1.0.103), or `w` - the editor's, not yet saved."""
     lang = lang if lang in CODE_TEXTS else code_lang()
     if w is None:
         w = texts_for('code', lang)
     h = lambda t: html.escape(str(t or ''), quote=True)
     site = str(CONFIG.get('site_name') or socket.gethostname())
-    issuer = str(CONFIG.get('totp_issuer') or '') or site
+    issuer = site
     minutes = max(1, int(CONFIG.get('code_ttl_s') or 300) // 60)
-    # name@domain kept plain text, as in the token's mail.
+    # name@domain kept plain text, not made a link by the mail program.
     acc = ('<span style="white-space:nowrap">%s</span>' % h(name).replace('@', '@&#8205;')
            if name else '')
     font = "font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"
@@ -895,7 +895,7 @@ def code_mail_html(code, purpose, lang, name='', display='', w=None):
                font, foot))
 
 
-def code_message(kind, to, code, purpose='signin', lang=None, name='', display='', fmt=None,
+def code_message(kind, to, code, purpose='admin', lang=None, name='', display='', fmt=None,
                  w=None):
     """The mail or the SMS text of a code. `w`: the words to use instead of
     those saved - the message texts editor's test (1.0.103)."""
@@ -923,7 +923,7 @@ def code_message(kind, to, code, purpose='signin', lang=None, name='', display='
     return msg
 
 
-def code_send(store, kind, to, code, purpose='signin', name='', lang=None, fmt=None,
+def code_send(store, kind, to, code, purpose='admin', name='', lang=None, fmt=None,
               display=None):
     """code_send_now, with the code taken out of whatever the server said
     (1.0.136): an SMS gateway that echoes the message put a live code into
@@ -946,24 +946,14 @@ def code_send(store, kind, to, code, purpose='signin', name='', lang=None, fmt=N
         raise SmsError(hide(e))
 
 
-def code_send_now(store, kind, to, code, purpose='signin', name='', lang=None, fmt=None,
+def code_send_now(store, kind, to, code, purpose='admin', name='', lang=None, fmt=None,
                   display=None):
     """A code sent now; what the server said, or raises MailError/SmsError.
-    In the token's own language and mail format unless given (1.0.82).
-    `display` given: `name` is an account of the administration, not a
-    token's (1.0.127) - no token is looked up for it."""
-    tok = None
-    if name and display is None:
-        try:
-            tok = store.token(name)
-        except Exception:                               # noqa: BLE001
-            tok = None
-    lang = lang if lang in CODE_TEXTS else (token_lang(tok) if tok else None)
+    `name` is the account it is for, `display` its name as people read it."""
+    lang = lang if lang in CODE_TEXTS else None
     if kind == 'mail':
-        if display is None:
-            display = (tok or {}).get('display') or ''
-        msg = code_message('mail', to, code, purpose, lang=lang, name=name, display=display,
-                           fmt=fmt or (token_mail_fmt(tok) if tok else None))
+        msg = code_message('mail', to, code, purpose, lang=lang, name=name,
+                           display=display or '', fmt=fmt)
         # Through the outgoing mail (1.0.95): greylisted, it is tried again
         # while the code is good - and the person gets it a minute later
         # rather than never.
@@ -979,65 +969,4 @@ def code_send_now(store, kind, to, code, purpose='signin', name='', lang=None, f
         return (last[-1].get('said') or 'sent') if last else 'sent'
     if kind == 'sms':
         return sms_send(to, code_message('sms', to, code, purpose, lang=lang))
-    raise ValueError('%s tokens get no codes sent' % kind)
-
-
-CODE_LOCK = threading.Lock()
-CODE_SENDING = threading.BoundedSemaphore(8)
-CODE_WAITING = [0]
-CODE_WAITING_MOST = 200
-
-
-def code_send_later(store, kind, to, code, name, rid=''):
-    """Sent by a thread of its own: the VPN gets its Access-Challenge at once
-    rather than after a slow mail server. At most 8 at a time, and no more
-    than 200 waiting (1.0.136): a mail server that hung kept a thread per
-    code for minutes, without end."""
-    with CODE_LOCK:
-        if CODE_WAITING[0] >= CODE_WAITING_MOST:
-            log_sparing('code-send-full', 'codes to send: %d are waiting already - the code '
-                        'for %s is not sent' % (CODE_WAITING[0], name), 'warn', every=60)
-            return
-        CODE_WAITING[0] += 1
-
-    def go():
-        try:
-            with CODE_SENDING:
-                send()
-        finally:
-            with CODE_LOCK:
-                CODE_WAITING[0] -= 1
-
-    def send():
-        try:
-            said = code_send(store, kind, to, code, name=name)
-            store.acme_add({'ts': time.time(), 'name': name, 'ok': 1,
-                           'said': 'A code was sent by %s to %s' % (
-                               'mail' if kind == 'mail' else 'SMS', dest_masked(kind, to)),
-                           'how': 'send-' + kind, 'src': '', 'rid': str(rid)[:120],
-                           'step_off': None})
-            if debugging('radius'):
-                log('a code for %s went by %s: %s' % (name, kind, said), 'debug')
-        except Exception as e:                          # noqa: BLE001
-            log_sparing('code-send:%s' % kind, 'a code for %s could not be sent by %s: %s'
-                        % (name, kind, e), 'warn', every=60)
-            try:
-                store.add_event('mail' if kind == 'mail' else 'radius',
-                                'the code for %s could not be sent by %s to %s: %s'
-                                % (name, 'mail' if kind == 'mail' else 'SMS',
-                                   dest_masked(kind, to), str(e)[:300]), 'bad', who=name)
-                store.acme_add({'ts': time.time(), 'name': name, 'ok': 0,
-                               'said': 'The code could not be sent: %s' % str(e)[:200],
-                               'how': 'send-' + kind, 'src': '', 'rid': str(rid)[:120],
-                               'step_off': None})
-            except Exception:                           # noqa: BLE001
-                pass
-    try:
-        threading.Thread(target=go, name='code-send', daemon=True).start()
-    except RuntimeError as e:
-        with CODE_LOCK:
-            CODE_WAITING[0] -= 1
-        log_sparing('code-send-thread', 'the code for %s could not be sent: %s' % (name, e),
-                    'warn', every=60)
-
-
+    raise ValueError('a code goes by mail or SMS, not by %s' % kind)

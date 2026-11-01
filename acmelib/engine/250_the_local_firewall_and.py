@@ -5,7 +5,8 @@ from __future__ import annotations
 # the rest of the web side (one request, one status). What acme's functions
 # need is worked out here from what is set up; the rules somebody adds by
 # hand come first, so a DROP or REJECT of theirs wins over what acme opens.
-FW_AUTO_OPTIONAL = ('ssh', 'icmp', 'dhcpv6', 'web', 'radius', 'ntp')
+# The openings that may be switched off; a module's (HOOKS['firewall']) join them.
+FW_AUTO_OPTIONAL = ['ssh', 'icmp', 'dhcpv6', 'web', 'ntp']
 ACCESS_WORDS = {'portal': 'the enrolment pages', 'admin': 'the administration pages',
                 'health': 'the health check (/healthz)'}
 
@@ -143,23 +144,20 @@ def fw_auto(store, node):
     out.append({'key': 'web', 'title': 'HTTP / HTTPS', 'why': 'the enrolment and '
                 'administration pages and the health check; who sees which is under '
                 '"Who may reach the pages"', 'rules': web})
-    ports = str(int(CONFIG.get('radius_auth_port') or 1812))
-    if int(CONFIG.get('radius_acct_port') or 0):
-        ports += ',%d' % int(CONFIG.get('radius_acct_port'))
-    rad = []
-    for c in store.clients():
-        if not c.get('enabled'):
-            continue
+    # What a module needs open (its DNS server for DNS-01, say).
+    for fn in HOOKS['firewall']:
         try:
-            net = address_net(c['address'])
-        except (ValueError, KeyError):
+            got = list(fn(store, node) or [])
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('fw-hook', 'a module\'s openings of the firewall: %s' % e, 'warn')
             continue
-        if net is None:
-            continue
-        rad.append({'family': net.version, 'proto': 'udp', 'port': ports, 'source': str(net),
-                    'note': 'RADIUS %s' % c.get('name', '')})
-    out.append({'key': 'radius', 'title': 'RADIUS', 'why': 'from each RADIUS client set up '
-                '(Clients), and only from them', 'rules': rad})
+        for item in got:
+            if not item.get('key') or any(x['key'] == item['key'] for x in out):
+                continue
+            item = dict(item, rules=list(item.get('rules') or []))
+            if not item.get('fixed') and item['key'] not in FW_AUTO_OPTIONAL:
+                FW_AUTO_OPTIONAL.append(item['key'])
+            out.append(item)
     # Time served to the networks set in Settings → Time (1.0.120).
     nc = _meta_json(store, 'ntp:conf') or {}
     if nc.get('manage') and nc.get('allow'):

@@ -17,7 +17,7 @@ MAILQ_PREFIX = 'mailq:'
 MAILB_PREFIX = 'mailb:'
 MAILQ_DELAYS = (60, 120, 300, 600, 900, 1800)           # then every hour
 MAILQ_CODE_DELAYS = (30, 60)                            # then every minute
-MAILQ_KIND_WORDS = {'token': 'a token (QR code)', 'code': 'a code to sign in',
+MAILQ_KIND_WORDS = {'code': 'a code to sign in',
                     'verify': 'a code to check an address', 'test': 'a test',
                     'alert': 'an alert', 'report': 'a report',
                     'other': 'a mail'}

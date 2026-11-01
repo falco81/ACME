@@ -183,8 +183,8 @@ def db_give_back(store, progress):
     TABLE, VACUUM FULL. Each holds a table shut while it works."""
     own = db_own(store)
     # In a cluster this node rests meanwhile (1.0.150): the tables are held
-    # shut, and RADIUS waited on them - the other node answers. Alone, the
-    # page says first that sign-ins wait for it.
+    # shut, and the work waited on them - the other node does it. Alone, the
+    # page says first that the work waits for it.
     rest = bool(CONFIG.get('ha_mode')) and any(n.get('alive') and not n.get('me')
                                                for n in ha_nodes(store))
     if rest:
@@ -219,11 +219,12 @@ def _db_give_back(db, progress):
 
 
 def db_prune(store, days):
-    """Forget the requests and the checks of a code older than `days`."""
+    """Forget the events - and the rows of every log a module keeps (LOG_TABLES)
+    - older than `days`."""
     edge = time.time() - int(days) * 86400 if int(days) > 0 else time.time() + 86400
     gone = {}
-    for t in ('radius_log', 'acme_log'):
-        # In batches (1.0.57): one DELETE of millions of rows held RADIUS -
+    for t in ['events'] + [x for x in LOG_TABLES if x != 'events']:
+        # In batches (1.0.57): one DELETE of millions of rows held the daemon -
         # and the health check the VIP address follows - for minutes.
         gone[t] = store.delete_older(t, edge)
     return gone

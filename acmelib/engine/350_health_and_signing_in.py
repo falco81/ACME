@@ -12,20 +12,12 @@ HEALTH_SEEN = {}
 LOCKOUT_KINDS = {
     'admin': 'signing in to these pages',
     'portal': 'signing in to the enrolment pages',
-    'portal-verify': 'a code typed on the enrolment pages',
-    'portal-send': 'codes sent from the enrolment pages',
-    'portal-confirm': 'confirming a token on the enrolment pages',
-    'portal-reissue': 'a new token on the enrolment pages',
-    'portal-codes': 'recovery codes shown on the enrolment pages',
     # Kept in the database for the whole cluster (1.0.116), not in a node's
-    # memory: codes sent to a person, and a token locked by wrong codes.
+    # memory: codes sent to a person.
     'codes-sent': 'codes sent by e-mail or SMS',
-    'token-locked': 'the token, after wrong codes',
     'password': 'changing a password',
-    'code-test': 'trying a code (Tokens)',
-    'radtest': 'a RADIUS test (Test)',
+    'dirtry': 'trying a directory sign-in (Accounts)',
     'texts-test': 'a test message (Message texts)',
-    'radius-src': 'signing in to the VPN, from one place',
 }
 LOCKOUTS_SENT = {'sig': None, 'at': 0.0}
 THROTTLE_GUARD = threading.Lock()
@@ -43,32 +35,6 @@ def lockouts_view(d):
             continue
         fails = [x for x in fails if t - x < span]
         kind, who = key
-        if info.get('guard'):
-            # A place counted by the sign-in protection (1.0.137): blocked
-            # for its own time, by its refusals or by its names.
-            until = float(info.get('blocked_until') or 0)
-            blocked = until > t
-            if not fails and not blocked:
-                # Forgotten once nothing of it counts (1.0.149): every new
-                # place stayed for good - 50 000 /64s were 45 MB, and the
-                # list published every few seconds 18 MB.
-                if t - float(info.get('at') or 0) > span and t - until > span:
-                    d.login_fails.pop(key, None)
-                    d.login_info.pop(key, None)
-                continue
-            names = [n for n, ts in (info.get('names') or {}).items() if t - ts < span]
-            last = max(fails[-1] if fails else 0, float(info.get('blocked_at') or 0))
-            rows.append({
-                'kind': kind, 'who': who, 'by': 'place', 'what': LOCKOUT_KINDS.get(kind, kind),
-                'base': kind, 'words': info.get('what') or 'wrong sign-ins',
-                'fails': len(fails), 'limit': int(info.get('limit') or 0),
-                'names': len(names), 'names_limit': int(info.get('names_limit') or 0),
-                'locked': blocked, 'until': until if blocked else None,
-                'why': info.get('blocked_why') if blocked else '',
-                'forgets': max(until, (fails[-1] + span) if fails else 0),
-                'first': fails[0] if fails else last, 'last': last,
-                'others': list(info.get('others') or [])})
-            continue
         if not fails:
             continue
         by_name = kind.endswith('-name')
@@ -157,7 +123,7 @@ def lockouts_said(store, a, n):
 
 def lockouts_shared(store):
     """What the database holds for every node (1.0.116): the codes sent to a
-    person within the window, and tokens locked after wrong codes."""
+    person within the window."""
     t = time.time()
     rows = []
     span = 60 * int(CONFIG.get('code_send_window_min') or 15)
@@ -181,20 +147,6 @@ def lockouts_shared(store):
                      'until': (times[len(times) - limit] + span) if locked else None,
                      'forgets': times[-1] + span, 'first': times[0], 'last': times[-1],
                      'others': []})
-    after = int(CONFIG.get('lockout_after') or 0)
-    for r in store.db.rows('SELECT name, locked_until, failures, fail_times, last_from FROM '
-                           'tokens WHERE locked_until > ?', (t,)):
-        try:
-            fails = [float(x) for x in json.loads(r['fail_times'] or '[]')]
-        except (ValueError, TypeError):
-            fails = []
-        until = float(r['locked_until'])
-        rows.append({'kind': 'token-locked', 'who': r['name'], 'by': 'token',
-                     'what': LOCKOUT_KINDS['token-locked'], 'base': 'token-locked',
-                     'words': 'wrong codes', 'fails': int(r['failures'] or 0),
-                     'limit': after, 'locked': True, 'until': until, 'forgets': until,
-                     'first': min(fails) if fails else until, 'last': max(fails) if fails
-                     else until, 'others': []})
     rows.sort(key=lambda r: (not r['locked'], -r['last']))
     return rows
 
@@ -205,17 +157,7 @@ def lockouts_shared_clear(store, kind, who, by):
         store.add_event('sign-ins', '%s cleared the count of codes sent to %s' % (by, who),
                         'warn', who=by)
         return n
-    if kind == 'token-locked':
-        if not store.token(who):
-            return 0
-        store.token_write(who, {'failures': 0, 'fail_times': '[]', 'locked_until': None})
-        scratch_guard_give_back(store, who)
-        store.add_event('tokens', '%s let %s try again at once' % (by, who), who=by)
-        return 1
     return 0
-
-
-RADTEST_NAME_TRIES = 5
 
 
 @route('GET', '/api/lockouts')
@@ -248,7 +190,7 @@ def _lockouts_do(h):
     b = h.body()
     act = b.get('action')
     nodes = [node_name()] + [n for n in h.d.cluster_nodes() if n != node_name()]
-    if act == 'clear' and str(b.get('kind') or '') in ('codes-sent', 'token-locked'):
+    if act == 'clear' and str(b.get('kind') or '') == 'codes-sent':
         n = lockouts_shared_clear(h.store, str(b.get('kind')), norm_name(b.get('who') or ''),
                                   s['name'])
         if not n:
@@ -315,10 +257,8 @@ def _health(h):
         HEALTH_SEEN['db'] = (time.time(), (users, db_ok, maint))
     out = {'ok': True, 'users': users, 'database': {'ok': db_ok},
            'lang': CONFIG.get('ui_lang') or 'cs', 'node': node_name(),
-           'maintenance': maint,
-           # For a balancer of RADIUS and for monitoring (1.0.47): whether
-           # RADIUS listens, and - asked for - whether replication runs.
-           'radius': bool(getattr(getattr(h.d, 'radius', None), 'bound', None))}
+           'maintenance': maint}
+    # For monitoring (1.0.47) - asked for - whether replication runs.
     if h.arg('check') == 'all' and CONFIG.get('ha_mode') == 'replicated':
         try:
             rep = ha_repl_state(h.store)
@@ -330,7 +270,7 @@ def _health(h):
 
 DUMMY_PW_HASH = password_hash(secrets.token_urlsafe(18))
 
-ROLE_GROUP_KEYS = (('admin_group_full', 'fulladmin'), ('admin_group_token', 'tokenadmin'),
+ROLE_GROUP_KEYS = (('admin_group_full', 'fulladmin'), ('admin_group_cert', 'certadmin'),
                    ('admin_group_readonly', 'readonly'))
 
 
@@ -338,7 +278,7 @@ def admin_role_for(have, ad=None):
     """Which role these groups earn - full administrator first - or None.
     Only a group named for a role lets anybody in (1.0.33): with none named,
     nobody from the directory gets in at all. Before, being anywhere in the
-    directory was then enough to read every log and every token."""
+    directory was then enough to read every log and every certificate."""
     for key, role in ROLE_GROUP_KEYS:
         wanted = dn_list(CONFIG.get(key))
         if wanted and group_matches(wanted, have, ad):
@@ -371,7 +311,7 @@ def admin_ask_directory(h, name, password):
     if entry.get('many'):
         # Two accounts answer to the name (1.0.208): the first one's password and
         # groups were taken - and with them the account of the one signed in
-        # before under that name. Refused, as RADIUS and the enrolment pages do.
+        # before under that name. Refused, as the enrolment pages do.
         return {'ok': False, 'said': 'more than one account answers to %s' % who,
                 'directory': ad.name}
     if entry_unusable(entry):
