@@ -30,7 +30,7 @@ class SelfSignedIssuer(Issuer):
         if not req.key_pem:
             raise PluginError('a self-signed certificate needs the key (none was made)',
                               retry=False)
-        names = list(req.names or [])
+        names = list(getattr(req, 'sans', None) or req.names or [])
         if not names and req.csr_pem:
             names = pki.csr_info(req.csr_pem)['names']
         eku = (req.profile or {}).get('eku') or self.c('eku') or ['serverAuth', 'clientAuth']

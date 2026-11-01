@@ -18,7 +18,8 @@ process, their steps printed as they come. --json answers JSON.
                    --deploy-del ID --deploy-run ID
     authorities    --cas --ca-show --ca-create --ca-sub --ca-import --ca-revoke --ca-crl
                    --ca-export --ca-sign --ca-del --ca-default --ca-publish
-                   --ca-pki-urls --ca-pki-check
+                   --ca-pki-urls --ca-pki-check --ca-edit --ca-renew --ca-versions
+                   --ca-install-cert
     DNS server     --dns-records --dns-add --dns-del
 
 A module's settings are --set KEY=VALUE (again for more), checked against the
@@ -50,7 +51,9 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'target_show', 'target_add', 'target_edit', 'target_del', 'target_action',
         'source_default', 'validation_default', 'target_default', 'ca_default',
         'ca_publish', 'ca_pki_urls', 'ca_pki_check', 'validation_check',
-        'check_names', 'cert_check', 'dry_run', 'target_key', 'validation_key')
+        'ca_edit', 'ca_renew', 'ca_versions', 'ca_install_cert',
+        'check_names', 'cert_check', 'dry_run', 'target_key', 'validation_key',
+        'dns_sets', 'dns_set_add', 'dns_set_edit', 'dns_set_del', 'dns_set_test', 'dns_assign')
 
 # family: (the word of the options, the API's path, the words of one)
 FAMILIES = {'issuer': ('source', 'sources', 'source'),
@@ -231,6 +234,20 @@ def add_args(p):
                    'what it signs from now on (CRL and CA certificate)')
     g.add_argument('--ca-pki-check', metavar='CA', help='its published CRL and certificate '
                    'fetched over HTTP from here and checked with openssl')
+    g.add_argument('--ca-edit', metavar='CA', help='change what is not in its certificate: '
+                   '--set name= days_default= crl_days= crl_url= aia_url= ocsp_url= (own: '
+                   'acme\'s own; for what it signs from now on) note= disabled=yes|no eku=')
+    g.add_argument('--ca-renew', metavar='CA', help='its certificate made again with the same '
+                   'key and subject: [--days N] [--path-len N|none] [--name-constraints '
+                   'LIST|none]; what it signed stays valid')
+    g.add_argument('--path-len', metavar='N', help='with --ca-renew: its new path length '
+                   '(none: no limit; left out: as it is)')
+    g.add_argument('--name-constraints', metavar='LIST', help='with --ca-renew: e.g. '
+                   '"corp.example,IP:10.0.0.0/8,!DNS:bad.corp.example" (none: none; left out: '
+                   'as they are)')
+    g.add_argument('--ca-versions', metavar='CA', help='every certificate it has had')
+    g.add_argument('--ca-install-cert', nargs=2, metavar=('CA', 'FILE'), help='the certificate '
+                   'a CA elsewhere signed for it (its first, or a renewal\'s answer)')
 
     g = p.add_argument_group('CERTIFICATES: ACME\'S OWN DNS SERVER')
     g.add_argument('--dns-records', action='store_true', help='what acme\'s own DNS server '
@@ -240,6 +257,26 @@ def add_args(p):
     g.add_argument('--ttl', type=int, metavar='S', help='with --dns-add: its TTL')
     g.add_argument('--dns-del', nargs='+', metavar='ID|NAME', help='take a record away: its id, '
                    'or NAME [TYPE [VALUE]] (--yes for more than one)')
+
+    # Settings → DNS (acmelib/certs/api_dnssets.py, docs/dns-sets.md)
+    g = p.add_argument_group('DNS SETS', 'Named sets of DNS servers, and which of them each '
+                             'function of acme asks (Settings → DNS).')
+    g.add_argument('--dns-sets', action='store_true', help='every set, and the set of each '
+                   'function')
+    g.add_argument('--dns-set-add', metavar='NAME', help='a new set: --servers ADDR,ADDR '
+                   '(ADDR:PORT, [IPv6]:PORT), --protocol udp|tcp|dot, --tls-name, '
+                   '--dns-timeout S, --note')
+    g.add_argument('--dns-set-edit', metavar='NAME', help='change one: the same, --name NEW')
+    g.add_argument('--dns-set-del', metavar='NAME', help='delete one (the functions it was '
+                   'chosen for go back to their default)')
+    g.add_argument('--dns-set-test', nargs='+', metavar='ARG', help='NAME QNAME [TYPE]: a name '
+                   'looked up through a set (A AAAA TXT CNAME NS MX SOA ...), every server')
+    g.add_argument('--dns-assign', nargs=2, metavar=('FUNCTION', 'SET'), help='a function '
+                   '(validation public apis targets acme mail) asks SET; SET default: its default')
+    g.add_argument('--servers', metavar='ADDR,ADDR', help='with --dns-set-add/-edit')
+    g.add_argument('--protocol', choices=('udp', 'tcp', 'dot'), help='with --dns-set-add/-edit')
+    g.add_argument('--tls-name', metavar='NAME', help='with --protocol dot: the server\'s name')
+    g.add_argument('--dns-timeout', metavar='S', type=float, help='with --dns-set-add/-edit')
 
 
 def asked(args):
@@ -418,7 +455,8 @@ class Cli(object):
             if v.startswith('@file:'):
                 self.files[v[6:]] = self._read(v[6:]).decode('utf-8', 'replace')
         for path in (a.import_file, a.ca_import, a.key, (a.csr_answer or [None, None])[1],
-                     a.csr if a.ca_sign else None):
+                     a.csr if a.ca_sign else None,
+                     (getattr(a, 'ca_install_cert', None) or [None, None])[1]):
             if path:
                 self.files[path] = self._read(path)
 
@@ -512,6 +550,11 @@ class Cli(object):
         a = self.args
         self.read_files()
         self.open()
+        if any(getattr(a, k, None) not in (None, False, '') for k in (
+                'dns_sets', 'dns_set_add', 'dns_set_edit', 'dns_set_del', 'dns_set_test',
+                'dns_assign')):
+            from acmelib.certs import api_dnssets
+            return api_dnssets.cli(self)
         for fam, word in (('target', 'target'), ('challenge', 'validation')):
             if getattr(a, '%s_key' % word, None):
                 from acmelib.certs import api_sshkeys
@@ -535,6 +578,13 @@ class Cli(object):
             return self.validation_check(*a.validation_check)
         if getattr(a, 'ca_default', None) is not None:
             return self.ca_default()
+        for key in ('ca_edit', 'ca_renew', 'ca_versions', 'ca_install_cert'):
+            if getattr(a, key, None):
+                from acmelib.certs import api_cas
+                ref = getattr(a, key)
+                if key == 'ca_install_cert':
+                    return api_cas.cli_install(self, ref[0], ref[1])
+                return getattr(api_cas, 'cli_' + key[3:])(self, ref)
         steps = [('cert_add', self.cert_add), ('cert_edit', self.cert_edit),
                  ('cert_del', self.cert_del), ('selfsigned', self.selfsigned),
                  ('ca_create', self.ca_create), ('ca_sub', self.ca_create),

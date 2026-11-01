@@ -46,6 +46,13 @@ SCHEMA = [
         id {ID}, ca_id {I} NOT NULL, serial {K} NOT NULL, subject_dn {T}, names {T},
         not_before {N}, not_after {N}, fingerprint {K}, cert_id {I}, revoked {N},
         reason {K}, created {N}, by_who {K}, UNIQUE (ca_id, serial))'''),
+    # Every certificate one of acme's authorities has had (its renewals with
+    # the same key: same subject, same key identifier) - the current one too,
+    # once it was renewed. No key here: the key is the authority's, in cert_cas.
+    ('cert_ca_versions', '''CREATE TABLE IF NOT EXISTS cert_ca_versions (
+        id {ID}, ca_id {I} NOT NULL, version {I}, cert_pem {B}, chain_pem {B}, serial {K},
+        fingerprint {K}, not_before {N}, not_after {N}, path_len {I}, name_constraints {T},
+        issuer_dn {T}, created {N}, why {K}, by_who {K}, UNIQUE (ca_id, version))'''),
     # Where certificates come from (a module of acmelib/plugins/issuers).
     ('cert_issuers', '''CREATE TABLE IF NOT EXISTS cert_issuers (
         id {ID}, name {K} NOT NULL UNIQUE, kind {K}, config {B}, state {B}, enabled {I},
@@ -96,6 +103,7 @@ INDEXES = [
     'CREATE INDEX IF NOT EXISTS cert_jobs_ts ON cert_jobs (ts)',
     'CREATE INDEX IF NOT EXISTS cert_jobs_cert ON cert_jobs (cert_id, ts)',
     'CREATE INDEX IF NOT EXISTS cert_ca_issued_ca ON cert_ca_issued (ca_id, serial)',
+    'CREATE INDEX IF NOT EXISTS cert_ca_versions_ca ON cert_ca_versions (ca_id, version)',
     'CREATE INDEX IF NOT EXISTS dns_records_name ON dns_records (name, rtype)',
 ]
 

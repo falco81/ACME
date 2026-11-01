@@ -391,6 +391,24 @@ class CertsCore(unittest.TestCase):
         # An imported one is not renewed: it has no issuer.
         st, err = self.call('POST', '/api/certs/renew', {'id': got['id']}, self.admin)
         self.assertEqual(st, 400, err)
+        # ...nor can it be switched to renew by itself.
+        st, err = self.call('POST', '/api/certs/auto', {'id': got['id'], 'auto_renew': 1}, self.admin)
+        self.assertEqual(st, 400, err)
+
+    def test_04b_auto_renew_switch(self):
+        cid = self.ok('POST', '/api/certs/save', {'name': 'auto-switch', 'names': ['as.example.test'],
+                                                  'issuer': 'self', 'auto_renew': 1})['id']
+        got = self.ok('POST', '/api/certs/auto', {'id': cid, 'auto_renew': 0})
+        self.assertEqual(got['auto_renew'], 0)
+        one = self.ok('GET', '/api/certs/one', args={'id': cid})['cert']
+        self.assertFalse(one['auto_renew'])
+        self.assertNotEqual(one['state'], 'revoked')
+        self.ok('POST', '/api/certs/auto', {'id': cid, 'auto_renew': 1})
+        self.assertTrue(self.ok('GET', '/api/certs/one', args={'id': cid})['cert']['auto_renew'])
+        # A read-only one may not.
+        if getattr(self, 'reader', None):
+            st, err = self.call('POST', '/api/certs/auto', {'id': cid, 'auto_renew': 0}, self.reader)
+            self.assertEqual(st, 403, err)
 
     def test_05_own_ca(self):
         caid = self.ok('POST', '/api/cas/create', {'name': 'Test Root',
@@ -422,6 +440,19 @@ class CertsCore(unittest.TestCase):
         self.assertIn(b'BEGIN CERTIFICATE', base64.b64decode(exp['data_b64']))
         st, _got = self.call('POST', '/api/cas/export', {'id': caid, 'format': 'key'}, self.ro)
         self.assertEqual(st, 403)
+        # Revoked and a new one at once: a new key even with reuse_key, renewed by itself.
+        self.ok('POST', '/api/certs/save', {'id': cid, 'reuse_key': 1})
+        was = self.ok('GET', '/api/certs/one', args={'id': cid})['cert']
+        job = self.wait_job(self.ok('POST', '/api/certs/revoke', {'id': cid, 'reason':
+                                                                  'keyCompromise', 'renew': 1})['job_id'])
+        self.assertEqual(job['state'], 'ok', job)
+        self.assertIn('a new key', json.dumps(job.get('steps')))
+        one = self.ok('GET', '/api/certs/one', args={'id': cid})['cert']
+        self.assertEqual(one['state'], 'ok')
+        self.assertTrue(one['auto_renew'])
+        self.assertNotEqual(one['serial'], was['serial'])
+        issued = self.ok('GET', '/api/cas/one', args={'id': caid})['issued']
+        self.assertEqual(sorted(bool(i.get('revoked')) for i in issued), [False, True])
 
     def test_06_renewed_by_itself(self):
         cid = self.ok('POST', '/api/certs/save', {'name': 'auto', 'names': ['auto.example.test'],

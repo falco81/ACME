@@ -492,7 +492,7 @@ def save_set(store, b, by):
     if old == SYSTEM:
         raise ValueError('"%s" is built in: it cannot be changed' % SYSTEM)
     t = time.time()
-    have = store.db.row('SELECT * FROM %s WHERE name = ?' % TABLE, (old or row['name'],))
+    have = store.db.row('SELECT * FROM %s WHERE name = ?' % TABLE, (old,)) if old else None
     if old and not have:
         raise LookupError('there is no DNS set %s' % old)
     clash = store.db.row('SELECT id FROM %s WHERE name = ?' % TABLE, (row['name'],))
@@ -571,8 +571,7 @@ def test(store, b):
         r = resolver_of(str(b.get('name') or '').strip(), store)
         if r is None:
             raise LookupError('there is no DNS set %s' % b.get('name'))
-    tries, answered_by, answers = [], '', []
-    for srv in r:
+    def one_try(srv):
         t0 = time.monotonic()
         one = {'server': srv, 'ok': False, 'rcode': '', 'said': '', 'answers': []}
         try:
@@ -587,9 +586,16 @@ def test(store, b):
         except (D.DnsError, D.FormErr, OSError, ssl.SSLError) as e:
             one['said'] = str(e)[:300]
         one['ms'] = int((time.monotonic() - t0) * 1000)
-        if one['ok'] and not answered_by:
-            answered_by, answers = srv, one['answers']
-        tries.append(one)
+        return one
+    # every server at once: a set of servers that do not answer takes one timeout
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(r))) as ex:
+        tries = list(ex.map(one_try, list(r)))
+    answered_by, answers = '', []
+    for one in tries:                   # the first that answers, in the set's order
+        if one['ok']:
+            answered_by, answers = one['server'], one['answers']
+            break
     return {'set': r.name or '(not saved)', 'protocol': r.protocol, 'qname': qname,
             'qtype': qtype, 'answered_by': answered_by, 'answers': answers, 'tries': tries,
             'ok': bool(answered_by)}

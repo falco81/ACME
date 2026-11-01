@@ -117,6 +117,10 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 | `acme --ca-publish CA on\|off` | its CRL and certificate published on acme at `/pki/` (port 80, every node and the VIP address), or not ([own-ca.md](own-ca.md#publishing-on-acme)) |
 | `acme --ca-pki-urls CA` | acme's own `/pki/` addresses put into what it signs from now on (CRL and CA certificate); what it signed before keeps its addresses |
 | `acme --ca-pki-check CA` | its published CRL and certificate fetched over HTTP from here and checked with openssl (the issuer, the signature, nextUpdate in the future); exit code 0 when right |
+| `acme --ca-edit CA --set KEY=VALUE …` | change what is not inside its certificate: `name`, `days_default`, `crl_days`, `crl_url` / `aia_url` (`own`: acme's own) / `ocsp_url` (for what it signs from now on), `note`, `disabled=yes\|no`, `eku` ([own-ca.md](own-ca.md#changing-an-authority)) |
+| `acme --ca-renew CA [--days N] [--path-len N\|none] [--name-constraints LIST\|none]` | its certificate made again with the same key and subject; what it signed stays valid. Under a CA elsewhere: prints the request |
+| `acme --ca-install-cert CA FILE` | the certificate a CA elsewhere signed for it (its first, or a renewal's answer) |
+| `acme --ca-versions CA` | every certificate it has had: serial, dates, SHA-256, path length |
 
 ## acme's own DNS server
 
@@ -125,6 +129,19 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 | `acme --dns-records` | its zone, whether it listens, the queries asked here, every record |
 | `acme --dns-add NAME TYPE VALUE [--ttl S] [--note TEXT]` | a record of your own (`@`: the zone itself). Types: A, AAAA, TXT, CNAME, MX, NS, CAA, SRV, PTR |
 | `acme --dns-del ID` · `acme --dns-del NAME [TYPE [VALUE]] [--yes]` | take records away (more than one: `--yes`) |
+
+## DNS sets (Settings → DNS)
+
+Which DNS servers each function of acme asks - [dns-sets.md](dns-sets.md).
+
+| | |
+|---|---|
+| `acme --dns-sets` | every set ("The system's" first), and the set each function asks and why |
+| `acme --dns-set-add NAME --servers ADDR,ADDR [--protocol udp\|tcp\|dot] [--tls-name NAME] [--dns-timeout S] [--note TEXT]` | a new set (ADDR: `192.0.2.53`, `192.0.2.53:5353`, `[2001:db8::53]:53`) |
+| `acme --dns-set-edit NAME [--servers ...] [--name NEW] ...` | change one; the functions that ask it follow a new name |
+| `acme --dns-set-del NAME [--yes]` | delete one; the functions it was chosen for go back to their default |
+| `acme --dns-set-test NAME QNAME [TYPE]` | a name looked up through a set: every server, what it said, how long it took; exit code 0 when one answered |
+| `acme --dns-assign FUNCTION SET` | `validation`, `public`, `apis`, `targets`, `acme` or `mail` asks SET (`default`: its default) |
 
 ## Examples
 

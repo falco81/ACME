@@ -30895,6 +30895,530 @@
   "sx0009": {
    "source": "until {0}",
    "text": "do {0}"
+  },
+  "sz7723": {
+   "source": "Renewed by itself - switch off to stop it (it stays valid and deployed, nothing is revoked).",
+   "text": "Obnovuje se samo – vypnutím obnovování zastavíte (certifikát zůstává platný a nasazený, nic se neodvolává)."
+  },
+  "sz7724": {
+   "source": "Renewed only when asked - switch on to renew it by itself again.",
+   "text": "Obnovuje se jen na požádání – zapnutím se bude opět obnovovat samo."
+  },
+  "sz7725": {
+   "source": "Imported or from an outside CA - renewed by importing a new one.",
+   "text": "Importovaný nebo z vnější CA – obnovuje se importem nového."
+  },
+  "sz7726": {
+   "source": "Renewed only when asked.",
+   "text": "Obnovuje se jen na požádání."
+  },
+  "sz7727": {
+   "source": "renewed by itself",
+   "text": "obnovuje se samo"
+  },
+  "sz7728": {
+   "source": "not renewed by itself",
+   "text": "neobnovuje se samo"
+  },
+  "sc2628": {
+   "source": "DNS",
+   "text": "DNS"
+  },
+  "sc2629": {
+   "source": "Named sets of DNS servers - the system's, public resolvers, your own - and which of them each function of acme asks: the validation checks, the public view, the CAs and APIs, the targets, the appliance's own ACME, mail.",
+   "text": "Pojmenované sady DNS serverů – systémové, veřejné resolvery, vaše vlastní – a které z nich se ptá každá funkce acme: kontroly validace, pohled zvenku, CA a API, cíle, vlastní ACME appliance, pošta."
+  },
+  "sc2630": {
+   "source": "Which DNS servers acme asks, for each thing it looks up: named sets of servers - the system's own (/etc/resolv.conf), public resolvers, the resolvers of your company - and, for each function, the set it asks. Not acme's own DNS server (Settings → DNS server), which answers others.",
+   "text": "Kterých DNS serverů se acme ptá, pro každou věc, kterou vyhledává: pojmenované sady serverů – systémové (/etc/resolv.conf), veřejné resolvery, resolvery vaší firmy – a pro každou funkci sada, které se ptá. Ne vlastní DNS server acme (Nastavení → DNS server), který odpovídá ostatním."
+  },
+  "sc2631": {
+   "source": "DNS sets",
+   "text": "Sady DNS"
+  },
+  "sc2632": {
+   "source": "Add a set",
+   "text": "Přidat sadu"
+  },
+  "sc2633": {
+   "source": "Each set is a few DNS servers, one address a line (with :port where it is not 53), asked in their order until one answers. \"The system's\" is built in: the servers of /etc/resolv.conf, as the machine has them. Test looks a name up through a set and shows what each of its servers answered, and how fast.",
+   "text": "Každá sada je několik DNS serverů, jedna adresa na řádek (s :port, kde to není 53), ptají se v tomto pořadí, dokud jeden neodpoví. „Systémové“ je vestavěná: servery z /etc/resolv.conf, jak je stroj má. Test vyhledá jméno přes sadu a ukáže, co odpověděl každý její server a jak rychle."
+  },
+  "sc2634": {
+   "source": "Timeout",
+   "text": "Časový limit"
+  },
+  "sc2635": {
+   "source": "built in",
+   "text": "vestavěná"
+  },
+  "sc2636": {
+   "source": "Test: look a name up through this set",
+   "text": "Test: vyhledat jméno přes tuto sadu"
+  },
+  "sc2637": {
+   "source": "Edit this set",
+   "text": "Upravit tuto sadu"
+  },
+  "sc2638": {
+   "source": "Delete this set",
+   "text": "Smazat tuto sadu"
+  },
+  "sc2639": {
+   "source": "No set yet",
+   "text": "Zatím žádná sada"
+  },
+  "sc2640": {
+   "source": "UDP, TCP when cut short",
+   "text": "UDP, TCP při zkrácené odpovědi"
+  },
+  "sc2641": {
+   "source": "TCP only",
+   "text": "Jen TCP"
+  },
+  "sc2642": {
+   "source": "DNS over TLS",
+   "text": "DNS přes TLS"
+  },
+  "sc2643": {
+   "source": "Which set each function asks",
+   "text": "Které sady se ptá každá funkce"
+  },
+  "sc2644": {
+   "source": "A function asks the set chosen here; \"default\" is the set it asks when nothing is chosen. A validation's own \"Resolvers\" and \"Public resolvers\" fields still come first, for that validation alone.",
+   "text": "Funkce se ptá sady zvolené zde; „výchozí“ je sada, které se ptá, když není nic zvoleno. Vlastní pole validace „Resolvery“ a „Veřejné resolvery“ mají stále přednost, jen pro tu validaci."
+  },
+  "sc2645": {
+   "source": "Function",
+   "text": "Funkce"
+  },
+  "sc2646": {
+   "source": "What it is used for",
+   "text": "K čemu slouží"
+  },
+  "sc2647": {
+   "source": "Asks",
+   "text": "Ptá se"
+  },
+  "sc2648": {
+   "source": "default: The system's",
+   "text": "výchozí: Systémové"
+  },
+  "sc2649": {
+   "source": "default: Public",
+   "text": "výchozí: Public"
+  },
+  "sc2650": {
+   "source": "The system's",
+   "text": "Systémové"
+  },
+  "sc2651": {
+   "source": "A new DNS set",
+   "text": "Nová sada DNS"
+  },
+  "sc2652": {
+   "source": "Addresses only - a DNS server is not looked up by a name. One a line: 192.0.2.53, 192.0.2.53:5353, 2001:db8::53 or [2001:db8::53]:5353.",
+   "text": "Jen adresy – DNS server se nevyhledává podle jména. Jedna na řádek: 192.0.2.53, 192.0.2.53:5353, 2001:db8::53 nebo [2001:db8::53]:5353."
+  },
+  "sc2653": {
+   "source": "Letters, digits, spaces and . _ @ + - (as every name in acme).",
+   "text": "Písmena, číslice, mezery a . _ @ + - (jako každý název v acme)."
+  },
+  "sc2654": {
+   "source": "Asked in this order until one answers; at most 8.",
+   "text": "Ptají se v tomto pořadí, dokud jeden neodpoví; nejvýš 8."
+  },
+  "sc2655": {
+   "source": "UDP, TCP when an answer is cut short",
+   "text": "UDP, TCP při zkrácené odpovědi"
+  },
+  "sc2656": {
+   "source": "DNS over TLS (port 853)",
+   "text": "DNS přes TLS (port 853)"
+  },
+  "sc2657": {
+   "source": "Server name for TLS",
+   "text": "Jméno serveru pro TLS"
+  },
+  "sc2658": {
+   "source": "Its certificate is checked against this name; empty: against its address.",
+   "text": "Jeho certifikát se ověřuje proti tomuto jménu; prázdné: proti jeho adrese."
+  },
+  "sc2659": {
+   "source": "Timeout (seconds)",
+   "text": "Časový limit (sekundy)"
+  },
+  "sc2660": {
+   "source": "How long each server is waited for.",
+   "text": "Jak dlouho se na každý server čeká."
+  },
+  "sc2661": {
+   "source": "Delete the DNS set",
+   "text": "Smazat sadu DNS"
+  },
+  "sc2662": {
+   "source": "Test the set as it is in the form",
+   "text": "Otestovat sadu tak, jak je ve formuláři"
+  },
+  "sc2663": {
+   "source": "The name is asked of every server of the set at once, the way the set asks (its protocol, its timeout). Nothing is changed anywhere.",
+   "text": "Na jméno se zeptá všech serverů sady najednou, tak jak se sada ptá (její protokol, její časový limit). Nikde se nic nemění."
+  },
+  "sc2664": {
+   "source": "which name?",
+   "text": "které jméno?"
+  },
+  "sc2665": {
+   "source": "No server of the set answered",
+   "text": "Žádný server sady neodpověděl"
+  },
+  "sc2666": {
+   "source": "The name has no record of that type",
+   "text": "Jméno nemá záznam tohoto typu"
+  },
+  "sc2667": {
+   "source": "chosen",
+   "text": "zvoleno"
+  },
+  "sc2668": {
+   "source": "the name does not exist (NXDOMAIN)",
+   "text": "jméno neexistuje (NXDOMAIN)"
+  },
+  "sc2669": {
+   "source": "The database, the other node of a cluster, the proxy, Active Directory, syslog and isemon, SNMP, the backups' destinations and the names in the firewall's rules: always the system's resolver (/etc/hosts, nsswitch), whatever is chosen here - a name inside your network that a public resolver does not know.",
+   "text": "Databáze, druhý node clusteru, proxy, Active Directory, syslog a isemon, SNMP, cíle záloh a jména v pravidlech firewallu: vždy systémový resolver (/etc/hosts, nsswitch), ať je zde zvoleno cokoli – jméno uvnitř vaší sítě, které veřejný resolver nezná."
+  },
+  "sc2670": {
+   "source": "The machine's own DNS servers, read from /etc/resolv.conf each time (Settings → Network sets them).",
+   "text": "Vlastní DNS servery stroje, čtené pokaždé z /etc/resolv.conf (nastavuje je Nastavení → Síť)."
+  },
+  "sc2671": {
+   "source": "Cloudflare, Google and Quad9: the internet as a CA sees it.",
+   "text": "Cloudflare, Google a Quad9: internet tak, jak ho vidí CA."
+  },
+  "sc2672": {
+   "source": "a set needs at least one DNS server, an address a line",
+   "text": "sada potřebuje aspoň jeden DNS server, jednu adresu na řádek"
+  },
+  "sc2673": {
+   "source": "at most 8 servers in a set",
+   "text": "nejvýš 8 serverů v sadě"
+  },
+  "sc2674": {
+   "source": "\"The system's\" is built in: it cannot be changed",
+   "text": "„Systémové“ je vestavěná: nelze ji změnit"
+  },
+  "sc2675": {
+   "source": "\"The system's\" is built in: it cannot be deleted",
+   "text": "„Systémové“ je vestavěná: nelze ji smazat"
+  },
+  "sc2676": {
+   "source": "the server name for TLS is a host name (dns.example.net)",
+   "text": "jméno serveru pro TLS je jméno hostitele (dns.example.net)"
+  },
+  "sc2677": {
+   "source": "a set not saved is tried by a full administrator",
+   "text": "neuloženou sadu zkouší jen plný administrátor"
+  },
+  "sc2678": {
+   "source": "which name? (www.example.com)",
+   "text": "které jméno? (www.example.com)"
+  },
+  "sc2679": {
+   "source": "Settings → DNS",
+   "text": "Nastavení → DNS"
+  },
+  "sc2680": {
+   "source": "a validation's own \"Resolvers\" and \"Public resolvers\" fields come first",
+   "text": "vlastní pole validace „Resolvery“ a „Veřejné resolvery“ mají přednost"
+  },
+  "sc2681": {
+   "source": "DNS servers acme looks names up with (CNAMEs, the zone, its name servers) - an override. Empty: Settings → DNS (Validation checks).",
+   "text": "DNS servery, přes které acme vyhledává jména (CNAME, zónu, její jmenné servery) – přepíše nastavení. Prázdné: Nastavení → DNS (Kontroly validace)."
+  },
+  "sc2682": {
+   "source": "Asked at the end when \"then public resolvers\" is chosen, and by a dry run - an override. Empty: Settings → DNS (The public view).",
+   "text": "Ptá se na konci, když je zvoleno „pak veřejné resolvery“, a při zkušebním běhu – přepíše nastavení. Prázdné: Nastavení → DNS (Pohled zvenku)."
+  },
+  "sc2683": {
+   "source": "Asked by Test from outside - an override. Empty: Settings → DNS (The public view).",
+   "text": "Ptá se při Testu zvenku – přepíše nastavení. Prázdné: Nastavení → DNS (Pohled zvenku)."
+  },
+  "sc2684": {
+   "source": "For looking up the CNAMEs - an override. Empty: Settings → DNS (Validation checks).",
+   "text": "K vyhledávání CNAME – přepíše nastavení. Prázdné: Nastavení → DNS (Kontroly validace)."
+  },
+  "sc2685": {
+   "source": "Going direct: the DNS servers asked where each recipient’s domain takes its mail (its MX record), separated by commas - 1.1.1.1, 8.8.8.8. Empty: the ones in /etc/resolv.conf. Only for a machine whose own resolver will not answer that. A set chosen for \"Mail going direct\" under Settings → DNS comes first.",
+   "text": "Při přímém odesílání: DNS servery, kterých se ptát, kam doména příjemce přijímá poštu (její MX záznam), oddělené čárkami – 1.1.1.1, 8.8.8.8. Prázdné: ty z /etc/resolv.conf. Jen pro stroj, jehož vlastní resolver na to neodpoví. Sada zvolená pro „Přímé odesílání pošty“ v Nastavení → DNS má přednost."
+  },
+  "sc2686": {
+   "source": "Validation checks",
+   "text": "Kontroly validace"
+  },
+  "sc2687": {
+   "source": "The guides, the readiness of a certificate and the check before the CA is asked, dry runs, and the wait for a DNS record: the CNAME at _acme-challenge, the zone (SOA) and its name servers (NS), the TXT record, the address a name points at for HTTP-01.",
+   "text": "Průvodci, připravenost certifikátu a kontrola předtím, než se zeptá CA, zkušební běhy a čekání na DNS záznam: CNAME na _acme-challenge, zóna (SOA) a její jmenné servery (NS), TXT záznam, adresa, na kterou jméno ukazuje, pro HTTP-01."
+  },
+  "sc2688": {
+   "source": "The public view",
+   "text": "Pohled zvenku"
+  },
+  "sc2689": {
+   "source": "The internet as a CA sees it: whether public resolvers see the test value of a dry run, and the delegation of acme's own DNS server.",
+   "text": "Internet tak, jak ho vidí CA: zda veřejné resolvery vidí testovací hodnotu zkušebního běhu, a delegace vlastního DNS serveru acme."
+  },
+  "sc2690": {
+   "source": "CAs and APIs",
+   "text": "CA a API"
+  },
+  "sc2691": {
+   "source": "The names of the HTTPS addresses acme reaches: ACME directories, DNS providers' APIs, commercial CAs' APIs.",
+   "text": "Jména HTTPS adres, na které acme chodí: ACME adresáře, API DNS poskytovatelů, API komerčních CA."
+  },
+  "sc2692": {
+   "source": "The names of the targets and servers acme reaches over SSH or their API when it deploys a certificate or puts a file in place.",
+   "text": "Jména cílů a serverů, na které acme chodí přes SSH nebo jejich API, když nasazuje certifikát nebo ukládá soubor."
+  },
+  "sc2693": {
+   "source": "The appliance's own ACME",
+   "text": "Vlastní ACME appliance"
+  },
+  "sc2694": {
+   "source": "Settings → Automatic certificates: the CA of this server's own certificates, its DNS API, and whether the TXT record is seen. Asked over port 53 (UDP, then TCP).",
+   "text": "Nastavení → Automatické certifikáty: CA vlastních certifikátů tohoto serveru, jeho DNS API a zda je TXT záznam vidět. Ptá se přes port 53 (UDP, pak TCP)."
+  },
+  "sc2695": {
+   "source": "Mail going direct",
+   "text": "Přímé odesílání pošty"
+  },
+  "sc2696": {
+   "source": "Settings → Mail sending straight to the recipients' servers: their MX records and addresses. Asked over port 53 (UDP, then TCP).",
+   "text": "Nastavení → Pošta odesílaná rovnou na servery příjemců: jejich MX záznamy a adresy. Ptá se přes port 53 (UDP, pak TCP)."
+  },
+  "sz7798": {
+   "source": "The current version is revoked; versions it had before are left as they are.",
+   "text": "Odvolá se aktuální verze; dřívější verze zůstávají, jak jsou."
+  },
+  "sz7799": {
+   "source": "Issue a new one at once",
+   "text": "Hned vydat nový"
+  },
+  "sz7800": {
+   "source": "With a new key, deployed where this one is, and renewed by itself again. Otherwise it is not renewed any more - only stopping renewal needs no revocation: the switch in the list does that.",
+   "text": "S novým klíčem, nasazený tam, kde je tento, a opět se obnovuje sám. Jinak se už neobnovuje – pouhé zastavení obnovování odvolání nepotřebuje: to dělá přepínač v seznamu."
+  },
+  "sz7801": {
+   "source": "Issue a new one",
+   "text": "Vydat nový"
+  },
+  "sz7802": {
+   "source": "issuing a new one in its place",
+   "text": "vydává se nový místo něj"
+  },
+  "sz7803": {
+   "source": "it was revoked: a new key, whatever \"keep the key\" says",
+   "text": "byl odvolán: nový klíč, ať „ponechat klíč“ říká cokoli"
+  },
+  "sca0001": {
+   "source": "Edit…",
+   "text": "Upravit…"
+  },
+  "sca0002": {
+   "source": "Renew its certificate…",
+   "text": "Obnovit její certifikát…"
+  },
+  "sca0003": {
+   "source": "Install the answer…",
+   "text": "Nainstalovat odpověď…"
+  },
+  "sca0004": {
+   "source": "What an authority keeps beside its certificate: changed here at once, nothing has to be trusted anew. Its validity, path length and name constraints are inside its certificate - for those, Renew its certificate…",
+   "text": "Co autorita uchovává vedle svého certifikátu: změní se zde ihned a nic není třeba znovu důvěřovat. Platnost, délka cesty a omezení jmen jsou uvnitř jejího certifikátu – pro ně použijte Obnovit její certifikát…"
+  },
+  "sca0005": {
+   "source": "The sources that sign with it follow the new name, and so does its address on acme (/pki/) - the old address keeps answering, for the certificates that carry it.",
+   "text": "Zdroje, které s ní podepisují, převezmou nový název, stejně jako její adresa v acme (/pki/) – stará adresa dál odpovídá kvůli certifikátům, které ji nesou."
+  },
+  "sca0006": {
+   "source": "Issues for (days)",
+   "text": "Vydává na (dní)"
+  },
+  "sca0007": {
+   "source": "What a certificate it signs is valid for when nothing else is asked - never past its own end.",
+   "text": "Jak dlouho platí certifikát, který podepíše, když se nežádá jinak – nikdy déle než ona sama."
+  },
+  "sca0008": {
+   "source": "How long each CRL is valid. The CRL is made again at once, and from then on at half that.",
+   "text": "Jak dlouho každý CRL platí. CRL se vytvoří znovu hned a od té doby vždy v polovině této doby."
+  },
+  "sca0009": {
+   "source": "In what it signs from now on",
+   "text": "V tom, co podepíše od teď"
+  },
+  "sca0010": {
+   "source": "Only certificates signed from now on carry these addresses; those signed before keep theirs until they are renewed.",
+   "text": "Tyto adresy ponesou jen certifikáty podepsané od teď; dříve podepsané si ponechají své, dokud nebudou obnoveny."
+  },
+  "sca0011": {
+   "source": "Its CRL and certificate as acme publishes them at /pki/.",
+   "text": "Její CRL a certifikát, jak je acme zveřejňuje na /pki/."
+  },
+  "sca0012": {
+   "source": "Empty: none.",
+   "text": "Prázdné: žádná."
+  },
+  "sca0013": {
+   "source": "Where its own certificate can be fetched. Empty: none.",
+   "text": "Kde lze stáhnout její vlastní certifikát. Prázdné: žádná."
+  },
+  "sca0014": {
+   "source": "OCSP address",
+   "text": "Adresa OCSP"
+  },
+  "sca0015": {
+   "source": "Of a responder of your own - acme runs none. Empty: none.",
+   "text": "Vašeho vlastního respondéru – acme žádný neprovozuje. Prázdné: žádná."
+  },
+  "sca0016": {
+   "source": "Signing",
+   "text": "Podepisování"
+  },
+  "sca0017": {
+   "source": "Used for, when a request says nothing",
+   "text": "Použití, když žádost nic neříká"
+  },
+  "sca0018": {
+   "source": "None ticked: TLS server and TLS client. A source sets its own.",
+   "text": "Nic nezaškrtnuto: TLS server a TLS klient. Zdroj si nastavuje vlastní."
+  },
+  "sca0019": {
+   "source": "It signs nothing while it is off. Its CRL is still made and published - what it signed before is still checked against it.",
+   "text": "Dokud je vypnutá, nic nepodepisuje. Její CRL se dál vytváří a zveřejňuje – to, co podepsala dříve, se proti němu stále ověřuje."
+  },
+  "sca0020": {
+   "source": "Authorities under it",
+   "text": "Autority pod ní"
+  },
+  "sca0021": {
+   "source": "These rely on it - their renewals fail while it is off:",
+   "text": "Tyto na ní závisí – dokud je vypnutá, jejich obnovy selžou:"
+  },
+  "sca0022": {
+   "source": "what it is for, who looks after it",
+   "text": "k čemu slouží, kdo se o ni stará"
+  },
+  "sca0023": {
+   "source": "A root signs itself again - with the same key and the same name: a new serial number and new dates. What it signed stays valid: it verifies against the old certificate and the new one alike.",
+   "text": "Kořen se znovu podepíše sám – stejným klíčem a se stejným jménem: nové sériové číslo a nová data. Co podepsal, zůstává platné: ověří se proti starému i novému certifikátu."
+  },
+  "sca0024": {
+   "source": "Machines trust the certificate, not the key. ",
+   "text": "Počítače důvěřují certifikátu, ne klíči. "
+  },
+  "sca0025": {
+   "source": "Give the new one to everything that trusts this root (Group Policy, the trust stores, MDM, Java) before the old one ends: ",
+   "text": "Nový předejte všemu, co tomuto kořeni důvěřuje (Group Policy, úložiště důvěryhodných certifikátů, MDM, Java), dřív než starý skončí: "
+  },
+  "sca0026": {
+   "source": "Its parent is a CA elsewhere: acme makes a request with the same key and the same name. Have it signed there (on AD CS with the Subordinate Certification Authority template) and install what comes back - until then it keeps signing with the certificate it has.",
+   "text": "Její nadřazená autorita je jinde: acme vytvoří žádost se stejným klíčem a stejným jménem. Nechte ji tam podepsat (v AD CS šablonou Subordinate Certification Authority) a nainstalujte, co se vrátí – do té doby podepisuje certifikátem, který má."
+  },
+  "sca0027": {
+   "source": "It is signed again by the authority above it, with the same key and the same name. What it signed stays valid and nothing has to be trusted anew; the authorities under it get the new one in their chains, and servers send it once their certificates are renewed or deployed again.",
+   "text": "Znovu ji podepíše nadřazená autorita, se stejným klíčem a stejným jménem. Co podepsala, zůstává platné a nic není třeba znovu důvěřovat; autority pod ní dostanou nový certifikát do svých řetězců a servery ho začnou posílat, jakmile se jejich certifikáty obnoví nebo znovu nasadí."
+  },
+  "sca0028": {
+   "source": "Never past the end of the authority above it.",
+   "text": "Nikdy déle než nadřazená autorita."
+  },
+  "sca0029": {
+   "source": "One a line. Narrower ones apply to what it signs from now on; a client checks what it signed before against the certificate it is given.",
+   "text": "Jedno na řádek. Užší platí pro to, co podepíše od teď; klient ověřuje dříve podepsané proti certifikátu, který dostane."
+  },
+  "sca0030": {
+   "source": "A new key is a new authority: for that, create a new intermediate (or root) and move the sources to it.",
+   "text": "Nový klíč znamená novou autoritu: k tomu vytvořte novou podřízenou (nebo kořenovou) autoritu a převeďte na ni zdroje."
+  },
+  "sca0031": {
+   "source": "Renew it",
+   "text": "Obnovit"
+  },
+  "sca0032": {
+   "source": "Its own key, its own name: have it signed by the CA above it, then Install the answer… in its popup.",
+   "text": "Její vlastní klíč, její vlastní jméno: nechte ji podepsat nadřazenou autoritou a pak v jejím okně použijte Nainstalovat odpověď…"
+  },
+  "sca0033": {
+   "source": "on the clipboard",
+   "text": "ve schránce"
+  },
+  "sca0034": {
+   "source": "The certificate the CA above it signed for its request (PEM; a chain after it is taken too). It must be for its key and its name.",
+   "text": "Certifikát, který nadřazená autorita podepsala na její žádost (PEM; řetězec za ním se vezme také). Musí být pro její klíč a její jméno."
+  },
+  "sca0035": {
+   "source": "the authorities above it - empty: as it was",
+   "text": "nadřazené autority – prázdné: jako dosud"
+  },
+  "sca0036": {
+   "source": "Install",
+   "text": "Nainstalovat"
+  },
+  "sca0037": {
+   "source": "paste the certificate",
+   "text": "vložte certifikát"
+  },
+  "sca0038": {
+   "source": "Its certificates",
+   "text": "Její certifikáty"
+  },
+  "sca0039": {
+   "source": "Every certificate it has had - renewed with the same key and name, so what it signed verifies against each of them while it is valid.",
+   "text": "Každý certifikát, který kdy měla – obnovený se stejným klíčem a jménem, takže co podepsala, se ověří proti kterémukoli z nich, dokud platí."
+  },
+  "sca0040": {
+   "source": "A request for its renewal waits for the CA above it.",
+   "text": "Žádost o její obnovení čeká na nadřazenou autoritu."
+  },
+  "sca0041": {
+   "source": "Show the request",
+   "text": "Zobrazit žádost"
+  },
+  "sca0042": {
+   "source": "still valid",
+   "text": "stále platný"
+  },
+  "sca0043": {
+   "source": "has ended",
+   "text": "skončil"
+  },
+  "sca0044": {
+   "source": "Download this certificate (PEM)",
+   "text": "Stáhnout tento certifikát (PEM)"
+  },
+  "sca0045": {
+   "source": "Its versions could not be asked for.",
+   "text": "Její verze se nepodařilo zjistit."
+  },
+  "sca0046": {
+   "source": "renewed",
+   "text": "obnoveno"
+  },
+  "sca0047": {
+   "source": "installed",
+   "text": "nainstalováno"
+  },
+  "sca0048": {
+   "source": "nothing was changed",
+   "text": "nic nebylo změněno"
+  },
+  "sca0049": {
+   "source": "it is the default authority: it is not offered first while it is switched off",
+   "text": "je to výchozí autorita: dokud je vypnutá, nenabízí se jako první"
+  },
+  "sca0050": {
+   "source": "renewed (answer installed)",
+   "text": "obnoveno (odpověď nainstalována)"
   }
  },
  "patterns": {
@@ -39689,6 +40213,170 @@
   "pc0634": {
    "source": "none of {0} answered for {1}",
    "text": "pro {1} neodpověděl žádný z {0}"
+  },
+  "pz2199": {
+   "source": "{0} will be renewed by itself",
+   "text": "{0} se bude obnovovat samo"
+  },
+  "pz2200": {
+   "source": "{0} will not be renewed by itself - it stays valid and deployed",
+   "text": "{0} se už nebude obnovovat samo – zůstává platný a nasazený"
+  },
+  "pz2201": {
+   "source": "{0} has no source acme could renew it from - it is renewed by importing a new one",
+   "text": "{0} nemá zdroj, ze kterého by ho acme mohl obnovit – obnovuje se importem nového"
+  },
+  "pz2202": {
+   "source": "{0} is revoked - issue a new one first",
+   "text": "{0} je odvolaný – nejdřív vydejte nový"
+  },
+  "pz2203": {
+   "source": "{0} is renewed by itself again (switched on by {1})",
+   "text": "{0} se opět obnovuje samo (zapnul {1})"
+  },
+  "pz2204": {
+   "source": "{0} is no longer renewed by itself (switched off by {1})",
+   "text": "{0} se už neobnovuje samo (vypnul {1})"
+  },
+  "pc0635": {
+   "source": "The DNS set {0}",
+   "text": "Sada DNS {0}"
+  },
+  "pc0636": {
+   "source": "Test the DNS set {0}",
+   "text": "Otestovat sadu DNS {0}"
+  },
+  "pc0637": {
+   "source": "default: {0}",
+   "text": "výchozí: {0}"
+  },
+  "pc0638": {
+   "source": "in {0} ms",
+   "text": "za {0} ms"
+  },
+  "pc0639": {
+   "source": "said {0}",
+   "text": "odpověděl {0}"
+  },
+  "pc0640": {
+   "source": "asked now: {0} ({1}), set before this card - until a set is chosen here",
+   "text": "ptá se nyní: {0} ({1}), nastaveno před touto kartou – dokud zde nebude zvolena sada"
+  },
+  "pc0641": {
+   "source": "the DNS set {0} was saved",
+   "text": "sada DNS {0} byla uložena"
+  },
+  "pc0642": {
+   "source": "the DNS set {0} was deleted",
+   "text": "sada DNS {0} byla smazána"
+  },
+  "pc0643": {
+   "source": "names are looked up through {0}",
+   "text": "jména se vyhledávají přes {0}"
+  },
+  "pc0644": {
+   "source": "there is a DNS set {0} already",
+   "text": "sada DNS {0} už existuje"
+  },
+  "pc0645": {
+   "source": "there is no DNS set {0}",
+   "text": "sada DNS {0} neexistuje"
+  },
+  "pc0646": {
+   "source": "{0} is not an IPv4 or IPv6 address (with :port if not {1})",
+   "text": "{0} není adresa IPv4 ani IPv6 (s :port, pokud to není {1})"
+  },
+  "pc0647": {
+   "source": "the protocol is one of {0}",
+   "text": "protokol je jeden z: {0}"
+  },
+  "pc0648": {
+   "source": "the timeout is {0} to {1}",
+   "text": "časový limit je {0} až {1}"
+  },
+  "pc0649": {
+   "source": "DNS looked up through '{0}', the public view through '{1}'",
+   "text": "DNS vyhledáváno přes „{0}“, pohled zvenku přes „{1}“"
+  },
+  "pc0650": {
+   "source": "asked through {0}",
+   "text": "dotázáno přes {0}"
+  },
+  "pc0651": {
+   "source": "{0} is not known to the DNS set {1}",
+   "text": "{0} sada DNS {1} nezná"
+  },
+  "pc0652": {
+   "source": "names looked up through the DNS set {0} (Settings → DNS)",
+   "text": "jména vyhledávána přes sadu DNS {0} (Nastavení → DNS)"
+  },
+  "pc0653": {
+   "source": "no DNS server of {0} answered for {1} ({2})",
+   "text": "pro {1} neodpověděl žádný DNS server sady {0} ({2})"
+  },
+  "pz2224": {
+   "source": "A dual certificate: both of its keys are revoked - the {0} one and the {1} one. Versions it had before are left as they are.",
+   "text": "Duální certifikát: odvolají se oba jeho klíče – {0} i {1}. Dřívější verze zůstávají, jak jsou."
+  },
+  "pz2225": {
+   "source": "reason: {0}, a new one at once",
+   "text": "důvod: {0}, hned nový"
+  },
+  "pca0001": {
+   "source": "Renew the certificate of {0}",
+   "text": "Obnovit certifikát autority {0}"
+  },
+  "pca0002": {
+   "source": "The request of {0}",
+   "text": "Žádost autority {0}"
+  },
+  "pca0003": {
+   "source": "Install the answer for {0}",
+   "text": "Nainstalovat odpověď pro {0}"
+  },
+  "pca0004": {
+   "source": "{0} saved",
+   "text": "{0} uloženo"
+  },
+  "pca0005": {
+   "source": "{0} renewed: valid until {1}",
+   "text": "{0} obnovena: platná do {1}"
+  },
+  "pca0006": {
+   "source": "the certificate of {0} installed",
+   "text": "certifikát autority {0} nainstalován"
+  },
+  "pca0007": {
+   "source": "have the request signed by the CA above {0}, then install what comes back",
+   "text": "nechte žádost podepsat autoritou nad {0} a pak nainstalujte, co se vrátí"
+  },
+  "pca0008": {
+   "source": "the addresses go into what {0} signs from now on - certificates signed before keep the ones they carry until they are renewed",
+   "text": "adresy se dostanou do toho, co {0} podepíše od teď – dříve podepsané certifikáty si ponechají své, dokud nebudou obnoveny"
+  },
+  "pca0009": {
+   "source": "on acme its CRL and certificate are at /pki/{0}.crl and .crt now; the old /pki/{1}.crl and .crt answer still (certificates signed before carry them)",
+   "text": "v acme jsou její CRL a certifikát nyní na /pki/{0}.crl a .crt; staré /pki/{1}.crl a .crt dál odpovídají (nesou je dříve podepsané certifikáty)"
+  },
+  "pca0010": {
+   "source": "{0} signs nothing now (its CRL is still made and published)",
+   "text": "{0} teď nic nepodepisuje (její CRL se dál vytváří a zveřejňuje)"
+  },
+  "pca0011": {
+   "source": "{0} signs nothing now (its CRL is still made and published); it is relied on by {1} - their renewals will fail until it is switched on or they use another authority",
+   "text": "{0} teď nic nepodepisuje (její CRL se dál vytváří a zveřejňuje); závisí na ní {1} – jejich obnovy budou selhávat, dokud ji nezapnete nebo nepoužijí jinou autoritu"
+  },
+  "pca0012": {
+   "source": "a root: give its new certificate to everything that trusts the old one before the old one ends on {0} - what {1} signed verifies against both",
+   "text": "kořen: předejte jeho nový certifikát všemu, co důvěřuje starému, dřív než starý skončí {0} – co {1} podepsal, se ověří proti oběma"
+  },
+  "pca0013": {
+   "source": "servers send the new certificate of {0} in their chain once their own certificates are renewed (or deployed again); what it signed stays valid",
+   "text": "servery začnou posílat nový certifikát autority {0} v řetězci, jakmile se jejich certifikáty obnoví (nebo znovu nasadí); co podepsala, zůstává platné"
+  },
+  "pca0014": {
+   "source": "it ends with the authority above it ({0}), before the days asked",
+   "text": "končí s nadřazenou autoritou ({0}), dřív než za požadovaný počet dní"
   }
  },
  "rich": {
@@ -40487,6 +41175,18 @@
   "r0199": {
    "source": "<b>Make a key</b> below and put its public half into <b>Authorized keys</b> of the account <code>{0}</code> (<b>System → User Manager</b>):",
    "text": "<b>Vytvořte klíč</b> níže a jeho veřejnou polovinu vložte do <b>Authorized keys</b> účtu <code>{0}</code> (<b>System → User Manager</b>):"
+  },
+  "r0200": {
+   "source": "The DNS set <b>{0}</b> is deleted.",
+   "text": "Sada DNS <b>{0}</b> se smaže."
+  },
+  "r0201": {
+   "source": "The DNS set <b>{0}</b> is deleted. What asked it goes back to its default: {1}.",
+   "text": "Sada DNS <b>{0}</b> se smaže. Co se jí ptalo, se vrátí ke své výchozí: {1}."
+  },
+  "r0202": {
+   "source": "The DNS servers asked for everything on this page: the address of the CA and of the DNS API, <i>Check DNS</i>, <i>Try port 80</i>, and whether the TXT record can be seen before the CA is asked - <code>1.1.1.1, 9.9.9.9</code> to see what the internet sees. Empty: Settings → DNS (The appliance’s own ACME), else the machine’s own (/etc/resolv.conf). A set chosen there comes first.",
+   "text": "DNS servery, které se ptají na vše na této stránce: adresu CA a DNS API, <i>Zkontrolovat DNS</i>, <i>Vyzkoušet port 80</i> a zda je záznam TXT vidět, než se CA zeptá – <code>1.1.1.1, 9.9.9.9</code>, aby bylo vidět, co vidí internet. Prázdné: Nastavení → DNS (Vlastní ACME appliance), jinak DNS stroje (/etc/resolv.conf). Sada zvolená tam má přednost."
   }
  }
 }

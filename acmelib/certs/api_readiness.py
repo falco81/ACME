@@ -70,7 +70,9 @@ def _cmap(store, v):
 def _args(store, b):
     return dict(issuer=_ref(store, 'issuer', b.get('issuer')),
                 challenge=_ref(store, 'challenge', b.get('challenge')),
-                challenge_map=_cmap(store, b.get('challenge_map')))
+                challenge_map=_cmap(store, b.get('challenge_map')),
+                key_type=str(b.get('key_type') or '') or None,
+                key_type_alt=str(b.get('key_type_alt') or '') or None)
 
 
 @A.api('POST', '/api/certs/plan', 'certadmin')
@@ -99,7 +101,10 @@ def _dry_run(h, s):
             jid = R.dry_run(h.store, R.cert_args(row)[0], cert=row, by=A.who(s),
                             cert_id=row['id'])
         else:
-            jid = R.dry_run(h.store, _names(b), by=A.who(s), **_args(h.store, b))
+            a = _args(h.store, b)
+            a.pop('key_type', None)
+            a.pop('key_type_alt', None)
+            jid = R.dry_run(h.store, _names(b), by=A.who(s), **a)
     except ValueError as e:
         if 'already working' in str(e):
             raise E.ApiError(409, str(e))

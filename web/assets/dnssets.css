@@ -1,0 +1,22 @@
+/* dnssets.css - Settings → DNS (dnssets.js): the sets of DNS servers, which
+   one each function asks, and the popup of Test. Scoped to the pane and its
+   popups (.dnss*), so nothing else on the page changes. */
+.dnss .dnss-tag{margin:0 6px 4px 0;display:inline-block}
+.dnss td .dnss-tag:first-child{margin-left:0}
+.dnss b + .dnss-tag{margin-left:8px}
+.dnss tr.dnss-builtin td{background:var(--panel2)}
+.dnss td.dnss-says{max-width:520px;line-height:1.45}
+.dnss td.dnss-pick{min-width:220px}
+.dnss td.dnss-pick select{width:100%;max-width:280px}
+.dnss .dnss-legacy{margin-top:4px;color:var(--warn)}
+.dnss p.dnss-fixed{margin:12px 0 0}
+.dnss-ask{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:4px 0 12px}
+.dnss-ask input{flex:1;min-width:200px}
+.dnss-ask select{width:auto}
+.dnss-result .dnss-head{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;
+  padding:8px 12px;border-radius:10px;margin:0 0 10px;border:1px solid var(--line)}
+.dnss-result .dnss-head.good{background:var(--ok-bg);border-color:transparent}
+.dnss-result .dnss-head.bad{background:var(--crit-bg);border-color:transparent}
+.dnss-result .dnss-tries{margin:0 0 12px}
+.dnss-result .step-words .d{margin-left:8px}
+.dnss-result td.dnss-val{word-break:break-all}

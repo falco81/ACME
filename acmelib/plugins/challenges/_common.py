@@ -874,9 +874,9 @@ class HttpChallenge(Challenge):
         bad = Challenge.place_problem.__func__(cls, proof, where, config, settings)
         if bad or proof != 'http-file-any':
             return bad
+        w = str(where or '/.well-known/pki-validation/')
         try:
-            cls.dcv_path(where if str(where or '').count('/') > 2 else
-                         '/.well-known/pki-validation/fileauth.txt')
+            cls.dcv_path(w + 'file.txt' if w.endswith('/') else w)
         except PluginError as e:
             return str(e)
         return ''

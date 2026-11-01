@@ -67,7 +67,7 @@ class InternalCaIssuer(Issuer):
         if not csr:
             if not req.key_pem:
                 raise PluginError('neither a request nor a key to sign for', retry=False)
-            csr = pki.make_csr(req.key_pem, req.names, req.subject or None,
+            csr = pki.make_csr(req.key_pem, list(req.sans or req.names), req.subject or None,
                                must_staple=bool((req.profile or {}).get('must_staple')))[0]
         prof = dict(req.profile or {})
         profile = {'eku': _list(prof.get('eku')) or _list(self.c('eku')) or
@@ -75,8 +75,8 @@ class InternalCaIssuer(Issuer):
                    'must_staple': bool(prof.get('must_staple'))}
         if prof.get('key_usage'):
             profile['key_usage'] = prof['key_usage']
-        if req.names:
-            profile['names'] = list(req.names)
+        if req.sans or req.names:
+            profile['names'] = list(req.sans or req.names)     # e-mail and URI ones too
         days = req.days or self.c('days') or 397
         cert, chain = CA.ca_sign(store, self._ca(), csr, int(days), profile,
                                  cert_id=req.cert_id, by='issuer:%s' % self.kind)

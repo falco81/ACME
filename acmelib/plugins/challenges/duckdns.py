@@ -57,6 +57,13 @@ class DuckDns(ApiDns):
         field('api', 'API address', 'text', default=API, advanced=True),
     ] + PROPAGATION_FIELDS
 
+
+    # DuckDNS keeps one TXT value per subdomain of duckdns.org - not a record at any
+    # name: it proves ACME's _acme-challenge, not a commercial CA's DCV.
+    @classmethod
+    def proofs_for(cls, config):
+        return ['acme-dns-01']
+
     def _names(self):
         out = []
         for d in as_list(self.c('domains', '')):

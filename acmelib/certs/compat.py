@@ -30,6 +30,11 @@ The rules
   suffix - no single label ("intranet"), no .local, .internal, .lan, .home.arpa,
   .localhost, .test, .invalid, .example, .corp..., no private address.
   An authority of its own, self-signed, AD CS, SCEP, EST take them all.
+* The common name (profile.subject.CN) of a public CA is one of the names and at
+  most 64 characters; a source of your own may name anything (cn_free). E-mail
+  and URI subjectAltNames (profile.san_other) only where the source puts them
+  in (san_types). Let's Encrypt gives IP addresses only in its "shortlived"
+  profile.
 * The key type is one the source signs (key_types_for; a public CA no Ed25519),
   the twin of a dual certificate only from a source that gives one (dual_for).
 
@@ -165,7 +170,22 @@ def source_info(cls, config, kind=''):
             'wildcards': bool(getattr(cls, 'wildcards', True)),
             'ip_names': bool(getattr(cls, 'ip_names', False)), 'public': public,
             'key_types': [k for k in schema.KEY_TYPES if k in kts],
+            'san_types': (['dns', 'ip'] if shim else list(cls.san_types_for(config))),
+            'cn_free': (False if shim else bool(cls.cn_free_for(config))),
+            'ip_profile': _ip_profile(cls, config),
             'dual': bool(cls.dual_for(config))}
+
+
+def _ip_profile(cls, config):
+    """The ACME profile an IP address needs at this CA ('' none): Let's Encrypt
+    issues for IP addresses only in its short-lived profile (6-day certificates,
+    "shortlived" - letsencrypt.org/docs/profiles, IP addresses generally available
+    since 2025)."""
+    if getattr(cls, 'kind', '') == 'acme' and str((config or {}).get('directory') or
+                                                  'letsencrypt') in ('letsencrypt',
+                                                                     'letsencrypt-staging'):
+        return 'shortlived'
+    return ''
 
 
 def _where(cls, config, name, proof):
@@ -217,6 +237,13 @@ def validation_fits(icls, iconfig, info, crow, name, settings):
     has = list(ccls.proofs_for(cconf))
     can = [p for p in want if p in has]
     if not can:
+        try:
+            own = ccls.place_problem(want[0], _where(icls, iconfig, name, want[0]), cconf, settings)
+        except Exception:                               # noqa: BLE001
+            own = ''
+        generic = ' cannot put %s in place' % base.PROOFS.get(want[0], want[0])
+        if own and generic not in own:
+            return own
         if k == 'wild' and not any(p in base.DNS_PROOFS for p in has):
             return 'a wildcard can only be proved by DNS: %s is an HTTP validation' % crow['name']
         if k == 'ip' and not any(p in base.HTTP_PROOFS for p in has):
@@ -278,8 +305,9 @@ def name_why(info, name):
 
 
 def _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type_alt,
-              settings, all_validations=False):
+              settings, all_validations=False, profile=None):
     settings = _settings(settings)
+    profile = profile if isinstance(profile, dict) else {}
     names = _names_of(names)
     out = {'problems': [], 'source': None, 'names': {}, 'validations': [], 'key_types': [],
            'twin': {'ok': True, 'why': ''}}
@@ -313,6 +341,46 @@ def _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type
                 fix = ('Use the full public name (e.g. %s.example.com), or take an authority of '
                        'your own, AD CS or self-signed for internal names' % bare(n).split('.')[0])
             P.append(_problem('names', 'names', why, fix, name=n))
+    # -- the other subjectAltNames and the common name --
+    others = [x for x in (profile.get('san_other') or []) if isinstance(x, str)]
+    out['san_other'] = {}
+    for x in others:
+        t = x.split(':', 1)[0].lower()
+        why = ''
+        if info and t not in info['san_types']:
+            why = '%s puts no %s names in its certificates (only %s)' % (
+                info['title'], {'email': 'e-mail', 'uri': 'URI'}.get(t, t),
+                ', '.join({'dns': 'DNS', 'ip': 'IP', 'email': 'e-mail', 'uri': 'URI'}.get(y, y)
+                          for y in info['san_types']))
+        out['san_other'][x] = why
+        if why:
+            P.append(_problem('names', 'names', why, 'Take %s out, or choose an authority of '
+                              'your own, AD CS or self-signed' % x.split(':', 1)[1], name=x))
+    cn = str((profile.get('subject') or {}).get('CN') or '').strip().lower().rstrip('.')
+    out['cn'] = {'value': cn, 'why': ''}
+    if cn:
+        try:
+            cn_norm = S.clean_names([cn])[0]
+        except (ValueError, IndexError):
+            cn_norm = cn
+        if len(cn) > 64:
+            out['cn']['why'] = 'the common name is longer than 64 characters'
+        elif info and not info['cn_free'] and cn_norm not in names:
+            out['cn']['why'] = ('%s puts in the common name only one of the certificate\'s '
+                                'names (CA/B Forum) - %s is not one of them' % (info['title'], cn))
+        if out['cn']['why']:
+            P.append(_problem('names', 'names', out['cn']['why'],
+                              'Make the common name one of the names (the CN is also a SAN), or '
+                              'leave it empty: the first name is taken', name=cn))
+    if info and info.get('ip_profile') and any(kind_of(n) == 'ip' for n in names):
+        want = info['ip_profile']
+        have = str(profile.get('acme_profile') or (S.jload(irow.get('config'), {}) or {}).get(
+            'profile') or '').strip()
+        if have != want:
+            P.append(_problem('names', 'names', '%s issues for IP addresses only in its "%s" '
+                              'profile (certificates of 6 days)' % (info['title'], want),
+                              'Set the ACME profile to %s (Profile step, or the source), or take '
+                              'the addresses out' % want))
     # -- the key --
     kt = str(key_type or 'ec-256')
     kta = str(key_type_alt or '')
@@ -389,16 +457,17 @@ def _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type
 
 
 def check(store, names, issuer, challenge=None, challenge_map=None, key_type=None,
-          key_type_alt=None, settings=None):
-    """[problem] - see the top of this file."""
+          key_type_alt=None, settings=None, profile=None):
+    """[problem] - see the top of this file. `profile`: the certificate's
+    (subject.CN, san_other, acme_profile)."""
     return _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type_alt,
-                     settings)['problems']
+                     settings, profile=profile)['problems']
 
 
 def options(store, names, issuer, challenge=None, challenge_map=None, key_type=None,
-            key_type_alt=None, settings=None):
+            key_type_alt=None, settings=None, profile=None):
     out = _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type_alt,
-                    settings, all_validations=True)
+                    settings, all_validations=True, profile=profile)
     out['ok'] = not out['problems']
     return out
 
@@ -407,7 +476,8 @@ def check_cert(store, cert, settings=None):
     """check() of a row of certs."""
     return check(store, S.jload(cert.get('names'), []) or [], cert.get('issuer') or None,
                  cert.get('challenge') or None, S.jload(cert.get('challenge_map'), {}) or {},
-                 cert.get('key_type') or 'ec-256', cert.get('key_type_alt') or '', settings)
+                 cert.get('key_type') or 'ec-256', cert.get('key_type_alt') or '', settings,
+                 profile=S.jload(cert.get('profile'), {}) or {})
 
 
 def words(problems):

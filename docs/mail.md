@@ -38,6 +38,8 @@ The recipients' MX records are asked of the DNS servers in /etc/resolv.conf
 the system's resolver. Where that resolver will not answer, name others in
 *DNS servers for the recipients' domains* (`mail_dns`, e.g. `1.1.1.1, 8.8.8.8`):
 then both the MX records and the servers' A/AAAA addresses are asked of them.
+A set chosen for *Mail going direct* under Settings → DNS comes first
+([dns-sets.md](dns-sets.md)).
 Only mail sent direct uses them - Active Directory, the SMTP relay, isemon
 and the database always use the system's resolver. A resolver that refuses or fails is never taken for
 "no MX record": *Try it* then says which server answered what.

@@ -84,6 +84,8 @@ def menu(con):
         ('9', 'Deployments: which certificate goes where', lambda: deploys(con)),
         ('a', 'Authorities of acme\'s own', lambda: cas(con)),
         ('d', 'acme\'s own DNS server', lambda: dns(con)),
+        ('n', 'DNS sets: which DNS servers each function asks (Settings → DNS)',
+         lambda: con.show('--dns-sets')),
         ('0', 'Modules (Enter: what one takes)', lambda: modules(con)),
     ])
 

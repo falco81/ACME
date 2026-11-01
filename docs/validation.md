@@ -97,7 +97,8 @@ before the CA is told to look:
 3. **Seen by** (`propagation`): by default every name server of the zone (its NS
    records) is asked straight, without recursion, until each has the value - so
    no resolver caches "not there" in the meantime. `auth+public` then also
-   asks public resolvers (1.1.1.1, 8.8.8.8, 9.9.9.9); `resolvers` asks only the
+   asks public resolvers (Settings → DNS, *The public view*: the set "Public",
+   1.1.1.1, 8.8.8.8, 9.9.9.9 - [dns-sets.md](dns-sets.md)); `resolvers` asks only the
    resolvers set; `none` asks nothing. When the name servers cannot be reached
    from acme (an outbound firewall), the resolvers are asked instead, and the
    job says so.

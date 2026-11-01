@@ -15,6 +15,11 @@ under a CA elsewhere), what they sign, what they revoke, their CRLs.
     ca_crl(store, ca_id) -> crl_pem
     ca_delete(store, ca_id)
     ca_export(store, ca_id, what, password=None) -> {filename, mime, data}
+    ca_edit(store, ca_id, changes, by='') -> (row, {field: (old, new)})   what is not in its
+                                                    certificate: name, days, CRL days, URLs...
+    ca_renew(store, ca_id, days=None, path_len=KEEP, name_constraints=None, by='')
+                                                    its certificate again, with the same key
+    ca_versions(store, ca_id) -> [every certificate it has had, newest first]
 
 `store` is the engine's Storage (only store.db is used: run / rows / row /
 value / insert). A CA's key is kept sealed, bound to its row
@@ -267,13 +272,22 @@ def _issuer_lines(row):
     return lines
 
 
-def _ca_lines(path_len, nc):
+def _ca_lines(path_len, nc, ski=None, key_usage=None):
+    """The extensions of an authority's certificate. `ski` (hex) keeps a key
+    identifier as it was (a renewal of one made elsewhere); `key_usage` the
+    key usage it had (keyCertSign and cRLSign always in it)."""
     bc = 'critical, CA:TRUE'
-    if path_len not in (None, ''):
+    if path_len not in (None, '') and int(path_len) >= 0:
         bc += ', pathlen:%d' % int(path_len)
+    ku = ['keyCertSign', 'cRLSign', 'digitalSignature']
+    if key_usage:
+        ku = pki._ku_value(key_usage)
+        ku += [k for k in ('keyCertSign', 'cRLSign') if k not in ku]
+    ski = re.sub(r'[^0-9A-Fa-f]', '', str(ski or ''))
     lines = ['basicConstraints = ' + bc,
-             'keyUsage = critical, keyCertSign, cRLSign, digitalSignature',
-             'subjectKeyIdentifier = hash', 'authorityKeyIdentifier = keyid:always']
+             'keyUsage = critical, ' + ', '.join(ku),
+             'subjectKeyIdentifier = ' + (ski if ski else 'hash'),
+             'authorityKeyIdentifier = keyid:always']
     if nc:
         lines.append('nameConstraints = critical, ' + ', '.join(nc))
     return lines
@@ -553,15 +567,40 @@ def ca_install_cert(store, ca_id, cert_pem, chain_pems=None, by=''):
                        'missing - was it signed with the SubCA template?)', retry=False)
     chain = pki.order_chain(cert, [c for c in certs if c != cert])
     parent_id = _find_parent(store, cert)
+    if not chain and parent_id:
+        p = _row(store, parent_id)
+        chain = [p['cert_pem']] + _chain(p)
+    renewal = bool(row.get('cert_pem'))
+    if not chain and renewal and _chain(row):
+        chain = pki.order_chain(cert, _chain(row))      # a renewal: the CA above is the same
+    if renewal:
+        old = pki.cert_info(row['cert_pem'])
+        if old['subject_dn'] != info['subject_dn']:
+            raise PkiError('this certificate is for "%s", the authority is "%s": a renewal keeps '
+                           'the subject (for another one, make a new authority)'
+                           % (info['subject_dn'], old['subject_dn']), retry=False)
+        if old['sha256'] == info['sha256']:
+            renewal = False
+        else:
+            _version_first(store, row, by)
     fields = _cert_fields(cert, chain)
     prof = _j(row.get('profile'), {})
     prof.pop('pending', None)
     prof.pop('csr_pem', None)
+    prof.pop('renew_csr_pem', None)
+    prof.pop('renew_asked', None)
     fields.update({'profile': json.dumps(prof), 'parent_id': parent_id,
                    'external': 0 if (parent_id or info['self_signed']) else 1})
+    if info['name_constraints']:
+        fields['name_constraints'] = json.dumps(
+            ['%s;%s' % (w, x) for w in ('permitted', 'excluded')
+             for x in info['name_constraints'].get(w, [])])
     sets = ', '.join('%s = ?' % k for k in fields)
     store.db.run('UPDATE cert_cas SET %s WHERE id = ?' % sets,
                  tuple(fields.values()) + (int(row['id']),))
+    if renewal:
+        _version_add(store, row['id'], cert, chain, 'renewed (answer installed)', by)
+        _rechain_children(store, row['id'])
     try:
         ca_crl(store, row['id'])
     except PkiError as e:
@@ -589,7 +628,11 @@ def ca_get(store, ca_id):
     prof = _j(row.get('profile'), {})
     out['pending'] = _pending(row)
     out['csr_pem'] = prof.get('csr_pem', '') if out['pending'] else ''
-    out['profile'] = {k: v for k, v in prof.items() if k != 'csr_pem'}
+    out['profile'] = {k: v for k, v in prof.items() if k not in ('csr_pem', 'renew_csr_pem')}
+    out['renew_csr_pem'] = prof.get('renew_csr_pem', '')
+    out['eku'] = list(prof.get('eku') or [])
+    out['versions'] = int(store.db.value('SELECT COUNT(*) FROM cert_ca_versions WHERE ca_id = ?',
+                                         (int(row['id']),), 0) or 0)
     out['chain'] = _chain(row)
     out['children'] = [int(r['id']) for r in store.db.rows(
         'SELECT id FROM cert_cas WHERE parent_id = ? ORDER BY id', (int(row['id']),))]
@@ -689,7 +732,10 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
 
     profile: eku [names/OIDs] (default serverAuth, clientAuth), key_usage
     [names], must_staple, subject {..} (in place of the request's), names [..]
-    (in place of the request's), is_ca + path_len (an intermediate), name_constraints."""
+    (in place of the request's), is_ca + path_len (an intermediate), name_constraints,
+    ski + ca_key_usage (an intermediate's renewal: as its certificate had them),
+    no_names (no subjectAltName from the request's CN).
+    Without an eku the authority's own default (its profile's eku, ca_edit) is taken."""
     row = _row(store, ca_id)
     now = _now()
     _usable(row, now)
@@ -701,6 +747,8 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
     if not pki.csr_verify(csr_pem):
         raise PkiError('the request is not signed by its own key', retry=False)
     names = _as_list(prof.get('names')) if prof.get('names') else list(ci['names'])
+    if prof.get('no_names'):
+        names = []
     if not ci['san'] and ci['cn'] and not prof.get('names') and names == [ci['cn']]:
         try:
             pki.classify_name(ci['cn'])
@@ -720,14 +768,16 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
                            'constraints)' % (t[1], row['name']), retry=False)
     if is_ca:
         pl = _child_path_len(row, prof.get('path_len'))
-        lines = _ca_lines(pl, nc_normalize(prof.get('name_constraints')) or nc)
+        lines = _ca_lines(pl, nc_normalize(prof.get('name_constraints')) or nc,
+                          ski=prof.get('ski'), key_usage=prof.get('ca_key_usage'))
     else:
         if not san and not (subject or ci['subject_list']):
             raise PkiError('a certificate needs a name or a subject', retry=False)
         kt = ci['key_type']
         ku = pki._ku_value(prof.get('key_usage')) or pki.default_key_usage(kt)
+        own = _j(row.get('profile'), {}).get('eku')
         eku = pki._eku_value(prof.get('eku') if prof.get('eku') not in (None, '', [])
-                             else ['serverAuth', 'clientAuth'])
+                             else (own or ['serverAuth', 'clientAuth']))
         lines = ['basicConstraints = critical, CA:FALSE',
                  'keyUsage = critical, ' + ', '.join(ku),
                  'subjectKeyIdentifier = hash', 'authorityKeyIdentifier = keyid:always']
@@ -879,6 +929,7 @@ def ca_delete(store, ca_id):
         raise PkiError('the authority "%s" has authorities under it (%s): delete those first'
                        % (row['name'], ', '.join(k['name'] for k in kids)), retry=False)
     store.db.run('DELETE FROM cert_ca_issued WHERE ca_id = ?', (int(row['id']),))
+    store.db.run('DELETE FROM cert_ca_versions WHERE ca_id = ?', (int(row['id']),))
     store.db.run('DELETE FROM cert_cas WHERE id = ?', (int(row['id']),))
     _log('certificate authority "%s" (%d) deleted' % (row['name'], row['id']), 'warn')
     return True
@@ -897,7 +948,8 @@ def ca_export(store, ca_id, what, password=None):
     base = _safe(row['name'])
     what = str(what or 'cert').lower()
     if what == 'csr':
-        csr = _j(row.get('profile'), {}).get('csr_pem')
+        prof = _j(row.get('profile'), {})
+        csr = prof.get('csr_pem') or prof.get('renew_csr_pem')
         if not csr:
             raise PkiError('there is no request waiting for this authority', retry=False)
         return {'filename': base + '.csr', 'mime': 'application/pkcs10', 'data': csr.encode()}
@@ -952,3 +1004,313 @@ def ca_export(store, ca_id, what, password=None):
                 'data': pkcs12(_key(row), cert, _chain(row), password, row['name'])}
     raise PkiError('an unknown export: %s (cert, cert-der, chain, crl, crl-der, p7b, bundle, '
                    'key, p12, csr)' % what, retry=False)
+
+
+# ---------------------------------------------------------------------------
+# Editing: what is not inside its certificate
+# ---------------------------------------------------------------------------
+EDITABLE = ('name', 'days_default', 'crl_days', 'crl_url', 'aia_url', 'ocsp_url', 'note',
+            'disabled', 'eku')
+
+
+def ca_edit(store, ca_id, changes, by='', remake_crl=True):
+    """Change what an authority keeps beside its certificate -> (row as it is
+    now, {field: (old, new)} of what changed).
+
+    name (a safe name, unique - what refers to it is the caller's: api_cas),
+    days_default (what it issues for unless asked), crl_days (how long each CRL
+    is valid; the CRL is made anew at once, so the half-life refresh follows),
+    crl_url / aia_url / ocsp_url (put into what it signs FROM NOW ON), note,
+    disabled (it signs nothing; its CRL is still made and published), eku (its
+    default extended key usage, where a request says none). Its certificate is
+    not touched: for its validity, path length or name constraints, ca_renew."""
+    row = _row(store, ca_id)
+    unknown = [k for k in changes if k not in EDITABLE]
+    if unknown:
+        raise PkiError('an authority has no setting %s (it has %s)' % (
+            ', '.join(sorted(unknown)), ', '.join(EDITABLE)), retry=False)
+    sets, done = {}, {}
+    prof = _j(row.get('profile'), {})
+    for k, v in changes.items():
+        if k == 'name':
+            from acmelib.certs import store as S
+            v = str(v or '').strip()
+            if not S.NAME_RE.match(v):
+                raise PkiError('the name of an authority: letters, digits, spaces and . _ @ + - '
+                               '(120 at most), starting with a letter or a digit', retry=False)
+            v = _check_name(store, v, but=row['id'])
+        elif k in ('days_default', 'crl_days'):
+            try:
+                v = int(v)
+            except (TypeError, ValueError):
+                raise PkiError('%s is a number of days' % k, retry=False)
+            most = 36500 if k == 'days_default' else 365
+            if not 1 <= v <= most:
+                raise PkiError('%s: 1 to %d days' % (k, most), retry=False)
+        elif k in ('crl_url', 'aia_url', 'ocsp_url'):
+            v = _check_url(v, {'crl_url': 'the CRL address', 'aia_url': 'the CA certificate '
+                               'address (AIA)', 'ocsp_url': 'the OCSP address'}[k])
+        elif k == 'note':
+            v = str(v or '')
+            if len(v) > 2000:
+                raise PkiError('a note: 2000 characters at most', retry=False)
+        elif k == 'disabled':
+            v = 1 if v not in (None, '', 0, '0', False, 'false', 'no', 'off') else 0
+        elif k == 'eku':
+            v = pki._eku_value(_as_list(v))
+            if v != list(prof.get('eku') or []):
+                done['eku'] = (list(prof.get('eku') or []), v)
+                if v:
+                    prof['eku'] = v
+                else:
+                    prof.pop('eku', None)
+                sets['profile'] = json.dumps(prof)
+            continue
+        old = row.get(k)
+        if k in ('days_default', 'crl_days', 'disabled'):
+            old = int(old or 0)
+        elif old is None:
+            old = ''
+        if old != v:
+            sets[k] = v
+            done[k] = (old, v)
+    if sets:
+        store.db.run('UPDATE cert_cas SET %s WHERE id = ?' % ', '.join('%s = ?' % k for k in sets),
+                     tuple(sets.values()) + (int(row['id']),))
+        _log('certificate authority "%s" (%d) edited by %s: %s' % (
+            row['name'], row['id'], by or '-', ', '.join(sorted(done))))
+    if remake_crl and 'crl_days' in done and not _pending(row) and row.get('key_sealed'):
+        ca_crl(store, row['id'])
+    return _row(store, row['id']), done
+
+
+# ---------------------------------------------------------------------------
+# Versions: every certificate it has had
+# ---------------------------------------------------------------------------
+def _version_row(cert_pem, chain):
+    i = pki.cert_info(cert_pem)
+    nc = ['%s;%s' % (w, x) for w in ('permitted', 'excluded')
+          for x in (i['name_constraints'] or {}).get(w, [])] if i['name_constraints'] else []
+    return {'cert_pem': i['pem'], 'chain_pem': ''.join(chain or []), 'serial': i['serial'],
+            'fingerprint': i['sha256'], 'not_before': i['not_before'],
+            'not_after': i['not_after'], 'path_len': i['path_len'],
+            'name_constraints': json.dumps(nc), 'issuer_dn': i['issuer_dn']}
+
+
+def _version_add(store, ca_id, cert_pem, chain, why, by=''):
+    top = store.db.value('SELECT MAX(version) FROM cert_ca_versions WHERE ca_id = ?',
+                         (int(ca_id),), 0) or 0
+    fields = _version_row(cert_pem, chain)
+    fields.update({'ca_id': int(ca_id), 'version': int(top) + 1, 'created': _now(),
+                   'why': str(why or '')[:120], 'by_who': str(by or '')})
+    store.db.insert('cert_ca_versions', fields)
+    return int(top) + 1
+
+
+def _version_first(store, row, by=''):
+    """Before the first renewal: the certificate it has now, as version 1."""
+    if not row.get('cert_pem'):
+        return
+    have = store.db.value('SELECT COUNT(*) FROM cert_ca_versions WHERE ca_id = ? AND '
+                          'fingerprint = ?', (int(row['id']), row.get('fingerprint') or
+                                              pki.cert_info(row['cert_pem'])['sha256']), 0)
+    if not have:
+        _version_add(store, row['id'], row['cert_pem'], _chain(row), 'made', row.get(
+            'created_by') or by)
+
+
+def ca_versions(store, ca_id):
+    """Every certificate the authority has had, newest first: version, serial,
+    fingerprint, not_before, not_after, path_len, name_constraints, issuer_dn,
+    created, why, by_who, cert_pem, current (the one it signs with now)."""
+    row = _row(store, ca_id)
+    out = []
+    for r in store.db.rows('SELECT * FROM cert_ca_versions WHERE ca_id = ? ORDER BY version DESC',
+                           (int(row['id']),)):
+        r = dict(r)
+        r['name_constraints'] = _j(r.get('name_constraints'), [])
+        r['current'] = r.get('fingerprint') == row.get('fingerprint')
+        out.append(r)
+    if row.get('cert_pem') and not any(r['current'] for r in out):
+        r = _version_row(row['cert_pem'], _chain(row))
+        r.update({'version': (out[0]['version'] + 1) if out else 1, 'created': row.get('created'),
+                  'why': 'made' if not out else 'installed', 'by_who': row.get('created_by') or '',
+                  'current': True, 'id': None, 'ca_id': int(row['id'])})
+        r['name_constraints'] = _j(r['name_constraints'], [])
+        out.insert(0, r)
+    now = _now()
+    for r in out:
+        r['valid'] = bool(r.get('not_after')) and float(r['not_after']) > now and \
+            float(r.get('not_before') or 0) <= now
+    return out
+
+
+def _rechain_children(store, ca_id, seen=None):
+    """The authorities under it (and under those) given its certificate as it is
+    now in their chains. Their own certificates do not change: the parent's key
+    and subject are the same, so they verify against the new one alike.
+    Returns the names whose chain was made anew."""
+    seen = set(seen or ())
+    if int(ca_id) in seen:
+        return []
+    seen.add(int(ca_id))
+    parent = _row(store, ca_id)
+    if _pending(parent):
+        return []
+    chain = [parent['cert_pem']] + _chain(parent)
+    done = []
+    for r in store.db.rows('SELECT id, name, chain_pem, cert_pem FROM cert_cas WHERE parent_id = ? '
+                           'ORDER BY id', (int(parent['id']),)):
+        if not r.get('cert_pem') or int(r['id']) in seen:
+            continue
+        new = ''.join(chain)
+        if (r.get('chain_pem') or '') != new:
+            store.db.run('UPDATE cert_cas SET chain_pem = ? WHERE id = ?', (new, int(r['id'])))
+            done.append(r['name'])
+        done += _rechain_children(store, r['id'], seen)
+    return done
+
+
+# ---------------------------------------------------------------------------
+# Renewing its certificate with the same key
+# ---------------------------------------------------------------------------
+KEEP = object()
+
+
+def _request_same_subject(cert_pem, key_pem, path_len=None):
+    """A request with the authority's own key and EXACTLY the subject of its
+    certificate (openssl x509 -x509toreq copies the name as it is encoded)."""
+    kt = pki.key_info(key_pem)['key_type']
+    try:
+        with pki.workdir() as d:
+            out = pki.openssl(['x509', '-x509toreq', '-in', pki.wfile(d, 'c.pem', cert_pem),
+                               '-signkey', pki.wfile(d, 'k.key', key_pem)] + pki.md_args(kt))
+        got = [p for lab, p in pki.split_pem(out) if 'REQUEST' in lab]
+        if got and pki.csr_info(got[0])['subject_dn'] == pki.cert_info(cert_pem)['subject_dn']:
+            return got[0]
+    except PkiError:
+        pass
+    return _csr_for_ca(key_pem, pki.subject_pairs(pki.cert_info(cert_pem)['subject_list']),
+                       path_len)
+
+
+def ca_renew(store, ca_id, days=None, path_len=KEEP, name_constraints=None, by=''):
+    """The authority's certificate made again with the SAME key and the same
+    subject (so the same key identifier): a new serial and validity, and the
+    path length / name constraints asked (else as they were). What it signed
+    before stays valid - it verifies against the new certificate alike.
+
+    A root signs itself again; an intermediate under one of acme's authorities
+    is signed by it (ca_sign, as an authority); one under a CA elsewhere gets a
+    request with its key (kept as renew_csr_pem, exported as 'csr') and the
+    answer comes through ca_install_cert. The certificate it had is kept
+    (cert_ca_versions), the chains of the authorities under it are made anew,
+    and so is its CRL.
+
+    path_len: KEEP (as it is), None or -1 (no limit), a number. name_constraints:
+    None (as they are), [] (none), a list (nc_normalize).
+
+    -> {id, pending, csr_pem, version, cert_pem, not_before, not_after, capped,
+        children, how ('self' | 'parent' | 'request')}"""
+    row = _row(store, ca_id)
+    if _pending(row):
+        raise PkiError('the authority "%s" waits for its first certificate - install that '
+                       'first' % row['name'], retry=False)
+    key = _key(row)
+    info = pki.cert_info(row['cert_pem'])
+    now = _now()
+    if days in (None, '', 0, '0'):
+        days = max(1, int(round((float(info['not_after']) - float(info['not_before'])
+                                 - BACKDATE_S) / 86400.0)))
+    days = int(days)
+    if not 1 <= days <= 36500:
+        raise PkiError('a validity of 1 to 36500 days', retry=False)
+    if path_len is KEEP:
+        pl = info['path_len']
+    elif path_len in (None, '', -1, '-1'):
+        pl = None
+    else:
+        try:
+            pl = int(path_len)
+        except (TypeError, ValueError):
+            raise PkiError('the path length is a number (empty: no limit)', retry=False)
+        if not 0 <= pl <= 32:
+            raise PkiError('the path length is 0 to 32 (empty: no limit)', retry=False)
+    if name_constraints is None:
+        nc = _j(row.get('name_constraints'), [])
+    else:
+        nc = nc_normalize(name_constraints)
+    ku = [k for k in (info['key_usage'] or []) if k in pki.KEY_USAGE_BITS] or None
+    self_signed = bool(info['self_signed'])
+    parent = None
+    if not self_signed and row.get('parent_id'):
+        try:
+            parent = _row(store, row['parent_id'])
+        except PkiError:
+            parent = None
+        if parent is not None and (_pending(parent) or not parent.get('key_sealed')):
+            parent = None
+    csr = _request_same_subject(row['cert_pem'], key, pl)
+    out = {'id': int(row['id']), 'pending': False, 'csr_pem': '', 'capped': False,
+           'children': []}
+    if self_signed:
+        end = now + days * 86400
+        lines = _ca_lines(pl, nc, ski=info['ski'], key_usage=ku)
+        cert = _openssl_ca_sign('', key, csr, pki.random_serial(), now - BACKDATE_S, end, lines,
+                                [], selfsign=True)
+        chain = []
+        out['how'] = 'self'
+    elif parent is not None:
+        _usable(parent, now)
+        pl = _child_path_len(parent, pl)
+        pnc = _j(parent.get('name_constraints'), [])
+        if pnc and not nc:
+            nc = list(pnc)
+        prof = {'is_ca': True, 'path_len': pl, 'name_constraints': nc, 'ski': info['ski'],
+                'ca_key_usage': ku, 'no_names': True}
+        cert, chain = ca_sign(store, parent['id'], csr, days, prof,
+                              by=by or 'renewal of %s' % row['name'])
+        end = now + days * 86400
+        out['capped'] = pki.cert_info(cert)['not_after'] < end - 60
+        out['how'] = 'parent'
+    else:
+        # For a CA elsewhere: CA:TRUE asked for in it (AD CS's SubCA wants that).
+        csr = _csr_for_ca(key, pki.subject_pairs(info['subject_list']), pl)
+        prof = _j(row.get('profile'), {})
+        prof['renew_csr_pem'] = csr
+        prof['renew_asked'] = {'days': days, 'path_len': pl, 'name_constraints': nc,
+                               'at': now, 'by': str(by or '')}
+        store.db.run('UPDATE cert_cas SET profile = ? WHERE id = ?', (json.dumps(prof),
+                                                                       int(row['id'])))
+        _log('certificate authority "%s" (%d): a request for its renewal with the same key, for '
+             'the CA above it, by %s' % (row['name'], row['id'], by or '-'))
+        out.update({'pending': True, 'csr_pem': csr, 'how': 'request'})
+        return out
+    # The new certificate in place, the old one kept.
+    new = pki.cert_info(cert)
+    if new['pub_sha256'] != info['pub_sha256'] or new['subject_dn'] != info['subject_dn']:
+        raise PkiError('the renewed certificate is not for the same key and subject - nothing '
+                       'was changed', retry=False)
+    _version_first(store, row, by)
+    fields = _cert_fields(cert, chain)
+    fields['name_constraints'] = json.dumps(nc)
+    prof = _j(row.get('profile'), {})
+    prof.pop('renew_csr_pem', None)
+    prof.pop('renew_asked', None)
+    fields['profile'] = json.dumps(prof)
+    store.db.run('UPDATE cert_cas SET %s WHERE id = ?' % ', '.join('%s = ?' % k for k in fields),
+                 tuple(fields.values()) + (int(row['id']),))
+    out['version'] = _version_add(store, row['id'], cert, chain, 'renewed', by)
+    out['children'] = _rechain_children(store, row['id'])
+    try:
+        ca_crl(store, row['id'])
+    except PkiError as e:
+        _log('the CRL of authority %s was not made after its renewal: %s' % (row['name'], e),
+             'warn')
+    out.update({'cert_pem': new['pem'], 'not_before': new['not_before'],
+                'not_after': new['not_after'], 'serial': new['serial'],
+                'fingerprint': new['sha256'], 'path_len': new['path_len']})
+    _log('certificate authority "%s" (%d) renewed with the same key by %s: until %s' % (
+        row['name'], row['id'], by or '-', time.strftime('%Y-%m-%d', time.gmtime(
+            new['not_after']))))
+    return out

@@ -18,7 +18,10 @@ database, so every node and the VIP address answer alike.
     base_url(store)              pki_base_url, else http://<VIP name | this server's name>/pki/
     slug_of(store, row)          the authority's name in the URLs - kept in its profile, so it
                                  never changes once certificates carry it
-    is_published(store, ca)      on, the authority's own switch on, a certificate, not off
+    renamed(store, ca_id)        a renamed authority: a slug of its new name, the old one kept
+                                 answering (pki_aliases) - what was signed before carries it
+    is_published(store, ca)      on, the authority's own switch on, a certificate (one switched
+                                 off still is: what it signed before needs its CRL)
     urls(store, row)             {crl, crl_pem, cert, cert_pem, index}
     serve(store, what, slug, fmt) -> (bytes, mime, filename)   only what is published
     refresh(store)               the leader's: every CRL made again past half its life
@@ -109,12 +112,7 @@ def slug_of(store, row):
     got = prof.get('pki_slug')
     if got and SLUG_RX.match(str(got)):
         return got
-    taken = set()
-    for r in store.db.rows('SELECT id, profile FROM cert_cas'):
-        if int(r['id']) != int(row['id']):
-            s = _j(r.get('profile'), {}).get('pki_slug')
-            if s:
-                taken.add(s)
+    taken = _taken(store, row['id'])
     base = _slugify(row.get('name'))
     got = base
     if got in taken:
@@ -124,6 +122,47 @@ def slug_of(store, row):
                                                                    int(row['id'])))
     row['profile'] = json.dumps(prof)
     return got
+
+
+def _taken(store, but_id):
+    """The slugs (and the old slugs still answering) of every other authority."""
+    taken = set()
+    for r in store.db.rows('SELECT id, profile FROM cert_cas'):
+        if int(r['id']) != int(but_id):
+            p = _j(r.get('profile'), {})
+            if p.get('pki_slug'):
+                taken.add(p['pki_slug'])
+            taken.update(str(a) for a in (p.get('pki_aliases') or []))
+    return taken
+
+
+def aliases_of(row):
+    return [str(a) for a in (_j(row.get('profile'), {}).get('pki_aliases') or [])
+            if SLUG_RX.match(str(a))]
+
+
+def renamed(store, ca_id):
+    """An authority renamed: its URLs made of its new name from now on, the
+    old ones answering still (an alias) - certificates signed before carry them
+    in their CRL distribution point and AIA. -> (old slug, new slug)."""
+    row = _row(store, ca_id)
+    if not row:
+        raise LookupError('there is no such authority')
+    old = slug_of(store, row)
+    prof = _j(row.get('profile'), {})
+    base = _slugify(row.get('name'))
+    taken = _taken(store, row['id'])
+    new = base if base not in taken else '%s-%d' % (base, int(row['id']))
+    if new == old:
+        return old, new
+    aliases = [a for a in aliases_of(row) if a != new]
+    if old not in aliases:
+        aliases.append(old)
+    prof['pki_slug'] = new
+    prof['pki_aliases'] = aliases
+    store.db.run('UPDATE cert_cas SET profile = ? WHERE id = ?', (json.dumps(prof),
+                                                                   int(row['id'])))
+    return old, new
 
 
 def _row(store, ca):
@@ -140,8 +179,7 @@ def own_switch(row):
 
 def is_published(store, ca):
     row = _row(store, ca)
-    return bool(row) and on() and own_switch(row) and bool(row.get('cert_pem')) and \
-        not row.get('disabled')
+    return bool(row) and on() and own_switch(row) and bool(row.get('cert_pem'))
 
 
 def urls(store, row):
@@ -201,8 +239,12 @@ def find(store, slug):
     slug = str(slug or '').strip().lower()
     if not SLUG_RX.match(slug) or not on():
         return None
-    for r in store.db.rows('SELECT * FROM cert_cas ORDER BY id'):
+    rows = store.db.rows('SELECT * FROM cert_cas ORDER BY id')
+    for r in rows:
         if slug_of(store, r) == slug:
+            return r if is_published(store, r) else None
+    for r in rows:                      # an old name of a renamed one
+        if slug in aliases_of(r):
             return r if is_published(store, r) else None
     return None
 
@@ -284,13 +326,14 @@ def index(store):
 # Fresh CRLs (the leader, every certs_check_min minutes)
 # ---------------------------------------------------------------------------
 def refresh(store, now=None):
-    """Every authority that signs (and is not switched off) given a new CRL
-    past half the life of its last one, so a published CRL never runs out.
+    """Every authority with a key here given a new CRL past half the life of its
+    last one, so a published CRL never runs out - one switched off too: what it
+    signed before is still checked against it.
     Returns the names made anew."""
     ca = _ca()
     made = []
     for r in store.db.rows("SELECT id, name, cert_pem, key_sealed, disabled FROM cert_cas"):
-        if not r.get('cert_pem') or not r.get('key_sealed') or r.get('disabled'):
+        if not r.get('cert_pem') or not r.get('key_sealed'):
             continue
         try:
             if not ca.crl_due(store, r['id']):
@@ -438,6 +481,7 @@ def view(store, ca_id):
     last = _j(store.get_meta(REFRESH_META), {})
     return {'on': on(), 'switch': own_switch(row), 'published': is_published(store, row),
             'urls': u, 'base_url': base_url(store), 'crl_at': row.get('crl_at'),
+            'aliases': [base_url(store) + a + '.crl' for a in aliases_of(row)],
             'crl_days': row.get('crl_days'), 'this_update': st['this_update'],
             'next_update': st['next_update'], 'number': st['number'],
             'own_urls': row.get('crl_url') == u['crl'] and row.get('aia_url') == u['cert'],

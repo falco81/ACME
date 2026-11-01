@@ -696,7 +696,8 @@ SAYS = {
                  'Going direct, it should be the name its address resolves back to.',
     'mail_dns': 'Going direct: the DNS servers asked where each recipient’s domain takes its mail '
                 '(its MX record), separated by commas - 1.1.1.1, 8.8.8.8. Empty: the ones in '
-                '/etc/resolv.conf. Only for a machine whose own resolver will not answer that.',
+                '/etc/resolv.conf. Only for a machine whose own resolver will not answer that. '
+                'A set chosen for "Mail going direct" under Settings → DNS comes first.',
     'mail_direct_tls': 'Going direct: whether a server that offers no STARTTLS still gets the '
                        'mail, in the clear. Required is safer - a mail can hold a code to sign '
                        'in with, and anybody on the way can strip the offer - but a domain whose server '
@@ -1067,8 +1068,9 @@ SAYS = {
     'acme_resolvers': 'The DNS servers asked for everything on this page: the address of the CA and '
                       'of the DNS API, <i>Check DNS</i>, <i>Try port 80</i>, and whether the TXT '
                       'record can be seen before the CA is asked - <code>1.1.1.1, 9.9.9.9</code> '
-                      'to see what the internet sees. Empty: the machine\u2019s own '
-                      '(/etc/resolv.conf).',
+                      'to see what the internet sees. Empty: Settings → DNS (The '
+                      'appliance\u2019s own ACME), else the machine\u2019s own '
+                      '(/etc/resolv.conf). A set chosen there comes first.',
     'acme_desec_domain': 'Your domain at deSEC, <code>example.dedyn.io</code> (free) or one of your own '
                          'whose DNS is there. The records go into it; your DNS has a CNAME to it for each '
                          'name - <i>In your DNS</i> above says which.',

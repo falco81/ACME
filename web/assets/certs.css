@@ -448,3 +448,9 @@ table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:
 .said > :not(:first-child).btn, .says > :not(:first-child).btn, .note > :not(:first-child).btn,
 p > :not(:first-child).btn, td > :not(:first-child).btn, li > :not(:first-child).btn,
 .ct-steps-btn { margin-left: 10px; }
+
+/* Renewal by itself, switched where it is shown (the list, the certificate). */
+.ct-auto{display:inline-flex;align-items:center;gap:10px;white-space:nowrap}
+.ct-auto .sw{cursor:pointer}
+.ct-auto.ct-auto-wrap{white-space:normal;align-items:flex-start}
+.ct-auto.ct-auto-wrap .sw{margin-top:1px}

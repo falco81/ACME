@@ -28,6 +28,7 @@ from acmelib import engine as E
 from acmelib.plugins import base
 from acmelib.certs import store as S
 from acmelib.certs import jobs, deployer, renewer, runtime, schema
+from acmelib.certs import compat
 from acmelib.certs import defaults as DF
 
 # ---------------------------------------------------------------------------
@@ -423,11 +424,37 @@ def cert_save(store, b, by):
             fields['renew_days'] = rd
     if 'reuse_key' in b or not row:
         fields['reuse_key'] = _flag(b.get('reuse_key'), 0)
-    if 'profile' in b or not row:
-        prof = _dict(b.get('profile'), 'profile')
+    if 'profile' in b or 'cn' in b or 'san_other' in b or not row:
+        prof = _dict(b.get('profile'), 'profile') if 'profile' in b or not row else \
+            (S.jload(row.get('profile'), {}) or {})
+        # The common name of its own (profile.subject.CN) and the e-mail and URI
+        # subjectAltNames (profile.san_other) - given there, or as cn / san_other.
+        if 'cn' in b:
+            prof['subject'] = dict(_dict(prof.get('subject'), 'profile.subject'),
+                                   CN=str(b.get('cn') or '').strip())
+        if 'san_other' in b:
+            prof['san_other'] = b.get('san_other')
+        subj = _dict(prof.get('subject'), 'profile.subject') if prof.get('subject') else {}
+        if 'CN' in subj:
+            cnv = str(subj.get('CN') or '').strip()
+            if len(cnv) > 64:
+                raise ValueError('the common name is 64 characters at most')
+            if cnv:
+                subj['CN'] = cnv
+            else:
+                subj.pop('CN')
+            prof['subject'] = subj
+        if prof.get('san_other') not in (None, '', []):
+            prof['san_other'] = S.clean_sans(prof.get('san_other'))
+        else:
+            prof.pop('san_other', None)
         if len(json.dumps(prof)) > 20000:
             raise ValueError('the profile is too big')
         fields['profile'] = json.dumps(prof)
+        if subj.get('CN'):
+            fields['cn'] = subj['CN']
+        elif 'names' not in fields and row:
+            fields['cn'] = (S.jload(row.get('names'), []) or [row.get('cn')])[0]
     if 'tags' in b or not row:
         fields['tags'] = json.dumps(_list(b.get('tags'), 'tags')[:50])
     if 'note' in b or not row:
@@ -440,6 +467,17 @@ def cert_save(store, b, by):
             fields['state'] = 'disabled'
         elif row and row.get('state') == 'disabled':
             fields['state'] = 'ok' if row.get('cert_pem') else 'new'
+    # What fits together (acmelib/certs/compat.py): the names, the source, each name's
+    # validation, the key type and the twin - refused here, in the words of the problem.
+    if not row or any(k in b for k in ('names', 'issuer', 'challenge', 'challenge_map',
+                                       'key_type', 'key_type_alt', 'profile', 'cn',
+                                       'san_other')):
+        cur = dict(row or {})
+        cur.update(fields)
+        if cur.get('issuer'):
+            probs = compat.check_cert(store, cur)
+            if probs:
+                raise E.ApiError(400, compat.words(probs), detail=json.dumps(probs)[:20000])
     fields['updated'], fields['updated_by'] = t, str(by)[:190]
     if row:
         store.db.update('certs', row['id'], fields)
@@ -459,6 +497,67 @@ def cert_save(store, b, by):
 @api('POST', '/api/certs/save', 'certadmin')
 def _cert_save(h, s):
     return {'id': cert_save(h.store, h.body(), who(s))}
+
+
+def cert_auto(store, ref, on, by):
+    """Renewal by itself switched on or off - nothing else touched: the
+    certificate stays valid and deployed, it is just not renewed (or is again)."""
+    row = S.cert_need(store, ref)
+    on = 1 if on else 0
+    if on and not row.get('issuer'):
+        raise ValueError('%s has no source acme could renew it from - it is renewed by '
+                         'importing a new one' % row['name'])
+    if on and row.get('state') == 'revoked':
+        raise ValueError('%s is revoked - issue a new one first' % row['name'])
+    if int(row.get('auto_renew') or 0) != on:
+        store.db.update('certs', row['id'], {'auto_renew': on, 'updated': time.time(),
+                                             'updated_by': str(by)[:190]})
+        store.add_event('certificates', ('%s is renewed by itself again (switched on by %s)' if on
+                                         else '%s is no longer renewed by itself (switched off by %s)')
+                        % (row['name'], by), who=by)
+        _wake()
+    return {'id': row['id'], 'auto_renew': on,
+            'said': ('%s will be renewed by itself' if on else
+                     '%s will not be renewed by itself - it stays valid and deployed')
+            % row['name']}
+
+
+@api('POST', '/api/certs/auto', 'certadmin')
+def _cert_auto(h, s):
+    b = h.body()
+    return cert_auto(h.store, _id(b.get('id')), _flag(b.get('auto_renew'), 1), who(s))
+
+
+@api('POST', '/api/certs/compat')
+def _cert_compat(h, s):
+    """What fits: {names, issuer, challenge, challenge_map, key_type, key_type_alt} ->
+    {ok, problems, source, names, validations, key_types, twin} (compat.options) -
+    for the wizard, which greys what does not fit with the reason. Read-only."""
+    b = h.body()
+    names = b.get('names') or []
+    if isinstance(names, str):
+        names = [n for n in re.split(r'[\s,;]+', names) if n]
+    if not isinstance(names, list) or len(names) > 200:
+        raise ValueError('names: a list of at most 200')
+    cmap = _dict(b.get('challenge_map'), 'challenge_map') if b.get('challenge_map') else {}
+    prof = _dict(b.get('profile'), 'profile') if b.get('profile') else {}
+    if prof.get('san_other'):
+        # as typed: each checked by itself, the bad ones said by name
+        good, bad = [], {}
+        for x in prof['san_other'] if isinstance(prof['san_other'], list) else []:
+            try:
+                good.extend(S.clean_sans([x]))
+            except ValueError as e:
+                bad[str(x)] = str(e)
+        prof['san_other'] = good
+    else:
+        bad = {}
+    out = compat.options(h.store, [str(n) for n in names], str(b.get('issuer') or '').strip()
+                         or None, str(b.get('challenge') or '').strip() or None, cmap,
+                         str(b.get('key_type') or 'ec-256'), str(b.get('key_type_alt') or ''),
+                         profile=prof)
+    out['san_bad'] = bad
+    return out
 
 
 @api('POST', '/api/certs/delete', 'certadmin')
@@ -534,11 +633,21 @@ def _cert_revoke(h, s):
         raise ValueError('the reason is one of %s' % ', '.join(REVOKE_REASONS))
     by = who(s)
 
+    again = _flag(b.get('renew'), 0)
+
     def fn(job):
-        return renewer.revoke_cert(job.store, job, row['id'], reason, by)
+        got = renewer.revoke_cert(job.store, job, row['id'], reason, by)
+        if not again:
+            return got
+        # A new one at once (the key got out: a new key too, whatever reuse_key says),
+        # deployed where the revoked one is - and renewed by itself again.
+        job.step('issuing a new one in its place')
+        job.store.db.update('certs', row['id'], {'auto_renew': 1})
+        return renewer.renew_cert(job.store, job, row['id'], True, by)
     try:
         return {'job_id': jobs.submit(h.store, 'revoke', fn, cert_id=row['id'], by=by,
-                                      said='reason: %s' % reason)}
+                                      said='reason: %s%s' % (reason, ', a new one at once'
+                                                             if again else ''))}
     except ValueError as e:
         raise E.ApiError(409, str(e))
 
@@ -1672,3 +1781,5 @@ from acmelib.certs import portal  # noqa: E402,F401
 # The SSH keys of the modules (fields of the type sshkey): their routes, and drafts kept on save.
 from acmelib.certs import api_sshkeys  # noqa: E402,F401
 from acmelib.certs import api_readiness  # noqa: E402,F401  (plan, check, dry run: before a certificate)
+from acmelib.certs import api_dnssets  # noqa: E402,F401  (Settings → DNS: the sets of DNS servers)
+from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edit, renew, versions)

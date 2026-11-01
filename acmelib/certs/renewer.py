@@ -55,6 +55,7 @@ import traceback
 
 from acmelib import engine as E
 from acmelib.plugins import base
+from acmelib.certs import compat
 from acmelib.certs import store as S
 from acmelib.certs import jobs, deployer, readiness, runtime
 
@@ -300,10 +301,14 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
         job.step('%sa new %s key made' % (what, key_type))
     job.check()
     subject = profile.get('subject') or {}
-    csr = pki.make_csr(key_pem, names, subject=subject or None,
+    # Every subjectAltName: the names (proved) and the e-mail and URI ones of the profile;
+    # the common name its own where the profile says one (compat.py: where allowed).
+    sans = S.sans_of(names, profile)
+    csr = pki.make_csr(key_pem, sans, subject=subject or None,
                        must_staple=bool(profile.get('must_staple')), eku=profile.get('eku'))
     csr_pem, csr_der = (csr if isinstance(csr, (tuple, list)) else (csr, b''))
-    req = base.CertRequest(names=names, key_type=key_type, key_pem=key_pem, csr_pem=csr_pem,
+    req = base.CertRequest(names=names, sans=sans, key_type=key_type, key_pem=key_pem,
+                           csr_pem=csr_pem,
                            csr_der=csr_der, subject=subject, days=profile.get('days'),
                            profile=profile, challenges=challenges,
                            previous=previous or None, cert_id=cert['id'])
@@ -396,6 +401,10 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         only = None
     contexts = []
     was = cert.get('state')
+    if was == 'revoked':
+        # The one revoked may have gone because its key got out: never that key again.
+        cert = dict(cert, reuse_key=0)
+        job.step('it was revoked: a new key, whatever "keep the key" says')
     if only != 'alt':
         store.db.update('certs', cert['id'], {'state': 'renewing', 'state_at': time.time(),
                                               'last_try': time.time()})
@@ -431,6 +440,12 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             raise base.PluginError('%s gives no wildcard certificates' % irow['name'], retry=False)
         if not issuer.ip_names and any(':' in n or n.replace('.', '').isdigit() for n in names):
             raise base.PluginError('%s gives no certificates for IP addresses' % irow['name'],
+                                   retry=False)
+        # What does not fit (acmelib/certs/compat.py) fails here in its words - the CA is
+        # not asked to refuse it (the twin of a source without one is only said, above).
+        probs = [p for p in compat.check_cert(store, cert) if p['key'] != 'twin']
+        if probs:
+            raise base.PluginError('it does not fit together: %s' % compat.words(probs),
                                    retry=False)
         # The first certificate, or after a failed validation: what the validation
         # needs is checked first, and the CA is not asked while something is missing

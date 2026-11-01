@@ -339,17 +339,114 @@ def clean_names(names):
         try:
             n = str(ipaddress.ip_address(n))
         except ValueError:
+            if any(ord(c) > 127 for c in n):
+                # an international name, in its ASCII form (IDNA): žluťoučký.cz -> xn--...
+                star = '*.' if n.startswith('*.') else ''
+                try:
+                    n = star + (n[len(star):]).encode('idna').decode('ascii')
+                except UnicodeError:
+                    raise ValueError('%r is not a DNS name' % n)
             if len(n) > 253 or not DNS_RE.match(n):
                 raise ValueError('%r is not a DNS name or an address' % n)
-            try:
-                n = n.encode('idna').decode('ascii') if any(ord(c) > 127 for c in n) else n
-            except UnicodeError:
-                raise ValueError('%r is not a DNS name' % n)
         if n not in out:
             out.append(n)
     if len(out) > 100:
         raise ValueError('100 names at most in one certificate')
     return out
+
+
+SAN_TYPES = ('dns', 'ip', 'email', 'uri')
+EMAIL_RE = re.compile(r"^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@"
+                      r"[^@\s]+\Z")
+URI_RE = re.compile(r'^[A-Za-z][A-Za-z0-9+.-]*:[^\s<>"{}|\\^`]+\Z')
+
+
+def san_typed(item):
+    """('dns' | 'ip' | 'email' | 'uri', value) of one subjectAltName - given as
+    {'type', 'value'}, as 'email:x@y' / 'uri:https://...' / 'dns:..' / 'ip:..', or bare
+    (an address, an e-mail with @, a URI with ://, else a DNS name) - checked:
+    DNS by IDNA, IP v4/v6, an e-mail of RFC 5322's plain form, an absolute URI."""
+    if isinstance(item, dict):
+        t, v = str(item.get('type') or '').strip().lower(), str(item.get('value') or '').strip()
+    else:
+        raw = str(item or '').strip()
+        m = re.match(r'^(dns|ip|email|uri):(.*)\Z', raw, re.I | re.S)
+        if m and not (m.group(1).lower() == 'uri' and raw[4:6] == '//'):
+            t, v = m.group(1).lower(), m.group(2).strip()
+        else:
+            t, v = '', raw
+    if not t:
+        if re.match(r'^[A-Za-z][A-Za-z0-9+.-]*://', v) or re.match(r'^(urn|tag|mailto|did|'
+                                                                    r'spiffe|ldap|sip):', v, re.I):
+            t = 'uri'
+        elif '@' in v:
+            t = 'email'
+        else:
+            try:
+                ipaddress.ip_address(v.strip('[]'))
+                t = 'ip'
+            except ValueError:
+                t = 'dns'
+    if t not in SAN_TYPES:
+        raise ValueError('%r: a name is a DNS name, an IP address, an e-mail or a URI' % item)
+    if not v:
+        raise ValueError('an empty %s name' % t)
+    if t == 'ip':
+        try:
+            return 'ip', str(ipaddress.ip_address(v.strip('[]')))
+        except ValueError:
+            raise ValueError('%r is not an IP address' % v)
+    if t == 'dns':
+        got = clean_names([v])
+        if not got or ':' in got[0] and '.' not in got[0]:
+            raise ValueError('%r is not a DNS name' % v)
+        try:
+            ipaddress.ip_address(got[0])
+            raise ValueError('%r is an IP address, not a DNS name' % v)
+        except ValueError as e:
+            if 'IP address, not' in str(e):
+                raise
+        return 'dns', got[0]
+    if t == 'email':
+        if len(v) > 254 or not EMAIL_RE.match(v):
+            raise ValueError('%r is not an e-mail address' % v)
+        local, _, dom = v.rpartition('@')
+        try:
+            dom = clean_names([dom])[0]
+        except (ValueError, IndexError):
+            raise ValueError('%r is not an e-mail address (its domain)' % v)
+        if '.' not in dom and dom != 'localhost':
+            raise ValueError('%r is not an e-mail address (its domain has no dot)' % v)
+        return 'email', '%s@%s' % (local, dom)
+    if len(v) > 2048 or not URI_RE.match(v) or '://' in v and not re.match(
+            r'^[A-Za-z][A-Za-z0-9+.-]*://[^/?#\s]+', v):
+        raise ValueError('%r is not an absolute URI (scheme://host/...)' % v)
+    return 'uri', v
+
+
+def clean_sans(items):
+    """The subjectAltNames other than DNS names and addresses, checked, each once:
+    ['email:it@example.com', 'uri:https://example.com/x'] (what profile.san_other keeps).
+    DNS names and addresses given here are refused: they are the certificate's names."""
+    if isinstance(items, str):
+        items = [x for x in re.split(r'[\n,;]+', items) if x.strip()]
+    out = []
+    for it in items or []:
+        t, v = san_typed(it)
+        if t in ('dns', 'ip'):
+            raise ValueError('%s is a DNS name or an address: it goes among the names' % v)
+        w = '%s:%s' % (t, v)
+        if w not in out:
+            out.append(w)
+    if len(out) > 50:
+        raise ValueError('50 e-mail and URI names at most')
+    return out
+
+
+def sans_of(names, profile):
+    """Every subjectAltName of a certificate: its names and profile.san_other."""
+    other = (profile or {}).get('san_other') or []
+    return list(names or []) + [x for x in other if isinstance(x, str)]
 
 
 def safe_name(text, taken=(), most=120, fallback='unnamed'):

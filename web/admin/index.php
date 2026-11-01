@@ -315,7 +315,7 @@ if (isset($_GET['api'])) {
        own name - certs, certs-one (or certs/one), cas-create, targets-test...
        The daemon's routes are each one method, so a GET still never reaches a
        write, and the daemon decides whether whoever is signed in may. */
-    if (preg_match('#^(certs|cas|plugins|sources|validations|targets|deploys|dns|sshkey)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
+    if (preg_match('#^(certs|cas|plugins|sources|validations|targets|deploys|dns|dnssets|sshkey)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
         $path = '/api/' . $road[1] . (isset($road[2]) && $road[2] !== '' ? '/' . $road[2] : '');
         if ($post) {
             acme_relay($path, 'POST', sent_json(), 120.0);
@@ -397,6 +397,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <?php acme_head($title, $lang, $load, $nonce, '/'); ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/certs.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/certs.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/certs.css')) ?>">
+<?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/dnssets.css')): ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/dnssets.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/dnssets.css')) ?>">
 <?php endif; ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/sshkey.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/sshkey.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/sshkey.css')) ?>">
@@ -606,6 +609,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="ctl-group">Server</div>
     <button type="button" class="fulladmin-only" data-pane="network" data-icon="net" title="Each node's address, gateway, DNS servers, host name and IPv6 - put in by the node itself, a cluster kept whole.">Network</button>
     <button type="button" class="fulladmin-only" data-pane="proxy" data-icon="globe" title="An HTTP proxy, for what you switch on: the new versions, the system updates, ACME, the SMS gateway.">Proxy</button>
+    <button type="button" data-pane="dnssets" data-icon="globe" title="Named sets of DNS servers - the system's, public resolvers, your own - and which of them each function of acme asks: the validation checks, the public view, the CAs and APIs, the targets, the appliance's own ACME, mail.">DNS</button>
     <button type="button" class="fulladmin-only" data-pane="time" data-icon="clock" title="The clock of each node: chrony, its time servers, how far off it is - certificates' dates and the codes of the second step are worked out from it.">Time</button>
     <button type="button" data-pane="ha" data-icon="ethernet" title="Two servers, both answering: the nodes, and the wizard that makes the second one.">High availability</button>
     <button type="button" class="fulladmin-only" data-pane="power" data-icon="power" title="Restart or switch off this node, the other, or both - the VIP address moved out of the way first.">Restart and power off</button>
@@ -718,6 +722,13 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         through it.</p></div>
     <div class="card full"><h2>Settings</h2><div id="sect-proxy"></div></div>
     <div id="px-host"></div>
+  </div>
+  <div class="ctl-pane" id="pane-dnssets" hidden>
+    <div class="ctl-head"><h2 class="ctl-title">DNS</h2>
+      <p class="ctl-lede">Which DNS servers acme asks, for each thing it looks up: named sets of servers - the
+        system's own (/etc/resolv.conf), public resolvers, the resolvers of your company - and, for each function,
+        the set it asks. Not acme's own DNS server (Settings → DNS server), which answers others.</p></div>
+    <div id="dnss-host"></div>
   </div>
   <div class="ctl-pane" id="pane-logs" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Disks and logs</h2>
@@ -1490,8 +1501,14 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <?php if (is_file(dirname(__DIR__) . '/assets/certs.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/certs.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/certs.js')) ?>"></script>
 <?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/dnssets.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/dnssets.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/dnssets.js')) ?>"></script>
+<?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/sshkey.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/sshkey.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/sshkey.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/cas.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/cas.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/cas.js')) ?>"></script>
 <?php endif; ?>
 </body>
 </html>

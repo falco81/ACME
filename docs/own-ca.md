@@ -136,8 +136,10 @@ that is published, over plain HTTP, to anybody:
 of your own that points at acme); else `http://` and the VIP address's name
 when the VIP address is on, else this server's name. `<slug>` is made from
 the authority's name the first time it is needed (`Example Issuing CA` →
-`example-issuing-ca`) and kept in the authority, so it never changes once
-certificates carry it.
+`example-issuing-ca`) and kept in the authority. Renamed, an authority gets a
+slug of its new name, and the old one keeps answering (`pki_aliases` in its
+profile) - certificates signed before carry it, so it never stops working
+([Changing an authority](#changing-an-authority)).
 
 **What happens.** nginx sends `/pki/` - on port 80 and on 443, with no sign-in
 and, on port 80, never a redirect to HTTPS (a CRL fetcher seldom follows one,
@@ -188,6 +190,67 @@ the name not pointing at acme, port 80 closed, a proxy in between.
 
 **Later.** acme runs no OCSP responder; the *OCSP address* stays for one of
 your own. One served from the same database is a possible next step.
+
+## Changing an authority
+
+Nothing has to be removed and made again: its detail on *Authorities* has
+*Edit…* and *Renew its certificate…* (`fulladmin`), and the section *Its
+certificates*. The code is `ca_edit()` / `ca_renew()` / `ca_versions()` in
+`acmelib/certs/ca.py`, the routes `acmelib/certs/api_cas.py`, the page
+`web/assets/cas.js`.
+
+### Edit… - what is not inside its certificate
+
+`POST /api/cas/save {id, …}`, `acme --ca-edit CA --set KEY=VALUE …`. Each
+change is written to the events.
+
+| Setting | |
+|---|---|
+| `name` | a safe name (letters, digits, spaces and `. _ @ + -`), unique. What refers to it follows in the same transaction: every source whose field lists authorities (`internal_ca`'s *Certificate authority*), `certs:default_ca`, and its address on acme - a slug of the new name, **the old `/pki/<slug>.crl` and `.crt` answering still** (certificates signed before carry them in their CRL distribution point and AIA). When it carried acme's own addresses, the new ones go into what it signs from then on |
+| `days_default` | what it issues for when nothing else is asked (never past its own end) |
+| `crl_days` | how long each CRL is valid; the CRL is made anew at once, and the leader makes it again at half the new life from then on |
+| `crl_url`, `aia_url`, `ocsp_url` | the addresses put into what it signs - **from now on only**: certificates signed before keep the ones they carry until they are renewed. `own` (for the first two): acme's own `/pki/` addresses |
+| `eku` | its default use (`serverAuth`, `clientAuth`, …) where a request says none (*Sign a CSR* without a use ticked, `--ca-sign` without `eku`); a source sets its own |
+| `disabled` | switched off: it signs nothing (a renewal from it fails, *Sign a CSR* is refused) - but its CRL is still made and published, as what it signed before is still checked against it. Not refused when something relies on it: the answer and a warning in the events list the sources, their certificates and the authorities under it (`GET /api/cas/dependents?id=`) |
+| `note` | a note of yours |
+
+### Renew its certificate… - the same key
+
+`POST /api/cas/renew {id, days?, path_len?, name_constraints?}`, `acme
+--ca-renew CA [--days N] [--path-len N|none] [--name-constraints LIST|none]`.
+What is inside the certificate - its validity, path length and name
+constraints - changes only with a new certificate. acme makes one with **the
+same key and the same subject**, so the same key identifier: a new serial,
+new dates; basicConstraints and keyUsage as they were; the path length and
+name constraints asked for (else as they were). The days are, unless given,
+as long as the certificate it had.
+
+* **A root** signs itself again. What it signed before verifies against the
+  new certificate and the old one alike (same subject, same key, same
+  authority key identifier). Machines trust certificates, not keys: give the
+  new one to everything that trusts the root (Group Policy, trust stores,
+  MDM, Java) **before the old one ends** - the answer says when.
+* **An intermediate under one of acme's own** is signed again by its parent
+  (`ca_sign` as an authority; it is listed in what the parent signed), never
+  past the parent's end. Nothing has to be trusted anew.
+* **An intermediate under a CA elsewhere** gets a request with its key and its
+  subject (asking for `CA:TRUE`), shown at once and kept (*Export → csr*);
+  have it signed there and *Install the answer…* (`POST /api/cas/install_cert
+  {id, cert_pem}`, `acme --ca-install-cert CA FILE`). Until then it signs with
+  the certificate it has. An answer for another subject or key is refused;
+  without a chain, the one it had stays.
+
+Then: the certificate it had is kept (`cert_ca_versions`: every version with
+its serial, dates, SHA-256, path length and name constraints - in the backups
+and the replication like every table; no key, the key is the authority's),
+the chains of the authorities under it (and under those) get the new one,
+its CRL is made anew, and `/pki/` serves the new certificate. Certificates
+acme keeps send the new chain from their next renewal (or deployment) on.
+*Its certificates* lists every version (`GET /api/cas/versions?id=`, `acme
+--ca-versions CA`), each to download.
+
+**A new key** is a new authority: create a new intermediate (or root), move
+the sources to it, and let the old one run out (or revoke it at its parent).
 
 ## Exports
 

@@ -296,7 +296,8 @@ def _group_guide(store, group):
     types = tuple(getattr(inst, 'types', ()) or ())
     for n in names:
         if is_ip(n) and 'dns-01' in types and 'http-01' not in types:
-            pre.append(_step('ip', 'The name can be proved this way', False,
+            # said once, in the plan's head (compat), not again here
+            pre.append(_step('ip', 'The name can be proved this way', False, blocking=False,
                              said='%s is an IP address: DNS-01 cannot prove it' % n,
                              fix='Choose an HTTP-01 validation for %s' % n))
     if pre:
@@ -314,7 +315,7 @@ def _group_guide(store, group):
 
 
 def plan(store, names, issuer=None, challenge=None, challenge_map=None, cert=None,
-         timeout=None, suggestions='all'):
+         timeout=None, suggestions='all', key_type=None, key_type_alt=None):
     """See the top of this file. `suggestions`: 'all', 'blocking' (only for a
     group that blocks) or 'none'."""
     t0 = time.time()
@@ -334,14 +335,25 @@ def plan(store, names, issuer=None, challenge=None, challenge_map=None, cert=Non
                           said='the module %s of %s is missing' % (irow.get('kind'), irow['name']),
                           fix='Choose another source'))
     if icls is not None:
-        if any(n.startswith('*.') for n in names) and not getattr(icls, 'wildcards', True):
-            head.append(_step('issuer', 'The source gives wildcard certificates', False,
-                              said='%s gives none' % irow['name'],
-                              fix='Choose a source that does, e.g. Let\'s Encrypt'))
-        if any(is_ip(n) for n in names) and not getattr(icls, 'ip_names', False):
-            head.append(_step('issuer', 'The source gives certificates for addresses', False,
-                              said='%s gives none for IP addresses' % irow['name'],
-                              fix='Take the addresses out, or choose a source that does'))
+        # What does not fit together (acmelib/certs/compat.py), each a blocking step.
+        from acmelib.certs import compat
+        if cert is not None:
+            key_type = cert.get('key_type') or key_type
+            key_type_alt = cert.get('key_type_alt') or key_type_alt
+        for p in compat.check(store, names, irow, challenge if cert is None else
+                              cert.get('challenge'), challenge_map if cert is None else
+                              S.jload(cert.get('challenge_map'), {}) or {},
+                              key_type or 'ec-256', key_type_alt or '',
+                              profile=(S.jload(cert.get('profile'), {}) or {}) if cert is not None
+                              else None):
+            if p['key'] == 'validation' and p['what'].startswith('no validation is chosen'):
+                continue                # the group says it
+            head.append(_step('compat-' + p['key'], 'It fits together: %s' % {
+                'names': 'the names and the source', 'issuer': 'the source',
+                'validation': 'the source and the validation',
+                'key': 'the key type and the source',
+                'twin': 'the twin and the source'}.get(p['key'], p['key']), False,
+                said=p['what'], fix=p['fix']))
     if not names:
         head.append(_step('names', 'The certificate has names', False, said='no names',
                           fix='Give it its names'))

@@ -1,39 +1,55 @@
 # -*- coding: utf-8 -*-
 """
-Commercial certificates from DigiCert CertCentral through its Services API
-(v2): reissued inside an order paid already, or - only when "Allow new
-orders (paid)" is on - ordered anew. The domain validation (DCV) record or
-file is put in place by the certificate's own challenge module, as for
-SSLmarket (whose placing of records this module uses).
+Commercial certificates of the DigiCert family - DigiCert, GeoTrust, Thawte,
+RapidSSL (DigiCert's brands, all ordered through CertCentral) - by the
+CertCentral Services API (v2): reissued inside an order paid already (free), or
+- only when "Allow new orders (paid)" is on - ordered anew (a renewal order of
+the one that ends). The domain validation (DCV) record or file is put in place
+by the certificate's own validation, through the placement API every
+validation module keeps (base.Challenge.place; acmelib/plugins/issuers/_dcv.py);
+acmelib/certs/compat.py refuses a validation that cannot put it in place
+before anything is ordered. Domains validated in the account already (their
+DCV still valid) are not validated again.
 
-What is known of the API, and from where (dev.digicert.com could not be read
-from where this was written; the paths are from DigiCert's pages as search
-engines show them, 2026-11, and DigiCert's long-standing Services API):
+When the ACME preset "DigiCert (EAB)" of the ACME source is the better choice:
+DV (and OV/EV of an organization validated already) fully automatic, the CA's
+own ACME - no orders, no random values. This module is for what ACME cannot:
+an OV/EV order of a chosen organization, multi-year plans reissued inside,
+the brands' products by name, DCV by e-mail.
+
+What is known of the API, and from where (dev.digicert.com cannot be read from
+where this was written, 2026-11; cross-checked against code that speaks it -
+github.com/sapcc/go-certcentral (paths, base URL), github.com/lexiconn-internet-
+services/digicert src/lang/en/certs.php (the product name_ids),
+github.com/metorial/metorial integrations/digicert/docs/API_RESEARCH.md (bodies,
+answers, DCV endpoints), github.com/grindsa/acme2certifier docs/digicert.md):
 
 * https://www.digicert.com/services/v2 (Europe: https://certcentral.digicert.eu/
-  services/v2), the API key in the header X-DC-DEVKEY
-  (https://dev.digicert.com/en/certcentral-apis/authentication.html).
-* POST /order/certificate/{product_name_id} {certificate {common_name,
-  dns_names, csr, signature_hash, server_platform}, organization {id},
-  order_validity {years}, dcv_method, payment_method} -> {id, requests,
-  dcv_random_value, domains [...]}.
-* POST /order/certificate/{order_id}/reissue {certificate {...}}.
-* GET /order/certificate/{order_id} - the order (status, certificate,
-  order_valid_till).
-* PUT /order/certificate/{order_id}/dcv-random-value - the order's random
-  value (https://dev.digicert.com/en/certcentral-apis/services-api/orders/
-  dv-ssl--generate-dcv-token.html); PUT /order/certificate/{order_id}/check-dcv.
-* GET /certificate/download/order/{order_id}/format/pem_all - the order's
-  certificate with its chain.
-* PUT /certificate/{certificate_id}/revoke {reason, comments}.
-* GET /user/me for "Try it".
+  services/v2), the API key in the header X-DC-DEVKEY.
+* POST /order/certificate/{name_id} {certificate {common_name, dns_names, csr,
+  signature_hash, server_platform}, organization {id} (OV/EV), order_validity
+  {years}, dcv_method, payment_method, renewal_of_order_id} -> {id,
+  certificate_id, requests, dcv_random_value (DV), domains [{id, name,
+  dcv_token {token, status}}] (OV/EV)}.
+* POST /order/certificate/{order_id}/reissue {certificate {...}, dcv_method}
+  -> {id, requests, dcv_random_value}.
+* GET /order/certificate/{order_id} - status (pending, issued, rejected,
+  revoked...), certificate {id, valid_till}, order_valid_till.
+* PUT /order/certificate/{order_id}/check-dcv - DigiCert looks at the DCV
+  record now (dns-txt-token, dns-cname-token, http-token).
+* GET /domain?include_validation=true - the account's domains, their
+  validations and dcv_expiration (pre-validated domains need no DCV).
+* GET /organization - the organizations (OV/EV); GET /product - the products.
+* GET /certificate/download/order/{order_id}/format/pem_all - the chain.
+* PUT /certificate/{certificate_id}/revoke {reason, comments}; GET /user/me.
 
-UNCERTAIN: the shape of an order's answer between products, the exact name
-of the TXT record (the random value at the domain itself or at _dnsauth.,
-both accepted by DigiCert for dns-txt-token: the label is a setting), and the
-states of a reissue. Every path is a setting (More). Check a product's
-name_id in CertCentral (Settings → Product settings) before the first paid
-order.
+UNCERTAIN (every path is a setting, More): the exact shape of the DCV records
+(the TXT at the domain itself or at _dnsauth. - both are accepted by DigiCert,
+the label is a setting; the CNAME as _dnsauth.DOMAIN -> RANDOM.dcv.digicert.com
+or RANDOM.DOMAIN -> dcv.digicert.com - a setting), whether GET /domain takes a
+search filter (all are read, at most 1000), and the states of a reissue. Check
+a product's name_id in CertCentral (Settings → Product settings, or the action
+"List the products") before the first paid order.
 
 Money: a NEW order is a purchase. It is only made when "Allow new orders
 (paid)" is on; otherwise only reissues inside an order paid already (the
@@ -47,21 +63,37 @@ import re
 import time
 
 from acmelib.plugins.base import Issuer, PluginError, field, dual_order_field
+from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers import _source_common as sc
-from acmelib.plugins.issuers import sslmarket as _sm
 
 API = {'us': 'https://www.digicert.com/services/v2',
        'eu': 'https://certcentral.digicert.eu/services/v2'}
-PRODUCTS = [['ssl_basic', 'Basic OV (ssl_basic)'], ['ssl_securesite_flex', 'Secure Site OV '
-                                                                           '(ssl_securesite_flex)'],
-            ['ssl_ev_basic', 'Basic EV (ssl_ev_basic)'],
-            ['ssl_ev_securesite_flex', 'Secure Site EV (ssl_ev_securesite_flex)'],
-            ['ssl_dv_geotrust', 'GeoTrust DV (ssl_dv_geotrust)'],
-            ['ssl_dv_rapidssl', 'RapidSSL DV (ssl_dv_rapidssl)'],
-            ['wildcard_dv_rapidssl', 'RapidSSL Wildcard DV (wildcard_dv_rapidssl)'],
-            ['other', 'Another product (its name_id)']]
+# (name_id, brand, product, validation level, wildcard: 'no' | 'also' | 'only')
+BRANDS = [
+    ('ssl_basic', 'DigiCert', 'Basic OV', 'ov', 'also'),
+    ('ssl_ev_basic', 'DigiCert', 'Basic EV', 'ev', 'no'),
+    ('ssl_securesite_flex', 'DigiCert', 'Secure Site OV', 'ov', 'also'),
+    ('ssl_ev_securesite_flex', 'DigiCert', 'Secure Site EV', 'ev', 'no'),
+    ('ssl_securesite_pro', 'DigiCert', 'Secure Site Pro OV', 'ov', 'also'),
+    ('ssl_ev_securesite_pro', 'DigiCert', 'Secure Site Pro EV', 'ev', 'no'),
+    ('ssl_geotrust_truebizid', 'GeoTrust', 'TrueBusiness ID OV', 'ov', 'also'),
+    ('ssl_ev_geotrust_truebizid', 'GeoTrust', 'TrueBusiness ID EV', 'ev', 'no'),
+    ('ssl_dv_geotrust', 'GeoTrust', 'Standard DV', 'dv', 'no'),
+    ('ssl_dv_geotrust_flex', 'GeoTrust', 'QuickSSL Premium DV', 'dv', 'also'),
+    ('wildcard_dv_geotrust', 'GeoTrust', 'Wildcard DV', 'dv', 'only'),
+    ('cloud_dv_geotrust', 'GeoTrust', 'Cloud DV', 'dv', 'also'),
+    ('ssl_thawte_webserver', 'Thawte', 'SSL Webserver OV', 'ov', 'also'),
+    ('ssl_ev_thawte_webserver', 'Thawte', 'SSL Webserver EV', 'ev', 'no'),
+    ('ssl_dv_thawte', 'Thawte', 'SSL123 DV', 'dv', 'also'),
+    ('ssl_dv_rapidssl', 'RapidSSL', 'Standard DV', 'dv', 'no'),
+    ('wildcard_dv_rapidssl', 'RapidSSL', 'Wildcard DV', 'dv', 'only'),
+    ('ssl_dv_ee', 'DigiCert', 'Encryption Everywhere DV', 'dv', 'also'),
+]
+PRODUCTS = [[n, '%s %s (%s)' % (b, t, n)] for n, b, t, _lv, _w in BRANDS] + \
+    [['other', 'Another product (its name_id)']]
 DCV = {'dns-txt': 'dns-txt-token', 'dns-cname': 'dns-cname-token', 'http-file': 'http-token',
        'email': 'email'}
+FILE_PATH = '/.well-known/pki-validation/fileauth.txt'
 ISSUED = ('issued',)
 FAILED = ('rejected', 'canceled', 'cancelled', 'revoked', 'denied', 'expired')
 REVOKE = {0: 'unspecified', 1: 'key_compromise', 3: 'affiliation_changed', 4: 'superseded',
@@ -72,24 +104,60 @@ PATHS = [
     ('path_detail', 'Order detail', '/order/certificate/{order}'),
     ('path_random', 'DCV random value', '/order/certificate/{order}/dcv-random-value'),
     ('path_check', 'DCV check', '/order/certificate/{order}/check-dcv'),
+    ('path_domains', 'Domains of the account', '/domain?include_validation=true&limit=1000'),
+    ('path_orgs', 'Organizations', '/organization'),
+    ('path_products', 'Products', '/product'),
     ('path_download', 'Download', '/certificate/download/order/{order}/format/pem_all'),
     ('path_revoke', 'Revocation', '/certificate/{certificate}/revoke'),
+    ('path_me', 'Who the key is', '/user/me'),
 ]
+
+
+def product_info(name_id):
+    for n, b, t, lv, w in BRANDS:
+        if n == name_id:
+            return {'name_id': n, 'brand': b, 'title': t, 'level': lv, 'wildcard': w}
+    return None
 
 
 class DigicertIssuer(Issuer):
     kind = 'digicert'
     dual_field = 'dual_order'       # a twin is a second order, paid for: only when allowed
     title = 'DigiCert CertCentral (API)'
-    description = ('Commercial DigiCert, GeoTrust and RapidSSL certificates through the '
+    description = ('Commercial DigiCert, GeoTrust, Thawte and RapidSSL certificates through the '
                    'CertCentral Services API: reissued inside a paid order, the DCV record put '
-                   'in place by the certificate\'s challenge. New (paid) orders only when allowed.')
+                   'in place by the certificate\'s validation. New (paid) orders only when allowed.')
     vendor = 'DigiCert'
     doc = 'docs/sources.md'
     needs_challenge = True
     challenge_types = ('dns-01', 'http-01')
     wildcards = True
     ip_names = False
+    public_names = True
+    key_types = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
+    # The domain validation: which proof each method needs of the certificate's validation.
+    dcv_field = 'dcv'
+    dcv_default = 'dns-txt'
+    dcv = {
+        'dns-txt': {'proof': 'txt-any', 'words': 'DNS TXT record (dns-txt-token)',
+                    'record': 'TXT at _dnsauth.DOMAIN (or DOMAIN itself) holding the random '
+                              'value'},
+        'dns-cname': {'proof': 'cname-any', 'words': 'DNS CNAME record (dns-cname-token)',
+                      'record': 'CNAME _dnsauth.DOMAIN to RANDOM.dcv.digicert.com'},
+        'http-file': {'proof': 'http-file-any', 'words': 'HTTP file (http-token)',
+                      'record': 'http://DOMAIN' + FILE_PATH + ' holding the random value'},
+        'email': {'proof': None, 'words': 'E-mail (a person approves)',
+                  'record': 'an e-mail to admin@, administrator@, webmaster@, hostmaster@, '
+                            'postmaster@ the domain'},
+    }
+    actions = [{'key': 'organizations', 'label': 'List the organizations',
+                'help': 'The organizations of the account (for an OV/EV order) with their '
+                        'IDs and validation.'},
+               {'key': 'products', 'label': 'List the products',
+                'help': 'The products the account may order, with their name_id.'},
+               {'key': 'domains', 'label': 'List the validated domains',
+                'help': 'The domains of the account and until when their DCV holds - those '
+                        'need no DCV record.'}]
     fields = [
         field('region', 'CertCentral', 'select', default='us',
               options=[['us', 'CertCentral (www.digicert.com)'], ['eu', 'CertCentral Europe'],
@@ -101,26 +169,46 @@ class DigicertIssuer(Issuer):
                    'reissue. Sent as X-DC-DEVKEY.'),
         field('order_id', 'Order to reuse', 'text', placeholder='12345678',
               help='An order bought already (a multi-year plan): the certificate is reissued '
-                   'inside it. Empty: the order acme made last for the certificate.'),
+                   'inside it, free. Empty: the order acme made last for the certificate.'),
         field('allow_paid', 'Allow new orders (paid)', 'bool', default=False,
               help='Off: acme never buys anything - it only reissues inside orders paid already, '
-                   'and stops with words where a purchase would be needed.'),
-        field('product', 'Product of a new order', 'select', default='ssl_basic', options=PRODUCTS),
+                   'and stops with words where a purchase would be needed (a new certificate, '
+                   'or a renewal order when the order ends).'),
+        field('product', 'Product of a new order', 'select', default='ssl_basic', options=PRODUCTS,
+              help='DigiCert, GeoTrust, Thawte and RapidSSL are all DigiCert\'s and ordered here. '
+                   'DV: the domain only; OV/EV: an organization validated in CertCentral.'),
         field('product_code', 'Product name_id', 'text', show_if={'product': ['other']}),
         field('organization_id', 'Organization ID', 'text',
-              help='The organization of a new OV/EV order (CertCentral → Organizations).'),
+              help='The organization of an OV/EV order (the action "List the organizations" '
+                   'shows them). Not used for DV.'),
         field('years', 'Order validity (years)', 'select', default='1',
-              options=[['1', '1 year'], ['2', '2 years'], ['3', '3 years']]),
+              options=[['1', '1 year'], ['2', '2 years'], ['3', '3 years']],
+              help='A multi-year plan: one order, the certificate reissued inside it (free) as '
+                   'each one ends.'),
         field('payment', 'Payment of a new order', 'select', default='balance',
               options=[['balance', 'Account balance'], ['profile', 'Credit card on file'],
                        ['card', 'As the account sets it']], advanced=True),
         field('dcv', 'Domain validation (DCV)', 'select', default='dns-txt',
-              options=[['dns-txt', 'DNS TXT record (by the certificate\'s DNS challenge)'],
-                       ['dns-cname', 'DNS CNAME record'],
-                       ['http-file', 'HTTP file in /.well-known/pki-validation/'],
-                       ['email', 'E-mail (a person clicks)']]),
+              options=[['dns-txt', 'DNS TXT record (by the certificate\'s DNS validation)'],
+                       ['dns-cname', 'DNS CNAME record (a DNS validation that writes CNAMEs)'],
+                       ['http-file', 'HTTP file in /.well-known/pki-validation/ (an HTTP '
+                                     'validation; no wildcards)'],
+                       ['email', 'E-mail (a person clicks; no validation needed)']],
+              help='How DigiCert checks the domains. The certificate\'s validation must be able to '
+                   'put that record or file in place - the wizard offers only those that can.'),
         field('txt_label', 'Label of the DNS TXT record', 'text', default='_dnsauth', advanced=True,
               help='LABEL.domain holds the random value (@ for the domain itself).'),
+        field('cname_shape', 'Shape of the DNS CNAME record', 'select', default='dnsauth',
+              advanced=True,
+              options=[['dnsauth', '_dnsauth.DOMAIN → RANDOM.dcv.digicert.com'],
+                       ['random', 'RANDOM.DOMAIN → dcv.digicert.com']]),
+        field('dcv_scope', 'DCV for', 'select', default='fqdn', advanced=True,
+              options=[['fqdn', 'each name (www.example.com)'],
+                       ['base_domain', 'the registered domain (example.com) - covers its '
+                                       'names']]),
+        field('reuse_validated', 'Skip domains validated already', 'bool', default=True,
+              advanced=True,
+              help='A domain whose DCV in the account is still valid gets no DCV record.'),
         field('wait_issue', 'Wait for the certificate (s)', 'number', default=600, advanced=True),
         field('wait_ready', 'Wait for the DCV record to be visible (s)', 'number', default=300,
               advanced=True),
@@ -130,22 +218,33 @@ class DigicertIssuer(Issuer):
          for k, words, d in PATHS]
     fields = fields + [dual_order_field()]
 
-    # The DCV records are put in place as SSLmarket's module does it.
-    _challenge_for = _sm.SslmarketIssuer._challenge_for
-    _place_all = _sm.SslmarketIssuer._place_all
-    _place = _sm.SslmarketIssuer._place
-    _wait_visible = _sm.SslmarketIssuer._wait_visible
-    _cleanup = _sm.SslmarketIssuer._cleanup
-
     def __init__(self, config, ctx):
         Issuer.__init__(self, config, ctx)
         self.needs_challenge = self.c('dcv') != 'email'
         self._sleep = time.sleep
 
+    # -- what fits (acmelib/certs/compat.py) ------------------------------------------------
+    @classmethod
+    def dcv_where(cls, config, name, proof):
+        cfg = config or {}
+        d = _dcv.base_of(name)
+        if str(cfg.get('dcv_scope') or 'fqdn') == 'base_domain':
+            from acmelib.plugins.challenges import _dns as D
+            d = D.registrable(d)
+        if proof == 'http-file-any':
+            return FILE_PATH
+        if proof == 'cname-any':
+            return d if str(cfg.get('cname_shape') or 'dnsauth') == 'random' else '_dnsauth.' + d
+        label = str(cfg.get('txt_label') if cfg.get('txt_label') is not None else
+                    '_dnsauth').strip().strip('.')
+        return d if label in ('', '@') else '%s.%s' % (label, d)
+
     @classmethod
     def describe(cls):
         d = Issuer.describe.__func__(cls)
-        d.update(needs_challenge=True, challenge_types=list(cls.challenge_types))
+        d.update(needs_challenge=True, challenge_types=list(cls.challenge_types),
+                 brands=[{'name_id': n, 'brand': b, 'title': t, 'level': lv, 'wildcard': w}
+                         for n, b, t, lv, w in BRANDS])
         return d
 
     def _say(self, words, level='info'):
@@ -169,7 +268,7 @@ class DigicertIssuer(Issuer):
             raise PluginError('the path %s is not complete: %s' % (key, p), retry=False)
         return p
 
-    def call(self, method, key, body=None, what='', raw=False, **fill):
+    def call(self, method, key, body=None, what='', raw=False, ok=(200, 201, 204), **fill):
         if not self.c('api_key'):
             raise PluginError('set the CertCentral API key', retry=False)
         status, _h, data = sc.http(self.ctx, method, self._base() + self._path(key, **fill), body,
@@ -177,7 +276,7 @@ class DigicertIssuer(Issuer):
                                     'Accept': '*/*' if raw else 'application/json'},
                                    who='DigiCert')
         parsed = None if raw else sc.parse_json(data)
-        if status not in (200, 201, 204):
+        if status not in ok:
             raise sc.refusal('DigiCert (%s)' % (what or key), status, sc.parse_json(data), data,
                              'the API key is wrong or its user may not do this')
         return data if raw else (parsed or {})
@@ -190,10 +289,31 @@ class DigicertIssuer(Issuer):
             raise PluginError('set the product (its name_id)', retry=False)
         return p
 
+    def _check_product(self, req):
+        info = product_info(self.product())
+        if not info:
+            return
+        wild = [n for n in req.names or [] if n.startswith('*.')]
+        if wild and info['wildcard'] == 'no':
+            raise PluginError('%s %s gives no wildcard certificates (%s) - choose a product that '
+                              'does' % (info['brand'], info['title'], ', '.join(wild)), retry=False)
+        if info['wildcard'] == 'only' and not wild:
+            raise PluginError('%s %s is a wildcard product - give the certificate a wildcard name'
+                              % (info['brand'], info['title']), retry=False)
+        if info['level'] in ('ov', 'ev') and not str(self.c('organization_id') or '').strip():
+            raise PluginError('%s %s is %s: set the organization ID (the action "List the '
+                              'organizations")' % (info['brand'], info['title'],
+                                                   info['level'].upper()), retry=False)
+
     def cert_body(self, req):
         names = list(req.names or [])
-        return {'common_name': names[0], 'dns_names': names[1:], 'csr': sc.csr_pem(req),
-                'signature_hash': 'sha256', 'server_platform': {'id': -1}}
+        cn = names[0]
+        subj = getattr(req, 'subject', None) or {}
+        if subj.get('CN') and subj['CN'] in names:
+            cn = subj['CN']
+        return {'common_name': cn, 'dns_names': [n for n in names if n != cn],
+                'csr': sc.csr_pem(req), 'signature_hash': 'sha256',
+                'server_platform': {'id': -1}}
 
     @staticmethod
     def _until(order):
@@ -204,28 +324,33 @@ class DigicertIssuer(Issuer):
             return None
 
     def _order_to_use(self, req, sub_key):
-        """(how, order_id): 'reissue' inside an order, or 'new' (paid)."""
+        """(how, order_id, renewal_of): 'reissue' inside an order, or 'new' (paid) -
+        a renewal order of the one that ends where there is one."""
         oid = str(self.c('order_id') or '').strip()
         if not oid:
             kept = sc.parse_json(self.ctx.kv_get(sub_key) or '') or {}
             oid = str(kept.get('order_id') or '')
         allowed = sc.as_bool(self.c('allow_paid'))
+        renewal = None
         if oid:
             det = self.call('GET', 'path_detail', what='the order %s' % oid, order=oid)
             st = str(det.get('status') or '').lower()
             end = self._until(det)
             if st not in FAILED and (end is None or end > time.time() + 7 * 86400):
-                return 'reissue', oid
+                return 'reissue', oid, None
             why = 'the order %s is %s%s' % (oid, st or '?', (', its validity ends %s' % time.strftime(
                 '%Y-%m-%d', time.gmtime(end))) if end else '')
+            if st not in ('rejected', 'canceled', 'cancelled'):
+                renewal = oid
         else:
             why = 'there is no order to reissue in (set "Order to reuse")'
         if not allowed:
             raise PluginError('nothing ordered: %s, and paid orders are not allowed for this '
                               'source - set "Order to reuse" to an order you bought, or switch '
                               'on "Allow new orders (paid)"' % why, retry=False)
-        self._say('%s - a new order is made (paid: allowed for this source)' % why, 'warn')
-        return 'new', None
+        self._say('%s - a new %sorder is made (paid: allowed for this source)'
+                  % (why, 'renewal ' if renewal else ''), 'warn')
+        return 'new', None, renewal
 
     def issue(self, req):
         ck = str(req.cert_id or '') or sc.pending_slot('x', '', req).split(':')[-1]
@@ -233,24 +358,35 @@ class DigicertIssuer(Issuer):
         sub_key = 'digicert-order:%s' % ck
         held = sc.pending_get(self.ctx, slot, req)
         r = sc.held_request(req, held)
+        placer = _dcv.Placer(self)
         if held:
             oid = str(held['id'])
             self._say('the order %s (%s) waits at DigiCert since %s - asked for again, nothing is '
                       'ordered' % (oid, held.get('how'), time.strftime(
                           '%Y-%m-%d %H:%M', time.gmtime(held.get('at') or 0))))
+            if held.get('dcv'):
+                placer.refresh(req, held['dcv'])
+                self._ask_check(oid)
         else:
-            how, oid = self._order_to_use(req, sub_key)
+            self._check_product(req)
+            how, oid, renewal = self._order_to_use(req, sub_key)
             dcv = DCV.get(self.c('dcv') or 'dns-txt', 'dns-txt-token')
+            scope = self.c('dcv_scope') or 'fqdn'
             if how == 'reissue':
                 got = self.call('POST', 'path_reissue', {'certificate': self.cert_body(req),
-                                                         'dcv_method': dcv},
+                                                         'dcv_method': dcv,
+                                                         'certificate_dcv_scope': scope},
                                 what='the reissue', order=oid)
                 self._say('reissue inside order %s asked for (free)' % oid, 'ok')
             else:
                 body = {'certificate': self.cert_body(req), 'dcv_method': dcv,
+                        'certificate_dcv_scope': scope,
                         'order_validity': {'years': int(self.c('years') or 1)},
                         'payment_method': self.c('payment') or 'balance'}
-                if self.c('organization_id'):
+                if renewal:
+                    body['renewal_of_order_id'] = int(renewal)
+                info = product_info(self.product())
+                if self.c('organization_id') and (info is None or info['level'] != 'dv'):
                     body['organization'] = {'id': int(str(self.c('organization_id')).strip())}
                 got = self.call('POST', 'path_order', body, what='the order', product=self.product())
                 oid = str(got.get('id') or '')
@@ -265,9 +401,10 @@ class DigicertIssuer(Issuer):
             held = sc.pending_put(self.ctx, slot, req, {'id': oid, 'how': how, 'dcv': [],
                                                         'csr_pem': sc.csr_pem(req)}, ttl_days=120)
             r = req
-            self._dcv(req, slot, held, oid, got)
-        return self._await(r, slot, held, oid, req)
+            self._dcv(req, slot, held, oid, got, placer)
+        return self._await(r, slot, held, oid, req, placer)
 
+    # -- the domain validation -----------------------------------------------------------------
     def _random_value(self, oid, answer):
         v = (answer or {}).get('dcv_random_value')
         if not v:
@@ -278,36 +415,107 @@ class DigicertIssuer(Issuer):
                 self._say('the order\'s DCV random value could not be had: %s' % e, 'warn')
         return v
 
-    def _dcv(self, req, slot, held, oid, answer):
+    def validated_domains(self):
+        """{domain: until (epoch)} of the account's domains whose DCV still holds."""
+        try:
+            got = self.call('GET', 'path_domains', what='the domains', ok=(200,))
+        except PluginError as e:
+            self._say('the account\'s validated domains could not be read (%s) - every domain '
+                      'gets its DCV record' % e, 'info')
+            return {}
+        out = {}
+        for d in got.get('domains') or []:
+            if not d.get('is_active', True):
+                continue
+            ends = []
+            exp = d.get('dcv_expiration') or {}
+            for v in (exp.values() if isinstance(exp, dict) else [exp]):
+                try:
+                    ends.append(calendar.timegm(time.strptime(str(v)[:10], '%Y-%m-%d')))
+                except (TypeError, ValueError):
+                    pass
+            for val in d.get('validations') or []:
+                if str(val.get('status') or '').lower() in ('active', 'approved', 'valid') and \
+                        val.get('dcv_status', 'complete') not in ('pending',):
+                    try:
+                        ends.append(calendar.timegm(time.strptime(
+                            str(val.get('validated_until') or '')[:10], '%Y-%m-%d')))
+                    except (TypeError, ValueError):
+                        pass
+            if ends and max(ends) > time.time() + 86400:
+                out[str(d.get('name') or '').lower()] = max(ends)
+        return out
+
+    def dcv_records(self, req, value, tokens=None):
+        """The records DigiCert looks for, one per domain to validate."""
+        how = self.c('dcv') or 'dns-txt'
+        recs = []
+        for n in req.names or []:
+            d = _dcv.base_of(n)
+            if (self.c('dcv_scope') or 'fqdn') == 'base_domain':
+                from acmelib.plugins.challenges import _dns as D
+                d = D.registrable(d)
+            if any(x['domain'] == d for x in recs):
+                continue
+            v = (tokens or {}).get(d) or value
+            if not v:
+                continue
+            if how == 'http-file':
+                recs.append({'domain': d, 'type': 'file', 'value': v, 'path': FILE_PATH})
+            elif how == 'dns-cname':
+                if (self.c('cname_shape') or 'dnsauth') == 'random':
+                    recs.append({'domain': d, 'type': 'cname', 'fqdn': '%s.%s' % (v, d),
+                                 'value': 'dcv.digicert.com'})
+                else:
+                    recs.append({'domain': d, 'type': 'cname', 'fqdn': '_dnsauth.' + d,
+                                 'value': '%s.dcv.digicert.com' % v})
+            else:
+                recs.append({'domain': d, 'type': 'txt',
+                             'fqdn': self.dcv_where(self.config, d, 'txt-any'), 'value': v})
+        return recs
+
+    def _ask_check(self, oid):
+        try:
+            got = self.call('PUT', 'path_check', {}, what='the DCV check', order=oid)
+            st = got.get('dcv_status') or got.get('order_status')
+            if st:
+                self._say('DigiCert looked at the DCV: %s' % st)
+        except PluginError as e:
+            self._say('the DCV check could not be asked for: %s' % e, 'warn')
+
+    def _dcv(self, req, slot, held, oid, answer, placer):
         how = self.c('dcv') or 'dns-txt'
         if how == 'email':
             self._say('DigiCert sends its DCV e-mails - someone at the domain approves them')
             return
-        value = self._random_value(oid, answer)
-        if not value:
+        tokens = {}
+        for d in (answer or {}).get('domains') or []:
+            tok = (d.get('dcv_token') or {}).get('token')
+            if tok and d.get('name') and str((d.get('dcv_token') or {}).get('status') or
+                                             'pending') != 'active':
+                tokens[str(d['name']).lower()] = tok
+        value = None if tokens and len(tokens) >= len({_dcv.base_of(n) for n in req.names}) \
+            else self._random_value(oid, answer)
+        recs = self.dcv_records(req, value, tokens)
+        if not recs:
             self._say('DigiCert said no DCV random value (the domains are validated already?)')
             return
-        label = str(self.c('txt_label') or '').strip().strip('.')
-        recs = []
-        for d in sorted({_sm._base(n) for n in req.names or []}):
-            if how == 'http-file':
-                recs.append({'domain': d, 'type': 'file', 'value': value,
-                             'path': '/.well-known/pki-validation/fileauth.txt'})
-            else:
-                fqdn = d if label in ('', '@') else '%s.%s' % (label, d)
-                recs.append({'domain': d, 'type': 'cname' if how == 'dns-cname' else 'txt',
-                             'fqdn': fqdn, 'value': value if how != 'dns-cname' else
-                             '%s.dcv.digicert.com' % value})
-        held['dcv'] = self._place_all(req, recs)
+        if sc.as_bool(self.c('reuse_validated'), True):
+            done = self.validated_domains()
+            skip = [r for r in recs if r['domain'] in done or any(
+                r['domain'].endswith('.' + v) for v in done)]
+            if skip:
+                self._say('validated in the account already, no DCV record: %s' % ', '.join(
+                    r['domain'] for r in skip), 'ok')
+            recs = [r for r in recs if r not in skip]
+        held['dcv'] = placer.place_all(req, recs)
         sc.pending_put(self.ctx, slot, req, held, ttl_days=120)
+        if any(p.get('how') == 'placed' for p in held['dcv']):
+            placer.wait_visible(req, held['dcv'])
         if held['dcv']:
-            self._wait_visible(req, held['dcv'])
-            try:
-                self.call('PUT', 'path_check', {}, what='the DCV check', order=oid)
-            except PluginError as e:
-                self._say('the DCV check could not be asked for: %s' % e, 'warn')
+            self._ask_check(oid)
 
-    def _await(self, r, slot, held, oid, req):
+    def _await(self, r, slot, held, oid, req, placer):
         end = time.time() + sc.num(self.c('wait_issue'), 600)
         every = max(1.0, sc.num(self.c('poll_every'), 15))
         while True:
@@ -324,7 +532,7 @@ class DigicertIssuer(Issuer):
                 except PluginError:
                     out = None              # the order's old certificate still: the reissue waits
                 if out:
-                    self._cleanup(req, held.get('dcv') or [])
+                    placer.cleanup(req, held.get('dcv') or [])
                     sc.pending_drop(self.ctx, slot)
                     cid = (det.get('certificate') or {}).get('id')
                     if cid:
@@ -332,7 +540,7 @@ class DigicertIssuer(Issuer):
                                         str(cid), ttl_s=5 * 366 * 86400)
                     return out
             elif st in FAILED:
-                self._cleanup(req, held.get('dcv') or [])
+                placer.cleanup(req, held.get('dcv') or [])
                 sc.pending_drop(self.ctx, slot)
                 raise PluginError('DigiCert did not issue: the order %s is %s' % (oid, st),
                                   retry=False)
@@ -352,15 +560,36 @@ class DigicertIssuer(Issuer):
         return 'DigiCert took the revocation of certificate %s (an administrator may have to '\
                'approve it)' % cid
 
+    def action(self, key):
+        if key == 'organizations':
+            got = self.call('GET', 'path_orgs', what='the organizations')
+            orgs = got.get('organizations') or []
+            if not orgs:
+                return 'the account has no organization (DV products need none)'
+            for o in orgs:
+                self._say('organization %s: %s (%s)' % (o.get('id'), o.get('name') or '?',
+                                                        o.get('status') or '?'))
+            return '%d organization(s): %s' % (len(orgs), ', '.join(
+                '%s = %s' % (o.get('id'), o.get('name')) for o in orgs))
+        if key == 'products':
+            got = self.call('GET', 'path_products', what='the products')
+            ps = got.get('products') or []
+            for p in ps:
+                self._say('%s: %s' % (p.get('name_id'), p.get('name') or ''))
+            return '%d product(s) the account may order: %s' % (len(ps), ', '.join(
+                str(p.get('name_id')) for p in ps))
+        if key == 'domains':
+            done = self.validated_domains()
+            if not done:
+                return 'no domain of the account has a DCV that still holds'
+            return 'validated: %s' % ', '.join('%s (until %s)' % (d, time.strftime(
+                '%Y-%m-%d', time.gmtime(t))) for d, t in sorted(done.items()))
+        return Issuer.action(self, key)
+
     def test(self):
         me = self.call('GET', 'path_detail', what='the order', order=self.c('order_id')) \
             if self.c('order_id') else None
-        status, _h, data = sc.http(self.ctx, 'GET', self._base() + '/user/me', None,
-                                   {'X-DC-DEVKEY': str(self.c('api_key') or '').strip()},
-                                   who='DigiCert')
-        who = sc.parse_json(data) or {}
-        if status != 200:
-            raise sc.refusal('DigiCert', status, who, data, 'the API key is wrong')
+        who = self.call('GET', 'path_me', what='the API key')
         words = 'DigiCert answers: the API key is %s %s\'s' % (who.get('first_name') or '',
                                                                who.get('last_name') or '?')
         if me is not None:

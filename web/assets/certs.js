@@ -43,7 +43,7 @@ function capi(path, body, wait) {
    that changes something, so the next tab, popup or form asks again: a
    thing made in one tab is in every other at once, without F5. POSTs that
    only read (a file looked into, an export, a test, a check) keep them. */
-var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|dry_run)$/;
+var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|dry_run|compat)$/;
 var FRESH = {n: 0};
 function forgetAll() {
   FRESH.n++;
@@ -2086,10 +2086,7 @@ function certRow(c) {
   } else ec.appendChild(el('span', 'muted', '–'));
   tr.appendChild(ec);
   var ac = el('td');
-  var auto = c.auto_renew === undefined || truthy(c.auto_renew);
-  var at = el('span', 'tag ' + (auto ? 'ok' : 'dim'), auto ? 'auto' : 'by hand');
-  if (auto && c.renew_days) explain(at, 'Renewed ' + c.renew_days + ' days before it runs out (or when the CA suggests).');
-  ac.appendChild(at);
+  ac.appendChild(autoRenew(c, true));
   tr.appendChild(ac);
   tr.appendChild(deployCell(c));
   var jc = el('td', 'ct-lastjob');
@@ -2113,6 +2110,51 @@ function certRow(c) {
   }
   tr.appendChild(tools);
   return rowOpens(tr, function () { certPeek(c.id); });
+}
+/* Renewal by itself, switched on and off where it is shown (the list, the
+   certificate) - nothing else changes: the certificate stays valid and deployed. */
+function autoCan(c) {
+  return MANAGE && !!c.issuer && c.state !== 'revoked' && c.state !== 'pending' && !asked(c);
+}
+function autoRenew(c, inList, after) {
+  var auto = c.auto_renew === undefined || truthy(c.auto_renew);
+  var box = el('span', inList ? 'ct-auto' : 'ct-auto ct-auto-wrap');
+  var words = function (on) {
+    return inList ? (on ? 'auto' : 'by hand')
+      : (on ? 'by itself, ' + (c.renew_days || 30) + ' days before the end' : 'only when asked');
+  };
+  var tag = el('span', inList ? 'tag ' + (auto ? 'ok' : 'dim') : '', words(auto));
+  if (!autoCan(c)) {
+    box.appendChild(tag);
+    if (inList) explain(tag, !c.issuer ? 'Imported or from an outside CA - renewed by importing a new one.'
+      : (auto ? 'Renewed ' + (c.renew_days || 30) + ' days before it runs out (or when the CA suggests).' : 'Renewed only when asked.'));
+    return box;
+  }
+  var sw = switchBox(auto);
+  sw.classList.add('small');
+  sw.onclick = function (e) { e.stopPropagation(); };
+  var says = function (on) {
+    sw.removeAttribute('aria-label');
+    explain(sw, on ? 'Renewed by itself - switch off to stop it (it stays valid and deployed, nothing is revoked).'
+      : 'Renewed only when asked - switch on to renew it by itself again.');
+  };
+  says(auto);
+  sw._input.onchange = function () {
+    var on = sw._input.checked;
+    sw._input.disabled = true;
+    capi('certs/auto', {id: c.id, auto_renew: on}).then(function (d) {
+      c.auto_renew = on ? 1 : 0;
+      tag.textContent = tr(words(on));
+      if (inList) tag.className = 'tag ' + (on ? 'ok' : 'dim');
+      says(on);
+      toast(said(d, on ? 'renewed by itself' : 'not renewed by itself'), 'good');
+      if (after) after(on);
+    }).catch(function (err) { sw._input.checked = !on; fail(err); })
+      .then(function () { sw._input.disabled = false; });
+  };
+  box.appendChild(sw);
+  box.appendChild(tag);
+  return box;
 }
 function deployCell(c) {
   var cell = el('td', 'ct-depcell');
@@ -2160,6 +2202,7 @@ function certPeek(id) {
     if (MANAGE && waiting) buttons.push({words: 'Upload the answer', cls: 'primary', icon: 'upload', go: function () { over(function () { csrAnswer(c); }, back); }});
     if (MANAGE && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
     if (MANAGE && deploys.length && c.not_after && c.state !== 'revoked') buttons.push({words: 'Deploy now', icon: 'deploy', go: function (b) { certDeploy(c, b, back); }});
+    if (MANAGE && c.issuer && c.state === 'revoked') buttons.push({words: 'Issue a new one', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
     if (MANAGE && c.issuer && c.state !== 'revoked' && !waiting && !asked(c)) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
     if (MANAGE && c.state === 'pending-approval') {
       buttons.push({words: 'Decline', icon: 'ban', go: function () { over(function () { approveDialog(c, false, back); }, back); }});
@@ -2263,7 +2306,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   rs._body.appendChild(kvTable([
     ['Source', c.issuer || (c.source === 'import' ? 'imported - renewed by importing again' : (c.source === 'csr' ? 'an outside CA, by a CSR' : '–'))],
     ['Validation', c.challenge ? c.challenge + (Object.keys(cmap).length ? ' · ' + Object.keys(cmap).length + ' name(s) otherwise' : '') : '–'],
-    ['Renews', (c.auto_renew === undefined || truthy(c.auto_renew)) ? 'by itself, ' + (c.renew_days || 30) + ' days before the end' : 'only when asked'],
+    ['Renews', autoRenew(c, false, function () { if (window.CT && CT.refresh) CT.refresh(); })],
     ['Key on renewal', truthy(c.reuse_key) ? 'kept' : 'a new one each time'],
     ['Last renewed', c.last_ok ? stamp(c.last_ok) : 'never'],
     ['Next look', c.next_try ? stamp(c.next_try) : '–'],
@@ -2497,13 +2540,15 @@ function revokeDialog(c) {
   var reason = null, also = null;
   modal('Revoke ' + c.name, function (body) {
     body.appendChild(el('p', 'note', 'The CA that issued it is told it must not be trusted any more - this cannot be taken back. Browsers and devices that check will refuse it; deploy a new one first if it is in use.'));
+    if (c.key_type_alt) body.appendChild(el('p', 'note', 'A dual certificate: both of its keys are revoked - the ' + (c.key_type || '') + ' one and the ' + c.key_type_alt + ' one. Versions it had before are left as they are.'));
+    else body.appendChild(el('p', 'note', 'The current version is revoked; versions it had before are left as they are.'));
     reason = selectBox(REVOKE_REASONS, 'unspecified');
     body.appendChild(formField('Why', reason, 'Said to the CA. "The key got out" is the one that matters most.'));
     also = switchBox(false);
-    body.appendChild(formField('Switch renewal off', also, 'Otherwise it is issued anew at the next look.'));
+    body.appendChild(formField('Issue a new one at once', also, 'With a new key, deployed where this one is, and renewed by itself again. Otherwise it is not renewed any more - only stopping renewal needs no revocation: the switch in the list does that.'));
   }, [{words: 'No, leave it', close: true}, {words: 'Revoke it', cls: 'danger', icon: 'ban', go: function (b) {
     busy(b, true);
-    capi('certs/revoke', {id: c.id, reason: reason.value, disable: !!also._get()}).then(function (d) {
+    capi('certs/revoke', {id: c.id, reason: reason.value, renew: !!also._get()}).then(function (d) {
       closeModal();
       jobStarted(d, 'revoking');
     }).catch(fail).then(function () { busy(b, false); });
@@ -2726,6 +2771,42 @@ function readinessView(o) {
   return V;
 }
 
+/* ---- the subjectAltNames of a certificate, typed -----------------------------
+   DNS names and IP addresses are its `names` (the ones proved); e-mail and URI
+   ones are kept in profile.san_other as 'email:..' / 'uri:..'; the common name
+   is profile.subject.CN (empty: the first name). What a source takes is said by
+   POST /api/certs/compat (acmelib/certs/compat.py). */
+var SAN_TYPES = [['dns', 'DNS name'], ['ip', 'IP address'], ['email', 'E-mail'], ['uri', 'URI']];
+function sanDetect(v) {
+  v = String(v || '').trim();
+  var m = /^(dns|ip|email|uri):(.*)$/i.exec(v);
+  if (m && !(m[1].toLowerCase() === 'uri' && m[2].slice(0, 2) === '//')) return {type: m[1].toLowerCase(), value: m[2].trim()};
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(v) || /^(urn|tag|mailto|did|spiffe|ldap|sip):/i.test(v)) return {type: 'uri', value: v};
+  if (v.indexOf('@') > 0) return {type: 'email', value: v};
+  if (nameKind(v) === 'ip') return {type: 'ip', value: v};
+  return {type: 'dns', value: v.toLowerCase().replace(/\.$/, '')};
+}
+/** Why a value is not a name of that type ('' when it is), as typed. */
+function sanCheck(type, v) {
+  v = String(v || '').trim();
+  if (!v) return '';
+  if (type === 'ip') return nameKind(v) === 'ip' ? '' : 'not an IP address';
+  if (type === 'dns') {
+    var k = nameKind(v.toLowerCase());
+    if (k === 'ip') return 'an IP address - choose the type IP address';
+    if (k === 'bad' && !/[^\x00-\x7f]/.test(v)) return 'not a DNS name';
+    return '';
+  }
+  if (type === 'email') return /^[A-Za-z0-9!#$%&'*+\/=?^_`{|}~.-]+@[^@\s]+\.[^@\s]+$/.test(v) && !/\.\./.test(v) ? '' : 'not an e-mail address';
+  if (type === 'uri') return (/^[a-z][a-z0-9+.-]*:\/\/[^\/?#\s]+/i.test(v) || /^[a-z][a-z0-9+.-]*:[^\s\/][^\s]*$/i.test(v)) && !/\s/.test(v) ? '' : 'not an absolute URI (scheme://host/...)';
+  return 'an unknown type';
+}
+function sansOf(c, prof) {
+  var out = arr(c.names).map(function (n) { return {type: nameKind(n) === 'ip' ? 'ip' : 'dns', value: n}; });
+  arr(prof.san_other).forEach(function (x) { var d = sanDetect(x); out.push(d); });
+  return out;
+}
+
 function certWizard(cert, detail) {
   var editing = !!(cert && cert.id);
   var W = {step: 0, seen: {0: true}, sources: [], vals: [], targets: [], deploys: {}};
@@ -2741,11 +2822,88 @@ function certWizard(cert, detail) {
     days: prof.days || '', eku: arr(prof.eku).length ? arr(prof.eku) : ['serverAuth'],
     must_staple: truthy(prof.must_staple), acme_profile: prof.acme_profile || '', template: prof.template || '',
     subject: {O: subj.O || '', OU: subj.OU || '', C: subj.C || '', ST: subj.ST || '', L: subj.L || '', emailAddress: subj.emailAddress || ''},
-    tags: arr(c.tags).join(' '), note: c.note || '', owner: c.owner || ''
+    tags: arr(c.tags).join(' '), note: c.note || '', owner: c.owner || '',
+    sans: sansOf(c, prof), cn: subj.CN || '', cn_san: true
   };
+  if (!W.d.sans.length) W.d.sans = [{type: 'dns', value: ''}];
+  W.d.cn_san = !W.d.cn || arr(c.names).indexOf(String(W.d.cn).toLowerCase()) >= 0;
   var src = function () { return W.sources.filter(function (s) { return s.name === W.d.issuer; })[0] || null; };
-  var can = function () { var s = src(); return issuerCan(s ? s.kind : ''); };
-  var names = function () { return splitNames(W.d.names); };
+  var can = function () {
+    var s = src();
+    var got = issuerCan(s ? s.kind : '');
+    var info = W.compat && W.compat.source;
+    if (info && info.name === W.d.issuer) {
+      got.challenge = !!info.needs_validation;
+      got.wildcards = !!info.wildcards;
+      got.ip = !!info.ip_names;
+      got.sanTypes = arr(info.san_types);
+      got.cnFree = !!info.cn_free;
+      got.public = !!info.public;
+    }
+    return got;
+  };
+  /* The names proved (DNS, IP): the common name first where it is also a SAN. */
+  var names = function () {
+    var out = [];
+    var cnv = String(W.d.cn || '').trim().toLowerCase().replace(/\.$/, '');
+    if (cnv && W.d.cn_san && nameKind(cnv) !== 'bad') out.push(cnv);
+    W.d.sans.forEach(function (x) {
+      if (x.type !== 'dns' && x.type !== 'ip') return;
+      var v = String(x.value || '').trim().toLowerCase().replace(/\.$/, '');
+      if (v && out.indexOf(v) < 0) out.push(v);
+    });
+    return out;
+  };
+  var sanOther = function () {
+    var out = [];
+    W.d.sans.forEach(function (x) {
+      var v = String(x.value || '').trim();
+      if ((x.type === 'email' || x.type === 'uri') && v && out.indexOf(x.type + ':' + v) < 0) out.push(x.type + ':' + v);
+    });
+    return out;
+  };
+  /* What fits, asked of acme (compat.py) for what is chosen now - once per question. */
+  function compatBody() {
+    return {names: names(), issuer: W.d.issuer, challenge: W.d.challenge, challenge_map: W.d.challenge_map,
+            key_type: W.d.key_type, key_type_alt: W.d.key_type_alt,
+            profile: {subject: W.d.cn ? {CN: String(W.d.cn).trim()} : {}, san_other: sanOther(), acme_profile: W.d.acme_profile}};
+  }
+  function compatFresh() { return W.compatKey === JSON.stringify(compatBody()); }
+  function compatNow() {
+    var key = JSON.stringify(compatBody());
+    if (W.compatKey === key) return Promise.resolve(W.compat);
+    if (W.compatAsk && W.compatAsk.key === key) return W.compatAsk.p;
+    var p = capi('certs/compat', compatBody()).then(function (d) {
+      W.compat = d; W.compatKey = key; return d;
+    }, function () { W.compat = null; W.compatKey = key; return null; });
+    W.compatAsk = {key: key, p: p};
+    return p;
+  }
+  function compatProblems(step) {
+    if (!W.compat || !compatFresh()) return [];
+    return arr(W.compat.problems).filter(function (p) { return !step || p.step === step; });
+  }
+  /* A step that needs the answer: drawn again once it is there. */
+  function compatThen(host, st) {
+    if (compatFresh()) return true;
+    host.appendChild(saidLine('', 'Checking what fits this source…'));
+    var tick = modalTicket();
+    compatNow().then(function () { if (modalStill(tick) && steps()[W.step] === st) paint(); });
+    return false;
+  }
+  function problemBox(title, list) {
+    var box = el('div', 'ct-errbox ct-compat');
+    var hh = el('div', 'ct-errbox-h');
+    hh.appendChild(el('b', '', title));
+    box.appendChild(hh);
+    list.forEach(function (p) {
+      var line = el('div', 'ct-compat-p');
+      line.appendChild(el('span', '', p.what));
+      if (p.fix) line.appendChild(el('span', 'muted small ct-compat-fix', p.fix));
+      box.appendChild(line);
+    });
+    return box;
+  }
   var STEPS = [
     {key: 'source', title: 'Source', draw: drawSource, check: function () { return W.d.issuer ? '' : 'choose where it comes from'; }},
     {key: 'names', title: 'Names', draw: drawNames, check: checkNames},
@@ -2857,38 +3015,138 @@ function certWizard(cert, detail) {
       w.appendChild(chips);
       t.appendChild(w);
       t.onclick = function () {
+        var was = W.d.issuer;
         W.d.issuer = s.name;
         Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove('on'); });
         t.classList.add('on');
+        if (was !== s.name) sourceChanged(said);
       };
       t.ondblclick = function () { t.onclick(); go(W.step + 1); };
       grid.appendChild(t);
     });
     host.appendChild(grid);
+    var said = el('div', 'ct-srcsaid');
+    host.appendChild(said);
+  }
+  /* Another source: the names, the validation, the key type and the twin
+     checked again - what no longer fits is said (the twin and a key type it
+     does not sign are changed at once, and said). */
+  function sourceChanged(box) {
+    var tick = modalTicket();
+    clear(box);
+    if (!names().length) return;
+    box.appendChild(saidLine('', 'Checking what fits this source…'));
+    compatNow().then(function (d) {
+      if (!modalStill(tick) || !d) { clear(box); return; }
+      var changed = [];
+      if (d.twin && !d.twin.ok && W.d.key_type_alt) {
+        W.d.key_type_alt = '';
+        changed.push({what: d.twin.why, fix: 'The twin is left out'});
+      }
+      var kt = arr(d.key_types).filter(function (k) { return k.key === W.d.key_type; })[0];
+      if (kt && !kt.ok) {
+        var first = arr(d.key_types).filter(function (k) { return k.ok; })[0];
+        changed.push({what: kt.why, fix: first ? 'The key is now ' + keyWords(first.key) : 'Choose another source'});
+        if (first) W.d.key_type = first.key;
+      }
+      return (changed.length ? compatNow() : Promise.resolve(d)).then(function (d2) {
+        if (!modalStill(tick)) return;
+        clear(box);
+        var left = arr((d2 || d).problems);
+        if (changed.length) box.appendChild(problemBox('Changed to fit this source', changed));
+        if (left.length) box.appendChild(problemBox('With this source, this no longer fits', left));
+        else if (!changed.length) box.appendChild(saidLine('good', 'Everything chosen so far fits this source.'));
+      });
+    });
   }
   /* -- 2. names -- */
+  /* Why one SAN row is refused ('' when it is not): as typed, then what acme said
+     of it for this source (compat: public names, e-mail or URI where not taken). */
+  function rowWhy(x, i) {
+    var v = String(x.value || '').trim();
+    if (!v) return '';
+    var cn = can();
+    var bad = sanCheck(x.type, v);
+    if (bad) return bad;
+    var types = cn.sanTypes || ['dns', 'ip', 'email', 'uri'];
+    if (types.indexOf(x.type) < 0) return 'this source puts no names of this type in its certificates';
+    var low = x.type === 'dns' || x.type === 'ip' ? v.toLowerCase().replace(/\.$/, '') : x.type + ':' + v;
+    var dup = W.d.sans.some(function (y, j) {
+      if (j >= i || !String(y.value || '').trim()) return false;
+      var w = String(y.value).trim();
+      return (y.type === 'dns' || y.type === 'ip' ? w.toLowerCase().replace(/\.$/, '') : y.type + ':' + w) === low;
+    });
+    if (dup) return 'given twice';
+    if (x.type === 'dns' && nameKind(low) === 'wild' && !cn.wildcards) return 'this source gives no wildcards';
+    if (x.type === 'ip' && !cn.ip) return 'this source takes no IP addresses';
+    if (W.compat && compatFresh()) {
+      var said = x.type === 'dns' || x.type === 'ip' ? obj(W.compat.names)[low] : obj(W.compat.san_other)[low];
+      if (said) return said;
+    }
+    return '';
+  }
+  function cnWhy() {
+    var v = String(W.d.cn || '').trim();
+    if (!v) return '';
+    if (v.length > 64) return 'the common name is 64 characters at most';
+    var cn = can();
+    if (cn.cnFree === false && !W.d.cn_san) return 'this source needs the common name to be one of the names';
+    if (W.compat && compatFresh() && W.compat.cn && W.compat.cn.why) return W.compat.cn.why;
+    return '';
+  }
   function checkNames() {
     var list = names();
     if (!list.length) return 'it needs at least one name';
-    var cn = can();
-    var bad = list.filter(function (n) {
-      var k = nameKind(n);
-      return k === 'bad' || (k === 'wild' && !cn.wildcards) || (k === 'ip' && !cn.ip);
-    });
-    if (bad.length) return 'not possible here: ' + bad.join(', ');
+    var bad = [];
+    W.d.sans.forEach(function (x, i) { var w = rowWhy(x, i); if (w) bad.push(String(x.value).trim() + ': ' + tr(w)); });
+    var cw = cnWhy();
+    if (cw) bad.push(tr('Common name (CN)') + ': ' + tr(cw));
+    if (bad.length) return tr('not possible here') + ': ' + bad.join('; ');
     return '';
   }
   function drawNames(host) {
     var cn = can();
-    host.appendChild(el('p', 'note', 'Every name the certificate is for, one a line. The first is its common name. '
+    host.appendChild(el('p', 'note', 'Every name the certificate is for (its subjectAltNames), each of its type, and its common name. '
       + (cn.wildcards ? '*.example.com covers one level of names under it. ' : 'This source issues no wildcards. ')
       + (cn.ip ? 'IP addresses can be in it too.' : 'This source takes no IP addresses.')));
     var g = el('div', 'formgrid');
-    var ta = areaBox(W.d.names, 'www.example.com\nexample.com\n*.example.com', 6, 'mono');
-    noI18n(ta);
-    var nf = formField('Names', ta);
-    nf.classList.add('wide');
-    g.appendChild(nf);
+    /* the common name */
+    var cnBox = textBox(W.d.cn, '', 'mono');
+    noI18n(cnBox);
+    var cnWrap = el('div', 'ct-cn');
+    cnWrap.appendChild(cnBox);
+    var cnSw = switchBox(W.d.cn_san);
+    var cnSwL = el('label', 'ct-cn-san');
+    cnSwL.appendChild(cnSw);
+    cnSwL.appendChild(el('span', '', 'the CN is also a SAN'));
+    cnWrap.appendChild(cnSwL);
+    var cnSays = el('div', 'ct-rowwhy');
+    cnWrap.appendChild(cnSays);
+    var cf = formField('Common name (CN)', cnWrap, cn.cnFree === false
+      ? 'A public CA puts in the common name only one of the names (CA/B Forum, 64 characters at most) - so the CN is also a SAN here. Empty: the first name.'
+      : 'Empty: the first name. A source of your own may name it otherwise than every SAN (a device, a service) - switch "the CN is also a SAN" off for that.');
+    cf.classList.add('wide');
+    g.appendChild(cf);
+    /* the SANs, a row each */
+    var rows = el('div', 'ct-sans');
+    var sf = formField('Names (subjectAltName)', rows);
+    sf.classList.add('wide');
+    g.appendChild(sf);
+    var tools = el('div', 'ct-san-tools');
+    var addB = cmdButton('Add a name', 'add', '');
+    var pasteB = cmdButton('Paste many…', 'copy', '');
+    tools.appendChild(addB);
+    tools.appendChild(pasteB);
+    rows.parentNode.appendChild(tools);
+    var paste = el('div', 'ct-san-paste');
+    paste.hidden = true;
+    var pta = areaBox('', 'www.example.com\n192.0.2.10\nit@example.com\nhttps://example.com/id', 5, 'mono');
+    noI18n(pta);
+    paste.appendChild(pta);
+    paste.appendChild(el('p', 'muted small', 'One a line: an address is an IP address, with @ an e-mail, with :// a URI, anything else a DNS name.'));
+    var pasteGo = cmdButton('Add these', 'add', 'primary');
+    paste.appendChild(pasteGo);
+    rows.parentNode.appendChild(paste);
     var chips = el('div', 'ct-namecheck wide');
     g.appendChild(chips);
     var name = textBox(W.d.name, 'the first name', '');
@@ -2904,38 +3162,156 @@ function certWizard(cert, detail) {
     var note = textBox(W.d.note, '', '');
     g.appendChild(formField('Note', note));
     host.appendChild(g);
-    var check = function () {
+    var whys = [];
+    var typePairs = function () {
+      var types = can().sanTypes || ['dns', 'ip', 'email', 'uri'];
+      return SAN_TYPES.map(function (t) {
+        var off = types.indexOf(t[0]) < 0 || (t[0] === 'ip' && !can().ip);
+        return [t[0], t[1] + (off ? ' - ' + tr('not by this source') : ''), off];
+      });
+    };
+    var drawRows = function () {
+      clear(rows);
+      whys = [];
+      W.d.sans.forEach(function (x, i) {
+        var row = el('div', 'ct-san');
+        var sel = selectBox(typePairs().map(function (t) { return [t[0], t[1]]; }), x.type);
+        typePairs().forEach(function (t, j) { sel.options[j].disabled = t[2] && t[0] !== x.type; });
+        sel.className = 'ct-san-type';
+        var val = textBox(x.value, {dns: 'www.example.com', ip: '192.0.2.10', email: 'it@example.com', uri: 'https://example.com/id'}[x.type] || '', 'mono ct-san-val');
+        noI18n(val);
+        var rm = el('button', 'btn small ct-san-rm', '×');
+        rm.type = 'button';
+        rm.title = tr('Take this name out');
+        var why = el('div', 'ct-rowwhy');
+        whys.push(why);
+        sel.onchange = function () { x.type = sel.value; val.placeholder = {dns: 'www.example.com', ip: '192.0.2.10', email: 'it@example.com', uri: 'https://example.com/id'}[x.type] || ''; changed(); };
+        val.addEventListener('input', function () {
+          var d = sanDetect(val.value);
+          /* typed into a DNS row, an address or an e-mail takes its own type */
+          if (x.type === 'dns' && d.type !== 'dns' && can().sanTypes && can().sanTypes.indexOf(d.type) >= 0) { x.type = d.type; sel.value = d.type; }
+          x.value = val.value;
+          changed();
+        });
+        rm.onclick = function () {
+          W.d.sans.splice(i, 1);
+          if (!W.d.sans.length) W.d.sans.push({type: 'dns', value: ''});
+          drawRows();
+          changed();
+        };
+        row.appendChild(sel);
+        row.appendChild(val);
+        row.appendChild(rm);
+        row.appendChild(why);
+        rows.appendChild(row);
+      });
+    };
+    var paintWhys = function () {
+      W.d.sans.forEach(function (x, i) {
+        var w = rowWhy(x, i);
+        var wild = x.type === 'dns' && nameKind(String(x.value || '').trim().toLowerCase()) === 'wild';
+        if (!whys[i]) return;
+        whys[i].textContent = w ? tr(w) : (wild ? tr('a wildcard covers one level of names under it: x.example.com, not a.b.example.com') : '');
+        whys[i].className = 'ct-rowwhy' + (w ? ' bad' : (wild ? ' hint' : ''));
+        if (whys[i].parentNode) whys[i].parentNode.classList.toggle('refused', !!w);
+      });
+      var cw = cnWhy();
+      cnSays.textContent = cw ? tr(cw) : '';
+      cnSays.className = 'ct-rowwhy' + (cw ? ' bad' : '');
+      cnBox.placeholder = W.d.sans.filter(function (x) { return x.type === 'dns' && String(x.value || '').trim(); }).map(function (x) { return x.value.trim(); })[0] || 'www.example.com';
+      /* the chips: the result as it goes into the certificate */
       clear(chips);
-      var list = splitNames(ta.value);
-      if (autoName) { name.value = list[0] ? certName(list[0]) : ''; if (name._nameCheck) name._nameCheck(); }
-      list.forEach(function (n, i) {
-        var k = nameKind(n);
-        var refused = k === 'bad' || (k === 'wild' && !cn.wildcards) || (k === 'ip' && !cn.ip);
-        var chip = el('span', 'ct-name ' + k + (refused ? ' refused' : ''));
-        chip.appendChild(data('span', '', n));
-        var why = k === 'bad' ? 'not a name' : (k === 'wild' ? (cn.wildcards ? 'wildcard' : 'no wildcards here')
-          : (k === 'ip' ? (cn.ip ? 'IP address' : 'no IP addresses here') : (i === 0 ? 'common name' : '')));
-        if (why) chip.appendChild(el('i', '', why));
+      var list = names();
+      var cnv = String(W.d.cn || '').trim() || list[0] || '';
+      if (cnv) {
+        var cc = el('span', 'ct-name cn');
+        cc.appendChild(el('i', '', 'CN'));
+        cc.appendChild(data('span', '', cnv));
+        chips.appendChild(cc);
+      }
+      list.concat(sanOther()).forEach(function (n) {
+        var k = /^(email|uri):/.test(n) ? n.split(':')[0] : nameKind(n);
+        var chip = el('span', 'ct-name ' + k);
+        chip.appendChild(data('span', '', n.replace(/^(email|uri):/, '')));
+        var w = {wild: 'wildcard', ip: 'IP address', email: 'e-mail', uri: 'URI'}[k];
+        if (w) chip.appendChild(el('i', '', w));
         chips.appendChild(chip);
       });
-      if (list.length) chips.appendChild(el('span', 'muted small', list.length === 1 ? '1 name' : list.length + ' names'));
+      var all = list.length + sanOther().length;
+      if (all) chips.appendChild(el('span', 'muted small', all === 1 ? '1 name' : all + ' names'));
+      if (autoName) { name.value = list[0] ? certName(list[0]) : (cnv ? certName(cnv) : ''); if (name._nameCheck) name._nameCheck(); }
     };
-    ta.addEventListener('input', check);
+    var soon = null;
+    var tick = modalTicket();
+    var changed = function () {
+      paintWhys();
+      clearTimeout(soon);
+      soon = setTimeout(function () {
+        if (!modalStill(tick)) return;
+        compatNow().then(function () { if (modalStill(tick)) paintWhys(); });
+      }, 450);
+    };
+    var forced = function () {
+      var c2 = can();
+      if (c2.cnFree === false) {
+        W.d.cn_san = true;
+        cnSw._input.checked = true;
+        cnSw._input.disabled = true;
+        explain(cnSwL, 'A public CA: the common name is one of the names (CA/B Forum).');
+      } else cnSw._input.disabled = false;
+    };
+    cnBox.addEventListener('input', function () { W.d.cn = cnBox.value; changed(); });
+    cnSw._input.onchange = function () { W.d.cn_san = cnSw._input.checked; changed(); };
+    addB.onclick = function () { W.d.sans.push({type: 'dns', value: ''}); drawRows(); changed(); var all = rows.querySelectorAll('.ct-san-val'); if (all.length) all[all.length - 1].focus(); };
+    pasteB.onclick = function () { paste.hidden = !paste.hidden; if (!paste.hidden) pta.focus(); };
+    pasteGo.onclick = function () {
+      var have = {};
+      W.d.sans = W.d.sans.filter(function (x) { return String(x.value || '').trim(); });
+      W.d.sans.forEach(function (x) { have[x.type + ':' + String(x.value).trim().toLowerCase()] = 1; });
+      String(pta.value || '').split(/[\r\n,;]+/).forEach(function (line) {
+        line = line.trim();
+        if (!line) return;
+        var d = sanDetect(line);
+        var k = d.type + ':' + d.value.toLowerCase();
+        if (have[k]) return;
+        have[k] = 1;
+        W.d.sans.push(d);
+      });
+      if (!W.d.sans.length) W.d.sans.push({type: 'dns', value: ''});
+      pta.value = '';
+      paste.hidden = true;
+      drawRows();
+      changed();
+    };
     name.addEventListener('input', function () { autoName = false; });
-    check();
-    read = function () { W.d.names = ta.value; W.d.name = name.value.trim() || (names()[0] ? certName(names()[0]) : ''); W.d.tags = tags.value; W.d.owner = owner.value; W.d.note = note.value; };
+    drawRows();
+    forced();
+    paintWhys();
+    compatNow().then(function () { if (modalStill(tick)) { forced(); drawRows(); paintWhys(); } });
+    read = function () {
+      W.d.sans = W.d.sans.filter(function (x, i) { return String(x.value || '').trim() || (i === 0 && W.d.sans.length === 1); });
+      W.d.names = names().join('\n');
+      W.d.name = name.value.trim() || (names()[0] ? certName(names()[0]) : '');
+      W.d.tags = tags.value; W.d.owner = owner.value; W.d.note = note.value;
+    };
   }
   /* -- 3. key -- */
   function drawKey(host) {
     host.appendChild(el('p', 'note', 'The key is made here, on this server, and never leaves it unless a full administrator exports it.'));
     var grid = el('div', 'ct-keys');
+    var tiles = {};
     KEY_TYPES.forEach(function (k) {
       var t = el('button', 'ct-keyt' + (W.d.key_type === k[0] ? ' on' : ''));
       t.type = 'button';
+      t.dataset.key = k[0];
       t.appendChild(data('b', '', k[1]));
       if (k[0] === 'ec-256') t.appendChild(el('span', 'tag ok', 'recommended'));
       t.appendChild(el('span', 'muted small', k[2]));
+      var why = el('span', 'ct-keywhy');
+      t.appendChild(why);
+      tiles[k[0]] = {node: t, why: why};
       t.onclick = function () {
+        if (t.disabled) return;
         W.d.key_type = k[0];
         Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove('on'); });
         t.classList.add('on');
@@ -2943,6 +3319,18 @@ function certWizard(cert, detail) {
       grid.appendChild(t);
     });
     host.appendChild(grid);
+    /* The key types the source does not sign: greyed, with the reason. */
+    var ktick = modalTicket();
+    compatNow().then(function (d) {
+      if (!d || !modalStill(ktick)) return;
+      arr(d.key_types).forEach(function (k) {
+        var t = tiles[k.key];
+        if (!t) return;
+        t.node.disabled = !k.ok;
+        t.node.classList.toggle('off', !k.ok);
+        t.why.textContent = k.ok ? '' : k.why;
+      });
+    });
     if (can().makesKey) host.appendChild(el('p', 'muted small', 'This source makes the key itself; the type is what is asked of it.'));
     drawTwin(host, grid);
   }
@@ -2963,7 +3351,8 @@ function certWizard(cert, detail) {
     host.appendChild(box);
     var draw = function () {
       box.textContent = '';
-      if (!s || !s.dual) {
+      var tw = W.compat && W.compat.source && W.compat.source.name === W.d.issuer && W.compat.twin;
+      if (!s || (tw ? !tw.ok : !s.dual)) {
         if (W.d.key_type_alt) W.d.key_type_alt = '';
         if (s) box.appendChild(el('p', 'muted small', 'This source gives one certificate of the names (a twin with another kind of key is not offered by it).'));
         return;
@@ -2992,14 +3381,60 @@ function certWizard(cert, detail) {
       host.appendChild(b);
       return;
     }
-    var pairs = W.vals.map(function (v) {
-      return [v.name, v.name + ' · ' + plugTitle('challenge', v.kind) + ' (' + challengeTypes(v.kind).join(', ') + ')' + (v.is_default ? ' · ' + tr('default') : '')];
-    });
-    if (!W.d.challenge && W.vals.length) W.d.challenge = (defaultOf(W.vals) || W.vals[0]).name;
+    /* What fits: each validation, for this source and each name (compat) - the
+       others greyed, with the reason (a wildcard: DNS ones; an IP address: HTTP ones;
+       a commercial CA's DCV: only those that can put its record or file in place). */
+    if (!compatThen(host, steps()[W.step])) return;
+    var fit = {};
+    arr(W.compat && W.compat.validations).forEach(function (v) { fit[v.name] = v; });
+    var known = !!(W.compat && W.compat.validations && W.compat.validations.length);
+    var list = names();
+    var fitsName = function (v, n) { var f = fit[v]; return !known || !f ? '' : (obj(f.names)[n] || ''); };
+    var fitsNone = function (v) {
+      var f = fit[v];
+      if (!known || !f) return '';
+      if (!list.length) return f.ok ? '' : f.why;
+      var bad = list.filter(function (n) { return obj(f.names)[n]; });
+      return bad.length === list.length ? (obj(f.names)[bad[0]] || f.why) : '';
+    };
+    var label = function (v) {
+      return v.name + ' · ' + plugTitle('challenge', v.kind) + ' (' + challengeTypes(v.kind).join(', ') + ')' + (v.is_default ? ' · ' + tr('default') : '');
+    };
+    var pairs = W.vals.map(function (v) { return [v.name, label(v)]; });
+    var good = W.vals.filter(function (v) { return !fitsNone(v.name); });
+    if ((!W.d.challenge || fitsNone(W.d.challenge)) && W.vals.length && !editing) {
+      var dv = defaultOf(W.vals);
+      W.d.challenge = (dv && !fitsNone(dv.name) ? dv : (good[0] || dv || W.vals[0])).name;
+    }
+    var mark = function (sel, perName) {
+      Array.prototype.forEach.call(sel.options, function (o) {
+        if (!o.value) return;
+        var why = perName ? fitsName(o.value, perName) : fitsNone(o.value);
+        var base = label(W.vals.filter(function (v) { return v.name === o.value; })[0] || {name: o.value});
+        o.disabled = !!why && o.value !== sel.value;
+        o.textContent = base + (why ? ' - ' + tr('does not fit') + ': ' + why : '');
+        o.className = why ? 'ct-unfit' : '';
+        o.title = why;
+      });
+    };
     var def = selectBox(pairs, W.d.challenge);
     noI18n(def);
+    def.className = 'ct-valsel';
+    mark(def, null);
     host.appendChild(formField('For every name', def, cn.types.length ? 'This source can use: ' + cn.types.join(', ') + '.' : ''));
-    var list = names();
+    /* the ones that do not fit, said in words beside the choice */
+    var unfit = W.vals.filter(function (v) { return fitsNone(v.name); });
+    if (unfit.length) {
+      var ub = el('div', 'ct-unfitlist');
+      ub.appendChild(el('div', 'muted small', 'Not offered for this source and these names:'));
+      unfit.forEach(function (v) {
+        var line = el('div', 'ct-unfit-line');
+        line.appendChild(data('b', '', v.name));
+        line.appendChild(el('span', 'muted small', fitsNone(v.name)));
+        ub.appendChild(line);
+      });
+      host.appendChild(ub);
+    }
     var tb = el('div');
     host.appendChild(el('h4', 'ct-formh', 'Name by name'));
     host.appendChild(tb);
@@ -3010,15 +3445,22 @@ function certWizard(cert, detail) {
         var tr = el('tr');
         tr.appendChild(td('', data('span', 'mono', n)));
         var s = selectBox([['', 'as for every name']].concat(pairs), W.d.challenge_map[n] || '');
+        noI18n(s);
+        s.className = 'ct-valsel';
+        mark(s, n);
         sels[n] = s;
         var warn = el('span', 'ct-warnmark');
         var paintWarn = function () {
           var use = s.value || def.value;
-          var v = W.vals.filter(function (x) { return x.name === use; })[0];
-          var types = v ? challengeTypes(v.kind) : [];
-          var bad = nameKind(n) === 'wild' && types.length && types.indexOf('dns-01') < 0;
-          warn.textContent = bad ? 'a wildcard needs DNS-01' : '';
-          tr.classList.toggle('ct-hot', bad);
+          var why = fitsName(use, n);
+          if (!known) {
+            var v = W.vals.filter(function (x) { return x.name === use; })[0];
+            var types = v ? challengeTypes(v.kind) : [];
+            why = nameKind(n) === 'wild' && types.length && types.indexOf('dns-01') < 0 ? 'a wildcard needs DNS-01' : '';
+          }
+          warn.textContent = why;
+          tr.classList.toggle('ct-hot', !!why);
+          mark(s, n);
         };
         s.onchange = paintWarn;
         def.addEventListener('change', paintWarn);
@@ -3028,6 +3470,7 @@ function certWizard(cert, detail) {
         return tr;
       }, 'plain ct-cmaptable'));
     };
+    def.addEventListener('change', function () { mark(def, null); });
     drawMap();
     var curMap = function () {
       var m = {};
@@ -3778,6 +4221,7 @@ function caPeek(id) {
       buttons.push({words: 'Create an intermediate', icon: 'add', go: function () { over(function () { caCreate(c); }, back); }});
       buttons.push({words: 'Sign a CSR', cls: 'primary', icon: 'key', go: function () { over(function () { signCsr(c); }, back); }});
     }
+    caExtra('buttons', c, d, back, buttons);
     return {
       title: c.name, size: 'large',
       build: function (body) {
@@ -3880,11 +4324,31 @@ function caPeek(id) {
         drawIssued();
         grid.appendChild(s3);
         if (c.note) { var s4 = section('Note'); s4._body.appendChild(data('p', '', c.note)); grid.appendChild(s4); }
+        caExtra('sections', c, d, back, grid);
         body.appendChild(grid);
       },
       buttons: buttons
     };
   }, 'large', 'the authorities');
+}
+/* ---- an authority's popup, parts drawn elsewhere --------------------------
+   cas.js (Edit…, Renew its certificate…, its versions) adds itself to
+   window.ACME_CA_PEEK: [{buttons: fn(c, d, back, list, kit), sections:
+   fn(c, d, back, grid, kit)}] - kit is caKit(), the pieces of this file it
+   draws with. A part that fails leaves the popup as it is. */
+function caKit() {
+  return {api: capi, full: FULL, manage: MANAGE, section: section, numberBox: numberBox,
+    areaBox: areaBox, pemBox: pemBox, wideField: wideField, mono: mono, data: data, td: td,
+    dayOnly: dayOnly, daysTag: daysTag, fpWords: fpWords, copyable: copyable, over: over,
+    said: said, fail: fail, download: download, guardName: guardName, arr: arr, truthy: truthy,
+    loadCas: loadCas, casNow: casNow, names: function () { return CAS.map(function (x) { return x.name; }); },
+    caPeek: caPeek, ekus: EKUS};
+}
+function caExtra(what, c, d, back, host) {
+  (window.ACME_CA_PEEK || []).forEach(function (x) {
+    if (!x || typeof x[what] !== 'function') return;
+    try { x[what](c, d, back, host, caKit()); } catch (e) { if (window.console) window.console.error(e); }
+  });
 }
 /* ---- publishing on acme: the CRL and the certificate at /pki/ ------------- */
 function goPkiSettings() {

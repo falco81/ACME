@@ -190,6 +190,9 @@ class CertRequest(object):
         days         the validity asked for, where the issuer lets it be chosen (None: its own)
         profile      {'eku': ['serverAuth', 'clientAuth'], 'must_staple': False,
                       'acme_profile': 'shortlived', 'template': 'WebServer', ...}
+        sans         every subjectAltName of the request, typed where not DNS/IP:
+                     names + ['email:it@example.com', 'uri:https://example.com/x'] (the
+                     DNS names and addresses are `names`, the ones proved); [] = names
         challenges   {name: Challenge instance} - for each name, how it is proved
         previous     the certificate being renewed (PEM) or None (ARI 'replaces')
         cert_id      the certificate's id in acme
@@ -204,6 +207,7 @@ class CertRequest(object):
         self.days = None
         self.profile = {}
         self.challenges = {}
+        self.sans = []
         self.previous = None
         self.cert_id = None
         self.__dict__.update(kw)
@@ -351,6 +355,12 @@ class Issuer(Plugin):
     dcv_default = ''                # the method when the setting is empty
     key_types = None                # None: every key type acme makes
     public_names = False            # True: a publicly trusted CA (CA/B Forum rules on names)
+    # The subjectAltNames it puts in: 'dns', 'ip', 'email', 'uri' (None: all four for a
+    # source of your own, DNS and IP for a public CA); cn_free: the common name may be
+    # other than every SAN (None: only where it is not a public CA - CA/B Forum: the CN
+    # is one of the SANs, 64 characters at most).
+    san_types = None
+    cn_free = None
     # A dual certificate (docs/certificates.md): the same names issued twice in one
     # job, the main key type and a twin of another kind (ECDSA beside RSA) - two
     # keys, two CSRs, two issue() calls. True: this source can give the twin. A
@@ -424,6 +434,18 @@ class Issuer(Plugin):
         return bool(cls.public_names)
 
     @classmethod
+    def san_types_for(cls, config):
+        if cls.san_types is not None:
+            return list(cls.san_types)
+        return ['dns', 'ip'] if cls.public_for(config) else ['dns', 'ip', 'email', 'uri']
+
+    @classmethod
+    def cn_free_for(cls, config):
+        if cls.cn_free is not None:
+            return bool(cls.cn_free)
+        return not cls.public_for(config)
+
+    @classmethod
     def describe(cls):
         d = Plugin.describe.__func__(cls)
         d['dual'] = bool(cls.dual) or bool(cls.dual_field)
@@ -432,6 +454,8 @@ class Issuer(Plugin):
         d['dcv_field'] = cls.dcv_field
         d['key_types'] = list(cls.key_types) if cls.key_types is not None else None
         d['public_names'] = bool(cls.public_names)
+        d['san_types'] = cls.san_types_for({})
+        d['cn_free'] = cls.cn_free_for({})
         for k in ('wildcards', 'ip_names', 'choose_days', 'makes_key'):
             d.setdefault(k, bool(getattr(cls, k, False)))
         d.setdefault('needs_challenge', bool(cls.needs_challenge))

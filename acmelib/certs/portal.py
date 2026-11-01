@@ -408,6 +408,12 @@ def _portal_request(h):
     kt = str(b.get('key_type') or 'ec-256')
     if kt not in schema.KEY_TYPES:
         raise E.ApiError(400, 'the key type is one of %s' % ', '.join(schema.KEY_TYPES))
+    # What fits (acmelib/certs/compat.py): the names, the source, the validation, the key.
+    from acmelib.certs import compat
+    probs = compat.check(store, names, irow, str(E.CONFIG.get('portal_cert_challenge') or '')
+                         or None, {}, kt, '')
+    if probs:
+        raise E.ApiError(400, compat.words(probs))
     auto = bool(E.CONFIG.get('portal_cert_auto'))
     base_name = re.sub(r'[^A-Za-z0-9._@+-]+', '-', names[0].replace('*.', 'wildcard.'))[:80]
     name = base_name
