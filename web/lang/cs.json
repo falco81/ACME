@@ -24920,14 +24920,6 @@
    "source": "a job is already working on that certificate",
    "text": "na tom certifikátu už pracuje jiná úloha"
   },
-  "sc1163": {
-   "source": "A line from vm to every isemon receiver that isemon shows as a sign-in of the name given - its message says it is a test.",
-   "text": "Řádek z vm do každého přijímače isemonu, který isemon ukáže jako přihlášení zadaného jména – jeho zpráva říká, že jde o test."
-  },
-  "sc1164": {
-   "source": "Tento server: its version, how long it has run, problems.",
-   "text": "Tento server: verze, jak dlouho běží, problémy."
-  },
   "sc1165": {
    "source": "· running:",
    "text": "· běží:"
@@ -24995,6 +24987,18 @@
   "sc1181": {
    "source": "choose a service or fill in \"Files\"",
    "text": "zvolte službu, nebo vyplňte „Soubory“"
+  },
+  "sc1182": {
+   "source": "A line from vm to every isemon receiver that isemon shows as a sign-in of the name given - its message says it is a test.",
+   "text": "Řádek z vm do každého přijímače isemonu, který isemon ukáže jako přihlášení zadaného jména – jeho zpráva říká, že jde o test."
+  },
+  "sc1183": {
+   "source": "Tento server: its version, how long it has run, problems.",
+   "text": "Tento server: verze, jak dlouho běží, problémy."
+  },
+  "sc1184": {
+   "source": "the renewer",
+   "text": "automatické obnovování"
   }
  },
  "patterns": {
@@ -32229,6 +32233,42 @@
   "pc0238": {
    "source": "a mail to {0} waits in the outgoing mail ({1})",
    "text": "mail pro {0} čeká v odchozí poště ({1})"
+  },
+  "pc0239": {
+   "source": "deploying {0} (version {1}) to {2} ({3})",
+   "text": "nasazuje se {0} (verze {1}) na {2} ({3})"
+  },
+  "pc0240": {
+   "source": "target {0} is switched off: not deployed",
+   "text": "cíl {0} je vypnutý: nenasazeno"
+  },
+  "pc0241": {
+   "source": "{0}: in place",
+   "text": "{0}: nasazeno"
+  },
+  "pc0242": {
+   "source": "{0}: {1} (tried again in {2})",
+   "text": "{0}: {1} (znovu za {2})"
+  },
+  "pc0243": {
+   "source": "could not be checked: {0}",
+   "text": "nešlo zkontrolovat: {0}"
+  },
+  "pc0244": {
+   "source": "no chain of the CA ends at \"{0}\" - its default chain is used",
+   "text": "žádný řetězec CA nekončí na „{0}“ – použije se její výchozí řetězec"
+  },
+  "pc0245": {
+   "source": "the CA asks to wait {0} s (rate limit)",
+   "text": "CA žádá počkat {0} s (rate limit)"
+  },
+  "pc0246": {
+   "source": "bound {0} to {1}",
+   "text": "{0} svázán s {1}"
+  },
+  "pc0247": {
+   "source": "bound {0} to {1} (SNI)",
+   "text": "{0} svázán s {1} (SNI)"
   }
  },
  "rich": {

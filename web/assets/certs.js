@@ -315,9 +315,13 @@ function td(cls, content) {
 }
 /** Who did it and how long ago, each in a piece of its own (the time is
     translated, the name is not). */
+/** Who did something: a name is data, the daemon's own words are not. */
+function byWho(who, cls) {
+  return who === 'the renewer' ? el('span', cls || '', who) : data('span', cls || '', who);
+}
 function whoWhen(by, ts) {
   var c = el('td', 'muted small ct-whowhen');
-  c.appendChild(data('span', '', by || '–'));
+  c.appendChild(byWho(by || '–'));
   if (ts) c.appendChild(el('span', '', ago(ts)));
   return c;
 }
@@ -3227,11 +3231,11 @@ function jobTable(rows, o) {
     tr.appendChild(td('', jobTag(j)));
     tr.appendChild(td('num muted', jobRunning(j) ? span(now() - (j.ts || now())) : tookWords(j.took_ms)));
     var by = td('muted small', '');
-    by.appendChild(data('span', '', j.by_who || 'acme'));
+    by.appendChild(byWho(j.by_who || 'acme'));
     if (j.node) by.appendChild(data('span', 'ct-node-name', ' · ' + j.node));
     tr.appendChild(by);
     var s = td('ct-jsaid small', '');
-    s.appendChild(data('span', '', j.said || ''));
+    s.appendChild(el('span', '', j.said || ''));
     tr.appendChild(s);
     return rowOpens(tr, function () { over(function () { jobPeek(j.id); }); });
   }, 'plain ct-jobs|No job yet');
@@ -3292,8 +3296,10 @@ function stepOf(s) {
   return {t: null, level: 'info', words: String(s)};
 }
 function jobLog(steps, startedAt) {
+  /* The words of each step are the daemon's, in English, and translated as
+     every other text of the page is; what a machine answered (the detail)
+     stays as it was said. */
   var box = el('div', 'ct-log');
-  noI18n(box);
   steps = Array.isArray(steps) ? steps : arr(steps);
   if (!steps.length) { box.appendChild(el('div', 'muted', 'No step yet.')); return box; }
   steps.forEach(function (raw) {
@@ -3312,6 +3318,7 @@ function jobLog(steps, startedAt) {
     if (s.detail) {
       var det = el('div', 'ct-log-d');
       det.textContent = String(s.detail);
+      noI18n(det);
       box.appendChild(det);
     }
   });
@@ -3360,12 +3367,16 @@ function jobPeek(id) {
       ['State', st],
       ['Started', stamp(j.ts)],
       ['Took', jobRunning(j) ? span(now() - (j.ts || now())) + ' so far' : tookWords(j.took_ms)],
-      ['By', data('span', '', (j.by_who || 'acme') + (j.node ? ' on ' + j.node : ''))]
+      ['By', (function () {
+        var w = el('span', '');
+        w.appendChild(byWho(j.by_who || 'acme'));
+        if (j.node) w.appendChild(data('span', 'ct-node-name', ' · ' + j.node));
+        return w;
+      }())]
     ]));
     if (j.said && !jobRunning(j)) {
       var s = el('div', 'ct-jobsaid ' + (jobState(j) === 'ok' ? 'good' : (jobState(j) === 'failed' ? 'bad' : '')));
       s.textContent = String(j.said);
-      noI18n(s);
       factsHost.appendChild(s);
     }
   };

@@ -820,6 +820,15 @@ class SharedPair(PairChecks, unittest.TestCase):
         self.assertEqual(self.b.conf['node_name'], 'n2')
         for n in (self.a, self.b):
             self.assertEqual(n.conf.get('ha_mode'), 'shared', n.name)
+        # The second node knows the first by its address (1.0.210): ha_peer
+        # was written empty, and nothing let the first node into its firewall.
+        with open(os.path.join(self.a.tmp, 'bundle.json')) as f:
+            about = json.load(f).get('about') or {}
+        self.assertTrue(about.get('address'), about)
+        self.assertEqual(self.b.conf.get('ha_peer'), about['address'])
+        self.assertTrue(self.b.conf.get('ha_address'))
+        self.assertEqual(about.get('joining'), '127.0.0.1')
+        self.assertNotIn('key', about)
         with open(os.path.join(self.a.tmp, 'state', 'secrets.key')) as f1, \
                 open(os.path.join(self.b.tmp, 'state', 'secrets.key')) as f2:
             self.assertEqual(f1.read(), f2.read())
@@ -1275,8 +1284,8 @@ class HaPgHbaLines(unittest.TestCase):
     answers."""
 
     def setUp(self):
-        need_pg(self, PG2_PORT)
-        if not pg_admin_ok(PG2_PORT):
+        need_pg(self)
+        if not have_pg(PG2_PORT) or not pg_admin_ok(PG2_PORT):
             raise unittest.SkipTest('needs root and psql as postgres on %d' % PG2_PORT)
 
     def hba(self):
