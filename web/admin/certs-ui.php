@@ -57,6 +57,7 @@ function acme_certs_tab_panels(): void
       <select id="ct-state" title="Only the certificates in this state.">
         <option value="">every state</option>
         <option value="ok">valid</option>
+        <option value="expiring">running out soon</option>
         <option value="due">due for renewal</option>
         <option value="renewing">being renewed</option>
         <option value="failed">renewal failed</option>

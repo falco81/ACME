@@ -1498,18 +1498,27 @@ function certBody(body, c, versions, deploys, jobs, back) {
   var grid = el('div', 'msects');
   /* the certificate itself */
   var cs = section('The certificate');
-  var chain = rowsOf(c.chain || c.chain_info || c.chain_certs);
+  var info = obj(c.info);
+  var sha256 = first(info.sha256, c.fingerprint);
+  var sha1 = first(info.sha1, c.fingerprint_sha1);
+  var uses = arr(info.eku);
   cs._body.appendChild(kvTable([
-    ['Subject', data('span', 'mono small', c.subject_dn || ('CN=' + (c.cn || c.names[0] || '')))],
-    ['Issued by', data('span', 'mono small', c.issuer_dn || '–')],
-    ['Serial', c.serial ? copyable(c.serial, 'the serial was copied') : '–'],
-    ['SHA-256', c.fingerprint ? copyable(fpWords(c.fingerprint), 'the fingerprint was copied') : '–'],
-    c.fingerprint_sha1 || c.sha1 ? ['SHA-1', copyable(fpWords(c.fingerprint_sha1 || c.sha1), 'the fingerprint was copied')] : null,
-    ['Key', keyWords(c.key_type) + (c.key_bits ? ' · ' + c.key_bits + ' bits' : '')],
+    ['Subject', data('span', 'mono small', first(info.subject_dn, c.subject_dn, 'CN=' + (c.cn || c.names[0] || '')))],
+    ['Issued by', data('span', 'mono small', first(info.issuer_dn, c.issuer_dn, '–'))],
+    ['Serial', first(info.serial, c.serial) ? copyable(first(info.serial, c.serial), 'the serial was copied') : '–'],
+    ['SHA-256', sha256 ? copyable(fpWords(sha256), 'the fingerprint was copied') : '–'],
+    sha1 ? ['SHA-1', copyable(fpWords(sha1), 'the fingerprint was copied')] : null,
+    ['Key', keyWords(first(info.key_type, c.key_type)) + (info.key_bits ? ' · ' + info.key_bits + ' bits' : '')
+      + (c.has_key === false ? ' · not kept here' : '')],
     ['Valid from', c.not_before ? stamp(c.not_before) : '–'],
     ['Valid to', c.not_after ? stamp(c.not_after) : '–'],
     ['Version', c.version ? 'v' + c.version : '–'],
-    c.eku ? ['Used for', arr(c.eku).join(', ')] : null
+    uses.length ? ['Used for', uses.join(', ')] : null,
+    info.must_staple ? ['OCSP must-staple', 'yes'] : null,
+    arr(info.ocsp).length ? ['OCSP', data('span', 'mono small', arr(info.ocsp).join(' '))] : null,
+    arr(info.crl).length ? ['CRL', data('span', 'mono small', arr(info.crl).join(' '))] : null,
+    info.sig_alg ? ['Signed with', data('span', 'mono small', info.sig_alg)] : null,
+    info.error ? ['Read', data('span', 'ct-bad', info.error)] : null
   ]));
   grid.appendChild(cs);
   /* how it is renewed */
@@ -1537,19 +1546,31 @@ function certBody(body, c, versions, deploys, jobs, back) {
   }
   grid.appendChild(rs);
   /* the chain */
-  if (chain.length) {
+  var chainPems = String(c.chain_pem || '').split('-----BEGIN CERTIFICATE-----').length - 1;
+  if (chain.length || chainPems) {
     var ch = section('The chain', 'Above the certificate, nearest first.');
     var list = el('ol', 'ct-chain');
-    chain.forEach(function (one) {
-      var li = el('li');
-      if (typeof one === 'string') { li.appendChild(data('span', 'mono small', one)); list.appendChild(li); return; }
-      li.appendChild(data('div', 'mono small', one.subject || one.subject_dn || one.cn || '?'));
-      var sub = el('div', 'muted small');
-      sub.appendChild(document.createTextNode('until ' + dayOnly(one.not_after)));
-      if (one.self_signed || one.root) sub.appendChild(el('span', 'tag dim', 'root'));
-      li.appendChild(sub);
-      list.appendChild(li);
-    });
+    var drawChain = function (items) {
+      clear(list);
+      items.forEach(function (one) {
+        var li = el('li');
+        if (typeof one === 'string') { li.appendChild(data('span', 'mono small', one)); list.appendChild(li); return; }
+        li.appendChild(data('div', 'mono small', first(one.subject_dn, one.cn, '?')));
+        var sub = el('div', 'muted small');
+        sub.appendChild(document.createTextNode('until ' + dayOnly(one.not_after)));
+        if (one.self_signed) sub.appendChild(el('span', 'tag dim', 'root'));
+        li.appendChild(sub);
+        list.appendChild(li);
+      });
+    };
+    if (chain.length) drawChain(chain);
+    else {
+      list.appendChild(el('li', 'muted small', chainPems === 1 ? '1 certificate' : chainPems + ' certificates'));
+      if (MANAGE) capi('certs/parse', {data_b64: textB64(c.chain_pem), filename: 'chain.pem'}).then(function (x) {
+        var got = rowsOf(x.certs);
+        if (got.length) drawChain(got);
+      }).catch(function () { });
+    }
     ch._body.appendChild(list);
     grid.appendChild(ch);
   }
@@ -3078,9 +3099,9 @@ function loadOverviewCerts(live) {
   if (!host) return;
   capi('certs/overview').then(function (d) {
     OV.d = d;
-    var counts = d.counts || d.by_state || d.states || {};
+    var counts = d.by_state || d.counts || {};
     var total = Number(first(d.total, Object.keys(counts).reduce(function (a, k) { return a + Number(counts[k] || 0); }, 0)));
-    var bad = Number(counts.failed || 0) + Number(counts.expired || 0);
+    var bad = Number(counts.failed || 0) + Number(first(d.expired, counts.expired, 0));
     tabCount('tabn-certs', total, bad > 0);
     liveFill(host, function (box) { drawOverviewCerts(box, d, counts, total); }, live, function () {
       drawExpiryChart($('ov-ct-chart'), d);
@@ -3101,14 +3122,16 @@ function loadOverviewCerts(live) {
 }
 function drawOverviewCerts(box, d, counts, total) {
   var c = function (k) { return Number(counts[k] || 0); };
-  var soonDays = Number(d.soon_days || 30);
-  var soonN = first(d.expiring_soon, d.soon, null);
+  var days = Number(first(d.notify_days, 14));
+  var expired = Number(first(d.expired, c('expired')));
+  var soon = Number(first(d.expiring, 0));
+  var depBad = Number(first(d.deploys_failed, 0));
+  var failing = c('failed') + depBad;
   var tiles = [
-    ['Certificates', total, 'info', total ? num(c('ok')) + ' valid' : 'none yet', ''],
-    ['Due or renewing', c('due') + c('renewing'), (c('due') + c('renewing')) ? 'warn' : 'ok',
-     soonN !== null ? num(Number(soonN)) + ' end within ' + soonDays + ' days' : 'renewed by themselves', 'due'],
-    ['Failed', c('failed'), c('failed') ? 'crit' : 'ok', c('failed') ? 'the last renewal did not work' : 'nothing failing', 'failed'],
-    ['Expired', c('expired'), c('expired') ? 'crit' : 'ok', c('expired') ? 'no longer valid' : 'none', 'expired']
+    ['Certificates', total, 'info', total ? num(c('ok')) + ' valid' + (c('due') + c('renewing') ? ' · ' + num(c('due') + c('renewing')) + ' being renewed' : '') : 'none yet', ''],
+    ['Running out soon', soon, soon ? 'warn' : 'ok', 'within ' + days + ' days', 'expiring'],
+    ['Failing', failing, failing ? 'crit' : 'ok', failing ? num(c('failed')) + ' renewal(s) · ' + num(depBad) + ' deployment(s)' : 'nothing failing', 'failed'],
+    ['Expired', expired, expired ? 'crit' : 'ok', expired ? 'no longer valid' : 'none', 'expired']
   ];
   if (c('pending')) tiles.push(['Waiting for a CA', c('pending'), 'info', 'a CSR given out', 'pending']);
   var grid = el('div', 'grid top ct-ovtiles');
@@ -3118,7 +3141,10 @@ function drawOverviewCerts(box, d, counts, total) {
     card.appendChild(el('div', 'label', t[0]));
     card.appendChild(el('div', 'value', num(t[1])));
     card.appendChild(el('div', 'sub', t[3]));
-    var open = function () { openCerts({state: t[4]}); };
+    var open = function () {
+      if (t[4] === 'failed' && !c('failed') && depBad) { openJobs({kind: 'deploy', ok: '0'}); return; }
+      openCerts({state: t[4]});
+    };
     card.onclick = open;
     card.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); open(); } };
     grid.appendChild(card);
@@ -3171,11 +3197,11 @@ function drawOverviewCerts(box, d, counts, total) {
     s1.appendChild(l1);
   }
   halves.appendChild(s1);
-  /* failures */
+  /* what needs a look: the daemon's own alerts */
   var s2 = el('div', 'card ct-ovcard');
-  var fails = rowsOf(d.failures || d.failed || d.problems);
-  var h2 = el('h2', '', 'What is failing');
-  if (fails.length) h2.appendChild(el('span', 'right tag crit', num(fails.length)));
+  var fails = rowsOf(d.alerts || d.failures);
+  var h2 = el('h2', '', 'What needs a look');
+  if (fails.length) h2.appendChild(el('span', 'right tag ' + (fails.some(function (a) { return a.level === 'bad'; }) ? 'crit' : 'warn'), num(fails.length)));
   s2.appendChild(h2);
   if (!fails.length) {
     var okb = el('div', 'ct-allgood');
@@ -3184,20 +3210,23 @@ function drawOverviewCerts(box, d, counts, total) {
     s2.appendChild(okb);
   } else {
     var l2 = el('div', 'ct-ovlist');
-    fails.slice(0, 8).forEach(function (r) {
-      var row = el('div', 'ct-ovrow tappable bad');
+    fails.slice(0, 8).forEach(function (a) {
+      var key = String(a.key || '');
+      var m = /^cert-(\w+):(\d+)$/.exec(key);
+      var row = el('div', 'ct-ovrow tappable ' + (a.level === 'bad' ? 'bad' : 'warn'));
       row.tabIndex = 0;
       var w = el('div', 'ct-ovrow-w');
-      var t = el('div');
-      t.appendChild(data('b', '', first(r.name, r.cert_name, '#' + (r.cert_id || r.id))));
-      if (r.target) t.appendChild(data('span', 'muted small', ' → ' + r.target));
-      w.appendChild(t);
-      w.appendChild(data('span', 'ct-rowerr', String(first(r.last_error, r.error, r.said, ''))));
+      w.appendChild(data('span', 'ct-alert', String(a.words || a.said || key)));
       row.appendChild(w);
       var rr = el('div', 'ct-ovrow-r');
-      rr.appendChild(el('span', 'muted small', ago(first(r.last_try, r.ts, r.state_at))));
+      var kind = m ? m[1] : '';
+      rr.appendChild(el('span', 'tag ' + (a.level === 'bad' ? 'crit' : 'warn'),
+        {failed: 'renewal', expired: 'expired', expiring: 'by hand', deploy: 'deployment'}[kind] || (a.level === 'bad' ? 'failing' : 'warning')));
       row.appendChild(rr);
-      var open = function () { if (r.job_id) jobPeek(r.job_id); else certPeek(r.cert_id || r.id); };
+      var open = function () {
+        if (m && kind !== 'deploy') certPeek(Number(m[2]));
+        else openJobs({kind: 'deploy', ok: '0'});
+      };
       row.onclick = open;
       row.onkeydown = function (e) { if (e.key === 'Enter') open(); };
       l2.appendChild(row);
@@ -3218,10 +3247,26 @@ function drawOverviewCerts(box, d, counts, total) {
   s3.appendChild(jobTable(rowsOf(d.jobs || d.recent_jobs).slice(0, 8)));
   box.appendChild(s3);
 }
+function openJobs(f) {
+  showTab('jobs');
+  setTimeout(function () {
+    if ($('jb-kind')) $('jb-kind').value = f.kind || '';
+    if ($('jb-ok')) $('jb-ok').value = f.ok || '';
+    JL.page = 0;
+    loadJobs();
+  }, 0);
+}
 function openCerts(f) {
   showTab('certs');
   setTimeout(function () {
-    if ($('ct-state')) $('ct-state').value = f.state || '';
+    if ($('ct-state')) {
+      if (f.state && !$('ct-state').querySelector('option[value="' + f.state + '"]')) {
+        var o = el('option', '', f.state === 'expiring' ? 'running out soon' : f.state);
+        o.value = f.state;
+        $('ct-state').appendChild(o);
+      }
+      $('ct-state').value = f.state || '';
+    }
     CL.page = 0;
     loadCerts();
   }, 0);

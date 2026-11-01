@@ -60,7 +60,12 @@ if (isset($_GET['api'])) {
         echo json_encode(['ok' => true]);
         exit;
     }
-    $reads = ['me' => '/api/portal/me', 'info' => '/api/portal/info'];
+    $reads = ['me' => '/api/portal/me', 'info' => '/api/portal/info', 'certs' => '/api/portal/certs'];
+    $writes = ['cert-download' => '/api/portal/cert_download', 'cert-request' => '/api/portal/cert_request'];
+    if ($post && isset($writes[$what])) {
+        acme_relay($writes[$what], 'POST', sent_json(), 120.0);
+        exit;
+    }
     if (!$post && isset($reads[$what])) {
         acme_relay($reads[$what], 'GET', null, 30.0);
         exit;

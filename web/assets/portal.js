@@ -5,7 +5,9 @@
    What it shows past the sign-in is plugged in: a later script (index.php
    loads assets/certs-portal.js when it is there) pushes parts into
    window.ACME_PORTAL_PARTS = [function (host, me) {...}], each drawn into
-   the page, in order, after the card of who is signed in. */
+   the page, in order, after the card of who is signed in. The relay of
+   index.php has for them api('certs'), api('cert-download', {...}) and
+   api('cert-request', {...}) (/api/portal/certs, cert_download, cert_request). */
 'use strict';
 
 function drawLangPick() {
