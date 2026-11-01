@@ -325,6 +325,19 @@ class FakeDns(Challenge):
     def cleanup(self, name, handle):
         self.del_txt(handle['fqdn'], handle['txt'], None)
 
+    # a commercial CA's DCV record (base.Challenge.place): a TXT at any name
+    def place(self, kind, name, where, content):
+        if kind != 'txt':
+            raise NotImplementedError('no %s records' % kind)
+        self.add_txt(where, content)
+        return {'fqdn': where, 'txt': content}
+
+    def placed_ready(self, handle):
+        return handle['txt'] in self.zone.get(handle['fqdn'], [])
+
+    def unplace(self, handle):
+        self.del_txt(handle['fqdn'], handle['txt'], None)
+
 
 class FakeHttp(Challenge):
     kind = 'fakehttp'
@@ -340,6 +353,16 @@ class FakeHttp(Challenge):
 
     def cleanup(self, name, handle):
         self.files.pop(handle['token'], None)
+
+    # a commercial CA's DCV file (base.Challenge.place): any path under /.well-known/
+    def place(self, kind, name, where, content):
+        if kind != 'file':
+            raise NotImplementedError('no %s records' % kind)
+        self.files[where] = content
+        return {'path': where}
+
+    def unplace(self, handle):
+        self.files.pop(handle['path'], None)
 
 
 CONF = {'token': TOKEN, 'product': 'RAPIDSSL_STANDARD', 'owner_name': 'Example s.r.o.',
@@ -600,13 +623,15 @@ class TestOrder(Base):
         r = self.req(names=('www.example.cz',))
         r.challenges = {'www.example.cz': FakeHttp(files)}
         seen = []
-        orig = FakeHttp.present
-        FakeHttp.present = lambda ch, *a: (seen.append(a), orig(ch, *a))[1]
+        orig = FakeHttp.place
+        FakeHttp.place = lambda ch, *a: (seen.append(a), orig(ch, *a))[1]
         try:
             iss.issue(r)
         finally:
-            FakeHttp.present = orig
-        self.assertEqual(seen, [('www.example.cz', 'f777', 'c-777', '')])
+            FakeHttp.place = orig
+        # put in place through the validation's placement API (base.Challenge.place)
+        self.assertEqual(seen, [('file', 'www.example.cz', '/.well-known/acme-challenge/f777',
+                                 'c-777')])
         self.assertEqual(files, {})
         self.assertEqual(self.api.posts(SM.P_ORDER)[0][3]['dv_auth_method'], 'FILE')
 

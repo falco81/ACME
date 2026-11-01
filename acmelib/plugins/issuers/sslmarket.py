@@ -46,12 +46,12 @@ from __future__ import annotations
 import calendar
 import hashlib
 import json
-import posixpath
 import re
 import time
 import urllib.parse
 
 from acmelib.plugins.base import Issuer, Issued, PluginError, field, dual_order_field
+from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers.acme import AcmeIssuer, _seal, _unseal
 
 API_URLS = {
@@ -369,6 +369,22 @@ class SslmarketIssuer(_Common, Issuer):
     wildcards = True
     ip_names = False
     choose_days = False
+    # What fits (acmelib/certs/compat.py): a publicly trusted CA; the DCV method of the
+    # setting `dcv` and the proof each needs of the certificate's validation - a record
+    # or file put in place through base.Challenge.place (acmelib/plugins/issuers/_dcv.py).
+    public_names = True
+    key_types = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
+    dcv_field = 'dcv'
+    dcv_default = 'DNS'
+    dcv = {
+        'DNS': {'proof': 'txt-any', 'words': 'DNS - a TXT record',
+                'record': 'TXT (or CNAME) at the name the CA says, its value'},
+        'FILE': {'proof': 'http-file-any', 'words': 'FILE - a file',
+                 'record': 'http://NAME/.well-known/pki-validation/FILE holding the CA\'s value'},
+        'Email': {'proof': None, 'words': 'E-mail',
+                  'record': 'an e-mail to admin@, administrator@, hostmaster@, postmaster@, '
+                            'webmaster@ the domain'},
+    }
     actions = [
         {'key': 'products', 'label': 'Load the products',
          'help': 'Lists the products (codes, kind, validation, years, SANs) the account can '
@@ -738,7 +754,7 @@ class SslmarketIssuer(_Common, Issuer):
             self._say('the order %s waiting at SSLmarket was for other names (%s) - it is left '
                       'alone, and its DCV records taken away' % (
                           held.get('order_id'), ', '.join(held.get('names') or [])), 'warn')
-            self._cleanup(req, held.get('dcv') or [])
+            _dcv.Placer(self).cleanup(req, held.get('dcv') or [])
             self._waiting(held.get('order_id'), None)
             self._put(slot, None)
             held = None
@@ -752,6 +768,9 @@ class SslmarketIssuer(_Common, Issuer):
             self._say('the order %s (%s) waits at SSLmarket since %s - asked for again, nothing '
                       'is ordered' % (order_id, held.get('how'), time.strftime(
                           '%Y-%m-%d %H:%M', time.gmtime(held.get('at') or 0))))
+            if held.get('dcv'):
+                # what went away with the last job (acme's own DNS server) put back
+                _dcv.Placer(self).refresh(req, held['dcv'])
         else:
             how, order_id, det = self._choose(req, sub_key)
             key_pem = req.key_pem
@@ -824,11 +843,12 @@ class SslmarketIssuer(_Common, Issuer):
             method = det['dv_auth_method']
         self._say('SSLmarket\'s DCV for order %s (%s): %s' % (order_id, method, content[:500]))
         recs = self.dcv_records(content, method, req.names)
-        held['dcv'] = self._place_all(req, recs)
+        placer = _dcv.Placer(self)
+        held['dcv'] = placer.place_all(req, recs)
         held['placed'] = True
         self._put(slot, held, ttl_s=120 * 86400)
         if held['dcv']:
-            self._wait_visible(req, held['dcv'])
+            placer.wait_visible(req, held['dcv'])
 
     def dcv_records(self, content, method, names):
         """[{'domain', 'type': 'txt'|'cname'|'file', 'fqdn'|'path', 'value'}] out of
@@ -904,132 +924,6 @@ class SslmarketIssuer(_Common, Issuer):
                  'fqdn': '%s.%s' % (label, b) if label and label != '@' else b, 'value': text}
                 for b in bases]
 
-    def _challenge_for(self, req, domain):
-        ch = req.challenges or {}
-        for n in (domain, '*.' + domain):
-            if n in ch:
-                return n, ch[n]
-        best = None
-        for n, c in ch.items():
-            b = _base(n)
-            if domain == b or domain.endswith('.' + b) or b.endswith('.' + domain):
-                if best is None or len(b) > len(_base(best[0])):
-                    best = (n, c)
-        return best if best else (None, None)
-
-    def _place_all(self, req, recs):
-        placed = []
-        for rec in recs:
-            name, ch = self._challenge_for(req, rec['domain'])
-            how, handle = (self._place(ch, name, rec) if ch is not None else (None, None))
-            if how is None:
-                placed.append({'rec': rec, 'name': name, 'how': 'manual', 'handle': None})
-                if rec['type'] == 'file':
-                    self._say('put in place by hand, for the CA: http://%s%s holding "%s" (no '
-                              'validation module of the certificate can write it)' % (
-                                  rec['domain'], rec['path'], rec['value']), 'warn')
-                else:
-                    self._say('put in place by hand, for the CA: %s. %s "%s" (no validation '
-                              'module of the certificate can write it)' % (
-                                  rec['fqdn'], rec['type'].upper(), rec['value']), 'warn')
-                continue
-            placed.append({'rec': rec, 'name': name, 'how': how, 'handle': handle,
-                           'kind': getattr(ch, 'kind', '')})
-        return placed
-
-    def _place(self, ch, name, rec):
-        """(how, handle) - how the record went in, or (None, None) where it cannot."""
-        fn = getattr(ch, 'present_record', None)
-        if callable(fn):
-            # A validation module that writes any record or file.
-            return 'record', fn(name, rec['type'], rec.get('fqdn') or rec.get('path'),
-                                rec['value'])
-        types = tuple(getattr(ch, 'types', ()) or ())
-        if rec['type'] == 'txt' and 'dns-01' in types:
-            if rec['fqdn'] == '_acme-challenge.' + rec['domain']:
-                return 'present', ch.present(name, '', '', rec['value'])
-            add, target = getattr(ch, 'add_txt', None), getattr(ch, 'target', None)
-            if callable(add) and callable(getattr(ch, 'del_txt', None)):
-                fqdn = target(rec['fqdn']) if callable(target) else rec['fqdn']
-                h = add(fqdn, rec['value'])
-                self._say('%s TXT "%s" put in (%s)' % (fqdn, rec['value'], ch.kind or ch.title))
-                return 'txt', {'rr': rec['fqdn'], 'fqdn': fqdn, 'txt': rec['value'],
-                               'at': _now(), 'h': h}
-        if rec['type'] == 'file' and 'http-01' in types:
-            p = rec['path']
-            if posixpath.dirname(p) == '/.well-known/acme-challenge':
-                return 'present', ch.present(name, posixpath.basename(p), rec['value'], '')
-            webroot = getattr(ch, 'webroot', None)
-            each, write = getattr(ch, '_each', None), getattr(ch, '_write', None)
-            if callable(webroot) and callable(each) and callable(write) and \
-                    p.startswith('/.well-known/'):
-                root = webroot()
-                if posixpath.basename(root) == 'acme-challenge':
-                    path = posixpath.join(posixpath.dirname(posixpath.dirname(root)), p.lstrip('/'))
-                    data = rec['value'].encode('utf-8')
-                    failed = each(lambda s, h: write(s, path, data), 'write')
-                    if failed:
-                        raise PluginError('the DCV file could not be written on %s' % '; '.join(
-                            '%s: %s' % f for f in failed))
-                    self._say('%s written (%s)' % (path, ch.kind or ch.title))
-                    return 'file', {'path': path}
-        return None, None
-
-    def _wait_visible(self, req, placed):
-        end = _now() + _num(self.c('wait_ready'), 300)
-        todo = [p for p in placed if p['how'] in ('present', 'txt', 'record')]
-        while todo:
-            left = []
-            for p in todo:
-                _n, ch = self._challenge_for(req, p['rec']['domain'])
-                try:
-                    ok = ch is None or ch.ready(p['name'], p['handle'])
-                except PluginError as e:
-                    self._say('whether the DCV record is visible could not be told: %s' % e, 'warn')
-                    ok = True
-                if not ok:
-                    left.append(p)
-            todo = left
-            if not todo or _now() >= end or self.ctx.cancelled():
-                break
-            self._sleep(min(10, max(1, end - _now())))
-        if todo:
-            self._say('the DCV record of %s is not visible yet - the CA checks again by itself'
-                      % ', '.join(p['rec']['domain'] for p in todo), 'warn')
-
-    def _cleanup(self, req, placed):
-        for p in placed or []:
-            if p.get('how') in (None, 'manual'):
-                continue
-            _n, ch = self._challenge_for(req, p['rec']['domain'])
-            if ch is None or getattr(ch, 'kind', '') != p.get('kind', getattr(ch, 'kind', '')):
-                # the names changed since: a module of the same kind takes it away
-                ch = next((c for c in (req.challenges or {}).values()
-                           if getattr(c, 'kind', '') == p.get('kind')), None)
-            if ch is None:
-                self._say('the DCV record of %s is left (no validation module of kind %s here) '
-                          '- take it away by hand' % (p['rec']['domain'], p.get('kind') or '?'),
-                          'warn')
-                continue
-            try:
-                if p['how'] == 'record':
-                    fn = getattr(ch, 'cleanup_record', None)
-                    if callable(fn):
-                        fn(p['name'], p['handle'])
-                elif p['how'] == 'present':
-                    ch.cleanup(p['name'], p['handle'])
-                elif p['how'] == 'txt':
-                    h = p['handle'] or {}
-                    ch.del_txt(h.get('fqdn'), h.get('txt'), h.get('h'))
-                elif p['how'] == 'file':
-                    path = (p['handle'] or {}).get('path')
-                    rm = getattr(ch, '_remove', None)
-                    if path and callable(rm):
-                        ch._each(lambda s, h: rm(s, path), 'remove')
-            except Exception as e:                      # noqa: BLE001
-                self._say('the DCV record of %s could not be taken away: %s'
-                          % (p['rec']['domain'], e), 'warn')
-
     # -- waiting, downloading -------------------------------------------------------------------
     def _done(self, det, held):
         """Whether the order's certificate is there for this request."""
@@ -1046,7 +940,7 @@ class SslmarketIssuer(_Common, Issuer):
         while True:
             det = self.detail(order_id)
             if self.failed(det):
-                self._cleanup(req, held.get('dcv') or [])
+                _dcv.Placer(self).cleanup(req, held.get('dcv') or [])
                 self._waiting(order_id, None)
                 self._put(slot, None)
                 raise PluginError('SSLmarket: the order %s is %s' % (order_id, det.get('state')),
@@ -1054,7 +948,7 @@ class SslmarketIssuer(_Common, Issuer):
             if self._done(det, held):
                 out = self.download(order_id, key_pem, held.get('how') == 'reissue')
                 if out is not None:
-                    self._cleanup(req, held.get('dcv') or [])
+                    _dcv.Placer(self).cleanup(req, held.get('dcv') or [])
                     self._waiting(order_id, None)
                     self._put(slot, None)
                     if key_pem.strip() != (req.key_pem or '').strip():
@@ -1252,6 +1146,16 @@ class SslmarketAcmeIssuer(_Common, AcmeIssuer):
                    'once at its making); its directory URL is found by its name.'),
         field('given_hmac', 'EAB HMAC of a key made elsewhere', 'secret', advanced=True),
     ] + [f for f in AcmeIssuer.fields if f['key'] not in _ACME_OWN]
+
+    public_names = True             # SSLmarket's ACME: a public CA (its directory is its own)
+
+    @classmethod
+    def public_for(cls, config):
+        return True
+
+    @classmethod
+    def key_types_for(cls, config):
+        return list(AcmeIssuer.key_types)
 
     def __init__(self, config, ctx):
         AcmeIssuer.__init__(self, config, ctx)

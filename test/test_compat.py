@@ -37,7 +37,7 @@ os.environ.update(ACME_CONFIG=os.path.join(TMP, 'config.json'), ACME_STATE=TMP, 
 sys.path.insert(0, ROOT)
 
 from acmelib.plugins import base  # noqa: E402
-from acmelib.plugins.base import Challenge, Issuer, PluginError  # noqa: E402
+from acmelib.plugins.base import Issuer, PluginError  # noqa: E402
 from acmelib.certs import compat, store as S  # noqa: E402
 from acmelib.plugins.issuers import _dcv  # noqa: E402
 
@@ -110,6 +110,10 @@ def world():
     st.add('issuer', 'DC mail', 'digicert', {'dcv': 'email'})
     st.add('issuer', 'Sectigo', 'test_sectigo', {'dcv': 'DNS'})
     st.add('issuer', 'Sectigo file', 'test_sectigo', {'dcv': 'FILE'})
+    st.add('issuer', 'SM', 'sslmarket', {'dcv': 'DNS'})
+    st.add('issuer', 'SM file', 'sslmarket', {'dcv': 'FILE'})
+    st.add('issuer', 'SM mail', 'sslmarket', {'dcv': 'Email'})
+    st.add('issuer', 'SM acme', 'sslmarket_acme', {})
     st.add('issuer', 'Own CA', 'internal_ca', {})
     st.add('issuer', 'Self', 'selfsigned', {})
     st.add('issuer', 'SCEP', 'scep', {})
@@ -235,6 +239,20 @@ class TestMatrix(unittest.TestCase):
         # e-mail: no validation at all
         self.ok(['www.firma.cz', '*.firma.cz'], 'DC mail')
         self.ok(['www.firma.cz'], 'DC mail', 'builtin')
+
+    def test_sslmarket_declares_its_own(self):
+        """The SSLmarket module says what fits itself (dcv, public_names, key_types)."""
+        self.ok(['www.firma.cz'], 'SM', 'desec')
+        w = self.refused('validation', ['www.firma.cz'], 'SM', 'builtin')
+        self.assertIn('own DNS server answers only its own zones', w)
+        self.refused('validation', ['www.firma.cz'], 'SM', 'here')
+        self.ok(['www.firma.cz'], 'SM file', 'web')
+        self.refused('validation', ['*.firma.cz'], 'SM file', 'here')
+        self.ok(['www.firma.cz', '*.firma.cz'], 'SM mail')
+        self.refused('names', ['srv.local'], 'SM', 'desec')
+        self.refused('key', ['www.firma.cz'], 'SM', 'desec', kt='ed25519')
+        self.refused('names', ['intranet'], 'SM acme', 'here')
+        self.ok(['www.firma.cz'], 'SM acme', 'here')
 
     def test_key_types_and_twin(self):
         w = self.refused('key', ['vpn.firma.cz'], 'SCEP', kt='ec-256')

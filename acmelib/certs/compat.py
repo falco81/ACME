@@ -61,24 +61,6 @@ PUBLIC_KEYS = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
 DNS_RE = re.compile(r'^(\*\.)?([a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?\.)*'
                     r'[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$')
 
-# What a source module says of itself where it does not say it yet (the
-# SSLmarket module is being reworked to its real API; it takes these over by
-# declaring dcv / dcv_field / public_names / key_types itself - its own win).
-SHIMS = {
-    'sslmarket': {'dcv_field': 'dcv', 'dcv_default': 'DNS', 'public': True,
-                  'key_types': PUBLIC_KEYS,
-                  'dcv': {'DNS': {'proof': 'txt-any', 'words': 'DNS TXT record',
-                                  'record': 'TXT at the name Sectigo says, its value'},
-                          'CNAME': {'proof': 'cname-any', 'words': 'DNS CNAME record',
-                                    'record': 'CNAME _HASH.NAME to HASH.sectigo.com'},
-                          'FILE': {'proof': 'http-file-any', 'words': 'HTTP file',
-                                   'record': 'http://NAME/.well-known/pki-validation/FILE.txt'},
-                          'HTTP': {'proof': 'http-file-any', 'words': 'HTTP file',
-                                   'record': 'http://NAME/.well-known/pki-validation/FILE.txt'},
-                          'Email': {'proof': None, 'words': 'E-mail',
-                                    'record': 'an e-mail to admin@ the domain'}}},
-}
-
 KEY_WORDS = {'ec-256': 'ECDSA P-256', 'ec-384': 'ECDSA P-384', 'rsa-2048': 'RSA 2048',
              'rsa-3072': 'RSA 3072', 'rsa-4096': 'RSA 4096', 'ed25519': 'Ed25519'}
 
@@ -144,37 +126,24 @@ def internal_why(name):
 def source_info(cls, config, kind=''):
     """What a source of this class, with these settings, takes."""
     config = config or {}
-    shim = SHIMS.get(kind or getattr(cls, 'kind', '')) if not getattr(cls, 'dcv', None) else None
-    if shim:
-        method = str(config.get(shim['dcv_field']) or '').strip()
-        if method not in shim['dcv']:
-            method = shim['dcv_default']
-        p = shim['dcv'][method]['proof']
-        proofs = [p] if p else []
-        dcv = shim['dcv']
-    else:
-        method = cls.dcv_method(config) if getattr(cls, 'dcv', None) else ''
-        proofs = cls.proofs_for(config)
-        dcv = dict(getattr(cls, 'dcv', None) or {})
-    if shim:
-        public = shim['public']
-        kts = list(shim['key_types'])
-    else:
-        public = bool(cls.public_for(config))
-        kts = cls.key_types_for(config)
-        if kts is None:
-            kts = list(PUBLIC_KEYS) if public else list(schema.KEY_TYPES)
+    dcv = dict(getattr(cls, 'dcv', None) or {})
+    method = cls.dcv_method(config) if dcv else ''
+    proofs = cls.proofs_for(config)
+    public = bool(cls.public_for(config))
+    kts = cls.key_types_for(config)
+    if kts is None:
+        kts = list(PUBLIC_KEYS) if public else list(schema.KEY_TYPES)
     if public:
         kts = [k for k in kts if k != 'ed25519']
-    needs = bool(proofs) if (dcv or shim) else bool(getattr(cls, 'needs_challenge', False))
+    needs = bool(proofs) if dcv else bool(getattr(cls, 'needs_challenge', False))
     return {'kind': getattr(cls, 'kind', kind), 'title': getattr(cls, 'title', '') or kind,
             'needs_validation': needs, 'proofs': proofs, 'dcv_method': method,
             'dcv': {k: dict(v) for k, v in dcv.items()},
             'wildcards': bool(getattr(cls, 'wildcards', True)),
             'ip_names': bool(getattr(cls, 'ip_names', False)), 'public': public,
             'key_types': [k for k in schema.KEY_TYPES if k in kts],
-            'san_types': (['dns', 'ip'] if shim else list(cls.san_types_for(config))),
-            'cn_free': (False if shim else bool(cls.cn_free_for(config))),
+            'san_types': list(cls.san_types_for(config)),
+            'cn_free': bool(cls.cn_free_for(config)),
             'ip_profile': _ip_profile(cls, config),
             'dual': bool(cls.dual_for(config))}
 

@@ -119,7 +119,8 @@ with more names one account per name - the `accounts` field.)
 ## A record set once: dns-persist-01 (`dns_persist`)
 
 [draft-ietf-acme-dns-persist](https://datatracker.ietf.org/doc/draft-ietf-acme-dns-persist/)
-(announced by Let's Encrypt in February 2026, planned for production in 2026)
+(announced by Let's Encrypt in February 2026, planned for production in 2026;
+offered by Google Trust Services - issuer domain `pki.goog` - since September 2026)
 proves a domain with **one TXT record that stays**: it names the CA and the
 ACME account allowed to issue, and nothing changes in DNS at an order - no
 token, no DNS credentials in acme. At an order the authorization offers a

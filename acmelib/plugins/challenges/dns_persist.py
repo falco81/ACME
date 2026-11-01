@@ -42,7 +42,9 @@ from acmelib.plugins.challenges._common import as_bool, as_list
 CHALLENGE = 'dns-persist-01'
 PREFIX = '_validation-persist.'
 # The CAs' issuer domain names where the challenge object has not said them yet.
-ISSUER_DOMAINS = {'letsencrypt': ['letsencrypt.org'], 'letsencrypt-staging': ['letsencrypt.org']}
+# Google Trust Services offers it since September 2026 (pki.goog).
+ISSUER_DOMAINS = {'letsencrypt': ['letsencrypt.org'], 'letsencrypt-staging': ['letsencrypt.org'],
+                  'google': ['pki.goog'], 'google-staging': ['pki.goog']}
 LE_DIRECTORIES = ('https://acme-v02.api.letsencrypt.org/directory',
                   'https://acme-staging-v02.api.letsencrypt.org/directory')
 SOON_S = 30 * 86400             # a persistUntil this close is said
@@ -283,6 +285,8 @@ class DnsPersist(Challenge):
             return list(ISSUER_DOMAINS[preset])
         if directory in LE_DIRECTORIES:
             return ['letsencrypt.org']
+        if 'pki.goog' in str(directory or ''):
+            return ['pki.goog']
         seen = (self.ca_state(directory) or {}).get('issuer_domains') or []
         return [D.norm(x) for x in seen if D.norm(x)]
 
