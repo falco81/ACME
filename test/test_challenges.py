@@ -1391,6 +1391,26 @@ class TestHttpSsh(unittest.TestCase):
             '    location /.well-known/acme-challenge/ { root /srv/x; }\n}\n'),
     }
 
+    def test_guide_behind_nat(self):
+        # web servers on a private address, reached from the internet through a public one
+        m, _w, _s = self.module(hosts='192.168.43.17', check_name='acmewww.falco81.net')
+        dns = {'acmewww.falco81.net': ['195.189.0.26'], '192.168.43.17': ['192.168.43.17'],
+               'shop.falco81.net': ['195.189.0.26'], 'bad.falco81.net': ['192.168.43.17']}
+        m.lookup = lambda n, *a, **k: dns.get(n, [])
+        st = m._guide_points('test.falco81.net', ['192.168.43.17'])     # no record yet
+        self.assertFalse(st['done'])
+        self.assertEqual(st['record']['value'], '195.189.0.26')        # never the private one
+        self.assertIn('Public addresses', st['fix'])
+        st = m._guide_points('shop.falco81.net', ['192.168.43.17'])     # public: right (NAT)
+        self.assertTrue(st['done'])
+        st = m._guide_points('bad.falco81.net', ['192.168.43.17'])      # private: unreachable
+        self.assertFalse(st['done'])
+        self.assertIn('private address', st['said'])
+        # its own block for some names: the name being validated is added to it
+        m2, _w, _s = self.module(prepare_names='acmewww.falco81.net', prepare_how='own')
+        m2._extra_names = ['test.falco81.net']
+        self.assertIn('server_name acmewww.falco81.net test.falco81.net;', m2.nginx_block())
+
     def test_check_at_other_addresses(self):
         import socket
         from acmelib.plugins.challenges._common import pinned

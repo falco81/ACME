@@ -32335,6 +32335,322 @@
   "sv8082": {
    "source": "Built in: its servers, protocol and timeout may be changed; it keeps its name and cannot be deleted - the functions fall back to it.",
    "text": "Vestavěná: servery, protokol a časový limit lze změnit; jméno zůstává a nelze ji smazat – funkce se k ní vracejí."
+  },
+  "sp0001": {
+   "source": "An application of ours (acme push: otp, isemon, zigmon, acme)",
+   "text": "Naše aplikace (acme push: otp, isemon, zigmon, acme)"
+  },
+  "sp0002": {
+   "source": "The certificate put on another application of ours - its nodes, its VIP address, its server in front - through its Certificates and TLS, over HTTPS with a signed request and the key sealed to the application. Discover tells which certificates it needs.",
+   "text": "Certifikát vložený do jiné naší aplikace – na její uzly, VIP adresu, server vpředu – přes její Certifikáty a TLS, po HTTPS podepsaným požadavkem a s klíčem zapečetěným pro aplikaci. Objevit řekne, které certifikáty potřebuje."
+  },
+  "sp0003": {
+   "source": "Address of its administration",
+   "text": "Adresa její administrace"
+  },
+  "sp0004": {
+   "source": "as you open it in a browser: https://NAME/admin/ for otp and acme, https://NAME/ for isemon and zigmon. acme must be among the addresses that may reach those pages there.",
+   "text": "jak ji otevíráte v prohlížeči: https://JMÉNO/admin/ u otp a acme, https://JMÉNO/ u isemonu a zigmonu. acme musí patřit mezi adresy, které tam na tyto stránky smějí."
+  },
+  "sp0005": {
+   "source": "Pairing code",
+   "text": "Párovací kód"
+  },
+  "sp0006": {
+   "source": "Shown by the application at Settings → Certificates and TLS → Certificates from acme → Pair (15 minutes, once). Try pairs them; after that it is not needed.",
+   "text": "Ukáže ho aplikace v Nastavení → Certifikáty a TLS → Certifikáty z acme → Spárovat (15 minut, jednou). Vyzkoušet je spáruje; pak už není potřeba."
+  },
+  "sp0007": {
+   "source": "Check the application's certificate",
+   "text": "Kontrolovat certifikát aplikace"
+  },
+  "sp0008": {
+   "source": "off only while it still has a self-signed one - the pairing code still proves who answers, and the key travels sealed to it",
+   "text": "vypněte jen dokud má certifikát podepsaný sám sebou – párovací kód i tak prokáže, kdo odpovídá, a klíč k ní cestuje zapečetěný"
+  },
+  "sp0009": {
+   "source": "the CA of the application's current certificate, when not a public one",
+   "text": "CA současného certifikátu aplikace, pokud není veřejná"
+  },
+  "sp0010": {
+   "source": "Slots",
+   "text": "Sloty"
+  },
+  "sp0011": {
+   "source": "One a line: auto (each slot whose names the certificate holds), nodes, vip, this, or a slot's id from Discover (node:otp1, vip, front, broker...).",
+   "text": "Jeden na řádek: auto (každý slot, jehož jména certifikát obsahuje), nodes, vip, this, nebo id slotu z Objevit (node:otp1, vip, front, broker…)."
+  },
+  "sp0012": {
+   "source": "The certificate must hold the slot's names",
+   "text": "Certifikát musí obsahovat jména slotu"
+  },
+  "sp0013": {
+   "source": "off is taken only where the application allows it (Certificates from acme → Take certificates of other names)",
+   "text": "vypnutí platí jen tam, kde to aplikace dovolí (Certifikáty z acme → Brát certifikáty s jinými jmény)"
+  },
+  "sp0014": {
+   "source": "Check that it is served",
+   "text": "Ověřit, že se podává"
+  },
+  "sp0015": {
+   "source": "a TLS handshake to each slot's name (SNI) after the push, until the new certificate is served",
+   "text": "po vložení TLS handshake na jméno každého slotu (SNI), dokud se nepodává nový certifikát"
+  },
+  "sp0016": {
+   "source": "Check these instead",
+   "text": "Ověřit raději tyto"
+  },
+  "sp0017": {
+   "source": "host:port, one a line; empty: the names of the slots it went to",
+   "text": "host:port, jeden na řádek; prázdné: jména slotů, kam šel"
+  },
+  "sp0018": {
+   "source": "Discover",
+   "text": "Objevit"
+  },
+  "sp0019": {
+   "source": "Which certificates the application has, and needs - changes nothing",
+   "text": "Které certifikáty aplikace má a potřebuje – nic nemění"
+  },
+  "sp0020": {
+   "source": "Certificates from acme",
+   "text": "Certifikáty z acme"
+  },
+  "sp0021": {
+   "source": "An acme of yours can put its certificates on these pages - each node's and the VIP address's - and renew them by itself (acme push, docs/acme-push-protocol.md). Paired once, every request of it is signed, and the private key travels sealed to this server. Automatic certificates leaves the pages it puts them on alone.",
+   "text": "Vaše acme může na tyto stránky – každého uzlu i VIP adresy – vkládat své certifikáty a samo je obnovovat (acme push, docs/acme-push-protocol.md). Po jednom spárování je každý jeho požadavek podepsaný a soukromý klíč cestuje zapečetěný pro tento server. Automatické certifikáty pak stránky, kam je vloží, nechají být."
+  },
+  "sp0022": {
+   "source": "The pairing code",
+   "text": "Párovací kód"
+  },
+  "sp0023": {
+   "source": "Put it in acme: Targets → An application of ours (acme push) → Pairing code, with this address; then Try there. It is good for 15 minutes and once.",
+   "text": "Vložte ho do acme: Cíle → Naše aplikace (acme push) → Párovací kód, spolu s adresou těchto stránek; pak tam Vyzkoušet. Platí 15 minut a jednou."
+  },
+  "sp0024": {
+   "source": "Take no certificates from acme",
+   "text": "Nebrat certifikáty z acme"
+  },
+  "sp0025": {
+   "source": "acme can no longer put certificates here; the ones it put stay as they are. The pairings are kept.",
+   "text": "acme sem už nebude moci vkládat certifikáty; ty, které vložilo, zůstanou. Spárování zůstanou zachována."
+  },
+  "sp0026": {
+   "source": "Take certificates from acme",
+   "text": "Brát certifikáty z acme"
+  },
+  "sp0027": {
+   "source": "Paired with",
+   "text": "Spárováno s"
+  },
+  "sp0028": {
+   "source": "No acme yet: make a pairing code below, or paste acme’s key.",
+   "text": "Zatím žádné acme: níže vytvořte párovací kód, nebo vložte klíč acme."
+  },
+  "sp0029": {
+   "source": "by a pairing code",
+   "text": "párovacím kódem"
+  },
+  "sp0030": {
+   "source": "pasted",
+   "text": "vložený ručně"
+  },
+  "sp0031": {
+   "source": "Forget this acme",
+   "text": "Zapomenout toto acme"
+  },
+  "sp0032": {
+   "source": "It can put nothing here from then on. The certificates it put stay.",
+   "text": "Od té chvíle sem nic nevloží. Certifikáty, které vložilo, zůstanou."
+  },
+  "sp0033": {
+   "source": "A new pairing code",
+   "text": "Nový párovací kód"
+  },
+  "sp0034": {
+   "source": "Pair with an acme",
+   "text": "Spárovat s acme"
+  },
+  "sp0035": {
+   "source": "a pairing code waits",
+   "text": "párovací kód čeká"
+  },
+  "sp0036": {
+   "source": "Take it back",
+   "text": "Vzít zpět"
+  },
+  "sp0037": {
+   "source": "Take this key",
+   "text": "Přijmout tento klíč"
+  },
+  "sp0038": {
+   "source": "Paste acme’s key first",
+   "text": "Nejdřív vložte klíč acme"
+  },
+  "sp0039": {
+   "source": "Or paste acme’s key",
+   "text": "Nebo vložte klíč acme"
+  },
+  "sp0040": {
+   "source": "acme’s Try on the target says it when it is not paired yet.",
+   "text": "Vyzkoušet na cíli v acme ho vypíše, dokud nejsou spárované."
+  },
+  "sp0041": {
+   "source": "Take certificates of other names",
+   "text": "Brát certifikáty s jinými jmény"
+  },
+  "sp0042": {
+   "source": "Off: a certificate is taken only when it holds the name of the pages it goes to - a browser would refuse it there otherwise. On: acme may say not to check (its target’s option).",
+   "text": "Vypnuto: certifikát se přijme, jen když obsahuje jméno stránek, kam patří – prohlížeč by ho tam jinak odmítl. Zapnuto: acme smí říct, ať se to nekontroluje (volba jeho cíle)."
+  },
+  "sp0043": {
+   "source": "What acme sees here",
+   "text": "Co tu acme vidí"
+  },
+  "sp0044": {
+   "source": "from acme",
+   "text": "z acme"
+  },
+  "sp0045": {
+   "source": "put in by hand",
+   "text": "vložen ručně"
+  },
+  "sp0046": {
+   "source": "nothing yet",
+   "text": "zatím nic"
+  },
+  "sp0047": {
+   "source": "The last push",
+   "text": "Poslední vložení"
+  },
+  "sp0048": {
+   "source": "This server’s id",
+   "text": "Id tohoto serveru"
+  },
+  "sp0049": {
+   "source": "Its sealing key",
+   "text": "Jeho pečeticí klíč"
+  },
+  "sp0050": {
+   "source": "This acme’s own key",
+   "text": "Vlastní klíč tohoto acme"
+  },
+  "sp0051": {
+   "source": "For pasting into another application, when this acme puts certificates there (Targets → An application of ours). A pairing code there does the same without it.",
+   "text": "Pro vložení do jiné aplikace, když do ní toto acme dává certifikáty (Cíle → Naše aplikace). Párovací kód tam udělá totéž i bez něj."
+  },
+  "sp0052": {
+   "source": "certificates from acme are taken",
+   "text": "certifikáty z acme se přijímají"
+  },
+  "sp0053": {
+   "source": "certificates from acme are no longer taken",
+   "text": "certifikáty z acme se už nepřijímají"
+  },
+  "sp0054": {
+   "source": "the pairing code waits for acme for 15 minutes",
+   "text": "párovací kód čeká na acme 15 minut"
+  },
+  "sp0055": {
+   "source": "no pairing code waits now",
+   "text": "teď nečeká žádný párovací kód"
+  },
+  "sp0056": {
+   "source": "switch it on first",
+   "text": "nejdřív to zapněte"
+  },
+  "sp0057": {
+   "source": "a cluster",
+   "text": "cluster"
+  },
+  "sp0058": {
+   "source": "Slot",
+   "text": "Slot"
+  },
+  "sp0059": {
+   "source": "Has now",
+   "text": "Má teď"
+  },
+  "sp0060": {
+   "source": "Kept by",
+   "text": "Spravuje"
+  },
+  "sp0061": {
+   "source": "From acme",
+   "text": "Z acme"
+  },
+  "sp0062": {
+   "source": "follows another by itself",
+   "text": "sám se řídí jiným"
+  },
+  "sp0063": {
+   "source": "its own ACME",
+   "text": "jeho vlastní ACME"
+  },
+  "sp0064": {
+   "source": "cannot be put in",
+   "text": "nelze vložit"
+  },
+  "sp0065": {
+   "source": "needs nothing",
+   "text": "nepotřebuje nic"
+  },
+  "sp0066": {
+   "source": "not covered",
+   "text": "nepokrytý"
+  },
+  "sp0067": {
+   "source": "A full administrator can make the certificates for those not covered.",
+   "text": "Certifikáty pro nepokryté sloty může vytvořit plný administrátor."
+  },
+  "sp0068": {
+   "source": "Every slot that needs a certificate has one from acme.",
+   "text": "Každý slot, který certifikát potřebuje, ho má z acme."
+  },
+  "sp0069": {
+   "source": "A certificate for each slot",
+   "text": "Certifikát pro každý slot"
+  },
+  "sp0070": {
+   "source": "One certificate for all of them (every node’s name and the VIP address’s)",
+   "text": "Jeden certifikát pro všechny (jména všech uzlů i VIP adresy)"
+  },
+  "sp0071": {
+   "source": "the default source",
+   "text": "výchozí zdroj"
+  },
+  "sp0072": {
+   "source": "the default validation",
+   "text": "výchozí validace"
+  },
+  "sp0073": {
+   "source": "Each certificate is issued by itself and pushed to its slots; renewals the same.",
+   "text": "Každý certifikát se vydá sám a vloží se do svých slotů; obnovy stejně."
+  },
+  "sp0074": {
+   "source": "Make the certificates",
+   "text": "Vytvořit certifikáty"
+  },
+  "sp0075": {
+   "source": "Choose a slot first",
+   "text": "Nejdřív vyberte slot"
+  },
+  "sp0076": {
+   "source": "nothing to make",
+   "text": "není co vytvářet"
+  },
+  "su8159": {
+   "source": "Public addresses (NAT, load balancer)",
+   "text": "Veřejné adresy (NAT, load balancer)"
+  },
+  "su8160": {
+   "source": "The addresses the names point at when the web servers are reached through them - a public IP forwarded (NAT) to them, a load balancer: the guide takes a name pointing there as right and suggests it for a new name.",
+   "text": "Adresy, na které jména míří, když se k webovým serverům přistupuje přes ně – veřejná IP přesměrovaná (NAT) na servery, load balancer: průvodce bere jméno mířící sem jako správné a navrhne ji pro nové jméno."
+  },
+  "su8161": {
+   "source": "The name points at the public address that reaches the web servers",
+   "text": "Jméno míří na veřejnou adresu, přes kterou se jde na webové servery"
   }
  },
  "patterns": {
@@ -41697,6 +42013,46 @@
   "pv2340": {
    "source": "\"{0}\" keeps its name - the functions fall back to it",
    "text": "„{0}“ si ponechává jméno – funkce se k ní vracejí"
+  },
+  "pp0001": {
+   "source": "acme's key {0} is taken",
+   "text": "klíč acme {0} je přijat"
+  },
+  "pp0002": {
+   "source": "acme's key {0} is forgotten: it puts nothing here from now on",
+   "text": "klíč acme {0} je zapomenut: od teď sem nic nevloží"
+  },
+  "pp0003": {
+   "source": "{0} certificate(s) made - each is issued and pushed by itself",
+   "text": "vytvořeno certifikátů: {0} – každý se vydá a vloží sám"
+  },
+  "pu2344": {
+   "source": "{0} resolves to {1} - a public address; the web servers are on {2} (NAT): right when it forwards port 80 to them. Put it under \"Public addresses (NAT, load balancer)\" to say so.",
+   "text": "{0} míří na {1} – veřejnou adresu; webové servery jsou na {2} (NAT): správně, pokud ta přesměrovává port 80 na ně. Zapište ji do „Veřejné adresy (NAT, load balancer)“."
+  },
+  "pu2345": {
+   "source": "{0} resolves to {1} - a private address the CA cannot reach",
+   "text": "{0} míří na {1} – privátní adresu, na kterou CA nedosáhne"
+  },
+  "pu2346": {
+   "source": "Point {0} at the public address that reaches the web servers - {1}, as {2} has, and put it under \"Public addresses (NAT, load balancer)\"",
+   "text": "Nasměrujte {0} na veřejnou adresu, přes kterou se jde na webové servery – {1}, jako má {2}, a zapište ji do „Veřejné adresy (NAT, load balancer)“"
+  },
+  "pu2347": {
+   "source": "Point {0} at the public address that reaches the web servers, and put it under \"Public addresses (NAT, load balancer)\"",
+   "text": "Nasměrujte {0} na veřejnou adresu, přes kterou se jde na webové servery, a zapište ji do „Veřejné adresy (NAT, load balancer)“"
+  },
+  "pu2348": {
+   "source": "{0} answers HTTP on port {1} for {2}",
+   "text": "{0} odpovídá přes HTTP na portu {1} pro {2}"
+  },
+  "pu2349": {
+   "source": "nginx on {0} closed the connection for {1}: no server block answers that name (the default one refuses names it does not know). Leave \"Names acme's own block answers for\" empty, or add {2} there - with \"Set nginx up by itself\" on, the name being validated is added by itself - then \"Prepare the hosts\"",
+   "text": "nginx na {0} ukončil spojení pro {1}: na toto jméno neodpovídá žádný server blok (výchozí odmítá jména, která nezná). Nechte „Jména, pro která odpovídá vlastní blok acme“ prázdné, nebo tam přidejte {2} – se zapnutým „Nastavit nginx automaticky“ se ověřované jméno přidá samo – a pak „Připravit servery“"
+  },
+  "pu2350": {
+   "source": "Port {0} of {1} does not answer from acme - most likely its firewall (\"Open port 80 in their firewall\", or firewall-cmd --permanent --add-service=http)",
+   "text": "Port {0} na {1} z acme neodpovídá – nejspíš jeho firewall („Otevřít port 80 v jejich firewallu“, nebo firewall-cmd --permanent --add-service=http)"
   }
  },
  "rich": {

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import ipaddress
 import hashlib
 import os
 import posixpath
@@ -67,10 +68,11 @@ class HttpSsh(HttpChallenge):
               help='The name Test sends (Host, SNI) - Test has no certificate. Empty: the '
                    'address itself.'),
         field('check_port', 'HTTP port for the check', 'number', default=80, advanced=True),
-        field('balancer', 'Load balancer in front', 'list', default='', advanced=True,
-              placeholder='198.51.100.20',
-              help='The addresses the names point at when a load balancer stands in front of '
-                   'the web servers: the guide takes a name pointing there as right.'),
+        field('balancer', 'Public addresses (NAT, load balancer)', 'list', default='',
+              placeholder='195.189.0.26',
+              help='The addresses the names point at when the web servers are reached through '
+                   'them - a public IP forwarded (NAT) to them, a load balancer: the guide takes '
+                   'a name pointing there as right and suggests it for a new name.'),
         field('prepare_names', 'Names acme\'s own block answers for', 'list', default='',
               placeholder='www.example.com\nexample.com',
               help='acme\'s own server block on port 80 listens for these names only - not the '
@@ -240,7 +242,7 @@ class HttpSsh(HttpChallenge):
     def present(self, name, token, key_authorization, txt_value):
         n = self.check_name(name)
         self.check_token(token)
-        self.ensure_prepared()
+        self.ensure_prepared(D.norm(n))
         path = posixpath.join(self.webroot(), token)
         data = key_authorization.encode('ascii')
         done = []
@@ -341,6 +343,9 @@ class HttpSsh(HttpChallenge):
         """The server block written by prepare: the challenge files from the webroot,
         everything else to HTTPS (or 404)."""
         names = [n for n in as_list(self.c('prepare_names', '')) if n]
+        if names:
+            # the names being validated now, too: a block for some names only must answer them
+            names += [n for n in getattr(self, '_extra_names', []) if n not in names]
         for n in names:
             if not all(c.isalnum() or c in '.-*_' for c in n):
                 raise PluginError('"%s" is not a name for nginx' % n, retry=False)
@@ -692,9 +697,17 @@ class HttpSsh(HttpChallenge):
         self.ctx.step('%s: %s (%s)' % (host, words, self.nginx_conf()), 'ok')
         return words
 
-    def ensure_prepared(self):
-        """With "Set nginx up by itself": the block on every machine (once a job)."""
-        if not as_bool(self.c('auto_prepare', False)) or getattr(self, '_prepared', False):
+    def ensure_prepared(self, name=None):
+        """With "Set nginx up by itself": the block on every machine (once a job, and
+        again for a name its block does not answer yet)."""
+        if not as_bool(self.c('auto_prepare', False)):
+            return
+        extra = getattr(self, '_extra_names', [])
+        if name and as_list(self.c('prepare_names', '')) and name not in extra and \
+                name not in as_list(self.c('prepare_names', '')):
+            self._extra_names = extra + [name]
+            self._prepared = False
+        if getattr(self, '_prepared', False):
             return
         self.webroot()
         self.nginx_conf()
@@ -843,14 +856,62 @@ class HttpSsh(HttpChallenge):
         finally:
             self.http_port = old_port
 
+    @staticmethod
+    def _private(a):
+        try:
+            ip = ipaddress.ip_address(str(a).strip('[]'))
+        except ValueError:
+            return False
+        return ip.is_private or ip.is_loopback or ip.is_link_local
+
+    def _public_hint(self):
+        """(address, name) of a public address the web servers are reached at, from a
+        name this validation knows (Name for Test, the names of its own block)."""
+        for nm in [self.c('check_name', '')] + as_list(self.c('prepare_names', '')):
+            nm = D.norm(nm)
+            if not nm or not any(c.isalpha() for c in nm):
+                continue
+            for a in self.lookup(nm) or []:
+                if not self._private(a):
+                    return a, nm
+        return None, None
+
+    def _guide_points(self, n, addrs):
+        front = as_list(self.c('balancer', ''))
+        home = D.registrable(n)
+        if front or not addrs or not all(self._private(a) for a in addrs):
+            return self.guide_points(
+                n, front + addrs, (front or addrs or [''])[0],
+                'Point %s at the web servers (%s); if they are reached through a public '
+                'address (NAT) or a load balancer, put it under "Public addresses (NAT, load '
+                'balancer)"' % (n, ', '.join(addrs)), soft=not front)
+        # The web servers have private addresses: the CA reaches them through a public one.
+        got = self.lookup(n) or []
+        title = 'The name points at the public address that reaches the web servers'
+        pub = [a for a in got if not self._private(a)]
+        if pub:
+            return guide_step('address', title, where='your DNS at %s' % home, done=True,
+                              said='%s resolves to %s - a public address; the web servers are '
+                                   'on %s (NAT): right when it forwards port 80 to them. Put it '
+                                   'under "Public addresses (NAT, load balancer)" to say so.'
+                                   % (n, ', '.join(pub), ', '.join(addrs)))
+        hint, by = self._public_hint()
+        rec = {'name': n, 'type': 'AAAA' if hint and ':' in hint else 'A', 'value': hint,
+               'ttl': None} if hint else None
+        if got:
+            said = '%s resolves to %s - a private address the CA cannot reach' % (
+                n, ', '.join(got))
+        else:
+            said = '%s has no A or AAAA record' % n
+        fix = ('Point %s at the public address that reaches the web servers%s, and put it '
+               'under "Public addresses (NAT, load balancer)"' % (
+                   n, (' - %s, as %s has' % (hint, by)) if hint else ''))
+        return guide_step('address', title, where='your DNS at %s' % home, record=rec,
+                          done=False, said=said, fix=fix)
+
     def _guide(self, n, hosts):
         addrs = self.answering(n)
-        front = as_list(self.c('balancer', ''))
-        steps = [self.guide_points(
-            n, front + addrs, (front or addrs or [''])[0],
-            'Point %s at the web servers (%s); if a load balancer stands in front of them, put '
-            'its address under "Load balancer in front"' % (n, ', '.join(addrs)),
-            soft=not front)]
+        steps = [self._guide_points(n, addrs)]
         for host, port in hosts:
             where = 'the web server %s' % host
             try:
@@ -864,21 +925,33 @@ class HttpSsh(HttpChallenge):
                                         fix='Put acme\'s public key into ~%s/.ssh/authorized_keys '
                                             'there, and pin the host key (docs/validation.md)'
                                             % (self.c('user', 'acme') or 'acme')))
-            url = self.url(host, 'acme-guide-' + binascii.hexlify(os.urandom(6)).decode())
+            url = self.url(n, 'acme-guide-' + binascii.hexlify(os.urandom(6)).decode())
+            title = '%s answers HTTP on port %d for %s' % (host, self.http_port, n)
             try:
-                st, _h, _b = self.ctx.http('GET', url, headers={'Host': n,
-                                                                 'User-Agent': 'acme-guide'},
-                                           timeout=10, verify=False, proxy=False)
-                steps.append(guide_step(
-                    'web', '%s answers HTTP on port %d' % (host, self.http_port), where=where,
-                    done=True, said='it answers (%s for a file that is not there)' % st))
+                with pinned({n: host}):             # the name's URL, connected to this machine
+                    st, _h, _b = self.ctx.http('GET', url, headers={'User-Agent': 'acme-guide'},
+                                               timeout=10, verify=False, proxy=False)
+                steps.append(guide_step('web', title, where=where, done=True,
+                                        said='it answers (%s for a file that is not there)' % st))
             except Exception as e:                      # noqa: BLE001
-                steps.append(guide_step(
-                    'web', '%s answers HTTP on port %d' % (host, self.http_port), where=where,
-                    done=False, said=str(e) or type(e).__name__,
-                    fix='Open port %d on %s and serve /.well-known/acme-challenge/ from %s (the '
-                        'action "Prepare the hosts" writes the nginx block)'
-                        % (self.http_port, host, self.webroot())))
+                said = str(e) or type(e).__name__
+                low = said.lower()
+                if 'closed connection' in low or 'remote end closed' in low or 'reset' in low:
+                    fix = ('nginx on %s closed the connection for %s: no server block answers '
+                           'that name (the default one refuses names it does not know). Leave '
+                           '"Names acme\'s own block answers for" empty, or add %s there - with '
+                           '"Set nginx up by itself" on, the name being validated is added by '
+                           'itself - then "Prepare the hosts"' % (host, n, n))
+                elif 'no route' in low or 'refused' in low or 'timed out' in low:
+                    fix = ('Port %d of %s does not answer from acme - most likely its firewall '
+                           '("Open port 80 in their firewall", or firewall-cmd --permanent '
+                           '--add-service=http)' % (self.http_port, host))
+                else:
+                    fix = ('Open port %d on %s and serve /.well-known/acme-challenge/ from %s '
+                           '(the action "Prepare the hosts" writes the nginx block)'
+                           % (self.http_port, host, self.webroot()))
+                steps.append(guide_step('web', title, where=where, done=False, said=said,
+                                        fix=fix))
         return steps
 
     def seen_outside(self, name, handle):
