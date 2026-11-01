@@ -4354,6 +4354,10 @@ function selfSigned() {
       f.C = textBox('', 'CZ', '');
       noI18n(f.C);
       g.appendChild(formField('Country', f.C));
+      f.owner = ownerBox('');
+      g.appendChild(formField('Owner', f.owner, 'Who it belongs to (Settings → Owners and teams).'));
+      f.tags = tagsBox([]);
+      g.appendChild(formField('Tags', f.tags));
       if (mine.length > 1) {
         f.src = selectBox(mine.map(function (s) { return [s.name, s.name]; }), mine[0].name);
         noI18n(f.src);
@@ -4375,7 +4379,8 @@ function selfSigned() {
         if (f.C.value.trim()) subject.C = f.C.value.trim();
         return capi('certs/save', {name: f.name.value.trim() || certName(list[0]), names: list, key_type: f.key.value, issuer: s,
           challenge: '', challenge_map: {}, auto_renew: !!f.auto._get(), renew_days: 30, reuse_key: false,
-          profile: {days: Number(f.days.value || 825), eku: ['serverAuth'], subject: subject}, tags: [], note: '', owner: ''});
+          profile: {days: Number(f.days.value || 825), eku: ['serverAuth'], subject: subject},
+          tags: splitNames(f.tags.value), note: '', owner: f.owner.value || ''});
       }).then(function (d) {
         CT.refresh();
         return capi('certs/renew', {id: d.id, force: true}).then(function (x) { closeModal(); jobStarted(x, 'issuing'); },
@@ -4408,6 +4413,10 @@ function csrDialog() {
       noI18n(f[x[0]]);
       g.appendChild(formField(x[1], f[x[0]]));
     });
+    f.owner = ownerBox('');
+    g.appendChild(formField('Owner', f.owner, 'Who it belongs to (Settings → Owners and teams).'));
+    f.tags = tagsBox([]);
+    g.appendChild(formField('Tags', f.tags));
     body.appendChild(g);
   }, [{words: 'Close', close: true}, {words: 'Make the CSR', cls: 'primary', icon: 'key', go: function (b) {
     var list = splitNames(f.names.value);
@@ -4417,7 +4426,8 @@ function csrDialog() {
     busy(b, true);
     capi('certs/save', {name: f.name.value.trim() || certName(list[0]), names: list, key_type: f.key.value, issuer: '', source: 'csr',
                         challenge: '', challenge_map: {}, auto_renew: false, renew_days: 30, reuse_key: false,
-                        profile: {subject: subject}, tags: [], note: '', owner: ''}).then(function (d) {
+                        profile: {subject: subject}, tags: splitNames(f.tags.value), note: '',
+                        owner: f.owner.value || ''}).then(function (d) {
       CT.refresh();
       return capi('certs/csr', {id: d.id}).then(function (x) { showCsr({id: d.id, name: f.name.value.trim() || certName(list[0])}, x.csr_pem || x.csr || ''); });
     }).catch(fail).then(function () { busy(b, false); });
