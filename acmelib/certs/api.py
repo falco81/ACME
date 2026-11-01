@@ -1304,6 +1304,33 @@ def _family_routes(family, path):
                 'there is no default now'}
 
 
+# ---- HTTP-01 answered by acme (http_local): how it works here -----------------------
+@api('GET', '/api/validations/info')
+def _validation_info(h, s):
+    """?name= (or id=) - the URL the CA fetches, the nodes and the VIP address
+    that answer it, port 80 in their firewall, the names that use it and where
+    each points (httpinfo.info)."""
+    row = S.plugin_row(h.store, 'challenge', h.arg('id') or h.arg('name'))
+    if not row:
+        raise LookupError('there is no such validation')
+    return _lib('httpinfo').info(h.store, row)
+
+
+@api('POST', '/api/validations/check', 'certadmin')
+def _validation_check(h, s):
+    """{id|name, host} - a probe token fetched at http://HOST/.well-known/
+    acme-challenge/ from here, in a job."""
+    b = h.body()
+    row = S.plugin_row(h.store, 'challenge', b.get('id') if b.get('id') not in (None, '', 0)
+                       else b.get('name'))
+    if not row:
+        raise LookupError('there is no such validation')
+    host = _text(b, 'host', 253).strip()
+    if not host:
+        raise ValueError('which name?')
+    return _lib('httpinfo').check(h.store, row, host, who(s))
+
+
 _family_routes('issuer', 'sources')
 _family_routes('challenge', 'validations')
 _family_routes('target', 'targets')

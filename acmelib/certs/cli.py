@@ -10,12 +10,14 @@ process, their steps printed as they come. --json answers JSON.
                    --revoke --csr --csr-answer --import --export --selfsigned
                    --jobs --job --job-stop --acme-contact
     modules        --sources --validations --targets (lists), --source NAME ...,
-                   --source-add/-edit/-del/-test/-action (and validation-, target-),
+                   --source-add/-edit/-del/-test/-action/-default (and validation-,
+                   target-), --validation-check NAME HOST,
                    --plugins, --plugin NAME
     deployments    --deploys [CERT] --deploy-add CERT TARGET --deploy-edit ID
                    --deploy-del ID --deploy-run ID
     authorities    --cas --ca-show --ca-create --ca-sub --ca-import --ca-revoke --ca-crl
-                   --ca-export --ca-sign --ca-del
+                   --ca-export --ca-sign --ca-del --ca-default --ca-publish
+                   --ca-pki-urls --ca-pki-check
     DNS server     --dns-records --dns-add --dns-del
 
 A module's settings are --set KEY=VALUE (again for more), checked against the
@@ -44,7 +46,9 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'source_show', 'source_add', 'source_edit', 'source_del', 'source_test', 'source_action',
         'validation_show', 'validation_add', 'validation_edit', 'validation_del',
         'validation_test', 'validation_action',
-        'target_show', 'target_add', 'target_edit', 'target_del', 'target_action')
+        'target_show', 'target_add', 'target_edit', 'target_del', 'target_action',
+        'source_default', 'validation_default', 'target_default', 'ca_default',
+        'ca_publish', 'ca_pki_urls', 'ca_pki_check', 'validation_check')
 
 # family: (the word of the options, the API's path, the words of one)
 FAMILIES = {'issuer': ('source', 'sources', 'source'),
@@ -142,6 +146,14 @@ def add_args(p):
         g.add_argument('--%s-action' % word, dest='%s_action' % word, nargs=2,
                        metavar=('NAME', 'ACTION'), help='one of its module\'s actions (acme '
                        '--plugin KIND says which), e.g. --validation-action web prepare')
+        g.add_argument('--%s-default' % word, dest='%s_default' % word, metavar='NAME',
+                       help='make it the default %s (%s); none: no default' % (
+                           word, {'issuer': 'a new certificate comes from it',
+                                  'challenge': 'a new ACME certificate is proved by it',
+                                  'target': 'offered first for a new deployment'}[fam]))
+    g.add_argument('--validation-check', nargs=2, metavar=('NAME', 'HOST'),
+                   help='HTTP-01 answered by acme: a probe token put in place and fetched at '
+                        'http://HOST/.well-known/acme-challenge/ from here, step by step')
     g.add_argument('--target-test', metavar='NAME', help='try a target: reach it, sign in, '
                    'change nothing')
     g.add_argument('--kind', metavar='KIND', help='with --*-add, --*-edit: the module '
@@ -189,6 +201,14 @@ def add_args(p):
     g.add_argument('--ca-sign', metavar='CA', help='sign a CSR from elsewhere: --csr FILE '
                    '[--days] [--set eku=serverAuth,clientAuth] [--out]')
     g.add_argument('--ca-del', metavar='CA', help='delete an authority no source uses (--yes)')
+    g.add_argument('--ca-default', metavar='CA', help='make it the default authority (offered '
+                   'first for an own-CA source and for signing a CSR); none: no default')
+    g.add_argument('--ca-publish', nargs=2, metavar=('CA', 'on|off'), help='its CRL and '
+                   'certificate published on acme at /pki/ (port 80), or not')
+    g.add_argument('--ca-pki-urls', metavar='CA', help='acme\'s own /pki/ addresses put into '
+                   'what it signs from now on (CRL and CA certificate)')
+    g.add_argument('--ca-pki-check', metavar='CA', help='its published CRL and certificate '
+                   'fetched over HTTP from here and checked with openssl')
 
     g = p.add_argument_group('CERTIFICATES: ACME\'S OWN DNS SERVER')
     g.add_argument('--dns-records', action='store_true', help='what acme\'s own DNS server '
@@ -481,14 +501,22 @@ class Cli(object):
                 return self.fam_action(fam, *getattr(a, '%s_action' % word))
             if fam != 'target' and getattr(a, '%s_test' % word, None):
                 return self.fam_test(fam, getattr(a, '%s_test' % word))
+            if getattr(a, '%s_default' % word, None) is not None:
+                return self.fam_default(fam, getattr(a, '%s_default' % word))
             if getattr(a, '%s_show' % word, None):
                 return self.fam_show(fam, getattr(a, '%s_show' % word))
+        if getattr(a, 'validation_check', None):
+            return self.validation_check(*a.validation_check)
+        if getattr(a, 'ca_default', None) is not None:
+            return self.ca_default()
         steps = [('cert_add', self.cert_add), ('cert_edit', self.cert_edit),
                  ('cert_del', self.cert_del), ('selfsigned', self.selfsigned),
                  ('ca_create', self.ca_create), ('ca_sub', self.ca_create),
                  ('ca_import', self.ca_import), ('ca_revoke', self.ca_revoke),
                  ('ca_crl', self.ca_crl), ('ca_export', self.ca_export),
                  ('ca_sign', self.ca_sign), ('ca_del', self.ca_del), ('ca_show', self.ca_show),
+                 ('ca_publish', self.ca_publish), ('ca_pki_urls', self.ca_pki_urls),
+                 ('ca_pki_check', self.ca_pki_check),
                  ('import_file', self.do_import), ('renew', self.renew),
                  ('revoke', self.revoke), ('csr_answer', self.csr_answer), ('csr', self.csr),
                  ('deploy_add', self.deploy_add), ('deploy_edit', self.deploy_edit),
@@ -1042,7 +1070,64 @@ class Cli(object):
         if fam == 'target':
             print(p.head('\ndeployments'))
             self._deploy_table(deps, target=False)
+        if fam == 'challenge':
+            self.http_info(row)
         return 0
+
+    def http_info(self, row):
+        """HTTP-01 answered by acme: how it works here (GET /api/validations/info)."""
+        got = self.api('GET', '/api/validations/info', args={'id': str(row['id'])})
+        if not got.get('applies'):
+            return
+        p = self.pal
+        print(p.head('\nhow it works here'))
+        print('  the CA fetches  http://NAME%s<token>  (port 80, plain HTTP - the path is '
+              'fixed by the ACME standard, RFC 8555)' % got['path'])
+        rows = [[n['name'] + (' (this one)' if n.get('me') else ''), n.get('dns') or '-',
+                 n.get('address') or '-', 'alive' if n.get('alive') else p.bad('not heard'),
+                 'holds the VIP' if n.get('vip_here') else ''] for n in got['nodes']]
+        v = got.get('vip') or {}
+        if v.get('on'):
+            rows.append(['VIP', v.get('fqdn') or '-', ', '.join(x for x in (
+                v.get('address'), v.get('address6')) if x) or '-', '',
+                'on %s' % v['holder'] if v.get('holder') else ''])
+        self.table(rows, ['answered by', 'name', 'address', '', ''])
+        print(p.head('\nport 80'))
+        self.table([[f['node'], ('open' if f.get('open') else p.bad('closed')) if
+                     f.get('open') is not None else '?',
+                     'from anywhere' if f.get('from_anywhere') else '', f.get('why') or '']
+                    for f in got.get('firewall') or []], ['node', 'port 80', '', 'why'])
+        print(p.head('\nnames proved by it'))
+        if not got.get('names'):
+            print('  ' + p.dim('no certificate uses it yet'))
+        else:
+            self.table([[n['name'], n.get('cert') or '', ', '.join(n.get('addresses') or [])
+                         or '-', (p.good('✔') if n.get('ours') else p.bad('✘') if
+                                  n.get('ours') is False else '?'), _short(n.get('words'), 90)]
+                        for n in got['names']], ['name', 'certificate', 'resolves to', '',
+                                                 'what that means'])
+        if got.get('names_more'):
+            print('  ' + p.dim('and %d more' % got['names_more']))
+        print(p.dim('\n  acme --validation-check %s NAME   fetches a probe token at that name '
+                    'from here' % row['name']))
+
+    def validation_check(self, name, host):
+        row = self.fam_row('challenge', name)
+        got = self.api('POST', '/api/validations/check', body={'id': row['id'], 'host': host})
+        if self.json:
+            self.out(got)
+            return 0 if got.get('ok') else 1
+        for st in got.get('steps') or []:
+            self.echo(st)
+        return self.done(got.get('said') or '', got, ok=bool(got.get('ok')))
+
+    def fam_default(self, fam, name):
+        word, path, _o = FAMILIES[fam]
+        name = '' if str(name).strip().lower() in ('', 'none', '-') else name
+        if name:
+            name = self.fam_row(fam, name)['name']
+        got = self.api('POST', '/api/%s/default' % path, body={'name': name})
+        return self.done(got.get('message') or 'done', got)
 
     def _enabled(self):
         e = self.args.enabled
@@ -1341,6 +1426,46 @@ class Cli(object):
                    ['id', 'authority', 'under', 'key', 'ends', 'can sign', 'signed', 'subject'])
         return 0
 
+    def ca_default(self):
+        ref = str(self.args.ca_default).strip()
+        ident = '' if ref.lower() in ('', 'none', '-') else self.ca_ref(ref)['id']
+        got = self.api('POST', '/api/cas/default', body={'id': ident})
+        return self.done(got.get('message') or 'done', got)
+
+    def ca_publish(self):
+        ca, yes = self.args.ca_publish
+        if yes.lower() not in ('on', 'off'):
+            raise SystemExit('acme: --ca-publish CA on|off')
+        r = self.ca_ref(ca)
+        got = self.api('POST', '/api/cas/publish', body={'id': r['id'],
+                                                         'published': yes.lower() == 'on'})
+        pki = got.get('pki') or {}
+        words = got.get('message') or ''
+        if yes.lower() == 'on' and not pki.get('on'):
+            words += ' - but publishing is switched off (pki_publish)'
+        elif yes.lower() == 'on':
+            words += ': %s' % (pki.get('urls') or {}).get('crl', '')
+        return self.done(words, got)
+
+    def ca_pki_urls(self):
+        r = self.ca_ref(self.args.ca_pki_urls)
+        got = self.api('POST', '/api/cas/pki_urls', body={'id': r['id']})
+        return self.done('%s: CRL %s, CA certificate %s - for what it signs from now on' % (
+            r['name'], got.get('crl_url'), got.get('aia_url')), got)
+
+    def ca_pki_check(self):
+        r = self.ca_ref(self.args.ca_pki_check)
+        got = self.api('POST', '/api/cas/pki_check', body={'id': r['id']})
+        if self.json:
+            self.out(got)
+            return 0 if got.get('ok') else 1
+        p = self.pal
+        for level, words in got.get('steps') or []:
+            mark = {'ok': p.good('ok  '), 'bad': p.bad('bad '), 'warn': p.warn('warn')}.get(
+                level, p.dim('    '))
+            print('  %s %s' % (mark, words))
+        return 0 if got.get('ok') else 1
+
     def ca_ref(self, ref):
         from acmelib.certs import api
         try:
@@ -1364,7 +1489,22 @@ class Cli(object):
                  ('sha-256', r.get('fingerprint')), ('path length', r.get('path_len')),
                  ('CRL', 'every %s days, last %s' % (r.get('crl_days'), _when(r.get('crl_at')))),
                  ('CRL address', r.get('crl_url')), ('AIA address', r.get('aia_url')),
-                 ('under it', ', '.join(got.get('children') or []))])
+                 ('under it', ', '.join(got.get('children') or [])),
+                 ('default', 'yes - offered first' if ca.get('is_default') else '')])
+        pki = got.get('pki') or {}
+        if pki.get('urls'):
+            u = pki['urls']
+            print(p.head('\npublished on acme'))
+            self.kv([('published', 'yes' if pki.get('published') else (
+                'no - publishing is off (pki_publish)' if not pki.get('on') else
+                'no - its switch is off (acme --ca-publish %s on)' % r['name'])),
+                ('CRL', u.get('crl')), ('CRL (PEM)', u.get('crl_pem')),
+                ('certificate', u.get('cert')), ('certificate (PEM)', u.get('cert_pem')),
+                ('last CRL', _when(pki.get('this_update'))),
+                ('next update', _when(pki.get('next_update'))),
+                ('made again', _when(pki.get('refresh_due'))),
+                ('in what it signs', 'acme\'s own addresses' if pki.get('own_urls') else
+                 'other addresses (acme --ca-pki-urls %s)' % r['name'])])
         print(p.head('\nwhat it signed'))
         self.table([[i.get('serial'), _short(i.get('subject_dn') or i.get('names'), 40),
                      _when(i.get('not_after'), '%Y-%m-%d'),
