@@ -398,6 +398,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/certs.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/certs.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/certs.css')) ?>">
 <?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/sshkey.css')): ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/sshkey.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/sshkey.css')) ?>">
+<?php endif; ?>
 </head>
 <body class="app-shell fold-words<?= $me ? ' framed' : '' ?>">
 <div class="wrap">
@@ -1497,6 +1500,9 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <script nonce="<?= h($nonce) ?>" src="/assets/admin.js?v=<?= h(ACME_VERSION) ?>"></script>
 <?php if (is_file(dirname(__DIR__) . '/assets/certs.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/certs.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/certs.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/sshkey.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/sshkey.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/sshkey.js')) ?>"></script>
 <?php endif; ?>
 </body>
 </html>

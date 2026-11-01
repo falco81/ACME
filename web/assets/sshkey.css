@@ -1,0 +1,47 @@
+/* sshkey.css - the SSH key card of a module's form (sshkey.js), with the rules
+   of isemon's stylesheet (isemon 1.10.276) acme.css does not carry: a value
+   beside its name (.kv), and the steps of a guide. Scoped to the card and its
+   popups, so nothing else on the page changes. */
+.sshk.card{margin:4px 0 0;padding:16px 18px;border:1px solid var(--line);border-radius:14px;
+  background:var(--panel)}
+.sshk.card > h2{display:flex;align-items:baseline;gap:10px;margin:0 0 6px;font-size:15px}
+.sshk.card > h2 .right{margin-left:auto;font-size:13px;font-weight:500;color:var(--tx-dim)}
+.sshk > p.note{margin:0 0 10px}
+/* ---- what a value looks like beside its name (isemon) ------------------- */
+.sshk .kv{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;
+    font-size:14px;gap:12px;border-bottom:1px solid rgba(38,44,55,.5)}
+.sshk .kv:last-child{border-bottom:0}
+.sshk .kv .k{color:var(--tx-dim)} .sshk .kv .v{font-weight:600;text-align:right;word-break:break-word}
+.sshk .kv .d{display:block;color:var(--tx-mut);font-size:12px;font-weight:400}
+.sshk .kv .v.sshk-fp .mono{font-size:12.5px}
+.sshk .sshk-draft{margin:8px 0 0;color:var(--warn)}
+/* a box inside a card: one job, set apart from the rest of it (isemon) */
+.sshk .subpanel{border:1px solid var(--line);border-radius:12px;background:var(--panel2);
+          padding:14px 16px}
+.sshk .subpanel > p.note:first-child{margin-top:0}
+.sshk .btnrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.sshk .btnrow .spacer{flex:1}
+.sshk .btnhelp{color:var(--tx-mut);font-size:12.5px;margin:6px 0 4px}
+/* ---- the guide (isemon's .guide-step ...) -------------------------------- */
+.sshk-guide .guide-step{margin:0 0 16px}
+.sshk-guide .guide-head{display:flex;align-items:center;gap:10px;font-weight:700;margin-bottom:6px}
+.sshk-guide .guide-n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
+  border-radius:50%;background:var(--info-bg);color:var(--info);font-size:12.5px;flex:none}
+.sshk-guide .guide-words{color:var(--tx-dim);line-height:1.55;padding-left:34px}
+.sshk-guide .guide-words ul{margin:6px 0 6px 18px;padding:0}
+.sshk-guide .guide-words li{margin:2px 0}
+.sshk-guide .guide-code{position:relative;margin:8px 0 0 34px}
+.sshk-guide .guide-code pre{margin:0;padding-right:84px}
+.sshk-guide .guide-code .btn{position:absolute;top:6px;right:6px}
+.sshk-guide .guide-note{margin:0 0 14px;padding:10px 12px;border-radius:10px;background:var(--panel2);
+  color:var(--tx-dim);line-height:1.55}
+.sshk-guide .guide-note.warn{background:var(--warn-bg);color:var(--tx)}
+/* the steps of Try reaching it */
+.sshk-steps .sshk-step.ok span{color:var(--ok)}
+.sshk-steps .sshk-step.warn span{color:var(--warn)}
+.sshk-steps .sshk-step.bad span{color:var(--crit)}
+@media (max-width:640px){
+  .sshk .btnrow .spacer{display:none}
+  .sshk .kv{flex-direction:column;align-items:flex-start;gap:2px}
+  .sshk .kv .v{text-align:left}
+}
