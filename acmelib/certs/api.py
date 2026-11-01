@@ -418,7 +418,7 @@ def start_deploy(store, ref, deploy_id, by):
             raise LookupError('that deployment is not one of %s' % row['name'])
         only = [d['id']]
     try:
-        return jobs.submit(store, 'deploy', deployer.deploy_job(row['id'], only),
+        return jobs.submit(store, 'deploy', deployer.deploy_job(row['id'], only, force=True),
                            cert_id=row['id'], deploy_id=only[0] if only else None, by=by,
                            said='asked by %s' % by)
     except ValueError as e:

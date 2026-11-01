@@ -11,8 +11,9 @@ Commands are run **as root** on the node named in the step. In the examples:
 | second node | `acme2`, `192.0.2.12` |
 | VIP address or load balancer | `192.0.2.10`, `acme.example.cz` |
 | network | `192.0.2.0/24` |
-| VPN concentrators (RADIUS clients) | `198.51.100.1`, `198.51.100.2` |
-| operating system | AlmaLinux 9.4 or later (9.x) |
+| a target (a web server acme deploys to over SSH) | `web1.example.cz`, `198.51.100.1` |
+| operating system | AlmaLinux 9.4 or later (9.x), or 10 |
+| Python, PHP | 3.14 (`python3.14`), PHP-FPM 8.3 |
 | PostgreSQL | 16, from AlmaLinux AppStream (`postgresql:16` module stream) |
 
 Put your own names and addresses in.
@@ -44,7 +45,7 @@ F5, NetScaler, keepalived/LVS).
 14. [Changing a node's address or name](#14-changing-a-nodes-address-or-name)
 15. [Copies of the database, and putting one back](#15-copies-of-the-database-and-putting-one-back)
 16. [Back from PostgreSQL to SQLite](#16-back-from-postgresql-to-sqlite)
-17. [The key of the tokens](#17-the-key-of-the-tokens)
+17. [The sealing key](#17-the-sealing-key)
 18. [Lost administrator password](#18-lost-administrator-password)
 19. [Certificates and the VIP address](#19-certificates-and-the-web-address)
 20. [The picture on the sign-in](#20-the-picture-on-the-sign-in)
@@ -56,7 +57,7 @@ F5, NetScaler, keepalived/LVS).
 
 ```bash
 acme                         # what it is doing (= acme --status)
-acme --check                 # every part checked: key, copies, PHP, clients, realms, directories
+acme --check                 # every part checked: key, copies, PHP, the database, the ports
 acme --ha-status             # the nodes, and both directions of replication
 acme --ha-compare            # every table counted here and on the other node
 acme --web-status            # certificates, TLS settings, where the VIP address is
@@ -64,11 +65,13 @@ acme --maintenance status    # in service or not (exit 3 while in maintenance)
 acme --maintenance on --why "reason"   /   acme --maintenance off
 acme --backup                # a copy of the database now (with the key beside it)
 acme --events --limit 50     # what happened
-acme --log --rejects         # who was refused, and why
+acme --certs                 # every certificate, its state and days left
+acme --jobs --limit 20       # the last renewals and deployments; acme --job ID for every step
+acme --renew NAME            # renew one now (all: every one due), the steps as they come
 journalctl -u acme -n 100    # the service's own log; also /var/log/acme/acme.log
 ```
 
-What the pages do, from the command line too (1.0.187) - for a server
+What the pages do, from the command line too - for a server
 installed `--no-web`, or with its pages down:
 
 ```bash
@@ -79,11 +82,10 @@ acme --updates check         # look for them now;  start [--node A,B] [--reboot 
 acme --restart-nodes all     # restart the machines one at a time, the service kept (--yes)
 acme --restarts              # how the restarts went
 acme --mail-test a@b.cz      # a test mail, every step said;  --sms-test +420...
-acme --ssh-tokens            # SSH tokens;  --ssh-token-add NAME [--by mail|sms --to ...]  /  --ssh-token-del NAME
 acme --lockouts              # who is locked out, on every node;  --lockouts-clear all|KIND:WHO
 acme --set smtp_password=-   # a secret: asked for (or one line of stdin, or ACME_VALUE_SMTP_PASSWORD)
 acme --set backup_at=02:30 --node acme2      # a node's own setting for another node ('*': the cluster's)
-acme --siem-test / --proxy-test / --snmp-test / --snmp-trap / --isemon-test   # from every node (1.0.188)
+acme --siem-test / --proxy-test / --snmp-test / --snmp-trap / --isemon-test   # from every node
 acme --db-tls ; acme --db-tls-probe verify-full ; acme --db-tls-apply server|connect --yes
 acme --isemon-tls ; acme --isemon-tls-probe isemon.example.cz:6514
 acme --tls-csr acme.example.cz --names acme.example.cz,acme1.example.cz   # then --tls-import
@@ -98,10 +100,11 @@ What lives where:
 
 | | |
 |---|---|
-| program | `/usr/local/lib/acme/` (`acme` command: `/usr/local/bin/acme`) |
+| program | `/usr/local/lib/acme/current` → `versions/X.Y.Z-STAMP/` (the one before: `previous`); `acme` command: `/usr/local/bin/acme` |
+| your own modules | `/etc/acme/plugins/{issuers,challenges,targets}/` |
 | configuration (database address, cluster wiring) | `/etc/acme/config.json` |
-| everything else (settings, tokens, accounts, logs) | the database |
-| key that seals the tokens | `/var/lib/acme/secrets.key` |
+| everything else (settings, certificates, keys, accounts, jobs, logs) | the database |
+| key that seals the private keys and secrets | `/var/lib/acme/secrets.key` |
 | copies of the database | `/var/lib/acme/backups/` (each with its `.key`) |
 | service | `acme.service` (user `acme`) |
 | pages | `/var/www/acme/`, nginx `/etc/nginx/conf.d/acme.conf` |
@@ -112,14 +115,19 @@ What lives where:
 
 **Before you start**
 
-- AlmaLinux 9.x, minimal, with network and DNS working, and the clock right:
-  `timedatectl` must say `System clock synchronized: yes` (chrony). TOTP codes
-  are time based: a clock that is off by more than about 30 s refuses codes.
+- AlmaLinux 9.x or 10, minimal, with network and DNS working, and the clock
+  right: `timedatectl` must say `System clock synchronized: yes` (chrony) -
+  certificates, the CAs' answers and the cluster's leases are read against it.
+- Python 3.14 (`dnf install python3.14` where AppStream has it; install.sh
+  does it, and stops if it cannot) and PHP-FPM 8.3 (`php:8.3`, install.sh
+  enables it).
 - A DNS name for the server (`acme1.example.cz`), and later one for the
   cluster's VIP address (`acme.example.cz`).
-- A read-only account in Active Directory and LDAPS to the domain
-  controllers (with the CA certificate if it is your own CA).
-- Firewall openings: see [tls-and-vip.md, "What to open"](tls-and-vip.md#what-to-open-in-the-firewall).
+- Firewall openings: TCP 443 and 80 in (80 for HTTP-01), and - once acme's own
+  DNS server is switched on - UDP/TCP 53 (Settings → Firewall and access opens
+  it); out: HTTPS to the CAs, SSH to the targets. See
+  [tls-and-vip.md, "What to open"](tls-and-vip.md#what-to-open-in-the-firewall)
+  and [firewall.md](firewall.md).
 
 **Steps**
 
@@ -133,14 +141,14 @@ What lives where:
    join a cluster later (it only adds the Python driver):
 
    ```bash
-   ./install.sh --server-name acme1.example.cz \
-                --radius-from 198.51.100.1/32,198.51.100.2/32 \
-                --with-db postgres
+   ./install.sh --server-name acme1.example.cz --with-db postgres
    ```
 
-   It installs nginx, PHP-FPM (on a release fixed for php2shell), the
-   service, a self-signed certificate, and opens HTTPS and RADIUS in
-   firewalld. At the end it prints the first administrator's password.
+   It installs Python 3.14, nginx, PHP-FPM 8.3 (on a release fixed for
+   php2shell), openssl and the OpenSSH client, the program tree in
+   `/usr/local/lib/acme/`, the service, a self-signed certificate for the
+   pages, and opens HTTPS and HTTP in firewalld. At the end it prints the
+   first administrator's password.
 
 3. Check it:
 
@@ -152,24 +160,23 @@ What lives where:
 
 4. Sign in at `https://acme1.example.cz/admin/` and change the password.
 
-5. Set it up - on the pages or on the command line:
+5. Set it up - on the pages (Issuers, Challenges, Targets, Certificates) or
+   on the command line:
 
    ```bash
-   acme --add-directory AD --hosts dc1.example.local,dc2.example.local \
-       --base DC=example,DC=local --bind-dn acme@example.local --bind-pw - \
-       --tls ldaps --ca /root/example-root-ca.pem
-   acme --directory-test AD
-   acme --add-realm example.cz --suffix example.cz --directory AD --lookup upn \
-       --groups 'VPN_USERS' --mode acme
-   acme --add-client ASA --address 198.51.100.1 --secret - --realm example.cz
+   acme --sources                 # the issuers;  acme --validations, acme --targets
+   acme --cert-add web1 --names web1.example.cz --issuer letsencrypt --challenge http
+   acme --renew web1              # issued now, every step shown
+   acme --target-test web1-ssh    # can acme sign in there, and put files where asked?
+   acme --deploy web1
    ```
 
-   `-` asks for the password and the secret, so they never stand on the command
-   line where `ps` shows them (or give them in ACME_BIND_PW and ACME_SECRET).
+   A secret (an API token of a DNS provider, a target's password) is asked
+   for on the pages, or with `-` on the command line, so it never stands where
+   `ps` shows it.
 
-6. Enrol a token for yourself (`acme --enroll you@example.cz`, or on the
-   enrolment pages) and test: `acme --radtest you@example.cz 123456`, then
-   from the VPN.
+6. Watch the first renewals: `acme --jobs`, the Jobs tab; set the alerts
+   (Settings → Mail / SMS / Alerts).
 
 7. Your own certificate for the pages: [section 19](#19-certificates-and-the-web-address).
 
@@ -384,15 +391,17 @@ tar xzf acme-X.Y.Z.tar.gz && cd acme-X.Y.Z
 acme --status
 ```
 
-Or on the pages: *Settings → Upgrades*, send the `.tar.gz`, press *Upgrade*.
-The server is out of service for about a minute (with one server nobody can
-sign in to the VPN meanwhile).
+Or on the pages: *Settings → Upgrades*, send the `.tar.gz` (or take it *From
+the web*), press *Upgrade*. The server is out of service for about a minute:
+no renewal or deployment starts meanwhile. The new tree goes in beside the
+old one and `/usr/local/lib/acme/current` is switched to it in one step; the
+old one stays as `previous` ([upgrades.md](upgrades.md)).
 
 ### A cluster, from the pages (recommended)
 
 *Settings → Upgrades*: send the package, press *Upgrade*. The nodes are done
-one at a time, the other node first: each goes into maintenance (RADIUS not
-answered, `/healthz` 503, **the VIP address moves to the other node**),
+one at a time, the other node first: each goes into maintenance (no
+renewals or deployments, `/healthz` 503, **the VIP address moves to the other node**),
 root installs the package, the node comes back, is checked, leaves
 maintenance - then the next one. A node does not start until the other one
 is alive and in service. Follow it there or with `acme --upgrade-status`.
@@ -409,7 +418,7 @@ acme --ha-status ; acme --check              # both directions running again
 ```
 
 `install.sh --upgrade` puts the node in maintenance first (and waits 20 s for
-the balancer and the VPN, and the VIP address moves away), and back in
+the balancer, and the VIP address moves away), and back in
 service when the new version answers. If it fails half way, it starts the
 daemon again and brings the node back into service.
 
@@ -420,10 +429,12 @@ on two versions for long.
 
 ### Going back to an older version
 
-Put the older package in with `./install.sh --upgrade` from its folder on the
-command line (the pages refuse an older one). If the newer version changed
-the database, put back the copy you made before upgrading
-([section 15](#15-copies-of-the-database-and-putting-one-back)).
+The tree that ran before is kept: `/usr/bin/python3 -I
+/usr/local/lib/acme/acme_upgrade.py --previous` checks it against its signed
+MANIFEST and puts it back. An older release: `acme --downgrade X.Y.Z` (only
+to a version that reads this database - [upgrades.md](upgrades.md)). If that
+is refused and you must go back anyway, put back the copy you made before
+upgrading ([section 15](#15-copies-of-the-database-and-putting-one-back)).
 
 ---
 
@@ -433,7 +444,7 @@ the database, put back the copy you made before upgrading
 release), one node at a time:
 
 ```bash
-acme --maintenance on --why "OS updates"     # RADIUS and the VIP address go to the other node
+acme --maintenance on --why "OS updates"     # renewals and the VIP address go to the other node
 dnf -y upgrade
 reboot
 # after the reboot:
@@ -787,10 +798,11 @@ acme --status          # "the database: /var/lib/acme/acme.db (SQLite ...)"
 
 ---
 
-## 17. The key of the tokens
+## 17. The sealing key
 
-`/var/lib/acme/secrets.key` seals every token's key, the clients' secrets and
-the directories' passwords. Without it a copy of the database is useless.
+`/var/lib/acme/secrets.key` seals every private key acme keeps (certificates,
+its own CAs, the ACME accounts) and every secret (the targets' passwords and
+keys, the DNS providers' tokens). Without it a copy of the database is useless.
 
 - It is the same file on both nodes of a cluster (carried by the join bundle).
 - Every copy in `/var/lib/acme/backups/` has it beside it.
@@ -902,7 +914,7 @@ and in the exported configuration (`art`, `logo`, `admin_art`, `admin_logo`).
 | `--ha-compare` DIFFERENT for minutes | `acme --ha-status` | the node that was away: `acme --ha-resync --yes` on it |
 | every code refused on one node | `acme --check` ("the key...") | the key differs: re-join the node with a fresh bundle |
 | codes refused for everybody | `timedatectl` | the clock is off: chrony |
-| VPN times out | `acme --log`, `acme --events` | the client's address or secret; the firewall (UDP 1812) |
+| a renewal fails | `acme --job ID`, `acme --events` | the step that failed: the CA's answer, the challenge (DNS delegation, port 80 / 53 reachable from outside), the target's sign-in |
 | pages 502 | `systemctl status acme php-fpm nginx` | the daemon or PHP-FPM not running |
 | VIP address on no node | `acme --web-status` | both nodes unhealthy, or keepalived failed: the reason is shown per node |
 | VIP address on both | [tls-and-vip.md](tls-and-vip.md#on-both-nodes-at-once-split-brain) | VRRP blocked between the nodes |

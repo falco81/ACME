@@ -41,8 +41,9 @@ def target_context(store, job, target_row):
                               on_hostkey=hostkey_keeper(store, target_row))
 
 
-def deploy_one(store, job, cert, dep):
-    """One deployment run. (ok, words)."""
+def deploy_one(store, job, cert, dep, force=False):
+    """One deployment run. (ok, words). `force`: asked by a person - the target puts it
+    in place even where the fingerprint there is the same (options['force'])."""
     t = time.time()
     trow = S.plugin_row(store, 'target', dep['target'])
     step = job.step
@@ -66,6 +67,8 @@ def deploy_one(store, job, cert, dep):
         target = S.plugin_instance(store, 'target', trow, ctx)
         bundle = S.bundle_of(cert)
         opts = S.deploy_options(store, dep)
+        if force:
+            opts['force'] = True
         said = target.deploy(bundle, opts)
         job.check()
         if said:
@@ -124,7 +127,7 @@ def deploys_of(store, cert_id, only=None, enabled=True):
     return rows
 
 
-def run_deploys(store, job, cert_id, only=None):
+def run_deploys(store, job, cert_id, only=None, force=False):
     """Every enabled deployment of the certificate (or those asked). (all_ok, words)."""
     cert = S.cert_need(store, cert_id)
     rows = deploys_of(store, cert_id, only)
@@ -134,7 +137,7 @@ def run_deploys(store, job, cert_id, only=None):
     good, bad = 0, []
     for dep in rows:
         job.check()
-        ok, said = deploy_one(store, job, cert, dep)
+        ok, said = deploy_one(store, job, cert, dep, force)
         if ok:
             good += 1
         else:
@@ -144,8 +147,8 @@ def run_deploys(store, job, cert_id, only=None):
     return True, '%d deployment(s) done' % good
 
 
-def deploy_job(cert_id, only=None):
-    """A job's function: the deployments of one certificate."""
+def deploy_job(cert_id, only=None, force=False):
+    """A job's function: the deployments of one certificate (force: asked by a person)."""
     def fn(job):
-        return run_deploys(job.store, job, cert_id, only)
+        return run_deploys(job.store, job, cert_id, only, force)
     return fn

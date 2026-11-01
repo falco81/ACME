@@ -327,7 +327,7 @@ class Cli(object):
         row = self.cert_ref(self.args.deploy)
         if not row.get('cert_pem'):
             raise SystemExit('acme: %s has not been issued yet' % row['name'])
-        job = self._run_job('deploy', deployer.deploy_job(row['id']), row['id'],
+        job = self._run_job('deploy', deployer.deploy_job(row['id'], force=True), row['id'],
                             'the deployments of %s' % row['name'])
         return 0 if job.ok else 1
 
