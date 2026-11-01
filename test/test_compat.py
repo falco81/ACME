@@ -602,6 +602,48 @@ class CompatDaemon(unittest.TestCase):
         self.assertFalse(out['ok'])
         self.assertIn('does not fit together', out['said'])
 
+    def test_wizard_greys_what_does_not_fit(self):
+        """In Chromium (Playwright): the wizard refuses "a" for Let's Encrypt under its
+        row, greys acme's own DNS server for DigiCert's TXT DCV with its reason, and says
+        what no longer fits when the source changes (test/compat_page.js)."""
+        node = shutil.which('node')
+        if not node or not shutil.which('php'):
+            self.skipTest('no node or php here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          cwd=ROOT).returncode != 0:
+            self.skipTest('no playwright for node here')
+        web = os.path.join(self.tmp, 'web')
+        shutil.copytree(os.path.join(ROOT, 'web'), web)
+        api_php = os.path.join(web, 'acme-api.php')
+        with open(api_php, encoding='utf-8') as f:
+            text = f.read()
+        with open(api_php, 'w', encoding='utf-8') as f:
+            f.write(text.replace('/run/acme/', os.path.join(self.tmp, 'run') + '/'))
+        port = free_port()
+        php = subprocess.Popen(['php', '-S', '127.0.0.1:%d' % port], cwd=web,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            end = time.time() + 20
+            while time.time() < end:
+                try:
+                    urllib.request.urlopen('http://127.0.0.1:%d/admin/index.php' % port, timeout=2)
+                    break
+                except OSError:
+                    time.sleep(0.3)
+            shots = os.environ.get('ACME_TEST_SHOTS') or ''
+            got = subprocess.run([node, os.path.join(HERE, 'compat_page.js'),
+                                  'http://127.0.0.1:%d' % port, 'tester', self.pw] +
+                                 ([shots] if shots else []),
+                                 capture_output=True, text=True, timeout=240, cwd=ROOT)
+            self.assertEqual(got.returncode, 0, got.stderr[-2000:])
+            seen = json.loads(got.stdout.strip().splitlines()[-1])
+        finally:
+            php.terminate()
+            php.wait(10)
+        self.assertNotIn('error', seen, seen.get('error'))
+        for k, v in seen['checks'].items():
+            self.assertTrue(v, '%s: %s' % (k, seen))
+
 
 if __name__ == '__main__':
     try:

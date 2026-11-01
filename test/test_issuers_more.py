@@ -825,6 +825,7 @@ class TestDigicert(Base):
                 state['orders'] += 1
                 self.assertEqual(b['payment_method'], 'balance')
                 self.assertEqual(b['dcv_method'], 'dns-txt-token')
+                self.assertEqual(b['organization'], {'id': 42})            # an OV product
                 state['leaf'] = self.sign(csr_der_of(b['certificate']['csr']),
                                           [b['certificate']['common_name']] +
                                           b['certificate']['dns_names'])
@@ -893,7 +894,8 @@ class TestDigicert(Base):
             seen.append((fqdn, value))
             return orig(fqdn, value)
         board.add_txt = add
-        d = DigicertIssuer({'api_key': 'DEVKEY', 'allow_paid': True, 'poll_every': 1}, ctx)
+        d = DigicertIssuer({'api_key': 'DEVKEY', 'allow_paid': True, 'poll_every': 1,
+                            'organization_id': '42'}, ctx)
         d._sleep = lambda s: None
         req = req_for(['www.example.test'], challenges={'www.example.test': board})
         out = d.issue(req)
