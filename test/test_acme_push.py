@@ -355,6 +355,30 @@ class Receiver(unittest.TestCase):
             t.test()
         self.assertIn('not the one paired', str(e.exception))
 
+    def test_card_words_as_ai(self):
+        """The card is ai's: switch {on}, pair_stop, key_forget {key_id}, a name for a
+        pasted key, and key_id / how / enc_key / last.acme / last.said in the view."""
+        E.push_card_do(STORE, {'action': 'switch', 'on': True}, 'tester')
+        self.assertTrue(E.push_conf(STORE)['on'])
+        E.push_card_do(STORE, {'action': 'pair'}, 'tester')
+        v = E.push_card_do(STORE, {'action': 'pair_stop'}, 'tester')['view']
+        self.assertIsNone(v['pairing'])
+        self.assertTrue(v['enc_key'])
+        me = E.push_identity(STORE)
+        v = E.push_card_do(STORE, {'action': 'key_add', 'key': me['text'], 'name': 'acme1'},
+                           'tester')['view']
+        k = v['keys'][0]
+        self.assertEqual((k['key_id'], k['name'], k['how']), (me['id'], 'acme1', 'pasted'))
+        t, _ = target()
+        t.deploy(Bundle('a'), {})
+        last = E.push_view(STORE)['last']
+        self.assertEqual(last['acme'], 'acme1')
+        self.assertIn(SLOT, last['said'])
+        v = E.push_card_do(STORE, {'action': 'key_forget', 'key_id': me['id']}, 'tester')['view']
+        self.assertEqual(v['keys'], [])
+        E.push_card_do(STORE, {'action': 'switch', 'on': False}, 'tester')
+        self.assertFalse(E.push_conf(STORE)['on'])
+
     def test_signature_clock_replay_key(self):
         t, ctx = self.paired()
         box = E.push_box(STORE)

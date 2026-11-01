@@ -1392,11 +1392,12 @@ acme --ha-join /root/acme-join-acme1.json --node-name acme2</pre>
       <div id="web-certs" class="cert-grid"></div>
     </div>
     <div class="card full" id="web-push-card">
-      <h2>Certificates from acme</h2>
-      <p class="note">An acme of yours can put its certificates on these pages - each node's
-        and the VIP address's - and renew them by itself (acme push, docs/acme-push-protocol.md).
-        Paired once, every request of it is signed, and the private key travels sealed to this
-        server. Automatic certificates leaves the pages it puts them on alone.</p>
+      <h2>Certificates from acme <span class="right" id="web-push-state"></span></h2>
+      <p class="note">acme, the certificate manager, can give this server its certificate and renew it
+        by itself (acme push). Paired once with a code shown here, acme signs every request with its key and
+        sends the certificate's private key sealed for this server alone; the certificate is kept exactly where
+        an upload above keeps it, and the Automatic certificates leave it alone from then on. Off until switched
+        on; acme's address must be among those that may reach these pages.</p>
       <div id="web-push"></div>
     </div>
 

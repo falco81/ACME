@@ -3295,3 +3295,12 @@ body.app-shell #pane-mailq > .card.held{flex:1 1 auto;min-height:320px;max-heigh
 .dbw-last.info{border-color:rgba(88,166,255,.5)}
 .dbw-last-w{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
 @media (max-width:640px){.dbw-rail li{min-width:0;flex:1 1 30%}.dbw-rail .w{font-size:12px}.dbw-cmd{flex-direction:column}}
+/* Certificates from acme (acme push) - ai's card, rule for rule */
+.push-code{font-size:30px;letter-spacing:.12em;text-align:center;padding:18px 10px;margin:12px 0;border:1px dashed var(--line);border-radius:10px;background:var(--panel2);user-select:all;overflow-wrap:anywhere}
+#web-push .facts{margin:12px 0}
+#web-push h4{margin:16px 0 8px}
+#web-push tr.push-gone td:not(.rowtools){text-decoration:line-through;opacity:.55}
+#web-push .rowtools .muted{margin-right:8px}
+/* the tiles of Certificates from acme copy what is in them */
+.fact.copyable:hover,.push-code.copyable:hover{border-color:var(--info);box-shadow:0 0 0 1px var(--info) inset}
+.push-code.copyable{user-select:all;-webkit-user-select:all}
