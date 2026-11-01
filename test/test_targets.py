@@ -914,7 +914,7 @@ class OthersTest(unittest.TestCase):
             json.dumps(d)
             for f in d['fields'] + d['deploy_fields']:
                 self.assertIn(f['type'], ('text', 'secret', 'number', 'bool', 'select',
-                                          'textarea', 'pem', 'list', 'hostport'), d['kind'])
+                                          'textarea', 'pem', 'list', 'hostport', 'sshkey'), d['kind'])
             self.assertTrue(d['vendor'] and d['description'], d['kind'])
 
 

@@ -77,10 +77,15 @@ class AcmeIssuer(Issuer):
                        ['sslcom-rsa', 'SSL.com RSA (EAB)'],
                        ['sslcom-ecc', 'SSL.com ECC (EAB)'],
                        ['digicert', 'DigiCert (EAB - CertCentral, SSLmarket)'],
+                       ['actalis', 'Actalis (EAB)'],
+                       ['certum', 'Certum (EAB)'],
+                       ['sectigo-dv', 'Sectigo DV (EAB)'],
+                       ['sectigo-ov', 'Sectigo OV (EAB)'],
                        ['custom', 'Another ACME server (its directory URL)']]),
         field('directory_url', 'Directory URL', 'text', placeholder='https://ca.example.local/acme/acme/directory',
               show_if={'directory': ['custom']},
-              help='The ACME directory of your server (step-ca: https://HOST/acme/PROVISIONER/directory).'),
+              help='The ACME directory of your server (step-ca: https://HOST/acme/PROVISIONER/directory; '
+                   'HARICA, SwissSign, Sectigo Certificate Manager: the URL of your account).'),
         field('contacts', 'Contact e-mails', 'list', placeholder='pki@example.com',
               help='Told to the CA with the account (expiry and policy mails). ZeroSSL needs one '
                    'to make the EAB itself.'),

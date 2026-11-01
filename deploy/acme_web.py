@@ -27,6 +27,7 @@ descriptor, never a path the acme account could swap for a link.
   acme_web.py --status   what is in place here (JSON)
   acme_web.py --os-job ID check|upgrade   the system's updates (started by itself)
   acme_web.py --sshd-back                 a change of sshd on trial put back (its timer)
+  acme_web.py --dbmake                    a database and its account made here (JSON on stdin)
 """
 import hashlib
 import ipaddress
@@ -2073,6 +2074,112 @@ def pgtls_part():
         out['said'] = 'it went wrong: %s' % str(e)[:300]
     write_here(PGTLS_FILE, json.dumps(out))
 
+
+
+# ---- a database and its account made on this machine's server (1.0.210) -------------
+# Settings → The database → Move to another database → "Make the database and the
+# account for me": PostgreSQL as its own postgres account (runuser), MariaDB as
+# root over its socket - no administrator's password typed anywhere. Asked in
+# dbmake.ask, answered in dbmake.json (without the password); as root by hand:
+# acme_web.py --dbmake, the request as JSON on stdin.
+DBMAKE_ASK = 'dbmake.ask'
+DBMAKE_FILE = 'dbmake.json'
+DBMAKE_PW_RE = re.compile(r'^[\x21-\x7e]{8,128}\Z')
+
+
+def dbmake_checked(r):
+    if not isinstance(r, dict):
+        raise Refused('the request is not an object')
+    eng = r.get('engine')
+    if eng not in ('postgres', 'mariadb'):
+        raise Refused('the engine is postgres or mariadb')
+    for k in ('name', 'user'):
+        if not PG_NAME_RE.match(str(r.get(k) or '')):
+            raise Refused('%s is letters, digits and _ only, starting with a letter' % k)
+    pw = str(r.get('password') or '')
+    if not DBMAKE_PW_RE.match(pw) or "'" in pw or '\\' in pw:
+        raise Refused('the password is 8 to 128 printable characters, without \' and \\')
+    try:
+        port = int(r.get('port') or (5432 if eng == 'postgres' else 3306))
+    except (TypeError, ValueError):
+        raise Refused('the port is a number')
+    if not 0 < port < 65536:
+        raise Refused('the port is a number')
+    return {'engine': eng, 'name': r['name'], 'user': r['user'], 'password': pw, 'port': port}
+
+
+def dbmake_pg(r):
+    name, user = r['name'], r['user']
+    said = []
+    # Not into the server's log: the statement with the password in it.
+    quiet = "SET log_statement = 'none';\nSET log_min_error_statement = 'panic';\n"
+    have = pg_sql(r['port'], "SELECT 1 FROM pg_roles WHERE rolname = %s" % pg_lit(user))
+    verb = 'ALTER' if have == '1' else 'CREATE'
+    pg_sql(r['port'], quiet + '%s ROLE "%s" WITH LOGIN PASSWORD %s' % (verb, user, pg_lit(r['password'])))
+    said.append('the account %s %s' % (user, 'was there: its password is new' if verb == 'ALTER'
+                                       else 'is made'))
+    if pg_sql(r['port'], "SELECT 1 FROM pg_database WHERE datname = %s" % pg_lit(name)) == '1':
+        pg_sql(r['port'], 'ALTER DATABASE "%s" OWNER TO "%s"' % (name, user))
+        said.append('the database %s was there: %s owns it now' % (name, user))
+    else:
+        try:
+            pg_sql(r['port'], "CREATE DATABASE \"%s\" OWNER \"%s\" ENCODING 'UTF8' TEMPLATE template0 "
+                              "LC_COLLATE 'C.UTF-8' LC_CTYPE 'C.UTF-8'" % (name, user))
+        except Refused:
+            pg_sql(r['port'], "CREATE DATABASE \"%s\" OWNER \"%s\" ENCODING 'UTF8' TEMPLATE template0"
+                   % (name, user))
+        said.append('the database %s is made, owned by %s' % (name, user))
+    pg_sql(r['port'], 'GRANT ALL ON SCHEMA public TO "%s"' % user, db=name)
+    return said
+
+
+def dbmake_my(r):
+    name, user, pw = r['name'], r['user'], r['password']
+    prog = shutil.which('mariadb') or shutil.which('mysql')
+    if not prog:
+        raise Refused('neither mariadb nor mysql (the client) is on this machine')
+    sql = ['SET SESSION sql_log_off = 1;',
+           'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;' % name]
+    for at in ('localhost', '127.0.0.1', '::1'):
+        sql += ["CREATE USER IF NOT EXISTS '%s'@'%s' IDENTIFIED BY '%s';" % (user, at, pw),
+                "ALTER USER '%s'@'%s' IDENTIFIED BY '%s';" % (user, at, pw),
+                "GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'%s';" % (name, user, at)]
+    sql.append('FLUSH PRIVILEGES;')
+    got = subprocess.run([prog, '--protocol=socket', '-u', 'root', '--batch'], input='\n'.join(sql) + '\n',
+                         capture_output=True, text=True, timeout=60)
+    if got.returncode != 0:
+        raise Refused('MariaDB said: %s' % (got.stderr or got.stdout).replace(pw, '…').strip()[:300])
+    return ['the database %s (utf8mb4, compared byte for byte)' % name,
+            "the account '%s' on localhost, 127.0.0.1 and ::1, with every right on %s and none "
+            "elsewhere" % (user, name)]
+
+
+def dbmake_do(raw):
+    out = {'at': time.time(), 'ok': False, 'id': ''}
+    try:
+        r = json.loads(raw.decode('utf-8') if isinstance(raw, bytes) else raw)
+        out['id'] = str((r or {}).get('id') or '')[:40] if isinstance(r, dict) else ''
+        r = dbmake_checked(r)
+        out['said'] = (dbmake_pg if r['engine'] == 'postgres' else dbmake_my)(r)
+        out['ok'] = True
+    except Refused as e:
+        out['said'] = str(e)[:400]
+    except Exception as e:                              # noqa: BLE001
+        out['said'] = 'it went wrong: %s' % str(e)[:300]
+    return out
+
+
+def dbmake_part():
+    d = web_fd()
+    try:
+        raw = read_req(DBMAKE_ASK, 16384)
+    except FileNotFoundError:
+        return
+    except (Refused, OSError):
+        drop_ask(DBMAKE_ASK, d)
+        return
+    drop_ask(DBMAKE_ASK, d)
+    write_here(DBMAKE_FILE, json.dumps(dbmake_do(raw)))
 
 # ---- the machine's network, its name, and switching it off (1.0.119) ----------------
 # Asked in net.ask: what the network is now (read), a new one put in
@@ -4132,6 +4239,10 @@ def serve():
     except Exception as e:                              # noqa: BLE001
         print('acme_web.py: the database link: %s' % e, file=sys.stderr)
     try:
+        dbmake_part()
+    except Exception as e:                              # noqa: BLE001
+        print('acme_web.py: a database made: %s' % e, file=sys.stderr)
+    try:
         fw_read_part()
     except Exception as e:                              # noqa: BLE001
         print('acme_web.py: the firewall as it is: %s' % e, file=sys.stderr)
@@ -4215,6 +4326,10 @@ def main(argv):
     if os.geteuid() != 0:
         print('acme_web.py: root only', file=sys.stderr)
         return 2
+    if argv[:1] == ['--dbmake']:
+        # As root by hand, or by a daemon that runs as root (1.0.210).
+        print(json.dumps(dbmake_do(sys.stdin.read())))
+        return 0
     if argv[:1] == ['--sshd-back']:
         # The timer of a change of sshd on trial (1.0.163): not kept in time.
         sshd_put_back()

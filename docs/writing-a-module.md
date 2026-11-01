@@ -41,13 +41,26 @@ and set:
 - `kind` - short, unique, lower case: stored in the database, do not rename it later;
 - `title`, `vendor`, `description` - for the page (modules are grouped by vendor);
 - `fields` - **the target's form**: how acme reaches and signs in to the
-  device. Types: `text secret number bool select textarea pem list hostport`;
+  device. Types: `text secret number bool select textarea pem list hostport sshkey`;
   `secret` values are sealed and never sent back in clear (a full administrator
   sees eight dots and the last two characters, anybody else dots; the dots
   saved back keep the one set) - `multiline=True` for a key or lines, and a
   `pem` field with `secret=True` (a private key) is kept the same way. Options:
   `required`, `default`, `placeholder`, `help`, `options` (select),
-  `show_if` (`{'auth': ['password']}`), `advanced` (folded under *More*);
+  `show_if` (`{'auth': ['password']}`), `advanced` (folded under *More*).
+  `sshkey` is the SSH key acme signs in with, drawn as isemon's key card (Make a
+  key, Use my own, Download it, Forget it, Try reaching it, How to set it up):
+  give it `secret=True`; the module reads the private key from it as from any
+  secret (`self.c('key')`), and a passphrase of a key brought in the field named
+  by `pass_key` (`key_pass`). Optional: `auth_key` (the select saying key or
+  password), `ssh_prefix` (`ssh_` when the module's SSH fields have one),
+  `try_command` (what *Try reaching it* runs once signed in - it must change
+  nothing; `id -un; uname -n` when not said), `key_type='rsa4096'`, and `howto`
+  - `linux windows mikrotik pfsense opnsense generic` - or the class attribute
+  `sshkey_howto`, which may also be a guide of its own: `{'title', 'note',
+  'steps': [{'title', 'html', 'code'}]}` with `{pub} {user} {from} {host}
+  {file} {line}` filled in. `ssh_fields()` of `targets/_common.py` and
+  `challenges/_common.py` give it already;
 - `deploy_fields` - **one deployment's form**: what to do with *this*
   certificate there (profiles, listeners, paths, commands);
 

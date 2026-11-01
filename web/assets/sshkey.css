@@ -45,3 +45,12 @@
   .sshk .kv{flex-direction:column;align-items:flex-start;gap:2px}
   .sshk .kv .v{text-align:left}
 }
+
+/* The buttons as isemon draws them (its index.php, 1.10.276): "Forget it"
+   neutral until the pointer is on it, "Try reaching it" tinted - not the
+   filled red and blue acme's pages use elsewhere. Inside the card only. */
+.sshk .btn.danger{background:var(--panel2);border-color:var(--line);color:var(--tx)}
+.sshk .btn.danger:hover:not(:disabled){background:var(--panel2);border-color:var(--crit);color:var(--crit)}
+.sshk .btn.primary{background:var(--info-bg);border-color:rgba(88,166,255,.35);color:var(--info)}
+.sshk .btn.primary:hover:not(:disabled){background:var(--info-bg);border-color:var(--info);color:var(--info)}
+.sshk .btn.primary svg{opacity:.85}

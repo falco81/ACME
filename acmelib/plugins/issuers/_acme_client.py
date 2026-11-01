@@ -44,13 +44,20 @@ DIRECTORIES = {
     # DigiCert CertCentral (also as sold by SSLmarket: the EAB from its customer
     # administration) - see docs/sslmarket.md
     'digicert': 'https://acme.digicert.com/v2/acme/directory/',
+    # More public ACME CAs (docs/acme-issuers.md says where each URL is from)
+    'actalis': 'https://acme-api.actalis.com/acme/directory',
+    'certum': 'https://acme.certum.pl/directory',
+    'sectigo-dv': 'https://acme.sectigo.com/v2/DV',
+    'sectigo-ov': 'https://acme.sectigo.com/v2/OV',
 }
 DIRECTORY_WORDS = {
     'letsencrypt': "Let's Encrypt", 'letsencrypt-staging': "Let's Encrypt (staging)",
     'zerossl': 'ZeroSSL', 'google': 'Google Trust Services',
     'google-staging': 'Google Trust Services (staging)', 'buypass': 'Buypass Go SSL',
     'buypass-staging': 'Buypass (test)', 'sslcom-rsa': 'SSL.com (RSA)',
-    'sslcom-ecc': 'SSL.com (ECC)', 'digicert': 'DigiCert (EAB)', 'custom': 'your own ACME server',
+    'sslcom-ecc': 'SSL.com (ECC)', 'digicert': 'DigiCert (EAB)', 'actalis': 'Actalis (EAB)',
+    'certum': 'Certum (EAB)', 'sectigo-dv': 'Sectigo DV (EAB)', 'sectigo-ov': 'Sectigo OV (EAB)',
+    'custom': 'your own ACME server',
 }
 ACCOUNT_KEYS = {'ec-256': ('ES256', '-sha256', 32), 'ec-384': ('ES384', '-sha384', 48),
                 'rsa-2048': ('RS256', '-sha256', 0), 'rsa-3072': ('RS256', '-sha256', 0),

@@ -72,7 +72,8 @@ class AwsAcmTarget(CloudTarget):
     def call(self, action, payload, what=None):
         region, url = self.endpoint()
         body = json.dumps(payload).encode()
-        h = sigv4('POST', url, {'Content-Type': 'application/x-amz-json-1.1',
+        h = sigv4('POST', url, {'Accept': 'application/json',
+                                'Content-Type': 'application/x-amz-json-1.1',
                                 'X-Amz-Target': 'CertificateManager.%s' % action},
                   body, text(self.c('access_key_id')), text(self.c('secret_access_key')),
                   region, 'acm', amz_date=self._amz_date,

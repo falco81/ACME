@@ -986,6 +986,6 @@ def open_db(conf=None):
     return Db(c.get('db_engine') or 'sqlite', c.get('db_host') or '', c.get('db_port') or 0,
               c.get('db_name') or 'acme', c.get('db_user') or 'acme', c.get('db_password') or '',
               c.get('db_timeout_s') or 10, tls=c.get('db_tls') or '',
-              tls_ca=c.get('db_tls_ca') or '')
+              tls_ca=c.get('db_tls_ca') or '', path=c.get('db_path') or None)
 
 

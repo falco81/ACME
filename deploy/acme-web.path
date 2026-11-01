@@ -5,6 +5,7 @@ Description=acme - TLS, the web address, the firewall, the network, the time, th
 PathExists=/var/lib/acme/web/request.json
 PathExists=/var/lib/acme/web/pglog.ask
 PathExists=/var/lib/acme/web/pgtls.ask
+PathExists=/var/lib/acme/web/dbmake.ask
 PathExists=/var/lib/acme/web/fw.ask
 PathExists=/var/lib/acme/web/net.ask
 PathExists=/var/lib/acme/web/ntp.ask

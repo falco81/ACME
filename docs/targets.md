@@ -62,9 +62,29 @@ Writes the certificate as files, in any formats, in any places; tests the
 configuration; reloads the service; puts the previous files back when the
 test or the reload fails.
 
-**Sign-in**: address, port, user, a private key (with its passphrase) or a
-password, the host key (a `known_hosts` line, or *trust the first* one seen),
-and *Use sudo* (with the sudo password, or none for `NOPASSWD`).
+**Sign-in**: address, port, user, the SSH key or a password, the host key (a
+`known_hosts` line, or *trust the first* one seen), and *Use sudo* (with the
+sudo password, or none for `NOPASSWD`).
+
+**The SSH key** is the key card isemon has for its firewalls, the same on every
+module that signs in over SSH (Linux, Windows OpenSSH, MikroTik, pfSense,
+OPNsense, and the validations HTTP-01 and DNS over SSH): *Right now*, *Signing
+in with*, the key's fingerprint and when it was made; **Make a key** (Ed25519,
+or RSA 4096 for something old such as RouterOS 6) - made on acme, kept sealed,
+never shown back; **Use my own** (pasted or read from a file, OpenSSH or PEM;
+its passphrase asked for and checked, kept sealed beside it); **Download it**
+(the private half, to a full administrator, written into Events); **Forget it**;
+**Try reaching it** (a real sign-in that runs `id -un; uname -n` - `whoami` on
+Windows, `/system identity print` on RouterOS - and changes nothing, step by
+step); and **How to set it up on ...** with the exact commands for that kind of
+machine: `~/.ssh/authorized_keys` with `from="acme's addresses"` in front of the
+key (and the sudoers line for an account that is not root), Windows'
+`administrators_authorized_keys` and its `icacls`, RouterOS' `/user ssh-keys
+import`, the *Authorized keys* of a pfSense / OPNsense user. A key made in a new
+target's form is kept for that form and becomes the target's when it is saved.
+A key pasted before there was this card goes on working and shows as *your own
+key*. On the command line: `acme --target-key NAME make|show|public|own
+FILE|private|forget|try`.
 
 **Files** - one a line, `format path [mode] [owner[:group]]`:
 

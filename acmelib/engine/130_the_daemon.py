@@ -825,7 +825,7 @@ def db_open(c, statement_s=None):
               c.get('db_timeout_s') or 10,
               tls=c.get('db_tls') if 'db_tls' in c else CONFIG.get('db_tls'),
               tls_ca=c.get('db_tls_ca') if 'db_tls_ca' in c else CONFIG.get('db_tls_ca'),
-              statement_s=statement_s)
+              statement_s=statement_s, path=c.get('db_path') or None)
 
 
 def db_own(store, statement_s=0):
@@ -843,7 +843,12 @@ def same_database(c, db):
     if c.get('db_engine') != db.engine:
         return False
     if db.engine == 'sqlite':
-        return True
+        # The file named (1.0.210): another file is another database.
+        try:
+            return os.path.realpath(str(c.get('db_path') or DB_FILE)) == \
+                os.path.realpath(str(db.path))
+        except (OSError, TypeError, ValueError):
+            return True
     port = int(c.get('db_port') or {'mariadb': 3306, 'postgres': 5432}[db.engine])
     here = {'', 'localhost', '127.0.0.1', '::1'}
     a, b = str(c.get('db_host') or '').lower(), str(db.host or '').lower()

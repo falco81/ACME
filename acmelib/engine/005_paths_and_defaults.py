@@ -246,6 +246,8 @@ DEFAULTS = {
     'db_timeout_s': 10,
     'db_tls': '',
     'db_tls_ca': '',
+    # The file of SQLite (1.0.210): empty is the state folder's acme.db.
+    'db_path': '',
     # --- this installation ----------------------------------------------------
     'node_name': '',
     'ha_mode': '',
@@ -269,7 +271,7 @@ DEFAULTS = {
 # The settings that are a database's own address. A database cannot hold the
 # address of itself, so these live in config.json and are written there.
 DB_KEYS = ('db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
-           'db_timeout_s', 'db_tls', 'db_tls_ca')
+           'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path')
 
 # ...and the name of this node of a cluster, which is this machine's own.
 FILE_ONLY_KEYS = DB_KEYS + ('node_name', 'ha_mode', 'ha_slot', 'ha_peer', 'ha_peer_port',
@@ -652,6 +654,7 @@ NAMES = {
     'db_timeout_s': 'Connect timeout (s)',
     'db_tls': 'Encryption to the database server',
     'db_tls_ca': 'Its certificate authority (file)',
+    'db_path': 'The file (SQLite)',
     'node_name': 'The name of this node',
     'site_name': 'What to call this installation',
     'ui_lang': 'Language of the pages',
@@ -1096,6 +1099,8 @@ SAYS = {
               'between. The server must have TLS switched on.',
     'db_tls_ca': 'The file of the authority that signed the database server\'s certificate, '
                  'for verify-ca and verify-full: /etc/acme/db-ca.pem.',
+    'db_path': 'Where the SQLite file is. Empty: acme.db in the state folder (/var/lib/acme). '
+               'Set by Settings → The database → Move to another database.',
     'node_name': 'What this server is called among the nodes of a cluster - in the list of nodes, in its events and on the pages it answers. Kept in config.json, since it belongs to this machine and not to the database both share. Empty: the machine\'s own name.',
     'site_name': 'The name at the top of the administration pages. Empty: the machine’s '
                  'own name.',

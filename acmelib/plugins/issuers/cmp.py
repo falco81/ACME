@@ -30,14 +30,11 @@ transaction lives in openssl): it is asked again.
 from __future__ import annotations
 
 import http.server
-import os
 import re
 import threading
-import urllib.parse
 
 from acmelib.plugins.base import Issuer, PluginError, field
 from acmelib.plugins.issuers import _source_common as sc
-from acmelib.plugins.issuers import _scep_pkcs7 as p7
 
 DN_RE = re.compile(r'^(/|(/[A-Za-z][A-Za-z0-9.]*=[^/\s][^/]*)+)\Z')
 
@@ -133,7 +130,7 @@ class CmpIssuer(Issuer):
                    'answers are checked by the secret.'),
         field('profile', 'Certificate profile', 'text', advanced=True, placeholder='tls-server',
               help='Sent as the certProfile of the header (RFC 9480 / Lightweight CMP), where '
-                   'the CA chooses by it.'),
+                   'the CA chooses by it. Needs openssl 3.3 or later.'),
         field('implicit_confirm', 'Implicit confirmation', 'bool', default=False, advanced=True,
               help='Ask the CA not to wait for certConf (where it allows it).'),
         field('unprotected_errors', 'Take unprotected error answers', 'bool', default=True,
@@ -196,17 +193,21 @@ class CmpIssuer(Issuer):
             if not re.match(r'^[A-Za-z0-9._-]{1,64}\Z', prof):
                 raise PluginError('the certificate profile may hold letters, digits and . _ -',
                                   retry=False)
-            args += ['-geninfo', '1.3.6.1.5.5.7.4.21:UTF8:%s' % prof] if False else []
+            if not self._openssl_at_least(3, 3):
+                raise PluginError('a certificate profile needs openssl 3.3 or later (openssl cmp '
+                                  '-profile); this one has none - leave it empty', retry=False)
+            args += ['-profile', prof]
         return args
+
+    def _openssl_at_least(self, major, minor):
+        m = re.search(rb'OpenSSL (\d+)\.(\d+)', sc.run_openssl(self.ctx, ['version']))
+        return bool(m) and (int(m.group(1)), int(m.group(2))) >= (major, minor)
 
     def run(self, args, timeout):
         """openssl cmp with `args`, its messages through the relay."""
-        u = urllib.parse.urlsplit(self._url())
-        cert = None
-        if (self.c('auth') or 'secret') == 'signature' and u.scheme == 'https':
-            cert = None                 # CMP protects the messages itself; TLS needs no client cert
+        # CMP protects the messages itself: the TLS under it needs no client certificate.
         relay = _Relay(self.ctx, self._url(), sc.as_bool(self.c('verify'), True),
-                       self.c('ca_pem') or None, cert)
+                       self.c('ca_pem') or None, None)
         try:
             full = ['cmp', '-server', '127.0.0.1:%d/cmp' % relay.port, '-no_proxy', '127.0.0.1',
                     '-msg_timeout', str(max(10, int(timeout))), '-total_timeout',
@@ -285,5 +286,3 @@ class CmpIssuer(Issuer):
             self.run(args, 60)
         return 'the CMP server accepted the revocation of serial %s' % sc.serial_hex(cert_pem)
 
-
-_unused = (os, p7)

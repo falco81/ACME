@@ -85,7 +85,7 @@ def db_move(store, c, by):
 
 def db_where(c):
     if c.get('db_engine') == 'sqlite':
-        return str(DB_FILE)
+        return str(c.get('db_path') or DB_FILE)
     return '%s@%s:%s/%s' % (c.get('db_user'), c.get('db_host') or 'localhost',
                             c.get('db_port') or {'mariadb': 3306, 'postgres': 5432}
                             [c['db_engine']], c.get('db_name'))

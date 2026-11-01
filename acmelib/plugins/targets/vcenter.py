@@ -68,7 +68,8 @@ class VCenterTarget(HttpTarget):
         basic = base64.b64encode(('%s:%s' % (self.c('user'), self.c('password') or ''))
                                  .encode()).decode()
         try:
-            st, hd, d = self.req('POST', '/api/session', headers={'Authorization': 'Basic ' + basic},
+            st, hd, d = self.req('POST', '/api/session',
+                                 headers={'Authorization': 'Basic ' + basic},
                                  auth=False, what='signing in')
         except PluginError as e:
             raise PluginError(str(e), detail=e.detail, retry='(401)' not in str(e))
