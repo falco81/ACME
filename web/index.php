@@ -150,8 +150,8 @@ if ($title_ours) {
     <?php endif; ?>
   </div>
 </div>
-<script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION) ?>"></script>
-<script nonce="<?= h($nonce) ?>" src="/assets/portal.js?v=<?= h(ACME_VERSION) ?>"></script>
+<script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/core.js')) ?>"></script>
+<script nonce="<?= h($nonce) ?>" src="/assets/portal.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/portal.js')) ?>"></script>
 <script nonce="<?= h($nonce) ?>">portalDoor();</script>
 <?php else: ?>
 <header>
@@ -174,8 +174,8 @@ if ($title_ours) {
 </div>
 <div class="toast" id="toast"></div>
 <script nonce="<?= h($nonce) ?>">var PORTAL_ME = <?= json_encode($me, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
-<script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION) ?>"></script>
-<script nonce="<?= h($nonce) ?>" src="/assets/portal.js?v=<?= h(ACME_VERSION) ?>"></script>
+<script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/core.js')) ?>"></script>
+<script nonce="<?= h($nonce) ?>" src="/assets/portal.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/portal.js')) ?>"></script>
 <?php if (is_file(__DIR__ . '/assets/certs-portal.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/certs-portal.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/certs-portal.js')) ?>"></script>
 <?php endif; ?>

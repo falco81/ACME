@@ -39,3 +39,27 @@ class NoNativeDialogs(unittest.TestCase):
 
 if __name__ == '__main__':
     sys.exit(unittest.main())
+
+
+class PagesVersion(unittest.TestCase):
+    """The pages say the version acme is, and key their assets' cache by it:
+    otp's 1.0.209 stayed there, and browsers kept the old core.js and admin.js
+    after every upgrade - new pages drawn by old scripts."""
+
+    def test_page_version_is_acmelib_version(self):
+        with open(os.path.join(ROOT, 'acmelib', '__init__.py'), encoding='utf-8') as f:
+            want = re.search(r"^__version__ = '([^']+)'", f.read(), re.M).group(1)
+        with open(os.path.join(ROOT, 'web', 'acme-page.php'), encoding='utf-8') as f:
+            got = re.search(r"^const ACME_VERSION = '([^']+)';", f.read(), re.M).group(1)
+        self.assertEqual(got, want)
+
+    def test_every_script_and_style_keyed_by_its_file(self):
+        bare = []
+        for path in page_files():
+            if not path.endswith('.php'):
+                continue
+            with open(path, encoding='utf-8') as f:
+                for n, line in enumerate(f, 1):
+                    if re.search(r'/assets/[\w.-]+\.(js|css)\?v=<\?= h\(ACME_VERSION\) \?>', line):
+                        bare.append('%s:%d' % (os.path.relpath(path, ROOT), n))
+        self.assertEqual(bare, [], 'assets keyed by the version alone: ' + ', '.join(bare))

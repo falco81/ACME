@@ -106,6 +106,7 @@ def bump(part):
     text = text[:m.start()] + "__version__ = '%s'" % new + text[m.end():]
     with open(VERSION_FILE, 'w', encoding='utf-8') as f:
         f.write(text)
+    page_version(new)
     say('acmelib/__init__.py: %s -> %s (add its section to CHANGELOG.md)' % (
         '.'.join(m.groups()), new))
     return new
@@ -249,7 +250,31 @@ def checks_before(version, files):
     return bool(re.search(r'^## %s\b' % re.escape(version), log, re.M))
 
 
+PAGE_FILE = os.path.join(ROOT, 'web', 'acme-page.php')
+PAGE_RE = re.compile(r"^const ACME_VERSION = '([^']*)';", re.M)
+
+
+def page_version(new=None):
+    """The version the pages say (and key their assets' cache by), read - or
+    written as `new`. It was otp's 1.0.209 for every acme release: browsers kept
+    the old core.js and admin.js after every upgrade."""
+    with open(PAGE_FILE, encoding='utf-8') as f:
+        text = f.read()
+    m = PAGE_RE.search(text)
+    if not m:
+        die("%s has no line  const ACME_VERSION = 'X.Y.Z';" % PAGE_FILE)
+    if new is not None and m.group(1) != new:
+        text = text[:m.start()] + "const ACME_VERSION = '%s';" % new + text[m.end():]
+        with open(PAGE_FILE, 'w', encoding='utf-8') as f:
+            f.write(text)
+        return new
+    return m.group(1)
+
+
 def build(version, key, force=False, epoch=None):
+    if page_version() != version:
+        return None, ('web/acme-page.php says ACME_VERSION %s, acmelib/__init__.py %s - '
+                      'make them the same (--bump writes both)' % (page_version(), version))
     files = tree_files()
     if not checks_before(version, files):
         return None, 'CHANGELOG.md has no "## %s" section - write what changed first' % version

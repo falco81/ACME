@@ -454,7 +454,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   </div>
 </div>
 </div>
-<script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION) ?>"></script>
+<script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/core.js')) ?>"></script>
 <script nonce="<?= h($nonce) ?>">
 (function () {
   var form = $('signin-form'), said = $('in-said'), go = $('in-go');
@@ -1484,9 +1484,9 @@ var ME = <?= json_encode($me, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_A
 var STATUS = <?= $initial ? json_encode($initial, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) : 'null' ?>;
 var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_safety(), JSON_HEX_TAG | JSON_HEX_AMP) : 'null' ?>;
 </script>
-<script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION) ?>"></script>
-<script nonce="<?= h($nonce) ?>" src="/assets/cols.js?v=<?= h(ACME_VERSION) ?>"></script>
-<script nonce="<?= h($nonce) ?>" src="/assets/admin.js?v=<?= h(ACME_VERSION) ?>"></script>
+<script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/core.js')) ?>"></script>
+<script nonce="<?= h($nonce) ?>" src="/assets/cols.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/cols.js')) ?>"></script>
+<script nonce="<?= h($nonce) ?>" src="/assets/admin.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/admin.js')) ?>"></script>
 <?php if (is_file(dirname(__DIR__) . '/assets/certs.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/certs.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/certs.js')) ?>"></script>
 <?php endif; ?>
