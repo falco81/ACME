@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 # ---------------------------------------------------------------------------
-# A directory, as the realms and the sign-ins use it
+# A directory, as the sign-ins use it
 # ---------------------------------------------------------------------------
 # Several servers, asked in the order given: one that cannot be reached is
 # passed over for the next, one that answers is believed. Two questions are
-# asked of it all day - who is this, and which groups are they in - and
-# their answers are kept for a minute, because a VPN asks twice in a row for
-# the same person more often than not.
+# asked of it - who is this, and which groups are they in - and their answers
+# are kept for a minute, because a page asks twice in a row for the same
+# person more often than not.
 
 AD_UAC_DISABLED = 0x2
 AD_NEVER = (0, 0x7FFFFFFFFFFFFFFF)
@@ -72,44 +72,17 @@ class Directory(object):
 
     # Servers that did not answer, and until when they are passed over
     # (1.0.101): every request asked each of them in turn and waited out its
-    # timeout first - with two dead servers of 10 s, every sign-in of every
-    # realm waited 20 s and the workers were all taken. Shared by every
-    # directory object (a reload makes new ones).
+    # timeout first - with two dead servers of 10 s, every sign-in waited
+    # 20 s. Shared by every directory object (a reload makes new ones).
     DEAD = {}
     DEAD_S = 30
     DEAD_LOCK = threading.Lock()
 
-    # How many RADIUS workers one directory may hold at once (1.0.149): half
-    # of them. A directory answering in seconds took every worker, and the
-    # realms of the code alone - which never ask it - went unanswered too.
-    BUSY = {}
-    BUSY_LOCK = threading.Lock()
-
     @contextlib.contextmanager
     def held(self):
-        if not threading.current_thread().name.startswith('radius'):
-            yield                       # the pages and the command line: not counted
-            return
-        workers = int(CONFIG.get('radius_workers') or 16)
-        most = max(2, workers // 2)
-        with self.BUSY_LOCK:
-            n = self.BUSY.get(self.name.lower(), 0)
-            if n >= most:
-                raise LdapUnreachable('%s is answering slowly: %d requests wait on it already - '
-                                      'this one is not added to them' % (self.name, n))
-            # Every directory together too (1.0.186): two of them listed (the
-            # same domain controllers twice, say) held every worker between
-            # them, and the realms of the code alone waited.
-            if sum(self.BUSY.values()) >= max(2, workers - 4):
-                raise LdapUnreachable('the directories are answering slowly: %d requests wait '
-                                      'on them already - this one is not added to them'
-                                      % sum(self.BUSY.values()))
-            self.BUSY[self.name.lower()] = n + 1
-        try:
-            yield
-        finally:
-            with self.BUSY_LOCK:
-                self.BUSY[self.name.lower()] = max(0, self.BUSY.get(self.name.lower(), 1) - 1)
+        """Around every question asked of it - the place to count or limit
+        them, should that be needed again."""
+        yield
 
     def _order(self):
         """The servers in the order to ask them: the one that answered last
@@ -194,8 +167,7 @@ class Directory(object):
         """do(link) on the first server that answers - and on the next when
         the search itself is not answered (1.0.149): a server that took the
         connection and the reading account's bind but then left its searches
-        unanswered was never passed over, the other server never asked, and
-        every RADIUS worker waited on it in turn."""
+        unanswered was never passed over, and the other server never asked."""
         with self.held():
             return self._asked(do)
 
@@ -221,13 +193,13 @@ class Directory(object):
 
     def find_user(self, name, how='upn'):
         """The entry of one account, or None. `how` is upn (the whole
-        name@realm against userPrincipalName), sam (the part before the @
+        name@domain against userPrincipalName), sam (the part before the @
         against sAMAccountName) or mail."""
         key = ('u', how, str(name).lower())
         with self.lock:
             got = self.cache.get(key)
             # An account's own entry - disabled, expired, locked - kept 15 s,
-            # not a minute (1.0.136): a realm of the code alone relies on it.
+            # not a minute (1.0.136): a sign-in relies on it being now.
             if got and time.time() - got[0] < self.USER_CACHE_S:
                 return got[1]
         said = str(name or '').strip()
@@ -276,7 +248,7 @@ class Directory(object):
                                    if k == 'memberof' or k.startswith('memberof;range=')
                                    for g in (v or [])],
                      'department': first('department'), 'title': first('title'),
-                     # For a code by SMS (1.0.76): what the enrolment page offers.
+                     # For a code by SMS (1.0.76): the number a page may offer.
                      'mobile': first('mobile') or first('telephoneNumber'),
                      'phone': first('telephoneNumber'),
                      'pw_set': ad_time(first('pwdLastSet')),
@@ -513,124 +485,6 @@ class Directory(object):
                 'verify': self.verify, 'weak': self.weak}
 
 
-def lockout_minutes(n):
-    """How long a token is locked after its n-th wrong code in a row, or 0.
-
-    Locked at every `lockout_after` wrong codes - 10, 20, 30... - and each
-    time twice as long as the time before, up to a day (1.0.101). The count
-    is no longer set back to 0 when the lock is set (as 1.0.94 did): that
-    gave a patient guesser 10 more codes every quarter of an hour, for ever
-    - some 870 a day against a realm that asks for the code alone. It goes
-    back to 0 only when a right code is given or an administrator unlocks
-    the token; the owner's first typo after a lock does not lock it again.
-    """
-    after = int(CONFIG.get('lockout_after') or 0)
-    if not after or n < after or n % after:
-        return 0
-    base = max(1, int(CONFIG.get('lockout_min') or 15))
-    rounds = n // after - 1
-    return int(min(base * (2 ** min(rounds, 16)), max(base, 24 * 60)))
-
-
-def lockout_said(store, name, n, mins):
-    """A lock written to the log and, so somebody sees it, to the events."""
-    log('the token of %s is locked out for %d min after %d wrong codes in a row'
-        % (name, mins, n), 'warn')
-    try:
-        store.add_event('tokens', 'the token of %s is locked out for %d min after %d wrong '
-                        'codes in a row - somebody may be guessing its codes' % (name, mins, n),
-                        'warn', who='acme')
-    except Exception:                                   # noqa: BLE001
-        pass
-
-
-SCRATCH_GUARD_MOST = 20          # a day's refused tries from one place (1.0.101, 1.0.149)
-SCRATCH_GUARD_ALL = 100          # ... and from everywhere together (1.0.149)
-SCRATCH_GUARD_S = 86400
-# One place's count, in this node's memory (1.0.149): a stranger who knew only
-# a name sent 20 wrong passwords and the person's recovery codes were not
-# taken for a day - just when the phone was lost. Now one place rests alone;
-# all of them together only at five times as many.
-SCRATCH_PLACES = {}
-SCRATCH_PLACES_LOCK = threading.Lock()
-REQUEST_PLACE = threading.local()
-
-
-def scratch_guard_times(store, name):
-    # Every node's row (1.0.146), see node_key.
-    return [x for x in node_key_times(store, 'scratchguard', name)
-            if time.time() - x < SCRATCH_GUARD_S]
-
-
-def scratch_guard_cleared(store, name):
-    """When the recovery codes of NAME were last given back (Unlock), on any
-    node and by any way - the pages, the command line (1.0.187): what each
-    daemon keeps of the places they were tried from is older than that."""
-    try:
-        return float(store.get_meta('scratchclear:' + norm_name(name)) or 0)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def scratch_guard_give_back(store, name):
-    node_key_drop(store, 'scratchguard', name)
-    store.set_meta('scratchclear:' + norm_name(name), repr(time.time()))
-    scratch_guard_clear(name)
-
-
-def _scratch_place(name, place, add=False, since=0.0):
-    k = (norm_name(name), str(place or '')[:64])
-    t = time.time()
-    with SCRATCH_PLACES_LOCK:
-        if len(SCRATCH_PLACES) > 20000:
-            SCRATCH_PLACES.clear()
-        got = [x for x in SCRATCH_PLACES.get(k, []) if t - x < SCRATCH_GUARD_S and x > since]
-        if add:
-            got = (got + [t])[-SCRATCH_GUARD_MOST * 2:]
-        if got:
-            SCRATCH_PLACES[k] = got
-        else:
-            SCRATCH_PLACES.pop(k, None)
-        return len(got)
-
-
-def scratch_guard_clear(name):
-    n = norm_name(name)
-    with SCRATCH_PLACES_LOCK:
-        for k in [k for k in SCRATCH_PLACES if k[0] == n]:
-            del SCRATCH_PLACES[k]
-
-
-def scratch_guard_note(store, name, place=''):
-    """One request whose password and recovery code could not both be right
-    (1.0.101) - see the RADIUS side. Written only over what was read."""
-    # No place known (no Calling-Station-Id): every request one "place", and its
-    # limit everybody's - a stranger with the name alone stopped its owner's
-    # recovery codes for a day (1.0.205). Then only the day's limit counts.
-    here = _scratch_place(name, place, add=True, since=scratch_guard_cleared(store, name)) \
-        if place else 0
-    before = len(scratch_guard_times(store, name))
-    node_key_add(store, 'scratchguard', name, SCRATCH_GUARD_S, SCRATCH_GUARD_ALL * 2)
-    times = scratch_guard_times(store, name)
-    # Said once, as the count goes past it (1.0.147): two nodes at once went
-    # from 19 to 21, and "exactly 20" was never seen.
-    if before < SCRATCH_GUARD_ALL <= len(times) or here == SCRATCH_GUARD_MOST:
-        store.add_event('tokens', 'the recovery codes of %s are not taken for a day%s: %d '
-                        'requests in a day had a wrong password or a wrong recovery code - '
-                        'somebody may be guessing them (Unlock it on the token gives them back)'
-                        % (norm_name(name), '' if len(times) >= SCRATCH_GUARD_ALL else
-                           ' from %s' % (place or 'one place'),
-                           len(times) if len(times) >= SCRATCH_GUARD_ALL else here),
-                        'warn', who='acme')
-
-
-def scratch_guarded(store, name, place=None):
-    if place is None:
-        place = getattr(REQUEST_PLACE, 'v', '') or ''
-    return (bool(place) and _scratch_place(name, place, since=scratch_guard_cleared(store, name))
-            >= SCRATCH_GUARD_MOST) or len(scratch_guard_times(store, name)) >= SCRATCH_GUARD_ALL
-
-
 def entry_unusable(entry, locked=True):
     """Why the directory's account may not sign in now, or None (1.0.101):
     switched off, run out, locked out, its password expired - or, on AD,
@@ -660,7 +514,7 @@ def computer_account(r):
 
 def dn_norm(dn):
     """A DN as it is compared (1.0.205): lower case, no spaces around the
-    commas and equals signs that part it - "CN=VPN Users, OU=Groups" copied
+    commas and equals signs that part it - "CN=Cert Admins, OU=Groups" copied
     from a page matched nothing AD said."""
     return re.sub(r'(?<!\\)\s*([,=])\s*', r'\1', str(dn or '').strip().lower())
 

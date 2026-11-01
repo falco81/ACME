@@ -181,8 +181,8 @@ def isemon_tls_bundle(store, names, port, mtls, passphrase, by):
         '  install -m 0644 10-acme-tls.conf /etc/rsyslog.d/\n'
         '  rsyslogd -N1 && systemctl restart rsyslog\n'
         '  firewall-cmd --permanent --add-port=%d/tcp && firewall-cmd --reload\n\n'
-        '11-acme.conf (the rule that files totp.cgi and radius-detail) stays as it is: it\n'
-        'files the lines that come over TLS the same way.\n'
+        'The rule that files the acme-certs lines stays as it is: it files the lines that\n'
+        'come over TLS the same way.\n'
         'Then on acme: Settings -> isemon -> Encrypted sending -> Try it on every node,\n'
         'then Switch over.\n' % (
             __version__, time.strftime('%Y-%m-%d'), ', '.join(names), stamp(end),

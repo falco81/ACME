@@ -610,7 +610,7 @@ def _osup_go(daemon, what, ctx):
             plan, row = ctx['plan'], ctx['row']
             if what == 'upgrade':
                 # Out of service first where another node answers meanwhile:
-                # the VIP address moves to it, RADIUS is answered there.
+                # the VIP address moves to it, the work is done there.
                 many = any(n.get('alive') and not n.get('me') for n in ha_nodes(store))
                 if many:
                     maintenance_set(store, True, 'the system is being updated', by)
@@ -664,8 +664,8 @@ def _osup_follow(daemon, plan, row):
         return
     if got.get('state') == 'running':
         # A helper that has said nothing for an hour is gone (1.0.207): killed half
-        # way, it left "running" for ever - the node in maintenance, RADIUS silent
-        # on it, every later update refused.
+        # way, it left "running" for ever - the node in maintenance, idle, every
+        # later update refused.
         if got.get('at') and time.time() - float(got['at']) > OSUP_SILENT_S:
             _osup_end(store, plan, row, False, 'the helper stopped answering half way (nothing '
                       'from it for %d min) - look at the system\'s package manager'
@@ -727,11 +727,7 @@ def _osup_end(store, plan, row, ok, said='', reboot=False):
 # own timer puts the one before back - until Keep it ('host:sshd:keep').
 SSHD_DEFAULT = {'manage': False, 'permit_root': 'prohibit-password', 'password': True,
                 'port': 22, 'allow_users': [], 'tries': 4, 'notice': '', 'notice_ssh': False,
-                'notice_console': False, 'notice_motd': False, 'trial_min': 5,
-                # A code from acme at SSH sign-in (1.0.178): pam_radius asking
-                # this node's own RADIUS.
-                'radius': False, 'radius_users': [], 'radius_root': False,
-                'radius_fallback': True, 'radius_with_key': False, 'radius_hide': False}
+                'notice_console': False, 'notice_motd': False, 'trial_min': 5}
 HOST_WORK.update(sshd=False, sshd_read=0.0)
 SSHD_FMT = '191'           # how this version writes sshd's files (see sshd_tick)
 
@@ -756,7 +752,7 @@ def sshd_checked_conf(b):
         raise ValueError('the port is a number')
     if not 1 <= c['port'] <= 65535:
         raise ValueError('the port is 1 to 65535')
-    if c['port'] != 22 and c['port'] < 1024 and c['port'] in (25, 53, 80, 123, 443, 1812, 1813):
+    if c['port'] != 22 and c['port'] < 1024 and c['port'] in (25, 53, 80, 123, 443):
         raise ValueError('port %d is another service\'s' % c['port'])
     users = [u for u in re.split(r'[\s,]+', str(b.get('allow_users') or '')) if u] \
         if not isinstance(b.get('allow_users'), list) else [str(u) for u in b['allow_users'] if u]
@@ -778,26 +774,7 @@ def sshd_checked_conf(b):
     c['notice'] = text
     for k in ('notice_ssh', 'notice_console', 'notice_motd'):
         c[k] = bool(b.get(k)) and bool(text.strip())
-    c['radius'] = bool(b.get('radius')) and c['manage']
-    raw = b.get('radius_users') or ''
-    ru = [str(u) for u in raw if u] if isinstance(raw, list) else \
-        [u for u in re.split(r'[\s,]+', str(raw)) if u]
-    for u in ru:
-        if not re.match(r'^[A-Za-z0-9._@-]{1,64}\Z', u):
-            raise ValueError('%r is not a user name' % u)
-    c['radius_users'] = ru[:100]
-    c['radius_root'] = bool(b.get('radius_root'))
-    # Passwords off: a node acme cannot ask lets nobody in with one either.
-    c['radius_fallback'] = bool(b.get('radius_fallback', True)) and c['password']
-    c['radius_with_key'] = bool(b.get('radius_with_key')) and c['radius']
-    # The code not shown as it is typed (1.0.191): pam_radius asks with echo off.
-    c['radius_hide'] = bool(b.get('radius_hide')) and c['radius']
     return c
-
-
-# The RADIUS client 1.0.178-1.0.180 made for pam_radius - taken away by the gate of
-# its own (87s_sshotp, 1.0.181).
-SSH_RADIUS_CLIENT = 'SSH of the nodes - pam_radius'
 
 
 def sshd_hash(c, at):
@@ -810,8 +787,6 @@ def sshd_hash(c, at):
 def sshd_save(store, b, by):
     c = sshd_checked_conf(b)
     hisec_sshd(c)                           # 1.0.168
-    if c['radius']:
-        ssh_gate_secret(store, make=True)
     if c['manage'] and c['allow_users'] and c['permit_root'] != 'no' and \
             not any(u in ('root', '*') for u in c['allow_users']) and not b.get('ok_no_root'):
         raise ValueError('AllowUsers without root lets nobody in as root - add root to it, or '
@@ -823,15 +798,6 @@ def sshd_save(store, b, by):
         c['permit_root'], 'on' if c['password'] else 'off', c['port'],
         ', AllowUsers ' + ' '.join(c['allow_users']) if c['allow_users'] else '')
         if c['manage'] else 'the SSH server as the system has it')
-    if c['radius']:
-        what += '; a code from acme at sign-in (%s%s)' % (
-            ', '.join(c['radius_users']) or 'everybody but root' if not c['radius_root']
-            else ', '.join(c['radius_users']) or 'everybody, root too',
-            ', the system password when acme does not answer' if c['radius_fallback'] else '')
-        if c['radius_with_key']:
-            what += ', a key first'
-        if c.get('radius_hide'):
-            what += ', the code hidden as typed'
     notes = [w for k, w in (('notice_ssh', 'SSH'), ('notice_console', 'console'),
                             ('notice_motd', 'after sign-in')) if c[k]]
     store.add_event('settings', '%s set the SSH server: %s%s%s' % (
@@ -859,9 +825,7 @@ def sshd_view(store):
                                 else 'trial' if (now.get('trial') or {}).get('until')
                                 else 'done' if now.get('hash') == c.get('hash') or not c.get('hash')
                                 else 'waiting')})
-    return {'conf': c, 'nodes': nodes, 'helper': WEB_DIR.is_dir(), 'sshotp': sshotp_all(store),
-            'channels': code_channels(),
-            'gate_port': ssh_gate_port(store)}
+    return {'conf': c, 'nodes': nodes, 'helper': WEB_DIR.is_dir()}
 
 
 def sshd_ports_open(store):
@@ -905,15 +869,6 @@ def sshd_tick(daemon):
         todo.append(('keep', None))
     if back.get('id') and back['id'] != now.get('back_id') and (now.get('trial') or {}).get('until'):
         todo.append(('back', back))
-    # pam_radius's file with another secret or port than the gate's (1.0.181:
-    # the RADIUS client before, or a port changed): only that file is put right.
-    if c.get('manage') and c.get('radius') and (now.get('radius') or {}).get('pam') and \
-            now.get('hash') == c.get('hash') and not todo and \
-            ((now.get('radius') or {}).get('fp') != ssh_gate_fp(ssh_gate_secret(store, make=True),
-                                                                ssh_gate_port(store)) or
-             (now.get('radius') or {}).get('skip_passwd') is False):
-        # ... or its PAM block from before 1.0.188: "Password:" asked before the code.
-        todo.append(('pamconf', None))
     # The files written anew once after an upgrade that writes them otherwise for
     # the same settings (1.0.191: root's own Match block) - no trial, nothing in
     # them chosen differently.
@@ -941,12 +896,6 @@ def sshd_tick(daemon):
                         refit = bool((extra or {}).get('refit'))
                         ask = {'do': 'apply', 'conf': c, 'trial_min': 0 if refit else (c.get('trial_min') or 0),
                                'hash': c['hash'], 'id': secrets.token_hex(4)}
-                        if c.get('radius'):
-                            # The secret pam_radius shows acme, for its file of
-                            # 0600 (1.0.178) - in the ask file, never a command line.
-                            # The gate's own (1.0.181), not a RADIUS client's.
-                            ask.update(radius_secret=ssh_gate_secret(store, make=True),
-                                       radius_port=ssh_gate_port(store))
                         got = root_ask('sshd.ask', 'sshd.json', ask, 120)
                         store.set_meta('host:sshd:fmt:' + me, SSHD_FMT)
                         if refit:
@@ -958,10 +907,6 @@ def sshd_tick(daemon):
                                    before_port=(row.get('before_port') if
                                                 (row.get('trial') or {}).get('until') else None)
                                    or (row.get('values') or {}).get('port') or '22')
-                    elif what == 'pamconf':
-                        got = root_ask('sshd.ask', 'sshd.json', {
-                            'do': 'pamconf', 'radius_secret': ssh_gate_secret(store),
-                            'radius_port': ssh_gate_port(store)}, 60)
                     elif what == 'keep':
                         got = root_ask('sshd.ask', 'sshd.json', {'do': 'keep'}, 60)
                         row['kept_at'] = time.time()
@@ -973,7 +918,6 @@ def sshd_tick(daemon):
                         continue
                     else:
                         got = root_ask('sshd.ask', 'sshd.json', {'do': 'read'}, 60)
-                    row.update(radius=got.get('radius') or {}, gate=dict(SSH_GATE_STATE))
                     row.update(values=got.get('values') or {}, there=got.get('there'),
                                dropins=got.get('dropins'), keys=got.get('keys'),
                                trial=got.get('trial') or {}, selinux=got.get('selinux') or '')

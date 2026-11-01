@@ -72,7 +72,7 @@ def dump_tables(db, out, tables=None, child=False):
 def _dump_tables_child(out):
     """dump_tables of the daemon's database by `acme --dump-copy`, a process of
     its own (1.0.150): in the daemon, the minutes of a big copy held Python's
-    one lock against RADIUS - a third fewer sign-ins answered meanwhile."""
+    one lock against everything else."""
     opened = not hasattr(out, 'write')
     f = open(str(out), 'wb') if opened else out
     try:
@@ -99,8 +99,8 @@ def load_tables(db, src, keep_logs=True, say=None):
     import gzip
     db.make_tables()
     # All of it or none of it (1.0.33): a copy that broke off half-way left
-    # the tokens empty, and everybody locked out. The database is held for
-    # the whole of it - a restore is not something done while people sign in.
+    # tables empty, and everybody locked out. The database is held for the
+    # whole of it - a restore is not something done while work goes on.
     DB_RESTORING.set()
     db.restoring = True
     try:
@@ -114,7 +114,7 @@ def load_tables(db, src, keep_logs=True, say=None):
 
 
 def _load_tables_held(db, src, keep_logs, say, gzip):
-    # RADIUS's own lane waits for it too (1.0.136): DB_RESTORING sends its
+    # The lanes wait for it too (1.0.136): DB_RESTORING sends their
     # statements to the main lane, whose lock this holds.
     with db.lock:
         if db.conn is None:
@@ -132,26 +132,38 @@ def _load_tables_held(db, src, keep_logs, say, gzip):
             except Exception:                           # noqa: BLE001
                 pass
             raise
-    if db.engine == 'postgres':
-        for table in TABLES:
-            if table in ('meta', 'settings'):
-                continue
-            try:
-                db.run("SELECT setval(pg_get_serial_sequence('%s', 'id'), "
-                       "COALESCE((SELECT MAX(id) FROM %s), 0) + 1, false)" % (table, table))
-            except Exception:
-                pass
-        # Odd or even again at once (1.0.94): MAX+1 can be the other node's
-        # parity, and a row written before the caller set it collided there.
-        if CONFIG.get('ha_mode') == 'replicated':
-            try:
-                ha_sequences(db, int(CONFIG.get('ha_slot') or 1))
-            except Exception as e:                      # noqa: BLE001
-                log('the numbering could not be set after loading: %s' % e, 'warn')
+    db_numbering_fix(db)
     return counts
 
 
-META_TRANSIENT = ('db_job:', 'node:', 'maint:', 'upgrade:', 'radtest:', 'hatls:node:')
+def db_numbering_fix(db, tables=None):
+    """After rows were written with their own numbers (a copy put back, an
+    import): PostgreSQL's numbering moved past them - and, replicated, onto
+    this node's side of odd and even again."""
+    if db.engine != 'postgres':
+        return
+    for table in (tables or TABLES):
+        if table in ('meta', 'settings'):
+            continue
+        try:
+            db.run("SELECT setval(pg_get_serial_sequence('%s', 'id'), "
+                   "COALESCE((SELECT MAX(id) FROM %s), 0) + 1, false)" % (table, table))
+        except Exception:
+            pass
+    # Odd or even again at once (1.0.94): MAX+1 can be the other node's
+    # parity, and a row written before the caller set it collided there.
+    if CONFIG.get('ha_mode') == 'replicated':
+        try:
+            ha_sequences(db, int(CONFIG.get('ha_slot') or 1))
+        except Exception as e:                      # noqa: BLE001
+            log('the numbering could not be set after loading: %s' % e, 'warn')
+
+
+META_TRANSIENT = ('db_job:', 'node:', 'maint:', 'upgrade:', 'hatls:node:')
+# The tables that are a log, not a setting nor a thing kept: left as they are
+# here when a copy is put back without its logs. A module appends its own
+# (the certificate manager its jobs, say).
+LOG_TABLES = []
 
 
 def _load_tables(db, src, keep_logs, say, gzip):
@@ -176,7 +188,7 @@ def _load_tables(db, src, keep_logs, say, gzip):
                 flush()
                 keys = None
                 table = got['table']
-                if table not in TABLES or (not keep_logs and table in ('radius_log', 'acme_log')):
+                if table not in TABLES or (not keep_logs and table in LOG_TABLES):
                     table = None
                     continue
                 if table == 'meta':

@@ -6,7 +6,7 @@ FW_WAIT = threading.Lock()
 
 @route('GET', '/api/firewall')
 def _firewall(h):
-    me = h.me('tokenadmin')     # the map of the network, not for every reader (1.0.57)
+    me = h.me('certadmin')     # the map of the network, not for every reader (1.0.57)
     store = h.store
     fresh = h.arg('fresh')
     if fresh and fresh in ('1', node_name()):

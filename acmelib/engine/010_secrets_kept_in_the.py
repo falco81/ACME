@@ -3,12 +3,14 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # Secrets kept in the database, sealed
 # ---------------------------------------------------------------------------
-# The tokens' keys, the RADIUS clients' shared secrets and the directories'
-# passwords are kept in the database - sealed, with a key in a file of its
-# own in the state directory, exactly as isemon seals its passwords. A copy of
-# the database alone opens none of them; the daily copy is made with the key
-# beside it, because a database of tokens without the key that opens them is
-# a database of nothing, and every person in it would have to enrol again.
+# The certificates' private keys, the passwords acme signs in to the targets
+# and the issuers with, the directories' passwords and the secrets among the
+# settings are kept in the database - sealed, with a key in a file of its own
+# in the state directory, exactly as isemon seals its passwords. A copy of the
+# database alone opens none of them; the daily copy is made with the key
+# beside it, because a database of sealed keys without the key that opens
+# them is a database of nothing, and every certificate would have to be
+# issued again.
 # Built from HMAC-SHA256 alone - a keystream and a tag - because the standard
 # library has no cipher and this must not need anything installed.
 SEALED = 'sealed:1:'
@@ -36,7 +38,7 @@ _KEY_LOCK = threading.Lock()
 def sealing_key(make=False):
     """The key every secret in the database is sealed with. Read once and
     kept while the file is unchanged (1.0.33) - it was read from disk for
-    every secret opened, every token in a list of thousands. Made only where
+    every secret opened, every key in a list of thousands. Made only where
     there is none, and then with O_EXCL, so two processes starting at once
     cannot each make one of their own."""
     path = sealing_key_path()
@@ -65,7 +67,7 @@ def sealing_key(make=False):
         return b''
     if key is not None:
         raise OSError('%s is there but cannot be read as a key - it is never replaced, '
-                      'because every token sealed with it would be lost' % path)
+                      'because every secret sealed with it would be lost' % path)
     with _KEY_LOCK:
         key = secrets.token_bytes(32)
         # Written whole beside it, then linked into place (1.0.94): created
@@ -108,31 +110,55 @@ def _seal_stream(key, nonce, size):
 
 
 SEALED2 = 'sealed:2:'
-# Set once every token's secrets carry the name they belong to (1.0.33): from
-# then on a secret of a token sealed the old way, without it, is not opened.
-BIND_STRICT = {'tokens': False}
-
-
-def token_bind(name):
-    """What a token's sealed secrets are tied to: its name. Copied into
-    another token's row, they no longer open (1.0.33)."""
-    return 'token:' + str(name or '').strip().lower()
-
-
 SEAL_GUARD = {'db': None}         # the database of this process, for _sealed_held
 
 
-def _sealed_held():
-    """Whether the database holds tokens sealed with a key (it cannot be asked:
+def sealed_columns():
+    """(table, column) of every column that holds a sealed value: the
+    settings' values, and every column of SCHEMA whose name ends in _sealed
+    (a table a module appends to SCHEMA is looked at too)."""
+    out = [('settings', 'v')]
+    for table, create in SCHEMA:
+        for col in re.findall(r'\b(\w+_sealed)\s+\{', create):
+            out.append((table, col))
+    return out
+
+
+def sealed_held(db):
+    """Whether `db` holds anything sealed with a key (it cannot be asked:
     held, to be safe)."""
-    db = SEAL_GUARD.get('db')
-    if db is None:
-        return False
+    for table, col in sealed_columns():
+        try:
+            if db.value("SELECT 1 FROM %s WHERE %s LIKE 'sealed:%%' LIMIT 1" % (table, col)):
+                return True
+        except Exception:                               # noqa: BLE001
+            return True
+    return False
+
+
+def sealed_opens(db, most=5):
+    """Whether the secrets sealed in `db` open with the key in use: True, False
+    - or None when there is nothing to try. The settings sealed are tried (those
+    are sealed without a place they are bound to)."""
     try:
-        return bool(int(db.value("SELECT COUNT(*) FROM tokens WHERE secret LIKE 'sealed:%'",
-                                 (), 0) or 0))
+        rows = db.rows("SELECT v FROM settings WHERE v LIKE ? LIMIT %d" % int(most),
+                       ('%' + SEALED + '%',))
     except Exception:                                   # noqa: BLE001
-        return True
+        return None
+    tried = []
+    for row in rows:
+        try:
+            value = json.loads(row['v'])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(value, str) and value.startswith(SEALED):
+            tried.append(unseal_secret(value) is not None)
+    return any(tried) if tried else None
+
+
+def _sealed_held():
+    db = SEAL_GUARD.get('db')
+    return False if db is None else sealed_held(db)
 
 
 def seal_secret(text, bind=None):
@@ -141,12 +167,12 @@ def seal_secret(text, bind=None):
     the value opens only where it was sealed for."""
     key = sealing_key()
     if not key:
-        # No new key while the database holds tokens sealed with one (1.0.205):
-        # the first secret sealed after the key was lost - a client saved, an
-        # enrolment - made a new one, past the daemon's own refusal at its
-        # start; the tokens stayed lost, and two nodes sealed each with its own.
+        # No new key while the database holds secrets sealed with one (1.0.205):
+        # the first secret sealed after the key was lost - a setting saved, a
+        # key imported - made a new one, past the daemon's own refusal at its
+        # start; the secrets stayed lost, and two nodes sealed each with its own.
         if _sealed_held():
-            raise OSError('%s is missing, and the database holds tokens sealed with it: no '
+            raise OSError('%s is missing, and the database holds secrets sealed with it: no '
                           'new key is made - put the key back (it is beside every backup)'
                           % sealing_key_path())
         key = sealing_key(make=True)
@@ -176,16 +202,7 @@ def unseal_secret(value, bind=None):
     elif value.startswith(SEALED):
         v2, prefix = False, SEALED
     else:
-        if value and bind is not None and str(bind).startswith('token:') and \
-                BIND_STRICT.get('tokens'):
-            # A token's key that was never sealed (1.0.101): every one was
-            # sealed at start, so this one was written by somebody without
-            # the key - taken for nothing.
-            return None
         return value
-    if not v2 and bind is not None and str(bind).startswith('token:') and \
-            BIND_STRICT.get('tokens'):
-        return None
     if v2 and bind is None:
         return None
     key = sealing_key()

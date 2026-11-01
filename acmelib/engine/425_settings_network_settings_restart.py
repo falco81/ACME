@@ -255,18 +255,6 @@ def _sshd_do(h):
         if act == 'refresh':
             HOST_WORK['sshd_read'] = 0.0
             return sshd_view(h.store)
-        # SSH tokens of their own (1.0.181): the app's QR shown once, when made.
-        if act == 'sshotp_add':
-            got = sshotp_make(h.store, b.get('name'), s['name'], b.get('note') or '',
-                              replace=bool(b.get('replace')), kind=str(b.get('kind') or 'app'),
-                              dest=str(b.get('dest') or ''), lang=str(b.get('lang') or ''))
-            return dict(sshd_view(h.store), made=got, message=(
-                'the SSH token of %s is made - scan it now, it is not shown again' % got['name']
-                if got['kind'] == 'app' else 'the SSH token of %s is made - its codes go to %s'
-                % (got['name'], got['dest'])))
-        if act == 'sshotp_remove':
-            sshotp_remove(h.store, b.get('name'), s['name'])
-            return dict(sshd_view(h.store), message='removed')
     except ValueError as e:
         raise ApiError(400, str(e))
     raise ApiError(400, 'no such thing to do')

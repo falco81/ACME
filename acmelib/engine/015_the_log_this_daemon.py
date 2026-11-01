@@ -71,8 +71,8 @@ def log(words, level='info'):
         _log_line(line, level)
     except Exception:                                   # noqa: BLE001
         # Never out of log() (1.0.186): a closed file after a rotation the
-        # disk had no room for raised here, out of every RADIUS worker that
-        # logged - one by one they ended, and nothing was answered.
+        # disk had no room for raised here, out of every thread that logged -
+        # one by one they ended, and nothing was done.
         pass
 
 
@@ -117,8 +117,8 @@ def _log_line(line, level):
         return
     if _UNDER_SYSTEMD:
         # To the journal by a thread of its own (1.0.186): a journald or a
-        # disk that stalls (the night's dumps) held every thread that logs,
-        # RADIUS's too, in this write. Full, a line is left out, not waited for.
+        # disk that stalls (the night's dumps) held every thread that logs
+        # in this write. Full, a line is left out, not waited for.
         try:
             _ERR_Q.put_nowait(line)
         except queue.Full:

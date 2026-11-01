@@ -286,8 +286,8 @@ def help_text(parser, pal):
     import textwrap
     width = pal.width
     out = ['%s %s' % (pal.head('acme'), pal.bold(__version__)),
-           pal.dim('a one-time password server: RADIUS, TOTP, the enrolment of tokens and '
-                   'Active Directory, in one Python file'),
+           pal.dim('%s - Let\'s Encrypt and any ACME CA, your own authorities, AD CS, '
+                   'SCEP; on servers, load balancers and firewalls' % ACME_WHAT),
            '',
            '%s acme %s' % (pal.paint('usage:', pal.c_key), pal.dim('[--json] [--no-color] '
                                                                   '[what to do]')),
@@ -350,12 +350,14 @@ def help_text(parser, pal):
     return '\n'.join(out)
 
 
+ACME_WHAT = 'certificates kept, renewed and deployed by themselves'
+
+
 def build_parser():
     # Options whole, never shortened (1.0.146): --js was taken for --json -
     # and --check --js went round itself until the stack ran out.
     p = HelpfulParser(prog='acme', add_help=False, allow_abbrev=False, usage='acme [--json] [--no-color] [what to do]',
-                      description='a one-time password server: RADIUS, TOTP, the enrolment '
-                                  'of tokens and Active Directory, in one Python file',
+                      description='acme - %s' % ACME_WHAT,
                       formatter_class=lambda prog: argparse.RawDescriptionHelpFormatter(
                           prog, max_help_position=36, width=100))
     g = p.add_argument_group('EVERYWHERE')
@@ -371,76 +373,12 @@ def build_parser():
     g = p.add_argument_group('LOOKING', 'Reading what it knows. None of these change anything.')
     g.add_argument('--status', action='store_true', help='what it is doing, in one screen')
     g.add_argument('--check', action='store_true', help='a health check, every part of it')
-    g.add_argument('--log', action='store_true', help='the RADIUS requests, newest first')
-    g.add_argument('--rejects', action='store_true', help='with --log: only the refusals')
-    g.add_argument('--request', type=int, metavar='ID',
-                   help='one RADIUS request, every attribute and every step of the decision')
-    g.add_argument('--acme-log', action='store_true', help='every check of a code')
-    g.add_argument('--tokens', action='store_true', help='who has a token')
-    g.add_argument('--token', metavar='NAME', help='one token, and what it has been doing')
     g.add_argument('--events', action='store_true', help='this daemon’s own events')
     g.add_argument('--limit', type=int, default=40, metavar='N', help='how many rows [40]')
     g.add_argument('--hours', type=float, default=24, metavar='N', help='the last N hours [24]')
     g.add_argument('--search', metavar='TEXT', default='', help='only rows holding this')
-    g = p.add_argument_group('TOKENS')
-    g.add_argument('--enroll', metavar='NAME', help='make a token for NAME (replacing any) and '
-                   'show its QR code in the terminal')
-    g.add_argument('--pending', action='store_true', help='with --enroll: not in use until a '
-                   'code from it is confirmed (--confirm)')
-    g.add_argument('--no-qr', action='store_true', help='with --enroll: no QR code, the key only')
-    g.add_argument('--by', choices=('app', 'mail', 'sms'), help='with --enroll: the codes come '
-                   'from the app [app], or are sent by mail or SMS to --to')
-    g.add_argument('--to', metavar='ADDRESS|NUMBER', help='with --enroll --by mail|sms: where the '
-                   'codes go')
-    g.add_argument('--invert', action='store_true', help='the QR code for a light terminal')
-    g.add_argument('--confirm', nargs=2, metavar=('NAME', 'CODE'), help='confirm a waiting token')
-    g.add_argument('--verify', nargs=2, metavar=('NAME', 'CODE'),
-                   help='is CODE right for NAME now? (uses nothing up)')
-    g.add_argument('--disable-token', metavar='NAME', help='switch a token off, keeping it')
-    g.add_argument('--enable-token', metavar='NAME', help='switch it on again')
-    g.add_argument('--delete-token', metavar='NAME', help='take a token away for good')
-    g.add_argument('--scratch', metavar='NAME', help='new recovery codes for NAME')
-    g.add_argument('--unlock', metavar='NAME', help='forget the wrong codes, so NAME may try '
-                   'again at once')
-    g.add_argument('--import-totpcgi', metavar='DIR', help='bring the *.totp files of a totpcgi '
-                   'server over')
-    g.add_argument('--import-legacy', metavar='ROOT', help='bring a whole totpcgi + FreeRADIUS '
-                   'server over: its clients, realms, directory, groups, settings and tokens '
-                   '(ROOT holds etc/raddb and etc/totpcgi)')
-    g.add_argument('--replace', action='store_true', help='with the imports: replace what is '
-                   'here already')
-    g = p.add_argument_group('RADIUS')
-    g.add_argument('--radtest', nargs='+', metavar='ARG', help='USER CODE [SERVER [PORT '
-                   '[SECRET]]] - ask the way radtest does; the server is this one, the secret '
-                   'that of the client for 127.0.0.1, unless given. CODE or SECRET as - is '
-                   'asked for (or ACME_RADTEST_PASSWORD, ACME_SECRET)')
-    g.add_argument('--clients', action='store_true', help='the RADIUS clients')
-    g.add_argument('--add-client', metavar='NAME', help='add (or change) a client: with '
-                   '--address and --secret, and --realm for names that come without one')
-    g.add_argument('--address', metavar='ADDR', help='an address or a range (10.0.0.0/24)')
-    g.add_argument('--secret', metavar='-', help='the shared secret (-: from ACME_SECRET, '
-                   'or asked - not on the command line)')
-    g.add_argument('--realm', metavar='REALM', help='the realm added to names without one')
-    g.add_argument('--del-client', metavar='NAME', help='take a client away')
-    g.add_argument('--realms', action='store_true', help='the realms')
-    g.add_argument('--add-realm', metavar='NAME', help='add (or change) a realm: --suffix, '
-                   '--directory, --lookup, --groups, --mode')
-    g.add_argument('--suffix', metavar='TEXT', default=None, help='what follows the @ '
-                   '(example.cz), * for every name, "" for names without one')
-    g.add_argument('--directory', metavar='NAME', help='the directory to look people up in')
-    g.add_argument('--lookup', choices=('upn', 'sam', 'none'), help='how names are looked up')
-    g.add_argument('--groups', metavar='G1;G2', help='the groups, any one of which lets in')
-    g.add_argument('--mode', choices=('acme', 'password_acme', 'password', 'challenge'),
-                   help='what the password is: the code, the directory password followed by '
-                        'the code, the directory password alone, or the directory password '
-                        'and then the code in a second window')
-    g.add_argument('--methods', metavar='totp,mail,sms', help='what people may choose on the '
-                   'enrolment pages: the app, a code by mail, a code by SMS')
-    g.add_argument('--aliases', metavar='a.local,b.cz', help='with --add-realm: other suffixes '
-                   'the realm takes too - novak@a.local is the token novak@REALM-SUFFIX; '
-                   '"" takes them away')
-    g.add_argument('--del-realm', metavar='NAME', help='take a realm away')
-    g = p.add_argument_group('ACTIVE DIRECTORY')
+    g = p.add_argument_group('ACTIVE DIRECTORY', 'The directories administrators (and the '
+                             'enrolment pages) sign people in against.')
     g.add_argument('--directories', action='store_true', help='the directories')
     g.add_argument('--add-directory', metavar='NAME', help='add (or change) one: --hosts, '
                    '--base, --bind-dn, --bind-pw, --tls, --port, --no-verify')
@@ -475,8 +413,8 @@ def build_parser():
     g.add_argument('--disable-user', metavar='NAME', help='stop an account signing in')
     g.add_argument('--enable-user', metavar='NAME', help='let it sign in again')
     g.add_argument('--console', action='store_true',
-                   help='the acme console: the whole of acme by its menus, the live log and the '
-                        'live RADIUS requests (q leaves it)')
+                   help='the acme console: the whole of acme by its menus and the live log '
+                        '(q leaves it)')
     g.add_argument('--console-at-login', choices=('on', 'off', 'status'), metavar='on|off|status',
                    help='open the console when root signs in at the console or over SSH')
     g.add_argument('--admin-2fa', choices=('on', 'off', 'status'), metavar='on|off|status',
@@ -486,16 +424,17 @@ def build_parser():
                    'up for these pages: it sets it up again at its next sign-in')
     g.add_argument('--note', metavar='TEXT', default='', help='a note beside what is made')
     g = p.add_argument_group('THE DATABASE AND ISEMON')
-    g.add_argument('--fill-names', action='store_true', help='every token without its owner\'s '
-                   'name given it from the directory of its realm')
     g.add_argument('--export-config', metavar='FILE', help='the whole configuration into a JSON '
-                   'file - settings, clients, realms, directories, accounts, certificates, the web '
-                   'address, the firewall (1.0.62); the tokens are in --backup')
+                   'file - settings, directories, accounts, the certificates of the pages, the '
+                   'web address, the firewall, and the tables a module carries (its issuers, '
+                   'targets...); the certificates and the logs are in --backup')
     g.add_argument('--with-secrets', action='store_true', help='--export-config: with the '
-                   'secrets in the clear (client secrets, passwords, private keys)')
+                   'secrets in the clear (passwords, private keys)')
     g.add_argument('--import-config', metavar='FILE', help='a file of --export-config (or of the '
                    'pages\' export) put in (--yes); with --replace, what is not in the file '
                    'is taken away and settings not in it go back to their defaults')
+    g.add_argument('--replace', action='store_true', help='with --import-config: replace what '
+                   'is here already')
     g.add_argument('--backup', action='store_true', help='a copy of the database, now')
     # The daemon's copies made by a process of their own (1.0.150), not shown.
     g.add_argument('--dump-copy', action='store_true', help=argparse.SUPPRESS)
@@ -504,7 +443,7 @@ def build_parser():
                    'what is in it and where it was made')
     g.add_argument('--restore-bundle', metavar='FILE', help='put back a backup sent to a '
                    'destination (acme-backup-....tar.gz.enc): everything - the database, the key '
-                   'of the tokens, the node\'s name; without --yes, what is in it')
+                   'of its secrets, the node\'s name; without --yes, what is in it')
     g.add_argument('--passphrase-file', metavar='FILE', help='with --restore-bundle: the '
                    'password of the backups, one line (else ACME_BACKUP_PASSWORD, else asked)')
     g.add_argument('--keep-node-name', action='store_true', help='with --restore-bundle: this '
@@ -520,8 +459,8 @@ def build_parser():
                    'receivers and say what happened')
     g = p.add_argument_group('WHAT THE PAGES DO, HERE TOO', 'For a server without its pages '
                              '(installed --no-web) or with them down (1.0.187).')
-    g.add_argument('--acme', action='store_true', help='the certificates by ACME: each one\'s name, '
-                   'end, who looks after it, its last order')
+    g.add_argument('--acme', action='store_true', help='the certificates of the pages by ACME: '
+                   'each one\'s name, end, who looks after it, its last order')
     g.add_argument('--acme-order', metavar='TARGET', help='order it now, followed here: a node\'s '
                    'name, vip, or all (each one ACME looks after)')
     g.add_argument('--updates', choices=('status', 'check', 'start', 'cancel'), help='the updates '
@@ -537,13 +476,8 @@ def build_parser():
     g.add_argument('--mail-test', metavar='ADDRESS', help='send a test mail now, every step said')
     g.add_argument('--sms-test', metavar='NUMBER', help='send a test SMS now (a code that opens '
                    'nothing)')
-    g.add_argument('--ssh-tokens', action='store_true', help='the SSH tokens (Settings - SSH '
-                   'server), each one\'s way and when last used')
-    g.add_argument('--ssh-token-add', metavar='NAME', help='an SSH token for the account NAME: '
-                   'from the app (its QR code shown once), or --by mail|sms --to')
-    g.add_argument('--ssh-token-del', metavar='NAME', help='take an SSH token away')
     g.add_argument('--lockouts', action='store_true', help='who and what is locked out now: '
-                   'tokens, the pages\' sign-ins, places refused')
+                   'the pages\' sign-ins, the codes sent')
     g.add_argument('--lockouts-clear', metavar='all|KIND:WHO', help='forget a lockout (the KIND '
                    'and WHO --lockouts shows), or every one, on every node')
     g.add_argument('--siem-test', action='store_true', help='a test line to the syslog servers '
@@ -593,7 +527,7 @@ def build_parser():
                    '(BODY - : read from stdin, for one holding a secret) - the answer as JSON')
     g = p.add_argument_group('MAINTENANCE AND UPGRADES')
     g.add_argument('--maintenance', choices=('on', 'off', 'status'), help='this node out of '
-                   'service (RADIUS not answered, /healthz 503) or back; status says which')
+                   'service (no work of its own, /healthz 503) or back; status says which')
     g.add_argument('--node', metavar='NAME', help='with --maintenance, --set (a node\'s own '
                    'setting; * for the cluster\'s own value), --change-keep: another node of '
                    'the cluster rather than this one')
@@ -722,8 +656,8 @@ def build_parser():
                    'failed')
     g.add_argument('--yes', action='store_true', help='do not ask')
     g.add_argument('--discard-local', action='store_true',
-                   help='--ha-join: go on even though this node holds tokens of its own, which '
-                        'joining throws away (1.0.59: --yes alone no longer means that)')
+                   help='--ha-join: go on even though this node holds secrets of its own, '
+                        'which joining throws away (1.0.59: --yes alone no longer means that)')
     for fn in HOOKS['cli_args']:
         fn(p)
     return p
@@ -731,18 +665,11 @@ def build_parser():
 
 HELP_EXAMPLES = [
     ('acme', 'what it is doing (the same as --status)'),
-    ('acme --check', 'every part of it: the key, the copies, PHP, clients, realms, directories'),
-    ('acme --enroll novak@example.cz', 'a token, with the QR code to scan off the terminal'),
-    ('acme --radtest novak 123456', 'what radtest asks, from this machine'),
-    ('acme --log --rejects', 'who was refused, and why'),
-    ('acme --request 42', 'every step of one decision'),
-    ('acme --add-client ASA --address 192.0.2.1 --secret - --realm example.cz',
-     'the secret asked for (or ACME_SECRET)'),
+    ('acme --check', 'every part of it: the key, the copies, PHP, the directories'),
+    ('acme --console', 'the menus, on the server\'s own screen'),
     ("acme --add-directory AD --hosts dc1.example.local,dc2.example.local \\\n"
      "    --base DC=example,DC=local --bind-dn acme@example.local --bind-pw -", ''),
-    ("acme --add-realm example.cz --suffix example.cz --directory AD --lookup upn \\\n"
-     "    --groups 'VPN_USERS;VPN_ADMINS'", ''),
-    ('acme --import-legacy /root/old-acme', 'everything from a totpcgi + FreeRADIUS server'),
+    ("acme --set admin_directory=AD --set 'admin_group_cert=CERT_ADMINS'", ''),
     ('acme --set isemon=1 --set isemon_targets=isemon.example.local:514/tcp', ''),
     ('acme --ha-setup --ha-peer 192.0.2.12', 'make this the first node of two; then copy the '
      'bundle over'),
@@ -754,7 +681,7 @@ HELP_EXAMPLES = [
 def become_service_user():
     """Run as the daemon's own account when started as root, so that nothing
     the command line writes - the database file and its journal, a copy, the
-    key of the tokens - ends up root's and out of the daemon's reach."""
+    key of the secrets - ends up root's and out of the daemon's reach."""
     if os.geteuid() != 0 or os.environ.get('ACME_STAY_ROOT'):
         return
     try:
@@ -858,7 +785,7 @@ def cli_ha(args, pal):
 
     if os.geteuid() != 0 and (args.ha_setup or args.ha_join or args.trusted_proxy):
         raise SystemExit('acme: run this as root - it changes PostgreSQL, nginx and the key '
-                         'of the tokens')
+                         'of the sealed secrets')
     os.environ['ACME_STAY_ROOT'] = '1'
     load_config(saved=None)
     if args.trusted_proxy and not (args.ha_setup or args.ha_join):
@@ -893,7 +820,7 @@ def cli_ha(args, pal):
         chown_to_service(sealing_key_path(), 0o600)
         chown_to_service(CONFIG_FILE, 0o640)
         print(pal.ok_line('the database: %s (%s record(s) in it)' % (got['where'], got['rows'])))
-        print(pal.ok_line('the key that opens the tokens is the cluster\'s'))
+        print(pal.ok_line('the key that opens the sealed secrets is the cluster\'s'))
         if args.trusted_proxy:
             nginx_trusted_proxies(args.trusted_proxy, pal)
         if not os.environ.get('ACME_HA_NO_RESTART'):
@@ -982,7 +909,6 @@ def cli_ha(args, pal):
     print('')
     print(pal.head('in front of both'))
     print('  HTTPS: round robin, no stickiness needed; health check  GET /healthz  (200 = up).')
-    print('  RADIUS: give the VPN both nodes as servers (or balance UDP 1812/1813 to both).')
     print('  The load balancer\'s address on both nodes:  acme --trusted-proxy CIDR')
     return 0
 
@@ -1011,7 +937,7 @@ def cli_ha_bundle_again(args, pal, store):
     target = Path(args.ha_bundle or '/root/acme-join-%s.json' % node_name())
     write_private(target, json.dumps(bundle_lock(data, phrase), indent=1) + '\n')
     store.add_event('settings', 'a bundle for the other node (slot %d) was made again on the '
-                    'command line - it carries the key that opens every token' % data['slot'],
+                    'command line - it carries the key that opens every secret' % data['slot'],
                     'warn', who='command line')
     print(pal.ok_line('the bundle for the other node (slot %d): %s' % (data['slot'], target)))
     print('  ' + pal.bold('its passphrase, shown only now: ') + pal.info(phrase))
@@ -1063,8 +989,8 @@ def cli_ha_setup_replicated(args, pal, store, ask):
     chown_to_service(CONFIG_FILE, 0o640)
     load_config(saved=store.settings_saved())
     # A node's own settings saved while it was alone made its own now (1.0.206):
-    # kept as the plain key, they became the cluster's - the second node bound
-    # RADIUS to the first one's address and greeted mail servers by its name.
+    # kept as the plain key, they became the cluster's - the second node greeted
+    # mail servers by the first one's name.
     me_now = node_name()
     held = store.settings_saved()
     for k in NODE_KEYS:
@@ -1242,7 +1168,7 @@ def cli_ha_standalone(args, pal):
     (1.0.47): the replication taken away (as --ha-stop), what is left of it
     in this PostgreSQL removed, the other nodes forgotten, and config.json
     a single server's again. The database, the key, the settings, the
-    tokens and the accounts stay as they are."""
+    certificates and the accounts stay as they are."""
     if os.geteuid() != 0:
         raise SystemExit('acme: run this as root - it writes config.json and restarts acme')
     if not CONFIG.get('ha_mode') and not args.yes:
@@ -1306,15 +1232,11 @@ def cli_ha_standalone(args, pal):
 
 
 # What a row of each table of the configuration holds, compared between the
-# nodes - without what changes at every sign-in (1.0.207).
+# nodes - without what changes at every sign-in (1.0.207). A module's tables of
+# the configuration (HOOKS['carry_tables']) are compared row by row whole.
 HA_CONTENT = {
     'settings': ('k', "concat_ws('/', k, v)"),
     'accounts': ('name', "concat_ws('/', name, role, pw, source, disabled, must_change, dn)"),
-    'clients': ('name', "concat_ws('/', name, address, secret, realm, realms, require_ma, "
-                        "enabled, nas_type, position)"),
-    'realms': ('name', "concat_ws('/', name, suffix, directory, lookup, auth_mode, group_list, "
-                       "check_disabled, reply, enabled, position, token_name, nested, methods, "
-                       "aliases)"),
     'directories': ('name', "concat_ws('/', name, hosts, port, tls, verify, ca, base, bind_dn, "
                             "bind_pw, user_attr, nested, timeout_s, enabled, weak)"),
 }
@@ -1347,7 +1269,11 @@ def cli_ha_compare(store, pal, as_json=False):
                 else:
                     here_m = there_m = None
             ok = int(here_n or 0) == int(there_n or 0) and here_m == there_m
-            if ok and t in HA_CONTENT:
+            if ok and t not in HA_CONTENT and t in carry_tables():
+                q = ("SELECT md5(COALESCE(string_agg(row_to_json(x)::text, '|' ORDER BY x.id), "
+                     "'')) FROM %s x" % t)
+                ok = store.db.value(q) == far.value(q)
+            elif ok and t in HA_CONTENT:
                 # The same number of rows, but what is in them (1.0.207): a
                 # setting or an account changed on both nodes while the link
                 # was down stayed swapped and was counted "same".
@@ -1553,7 +1479,7 @@ def cli_web(args, pal, store):
 def cli_stage_files(args):
     """The files named on the command line, opened as whoever typed it - root
     - before the service's account takes over (1.0.103): a backup, a
-    configuration or an old server's tree in /root were not the acme account's
+    configuration in /root was not the acme account's
     to read, and the documented recovery failed with "Permission denied".
     Copied into a folder of the service's own, taken away at the end; a file
     to write is opened now and written to later."""
@@ -1650,10 +1576,6 @@ def cli_stage_files(args):
             args.backup_info = stage(args.backup_info, with_key=True)
         if getattr(args, 'import_config', None):
             args.import_config = stage(args.import_config)
-        if getattr(args, 'import_legacy', None):
-            args.import_legacy = stage(args.import_legacy)
-        if getattr(args, 'import_totpcgi', None):
-            args.import_totpcgi = stage(args.import_totpcgi)
         # A package to go back to and a directory's authority (1.0.146): in
         # /root, where the docs put them, the acme account could not read them.
         if getattr(args, 'downgrade', None) and (
@@ -1850,7 +1772,7 @@ def cli_main(argv=None):
         return cli_dump_copy()
     if args.read_copy:
         # copy_read_through in a process of its own (1.0.186); the key of the
-        # tokens on stdin, never on the command line.
+        # secrets on stdin, never on the command line.
         key = sys.stdin.readline().strip()
         try:
             got = copy_read_through(args.read_copy, bytes.fromhex(key) if key else None,
@@ -2050,7 +1972,7 @@ def cli_main(argv=None):
                             'command line', name)
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
-        print(pal.ok_line('%s: %s' % (name, 'in maintenance - RADIUS is not answered and '
+        print(pal.ok_line('%s: %s' % (name, 'in maintenance - no work of its own, and '
                                       '/healthz says 503' if args.maintenance == 'on'
                                       else 'back in service')))
         return 0
@@ -2104,7 +2026,7 @@ def cli_main(argv=None):
                                                                             % pk['url']))
         print('  ' + ('the nodes %s, one at a time - each in maintenance while it is upgraded'
                       % ', '.join(nodes) if len(nodes) > 1 else
-                      'this server - for a minute nobody can sign in to the VPN'))
+                      'this server - for a minute nothing is renewed or deployed'))
         if not args.yes:
             try:
                 ok = input('  go on? (y/N) ').strip().lower() in ('y', 'yes', 'a', 'ano')
@@ -2164,7 +2086,7 @@ def cli_main(argv=None):
         print(pal.head('acme %s → %s (going back)' % (__version__, os.path.basename(want))))
         print('  ' + ('the nodes %s, one at a time - each in maintenance while it is done'
                       % ', '.join(nodes) if len(nodes) > 1 else
-                      'this server - for a minute nobody can sign in to the VPN'))
+                      'this server - for a minute nothing is renewed or deployed'))
         print('  ' + pal.dim('the database stays as it is; what came in the newer versions is '
                              'gone until you upgrade again'))
         if not args.yes:
@@ -2278,21 +2200,7 @@ def cli_main(argv=None):
                 alive = json.loads(r.read().decode()).get('ok')
         except Exception:
             alive = False
-        listening = []
-        for kind, port in (('auth', CONFIG.get('radius_auth_port')),
-                           ('acct', CONFIG.get('radius_acct_port'))):
-            if not port:
-                continue
-            probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            try:
-                probe.bind((str(CONFIG.get('radius_bind') or '0.0.0.0'), int(port)))
-                listening.append((kind, port, False))
-            except OSError:
-                listening.append((kind, port, True))
-            finally:
-                probe.close()
         s['daemon_alive'] = alive
-        s['ports'] = listening
         if args.json and args.check:
             # --check --json (1.0.103): the checks run as without --json, their
             # lines and their verdict in the JSON - and the same exit code. It
@@ -2309,32 +2217,39 @@ def cli_main(argv=None):
             # The same exit code as the text (1.0.207): 0 with the daemon down.
             out(s)
             return 0 if alive and not s['problems'] else 1
-        print(pal.head('acme %s on %s' % (__version__, s['host'])))
+        print(pal.head('acme %s on %s' % (__version__, s['host'])) + '  ' +
+              pal.dim('- ' + ACME_WHAT))
         print((pal.ok_line if alive else pal.bad_line)(
             'the daemon %s' % ('answers on 127.0.0.1:%s' % CONFIG.get('api_port') if alive
                                else 'is not answering - systemctl status acme')))
-        for kind, port, taken in listening:
-            print((pal.ok_line if taken else pal.bad_line)(
-                'UDP %s (%s) %s' % (port, kind, 'is being listened on' if taken
-                                    else 'is free: nothing answers RADIUS there')))
         print(pal.ok_line('the database: %s (%s)' % (store.db.where(), store.db.version())))
+        # The cluster, in one line: the nodes heard from, the replication.
+        nodes = s.get('nodes') or []
+        rep_ = s.get('replication') or {}
+        if CONFIG.get('ha_mode') or len(nodes) > 1:
+            up = [n['name'] for n in nodes if n.get('alive')]
+            down = [n['name'] for n in nodes if not n.get('alive')]
+            fine = not down and (rep_.get('mode') != 'replicated' or rep_.get('healthy'))
+            print((pal.ok_line if fine else pal.bad_line)('the cluster (%s): %s%s%s' % (
+                CONFIG.get('ha_mode') or 'one database', ', '.join(up) or 'no node',
+                ' - not heard from: %s' % ', '.join(down) if down else '',
+                (', replication %s' % ('running' if rep_.get('healthy') else
+                                       'NOT running%s' % (' (%s)' % rep_['trouble']
+                                                          if rep_.get('trouble') else '')))
+                if rep_.get('mode') == 'replicated' else '')))
+        else:
+            print(pal.ok_line('one server, node %s' % s.get('node')))
+        m = s.get('maintenance') or {}
+        if m.get('on'):
+            print(pal.warn_line('this node is in maintenance%s' % (
+                ' (%s)' % m['why'] if m.get('why') else '')))
+        # The rest is the modules' to say (the certificates, their jobs).
         for fn in HOOKS['status']:
             try:
                 for line in fn(store, pal) or []:
                     print(line)
             except Exception as e:                      # noqa: BLE001
                 print(pal.bad_line('%s: %s' % (getattr(fn, '__qualname__', fn), e)))
-        t = s['tokens']
-        print('  tokens: %d in use, %d waiting for a code, %d switched off; %d used in the '
-              'last 30 days' % (t.get('active', 0), t.get('pending', 0), t.get('disabled', 0),
-                                t.get('used_30d', 0)))
-        print('  clients %d, realms %d, directories %d' % (s['clients'], s['realms'],
-                                                          s['directories']))
-        print('  the last 24 h: %s let in, %s refused' % (pal.good(s['day']['accept']),
-                                                         pal.bad(s['day']['reject'])))
-        if s.get('last'):
-            print('  the last request: %s %s %s' % (stamp(s['last']['ts']),
-                                                   s['last']['username'], s['last']['result']))
         print('  isemon: %s' % (('sending to %s as "%s"' % (
             CONFIG.get('isemon_targets') or '(nowhere!)', str(CONFIG.get('isemon_hostname')
                                                               or short_host())))
@@ -2352,9 +2267,9 @@ def cli_main(argv=None):
                     print(pal.dim('    ' + hint))
                 return 0 if ok else 1
             key = sealing_key_path()
-            bad += said(key.is_file(), 'the key of the tokens: %s' % key,
-                        'without it no token can be opened - put back the .key beside the '
-                        'latest copy in %s' % BACKUP_DIR)
+            bad += said(key.is_file(), 'the key of the sealed secrets: %s' % key,
+                        'without it no private key or password kept can be opened - put back '
+                        'the .key beside the latest copy in %s' % BACKUP_DIR)
             copies = backups()
             try:                        # the nightly dumps as well (1.0.59)
                 copies = sorted(copies + kept_dumps(CONFIG.get('db_engine') or 'sqlite'),
@@ -2376,25 +2291,6 @@ def cli_main(argv=None):
                     else 'does NOT have the php2shell fix (CVE-2026-109618/109619)'),
                     './install.sh --upgrade puts it right')
             dirs = {d['name']: d for d in store.directories(with_secret=True)}
-            clients = store.clients()
-            if not clients:
-                bad += said(False, 'no RADIUS client: nothing may ask this server',
-                            'Settings -> Clients, or acme --add-client')
-            for c in clients:
-                print(pal.ok_line('client %s (%s)%s' % (
-                    c['name'], c['address'],
-                    ', adds @%s' % c['realm'] if c.get('realm') else '')))
-            for r in store.realms():
-                d = r.get('directory') or ''
-                if d and d not in dirs:
-                    bad += said(False, 'realm %s asks the directory %s, which is not set up'
-                                % (r['name'], d), 'Settings -> Active Directory')
-                else:
-                    print(pal.ok_line('realm %s: %s, %s' % (
-                        r['name'], 'directory ' + d if d else 'no directory - the code alone',
-                        {'acme': 'the code', 'password_acme': 'the password then the code',
-                         'password': 'the directory password'}.get(r.get('auth_mode'),
-                                                                   r.get('auth_mode') or 'the code'))))
             if not dirs:
                 print(pal.dim('  no directory to check (Settings -> Active Directory)'))
             for one in dirs.values():
@@ -2411,90 +2307,6 @@ def cli_main(argv=None):
                     'Settings -> isemon: where to send them')
         return 0 if alive and not s['problems'] and not bad else 1
 
-    if args.log or args.rejects:
-        rows, total = store.radius_rows(hours=args.hours, q=args.search,
-                                        result='reject' if args.rejects else 'access',
-                                        limit=args.limit)
-        if args.json:
-            out({'rows': rows, 'total': total})
-            return 0
-        print(table([(r['id'], stamp(r['ts']), r['username'], r['client'], r['calling'] or '-',
-                      pal.good('accept') if r['result'] == 'accept' else pal.bad(r['result']),
-                      r['reason'] or r['acme'] or '') for r in rows],
-                    ['id', 'when', 'name', 'client', 'from', 'result', 'why'],
-                    [6, 19, 28, 14, 16, 16 if pal.on else 7, 60]))
-        print(pal.dim('  %d of %d in the last %s h' % (len(rows), total, args.hours)))
-        return 0
-
-    if args.request is not None:
-        r = store.radius_row(args.request) if 0 <= args.request < 2 ** 62 else None
-        if not r:
-            raise SystemExit('there is no request %d' % args.request)
-        if args.json:
-            out(r)
-            return 0
-        print(pal.head('request %d, %s, from %s (%s)' % (r['id'], stamp(r['ts']), r['client'],
-                                                       r['src'])))
-        print('  %s: %s %s' % (r['username'], (pal.good if r['result'] == 'accept'
-                                               else pal.bad)(r['result']), r['reason'] or ''))
-        for st in r['steps']:
-            print('  ' + (pal.ok_line if st.get('ok') else pal.bad_line)(
-                '%s%s%s' % (st['what'], (' - ' + st['said']) if st.get('said') else '',
-                            pal.dim(' (%d ms)' % st['ms']) if 'ms' in st else '')))
-        print(pal.dim('  asked:'))
-        for k, v in r['attrs']:
-            print('    %s = %s' % (k, v))
-        print(pal.dim('  answered:'))
-        for k, v in r['reply']:
-            print('    %s = %s' % (k, v))
-        return 0
-
-    if args.acme_log:
-        rows, total = store.acme_rows(hours=args.hours, q=args.search, limit=args.limit)
-        if args.json:
-            out({'rows': rows, 'total': total})
-            return 0
-        print(table([(stamp(r['ts']), r['name'], pal.good('yes') if r['ok'] else pal.bad('no'),
-                      r['said'], r['how'], r['src']) for r in rows],
-                    ['when', 'name', 'ok', 'said', 'how', 'from'],
-                    [19, 30, 12 if pal.on else 3, 40, 8, 20]))
-        return 0
-
-    if args.tokens:
-        rows, total = store.tokens(q=args.search, limit=args.limit if any(
-            x == '--limit' or x.startswith('--limit=') for x in sys.argv) else 1000)
-        if args.json:
-            out({'rows': rows, 'total': total})
-            return 0
-        print(table([(r['name'], r['state'], stamp(r['created']), stamp(r['last_used'])
-                      if r['last_used'] else 'never', r['scratch_left'], r['failures'] or 0,
-                      r['created_by'] or '') for r in rows],
-                    ['name', 'state', 'made', 'last used', 'codes', 'wrong', 'by'],
-                    [34, 9, 19, 19, 5, 5, 22]))
-        print(pal.dim('  %d token(s)' % total))
-        return 0
-
-    if args.token:
-        tok = store.token_shown(store.token(args.token))
-        checks, _ = store.acme_rows(hours=24 * 365, name=norm_name(args.token), limit=args.limit)
-        if args.json:
-            out({'token': tok, 'checks': checks})
-            return 0 if tok else 1
-        if not tok:
-            print(pal.bad_line('%s has no token' % norm_name(args.token)))
-            return 1
-        for k in ('name', 'state', 'created', 'created_by', 'activated', 'last_used',
-                  'last_from', 'scratch_left', 'failures', 'digits', 'period', 'algorithm',
-                  'window_steps', 'note'):
-            v = tok.get(k)
-            if k in ('created', 'activated', 'last_used'):
-                v = stamp(v) if v else 'never'
-            print('  %-14s %s' % (k, v if v not in (None, '') else '-'))
-        print(table([(stamp(r['ts']), pal.good('yes') if r['ok'] else pal.bad('no'), r['said'],
-                      r['how']) for r in checks], ['when', 'ok', 'said', 'how'],
-                    [19, 12 if pal.on else 3, 44, 8]))
-        return 0
-
     if args.events:
         # --hours when given (1.0.207): every event of any age was listed.
         given = any(w == '--hours' or w.startswith('--hours=')
@@ -2506,341 +2318,6 @@ def cli_main(argv=None):
             return 0
         print(table([(stamp(r['ts']), r['kind'], r['who'] or '', r['words']) for r in rows],
                     ['when', 'kind', 'who', 'what'], [19, 22, 18, 90]))
-        return 0
-
-    tk = Tokens(store)
-    if args.enroll and not store.token(args.enroll):
-        # Under its realm's own suffix, as the pages make it (1.0.187): made for
-        # novak@dpmo.local it was a second token beside novak@dpmo.cz, the one
-        # RADIUS looks up first - the QR code just shown never let anyone in.
-        main = norm_name(realm_main_name(args.enroll, store.realm_for(args.enroll)))
-        if main != norm_name(args.enroll):
-            print('  %s is %s - another suffix of its realm' % (args.enroll, main),
-                  file=sys.stderr if args.json else sys.stdout)
-            args.enroll = main
-    if args.enroll:
-        had = store.token(args.enroll)
-        if had and had.get('state') != 'pending':
-            # Not silently (1.0.59): the token in use stops working now.
-            cli_sure(args, 'the token of %s in use is replaced, and stops working now'
-                     % norm_name(args.enroll))
-        if args.by in ('mail', 'sms'):
-            # Codes sent by mail or SMS (1.0.76).
-            try:
-                got = tk.enroll_sent(args.enroll, 'cli', args.by, args.to or '',
-                                     note=args.note or None)
-            except ValueError as e:
-                raise SystemExit(str(e))
-            store.add_event('tokens', 'a token for %s was made on the command line: codes by %s '
-                            'to %s' % (got['name'], args.by, got['dest']), who=who)
-            if args.json:
-                out(got)
-                return 0
-            print(pal.head('a token for %s - codes by %s to %s' % (
-                got['name'], 'mail' if args.by == 'mail' else 'SMS', got['dest'])))
-            if got['scratch']:
-                print('  recovery codes, each good once:  %s' % '  '.join(got['scratch']))
-            return 0
-        got = tk.enroll(args.enroll, 'cli', pending=args.pending, note=args.note or None)
-        store.add_event('tokens', 'a token for %s was made on the command line'
-                        % got['name'], who=who)
-        if args.json:
-            out(got)
-            return 0
-        print(pal.head('a token for %s%s' % (got['name'], ' - waiting for a code (acme '
-                                                         '--confirm NAME CODE)' if args.pending
-                                             else '')))
-        if not args.no_qr:
-            print(QrCode(got['uri']).terminal(invert=args.invert))
-        print('  key:      %s' % got['secret_spaced'])
-        print('  in full:  %s' % got['uri'])
-        if got['scratch']:
-            print('  recovery codes, each good once:  %s' % '  '.join(got['scratch']))
-        return 0
-
-    if args.confirm:
-        ok, said = tk.confirm(args.confirm[0], args.confirm[1], 'cli')
-        print((pal.ok_line if ok else pal.bad_line)(said))
-        return 0 if ok else 1
-
-    if args.verify:
-        ok, said, facts = tk.check(args.verify[0], args.verify[1], how='cli', dry=True)
-        if args.json:
-            out({'ok': ok, 'said': said, 'facts': facts})
-        else:
-            print((pal.ok_line if ok else pal.bad_line)('%s%s' % (said, (
-                ' (%+d step)' % facts['off']) if facts.get('off') else '')))
-        return 0 if ok else 1
-
-    for flag, state in (('disable_token', 'disabled'), ('enable_token', 'active')):
-        name = getattr(args, flag)
-        if name:
-            if not store.token(name):
-                raise SystemExit('%s has no token' % norm_name(name))
-            if state == 'active' and (store.token(name) or {}).get('state') != 'disabled':
-                print(pal.ok_line('the token of %s is not switched off' % norm_name(name)))
-                return 0
-            state = token_switch_state(store, name, state == 'active')     # 1.0.59
-            store.token_write(name, {'state': state, 'failures': 0, 'fail_times': '[]',
-                                     'locked_until': None})
-            store.add_event('tokens', 'the token of %s was switched %s on the command line'
-                            % (norm_name(name), 'off' if state == 'disabled' else 'on'), who=who)
-            print(pal.ok_line('the token of %s is %s' % (norm_name(name), state)))
-            return 0
-
-    if args.delete_token:
-        if not store.token(args.delete_token):
-            raise SystemExit('%s has no token' % norm_name(args.delete_token))
-        cli_sure(args, 'the token of %s is taken away for good' % norm_name(args.delete_token))
-        store.token_drop(args.delete_token)
-        # What was kept beside it goes too, as on the pages (1.0.44).
-        for k in ('staged:', 'mailed:', 'disabled_from:'):
-            store.db.run('DELETE FROM meta WHERE k = ?', (k + norm_name(args.delete_token),))
-        store.add_event('tokens', 'the token of %s was taken away on the command line'
-                        % norm_name(args.delete_token), 'warn', who=who)
-        print(pal.ok_line('gone'))
-        return 0
-
-    if args.scratch:
-        if not store.token(args.scratch):
-            raise SystemExit('acme: %s has no token' % norm_name(args.scratch))
-        codes = tk.new_scratch(args.scratch)
-        store.add_event('tokens', 'new recovery codes for %s were made on the command line'
-                        % norm_name(args.scratch), 'warn', who=who)
-        print('  ' + '  '.join(codes))
-        return 0
-
-    if args.unlock:
-        if not store.token(norm_name(args.unlock)):
-            raise SystemExit('no token %s' % norm_name(args.unlock))
-        store.token_write(norm_name(args.unlock), {'failures': 0, 'fail_times': '[]', 'locked_until': None})
-        # Its recovery codes given back too, as on the pages (1.0.103).
-        scratch_guard_give_back(store, args.unlock)
-        store.add_event('tokens', 'the command line let %s try again at once'
-                        % norm_name(args.unlock), who='command line')
-        print(pal.ok_line('the wrong codes of %s are forgotten' % norm_name(args.unlock)))
-        return 0
-
-    if args.import_totpcgi:
-        if not Path(args.import_totpcgi).is_dir():
-            raise SystemExit('acme: %s is not a folder of .totp files' % args.import_totpcgi)
-        n = collections.Counter()
-        for f in sorted(Path(args.import_totpcgi).glob('*.totp')):
-            try:
-                said = import_totp(store, totp_file_owner(f.name), f.read_text(errors='replace'),
-                                   'import',
-                                   args.replace)
-            except ValueError as e:
-                said = 'not imported: %s' % e
-            n[said.split(' ')[0]] += 1
-            print('  %-40s %s' % (norm_name(f.name[:-5]), said))
-        store.add_event('import', 'totpcgi files imported from %s: %s' % (
-            args.import_totpcgi, dict(n)), who=who)
-        args.fill_names = True
-
-    if args.import_legacy:
-        got = import_legacy(store, args.import_legacy, 'import', args.replace,
-                            say=lambda t: print('  ' + t))
-        bump(store)
-        print(pal.ok_line('brought over: %s' % ', '.join('%s %d' % kv for kv in
-                                                         sorted(got.items()))))
-        args.fill_names = True
-
-    if args.fill_names:
-        print(pal.dim('  the owners\' names, from the directory of each token\'s realm...'))
-        got = Daemon(store, serve=False).fill_names(by='command line')
-        print(pal.ok_line('%d token(s) given their owner\'s name; %d not found, %d with no '
-                          'directory to ask, %d could not be asked'
-                          % (got['filled'], got['not_found'], got['no_directory'],
-                             got['trouble'])))
-        return 0
-
-    if args.radtest:
-        a = args.radtest
-        if len(a) < 2:
-            raise SystemExit('acme --radtest USER CODE [SERVER [PORT [SECRET]]]')
-        user, code = a[0], a[1]
-        if code == '-':
-            # Not on the command line, where `ps` shows it (1.0.136).
-            code = os.environ.get('ACME_RADTEST_PASSWORD') or getpass.getpass('password + code: ')
-        server = a[2] if len(a) > 2 else '127.0.0.1'
-        try:
-            port = int(a[3]) if len(a) > 3 else int(CONFIG.get('radius_auth_port') or 1812)
-        except ValueError:
-            raise SystemExit('acme --radtest: the port is a number')
-        secret = a[4] if len(a) > 4 else None
-        not_on_command_line('the shared secret', secret, 'give - as the fifth word: it is asked for '
-                            '(or ACME_SECRET)')
-        if secret == '-':
-            # As --secret - (1.0.139): not on the command line, where ps shows it.
-            secret = ask_password('the shared secret', twice=False, env='ACME_SECRET')
-        if secret is None:
-            local = store.client_for('127.0.0.1')
-            if not local:
-                raise SystemExit('there is no client for 127.0.0.1: give the secret as the '
-                                 'fifth word')
-            secret = local['_secret']
-        print(pal.dim('Sent Access-Request to %s:%d, User-Name = "%s", User-Password = "******"'
-                      % (server, port, user)))
-        try:
-            got, words, took = radius_ask(server, port, secret, user, code)
-        except RadiusError as e:
-            print(pal.bad_line(str(e)))
-            return 2
-        print(((pal.good if got == ACCESS_ACCEPT else pal.bad)('Received %s' % CODE_WORDS.get(
-            got, got))) + pal.dim(' in %d ms' % took))
-        for k, v in words:
-            if k != 'Message-Authenticator':
-                print('    %s = %s' % (k, v))
-        # The second window (1.0.81): the code asked for, and the request
-        # again with the State - as the VPN client does. Up to three times,
-        # as the server lets.
-        rounds = 0
-        while got == ACCESS_CHALLENGE and rounds < 5:
-            rounds += 1
-            state = next((v for k, v in words if k == 'State'), '')
-            said = next((v for k, v in words if k == 'Reply-Message'), '')
-            try:
-                answer = input('%s: ' % (said or 'The code')).strip()
-            except EOFError:
-                answer = ''
-            if not answer:
-                print(pal.dim('  no code typed - stopped'))
-                return 1
-            print(pal.dim('Sent Access-Request with the State, User-Password = "******"'))
-            try:
-                got, words, took = radius_ask(server, port, secret, user, answer,
-                                              extra=[('State', state)])
-            except RadiusError as e:
-                print(pal.bad_line(str(e)))
-                return 2
-            print(((pal.good if got == ACCESS_ACCEPT else pal.bad)('Received %s' % CODE_WORDS.get(
-                got, got))) + pal.dim(' in %d ms' % took))
-            for k, v in words:
-                if k != 'Message-Authenticator':
-                    print('    %s = %s' % (k, v))
-        row = store.db.row('SELECT id FROM radius_log ORDER BY id DESC LIMIT 1')
-        if row and server in ('127.0.0.1', 'localhost', '::1'):
-            print(pal.dim('  every step of it: acme --request %d' % row['id']))
-        return 0 if got == ACCESS_ACCEPT else 1
-
-    if args.clients:
-        rows = store.clients()
-        if args.json:
-            out(rows)
-            return 0
-        print(table([(c['name'], c['address'], c['realm'] or '-', 'yes' if c['require_ma']
-                      else 'no', 'on' if c['enabled'] else 'off', stamp(c['last_seen'])
-                      if c['last_seen'] else 'never') for c in rows],
-                    ['name', 'address', 'realm added', 'needs MA', 'state', 'last asked']))
-        return 0
-
-    if args.add_client:
-        not_on_command_line('the shared secret', args.secret, '--secret - asks for it (or ACME_SECRET)')
-        old = next((c for c in store.clients() if c['name'].lower() == args.add_client.lower()),
-                   None)
-        data = {'id': old['id'] if old else None, 'name': args.add_client,
-                'address': args.address or (old or {}).get('address'),
-                'secret': ask_password('the shared secret', env='ACME_SECRET')
-                if args.secret == '-' else args.secret if args.secret is not None else (
-                    None if old else ask_password('the shared secret', env='ACME_SECRET')),
-                'realm': args.realm if args.realm is not None else (old or {}).get('realm', ''),
-                # A client switched off stays off when it is changed (1.0.136).
-                'require_ma': (old or {}).get('require_ma', 0),
-                'enabled': (old or {}).get('enabled', 1),
-                'nas_type': (old or {}).get('nas_type', ''),
-                'position': (old or {}).get('position'),
-                'note': args.note or (old or {}).get('note', '')}
-        store.client_save(data, who)
-        bump(store)
-        store.add_event('clients', 'the client %s was saved on the command line'
-                        % args.add_client, who=who)
-        print(pal.ok_line('the client %s is saved' % args.add_client))
-        return 0
-
-    if args.del_client:
-        one = next((c for c in store.clients() if c['name'].lower() == args.del_client.lower()),
-                   None)
-        if not one:
-            raise SystemExit('there is no client called %s' % args.del_client)
-        cli_sure(args, 'the client %s is taken away' % one['name'])
-        store.client_drop(one['id'])
-        store.add_event('clients', 'command line took away the client %s' % one['name'],
-                        who='command line')
-        bump(store)
-        print(pal.ok_line('gone'))
-        return 0
-
-    if args.realms:
-        rows = store.realms()
-        if args.json:
-            out(rows)
-            return 0
-        takes = [(r['suffix'] or '(none)') + ''.join(' +' + a for a in r.get('aliases') or [])
-                 for r in rows]
-        # As wide as the aliases need (1.0.187): they were cut at 16.
-        print(table([(r['name'], t, r['auth_mode'], r['directory'] or '-',
-                      r['lookup'], '; '.join(g['group'] for g in r['groups']) or '(anybody)')
-                     for r, t in zip(rows, takes)], ['name', 'takes @', 'password is', 'directory',
-                                                     'lookup', 'groups'],
-                    [16, max([16] + [min(48, len(t)) for t in takes]), 13, 12, 6, 70]))
-        return 0
-
-    if args.add_realm:
-        old = next((r for r in store.realms() if r['name'].lower() == args.add_realm.lower()),
-                   None) or {}
-        groups = old.get('groups') or []
-        if args.groups is not None:
-            # A group it had keeps what it had (1.0.187): its replies (Class,
-            # Filter-Id - the VPN's policies) were emptied by every --groups.
-            had = {str(g.get('group') or '').lower(): g for g in groups}
-            groups = [dict(had.get(g.lower()) or {'reply': ''}, group=g) for g in dn_list(args.groups)]
-        if args.methods:
-            # A word not known was dropped without a word (1.0.207): totp,mial
-            # left the mail out.
-            unknown = [m.strip() for m in args.methods.split(',')
-                       if m.strip() and m.strip().lower() not in CODE_KINDS]
-            if unknown:
-                raise SystemExit('acme: --methods: %s is not one of %s'
-                                 % (', '.join(unknown), ', '.join(CODE_KINDS)))
-        store.realm_save({'id': old.get('id'), 'name': args.add_realm,
-                          'suffix': args.suffix if args.suffix is not None else old.get(
-                              'suffix', args.add_realm),
-                          'directory': args.directory if args.directory is not None
-                          else old.get('directory', ''),
-                          'lookup': args.lookup or old.get('lookup') or 'upn',
-                          'auth_mode': args.mode or old.get('auth_mode') or 'acme',
-                          'groups': groups, 'check_disabled': old.get('check_disabled', 1),
-                          'nested': old.get('nested', 1), 'reply': old.get('reply', ''),
-                          # As it was (1.0.146): a realm switched off on the pages
-                          # was switched on again by a note given here.
-                          'enabled': old.get('enabled', 1), 'position': old.get('position'),
-                          'token_name': old.get('token_name', 'whole'),
-                          'methods': [m.strip() for m in args.methods.split(',')]
-                          if args.methods else old.get('methods'),
-                          'aliases': args.aliases if args.aliases is not None
-                          else old.get('aliases') or [],
-                          'note': args.note or old.get('note', '')}, who)
-        store.add_event('realms', 'command line saved the realm %s' % args.add_realm,
-                        who='command line')
-        bump(store)
-        print(pal.ok_line('the realm %s is saved' % args.add_realm))
-        return 0
-
-    if args.del_realm:
-        one = next((r for r in store.realms() if r['name'].lower() == args.del_realm.lower()),
-                   None)
-        if not one:
-            raise SystemExit('there is no realm called %s' % args.del_realm)
-        cli_sure(args, 'the realm %s is taken away' % one['name'])
-        try:
-            store.realm_drop(one['id'])
-        except ValueError as e:
-            raise SystemExit('acme: %s' % e)
-        store.add_event('realms', 'command line took away the realm %s' % one['name'],
-                        who='command line')
-        bump(store)
-        print(pal.ok_line('gone'))
         return 0
 
     if args.directories:
@@ -2953,7 +2430,7 @@ def cli_main(argv=None):
         made_phrase = ''
         if args.with_secrets:
             # Locked as the pages lock it (1.0.207): with the secrets it was plain JSON
-            # here - every client's secret, every password, the TLS keys.
+            # here - every password, the TLS keys.
             if getattr(args, 'passphrase_file', None):
                 phrase = Path(args.passphrase_file).read_text().strip()
             else:
@@ -3292,9 +2769,12 @@ def cli_main(argv=None):
             print('%s - every file checked against its checksum' % os.path.basename(path))
             for k, words in (('made_words', 'made'), ('site', 'installation'), ('node', 'node'),
                              ('host', 'machine'), ('acme', 'acme'), ('engine_words', 'database'),
-                             ('ha_mode', 'cluster'), ('tokens', 'tokens')):
+                             ('ha_mode', 'cluster')):
                 print('  %-13s %s' % (words, m.get(k) if m.get(k) not in (None, '') else '-'))
-            print('it would replace everything in %s, put its key of the tokens in place%s; '
+            if m.get('counts'):
+                print('  %-13s %s' % ('rows', ', '.join('%s %s' % (t, n) for t, n in
+                                                       sorted(m['counts'].items()) if n)))
+            print('it would replace everything in %s, put its key of the secrets in place%s; '
                   'again with --yes' % (store.db.where(), '' if args.keep_node_name else
                                         ' and make this machine node %s' % m.get('node')))
             return 0
@@ -3303,8 +2783,6 @@ def cli_main(argv=None):
                              keep_node_name=args.keep_node_name, need_admin=False)
         except (RbError, ValueError, OSError) as e:
             raise SystemExit('acme: %s' % e)
-        BIND_STRICT['tokens'] = False
-        bind_tokens(store)
         m = got['manifest']
         print(pal.ok_line('put back: %s, made %s on %s (acme %s); what this machine had is kept '
                           'as %s' % (os.path.basename(path), m.get('made_words'), m.get('node'),
@@ -3327,8 +2805,6 @@ def cli_main(argv=None):
                                   key_file=_key_beside(args.restore), need_admin=False)
         except (ValueError, OSError) as e:
             raise SystemExit('acme: %s' % e)
-        BIND_STRICT['tokens'] = False
-        bind_tokens(store)
         print(pal.ok_line('put back (%s); what it replaced is kept as %s; %s'
                           % (DUMP_WORDS.get(got['kind'], got['kind']), got['safety'], got['key'])))
         if not store.db.value("SELECT COUNT(*) FROM accounts WHERE role = 'fulladmin' AND "
@@ -3495,46 +2971,6 @@ def cli_main(argv=None):
             return 1
         store.add_event('settings', '%s sent a test SMS to %s' % (who, to), who=who)
         print(pal.ok_line('sent to %s%s' % (to, (': %s' % said) if said else '')))
-        return 0
-
-    if args.ssh_tokens:
-        rows = sshotp_all(store)
-        if args.json:
-            out(rows)
-            return 0
-        print(table([(r['name'], {'app': 'the app'}.get(r['kind'], r['kind']) +
-                      ((' to %s' % r['dest']) if r.get('dest') else ''), stamp(r.get('at')),
-                      ('%s on %s' % (stamp(r['used_at']), r.get('used_on') or '?')) if r.get('used_at') else 'never',
-                      r.get('note') or '') for r in rows],
-                    ['account', 'codes from', 'made', 'last used', 'note'], [16, 30, 17, 28, 30]))
-        return 0
-
-    if args.ssh_token_add:
-        had = sshotp_get(store, args.ssh_token_add)
-        if had:
-            cli_sure(args, 'the SSH token of %s in use is replaced, and stops working now'
-                     % sshotp_name(args.ssh_token_add))
-        try:
-            got = sshotp_make(store, args.ssh_token_add, who, args.note or '', replace=bool(had),
-                              kind=args.by or 'app', dest=args.to or '')
-        except ValueError as e:
-            raise SystemExit('acme: %s' % e)
-        if got['kind'] != 'app':
-            print(pal.ok_line('the SSH token of %s is made - its codes go to %s' % (got['name'], got['dest'])))
-            return 0
-        print(pal.head('the SSH token of %s - scan it now, it is not shown again' % got['name']))
-        if not args.no_qr:
-            print(QrCode(got['uri']).terminal(invert=args.invert))
-        print('  key:      %s' % got['secret'])
-        return 0
-
-    if args.ssh_token_del:
-        cli_sure(args, 'the SSH token of %s is taken away' % args.ssh_token_del)
-        try:
-            sshotp_remove(store, args.ssh_token_del, who)
-        except ValueError as e:
-            raise SystemExit('acme: %s' % e)
-        print(pal.ok_line('removed'))
         return 0
 
     if args.lockouts or args.lockouts_clear:
@@ -3753,7 +3189,7 @@ def cli_main(argv=None):
                     for v in o:
                         yield from keys(v)
             # A setting known not to be one is not taken for a secret (1.0.207):
-            # acme_key, admin_show_key, token_names_case were refused.
+            # acme_key, acme_account_key were refused.
             secretish = [k for k in keys(body) if k in SECRET_KEYS or (re.search(
                 r'pass|secret|token|key|pin', k, re.I) and not (k in DEFAULTS and k not in
                                                                 SECRET_KEYS))]
@@ -3833,8 +3269,8 @@ def daemon_lock():
 
 def cli_dump_copy():
     """The daemon's copy of every table, written to stdout (1.0.150): made in
-    this process, its work no longer took the daemon's own time from RADIUS
-    - a copy of a big database is minutes of Python."""
+    this process, its work no longer took the daemon's own time - a copy of
+    a big database is minutes of Python."""
     load_config(saved=None)
     try:
         db = open_db()
@@ -3888,7 +3324,7 @@ def entry():
         sys.exit(130)
     except (ValueError, OSError, LdapError, DbError) as e:
         # Said as one line, not a trace (1.0.44): a missing file, a name
-        # with a comma, a realm that is not there.
+        # with a comma, a directory that is not there.
         if isinstance(e, BrokenPipeError):
             sys.exit(0)
         if '--daemon' in sys.argv:

@@ -5,7 +5,7 @@ from __future__ import annotations
 # destination fetched into a folder of its own, opened with the password of
 # the backups, every file checked against its manifest, the copy of the
 # database read to its last line and counted, the key in it checked against
-# the tokens in it (each token's key must open with it), config.json read -
+# the secrets sealed in it (each must open with it), config.json read -
 # what a restore needs, done without touching the database in use. The
 # newest nightly copy on this machine is read through as well. By hand, after
 # every backup, or weekly (rbackup_verify); in a thread of its own, the
@@ -38,9 +38,11 @@ def _seal_tag_ok(key, value, bind):
 
 def copy_read_through(path, key=None, sample=50, child=False):
     """A copy of the database read to its last line: what it holds, and - with
-    a key - how many tokens of a sample open with it. In the daemon by `acme
+    a key - how many sealed secrets of a sample open with it: the settings
+    sealed, and every column of SCHEMA ending in _sealed (bound to
+    'table:id:column', as the modules seal them). In the daemon by `acme
     --read-copy`, a process of its own (1.0.186): a big copy read line by line
-    is minutes of Python, which held its one lock against RADIUS."""
+    is minutes of Python, which held its one lock against everything else."""
     if not child and DAEMON_DB[0] is not None:
         r = subprocess.run([sys.executable, '-I', os.path.abspath(__file__), '--read-copy',
                             str(path)], input=(key.hex() if key else '') + '\n',
@@ -55,6 +57,10 @@ def copy_read_through(path, key=None, sample=50, child=False):
     import gzip
     counts, table, admins = {}, None, 0
     tried = opened = 0
+    cols = {}
+    for t, c in sealed_columns():
+        if t != 'settings':
+            cols.setdefault(t, []).append(c)
     with gzip.open(str(path), 'rt', encoding='utf-8') as f:
         head = json.loads(f.readline() or '{}')
         if 'acme' not in head and 'opt' not in head:
@@ -70,8 +76,20 @@ def copy_read_through(path, key=None, sample=50, child=False):
             counts[table] += 1
             if table == 'accounts' and got.get('role') == 'fulladmin' and not got.get('disabled'):
                 admins += 1
-            if table == 'tokens' and key and tried < sample and got.get('secret'):
-                ok = _seal_tag_ok(key, got['secret'], token_bind(got.get('name')))
+            if not key or tried >= sample:
+                continue
+            if table == 'settings':
+                try:
+                    value = json.loads(got.get('v') or 'null')
+                except (TypeError, ValueError):
+                    value = None
+                pairs = [(value, None)] if isinstance(value, str) and \
+                    value.startswith(SEALED) else []
+            else:
+                pairs = [(got.get(c), '%s:%s:%s' % (table, got.get('id'), c))
+                         for c in cols.get(table, ()) if got.get(c)]
+            for value, bind in pairs:
+                ok = _seal_tag_ok(key, value, bind)
                 if ok is not None:
                     tried += 1
                     opened += 1 if ok else 0
@@ -96,22 +114,27 @@ def rb_verify_file(path, password, work, made_here=True):
     key = None
     try:
         key = bytes.fromhex(open(os.path.join(top, 'secrets.key')).read().strip())
-        check('the key of the tokens is in it', len(key) >= 32)
+        check('the key of the sealed secrets is in it', len(key) >= 32)
     except (OSError, ValueError) as e:
-        check('the key of the tokens is in it', False, str(e)[:200])
+        check('the key of the sealed secrets is in it', False, str(e)[:200])
     try:
         got = copy_read_through(os.path.join(top, 'acme-copy.json.gz'), key)
         c = got['counts']
-        check('the copy of the database reads to its last line', True, '%d tables, %d tokens, '
-              '%d accounts' % (len(c), c.get('tokens', 0), c.get('accounts', 0)))
-        want = m.get('tokens')
-        if isinstance(want, int):
-            check('every token the manifest names is in it', c.get('tokens', 0) == want,
-                  '%d of %d' % (c.get('tokens', 0), want))
+        check('the copy of the database reads to its last line', True, '%d tables, %d rows, '
+              '%d accounts' % (len(c), sum(c.values()), c.get('accounts', 0)))
+        want = m.get('counts') or {}
+        # The logs grow while the copy is made: the tables the manifest counted
+        # that are no log are to hold as many rows as it says.
+        short = sorted(t for t, n in want.items() if t not in LOG_TABLES and t != 'events'
+                       and isinstance(n, int) and c.get(t, 0) < n)
+        if want:
+            check('every row the manifest counts is in it', not short,
+                  ', '.join('%s %d of %d' % (t, c.get(t, 0), want[t]) for t in short)
+                  or '%d rows' % sum(n for n in want.values() if isinstance(n, int)))
         check('a full administrator can sign in after it', got['admins'] > 0,
               '%d' % got['admins'])
         if got['tried']:
-            check('the tokens open with the key in it', got['opened'] == got['tried'],
+            check('the sealed secrets open with the key in it', got['opened'] == got['tried'],
                   '%d of %d tried' % (got['opened'], got['tried']))
     except (OSError, ValueError, EOFError, RbError) as e:
         check('the copy of the database reads to its last line', False, str(e)[:200])
@@ -175,8 +198,8 @@ def rb_verify(store, by, tid=None, name=None, progress=None):
             got = copy_read_through(BACKUP_DIR / kept[0]['name'], sealing_key())
             res['checks'].append({'what': 'the newest nightly copy here reads to its last line',
                                   'ok': got['tried'] == got['opened'],
-                                  'said': '%s, %d tokens' % (kept[0]['name'],
-                                                             got['counts'].get('tokens', 0))})
+                                  'said': '%s, %d rows' % (kept[0]['name'],
+                                                           sum(got['counts'].values()))})
     except Exception as e:                              # noqa: BLE001
         res['checks'].append({'what': 'the newest nightly copy here reads to its last line',
                               'ok': False, 'said': str(e)[:200]})

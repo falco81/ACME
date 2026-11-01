@@ -17,12 +17,6 @@ def _hs_on():
 
 
 HISEC_SETTINGS = {
-    'radius_reply_ma': {'forbid': [0], 'pane': 'radius',
-                        'why': 'RADIUS answers without a Message-Authenticator (BlastRADIUS)'},
-    'radius_ma_sticky': {'forbid': [0], 'pane': 'radius',
-                         'why': 'a client that sent a Message-Authenticator may leave it out again'},
-    'radius_guard': {'forbid': [0], 'pane': 'guard',
-                     'why': 'guessing passwords and codes over RADIUS is not held back'},
     'smtp_security': {'forbid': ['none', 'starttls-if'], 'pane': 'mail',
                       'when': lambda c: c.get('mail_mode') == 'smtp',
                       'why': 'mail goes to the mail server unencrypted, or encrypted only if it '
@@ -51,10 +45,9 @@ HISEC_SETTINGS = {
                       'why': 'isemon\'s certificate is not checked'},
     'debug': {'forbid': [1, True], 'pane': 'about',
               'why': 'debugging writes the details of requests into the log'},
-    'totp_window': {'most': 1, 'pane': 'tokens',
-                    'why': 'codes are taken more than one step (30 s) either side'},
-    'totp_disallow_reuse': {'forbid': [0], 'pane': 'tokens',
-                            'why': 'a code may be used again while it is good'},
+    'totp_window': {'most': 1, 'pane': 'people',
+                    'why': 'the codes of the administrators\' app are taken more than one step '
+                           '(30 s) either side'},
     'mail_direct_tls': {'forbid': ['if-offered'], 'pane': 'mail',
                         'when': lambda c: c.get('mail_mode') == 'direct',
                         'why': 'mail is delivered unencrypted where the recipient\'s server '
@@ -67,16 +60,8 @@ HISEC_SETTINGS = {
     'admin_2fa_sms': {'forbid': [1, True], 'when': lambda c: bool(c.get('admin_2fa')), 'pane': 'people',
                       'why': 'the second step of the administration may come by SMS - an app '
                              'is safer'},
-    'admin_show_key': {'forbid': [1, True], 'pane': 'tokens',
-                       'why': 'administrators may show a token\'s key'},
-    'portal_show_secret': {'forbid': [1, True], 'pane': 'portal',
-                           'why': 'the enrolment page shows the key as text beside the QR code'},
-    'scratch_digits': {'least': 10, 'pane': 'tokens',
-                       'why': 'recovery codes shorter than 10 digits'},
-    'mail_codes': {'forbid': [1, True], 'when': lambda c: c.get('mail_mode') != 'off', 'pane': 'mail',
-                   'why': 'codes may come by mail - weaker than an app'},
     'portal_who': {'forbid': ['anyone'], 'when': lambda c: bool(c.get('portal')), 'pane': 'portal',
-                   'why': 'anyone in a directory may enrol on the enrolment page'},
+                   'why': 'anyone in the directory may sign in to the enrolment pages'},
     'session_hours': {'most': 8, 'pane': 'people',
                       'why': 'a sign-in to the administration lasts more than 8 hours'},
     'session_idle_min': {'most': 30, 'pane': 'people',
@@ -85,8 +70,8 @@ HISEC_SETTINGS = {
                    'pane': 'proxy', 'why': 'the proxy is used without a user name and password'},
 }
 
-# What is not a setting: the directories, the clients, the destinations, the
-# TLS of the pages, the SSH server, the exports - one rule each, its details
+# What is not a setting: the directories, the destinations, the TLS of the
+# pages, the SSH server, the exports - one rule each, its details
 # (which directory, which node) listed under it.
 HISEC_RULES = [
     ('dir:tls', 'a directory reached over plain LDAP - passwords go over the network unencrypted',
@@ -94,8 +79,6 @@ HISEC_RULES = [
     ('dir:verify', 'a directory whose certificate is not checked',
      'check the certificate (give its CA)', 'dir'),
     ('dir:weak', 'a directory spoken to with old, weak TLS', 'switch the old TLS off', 'dir'),
-    ('client:secret', 'a RADIUS client\'s shared secret shorter than 16 characters',
-     'a secret of 16 characters or more', 'clients'),
     ('db:tls', 'the database reached without TLS that checks its certificate',
      'TLS: verify-ca or verify-full', 'db'),
     ('ha:tls', 'the replication between the nodes without TLS that checks the certificate',
@@ -114,7 +97,8 @@ HISEC_RULES = [
     ('sshd:root', 'root may sign in over SSH with a password', 'root: with a key only, or not '
      'at all', 'sshd'),
     ('sshd:tries', 'SSH allows more than 4 tries a connection', '4 tries at most', 'sshd'),
-    ('export:unlocked', 'tokens exported not locked - the backup, the .totp files, one token',
+    # Kept by whatever exports (a module's private keys: hisec_enforced('export:unlocked')).
+    ('export:unlocked', 'a private key or the configuration exported not locked',
      'an export is always locked with a passphrase', 'import'),
 ]
 HISEC_RULE = {r[0]: r for r in HISEC_RULES}
@@ -210,9 +194,6 @@ def hisec_rules(store, conf=None):
             hit['dir:verify'].append(d['name'])
         if d.get('weak'):
             hit['dir:weak'].append(d['name'])
-    for c in store.clients(with_secret=True):
-        if len(str(c.get('secret') or '')) < 16:
-            hit['client:secret'].append(c['name'])
     if conf.get('db_engine') in ('mariadb', 'postgres') and \
             str(conf.get('db_host') or '').strip() and not str(conf['db_host']).startswith('/') and \
             conf.get('db_tls') not in ('verify-ca', 'verify-full'):
@@ -352,7 +333,7 @@ def hisec_guard_settings(store, checked):
 
 
 def hisec_refuse(what, rule=''):
-    """A change of a directory, a client, a destination... while it is on -
+    """A change of a directory, a destination... while it is on -
     unless that rule is an exception."""
     if _hs_on() and what and (not rule or rule not in hisec_waived()):
         raise ValueError('not while high security is on (Settings - High security): %s' % what)
@@ -365,11 +346,6 @@ def hisec_directory(row):
         hisec_refuse('a directory whose certificate is not checked', 'dir:verify')
     if row.get('weak'):
         hisec_refuse('old, weak TLS to a directory', 'dir:weak')
-
-
-def hisec_client_secret(secret):
-    if len(str(secret or '')) < 16:
-        hisec_refuse('a shared secret shorter than 16 characters', 'client:secret')
 
 
 def hisec_backup_target(t):

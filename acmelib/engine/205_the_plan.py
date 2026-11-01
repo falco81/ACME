@@ -209,7 +209,7 @@ def upgrade_tick(daemon):
         alone = len(steps) == 1
         maintenance_set(store, True, 'upgrade to %s' % plan['version'], plan.get('by') or '')
         _my_step(store, plan, state='draining', was_maint=bool(was.get('on')),
-                 began=now, said='in maintenance; the balancer and the VPN go to the other '
+                 began=now, said='in maintenance; the balancer and the work go to the other '
                  'node' if not alone else 'in maintenance')
         if not alone:
             return
@@ -281,11 +281,8 @@ def upgrade_tick(daemon):
             store.db.value('SELECT 1')
         except Exception as e:                          # noqa: BLE001
             trouble.append('the database: %s' % e)
-        # RADIUS asked about only where this daemon still has it: a version
-        # without it would otherwise fail every upgrade's last check.
-        radius = getattr(daemon, 'radius', None)
-        if radius is not None and not getattr(radius, 'bound', None):
-            trouble.append('RADIUS is not listening')
+        if not getattr(getattr(daemon, 'api', None), 'httpd', None):
+            trouble.append('the API is not listening')
         got = _helper_status()
         if got.get('id') == plan['id'] and got.get('state') == 'running':
             if now - float(turn.get('at') or now) < 600:

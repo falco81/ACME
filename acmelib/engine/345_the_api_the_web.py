@@ -7,10 +7,10 @@ from __future__ import annotations
 # is the web server's group and nobody else. The PHP pages relay to it and
 # add nothing: the session travels as a header, and this decides what that
 # session may have. Two kinds of session: an administrator's (`admin`) and a
-# person enrolling their own token (`portal`), which can reach nothing but
-# its own token.
+# person signed in to the enrolment pages (`portal`), which reaches only what
+# a route of those pages gives it.
 
-ROLE_RANK = {'readonly': 1, 'tokenadmin': 2, 'fulladmin': 3}
+ROLE_RANK = {'readonly': 1, 'certadmin': 2, 'fulladmin': 3}
 
 
 class ApiError(Exception):
@@ -117,7 +117,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         if not isinstance(self._body, dict):
             raise ApiError(400, 'the body is not an object')
         # What is a word is a word (1.0.103): a list where a name belongs was
-        # made into the text "['x']" - a token by that name, a mail to it.
+        # made into the text "['x']" - an account by that name, a mail to it.
         for k in BODY_WORDS:
             v = self._body.get(k)
             if isinstance(v, (list, dict, bool)):
@@ -194,7 +194,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         if path != '/api/health':
             want = api_token()
             given = str(self.headers.get('X-Acme-Token') or '')
-            # As bytes (1.0.149): a token with a letter beyond ASCII raised
+            # As bytes (1.0.149): an API key with a letter beyond ASCII raised
             # TypeError there, and the connection was dropped with a trace.
             if not want or not hmac.compare_digest(want.encode('utf-8'),
                                                    given.encode('utf-8', 'replace')):
@@ -216,7 +216,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             if e.detail and not detail:
                 log('%s %s: %s (%s)' % (method, path, e, e.detail), 'info')
             self.send_json({'ok': False, 'error': str(e), 'detail': detail}, e.status)
-        except (ValueError, BadSetting, RadiusError) as e:
+        except (ValueError, BadSetting) as e:
             said = str(e)
             if said.startswith(('invalid literal for int()', 'could not convert string to float',
                                 'cannot convert float')):
@@ -322,14 +322,14 @@ class ApiHandler(BaseHTTPRequestHandler):
             raise ApiError(403, 'change the password first')
         if ROLE_RANK.get(s['role'], 0) < ROLE_RANK[role]:
             raise ApiError(403, {'fulladmin': 'only a full administrator may do that',
-                                 'tokenadmin': 'only a token administrator may do that'}
+                                 'certadmin': 'only a certificate administrator may do that'}
                            .get(role, 'that account may not do that'))
         s['account'] = acc
         return s
 
     def portal_link(self):
-        """The enrolment pages' address, for a token's mail: from the name the
-        pages were reached by, never from what the page sent (1.0.33)."""
+        """The enrolment pages' address, for a mail that links to them: from the
+        name the pages were reached by, never from what the page sent (1.0.33)."""
         host = str(self.headers.get('X-Acme-Host') or '')
         if not re.fullmatch(r'([A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:.]{2,45}\])(:[0-9]{1,5})?', host):
             return ''
@@ -409,7 +409,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             # never split there - a>CORP\\novak, b>CORP\\novak... was a fresh
             # count each time for novak's password.
             pre = sep = ''
-            if kind in ('code-test', 'radtest'):
+            if kind in ('code-test', 'dirtry'):
                 pre, sep, who = who.rpartition('>')
             who = who.split('\\', 1)[-1].rsplit('@', 1)[0].strip()
             keys.append((kind + '-name', (pre + sep + who)[:190]))

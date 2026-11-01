@@ -3,14 +3,26 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # Sending the logs to isemon
 # ---------------------------------------------------------------------------
-# isemon reads a token server through two files rsyslog writes for it: what
-# totpcgi said about every code (`totp.cgi`), and every RADIUS packet the
-# FreeRADIUS in front of it wrote into its detail files, one to a line
-# (`radius-detail`). This writes both, in exactly those shapes, as syslog to
-# isemon's receiver - and into files here as well - so that isemon reads this
-# server with the readers it already has and nothing changed on its side.
+# What happens to the certificates - an order, a renewal, a deployment, a
+# failure, one running out - goes to isemon's syslog receivers as it happens,
+# one event a line, from the program `acme-certs`:
+#
+#   Oct 22 15:31:02 acme1 acme-certs[812]: level=warn kind=certificates
+#       node=acme1 who="acme" msg="www.example.cz: the renewal failed - ..."
+#
+# (one line; key=value, a value with a space or a quote in it in quotes, its
+# quotes and backslashes escaped) - and every other event of acme, with
+# isemon_events on, the same way from the program `acme`. The very same lines
+# go into /var/log/acme/acme-certs.log here too (ship_files). The events are
+# the engine's own (Storage.add_event): a module says what happened with
+# store.add_event('certificates', words, level, who) and nothing else.
 
 SYSLOG_FACILITY = {'auth': 4, 'authpriv': 10, 'local5': 21, 'daemon': 3, 'user': 1}
+
+# The kinds of event that are the certificates' (acme-certs lines, always
+# shipped); a module appends its own. Any other kind is an `acme` line, sent
+# only with isemon_events.
+ISEMON_KINDS = ['certificates']
 
 
 def syslog_targets(text, strict=False):
@@ -42,16 +54,24 @@ def syslog_stamp(ts=None):
     return '%s %2d %s' % (t.strftime('%b'), t.day, t.strftime('%H:%M:%S'))
 
 
-def detail_quote(value):
-    """A value as FreeRADIUS writes it in a detail file: a string in quotes,
-    with its quotes and backslashes escaped."""
-    said = str(value)
-    if re.match(r'^(0x[0-9a-fA-F]*|\d+|\d+\.\d+\.\d+\.\d+)\Z', said) or said in (
-            'Access-Request', 'Access-Accept', 'Access-Reject', 'Access-Challenge',
-            'Accounting-Request') or re.match(r'^[A-Z][A-Za-z0-9.-]*\Z', said) and \
-            said in [w for d in RADIUS_VALUES.values() for w in d.values()]:
+def kv_quote(value):
+    """A value of a key=value line: as it is when it is one word, else in
+    quotes with its quotes and backslashes escaped - and never a line break."""
+    said = re.sub(r'[\r\n\t]+', ' ', str(value if value is not None else ''))
+    if said and re.match(r'^[A-Za-z0-9_.:@/+-]+\Z', said):
         return said
     return '"%s"' % said.replace('\\', '\\\\').replace('"', '\\"')
+
+
+def event_kv(kind, words, level, who, node=''):
+    """One event as the key=value words of its syslog line."""
+    out = ['level=%s' % kv_quote(level or 'info'), 'kind=%s' % kv_quote(kind)]
+    if node:
+        out.append('node=%s' % kv_quote(node))
+    if who:
+        out.append('who=%s' % kv_quote(who))
+    out.append('msg=%s' % kv_quote(words))
+    return ' '.join(out)
 
 
 def _conn_alive(sock):
@@ -82,7 +102,7 @@ def _conn_alive(sock):
 
 class Shipper(object):
     """A queue and a thread that empties it into isemon's receivers and the
-    files here. Nothing that answers a VPN ever waits for any of it."""
+    files here. Nothing that does the work ever waits for any of it."""
 
     def __init__(self):
         self.q = queue.Queue(maxsize=20000)
@@ -138,38 +158,18 @@ class Shipper(object):
         except queue.Full:
             self.dropped += 1
 
-    def token_line(self, name, ok, said, how, src, rid):
-        """`totp.cgi[pid]: Success: user=..., mode=PAM_SM_AUTH, host=..., rid=...,
-        message=...` - totpcgi's own line, with the request id isemon joins it
-        to the RADIUS packet by."""
-        if how not in ('radius', 'test'):
-            mode = 'PROVISION' if how == 'portal' else how.upper()
-        else:
-            mode = 'PAM_SM_AUTH'
-        clean = lambda s: re.sub(r'[\r\n]', ' ', str(s or ''))
-        rid = re.sub(r'[^A-Za-z0-9.:_-]', '', str(rid or ''))[:64]
-        words = '%s: user=%s, mode=%s, host=%s, %smessage=%s' % (
-            'Success' if ok else 'Failure', re.sub(r'[,=\s]', '_', clean(name)), mode, '127.0.0.1',
-            ('rid=%s, ' % rid) if rid else '', clean(said))
-        self.put('totp.cgi', 'auth', words, file_name='totp.cgi.log')
-
-    def detail_line(self, nas, kind, ts, pairs, ident=''):
-        """`radius-detail[pid]: nas=... id=... file=auth-detail-YYYYMMDD ts=[ctime]
-        Name = value, ...` - one detail record a line, the way the shipper
-        isemon ships with writes it."""
-        if not CONFIG.get('isemon_detail', 1):
-            return
-        fname = '%s-%s' % (kind, datetime.fromtimestamp(ts).strftime('%Y%m%d'))
-        body = ', '.join('%s = %s' % (k, detail_quote(v)) for k, v in pairs)
-        rid = ident or hashlib.sha1(('%s|%s|%s|%s' % (nas, fname, ts, body))
-                                    .encode('utf-8', 'replace')).hexdigest()[:16]
-        words = 'nas=%s id=%s file=%s ts=[%s] %s' % (nas, rid, fname, time.ctime(ts), body)
-        self.put('radius-detail', 'local5', words, file_name='radius-detail.log')
-
     def event_line(self, kind, words, level, who):
-        if CONFIG.get('isemon_events'):
-            self.put('acme', 'daemon', '%s: %s%s' % (kind, words, (' (by %s)' % who) if who
-                                                    else ''), file_name=None)
+        """An event of the engine's (store.add_event) as a syslog line: the
+        certificates' always (acme-certs), the others with isemon_events."""
+        kind = str(kind or '')
+        cert = kind in ISEMON_KINDS
+        if not cert and not CONFIG.get('isemon_events'):
+            return
+        line = event_kv(kind, words, level, who, log_node())
+        if cert:
+            self.put('acme-certs', 'daemon', line, file_name='acme-certs.log')
+        else:
+            self.put('acme', 'daemon', line, file_name=None)
 
     # ---- sending ---------------------------------------------------------------
     def run(self):
@@ -299,26 +299,3 @@ class Shipper(object):
         until = time.time() + wait
         while not self.q.empty() and time.time() < until:
             time.sleep(0.05)
-
-
-def codes_open(tok):
-    """A token's recovery codes as kept to be shown again, each one no longer
-    in its list of hashes marked used (1.0.61). Two nodes using a code each
-    at the same moment end with the same list of hashes, but each node's
-    sealed copy may still hold the other's code as unused - and a rename,
-    an export or the codes view would have brought it back."""
-    shown = open_codes(tok.get('scratch_sealed'), token_bind(tok.get('name')))
-    if shown is None:
-        return None
-    try:
-        kept = [str(k) for k in json.loads(tok.get('scratch') or '[]')]
-    except (ValueError, TypeError):
-        return shown
-    key = sealing_key()
-    for one in shown:
-        if isinstance(one, dict) and not one.get('used') and \
-                not scratch_find(tok.get('name'), one.get('c'), kept, key)[0]:
-            one['used'] = time.time()
-    return shown
-
-

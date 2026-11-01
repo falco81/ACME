@@ -288,11 +288,11 @@ def downgrade_changelog(version):
 #                    to be on, each node's interface
 #   web:tls:NODE     a node's own certificate, chain, root and TLS settings
 #   web:tls:vip      the same for the VIP address's own name
-# Keys are sealed with the tokens' key. Each node then asks root for its own
+# Keys are sealed with the installation's key. Each node then asks root for its own
 # part of it (acme_web.py, through /var/lib/acme/web/request.json) and keeps
 # /run/acme/vip-state up to date for keepalived: whether this node is healthy
 # enough to hold the address - its own pages answering /healthz end to end
-# (nginx, PHP, the daemon, the database), RADIUS listening, not in
+# (nginx, PHP, the daemon, the database), the API listening, not in
 # maintenance, not being upgraded or rebuilt - and whether it is the one the
 # address is meant to be on.
 # ---------------------------------------------------------------------------
@@ -344,7 +344,7 @@ def tls_profile(store, target):
 
 
 def vip_auth():
-    """The VRRP password: the same on every node, from the tokens' key."""
+    """The VRRP password: the same on every node, from the installation's key."""
     key = sealing_key() or b''
     raw = hmac.new(key, b'acme-vip-vrrp', hashlib.sha256).digest()
     abc = string.ascii_letters + string.digits

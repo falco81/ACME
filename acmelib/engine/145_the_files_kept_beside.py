@@ -14,8 +14,9 @@ from __future__ import annotations
 #   the size, the server's own tools read it, and it goes back into the
 #   engine it came off.
 #
-# Every one of either kind has the key that opens the tokens beside it, in a
-# file of its own, because one without the other is nothing.
+# Every one of either kind has the key that opens its sealed secrets (the
+# private keys, the passwords) beside it, in a file of its own, because one
+# without the other is nothing.
 
 DUMP_DIR = STATE_DIR / 'dumps'
 DUMP_SUFFIX = {'sqlite': '.db', 'mariadb': '.sql.gz', 'postgres': '.pgc', 'copy': '.json.gz'}
@@ -360,8 +361,8 @@ def _peek_sqlite(path):
     try:
         names = [r[0] for r in con.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table'")]
-        if 'accounts' not in names or 'tokens' not in names:
-            return None, 'that is not a database of acme: it has no tokens and no accounts'
+        if 'accounts' not in names or 'settings' not in names:
+            return None, 'that is not a database of acme: it has no settings and no accounts'
         counts = {t: con.execute('SELECT COUNT(*) FROM %s' % t).fetchone()[0]
                   for t in TABLES if t in names}
         admins = con.execute("SELECT COUNT(*) FROM accounts WHERE role = 'fulladmin' AND "
@@ -443,8 +444,8 @@ def _peek_mariadb(path):
                 users += rest.count('),(') + (1 if '(' in rest else 0)
                 if line.rstrip().endswith(';'):
                     in_users = False
-    if 'accounts' not in tables or 'tokens' not in tables:
-        return None, 'that dump is not one of acme - it has no tokens and no accounts'
+    if 'accounts' not in tables or 'settings' not in tables:
+        return None, 'that dump is not one of acme - it has no settings and no accounts'
     return {'kind': 'mariadb', 'counts': {'accounts': users}, 'admins': admins,
             'tables': len(tables)}, ''
 
@@ -456,8 +457,8 @@ def _peek_postgres(path):
                       'read: %s' % DUMP_INSTALL['postgres'])
     listed = _run([tool, '--list', str(path)], 'pg_restore --list', seconds=300)
     tables = set(re.findall(r'TABLE DATA\s+\S+\s+(\S+)', listed.decode('utf-8', 'replace')))
-    if 'accounts' not in tables or 'tokens' not in tables:
-        return None, 'that dump is not one of acme - it has no tokens and no accounts'
+    if 'accounts' not in tables or 'settings' not in tables:
+        return None, 'that dump is not one of acme - it has no settings and no accounts'
     rows = _run([tool, '--data-only', '--table=accounts', '--file=-', str(path)],
                 'pg_restore', seconds=300).decode('utf-8', 'replace')
     users = admins = 0
@@ -582,7 +583,7 @@ def db_file_restore(store, path, by, key_file=None, from_name='', need_admin=Tru
 
 
 def _db_file_restore(store, path, by, key_file, from_name, kind):
-    # The key that opens the tokens in it: beside a kept file, or inside a copy
+    # The key that opens the secrets in it: beside a kept file, or inside a copy
     # that was downloaded with it.
     key_hex = ''
     if key_file and Path(key_file).exists():
@@ -599,7 +600,7 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
         if now and now.hex() != key_hex:
             raise ValueError('this copy was sealed with another key than the one both nodes '
                              'use; in a cluster it cannot be put back - the other node could '
-                             'not open its tokens')
+                             'not open its secrets')
     safety = make_backup(store, 'before putting %s back, by %s' % (from_name or 'a file', by))
     # The link between the databases describes the machines, not the data
     # (1.0.104): the authority and each node's steps as they are now stay;
@@ -684,7 +685,7 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
         except Exception:                               # noqa: BLE001
             pass
     hatls_check_soon()      # and then looked at: what is in place against what is wanted
-    key_said = 'the key that opens the tokens stays as it was'
+    key_said = 'the key that opens the sealed secrets stays as it was'
     if re.match(r'^[0-9a-f]{64}\Z', key_hex):
         now = sealing_key()
         if not now or now.hex() != key_hex:
@@ -701,7 +702,7 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
                     except (ValueError, AttributeError, TypeError):
                         cas = None
             write_replacing(sealing_key_path(), key_hex + '\n', 0o600)
-            key_said = 'the key that opens the tokens came with it and is in use now'
+            key_said = 'the key that opens the sealed secrets came with it and is in use now'
             if cas and all(ca.get('key') for ca in cas):
                 for ca in cas:
                     ca['key'] = seal_secret(ca['key'], bind='hatls:ca')
@@ -710,21 +711,19 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
                 except Exception as e:                  # noqa: BLE001
                     log('the authority of the cluster could not be sealed again: %s' % e, 'warn')
     else:
-        # No key came with it (1.0.59): whether the tokens put back open with
+        # No key came with it (1.0.59): whether the secrets put back open with
         # the key in use is looked at, and said loudly when they do not.
         try:
-            rows = store.db.rows('SELECT name, secret FROM tokens WHERE secret IS NOT NULL '
-                                 "AND secret <> '' ORDER BY id LIMIT 5")
-            if rows and not any(unseal_secret(r['secret'], token_bind(r['name']))
-                                for r in rows):
-                key_said = ('NO KEY CAME WITH IT and its tokens do not open with the key in '
+            if sealed_opens(store.db) is False:
+                key_said = ('NO KEY CAME WITH IT and its secrets do not open with the key in '
                             'use: put back the .key file that was beside the dump (or the '
-                            'copy from the download) - until then every token is refused')
+                            'copy from the download) - until then no private key or password '
+                            'kept in it can be used')
                 store.add_event('backups', 'the database put back from %s came without its key '
-                                'and its tokens cannot be opened' % (from_name or 'a file'),
+                                'and its secrets cannot be opened' % (from_name or 'a file'),
                                 'bad', who=by)
         except Exception as e:                          # noqa: BLE001
-            log('the tokens put back could not be tried with the key: %s' % e, 'warn')
+            log('the secrets put back could not be tried with the key: %s' % e, 'warn')
     bump(store)
     store.add_event('backups', '%s put the database back from %s (%s); what it replaced is in %s'
                     % (by, from_name or 'a file', DUMP_WORDS.get(kind, kind), safety.name),
@@ -835,15 +834,12 @@ def db_cache(store):
 
 
 # ---- erasing what was collected -----------------------------------------------
+# (key, table, name, what it is) - a module appends its own logs (its jobs, say).
 ERASABLE = [
-    ('radius', 'radius_log', 'the RADIUS requests',
-     'every request the VPN sent and what it was answered, with its steps. Nothing reads them '
-     'back: they are the record of what happened.'),
-    ('acme', 'acme_log', 'the checks of a code',
-     'every code typed on the enrolment pages, in a test or through RADIUS, right or wrong. '
-     'The tokens themselves are not touched: nobody has to enrol again.'),
     ('events', 'events', 'the event log',
-     'what this program noted about itself: sign-ins, changes, copies, starts and stops.'),
+     'what this program noted about itself: sign-ins, changes, copies, starts and stops, '
+     'and what happened to the certificates. Nothing reads them back: they are the record '
+     'of what happened.'),
 ]
 
 
@@ -901,8 +897,8 @@ def tune_state(store):
         out['lost'] = [n for n, v in (last.get('set') or {}).items()
                        if not tune_same('mariadb', now.get(n, ''), v)]
     return out
-# ---- a copy or a dump with the key that opens its tokens (1.0.123) -----------------
-# A copy or a dump alone opens no token anywhere else: the key that opens them
+# ---- a copy or a dump with the key that opens its secrets (1.0.123) ----------------
+# A copy or a dump alone opens no secret anywhere else: the key that opens them
 # is a file of its own (the .key beside it, /var/lib/acme/secrets.key). Downloaded
 # from the page it can now go with the key in ONE file - a plain tar holding
 #   acme-db.json          what it is (the file's name, size, sha256, where made)
@@ -944,7 +940,7 @@ def dbkey_bundle(src, name, passphrase, work):
     passphrase = dbkey_passphrase_checked(passphrase)
     key = sealing_key()
     if not key:
-        raise ValueError('this machine has no key that opens the tokens')
+        raise ValueError('this machine has no key that opens the sealed secrets')
     sha = _sha256_file(src)
     locked = bundle_lock({'key': key.hex(), 'file': name, 'sha256': sha}, passphrase,
                          kind=DBKEY_KIND)

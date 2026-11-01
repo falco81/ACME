@@ -88,18 +88,12 @@ def _ask_isemon(daemon, args):
     if not CONFIG.get('isemon'):
         raise ValueError('sending to isemon is off')
     before = dict(sh.sent)
-    who = str(args.get('as_user') or '')
-    if re.match(r'^[A-Za-z0-9._@-]{1,64}\Z', who):
-        # A sign-in isemon shows (1.0.178): totpcgi's own line, under a name
-        # given, said to be a test - to the receivers only, not into the files.
-        rid = 'acme-test-%s-%d' % (node_name(), int(time.time()))
-        sh.put('totp.cgi', 'auth', '%s: user=%s, mode=PAM_SM_AUTH, host=127.0.0.1, rid=%s, '
-               'message=a test from acme %s on %s, sent by %s - not a real sign-in'
-               % ('Success' if args.get('ok', True) else 'Failure', who, rid, __version__,
-                  node_name(), re.sub(r'[\r\n,]', ' ', str(args.get('by') or '?'))))
-    else:
-        sh.put('acme', 'daemon', 'a test from acme %s on %s, sent by %s - isemon reads nothing from '
-               'this line' % (__version__, node_name(), args.get('by') or '?'))
+    # A line of the certificates', as isemon reads them (acme-certs), said to be
+    # a test - to the receivers only, not into the files.
+    sh.put('acme-certs', 'daemon', event_kv(
+        'certificates', 'a test from acme %s on %s, sent by %s - nothing happened to a '
+        'certificate' % (__version__, node_name(), args.get('by') or '?'), 'info',
+        str(args.get('by') or ''), node_name()))
     sh.flush(3)
     time.sleep(0.3)
     st = sh.state()
@@ -154,7 +148,7 @@ def _ask_dircheck(daemon, args):
 # A connection that never leaves the machine (localhost) that stops working
 # because of its TLS - the certificate gone, PostgreSQL set up again - is moved
 # back to no TLS by itself, with an alert, unless high security forbids it:
-# RADIUS comes first.
+# the renewals come first.
 DBTLS_CA = STATE_DIR / 'db-ca.pem'
 DBTLS_EVERY = 300
 DBTLS_RENEW_DAYS = 45
@@ -568,7 +562,7 @@ def _dbtls_rescue(daemon):
     try:
         daemon.store.add_event('settings', 'the connection of %s to its database on the same '
                                'machine stopped with TLS (%s) and was moved back to no TLS, so '
-                               'RADIUS goes on - encrypt it again in Settings → The database'
+                               'acme goes on - encrypt it again in Settings → The database'
                                % (node_name(), why[:200]), 'bad')
     except Exception:                                   # noqa: BLE001
         pass

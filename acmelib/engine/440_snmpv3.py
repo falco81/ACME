@@ -10,7 +10,7 @@ from __future__ import annotations
 # engine of its own (the engine ID in STATE_DIR, the boots counted there);
 # the same user on both. Traps (SNMPv2-Trap, authPriv, this node's engine ID)
 # from the node that sends the alerts, when something goes wrong and when it
-# is right again. RADIUS is not touched by any of it.
+# is right again. Nothing else waits for any of it.
 SNMP_BASE = (1, 3, 6, 1, 4, 1, 8072, 9999, 9999, 7)       # netSnmpPlaypen.acme
 SNMP_SYS = (1, 3, 6, 1, 2, 1, 1)
 SNMP_ENGINE_OID = (1, 3, 6, 1, 6, 3, 10, 2, 1)
@@ -274,7 +274,7 @@ def snmp_mib(daemon, agent):
     B = SNMP_BASE
     up = int((time.monotonic() - agent.started) * 100)
     rows = [
-        (SNMP_SYS + (1, 0), 'str', 'acme %s - one-time password server (RADIUS), node %s'
+        (SNMP_SYS + (1, 0), 'str', 'acme %s - certificates kept, renewed and deployed, node %s'
          % (__version__, node_name())),
         (SNMP_SYS + (2, 0), 'oid', B),
         (SNMP_SYS + (3, 0), 'ticks', up),
@@ -296,14 +296,6 @@ def snmp_mib(daemon, agent):
              (B + (1, 5, 0), 'int', 1 if CONFIG.get('high_security') else 0),
              (B + (1, 6, 0), 'int', 1 if CONFIG.get('ha_mode') else 0),
              (B + (1, 7, 0), 'ticks', up)]
-    r = daemon.radius.state() if daemon.radius else {}
-    counts = r.get('counts') or {}
-    rows += [(B + (2, 1, 0), 'int', 1 if r.get('listening') else 0),
-             (B + (2, 2, 0), 'gauge', r.get('queued') or 0)]
-    for i, k in enumerate(('packets', 'accept', 'reject', 'challenge', 'accounting', 'status',
-                           'dropped', 'malformed', 'unknown', 'repeated', 'no_database',
-                           'maintenance'), 3):
-        rows.append((B + (2, i, 0), 'counter64', counts.get(k, 0)))
     t0 = time.time()
     try:
         store.db.value('SELECT 1')
@@ -311,14 +303,6 @@ def snmp_mib(daemon, agent):
     except Exception:                                   # noqa: BLE001
         db_ok = 0
     rows += [(B + (3, 1, 0), 'int', db_ok), (B + (3, 2, 0), 'gauge', int((time.time() - t0) * 1e6))]
-    if db_ok:
-        try:
-            tc = store.token_counts()
-            for i, k in enumerate(('all', 'active', 'pending', 'disabled', 'used_30d',
-                                   'never_used'), 1):
-                rows.append((B + (4, i, 0), 'gauge', tc.get(k, 0)))
-        except Exception:                               # noqa: BLE001
-            pass
     try:
         probs = alert_problems(store, 'en') if db_ok else {}
     except Exception:                                   # noqa: BLE001

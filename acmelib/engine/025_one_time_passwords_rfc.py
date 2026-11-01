@@ -5,7 +5,8 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # What the phone does, done again here: the key and the number of thirty-
 # second periods since 1970 go through HMAC, and six digits are cut out of the
-# answer. Nothing in this needs anything but hashlib and hmac.
+# answer - the second step of an administrator's sign-in with an
+# authenticator app. Nothing in this needs anything but hashlib and hmac.
 HASHES = {'SHA1': hashlib.sha1, 'SHA256': hashlib.sha256, 'SHA512': hashlib.sha512}
 
 
@@ -80,52 +81,3 @@ def otpauth_uri(secret, label, issuer, digits=6, period=30, algorithm='SHA1'):
     if int(period) != 30:
         args.append('period=%d' % int(period))
     return 'otpauth://totp/%s?%s' % (who, '&'.join(args))
-
-
-def scratch_new(count, digits=8):
-    """Recovery codes: `count` of them, `digits` long, none twice."""
-    out = []
-    while len(out) < int(count):
-        one = ''.join(secrets.choice('0123456789') for _ in range(int(digits)))
-        if one[0] != '0' and one not in out:
-            out.append(one)
-    return out
-
-
-def _scratch_text(user, code):
-    return ('%s|%s' % (str(user).lower(), str(code).strip())).encode('utf-8')
-
-
-def scratch_hash(user, code, key=None):
-    """A recovery code as it is kept: an HMAC of the name it belongs to and
-    the code, keyed with the key the token secrets are sealed with, so the
-    database holds nothing that could be typed - and nothing that a copy of
-    the database alone lets anybody try codes against."""
-    if key is None:
-        key = sealing_key(make=True)
-    return 'hmac:' + hmac.new(key, _scratch_text(user, code), hashlib.sha256).hexdigest()
-
-
-def scratch_hash_old(user, code):
-    """The shape before 1.0.14: a plain hash, without the key. Only read,
-    never written: a hit is rewritten in the new shape."""
-    return 'sha256:' + hashlib.sha256(_scratch_text(user, code)).hexdigest()
-
-
-def scratch_find(user, code, kept, key=None):
-    """The entry of `kept` (the list a token row holds) that is `code`, or
-    None - and how that entry should be written now, which differs from the
-    entry when it was kept in the old shape."""
-    if key is None:
-        key = sealing_key()
-    new = scratch_hash(user, code, key) if key else None
-    old = scratch_hash_old(user, code)
-    for k in kept:
-        k = str(k)
-        if new is not None and hmac.compare_digest(k, new):
-            return k, new
-        if hmac.compare_digest(k, old):
-            return k, new if new is not None else old
-    return None, None
-
-

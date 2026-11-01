@@ -5,7 +5,7 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # colorama when it is installed, and the same escape sequences written by hand
 # when it is not. A nicety, never a dependency: a server being put right at two
-# in the morning is not the one to find that the token server will not start
+# in the morning is not the one to find that the server will not start
 # because a colour library is missing. colorama adds a Windows console, a
 # terminal reset however the program ends, and nothing else on Linux.
 # acme carries colorama with it (acmelib/vendor/colorama): the one installed on

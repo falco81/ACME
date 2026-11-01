@@ -11,8 +11,13 @@ from __future__ import annotations
 # that what came from the other is not sent back to it. PostgreSQL 16 or
 # later on both.
 #
-# Rows made on both at once never collide: the numbering of every table goes
-# up in twos, odd on node 1 and even on node 2.
+# Rows made on both at once never collide: the numbering of every table of
+# SCHEMA - a module's appended ones too - goes up in twos, odd on node 1 and
+# even on node 2 (ha_sequences, and ha_sequences_check every hour and at each
+# start, which also puts a table new since in step). A row both nodes made
+# under the same name (UNIQUE) is settled the same way on both by a trigger
+# (Db._pg_same_rows); the publication is FOR ALL TABLES, and each node's
+# subscription is refreshed when the other has a table it does not take yet.
 #
 # A node that was away comes back by itself: what it missed waited in its
 # replication slot on the other (up to max_slot_wal_keep_size). A node that
@@ -418,8 +423,8 @@ def _ha_rebuild(local, remote, my_slot, peer_slot, my_host, my_port, peer_host, 
         HA_REBUILDER[0] = None
         HA_REBUILDING.clear()
         # Failed after its tables were emptied (1.0.94): the node stays out of
-        # service, not back answering every person "no such token" with
-        # nothing replicating - until a rebuild goes through.
+        # service, not back answering with empty tables and nothing
+        # replicating - until a rebuild goes through.
         store = HA_STORE.get('store')
         if store is not None:
             try:
@@ -474,7 +479,9 @@ def ha_repl_state(store):
 
 
 def ha_peer_columns():
-    """Columns of a later version added to the other node's tables too."""
+    """Tables and columns of a later version - or of a module - made on the
+    other node too: logical replication stops on a row of a table or with a
+    column the other side does not have."""
     try:
         far = ha_peer_db()
     except Exception as e:                              # noqa: BLE001
@@ -482,9 +489,15 @@ def ha_peer_columns():
             % str(e).split('\n')[0][:200], 'warn')
         return
     try:
+        types = TYPES[far.engine]
+        have = set(far.tables())
+        for name, ddl in SCHEMA:
+            if name not in have:
+                far.run(ddl.format(**types))
+                log('the table %s made on the other node too' % name)
         far.add_missing_columns()
     except Exception as e:                              # noqa: BLE001
-        log('new columns could not be added on the other node: %s' % e, 'warn')
+        log('new tables or columns could not be added on the other node: %s' % e, 'warn')
     finally:
         try:
             far.close()
@@ -493,8 +506,8 @@ def ha_peer_columns():
 
 
 # ---- used once, on either node (1.0.101) -------------------------------------
-# A code's time step, a recovery code, an answered question: each is written
-# as a row of its own in token_once, by this node under its own number, and
+# A code's time step (an administrator's code from the app): each is written
+# as a row of its own in used_once, by this node under its own number, and
 # never changed - so replication, which writes whole rows, cannot write an
 # older copy over it. And with two replicating databases, a node that takes
 # one also looks in the other node's database for that node's row, after
@@ -504,7 +517,8 @@ def ha_peer_columns():
 ONCE_PEER = {'pool': [], 'made': 0, 'down_until': 0.0, 'said': 0.0, 'fails': 0, 'gen': 0}
 ONCE_PEER_LOCK = threading.Lock()
 ONCE_PEER_MOST = 4               # connections to the other node's database, at most
-ONCE_KEEP_S = {'step': 3 * 86400, 'chal': 3 * 86400, 'scratch': 800 * 86400}
+# How long each kind is kept (a module may add a kind of its own).
+ONCE_KEEP_S = {'step': 3 * 86400}
 
 
 def once_node():
@@ -537,7 +551,7 @@ def _once_peer_has(k, me, store=None):
     connection of its own with a 2 s limit, and waited for 1.5 s at most
     (1.0.101; 1.0.186): a peer that drops packets without a word must not hold
     every sign-in that was let in. A few connections (1.0.186): with one, the
-    sign-ins of a busy morning asked one after the other and timed out on each
+    sign-ins of a busy moment asked one after the other and timed out on each
     other - and the peer was taken for gone. Not asked again for 20 s, then
     longer each time it does not answer, up to 5 minutes."""
     # Asked whatever its heartbeat says (1.0.205): the heartbeat comes through
@@ -572,7 +586,7 @@ def _once_peer_has(k, me, store=None):
         try:
             if got['db'] is None:
                 got['db'] = db_open(ha_peer_conf(timeout=2), statement_s=2)
-            got['v'] = bool(got['db'].value('SELECT 1 FROM token_once WHERE k = ? AND node <> ?',
+            got['v'] = bool(got['db'].value('SELECT 1 FROM used_once WHERE k = ? AND node <> ?',
                                             (k, me)))
         except Exception as e:                          # noqa: BLE001
             got['e'] = e
@@ -620,14 +634,14 @@ def once_take(store, kind, name, value):
     me = once_node()
     db = store.db
     if db.engine == 'mariadb':
-        sql = 'INSERT IGNORE INTO token_once (k, node, ts) VALUES (?, ?, ?)'
+        sql = 'INSERT IGNORE INTO used_once (k, node, ts) VALUES (?, ?, ?)'
     elif db.engine == 'sqlite':
-        sql = 'INSERT OR IGNORE INTO token_once (k, node, ts) VALUES (?, ?, ?)'
+        sql = 'INSERT OR IGNORE INTO used_once (k, node, ts) VALUES (?, ?, ?)'
     else:
-        sql = 'INSERT INTO token_once (k, node, ts) VALUES (?, ?, ?) ON CONFLICT DO NOTHING'
+        sql = 'INSERT INTO used_once (k, node, ts) VALUES (?, ?, ?) ON CONFLICT DO NOTHING'
     if not db.run(sql, (k, me, time.time())):
         return False                    # this node took it already
-    if db.value('SELECT 1 FROM token_once WHERE k = ? AND node <> ?', (k, me)):
+    if db.value('SELECT 1 FROM used_once WHERE k = ? AND node <> ?', (k, me)):
         return False                    # the other node took it, and it came over
     if me and CONFIG.get('ha_mode') == 'replicated' and CONFIG.get('ha_peer'):
         if _once_peer_has(k, me, store):
@@ -636,23 +650,10 @@ def once_take(store, kind, name, value):
 
 
 def once_tidy(store):
-    """Rows no longer needed: a time step or a question long past."""
+    """Rows no longer needed: a time step long past."""
     t = time.time()
-    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'scratchguard:%'"):
-        try:
-            last = max([float(x) for x in json.loads(r['v'] or '[]')] or [0])
-        except (ValueError, TypeError):
-            last = 0
-        if t - last > 86400:
-            store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (r['k'], r['v']))
-    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'scratchclear:%'"):
-        try:
-            if t - float(r['v'] or 0) > 86400:      # older than every place it hides (1.0.187)
-                store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (r['k'], r['v']))
-        except (ValueError, TypeError):
-            store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (r['k'], r['v']))
     for kind, keep in ONCE_KEEP_S.items():
-        store.db.run('DELETE FROM token_once WHERE substr(k, 1, ?) = ? AND ts < ?',
+        store.db.run('DELETE FROM used_once WHERE substr(k, 1, ?) = ? AND ts < ?',
                      (len(kind) + 1, kind + ':', t - keep))
 
 
@@ -756,7 +757,7 @@ def ha_resync_job(store, by):
                              CONFIG.get('db_user'), CONFIG.get('db_password'), say)
         finally:
             remote.close()
-        store._clients = store._realms = None
+        store._dirs = None
         store.set_meta('conf_serial', '%.6f:%s' % (time.time(), node_name()))
         store.add_event('settings', '%s rebuilt this node from the other: %d row(s); what it '
                         'held is in %s' % (by, got['rows'], copy.name), 'warn', who=by)

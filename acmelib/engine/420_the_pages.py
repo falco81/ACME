@@ -357,9 +357,9 @@ def _rbackup_download(h):
             h.send_file(work / name, name)
             return None
         if not rb_password():
-            # Locked always (1.0.136): unlocked it holds every token's key.
+            # Locked always (1.0.136): unlocked it holds every private key.
             raise ApiError(403, 'without a password of the backups the file would hold every '
-                                'token\'s key unlocked: set the password first')
+                                'private key unlocked: set the password first')
         path, m, _md = rb_build(h.store, str(work))
         if not m.get('encrypted'):
             # The password asked again as it was locked (1.0.205): taken away during

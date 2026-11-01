@@ -18,7 +18,7 @@ from __future__ import annotations
 #      its subscription and its ha_peer move to it - it waits for this node
 #      there;
 #   2. this node's ha_address, its own settings that name the old address or
-#      name (RADIUS's address, the mail greeting, the isemon name), and its
+#      name (SNMP's address, the mail greeting, the isemon name), and its
 #      self-made certificate are made again with the new ones;
 #   3. maintenance: the VIP address goes to the other node;
 #   4. NetworkManager, the host name and /etc/hosts, then a reboot;
@@ -87,7 +87,7 @@ def net_publish(store):
     of either node."""
     data = net_root({'do': 'read'}, 30)
     now = {'at': time.time(), 'data': data, 'boot': boot_time(),
-           'radius_bind': str(CONFIG.get('radius_bind') or '0.0.0.0'),
+           'snmp_bind': str(CONFIG.get('snmp_bind') or ''),
            'ha_address': str(CONFIG.get('ha_address') or ''),
            'node_name_pinned': bool(str(FILE_CONFIG.get('node_name') or '').strip())}
     store.set_meta('net:now:' + node_name(), json.dumps(now))
@@ -238,8 +238,7 @@ def net_check(store, node, want, rollback=False):
         plan.append('the host name %s → %s (the node keeps its name in acme: %s)'
                     % (host_old or '?', host, node))
     if on6 != was6:
-        plan.append('IPv6 %s: RADIUS listens %s' % (
-            'on' if on6 else 'off', 'on IPv4 and IPv6 (::)' if on6 else 'on IPv4 only'))
+        plan.append('IPv6 %s' % ('on' if on6 else 'off'))
     if many:
         plan.append('maintenance on %s - the VIP address goes to the other node' % node)
     plan.append('NetworkManager (%s): %s via %s, DNS %s%s' % (

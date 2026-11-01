@@ -3,34 +3,28 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 # The texts of the messages, edited on the pages (1.0.103)
 # ---------------------------------------------------------------------------
-# Every word a person gets from this server - the mails of a code and of a
-# token, the SMS, what the VPN's second window says - in both languages, as
-# it is written here in CODE_TEXTS and MAIL_WORDS, unless changed in
-# Settings → Message texts. What is changed is kept in the database (meta
-# texts:<message>:<lang>, the fields changed only), so both nodes of a
-# cluster send the same words; each node reads them again within seconds.
-# Put back to the default, a text is exactly as it was before it was changed.
+# Every word a person gets from this server - the mails of a code, the SMS,
+# and whatever a module mails - in both languages, as it is written in the
+# defaults (TEXT_GROUPS), unless changed in Settings → Message texts. What is
+# changed is kept in the database (meta texts:<message>:<lang>, the fields
+# changed only), so both nodes of a cluster send the same words; each node
+# reads them again within seconds. Put back to the default, a text is exactly
+# as it was before it was changed.
+#
+# The registry is TEXT_MESSAGES, a list a module appends its own messages to,
+# with their default words in TEXT_GROUPS[group][lang] (and placeholders of its
+# own in TEXT_PLACEHOLDERS and TEXT_SAMPLES):
+#   {'id': 'cert_expiring', 'kind': 'mail' | 'sms' | 'text', 'group': 'certs',
+#    'title': ..., 'short': ..., 'says': ...,
+#    'fields': [(key, 'line' | 'rich' | 'text', label, (placeholders...), where)],
+#    'render': fn(words, samples, lang) -> {'html', 'subject', 'text'}  (a mail's preview)}
+# texts_for(group, lang) gives the words to send with, changes and all.
 import html.parser as _html_parser
 
 TEXT_MESSAGES = [
-    {'id': 'code_mail', 'kind': 'mail', 'group': 'code', 'purpose': 'signin',
-     'title': 'The sign-in code by mail',
-     'says': 'Sent when somebody signs in to the VPN with a token that gets its codes by mail.',
-     'fields': [
-         ('mail_subject', 'line', 'Subject', ('code', 'minutes', 'site'), 'subject'),
-         ('h_title', 'line', 'The band at the top', ('site',), 'layout'),
-         ('h_hello', 'rich', 'Greeting', ('name',), 'layout'),
-         ('h_lede', 'rich', 'What it is', ('account',), 'layout'),
-         ('h_facts', 'rich', 'Under the code', ('minutes',), 'layout'),
-         ('h_warn', 'rich', 'The warning', (), 'layout'),
-         ('h_foot', 'rich', 'The foot', ('site',), 'layout'),
-         ('h_hello_anon', 'rich', 'Greeting when the name is not known', (), 'other'),
-         ('h_lede_anon', 'rich', 'What it is when the account is not known', (), 'other'),
-         ('mail_body', 'text', 'The plain text version', ('code', 'minutes', 'site'), 'plain'),
-     ]},
     {'id': 'verify_mail', 'kind': 'mail', 'group': 'code', 'purpose': 'verify',
      'title': 'Checking an address',
-     'says': 'Sent from the enrolment pages, to check the address codes will go to.',
+     'says': 'Sent to check an address something will be mailed to.',
      'fields': [
          ('verify_subject', 'line', 'Subject', ('code', 'minutes', 'site'), 'subject'),
          ('h_v_title', 'line', 'The band at the top', ('site',), 'layout'),
@@ -43,33 +37,10 @@ TEXT_MESSAGES = [
          ('h_v_lede_anon', 'rich', 'What it is when the account is not known', (), 'other'),
          ('verify_body', 'text', 'The plain text version', ('code', 'minutes', 'site'), 'plain'),
      ]},
-    {'id': 'token_mail', 'kind': 'mail', 'group': 'token',
-     'title': 'A token with its QR code',
-     'says': 'Sent when an administrator makes a token and mails it - the QR code, the key '
-             'and the recovery codes.',
-     'fields': [
-         ('subject', 'line', 'Subject', ('site',), 'subject'),
-         ('title', 'line', 'The band at the top', ('site',), 'layout'),
-         ('hello', 'rich', 'Greeting', ('name',), 'layout'),
-         ('lede', 'rich', 'What it is', ('account',), 'layout'),
-         ('step1', 'rich', 'Step 1', (), 'layout'),
-         ('step2', 'rich', 'Step 2', (), 'layout'),
-         ('step3', 'rich', 'Step 3', (), 'layout'),
-         ('facts', 'rich', 'Under the key', ('digits', 'period'), 'layout'),
-         ('pending', 'rich', 'Waiting to be confirmed', (), 'layout'),
-         ('codes_h', 'line', 'Recovery codes: heading', (), 'layout'),
-         ('codes_p', 'rich', 'Recovery codes: what they are', (), 'layout'),
-         ('warn', 'rich', 'The warning', (), 'layout'),
-         ('foot', 'rich', 'The foot', ('by', 'site'), 'layout'),
-         ('hello_anon', 'rich', 'Greeting when the name is not known', (), 'other'),
-     ]},
-    {'id': 'sms_code', 'kind': 'sms', 'group': 'code', 'title': 'The sign-in code by SMS',
-     'says': 'Sent when somebody signs in to the VPN with a token that gets its codes by SMS.',
-     'fields': [('sms', 'text', 'The SMS', ('code', 'minutes', 'site'), 'sms')]},
     {'id': 'sms_verify', 'kind': 'sms', 'group': 'code', 'title': 'Checking a number',
-     'says': 'Sent from the enrolment pages, to check the number codes will go to.',
+     'says': 'Sent to check a number something will be sent to by SMS.',
      'fields': [('sms_verify', 'text', 'The SMS', ('code', 'minutes', 'site'), 'sms')]},
-    # The administration's second step (1.0.127): its own words, not the VPN's.
+    # The administration's second step (1.0.127): its own words.
     {'id': 'admin_mail', 'short': 'The sign-in code by mail', 'kind': 'mail', 'group': 'code', 'purpose': 'admin',
      'title': 'The administration: a sign-in code by mail',
      'says': 'Sent when an administrator signs in to these pages with the second step by mail.',
@@ -109,43 +80,16 @@ TEXT_MESSAGES = [
      'title': 'The administration: checking a number',
      'says': 'Sent when an administrator sets up the second step by SMS, to check the number.',
      'fields': [('admin_sms_verify', 'text', 'The SMS', ('code', 'minutes', 'site'), 'sms')]},
-    # Signing in over SSH to the nodes (1.0.181): an SSH token by mail or SMS.
-    {'id': 'ssh_mail', 'short': 'The sign-in code by mail', 'kind': 'mail', 'group': 'code', 'purpose': 'ssh',
-     'title': 'SSH: a sign-in code by mail',
-     'says': 'Sent when somebody signs in over SSH to the nodes with an SSH token by mail.',
-     'fields': [
-         ('ssh_subject', 'line', 'Subject', ('code', 'minutes', 'site'), 'subject'),
-         ('h_s_title', 'line', 'The band at the top', ('site',), 'layout'),
-         ('h_s_hello', 'rich', 'Greeting', ('name',), 'layout'),
-         ('h_s_lede', 'rich', 'What it is', ('account',), 'layout'),
-         ('h_s_facts', 'rich', 'Under the code', ('minutes',), 'layout'),
-         ('h_s_warn', 'rich', 'The warning', (), 'layout'),
-         ('h_s_foot', 'rich', 'The foot', ('site',), 'layout'),
-         ('h_s_hello_anon', 'rich', 'Greeting when the name is not known', (), 'other'),
-         ('h_s_lede_anon', 'rich', 'What it is when the account is not known', (), 'other'),
-         ('ssh_body', 'text', 'The plain text version', ('code', 'minutes', 'site'), 'plain'),
-     ]},
-    {'id': 'ssh_sms', 'short': 'The sign-in code by SMS', 'kind': 'sms', 'group': 'code',
-     'title': 'SSH: a sign-in code by SMS',
-     'says': 'Sent when somebody signs in over SSH to the nodes with an SSH token by SMS.',
-     'fields': [('ssh_sms', 'text', 'The SMS', ('code', 'minutes', 'site'), 'sms')]},
-    {'id': 'prompts', 'kind': 'prompt', 'group': 'code', 'title': 'The VPN’s second window',
-     'says': 'What the VPN shows when it asks for the code - each at most 253 bytes, as '
-             'RADIUS carries it.',
-     'fields': [
-         ('ask_mail', 'line', 'Asking for a code sent by mail', ('dest', 'site', 'minutes'),
-          'prompt'),
-         ('ask_sms', 'line', 'Asking for a code sent by SMS', ('dest', 'site', 'minutes'),
-          'prompt'),
-         ('ask_totp', 'line', 'Asking for the code from the app', ('site', 'minutes'), 'prompt'),
-         ('again', 'line', 'A wrong code, asked again', ('site', 'minutes'), 'prompt'),
-     ]},
 ]
 TEXT_LANGS = ('cs', 'en')
 TEXT_PLACEHOLDERS = {
     'code': 'the code', 'minutes': 'minutes it is good for', 'site': 'the server’s name',
     'name': 'the person’s name', 'account': 'the account', 'dest': 'where it was sent',
-    'digits': 'digits of a code', 'period': 'seconds a code lasts', 'by': 'who made it'}
+    'by': 'who did it'}
+# A sample value of each placeholder a module adds, for the previews.
+TEXT_SAMPLES = {}
+# The default words of each group of messages: {group: {lang: {key: words}}}.
+TEXT_GROUPS = {'code': CODE_TEXTS}
 TEXT_MOST = {'line': 300, 'rich': 3000, 'text': 4000}
 TEXT_CACHE = {}
 TEXT_CACHE_S = 5.0
@@ -157,9 +101,8 @@ def text_message(mid):
 
 
 def text_defaults(group, lang):
-    if group == 'token':
-        return dict(MAIL_WORDS.get(lang) or MAIL_WORDS['cs'])
-    return dict(CODE_TEXTS.get(lang) or CODE_TEXTS['cs'])
+    words = TEXT_GROUPS.get(group) or {}
+    return dict(words.get(lang) or words.get('cs') or words.get('en') or {})
 
 
 def text_saved(store, mid, lang):
@@ -174,8 +117,8 @@ def text_saved(store, mid, lang):
 
 
 def texts_for(group, lang):
-    """The words of one group (code: the mails of codes, the SMS and the
-    second window; token: the token's mail) in one language - the defaults
+    """The words of one group (code: the mails and the SMS of codes; a
+    module's own) in one language - the defaults
     with what was changed on the pages over them. Read again every few
     seconds; if the database cannot be asked, the defaults, never nothing."""
     lang = lang if lang in TEXT_LANGS else 'cs'
@@ -320,10 +263,11 @@ def text_rich_clean(value):
 
 def text_samples(lang='cs'):
     site = str(CONFIG.get('site_name') or socket.gethostname())
-    return {'code': '482913', 'minutes': max(1, int(CONFIG.get('code_ttl_s') or 300) // 60),
-            'site': site, 'name': 'Jan Novák' if lang == 'cs' else 'Jan Novak',
-            'account': 'jan.novak@example.cz', 'dest': 'j•••@example.cz',
-            'digits': int(CONFIG.get('totp_digits') or 6), 'period': 30, 'by': 'admin'}
+    out = dict(TEXT_SAMPLES)
+    out.update({'code': '482913', 'minutes': max(1, int(CONFIG.get('code_ttl_s') or 300) // 60),
+                'site': site, 'name': 'Jan Novák' if lang == 'cs' else 'Jan Novak',
+                'account': 'jan.novak@example.cz', 'dest': 'j•••@example.cz', 'by': 'admin'})
+    return out
 
 
 def text_check(field, value):
@@ -358,9 +302,7 @@ def text_check(field, value):
         value.format(**text_samples())
     except (ValueError, IndexError, KeyError) as e:
         raise ValueError('%s: a { or } on its own - write it twice, {{ or }} (%s)' % (label, e))
-    if field[4] == 'prompt' and len(value.format(**text_samples()).encode('utf-8')) > 253:
-        raise ValueError('%s: longer than RADIUS carries (253 bytes)' % label)
-    if field[4] in ('subject', 'sms', 'prompt') and not value.strip():
+    if field[4] in ('subject', 'sms') and not value.strip():
         raise ValueError('%s cannot be empty' % label)
     return value
 
@@ -386,7 +328,7 @@ def text_words(mid, lang, fields=None, mark=False):
 
 def text_render(store, mid, lang, fields=None, mark=False):
     """A message as it would go out, with sample values: the mail's HTML,
-    its subject and its text; the SMS; the second window's lines."""
+    its subject and its text; the SMS; a text's lines."""
     m = text_message(mid)
     w = text_words(mid, lang, fields, mark)
     smp = text_samples(lang)
@@ -398,29 +340,14 @@ def text_render(store, mid, lang, fields=None, mark=False):
         body = w[code_purpose(m['purpose'])['body']]
         out['subject'] = sub.format(**smp)
         out['text'] = body.format(**smp)
-    elif m['kind'] == 'mail':
-        picture = {'issuer': smp['site'], 'digits': smp['digits'], 'period': smp['period'],
-                   'secret': 'JBSWY3DPEHPK3PXP', 'secret_spaced': 'JBSW Y3DP EHPK 3PXP',
-                   'label': smp['account'], 'uri': 'otpauth://totp/example?secret=JBSWY3DPEHPK3PXP'}
-        msg = token_mail('preview@example.cz', smp['account'], picture,
-                         codes=['10473829', '58261047', '39182754', '74629103', '21857364'],
-                         lang=lang, display=smp['name'], by=smp['by'], pending=True, w=w)
-        page = msg.get_payload()[1].get_payload()[0].get_content()
-        # The pictures it carries, in the page itself for the preview.
-        for part in msg.get_payload()[1].get_payload()[1:]:
-            cid = str(part['Content-ID'] or '').strip('<>')
-            data = base64.b64encode(part.get_payload(decode=True)).decode('ascii')
-            page = page.replace('cid:%s' % cid, 'data:image/png;base64,%s' % data)
-        out['html'] = page
-        out['subject'] = str(msg['Subject'])
-        out['text'] = msg.get_payload()[0].get_content()
+    elif m['kind'] == 'mail' and callable(m.get('render')):
+        out.update(m['render'](w, smp, lang) or {})
     elif m['kind'] == 'sms':
         text = w[m['fields'][0][0]].format(**smp)
         out['sms'] = sms_plain(text)
         out['sms_written'] = text
     else:
-        out['lines'] = {f[0]: w[f[0]].format(**dict(smp, dest=(
-            '+420 6•• ••• 456' if f[0] == 'ask_sms' else smp['dest']))) for f in m['fields']}
+        out['lines'] = {f[0]: w[f[0]].format(**smp) for f in m['fields']}
     return out
 
 

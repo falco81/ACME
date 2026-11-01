@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 # ---- Prometheus (1.0.173) ------------------------------------------------------------------
-# https://NODE/metrics - each node's own, in Prometheus' text format: RADIUS
-# since the daemon started, the tokens, the database, the cluster and its
-# replication, the certificates, the mail queue, isemon and syslog, the alerts
-# open now. Asked with the token (Authorization: Bearer ...), kept sealed;
-# from the networks set only, where any are. Off until switched on.
+# https://NODE/metrics - each node's own, in Prometheus' text format: the
+# database, the cluster and its replication, the certificates of the pages,
+# the mail queue, isemon and syslog, the alerts open now - and what each
+# module adds (HOOKS['metrics']: the certificates it keeps, its jobs). Asked
+# with the token (Authorization: Bearer ...), kept sealed; from the networks
+# set only, where any are. Off until switched on.
 METRICS_TOKEN_RE = re.compile(r'^[A-Za-z0-9_.~+/=-]{24,200}\Z')
 
 
@@ -53,37 +54,16 @@ def metrics_text(daemon):
     m.put('acme_database_up', 'gauge', 'Whether the database answers.', [({}, db_ok)])
     m.put('acme_database_seconds', 'gauge', 'How long SELECT 1 took.',
           [({}, round(time.time() - t0, 6))])
-    r = daemon.radius.state() if daemon.radius else {}
-    m.put('acme_radius_listening', 'gauge', 'Whether RADIUS listens.',
-          [({}, 1 if r.get('listening') else 0)])
-    m.put('acme_radius_requests_total', 'counter',
-          'RADIUS packets since the daemon started, by what became of them.',
-          [({'kind': k}, v) for k, v in sorted((r.get('counts') or {}).items())])
-    m.put('acme_radius_queued', 'gauge', 'RADIUS requests waiting for a worker.',
-          [({}, r.get('queued') or 0)])
     if not db_ok:
         return m.text()
     try:
-        tc = store.token_counts()
-        m.put('acme_tokens', 'gauge', 'Tokens, by state and kind.',
-              [({'state': k}, v) for k, v in sorted(tc.items()) if not k.startswith('kind_')] +
-              [({'kind': k[5:]}, v) for k, v in sorted(tc.items()) if k.startswith('kind_')])
-        m.put('acme_clients', 'gauge', 'RADIUS clients.', [({}, len(store.clients()))])
-        m.put('acme_realms', 'gauge', 'Realms.', [({}, len(store.realms()))])
         m.put('acme_directories', 'gauge', 'Directories (Active Directory).',
               [({}, len(daemon.dirs))])
-        day = time.time() - 86400
-        # On the pages' reading connection (1.0.186), not the one /api/health
-        # and the ticks share: a day of requests counted is not quick.
-        try:
-            rd = daemon.reader()
-        except Exception:                               # noqa: BLE001
-            rd = store
-        rows = rd.db.rows("SELECT result, COUNT(*) AS n FROM radius_log WHERE ts >= ? AND "
-                          "packet = 'Access-Request' GROUP BY result", (day,))
-        m.put('acme_radius_last_day', 'gauge',
-              'Access-Requests of the last 24 hours in the database (both nodes), by result.',
-              [({'result': x['result'] or '?'}, x['n']) for x in rows])
+        rows = store.db.rows("SELECT level, COUNT(*) AS n FROM events WHERE ts >= ? GROUP BY "
+                             "level", (time.time() - 86400,))
+        m.put('acme_events_last_day', 'gauge',
+              'Events of the last 24 hours in the database (both nodes), by level.',
+              [({'level': x['level'] or '?'}, x['n']) for x in rows])
     except Exception as e:                              # noqa: BLE001
         log_sparing('metrics-db', 'Prometheus: %s' % e, 'warn', every=600)
     # The cluster.
@@ -117,8 +97,9 @@ def metrics_text(daemon):
             if info.get('not_after'):
                 certs.append(({'target': 'vip' if t == 'vip' else t,
                                'name': info.get('cn') or ''}, float(info['not_after'])))
-        m.put('acme_certificate_expiry_timestamp_seconds', 'gauge',
-              'When the certificate of each node and of the VIP address ends (unix time).', certs)
+        m.put('acme_pages_certificate_expiry_timestamp_seconds', 'gauge',
+              'When the certificate of the pages of each node and of the VIP address ends '
+              '(unix time).', certs)
     except Exception:                                   # noqa: BLE001
         pass
     try:
@@ -151,6 +132,17 @@ def metrics_text(daemon):
               [({'key': k, 'level': p.get('level') or ''}, 1) for k, p in sorted(probs.items())])
     except Exception as e:                              # noqa: BLE001
         log_sparing('metrics-alerts', 'Prometheus, the alerts: %s' % e, 'warn', every=600)
+    # What a module counts (HOOKS['metrics']): [(name, help, type, [(labels, value)])].
+    for fn in HOOKS['metrics']:
+        try:
+            for name, words, kind, samples in list(fn(store) or []):
+                if not re.match(r'^[a-zA-Z_:][a-zA-Z0-9_:]*\Z', str(name)):
+                    continue
+                m.put(str(name), 'counter' if kind == 'counter' else 'gauge', str(words),
+                      [(dict(lab or {}), v) for lab, v in samples or []])
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('metrics-hook', 'Prometheus, a module: %s: %s'
+                        % (getattr(fn, '__qualname__', fn), e), 'warn', every=600)
     m.put('acme_high_security', 'gauge', 'Whether high security is on.',
           [({}, 1 if CONFIG.get('high_security') else 0)])
     m.put('acme_scrape_seconds', 'gauge', 'How long this answer took.',

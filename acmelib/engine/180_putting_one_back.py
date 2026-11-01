@@ -81,7 +81,7 @@ def rb_open(path, password, work):
 
 def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True):
     """Everything in a backup put back on this machine: the database, the key
-    of the tokens, the node's name. The connection to the database in
+    of its sealed secrets, the node's name. The connection to the database in
     config.json stays this machine's."""
     work = tempfile.mkdtemp(prefix='acme-putback-', dir=str(STATE_DIR))
     os.chmod(work, 0o700)

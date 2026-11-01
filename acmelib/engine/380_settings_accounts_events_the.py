@@ -9,8 +9,6 @@ def _settings(h):
             'only_when': ONLY_WHEN, 'config_file': str(CONFIG_FILE),
             'database': h.store.db.where(), 'directories': [d['name'] for d in
                                                             h.store.directories()],
-            'realms': [r['suffix'] for r in h.store.realms()
-                       if r.get('suffix') and r['suffix'] != '*'],
             'isemon': h.d.shipper.state() if h.d.shipper else {},
             'node': node_name(), 'nodes': h.d.cluster_nodes(),
             'cluster': bool(CONFIG.get('ha_mode')) or len(h.d.cluster_nodes()) > 1}
@@ -303,19 +301,19 @@ def _events(h):
     return {'rows': rows, 'total': total, 'kinds': h.reader.event_kinds()}
 
 
-@route('GET', '/api/enrolment')
-def _enrolment(h):
-    h.me()
-    since = h.num('since', 0, 0, 10 ** 9)
-    lq, bad = list_query('enrolment', h.arg('q'))
-    if bad:
-        return {'rows': [], 'total': 0, 'q_error': bad, 'counts': {}, 'on': True}
-    t_from, t_to = time_span(h, lq)
-    rows, total = h.store.enrolment(h.num('limit', 100, 1, 1000), h.num('offset', 0),
-                                    lq.words, h.arg('step'), since, extra=(lq.sql, lq.args))
-    return {'rows': rows, 'total': total,
-            'counts': h.store.enrolment_counts(since, t_from, t_to),
-            'on': bool(CONFIG.get('portal'))}
+def mailq_said(e):
+    """A mail that did not go now, and what happens to it (1.0.95)."""
+    if getattr(e, 'queued', None) == 'waiting':
+        return ('not taken yet: %s - it waits in the outgoing mail and is tried again by '
+                'itself (Settings → Mail)' % e)
+    return str(e)
+
+
+def mail_reply_words(steps):
+    """What the receiving server said when it took the message, for the
+    event: its queue id is what its own log can be searched by."""
+    last = (steps or [{}])[-1].get('said', '') if steps else ''
+    return (' - the server said: %s' % last.split(' · ', 1)[1]) if ' · ' in last else ''
 
 
 @route('GET', '/api/mail')
@@ -324,7 +322,7 @@ def _mail(h):
     return {'mode': CONFIG.get('mail_mode') or 'off', 'ca_list': describe_certificates(
         mail_ca_pem(h.store)), 'from': CONFIG.get('mail_from') or '',
         'sms_ca_list': describe_certificates(sms_ca_pem(h.store)),
-        'lang': CONFIG.get('mail_lang') or 'cs', 'codes': bool(CONFIG.get('mail_codes'))}
+        'lang': CONFIG.get('mail_lang') or 'cs'}
 
 
 @route('POST', '/api/mail')
@@ -339,23 +337,11 @@ def _mail_do(h):
         began = time.time()
         try:
             lang = str(b.get('lang') or 'cs')
-            if b.get('kind') == 'token':
-                # A token's mail as it would go, with a key made up for it
-                # (1.0.27): whether that gets through - pictures, codes and
-                # all - is not the same question as whether a line of text
-                # does. The key opens nothing.
-                fake = base64.b32encode(secrets.token_bytes(20)).decode().rstrip('=')
-                pic = h.d.tokens.picture('novak@example.cz', fake)
-                msg = token_mail(to, 'novak@example.cz', pic,
-                                 codes=['%08d' % secrets.randbelow(10 ** 8) for _ in range(5)],
-                                 lang=lang if lang in MAIL_WORDS else 'cs',
-                                 display='Jan Novák' if lang == 'cs' else 'John Doe',
-                                 by=s['name'])
-            elif b.get('kind') in ('code', 'verify'):
-                # The mail of a sign-in code, or of checking an address on
-                # the enrolment pages (1.0.78) - with a code that opens nothing.
+            if b.get('kind') in ('code', 'verify'):
+                # The mail of an administrator's sign-in code, or of checking an
+                # address (1.0.78) - with a code that opens nothing.
                 msg = code_message('mail', to, code_new(),
-                                   'signin' if b.get('kind') == 'code' else 'verify',
+                                   'admin' if b.get('kind') == 'code' else 'verify',
                                    lang=lang if lang in CODE_TEXTS else None,
                                    name='novak@example.cz',
                                    display='Jan Novák' if lang == 'cs' else 'John Doe')
@@ -378,14 +364,14 @@ def _mail_do(h):
                     else None,
                     'took_ms': int((time.time() - began) * 1000)}
         h.store.add_event('mail', '%s sent a test mail%s to %s%s' % (
-            s['name'], {'token': ' shaped as a token\'s', 'code': ' shaped as a sign-in code\'s',
+            s['name'], {'code': ' shaped as a sign-in code\'s',
                         'verify': ' shaped as an address check\'s'}.get(b.get('kind'), ''), to,
             mail_reply_words(steps)), who=s['name'])
         return {'sent': True, 'said': 'sent to %s' % to, 'steps': steps,
                 'queued': 'sent' if str(b.get('via') or '') == 'queue' else None,
                 'took_ms': int((time.time() - began) * 1000)}
     if act == 'sms_test':
-        # An SMS the way a sign-in code goes (1.0.76), with a code that opens
+        # An SMS the way a code goes (1.0.76), with a code that opens
         # nothing, and what the gateway said.
         s = h.me('fulladmin')
         try:
@@ -447,18 +433,16 @@ def _mail_do(h):
                               mode, 'emptied')), who=s['name'])
         return {'ca_list': got, 'message': 'the mail server keeps %d certificate(s)' % len(got)}
     if act == 'mail_of':
-        # A person's mail address out of the directory of their realm, for
-        # the box beside "Make a token" (1.0.20).
-        h.me('tokenadmin')
+        # A person's mail address out of the directory administrators sign in
+        # against (1.0.20) - for a box that wants one (alerts, an owner).
+        h.me('certadmin')
         who = str(b.get('user') or '').strip()
-        realm = h.store.realm_for(who)
-        ad = h.d.dirs.get(str((realm or {}).get('directory') or '').lower())
+        ad = h.d.dirs.get(str(CONFIG.get('admin_directory') or '').lower())
         if not ad:
             return {'mail': '', 'display': ''}
-        how = realm.get('lookup') if realm.get('lookup') in ('upn', 'sam') else (
-            'upn' if '@' in who else 'sam')
+        bare, how = admin_name_parts(who)
         try:
-            entry = ad.find_user(who if how == 'upn' else who.split('@', 1)[0], how)
+            entry = ad.find_user(bare, how)
         except Exception:
             entry = None
         return {'mail': (entry or {}).get('mail') or '', 'display': (entry or {}).get('display')
@@ -493,8 +477,7 @@ def _db(h):
             'key': str(sealing_key_path()), 'key_there': bool(sealing_key()),
             'config_file': str(CONFIG_FILE), 'job': job_read(), 'node': node_name(),
             'tuned': bool(json.loads(h.store.get_meta('tune_before:' + node_name()) or '{}')),
-            'retain': {k: CONFIG.get(k) for k in ('retain_radius_days', 'retain_acme_days',
-                                                    'retain_events_days')}})
+            'retain': {k: CONFIG.get(k) for k in ('retain_events_days',)}})
 
 
 def _kept_path(name, kind):
@@ -564,7 +547,7 @@ def _db_made_now(h, kind, folder):
 
 def _db_download_ticket(h, s, b):
     """The file asked for - kept or made now - with the key that opens its
-    tokens, locked with the passphrase given: made, and left for the browser
+    secrets, locked with the passphrase given: made, and left for the browser
     to fetch with the ticket."""
     by = s['name']
     dbkey_passphrase_checked(b.get('passphrase'))
@@ -631,8 +614,6 @@ def _db_restore(h):
         except ValueError as e:
             raise ApiError(400, str(e))
         h.d.reload_all('a database was put back') if hasattr(h.d, 'reload_all') else None
-        BIND_STRICT['tokens'] = False
-        bind_tokens(h.store)
         return got
     finally:
         try:
@@ -700,8 +681,6 @@ def _db_do(h):
                     daemon.reload_all('a database was put back')
                 except Exception:                       # noqa: BLE001
                     pass
-                BIND_STRICT['tokens'] = False
-                bind_tokens(store)
                 return got
             finally:
                 shutil.rmtree(str(work), ignore_errors=True)
@@ -737,8 +716,6 @@ def _db_do(h):
             raise ApiError(400, str(e))
         if hasattr(h.d, 'reload_all'):
             h.d.reload_all('a database was put back')
-        BIND_STRICT['tokens'] = False
-        bind_tokens(h.store)
         return got
     if act == 'erase':
         try:
@@ -827,14 +804,10 @@ def _db_do(h):
                 # held then, and everything since was out of sight.
                 if not b.get('even_older'):
                     try:
-                        # The codes used as well as the events (1.0.205): a recovery
-                        # code used between the carry and this press is in
-                        # token_once alone - and was usable again on the new one.
-                        # (A code's time step is good a minute at most: not waited for.)
+                        # The newest event of each (a code's time step is good a
+                        # minute at most: not waited for).
                         def newest(db):
-                            return max(float(db.value('SELECT MAX(ts) FROM events') or 0),
-                                       float(db.value("SELECT MAX(ts) FROM token_once WHERE k "
-                                                      "LIKE 'scratch:%'") or 0))
+                            return float(db.value('SELECT MAX(ts) FROM events') or 0)
                         far = db_open(c)
                         try:
                             there = newest(far)
@@ -893,10 +866,11 @@ def _db_do(h):
             if days < 1 and not b.get('everything'):
                 raise ApiError(400, 'older than how many days? 1 at least')
             gone = db_prune(h.store, days)
-            h.store.add_event('settings', '%s forgot the requests and checks older than %d '
+            h.store.add_event('settings', '%s forgot the events and logs older than %d '
                               'day(s): %s' % (s['name'], days, gone), 'warn', who=s['name'])
-            return {'message': 'forgotten: %d request(s), %d check(s) of a code'
-                    % (gone['radius_log'], gone['acme_log'])}
+            return {'message': 'forgotten: %s' % (', '.join(
+                '%d of %s' % (n, t) for t, n in sorted(gone.items())) or 'nothing'),
+                    'gone': gone}
         if act == 'tune_plan':
             return tune_plan_for(h.store, b.get('machine') or {})
         if act == 'tune_apply':

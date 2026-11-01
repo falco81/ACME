@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 # ---- high availability (1.0.13) ---------------------------------------------------
-CODE_NOW_SEEN = {}
-CODE_NOW_LOCK = threading.Lock()
-
-
 @route('GET', '/api/ha')
 def _ha(h):
     me = h.me()
@@ -47,14 +43,9 @@ def lb_facts(store):
             proxies = re.findall(r'set_real_ip_from\s+([^;\s]+);', b.group(1))
         break
     v = vip_conf(store)
-    clients = [{'name': c.get('name'), 'address': c.get('address')} for c in store.clients()
-               if c.get('enabled')][:20]
     return {'server_name': server_name, 'trusted': proxies,
-            'auth_port': int(CONFIG.get('radius_auth_port') or 1812),
-            'acct_port': int(CONFIG.get('radius_acct_port') or 0),
             'vip': {'on': bool(v.get('on')), 'address': v.get('address') or '',
-                    'fqdn': v.get('fqdn') or ''},
-            'clients': clients}
+                    'fqdn': v.get('fqdn') or ''}}
 
 
 @route('GET', '/api/ha/history')
@@ -122,7 +113,7 @@ def _ha_do(h):
         phrase = ha_passphrase()
         locked = bundle_lock(data, phrase)
         h.store.add_event('settings', '%s made a bundle for a second node to join this one '
-                          '(the database at %s) - it carries the key that opens every token'
+                          '(the database at %s) - it carries the key that opens every secret'
                           % (s['name'], data['db']['db_host']), 'warn', who=s['name'])
         return {'bundle': locked, 'passphrase': phrase, 'db_host': data['db'].get('db_host', ''),
                 'mode': data.get('mode') or 'shared',

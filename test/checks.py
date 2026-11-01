@@ -3,19 +3,15 @@
 
     python3 test/checks.py
 
-No server, no database, no network: TOTP/HOTP against the RFC 4226 and
-RFC 6238 test vectors, the RADIUS packets (User-Password hiding,
-Message-Authenticator, the Response Authenticator), the sealing of secrets,
-the account passwords, the readers of the old totpcgi and FreeRADIUS files,
-and the QR codes - decoded again with zxing-cpp and Pillow when they are
-installed (pip install zxing-cpp pillow), and checked for shape when not.
+No server, no database, no network: TOTP/HOTP (the administrators' second
+step with an app) against the RFC 4226 and RFC 6238 test vectors, the
+sealing of secrets, the account passwords, the line isemon gets, the tables
+as a module appends to them, and the QR codes - decoded again with zxing-cpp
+and Pillow when they are installed (pip install zxing-cpp pillow), and
+checked for shape when not.
 """
-import binascii
-import hashlib
-import hmac
 import os
 import random
-import struct
 import sys
 import tempfile
 
@@ -77,60 +73,6 @@ uri = acme.otpauth_uri(sec, 'novak@example.cz', 'Example')
 check('otpauth URI: the shape Google Authenticator reads',
       uri.startswith('otpauth://totp/Example:novak') and '?secret=' in uri and 'issuer=Example' in uri)
 
-# recovery codes
-codes = acme.scratch_new(5, 8)
-check('recovery codes: five of eight digits, all different',
-      len(set(codes)) == 5 and all(len(c) == 8 and c.isdigit() for c in codes))
-check('recovery codes: kept as a hash tied to the person',
-      acme.scratch_hash('a@x', codes[0]) != acme.scratch_hash('b@x', codes[0]))
-
-# ---- RADIUS ----------------------------------------------------------------
-secret = b'testing123'
-for password in ('135830', 'a-password-of-exactly-32-bytes!!', 'x' * 100, ''):
-    raw, auth = acme.build_request(acme.ACCESS_REQUEST, 7,
-                                  [acme.attr_bytes('User-Name', 'falco')], secret, password)
-    p = acme.Packet.parse(raw)
-    if not (p.password(secret) == password and p.message_authenticator_ok(secret)):
-        check('RADIUS: User-Password of %d characters hidden and read back' % len(password), False)
-        break
-else:
-    check('RADIUS: User-Password hidden and read back (0, 6, 32 and 100 characters)', True)
-
-raw, auth = acme.build_request(acme.ACCESS_REQUEST, 9, [acme.attr_bytes('User-Name', 'falco')],
-                              secret, '135830')
-p = acme.Packet.parse(raw)
-check('RADIUS: a wrong secret fails the Message-Authenticator',
-      not p.message_authenticator_ok(b'not-the-secret'))
-tampered = bytearray(raw)
-tampered[-20] ^= 1
-check('RADIUS: a packet changed on the way fails it too',
-      not acme.Packet.parse(bytes(tampered)).message_authenticator_ok(secret))
-
-# The User-Password hiding, by hand from RFC 2865 5.2, against the builder
-pw = b'135830'.ljust(16, b'\x00')
-hand = bytes(a ^ b for a, b in zip(pw, hashlib.md5(secret + auth).digest()))
-check('RADIUS: User-Password exactly as RFC 2865 5.2 hides it', hand in raw)
-
-reply = acme.build_reply(p, acme.ACCESS_ACCEPT, [acme.attr_bytes('Class', 'VPN')], secret)
-check('RADIUS: the Response Authenticator of an answer checks out',
-      acme.reply_ok(reply, p.authenticator, secret))
-check('RADIUS: ... and not with another secret',
-      not acme.reply_ok(reply, p.authenticator, b'other'))
-# the Message-Authenticator of the answer (RFC 3579 3.2, over the request authenticator)
-body = reply[20:]
-at = body.find(bytes([80, 18]))
-zeroed = reply[:4] + p.authenticator + body[:at + 2] + b'\x00' * 16 + body[at + 18:]
-check('RADIUS: the answer carries a right Message-Authenticator (BlastRADIUS)',
-      hmac.new(secret, zeroed, hashlib.md5).digest() == body[at + 2:at + 18])
-check('RADIUS: Class comes back in the answer', b'VPN' in reply)
-
-raw, _ = acme.build_request(acme.ACCOUNTING_REQUEST, 3, [acme.attr_bytes('User-Name', 'falco'),
-                                                       acme.attr_bytes('Acct-Status-Type', 'Start')
-                                                       if 'Acct-Status-Type' in str(acme.__dict__.get('ATTRS', ''))
-                                                       else b''], secret)
-check('RADIUS: an Accounting-Request authenticator checks out',
-      acme.Packet.parse(raw).accounting_ok(secret))
-
 # ---- sealing and passwords -------------------------------------------------
 sealed = acme.seal_secret('JBSWY3DPEHPK3PXP')
 check('sealing: a secret is not kept as it was', 'JBSWY3DPEHPK3PXP' not in str(sealed))
@@ -139,15 +81,20 @@ h = acme.password_hash('Correct-Horse-1', rounds=1000)
 check('passwords: the right one is taken', acme.password_ok('Correct-Horse-1', h))
 check('passwords: a wrong one is not', not acme.password_ok('correct-horse-1', h))
 
-# ---- the old server's files ------------------------------------------------
-t = acme.parse_totp_file('JBSWY3DPEHPK3PXP\n" RATE_LIMIT 3 30\n" WINDOW_SIZE 17\n" DISALLOW_REUSE\n'
-                        '" TOTP_AUTH\n12345678\n87654321\n')
-check('totpcgi .totp file: the key and the two recovery codes',
-      t and t[0] == 'JBSWY3DPEHPK3PXP' and t[2] == ['12345678', '87654321']
-      and t[1].get('WINDOW_SIZE') == ['17'])
-c = acme.parse_clients_conf('client 192.9.212.1 {\n    secret = something\n    shortname = ASA\n}\n')
-check('FreeRADIUS clients.conf: the ASA and its secret',
-      bool(c) and c[0].get('secret') == 'something')
+# ---- what goes to isemon ----------------------------------------------------
+line = acme.event_kv('certificates', 'www.example.cz renewed "now"\nnext', 'warn', 'acme', 'n1')
+check('isemon: an event as one key=value line, its quotes escaped',
+      line == 'level=warn kind=certificates node=n1 who=acme msg="www.example.cz renewed '
+              '\\"now\\" next"')
+
+# ---- the tables, as a module appends to them -----------------------------------
+acme.SCHEMA.append(('zz_checks', 'CREATE TABLE IF NOT EXISTS zz_checks (id {ID}, name {K} '
+                                 'NOT NULL UNIQUE, key_sealed {B})'))
+check('TABLES follows SCHEMA: a table appended later is in it', 'zz_checks' in acme.TABLES)
+check('a table appended later has its name for the replication\'s trigger',
+      ('zz_checks', 'name') in acme.schema_named_columns())
+check('... and its sealed column is looked at', ('zz_checks', 'key_sealed') in acme.sealed_columns())
+acme.SCHEMA.pop()
 
 # ---- QR codes --------------------------------------------------------------
 try:

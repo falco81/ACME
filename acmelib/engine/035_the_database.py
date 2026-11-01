@@ -8,9 +8,9 @@ from __future__ import annotations
 # with `?` for every value, and said in each engine's own words where they
 # differ - the types, the numbering of rows, the placeholders.
 #
-# One connection, behind one lock. A token server answers a few requests a
-# second at its busiest; what costs time is the directory, and that is asked
-# outside the lock.
+# One connection, behind one lock (and a few more for the threads that must not
+# wait behind the pages - the lanes below). What costs time is the network -
+# the CA, the targets, the directory - and that is never asked under the lock.
 
 class DbError(Exception):
     pass
@@ -25,7 +25,7 @@ DB_TROUBLE_KINDS = ('OperationalError', 'QueryCanceled', 'QueryCanceledError', '
 DB_TROUBLE_WORDS = ('database is locked', 'disk is full', 'disk i/o error', 'no space left')
 
 
-# When RADIUS last could not use the database, and why (1.0.186) - for the
+# When the daemon last could not use the database, and why (1.0.186) - for the
 # alerts, through each node's health row.
 DB_TROUBLE_SEEN = {'at': 0.0, 'said': ''}
 
@@ -56,61 +56,28 @@ SCHEMA = [
     ('sessions', '''CREATE TABLE IF NOT EXISTS sessions (
         id {ID}, token_hash {K} NOT NULL UNIQUE, kind {K}, name {K}, role {K}, created {N},
         last {N}, expires {N}, ip {K}, data {B})'''),
-    ('tokens', '''CREATE TABLE IF NOT EXISTS tokens (
-        id {ID}, name {K} NOT NULL UNIQUE, secret {T}, digits {I}, period {I}, algorithm {K},
-        window_steps {I}, state {K}, last_step {I}, scratch {B}, scratch_left {I},
-        created {N}, created_by {K}, activated {N}, last_used {N}, last_from {K},
-        last_how {K}, failures {I}, fail_times {T}, note {T}, issuer {K}, label {K},
-        pending_secret {T}, pending_scratch {B}, pending_at {N}, pending_by {K},
-        display {T}, scratch_sealed {T}, locked_until {N}, last_client {K},
-        key_at {N}, state_at {N}, lock_at {N}, scratch_at {N}, kind {K}, dest {T},
-        lang {K}, mail_fmt {K})'''),
-    ('clients', '''CREATE TABLE IF NOT EXISTS clients (
-        id {ID}, name {K} NOT NULL UNIQUE, address {K}, secret {T}, realm {K},
-        require_ma {I}, enabled {I}, note {T}, created {N}, last_seen {N}, nas_type {K},
-        position {I}, realms {T})'''),
-    ('realms', '''CREATE TABLE IF NOT EXISTS realms (
-        id {ID}, name {K} NOT NULL UNIQUE, suffix {K}, directory {K}, lookup {K},
-        auth_mode {K}, group_list {B}, check_disabled {I}, reply {T}, enabled {I},
-        position {I}, note {T}, created {N}, token_name {K}, nested {I}, methods {T},
-        aliases {T})'''),
     ('directories', '''CREATE TABLE IF NOT EXISTS directories (
         id {ID}, name {K} NOT NULL UNIQUE, hosts {T}, port {I}, tls {K}, verify {I},
         ca {B}, base {T}, bind_dn {T}, bind_pw {T}, user_attr {K}, nested {I},
         timeout_s {I}, enabled {I}, note {T}, created {N}, weak {I})'''),
-    ('radius_log', '''CREATE TABLE IF NOT EXISTS radius_log (
-        id {ID}, ts {N}, client {K}, nas_ip {K}, src {K}, packet {K}, username {K},
-        realm {K}, calling {K}, called {K}, result {K}, reason {T}, acme {K}, rid {K},
-        took_ms {I}, attrs {B}, reply {B}, steps {B}, device {K}, tunnel {K}, node {K})'''),
-    ('acme_log', '''CREATE TABLE IF NOT EXISTS acme_log (
-        id {ID}, ts {N}, name {K}, ok {I}, said {T}, how {K}, src {K}, rid {K},
-        step_off {I}, node {K})'''),
     ('events', '''CREATE TABLE IF NOT EXISTS events (
         id {ID}, ts {N}, kind {K}, level {K}, who {K}, words {T}, node {K})'''),
-    # What was used once and may never be again (1.0.101): a code's time
-    # step, a recovery code, an answered question - one row each, never
-    # changed, written by each node only under its own number. Two nodes
-    # replicating whole token rows wrote an older copy of one over the
-    # other, and a used recovery code came back.
-    ('token_once', '''CREATE TABLE IF NOT EXISTS token_once (
+    # What was used once and may never be again (1.0.101): the time step of
+    # an administrator's code from the app - one row each, never changed,
+    # written by each node only under its own number, so two replicating
+    # nodes never write an older copy of one over the other.
+    ('used_once', '''CREATE TABLE IF NOT EXISTS used_once (
         id {ID}, k {K} NOT NULL, node {I} NOT NULL, ts {N}, UNIQUE (k, node))'''),
 ]
 
 INDEXES = [
-    'CREATE INDEX IF NOT EXISTS radius_log_ts ON radius_log (ts)',
-    'CREATE INDEX IF NOT EXISTS radius_log_user ON radius_log (username, ts)',
-    'CREATE INDEX IF NOT EXISTS radius_log_result ON radius_log (result, ts)',
-    'CREATE INDEX IF NOT EXISTS acme_log_ts ON acme_log (ts)',
-    'CREATE INDEX IF NOT EXISTS acme_log_name ON acme_log (name, ts)',
     'CREATE INDEX IF NOT EXISTS events_ts ON events (ts)',
     'CREATE INDEX IF NOT EXISTS sessions_expires ON sessions (expires)',
-    # 1.0.33: the events by kind (the enrolment tab, the kinds offered as one
-    # types), the log by packet and by client, the sign-ins by kind.
+    # 1.0.33: the events by kind (the kinds offered as one types), the
+    # sign-ins by kind.
     'CREATE INDEX IF NOT EXISTS events_kind_ts ON events (kind, ts)',
-    'CREATE INDEX IF NOT EXISTS radius_log_packet_ts ON radius_log (packet, ts, result)',
-    'CREATE INDEX IF NOT EXISTS radius_log_client_ts ON radius_log (client, ts)',
     'CREATE INDEX IF NOT EXISTS sessions_kind_last ON sessions (kind, last)',
-    'CREATE INDEX IF NOT EXISTS token_once_ts ON token_once (ts)',
+    'CREATE INDEX IF NOT EXISTS used_once_ts ON used_once (ts)',
 ]
 
 TYPES = {
@@ -118,14 +85,72 @@ TYPES = {
                'B': 'TEXT', 'N': 'REAL', 'I': 'INTEGER'},
     # Compared byte for byte, as SQLite and PostgreSQL compare (1.0.44): with
     # the default collation novák@x.cz was novak@x.cz, and one person's
-    # token was written over another's.
+    # account was written over another's.
     'mariadb': {'ID': 'BIGINT AUTO_INCREMENT PRIMARY KEY', 'K': 'VARCHAR(190) COLLATE utf8mb4_bin',
                 'T': 'TEXT', 'B': 'MEDIUMTEXT', 'N': 'DOUBLE', 'I': 'BIGINT'},
     'postgres': {'ID': 'BIGSERIAL PRIMARY KEY', 'K': 'TEXT', 'T': 'TEXT', 'B': 'TEXT',
                  'N': 'DOUBLE PRECISION', 'I': 'BIGINT'},
 }
 
-TABLES = [name for name, _ in SCHEMA]
+class _SchemaTables(object):
+    """TABLES: the names of the tables of SCHEMA, read off SCHEMA each time
+    it is looked at - so a table a module appends to SCHEMA (acmelib/certs)
+    is in every backup, copy, move, export and replication without anything
+    else being told. Reads as a list does; append and extend are there for a
+    module that adds its names here too, and add nothing SCHEMA has."""
+
+    def _names(self):
+        return [name for name, _ in SCHEMA]
+
+    def __iter__(self):
+        return iter(self._names())
+
+    def __reversed__(self):
+        return reversed(self._names())
+
+    def __len__(self):
+        return len(SCHEMA)
+
+    def __contains__(self, name):
+        return name in self._names()
+
+    def __getitem__(self, i):
+        return self._names()[i]
+
+    def index(self, name):
+        return self._names().index(name)
+
+    def __repr__(self):
+        return repr(self._names())
+
+    def append(self, name):
+        if name not in self:
+            raise ValueError('the table %s is not in SCHEMA: append its CREATE TABLE there' % name)
+
+    def extend(self, names):
+        for name in names:
+            self.append(name)
+
+
+TABLES = _SchemaTables()
+
+
+def schema_tables():
+    """The tables as they are now, as a list."""
+    return [name for name, _ in SCHEMA]
+
+
+def schema_named_columns():
+    """(table, column) of every table of SCHEMA whose rows have a name of
+    their own besides the number: its first UNIQUE or PRIMARY KEY text
+    column (name, k, token_hash). Read off the CREATE statements, so a table
+    a module appends to SCHEMA has it too."""
+    out = []
+    for table, create in SCHEMA:
+        m = re.search(r'\b(\w+)\s+\{K\}(?:\s+NOT NULL)?\s+(?:UNIQUE|PRIMARY KEY)\b', create)
+        if m:
+            out.append((table, m.group(1)))
+    return out
 
 
 class RawSql(str):
@@ -210,21 +235,20 @@ class Db(object):
         self.lanes_on = False
         self.connect()
 
-    # ---- lanes: RADIUS on a connection of its own (1.0.136) ---------------------
+    # ---- lanes: a connection of their own for some threads (1.0.136) -----------
     # Every statement goes one at a time through a connection and its lock.
-    # With one connection for everything, a slow page (the overview over a
-    # month, uncached: 29 s under load) held every sign-in behind it, and the
-    # VPN timed out. Once the daemon turns lanes on, the RADIUS threads (their
-    # names start with 'radius') have their own connection and lock: nothing
-    # the pages, the console, the backups or the ticks do waits in front of
-    # them. A lane whose connection cannot be made falls back to the main one
-    # for a minute.
+    # With one connection for everything, a slow page (an overview over a
+    # month, uncached: 29 s under load) held everything behind it. Once the
+    # daemon turns lanes on, the threads whose names start with 'lane' have
+    # connections and locks of their own: nothing the pages, the console, the
+    # backups or the ticks do waits in front of them. A lane whose connection
+    # cannot be made falls back to the main one for a minute.
     LANE_RETRY_S = 60
-    RADIUS_LANES = 4
+    LANES = 4
 
     def _conn_timeout(self):
-        """How long a new connection may take: 2 s at most for RADIUS's own
-        (1.0.186) - made under its lane's lock, every request on that lane
+        """How long a new connection may take: 2 s at most for a lane's own
+        (1.0.186) - made under its lane's lock, every statement on that lane
         waited out the whole db_timeout_s of a database that did not answer."""
         lane = getattr(self._tls, 'lane', None)
         if lane is not None and lane is not self._lanes.get('main'):
@@ -241,24 +265,24 @@ class Db(object):
         """Which lane a new call of this thread takes - chosen once, before
         any lock is taken, and kept for the whole call (1.0.136): chosen again
         at each look, one call took one lane's lock and used the other's
-        connection, and two RADIUS threads could wait on each other for good."""
+        connection, and two threads could wait on each other for good."""
         main = self._lanes['main']
-        if not self.lanes_on or not threading.current_thread().name.startswith('radius'):
+        if not self.lanes_on or not threading.current_thread().name.startswith('lane'):
             return main
-        # A copy put back holds the database whole, RADIUS too (as before
-        # the lanes): its writes would collide with the rows coming in.
-        # This database's own (1.0.139): a move loading another database sent
-        # RADIUS off its lane for the whole of it.
+        # A copy put back holds the database whole, the lanes too (as before
+        # them): their writes would collide with the rows coming in. This
+        # database's own (1.0.139): a move loading another database sent the
+        # lanes off for the whole of it.
         if getattr(self, 'restoring', False):
             return main
-        # A few connections for RADIUS on a database server (1.0.150): one,
-        # every sign-in waited for the one before it there - about 125 a
-        # second, and one row held by a lock stopped them all. Each RADIUS
-        # thread keeps to one of them. SQLite writes one at a time anyway.
-        key = 'radius'
-        if self.engine != 'sqlite' and self.RADIUS_LANES > 1:
+        # A few connections on a database server (1.0.150): with one, each
+        # waited for the one before it there, and one row held by a lock
+        # stopped them all. Each thread keeps to one of them. SQLite writes
+        # one at a time anyway.
+        key = 'lane'
+        if self.engine != 'sqlite' and self.LANES > 1:
             tail = threading.current_thread().name.rsplit('-', 1)[-1]
-            key = 'radius%d' % ((int(tail) if tail.isdigit() else 0) % self.RADIUS_LANES)
+            key = 'lane%d' % ((int(tail) if tail.isdigit() else 0) % self.LANES)
         lane = self._lanes.get(key)
         if lane is None:
             with self._lanes_lock:
@@ -269,11 +293,11 @@ class Db(object):
 
     @contextlib.contextmanager
     def _pinned(self):
-        """The call's lane pinned for everything under it. A RADIUS lane
-        without a connection makes one first - under its own lock only;
-        when it cannot while the main one works, the call goes to the main
-        lane (and RADIUS with it for a minute). Never the main lock taken
-        while the RADIUS lane's is held."""
+        """The call's lane pinned for everything under it. A lane without
+        a connection makes one first - under its own lock only; when it
+        cannot while the main one works, the call goes to the main lane (and
+        the lane's threads with it for a minute). Never the main lock taken
+        while a lane's is held."""
         if getattr(self._tls, 'lane', None) is not None:
             yield
             return
@@ -299,9 +323,9 @@ class Db(object):
                             if main.conn is None or time.time() < main.down_until:
                                 raise
                             lane.failed_until = time.time() + self.LANE_RETRY_S
-                            log_sparing('db-lane', 'RADIUS shares the main database '
-                                        'connection for a minute: its own could not be made',
-                                        'warn')
+                            log_sparing('db-lane', '%s shares the main database '
+                                        'connection for a minute: its own could not be made'
+                                        % threading.current_thread().name, 'warn')
                             lane = main
                         finally:
                             self._tls.lane = None
@@ -358,26 +382,25 @@ class Db(object):
                 lane.down_said = str(e)
                 raise
 
-    # RADIUS's own lane waits less (1.0.149): a VPN gives up on an answer in
-    # 5 to 15 s; a statement there that waited 120 s held every sign-in behind
-    # it. Past these it is no answer, and the VPN asks the other node.
-    RADIUS_STATEMENT_S = 5
-    RADIUS_LOCK_S = 2
-    RADIUS_SQLITE_BUSY_S = 3
+    # A lane waits less (1.0.149): a statement there that waited 120 s held
+    # everything on it behind it. Past these it is no answer, said at once.
+    LANE_STATEMENT_S = 5
+    LANE_LOCK_S = 2
+    LANE_SQLITE_BUSY_S = 3
 
     def _connect(self):
         quick = self._lane() is not self._lanes['main']
-        stmt_s = min(self.statement_s or self.RADIUS_STATEMENT_S, self.RADIUS_STATEMENT_S) \
+        stmt_s = min(self.statement_s or self.LANE_STATEMENT_S, self.LANE_STATEMENT_S) \
             if quick else self.statement_s
-        lock_s = self.RADIUS_LOCK_S if quick else self.LOCK_S
+        lock_s = self.LANE_LOCK_S if quick else self.LOCK_S
         with self.lock:
             if self.engine == 'sqlite':
                 self.path.parent.mkdir(parents=True, exist_ok=True)
-                # RADIUS's lane waits 3 s for the file (1.0.149), not 30: past
-                # that, no answer, and the VPN asks the other node.
+                # A lane waits 3 s for the file (1.0.149), not 30: past that,
+                # no answer, said at once.
                 conn = sqlite3.connect(str(self.path), check_same_thread=False,
                                        isolation_level=None,
-                                       timeout=self.RADIUS_SQLITE_BUSY_S if quick else 30)
+                                       timeout=self.LANE_SQLITE_BUSY_S if quick else 30)
                 conn.row_factory = sqlite3.Row
                 # LOWER() over every letter, as PostgreSQL and MariaDB do it
                 # (1.0.205): SQLite's own takes A-Z only - "Žofie" was never found
@@ -488,8 +511,8 @@ class Db(object):
         import psycopg2.extras
         cur = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
-            # PostgreSQL takes no NUL in a text (1.0.59): a RADIUS name with
-            # one in it broke the request, and its write-down, every time.
+            # PostgreSQL takes no NUL in a text (1.0.59): a name with one in
+            # it broke the request, and its write-down, every time.
             if isinstance(sql, RawSql):
                 cur.execute(str(sql))
             else:
@@ -684,127 +707,20 @@ class Db(object):
             self._mariadb_bin_names()
             self._mariadb_meta_keys()
         if self.engine == 'postgres':
-            self._pg_keep_used()
+            self._pg_same_rows()
         if self.value('SELECT v FROM meta WHERE k = ?', ('schema',)) is None:
             self.run('INSERT INTO meta (k, v) VALUES (?, ?)', ('schema', str(SCHEMA_VERSION)))
 
-    def _pg_keep_used(self):
-        """Two replicating nodes (1.0.57, 1.0.59). Logical replication sends
-        the whole row with every UPDATE, so the other node's later write of
-        anything in a token's row carried its older values of everything
-        else over the newer ones: a code or a recovery code used up came
-        back, a token switched off came back on, a lockout was lost, new
-        recovery codes never got across. Each group of a token's columns -
-        the key, the state, the lockout, the recovery codes - now carries the
-        time it was last changed on the node that changed it, and where a row
-        comes in from the other node the newer of each group is kept; the
-        last code step only ever goes up, and recovery codes of the same
-        issue used on either node stay used.
-
-        A row made on both nodes under the same name (1.0.59) - a token
-        enrolled on each at once, a meta key both wrote first - stopped
-        replication for good on the duplicate. Where one comes in that is
-        already here, the same one of the two is kept on both nodes."""
+    def _pg_same_rows(self):
+        """Two replicating nodes (1.0.59, 1.0.207). A row made on both nodes
+        under the same name - a certificate, a target or a meta key both
+        wrote first while the link was down - stopped replication for good on
+        the duplicate. Where one comes in that is already here, the same one
+        of the two is kept on both nodes. Put on every table of SCHEMA that
+        has a name of its own (a UNIQUE or PRIMARY KEY column) - a table a
+        module appends to SCHEMA too. And a setting changed on both nodes
+        while the link was down: the later one is kept on both."""
         try:
-            self.run("""CREATE OR REPLACE FUNCTION acme_codes(t text) RETURNS jsonb
-LANGUAGE sql IMMUTABLE SET search_path FROM CURRENT
-AS $f$ SELECT COALESCE(NULLIF($1, ''), '[]')::jsonb $f$""")
-            # The schema it is made in kept with each function (1.0.59): the
-            # replication's apply worker runs with an empty search_path, and
-            # "meta" or acme_codes() were not found there - replication stopped.
-            self.run("""CREATE OR REPLACE FUNCTION acme_keep_used() RETURNS trigger
-LANGUAGE plpgsql SET search_path FROM CURRENT AS $f$
-DECLARE
-  now_ double precision := extract(epoch FROM clock_timestamp());
-  same_key boolean;
-BEGIN
-  IF current_setting('session_replication_role') <> 'replica' THEN
-    IF TG_OP = 'INSERT' THEN
-      NEW.key_at := COALESCE(NEW.key_at, now_);
-      NEW.state_at := COALESCE(NEW.state_at, now_);
-      NEW.lock_at := COALESCE(NEW.lock_at, now_);
-      NEW.scratch_at := COALESCE(NEW.scratch_at, now_);
-      RETURN NEW;
-    END IF;
-    IF NEW.secret IS DISTINCT FROM OLD.secret
-       OR NEW.pending_secret IS DISTINCT FROM OLD.pending_secret
-       OR NEW.kind IS DISTINCT FROM OLD.kind OR NEW.dest IS DISTINCT FROM OLD.dest THEN
-      NEW.key_at := now_;
-    END IF;
-    IF NEW.state IS DISTINCT FROM OLD.state THEN
-      NEW.state_at := now_;
-    END IF;
-    IF NEW.failures IS DISTINCT FROM OLD.failures
-       OR NEW.locked_until IS DISTINCT FROM OLD.locked_until
-       OR NEW.fail_times IS DISTINCT FROM OLD.fail_times THEN
-      NEW.lock_at := now_;
-    END IF;
-    BEGIN
-      -- Issued (a code that was not there before), not merely used.
-      IF NEW.scratch IS DISTINCT FROM OLD.scratch
-         AND NOT (acme_codes(OLD.scratch) @> acme_codes(NEW.scratch)) THEN
-        NEW.scratch_at := now_;
-      END IF;
-    EXCEPTION WHEN others THEN
-      NEW.scratch_at := now_;
-    END;
-    RETURN NEW;
-  END IF;
-  IF TG_OP = 'INSERT' THEN
-    RETURN NEW;
-  END IF;
-  IF NEW.key_at IS NULL AND NEW.state_at IS NULL AND NEW.lock_at IS NULL
-     AND NEW.scratch_at IS NULL THEN
-    -- From a node still on a version before these times (a rolling
-    -- upgrade, 1.0.62): taken as it comes, as then, and the code step
-    -- never goes down.
-    IF NEW.secret IS NOT DISTINCT FROM OLD.secret THEN
-      NEW.last_step := GREATEST(COALESCE(NEW.last_step, 0), COALESCE(OLD.last_step, 0));
-    END IF;
-    RETURN NEW;
-  END IF;
-  same_key := NEW.secret IS NOT DISTINCT FROM OLD.secret;
-  IF COALESCE(NEW.key_at, 0) < COALESCE(OLD.key_at, 0) THEN
-    NEW.secret := OLD.secret; NEW.digits := OLD.digits; NEW.period := OLD.period;
-    NEW.algorithm := OLD.algorithm; NEW.issuer := OLD.issuer; NEW.label := OLD.label;
-    NEW.pending_secret := OLD.pending_secret; NEW.pending_scratch := OLD.pending_scratch;
-    NEW.pending_at := OLD.pending_at; NEW.pending_by := OLD.pending_by;
-    NEW.created := OLD.created; NEW.created_by := OLD.created_by;
-    NEW.activated := OLD.activated;
-    NEW.kind := OLD.kind; NEW.dest := OLD.dest;     -- how codes go, with the key (1.0.76)
-    NEW.last_step := CASE WHEN same_key
-                          THEN GREATEST(COALESCE(NEW.last_step, 0), COALESCE(OLD.last_step, 0))
-                          ELSE OLD.last_step END;
-    NEW.key_at := OLD.key_at;
-  ELSIF NEW.secret IS NOT DISTINCT FROM OLD.secret THEN
-    NEW.last_step := GREATEST(COALESCE(NEW.last_step, 0), COALESCE(OLD.last_step, 0));
-  END IF;
-  IF COALESCE(NEW.state_at, 0) < COALESCE(OLD.state_at, 0) THEN
-    NEW.state := OLD.state; NEW.state_at := OLD.state_at;
-  END IF;
-  IF COALESCE(NEW.lock_at, 0) < COALESCE(OLD.lock_at, 0) THEN
-    NEW.failures := OLD.failures; NEW.fail_times := OLD.fail_times;
-    NEW.locked_until := OLD.locked_until; NEW.lock_at := OLD.lock_at;
-  END IF;
-  BEGIN
-    IF COALESCE(NEW.scratch_at, 0) < COALESCE(OLD.scratch_at, 0) THEN
-      NEW.scratch := OLD.scratch; NEW.scratch_sealed := OLD.scratch_sealed;
-      NEW.scratch_left := OLD.scratch_left; NEW.scratch_at := OLD.scratch_at;
-    ELSIF COALESCE(NEW.scratch_at, 0) = COALESCE(OLD.scratch_at, 0)
-          AND NEW.scratch IS DISTINCT FROM OLD.scratch THEN
-      -- The same issue: what was used on either node stays used.
-      IF COALESCE(OLD.scratch_left, 0) < COALESCE(NEW.scratch_left, 0) THEN
-        NEW.scratch_sealed := OLD.scratch_sealed;
-      END IF;
-      NEW.scratch := (SELECT COALESCE(jsonb_agg(e), '[]'::jsonb)::text
-                        FROM jsonb_array_elements(acme_codes(NEW.scratch)) e
-                       WHERE acme_codes(OLD.scratch) @> jsonb_build_array(e));
-      NEW.scratch_left := jsonb_array_length(NEW.scratch::jsonb);
-    END IF;
-  EXCEPTION WHEN others THEN NULL;
-  END;
-  RETURN NEW;
-END $f$""")
             self.run("""CREATE OR REPLACE FUNCTION acme_same_key() RETURNS trigger
 LANGUAGE plpgsql SET search_path FROM CURRENT AS $f$
 DECLARE
@@ -832,16 +748,6 @@ BEGIN
   END IF;
   RETURN NULL;
 END $f$""")
-            if not self.value("SELECT 1 FROM pg_trigger WHERE tgname = 'acme_keep_used' AND "
-                              "tgrelid = 'tokens'::regclass"):
-                self.run('CREATE TRIGGER acme_keep_used BEFORE UPDATE ON tokens '
-                         'FOR EACH ROW EXECUTE FUNCTION acme_keep_used()')
-            if not self.value("SELECT 1 FROM pg_trigger WHERE tgname = 'acme_keep_made' AND "
-                              "tgrelid = 'tokens'::regclass"):
-                self.run('CREATE TRIGGER acme_keep_made BEFORE INSERT ON tokens '
-                         'FOR EACH ROW EXECUTE FUNCTION acme_keep_used()')
-            self.run('ALTER TABLE tokens ENABLE ALWAYS TRIGGER acme_keep_used')
-            self.run('ALTER TABLE tokens ENABLE ALWAYS TRIGGER acme_keep_made')
             # A setting changed on both nodes while the link was down (1.0.207):
             # each node took the other's change over its own, and the two stayed
             # swapped for good. The later one is kept on both - the earlier, by
@@ -866,25 +772,21 @@ END $f$""")
                 self.run('CREATE TRIGGER acme_newer_setting BEFORE UPDATE ON settings '
                          'FOR EACH ROW EXECUTE FUNCTION acme_newer_setting()')
             self.run('ALTER TABLE settings ENABLE ALWAYS TRIGGER acme_newer_setting')
-            for table, col in (('tokens', 'name'), ('accounts', 'name'), ('clients', 'name'),
-                               ('realms', 'name'), ('directories', 'name'), ('meta', 'k'),
-                               ('settings', 'k'), ('sessions', 'token_hash')):
+            for table, col in schema_named_columns():
                 trg = 'acme_same_%s' % table
                 if not self.value("SELECT 1 FROM pg_trigger WHERE tgname = ? AND "
                                   "tgrelid = ?::regclass", (trg, table)):
-                    # The name sorts after acme_keep_made: that one fills the
-                    # times first.
                     self.run("CREATE TRIGGER %s BEFORE INSERT ON %s FOR EACH ROW EXECUTE "
                              "FUNCTION acme_same_key('%s')" % (trg, table, col))
                 self.run('ALTER TABLE %s ENABLE ALWAYS TRIGGER %s' % (table, trg))
         except Exception as e:                          # noqa: BLE001
-            log('the guard of used codes between two nodes could not be put in: %s'
+            log('the guard of rows made on both nodes could not be put in: %s'
                 % str(e).split('\n')[0], 'warn')
 
     def _mariadb_meta_keys(self):
-        """meta's keys to 255 characters (1.0.208): a token's name may be 180, and
-        disabled_from:NAME or scratchguard:NAME@@NODE went past 190 - switching
-        such a token off or sending it a code failed ("Data too long")."""
+        """meta's keys to 255 characters (1.0.208): a name may be 180, and a key
+        made of a prefix, the name and @@NODE went past 190 - writing it failed
+        ("Data too long")."""
         try:
             n = self.value("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS "
                            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'meta' "

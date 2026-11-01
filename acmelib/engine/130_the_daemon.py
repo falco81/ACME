@@ -7,8 +7,8 @@ class Daemon(object):
     def __init__(self, store, serve=True):
         self.store = store
         self.serving = serve        # the daemon itself, not the command line (1.0.188)
-        # RADIUS on a connection of its own (1.0.136) - the serving daemon
-        # only; the command line keeps its one.
+        # The lanes - connections of their own for the threads named lane-*
+        # (1.0.136) - in the serving daemon only; the command line keeps its one.
         if serve:
             store.db.lanes_on = True
         self._reader = None
@@ -17,14 +17,10 @@ class Daemon(object):
         self.stop_flag = threading.Event()
         self.shipper = None
         self.siem = None
-        self.sshgate = None
         self.snmp = None
         _HS_WAIVE['store'][0] = store       # the exceptions to high security read from it
         self.dirs = {}
         self.reload_directories()
-        self.tokens = Tokens(store)
-        self.auth = Authenticator(store, self.tokens, self.dirs)
-        self.radius = None
         self.api = None
         self.serial = 0
         self.conf_serial = store.get_meta('conf_serial', '0')
@@ -36,13 +32,8 @@ class Daemon(object):
         if serve:
             self.shipper = Shipper()
             self.siem = Siem()
-            self.tokens.on_check = self.shipper.token_line
             # Both told of each event (1.0.166); each only queues it.
             store.on_event = lambda *a, _s=(self.shipper, self.siem): [x.event_line(*a) for x in _s]
-            store.on_radius = self.siem.signin_line
-            self.radius = RadiusServer(self)
-            # SSH with a code (1.0.181): a gate of its own on 127.0.0.1.
-            self.sshgate = SshGate(self)
             # SNMPv3 (1.0.182): an agent of its own, in a thread of its own.
             self.snmp = SnmpAgent(self)
 
@@ -55,82 +46,23 @@ class Daemon(object):
         # Swapped in whole (1.0.44): emptied and filled again, a request in
         # between found no directory at all.
         self.dirs = fresh
-        if getattr(self, 'auth', None) is not None:
-            self.auth.dirs = fresh
-
-    def fill_names(self, names=None, limit=500, by='', quiet=False):
-        """The name a person goes by, from the directory, for the tokens that
-        have none - those brought over from totpcgi or made here, which an
-        enrolment on the pages would have given one. Each token's own realm
-        says which directory to ask and how to look the name up. (1.0.14)"""
-        done = {'filled': 0, 'not_found': 0, 'no_directory': 0, 'trouble': 0}
-        dead = set()
-        if names is None:
-            rows = self.store.db.rows("SELECT name FROM tokens WHERE COALESCE(display, '') = '' "
-                                      "ORDER BY id LIMIT %d" % int(limit))
-            names = [r['name'] for r in rows]
-        for name in names:
-            realm = self.store.realm_for(name)
-            ad = self.dirs.get(str((realm or {}).get('directory') or '').lower())
-            if not realm or not ad:
-                done['no_directory'] += 1
-                continue
-            lookup = realm.get('lookup') or ''
-            if lookup not in ('upn', 'sam'):
-                lookup = 'upn' if '@' in name else 'sam'
-            if ad.name in dead:
-                done['trouble'] += 1
-                continue
-            try:
-                entry = ad.find_user(name, lookup)
-            except Exception:                           # noqa: BLE001
-                # Not reached: the rest of its tokens are not asked of it now
-                # - every one would wait out the same timeout.
-                dead.add(ad.name)
-                done['trouble'] += 1
-                continue
-            if not entry or not entry.get('display'):
-                done['not_found'] += 1
-                continue
-            # Only a token still there (1.0.59): token_write made a deleted
-            # one again, empty, when it was taken away meanwhile.
-            if self.store.db.run('UPDATE tokens SET display = ? WHERE name = ?',
-                                 (str(entry['display'])[:300], name)):
-                done['filled'] += 1
-        if (done['filled'] or by) and not quiet:
-            self.store.add_event('tokens', 'names from the directory: %d token(s) given their '
-                                 'owner\'s name, %d not found, %d with no directory, %d could not '
-                                 'be asked' % (done['filled'], done['not_found'],
-                                               done['no_directory'], done['trouble']),
-                                 who=by or None)
-        return done
-
-    def fill_names_later(self, names=None, by=''):
-        threading.Thread(target=lambda: self.fill_names(names, by=by), name='fill-names',
-                         daemon=True).start()
 
     RELOAD_LOCK = threading.RLock()
 
     def reload_all(self, why=''):
-        """Everything read again from the database: the settings, the
-        clients, the realms, the directories. One at a time (1.0.94): a save
-        on the pages and the loop's own both opened the RADIUS sockets."""
+        """Everything read again from the database: the settings and the
+        directories. One at a time (1.0.94): a save on the pages and the
+        loop's own both did it at once."""
         with self.RELOAD_LOCK:
             return self._reload_all(why)
 
     def _reload_all(self, why=''):
         load_config(saved=self.store.settings_saved())
-        if not BIND_STRICT.get('tokens'):
-            bind_tokens(self.store)
-        self.store._clients = None
-        self.store._realms = None
         self.reload_directories()
         if self.shipper:
             self.shipper.configure()
         if self.siem:
             self.siem.configure()
-        if self.radius:
-            self.radius.open_sockets()
         self.conf_serial = self.store.get_meta('conf_serial', '0')
         if why:
             log('read the configuration again (%s)' % why)
@@ -146,8 +78,6 @@ class Daemon(object):
             self.conf_serial = mark
         except Exception:
             pass
-        self.store._clients = None
-        self.store._realms = None
         if what in ('directories', 'all'):
             self.reload_directories()
 
@@ -205,19 +135,11 @@ class Daemon(object):
             if key in SECRET_KEYS and is_masked(value):
                 continue
             checked[key] = check_setting(key, value)
-            # A secret kept in the database is sealed with the tokens' key
-            # (1.0.20): a copy of the database alone does not give it away.
+            # A secret kept in the database is sealed with this installation's
+            # key (1.0.20): a copy of the database alone does not give it away.
             if key in SEALED_KEYS and checked[key]:
                 checked[key] = seal_secret(checked[key])
         hisec_guard_settings(self.store, checked)        # 1.0.168
-        if 'radius_auth_port' in checked or 'radius_acct_port' in checked:
-            # One port for both refused (1.0.206): the sign-ins (or the accounting)
-            # stopped there and then, with "saved" on the page.
-            auth = int(checked.get('radius_auth_port', CONFIG.get('radius_auth_port') or 1812))
-            acct = int(checked.get('radius_acct_port', CONFIG.get('radius_acct_port') or 1813))
-            if auth == acct:
-                raise BadSetting('the sign-ins and the accounting cannot listen on one port (%d)'
-                                 % auth)
         if 'node_name' in checked:
             taken = node_name_taken(self.store, checked['node_name'])
             if taken:
@@ -271,7 +193,7 @@ class Daemon(object):
         # signed in from it is signed out, so their role is decided again by
         # the groups as they are now - not kept until their session ends.
         if any(k in checked for k in ('admin_directory', 'admin_group_full',
-                                      'admin_group_token', 'admin_group_readonly')):
+                                      'admin_group_cert', 'admin_group_readonly')):
             try:
                 self.store.db.run(
                     "DELETE FROM sessions WHERE kind = 'admin' AND LOWER(name) IN "
@@ -350,22 +272,12 @@ class Daemon(object):
 
     # ---- what it is doing ------------------------------------------------------
     def status(self):
-        c = self.store.token_counts()
-        last = self.store.db.row("SELECT ts, result, username FROM radius_log WHERE packet = "
-                                 "'Access-Request' ORDER BY ts DESC LIMIT 1")
-        day = time.time() - 86400
-        acc = int(self.store.db.value("SELECT COUNT(*) AS n FROM radius_log WHERE ts >= ? AND "
-                                      "result = 'accept'", (day,), 0) or 0)
-        rej = int(self.store.db.value("SELECT COUNT(*) AS n FROM radius_log WHERE ts >= ? AND "
-                                      "result IN ('reject', 'drop')", (day,), 0) or 0)
-        serial = self.store.db.value('SELECT MAX(id) AS n FROM radius_log', (), 0) or 0
+        """What the daemon says of itself (GET /api/status): the engine's own -
+        the node, the database, the cluster, maintenance, what is wrong. A
+        module's numbers come from its own routes (and its `status` hook for
+        acme --status)."""
         ev = self.store.db.value('SELECT MAX(id) AS n FROM events', (), 0) or 0
-        r = self.radius.state() if self.radius else {}
         problems = []
-        if self.radius and self.radius.trouble:
-            problems.append(self.radius.trouble)
-        if self.radius and not self.radius.bound:
-            problems.append('the RADIUS server is not listening')
         sh = self.shipper.state() if self.shipper else {}
         if sh.get('on') and not sh.get('targets'):
             problems.append('sending to isemon is on and nowhere to send to is set')
@@ -374,11 +286,9 @@ class Daemon(object):
         si = self.siem.state() if self.siem else {}
         if si.get('trouble'):
             problems.extend('syslog %s: %s' % kv for kv in sorted(si['trouble'].items()))
-        lost = int(self.store.db.value('SELECT COUNT(*) AS n FROM tokens', (), 0) or 0) and \
-            not sealing_key()
-        if lost:
-            problems.append('the key that opens the tokens (%s) is missing: no code can be '
-                            'checked' % sealing_key_path())
+        if not sealing_key() and sealed_held(self.store.db):
+            problems.append('the key that opens the sealed secrets and private keys (%s) is '
+                            'missing: put it back from beside a backup' % sealing_key_path())
         if name_clash_words():
             problems.insert(0, name_clash_words())
         try:
@@ -390,29 +300,19 @@ class Daemon(object):
             trials = trials_view(self.store)
         except Exception:                               # noqa: BLE001
             trials = []
-        if not self.store.clients():
-            problems.append('there is no RADIUS client yet: nobody can ask this server')
-        if not self.store.realms():
-            problems.append('there is no realm yet: every request is refused')
         return {
             'ok': True, 'version': __version__, 'site': CONFIG.get('site_name') or short_host(),
             'host': socket.gethostname(), 'started': self.started,
             'uptime': time.time() - self.started, 'now': time.time(),
-            'radius': r, 'isemon': sh, 'tokens': c,
-            'clients': len(self.store.clients()), 'realms': len(self.store.realms()),
-            'directories': len(self.dirs),
-            'day': {'accept': acc, 'reject': rej},
-            'last': last, 'serial': '%s/%s' % (serial, ev), 'problems': problems,
+            'isemon': sh, 'directories': len(self.dirs),
+            'serial': '%s' % ev, 'problems': problems,
             'database': {'engine': self.store.db.engine, 'where': self.store.db.where()},
-            'lang': CONFIG.get('ui_lang') or 'cs', 'php': php_state(), 'admin_show_key': bool(CONFIG.get('admin_show_key')),
+            'lang': CONFIG.get('ui_lang') or 'cs', 'php': php_state(),
             'high_security': bool(CONFIG.get('high_security')),
             'hisec_waived': sorted(hisec_waived(self.store)),
-            'default_realm': CONFIG.get('default_realm') or '',
             'node': node_name(),
             'nodes': [{'name': n['name'], 'alive': n['alive'], 'age': n['age'],
                        'version': n.get('version')} for n in ha_nodes(self.store)],
-            'realm_suffixes': sorted(set(r['suffix'] for r in self.store.realms()
-                                         if r.get('suffix') and r['suffix'] != '*')),
             # The overview's second row of cards (1.0.37): this server, the
             # cluster, the database, maintenance.
             'maintenance': maintenance_now(self.store),
@@ -480,37 +380,24 @@ class Daemon(object):
         except Exception as e:                      # noqa: BLE001
             log('the floor for going back could not be written: %s' % e, 'warn')
         stale_work_away()
-        try:
-            names_letters_kept(self)
-        except Exception as e:                      # noqa: BLE001
-            log('the letters names take could not be looked at: %s' % e, 'warn')
         if not sealing_key():
             # A database that already holds sealed secrets gets no new key in
             # place of a missing one (1.0.33): the secrets would stay lost, and
             # on two nodes each would seal with a key of its own.
-            held = 0
-            try:
-                held = int(self.store.db.value(
-                    "SELECT COUNT(*) FROM tokens WHERE secret LIKE 'sealed:%'", (), 0) or 0)
-            except Exception:                           # noqa: BLE001
-                pass
-            if held:
-                log('%s is missing, and the database holds %d token(s) sealed with it: no new '
-                    'key is made. Put the key back (it is beside every backup), or the tokens '
-                    'cannot be opened.' % (sealing_key_path(), held), 'error')
-                self.store.add_event('starting and stopping', 'the key that opens the tokens '
-                                     'is missing: %s' % sealing_key_path(), 'bad')
+            if sealed_held(self.store.db):
+                log('%s is missing, and the database holds secrets sealed with it: no new '
+                    'key is made. Put the key back (it is beside every backup), or the private '
+                    'keys and passwords kept cannot be opened.' % sealing_key_path(), 'error')
+                self.store.add_event('starting and stopping', 'the key that opens the sealed '
+                                     'secrets is missing: %s' % sealing_key_path(), 'bad')
             else:
                 sealing_key(make=True)
-        else:
-            bind_tokens(self.store)
         if CONFIG.get('ha_mode') == 'replicated':
             # The other node's tables given the columns this version adds
             # (1.0.76): logical replication sends every column of a row, and
             # one the other node does not have yet stopped what goes to it
             # until it was upgraded too. Old code there never reads them.
             threading.Thread(target=ha_peer_columns, name='peer-columns', daemon=True).start()
-        self.radius.start()
         self.api = ApiServer(self)
         self.api.start()
         for fn in HOOKS['daemon_start']:
@@ -521,27 +408,14 @@ class Daemon(object):
                                                          traceback.format_exc()), 'error')
         HA_STORE['store'] = self.store
         node_name_check(self.store)             # renamed since the last start? (1.0.48)
-        self.store.add_event('starting and stopping', 'acme %s started on %s, RADIUS on %s'
-                             % (__version__, node_name(),
-                                ', '.join(self.radius.bound) or 'nothing'))
+        self.store.add_event('starting and stopping', 'acme %s started on %s'
+                             % (__version__, node_name()))
         try:
             heartbeat(self.store, self)
         except Exception as e:                          # noqa: BLE001
             log('the heartbeat could not be written: %s' % e, 'warn')
         last_beat = time.monotonic()    # a clock stepped back stops nothing (1.0.94)
         maintenance_ensure(self.store)
-        # Tests the other node's pages ask of this one (1.0.45): looked for
-        # every half second, only while this node is one of a cluster.
-        def tests_for_me():
-            while not self.stop_flag.wait(1.5):
-                if not CONFIG.get('ha_mode') or HA_REBUILDING.is_set():
-                    continue
-                try:
-                    radtest_serve(self)
-                except Exception as e:                  # noqa: BLE001
-                    log('a test asked by the other node: %s' % e, 'warn')
-                    self.stop_flag.wait(5)
-        threading.Thread(target=tests_for_me, name='tests-for-me', daemon=True).start()
 
         # The outgoing mail (1.0.95): what was not taken yet, tried again.
         def mail_queue():
@@ -745,11 +619,22 @@ class Daemon(object):
                             % str(e).split('\n')[0][:200], 'error', every=60)
             except Exception as e:
                 log('housekeeping broke: %s\n%s' % (e, traceback.format_exc()), 'error')
+        self.stop()
+
+    def stop(self):
+        """Going down: the modules told first (daemon_stop), while the
+        database and the API are still there; then the lines waiting for
+        isemon and the SIEM sent, and the API closed."""
+        for fn in HOOKS['daemon_stop']:
+            try:
+                fn(self)
+            except Exception as e:                      # noqa: BLE001
+                log('a module did not stop cleanly: %s: %s\n%s' % (
+                    getattr(fn, '__qualname__', fn), e, traceback.format_exc()), 'error')
         try:
             self.store.add_event('starting and stopping', 'acme stopped on %s' % node_name())
         except Exception:                               # noqa: BLE001
             pass                # the database away: the rest still stops cleanly (1.0.94)
-        self.radius.stop()
         if self.shipper:
             self.shipper.flush()
         if self.siem:
@@ -773,8 +658,8 @@ class Daemon(object):
         """The database as the pages' long lists read it (1.0.101): the Log
         searched over months, the suggestions under a search box - on a
         connection of their own, with a limit of 20 s a statement. On the one
-        every sign-in shares, four such searches at once held RADIUS for
-        seconds and the health check failed."""
+        the daemon shares, four such searches at once held it for seconds and
+        the health check failed."""
         main = self.store.db
         if main.engine == 'sqlite':
             return self.store
@@ -822,17 +707,9 @@ class Daemon(object):
                 log('the tables taken from the other node could not be read again: %s'
                     % str(e).split('\n')[0][:200], 'info')
         try:
-            chal_tidy(self.store)                       # codes asked for and gone (1.0.76)
-        except Exception as e:                          # noqa: BLE001
-            log('the old challenges could not be tidied: %s' % e, 'warn')
-        try:
             once_tidy(self.store)                       # used once, long ago (1.0.101)
         except Exception as e:                          # noqa: BLE001
             log('the codes used once could not be tidied: %s' % e, 'warn')
-        try:
-            self.fill_names(limit=100)
-        except Exception as e:                          # noqa: BLE001
-            log('names from the directory: %s' % e, 'warn')
         try:
             # One node of two deletes the old rows; the deletes go over to the
             # other anyway (1.0.57).
@@ -860,8 +737,8 @@ class Daemon(object):
     def _hup(self):
         log_open()
         # logrotate's every night (1.0.186): the logs opened again and nothing
-        # else - read again, the caches RADIUS answers from started empty and
-        # the directories were made anew. config.json changed (acme --set,
+        # else - read again, every cache started empty and the directories
+        # were made anew. config.json changed (acme --set,
         # systemctl reload after an edit): read again, as before.
         try:
             sig = hashlib.sha256(CONFIG_FILE.read_bytes()).hexdigest()

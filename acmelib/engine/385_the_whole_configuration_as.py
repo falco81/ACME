@@ -2,13 +2,117 @@
 from __future__ import annotations
 # ---- the whole configuration as one file (1.0.62) ------------------------------------
 # Everything that is set up rather than recorded: the settings (those of each
-# node too), the RADIUS clients, the realms, the directories, the accounts of
-# the pages, the certificates and keys of the pages and the VIP address, the
-# VIP address itself, who may reach which page, the firewall and the mail
-# server's authorities. Not the tokens - they are in the copies of the
-# database. With the secrets it carries what opens all of it in the clear.
-CONFIG_FORMAT = 2
+# node too), the directories, the accounts of the pages, the certificates and
+# keys of the pages and the VIP address, the VIP address itself, who may reach
+# which page, the firewall, the mail server's authorities - and the tables a
+# module says belong to the configuration (HOOKS['carry_tables']: its
+# issuers, challenges, targets...), every row of each. Not the logs nor the
+# jobs - they are in the copies of the database. With the secrets it carries
+# what opens all of it in the clear: a column of such a table ending in
+# _sealed is opened for the file (sealed again, bound to its new row, when it
+# is imported) - or left out of a file without the secrets.
+CONFIG_FORMAT = 3
 CONFIG_BUNDLE_KIND = 'acme-config-locked'
+
+
+def carry_tables():
+    """The tables a module says belong to the configuration, in its order,
+    only those of SCHEMA."""
+    out = []
+    for fn in HOOKS['carry_tables']:
+        try:
+            got = fn() if callable(fn) else fn
+        except Exception as e:                          # noqa: BLE001
+            log('a module\'s tables of the configuration could not be asked: %s' % e, 'warn')
+            continue
+        for t in (got if isinstance(got, (list, tuple)) else [got]):
+            if t in TABLES and t not in out:
+                out.append(t)
+    return out
+
+
+def _sealed_cols(table):
+    return [c for t, c in sealed_columns() if t == table]
+
+
+def _bind_of(table, ident, col):
+    return '%s:%s:%s' % (table, ident, col)
+
+
+def carry_export(store, whole):
+    """{table: [rows]} of carry_tables(), the sealed columns opened (whole)
+    or left out."""
+    out = {}
+    for table in carry_tables():
+        cols = _sealed_cols(table)
+        rows = []
+        for row in store.db.rows('SELECT * FROM %s ORDER BY id' % table):
+            row = dict(row)
+            for c in cols:
+                v = row.get(c)
+                if whole and v:
+                    row[c] = unseal_secret(v, _bind_of(table, row.get('id'), c)) \
+                        if str(v).startswith(SEALED2) else unseal_secret(v)
+                    if row[c] is None:
+                        row[c] = ''
+                else:
+                    row.pop(c, None)
+            rows.append(row)
+        out[table] = rows
+    return out
+
+
+def carry_import(store, tables, by, replace, said):
+    """The rows of the module's tables put in: a row matched by its name (or
+    its number, in a table with no name) is changed, a new one made - with its
+    number from the file where that is free here, so the rows that name it
+    (a deployment its certificate) still do. With replace, a row not in the
+    file goes. A sealed column sealed again, bound to the row's number here."""
+    named = dict(schema_named_columns())
+    wanted = carry_tables()
+    for table, rows in (tables or {}).items():
+        if table not in wanted:
+            said['tables left out: not of the configuration here'] += 1
+            continue
+        if not isinstance(rows, list) or not all(isinstance(x, dict) for x in rows):
+            raise ApiError(400, 'the table %s in the file is not a list of rows' % table)
+        have = set(c.lower() for c in store.db.columns(table))
+        cols = _sealed_cols(table)
+        key = named.get(table)
+        kept = set()
+        for row in rows:
+            row = {k: v for k, v in row.items() if k.lower() in have}
+            fid = row.pop('id', None)
+            plain = {c: row.pop(c) for c in cols if c in row}
+            old = None
+            if key and row.get(key) is not None:
+                old = store.db.row('SELECT id FROM %s WHERE %s = ?' % (table, key), (row[key],))
+            elif fid is not None:
+                old = store.db.row('SELECT id FROM %s WHERE id = ?' % table, (fid,))
+            if old:
+                ident = old['id']
+                if row:
+                    store.db.update(table, ident, row)
+            else:
+                if fid is not None and not store.db.value(
+                        'SELECT 1 FROM %s WHERE id = ?' % table, (fid,)):
+                    row['id'] = fid
+                ident = store.db.insert(table, row)
+                if ident is None:
+                    ident = row.get('id')
+            sealed = {c: seal_secret(v, _bind_of(table, ident, c)) if v else ''
+                      for c, v in plain.items() if v is not None and
+                      not str(v).startswith((SEALED, SEALED2))}
+            if sealed and ident is not None:
+                store.db.update(table, ident, sealed)
+            kept.add(ident)
+            said[table] += 1
+        if replace:
+            for one in store.db.rows('SELECT id FROM %s' % table):
+                if one['id'] not in kept:
+                    store.db.run('DELETE FROM %s WHERE id = ?' % table, (one['id'],))
+                    said['%s taken away' % table] += 1
+        db_numbering_fix(store.db, [table])
 
 
 def config_export(store, whole):
@@ -61,9 +165,8 @@ def config_export(store, whole):
     return {'acme': __version__, 'made': time.time(), 'format': CONFIG_FORMAT,
             'node': node_name(), 'secrets': bool(whole),
             'settings': settings,
-            'clients': store.clients(with_secret=whole, last=False),
-            'realms': store.realms(),
             'directories': store.directories(with_secret=whole, last=False),
+            'tables': carry_export(store, whole),
             'accounts': accounts,
             'web': {'tls': tls, 'access': meta_json('web:access'), 'vip': meta_json('web:vip')},
             'firewall': meta_json('fw:conf'),
@@ -84,22 +187,13 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
     Returns what was imported, counted."""
     if not isinstance(conf, dict):
         raise ApiError(400, 'the configuration is not an object')
-    for part in ('directories', 'realms', 'clients', 'accounts'):
+    for part in ('directories', 'accounts'):
         if not isinstance(conf.get(part) or [], list) or \
                 not all(isinstance(x, dict) for x in conf.get(part) or []):
             raise ApiError(400, '%s is not a list of objects' % part)
-    for part in ('settings', 'web', 'firewall'):
+    for part in ('settings', 'web', 'firewall', 'tables'):
         if not isinstance(conf.get(part) or {}, dict):
             raise ApiError(400, '%s is not an object' % part)
-    # Checked before anything is saved (1.0.44): a realm naming a directory
-    # that neither is here nor comes with it stopped the import halfway.
-    dirs = set(x['name'].lower() for x in store.directories()) | \
-        set(str(d.get('name') or '').lower() for d in conf.get('directories') or [])
-    for r in conf.get('realms') or []:
-        if r.get('directory') and str(r['directory']).lower() not in dirs:
-            raise ApiError(400, 'the realm %s names the directory %s, which is neither here '
-                                'nor in the file - nothing was imported'
-                           % (r.get('name'), r['directory']))
     web = conf.get('web') or {}
     access = None
     if web.get('access'):
@@ -192,23 +286,8 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
             d['id'] = old['id'] if old else None
             store.directory_save(d, by)
             said['directories'] += 1
-        for r in conf.get('realms') or []:
-            r = dict(r)
-            old = next((x for x in store.realms() if x['name'] == r.get('name')), None)
-            r['id'] = old['id'] if old else None
-            store.realm_save(r, by)
-            said['realms'] += 1
-        for c in conf.get('clients') or []:
-            c = dict(c)
-            old = next((x for x in store.clients() if x['name'] == c.get('name')), None)
-            c['id'] = old['id'] if old else None
-            if is_masked(c.get('secret')) and not old:
-                # Said, not left out without a word (1.0.103): an export without
-                # its secrets cannot make a client its NAS would be answered by.
-                said['clients left out: no shared secret in the file'] += 1
-                continue
-            store.client_save(c, by)
-            said['clients'] += 1
+        if conf.get('tables'):
+            carry_import(store, conf['tables'], by, replace, said)
         if conf.get('settings'):
             # Never what belongs to this machine alone (1.0.57): an imported
             # file switched the database or the cluster at the next restart.
@@ -365,19 +444,11 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                 said['sign-in pictures'] += 1
         if replace:
             # The file as the whole of it (1.0.62): what is here and not in
-            # the file goes - the clients, realms, directories and accounts
-            # (never the one importing), and the settings back to their
-            # defaults. Realms before the directories they name.
+            # the file goes - the directories and accounts (never the one
+            # importing), and the settings back to their defaults (a
+            # module's tables: carry_import).
             def names(part):
                 return set(str(x.get('name') or '').lower() for x in conf.get(part) or [])
-            for c in store.clients():
-                if c['name'].lower() not in names('clients'):
-                    store.client_drop(c['id'])
-                    said['clients taken away'] += 1
-            for r in store.realms():
-                if r['name'].lower() not in names('realms'):
-                    store.realm_drop(r['id'], force=True)
-                    said['realms taken away'] += 1
             for d in store.directories():
                 if d['name'].lower() not in names('directories'):
                     store.directory_drop(d['id'])

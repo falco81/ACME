@@ -97,7 +97,7 @@ def _mailq_one(h):
 
 @route('POST', '/api/mailq')
 def _mailq_do(h):
-    s = h.me('tokenadmin')
+    s = h.me('certadmin')
     b = h.body()
     act = str(b.get('action') or '')
     ids = b.get('ids') or []
@@ -156,12 +156,12 @@ def _suggest(h):
         raise ApiError(400, 'no such list')
     field = h.arg('field').lower()
     if not field:
-        said = LIST_FIELD_SAYS.get(name) or LIST_FIELD_SAYS.get('radius')
+        said = LIST_FIELD_SAYS.get(name) or []
         return {'fields': [list(f) for f in said]}
     hours = h.num('hours', 0, 0, 24 * 3650)
     # What the log held in the last 90 days when no time is given (1.0.101):
     # the whole log counted again on every key pressed was seconds a time.
-    since = time.time() - (hours or 24 * 90) * 3600 if name in ('radius', 'acme', 'events') \
+    since = time.time() - (hours or 24 * 90) * 3600 if name in LIST_TABLES \
         else (time.time() - hours * 3600 if hours else 0)
     typed = h.arg('typed')[:120]
     if name == 'mailq':
@@ -174,121 +174,4 @@ def _suggest(h):
                 if one and (not typed or typed.strip('*').lower() in one.lower()):
                     got[one] += 1
         return {'values': [{'val': v, 'n': n} for v, n in got.most_common(15)]}
-    if name == 'radius':
-        # The Log is two lists in one: a field either of them holds.
-        got = h.reader.list_values('radius', field, typed, since)
-        more = h.reader.list_values('acme', field, typed, since)
-        seen = {g['val'].lower(): g for g in got}
-        for m in more:
-            if m['val'].lower() in seen:
-                seen[m['val'].lower()]['n'] += m['n']
-            else:
-                got.append(m)
-        got.sort(key=lambda x: -x['n'])
-        return {'values': got[:15]}
     return {'values': h.reader.list_values(name, field, typed, since)}
-
-
-@route('GET', '/api/radius')
-def _radius(h):
-    h.me()
-    lq, bad = list_query('radius', h.arg('q'))
-    if bad:
-        return {'rows': [], 'total': 0, 'q_error': bad, 'clients': []}
-    rows, total = h.reader.radius_rows(
-        hours=h.num('hours', 24, 1, 24 * 3650), q=lq.words, extra=(lq.sql, lq.args),
-        result=h.arg('result'),
-        client=h.arg('client'), limit=h.num('limit', 100, 1, 1000),
-        offset=h.num('offset', 0), sort=h.arg('sort', 'ts'),
-        desc=h.arg('desc', '1') != '0', user=h.arg('user'))
-    return {'rows': rows, 'total': total,
-            'clients': [c['name'] for c in h.store.clients()]}
-
-
-@route('GET', '/api/activity')
-def _activity(h):
-    """The one log of the pages: every RADIUS request - with what the token
-    said about its code - and every code checked anywhere else (the
-    enrolment pages, a test, the command line), newest first."""
-    h.me()
-    hours = h.num('hours', 24, 1, 24 * 3650)
-    q, kind, result = h.arg('q'), h.arg('kind'), h.arg('result')
-    client = h.arg('client')
-    limit, offset = h.num('limit', 100, 1, 1000), h.num('offset', 0, 0, 10 ** 9)
-    if offset > 20000:
-        # Said, not quietly turned into page 200 again (1.0.57).
-        raise ApiError(400, 'that is further back than these pages go: narrow the time window '
-                            'or the search')
-    want = offset + limit
-    out, total = [], 0
-    rq, bad = list_query('radius', q)
-    oq, bad2 = list_query('acme', q)
-    if bad or bad2:
-        return {'rows': [], 'total': 0, 'q_error': bad or bad2,
-                'clients': [c['name'] for c in h.store.clients()]}
-    # One hour of the chart, counted and paged here (1.0.36): picked out of
-    # the first page in the browser, the count was the day's, and an older
-    # hour came out empty.
-    since, until = h.num('since', 0, 0, 10 ** 11), h.num('until', 0, 0, 10 ** 11)
-
-    def span(sql, args):
-        parts, args = ([sql] if sql else []), list(args or [])
-        if since:
-            parts.append('ts >= ?')
-            args.append(since)
-        if until:
-            parts.append('ts < ?')
-            args.append(until)
-        return ' AND '.join('(%s)' % x for x in parts), args
-    rq.sql, rq.args = span(rq.sql, rq.args)
-    oq.sql, oq.args = span(oq.sql, oq.args)
-    if kind != 'codes':
-        rows, n = h.reader.radius_rows(hours=hours, q=rq.words, extra=(rq.sql, rq.args),
-                                      result=result, client=client, limit=want, offset=0)
-        total += n
-        for r in rows:
-            out.append({'kind': 'radius', 'id': r['id'], 'ts': r['ts'], 'name': r.get('username'),
-                        'realm': r.get('realm'), 'result': r.get('result'),
-                        'why': r.get('reason') or r.get('acme') or '',
-                        'code': r.get('acme') or '', 'source': r.get('client') or '',
-                        'from': r.get('calling') or r.get('src') or '',
-                        'device': r.get('device') or '', 'ms': r.get('took_ms'),
-                        'node': r.get('node') or ''})
-    if kind != 'radius' and not client and result in ('', 'access', 'accept', 'reject'):
-        ok = None if result in ('', 'access') else result == 'accept'
-        rows, n = h.reader.acme_rows(hours=hours, q=oq.words, ok=ok, limit=want, offset=0,
-                                   not_how='radius', extra=(oq.sql, oq.args))
-        total += n
-        for r in rows:
-            out.append({'kind': 'code', 'id': r['id'], 'ts': r['ts'], 'name': r.get('name'),
-                        'result': 'accept' if r.get('ok') else 'reject',
-                        'why': r.get('said') or '', 'code': r.get('said') or '',
-                        'source': r.get('how') or '', 'from': r.get('src') or '',
-                        'device': '', 'ms': None, 'rid': r.get('rid') or '',
-                        'node': r.get('node') or ''})
-    out.sort(key=lambda x: (x['ts'] or 0, x['id']), reverse=True)
-    return {'rows': out[offset:offset + limit], 'total': min(total, 20000 + limit),
-            'more_than': total > 20000 + limit,
-            'clients': [c['name'] for c in h.store.clients()]}
-
-
-@route('GET', '/api/radius/row')
-def _radius_row(h):
-    h.me()
-    r = h.store.radius_row(h.num('id', 0))
-    if not r:
-        raise ApiError(404, 'there is no such request')
-    return {'row': r}
-
-
-@route('GET', '/api/acme')
-def _acme(h):
-    h.me()
-    ok = h.arg('ok')
-    rows, total = h.store.acme_rows(hours=h.num('hours', 24, 1, 24 * 3650), q=h.arg('q'),
-                                   ok=None if ok == '' else ok == '1',
-                                   limit=h.num('limit', 100, 1, 1000),
-                                   offset=h.num('offset', 0), name=h.arg('name'))
-    return {'rows': rows, 'total': total}
-
-
