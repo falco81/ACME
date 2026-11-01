@@ -4,6 +4,11 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.13 - 2026-11-01
+
+- The line on a target's form saying where files, script and roles are set is
+  as quiet as the help under a field (small, dimmed), not a bright paragraph.
+
 ## 1.0.12 - 2026-11-01
 
 - The form of an SSH, Windows or local target says where its files, their

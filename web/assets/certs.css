@@ -635,3 +635,7 @@ textarea.df-code-t:focus{border:0}
   .df-two{grid-template-columns:1fr}
   .df-presetw{margin-left:0}
 }
+
+/* Where a target's files and script are set: a quiet line, as the help under a field. */
+.ct-deploy-hint{margin-top:14px;font-size:12px;line-height:1.5;color:var(--tx-dim)}
+.ct-deploy-hint span{color:inherit;font-weight:400}

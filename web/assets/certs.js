@@ -1899,8 +1899,8 @@ function modForm(key, row, p, fromPick) {
     /* Where the files, the script and the roles of Windows are set: each certificate's
        deployment, not here (this is how acme reaches the machine). */
     if (key === 'targets' && p.files_ui) {
-      var hint = el('div', 'note ct-deploy-hint');
-      hint.appendChild(el('b', '', 'Files, their format, the script after them' + (p.kind === 'windows_ssh' ? ' and the roles of the server (IIS, RDS, AD FS, SQL…)' : '') + ': '));
+      var hint = el('div', 'muted small ct-deploy-hint');
+      hint.appendChild(el('span', '', 'Files, their format, the script after them' + (p.kind === 'windows_ssh' ? ' and the roles of the server (IIS, RDS, AD FS, SQL…)' : '') + ': '));
       hint.appendChild(el('span', '', 'set for each certificate in its deployment - Certificates → the certificate → Deployments → "Deploy it on a target", or "Deploy a certificate here" in the detail of this target. Here only how acme reaches the machine, and the script it runs when a deployment says nothing.'));
       body.appendChild(hint);
     }
