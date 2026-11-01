@@ -586,6 +586,11 @@ def start_renew(store, ref, force, by):
                            cert_id=row['id'], by=by,
                            said='asked by %s%s' % (by, ' (forced)' if force else ''))
     except ValueError as e:
+        # A job on it already (a new certificate is issued by the look right after
+        # it is saved): "Add and issue now", "Renew now" get that job to watch.
+        running = jobs.cert_job(store, row['id'])
+        if running is not None:
+            return running
         raise E.ApiError(409, str(e))
 
 

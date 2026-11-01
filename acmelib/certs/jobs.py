@@ -233,6 +233,14 @@ def cert_busy(store, cert_id):
     return False
 
 
+def cert_job(store, cert_id):
+    """The id of the job working on a certificate now (queued or running), or None."""
+    row = store.db.row("SELECT id FROM cert_jobs WHERE cert_id = ? AND state IN ('queued', "
+                       "'running') AND ts > ? ORDER BY id DESC LIMIT 1",
+                       (cert_id, time.time() - 7200))
+    return row['id'] if row else None
+
+
 def stop(store, ident):
     """Stop a job: here at once, on another node through meta. Words to show."""
     ident = int(ident)

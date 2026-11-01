@@ -1029,9 +1029,81 @@ function listTable(headers, rows, cell, cls, opts) {
   table.appendChild(body);
   table._cell = cell;
   wrap.appendChild(table);
+  if (rows.length && !opts.free) ltSteady(table, (cls || '') + '|' + headers.length);
   /* ...and whatever else its records hold that has a name, as columns out
      of sight until somebody asks for them (1.10.156). */
   return wrap;
+}
+
+/* Columns that do not jump (acme 1.0.9): a list drawn again - a switch in a
+   row, the auto refresh, "2 min ago" become "3 min ago" - had the browser
+   share the width out anew by what each cell says that moment, and every
+   column moved left and right. The widths the list had when it was first
+   drawn with rows are kept (as shares of the width, so a window made wider or
+   narrower still fits) for every later drawing of the same list: what grows
+   wraps inside its column; nothing else moves. Kept for the page's life; a
+   list whose columns are shown or hidden is a list of its own. */
+var LT_WIDTHS = {};
+function ltSteady(table, base) {
+  var visible = function () {
+    var ths = table.tHead ? table.tHead.rows[0].cells : [];
+    return Array.prototype.filter.call(ths, function (th) { return th.offsetParent !== null || th.getClientRects().length; });
+  };
+  var keyOf = function (ths) {
+    return base + '|' + ths.map(function (th) { return th.textContent.trim(); }).join('|');
+  };
+  var apply = function (ths, shares) {
+    /* A colgroup of its own: the headings' own widths are cols.js's. */
+    var cg = table.querySelector('colgroup.lt-steady');
+    if (cg) cg.remove();
+    cg = document.createElement('colgroup');
+    cg.className = 'lt-steady';
+    var all = table.tHead.rows[0].cells;
+    Array.prototype.forEach.call(all, function (th) {
+      var col = document.createElement('col');
+      var i = ths.indexOf(th);
+      if (i < 0) col.style.visibility = 'collapse';
+      else col.style.width = shares[i] + '%';
+      cg.appendChild(col);
+    });
+    table.insertBefore(cg, table.firstChild);
+    table.style.tableLayout = 'fixed';
+  };
+  var measure = function () {
+    /* Widths somebody set by hand (cols.js) come first. */
+    if (!table.isConnected || table.classList.contains('cols-set')) return;
+    var ths = visible();
+    if (!ths.length) return;
+    var key = keyOf(ths);
+    var got = LT_WIDTHS[key];
+    if (got && got.length === ths.length) {
+      apply(ths, got);
+      /* Something that does not fit its kept column (a long word wider than any
+         before): laid out by its words once more - still before the paint. */
+      var over = Array.prototype.some.call(table.querySelectorAll('tbody td'), function (td) {
+        return td.scrollWidth > td.clientWidth + 2;
+      });
+      if (!over) return;
+      var cg0 = table.querySelector('colgroup.lt-steady');
+      if (cg0) cg0.remove();
+      table.style.tableLayout = '';
+    }
+    var widths = ths.map(function (th) { return th.getBoundingClientRect().width; });
+    var total = widths.reduce(function (a, b) { return a + b; }, 0);
+    if (total < 50) return;                     /* not laid out (a hidden tab) */
+    LT_WIDTHS[key] = widths.map(function (w) { return Math.round(w / total * 10000) / 100; });
+    apply(ths, LT_WIDTHS[key]);
+  };
+  /* Put in place before it is painted where the list is known already;
+     measured once it is in the page otherwise. */
+  var tries = 0;
+  var later = function () {
+    if (table.isConnected) { measure(); return; }
+    if (++tries < 20) requestAnimationFrame(later);
+  };
+  /* A microtask runs once the code that drew it has put it in the page and
+     before the browser paints: the kept widths are there in the first frame. */
+  Promise.resolve().then(later);
 }
 
 /* ---- paging, once, for every table that needs it ------------------------- */

@@ -395,6 +395,24 @@ class CertsCore(unittest.TestCase):
         st, err = self.call('POST', '/api/certs/auto', {'id': got['id'], 'auto_renew': 1}, self.admin)
         self.assertEqual(st, 400, err)
 
+    def test_04c_add_and_issue_now(self):
+        # saved, the look starts issuing it at once; "issue now" then gets that job
+        cid = self.ok('POST', '/api/certs/save', {'name': 'add-issue', 'names': ['ai.example.test'],
+                                                  'issuer': 'self', 'auto_renew': 1})['id']
+        import glob
+        import sqlite3
+        db = sqlite3.connect(glob.glob(os.path.join(self.tmp, 'state', '*.db'))[0], timeout=30)
+        # as the look's job, working on it
+        db.execute("DELETE FROM cert_jobs WHERE cert_id = ?", (cid,))
+        cur = db.execute("INSERT INTO cert_jobs (id, ts, kind, cert_id, state, by_who) VALUES "
+                         "(?, ?, 'renew', ?, 'running', 'test')", (987654321, time.time(), cid))
+        db.commit()
+        got = self.ok('POST', '/api/certs/renew', {'id': cid, 'force': True})
+        self.assertEqual(got['job_id'], 987654321)
+        db.execute("UPDATE cert_jobs SET state = 'ok' WHERE id = ?", (987654321,))
+        db.commit()
+        db.close()
+
     def test_04b_auto_renew_switch(self):
         cid = self.ok('POST', '/api/certs/save', {'name': 'auto-switch', 'names': ['as.example.test'],
                                                   'issuer': 'self', 'auto_renew': 1})['id']

@@ -3979,7 +3979,10 @@ function certWizard(cert, detail) {
       return chain.then(function () {
         toast(said(d, editing ? 'saved' : 'added'), 'good');
         CT.refresh();
-        if (issue) return capi('certs/renew', {id: id, force: true}).then(function (x) { closeModal(); jobStarted(x, 'issuing'); });
+        /* Saved already: the popup closes whatever the issuing says - its error is
+           said, and the certificate opened, as it is now. */
+        if (issue) return capi('certs/renew', {id: id, force: true}).then(function (x) { closeModal(); jobStarted(x, 'issuing'); },
+          function (e) { closeModal(); fail(e); certPeek(id); });
         if (editing) { closeModal(); certPeek(id); } else { closeModal(); certPeek(id); }
       });
     }).catch(fail).then(function () { busy(b, false); });
@@ -4219,7 +4222,8 @@ function selfSigned() {
           profile: {days: Number(f.days.value || 825), eku: ['serverAuth'], subject: subject}, tags: [], note: '', owner: ''});
       }).then(function (d) {
         CT.refresh();
-        return capi('certs/renew', {id: d.id, force: true}).then(function (x) { closeModal(); jobStarted(x, 'issuing'); });
+        return capi('certs/renew', {id: d.id, force: true}).then(function (x) { closeModal(); jobStarted(x, 'issuing'); },
+          function (e) { closeModal(); fail(e); certPeek(d.id); });
       }).catch(fail).then(function () { busy(b, false); });
     }}], 'medium');
     f.names.addEventListener('input', function () { f.name.placeholder = splitNames(f.names.value)[0] || 'the first name'; });
