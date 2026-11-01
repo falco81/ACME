@@ -717,6 +717,17 @@ class DnsChallenge(Challenge):
         if not fqdn or not txt:
             return []
         out = []
+        if rr and D.norm(rr) != D.norm(fqdn):
+            # the CA asks rr and follows its CNAME: it must lead where the value is
+            chain = self.cname_chain(rr)
+            out.append(guide_step(
+                'cname', 'The CA is led from %s to the test value' % rr,
+                where='your DNS at %s' % self.home_of(base_name(name)),
+                record={'name': rr, 'type': 'CNAME', 'value': D.norm(fqdn) + '.', 'ttl': None},
+                done=chain[-1] == D.norm(fqdn),
+                said=('%s is a CNAME to %s' % (rr, chain[-1])) if len(chain) > 1 else
+                     '%s has no CNAME' % rr,
+                fix='Create in your DNS: %s. CNAME %s.' % (rr, D.norm(fqdn))))
         try:
             zone = self.zone_for(fqdn)
         except PluginError:
@@ -739,6 +750,8 @@ class DnsChallenge(Challenge):
             try:
                 m = D.query(host, rr, 16, port=port, rd=True, timeout=self.guide_timeout)
             except (D.DnsError, D.FormErr, OSError):
+                continue
+            if m.rcode not in (D.NOERROR, D.NXDOMAIN):
                 continue
             (have if txt in [r.text for r in m.answer if r.rtype == 16] else lacking).append(srv)
         state = None if not have and not lacking else not lacking

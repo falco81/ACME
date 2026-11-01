@@ -381,7 +381,9 @@ def plan(store, names, issuer=None, challenge=None, challenge_map=None, cert=Non
             g['guide'] = _group_guide(store, g)
             if suggestions == 'all' or (suggestions == 'blocking' and g['guide']['ok'] is False):
                 g['suggested'] = [s for s in suggest(store, g['domain'], g['names'])
-                                  if s['validation'] != g['validation']]
+                                  if s['validation'] != g['validation'] and not (
+                                      s['kind'] == g.get('kind') and
+                                      s['kind'] in ('dns_builtin', 'http_local'))]
             return g
         futs = {ex.submit(work, g): g for g in groups}
         left = max(1.0, timeout - (time.time() - t0))

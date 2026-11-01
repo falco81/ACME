@@ -56,7 +56,7 @@ import traceback
 from acmelib import engine as E
 from acmelib.plugins import base
 from acmelib.certs import store as S
-from acmelib.certs import jobs, deployer, runtime
+from acmelib.certs import jobs, deployer, readiness, runtime
 
 LEASE_KEY = 'certs:leader'
 LEASE_S = 90
@@ -258,6 +258,11 @@ def renew_cert(store, job, cert_id, force=False, by=''):
         if not issuer.ip_names and any(':' in n or n.replace('.', '').isdigit() for n in names):
             raise base.PluginError('%s gives no certificates for IP addresses' % irow['name'],
                                    retry=False)
+        # The first certificate, or after a failed validation: what the validation
+        # needs is checked first, and the CA is not asked while something is missing
+        # (Let's Encrypt counts failed validations) - certs_precheck.
+        if issuer.needs_challenge and readiness.precheck_due(store, cert):
+            readiness.precheck(store, job, cert, names)
         profile = S.jload(cert.get('profile'), {}) or {}
         key_type = cert.get('key_type') or 'ec-256'
         key_pem = None
@@ -331,6 +336,7 @@ def renew_cert(store, job, cert_id, force=False, by=''):
                                  info=info, extra=extra)
         job.version = version
         store.db.update('cert_issuers', irow['id'], {'last_ok': time.time(), 'last_error': ''})
+        readiness.mark(store, cert['id'], False)
         until = time.strftime('%Y-%m-%d', time.gmtime(info['not_after'])) \
             if info.get('not_after') else '?'
         job.step('issued: version %d, serial %s, valid until %s' % (
@@ -360,9 +366,10 @@ def renew_cert(store, job, cert_id, force=False, by=''):
                 'last_error': why[:2000], 'next_try': time.time() + wait})
             job.step('tried again in %s' % E.human_span(wait), 'warn')
             store.add_event('certificates', 'renewing %s failed: %s' % (cert['name'], why), 'bad')
+            readiness.mark(store, cert['id'], readiness.failed_on_validation(e))
             try:
                 irow = S.plugin_row(store, 'issuer', cert['issuer'])
-                if irow:
+                if irow and not isinstance(e, readiness.NotReady):
                     store.db.update('cert_issuers', irow['id'], {'last_error': why[:2000]})
             except Exception:                           # noqa: BLE001
                 pass

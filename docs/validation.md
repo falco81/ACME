@@ -87,6 +87,66 @@ values), or two renewals at once, do not take each other's records away.
 (acme-dns keeps only the newest two values per account: give a certificate
 with more names one account per name - the `accounts` field.)
 
+## Before the first certificate: what acme checks and tells you
+
+Every validation says, for one name, **what must be in place, where** - and
+checks each piece now, without changing anything. That is its *guide*
+(`Challenge.guide(name)` in `acmelib/plugins/base.py`). A *dry run*
+(`Challenge.dry_run(name)`) then tries it for real, with no CA asked: a random
+test value goes in through the module's own `present()`, acme waits for it
+with `ready()` (at most `certs_dry_run_s`, 120 s), looks for it from outside,
+and takes it away again with `cleanup()` - whatever happened.
+
+A step of a guide has its words (`what`), where it is set (`where`: *your
+DNS at firma.cz*, *acme*, *the web server 10.0.0.5*, *the DNS of example.net
+(the parent zone)*), the exact record to create (`record`: name, type, value,
+TTL), whether it is in place (`done`: yes, no, or *cannot tell from here*),
+what was found (`said`) and what to do (`fix`). A step that is not in place
+but is no reason not to ask the CA (a public resolver that still caches an
+old answer) is marked as not blocking.
+
+What each kind checks:
+
+| Kind | The guide (read-only) | The dry run looks |
+|---|---|---|
+| `dns_builtin` | acme's DNS server answers for its zone; the zone is delegated to it (`NS` records in the parent zone, and glue `A`/`AAAA` for name servers inside the zone) reaching the addresses acme answers on (`dns_expose`: the VIP, the nodes, or both); `_acme-challenge.NAME. CNAME NAME.<zone>.` (or the fixed label) in the name's own DNS - asked of that zone's own name servers, so no cached "not there" fools it; the firewall lets UDP and TCP 53 in | the CNAME leads the CA to the test value; every name server of acme's zone answers it; public resolvers see it |
+| `http_local` | a wildcard refused (DNS-01 only); `A`/`AAAA` of the name are acme's (the VIP or a node - or one of *Addresses in front of acme*, for a NAT or a proxy); TCP 80 let in by the firewall; a probe acme answers on port 80 fetched from each of its addresses (Host: NAME) and by the name | the test file at `http://NAME/` and at each of acme's addresses with `Host: NAME` |
+| `http_ssh` | a wildcard refused; the name points at the web servers (or at *Load balancer in front*); acme signs in to each over SSH; each answers HTTP on the check port | the test file at `http://NAME/` and at each web server's address with `Host: NAME` |
+| a DNS provider's API (`desec`, `wedos`, `cloudflare`, `route53`, ... every `ApiDns` and the other API modules) | the credentials work (the module's `test()`); `_acme-challenge.NAME`'s CNAME followed - the TXT record goes where it ends, and that zone must be at the provider; the provider holds the zone (else: add it there, or point `_acme-challenge.NAME` by CNAME into a zone that is); the internet asks that zone (no subzone delegated elsewhere, name servers there); how long acme waits (the TTL - deSEC: its minimum, 3600 s, and 60 s more for its anycast) | every name server of the zone answers the test value; public resolvers see it |
+| `rfc2136` | the primary answers DNS; the zone is found; a trial UPDATE that changes nothing (a prerequisite only) is accepted with the key | as above |
+| `acme_dns` | the server's `/health`; `_acme-challenge.NAME. CNAME <fulldomain>.` | as above |
+| `manual` | the zone; while an order waits, the exact TXT record and whether every name server has it | as above |
+| `script`, `ssh_dns` | the program / the SSH account (`test()`), the zone - and that only a dry run can tell | as above |
+
+A module of your own gets a guide that says "a dry run tells" and the dry
+run itself without writing anything: `dry_run()` uses its `present()`,
+`ready()` and `cleanup()`. A DNS-01 module based on `DnsChallenge` (or an
+HTTP-01 one on `HttpChallenge`) gets the outside checks too.
+
+**Names from several domains.** One certificate may hold names of different
+zones, each proved its own way (`challenge_map`). `acmelib/certs/readiness.py`
+groups the names by the zone they are in (by its SOA; where DNS says nothing,
+by the registrable domain, `co.uk` and `com.au` known), chooses each name's
+validation exactly as the renewer does, and puts the guides together. For
+every group it also says which validations would do: a DNS provider that
+holds the zone (asked of its API, kept two minutes), acme's own DNS server,
+HTTP-01 here when the names point at acme, HTTP-01 on the web servers when
+they point there. A wildcard is DNS-01 only.
+
+    acme --check-names firma.cz,www.firma.cz,*.firma.cz,firma.sk --challenge "acme's DNS server"
+    acme --cert-check web          # a certificate acme keeps
+    acme --dry-run web             # its validations tried for real (a job, followed)
+    acme --dry-run shop.firma.co.uk --challenge "This server (HTTP-01)"
+
+`--check-names` prints a group a domain, each step ✔ / ✘ / ?, under a ✘ what
+to do and the exact record; exit code 0 when nothing blocks. `--json` gives
+the plan as it is. A dry run is a job of its own (kind `dry-run`) in
+Certificates → Jobs, its steps live.
+
+Before the **first** certificate of a certificate (and after a renewal that
+failed on its validation) the renewer runs the same check by itself, and
+does not ask the CA while something blocks - [certificates.md](certificates.md#before-the-first-certificate-what-acme-checks-and-tells-you).
+
 ## DNS providers with an API
 
 What every one of them does the same way:

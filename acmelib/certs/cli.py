@@ -9,6 +9,7 @@ process, their steps printed as they come. --json answers JSON.
     certificates   --certs --cert --cert-add --cert-edit --cert-del --renew --deploy
                    --revoke --csr --csr-answer --import --export --selfsigned
                    --jobs --job --job-stop --acme-contact
+    before one     --check-names N1,N2 --cert-check NAME --dry-run NAME|N1,N2
     modules        --sources --validations --targets (lists), --source NAME ...,
                    --source-add/-edit/-del/-test/-action/-default (and validation-,
                    target-), --validation-check NAME HOST,
@@ -48,7 +49,8 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'validation_test', 'validation_action',
         'target_show', 'target_add', 'target_edit', 'target_del', 'target_action',
         'source_default', 'validation_default', 'target_default', 'ca_default',
-        'ca_publish', 'ca_pki_urls', 'ca_pki_check', 'validation_check')
+        'ca_publish', 'ca_pki_urls', 'ca_pki_check', 'validation_check',
+        'check_names', 'cert_check', 'dry_run')
 
 # family: (the word of the options, the API's path, the words of one)
 FAMILIES = {'issuer': ('source', 'sources', 'source'),
@@ -119,6 +121,13 @@ def add_args(p):
     g.add_argument('--job-stop', metavar='ID', type=int, help='stop a job that runs')
     g.add_argument('--acme-contact', metavar='MAIL', help='the contact e-mail of the ACME '
                    'sources that have none (Let\'s Encrypt mails about expiry and policy there)')
+    g.add_argument('--check-names', metavar='N1,N2', help='before a certificate: what its names '
+                   'need for validation and where (grouped by domain), each step checked now, '
+                   'the exact records to create - nothing is changed (--issuer, --challenge)')
+    g.add_argument('--cert-check', metavar='NAME', help='the same for a certificate acme keeps')
+    g.add_argument('--dry-run', metavar='NAME|N1,N2', help='its validation tried for real '
+                   'without a CA: a test record or file put in place, looked for from outside, '
+                   'taken away (a job, followed; --issuer, --challenge for names)')
 
     g = p.add_argument_group('CERTIFICATES: SOURCES, VALIDATIONS AND TARGETS',
                              'Where certificates come from (sources: issuers), how names are '
@@ -526,7 +535,9 @@ class Cli(object):
                  ('job', self.job), ('cert', self.cert), ('certs', self.certs),
                  ('cas', self.cas), ('jobs', self.jobs), ('plugin', self.plugin),
                  ('plugins', self.plugins), ('dns_add', self.dns_add), ('dns_del', self.dns_del),
-                 ('dns_records', self.dns), ('acme_contact', self.acme_contact)]
+                 ('dns_records', self.dns), ('acme_contact', self.acme_contact),
+                 ('check_names', self.check_names), ('cert_check', self.cert_check),
+                 ('dry_run', self.dry_run)]
         for key, fn in steps:
             if getattr(a, key, None) not in (None, False, ''):
                 return fn()
@@ -777,6 +788,106 @@ class Cli(object):
                             '%s, asked on the command line' % S.cert_get(self.store,
                                                                          row['id'])['name'])
         return 0 if job.ok else 1
+
+    # ---- before a certificate: what its validation needs ------------------------------------
+    def _names_arg(self, text):
+        names = [x.strip() for x in re.split(r'[\s,;]+', str(text or '')) if x.strip()]
+        if not names:
+            raise SystemExit('acme: no names (N1,N2,...)')
+        return names
+
+    def _plan_ref(self):
+        from acmelib.certs import store as S
+        a = self.args
+        if a.issuer and not S.plugin_row(self.store, 'issuer', a.issuer):
+            raise SystemExit('acme: there is no source %s (acme --sources)' % a.issuer)
+        if a.challenge and not S.plugin_row(self.store, 'challenge', a.challenge):
+            raise SystemExit('acme: there is no validation %s (acme --validations)' % a.challenge)
+        return a.issuer or None, a.challenge or None
+
+    def check_names(self):
+        from acmelib.certs import readiness
+        issuer, challenge = self._plan_ref()
+        got = readiness.plan(self.store, self._names_arg(self.args.check_names), issuer=issuer,
+                             challenge=challenge)
+        return self.show_plan(got)
+
+    def cert_check(self):
+        from acmelib.certs import readiness
+        row = self.cert_ref(self.args.cert_check)
+        names, issuer, _challenge, _cmap = readiness.cert_args(row)
+        got = readiness.plan(self.store, names, issuer=issuer, cert=row)
+        return self.show_plan(got, row['name'])
+
+    def show_plan(self, got, title=None):
+        from acmelib.certs import readiness
+        if self.json:
+            self.out(got)
+            return 0 if got.get('ok') else 1
+        p = self.pal
+        mark = {True: p.good('✔' if p.on else '[ ok ]'), False: p.bad('✘' if p.on else '[fail]'),
+                None: p.dim('?' if p.on else '[ ?? ]')}
+        print(p.info('%s - source %s%s' % (title or 'these names', got.get('issuer') or '(none)',
+                                          '' if got.get('issuer_needs_validation') else
+                                          ' (no validation needed)')))
+        for st in (got.get('head') or {}).get('steps') or []:
+            print('  %s %s' % (mark[st['done']], readiness.step_line(st)))
+        for g in got.get('groups') or []:
+            print('')
+            print('%s  %s' % (p.info(g['domain']), ', '.join(g['names'])))
+            print('  %s %s' % (p.dim('validation'), ('%s (%s)' % (g['validation'], g['kind']))
+                               if g['validation'] else '-'))
+            for st in (g.get('guide') or {}).get('steps') or []:
+                done = st['done']
+                tone = (lambda x: x) if done is not False else (p.bad if st['blocking'] else p.warn)
+                where = ('  [%s]' % st['where']) if st.get('where') else ''
+                line = st['what'] + (': ' + st['said'] if st.get('said') else '')
+                print('  %s %s%s' % (mark[done], tone(line), p.dim(where)))
+                if done is not True and st.get('fix'):
+                    print('      %s %s' % (p.dim('->'), st['fix']))
+                if st.get('record') and done is not True and \
+                        not str(st['record'].get('value') or '').startswith('('):
+                    print('      %s %s' % (p.dim('record'), readiness.record_text(st['record'])))
+            for s in g.get('suggested') or []:
+                print('  %s %s - %s' % (p.dim('could be'), s['validation'] or
+                                        '(new) ' + s['kind'], s['why']))
+        print('')
+        if not got.get('complete', True):
+            print(p.warn('not every check finished in time'))
+        if got.get('ok'):
+            print(p.ok_line('nothing that blocks was found - a dry run tries it for real '
+                            '(acme --dry-run)'))
+            return 0
+        print(p.bad_line('%d thing(s) to set up first: %s' % (len(got.get('blocking') or []),
+                                                               readiness.fixes(got))))
+        return 1
+
+    def dry_run(self):
+        from acmelib.certs import readiness, store as S
+        a = self.args
+        row = S.cert_get(self.store, a.dry_run) if ',' not in a.dry_run else None
+        try:
+            if row:
+                names = readiness.cert_args(row)[0]
+                jid = readiness.dry_run(self.store, names, cert=row, by=self.WHO,
+                                        cert_id=row['id'])
+            else:
+                issuer, challenge = self._plan_ref()
+                jid = readiness.dry_run(self.store, self._names_arg(a.dry_run), issuer=issuer,
+                                        challenge=challenge, by=self.WHO)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        if not self.json:
+            print(self.pal.dim('  dry run: job %d' % jid))
+        v = self._follow(jid)
+        if self.json:
+            self.out({'job_id': jid, 'ok': bool(v.get('ok')), 'said': v.get('said'),
+                      'result': readiness.dry_run_result(self.store, jid),
+                      'steps': v.get('steps')})
+        else:
+            line = 'job %d: %s' % (jid, v.get('said') or v.get('state'))
+            print(self.pal.ok_line(line) if v.get('ok') else self.pal.bad_line(line))
+        return 0 if v.get('ok') else 1
 
     def revoke(self):
         from acmelib.certs import api, renewer

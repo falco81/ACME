@@ -9,6 +9,7 @@ and what the pages can do, it can do.
          1 Browse them (Enter: show, renew, deploy, deployments, edit, export,
                         CSR and its answer, revoke, delete)
          2 Add one                         3 Renew what is due now
+         k Check names before a certificate (what to set up where; a dry run)
          4 Jobs (Enter: followed live)     5 The live log of the certificates
          6 Sources        7 Validations    8 Targets
                           (Enter: show, edit, test, its actions, delete; + add one)
@@ -73,6 +74,7 @@ def menu(con):
          lambda: con.pick('Certificates', load, cols, lambda r: cert_do(con, r),
                           'no certificate yet')),
         ('2', 'Add one', lambda: cert_add(con)),
+        ('k', 'Check names before a certificate: what to set up where', lambda: check_names(con)),
         ('3', 'Renew every one that is due, now', lambda: con.act('--renew', 'all')),
         ('4', 'Jobs (Enter: every step, live)', lambda: jobs(con)),
         ('5', 'The live log of the certificates', lambda: live_log(con)),
@@ -339,6 +341,8 @@ def fam_do(con, fam, r):
 def cert_do(con, r):
     name = r['name']
     opts = [('show', 'Show it all'), ('renew', 'Renew it now'), ('deploy', 'Deploy it now'),
+            ('check', 'Check its validation: what to set up where'),
+            ('dry', 'A dry run of its validation (no CA asked)'),
             ('deploys', 'Its deployments (add, run, change, take away)'),
             ('edit', 'Change it (names, issuer, validation, renewing)'),
             ('export', 'Export it into a file'), ('csr', 'A CSR for an outside authority'),
@@ -348,6 +352,10 @@ def cert_do(con, r):
                                                         'imported', _when(r.get('not_after'))))
     if what == 'show':
         con.act('--cert', name)
+    elif what == 'check':
+        con.live(lambda: (con.cmd('--cert-check', name), con.pause()))
+    elif what == 'dry':
+        con.live(lambda: (con.cmd('--dry-run', name), con.pause()))
     elif what in ('renew', 'deploy'):
         con.live(lambda: (con.cmd('--' + what, name), con.pause()))
     elif what == 'deploys':
@@ -397,6 +405,31 @@ def cert_do(con, r):
                        'it is deployed stays as it is.' % name, 'Delete it', danger=True):
             con.act('--cert-del', name, '--yes')
     return None
+
+
+def check_names(con):
+    """Names checked before a certificate: grouped by domain, what each
+    validation needs where, the records to create - then a dry run if wanted."""
+    vals = _names_of(con, '--validations')
+    got = con.form('Check names before a certificate', [
+        {'key': 'names', 'label': 'names (comma)', 'need': True,
+         'help': 'The names the certificate is to have, from any domains.'},
+        {'key': 'challenge', 'label': 'validation', 'kind': 'choice',
+         'options': [('', '– (the default, or as acme suggests)')] + vals,
+         'help': 'How they are to be proved; acme also says which others would do.'}],
+        'Nothing is changed: DNS and the validations are asked, read only.')
+    if not got:
+        return
+    args = ['--check-names', got['names']]
+    if got.get('challenge'):
+        args += ['--challenge', got['challenge']]
+    con.live(lambda: (con.cmd(*args), con.pause()))
+    if con.confirm('A dry run', 'Try the validation for real now - a test record or file put '
+                   'in place, looked for from outside and taken away (no CA asked)?',
+                   'Dry run', 'Not now'):
+        args = ['--dry-run', got['names']] + (['--challenge', got['challenge']]
+                                              if got.get('challenge') else [])
+        con.live(lambda: (con.cmd(*args), con.pause()))
 
 
 KEYS = [('ec-256', 'EC P-256'), ('ec-384', 'EC P-384'), ('rsa-2048', 'RSA 2048'),
