@@ -118,6 +118,16 @@ class Context(object):
         ctx.http_probe() -> (token, key_authorization) or None
                                             a probe acme answers on its own port 80
 
+    What a validation that stands on another module may ask (dns_persist.py:
+    the ACME account a record names, the validation used while a CA does not
+    offer dns-persist-01) - [] / None here:
+        ctx.acme_sources(names=None) -> [(name, Issuer instance)]
+                                            the ACME sources (each with a Context of its
+                                            own): their account, without the network
+                                            unless asked (AcmeIssuer.persist_info)
+        ctx.validation(name) -> Challenge instance or None
+                                            another validation, as the renewer makes it
+
     For a target that is acme itself (targets/appliance.py) - the certificate
     of its own pages, as Settings → Certificates and TLS keeps it:
         ctx.pages_where() -> {'node', 'nodes': [...], 'cluster', 'vip': {'on', 'fqdn'}}
@@ -150,6 +160,12 @@ class Context(object):
         return None
 
     def http_probe(self):
+        return None
+
+    def acme_sources(self, names=None):
+        return []
+
+    def validation(self, name):
         return None
 
 
@@ -252,12 +268,14 @@ class Bundle(object):
 PROOFS = {
     'acme-dns-01': 'the ACME TXT record at _acme-challenge.NAME',
     'acme-http-01': 'the ACME file http://NAME/.well-known/acme-challenge/TOKEN',
+    'acme-dns-persist-01': 'the persistent ACME TXT record at _validation-persist.DOMAIN, set '
+                           'once (dns-persist-01, draft-ietf-acme-dns-persist)',
     'txt-any': 'a TXT record at any name with any value (a commercial CA\'s DCV)',
     'cname-any': 'a CNAME record at any name pointing anywhere (a commercial CA\'s DCV)',
     'http-file-any': 'a file at any path under http://NAME/.well-known/ (a commercial CA\'s DCV)',
     'email': 'an e-mail to the domain that a person approves - no validation module',
 }
-DNS_PROOFS = ('acme-dns-01', 'txt-any', 'cname-any')
+DNS_PROOFS = ('acme-dns-01', 'acme-dns-persist-01', 'txt-any', 'cname-any')
 HTTP_PROOFS = ('acme-http-01', 'http-file-any')
 # The kinds of place(): what each puts where.
 PLACE_KINDS = {'txt': 'txt-any', 'cname': 'cname-any', 'file': 'http-file-any'}
@@ -417,6 +435,8 @@ class Issuer(Plugin):
         bare = bare[2:] if bare.startswith('*.') else bare
         if proof == 'acme-dns-01':
             return '_acme-challenge.' + bare
+        if proof == 'acme-dns-persist-01':
+            return '_validation-persist.' + bare
         if proof == 'acme-http-01':
             return '/.well-known/acme-challenge/'
         if proof == 'http-file-any':

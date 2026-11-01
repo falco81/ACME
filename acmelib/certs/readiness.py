@@ -278,8 +278,9 @@ def _merge(parts):
     return base.guide_of(steps)
 
 
-def _group_guide(store, group):
-    """The guide of one group (run in a worker)."""
+def _group_guide(store, group, issuer=None):
+    """The guide of one group (run in a worker). `issuer`: the source's name - a
+    validation that names its account (dns_persist) is told it."""
     names, which = group['names'], group['validation']
     if not which:
         return base.guide_of([_step(
@@ -292,6 +293,8 @@ def _group_guide(store, group):
                                     False, said=words,
                                     fix='Choose another validation, or switch it on')])
     group['kind'] = row.get('kind')
+    if issuer and hasattr(inst, 'persist_source'):
+        inst.persist_source = issuer
     pre = []
     types = tuple(getattr(inst, 'types', ()) or ())
     for n in names:
@@ -390,7 +393,7 @@ def plan(store, names, issuer=None, challenge=None, challenge_map=None, cert=Non
                 g['kind'] = r.get('kind') if r else None
 
         def work(g):
-            g['guide'] = _group_guide(store, g)
+            g['guide'] = _group_guide(store, g, irow['name'] if irow else None)
             if suggestions == 'all' or (suggestions == 'blocking' and g['guide']['ok'] is False):
                 g['suggested'] = [s for s in suggest(store, g['domain'], g['names'])
                                   if s['validation'] != g['validation'] and not (

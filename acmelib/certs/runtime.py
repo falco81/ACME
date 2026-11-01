@@ -93,6 +93,7 @@ class RunContext(base.Context):
         self._stop = threading.Event()
         self.record_names = []          # dns_records written, for the cleanup at the end
         self.tokens = []
+        self.children = []              # the Contexts of the modules made by validation()
 
     # ---- the job's log ------------------------------------------------------------------
     def step(self, words, level='info'):
@@ -426,8 +427,44 @@ class RunContext(base.Context):
                 'fingerprint': str(info.get('fingerprint') or '').replace(':', '').lower(),
                 'verify': got.get('verify') or '', 'alt': bool(alt)}
 
+    # ---- the modules a validation stands on (dns_persist.py) ----------------------------
+    def acme_sources(self, names=None):
+        """[(name, Issuer instance)] of the ACME sources (a module with persist_info),
+        `names` only those; each with a Context of its own (scope issuer:NAME)."""
+        want = set(str(n) for n in names) if names else None
+        out = []
+        for row in self.store.db.rows('SELECT * FROM cert_issuers ORDER BY name'):
+            if want is not None and row['name'] not in want:
+                continue
+            cls = S.plugin_class('issuer', row.get('kind'))
+            if cls is None or not callable(getattr(cls, 'persist_info', None)) or \
+                    'dns-persist-01' not in (getattr(cls, 'challenge_types', None) or ()):
+                continue
+            ctx = RunContext(self.store, self.job, scope='issuer:%s' % row['name'])
+            try:
+                out.append((row['name'], S.plugin_instance(self.store, 'issuer', row, ctx)))
+            except base.PluginError as e:
+                self.debug('the source %s cannot be used: %s' % (row['name'], e))
+        return out
+
+    def validation(self, name):
+        """Another validation by name, as the renewer makes it (None: not there or off);
+        what it leaves behind is taken away with this Context's tidy()."""
+        row = S.plugin_row(self.store, 'challenge', name) if name else None
+        if not row or not row.get('enabled', 1) or str(row.get('enabled')) in ('0', 'False'):
+            return None
+        ctx = RunContext(self.store, self.job, scope='challenge:%s' % row['name'])
+        self.children.append(ctx)
+        return S.plugin_instance(self.store, 'challenge', row, ctx)
+
     def tidy(self):
         """Whatever the job left in the DNS server or on port 80 taken away."""
+        for c in self.children:
+            try:
+                c.tidy()
+            except Exception:                           # noqa: BLE001
+                pass
+        self.children = []
         for name, rtype, value in self.record_names:
             try:
                 self.dns_drop(name, rtype, value)

@@ -1535,6 +1535,77 @@ function setupHere(row) {
   return box;
 }
 
+/** dns-persist-01 (challenges/dns_persist.py): the record each ACME source needs, set
+    once - whether it is there now, and whether each CA offers dns-persist-01 yet. */
+function persistHere(row, p) {
+  var box = el('div', 'ct-http ct-rd-setup ct-persist');
+  box.appendChild(el('h4', 'ct-formh', 'The record to set once'));
+  box.appendChild(el('p', 'note', 'One TXT record for each ACME account, at _validation-persist.DOMAIN. Several may stand at the same name - Let’s Encrypt and its staging have different accounts. Nothing is changed in your DNS.'));
+  var bar = el('div', 'btnrow');
+  var again = cmdButton('Check again', 'refresh', 'small');
+  var make = cmdButton('Make the record', 'key', 'small');
+  bar.appendChild(again);
+  if (MANAGE) bar.appendChild(make);
+  var look = null;
+  var lookAct = arr((p && p.actions) || []).filter(function (a) { return a.key === 'look'; })[0];
+  if (MANAGE && lookAct) {
+    look = cmdButton('Look now (staging)', 'play', 'small');
+    look.hidden = true;
+    bar.appendChild(look);
+    look.onclick = function () { modAction('validation', row, lookAct, look); };
+  }
+  box.appendChild(bar);
+  var host = el('div');
+  box.appendChild(host);
+  var ticket = modalTicket();
+  var load = function (register, button) {
+    busy(button, true);
+    clear(host);
+    host.appendChild(el('p', 'muted', register ? 'Making the accounts where there are none…' : 'Asking…'));
+    capi('validations/persist', {id: row.id, register: !!register}, 150).then(function (d) {
+      if (!modalStill(ticket)) return;
+      clear(host);
+      var got = obj(d.persist);
+      var cas = arr(got.cas);
+      if (look) look.hidden = !cas.some(function (c) { return c.staging; });
+      cas.forEach(function (c) {
+        var line = el('div', 'ct-rd-step ' + (c.offered ? 'ok' : 'unk'));
+        line.appendChild(okMark(c.offered ? true : null));
+        var w = el('div', 'ct-rd-w');
+        w.appendChild(el('b', '', c.words || ''));
+        if (arr(c.sources).length) w.appendChild(data('div', 'muted small', arr(c.sources).join(', ')));
+        line.appendChild(w);
+        host.appendChild(line);
+      });
+      if (!arr(got.records).length) { host.appendChild(emptyNote('There is no ACME source: the record names an ACME account.')); return; }
+      if (!arr(got.domains).length) host.appendChild(el('p', 'note warn', 'Set “Domains with the record” to see the exact record for each and check it.'));
+      arr(got.records).forEach(function (r) {
+        var ok = r.ok === true ? true : (r.ok === false ? false : null);
+        var one = el('div', 'ct-rd-step ' + (ok === true ? 'ok' : (ok === false ? (got.fallback ? 'warn' : 'bad') : 'unk')));
+        one.appendChild(okMark(ok));
+        var w = el('div', 'ct-rd-w');
+        var top = el('div', 'ct-rd-what');
+        top.appendChild(data('b', '', r.title || r.source));
+        top.appendChild(data('span', 'muted small ct-rd-where', r.source + (r.domain ? ' · ' + r.domain : '')));
+        w.appendChild(top);
+        if (r.account) w.appendChild(data('div', 'mono small muted', r.account));
+        if (r.error || r.said) w.appendChild(el('div', 'muted small ct-rd-said', r.error || r.said));
+        var rec = r.record;
+        if (rec && rec.type && rec.value) w.appendChild(rdRecord(rec));
+        one.appendChild(w);
+        host.appendChild(one);
+      });
+      if (got.fallback) host.appendChild(el('p', 'muted small', 'Until the CA offers dns-persist-01 (or while the record is not right), the fallback validation proves the names.'));
+      else host.appendChild(el('p', 'note warn', 'No fallback validation is chosen: until the CA offers dns-persist-01, no certificate can be issued with this validation.'));
+    }).catch(function (e) { if (modalStill(ticket)) { clear(host); host.appendChild(failedBox(e, 'the record')); } })
+      .then(function () { busy(button, false); });
+  };
+  again.onclick = function () { load(false, again); };
+  make.onclick = function () { load(true, make); };
+  load(false, again);
+  return box;
+}
+
 /* ---- the default of a list ------------------------------------------------ */
 var DEFAULT_WORDS = {
   sources: 'A new certificate comes from it when no source is said.',
@@ -1676,6 +1747,7 @@ function modForm(key, row, p, fromPick) {
     testSaid = saidLine('', '');
     body.appendChild(testSaid);
     if (HTTP_HERE[p.kind]) body.appendChild(httpHere(row));
+    if (row && row.id && MANAGE && p.kind === 'dns_persist') body.appendChild(persistHere(row, p));
     if (row && row.id && MANAGE && m.family === 'challenge') body.appendChild(setupHere(row));
     if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { if (!x.closest('.ct-http')) x.disabled = true; });
   }, buttons, 'medium');

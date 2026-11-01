@@ -17,7 +17,13 @@ const { chromium } = require('playwright');
   const [base, name, pass, shots] = process.argv.slice(2);
   const browser = await chromium.launch();
   const page = await browser.newPage({viewport: {width: 1400, height: 1000}});
-  const out = {checks: {}};
+  const out = {checks: {}, said: []};
+  page.on('response', async (r) => {
+    if (r.url().indexOf('compat') >= 0 && out.said.length < 6) {
+      try { out.said.push(r.status() + ' ' + (await r.text()).slice(0, 400)); } catch (e) { /* gone */ }
+    }
+  });
+  page.on('pageerror', (e) => { out.said.push('page error: ' + String(e).slice(0, 300)); });
   const shot = async (n) => { if (shots) await page.screenshot({path: shots + '/' + n + '.png'}); };
   const primary = () => page.locator('#modal-foot button.primary').last();
   const stepTo = async (i) => { await page.locator('.ct-wsteps li button').nth(i).click(); await page.waitForTimeout(700); };
@@ -41,18 +47,27 @@ const { chromium } = require('playwright');
     await primary().click();
     await page.locator('.ct-san-val').first().waitFor({timeout: 15000});
     await page.locator('.ct-san-val').first().fill('a');
-    await page.waitForTimeout(1500);
+    await page.waitForFunction(() => {
+      const w = document.querySelector('.ct-san .ct-rowwhy');
+      return w && w.textContent.trim().length > 0;
+    }, null, {timeout: 15000}).catch(() => null);
     const why1 = await page.locator('.ct-san .ct-rowwhy').first().textContent();
-    out.checks.single_label_refused = /single label|jedno/i.test(why1 || '');
+    out.checks.single_label_refused = /single label|jediný štítek/i.test(why1 || '');
+    // the e-mail type: offered greyed with its reason for a public CA
     const typeSel = page.locator('.ct-san-type').first();
-    await typeSel.selectOption('email');
-    await page.locator('.ct-san-val').first().fill('it@firma.cz');
+    const em = await typeSel.locator('option[value="email"]').evaluate((o) => ({d: o.disabled, t: o.textContent}));
+    out.checks.email_type_greyed = em.d && / - /.test(em.t);
+    // pasted, an e-mail still comes as its own row - refused under it
+    await page.locator('.ct-san-tools button').nth(1).click();
+    await page.locator('.ct-san-paste textarea').fill('www.firma.cz\nit@firma.cz');
+    await page.locator('.ct-san-paste button').click();
     await page.waitForTimeout(1500);
-    const why2 = await page.locator('.ct-san .ct-rowwhy').first().textContent();
-    out.checks.email_refused_public = (why2 || '').length > 0;
+    const whys = await page.locator('.ct-san .ct-rowwhy').allTextContents();
+    out.checks.email_refused_public = whys.some((w) => w.length > 0);
     await shot('1-names-refused');
-    await typeSel.selectOption('dns');
-    await page.locator('.ct-san-val').first().fill('www.firma.cz');
+    await page.locator('.ct-san-rm').last().click();
+    await page.locator('.ct-san-rm').first().click();
+    await page.waitForTimeout(500);
     await page.waitForTimeout(800);
 
     // ---- 2. DigiCert: the validations that cannot put its TXT record greyed ---------------

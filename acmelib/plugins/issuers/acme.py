@@ -64,7 +64,10 @@ class AcmeIssuer(Issuer):
     vendor = 'Public CA'
     doc = 'docs/acme-issuers.md'
     needs_challenge = True
-    challenge_types = ('dns-01', 'http-01')
+    # dns-persist-01 (draft-ietf-acme-dns-persist): one TXT record set once at
+    # _validation-persist.DOMAIN naming the account - challenges/dns_persist.py,
+    # used where the CA offers it, its fallback where not yet.
+    challenge_types = ('dns-01', 'http-01', 'dns-persist-01')
     wildcards = True
     ip_names = True
     public_names = True             # every preset is a public CA; "custom" may be your own
@@ -278,6 +281,70 @@ class AcmeIssuer(Issuer):
             self.account(cl, fresh=True)
             return fn()
 
+    # -- dns-persist-01: what the record names ------------------------------------------
+    def persist_info(self, register=False):
+        """What a dns-persist-01 record for this source names: {'directory' (URL),
+        'preset' ('letsencrypt', ... or 'custom'), 'title', 'account' (the account
+        URL, None while there is none), 'staging', 'error'}. Read from the module's
+        state; `register`: the account is made at the CA where there is none (as an
+        order makes it)."""
+        preset = str(self.c('directory') or 'letsencrypt')
+        out = {'preset': preset, 'title': ac.DIRECTORY_WORDS.get(preset) or preset,
+               'directory': '', 'account': None, 'error': '',
+               'staging': preset.endswith('-staging')}
+        try:
+            url = self.directory_url()
+        except PluginError as e:
+            out['error'] = str(e)
+            return out
+        out['directory'] = url
+        if preset == 'custom':
+            out['title'] = url
+        row = self.ctx.kv_get(self.account_slot(url))
+        if isinstance(row, (str, bytes)):
+            try:
+                row = json.loads(row)
+            except ValueError:
+                row = None
+        if isinstance(row, dict) and row.get('url'):
+            out['account'] = str(row['url'])
+        elif register:
+            try:
+                with self.client() as cl:
+                    cl.directory()
+                    out['account'] = str(self.account(cl).get('url') or '') or None
+            except PluginError as e:
+                out['error'] = str(e)
+        return out
+
+    def persist_probe(self, name):
+        """The challenge types the CA offers for `name` - an order made only to look
+        (its authorizations deactivated again, nothing finalized). Only for a staging
+        CA: a real CA counts orders. -> {'types': [...], 'issuer_domains': [...]}"""
+        if not str(self.c('directory') or '').endswith('-staging'):
+            raise PluginError('an order only to look is made at a staging CA only - this '
+                              'source orders real certificates', retry=False)
+        with self.client() as cl:
+            cl.directory()
+
+            def look():
+                _url, order = cl.new_order([name])
+                types, idn = set(), []
+                for az_url in order.get('authorizations') or []:
+                    az, _ = cl.post_json(az_url, None)
+                    for ch in az.get('challenges') or []:
+                        types.add(str(ch.get('type') or ''))
+                        for d in ch.get('issuer-domain-names') or []:
+                            if str(d) not in idn:
+                                idn.append(str(d))
+                    if az.get('status') == 'pending':
+                        try:
+                            cl.post_json(az_url, {'status': 'deactivated'})
+                        except PluginError:
+                            pass
+                return {'types': sorted(t for t in types if t), 'issuer_domains': idn}
+            return self._with_account(cl, look)
+
     # -- trying it -------------------------------------------------------------------
     def test(self):
         with self.client() as cl:
@@ -395,6 +462,18 @@ class AcmeIssuer(Issuer):
             shown = ('*.' + value) if wild else value
             chal_mod = self._challenge_for(req, value, wild)
             offered = {c.get('type'): c for c in az.get('challenges') or []}
+            if callable(getattr(chal_mod, 'persist_choose', None)):
+                # dns-persist-01 where the CA offers it and the record is right, else
+                # the validation's fallback (challenges/dns_persist.py says which)
+                how, got = chal_mod.persist_choose(value, wild, offered, cl.kid, cl.dir_url,
+                                                   self._source_words(cl))
+                if how == 'persist':
+                    todo.append({'url': az_url, 'name': value, 'shown': shown, 'mod': chal_mod,
+                                 'type': 'dns-persist-01', 'chal': got, 'token': '',
+                                 'keyauth': '', 'txt': '', 'handle': None, 'presented': False,
+                                 'persist': True})
+                    continue
+                chal_mod = got
             kinds = [t for t in (getattr(chal_mod, 'types', ()) or ()) if t in self.challenge_types]
             pick = next((t for t in kinds if t in offered), None)
             if not pick:
@@ -419,6 +498,12 @@ class AcmeIssuer(Issuer):
         for g in groups:
             self._prove(cl, g)
 
+    def _source_words(self, cl):
+        """The CA as a person knows it: the preset's name, else the directory URL."""
+        preset = str(self.c('directory') or 'letsencrypt')
+        return ac.DIRECTORY_WORDS.get(preset) if preset != 'custom' and \
+            ac.DIRECTORY_WORDS.get(preset) else cl.dir_url
+
     def _challenge_for(self, req, value, wild):
         chs = req.challenges or {}
         for k in (('*.' + value) if wild else value, value, value.lower()):
@@ -432,15 +517,19 @@ class AcmeIssuer(Issuer):
     def _prove(self, cl, group):
         try:
             for t in group:
+                if t.get('persist'):
+                    continue                # the record is there already, set once
                 self._say('%s: %s put in place%s' % (
                     t['shown'], t['type'].upper(),
                     (' (TXT _acme-challenge.%s = %s)' % (t['name'], t['txt']))
                     if t['type'] == 'dns-01' else ' (/.well-known/acme-challenge/%s)' % t['token']))
                 t['handle'] = t['mod'].present(t['name'], t['token'], t['keyauth'], t['txt'])
                 t['presented'] = True
-            self._wait_ready(group)
+            self._wait_ready([t for t in group if not t.get('persist')])
             for t in group:
-                self._say('%s: the CA is asked to check' % t['shown'])
+                self._say('%s: the CA is asked to check%s' % (
+                    t['shown'], ' (dns-persist-01: the record set once)' if t.get('persist')
+                    else ''))
                 cl.post_json(t['chal']['url'], {})
             for t in group:
                 cl.poll(t['url'], ('valid',), 'the CA did not accept %s' % t['shown'],

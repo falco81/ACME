@@ -1278,7 +1278,32 @@ class Cli(object):
             self._deploy_table(deps, target=False)
         if fam == 'challenge':
             self.http_info(row)
+            if row.get('kind') == 'dns_persist':
+                self.persist_info(row)
         return 0
+
+    def persist_info(self, row):
+        """dns-persist-01: the record for each ACME source, whether it is there, and
+        whether each CA offers it yet (POST /api/validations/persist)."""
+        got = (self.api('POST', '/api/validations/persist', body={'id': row['id']}) or {}).get(
+            'persist') or {}
+        p = self.pal
+        print(p.head('\nthe record to set once (dns-persist-01)'))
+        for c in got.get('cas') or []:
+            print('  %s %s' % (p.good('✔') if c.get('offered') else p.dim('·'), c.get('words')))
+        for r in got.get('records') or []:
+            rec = r.get('record') or {}
+            mark = p.good('✔') if r.get('ok') else p.bad('✘') if r.get('ok') is False else '?'
+            print('  %s %s (%s)%s' % (mark, r.get('title') or r['source'], r['source'],
+                                      (' ' + r['domain']) if r.get('domain') else ''))
+            if rec.get('value'):
+                print('      %s. TXT "%s"' % (rec['name'], rec['value']))
+            if r.get('error') or r.get('said'):
+                print('      ' + p.dim(r.get('error') or r.get('said')))
+        if not got.get('domains'):
+            print(p.dim('  set the domains of the validation to see the exact record'))
+        print(p.dim('  acme --validation-action %s record   makes the ACME accounts where there '
+                    'are none and prints the record' % row['name']))
 
     def http_info(self, row):
         """HTTP-01 answered by acme: how it works here (GET /api/validations/info)."""

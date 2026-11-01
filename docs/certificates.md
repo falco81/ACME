@@ -94,6 +94,31 @@ that names it (an own-CA source's authority). One event says what was
 renamed.
 `GET /api/certs/overview` says all four (`defaults`).
 
+### A certificate's names: the common name and the subjectAltNames
+
+The wizard's *Names* step is an editor of the subjectAltNames, a row each:
+its type (*DNS name*, *IP address*, *E-mail*, *URI*), its value, a button to
+take it out; *Add a name*, and *Paste many…* (one a line: an address is an IP
+address, with `@` an e-mail, with `://` a URI, anything else a DNS name). Each
+row is checked as it is typed and the reason said under it (not a name of that
+type, given twice, a type the source does not take, a name a public CA refuses
+- `a`, `nas.lan`); a wildcard says that it covers one level of names. Beside
+them the **common name (CN)**: empty, the first name; with *the CN is also a
+SAN* on it is one of the names. A public CA (ACME, DigiCert, SSLmarket) needs
+that (CA/B Forum: the CN is one of the SANs, 64 characters at most) - the
+switch is on and cannot be turned off there; a source of your own (an
+authority of acme's, self-signed, AD CS, SCEP, EST) may name the certificate
+otherwise than every SAN (a device, a service).
+
+Kept: `names` the DNS names and addresses (the ones a validation proves, as
+before), `profile.san_other` the e-mail and URI ones (`['email:it@firma.cz',
+'uri:https://firma.cz/id']`), `profile.subject.CN` the common name
+(`store.clean_names`, `store.clean_sans`: IDNA for DNS names, IPv4/v6, an
+e-mail of RFC 5322's plain form, an absolute URI). The request carries them
+all (`pki.make_csr`), an authority of acme's and self-signed put them all in.
+The certificate's page shows the CN apart and the SANs by their type. What a
+source takes is said in [validation.md](validation.md#what-fits-a-source-and-a-validation).
+
 ### Always current
 
 The pages keep what they asked of the daemon - the lists, the modules with

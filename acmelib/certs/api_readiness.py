@@ -11,6 +11,10 @@ in place (acmelib/certs/readiness.py) - the routes the pages ask.
     GET  /api/certs/dry_run_result?job=   what that dry run found (null while it runs)
     GET  /api/validations/setup?id=|name=  for each certificate that uses the
                               validation: its names, the records to create, their state
+    POST /api/validations/persist {id|name, register}   a dns-persist-01 validation:
+                              the record for each ACME source (its account made at the
+                              CA with register), whether it is there, whether each CA
+                              offers dns-persist-01 yet
 
 All of them for a certificate administrator (or a full one). A plan here
 gives up after PLAN_S seconds (what did not finish is said so).
@@ -137,3 +141,25 @@ def _setup(h, s):
                     'steps': steps})
     return {'validation': {'id': row['id'], 'name': row['name'], 'kind': row.get('kind')},
             'certs': out, 'more': max(0, len(certs) - SETUP_MOST)}
+
+
+@A.api('POST', '/api/validations/persist', 'certadmin')
+def _persist(h, s):
+    """The records a dns-persist-01 validation needs (challenges/dns_persist.py)."""
+    b = h.body()
+    ref = b.get('id') if b.get('id') not in (None, '', 0) else b.get('name')
+    row, inst, words = R.module(h.store, ref)
+    if not row:
+        raise LookupError('there is no such validation')
+    if inst is None:
+        raise ValueError(words)
+    if not callable(getattr(inst, 'overview', None)) or row.get('kind') != 'dns_persist':
+        raise ValueError('%s is not a dns-persist-01 validation' % row['name'])
+    register = bool(b.get('register'))
+    got = inst.overview(register=register, check=True)
+    for r in got['records']:
+        r.pop('issuer', None)
+    if register:
+        h.store.add_event('certificates', '%s: the ACME accounts its record names made where '
+                          'there were none, by %s' % (row['name'], A.who(s)), who=A.who(s))
+    return {'validation': {'id': row['id'], 'name': row['name']}, 'persist': got}

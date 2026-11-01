@@ -31419,6 +31419,634 @@
   "sca0050": {
    "source": "renewed (answer installed)",
    "text": "obnoveno (odpověď nainstalována)"
+  },
+  "scm0001": {
+   "source": "Commercial DigiCert, GeoTrust, Thawte and RapidSSL certificates through the CertCentral Services API: reissued inside a paid order, the DCV record put in place by the certificate's validation. New (paid) orders only when allowed.",
+   "text": "Komerční certifikáty DigiCert, GeoTrust, Thawte a RapidSSL přes CertCentral Services API: znovu vydané v rámci zaplacené objednávky, záznam DCV vloží validace certifikátu. Nové (placené) objednávky jen je-li to povoleno."
+  },
+  "scm0002": {
+   "source": "An order bought already (a multi-year plan): the certificate is reissued inside it, free. Empty: the order acme made last for the certificate.",
+   "text": "Již zakoupená objednávka (víceletý plán): certifikát se v ní znovu vydá, zdarma. Prázdné: objednávka, kterou acme pro certifikát vytvořilo naposledy."
+  },
+  "scm0003": {
+   "source": "Off: acme never buys anything - it only reissues inside orders paid already, and stops with words where a purchase would be needed (a new certificate, or a renewal order when the order ends).",
+   "text": "Vypnuto: acme nikdy nic nekupuje – jen znovu vydává v již zaplacených objednávkách a tam, kde by byl potřeba nákup (nový certifikát nebo obnovovací objednávka, když objednávka končí), se zastaví a řekne proč."
+  },
+  "scm0004": {
+   "source": "DigiCert, GeoTrust, Thawte and RapidSSL are all DigiCert's and ordered here. DV: the domain only; OV/EV: an organization validated in CertCentral.",
+   "text": "DigiCert, GeoTrust, Thawte i RapidSSL patří DigiCertu a objednávají se zde. DV: jen doména; OV/EV: organizace ověřená v CertCentral."
+  },
+  "scm0005": {
+   "source": "The organization of an OV/EV order (the action \"List the organizations\" shows them). Not used for DV.",
+   "text": "Organizace objednávky OV/EV (ukáže je akce „Vypsat organizace“). U DV se nepoužívá."
+  },
+  "scm0006": {
+   "source": "A multi-year plan: one order, the certificate reissued inside it (free) as each one ends.",
+   "text": "Víceletý plán: jedna objednávka, certifikát se v ní (zdarma) znovu vydá, kdykoli ten předchozí končí."
+  },
+  "scm0007": {
+   "source": "How DigiCert checks the domains. The certificate's validation must be able to put that record or file in place - the wizard offers only those that can.",
+   "text": "Jak DigiCert ověřuje domény. Validace certifikátu musí umět vložit ten záznam nebo soubor – průvodce nabídne jen ty, které to umí."
+  },
+  "scm0008": {
+   "source": "DNS TXT record (by the certificate's DNS validation)",
+   "text": "Záznam DNS TXT (vloží DNS validace certifikátu)"
+  },
+  "scm0009": {
+   "source": "DNS CNAME record (a DNS validation that writes CNAMEs)",
+   "text": "Záznam DNS CNAME (DNS validace, která umí zapisovat CNAME)"
+  },
+  "scm0010": {
+   "source": "HTTP file in /.well-known/pki-validation/ (an HTTP validation; no wildcards)",
+   "text": "Soubor HTTP v /.well-known/pki-validation/ (HTTP validace; bez wildcardů)"
+  },
+  "scm0011": {
+   "source": "E-mail (a person clicks; no validation needed)",
+   "text": "E-mail (člověk klikne; validace není potřeba)"
+  },
+  "scm0012": {
+   "source": "Shape of the DNS CNAME record",
+   "text": "Tvar záznamu DNS CNAME"
+  },
+  "scm0013": {
+   "source": "_dnsauth.DOMAIN → RANDOM.dcv.digicert.com",
+   "text": "_dnsauth.DOMÉNA → NÁHODNÁ.dcv.digicert.com"
+  },
+  "scm0014": {
+   "source": "RANDOM.DOMAIN → dcv.digicert.com",
+   "text": "NÁHODNÁ.DOMÉNA → dcv.digicert.com"
+  },
+  "scm0015": {
+   "source": "DCV for",
+   "text": "DCV pro"
+  },
+  "scm0016": {
+   "source": "each name (www.example.com)",
+   "text": "každé jméno (www.example.com)"
+  },
+  "scm0017": {
+   "source": "the registered domain (example.com) - covers its names",
+   "text": "registrovanou doménu (example.com) – pokryje její jména"
+  },
+  "scm0018": {
+   "source": "Skip domains validated already",
+   "text": "Přeskočit již ověřené domény"
+  },
+  "scm0019": {
+   "source": "A domain whose DCV in the account is still valid gets no DCV record.",
+   "text": "Doména, jejíž DCV v účtu stále platí, žádný záznam DCV nedostane."
+  },
+  "scm0020": {
+   "source": "Path: Domains of the account",
+   "text": "Cesta: domény účtu"
+  },
+  "scm0021": {
+   "source": "Path: Organizations",
+   "text": "Cesta: organizace"
+  },
+  "scm0022": {
+   "source": "Path: Who the key is",
+   "text": "Cesta: komu klíč patří"
+  },
+  "scm0023": {
+   "source": "List the organizations",
+   "text": "Vypsat organizace"
+  },
+  "scm0024": {
+   "source": "The organizations of the account (for an OV/EV order) with their IDs and validation.",
+   "text": "Organizace účtu (pro objednávku OV/EV) s jejich ID a ověřením."
+  },
+  "scm0025": {
+   "source": "List the products",
+   "text": "Vypsat produkty"
+  },
+  "scm0026": {
+   "source": "The products the account may order, with their name_id.",
+   "text": "Produkty, které účet smí objednat, s jejich name_id."
+  },
+  "scm0027": {
+   "source": "List the validated domains",
+   "text": "Vypsat ověřené domény"
+  },
+  "scm0028": {
+   "source": "The domains of the account and until when their DCV holds - those need no DCV record.",
+   "text": "Domény účtu a do kdy jejich DCV platí – ty žádný záznam DCV nepotřebují."
+  },
+  "scm0029": {
+   "source": "Key types the template takes",
+   "text": "Typy klíčů, které šablona přijímá"
+  },
+  "scm0030": {
+   "source": "What the template's Cryptography tab allows. The certificate's key type is checked against it before the CA is asked; a twin (dual certificate) needs both.",
+   "text": "Co dovoluje karta Kryptografie šablony. Typ klíče certifikátu se s tím porovná dřív, než se autority zeptá; dvojče (duální certifikát) potřebuje oba."
+  },
+  "scm0031": {
+   "source": "RSA and ECDSA (a template of schema 2 or later, Key Storage Provider)",
+   "text": "RSA i ECDSA (šablona schématu 2 a novější, Key Storage Provider)"
+  },
+  "scm0032": {
+   "source": "RSA only (a template of schema 1, e.g. WebServer, or a legacy CSP)",
+   "text": "Jen RSA (šablona schématu 1, např. WebServer, nebo starý CSP)"
+  },
+  "scm0033": {
+   "source": "ECDSA only",
+   "text": "Jen ECDSA"
+  },
+  "scm0034": {
+   "source": "Checking what fits this source…",
+   "text": "Ověřuji, co se k tomuto zdroji hodí…"
+  },
+  "scm0035": {
+   "source": "Changed to fit this source",
+   "text": "Změněno, aby se to hodilo k tomuto zdroji"
+  },
+  "scm0036": {
+   "source": "With this source, this no longer fits",
+   "text": "S tímto zdrojem se tohle už nehodí"
+  },
+  "scm0037": {
+   "source": "Everything chosen so far fits this source.",
+   "text": "Vše dosud zvolené se k tomuto zdroji hodí."
+  },
+  "scm0038": {
+   "source": "The twin is left out",
+   "text": "Dvojče se vynechá"
+  },
+  "scm0039": {
+   "source": "Every name the certificate is for (its subjectAltNames), each of its type, and its common name. ",
+   "text": "Všechna jména, pro která certifikát je (jeho subjectAltName), každé se svým typem, a jeho běžné jméno (CN). "
+  },
+  "scm0040": {
+   "source": "Common name (CN)",
+   "text": "Běžné jméno (CN)"
+  },
+  "scm0041": {
+   "source": "the CN is also a SAN",
+   "text": "CN je zároveň SAN"
+  },
+  "scm0042": {
+   "source": "A public CA puts in the common name only one of the names (CA/B Forum, 64 characters at most) - so the CN is also a SAN here. Empty: the first name.",
+   "text": "Veřejná autorita dá do běžného jména jen jedno ze jmen (CA/B Forum, nejvýš 64 znaků) – CN je tu tedy zároveň SAN. Prázdné: první jméno."
+  },
+  "scm0043": {
+   "source": "Empty: the first name. A source of your own may name it otherwise than every SAN (a device, a service) - switch \"the CN is also a SAN\" off for that.",
+   "text": "Prázdné: první jméno. Vlastní zdroj ho smí pojmenovat jinak než všechny SAN (zařízení, služba) – k tomu vypněte „CN je zároveň SAN“."
+  },
+  "scm0044": {
+   "source": "Names (subjectAltName)",
+   "text": "Jména (subjectAltName)"
+  },
+  "scm0045": {
+   "source": "Add a name",
+   "text": "Přidat jméno"
+  },
+  "scm0046": {
+   "source": "Paste many…",
+   "text": "Vložit více…"
+  },
+  "scm0047": {
+   "source": "One a line: an address is an IP address, with @ an e-mail, with :// a URI, anything else a DNS name.",
+   "text": "Jedno na řádek: adresa je IP adresa, s @ e-mail, s :// URI, cokoli jiného jméno DNS."
+  },
+  "scm0048": {
+   "source": "Add these",
+   "text": "Přidat tato"
+  },
+  "scm0049": {
+   "source": "URI",
+   "text": "URI"
+  },
+  "scm0050": {
+   "source": "not by this source",
+   "text": "tento zdroj ne"
+  },
+  "scm0051": {
+   "source": "Take this name out",
+   "text": "Odebrat toto jméno"
+  },
+  "scm0052": {
+   "source": "not an IP address",
+   "text": "není IP adresa"
+  },
+  "scm0053": {
+   "source": "an IP address - choose the type IP address",
+   "text": "IP adresa – zvolte typ IP adresa"
+  },
+  "scm0054": {
+   "source": "not a DNS name",
+   "text": "není jméno DNS"
+  },
+  "scm0055": {
+   "source": "not an e-mail address",
+   "text": "není e-mailová adresa"
+  },
+  "scm0056": {
+   "source": "not an absolute URI (scheme://host/...)",
+   "text": "není absolutní URI (schéma://host/...)"
+  },
+  "scm0057": {
+   "source": "this source puts no names of this type in its certificates",
+   "text": "tento zdroj jména tohoto typu do certifikátů nedává"
+  },
+  "scm0058": {
+   "source": "given twice",
+   "text": "zadáno dvakrát"
+  },
+  "scm0059": {
+   "source": "this source gives no wildcards",
+   "text": "tento zdroj nevydává wildcardy"
+  },
+  "scm0060": {
+   "source": "this source takes no IP addresses",
+   "text": "tento zdroj nebere IP adresy"
+  },
+  "scm0061": {
+   "source": "the common name is 64 characters at most",
+   "text": "běžné jméno má nejvýš 64 znaků"
+  },
+  "scm0062": {
+   "source": "this source needs the common name to be one of the names",
+   "text": "tento zdroj potřebuje, aby běžné jméno bylo jedním ze jmen"
+  },
+  "scm0063": {
+   "source": "not possible here",
+   "text": "zde nelze"
+  },
+  "scm0064": {
+   "source": "a wildcard covers one level of names under it: x.example.com, not a.b.example.com",
+   "text": "wildcard pokrývá jednu úroveň jmen pod sebou: x.example.com, ne a.b.example.com"
+  },
+  "scm0065": {
+   "source": "A public CA: the common name is one of the names (CA/B Forum).",
+   "text": "Veřejná autorita: běžné jméno je jedním ze jmen (CA/B Forum)."
+  },
+  "scm0066": {
+   "source": "does not fit",
+   "text": "nehodí se"
+  },
+  "scm0067": {
+   "source": "Not offered for this source and these names:",
+   "text": "Pro tento zdroj a tato jména se nenabízí:"
+  },
+  "scm0068": {
+   "source": "This does not fit yet - it cannot be created so",
+   "text": "Tohle se zatím nehodí – takto ho vytvořit nelze"
+  },
+  "scm0069": {
+   "source": "Create",
+   "text": "Vytvořit"
+  },
+  "scm0070": {
+   "source": "DNS names",
+   "text": "Jména DNS"
+  },
+  "scm0071": {
+   "source": "E-mail addresses",
+   "text": "E-mailové adresy"
+  },
+  "scm0072": {
+   "source": "URIs",
+   "text": "URI"
+  },
+  "scm0073": {
+   "source": "Take the wildcard out, or choose a source that gives wildcards",
+   "text": "Wildcard odeberte, nebo zvolte zdroj, který wildcardy vydává"
+  },
+  "scm0074": {
+   "source": "Take the address out, or choose a source that takes IP addresses",
+   "text": "Adresu odeberte, nebo zvolte zdroj, který IP adresy bere"
+  },
+  "scm0075": {
+   "source": "the common name is longer than 64 characters",
+   "text": "běžné jméno je delší než 64 znaků"
+  },
+  "scm0076": {
+   "source": "Make the common name one of the names (the CN is also a SAN), or leave it empty: the first name is taken",
+   "text": "Udělejte z běžného jména jedno ze jmen (CN je zároveň SAN), nebo ho nechte prázdné: vezme se první jméno"
+  },
+  "scm0077": {
+   "source": "Leave the twin out, or choose a source that gives one",
+   "text": "Dvojče vynechte, nebo zvolte zdroj, který ho dává"
+  },
+  "scm0078": {
+   "source": "Choose another twin",
+   "text": "Zvolte jiné dvojče"
+  },
+  "scm0079": {
+   "source": "Choose a validation for it",
+   "text": "Zvolte pro něj validaci"
+  },
+  "scm0080": {
+   "source": "Choose a validation that can prove it",
+   "text": "Zvolte validaci, která ho umí prokázat"
+  },
+  "scm0081": {
+   "source": "its folder does not end in /.well-known/acme-challenge, so acme cannot tell where /.well-known/pki-validation/ is on the web servers",
+   "text": "její složka nekončí /.well-known/acme-challenge, takže acme neví, kde je na webových serverech /.well-known/pki-validation/"
+  },
+  "scm0082": {
+   "source": "It fits together: the names and the source",
+   "text": "Hodí se to k sobě: jména a zdroj"
+  },
+  "scm0083": {
+   "source": "It fits together: the source",
+   "text": "Hodí se to k sobě: zdroj"
+  },
+  "scm0084": {
+   "source": "It fits together: the source and the validation",
+   "text": "Hodí se to k sobě: zdroj a validace"
+  },
+  "scm0085": {
+   "source": "It fits together: the key type and the source",
+   "text": "Hodí se to k sobě: typ klíče a zdroj"
+  },
+  "scm0086": {
+   "source": "It fits together: the twin and the source",
+   "text": "Hodí se to k sobě: dvojče a zdroj"
+  },
+  "scm0087": {
+   "source": "DigiCert Basic OV (ssl_basic)",
+   "text": "DigiCert Basic OV (ssl_basic)"
+  },
+  "scm0088": {
+   "source": "DigiCert Basic EV (ssl_ev_basic)",
+   "text": "DigiCert Basic EV (ssl_ev_basic)"
+  },
+  "scm0089": {
+   "source": "DigiCert Secure Site OV (ssl_securesite_flex)",
+   "text": "DigiCert Secure Site OV (ssl_securesite_flex)"
+  },
+  "scm0090": {
+   "source": "DigiCert Secure Site EV (ssl_ev_securesite_flex)",
+   "text": "DigiCert Secure Site EV (ssl_ev_securesite_flex)"
+  },
+  "scm0091": {
+   "source": "DigiCert Secure Site Pro OV (ssl_securesite_pro)",
+   "text": "DigiCert Secure Site Pro OV (ssl_securesite_pro)"
+  },
+  "scm0092": {
+   "source": "DigiCert Secure Site Pro EV (ssl_ev_securesite_pro)",
+   "text": "DigiCert Secure Site Pro EV (ssl_ev_securesite_pro)"
+  },
+  "scm0093": {
+   "source": "GeoTrust TrueBusiness ID OV (ssl_geotrust_truebizid)",
+   "text": "GeoTrust TrueBusiness ID OV (ssl_geotrust_truebizid)"
+  },
+  "scm0094": {
+   "source": "GeoTrust TrueBusiness ID EV (ssl_ev_geotrust_truebizid)",
+   "text": "GeoTrust TrueBusiness ID EV (ssl_ev_geotrust_truebizid)"
+  },
+  "scm0095": {
+   "source": "GeoTrust Standard DV (ssl_dv_geotrust)",
+   "text": "GeoTrust Standard DV (ssl_dv_geotrust)"
+  },
+  "scm0096": {
+   "source": "GeoTrust QuickSSL Premium DV (ssl_dv_geotrust_flex)",
+   "text": "GeoTrust QuickSSL Premium DV (ssl_dv_geotrust_flex)"
+  },
+  "scm0097": {
+   "source": "GeoTrust Wildcard DV (wildcard_dv_geotrust)",
+   "text": "GeoTrust Wildcard DV (wildcard_dv_geotrust)"
+  },
+  "scm0098": {
+   "source": "GeoTrust Cloud DV (cloud_dv_geotrust)",
+   "text": "GeoTrust Cloud DV (cloud_dv_geotrust)"
+  },
+  "scm0099": {
+   "source": "Thawte SSL Webserver OV (ssl_thawte_webserver)",
+   "text": "Thawte SSL Webserver OV (ssl_thawte_webserver)"
+  },
+  "scm0100": {
+   "source": "Thawte SSL Webserver EV (ssl_ev_thawte_webserver)",
+   "text": "Thawte SSL Webserver EV (ssl_ev_thawte_webserver)"
+  },
+  "scm0101": {
+   "source": "Thawte SSL123 DV (ssl_dv_thawte)",
+   "text": "Thawte SSL123 DV (ssl_dv_thawte)"
+  },
+  "scm0102": {
+   "source": "RapidSSL Standard DV (ssl_dv_rapidssl)",
+   "text": "RapidSSL Standard DV (ssl_dv_rapidssl)"
+  },
+  "scm0103": {
+   "source": "DigiCert Encryption Everywhere DV (ssl_dv_ee)",
+   "text": "DigiCert Encryption Everywhere DV (ssl_dv_ee)"
+  },
+  "sdp0001": {
+   "source": "DNS record set once (dns-persist-01)",
+   "text": "DNS záznam nastavený jednou (dns-persist-01)"
+  },
+  "sdp0002": {
+   "source": "One TXT record at _validation-persist.DOMAIN, set once, lets acme's ACME account issue for the domain, its subdomains and wildcards - nothing to put in DNS at an order. Until the CA offers dns-persist-01, the fallback validation proves the names.",
+   "text": "Jeden záznam TXT na _validation-persist.DOMÉNA, nastavený jednou, dovolí ACME účtu acme vydávat pro doménu, její subdomény i wildcardy – při objednávce se do DNS nic nevkládá. Dokud CA dns-persist-01 nenabízí, jména prokazuje záložní validace."
+  },
+  "sdp0003": {
+   "source": "Domains with the record",
+   "text": "Domény se záznamem"
+  },
+  "sdp0004": {
+   "source": "Where the record stands: _validation-persist.DOMAIN. With \"subdomains and wildcards\" on, it covers every name under the domain. Empty: each name's registered domain (www.shop.example.co.uk: example.co.uk).",
+   "text": "Kde záznam stojí: _validation-persist.DOMÉNA. Se zapnutými „subdoménami a wildcardy“ pokrývá každé jméno pod doménou. Prázdné: registrovaná doména každého jména (www.shop.example.co.uk: example.co.uk)."
+  },
+  "sdp0005": {
+   "source": "Cover subdomains and wildcards (policy=wildcard)",
+   "text": "Pokrýt subdomény a wildcardy (policy=wildcard)"
+  },
+  "sdp0006": {
+   "source": "On: one record at the domain covers *.DOMAIN and every name under it. Off: a record at each name itself, and no wildcard.",
+   "text": "Zapnuto: jeden záznam u domény pokrývá *.DOMÉNA i každé jméno pod ní. Vypnuto: záznam u každého jména zvlášť a žádný wildcard."
+  },
+  "sdp0007": {
+   "source": "Valid until (persistUntil)",
+   "text": "Platí do (persistUntil)"
+  },
+  "sdp0008": {
+   "source": "Optional: a day (or a Unix time) after which the CA no longer takes the record. Empty: until you take the record away.",
+   "text": "Nepovinné: den (nebo Unixový čas), po kterém CA záznam už nebere. Prázdné: dokud záznam neodstraníte."
+  },
+  "sdp0009": {
+   "source": "Fallback validation",
+   "text": "Záložní validace"
+  },
+  "sdp0010": {
+   "source": "Proves the names while the CA does not offer dns-persist-01 (Let's Encrypt has not in production yet), and when the record is not right. acme switches to the record by itself once the CA offers it.",
+   "text": "Prokazuje jména, dokud CA nenabízí dns-persist-01 (Let's Encrypt v produkci zatím ne), a když záznam není v pořádku. Jakmile ho CA nabídne, acme na záznam přejde samo."
+  },
+  "sdp0011": {
+   "source": "Sources the record is for",
+   "text": "Zdroje, pro které záznam je"
+  },
+  "sdp0012": {
+   "source": "The ACME sources whose accounts the record names (one record each). Empty: every ACME source.",
+   "text": "ACME zdroje, jejichž účty záznam jmenuje (každý svým záznamem). Prázdné: každý ACME zdroj."
+  },
+  "sdp0013": {
+   "source": "The CA's issuer domain name",
+   "text": "Doménové jméno vydavatele (CA)"
+  },
+  "sdp0014": {
+   "source": "The name the record starts with. Empty: letsencrypt.org for Let's Encrypt; for another CA, what it says in the challenge once it offers it.",
+   "text": "Jméno, kterým záznam začíná. Prázdné: letsencrypt.org pro Let's Encrypt; u jiné CA to, co uvede ve výzvě, jakmile ji nabídne."
+  },
+  "sdp0015": {
+   "source": "For looking the record up - an override. Empty: Settings → DNS (Validation checks).",
+   "text": "Pro vyhledání záznamu – přepíše výchozí. Prázdné: Nastavení → DNS (Kontroly validace)."
+  },
+  "sdp0016": {
+   "source": "Make the record",
+   "text": "Vytvořit záznam"
+  },
+  "sdp0017": {
+   "source": "The record for each ACME source, the ACME account made at the CA where there is none yet.",
+   "text": "Záznam pro každý ACME zdroj; ACME účet se u CA vytvoří, kde ještě není."
+  },
+  "sdp0018": {
+   "source": "Look now (staging)",
+   "text": "Podívat se teď (staging)"
+  },
+  "sdp0019": {
+   "source": "An order made only to see whether the CA offers dns-persist-01 - at a staging CA only; nothing is issued.",
+   "text": "Objednávka jen kvůli zjištění, zda CA nabízí dns-persist-01 – jen u staging CA; nic se nevydá."
+  },
+  "sdp0020": {
+   "source": "The record to set once",
+   "text": "Záznam, který se nastaví jednou"
+  },
+  "sdp0021": {
+   "source": "One TXT record for each ACME account, at _validation-persist.DOMAIN. Several may stand at the same name - Let’s Encrypt and its staging have different accounts. Nothing is changed in your DNS.",
+   "text": "Jeden záznam TXT pro každý ACME účet, na _validation-persist.DOMÉNA. U stejného jména jich může být více – Let’s Encrypt a jeho staging mají různé účty. Ve vašem DNS se nic nemění."
+  },
+  "sdp0022": {
+   "source": "Making the accounts where there are none…",
+   "text": "Vytvářím účty, kde nejsou…"
+  },
+  "sdp0023": {
+   "source": "There is no ACME source: the record names an ACME account.",
+   "text": "Není tu žádný ACME zdroj: záznam jmenuje ACME účet."
+  },
+  "sdp0024": {
+   "source": "Set “Domains with the record” to see the exact record for each and check it.",
+   "text": "Nastavte „Domény se záznamem“ – pak uvidíte přesný záznam pro každou a jeho kontrolu."
+  },
+  "sdp0025": {
+   "source": "Until the CA offers dns-persist-01 (or while the record is not right), the fallback validation proves the names.",
+   "text": "Dokud CA nenabízí dns-persist-01 (nebo dokud záznam není v pořádku), jména prokazuje záložní validace."
+  },
+  "sdp0026": {
+   "source": "No fallback validation is chosen: until the CA offers dns-persist-01, no certificate can be issued with this validation.",
+   "text": "Není zvolena záložní validace: dokud CA nenabídne dns-persist-01, s touto validací nelze vydat žádný certifikát."
+  },
+  "sdp0027": {
+   "source": "the record",
+   "text": "záznam"
+  },
+  "sdp0028": {
+   "source": "An ACME source names the account the record is for",
+   "text": "ACME zdroj určuje účet, pro který záznam je"
+  },
+  "sdp0029": {
+   "source": "Add an ACME source (Let's Encrypt) - the record names its account",
+   "text": "Přidejte ACME zdroj (Let's Encrypt) – záznam jmenuje jeho účet"
+  },
+  "sdp0030": {
+   "source": "Correct the source",
+   "text": "Opravte zdroj"
+  },
+  "sdp0031": {
+   "source": "Press \"Make the record\" at the validation (or acme --validation-action NAME record): the account is made and the record shown - an order makes it too",
+   "text": "Stiskněte „Vytvořit záznam“ u validace (nebo acme --validation-action JMÉNO record): účet se vytvoří a záznam se zobrazí – vytvoří ho i objednávka"
+  },
+  "sdp0032": {
+   "source": "Set \"The CA's issuer domain name\" in the validation, or wait until the CA offers dns-persist-01 (its challenge says it)",
+   "text": "Nastavte u validace „Doménové jméno vydavatele (CA)“, nebo počkejte, až CA nabídne dns-persist-01 (uvede ho ve výzvě)"
+  },
+  "sdp0033": {
+   "source": "The CA offers dns-persist-01",
+   "text": "CA nabízí dns-persist-01"
+  },
+  "sdp0034": {
+   "source": "The record covers wildcards",
+   "text": "Záznam pokrývá wildcardy"
+  },
+  "sdp0035": {
+   "source": "policy=wildcard is off",
+   "text": "policy=wildcard je vypnuté"
+  },
+  "sdp0036": {
+   "source": "Turn on \"Cover subdomains and wildcards\"",
+   "text": "Zapněte „Pokrýt subdomény a wildcardy“"
+  },
+  "sdp0037": {
+   "source": "A fallback validation proves the names until the CA offers dns-persist-01",
+   "text": "Záložní validace prokazuje jména, dokud CA nenabídne dns-persist-01"
+  },
+  "sdp0038": {
+   "source": "no fallback validation is chosen",
+   "text": "není zvolena žádná záložní validace"
+  },
+  "sdp0039": {
+   "source": "Choose a fallback validation (DNS-01 or HTTP-01) in this validation",
+   "text": "Zvolte v této validaci záložní validaci (DNS-01 nebo HTTP-01)"
+  },
+  "sdp0040": {
+   "source": "The fallback validation can be used",
+   "text": "Záložní validaci lze použít"
+  },
+  "sdp0041": {
+   "source": "Choose another fallback validation",
+   "text": "Zvolte jinou záložní validaci"
+  },
+  "sdp0042": {
+   "source": "Choose a DNS-01 fallback validation",
+   "text": "Zvolte záložní validaci DNS-01"
+  },
+  "sdp0043": {
+   "source": "its steps follow",
+   "text": "její kroky následují"
+  },
+  "sdp0044": {
+   "source": "The fallback validation can say what it needs",
+   "text": "Záložní validace umí říct, co potřebuje"
+  },
+  "sdp0045": {
+   "source": "The name can be proved by dns-persist-01",
+   "text": "Jméno lze prokázat přes dns-persist-01"
+  },
+  "sdp0046": {
+   "source": "there is no TXT record at the name",
+   "text": "u jména není žádný záznam TXT"
+  },
+  "sdp0047": {
+   "source": "no dns-persist-01 record among the TXT records there",
+   "text": "mezi tamními záznamy TXT není žádný záznam dns-persist-01"
+  },
+  "sdp0048": {
+   "source": "the record has no accounturi",
+   "text": "záznam nemá accounturi"
+  },
+  "sdp0049": {
+   "source": "policy=wildcard is missing: without it the record covers only its own name, not wildcards or names under it",
+   "text": "chybí policy=wildcard: bez něj záznam pokrývá jen vlastní jméno, ne wildcardy ani jména pod ním"
+  },
+  "sdp0050": {
+   "source": "a wildcard needs policy=wildcard - turn on \"Cover subdomains and wildcards\"",
+   "text": "wildcard potřebuje policy=wildcard – zapněte „Pokrýt subdomény a wildcardy“"
+  },
+  "sdp0051": {
+   "source": "there is no ACME source: the record names an ACME account",
+   "text": "není tu žádný ACME zdroj: záznam jmenuje ACME účet"
+  },
+  "sdp0052": {
+   "source": "this ACME source does not use dns-persist-01 - choose another validation",
+   "text": "tento ACME zdroj dns-persist-01 nepoužívá – zvolte jinou validaci"
+  },
+  "sdp0053": {
+   "source": "an IP address cannot be proved by DNS (dns-persist-01) - choose an HTTP-01 validation for it",
+   "text": "IP adresu nelze prokázat přes DNS (dns-persist-01) – zvolte pro ni validaci HTTP-01"
+  },
+  "sdp0054": {
+   "source": "DNS-PERSIST-01 (a TXT record set once)",
+   "text": "DNS-PERSIST-01 (záznam TXT nastavený jednou)"
   }
  },
  "patterns": {
@@ -40377,6 +41005,266 @@
   "pca0014": {
    "source": "it ends with the authority above it ({0}), before the days asked",
    "text": "končí s nadřazenou autoritou ({0}), dřív než za požadovaný počet dní"
+  },
+  "pcm0001": {
+   "source": "The key is now {0}",
+   "text": "Klíč je teď {0}"
+  },
+  "pcm0002": {
+   "source": "Back to {0}",
+   "text": "Zpět na {0}"
+  },
+  "pcm0003": {
+   "source": "{0} is a private or reserved address - a public CA issues only for public addresses",
+   "text": "{0} je soukromá nebo vyhrazená adresa – veřejná autorita vydává jen pro veřejné adresy"
+  },
+  "pcm0004": {
+   "source": "{0} is a single label, not a fully qualified name - a public CA needs one like {1}",
+   "text": "{0} je jediný štítek, ne plně kvalifikované jméno – veřejná autorita potřebuje jméno jako {1}"
+  },
+  "pcm0005": {
+   "source": "{0} does not end in a top-level domain",
+   "text": "{0} nekončí doménou nejvyššího řádu"
+  },
+  "pcm0006": {
+   "source": "{0} ends in .{1}, a name that is never public - a public CA does not issue for it",
+   "text": "{0} končí na .{1}, jméno, které nikdy není veřejné – veřejná autorita pro něj nevydává"
+  },
+  "pcm0007": {
+   "source": "Use the full public name (e.g. {0}.example.com), or take an authority of your own, AD CS or self-signed for internal names",
+   "text": "Použijte plné veřejné jméno (např. {0}.example.com), nebo pro interní jména vlastní autoritu, AD CS či certifikát podepsaný sám sebou"
+  },
+  "pcm0008": {
+   "source": "{0} is not a DNS name or an IP address",
+   "text": "{0} není jméno DNS ani IP adresa"
+  },
+  "pcm0009": {
+   "source": "{0} gives no wildcard certificates",
+   "text": "{0} nevydává wildcard certifikáty"
+  },
+  "pcm0010": {
+   "source": "{0} gives no certificates for IP addresses",
+   "text": "{0} nevydává certifikáty pro IP adresy"
+  },
+  "pcm0011": {
+   "source": "a wildcard can only be proved by DNS, and {0} checks the domain by {1} - choose a DNS method of validation (DCV) in the source",
+   "text": "wildcard lze prokázat jen přes DNS a {0} ověřuje doménu přes {1} – zvolte ve zdroji metodu ověření (DCV) přes DNS"
+  },
+  "pcm0012": {
+   "source": "an IP address can only be proved by HTTP, and {0} checks by {1}",
+   "text": "IP adresu lze prokázat jen přes HTTP a {0} ověřuje přes {1}"
+  },
+  "pcm0013": {
+   "source": "a wildcard can only be proved by DNS: {0} is an HTTP validation",
+   "text": "wildcard lze prokázat jen přes DNS: {0} je HTTP validace"
+  },
+  "pcm0014": {
+   "source": "an IP address can only be proved by HTTP-01: {0} is a DNS validation",
+   "text": "IP adresu lze prokázat jen přes HTTP-01: {0} je DNS validace"
+  },
+  "pcm0015": {
+   "source": "{0} cannot put {1} in place, which {2} checks",
+   "text": "{0} neumí vložit {1}, což {2} ověřuje"
+  },
+  "pcm0016": {
+   "source": "the module {0} of the source {1} is missing",
+   "text": "chybí modul {0} zdroje {1}"
+  },
+  "pcm0017": {
+   "source": "the validation {0} is switched off",
+   "text": "validace {0} je vypnutá"
+  },
+  "pcm0018": {
+   "source": "{0} puts no {1} names in its certificates (only {2})",
+   "text": "{0} nedává do certifikátů jména typu {1} (jen {2})"
+  },
+  "pcm0019": {
+   "source": "Take {0} out, or choose an authority of your own, AD CS or self-signed",
+   "text": "Odeberte {0}, nebo zvolte vlastní autoritu, AD CS či certifikát podepsaný sám sebou"
+  },
+  "pcm0020": {
+   "source": "{0} puts in the common name only one of the certificate's names (CA/B Forum) - {1} is not one of them",
+   "text": "{0} dává do běžného jména jen jedno ze jmen certifikátu (CA/B Forum) – {1} mezi nimi není"
+  },
+  "pcm0021": {
+   "source": "{0} issues for IP addresses only in its \"{1}\" profile (certificates of 6 days)",
+   "text": "{0} vydává pro IP adresy jen v profilu „{1}“ (certifikáty na 6 dní)"
+  },
+  "pcm0022": {
+   "source": "Set the ACME profile to {0} (Profile step, or the source), or take the addresses out",
+   "text": "Nastavte profil ACME na {0} (krok Profil, nebo ve zdroji), nebo adresy odeberte"
+  },
+  "pcm0023": {
+   "source": "{0} signs {1} keys only",
+   "text": "{0} podepisuje jen klíče {1}"
+  },
+  "pcm0024": {
+   "source": "{0} does not sign a {1} key",
+   "text": "{0} nepodepisuje klíč {1}"
+  },
+  "pcm0025": {
+   "source": "Choose one of: {0}",
+   "text": "Zvolte jeden z: {0}"
+  },
+  "pcm0026": {
+   "source": "{0} gives no twin (a second certificate with another kind of key)",
+   "text": "{0} nedává dvojče (druhý certifikát s jiným druhem klíče)"
+  },
+  "pcm0027": {
+   "source": "{0} does not sign a {1} key (the twin)",
+   "text": "{0} nepodepisuje klíč {1} (dvojče)"
+  },
+  "pcm0028": {
+   "source": "Choose a DNS validation for {0}",
+   "text": "Zvolte pro {0} DNS validaci"
+  },
+  "pcm0029": {
+   "source": "acme's own DNS server answers only its own zones ({0}): {1} is in your DNS, so the CA's DCV record cannot be put there through it - choose a validation that writes to your DNS (an API, RFC 2136), or delegate that name to acme by NS",
+   "text": "vlastní DNS server acme odpovídá jen za své zóny ({0}): {1} je ve vašem DNS, takže záznam DCV autority přes něj vložit nelze – zvolte validaci, která zapisuje do vašeho DNS (API, RFC 2136), nebo to jméno delegujte na acme přes NS"
+  },
+  "pcm0030": {
+   "source": "acme-dns writes only the ACME TXT record at its account's name - not a CA's own DCV record ({0})",
+   "text": "acme-dns zapisuje jen záznam ACME TXT u jména svého účtu – ne vlastní záznam DCV autority ({0})"
+  },
+  "pcm0031": {
+   "source": "this server answers only /.well-known/acme-challenge/ and /.well-known/pki-validation/, not {0}",
+   "text": "tento server odpovídá jen na /.well-known/acme-challenge/ a /.well-known/pki-validation/, ne {0}"
+  },
+  "pcm0032": {
+   "source": "{0} checks the domain in no way a validation can help with",
+   "text": "{0} ověřuje doménu způsobem, se kterým validace nepomůže"
+  },
+  "pcm0033": {
+   "source": "it does not fit together: {0}",
+   "text": "nehodí se to k sobě: {0}"
+  },
+  "pdp0001": {
+   "source": "The dns-persist-01 record names the account at {0}",
+   "text": "Záznam dns-persist-01 jmenuje účet u {0}"
+  },
+  "pdp0002": {
+   "source": "The dns-persist-01 record for {0}",
+   "text": "Záznam dns-persist-01 pro {0}"
+  },
+  "pdp0003": {
+   "source": "acme has an ACME account at {0}",
+   "text": "acme má ACME účet u {0}"
+  },
+  "pdp0004": {
+   "source": "the record names the account, and {0} has none yet",
+   "text": "záznam jmenuje účet a {0} zatím žádný nemá"
+  },
+  "pdp0005": {
+   "source": "the issuer domain name of {0} is not known yet",
+   "text": "doménové jméno vydavatele {0} zatím není známo"
+  },
+  "pdp0006": {
+   "source": "Set this TXT record once in your DNS (other TXT records at the name stay - one for each account): {0}. TXT \"{1}\"",
+   "text": "Nastavte jednou ve svém DNS tento záznam TXT (ostatní záznamy TXT u jména zůstávají – jeden pro každý účet): {0}. TXT \"{1}\""
+  },
+  "pdp0007": {
+   "source": "offered by {0} since {1}",
+   "text": "{0} nabízí od {1}"
+  },
+  "pdp0008": {
+   "source": "not offered by {0} yet - last looked {1}",
+   "text": "{0} zatím nenabízí – naposledy zjišťováno {1}"
+  },
+  "pdp0009": {
+   "source": "not known yet whether {0} offers it - its next order shows it",
+   "text": "zatím není známo, zda to {0} nabízí – ukáže to jeho příští objednávka"
+  },
+  "pdp0010": {
+   "source": "Until the CA offers dns-persist-01, {0} proves the names",
+   "text": "Dokud CA nenabídne dns-persist-01, jména prokazuje {0}"
+  },
+  "pdp0011": {
+   "source": "The fallback validation proves {0}",
+   "text": "Záložní validace prokazuje {0}"
+  },
+  "pdp0012": {
+   "source": "a wildcard needs DNS-01, and {0} is not",
+   "text": "wildcard potřebuje DNS-01 a {0} jím není"
+  },
+  "pdp0013": {
+   "source": "the CA does not offer dns-persist-01 yet - used {0}",
+   "text": "CA zatím nenabízí dns-persist-01 – použita {0}"
+  },
+  "pdp0014": {
+   "source": "{0} offers dns-persist-01 - the first time acme sees it",
+   "text": "{0} nabízí dns-persist-01 – acme to vidí poprvé"
+  },
+  "pdp0015": {
+   "source": "{0}: the CA offers dns-persist-01, but {1} - used {2}",
+   "text": "{0}: CA nabízí dns-persist-01, ale {1} – použita {2}"
+  },
+  "pdp0016": {
+   "source": "{0}: dns-persist-01 - {1}",
+   "text": "{0}: dns-persist-01 – {1}"
+  },
+  "pdp0017": {
+   "source": "the record to set: {0}. TXT \"{1}\"",
+   "text": "záznam k nastavení: {0}. TXT \"{1}\""
+  },
+  "pdp0018": {
+   "source": "{0} names this account",
+   "text": "{0} jmenuje tento účet"
+  },
+  "pdp0019": {
+   "source": "no ACME account at {0} yet - \"Make the record\" makes it",
+   "text": "u {0} zatím není ACME účet – vytvoří ho „Vytvořit záznam“"
+  },
+  "pdp0020": {
+   "source": "the fallback validation {0} is not there or switched off",
+   "text": "záložní validace {0} neexistuje nebo je vypnutá"
+  },
+  "pdp0021": {
+   "source": "The source {0} can be used",
+   "text": "Zdroj {0} lze použít"
+  },
+  "pdp0022": {
+   "source": "the record names the account {0}, not this one ({1})",
+   "text": "záznam jmenuje účet {0}, ne tento ({1})"
+  },
+  "pdp0023": {
+   "source": "persistUntil={0} ran out on {1}",
+   "text": "persistUntil={0} vypršelo {1}"
+  },
+  "pdp0024": {
+   "source": "persistUntil runs out on {0}",
+   "text": "persistUntil vyprší {0}"
+  },
+  "pdp0025": {
+   "source": "no record names {0} (the records there name {1})",
+   "text": "žádný záznam nejmenuje {0} (tamní záznamy jmenují {1})"
+  },
+  "pdp0026": {
+   "source": "the record cannot be read: {0}",
+   "text": "záznam nelze přečíst: {0}"
+  },
+  "pdp0027": {
+   "source": "{0} could not be looked up: {1}",
+   "text": "{0} nešlo vyhledat: {1}"
+  },
+  "pdp0028": {
+   "source": "the record is right: {0}",
+   "text": "záznam je v pořádku: {0}"
+  },
+  "pdp0029": {
+   "source": "the record is not right yet (the fallback {0} proves the names meanwhile): {1}",
+   "text": "záznam zatím není v pořádku (mezitím jména prokazuje záložní {0}): {1}"
+  },
+  "pdp0030": {
+   "source": "dns-persist-01 works only with an ACME source (Let's Encrypt and other ACME CAs): this source checks the domain its own way ({0}) - choose another validation",
+   "text": "dns-persist-01 funguje jen s ACME zdrojem (Let's Encrypt a další ACME CA): tento zdroj ověřuje doménu po svém ({0}) – zvolte jinou validaci"
+  },
+  "pdp0031": {
+   "source": "{0} does not offer dns-persist-01 yet (it offers {1}) and the validation {2} has no fallback - choose a fallback validation",
+   "text": "{0} zatím nenabízí dns-persist-01 (nabízí {1}) a validace {2} nemá zálohu – zvolte záložní validaci"
+  },
+  "pdp0032": {
+   "source": "{0}: not asked - an order only to look is made at a staging CA only; its next real order shows it",
+   "text": "{0}: nedotázáno – objednávka jen pro zjištění se dělá jen u staging CA; ukáže to jeho příští skutečná objednávka"
   }
  },
  "rich": {

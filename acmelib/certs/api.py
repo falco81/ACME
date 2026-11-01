@@ -531,7 +531,7 @@ def _cert_auto(h, s):
 @api('POST', '/api/certs/compat')
 def _cert_compat(h, s):
     """What fits: {names, issuer, challenge, challenge_map, key_type, key_type_alt} ->
-    {ok, problems, source, names, validations, key_types, twin} (compat.options) -
+    {fits, problems, source, names, validations, key_types, twin} (compat.options) -
     for the wizard, which greys what does not fit with the reason. Read-only."""
     b = h.body()
     names = b.get('names') or []

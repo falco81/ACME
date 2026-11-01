@@ -76,6 +76,7 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `acme_dns` | an [acme-dns](https://github.com/joohoi/acme-dns) server | account(s); `_acme-challenge.NAME CNAME <fulldomain>` once |
 | `ssh_dns` | commands on the DNS server over SSH: `nsupdate -l`, `nsupdate -k`, PowerShell `Add-DnsServerResourceRecord` (Windows DNS via OpenSSH), or your own (edit a zone file + `rndc reload`) | an SSH account there (sudo optional) |
 | `script` | a program on this machine (`present`/`cleanup`, dehydrated- or lego-style), `ACME_*` variables | the program |
+| `dns_persist` | **dns-persist-01**: one TXT record at `_validation-persist.DOMAIN`, set once, names the ACME account - no record per order, wildcards and subdomains with `policy=wildcard`; a fallback validation while the CA does not offer it ([below](#a-record-set-once-dns-persist-01-dns_persist)) | an ACME source; the record put in your DNS once |
 | `manual` | shows the record to put in by hand; waits until the zone's name servers have it (or until it is confirmed) | someone there |
 | `http_local` | HTTP-01 answered by acme's own nginx on port 80 | the name pointing at acme, port 80 open |
 | `http_ssh` | HTTP-01: the token file written over SSH on **every** web server the name points at | an SSH account on each, the nginx block below |
@@ -114,6 +115,83 @@ its own away again, so `example.com` and `*.example.com` (one TXT name, two
 values), or two renewals at once, do not take each other's records away.
 (acme-dns keeps only the newest two values per account: give a certificate
 with more names one account per name - the `accounts` field.)
+
+## A record set once: dns-persist-01 (`dns_persist`)
+
+[draft-ietf-acme-dns-persist](https://datatracker.ietf.org/doc/draft-ietf-acme-dns-persist/)
+(announced by Let's Encrypt in February 2026, planned for production in 2026)
+proves a domain with **one TXT record that stays**: it names the CA and the
+ACME account allowed to issue, and nothing changes in DNS at an order - no
+token, no DNS credentials in acme. At an order the authorization offers a
+challenge of the type `dns-persist-01` carrying `issuer-domain-names`; acme
+checks the record and answers the challenge with `{}`; the CA looks the record
+up itself.
+
+```
+_validation-persist.example.com.  TXT  "letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/1234567; policy=wildcard"
+```
+
+| Part | Meaning |
+|---|---|
+| `letsencrypt.org` | the CA's issuer domain name - one of the challenge's `issuer-domain-names` (Let's Encrypt and its staging: `letsencrypt.org`) |
+| `accounturi=` | the URL of the ACME account (required) - acme shows it, the account made where there is none yet |
+| `policy=wildcard` | optional: the record also covers `*.example.com` and every name under the domain (`www.example.com`, `a.b.example.com`) |
+| `persistUntil=` | optional: a Unix time after which the CA no longer takes the record |
+
+The syntax is that of a CAA issuer value (RFC 8659): the domain name first,
+then `; tag=value` parameters (tags without regard to case, unknown ones
+ignored, no spaces inside a value). **Several TXT records may stand at the
+name** - one for each account: Let's Encrypt and its staging have different
+account URLs, so a source of each needs its own record, and other TXT records
+there stay.
+
+**Settings** of the validation: *Domains with the record* (where the record
+stands; empty: each name's registered domain), *Cover subdomains and
+wildcards* (`policy=wildcard`, on by default; off: a record at each name
+itself and no wildcard), *Valid until* (`persistUntil`, a day or a Unix
+time), *Fallback validation*, and under More the sources the record is for
+(empty: every ACME source) and the CA's issuer domain name (empty:
+`letsencrypt.org` for Let's Encrypt; for another CA what its challenge says).
+
+**What to set**: the validation's page (Certificates → Validation → the
+validation) shows the exact record for each ACME source, with a copy button
+for the name, the type and the value; *Make the record* makes the ACME account
+at the CA where the source has none yet (as the first order would). The
+readiness guide of a certificate (the wizard, *Check*, the precheck before the
+CA is asked) shows the record for the certificate's own source. On the
+command line: `acme --validation-show NAME` prints it, `acme --validation-action
+NAME record` makes the accounts and prints it.
+
+**The check** (Test, the guide) looks the record up through Settings → DNS
+(*Validation checks*, or the validation's own resolvers) at the name itself,
+then at each domain above it up to the record's domain - a record above the
+name counts only with `policy=wildcard` - and says exactly what is wrong: no
+record, a record of another CA, a record that cannot be read (syntax), another
+account URI, `policy=wildcard` missing for a wildcard or a name under the
+domain, `persistUntil` run out (and when it runs out within 30 days).
+
+**At an order**, for each authorization:
+
+1. The CA offers `dns-persist-01` and the record is right: acme answers the
+   challenge (`POST {}`), puts nothing in place, waits for nothing.
+2. The CA offers it, the record is not right: the fallback proves the name and
+   the job says what is wrong and the record to set (without a fallback the
+   order fails with that).
+3. The CA does not offer it (Let's Encrypt in production until it launches):
+   the fallback validation proves the name, the job says *the CA does not
+   offer dns-persist-01 yet - used FALLBACK*. Once the CA offers it, acme
+   switches by itself - nothing to change.
+
+When a CA was **first seen offering it** is kept in the validation's state,
+per CA (its directory URL), and shown on its page: *offered by Let's Encrypt
+since 2026-…*, or *not offered by Let's Encrypt yet - last looked …*. The real
+orders are the probe; no order is made only to look - except *Look now
+(staging)*, which orders at a **staging** CA only (nothing is issued, its
+authorizations are deactivated again).
+
+It works only with an ACME source that takes it (the `acme` module): any other
+source - a commercial CA's DCV, AD CS - is told so when the validation is
+chosen (it does not fit). An IP address cannot be proved by it.
 
 ## Before the first certificate: what acme checks and tells you
 
@@ -175,6 +253,72 @@ Certificates → Jobs, its steps live.
 Before the **first** certificate of a certificate (and after a renewal that
 failed on its validation) the renewer runs the same check by itself, and
 does not ask the CA while something blocks - [certificates.md](certificates.md#before-the-first-certificate-what-acme-checks-and-tells-you).
+
+## What fits: a source and a validation
+
+Not every validation can prove a name to every source. acme decides it in one
+place, `acmelib/certs/compat.py`, and the same answer is given everywhere: the
+wizard of a new certificate (and its edit) offers only what fits and greys
+the rest with the reason, `POST /api/certs/save` refuses with 400 and the
+words, `acme --cert-add` / `--cert-edit` and the portal's request refuse the
+same way, the readiness plan shows it as a blocking step, and the renewer
+fails in words instead of letting the CA refuse. `POST /api/certs/compat
+{names, issuer, challenge, challenge_map, key_type, key_type_alt, profile}`
+says it for the pages: `{fits, problems, source, names, validations, key_types,
+twin}`.
+
+**The vocabulary** (`base.PROOFS`). A source says which proofs prove a name to
+it (`Issuer.proofs_for(config)`); a validation which it can put in place
+(`Challenge.proofs_for(config)`, and `place_problem()` for a given record
+name or path):
+
+| Proof | What | Asked by |
+|---|---|---|
+| `acme-dns-01` | the ACME TXT record at `_acme-challenge.NAME` | ACME |
+| `acme-http-01` | the ACME file `/.well-known/acme-challenge/TOKEN` | ACME |
+| `txt-any` | a TXT record at any name, any value | DigiCert `dns-txt-token`, Sectigo/SSLmarket DNS |
+| `cname-any` | a CNAME at any name, to anywhere | DigiCert `dns-cname-token`, Sectigo CNAME |
+| `http-file-any` | a file at any path under `/.well-known/` | DigiCert `http-token`, Sectigo FILE |
+| `email` | an e-mail a person approves | DigiCert/Sectigo e-mail DCV: no validation at all |
+
+**What each validation can put in place:**
+
+| Validation | Proofs |
+|---|---|
+| every DNS provider's API (`ApiDns`, `RecordApiDns`, `route53`, `azure_dns`, `gcloud_dns`, `hetzner`, `ovh`, `powerdns`, ...), `script`, `ssh_dns` | `acme-dns-01`, `txt-any` |
+| `cloudflare`, `desec`, `rfc2136`, `manual` | `acme-dns-01`, `txt-any`, `cname-any` (their APIs write CNAMEs; `manual` says the record) |
+| `dns_builtin` (acme's own DNS server) | `acme-dns-01`; `txt-any` / `cname-any` **only for names inside acme's own zones** (delegated to it) - a commercial CA's `_dnsauth.NAME` sits in your DNS, where acme's server cannot write |
+| `acme_dns`, `duckdns` | `acme-dns-01` only (one TXT value at their own name) |
+| `http_local` | `acme-http-01`, `http-file-any` (under `/.well-known/pki-validation/`: nginx sends that path to `acme.php` too, the file kept 30 days in acme's database) |
+| `http_ssh` | `acme-http-01`, `http-file-any` when its folder ends in `/.well-known/acme-challenge` (the file goes beside it; *Prepare the hosts* serves `/.well-known/pki-validation/` too) |
+| `http_ftp`, `http_s3`, `http_azure_blob`, `http_webdav` | `acme-http-01`, `http-file-any` (uploaded under the same folder) |
+
+**The other rules:**
+
+* a **wildcard** only by a DNS proof (`acme-dns-01`, `txt-any`, `cname-any`);
+  an **IP address** only by an HTTP one, and only from a source that takes
+  addresses (`ip_names`; Let's Encrypt only in its `shortlived` profile -
+  letsencrypt.org/docs/profiles);
+* a **publicly trusted CA** (ACME presets, DigiCert, SSLmarket, GlobalSign)
+  takes only fully qualified names under a public suffix: no single label
+  (`intranet`, `a`), nothing under `.local`, `.internal`, `.lan`,
+  `.home.arpa`, `.localhost`, `.test`, `.invalid`, `.example`, `.corp`,
+  `.home`, ... and no private address. An authority of your own, self-signed,
+  AD CS, SCEP, EST, an ACME server of your own (*Another ACME server*) take
+  any;
+* the **common name** of a public CA is one of the names (at most 64
+  characters); e-mail and URI subjectAltNames only from a source that puts
+  them in (your own authority, self-signed, AD CS...);
+* the **key type** one the source signs (`Issuer.key_types_for`: SCEP RSA
+  only; AD CS as its template's *Key types the template takes*; a public CA no
+  Ed25519); the **twin** of a dual certificate only from a source that gives
+  one.
+
+A module of your own declares it the same way: an issuer `dcv` / `dcv_field`
+(its DCV methods and the proof each needs), `public_names`, `key_types`,
+`san_types`, `cn_free`; a challenge `proofs` and `place()` / `placed_ready()` /
+`unplace()` (base.py says how). A module that says nothing keeps its ACME
+types (`types`) and is refused for anything else.
 
 ## DNS providers with an API
 

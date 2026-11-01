@@ -101,9 +101,10 @@ they were shown keeps what is set.
 | `GET /api/certs/overview` | counts by state, what runs out soonest, recent jobs, expiry by week |
 | `GET /api/certs` `?search= &state= &issuer= &tag= &page= &per=` | `{rows, total}` |
 | `GET /api/certs/one?id=` | `{cert, versions, deploys, jobs}` - `cert.variants`: the main one and a dual certificate's twin side by side |
-| `POST /api/certs/save` | `{id?, name, names[], key_type, key_type_alt (a dual certificate's twin, '' none), issuer, challenge, challenge_map{}, auto_renew, renew_days, reuse_key, profile{}, tags[], note, owner}` → `{id}` |
+| `POST /api/certs/save` | `{id?, name, names[] (DNS names and IP addresses), cn? (profile.subject.CN), san_other? (e-mail / URI SANs: ['email:..', 'uri:..'], kept in profile.san_other), key_type, key_type_alt (a dual certificate's twin, '' none), issuer, challenge, challenge_map{}, auto_renew, renew_days, reuse_key, profile{}, tags[], note, owner}` → `{id}` |
 | `POST /api/certs/delete` | `{id}` |
 | `POST /api/certs/renew` | `{id, force}` → `{job_id}` |
+| `POST /api/certs/compat` | `{names, issuer, challenge, challenge_map, key_type, key_type_alt, profile}` → `{fits, problems, source, names, validations, key_types, twin}`: what fits together - each validation for each name, each key type, the twin - for the wizard (`acmelib/certs/compat.py`, [validation.md](validation.md#what-fits-a-source-and-a-validation)); `/api/certs/save` refuses with 400 what does not |
 | `POST /api/certs/plan` | `{names, issuer, challenge, challenge_map}` → `{plan}`: before a certificate, its names grouped by DNS zone, each group's validation, guide (steps ✔/✘/? with where, the record to create, what to do) and suggestions - read-only, at most 25 s (`acmelib/certs/api_readiness.py`, [validation.md](validation.md#before-the-first-certificate-what-acme-checks-and-tells-you)) |
 | `POST /api/certs/check` | `{id}` → `{plan}` the same for a certificate acme keeps (`plan.cert.precheck_blocked`: the renewer did not ask the CA because of it) |
 | `POST /api/certs/dry_run` · `GET /api/certs/dry_run_result?job=` | `{names, issuer, challenge, challenge_map}` or `{id}` → `{job_id}`: the validation tried for real without a CA, a job (kind `dry-run`) · `{result}` what it found, in the plan's shape (null while it runs) |

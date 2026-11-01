@@ -1159,7 +1159,8 @@ class TestRegistry(unittest.TestCase):
             self.assertTrue(d['fields'])
         self.assertFalse([b for b in reg.broken if 'issuers' in b[0]])
         self.assertTrue(reg.get('issuer', 'acme').needs_challenge)
-        self.assertEqual(reg.get('issuer', 'acme').challenge_types, ('dns-01', 'http-01'))
+        self.assertEqual(reg.get('issuer', 'acme').challenge_types,
+                         ('dns-01', 'http-01', 'dns-persist-01'))
 
 
 # ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ certificate with its chain, ordered and checked against the key. *Try it*
 | [Google Cloud CA Service](#google-cloud-ca-service) | `google_cas` | service account key | - | yes |
 | [FreeIPA / Red Hat IdM](#freeipa--red-hat-idm) | `freeipa` | user and password | - | yes |
 | [GlobalSign Atlas](#globalsign-atlas-hvca) | `globalsign_atlas` | mTLS + API key and secret | yes (kept for the next try) | yes |
-| [DigiCert CertCentral](#digicert-certcentral-api) | `digicert` | API key | yes (DCV, OV/EV: kept) | yes |
+| [DigiCert CertCentral](#digicert-certcentral-api) (DigiCert, GeoTrust, Thawte, RapidSSL) | `digicert` | API key | yes (DCV, OV/EV: kept) | yes |
 
 A request a CA keeps waiting is remembered in the module's state together
 with its key (sealed): the next try asks for it again instead of making a new
@@ -257,32 +257,95 @@ Uncertain: Atlas's answer for an unverified domain (it is said as it comes).
 
 ## DigiCert CertCentral (API)
 
-What it is: DigiCert's CertCentral Services API v2 - DigiCert, GeoTrust and
-RapidSSL certificates. (CertCentral also speaks ACME with EAB: the `acme`
-source, preset *DigiCert*.)
+What it is: DigiCert's CertCentral Services API v2 - the certificates of
+**DigiCert, GeoTrust, Thawte and RapidSSL**, all DigiCert's brands, all
+ordered through CertCentral.
 
-What acme does, and money: a certificate is **reissued inside an order paid
-already** - the one in *Order to reuse*, or the one acme made last for the
-certificate. A **new order is a purchase** and is made only when *Allow new
-orders (paid)* is on; otherwise the job stops with words saying so and
-nothing is bought. The DCV random value is put in place by the certificate's
-own challenge module (DNS TXT at `_dnsauth.<domain>` by default, or the HTTP
-file `/.well-known/pki-validation/fileauth.txt`), the DCV check asked for,
-the order polled; the records are taken away when it is issued. OV/EV orders
-waiting for validation are kept and asked for again at later tries.
+**ACME or the API?** CertCentral also speaks ACME with EAB: the `acme` source,
+preset *DigiCert (EAB - CertCentral, SSLmarket)*. Prefer it where it does the
+job - it is **fully automatic** (no orders, no random values: each name proved
+by DNS-01 or HTTP-01, renewed in the CA's own window), for DV and for OV/EV of
+an organization validated already in the account. Take this module where ACME
+cannot: an **OV/EV order of a chosen organization**, **multi-year plans**
+(one order, the certificate reissued inside it for free as each one ends), a
+brand's product chosen by name, **DCV by e-mail**. Thawte is also sold by
+SSLmarket - see [sslmarket.md](sslmarket.md) (its own module, `sslmarket`).
 
-Endpoints (each a setting under More): `POST /order/certificate/{product}`,
+### The brands and their products (`name_id`)
+
+| Brand | Product | `name_id` | Validation | Wildcards |
+|---|---|---|---|---|
+| DigiCert | Basic OV | `ssl_basic` | OV | also |
+| DigiCert | Basic EV | `ssl_ev_basic` | EV | no |
+| DigiCert | Secure Site OV | `ssl_securesite_flex` | OV | also |
+| DigiCert | Secure Site EV | `ssl_ev_securesite_flex` | EV | no |
+| DigiCert | Secure Site Pro OV / EV | `ssl_securesite_pro` / `ssl_ev_securesite_pro` | OV / EV | also / no |
+| DigiCert | Encryption Everywhere DV | `ssl_dv_ee` | DV | also |
+| GeoTrust | TrueBusiness ID OV / EV | `ssl_geotrust_truebizid` / `ssl_ev_geotrust_truebizid` | OV / EV | also / no |
+| GeoTrust | Standard DV | `ssl_dv_geotrust` | DV | no |
+| GeoTrust | QuickSSL Premium DV | `ssl_dv_geotrust_flex` | DV | also |
+| GeoTrust | Wildcard DV / Cloud DV | `wildcard_dv_geotrust` / `cloud_dv_geotrust` | DV | only / also |
+| Thawte | SSL Webserver OV / EV | `ssl_thawte_webserver` / `ssl_ev_thawte_webserver` | OV / EV | also / no |
+| Thawte | SSL123 DV | `ssl_dv_thawte` | DV | also |
+| RapidSSL | Standard DV | `ssl_dv_rapidssl` | DV | no |
+| RapidSSL | Wildcard DV | `wildcard_dv_rapidssl` | DV | only |
+
+Another product: *Another product (its name_id)*. The action **List the
+products** shows what the account may order. A product that takes no wildcard
+refuses one before anything is ordered; an OV/EV product needs the
+*Organization ID* (the action **List the organizations**) for a new order.
+
+### Money
+
+A certificate is **reissued inside an order paid already** (free) - the one
+in *Order to reuse*, or the one acme made last for the certificate. A **new
+order is a purchase** and is made only when *Allow new orders (paid)* is on;
+otherwise the job stops with words saying so and nothing is bought. When the
+order's validity ends (within a week), the new order is a **renewal order**
+of it (`renewal_of_order_id`) - again only with *Allow new orders (paid)*.
+
+### The domain validation (DCV) and which validations can do it
+
+DigiCert checks each domain its own way; the certificate's validation puts
+the record or file in place through the placement API every validation module
+keeps (`place` / `placed_ready` / `unplace` in `acmelib/plugins/base.py`;
+`acmelib/plugins/issuers/_dcv.py`), DigiCert is asked to look at once
+(`check-dcv`), and the records are taken away once it is issued. A pairing
+that cannot work is refused before anything is ordered - on the page, in the
+API, on the command line and by the renewer ([validation.md](validation.md#what-fits-a-source-and-a-validation)).
+
+| *Domain validation (DCV)* | DigiCert's method | What is put in place | Validations that can |
+|---|---|---|---|
+| DNS TXT record | `dns-txt-token` | TXT at `_dnsauth.DOMAIN` (or the domain itself: *Label*) holding the random value | every DNS provider's API (`desec`, `cloudflare`, `route53`, `wedos`, ... all `ApiDns`), `rfc2136`, `manual`, `script`, `ssh_dns`; acme's own DNS server only for names inside its own zones; **not** `acme_dns`, `duckdns` |
+| DNS CNAME record | `dns-cname-token` | CNAME `_dnsauth.DOMAIN` → `RANDOM.dcv.digicert.com` (or `RANDOM.DOMAIN` → `dcv.digicert.com`: *Shape*) | `desec`, `cloudflare`, `rfc2136`, `manual` (and acme's own DNS server inside its zones) |
+| HTTP file | `http-token` | `http://DOMAIN/.well-known/pki-validation/fileauth.txt` holding the random value | `http_local` (this server answers it, kept for 30 days), `http_ssh` (written beside the tokens; *Prepare the hosts* serves it), `http_ftp`, `http_s3`, `http_azure_blob`, `http_webdav`. Not for wildcards |
+| E-mail | `email` | nothing: DigiCert mails the domain's admin addresses, a person approves | no validation needed |
+
+**Domains validated already** in the account (their DCV still valid, `GET
+/domain`) get no record (*Skip domains validated already*). An order that
+waits (OV/EV validation, a DCV not seen yet) is **kept across runs**: the next
+try asks for it again, never orders twice, puts back what went away with the
+last job and asks DigiCert to look again.
+
+Endpoints (each a setting under More): `POST /order/certificate/{name_id}`,
 `POST /order/certificate/{order}/reissue`, `GET /order/certificate/{order}`,
-`PUT …/dcv-random-value`, `PUT …/check-dcv`,
+`PUT …/dcv-random-value`, `PUT …/check-dcv`, `GET /domain`,
+`GET /organization`, `GET /product`,
 `GET /certificate/download/order/{order}/format/pem_all`,
-`PUT /certificate/{id}/revoke`; header `X-DC-DEVKEY`. Source: DigiCert's
-developer pages (https://dev.digicert.com/en/certcentral-apis.html - not
-readable from where this was written; checked against the pages' contents as
-search engines show them).
+`PUT /certificate/{id}/revoke`, `GET /user/me`; header `X-DC-DEVKEY`.
+Sources: DigiCert's developer pages (https://dev.digicert.com - not readable
+from where this was written), cross-checked against code that speaks the API:
+github.com/sapcc/go-certcentral (paths), github.com/lexiconn-internet-services/digicert
+(the product `name_id`s), github.com/metorial/metorial
+`integrations/digicert/docs/API_RESEARCH.md` (bodies, answers, DCV endpoints),
+github.com/grindsa/acme2certifier `docs/digicert.md`. `test/test_digicert.py`
+lists every path the module may call (a contract test).
 
 Where to get credentials: CertCentral → Automation → API Keys. Check a
-product's `name_id` (Settings → Product settings) and an organization's id
-before the first paid order.
+product's `name_id` (Settings → Product settings, or *List the products*) and
+an organization's id before the first paid order.
 
 Uncertain: the shape of the answers between products, the reissue states, the
-TXT label (`_dnsauth` or the domain itself - a setting).
+TXT label (`_dnsauth` or the domain itself - a setting), the CNAME's shape (a
+setting), whether `GET /domain` filters by name (all are read, at most 1000),
+`renewal_of_order_id` on a renewal order.

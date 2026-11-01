@@ -1426,7 +1426,9 @@ class TestOtherModules(unittest.TestCase):
                 'mythic_beasts', 'infomaniak', 'alidns', 'tencentcloud', 'oci_dns',
                 'akamai_edgedns', 'dnsmadeeasy', 'gcore', 'netlify', 'vercel', 'namecom',
                 'namesilo', 'dynu', 'njalla', 'dreamhost', 'duckdns',
-                'http_ftp', 'http_s3', 'http_azure_blob', 'http_webdav'}
+                'http_ftp', 'http_s3', 'http_azure_blob', 'http_webdav',
+                # dns-persist-01, a record set once (test/test_dns_persist.py)
+                'dns_persist'}
         self.assertEqual(set(found), want)
         for kind, cls in found.items():
             d = cls.describe()

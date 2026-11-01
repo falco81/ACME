@@ -265,7 +265,7 @@ class TestMatrix(unittest.TestCase):
     def test_options_for_the_wizard(self):
         got = compat.options(self.st, ['www.firma.cz', '*.firma.cz'], 'DC txt', 'desec', {},
                              'ec-256', '', SETTINGS)
-        self.assertTrue(got['ok'], got['problems'])
+        self.assertTrue(got['fits'], got['problems'])
         by = {v['name']: v for v in got['validations']}
         self.assertTrue(by['desec']['ok'])
         self.assertFalse(by['builtin']['ok'])
@@ -569,7 +569,7 @@ class CompatDaemon(unittest.TestCase):
                                                           'challenge': 'This server HTTP-01'},
                             self.admin)
         self.assertEqual(st, 200, got)
-        self.assertFalse(got['ok'])
+        self.assertFalse(got['fits'])
         by = {v['name']: v for v in got['validations']}
         self.assertFalse(by['This server HTTP-01']['ok'])
         self.assertIn('wildcard', by['This server HTTP-01']['why'])

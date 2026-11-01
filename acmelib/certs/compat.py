@@ -8,7 +8,7 @@ each name and its key type - decided in one place, for every way in.
             'step': the wizard's step it belongs to ('source', 'names', 'key', 'validation'),
             'name': the name it is about (or None), 'validation': (or None),
             'what': what does not fit, in words, 'fix': what to do}
-    options(store, ...)  the same, and for the wizard what can be chosen: each
+    options(store, ...)  the same ({fits, problems, ...}), and for the wizard what can be chosen: each
                          validation with whether (and why not) it fits each name, each
                          key type, the twin
     words(problems)      one sentence of them all (the 400 of the API, the CLI)
@@ -25,6 +25,9 @@ The rules
   http-file-any, or e-mail and nothing at all), a validation what it can put in
   place (base.Challenge.proofs_for and place_problem): a name fits where they
   meet. A wildcard only by a DNS proof, an IP address only by an HTTP one.
+  dns-persist-01 (a TXT record set once, challenges/dns_persist.py) proves
+  names only to an ACME source that takes it: any other source is told so in
+  plain words (its place_problem).
 * The source takes the kind of name: wildcards, IP addresses (its ip_names);
   a publicly trusted CA (public_for) only fully qualified names under a public
   suffix - no single label ("intranet"), no .local, .internal, .lan, .home.arpa,
@@ -208,7 +211,9 @@ def allowed_proofs(info, name):
 
 
 def _proof_words(p):
-    return {'acme-dns-01': 'DNS-01', 'acme-http-01': 'HTTP-01', 'txt-any': 'a DNS TXT record',
+    return {'acme-dns-01': 'DNS-01', 'acme-http-01': 'HTTP-01',
+            'acme-dns-persist-01': 'DNS-PERSIST-01 (a TXT record set once)',
+            'txt-any': 'a DNS TXT record',
             'cname-any': 'a DNS CNAME record', 'http-file-any': 'an HTTP file'}.get(p, p)
 
 
@@ -468,7 +473,7 @@ def options(store, names, issuer, challenge=None, challenge_map=None, key_type=N
             key_type_alt=None, settings=None, profile=None):
     out = _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type_alt,
                     settings, all_validations=True, profile=profile)
-    out['ok'] = not out['problems']
+    out['fits'] = not out['problems']        # ('ok' is the API's own: the answer came)
     return out
 
 
