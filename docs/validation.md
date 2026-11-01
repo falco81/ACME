@@ -73,6 +73,7 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `njalla` | Njalla JSON-RPC API | an API token |
 | `dreamhost` | DreamHost DNS API | an API key with the dns-* functions |
 | `duckdns` | Duck DNS - **one TXT value per name** (proved one after another) | the account's token; your own names by CNAME to a duckdns.org name |
+| `webglobe` | Webglobe API (JWT sign-in; staging selectable); `txt-any` and `cname-any` for a commercial CA's DCV | login + an API key that allows acme's IP address |
 | `acme_dns` | an [acme-dns](https://github.com/joohoi/acme-dns) server | account(s); `_acme-challenge.NAME CNAME <fulldomain>` once |
 | `ssh_dns` | commands on the DNS server over SSH: `nsupdate -l`, `nsupdate -k`, PowerShell `Add-DnsServerResourceRecord` (Windows DNS via OpenSSH), or your own (edit a zone file + `rndc reload`) | an SSH account there (sudo optional) |
 | `script` | a program on this machine (`present`/`cleanup`, dehydrated- or lego-style), `ACME_*` variables | the program |
@@ -592,6 +593,41 @@ The CZECHIA.COM administration → **API**: the authorization token.
 is added and removed by itself (https://api.czechia.com/swagger/). The API
 has no call acme knows that only reads: the zone is found by its SOA (or
 set), *Test* cannot try the token, and **a dry run is the real test**.
+
+### Webglobe (`webglobe`)
+
+Webglobe administration (webglobe.cz / .sk) → **My account → API keys**: a
+new key for the login acme signs in as, with the **public IP address** (or
+network) acme calls from allowed - Webglobe refuses a key from every other
+address, and a key with none. The key is shown once: paste it as *API key*;
+*Login* is the e-mail of that login. Best a **sub-account** (*Users*) given
+only the domains acme needs, with a key of its own.
+
+acme signs in (`POST /auth/login {login, token}` → a JWT, kept for the run,
+signed in once more on a 401), finds the domain (`GET /domains`, the longest
+one the name is in; one not listed is asked for by name, `GET
+/domains/{name}`), writes one TXT record (`POST /{domainId}/dns {name, type,
+data, ttl}`) and keeps its id; cleanup deletes that id only (`DELETE
+/{domainId}/dns/{id}`), and only while it still is a TXT record holding acme's
+value at that name. *API*: production `https://api.webglobe.com` or staging
+`https://api.staging.core.webglobe.com` (or *API address*).
+
+**Two-factor sign-in**: an account with SMS, OTP or e-mail codes cannot sign
+in with its password from a machine (codes 1034, 24, 1382): use an API key.
+The remember-me sign-in (`/auth/remember-me`) needs a code once by hand, and
+acme does not use it.
+
+Source: the Webglobe API's OpenAPI description ("Webglobe API" 1.0; a copy in
+`test/fixtures/webglobe-openapi.yaml`). **Less certain**: the list of domains
+is described loosely (a map keyed by the domain's ID; it is read every way it
+may come, else set *Domain* or *Domain ID*); whether TXT data is sent bare
+(acme does so) and a CNAME's target with its final dot (acme does so);
+whether an API key signs in past two-factor sign-in (the description says the
+key replaces the password); the lowest TTL Webglobe takes (300 is used).
+
+```
+login: you@example.cz      API key: (the key)      domain: example.cz (or empty)
+```
 
 ### Other Central-European providers
 

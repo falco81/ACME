@@ -1208,11 +1208,262 @@ class TestUploads(unittest.TestCase):
                          world.files['web.example.net'])
 
 
+# ---------------------------------------------------------------------------
+# Webglobe (the shapes of test/fixtures/webglobe-openapi.yaml)
+# ---------------------------------------------------------------------------
+class WebglobeFake(Fake):
+    """The Webglobe API: a JWT from /auth/login, the domains keyed by ID,
+    one record a value under /{domainId}/dns, refusals as HTTP 400
+    {success: false, error: {code, message}}."""
+    BASE = 'https://api.webglobe.com'
+    IDS = {'example.com': 11, 'dev.example.com': 12, 'other.org': 13}
+
+    def __init__(self, test, listed=None, base=None):
+        Fake.__init__(self, test)
+        self.base = base or self.BASE
+        self.listed = dict(self.IDS) if listed is None else listed
+        self.logins = 0
+        self.jwts = set()
+        self.expired = set()
+        self.two_factor = False
+        self.deleted = []
+        self.other = [{'id': 7, 'zone': 'example.com', 'name': 'www.example.com', 'type': 'A',
+                       'data': '192.0.2.1'}]
+
+    def err(self, code, message, st=400):
+        return st, {'success': False, 'error': {'code': code, 'message': message}}
+
+    def zone_of_id(self, did):
+        return {v: k for k, v in self.IDS.items()}.get(int(did))
+
+    def handle(self, method, url, body, h):
+        self.t.assertTrue(url.startswith(self.base + '/'), url)
+        path = url[len(self.base):]
+        if path == '/auth/login':
+            self.t.assertEqual(method, 'POST')
+            self.t.assertNotIn('Authorization', h)
+            b = j(body)
+            if b.get('login') != 'me@example.cz' or (b.get('token') or b.get('password')) not in (
+                    'key1', 'pw1'):
+                return self.err(5, 'Incorrect login name or password.')
+            if 'password' in b and self.two_factor:
+                return self.err(24, 'One-time password is required.')
+            self.t.assertEqual(b.get('token'), 'key1')      # an API key, not a password
+            self.logins += 1
+            jwt = 'jwt-%d' % self.logins
+            self.jwts.add(jwt)
+            return 200, {'success': True, 'data': {
+                'token': jwt, 'token_type': 'bearer', 'expires_in': 3600,
+                'IDcustlogin': 123345, 'custlogin_name': 'me@example.cz'}}
+        auth = h.get('Authorization', '')
+        if not auth.startswith('Bearer ') or auth[7:] not in self.jwts or \
+                auth[7:] in self.expired:
+            return 401, {'message': 'Unauthenticated.'}
+        u = urllib.parse.urlsplit(path)
+        parts = u.path.strip('/').split('/')
+        if method == 'GET' and parts == ['domains']:
+            self.t.assertEqual(q(url).get('per_page'), '1000')
+            return 200, {'success': True, 'status': 'OK',
+                         'data': {str(i): {'domain': n, 'domain_id': i}
+                                  for n, i in self.listed.items()},
+                         'domains': {'domains_count': len(self.listed)}}
+        if method == 'GET' and parts[0] == 'domains' and len(parts) == 2:
+            name = parts[1]
+            if name in self.IDS:
+                return 200, {'success': True, 'data': {'domain': name,
+                                                       'domain_id': self.IDS[name]}}
+            return self.err(64, 'Unauthorized access.')
+        did = parts[0]
+        zone = self.zone_of_id(did)
+        if parts[1:] == ['dns'] and method == 'GET':
+            if zone is None:
+                return self.err(64, 'Unauthorized access.')
+            recs = [{'id': r['id'], 'name': self.rel(zone, r['name']),
+                     'type': r.get('type', 'TXT'), 'data': '"%s"' % r['value'], 'ttl': r['ttl'],
+                     'aux': 0, 'zone': 45} for r in self.recs if r['zone'] == zone]
+            recs += [{'id': r['id'], 'name': self.rel(zone, r['name']), 'type': r['type'],
+                      'data': r['data'], 'ttl': 3600} for r in self.other if r['zone'] == zone]
+            return 200, {'success': True, 'status': 'OK', 'data': {
+                'records': recs, 'soa': {'ttl': 3600}, 'enabled_rr_types': ['A', 'TXT']}}
+        if parts[1:] == ['dns'] and method == 'POST':
+            b = j(body)
+            self.t.assertEqual(set(b), {'name', 'type', 'data', 'ttl'})
+            name = self.full(zone, b['name'])
+            if b['type'] == 'TXT':
+                rid = self.add(zone, name, b['data'], b['ttl'])
+            else:
+                self.next_id += 1
+                rid = self.next_id
+                self.other.append({'id': rid, 'zone': zone, 'name': name, 'type': b['type'],
+                                   'data': b['data']})
+                self.changes += 1
+            return 200, {'success': True, 'status': 'OK', 'new_id': rid,
+                         'data': dict(b, id=rid, zone=45)}
+        if len(parts) == 3 and parts[1] == 'dns' and method == 'DELETE':
+            rid = int(parts[2])
+            self.deleted.append(rid)
+            n = self.drop(lambda r: r['id'] == rid)
+            before = len(self.other)
+            self.other = [r for r in self.other if r['id'] != rid]
+            n += before - len(self.other)
+            self.changes += before - len(self.other)
+            if not n:
+                return self.err(1180, 'Record not found.')
+            return 200, {'success': True}
+        raise AssertionError('not a Webglobe call: %s %s' % (method, url))
+
+
+class TestWebglobe(Base):
+    CFG = {'login': 'me@example.cz', 'api_token': 'key1'}
+
+    def make(self, fake=None, **cfg):
+        f = fake or WebglobeFake(self)
+        f.throttled = True
+        m, ctx = module('webglobe', f, **dict(self.CFG, **cfg))
+        return m, ctx, f
+
+    def test_the_run(self):
+        f = WebglobeFake(self)
+        self.run_module('webglobe', f, **self.CFG)
+        self.assertEqual([r['id'] for r in f.other], [7], 'no other record touched')
+
+    def test_signed_in_once_and_record_by_id(self):
+        m, ctx, f = self.make()
+        h = m.present('www.example.com', 't', 'k', 'val1')
+        post = [c for c in f.calls if c[0] == 'POST' and c[1].endswith('/11/dns')][0]
+        self.assertEqual(j(post[2]), {'name': '_acme-challenge.www', 'type': 'TXT',
+                                      'data': 'val1', 'ttl': 300})
+        self.assertEqual(post[3]['Authorization'], 'Bearer jwt-1')
+        self.assertEqual(h['h']['did'], 11)
+        rid = h['h']['id']
+        # someone else puts the very same value in a record of its own: it stays
+        other = f.add('example.com', NAME, 'val1')
+        m.cleanup('www.example.com', h)
+        self.assertEqual(f.deleted, [rid])
+        self.assertEqual([r['id'] for r in f.recs], [other])
+        m.cleanup('www.example.com', h)                     # gone already: quiet
+        self.assertEqual(f.deleted, [rid])
+        self.assertEqual(f.logins, 1, 'the JWT is kept for the run')
+
+    def test_a_changed_record_is_not_deleted(self):
+        m, ctx, f = self.make()
+        h = m.present('www.example.com', 't', 'k', 'val1')
+        for r in f.recs:
+            r['value'] = 'changed-by-hand'
+        m.cleanup('www.example.com', h)
+        self.assertEqual(f.deleted, [])
+        self.assertEqual(f.values(), ['changed-by-hand'])
+
+    def test_401_signs_in_again_once(self):
+        m, ctx, f = self.make()
+        m.present('www.example.com', 't', 'k', 'a')
+        f.expired.add('jwt-1')
+        h = m.present('www.example.com', 't', 'k', 'b')
+        self.assertEqual(f.logins, 2)
+        self.assertEqual(f.values(), ['a', 'b'])
+        self.assertTrue(h['h']['id'])
+        # a token that is never taken: no endless loop, words
+        f.expired.update({'jwt-2', 'jwt-3', 'jwt-4'})
+        with self.assertRaises(PluginError) as e:
+            m.present('www.example.com', 't', 'k', 'c')
+        self.assertIn('did not take its token (401)', str(e.exception))
+        self.assertEqual(f.logins, 3)
+
+    def test_wrong_key(self):
+        m, ctx, f = self.make(api_token='nope')
+        with self.assertRaises(PluginError) as e:
+            m.test()
+        self.assertIn('did not take the login and API key', str(e.exception))
+        self.assertIn('IP address', str(e.exception))
+        self.assertFalse(e.exception.retry)
+        g = m.guide('www.example.com')
+        self.assertFalse(g['steps'][0]['done'])
+        self.assertIn('My account → API keys', g['steps'][0]['fix'])
+
+    def test_two_factor_said(self):
+        f = WebglobeFake(self)
+        f.two_factor = True
+        m, ctx, _ = self.make(f, auth='password', password='pw1', api_token='')
+        with self.assertRaises(PluginError) as e:
+            m.present('www.example.com', 't', 'k', 'v')
+        self.assertIn('two-factor sign-in', str(e.exception))
+        self.assertIn('API key', str(e.exception))
+        self.assertFalse(e.exception.retry)
+
+    def test_domain_not_in_account(self):
+        m, ctx, f = self.make()
+        with self.assertRaises(PluginError) as e:
+            m.present('www.example.net', 't', 'k', 'v')
+        self.assertIn('has no domain that _acme-challenge.www.example.net is in',
+                      str(e.exception))
+        m, ctx, f = self.make(zone='example.net')
+        with self.assertRaises(PluginError) as e:
+            m.zone_for('_acme-challenge.www.example.net')
+        self.assertIn('the domain example.net is not in this Webglobe account', str(e.exception))
+        self.assertEqual(f.changes, 0)
+
+    def test_domain_asked_by_name(self):
+        f = WebglobeFake(self, listed={'example.com': 11})
+        m, ctx, _ = self.make(f)
+        self.assertEqual(m.zone_for('_acme-challenge.x.other.org'), 'other.org')
+        m.present('x.other.org', 't', 'k', 'v')
+        self.assertEqual(f.values('_acme-challenge.x.other.org'), ['v'])
+        m, ctx, _ = self.make(f, zone='other.org')
+        self.assertEqual(m.zone_for('_acme-challenge.y.other.org'), 'other.org')
+
+    def test_test_and_staging(self):
+        f = WebglobeFake(self, base='https://api.staging.core.webglobe.com')
+        m, ctx, _ = self.make(f, endpoint='staging', zone='example.com')
+        words = m.test()
+        self.assertIn('the domain example.com (ID 11)', words)
+        self.assertEqual(f.changes, 0)
+
+    def test_cname_for_dcv(self):
+        from acmelib.plugins.challenges.webglobe import Webglobe
+        self.assertEqual(Webglobe.proofs_for({}), ['acme-dns-01', 'txt-any', 'cname-any'])
+        m, ctx, f = self.make()
+        h = m.place('cname', 'www.example.com', '_dnsauth.www.example.com', 'dcv.example.net')
+        self.assertEqual([(r['name'], r['type'], r['data']) for r in f.other[1:]],
+                         [('_dnsauth.www.example.com', 'CNAME', 'dcv.example.net.')])
+        m.unplace(h)
+        self.assertEqual([r['id'] for r in f.other], [7])
+        h = m.place('txt', 'www.example.com', '_dnsauth.www.example.com', 'dcv-value')
+        self.assertEqual(f.values('_dnsauth.www.example.com'), ['dcv-value'])
+        m.unplace(h)
+        self.assertEqual(f.values('_dnsauth.www.example.com'), [])
+
+    def test_no_dns_zone_said(self):
+        f = WebglobeFake(self)
+        m, ctx, _ = self.make(f)
+        real = f.handle
+
+        def no_zone(method, url, body, h):
+            st, data = real(method, url, body, h)
+            if method == 'GET' and url.endswith('/11/dns'):
+                data = {'success': True, 'data': {'only_hosting': True, 'dnsset': None}}
+            return st, data
+        f.handle = no_zone
+        with self.assertRaises(PluginError) as e:
+            m.present('www.example.com', 't', 'k', 'v')
+        self.assertIn('keeps no DNS zone for example.com', str(e.exception))
+
+    def test_domain_list_shapes(self):
+        from acmelib.plugins.challenges.webglobe import domain_pairs
+        self.assertEqual(domain_pairs({'data': {'11': 'example.com', '12': 'Příklad.cz'}}),
+                         {'example.com': 11, 'xn--pklad-zsa96e.cz': 12})
+        self.assertEqual(domain_pairs({'data': [{'IDdomeny': 5, 'domain_name': 'a.cz'}],
+                                       'domains': {'host_domains': {'data': [
+                                           {'id': 6, 'domain': 'b.cz'}]}},
+                                       'last_used_domains': {'7': 'c.cz'}}),
+                         {'a.cz': 5, 'b.cz': 6, 'c.cz': 7})
+        self.assertEqual(domain_pairs({'data': {'x': {'domain': 'a.cz'}}}), {})
+
+
 class TestDescribed(unittest.TestCase):
     DNS = ('subreg', 'czechia', 'loopia', 'simply', 'hostingde', 'domeneshop', 'glesys',
            'mythic_beasts', 'infomaniak', 'alidns', 'tencentcloud', 'oci_dns', 'akamai_edgedns',
            'dnsmadeeasy', 'gcore', 'netlify', 'vercel', 'namecom', 'namesilo', 'dynu', 'njalla',
-           'dreamhost', 'duckdns')
+           'dreamhost', 'duckdns', 'webglobe')
     HTTP = ('http_ftp', 'http_s3', 'http_azure_blob', 'http_webdav')
 
     def test_every_new_module_described(self):

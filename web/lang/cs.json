@@ -32167,6 +32167,170 @@
   "sw8040": {
    "source": "The name Test sends (Host, SNI) - Test has no certificate. Empty: the address itself.",
    "text": "Jméno, které Test pošle (Host, SNI) – Test nemá certifikát. Prázdné: samotná adresa."
+  },
+  "swg001": {
+   "source": "Webglobe",
+   "text": "Webglobe"
+  },
+  "swg002": {
+   "source": "Webglobe hosting",
+   "text": "Hosting Webglobe"
+  },
+  "swg003": {
+   "source": "TXT records in a domain at Webglobe (its DNS), through the Webglobe API.",
+   "text": "TXT záznamy v doméně u Webglobe (v jeho DNS), přes Webglobe API."
+  },
+  "swg004": {
+   "source": "Stores the certificate as the own SSL certificate of a domain hosted at Webglobe, through the Webglobe API.",
+   "text": "Uloží certifikát jako vlastní SSL certifikát domény hostované u Webglobe, přes Webglobe API."
+  },
+  "swg005": {
+   "source": "The login name (e-mail) you sign in to the Webglobe administration with - best a sub-account (My account → Users) that sees only the domains acme needs.",
+   "text": "Přihlašovací jméno (e-mail), kterým se přihlašujete do administrace Webglobe – nejlépe podúčet (Můj účet → Uživatelé), který vidí jen domény, jež acme potřebuje."
+  },
+  "swg006": {
+   "source": "an API key (works with two-factor sign-in)",
+   "text": "API klíčem (funguje i s dvoufázovým přihlášením)"
+  },
+  "swg007": {
+   "source": "the password (only an account without two-factor sign-in)",
+   "text": "heslem (jen účet bez dvoufázového přihlášení)"
+  },
+  "swg008": {
+   "source": "Webglobe administration → My account → API keys → a new key for this login: allow the public IP address (or network) acme calls from - Webglobe refuses a key from every other, and a key without one. The key is shown only once.",
+   "text": "Administrace Webglobe → Můj účet → API klíče → nový klíč pro tento login: povolte veřejnou IP adresu (nebo síť), ze které acme volá – z každé jiné Webglobe klíč odmítne, stejně jako klíč bez povolené adresy. Klíč se zobrazí jen jednou."
+  },
+  "swg009": {
+   "source": "The login's password. An account with two-factor sign-in (SMS, OTP, e-mail) cannot sign in so from a machine: use an API key.",
+   "text": "Heslo loginu. Účet s dvoufázovým přihlášením (SMS, OTP, e-mail) se takto ze stroje přihlásit nemůže: použijte API klíč."
+  },
+  "swg010": {
+   "source": "API",
+   "text": "API"
+  },
+  "swg011": {
+   "source": "api.webglobe.com",
+   "text": "api.webglobe.com"
+  },
+  "swg012": {
+   "source": "api.staging.core.webglobe.com (staging)",
+   "text": "api.staging.core.webglobe.com (staging)"
+  },
+  "swg013": {
+   "source": "Empty: as API above says.",
+   "text": "Prázdné: podle volby API výše."
+  },
+  "swg014": {
+   "source": "Domain ID",
+   "text": "ID domény"
+  },
+  "swg015": {
+   "source": "The domain's number at Webglobe, with Domain set above. Empty: found by its name.",
+   "text": "Číslo domény u Webglobe, spolu s Doménou nastavenou výše. Prázdné: najde se podle jména."
+  },
+  "swg016": {
+   "source": "The hosted domain the certificate is for, as the Webglobe administration lists it (or its ID there).",
+   "text": "Hostovaná doména, pro kterou certifikát je, jak ji uvádí administrace Webglobe (nebo její ID tam)."
+  },
+  "swg017": {
+   "source": "Let Webglobe check it first",
+   "text": "Nejdřív nechat zkontrolovat u Webglobe"
+  },
+  "swg018": {
+   "source": "The certificate, key and chain are sent to Webglobe's check (ssl/validate) before they are stored.",
+   "text": "Certifikát, klíč a řetězec se před uložením pošlou ke kontrole u Webglobe (ssl/validate)."
+  },
+  "swg019": {
+   "source": "Redirect http to https",
+   "text": "Přesměrovat http na https"
+  },
+  "swg020": {
+   "source": "leave as it is",
+   "text": "nechat, jak je"
+  },
+  "swg021": {
+   "source": "empty: the first name of the certificate",
+   "text": "prázdné: první jméno certifikátu"
+  },
+  "swg022": {
+   "source": "Webglobe did not take the login and API key - check both, that the key is enabled and not expired, and that it allows the IP address acme calls from",
+   "text": "Webglobe nepřijal login a API klíč – zkontrolujte obojí, že je klíč zapnutý a nevypršel a že povoluje IP adresu, ze které acme volá"
+  },
+  "swg023": {
+   "source": "Webglobe did not take the login and password - check both",
+   "text": "Webglobe nepřijal login a heslo – zkontrolujte obojí"
+  },
+  "swg024": {
+   "source": "the Webglobe account is suspended",
+   "text": "účet u Webglobe je pozastavený"
+  },
+  "swg025": {
+   "source": "Webglobe answered the sign-in without a token",
+   "text": "Webglobe odpověděl na přihlášení bez tokenu"
+  },
+  "swg026": {
+   "source": "Webglobe: set the login and the API key",
+   "text": "Webglobe: nastavte login a API klíč"
+  },
+  "swg027": {
+   "source": "Webglobe: set the login and the password",
+   "text": "Webglobe: nastavte login a heslo"
+  },
+  "swg028": {
+   "source": "an SMS code",
+   "text": "kód z SMS"
+  },
+  "swg029": {
+   "source": "a one-time password (OTP)",
+   "text": "jednorázové heslo (OTP)"
+  },
+  "swg030": {
+   "source": "an e-mail code",
+   "text": "kód z e-mailu"
+  },
+  "swg031": {
+   "source": "the sign-in",
+   "text": "přihlášení"
+  },
+  "swg032": {
+   "source": "the list of domains",
+   "text": "seznam domén"
+  },
+  "swg033": {
+   "source": "the check of the certificate",
+   "text": "kontrolu certifikátu"
+  },
+  "swg035": {
+   "source": "the redirect to https",
+   "text": "přesměrování na https"
+  },
+  "swg036": {
+   "source": "the certificates of the domain",
+   "text": "certifikáty domény"
+  },
+  "swg037": {
+   "source": "set the domain",
+   "text": "nastavte doménu"
+  },
+  "swg038": {
+   "source": "http to https redirect on",
+   "text": "přesměrování http na https zapnuto"
+  },
+  "swg039": {
+   "source": "http to https redirect off",
+   "text": "přesměrování http na https vypnuto"
+  },
+  "swg040": {
+   "source": "Webglobe administration → My account → API keys: make a key for this login, allow the public IP address acme calls from, and sign in with it (Sign in with: an API key)",
+   "text": "Administrace Webglobe → Můj účet → API klíče: vytvořte klíč pro tento login, povolte veřejnou IP adresu, ze které acme volá, a přihlašujte se jím (Přihlásit se: API klíčem)"
+  },
+  "swg041": {
+   "source": "Set Login to the e-mail you sign in to Webglobe with and API key to a key of that login (My account → API keys), one that allows the public IP address acme calls from",
+   "text": "Do pole Login dejte e-mail, kterým se k Webglobe přihlašujete, a do API klíče klíč toho loginu (Můj účet → API klíče), který povoluje veřejnou IP adresu, ze které acme volá"
+  },
+  "swg042": {
+   "source": "Correct the settings of the validation (login, API key, API), then check again",
+   "text": "Opravte nastavení validace (login, API klíč, API) a zkontrolujte znovu"
   }
  },
  "patterns": {
@@ -41453,6 +41617,74 @@
   "pw2321": {
    "source": "\"{0}\" is not an address to check at",
    "text": "„{0}“ není adresa pro kontrolu"
+  },
+  "pwg001": {
+   "source": "Webglobe refused {0} (HTTP {1}): {2}",
+   "text": "Webglobe odmítl {0} (HTTP {1}): {2}"
+  },
+  "pwg002": {
+   "source": "Webglobe refused {0} (HTTP {1}): {2} - this login may not use that part of the API",
+   "text": "Webglobe odmítl {0} (HTTP {1}): {2} – tento login tuto část API používat nesmí"
+  },
+  "pwg003": {
+   "source": "Webglobe asks {0} at sign-in even with the API key - acme cannot give it: sign in as a login (a sub-account) without two-factor sign-in, with its own API key",
+   "text": "Webglobe chce při přihlášení {0} i s API klíčem – ten acme dát nemůže: přihlašujte se loginem (podúčtem) bez dvoufázového přihlášení, s jeho vlastním API klíčem"
+  },
+  "pwg004": {
+   "source": "the Webglobe account has two-factor sign-in (it asks {0}), which acme cannot give - sign in with an API key instead (My account → API keys, acme's IP address allowed)",
+   "text": "účet u Webglobe má dvoufázové přihlášení (chce {0}), které acme dát nemůže – přihlašujte se místo toho API klíčem (Můj účet → API klíče, s povolenou IP adresou acme)"
+  },
+  "pwg005": {
+   "source": "Webglobe signed acme in, but then did not take its token (401) for {0}",
+   "text": "Webglobe acme přihlásil, ale pak jeho token pro {0} nepřijal (401)"
+  },
+  "pwg006": {
+   "source": "the domain {0} is not in this Webglobe account (or the login may not see it)",
+   "text": "doména {0} v tomto účtu u Webglobe není (nebo ji login nevidí)"
+  },
+  "pwg007": {
+   "source": "the Webglobe account has no domain that {0} is in - add the domain there, give the login access to it, or set the domain",
+   "text": "účet u Webglobe nemá doménu, ve které {0} je – přidejte ji tam, dejte k ní loginu přístup, nebo doménu nastavte"
+  },
+  "pwg008": {
+   "source": "Webglobe keeps no DNS zone for {0} (its DNS is not at Webglobe?)",
+   "text": "Webglobe pro {0} nevede žádnou DNS zónu (není její DNS jinde než u Webglobe?)"
+  },
+  "pwg009": {
+   "source": "a CNAME cannot be at the domain {0} itself",
+   "text": "CNAME nemůže být přímo na doméně {0}"
+  },
+  "pwg010": {
+   "source": "Webglobe: signed in as {0}; the domain {1} (ID {2}) has {3} DNS record(s)",
+   "text": "Webglobe: přihlášeno jako {0}; doména {1} (ID {2}) má DNS záznamů: {3}"
+  },
+  "pwg011": {
+   "source": "Webglobe refused {0}: its own certificates are only for an account with Webglobe's paid support (code 3, access to the module denied)",
+   "text": "Webglobe odmítl {0}: vlastní certifikáty jsou jen pro účet s placenou podporou Webglobe (kód 3, přístup k modulu odepřen)"
+  },
+  "pwg012": {
+   "source": "Webglobe: signed in; the domain {0} is ID {1} (its certificates could not be read: {2})",
+   "text": "Webglobe: přihlášeno; doména {0} má ID {1} (její certifikáty se nepodařilo přečíst: {2})"
+  },
+  "pwg013": {
+   "source": "Webglobe: signed in; the domain {0} is ID {1}, {2} certificate(s) there",
+   "text": "Webglobe: přihlášeno; doména {0} má ID {1}, certifikátů tam: {2}"
+  },
+  "pwg014": {
+   "source": "Webglobe checked it: {0}, valid to {1}",
+   "text": "Webglobe ho zkontroloval: {0}, platný do {1}"
+  },
+  "pwg015": {
+   "source": "stored as the own certificate of {0} ({1})",
+   "text": "uloženo jako vlastní certifikát {0} ({1})"
+  },
+  "pwg016": {
+   "source": "stored as the own certificate of {0}",
+   "text": "uloženo jako vlastní certifikát {0}"
+  },
+  "pwg017": {
+   "source": "stored as the own certificate of {0} at Webglobe",
+   "text": "uloženo jako vlastní certifikát {0} u Webglobe"
   }
  },
  "rich": {

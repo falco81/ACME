@@ -70,6 +70,7 @@ Every module here works the same way:
 | `strongswan` | strongSwan (IPsec VPN) | strongSwan |
 | `fritzbox` | AVM FRITZ!Box | AVM |
 | `unifi_os` | UniFi OS console (UDM, UCG, Cloud Key) | Ubiquiti |
+| `webglobe` | Webglobe hosting | Webglobe |
 
 **A dual certificate** (ECDSA and RSA of the same names, see
 [certificates.md](certificates.md#dual-certificates-ecdsa--rsa)): the targets
@@ -877,3 +878,29 @@ application.)
 Source: <https://github.com/acmesh-official/acme.sh/blob/master/deploy/unifios.sh>.
 **Uncertain**: Ubiquiti documents the page, not the API; it is what acme.sh's
 hook uses (UniFi OS 4.x, 5.x).
+
+## `webglobe` - Webglobe hosting
+
+Stores the certificate as the **own SSL certificate** of a domain hosted at
+Webglobe, through the Webglobe API: signed in as the Webglobe validation does
+(`POST /auth/login` with the login and an API key → a JWT), the domain found
+by its name (`GET /domains`, else `GET /domains/{name}`; or give its ID), the
+certificate, key and chain (PEM, the chain apart) first checked by Webglobe
+(`POST /{domainId}/ssl/validate`, deployment option *Let Webglobe check it
+first*), then stored (`POST /{domainId}/ssl/own-certificate`). *Redirect
+http to https* sets `POST /{domainId}/ssl/httpsRedirect` when it is on or
+off, and leaves it otherwise. *Test* signs in, finds the domain and reads its
+certificates (`GET /{domainId}/ssl`) - it changes nothing.
+
+**Rights**: a login of the account (best a sub-account that sees only the
+hosted domain) and an API key of it (*My account → API keys*) that allows
+acme's public IP address. Webglobe takes its customers' own certificates
+**only with its paid support**; without it the API answers code 3 (access to
+the module denied), said so.
+
+Source: the Webglobe API's OpenAPI description, <https://api.webglobe.com/>
+(a copy in `test/fixtures/webglobe-openapi.yaml`). **Uncertain**: whether a
+new own certificate replaces the one stored before or is kept beside it
+(acme deletes nothing; older ones can be removed in the administration);
+the answer of `own-certificate` is described twice (an `id`, or the checked
+certificate's data) - both are read.

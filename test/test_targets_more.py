@@ -37,7 +37,7 @@ from acmelib.plugins.targets import _common as C  # noqa: E402
 NEW_KINDS = ('aws_acm', 'azure_keyvault', 'gcp_certmanager', 'cloudflare_ssl', 'vcenter', 'esxi',
              'redfish', 'sophos', 'kemp', 'cisco_ise', 'haproxy', 'traefik', 'caddy',
              'nginx_unit', 'zimbra', 'truenas', 'docker_swarm', 'strongswan', 'fritzbox',
-             'unifi_os')
+             'unifi_os', 'webglobe')
 
 
 def setUpModule():
@@ -1045,6 +1045,103 @@ class UnifiOsTest(unittest.TestCase):
         self.assertEqual(len(ctx.find('DELETE', r'')), 1)
         self.assertTrue(t.deploy(a, {}).startswith('unchanged'))
         self.assertEqual(len(ctx.find('POST', r'/api/userCertificates$')), 1)
+
+
+# ---------------------------------------------------------------------------
+# Webglobe hosting (the shapes of test/fixtures/webglobe-openapi.yaml)
+# ---------------------------------------------------------------------------
+class WebglobeTargetTest(unittest.TestCase):
+    B = r'^https://api\.webglobe\.com'
+    CFG = {'login': 'me@example.cz', 'api_token': 'key1', 'domain': 'example.test'}
+
+    def setUp(self):
+        self.logins = 0
+        self.expired = set()
+        self.paid = True
+
+        def login(call):
+            b = json.loads(call['body'])
+            if b != {'login': 'me@example.cz', 'token': 'key1'}:
+                return 400, {'success': False, 'error': {
+                    'code': 5, 'message': 'Incorrect login name or password.'}}
+            self.logins += 1
+            return 200, {'success': True, 'data': {'token': 'jwt-%d' % self.logins,
+                                                   'token_type': 'bearer', 'expires_in': 3600}}
+
+        def signed(ans):
+            def f(call):
+                tok = call['headers'].get('Authorization', '')[7:]
+                if not tok.startswith('jwt-') or tok in self.expired:
+                    return 401, {'message': 'Unauthenticated.'}
+                return ans(call) if callable(ans) else ans
+            return f
+
+        def own(call):
+            if not self.paid:
+                return 400, {'success': False, 'error': {
+                    'code': 3, 'message': 'Access to requested module is denied'}}
+            return 200, {'success': True, 'id': 123}
+        self.ctx = FakeCtx([
+            ('POST', self.B + r'/auth/login$', login),
+            ('GET', self.B + r'/domains\?per_page=1000$', signed((200, {
+                'success': True, 'data': {'77': {'domain': 'example.test', 'domain_id': 77},
+                                          '78': {'domain': 'www.example.test',
+                                                 'domain_id': 78}}}))),
+            ('GET', self.B + r'/77/ssl$', signed((200, {'success': True, 'data': [
+                {'server_webserver_type': 'nginx', 'ssl_auto': False, 'ssls': [
+                    {'IDcert': 1, 'IDdomeny': 77, 'status': 'ACTIVE', 'type': 'DOMAIN'}]}]}))),
+            ('POST', self.B + r'/77/ssl/validate$', signed((200, {'success': True, 'data': {
+                'domain': 'www.example.test', 'valid_to': '2027-01-30', 'serial_number': '1',
+                'subject': {}, 'issuer': {}, 'valid_from': '2026-11-01', 'purposes': [],
+                'extensions': {}}}))),
+            ('POST', self.B + r'/77/ssl/own-certificate$', signed(own)),
+            ('POST', self.B + r'/77/ssl/httpsRedirect$', signed((200, {'success': True}))),
+        ])
+
+    def test_deploy_noop_redirect(self):
+        a = FakeBundle('a')
+        t = make('webglobe', dict(self.CFG), self.ctx)
+        self.assertIn('stored as the own certificate of example.test', t.deploy(a, {}))
+        for path in ('/77/ssl/validate', '/77/ssl/own-certificate'):
+            call = self.ctx.find('POST', path + '$')[0]
+            self.assertEqual(call['headers']['Authorization'], 'Bearer jwt-1')
+            self.assertEqual(json.loads(call['body']), {
+                'certificate': a.cert_pem, 'private_key': a.key_pem,
+                'chain': ''.join(a.chain_pems)})
+        self.assertEqual(self.ctx.find('POST', r'httpsRedirect$'), [])
+        self.assertTrue(t.deploy(a, {}).startswith('unchanged'))
+        self.assertEqual(len(self.ctx.find('POST', r'own-certificate$')), 1)
+        # a new one, its validation off, the redirect switched on; the JWT ran out
+        self.expired.add('jwt-1')
+        t.deploy(FakeBundle('b'), {'validate': False, 'https_redirect': '1'})
+        self.assertEqual(self.logins, 2)
+        self.assertEqual(len(self.ctx.find('POST', r'/ssl/validate$')), 1)
+        self.assertEqual(json.loads(self.ctx.find('POST', r'httpsRedirect$')[-1]['body']),
+                         {'https_redirect': 1})
+
+    def test_test_changes_nothing(self):
+        t = make('webglobe', dict(self.CFG), self.ctx)
+        self.assertIn('the domain example.test is ID 77, 1 certificate(s)', t.test())
+        self.assertEqual([c['method'] for c in self.ctx.calls if '/auth/' not in c['url']],
+                         ['GET', 'GET'])
+
+    def test_errors_in_words(self):
+        self.paid = False
+        t = make('webglobe', dict(self.CFG), self.ctx)
+        with self.assertRaises(PluginError) as e:
+            t.deploy(FakeBundle('a'), {'validate': False})
+        self.assertIn('paid support', str(e.exception))
+        self.assertFalse(e.exception.retry)
+        t = make('webglobe', dict(self.CFG, api_token='bad'), self.ctx)
+        with self.assertRaises(PluginError) as e:
+            t.test()
+        self.assertIn('did not take the login and API key', str(e.exception))
+        t = make('webglobe', dict(self.CFG, domain='nothere.test'), FakeCtx(
+            self.ctx.routes + [('GET', self.B + r'/domains/nothere\.test$', (400, {
+                'success': False, 'error': {'code': 64, 'message': 'Unauthorized access.'}}))]))
+        with self.assertRaises(PluginError) as e:
+            t.test()
+        self.assertIn('nothere.test is not in this Webglobe account', str(e.exception))
 
 
 # ---------------------------------------------------------------------------
