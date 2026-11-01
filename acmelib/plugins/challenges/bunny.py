@@ -39,7 +39,7 @@ class Bunny(ApiDns):
                       missing_ok=missing_ok)
         return None if st == 404 and missing_ok else got
 
-    def _zones(self):
+    def _zone_ids(self):
         if getattr(self, '_ids', None) is None:
             ids = {}
             for page in range(1, 51):
@@ -52,10 +52,10 @@ class Bunny(ApiDns):
         return self._ids
 
     def zone_names(self):
-        return list(self._zones())
+        return list(self._zone_ids())
 
     def _id(self, zone):
-        zid = self._zones().get(zone)
+        zid = self._zone_ids().get(zone)
         if zid is None:
             raise no_zone('bunny.net', zone)
         return zid
