@@ -4,6 +4,16 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.8 - 2026-11-01
+
+- **acme-dns: Register an account** from the validation's form - one, or one a
+  name into "Accounts by name" (an acme-dns account keeps two TXT values), with
+  the CNAMEs to put into your DNS; nothing saved until Save.
+- SSLmarket: the DCV records of an order that waited across the upgrade to
+  1.0.5 are taken away too.
+- Tests: the HA and database move suites run against real PostgreSQL and
+  MariaDB again; the SSLmarket suite runs all its tests.
+
 ## 1.0.7 - 2026-11-01
 
 - **The QR code of the second factor is right again.** 1.0.6 drew it wrong:
