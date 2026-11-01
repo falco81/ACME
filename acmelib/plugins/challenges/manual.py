@@ -58,6 +58,16 @@ class Manual(DnsChallenge):
             self.ctx.step('the TXT record %s "%s" may be taken out of your DNS again'
                           % (handle['fqdn'], handle.get('txt')))
 
+    def add_cname(self, fqdn, target):
+        self.ctx.step('Put this in your DNS now:   %s.  60  IN  CNAME  %s.   - acme waits until '
+                      'the name servers of the zone have it' % (D.norm(fqdn), D.norm(target)),
+                      'warn')
+        return None
+
+    def del_cname(self, fqdn, target, handle):
+        if self.flag('remove_note'):
+            self.ctx.step('the CNAME record %s may be taken out of your DNS again' % fqdn)
+
     def add_txt(self, fqdn, value):
         return None
 

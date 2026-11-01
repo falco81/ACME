@@ -148,6 +148,15 @@ def _acme_challenge(h):
     return {'auth': got}
 
 
+@route('GET', '/api/acme/file')
+def _acme_file(h):
+    """A commercial CA's DCV file that acme.php gives on port 80 - no account."""
+    got = acme_file(h.store, h.arg('host'), h.arg('path'))
+    if got is None:
+        raise ApiError(404, 'no such file')
+    return {'content': got}
+
+
 @route('GET', '/api/acme')
 def _acme(h):
     h.me('fulladmin')

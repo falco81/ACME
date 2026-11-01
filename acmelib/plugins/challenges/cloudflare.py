@@ -79,6 +79,24 @@ class Cloudflare(DnsChallenge):
         for rid in ids:
             self._api('DELETE', '/zones/%s/dns_records/%s' % (zid, rid), missing_ok=True)
 
+    def add_cname(self, fqdn, target):
+        zid, _z = self._zone_id(fqdn)
+        rec = self._api('POST', '/zones/%s/dns_records' % zid,
+                        {'type': 'CNAME', 'name': D.norm(fqdn), 'content': D.norm(target),
+                         'ttl': max(self.ttl(), 1), 'proxied': False,
+                         'comment': 'acme DCV'}) or {}
+        return {'zone_id': zid, 'id': rec.get('id')}
+
+    def del_cname(self, fqdn, target, handle):
+        h = handle or {}
+        zid = h.get('zone_id') or self._zone_id(fqdn)[0]
+        ids = [h['id']] if h.get('id') else [
+            r['id'] for r in self._api('GET', '/zones/%s/dns_records?type=CNAME&name=%s' % (
+                zid, urllib.parse.quote(D.norm(fqdn)))) or []
+            if D.norm(r.get('content') or '') == D.norm(target)]
+        for rid in ids:
+            self._api('DELETE', '/zones/%s/dns_records/%s' % (zid, rid), missing_ok=True)
+
     def test(self):
         if self.c('zone_id'):
             z = self._api('GET', '/zones/%s' % self.c('zone_id')) or {}

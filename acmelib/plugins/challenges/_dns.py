@@ -796,7 +796,10 @@ def system_resolvers():
 
 
 def ask_any(servers, name, qtype, timeout=3.0, rd=True, port=53):
-    """The first usable answer of several servers (NOERROR or NXDOMAIN)."""
+    """The first usable answer of several servers (NOERROR or NXDOMAIN). A set
+    of Settings → DNS (acmelib/certs/dnssets.Resolver) asks its own way."""
+    if hasattr(servers, 'ask_any'):
+        return servers.ask_any(name, qtype, timeout=timeout, rd=rd, port=port)
     last = None
     for srv in servers:
         host, p = split_hostport(srv, port)
@@ -940,3 +943,34 @@ def registrable(name):
     if '.'.join(labels[-2:]) in PUBLIC_SUFFIXES:
         return '.'.join(labels[-3:])
     return '.'.join(labels[-2:])
+
+
+# ---------------------------------------------------------------------------
+# Settings → DNS: which servers a function asks (acmelib/certs/dnssets.py)
+# ---------------------------------------------------------------------------
+def resolver(purpose, given=(), ctx=None):
+    """The resolvers a module asks for one function of acme ('validation',
+    'public'): its own field (`given`) when it says something, else the set
+    chosen under Settings → DNS - else, without the certificate manager, as
+    before (the system's; the public resolvers for 'public')."""
+    try:
+        from acmelib.certs import dnssets
+    except Exception:                                   # noqa: BLE001
+        given = [str(x).strip() for x in (given or []) if str(x).strip()]
+        return given or (list(PUBLIC_RESOLVERS) if purpose == 'public' else system_resolvers())
+    return dnssets.for_module(purpose, given, ctx)
+
+
+def ask_server(servers, srv, name, qtype, timeout=3.0, rd=True):
+    """One server of `servers` asked by itself, the way its set asks it."""
+    if hasattr(servers, 'ask_one'):
+        return servers.ask_one(srv, name, qtype, timeout=timeout, rd=rd)
+    host, port = split_hostport(srv)
+    return query(host, name, qtype, port=port, rd=rd, timeout=timeout)
+
+
+def servers_words(servers):
+    """How a guide says what it asked: "'Public' (1.1.1.1, 8.8.8.8)", or the list."""
+    if hasattr(servers, 'label'):
+        return servers.label()
+    return ', '.join(servers or [])

@@ -814,9 +814,21 @@ ACME_LOCATION = '''    # A certificate by ACME (1.0.169): the CA's HTTP-01 chall
         include       fastcgi_params;
         fastcgi_read_timeout 10s;
     }
+''' + '''    # A commercial CA's file-based domain validation (DigiCert http-token,
+    # Sectigo FILE), answered by acme.php in the same way.
+    location ^~ /.well-known/pki-validation/ {
+        limit_req     zone=acme_all burst=20 nodelay;
+        fastcgi_pass  unix:/run/php-fpm/acme.sock;
+        fastcgi_param SCRIPT_FILENAME /var/www/acme/acme.php;
+        include       fastcgi_params;
+        fastcgi_read_timeout 10s;
+    }
     location / {
         return 301 https://$host$request_uri;
     }'''
+PKI_VALIDATION_LOCATION = ACME_LOCATION.split('    location / {')[0].split(
+    '    # A commercial CA')[1]
+PKI_VALIDATION_LOCATION = '    # A commercial CA' + PKI_VALIDATION_LOCATION
 
 
 def http_block(text):
@@ -849,6 +861,11 @@ def acme_into(main, names):
     if 'acme-challenge' not in new:
         new = re.sub(r'(?m)^[ \t]*return[ \t]+301[ \t]+https://\$host\$request_uri;[ \t]*$',
                      lambda m: ACME_LOCATION, new, count=1)
+    elif 'pki-validation' not in new:
+        # an older ACME location (before the DCV files): theirs put beside it
+        m = re.search(r'(?m)^[ \t]*location[ \t]+\^~[ \t]+/\.well-known/acme-challenge/[ \t]*\{', new)
+        if m:
+            new = new[:m.start()] + PKI_VALIDATION_LOCATION + new[m.start():]
     m = re.search(r'(?m)^(\s*server_name\s+)([^;#]*);', new)
     if m and names:
         have = m.group(2).split()

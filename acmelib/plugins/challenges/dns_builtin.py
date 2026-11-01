@@ -134,6 +134,56 @@ class BuiltinDns(DnsChallenge):
         self.ctx.dns_put(fqdn, 'TXT', value, ttl=self.ttl())
         return None
 
+    # -- a commercial CA's DCV record: only inside acme's own zones -----------------------
+    # acme's DNS server answers its zones and nothing else; _dnsauth.NAME (DigiCert) or
+    # NAME itself sits in the customer's DNS, so the record can be written here only
+    # when that name is inside a zone of acme's (delegated to it by NS).
+    def add_cname(self, fqdn, target):
+        self.ctx.dns_put(fqdn, 'CNAME', D.norm(target) + '.', ttl=self.ttl())
+        return None
+
+    def del_cname(self, fqdn, target, handle):
+        try:
+            self.ctx.dns_drop(fqdn, 'CNAME', D.norm(target) + '.')
+        except Exception as e:                          # noqa: BLE001
+            self.ctx.step('%s CNAME could not be taken away: %s' % (fqdn, e), 'warn')
+
+    @staticmethod
+    def _zones_of(settings_):
+        return [D.norm(z) for z in as_list((settings_ or {}).get('dns_zone')) if D.norm(z)]
+
+    @classmethod
+    def place_problem(cls, proof, where, config, settings_):
+        if proof == 'acme-dns-01':
+            return ''
+        if proof not in ('txt-any', 'cname-any'):
+            return 'acme\'s own DNS server writes DNS records, not files'
+        zones = cls._zones_of(settings_)
+        fq = D.norm(where)
+        if fq and any(D.in_zone(fq, z) for z in zones):
+            return ''
+        return ('acme\'s own DNS server answers only its own zones (%s): %s is in your DNS, so '
+                'the CA\'s DCV record cannot be put there through it - choose a validation that '
+                'writes to your DNS (an API, RFC 2136), or delegate that name to acme by NS'
+                % (', '.join(zones) or 'none set', fq or 'the name'))
+
+    def place(self, kind, name, where, content):
+        fq = D.norm(where)
+        bad = self.place_problem({'txt': 'txt-any', 'cname': 'cname-any'}.get(kind, 'file'), fq,
+                                 self.config, settings(self.ctx))
+        if bad:
+            raise PluginError(bad, retry=False)
+        if kind == 'txt':
+            self.add_txt(fq, str(content))
+            return {'kind': 'txt', 'rr': fq, 'fqdn': fq, 'txt': str(content), 'at': time.time(),
+                    'h': None}
+        self.add_cname(fq, str(content))
+        return {'kind': 'cname', 'rr': fq, 'target': D.norm(content), 'at': time.time(),
+                'h': None}
+
+    def placed_ready(self, handle):
+        return True                     # answered by acme itself at once
+
     def del_txt(self, fqdn, value, handle):
         try:
             self.ctx.dns_drop(fqdn, 'TXT', value)

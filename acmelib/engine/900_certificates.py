@@ -240,6 +240,7 @@ def certs_daemon_start(daemon):
     certs_mod('notices').install(certs_mod('renewer'))
     # Let's Encrypt first: the sources and validations a new installation has.
     certs_mod('defaults').ensure(daemon.store)
+    certs_mod('dnssets').ensure(daemon.store)      # Settings → DNS: the set "Public", once
     certs_mod('renewer').start(daemon)
 
 
@@ -302,7 +303,8 @@ def certs_event_fields(kind, words, level):
 # The configuration's tables (Export and import of the configuration): what is
 # set up, not what happened (cert_jobs, cert_versions stay out).
 CERT_CARRY_TABLES = ['cert_issuers', 'cert_challenges', 'cert_targets', 'cert_cas',
-                     'cert_ca_issued', 'certs', 'cert_deploys', 'dns_records']
+                     'cert_ca_issued', 'certs', 'cert_deploys', 'dns_records',
+                     'dns_sets', 'dns_set_uses']
 
 
 @_certs_hook('carry_tables')

@@ -486,6 +486,22 @@ def acme_challenge(store, token):
     return got['auth']
 
 
+def acme_file(store, host, path):
+    """A commercial CA's DCV file (/.well-known/pki-validation/...) for host, or
+    None: what acme.php gives on port 80 (acmelib/certs/runtime.http_file_put)."""
+    import hashlib
+    host = str(host or '').strip().lower().rstrip('.').split(':')[0]
+    path = str(path or '')
+    if not re.match(r'^[a-z0-9_.-]{1,253}\Z', host) or \
+            not re.match(r'^/\.well-known/pki-validation/[A-Za-z0-9_.-]{1,128}\Z', path):
+        return None
+    k = 'acme:file:' + hashlib.sha256(('%s|%s' % (host, path)).encode('utf-8')).hexdigest()[:48]
+    got = _meta_json(store, k) or {}
+    if not isinstance(got.get('content'), str) or time.time() > float(got.get('until') or 0):
+        return None
+    return got['content']
+
+
 def acme_work_view():
     """What is being ordered, copied under the lock: the orders side by side
     change it while it is read."""

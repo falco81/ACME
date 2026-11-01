@@ -3,7 +3,11 @@ from __future__ import annotations
 # ---- what goes into your DNS, and whether it is there (1.0.170) -------------------------
 def acme_resolvers():
     """The DNS servers ACME asks (1.0.172): its own setting, else the
-    machine's (/etc/resolv.conf) - never the mail's."""
+    machine's (/etc/resolv.conf) - never the mail's. A set chosen under Settings
+    → DNS for "The appliance's own ACME" comes first (1.0.210)."""
+    chosen = dns_set_servers('acme')
+    if chosen is not None:
+        return chosen
     out = []
     for w in re.split(r'[\s,;]+', str(CONFIG.get('acme_resolvers') or '')):
         try:

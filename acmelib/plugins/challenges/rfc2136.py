@@ -112,6 +112,17 @@ class Rfc2136(DnsChallenge):
                    'the update of %s' % fqdn)
         return {'zone': zone}
 
+    def add_cname(self, fqdn, target):
+        zone = self.zone_for(fqdn)
+        self._send(D.make_update(zone, add=[(fqdn, 'CNAME', self.ttl(), D.norm(target) + '.')]),
+                   'the update of %s' % fqdn)
+        return {'zone': zone}
+
+    def del_cname(self, fqdn, target, handle):
+        zone = (handle or {}).get('zone') or self.zone_for(fqdn)
+        self._send(D.make_update(zone, delete=[(fqdn, 'CNAME', D.norm(target) + '.')]),
+                   'the update of %s' % fqdn)
+
     def del_txt(self, fqdn, value, handle):
         zone = (handle or {}).get('zone') or self.zone_for(fqdn)
         self._send(D.make_update(zone, delete=[(fqdn, 'TXT', value)]),

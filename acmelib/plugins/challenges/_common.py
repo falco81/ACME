@@ -426,8 +426,14 @@ class DnsChallenge(Challenge):
         return getattr(cls, 'add_cname') is not DnsChallenge.add_cname
 
     @classmethod
+    def writes_txt(cls):
+        return getattr(cls, 'add_txt') is not DnsChallenge.add_txt
+
+    @classmethod
     def proofs_for(cls, config):
-        out = ['acme-dns-01', 'txt-any']
+        out = ['acme-dns-01']
+        if cls.writes_txt():
+            out.append('txt-any')
         if cls.writes_cname():
             out.append('cname-any')
         return out

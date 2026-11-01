@@ -88,6 +88,24 @@ class Desec(ApiDns):
                 self._write(zone, sub, self._ttl(info), recs + [one])
         return {'zone': zone, 'sub': sub}
 
+    def add_cname(self, fqdn, target):
+        zone = self.zone_for(fqdn)
+        sub = relative(fqdn, zone)
+        if sub == '@':
+            raise PluginError('a CNAME cannot be at the zone %s itself' % zone, retry=False)
+        info = self._domain(zone)
+        self._call('PATCH', '/domains/%s/rrsets/' % urllib.parse.quote(zone),
+                   [{'subname': sub, 'type': 'CNAME', 'ttl': self._ttl(info),
+                     'records': [D.norm(target) + '.']}])
+        return {'zone': zone, 'sub': sub}
+
+    def del_cname(self, fqdn, target, handle):
+        h = handle or {}
+        zone = h.get('zone') or self.zone_for(fqdn)
+        sub = h.get('sub') or relative(fqdn, zone)
+        self._call('PATCH', '/domains/%s/rrsets/' % urllib.parse.quote(zone),
+                   [{'subname': sub, 'type': 'CNAME', 'ttl': self.min_ttl, 'records': []}])
+
     def del_txt(self, fqdn, value, handle):
         h = handle or {}
         zone = h.get('zone') or self.zone_for(fqdn)

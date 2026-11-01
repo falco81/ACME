@@ -38,6 +38,19 @@ class AcmeDns(DnsChallenge):
               advanced=True),
     ] + PROPAGATION_FIELDS
 
+    # acme-dns writes one TXT record, at the account's own name: nothing else - a
+    # commercial CA's DCV record cannot be put in place by it.
+    @classmethod
+    def proofs_for(cls, config):
+        return ['acme-dns-01']
+
+    @classmethod
+    def place_problem(cls, proof, where, config, settings):
+        if proof != 'acme-dns-01':
+            return ('acme-dns writes only the ACME TXT record at its account\'s name - not a '
+                    'CA\'s own DCV record (%s)' % where)
+        return ''
+
     def account(self, name):
         base = base_name(name)
         raw = self.c('accounts', '')

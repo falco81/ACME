@@ -79,7 +79,11 @@ class MailError(RuntimeError):
 
 # ---- the recipients' servers, without a library to ask DNS with -----------------
 def own_dns():
-    """The DNS servers set for mail going direct (`mail_dns`), if any."""
+    """The DNS servers set for mail going direct: the set chosen under Settings →
+    DNS for "Mail going direct" (1.0.210), else `mail_dns`, if any."""
+    chosen = dns_set_servers('mail')
+    if chosen is not None:
+        return chosen
     good = []
     for w in re.split(r'[\s,;]+', str(CONFIG.get('mail_dns') or '')):
         try:

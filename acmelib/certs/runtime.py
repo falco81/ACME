@@ -40,6 +40,14 @@ from acmelib.certs import store as S
 
 KV_PREFIX = 'certs:kv:'
 CHAL_PREFIX = 'acme:chal:'          # read by the engine's acme_challenge() for port 80
+FILE_PREFIX = 'acme:file:'          # a CA's DCV file, read by the engine's acme_file() for port 80
+
+
+def file_key(host, path):
+    """The meta key of a DCV file answered for http://host/path."""
+    h = hashlib.sha256(('%s|%s' % (str(host or '').strip().lower().rstrip('.'),
+                                   str(path or ''))).encode('utf-8')).hexdigest()[:48]
+    return FILE_PREFIX + h
 HOSTKEY_ALIAS = 'acme-target'
 
 
@@ -249,6 +257,26 @@ class RunContext(base.Context):
 
     def http_token_drop(self, token):
         self.store.db.run('DELETE FROM meta WHERE k = ?', (CHAL_PREFIX + str(token),))
+
+    def http_file_put(self, host, path, content, ttl_s=30 * 86400):
+        """A commercial CA's DCV file answered on this server's port 80 for
+        http://host/path (path under /.well-known/pki-validation/) - kept for days,
+        not taken away when the job ends: the CA looks when it looks."""
+        host = str(host or '').strip().lower().rstrip('.')
+        path = str(path or '')
+        if not re.match(r'^[a-z0-9_.-]{1,253}\Z', host) or \
+                not re.match(r'^/\.well-known/pki-validation/[A-Za-z0-9_.-]{1,128}\Z', path) or \
+                '..' in path:
+            raise base.PluginError('acme answers a DCV file only under '
+                                   '/.well-known/pki-validation/, not %s%s' % (host, path),
+                                   retry=False)
+        t = time.time()
+        self.store.set_meta(file_key(host, path), json.dumps(
+            {'host': host, 'path': path, 'content': str(content), 'at': t,
+             'until': t + float(ttl_s or 30 * 86400)}))
+
+    def http_file_drop(self, host, path):
+        self.store.db.run('DELETE FROM meta WHERE k = ?', (file_key(host, path),))
 
     # ---- what a challenge's guide asks about acme ----------------------------------------
     def dns_server_info(self):

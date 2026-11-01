@@ -74,6 +74,17 @@ SCHEMA = [
     ('dns_records', '''CREATE TABLE IF NOT EXISTS dns_records (
         id {ID}, name {K} NOT NULL, rtype {K} NOT NULL, value {T}, ttl {I}, expires {N},
         created {N}, owner {K}, note {T})'''),
+    # Settings → DNS (acmelib/certs/dnssets.py): named sets of DNS servers, one
+    # address a line in `servers`; protocol udp | tcp | dot. "The system's" is
+    # built in and kept nowhere.
+    ('dns_sets', '''CREATE TABLE IF NOT EXISTS dns_sets (
+        id {ID}, name {K} NOT NULL UNIQUE, servers {T}, protocol {K}, tls_name {K},
+        timeout_s {N}, note {T}, created {N}, created_by {K}, updated {N},
+        updated_by {K})'''),
+    # Which set a function of acme asks (validation, public, apis, targets, acme,
+    # mail); a function not listed asks its default.
+    ('dns_set_uses', '''CREATE TABLE IF NOT EXISTS dns_set_uses (
+        id {ID}, purpose {K} NOT NULL UNIQUE, set_name {K}, updated {N}, updated_by {K})'''),
 ]
 
 INDEXES = [
