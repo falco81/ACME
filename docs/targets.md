@@ -50,6 +50,26 @@ Every module here works the same way:
 | `kubernetes` | Kubernetes TLS secret | Kubernetes |
 | `webhook` | Webhook | Generic |
 | `vault` | HashiCorp Vault (KV v2) | HashiCorp |
+| `aws_acm` | AWS Certificate Manager (ACM) | Amazon |
+| `azure_keyvault` | Azure Key Vault | Microsoft |
+| `gcp_certmanager` | Google Cloud Certificate Manager | Google |
+| `cloudflare_ssl` | Cloudflare custom certificate | Cloudflare |
+| `vcenter` | VMware vCenter Server | VMware |
+| `esxi` | VMware ESXi host (SSH) | VMware |
+| `redfish` | Server management (Redfish: iDRAC, iLO, XCC, BMC) | Redfish (Dell, HPE, Lenovo, Supermicro) |
+| `sophos` | Sophos Firewall (SFOS / XG) | Sophos |
+| `kemp` | Kemp / Progress LoadMaster | Progress Kemp |
+| `cisco_ise` | Cisco ISE | Cisco |
+| `haproxy` | HAProxy (Runtime API, no reload) | HAProxy |
+| `traefik` | Traefik Proxy (file provider) | Traefik Labs |
+| `caddy` | Caddy | Caddy |
+| `nginx_unit` | NGINX Unit | NGINX |
+| `zimbra` | Zimbra Collaboration | Zimbra |
+| `truenas` | TrueNAS (midclt over SSH) | iXsystems |
+| `docker_swarm` | Docker Swarm secrets | Docker |
+| `strongswan` | strongSwan (IPsec VPN) | strongSwan |
+| `fritzbox` | AVM FRITZ!Box | AVM |
+| `unifi_os` | UniFi OS console (UDM, UCG, Cloud Key) | Ubiquiti |
 
 Your own module goes in `/etc/acme/plugins/targets/` - see
 [writing-a-module.md](writing-a-module.md).
@@ -462,3 +482,325 @@ Enterprise namespaces through `X-Vault-Namespace`.
 ```hcl
 path "secret/data/acme/*" { capabilities = ["create", "update", "read"] }
 ```
+
+---
+
+The modules below were added from what other certificate tools deploy to
+(acme.sh's deploy hooks, Certify The Web's deployment tasks, certimate's
+deployers) and from the vendors' own API documentation; each module's file
+names its sources at the top. Where a vendor documents a thing only loosely,
+the section says so under **Uncertain**.
+
+## `aws_acm` - AWS Certificate Manager
+
+Imports the certificate into ACM (`CertificateManager.ImportCertificate`,
+JSON 1.1, signed with Signature Version 4) and on every renewal **re-imports
+it into the same ARN** - so the ALB/NLB listeners, CloudFront distributions
+and API Gateway domains that use it take the new one by themselves, nothing
+else is touched. The ARN is the one given, or the one acme got on the first
+import (kept per region and certificate). Unchanged: `DescribeCertificate`
+shows the same serial. Tags are set on the first import only (ACM refuses
+them on a re-import).
+
+**Rights**: an IAM user (or temporary STS credentials) with
+`acm:ImportCertificate`, `acm:DescribeCertificate`, `acm:ListCertificates`,
+`acm:AddTagsToCertificate`. CloudFront takes certificates only from
+`us-east-1`.
+
+**Example**: region `eu-central-1`, ARN empty (first import makes it), tags
+`Owner=it`. Source: <https://docs.aws.amazon.com/acm/latest/APIReference/API_ImportCertificate.html>,
+<https://docs.aws.amazon.com/acm/latest/userguide/import-reimport.html>.
+
+## `azure_keyvault` - Azure Key Vault
+
+Imports the key and full chain (PEM, `application/x-pem-file`) as a **new
+version** of one Key Vault certificate (`POST
+https://<vault>.vault.azure.net/certificates/<name>/import?api-version=7.4`).
+Whatever uses the certificate without a version - Application Gateway,
+App Service (Key Vault reference; it syncs within 24 h or on *Sync*), Front
+Door, API Management - takes it. Unchanged: the vault's current version has
+the same SHA-1 thumbprint (`x5t`). Old versions stay in the vault (Key
+Vault's own history; disable or purge them there if you wish).
+
+**Rights**: an app registration (client secret; OAuth2 client credentials,
+scope `https://vault.azure.net/.default`) with the role *Key Vault
+Certificates Officer* on the vault (RBAC), or access policy *Certificates:
+Get, List, Import*. Azure China and US Government are under *Cloud*.
+
+**Example**: vault `kv-firma`, name `www-example-com`. Source:
+<https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/import-certificate/import-certificate>.
+
+## `gcp_certmanager` - Google Cloud Certificate Manager
+
+Makes a **self-managed certificate** (`POST
+.../projects/<p>/locations/<l>/certificates?certificateId=<id>`) and on each
+renewal updates it in place (`PATCH ...?updateMask=selfManaged`), so the
+certificate maps and load balancers pointing at it take the new one; the
+long-running operation is waited for. Unchanged: its `pemCertificate` is
+this certificate. The token comes from a service account key (a JWT signed
+RS256 by openssl, as for Google Cloud DNS).
+
+**Rights**: the role *Certificate Manager Editor*
+(`roles/certificatemanager.editor`) on the project. Location `global` for
+global load balancers, a region for regional ones.
+
+Source: <https://cloud.google.com/certificate-manager/docs/reference/certificate-manager/rest/v1/projects.locations.certificates>.
+**Uncertain**: the vendor page says an update is taken by every load
+balancer using the certificate; acme does not check each one.
+
+## `cloudflare_ssl` - Cloudflare custom certificate
+
+Uploads the certificate as a **custom certificate** of a zone (`POST
+/zones/<id>/custom_certificates`, `bundle_method` force / ubiquitous /
+optimal, `sni_custom` or `legacy_custom`) and on each renewal replaces it in
+place (`PATCH .../custom_certificates/<id>`: same id, swapped on Cloudflare's
+edge without a gap). The id is remembered; a certificate acme does not know
+yet is found by its names (exactly the same hosts).
+
+**Rights**: an API token with *Zone → SSL and Certificates → Edit* (and *Zone
+→ Zone → Read* to find the zone by name). Custom certificates need a
+Business or Enterprise zone, or Advanced Certificate Manager.
+
+Source: <https://developers.cloudflare.com/api/resources/custom_certificates/methods/create/>.
+
+## `vcenter` - VMware vCenter Server
+
+vCenter 7.0 and later, vSphere Automation REST API: signs in (`POST
+/api/session`, basic auth → `vmware-api-session-id`), adds the intermediates
+and the root to the **trusted root chains**, then **replaces the machine SSL
+certificate** (`PUT /api/vcenter/certificate-management/vcenter/tls` with
+`cert`, `key`, `root_cert`). vCenter restarts its services - the vSphere
+Client is away for several minutes; the check of what is served waits for it
+(20 tries, 15 s apart). Unchanged: the TLS info's thumbprint is this
+certificate's.
+
+**Rights**: a user with *CertificateManagement.Administer* (Administrators of
+vsphere.local). Let's Encrypt's chain has no root: give *Root CA certificate*
+(ISRG Root X1).
+
+Source: <https://developer.broadcom.com/xapis/vsphere-automation-api/latest/vcenter/certificate_management-vcenter/tls>.
+**Uncertain**: whether `cert` should hold the leaf alone (sent so, as the
+SDK sample does) or the leaf with its intermediates.
+
+## `esxi` - VMware ESXi host
+
+Over SSH: `/etc/vmware/ssl/rui.crt` (full chain) and `rui.key` written
+(atomically, the previous ones as `.acme-prev`), then `/etc/init.d/hostd
+restart && /etc/init.d/vpxa restart` (or `services.sh restart`); when that
+fails the old files are put back and the services restarted again.
+Unchanged: both files already hold exactly this (`sha256sum`).
+
+**Rights**: root with SSH on (*Host → Actions → Services → Enable Secure
+Shell*). A host in vCenter's default VMCA mode gets its certificate renewed
+by vCenter: set `vpxd.certmgmt.mode` to `custom` first. Choose an RSA key for
+ESXi before 8.0.
+
+Source: <https://knowledge.broadcom.com/external/article?legacyId=2113926>.
+
+## `redfish` - server management controllers (iDRAC, iLO, XCC, BMC)
+
+Standard Redfish: signs in with a session (`X-Auth-Token`; or basic auth),
+finds the first manager's `NetworkProtocol/HTTPS/Certificates` member (or
+the *Certificate URI* given), and calls
+`CertificateService.ReplaceCertificate` with key + full chain
+(`CertificateType: PEMchain`, or key + certificate as `PEM`). *Restart the
+controller* sends `Manager.Reset` `GracefulRestart` (the server itself is not
+touched). Unchanged: the controller already serves this certificate.
+
+**Rights**: a controller user with *Configure Manager* (iDRAC: *Configure*;
+iLO: *Configure iLO Settings*).
+
+Sources: <https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2023.3.html>,
+<https://github.com/acmesh-official/acme.sh/blob/master/deploy/redfish.sh>.
+**Uncertain**: which controllers take a private key this way - reported for
+AMI MegaRAC (ASUS, Lenovo, Supermicro), "should" for iDRAC9 5.x+ and iLO 5
+2.42+; HPE iLO mostly wants its own CSR and older iDRACs `racadm
+sslkeyupload`. Use an RSA 2048 key.
+
+## `sophos` - Sophos Firewall (SFOS / XG)
+
+XML API (`https://<fw>:4444/webconsole/APIController`, multipart `reqxml` +
+the file): uploads the certificate as PKCS#12 (3DES, a one-time password)
+under a dated name (`UploadCertificate`; SFOS refuses to replace one in
+use), points each listed **firewall (WAF) rule** at it (the rule read, its
+`<Certificate>` set, written back with `operation="update"`), then removes
+older acme certificates beyond *keep* (one still used stays).
+
+**Rights**: *Administration → Device access → API* on, acme's address among
+the allowed ones; an administrator whose profile may change *Certificates*
+and *Firewall rules*.
+
+Source: <https://docs.sophos.com/nsg/sophos-firewall/21.0/api/index.html>.
+**Uncertain**: the part name of the file (`file`, as the community's working
+examples) and that the WAF rule's certificate is found as `<Certificate>`
+anywhere in the rule (SFOS 18-21).
+
+## `kemp` - Kemp / Progress LoadMaster
+
+REST API in its JSON form (`POST /accessv2`, LoadMaster 7.2.50+; API key, or
+`apiuser`/`apipass`): `addcert` (full chain + key, base64) under a dated
+name, `addintermediate` for the chain (one already there is fine), `modvs
+… CertFile=` for each listed virtual service (`address:port[:tcp]`),
+`delcert` for older acme ones beyond *keep*.
+
+**Rights**: *System Configuration → Remote Access → Enable API Interface*; an
+API key or a user with *Certificate Creation* and *Virtual Services*.
+
+Source: <https://docs.progress.com/bundle/loadmaster-technical-note-restful-api-programmer-guide-ga/page/Introduction.html>.
+**Uncertain**: `addintermediate` and the shape of `listcert`'s answer are
+taken from the APIv1 descriptions.
+
+## `cisco_ise` - Cisco ISE
+
+ISE 3.1+ OpenAPI, basic auth: the intermediates imported as **trusted
+certificates** (`/api/v1/certs/trusted-certificate/import`), then the
+certificate as a **system certificate** under a dated friendly name
+(`/api/v1/certs/system-certificate/import`) for the roles listed - `admin`,
+`eap`, `radius`, `pxgrid`, `saml`, `portal` (with its portal group tag),
+`ims`; the key goes encrypted (PKCS#8 AES-256 by openssl) with a one-time
+password. Older acme certificates of the node beyond *keep* are deleted. The
+*Admin* role restarts the node's application server (minutes).
+
+**Rights**: Open API on (*Administration → System → Settings → API
+Settings*), an admin with *ERS Admin* (or *Super Admin*).
+
+Source: <https://developer.cisco.com/docs/identity-services-engine/latest/certificates-openapi/>.
+**Uncertain**: the import goes to the node acme speaks to - set *Address*
+and *Node hostname* to the same node, one target per node.
+
+## `haproxy` - HAProxy (Runtime API, no reload)
+
+Over SSH: the PEM (key + full chain) written to *Certificate file*, then
+swapped into the running HAProxy on its stats socket (`socat`): `set ssl
+cert <file> <<` with the PEM, `commit ssl cert <file>` - no reload, no
+dropped connection. A file HAProxy does not know yet is made with `new ssl
+cert` and added with `add ssl crt-list` (put it in the crt-list file as well
+for the next restart). *Reload when the Runtime API cannot* runs your
+command instead. Unchanged: the file holds this and `show ssl cert` shows
+its serial.
+
+**Rights**: a user who may write the file and the socket (root or sudo);
+`stats socket /run/haproxy/admin.sock mode 660 level admin`; `socat`;
+HAProxy 2.2+.
+
+Source: <https://docs.haproxy.org/2.8/management.html#9.3-set%20ssl%20cert>.
+
+## `traefik` - Traefik Proxy (file provider)
+
+Over SSH: `acme-<name>-<date>-<serial>.crt/.key` in *Folder for the
+certificates* and `acme-<name>.yml` in the file provider's folder with
+`tls.certificates` (and `tls.stores.default.defaultCertificate` when asked);
+Traefik watches the folder and takes it without a restart. *The
+certificates' folder as Traefik sees it* is for Traefik in a container.
+Older certificate files beyond *keep* are deleted.
+
+**Rights**: write access to both folders (root or sudo); Traefik with
+`--providers.file.directory=/etc/traefik/dynamic --providers.file.watch=true`.
+
+Source: <https://doc.traefik.io/traefik/https/tls/#user-defined>.
+
+## `caddy` - Caddy
+
+Over SSH, curl on the machine to Caddy's admin API (`localhost:2019`):
+*admin API* replaces the entries of `apps.tls.certificates.load_pem` tagged
+`acme-<name>` (`PATCH`, or `POST` when there are none) - no file, no reload;
+for Caddy run from JSON or with `--resume` (a Caddyfile reload loses it).
+*files + reload* writes the files the Caddyfile's `tls` line names and runs
+`caddy reload --config /etc/caddy/Caddyfile`; the old files are put back if
+the reload fails.
+
+**Rights**: SSH; curl; for files, write access (root or sudo).
+
+Source: <https://caddyserver.com/docs/api>,
+<https://caddyserver.com/docs/json/apps/tls/certificates/load_pem/>.
+
+## `nginx_unit` - NGINX Unit
+
+Over SSH, curl to the control socket: the bundle (full chain + key) uploaded
+as `PUT /certificates/acme-<name>-<date>-<serial>`, each listed listener's
+`tls/certificate` pointed at it (in a list, the older acme one replaced),
+older acme bundles deleted (one still used is refused by Unit and stays).
+
+**Rights**: access to the control socket (root or sudo); curl.
+
+Source: <https://unit.nginx.org/certificates/>.
+
+## `zimbra` - Zimbra Collaboration
+
+Over SSH, as zimbra (`su - zimbra -c`): the key put in
+`/opt/zimbra/ssl/zimbra/commercial/commercial.key`, the certificate and the
+chain **up to the root** checked with `zmcertmgr verifycrt comm` (the old key
+is put back when it fails), deployed with `zmcertmgr deploycrt comm`, then
+`zmcontrol restart` (or proxy, mailbox and MTA only). Let's Encrypt's chain
+has no root: give *Root CA certificate* (ISRG Root X1 / X2).
+
+**Rights**: root (or sudo) on every Zimbra server - one target each.
+
+Source: <https://wiki.zimbra.com/wiki/Installing_a_LetsEncrypt_SSL_Certificate>.
+
+## `truenas` - TrueNAS
+
+Over SSH with `midclt` (the middleware client - it works on releases whose
+REST API is deprecated or gone): `certificate.create` (imported, a dated name
+with `_` for dots), `system.general.update` *ui_certificate* and
+`system.general.ui_restart`, `ftp.update` when asked, `certificate.delete`
+for older acme ones beyond *keep* (one in use stays).
+
+**Rights**: root or an admin with sudo (`truenas_admin`); SSH on.
+
+Source: <https://api.truenas.com/v25.04/api_methods_certificate.create.html>.
+**Uncertain**: TrueNAS 26 changes some of `midclt`'s output; acme reads the
+last line as JSON.
+
+## `docker_swarm` - Docker Swarm secrets
+
+Over SSH on a manager: `docker secret create acme-<name>-<date>-<serial>.crt`
+(full chain) and `.key`, each listed service rolled onto them (`docker
+service update --secret-rm <old> --secret-add
+source=<new>,target=tls.crt,mode=0444`), older acme secrets removed (one
+still used stays).
+
+**Rights**: docker group (or root / sudo) on a manager node.
+
+Source: <https://docs.docker.com/engine/swarm/secrets/#example-rotate-a-secret>.
+
+## `strongswan` - strongSwan (IPsec VPN)
+
+Over SSH: `x509/<name>.crt`, `x509ca/acme-ca-<id>.crt`, `private/<name>.key`
+under `/etc/swanctl` (or `ipsec.d/…` for the stroke configuration), then
+`swanctl --load-creds` (or `ipsec rereadall`) - no tunnel dropped; the old
+files are put back when that fails.
+
+**Rights**: root or sudo.
+
+Source: <https://docs.strongswan.org/docs/latest/swanctl/swanctlDir.html>.
+
+## `fritzbox` - AVM FRITZ!Box
+
+Signs in through `login_sid.lua` (PBKDF2 challenge of FRITZ!OS 7.24+, or the
+old MD5 one) and posts key + full chain to `/cgi-bin/firmwarecfg`
+(`BoxCertImportFile`), as the box's own page does; the certificate is then
+used for its pages, MyFRITZ! and VPN. Unchanged: the box already serves it.
+
+**Rights**: a FRITZ!Box user with *FRITZ!Box settings*, without the button
+confirmation for settings changes.
+
+Source: <https://avm.de/fileadmin/user_upload/Global/Service/Schnittstellen/AVM_Technical_Note_-_Session_ID_english_2021-05-03.pdf>.
+**Uncertain**: the box answers the upload with a page; it counts as done when
+the page speaks of the SSL certificate without an error. Older FRITZ!OS
+takes RSA keys only.
+
+## `unifi_os` - UniFi OS console
+
+The console's own certificate API (`/api/auth/login`, `/api/userCertificates`):
+the certificate added under a dated name, made active (`PUT
+…/<id>/status {"active": true}`), older acme ones deleted. For UDM, UCG,
+UDR, Cloud Key Gen2+ and UniFi OS Server; nothing is written on the disk.
+(The `ssh` preset *UniFi Network* is for the self-hosted Network
+application.)
+
+**Rights**: a local console admin without two-factor sign-in.
+
+Source: <https://github.com/acmesh-official/acme.sh/blob/master/deploy/unifios.sh>.
+**Uncertain**: Ubiquiti documents the page, not the API; it is what acme.sh's
+hook uses (UniFi OS 4.x, 5.x).

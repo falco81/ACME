@@ -27343,6 +27343,566 @@
   "sc1768": {
    "source": "a new key was made",
    "text": "byl vytvořen nový klíč"
+  },
+  "sc1769": {
+   "source": "AWS Certificate Manager (ACM)",
+   "text": "AWS Certificate Manager (ACM)"
+  },
+  "sc1770": {
+   "source": "Imports the certificate into ACM and re-imports each renewal into the same ARN, so load balancers, CloudFront and API Gateway take it by themselves.",
+   "text": "Naimportuje certifikát do ACM a každé obnovení znovu naimportuje do stejného ARN, takže load balancery, CloudFront a API Gateway ho převezmou samy."
+  },
+  "sc1771": {
+   "source": "An IAM user with acm:ImportCertificate, acm:DescribeCertificate, acm:ListCertificates and acm:AddTagsToCertificate.",
+   "text": "Uživatel IAM s oprávněními acm:ImportCertificate, acm:DescribeCertificate, acm:ListCertificates a acm:AddTagsToCertificate."
+  },
+  "sc1772": {
+   "source": "The region of the load balancers; us-east-1 for CloudFront.",
+   "text": "Region load balancerů; pro CloudFront us-east-1."
+  },
+  "sc1773": {
+   "source": "Certificate ARN",
+   "text": "ARN certifikátu"
+  },
+  "sc1774": {
+   "source": "Re-import into this certificate. Empty: imported once as a new one, whose ARN acme keeps and re-imports into from then on.",
+   "text": "Znovu importovat do tohoto certifikátu. Prázdné: jednou se naimportuje jako nový, acme si jeho ARN pamatuje a od té doby importuje do něj."
+  },
+  "sc1775": {
+   "source": "key=value, one a line; set on the first import only (ACM does not take tags on a re-import)",
+   "text": "klíč=hodnota, jeden na řádek; nastaví se jen při prvním importu (ACM při opětovném importu štítky nebere)"
+  },
+  "sc1776": {
+   "source": "Azure Key Vault",
+   "text": "Azure Key Vault"
+  },
+  "sc1777": {
+   "source": "Imports the certificate as a new version in Azure Key Vault, where Application Gateway, App Service, Front Door and API Management take it.",
+   "text": "Naimportuje certifikát jako novou verzi do Azure Key Vault, odkud ho převezmou Application Gateway, App Service, Front Door a API Management."
+  },
+  "sc1778": {
+   "source": "Key Vault",
+   "text": "Key Vault"
+  },
+  "sc1779": {
+   "source": "its name, or its URL (https://kv-firma.vault.azure.net)",
+   "text": "jeho název, nebo URL (https://kv-firma.vault.azure.net)"
+  },
+  "sc1780": {
+   "source": "An app registration with the role \"Key Vault Certificates Officer\" on the vault (or, with access policies, Certificates: Get, List, Import).",
+   "text": "Registrace aplikace s rolí „Key Vault Certificates Officer“ na trezoru (nebo, se zásadami přístupu, Certificates: Get, List, Import)."
+  },
+  "sc1781": {
+   "source": "Cloud",
+   "text": "Cloud"
+  },
+  "sc1782": {
+   "source": "Azure",
+   "text": "Azure"
+  },
+  "sc1783": {
+   "source": "Certificate name in the vault",
+   "text": "Název certifikátu v trezoru"
+  },
+  "sc1784": {
+   "source": "letters, digits and -; empty: acme-<the certificate's name>",
+   "text": "písmena, číslice a -; prázdné: acme-<název certifikátu>"
+  },
+  "sc1785": {
+   "source": "Google Cloud Certificate Manager",
+   "text": "Google Cloud Certificate Manager"
+  },
+  "sc1786": {
+   "source": "Uploads the certificate to Certificate Manager as a self-managed one and updates it in place on each renewal, for the load balancers using it.",
+   "text": "Nahraje certifikát do Certificate Manageru jako vlastní (self-managed) a při každém obnovení ho aktualizuje na místě pro load balancery, které ho používají."
+  },
+  "sc1787": {
+   "source": "IAM → Service accounts → Keys → Add key → JSON, pasted whole. The account needs the role \"Certificate Manager Editor\" (roles/certificatemanager.editor) on the project.",
+   "text": "IAM → Service accounts → Keys → Add key → JSON, vložený celý. Účet potřebuje v projektu roli „Certificate Manager Editor“ (roles/certificatemanager.editor)."
+  },
+  "sc1788": {
+   "source": "Location",
+   "text": "Umístění"
+  },
+  "sc1789": {
+   "source": "global for global external load balancers; a region (europe-west3) for regional ones",
+   "text": "global pro globální externí load balancery; region (europe-west3) pro regionální"
+  },
+  "sc1790": {
+   "source": "Certificate ID",
+   "text": "ID certifikátu"
+  },
+  "sc1791": {
+   "source": "a-z, 0-9 and -; empty: acme-<the certificate's name>",
+   "text": "a-z, 0-9 a -; prázdné: acme-<název certifikátu>"
+  },
+  "sc1792": {
+   "source": "Description",
+   "text": "Popis"
+  },
+  "sc1793": {
+   "source": "Cloudflare custom certificate",
+   "text": "Vlastní certifikát Cloudflare"
+  },
+  "sc1794": {
+   "source": "Uploads the certificate as a custom certificate of a Cloudflare zone and replaces it in place on each renewal.",
+   "text": "Nahraje certifikát jako vlastní certifikát zóny Cloudflare a při každém obnovení ho nahradí na místě."
+  },
+  "sc1795": {
+   "source": "My Profile → API Tokens: Zone → SSL and Certificates → Edit (and Zone → Zone → Read when the zone is given by its name)",
+   "text": "My Profile → API Tokens: Zone → SSL and Certificates → Edit (a Zone → Zone → Read, je-li zóna zadána názvem)"
+  },
+  "sc1796": {
+   "source": "its name, or its zone ID (32 hex characters)",
+   "text": "její název, nebo ID zóny (32 hexadecimálních znaků)"
+  },
+  "sc1797": {
+   "source": "as acme gives it (force)",
+   "text": "tak, jak ho dá acme (force)"
+  },
+  "sc1798": {
+   "source": "the most compatible Cloudflare can build (ubiquitous)",
+   "text": "nejkompatibilnější, jaký Cloudflare sestaví (ubiquitous)"
+  },
+  "sc1799": {
+   "source": "the shortest (optimal)",
+   "text": "nejkratší (optimal)"
+  },
+  "sc1800": {
+   "source": "Served to",
+   "text": "Pro koho"
+  },
+  "sc1801": {
+   "source": "clients with SNI (sni_custom)",
+   "text": "klienty s SNI (sni_custom)"
+  },
+  "sc1802": {
+   "source": "every client (legacy_custom)",
+   "text": "všechny klienty (legacy_custom)"
+  },
+  "sc1803": {
+   "source": "VMware vCenter Server",
+   "text": "VMware vCenter Server"
+  },
+  "sc1804": {
+   "source": "Replaces the machine SSL certificate of vCenter 7/8 through its REST API (the chain added to the trusted roots first); vCenter restarts its services.",
+   "text": "Vymění strojový SSL certifikát vCenter 7/8 přes jeho REST API (řetězec se nejprve přidá mezi důvěryhodné kořeny); vCenter restartuje své služby."
+  },
+  "sc1805": {
+   "source": "Root CA certificate",
+   "text": "Kořenový certifikát CA"
+  },
+  "sc1806": {
+   "source": "The root the chain ends in (ISRG Root X1 for Let's Encrypt), when vCenter does not trust it yet; empty: the last certificate of the chain",
+   "text": "Kořen, kterým řetězec končí (pro Let's Encrypt ISRG Root X1), pokud mu vCenter ještě nedůvěřuje; prázdné: poslední certifikát řetězce"
+  },
+  "sc1807": {
+   "source": "Add the chain to the trusted roots",
+   "text": "Přidat řetězec mezi důvěryhodné kořeny"
+  },
+  "sc1808": {
+   "source": "vCenter takes a certificate only when it trusts its issuers",
+   "text": "vCenter přijme certifikát, jen když důvěřuje jeho vydavatelům"
+  },
+  "sc1809": {
+   "source": "VMware ESXi host (SSH)",
+   "text": "Hostitel VMware ESXi (SSH)"
+  },
+  "sc1810": {
+   "source": "Writes the host certificate to /etc/vmware/ssl/rui.crt and rui.key over SSH and restarts hostd and vpxa; puts the old files back when hostd fails.",
+   "text": "Zapíše certifikát hostitele přes SSH do /etc/vmware/ssl/rui.crt a rui.key a restartuje hostd a vpxa; když hostd selže, vrátí staré soubory."
+  },
+  "sc1811": {
+   "source": "hostd and vpxa",
+   "text": "hostd a vpxa"
+  },
+  "sc1812": {
+   "source": "every service (services.sh restart)",
+   "text": "všechny služby (services.sh restart)"
+  },
+  "sc1813": {
+   "source": "nothing (done by hand)",
+   "text": "nic (udělá se ručně)"
+  },
+  "sc1814": {
+   "source": "Keep the previous files as .acme-prev",
+   "text": "Ponechat předchozí soubory jako .acme-prev"
+  },
+  "sc1815": {
+   "source": "Server management (Redfish: iDRAC, iLO, XCC, BMC)",
+   "text": "Správa serverů (Redfish: iDRAC, iLO, XCC, BMC)"
+  },
+  "sc1816": {
+   "source": "Replaces the HTTPS certificate of a server's management controller through the standard Redfish CertificateService, then restarts the controller when asked.",
+   "text": "Vymění HTTPS certifikát řadiče pro správu serveru přes standardní Redfish CertificateService a na přání pak řadič restartuje."
+  },
+  "sc1817": {
+   "source": "Basic authentication instead of a session",
+   "text": "Basic autentizace místo relace"
+  },
+  "sc1818": {
+   "source": "for a controller whose sessions do not work",
+   "text": "pro řadič, u kterého relace nefungují"
+  },
+  "sc1819": {
+   "source": "Send as",
+   "text": "Poslat jako"
+  },
+  "sc1820": {
+   "source": "PEM for a controller that refuses PEMchain",
+   "text": "PEM pro řadič, který PEMchain odmítá"
+  },
+  "sc1821": {
+   "source": "key + certificate + chain (PEMchain)",
+   "text": "klíč + certifikát + řetězec (PEMchain)"
+  },
+  "sc1822": {
+   "source": "key + certificate (PEM)",
+   "text": "klíč + certifikát (PEM)"
+  },
+  "sc1823": {
+   "source": "Certificate URI",
+   "text": "URI certifikátu"
+  },
+  "sc1824": {
+   "source": "empty: the first HTTPS certificate of the first manager",
+   "text": "prázdné: první HTTPS certifikát prvního manažeru"
+  },
+  "sc1825": {
+   "source": "Restart the controller afterwards",
+   "text": "Potom restartovat řadič"
+  },
+  "sc1826": {
+   "source": "Manager.Reset GracefulRestart - some controllers serve the new certificate only after it (iDRAC); the server itself is not touched",
+   "text": "Manager.Reset GracefulRestart – některé řadiče začnou nový certifikát servírovat až potom (iDRAC); samotného serveru se to nedotkne"
+  },
+  "sc1827": {
+   "source": "Sophos Firewall (SFOS / XG)",
+   "text": "Sophos Firewall (SFOS / XG)"
+  },
+  "sc1828": {
+   "source": "Uploads the certificate through the Sophos Firewall XML API under a new name, points the web server protection (WAF) rules at it and removes the older ones.",
+   "text": "Nahraje certifikát přes XML API Sophos Firewall pod novým názvem, nasměruje na něj pravidla ochrany webových serverů (WAF) a odstraní starší."
+  },
+  "sc1829": {
+   "source": "Firewall (WAF) rules",
+   "text": "Pravidla firewallu (WAF)"
+  },
+  "sc1830": {
+   "source": "one a line: the names of the web server protection rules to use it",
+   "text": "jedno na řádek: názvy pravidel ochrany webových serverů, která ho mají používat"
+  },
+  "sc1831": {
+   "source": "Kemp / Progress LoadMaster",
+   "text": "Kemp / Progress LoadMaster"
+  },
+  "sc1832": {
+   "source": "Adds the certificate through the LoadMaster REST API under a new name, points the virtual services at it and deletes the older ones.",
+   "text": "Přidá certifikát přes REST API LoadMasteru pod novým názvem, nasměruje na něj virtuální služby a starší smaže."
+  },
+  "sc1833": {
+   "source": "a user and password",
+   "text": "uživatelem a heslem"
+  },
+  "sc1834": {
+   "source": "Virtual services",
+   "text": "Virtuální služby"
+  },
+  "sc1835": {
+   "source": "one a line: address:port[:tcp|udp] of each virtual service to use it",
+   "text": "jedna na řádek: adresa:port[:tcp|udp] každé virtuální služby, která ho má používat"
+  },
+  "sc1836": {
+   "source": "Add the intermediates",
+   "text": "Přidat mezilehlé certifikáty"
+  },
+  "sc1837": {
+   "source": "Cisco ISE",
+   "text": "Cisco ISE"
+  },
+  "sc1838": {
+   "source": "Imports the certificate as a system certificate of a Cisco ISE node for the roles asked (Admin, EAP, Portal, pxGrid...) through its OpenAPI and deletes the older ones.",
+   "text": "Naimportuje certifikát přes OpenAPI jako systémový certifikát uzlu Cisco ISE pro zvolené role (Admin, EAP, Portal, pxGrid…) a starší smaže."
+  },
+  "sc1839": {
+   "source": "an admin with the ERS Admin role (or Super Admin)",
+   "text": "správce s rolí ERS Admin (nebo Super Admin)"
+  },
+  "sc1840": {
+   "source": "Node hostname",
+   "text": "Název hostitele uzlu"
+  },
+  "sc1841": {
+   "source": "the node's hostname as ISE lists it (Administration → System → Deployment)",
+   "text": "název hostitele uzlu, jak ho ISE uvádí (Administration → System → Deployment)"
+  },
+  "sc1842": {
+   "source": "one a line: admin, eap, radius, pxgrid, saml, portal, ims",
+   "text": "jedna na řádek: admin, eap, radius, pxgrid, saml, portal, ims"
+  },
+  "sc1843": {
+   "source": "Portal group tag",
+   "text": "Značka skupiny portálu"
+  },
+  "sc1844": {
+   "source": "Import the intermediates as trusted",
+   "text": "Naimportovat mezilehlé certifikáty jako důvěryhodné"
+  },
+  "sc1845": {
+   "source": "HAProxy (Runtime API, no reload)",
+   "text": "HAProxy (Runtime API, bez reloadu)"
+  },
+  "sc1846": {
+   "source": "Writes the PEM over SSH and swaps the certificate in the running HAProxy through its Runtime API (set ssl cert, commit) - no reload, no dropped connection.",
+   "text": "Zapíše PEM přes SSH a vymění certifikát v běžícím HAProxy přes jeho Runtime API (set ssl cert, commit) – bez reloadu, bez přerušeného spojení."
+  },
+  "sc1847": {
+   "source": "Stats socket",
+   "text": "Stats socket"
+  },
+  "sc1848": {
+   "source": "the \"stats socket\" of haproxy.cfg, with level admin",
+   "text": "„stats socket“ z haproxy.cfg, s level admin"
+  },
+  "sc1849": {
+   "source": "Certificate file",
+   "text": "Soubor certifikátu"
+  },
+  "sc1850": {
+   "source": "the PEM as haproxy.cfg (crt) or a crt-list names it; key + full chain",
+   "text": "PEM, jak ho uvádí haproxy.cfg (crt) nebo crt-list; klíč + celý řetězec"
+  },
+  "sc1851": {
+   "source": "crt-list for a new certificate",
+   "text": "crt-list pro nový certifikát"
+  },
+  "sc1852": {
+   "source": "a certificate HAProxy does not know yet is added to this crt-list; empty: it must be known already (named in haproxy.cfg)",
+   "text": "certifikát, který HAProxy ještě nezná, se přidá do tohoto crt-listu; prázdné: musí už být známý (uvedený v haproxy.cfg)"
+  },
+  "sc1853": {
+   "source": "Reload when the Runtime API cannot",
+   "text": "Reload, když Runtime API nemůže"
+  },
+  "sc1854": {
+   "source": "run instead when the socket is not there or refuses; empty: fail",
+   "text": "spustí se místo toho, když socket není nebo odmítne; prázdné: selhat"
+  },
+  "sc1855": {
+   "source": "Traefik Proxy (file provider)",
+   "text": "Traefik Proxy (file provider)"
+  },
+  "sc1856": {
+   "source": "Writes the certificate and a dynamic configuration file for Traefik's file provider over SSH; Traefik takes it without a restart, the old files are deleted.",
+   "text": "Zapíše přes SSH certifikát a dynamický konfigurační soubor pro file provider Traefiku; Traefik ho převezme bez restartu, staré soubory se smažou."
+  },
+  "sc1857": {
+   "source": "Folder for the certificates",
+   "text": "Složka pro certifikáty"
+  },
+  "sc1858": {
+   "source": "Folder of the file provider",
+   "text": "Složka file provideru"
+  },
+  "sc1859": {
+   "source": "providers.file.directory - Traefik must watch it",
+   "text": "providers.file.directory – Traefik ji musí sledovat"
+  },
+  "sc1860": {
+   "source": "The certificates' folder as Traefik sees it",
+   "text": "Složka certifikátů, jak ji vidí Traefik"
+  },
+  "sc1861": {
+   "source": "when Traefik runs in a container with the folder mounted elsewhere; empty: the same",
+   "text": "když Traefik běží v kontejneru se složkou připojenou jinde; prázdné: stejná"
+  },
+  "sc1862": {
+   "source": "Also the default certificate",
+   "text": "Také jako výchozí certifikát"
+  },
+  "sc1863": {
+   "source": "tls.stores.default.defaultCertificate: served when no other one matches",
+   "text": "tls.stores.default.defaultCertificate: použije se, když nesedí žádný jiný"
+  },
+  "sc1864": {
+   "source": "Loads the certificate into a running Caddy through its admin API, or writes the files a Caddyfile names and reloads Caddy - over SSH.",
+   "text": "Nahraje certifikát do běžícího Caddy přes jeho admin API, nebo zapíše soubory uvedené v Caddyfile a Caddy reloadne – přes SSH."
+  },
+  "sc1865": {
+   "source": "Admin API on the machine",
+   "text": "Admin API na stroji"
+  },
+  "sc1866": {
+   "source": "Caddy's \"admin\" address, reached with curl on the machine itself",
+   "text": "adresa „admin“ Caddy, volaná curlem přímo na stroji"
+  },
+  "sc1867": {
+   "source": "admin API: load_pem, no reload (JSON config)",
+   "text": "admin API: load_pem, bez reloadu (konfigurace v JSON)"
+  },
+  "sc1868": {
+   "source": "files + reload (Caddyfile)",
+   "text": "soubory + reload (Caddyfile)"
+  },
+  "sc1869": {
+   "source": "the path the Caddyfile's tls line names; {name}: the certificate's name",
+   "text": "cesta uvedená na řádku tls v Caddyfile; {name}: název certifikátu"
+  },
+  "sc1870": {
+   "source": "Key file",
+   "text": "Soubor klíče"
+  },
+  "sc1871": {
+   "source": "Owner of the files",
+   "text": "Vlastník souborů"
+  },
+  "sc1872": {
+   "source": "NGINX Unit",
+   "text": "NGINX Unit"
+  },
+  "sc1873": {
+   "source": "Uploads the certificate bundle to NGINX Unit's control API over SSH, points the listeners at it and deletes the older bundles - no restart.",
+   "text": "Nahraje balík certifikátu přes SSH do řídicího API NGINX Unit, nasměruje na něj listenery a starší balíky smaže – bez restartu."
+  },
+  "sc1874": {
+   "source": "Control socket",
+   "text": "Řídicí socket"
+  },
+  "sc1875": {
+   "source": "unitd --control; /run/unit/control.sock on some systems",
+   "text": "unitd --control; na některých systémech /run/unit/control.sock"
+  },
+  "sc1876": {
+   "source": "Listeners",
+   "text": "Listenery"
+  },
+  "sc1877": {
+   "source": "one a line, as in Unit's config (\"*:443\", \"127.0.0.1:8443\")",
+   "text": "jeden na řádek, jako v konfiguraci Unit („*:443“, „127.0.0.1:8443“)"
+  },
+  "sc1878": {
+   "source": "Zimbra Collaboration",
+   "text": "Zimbra Collaboration"
+  },
+  "sc1879": {
+   "source": "Deploys the certificate as Zimbra's commercial certificate with zmcertmgr over SSH (checked first, the old key put back when it fails) and restarts the services.",
+   "text": "Nasadí certifikát přes SSH jako komerční certifikát Zimbry pomocí zmcertmgr (nejprve ověřený, při selhání se vrátí starý klíč) a restartuje služby."
+  },
+  "sc1880": {
+   "source": "the root the chain ends in - zmcertmgr wants the whole chain up to it (ISRG Root X1 for Let's Encrypt); empty: the chain must hold it",
+   "text": "kořen, kterým řetězec končí – zmcertmgr chce celý řetězec až k němu (pro Let's Encrypt ISRG Root X1); prázdné: řetězec ho musí obsahovat"
+  },
+  "sc1881": {
+   "source": "every Zimbra service (zmcontrol restart)",
+   "text": "všechny služby Zimbry (zmcontrol restart)"
+  },
+  "sc1882": {
+   "source": "proxy, mailbox and MTA only",
+   "text": "jen proxy, mailbox a MTA"
+  },
+  "sc1883": {
+   "source": "TrueNAS (midclt over SSH)",
+   "text": "TrueNAS (midclt přes SSH)"
+  },
+  "sc1884": {
+   "source": "Imports the certificate into TrueNAS with midclt over SSH, makes it the web interface's (and FTP's) certificate, restarts the web interface and deletes the older ones.",
+   "text": "Naimportuje certifikát do TrueNAS pomocí midclt přes SSH, nastaví ho webovému rozhraní (a FTP), restartuje webové rozhraní a starší smaže."
+  },
+  "sc1885": {
+   "source": "Web interface certificate",
+   "text": "Certifikát webového rozhraní"
+  },
+  "sc1886": {
+   "source": "FTP certificate",
+   "text": "Certifikát FTP"
+  },
+  "sc1887": {
+   "source": "Docker Swarm secrets",
+   "text": "Docker Swarm secrets"
+  },
+  "sc1888": {
+   "source": "Makes the certificate and key Docker Swarm secrets under new names over SSH, rolls the services onto them and removes the older secrets.",
+   "text": "Udělá z certifikátu a klíče přes SSH secrets Docker Swarmu pod novými názvy, převede na ně služby a starší secrets odstraní."
+  },
+  "sc1889": {
+   "source": "docker command",
+   "text": "příkaz docker"
+  },
+  "sc1890": {
+   "source": "Services",
+   "text": "Služby"
+  },
+  "sc1891": {
+   "source": "one a line: the services to roll onto the new secrets",
+   "text": "jedna na řádek: služby, které se mají převést na nové secrets"
+  },
+  "sc1892": {
+   "source": "Certificate file in the container",
+   "text": "Soubor certifikátu v kontejneru"
+  },
+  "sc1893": {
+   "source": "the target of the secret (under /run/secrets/ unless absolute); full chain",
+   "text": "cíl secretu (pod /run/secrets/, není-li absolutní); celý řetězec"
+  },
+  "sc1894": {
+   "source": "Key file in the container",
+   "text": "Soubor klíče v kontejneru"
+  },
+  "sc1895": {
+   "source": "strongSwan (IPsec VPN)",
+   "text": "strongSwan (IPsec VPN)"
+  },
+  "sc1896": {
+   "source": "Writes the certificate, intermediates and key where strongSwan reads them over SSH and loads them with swanctl --load-creds (or ipsec rereadall) - no tunnel dropped.",
+   "text": "Zapíše přes SSH certifikát, mezilehlé certifikáty a klíč tam, kde je strongSwan čte, a načte je pomocí swanctl --load-creds (nebo ipsec rereadall) – žádný tunel nespadne."
+  },
+  "sc1897": {
+   "source": "Configured with",
+   "text": "Konfigurováno přes"
+  },
+  "sc1898": {
+   "source": "swanctl.conf (vici)",
+   "text": "swanctl.conf (vici)"
+  },
+  "sc1899": {
+   "source": "ipsec.conf (stroke)",
+   "text": "ipsec.conf (stroke)"
+  },
+  "sc1900": {
+   "source": "/etc/swanctl (or /etc/strongswan/swanctl) for swanctl; /etc (holding ipsec.d) for stroke",
+   "text": "/etc/swanctl (nebo /etc/strongswan/swanctl) pro swanctl; /etc (s ipsec.d) pro stroke"
+  },
+  "sc1901": {
+   "source": "File name",
+   "text": "Název souboru"
+  },
+  "sc1902": {
+   "source": "<this>.crt and <this>.key; empty: the certificate's name",
+   "text": "<toto>.crt a <toto>.key; prázdné: název certifikátu"
+  },
+  "sc1903": {
+   "source": "AVM FRITZ!Box",
+   "text": "AVM FRITZ!Box"
+  },
+  "sc1904": {
+   "source": "Uploads the certificate of the FRITZ!Box's pages (also used for MyFRITZ! and VPN) the way its own page does it.",
+   "text": "Nahraje certifikát stránek FRITZ!Boxu (používá se i pro MyFRITZ! a VPN) stejně, jako to dělá jeho vlastní stránka."
+  },
+  "sc1905": {
+   "source": "UniFi OS console (UDM, UCG, Cloud Key)",
+   "text": "Konzole UniFi OS (UDM, UCG, Cloud Key)"
+  },
+  "sc1906": {
+   "source": "Adds the certificate through the UniFi OS console's certificate API, makes it the active one and deletes the older ones.",
+   "text": "Přidá certifikát přes certifikátové API konzole UniFi OS, nastaví ho jako aktivní a starší smaže."
+  },
+  "sc1907": {
+   "source": "a local admin of the console",
+   "text": "místní správce konzole"
+  },
+  "sc1908": {
+   "source": "Caddy",
+   "text": "Caddy"
   }
  },
  "patterns": {

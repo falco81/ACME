@@ -270,7 +270,10 @@ def finish(ctx, req, certs, chain=(), info=None, key_pem=None, who='the CA'):
                               'not used' % who, retry=False)
     if leaf is None:
         leaf = next((c for c in parsed if not c.is_ca), parsed[0])
-    others = [c.der for c in parsed if c.der != leaf.der] + chain
+    others = []
+    for c in [c.der for c in parsed if c.der != leaf.der] + chain:
+        if c not in others and c != leaf.der:
+            others.append(c)
     ordered = p7.order_chain(leaf.der, others)
     say(ctx, 'the certificate came: serial %X, until %s, from %s' % (
         leaf.serial, time.strftime('%Y-%m-%d', time.gmtime(leaf.not_after)),

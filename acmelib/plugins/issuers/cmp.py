@@ -23,7 +23,10 @@ hands back the answer. The secret and the keys are given to openssl in files
 
 UNCERTAIN: CMP servers differ in what they want in the header (recipient,
 sender, the senderKID): the recipient DN and the reference are settings, and
-the extra options a server needs are said in docs/sources.md (CMP). A request
+the extra options a server needs are said in docs/sources.md (CMP). Each
+message goes on a connection of its own (ctx.http): a server that keeps a
+transaction only while one connection stays open (OpenSSL's own mock server
+does) needs "Implicit confirmation" (no certConf). A request
 the CA holds longer than the wait is not taken up again at the next try (the
 transaction lives in openssl): it is asked again.
 """
@@ -31,6 +34,8 @@ from __future__ import annotations
 
 import http.server
 import re
+import shutil
+import subprocess
 import threading
 
 from acmelib.plugins.base import Issuer, PluginError, field
@@ -54,10 +59,13 @@ class _Relay(object):
             def do_POST(self):                      # noqa: N802
                 n = int(self.headers.get('Content-Length') or 0)
                 body = self.rfile.read(n) if n else b''
+                fwd = {'Content-Type': 'application/pkixcmp', 'Accept': 'application/pkixcmp'}
+                if (self.headers.get('Connection') or '').lower() == 'keep-alive':
+                    # openssl keeps one transaction on one connection: said on to servers
+                    # that look at it (ctx.http itself may still close it after each answer)
+                    fwd['Connection'] = 'keep-alive'
                 try:
-                    status, h, data = sc.http(ctx, 'POST', url, body,
-                                              {'Content-Type': 'application/pkixcmp',
-                                               'Accept': 'application/pkixcmp'},
+                    status, h, data = sc.http(ctx, 'POST', url, body, fwd,
                                               who='the CMP server', verify=verify,
                                               ca_pem=ca_pem, client_cert=client_cert)
                 except PluginError as e:
@@ -132,7 +140,8 @@ class CmpIssuer(Issuer):
               help='Sent as the certProfile of the header (RFC 9480 / Lightweight CMP), where '
                    'the CA chooses by it. Needs openssl 3.3 or later.'),
         field('implicit_confirm', 'Implicit confirmation', 'bool', default=False, advanced=True,
-              help='Ask the CA not to wait for certConf (where it allows it).'),
+              help='Ask the CA not to wait for certConf (where it allows it) - also for servers '
+                   'that keep a transaction only on one open connection.'),
         field('unprotected_errors', 'Take unprotected error answers', 'bool', default=True,
               advanced=True,
               help='Many CAs answer an error without protection; on, its words are shown.'),
@@ -213,7 +222,7 @@ class CmpIssuer(Issuer):
                     '-msg_timeout', str(max(10, int(timeout))), '-total_timeout',
                     str(max(20, int(timeout) + 10))] + list(args)
             try:
-                return sc.run_openssl(self.ctx, full, None, timeout=int(timeout) + 30)
+                return self._openssl(full, int(timeout) + 30)
             except PluginError as e:
                 if relay.error:
                     raise relay.error
@@ -227,6 +236,24 @@ class CmpIssuer(Issuer):
                                   or str(e), retry=False)
         finally:
             relay.close()
+
+    @staticmethod
+    def _openssl(args, timeout):
+        """openssl cmp run here, not by ctx.openssl: it says what went wrong on its
+        standard output, which is wanted in the words. No shell; the secrets are
+        in files named by the arguments."""
+        exe = shutil.which('openssl')
+        if not exe:
+            raise PluginError('openssl is not on this machine', retry=False)
+        try:
+            got = subprocess.run([exe] + [str(a) for a in args], capture_output=True,
+                                 timeout=timeout, stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            raise PluginError('openssl cmp took more than %d s' % timeout)
+        text = (got.stdout + b'\n' + got.stderr).decode('utf-8', 'replace')
+        if got.returncode != 0:
+            raise PluginError('openssl cmp: %s' % text.strip()[-300:], detail=text[-4000:])
+        return got.stdout
 
     @staticmethod
     def _words(e):

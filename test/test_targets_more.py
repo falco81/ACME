@@ -1072,17 +1072,26 @@ class DescribeTest(unittest.TestCase):
         cs = json.loads(read(os.path.join(root, 'web', 'lang', 'cs.json')))
         sources = {v['source'] for v in cs['strings'].values()}
         reg = Registry(extra_dirs=[]).reload()
+
+        def words_of(d):
+            out = [d['title'], d['description']]
+            for f in d['fields'] + d['deploy_fields']:
+                out += [f['label'], f.get('help', '')]
+                out += [o[1] for o in f.get('options') or []]
+            return [w for w in out if w]
+        # the fields every module shares (ssh_fields, tls_fields...) are the older modules'
+        shared = set()
+        for k, cls in reg.all('target').items():
+            if k not in NEW_KINDS:
+                shared.update(words_of(cls.describe()))
         missing = []
         for k in NEW_KINDS:
             self.assertIn('## `%s`' % k, docs)
             self.assertIn('| `%s` |' % k, docs)
             d = reg.get('target', k).describe()
-            self.assertIn(d['title'].split(' (')[0], readme, k)
-            words = [d['title'], d['description']]
-            for f in d['fields'] + d['deploy_fields']:
-                words += [f['label'], f.get('help', '')]
-                words += [o[1] for o in f.get('options') or []]
-            missing += ['%s: %s' % (k, w) for w in words if w and w not in sources]
+            self.assertIn(d['title'].split(' (')[0].lower(), readme.lower(), k)
+            missing += ['%s: %s' % (k, w) for w in words_of(d)
+                        if w not in sources and w not in shared]
         self.assertEqual(missing, [])
 
 

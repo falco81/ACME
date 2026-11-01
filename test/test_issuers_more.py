@@ -136,12 +136,12 @@ class Base(unittest.TestCase):
     def sign(self, csr_der, names, serial=None):
         return self.ca.sign_csr(csr_der, names, serial=serial)
 
-    def check_issued(self, out, req, key_pem=None):
+    def check_issued(self, out, req, full=True):
+        """The certificate is for the request's key, its chain the CA (and the root)."""
         leaf = p7.Cert(out.cert_pem)
-        self.assertEqual(leaf.spki_der, p7.csr_spki(sc.csr_der(req)) if key_pem is None
-                         else leaf.spki_der)
-        self.assertEqual([p7.Cert(c).subject_cn for c in out.chain_pems][:2],
-                         ['More Issuing CA', 'More Root X1'])
+        self.assertEqual(leaf.spki_der, p7.csr_spki(sc.csr_der(req)))
+        want = ['More Issuing CA', 'More Root X1'] if full else ['More Issuing CA']
+        self.assertEqual([p7.Cert(c).subject_cn for c in out.chain_pems], want)
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +346,7 @@ class TestCmp(Base):
             ['openssl', 'cmp', '-port', str(self.port), '-srv_ref', 'mock', '-srv_secret',
              'pass:s3cret', '-srv_cert', self.ca.crt, '-srv_key', self.ca.key,
              '-rsp_cert', self.w.file('leaf.pem', leaf_pem), '-rsp_capubs', self.root.crt,
-             '-rsp_extracerts', self.ca.crt, '-max_msgs', '20'],
+             '-rsp_extracerts', self.ca.crt, '-max_msgs', '20', '-grant_implicitconf'],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         for _ in range(50):
             try:
@@ -373,10 +373,10 @@ class TestCmp(Base):
         ctx.handler = handler
         cmp = CmpIssuer({'url': 'http://127.0.0.1:%d/pkix/' % self.port, 'command': 'cr',
                          'reference': 'acme', 'secret': 's3cret', 'recipient': '/CN=More Issuing CA',
-                         'wait': 20}, ctx)
+                         'wait': 20, 'implicit_confirm': True}, ctx)
         self.assertIn('genm', cmp.test())
         out = cmp.issue(req)
-        self.check_issued(out, req)
+        self.check_issued(out, req, full=False)       # cp carries no caPubs
         self.assertTrue(all(hdr(c['headers'], 'Content-Type') == 'application/pkixcmp'
                             for c in ctx.calls))
         # no secret on openssl's command line: it went in a file
@@ -393,8 +393,8 @@ class TestCmp(Base):
         real = FakeContext.http
         ctx.handler = lambda m, u, b, h, c: real(ctx, m, u, b, h)
         cmp = CmpIssuer({'url': 'http://127.0.0.1:%d/pkix/' % self.port, 'command': 'p10cr',
-                         'reference': 'acme', 'secret': 's3cret'}, ctx)
-        self.check_issued(cmp.issue(req), req)
+                         'reference': 'acme', 'secret': 's3cret', 'implicit_confirm': True}, ctx)
+        self.check_issued(cmp.issue(req), req, full=False)
         with self.assertRaises(PluginError):
             CmpIssuer({'url': 'http://x/', 'reference': 'a', 'secret': 'b',
                        'recipient': 'CN=no slash'}, ctx).issue(req)
@@ -549,7 +549,7 @@ class TestStepCa(Base):
         self.assertIn('jwk-prov', s.test())
         req = req_for(['www.example.test', 'api.example.test'], days=2)
         out = s.issue(req)
-        self.check_issued(out, req)
+        self.check_issued(out, req, full=False)
         self.assertEqual(ctx.calls[-1]['ca_pem'], p7.pem(p7.cert_der(self.root.pem)))
         self.assertIn('revoked', s.revoke(out.cert_pem, 'keyCompromise'))
         with self.assertRaises(PluginError):
@@ -820,15 +820,16 @@ class TestDigicert(Base):
                                           [b['certificate']['common_name']] +
                                           b['certificate']['dns_names'])
                 return 201, {}, {'id': 555, 'dcv_random_value': 'RANDOM1'}
-            if p == '/order/certificate/777/reissue' and method == 'POST':
+            if re.match(r'^/order/certificate/\d+/reissue$', p) and method == 'POST':
                 state['reissues'] += 1
                 state['leaf'] = self.sign(csr_der_of(b['certificate']['csr']),
                                           [b['certificate']['common_name']])
-                return 201, {}, {'id': 777, 'requests': [{'id': 1, 'status': 'pending'}]}
+                return 201, {}, {'id': int(p.split('/')[3]),
+                                 'requests': [{'id': 1, 'status': 'pending'}]}
             m = re.match(r'^/order/certificate/(\d+)$', p)
             if m and method == 'GET':
                 state['polls'] += 1
-                st = 'issued' if state['checked'] or m.group(1) == '777' else 'pending'
+                st = 'issued' if state['checked'] or state['reissues'] else 'pending'
                 return 200, {}, {'id': int(m.group(1)), 'status': st,
                                  'order_valid_till': '2099-01-01',
                                  'certificate': {'id': 9001}}

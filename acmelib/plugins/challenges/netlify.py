@@ -46,17 +46,17 @@ class Netlify(RecordApiDns):
                        missing_ok=missing_ok)
         return got
 
-    def _zones(self):
+    def _zone_ids(self):
         if getattr(self, '_zids', None) is None:
             self._zids = {D.norm(z.get('name')): z.get('id')
                           for z in self._call('GET', '/dns_zones') or [] if isinstance(z, dict)}
         return self._zids
 
     def zone_names(self):
-        return list(self._zones())
+        return list(self._zone_ids())
 
     def _zid(self, zone):
-        zid = self._zones().get(D.norm(zone))
+        zid = self._zone_ids().get(D.norm(zone))
         if not zid:
             raise PluginError('Netlify has no DNS zone %s on this account' % zone, retry=False)
         return urllib.parse.quote(str(zid), safe='')

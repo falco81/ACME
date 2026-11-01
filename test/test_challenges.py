@@ -1420,7 +1420,13 @@ class TestOtherModules(unittest.TestCase):
                 'desec', 'gandi', 'linode', 'vultr', 'porkbun', 'namecheap', 'godaddy',
                 'dnsimple', 'ns1', 'bunny', 'cloudns', 'inwx', 'transip', 'netcup', 'ionos',
                 'scaleway', 'exoscale', 'infoblox', 'technitium', 'he_net', 'wedos', 'active24',
-                'websupport'}
+                'websupport',
+                # acme 1.1 (test/test_dns_providers_more.py)
+                'subreg', 'czechia', 'loopia', 'simply', 'hostingde', 'domeneshop', 'glesys',
+                'mythic_beasts', 'infomaniak', 'alidns', 'tencentcloud', 'oci_dns',
+                'akamai_edgedns', 'dnsmadeeasy', 'gcore', 'netlify', 'vercel', 'namecom',
+                'namesilo', 'dynu', 'njalla', 'dreamhost', 'duckdns',
+                'http_ftp', 'http_s3', 'http_azure_blob', 'http_webdav'}
         self.assertEqual(set(found), want)
         for kind, cls in found.items():
             d = cls.describe()
