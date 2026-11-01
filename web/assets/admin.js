@@ -5619,7 +5619,7 @@ function haJoinPopup() {
     var w2 = el('div', 'ha-file-w');
     w2.appendChild(noI18n(el('b', 'mono', st.file.name)));
     var o = st.outer || {};
-    w2.appendChild(o.made ? haWords('', bytes(st.file.size), ' · made ', haWhen(o.made), ' on ', o.from, ' · acme ', o.version) : haWords('', bytes(st.file.size)));
+    w2.appendChild(o.made ? haWords('', bytes(st.file.size), ' · made ', haWhen(o.made), ' by ', o.from, ' · acme ', o.version) : haWords('', bytes(st.file.size)));
     card.appendChild(w2);
     var again = cmdButton('Another file', 'refresh', 'small');
     again.onclick = function () { take(null); };
@@ -5683,11 +5683,11 @@ function haJoinPopup() {
     if (!l || !l.held) return;
     var box = el('div', 'ha-sure');
     box.appendChild(el('b', '', 'This node has data of its own'));
-    var what = [];
-    if (l.certs) what.push(l.certs + ' certificate(s)');
-    if (l.accounts > 1) what.push(l.accounts + ' accounts');
-    if (l.sealed) what.push('sealed secrets (private keys, passwords)');
-    box.appendChild(noI18n(el('p', 'note mono small', what.join(' · '))));
+    var what = el('p', 'note small ha-held');
+    if (l.certs) what.appendChild(haWords('', l.certs, ' certificate(s)'));
+    if (l.accounts > 1) what.appendChild(haWords('', l.accounts, ' accounts'));
+    if (l.sealed) what.appendChild(el('span', '', 'sealed secrets (private keys, passwords)'));
+    box.appendChild(what);
     box.appendChild(el('p', 'note', 'Joining does not delete them, but leaves them behind: this node then works only with the cluster’s database and key. They stay in its old database, and its key is kept as secrets.key.before-join - but nothing uses them any more. To keep a certificate, export it first.'));
     sure = switchBox(false);
     sure._input.id = 'ha-join-sure';

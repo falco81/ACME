@@ -3200,5 +3200,8 @@ body.app-shell #pane-mailq > .card.held{flex:1 1 auto;min-height:320px;max-heigh
 .ha-done{margin-top:12px;padding:12px 14px;border-radius:10px;border:1px solid rgba(63,185,80,.45);background:var(--ok-bg)}
 .ha-done b{display:block;color:var(--ok);margin-bottom:4px}
 .ha-pending{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ha-pending > span{flex:1 1 320px;min-width:0}
+.ha-pending > .btn{flex:none}
 .fw-auto-card .fw-pending{margin:6px 0 2px;font-size:12px;color:var(--info)}
 @media (max-width:600px){.ha-drop{flex-direction:column;text-align:center}.ha-drop-w{text-align:center}}
+.ha-held > span + span::before{content:" · "}
