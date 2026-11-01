@@ -423,6 +423,14 @@ def ha_checks(store):
     host = str(CONFIG.get('db_host') or '')
     local = host in ('', 'localhost', '127.0.0.1', '::1')
     mode = CONFIG.get('ha_mode') or ''
+    # Made here if the daemon never ran yet, as the replicated wizard does
+    # (1.0.140): `acme --ha-setup --ha-shared` on a node whose daemon had not
+    # started once stopped at "the key that seals the secrets is missing".
+    if db.engine == 'postgres':
+        try:
+            sealing_key(make=True)
+        except OSError:
+            pass
     out = [
         {'key': 'engine', 'ok': db.engine == 'postgres',
          'says': 'the database is PostgreSQL' if db.engine == 'postgres' else
@@ -456,7 +464,7 @@ def ha_bundle_data(store, peer_db_host='', with_tls=None):
     cluster."""
     if store.db.engine != 'postgres':
         raise ValueError('a cluster needs PostgreSQL: move to it first (Settings → The database)')
-    key = sealing_key()
+    key = sealing_key(make=True)
     if not key:
         raise ValueError('the key that seals the secrets is missing')
     db = {k: CONFIG.get(k) for k in DB_KEYS}
@@ -466,9 +474,16 @@ def ha_bundle_data(store, peer_db_host='', with_tls=None):
     elif host in ('', 'localhost', '127.0.0.1', '::1'):
         db['db_host'] = node_address()
     data = {'db': db, 'key': key.hex(), 'cluster': CONFIG.get('site_name') or 'acme',
-            'peer': {'name': node_name(), 'address': node_address()}}
+            'mode': 'shared', 'peer': {'name': node_name(), 'address': node_address()}}
     if with_tls:
         data['tls'] = with_tls
+    # This node is one of two on this database from now on (ha_mode "shared"):
+    # nothing set it before, so a shared pair ran as two single servers - the
+    # VIP address never watched, the firewall not opened to the other node, a
+    # Back up now never asked of it.
+    if not CONFIG.get('ha_mode'):
+        write_file_settings({'ha_mode': 'shared'})
+        CONFIG['ha_mode'] = FILE_CONFIG['ha_mode'] = 'shared'
     return data
 
 
@@ -531,6 +546,9 @@ def ha_join(data, name='', even_if_data=False, by=''):
         write_replacing(backup, now.hex() + '\n', 0o600)
     write_replacing(sealing_key_path(), key_hex + '\n', 0o600)
     changes = {k: db.get(k) for k in DB_KEYS if k in db}
+    # One of two on one database (ha_mode "shared"): it was never written, and
+    # the second node ran as a server alone on the cluster's database.
+    changes.update(ha_mode='shared', ha_slot=0, ha_peer='', ha_address='')
     if name:
         changes['node_name'] = name
     write_file_settings(changes)

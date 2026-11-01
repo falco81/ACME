@@ -44,10 +44,17 @@ now*.
 | `acme_directories` | how many directories |
 | `acme_events_last_day{level}` | events of the last 24 hours (the database's - both nodes) |
 | `acme_certs{state}` | the certificates acme keeps, by state |
+| `acme_cert_state{name,state}` | each certificate's state (1) |
+| `acme_cert_not_after_timestamp_seconds{name,cn,issuer}` | when each certificate ends (unix time) |
 | `acme_cert_expiry_seconds{name}` | seconds until each certificate ends |
-| `acme_cert_deploys_failed` | deployments whose last try failed |
-| `acme_cert_jobs_failed_24h` | certificate jobs that failed in the last 24 hours |
-| `acme_cert_leader{node}` | whether this node renews and deploys (1) or not (0) |
+| `acme_cert_expiring` | certificates that end within `certs_notify_days` |
+| `acme_cert_renewals_total{result}`, `acme_cert_deployments_total{result}` | renewals and deployment jobs that went well / failed (of the jobs kept, `certs_keep_jobs_days`) |
+| `acme_cert_jobs_24h{kind,result}`, `acme_cert_jobs_failed_24h` | certificate jobs of the last 24 hours |
+| `acme_cert_deploys{state}`, `acme_cert_deploys_failed` | deployments by state; those whose last try failed |
+| `acme_cert_last_job_timestamp_seconds{kind,result}` | when the last job of each kind ended |
+| `acme_cert_last_scan_timestamp_seconds{node}` | when the leader last looked for what is due |
+| `acme_cert_leader{node}`, `acme_cert_leader_info{node}` | whether this node renews and deploys (1) or not (0); the node that does |
+| `acme_dns_up`, `acme_dns_queries_total{proto}`, `acme_dns_answers_total{rcode}`, `acme_dns_records` | acme's own DNS server on this node (when it is on) |
 | `acme_ha_node_up{node}`, `acme_ha_heartbeat_age_seconds{node}` | the cluster |
 | `acme_ha_replication_running{name}`, `acme_ha_replication_errors_total{name}`, `acme_ha_replication_behind_bytes{name}` | replication, as this node's PostgreSQL sees it |
 | `acme_pages_certificate_expiry_timestamp_seconds{target,name}` | the pages' own certificates - each node's and the VIP address's |
@@ -116,7 +123,7 @@ own - no snmpd, nothing in the renewals' way. *Settings → Monitoring → SNMPv
 | `1.3.6.1.2.1.1` | the system group: sysDescr (acme, the version, the node), sysObjectID, sysUpTime, sysContact, sysName, sysLocation |
 | `1.3.6.1.6.3.10.2.1` | the engine: its ID, boots, time |
 | `1.3.6.1.6.3.15.1.1` | usmStats: unknown users, wrong digests, not in the time window... |
-| `1.3.6.1.4.1.8072.9999.9999.7` | **ACME-MIB** (`deploy/ACME-MIB.txt`): the version, node, database engine, high security, in a cluster or not, uptime; the database (up, latency); the alerts (how many bad and warn, and a table of each); the pages' certificates (days left); the nodes of the cluster; and `acmeMetricTable` - every sample of `/metrics`, name, labels and value |
+| `1.3.6.1.4.1.8072.9999.9999.7` | **ACME-MIB** (`deploy/ACME-MIB.txt`): the version, node, database engine, high security, in a cluster or not, uptime; the database (up, latency); the alerts (how many bad and warn, and a table of each); the pages' certificates (days left); the certificates the manager keeps (`acmeManagedCertTable`: index = the certificate's id, name, CN, notAfter, daysLeft, state, issuer, state as a number, renewed by itself, deployments failed; and `acmeManagedCounts`: total, ok, failed, expired, expiring, deployments failed, this node leads, jobs failed in 24 h, DNS queries, waiting); the nodes of the cluster; and `acmeMetricTable` - every sample of `/metrics`, name, labels and value |
 
 acme has no enterprise number of its own: its objects are under net-snmp's
 `netSnmpPlaypen` (`.1.3.6.1.4.1.8072.9999.9999`), `.7`. Load `ACME-MIB.txt` into

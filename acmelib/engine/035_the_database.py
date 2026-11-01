@@ -153,6 +153,18 @@ def schema_named_columns():
     return out
 
 
+def schema_unique_sets():
+    """(table, [columns]) of every UNIQUE (a, b, ...) of more than one column
+    in SCHEMA - a certificate's version, an authority's serial."""
+    out = []
+    for table, create in SCHEMA:
+        for m in re.finditer(r'\bUNIQUE\s*\(([^)]*)\)', create):
+            cols = [c.strip() for c in m.group(1).split(',') if c.strip()]
+            if len(cols) > 1 and all(re.match(r'^[a-z_][a-z0-9_]*\Z', c) for c in cols):
+                out.append((table, cols))
+    return out
+
+
 class RawSql(str):
     """A statement sent as it is, with no parameters (1.0.94): a conninfo
     with the password inside it, where a `?` of the password became `%s`
@@ -778,6 +790,46 @@ END $f$""")
                                   "tgrelid = ?::regclass", (trg, table)):
                     self.run("CREATE TRIGGER %s BEFORE INSERT ON %s FOR EACH ROW EXECUTE "
                              "FUNCTION acme_same_key('%s')" % (trg, table, col))
+                self.run('ALTER TABLE %s ENABLE ALWAYS TRIGGER %s' % (table, trg))
+            # The same for a key of several columns (a certificate's version,
+            # an authority's serial): made on both nodes while the link was
+            # down - the leader's renewal and one by hand on the other node -
+            # the second one stopped replication for good on the duplicate.
+            self.run("""CREATE OR REPLACE FUNCTION acme_same_keys() RETURNS trigger
+LANGUAGE plpgsql SET search_path FROM CURRENT AS $f$
+DECLARE
+  cond text := '';
+  i int;
+  here text;
+  came text;
+BEGIN
+  IF current_setting('session_replication_role') <> 'replica' THEN
+    RETURN NEW;
+  END IF;
+  FOR i IN 0 .. TG_NARGS - 1 LOOP
+    cond := cond || CASE WHEN i > 0 THEN ' AND ' ELSE '' END
+                 || format('t.%1$I = ($1).%1$I', TG_ARGV[i]);
+  END LOOP;
+  EXECUTE format('SELECT row_to_json(t)::text FROM %I.%I t WHERE %s',
+                 TG_TABLE_SCHEMA, TG_TABLE_NAME, cond) INTO here USING NEW;
+  IF here IS NULL THEN
+    RETURN NEW;
+  END IF;
+  came := row_to_json(NEW)::text;
+  IF came COLLATE "C" > here COLLATE "C" THEN
+    EXECUTE format('DELETE FROM %I.%I t WHERE %s', TG_TABLE_SCHEMA, TG_TABLE_NAME, cond)
+       USING NEW;
+    RETURN NEW;
+  END IF;
+  RETURN NULL;
+END $f$""")
+            for table, cols in schema_unique_sets():
+                trg = 'acme_same2_%s' % table
+                if not self.value("SELECT 1 FROM pg_trigger WHERE tgname = ? AND "
+                                  "tgrelid = ?::regclass", (trg, table)):
+                    self.run("CREATE TRIGGER %s BEFORE INSERT ON %s FOR EACH ROW EXECUTE "
+                             "FUNCTION acme_same_keys(%s)" % (
+                                 trg, table, ', '.join("'%s'" % c for c in cols)))
                 self.run('ALTER TABLE %s ENABLE ALWAYS TRIGGER %s' % (table, trg))
         except Exception as e:                          # noqa: BLE001
             log('the guard of rows made on both nodes could not be put in: %s'

@@ -23,6 +23,25 @@ plugs it into the engine. The modules (issuers, challenges, targets) are in
 | **deployment** (`cert_deploys`) | one certificate on one target, with the options there (paths, formats, profile, commands after) |
 | **job** (`cert_jobs`) | one piece of work (an issue or renewal, a deployment, a revocation, a test), with every step it took |
 
+### Let's Encrypt first
+
+A new installation starts ready for Let's Encrypt. The first time the daemon
+starts (or the command line opens the database) with no source at all, it
+makes the sources **Let's Encrypt** (production) and **Let's Encrypt
+(staging)** (module `acme`); with no validation at all, **This server
+(HTTP-01)** (`http_local`); and once `dns_zone` is set, **acme's DNS server**
+(`dns_builtin`). Each is made once: a flag in `meta` (`certs:default:sources`,
+`:validations`, `:dns`) says so, and one an administrator deleted is never
+made again.
+
+A new certificate with no issuer said comes from the default source (`meta
+certs:default_issuer`, "Let's Encrypt"), and one from an ACME CA with no
+validation said is proved by the default validation (`certs:default_challenge`,
+"This server (HTTP-01)"); the lists mark them (`is_default`, `*` on the
+command line). An ACME account works without a contact e-mail; where an ACME
+source has none, the Sources page and `acme --certs` / `--sources` ask for one
+(`acme --acme-contact MAIL`, `POST /api/sources/contact {email}`).
+
 ### States of a certificate
 
 `new` (not issued yet) → `renewing` → `ok`. Then `failed` (the last renewal
@@ -180,14 +199,91 @@ If the leader dies, the other node takes over within about 90 seconds.
 ## Telling people
 
 Every issue, renewal, deployment, failure and expiry is an event (kind
-`certificates`), so it also goes to syslog, the SIEM and isemon. A failed
-renewal, a failed deployment, an expired certificate, and one that ends
-within `certs_notify_days` without being renewed by itself all send a mail
-to `certs_notify_mail` and an SMS to `certs_notify_sms`, each at most every
-6 hours. The same things are alerts (the `alerts` hook) and lines in the
-weekly report. Prometheus gets `acme_certs{state}`,
-`acme_cert_expiry_seconds{name}`, `acme_cert_deploys_failed`,
-`acme_cert_jobs_failed_24h` and `acme_cert_leader`.
+`certificates`), so it also goes to syslog, the SIEM and isemon - with fields
+of their own beside the words: `action` (`issued`, `renewed`, `renew`,
+`deployed`, `deploy`, `expired`, `expiring`, `revoked`, ...), `result` (`ok`,
+`failed`, `expired`, `warn`), `cert`, `names`, `serial`, `not_after` (ISO
+8601, UTC), `issuer`, and for a deployment `target`, `target_kind` and
+`version`. isemon gets them as `key=value` before `msg=` on the `acme-certs`
+line; the SIEM as fields of its JSON, CEF or RFC 5424 structured data.
+
+A failed renewal, a failed deployment, an expired certificate, and one that
+ends within `certs_notify_days` without being renewed by itself (or whose
+renewal keeps failing) all send a mail to `certs_notify_mail` and an SMS to
+`certs_notify_sms`, each at most every 6 hours. With `certs_notify_ok` on, a
+renewal and a deployment that went well are told too. The words are those of
+**Settings → Message texts** (group *Certificates*, in Czech and English,
+the language of `alerts_lang`, else `mail_lang`), edited there as every other
+text; the placeholders are `{cert}` `{names}` `{left}` `{not_after}`
+`{issuer}` `{serial}` `{version}` `{error}` `{retry}` `{target}` `{node}`
+`{site}`:
+
+| message | sent when |
+|---|---|
+| `cert_expiring` (+ `_sms`) | it ends within `certs_notify_days` and nothing renews it |
+| `cert_expired` (+ `_sms`) | it has run out (once) |
+| `cert_renew_failed` (+ `_sms`) | a renewal failed |
+| `cert_deploy_failed` (+ `_sms`) | a deployment failed |
+| `cert_renewed` (+ `_sms`) | it was renewed (with `certs_notify_ok`) |
+| `cert_deployed` (+ `_sms`) | a deployment went well (with `certs_notify_ok`) |
+| `cert_portal_issued`, `cert_portal_declined` | to the person who asked on the enrolment pages (`{name}`, `{reason}`) |
+
+The same things are alerts (the `alerts` hook) and lines in the weekly
+report.
+
+### Monitoring
+
+Prometheus (`https://NODE/metrics`, the `metrics` hook) gets
+`acme_certs{state}`, `acme_cert_state{name,state}`,
+`acme_cert_not_after_timestamp_seconds{name,cn,issuer}`,
+`acme_cert_expiry_seconds{name}`, `acme_cert_expiring`,
+`acme_cert_renewals_total{result}` and `acme_cert_deployments_total{result}`
+(of the jobs kept), `acme_cert_jobs_24h{kind,result}`,
+`acme_cert_jobs_failed_24h`, `acme_cert_deploys{state}`,
+`acme_cert_deploys_failed`, `acme_cert_last_job_timestamp_seconds{kind,result}`,
+`acme_cert_last_scan_timestamp_seconds{node}`, `acme_cert_leader{node}` (this
+node: 1 or 0), `acme_cert_leader_info{node}` (who leads) and, with acme's DNS
+server on, `acme_dns_up`, `acme_dns_queries_total{proto}`,
+`acme_dns_answers_total{rcode}` and `acme_dns_records`.
+
+SNMP (ACME-MIB, `deploy/ACME-MIB.txt`; the `snmp` hook) has
+`acmeManagedCertTable` (`acmeCertificates.2`: index = the certificate's id,
+name, CN, notAfter, daysLeft, state, issuer, state as a number, renewed by
+itself, deployments failed) and `acmeManagedCounts` (`acmeCertificates.3`:
+total, ok, failed, expired, expiring, deployments failed, this node leads,
+jobs failed in 24 h, DNS queries, waiting). Every Prometheus sample is in
+`acmeMetricTable` as well.
+
+## The certificate of acme's own pages
+
+The target module `appliance` - *This acme server (its pages)* - makes a
+certificate of the manager the certificate of acme's own pages, as
+**Settings → Certificates and TLS** would take one uploaded: the profile of a
+node or of the VIP address (`meta web:tls:<node|vip>`), its TLS settings
+kept, the engine's own ACME (*Automatic certificates*) told to leave it.
+Every node puts its own into nginx within seconds; the VIP's is served by the
+node that holds the address. A deployment says which pages (`where`):
+`auto` (every node, and the VIP address in a cluster that has one), `nodes`,
+`this`, `vip`, or the ones named (`names`); the certificate has to hold the
+VIP address's name. As every deployment it runs again after each renewal -
+so the pages of every node are renewed with it.
+
+```
+acme --target-add pages --kind appliance
+acme --cert-add pages --names acme.example.com,acme1.example.com,acme2.example.com
+acme --deploy-add pages pages --set where=auto
+```
+
+## A module's actions
+
+A module may offer things to do besides its work (`actions` in
+`acmelib/plugins/base.py`): a button on its row on the pages, an item in the
+console, `acme --validation-action NAME KEY` (and `--source-action`,
+`--target-action`), `POST /api/validations/action {id, action}` (and
+`/api/sources/action`, `/api/targets/action`). Each runs in a job of its own,
+its steps written down. One that changes something elsewhere (`changes`, the
+default) is for a full administrator. `http_ssh` has **prepare** (*Prepare
+the hosts*, docs/validation.md).
 
 ## acme's own DNS server
 
@@ -222,6 +318,7 @@ approval and the mails - is in [certificate-portal.md](certificate-portal.md).
 | `certs_retry_max_h` | 6 | the longest wait before trying again |
 | `certs_notify_days` | 14 | warn this many days before the end |
 | `certs_notify_mail`, `certs_notify_sms` | | who is told |
+| `certs_notify_ok` | 0 | tell renewals and deployments that went well too |
 | `certs_keep_versions` | 10 | old certificates kept, each |
 | `certs_keep_jobs_days` | 90 | jobs kept |
 | `portal_cert`, `portal_cert_suffixes`, `portal_cert_issuers`, `portal_cert_challenge`, `portal_cert_max`, `portal_cert_auto`, `portal_cert_keys` | 0, '', '', '', 10, 0, 0 | the certificate portal |

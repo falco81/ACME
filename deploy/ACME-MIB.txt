@@ -5,12 +5,13 @@ ACME-MIB DEFINITIONS ::= BEGIN
 -- answers (1.0.182). Read only. Under netSnmpPlaypen (net-snmp's subtree for
 -- objects of one's own), .7 - acme has no enterprise number of its own.
 -- Every sample of https://NODE/metrics is in acmeMetricTable too - the
--- certificates the certificate manager keeps among them. { acme 2 } and
+-- certificates the certificate manager keeps among them; they have a table of
+-- their own as well (acmeManagedCertTable, under acmeCertificates). { acme 2 } and
 -- { acme 4 } are not used (they were RADIUS and the tokens of otp).
 
 IMPORTS
     MODULE-IDENTITY, OBJECT-TYPE, NOTIFICATION-TYPE,
-    Integer32, Gauge32, TimeTicks
+    Integer32, Gauge32, Counter32, TimeTicks
         FROM SNMPv2-SMI
     DisplayString
         FROM SNMPv2-TC
@@ -18,12 +19,15 @@ IMPORTS
         FROM NET-SNMP-MIB;
 
 acme MODULE-IDENTITY
-    LAST-UPDATED "202611010000Z"
+    LAST-UPDATED "202611010100Z"
     ORGANIZATION "acme"
     CONTACT-INFO "The administrators of the acme servers - Settings, Monitoring."
     DESCRIPTION  "acme, certificates kept, renewed and deployed by themselves:
                   the database, the alerts, the certificates of the pages, the
                   cluster and every metric of one node."
+    REVISION     "202611010100Z"
+    DESCRIPTION  "The certificates the certificate manager keeps: acmeManagedCertTable
+                  and acmeManagedCounts under acmeCertificates."
     REVISION     "202611010000Z"
     DESCRIPTION  "acme: the RADIUS and token objects of otp taken out."
     REVISION     "202610300000Z"
@@ -131,6 +135,92 @@ acmeCertDaysLeft OBJECT-TYPE
 acmeCertEnd OBJECT-TYPE
     SYNTAX Integer32 MAX-ACCESS read-only STATUS current
     DESCRIPTION "When it ends, unix time." ::= { acmeCertEntry 5 }
+
+-- The certificates the certificate manager keeps (Certificates on the pages,
+-- acme --certs), switched on ones; the index is the certificate's id in acme,
+-- the same while it is kept.
+
+acmeManagedCertTable OBJECT-TYPE
+    SYNTAX SEQUENCE OF AcmeManagedCertEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "The certificates acme keeps, renews and deploys." ::= { acmeCertificates 2 }
+acmeManagedCertEntry OBJECT-TYPE
+    SYNTAX AcmeManagedCertEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "One certificate." INDEX { acmeManagedCertIndex } ::= { acmeManagedCertTable 1 }
+AcmeManagedCertEntry ::= SEQUENCE { acmeManagedCertIndex Integer32,
+    acmeManagedCertName DisplayString, acmeManagedCertCN DisplayString,
+    acmeManagedCertNotAfter Integer32, acmeManagedCertDaysLeft Integer32,
+    acmeManagedCertState DisplayString, acmeManagedCertIssuer DisplayString,
+    acmeManagedCertStateNum Integer32, acmeManagedCertAutoRenew Integer32,
+    acmeManagedCertDeploysFailed Gauge32 }
+acmeManagedCertIndex OBJECT-TYPE
+    SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The certificate's id in acme." ::= { acmeManagedCertEntry 1 }
+acmeManagedCertName OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its name in acme." ::= { acmeManagedCertEntry 2 }
+acmeManagedCertCN OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its common name (the first of its names)." ::= { acmeManagedCertEntry 3 }
+acmeManagedCertNotAfter OBJECT-TYPE
+    SYNTAX Integer32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When it ends, unix time; 0 when not issued yet." ::= { acmeManagedCertEntry 4 }
+acmeManagedCertDaysLeft OBJECT-TYPE
+    SYNTAX Integer32 UNITS "days" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Days until it ends (below 0: ended); 0 when not issued yet."
+    ::= { acmeManagedCertEntry 5 }
+acmeManagedCertState OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "new, ok, due, renewing, failed, expired, pending, revoked or disabled."
+    ::= { acmeManagedCertEntry 6 }
+acmeManagedCertIssuer OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Where it comes from (a source); empty for one imported."
+    ::= { acmeManagedCertEntry 7 }
+acmeManagedCertStateNum OBJECT-TYPE
+    SYNTAX Integer32 (0..8) MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The state as a number: 0 new, 1 ok, 2 due, 3 renewing, 4 failed, 5 expired,
+                 6 pending, 7 revoked, 8 disabled." ::= { acmeManagedCertEntry 8 }
+acmeManagedCertAutoRenew OBJECT-TYPE
+    SYNTAX Integer32 (0..1) MAX-ACCESS read-only STATUS current
+    DESCRIPTION "1 when it is renewed by itself." ::= { acmeManagedCertEntry 9 }
+acmeManagedCertDeploysFailed OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its deployments whose last try failed." ::= { acmeManagedCertEntry 10 }
+
+acmeManagedCounts OBJECT IDENTIFIER ::= { acmeCertificates 3 }
+
+acmeManagedTotal OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Certificates kept." ::= { acmeManagedCounts 1 }
+acmeManagedOk OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Of them valid." ::= { acmeManagedCounts 2 }
+acmeManagedFailed OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Whose last renewal failed." ::= { acmeManagedCounts 3 }
+acmeManagedExpired OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Expired." ::= { acmeManagedCounts 4 }
+acmeManagedExpiring OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Ending within certs_notify_days." ::= { acmeManagedCounts 5 }
+acmeManagedDeploysFailed OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Deployments whose last try failed." ::= { acmeManagedCounts 6 }
+acmeManagedLeader OBJECT-TYPE
+    SYNTAX Integer32 (0..1) MAX-ACCESS read-only STATUS current
+    DESCRIPTION "1 when this node renews and deploys (it holds the lease)."
+    ::= { acmeManagedCounts 7 }
+acmeManagedJobsFailed OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Certificate jobs that failed in the last 24 hours." ::= { acmeManagedCounts 8 }
+acmeManagedDnsQueries OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Queries acme's own DNS server was asked on this node since it started."
+    ::= { acmeManagedCounts 9 }
+acmeManagedWaiting OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Not issued yet, due or being renewed." ::= { acmeManagedCounts 10 }
 
 -- acmeCluster ---------------------------------------------------------------------
 

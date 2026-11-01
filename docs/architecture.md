@@ -40,7 +40,12 @@
 `HOOKS` (in `acmelib/engine/000_start.py`) is where a module plugs in without
 the engine knowing it: `daemon_start(daemon)`, `daemon_stop(daemon)`,
 `cli_args(parser)`, `cli_run(args) -> exit code | None`,
-`console_main(console) -> [(key, words, fn)]`, `status(store, pal) -> [lines]`.
+`console_main(console) -> [(key, words, fn)]`, `status(store, pal) -> [lines]`,
+`alerts(store)`, `report(store, since)`, `metrics(store) -> [(name, help, type,
+samples)]`, `snmp(store) -> [(oid under ACME-MIB, kind, value)]`,
+`event_fields(kind, words, level) -> {field: value}` (what an event is about,
+for isemon and the SIEM; or said with `event_with(**fields)` around
+`store.add_event`), `carry_tables()`, `firewall`.
 API endpoints are added with `@route('GET', '/api/...')` anywhere.
 
 ## The certificate manager
@@ -109,8 +114,11 @@ there and `secret_set` says which are set; saving `""` keeps what is set.
 | `POST /api/cas/import` · `/api/cas/delete` · `/api/cas/crl` · `/api/cas/export` | `{..}` |
 | `POST /api/cas/sign_csr` | `{id, csr_pem, days, eku[]}` → a certificate for a CSR from elsewhere |
 | `GET /api/plugins` | `{issuer:[…], challenge:[…], target:[…], broken:[…]}` - each with `fields` (and `deploy_fields`) |
-| `GET /api/sources` · `POST /api/sources/save` · `/delete` · `/test` | the issuers (`cert_issuers`) |
-| `GET /api/validations` · `POST /api/validations/save` · `/delete` · `/test` | the challenges (`cert_challenges`) |
-| `GET /api/targets` · `POST /api/targets/save` · `/delete` · `/test` | the targets |
+| `GET /api/sources` · `POST /api/sources/save` · `/delete` · `/test` · `/action` | the issuers (`cert_issuers`); each row says `actions` and `is_default` |
+| `GET /api/validations` · `POST /api/validations/save` · `/delete` · `/test` · `/action` | the challenges (`cert_challenges`) |
+| `GET /api/targets` · `POST /api/targets/save` · `/delete` · `/test` · `/action` | the targets |
+| `POST /api/{sources,validations,targets}/action` | `{id, action}` - one of the module's `actions`, in a job: `{ok, said, job_id, steps}` |
+| `POST /api/sources/contact` | `{email, all?}` - the contact e-mail of the ACME sources that have none |
+| `GET /api/deploys` `?target= &cert=` | the deployments (of a target, of a certificate), each with `cert_name`, `cert_version`, `outdated` |
 | `POST /api/deploys/save` · `/delete` · `/run` | `{id?, cert_id, target, options{}, enabled}` |
 | `GET /api/dns` · `POST /api/dns/record` · `/api/dns/record_delete` | acme's own DNS server: its zone, its records, whether it listens |

@@ -130,6 +130,19 @@ server {
 }
 ```
 
+**Prepare the hosts** (the action `prepare` of an `http_ssh` validation: the
+button on its row, `acme --validation-action NAME prepare`, or the console)
+does this on every web server: it finds nginx, makes the webroot (owned by
+the SSH account when it writes without sudo), writes the block above to
+`/etc/nginx/conf.d/acme-challenge.conf` (*nginx file*, `nginx_conf`; with an
+`alias` to the webroot), checks it with `nginx -t` - putting back what was
+there when the check fails - and reloads nginx; then it runs the probe of
+*Test*. It needs root there, or `sudo` without a password for `sh`. Where
+another block is the default server of port 80 already, name the names in
+*Names that block answers for* (`prepare_names`); *That block listens on
+IPv6 too* and *Everything else to HTTPS* (else 404) are under *More*. Run
+again, it changes nothing that is in place.
+
 With a server block of your own on port 80 already, put just the `location
 ^~ /.well-known/acme-challenge/ { root /var/www/acme-challenge; ... }` into it
 (before any redirect). Apache: `Alias /.well-known/acme-challenge/

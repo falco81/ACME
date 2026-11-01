@@ -61,6 +61,22 @@ and implement:
   helpers below do it from a `verify` host:port list.
 - `remove(self, bundle, options)` - optional: take a certificate away.
 
+Optionally, `actions` - **things it can do besides its work**, each a button
+on its row, an item in the console and `acme --target-action NAME KEY`:
+
+```python
+actions = [{'key': 'prepare', 'label': 'Prepare the device',
+            'help': 'What it does, in a sentence.',
+            'confirm': 'Asked first (optional)?', 'changes': True}]
+
+def action(self, key):          # -> words; raise PluginError when it fails
+    ...
+```
+
+Each runs in a job of its own (`ctx.step` writes its steps); `changes: True`
+(the default) makes it a full administrator's. Issuers and challenges take
+`actions` the same way (`http_ssh` has `prepare`).
+
 `self.c('key')` reads a target field (its default when unset); `options` is
 a plain dict of the deployment fields, plus `options['force']` when the
 person asked to deploy again regardless.

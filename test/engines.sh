@@ -17,6 +17,8 @@
 # prints its path. Without a certificate "web" in the copy, the certificate
 # checks are skipped.
 #
+# VERBOSE=1 shows the end of what a failed check said.
+#
 # MariaDB and PostgreSQL need a database "acme" that the account acme (password
 # optpw) owns on localhost, and pymysql / psycopg2 in the python3 on the PATH.
 # Each is emptied before the copy is put back into it.
@@ -28,7 +30,7 @@ shift
 engines=${*:-sqlite mariadb postgres move}
 fails=0
 say()  { printf '%-9s %s\n' "$1" "$2"; }
-must() { if eval "$2" >/dev/null 2>&1; then say "$1" "ok   $3"; else say "$1" "FAIL $3"; fails=$((fails+1)); fi; }
+must() { local out; if out=$(eval "$2" 2>&1); then say "$1" "ok   $3"; else say "$1" "FAIL $3"; [ -n "${VERBOSE:-}" ] && printf "%s\n" "$out" | tail -5 | sed "s/^/          /"; fails=$((fails+1)); fi; }
 has_certs=0
 zcat "$backup" | grep -q '"name": "web"' && has_certs=1
 
@@ -76,7 +78,11 @@ for engine in $engines; do
     for _ in $(seq 1 40); do python3 "$acme" --status >/dev/null 2>&1 && break; sleep 0.25; done
     must "$engine" "python3 '$acme' --status" "the daemon answers"
     must "$engine" "python3 '$acme' --api GET /api/status | grep -q '\"ok\": true'" "/api/status"
-    [ "$has_certs" = 1 ] && must "$engine" "python3 '$acme' --api GET /api/certs/overview | grep -q '\"node\"'" "the certificate manager leads"
+    # The lease of the node the copy was made on may still run for up to 90 s.
+    if [ "$has_certs" = 1 ]; then
+        for _ in $(seq 1 60); do python3 "$acme" --status 2>/dev/null | grep -q 'renewed by' && break; sleep 2; done
+        must "$engine" "python3 '$acme' --status | grep -q 'renewed by'" "the certificate manager leads"
+    fi
     must "$engine" "python3 '$acme' --export-config '$work/conf.json'" "the configuration exported"
     must "$engine" "python3 '$acme' --import-config '$work/conf.json' --yes" "... and imported again"
     must "$engine" "python3 '$acme' --events | grep -q 'imported a configuration'" "the events read back"

@@ -209,7 +209,10 @@ def ha_conninfo(host, port, name, user, password):
 def ha_drop_sub(db, sub):
     """A subscription taken away without asking the other side for its slot
     (which may be gone with a lost node) - under its name now or before."""
-    names = ha_sub_names(sub.rsplit('_', 1)[1]) if sub[:9] in ('acme_from_', 'opt_from_') \
+    # By its start: sub[:9] was compared with the 10 letters of
+    # 'acme_from_', so a subscription still under its old name (opt_from_N)
+    # was never taken away with the new one.
+    names = ha_sub_names(sub.rsplit('_', 1)[1]) if sub.startswith(('acme_from_', 'opt_from_')) \
         else [sub]
     for one in names:
         if db.value(SUB_HERE_SQL, (one,)):
@@ -219,7 +222,7 @@ def ha_drop_sub(db, sub):
 
 
 def ha_drop_slot(db, slot_name):
-    if slot_name[:9] in ('acme_from_', 'opt_from_'):
+    if slot_name.startswith(('acme_from_', 'opt_from_')):
         gone = False
         for one in ha_sub_names(slot_name.rsplit('_', 1)[1]):
             gone = _ha_drop_slot(db, one) or gone

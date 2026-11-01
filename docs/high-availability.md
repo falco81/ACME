@@ -32,12 +32,13 @@ sessions. There are two ways to lay the database out:
 - **A sign-in to the pages** is a row in the database. So is the "Edit the
   columns" switch that belongs to it. The next page can therefore come from
   the other node.
-- **The renewals and deployments** are done by one node at a time: a lease
-  row in the database (`certs:leader`, renewed every 30 s, good for 90 s)
-  says which. The node holding the VIP address takes it; with the VIP address
-  off, whichever node took it first keeps it while it lives. When that node
-  goes, the other takes over within a minute and a half - an event says so.
-  A job's steps are in the database, so either node's pages show it.
+- **The renewals and deployments** are done by one node at a time, the
+  leader - see [Who renews and deploys](#who-renews-and-deploys). A job's
+  steps are in the database, so either node's pages show it.
+- **acme's DNS server** answers from the database on both nodes: a DNS-01
+  record put in by the leader is answered by both (each reads the records
+  again at most every `dns_cache` seconds). Name both nodes in the NS
+  records that delegate `_acme-challenge` (or the zone) to acme.
 - **A code of the administration's second step is used up** by a single
   conditional `UPDATE`. If both nodes are asked for the same code at the same
   moment, only one of them accepts it.
@@ -168,6 +169,49 @@ node's step and when its certificate ends; `acme --ha-tls-repair` does what
 the button does (and starts stuck steps again). A node renamed or given a new
 address: [renaming-and-readdressing.md](renaming-and-readdressing.md).
 
+## Who renews and deploys
+
+Both nodes answer the pages, the API and DNS, but only one renews and deploys
+the certificates at a time: the **leader**. `acme --status` (the `renewed by`
+line), `GET /api/certs/overview` (`leader`) and the Prometheus gauge
+`acme_cert_leader` say which, and an event says when a node took over. A
+renewal or a deployment asked by hand runs on the node it was asked of.
+
+- **Shared** (one database): the lease row `certs:leader` in `meta`
+  (`{node, until, vip}`) decides. The leader renews it every 30 s; it runs out
+  90 s after it was last renewed. It is taken and kept with one conditional
+  statement (`INSERT` of a key that is not there, `UPDATE … WHERE v = <what
+  was read>`), so of two nodes asking at the same moment exactly one wins. The
+  node holding the VIP address takes the lease over from one that does not;
+  any node takes it once it ran out. If the leader dies, the other leads
+  within about two minutes (90 s for the lease, up to 30 s for its next look).
+- **Replicated** (a database each): a lease row cannot decide, because each
+  node reads its own copy of it, and a copy may be late or - while replication
+  is paused or broken - not come at all: both would see the other's lease run
+  out and both would lead, renewing the same certificate twice (two orders at
+  the CA, and the same version made on both). So each node decides by a rule
+  both reach on their own:
+  1. the node that holds the VIP address leads;
+  2. else the first by name of the nodes alive. A node is alive while its
+     heartbeat (every 15 s) is younger than 45 s - and a node that sorts first
+     but looks stale here is asked in **its own** PostgreSQL before it is
+     given up (alive there while its heartbeat is younger than 120 s). So a
+     paused or broken replication does not make two leaders: the second node
+     still reaches the first one's database and sees it alive.
+
+  Only the leader writes the lease row, which then only says who leads. A
+  node that should lead waits while the row names another node and has not
+  run out (that one lets it go at its next look and removes the row), so the
+  two do not overlap when the first node comes back. If the leader dies (its
+  daemon or its machine), the other leads within three to four minutes: 120 s
+  until its heartbeat is stale in its own database, its lease run out in the
+  copy here, up to 30 s for the next look.
+- **On either**, a node trusts its own lead for 60 s after it last renewed it,
+  so one that cannot reach its database stops before another may start.
+
+It needs **the clocks of both nodes to agree** (chrony/NTP): the lease's end
+and the heartbeats are times written by one node and read by the other.
+
 ## When a node is lost
 
 - **Down for a while** (a reboot, a network cut, hours or days): nothing to do.
@@ -202,13 +246,15 @@ makes first.
    - opens TCP 5432 in firewalld for that one address,
    - and restarts PostgreSQL after asking.
 
-   It then writes `/root/acme-join-acme1.json` and prints the passphrase, once.
-   For a PostgreSQL elsewhere, give its address as the second node will reach
-   it: `--ha-db-host`.
+   It then writes `/root/acme-join-acme1.json` and prints the passphrase, once,
+   and `"ha_mode": "shared"` into this node's config.json. For a PostgreSQL
+   elsewhere, give its address as the second node will reach it:
+   `--ha-db-host`.
 3. **On the second node**: install acme, copy the bundle over and run
    `acme --ha-join /root/acme-join-acme1.json --node-name acme2`. Instead of the
    last command you can press *Join a cluster…* on the second node's own
-   pages. From then on, sign in with the cluster's accounts.
+   pages. It writes the database, `"ha_mode": "shared"` and the node's name
+   into its config.json. From then on, sign in with the cluster's accounts.
 4. **On both nodes**: `acme --trusted-proxy 192.0.2.10/32`.
 
 ## The load balancer
@@ -279,15 +325,25 @@ leaving the cluster): [operations.md](operations.md).
   on both nodes in that moment, or on both halves of a split network, can be
   accepted twice. An app code lives 30 seconds at most, so the risk is small,
   but it is there. The shared layout does not have it.
-- **Replicated: split in two, both nodes may lead.** With the nodes not
-  hearing each other, each may take the lease (it lives in each node's own
-  database), and a certificate may be renewed and deployed twice - a CA's rate
-  limits count both.
+- **Replicated: cut in two, both nodes may lead.** With the network between
+  them cut (each answering, neither reaching the other's PostgreSQL), each
+  takes the other for dead and leads, and a certificate may be renewed and
+  deployed twice - a CA's rate limits count both. Without a third machine a
+  cut cannot be told from a dead node; the VIP address (keepalived) has the
+  same limit. A paused or broken replication alone does not do this.
+- **Replicated: a renewal by hand on the node that does not lead**, while
+  the leader renews the same certificate, makes the same version on both;
+  the same one of the two is kept on both, the other node's certificate
+  lost. Renew a certificate by hand on the leader, or one node at a time.
 - **Replicated: the same row changed on both nodes at the same moment.** A row
-  made on both nodes under the same name (the same setting saved on each) does
-  not stop the replication: the same one of the two is kept on both. Anything
-  else (a setting, a target) ends up as whichever change arrived last on each
-  node - change those on one node at a time.
+  made on both nodes under the same name (a certificate, a target, a source,
+  an account, a meta key, a setting) or the same key of several columns (a
+  certificate's version, an authority's serial) does not stop the
+  replication: the same one of the two is kept on both. A setting changed on
+  both keeps the later change on both. Anything else (a certificate's
+  options, a target's address) ends up as whichever change arrived last on
+  each node - change those on one node at a time. New rows never collide on
+  their numbers: one node numbers odd, the other even.
 - **Replicated: send a person's requests to one node** where the balancer
   can (sticky by source address): a sign-in or a certificate added on one node
   reaches the other a moment later, and the next page asked of the other
@@ -305,3 +361,18 @@ leaving the cluster): [operations.md](operations.md).
   `acme --maintenance on` and `install.sh --upgrade` on each node in turn.
   [upgrades.md](upgrades.md) says how, and how to upgrade the operating
   system. The node list shows any mismatch.
+
+## Tested
+
+`test/test_ha.py` sets both layouts up on one machine with the wizards above
+(two daemons with their own folders, ports and names; the VIP address off):
+one PostgreSQL for *shared*, two PostgreSQL clusters (5432 and 5433, two nodes
+on one machine: the second's `db_port` set before the join, the first given
+`--ha-peer-port 5433 --ha-address 127.0.0.1`) for *replicated*. It checks
+that one node leads and both say so, that four certificates made on either
+node are renewed once each, by the leader, and seen on both, that both DNS
+servers answer the same TXT record, that one node numbers odd and the other
+even, that with replication paused both ways the second node still does not
+lead (a certificate made there waits for the first), and that the other node
+takes over when the leader is killed. Each part is skipped when its
+PostgreSQL is not there.

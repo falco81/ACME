@@ -1262,6 +1262,82 @@ class TestHttpSsh(unittest.TestCase):
             m.test()
         self.assertIn('192.0.2.22', str(e.exception))
 
+    # -- the action "prepare": nginx made ready on every machine ---------------------------
+    class PrepWorld(SshWorld):
+        """Each machine runs `id -u` and the prepare script (sh -s) as it is told."""
+        def __init__(self, uid=b'1000\n', answer=(0, b'nginx: ok\nACME: written and reloaded\n')):
+            SshWorld.__init__(self)
+            self.uid, self.answer, self.scripts = uid, answer, []
+
+    def prep_module(self, world, **cfg):
+        m, world, served = self.module(world, **cfg)
+        orig = FakeSsh.run
+
+        def run(s, command, input=None, timeout=120, check=True):
+            if command == 'id -u':
+                s.world.commands.append((s.host, command, None))
+                return 0, s.world.uid, b''
+            if command.endswith('sh -s'):
+                s.world.commands.append((s.host, command, None))
+                s.world.scripts.append((s.host, command, input.decode()))
+                rc, out = s.world.answer if not callable(s.world.answer) else \
+                    s.world.answer(s.host)
+                if rc and check:
+                    raise PluginError('exit %d' % rc)
+                return rc, out, b''
+            return orig(s, command, input, timeout, check)
+        self.addCleanup(setattr, FakeSsh, 'run', orig)
+        FakeSsh.run = run
+        return m, world, served
+
+    def test_prepare_action(self):
+        d = plugin('http_ssh').describe()
+        self.assertEqual([a['key'] for a in d['actions']], ['prepare'])
+        world = self.PrepWorld()
+        m, world, _s = self.prep_module(world)
+        said = m.action('prepare')
+        self.assertEqual(len(world.scripts), 3)
+        host, cmd, script = world.scripts[0]
+        self.assertEqual(cmd, 'sudo -n sh -s')          # not root: through sudo
+        self.assertRegex(script, r"conf='?/etc/nginx/conf\.d/acme-challenge\.conf")
+        self.assertIn('listen 80 default_server;', script)
+        self.assertIn('alias /var/www/acme-challenge/.well-known/acme-challenge/;', script)
+        self.assertIn('nginx -t', script)
+        self.assertIn('systemctl reload nginx', script)
+        self.assertRegex(script, r"chown '?acme")            # the token files written as acme
+        self.assertIn('written and reloaded', said)
+        self.assertIn('read back and taken away', said)     # then the probe of Test
+        self.assertTrue(all(not f for f in world.files.values()))
+        # As root, with names of its own and no IPv6: no sudo, no default_server.
+        world = self.PrepWorld(uid=b'0\n')
+        m, world, _s = self.prep_module(world, user='root', prepare_names='www.example.com',
+                                        prepare_ipv6=False, prepare_redirect=False,
+                                        check='none')
+        m.action('prepare')
+        _h, cmd, script = world.scripts[0]
+        self.assertEqual(cmd, 'sh -s')
+        self.assertIn('server_name www.example.com;', script)
+        self.assertNotIn('default_server', script)
+        self.assertNotIn('[::]', script)
+        self.assertIn('return 404;', script)
+        self.assertNotIn('chown', script)
+
+    def test_prepare_fails_and_says_why(self):
+        world = self.PrepWorld(answer=lambda h: (5, b'nginx: [emerg] a duplicate default server '
+                                                    b'for 0.0.0.0:80\nACME: nginx -t fails - put '
+                                                    b'back as it was\n') if h == '192.0.2.22'
+                               else (0, b'ACME: already in place\n'))
+        m, world, _s = self.prep_module(world, check='none')
+        with self.assertRaises(PluginError) as e:
+            m.action('prepare')
+        self.assertIn('192.0.2.22', str(e.exception))
+        self.assertIn('Names that block answers for', str(e.exception))
+        with self.assertRaises(PluginError):
+            m.action('nothing-such')
+        m2, _w, _s = self.prep_module(self.PrepWorld(), nginx_conf='/tmp/x.conf')
+        with self.assertRaises(PluginError):
+            m2.action('prepare')
+
 
 class TestOtherModules(unittest.TestCase):
     def test_http_local(self):

@@ -36,6 +36,7 @@ Every module here works the same way:
 |---|---|---|
 | `ssh` | Linux / Unix server (SSH) | Linux / Unix |
 | `local` | This machine (files) | acme |
+| `appliance` | This acme server (its pages) | acme |
 | `windows_ssh` | Windows server (OpenSSH + PowerShell) | Microsoft |
 | `f5` | F5 BIG-IP | F5 |
 | `netscaler` | NetScaler / Citrix ADC | Citrix |
@@ -166,6 +167,34 @@ acme user, with a plain `PATH`.
 
 **Rights**: the acme user must be able to write the folder:
 `install -d -o acme -g acme -m 0750 /etc/acme/out`.
+
+## `appliance` - this acme server (its pages)
+
+The certificate becomes the one of acme's own pages, as **Settings →
+Certificates and TLS** would take it uploaded (its TLS settings - protocols,
+ciphers, DH, HSTS - stay as they are; the engine's own ACME no longer renews
+those pages). The target has no settings; a deployment says *Which pages*
+(`where`):
+
+| `where` | |
+|---|---|
+| `auto` (default) | every node's own pages, and the VIP address's in a cluster that has one |
+| `nodes` | every node's own pages |
+| `this` | the pages of the node that deploys |
+| `vip` | the VIP address's only |
+| `list` | the nodes (or `vip`) named in *Nodes* (`names`) |
+
+Every node puts its own into nginx within seconds (it is kept in the
+database, so the other node of a cluster takes it as well); the VIP's is
+served by whichever node holds the address. *The certificate must hold the
+names* (on by default) refuses a certificate without the VIP address's name.
+A renewal deploys it again by itself - so the pages are renewed on every
+node. `verify` compares what each of those pages holds with the new one.
+
+```
+acme --target-add pages --kind appliance
+acme --deploy-add acme-pages pages --set where=auto
+```
 
 ## `windows_ssh` - Windows over OpenSSH
 

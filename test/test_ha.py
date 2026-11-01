@@ -27,7 +27,7 @@ What is tried, each part skipped when what it needs is not there:
 The servers to use (all on 127.0.0.1, database "acme", account acme, password
 optpw unless said otherwise):
     ACME_TEST_PG_PORT (5432)  ACME_TEST_PG2_PORT (5433)  ACME_TEST_MY_PORT (3306)
-    ACME_TEST_PG2_DB (acme2: the second node's database, on the second cluster)
+    (the second node's database is "acme" too, on the second cluster)
 """
 import base64
 import json
@@ -55,7 +55,7 @@ PW = 'Test-Password-4711!'
 DB_PW = os.environ.get('ACME_TEST_DB_PW', 'optpw')
 PG_PORT = int(os.environ.get('ACME_TEST_PG_PORT', '5432'))
 PG2_PORT = int(os.environ.get('ACME_TEST_PG2_PORT', '5433'))
-PG2_DB = os.environ.get('ACME_TEST_PG2_DB', 'acme')
+PG2_DB = 'acme'                   # the bundle names the first node's database
 MY_PORT = int(os.environ.get('ACME_TEST_MY_PORT', '3306'))
 
 
@@ -126,7 +126,14 @@ def pg_empty(port=PG_PORT, db='acme'):
             pass
     cur.execute('SELECT pubname FROM pg_publication')
     for (name,) in cur.fetchall():
-        cur.execute('DROP PUBLICATION IF EXISTS %s' % name)
+        try:
+            cur.execute('DROP PUBLICATION IF EXISTS %s' % name)
+        except Exception:                               # noqa: BLE001
+            # FOR ALL TABLES: made by the postgres account (the wizard's).
+            if os.geteuid() == 0 and shutil.which('runuser'):
+                subprocess.run(['runuser', '-u', 'postgres', '--', 'psql', '-XAtq', '-p',
+                                str(port), '-d', db, '-c', 'DROP PUBLICATION IF EXISTS %s' % name],
+                               capture_output=True)
     cur.execute("SELECT slot_name FROM pg_replication_slots WHERE database = current_database() "
                 "AND NOT active")
     for (name,) in cur.fetchall():
@@ -881,3 +888,221 @@ class LeaseRace(unittest.TestCase):
     def test_mariadb(self):
         need_my(self)
         self.check(MY, my_empty)
+
+
+def db_rows(port, sql, args=()):
+    c = pg_conn(port)
+    try:
+        cur = c.cursor()
+        cur.execute(sql, args)
+        return cur.fetchall()
+    finally:
+        c.close()
+
+
+def pg2_empty():
+    """The second cluster's acme database emptied, if it is there yet (the
+    wizard makes it)."""
+    if have_pg(PG2_PORT):
+        pg_empty(PG2_PORT)
+
+
+class ReplicatedPair(PairChecks, unittest.TestCase):
+    """Two daemons, each on its own PostgreSQL (127.0.0.1:5432 and :5433),
+    replicating both ways - set up with the wizard: acme --ha-setup on the
+    first (it sets wal_level, pg_hba.conf, the publication and the odd
+    numbering, restarting PostgreSQL through pg_ctlcluster), acme --ha-join
+    on the second (the same there, every row copied, both subscriptions)."""
+    TAKEOVER = 120 + 30 + 90 + 20   # its heartbeat stale in its own database, a
+    #                                 look of the lease, its lease run out here
+
+    def sync(self):
+        """Both directions caught up (what was written before this is on both)."""
+        mark = 'sync:%s' % time.time()
+        for n, port, other in ((self.a, PG_PORT, PG2_PORT), (self.b, PG2_PORT, PG_PORT)):
+            c = pg_conn(port)
+            c.cursor().execute("INSERT INTO meta (k, v) VALUES (%s, '1')",
+                               (mark + ':' + n.name,))
+            c.close()
+            wait_for(lambda: db_rows(other, 'SELECT 1 FROM meta WHERE k = %s',
+                                     (mark + ':' + n.name,)), 30, 0.3,
+                     'replication %s -> the other' % n.name)
+
+    @classmethod
+    def setUpClass(cls):
+        need_pg(cls)
+        if not (pg_admin_ok(PG_PORT) and pg_admin_ok(PG2_PORT)):
+            raise unittest.SkipTest('the replicated wizard needs root and psql as postgres on '
+                                    'both clusters (%d, %d): pg_createcluster 16 second --port '
+                                    '%d' % (PG_PORT, PG2_PORT, PG2_PORT))
+        pg_empty()
+        pg2_empty()
+        extra = {'dns_server': 1, 'dns_zone': 'acme.test', 'certs_check_min': 1}
+        cls.a = Node('n1', PG, extra)
+        cls.b = Node('n2', PG2, extra)
+        cls.a.add_account()
+        bundle = os.path.join(cls.a.tmp, 'bundle.json')
+        for n in (cls.a, cls.b):
+            n.env['ACME_HA_NO_RESTART'] = '1'
+        got = cls.a.cli('--ha-setup', '--ha-peer', '127.0.0.1', '--ha-peer-port', str(PG2_PORT),
+                        '--ha-address', '127.0.0.1', '--node-name', 'n1', '--ha-bundle', bundle,
+                        '--yes')
+        cls.setup_out = got.stdout + got.stderr
+        if got.returncode != 0:
+            raise RuntimeError('--ha-setup: %s' % cls.setup_out)
+        cls.b.env['ACME_HA_PASSPHRASE'] = passphrase_of(got.stdout)
+        got = cls.b.cli('--ha-join', bundle, '--node-name', 'n2', '--ha-address', '127.0.0.1',
+                        '--yes')
+        cls.join_out = got.stdout + got.stderr
+        if got.returncode != 0:
+            raise RuntimeError('--ha-join: %s' % cls.join_out)
+        for n in (cls.a, cls.b):
+            n.set_conf(api_port=n.port, dns_port=n.dns_port)
+        cls.a.start()
+        cls.b.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        for n in ('a', 'b'):
+            if getattr(cls, n, None):
+                getattr(cls, n).cleanup()
+        if not os.environ.get('ACME_TEST_KEEP'):
+            for port in (PG_PORT, PG2_PORT):
+                try:
+                    pg_empty(port)
+                except Exception:                       # noqa: BLE001
+                    pass
+
+    def test_00_wizard(self):
+        c1, c2 = self.a.conf, self.b.conf
+        self.assertEqual((c1['ha_mode'], c1['ha_slot']), ('replicated', 1))
+        self.assertEqual((c2['ha_mode'], c2['ha_slot']), ('replicated', 2))
+        self.assertEqual(c2['db_port'], PG2_PORT)
+        self.assertEqual(c1.get('ha_peer_port'), PG2_PORT)
+        self.assertEqual(c2.get('ha_peer_port', 5432), PG_PORT)
+        for port, sub in ((PG_PORT, 'acme_from_2'), (PG2_PORT, 'acme_from_1')):
+            got = db_rows(port, 'SELECT subname, subenabled FROM pg_subscription')
+            self.assertIn((sub, True), got, (port, got, self.setup_out, self.join_out))
+        # The accounts came over with the rows: the second node signs in with them.
+        self.assertTrue(self.b.session)
+        status = self.a.cli('--ha-status')
+        self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
+        self.assertIn('n2', status.stdout)
+
+    def test_05_numbers_odd_and_even(self):
+        ids = self.ids
+        self.assertEqual([i % 2 for i in ids], [1, 0, 1, 0], ids)
+        for port in (PG_PORT, PG2_PORT):
+            names = dict(db_rows(port, 'SELECT id, name FROM certs'))
+            for i, cid in enumerate(ids):
+                self.assertEqual(names.get(cid), 'auto%d' % i, (port, names))
+        # Every table of SCHEMA in steps of two on each side, the certificates' too.
+        for port, odd in ((PG_PORT, 1), (PG2_PORT, 0)):
+            seqs = dict(db_rows(port, "SELECT sequencename, increment_by FROM pg_sequences"))
+            for t in ('certs', 'cert_versions', 'cert_jobs', 'dns_records', 'cert_cas'):
+                self.assertEqual(seqs.get('%s_id_seq' % t), 2, (port, t, seqs))
+            jobs = [r[0] for r in db_rows(port, 'SELECT id FROM cert_jobs WHERE node = %s',
+                                         ('n1' if odd else 'n2',))]
+            self.assertTrue(all(j % 2 == odd for j in jobs), (port, jobs))
+
+    def test_06_paused_one_leader(self):
+        """Replication paused both ways: the heartbeats and the lease of the
+        other stop coming - and still only the first node leads (it is asked
+        in its own database). A certificate made on the second node then
+        waits, and is renewed once by the first after the resume."""
+        lead, other = (self.a, self.b) if self.lead == 'n1' else (self.b, self.a)
+        got = self.a.cli('--ha-pause', 'both')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        try:
+            cid = other.ok('POST', '/api/certs/save', {'name': 'paused',
+                                                       'names': ['paused.example.test'],
+                                                       'issuer': 'self',
+                                                       'auto_renew': 1})['id']
+            time.sleep(LEASE_WAIT + 30)   # the other's lease ran out in each copy
+            one = other.ok('GET', '/api/certs/one', args={'id': cid})
+            self.assertEqual(one['cert']['state'], 'new', one['cert'])
+            self.assertEqual(one['jobs'], [])
+            # Nobody else took the lead in either database.
+            for port in (PG_PORT, PG2_PORT):
+                took = [r[0] for r in db_rows(
+                    port, "SELECT words FROM events WHERE kind = 'certificates' AND words "
+                    "LIKE %s", ('%now renews and deploys%',))]
+                self.assertEqual(len(took), 1, (port, took))
+            self.assertEqual(lead.leader(), lead.name)
+        finally:
+            got = self.a.cli('--ha-resume', 'both')
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        wait_for(lambda: other.ok('GET', '/api/certs/one', args={'id': cid})['cert']['state']
+                 == 'ok', 150, 2, 'the renewal after the resume')
+        self.sync()
+        for node in (self.a, self.b):
+            jobs = node.ok('GET', '/api/certs/jobs', args={'cert_id': cid})['rows']
+            self.assertEqual([(j['kind'], j['node']) for j in jobs], [('renew', lead.name)])
+
+    def test_07_dns_record_from_the_other(self):
+        self.b.ok('POST', '/api/dns/record', {'name': '_acme-challenge.from2.acme.test',
+                                              'rtype': 'TXT', 'value': 'made-on-n2', 'ttl': 30})
+        self.sync()
+        for node in (self.a, self.b):
+            got = wait_for(lambda: dns_txt(node.dns_port, '_acme-challenge.from2.acme.test'),
+                           30, 1, '%s answering' % node.name)
+            self.assertEqual(got, ['made-on-n2'])
+
+
+
+class SameRowsGuard(unittest.TestCase):
+    """Replicated: a row that comes in from the other node under a key this
+    node has already (a name; a certificate's version; an authority's serial)
+    does not stop the replication - the same one of the two is kept on both."""
+
+    def test_postgres(self):
+        need_pg(self)
+        if not pg_admin_ok(PG_PORT):
+            raise unittest.SkipTest('needs root and psql as postgres')
+        pg_empty()
+        node = Node('guard', PG)
+        try:
+            node.py('st.db.make_tables()')
+            c = pg_conn()
+            cur = c.cursor()
+            cur.execute("INSERT INTO cert_versions (cert_id, version, cert_pem) VALUES (7, 1, 'a')")
+            cur.execute("INSERT INTO cert_ca_issued (ca_id, serial, names) VALUES (3, '0A', 'a')")
+            cur.execute("INSERT INTO certs (name, note) VALUES ('web', 'a')")
+            c.close()
+            # As the replication's apply worker writes: session_replication_role = replica.
+            sql = ("SET session_replication_role = replica;\n"
+                   "INSERT INTO cert_versions (id, cert_id, version, cert_pem) VALUES (1000, 7, 1, 'b');\n"
+                   "INSERT INTO cert_ca_issued (id, ca_id, serial, names) VALUES (1000, 3, '0A', 'b');\n"
+                   "INSERT INTO certs (id, name, note) VALUES (1000, 'web', 'b');\n")
+            got = subprocess.run(['runuser', '-u', 'postgres', '--', 'psql', '-XAtq', '-p',
+                                  str(PG_PORT), '-d', 'acme', '-v', 'ON_ERROR_STOP=1', '-f', '-'],
+                                 input=sql, capture_output=True, text=True)
+            self.assertEqual(got.returncode, 0, got.stderr)
+            for table, where in (('cert_versions', 'cert_id = 7'), ('cert_ca_issued', 'ca_id = 3'),
+                                 ('certs', "name = 'web'")):
+                rows = db_rows(PG_PORT, 'SELECT id FROM %s WHERE %s' % (table, where))
+                # row_to_json of id 1000 sorts after id 1's: the one that came is kept.
+                self.assertEqual(rows, [(1000,)], table)
+        finally:
+            node.cleanup()
+            pg_empty()
+
+def tearDownModule():
+    if Populated.made:
+        Populated.made['node'].cleanup()
+        Populated.made = None
+
+
+if __name__ == '__main__':
+    if len(sys.argv) == 3 and sys.argv[1] == '--make-backup':
+        # A SQLite database with certificates, an authority, sources, a target,
+        # a deployment, jobs and a DNS record - its backup (and the key beside
+        # it) put into DIR, for test/engines.sh.
+        made = Populated.get()
+        os.makedirs(sys.argv[2], exist_ok=True)
+        for f in (made['backup'], made['backup'][:-len('.json.gz')] + '.key'):
+            shutil.copy(f, sys.argv[2])
+        made['node'].cleanup()
+        print(os.path.join(sys.argv[2], os.path.basename(made['backup'])))
+        sys.exit(0)
+    unittest.main(verbosity=2)

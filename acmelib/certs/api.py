@@ -299,16 +299,18 @@ def cert_save(store, b, by):
         if kt not in schema.KEY_TYPES:
             raise ValueError('the key type is one of %s' % ', '.join(schema.KEY_TYPES))
         fields['key_type'] = kt
-    if not row and 'issuer' not in b:
+    if not row:
         # Not said at all (not said empty): Let's Encrypt first (defaults.py),
-        # proved by this server's HTTP-01 unless a validation is said.
-        di = DF.default_issuer(store)
-        if di:
+        # and an ACME issuer's names proved by this server's HTTP-01 unless a
+        # validation is said.
+        di = DF.default_issuer(store) if 'issuer' not in b else \
+            S.plugin_row(store, 'issuer', str(b.get('issuer') or '').strip())
+        if di and 'issuer' not in b:
             b = dict(b, issuer=di['name'])
-            if 'challenge' not in b and not b.get('challenge_map'):
-                dc = DF.default_challenge(store, di)
-                if dc:
-                    b['challenge'] = dc['name']
+        if di and 'challenge' not in b and not b.get('challenge_map'):
+            dc = DF.default_challenge(store, di)
+            if dc:
+                b = dict(b, challenge=dc['name'])
     if 'issuer' in b or not row:
         iss = str(b.get('issuer') or '').strip()
         if iss and not S.plugin_row(store, 'issuer', iss):

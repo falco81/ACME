@@ -73,10 +73,19 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   paused / resumed. **Upgrades → from the web**: what is newer at
   upgrade_url, a version picked, Yes, then every node upgraded one at a time
   with its progress bars.
-- **Certificates** (`c`): the certificates (browse, add one, renew every one
-  due now), the jobs, acme's own authorities, the sources (issuers), the
-  validation (challenges), the targets, acme's own DNS server and the modules
-  - [certificates.md](certificates.md).
+- **Certificates** (`c`): everything the Certificates pages do - the
+  certificates (browse: show, renew, deploy, its deployments, change, export,
+  a CSR and its answer, revoke, delete; add one; renew every one due now),
+  the jobs (followed live, stopped), the live log of the certificates, the
+  sources, validations and targets (show, add, change, rename, switch off,
+  try, a module's actions such as *Prepare the hosts*, delete), the
+  deployments (add, run, change, switch off, take away), acme's own
+  authorities (show, new root, new intermediate, import, CRL, export, sign a
+  CSR, revoke, delete), acme's own DNS server (its records) and the modules
+  (what each takes). A module's form is drawn from its fields: a choice for a
+  select or an on/off, a secret as stars - handed over in the environment,
+  never on a command line - and a PEM read from a file. Each item runs the
+  `acme` option of [command-line.md](command-line.md) it says.
 - **Directories**: a directory added or changed in a form (its servers, where
   to look, the account it reads with, LDAPS / StartTLS; its password asked,
   shown as stars).

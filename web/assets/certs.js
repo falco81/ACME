@@ -978,6 +978,12 @@ function drawModTab(key, live) {
     });
     var s = $(m.said);
     if (s) s.textContent = LISTS[key].length ? num(LISTS[key].length) + ' in all' : '';
+    if (key === 'sources' && b) {
+      var miss = LISTS[key].filter(function (r) {
+        return r.kind === 'acme' && !arr(Array.isArray((r.config || {}).contacts) ? r.config.contacts : String((r.config || {}).contacts || '').split(/[\s,;]+/)).filter(Boolean).length;
+      }).map(function (r) { return r.name; });
+      contactAsk(b, miss);
+    }
     liveFill(host, function (box) {
       if (!LISTS[key].length) {
         var e = el('div', 'ct-blank');
@@ -990,6 +996,7 @@ function drawModTab(key, live) {
         var tr = el('tr');
         var nc = el('td', 'ct-modname');
         nc.appendChild(data('b', '', r.name));
+        if (r.is_default) nc.appendChild(el('span', 'tag ok small', 'default'));
         if (r.note) nc.appendChild(data('div', 'muted small', r.note));
         if (r.tags) nc.appendChild(tagChips(r.tags));
         tr.appendChild(nc);
@@ -1009,6 +1016,13 @@ function drawModTab(key, live) {
           t.onclick = function (ev) { ev.stopPropagation(); modTest(key, r, t); };
           tools.appendChild(t);
         }
+        /* What its module can do besides (Plugin.actions): one button each. */
+        modActions(r, p).forEach(function (a) {
+          if (a.changes !== false ? !FULL : !MANAGE) return;
+          var ab = iconButton('gear', a.label || a.key);
+          ab.onclick = function (ev) { ev.stopPropagation(); modAction(key, r, a, ab); };
+          tools.appendChild(ab);
+        });
         if (FULL) {
           var e = iconButton('edit', 'Edit');
           e.onclick = function (ev) { ev.stopPropagation(); modEdit(key, r); };
@@ -1072,6 +1086,44 @@ function modTest(key, r, button, form) {
     toast(wordsOf(e), 'bad');
     return {ok: false, words: wordsOf(e)};
   }).then(function (x) { busy(button, false); if (!form) { delete LISTS[key]; drawModTab(key, true); } return x; });
+}
+function modActions(r, p) {
+  return arr(r.actions && r.actions.length ? r.actions : (p && p.actions) || []);
+}
+/** One of a module's actions run on a saved row ({id, action}): its steps in a job. */
+function modAction(key, r, a, button) {
+  var m = MODS[key];
+  var go = function () {
+    busy(button, true);
+    askRaw(m.list + '/action', {id: r.id, name: r.name, action: a.key}, 600).then(function (d) {
+      var good = d.ok !== false && !d.error;
+      toast(String(d.said || d.message || d.error || (good ? 'done' : 'it did not work')).split('\n')[0], good ? 'good' : 'bad');
+      if (d.job_id) over(function () { jobPeek(d.job_id); });
+    }).catch(fail).then(function () { busy(button, false); delete LISTS[key]; drawModTab(key, true); });
+  };
+  if (a.confirm) confirmThen(r.name + ': ' + (a.label || a.key), htmlText(a.confirm) + (a.help ? '<br><span class="muted small">' + htmlText(a.help) + '</span>' : ''), a.label || a.key, go);
+  else go();
+}
+/** The ACME sources with no contact e-mail: asked for once, set on all of them. */
+function contactAsk(host, names) {
+  if (!host || !names || !names.length || !FULL) return;
+  var box = el('div', 'note warn ct-contact');
+  box.appendChild(el('span', '', 'These ACME sources have no contact e-mail - the CA mails about expiry and policy there; certificates are issued without one too:'));
+  box.appendChild(data('b', '', ' ' + names.join(', ') + ' '));
+  var b = el('button', 'btn small', 'Set the contact e-mail…');
+  b.type = 'button';
+  b.onclick = function () {
+    var mail = window.prompt(typeof i18nText === 'function' && i18nText('The contact e-mail of the ACME sources') || 'The contact e-mail of the ACME sources', '');
+    if (!mail) return;
+    capi('sources/contact', {email: mail.trim()}).then(function (d) {
+      toast(said(d, 'set'), 'good');
+      box.remove();
+      delete LISTS.sources;
+      drawModTab('sources', true);
+    }).catch(fail);
+  };
+  box.appendChild(b);
+  host.insertBefore(box, host.firstChild);
 }
 function modDelete(key, r) {
   var m = MODS[key];
@@ -2389,6 +2441,9 @@ function certWizard(cert, detail) {
       W.vals = got[1];
       W.targets = got[2];
       if (!W.d.issuer && W.sources.length === 1) W.d.issuer = W.sources[0].name;
+      /* Let's Encrypt first: the default source and validation (is_default). */
+      if (!W.d.issuer) W.d.issuer = (W.sources.filter(function (x) { return x.is_default; })[0] || {}).name || '';
+      if (!W.d.challenge && !editing) W.d.challenge = (W.vals.filter(function (x) { return x.is_default; })[0] || {}).name || '';
       paint();
     });
 }

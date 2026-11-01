@@ -15,7 +15,18 @@ failure, one running out - one event a line, program `acme-certs` (facility
 ```
 
 A value with a space or a quote in it is in quotes, its quotes and
-backslashes escaped; a line never breaks.
+backslashes escaped; a line never breaks. What a line is about has fields of
+its own before `msg` - `action` (issued, renewed, renew, deployed, deploy,
+expired, expiring, revoked...), `result` (ok, failed, expired, warn), `cert`,
+`names`, `serial`, `not_after` (UTC, ISO 8601), `issuer`, and for a
+deployment `target`, `target_kind`, `version`:
+
+```
+<29>Nov  1 10:27:04 acme1 acme-certs[812]: level=info kind=certificates node=acme1 who=acme action=deployed cert=www issuer="Let's Encrypt" names="www.example.cz,example.cz" not_after=2027-01-30T10:26:48Z result=ok serial=04A19C552E0B target=f5-prague target_kind=f5 version=7 msg="www (version 7) deployed to f5-prague"
+```
+
+The SIEM (Settings → Syslog / SIEM) gets the same fields in its JSON, CEF or
+RFC 5424 structured data.
 
 Optionally every other event of acme (a setting changed, a sign-in, a node
 gone), the same way as program `acme` - with `isemon_events` on.
