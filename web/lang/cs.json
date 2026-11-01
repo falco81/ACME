@@ -33275,6 +33275,750 @@
   "swr115": {
    "source": "Windows Admin Center: the module Microsoft.WindowsAdminCenter.Configuration is not there",
    "text": "Windows Admin Center: modul Microsoft.WindowsAdminCenter.Configuration tu není"
+  },
+  "sdf0001": {
+   "source": "Script after the files (default)",
+   "text": "Skript po souborech (výchozí)"
+  },
+  "sdf0002": {
+   "source": "run after the files are written and the test passed; a failure puts the previous files back - the default of every deployment here",
+   "text": "spustí se po zapsání souborů a úspěšném testu; selhání vrátí předchozí soubory – výchozí pro všechna nasazení na tomto cíli"
+  },
+  "sdf0003": {
+   "source": "run after the files are written and the test passed; a failure puts the previous files back",
+   "text": "spustí se po zapsání souborů a úspěšném testu; selhání vrátí předchozí soubory"
+  },
+  "sdf0004": {
+   "source": "a command or script already on the machine",
+   "text": "příkaz nebo skript, který už na stroji je"
+  },
+  "sdf0005": {
+   "source": "a script written here (uploaded each time)",
+   "text": "skript napsaný zde (pokaždé se nahraje)"
+  },
+  "sdf0006": {
+   "source": "Command or script on the machine",
+   "text": "Příkaz nebo skript na stroji"
+  },
+  "sdf0007": {
+   "source": "its absolute path; the ACME_* variables are set for it",
+   "text": "jeho absolutní cesta; dostane proměnné ACME_*"
+  },
+  "sdf0008": {
+   "source": "Its arguments",
+   "text": "Jeho argumenty"
+  },
+  "sdf0009": {
+   "source": "{name} {cn} {service} {date} are filled in",
+   "text": "{name} {cn} {service} {date} se doplní"
+  },
+  "sdf0010": {
+   "source": "Interpreter",
+   "text": "Interpret"
+  },
+  "sdf0011": {
+   "source": "sh (POSIX)",
+   "text": "sh (POSIX)"
+  },
+  "sdf0012": {
+   "source": "Python 3",
+   "text": "Python 3"
+  },
+  "sdf0013": {
+   "source": "The script",
+   "text": "Skript"
+  },
+  "sdf0014": {
+   "source": "uploaded on every deployment, run with the ACME_* variables, then deleted; only a full administrator may change it (64 KiB at most)",
+   "text": "při každém nasazení se nahraje, spustí s proměnnými ACME_* a pak smaže; měnit ho smí jen plný administrátor (nejvýš 64 KiB)"
+  },
+  "sdf0015": {
+   "source": "Password of PKCS#12 / keystore files",
+   "text": "Heslo souborů PKCS#12 / keystore"
+  },
+  "sdf0016": {
+   "source": "for pfx, p12, p12-legacy and jks files. Made by acme: a random one, kept with the deployment (a full administrator sees it), given to the script as ACME_PASSWORD",
+   "text": "pro soubory pfx, p12, p12-legacy a jks. Vytvoří acme: náhodné, uložené u nasazení (plný administrátor ho vidí), skript ho dostane jako ACME_PASSWORD"
+  },
+  "sdf0017": {
+   "source": "the one set here (none when empty)",
+   "text": "zadané zde (prázdné: žádné)"
+  },
+  "sdf0018": {
+   "source": "made by acme (random, kept sealed)",
+   "text": "vytvoří acme (náhodné, uložené zapečetěně)"
+  },
+  "sdf0019": {
+   "source": "After the files",
+   "text": "Po souborech"
+  },
+  "sdf0020": {
+   "source": "as the target says",
+   "text": "jak říká cíl"
+  },
+  "sdf0021": {
+   "source": "Scripts written in a deployment may run here",
+   "text": "Skripty napsané v nasazení se tu smí spouštět"
+  },
+  "sdf0022": {
+   "source": "off: a deployment runs only a command allowed above. On: a script written in the deployment (by a full administrator) runs on this machine as acme, after the files",
+   "text": "vypnuto: nasazení spustí jen příkaz povolený výše. Zapnuto: skript napsaný v nasazení (plným administrátorem) se po souborech spustí na tomto stroji pod účtem acme"
+  },
+  "sdf0023": {
+   "source": "besides the machine store, when asked: one a line, format path - the same formats as on Linux (cert-pem, fullchain-pem, key-pem, pfx, p12-legacy, jks...); {name} {cn} {service} {date} in paths",
+   "text": "navíc k úložišti počítače, je-li třeba: jeden na řádek, formát cesta – stejné formáty jako na Linuxu (cert-pem, fullchain-pem, key-pem, pfx, p12-legacy, jks…); v cestách {name} {cn} {service} {date}"
+  },
+  "sdf0024": {
+   "source": "Service name",
+   "text": "Název služby"
+  },
+  "sdf0025": {
+   "source": "{service} in the paths, ACME_SERVICE for the script",
+   "text": "{service} v cestách, ACME_SERVICE pro skript"
+  },
+  "sdf0026": {
+   "source": "Certificate + chain (PEM)",
+   "text": "Certifikát + řetězec (PEM)"
+  },
+  "sdf0027": {
+   "source": "the certificate, then the intermediates - what nginx, Postfix, Dovecot want",
+   "text": "certifikát, za ním mezilehlé – co chce nginx, Postfix, Dovecot"
+  },
+  "sdf0028": {
+   "source": "Certificate only (PEM)",
+   "text": "Jen certifikát (PEM)"
+  },
+  "sdf0029": {
+   "source": "the certificate alone, no chain",
+   "text": "samotný certifikát, bez řetězce"
+  },
+  "sdf0030": {
+   "source": "Chain only (PEM)",
+   "text": "Jen řetězec (PEM)"
+  },
+  "sdf0031": {
+   "source": "the intermediates, without the certificate",
+   "text": "mezilehlé certifikáty, bez certifikátu"
+  },
+  "sdf0032": {
+   "source": "Private key (PEM, PKCS#8)",
+   "text": "Soukromý klíč (PEM, PKCS#8)"
+  },
+  "sdf0033": {
+   "source": "the key alone, \"BEGIN PRIVATE KEY\"",
+   "text": "samotný klíč, „BEGIN PRIVATE KEY“"
+  },
+  "sdf0034": {
+   "source": "Private key (PEM, PKCS#1)",
+   "text": "Soukromý klíč (PEM, PKCS#1)"
+  },
+  "sdf0035": {
+   "source": "\"BEGIN RSA PRIVATE KEY\" for old programs - RSA keys only",
+   "text": "„BEGIN RSA PRIVATE KEY“ pro staré programy – jen klíče RSA"
+  },
+  "sdf0036": {
+   "source": "Key + certificate + chain (one PEM)",
+   "text": "Klíč + certifikát + řetězec (jeden PEM)"
+  },
+  "sdf0037": {
+   "source": "everything in one file - HAProxy, Webmin, vsftpd",
+   "text": "vše v jednom souboru – HAProxy, Webmin, vsftpd"
+  },
+  "sdf0038": {
+   "source": "Certificate (DER, binary)",
+   "text": "Certifikát (DER, binární)"
+  },
+  "sdf0039": {
+   "source": "the certificate alone, binary",
+   "text": "samotný certifikát, binárně"
+  },
+  "sdf0040": {
+   "source": "Private key (DER, binary)",
+   "text": "Soukromý klíč (DER, binární)"
+  },
+  "sdf0041": {
+   "source": "the key alone, binary",
+   "text": "samotný klíč, binárně"
+  },
+  "sdf0042": {
+   "source": "Certificate + chain (PKCS#7, .p7b)",
+   "text": "Certifikát + řetězec (PKCS#7, .p7b)"
+  },
+  "sdf0043": {
+   "source": "for imports into Windows or Java - no key",
+   "text": "pro import do Windows nebo Javy – bez klíče"
+  },
+  "sdf0044": {
+   "source": "PKCS#12 / PFX (AES-256)",
+   "text": "PKCS#12 / PFX (AES-256)"
+  },
+  "sdf0045": {
+   "source": "key + certificate + chain, locked with a password",
+   "text": "klíč + certifikát + řetězec, zamčené heslem"
+  },
+  "sdf0046": {
+   "source": "PKCS#12 (.p12, AES-256)",
+   "text": "PKCS#12 (.p12, AES-256)"
+  },
+  "sdf0047": {
+   "source": "the same as PFX",
+   "text": "totéž co PFX"
+  },
+  "sdf0048": {
+   "source": "PKCS#12, old (3DES)",
+   "text": "PKCS#12, starý (3DES)"
+  },
+  "sdf0049": {
+   "source": "for Windows Server 2016 and older, old Java and devices",
+   "text": "pro Windows Server 2016 a starší, starou Javu a zařízení"
+  },
+  "sdf0050": {
+   "source": "Java keystore (JKS)",
+   "text": "Java keystore (JKS)"
+  },
+  "sdf0051": {
+   "source": "key + certificate + chain, for Tomcat and other Java - needs a password",
+   "text": "klíč + certifikát + řetězec, pro Tomcat a jinou Javu – vyžaduje heslo"
+  },
+  "sdf0052": {
+   "source": "One PEM with everything",
+   "text": "Jeden PEM se vším"
+  },
+  "sdf0053": {
+   "source": "key + certificate + chain",
+   "text": "klíč + certifikát + řetězec"
+  },
+  "sdf0054": {
+   "source": "Separate files",
+   "text": "Oddělené soubory"
+  },
+  "sdf0055": {
+   "source": "certificate, chain, key",
+   "text": "certifikát, řetězec, klíč"
+  },
+  "sdf0056": {
+   "source": "Full chain + key",
+   "text": "Celý řetězec + klíč"
+  },
+  "sdf0057": {
+   "source": "as nginx wants it",
+   "text": "jak to chce nginx"
+  },
+  "sdf0058": {
+   "source": "PKCS#12 with a password",
+   "text": "PKCS#12 s heslem"
+  },
+  "sdf0059": {
+   "source": "one .pfx file",
+   "text": "jeden soubor .pfx"
+  },
+  "sdf0060": {
+   "source": "one .jks file",
+   "text": "jeden soubor .jks"
+  },
+  "sdf0061": {
+   "source": "DER files",
+   "text": "Soubory DER"
+  },
+  "sdf0062": {
+   "source": "binary certificate and key",
+   "text": "binární certifikát a klíč"
+  },
+  "sdf0063": {
+   "source": "For Windows",
+   "text": "Pro Windows"
+  },
+  "sdf0064": {
+   "source": "PKCS#12 (3DES) any Windows imports",
+   "text": "PKCS#12 (3DES), který naimportují všechny Windows"
+  },
+  "sdf0065": {
+   "source": "the certificate's name made safe",
+   "text": "název certifikátu upravený do bezpečné podoby"
+  },
+  "sdf0066": {
+   "source": "its first name made safe",
+   "text": "jeho první jméno upravené do bezpečné podoby"
+  },
+  "sdf0067": {
+   "source": "the service / container name",
+   "text": "název služby / kontejneru"
+  },
+  "sdf0068": {
+   "source": "the day it starts: YYYYMMDD",
+   "text": "den, kdy začíná platit: RRRRMMDD"
+  },
+  "sdf0069": {
+   "source": "a dual certificate's twin: rsa or ec",
+   "text": "dvojče duálního certifikátu: rsa nebo ec"
+  },
+  "sdf0070": {
+   "source": "the certificate's name in acme",
+   "text": "název certifikátu v acme"
+  },
+  "sdf0071": {
+   "source": "its first name (the common name)",
+   "text": "jeho první jméno (common name)"
+  },
+  "sdf0072": {
+   "source": "every name, separated by spaces",
+   "text": "všechna jména oddělená mezerami"
+  },
+  "sdf0073": {
+   "source": "when it ends (UTC, ISO 8601)",
+   "text": "kdy končí (UTC, ISO 8601)"
+  },
+  "sdf0074": {
+   "source": "its SHA-256 fingerprint (hex)",
+   "text": "jeho otisk SHA-256 (hex)"
+  },
+  "sdf0075": {
+   "source": "its serial number (hex)",
+   "text": "jeho sériové číslo (hex)"
+  },
+  "sdf0076": {
+   "source": "its version in acme (1, 2, ...)",
+   "text": "jeho verze v acme (1, 2, …)"
+  },
+  "sdf0077": {
+   "source": "the kind of its key (ec-256, rsa-2048, ...)",
+   "text": "druh jeho klíče (ec-256, rsa-2048, …)"
+  },
+  "sdf0078": {
+   "source": "the files written, one a line",
+   "text": "zapsané soubory, jeden na řádek"
+  },
+  "sdf0079": {
+   "source": "the path of the file of that format - ACME_FILE_KEY_PEM, ACME_FILE_FULLCHAIN_PEM...; _2 for a second one of the same format, _ALT / _RSA / _EC for a dual certificate's",
+   "text": "cesta k souboru toho formátu – ACME_FILE_KEY_PEM, ACME_FILE_FULLCHAIN_PEM…; _2 pro druhý soubor stejného formátu, _ALT / _RSA / _EC pro soubory duálního certifikátu"
+  },
+  "sdf0080": {
+   "source": "the password of the PKCS#12 / keystore files (only when they have one)",
+   "text": "heslo souborů PKCS#12 / keystore (jen když nějaké mají)"
+  },
+  "sdf0081": {
+   "source": "the service / container name of the deployment",
+   "text": "název služby / kontejneru nasazení"
+  },
+  "sdf0082": {
+   "source": "the name of the target in acme",
+   "text": "název cíle v acme"
+  },
+  "sdf0083": {
+   "source": "the address acme reached",
+   "text": "adresa, kam se acme připojilo"
+  },
+  "sdf0084": {
+   "source": "1 on a test (the files are in a temporary folder - change nothing), else 0",
+   "text": "1 při testu (soubory jsou v dočasné složce – nic neměňte), jinak 0"
+  },
+  "sdf0085": {
+   "source": "the SHA-1 thumbprint of the certificate imported",
+   "text": "otisk SHA-1 naimportovaného certifikátu"
+  },
+  "sdf0086": {
+   "source": "the twin's SHA-256 fingerprint (a dual certificate)",
+   "text": "otisk SHA-256 dvojčete (duální certifikát)"
+  },
+  "sdf0087": {
+   "source": "the kind of the twin's key",
+   "text": "druh klíče dvojčete"
+  },
+  "sdf0088": {
+   "source": "the deployment's number in acme",
+   "text": "číslo nasazení v acme"
+  },
+  "sdf0089": {
+   "source": "on a test: the temporary folder",
+   "text": "při testu: dočasná složka"
+  },
+  "sdf0090": {
+   "source": "Copy the key and certificate to more places",
+   "text": "Zkopírovat klíč a certifikát na další místa"
+  },
+  "sdf0091": {
+   "source": "Reload a systemd service",
+   "text": "Znovu načíst službu systemd"
+  },
+  "sdf0092": {
+   "source": "Restart a Docker container",
+   "text": "Restartovat kontejner Dockeru"
+  },
+  "sdf0093": {
+   "source": "Copy the PFX to more places",
+   "text": "Zkopírovat PFX na další místa"
+  },
+  "sdf0094": {
+   "source": "Restart a Windows service",
+   "text": "Restartovat službu Windows"
+  },
+  "sdf0095": {
+   "source": "Use the thumbprint (IIS, RDP, SQL Server...)",
+   "text": "Použít otisk (IIS, RDP, SQL Server…)"
+  },
+  "sdf0096": {
+   "source": "Files on the target",
+   "text": "Soubory na cíli"
+  },
+  "sdf0097": {
+   "source": "Files besides the machine store",
+   "text": "Soubory navíc k úložišti počítače"
+  },
+  "sdf0098": {
+   "source": "Which files, in which format, where - a quick layout fills the rows, then change what you like.",
+   "text": "Které soubory, v jakém formátu a kam – rychlé rozvržení vyplní řádky, pak upravte, co chcete."
+  },
+  "sdf0099": {
+   "source": "Optional: the certificate written as files too, in any format - for a program that reads files rather than the store.",
+   "text": "Nepovinné: certifikát zapsaný i jako soubory, v libovolném formátu – pro program, který čte soubory, a ne úložiště."
+  },
+  "sdf0100": {
+   "source": "Format",
+   "text": "Formát"
+  },
+  "sdf0101": {
+   "source": "Path inside the folder",
+   "text": "Cesta uvnitř složky"
+  },
+  "sdf0102": {
+   "source": "Owner[:group]",
+   "text": "Vlastník[:skupina]"
+  },
+  "sdf0103": {
+   "source": "Of a dual certificate: which of its two",
+   "text": "Který ze dvou certifikátů duálního certifikátu"
+  },
+  "sdf0104": {
+   "source": "Take this file away",
+   "text": "Odebrat tento soubor"
+  },
+  "sdf0105": {
+   "source": "a path is needed",
+   "text": "cesta je potřeba"
+  },
+  "sdf0106": {
+   "source": "no spaces in a path",
+   "text": "v cestě nesmí být mezery"
+  },
+  "sdf0107": {
+   "source": "the path must be absolute (start with /)",
+   "text": "cesta musí být absolutní (začínat /)"
+  },
+  "sdf0108": {
+   "source": "the path must be absolute (start with C:/)",
+   "text": "cesta musí být absolutní (začínat C:/)"
+  },
+  "sdf0109": {
+   "source": ".. is not allowed in a path",
+   "text": ".. v cestě není povoleno"
+  },
+  "sdf0110": {
+   "source": "quotes, $ ; & | < > are not allowed in a path",
+   "text": "uvozovky, $ ; & | < > v cestě nejsou povoleny"
+  },
+  "sdf0111": {
+   "source": "that is a folder: give the file a name",
+   "text": "to je složka: dejte souboru jméno"
+  },
+  "sdf0112": {
+   "source": "anybody on the machine may read the key: 0600 or 0640",
+   "text": "klíč může číst kdokoli na stroji: 0600 nebo 0640"
+  },
+  "sdf0113": {
+   "source": "the owner is user or user:group",
+   "text": "vlastník je uživatel nebo uživatel:skupina"
+  },
+  "sdf0114": {
+   "source": "Add a file",
+   "text": "Přidat soubor"
+  },
+  "sdf0115": {
+   "source": "Into the path:",
+   "text": "Do cesty:"
+  },
+  "sdf0116": {
+   "source": "As text",
+   "text": "Jako text"
+  },
+  "sdf0117": {
+   "source": "As rows",
+   "text": "Jako řádky"
+  },
+  "sdf0118": {
+   "source": "The same files as lines \"format path [mode] [owner]\" - as the command line has them",
+   "text": "Tytéž soubory jako řádky „formát cesta [práva] [vlastník]“ – jak je má příkazová řádka"
+  },
+  "sdf0119": {
+   "source": "Password of the PKCS#12 / keystore files",
+   "text": "Heslo souborů PKCS#12 / keystore"
+  },
+  "sdf0120": {
+   "source": "Set here",
+   "text": "Zadané zde"
+  },
+  "sdf0121": {
+   "source": "whoever can read the file has the key",
+   "text": "kdo může soubor číst, má klíč"
+  },
+  "sdf0122": {
+   "source": "the one you type below",
+   "text": "to, které napíšete níže"
+  },
+  "sdf0123": {
+   "source": "a random one, kept sealed with the deployment, given to the script as ACME_PASSWORD",
+   "text": "náhodné, uložené zapečetěně u nasazení, skript ho dostane jako ACME_PASSWORD"
+  },
+  "sdf0124": {
+   "source": "a new one on save",
+   "text": "nové při uložení"
+  },
+  "sdf0125": {
+   "source": "made on save",
+   "text": "vytvoří se při uložení"
+  },
+  "sdf0126": {
+   "source": "the certificate's name",
+   "text": "název certifikátu"
+  },
+  "sdf0127": {
+   "source": "The files are not locked: whoever can read them has the key. A Java keystore always needs one.",
+   "text": "Soubory nejsou zamčené: kdo je může číst, má klíč. Java keystore heslo potřebuje vždy."
+  },
+  "sdf0128": {
+   "source": "A random password of 24 characters, kept sealed with this deployment and the same on every renewal; a full administrator sees it here as every secret. The script gets it as ACME_PASSWORD.",
+   "text": "Náhodné heslo o 24 znacích, uložené zapečetěně u tohoto nasazení a stejné při každém obnovení; plný administrátor ho tu vidí jako každé tajemství. Skript ho dostane jako ACME_PASSWORD."
+  },
+  "sdf0129": {
+   "source": "Typed here, kept sealed. Empty: none (or what the service's preset says). The script gets it as ACME_PASSWORD.",
+   "text": "Zadané zde, uložené zapečetěně. Prázdné: žádné (nebo to, co říká předvolba služby). Skript ho dostane jako ACME_PASSWORD."
+  },
+  "sdf0130": {
+   "source": "A PowerShell script run on the server once the certificate is imported and the files written.",
+   "text": "Skript PowerShellu spuštěný na serveru, jakmile je certifikát naimportovaný a soubory zapsané."
+  },
+  "sdf0131": {
+   "source": "Restart what reads them: a script already on the machine, or one written here that acme uploads and runs every time - so it is always the current one.",
+   "text": "Restartujte, co je čte: skript, který už na stroji je, nebo skript napsaný zde, který acme pokaždé nahraje a spustí – je tak vždy aktuální."
+  },
+  "sdf0132": {
+   "source": "As the target says",
+   "text": "Jak říká cíl"
+  },
+  "sdf0133": {
+   "source": "the target's own script, set in its settings",
+   "text": "vlastní skript cíle, nastavený v jeho nastavení"
+  },
+  "sdf0134": {
+   "source": "Nothing",
+   "text": "Nic"
+  },
+  "sdf0135": {
+   "source": "nothing is run after the files",
+   "text": "po souborech se nic nespouští"
+  },
+  "sdf0136": {
+   "source": "A script on the machine",
+   "text": "Skript na stroji"
+  },
+  "sdf0137": {
+   "source": "a command or script already there, with its arguments",
+   "text": "příkaz nebo skript, který tam už je, s jeho argumenty"
+  },
+  "sdf0138": {
+   "source": "Written here",
+   "text": "Napsaný zde"
+  },
+  "sdf0139": {
+   "source": "uploaded on every deployment, run, then deleted - always the current one",
+   "text": "při každém nasazení se nahraje, spustí a smaže – vždy ten aktuální"
+  },
+  "sdf0140": {
+   "source": "The target's default (its settings, a full administrator changes it there):",
+   "text": "Výchozí skript cíle (v jeho nastavení, mění ho tam plný administrátor):"
+  },
+  "sdf0141": {
+   "source": "Run with",
+   "text": "Spustit přes"
+  },
+  "sdf0142": {
+   "source": "Start from an example…",
+   "text": "Začít od příkladu…"
+  },
+  "sdf0143": {
+   "source": "Its arguments - {name} {cn} {service} {date} are filled in",
+   "text": "Jeho argumenty – {name} {cn} {service} {date} se doplní"
+  },
+  "sdf0144": {
+   "source": "Replace what is written with the example?",
+   "text": "Nahradit napsané příkladem?"
+  },
+  "sdf0145": {
+   "source": "Keep mine",
+   "text": "Ponechat můj"
+  },
+  "sdf0146": {
+   "source": "Only a full administrator may change the script (it runs on the target).",
+   "text": "Skript smí měnit jen plný administrátor (spouští se na cíli)."
+  },
+  "sdf0147": {
+   "source": "Uploaded to the target's upload folder on every deployment under a name of its own, made executable, run through sudo, then deleted - what it prints goes into the job. Exit code other than 0: the deployment fails and the previous files are put back. On a test ACME_DRY_RUN is 1: change nothing then.",
+   "text": "Při každém nasazení se nahraje do složky pro nahrávání na cíli pod vlastním jménem, nastaví se jako spustitelný, spustí se přes sudo a pak se smaže – co vypíše, jde do úlohy. Návratový kód jiný než 0: nasazení selže a vrátí se předchozí soubory. Při testu je ACME_DRY_RUN 1: pak nic neměňte."
+  },
+  "sdf0148": {
+   "source": "Uploaded to the target's upload folder on every deployment under a name of its own, made executable, run, then deleted - what it prints goes into the job. Exit code other than 0: the deployment fails and the previous files are put back. On a test ACME_DRY_RUN is 1: change nothing then.",
+   "text": "Při každém nasazení se nahraje do složky pro nahrávání na cíli pod vlastním jménem, nastaví se jako spustitelný, spustí se a pak se smaže – co vypíše, jde do úlohy. Návratový kód jiný než 0: nasazení selže a vrátí se předchozí soubory. Při testu je ACME_DRY_RUN 1: pak nic neměňte."
+  },
+  "sdf0149": {
+   "source": "Commands around the script",
+   "text": "Příkazy kolem skriptu"
+  },
+  "sdf0150": {
+   "source": "In this order: before writing · the files · test · the script · reload · after. A failing test, script or reload puts the previous files back.",
+   "text": "V tomto pořadí: před zápisem · soubory · test · skript · reload · potom. Neúspěšný test, skript nebo reload vrátí předchozí soubory."
+  },
+  "sdf0151": {
+   "source": "On the server",
+   "text": "Na serveru"
+  },
+  "sdf0152": {
+   "source": "The rest",
+   "text": "Ostatní"
+  },
+  "sdf0153": {
+   "source": "What it will be",
+   "text": "Co vznikne"
+  },
+  "sdf0154": {
+   "source": "For a certificate of these names - the sizes guessed.",
+   "text": "Pro certifikát s těmito jmény – velikosti odhadnuté."
+  },
+  "sdf0155": {
+   "source": "No file yet.",
+   "text": "Zatím žádný soubor."
+  },
+  "sdf0156": {
+   "source": "What the script gets",
+   "text": "Co skript dostane"
+  },
+  "sdf0157": {
+   "source": "Its environment, the values as for this certificate now. Click one to put it into the script.",
+   "text": "Jeho prostředí, hodnoty pro tento certifikát teď. Kliknutím proměnnou vložíte do skriptu."
+  },
+  "sdf0158": {
+   "source": "mind",
+   "text": "pozor"
+  },
+  "sdf0159": {
+   "source": "note",
+   "text": "poznámka"
+  },
+  "sdf0160": {
+   "source": "before",
+   "text": "před"
+  },
+  "sdf0161": {
+   "source": "script",
+   "text": "skript"
+  },
+  "sdf0162": {
+   "source": "The test",
+   "text": "Test"
+  },
+  "sdf0163": {
+   "source": "passed",
+   "text": "prošel"
+  },
+  "sdf0164": {
+   "source": "Signing in, making the files in a temporary folder, running the script with ACME_DRY_RUN=1…",
+   "text": "Přihlašuji se, vytvářím soubory v dočasné složce, spouštím skript s ACME_DRY_RUN=1…"
+  },
+  "sdf0165": {
+   "source": "the path of the script on the machine is needed",
+   "text": "je potřeba cesta ke skriptu na stroji"
+  },
+  "sdf0166": {
+   "source": "the script on the machine is named by its absolute path",
+   "text": "skript na stroji se zadává absolutní cestou"
+  },
+  "sdf0167": {
+   "source": "the script written here is empty",
+   "text": "skript napsaný zde je prázdný"
+  },
+  "sdf0168": {
+   "source": "the script is bigger than 64 KiB",
+   "text": "skript je větší než 64 KiB"
+  },
+  "sdf0169": {
+   "source": "no files are written",
+   "text": "nezapisují se žádné soubory"
+  },
+  "sdf0170": {
+   "source": "the temporary folder is gone",
+   "text": "dočasná složka je smazaná"
+  },
+  "sdf0171": {
+   "source": "the script is not run on this test",
+   "text": "skript se při tomto testu nespouští"
+  },
+  "sdf0172": {
+   "source": "the machine store and the bindings are not touched on a test",
+   "text": "úložiště počítače a vazby se při testu nemění"
+  },
+  "sdf0173": {
+   "source": "the previous files are back",
+   "text": "předchozí soubory jsou zpět"
+  },
+  "sdf0174": {
+   "source": "\"Command or script on the machine\" is empty",
+   "text": "„Příkaz nebo skript na stroji“ je prázdný"
+  },
+  "sdf0175": {
+   "source": "the arguments of the script are one line",
+   "text": "argumenty skriptu jsou jeden řádek"
+  },
+  "sdf0176": {
+   "source": "the script is a piece of text",
+   "text": "skript je text"
+  },
+  "sdf0177": {
+   "source": "the script holds a NUL character",
+   "text": "skript obsahuje znak NUL"
+  },
+  "sdf0178": {
+   "source": "this target does not let scripts run on this machine (its setting \"Scripts written in a deployment may run here\" is off)",
+   "text": "tento cíl nedovoluje spouštět skripty na tomto stroji (jeho nastavení „Skripty napsané v nasazení se tu smí spouštět“ je vypnuté)"
+  },
+  "sdf0179": {
+   "source": "only a full administrator may change the script of a deployment (it runs on the target)",
+   "text": "skript nasazení smí měnit jen plný administrátor (spouští se na cíli)"
+  },
+  "sdf0180": {
+   "source": "only a full administrator may test a script other than the one saved",
+   "text": "jiný než uložený skript smí testovat jen plný administrátor"
+  },
+  "sdf0181": {
+   "source": "the certificate has not been issued yet: there is nothing to test with",
+   "text": "certifikát ještě nebyl vydán: není s čím testovat"
+  },
+  "sdf0182": {
+   "source": "a password for the PKCS#12 / keystore files was made and kept with the deployment (a full administrator sees it)",
+   "text": "pro soubory PKCS#12 / keystore bylo vytvořeno heslo a uloženo u nasazení (plný administrátor ho vidí)"
+  },
+  "sdf0183": {
+   "source": "the test passed",
+   "text": "test prošel"
+  },
+  "sdf0184": {
+   "source": "PowerShell that will run",
+   "text": "PowerShell, který se spustí"
+  },
+  "sdf0185": {
+   "source": "after the import",
+   "text": "po importu"
+  },
+  "spl014": {
+   "source": "After the password these pages ask for a code too - choose how.",
+   "text": "Po hesle se tyto stránky ptají i na kód – zvolte jak."
   }
  },
  "patterns": {
@@ -42921,6 +43665,198 @@
   "pwr054": {
    "source": "LDAPS: ldifde could not ask for renewServerCertificate: {0}",
    "text": "LDAPS: ldifde nemohl požádat o renewServerCertificate: {0}"
+  },
+  "pdf0001": {
+   "source": "For {0} as it is now - the paths filled in.",
+   "text": "Pro {0} v současné podobě – cesty doplněné."
+  },
+  "pdf0002": {
+   "source": "{0} is not issued yet: its names, the sizes guessed.",
+   "text": "{0} ještě není vydaný: jeho jména, velikosti odhadnuté."
+  },
+  "pdf0003": {
+   "source": "not a placeholder there is: {0}",
+   "text": "taková zástupná proměnná neexistuje: {0}"
+  },
+  "pdf0004": {
+   "source": "the file: {0}",
+   "text": "soubor: {0}"
+  },
+  "pdf0005": {
+   "source": "the file of the {0} one: {1}",
+   "text": "soubor certifikátu {0}: {1}"
+  },
+  "pdf0006": {
+   "source": "the target's, {0}, {1} lines",
+   "text": "cíle, {0}, {1} řádků"
+  },
+  "pdf0007": {
+   "source": "{0}, {1} lines",
+   "text": "{0}, {1} řádků"
+  },
+  "pdf0008": {
+   "source": "the preview could not be made: {0}",
+   "text": "náhled nešlo vytvořit: {0}"
+  },
+  "pdf0009": {
+   "source": "{0} holds the private key and anybody on the machine may read it ({1}) - 0600 or 0640",
+   "text": "{0} obsahuje soukromý klíč a číst ho může kdokoli na stroji ({1}) – 0600 nebo 0640"
+  },
+  "pdf0010": {
+   "source": "{0}: a Java keystore needs a password (6 characters or more)",
+   "text": "{0}: Java keystore potřebuje heslo (6 a více znaků)"
+  },
+  "pdf0011": {
+   "source": "{0} has no password: whoever can read the file has the key",
+   "text": "{0} nemá heslo: kdo může soubor číst, má klíč"
+  },
+  "pdf0012": {
+   "source": "{0}: {1} is not a placeholder there is",
+   "text": "{0}: {1} není existující zástupná proměnná"
+  },
+  "pdf0013": {
+   "source": "{0} is a folder: give the file a name",
+   "text": "{0} je složka: dejte souboru jméno"
+  },
+  "pdf0014": {
+   "source": "{0} is outside {1}",
+   "text": "{0} je mimo {1}"
+  },
+  "pdf0015": {
+   "source": "the script {0}",
+   "text": "skript {0}"
+  },
+  "pdf0016": {
+   "source": "the script written here ({0})",
+   "text": "skript napsaný zde ({0})"
+  },
+  "pdf0017": {
+   "source": "the script written here ({0}, the target's default)",
+   "text": "skript napsaný zde ({0}, výchozí skript cíle)"
+  },
+  "pdf0018": {
+   "source": "{0} said:\n{1}",
+   "text": "{0} vypsal:\n{1}"
+  },
+  "pdf0019": {
+   "source": "{0}: done (exit 0)",
+   "text": "{0}: hotovo (návratový kód 0)"
+  },
+  "pdf0020": {
+   "source": "{0}: failed (exit {1})",
+   "text": "{0}: selhal (návratový kód {1})"
+  },
+  "pdf0021": {
+   "source": "{0} failed (exit {1}), the previous files are back",
+   "text": "{0} selhal (návratový kód {1}), předchozí soubory jsou zpět"
+  },
+  "pdf0022": {
+   "source": "{0} failed (exit {1}), the previous files are back: {2}",
+   "text": "{0} selhal (návratový kód {1}), předchozí soubory jsou zpět: {2}"
+  },
+  "pdf0023": {
+   "source": "{0} failed on the test (exit {1})",
+   "text": "{0} při testu selhal (návratový kód {1})"
+  },
+  "pdf0024": {
+   "source": "{0}: its folder is not there yet - it is made",
+   "text": "{0}: jeho složka zatím neexistuje – vytvoří se"
+  },
+  "pdf0025": {
+   "source": "{0}: its folder cannot be written",
+   "text": "{0}: do jeho složky nelze zapisovat"
+  },
+  "pdf0026": {
+   "source": "{0}: its folder cannot be written (sudo is off)",
+   "text": "{0}: do jeho složky nelze zapisovat (sudo je vypnuté)"
+  },
+  "pdf0027": {
+   "source": "{0}: replaces the one there",
+   "text": "{0}: nahradí ten, který tam je"
+  },
+  "pdf0028": {
+   "source": "{0}: a new file",
+   "text": "{0}: nový soubor"
+  },
+  "pdf0029": {
+   "source": "{0}: the owner {1} cannot be set there ({2})",
+   "text": "{0}: vlastníka {1} tam nelze nastavit ({2})"
+  },
+  "pdf0030": {
+   "source": "not run on a test: {0}",
+   "text": "při testu se nespouští: {0}"
+  },
+  "pdf0031": {
+   "source": "signed in as {0} on {1}",
+   "text": "přihlášen jako {0} na {1}"
+  },
+  "pdf0032": {
+   "source": "signed in on {0}",
+   "text": "přihlášen na {0}"
+  },
+  "pdf0033": {
+   "source": "made {0} files ({1}) in {2} - not in their places",
+   "text": "vytvořeno {0} souborů ({1}) v {2} – ne na jejich místech"
+  },
+  "pdf0034": {
+   "source": "made {0} file ({1}) in {2} - not in their places",
+   "text": "vytvořen {0} soubor ({1}) v {2} – ne na svém místě"
+  },
+  "pdf0035": {
+   "source": "the test passed: {0} files",
+   "text": "test prošel: {0} souborů"
+  },
+  "pdf0036": {
+   "source": "the test passed: {0} file",
+   "text": "test prošel: {0} soubor"
+  },
+  "pdf0037": {
+   "source": "the test passed: {0} files, the script ran with ACME_DRY_RUN=1",
+   "text": "test prošel: {0} souborů, skript proběhl s ACME_DRY_RUN=1"
+  },
+  "pdf0038": {
+   "source": "the test passed: {0} file, the script ran with ACME_DRY_RUN=1",
+   "text": "test prošel: {0} soubor, skript proběhl s ACME_DRY_RUN=1"
+  },
+  "pdf0039": {
+   "source": "testing the deployment of {0} to {1} ({2}): nothing is put in place",
+   "text": "test nasazení {0} na {1} ({2}): nic se nenasazuje"
+  },
+  "pdf0040": {
+   "source": "{0} files written on {1}, the script ran",
+   "text": "{0} souborů zapsáno na {1}, skript proběhl"
+  },
+  "pdf0041": {
+   "source": "{0} files written on {1}, the script ran, reloaded",
+   "text": "{0} souborů zapsáno na {1}, skript proběhl, znovu načteno"
+  },
+  "pdf0042": {
+   "source": "{0}: {1}, {2} B - into the temporary folder",
+   "text": "{0}: {1}, {2} B – do dočasné složky"
+  },
+  "pdf0043": {
+   "source": "the command \"{0}\" is not one this target allows",
+   "text": "příkaz „{0}“ tento cíl nepovoluje"
+  },
+  "pdf0044": {
+   "source": "that path of a script is not allowed: {0}",
+   "text": "taková cesta ke skriptu není povolena: {0}"
+  },
+  "pdf0045": {
+   "source": "the script on the machine is named by its absolute path: {0}",
+   "text": "skript na stroji se zadává absolutní cestou: {0}"
+  },
+  "pdf0046": {
+   "source": "the interpreter is one of {0}",
+   "text": "interpret je jeden z: {0}"
+  },
+  "pdf0047": {
+   "source": "a deployment of {0} to {1} tested by {2} - passed",
+   "text": "nasazení {0} na {1} otestoval {2} – prošlo"
+  },
+  "pdf0048": {
+   "source": "a deployment of {0} to {1} tested by {2} - failed: {3}",
+   "text": "nasazení {0} na {1} otestoval {2} – selhalo: {3}"
   }
  },
  "rich": {

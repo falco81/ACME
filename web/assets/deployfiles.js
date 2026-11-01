@@ -670,6 +670,27 @@
           : el('span', '', (d.script.from === 'target' ? 'the target\'s, ' : '') + d.script.interp + ', ' + d.script.lines + ' lines'));
         flist.appendChild(sl);
       }
+      /* Windows: the roles chosen (IIS, RDP, Exchange...) and the PowerShell that runs for them. */
+      if (d.roles && (d.roles.on || []).length) {
+        var rl = el('div', 'df-proles');
+        rl.appendChild(el('span', 'tag violet', 'after the import'));
+        d.roles.on.forEach(function (r) { rl.appendChild(el('span', 'tag dim', r.title || r.key)); });
+        flist.appendChild(rl);
+      }
+      if (d.roles && d.roles.script) {
+        var det = el('details', 'ct-more df-ps');
+        det.appendChild(el('summary', '', 'PowerShell that will run'));
+        var pre = noI18n(el('pre', 'df-pre mono', String(d.roles.script)));
+        det.appendChild(pre);
+        var cp = cmdButton('Copy', 'copy', 'small');
+        cp.onclick = function () { copyText(String(d.roles.script), cp, 'on the clipboard'); };
+        var cr = el('div', 'btnrow df-ps-tools');
+        cr.appendChild(cp);
+        det.appendChild(cr);
+        if (box._psOpen) det.open = true;
+        det.addEventListener('toggle', function () { box._psOpen = det.open; });
+        flist.appendChild(det);
+      }
       said(d.problems);
       drawEnv(d.env);
       envCard.hidden = !(d.script || ctx.scriptOn && ctx.scriptOn());
