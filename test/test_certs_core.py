@@ -930,6 +930,11 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         self.cli_ok('--deploy-del', str(did), '--yes')
         self.cli_ok('--target-del', 'pages', '--yes')
 
+    @staticmethod
+    def _read(path):
+        with open(path) as f:
+            return f.read()
+
     def test_18_deploy_files_preview_password_script(self):
         """A deployment's files: the preview the page shows, the password acme makes
         (sealed, shown as a full administrator sees a secret), the script written in
@@ -970,15 +975,15 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         # the test: the script told ACME_DRY_RUN=1, nothing in place
         t = self.ok('POST', '/api/deploys/dry_run', {'id': did})
         self.assertTrue(t['ok'], t)
-        dry, pw, pfx = open(said).read().split()
+        dry, pw, pfx = self._read(said).split()
         self.assertEqual(dry, '1')
         self.assertEqual(len(pw), 24)
-        self.assertFalse(os.path.exists(os.path.join(base, 'web', 'site.pfx')))
-        self.assertFalse(os.path.exists(pfx))
+        self.assertNotIn(base, pfx)                     # a copy in a temporary folder...
+        self.assertFalse(os.path.exists(pfx))           # ...deleted after
         # deployed: the same password, kept; the file where it belongs
         job = self.wait_job(self.ok('POST', '/api/deploys/run', {'id': did})['job_id'])
         self.assertEqual(job['state'], 'ok', job)
-        dry2, pw2, pfx2 = open(said).read().split()
+        dry2, pw2, pfx2 = self._read(said).split()
         self.assertEqual((dry2, pw2), ('0', pw))
         self.assertEqual(pfx2, os.path.join(os.path.realpath(base), 'web', 'site.pfx'))
         self.assertTrue(os.path.exists(pfx2))
@@ -986,7 +991,7 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         self.ok('POST', '/api/deploys/save', {'id': did, 'options': dict(
             opts, pfx_password_new=True)})
         self.ok('POST', '/api/deploys/dry_run', {'id': did})
-        self.assertNotEqual(open(said).read().split()[1], pw)
+        self.assertNotEqual(self._read(said).split()[1], pw)
 
 
 if __name__ == '__main__':

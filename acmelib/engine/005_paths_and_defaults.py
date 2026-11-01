@@ -41,6 +41,8 @@ DEFAULTS = {
     'portal_help': '',
     'portal_tries': 5,
     'portal_wait_min': 15,
+    'portal_local': 0,
+    'portal_admins_all': 1,
     # --- the administration pages -------------------------------------------
     'session_hours': 12,
     'session_idle_min': 120,
@@ -314,6 +316,7 @@ TUNABLE = {
     'portal': (0, 1), 'portal_who': ('anyone', 'groups'),
     'portal_session_min': (1, 240),
     'portal_tries': (1, 100), 'portal_wait_min': (1, 1440),
+    'portal_local': (0, 1), 'portal_admins_all': (0, 1),
     'session_hours': (1, 168), 'session_idle_min': (5, 1440),
     'login_tries': (1, 100), 'login_wait_min': (1, 1440),
     'admin_2fa': (0, 1), 'admin_2fa_app': (0, 1), 'admin_2fa_mail': (0, 1), 'admin_2fa_sms': (0, 1),
@@ -509,6 +512,8 @@ NAMES = {
     'portal_help': 'Help text on the enrolment pages',
     'portal_tries': 'Wrong passwords on the enrolment pages before a pause',
     'portal_wait_min': '...and the pause (min)',
+    'portal_local': 'acme’s own accounts may sign in too',
+    'portal_admins_all': 'Certificate and full administrators see every certificate',
     'session_hours': 'A sign-in lasts (h)',
     'session_idle_min': '...and may sit untouched (min)',
     'login_tries': 'Wrong passwords before a pause',
@@ -811,7 +816,10 @@ SAYS = {
                          'only where such names are really used. On, it takes the Czech and '
                          'Slovak letters too.',
     'portal': 'The pages for people who are no administrators (/), signed in with their '
-              'password in the directory. Switched off they say so and let nobody in.',
+              'password in the directory. Switched off they say so and let nobody in. Who '
+              'sees which certificate there: its <i>Owner</i> - a person, a group, or '
+              '<code>local:NAME</code> (more under <i>Certificate and full administrators see '
+              'every certificate</i>).',
     'portal_title': 'The heading on every enrolment page and the title of the browser tab. '
                     'Empty: Certificates, in the language of the page.',
     'portal_directory': 'The directory (by its name under <i>Active Directory</i>) people sign '
@@ -832,6 +840,19 @@ SAYS = {
     'portal_tries': 'Wrong passwords from one address on the enrolment pages before it has '
                     'to wait.',
     'portal_wait_min': 'How long it waits.',
+    'portal_local': 'On: the accounts of <i>Accounts</i> (acme’s own, with a password here) '
+                    'sign in on these pages too - the name as it is written there, tried '
+                    'before the directory. The same password, the same second step '
+                    '(<i>A second step when signing in</i>) and the same pause after wrong '
+                    'passwords as above; an account switched off cannot sign in.',
+    'portal_admins_all': 'Who sees which certificate: a person sees the certificates whose '
+                         '<i>Owner</i> is them (their account, UPN, mail or the name of an '
+                         'account here, also <code>local:NAME</code>) or a group they are in '
+                         '(its name, DN or <code>group:NAME</code>). The owner is set in the '
+                         'certificate wizard (Names → Owner), in its <i>Edit</i>, or '
+                         '<code>acme --cert-edit NAME --set owner=...</code>. On: an account here with the role '
+                         'of a certificate or full administrator sees every certificate; a '
+                         'reader only its own.',
     'session_hours': 'How long an administrator stays signed in, however busy.',
     'session_idle_min': 'How long a sign-in may sit without anything being asked before it '
                         'has to be done again.',
@@ -1135,6 +1156,7 @@ PANES = {
     'portal': ['portal', 'portal_title', 'portal_directory', 'portal_hint', 'portal_who',
                'portal_groups',
                'portal_session_min', 'portal_tries', 'portal_wait_min',
+               'portal_local', 'portal_admins_all',
                'portal_help'],
     'isemon': ['isemon', 'isemon_targets', 'isemon_hostname',
                'isemon_events', 'isemon_max_bytes', 'isemon_verify', 'isemon_mtls',
@@ -1197,6 +1219,7 @@ ONLY_WHEN = {
     'portal_session_min': ['portal', '1'],
     'portal_help': ['portal', '1'], 'portal_tries': ['portal', '1'],
     'portal_wait_min': ['portal', '1'],
+    'portal_local': ['portal', '1'], 'portal_admins_all': ['portal_local', '1'],
     'isemon_targets': ['isemon', '1'], 'isemon_hostname': ['isemon', '1'],
     'isemon_events': ['isemon', '1'],
     'isemon_max_bytes': ['isemon', '1'], 'isemon_ca': ['isemon', '1'],
