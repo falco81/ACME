@@ -278,10 +278,12 @@ PROPAGATION_FIELDS = [
     field('resolvers', 'Resolvers', 'list', default='',
           placeholder='1.1.1.1\n8.8.8.8',
           help='DNS servers acme looks names up with (CNAMEs, the zone, its name '
-               'servers). Empty: Settings → ACME resolvers, else this machine\'s.',
+               'servers) - an override. Empty: Settings → DNS (Validation checks).',
           advanced=True),
-    field('public_resolvers', 'Public resolvers', 'list', default='1.1.1.1\n8.8.8.8\n9.9.9.9',
-          help='Asked at the end when "then public resolvers" is chosen.', advanced=True),
+    field('public_resolvers', 'Public resolvers', 'list', default='',
+          placeholder='1.1.1.1\n8.8.8.8\n9.9.9.9',
+          help='Asked at the end when "then public resolvers" is chosen, and by a dry run - '
+               'an override. Empty: Settings → DNS (The public view).', advanced=True),
     field('follow_cname', 'Follow a CNAME at _acme-challenge', 'bool', default=True,
           help='When _acme-challenge.NAME is a CNAME (a delegation to another zone), '
                'the TXT record is written where it points - the CA follows it too.',
@@ -314,8 +316,7 @@ class DnsChallenge(Challenge):
         return as_list(self.c(key, ''))
 
     def resolvers(self):
-        got = self.lst('resolvers') or as_list(settings(self.ctx).get('acme_resolvers'))
-        return got or D.system_resolvers()
+        return D.resolver('validation', self.lst('resolvers'), self.ctx)
 
     def ttl(self):
         return int(self.num('ttl', 60) or 60)
@@ -392,8 +393,8 @@ class DnsChallenge(Challenge):
         if ok is None:                          # the name servers cannot be reached from here
             ok = self.seen_by(self.resolvers(), rr, txt, 'the resolvers')
         if ok and mode == 'auth+public':
-            ok = self.seen_by(self.lst('public_resolvers') or list(D.PUBLIC_RESOLVERS), rr, txt,
-                              'the public resolvers')
+            ok = self.seen_by(D.resolver('public', self.lst('public_resolvers'), self.ctx), rr,
+                              txt, 'the public resolvers')
         return ok
 
     def cleanup(self, name, handle):
@@ -485,9 +486,8 @@ class DnsChallenge(Challenge):
         """Every one of `servers` (asked with recursion) sees txt at name."""
         missing, asked = [], 0
         for srv in servers:
-            host, port = D.split_hostport(srv)
             try:
-                m = D.query(host, name, 16, port=port, rd=True)
+                m = D.ask_server(servers, srv, name, 16, rd=True)
             except (D.DnsError, D.FormErr, OSError):
                 continue
             asked += 1
@@ -811,12 +811,11 @@ class DnsChallenge(Challenge):
                 'none of them can be asked from here' if ok is None else ''),
             fix='The record is not on every name server of %s: is the zone delegated to the '
                 'servers acme writes to (the NS records at its parent)?' % zone))
-        pub = self.lst('public_resolvers') or list(D.PUBLIC_RESOLVERS)
+        pub = D.resolver('public', self.lst('public_resolvers'), self.ctx)
         have, lacking = [], []
         for srv in pub:
-            host, port = D.split_hostport(srv)
             try:
-                m = D.query(host, rr, 16, port=port, rd=True, timeout=self.guide_timeout)
+                m = D.ask_server(pub, srv, rr, 16, rd=True, timeout=self.guide_timeout)
             except (D.DnsError, D.FormErr, OSError):
                 continue
             if m.rcode not in (D.NOERROR, D.NXDOMAIN):
@@ -825,7 +824,7 @@ class DnsChallenge(Challenge):
         state = None if not have and not lacking else not lacking
         out.append(guide_step(
             'public', 'Public resolvers see the test value at %s' % rr,
-            where=', '.join(pub), done=state, blocking=False,
+            where='asked through %s' % D.servers_words(pub), done=state, blocking=False,
             said=('seen by the resolvers %s' % ', '.join(have)) if state else
                  ('not seen by %s' % ', '.join(lacking)) if lacking else
                  'none of them answered from here',
@@ -955,7 +954,7 @@ class HttpChallenge(Challenge):
     guide_timeout = 2.0
 
     def resolvers(self):
-        return as_list(settings(self.ctx).get('acme_resolvers')) or D.system_resolvers()
+        return D.resolver('validation', (), self.ctx)
 
     def lookup(self, name):
         """The addresses a name has (A and AAAA, CNAMEs followed by the resolvers)."""

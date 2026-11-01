@@ -67,6 +67,19 @@ class AcmeIssuer(Issuer):
     challenge_types = ('dns-01', 'http-01')
     wildcards = True
     ip_names = True
+    public_names = True             # every preset is a public CA; "custom" may be your own
+    key_types = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
+
+    @classmethod
+    def public_for(cls, config):
+        return str((config or {}).get('directory') or 'letsencrypt') != 'custom'
+
+    @classmethod
+    def key_types_for(cls, config):
+        if not cls.public_for(config):
+            return None             # your own ACME server: what it signs is its own affair
+        return list(cls.key_types)
+
     fields = [
         field('directory', 'CA', 'select', required=True, default='letsencrypt',
               options=[['letsencrypt', "Let's Encrypt"],

@@ -162,8 +162,10 @@ class RunContext(base.Context):
         self.debug('%s %s' % (req.get_method(), url))
         try:
             try:
-                got = E.url_open(req, timeout=timeout, context=ctx,
-                                 purpose='acme' if proxy else '')
+                from acmelib.certs import dnssets       # the name asked of Settings → DNS
+                with dnssets.scope(dnssets.purpose_of(self.scope), self.store, say=self.debug):
+                    got = E.url_open(req, timeout=timeout, context=ctx,
+                                     purpose='acme' if proxy else '')
                 with got:
                     return got.status, dict(got.headers.items()), got.read()
             except urllib.error.HTTPError as e:
@@ -530,9 +532,11 @@ class SshSession(base.SshSession):
         if not re.match(r'^[A-Za-z0-9_.@\\-]{1,64}\Z', self.user) or self.user.startswith('-'):
             raise base.PluginError('%r is not an account name' % self.user, retry=False)
         self.timeout = int(c.get('timeout') or 20)
+        from acmelib.certs import dnssets               # the name asked of Settings → DNS
+        self.addr = dnssets.ssh_address(self.ctx, self.host)
         lines = hostkey_lines(c.get('hostkey'))
         if not lines:
-            scanned = keyscan(self.host, self.port, min(self.timeout, 15))
+            scanned = keyscan(self.addr, self.port, min(self.timeout, 15))
             lines = hostkey_lines(scanned)
             prints = ', '.join(hostkey_fingerprint(x) for x in lines)
             if not c.get('trust_first'):
@@ -554,6 +558,7 @@ class SshSession(base.SshSession):
         self.opts = ['-F', '/dev/null', '-o', 'StrictHostKeyChecking=yes',
                      '-o', 'UserKnownHostsFile=' + kh, '-o', 'GlobalKnownHostsFile=/dev/null',
                      '-o', 'HostKeyAlias=' + HOSTKEY_ALIAS, '-o', 'CheckHostIP=no',
+                     '-o', 'HostName=' + self.addr,
                      '-o', 'ConnectTimeout=%d' % self.timeout,
                      '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4',
                      '-o', 'LogLevel=ERROR', '-o', 'IdentitiesOnly=yes',

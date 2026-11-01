@@ -33,6 +33,7 @@ class ScepIssuer(Issuer):
     needs_challenge = False
     wildcards = True
     ip_names = True
+    key_types = ('rsa-2048', 'rsa-3072', 'rsa-4096')    # SCEP signs its messages with the key
     fields = [
         field('url', 'SCEP address', 'text', required=True,
               placeholder='https://ndes.example.local/certsrv/mscep/mscep.dll',

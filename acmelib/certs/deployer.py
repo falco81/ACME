@@ -204,7 +204,9 @@ def run_deploys(store, job, cert_id, only=None, force=False):
     good, bad = 0, []
     for dep in rows:
         job.check()
-        ok, said = deploy_one(store, job, cert, dep, force)
+        from acmelib.certs import dnssets       # a target's own connections: Settings → DNS
+        with dnssets.scope('targets', store):
+            ok, said = deploy_one(store, job, cert, dep, force)
         if ok:
             good += 1
         else:

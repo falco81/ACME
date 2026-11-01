@@ -61,6 +61,8 @@ class GlobalSignAtlasIssuer(Issuer):
     needs_challenge = False
     wildcards = True
     ip_names = True
+    public_names = True             # a publicly trusted CA
+    key_types = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
     choose_days = True
     fields = [
         field('url', 'API address', 'text', required=True,

@@ -36,9 +36,11 @@ def _resolve(name, timeout=3.0):
     got = {'a': None}
 
     def ask():
+        from acmelib.certs import dnssets       # Settings → DNS: Validation checks
         try:
-            got['a'] = sorted({i[4][0] for i in socket.getaddrinfo(name, 80, 0,
-                                                                     socket.SOCK_STREAM)})
+            with dnssets.scope('validation'):
+                got['a'] = sorted({i[4][0] for i in socket.getaddrinfo(name, 80, 0,
+                                                                         socket.SOCK_STREAM)})
         except (OSError, UnicodeError, ValueError):
             got['a'] = []
     t = threading.Thread(target=ask, name='acme-http01-resolve', daemon=True)

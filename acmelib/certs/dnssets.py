@@ -94,13 +94,15 @@ PURPOSES = [
      'addresses. Asked over port 53 (UDP, then TCP).', 'mail_dns'),
 ]
 PURPOSE_KEYS = [p[0] for p in PURPOSES]
+LEGACY_WORDS = {'acme_resolvers': '"DNS servers for ACME"',
+                'mail_dns': '"DNS servers for the recipients\u2019 domains"'}
 # What is always looked up as the machine looks names up (/etc/hosts too).
 FIXED = ('The database, the other node of a cluster, the proxy, Active Directory, syslog '
          'and isemon, SNMP, the backups\' destinations and the names in the firewall\'s '
          'rules: always the system\'s resolver (/etc/hosts, nsswitch), whatever is chosen '
          'here - a name inside your network that a public resolver does not know.')
 
-_CACHE = {'at': 0.0, 'sets': None, 'uses': None}
+_CACHE = {'at': 0.0, 'sets': None, 'uses': None, 'store': None}
 _LOCK = threading.Lock()
 _BUSY = threading.local()
 
@@ -255,7 +257,7 @@ def _store(store=None):
 
 def forget():
     with _LOCK:
-        _CACHE.update(at=0.0, sets=None, uses=None)
+        _CACHE.update(at=0.0, sets=None, uses=None, store=None)
 
 
 def _row_view(r):
@@ -280,13 +282,14 @@ def _load(store=None):
     CACHE_S seconds. Asked again while it is being read (a database reached by
     name, inside a scope): nothing known, so nothing redirected."""
     t = time.monotonic()
-    with _LOCK:
-        if _CACHE['sets'] is not None and t - _CACHE['at'] < CACHE_S:
-            return _CACHE['sets'], _CACHE['uses']
-    if getattr(_BUSY, 'on', False):
-        return {}, {}
     st = _store(store)
     if st is None:
+        return {}, {}
+    with _LOCK:
+        if _CACHE['sets'] is not None and t - _CACHE['at'] < CACHE_S and \
+                _CACHE['store'] is st:
+            return _CACHE['sets'], _CACHE['uses']
+    if getattr(_BUSY, 'on', False):
         return {}, {}
     _BUSY.on = True
     try:
@@ -299,7 +302,7 @@ def _load(store=None):
     finally:
         _BUSY.on = False
     with _LOCK:
-        _CACHE.update(at=t, sets=sets, uses=uses)
+        _CACHE.update(at=t, sets=sets, uses=uses, store=st)
     return sets, uses
 
 
@@ -345,19 +348,23 @@ def _default_of(purpose, sets_):
     return want
 
 
-def _legacy(key):
+def _legacy(key, settings=None):
+    """The servers of a setting from before this card (acme_resolvers, mail_dns):
+    addresses, with :port where one is said."""
     if not key:
         return []
+    src = settings if settings is not None else E.CONFIG
     out = []
-    for w in re.split(r'[\s,;]+', str(E.CONFIG.get(key) or '')):
+    for w in re.split(r'[\s,;]+', str((src or {}).get(key) or '')):
         try:
-            out.append(str(ipaddress.ip_address(w)))
+            host, port = parse_server(w)
         except ValueError:
-            pass
+            continue
+        out.append(server_text(host, port))
     return out
 
 
-def dns_set_for(purpose, store=None):
+def dns_set_for(purpose, store=None, settings=None):
     """(the name of the set the function asks, how it was chosen): 'assigned'
     here, 'legacy' (its setting from before this card - the name is then that
     setting's), or 'default'."""
@@ -369,8 +376,8 @@ def dns_set_for(purpose, store=None):
     if chosen and (chosen == SYSTEM or chosen in sets_):
         return chosen, 'assigned'
     legacy = dict((p[0], p[4]) for p in PURPOSES)[purpose]
-    if _legacy(legacy):
-        return 'Settings: %s' % legacy, 'legacy'
+    if _legacy(legacy, settings):
+        return 'the setting %s' % LEGACY_WORDS.get(legacy, legacy), 'legacy'
     return _default_of(purpose, sets_), 'default'
 
 
@@ -387,12 +394,13 @@ def resolver_of(name, store=None, purpose=''):
     return Resolver(v['servers'], v['protocol'], v['timeout'], v['tls_name'], name=name)
 
 
-def resolver(purpose, store=None):
-    """The Resolver a function asks (see dns_set_for)."""
-    name, how = dns_set_for(purpose, store)
+def resolver(purpose, store=None, settings=None):
+    """The Resolver a function asks (see dns_set_for). `settings`: where the
+    settings of before are read (a module's ctx.settings), else the engine's."""
+    name, how = dns_set_for(purpose, store, settings)
     if how == 'legacy':
         legacy = dict((p[0], p[4]) for p in PURPOSES)[purpose]
-        return Resolver(_legacy(legacy), name=name, how=how)
+        return Resolver(_legacy(legacy, settings), name=name, how=how)
     got = resolver_of(name, store, purpose)
     if got is None:
         got = Resolver(PUBLIC_SERVERS, name=PUBLIC) if purpose == 'public' else \
@@ -409,7 +417,8 @@ def for_module(purpose, given=(), ctx=None):
     given = [str(x).strip() for x in (given or []) if str(x).strip()]
     if given and not (purpose == 'public' and given == OLD_PUBLIC_DEFAULT):
         return given
-    return resolver(purpose, getattr(ctx, 'store', None))
+    s = getattr(ctx, 'settings', None)
+    return resolver(purpose, getattr(ctx, 'store', None), s if isinstance(s, dict) else None)
 
 
 def engine_servers(purpose):
@@ -670,6 +679,34 @@ class scope(object):
 
     def __exit__(self, *a):
         _SCOPE.r = self.was
+
+
+def ssh_address(ctx, host):
+    """Where ssh connects for `host` (a target, a server over SSH): the host
+    itself for "The system's" (ssh looks it up), else its address as the set of
+    "Targets" answers it."""
+    h = str(host or '').strip().strip('[]')
+    try:
+        ipaddress.ip_address(h.split('%')[0])
+        return h
+    except ValueError:
+        pass
+    try:
+        r = resolver('targets', getattr(ctx, 'store', None))
+    except Exception:                                   # noqa: BLE001
+        return h
+    if r.system or not len(r) or h.lower() == 'localhost':
+        return h
+    got = r.addresses(h)
+    if not got:
+        from acmelib.plugins import base
+        raise base.PluginError('%s is not known to the DNS set %s (Settings → DNS, Targets)'
+                               % (h, r.label()))
+    try:
+        ctx.step('%s is %s, as the DNS set %s says' % (h, got[0], r.label()))
+    except Exception:                                   # noqa: BLE001
+        pass
+    return got[0]
 
 
 # ---------------------------------------------------------------------------

@@ -76,9 +76,8 @@ def forget():
 
 
 def resolvers():
-    got = [x.strip() for x in str(E.CONFIG.get('acme_resolvers') or '').replace(
-        '\n', ',').split(',') if x.strip()]
-    return got or D.system_resolvers()
+    """The resolvers of the validation checks: Settings → DNS (acmelib/certs/dnssets.py)."""
+    return D.resolver('validation')
 
 
 def is_ip(name):
@@ -310,7 +309,8 @@ def _group_guide(store, group):
             parts.append((n, base.guide_of([_step(
                 'guide', 'The validation can say what it needs', None,
                 said='%s: %s' % (type(e).__name__, e), blocking=False)])))
-    return _merge(parts)
+    from acmelib.certs import dnssets      # which sets were asked (Settings → DNS)
+    return _merge(parts + [('', base.guide_of([dnssets.guide_step(store)]))])
 
 
 def plan(store, names, issuer=None, challenge=None, challenge_map=None, cert=None,

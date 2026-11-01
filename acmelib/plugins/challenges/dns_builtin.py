@@ -54,11 +54,13 @@ class BuiltinDns(DnsChallenge):
         field('probe', 'Test from outside', 'bool', default=True,
               help='Test puts a short-lived TXT record in and asks public resolvers for it: '
                    'proof that the internet reaches acme\'s DNS server.'),
-        field('public_resolvers', 'Public resolvers', 'list', default='1.1.1.1\n8.8.8.8\n9.9.9.9',
-              advanced=True),
+        field('public_resolvers', 'Public resolvers', 'list', default='',
+              placeholder='1.1.1.1\n8.8.8.8\n9.9.9.9', advanced=True,
+              help='Asked by Test from outside - an override. Empty: Settings → DNS (The '
+                   'public view).'),
         field('resolvers', 'Resolvers', 'list', default='', advanced=True,
-              help='For looking up the CNAMEs. Empty: Settings → ACME resolvers, else this '
-                   'machine\'s.'),
+              help='For looking up the CNAMEs - an override. Empty: Settings → DNS '
+                   '(Validation checks).'),
     ]
 
     # -- acme's zone ----------------------------------------------------------
@@ -422,7 +424,7 @@ class BuiltinDns(DnsChallenge):
         except (D.DnsError, D.FormErr, OSError) as e:
             bad.append('acme\'s DNS server does not answer on %s port %d (%s) - Settings → '
                        'DNS server says why' % (host, port, e))
-        pub = self.lst('public_resolvers') or list(D.PUBLIC_RESOLVERS)
+        pub = D.resolver('public', self.lst('public_resolvers'), self.ctx)
         want_ns = set(D.norm(x) for x in as_list(cfg.get('dns_ns_names'))) or {'ns1.' + zone}
         try:
             m = D.ask_any(pub, zone, 2)

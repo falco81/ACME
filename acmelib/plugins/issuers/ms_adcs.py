@@ -255,10 +255,32 @@ class MsAdcsIssuer(Issuer):
         field('verify', 'Check the web server\'s TLS certificate', 'bool', default=True, advanced=True),
         field('attributes', 'More attributes', 'list', advanced=True, placeholder='SAN:dns=www.example.com',
               help='Lines added to CertAttrib (e.g. SAN:..., where the CA takes them).'),
+        field('key_kinds', 'Key types the template takes', 'select', default='any',
+              options=[['any', 'RSA and ECDSA (a template of schema 2 or later, Key Storage '
+                               'Provider)'],
+                       ['rsa', 'RSA only (a template of schema 1, e.g. WebServer, or a legacy '
+                               'CSP)'],
+                       ['ec', 'ECDSA only']],
+              help='What the template\'s Cryptography tab allows. The certificate\'s key type '
+                   'is checked against it before the CA is asked; a twin (dual certificate) '
+                   'needs both.'),
         field('wait_pending', 'Wait for approval (s)', 'number', default=0, advanced=True,
               help='How long to wait for a pending request within a try; it is fetched again '
                    'at later tries anyway.'),
     ]
+
+    @classmethod
+    def key_types_for(cls, config):
+        k = str((config or {}).get('key_kinds') or 'any')
+        if k == 'rsa':
+            return ['rsa-2048', 'rsa-3072', 'rsa-4096']
+        if k == 'ec':
+            return ['ec-256', 'ec-384']
+        return ['ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096']
+
+    @classmethod
+    def dual_for(cls, config):
+        return str((config or {}).get('key_kinds') or 'any') == 'any'
 
     def _base(self):
         url = str(self.c('url') or '').strip().rstrip('/')
