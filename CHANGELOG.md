@@ -4,6 +4,12 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.11 - 2026-11-01
+
+- The self-signed and the CSR dialogs pick the owner and the tags from Settings
+  → Owners and teams too (a certificate administrator limited to their teams
+  makes certificates there as well).
+
 ## 1.0.10 - 2026-11-01
 
 - **Deployment designer** (SSH, Windows, this machine): the files on the target
