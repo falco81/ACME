@@ -110,7 +110,7 @@ class HttpSsh(HttpChallenge):
                 'help': 'The snippet for ' + SNIPPET + ' and how to include it in your port-80 '
                         'server blocks - to put in place yourself; then "Prepare the hosts" '
                         'checks it.',
-                'changes': False},
+                'changes': False, 'file': True},
                {'key': 'prepare', 'label': 'Prepare the hosts',
                 'help': 'On every web server: find nginx, write the server block for '
                         '/.well-known/acme-challenge/ (nginx_conf) and make the webroot, check '

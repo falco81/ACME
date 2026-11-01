@@ -585,7 +585,7 @@ class CertsCore(unittest.TestCase):
         v = self.cli_json('--validation-show', 'web-ssh')
         self.assertEqual(v['config']['hosts'], ['192.0.2.21', '192.0.2.22'])
         self.assertEqual(v['secret_set'], ['password'])
-        self.assertEqual(v['actions'][0]['key'], 'prepare')
+        self.assertEqual([a['key'] for a in v['actions']], ['nginx_files', 'prepare'])
         self.assertIn('prepare', self.cli_ok('--plugin', 'http_ssh').stdout)
         self.cli_ok('--validation-del', 'web-ssh', '--yes')
         self.cli_ok('--source-del', 'self2', '--yes')

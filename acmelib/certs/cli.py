@@ -1445,11 +1445,14 @@ class Cli(object):
             self.sure('%s: %s' % (row['name'], act['confirm'].rstrip('?')))
         try:
             got = api.family_action(self.store, fam, {'id': row['id'], 'action': key}, self.WHO,
-                                    echo=None if self.json else self.echo)
+                                    echo=None if (self.json or act.get('file')) else self.echo)
         except (ValueError, LookupError) as e:
             raise SystemExit('acme: %s' % e)
         if self.json:
             self.out(got)
+        elif got.get('file'):
+            # a file handed over (the nginx config): printed as it is, to redirect into a file
+            sys.stdout.write(got['file']['text'])
         else:
             print(self.pal.ok_line(got['said'].split('\n')[0]) if got['ok']
                   else self.pal.bad_line(got['said']))
