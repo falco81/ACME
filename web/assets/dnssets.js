@@ -8,7 +8,7 @@
    A full administrator changes; anybody signed in sees and tries a set kept. */
 'use strict';
 (function () {
-  var DS = {d: null, asked: 0};
+  var DS = {d: null, asked: 0, uses: {}};
   var QTYPES = ['A', 'AAAA', 'TXT', 'CNAME', 'NS', 'MX', 'SOA', 'CAA', 'SRV', 'PTR'];
 
   function full() { return !!(typeof ME === 'object' && ME && ME.role === 'fulladmin'); }
@@ -115,16 +115,18 @@
       tr.appendChild(cell('small muted dnss-says', p.says));
       var td = cell('dnss-pick', '');
       var pairs = [['', 'default: ' + p['default']]].concat(names.map(function (n) { return [n, n]; }));
-      var sel = selectBox(pairs, p.chosen || '');
+      var was = p.chosen || '';
+      var pend = Object.prototype.hasOwnProperty.call(DS.uses, p.key);
+      var sel = selectBox(pairs, pend ? DS.uses[p.key] : was);
       sel.id = 'dnss-use-' + p.key;
       Array.prototype.forEach.call(sel.options, function (o, i) { if (i > 0 && o.value !== d.system) noI18n(o); });
       sel.disabled = !full();
+      tr.classList.toggle('changed', pend);
+      /* Chosen here, done by Save on the bar at the bottom - as every setting. */
       sel.onchange = function () {
-        sel.disabled = true;
-        call('assign', {purpose: p.key, set: sel.value}).then(function (r) {
-          toast(saidOf(r, 'chosen'), 'good');
-          load();
-        }).catch(function (e) { sel.disabled = false; oops(e); });
+        if (sel.value === was) delete DS.uses[p.key]; else DS.uses[p.key] = sel.value;
+        tr.classList.toggle('changed', sel.value !== was);
+        usesPending();
       };
       td.appendChild(sel);
       if (p.how === 'legacy') {
@@ -213,6 +215,24 @@
   }
 
   /* ---- Test: a name looked up through a set --------------------------------- */
+  /* The functions' sets waiting for Save (or Put back) on the bar. */
+  function usesPending() {
+    if (!Object.keys(DS.uses).length) {
+      if (typeof PENDING === 'object' && PENDING.dnsuses) { delete PENDING.dnsuses; markDirtyCount(); }
+      return;
+    }
+    pendingSet('dnsuses', {pane: 'dnssets', save: function () {
+      var keys = Object.keys(DS.uses);
+      var chain = Promise.resolve();
+      keys.forEach(function (k) {
+        chain = chain.then(function () {
+          return call('assign', {purpose: k, set: DS.uses[k]}).then(function () { delete DS.uses[k]; });
+        });
+      });
+      return chain.then(function () { toast('saved', 'good'); load(); return true; })
+        .catch(function (e) { oops(e); load(); return false; });
+    }, reset: function () { DS.uses = {}; load(); }});
+  }
   function testSet(s) {
     var f = {};
     var title = s.draft ? 'Test the set as it is in the form' : 'Test the DNS set ' + s.name;

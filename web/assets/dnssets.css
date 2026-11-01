@@ -20,3 +20,6 @@
 .dnss-result .dnss-tries{margin:0 0 12px}
 .dnss-result .step-words .d{margin-left:8px}
 .dnss-result td.dnss-val{word-break:break-all}
+
+/* A function's set changed here, not saved yet (the bar at the bottom). */
+.dnss-uses tr.changed td:first-child b{color:var(--info)}

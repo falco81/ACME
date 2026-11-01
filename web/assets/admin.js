@@ -1902,7 +1902,7 @@ function pendingSet(key, p) { p.pane = p.pane || PANE; PENDING[key] = p; markDir
    message texts, the pages' looks - and on no other. A pane that does
    something at once (Network, Restart and power off, Backups…) has its own
    buttons for it and no save bar. */
-var SAVE_PANES = ['fw', 'ha', 'time', 'texts', 'portal'];
+var SAVE_PANES = ['fw', 'ha', 'time', 'texts', 'portal', 'dnssets'];
 function saveBarHere() {
   if (!ADMIN || TAB !== 'settings') return false;
   var pane = $('pane-' + PANE);
