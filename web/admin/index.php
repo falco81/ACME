@@ -529,7 +529,13 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 
 <!-- ===================== Overview ===================== -->
 <section class="panel" id="tab-overview">
-  <div class="grid top">
+  <!-- As in otp: the product's own tiles first (here the certificates, drawn by
+       certs.js in front of isemon), then the server's, then what certs.js draws. -->
+  <div class="grid top" id="ov-row1">
+    <div class="card metric warn" id="card-isemon"><div class="label">isemon</div>
+      <div class="value" id="m-isemon">–</div><div class="sub" id="m-isemon-sub">&nbsp;</div></div>
+  </div>
+  <div class="grid top" style="margin-top:14px">
     <div class="card metric ok" id="card-server"><div class="label">This server</div>
       <div class="value" id="m-server">–</div><div class="sub" id="m-server-sub">&nbsp;</div></div>
     <div class="card metric info" id="card-cluster"><div class="label">High availability</div>
@@ -538,10 +544,8 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <div class="value" id="m-db">–</div><div class="sub" id="m-db-sub">&nbsp;</div></div>
     <div class="card metric ok" id="card-maint"><div class="label">Maintenance and upgrades</div>
       <div class="value" id="m-maint">–</div><div class="sub" id="m-maint-sub">&nbsp;</div></div>
-    <div class="card metric warn" id="card-isemon"><div class="label">isemon</div>
-      <div class="value" id="m-isemon">–</div><div class="sub" id="m-isemon-sub">&nbsp;</div></div>
   </div>
-  <div id="ov-certs"></div>
+  <div id="ov-certs" style="margin-top:14px"></div>
 </section>
 <?php if (function_exists('acme_certs_tab_panels')) { acme_certs_tab_panels(); } ?>
 

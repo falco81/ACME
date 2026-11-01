@@ -26027,6 +26027,22 @@
   "sc1443": {
    "source": "acme's own DNS server, switched on under Settings → DNS server: the CAs and the public resolvers ask it for the _acme-challenge records, so from anywhere, UDP and TCP",
    "text": "Vlastní DNS server acme, zapnutý v Nastavení → DNS server: CA a veřejné resolvery se ho ptají na záznamy _acme-challenge, proto odkudkoli, UDP i TCP"
+  },
+  "sx0005": {
+   "source": "Every certificate acme keeps: how many are valid and how many are being renewed.",
+   "text": "Všechny certifikáty, které acme drží: kolik je platných a kolik se právě obnovuje."
+  },
+  "sx0006": {
+   "source": "What failed: renewals, and deployments to the targets.",
+   "text": "Co selhalo: obnovy a nasazení do cílů."
+  },
+  "sx0007": {
+   "source": "The certificates that are no longer valid.",
+   "text": "Certifikáty, které už nejsou platné."
+  },
+  "sx0008": {
+   "source": "Requests (CSRs) given out to a CA acme does not speak to, waiting for its certificate.",
+   "text": "Žádosti (CSR) předané CA, se kterou acme nemluví, čekající na její certifikát."
   }
  },
  "patterns": {
@@ -33533,6 +33549,10 @@
   "pc0306": {
    "source": "{0} (calling from {1})",
    "text": "{0} (voláno z {1})"
+  },
+  "px0001": {
+   "source": "The certificates that end within {0} days.",
+   "text": "Certifikáty, které skončí do {0} dní."
   }
  },
  "rich": {

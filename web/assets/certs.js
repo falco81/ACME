@@ -52,6 +52,7 @@ function forgetAll() {
   PLUG_ASK = null;
   CAS_FRESH = 0;
   JL.certsFilled = false;
+  HTTP_INFO = {};
   var f = $('ct-issuer');
   if (f) f._filled = false;
   LAST = {};
@@ -117,6 +118,12 @@ function said(d, fallback) {
   return (d && (d.message || d.said || d.result || d.words)) || fallback || 'done';
 }
 function wordsOf(e) { return String((e && e.message) || e || ''); }
+/** Words in the page's language, for where they go into data (an option of a
+    select marked as data): i18n.js's own, English where there is none. */
+function tr(words) {
+  try { var got = typeof i18nText === 'function' ? i18nText(words) : null; return got || words; }
+  catch (e) { return words; }
+}
 
 /* ---- what is not there yet ------------------------------------------------- */
 /** A calm box where a part of the daemon does not answer yet (404). */
@@ -1267,6 +1274,148 @@ function modDelete(key, r) {
       }).catch(fail);
     });
 }
+/* ---- HTTP-01 answered by acme itself: how it works here -------------------
+   GET /api/validations/info: the URL the CA fetches, the nodes and the VIP
+   address that answer it, port 80 in their firewall, and each name that uses
+   it with where it points. */
+var HTTP_HERE = {http_local: true};
+var HTTP_PATH = '/.well-known/acme-challenge/';
+var HTTP_INFO = {};
+function httpInfo(r, again) {
+  var k = String(r.id || r.name);
+  var had = HTTP_INFO[k];
+  if (had && !again && had.gen === FRESH.n && Date.now() - had.at < 60000) return had.ask;
+  var ask = capi('validations/info' + qs({id: r.id, name: r.id ? '' : r.name}));
+  HTTP_INFO[k] = {at: Date.now(), gen: FRESH.n, ask: ask};
+  ask.catch(function () { delete HTTP_INFO[k]; });
+  return ask;
+}
+function okMark(v) {
+  return el('span', 'tag ' + (v === true ? 'ok' : (v === false ? 'crit' : 'dim')), v === true ? '✔' : (v === false ? '✘' : '?'));
+}
+/** A line under the row of the list: where the CA asks, and how many names point here. */
+function httpRowLine(r) {
+  var line = el('div', 'muted small ct-http-row');
+  line.appendChild(mono('http://NAME' + HTTP_PATH + '…'));
+  line.appendChild(el('span', '', ' · port 80'));
+  var more = el('span', '');
+  line.appendChild(more);
+  httpInfo(r).then(function (d) {
+    if (!d || !d.applies) return;
+    var nodes = arr(d.nodes).length;
+    var bits = [' · answered by ' + nodes + ' node(s)' + (d.vip && d.vip.on ? ' and the VIP address' : '')];
+    var names = arr(d.names);
+    if (names.length) {
+      var good = names.filter(function (n) { return n.ours === true; }).length;
+      bits.push(good + ' of ' + names.length + ' name(s) point at acme');
+      if (good < names.length) line.classList.add('ct-http-warn');
+    }
+    more.textContent = bits.join(' · ');
+  }).catch(function () { });
+  return line;
+}
+/** The section of the popup: how it works here, and "Check a name". */
+function httpHere(row) {
+  var box = el('div', 'ct-http');
+  box.appendChild(el('h4', 'ct-formh', 'How it works here'));
+  var lead = el('p', 'note');
+  lead.appendChild(el('span', '', 'The CA fetches '));
+  lead.appendChild(mono('http://NAME' + HTTP_PATH + '<token>'));
+  lead.appendChild(el('span', '', ' - port 80, plain HTTP, from the internet. The path and the port are fixed by the ACME standard (RFC 8555) and cannot be set; what can be set is above: whether acme fetches it itself first (Check before the CA is asked) and the address Test tries. Each name must point at acme - a node or the VIP address - or at a proxy that forwards ' + HTTP_PATH + ' to acme.'));
+  box.appendChild(lead);
+  var host = el('div');
+  box.appendChild(host);
+  if (!row || !row.id) {
+    host.appendChild(el('p', 'muted small', 'Saved, it shows here which machines answer, port 80 in their firewall, and where each name that uses it points.'));
+    return box;
+  }
+  host.appendChild(el('p', 'muted', 'Asking…'));
+  var probeOut = el('div');
+  var probe = function (name, button) {
+    if (!name) { toast('which name?', 'bad'); return; }
+    busy(button, true);
+    clear(probeOut);
+    probeOut.appendChild(el('p', 'muted', 'Fetching a probe token from ' + name + '…'));
+    askRaw('validations/check', {id: row.id, host: name}, 60).then(function (d) {
+      clear(probeOut);
+      var good = d.ok !== false && !d.error;
+      probeOut.appendChild(saidLine(good ? 'good' : 'bad', String(d.said || d.error || (good ? 'it answers' : 'it does not answer'))));
+      probeOut.appendChild(jobLog(d.steps || []));
+    }).catch(function (e) {
+      clear(probeOut);
+      probeOut.appendChild(saidLine('bad', wordsOf(e)));
+    }).then(function () { busy(button, false); });
+  };
+  httpInfo(row, true).then(function (d) {
+    clear(host);
+    if (!d || !d.applies) return;
+    var who = [];
+    arr(d.nodes).forEach(function (n) {
+      who.push([n.name + (n.me ? ' (this node)' : ''), function () {
+        var w = el('span', '');
+        w.appendChild(mono((n.dns && n.dns !== n.name ? n.dns + ' · ' : '') + (n.address || '–')));
+        w.appendChild(el('span', 'tag ' + (n.alive ? 'ok' : 'crit') + ' small', n.alive ? 'answers' : 'not heard'));
+        if (n.vip_here) w.appendChild(el('span', 'tag info small', 'holds the VIP address'));
+        return w;
+      }()]);
+    });
+    if (d.vip && d.vip.on) {
+      var vw = el('span', '');
+      vw.appendChild(mono((d.vip.fqdn ? d.vip.fqdn + ' · ' : '') + [d.vip.address, d.vip.address6].filter(Boolean).join(', ')));
+      if (d.vip.holder) vw.appendChild(el('span', 'muted small', ' on ' + d.vip.holder));
+      who.push(['The VIP address', vw]);
+    }
+    host.appendChild(el('h4', 'ct-formh', 'Answered by'));
+    host.appendChild(kvTable(who));
+    host.appendChild(el('h4', 'ct-formh', 'Port 80 in the firewall'));
+    host.appendChild(listTable(['Node', 'Port 80', ''], arr(d.firewall), function (f) {
+      var tr = el('tr');
+      tr.appendChild(td('', data('span', '', f.node)));
+      var st = el('td');
+      st.appendChild(el('span', 'tag ' + (f.open === false ? 'crit' : (f.open ? 'ok' : 'dim')), f.open === false ? 'closed' : (f.open ? (f.from_anywhere ? 'open from anywhere' : 'open to some networks') : '?')));
+      tr.appendChild(st);
+      tr.appendChild(td('muted small', el('span', '', f.why || '')));
+      return tr;
+    }, 'plain'));
+    host.appendChild(el('h4', 'ct-formh', 'Names proved by it'));
+    var names = arr(d.names);
+    if (!names.length) host.appendChild(emptyNote('No certificate uses it yet.'));
+    else host.appendChild(listTable(['Name', 'Certificate', 'Resolves to', '', '', ''], names, function (n) {
+      var tr = el('tr');
+      tr.appendChild(td('', mono(n.name)));
+      tr.appendChild(td('small', data('span', '', n.cert || '')));
+      tr.appendChild(td('', mono(arr(n.addresses).join(', ') || '–')));
+      tr.appendChild(td('', okMark(n.ours)));
+      tr.appendChild(td('small', el('span', '', n.words || '')));
+      var tools = el('td', 'rowtools');
+      if (MANAGE && !n.wildcard) {
+        var cb = iconButton('play', 'Check this name: a probe token fetched from it');
+        cb.onclick = function () { probe(n.name, cb); };
+        tools.appendChild(cb);
+      }
+      tr.appendChild(tools);
+      return tr;
+    }, 'plain'));
+    if (d.names_more) host.appendChild(el('p', 'muted small', 'and ' + d.names_more + ' more'));
+    if (MANAGE) {
+      host.appendChild(el('h4', 'ct-formh', 'Check a name'));
+      var row2 = el('div', 'btnrow');
+      var nb = textBox('', 'www.example.com', 'mono');
+      noI18n(nb);
+      nb.style.flex = '1';
+      var go = cmdButton('Check it', 'play', 'small');
+      go.onclick = function () { probe(nb.value.trim(), go); };
+      nb.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+      row2.appendChild(nb);
+      row2.appendChild(go);
+      host.appendChild(row2);
+      host.appendChild(el('p', 'muted small', 'acme puts a probe token in place and fetches http://NAME' + HTTP_PATH + '<token> itself, step by step. Fetched from this node: behind NAT a router may not loop back to its own public address (hairpin NAT) although the CA from outside is answered.'));
+      host.appendChild(probeOut);
+    }
+  }).catch(function (e) { clear(host); host.appendChild(failedBox(e, 'how it works here')); });
+  return box;
+}
+
 /* ---- the default of a list ------------------------------------------------ */
 var DEFAULT_WORDS = {
   sources: 'A new certificate comes from it when no source is said.',
@@ -1584,7 +1733,7 @@ function deployEdit(o) {
   var tName = first(d.target, o.target && (o.target.name || o.target));
   modal('A deployment', function (b) { b.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], 'medium');
   var ticket = modalTicket();
-  Promise.all([plugins().catch(function () { return null; }), loadRows('targets').catch(function () { return []; }),
+  Promise.all([plugins(true).catch(function () { return null; }), loadRows('targets', true).catch(function () { return []; }),
                certId ? Promise.resolve(null) : capi('certs' + qs({per: 1000})).then(function (x) { return rowsOf(x, 'certs'); }).catch(function () { return []; })])
   .then(function (got) {
     if (!modalStill(ticket)) return;
@@ -1648,7 +1797,9 @@ function deployEdit(o) {
         if (tt.kind) { var fxk = el('span', 'muted small', ' · '); fxk.appendChild(el('span', '', plugTitle('target', tt.kind))); fx.appendChild(fxk); }
         g.appendChild(formField('Target', fx));
       } else {
-        tSel = selectBox([['', 'choose one…']].concat(targets.map(function (t) { return [t.name, t.name + ' · ' + plugTitle('target', t.kind)]; })), tName || '');
+        /* The default target offered first (preselected). */
+        var dtg = defaultOf(targets);
+        tSel = selectBox([['', 'choose one…']].concat(targets.map(function (t) { return [t.name, t.name + ' · ' + plugTitle('target', t.kind) + (t.is_default ? ' · ' + tr('default') : '')]; })), tName || (dtg ? dtg.name : ''));
         noI18n(tSel);
         tSel.onchange = drawFields;
         g.appendChild(formField('Target', tSel, targets.length ? '' : 'No target yet - a full administrator adds them under Targets.'));
@@ -2281,6 +2432,7 @@ function certWizard(cert, detail) {
       if (cn.ip) chips.appendChild(el('span', 'tag dim', 'IP addresses'));
       if (cn.days) chips.appendChild(el('span', 'tag dim', 'validity chosen'));
       if (!on) chips.appendChild(el('span', 'tag warn', 'off'));
+      if (s.is_default) chips.appendChild(el('span', 'tag ok', 'default'));
       w.appendChild(chips);
       t.appendChild(w);
       t.onclick = function () {
@@ -2387,9 +2539,9 @@ function certWizard(cert, detail) {
       return;
     }
     var pairs = W.vals.map(function (v) {
-      return [v.name, v.name + ' · ' + plugTitle('challenge', v.kind) + ' (' + challengeTypes(v.kind).join(', ') + ')'];
+      return [v.name, v.name + ' · ' + plugTitle('challenge', v.kind) + ' (' + challengeTypes(v.kind).join(', ') + ')' + (v.is_default ? ' · ' + tr('default') : '')];
     });
-    if (!W.d.challenge && W.vals.length) W.d.challenge = W.vals[0].name;
+    if (!W.d.challenge && W.vals.length) W.d.challenge = (defaultOf(W.vals) || W.vals[0]).name;
     var def = selectBox(pairs, W.d.challenge);
     noI18n(def);
     host.appendChild(formField('For every name', def, cn.types.length ? 'This source can use: ' + cn.types.join(', ') + '.' : ''));
@@ -2527,6 +2679,7 @@ function certWizard(cert, detail) {
       top.appendChild(ic);
       var w = el('span', 'ct-dep-w');
       w.appendChild(data('b', '', t.name));
+      if (t.is_default) w.appendChild(el('span', 'tag ok small', 'default'));
       w.appendChild(data('span', 'muted small', (p ? p.title : t.kind) + (t.config && (t.config.host || t.config.address) ? ' · ' + (t.config.host || t.config.address) : '')));
       top.appendChild(w);
       row.appendChild(top);
@@ -2625,12 +2778,18 @@ function certWizard(cert, detail) {
   modal(editing ? 'Edit ' + c.name : 'Add a certificate', function (bd) { bd.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], 'large');
   if (editing) nameInTitle('Edit', c.name);
   var ticket = modalTicket();
-  Promise.all([rowsSafe('sources'), rowsSafe('validation'), rowsSafe('targets'), plugins().catch(function () { return null; })])
+  /* Asked anew each time it opens: what was made a moment ago in another tab
+     (or on the other node) is offered at once. */
+  var fresh = function (key) { return loadRows(key, true).catch(function () { return []; }); };
+  Promise.all([fresh('sources'), fresh('validation'), fresh('targets'), plugins(true).catch(function () { return null; })])
     .then(function (got) {
       if (!modalStill(ticket)) return;
       W.sources = got[0];
       W.vals = got[1];
-      W.targets = got[2];
+      /* The default target first, offered (ticked) for a new certificate. */
+      var dt = defaultOf(got[2]);
+      W.targets = dt ? [dt].concat(got[2].filter(function (t) { return t !== dt; })) : got[2];
+      if (dt && !editing && (dt.enabled === undefined || truthy(dt.enabled))) W.deploys[dt.name] = {};
       if (!W.d.issuer && W.sources.length === 1) W.d.issuer = W.sources[0].name;
       /* Let's Encrypt first: the default source and validation (is_default). */
       if (!W.d.issuer) W.d.issuer = (W.sources.filter(function (x) { return x.is_default; })[0] || {}).name || '';
@@ -2952,13 +3111,24 @@ function csrAnswer(c) {
 /* ==========================================================================
    Authorities of acme's own
    ========================================================================== */
-var CAS = [];
+var CAS = [], CAS_FRESH = 0;
+/** The authorities, asked anew unless they were asked since the last change
+    (a picker of authorities opens with what there is now). */
+function casNow(again) {
+  if (!again && CAS_FRESH && CAS_FRESH === FRESH.n + 1) return Promise.resolve(CAS);
+  var gen = FRESH.n;
+  return capi('cas').then(function (d) {
+    CAS = rowsOf(d, 'cas', 'authorities');
+    if (gen === FRESH.n) CAS_FRESH = gen + 1;
+    return CAS;
+  });
+}
 function loadCas(live) {
   var host = $('ca-tree');
   if (!host) return;
   if (!live && !host.children.length) host.appendChild(el('p', 'muted', 'Asking…'));
-  capi('cas').then(function (d) {
-    CAS = rowsOf(d, 'cas', 'authorities');
+  pkiCard();
+  casNow(true).then(function () {
     $('ca-said').textContent = CAS.length ? num(CAS.length) + ' in all' : '';
     if ($('ca-inter')) $('ca-inter').disabled = !CAS.length;
     liveFill(host, function (box) {
@@ -3018,9 +3188,20 @@ function caNode(c, depth, kids) {
     t.appendChild(nk);
   }
   if (c.disabled && truthy(c.disabled)) t.appendChild(el('span', 'tag dim', 'off'));
+  if (c.is_default) t.appendChild(el('span', 'tag ok', 'default'));
+  if (c.published) {
+    var pt = el('span', 'tag info', 'published on acme');
+    explain(pt, 'Its CRL and certificate are served by acme itself at /pki/, over plain HTTP.');
+    t.appendChild(pt);
+  }
   w.appendChild(t);
   w.appendChild(data('div', 'mono small muted ct-node-dn', c.subject_dn || ''));
   n.appendChild(w);
+  if (FULL && !c.pending) {
+    var star = defaultButton('cas', c);
+    star.classList.add('ct-node-star');
+    n.appendChild(star);
+  }
   var f = el('div', 'ct-node-f');
   f.appendChild(ftag('Key', keyWords(c.key_type), 'k'));
   f.appendChild(ftag('Until', c.not_after ? dayOnly(c.not_after) : '–', 'u'));
@@ -3059,6 +3240,8 @@ function caPeek(id) {
       busy(b, true);
       capi('cas/crl', {id: c.id}).then(function (x) { toast(said(x, 'a new CRL was made'), 'good'); back(); }).catch(fail).then(function () { busy(b, false); });
     }});
+    var dfc = defaultFoot('cas', c, back);
+    if (dfc) buttons.push(dfc);
     if (FULL) {
       buttons.unshift({words: 'Delete', cls: 'danger', icon: 'trash', left: true, go: function () {
         capi('cas/delete', {id: c.id}).then(function (x) { toast(said(x, 'deleted'), 'good'); closeModal(); loadCas(); }).catch(fail);
@@ -3083,6 +3266,8 @@ function caPeek(id) {
         hw.appendChild(data('div', 'mono small muted', c.subject_dn || ''));
         head.appendChild(hw);
         body.appendChild(head);
+        var dn = defaultNote('cas', c);
+        if (dn) body.appendChild(dn);
         var parent = CAS.filter(function (x) { return x.id === c.parent_id; })[0];
         var grid = el('div', 'msects');
         var s1 = section('The authority');
@@ -3123,6 +3308,7 @@ function caPeek(id) {
         });
         s2._body.appendChild(ex);
         grid.appendChild(s2);
+        if (d.pki && d.pki.urls) grid.appendChild(pkiSection(c, d.pki, back));
         var s3 = section('What it signed', 'Every certificate this authority issued; a revoked one is in its CRL.', true);
         var find = el('input');
         find.type = 'search';
@@ -3170,6 +3356,127 @@ function caPeek(id) {
       buttons: buttons
     };
   }, 'large', 'the authorities');
+}
+/* ---- publishing on acme: the CRL and the certificate at /pki/ ------------- */
+function goPkiSettings() {
+  closeModal();
+  showTab('settings');
+  setTimeout(function () { if (typeof showPane === 'function') showPane('certs'); }, 60);
+}
+function urlLine(u) {
+  var w = el('span', 'ct-url');
+  w.appendChild(mono(u));
+  var b = iconButton('copy', 'Copy the address');
+  b.classList.add('small');
+  b.onclick = function (ev) { ev.stopPropagation(); copyText(u, b, 'the address was copied'); };
+  w.appendChild(b);
+  return w;
+}
+function pkiSection(c, pki, back) {
+  var sec = section('Published on acme', 'Its CRL and its certificate over plain HTTP, from every node and the VIP address alike (from the database) - for everybody, no sign-in, never sent to HTTPS.', true);
+  var b = sec._body;
+  var u = pki.urls || {};
+  if (!pki.on) {
+    var off = el('p', 'note warn');
+    off.appendChild(el('span', '', 'Publishing is switched off for every authority (Settings → Renewal and notices: Publish CRLs on acme). '));
+    if (FULL) {
+      var go = el('button', 'btn small', 'Switch it on…');
+      go.type = 'button';
+      go.onclick = goPkiSettings;
+      off.appendChild(go);
+    }
+    b.appendChild(off);
+  }
+  var state = el('span', '');
+  state.appendChild(el('span', 'tag ' + (pki.published ? 'ok' : 'dim'), pki.published ? 'published' : 'not published'));
+  if (FULL && pki.on) {
+    var sw = switchBox(!!pki['switch']);
+    sw.classList.add('ct-inline-switch');
+    sw.addEventListener('change', function () {
+      capi('cas/publish', {id: c.id, published: !!sw._get()}).then(function (x) {
+        toast(said(x, 'saved'), 'good');
+        back();
+      }).catch(fail);
+    });
+    state.appendChild(sw);
+  }
+  var nu = pki.next_update;
+  var late = nu && nu < now();
+  b.appendChild(kvTable([
+    ['Published', state],
+    ['CRL (DER)', urlLine(u.crl)],
+    ['CRL (PEM)', urlLine(u.crl_pem)],
+    ['Certificate (DER)', urlLine(u.cert)],
+    ['Certificate (PEM)', urlLine(u.cert_pem)],
+    ['Every one published', urlLine(u.index)],
+    ['Last CRL', pki.this_update ? stamp(pki.this_update) + (pki.number ? ' · #' + pki.number : '') : 'not yet'],
+    ['Next update', nu ? (function () { var x = el('span', late ? 'ct-badtext' : ''); x.textContent = stamp(nu) + (late ? ' - ' + tr('it has run out') : ''); return x; }()) : '–'],
+    ['Made again by', pki.refresh_due ? stamp(pki.refresh_due) + ' ' + tr('(half its life: the node that leads makes it anew, and after every revocation)') : '–'],
+    ['In what it signs', pki.own_urls ? el('span', 'tag ok', 'acme’s own addresses') : (function () {
+      var x = el('span', '');
+      x.appendChild(el('span', 'tag warn', 'other addresses'));
+      x.appendChild(mono(' ' + [pki.crl_url, pki.aia_url].filter(Boolean).join(' · ') || ' –'));
+      return x;
+    }())]
+  ]));
+  var row = el('div', 'btnrow');
+  var out = el('div');
+  if (MANAGE) {
+    var ck = cmdButton('Check it', 'play', 'small');
+    ck.onclick = function () {
+      busy(ck, true);
+      clear(out);
+      out.appendChild(el('p', 'muted', 'Fetching it over HTTP…'));
+      capi('cas/pki_check', {id: c.id}, 60).then(function (x) {
+        clear(out);
+        out.appendChild(saidLine(x.ok ? 'good' : 'bad', x.ok ? 'What is published is right.' : String(x.said || 'it is not right')));
+        out.appendChild(jobLog(arr(x.steps).map(function (st) { return {level: st[0], words: st[1]}; })));
+      }).catch(function (e) { clear(out); out.appendChild(saidLine('bad', wordsOf(e))); }).then(function () { busy(ck, false); });
+    };
+    row.appendChild(ck);
+  }
+  if (FULL && !pki.own_urls) {
+    var use = cmdButton('Use acme’s own URLs', 'globe', 'small');
+    use.onclick = function () {
+      confirmThen('Use acme’s own URLs', htmlText('What ' + c.name + ' signs from now on carries the CRL address ' + u.crl + ' and the CA certificate address ' + u.cert + '. Certificates it issued before keep the addresses they have - they change at their next renewal.'), 'Use them', function () {
+        capi('cas/pki_urls', {id: c.id}).then(function (x) { toast(said(x, 'saved'), 'good'); back(); }).catch(fail);
+      });
+    };
+    row.appendChild(use);
+  }
+  b.appendChild(row);
+  b.appendChild(out);
+  return sec;
+}
+/** The card above the tree: whether acme publishes, and where. */
+function pkiCard() {
+  var box = $('ca-pki');
+  if (!box) return;
+  capi('certs/settings_view').catch(function () { return null; }).then(function () { });
+  casNow().then(function (list) {
+    clear(box);
+    var pubs = list.filter(function (c) { return c.published; });
+    var line = el('p', 'note ct-pki-line');
+    line.appendChild(el('b', '', 'Published on acme: '));
+    if (pubs.length) {
+      line.appendChild(el('span', '', pubs.length + ' authority(ies) - their CRL and certificate at /pki/ on port 80 of every node and the VIP address. '));
+    } else {
+      line.appendChild(el('span', '', 'nothing yet - switched off, or no authority has a certificate. '));
+    }
+    var open = el('a', '', 'what is published');
+    open.href = '/pki/';
+    open.target = '_blank';
+    open.rel = 'noopener';
+    line.appendChild(open);
+    if (FULL) {
+      line.appendChild(el('span', '', ' · '));
+      var st = el('a', '', 'settings');
+      st.href = '#settings/certs';
+      st.onclick = function (e) { e.preventDefault(); goPkiSettings(); };
+      line.appendChild(st);
+    }
+    box.appendChild(line);
+  }).catch(function () { clear(box); });
 }
 function caRevoke(ca, r) {
   var reason = null;
@@ -3600,22 +3907,38 @@ function drawOverviewCerts(box, d, counts, total) {
     ['Expired', expired, expired ? 'crit' : 'ok', expired ? 'no longer valid' : 'none', 'expired']
   ];
   if (c('pending')) tiles.push(['Waiting for a CA', c('pending'), 'info', 'a CSR given out', 'pending']);
-  var grid = el('div', 'grid top ct-ovtiles');
+  /* As in otp: these are the first row of the overview, in front of isemon's
+     tile (#ov-row1) - each opens what it counts, with the arrow and the words
+     otp's tiles have. Without that row (an older page) they go on top here. */
+  var row1 = $('ov-row1');
+  var grid = row1 || el('div', 'grid top ct-ovtiles');
+  if (row1) Array.prototype.slice.call(row1.querySelectorAll('.ct-ovtile')).forEach(function (n) { n.remove(); });
+  var anchor = row1 ? $('card-isemon') : null;
+  var says = {'': 'Every certificate acme keeps: how many are valid and how many are being renewed.',
+              expiring: 'The certificates that end within ' + days + ' days.',
+              failed: 'What failed: renewals, and deployments to the targets.',
+              expired: 'The certificates that are no longer valid.',
+              pending: 'Requests (CSRs) given out to a CA acme does not speak to, waiting for its certificate.'};
   tiles.forEach(function (t) {
-    var card = el('div', 'card metric tappable ' + t[2]);
+    var card = el('div', 'card metric tappable ct-ovtile ' + t[2]);
     card.tabIndex = 0;
+    card.setAttribute('role', 'button');
     card.appendChild(el('div', 'label', t[0]));
     card.appendChild(el('div', 'value', num(t[1])));
     card.appendChild(el('div', 'sub', t[3]));
+    var arrow = el('span', 'goes');
+    arrow.innerHTML = iconMarkup('next', 16);
+    card.appendChild(arrow);
+    if (says[t[4]] && typeof explain === 'function') explain(card, says[t[4]]);
     var open = function () {
       if (t[4] === 'failed' && !c('failed') && depBad) { openJobs({kind: 'deploy', ok: '0'}); return; }
       openCerts({state: t[4]});
     };
     card.onclick = open;
     card.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); open(); } };
-    grid.appendChild(card);
+    if (anchor) grid.insertBefore(card, anchor); else grid.appendChild(card);
   });
-  box.appendChild(grid);
+  if (!row1) box.appendChild(grid);
   var ch = el('div', 'card full ct-ovcard');
   var h = el('h2', '', 'When certificates run out');
   var right = el('span', 'right muted', 'the next ' + (rowsOf(d.weeks || d.expiry_by_week || d.by_week).length || 26) + ' weeks');
