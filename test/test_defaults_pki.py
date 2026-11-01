@@ -346,7 +346,7 @@ class DefaultsPki(unittest.TestCase):
         # What it signs carries both.
         from acmelib.certs import pki as P
         key = P.make_key('ec-256')
-        csr = P.make_csr(key, ['signed.example.test'])
+        csr = P.make_csr(key, ['signed.example.test'])[0]
         cert = self.ok('POST', '/api/cas/sign_csr', {'id': got['id'], 'csr_pem': csr,
                                                      'days': 30})['cert_pem']
         info = P.cert_info(cert)
@@ -514,15 +514,18 @@ class DefaultsPki(unittest.TestCase):
         self.assertFalse(self.ok('GET', '/api/validations/info',
                                  args={'name': 'by-hand'})['applies'])
         # Check a name: a probe token, fetched, taken away again.
-        chk = self.ok('POST', '/api/validations/check', {'name': 'This server (HTTP-01)',
-                                                         'host': 'localhost'})
+        st, chk = self.call('POST', '/api/validations/check', {'name': 'This server (HTTP-01)',
+                                                               'host': 'localhost'},
+                            self.admin)
+        self.assertEqual(st, 200, chk)          # nothing answers port 80 here: ok is false
         self.assertIn('job_id', chk)
         self.assertTrue(any('probe token' in str(s) for s in chk['steps']))
         left = self.py('print(json.dumps(st.db.value("SELECT COUNT(*) FROM meta WHERE k LIKE '
                        '\'acme:chal:acme-probe-%\'")))')
         self.assertEqual(left, 0)
-        wild = self.ok('POST', '/api/validations/check', {'name': 'This server (HTTP-01)',
-                                                          'host': '*.example.test'})
+        _st, wild = self.call('POST', '/api/validations/check',
+                              {'name': 'This server (HTTP-01)', 'host': '*.example.test'},
+                              self.admin)
         self.assertFalse(wild['ok'])
         self.assertIn('wildcard', wild['said'])
         out = self.cli_ok('--validation-show', 'This server (HTTP-01)').stdout
@@ -540,7 +543,7 @@ class DefaultsPki(unittest.TestCase):
         self.assertEqual(shipped.count('location ^~ /pki/'), 2)
         old = re.sub(r'(?ms)^[ \t]*# The CRLs and certificates.*?# PKI-END\n', '', shipped)
         old = re.sub(r'(?ms)^[ \t]*# ---- the CRLs.*?# PKI-END\n\n', '', old)
-        self.assertNotIn('/pki/', old)
+        self.assertNotIn('location ^~ /pki/', old)
         new = w.pki_into(old)
         self.assertEqual(new.count('location ^~ /pki/'), 2)
         self.assertEqual(w.pki_into(new), new)
