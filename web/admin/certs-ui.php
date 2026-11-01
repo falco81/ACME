@@ -95,7 +95,8 @@ function acme_certs_tab_panels(): void
     <h2>Certificate authorities <span class="right" id="ca-said"></span></h2>
     <p class="note">The authorities of acme's own: roots, and the intermediates each of them
       signed, as a tree. A source of the kind "own certificate authority" issues certificates from one of them.
-      Click one for what it signed, its revocation list, and to sign a CSR from elsewhere.</p>
+      Click one for what it signed, its revocation list, where it is published, and to sign a CSR from elsewhere.
+      The star makes one the default: offered first for a new source and for signing a CSR.</p>
     <div class="btnrow ct-fulladmin" style="margin-bottom:12px">
       <button class="btn cmd primary" id="ca-root" data-icon="add"
               title="A new root authority: its own key, signed by itself.">Create a root</button>
@@ -103,7 +104,10 @@ function acme_certs_tab_panels(): void
               title="A new intermediate authority, signed by one of the authorities here.">Create an intermediate</button>
       <button class="btn cmd" id="ca-import" data-icon="upload"
               title="An authority you already have - its certificate and its key - to issue from here.">Import an authority</button>
+      <button class="btn cmd" id="ca-sign" data-icon="key"
+              title="A request made elsewhere signed by one of the authorities here - the default one first.">Sign a CSR</button>
     </div>
+    <div id="ca-pki"></div>
     <div id="ca-tree"></div>
   </div>
 </section>
@@ -114,7 +118,8 @@ function acme_certs_tab_panels(): void
     <h2>Sources <span class="right" id="src-said"></span></h2>
     <p class="note">Where certificates come from. Each is one module - ACME (Let's Encrypt, ZeroSSL,
       your own ACME server), an authority of acme's own, self-signed, Microsoft AD CS, SCEP - with
-      its own settings. Test tries it without changing anything.</p>
+      its own settings. Test tries it without changing anything. The star makes one the default:
+      a new certificate comes from it when no source is said.</p>
     <div class="btnrow ct-fulladmin" style="margin-bottom:12px">
       <button class="btn cmd primary" id="src-add" data-icon="add">Add a source</button>
     </div>
@@ -130,7 +135,8 @@ function acme_certs_tab_panels(): void
     <p class="note">How names are proved to an ACME CA. DNS-01 puts a TXT record in DNS - in
       acme's own DNS server, or at your DNS provider - and is the only way for a wildcard;
       HTTP-01 answers on port 80, here or on your own web servers over SSH, so acme itself is
-      never reachable from the internet.</p>
+      never reachable from the internet. The star makes one the default: a new certificate from
+      an ACME CA is proved by it.</p>
     <div class="btnrow ct-fulladmin" style="margin-bottom:12px">
       <button class="btn cmd primary" id="val-add" data-icon="add">Add a way of validation</button>
     </div>
@@ -145,7 +151,8 @@ function acme_certs_tab_panels(): void
     <h2>Targets <span class="right" id="tg-said"></span></h2>
     <p class="note">Where certificates go: a Linux server over SSH, a load balancer, a firewall, a
       router. A certificate is deployed on a target with options of its own - paths, formats, the
-      profile it goes into, the commands after. Click a target for what is deployed on it.</p>
+      profile it goes into, the commands after. Click a target for what is deployed on it. The star
+      makes one the default: offered first when a certificate is deployed.</p>
     <div class="btnrow filters">
       <input type="search" id="tg-q" placeholder="a name, an address, a kind…" style="flex:1;min-width:200px">
       <span class="spacer"></span>

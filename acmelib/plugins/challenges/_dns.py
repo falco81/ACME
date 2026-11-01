@@ -892,3 +892,46 @@ def own_server_address(cfg):
 
 def random_label(n=10):
     return 'acme-' + binascii.hexlify(os.urandom(n // 2)).decode()
+
+
+# ---------------------------------------------------------------------------
+# The domain a name belongs to, when DNS cannot say (no SOA found)
+# ---------------------------------------------------------------------------
+# A small public-suffix list: the suffixes under which people register names
+# (two labels or more). Anything else: the last two labels.
+PUBLIC_SUFFIXES = frozenset("""
+co.uk org.uk me.uk ltd.uk plc.uk net.uk ac.uk gov.uk sch.uk nhs.uk
+com.au net.au org.au edu.au gov.au asn.au id.au
+co.nz net.nz org.nz govt.nz ac.nz
+co.jp ne.jp or.jp ac.jp go.jp
+co.za org.za net.za gov.za
+com.br net.br org.br gov.br
+com.cn net.cn org.cn gov.cn
+com.tr net.tr org.tr gen.tr
+com.mx org.mx gob.mx
+com.ar com.co com.pe com.ve com.ec com.uy
+co.in net.in org.in firm.in gen.in ind.in
+co.il org.il ac.il
+co.kr or.kr
+com.sg com.my com.hk com.tw com.ua com.pl net.pl org.pl
+com.ru net.ru org.ru
+co.at or.at gv.at
+com.es nom.es org.es
+com.pt com.gr com.cy
+co.hu
+eu.org
+""".split())
+
+
+def registrable(name):
+    """The registrable domain of a name by the list above: shop.firma.co.uk ->
+    firma.co.uk, www.firma.cz -> firma.cz, *.firma.sk -> firma.sk."""
+    n = norm(name)
+    while n.startswith('*.'):
+        n = n[2:]
+    labels = [x for x in n.split('.') if x]
+    if len(labels) <= 2:
+        return '.'.join(labels)
+    if '.'.join(labels[-2:]) in PUBLIC_SUFFIXES:
+        return '.'.join(labels[-3:])
+    return '.'.join(labels[-2:])

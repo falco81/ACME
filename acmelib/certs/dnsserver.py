@@ -228,6 +228,40 @@ class Zones(object):
         return None
 
 
+def server_info(store=None, config=None):
+    """acme's own DNS server as its settings say it - for a validation's guide:
+    {'on', 'zones', 'ns', 'glue': {ns name: [addresses]}, 'answering':
+    [addresses], 'port', 'expose'}. Binds nothing, reads no record."""
+    srv = DnsServer(store, config)
+    src = config if config is not None else getattr(_engine(), 'CONFIG', {}) or {}
+    try:
+        cfg = srv.cfg()
+        z = Zones(cfg, [], time.time())
+    except Exception:                                   # noqa: BLE001
+        return {'on': False, 'zones': [], 'ns': [], 'glue': {}, 'answering': [], 'port': 53,
+                'expose': 'both'}
+    glue = {}
+    for ns in z.ns:
+        got = [v for t in (1, 28) for _ttl, v in z.data.get(ns, {}).get(t, [])]
+        if got:
+            glue[ns] = got
+    try:
+        answering = srv.answering_addresses(cfg)
+    except Exception:                                   # noqa: BLE001
+        answering = []
+    try:
+        on = bool(int(src.get('dns_server') or 0))
+    except (TypeError, ValueError, AttributeError):
+        on = False
+    try:
+        port = int(cfg.get('dns_port') or 53)
+    except (TypeError, ValueError):
+        port = 53
+    return {'on': on, 'zones': [z.first] + [x for x in z.zones if x != z.first] if z.first
+            else [], 'ns': list(z.ns), 'glue': glue, 'answering': list(answering),
+            'port': port, 'expose': srv.expose(cfg)}
+
+
 def parse_static(line):
     """'name type value [ttl]' or 'name ttl type value' -> (name, type, value, ttl|None)."""
     bits = line.split(None, 2)

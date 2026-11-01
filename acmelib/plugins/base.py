@@ -24,6 +24,7 @@ import importlib.util
 import os
 import sys
 import threading
+import time
 import traceback
 
 
@@ -92,6 +93,17 @@ class Context(object):
         ctx.node                            this node's name
         ctx.settings                        the settings (read only)
 
+    What a challenge's guide() and dry_run() may ask about acme itself (each
+    has an answer that says "cannot tell" here, so an older Context works):
+        ctx.dns_server_info() -> {'on', 'zones', 'ns', 'glue': {ns: [addresses]},
+                                  'answering': [addresses], 'port'}
+                                            acme's own DNS server as its settings say
+        ctx.own_addresses() -> {'vip': address or None, 'nodes': [addresses]}
+        ctx.port_open(proto, port) -> True | False | None
+                                            does acme's firewall let it in from anywhere
+        ctx.http_probe() -> (token, key_authorization) or None
+                                            a probe acme answers on its own port 80
+
     For a target that is acme itself (targets/appliance.py) - the certificate
     of its own pages, as Settings → Certificates and TLS keeps it:
         ctx.pages_where() -> {'node', 'nodes': [...], 'cluster', 'vip': {'on', 'fqdn'}}
@@ -111,6 +123,20 @@ class Context(object):
 
     def cancelled(self):
         return False
+
+    # -- what guide() and dry_run() may ask (None / empty: cannot tell here) ------------
+    def dns_server_info(self):
+        from acmelib.certs import dnsserver
+        return dnsserver.server_info(getattr(self, 'store', None), self.settings or {})
+
+    def own_addresses(self):
+        return {'vip': None, 'nodes': []}
+
+    def port_open(self, proto, port):
+        return None
+
+    def http_probe(self):
+        return None
 
 
 class SshSession(object):
@@ -268,11 +294,156 @@ class Issuer(Plugin):
         return None
 
 
+# ---------------------------------------------------------------------------
+# What a challenge tells a person: guide() and dry_run()
+# ---------------------------------------------------------------------------
+# Both give {'steps': [step, ...], 'ok': True | False | None}, a step being
+#
+#   {'key': 'cname',                    what kind of step (the same for every module that has it)
+#    'what': 'words: what must be in place',
+#    'where': 'your DNS at firma.cz' | 'acme' | 'the web server 10.0.0.5',
+#    'record': {'name', 'type', 'value', 'ttl'} or None,   the exact record to create
+#    'done': True | False | None,       None: acme cannot tell from here
+#    'said': 'what was found',
+#    'fix': 'what to do' ('' when done),
+#    'blocking': bool}                  False: worth saying, but no reason not to ask the CA
+#
+# 'ok' is False when a step blocks, True when no step blocks and at least one
+# was checked, None when nothing could be checked. The words are plain English,
+# fixed sentences with the names at their edges (web/lang/*.json translates them).
+def guide_step(key, what, where='', record=None, done=None, said='', fix='', blocking=None):
+    if record is not None:
+        record = {'name': str(record.get('name') or ''), 'type': str(record.get('type') or ''),
+                  'value': str(record.get('value') or ''),
+                  'ttl': record.get('ttl')}
+    return {'key': str(key), 'what': str(what), 'where': str(where or ''), 'record': record,
+            'done': done if done in (True, False) else None, 'said': str(said or ''),
+            'fix': '' if done is True else str(fix or ''),
+            'blocking': bool(done is False) if blocking is None else bool(blocking and
+                                                                          done is False)}
+
+
+def guide_of(steps):
+    """{'steps', 'ok'} of a list of steps (see above)."""
+    steps = [s for s in steps or [] if s]
+    if any(s.get('blocking') for s in steps):
+        ok = False
+    elif any(s.get('done') is True for s in steps):
+        ok = True
+    else:
+        ok = None
+    return {'steps': steps, 'ok': ok}
+
+
+def _b64u(data):
+    return base64.urlsafe_b64encode(data).rstrip(b'=').decode('ascii')
+
+
 class Challenge(Plugin):
     """How a name is proved to an ACME CA."""
     family = 'challenge'
     types = ()                      # ('dns-01',) or ('http-01',)
     parallel = True                 # several at once (False: one name at a time)
+    dry_wait = 120                  # seconds dry_run() waits for ready() at most
+    dry_every = 2.0                 # and how often it asks
+
+    # -- what a person is told ---------------------------------------------------------
+    def guide(self, name):
+        """What must be in place for `name` to be proved this way: steps (see
+        guide_step), each checked live where it can be without changing
+        anything (DNS asked, an API read, a probe acme answers fetched).
+        A module says what it knows; this one only says it cannot tell."""
+        return guide_of([guide_step(
+            'try', 'A dry run shows whether this validation works for the name',
+            where='acme', done=None,
+            said='this validation cannot tell what it needs before it is tried',
+            fix='Run a dry run: acme puts a test record in place, looks for it from outside '
+                'and takes it away again', blocking=False)])
+
+    def dry_run(self, name, wait=None):
+        """The validation tried for real, without a CA: a random test value put
+        in place by present(), waited for with ready() (at most `wait`
+        seconds, dry_wait), looked for from outside (seen_outside()) and taken
+        away by cleanup() - always. Each step said through ctx.step as it goes."""
+        import hashlib
+        steps = []
+
+        def say(st):
+            steps.append(st)
+            lvl = 'ok' if st['done'] is True else ('bad' if st['blocking'] else
+                                                   'warn' if st['done'] is False else 'info')
+            words = st['what']
+            if st['said']:
+                words += ': ' + st['said']
+            if st['fix'] and st['done'] is not True:
+                words += ' - ' + st['fix']
+            self.ctx.step(words, lvl)
+
+        if wait is None:
+            try:
+                wait = float((self.ctx.settings or {}).get('certs_dry_run_s') or self.dry_wait)
+            except (TypeError, ValueError):
+                wait = self.dry_wait
+        token = _b64u(os.urandom(24))
+        ka = token + '.' + _b64u(os.urandom(24))
+        txt = _b64u(hashlib.sha256(ka.encode('ascii')).digest())
+        self.ctx.step('Dry run for %s: a test value is put in place, looked for and taken away '
+                      'again - no CA is asked' % name)
+        handle, placed = None, False
+        try:
+            try:
+                handle = self.present(name, token, ka, txt)
+                placed = True
+                say(guide_step('present', 'The test value is put in place', where='acme',
+                               done=True, said=self.dry_said(name, handle)))
+            except PluginError as e:
+                say(guide_step('present', 'The test value is put in place', where='acme',
+                               done=False, said=str(e),
+                               fix='Correct the validation\'s settings, then try again'))
+                return guide_of(steps)
+            end = time.time() + max(1.0, float(wait))
+            seen, err = False, ''
+            while True:
+                if self.ctx.cancelled():
+                    err = 'the job was stopped'
+                    break
+                try:
+                    seen = bool(self.ready(name, handle))
+                except PluginError as e:
+                    err = str(e)
+                    break
+                except Exception as e:                  # noqa: BLE001
+                    self.ctx.debug('ready(%s): %s' % (name, e))
+                    seen = False
+                if seen or time.time() >= end:
+                    break
+                time.sleep(min(self.dry_every, max(0.1, end - time.time())))
+            say(guide_step('ready', 'The test value can be seen where the CA will look',
+                           where='acme', done=seen,
+                           said=err or ('seen' if seen else 'not seen after %d s' % int(wait)),
+                           fix='See the steps above: the record or file is not where the CA '
+                               'looks for it'))
+            for st in self.seen_outside(name, handle) or []:
+                say(st)
+            return guide_of(steps)
+        finally:
+            if placed:
+                try:
+                    self.cleanup(name, handle)
+                    self.ctx.step('The test value is taken away again', 'ok')
+                except Exception as e:                  # noqa: BLE001
+                    say(guide_step('cleanup', 'The test value is taken away again', where='acme',
+                                   done=False, said=str(e), blocking=False,
+                                   fix='Take it away by hand'))
+
+    def dry_said(self, name, handle):
+        """Words for where dry_run() put the test value (a module says it better)."""
+        return ''
+
+    def seen_outside(self, name, handle):
+        """Steps: the test value of dry_run() looked for from outside (the
+        zone's name servers and public resolvers, plain HTTP). [] here."""
+        return []
 
     def present(self, name, token, key_authorization, txt_value):
         """Put the proof in place: for dns-01 the TXT record `txt_value` at

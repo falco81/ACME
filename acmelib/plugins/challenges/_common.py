@@ -25,7 +25,7 @@ import shutil
 import tempfile
 import time
 
-from acmelib.plugins.base import Challenge, PluginError, field
+from acmelib.plugins.base import Challenge, PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
 
 SAFE_TOKEN = re.compile(r'^[A-Za-z0-9_-]{1,256}$')
@@ -474,6 +474,275 @@ class DnsChallenge(Challenge):
             fqdn, zone, ', '.join(have)), 'ok')
         return True
 
+    # -- what a person is told (guide) and the dry run --------------------------------------
+    guide_timeout = 2.0             # seconds for one DNS question of guide()
+    api_provider = False            # True: zone_hint() asks the provider which zones it holds
+
+    def who_words(self):
+        return self.who if getattr(self, 'who', '') else (self.title or self.kind)
+
+    def name_zone(self, fqdn):
+        """The zone a name is in as DNS says (its SOA), or None."""
+        try:
+            return D.find_zone(fqdn, self.resolvers(), timeout=self.guide_timeout)
+        except (D.DnsError, D.FormErr, OSError):
+            return None
+
+    def home_of(self, name):
+        """The zone of a name for the words 'your DNS at ...' (DNS, else its domain)."""
+        n = D.norm(name)
+        while n.startswith('*.'):
+            n = n[2:]
+        return self.name_zone(n) or D.registrable(n)
+
+    def ask_authority(self, name, qtype, zone=None):
+        """(zone, [(ns, Message or None, words)]): the zone's own name servers
+        asked straight (no recursion) - what they hold, no cache in between."""
+        zone = zone or self.name_zone(name)
+        if not zone:
+            return None, []
+        try:
+            servers = D.zone_servers(zone, self.resolvers(), timeout=self.guide_timeout)
+        except (D.DnsError, D.FormErr, OSError):
+            return zone, []
+        out = []
+        for ns, addrs in servers[:4]:
+            got, err = None, 'no address'
+            for a in addrs[:2]:
+                try:
+                    got = D.query(a, name, qtype, port=self.auth_port, timeout=self.guide_timeout,
+                                  rd=False)
+                    if got.rcode not in (D.NOERROR, D.NXDOMAIN):
+                        err = '%s said %s' % (ns, D.RCODES.get(got.rcode, got.rcode))
+                        got = None
+                        continue
+                    break
+                except (D.DnsError, D.FormErr, OSError) as e:
+                    err = str(e)
+            out.append((ns, got, '' if got is not None else err))
+        return zone, out
+
+    def cname_chain(self, rr):
+        """[rr, where its CNAME points, ...] as the zone's own name servers say
+        it (the resolvers when those cannot be asked) - no cached answer."""
+        chain = [D.norm(rr)]
+        for _ in range(8):
+            cur = chain[-1]
+            _zone, said = self.ask_authority(cur, 5)
+            nxt = None
+            for _ns, m, _w in said:
+                if m is None:
+                    continue
+                got = [D.norm(r.text) for r in m.answer if r.rtype == 5 and D.norm(r.name) == cur]
+                nxt = got[0] if got else ''
+                break
+            if nxt is None:
+                try:
+                    m = D.ask_any(self.resolvers(), cur, 5, self.guide_timeout)
+                except (D.DnsError, D.FormErr, OSError):
+                    break
+                got = [D.norm(r.text) for r in m.answer if r.rtype == 5 and D.norm(r.name) == cur]
+                nxt = got[0] if got else ''
+            if not nxt or nxt in chain:
+                break
+            chain.append(nxt)
+        return chain
+
+    def provider_zone(self, fqdn):
+        """The zone the provider holds fqdn in (asked of its API), or None -
+        only for a module that speaks a provider's API (api_provider)."""
+        if not self.api_provider:
+            return None
+        try:
+            return self.zone_hint(fqdn)
+        except PluginError:
+            return None
+
+    def guide(self, name):
+        try:
+            base = base_name(name)
+        except PluginError as e:
+            return guide_of([guide_step('name', 'The name can be proved by DNS-01', done=False,
+                                        said=str(e), fix='Correct the name')])
+        rr = '_acme-challenge.' + base
+        home = self.home_of(base)
+        steps = []
+        fqdn = rr
+        if self.flag('follow_cname'):
+            chain = self.cname_chain(rr)
+            if len(chain) > 1:
+                fqdn = chain[-1]
+                steps.append(guide_step(
+                    'cname', 'The TXT record goes where _acme-challenge points',
+                    where='your DNS at %s' % home,
+                    record={'name': rr, 'type': 'CNAME', 'value': chain[1] + '.', 'ttl': None},
+                    done=True, said='%s is a CNAME to %s' % (rr, fqdn)))
+        access = self.guide_access()
+        steps += access
+        if self.api_provider and any(s['done'] is False for s in access):
+            steps.append(guide_step('zone', 'The zone of the TXT record is at %s'
+                                    % self.who_words(), where=self.who_words(), done=None,
+                                    blocking=False,
+                                    said='this can be checked once acme can sign in there'))
+        else:
+            steps += self.guide_zone(rr, fqdn, home)
+        steps.append(self.guide_txt(fqdn))
+        steps.append(self.guide_wait())
+        return guide_of(steps)
+
+    def guide_access(self):
+        """The module's own test(), which changes nothing: credentials, the server."""
+        where = self.who_words()
+        try:
+            said = self.test()
+        except PluginError as e:
+            return [guide_step('access', 'acme can reach and sign in to %s' % where, where=where,
+                               done=False, said=str(e),
+                               fix='Correct the settings of the validation (credentials, '
+                                   'address), then check again')]
+        except Exception as e:                          # noqa: BLE001
+            return [guide_step('access', 'acme can reach and sign in to %s' % where, where=where,
+                               done=False, said='%s: %s' % (type(e).__name__, e),
+                               fix='Correct the settings of the validation, then check again')]
+        return [guide_step('access', 'acme can reach and sign in to %s' % where, where=where,
+                           done=True, said=str(said or '').split('\n')[0][:300])]
+
+    def guide_zone(self, rr, fqdn, home):
+        """Which zone the TXT record goes in, and whether the internet asks that zone."""
+        who = self.who_words()
+        out = []
+        if self.api_provider:
+            pz = self.provider_zone(fqdn)
+            if not pz:
+                seen = list(getattr(self, '_zone_list', None) or [])
+                rec = None
+                fix = ('Add the zone of %s at %s, or give the credentials access to it' % (
+                    fqdn, who))
+                if seen:
+                    rec = {'name': rr, 'type': 'CNAME', 'value': '%s.%s.' % (rr, seen[0]),
+                           'ttl': None}
+                    fix += (' - or point %s by CNAME into a zone that is there: %s. CNAME '
+                            '%s.%s.' % (rr, rr, rr, seen[0]))
+                out.append(guide_step('zone', 'The zone of the TXT record is at %s' % who,
+                                      where=who, record=rec, done=False,
+                                      said='%s is in no zone these credentials see' % fqdn,
+                                      fix=fix))
+                return out
+            out.append(guide_step('zone', 'The zone of the TXT record is at %s' % who,
+                                  where=who, done=True,
+                                  said='%s goes in the zone %s' % (fqdn, pz)))
+            out.append(self.guide_delegated(fqdn, pz))
+            return out
+        try:
+            z = self.zone_for(fqdn)
+        except PluginError as e:
+            out.append(guide_step('zone', 'The zone of the TXT record is known', where=home,
+                                  done=False, said=str(e),
+                                  fix='Set the zone in the validation\'s settings'))
+            return out
+        out.append(guide_step('zone', 'The zone of the TXT record is known',
+                              where='your DNS at %s' % z, done=True,
+                              said='%s goes in the zone %s' % (fqdn, z)))
+        return out
+
+    def guide_delegated(self, fqdn, zone):
+        """Is `zone` the one the internet asks for fqdn (no other zone under it,
+        its name servers there)?"""
+        who = self.who_words()
+        seen = self.name_zone(fqdn)
+        if seen and seen != D.norm(zone) and D.in_zone(seen, zone):
+            return guide_step(
+                'delegated', 'The internet asks %s for the record' % who,
+                where='the DNS of %s' % zone, done=False,
+                said='%s is in the zone %s on the internet, not in %s' % (fqdn, seen, zone),
+                fix='The zone %s is delegated elsewhere: write the record there (another '
+                    'validation), or take that delegation away' % seen)
+        try:
+            ns = D.zone_servers(zone, self.resolvers(), timeout=self.guide_timeout)
+        except (D.DnsError, D.FormErr, OSError) as e:
+            return guide_step('delegated', 'The internet asks %s for the record' % who,
+                              where='the registry of %s' % zone, done=None, blocking=False,
+                              said='the name servers of %s could not be looked up: %s'
+                                   % (zone, e))
+        if not ns:
+            return guide_step('delegated', 'The internet asks %s for the record' % who,
+                              where='the registry of %s' % zone, done=False,
+                              said='the zone %s has no name servers on the internet' % zone,
+                              fix='Make the registrar of %s point it at the name servers of %s'
+                                  % (zone, who))
+        return guide_step('delegated', 'The internet asks %s for the record' % who,
+                          where='the registry of %s' % zone, done=True,
+                          said='%s is answered by %s' % (zone, ', '.join(n for n, _a in ns)))
+
+    def guide_txt(self, fqdn):
+        return guide_step('txt', 'acme writes the TXT record itself at every order',
+                          where=self.who_words(),
+                          record={'name': fqdn, 'type': 'TXT', 'value': '(new at every order)',
+                                  'ttl': self.ttl()},
+                          done=None, blocking=False,
+                          said='nothing to create by hand: %s is written and taken away by '
+                               'acme' % fqdn)
+
+    def wait_words(self):
+        mode = self.c('propagation', 'auth')
+        how = {'auth': 'every name server of the zone has it',
+               'auth+public': 'every name server of the zone, then the public resolvers have it',
+               'resolvers': 'the resolvers of the validation see it',
+               'none': 'nothing: the CA is asked at once'}.get(mode, mode)
+        words = 'TTL %d s; before the CA looks, acme waits until %s' % (self.ttl(), how)
+        if self.num('delay', 0):
+            words += ' (and at least %d s)' % self.num('delay', 0)
+        return words
+
+    def guide_wait(self):
+        return guide_step('wait', 'acme waits until the record can be seen', where='acme',
+                          done=None, blocking=False, said=self.wait_words())
+
+    def dry_said(self, name, handle):
+        h = handle or {}
+        return '%s TXT "%s"' % (h.get('fqdn') or '?', h.get('txt') or '')
+
+    def seen_outside(self, name, handle):
+        """The test value asked of the zone's name servers and of public resolvers."""
+        h = handle or {}
+        fqdn, rr, txt = h.get('fqdn'), h.get('rr'), h.get('txt')
+        if not fqdn or not txt:
+            return []
+        out = []
+        try:
+            zone = self.zone_for(fqdn)
+        except PluginError:
+            zone = fqdn
+        try:
+            ok = self.seen_by_authority(fqdn, txt)
+        except PluginError as e:
+            ok, self._said['auth:' + fqdn] = False, str(e)
+        out.append(guide_step(
+            'authoritative', 'The zone\'s own name servers answer the test value',
+            where='the name servers of %s' % zone, done=ok,
+            said=self._said.get('auth:' + fqdn, '') or (
+                'none of them can be asked from here' if ok is None else ''),
+            fix='The record is not on every name server of %s: is the zone delegated to the '
+                'servers acme writes to (the NS records at its parent)?' % zone))
+        pub = self.lst('public_resolvers') or list(D.PUBLIC_RESOLVERS)
+        have, lacking = [], []
+        for srv in pub:
+            host, port = D.split_hostport(srv)
+            try:
+                m = D.query(host, rr, 16, port=port, rd=True, timeout=self.guide_timeout)
+            except (D.DnsError, D.FormErr, OSError):
+                continue
+            (have if txt in [r.text for r in m.answer if r.rtype == 16] else lacking).append(srv)
+        state = None if not have and not lacking else not lacking
+        out.append(guide_step(
+            'public', 'Public resolvers see the test value at %s' % rr,
+            where=', '.join(pub), done=state, blocking=False,
+            said=('seen by %s' % ', '.join(have)) if state else
+                 ('not seen by %s' % ', '.join(lacking)) if lacking else
+                 'none of them answered from here',
+            fix='A resolver may still keep an older answer (its TTL); the CA asks without one'))
+        return out
+
 
 # ---------------------------------------------------------------------------
 # HTTP-01
@@ -529,6 +798,92 @@ class HttpChallenge(Challenge):
                 return True, '%s answers it' % url
             return False, '%s answers something else (%r)' % (url, text.strip()[:60])
         return False, '%s: too many redirects' % url
+
+    # -- what a person is told (guide) and the dry run --------------------------------------
+    http_port = 80                  # where the CA fetches (a test changes it)
+    guide_timeout = 2.0
+
+    def resolvers(self):
+        return as_list(settings(self.ctx).get('acme_resolvers')) or D.system_resolvers()
+
+    def lookup(self, name):
+        """The addresses a name has (A and AAAA, CNAMEs followed by the resolvers)."""
+        try:
+            return D.addresses(D.norm(name), self.resolvers(), timeout=self.guide_timeout)
+        except (D.DnsError, D.FormErr, OSError):
+            return []
+
+    def url(self, host, token):
+        h = '[%s]' % host if ':' in host else host
+        return 'http://%s%s/.well-known/acme-challenge/%s' % (
+            h, '' if int(self.http_port) == 80 else ':%d' % int(self.http_port), token)
+
+    def answering(self, name):
+        """[address] of the machines that answer http://NAME/ (a module says)."""
+        return []
+
+    def guide_wildcard(self, name):
+        """[step] refusing a wildcard (HTTP-01 cannot prove one), else []."""
+        if D.norm(name).startswith('*.'):
+            return [guide_step(
+                'wildcard', 'HTTP-01 can prove this name', where='acme', done=False,
+                said='%s is a wildcard: the CA proves a wildcard by DNS-01 only' % name,
+                fix='Choose a DNS validation for %s (acme\'s own DNS server or your DNS '
+                    'provider)' % name)]
+        return []
+
+    def guide_points(self, name, want, record_value, fix_else, soft=False):
+        """The step: the name's A/AAAA are among `want` addresses."""
+        got = self.lookup(name)
+        n = D.norm(name)
+        home = D.registrable(n)
+        rtype = 'AAAA' if ':' in (record_value or '') else 'A'
+        rec = {'name': n, 'type': rtype, 'value': record_value, 'ttl': None} \
+            if record_value else None
+        if not got:
+            return guide_step('address', 'The name points at the machine that answers HTTP-01',
+                              where='your DNS at %s' % home, record=rec, done=False,
+                              said='%s has no A or AAAA record' % n,
+                              fix=('Create in your DNS: %s. %s %s' % (n, rtype, record_value))
+                              if record_value else 'Create an A record for %s' % n)
+        hit = [a for a in got if a in set(want)]
+        if hit:
+            return guide_step('address', 'The name points at the machine that answers HTTP-01',
+                              where='your DNS at %s' % home, record=rec, done=True,
+                              said='%s points at %s' % (n, ', '.join(hit)))
+        return guide_step('address', 'The name points at the machine that answers HTTP-01',
+                          where='your DNS at %s' % home, record=rec, done=False,
+                          blocking=not soft,
+                          said='%s points at %s, not at %s' % (
+                              n, ', '.join(got), ', '.join(want) or 'any address acme knows'),
+                          fix=fix_else)
+
+    def dry_said(self, name, handle):
+        h = handle or {}
+        return self.url(D.norm(name), h.get('token') or '?')
+
+    def seen_outside(self, name, handle):
+        """The test file fetched over plain HTTP: by the name, as the CA does,
+        and from each machine that should answer it, by its address (Host: NAME)."""
+        h = handle or {}
+        token, ka = h.get('token'), h.get('ka')
+        if not token or not ka:
+            return []
+        n = D.norm(name)
+        out = []
+        ok, words = self.fetch(self.url(n, token), ka)
+        out.append(guide_step('by_name', 'The test file is served at http://%s/' % n,
+                              where=n, done=ok, said=words, blocking=False,
+                              fix='This machine may not reach its own public name (no hairpin '
+                                  'NAT); the CA asks from the internet - the steps below say '
+                                  'more'))
+        for addr in self.answering(name):
+            ok, words = self.fetch(self.url(addr, token), ka, host=n)
+            out.append(guide_step('by_address', 'The test file is served by %s' % addr,
+                                  where='the web server %s' % addr, done=ok, said=words,
+                                  fix='Make %s serve /.well-known/acme-challenge/ for %s on '
+                                      'port %d' % (addr, n, int(self.http_port))))
+        return out
 
 
 def _header(h, name):

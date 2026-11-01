@@ -374,3 +374,19 @@ table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:
 .set-item > label:has(.ct-secret-tag){display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .set-item > label .ct-secret-tag{margin-left:0}
 
+
+/* ---- the default of a list: the star ---------------------------------------- */
+.iconbtn.ct-star svg,.btn.ct-star svg{transition:fill .15s,color .15s}
+.ct-star.on{color:#e3b341}
+.ct-star.on svg{fill:currentColor}
+.ct-pki-line .btn{margin-left:8px}
+.ct-default-note{display:flex;gap:6px;align-items:center}
+
+/* ---- HTTP-01 here, publishing on acme --------------------------------------- */
+.ct-http{margin-top:14px;padding-top:4px;border-top:1px solid var(--line)}
+.ct-http-row{margin-top:4px}
+.ct-http-row.ct-http-warn{color:var(--warn,#d29922)}
+.ct-url{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;word-break:break-all}
+.ct-url .iconbtn{padding:2px}
+.ct-inline-switch{margin-left:10px;vertical-align:middle}
+.ct-pki-line{margin:0 0 12px}

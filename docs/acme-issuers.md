@@ -35,7 +35,7 @@ the time to try again.
 
 | Field | |
 |---|---|
-| CA | Let's Encrypt, its staging, ZeroSSL, Google (and staging), Buypass, SSL.com RSA / ECC, or another ACME server by its directory URL |
+| CA | Let's Encrypt, its staging, ZeroSSL, Google (and staging), Buypass, SSL.com RSA / ECC, DigiCert, or another ACME server by its directory URL |
 | Contact e-mails | told to the CA with the account; changing them updates the account |
 | EAB key id / HMAC key | External Account Binding - see below |
 | Account key | ECDSA P-256 (default), P-384, RSA 2048/3072/4096. **Changing it makes a new account** |
@@ -54,6 +54,7 @@ the time to try again.
 | Google Trust Services | `https://dv.acme-v02.api.pki.goog/directory` | yes - `gcloud publicca external-account-keys create` (a key is used once, for one account) |
 | Buypass Go SSL | `https://api.buypass.com/acme/directory` | no |
 | SSL.com | `https://acme.ssl.com/sslcom-dv-rsa` / `-ecc` | yes - the account's API credentials page |
+| DigiCert (CertCentral, or as sold by SSLmarket) | `https://acme.digicert.com/v2/acme/directory/` (a regional URL where DigiCert / SSLmarket gives one: *Another ACME server*) | yes - CertCentral → Automation → ACME, or SSLmarket's customer administration (see `sslmarket.md`) |
 | Sectigo | choose *Another ACME server*; e.g. `https://acme.sectigo.com/v2/DV` (or OV/EV, or your Sectigo Certificate Manager URL) | yes - from Sectigo |
 | step-ca (Smallstep) | `https://ca.example.local/acme/<provisioner>/directory`, with its root as *CA certificate* | only when the provisioner has `requireEAB` |
 

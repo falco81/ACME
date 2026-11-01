@@ -239,7 +239,8 @@ def family(con, fam):
             return fam_add(con, fam)
         return fam_do(con, fam, r)
     con.pick(title, load, cols, do, 'none yet',
-             '* what a new certificate takes when none is said' if fam != 'target' else '')
+             '* the default: what a new certificate takes when none is said' if fam != 'target'
+             else '* the default: offered first for a new deployment')
 
 
 def fam_add(con, fam):
@@ -276,7 +277,11 @@ def fam_do(con, fam, r):
     name = r['name']
     opts = [('show', 'Show it all'), ('test', 'Try it (nothing is changed)'),
             ('edit', 'Change its settings'), ('rename', 'Rename it'),
-            ('switch', 'Switch it %s' % ('off' if r.get('enabled', 1) else 'on'))]
+            ('switch', 'Switch it %s' % ('off' if r.get('enabled', 1) else 'on')),
+            ('default', 'No default %s any more' % word if r.get('is_default') else
+             'Make it the default %s' % word)]
+    if fam == 'challenge' and r.get('kind') == 'http_local':
+        opts.append(('check', 'Check a name (HTTP-01 from here)'))
     for a in r.get('actions') or []:
         opts.append(('act:' + a['key'], a.get('label') or a['key']))
     if fam == 'target':
@@ -306,6 +311,13 @@ def fam_do(con, fam, r):
             con.act('--%s-edit' % word, name, '--name', new)
     elif what == 'switch':
         con.act('--%s-edit' % word, name, '--enabled', 'off' if r.get('enabled', 1) else 'on')
+    elif what == 'default':
+        con.act('--%s-default' % word, 'none' if r.get('is_default') else name)
+    elif what == 'check':
+        host = con.ask_one('Check a name', 'the name', '', 'acme puts a probe token in place '
+                           'and fetches http://NAME/.well-known/acme-challenge/ from here.')
+        if host:
+            con.live(lambda: (con.cmd('--validation-check', name, host), con.pause()))
     elif what and what.startswith('act:'):
         key = what[4:]
         a = next((x for x in r.get('actions') or [] if x['key'] == key), {})
@@ -584,7 +596,7 @@ def cas(con):
                 {'name': '+ import one (a file)', '_new': 'import'}] + \
             con._rows(con.out('--cas'), 'rows')
 
-    cols = [('authority', lambda r: r.get('name'), 28,
+    cols = [('authority', lambda r: r.get('name') + (' *' if r.get('is_default') else ''), 28,
              lambda r: 'ok' if r.get('_new') else None),
             ('key', lambda r: r.get('key_type') or '', 8, None),
             ('ends', lambda r: '' if r.get('_new') else _when(r.get('not_after')), 10, None),
@@ -616,7 +628,8 @@ def cas(con):
                     con.act(*args)
             return
         return ca_do(con, r)
-    con.pick('Authorities', load, cols, do, 'none yet')
+    con.pick('Authorities', load, cols, do, 'none yet',
+             '* the default: offered first for an own-CA source and for signing a CSR')
 
 
 def ca_new(con, how):
@@ -659,9 +672,27 @@ def ca_do(con, r):
     what = con.choose(name, [('show', 'Show it and what it signed'), ('crl', 'A new CRL'),
                              ('export', 'Export it into a file'),
                              ('sign', 'Sign a CSR from elsewhere'),
-                             ('revoke', 'Revoke something it signed'), ('del', 'Delete it')])
+                             ('revoke', 'Revoke something it signed'),
+                             ('default', 'No default authority any more' if r.get('is_default')
+                              else 'Make it the default authority'),
+                             ('publish', 'Stop publishing it on acme' if r.get('published')
+                              else 'Publish it on acme (/pki/)'),
+                             ('pki_urls', 'Use acme\'s own URLs in what it signs'),
+                             ('pki_check', 'Check what is published (over HTTP)'),
+                             ('del', 'Delete it')])
     if what == 'show':
         con.act('--ca-show', name)
+    elif what == 'default':
+        con.act('--ca-default', 'none' if r.get('is_default') else name)
+    elif what == 'publish':
+        con.act('--ca-publish', name, 'off' if r.get('published') else 'on')
+    elif what == 'pki_urls':
+        if con.confirm('acme\'s own URLs', 'What %s signs from now on carries the CRL and CA '
+                       'certificate addresses of acme (/pki/). Certificates issued before keep '
+                       'theirs.' % name, 'Use them'):
+            con.act('--ca-pki-urls', name)
+    elif what == 'pki_check':
+        con.live(lambda: (con.cmd('--ca-pki-check', name), con.pause()))
     elif what == 'crl':
         out = con.ask_one('A new CRL of ' + name, 'into the file', '/root/%s.crl.pem' % name)
         if out:

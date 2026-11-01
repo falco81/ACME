@@ -26043,6 +26043,302 @@
   "sx0008": {
    "source": "Requests (CSRs) given out to a CA acme does not speak to, waiting for its certificate.",
    "text": "Žádosti (CSR) předané CA, se kterou acme nemluví, čekající na její certifikát."
+  },
+  "sc1444": {
+   "source": "SSLmarket.cz (DigiCert, Sectigo, GeoTrust…)",
+   "text": "SSLmarket.cz (DigiCert, Sectigo, GeoTrust…)"
+  },
+  "sc1445": {
+   "source": "Commercial certificates (DigiCert, GeoTrust, Thawte, RapidSSL, Sectigo) ordered and reissued through the API of SSLmarket; the DCV record or file put in place by the certificate's challenge. New (paid) orders only when allowed; OV/EV orders waiting for validation are fetched later.",
+   "text": "Komerční certifikáty (DigiCert, GeoTrust, Thawte, RapidSSL, Sectigo) objednávané a znovu vydávané přes API SSLmarketu; záznam nebo soubor DCV umístí ověření certifikátu. Nové (placené) objednávky jen tam, kde jsou povoleny; objednávky OV/EV čekající na ověření se vyzvednou později."
+  },
+  "sc1446": {
+   "source": "The SSLmarket your customer account is at (the account and its credit belong to that one).",
+   "text": "SSLmarket, u kterého máte zákaznický účet (účet i jeho kredit patří k němu)."
+  },
+  "sc1447": {
+   "source": "Another address (a test system SSLmarket gave you)",
+   "text": "Jiná adresa (testovací systém, který vám dal SSLmarket)"
+  },
+  "sc1448": {
+   "source": "SSLmarket offers no public sandbox: a test address only where SSLmarket gave you one.",
+   "text": "SSLmarket nemá veřejný sandbox: testovací adresu jen tehdy, když vám ji SSLmarket dal."
+  },
+  "sc1449": {
+   "source": "Customer administration → account settings → \"Account access via API\" (Přístup k účtu přes API): switched on, it shows the key. Sent as X-Auth-Token.",
+   "text": "Zákaznická administrace → nastavení účtu → „Přístup k účtu přes API“: po zapnutí ukáže klíč. Posílá se jako X-Auth-Token."
+  },
+  "sc1450": {
+   "source": "Product",
+   "text": "Produkt"
+  },
+  "sc1451": {
+   "source": "What is ordered. The codes are those of SSLmarket's documentation; \"Load the products\" lists the codes of your account.",
+   "text": "Co se objednává. Kódy jsou podle dokumentace SSLmarketu; „Načíst produkty“ vypíše kódy vašeho účtu."
+  },
+  "sc1452": {
+   "source": "Another product (its code)",
+   "text": "Jiný produkt (jeho kód)"
+  },
+  "sc1453": {
+   "source": "Product code",
+   "text": "Kód produktu"
+  },
+  "sc1454": {
+   "source": "The code as \"Load the products\" (or the Swagger) shows it.",
+   "text": "Kód tak, jak ho ukáže „Načíst produkty“ (nebo Swagger)."
+  },
+  "sc1455": {
+   "source": "Subscription (years)",
+   "text": "Předplatné (roky)"
+  },
+  "sc1456": {
+   "source": "What a new order buys. A certificate lives at most 200 days (CA/B Forum, since March 2026): a longer subscription is served by reissues, free.",
+   "text": "Co nová objednávka koupí. Certifikát platí nejvýše 200 dní (CA/B Forum, od března 2026): delší předplatné se pokrývá znovuvydáním, zdarma."
+  },
+  "sc1457": {
+   "source": "3 years",
+   "text": "3 roky"
+  },
+  "sc1458": {
+   "source": "4 years",
+   "text": "4 roky"
+  },
+  "sc1459": {
+   "source": "Kind of validation",
+   "text": "Druh ověření"
+  },
+  "sc1460": {
+   "source": "OV and EV need the organisation's details and take the CA hours or days.",
+   "text": "OV a EV potřebují údaje o organizaci a CA jim věnuje hodiny až dny."
+  },
+  "sc1461": {
+   "source": "DV - the domain only",
+   "text": "DV – jen doména"
+  },
+  "sc1462": {
+   "source": "OV - the organisation too",
+   "text": "OV – i organizace"
+  },
+  "sc1463": {
+   "source": "EV - extended",
+   "text": "EV – rozšířené"
+  },
+  "sc1464": {
+   "source": "Domain validation (DCV)",
+   "text": "Ověření domény (DCV)"
+  },
+  "sc1465": {
+   "source": "How the CA checks the domain. DNS and HTTP are done by the challenge module of the certificate, as for ACME; e-mail needs a person to click.",
+   "text": "Jak CA ověří doménu. DNS a HTTP obstará modul ověření certifikátu, stejně jako u ACME; e-mail potřebuje člověka, který klikne."
+  },
+  "sc1466": {
+   "source": "DNS TXT record (by the certificate's DNS challenge)",
+   "text": "Záznam DNS TXT (ověřením DNS certifikátu)"
+  },
+  "sc1467": {
+   "source": "DNS CNAME record (Sectigo)",
+   "text": "Záznam DNS CNAME (Sectigo)"
+  },
+  "sc1468": {
+   "source": "HTTP file in /.well-known/pki-validation/ (by the certificate's HTTP challenge)",
+   "text": "Soubor HTTP v /.well-known/pki-validation/ (ověřením HTTP certifikátu)"
+  },
+  "sc1469": {
+   "source": "E-mail to the domain's approver address",
+   "text": "E-mail na schvalovací adresu domény"
+  },
+  "sc1470": {
+   "source": "Approver e-mail",
+   "text": "Schvalovací e-mail"
+  },
+  "sc1471": {
+   "source": "admin@, administrator@, hostmaster@, webmaster@, postmaster@ (of the domain), or WHOIS.",
+   "text": "admin@, administrator@, hostmaster@, webmaster@, postmaster@ (dané domény), nebo WHOIS."
+  },
+  "sc1472": {
+   "source": "As in the commercial register.",
+   "text": "Jako v obchodním rejstříku."
+  },
+  "sc1473": {
+   "source": "Street",
+   "text": "Ulice"
+  },
+  "sc1474": {
+   "source": "Post code",
+   "text": "PSČ"
+  },
+  "sc1475": {
+   "source": "Country (2 letters)",
+   "text": "Země (2 písmena)"
+  },
+  "sc1476": {
+   "source": "Company ID (IČO)",
+   "text": "IČO"
+  },
+  "sc1477": {
+   "source": "Organisation's phone",
+   "text": "Telefon organizace"
+  },
+  "sc1478": {
+   "source": "Contact: first name",
+   "text": "Kontakt: jméno"
+  },
+  "sc1479": {
+   "source": "Contact: last name",
+   "text": "Kontakt: příjmení"
+  },
+  "sc1480": {
+   "source": "Contact: e-mail",
+   "text": "Kontakt: e-mail"
+  },
+  "sc1481": {
+   "source": "The person who asks for the certificate; the CA may call or write to them (OV/EV).",
+   "text": "Osoba, která o certifikát žádá; CA jí může zavolat nebo napsat (OV/EV)."
+  },
+  "sc1482": {
+   "source": "Contact: phone",
+   "text": "Kontakt: telefon"
+  },
+  "sc1483": {
+   "source": "At a renewal",
+   "text": "Při obnově"
+  },
+  "sc1484": {
+   "source": "A renewal of a commercial certificate costs money; a reissue inside a paid multi-year subscription does not.",
+   "text": "Obnova komerčního certifikátu stojí peníze; znovuvydání v rámci zaplaceného víceletého předplatného ne."
+  },
+  "sc1485": {
+   "source": "Reissue inside the order while its subscription runs (free); a renewal order only when paid orders are allowed",
+   "text": "Znovu vydat v rámci objednávky, dokud běží její předplatné (zdarma); objednávka obnovy jen tam, kde jsou placené objednávky povoleny"
+  },
+  "sc1486": {
+   "source": "Always a renewal order (paid)",
+   "text": "Vždy objednávka obnovy (placená)"
+  },
+  "sc1487": {
+   "source": "Always a new order (paid)",
+   "text": "Vždy nová objednávka (placená)"
+  },
+  "sc1488": {
+   "source": "Allow new orders (paid)",
+   "text": "Povolit nové objednávky (placené)"
+  },
+  "sc1489": {
+   "source": "Off: acme never buys anything - it only reissues inside orders paid already, and stops with words where a purchase would be needed. On: the first certificate and an ended subscription are ordered (and paid from the credit) by themselves.",
+   "text": "Vypnuto: acme nikdy nic nekoupí – jen znovu vydává v rámci už zaplacených objednávek a tam, kde by byl potřeba nákup, se zastaví s vysvětlením. Zapnuto: první certifikát a skončené předplatné se objednají (a zaplatí z kreditu) samy."
+  },
+  "sc1490": {
+   "source": "Order to reuse",
+   "text": "Objednávka k opětovnému použití"
+  },
+  "sc1491": {
+   "source": "An order bought already (e.g. in the customer administration, a multi-year subscription): the certificate is reissued inside it. Empty: the order acme made last for the certificate.",
+   "text": "Už koupená objednávka (např. v zákaznické administraci, víceleté předplatné): certifikát se v ní znovu vydá. Prázdné: objednávka, kterou pro certifikát naposledy udělalo acme."
+  },
+  "sc1492": {
+   "source": "Reissue while the subscription runs at least (days)",
+   "text": "Znovu vydat, dokud předplatné běží ještě aspoň (dní)"
+  },
+  "sc1493": {
+   "source": "Fewer days left: a renewal order is needed (when allowed).",
+   "text": "Zbývá-li méně dní: je potřeba objednávka obnovy (je-li povolena)."
+  },
+  "sc1494": {
+   "source": "Discount voucher",
+   "text": "Slevový kupon"
+  },
+  "sc1495": {
+   "source": "More order fields",
+   "text": "Další pole objednávky"
+  },
+  "sc1496": {
+   "source": "key=value lines added to every new order and reissue, for what the API wants and this form does not ask.",
+   "text": "Řádky klíč=hodnota přidané ke každé nové objednávce a znovuvydání – pro to, co API chce a tento formulář se neptá."
+  },
+  "sc1497": {
+   "source": "Label of the DNS TXT record",
+   "text": "Návěští záznamu DNS TXT"
+  },
+  "sc1498": {
+   "source": "Where the TXT record goes when the API does not say: LABEL.NAME (DigiCert: _dnsauth; @ for NAME itself).",
+   "text": "Kam jde záznam TXT, když to API neřekne: NÁVĚŠTÍ.JMÉNO (DigiCert: _dnsauth; @ pro samotné JMÉNO)."
+  },
+  "sc1499": {
+   "source": "How long a try waits for the CA (DV: minutes). Longer: the order is asked for again at the next try (OV/EV: days).",
+   "text": "Jak dlouho pokus čeká na CA (DV: minuty). Déle: na objednávku se acme zeptá znovu při dalším pokusu (OV/EV: dny)."
+  },
+  "sc1500": {
+   "source": "Wait for the DCV record to be visible (s)",
+   "text": "Čekat na viditelnost záznamu DCV (s)"
+  },
+  "sc1501": {
+   "source": "Sent as",
+   "text": "Posílat jako"
+  },
+  "sc1502": {
+   "source": "Form fields (x-www-form-urlencoded)",
+   "text": "Pole formuláře (x-www-form-urlencoded)"
+  },
+  "sc1503": {
+   "source": "Header of the API key",
+   "text": "Hlavička klíče API"
+  },
+  "sc1504": {
+   "source": "Path: Products",
+   "text": "Cesta: produkty"
+  },
+  "sc1505": {
+   "source": "Under the API address; {order} and {product} are filled in.",
+   "text": "Pod adresou API; {order} a {product} se doplní."
+  },
+  "sc1506": {
+   "source": "Path: Order list",
+   "text": "Cesta: seznam objednávek"
+  },
+  "sc1507": {
+   "source": "Path: Account (credit)",
+   "text": "Cesta: účet (kredit)"
+  },
+  "sc1508": {
+   "source": "Path: New order",
+   "text": "Cesta: nová objednávka"
+  },
+  "sc1509": {
+   "source": "Path: Order detail",
+   "text": "Cesta: detail objednávky"
+  },
+  "sc1510": {
+   "source": "Path: Reissue",
+   "text": "Cesta: znovuvydání"
+  },
+  "sc1511": {
+   "source": "Path: Certificate download",
+   "text": "Cesta: stažení certifikátu"
+  },
+  "sc1512": {
+   "source": "Path: Revocation",
+   "text": "Cesta: revokace"
+  },
+  "sc1513": {
+   "source": "Path: Ask for the DCV check (empty: none)",
+   "text": "Cesta: požádat o kontrolu DCV (prázdné: žádná)"
+  },
+  "sc1514": {
+   "source": "Load the products",
+   "text": "Načíst produkty"
+  },
+  "sc1515": {
+   "source": "Lists the products (codes, prices) the account can order and keeps them for the check of the product code. Orders nothing.",
+   "text": "Vypíše produkty (kódy, ceny), které může účet objednat, a uchová je pro kontrolu kódu produktu. Nic neobjedná."
+  },
+  "sc1516": {
+   "source": "List the orders",
+   "text": "Vypsat objednávky"
+  },
+  "sc1517": {
+   "source": "The orders of the account, with their state and the end of the subscription - to find the order to reuse. Orders nothing.",
+   "text": "Objednávky účtu s jejich stavem a koncem předplatného – k nalezení objednávky k opětovnému použití. Nic neobjedná."
   }
  },
  "patterns": {

@@ -269,8 +269,8 @@ class SslmarketIssuer(Issuer):
         field('years', 'Subscription (years)', 'select', default='1',
               options=[['1', '1 year'], ['2', '2 years'], ['3', '3 years'], ['4', '4 years'],
                        ['5', '5 years']],
-              help='What a new order buys. A certificate lives at most 398 days (fewer from '
-                   '2026, CA/B Forum): a longer subscription is served by reissues, free.'),
+              help='What a new order buys. A certificate lives at most 200 days (CA/B Forum, '
+                   'since March 2026): a longer subscription is served by reissues, free.'),
         field('validation', 'Kind of validation', 'select', default='dv',
               options=[['dv', 'DV - the domain only'], ['ov', 'OV - the organisation too'],
                        ['ev', 'EV - extended']],

@@ -2678,8 +2678,10 @@ function certWizard(cert, detail) {
       noI18n(ic);
       top.appendChild(ic);
       var w = el('span', 'ct-dep-w');
-      w.appendChild(data('b', '', t.name));
-      if (t.is_default) w.appendChild(el('span', 'tag ok small', 'default'));
+      var wn = el('span', '');
+      wn.appendChild(data('b', '', t.name));
+      if (t.is_default) { wn.appendChild(document.createTextNode(' ')); wn.appendChild(el('span', 'tag ok small', 'default')); }
+      w.appendChild(wn);
       w.appendChild(data('span', 'muted small', (p ? p.title : t.kind) + (t.config && (t.config.host || t.config.address) ? ' · ' + (t.config.host || t.config.address) : '')));
       top.appendChild(w);
       row.appendChild(top);
@@ -3197,11 +3199,6 @@ function caNode(c, depth, kids) {
   w.appendChild(t);
   w.appendChild(data('div', 'mono small muted ct-node-dn', c.subject_dn || ''));
   n.appendChild(w);
-  if (FULL && !c.pending) {
-    var star = defaultButton('cas', c);
-    star.classList.add('ct-node-star');
-    n.appendChild(star);
-  }
   var f = el('div', 'ct-node-f');
   f.appendChild(ftag('Key', keyWords(c.key_type), 'k'));
   f.appendChild(ftag('Until', c.not_after ? dayOnly(c.not_after) : '–', 'u'));
@@ -3220,6 +3217,11 @@ function caNode(c, depth, kids) {
   f.appendChild(ct);
   f.appendChild(ftag('Below', kids ? num(kids) : '–', 'b'));
   n.appendChild(f);
+  if (FULL && !c.pending) {
+    var star = defaultButton('cas', c);
+    star.classList.add('ct-node-star');
+    n.appendChild(star);
+  }
   n.onclick = function () { caPeek(c.id); };
   n.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); caPeek(c.id); } };
   return n;
@@ -3462,16 +3464,12 @@ function pkiCard(list) {
     } else {
       line.appendChild(el('span', '', 'nothing yet - switched off, or no authority has a certificate. '));
     }
-    var open = el('a', '', 'what is published');
-    open.href = '/pki/';
-    open.target = '_blank';
-    open.rel = 'noopener';
+    var open = cmdButton('What is published', 'globe', 'small');
+    open.onclick = function () { window.open('/pki/', '_blank', 'noopener'); };
     line.appendChild(open);
     if (FULL) {
-      line.appendChild(el('span', '', ' · '));
-      var st = el('a', '', 'settings');
-      st.href = '#settings/certs';
-      st.onclick = function (e) { e.preventDefault(); goPkiSettings(); };
+      var st = cmdButton('Settings', 'gear', 'small');
+      st.onclick = goPkiSettings;
       line.appendChild(st);
     }
     box.appendChild(line);
@@ -3502,7 +3500,16 @@ function subjectFields(g, f, cnNeeded) {
     g.appendChild(item);
   });
 }
+/** An authority that can sign now (a certificate, a key, not off). */
+function caSigns(c) { return c && !c.pending && c.has_key !== false && !(c.disabled && truthy(c.disabled)); }
+function caPairs(list) {
+  return list.map(function (c) { return [String(c.id), c.name + (c.is_default ? ' · ' + tr('default') : '')]; });
+}
 function caCreate(parent) {
+  /* The authorities asked anew: one made a moment ago is offered as a parent. */
+  casNow(true).catch(function () { return CAS; }).then(function () { caCreateForm(parent); });
+}
+function caCreateForm(parent) {
   var f = {};
   var isRoot = parent === null;
   var title = isRoot ? 'A new root authority' : 'A new intermediate authority';
@@ -3517,7 +3524,9 @@ function caCreate(parent) {
     ni.classList.add('ct-req');
     g.appendChild(ni);
     if (!isRoot) {
-      f.parent = selectBox(CAS.map(function (c) { return [String(c.id), c.name]; }), parent ? String(parent.id) : (CAS[0] ? String(CAS[0].id) : ''));
+      var signers = CAS.filter(caSigns);
+      var dca = defaultOf(signers);
+      f.parent = selectBox(caPairs(signers.length ? signers : CAS), parent ? String(parent.id) : (dca ? String(dca.id) : (CAS[0] ? String(CAS[0].id) : '')));
       noI18n(f.parent);
       g.appendChild(formField('Signed by', f.parent));
     }
@@ -3536,12 +3545,16 @@ function caCreate(parent) {
     var pg = el('div', 'formgrid');
     f.crlDays = numberBox(7, '7', 1, 365);
     pg.appendChild(formField('CRL made anew every (days)', f.crlDays));
+    f.pub = switchBox(true);
+    var pubField = formField('Publish on acme', f.pub, 'Its CRL and certificate served by acme itself at /pki/ (port 80, every node and the VIP address). The two addresses below are then acme’s own unless given - so every certificate it signs points here.');
+    pubField.classList.add('wide');
+    pg.appendChild(pubField);
     f.crlUrl = textBox('', 'http://pki.example.cz/root.crl', 'mono');
     noI18n(f.crlUrl);
-    pg.appendChild(formField('CRL address', f.crlUrl, 'Written into what it signs, so a client can find the CRL. Empty: none.'));
+    pg.appendChild(formField('CRL address', f.crlUrl, 'Written into what it signs, so a client can find the CRL. Empty: acme’s own when it is published on acme, else none.'));
     f.aia = textBox('', 'http://pki.example.cz/root.crt', 'mono');
     noI18n(f.aia);
-    pg.appendChild(formField('AIA address', f.aia, 'Where its own certificate can be fetched.'));
+    pg.appendChild(formField('AIA address', f.aia, 'Where its own certificate can be fetched. Empty: acme’s own when it is published on acme.'));
     f.nc = areaBox('', 'permitted DNS:.example.cz\npermitted IP:10.0.0.0/8\nexcluded DNS:.public.example.cz', 3, 'mono');
     noI18n(f.nc);
     var nf = formField('Name constraints', f.nc, 'One a line: names it may (permitted) or may not (excluded) sign for. Empty: any.');
@@ -3559,6 +3572,7 @@ function caCreate(parent) {
     capi('cas/create', {name: f.name.value.trim(), subject: subject, key_type: f.key.value, days: Number(f.days.value || 3650),
       parent_id: f.parent ? Number(f.parent.value) : null, path_len: f.path.value === '' ? null : Number(f.path.value),
       crl_days: Number(f.crlDays.value || 7), crl_url: f.crlUrl.value.trim(), aia_url: f.aia.value.trim(),
+      published: !!f.pub._get(),
       name_constraints: f.nc.value.split(/\n/).map(function (x) { return x.trim(); }).filter(Boolean)}, 120).then(function (d) {
       toast(said(d, 'created'), 'good');
       closeModal();
@@ -3595,13 +3609,27 @@ function caImport() {
   }}], 'medium');
 }
 function signCsr(ca) {
+  /* Which authority signs is chosen here - the default one first. */
+  casNow(true).catch(function () { return CAS; }).then(function () { signCsrForm(ca); });
+}
+function signCsrForm(ca) {
   var f = {};
-  modal('Sign a CSR with ' + ca.name, function (body) {
+  var signers = CAS.filter(caSigns);
+  var pick = ca || defaultOf(signers) || signers[0] || null;
+  if (!pick) { toast('No authority can sign yet: create one first', 'bad'); return; }
+  var caOf = function () { return CAS.filter(function (x) { return String(x.id) === String(f.ca ? f.ca.value : pick.id); })[0] || pick; };
+  modal('Sign a CSR', function (body) {
     body.appendChild(el('p', 'note', 'A request made elsewhere - by a device, another server, a person - signed by this authority. The certificate is shown at once; it is kept in what this authority signed, not as a certificate acme renews.'));
+    var cg = el('div', 'formgrid');
+    f.ca = selectBox(caPairs(signers.length ? signers : [pick]), String(pick.id));
+    noI18n(f.ca);
+    cg.appendChild(formField('Signed by', f.ca, 'The default authority comes first (the star on Authorities).'));
+    body.appendChild(cg);
     f.csr = pemBox('', '-----BEGIN CERTIFICATE REQUEST-----', 8);
     body.appendChild(wideField('The CSR', f.csr));
     var g = el('div', 'formgrid');
-    f.days = numberBox(ca.days_default || 397, '397', 1, 36500);
+    f.days = numberBox(pick.days_default || 397, '397', 1, 36500);
+    f.ca.addEventListener('change', function () { var c = caOf(); if (c && c.days_default) f.days.value = c.days_default; });
     g.appendChild(formField('Valid for (days)', f.days));
     var ek = el('div', 'ct-ekus');
     f.eku = {};
@@ -3622,7 +3650,7 @@ function signCsr(ca) {
   }, [{words: 'Close', close: true}, {words: 'Sign it', cls: 'primary', icon: 'key', go: function (b) {
     if (!f.csr._get()) { toast('paste the CSR', 'bad'); return; }
     busy(b, true);
-    capi('cas/sign_csr', {id: ca.id, csr_pem: f.csr._get(), days: Number(f.days.value || 397),
+    capi('cas/sign_csr', {id: caOf().id, csr_pem: f.csr._get(), days: Number(f.days.value || 397),
                           eku: Object.keys(f.eku).filter(function (k) { return f.eku[k].checked; })}).then(function (d) {
       var pem = d.cert_pem || d.certificate || '';
       var chain = d.chain_pem || '';
@@ -4473,6 +4501,7 @@ on('ct-q', 'input', certsAgain);
 on('ca-root', 'click', function () { caCreate(null); });
 on('ca-inter', 'click', function () { caCreate(undefined); });
 on('ca-import', 'click', function () { caImport(); });
+on('ca-sign', 'click', function () { signCsr(null); });
 on('src-add', 'click', function () { modEdit('sources'); });
 on('val-add', 'click', function () { modEdit('validation'); });
 on('tg-add', 'click', function () { modEdit('targets'); });
