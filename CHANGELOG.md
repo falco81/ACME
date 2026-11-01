@@ -4,6 +4,52 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.2 - 2026-11-01
+
+- **Validation that tells you what to do, and tests itself.** For every name of
+  a certificate acme says what has to be in place and where - the exact CNAME,
+  NS or TXT record with Copy buttons, where an HTTP-01 name must point - and
+  checks it live. "Dry run" puts a real test record or file in place, sees it
+  from outside and takes it away, without asking the CA. Names are grouped by
+  domain, with a validation suggested for each (a certificate may span many
+  domains, each proved its own way). Before a first certificate - and after a
+  failed validation - the CA is not asked while something is missing.
+- **More sources**: EST, CMPv2, HashiCorp Vault PKI, EJBCA, step-ca, AWS Private
+  CA, Google CAS, FreeIPA, GlobalSign Atlas, DigiCert CertCentral, SSLmarket.cz;
+  Actalis, Certum, Sectigo and DigiCert (EAB) among the ACME CAs. A paid order
+  is never placed without "Allow new orders (paid)".
+- **More validations** (deSEC, WEDOS, Active24, Websupport, Subreg/Gransy,
+  CZECHIA.COM and some 45 more DNS providers), HTTP-01 by FTP/FTPS/SFTP, S3,
+  Azure Blob and WebDAV.
+- **More targets**: AWS ACM, Azure Key Vault, Google Certificate Manager,
+  Cloudflare, vCenter, ESXi, Redfish (iDRAC, iLO, XCC), Sophos, Kemp, Cisco
+  ISE, HAProxy (runtime API), Traefik, Caddy, NGINX Unit, Zimbra, TrueNAS,
+  Docker Swarm, strongSwan, FRITZ!Box, UniFi OS.
+- **Dual certificates**: ECDSA and RSA under one certificate, renewed in one
+  job (the second ACME order needs no second validation) and deployed together
+  where the target serves both (nginx, Apache, HAProxy, Postfix, F5, acme's own
+  pages...), the variant chosen for the others.
+- **acme's DNS server**: answers on the VIP address, the nodes, or both (and
+  from the address it was asked at); the firewall lets it in by itself when it
+  is switched on.
+- **CRLs on acme**: every authority of acme's own publishes its CRL and its
+  certificate over HTTP at /pki/ on every node and the VIP, refreshed by
+  itself; new authorities put those URLs in what they sign.
+- **The SSH key card of isemon** wherever acme signs in over SSH: make a key
+  here, use your own, download, forget, try reaching it, how to set it up.
+- **The database move wizard**: target, connection, checks, what happens, the
+  move live, done - SQLite, MariaDB and PostgreSQL in every direction; not on a
+  node of a cluster.
+- A default in every list (sources, validations, targets, authorities); the
+  lists are current without reloading; names made safe everywhere (the
+  defaults of 1.0.0/1.0.1 are renamed with every reference to them).
+- The overview as in otp: the certificates' tiles first, then the server's,
+  each opening what it counts.
+- Fixed: backups checked "not good" after an upgrade from the pages and with
+  keys of authorities (the backups themselves were whole); the configuration's
+  export left the authorities' and certificates' keys out; the encrypted link
+  between the databases could not be switched on (otp's version floor).
+
 ## 1.0.1 - 2026-11-01
 
 - **High availability: joining does everything by itself, on both sides.**
