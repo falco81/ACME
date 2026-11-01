@@ -66,6 +66,8 @@ def api(method, path, role='readonly'):
         def run(h):
             s = need(h, role)
             try:
+                # Who may do this with which certificate (teams.py, docs/teams.md).
+                _lib('teams').guard(h, s, method, path)
                 return fn(h, s)
             except LookupError as e:
                 raise E.ApiError(404, str(e).strip('\'"'))
@@ -174,8 +176,15 @@ LIST_COLS = ('id', 'name', 'cn', 'names', 'key_type', 'issuer', 'challenge', 'au
              'alt_state', 'alt_version', 'alt_fingerprint', 'alt_serial')
 
 
-def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, per=50):
+def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, per=50,
+              s=None):
     where, args = [], []
+    if s is not None:
+        # Only the certificates of the teams this account may see (teams.py).
+        sw, sa = _lib('teams').where(store, s, 'view')
+        if sw:
+            where.append(sw[len(' AND '):])
+            args += list(sa)
     if search:
         q = '%' + search.lower() + '%'
         where.append('(LOWER(name) LIKE ? OR LOWER(COALESCE(cn, \'\')) LIKE ? OR '
@@ -225,6 +234,10 @@ def _overview(h, s):
     soon = store.db.rows("SELECT id, name, not_after, state, auto_renew, issuer FROM certs "
                          "WHERE not_after IS NOT NULL AND state NOT IN ('revoked', 'disabled') "
                          "ORDER BY not_after LIMIT 10")
+    sc_ = _lib('teams').scope(store, s, 'view')
+    if sc_ is not None:
+        soon = [r for r in soon if _lib('teams').owner_in(sc_, (S.cert_get(store, r['id']) or {})
+                                                          .get('owner'))]
     for r in soon:
         r['days_left'] = S.days_left(r, t)
     weeks = []
@@ -232,7 +245,7 @@ def _overview(h, s):
         a, b = t + i * 7 * 86400, t + (i + 1) * 7 * 86400
         weeks.append({'from': a, 'to': b, 'n': int(store.db.value(
             'SELECT COUNT(*) FROM certs WHERE not_after >= ? AND not_after < ?', (a, b), 0) or 0)})
-    recent = jobs.job_rows(store, per=10)['rows']
+    recent = _scoped_rows(store, s, jobs.job_rows(store, per=10))['rows']
     lead = renewer.leader(store)
     days = int(E.CONFIG.get('certs_notify_days') or 14)
     DF.ensure(store)
@@ -260,7 +273,7 @@ def _overview(h, s):
 def _certs(h, s):
     return cert_list(h.store, h.arg('search').strip(), h.arg('state').strip(),
                      h.arg('issuer').strip(), h.arg('tag').strip(), h.arg('owner').strip(),
-                     h.num('page', 1, 1), h.num('per', 50, 1, 1000))
+                     h.num('page', 1, 1), h.num('per', 50, 1, 1000), s=s)
 
 
 def cert_one(store, ref, full=False):
@@ -884,9 +897,23 @@ def _cert_csr_answer(h, s):
 @api('GET', '/api/certs/jobs')
 def _jobs(h, s):
     ok = h.arg('ok')
-    return jobs.job_rows(h.store, cert_id=h.arg('cert_id') or None, kind=h.arg('kind'),
-                         ok=ok if ok in ('0', '1') else None, page=h.num('page', 1, 1),
-                         per=h.num('per', 50, 1, 500))
+    got = jobs.job_rows(h.store, cert_id=h.arg('cert_id') or None, kind=h.arg('kind'),
+                        ok=ok if ok in ('0', '1') else None, page=h.num('page', 1, 1),
+                        per=h.num('per', 50, 1, 500))
+    return _scoped_rows(h.store, s, got)
+
+
+def _scoped_rows(store, s, got, key='cert_id'):
+    """Rows about certificates (jobs, deployments) kept to those this account
+    may see (teams.py) - every one when it is not scoped."""
+    T = _lib('teams')
+    sc = T.scope(store, s, 'view')
+    if sc is None:
+        return got
+    owners = {r['id']: r.get('owner') for r in store.db.rows('SELECT id, owner FROM certs')}
+    keep = [r for r in got['rows'] if r.get(key) in owners and T.owner_in(sc, owners[r[key]])]
+    return dict(got, rows=keep, total=len(keep) if len(keep) < len(got['rows']) else
+                got.get('total', len(keep)))
 
 
 @api('GET', '/api/certs/job')
@@ -1694,6 +1721,7 @@ def deploy_rows(store, target='', cert='', full=False):
 def _deploys(h, s):
     rows = deploy_rows(h.store, h.arg('target').strip(), h.arg('cert').strip() or
                        h.arg('cert_id').strip(), may(s, 'fulladmin'))
+    rows = _scoped_rows(h.store, s, {'rows': rows})['rows']
     return {'rows': rows, 'deploys': rows, 'total': len(rows)}
 
 
@@ -1817,5 +1845,6 @@ from acmelib.certs import api_sshkeys  # noqa: E402,F401
 from acmelib.certs import api_readiness  # noqa: E402,F401  (plan, check, dry run: before a certificate)
 from acmelib.certs import api_push  # noqa: E402,F401  (acme push: Discover, and what it makes)
 from acmelib.certs import api_dnssets  # noqa: E402,F401  (Settings → DNS: the sets of DNS servers)
+from acmelib.certs import api_teams  # noqa: E402,F401  (Settings → Owners and teams, the tags)
 from acmelib.certs import api_deploys  # noqa: E402,F401  (a deployment's files: preview, test)
 from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edit, renew, versions)

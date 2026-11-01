@@ -32763,6 +32763,518 @@
   "sp0097": {
    "source": "paired with a code",
    "text": "spárováno kódem"
+  },
+  "spl001": {
+   "source": "acme’s own accounts may sign in too",
+   "text": "Přihlásit se mohou i vlastní účty acme"
+  },
+  "spl002": {
+   "source": "Certificate and full administrators see every certificate",
+   "text": "Správci certifikátů a plní správci vidí každý certifikát"
+  },
+  "spl003": {
+   "source": "change the password first - in the administration (/admin/)",
+   "text": "nejdřív si změňte heslo – v administraci (/admin/)"
+  },
+  "spl004": {
+   "source": "that account may no longer sign in here",
+   "text": "tento účet se zde již nesmí přihlásit"
+  },
+  "spl005": {
+   "source": "an account of acme’s own",
+   "text": "vlastní účet acme"
+  },
+  "spl006": {
+   "source": "an account of acme’s own - a reader",
+   "text": "vlastní účet acme – čtenář"
+  },
+  "spl007": {
+   "source": "an account of acme’s own - a certificate administrator",
+   "text": "vlastní účet acme – správce certifikátů"
+  },
+  "spl008": {
+   "source": "an account of acme’s own - a full administrator",
+   "text": "vlastní účet acme – plný správce"
+  },
+  "spl009": {
+   "source": "As a certificate administrator you see every certificate here, not only the ones you own.",
+   "text": "Jako správce certifikátů tu vidíte každý certifikát, nejen ty, které vlastníte."
+  },
+  "spl010": {
+   "source": "You see the certificates whose owner is your account here (its name, or local: and its name).",
+   "text": "Vidíte certifikáty, jejichž vlastníkem je váš účet zde (jeho jméno, nebo local: a jeho jméno)."
+  },
+  "spl011": {
+   "source": "Every certificate kept here - you are a certificate administrator (an account of acme’s own). Each is renewed by itself before it runs out. Click one for everything about it.",
+   "text": "Všechny certifikáty, které se tu drží – jste správce certifikátů (vlastní účet acme). Každý se před koncem platnosti obnoví sám. Kliknutím na něj uvidíte vše o něm."
+  },
+  "spl012": {
+   "source": "The owner: they see it on the enrolment pages - the person, the members of the group, or the account here (local:NAME). Certificate administrators signed in there see every certificate.",
+   "text": "Vlastník: ten ho vidí na stránkách registrace – člověk, členové skupiny, nebo účet zde (local:JMÉNO). Správci certifikátů přihlášení tam vidí každý certifikát."
+  },
+  "spl013": {
+   "source": "Who to ask about it - and who sees it on the enrolment pages: a person (account, UPN, mail; local:NAME for an account here) or a group (name, DN, group:NAME).",
+   "text": "Koho se na něj ptát – a kdo ho vidí na stránkách registrace: člověk (účet, UPN, mail; local:JMÉNO pro účet zde) nebo skupina (název, DN, group:NÁZEV)."
+  },
+  "swr001": {
+   "source": "Role: Remote Desktop Services (Connection Broker)",
+   "text": "Role: Služby vzdálené plochy (Connection Broker)"
+  },
+  "swr002": {
+   "source": "Set-RDCertificate for the roles chosen, through the Connection Broker",
+   "text": "Set-RDCertificate pro zvolené role přes Connection Broker"
+  },
+  "swr003": {
+   "source": "RD Web Access",
+   "text": "RD Web Access"
+  },
+  "swr004": {
+   "source": "RD Connection Broker (redirector)",
+   "text": "RD Connection Broker (redirector)"
+  },
+  "swr005": {
+   "source": "its FQDN; empty: this server",
+   "text": "jeho FQDN; prázdné: tento server"
+  },
+  "swr006": {
+   "source": "Role: RD Gateway (standalone)",
+   "text": "Role: RD Gateway (samostatná)"
+  },
+  "swr007": {
+   "source": "the RD Gateway service on this server (RDS:\\GatewayServer), no broker",
+   "text": "služba RD Gateway na tomto serveru (RDS:\\GatewayServer), bez brokeru"
+  },
+  "swr008": {
+   "source": "Restart the RD Gateway service",
+   "text": "Restartovat službu RD Gateway"
+  },
+  "swr009": {
+   "source": "when the certificate changed; open connections drop",
+   "text": "když se certifikát změnil; otevřená spojení spadnou"
+  },
+  "swr010": {
+   "source": "Role: AD FS",
+   "text": "Role: AD FS"
+  },
+  "swr011": {
+   "source": "Set-AdfsSslCertificate, and the Service-Communications certificate when asked; the service-communications one is set on the primary server only",
+   "text": "Set-AdfsSslCertificate a na přání i certifikát Service-Communications; ten se nastavuje jen na primárním serveru"
+  },
+  "swr012": {
+   "source": "Also the Service-Communications certificate",
+   "text": "I certifikát Service-Communications"
+  },
+  "swr013": {
+   "source": "Set-AdfsCertificate - on the primary server",
+   "text": "Set-AdfsCertificate – na primárním serveru"
+  },
+  "swr014": {
+   "source": "Read on the key for the AD FS service account",
+   "text": "Čtení klíče pro servisní účet AD FS"
+  },
+  "swr015": {
+   "source": "the account is read from the adfssrv service",
+   "text": "účet se zjistí ze služby adfssrv"
+  },
+  "swr016": {
+   "source": "Restart AD FS",
+   "text": "Restartovat AD FS"
+  },
+  "swr017": {
+   "source": "when the certificate changed",
+   "text": "když se certifikát změnil"
+  },
+  "swr018": {
+   "source": "Role: Web Application Proxy",
+   "text": "Role: Web Application Proxy"
+  },
+  "swr019": {
+   "source": "Set-WebApplicationProxySslCertificate; published applications that used an old certificate move to the new one",
+   "text": "Set-WebApplicationProxySslCertificate; publikované aplikace se starým certifikátem přejdou na nový"
+  },
+  "swr020": {
+   "source": "Move published applications to it",
+   "text": "Převést na něj publikované aplikace"
+  },
+  "swr021": {
+   "source": "applications whose external certificate was the old one",
+   "text": "aplikace, jejichž externí certifikát byl ten starý"
+  },
+  "swr022": {
+   "source": "Role: SQL Server",
+   "text": "Role: SQL Server"
+  },
+  "swr023": {
+   "source": "the instance's certificate (SuperSocketNetLib), read on the key for its service account; the certificate must hold the server's FQDN",
+   "text": "certifikát instance (SuperSocketNetLib), čtení klíče pro její servisní účet; certifikát musí obsahovat FQDN serveru"
+  },
+  "swr024": {
+   "source": "SQL Server instance",
+   "text": "Instance SQL Serveru"
+  },
+  "swr025": {
+   "source": "MSSQLSERVER is the default instance",
+   "text": "MSSQLSERVER je výchozí instance"
+  },
+  "swr026": {
+   "source": "Force encryption",
+   "text": "Vynutit šifrování"
+  },
+  "swr027": {
+   "source": "Restart SQL Server",
+   "text": "Restartovat SQL Server"
+  },
+  "swr028": {
+   "source": "when something changed; SQL Agent and the other services depending on it are started again",
+   "text": "když se něco změnilo; SQL Agent a další služby na něm závislé se znovu spustí"
+  },
+  "swr029": {
+   "source": "Role: LDAPS (domain controller)",
+   "text": "Role: LDAPS (řadič domény)"
+  },
+  "swr030": {
+   "source": "the NTDS service store (or LocalMachine\\My), then renewServerCertificate - no restart",
+   "text": "úložiště služby NTDS (nebo LocalMachine\\My), pak renewServerCertificate – bez restartu"
+  },
+  "swr031": {
+   "source": "Store for LDAPS",
+   "text": "Úložiště pro LDAPS"
+  },
+  "swr032": {
+   "source": "NTDS\\Personal (the service store; chosen first)",
+   "text": "NTDS\\Personal (úložiště služby; má přednost)"
+  },
+  "swr033": {
+   "source": "LocalMachine\\My only",
+   "text": "jen LocalMachine\\My"
+  },
+  "swr034": {
+   "source": "Check port 636 after",
+   "text": "Potom zkontrolovat port 636"
+  },
+  "swr035": {
+   "source": "a TLS handshake to the server on 636",
+   "text": "TLS handshake se serverem na portu 636"
+  },
+  "swr036": {
+   "source": "Role: WinRM HTTPS listener",
+   "text": "Role: posluchač WinRM HTTPS"
+  },
+  "swr037": {
+   "source": "the thumbprint of the HTTPS listener, or a new listener",
+   "text": "otisk posluchače HTTPS, nebo nový posluchač"
+  },
+  "swr038": {
+   "source": "Create the HTTPS listener when there is none",
+   "text": "Vytvořit posluchač HTTPS, když žádný není"
+  },
+  "swr039": {
+   "source": "Host name of a new listener",
+   "text": "Jméno hostitele nového posluchače"
+  },
+  "swr040": {
+   "source": "Open 5986 in the firewall",
+   "text": "Otevřít 5986 ve firewallu"
+  },
+  "swr041": {
+   "source": "Role: RRAS SSTP VPN",
+   "text": "Role: RRAS SSTP VPN"
+  },
+  "swr042": {
+   "source": "Restart Remote Access",
+   "text": "Restartovat Remote Access"
+  },
+  "swr043": {
+   "source": "when the certificate changed; VPN connections drop",
+   "text": "když se certifikát změnil; VPN spojení spadnou"
+  },
+  "swr044": {
+   "source": "Role: IIS Central Certificate Store",
+   "text": "Role: IIS Central Certificate Store"
+  },
+  "swr045": {
+   "source": "PFX files named after the host names (_.domain.pfx for a wildcard) in the store's folder, no binding",
+   "text": "soubory PFX pojmenované podle jmen hostitelů (_.domena.pfx pro wildcard) ve složce úložiště, bez vazby"
+  },
+  "swr046": {
+   "source": "Folder of the store",
+   "text": "Složka úložiště"
+  },
+  "swr047": {
+   "source": "a UNC path or a folder of this server; with key sign-in a UNC path needs the computer account (no second hop)",
+   "text": "cesta UNC nebo složka tohoto serveru; při přihlášení klíčem potřebuje cesta UNC účet počítače (druhý skok nejde)"
+  },
+  "swr048": {
+   "source": "Password of the store's files",
+   "text": "Heslo souborů úložiště"
+  },
+  "swr049": {
+   "source": "the one set in IIS (Central Certificate Store → private key password)",
+   "text": "to nastavené v IIS (Central Certificate Store → heslo soukromého klíče)"
+  },
+  "swr050": {
+   "source": "Files for",
+   "text": "Soubory pro"
+  },
+  "swr051": {
+   "source": "every name of the certificate",
+   "text": "každé jméno certifikátu"
+  },
+  "swr052": {
+   "source": "Role: IIS FTP over TLS",
+   "text": "Role: IIS FTP přes TLS"
+  },
+  "swr053": {
+   "source": "ftpServer.security.ssl.serverCertHash of a site, or of every site",
+   "text": "ftpServer.security.ssl.serverCertHash jednoho webu, nebo všech"
+  },
+  "swr054": {
+   "source": "FTP site",
+   "text": "FTP web"
+  },
+  "swr055": {
+   "source": "empty: the defaults of every site",
+   "text": "prázdné: výchozí nastavení všech webů"
+  },
+  "swr056": {
+   "source": "Restart the FTP service",
+   "text": "Restartovat službu FTP"
+  },
+  "swr057": {
+   "source": "open FTP sessions drop",
+   "text": "otevřené FTP relace spadnou"
+  },
+  "swr058": {
+   "source": "Role: Exchange (extended)",
+   "text": "Role: Exchange (rozšířené)"
+  },
+  "swr059": {
+   "source": "Enable-ExchangeCertificate for the services chosen (the default SMTP certificate replaced without asking)",
+   "text": "Enable-ExchangeCertificate pro zvolené služby (výchozí certifikát SMTP se nahradí bez ptaní)"
+  },
+  "swr060": {
+   "source": "Remove old Exchange certificates no longer bound",
+   "text": "Odebrat staré certifikáty Exchange, které už nejsou svázané"
+  },
+  "swr061": {
+   "source": "acme's own (of the same name) whose Services are None",
+   "text": "acme vlastní (stejného jména), jejichž Services jsou None"
+  },
+  "swr062": {
+   "source": "Restart IMAP / POP",
+   "text": "Restartovat IMAP / POP"
+  },
+  "swr063": {
+   "source": "those services, when chosen and the certificate changed",
+   "text": "tyto služby, když jsou zvolené a certifikát se změnil"
+  },
+  "swr064": {
+   "source": "Role: Skype for Business / Lync",
+   "text": "Role: Skype for Business / Lync"
+  },
+  "swr065": {
+   "source": "Set-CsCertificate for the types chosen",
+   "text": "Set-CsCertificate pro zvolené typy"
+  },
+  "swr066": {
+   "source": "Type: Default",
+   "text": "Typ: Default"
+  },
+  "swr067": {
+   "source": "Type: Web services, internal",
+   "text": "Typ: webové služby, interní"
+  },
+  "swr068": {
+   "source": "Type: Web services, external",
+   "text": "Typ: webové služby, externí"
+  },
+  "swr069": {
+   "source": "Restart the Skype for Business services",
+   "text": "Restartovat služby Skype for Business"
+  },
+  "swr070": {
+   "source": "Role: SharePoint Server (beta)",
+   "text": "Role: SharePoint Server (beta)"
+  },
+  "swr071": {
+   "source": "beta: Import-SPCertificate, then Set-SPWebApplication for the zone - SharePoint Server Subscription Edition only",
+   "text": "beta: Import-SPCertificate, pak Set-SPWebApplication pro zónu – jen SharePoint Server Subscription Edition"
+  },
+  "swr072": {
+   "source": "Web application",
+   "text": "Webová aplikace"
+  },
+  "swr073": {
+   "source": "Host header",
+   "text": "Hlavička hostitele"
+  },
+  "swr074": {
+   "source": "empty: none; with one, SNI is used",
+   "text": "prázdné: žádná; s ní se použije SNI"
+  },
+  "swr075": {
+   "source": "Role: Windows Admin Center",
+   "text": "Role: Windows Admin Center"
+  },
+  "swr076": {
+   "source": "the module of 2410 and later, or (older) the installer run again with SME_THUMBPRINT - check after the first run",
+   "text": "modul verze 2410 a novější, nebo (starší) znovu spuštěný instalátor se SME_THUMBPRINT – po prvním běhu zkontrolujte"
+  },
+  "swr077": {
+   "source": "Installer (older versions)",
+   "text": "Instalátor (starší verze)"
+  },
+  "swr078": {
+   "source": "only for a version before 2410: the .msi on the server, run again with SME_THUMBPRINT",
+   "text": "jen pro verzi před 2410: .msi na serveru, znovu spuštěný se SME_THUMBPRINT"
+  },
+  "swr079": {
+   "source": "Port (older versions)",
+   "text": "Port (starší verze)"
+  },
+  "swr080": {
+   "source": "empty: the one installed",
+   "text": "prázdné: ten nainstalovaný"
+  },
+  "swr081": {
+   "source": "Read on the key for",
+   "text": "Čtení klíče pro"
+  },
+  "swr082": {
+   "source": "accounts, one a line: given read on the private key after the import, before the roles",
+   "text": "účty, jeden na řádek: dostanou čtení soukromého klíče po importu, před rolemi"
+  },
+  "swr083": {
+   "source": "RD Gateway uses it",
+   "text": "RD Gateway ho používá"
+  },
+  "swr084": {
+   "source": "AD FS SSL uses it",
+   "text": "AD FS SSL ho používá"
+  },
+  "swr085": {
+   "source": "AD FS Service-Communications uses it",
+   "text": "AD FS Service-Communications ho používá"
+  },
+  "swr086": {
+   "source": "Web Application Proxy uses it",
+   "text": "Web Application Proxy ho používá"
+  },
+  "swr087": {
+   "source": "SSTP uses it",
+   "text": "SSTP ho používá"
+  },
+  "swr088": {
+   "source": "FTP (every site) uses it",
+   "text": "FTP (všechny weby) ho používá"
+  },
+  "swr089": {
+   "source": "SharePoint already has it",
+   "text": "SharePoint ho už má"
+  },
+  "swr090": {
+   "source": "SharePoint: imported",
+   "text": "SharePoint: importováno"
+  },
+  "swr091": {
+   "source": "Skype for Business services restarted",
+   "text": "služby Skype for Business restartovány"
+  },
+  "swr092": {
+   "source": "no published application was on an old certificate",
+   "text": "žádná publikovaná aplikace neměla starý certifikát"
+  },
+  "swr093": {
+   "source": "LDAPS: already in NTDS\\Personal",
+   "text": "LDAPS: už je v NTDS\\Personal"
+  },
+  "swr094": {
+   "source": "LDAPS: put into NTDS\\Personal",
+   "text": "LDAPS: vložen do NTDS\\Personal"
+  },
+  "swr095": {
+   "source": "LDAPS: the domain controller took the certificate (renewServerCertificate)",
+   "text": "LDAPS: řadič domény převzal certifikát (renewServerCertificate)"
+  },
+  "swr096": {
+   "source": "firewall: 5986 already open",
+   "text": "firewall: 5986 už je otevřený"
+  },
+  "swr097": {
+   "source": "firewall: 5986 open",
+   "text": "firewall: 5986 otevřen"
+  },
+  "swr098": {
+   "source": "Remote Desktop Services: choose at least one of its roles",
+   "text": "Služby vzdálené plochy: zvolte aspoň jednu jejich roli"
+  },
+  "swr099": {
+   "source": "IIS Central Certificate Store: give the folder of the store",
+   "text": "IIS Central Certificate Store: zadejte složku úložiště"
+  },
+  "swr100": {
+   "source": "Exchange: choose at least one service",
+   "text": "Exchange: zvolte aspoň jednu službu"
+  },
+  "swr101": {
+   "source": "Skype for Business: choose at least one certificate type",
+   "text": "Skype for Business: zvolte aspoň jeden typ certifikátu"
+  },
+  "swr102": {
+   "source": "SharePoint: the web application is an URL (https://…)",
+   "text": "SharePoint: webová aplikace je URL (https://…)"
+  },
+  "swr103": {
+   "source": "; the roles on this server could not be listed",
+   "text": "; role na tomto serveru se nepodařilo vypsat"
+  },
+  "swr104": {
+   "source": "; none of the roles acme knows is on this server",
+   "text": "; na tomto serveru není žádná z rolí, které acme zná"
+  },
+  "swr105": {
+   "source": "WinRM: there is no HTTPS listener - turn on \"Create the HTTPS listener\"",
+   "text": "WinRM: žádný posluchač HTTPS není – zapněte „Vytvořit posluchač HTTPS“"
+  },
+  "swr106": {
+   "source": "Windows Admin Center: this is a version before 2410 - give the path of its .msi (Installer) to set the certificate",
+   "text": "Windows Admin Center: toto je verze před 2410 – pro nastavení certifikátu zadejte cestu k jejímu .msi (Instalátor)"
+  },
+  "swr107": {
+   "source": "Windows Admin Center is not on this server (no service WindowsAdminCenter or ServerManagementGateway)",
+   "text": "Windows Admin Center na tomto serveru není (žádná služba WindowsAdminCenter ani ServerManagementGateway)"
+  },
+  "swr108": {
+   "source": "SQL Server: no instance is installed on this server",
+   "text": "SQL Server: na tomto serveru není nainstalovaná žádná instance"
+  },
+  "swr109": {
+   "source": "LDAPS: ldifde.exe is not on this server - is it a domain controller?",
+   "text": "LDAPS: ldifde.exe na tomto serveru není – je to řadič domény?"
+  },
+  "swr110": {
+   "source": "Exchange: the Exchange Management Shell is not on this server - is Exchange installed?",
+   "text": "Exchange: Exchange Management Shell na tomto serveru není – je Exchange nainstalovaný?"
+  },
+  "swr111": {
+   "source": "Skype for Business: neither the SkypeForBusiness nor the Lync module is on this server - is it installed?",
+   "text": "Skype for Business: na tomto serveru není modul SkypeForBusiness ani Lync – je nainstalovaný?"
+  },
+  "swr112": {
+   "source": "SharePoint: the SharePoint snap-in is not on this server - is SharePoint Server installed?",
+   "text": "SharePoint: snap-in SharePointu na tomto serveru není – je SharePoint Server nainstalovaný?"
+  },
+  "swr113": {
+   "source": "SharePoint: Import-SPCertificate is missing - certificate management needs SharePoint Server Subscription Edition",
+   "text": "SharePoint: chybí Import-SPCertificate – správa certifikátů potřebuje SharePoint Server Subscription Edition"
+  },
+  "swr114": {
+   "source": "AD FS: the service adfssrv is not on this server - is the role installed?",
+   "text": "AD FS: služba adfssrv na tomto serveru není – je role nainstalovaná?"
+  },
+  "swr115": {
+   "source": "Windows Admin Center: the module Microsoft.WindowsAdminCenter.Configuration is not there",
+   "text": "Windows Admin Center: modul Microsoft.WindowsAdminCenter.Configuration tu není"
   }
  },
  "patterns": {
@@ -42193,6 +42705,222 @@
   "pp0007": {
    "source": "The last push: {0} · {1} · {2}",
    "text": "Poslední push: {0} · {1} · {2}"
+  },
+  "pwr001": {
+   "source": "roles on the server: {0}",
+   "text": "role na serveru: {0}"
+  },
+  "pwr002": {
+   "source": "{0}: done",
+   "text": "{0}: hotovo"
+  },
+  "pwr003": {
+   "source": "{0} failed ({1} done); the old certificates are kept",
+   "text": "{0} selhalo ({1} hotovo); staré certifikáty zůstávají"
+  },
+  "pwr004": {
+   "source": "read on the key could not be given: {0}",
+   "text": "čtení klíče se nepodařilo udělit: {0}"
+  },
+  "pwr005": {
+   "source": "stopped before {0}",
+   "text": "zastaveno před {0}"
+  },
+  "pwr006": {
+   "source": "the old certificates could not be removed: {0}",
+   "text": "staré certifikáty se nepodařilo odebrat: {0}"
+  },
+  "pwr007": {
+   "source": "signed in as {0} on {1}, PowerShell {2}; roles on this server: {3}",
+   "text": "přihlášen jako {0} na {1}, PowerShell {2}; role na tomto serveru: {3}"
+  },
+  "pwr008": {
+   "source": "{0} is on this server ({1})",
+   "text": "{0} je na tomto serveru ({1})"
+  },
+  "pwr009": {
+   "source": "{0} is on this server",
+   "text": "{0} je na tomto serveru"
+  },
+  "pwr010": {
+   "source": "{0} is not installed on this server",
+   "text": "{0} není na tomto serveru nainstalováno"
+  },
+  "pwr011": {
+   "source": "the PowerShell of {0} (not run on a test):\n{1}",
+   "text": "PowerShell pro {0} (při testu se nespouští):\n{1}"
+  },
+  "pwr012": {
+   "source": "not installed: {0}",
+   "text": "nenainstalováno: {0}"
+  },
+  "pwr013": {
+   "source": "after the import: {0}",
+   "text": "po importu: {0}"
+  },
+  "pwr014": {
+   "source": "SQL Server: \"{0}\" is not an instance name",
+   "text": "SQL Server: „{0}“ není jméno instance"
+  },
+  "pwr015": {
+   "source": "IIS Central Certificate Store: {0}",
+   "text": "IIS Central Certificate Store: {0}"
+  },
+  "pwr016": {
+   "source": "{0} cannot be a file name of the Central Certificate Store",
+   "text": "{0} nemůže být jménem souboru v Central Certificate Store"
+  },
+  "pwr017": {
+   "source": "SharePoint: the zone is one of {0}",
+   "text": "SharePoint: zóna je jedna z {0}"
+  },
+  "pwr018": {
+   "source": "{0} is not a port",
+   "text": "{0} není port"
+  },
+  "pwr019": {
+   "source": "{0} already uses it",
+   "text": "{0} ho už používá"
+  },
+  "pwr020": {
+   "source": "RDS {0} uses it",
+   "text": "RDS {0} ho používá"
+  },
+  "pwr021": {
+   "source": "SQL Server {0} uses it",
+   "text": "SQL Server {0} ho používá"
+  },
+  "pwr022": {
+   "source": "WinRM {0} uses it",
+   "text": "WinRM {0} ho používá"
+  },
+  "pwr023": {
+   "source": "Skype for Business {0} uses it",
+   "text": "Skype for Business {0} ho používá"
+  },
+  "pwr024": {
+   "source": "WAP application {0} uses it",
+   "text": "aplikace WAP {0} ho používá"
+  },
+  "pwr025": {
+   "source": "FTP site {0} uses it",
+   "text": "FTP web {0} ho používá"
+  },
+  "pwr026": {
+   "source": "SharePoint: {0} uses it",
+   "text": "SharePoint: {0} ho používá"
+  },
+  "pwr027": {
+   "source": "Exchange uses it for {0}",
+   "text": "Exchange ho používá pro {0}"
+  },
+  "pwr028": {
+   "source": "Exchange already uses it for {0}",
+   "text": "Exchange ho už používá pro {0}"
+  },
+  "pwr029": {
+   "source": "Exchange: removed the old {0}",
+   "text": "Exchange: odebrán starý {0}"
+  },
+  "pwr030": {
+   "source": "Exchange: the old {0} is still bound to {1} - kept",
+   "text": "Exchange: starý {0} je stále svázán s {1} – ponechán"
+  },
+  "pwr031": {
+   "source": "Windows Admin Center uses it ({0})",
+   "text": "Windows Admin Center ho používá ({0})"
+  },
+  "pwr032": {
+   "source": "Windows Admin Center (older) uses it on {0}",
+   "text": "Windows Admin Center (starší) ho používá na {0}"
+  },
+  "pwr033": {
+   "source": "Windows Admin Center (older) already uses it on {0}",
+   "text": "Windows Admin Center (starší) ho už používá na {0}"
+  },
+  "pwr034": {
+   "source": "restarted {0}",
+   "text": "restartováno {0}"
+  },
+  "pwr035": {
+   "source": "restarted {0} (and {1})",
+   "text": "restartováno {0} (i {1})"
+  },
+  "pwr036": {
+   "source": "read on the key for {0}",
+   "text": "čtení klíče pro {0}"
+  },
+  "pwr037": {
+   "source": "read on the key: {0} (SYSTEM) has it",
+   "text": "čtení klíče: {0} (SYSTEM) ho má"
+  },
+  "pwr038": {
+   "source": "SQL Server ForceEncryption {0}",
+   "text": "SQL Server ForceEncryption {0}"
+  },
+  "pwr039": {
+   "source": "SQL Server takes it when {0} is restarted",
+   "text": "SQL Server ho převezme po restartu {0}"
+  },
+  "pwr040": {
+   "source": "LDAPS: the old {0} left NTDS\\Personal",
+   "text": "LDAPS: starý {0} odebrán z NTDS\\Personal"
+  },
+  "pwr041": {
+   "source": "WinRM: an HTTPS listener for {0} was made",
+   "text": "WinRM: vytvořen posluchač HTTPS pro {0}"
+  },
+  "pwr042": {
+   "source": "CCS: {0} already holds it",
+   "text": "CCS: {0} ho už obsahuje"
+  },
+  "pwr043": {
+   "source": "CCS: wrote {0}",
+   "text": "CCS: zapsán {0}"
+  },
+  "pwr044": {
+   "source": "{0}: the PowerShell module {1} is not on this server - is the role installed?",
+   "text": "{0}: PowerShell modul {1} na tomto serveru není – je role nainstalovaná?"
+  },
+  "pwr045": {
+   "source": "{0}: the service {1} is not on this server - is the role installed?",
+   "text": "{0}: služba {1} na tomto serveru není – je role nainstalovaná?"
+  },
+  "pwr046": {
+   "source": "SQL Server: there is no instance {0}; there are: {1}",
+   "text": "SQL Server: instance {0} neexistuje; existují: {1}"
+  },
+  "pwr047": {
+   "source": "Remote Desktop Services: the Connection Broker {0} could not be asked: {1}",
+   "text": "Služby vzdálené plochy: Connection Brokeru {0} se nepodařilo zeptat: {1}"
+  },
+  "pwr048": {
+   "source": "IIS Central Certificate Store: the folder {0} cannot be reached from this session",
+   "text": "IIS Central Certificate Store: složka {0} není z této relace dostupná"
+  },
+  "pwr049": {
+   "source": "IIS FTP: there is no site {0}",
+   "text": "IIS FTP: web {0} neexistuje"
+  },
+  "pwr050": {
+   "source": "the new certificate {0} is not in LocalMachine\\My",
+   "text": "nový certifikát {0} není v LocalMachine\\My"
+  },
+  "pwr051": {
+   "source": "the account {0} is not known here",
+   "text": "účet {0} tu není znám"
+  },
+  "pwr052": {
+   "source": "the private key of {0} was not found",
+   "text": "soukromý klíč {0} nebyl nalezen"
+  },
+  "pwr053": {
+   "source": "Windows Admin Center: msiexec ended with {0} (its log: {1})",
+   "text": "Windows Admin Center: msiexec skončil s {0} (jeho log: {1})"
+  },
+  "pwr054": {
+   "source": "LDAPS: ldifde could not ask for renewServerCertificate: {0}",
+   "text": "LDAPS: ldifde nemohl požádat o renewServerCertificate: {0}"
   }
  },
  "rich": {
@@ -43003,6 +43731,18 @@
   "r0202": {
    "source": "The DNS servers asked for everything on this page: the address of the CA and of the DNS API, <i>Check DNS</i>, <i>Try port 80</i>, and whether the TXT record can be seen before the CA is asked - <code>1.1.1.1, 9.9.9.9</code> to see what the internet sees. Empty: Settings → DNS (The appliance’s own ACME), else the machine’s own (/etc/resolv.conf). A set chosen there comes first.",
    "text": "DNS servery, které se ptají na vše na této stránce: adresu CA a DNS API, <i>Zkontrolovat DNS</i>, <i>Vyzkoušet port 80</i> a zda je záznam TXT vidět, než se CA zeptá – <code>1.1.1.1, 9.9.9.9</code>, aby bylo vidět, co vidí internet. Prázdné: Nastavení → DNS (Vlastní ACME appliance), jinak DNS stroje (/etc/resolv.conf). Sada zvolená tam má přednost."
+  },
+  "rpl001": {
+   "source": "On: the accounts of <i>Accounts</i> (acme’s own, with a password here) sign in on these pages too - the name as it is written there, tried before the directory. The same password, the same second step (<i>A second step when signing in</i>) and the same pause after wrong passwords as above; an account switched off cannot sign in.",
+   "text": "Zapnuto: účty ze sekce <i>Účty</i> (vlastní účty acme, s heslem zde) se přihlašují i na těchto stránkách – jméno tak, jak je tam napsané, zkouší se před adresářem. Stejné heslo, stejný druhý krok (<i>Druhý krok při přihlašování</i>) a stejná pauza po špatných heslech jako výše; vypnutý účet se přihlásit nemůže."
+  },
+  "rpl002": {
+   "source": "Who sees which certificate: a person sees the certificates whose <i>Owner</i> is them (their account, UPN, mail or the name of an account here, also <code>local:NAME</code>) or a group they are in (its name, DN or <code>group:NAME</code>). The owner is set in the certificate wizard (Names → Owner), in its <i>Edit</i>, or <code>acme --cert-edit NAME --set owner=...</code>. On: an account here with the role of a certificate or full administrator sees every certificate; a reader only its own.",
+   "text": "Kdo vidí který certifikát: člověk vidí certifikáty, jejichž <i>Vlastník</i> je on sám (jeho účet, UPN, mail nebo jméno účtu zde, také <code>local:JMÉNO</code>) nebo skupina, ve které je (její název, DN nebo <code>group:NÁZEV</code>). Vlastník se nastavuje v průvodci certifikátem (Jména → Vlastník), v jeho <i>Upravit</i>, nebo <code>acme --cert-edit JMÉNO --set owner=...</code>. Zapnuto: účet zde s rolí správce certifikátů nebo plného správce vidí každý certifikát; čtenář jen své."
+  },
+  "rpl003": {
+   "source": "The pages for people who are no administrators (/), signed in with their password in the directory. Switched off they say so and let nobody in. Who sees which certificate there: its <i>Owner</i> - a person, a group, or <code>local:NAME</code> (more under <i>Certificate and full administrators see every certificate</i>).",
+   "text": "Stránky pro lidi, kteří nejsou administrátoři (/), s přihlášením heslem z adresáře. Vypnuté to řeknou a nikoho nepustí. Kdo tam vidí který certifikát: jeho <i>Vlastník</i> – člověk, skupina nebo <code>local:JMÉNO</code> (víc u <i>Správci certifikátů a plní správci vidí každý certifikát</i>)."
   }
  }
 }

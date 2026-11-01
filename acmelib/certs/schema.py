@@ -92,6 +92,18 @@ SCHEMA = [
     # mail); a function not listed asks its default.
     ('dns_set_uses', '''CREATE TABLE IF NOT EXISTS dns_set_uses (
         id {ID}, purpose {K} NOT NULL UNIQUE, set_name {K}, updated {N}, updated_by {K})'''),
+    # Settings → Owners and teams (acmelib/certs/teams.py, docs/teams.md): who a
+    # certificate belongs to (certs.owner is a name of these), its members
+    # (JSON [{who, rights}]: local:NAME, a directory user, group:NAME or a DN;
+    # rights view | request | manage | approve) and whom to tell.
+    ('cert_teams', '''CREATE TABLE IF NOT EXISTS cert_teams (
+        id {ID}, name {K} NOT NULL UNIQUE, kind {K}, members {B}, contact_mail {T},
+        contact_phone {K}, note {T}, created {N}, created_by {K}, updated {N},
+        updated_by {K})'''),
+    # The tags certificates and targets pick from (their `tags`: JSON names of these).
+    ('cert_tags', '''CREATE TABLE IF NOT EXISTS cert_tags (
+        id {ID}, name {K} NOT NULL UNIQUE, colour {K}, description {T}, created {N},
+        created_by {K}, updated {N}, updated_by {K})'''),
 ]
 
 INDEXES = [

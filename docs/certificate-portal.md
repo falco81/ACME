@@ -18,15 +18,77 @@ Settings → The portal (`sect-portal`, `PANES['portal']`):
 | `portal_who`, `portal_groups` | anyone | anybody the directory lets in, or only members of these groups |
 | `portal_session_min`, `portal_tries`, `portal_wait_min` | 15, 5, 15 | how long a sign-in lasts; wrong passwords before a pause |
 | `portal_title`, `portal_hint`, `portal_help` | | the words on the pages |
+| `portal_local` | 0 | acme's own accounts (Settings → Accounts) may sign in too |
+| `portal_admins_all` | 1 | (with `portal_local`) their certificate and full administrators see every certificate |
 
 The sign-in is the engine's (`acmelib/engine/390_the_portal_sign_in.py`):
-a session of kind `portal`, the same on both nodes of a cluster.
+a session of kind `portal`, the same on both nodes of a cluster. Its data
+carries `{kind: "directory" | "local", role}`.
+
+### acme's own accounts (`portal_local`)
+
+Off by default: only the directory's people sign in. On, the sign-in tries
+**an account of acme's own first** (Settings → Accounts, the name as it is
+written there - not `DOMAIN\name` or a UPN), then the directory:
+
+* the same password check as the administration's; a wrong one goes on to the
+  directory (somebody there may have the same name), and every wrong
+  password counts towards `portal_tries` / `portal_wait_min`;
+* an account **switched off** cannot sign in (said as a wrong password, and
+  counted as one); one that must change its password is told to do that in
+  the administration first;
+* **the second step** exactly as the administration's (`admin_2fa`): the code
+  from the authenticator app, or a code sent by mail or SMS - the account's
+  own way, the same one it uses at `/admin/`. With none set up yet the
+  sign-in page sets one up, as the administration's does. Until it is given
+  the sign-in can do nothing else (`GET/POST /api/portal/mfa`, relayed as
+  `?api=mfa`; wrong codes count as wrong passwords);
+* High security: it keeps the second step on (`admin_2fa`) and allows only
+  the app, so it holds for these sign-ins too;
+* the account's role is read again at every request: switched off, removed,
+  or `portal_local` switched off, and the sign-in ends;
+* events of kind `sign-ins`, as the administration's.
+
+Without any directory set up and `portal_local` on, the pages let in acme's
+own accounts only.
+
+## Who sees which certificate
+
+What a person sees on the portal is decided by the **owner** of each
+certificate (the `owner` field):
+
+| owner | seen by |
+|---|---|
+| a person: `novak`, `novak@corp.cz` (UPN or mail) | that person of the directory - their sAMAccountName, UPN, mail or the name they signed in with |
+| an account here: `spravce` or `local:spravce` | the account of acme's own with that name (`portal_local`); `local:` keeps a person of the directory with the same name out |
+| a group: `CERT_USERS`, its DN, or `group:CERT_USERS` | every member of that directory group (nested groups too) |
+| empty | nobody - but see below |
+
+**Administrators see everything** (`portal_admins_all`, on by default): an
+account of acme's own with the role **certadmin** or **fulladmin**, signed in
+on the portal, sees **every** certificate kept here (and may download or ask
+as the other portal settings allow). A **readonly** account, and everybody
+from the directory, sees only the certificates they own. Off, administrators
+see only their own too.
+
+Where the owner is set:
+
+* the certificate wizard, step **Names → Owner**;
+* a certificate's **Edit** (the same field);
+* the command line: `acme --cert-edit NAME --set owner=novak` (or
+  `--set owner=group:CERT_USERS`, `--set owner=local:spravce`);
+* a certificate asked for on the portal is owned by whoever asked (an account
+  here as `local:NAME`).
+
+In the administration the owner is shown in the certificate's detail; pointing
+at it says who sees it on the portal.
 
 ## What they see
 
 With `portal_cert` on, under "Your certificates":
 
-* every certificate whose `owner` is them - their name as signed in, their
+* every certificate whose `owner` is them (see *Who sees which certificate*
+  above) - their name as signed in, their
   account (sAMAccountName), UPN or mail - **or a directory group they are
   in** (nested groups too): the owner is then the group's name (`CERT_USERS`),
   its DN, or `group:CERT_USERS`. Their groups are asked of the directory at
@@ -86,7 +148,8 @@ Relayed by `web/index.php` (`?api=…`) with the person's portal session:
 
 | | |
 |---|---|
-| `certs` → `GET /api/portal/certs` | `{rows, suffixes, issuers, formats, key_types, most, used, auto, keys, groups, may_request}`; each row with `via` (`me` or the group) and `job` (the latest) |
+| `certs` → `GET /api/portal/certs` | `{rows, suffixes, issuers, formats, key_types, most, used, auto, keys, groups, may_request, sees_all, kind}`; each row with `via` (`me`, the group, or `*` when seen as an administrator) and `job` (the latest) |
+| `mfa` → `GET/POST /api/portal/mfa` | the second step of an account of acme's own, as `/api/auth/mfa` |
 | `cert-job&id=` → `GET /api/portal/cert_job` | one job of one of their certificates, its steps (no debug lines) |
 | `cert-download` → `POST /api/portal/cert_download` | `{id, format, password?}` → `{filename, mime, data_b64}` |
 | `cert-request` → `POST /api/portal/cert_request` | `{names[], issuer, key_type, note}` → `{id, name, job_id, state, waits}` |

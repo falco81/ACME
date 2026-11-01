@@ -53,7 +53,8 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'ca_publish', 'ca_pki_urls', 'ca_pki_check', 'validation_check',
         'ca_edit', 'ca_renew', 'ca_versions', 'ca_install_cert',
         'check_names', 'cert_check', 'dry_run', 'target_key', 'validation_key',
-        'dns_sets', 'dns_set_add', 'dns_set_edit', 'dns_set_del', 'dns_set_test', 'dns_assign')
+        'dns_sets', 'dns_set_add', 'dns_set_edit', 'dns_set_del', 'dns_set_test', 'dns_assign',
+        'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt')
 
 # family: (the word of the options, the API's path, the words of one)
 FAMILIES = {'issuer': ('source', 'sources', 'source'),
@@ -277,6 +278,10 @@ def add_args(p):
     g.add_argument('--protocol', choices=('udp', 'tcp', 'dot'), help='with --dns-set-add/-edit')
     g.add_argument('--tls-name', metavar='NAME', help='with --protocol dot: the server\'s name')
     g.add_argument('--dns-timeout', metavar='S', type=float, help='with --dns-set-add/-edit')
+
+    # Settings → Owners and teams (acmelib/certs/api_teams.py, docs/teams.md)
+    from acmelib.certs import api_teams
+    api_teams.add_args(p)
 
 
 def asked(args):
@@ -555,6 +560,11 @@ class Cli(object):
                 'dns_assign')):
             from acmelib.certs import api_dnssets
             return api_dnssets.cli(self)
+        if any(getattr(a, k, None) not in (None, False, '') for k in (
+                'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del',
+                'teams_adopt')):
+            from acmelib.certs import api_teams
+            return api_teams.cli(self)
         for fam, word in (('target', 'target'), ('challenge', 'validation')):
             if getattr(a, '%s_key' % word, None):
                 from acmelib.certs import api_sshkeys

@@ -142,7 +142,7 @@ function part(host, me) {
   right.appendChild(ask);
   h.appendChild(right);
   card.appendChild(h);
-  var lede = el('p', 'note cp-lede', 'The certificates that are yours, or a group’s you are in. Each is renewed by itself before it runs out - download it again after that. Click one for everything about it.');
+  var lede = el('p', 'note cp-lede', me && me.sees_all ? 'Every certificate kept here - you are a certificate administrator (an account of acme’s own). Each is renewed by itself before it runs out. Click one for everything about it.' : 'The certificates that are yours, or a group’s you are in. Each is renewed by itself before it runs out - download it again after that. Click one for everything about it.');
   card.appendChild(lede);
   var said = el('div', 'cp-said muted small');
   said.id = 'cp-said';
@@ -228,7 +228,7 @@ function row(c) {
   tr.appendChild(sc);
   var nc = el('td', 'ct-cname');
   nc.appendChild(data('b', '', c.cn || c.name));
-  if (c.via && c.via !== 'me') {
+  if (c.via && c.via !== 'me' && c.via !== '*') {
     var g = el('span', 'tag info cp-via', 'group ');
     g.appendChild(data('span', '', c.via));
     explain(g, 'Yours through the directory group ' + c.via + '.');
@@ -307,7 +307,7 @@ function certDialog(id, fresh) {
       ['Serial', c.serial ? data('span', 'mono small', c.serial) : '–'],
       ['Issued by', c.issuer_dn ? data('span', 'mono small', c.issuer_dn) : '–'],
       ['Renews', c.auto_renew ? 'by itself, before it runs out' : 'not by itself'],
-      ['Owner', c.via && c.via !== 'me' ? data('span', '', c.owner + ' (a group of yours)') : 'you'],
+      ['Owner', c.via === '*' ? (c.owner ? data('span', 'mono', c.owner) : 'nobody') : (c.via && c.via !== 'me' ? data('span', '', c.owner + ' (a group of yours)') : 'you')],
       ['Asked for', c.created ? stamp(c.created) : '–']
     ]);
     body.appendChild(kv);

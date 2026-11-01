@@ -354,6 +354,61 @@ admin). Key sign-in for administrators goes in
 **Example**: IIS `Default Web Site | www.example.com | 443`, RDP on, verify
 `www.example.com:443` and `rdp.example.com:3389`.
 
+### Windows roles
+
+These are under *Roles on the server* in a `windows_ssh` deployment (`role_*` switches, the
+code is in `acmelib/plugins/targets/_win_roles.py`). Each role has its own switch, and its
+fields show only when the switch is on. The certificate is imported once into
+**LocalMachine\My** as described above (IIS, RDP and the Exchange services field come with
+that import). After it:
+
+1. **read on the key** for the accounts in *Read on the key for* (`key_read`, one a line;
+   `icacls` on the key file by SID; CNG and CAPI keys, RSA and ECDSA);
+2. each role that is on, **one PowerShell run each**, in the order of the table. A role first
+   checks that its module, service or snap-in is there and says plainly when it is not
+   installed. It then compares before it changes anything, so running it again does nothing,
+   and it reports what it did as job steps. If a role fails, it shows as a bad step and the
+   other roles still run. The deployment then fails as a whole, it is tried again later, and
+   the old certificates are kept;
+3. when every role worked, the old acme certificates beyond *keep* are removed, except those
+   still in use. "In use" means an IIS binding, any http.sys binding (`netsh http show
+   sslcert`: AD FS, WAP, SSTP, RD Gateway, older WAC), the RDP listener, a SQL Server
+   instance, or a WinRM listener. When a role is on, the import itself removes nothing;
+4. the files and the script after them (see above), then the TLS checks of *verify*.
+
+The roles that need a PFX (RDS, SharePoint) get a second upload with a one-time password.
+CCS gets one locked with the store's password. Both are deleted at the end, whatever
+happened. A run that would not fit `cmd.exe`'s 8191-character line is uploaded as a `.ps1`
+that deletes itself as soon as it starts.
+
+**Test** (of the target): signs in, checks the session is elevated, and lists in one
+PowerShell run, without changing anything, which roles this server has. **Test** of a
+deployment (`dry_run`): checks that the roles switched on are installed, and writes each
+role's PowerShell into the job steps without running it. **Preview** (`POST
+/api/deploys/preview`) returns `roles: {on, script}`, the whole script with the passwords
+as `********`, and refuses impossible settings (`problems`).
+
+| Role (`role_…`) | What acme does | Fields | Notes / uncertain |
+|---|---|---|---|
+| `rds` - Remote Desktop Services via the Connection Broker | `Get-RDCertificate` per role, then for those that differ `Set-RDCertificate -Role RDGateway\|RDWebAccess\|RDPublishing\|RDRedirector -ImportPath <pfx> -Password … -ConnectionBroker <fqdn> -Force` | the four roles (switches, all on), `rds_broker` (empty: this server's FQDN) | Run on the broker, or on a server that can reach it. With a remote broker and SSH **key** sign-in, the session has no network credentials (second hop) and the broker cannot be asked: sign in with a password, or run it on the broker. |
+| `rdgw` - RD Gateway (standalone) | `Import-Module RemoteDesktopServices`; `RDS:\GatewayServer\SSLCertificate\Thumbprint` set when it differs; NETWORK SERVICE given read on the key; `Restart-Service TSGateway` | `rdgw_restart` | A restart drops open gateway sessions. |
+| `adfs` - AD FS | `Set-AdfsSslCertificate -Thumbprint`; `Set-AdfsCertificate -CertificateType Service-Communications -Thumbprint` (switch); read on the key for the `adfssrv` service account (from Win32_Service, works for a gMSA); `Restart-Service adfssrv` with its dependants | `adfs_service_comm`, `adfs_grant`, `adfs_restart` | `Set-AdfsCertificate` works on the primary server of a WID farm only: on a secondary server, turn Service-Communications off. Every farm server needs its own deployment for the SSL part. |
+| `wap` - Web Application Proxy | `Set-WebApplicationProxySslCertificate -Thumbprint`; published applications whose `ExternalCertificateThumbprint` was an old one (the previous WAP certificate, or an older acme certificate of the same name) get `Set-WebApplicationProxyApplication -ExternalCertificateThumbprint <new>` | `wap_apps` | The property names on the objects that `Get-WebApplicationProxySslCertificate` returns (`CertificateHash`) are from memory. |
+| `sql` - SQL Server | instance → id from `…\Instance Names\SQL`; `HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\<id>\MSSQLServer\SuperSocketNetLib` `Certificate` = thumbprint in lower case; read on the key for the service account (`MSSQLSERVER` / `MSSQL$<inst>`, from Win32_Service); `ForceEncryption` 1/0 (optional); restart of the service, and the running services that depend on it (SQL Agent) are started again | `sql_instance` (MSSQLSERVER), `sql_force` (keep/on/off), `sql_restart` | The certificate must hold the server's FQDN. Failover-cluster instances are not handled (each node, and the virtual name, need their own). |
+| `ldaps` - LDAPS on a domain controller | copies the certificate's registry key into the NTDS service store (`HKLM:\SOFTWARE\Microsoft\Cryptography\Services\NTDS\SystemCertificates\My\Certificates`; older acme ones removed from there), or only LocalMachine\My; then `ldifde -i -f` with `dn:` / `changetype: modify` / `add: renewServerCertificate` / `renewServerCertificate: 1` / `-` (no restart); `host:636` added to the TLS check | `ldaps_store` (ntds / my), `ldaps_verify` | Copying the registry key is the usual scripted way into a service store (the MMC way is manual). With LocalMachine\My only, the DC picks one of the suitable certificates itself, which may not be the newest. |
+| `winrm` - WinRM HTTPS | every listener with `Transport=HTTPS`: `WSMan:\localhost\Listener\<name>\CertificateThumbprint` set; with none, either an error or (option) `New-Item WSMan:\localhost\Listener -Transport HTTPS -Address * -HostName <name> -CertificateThumbPrint`; firewall rule `acme-WinRM-HTTPS-In` TCP 5986 (option); `Restart-Service WinRM` when changed | `winrm_create`, `winrm_hostname` (empty: the certificate's first name that is not a wildcard), `winrm_firewall` | It runs over SSH, so restarting WinRM cuts nothing of its own. |
+| `sstp` - RRAS SSTP VPN | `Set-RemoteAccess -SslCertificate (the certificate)`; `Restart-Service RemoteAccess` | `sstp_restart` | Some builds may want RemoteAccess stopped before `Set-RemoteAccess`. Not tested on every version. |
+| `ccs` - IIS Central Certificate Store | a PFX locked with the store's password, written as `<host>.pfx`, or `_.<domain>.pfx` for `*.<domain>` (the CCS naming), for every name or only the first; an existing file with the same certificate is left alone (`Get-PfxData`); no binding | `ccs_path` (UNC or local), `ccs_password` (secret), `ccs_names` | A UNC path is reached as the SSH user. With key sign-in there are no network credentials: use a local folder or a share the computer account may write. |
+| `ftp` - IIS FTP over TLS | `Microsoft.Web.Administration`: `ftpServer/security/ssl` `serverCertHash` (and `serverCertStoreName=My`) of a site, or of `siteDefaults` when no site is given | `ftp_site`, `ftp_restart` | Whether FTP picks it up without a restart of `ftpsvc` is not sure: turn the restart on if it does not. |
+| `exchange` - Exchange (extended) | snap-in loaded when needed; `Get-ExchangeCertificate` first; `Enable-ExchangeCertificate -Thumbprint -Services IIS,SMTP,… -Force -Confirm:$false` (the default SMTP certificate replaced without the prompt; no `-DoNotRequireSsl`); IMAP4/POP3 (front end and back end) restarted when chosen and changed; old acme Exchange certificates whose `Services` are `None` removed (switch), the others kept with a warning | `ex_iis`, `ex_smtp`, `ex_imap`, `ex_pop`, `ex_um`, `ex_umcr`, `ex_remove_old`, `ex_restart` | UM and UMCallRouter exist only up to Exchange 2016. The older *Exchange services* text field still works next to this. |
+| `lync` - Skype for Business / Lync | `Import-Module SkypeForBusiness` (or `Lync`); `Set-CsCertificate -Type Default\|WebServicesInternal\|WebServicesExternal -Thumbprint` for the types whose `Get-CsCertificate` differs; optional `Stop-/Start-CsWindowsService` | `cs_default`, `cs_internal`, `cs_external`, `cs_restart` | Public CAs no longer put *Client Authentication* in server certificates (Let's Encrypt from 2026). The Default certificate (server-to-server MTLS) usually needs it, so for Default use a CA that still issues it. OAuth certificates are not touched. |
+| `sharepoint` - SharePoint Server SE (**beta**) | snap-in; `Get-SPCertificate` by thumbprint, else `Import-SPCertificate -Path <pfx> -Password … -Exportable`; `Set-SPWebApplication -Identity <url> -Zone <zone> -Port <port> -SecureSocketsLayer -Certificate <cert> [-HostHeader … -UseServerNameIndication]` | `sp_url`, `sp_zone`, `sp_port` (443), `sp_host` | Subscription Edition only (certificate management). Best effort, not tried on a farm: parameter sets may differ by version. |
+| `wac` - Windows Admin Center | service `WindowsAdminCenter` (2410 and later): module `Microsoft.WindowsAdminCenter.Configuration` (from the module path, or under `Program Files\WindowsAdminCenter\PowerShellModules`), `Set-WACCertificateSubjectName -SubjectName <CN without "CN="> [-Thumbprint, when the cmdlet has it]`, `Set-WACCertificateAcl -SubjectName …` (when there), `Restart-Service WindowsAdminCenter`. Service `ServerManagementGateway` (older): when `netsh http show sslcert` for its port does not show the thumbprint, `msiexec /i <msi> /qn SME_PORT=<port> SME_THUMBPRINT=<thumb> SSL_CERTIFICATE_OPTION=installed` | `wac_msi` (older versions only), `wac_port` (empty: `SmePort` from the registry, else 443) | **Uncertain**: the 2410+ cmdlets and their parameters are from memory and from reports that differ (the service is said to be `WindowsAdminCenter` and, by some, `wacs`). Look at the job's steps after the first run. |
+
+**Example**: on an AD FS server, *Role: AD FS* on (all its switches), verify
+`sts.example.com:443`. On a domain controller, *Role: LDAPS* on: the TLS check on
+`<host>:636` is added by itself.
+
 ## `f5` - F5 BIG-IP
 
 Over iControl REST:

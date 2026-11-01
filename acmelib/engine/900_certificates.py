@@ -60,6 +60,9 @@ CERT_DEFAULTS = {
     'dns_rate': 100,
     'dns_expose': 'both',
     'dns_cache': 1,
+    # --- who sees which certificates (Settings → Owners and teams, docs/teams.md) ------
+    'certs_certadmin_all': 1,
+    'certs_readonly_all': 1,
 }
 for _k, _v in CERT_DEFAULTS.items():
     DEFAULTS.setdefault(_k, _v)
@@ -101,6 +104,8 @@ NAMES.update({
     'dns_rate': 'Answers per second to one network',
     'dns_expose': 'Where it answers',
     'dns_cache': 'How long records are cached (s)',
+    'certs_certadmin_all': 'Certificate administrators manage every certificate',
+    'certs_readonly_all': 'Read-only accounts see every certificate',
 })
 SAYS.update({
     'certs_renew_days': 'A certificate renewed by itself is renewed this many days before it '
@@ -170,6 +175,13 @@ SAYS.update({
                   'The nodes only: each node by its own address (two NS records, no VIP needed). '
                   'Their addresses below are filled in from this when left empty.',
     'dns_cache': 'Records are read from the database at most this often; both nodes of a cluster answer the same within it.',
+    'certs_certadmin_all': 'On (as before): a certificate administrator sees and manages every '
+                           'certificate. Off: only those of the teams where they are a member '
+                           'with the right to manage (or to see, to approve); a certificate '
+                           'without an owner only a full administrator sees. A full '
+                           'administrator always sees and does everything.',
+    'certs_readonly_all': 'On (as before): a read-only account sees every certificate. Off: '
+                          'only those of the teams where it is a member with the right to see.',
 })
 SAYS_SHORT.update({
     'dns_static': 'One record a line: name type value.',
@@ -185,6 +197,7 @@ TUNABLE.update({
     'dns_server': (0, 1), 'dns_port': (1, 65535), 'dns_ttl': (0, 86400),
     'dns_expose': ('both', 'vip', 'nodes'),
     'dns_rate': (1, 100000), 'dns_cache': (0, 60),
+    'certs_certadmin_all': (0, 1), 'certs_readonly_all': (0, 1),
 })
 PANES['certs'] = ['certs_renew_days', 'certs_check_min', 'certs_parallel', 'certs_retry_max_h',
                   'certs_notify_days', 'certs_notify_mail', 'certs_notify_sms',
@@ -207,6 +220,7 @@ PANES['dnssrv'] = ['dns_server', 'dns_expose', 'dns_listen', 'dns_port', 'dns_zo
 ONLY_WHEN.update({k: ['dns_server', '1'] for k in PANES['dnssrv'] if k != 'dns_server'})
 ONLY_WHEN.update({k: ['portal_cert', '1'] for k in PORTAL_CERT_KEYS if k != 'portal_cert'})
 SETTING_TALL = tuple(SETTING_TALL) + ('dns_static',)
+PANES['teams'] = ['certs_certadmin_all', 'certs_readonly_all']
 
 # The words of its notifications (acmelib/certs/texts.py) into the registry of
 # Settings → Message texts: both languages, edited there as every other.
@@ -304,7 +318,7 @@ def certs_event_fields(kind, words, level):
 # set up, not what happened (cert_jobs, cert_versions stay out).
 CERT_CARRY_TABLES = ['cert_issuers', 'cert_challenges', 'cert_targets', 'cert_cas',
                      'cert_ca_issued', 'certs', 'cert_deploys', 'dns_records',
-                     'dns_sets', 'dns_set_uses']
+                     'dns_sets', 'dns_set_uses', 'cert_teams', 'cert_tags']
 
 
 @_certs_hook('carry_tables')

@@ -192,7 +192,8 @@ def _tell(store, mid, key, cert, trow, **more):
         if mid == 'cert_deploy_failed':
             # The renewer says the same of the whole renewal: not twice.
             store.set_meta('certs:notified:deploycert:%s' % cert['id'], str(time.time()))
-        n.send(store, mid, key, n.cert_values(store, cert, target=trow['name'], **more))
+        n.send(store, mid, key, n.cert_values(store, cert, target=trow['name'], **more),
+               mail_to=n.recipients(store, cert))
     except Exception as e:                              # noqa: BLE001
         E.log('telling about the deployment of %s: %s' % (cert.get('name'), e), 'warn')
 
@@ -249,7 +250,7 @@ def told_renewed(store, job, cert_id):
             return
         cert = S.cert_need(store, cert_id)
         n.send(store, 'cert_renewed', 'renewed:%s:%s' % (cert_id, job.version),
-               n.cert_values(store, cert))
+               n.cert_values(store, cert), mail_to=n.recipients(store, cert))
     except Exception as e:                              # noqa: BLE001
         E.log('telling about a renewal: %s' % e, 'warn')
 

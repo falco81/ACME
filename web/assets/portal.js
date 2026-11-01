@@ -54,7 +54,9 @@ function portalDoor() {
     go.disabled = true;
     var words = go.querySelector('span');
     words.textContent = 'Signing in…';
-    api('login', {name: $('in-name').value, password: $('in-pass').value}).then(function () {
+    api('login', {name: $('in-name').value, password: $('in-pass').value}).then(function (d) {
+      /* An account of acme's own with a second step: asked as the administration asks it (core.js). */
+      if (d && d.mfa) { form.hidden = true; mfaStep(); return; }
       said.className = 'said good';
       said.textContent = 'Welcome.';
       location.reload();
@@ -67,7 +69,7 @@ function portalDoor() {
       $('in-pass').focus();
     });
   });
-  $('in-name').focus();
+  if ($('mfa-box') && $('mfa-box').dataset.stage) { form.hidden = true; mfaStep(); } else $('in-name').focus();
 }
 
 var ME = null;
@@ -109,6 +111,7 @@ function aboutMe() {
       return d.toLocaleDateString(numLang()) + ' ' + d.toLocaleTimeString(numLang(), {hour: '2-digit', minute: '2-digit'});
     };
     row('Full name', ME.display || '');
+    if (ME.kind === 'local') row('Account', ROLE_WORDS_P[ME.role] || 'an account of acme’s own', false, true);
     row('Signed in as', a.login || ME.name, true);
     row('Account', a.sam || '', true);
     row('UPN', a.upn || '', true);
@@ -126,10 +129,20 @@ function aboutMe() {
     row('Password set', a.pw_set ? when(a.pw_set) : '');
     body.appendChild(dl);
     var p = el('p', 'note small');
+    if (ME.kind === 'local') {
+      p.textContent = ME.sees_all ? 'As a certificate administrator you see every certificate here, not only the ones you own.'
+        : 'You see the certificates whose owner is your account here (its name, or local: and its name).';
+      body.appendChild(p);
+      return;
+    }
     p.textContent = 'As the directory had it when you signed in. Something wrong here is wrong there too - your IT department puts it right.';
     body.appendChild(p);
   }, [{words: 'Close', close: true}], true);
 }
+
+var ROLE_WORDS_P = {readonly: 'an account of acme’s own - a reader',
+  certadmin: 'an account of acme’s own - a certificate administrator',
+  fulladmin: 'an account of acme’s own - a full administrator'};
 
 function stateCard(kind, title, words) {
   var box = el('div', 'bigstate');

@@ -41,6 +41,21 @@ def _split(v):
     return [w for w in str(v or '').replace(';', ',').replace(' ', ',').split(',') if w]
 
 
+def recipients(store, cert):
+    """certs_notify_mail and the mail of the certificate's owner team (teams.py), each once."""
+    out = []
+    extra = []
+    try:
+        from acmelib.certs import teams
+        extra = teams.contact_mails(store, cert)
+    except Exception as e:                              # noqa: BLE001
+        E.log('the owner of %s could not be read: %s' % ((cert or {}).get('name'), e), 'warn')
+    for w in _split(E.CONFIG.get('certs_notify_mail')) + extra:
+        if w.lower() not in {x.lower() for x in out}:
+            out.append(w)
+    return out
+
+
 def cert_values(store, cert, **more):
     """The placeholders of a certificate (a row of certs, or its id or name)."""
     if not isinstance(cert, dict):
@@ -131,7 +146,8 @@ def notify(store, key, subject, words, force=False):
         mid = KEY_MID.get(what)
         cert = S.cert_get(store, int(ident)) if ident.isdigit() else None
         if not mid or not cert:
-            return send_plain(store, key, subject, words, force)
+            return send_plain(store, key, subject, words, force,
+                              mail_to=recipients(store, cert) if cert else None)
         more = {}
         if what in ('renew', 'deploy'):
             more['error'] = str(words or '')[:500]
@@ -144,7 +160,8 @@ def notify(store, key, subject, words, force=False):
             more['target'] = ', '.join(sorted({d['target'] for d in store.db.rows(
                 "SELECT target FROM cert_deploys WHERE cert_id = ? AND state = 'failed'",
                 (cert['id'],))})) or '-'
-        return send(store, mid, key, cert_values(store, cert, **more), force)
+        return send(store, mid, key, cert_values(store, cert, **more), force,
+                    mail_to=recipients(store, cert))
     except Exception as e:                              # noqa: BLE001
         E.log('telling about %s: %s' % (subject, e), 'warn')
         return {'mail': [], 'sms': []}
@@ -153,7 +170,7 @@ def notify(store, key, subject, words, force=False):
 notify._texts = True
 
 
-def send_plain(store, key, subject, words, force=False):
+def send_plain(store, key, subject, words, force=False, mail_to=None):
     """What is not one of the texts' events: the subject and the words as they are."""
     went = {'mail': [], 'sms': []}
     try:
@@ -161,7 +178,7 @@ def send_plain(store, key, subject, words, force=False):
         if not force and time.time() - float(store.get_meta(mk) or 0) < NOTIFY_EVERY:
             return went
         store.set_meta(mk, str(time.time()))
-        to = _split(E.CONFIG.get('certs_notify_mail'))
+        to = list(mail_to) if mail_to is not None else _split(E.CONFIG.get('certs_notify_mail'))
         if to:
             E.mail_deliver(store, _mail(to, {'subject': subject, 'text': '%s\n\n%s\n\n-- acme on '
                                                                          '%s\n' % (

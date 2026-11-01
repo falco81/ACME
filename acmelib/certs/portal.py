@@ -123,13 +123,23 @@ def my_groups(h, s):
     return [tuple(g) for g in got]
 
 
-def owner_of(row, names, groups):
-    """'' when the certificate is not theirs, 'me', or the group's name."""
+def my_teams(h, s):
+    """{team lower: (name, {rights})} of the person (Settings → Owners and teams):
+    the teams with them - their name, local:NAME, a group they are in - as a member."""
+    from acmelib.certs import teams
+    return teams.person_teams(h.store, my_names(s), my_groups(h, s))
+
+
+def owner_of(row, names, groups, teams=None):
+    """'' when the certificate is not theirs, 'me', the team's name (a team with
+    them as a member that may see it), or the group's name."""
     owner = str(row.get('owner') or '').strip().lower()
     if not owner:
         return ''
     if owner in names:
         return 'me'
+    if teams and owner in teams and 'view' in teams[owner][1]:
+        return teams[owner][0]
     bare = owner[6:].strip() if owner.startswith('group:') else owner
     for dn, cn in groups:
         if bare in (dn.lower(), cn.lower()):
@@ -169,20 +179,22 @@ def mine(h, s, rows=None):
     store = h.store
     names = my_names(s)
     groups = my_groups(h, s)
+    tms = my_teams(h, s)
     if E.portal_sees_all(s):
-        out = [public(store, r, owner_of(r, names, groups) or '*')
+        out = [public(store, r, owner_of(r, names, groups, tms) or '*')
                for r in store.db.rows('SELECT * FROM certs ORDER BY name')]
         out.sort(key=lambda o: (o.get('via') != 'me', str(o.get('name') or '').lower()))
         return out
     want = sorted(names | {cn.lower() for _, cn in groups} | {dn.lower() for dn, _ in groups}
-                  | {'group:' + cn.lower() for _, cn in groups})
+                  | {'group:' + cn.lower() for _, cn in groups}
+                  | {k for k, (_, r) in tms.items() if 'view' in r})
     out = []
     # Asked in pieces: a person in hundreds of groups is not one statement of hundreds of '?'.
     for at in range(0, len(want), 100):
         part = want[at:at + 100]
         for r in store.db.rows('SELECT * FROM certs WHERE LOWER(TRIM(owner)) IN (%s)' % ', '.join(
                 '?' * len(part)), tuple(part)):
-            via = owner_of(r, names, groups)
+            via = owner_of(r, names, groups, tms)
             if via and r['id'] not in {o['id'] for o in out}:
                 out.append(public(store, r, via))
     out.sort(key=lambda o: (o.get('via') != 'me', str(o.get('name') or '').lower()))
@@ -200,7 +212,7 @@ def need_mine(h, s, ref):
     row = S.cert_get(h.store, A._id(ref))
     if row and E.portal_sees_all(s):
         return row
-    if not row or not owner_of(row, my_names(s), my_groups(h, s)):
+    if not row or not owner_of(row, my_names(s), my_groups(h, s), my_teams(h, s)):
         raise E.ApiError(404, 'there is no such certificate of yours')
     return row
 
@@ -349,6 +361,8 @@ def _portal_certs(h):
             'auto': bool(E.CONFIG.get('portal_cert_auto')),
             'keys': bool(E.CONFIG.get('portal_cert_keys')),
             'groups': [cn for _, cn in my_groups(h, s)][:50],
+            # The teams they may ask for a certificate for (Settings → Owners and teams).
+            'teams': sorted(n for n, r in my_teams(h, s).values() if 'request' in r),
             'sees_all': E.portal_sees_all(s), 'kind': 'local' if is_local(s) else 'directory',
             'may_request': bool(sufs and iss) and n < most()}
 
@@ -441,6 +455,16 @@ def _portal_request(h):
                          or None, {}, kt, '')
     if probs:
         raise E.ApiError(400, compat.words(probs))
+    # Owned by a team they may ask for (its right `request`), or by them as before.
+    owner = who
+    if str(b.get('team') or '').strip():
+        tm = my_teams(h, s).get(str(b['team']).strip().lower())
+        if not tm or 'request' not in tm[1]:
+            store.add_event('certificates', '%s was refused on the portal: a certificate for '
+                            'the team %s (needs the right request)' % (who, b['team']), 'warn',
+                            who=who)
+            raise E.ApiError(403, 'you may not ask for certificates of the team %s' % b['team'])
+        owner = tm[0]
     auto = bool(E.CONFIG.get('portal_cert_auto'))
     base_name = re.sub(r'[^A-Za-z0-9._@+-]+', '-', names[0].replace('*.', 'wildcard.'))[:80]
     name = base_name
@@ -457,7 +481,7 @@ def _portal_request(h):
         'reuse_key': 0, 'profile': '{}', 'source': 'portal',
         'state': 'new' if auto else WAITING, 'state_at': t, 'version': 0,
         'fails': 0, 'tags': json.dumps(['portal']),
-        'note': ('asked for on the portal by %s. %s' % (who, note)).strip(), 'owner': who[:190],
+        'note': ('asked for on the portal by %s. %s' % (who, note)).strip(), 'owner': owner[:190],
         'created': t, 'created_by': 'portal:' + who[:180], 'enabled': 1, 'ari': '{}'})
     data = s.get('data') or {}
     store.set_meta(META + str(cid), json.dumps({

@@ -15,6 +15,7 @@ from acmelib.plugins.targets._common import (
     ssh_fields, verify_fields, keep_field, sha1_thumb, random_password, text, put_scp,
     label_of, stamp, parse_outputs, outputs_for, alt_of, family_of, PFX_FORMATS)
 from acmelib.plugins.targets import _script as SC
+from acmelib.plugins.targets import _win_roles as WR
 
 INTERPS = ('powershell',)
 
@@ -28,7 +29,7 @@ def encoded(script):
     return base64.b64encode(script.encode('utf-16-le')).decode('ascii')
 
 
-class WindowsSshTarget(SshMixin, Base):
+class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
     kind = 'windows_ssh'
     title = 'Windows server (OpenSSH + PowerShell)'
     vendor = 'Microsoft'
@@ -65,7 +66,7 @@ class WindowsSshTarget(SshMixin, Base):
     ] + SC.password_fields() + [
         field('service', 'Service name', 'text', advanced=True,
               help='{service} in the paths, ACME_SERVICE for the script'),
-    ] + SC.script_fields(INTERPS, default='powershell') + verify_fields()
+    ] + SC.script_fields(INTERPS, default='powershell') + WR.role_fields() + verify_fields()
     files_ui = SC.files_ui('windows', INTERPS, SC.layouts('C:/certs/{name}', 'windows'),
                            owners=False)
 
@@ -94,12 +95,13 @@ class WindowsSshTarget(SshMixin, Base):
                 "::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)\n"
                 "Write-Output (\"$env:USERNAME|$os|$($PSVersionTable.PSVersion)|$adm\")"),
                 'signing in')
+            roles = self.roles_found_words(self.roles_detect(s))
         last = [x for x in out.splitlines() if '|' in x][-1:] or ['?|?|?|?']
         user, os_, psv, adm = (last[0].split('|') + ['?'] * 4)[:4]
         if adm.strip().lower() != 'true':
             raise PluginError('signed in as %s, but not as an administrator (elevated)' % user,
                               retry=False)
-        return 'signed in as %s on %s, PowerShell %s' % (user, os_, psv)
+        return 'signed in as %s on %s, PowerShell %s' % (user, os_, psv) + roles
 
     def script(self, bundle, options, pfx_path, password):
         thumb = sha1_thumb(bundle)
@@ -298,7 +300,7 @@ class WindowsSshTarget(SshMixin, Base):
         got['env']['ACME_THUMBPRINT'] = sha1_thumb(bundle) if getattr(bundle, 'cert_pem', '') \
             else ''
         got['problems'] = [p for p in got['problems'] if p['words'] != 'no files are written']
-        return got
+        return self.roles_preview(bundle, options, got)
 
     def dry_run(self, bundle, options, run_script=True):
         """Signed in; the files made into a temporary folder; the script run with
@@ -323,6 +325,7 @@ class WindowsSshTarget(SshMixin, Base):
                     self.ctx.step('%s: %s, %d B - into the temporary folder' % (
                         o['path'], o['format'], len(data)))
                 self.ctx.step('the machine store and the bindings are not touched on a test')
+                self.roles_dry_run(s, bundle, options)
                 if sc and run_script:
                     env = SC.env_for(self, bundle, moved, vars, SC.password_of(options),
                                      dry_run=True, extra={'ACME_THUMBPRINT': sha1_thumb(bundle),
@@ -346,6 +349,7 @@ class WindowsSshTarget(SshMixin, Base):
         vars = self._vars(bundle, options)
         pairs = self._files(bundle, options, vars)
         SC.script_of(self, options, vars, INTERPS)      # refused before anything is done
+        iopts = self.roles_import_options(options, bundle)
         with self.ssh() as s:
             if self.unchanged(bundle, options, present=lambda: 'YES' in self.run_ps(
                     s, "if (Test-Path 'Cert:\\LocalMachine\\My\\%s') { 'YES' } else { 'NO' }"
@@ -357,11 +361,12 @@ class WindowsSshTarget(SshMixin, Base):
             path = '%s/acme-%s.pfx' % ((self.c('tmp_dir') or 'C:/Windows/Temp').rstrip('/\\'),
                                        secrets.token_hex(6))
             put_scp(s, data, path)
-            rc, out, err = self.run_ps(s, self.script(bundle, options, path, password),
+            rc, out, err = self.run_ps(s, self.script(bundle, iopts, path, password),
                                        'importing the certificate')
             self._said(out)
+            roles = self.deploy_roles(s, bundle, options)
             after = self._after(s, bundle, options, vars, pairs)
-        did = ['imported %s' % thumb[:12]] + self._did
+        did = ['imported %s' % thumb[:12]] + self._did + roles
         if after:
             did.append(after)
         self.remember(bundle, options)

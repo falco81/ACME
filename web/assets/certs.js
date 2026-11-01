@@ -43,7 +43,7 @@ function capi(path, body, wait) {
    that changes something, so the next tab, popup or form asks again: a
    thing made in one tab is in every other at once, without F5. POSTs that
    only read (a file looked into, an export, a test, a check) keep them. */
-var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|dry_run|compat)$/;
+var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|dry_run|compat|preview)$/;
 var FRESH = {n: 0};
 function forgetAll() {
   FRESH.n++;
@@ -706,6 +706,11 @@ function fieldForm(fields, values, secrets, opts) {
       input = secretBox(keptSecret(v), isSet ? 'set - leave empty to keep it' : (f.placeholder || 'not set'), 'mono');
       noI18n(input);
       get = function () { return input.value; };
+    } else if (type === 'textarea' && f.ui === 'script' && window.ACME_DEPLOY_UI) {
+      /* A script (the target's default one after the files): the code box. */
+      input = window.ACME_DEPLOY_UI.codeBox(v || '', {readOnly: !FULL, min: 6});
+      get = function () { return input._get(); };
+      wide = true;
     } else if (type === 'textarea') {
       input = areaBox(v, f.placeholder, f.rows || 4);
       get = function () { return input.value; };
@@ -2094,6 +2099,21 @@ function deployEdit(o) {
       if (dual) formHost.appendChild(el('p', 'muted small', p.dual
         ? 'The certificate is dual (ECDSA and RSA): this target takes both, and gives each client the one it takes.'
         : 'The certificate is dual (ECDSA and RSA): this target holds one at a time - choose which below (RSA where unsure: every client can use it).'));
+      /* A target that writes files (ssh, windows_ssh, local): the files designer,
+         its live preview and the script after them (deployfiles.js). */
+      if (p.files_ui && window.ACME_DEPLOY_UI) {
+        var cid0 = cSel ? cSel.value : certId;
+        form = window.ACME_DEPLOY_UI.form(p, fields, opts, secretsOf(d), {
+          target: t.name, targetRow: t, deploy_id: d.id, cert_id: cid0 ? (isNaN(Number(cid0)) ? cid0 : Number(cid0)) : null,
+          dual: dual, sudo: truthy((t.config || {}).sudo)});
+        formHost.appendChild(form.node);
+        $('modal-box').classList.remove('medium');
+        $('modal-box').classList.add('large');
+        if (testBtn) testBtn.hidden = !(p.files_ui.dry_run && MANAGE);
+        return;
+      }
+      if (testBtn) testBtn.hidden = true;
+      if ($('modal-box').classList.contains('large')) { $('modal-box').classList.remove('large'); $('modal-box').classList.add('medium'); }
       form = fieldForm(fields, opts, secretsOf(d), {noneWords: 'This target needs nothing more: the certificate goes where the module puts it.'});
       formHost.appendChild(form.node);
     };
@@ -2118,6 +2138,10 @@ function deployEdit(o) {
       }).catch(fail).then(function () { busy(b, false); });
     };
     var buttons = [{words: 'Close', close: true}];
+    var testBtn = null;
+    if (MANAGE) buttons.push({words: 'Test', icon: 'play', cls: 'df-testbtn', go: function (b) {
+      if (form && form.test) form.test(b);
+    }});
     if (d.id && MANAGE) buttons.push({words: 'Take it off', cls: 'danger', icon: 'trash', go: function () {
       capi('deploys/delete', {id: d.id}).then(function (x) { toast(said(x, 'taken off'), 'good'); closeModal(); CT.refresh(); }).catch(fail);
     }});
@@ -2164,6 +2188,10 @@ function deployEdit(o) {
       }
       if (!MANAGE) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { x.disabled = true; });
     }, buttons, 'medium');
+    testBtn = $('modal-foot').querySelector('.df-testbtn');
+    var tp = target(), pl = plugOf('target', tp.kind);
+    if (testBtn) testBtn.hidden = !(pl && pl.files_ui && pl.files_ui.dry_run);
+    if (pl && pl.files_ui) { $('modal-box').classList.remove('medium'); $('modal-box').classList.add('large'); }
     explainWhatWasDrawn($('modal-body'));
   }).catch(function (e) { if (modalStill(ticket)) { var b = $('modal-body'); clear(b); b.appendChild(failedBox(e)); } });
 }
@@ -2441,7 +2469,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   hw.appendChild(namesChips(arr(c.names).concat(arr(obj(c.profile).san_other))));
   if (arr(c.tags).length || c.owner) {
     var tl = el('div', 'ct-head-tags');
-    if (c.owner) tl.appendChild(data('span', 'tag info', c.owner));
+    if (c.owner) tl.appendChild(explain(data('span', 'tag info', c.owner), 'The owner: they see it on the enrolment pages - the person, the members of the group, or the account here (local:NAME). Certificate administrators signed in there see every certificate.'));
     tl.appendChild(tagChips(c.tags));
     hw.appendChild(tl);
   }
@@ -3387,7 +3415,7 @@ function certWizard(cert, detail) {
     noI18n(tags);
     g.appendChild(formField('Tags', tags, 'Words to find it by, with spaces between.'));
     var owner = textBox(W.d.owner, 'team or person', '');
-    g.appendChild(formField('Owner', owner, 'Who to ask about it.'));
+    g.appendChild(formField('Owner', owner, 'Who to ask about it - and who sees it on the enrolment pages: a person (account, UPN, mail; local:NAME for an account here) or a group (name, DN, group:NAME).'));
     var note = textBox(W.d.note, '', '');
     g.appendChild(formField('Note', note));
     host.appendChild(g);
@@ -3860,8 +3888,11 @@ function certWizard(cert, detail) {
         forms[t.name] = null;
         if (!cb.checked) return;
         if (!p) { fh.appendChild(el('p', 'ct-bad', 'Its module is not installed.')); return; }
-        var f = fieldForm(arr(p.deploy_fields).filter(function (x) { return !x.dual_only || W.d.key_type_alt; }),
-                          W.deploys[t.name] || {}, {}, {noneWords: 'Nothing to set for this target.'});
+        var dfs = arr(p.deploy_fields).filter(function (x) { return !x.dual_only || W.d.key_type_alt; });
+        var f = p.files_ui && window.ACME_DEPLOY_UI
+          ? window.ACME_DEPLOY_UI.form(p, dfs, W.deploys[t.name] || {}, {}, {target: t.name, targetRow: t, names: names(),
+              key_type: W.d.key_type, key_type_alt: W.d.key_type_alt, dual: !!W.d.key_type_alt, sudo: truthy((t.config || {}).sudo)})
+          : fieldForm(dfs, W.deploys[t.name] || {}, {}, {noneWords: 'Nothing to set for this target.'});
         forms[t.name] = f;
         fh.appendChild(f.node);
       };
@@ -5666,6 +5697,9 @@ CT.certPeek = certPeek;
 CT.jobPeek = jobPeek;
 CT.caPeek = caPeek;
 CT.deployEdit = deployEdit;
+CT.fieldForm = fieldForm;
+CT.jobLog = jobLog;
+CT.keptSecret = keptSecret;
 CT.api = capi;
 
 window.ACME_EXTRA_TABS = window.ACME_EXTRA_TABS || [];
