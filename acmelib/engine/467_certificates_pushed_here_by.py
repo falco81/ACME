@@ -240,7 +240,7 @@ def hkdf_sha256(ikm, salt, info, n=32):
     return out[:n]
 
 
-def _gf_mul(x, y):
+def _push_gcm_mul(x, y):
     z, v = 0, x
     for i in range(127, -1, -1):
         if (y >> i) & 1:
@@ -266,8 +266,8 @@ def _gcm_pure(key, nonce, data, aad, open_):
         y = 0
         for part in (aad, c):
             for i in range(0, len(part), 16):
-                y = _gf_mul(y ^ int.from_bytes(part[i:i + 16].ljust(16, b'\x00'), 'big'), h)
-        y = _gf_mul(y ^ ((len(aad) * 8) << 64 | len(c) * 8), h)
+                y = _push_gcm_mul(y ^ int.from_bytes(part[i:i + 16].ljust(16, b'\x00'), 'big'), h)
+        y = _push_gcm_mul(y ^ ((len(aad) * 8) << 64 | len(c) * 8), h)
         return (y ^ int.from_bytes(aes.block(j0), 'big')).to_bytes(16, 'big')
     if open_:
         body, tag = data[:-16], data[-16:]

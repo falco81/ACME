@@ -4,6 +4,19 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.7 - 2026-11-01
+
+- **The QR code of the second factor is right again.** 1.0.6 drew it wrong:
+  a helper of acme push had the name of the QR code's own (the engine's parts
+  share one namespace), so an authenticator app could not read a new QR code.
+  Every name is defined once now, and the engine's lint and a test say so.
+- A second `db_trouble` (the words for an unreachable PostgreSQL when joining
+  a cluster) renamed `ha_db_trouble` - it had taken the place of the one that
+  tells a database error.
+- docs/acme-push-protocol.md: **additive only** - every existing way of
+  managing certificates in an application stays as it is; acme push is off by
+  default and only one more way in.
+
 ## 1.0.6 - 2026-11-01
 
 - **acme push - certificates for our other applications** (otp, isemon,

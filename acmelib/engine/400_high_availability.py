@@ -214,7 +214,7 @@ def _ha_do(h):
             fwv = {'state': 'off' if not (fw_desired(h.store) or {}).get('on') else
                    ('done' if ha_pending(h.store) else 'failed'),
                    'said': 'it was not opened to the first node yet'}
-            why = db_trouble(got.get('trouble') or '', db, fwv)
+            why = ha_db_trouble(got.get('trouble') or '', db, fwv)
             return {'steps': [{'key': 'db', 'ok': False, 'said': why['says'], 'fix': why['fix'],
                                'kind': why['kind']}]}
         raise ApiError(400, 'bundle, firewall or db')

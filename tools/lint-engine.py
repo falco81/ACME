@@ -12,6 +12,7 @@ came from. Exit 1 when something is undefined or does not compile.
 """
 import io
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -54,6 +55,22 @@ def main():
         print('acmelib/engine/%s:%d:%s' % (part, pn, rest))
         if 'undefined name' in rest or 'invalid syntax' in rest or 'Error' in rest:
             bad += 1
+    # The parts share one namespace: a function or class a later part defines
+    # again replaces the first one everywhere, silently (1.0.6: acme push's GCM
+    # helper took the place of the QR codes' _gf_mul). Every top-level def/class
+    # once.
+    seen = {}
+    for idx, line in enumerate(src):
+        m = re.match(r'^(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)', line)
+        if not m:
+            continue
+        name, here = m.group(1), where[idx]
+        if name in seen and seen[name][0] != here[0]:
+            print('acmelib/engine/%s:%d: %s is defined again - acmelib/engine/%s:%d has it '
+                  'already (the parts share one namespace)' % (here[0], here[1], name,
+                                                               seen[name][0], seen[name][1]))
+            bad += 1
+        seen.setdefault(name, here)
     print('%d part(s), %d line(s); %d problem(s)' % (len(parts), len(src), bad),
           file=sys.stderr)
     return 1 if bad else 0

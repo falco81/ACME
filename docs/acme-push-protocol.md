@@ -2,6 +2,16 @@
 
 ## Shrnutí česky
 
+> **Jen nová možnost navíc - nic stávajícího se nemění.** Všechny dosavadní
+> způsoby správy a obnovy certifikátů v aplikacích musí zůstat beze změny a
+> plně funkční: ruční nahrání (PEM/PFX), žádost (CSR), certifikát podepsaný
+> sám sebou, *Automatické certifikáty* (vlastní ACME aplikace), nastavení TLS,
+> u zigmonu server vpředu přes SSH a broker, zálohy, obnova a export.
+> acme push je **ve výchozím stavu vypnutý**, sám nic nespouští a nic
+> stávajícího nepřepisuje ani neblokuje - přidává jen novou kartu, nové
+> požadavky a novou cestu, kudy certifikát do stejného místa přijde. Podrobně
+> kapitola [0. Additive only](#0-additive-only---nothing-existing-changes).
+
 **acme push** je způsob, jak acme (správce certifikátů) dává a obnovuje
 certifikáty v našich dalších aplikacích - otp, isemon, zigmon i v jiném acme.
 Aplikace k tomu potřebuje jen svou stránku **Nastavení → Certifikáty a TLS**
@@ -27,7 +37,7 @@ push)*.
 - **Objevování (Discover):** `inventory` vrací sloty - každý uzel, VIP adresa,
   server vpředu, broker… - s jmény, která musí certifikát obsahovat, se
   současným certifikátem a s tím, kdo ho drží (ručně, vlastní ACME, acme,
-  `follows:` = řídí se jiným slotem). V acme tlačítko *Objevit* ukáže tabulku a
+  `follows:` = řídí se jiným slotem). V acme tlačítko *Zjistit* ukáže tabulku a
   jedním klikem vytvoří certifikáty a nasazení (pro každý slot zvlášť, nebo
   jeden pro celý cluster: jména všech uzlů + VIP).
 - **Co aplikace udělá s certifikátem:** ověří podpis, rozbalí klíč, ověří, že
@@ -46,6 +56,57 @@ push)*.
 The rest of this document is the implementer's specification, in English.
 
 ---
+
+## 0. Additive only - nothing existing changes
+
+acme push is **one more way** for a certificate to arrive. It replaces nothing.
+An implementation MUST keep every existing way of managing and renewing the
+application's certificates exactly as it is, working and reachable as before:
+
+* upload by hand (PEM in any order, PFX/PKCS#12 with or without a password),
+  a request (CSR) and its answer, a self-signed certificate, the TLS settings,
+  download/export;
+* the application's own ACME (*Automatic certificates*) - its CA, DNS APIs,
+  schedule and alerts;
+* zigmon: the server in front kept over SSH ("the same certificate as this
+  machine" or its own), the MQTT broker reading the certificate;
+* backup, restore, export/import and HA replication of the TLS profiles;
+* the command line and the console menu for all of the above.
+
+Rules:
+
+1. **Off by default.** Until a person switches "Certificates from acme" on,
+   `hello` says almost nothing and every other request is refused; nothing
+   else in the application behaves differently. Switched off again, the
+   pairings stay but nothing is accepted; the certificates already installed
+   stay in place, as an uploaded one would.
+2. **Same place, same path.** A pushed certificate is stored exactly where an
+   upload by hand stores it and goes through the same install code (checks,
+   files, nginx -t, reload, replication). No second store, no parallel nginx
+   configuration, no change to the existing install code - call it, do not
+   edit it. The receiver is a new, separate piece of code (a new engine part,
+   a new PHP route, a new card); it must not redefine or patch an existing
+   function. (In engine-based apps all parts share one namespace: check every
+   new top-level name is unique - acme's `tools/lint-engine.py` and
+   `test/test_engine_names.py` do; 1.0.6 shipped a helper that replaced the QR
+   code's `_gf_mul` and broke the second factor's QR codes - fixed in 1.0.7.)
+3. **Same precedence as an upload.** A pushed certificate counts as uploaded by
+   hand: the application's own ACME leaves that slot alone from then on,
+   exactly as after a manual upload, and nothing more. A person can at any
+   time upload another certificate, make a CSR or a self-signed one, or switch
+   the application's own ACME back on for that slot - all of it works as
+   before and simply replaces the pushed certificate (the slot then shows
+   `managed_by` of that way, and acme's next deploy says the slot is managed
+   otherwise unless forced).
+4. **No lock-in.** Unpairing, switching off or deleting acme's target leaves
+   the application fully working with the certificate it has.
+5. **Same audit.** Each install is an event like an upload ("by acme push,
+   key …"), so the existing logs, alerts and SIEM see it.
+
+Checklist addition: test that every existing certificate function still works
+with push off **and** with push on and paired (upload, CSR, self-signed, own
+ACME issue/renew, front server sync, backup/restore).
+
 
 ## 1. What it is
 
@@ -545,6 +606,11 @@ the target's last `inventory`.
 - **Clock:** both ends need NTP; a `stale` refusal says by how much.
 
 ## 14. Checklist for an implementer
+
+- [ ] **Additive only (chapter 0):** off by default; existing upload, CSR,
+      self-signed, own ACME, TLS settings, front server/broker, backup/restore
+      and CLI untouched and tested with push off and on; no existing function
+      redefined or edited - the install code is called, not changed.
 
 - [ ] Settings → Certificates and TLS: card **Certificates from acme**:
       switch, *Pair with an acme* (shows the code once), *Take it back*,

@@ -541,7 +541,7 @@ def ha_join(data, name='', even_if_data=False, by='', say=None, root_now=False):
     say('firewall', fw['state'] in ('done', 'off'), fw['said'])
     got = db_try(db)
     if not got.get('reached'):
-        why = db_trouble(got.get('trouble') or '', db, fw)
+        why = ha_db_trouble(got.get('trouble') or '', db, fw)
         say('db', False, why['says'])
         raise ValueError('the database in the bundle cannot be reached from here: %s - %s'
                          % (why['says'], why['fix']))
@@ -640,7 +640,7 @@ def ha_join_open(store, data, by='', root_now=False):
     return out
 
 
-def db_trouble(trouble, db, fw=None):
+def ha_db_trouble(trouble, db, fw=None):
     """Why a PostgreSQL could not be reached, in words that say what to do
     (1.0.210): {kind, says, fix}."""
     t = str(trouble or '')

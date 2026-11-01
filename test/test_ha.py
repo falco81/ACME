@@ -1339,10 +1339,10 @@ except ValueError as e:
     err = str(e)
 print(json.dumps({'said': said, 'err': err, 'rules': acme.fw_rules_for(st, 'fw1'),
                   'lines': APPLIED[-1] if APPLIED else [],
-                  'trouble': acme.db_trouble('could not connect to server: Connection refused',
+                  'trouble': acme.ha_db_trouble('could not connect to server: Connection refused',
                                              data['db']),
-                  'timeout': acme.db_trouble('timeout expired', data['db'], {'state': 'done'}),
-                  'hba': acme.db_trouble('FATAL:  no pg_hba.conf entry for host "192.0.2.22"',
+                  'timeout': acme.ha_db_trouble('timeout expired', data['db'], {'state': 'done'}),
+                  'hba': acme.ha_db_trouble('FATAL:  no pg_hba.conf entry for host "192.0.2.22"',
                                          data['db'])}))
 """)
         self.assertEqual(got['said'][0][0], 'firewall', got['said'])
