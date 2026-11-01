@@ -13,7 +13,10 @@ flag in meta (certs:default:<what>) says it was, so one an administrator
 deleted is never made again. A new certificate with no issuer said comes from
 the default source (meta certs:default_issuer, else "Let's Encrypt") and, when
 that is an ACME CA, is proved by the default validation ("This server
-(HTTP-01)"). The ACME account works without a contact e-mail; the pages and
+(HTTP-01)"). Every list has a default a person chooses (set_default): the
+source, the validation, the target (offered first for a deployment) and the
+authority (offered first for an own-CA source and for signing a CSR) - in
+meta certs:default_issuer / _challenge / _target / _ca. The ACME account works without a contact e-mail; the pages and
 `acme --acme-contact MAIL` ask for one where none is set.
 """
 from __future__ import annotations
@@ -107,13 +110,127 @@ def ensure(store):
     return made
 
 
+# ---------------------------------------------------------------------------
+# The default of each list (Sources, Validation, Targets, Authorities)
+# ---------------------------------------------------------------------------
+# meta holds the name (an authority: its id). Never set (an installation from
+# before, or one that had sources already): the source falls back to "Let's
+# Encrypt" and the validation to "This server (HTTP-01)" where they are there.
+# Set to '' by a person: there is none, and nothing is taken in its place.
+META = {'issuer': 'certs:default_issuer', 'challenge': 'certs:default_challenge',
+        'target': 'certs:default_target', 'ca': 'certs:default_ca'}
+FALLBACK = {'issuer': LE, 'challenge': HTTP_LOCAL}
+WORDS = {'issuer': 'source', 'challenge': 'validation', 'target': 'target',
+         'ca': 'authority'}
+
+
+def default_name(store, what):
+    """The name (an authority: the id, as text) of the default, or '' - only
+    of a row that is there."""
+    raw = store.get_meta(META[what])
+    if raw is None:
+        raw = FALLBACK.get(what, '')
+    raw = str(raw or '')
+    if not raw:
+        return ''
+    if what == 'ca':
+        try:
+            ok = store.db.value('SELECT id FROM cert_cas WHERE id = ?', (int(raw),))
+        except (TypeError, ValueError):
+            ok = None
+        return str(ok) if ok else ''
+    return raw if S.plugin_row(store, what, raw) else ''
+
+
+def _ca_usable(row):
+    if not row:
+        return 'there is no such authority'
+    if row.get('disabled'):
+        return 'the authority %s is switched off' % row['name']
+    if not row.get('cert_pem'):
+        return 'the authority %s has no certificate yet: it signs nothing' % row['name']
+    if not row.get('key_sealed'):
+        return 'the authority %s has no key here: it cannot sign' % row['name']
+    try:
+        if row.get('not_after') and float(row['not_after']) < time.time():
+            return 'the authority %s has run out' % row['name']
+    except (TypeError, ValueError):
+        pass
+    return ''
+
+
+def set_default(store, what, ref, by):
+    """The default made `ref` (a name; an authority: its id or name), or none
+    with ''. Refused for a row that is not there or is switched off. Written
+    to the events. Returns the name made the default ('' for none)."""
+    ref = '' if ref is None else str(ref).strip()
+    word = WORDS[what]
+    if not ref:
+        was = default_name(store, what)
+        store.set_meta(META[what], '')
+        store.add_event('certificates', 'no default %s any more%s (by %s)' % (
+            word, (' - it was %s' % _shown(store, what, was)) if was else '', by), who=by)
+        return ''
+    if what == 'ca':
+        row = None
+        if ref.isdigit():
+            row = store.db.row('SELECT * FROM cert_cas WHERE id = ?', (int(ref),))
+        if not row:
+            row = store.db.row('SELECT * FROM cert_cas WHERE name = ?', (ref,))
+        if not row:
+            raise LookupError('there is no authority %s' % ref)
+        why = _ca_usable(row)
+        if why:
+            raise ValueError('%s - it cannot be the default' % why)
+        store.set_meta(META[what], str(int(row['id'])))
+        name = row['name']
+    else:
+        row = S.plugin_row(store, what, ref)
+        if not row:
+            raise LookupError('there is no %s %s' % (word, ref))
+        if row.get('enabled') is not None and not int(row['enabled']):
+            raise ValueError('the %s %s is switched off - it cannot be the default' % (
+                word, row['name']))
+        store.set_meta(META[what], row['name'])
+        name = row['name']
+    store.add_event('certificates', '%s is now the default %s (by %s)' % (name, word, by),
+                    who=by)
+    return name
+
+
+def _shown(store, what, value):
+    if what == 'ca' and str(value).isdigit():
+        return str(store.db.value('SELECT name FROM cert_cas WHERE id = ?', (int(value),))
+                   or value)
+    return value
+
+
+def forget(store, what, name_or_id):
+    """A row deleted: no longer the default (nothing is put in its place)."""
+    raw = store.get_meta(META[what])
+    if raw is None and what in FALLBACK and str(name_or_id) == FALLBACK[what]:
+        store.set_meta(META[what], '')
+        return True
+    if raw is not None and str(raw) == str(name_or_id) and raw != '':
+        store.set_meta(META[what], '')
+        return True
+    return False
+
+
+def renamed(store, what, old, new):
+    """A row renamed: the default follows it."""
+    raw = store.get_meta(META[what])
+    if (raw is not None and raw == old) or (raw is None and FALLBACK.get(what) == old):
+        store.set_meta(META[what], new)
+
+
 def default_issuer(store):
     """The source a new certificate comes from when none is said, or None."""
-    for name in (store.get_meta('certs:default_issuer'), LE):
-        if name:
-            row = S.plugin_row(store, 'issuer', name)
-            if row and row.get('enabled', 1):
-                return row
+    name = default_name(store, 'issuer')
+    if name:
+        row = S.plugin_row(store, 'issuer', name)
+        if row and row.get('enabled', 1):
+            return row
     return None
 
 
@@ -123,11 +240,31 @@ def default_challenge(store, issuer_row=None):
         cls = S.plugin_class('issuer', issuer_row.get('kind'))
         if cls is None or not getattr(cls, 'needs_challenge', False):
             return None
-    for name in (store.get_meta('certs:default_challenge'), HTTP_LOCAL):
-        if name:
-            row = S.plugin_row(store, 'challenge', name)
-            if row and row.get('enabled', 1):
-                return row
+    name = default_name(store, 'challenge')
+    if name:
+        row = S.plugin_row(store, 'challenge', name)
+        if row and row.get('enabled', 1):
+            return row
+    return None
+
+
+def default_target(store):
+    """The target a new deployment is offered first, or None."""
+    name = default_name(store, 'target')
+    if name:
+        row = S.plugin_row(store, 'target', name)
+        if row and row.get('enabled', 1):
+            return row
+    return None
+
+
+def default_ca(store):
+    """The authority offered first (a new own-CA source, signing a CSR), or None."""
+    ident = default_name(store, 'ca')
+    if ident:
+        row = store.db.row('SELECT * FROM cert_cas WHERE id = ?', (int(ident),))
+        if row and not _ca_usable(row):
+            return row
     return None
 
 

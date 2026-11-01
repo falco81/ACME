@@ -25491,6 +25491,542 @@
   "sc1309": {
    "source": "That is not an e-mail address",
    "text": "To není e-mailová adresa"
+  },
+  "sc1310": {
+   "source": "TXT records in a domain at deSEC.io (dedyn.io names too), with an API token.",
+   "text": "TXT záznamy v doméně u deSEC.io (i jména dedyn.io), s API tokenem."
+  },
+  "sc1311": {
+   "source": "desec.io → Token management → +: a token of the account. Best one restricted with a token policy to write TXT records at _acme-challenge names only, and to the addresses acme calls from.",
+   "text": "desec.io → Token management → +: token účtu. Nejlépe omezený pravidlem tokenu (token policy) jen na zápis TXT záznamů u jmen _acme-challenge a na adresy, ze kterých acme volá."
+  },
+  "sc1312": {
+   "source": "Empty: the longest domain of the account the name is in.",
+   "text": "Prázdné: nejdelší doména účtu, ve které jméno je."
+  },
+  "sc1313": {
+   "source": "deSEC takes no less than the domain's minimum TTL (3600 s, as a rule): less is raised to it.",
+   "text": "deSEC nevezme méně než minimální TTL domény (zpravidla 3600 s): nižší hodnota se na ně zvýší."
+  },
+  "sc1314": {
+   "source": "Wait after it is seen (seconds)",
+   "text": "Počkat, až je vidět (sekundy)"
+  },
+  "sc1315": {
+   "source": "deSEC's name servers are anycast: once both have the record, other places of the world may not yet, and the CA asks from several. This many seconds more before the CA is told to look.",
+   "text": "Jmenné servery deSEC jsou anycast: když už záznam mají oba, jiná místa světa ho ještě mít nemusí, a CA se ptá z několika. Tolik sekund navíc, než se CA řekne, ať se podívá."
+  },
+  "sc1316": {
+   "source": "TXT records in a domain at Gandi (LiveDNS), with a personal access token.",
+   "text": "TXT záznamy v doméně u Gandi (LiveDNS), s osobním přístupovým tokenem."
+  },
+  "sc1317": {
+   "source": "a personal access token",
+   "text": "osobní přístupový token"
+  },
+  "sc1318": {
+   "source": "an API key (older)",
+   "text": "API klíč (starší)"
+  },
+  "sc1319": {
+   "source": "admin.gandi.net → Organizations → (yours) → Sharing → Personal Access Tokens (or User settings → Authentication options): with \"Manage domain name technical configurations\", limited to the domains acme may change.",
+   "text": "admin.gandi.net → Organizations → (vaše) → Sharing → Personal Access Tokens (nebo User settings → Authentication options): s oprávněním „Manage domain name technical configurations“, omezený na domény, které smí acme měnit."
+  },
+  "sc1320": {
+   "source": "Gandi takes 300 or more.",
+   "text": "Gandi bere 300 nebo víc."
+  },
+  "sc1321": {
+   "source": "TXT records in a Linode domain, with a personal access token.",
+   "text": "TXT záznamy v doméně Linode, s osobním přístupovým tokenem."
+  },
+  "sc1322": {
+   "source": "cloud.linode.com → (your name) → API Tokens → Create a Personal Access Token: Domains \"Read/Write\", nothing else.",
+   "text": "cloud.linode.com → (vaše jméno) → API Tokens → Create a Personal Access Token: Domains „Read/Write“, nic jiného."
+  },
+  "sc1323": {
+   "source": "Linode rounds it to the values it knows (300 at least).",
+   "text": "Linode ho zaokrouhlí na hodnoty, které zná (nejméně 300)."
+  },
+  "sc1324": {
+   "source": "TXT records in a Vultr DNS domain, with an API key.",
+   "text": "TXT záznamy v DNS doméně Vultr, s API klíčem."
+  },
+  "sc1325": {
+   "source": "my.vultr.com → Account → API → Enable API; under Access Control, allow the address acme reaches the internet from (Vultr refuses the key elsewhere).",
+   "text": "my.vultr.com → Account → API → Enable API; v Access Control povolte adresu, ze které acme chodí do internetu (odjinud Vultr klíč odmítne)."
+  },
+  "sc1326": {
+   "source": "TXT records in a domain at Porkbun, with an API key and its secret.",
+   "text": "TXT záznamy v doméně u Porkbun, s API klíčem a jeho tajným klíčem."
+  },
+  "sc1327": {
+   "source": "porkbun.com → Account → API Access → Create API Key; then, for each domain, Domain Management → Details → API Access on.",
+   "text": "porkbun.com → Account → API Access → Create API Key; pak u každé domény Domain Management → Details → API Access zapnout."
+  },
+  "sc1328": {
+   "source": "Secret API key",
+   "text": "Tajný API klíč"
+  },
+  "sc1329": {
+   "source": "Porkbun takes 600 or more.",
+   "text": "Porkbun bere 600 nebo víc."
+  },
+  "sc1330": {
+   "source": "TXT records in a domain at Namecheap (its own DNS), through the XML API.",
+   "text": "TXT záznamy v doméně u Namecheap (v jeho vlastním DNS), přes XML API."
+  },
+  "sc1331": {
+   "source": "API user",
+   "text": "Uživatel API"
+  },
+  "sc1332": {
+   "source": "Your Namecheap user name. The API is switched on under Profile → Tools → Business & Dev Tools → Namecheap API Access.",
+   "text": "Vaše uživatelské jméno u Namecheap. API se zapíná v Profile → Tools → Business & Dev Tools → Namecheap API Access."
+  },
+  "sc1333": {
+   "source": "From that page. Namecheap answers only the addresses whitelisted there.",
+   "text": "Z té stránky. Namecheap odpovídá jen adresám, které jsou tam povolené."
+  },
+  "sc1334": {
+   "source": "Client IP",
+   "text": "IP klienta"
+  },
+  "sc1335": {
+   "source": "The public IPv4 address acme reaches the internet from (through the proxy, the proxy's): it must be whitelisted under Namecheap API Access.",
+   "text": "Veřejná IPv4 adresa, ze které acme chodí do internetu (přes proxy adresa proxy): musí být povolená v Namecheap API Access."
+  },
+  "sc1336": {
+   "source": "User name the calls are for",
+   "text": "Uživatel, za kterého se volá"
+  },
+  "sc1337": {
+   "source": "Empty: the API user.",
+   "text": "Prázdné: uživatel API."
+  },
+  "sc1338": {
+   "source": "Namecheap takes 60 to 60000.",
+   "text": "Namecheap bere 60 až 60000."
+  },
+  "sc1339": {
+   "source": "Endpoint",
+   "text": "Koncový bod"
+  },
+  "sc1340": {
+   "source": "api.sandbox.namecheap.com (the sandbox)",
+   "text": "api.sandbox.namecheap.com (testovací prostředí)"
+  },
+  "sc1341": {
+   "source": "Allow rewriting every record",
+   "text": "Povolit přepsání všech záznamů"
+  },
+  "sc1342": {
+   "source": "Namecheap's setHosts replaces ALL records of the domain: acme reads them all, adds or removes its TXT value and writes them all back, one change at a time. A record changed by hand at that very moment can be lost. Off: acme refuses to change the domain.",
+   "text": "setHosts u Namecheap nahradí VŠECHNY záznamy domény: acme je všechny načte, přidá nebo odebere svou hodnotu TXT a všechny je zapíše zpět, vždy jednu změnu naráz. Záznam změněný ručně přesně v tu chvíli se může ztratit. Vypnuto: acme doménu měnit odmítne."
+  },
+  "sc1343": {
+   "source": "TXT records in a domain at GoDaddy, with an API key and its secret.",
+   "text": "TXT záznamy v doméně u GoDaddy, s API klíčem a jeho tajným klíčem."
+  },
+  "sc1344": {
+   "source": "developer.godaddy.com → API Keys → Create New API Key, environment \"Production\". GoDaddy lets only some accounts use the production API.",
+   "text": "developer.godaddy.com → API Keys → Create New API Key, prostředí „Production“. Produkční API GoDaddy pustí jen některé účty."
+  },
+  "sc1345": {
+   "source": "GoDaddy takes 600 or more.",
+   "text": "GoDaddy bere 600 nebo víc."
+  },
+  "sc1346": {
+   "source": "api.ote-godaddy.com (the test environment)",
+   "text": "api.ote-godaddy.com (testovací prostředí)"
+  },
+  "sc1347": {
+   "source": "TXT records in a DNSimple zone, with an API access token.",
+   "text": "TXT záznamy v zóně DNSimple, s přístupovým tokenem API."
+  },
+  "sc1348": {
+   "source": "API access token",
+   "text": "Přístupový token API"
+  },
+  "sc1349": {
+   "source": "dnsimple.com → (the account) → Account → Access tokens → New access token (an account token; a user token needs the account ID below).",
+   "text": "dnsimple.com → (účet) → Account → Access tokens → New access token (token účtu; uživatelský token potřebuje níže ID účtu)."
+  },
+  "sc1350": {
+   "source": "Account ID",
+   "text": "ID účtu"
+  },
+  "sc1351": {
+   "source": "Empty: the account of the token.",
+   "text": "Prázdné: účet tokenu."
+  },
+  "sc1352": {
+   "source": "Empty: the longest zone of the account the name is in.",
+   "text": "Prázdné: nejdelší zóna účtu, ve které jméno je."
+  },
+  "sc1353": {
+   "source": "api.sandbox.dnsimple.com (the sandbox)",
+   "text": "api.sandbox.dnsimple.com (testovací prostředí)"
+  },
+  "sc1354": {
+   "source": "TXT records in an NS1 zone, with an API key.",
+   "text": "TXT záznamy v zóně NS1, s API klíčem."
+  },
+  "sc1355": {
+   "source": "The NS1 portal → Account settings → Users & teams → API keys → Add key: DNS \"View zones\" and \"Manage zones\", limited to the zones acme may change.",
+   "text": "Portál NS1 → Account settings → Users & teams → API keys → Add key: DNS „View zones“ a „Manage zones“, omezený na zóny, které smí acme měnit."
+  },
+  "sc1356": {
+   "source": "For a private NS1 (DDI) deployment, its own address.",
+   "text": "U soukromého nasazení NS1 (DDI) jeho vlastní adresa."
+  },
+  "sc1357": {
+   "source": "TXT records in a bunny.net DNS zone, with the account's API key.",
+   "text": "TXT záznamy v DNS zóně bunny.net, s API klíčem účtu."
+  },
+  "sc1358": {
+   "source": "dash.bunny.net → Account settings → API key (the account's; bunny.net has no key limited to DNS).",
+   "text": "dash.bunny.net → Account settings → API key (klíč účtu; bunny.net nemá klíč omezený jen na DNS)."
+  },
+  "sc1359": {
+   "source": "TXT records in a ClouDNS zone, with an API user or sub-user.",
+   "text": "TXT záznamy v zóně ClouDNS, s uživatelem nebo poduživatelem API."
+  },
+  "sc1360": {
+   "source": "Signs in as",
+   "text": "Přihlašuje se jako"
+  },
+  "sc1361": {
+   "source": "an API sub-user (sub-auth-id)",
+   "text": "poduživatel API (sub-auth-id)"
+  },
+  "sc1362": {
+   "source": "the main API user (auth-id)",
+   "text": "hlavní uživatel API (auth-id)"
+  },
+  "sc1363": {
+   "source": "cloudns.net → API & Resellers → API users → Add new user (or a sub-user, given only the zones acme may change); with the address acme calls from allowed.",
+   "text": "cloudns.net → API & Resellers → API users → Add new user (nebo poduživatel, který dostane jen zóny, jež smí acme měnit); s povolenou adresou, ze které acme volá."
+  },
+  "sc1364": {
+   "source": "Auth password",
+   "text": "Auth heslo"
+  },
+  "sc1365": {
+   "source": "ClouDNS knows 60, 300, 900, 1800, 3600 …: another is raised to the next.",
+   "text": "ClouDNS zná 60, 300, 900, 1800, 3600 …: jiná hodnota se zvýší na nejbližší vyšší."
+  },
+  "sc1366": {
+   "source": "TXT records in a domain at INWX, through its JSON-RPC API.",
+   "text": "TXT záznamy v doméně u INWX, přes jeho JSON-RPC API."
+  },
+  "sc1367": {
+   "source": "User name",
+   "text": "Uživatelské jméno"
+  },
+  "sc1368": {
+   "source": "An INWX account (best an extra user with DNS rights only, under Account → Account access).",
+   "text": "Účet INWX (nejlépe zvláštní uživatel jen s právy k DNS, v Account → Account access)."
+  },
+  "sc1369": {
+   "source": "Two-factor secret",
+   "text": "Tajný klíč dvoufázového ověření"
+  },
+  "sc1370": {
+   "source": "Only when the account signs in with two factors: the base32 key shown when 2FA was set up (not a 6-digit code) - acme makes the code from it. Without it an account with 2FA cannot be used.",
+   "text": "Jen když se účet přihlašuje dvoufázově: klíč base32 ukázaný při nastavení 2FA (ne šestimístný kód) – acme z něj kód vytvoří. Bez něj nejde účet s 2FA použít."
+  },
+  "sc1371": {
+   "source": "INWX takes 300 or more.",
+   "text": "INWX bere 300 nebo víc."
+  },
+  "sc1372": {
+   "source": "api.ote.domrobot.com (the test environment)",
+   "text": "api.ote.domrobot.com (testovací prostředí)"
+  },
+  "sc1373": {
+   "source": "TXT records in a domain at TransIP, signed in with the account's key pair.",
+   "text": "TXT záznamy v doméně u TransIP, přihlášení párem klíčů účtu."
+  },
+  "sc1374": {
+   "source": "Login",
+   "text": "Přihlašovací jméno"
+  },
+  "sc1375": {
+   "source": "The TransIP account name.",
+   "text": "Jméno účtu TransIP."
+  },
+  "sc1376": {
+   "source": "Control panel → Account → API → Key pairs → Generate: the private key shown once, pasted whole. Either switch \"Accept only from whitelisted IP addresses\" off, or whitelist the address acme calls from.",
+   "text": "Ovládací panel → Account → API → Key pairs → Generate: soukromý klíč ukázaný jen jednou, vložený celý. Buď vypněte „Accept only from whitelisted IP addresses“, nebo povolte adresu, ze které acme volá."
+  },
+  "sc1377": {
+   "source": "The key pair is not limited to whitelisted addresses",
+   "text": "Pár klíčů není omezený na povolené adresy"
+  },
+  "sc1378": {
+   "source": "As the key pair was made in the control panel: on for a key pair that works from any address.",
+   "text": "Jak byl pár klíčů vytvořen v ovládacím panelu: zapnuto pro pár klíčů, který funguje z jakékoli adresy."
+  },
+  "sc1379": {
+   "source": "TransIP knows 60, 300, 3600 and 86400: another is raised to the next.",
+   "text": "TransIP zná 60, 300, 3600 a 86400: jiná hodnota se zvýší na nejbližší vyšší."
+  },
+  "sc1380": {
+   "source": "TXT records in a domain at netcup, through the CCP DNS API.",
+   "text": "TXT záznamy v doméně u netcup, přes CCP DNS API."
+  },
+  "sc1381": {
+   "source": "Customer number",
+   "text": "Zákaznické číslo"
+  },
+  "sc1382": {
+   "source": "Customer Control Panel (CCP) → Master Data → API: create an API key and an API password.",
+   "text": "Customer Control Panel (CCP) → Master Data → API: vytvořte API klíč a API heslo."
+  },
+  "sc1383": {
+   "source": "API password",
+   "text": "API heslo"
+  },
+  "sc1384": {
+   "source": "Empty: found by asking netcup for the name and each name above it.",
+   "text": "Prázdné: zjistí se dotazem na netcup na jméno a každé jméno nad ním."
+  },
+  "sc1385": {
+   "source": "TXT records in a zone at IONOS, with a Hosting API key.",
+   "text": "TXT záznamy v zóně u IONOS, s klíčem Hosting API."
+  },
+  "sc1386": {
+   "source": "Public prefix",
+   "text": "Veřejný prefix"
+  },
+  "sc1387": {
+   "source": "developer.hosting.ionos.com → Get started → API keys → Create: its public prefix here, its secret below.",
+   "text": "developer.hosting.ionos.com → Get started → API keys → Create: jeho veřejný prefix sem, tajný klíč níže."
+  },
+  "sc1388": {
+   "source": "TXT records in a Scaleway DNS zone, with an API key.",
+   "text": "TXT záznamy v DNS zóně Scaleway, s API klíčem."
+  },
+  "sc1389": {
+   "source": "Secret key",
+   "text": "Tajný klíč"
+  },
+  "sc1390": {
+   "source": "console.scaleway.com → IAM → API keys → Generate: of an application whose policy gives DomainsDNSFullAccess (or DomainsDNSRead and DomainsDNSWrite… as Scaleway names them) on the project of the zone.",
+   "text": "console.scaleway.com → IAM → API keys → Generate: pro aplikaci, jejíž politika dává DomainsDNSFullAccess (nebo DomainsDNSRead a DomainsDNSWrite…, jak je Scaleway nazývá) na projektu zóny."
+  },
+  "sc1391": {
+   "source": "Empty: the longest zone the key may see that the name is in.",
+   "text": "Prázdné: nejdelší zóna, kterou klíč vidí a ve které jméno je."
+  },
+  "sc1392": {
+   "source": "TXT records in an Exoscale DNS domain, with an API key (signed requests).",
+   "text": "TXT záznamy v DNS doméně Exoscale, s API klíčem (podepsané požadavky)."
+  },
+  "sc1393": {
+   "source": "portal.exoscale.com → IAM → API keys → Add: with a role that may use the DNS operations (list-dns-domains, list-dns-domain-records, create-dns-domain-record, delete-dns-domain-record).",
+   "text": "portal.exoscale.com → IAM → API keys → Add: s rolí, která smí používat operace DNS (list-dns-domains, list-dns-domain-records, create-dns-domain-record, delete-dns-domain-record)."
+  },
+  "sc1394": {
+   "source": "Empty: the longest domain of the organization the name is in.",
+   "text": "Prázdné: nejdelší doména organizace, ve které jméno je."
+  },
+  "sc1395": {
+   "source": "API zone",
+   "text": "Zóna API"
+  },
+  "sc1396": {
+   "source": "The Exoscale zone whose API is called (DNS is the same from each).",
+   "text": "Zóna Exoscale, jejíž API se volá (DNS je ze všech stejné)."
+  },
+  "sc1397": {
+   "source": "TXT records in an Infoblox NIOS authoritative zone, through WAPI.",
+   "text": "TXT záznamy v autoritativní zóně Infoblox NIOS, přes WAPI."
+  },
+  "sc1398": {
+   "source": "The address of the Grid Master (or its VIP), without /wapi.",
+   "text": "Adresa Grid Masteru (nebo jeho VIP), bez /wapi."
+  },
+  "sc1399": {
+   "source": "WAPI version",
+   "text": "Verze WAPI"
+  },
+  "sc1400": {
+   "source": "What the grid speaks: Help → About, or /wapi/v1.0/?_schema.",
+   "text": "Co grid umí: Help → About, nebo /wapi/v1.0/?_schema."
+  },
+  "sc1401": {
+   "source": "An admin of a group with the \"API\" access and read-write permission on the zones (or only on TXT records in them) - best a user of its own for acme.",
+   "text": "Správce ve skupině s přístupem „API“ a oprávněním ke čtení i zápisu na zónách (nebo jen na TXT záznamech v nich) – nejlépe vlastní uživatel pro acme."
+  },
+  "sc1402": {
+   "source": "DNS view",
+   "text": "DNS pohled (view)"
+  },
+  "sc1403": {
+   "source": "Empty: the longest authoritative zone of the view the name is in.",
+   "text": "Prázdné: nejdelší autoritativní zóna pohledu, ve které jméno je."
+  },
+  "sc1404": {
+   "source": "Check the Grid Master's certificate",
+   "text": "Ověřovat certifikát Grid Masteru"
+  },
+  "sc1405": {
+   "source": "CA of the Grid Master's certificate",
+   "text": "CA certifikátu Grid Masteru"
+  },
+  "sc1406": {
+   "source": "The CA (PEM) that signed the Grid Master's certificate, where it is not one this machine trusts already. Empty: the system's CAs.",
+   "text": "CA (PEM), která podepsala certifikát Grid Masteru, pokud ji tento stroj už nedůvěřuje. Prázdné: CA systému."
+  },
+  "sc1407": {
+   "source": "TXT records in a zone of a Technitium DNS Server, with an API token.",
+   "text": "TXT záznamy v zóně Technitium DNS Serveru, s API tokenem."
+  },
+  "sc1408": {
+   "source": "Server address",
+   "text": "Adresa serveru"
+  },
+  "sc1409": {
+   "source": "The web console's address (http://HOST:5380 or https://HOST:53443).",
+   "text": "Adresa webové konzole (http://HOST:5380 nebo https://HOST:53443)."
+  },
+  "sc1410": {
+   "source": "Web console → (your user) → Create API Token; or Administration → Sessions → Create Token, for a user given Modify on the zones (Administration → Permissions).",
+   "text": "Webová konzole → (váš uživatel) → Create API Token; nebo Administration → Sessions → Create Token, pro uživatele s právem Modify na zónách (Administration → Permissions)."
+  },
+  "sc1411": {
+   "source": "Empty: the longest primary zone of the server the name is in.",
+   "text": "Prázdné: nejdelší primární zóna serveru, ve které jméno je."
+  },
+  "sc1412": {
+   "source": "The TXT record at _acme-challenge.NAME, made by hand at dns.he.net for dynamic updates, changed with its key. One value a name at a time.",
+   "text": "TXT záznam _acme-challenge.JMÉNO, vytvořený ručně na dns.he.net pro dynamické aktualizace, měněný jeho klíčem. Jedna hodnota na jméno naráz."
+  },
+  "sc1413": {
+   "source": "Records and their keys",
+   "text": "Záznamy a jejich klíče"
+  },
+  "sc1414": {
+   "source": "One line a record: its full name, then the key generated for it in dns.he.net (the record made by hand there as TXT, \"Enable entry for dynamic dns\" ticked). A line with only a key: used for every name not listed.",
+   "text": "Jeden řádek na záznam: jeho celé jméno, pak klíč pro něj vygenerovaný na dns.he.net (záznam tam vytvořený ručně jako TXT, se zaškrtnutým „Enable entry for dynamic dns“). Řádek jen s klíčem: použije se pro každé neuvedené jméno."
+  },
+  "sc1415": {
+   "source": "Empty: found by its SOA.",
+   "text": "Prázdné: najde se podle SOA."
+  },
+  "sc1416": {
+   "source": "Value when idle",
+   "text": "Hodnota v klidu"
+  },
+  "sc1417": {
+   "source": "What the record is set to on cleanup - dns.he.net cannot remove it.",
+   "text": "Na co se záznam nastaví při úklidu – dns.he.net ho odstranit neumí."
+  },
+  "sc1418": {
+   "source": "TXT records in a domain at WEDOS (its DNS), through WAPI.",
+   "text": "TXT záznamy v doméně u WEDOS (v jeho DNS), přes WAPI."
+  },
+  "sc1419": {
+   "source": "The e-mail you sign in to the WEDOS customer administration with.",
+   "text": "E-mail, kterým se přihlašujete do zákaznické administrace WEDOS."
+  },
+  "sc1420": {
+   "source": "WAPI password",
+   "text": "Heslo WAPI"
+  },
+  "sc1421": {
+   "source": "Customer administration → Customer → WAPI interface: order WAPI (free), set its own password, choose the JSON protocol, and allow the IP address acme calls from (WEDOS refuses every other).",
+   "text": "Zákaznická administrace → Zákazník → WAPI rozhraní: objednejte WAPI (zdarma), nastavte mu vlastní heslo, zvolte protokol JSON a povolte IP adresu, ze které acme volá (každou jinou WEDOS odmítne)."
+  },
+  "sc1422": {
+   "source": "Empty: the longest domain in WEDOS DNS the name is in.",
+   "text": "Prázdné: nejdelší doména ve WEDOS DNS, ve které jméno je."
+  },
+  "sc1423": {
+   "source": "WEDOS takes 300 or more.",
+   "text": "WEDOS bere 300 nebo víc."
+  },
+  "sc1424": {
+   "source": "TXT records in a domain at Active24, through its REST API v2.",
+   "text": "TXT záznamy v doméně u Active24, přes jeho REST API v2."
+  },
+  "sc1425": {
+   "source": "The Active24 administration → (your name) → Security and login → API access → Generate new access: the identifier here, the secret below.",
+   "text": "Administrace Active24 → (vaše jméno) → Zabezpečení a přihlášení → API přístup → Vygenerovat nový přístup: identifikátor sem, tajný klíč níže."
+  },
+  "sc1426": {
+   "source": "Service ID",
+   "text": "ID služby"
+  },
+  "sc1427": {
+   "source": "The domain's service number in the administration. Empty: found in the list of services.",
+   "text": "Číslo služby domény v administraci. Prázdné: najde se v seznamu služeb."
+  },
+  "sc1428": {
+   "source": "TXT records in a domain at Websupport (.sk / .cz), with an API key and secret.",
+   "text": "TXT záznamy v doméně u Websupportu (.sk / .cz), s API klíčem a tajným klíčem."
+  },
+  "sc1429": {
+   "source": "admin.websupport.sk → (your name) → Security and login → API access → Generate new access: the identifier here, the secret below. Limit it to the address acme calls from where it is offered.",
+   "text": "admin.websupport.sk → (vaše jméno) → Zabezpečení a přihlášení → API přístup → Vygenerovat nový přístup: identifikátor sem, tajný klíč níže. Kde se to nabízí, omezte ho na adresu, ze které acme volá."
+  },
+  "sc1430": {
+   "source": "changing a Namecheap domain is switched off (\"Allow rewriting every record\")",
+   "text": "měnění domény u Namecheap je vypnuté („Povolit přepsání všech záznamů“)"
+  },
+  "sc1431": {
+   "source": "the DNSimple token is a user token: set the account ID",
+   "text": "token DNSimple je uživatelský: nastavte ID účtu"
+  },
+  "sc1432": {
+   "source": "the two-factor secret is not a base32 key",
+   "text": "tajný klíč dvoufázového ověření není klíč base32"
+  },
+  "sc1433": {
+   "source": "TransIP gave no token",
+   "text": "TransIP nedal žádný token"
+  },
+  "sc1434": {
+   "source": "openssl did not sign",
+   "text": "openssl nepodepsal"
+  },
+  "sc1435": {
+   "source": "the Grid Master's address is not set",
+   "text": "adresa Grid Masteru není nastavená"
+  },
+  "sc1436": {
+   "source": "the API token is not valid",
+   "text": "API token není platný"
+  },
+  "sc1437": {
+   "source": "no record and key is set",
+   "text": "není nastaven žádný záznam s klíčem"
+  },
+  "sc1438": {
+   "source": "netcup: signed in (netcup lists no zones: set the domain to check one)",
+   "text": "netcup: přihlášeno (netcup zóny nevypisuje: pro kontrolu některé nastavte doménu)"
+  },
+  "sc1439": {
+   "source": "Namecheap answered something that is not its XML",
+   "text": "Namecheap odpověděl něčím, co není jeho XML"
+  },
+  "sc1440": {
+   "source": "the key is wrong, or the record is not enabled for dynamic dns",
+   "text": "klíč je špatně, nebo záznam nemá zapnuté dynamické DNS"
+  },
+  "sc1441": {
+   "source": "there is no such record enabled for dynamic dns",
+   "text": "takový záznam se zapnutým dynamickým DNS není"
+  },
+  "sc1442": {
+   "source": "updated too often - wait a few minutes",
+   "text": "aktualizováno příliš často – počkejte pár minut"
+  },
+  "sc1443": {
+   "source": "acme's own DNS server, switched on under Settings → DNS server: the CAs and the public resolvers ask it for the _acme-challenge records, so from anywhere, UDP and TCP",
+   "text": "Vlastní DNS server acme, zapnutý v Nastavení → DNS server: CA a veřejné resolvery se ho ptají na záznamy _acme-challenge, proto odkudkoli, UDP i TCP"
   }
  },
  "patterns": {
@@ -32869,6 +33405,134 @@
   "pc0274": {
    "source": "Set on every ACME source that has none: {0}. The CA writes there before a certificate runs out unrenewed and when its rules change; nothing else is sent.",
    "text": "Nastaví se u každého zdroje ACME, který ho nemá: {0}. CA tam píše, když certifikát brzy vyprší neobnovený a když se mění její pravidla; nic jiného se neposílá."
+  },
+  "pc0275": {
+   "source": "{0} asks to slow down (429): waiting {1} s",
+   "text": "{0} žádá o zpomalení (429): čekám {1} s"
+  },
+  "pc0276": {
+   "source": "{0} has no zone for {1} that these credentials may see - set the zone, or give them access to it",
+   "text": "{0} nemá pro {1} žádnou zónu, kterou tyto přihlašovací údaje vidí – nastavte zónu, nebo jim k ní dejte přístup"
+  },
+  "pc0277": {
+   "source": "{0}: signed in, {1} zone(s) seen: {2}",
+   "text": "{0}: přihlášeno, viditelné zóny ({1}): {2}"
+  },
+  "pc0278": {
+   "source": "{0}: signed in, but no zone is seen - give the credentials access to one",
+   "text": "{0}: přihlášeno, ale není vidět žádná zóna – dejte přihlašovacím údajům přístup k některé"
+  },
+  "pc0279": {
+   "source": "{0} said {1}: {2} - the credentials are wrong or may not do this",
+   "text": "{0} odpověděl {1}: {2} – přihlašovací údaje jsou špatně, nebo na to nemají právo"
+  },
+  "pc0280": {
+   "source": "{0} said {1}: {2} - it kept asking to wait; try again later",
+   "text": "{0} odpověděl {1}: {2} – pořád žádal o čekání; zkuste to později"
+  },
+  "pc0281": {
+   "source": "{0} said {1}: {2}",
+   "text": "{0} odpověděl {1}: {2}"
+  },
+  "pc0282": {
+   "source": "{0} did not answer: {1}",
+   "text": "{0} neodpověděl: {1}"
+  },
+  "pc0283": {
+   "source": "{0} said no: {1}",
+   "text": "{0} odmítl: {1}"
+  },
+  "pc0284": {
+   "source": "{0} answered something that is not JSON",
+   "text": "{0} odpověděl něčím, co není JSON"
+  },
+  "pc0285": {
+   "source": "deSEC: signed in; the domain {0} is there (minimum TTL {1} s)",
+   "text": "deSEC: přihlášeno; doména {0} tam je (minimální TTL {1} s)"
+  },
+  "pc0286": {
+   "source": "deSEC has no domain {0} that the token may see",
+   "text": "deSEC nemá doménu {0}, kterou by token viděl"
+  },
+  "pc0287": {
+   "source": "Namecheap said no: {0} - whitelist the client IP (and check the API key) under Namecheap API Access",
+   "text": "Namecheap odmítl: {0} – povolte IP klienta (a zkontrolujte API klíč) v Namecheap API Access"
+  },
+  "pc0288": {
+   "source": "{0} does not use Namecheap's DNS - its records are elsewhere",
+   "text": "{0} nepoužívá DNS Namecheap – jeho záznamy jsou jinde"
+  },
+  "pc0289": {
+   "source": "Namecheap gave no host records for {0}",
+   "text": "Namecheap pro {0} nedal žádné záznamy"
+  },
+  "pc0290": {
+   "source": "Namecheap did not take the host records of {0}",
+   "text": "Namecheap záznamy domény {0} nepřijal"
+  },
+  "pc0291": {
+   "source": "no dynamic key is set for {0}: make the TXT record in dns.he.net, generate its key and add the line \"{1} KEY\"",
+   "text": "pro {0} není nastaven dynamický klíč: vytvořte TXT záznam na dns.he.net, vygenerujte jeho klíč a přidejte řádek „{1} KLÍČ“"
+  },
+  "pc0292": {
+   "source": "{0} holds the value of another order now, and dns.he.net keeps one value a name - it is tried again once that order is done",
+   "text": "{0} teď drží hodnotu jiné objednávky a dns.he.net drží jednu hodnotu na jméno – zkusí se znovu, až ta objednávka skončí"
+  },
+  "pc0293": {
+   "source": "dns.he.net said \"{0}\" for {1} - {2}",
+   "text": "dns.he.net odpověděl „{0}“ pro {1} – {2}"
+  },
+  "pc0294": {
+   "source": "dns.he.net said \"{0}\" for {1}",
+   "text": "dns.he.net odpověděl „{0}“ pro {1}"
+  },
+  "pc0295": {
+   "source": "dns.he.net: {0} (a key cannot be tried without changing the record)",
+   "text": "dns.he.net: {0} (klíč nejde vyzkoušet bez změny záznamu)"
+  },
+  "pc0296": {
+   "source": "the TXT record {0} was left as it is: {1}",
+   "text": "TXT záznam {0} zůstal, jak byl: {1}"
+  },
+  "pc0297": {
+   "source": "the INWX account signs in with two factors ({0}): set its two-factor secret, or use a user without 2FA",
+   "text": "účet INWX se přihlašuje dvoufázově ({0}): nastavte jeho tajný klíč dvoufázového ověření, nebo použijte uživatele bez 2FA"
+  },
+  "pc0298": {
+   "source": "INWX said {0}: {1}",
+   "text": "INWX odpověděl {0}: {1}"
+  },
+  "pc0299": {
+   "source": "netcup did not sign in: {0}",
+   "text": "netcup nepřihlásil: {0}"
+  },
+  "pc0300": {
+   "source": "netcup said {0}: {1}",
+   "text": "netcup odpověděl {0}: {1}"
+  },
+  "pc0301": {
+   "source": "netcup: signed in; the zone {0} is there (TTL {1} s)",
+   "text": "netcup: přihlášeno; zóna {0} tam je (TTL {1} s)"
+  },
+  "pc0302": {
+   "source": "openssl could not sign with the private key - is it a PEM private key without a passphrase? ({0})",
+   "text": "openssl nemohl podepsat soukromým klíčem – je to soukromý klíč PEM bez hesla? ({0})"
+  },
+  "pc0303": {
+   "source": "WEDOS said {0}: {1} - check the login, the WAPI password, this machine's clock and the IP addresses allowed for WAPI",
+   "text": "WEDOS odpověděl {0}: {1} – zkontrolujte přihlašovací jméno, heslo WAPI, hodiny tohoto stroje a IP adresy povolené pro WAPI"
+  },
+  "pc0304": {
+   "source": "WEDOS said {0}: {1}",
+   "text": "WEDOS odpověděl {0}: {1}"
+  },
+  "pc0305": {
+   "source": "Active24: signed in; the service {0} answers",
+   "text": "Active24: přihlášeno; služba {0} odpovídá"
+  },
+  "pc0306": {
+   "source": "{0} (calling from {1})",
+   "text": "{0} (voláno z {1})"
   }
  },
  "rich": {
