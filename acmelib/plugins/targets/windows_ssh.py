@@ -67,7 +67,7 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
         field('service', 'Service name', 'text', advanced=True,
               help='{service} in the paths, ACME_SERVICE for the script'),
     ] + SC.script_fields(INTERPS, default='powershell') + WR.role_fields() + verify_fields()
-    files_ui = SC.files_ui('windows', INTERPS, SC.layouts('C:/certs/{name}', 'windows'),
+    files_ui = SC.files_ui('windows', INTERPS, SC.layouts('C:/certs', 'windows'),
                            owners=False)
 
     _did = []

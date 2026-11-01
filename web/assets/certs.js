@@ -376,8 +376,18 @@ function splitNames(text) {
 }
 function tagChips(tags) {
   var box = el('span', 'ct-tags');
-  arr(tags).forEach(function (t) { box.appendChild(noI18n(el('span', 'tag dim ct-tagchip', t))); });
+  var TMS = window.ACME_TEAMS;
+  arr(tags).forEach(function (t) { box.appendChild(TMS ? TMS.tagChip(t) : noI18n(el('span', 'tag dim ct-tagchip', t))); });
   return box;
+}
+/* The owner and the tags picked from Settings → Owners and teams (teams.js);
+   without it, typed as before. Both answer .value. */
+function ownerBox(v) { return window.ACME_TEAMS ? ACME_TEAMS.ownerPicker(v) : textBox(v || '', 'team or person', ''); }
+function tagsBox(list) {
+  if (window.ACME_TEAMS) return ACME_TEAMS.tagPicker(arr(list));
+  var t = textBox(arr(list).join(' '), 'prod web', '');
+  noI18n(t);
+  return t;
 }
 function copyable(text, words) {
   var s = mono(text, 'ct-copy');
@@ -1877,7 +1887,7 @@ function modForm(key, row, p, fromPick) {
     note = textBox(row ? row.note : '', '', '');
     var nf = formField('Note', note);
     if (key === 'targets') {
-      tags = textBox(row ? arr(row.tags).join(' ') : '', 'prod dmz web', '');
+      tags = tagsBox(row ? arr(row.tags) : []);
       noI18n(tags);
       g.appendChild(formField('Tags', tags, 'Words to find and group targets by.'));
     } else nf.classList.add('wide');
@@ -2202,7 +2212,8 @@ function deployEdit(o) {
 var CL = {page: 0, total: 0, rows: [], drawn: 0};
 function certFilters() {
   return {search: $('ct-q') ? $('ct-q').value.trim() : '', state: $('ct-state') ? $('ct-state').value : '',
-          issuer: $('ct-issuer') ? $('ct-issuer').value : '', per: $('ct-per') ? Number($('ct-per').value || 50) : 50};
+          issuer: $('ct-issuer') ? $('ct-issuer').value : '', per: $('ct-per') ? Number($('ct-per').value || 50) : 50,
+          owner: $('ct-owner') ? $('ct-owner').value : '', tag: $('ct-tag') ? $('ct-tag').value : ''};
 }
 function fillIssuerFilter() {
   var sel = $('ct-issuer');
@@ -2227,14 +2238,16 @@ function loadCerts(live) {
   fillIssuerFilter();
   var f = certFilters();
   if (!live && !host.children.length) host.appendChild(el('p', 'muted', 'Asking…'));
+  if (window.ACME_TEAMS) ACME_TEAMS.fillFilters();
   apiLatest('ct-list', apiName('certs') + '&' + qs({search: f.search, state: f.state, issuer: f.issuer,
+                                                    owner: f.owner, tag: f.tag,
                                                     page: CL.page + 1, per: f.per}).slice(1)).then(function (d) {
     var rows = rowsOf(d, 'certs');
     CL.rows = rows;
     CL.total = Number(first(d.total, rows.length));
     $('ct-said').textContent = num(CL.total) + ' certificate(s)';
     liveFill(host, function (box) {
-      if (!CL.total && !f.search && !f.state && !f.issuer) { box.appendChild(certsBlank()); return; }
+      if (!CL.total && !f.search && !f.state && !f.issuer && !f.owner && !f.tag) { box.appendChild(certsBlank()); return; }
       box.appendChild(listTable(['State', 'Name', 'Names', 'Source', 'Expires', 'Renews',
                                  'Deployed', 'Last job', ''], rows, certRow, 'rows ct-certs|Nothing matches', {own: true}));
     }, live);
@@ -2455,6 +2468,103 @@ function certPeek(id) {
     };
   }, 'large', 'certificates');
 }
+/* What a certificate says of itself that is not in the certificate - its owner,
+   tags, note, how it renews, its name here, on or off: shown, and with the
+   pencil changed where it is shown and saved alone. Nothing is issued. */
+function detailsSection(c, back) {
+  var sec = section('Details', 'Changed here at once - none of this is in the certificate, nothing is issued again.');
+  sec.classList.add('tm-details');
+  var h = sec.querySelector('h4');
+  var show = function () {
+    clear(sec._body);
+    sec._body.appendChild(kvTable([
+      ['Owner', c.owner ? (window.ACME_TEAMS ? ACME_TEAMS.ownerChip(c.owner) : data('span', '', c.owner)) : 'nobody'],
+      ['Tags', arr(c.tags).length ? tagChips(c.tags) : '–'],
+      ['Note', c.note ? data('span', '', c.note) : '–'],
+      ['Renews', autoCan(c) ? (truthy(c.auto_renew) ? 'by itself' : 'only when asked') : 'by importing a new one'],
+      ['Days before the end', c.renew_days ? String(c.renew_days) : 'as Renewal and notices says'],
+      ['Key on renewal', truthy(c.reuse_key) ? 'kept' : 'a new one each time'],
+      ['Name in acme', data('span', 'mono', c.name)],
+      ['In use', c.enabled === undefined || c.enabled === null || truthy(c.enabled) ? 'yes' : 'switched off']
+    ]));
+  };
+  var edit = function () {
+    clear(sec._body);
+    var g = el('div', 'formgrid');
+    var f = {owner: ownerBox(c.owner || ''), tags: tagsBox(arr(c.tags)), note: textBox(c.note || '', '', ''),
+             auto: switchBox(c.auto_renew === undefined || truthy(c.auto_renew)),
+             days: textBox(c.renew_days ? String(c.renew_days) : '', String(c.renew_days || 30), ''),
+             reuse: switchBox(truthy(c.reuse_key)), name: textBox(c.name, '', ''),
+             on: switchBox(c.enabled === undefined || c.enabled === null || truthy(c.enabled))};
+    f.owner.id = 'ct-d-owner';
+    f.note.id = 'ct-d-note';
+    f.days.type = 'number';
+    f.days.min = '1';
+    f.days.max = '3650';
+    noI18n(f.note);
+    noI18n(f.name);
+    g.appendChild(formField('Owner', f.owner));
+    g.appendChild(formField('Tags', f.tags));
+    var nf = formField('Note', f.note);
+    nf.classList.add('wide');
+    g.appendChild(nf);
+    if (autoCan(c)) g.appendChild(formField('Renewed by itself', f.auto));
+    g.appendChild(formField('Days before the end', f.days, 'Empty: as Settings → Renewal and notices says.'));
+    g.appendChild(formField('Keep the key on renewal', f.reuse));
+    g.appendChild(formField('Name in acme', f.name));
+    g.appendChild(formField('In use', f.on, 'Off: kept, never renewed nor deployed.'));
+    sec._body.appendChild(g);
+    var foot = el('div', 'tm-dfoot');
+    var no = cmdButton('Cancel', 'close', 'small');
+    var go = cmdButton('Save the details', 'save', 'small primary');
+    go.id = 'ct-d-save';
+    no.onclick = show;
+    go.onclick = function () {
+      var b = {id: c.id};
+      var put = function (k, v, was) { if (JSON.stringify(v) !== JSON.stringify(was)) b[k] = v; };
+      put('owner', f.owner.value, c.owner || '');
+      put('tags', f.tags._get ? f.tags._get() : splitNames(f.tags.value), arr(c.tags));
+      put('note', f.note.value, c.note || '');
+      if (autoCan(c)) put('auto_renew', !!f.auto._get(), c.auto_renew === undefined || truthy(c.auto_renew));
+      put('renew_days', Number(f.days.value || 0) || null, c.renew_days || null);
+      put('reuse_key', !!f.reuse._get(), truthy(c.reuse_key));
+      put('name', f.name.value.trim(), c.name);
+      put('enabled', !!f.on._get(), c.enabled === undefined || c.enabled === null || truthy(c.enabled));
+      if (Object.keys(b).length < 2) { show(); return; }
+      busy(go, true);
+      capi('certs/save', b).then(function (d) {
+        toast(said(d, 'saved'), 'good');
+        CT.refresh();
+        if (back) back();
+      }).catch(fail).then(function () { busy(go, false); });
+    };
+    foot.appendChild(no);
+    foot.appendChild(go);
+    sec._body.appendChild(foot);
+  };
+  if (MANAGE) {
+    var pen = iconButton('edit', 'Change the details - owner, tags, note, renewal - without a new certificate');
+    pen.classList.add('ct-d-edit');
+    pen.id = 'ct-d-edit';
+    pen.onclick = edit;
+    h.appendChild(pen);
+  }
+  show();
+  return sec;
+}
+/* Saved with new names, key, source, validation or profile: renewed now, or
+   left for its next renewal - asked in the page's own window. */
+function renewAsk(id, name) {
+  modal('Renew now with the new names, or at the next renewal?', function (body) {
+    body.appendChild(data('p', '', name)).style.fontWeight = '600';
+    body.appendChild(el('p', 'note', 'The changes are saved. The certificate in use stays as it is until it is renewed: now - a new certificate is issued and deployed where this one is - or by itself at its next renewal.'));
+  }, [{words: 'At the next renewal', icon: 'clock', go: function () { closeModal(); certPeek(id); }},
+      {words: 'Renew now', cls: 'primary', icon: 'refresh', go: function (b) {
+        busy(b, true);
+        capi('certs/renew', {id: id, force: true}).then(function (x) { closeModal(); jobStarted(x, 'renewing'); },
+          function (e) { busy(b, false); fail(e); });
+      }}], true);
+}
 function certBody(body, c, versions, deploys, jobs, back) {
   var head = el('div', 'ct-head');
   var ic = el('div', 'ct-head-ic ' + ((STATE[c.state] || [0, 'dim'])[1]));
@@ -2469,7 +2579,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   hw.appendChild(namesChips(arr(c.names).concat(arr(obj(c.profile).san_other))));
   if (arr(c.tags).length || c.owner) {
     var tl = el('div', 'ct-head-tags');
-    if (c.owner) tl.appendChild(explain(data('span', 'tag info', c.owner), 'The owner: they see it on the enrolment pages - the person, the members of the group, or the account here (local:NAME). Certificate administrators signed in there see every certificate.'));
+    if (c.owner) tl.appendChild(explain(window.ACME_TEAMS ? ACME_TEAMS.ownerChip(c.owner) : data('span', 'tag info', c.owner), 'The owner: they see it on the enrolment pages - the person, the members of the group, or the account here (local:NAME). Certificate administrators signed in there see every certificate.'));
     tl.appendChild(tagChips(c.tags));
     hw.appendChild(tl);
   }
@@ -2575,6 +2685,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
     rs._body.appendChild(mt);
   }
   grid.appendChild(rs);
+  grid.appendChild(detailsSection(c, back));
   /* the chain */
   var chain = rowsOf(c.chain || c.chain_info || c.chain_certs);
   var chainPems = String(c.chain_pem || '').split('-----BEGIN CERTIFICATE-----').length - 1;
@@ -3227,6 +3338,9 @@ function certWizard(cert, detail) {
         strip.appendChild(li);
       });
       body.appendChild(strip);
+      /* What is in the certificate itself changes with its next renewal - never by saving. */
+      if (editing && c.not_after && ['source', 'names', 'key', 'validation', 'profile'].indexOf(st.key) >= 0)
+        body.appendChild(el('p', 'note tm-next-renewal', 'Already issued: what is changed here goes into the certificate at its next renewal - saving issues nothing. After Save you are asked whether to renew it now.'));
       var host = el('div', 'ct-wbody');
       body.appendChild(host);
       st.draw(host);
@@ -3411,11 +3525,11 @@ function certWizard(cert, detail) {
     var autoName = !W.d.name || W.d.name === certName(names()[0] || '');
     guardName(name, false);
     g.appendChild(formField('Name in acme', name, 'What it is called here. The first name, unless you say otherwise.'));
-    var tags = textBox(W.d.tags, 'prod web', '');
-    noI18n(tags);
-    g.appendChild(formField('Tags', tags, 'Words to find it by, with spaces between.'));
-    var owner = textBox(W.d.owner, 'team or person', '');
-    g.appendChild(formField('Owner', owner, 'Who to ask about it - and who sees it on the enrolment pages: a person (account, UPN, mail; local:NAME for an account here) or a group (name, DN, group:NAME).'));
+    var tags = tagsBox(splitNames(W.d.tags));
+    g.appendChild(formField('Tags', tags, 'Picked from the tags of Settings → Owners and teams.'));
+    var owner = ownerBox(W.d.owner);
+    owner.id = 'ct-w-owner';
+    g.appendChild(formField('Owner', owner, 'The team or person it belongs to (Settings → Owners and teams): its members see it on the portal, its mail is told when it fails or runs out.'));
     var note = textBox(W.d.note, '', '');
     g.appendChild(formField('Note', note));
     host.appendChild(g);
@@ -4001,7 +4115,15 @@ function certWizard(cert, detail) {
       ((compatProblems()[0] || {}).what || '');
     if (bad) { toast(bad, 'bad'); return; }
     busy(b, true);
-    capi('certs/save', body()).then(function (d) {
+    var sent = body();
+    /* What would make another certificate: changed on one already issued, the
+       question after the save - now, or at the next renewal. */
+    var inCert = function (x) {
+      return JSON.stringify([arr(x.names).slice().sort(), x.key_type || '', x.key_type_alt || '', x.issuer || '',
+                             x.challenge || '', obj(x.challenge_map), obj(x.profile)]);
+    };
+    var reissue = editing && !issue && !!c.not_after && inCert(sent) !== inCert(c);
+    capi('certs/save', sent).then(function (d) {
       var id = (d && d.id) || c.id;
       var jobs = Object.keys(W.deploys).map(function (t) {
         return function () { return capi('deploys/save', {cert_id: id, target: t, options: W.deploys[t], enabled: true}); };
@@ -4014,6 +4136,7 @@ function certWizard(cert, detail) {
            said, and the certificate opened, as it is now. */
         if (issue) return capi('certs/renew', {id: id, force: true}).then(function (x) { closeModal(); jobStarted(x, 'issuing'); },
           function (e) { closeModal(); fail(e); certPeek(id); });
+        if (reissue) { closeModal(); renewAsk(id, c.name); return; }
         if (editing) { closeModal(); certPeek(id); } else { closeModal(); certPeek(id); }
       });
     }).catch(fail).then(function () { busy(b, false); });
@@ -4170,12 +4293,13 @@ function importDialog(into) {
     name = textBox(into ? into.name : '', 'from the certificate', '');
     noI18n(name);
     if (!into) guardName(name, false);
-    tags = textBox('', 'prod web', '');
-    noI18n(tags);
+    tags = tagsBox([]);
+    var ownerI = ownerBox('');
     note = textBox('', '', '');
     if (!into) {
       g.appendChild(formField('Name in acme', name));
       g.appendChild(formField('Tags', tags));
+      g.appendChild(formField('Owner', ownerI, 'Who it belongs to (Settings → Owners and teams).'));
     }
     g.appendChild(formField('Password of the file', pass, 'For a PFX/P12 or JKS. It is asked for if needed.'));
     if (!into) {
@@ -4189,7 +4313,8 @@ function importDialog(into) {
     busy(b, true);
     capi('certs/import', {id: into ? into.id : undefined, name: into ? undefined : (name.value.trim() || undefined), data_b64: held.mainB64, filename: held.main.name,
                           password: pass.value || undefined, key_b64: held.keyB64 || undefined, key_filename: held.key ? held.key.name : undefined,
-                          key_password: keyPass.value || undefined, tags: splitNames(tags.value), note: note.value}).then(function (d) {
+                          key_password: keyPass.value || undefined, tags: splitNames(tags.value), note: note.value,
+                          owner: into ? undefined : ownerI.value}).then(function (d) {
       toast(said(d, 'imported'), 'good');
       closeModal();
       CT.refresh();
@@ -5055,7 +5180,10 @@ function jobLog(steps, startedAt) {
     line.appendChild(el('b', '', when));
     var mark = el('i', '', {ok: '✓', bad: '✗', warn: '!', info: '·', debug: '·'}[LEVEL[s.level] || 'info']);
     line.appendChild(mark);
-    line.appendChild(el('span', '', String(s.words)));
+    /* What a machine printed (a script's output, several lines): shown as it was said. */
+    var sw = el('span', '', String(s.words));
+    if (String(s.words).indexOf('\n') >= 0) { noI18n(sw); sw.classList.add('mono', 'ct-log-out'); }
+    line.appendChild(sw);
     box.appendChild(line);
     if (s.detail) {
       var det = el('div', 'ct-log-d');
@@ -5779,7 +5907,7 @@ on('ct-self', 'click', function () { selfSigned(); });
 on('ct-csr', 'click', function () { csrDialog(); });
 var certsAgain = debounce(function () { CL.page = 0; loadCerts(); }, 250);
 on('ct-q', 'input', certsAgain);
-['ct-state', 'ct-issuer', 'ct-per'].forEach(function (id) { on(id, 'change', function () { CL.page = 0; loadCerts(); }); });
+['ct-state', 'ct-issuer', 'ct-per', 'ct-owner', 'ct-tag'].forEach(function (id) { on(id, 'change', function () { CL.page = 0; loadCerts(); }); });
 ['jb-kind', 'jb-ok', 'jb-cert', 'jb-per'].forEach(function (id) { on(id, 'change', function () { JL.page = 0; loadJobs(); }); });
 on('ca-root', 'click', function () { caCreate(null); });
 on('ca-inter', 'click', function () { caCreate(undefined); });

@@ -232,6 +232,108 @@ reload fails. Only files acme itself wrote for that deployment, never any
 other file (a link is left alone).
 
 
+## Files and the script after them
+
+`ssh`, `local` and `windows_ssh` write the certificate as **files** and can run
+a **script after them**. The deployment's popup draws both as a designer; what
+it keeps is the deployment's options, the same the command line sets
+(`acme --deploy-add CERT TARGET --set outputs=...`).
+
+**Files** (`outputs`, one a line: `format path [mode] [owner[:group]]`).
+*Quick layouts* fill the rows in one click - one PEM with everything,
+certificate + chain + key apart, full chain + key (nginx), PKCS#12 with a
+password, a Java keystore, DER files, PKCS#12 3DES for Windows - and the
+service presets (nginx, Apache, HAProxy, Postfix, Dovecot, Tomcat...) fill the
+commands too. Each row: the format in words, the path (click `{name}` `{cn}`
+`{service}` `{date}` `{alt}` to put a placeholder in), the mode and the owner
+(not on Windows; `local` paths are inside its folder). *As text* shows the same
+rows as the lines kept. A path must be absolute (`/...`, `C:/...`), without
+`..`, spaces, quotes or `$ ; & | < >`; a key anybody may read (`0644`) is said.
+
+**The password** of `pfx`, `p12`, `p12-legacy` and `jks` files
+(`pfx_password_mode`): `none`; `fixed` - the one typed (`pfx_password`, sealed;
+empty: none, or the preset's); `generate` - acme makes a random one of 24
+characters when the deployment is saved (or first run), keeps it sealed with
+the deployment, the same on every renewal; a full administrator sees it as
+every secret, *Make a new one* replaces it (`pfx_password_new=1`). The script
+gets it as `ACME_PASSWORD`.
+
+**After the files** (`script_mode`):
+
+| `script_mode` | What runs |
+|---|---|
+| empty | the target's default - the same fields in the target's settings (a full administrator sets them there) |
+| `none` | nothing |
+| `path` | `script_path` with `script_args`, a command already on the machine: `/usr/local/bin/reload-certs.sh {name}` |
+| `inline` | `script_body` run by `script_interp` (`bash`, `sh`, `python3`; `powershell` on Windows) |
+
+A script written here (`inline`, 64 KiB at most, only a full administrator may
+change it) is uploaded on every deployment into the target's upload folder
+(`tmp_dir`) under a name of its own, made executable (`chmod 700`), run -
+through sudo when the target uses sudo - and deleted. Its variables travel in
+a file of mode 0600 beside it that the wrapper reads and deletes before the
+script starts: never on a command line. What it prints goes into the job; an
+exit code other than 0 fails the deployment and puts the previous files back.
+The order: *before writing* · the files · *test* · **the script** · *reload* ·
+*after*. On `local` (acme's own machine) a script written here runs only when
+the target's *Scripts written in a deployment may run here* (`allow_scripts`)
+is on, and one on the machine only when it is among *Commands allowed*; it runs
+as acme, without a shell, with a small `PATH`.
+
+| Variable | What it is |
+|---|---|
+| `ACME_CERT_NAME` | the certificate's name in acme |
+| `ACME_CN` | its first name |
+| `ACME_NAMES` | every name, separated by spaces |
+| `ACME_NOT_AFTER` | when it ends, UTC ISO 8601 (`2027-01-30T12:00:00Z`) |
+| `ACME_FINGERPRINT`, `ACME_SERIAL` | SHA-256 fingerprint, serial (hex) |
+| `ACME_VERSION`, `ACME_KEY_TYPE` | its version in acme, the kind of key |
+| `ACME_FILES` | the files written, one a line |
+| `ACME_FILE_<FORMAT>` | the path of the file of that format: `ACME_FILE_KEY_PEM`, `ACME_FILE_FULLCHAIN_PEM`, `ACME_FILE_PFX`...; `_2` for a second of the same format; a dual certificate's `_ALT`, and `_RSA` / `_EC` by its kind |
+| `ACME_ALT_FINGERPRINT`, `ACME_ALT_KEY_TYPE` | a dual certificate's twin |
+| `ACME_PASSWORD` | the password of the PKCS#12 / keystore files, when they have one |
+| `ACME_SERVICE` | the deployment's *Service* (`{service}`) |
+| `ACME_TARGET`, `ACME_HOST`, `ACME_DEPLOY_ID` | the target's name, the address reached, the deployment |
+| `ACME_THUMBPRINT` | Windows: the SHA-1 thumbprint of the certificate imported |
+| `ACME_DRY_RUN` | `1` on a test, else `0` |
+| `ACME_TEST_DIR` | on a test: the temporary folder the files are in |
+
+```bash
+#!/bin/bash
+# the key and the certificate copied to two more applications
+set -euo pipefail
+for dir in /opt/app1/tls /opt/app2/tls; do
+  [ "$ACME_DRY_RUN" = 1 ] && { echo "test: would copy to $dir"; continue; }
+  install -D -m 0644 "$ACME_FILE_FULLCHAIN_PEM" "$dir/cert.pem"
+  install -D -m 0600 "$ACME_FILE_KEY_PEM" "$dir/key.pem"
+done
+systemctl restart app1 app2
+```
+
+```powershell
+# Windows: a service restarted (its name: "Service" of the deployment)
+if ($env:ACME_DRY_RUN -eq '1') { (Get-Service $env:ACME_SERVICE).Status; exit 0 }
+Restart-Service -Name $env:ACME_SERVICE -Force
+```
+
+**Beside the designer** the popup shows what it will really be, worked out by
+the module as a deployment does, without the network
+(`POST /api/deploys/preview {cert_id, target, options}` -> `files`, `env`,
+`problems`): each file with its path filled in for this certificate (a dual
+one's twin too), its format, mode and owner and size, what is wrong, and every
+variable the script gets with its value (the password as dots) - click one to
+put it into the script. On Windows, with roles chosen, the PowerShell that will
+run for them too.
+
+**Test** (`POST /api/deploys/dry_run`, a certificate administrator; a script
+other than the one saved only a full administrator) signs in, makes the files
+and writes them into a temporary folder on the target (not their places; the
+folders where they go are looked at), runs the script there with
+`ACME_DRY_RUN=1` and the `ACME_FILE_*` of the copies, and deletes the folder.
+The commands before, test, reload and after are not run, and on Windows the
+machine store and the bindings are not touched - but the script **is** run:
+it must change nothing when `ACME_DRY_RUN` is `1` (the examples do so).
+
 ## `local` - this machine
 
 Writes files under one folder of the acme server only (*Folder*, default

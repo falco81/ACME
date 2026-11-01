@@ -143,6 +143,19 @@ Which DNS servers each function of acme asks - [dns-sets.md](dns-sets.md).
 | `acme --dns-set-test NAME QNAME [TYPE]` | a name looked up through a set: every server, what it said, how long it took; exit code 0 when one answered |
 | `acme --dns-assign FUNCTION SET` | `validation`, `public`, `apis`, `targets`, `acme` or `mail` asks SET (`default`: its default) |
 
+## Owners, teams and tags (Settings → Owners and teams)
+
+Who certificates belong to, what their members may do, and the tags - [teams.md](teams.md).
+
+| | |
+|---|---|
+| `acme --teams [--json]` | the owners with their members and rights, the tags, and what certificates say that is not defined |
+| `acme --team-add NAME [--team-kind team\|person] [--members 'local:jan=manage,group:Web=view+request'] [--contact-mail ADDR] [--note TEXT]` | a new owner (a member without `=rights`: view+request) |
+| `acme --team-edit NAME [--name NEW] [--members ...] [--contact-mail ...]` | change one; renamed, its certificates follow |
+| `acme --team-del NAME [--reassign OTHER\|-] [--yes]` | delete one; owning certificates only with `--reassign` |
+| `acme --tag-add TAG [--colour dim\|info\|ok\|warn\|crit\|violet] [--note TEXT]` · `acme --tag-del TAG [--strip]` | the tags of the catalog |
+| `acme --teams-adopt` | owners and tags made from what certificates say now |
+
 ## Examples
 
 ```

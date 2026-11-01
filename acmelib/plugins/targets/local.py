@@ -51,7 +51,7 @@ class LocalTarget(Base):
         field('command', 'Then run', 'text', advanced=True,
               help='one of the commands the target allows'),
     ] + SC.script_fields(INTERPS) + verify_fields()
-    files_ui = SC.files_ui('local', INTERPS, SC.layouts('{name}', 'posix'), owners=False,
+    files_ui = SC.files_ui('local', INTERPS, SC.layouts('', 'posix'), owners=False,
                            base='/etc/acme/out')
 
     def ident(self):
@@ -249,9 +249,13 @@ class LocalTarget(Base):
         if cmd and cmd not in lines(self.c('allow_commands')):
             problems.append({'level': 'bad', 'words': 'the command "%s" is not one this target '
                              'allows' % cmd})
-        return SC.preview(self, bundle, options, pairs, vars, problems, base=base, owners=False,
-                          interps=INTERPS,
-                          script_ok=lambda sc: self._script_refused(sc, options))
+        got = SC.preview(self, bundle, options, pairs, vars, problems, base=base, owners=False,
+                         interps=INTERPS, script_ok=lambda sc: self._script_refused(sc, options))
+        full = [(dict(o, path=os.path.join(base, o['path'].lstrip('/'))), b) for o, b in pairs]
+        env = SC.env_for(self, bundle, full, vars)
+        env.update({k: v for k, v in got['env'].items() if k == 'ACME_PASSWORD'})
+        got['env'] = env
+        return got
 
     def dry_run(self, bundle, options, run_script=True):
         """The files made into a temporary folder (not under the target's folder),

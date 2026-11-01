@@ -234,7 +234,7 @@ class SshTarget(SshMixin, Base):
               help='run last; a failure here is only a warning'),
     ] + verify_fields()
 
-    files_ui = SC.files_ui('posix', INTERPS, SC.layouts('/etc/ssl/acme/{name}'),
+    files_ui = SC.files_ui('posix', INTERPS, SC.layouts('/etc/ssl/acme'),
                            presets=[[k, p['title']] for k, p in PRESETS.items()])
 
     _sleep = staticmethod(time.sleep)

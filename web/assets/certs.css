@@ -308,6 +308,7 @@ table.ct-jobs td{vertical-align:middle}
 .ct-log-l b{flex:none;color:var(--tx-mut);font-weight:400;min-width:58px;font-variant-numeric:tabular-nums}
 .ct-log-l i{flex:none;font-style:normal;width:12px;text-align:center;font-weight:700}
 .ct-log-l span{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.ct-log-l span.ct-log-out{font-size:11.5px;color:var(--tx-dim)}
 .ct-log-l.info{color:var(--tx-dim)} .ct-log-l.info i{color:var(--tx-mut)}
 .ct-log-l.ok{color:var(--tx)} .ct-log-l.ok i{color:var(--ok)}
 .ct-log-l.warn{color:var(--warn)} .ct-log-l.warn i{color:var(--warn)}
@@ -534,7 +535,7 @@ select.ct-valsel option.ct-unfit{color:var(--tx-mut)}
 .df-fcell,.df-pcell{display:flex;flex-direction:column;gap:3px;min-width:0}
 .df-pcell{flex-direction:row;align-items:center;gap:4px}
 .df-pcell .df-path{flex:1 1 120px;min-width:0}
-.df-base{font-size:11.5px;color:var(--tx-mut);white-space:nowrap}
+.df-base{font-size:11.5px;color:var(--tx-mut);white-space:nowrap;max-width:38%;overflow:hidden;text-overflow:ellipsis;direction:rtl}
 .df-row{row-gap:2px}
 .df-sub{grid-column:1 / -1;display:flex;align-items:center;gap:8px;min-height:0;padding:0 2px 2px;font-size:11px;line-height:1.35}
 .df-row select.df-var{width:auto;padding:2px 24px 2px 8px;font-size:11.5px;border-radius:6px;background-position:right 6px center;background-size:12px}

@@ -598,7 +598,8 @@ when one of the `dns_*` settings changes. Delegate `_acme-challenge.<name>`
 
 With `portal_cert` on, people signed in on the enrolment pages:
 
-* see the certificates whose `owner` is them;
+* see the certificates whose `owner` is them, or a team they are a member of
+  ([teams.md](teams.md));
 * can download the certificate, its chain or both (never the key);
 * can ask for a certificate for names under `portal_cert_suffixes`, from
   one of `portal_cert_issuers`, up to `portal_cert_max` requests each.
@@ -608,6 +609,10 @@ With `portal_cert` on, people signed in on the enrolment pages:
 
 The whole of it - group ownership, PFX downloads (`portal_cert_keys`), the
 approval and the mails - is in [certificate-portal.md](certificate-portal.md).
+
+A certificate's owner and tags are picked from Settings → Owners and teams, and
+changed in its detail (Details, the pencil) without a new certificate; who sees
+and manages which certificate is said there too - [teams.md](teams.md).
 
 ## Settings
 

@@ -34019,6 +34019,602 @@
   "spl014": {
    "source": "After the password these pages ask for a code too - choose how.",
    "text": "Po hesle se tyto stránky ptají i na kód – zvolte jak."
+  },
+  "sdf0186": {
+   "source": "the script written here (bash)",
+   "text": "skript napsaný zde (bash)"
+  },
+  "sdf0187": {
+   "source": "the script written here (bash, the target's default)",
+   "text": "skript napsaný zde (bash, výchozí skript cíle)"
+  },
+  "sdf0188": {
+   "source": "the script written here (bash) said:",
+   "text": "skript napsaný zde (bash) vypsal:"
+  },
+  "sdf0189": {
+   "source": "the script written here (bash, the target's default) said:",
+   "text": "skript napsaný zde (bash, výchozí skript cíle) vypsal:"
+  },
+  "sdf0190": {
+   "source": "the script written here (bash): done",
+   "text": "skript napsaný zde (bash): hotovo"
+  },
+  "sdf0191": {
+   "source": "the script written here (bash, the target's default): done",
+   "text": "skript napsaný zde (bash, výchozí skript cíle): hotovo"
+  },
+  "sdf0192": {
+   "source": "the script written here (sh)",
+   "text": "skript napsaný zde (sh)"
+  },
+  "sdf0193": {
+   "source": "the script written here (sh, the target's default)",
+   "text": "skript napsaný zde (sh, výchozí skript cíle)"
+  },
+  "sdf0194": {
+   "source": "the script written here (sh) said:",
+   "text": "skript napsaný zde (sh) vypsal:"
+  },
+  "sdf0195": {
+   "source": "the script written here (sh, the target's default) said:",
+   "text": "skript napsaný zde (sh, výchozí skript cíle) vypsal:"
+  },
+  "sdf0196": {
+   "source": "the script written here (sh): done",
+   "text": "skript napsaný zde (sh): hotovo"
+  },
+  "sdf0197": {
+   "source": "the script written here (sh, the target's default): done",
+   "text": "skript napsaný zde (sh, výchozí skript cíle): hotovo"
+  },
+  "sdf0198": {
+   "source": "the script written here (python3)",
+   "text": "skript napsaný zde (python3)"
+  },
+  "sdf0199": {
+   "source": "the script written here (python3, the target's default)",
+   "text": "skript napsaný zde (python3, výchozí skript cíle)"
+  },
+  "sdf0200": {
+   "source": "the script written here (python3) said:",
+   "text": "skript napsaný zde (python3) vypsal:"
+  },
+  "sdf0201": {
+   "source": "the script written here (python3, the target's default) said:",
+   "text": "skript napsaný zde (python3, výchozí skript cíle) vypsal:"
+  },
+  "sdf0202": {
+   "source": "the script written here (python3): done",
+   "text": "skript napsaný zde (python3): hotovo"
+  },
+  "sdf0203": {
+   "source": "the script written here (python3, the target's default): done",
+   "text": "skript napsaný zde (python3, výchozí skript cíle): hotovo"
+  },
+  "sdf0204": {
+   "source": "the script written here (powershell)",
+   "text": "skript napsaný zde (powershell)"
+  },
+  "sdf0205": {
+   "source": "the script written here (powershell, the target's default)",
+   "text": "skript napsaný zde (powershell, výchozí skript cíle)"
+  },
+  "sdf0206": {
+   "source": "the script written here (powershell) said:",
+   "text": "skript napsaný zde (powershell) vypsal:"
+  },
+  "sdf0207": {
+   "source": "the script written here (powershell, the target's default) said:",
+   "text": "skript napsaný zde (powershell, výchozí skript cíle) vypsal:"
+  },
+  "sdf0208": {
+   "source": "the script written here (powershell): done",
+   "text": "skript napsaný zde (powershell): hotovo"
+  },
+  "sdf0209": {
+   "source": "the script written here (powershell, the target's default): done",
+   "text": "skript napsaný zde (powershell, výchozí skript cíle): hotovo"
+  },
+  "stm0001": {
+   "source": "Members",
+   "text": "Členové"
+  },
+  "stm0002": {
+   "source": "Details",
+   "text": "Podrobnosti"
+  },
+  "stm0003": {
+   "source": "Tag",
+   "text": "Štítek"
+  },
+  "stm0004": {
+   "source": "Colour",
+   "text": "Barva"
+  },
+  "stm0005": {
+   "source": "What it means",
+   "text": "Co znamená"
+  },
+  "stm0006": {
+   "source": "team",
+   "text": "tým"
+  },
+  "stm0007": {
+   "source": "person",
+   "text": "osoba"
+  },
+  "stm0008": {
+   "source": "owner",
+   "text": "vlastník"
+  },
+  "stm0009": {
+   "source": "tag",
+   "text": "štítek"
+  },
+  "stm0010": {
+   "source": "Member",
+   "text": "Člen"
+  },
+  "stm0011": {
+   "source": "Owners and teams",
+   "text": "Vlastníci a týmy"
+  },
+  "stm0012": {
+   "source": "every owner",
+   "text": "každý vlastník"
+  },
+  "stm0013": {
+   "source": "every tag",
+   "text": "každý štítek"
+  },
+  "stm0014": {
+   "source": "a team",
+   "text": "tým"
+  },
+  "stm0015": {
+   "source": "a person",
+   "text": "osoba"
+  },
+  "stm0016": {
+   "source": "Groups of the directory",
+   "text": "Skupiny adresáře"
+  },
+  "stm0017": {
+   "source": "Make them",
+   "text": "Vytvořit je"
+  },
+  "stm0018": {
+   "source": "Renewed by itself",
+   "text": "Obnovuje se samo"
+  },
+  "stm0019": {
+   "source": "Keep the key on renewal",
+   "text": "Ponechat klíč při obnovení"
+  },
+  "stm0020": {
+   "source": "Their new owner",
+   "text": "Jejich nový vlastník"
+  },
+  "stm0021": {
+   "source": "add a tag…",
+   "text": "přidat štítek…"
+  },
+  "stm0022": {
+   "source": "Told",
+   "text": "Oznámení"
+  },
+  "stm0023": {
+   "source": "already a member",
+   "text": "už je členem"
+  },
+  "stm0024": {
+   "source": "which group?",
+   "text": "která skupina?"
+  },
+  "stm0025": {
+   "source": "which user?",
+   "text": "který uživatel?"
+  },
+  "stm0026": {
+   "source": "by importing a new one",
+   "text": "importem nového"
+  },
+  "stm0027": {
+   "source": "see",
+   "text": "vidí"
+  },
+  "stm0028": {
+   "source": "ask for new",
+   "text": "žádá o nové"
+  },
+  "stm0029": {
+   "source": "manage",
+   "text": "spravuje"
+  },
+  "stm0030": {
+   "source": "approve",
+   "text": "schvaluje"
+  },
+  "stm0031": {
+   "source": "account of acme",
+   "text": "účet acme"
+  },
+  "stm0032": {
+   "source": "directory user",
+   "text": "uživatel adresáře"
+  },
+  "stm0033": {
+   "source": "directory group",
+   "text": "skupina adresáře"
+  },
+  "stm0034": {
+   "source": "Sees the team's certificates - in the list, on the portal - and downloads them there.",
+   "text": "Vidí certifikáty týmu – v seznamu i na portálu – a stahuje je tam."
+  },
+  "stm0035": {
+   "source": "Asks for new certificates owned by the team (the portal, or the wizard). Sees them too.",
+   "text": "Žádá o nové certifikáty vlastněné týmem (portál nebo průvodce). Také je vidí."
+  },
+  "stm0036": {
+   "source": "Edits, renews, deploys, exports and revokes the team's certificates; makes new ones for it.",
+   "text": "Upravuje, obnovuje, nasazuje, exportuje a odvolává certifikáty týmu; zakládá pro něj nové."
+  },
+  "stm0037": {
+   "source": "Approves or declines what is asked for on the portal for the team.",
+   "text": "Schvaluje nebo zamítá žádosti z portálu pro tým."
+  },
+  "stm0038": {
+   "source": "not defined - Settings → Owners and teams",
+   "text": "není definováno – Nastavení → Vlastníci a týmy"
+  },
+  "stm0039": {
+   "source": "not defined",
+   "text": "není definováno"
+  },
+  "stm0040": {
+   "source": "choose an owner",
+   "text": "vyberte vlastníka"
+  },
+  "stm0041": {
+   "source": "Not defined - typed as text before. ",
+   "text": "Není definováno – dříve zapsáno jako text. "
+  },
+  "stm0042": {
+   "source": "Make it an owner",
+   "text": "Udělat z toho vlastníka"
+  },
+  "stm0043": {
+   "source": "Make it a tag",
+   "text": "Udělat z toho štítek"
+  },
+  "stm0044": {
+   "source": "Define this tag",
+   "text": "Definovat tento štítek"
+  },
+  "stm0045": {
+   "source": "No tag.",
+   "text": "Žádný štítek."
+  },
+  "stm0046": {
+   "source": "no tags defined - Settings → Owners and teams",
+   "text": "žádné štítky nejsou definovány – Nastavení → Vlastníci a týmy"
+  },
+  "stm0047": {
+   "source": "every tag is on",
+   "text": "všechny štítky jsou přidány"
+  },
+  "stm0048": {
+   "source": "no member - only administrators see it",
+   "text": "žádný člen – vidí jen administrátoři"
+  },
+  "stm0049": {
+   "source": "Add an owner",
+   "text": "Přidat vlastníka"
+  },
+  "stm0050": {
+   "source": "Members and what they may",
+   "text": "Členové a co smějí"
+  },
+  "stm0051": {
+   "source": "Who a certificate belongs to: a team or a person, picked from this list wherever a certificate is made or changed. Its members - accounts of acme, users and groups of the directory - see its certificates on the portal and, with the settings below off, in the administration; what each may do is said beside them. Its mail is told when one of its certificates fails or runs out.",
+   "text": "Komu certifikát patří: tým nebo osoba, vybíraná z tohoto seznamu všude, kde se certifikát zakládá nebo mění. Jeho členové – účty acme, uživatelé a skupiny adresáře – vidí jeho certifikáty na portálu a při vypnutých nastaveních níže i v administraci; co kdo smí, je uvedeno vedle nich. Na jeho e-mail přijde zpráva, když některý z jeho certifikátů selže nebo vyprší."
+  },
+  "stm0052": {
+   "source": "Edit this owner",
+   "text": "Upravit tohoto vlastníka"
+  },
+  "stm0053": {
+   "source": "Delete this owner",
+   "text": "Smazat tohoto vlastníka"
+  },
+  "stm0054": {
+   "source": "No owner yet",
+   "text": "Zatím žádný vlastník"
+  },
+  "stm0055": {
+   "source": "Add a tag",
+   "text": "Přidat štítek"
+  },
+  "stm0056": {
+   "source": "The words certificates and targets are found and grouped by, each with its colour and what it means - picked from this list, never typed. Renamed here, a tag is renamed on everything that carries it.",
+   "text": "Slova, podle kterých se certifikáty a cíle hledají a seskupují, každé se svou barvou a významem – vybíraná z tohoto seznamu, nikdy psaná. Přejmenovaný zde se štítek přejmenuje na všem, co ho nese."
+  },
+  "stm0057": {
+   "source": "Edit this tag",
+   "text": "Upravit tento štítek"
+  },
+  "stm0058": {
+   "source": "Delete this tag",
+   "text": "Smazat tento štítek"
+  },
+  "stm0059": {
+   "source": "No tag yet",
+   "text": "Zatím žádný štítek"
+  },
+  "stm0060": {
+   "source": "Not defined yet",
+   "text": "Zatím nedefinováno"
+  },
+  "stm0061": {
+   "source": "Make teams and tags from what certificates say now",
+   "text": "Vytvořit týmy a štítky z toho, co certifikáty uvádějí teď"
+  },
+  "stm0062": {
+   "source": "Make teams and tags",
+   "text": "Vytvořit týmy a štítky"
+  },
+  "stm0063": {
+   "source": "Every owner below becomes a team whose one member is what the certificate said (so the portal shows it to the same people as before), every tag a tag of the list. Nothing is taken away.",
+   "text": "Každý vlastník níže se stane týmem, jehož jediným členem je to, co certifikát uváděl (portál ho tedy ukáže stejným lidem jako dosud), každý štítek štítkem seznamu. Nic se neodebere."
+  },
+  "stm0064": {
+   "source": "What certificates say that is in neither list - typed as text before. It stays as it is until it is made an owner or a tag here.",
+   "text": "Co certifikáty uvádějí a není v žádném seznamu – dříve zapsáno jako text. Zůstává, jak je, dokud z toho zde neuděláte vlastníka nebo štítek."
+  },
+  "stm0065": {
+   "source": "A new owner",
+   "text": "Nový vlastník"
+  },
+  "stm0066": {
+   "source": "Web team",
+   "text": "Webový tým"
+  },
+  "stm0067": {
+   "source": "Letters, digits, spaces and . _ @ + - (as every name in acme). Renamed, its certificates follow.",
+   "text": "Písmena, číslice, mezery a . _ @ + - (jako každý název v acme). Při přejmenování ho certifikáty následují."
+  },
+  "stm0068": {
+   "source": "Told when one of its certificates fails or runs out, beside the addresses of Renewal and notices. Comma between them.",
+   "text": "Dostane zprávu, když některý z jeho certifikátů selže nebo vyprší, vedle adres z Obnova a oznámení. Oddělené čárkou."
+  },
+  "stm0069": {
+   "source": "Only shown - who to call.",
+   "text": "Jen se zobrazuje – komu zavolat."
+  },
+  "stm0070": {
+   "source": "Who belongs to it, and what each may do with its certificates. A full administrator always sees and does everything; certificate administrators and readers are kept to their teams only when the settings of this pane say so.",
+   "text": "Kdo k němu patří a co kdo smí s jeho certifikáty. Plný administrátor vždy vidí a smí vše; správci certifikátů a čtenáři jsou omezeni na své týmy, jen když to říkají nastavení tohoto panelu."
+  },
+  "stm0071": {
+   "source": "No member yet: only administrators see its certificates.",
+   "text": "Zatím žádný člen: jeho certifikáty vidí jen administrátoři."
+  },
+  "stm0072": {
+   "source": "Take this member out",
+   "text": "Odebrat tohoto člena"
+  },
+  "stm0073": {
+   "source": "An account of acme",
+   "text": "Účet acme"
+  },
+  "stm0074": {
+   "source": "A user of the directory",
+   "text": "Uživatel adresáře"
+  },
+  "stm0075": {
+   "source": "A group of the directory",
+   "text": "Skupina adresáře"
+  },
+  "stm0076": {
+   "source": "Add the member",
+   "text": "Přidat člena"
+  },
+  "stm0077": {
+   "source": "group:NAME or the group's DN",
+   "text": "group:NÁZEV nebo DN skupiny"
+  },
+  "stm0078": {
+   "source": "sAMAccountName, UPN or mail",
+   "text": "sAMAccountName, UPN nebo e-mail"
+  },
+  "stm0079": {
+   "source": "Find the groups and press Member beside each one that belongs to the owner. Nested groups count. Nothing is kept until the owner is saved.",
+   "text": "Najděte skupiny a u každé, která k vlastníkovi patří, stiskněte Člen. Vnořené skupiny se počítají. Nic se neuloží, dokud vlastníka neuložíte."
+  },
+  "stm0080": {
+   "source": "Delete the owner",
+   "text": "Smazat vlastníka"
+  },
+  "stm0081": {
+   "source": "The owner {0} is deleted. It owns no certificate.",
+   "text": "Vlastník {0} bude smazán. Nevlastní žádný certifikát."
+  },
+  "stm0082": {
+   "source": "It owns {0} certificate(s). They are given to the owner chosen here first - nothing else changes on them.",
+   "text": "Vlastní certifikátů: {0}. Nejdřív se předají vlastníkovi vybranému zde – nic jiného se na nich nezmění."
+  },
+  "stm0083": {
+   "source": "A new tag",
+   "text": "Nový štítek"
+  },
+  "stm0084": {
+   "source": "One word: letters, digits and . _ : + -. Renamed, it is renamed on every certificate and target.",
+   "text": "Jedno slovo: písmena, číslice a . _ : + -. Při přejmenování se přejmenuje na každém certifikátu a cíli."
+  },
+  "stm0085": {
+   "source": "grey",
+   "text": "šedá"
+  },
+  "stm0086": {
+   "source": "blue",
+   "text": "modrá"
+  },
+  "stm0087": {
+   "source": "green",
+   "text": "zelená"
+  },
+  "stm0088": {
+   "source": "orange",
+   "text": "oranžová"
+  },
+  "stm0089": {
+   "source": "red",
+   "text": "červená"
+  },
+  "stm0090": {
+   "source": "violet",
+   "text": "fialová"
+  },
+  "stm0091": {
+   "source": "what it means",
+   "text": "co znamená"
+  },
+  "stm0092": {
+   "source": "Delete the tag",
+   "text": "Smazat štítek"
+  },
+  "stm0093": {
+   "source": "The tag {0} is deleted and taken off {1} certificate(s) and {2} target(s).",
+   "text": "Štítek {0} bude smazán a odebrán z certifikátů ({1}) a cílů ({2})."
+  },
+  "stm0094": {
+   "source": "The tag {0} is deleted. Nothing carries it.",
+   "text": "Štítek {0} bude smazán. Nic ho nenese."
+  },
+  "stm0095": {
+   "source": "Who sees which certificates",
+   "text": "Kdo vidí které certifikáty"
+  },
+  "stm0096": {
+   "source": "Who each certificate belongs to and what its people may do with it, and the tags - defined once here and picked from lists everywhere else, never typed. A full administrator always sees and does everything.",
+   "text": "Komu který certifikát patří a co s ním jeho lidé smějí, a štítky – definované jednou zde a všude jinde vybírané ze seznamu, nikdy psané. Plný administrátor vždy vidí a smí vše."
+  },
+  "stm0097": {
+   "source": "Who certificates belong to - teams and persons, their members from acme's accounts and the directory, what each may do - and the tags certificates and targets pick from.",
+   "text": "Komu certifikáty patří – týmy a osoby, jejich členové z účtů acme a z adresáře, co kdo smí – a štítky, ze kterých certifikáty a cíle vybírají."
+  },
+  "stm0098": {
+   "source": "Only the certificates of this owner.",
+   "text": "Jen certifikáty tohoto vlastníka."
+  },
+  "stm0099": {
+   "source": "Only the certificates with this tag.",
+   "text": "Jen certifikáty s tímto štítkem."
+  },
+  "stm0100": {
+   "source": "Picked from the tags of Settings → Owners and teams.",
+   "text": "Vybírané ze štítků v Nastavení → Vlastníci a týmy."
+  },
+  "stm0101": {
+   "source": "The team or person it belongs to (Settings → Owners and teams): its members see it on the portal, its mail is told when it fails or runs out.",
+   "text": "Tým nebo osoba, které patří (Nastavení → Vlastníci a týmy): jeho členové ho vidí na portálu a na jeho e-mail přijde zpráva, když selže nebo vyprší."
+  },
+  "stm0102": {
+   "source": "Who it belongs to (Settings → Owners and teams).",
+   "text": "Komu patří (Nastavení → Vlastníci a týmy)."
+  },
+  "stm0103": {
+   "source": "Already issued: what is changed here goes into the certificate at its next renewal - saving issues nothing. After Save you are asked whether to renew it now.",
+   "text": "Už vydaný: co se zde změní, se do certifikátu dostane při jeho příštím obnovení – uložení nic nevydá. Po Uložit se zeptáme, zda ho obnovit hned."
+  },
+  "stm0104": {
+   "source": "Renew now with the new names, or at the next renewal?",
+   "text": "Obnovit hned s novými jmény, nebo při příštím obnovení?"
+  },
+  "stm0105": {
+   "source": "The changes are saved. The certificate in use stays as it is until it is renewed: now - a new certificate is issued and deployed where this one is - or by itself at its next renewal.",
+   "text": "Změny jsou uloženy. Používaný certifikát zůstává, jak je, dokud se neobnoví: hned – vydá se nový certifikát a nasadí se tam, kde je tento – nebo sám při příštím obnovení."
+  },
+  "stm0106": {
+   "source": "At the next renewal",
+   "text": "Při příštím obnovení"
+  },
+  "stm0107": {
+   "source": "Renew now?",
+   "text": "Obnovit hned?"
+  },
+  "stm0108": {
+   "source": "Changed here at once - none of this is in the certificate, nothing is issued again.",
+   "text": "Mění se zde hned – nic z toho není v certifikátu, nic se znovu nevydává."
+  },
+  "stm0109": {
+   "source": "as Renewal and notices says",
+   "text": "podle Obnova a oznámení"
+  },
+  "stm0110": {
+   "source": "Empty: as Settings → Renewal and notices says.",
+   "text": "Prázdné: podle Nastavení → Obnova a oznámení."
+  },
+  "stm0111": {
+   "source": "Off: kept, never renewed nor deployed.",
+   "text": "Vypnuto: ponechá se, nikdy se neobnoví ani nenasadí."
+  },
+  "stm0112": {
+   "source": "Save the details",
+   "text": "Uložit podrobnosti"
+  },
+  "stm0113": {
+   "source": "Change the details - owner, tags, note, renewal - without a new certificate",
+   "text": "Změnit podrobnosti – vlastníka, štítky, poznámku, obnovu – bez nového certifikátu"
+  },
+  "stm0114": {
+   "source": "Certificate administrators manage every certificate",
+   "text": "Správci certifikátů spravují každý certifikát"
+  },
+  "stm0115": {
+   "source": "Read-only accounts see every certificate",
+   "text": "Účty jen pro čtení vidí každý certifikát"
+  },
+  "stm0116": {
+   "source": "On (as before): a certificate administrator sees and manages every certificate. Off: only those of the teams where they are a member with the right to manage (or to see, to approve); a certificate without an owner only a full administrator sees. A full administrator always sees and does everything.",
+   "text": "Zapnuto (jako dosud): správce certifikátů vidí a spravuje každý certifikát. Vypnuto: jen certifikáty týmů, kde je členem s právem spravovat (nebo vidět, schvalovat); certifikát bez vlastníka vidí jen plný administrátor. Plný administrátor vždy vidí a smí vše."
+  },
+  "stm0117": {
+   "source": "On (as before): a read-only account sees every certificate. Off: only those of the teams where it is a member with the right to see.",
+   "text": "Zapnuto (jako dosud): účet jen pro čtení vidí každý certifikát. Vypnuto: jen certifikáty týmů, kde je členem s právem vidět."
+  },
+  "stm0118": {
+   "source": "you may not do that with this certificate: its team does not give you the right \"view\"",
+   "text": "tento certifikát smí vidět jen jeho tým: váš tým vám nedává právo „vidět“"
+  },
+  "stm0119": {
+   "source": "you may not do that with this certificate: its team does not give you the right \"manage\"",
+   "text": "s tímto certifikátem to dělat nesmíte: jeho tým vám nedává právo „spravovat“"
+  },
+  "stm0120": {
+   "source": "you may not do that with this certificate: its team does not give you the right \"request\"",
+   "text": "to nesmíte: tým vám nedává právo „žádat o nové“"
+  },
+  "stm0121": {
+   "source": "you may not do that with this certificate: its team does not give you the right \"approve\"",
+   "text": "to nesmíte: tým certifikátu vám nedává právo „schvalovat“"
+  },
+  "stm0122": {
+   "source": "Owners and tags",
+   "text": "Vlastníci a štítky"
+  },
+  "stm0123": {
+   "source": "Whose it is",
+   "text": "Čí je"
+  },
+  "stm0124": {
+   "source": "The team it belongs to: its members see it here too.",
+   "text": "Tým, kterému patří: jeho členové ho tu uvidí také."
+  },
+  "stm0125": {
+   "source": "me",
+   "text": "já"
   }
  },
  "patterns": {
@@ -43796,7 +44392,7 @@
   },
   "pdf0033": {
    "source": "made {0} files ({1}) in {2} - not in their places",
-   "text": "vytvořeno {0} souborů ({1}) v {2} – ne na jejich místech"
+   "text": "vytvořeno {0} {0:soubor|soubory|souborů} ({1}) v {2} – ne na jejich místech"
   },
   "pdf0034": {
    "source": "made {0} file ({1}) in {2} - not in their places",
@@ -43804,19 +44400,19 @@
   },
   "pdf0035": {
    "source": "the test passed: {0} files",
-   "text": "test prošel: {0} souborů"
+   "text": "test prošel: {0} {0:soubor|soubory|souborů}"
   },
   "pdf0036": {
    "source": "the test passed: {0} file",
-   "text": "test prošel: {0} soubor"
+   "text": "test prošel: {0} {0:soubor|soubory|souborů}"
   },
   "pdf0037": {
    "source": "the test passed: {0} files, the script ran with ACME_DRY_RUN=1",
-   "text": "test prošel: {0} souborů, skript proběhl s ACME_DRY_RUN=1"
+   "text": "test prošel: {0} {0:soubor|soubory|souborů}, skript proběhl s ACME_DRY_RUN=1"
   },
   "pdf0038": {
    "source": "the test passed: {0} file, the script ran with ACME_DRY_RUN=1",
-   "text": "test prošel: {0} soubor, skript proběhl s ACME_DRY_RUN=1"
+   "text": "test prošel: {0} {0:soubor|soubory|souborů}, skript proběhl s ACME_DRY_RUN=1"
   },
   "pdf0039": {
    "source": "testing the deployment of {0} to {1} ({2}): nothing is put in place",
@@ -43824,11 +44420,11 @@
   },
   "pdf0040": {
    "source": "{0} files written on {1}, the script ran",
-   "text": "{0} souborů zapsáno na {1}, skript proběhl"
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} na {1}, skript proběhl"
   },
   "pdf0041": {
    "source": "{0} files written on {1}, the script ran, reloaded",
-   "text": "{0} souborů zapsáno na {1}, skript proběhl, znovu načteno"
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} na {1}, skript proběhl, znovu načteno"
   },
   "pdf0042": {
    "source": "{0}: {1}, {2} B - into the temporary folder",
@@ -43857,6 +44453,98 @@
   "pdf0048": {
    "source": "a deployment of {0} to {1} tested by {2} - failed: {3}",
    "text": "nasazení {0} na {1} otestoval {2} – selhalo: {3}"
+  },
+  "pdf0049": {
+   "source": "{0} said:",
+   "text": "{0} vypsal:"
+  },
+  "pdf0050": {
+   "source": "the script {0} said:",
+   "text": "skript {0} vypsal:"
+  },
+  "pdf0051": {
+   "source": "the script {0}: done",
+   "text": "skript {0}: hotovo"
+  },
+  "pdf0052": {
+   "source": "the script {0}: failed (exit {1})",
+   "text": "skript {0}: selhal (návratový kód {1})"
+  },
+  "pdf0053": {
+   "source": "{0} failed (exit {1})",
+   "text": "{0} selhal (návratový kód {1})"
+  },
+  "ptm0001": {
+   "source": "the owner {0} was saved",
+   "text": "vlastník {0} byl uložen"
+  },
+  "ptm0002": {
+   "source": "the owner {0} was deleted",
+   "text": "vlastník {0} byl smazán"
+  },
+  "ptm0003": {
+   "source": "the owner {0} was made",
+   "text": "vlastník {0} byl vytvořen"
+  },
+  "ptm0004": {
+   "source": "the tag {0} was saved",
+   "text": "štítek {0} byl uložen"
+  },
+  "ptm0005": {
+   "source": "the tag {0} was deleted",
+   "text": "štítek {0} byl smazán"
+  },
+  "ptm0006": {
+   "source": "the tag {0} was made",
+   "text": "štítek {0} byl vytvořen"
+  },
+  "ptm0007": {
+   "source": "{0} owner(s) and {1} tag(s) were made",
+   "text": "vytvořeno vlastníků: {0}, štítků: {1}"
+  },
+  "ptm0008": {
+   "source": "there is an owner called {0} already",
+   "text": "vlastník {0} už existuje"
+  },
+  "ptm0009": {
+   "source": "there is a tag {0} already",
+   "text": "štítek {0} už existuje"
+  },
+  "ptm0010": {
+   "source": "there is no owner {0}",
+   "text": "vlastník {0} neexistuje"
+  },
+  "ptm0011": {
+   "source": "there is no tag {0}",
+   "text": "štítek {0} neexistuje"
+  },
+  "ptm0012": {
+   "source": "{0} owns {1} certificate(s) - give them another owner first, or delete it with reassign",
+   "text": "{0} vlastní certifikátů: {1} – nejdřív jim dejte jiného vlastníka, nebo ho smažte s předáním"
+  },
+  "ptm0013": {
+   "source": "{0} is on {1} certificate(s) and {2} target(s) - delete it with strip to take it off them",
+   "text": "{0} je na certifikátech ({1}) a cílech ({2}) – smažte ho s odebráním"
+  },
+  "ptm0014": {
+   "source": "you may not ask for certificates of the team {0}",
+   "text": "o certifikáty týmu {0} žádat nesmíte"
+  },
+  "ptm0015": {
+   "source": "The owner {0}",
+   "text": "Vlastník {0}"
+  },
+  "ptm0016": {
+   "source": "The tag {0}",
+   "text": "Štítek {0}"
+  },
+  "ptm0017": {
+   "source": "Delete the owner {0}",
+   "text": "Smazat vlastníka {0}"
+  },
+  "ptm0018": {
+   "source": "{0} - not defined",
+   "text": "{0} – není definováno"
   }
  },
  "rich": {

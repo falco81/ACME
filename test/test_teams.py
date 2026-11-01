@@ -38,7 +38,8 @@ sys.path.insert(0, ROOT)
 import acme  # noqa: E402,F401
 from acmelib import engine as E  # noqa: E402
 from acmelib.certs import api as A  # noqa: E402  (the routes)
-from acmelib.certs import teams as T, notices, renewer, portal  # noqa: E402,F401
+from acmelib.certs import teams as T, notices, renewer  # noqa: E402
+from acmelib.certs import portal as _portal  # noqa: E402,F401  (its routes)
 
 STORE = acme.Storage(acme.open_db())
 E.HA_STORE['store'] = STORE
@@ -164,7 +165,7 @@ class Catalogs(unittest.TestCase):
     def test_tags(self):
         cid = cert('t1', tags=['prod', 'web'])
         STORE.db.insert('cert_targets', {'name': 'srv', 'kind': 'ssh', 'tags': '["prod"]'})
-        call('POST', '/api/tags/save', {'name': 'prod', 'colour': 'bad', 'description': 'live'})
+        call('POST', '/api/tags/save', {'name': 'prod', 'colour': 'crit', 'description': 'live'})
         with self.assertRaises(ValueError):
             T.save_tag(STORE, {'name': 'two words'}, 'x')
         with self.assertRaises(ValueError):

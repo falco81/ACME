@@ -246,18 +246,20 @@ def layouts(folder, kind='posix'):
         {'key': 'one', 'title': 'One PEM with everything', 'what': 'key + certificate + chain',
          'outputs': [ln('combined-pem', d + '/{name}.pem', key)]},
         {'key': 'separate', 'title': 'Separate files', 'what': 'certificate, chain, key',
-         'outputs': [ln('cert-pem', d + '/cert.pem', cert), ln('chain-pem', d + '/chain.pem', cert),
-                     ln('key-pem', d + '/privkey.pem', key)]},
+         'outputs': [ln('cert-pem', d + '/{name}.crt', cert),
+                     ln('chain-pem', d + '/{name}.chain.crt', cert),
+                     ln('key-pem', d + '/{name}.key', key)]},
         {'key': 'fullchain', 'title': 'Full chain + key', 'what': 'as nginx wants it',
-         'outputs': [ln('fullchain-pem', d + '/fullchain.pem', cert),
-                     ln('key-pem', d + '/privkey.pem', key)]},
+         'outputs': [ln('fullchain-pem', d + '/{name}.fullchain.crt', cert),
+                     ln('key-pem', d + '/{name}.key', key)]},
         {'key': 'pfx', 'title': 'PKCS#12 with a password', 'what': 'one .pfx file',
          'outputs': [ln('pfx', d + '/{name}.pfx', key)], 'password': 'generate'},
         {'key': 'jks', 'title': 'Java keystore', 'what': 'one .jks file',
          'outputs': [ln('jks', d + '/{name}.jks', '0640' if kind == 'posix' else '')],
          'password': 'generate'},
         {'key': 'der', 'title': 'DER files', 'what': 'binary certificate and key',
-         'outputs': [ln('cert-der', d + '/{name}.der', cert), ln('key-der', d + '/{name}.key.der', key)]},
+         'outputs': [ln('cert-der', d + '/{name}.der', cert),
+                     ln('key-der', d + '/{name}.key.der', key)]},
         {'key': 'windows', 'title': 'For Windows', 'what': 'PKCS#12 (3DES) any Windows imports',
          'outputs': [ln('p12-legacy', d + '/{name}.pfx', key)], 'password': 'generate'},
     ]
@@ -435,8 +437,10 @@ def tell(t, sc, rc, out, err, dry_run=False):
     what = _what(sc)
     words = said_of(out, err)
     if words:
-        t.ctx.step('%s said:\n%s' % (what, words), 'info' if rc == 0 else 'bad')
-    t.ctx.step('%s: %s' % (what, 'done (exit 0)' if rc == 0 else 'failed (exit %s)' % rc),
+        # what it printed, a step of its own (shown as it was said, never translated)
+        t.ctx.step('%s said:' % what, 'info' if rc == 0 else 'bad')
+        t.ctx.step(words if '\n' in words else words + '\n', 'info' if rc == 0 else 'bad')
+    t.ctx.step('%s: %s' % (what, 'done' if rc == 0 else 'failed (exit %s)' % rc),
                'ok' if rc == 0 else 'bad')
     return words
 

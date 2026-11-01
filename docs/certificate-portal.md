@@ -62,6 +62,7 @@ certificate (the `owner` field):
 | a person: `novak`, `novak@corp.cz` (UPN or mail) | that person of the directory - their sAMAccountName, UPN, mail or the name they signed in with |
 | an account here: `spravce` or `local:spravce` | the account of acme's own with that name (`portal_local`); `local:` keeps a person of the directory with the same name out |
 | a group: `CERT_USERS`, its DN, or `group:CERT_USERS` | every member of that directory group (nested groups too) |
+| a team of Settings → Owners and teams (its name) | every member of the team with the right *see* - an account here as `local:NAME`, a person or a group of the directory; members with *ask for new* may ask for certificates owned by the team ([teams.md](teams.md)) |
 | empty | nobody - but see below |
 
 **Administrators see everything** (`portal_admins_all`, on by default): an

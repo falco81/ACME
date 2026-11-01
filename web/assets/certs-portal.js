@@ -437,7 +437,7 @@ function downloadDialog(c) {
 function askDialog() {
   var d = CP.d || {};
   var sufs = d.suffixes || [], iss = d.issuers || [];
-  var namesBox, chips, issuerSel, keySel, noteBox, said;
+  var namesBox, chips, issuerSel, keySel, noteBox, said, teamSel = null;
   var check = function () {
     var names = splitNames(namesBox.value);
     clear(chips);
@@ -468,6 +468,14 @@ function askDialog() {
     if (iss.length > 1) body.appendChild(formField('Where it comes from', issuerSel, 'The certificate authority that issues it.'));
     keySel = selectBox((d.key_types || ['ec-256', 'rsa-2048']).map(function (k) { return [k, KEY_WORDS[k] || k]; }), 'ec-256');
     body.appendChild(formField('Its key', keySel, 'EC P-256 suits nearly everything; RSA 2048 for old devices that know nothing else.'));
+    /* Owned by a team they may ask for (Settings → Owners and teams), or by them. */
+    if ((d.teams || []).length) {
+      teamSel = selectBox([['', 'me']].concat(d.teams.map(function (t) { return [t, t]; })), d.teams.length === 1 ? d.teams[0] : '');
+      teamSel.id = 'cp-team';
+      teamSel.options[0].textContent = 'me';
+      Array.prototype.slice.call(teamSel.options, 1).forEach(function (o) { noI18n(o); });
+      body.appendChild(formField('Whose it is', teamSel, 'The team it belongs to: its members see it here too.'));
+    }
     noteBox = el('textarea');
     noteBox.rows = 2;
     noteBox.placeholder = 'what it is for (the administrator sees this)';
@@ -482,7 +490,8 @@ function askDialog() {
     var bad = names.filter(function (n) { return !underSuffix(n, sufs); });
     if (bad.length) { said.className = 'said bad'; said.textContent = 'Only names under ' + sufs.join(', ') + ' may be asked for here.'; namesBox.focus(); return; }
     busy(b, true);
-    api('cert-request', {names: names, issuer: issuerSel.value, key_type: keySel.value, note: noteBox.value}).then(function (got) {
+    api('cert-request', {names: names, issuer: issuerSel.value, key_type: keySel.value, note: noteBox.value,
+                         team: teamSel ? teamSel.value : ''}).then(function (got) {
       toast(got.waits ? 'asked for - it waits for an administrator' : 'asked for - it is being issued', 'good');
       closeModal();
       load().then(function () { if (got.id && !got.waits) certDialog(got.id); });

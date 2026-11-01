@@ -29,7 +29,7 @@ IMPLIES = {'view': {'view'}, 'request': {'view', 'request'},
            'manage': {'view', 'request', 'manage'}, 'approve': {'view', 'approve'}}
 KINDS = ('team', 'person')
 DEFAULT_RIGHTS = ['view', 'request']
-COLOURS = ('dim', 'info', 'good', 'warn', 'bad', 'violet')
+COLOURS = ('dim', 'info', 'ok', 'warn', 'crit', 'violet')
 TAG_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:+-]{0,59}\Z')
 MAIL_RE = re.compile(r'^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+\Z')
 MEMBER_MAX = 500

@@ -577,8 +577,8 @@
     var isNew = !t;
     t = t || {name: '', colour: 'dim', description: ''};
     var f = {};
-    var colours = (TM.d && TM.d.colours) || ['dim', 'info', 'good', 'warn', 'bad', 'violet'];
-    var cw = {dim: 'grey', info: 'blue', good: 'green', warn: 'orange', bad: 'red', violet: 'violet'};
+    var colours = (TM.d && TM.d.colours) || ['dim', 'info', 'ok', 'warn', 'crit', 'violet'];
+    var cw = {dim: 'grey', info: 'blue', ok: 'green', warn: 'orange', crit: 'red', violet: 'violet'};
     modal(isNew ? 'A new tag' : 'The tag ' + t.name, function (body) {
       var g = el('div', 'formgrid');
       f.name = textBox(t.name, 'prod', 'mono');

@@ -38,7 +38,7 @@ which moves its certificates first.
 ### Tags (`cert_tags`)
 
 `name` (one word: letters, digits and `. _ : + -`), `colour` (one of the page's tones:
-dim, info, good, warn, bad, violet), `description`. Certificates and targets pick their
+dim, info, ok, warn, crit, violet), `description`. Certificates and targets pick their
 tags from it (chips). Renaming a tag renames it on every certificate and target;
 a tag in use is deleted only with `strip` (taken off them) - never silently.
 

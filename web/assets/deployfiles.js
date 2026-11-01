@@ -189,7 +189,8 @@
       var says = el('span', 'df-what', what[r.format] || '');
       line.appendChild(fcell);
       var pcell = el('div', 'df-pcell');
-      if (local && ui.base) pcell.appendChild(mono(String(ui.base).replace(/\/+$/, '') + '/', 'df-base'));
+      var base = local ? ((ctx.targetRow && ctx.targetRow.config && ctx.targetRow.config.base) || ui.base) : '';
+      if (base) { var bl = mono(String(base).replace(/\/+$/, '') + '/', 'df-base'); bl.title = String(base); pcell.appendChild(bl); }
       var path = textBox(r.path, win ? 'C:/certs/{name}.pfx' : (local ? '{name}/fullchain.pem' : '/etc/ssl/acme/{name}.crt'), 'mono df-path');
       noI18n(path);
       path.addEventListener('focus', function () { lastPath = path; });
@@ -457,7 +458,7 @@
     var sa = textBox(values.script_args || '', '{name}', 'mono');
     noI18n(sa);
     var g = el('div', 'df-two');
-    g.appendChild(formField('Command or script on the machine', sp, 'its absolute path; it gets the ACME_* variables'));
+    g.appendChild(formField('Command or script on the machine', sp, 'its absolute path; the ACME_* variables are set for it'));
     g.appendChild(formField('Its arguments', sa, '{name} {cn} {service} {date} are filled in'));
     pathBox.appendChild(g);
     box.appendChild(pathBox);
@@ -769,7 +770,7 @@
       b.appendChild(el('span', '', l.what));
       b.onclick = function () {
         var folder = files.folder() || l.folder;
-        files.set(l.outputs.map(function (x) { return x.replace(/\{dir\}/g, folder); }));
+        files.set(l.outputs.map(function (x) { return folder ? x.replace(/\{dir\}/g, folder) : x.replace(/\{dir\}\//g, ''); }));
         if (l.password && pw) { pw.set(l.password); }
         paintPw();
         changed();
