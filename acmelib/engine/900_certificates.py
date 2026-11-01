@@ -37,6 +37,9 @@ CERT_DEFAULTS = {
     'portal_cert_suffixes': '',
     'portal_cert_issuers': '',
     'portal_cert_max': 10,
+    'portal_cert_auto': 0,
+    'portal_cert_keys': 0,
+    'portal_cert_challenge': '',
     # --- acme's own DNS server (DNS-01) ---------------------------------------------
     'dns_server': 0,
     'dns_listen': '0.0.0.0,::',
@@ -66,10 +69,13 @@ NAMES.update({
     'certs_notify_sms': 'Tell by SMS',
     'certs_keep_versions': 'Old certificates kept (each)',
     'certs_keep_jobs_days': 'Jobs kept (days)',
-    'portal_cert': 'Certificates on the enrolment pages',
+    'portal_cert': 'Certificates on the portal',
     'portal_cert_suffixes': 'Names people may ask for',
-    'portal_cert_issuers': 'Issuers people may ask',
-    'portal_cert_max': 'Certificates one person may have',
+    'portal_cert_issuers': 'Sources people may ask',
+    'portal_cert_challenge': 'How their names are proved (ACME)',
+    'portal_cert_max': 'Requests one person may make',
+    'portal_cert_auto': 'Issued without an administrator',
+    'portal_cert_keys': 'People may take their key (PFX)',
     'dns_server': 'acme’s own DNS server',
     'dns_listen': 'Listens on',
     'dns_port': 'Port',
@@ -99,13 +105,24 @@ SAYS.update({
                         'says how SMS go out). Empty: nobody.',
     'certs_keep_versions': 'Each certificate keeps this many of the certificates it had.',
     'certs_keep_jobs_days': 'Jobs older than this are deleted, with their steps.',
-    'portal_cert': 'People signed in on the enrolment pages see the certificates they own, '
-                   'take the certificate and its chain, and may ask for one.',
-    'portal_cert_suffixes': 'The names they may ask for: under these domains (comma between '
-                            'them). Empty: nobody may ask.',
-    'portal_cert_issuers': 'The issuers (Certificates → Sources) a certificate asked '
-                           'for there comes from. Empty: nobody may ask.',
-    'portal_cert_max': 'How many certificates one person may own through the enrolment pages.',
+    'portal_cert': 'People signed in on the portal see the certificates they own - their '
+                   'own, or owned by a directory group they are in - with when each runs out, '
+                   'download the certificate and its chain, and may ask for a new one.',
+    'portal_cert_suffixes': 'The names they may ask for: these domains and the names under them '
+                            '(comma between them). Empty: nobody may ask.',
+    'portal_cert_issuers': 'The sources (Certificates → Sources) a certificate asked for there '
+                           'may come from, by name, comma between them. Empty: nobody may ask.',
+    'portal_cert_challenge': 'The validation (Certificates → Validation) that proves the names '
+                             'of a certificate asked for there, for a source that needs one - '
+                             'ACME. Empty: only sources that need none (own CA, self-signed).',
+    'portal_cert_max': 'How many certificates one person may ask for there; those declined do '
+                       'not count, deleted ones neither.',
+    'portal_cert_auto': 'On: what is asked for is issued at once. Off: it waits under '
+                        'Certificates (waiting for approval) until an administrator approves '
+                        'or declines it - and the person is told by mail.',
+    'portal_cert_keys': 'On: people may download their certificate with its private key, as '
+                        'a PFX file locked with a password they choose. Off: the certificate '
+                        'and the chain only.',
     'dns_server': 'acme answers DNS itself for the zone below - the _acme-challenge TXT '
                   'records of DNS-01, and records of your own. Delegate _acme-challenge (or a '
                   'zone) to this machine with NS records.',
@@ -127,19 +144,26 @@ TUNABLE.update({
     'certs_renew_days': (1, 3650), 'certs_check_min': (1, 1440), 'certs_parallel': (1, 32),
     'certs_retry_max_h': (1, 168), 'certs_notify_days': (0, 365),
     'certs_keep_versions': (1, 1000), 'certs_keep_jobs_days': (1, 3650),
-    'portal_cert': (0, 1), 'portal_cert_max': (1, 1000),
+    'portal_cert': (0, 1), 'portal_cert_max': (1, 1000), 'portal_cert_auto': (0, 1),
+    'portal_cert_keys': (0, 1),
     'dns_server': (0, 1), 'dns_port': (1, 65535), 'dns_ttl': (0, 86400),
     'dns_rate': (1, 100000), 'dns_cache': (0, 60),
 })
 PANES['certs'] = ['certs_renew_days', 'certs_check_min', 'certs_parallel', 'certs_retry_max_h',
                   'certs_notify_days', 'certs_notify_mail', 'certs_notify_sms',
-                  'certs_keep_versions', 'certs_keep_jobs_days', 'portal_cert',
-                  'portal_cert_suffixes', 'portal_cert_issuers', 'portal_cert_max']
+                  'certs_keep_versions', 'certs_keep_jobs_days']
+# The certificate portal's settings, on the pane of the portal (the enrolment
+# pages), after the engine's own of who may sign in there.
+PORTAL_CERT_KEYS = ['portal_cert', 'portal_cert_suffixes', 'portal_cert_issuers',
+                    'portal_cert_challenge', 'portal_cert_auto', 'portal_cert_max',
+                    'portal_cert_keys']
+PANES['portal'] = [k for k in PANES.get('portal', []) if k not in PORTAL_CERT_KEYS
+                   and k != 'portal_help'] + PORTAL_CERT_KEYS + (
+    ['portal_help'] if 'portal_help' in PANES.get('portal', []) else [])
 PANES['dnssrv'] = ['dns_server', 'dns_listen', 'dns_port', 'dns_zone', 'dns_ns_names',
                    'dns_ns_addresses', 'dns_soa_mail', 'dns_ttl', 'dns_static', 'dns_rate', 'dns_cache']
 ONLY_WHEN.update({k: ['dns_server', '1'] for k in PANES['dnssrv'] if k != 'dns_server'})
-ONLY_WHEN.update({k: ['portal_cert', '1'] for k in ('portal_cert_suffixes',
-                                                    'portal_cert_issuers', 'portal_cert_max')})
+ONLY_WHEN.update({k: ['portal_cert', '1'] for k in PORTAL_CERT_KEYS if k != 'portal_cert'})
 SETTING_TALL = tuple(SETTING_TALL) + ('dns_static',)
 
 

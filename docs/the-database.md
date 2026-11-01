@@ -1,8 +1,10 @@
 # The database
 
-Everything acme keeps is in one database: the tokens, the clients, the realms,
-the directories, the settings saved on the pages, the accounts, every RADIUS
-request, every check of a code, every event.
+Everything acme keeps is in one database: the certificates with their
+versions and sealed keys, acme's own CAs, the issuers, challenges, targets and
+deployments, every job, the DNS server's records, the directories, the settings
+saved on the pages, the accounts, every event ([architecture.md](architecture.md)
+lists the tables).
 
 | Engine | When | Needs |
 |---|---|---|
@@ -15,11 +17,12 @@ The database's own address cannot live in the database, so `db_engine`,
 are kept in `/etc/acme/config.json`. Everything else saved on the pages
 lives in the database and wins over that file.
 
-## The key of the tokens
+## The key of the sealed secrets
 
-The key of every token, the shared secrets of the clients and the passwords
-of the directories are sealed with `/var/lib/acme/secrets.key`. A copy of the
-database without that key is a copy whose tokens cannot be opened: every
+The private keys of the certificates and the CAs, the passwords and API
+tokens of the issuers, challenges and targets, and the passwords of the
+directories are sealed with `/var/lib/acme/secrets.key`. A copy of the
+database without that key is a copy whose secrets cannot be opened: every
 backup is written with the key beside it (`acme-YYYYMMDD-HHMMSS.key`), and a
 copy carried to another machine needs it in `/var/lib/acme/` there.
 
@@ -62,11 +65,9 @@ systemctl start acme
 acme --status
 ```
 
-The tables are made by acme itself. `test/engines.sh` runs the whole flow —
-restore, a client, a realm, a token, real RADIUS packets, the logs read back,
-a copy — on each engine.
+The tables are made by acme itself. `test/engines.sh` runs the whole flow on
+each engine.
 
 ## How long things are kept
 
-`retain_radius_days` (180), `retain_acme_days` (180), `retain_events_days`
-(365); 0 keeps for ever. The tidying runs every hour, or `acme --tidy`.
+`retain_events_days` (365); 0 keeps for ever. The tidying runs every hour, or `acme --tidy`.

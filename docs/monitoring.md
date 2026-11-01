@@ -41,15 +41,16 @@ now*.
 | `acme_info{version,node,site,engine}` | 1 |
 | `acme_start_time_seconds` | when the daemon started |
 | `acme_database_up`, `acme_database_seconds` | the database answers, and how long `SELECT 1` took |
-| `acme_radius_listening` | RADIUS listens |
-| `acme_radius_requests_total{kind}` | RADIUS packets since the start: `packets`, `accept`, `reject`, `challenge`, `accounting`, `status`, `repeated`, `unknown`, `malformed`, `dropped`, `overflow`, `no_database`, `maintenance`... |
-| `acme_radius_queued` | requests waiting for a worker |
-| `acme_radius_last_day{result}` | Access-Requests of the last 24 hours (the database's - both nodes) |
-| `acme_tokens{state}`, `acme_tokens{kind}` | tokens |
-| `acme_clients`, `acme_realms`, `acme_directories` | how many |
+| `acme_directories` | how many directories |
+| `acme_events_last_day{level}` | events of the last 24 hours (the database's - both nodes) |
+| `acme_certs{state}` | the certificates acme keeps, by state |
+| `acme_cert_expiry_seconds{name}` | seconds until each certificate ends |
+| `acme_cert_deploys_failed` | deployments whose last try failed |
+| `acme_cert_jobs_failed_24h` | certificate jobs that failed in the last 24 hours |
+| `acme_cert_leader{node}` | whether this node renews and deploys (1) or not (0) |
 | `acme_ha_node_up{node}`, `acme_ha_heartbeat_age_seconds{node}` | the cluster |
 | `acme_ha_replication_running{name}`, `acme_ha_replication_errors_total{name}`, `acme_ha_replication_behind_bytes{name}` | replication, as this node's PostgreSQL sees it |
-| `acme_certificate_expiry_timestamp_seconds{target,name}` | the pages' certificates - each node's and the VIP address's |
+| `acme_pages_certificate_expiry_timestamp_seconds{target,name}` | the pages' own certificates - each node's and the VIP address's |
 | `acme_mail_queue{state}` | mail waiting or failed |
 | `acme_isemon_sent_total{target}`, `acme_isemon_trouble{target}`, `acme_isemon_dropped_total` | isemon |
 | `acme_siem_sent_total{target}`, `acme_siem_trouble{target}`, `acme_siem_dropped_total` | syslog / SIEM |
@@ -64,13 +65,16 @@ groups:
   - name: acme
     rules:
       - alert: AcmeDown
-        expr: up{job="acme"} == 0 or acme_database_up == 0 or acme_radius_listening == 0
+        expr: up{job="acme"} == 0 or acme_database_up == 0
         for: 2m
       - alert: AcmeReplication
         expr: acme_ha_replication_running == 0 or acme_ha_replication_behind_bytes > 100e6
         for: 5m
       - alert: AcmeCertificate
-        expr: acme_certificate_expiry_timestamp_seconds - time() < 14 * 86400
+        expr: acme_cert_expiry_seconds < 14 * 86400
+      - alert: AcmeDeploy
+        expr: acme_cert_deploys_failed > 0
+        for: 30m
       - alert: AcmeAlerts
         expr: acme_alerts_open{level="bad"} > 0
         for: 10m
@@ -79,7 +83,7 @@ groups:
 ## SNMPv3 (1.0.182)
 
 Each node answers SNMPv3 itself: an agent of the acme daemon, in a thread of its
-own - no snmpd, nothing in RADIUS' way. *Settings → Monitoring → SNMPv3*.
+own - no snmpd, nothing in the renewals' way. *Settings → Monitoring → SNMPv3*.
 
 - **authPriv only.** One user (securityName), the same on every node, with a
   passphrase for authentication and one for encryption (12 characters at least,
@@ -112,7 +116,7 @@ own - no snmpd, nothing in RADIUS' way. *Settings → Monitoring → SNMPv3*.
 | `1.3.6.1.2.1.1` | the system group: sysDescr (acme, the version, the node), sysObjectID, sysUpTime, sysContact, sysName, sysLocation |
 | `1.3.6.1.6.3.10.2.1` | the engine: its ID, boots, time |
 | `1.3.6.1.6.3.15.1.1` | usmStats: unknown users, wrong digests, not in the time window... |
-| `1.3.6.1.4.1.8072.9999.9999.7` | **ACME-MIB** (`deploy/ACME-MIB.txt`): the version, node, database engine, high security; RADIUS (listening, queued, packets, accepts, rejects, challenges... as Counter64); the database (up, latency); the tokens; the alerts (how many bad and warn, and a table of each); the certificates (days left); the nodes of the cluster; and `acmeMetricTable` - every sample of `/metrics`, name, labels and value |
+| `1.3.6.1.4.1.8072.9999.9999.7` | **ACME-MIB** (`deploy/ACME-MIB.txt`): the version, node, database engine, high security, in a cluster or not, uptime; the database (up, latency); the alerts (how many bad and warn, and a table of each); the pages' certificates (days left); the nodes of the cluster; and `acmeMetricTable` - every sample of `/metrics`, name, labels and value |
 
 acme has no enterprise number of its own: its objects are under net-snmp's
 `netSnmpPlaypen` (`.1.3.6.1.4.1.8072.9999.9999`), `.7`. Load `ACME-MIB.txt` into
@@ -122,13 +126,12 @@ use the numbers.
 ```
 snmpwalk -v3 -l authPriv -u acmemon -a SHA-256 -A '...' -x AES -X '...' acme1 1.3.6.1.4.1.8072.9999.9999.7
 snmpget  -v3 -l authPriv -u acmemon -a SHA-256 -A '...' -x AES -X '...' acme1 \
-         1.3.6.1.4.1.8072.9999.9999.7.5.1.0 1.3.6.1.4.1.8072.9999.9999.7.2.1.0
+         1.3.6.1.4.1.8072.9999.9999.7.5.1.0 1.3.6.1.4.1.8072.9999.9999.7.3.1.0
 ```
 
 Zabbix: an SNMP interface on each node, SNMPv3, security level authPriv, the
 user, *SHA256* and *AES128* (or what was chosen) with the passphrases; items with
-the OIDs above (`acmeAlertsBad.0` > 0, `acmeRadiusListening.0` = 0,
-`acmeDbUp.0` = 0...).
+the OIDs above (`acmeAlertsBad.0` > 0, `acmeDbUp.0` = 0...).
 
 ### Traps
 
@@ -162,7 +165,7 @@ The page writes those lines with the engine IDs filled in.
 *Settings → Alerts and reports* has a switch for each:
 
 - **The database and its replication**: the replication stopped, or the database
-  of a node in trouble (RADIUS could not use it).
+  of a node in trouble (the daemon could not use it).
 - **The VIP address (VRRP)**: the VIP address on no node, or on both (the nodes do
   not see each other over VRRP), a node whose keepalived gave it up (FAULT), or
   keepalived not running on a node.

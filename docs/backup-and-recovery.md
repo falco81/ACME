@@ -31,16 +31,17 @@ the machine.
 
 | What | Where | In a copy of the database? | How it comes back |
 |---|---|---|---|
-| Tokens, their keys, recovery codes, keys waiting to be confirmed | database, table `tokens` (sealed with the key) | yes | with the copy **and** the key |
+| Certificates, their versions and private keys, acme's own CAs and what they signed | database, tables `certs`, `cert_versions`, `cert_cas`, … (keys sealed with the key) | yes | with the copy **and** the key |
+| Issuers, challenges, targets (their passwords and API tokens sealed), deployments, jobs, the DNS server's records | database | yes | with the copy **and** the key |
 | Settings (the cluster's and each node's own) | database | yes | with the copy |
-| RADIUS clients and their secrets, realms, directories (passwords, CAs) | database | yes | with the copy |
+| Directories (passwords, CAs) | database | yes | with the copy |
 | Accounts of the administration pages | database | yes | with the copy |
 | Certificates and private keys of the pages and of the VIP address, TLS settings | database (keys sealed) | yes | with the copy; nginx is rewritten from it within seconds |
 | The VIP address, who may reach which page, the firewall, the mail server's CAs | database | yes | with the copy; keepalived, nginx and iptables are rewritten from it within seconds |
 | The link between the two databases: the cluster's authority (key sealed) and what each node wants | database | yes | with the copy; each node gives its PostgreSQL a certificate again by itself within ten minutes (1.0.104) |
 | PostgreSQL's certificate of each node, `/etc/pki/acme/ha-ca.pem`, `hostssl` lines in pg_hba.conf | the operating system | no - made from the database | by each node itself, through its root helper (1.0.104) |
-| Logs: RADIUS requests, code checks, events | database | yes | with the copy |
-| **The key of the tokens** | `/var/lib/acme/secrets.key` | beside each kept copy (`acme-….key`); **inside** every copy downloaded from the pages | with the copy, or by hand |
+| Events | database | yes | with the copy |
+| **The key of the sealed secrets** | `/var/lib/acme/secrets.key` | beside each kept copy (`acme-….key`); **inside** every copy downloaded from the pages | with the copy, or by hand |
 | The machine's own file: which database it opens, its node name, its place in a cluster | `/etc/acme/config.json` | **to read only** (from 1.0.63; the database password left out) | written by `install.sh`, `acme --set`, `--ha-setup`, `--ha-join` |
 | nginx, php-fpm, keepalived, iptables files | `/etc/nginx/conf.d/acme.conf`, `/etc/sysconfig/iptables`, ... | no - made from the database | by `install.sh` and by acme itself |
 | The program | `/usr/local/lib/acme`, `/var/www/acme` | no | `install.sh` from the package |
@@ -54,7 +55,8 @@ copies below stay on this machine.
 
 **One copy of the database plus the key is the whole installation.** Put
 back on a freshly installed machine, that machine is the old one again -
-tokens, recovery codes, clients, accounts, certificates, firewall and all.
+certificates and their keys, issuers, targets, accounts, the pages'
+certificates, firewall and all.
 
 What is made from the database is checked against it, not only written once
 (1.0.104): nginx's certificate is compared with the saved one and put in again
@@ -77,7 +79,7 @@ Two kinds of backup are made every night at `backup_at` (03:30). They are
 | Made by | acme | the database's own program: `pg_dump`, `mariadb-dump`, SQLite's backup |
 | Goes back into | SQLite, MariaDB **or** PostgreSQL | only the engine it came from |
 | In a cluster | put back on one node, replication carries it to the other | refused while replication runs |
-| The key of the tokens | beside it as `acme-….key`; inside a downloaded copy | not in it |
+| The key of the sealed secrets | beside it as `acme-….key`; inside a downloaded copy | not in it |
 | Where it was made (config.json) | in it, to read (1.0.63) | no |
 | Read without acme | no | yes, with the engine's own tools |
 | Kept | the last `backup_keep` (14) | the same number |
@@ -86,12 +88,14 @@ Two kinds of backup are made every night at `backup_at` (03:30). They are
 the day somebody has to look into the data with PostgreSQL's or MariaDB's own
 tools.
 
-### The key of the tokens
+### The key of the sealed secrets
 
-`/var/lib/acme/secrets.key` seals each token's key, the recovery codes, the
-private keys of the certificates and the other secrets kept in the database.
-**Without it a copy is worthless** - for an attacker, and for you: the tokens
-cannot be opened, and everybody would have to enrol again. Both nodes of a
+`/var/lib/acme/secrets.key` seals the private keys of the certificates and of
+acme's own CAs, the passwords and API tokens of the issuers, challenges and
+targets, and the other secrets kept in the database. **Without it a copy is
+worthless** - for an attacker, and for you: no private key opens, every
+certificate has to be issued anew with a new key, and acme's own CAs - with
+everything they signed - have to be made again. Both nodes of a
 cluster use the same key. It does not change on its own; keep one copy of it
 apart from the database copies (a password vault, a sealed envelope), and the
 problem of the key is solved for good.
@@ -126,11 +130,11 @@ What you add - three things:
    copy or dump. Each asks first (1.0.123):
 
    - **With the key** - one file, `NAME.with-key.tar`, holding the copy or the
-     dump and the key that opens its tokens, **locked with a passphrase** you
+     dump and the key that opens its secrets, **locked with a passphrase** you
      give there (10 characters at least; scrypt and HMAC, the lock of the
      cluster's bundle). The passphrase is not kept anywhere: lost, the key in
      the file is lost with it. Keep the file and the passphrase apart.
-   - **Without the key** - the copy or the dump alone. It opens no token on
+   - **Without the key** - the copy or the dump alone. It opens no secret on
      another machine: the key is the `.key` file beside it in
      `/var/lib/acme/backups/` or `/var/lib/acme/dumps/` (or `secrets.key`).
 
@@ -156,8 +160,9 @@ Optional:
 
 - **The configuration as text** for version control or to carry a setup to
   another installation: `acme --export-config /root/acme-config.json`
-  (without secrets) or `--with-secrets` (everything but the tokens). Not a
-  substitute for the copies: the tokens are not in it.
+  (without secrets) or `--with-secrets` (the passwords and private keys in
+  the clear). Not a substitute for the copies: the jobs, the events and the
+  older versions of the certificates are not in it.
 - **A copy before every risky change** (an upgrade, a big import, a move of the
   database): `acme --backup`, or *Make a copy now* on the pages.
 
@@ -188,15 +193,15 @@ What to **not** rely on:
    ```
 
    It says when it was made, by which version, on which machine (node name,
-   database, place in the cluster, its `config.json`), and how many tokens,
-   accounts, clients and log rows it holds. The pages show the same before
+   database, place in the cluster, its `config.json`), and how many rows of
+   each table it holds - certificates, accounts, events. The pages show the same before
    anything is put back.
 4. **Pick the right copy.** The newest file in `/var/lib/acme/backups/` is not
    always the one you want: a restore and a rebuild first make a safety copy
    of what they replace, named like any other. *Events* (kind *backups*) says
    which copy was made why; `acme --backup-info` shows its contents.
 5. **Know what you lose.** Putting a copy back replaces everything: what was
-   recorded after the copy was made (new tokens, changed settings, logs) is
+   recorded after the copy was made (certificates renewed since, changed settings, events) is
    only in the safety copy that the restore makes first
    (`/var/lib/acme/backups/`, named in the message).
 6. **People are signed out** of the pages: the sign-ins came with the copy.
@@ -207,13 +212,13 @@ What to **not** rely on:
 
 | What happened | One server | Cluster |
 |---|---|---|
-| A wrong setting, client, realm or directory - acme still works | [5.1](#51-a-wrong-change) | [6.1](#61-a-wrong-change) |
-| Tokens or accounts deleted or damaged by mistake | [5.2](#52-data-deleted-or-damaged) | [6.2](#62-data-deleted-or-damaged-on-both-nodes) |
+| A wrong setting, target, issuer or directory - acme still works | [5.1](#51-a-wrong-change) | [6.1](#61-a-wrong-change) |
+| Certificates, targets or accounts deleted or damaged by mistake | [5.2](#52-data-deleted-or-damaged) | [6.2](#62-data-deleted-or-damaged-on-both-nodes) |
 | The database will not open, or is corrupt | [5.2](#52-data-deleted-or-damaged) | [6.3](#63-one-nodes-database-is-broken-or-behind) |
 | A node was reverted to a snapshot, or was away too long ("lost") | - | [6.3](#63-one-nodes-database-is-broken-or-behind) |
 | Both nodes ran apart (split network) | - | [6.4](#64-both-nodes-ran-apart-split-network) |
 | The machine is gone (disk, VM, reinstalled) | [5.3](#53-the-server-is-lost) | one node: [6.5](#65-one-node-is-lost) · both: [6.6](#66-both-nodes-are-lost) |
-| The key of the tokens is lost | [5.4](#54-the-key-of-the-tokens-is-lost) | [6.7](#67-the-key-is-lost-on-one-node) |
+| The key of the sealed secrets is lost | [5.4](#54-the-key-of-the-sealed-secrets-is-lost) | [6.7](#67-the-key-is-lost-on-one-node) |
 | An upgrade went wrong | [5.5](#55-an-upgrade-went-wrong) | [5.5](#55-an-upgrade-went-wrong) |
 | Nobody can sign in to the pages | [5.6](#56-nobody-can-sign-in-to-the-pages) | [5.6](#56-nobody-can-sign-in-to-the-pages) |
 | Moving to a new machine or another database engine | [5.7](#57-moving-to-new-hardware-or-another-engine) | [6.5](#65-one-node-is-lost), one node at a time |
@@ -227,9 +232,9 @@ What to **not** rely on:
 The pages record every change in *Events* (who, what, when). Most mistakes are
 fixed by changing it back.
 
-For a whole configuration gone wrong - many settings, clients or realms - put
+For a whole configuration gone wrong - many settings, issuers or targets - put
 an exported configuration back. It replaces the configuration and **leaves the
-tokens alone**:
+jobs and events alone**:
 
 ```bash
 acme --import-config /root/acme-config.json --yes            # add to what is here
@@ -244,7 +249,7 @@ configuration out of a copy: put the copy back on a test machine
 
 ### 5.2 Data deleted or damaged
 
-Tokens deleted, accounts lost, the database corrupt or no longer opening:
+Certificates deleted, accounts lost, the database corrupt or no longer opening:
 put the newest good copy back. Everything returns as it was when the copy was
 made.
 
@@ -290,8 +295,8 @@ meanwhile, and taken away once it is back.
 - *From a dump* instead of a copy (same engine only): the same command with the
   dump file, `acme --restore /var/lib/acme/dumps/acme-postgres-….pgc --yes`.
   The key is not in a dump: the one in `/var/lib/acme/secrets.key` stays, and
-  acme says loudly if the tokens do not open with it
-  ([section 5.4](#54-the-key-of-the-tokens-is-lost)).
+  acme says loudly if the secrets do not open with it
+  ([section 5.4](#54-the-key-of-the-sealed-secrets-is-lost)).
 
 Then [section 8](#8-after-every-recovery-the-checks).
 
@@ -300,8 +305,9 @@ Then [section 8](#8-after-every-recovery-the-checks).
 The disk died, the machine was deleted or must be reinstalled. You need a
 copy and its key from **off the machine** ([section 2](#2-the-backup-plan)).
 
-1. A new machine with the **same name and address** if you can (the VPN
-   concentrators and DNS then need no change). AlmaLinux 9.
+1. A new machine with the **same name and address** if you can (DNS, the NS
+   records of acme's own DNS server and the targets' allow lists then need no
+   change). AlmaLinux 9.
 2. Install acme - [section 7.1](#71-one-server). With PostgreSQL or MariaDB, set
    the database up first as it was (`acme --backup-info` on the copy shows what
    it was: engine, host, port, database name).
@@ -312,7 +318,7 @@ copy and its key from **off the machine** ([section 2](#2-the-backup-plan)).
    acme --restore /root/acme-YYYYMMDD-HHMMSS.json.gz --yes
    ```
 
-   It says "the key that opens the tokens came with it and is in use now".
+   It says "the key that opens the sealed secrets came with it and is in use now".
    A downloaded copy with its key (`….with-key.tar`) carries the key inside,
    locked: *Restore from this file* on the pages asks for its passphrase, and
    no `.key` file is needed.
@@ -329,9 +335,9 @@ A copy with no full administrator in it (an installation that was used only
 from the command line) is put back too, and acme says so; make an account
 afterwards: `acme --add-user admin --role fulladmin`.
 
-### 5.4 The key of the tokens is lost
+### 5.4 The key of the sealed secrets is lost
 
-Symptoms: every sign-in refused with "the key cannot be opened", the pages say
+Symptoms: renewals and deployments fail with "cannot be opened", the pages say
 the key is missing, `acme --check` complains about `/var/lib/acme/secrets.key`.
 
 1. **Find it.** It is beside every kept copy (`/var/lib/acme/backups/acme-*.key`,
@@ -348,13 +354,15 @@ the key is missing, `acme --check` complains about `/var/lib/acme/secrets.key`.
 
    Or put a downloaded copy back ([section 5.2](#52-data-deleted-or-damaged)):
    its key comes with it.
-3. **Lost everywhere** - no copy of it anywhere: the tokens cannot be opened by
-   anybody, ever. acme starts with a new key; every person has to enrol again.
-   Clients, realms, directories and settings are not lost: their secrets that
-   were sealed (client secrets, directory passwords, private keys) have to be
-   typed in again where acme says "cannot be opened". Then each token is made
-   again: let people use the enrolment pages, or enrol them anew from the
-   *Tokens* tab (*Replace it*) and mail them the new ones.
+3. **Lost everywhere** - no copy of it anywhere: the sealed secrets cannot be
+   opened by anybody, ever. acme starts with a new key. Certificates, issuers,
+   targets, directories and settings are not lost, but their secrets that were
+   sealed have to be given again where acme says "cannot be opened": the
+   passwords and API tokens of the issuers, challenges, targets and
+   directories, the ACME accounts' keys (register again), the pages' own
+   private keys. Every certificate is renewed with a new key (*Renew it now*,
+   or `acme --renew all --force`); a CA of acme's own is made again, and what
+   it signed is signed again by the new one.
 
 ### 5.5 An upgrade went wrong
 
@@ -420,7 +428,7 @@ including each node's own settings and certificates.
 
 ### 6.2 Data deleted or damaged on both nodes
 
-Tokens deleted, a mass change - replicated to both nodes. Put the copy back on
+Certificates or targets deleted, a mass change - replicated to both nodes. Put the copy back on
 **one** node:
 
 ```bash
@@ -444,11 +452,11 @@ Notes:
   runs: to use one, leave the cluster ([operations.md section 13](operations.md#13-leaving-the-cluster-back-to-one-server)),
   put it back on one node, and build the pair again.
 - A copy sealed with **another key** than the cluster's is refused: the other
-  node could not open its tokens. A copy of this cluster always has the right
+  node could not open its secrets. A copy of this cluster always has the right
   key. A copy from another installation goes in as in
   [section 6.6](#66-both-nodes-are-lost).
-- A large database takes a while (about 45 s for 600 000 log rows); RADIUS
-  goes on answering meanwhile.
+- A large database takes a while (about 45 s for 600 000 rows); the pages
+  of the other node go on answering meanwhile.
 
 ### 6.3 One node's database is broken or behind
 
@@ -473,7 +481,8 @@ If PostgreSQL itself on that node is beyond repair, treat the node as lost
 ### 6.4 Both nodes ran apart (split network)
 
 Both answered and wrote while they could not see each other. Pick the node
-that holds the truth (usually the one that answered the VPN), and rebuild the
+that holds the truth (usually the one that led - renewed and deployed - during
+the split; Events says which), and rebuild the
 other from it:
 
 ```bash
@@ -544,8 +553,8 @@ machines**. You build one server from the copy, then the second node from it.
    acme --set node_name=acme1 && systemctl restart acme       # the name it had
    ```
 
-   acme1 is now a single server with everything of the cluster: tokens,
-   accounts, clients, both nodes' certificates and own settings, the web
+   acme1 is now a single server with everything of the cluster: the
+   certificates, issuers, targets, accounts, both nodes' own certificates and own settings, the web
    address, the firewall.
 3. **Build the pair** as in [operations.md section 5](operations.md#5-building-a-cluster-of-two):
 
@@ -562,7 +571,8 @@ machines**. You build one server from the copy, then the second node from it.
 
 Without a copy but with an exported configuration (`--export-config
 --with-secrets`): install, `acme --import-config FILE --yes`, build the pair -
-everything but the tokens comes back; people enrol again.
+the configuration and the current certificates come back; the jobs, events and
+older versions do not.
 
 ### 6.7 The key is lost on one node
 
@@ -575,7 +585,7 @@ acme --ha-bundle /root/b.json        # prints a passphrase once
 acme --ha-join /root/b.json
 ```
 
-Both nodes lost the key: as on one server ([5.4](#54-the-key-of-the-tokens-is-lost)),
+Both nodes lost the key: as on one server ([5.4](#54-the-key-of-the-sealed-secrets-is-lost)),
 then copy the key file to both nodes (`/var/lib/acme/secrets.key`, owner `acme`,
 mode 0600) and restart acme on both.
 
@@ -591,19 +601,19 @@ AlmaLinux 9 (or Rocky, RHEL 9; Debian/Ubuntu work too), the package unpacked:
 tar xzf acme-X.Y.Z.tar.gz && cd acme-X.Y.Z
 ./install.sh --server-name acme.example.cz \
              --admin-allow 10.0.0.0/8 --portal-allow 10.0.0.0/8 \
-             --radius-from 198.51.100.1/32,198.51.100.2/32 \
              --with-db postgres --yes          # --with-db only for PostgreSQL / MariaDB
 ```
 
 It installs the program, the service, nginx and PHP, a self-signed
-certificate, the first administrator (the password is printed) and a RADIUS
-client for 127.0.0.1. acme starts on SQLite; for PostgreSQL see
+certificate and the first administrator (the password is printed). acme
+starts on SQLite; for PostgreSQL see
 [operations.md sections 3 and 4](operations.md#3-postgresql-16-on-almalinux-9).
 
 Then either put a copy back ([section 5.3](#53-the-server-is-lost)), import a
 configuration ([section 5.1](#51-a-wrong-change)), or set it up anew:
-clients, realms and directories on the pages (*Settings*), certificates under
-*Settings → Certificates and TLS*. Then **plan the backups** ([section 2](#2-the-backup-plan))
+directories on the pages (*Settings*), the pages' own certificate under
+*Settings → Certificates and TLS*, then the issuers, challenges, targets and
+certificates ([certificates.md](certificates.md)). Then **plan the backups** ([section 2](#2-the-backup-plan))
 and keep the key.
 
 ### 7.2 A cluster of two
@@ -614,8 +624,8 @@ and keep the key.
 3. acme2: `./install.sh --with-db postgres ...` and
    `acme --ha-join /root/acme-join-acme1.json --node-name acme2`.
 4. In front of the pair: the VIP address (*Settings → High availability*) or a
-   load balancer ([load-balancers.md](load-balancers.md)); both nodes as RADIUS
-   servers on the VPN.
+   load balancer ([load-balancers.md](load-balancers.md)); both nodes allowed
+   in by the targets (either may be the one that deploys).
 5. Backups: each node makes its own copies; take those of one node off the
    machines every night ([section 2](#2-the-backup-plan)).
 
@@ -627,10 +637,10 @@ Full walk-through: [operations.md section 5](operations.md#5-building-a-cluster-
 
 ```bash
 acme --status                   # the version, the database, the counts
-acme --check                    # every part: the key, the database, RADIUS, the pages
-acme --tokens | tail -1         # as many tokens as expected
-acme --clients                  # the VPN concentrators
-acme --radtest someone@example.cz 123456   # with a real code from a phone
+acme --check                    # every part: the key, the copies, PHP, the directories
+acme --certs | tail -1          # as many certificates as expected
+acme --targets                  # where certificates go
+acme --target-test NAME         # one target reached and signed in to, nothing changed
 acme --web-status               # certificates, days left, where the VIP address is
 # a cluster:
 acme --ha-status                # both directions running, little or nothing behind
@@ -640,9 +650,8 @@ acme --ha-compare               # "both nodes hold the same rows"
 And by hand:
 
 - sign in to the pages with an administrator account;
-- one real VPN sign-in through each node (or through the balancer);
-- one recovery code tried (the token's window on the *Tokens* tab, *Try a
-  code*), if recovery codes are in use;
+- one certificate renewed and deployed (*Renew it now*), its job gone
+  through - it proves the key, the issuer, the challenge and the target;
 - *Events*: the restore is written down, with the name of the safety copy.
 
 ---
@@ -654,7 +663,7 @@ And by hand:
 | `acme --backup` | a copy now, into `/var/lib/acme/backups/`, key beside it |
 | `acme --backup-info FILE` | what a copy holds and the machine it was made on |
 | `acme --restore FILE --yes` | put a copy or a dump back (a safety copy first) |
-| `acme --export-config FILE [--with-secrets]` | the configuration as JSON, without the tokens |
+| `acme --export-config FILE [--with-secrets]` | the configuration as JSON - with the current certificates, without the jobs and events |
 | `acme --import-config FILE --yes [--replace]` | put a configuration back |
 | `acme --ha-resync --yes` | rebuild this node from the other |
 | `acme --ha-standalone --yes` | leave the cluster, keeping everything |
@@ -665,7 +674,7 @@ And by hand:
 
 | Where | What |
 |---|---|
-| `/var/lib/acme/secrets.key` | the key of the tokens |
+| `/var/lib/acme/secrets.key` | the key of the sealed secrets |
 | `/var/lib/acme/backups/` | copies (`acme-*.json.gz`) and their keys (`acme-*.key`) |
 | `/var/lib/acme/dumps/` | the engine's own dumps |
 | `/var/lib/acme/acme.db` | the database, on SQLite |

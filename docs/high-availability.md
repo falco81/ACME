@@ -18,30 +18,35 @@ sessions. There are two ways to lay the database out:
               └──────────────┬──────────────────┬───────────┘
                              │                  │
                        ┌─────┴─────┐      ┌─────┴─────┐
- RADIUS 1812/1813 ───► │  node 1   │      │  node 2   │ ◄─── RADIUS
- (the VPN knows both)  │ PostgreSQL│ ◄──► │ PostgreSQL│
+  CAs, targets ◄────── │  node 1   │      │  node 2   │  (the one that leads
+  (the leader only)    │ PostgreSQL│ ◄──► │ PostgreSQL│   renews and deploys)
                        └───────────┘      └───────────┘
                      logical replication, both ways (replicated)
 ```
 
 ## Why either node can answer any request
 
-- **Settings, clients, realms, directories and tokens** are kept in the
-  database. A change made on one node is picked up by the other within five
+- **Settings, directories, certificates, issuers, challenges, targets and
+  deployments** are kept in the database. A change made on one node is picked up by the other within five
   seconds.
 - **A sign-in to the pages** is a row in the database. So is the "Edit the
   columns" switch that belongs to it. The next page can therefore come from
   the other node.
-- **Enrolling a token** across nodes works the same way: everything that is
-  half done is in the database.
-- **A code is used up** by a single conditional `UPDATE`. If both nodes are
-  asked for the same code at the same moment, only one of them accepts it.
-  The same goes for a recovery code.
+- **The renewals and deployments** are done by one node at a time: a lease
+  row in the database (`certs:leader`, renewed every 30 s, good for 90 s)
+  says which. The node holding the VIP address takes it; with the VIP address
+  off, whichever node took it first keeps it while it lives. When that node
+  goes, the other takes over within a minute and a half - an event says so.
+  A job's steps are in the database, so either node's pages show it.
+- **A code of the administration's second step is used up** by a single
+  conditional `UPDATE`. If both nodes are asked for the same code at the same
+  moment, only one of them accepts it.
 - **The nightly dump** is made by one node only: whichever claims the day
   first.
 - **A job's progress** (a move, an erase, giving the disk back) is kept in the
   database, so its bar keeps moving whichever node the page asks.
-- **The key that seals the tokens** is the same file on both nodes. It is
+- **The key that seals the secrets** (the private keys, the passwords) is the
+  same file on both nodes. It is
   carried to the second node once, inside a bundle locked with a passphrase.
 
 Each node writes a heartbeat every fifteen seconds. *Settings → High
@@ -81,7 +86,7 @@ from. In a cluster, the page header shows which node answered it.
 
    It installs PostgreSQL there if it is missing, prepares it the same way,
    copies every row from the first node, and sets both directions up. The
-   bundle also carries the key that opens the tokens. The pages of a fresh
+   bundle also carries the key that opens the sealed secrets. The pages of a fresh
    node cannot do this step, because it needs root.
 4. **On both nodes**, give the load balancer's address (see below):
    `acme --trusted-proxy 192.0.2.10/32`.
@@ -267,31 +272,24 @@ leaving the cluster): [operations.md](operations.md).
   192.0.2.10;` and `real_ip_header proxy_protocol;`. With send-proxy the
   health check needs `check-send-proxy` as well, or it is refused by nginx.
 
-- **RADIUS**: give the VPN both nodes as servers of one group. On a Cisco ASA
-  that is two `aaa-server` hosts with the same key. You can also balance UDP
-  1812 and 1813 to both nodes. In both cases each client's address and secret
-  must be configured once, under *Settings → Clients*. Both nodes read them
-  from the database.
-
 ## What it does not do
 
 - **Replicated: a code is used up on one node, and the other learns of it a
-  moment later** - normally well under a second. A code asked on both nodes in
-  that moment, or on both halves of a split network, can be accepted twice.
-  A TOTP code lives 30 seconds at most, so the risk is small, but it is there.
-  The shared layout does not have it.
-- **Replicated: the same row changed on both nodes at the same moment.** For
-  a token, each part of it keeps the newer change, and both nodes end up the
-  same (1.0.59): the key, its state (on/off), the lockout and the recovery
-  codes each carry the time they were last changed. A recovery code used on
-  either node stays used, and the last code step only goes up. A row made
-  on both nodes under the same name (the same person enrolling on each, the
-  same setting saved on each) no longer stops the replication: the same one
-  of the two is kept on both. Anything else (a setting, a client) ends up as
-  whichever change arrived last on each node - change those on one node at a
-  time.
+  moment later** - normally well under a second. An administrator's code asked
+  on both nodes in that moment, or on both halves of a split network, can be
+  accepted twice. An app code lives 30 seconds at most, so the risk is small,
+  but it is there. The shared layout does not have it.
+- **Replicated: split in two, both nodes may lead.** With the nodes not
+  hearing each other, each may take the lease (it lives in each node's own
+  database), and a certificate may be renewed and deployed twice - a CA's rate
+  limits count both.
+- **Replicated: the same row changed on both nodes at the same moment.** A row
+  made on both nodes under the same name (the same setting saved on each) does
+  not stop the replication: the same one of the two is kept on both. Anything
+  else (a setting, a target) ends up as whichever change arrived last on each
+  node - change those on one node at a time.
 - **Replicated: send a person's requests to one node** where the balancer
-  can (sticky by source address): a sign-in or a token made on one node
+  can (sticky by source address): a sign-in or a certificate added on one node
   reaches the other a moment later, and the next page asked of the other
   node in that moment does not know it yet.
 - **Shared: it does not make PostgreSQL highly available.** If the database runs

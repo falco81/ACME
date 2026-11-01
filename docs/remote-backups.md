@@ -10,8 +10,8 @@ One file, `acme-backup-SITE-NODE-YYYYMMDD-HHMMSS.tar.gz.enc`:
 
 | File inside | What |
 |---|---|
-| `acme-copy.json.gz` | the whole database, in a shape SQLite, MariaDB and PostgreSQL all take: the tokens with their keys and recovery codes, the RADIUS clients, realms, directories, accounts, every setting (the cluster's and each node's own), the certificates and private keys of the pages, the VIP address, the firewall and who may reach which page, the message texts, the cluster's authority for the link between the databases, the logs |
-| `secrets.key` | the key that opens the tokens and every other sealed secret |
+| `acme-copy.json.gz` | the whole database, in a shape SQLite, MariaDB and PostgreSQL all take: the certificates with their versions and sealed private keys, acme's own CAs, the issuers, challenges, targets and deployments, the jobs, the DNS server's records, the directories, accounts, every setting (the cluster's and each node's own), the certificates and private keys of the pages, the VIP address, the firewall and who may reach which page, the message texts, the cluster's authority for the link between the databases, the logs |
+| `secrets.key` | the key that opens the private keys and every other sealed secret |
 | `config.json` | this machine's `/etc/acme/config.json`: which database it opens, its node name, its place in a cluster |
 | `files/` | files config.json names outside the database (the authority of a database on another machine) |
 | `manifest.json` | what it is, where and when it was made, and the SHA-256 of every file above |
@@ -41,7 +41,7 @@ The password is kept in the database, sealed - so it is inside every backup
 too, which helps nobody who does not have it. **Keep it in a password vault,
 apart from the backups.** *Make a strong one* makes a random one and shows it
 once. **Without a password nothing is sent** (1.0.136): an unlocked backup
-would hand the key of every token to whoever can read the destination, so a
+would hand every private key to whoever can read the destination, so a
 scheduled or a by-hand run stops with "the backups have no password", and
 *Download one made now* is refused too.
 
@@ -145,7 +145,7 @@ systemctl restart acme
 ```
 
 The password is asked for, or comes from `--passphrase-file FILE` or
-`ACME_BACKUP_PASSWORD`. The database, the key of the tokens and the node's name
+`ACME_BACKUP_PASSWORD`. The database, the key of the sealed secrets and the node's name
 come back; the new machine keeps its own database connection (`--keep-node-name`
 keeps its own name too). The backup goes into SQLite after a plain install;
 PostgreSQL can be chosen afterwards (*Settings → The database*).
@@ -183,11 +183,11 @@ node from the first destination switched on into a folder of its own, and:
 
 - opens it with the password of the backups and checks every file against
   the SHA-256 its manifest has;
-- reads the copy of the database to its last line, counts its tables, tokens
-  and accounts, and compares the tokens with the manifest;
+- reads the copy of the database to its last line, counts its tables, rows
+  and accounts, and compares them with the manifest;
 - checks that a full administrator can sign in after it;
-- tries the tokens in it (a sample of 50) against the key in it - each
-  token's sealed key must carry that key's tag;
+- tries the sealed secrets in it (a sample of 50) against the key in it -
+  each must carry that key's tag;
 - reads config.json;
 - reads the newest nightly copy on this machine through as well.
 

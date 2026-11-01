@@ -11,8 +11,8 @@ administrator, or the command line. From 1.0.47.
 - **The VIP address**: in a cluster of two, one more IP address for
   the pages and the administration that is on one node at a time
   (active/standby) and moves to the other node by itself when the node
-  holding it is not well. **RADIUS never uses it**: both nodes keep answering
-  RADIUS on their own addresses, active/active, exactly as before.
+  holding it is not well. The node holding it is also the one that renews
+  and deploys the certificates ([high-availability.md](high-availability.md)).
 
 With the VIP address off, everything works as before - including a load
 balancer of your own ([load-balancers.md](load-balancers.md)).
@@ -23,7 +23,7 @@ balancer of your own ([load-balancers.md](load-balancers.md)).
 
 The service runs as `acme` and may not change nginx, keepalived or the
 firewall. What is asked on the pages is kept in the database (so both
-nodes know it; keys are sealed with the tokens' key) and each node then asks
+nodes know it; keys are sealed with the key of the sealed secrets) and each node then asks
 root for its own part: the daemon writes `/var/lib/acme/web/request.json`,
 systemd (`acme-web.path`) starts `acme-web.service`, which runs
 `/usr/local/lib/acme/acme_web.py` as root. That helper:
@@ -153,7 +153,7 @@ questions:
    every three seconds. The node may hold it only if **all** of these hold:
    - its own pages answer `GET https://127.0.0.1/healthz` with `200 ok` - which
      goes through nginx and PHP-FPM to the daemon and the database;
-   - RADIUS is listening;
+   - its API is listening;
    - it is not in maintenance (so also not being upgraded);
    - it is not being rebuilt from the other node.
 
@@ -224,8 +224,8 @@ the same for any keepalived pair.
 
 ### What it does not do
 
-- It is for the **pages** (HTTP/HTTPS). RADIUS stays active/active on the
-  nodes' own addresses.
+- It is for the **pages** (HTTP/HTTPS). SNMP, acme's own DNS server and
+  replication stay on the nodes' own addresses.
 - Both nodes must be in **one layer-2 network** (one VLAN) with the address.
   In clouds that do not allow an address to move by ARP (AWS, Azure, GCP),
   use their load balancer instead.
@@ -237,7 +237,7 @@ the same for any keepalived pair.
 
 ## What to open in the firewall
 
-`install.sh` opens HTTPS/HTTP and RADIUS in firewalld; `acme --ha-setup` and
+`install.sh` opens HTTPS/HTTP in firewalld; `acme --ha-setup` and
 `--ha-join` open PostgreSQL to the other node; turning the VIP address on
 opens VRRP from the other node. Other firewalls in the path (between the
 VLANs, in front of the servers) need the same.
@@ -247,7 +247,8 @@ VLANs, in front of the servers) need the same.
 | From | Port / protocol | What |
 |---|---|---|
 | browsers, the load balancer | TCP 443 (and 80, redirected to 443) | the pages, the administration, `/healthz` |
-| the VPN concentrators (RADIUS clients) | UDP 1812 (authentication), UDP 1813 (accounting) | RADIUS |
+| the CAs' validation servers (DNS-01 with acme's own DNS server) | UDP and TCP 53 | acme's DNS server (if used - [dns-server.md](dns-server.md)) |
+| the CAs' validation servers (HTTP-01 here) | TCP 80 | the challenge files |
 | the other node | TCP 5432 | PostgreSQL replication (replicated cluster) |
 | the other node | IP protocol 112 (VRRP) | the VIP address (when on) |
 | administrators | TCP 22 | SSH |
@@ -260,8 +261,10 @@ VLANs, in front of the servers) need the same.
 | domain controllers | TCP 636 (LDAPS) or 389 (+StartTLS); 3269/3268 for a global catalog | Active Directory |
 | the other node | TCP 5432 | PostgreSQL replication |
 | the other node | IP protocol 112 | VRRP |
-| DNS, NTP | UDP/TCP 53, UDP 123 | names, the clock (TOTP needs it right) |
-| mail server | TCP 25 / 587 / 465 | QR codes by mail (if used) |
+| DNS, NTP | UDP/TCP 53, UDP 123 | names, the clock (certificates and the app codes need it right) |
+| the CAs | TCP 443 | ACME (Let's Encrypt…), MS AD CS, SCEP - the issuers |
+| the targets | TCP 22 (SSH), 443 (APIs) or what the target needs | deploying the certificates |
+| mail server | TCP 25 / 587 / 465 | alerts, reports, codes (if used) |
 | isemon | UDP or TCP 514 | logs (if used) |
 | package repositories | TCP 443 | `dnf` (keepalived, PostgreSQL, updates) |
 
@@ -271,8 +274,7 @@ What the tools add, for reference (acme2 at 192.0.2.12, seen from acme1):
 
 ```bash
 firewall-cmd --permanent --add-service=https --add-service=http
-firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="198.51.100.1/32" port port="1812" protocol="udp" accept'
-firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="198.51.100.1/32" port port="1813" protocol="udp" accept'
+firewall-cmd --permanent --add-port=53/udp --add-port=53/tcp           # only for acme's own DNS server
 firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="192.0.2.12/32" port port="5432" protocol="tcp" accept'
 firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="192.0.2.12" protocol value="vrrp" accept'
 firewall-cmd --reload
@@ -289,8 +291,8 @@ iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A INPUT -p tcp --dport 443 -j ACCEPT
 iptables -A INPUT -p tcp --dport 80  -j ACCEPT
-iptables -A INPUT -p udp -s 198.51.100.1/32 --dport 1812:1813 -j ACCEPT
-iptables -A INPUT -p udp -s 198.51.100.2/32 --dport 1812:1813 -j ACCEPT
+iptables -A INPUT -p udp --dport 53 -j ACCEPT                         # acme's own DNS server, if used
+iptables -A INPUT -p tcp --dport 53 -j ACCEPT
 iptables -A INPUT -p tcp -s 192.0.2.12/32 --dport 5432 -j ACCEPT      # replication
 iptables -A INPUT -p vrrp -s 192.0.2.12/32 -j ACCEPT                  # VRRP (protocol 112)
 iptables -A INPUT -p tcp --dport 22 -j ACCEPT
@@ -312,7 +314,7 @@ table inet acme {
     ct state established,related accept
     iif lo accept
     tcp dport { 80, 443 } accept
-    ip saddr { 198.51.100.1, 198.51.100.2 } udp dport { 1812, 1813 } accept
+    meta l4proto { udp, tcp } th dport 53 accept     # acme's own DNS server, if used
     ip saddr 192.0.2.12 tcp dport 5432 accept
     ip saddr 192.0.2.12 ip protocol vrrp accept
     tcp dport 22 accept
@@ -321,14 +323,14 @@ table inet acme {
 }
 ```
 
-### A firewall between the nodes and the VPN, or between VLANs
+### A firewall in front of the nodes, or between VLANs
 
-- UDP 1812/1813 from each VPN concentrator to **both** nodes' own addresses
-  (not to the VIP address).
 - TCP 443 from the users' and administrators' networks to the VIP address
   **and** to both nodes (a browser may be sent to a node's own name).
-- Stateful firewalls: RADIUS answers come from the address the request was
-  sent to.
+- Out to the CAs and the targets from **both** nodes: either may be the one
+  that renews and deploys.
+- UDP and TCP 53 from the internet to the addresses the NS records name, when
+  acme's own DNS server answers DNS-01.
 
 ---
 
@@ -358,7 +360,7 @@ well again*:
 - **it stays where it is**: no preference. The node that holds the address
   (keepalived MASTER) keeps it; after a failover it stays on the node it went
   to, also when the first one is well again. It moves only when its node
-  fails (maintenance, an upgrade, /healthz failing, RADIUS not listening, the
+  fails (maintenance, an upgrade, /healthz failing, the API not listening, the
   node gone) or when moved by hand (*Move it here*, `acme --vip-move NODE`) -
   and then stays there.
 

@@ -774,10 +774,11 @@ too (or reads `--passphrase-file FILE`, or `ACME_PASSPHRASE`). In it: the settin
 (each node's own too), the issuers, the challenges, the targets, the
 accounts of the pages, the certificates and keys of the pages and the web
 address, the VIP address, who may reach which page, the firewall and the mail
-server's authorities. Without `--with-secrets` the client secrets, passwords,
-password hashes and private keys stay out: clients new to the other
-installation are skipped, new accounts come in switched off, certificates keep
-the key that is there. A file of one machine put into a machine of another
+server's authorities. Without `--with-secrets` the passwords, API tokens,
+password hashes and private keys stay out: issuers, challenges and targets new
+to the other installation come in without their secrets (give them on the
+pages), new accounts come in switched off, certificates keep the key that is
+there. A file of one machine put into a machine of another
 name gives that machine its certificate. Your own account is never changed by
 an import. With *Exactly the file* (`--replace`) whatever is not in the file
 is taken away and settings not in it go back to their defaults.

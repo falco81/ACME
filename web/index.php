@@ -66,6 +66,11 @@ if (isset($_GET['api'])) {
         acme_relay($writes[$what], 'POST', sent_json(), 120.0);
         exit;
     }
+    if (!$post && $what === 'cert-job') {
+        /* One job of one of their certificates - the daemon checks it is theirs. */
+        acme_relay('/api/portal/cert_job?' . http_build_query(['id' => (int) ($_GET['id'] ?? 0)]), 'GET', null, 30.0);
+        exit;
+    }
     if (!$post && isset($reads[$what])) {
         acme_relay($reads[$what], 'GET', null, 30.0);
         exit;
@@ -97,6 +102,12 @@ if ($title_ours) {
 <html lang="<?= h($lang) ?>" class="app-shell-root<?= $load ? ' i18n-wait' : '' ?>">
 <head>
 <?php acme_head($title, $lang, $load, $nonce, '/'); ?>
+<?php if ($me && is_file(__DIR__ . '/assets/certs-portal.js')):
+    /* The certificate manager's own pieces (names, days left, states), as the administration has them. */
+    foreach (['certs.css', 'certs-portal.css'] as $css):
+        if (is_file(__DIR__ . '/assets/' . $css)): ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/<?= h($css) ?>?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/' . $css)) ?>">
+<?php endif; endforeach; endif; ?>
 </head>
 <body class="app-shell">
 <div class="wrap portal">

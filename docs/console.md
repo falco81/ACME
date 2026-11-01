@@ -8,22 +8,22 @@ ordinary shell, exactly as it was before, and `acme --console` opens it again.
 It opens on the **live log** (every line); Esc goes to the main menu.
 
 ```
- acme 1.0.135  acme1   service active    acme1 | 2 of 2 nodes, replication ok | VIP 192.0.2.10 on acme2 | 328 tokens
+ acme 1.0.135  acme1   service active    node acme1 | 2 of 2 nodes, replication ok | VIP 192.0.2.10 on acme2
 
   Main menu
 
+     c  Certificates: renewing, deploying, authorities, DNS
      1  Status and checks
      2  Live log
-     3  Live RADIUS requests
-     4  Tokens
-     5  Accounts of the administration
-     6  Settings
-     7  RADIUS clients, realms and directories
-     8  Cluster, VIP address and maintenance
-     9  Backups
-    10  Upgrades
-    11  The service
-    12  Certificates, updates, restarts, tests
+     3  Accounts of the administration
+     4  Settings
+     5  Directories (Active Directory, LDAP)
+     6  Cluster, VIP address and maintenance
+     7  Backups
+     8  Upgrades
+     9  The service
+    10  The pages' certificates, updates, restarts, tests
+    11  Encryption, sending out, time, network, high security
 
  Up/Down move   Enter choose   Esc back   ! shell   q leave
 ```
@@ -31,8 +31,8 @@ It opens on the **live log** (every line); Esc goes to the main menu.
 - **The bar at the top**: the version, the machine, whether the service runs,
   this node, the cluster and replication, **which node holds the VIP address
   (VRRP VIP)** - `VIP off` when it is switched off; a red line under the bar
-  when no node holds it, or two do - and the tokens. Too narrow a window
-  shortens it (the tokens go first); asked again every 20 s without holding
+  when no node holds it, or two do. Too narrow a window shortens it, or puts
+  it on the line under it; asked again every 20 s without holding
   anything up. Maintenance, a daemon not answering and the problems of
   `acme --status` are on the lines under it.
 - **The menus** are a text screen: arrows (or j/k) move, Enter or → chooses,
@@ -42,24 +42,23 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   is drawn again to its size.
 - **Nothing is typed at a bare prompt.** Every question is a window over the
   menu: its fields one under the other - Up/Down (Tab) move between them, a
-  choice (app / mail / SMS, a role, on / off) is changed with Left/Right, a
+  choice (a key type, a role, on / off) is changed with Left/Right, a
   password shows only stars, the field's help is under them - and Enter checks
   them all before anything is run (a needed one left empty, a number out of
   its limits, an address that is none, two passwords not the same, a file
   that is not there: it says which, and the window stays). Esc closes it.
   Anything that cannot be undone (delete, put a copy back, switch off, a
   restart, an upgrade) asks Yes / No first - No unless chosen.
-- **Lists**: tokens, accounts, RADIUS clients, realms, directories and the
+- **Lists**: certificates, jobs, targets, accounts, directories and the
   backups kept here are lists to scroll - arrows, PgUp/PgDn, Home/End, a
   scroll bar on the right, `/` to keep only the rows with some words - and
   Enter on one offers what can be done with it:
-  - a token: show it all, switch it off / on, unlock it, new recovery codes,
-    try a sign-in with it, delete it;
+  - a certificate: show it all, renew it now, deploy it now, export it into a
+    file;
+  - a job: every step, live; a target: try it;
   - an account: set its password, change its role, switch it off / on, reset
     its second step, show it, delete it;
-  - a client: show it, change it (address, secret, realm), delete it;
-    a realm: show, delete; a directory: try it (and look somebody up), show,
-    delete;
+  - a directory: try it (and look somebody up), show it, change it, delete it;
   - a backup: what is in it, put it back.
 - Every action is the `acme …` command its window shows in its title, run as
   it would be typed - the console can do nothing the command line cannot. A
@@ -74,21 +73,27 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   paused / resumed. **Upgrades → from the web**: what is newer at
   upgrade_url, a version picked, Yes, then every node upgraded one at a time
   with its progress bars.
-- **RADIUS clients, realms and directories**: a realm or a directory added or
-  changed in a form (its suffix, other suffixes, what the password is, the
-  directory, the groups - their replies kept - and the codes people may
-  choose; a directory's password asked, shown as stars).
-- **Certificates, updates, restarts, tests** (1.0.187) - what the pages do,
-  for a server without them (installed `--no-web`) or with them down: the
-  certificates by ACME and one ordered now, followed; the updates of the
-  system looked for, put in one node at a time, or stopped; a machine
-  restarted, the service kept on the others; a test mail or SMS; the SSH
-  tokens made and taken away (the app's QR code shown once); who is locked
-  out, and a lockout forgotten on every node.
+- **Certificates** (`c`): the certificates (browse, add one, renew every one
+  due now), the jobs, acme's own authorities, the sources (issuers), the
+  validation (challenges), the targets, acme's own DNS server and the modules
+  - [certificates.md](certificates.md).
+- **Directories**: a directory added or changed in a form (its servers, where
+  to look, the account it reads with, LDAPS / StartTLS; its password asked,
+  shown as stars).
+- **The pages' certificates, updates, restarts, tests** (1.0.187) - what the
+  pages do, for a server without them (installed `--no-web`) or with them
+  down: the pages' own certificates by ACME and one ordered now, followed; the
+  updates of the system looked for, put in one node at a time, or stopped; a
+  machine restarted, the service kept on the others; a test mail or SMS; who
+  is locked out, and a lockout forgotten on every node.
+- **Encryption, sending out, time, network, high security** (1.0.188): the
+  encryption to the database server and to isemon looked at and tried, a
+  test line to isemon and to the syslog servers, the proxy tried, SNMPv3
+  asked, and the rest of those pages.
 
 ## The live views
 
-The live log (`/var/log/acme/acme.log`), the live RADIUS requests and the
+The live log (`/var/log/acme/acme.log`), a job followed live and the
 journal (`journalctl -u acme -f`) are screens of their own:
 
 - The newest line at the bottom, followed as it comes (`following`).
@@ -98,13 +103,12 @@ journal (`journalctl -u acme -f`) are screens of their own:
   are; the last 20 000 lines are kept.
 - **Whatever is typed is a grep**, as `grep -i`: the lines with it, in any
   case, stay; the hits are marked. A regular expression works
-  (`reject|locked`, `novak.*vpn`); text that is not one is taken as it is.
+  (`failed|locked`, `www.*renew`); text that is not one is taken as it is.
   Backspace takes a character back, Ctrl+U all of them; Esc clears it, and
   Esc again goes back to the menu.
 - Coloured (colorama): the time dim, the level by how bad, what it is about in
   cyan, addresses in magenta, accepted / signed in green, rejected / failed /
-  wrong in red, a warning line yellow and an error line red; a request
-  accepted green and rejected red.
+  wrong in red, a warning line yellow and an error line red.
 - Colour with colorama when it is installed (install.sh installs it); without
   a colour terminal, or with `--no-color`, plain text. English.
 - `ACME_CONSOLE_START=menu acme --console` opens on the menu instead.

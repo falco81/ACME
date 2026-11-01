@@ -1,29 +1,53 @@
 # -*- coding: utf-8 -*-
 """
 The certificate portal: what people signed in on the enrolment pages (a
-`portal` session) may do with certificates - kept modest.
+`portal` session, against the directory) may do with certificates - kept
+modest. Their certificates are those whose `owner` is them (their name,
+account, UPN or mail) or a directory group they are in (its name or DN,
+"group:" in front allowed).
 
-    GET  /api/portal/certs             their certificates (owner = their name) and
-                                       what they may ask for
-    POST /api/portal/cert_download     {id, format}  cert-pem, cert-der, chain-pem,
-                                       fullchain-pem, p7b - never a key
+    GET  /api/portal/certs             their certificates, the job of each, and what
+                                       they may ask for
+    GET  /api/portal/cert_job?id=      one job of one of their certificates, every step
+    POST /api/portal/cert_download     {id, format, password?}  cert-pem, cert-der,
+                                       chain-pem, fullchain-pem, p7b - and pfx (with its
+                                       key, a password needed) only with portal_cert_keys
     POST /api/portal/cert_request      {names[], issuer, key_type?, note?}  a certificate
                                        for names under portal_cert_suffixes from one of
-                                       portal_cert_issuers, owned by them; issued by a job
+                                       portal_cert_issuers, owned by them: issued at once
+                                       (portal_cert_auto) or kept 'pending-approval'
+    POST /api/certs/approve            {id, ok, why}  an administrator (certadmin) lets a
+                                       request be issued, or declines it
 
 Settings: portal_cert (on/off), portal_cert_suffixes, portal_cert_issuers,
-portal_cert_max (certificates one person may have).
+portal_cert_challenge, portal_cert_max (requests one person may have),
+portal_cert_auto (issued without approval), portal_cert_keys (PFX with the key).
+The person is mailed (their directory mail) when their certificate is issued,
+approved or declined. Every action is an event of kind `certificates`.
 """
 from __future__ import annotations
 
+import json
 import re
+import threading
 import time
 
 from acmelib import engine as E
 from acmelib.certs import store as S
 from acmelib.certs import jobs, renewer, schema
+from acmelib.certs import api as A
 
 PORTAL_FORMATS = ('cert-pem', 'cert-der', 'chain-pem', 'fullchain-pem', 'p7b')
+KEY_FORMAT = 'pfx'
+WAITING = 'pending-approval'
+DECLINED = 'declined'
+GROUPS_KEEP_S = 600             # the person's groups, asked of the directory at most this often
+META = 'certs:portal:'          # + cert id: who asked, and where to mail them
+
+# The two states of a request, beside the certificate manager's own. A row in
+# either is never renewed by itself: auto_renew stays 0 until it is approved.
+schema.STATES.setdefault(WAITING, 'asked for on the portal, waiting for an administrator')
+schema.STATES.setdefault(DECLINED, 'asked for on the portal, declined')
 
 
 def words_list(key):
@@ -43,46 +67,306 @@ def name_allowed(name, suffixes):
     return any(n == suf or n.endswith('.' + suf) for suf in suffixes)
 
 
-def mine(store, s):
-    rows = store.db.rows('SELECT * FROM certs WHERE LOWER(owner) = ? ORDER BY name',
-                         (str(s['name']).lower(),))
-    out = []
-    for r in rows:
-        one = S.cert_public(r)
-        for k in ('last_error', 'challenge_map', 'profile', 'ari', 'created_by', 'updated_by',
-                  'csr_waiting', 'has_key'):
-            one.pop(k, None)
-        out.append(one)
+# ---------------------------------------------------------------------------
+# Whose certificates
+# ---------------------------------------------------------------------------
+def my_names(s):
+    data = s.get('data') or {}
+    about = data.get('about') or {}
+    out = {str(s['name']).lower()}
+    for v in (data.get('login'), about.get('sam'), about.get('upn'), data.get('mail')):
+        if v:
+            out.add(str(v).strip().lower())
     return out
 
 
+def my_groups(h, s):
+    """[(dn, cn)] of every group the person is in (nested), asked of the
+    directory at most every GROUPS_KEEP_S and kept in the session; what was
+    kept when the directory cannot be reached."""
+    data = s.get('data') or {}
+    kept = data.get('cert_groups')
+    if isinstance(kept, list) and time.time() - float(data.get('cert_groups_at') or 0) < GROUPS_KEEP_S:
+        return [tuple(g) for g in kept]
+    got = None
+    try:
+        ad = E.portal_directory(h)
+        if ad and data.get('dn'):
+            got = [[str(dn), str(cn)] for dn, cn in ad.groups_of({'dn': data['dn']}, True)][:500]
+    except Exception as e:                              # noqa: BLE001
+        E.log('the certificate portal could not read the groups of %s: %s' % (s['name'], e),
+              'warn')
+    if got is None:
+        return [tuple(g) for g in (kept or [])]
+    try:
+        E.portal_data_set(h, s, cert_groups=got, cert_groups_at=time.time())
+    except Exception:                                   # noqa: BLE001
+        pass
+    return [tuple(g) for g in got]
+
+
+def owner_of(row, names, groups):
+    """'' when the certificate is not theirs, 'me', or the group's name."""
+    owner = str(row.get('owner') or '').strip().lower()
+    if not owner:
+        return ''
+    if owner in names:
+        return 'me'
+    bare = owner[6:].strip() if owner.startswith('group:') else owner
+    for dn, cn in groups:
+        if bare in (dn.lower(), cn.lower()):
+            return cn
+    return ''
+
+
+def last_job(store, cid):
+    r = store.db.row('SELECT id, ts, kind, state, ok, finished, said FROM cert_jobs '
+                     'WHERE cert_id = ? ORDER BY ts DESC, id DESC LIMIT 1', (cid,))
+    if not r:
+        return None
+    with jobs._LOCK:
+        live = jobs.RUNNING.get(r['id'])
+    if live is not None:
+        r['state'] = live.state
+    r['live'] = r.get('state') in ('queued', 'running')
+    return r
+
+
+def public(store, r, via):
+    one = S.cert_public(r)
+    why = one.get('last_error') if one.get('state') in (DECLINED, 'failed') else ''
+    for k in ('last_error', 'challenge_map', 'profile', 'ari', 'updated_by', 'csr_waiting',
+              'challenge', 'renew_days', 'reuse_key', 'fails', 'next_try', 'enabled'):
+        one.pop(k, None)
+    one['why'] = str(why or '')[:500]
+    one['via'] = via                    # 'me', or the group it is theirs through
+    one['mine'] = str(r.get('created_by') or '') == 'portal:' + str(one.get('owner') or '')
+    one['job'] = last_job(store, r['id'])
+    return one
+
+
+def mine(h, s, rows=None):
+    """Their certificates: owned by them or by a group they are in."""
+    store = h.store
+    names = my_names(s)
+    groups = my_groups(h, s)
+    want = sorted(names | {cn.lower() for _, cn in groups} | {dn.lower() for dn, _ in groups}
+                  | {'group:' + cn.lower() for _, cn in groups})
+    out = []
+    # Asked in pieces: a person in hundreds of groups is not one statement of hundreds of '?'.
+    for at in range(0, len(want), 100):
+        part = want[at:at + 100]
+        for r in store.db.rows('SELECT * FROM certs WHERE LOWER(TRIM(owner)) IN (%s)' % ', '.join(
+                '?' * len(part)), tuple(part)):
+            via = owner_of(r, names, groups)
+            if via and r['id'] not in {o['id'] for o in out}:
+                out.append(public(store, r, via))
+    out.sort(key=lambda o: (o.get('via') != 'me', str(o.get('name') or '').lower()))
+    return out
+
+
+def used(store, who):
+    """The requests a person has made that count: every one asked for here
+    and still kept, but those declined."""
+    return int(store.db.value("SELECT COUNT(*) FROM certs WHERE created_by = ? AND "
+                              "COALESCE(state, '') <> ?", ('portal:' + who, DECLINED), 0) or 0)
+
+
+def need_mine(h, s, ref):
+    row = S.cert_get(h.store, A._id(ref))
+    if not row or not owner_of(row, my_names(s), my_groups(h, s)):
+        raise E.ApiError(404, 'there is no such certificate of yours')
+    return row
+
+
+def most():
+    return int(E.CONFIG.get('portal_cert_max') or 10)
+
+
+def formats():
+    return list(PORTAL_FORMATS) + ([KEY_FORMAT] if E.CONFIG.get('portal_cert_keys') else [])
+
+
+# ---------------------------------------------------------------------------
+# Telling the person
+# ---------------------------------------------------------------------------
+MAIL_WORDS = {
+    'en': {
+        'issued': ('Your certificate %(name)s is ready',
+                   'The certificate you asked for on %(site)s has been issued.\n\n'
+                   '  Names:      %(names)s\n  Valid until: %(until)s\n  Issuer:     %(issuer)s\n\n'
+                   'Download it from %(url)s - it is renewed by itself before it runs out.'),
+        'approved': ('Your request for %(name)s was approved',
+                     'An administrator approved the certificate you asked for on %(site)s '
+                     '(%(names)s). It is being issued now: you get another mail when it is '
+                     'ready.%(why)s'),
+        'declined': ('Your request for %(name)s was declined',
+                     'An administrator declined the certificate you asked for on %(site)s '
+                     '(%(names)s).%(why)s\n\nAsk them for more, or ask again at %(url)s.'),
+        'why': '\n\nThey said: %s',
+    },
+    'cs': {
+        'issued': ('Váš certifikát %(name)s je připraven',
+                   'Certifikát, o který jste požádali na %(site)s, byl vydán.\n\n'
+                   '  Jména:      %(names)s\n  Platí do:   %(until)s\n  Vydavatel:  %(issuer)s\n\n'
+                   'Stáhnete si ho na %(url)s - před koncem platnosti se obnoví sám.'),
+        'approved': ('Vaše žádost o %(name)s byla schválena',
+                     'Správce schválil certifikát, o který jste požádali na %(site)s '
+                     '(%(names)s). Právě se vydává: až bude připraven, přijde další e-mail.%(why)s'),
+        'declined': ('Vaše žádost o %(name)s byla zamítnuta',
+                     'Správce zamítl certifikát, o který jste požádali na %(site)s '
+                     '(%(names)s).%(why)s\n\nZeptejte se ho na víc, nebo požádejte znovu na %(url)s.'),
+        'why': '\n\nNapsal: %s',
+    },
+}
+
+
+def asker(store, cid):
+    try:
+        got = json.loads(store.get_meta(META + str(cid)) or 'null')
+    except Exception:                                   # noqa: BLE001
+        got = None
+    return got if isinstance(got, dict) else {}
+
+
+def portal_url():
+    """Where the portal is - this machine's name: the address people reach it
+    by is the one nginx answers on."""
+    import socket
+    try:
+        return 'https://%s/' % (socket.getfqdn() or E.short_host())
+    except Exception:                                   # noqa: BLE001
+        return 'the portal'
+
+
+def tell(store, cid, what, why=''):
+    """A mail to the person who asked for the certificate, if their directory
+    entry has a mail - through the engine's mail queue (kept and tried again
+    when it is not taken at once). Never raises; run in a thread of its own,
+    as the queue sends at once."""
+    def go():
+        try:
+            who = asker(store, cid)
+            to = str(who.get('mail') or '').strip()
+            row = S.cert_get(store, cid)
+            if not to or '@' not in to or not row:
+                return
+            if (E.CONFIG.get('mail_mode') or 'off') == 'off':
+                E.log('the certificate portal would have mailed %s (%s): mail is switched off'
+                      % (to, what))
+                return
+            words = MAIL_WORDS.get(str(E.CONFIG.get('ui_lang') or 'cs'), MAIL_WORDS['en'])
+            site = str(E.CONFIG.get('portal_title') or E.CONFIG.get('site_name') or 'acme')
+            until = time.strftime('%Y-%m-%d', time.localtime(float(row['not_after']))) \
+                if row.get('not_after') else '?'
+            fill = {'name': row['name'], 'site': site, 'url': portal_url(), 'until': until,
+                    'names': ', '.join(S.jload(row.get('names'), []) or []),
+                    'issuer': row.get('issuer') or '',
+                    'why': (words['why'] % why) if why else ''}
+            subject, body = words[what]
+            from email.message import EmailMessage
+            msg = EmailMessage()
+            msg['Subject'] = subject % fill
+            msg['From'] = E.mail_sender() or 'acme@%s' % E.node_name()
+            msg['To'] = to
+            msg.set_content((body % fill) + '\n\n-- acme, %s\n' % site)
+            E.mail_deliver(store, msg, [to], kind='certs', name=who.get('who') or '',
+                           purpose='portal certificate %s' % what)
+            store.add_event('certificates', 'the portal told %s by mail that %s was %s' % (
+                to, row['name'], what), who=who.get('who') or '')
+        except Exception as e:                          # noqa: BLE001
+            E.log('the certificate portal could not mail about %s (%s): %s' % (cid, what, e),
+                  'warn')
+    threading.Thread(target=go, name='portal-mail', daemon=True).start()
+
+
+def issue_job(cid, by):
+    """renewer.renew_job, and the person told when it worked."""
+    def fn(job):
+        got = renewer.renew_cert(job.store, job, cid, False, by)
+        if (S.cert_get(job.store, cid) or {}).get('cert_pem'):
+            tell(job.store, cid, 'issued')
+        return got
+    return fn
+
+
+def start_issue(store, cid, by, said):
+    try:
+        return jobs.submit(store, 'issue', issue_job(cid, by), cert_id=cid, by=by, said=said)
+    except ValueError:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# The routes of the portal
+# ---------------------------------------------------------------------------
 @E.route('GET', '/api/portal/certs')
 def _portal_certs(h):
     s = portal_session(h)
     sufs = words_list('portal_cert_suffixes')
-    iss = [i for i in words_list('portal_cert_issuers') if S.plugin_row(h.store, 'issuer', i)]
-    have = mine(h.store, s)
-    most = int(E.CONFIG.get('portal_cert_max') or 10)
-    return {'rows': have, 'suffixes': sufs, 'issuers': iss, 'formats': list(PORTAL_FORMATS),
-            'key_types': list(schema.KEY_TYPES), 'most': most,
-            'may_request': bool(sufs and iss) and len(have) < most}
+    iss = []
+    for i in words_list('portal_cert_issuers'):
+        row = S.plugin_row(h.store, 'issuer', i)
+        if row and row.get('enabled', 1):
+            iss.append({'name': row['name'], 'kind': row.get('kind') or ''})
+    have = mine(h, s)
+    n = used(h.store, str(s['name']))
+    return {'rows': have, 'suffixes': sufs, 'issuers': [i['name'] for i in iss],
+            'issuer_kinds': {i['name']: i['kind'] for i in iss}, 'formats': formats(),
+            'key_types': list(schema.KEY_TYPES), 'most': most(), 'used': n,
+            'auto': bool(E.CONFIG.get('portal_cert_auto')),
+            'keys': bool(E.CONFIG.get('portal_cert_keys')),
+            'groups': [cn for _, cn in my_groups(h, s)][:50],
+            'may_request': bool(sufs and iss) and n < most()}
+
+
+@E.route('GET', '/api/portal/cert_job')
+def _portal_job(h):
+    s = portal_session(h)
+    try:
+        job = jobs.job_view(h.store, A._id(h.arg('id')))
+    except (LookupError, ValueError):
+        raise E.ApiError(404, 'there is no such job')
+    if not job.get('cert_id'):
+        raise E.ApiError(404, 'there is no such job')
+    need_mine(h, s, job['cert_id'])
+    # The steps as they are, but never the debug lines (what a module said back in full).
+    steps = [st for st in (job.get('steps') or []) if not (
+        isinstance(st, (list, tuple)) and len(st) > 1 and st[1] == 'debug')]
+    keep = ('id', 'ts', 'kind', 'cert_id', 'state', 'ok', 'finished', 'took_ms', 'said',
+            'live', 'cert_name', 'version')
+    out = {k: job.get(k) for k in keep}
+    out['steps'] = steps[-300:]
+    return {'job': out}
 
 
 @E.route('POST', '/api/portal/cert_download')
 def _portal_download(h):
     s = portal_session(h)
     b = h.body()
-    from acmelib.certs import api
-    row = S.cert_get(h.store, api._id(b.get('id')))
-    if not row or str(row.get('owner') or '').lower() != str(s['name']).lower():
-        raise E.ApiError(404, 'there is no such certificate of yours')
+    row = need_mine(h, s, b.get('id'))
     fmt = str(b.get('format') or 'fullchain-pem')
-    if fmt not in PORTAL_FORMATS:
-        raise E.ApiError(400, 'the format is one of %s' % ', '.join(PORTAL_FORMATS))
-    got = api.cert_export(h.store, {'id': row['id'], 'format': fmt},
-                          {'name': s['name'], 'role': 'readonly'}, allowed=PORTAL_FORMATS)
-    h.store.add_event('certificates', '%s took %s (%s) from the enrolment pages' % (
-        s['name'], row['name'], fmt), who=s['name'])
+    if fmt not in formats():
+        raise E.ApiError(400, 'the format is one of %s' % ', '.join(formats()))
+    as_who = {'name': s['name'], 'role': 'readonly'}
+    if fmt == KEY_FORMAT:
+        pw = str(b.get('password') or '')
+        if len(pw) < 8:
+            raise E.ApiError(400, 'a PFX file with the key needs a password of at least 8 '
+                                  'characters')
+        if not row.get('key_sealed'):
+            raise E.ApiError(400, 'acme does not hold the key of this certificate')
+        # The key, only through this route and only as a PFX with a password:
+        # the setting portal_cert_keys says the people may have theirs.
+        as_who = {'name': 'portal:%s' % s['name'], 'role': 'fulladmin'}
+    try:
+        got = A.cert_export(h.store, {'id': row['id'], 'format': fmt,
+                                      'password': b.get('password') if fmt == KEY_FORMAT else None},
+                            as_who, allowed=formats())
+    except (ValueError, LookupError) as e:
+        raise E.ApiError(400, str(e))
+    h.store.add_event('certificates', '%s took %s (%s) from the portal' % (
+        s['name'], row['name'], fmt), 'warn' if fmt == KEY_FORMAT else 'info', who=s['name'])
     return got
 
 
@@ -91,29 +375,34 @@ def _portal_request(h):
     s = portal_session(h)
     b = h.body()
     store = h.store
+    who = str(s['name'])
     sufs = words_list('portal_cert_suffixes')
     allowed = words_list('portal_cert_issuers')
     if not sufs or not allowed:
         raise E.ApiError(403, 'asking for certificates here is not set up')
-    if len(mine(store, s)) >= int(E.CONFIG.get('portal_cert_max') or 10):
-        raise E.ApiError(403, 'you have as many certificates as one person may')
+    if used(store, who) >= most():
+        raise E.ApiError(403, 'you have asked for as many certificates as one person may (%d)'
+                         % most())
     try:
         names = S.clean_names(b.get('names'))
     except ValueError as e:
         raise E.ApiError(400, str(e))
     if not names:
         raise E.ApiError(400, 'which names?')
+    if len(names) > 50:
+        raise E.ApiError(400, 'at most 50 names in one certificate')
     bad = [n for n in names if not name_allowed(n, sufs)]
     if bad:
         raise E.ApiError(403, 'not under the names you may ask for (%s): %s' % (
             ', '.join(sufs), ', '.join(bad)))
     issuer = str(b.get('issuer') or (allowed[0] if len(allowed) == 1 else '')).strip()
-    if issuer not in allowed or not S.plugin_row(store, 'issuer', issuer):
+    irow = S.plugin_row(store, 'issuer', issuer) if issuer in allowed else None
+    if not irow or not irow.get('enabled', 1):
         raise E.ApiError(400, 'the issuer is one of %s' % ', '.join(allowed))
     kt = str(b.get('key_type') or 'ec-256')
     if kt not in schema.KEY_TYPES:
         raise E.ApiError(400, 'the key type is one of %s' % ', '.join(schema.KEY_TYPES))
-    who = str(s['name'])
+    auto = bool(E.CONFIG.get('portal_cert_auto'))
     base_name = re.sub(r'[^A-Za-z0-9._@+-]+', '-', names[0].replace('*.', 'wildcard.'))[:80]
     name = base_name
     n = 1
@@ -121,22 +410,61 @@ def _portal_request(h):
         n += 1
         name = '%s-%d' % (base_name, n)
     t = time.time()
-    import json
+    note = str(b.get('note') or '').strip()[:500]
     cid = store.db.insert('certs', {
         'name': name, 'cn': names[0], 'names': json.dumps(names), 'key_type': kt,
-        'issuer': S.plugin_row(store, 'issuer', issuer)['name'], 'challenge': '',
-        'challenge_map': '{}', 'auto_renew': 1, 'renew_days': None, 'reuse_key': 0,
-        'profile': '{}', 'source': 'portal', 'state': 'new', 'state_at': t, 'version': 0,
+        'issuer': irow['name'], 'challenge': str(E.CONFIG.get('portal_cert_challenge') or '')[:190],
+        'challenge_map': '{}', 'auto_renew': 1 if auto else 0, 'renew_days': None,
+        'reuse_key': 0, 'profile': '{}', 'source': 'portal',
+        'state': 'new' if auto else WAITING, 'state_at': t, 'version': 0,
         'fails': 0, 'tags': json.dumps(['portal']),
-        'note': ('asked for on the enrolment pages by %s. %s' % (
-            who, str(b.get('note') or '')[:500])).strip(), 'owner': who[:190],
+        'note': ('asked for on the portal by %s. %s' % (who, note)).strip(), 'owner': who[:190],
         'created': t, 'created_by': 'portal:' + who[:180], 'enabled': 1, 'ari': '{}'})
-    store.add_event('certificates', '%s asked on the enrolment pages for %s (%s) from %s' % (
-        who, name, ', '.join(names), issuer), who=who)
+    data = s.get('data') or {}
+    store.set_meta(META + str(cid), json.dumps({
+        'who': who, 'display': data.get('display') or '', 'mail': data.get('mail') or '',
+        'at': t, 'note': note}))
     job_id = None
-    try:
-        job_id = jobs.submit(store, 'renew', renewer.renew_job(cid, by='portal:' + who),
-                             cert_id=cid, by='portal:' + who, said='asked on the enrolment pages')
-    except ValueError:
-        pass
-    return {'id': cid, 'name': name, 'job_id': job_id}
+    if auto:
+        store.add_event('certificates', '%s asked on the portal for %s (%s) from %s - issued '
+                        'without approval' % (who, name, ', '.join(names), irow['name']), who=who)
+        job_id = start_issue(store, cid, 'portal:' + who, 'asked for on the portal')
+    else:
+        store.add_event('certificates', '%s asked on the portal for %s (%s) from %s - it waits '
+                        'for an administrator\'s approval' % (who, name, ', '.join(names),
+                                                              irow['name']), 'warn', who=who)
+    return {'id': cid, 'name': name, 'job_id': job_id,
+            'state': 'new' if auto else WAITING, 'waits': not auto}
+
+
+# ---------------------------------------------------------------------------
+# The administrators' side: approving or declining
+# ---------------------------------------------------------------------------
+@A.api('POST', '/api/certs/approve', 'certadmin')
+def _cert_approve(h, s):
+    b = h.body()
+    store = h.store
+    row = S.cert_need(store, A._id(b.get('id')))
+    if row.get('state') != WAITING:
+        raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
+    by = A.who(s)
+    why = str(b.get('why') or '').strip()[:500]
+    t = time.time()
+    if A._flag(b.get('ok')):
+        store.db.update('certs', row['id'], {'state': 'new', 'state_at': t, 'auto_renew': 1,
+                                             'last_error': '', 'updated': t,
+                                             'updated_by': str(by)[:190]})
+        store.add_event('certificates', '%s approved %s, asked for on the portal by %s%s' % (
+            by, row['name'], row.get('owner') or '?', (': ' + why) if why else ''), who=by)
+        job_id = start_issue(store, row['id'], by, 'approved by %s' % by)
+        tell(store, row['id'], 'approved', why)
+        return {'job_id': job_id, 'message': '%s approved - it is being issued' % row['name']}
+    if not why:
+        raise E.ApiError(400, 'say why it is declined - the person who asked is told')
+    store.db.update('certs', row['id'], {'state': DECLINED, 'state_at': t, 'auto_renew': 0,
+                                         'last_error': why, 'updated': t,
+                                         'updated_by': str(by)[:190]})
+    store.add_event('certificates', '%s declined %s, asked for on the portal by %s: %s' % (
+        by, row['name'], row.get('owner') or '?', why), 'warn', who=by)
+    tell(store, row['id'], 'declined', why)
+    return {'message': '%s declined - %s is told' % (row['name'], row.get('owner') or 'nobody')}

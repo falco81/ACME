@@ -105,7 +105,7 @@ Each node keeps the other node's address in three places, and its own in one:
 
 When an address changes, replication stops: one node no longer finds the
 other, and the other's `pg_hba.conf` no longer lets it in. Both nodes go on
-answering RADIUS and the pages from their own database; what is written
+answering the pages from their own database; what is written
 meanwhile waits (up to 16 GB) and goes over once the addresses are right.
 
 ### Where to do it: on the node whose address did NOT change
@@ -165,8 +165,11 @@ warns when `config.json` names an address this machine no longer has.
 
 ### What is never changed by this
 
-- **The RADIUS clients** (the VPN, the firewalls, the load balancer) still
-  send to the old address: change the RADIUS server's address there.
+- **acme's own DNS server**: the NS records (glue) in the parent zone that
+  point at the old address, and *Their addresses* (`dns_ns_addresses`) under
+  the DNS server's settings - [dns-server.md](dns-server.md).
+- **The targets** that let acme in only from its old address (an SSH
+  `from=`, an API's allow list): add the new one there.
 - **DNS** names pointing at the old address.
 - **The VIP address** itself, if it has to move to another network:
   *Settings → High availability → The VIP address*, or
@@ -177,11 +180,13 @@ warns when `config.json` names an address this machine no longer has.
 
 ## 3. One server: a new address
 
-acme itself does not keep its own address on a single server: RADIUS listens
-on all addresses and the pages are served by nginx on all of them. Change:
+acme itself does not keep its own address on a single server: the DNS server
+listens on all addresses (unless `dns_listen` names one) and the pages are
+served by nginx on all of them. Change:
 
-- the RADIUS server's address on the VPN and every client;
-- DNS;
+- DNS - and, with acme's own DNS server, the NS records (glue) in the parent
+  zone and *Their addresses* (`dns_ns_addresses`);
+- the targets that let acme in only from its old address;
 - the certificate of the pages, if it names the address
   ([section 4](#4-certificates-of-the-pages));
 - *Settings → Firewall and access*, if a rule names the old address or network.
@@ -225,7 +230,7 @@ On the pages, *Settings → High availability*:
 - **The addresses of the two nodes**: no warning;
 - *Events*: what each node did, with the old and the new address.
 
-Then try a sign-in through the VPN.
+Then renew one certificate (*Renew it now*) and see its job go through.
 
 ---
 
