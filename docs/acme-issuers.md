@@ -56,7 +56,7 @@ the time to try again.
 | Google Trust Services | `https://dv.acme-v02.api.pki.goog/directory` | yes - `gcloud publicca external-account-keys create` (a key is used once, for one account) |
 | Buypass Go SSL | `https://api.buypass.com/acme/directory` | no |
 | SSL.com | `https://acme.ssl.com/sslcom-dv-rsa` / `-ecc` | yes - the account's API credentials page |
-| DigiCert (CertCentral, or as sold by SSLmarket) | `https://acme.digicert.com/v2/acme/directory/` (a regional URL where DigiCert / SSLmarket gives one: *Another ACME server*) | yes - CertCentral → Automation → ACME, or SSLmarket's customer administration (see `sslmarket.md`) |
+| DigiCert (CertCentral, or as sold by SSLmarket) | `https://acme.digicert.com/v2/acme/directory/` (a regional URL where DigiCert / SSLmarket gives one: *Another ACME server*) | yes - CertCentral → Automation → ACME, or SSLmarket's customer administration - or let the *SSLmarket ACME* source make the key through SSLmarket's API (see `sslmarket.md`) |
 | Sectigo DV / OV | `https://acme.sectigo.com/v2/DV`, `https://acme.sectigo.com/v2/OV` (presets *Sectigo DV / OV*; EV, or a Sectigo Certificate Manager account of your own: *Another ACME server* with its URL) | yes - from Sectigo (SCM: Enrollment → ACME) |
 | Actalis | `https://acme-api.actalis.com/acme/directory` | yes - Actalis customer area → Manage with ACME → ACME Credentials. The free plan gives single-name 90-day DV certificates (reported by users: no SAN, no wildcard) |
 | Certum | `https://acme.certum.pl/directory` | yes - the kid and HMAC from the Certum order's details (an ACME product bought at Certum) |

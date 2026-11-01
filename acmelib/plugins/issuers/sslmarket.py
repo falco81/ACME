@@ -1,56 +1,45 @@
 # -*- coding: utf-8 -*-
 """
 Commercial certificates (DigiCert, GeoTrust, Thawte, RapidSSL, Sectigo…)
-bought through SSLmarket (SSLmarket.cz / .sk / .com / .de / .at / .ch / .hu /
-.co.uk - one platform of ZONER a.s.) with its REST API. See docs/sslmarket.md.
+from SSLmarket (SSLmarket.cz / .sk / .com / .de / .at / .ch / .hu / .co.uk -
+one platform of ZONER a.s.) through its REST API. Two sources:
 
-What is known of the API, and from where (read 2026-11):
+    sslmarket        orders and free reissues (POST /order/certificate/{CODE},
+                     POST /certificate/order_id/{ID}/reissue), the DCV string
+                     put in place by the certificate's validation, the
+                     certificate downloaded (…/format/pem_server)
+    sslmarket_acme   an ACME key made through the API (POST /acme: directory
+                     URL + EAB), then every certificate by ACME (the `acme`
+                     source's own code) - renewals with no order and no DCV
+                     of SSLmarket's
 
-* https://www.sslmarket.com/ssl/sslmarket-api-for-ordering-certificates
-  (also .co.uk / .cz): every call carries the account's API key in the header
-  X-Auth-Token; the key appears in the customer administration once
-  "Account access via API" ("Přístup k účtu přes API") is switched on in the
-  account settings. Example: GET https://www.sslmarket.com/api/order/list.
-  2XX on success, 4XX with the kind of error and its description in the body.
-  Functions: product list, new order, order list, order detail, order change,
-  reissue (and cancelling a reissue), revocation, certificate download,
-  resending the DCV e-mail, a CSR / certificate decoder, OCSP status.
-* https://www.sslmarket.cz/api/swagger-ui/ - the OpenAPI (Swagger) of it.
-* https://www.sslmarket.com/ssl/manual-work-with-api-using-the-postman-tool
-  and https://www.sslmarket.cz/blog/nebojte-se-api-usetri-vam-cas (Postman).
-* https://www.sslmarket.cz/blog/vyuzijte-vylepsenou-api-pro-objednani-vsech-typu-certifikatu
-  (2020: the second generation - all kinds of certificates, downloads).
-* An older page of the API (sslmarket-api-for-ordering-certificates-old)
-  names GET /product/list and POST /order/certificate/{PRODUCT_CODE}.
-* https://github.com/SSLmarket-from-ZONER/SSLmarket-API (2015, archived): the
-  first API - one form POST to /api with customer_id + password, "new" or
-  "renew", the order's parameters (domain, years, certificate, sans,
-  sans_count, csr, dv_auth_method Email|DNS|FILE, verify_mailbox, owner_*,
-  auth_*, tech_*, invoice_*, voucher, note, test), answer {ack, errors, data}.
-  It could not download certificates; it is not spoken here, but its
-  parameter names are the best documented ones and are sent (see below).
+The API as SSLmarket describes it - OpenAPI 3.0, "SSLmarket's API for ordering
+certificates" (test/fixtures/sslmarket-openapi.json, the contract the tests
+check every call against): server https://www.sslmarket.cz/api, the account's
+key in the header X-Auth-Token, 2XX on success, 4XX with {message}. Also:
+https://www.sslmarket.com/ssl/sslmarket-api-for-ordering-certificates,
+https://www.sslmarket.cz/api/swagger-ui/. See docs/sslmarket.md.
 
-UNCERTAIN - the Swagger could not be read from where this was written, so:
-the paths other than /order/list and /product/list, the names of the JSON
-fields of an order (the 2015 names are sent), how the API hands back the DCV
-record or file, the order's states and the download's shape. Every path is a
-setting of the module (More), the answers are read tolerantly (several names
-for each thing, PEM / PKCS#7 / JSON), and anything else can be added to the
-order as "key=value" lines. Check against the Swagger before the first paid
-order; docs/sslmarket.md says what to compare.
+What the specification leaves open, and how it is read here:
+* dns_names is "An array of domains included as SANs" of type string: sent as
+  the SANs joined by commas (as the order list gives them back).
+* The 201 of a new order has no body schema: an order_id in it is taken, else
+  the new order is found in /order/list (the domain and product, inserted
+  after the order was sent, not one known before).
+* The order's `state` has no list of values: "Issued" is the only one named
+  (cancel-reissue). Issued is therefore told by certificate_serial_number
+  (a new one after a reissue, and reissue_pending false), failed by words
+  (cancelled, rejected, revoked…), anything else is waiting.
+* dv_auth_content ("the string required for authentication, FILE and DNS
+  only") has no format: a record line ("NAME TXT VALUE"), a URL and content,
+  or a bare token are all understood; a bare token goes to TXT
+  _dnsauth.NAME (DigiCert; a setting) or /.well-known/pki-validation/
+  fileauth.txt. It is always shown in the job, for doing it by hand.
+* The reissue's csr is "in Base64": the PEM request is sent.
 
-Money: a NEW order (or a renewal order) is a purchase. It is only made when
-"Allow new orders (paid)" is on; otherwise only reissues inside an order
-that is paid already run, and a renewal that would need a purchase stops
-with words saying so. Multi-year subscriptions: the certificate is reissued
-inside the order for as long as the subscription runs (the default).
-
-DCV (domain control validation): the record or file the API asks for is put
-in place by the certificate's own challenge module (acme's DNS server, deSEC,
-Cloudflare, HTTP over SSH…), and left there until the certificate is issued -
-a CA checks in its own time. OV/EV validation can take days: the order is then
-kept in the module's state and the job ends "pending"; every later try asks
-for the order again instead of buying another.
+Money: a new order is a purchase - only made when "Allow new orders (paid)"
+is on. A reissue inside an order whose term runs (expired = the order's end)
+is free, and the default at every renewal.
 """
 from __future__ import annotations
 
@@ -63,6 +52,7 @@ import time
 import urllib.parse
 
 from acmelib.plugins.base import Issuer, Issued, PluginError, field, dual_order_field
+from acmelib.plugins.issuers.acme import AcmeIssuer, _seal, _unseal
 
 API_URLS = {
     'cz': 'https://www.sslmarket.cz/api',
@@ -75,48 +65,42 @@ API_URLS = {
     'uk': 'https://www.sslmarket.co.uk/api',
 }
 
-# The product codes of the documented API (2015). The codes of today may
-# differ: the action "Load the products" lists them from the account.
-PRODUCTS = [
-    ['RAPIDSSL_RAPIDSSL', 'RapidSSL (DV)'],
-    ['RAPIDSSL_RAPIDSSL_WILDCARD', 'RapidSSL Wildcard (DV)'],
-    ['GEOTRUST_QUICKSSL_PREMIUM', 'GeoTrust QuickSSL Premium (DV)'],
-    ['GEOTRUST_TRUE_BUSINESSID', 'GeoTrust True BusinessID (OV)'],
-    ['GEOTRUST_TRUE_BUSINESSID_WILDCARD', 'GeoTrust True BusinessID Wildcard (OV)'],
-    ['GEOTRUST_TRUE_BUSINESSID_EV', 'GeoTrust True BusinessID EV'],
-    ['THAWTE_SSL_123', 'Thawte SSL 123 (DV)'],
-    ['THAWTE_WEB_SERVER', 'Thawte Web Server (OV)'],
-    ['THAWTE_WEB_SERVER_WILDCARD', 'Thawte Web Server Wildcard (OV)'],
-    ['THAWTE_WEB_SERVER_EV', 'Thawte Web Server EV'],
-    ['SYMANTEC_SECURE_SITE', 'DigiCert Secure Site (OV)'],
-    ['SYMANTEC_SECURE_SITE_PRO', 'DigiCert Secure Site Pro (OV)'],
-    ['SYMANTEC_SECURE_SITE_WILDCARD', 'DigiCert Secure Site Wildcard (OV)'],
-    ['SYMANTEC_SECURE_SITE_EV', 'DigiCert Secure Site EV'],
-    ['SYMANTEC_SECURE_SITE_PRO_EV', 'DigiCert Secure Site Pro EV'],
-    ['other', 'Another product (its code)'],
-]
+# Every call the modules make, as the OpenAPI names them (checked by the tests).
+P_PRODUCTS = '/product/list'
+P_ORDERS = '/order/list'
+P_ORDER = '/order/certificate/{PRODUCT_CODE}'
+P_DETAIL = '/order/order_id/{ORDER_ID}'                     # GET, and PUT (edit before issuance)
+P_REISSUE = '/certificate/order_id/{ORDER_ID}/reissue'
+P_CANCEL_REISSUE = '/certificate/order_id/{ORDER_ID}/cancel-reissue'
+P_REVOKE = '/certificate/order_id/{ORDER_ID}/revoke'
+P_RESEND = '/certificate/order_id/{ORDER_ID}/resend'
+P_DOWNLOAD = '/certificate/order_id/{ORDER_ID}/format/{FORMAT}'
+P_ACME = '/acme'
+P_ACME_LIST = '/acme/list'
+P_ACME_REVOKE = '/acme/acme_id/{ACME_ID}/revoke'
+P_ACME_ORGS = '/acme/organization/list'
 
-# The DCV methods, as acme names them -> the value of dv_auth_method (the
-# 2015 API: Email, DNS, FILE; CNAME is a guess for the CNAME method of Sectigo).
-DCV_METHODS = {'dns-txt': 'DNS', 'dns-cname': 'CNAME', 'http-file': 'FILE', 'email': 'Email'}
+DV_METHODS = ('DNS', 'FILE', 'Email')
+DCV_MAIL_BOXES = ('admin', 'administrator', 'hostmaster', 'postmaster', 'webmaster')
+FAILED = ('cancel', 'reject', 'revok', 'denied', 'fail', 'refund', 'storno', 'zamít', 'zamit',
+          'zruš', 'zrus', 'odmít', 'odmit')
 
-# The states of an order, by the words they might come in.
-ISSUED = ('issued', 'active', 'completed', 'complete', 'done', 'valid', 'vydano', 'vydany',
-          'vydaný', 'vydáno', 'finished', 'ready', 'certificate issued')
-ISSUED_START = ('issued', 'vydan', 'vydán', 'completed')
-FAILED = ('rejected', 'cancelled', 'canceled', 'revoked', 'denied', 'failed', 'refunded',
-          'expired', 'zamitnuto', 'zamítnuto', 'zrušeno', 'zruseno', 'storno')
-
-PATHS = [
-    ('path_products', 'Products', '/product/list'),
-    ('path_orders', 'Order list', '/order/list'),
-    ('path_account', 'Account (credit)', '/account/detail'),
-    ('path_order', 'New order', '/order/certificate/{product}'),
-    ('path_detail', 'Order detail', '/order/detail/{order}'),
-    ('path_reissue', 'Reissue', '/order/reissue/{order}'),
-    ('path_download', 'Certificate download', '/order/download/{order}'),
-    ('path_revoke', 'Revocation', '/order/revoke/{order}'),
-    ('path_dcv_check', 'Ask for the DCV check (empty: none)', ''),
+API_FIELDS = [
+    field('api', 'SSLmarket', 'select', default='cz',
+          options=[['cz', 'SSLmarket.cz'], ['sk', 'SSLmarket.sk'], ['com', 'SSLmarket.com'],
+                   ['de', 'SSLmarket.de'], ['at', 'SSLmarket.at'], ['ch', 'SSLmarket.ch'],
+                   ['hu', 'SSLmarket.hu'], ['uk', 'SSLmarket.co.uk'],
+                   ['custom', 'Another address (a test system SSLmarket gave you)']],
+          help='The SSLmarket your customer account is at (the account and its credit '
+               'belong to that one).'),
+    field('api_url', 'API address', 'text', placeholder='https://www.sslmarket.cz/api',
+          show_if={'api': ['custom']},
+          help='SSLmarket offers no public sandbox: a test address only where SSLmarket '
+               'gave you one.'),
+    field('token', 'API key', 'secret', required=True,
+          help='Customer administration → account settings → "Account access via API" '
+               '(Přístup k účtu přes API): switched on, it shows the key. Sent as '
+               'X-Auth-Token.'),
 ]
 
 
@@ -138,7 +122,7 @@ def _num(v, default):
 
 
 def _when(v):
-    """An epoch from what an API says a date is: epoch, ISO 8601, 'YYYY-MM-DD', 'DD.MM.YYYY'."""
+    """An epoch from a date of the API: epoch, ISO 8601, 'YYYY-MM-DD', 'DD.MM.YYYY'."""
     if v in (None, ''):
         return None
     if isinstance(v, (int, float)):
@@ -157,23 +141,8 @@ def _when(v):
     return None
 
 
-def _dig(obj, *keys, depth=0):
-    """The first value under any of `keys` (any case, - or _), looked for in
-    `obj` and the dicts inside it (data, order, result…), nearest first."""
-    if depth > 5:
-        return None
-    want = [k.lower().replace('-', '_') for k in keys]
-    if isinstance(obj, dict):
-        norm = {str(k).lower().replace('-', '_'): v for k, v in obj.items()}
-        for k in want:
-            if k in norm and norm[k] not in (None, ''):
-                return norm[k]
-        for v in obj.values():
-            if isinstance(v, dict):
-                got = _dig(v, *keys, depth=depth + 1)
-                if got not in (None, ''):
-                    return got
-    return None
+def _day(t):
+    return time.strftime('%Y-%m-%d', time.gmtime(t)) if t else '?'
 
 
 def _base(name):
@@ -183,53 +152,216 @@ def _base(name):
     return n
 
 
-def _pem_all(data):
-    """Every certificate in what a download gave: PEM, base64 DER / PKCS#7,
-    JSON holding either."""
-    from acmelib.certs import formats, pki
-    if isinstance(data, bytes):
-        text = data.decode('utf-8', 'replace')
-    else:
-        text = str(data or '')
-    pieces = []
+def _family(key_type):
+    return 'rsa' if str(key_type or '').lower().startswith('rsa') else 'ec'
+
+
+def _csr_family(csr_pem):
+    if not csr_pem:
+        return None
     try:
-        j = json.loads(text)
-    except ValueError:
-        j = None
-    if j is not None:
-        def walk(o):
-            if isinstance(o, dict):
-                for v in o.values():
-                    walk(v)
-            elif isinstance(o, list):
-                for v in o:
-                    walk(v)
-            elif isinstance(o, str) and len(o) > 200:
-                pieces.append(o)
-        walk(j)
-    else:
-        pieces.append(data if isinstance(data, bytes) else text)
-    out = []
-    for p in pieces:
+        from acmelib.certs import pki
+        inf = pki.csr_info(csr_pem)
+        return _family(inf.get('key_type') or '')
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def _certs_in(data):
+    """Every certificate in a download: PEM, or PKCS#7 (PEM, base64 or DER)."""
+    from acmelib.certs import formats, pki
+    if not data:
+        return []
+    try:
+        got = formats.read_any(data if isinstance(data, bytes) else str(data).encode('utf-8'))
+    except PluginError:
+        return []
+    return [pki.cert_pem(c) for c in got.get('certs') or []]
+
+
+# ---------------------------------------------------------------------------
+# The API, as both sources speak it
+# ---------------------------------------------------------------------------
+class SslmarketApi(object):
+    """Calls to SSLmarket's API for a module whose settings hold api / api_url / token."""
+    def __init__(self, plugin):
+        self.p = plugin
+        self.calls = 0
+
+    def base_url(self):
+        api = self.p.c('api') or 'cz'
+        if api == 'custom':
+            url = str(self.p.c('api_url') or '').strip().rstrip('/')
+            if not url:
+                raise PluginError('set the API address', retry=False)
+            if not re.match(r'^https://', url):
+                raise PluginError('the API address must be https://…', retry=False)
+            return url
+        if api not in API_URLS:
+            raise PluginError('an unknown SSLmarket: %s' % api, retry=False)
+        return API_URLS[api]
+
+    @staticmethod
+    def path(template, **fill):
+        p = template
+        for k, v in fill.items():
+            p = p.replace('{%s}' % k, urllib.parse.quote(str(v), safe=''))
+        if '{' in p:
+            raise ValueError('a path not filled in: %s' % p)
+        return p
+
+    def call(self, method, template, body=None, what='', query=None, **fill):
+        """(status, JSON or text) of one call; PluginError for what failed."""
+        path = self.path(template, **fill)
+        token = str(self.p.c('token') or '').strip()
+        if not token:
+            raise PluginError('set the API key of SSLmarket', retry=False)
+        headers = {'X-Auth-Token': token, 'Accept': 'application/json, text/plain, */*',
+                   'User-Agent': 'acme certificate manager'}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode('utf-8')
+            headers['Content-Type'] = 'application/json'
+        url = self.base_url() + path + (('?' + urllib.parse.urlencode(query)) if query else '')
+        self.p.ctx.debug('%s %s' % (method, url))
+        self.calls += 1
         try:
-            got = formats.read_any(p if isinstance(p, bytes) else p.replace('\\n', '\n'))
+            status, _hdrs, raw = self.p.ctx.http(method, url, data, headers, 60)
         except PluginError:
-            continue
-        for c in got.get('certs') or []:
-            c = pki.cert_pem(c)
-            if c not in out:
-                out.append(c)
-    return out
+            raise
+        except Exception as e:                          # noqa: BLE001
+            raise PluginError('SSLmarket\'s API does not answer (%s): %s' % (url, e))
+        raw = raw or b''
+        text = raw.decode('utf-8', 'replace')
+        try:
+            parsed = json.loads(text) if text.strip()[:1] in ('{', '[') else None
+        except ValueError:
+            parsed = None
+        said = self.message(parsed, text)
+        what = what or '%s %s' % (method, path)
+        if status in (401, 403):
+            raise PluginError('SSLmarket refuses the API key (%d)%s - check the key, and that '
+                              '"Account access via API" is on in the account settings'
+                              % (status, ': ' + said if said else ''),
+                              detail=text[:1000], retry=False)
+        if status == 404:
+            raise PluginError('SSLmarket does not know %s (404)%s' % (what, ': ' + said if said
+                                                                       else ''),
+                              detail=text[:1000], retry=False)
+        if status == 429 or status >= 500:
+            raise PluginError('SSLmarket\'s API is busy or broken (%d)%s - tried again later'
+                              % (status, ': ' + said if said else ''), detail=text[:1000],
+                              retry=True)
+        if status >= 400:
+            raise PluginError('SSLmarket refused %s (%d)%s' % (what, status,
+                                                              ': ' + said if said else ''),
+                              detail=text[:2000], retry=False)
+        return status, (parsed if parsed is not None else text)
+
+    @staticmethod
+    def message(parsed, text=''):
+        """The {message} of an error answer (the OpenAPI's Error), or a short text."""
+        if isinstance(parsed, dict):
+            m = parsed.get('message')
+            if isinstance(m, (list, tuple)):
+                m = '; '.join(str(x) for x in m)
+            elif isinstance(m, dict):
+                m = '; '.join('%s: %s' % kv for kv in m.items())
+            if m:
+                return str(m)[:500]
+            for k in ('error', 'type', 'errors'):
+                if parsed.get(k):
+                    return str(parsed[k])[:500]
+            return ''
+        t = re.sub(r'<[^>]+>', ' ', text or '')
+        t = re.sub(r'\s+', ' ', t).strip()
+        return t[:200]
+
+    # -- the lists ------------------------------------------------------------------
+    def products(self):
+        _st, got = self.call('GET', P_PRODUCTS, what='the product list')
+        return [p for p in ((got or {}).get('products') or []) if isinstance(p, dict)] \
+            if isinstance(got, dict) else []
+
+    def orders(self):
+        _st, got = self.call('GET', P_ORDERS, what='the order list')
+        return [o for o in ((got or {}).get('orders') or []) if isinstance(o, dict)] \
+            if isinstance(got, dict) else []
+
+    def acme_keys(self):
+        out, page = [], 1
+        while page <= 20:
+            _st, got = self.call('GET', P_ACME_LIST, what='the ACME keys',
+                                 query={'page': page, 'count': 1000})
+            items = [a for a in ((got or {}).get('acmes') or []) if isinstance(a, dict)] \
+                if isinstance(got, dict) else []
+            out.extend(items)
+            if len(items) < 1000:
+                break
+            page += 1
+        return out
+
+    def organizations(self):
+        _st, got = self.call('GET', P_ACME_ORGS, what='the organisations')
+        return [o for o in ((got or {}).get('organizations') or []) if isinstance(o, dict)] \
+            if isinstance(got, dict) else []
 
 
-class SslmarketIssuer(Issuer):
+class _Common(object):
+    """What both sources share: the API, the module's state, words in the job."""
+    def api(self):
+        a = getattr(self, '_api', None)
+        if a is None:
+            a = self._api = SslmarketApi(self)
+        return a
+
+    def base_url(self):
+        return self.api().base_url()
+
+    def _say(self, words, level='info'):
+        try:
+            self.ctx.step(words, level)
+        except Exception:                               # noqa: BLE001
+            pass
+
+    def _get(self, key):
+        v = self.ctx.kv_get(key)
+        if isinstance(v, str):
+            try:
+                v = json.loads(v)
+            except ValueError:
+                return None
+        return v if isinstance(v, dict) else None
+
+    def _put(self, key, value, ttl_s=None):
+        self.ctx.kv_set(key, json.dumps(value) if value is not None else None, ttl_s=ttl_s)
+
+    def _say_products(self):
+        prods = self.api().products()
+        for p in prods:
+            self._say('%s - %s (%s, %s%s%s)' % (
+                p.get('product_code'), p.get('title') or '?', p.get('type') or
+                p.get('product_type') or '?', p.get('validate_type') or '?',
+                ', up to %s years' % p['max_years'] if p.get('max_years') else '',
+                ', SANs %s-%s' % (p.get('min_san_values') or 0, p['max_san_values'])
+                if p.get('max_san_values') else ''))
+        self._put('sslmarket-products', {'at': _now(), 'products': prods[:1000]},
+                  ttl_s=30 * 86400)
+        return prods
+
+
+# ---------------------------------------------------------------------------
+# Orders and reissues
+# ---------------------------------------------------------------------------
+class SslmarketIssuer(_Common, Issuer):
     kind = 'sslmarket'
+    default_name = 'SSLmarket'
     dual_field = 'dual_order'       # a twin is a second order, paid for: only when allowed
     title = 'SSLmarket.cz (DigiCert, Sectigo, GeoTrust…)'
     description = ('Commercial certificates (DigiCert, GeoTrust, Thawte, RapidSSL, Sectigo) '
                    'ordered and reissued through the API of SSLmarket; the DCV record or file '
-                   'put in place by the certificate\'s challenge. New (paid) orders only when '
-                   'allowed; OV/EV orders waiting for validation are fetched later.')
+                   'put in place by the certificate\'s validation. New (paid) orders only when '
+                   'allowed; orders waiting for validation are fetched later.')
     vendor = 'SSLmarket'
     doc = 'docs/sslmarket.md'
     needs_challenge = True          # per instance: False for e-mail DCV (see __init__)
@@ -239,120 +371,110 @@ class SslmarketIssuer(Issuer):
     choose_days = False
     actions = [
         {'key': 'products', 'label': 'Load the products',
-         'help': 'Lists the products (codes, prices) the account can order and keeps them for '
-                 'the check of the product code. Orders nothing.', 'changes': False},
+         'help': 'Lists the products (codes, kind, validation, years, SANs) the account can '
+                 'order through the API. Orders nothing.', 'changes': False},
         {'key': 'orders', 'label': 'List the orders',
-         'help': 'The orders of the account, with their state and the end of the subscription '
-                 '- to find the order to reuse. Orders nothing.', 'changes': False},
+         'help': 'The orders of the account, with their state and end - to find the order to '
+                 'reuse. Orders nothing.', 'changes': False},
+        {'key': 'resend', 'label': 'Send the DCV e-mail again',
+         'help': 'For the orders waiting here (and the order to reuse): the CA writes again to '
+                 'admin@, administrator@, hostmaster@, postmaster@ and webmaster@ of the domain.',
+         'changes': True},
+        {'key': 'cancel_reissue', 'label': 'Cancel the running reissue',
+         'help': 'Of the order to reuse: the certificate goes back to Issued, no new one is '
+                 'issued.', 'confirm': 'Cancel the reissue running in the order to reuse?',
+         'changes': True},
     ]
-    fields = [
-        field('api', 'SSLmarket', 'select', default='cz',
-              options=[['cz', 'SSLmarket.cz'], ['sk', 'SSLmarket.sk'], ['com', 'SSLmarket.com'],
-                       ['de', 'SSLmarket.de'], ['at', 'SSLmarket.at'], ['ch', 'SSLmarket.ch'],
-                       ['hu', 'SSLmarket.hu'], ['uk', 'SSLmarket.co.uk'],
-                       ['custom', 'Another address (a test system SSLmarket gave you)']],
-              help='The SSLmarket your customer account is at (the account and its credit '
-                   'belong to that one).'),
-        field('api_url', 'API address', 'text', placeholder='https://www.sslmarket.cz/api',
-              show_if={'api': ['custom']},
-              help='SSLmarket offers no public sandbox: a test address only where SSLmarket '
-                   'gave you one.'),
-        field('token', 'API key', 'secret', required=True,
-              help='Customer administration → account settings → "Account access via API" '
-                   '(Přístup k účtu přes API): switched on, it shows the key. Sent as '
-                   'X-Auth-Token.'),
-        field('product', 'Product', 'select', default='RAPIDSSL_RAPIDSSL', options=PRODUCTS,
-              help='What is ordered. The codes are those of SSLmarket\'s documentation; '
-                   '"Load the products" lists the codes of your account.'),
-        field('product_code', 'Product code', 'text', placeholder='DIGICERT_SECURE_SITE',
-              show_if={'product': ['other']},
-              help='The code as "Load the products" (or the Swagger) shows it.'),
-        field('years', 'Subscription (years)', 'select', default='1',
+    fields = API_FIELDS + [
+        field('product', 'Product code', 'text', required=True,
+              placeholder='a code from "Load the products"',
+              help='The product_code of the product to order (the action "Load the products" '
+                   'lists those of your account).'),
+        field('years', 'Order term (years)', 'select', default='1',
               options=[['1', '1 year'], ['2', '2 years'], ['3', '3 years'], ['4', '4 years'],
                        ['5', '5 years']],
-              help='What a new order buys. A certificate lives at most 200 days (CA/B Forum, '
-                   'since March 2026): a longer subscription is served by reissues, free.'),
-        field('validation', 'Kind of validation', 'select', default='dv',
-              options=[['dv', 'DV - the domain only'], ['ov', 'OV - the organisation too'],
-                       ['ev', 'EV - extended']],
-              help='OV and EV need the organisation\'s details and take the CA hours or days.'),
-        field('dcv', 'Domain validation (DCV)', 'select', default='dns-txt',
-              options=[['dns-txt', 'DNS TXT record (by the certificate\'s DNS challenge)'],
-                       ['dns-cname', 'DNS CNAME record (Sectigo)'],
-                       ['http-file', 'HTTP file in /.well-known/pki-validation/ (by the '
-                                     'certificate\'s HTTP challenge)'],
-                       ['email', 'E-mail to the domain\'s approver address']],
-              help='How the CA checks the domain. DNS and HTTP are done by the challenge module '
-                   'of the certificate, as for ACME; e-mail needs a person to click.'),
-        field('approver', 'Approver e-mail', 'text', placeholder='admin@',
-              show_if={'dcv': ['email']},
-              help='admin@, administrator@, hostmaster@, webmaster@, postmaster@ (of the '
-                   'domain), or WHOIS.'),
-        field('org_name', 'Organisation', 'text', show_if={'validation': ['ov', 'ev']},
-              placeholder='Example s.r.o.', help='As in the commercial register.'),
-        field('org_street', 'Street', 'text', show_if={'validation': ['ov', 'ev']}),
-        field('org_city', 'City', 'text', show_if={'validation': ['ov', 'ev']}),
-        field('org_zip', 'Post code', 'text', show_if={'validation': ['ov', 'ev']}),
-        field('org_country', 'Country (2 letters)', 'text', default='CZ',
-              show_if={'validation': ['ov', 'ev']}),
-        field('org_id', 'Company ID (IČO)', 'text', show_if={'validation': ['ov', 'ev']}),
-        field('org_phone', 'Organisation\'s phone', 'text', show_if={'validation': ['ov', 'ev']},
-              placeholder='+420.123456789'),
+              help='What a new order buys (at most the product\'s max_years). A certificate '
+                   'lives at most 200 days (CA/B Forum, since March 2026): a longer order is '
+                   'served by reissues, free.'),
+        field('dcv', 'Domain validation (DCV)', 'select', default='DNS',
+              options=[['DNS', 'DNS - a TXT record (by the certificate\'s DNS validation)'],
+                       ['FILE', 'FILE - a file in /.well-known/pki-validation/ (by the '
+                                'certificate\'s HTTP validation)'],
+                       ['Email', 'E-mail to admin@, administrator@, hostmaster@, postmaster@, '
+                                 'webmaster@ of the domain']],
+              help='How the CA checks the domain (dv_auth_method). DNS and FILE are done by the '
+                   'validation module of the certificate, as for ACME; e-mail needs a person '
+                   'to click.'),
+        field('owner_name', 'Owner (organisation or person)', 'text', required=True,
+              placeholder='Example s.r.o.',
+              help='The certificate\'s owner - for OV/EV as in the commercial register.'),
+        field('owner_street', 'Street', 'text', required=True),
+        field('owner_city', 'City', 'text', required=True),
+        field('owner_zip', 'Post code', 'text', required=True),
+        field('owner_country', 'Country (2 letters)', 'text', default='CZ', required=True),
+        field('owner_tel', 'Owner\'s phone', 'text', required=True, placeholder='+420.123456789',
+              help='As +420.123456789 (country code, a dot, the number).'),
+        field('contact_title', 'Contact: title', 'text', placeholder='Ing.',
+              help='Sent as auth_title and tech_title.'),
         field('contact_first', 'Contact: first name', 'text', required=True),
         field('contact_last', 'Contact: last name', 'text', required=True),
         field('contact_email', 'Contact: e-mail', 'text', required=True,
               placeholder='pki@example.com',
-              help='The person who asks for the certificate; the CA may call or write to them '
-                   '(OV/EV).'),
-        field('contact_phone', 'Contact: phone', 'text', required=True,
+              help='The person who asks for the certificate and its technical contact; the CA '
+                   'may call or write to them (OV/EV).'),
+        field('contact_tel', 'Contact: phone', 'text', required=True,
               placeholder='+420.123456789'),
+        field('invoice_name', 'Invoice: name', 'text',
+              help='Empty: the owner\'s name, street, city, post code and country.'),
+        field('invoice_street', 'Invoice: street', 'text'),
+        field('invoice_city', 'Invoice: city', 'text'),
+        field('invoice_zip', 'Invoice: post code', 'text'),
+        field('invoice_country', 'Invoice: country', 'text'),
+        field('invoice_email', 'Invoice: e-mail', 'text',
+              help='Empty: the contact\'s e-mail.'),
+        field('invoice_ic', 'Invoice: company ID (IČO)', 'text'),
+        field('invoice_dic', 'Invoice: VAT ID (DIČ)', 'text', placeholder='CZ12345678'),
         field('policy', 'At a renewal', 'select', default='reissue',
-              options=[['reissue', 'Reissue inside the order while its subscription runs '
-                                   '(free); a renewal order only when paid orders are allowed'],
-                       ['renew', 'Always a renewal order (paid)'],
+              options=[['reissue', 'Reissue inside the order while it runs (free); a new order '
+                                   'only when paid orders are allowed'],
                        ['new', 'Always a new order (paid)']],
-              help='A renewal of a commercial certificate costs money; a reissue inside a '
-                   'paid multi-year subscription does not.'),
+              help='A new order of a commercial certificate costs money; a reissue inside an '
+                   'order that still runs does not.'),
         field('allow_paid', 'Allow new orders (paid)', 'bool', default=False,
               help='Off: acme never buys anything - it only reissues inside orders paid '
                    'already, and stops with words where a purchase would be needed. On: the '
-                   'first certificate and an ended subscription are ordered (and paid from the '
+                   'first certificate and an ended order are ordered (and paid from the '
                    'credit) by themselves.'),
         field('order_id', 'Order to reuse', 'text', placeholder='123456',
-              help='An order bought already (e.g. in the customer administration, a '
-                   'multi-year subscription): the certificate is reissued inside it. Empty: '
-                   'the order acme made last for the certificate.'),
-        field('min_days', 'Reissue while the subscription runs at least (days)', 'number',
+              help='An order bought already (e.g. in the customer administration): the '
+                   'certificate is reissued inside it, or - not issued yet - the request is put '
+                   'into it. Empty: the order acme made last for the certificate.'),
+        field('order_id_alt', 'Order to reuse for the twin', 'text', advanced=True,
+              help='A dual certificate: the order of the second key type (its own order).'),
+        field('min_days', 'Reissue while the order runs at least (days)', 'number',
               default=30, advanced=True,
-              help='Fewer days left: a renewal order is needed (when allowed).'),
+              help='Fewer days left: a new order is needed (when allowed).'),
         field('voucher', 'Discount voucher', 'text', advanced=True),
         field('extra', 'More order fields', 'list', advanced=True,
-              placeholder='invoice_vat_id=CZ12345678',
-              help='key=value lines added to every new order and reissue, for what the API '
-                   'wants and this form does not ask.'),
+              placeholder='tech_email=hostmaster@example.cz',
+              help='key=value lines added to every new order, for a field of the API this form '
+                   'fills otherwise (e.g. another technical contact).'),
         field('txt_label', 'Label of the DNS TXT record', 'text', default='_dnsauth',
               advanced=True,
-              help='Where the TXT record goes when the API does not say: LABEL.NAME '
-                   '(DigiCert: _dnsauth; @ for NAME itself).'),
+              help='Where the TXT record goes when dv_auth_content is only the value: '
+                   'LABEL.NAME (DigiCert: _dnsauth; @ for NAME itself).'),
         field('wait_issue', 'Wait for the certificate (s)', 'number', default=600, advanced=True,
               help='How long a try waits for the CA (DV: minutes). Longer: the order is asked '
                    'for again at the next try (OV/EV: days).'),
         field('wait_ready', 'Wait for the DCV record to be visible (s)', 'number', default=300,
               advanced=True),
         field('poll_every', 'Ask again every (s)', 'number', default=15, advanced=True),
-        field('body', 'Sent as', 'select', default='json', advanced=True,
-              options=[['json', 'JSON'], ['form', 'Form fields (x-www-form-urlencoded)']]),
-        field('auth_header', 'Header of the API key', 'text', default='X-Auth-Token',
-              advanced=True),
-    ] + [field(k, 'Path: ' + words, 'text', default=d, advanced=True,
-               help='Under the API address; {order} and {product} are filled in.')
-         for k, words, d in PATHS]
-    fields = fields + [dual_order_field()]
+        dual_order_field(),
+    ]
 
     def __init__(self, config, ctx):
         Issuer.__init__(self, config, ctx)
-        # E-mail DCV needs no challenge module for the names.
-        self.needs_challenge = self.c('dcv') != 'email'
+        self.needs_challenge = self.c('dcv') != 'Email'    # e-mail DCV: no validation needed
         self._sleep = time.sleep
 
     @classmethod
@@ -363,135 +485,12 @@ class SslmarketIssuer(Issuer):
                  choose_days=False)
         return d
 
-    # -- talking to it ------------------------------------------------------------------
-    def _say(self, words, level='info'):
-        try:
-            self.ctx.step(words, level)
-        except Exception:                               # noqa: BLE001
-            pass
-
-    def base_url(self):
-        api = self.c('api') or 'cz'
-        if api == 'custom':
-            url = str(self.c('api_url') or '').strip().rstrip('/')
-            if not url:
-                raise PluginError('set the API address', retry=False)
-            if not re.match(r'^https://', url):
-                raise PluginError('the API address must be https://…', retry=False)
-            return url
-        if api not in API_URLS:
-            raise PluginError('an unknown SSLmarket: %s' % api, retry=False)
-        return API_URLS[api]
-
-    def _path(self, key, **fill):
-        p = str(self.c(key) or '').strip()
-        if not p:
-            return ''
-        for k, v in fill.items():
-            p = p.replace('{%s}' % k, urllib.parse.quote(str(v), safe=''))
-        return p if p.startswith('/') else '/' + p
-
-    def call(self, method, key, body=None, what='', **fill):
-        """(status, parsed JSON or raw bytes) of one call; PluginError for what failed."""
-        path = self._path(key, **fill)
-        if not path:
-            raise PluginError('the path of "%s" is not set (More)' % (what or key), retry=False)
-        token = str(self.c('token') or '').strip()
-        if not token:
-            raise PluginError('set the API key of SSLmarket', retry=False)
-        headers = {str(self.c('auth_header') or 'X-Auth-Token'): token,
-                   'Accept': 'application/json, application/x-pem-file, */*',
-                   'User-Agent': 'acme certificate manager'}
-        data = None
-        if body is not None:
-            if self.c('body') == 'form':
-                data = urllib.parse.urlencode({k: v for k, v in body.items() if v not in (None, '')}
-                                              ).encode('utf-8')
-                headers['Content-Type'] = 'application/x-www-form-urlencoded'
-            else:
-                data = json.dumps(body).encode('utf-8')
-                headers['Content-Type'] = 'application/json'
-        url = self.base_url() + path
-        self.ctx.debug('%s %s' % (method, url))
-        try:
-            status, hdrs, raw = self.ctx.http(method, url, data, headers, 60)
-        except PluginError:
-            raise
-        except Exception as e:                          # noqa: BLE001
-            raise PluginError('SSLmarket\'s API does not answer (%s): %s' % (url, e))
-        raw = raw or b''
-        try:
-            parsed = json.loads(raw.decode('utf-8')) if raw.strip()[:1] in (b'{', b'[') else None
-        except (ValueError, UnicodeDecodeError):
-            parsed = None
-        if status in (401, 403):
-            raise PluginError('SSLmarket refuses the API key (%d) - check the key, and that '
-                              '"Account access via API" is on in the account settings%s'
-                              % (status, self._errors(parsed, ' - it says: ')),
-                              detail=raw[:1000].decode('utf-8', 'replace'), retry=False)
-        if status == 402:
-            raise PluginError('SSLmarket: not enough credit for the order (402)%s - top the '
-                              'credit up in the customer administration'
-                              % self._errors(parsed, ' - '), retry=False)
-        if status == 404:
-            raise PluginError('SSLmarket answers 404 for %s %s%s - the %s is not known (a wrong '
-                              'order number, or the path under More differs from the API\'s '
-                              'Swagger)' % (method, path, self._errors(parsed, ': '),
-                                            what or 'address'),
-                              detail=raw[:1000].decode('utf-8', 'replace'), retry=False)
-        if status == 429 or status >= 500:
-            raise PluginError('SSLmarket\'s API is busy or broken (%d)%s - tried again later'
-                              % (status, self._errors(parsed, ': ')),
-                              detail=raw[:1000].decode('utf-8', 'replace'), retry=True)
-        if status >= 400:
-            raise PluginError('SSLmarket refused %s (%d)%s' % (what or path, status,
-                                                               self._errors(parsed, ': ')),
-                              detail=raw[:2000].decode('utf-8', 'replace'), retry=False)
-        if isinstance(parsed, dict) and str(parsed.get('ack') or '').lower() == 'error':
-            raise PluginError('SSLmarket refused %s%s' % (what or path, self._errors(parsed, ': ')),
-                              detail=raw[:2000].decode('utf-8', 'replace'), retry=False)
-        return status, (parsed if parsed is not None else raw)
-
-    @staticmethod
-    def _errors(parsed, lead=''):
-        if not isinstance(parsed, (dict, list)):
-            return ''
-        bits = []
-
-        def add(v):
-            if isinstance(v, dict):
-                words = v.get('message') or v.get('description') or v.get('detail') or v.get('title')
-                where = v.get('field') or v.get('property') or v.get('propertyPath') or v.get('code')
-                if words:
-                    bits.append('%s%s' % ('%s: ' % where if where else '', words))
-                else:
-                    for k, x in v.items():
-                        if isinstance(x, (str, int)):
-                            bits.append('%s: %s' % (k, x))
-                        elif isinstance(x, list):
-                            bits.extend('%s: %s' % (k, y) for y in x if isinstance(y, str))
-            elif isinstance(v, list):
-                for x in v:
-                    add(x)
-            elif v not in (None, ''):
-                bits.append(str(v))
-        if isinstance(parsed, list):
-            add(parsed)
-        else:
-            for k in ('errors', 'error', 'violations', 'message', 'detail', 'title'):
-                if parsed.get(k):
-                    add(parsed[k])
-                    break
-        said = '; '.join(b for b in bits if b)[:500]
-        return lead + said if said else ''
-
     # -- settings ------------------------------------------------------------------------
     def product(self):
         p = str(self.c('product') or '').strip()
-        if p == 'other':
-            p = str(self.c('product_code') or '').strip()
         if not p:
-            raise PluginError('set the product (or its code)', retry=False)
+            raise PluginError('set the product code ("Load the products" lists them)',
+                              retry=False)
         return p
 
     def _extra(self):
@@ -510,130 +509,145 @@ class SslmarketIssuer(Issuer):
             out[k.strip()] = val.strip()
         return out
 
-    def _contact(self):
-        need = [('contact_first', 'first name'), ('contact_last', 'last name'),
-                ('contact_email', 'e-mail'), ('contact_phone', 'phone')]
-        miss = [w for k, w in need if not str(self.c(k) or '').strip()]
-        if miss:
-            raise PluginError('set the contact person\'s %s' % ', '.join(miss), retry=False)
-        email = str(self.c('contact_email')).strip()
-        if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
-            raise PluginError('%s is not an e-mail address' % email, retry=False)
-        return {k: str(self.c(k)).strip() for k, _w in need}
+    def _s(self, key):
+        return str(self.c(key) or '').strip()
 
-    def order_body(self, req, reissue=False):
-        """The order's fields, by the names of SSLmarket's documented API."""
+    def order_body(self, req):
+        """The body of POST /order/certificate/{PRODUCT_CODE}, every field the OpenAPI
+        requires filled."""
         names = list(req.names or [])
         if not names:
             raise PluginError('the certificate has no names', retry=False)
-        dcv = self.c('dcv') or 'dns-txt'
-        if dcv not in DCV_METHODS:
+        need = [('owner_name', 'owner'), ('owner_street', 'owner\'s street'),
+                ('owner_city', 'owner\'s city'), ('owner_zip', 'owner\'s post code'),
+                ('owner_country', 'owner\'s country'), ('owner_tel', 'owner\'s phone'),
+                ('contact_first', 'contact\'s first name'), ('contact_last', 'contact\'s last name'),
+                ('contact_email', 'contact\'s e-mail'), ('contact_tel', 'contact\'s phone')]
+        miss = [w for k, w in need if not self._s(k)]
+        if miss:
+            raise PluginError('an order needs the %s' % ', '.join(miss), retry=False)
+        email = self._s('contact_email')
+        if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
+            raise PluginError('%s is not an e-mail address' % email, retry=False)
+        for k in ('owner_tel', 'contact_tel'):
+            if not re.match(r'^\+\d{1,4}\.\d{4,14}$', self._s(k).replace(' ', '')):
+                raise PluginError('the phone "%s" is not as SSLmarket wants it: +420.123456789'
+                                  % self._s(k), retry=False)
+        for k in ('owner_country', 'invoice_country'):
+            if self._s(k) and not re.match(r'^[A-Za-z]{2}$', self._s(k)):
+                raise PluginError('"%s" is not a two-letter country code' % self._s(k),
+                                  retry=False)
+        dcv = self.c('dcv') or 'DNS'
+        if dcv not in DV_METHODS:
             raise PluginError('an unknown DCV method: %s' % dcv, retry=False)
-        sans = names[1:]
-        body = {'domain': names[0], 'csr': req.csr_pem.strip(),
-                'dv_auth_method': DCV_METHODS[dcv], 'hash_algorithm': 'SHA2-256'}
-        if sans:
-            body['sans'] = ','.join(sans)
-            body['sans_count'] = len(sans)
-        if dcv == 'email':
-            body['verify_mailbox'] = str(self.c('approver') or 'admin@').strip()
-        if not reissue:
-            c = self._contact()
-            body.update(certificate=self.product(), years=int(_num(self.c('years'), 1) or 1),
-                        auth_firstname=c['contact_first'], auth_lastname=c['contact_last'],
-                        auth_email=c['contact_email'], auth_tel=c['contact_phone'],
-                        tech_firstname=c['contact_first'], tech_lastname=c['contact_last'],
-                        tech_email=c['contact_email'], tech_tel=c['contact_phone'])
-            if self.c('validation') in ('ov', 'ev'):
-                need = [('org_name', 'organisation'), ('org_street', 'street'),
-                        ('org_city', 'city'), ('org_zip', 'post code'),
-                        ('org_country', 'country')]
-                miss = [w for k, w in need if not str(self.c(k) or '').strip()]
-                if miss:
-                    raise PluginError('an OV/EV certificate needs the organisation\'s %s'
-                                      % ', '.join(miss), retry=False)
-                body.update(owner_name=self.c('org_name'), owner_street=self.c('org_street'),
-                            owner_city=self.c('org_city'), owner_zip=self.c('org_zip'),
-                            owner_country=str(self.c('org_country')).upper(),
-                            owner_tel=self.c('org_phone') or c['contact_phone'],
-                            owner_business_id=self.c('org_id') or None)
-            else:
-                body['owner_name'] = '%s %s' % (c['contact_first'], c['contact_last'])
-            if self.c('voucher'):
-                body['voucher'] = self.c('voucher')
+        title = self._s('contact_title')
+        tel = self._s('contact_tel').replace(' ', '')
+        body = {
+            'domain': names[0], 'years': str(int(_num(self.c('years'), 1) or 1)),
+            'csr': req.csr_pem.strip(), 'dv_auth_method': dcv,
+            'owner_name': self._s('owner_name'), 'owner_street': self._s('owner_street'),
+            'owner_city': self._s('owner_city'), 'owner_zip': self._s('owner_zip'),
+            'owner_country': self._s('owner_country').upper(),
+            'owner_tel': self._s('owner_tel').replace(' ', ''),
+            'auth_title': title, 'auth_firstname': self._s('contact_first'),
+            'auth_lastname': self._s('contact_last'), 'auth_tel': tel, 'auth_email': email,
+            'tech_title': title, 'tech_firstname': self._s('contact_first'),
+            'tech_lastname': self._s('contact_last'), 'tech_tel': tel, 'tech_email': email,
+            'invoice_name': self._s('invoice_name') or self._s('owner_name'),
+            'invoice_street': self._s('invoice_street') or self._s('owner_street'),
+            'invoice_city': self._s('invoice_city') or self._s('owner_city'),
+            'invoice_zip': self._s('invoice_zip') or self._s('owner_zip'),
+            'invoice_country': (self._s('invoice_country') or self._s('owner_country')).upper(),
+            'invoice_email': self._s('invoice_email') or email,
+        }
+        if len(names) > 1:
+            # "An array of domains included as SANs", of type string: joined by commas.
+            body['dns_names'] = ','.join(names[1:])
+        for k in ('invoice_ic', 'invoice_dic', 'voucher'):
+            if self._s(k):
+                body[k] = self._s(k)
         body.update(self._extra())
-        return {k: v for k, v in body.items() if v not in (None, '')}
+        return body
 
-    # -- state ---------------------------------------------------------------------------------
-    def _cert_key(self, req):
-        if getattr(req, 'cert_id', None):
-            return str(req.cert_id)
-        return hashlib.sha256(','.join(sorted(req.names or [])).encode()).hexdigest()[:24]
+    def _check_product(self, req):
+        """The product against the list kept by "Load the products" (when there is one)."""
+        kept = (self._get('sslmarket-products') or {}).get('products') or []
+        p = next((x for x in kept if x.get('product_code') == self.product()), None)
+        if not kept:
+            return None
+        if p is None:
+            self._say('the product %s is not in the list "Load the products" kept - the order '
+                      'is sent all the same' % self.product(), 'warn')
+            return None
+        years = int(_num(self.c('years'), 1) or 1)
+        if p.get('max_years') and years > int(p['max_years']):
+            raise PluginError('%s is sold for at most %s years (the order asks %d)'
+                              % (self.product(), p['max_years'], years), retry=False)
+        sans = len(req.names) - 1
+        if p.get('max_san_values') not in (None, '') and sans > int(_num(p['max_san_values'], 0)):
+            raise PluginError('%s takes at most %s more names (the certificate has %d)'
+                              % (self.product(), p['max_san_values'], sans), retry=False)
+        return p
 
-    def _get(self, key):
-        v = self.ctx.kv_get(key)
-        if isinstance(v, str):
-            try:
-                v = json.loads(v)
-            except ValueError:
-                return None
-        return v if isinstance(v, dict) else None
-
-    def _put(self, key, value, ttl_s=None):
-        self.ctx.kv_set(key, json.dumps(value) if value is not None else None, ttl_s=ttl_s)
-
-    def _seal(self, text, bind):
-        from acmelib.plugins.issuers.acme import _seal
-        return _seal(self.ctx, text, bind)
-
-    def _unseal(self, value, bind):
-        from acmelib.plugins.issuers.acme import _unseal
-        return _unseal(self.ctx, value, bind)
-
-    # -- an order -------------------------------------------------------------------------------
-    def order_id_of(self, answer):
-        oid = _dig(answer, 'order_id', 'orderId', 'order_number', 'orderNumber', 'id', 'number')
-        if isinstance(oid, dict):
-            oid = None
-        return str(oid) if oid not in (None, '') else None
-
+    # -- an order -----------------------------------------------------------------------------
     def detail(self, order_id):
-        _st, got = self.call('GET', 'path_detail', what='order %s' % order_id, order=order_id)
+        _st, got = self.api().call('GET', P_DETAIL, what='the order %s' % order_id,
+                                   ORDER_ID=order_id)
         if not isinstance(got, dict):
-            raise PluginError('SSLmarket sent no order detail for %s' % order_id,
-                              detail=bytes(got or b'')[:500].decode('utf-8', 'replace'))
+            raise PluginError('SSLmarket sent no detail of order %s' % order_id,
+                              detail=str(got)[:500])
         return got
 
     @staticmethod
-    def state_of(detail):
-        """'issued' | 'failed' | 'pending', and the words the API used."""
-        s = _dig(detail, 'status', 'state', 'order_status', 'orderStatus', 'certificate_status')
-        if isinstance(s, dict):
-            s = _dig(s, 'code', 'name', 'value', 'status')
-        words = str(s or '').strip()
-        low = words.lower()
-        if low in ISSUED or low.startswith(ISSUED_START):
-            return 'issued', words
-        if any(w in low for w in FAILED):
-            return 'failed', words
-        return 'pending', words or 'not said'
+    def failed(det):
+        st = str(det.get('state') or '').lower()
+        return any(w in st for w in FAILED)
 
     @staticmethod
-    def subscription_end(detail):
-        return _when(_dig(detail, 'subscription_end', 'subscription_valid_to', 'subscription_to',
-                          'subscriptionEnd', 'valid_to_subscription', 'order_valid_to',
-                          'order_expiration', 'paid_until', 'service_end', 'valid_till',
-                          'expiration', 'expires'))
+    def order_end(det):
+        return _when(det.get('expired'))
+
+    def _cert_key(self, req):
+        base = str(req.cert_id) if getattr(req, 'cert_id', None) else \
+            hashlib.sha256(','.join(sorted(req.names or [])).encode()).hexdigest()[:24]
+        return '%s:%s' % (base, _family(req.key_type))
+
+    def _follow_children(self, order, det):
+        """A renewed order (has_child) is followed to its newest child."""
+        seen = {str(order)}
+        while det.get('has_child') and det.get('child_id') and str(det['child_id']) not in seen:
+            child = str(det['child_id'])
+            self._say('the order %s was renewed as %s - that one is used' % (order, child))
+            seen.add(child)
+            order, det = child, self.detail(child)
+        return order, det
+
+    def _given(self, req):
+        """The order of the settings for this request: "Order to reuse", or for the
+        other key type of a dual certificate "Order to reuse for the twin"."""
+        main, alt = self._s('order_id'), self._s('order_id_alt')
+        if not alt:
+            return main or None
+        fam = _family(req.key_type)
+        for oid in (main, alt):
+            if not oid:
+                continue
+            try:
+                if _csr_family(self.detail(oid).get('csr')) == fam:
+                    return oid
+            except PluginError:
+                continue
+        return main or None
 
     def _choose(self, req, sub_key):
-        """('reissue', order_id) or ('new' | 'renew', None) - or a PluginError where a
-        purchase would be needed and is not allowed."""
+        """('reissue' | 'fill', order_id, detail) or ('new', None, None) - or a
+        PluginError where a purchase would be needed and is not allowed."""
         policy = self.c('policy') or 'reissue'
         allowed = _as_bool(self.c('allow_paid'))
-        given = str(self.c('order_id') or '').strip()
+        given = self._given(req)
         kept = self._get(sub_key) or {}
         order = given or kept.get('order_id')
-        why, renewable = '', bool(order)
+        why = ''
         if policy == 'reissue' and order:
             try:
                 det = self.detail(order)
@@ -641,39 +655,77 @@ class SslmarketIssuer(Issuer):
                 if given:
                     raise PluginError('the order to reuse, %s, cannot be read: %s' % (order, e),
                                       retry=e.retry)
-                det, why = None, 'the order %s acme made is not known to SSLmarket (%s)' % (order, e)
-                renewable = False
+                det = None
+                why = 'the order %s acme made is not known to SSLmarket (%s)' % (order, e)
             if det is not None:
-                state, words = self.state_of(det)
-                end = self.subscription_end(det)
+                order, det = self._follow_children(order, det)
+                end = self.order_end(det)
                 left = (end - _now()) / 86400.0 if end else None
-                margin = _num(self.c('min_days'), 30)
-                if state == 'failed' and not re.search(r'expir', words, re.I):
-                    why, renewable = 'the order %s is %s' % (order, words), False
-                elif left is not None and left < margin:
-                    why = 'the subscription of order %s ends %s (%d days)' % (
-                        order, time.strftime('%Y-%m-%d', time.gmtime(end)), max(0, int(left)))
-                elif state == 'failed':
-                    why = 'the order %s has %s' % (order, words)
+                if self.failed(det):
+                    why = 'the order %s is %s' % (order, det.get('state'))
+                elif left is not None and left < _num(self.c('min_days'), 30):
+                    why = 'the order %s ends %s (%d days)' % (order, _day(end), max(0, int(left)))
+                elif not det.get('certificate_serial_number'):
+                    self._say('the order %s has no certificate yet (%s): the request is put '
+                              'into it - nothing is bought' % (order, det.get('state') or '?'),
+                              'ok')
+                    return 'fill', order, det
                 else:
-                    self._say('the order %s is reissued (its subscription runs%s) - free, nothing '
-                              'is bought' % (order, ' until %s' % time.strftime(
-                                  '%Y-%m-%d', time.gmtime(end)) if end else ''), 'ok')
-                    return 'reissue', order
+                    self._say('the order %s is reissued (it runs until %s) - free, nothing is '
+                              'bought' % (order, _day(end)), 'ok')
+                    return 'reissue', order, det
         elif policy == 'reissue':
             why = 'there is no order to reissue in (set "Order to reuse", or allow a paid order ' \
                   'for the first certificate)'
         else:
-            why = 'the policy is to make a %s order at every renewal' % policy
-        kind = 'renew' if (policy == 'renew' or (policy == 'reissue' and renewable)) else 'new'
+            why = 'the policy is a new order at every renewal'
         if not allowed:
-            raise PluginError('nothing ordered: %s, and a %s order would be a purchase. Paid orders '
-                              'are not allowed for this source - switch on "Allow new orders '
-                              '(paid)", or buy the order in SSLmarket\'s customer administration '
-                              'and set it as "Order to reuse"' % (why, kind), retry=False)
-        self._say('%s - a %s order is made (paid from the account\'s credit: allowed for this '
-                  'source)' % (why[:1].upper() + why[1:], kind), 'warn')
-        return kind, None
+            raise PluginError('nothing ordered: %s, and a new order would be a purchase. Paid '
+                              'orders are not allowed for this source - switch on "Allow new '
+                              'orders (paid)", or buy the order in SSLmarket\'s customer '
+                              'administration and set it as "Order to reuse"' % why, retry=False)
+        self._say('%s - a new order is made (paid from the account\'s credit: allowed for this '
+                  'source)' % (why[:1].upper() + why[1:]), 'warn')
+        return 'new', None, None
+
+    def _new_order(self, req):
+        product = self.product()
+        self._check_product(req)
+        body = self.order_body(req)
+        try:
+            before = {str(o.get('order_id')) for o in self.api().orders()}
+        except PluginError as e:
+            if not e.retry:
+                raise
+            before = None
+        sent_at = _now()
+        st, got = self.api().call('POST', P_ORDER, body, what='the order', PRODUCT_CODE=product)
+        oid = got.get('order_id') if isinstance(got, dict) else None
+        if not oid:
+            # The 201 of the OpenAPI has no body: the order is found in the list.
+            oid = self._find_order(req.names[0], product, before, sent_at)
+        if not oid:
+            raise PluginError('SSLmarket took the order (%d) but it cannot be found in the order '
+                              'list - look in the customer administration and set it as "Order '
+                              'to reuse" (a second order would be paid again)' % st, retry=False,
+                              detail=str(got)[:1000])
+        self._say('order %s made at SSLmarket: %s for %s, %s year(s)' % (
+            oid, product, ', '.join(req.names), body['years']), 'ok')
+        return str(oid)
+
+    def _find_order(self, domain, product, before, sent_at):
+        cands = []
+        for o in self.api().orders():
+            if str(o.get('domain') or '').lower() != domain.lower() or \
+                    str(o.get('product_code') or '') != product:
+                continue
+            if before is not None and str(o.get('order_id')) in before:
+                continue
+            at = _when(o.get('inserted')) or 0
+            if before is None and at and at < sent_at - 86400:
+                continue
+            cands.append((at, int(_num(o.get('order_id'), 0)), str(o.get('order_id'))))
+        return max(cands)[2] if cands else None
 
     def issue(self, req):
         if not req.csr_pem:
@@ -687,204 +739,170 @@ class SslmarketIssuer(Issuer):
                       'alone, and its DCV records taken away' % (
                           held.get('order_id'), ', '.join(held.get('names') or [])), 'warn')
             self._cleanup(req, held.get('dcv') or [])
+            self._waiting(held.get('order_id'), None)
             self._put(slot, None)
             held = None
         if held:
             order_id = str(held['order_id'])
-            key_pem = self._unseal(held.get('key'), slot) if held.get('key') else req.key_pem
+            key_pem = _unseal(self.ctx, held['key'], slot) if held.get('key') else None
             if not key_pem:
                 self._put(slot, None)
-                raise PluginError('the key of the waiting order %s cannot be opened - asked again '
-                                  'with a new order' % order_id)
+                raise PluginError('the key of the waiting order %s cannot be opened - it is let '
+                                  'go; the next try starts again' % order_id)
             self._say('the order %s (%s) waits at SSLmarket since %s - asked for again, nothing '
                       'is ordered' % (order_id, held.get('how'), time.strftime(
                           '%Y-%m-%d %H:%M', time.gmtime(held.get('at') or 0))))
         else:
-            how, order_id = self._choose(req, sub_key)
+            how, order_id, det = self._choose(req, sub_key)
             key_pem = req.key_pem
+            old_serial = ''
             if how == 'reissue':
-                _st, got = self.call('POST', 'path_reissue', self.order_body(req, reissue=True),
-                                     what='the reissue of order %s' % order_id, order=order_id)
+                old_serial = str(det.get('certificate_serial_number') or '')
+                if det.get('reissue_pending'):
+                    self._say('a reissue of order %s is running already (not acme\'s) - it is '
+                              'cancelled and asked again with this request' % order_id, 'warn')
+                    self.api().call('PUT', P_CANCEL_REISSUE, what='the cancelling of the reissue '
+                                    'of order %s' % order_id, ORDER_ID=order_id)
+                self.api().call('POST', P_REISSUE, {'csr': req.csr_pem.strip()},
+                                what='the reissue of order %s' % order_id, ORDER_ID=order_id)
                 self._say('reissue of order %s asked for' % order_id, 'ok')
+            elif how == 'fill':
+                edit = {'csr': req.csr_pem.strip(), 'dv_auth_method': self.c('dcv') or 'DNS'}
+                self.api().call('PUT', P_DETAIL, edit, what='the editing of order %s' % order_id,
+                                ORDER_ID=order_id)
+                self._say('the request and the DCV method (%s) put into order %s'
+                          % (edit['dv_auth_method'], order_id), 'ok')
             else:
-                body = self.order_body(req)
-                body['method'] = how
-                _st, got = self.call('POST', 'path_order', body, what='the order',
-                                     product=self.product())
-                order_id = self.order_id_of(got)
-                if not order_id:
-                    raise PluginError('SSLmarket took the order but said no order number - look '
-                                      'in the customer administration before trying again (a '
-                                      'second order would be paid again)', retry=False,
-                                      detail=json.dumps(got)[:2000] if isinstance(got, (dict, list))
-                                      else None)
-                self._say('order %s made at SSLmarket: %s for %s, %s year(s)' % (
-                    order_id, self.product(), ', '.join(req.names), self.c('years') or 1), 'ok')
-                self._put(sub_key, {'order_id': order_id, 'product': self.product(),
-                                    'at': _now()})
+                order_id = self._new_order(req)
+            self._put(sub_key, {'order_id': order_id, 'product': self.c('product'), 'at': _now()})
             held = {'order_id': order_id, 'how': how, 'at': _now(), 'names': list(req.names),
-                    'key': self._seal(key_pem, slot), 'dcv': [], 'placed': False}
+                    'key': _seal(self.ctx, key_pem, slot), 'old_serial': old_serial, 'dcv': [],
+                    'placed': False}
             # Kept at once: whatever happens next, the order is not bought twice.
             self._put(slot, held, ttl_s=120 * 86400)
-            held['answer'] = got if isinstance(got, dict) else None
+            self._waiting(order_id, req.names)
         if not held.get('placed'):
-            self._dcv(req, slot, held, order_id, held.pop('answer', None))
+            self._dcv(req, slot, held, order_id)
         return self._await(req, slot, held, order_id, key_pem)
 
-    def _dcv(self, req, slot, held, order_id, answer):
-        """The DCV records of the order put in place (once per order)."""
-        recs = self.dcv_records(answer) if answer else []
-        if not recs and self.c('dcv') != 'email':
-            try:
-                recs = self.dcv_records(self.detail(order_id))
-            except PluginError as e:
-                self._say('the order\'s DCV could not be read: %s' % e, 'warn')
-        if not recs and self.c('dcv') != 'email':
-            self._say('SSLmarket said no DCV record for order %s (done already, or another '
-                      'shape of answer - see docs/sslmarket.md)' % order_id)
+    def _waiting(self, order_id, names):
+        """The orders waiting here, for the actions (resend)."""
+        w = self._get('sslmarket-waiting') or {}
+        if names:
+            w[str(order_id)] = {'names': list(names), 'at': _now()}
+        else:
+            w.pop(str(order_id), None)
+        self._put('sslmarket-waiting', w or None, ttl_s=120 * 86400)
+
+    # -- DCV -------------------------------------------------------------------------------
+    def _dcv(self, req, slot, held, order_id):
+        """The DCV of the order put in place (once per order)."""
+        method = self.c('dcv') or 'DNS'
+        if method == 'Email':
+            boxes = sorted({'%s@%s' % (b, _base(n)) for n in req.names for b in DCV_MAIL_BOXES})
+            self._say('DCV by e-mail: the CA writes to %s - somebody has to confirm it ("Send '
+                      'the DCV e-mail again" sends it once more)' % ', '.join(boxes))
+            held['placed'] = True
+            self._put(slot, held, ttl_s=120 * 86400)
+            return
+        content, det = None, None
+        end = _now() + min(120.0, _num(self.c('wait_issue'), 600))
+        while True:
+            det = self.detail(order_id)
+            content = str(det.get('dv_auth_content') or '').strip()
+            if content or self.failed(det) or det.get('certificate_serial_number') and \
+                    held.get('how') != 'reissue' or _now() >= end or self.ctx.cancelled():
+                break
+            self._sleep(min(10.0, max(1.0, end - _now())))
+        if not content:
+            self._say('SSLmarket said no dv_auth_content for order %s yet (%s) - asked again at '
+                      'the next try' % (order_id, det.get('state') if det else '?'), 'warn')
+            return
+        if det.get('dv_auth_method') and det['dv_auth_method'] != method:
+            self._say('the order %s is validated by %s, not %s as set here - its own method is '
+                      'used' % (order_id, det['dv_auth_method'], method), 'warn')
+            method = det['dv_auth_method']
+        self._say('SSLmarket\'s DCV for order %s (%s): %s' % (order_id, method, content[:500]))
+        recs = self.dcv_records(content, method, req.names)
         held['dcv'] = self._place_all(req, recs)
         held['placed'] = True
         self._put(slot, held, ttl_s=120 * 86400)
         if held['dcv']:
             self._wait_visible(req, held['dcv'])
-            if self._path('path_dcv_check', order=order_id):
-                try:
-                    self.call('POST', 'path_dcv_check', {}, what='the DCV check', order=order_id)
-                except PluginError as e:
-                    self._say('the DCV check could not be asked for: %s' % e, 'warn')
 
-    def _await(self, req, slot, held, order_id, key_pem):
-        end = _now() + _num(self.c('wait_issue'), 600)
-        every = max(1.0, _num(self.c('poll_every'), 15))
-        while True:
-            det = self.detail(order_id)
-            state, words = self.state_of(det)
-            if state == 'issued':
-                out = self.download(order_id, key_pem, req)
-                self._cleanup(req, held.get('dcv') or [])
-                self._put(slot, None)
-                if key_pem.strip() != (req.key_pem or '').strip():
-                    out.key_pem = key_pem       # the key the waiting order was made with
-                return out
-            if state == 'failed':
-                self._cleanup(req, held.get('dcv') or [])
-                self._put(slot, None)
-                reason = _dig(det, 'reason', 'status_reason', 'note', 'message')
-                raise PluginError('SSLmarket: the order %s is %s%s' % (
-                    order_id, words, ' - %s' % str(reason)[:300] if reason else ''), retry=False)
-            if self.ctx.cancelled():
-                raise PluginError('stopped', retry=False)
-            if _now() >= end:
-                more = ''
-                if self.c('validation') in ('ov', 'ev'):
-                    more = ' (OV/EV: the CA checks the organisation - it may phone the contact)'
-                elif self.c('dcv') == 'email':
-                    more = ' (the approver must confirm the e-mail the CA sent)'
-                raise PluginError('the order %s waits at SSLmarket (%s)%s; the DCV stays in '
-                                  'place and acme asks for the certificate again at the next try '
-                                  '- nothing is ordered again' % (order_id, words, more),
-                                  retry=True)
-            self._say('order %s: %s - asked again in %d s' % (order_id, words, int(every)))
-            self._sleep(min(every, max(1.0, end - _now())))
-            every = min(every * 1.5, 120.0)
-
-    def download(self, order_id, key_pem, req):
-        _st, got = self.call('GET', 'path_download', what='the certificate of order %s' % order_id,
-                             order=order_id)
-        from acmelib.certs import pki
-        certs = _pem_all(json.dumps(got) if isinstance(got, (dict, list)) else got)
-        if not certs:
-            raise PluginError('SSLmarket sent no certificate for order %s' % order_id)
-        leaf = None
-        for c in certs:
-            if pki.key_matches(c, key_pem):
-                leaf = c
-                break
-        if not leaf:
-            raise PluginError('the certificate of order %s is for another key than this request '
-                              '(another reissue of the order?) - it is not used' % order_id,
-                              retry=False)
-        chain = pki.order_chain(leaf, [c for c in certs if c != leaf]) or \
-            [c for c in certs if c != leaf]
-        info = pki.cert_info(leaf)
-        self._say('the certificate came: order %s, serial %s, until %s' % (
-            order_id, info.get('serial') or '?',
-            time.strftime('%Y-%m-%d', time.gmtime(info.get('not_after') or 0))), 'ok')
+    def dcv_records(self, content, method, names):
+        """[{'domain', 'type': 'txt'|'cname'|'file', 'fqdn'|'path', 'value'}] out of
+        dv_auth_content - its format is not specified, so read in the shapes it may have:
+        JSON, record lines ("NAME [TTL] [IN] TXT VALUE"), a URL and the file's content,
+        or a bare value (for every name of the certificate)."""
+        text = str(content or '').strip()
+        bases = []
+        for n in names:
+            b = _base(n)
+            if b and b not in bases:
+                bases.append(b)
         try:
-            self._put('sslmarket-serial:%s' % pki.norm_serial(info.get('serial') or '')[:80],
-                      {'order_id': order_id}, ttl_s=5 * 366 * 86400)
-        except Exception:                               # noqa: BLE001
-            pass
-        return Issued(leaf, chain, info={'order_id': order_id, 'api': self.base_url()})
-
-    # -- DCV -----------------------------------------------------------------------------------
-    def dcv_records(self, answer):
-        """[{'domain', 'type': 'txt'|'cname'|'file'|'email', 'fqdn', 'value', 'path'}]
-        from an order's answer, read in the several shapes it might come in."""
-        dcv = self.c('dcv') or 'dns-txt'
-        if dcv == 'email':
-            return []
-        found = _dig(answer, 'dcv', 'dcvs', 'dcv_details', 'dcv_data', 'validation',
-                     'validations', 'domain_validation', 'domainValidation', 'dcv_records',
-                     'dns', 'file', 'auth')
-        items = []
-        if isinstance(found, list):
-            items = [x for x in found if isinstance(x, dict)]
-        elif isinstance(found, dict):
-            direct = {str(k).lower() for k in found}
-            if any(isinstance(v, dict) for v in found.values()) and not direct & {
-                    'value', 'record_value', 'txt_value', 'txt', 'token', 'content',
-                    'file_content', 'cname_value'}:
-                for k, v in found.items():
-                    if isinstance(v, dict):
-                        items.append(dict(v, domain=v.get('domain') or k))
-            else:
-                items = [found]
-        if not items and isinstance(answer, dict) and _dig(
-                answer, 'record_value', 'txt_value', 'dns_txt_value', 'cname_value', 'dns_value',
-                'file_content', 'file_contents'):
-            items = [answer]            # the record's fields at the top of the answer
-        domain0 = _dig(answer, 'domain', 'common_name', 'commonName', 'cn')
-        out = []
-        for it in items:
-            domain = _base(it.get('domain') or it.get('dns_name') or it.get('domain_name') or
-                           domain0 or '')
-            value = _dig(it, 'record_value', 'txt_value', 'dns_txt_value', 'cname_value',
-                         'dns_value', 'value', 'txt', 'token', 'target', 'points_to',
-                         'emailHash', 'hash')
-            fqdn = _dig(it, 'record_name', 'txt_name', 'cname_name', 'dns_record', 'host',
-                        'record', 'fqdn', 'dns_name_record')
-            path = _dig(it, 'file_path', 'path', 'file_url', 'url', 'file_name', 'filename')
-            content = _dig(it, 'file_content', 'content', 'file_contents', 'body', 'file_value')
-            kind = str(_dig(it, 'type', 'method', 'dcv_method') or '').lower()
-            if dcv == 'http-file' or 'file' in kind or 'http' in kind:
-                if not content:
-                    content = value
-                if not (content and (path or domain)):
+            j = json.loads(text) if text[:1] in ('{', '[') else None
+        except ValueError:
+            j = None
+        if isinstance(j, dict):
+            j = [j]
+        if isinstance(j, list):
+            out = []
+            for it in j:
+                if not isinstance(it, dict):
                     continue
-                p = str(path or 'fileauth.txt')
-                if re.match(r'^https?://', p):
-                    u = urllib.parse.urlsplit(p)
-                    domain = domain or _base(u.hostname)
-                    p = u.path
-                if not p.startswith('/'):
-                    p = '/.well-known/pki-validation/' + p
-                out.append({'domain': domain, 'type': 'file', 'path': p,
-                            'value': str(content)})
-                continue
-            if not value or not domain:
-                continue
-            rtype = 'cname' if (dcv == 'dns-cname' or 'cname' in kind) else 'txt'
-            if fqdn:
-                fqdn = str(fqdn).strip().rstrip('.').lower()
-                if '.' not in fqdn or not fqdn.endswith(domain):
-                    fqdn = '%s.%s' % (fqdn.strip('.'), domain) if fqdn not in ('@', '') else domain
+                low = {str(k).lower(): v for k, v in it.items()}
+                value = low.get('value') or low.get('token') or low.get('content') or \
+                    low.get('txt') or low.get('hash')
+                where = low.get('name') or low.get('host') or low.get('record') or \
+                    low.get('path') or low.get('url') or low.get('file')
+                if value:
+                    line = ('%s %s' % (where, value)) if where else str(value)
+                    out.extend(self.dcv_records(line if method == 'FILE' else
+                                                ('%s TXT %s' % (where, value) if where else value),
+                                                method, [low.get('domain') or n for n in names]
+                                                if low.get('domain') else names))
+            return out
+        if method == 'FILE':
+            url = re.search(r'(https?://[^\s"\']+)', text)
+            path, body = None, text
+            if url:
+                u = urllib.parse.urlsplit(url.group(1))
+                path = u.path
+                body = (text[:url.start()] + text[url.end():]).strip()
+                hosts = [_base(u.hostname)] if u.hostname else bases
             else:
-                label = str(self.c('txt_label') or '').strip().strip('.')
-                fqdn = '%s.%s' % (label, domain) if label and label != '@' else domain
-            out.append({'domain': domain, 'type': rtype, 'fqdn': fqdn,
-                        'value': str(value).strip().rstrip('.') if rtype == 'cname' else str(value)})
-        return out
+                m = re.match(r'^(/?\.well-known/\S+|/\S+\.txt)\s+(.+)$', text, re.S)
+                if m:
+                    path, body = m.group(1), m.group(2).strip()
+                hosts = bases
+            if not path:
+                path = '/.well-known/pki-validation/fileauth.txt'
+            if not path.startswith('/'):
+                path = '/' + path
+            return [{'domain': h, 'type': 'file', 'path': path, 'value': body.strip('"')}
+                    for h in hosts]
+        out = []
+        for line in [ln.strip() for ln in text.splitlines() if ln.strip()]:
+            m = re.match(r'^(\S+?)\.?\s+(?:\d+\s+)?(?:IN\s+)?(TXT|CNAME)\s+"?(.+?)"?\s*$', line, re.I)
+            if m:
+                fqdn, rtype, value = m.group(1).lower(), m.group(2).lower(), m.group(3).strip()
+                dom = next((b for b in sorted(bases, key=len, reverse=True)
+                            if fqdn == b or fqdn.endswith('.' + b)), None)
+                if dom is None:
+                    dom = bases[0] if bases else _base(fqdn)
+                    fqdn = '%s.%s' % (fqdn, dom) if fqdn not in ('@',) else dom
+                out.append({'domain': dom, 'type': rtype, 'fqdn': fqdn,
+                            'value': value.rstrip('.') if rtype == 'cname' else value})
+        if out:
+            return out
+        if not re.match(r'^\S+$', text):
+            return []           # words acme cannot read: shown in the job, done by hand
+        label = self._s('txt_label').strip('.')
+        return [{'domain': b, 'type': 'txt',
+                 'fqdn': '%s.%s' % (label, b) if label and label != '@' else b, 'value': text}
+                for b in bases]
 
     def _challenge_for(self, req, domain):
         ch = req.challenges or {}
@@ -900,36 +918,32 @@ class SslmarketIssuer(Issuer):
         return best if best else (None, None)
 
     def _place_all(self, req, recs):
-        placed, manual = [], []
+        placed = []
         for rec in recs:
             name, ch = self._challenge_for(req, rec['domain'])
-            how, handle = None, None
-            if ch is not None:
-                how, handle = self._place(ch, name, rec)
+            how, handle = (self._place(ch, name, rec) if ch is not None else (None, None))
             if how is None:
-                manual.append(rec)
                 placed.append({'rec': rec, 'name': name, 'how': 'manual', 'handle': None})
+                if rec['type'] == 'file':
+                    self._say('put in place by hand, for the CA: http://%s%s holding "%s" (no '
+                              'validation module of the certificate can write it)' % (
+                                  rec['domain'], rec['path'], rec['value']), 'warn')
+                else:
+                    self._say('put in place by hand, for the CA: %s. %s "%s" (no validation '
+                              'module of the certificate can write it)' % (
+                                  rec['fqdn'], rec['type'].upper(), rec['value']), 'warn')
                 continue
             placed.append({'rec': rec, 'name': name, 'how': how, 'handle': handle,
                            'kind': getattr(ch, 'kind', '')})
-        for rec in manual:
-            if rec['type'] == 'file':
-                self._say('put in place by hand, for the CA: http://%s%s holding "%s" (no '
-                          'challenge module of the certificate can write it)' % (
-                              rec['domain'], rec['path'], rec['value']), 'warn')
-            else:
-                self._say('put in place by hand, for the CA: %s. %s "%s" (no challenge module of '
-                          'the certificate can write it)' % (rec['fqdn'], rec['type'].upper(),
-                                                             rec['value']), 'warn')
         return placed
 
     def _place(self, ch, name, rec):
         """(how, handle) - how the record went in, or (None, None) where it cannot."""
         fn = getattr(ch, 'present_record', None)
         if callable(fn):
-            # A challenge module that writes any record or file (none does yet).
-            h = fn(name, rec['type'], rec.get('fqdn') or rec.get('path'), rec['value'])
-            return 'record', h
+            # A validation module that writes any record or file.
+            return 'record', fn(name, rec['type'], rec.get('fqdn') or rec.get('path'),
+                                rec['value'])
         types = tuple(getattr(ch, 'types', ()) or ())
         if rec['type'] == 'txt' and 'dns-01' in types:
             if rec['fqdn'] == '_acme-challenge.' + rec['domain']:
@@ -993,8 +1007,8 @@ class SslmarketIssuer(Issuer):
                 ch = next((c for c in (req.challenges or {}).values()
                            if getattr(c, 'kind', '') == p.get('kind')), None)
             if ch is None:
-                self._say('the DCV record of %s is left (no challenge module of kind %s here) - '
-                          'take it away by hand' % (p['rec']['domain'], p.get('kind') or '?'),
+                self._say('the DCV record of %s is left (no validation module of kind %s here) '
+                          '- take it away by hand' % (p['rec']['domain'], p.get('kind') or '?'),
                           'warn')
                 continue
             try:
@@ -1016,88 +1030,379 @@ class SslmarketIssuer(Issuer):
                 self._say('the DCV record of %s could not be taken away: %s'
                           % (p['rec']['domain'], e), 'warn')
 
+    # -- waiting, downloading -------------------------------------------------------------------
+    def _done(self, det, held):
+        """Whether the order's certificate is there for this request."""
+        serial = str(det.get('certificate_serial_number') or '')
+        if not serial or det.get('reissue_pending'):
+            return False
+        if held.get('how') == 'reissue' and serial == str(held.get('old_serial') or ''):
+            return False
+        return True
+
+    def _await(self, req, slot, held, order_id, key_pem):
+        end = _now() + _num(self.c('wait_issue'), 600)
+        every = max(1.0, _num(self.c('poll_every'), 15))
+        while True:
+            det = self.detail(order_id)
+            if self.failed(det):
+                self._cleanup(req, held.get('dcv') or [])
+                self._waiting(order_id, None)
+                self._put(slot, None)
+                raise PluginError('SSLmarket: the order %s is %s' % (order_id, det.get('state')),
+                                  retry=False)
+            if self._done(det, held):
+                out = self.download(order_id, key_pem, held.get('how') == 'reissue')
+                if out is not None:
+                    self._cleanup(req, held.get('dcv') or [])
+                    self._waiting(order_id, None)
+                    self._put(slot, None)
+                    if key_pem.strip() != (req.key_pem or '').strip():
+                        out.key_pem = key_pem   # the key the waiting order was made with
+                    return out
+            if not held.get('placed'):
+                self._dcv(req, slot, held, order_id)
+            if self.ctx.cancelled():
+                raise PluginError('stopped', retry=False)
+            if _now() >= end:
+                more = ''
+                if self.c('dcv') == 'Email':
+                    more = ' (the CA\'s e-mail to admin@, hostmaster@… of the domain has to be ' \
+                           'confirmed; "Send the DCV e-mail again" sends it once more)'
+                elif any(p.get('how') == 'manual' for p in held.get('dcv') or []):
+                    more = ' (the DCV record said in the job has to be put in place by hand)'
+                raise PluginError('the order %s waits at SSLmarket (%s%s)%s; acme asks for the '
+                                  'certificate again at the next try - nothing is ordered again '
+                                  '(OV/EV: the CA checks the organisation, it may take days)' % (
+                                      order_id, det.get('state') or 'no state said',
+                                      ', reissue running' if det.get('reissue_pending') else '',
+                                      more), retry=True)
+            self._say('order %s: %s - asked again in %d s' % (order_id, det.get('state') or '?',
+                                                              int(every)))
+            self._sleep(min(every, max(1.0, end - _now())))
+            every = min(every * 1.5, 120.0)
+
+    def _fetch(self, order_id, fmt):
+        _st, got = self.api().call('GET', P_DOWNLOAD, what='the certificate of order %s (%s)'
+                                   % (order_id, fmt), ORDER_ID=order_id, FORMAT=fmt)
+        if isinstance(got, (dict, list)):
+            got = json.dumps(got)
+        return got
+
+    def download(self, order_id, key_pem, reissue=False):
+        """Issued, or None when the order still has the certificate of before (a reissue
+        that is not through)."""
+        from acmelib.certs import pki
+        leafs = _certs_in(self._fetch(order_id, 'pem_server'))
+        if not leafs:
+            raise PluginError('SSLmarket sent no certificate for order %s' % order_id)
+        leaf = next((c for c in leafs if pki.key_matches(c, key_pem)), None)
+        if not leaf:
+            if reissue:
+                self._say('the certificate of order %s is still the one before the reissue' %
+                          order_id)
+                return None
+            raise PluginError('the certificate of order %s is for another key than this request '
+                              '(reissued meanwhile in the administration?) - it is not used'
+                              % order_id, retry=False)
+        others = [c for c in leafs if c != leaf]
+        try:
+            others += _certs_in(self._fetch(order_id, 'pem_intermediate'))
+        except PluginError as e:
+            self._say('the intermediate certificates could not be read (%s) - from the PKCS#7'
+                      % e, 'warn')
+        if not others:
+            try:
+                others = [c for c in _certs_in(self._fetch(order_id, 'p7b')) if c != leaf]
+            except PluginError:
+                pass
+        chain = pki.order_chain(leaf, others) or others
+        info = pki.cert_info(leaf)
+        self._say('the certificate came: order %s, serial %s, until %s' % (
+            order_id, info.get('serial') or '?', _day(info.get('not_after'))), 'ok')
+        try:
+            self._put('sslmarket-serial:%s' % pki.norm_serial(info.get('serial') or '')[:80],
+                      {'order_id': order_id}, ttl_s=5 * 366 * 86400)
+        except Exception:                               # noqa: BLE001
+            pass
+        return Issued(leaf, chain, info={'order_id': order_id, 'api': self.base_url()})
+
     # -- revocation, trying it, the actions ------------------------------------------------------
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):
         from acmelib.certs import pki
         info = pki.cert_info(cert_pem)
         kept = self._get('sslmarket-serial:%s' % pki.norm_serial(info.get('serial') or '')[:80])
-        order_id = (kept or {}).get('order_id') or str(self.c('order_id') or '').strip()
+        order_id = (kept or {}).get('order_id') or self._s('order_id')
         if not order_id:
             raise PluginError('the order of this certificate is not known to acme - revoke it in '
                               'SSLmarket\'s customer administration', retry=False)
-        self.call('POST', 'path_revoke', {'reason': reason, 'serial': info.get('serial')},
-                  what='the revocation of order %s' % order_id, order=order_id)
-        self._say('SSLmarket asked to revoke the certificate of order %s (reason %s)'
-                  % (order_id, reason), 'ok')
+        try:
+            self.api().call('PUT', P_REVOKE, what='the revocation of order %s' % order_id,
+                            ORDER_ID=order_id)
+        except PluginError as e:
+            raise PluginError('%s - SSLmarket\'s API revokes only DigiCert Client Premium '
+                              '(Class 1 and 2) certificates; a TLS certificate is revoked in the '
+                              'customer administration (or by the CA\'s support)' % e,
+                              detail=e.detail, retry=False)
+        self._say('SSLmarket revokes the certificate of order %s (%s)' % (order_id, reason), 'ok')
         return 'revocation of order %s asked for' % order_id
 
-    def _items(self, got):
-        if isinstance(got, list):
-            return [x for x in got if isinstance(x, dict)]
-        if isinstance(got, dict):
-            for k in ('data', 'items', 'products', 'orders', 'list', 'result', 'results'):
-                v = got.get(k)
-                if isinstance(v, list):
-                    return [x for x in v if isinstance(x, dict)]
-                if isinstance(v, dict):
-                    inner = self._items(v)
-                    if inner:
-                        return inner
-            if all(isinstance(v, dict) for v in got.values()) and got:
-                return [dict(v, code=v.get('code') or k) for k, v in got.items()]
-        return []
-
-    def products(self):
-        _st, got = self.call('GET', 'path_products', what='the product list')
-        out = []
-        for p in self._items(got):
-            code = _dig(p, 'code', 'product_code', 'productCode', 'id', 'sku')
-            if code in (None, ''):
-                continue
-            out.append({'code': str(code),
-                        'name': str(_dig(p, 'name', 'title', 'product_name') or code),
-                        'price': _dig(p, 'price', 'price_without_vat', 'amount', 'cost')})
-        return out
-
     def test(self):
-        prods = self.products()
+        prods = self.api().products()
         bits = ['signed in to %s' % self.base_url(), '%d products' % len(prods)]
         code = self.product()
-        if prods and code not in [p['code'] for p in prods]:
+        p = next((x for x in prods if x.get('product_code') == code), None)
+        if p is None:
             bits.append('the product %s is NOT among them ("Load the products" lists the codes)'
                         % code)
-        elif prods:
-            bits.append('the product %s is offered' % code)
-        try:
-            _st, acc = self.call('GET', 'path_account', what='the account')
-            credit = _dig(acc, 'credit', 'balance', 'credit_balance', 'zustatek', 'amount')
-            if credit not in (None, ''):
-                bits.append('credit %s' % credit)
-        except PluginError:
-            pass                    # not every API says the credit
+        else:
+            bits.append('the product %s is offered (%s, %s)' % (code, p.get('title') or '?',
+                                                                 p.get('validate_type') or '?'))
+        bits.append('%d orders' % len(self.api().orders()))
         bits.append('new paid orders %s' % ('ALLOWED' if _as_bool(self.c('allow_paid'))
                                             else 'not allowed (reissues only)'))
         return '; '.join(bits)
 
+    def _orders_to_act_on(self):
+        out = [self._s('order_id')] if self._s('order_id') else []
+        out += [k for k in (self._get('sslmarket-waiting') or {}) if k not in out]
+        return out
+
     def action(self, key):
         if key == 'products':
-            prods = self.products()
-            for p in prods:
-                self._say('%s - %s%s' % (p['code'], p['name'],
-                                         ' - %s' % p['price'] if p['price'] not in (None, '') else ''))
-            self._put('sslmarket-products', {'at': _now(), 'products': prods[:500]},
-                      ttl_s=30 * 86400)
-            return '%d products; put the code under Product → Another product' % len(prods)
+            prods = self._say_products()
+            return '%d products; put the code under Product code' % len(prods)
         if key == 'orders':
-            _st, got = self.call('GET', 'path_orders', what='the order list')
-            items = self._items(got)
-            for o in items[:200]:
-                state = self.state_of(o)[1]
-                end = self.subscription_end(o)
-                self._say('order %s: %s, %s, %s%s' % (
-                    self.order_id_of(o) or '?', _dig(o, 'domain', 'common_name', 'cn') or '?',
-                    _dig(o, 'product', 'product_code', 'certificate') or '?', state,
-                    ', subscription until %s' % time.strftime('%Y-%m-%d', time.gmtime(end))
-                    if end else ''))
+            items = self.api().orders()
+            for o in items[:300]:
+                self._say('order %s: %s%s, %s, %s year(s), %s, inserted %s, ends %s' % (
+                    o.get('order_id') or '?', o.get('domain') or '?',
+                    ' + %s' % o['dns_names'] if o.get('dns_names') else '',
+                    o.get('product_code') or '?', o.get('years') or '?', o.get('state') or '?',
+                    o.get('inserted') or '?', o.get('expired') or '?'))
             return '%d orders' % len(items)
+        if key == 'resend':
+            todo = self._orders_to_act_on()
+            if not todo:
+                raise PluginError('no order is waiting here, and no order to reuse is set',
+                                  retry=False)
+            for oid in todo:
+                self.api().call('PUT', P_RESEND, what='the DCV e-mail of order %s' % oid,
+                                ORDER_ID=oid)
+                self._say('the DCV e-mail of order %s sent again' % oid, 'ok')
+            return 'DCV e-mail sent again for order %s' % ', '.join(todo)
+        if key == 'cancel_reissue':
+            oid = self._s('order_id')
+            if not oid:
+                raise PluginError('set the order to reuse first', retry=False)
+            self.api().call('PUT', P_CANCEL_REISSUE, what='the cancelling of the reissue of order '
+                            '%s' % oid, ORDER_ID=oid)
+            return 'the reissue of order %s cancelled' % oid
         return Issuer.action(self, key)
+
+
+# ---------------------------------------------------------------------------
+# ACME with a key made through the API
+# ---------------------------------------------------------------------------
+_ACME_OWN = ('directory', 'directory_url', 'eab_kid', 'eab_hmac')
+
+
+class SslmarketAcmeIssuer(_Common, AcmeIssuer):
+    kind = 'sslmarket_acme'
+    default_name = 'SSLmarket ACME'
+    title = 'SSLmarket ACME (DigiCert, EAB made through the API)'
+    description = ('An ACME key made at SSLmarket through its API (directory URL and EAB), then '
+                   'every certificate ordered by ACME and each name proved by DNS-01 or HTTP-01 '
+                   '- renewals with no order and no DCV of SSLmarket\'s.')
+    vendor = 'SSLmarket'
+    doc = 'docs/sslmarket.md'
+    actions = [
+        {'key': 'acme_keys', 'label': 'Load the ACME keys',
+         'help': 'The ACME keys of the account (name, product, validity, state).',
+         'changes': False},
+        {'key': 'organizations', 'label': 'Load the organisations',
+         'help': 'The organisations ACME may use, with their validations - the id goes in '
+                 '"Organisation" (OV/EV products).', 'changes': False},
+        {'key': 'make_key', 'label': 'Make an ACME key',
+         'help': 'A new ACME key of these settings at SSLmarket, kept for this source (the one '
+                 'before stays active until revoked).', 'changes': True},
+        {'key': 'revoke_key', 'label': 'Revoke the ACME key',
+         'help': 'The key this source uses is revoked at SSLmarket: no certificate can be '
+                 'issued with it any more.', 'confirm': 'Revoke the ACME key at SSLmarket? '
+                                                        'Certificates of it stay valid.',
+         'changes': True},
+    ]
+    fields = API_FIELDS + [
+        field('acme_product', 'ACME product code', 'text', required=True,
+              placeholder='a product code of an ACME product',
+              help='The product_code of an ACME-enabled product (SSLmarket\'s offer, "Load the '
+                   'ACME keys" shows those of keys made before).'),
+        field('acme_name', 'Name of the ACME key', 'text', default='acme',
+              help='The key is made under this name, and found again by it.'),
+        field('validity_days', 'Certificate validity (days)', 'number', default=199,
+              help='1-199 - each certificate of the key is issued for this long.'),
+        field('organization_id', 'Organisation', 'text', placeholder='12345',
+              help='The organisation_id ("Load the organisations") - for products that '
+                   'validate the organisation (OV/EV).'),
+        field('make_key', 'Make the ACME key when there is none', 'bool', default=True,
+              help='Off: only a key made before (with "Make an ACME key", or its EAB pasted '
+                   'below) is used.'),
+        field('given_kid', 'EAB key id of a key made elsewhere', 'text', advanced=True,
+              help='A key made in the customer administration: its EAB key id and HMAC (shown '
+                   'once at its making); its directory URL is found by its name.'),
+        field('given_hmac', 'EAB HMAC of a key made elsewhere', 'secret', advanced=True),
+    ] + [f for f in AcmeIssuer.fields if f['key'] not in _ACME_OWN]
+
+    def __init__(self, config, ctx):
+        AcmeIssuer.__init__(self, config, ctx)
+        self._cred = None
+
+    @classmethod
+    def describe(cls):
+        d = AcmeIssuer.describe.__func__(cls)
+        d.update(needs_challenge=True, challenge_types=list(cls.challenge_types),
+                 wildcards=cls.wildcards, ip_names=cls.ip_names)
+        return d
+
+    # -- what the ACME code reads -------------------------------------------------------
+    def c(self, key, default=None):
+        if key == 'directory':
+            return 'custom'
+        if key in ('directory_url', 'eab_kid', 'eab_hmac'):
+            cred = self.credentials()
+            return {'directory_url': cred['url'], 'eab_kid': cred['kid'],
+                    'eab_hmac': cred['hmac']}[key]
+        return AcmeIssuer.c(self, key, default)
+
+    def _settings(self):
+        product = str(AcmeIssuer.c(self, 'acme_product') or '').strip()
+        if not product:
+            raise PluginError('set the ACME product code', retry=False)
+        name = str(AcmeIssuer.c(self, 'acme_name') or 'acme').strip()
+        days = int(_num(AcmeIssuer.c(self, 'validity_days'), 199))
+        if not 1 <= days <= 199:
+            raise PluginError('the validity must be 1-199 days (it is %d)' % days, retry=False)
+        org = str(AcmeIssuer.c(self, 'organization_id') or '').strip()
+        if org and not org.isdigit():
+            raise PluginError('the organisation is its number ("Load the organisations")',
+                              retry=False)
+        return product, name, days, (int(org) if org else None)
+
+    def _slot(self):
+        product, name, days, org = self._settings()
+        h = hashlib.sha256(json.dumps([self.base_url(), product, name, days, org]).encode())
+        return 'sslmarket-acme:%s' % h.hexdigest()[:32]
+
+    def credentials(self, fresh=False):
+        """{'acme_id', 'url', 'kid', 'hmac'} of the ACME key: kept, pasted, or made."""
+        if self._cred and not fresh:
+            return self._cred
+        slot = self._slot()
+        row = None if fresh else self._get(slot)
+        if row and row.get('hmac'):
+            hmac = _unseal(self.ctx, row['hmac'], slot)
+            if hmac:
+                self._cred = dict(row, hmac=hmac)
+                return self._cred
+        product, name, days, org = self._settings()
+        kid = str(AcmeIssuer.c(self, 'given_kid') or '').strip()
+        mac = str(AcmeIssuer.c(self, 'given_hmac') or '').strip()
+        if kid and mac and not fresh:
+            keys = [a for a in self.api().acme_keys() if a.get('name') == name and
+                    str(a.get('status') or '').lower() == 'active']
+            if not keys:
+                raise PluginError('there is no active ACME key named "%s" at SSLmarket for the '
+                                  'EAB given' % name, retry=False)
+            a = max(keys, key=lambda x: _when(x.get('inserted')) or 0)
+            return self._keep(slot, a.get('acme_id'), a.get('acme_directory_url'), kid, mac,
+                              'pasted')
+        if not _as_bool(AcmeIssuer.c(self, 'make_key')) and not fresh:
+            raise PluginError('there is no ACME key for this source - "Make an ACME key", or '
+                              'switch on "Make the ACME key when there is none"', retry=False)
+        if not fresh:
+            known = [a for a in self.api().acme_keys() if a.get('name') == name and
+                     str(a.get('status') or '').lower() == 'active']
+            if known:
+                self._say('SSLmarket has an active ACME key "%s" (%s), but its EAB is shown only '
+                          'when it is made - a new key is made' % (
+                              name, ', '.join(str(a.get('acme_id')) for a in known)), 'warn')
+        body = {'product_code': product, 'name': name, 'certificate_validity_days': days}
+        if org is not None:
+            body['organization_id'] = org
+        _st, got = self.api().call('POST', P_ACME, body, what='the making of an ACME key')
+        if not isinstance(got, dict) or not (got.get('acme_directory_url') and
+                                             got.get('ext_act_kid') and got.get('ext_act_hmac')):
+            raise PluginError('SSLmarket made no usable ACME key (no directory URL or EAB in '
+                              'the answer)', detail=str(got)[:1000], retry=False)
+        if str(got.get('status') or 'active').lower() != 'active':
+            raise PluginError('SSLmarket\'s new ACME key %s is %s' % (got.get('acme_id'),
+                                                                     got.get('status')),
+                              retry=False)
+        self._say('ACME key %s made at SSLmarket ("%s", %s, %d days%s): %s' % (
+            got.get('acme_id'), name, product, days, ', organisation %s' % org if org else '',
+            got['acme_directory_url']), 'ok')
+        return self._keep(slot, got.get('acme_id'), got['acme_directory_url'],
+                          got['ext_act_kid'], got['ext_act_hmac'], 'made')
+
+    def _keep(self, slot, acme_id, url, kid, hmac, how):
+        if not url:
+            raise PluginError('SSLmarket gave no ACME directory URL', retry=False)
+        row = {'acme_id': acme_id, 'url': url, 'kid': kid, 'at': _now(), 'how': how}
+        self._put(slot, dict(row, hmac=_seal(self.ctx, hmac, slot)))
+        self._cred = dict(row, hmac=hmac)
+        return self._cred
+
+    # -- trying it, the actions --------------------------------------------------------------
+    def test(self):
+        product, name, days, org = self._settings()
+        bits = ['signed in to %s' % self.base_url()]
+        keys = self.api().acme_keys()
+        row = self._get(self._slot())
+        if row:
+            mine = next((a for a in keys if str(a.get('acme_id')) == str(row.get('acme_id'))), None)
+            if mine is not None and str(mine.get('status')).lower() != 'active':
+                raise PluginError('the ACME key %s of this source is %s at SSLmarket - "Make an '
+                                  'ACME key"' % (row.get('acme_id'), mine.get('status')),
+                                  retry=False)
+            bits.append('ACME key %s (%s)' % (row.get('acme_id'), row.get('url')))
+            bits.append(AcmeIssuer.test(self))
+        else:
+            bits.append('%d ACME keys; none kept for this source yet - it is made at the first '
+                        'certificate (or with "Make an ACME key")' % len(keys))
+        return '; '.join(bits)
+
+    def action(self, key):
+        if key == 'acme_keys':
+            keys = self.api().acme_keys()
+            for a in keys:
+                self._say('ACME key %s "%s": %s, %s, %s days%s, %s, made %s' % (
+                    a.get('acme_id'), a.get('name'), a.get('status'), a.get('product_code'),
+                    a.get('certificate_validity_days') or '?',
+                    ', organisation %s' % a['organization_id'] if a.get('organization_id') else '',
+                    a.get('acme_directory_url'), a.get('inserted')))
+            return '%d ACME keys' % len(keys)
+        if key == 'organizations':
+            orgs = self.api().organizations()
+            for o in orgs:
+                vals = ', '.join('%s %s%s' % (v.get('type'), v.get('status'),
+                                              ' until %s' % v['valid_till'] if v.get('valid_till')
+                                              else '') for v in o.get('validations') or [])
+                self._say('organisation %s: %s (%s, %s) - %s' % (
+                    o.get('organization_id'), o.get('name'), o.get('status'),
+                    o.get('country') or '?', vals or 'no validations'))
+            return '%d organisations' % len(orgs)
+        if key == 'make_key':
+            cred = self.credentials(fresh=True)
+            return 'ACME key %s made: %s' % (cred.get('acme_id'), cred.get('url'))
+        if key == 'revoke_key':
+            slot = self._slot()
+            row = self._get(slot)
+            if not row or not row.get('acme_id'):
+                raise PluginError('this source keeps no ACME key', retry=False)
+            _st, got = self.api().call('PUT', P_ACME_REVOKE, what='the revocation of ACME key %s'
+                                       % row['acme_id'], ACME_ID=row['acme_id'])
+            self._put(slot, None)
+            self._cred = None
+            return 'ACME key %s: %s' % (row['acme_id'], (got or {}).get('status', 'revoked')
+                                        if isinstance(got, dict) else 'revoked')
+        return AcmeIssuer.action(self, key)

@@ -1,178 +1,193 @@
 # Commercial certificates from SSLmarket (DigiCert, GeoTrust, Thawte, RapidSSL, Sectigo)
 
-The `sslmarket` issuer (Sources → Add → *SSLmarket.cz (DigiCert, Sectigo,
-GeoTrust…)*) orders, reissues and downloads commercial certificates through the
-REST API of **SSLmarket** - the Czech reseller run by ZONER a.s., one platform
-behind SSLmarket.cz, .sk, .com, .de, .at, .ch, .hu and .co.uk. The key and the
-CSR are made by acme as for every other source; the DCV (domain control
-validation) record or file is put in place by the certificate's own challenge
-module, so acme's DNS server, deSEC, Cloudflare, Route 53, HTTP over SSH… work
-for commercial certificates as they do for Let's Encrypt.
+SSLmarket - the Czech reseller run by ZONER a.s., one platform behind
+SSLmarket.cz, .sk, .com, .de, .at, .ch, .hu and .co.uk - has a REST API for
+ordering certificates and for ACME keys. acme speaks it with two sources
+(Sources → Add):
 
-Commercial certificates cost money. **acme never buys anything unless the source
-says it may** (*Allow new orders (paid)*), and by default a renewal is a free
-**reissue** inside the order that is paid already.
+| Source | What it does | Renewals |
+|---|---|---|
+| **SSLmarket.cz (DigiCert, Sectigo, GeoTrust…)** (`sslmarket`) | orders a certificate (paid - only when allowed), reissues it inside the order (free), puts SSLmarket's DCV string in place by the certificate's validation, downloads the certificate | a free reissue while the order runs |
+| **SSLmarket ACME (DigiCert, EAB made through the API)** (`sslmarket_acme`) | makes an ACME key at SSLmarket through the API (directory URL + EAB), then orders every certificate by ACME, each name proved by DNS-01 / HTTP-01 like Let's Encrypt | fully automatic, ACME (ARI) - no order, no DCV of SSLmarket's |
 
-## Where the API's description comes from
+In both, the key and the CSR are made by acme. The DCV records and the ACME
+proofs are put in place by the certificate's own validation module - acme's DNS
+server, deSEC, Cloudflare, HTTP over SSH… - as for any other source.
 
-| Source | What it says |
+## The API
+
+SSLmarket's OpenAPI 3.0 specification (*SSLmarket's API for ordering
+certificates*, kept in `test/fixtures/sslmarket-openapi.json`; the tests check
+every call of these sources against it):
+
+* server `https://www.sslmarket.cz/api` (the other shops: `https://www.sslmarket.<tld>/api`),
+* the account's key in the header **`X-Auth-Token`**,
+* JSON; 2XX on success, 4XX with `{"message": "…"}` - said in the job as it is
+  (*SSLmarket refused the order (400): …*). 401/403: the key; 429/5XX are tried
+  again later, any other 4XX is not (it would not help).
+
+Also: <https://www.sslmarket.com/ssl/sslmarket-api-for-ordering-certificates>,
+<https://www.sslmarket.cz/api/swagger-ui/>,
+<https://www.sslmarket.com/ssl/manual-work-with-api-using-the-postman-tool>.
+
+| Call | Used for |
 |---|---|
-| <https://www.sslmarket.com/ssl/sslmarket-api-for-ordering-certificates> (also .co.uk, .cz: *API SSLmarketu pro objednávání certifikátů*) | the API key goes in the header `X-Auth-Token`; example `GET /api/order/list`; 2XX on success, 4XX with the error's kind and description; the functions: product list, new order, order list, order detail, order change, reissue (and its cancelling), revocation, certificate download, DCV e-mail again, CSR / certificate decoder, OCSP |
-| <https://www.sslmarket.cz/api/swagger-ui/> | the API's OpenAPI (Swagger) - **the reference to compare with** (see *What is not certain*) |
-| <https://www.sslmarket.com/ssl/manual-work-with-api-using-the-postman-tool>, <https://www.sslmarket.cz/blog/nebojte-se-api-usetri-vam-cas> | the API by hand, with Postman |
-| <https://www.sslmarket.cz/blog/vyuzijte-vylepsenou-api-pro-objednani-vsech-typu-certifikatu> | 2020: the second generation, all kinds of certificates, downloads |
-| the older API page (`…/sslmarket-api-for-ordering-certificates-old`) | `GET /product/list`, `POST /order/certificate/{PRODUCT_CODE}` |
-| <https://github.com/SSLmarket-from-ZONER/SSLmarket-API> (2015, archived) | the first API: a form POST to `/api` with customer number and password; the names of an order's fields (below). It could not download certificates and is not spoken |
-| <https://www.sslmarket.com/ssl/automate-certificate-issue-and-installation-acme-protocol>, <https://www.sslmarket.com/blog/acme-and-eab-support-for-web-servers-2025> | DigiCert certificates by ACME with EAB (see *ACME instead*) |
+| `GET /product/list` | *Load the products*, *Try it* (product_code, title, validate_type, max_years, SANs) |
+| `GET /order/list` | *List the orders*; finding a new order (see below) |
+| `POST /order/certificate/{PRODUCT_CODE}` | a new order (paid) |
+| `GET /order/order_id/{ID}` | the order: state, expired, certificate_serial_number, reissue_pending, dv_auth_method, dv_auth_content, has_child / child_id |
+| `PUT /order/order_id/{ID}` | the request and DCV method put into an order bought but not issued yet |
+| `POST /certificate/order_id/{ID}/reissue` | the free reissue with the new CSR |
+| `PUT /certificate/order_id/{ID}/cancel-reissue` | a reissue running already (not acme's) is cancelled before acme's; also an action |
+| `PUT /certificate/order_id/{ID}/resend` | *Send the DCV e-mail again* |
+| `PUT /certificate/order_id/{ID}/revoke` | revocation - **DigiCert Client Premium (Class 1 and 2) only**, says the specification |
+| `GET /certificate/order_id/{ID}/format/{pem_server, pem_intermediate, p7b}` | the certificate and its chain |
+| `POST /acme`, `GET /acme/list`, `PUT /acme/acme_id/{ID}/revoke`, `GET /acme/organization/list` | the ACME source |
+
+Not used: `/tool/decoder/csr`, `/tool/decoder/certificate`, `/tool/ocsp` (acme
+reads requests and certificates itself, and checks OCSP itself).
 
 ## The API key (Czech: *API klíč*)
 
-In the customer administration of SSLmarket (*Zákaznická administrace*): the
-account's settings (*Nastavení účtu*) → **Přístup k účtu přes API** (*Account
-access via API*) → switch it on; the key is shown there. Put it in **API key**.
-It belongs to the legal account (*účet*): everything ordered with it is paid from
+In the customer administration (*Zákaznická administrace*): the account's
+settings (*Nastavení účtu*) → **Přístup k účtu přes API** (*Account access via
+API*) → switch it on; the key is shown there. Put it in **API key** of either
+source. It belongs to the legal account: everything ordered with it is paid from
 that account's credit (*kredit*) and shows in its orders (*Objednávky*). Keep it
 secret - with it anybody can buy certificates on your account.
 
 *SSLmarket* chooses the shop the account is at (SSLmarket.cz for Czech
-accounts, prices in CZK). There is **no public sandbox**: *Another address* is for
-a test system SSLmarket gives you; otherwise test with *Try it*, the actions and a
-cheap DV product.
+accounts). There is **no public sandbox**: *Another address* is for a test
+system SSLmarket gives you; otherwise test with *Try it*, the actions and a cheap
+DV product.
 
-## What happens on an order
+## Orders and reissues (`sslmarket`)
+
+### What happens
 
 1. **Reissue or buy?** With *At a renewal* = *Reissue…* (the default) and an
-   order known - *Order to reuse*, or the one acme made last for this
-   certificate - its detail is read. While its subscription runs for more than
-   *Reissue while the subscription runs at least* (30 days), the certificate is
-   **reissued** (`POST /order/reissue/{order}` with the new CSR) - free, said in
-   the job. Otherwise a purchase would be needed: a **renewal order**
-   (`method=renew`), or a **new order** for the first certificate - made only when
-   *Allow new orders (paid)* is on. Off, the job stops with *nothing ordered: … a
-   renewal order would be a purchase. Paid orders are not allowed for this source*
-   and acme does not try again by itself (it would not help).
-2. **The order** (`POST /order/certificate/{product}`): the CSR, the names
-   (`domain` = the first, `sans` the others), the subscription years, the DCV
-   method, the contact person and - for OV/EV - the organisation. The order
-   number is kept at once, so whatever happens after, it is not bought twice.
-3. **DCV.** The record or file the answer asks for (or the order's detail) is put
-   in place by the certificate's challenge module (Certificates → the
-   certificate → validation, as for ACME), then waited for until visible:
-   * DNS TXT - by every DNS module (their `add_txt`), at the name the API says, or
-     `_dnsauth.NAME` when it says none (*Label of the DNS TXT record*; `@` for NAME
-     itself). A CNAME at that name is followed, as for `_acme-challenge`. With
-     *acme's own DNS server*, the record must be `_acme-challenge.NAME` (the only
-     name it is delegated) - otherwise the record is said in the job to be made by
-     hand.
-   * HTTP file - `/.well-known/pki-validation/…` (DigiCert: `fileauth.txt`) is
-     written by *HTTP over SSH* (next to its `acme-challenge` folder); a file under
-     `/.well-known/acme-challenge/` by every HTTP-01 module. *HTTP-01 on this
-     server* serves only `acme-challenge`.
-   * DNS CNAME (Sectigo) - no challenge module writes CNAME records: the job says
-     the record to make by hand, and the order waits for it.
-   * E-mail - the CA writes to the approver address (`admin@`, `hostmaster@`… or
-     WHOIS); somebody has to click. No challenge module is needed.
+   order known - *Order to reuse*, or the one acme made last for this certificate
+   - the order's detail is read. A renewed order (`has_child`) is followed to its
+   newest `child_id`.
+   * its certificate is issued and the order runs (`expired`) more than *Reissue
+     while the order runs at least* (30 days): **reissue** (`POST …/reissue`,
+     `{csr}`) - free, said in the job as *free, nothing is bought*;
+   * it has no certificate yet (bought in the administration, waiting for a CSR):
+     acme puts its request and DCV method into it (`PUT /order/order_id/{ID}`) and
+     waits for it - nothing is bought;
+   * it ends sooner, or it is cancelled / rejected: a **new order** is needed.
+2. **A new order** is a purchase: made only when *Allow new orders (paid)* is on.
+   Off, the job stops with *nothing ordered: … a new order would be a purchase.
+   Paid orders are not allowed for this source* and acme does not try again by
+   itself. `POST /order/certificate/{PRODUCT_CODE}` carries the request, the first
+   name as `domain`, the others as `dns_names`, `years`, `dv_auth_method`, the
+   owner, the contact (as `auth_*` and `tech_*`) and the invoice (the owner's
+   address and the contact's e-mail when left empty) - every field the
+   specification requires. The 201 has no body in the specification: an
+   `order_id` in it is taken, else the new order is found in `/order/list` (the
+   same domain and product, not in the list read just before). The order number
+   is kept at once, so it is never bought twice.
+3. **DCV** (`dv_auth_method`):
+   * **DNS** / **FILE** - `dv_auth_content` of the order's detail (asked until it
+     is there) is shown in the job and put in place for every name by the
+     certificate's validation module: DNS as a TXT record (by every DNS module),
+     FILE as `/.well-known/pki-validation/…` (by *HTTP over SSH*; under
+     `/.well-known/acme-challenge/` by every HTTP-01 module). What a module cannot
+     write (a CNAME record; a TXT record with *acme's own DNS server*, which only
+     answers `_acme-challenge` names) is said in the job, to be made by hand.
+   * **Email** - the CA writes to **admin@, administrator@, hostmaster@,
+     postmaster@ and webmaster@** of each domain (the specification; no other
+     address can be chosen). Somebody has to confirm it; *Send the DCV e-mail
+     again* sends it once more. No validation module is needed.
 
-   The records **stay in place until the certificate is issued** (a CA checks in
-   its own time), and are taken away then - or when the order is rejected.
-4. **Waiting.** The order's detail is asked every *Ask again every* (15 s, longer
-   each time, at most 2 minutes) for *Wait for the certificate* (600 s). DV is
-   usually done in minutes. **OV/EV** takes the CA hours or days (it checks the
-   company register and may phone the contact): the job ends *the order N waits
-   at SSLmarket … acme asks for the certificate again at the next try - nothing is
-   ordered again*, and the certificate is *failed* until a later try (5 minutes,
-   doubled each time) finds it issued. The order, its DCV records and the key it
-   was made with are kept in the module's state (`sslmarket-pending:<certificate
-   id>`, the key sealed); a later try takes that key, not the new one the renewer
-   made, so the certificate and key always go together.
-5. **Download** (`GET /order/download/{order}`): PEM, PKCS#7 or JSON holding
-   them; the certificate for the request's key is taken, the chain put in order.
+   The records **stay until the certificate is issued** (a CA checks in its own
+   time) and are taken away then, or when the order fails.
+4. **Waiting.** The detail is asked every *Ask again every* (15 s, longer each
+   time, at most 2 minutes) for *Wait for the certificate* (600 s). Issued means:
+   `certificate_serial_number` set, no `reissue_pending` - and after a reissue,
+   another serial than before. OV/EV takes the CA hours or days: the job ends *the
+   order N waits at SSLmarket … nothing is ordered again*, the certificate is
+   *failed* until a later try finds it issued (5 minutes, doubled each time). The
+   order, its DCV records and the key it was made with are kept (the key sealed);
+   a later try takes that key, so certificate and key always go together.
+5. **Download**: `pem_server` (the certificate for the request's key is taken),
+   `pem_intermediate` (else `p7b`) for the chain.
 
-## The settings
+### The settings
 
 | Field | |
 |---|---|
-| SSLmarket / API address | the shop of the account; *Another address* for a test system |
-| API key | see above |
-| Product | the common products by the codes of SSLmarket's documentation; *Another product* + *Product code* for any other (*Load the products* lists your account's codes and prices) |
-| Subscription (years) | what a new order buys (1-5). A certificate lives at most 200 days since March 2026 (CA/B Forum; 398 before, shorter from 2027): a longer subscription is served by reissues |
-| Kind of validation | DV / OV / EV - OV and EV need the organisation (name, street, city, post code, country, IČO, phone) |
-| Domain validation (DCV) | DNS TXT, DNS CNAME, HTTP file, e-mail (+ approver) |
-| Contact | first and last name, e-mail, phone of the person asking (the CA's contact for OV/EV) |
-| At a renewal | *Reissue inside the order while its subscription runs* (default) / *Always a renewal order (paid)* / *Always a new order (paid)* |
-| Allow new orders (paid) | **off by default** - see above |
-| Order to reuse | an order bought already (in the administration, or a multi-year subscription): the certificate is reissued in it |
-| More | voucher, *More order fields* (`key=value` lines added to every order and reissue, e.g. `invoice_vat_id=CZ12345678`), the waits, JSON or form fields, the header of the key, and **every path** of the API |
+| SSLmarket / API address / API key | see above |
+| Product code | the `product_code` (*Load the products* lists those of your account with kind, validation, years, SANs; a code not there is warned about) |
+| Order term (years) | `years` of a new order (checked against the product's `max_years`). A certificate lives at most 200 days (CA/B Forum, since March 2026): a longer order is served by free reissues |
+| Domain validation | DNS / FILE / Email |
+| Owner | name, street, city, post code, country (ISO 3166 two letters), phone **as +420.123456789** - required for every order (OV/EV: as in the commercial register) |
+| Contact | title, first and last name, e-mail, phone - sent as the organisation contact and the technical contact |
+| Invoice | name, street, city, post code, country, e-mail, IČO, DIČ - empty: the owner's and the contact's |
+| At a renewal | *Reissue inside the order while it runs* (default) / *Always a new order (paid)* |
+| Allow new orders (paid) | **off by default** |
+| Order to reuse / for the twin | an order bought already. A dual certificate (ECDSA + RSA) has an order for each: the one whose CSR has the request's kind of key is used |
+| Allow a second (paid) order for a dual certificate | off: no twin from this source; on: the twin is its own order (bought only when paid orders are allowed) |
+| More | voucher, *More order fields* (`key=value`, e.g. another `tech_email`), the TXT label (`_dnsauth`; `@` the name itself), the waits |
 
-Set *Keep the key* on a certificate only when you want it; it is not needed for
-pending orders (acme keeps their key itself).
+### Pricing caution (*Pozor na cenu*)
 
-## Pricing caution (*Pozor na cenu*)
+* A new order is paid from the credit (*kredit*) or invoiced (*faktura*). Look
+  at the products and prices before switching paid orders on.
+* A **reissue** (*znovuvydání*) inside a running order is free and keeps the
+  order's parameters and end ("the same parameters and expiration date as the
+  original"); a multi-year order bought once is served by reissues until it ends.
+  That is the default, and the job says *free, nothing is bought* each time.
+* SSLmarket's renewal of an order is a new order (shown as `has_child`); acme
+  follows it.
+* Revocation (*revokace*) refunds nothing; through the API only DigiCert Client
+  Premium certificates can be revoked - a TLS certificate is revoked in the
+  customer administration.
 
-* A new order and a renewal order are paid from the account's credit (*kredit*)
-  or invoiced (*faktura*) - VAT included as the account says. Look at the prices
-  with *Load the products* before switching on paid orders.
-* A **reissue** (*reissue / znovuvydání*) inside a running subscription is free;
-  a multi-year subscription (*vícerokové předplatné*) bought once is renewed by
-  reissues until it ends. That is the default here, and the job says *free,
-  nothing is bought* each time.
-* Changing the names of a certificate may not be a reissue (more SANs cost more):
-  the API then refuses the reissue, and the job says so.
-* Revocation (*revokace*) does not refund an order.
+## SSLmarket ACME (`sslmarket_acme`)
 
-## Revocation, trying it, actions
+1. The first certificate (or *Make an ACME key*) makes an ACME key at SSLmarket:
+   `POST /acme` with the *ACME product code*, the key's *Name*, the *Certificate
+   validity* (1-199 days) and - for OV/EV products - the *Organisation*
+   (`organization_id`, see *Load the organisations*: the organisations and their
+   validations). The answer's `acme_directory_url`, `ext_act_kid` and
+   `ext_act_hmac` are kept in the module's state (the HMAC sealed).
+2. From then on it is the `acme` source's own code against that directory: an
+   ACME account made once with that EAB, each order proved by DNS-01 / HTTP-01,
+   ARI, revocation by ACME. Renewals ask nothing of SSLmarket's API.
+3. The EAB is shown by SSLmarket only when the key is made. A key made in the
+   administration: paste its EAB key id and HMAC under More - its directory URL is
+   found in `/acme/list` by its name. A key by that name of which acme has no EAB
+   is not reused: a new one is made (said in the job), or, with *Make the ACME key
+   when there is none* off, the job says so.
+4. Changing product, name, validity or organisation means another key.
+   *Revoke the ACME key* revokes the kept one (`PUT /acme/acme_id/{ID}/revoke`);
+   certificates issued with it stay valid. *Load the ACME keys* lists them.
 
-* **Revoke** (`POST /order/revoke/{order}`) - the order is the one the
-  certificate came from (acme remembers it by the serial), else *Order to reuse*.
-* **Try it** reads the product list and, where the API says it, the account's
-  credit: *signed in…; N products; the product X is offered; credit …; new paid
-  orders not allowed (reissues only)*. Nothing is ordered.
-* **Load the products** lists codes, names and prices in the job (and keeps them).
-* **List the orders** lists the account's orders with their state and the end of
-  their subscription - to find the *Order to reuse*.
+The plain `acme` source with *CA* = *DigiCert (EAB)* and the EAB pasted does the
+same where the key was made by hand.
 
 ## What is not certain
 
-The Swagger could not be read when this module was written; what is documented
-publicly is the authentication (`X-Auth-Token`), `GET /api/order/list`, `GET
-/product/list`, `POST /order/certificate/{PRODUCT_CODE}` and the list of
-functions. So:
+The specification leaves these open; how acme reads them:
 
-* **The paths** of order detail, reissue, download, revocation and account are
-  the module's best guess (`/order/detail/{order}`, `/order/reissue/{order}`,
-  `/order/download/{order}`, `/order/revoke/{order}`, `/account/detail`); each is a
-  setting under *More* (`{order}` and `{product}` filled in). A 404 says *the path
-  under More differs from the API's Swagger*.
-* **The order's field names** are those of the documented first API (`domain`,
-  `sans`, `sans_count`, `years`, `csr`, `dv_auth_method` = `DNS` / `FILE` /
-  `Email` / `CNAME` (a guess), `verify_mailbox`, `owner_*`, `auth_*`, `tech_*`,
-  `voucher`, `method` = `new` / `renew`); sent as JSON (or form fields, *Sent
-  as*). What else the API wants goes in *More order fields*.
-* **The answers** are read tolerantly: the order number from `order_id`, `id`,
-  `order_number`…; the state from `status` / `state` (issued, active, completed,
-  vydáno… / rejected, cancelled, revoked… / anything else: waiting); the end of the
-  subscription from `subscription_end`, `valid_to`, `expires`…; the DCV from
-  `dcv` / `validation` lists or per-domain maps with `record_name` / `host`,
-  `record_value` / `value` / `token`, `file_path` / `file_url`, `file_content`.
-* **The product codes** of today may differ from the documented ones (Symantec
-  became DigiCert): use *Load the products*.
-
-Before the first paid order: compare the Swagger with the paths and fields above,
-order a cheap DV certificate with *Allow new orders (paid)* on, and switch it off
-again if renewals should only be reissues.
-
-## ACME instead (DigiCert with EAB)
-
-SSLmarket also sells DigiCert certificates through **ACME with External Account
-Binding**: the customer administration hands out the EAB key id and HMAC key, the
-directory URL is DigiCert's. That path needs no `sslmarket` source: use the `acme`
-source with *CA* = **DigiCert (EAB - CertCentral, SSLmarket)**
-(`https://acme.digicert.com/v2/acme/directory/`; a regional or other URL
-SSLmarket gives you as *Another ACME server*) and the EAB key id / HMAC key from
-SSLmarket. DigiCert validates the organisation once after the ACME account is
-activated (OV/EV); then each order is the ACME flow of `acme-issuers.md` (DNS-01
-or HTTP-01, ARI). What it costs is agreed with SSLmarket for the ACME account, not
-per order through this module.
+* `dns_names` is "An array of domains included as SANs" of type *string*: sent
+  as the names joined by commas (as `/order/list` gives them back).
+* The 201 of a new order has no body: the order is found in the order list when
+  the answer carries no `order_id`.
+* `state` has no list of values ("Issued" is the only one named). Issued is told
+  by `certificate_serial_number` and `reissue_pending`; failed by the words
+  cancel / reject / revoke / storno / zamítnuto / zrušeno; anything else is
+  waiting. The order's end is `expired` ("Date of order's expiration").
+* `dv_auth_content` ("the string required for authentication") has no format: a
+  record line (`NAME [TTL] [IN] TXT|CNAME VALUE`), JSON with name/value, a URL
+  and the file's content, a path and content, or a bare value are understood. A
+  bare value goes to TXT `_dnsauth.NAME` (DigiCert; *Label of the DNS TXT record*)
+  or `/.well-known/pki-validation/fileauth.txt` (DigiCert). Whatever it is, it is
+  shown in the job - words acme cannot read are left to be done by hand.
+* The reissue's `csr` is "in Base64": the PEM request is sent (base64 inside its
+  lines).
+* `ext_act_hmac` is taken as the CA shows EAB keys (base64url).
 
 ## When it fails
 
@@ -180,9 +195,11 @@ per order through this module.
 |---|---|
 | *SSLmarket refuses the API key (401)* | the key; *Account access via API* switched on |
 | *nothing ordered: … Paid orders are not allowed for this source* | set *Order to reuse* to an order you bought, or switch on *Allow new orders (paid)* |
-| *SSLmarket: not enough credit for the order (402)* | top up the credit (*dobít kredit*) |
-| *SSLmarket answers 404 for … the path under More differs* | compare the path with the Swagger |
-| *the order N waits at SSLmarket* | OV/EV: answer the CA (phone, documents); DCV: is the record visible? e-mail: click |
+| *SSLmarket refused the order (400): …* | what SSLmarket's message says (a missing field, the phone format, the product's SANs) |
+| *SSLmarket does not know the order N (404)* | the order number |
+| *the order N waits at SSLmarket* | OV/EV: answer the CA (phone, documents); DNS/FILE: is the record visible? Email: confirm the mail |
 | *put in place by hand, for the CA: …* | make that DNS record / file yourself; the next try asks again |
 | *the certificate of order N is for another key* | another reissue of the order was made meanwhile (in the administration) - try again |
-| *SSLmarket took the order but said no order number* | look in the administration first - a second order would be paid again |
+| *SSLmarket took the order but it cannot be found in the order list* | look in the administration first - a second order would be paid again |
+| *…revokes only DigiCert Client Premium…* | revoke in the customer administration |
+| *there is no ACME key for this source* | *Make an ACME key*, or switch on *Make the ACME key when there is none* |
