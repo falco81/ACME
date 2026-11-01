@@ -285,3 +285,28 @@ def certs_carry_row_out(table, row, whole):
 @_certs_hook('carry_row_in')
 def certs_carry_row_in(store, table, ident, old):
     return certs_mod('store').carry_in(store, table, ident, old)
+
+
+# acme's own DNS server (Settings → DNS server) let in by the firewall on every
+# node by itself: a card of its own under "What acme lets in by itself", there
+# while the server is switched on, gone when it is switched off, its port
+# following dns_port. From anywhere - the CAs and the public resolvers ask it.
+# It may be turned off on that card like the others (a rule of your own then).
+@_certs_hook('firewall')
+def certs_firewall(store, node):
+    try:
+        on = int(CONFIG.get('dns_server') or 0)
+    except (TypeError, ValueError):
+        on = 0
+    if not on:
+        return []
+    try:
+        port = int(CONFIG.get('dns_port') or 53)
+    except (TypeError, ValueError):
+        port = 53
+    return [{'key': 'dns', 'title': 'DNS server (DNS-01)',
+             'why': 'acme\'s own DNS server, switched on under Settings → DNS server: the '
+                    'CAs and the public resolvers ask it for the _acme-challenge records, '
+                    'so from anywhere, UDP and TCP',
+             'rules': [{'family': f, 'proto': p, 'port': str(port), 'source': ''}
+                       for f in (4, 6) for p in ('udp', 'tcp')]}]
