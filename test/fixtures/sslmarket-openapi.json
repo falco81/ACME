@@ -1,0 +1,1753 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "SSLmarket's API for ordering certificates",
+        "description": "\n**SSLmarket supports API for ordering TLS certificates. The API makes it easy to place orders for almost all certificates in our offer. You can also easily download them after release. Below you will find documentation to help you start ordering certificates via API and saving time!**\n\nAPI will especially help you if you order a larger number of certificates. It will help speed up the ordering process and you can focus on what is really important for your business.\n\n### Important functions of SSLmarket's API\n\nThrough SSLmarket's API (Application Programming Interface), you can order almost all the certificate types in our offer (the only exception are products which cannot be automated). Just submit all the information to the same extent required by the order form on SSLmarket, and the order will be placed in your account. API supports all certificate parameters including [SANs (other domains in the certificate)](https://www.sslmarket.co.uk/ssl/san-uc-technology/).\n\n* Ordering all types of certificates (except for a few exceptions)\n* Easy to download the certificate after issue\n* Definition of all order parameters\n* One-click ordering (using the tool)\n* Speed up processes and save your time\n* Ability to set default data for your business\n\n### How to use SSLmarket's API\n\nThe API can be used in two ways. The recommended way is to implement it into your system or your own interface for ordering certificates. To do this, you need the information below. The second method is suitable for customers who cannot program or do not have a programmer. Using the simple user interface that we are currently preparing, you can easily place an order using the API, but without implementation on the customer's side. As a result, you will also speed up your work with certificates and their management.\n\n### Starting with SSLmarket's API\n\nSSLmarket's API can be used by all our customers. There is no need to conclude any contracts or worry about formalities. All you have to do is log in to your account in customer administration and activate \"Account access via API\" in the account settings. This will generate an individual API key to access SSLmarket's API (the key is tied to the given legal account). Then give the documentation to your programmer.\n\n### Authentication of requests\n\nAll API queries must have an access authentication token (X-Auth-Token) specified in the HTTP query header. You can find it in the account settings after activating \"Account access via API\".\n\n\n    GET /api/order/list HTTP/1.1\n    Host: sslmarket.co.uk\n    X-Auth-Token: {AUTH_TOKEN}\n\n\n### Return values\nAfter a successful endpoint call, the API returns a status HTTP response code of 2XX. If the call fails, the API returns a 4XX response status code; in the body of the answer you will find the type of error (string) and its description.\n\n### Available functions of SSLmarket's API\nBelow you will find a list of functional APIs that you will use to order and download all digital certificates from our offer.\n\nEach function is accessible via its own endpoint, to which you send a request containing the parameters needed to call the function. The input parameters are divided into mandatory, which you must send in the request, and optional. For each function, its use, endpoint address, description of input and output parameters, and response format are listed.\n",
+        "contact": {
+            "name": "SSLMarket",
+            "email": "info@sslmarket.com"
+        },
+        "version": "1.0"
+    },
+    "servers": [
+        {
+            "url": "https://www.sslmarket.cz/api",
+            "description": "Api server"
+        }
+    ],
+    "paths": {
+        "/product/list": {
+            "get": {
+                "tags": [
+                    "Product"
+                ],
+                "summary": "The function returns a list of products that are available in the API.",
+                "operationId": "ce97f8c36235f41c2b8b0aa8bfa17602",
+                "responses": {
+                    "200": {
+                        "description": "List of products that are available in the API",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "products": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Product"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/order/list": {
+            "get": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "The function lists the orders in the given customer account.",
+                "operationId": "e04dde89af52e5ce390e720a612e4cab",
+                "responses": {
+                    "200": {
+                        "description": "List of orders that are available in the API",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "orders": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Order"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/order/certificate/{PRODUCT_CODE}": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "The function is used to place an order on a given customer account.",
+                "operationId": "88ace3d2517ee5dea9cd52b196d2cec7",
+                "parameters": [
+                    {
+                        "name": "PRODUCT_CODE",
+                        "in": "path",
+                        "description": "Product code",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "domain",
+                                    "years",
+                                    "csr",
+                                    "owner_name",
+                                    "owner_street",
+                                    "owner_city",
+                                    "owner_zip",
+                                    "owner_country",
+                                    "owner_tel",
+                                    "auth_title",
+                                    "auth_firstname",
+                                    "auth_lastname",
+                                    "auth_tel",
+                                    "auth_email",
+                                    "tech_title",
+                                    "tech_firstname",
+                                    "tech_lastname",
+                                    "tech_email",
+                                    "tech_tel",
+                                    "invoice_name",
+                                    "invoice_street",
+                                    "invoice_city",
+                                    "invoice_zip",
+                                    "invoice_country",
+                                    "invoice_email"
+                                ],
+                                "properties": {
+                                    "domain": {
+                                        "description": "Domain name the certificate is to be issued for",
+                                        "type": "string"
+                                    },
+                                    "dns_names": {
+                                        "description": "An array of domains included as SANs",
+                                        "type": "string"
+                                    },
+                                    "years": {
+                                        "description": "Certificate validity",
+                                        "type": "string"
+                                    },
+                                    "csr": {
+                                        "description": "CSR request for the certificate",
+                                        "type": "string"
+                                    },
+                                    "voucher": {
+                                        "description": "Discount coupon",
+                                        "type": "string"
+                                    },
+                                    "dv_auth_method": {
+                                        "description": "How to verify the domain owner. The parameter is included in the answer only if product_type=ssl_certificate",
+                                        "type": "string"
+                                    },
+                                    "owner_name": {
+                                        "description": "Certificate owner's name",
+                                        "type": "string"
+                                    },
+                                    "owner_street": {
+                                        "description": "Certificate holder's street",
+                                        "type": "string"
+                                    },
+                                    "owner_city": {
+                                        "description": "Certificate holder's city",
+                                        "type": "string"
+                                    },
+                                    "owner_zip": {
+                                        "description": "Certificate holder's ZIP code",
+                                        "type": "string"
+                                    },
+                                    "owner_country": {
+                                        "description": "The two-letter country code of the certificate owner (ISO 3166-1 alpha-2)",
+                                        "type": "string"
+                                    },
+                                    "owner_tel": {
+                                        "description": "Certificate owner's phone number +44.123456789",
+                                        "type": "string"
+                                    },
+                                    "auth_title": {
+                                        "type": "string"
+                                    },
+                                    "auth_firstname": {
+                                        "description": "Organization contact's first name",
+                                        "type": "string"
+                                    },
+                                    "auth_lastname": {
+                                        "description": "Organization contact's last name",
+                                        "type": "string"
+                                    },
+                                    "auth_tel": {
+                                        "description": "Organization contact's phone number (+44.123456789)",
+                                        "type": "string"
+                                    },
+                                    "auth_email": {
+                                        "description": "Organization contact's email",
+                                        "type": "string"
+                                    },
+                                    "tech_title": {
+                                        "type": "string"
+                                    },
+                                    "tech_firstname": {
+                                        "description": "Tech contact's first name",
+                                        "type": "string"
+                                    },
+                                    "tech_lastname": {
+                                        "description": "Tech contact's last name",
+                                        "type": "string"
+                                    },
+                                    "tech_email": {
+                                        "description": "Tech contact's email",
+                                        "type": "string"
+                                    },
+                                    "tech_tel": {
+                                        "description": "Tech contact's phone number (+44.123456789)",
+                                        "type": "string"
+                                    },
+                                    "invoice_name": {
+                                        "description": "Invoice subject's name",
+                                        "type": "string"
+                                    },
+                                    "invoice_street": {
+                                        "description": "Invoice subject's street",
+                                        "type": "string"
+                                    },
+                                    "invoice_city": {
+                                        "description": "Invoice subject's city",
+                                        "type": "string"
+                                    },
+                                    "invoice_zip": {
+                                        "description": "Invoice subject's ZIP code",
+                                        "type": "string"
+                                    },
+                                    "invoice_country": {
+                                        "description": "Invoiced subject's two-letter country code (ISO 3166-1 alpha-2)",
+                                        "type": "string"
+                                    },
+                                    "invoice_email": {
+                                        "description": "Invoice email",
+                                        "type": "string"
+                                    },
+                                    "invoice_ic": {
+                                        "description": "Business ID number for invoice",
+                                        "type": "string"
+                                    },
+                                    "invoice_dic": {
+                                        "description": "VAT number for invoice",
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation"
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/order/order_id/{ORDER_ID}": {
+            "get": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "The function lists the details of a specific certificate order, which you can also find in customer administration.",
+                "operationId": "253e25b74aa45b033477f758745cb918",
+                "parameters": [
+                    {
+                        "name": "ORDER_ID",
+                        "in": "path",
+                        "description": "Order Number",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "product_type": {
+                                            "description": "Type of the product",
+                                            "type": "string"
+                                        },
+                                        "product_code": {
+                                            "description": "API-specific product code",
+                                            "type": "string"
+                                        },
+                                        "domain": {
+                                            "description": "Domain secured by the certificate. Used as Common name (CN) value.",
+                                            "type": "string"
+                                        },
+                                        "dns_names": {
+                                            "description": "List of additional domains (SANs) secured by the certificate.",
+                                            "type": "string"
+                                        },
+                                        "sans_order_count": {
+                                            "description": "The number of SANs covered by the certificate.",
+                                            "type": "integer"
+                                        },
+                                        "years": {
+                                            "description": "Number of years this order is valid. This does NOT coincide with the certificate's expiration.",
+                                            "type": "integer"
+                                        },
+                                        "csr": {
+                                            "description": "CSR request for the certificate.",
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "description": "State of the order",
+                                            "type": "string"
+                                        },
+                                        "published": {
+                                            "description": "Date of certificate's publishing",
+                                            "type": "string"
+                                        },
+                                        "expired": {
+                                            "description": "Date of order's expiration",
+                                            "type": "string"
+                                        },
+                                        "reissue_pending": {
+                                            "description": "Indicates whether the reissue process has started.",
+                                            "type": "boolean"
+                                        },
+                                        "certificate_serial_number": {
+                                            "description": "Serial number of the issued certificate.",
+                                            "type": "string"
+                                        },
+                                        "has_parent": {
+                                            "description": "Indicates whether this order is a renewal of a previous, parental order.",
+                                            "type": "boolean"
+                                        },
+                                        "parent_id": {
+                                            "description": "Order Number of the parental order. Parameter omitted if no parent exists.",
+                                            "type": "integer"
+                                        },
+                                        "has_child": {
+                                            "description": "Indicates whether this order has been renewed.",
+                                            "type": "boolean"
+                                        },
+                                        "child_id": {
+                                            "description": "Order Number of the renewed order. Parameter omitted if renew has not been made.",
+                                            "type": "integer"
+                                        },
+                                        "dv_auth_method": {
+                                            "description": "How to verify the domain owner. Acceptable values are Email, FILE or DNS. The default value is Email",
+                                            "type": "string"
+                                        },
+                                        "dv_auth_content": {
+                                            "description": "The string required for authentication. Included only with FILE and DNS authentication methods.",
+                                            "type": "string"
+                                        },
+                                        "owner_name": {
+                                            "description": "Certificate owner's name",
+                                            "type": "string"
+                                        },
+                                        "owner_street": {
+                                            "description": "Certificate holder's street",
+                                            "type": "string"
+                                        },
+                                        "owner_city": {
+                                            "description": "Certificate holder's city",
+                                            "type": "string"
+                                        },
+                                        "owner_zip": {
+                                            "description": "Certificate holder's ZIP code",
+                                            "type": "string"
+                                        },
+                                        "owner_country": {
+                                            "description": "The two-letter country code of the certificate owner (ISO 3166-1 alpha-2)",
+                                            "type": "string"
+                                        },
+                                        "owner_tel": {
+                                            "description": "Certificate owner's phone number +44.123456789",
+                                            "type": "string"
+                                        },
+                                        "auth_title": {
+                                            "type": "string"
+                                        },
+                                        "auth_firstname": {
+                                            "description": "Organization contact's first name",
+                                            "type": "string"
+                                        },
+                                        "auth_lastname": {
+                                            "description": "Organization contact's last name",
+                                            "type": "string"
+                                        },
+                                        "auth_tel": {
+                                            "description": "Organization contact's phone number (+44.123456789)",
+                                            "type": "string"
+                                        },
+                                        "auth_email": {
+                                            "description": "Organization contact's email",
+                                            "type": "string"
+                                        },
+                                        "tech_title": {
+                                            "type": "string"
+                                        },
+                                        "tech_firstname": {
+                                            "description": "Tech contact's first name",
+                                            "type": "string"
+                                        },
+                                        "tech_lastname": {
+                                            "description": "Tech contact's last name",
+                                            "type": "string"
+                                        },
+                                        "tech_email": {
+                                            "description": "Tech contact's email",
+                                            "type": "string"
+                                        },
+                                        "tech_tel": {
+                                            "description": "Tech contact's phone number (+44.123456789)",
+                                            "type": "string"
+                                        },
+                                        "invoice_name": {
+                                            "description": "Invoice subject's name",
+                                            "type": "string"
+                                        },
+                                        "invoice_street": {
+                                            "description": "Invoice subject's street",
+                                            "type": "string"
+                                        },
+                                        "invoice_city": {
+                                            "description": "Invoice subject's city",
+                                            "type": "string"
+                                        },
+                                        "invoice_zip": {
+                                            "description": "Invoice subject's ZIP code",
+                                            "type": "string"
+                                        },
+                                        "invoice_country": {
+                                            "description": "Invoiced subject's two-letter country code (ISO 3166-1 alpha-2)",
+                                            "type": "string"
+                                        },
+                                        "invoice_email": {
+                                            "description": "Invoice email",
+                                            "type": "string"
+                                        },
+                                        "invoice_ic": {
+                                            "description": "Business ID number for invoice",
+                                            "type": "string"
+                                        },
+                                        "invoice_dic": {
+                                            "description": "VAT number for invoice",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "This endpoint is used to edit selected order parameters. Orders can only be edited before requesting the issuance of a certificate.",
+                "operationId": "6cedb26510a9e9d642b63477b44455ba",
+                "parameters": [
+                    {
+                        "name": "ORDER_ID",
+                        "in": "path",
+                        "description": "Order Number",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [],
+                                "properties": {
+                                    "domain": {
+                                        "description": "Domain name the certificate is to be issued for",
+                                        "type": "string"
+                                    },
+                                    "dns_names": {
+                                        "description": "An array of domains included as SANs",
+                                        "type": "string"
+                                    },
+                                    "years": {
+                                        "description": "Certificate validity",
+                                        "type": "string"
+                                    },
+                                    "csr": {
+                                        "description": "CSR request for the certificate",
+                                        "type": "string"
+                                    },
+                                    "voucher": {
+                                        "description": "Discount coupon",
+                                        "type": "string"
+                                    },
+                                    "dv_auth_method": {
+                                        "description": "How to verify the domain owner. The parameter is included in the answer only if product_type=ssl_certificate",
+                                        "type": "string",
+                                        "default": "Email",
+                                        "enum": [
+                                            "Email",
+                                            "FILE",
+                                            "DNS"
+                                        ]
+                                    },
+                                    "owner_name": {
+                                        "description": "Certificate owner's name",
+                                        "type": "string"
+                                    },
+                                    "owner_street": {
+                                        "description": "Certificate holder's street",
+                                        "type": "string"
+                                    },
+                                    "owner_city": {
+                                        "description": "Certificate holder's city",
+                                        "type": "string"
+                                    },
+                                    "owner_zip": {
+                                        "description": "Certificate holder's ZIP code",
+                                        "type": "string"
+                                    },
+                                    "owner_country": {
+                                        "description": "The two-letter country code of the certificate owner (ISO 3166-1 alpha-2)",
+                                        "type": "string"
+                                    },
+                                    "owner_tel": {
+                                        "description": "Certificate owner's phone number +44.123456789",
+                                        "type": "string"
+                                    },
+                                    "auth_title": {
+                                        "type": "string"
+                                    },
+                                    "auth_firstname": {
+                                        "description": "Organization contact's first name",
+                                        "type": "string"
+                                    },
+                                    "auth_lastname": {
+                                        "description": "Organization contact's last name",
+                                        "type": "string"
+                                    },
+                                    "auth_tel": {
+                                        "description": "Organization contact's phone number (+44.123456789)",
+                                        "type": "string"
+                                    },
+                                    "auth_email": {
+                                        "description": "Organization contact's email",
+                                        "type": "string"
+                                    },
+                                    "tech_title": {
+                                        "type": "string"
+                                    },
+                                    "tech_firstname": {
+                                        "description": "Tech contact's first name",
+                                        "type": "string"
+                                    },
+                                    "tech_lastname": {
+                                        "description": "Tech contact's last name",
+                                        "type": "string"
+                                    },
+                                    "tech_email": {
+                                        "description": "Tech contact's email",
+                                        "type": "string"
+                                    },
+                                    "tech_tel": {
+                                        "description": "Tech contact's phone number (+44.123456789)",
+                                        "type": "string"
+                                    },
+                                    "invoice_name": {
+                                        "description": "Invoice subject's name",
+                                        "type": "string"
+                                    },
+                                    "invoice_street": {
+                                        "description": "Invoice subject's street",
+                                        "type": "string"
+                                    },
+                                    "invoice_city": {
+                                        "description": "Invoice subject's city",
+                                        "type": "string"
+                                    },
+                                    "invoice_zip": {
+                                        "description": "Invoice subject's ZIP code",
+                                        "type": "string"
+                                    },
+                                    "invoice_country": {
+                                        "description": "Invoiced subject's two-letter country code (ISO 3166-1 alpha-2)",
+                                        "type": "string"
+                                    },
+                                    "invoice_email": {
+                                        "description": "Invoice email",
+                                        "type": "string"
+                                    },
+                                    "invoice_ic": {
+                                        "description": "Business ID number for invoice",
+                                        "type": "string"
+                                    },
+                                    "invoice_dic": {
+                                        "description": "VAT number for invoice",
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/certificate/order_id/{ORDER_ID}/reissue": {
+            "post": {
+                "tags": [
+                    "Certificate"
+                ],
+                "summary": "The function is used to regenerate the certificate and to reissue it. It is typically used when the private key is lost and for the reissue if it is free. The certificate issued after reissue has the same parameters and expiration date as the original.",
+                "operationId": "ec036aa7158a4f69edc31b09d7b376a3",
+                "parameters": [
+                    {
+                        "name": "ORDER_ID",
+                        "in": "path",
+                        "description": "Order Number",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "csr": {
+                                        "description": "CSR request for the certificate in Base64",
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "Successful operation"
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/certificate/order_id/{ORDER_ID}/cancel-reissue": {
+            "put": {
+                "tags": [
+                    "Certificate"
+                ],
+                "summary": "The function is used to cancel the running reissue of the certificate. Canceling the reissue before completion puts the certificate back in the Issued state and a new one is not issued.",
+                "operationId": "0538d9dcf6110d039f8ec41919a3e59d",
+                "parameters": [
+                    {
+                        "name": "ORDER_ID",
+                        "in": "path",
+                        "description": "Order Number",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Successful operation"
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/certificate/order_id/{ORDER_ID}/revoke": {
+            "put": {
+                "tags": [
+                    "Certificate"
+                ],
+                "summary": "The certificate revocation function will permanently revoke the certificate and you will no longer be able to use it. Revocation means the certificate is lost without compensation and serves in cases where the certificate's private key is misused (compromised). The revocation is available for DigiCert Client Premium Class 1 and Client Premium Class 2 only.",
+                "operationId": "fb410ca1c558834c33cb82d9dd9a75be",
+                "parameters": [
+                    {
+                        "name": "ORDER_ID",
+                        "in": "path",
+                        "description": "Order Number",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Successful operation"
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/certificate/order_id/{ORDER_ID}/resend": {
+            "put": {
+                "tags": [
+                    "Certificate"
+                ],
+                "summary": "The function is used to forward a DCV email that verifies the domain specified in the order. Without domain verification, the certificate is not issued. CA email is automatically sent to the set of admin, administrator, hostmaster, postmaster and webmaster addresses on the affected domain.",
+                "operationId": "899bb4a482df26a9097ec314fd01b4ec",
+                "parameters": [
+                    {
+                        "name": "ORDER_ID",
+                        "in": "path",
+                        "description": "Order Number",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Successful operation"
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/certificate/order_id/{ORDER_ID}/format/{FORMAT}": {
+            "get": {
+                "tags": [
+                    "Certificate"
+                ],
+                "summary": "The function is used to download the issued certificate in the selected format specified in the input parameter {{FORMAT}}. PEM is the certificate's text format in Base64, whereas P7B is the binary format.",
+                "operationId": "89e176c86925864428a52628fa7e6ac0",
+                "parameters": [
+                    {
+                        "name": "ORDER_ID",
+                        "in": "path",
+                        "description": "Order Number",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "FORMAT",
+                        "in": "path",
+                        "description": "Certificate format",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "default": "pem_server",
+                            "enum": [
+                                "pem_server",
+                                "pem_intermediate",
+                                "p7b"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "text/plain": {}
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/acme": {
+            "post": {
+                "tags": [
+                    "ACME"
+                ],
+                "summary": "Creates ACME key for the authenticated account.",
+                "operationId": "101250ce97bd7b4e96679afe4a3b0aea",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "product_code",
+                                    "name",
+                                    "certificate_validity_days"
+                                ],
+                                "properties": {
+                                    "product_code": {
+                                        "description": "Product code of ACME-enabled product",
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "description": "Custom ACME key name",
+                                        "type": "string"
+                                    },
+                                    "certificate_validity_days": {
+                                        "description": "Requested certificate validity in days (range 1-199)",
+                                        "type": "integer"
+                                    },
+                                    "organization_id": {
+                                        "description": "Organization ID. Required for products that require organization validation.",
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AcmeKeyCreateResponse"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/acme/list": {
+            "get": {
+                "tags": [
+                    "ACME"
+                ],
+                "summary": "Lists all ACME keys for the authenticated account. Returns product_code and certificate_validity_days in list items.",
+                "operationId": "f39b213fdada4d2ec01c2904f57ffb1f",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Page number (default: 1)",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "count",
+                        "in": "query",
+                        "description": "Items per page (default: 1000)",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 1000
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "acmes": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AcmeKey"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/acme/acme_id/{ACME_ID}/revoke": {
+            "put": {
+                "tags": [
+                    "ACME"
+                ],
+                "summary": "Revokes the specified ACME key; The key will no longer be usable for certificate issuance.",
+                "operationId": "e4a7a37c996817f3fe1fcec4845392f8",
+                "parameters": [
+                    {
+                        "name": "ACME_ID",
+                        "in": "path",
+                        "description": "ACME account ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AcmeRevokeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/acme/organization/list": {
+            "get": {
+                "tags": [
+                    "ACME"
+                ],
+                "summary": "Lists all organizations available for ACME usage on the authenticated account. Organizations are matched by the account's contract value.",
+                "operationId": "c3b7eae042df432f6f39d0a0cab48b74",
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "organizations": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Organization"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/tool/decoder/csr": {
+            "post": {
+                "tags": [
+                    "Tool"
+                ],
+                "summary": "CSR Decoder serves to display information contained in the CSR request in the format Base 64. Using the decoder, you may check if all information is filled out properly. The query results in a listing of the information contained in both the CSR and the public key.",
+                "operationId": "7b552efb9f503fb57b9cc384a1b52366",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "csr": {
+                                        "description": "CSR",
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "csr": {
+                                            "properties": {
+                                                "subject": {
+                                                    "properties": {
+                                                        "CN": {
+                                                            "type": "string"
+                                                        },
+                                                        "O": {
+                                                            "type": "string"
+                                                        },
+                                                        "L": {
+                                                            "type": "string"
+                                                        },
+                                                        "ST": {
+                                                            "type": "string"
+                                                        },
+                                                        "C": {
+                                                            "type": "string"
+                                                        },
+                                                        "OU": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "pkey": {
+                                                    "properties": {
+                                                        "length": {
+                                                            "type": "string"
+                                                        },
+                                                        "alghoritm": {
+                                                            "type": "string"
+                                                        },
+                                                        "pkey": {
+                                                            "type": "string"
+                                                        },
+                                                        "sans": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/tool/decoder/certificate": {
+            "post": {
+                "tags": [
+                    "Tool"
+                ],
+                "summary": "Certificate decoder works similarly to the CSR decoder. It displays the information contained in the certificate together with the public key. So, you can easily find out for which domain (or organisation) the certificate was issued. The decoder displays extended information as well, like the serial number, which is unique for each certificate and identifies it clearly.",
+                "operationId": "4d0d51ddf4681c8dc9e098899a136848",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "certificate": {
+                                        "description": "Certificate in Base64",
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "certificate": {
+                                            "properties": {
+                                                "owner": {
+                                                    "properties": {
+                                                        "domain": {
+                                                            "type": "string"
+                                                        },
+                                                        "organization": {
+                                                            "type": "string"
+                                                        },
+                                                        "city": {
+                                                            "type": "string"
+                                                        },
+                                                        "locality": {
+                                                            "type": "string"
+                                                        },
+                                                        "country": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "length": {
+                                                    "type": "string"
+                                                },
+                                                "alghoritm": {
+                                                    "type": "string"
+                                                },
+                                                "pkey": {
+                                                    "type": "string"
+                                                },
+                                                "sans": {
+                                                    "type": "string"
+                                                },
+                                                "valid_from": {
+                                                    "type": "string"
+                                                },
+                                                "valid_to": {
+                                                    "type": "string"
+                                                },
+                                                "serial_number": {
+                                                    "type": "string"
+                                                },
+                                                "serial_number_hex": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/tool/ocsp": {
+            "post": {
+                "tags": [
+                    "Tool"
+                ],
+                "summary": "This tool is used for checking the status of the specific certificate. The status is checked via OCSP (Online Certificate Status Protocol) and the outcome is either the status Good (meaning a valid certificate), or Revoked (meaning a revoked certificate).",
+                "operationId": "b4fc4a2212853fe1a46e0f4df1eb3e8c",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "csr": {
+                                        "description": "Certificate to check in Base64",
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "description": "good or revoked",
+                                            "type": "string"
+                                        },
+                                        "this_update": {
+                                            "description": "Last update",
+                                            "type": "string"
+                                        },
+                                        "next_update": {
+                                            "description": "Next update",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "XAuthToken": []
+                    }
+                ]
+            }
+        },
+        "/openapi-specification/format/{FORMAT}": {
+            "post": {
+                "summary": "This endpoint is used for getting OpenAPI 3.0 (Swagger) specification.",
+                "operationId": "847ed026dfcab57556d8ce123cc7590f",
+                "parameters": [
+                    {
+                        "name": "FORMAT",
+                        "in": "path",
+                        "description": "Format of the response",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "default": "json",
+                            "enum": [
+                                "json",
+                                "yaml"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "unexpected error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Product": {
+                "properties": {
+                    "product_type": {
+                        "type": "string"
+                    },
+                    "product_code": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "validate_type": {
+                        "type": "string"
+                    },
+                    "csr_required": {
+                        "type": "string"
+                    },
+                    "max_years": {
+                        "type": "integer"
+                    },
+                    "min_san_values": {
+                        "type": "integer"
+                    },
+                    "max_san_values": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "Order": {
+                "properties": {
+                    "order_id": {
+                        "type": "integer"
+                    },
+                    "product_type": {
+                        "type": "string"
+                    },
+                    "product_code": {
+                        "type": "string"
+                    },
+                    "domain": {
+                        "type": "string"
+                    },
+                    "dns_names": {
+                        "type": "string"
+                    },
+                    "sans_order_count": {
+                        "type": "integer"
+                    },
+                    "years": {
+                        "type": "integer"
+                    },
+                    "inserted": {
+                        "type": "string"
+                    },
+                    "published": {
+                        "type": "string"
+                    },
+                    "expired": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "AcmeKey": {
+                "properties": {
+                    "acme_id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "active",
+                            "revoked"
+                        ]
+                    },
+                    "product_code": {
+                        "type": "string"
+                    },
+                    "certificate_validity_days": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "organization_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "acme_directory_url": {
+                        "type": "string"
+                    },
+                    "inserted": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "AcmeKeyCreateResponse": {
+                "properties": {
+                    "acme_id": {
+                        "type": "integer"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "active",
+                            "revoked"
+                        ]
+                    },
+                    "acme_directory_url": {
+                        "type": "string"
+                    },
+                    "ext_act_kid": {
+                        "type": "string"
+                    },
+                    "ext_act_hmac": {
+                        "type": "string"
+                    },
+                    "certbot_format": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "AcmeRevokeResponse": {
+                "properties": {
+                    "acme_id": {
+                        "type": "integer"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "active",
+                            "revoked"
+                        ]
+                    }
+                },
+                "type": "object"
+            },
+            "OrganizationContact": {
+                "properties": {
+                    "role": {
+                        "type": "string"
+                    },
+                    "first_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "last_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "email": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "tel": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "OrganizationValidation": {
+                "properties": {
+                    "type": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "pending",
+                            "active",
+                            "expired",
+                            "rejected"
+                        ]
+                    },
+                    "valid_till": {
+                        "description": "Expiration date of the validation. Present only when status is active.",
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "Organization": {
+                "properties": {
+                    "organization_id": {
+                        "type": "integer"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "active",
+                            "inactive"
+                        ]
+                    },
+                    "validations": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrganizationValidation"
+                        }
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "tel": {
+                        "type": "string"
+                    },
+                    "street": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "zip": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "city": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "country": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "state": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "contacts": {
+                        "$ref": "#/components/schemas/OrganizationContact"
+                    }
+                },
+                "type": "object"
+            },
+            "Error": {
+                "required": [
+                    "message"
+                ],
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "XAuthToken": {
+                "type": "apiKey",
+                "name": "X-Auth-Token",
+                "in": "header"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Tool"
+        },
+        {
+            "name": "Certificate"
+        },
+        {
+            "name": "Product"
+        },
+        {
+            "name": "Order"
+        },
+        {
+            "name": "ACME"
+        }
+    ],
+    "externalDocs": {
+        "description": "SSLmarket API documentation",
+        "url": "https://www.sslmarket.com/ssl/sslmarket-api-for-ordering-certificates"
+    }
+}
