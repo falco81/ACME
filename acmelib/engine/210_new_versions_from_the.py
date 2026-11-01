@@ -2,8 +2,14 @@
 from __future__ import annotations
 # ---- new versions from the web (1.0.123) ---------------------------------------------
 # Settings → Upgrades → upgrade_url is asked once a day (upgrade_check) and when
-# Look now is pressed, for acme-X.Y.Z.tar.gz: a GitHub folder through GitHub's
-# API, any other page by the links in it, or one package's own address. The
+# Look now is pressed, for acme-X.Y.Z.tar.gz: a GitHub folder by the index.json
+# tools/release.py writes into it (from raw.githubusercontent.com - no API and
+# its limit), else through GitHub's API, else its page; an index.json, a JSON
+# list or any other page by the links in it; or one package's own address.
+# index.json is a list, newest first, of
+#   {"name": "acme-X.Y.Z.tar.gz", "version": "X.Y.Z", "size": N,
+#    "sha256": "...", "date": "...Z", "download_url": "https://raw..."}
+# and a package fetched is held to its sha256 before it is even checked. The
 # newest one newer than what runs here is offered (any newer one there can be
 # chosen instead, 1.0.142); one click fetches it, and it
 # goes the road of a package sent by hand - its signature checked, kept in the
@@ -51,12 +57,24 @@ def online_list(url):
         raise ValueError('no address to look at (Settings → Upgrades)')
     found = {}
 
-    def add(name, link, size=None):
+    def add(name, link, size=None, sha256=None, date=None):
         m = ONLINE_PKG_RE.search('/' + name)
         if not m or not str(link).startswith('https://'):
             return
         found[m.group(1)] = {'name': m.group(1), 'version': '%d.%d.%d' % _online_ver(m),
                              'v': _online_ver(m), 'url': link, 'bytes': size}
+        if sha256 and re.match(r'^[0-9a-f]{64}\Z', str(sha256)):
+            found[m.group(1)]['sha256'] = str(sha256)
+        if date:
+            found[m.group(1)]['date'] = str(date)[:40]
+
+    def add_index(items, final):
+        """The entries of an index.json (or any JSON list of packages)."""
+        for it in items:
+            if isinstance(it, dict):
+                link = it.get('download_url') or it.get('url') or ''
+                add(str(it.get('name') or link), urllib.parse.urljoin(final, str(link)),
+                    it.get('size'), it.get('sha256'), it.get('date'))
 
     gh = re.match(r'^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)'
                   r'(?:/tree/([^/]+)(?:/(.*?))?)?/?$', url)
@@ -70,13 +88,28 @@ def online_list(url):
         add(m1.group(1), link)
     elif gh:
         owner, repo, ref, folder = gh.group(1), gh.group(2), gh.group(3), gh.group(4) or ''
+        raw_base = 'https://raw.githubusercontent.com/%s/%s/%s/%s' % (
+            owner, repo, ref or 'HEAD', (folder.strip('/') + '/') if folder.strip('/') else '')
+        try:
+            # The folder's own index.json first: what tools/release.py wrote,
+            # with each package's sha256 - and no API, nor its 60 an hour.
+            data, _ct, final = _online_get(raw_base + 'index.json', limit=1024 * 1024,
+                                           accept='application/json')
+            items = json.loads(data.decode('utf-8'))
+            if isinstance(items, list):
+                add_index(items, final)
+        except Exception:                               # noqa: BLE001
+            pass
         api = 'https://api.github.com/repos/%s/%s/contents/%s' % (
             owner, repo, urllib.parse.quote(folder.strip('/')))
         if ref:
             api += '?ref=' + urllib.parse.quote(ref)
         try:
-            data, _ct, _f = _online_get(api, accept='application/vnd.github+json')
-            items = json.loads(data.decode('utf-8'))
+            if found:
+                items = []              # the index said it all
+            else:
+                data, _ct, _f = _online_get(api, accept='application/vnd.github+json')
+                items = json.loads(data.decode('utf-8'))
         except Exception as e:                          # noqa: BLE001
             # GitHub's API refused (60 questions an hour without an account,
             # or not let through): the folder's own page, read for the names.
@@ -85,8 +118,7 @@ def online_list(url):
             except Exception:                           # noqa: BLE001
                 raise ValueError('GitHub did not answer: %s' % (getattr(e, 'reason', None) or e))
             items = []
-            base = 'https://raw.githubusercontent.com/%s/%s/%s/%s' % (
-                owner, repo, ref or 'HEAD', (folder.strip('/') + '/') if folder.strip('/') else '')
+            base = raw_base
             for name in set(re.findall(r'acme-\d+\.\d+\.\d+\.tar\.gz',
                                        data.decode('utf-8', 'replace'))):
                 items.append({'type': 'file', 'name': name, 'download_url': base + name})
@@ -103,11 +135,7 @@ def online_list(url):
         except ValueError:
             items = None
         if isinstance(items, list):
-            for it in items:
-                if isinstance(it, dict):
-                    link = it.get('download_url') or it.get('url') or ''
-                    add(str(it.get('name') or link), urllib.parse.urljoin(final, str(link)),
-                        it.get('size'))
+            add_index(items, final)
         else:
             for href in re.findall(r'''href\s*=\s*["']([^"']+)["']''', text, re.I):
                 link = urllib.parse.urljoin(final, html.unescape(href))
@@ -212,6 +240,9 @@ def online_fetch(store, version, by, older=False):
     tmp = Path(tmp)
     try:
         data, _ct, final = _online_get(pk['url'], limit=UPGRADE_MOST, timeout=300)
+        if pk.get('sha256') and hashlib.sha256(data).hexdigest() != pk['sha256']:
+            raise ValueError('the package from %s is not the one its index.json names (its '
+                             'SHA-256 differs) - fetched half, or changed' % final)
         tmp.write_bytes(data)
         try:
             info = upgrade_inspect(tmp)

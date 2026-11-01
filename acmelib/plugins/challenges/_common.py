@@ -1,0 +1,484 @@
+# -*- coding: utf-8 -*-
+"""
+What the challenge modules share (the name starts with "_": the registry does
+not take it for a module):
+
+    DnsChallenge    the base of every DNS-01 module: where the record goes
+                    (_acme-challenge.NAME, its CNAME followed), whether it is
+                    seen (the zone's own name servers asked straight, then
+                    public resolvers if asked), the fields for that
+    HttpChallenge   the base of the HTTP-01 modules: the file fetched as the CA will
+    api()           a JSON API asked through ctx.http, its errors in words
+    ssh fields / ssh_conn()   how to reach a machine over SSH
+"""
+from __future__ import annotations
+
+import json
+import re
+import time
+
+from acmelib.plugins.base import Challenge, PluginError, field
+from acmelib.plugins.challenges import _dns as D
+
+SAFE_TOKEN = re.compile(r'^[A-Za-z0-9_-]{1,256}$')
+SAFE_NAME = re.compile(r'^[A-Za-z0-9_*.-]{1,253}$')
+SAFE_TXT = re.compile(r'^[A-Za-z0-9_.+/=-]{1,255}$')
+
+
+def as_list(v):
+    if v in (None, ''):
+        return []
+    if isinstance(v, (list, tuple)):
+        return [str(x).strip() for x in v if str(x).strip()]
+    return [x.strip() for x in re.split(r'[\n,;]+', str(v)) if x.strip()]
+
+
+def as_bool(v):
+    if isinstance(v, bool):
+        return v
+    return str(v or '').strip().lower() in ('1', 'true', 'yes', 'on', 'y')
+
+
+def as_num(v, default=0.0):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def base_name(name):
+    """The name a DNS-01 record is about: lower case, no '*.' (a wildcard is
+    proved at its base name)."""
+    n = D.norm(name)
+    while n.startswith('*.'):
+        n = n[2:]
+    if not n or not SAFE_NAME.match(n) or '*' in n:
+        raise PluginError('"%s" is not a name acme can prove' % name, retry=False)
+    return n
+
+
+def relative(fqdn, zone):
+    fqdn, zone = D.norm(fqdn), D.norm(zone)
+    if fqdn == zone:
+        return '@'
+    if not fqdn.endswith('.' + zone):
+        raise PluginError('%s is not in the zone %s' % (fqdn, zone), retry=False)
+    return fqdn[:-len(zone) - 1]
+
+
+def check_txt(value):
+    if not SAFE_TXT.match(str(value or '')):
+        raise PluginError('a TXT value acme will not write (not base64url): %r' % value,
+                          retry=False)
+    return value
+
+
+def settings(ctx):
+    """The settings as the module may read them: ctx.settings, else the engine's."""
+    s = getattr(ctx, 'settings', None)
+    if s:
+        return s
+    import sys
+    E = sys.modules.get('acmelib.engine')
+    return getattr(E, 'CONFIG', {}) if E is not None else {}
+
+
+# ---------------------------------------------------------------------------
+# A JSON API through ctx.http
+# ---------------------------------------------------------------------------
+def api(ctx, method, url, body=None, headers=None, who='the API', ok=(200, 201, 202, 204),
+        verify=True, raw_body=None, timeout=30, missing_ok=False):
+    """(status, parsed JSON or None). Raises PluginError in words on a status
+    not in `ok` (404 returns (404, None) when missing_ok)."""
+    h = {'Accept': 'application/json', 'User-Agent': 'acme-challenge'}
+    data = raw_body
+    if body is not None:
+        data = json.dumps(body).encode()
+        h['Content-Type'] = 'application/json'
+    h.update(headers or {})
+    try:
+        status, rh, got = ctx.http(method, url, body=data, headers=h, timeout=timeout,
+                                   verify=verify)
+    except PluginError:
+        raise
+    except Exception as e:                              # noqa: BLE001
+        raise PluginError('%s did not answer: %s' % (who, e))
+    parsed = None
+    if got:
+        try:
+            parsed = json.loads(got.decode('utf-8') if isinstance(got, bytes) else got)
+        except (ValueError, UnicodeDecodeError):
+            parsed = None
+    if status == 404 and missing_ok:
+        return status, parsed
+    if status not in ok:
+        said = _said(parsed) or (got[:300].decode('utf-8', 'replace') if isinstance(got, bytes)
+                                  else str(got)[:300])
+        words = '%s said %s: %s' % (who, status, said.strip() or 'nothing more')
+        if status in (401, 403):
+            words += ' - the credentials are wrong or may not do this'
+        raise PluginError(words, detail=said, retry=status >= 500 or status == 429)
+    return status, parsed
+
+
+def _said(p):
+    if not isinstance(p, dict):
+        return ''
+    for k in ('errors', 'error', 'message', 'detail', 'error_description'):
+        v = p.get(k)
+        if isinstance(v, list):
+            return '; '.join(x.get('message', str(x)) if isinstance(x, dict) else str(x)
+                             for x in v)
+        if isinstance(v, dict):
+            return str(v.get('message') or v.get('code') or v)
+        if v:
+            return str(v)
+    return ''
+
+
+# ---------------------------------------------------------------------------
+# DNS-01
+# ---------------------------------------------------------------------------
+PROPAGATION_FIELDS = [
+    field('propagation', 'Wait until it is seen by', 'select', default='auth',
+          options=[['auth', 'the zone\'s own name servers (asked straight)'],
+                   ['auth+public', 'the zone\'s name servers, then public resolvers'],
+                   ['resolvers', 'the resolvers below only'],
+                   ['none', 'nothing: the CA is asked at once (after the delay)']],
+          help='Before the CA is told to look, acme asks every name server of the zone '
+               '(found by NS) for the record, without recursion, until each has it - the '
+               'CA asks them the same way. Through public resolvers too, when your name '
+               'servers are anycast or hidden behind a provider.', advanced=True),
+    field('delay', 'Wait at least (seconds)', 'number', default=0,
+          help='Seconds after the record is put in before the first look - for a DNS '
+               'provider that says "done" before its servers have it.', advanced=True),
+    field('resolvers', 'Resolvers', 'list', default='',
+          placeholder='1.1.1.1\n8.8.8.8',
+          help='DNS servers acme looks names up with (CNAMEs, the zone, its name '
+               'servers). Empty: Settings → ACME resolvers, else this machine\'s.',
+          advanced=True),
+    field('public_resolvers', 'Public resolvers', 'list', default='1.1.1.1\n8.8.8.8\n9.9.9.9',
+          help='Asked at the end when "then public resolvers" is chosen.', advanced=True),
+    field('follow_cname', 'Follow a CNAME at _acme-challenge', 'bool', default=True,
+          help='When _acme-challenge.NAME is a CNAME (a delegation to another zone), '
+               'the TXT record is written where it points - the CA follows it too.',
+          advanced=True),
+]
+
+
+class DnsChallenge(Challenge):
+    """The base of the DNS-01 modules. A module sets `fields` (its own +
+    PROPAGATION_FIELDS) and writes add_txt / del_txt; zone_hint() where the
+    provider says which zones it has."""
+    types = ('dns-01',)
+    vendor = 'DNS'
+    doc = 'docs/validation.md'
+    auth_port = 53                  # where the zone's name servers are asked (a test changes it)
+
+    def __init__(self, config, ctx):
+        Challenge.__init__(self, config, ctx)
+        self._zones = {}
+        self._said = {}
+
+    # -- settings -----------------------------------------------------------
+    def flag(self, key):
+        return as_bool(self.c(key, False))
+
+    def num(self, key, default=0):
+        return as_num(self.c(key, default), default)
+
+    def lst(self, key):
+        return as_list(self.c(key, ''))
+
+    def resolvers(self):
+        got = self.lst('resolvers') or as_list(settings(self.ctx).get('acme_resolvers'))
+        return got or D.system_resolvers()
+
+    def ttl(self):
+        return int(self.num('ttl', 60) or 60)
+
+    def say_once(self, key, words, level='info'):
+        if self._said.get(key) != words:
+            self._said[key] = words
+            self.ctx.step(words, level)
+
+    # -- where it goes ----------------------------------------------------------
+    def record_name(self, name):
+        return '_acme-challenge.' + base_name(name)
+
+    def target(self, rr):
+        """Where the TXT record for `rr` is written: rr itself, or where its CNAMEs end."""
+        if not self.flag('follow_cname'):
+            return rr
+        try:
+            chain = D.follow_cname(rr, self.resolvers())
+        except D.DnsError as e:
+            self.ctx.debug('the CNAME of %s could not be looked up (%s): written there' % (rr, e))
+            return rr
+        if len(chain) > 1:
+            self.ctx.step('%s is a CNAME to %s: the TXT record goes there' % (rr, chain[-1]))
+        return chain[-1]
+
+    def zone_hint(self, fqdn):
+        """The zone, where the provider knows it better than DNS (a module overrides)."""
+        z = D.norm(self.c('zone', ''))
+        if z and D.in_zone(fqdn, z):
+            return z
+        return None
+
+    def zone_for(self, fqdn):
+        fqdn = D.norm(fqdn)
+        if fqdn in self._zones:
+            return self._zones[fqdn]
+        z = self.zone_hint(fqdn)
+        if not z:
+            try:
+                z = D.find_zone(fqdn, self.resolvers())
+            except D.DnsError as e:
+                raise PluginError('the zone of %s could not be found by its SOA (%s) - set the '
+                                  'zone in the challenge' % (fqdn, e))
+        self._zones[fqdn] = z
+        return z
+
+    def zone_of(self, name):
+        try:
+            return self.zone_for(self.target(self.record_name(name)))
+        except PluginError:
+            return None
+
+    # -- the contract ---------------------------------------------------------------
+    def present(self, name, token, key_authorization, txt_value):
+        check_txt(txt_value)
+        rr = self.record_name(name)
+        fqdn = self.target(rr)
+        h = self.add_txt(fqdn, txt_value)
+        self.ctx.step('%s TXT "%s" put in (%s)' % (fqdn, txt_value, self.title or self.kind))
+        return {'rr': rr, 'fqdn': fqdn, 'txt': txt_value, 'at': time.time(), 'h': h}
+
+    def ready(self, name, handle):
+        handle = handle or {}
+        if time.time() < float(handle.get('at') or 0) + self.num('delay', 0):
+            return False
+        mode = self.c('propagation', 'auth')
+        if mode == 'none':
+            return True
+        fqdn, rr, txt = handle.get('fqdn'), handle.get('rr'), handle.get('txt')
+        if mode == 'resolvers':
+            return self.seen_by(self.resolvers(), rr, txt, 'the resolvers')
+        ok = self.seen_by_authority(fqdn, txt)
+        if ok is None:                          # the name servers cannot be reached from here
+            ok = self.seen_by(self.resolvers(), rr, txt, 'the resolvers')
+        if ok and mode == 'auth+public':
+            ok = self.seen_by(self.lst('public_resolvers') or list(D.PUBLIC_RESOLVERS), rr, txt,
+                              'the public resolvers')
+        return ok
+
+    def cleanup(self, name, handle):
+        handle = handle or {}
+        if not handle.get('fqdn'):
+            return
+        self.del_txt(handle['fqdn'], handle.get('txt'), handle.get('h'))
+
+    # -- what a module writes ------------------------------------------------------------
+    def add_txt(self, fqdn, value):
+        """Put the TXT record in (other values at that name stay). Returns a
+        JSON-able handle for del_txt."""
+        raise NotImplementedError
+
+    def del_txt(self, fqdn, value, handle):
+        """Take that one value away; quiet when it is gone already."""
+        raise NotImplementedError
+
+    # -- is it there -------------------------------------------------------------------------
+    def seen_by(self, servers, name, txt, who):
+        """Every one of `servers` (asked with recursion) sees txt at name."""
+        missing, asked = [], 0
+        for srv in servers:
+            host, port = D.split_hostport(srv)
+            try:
+                m = D.query(host, name, 16, port=port, rd=True)
+            except (D.DnsError, D.FormErr, OSError):
+                continue
+            asked += 1
+            if txt not in [r.text for r in m.answer if r.rtype == 16]:
+                missing.append(srv)
+        if not asked:
+            self.say_once('seen:' + name, 'none of %s answered for %s' % (who, name), 'warn')
+            return False
+        if missing:
+            self.say_once('seen:' + name, '%s TXT not yet seen by %s' % (name, ', '.join(missing)))
+            return False
+        self.say_once('seen:' + name, '%s TXT seen by %s' % (name, who), 'ok')
+        return True
+
+    def authority(self, fqdn):
+        """[(ns name, [addresses])] of the zone fqdn is in."""
+        zone = self.zone_for(fqdn)
+        try:
+            return zone, D.zone_servers(zone, self.resolvers())
+        except D.DnsError as e:
+            self.say_once('ns:' + zone, 'the name servers of %s could not be found: %s'
+                          % (zone, e), 'warn')
+            return zone, []
+
+    def seen_by_authority(self, fqdn, txt):
+        """True: every name server of the zone has it; False: not yet; None:
+        none of them could be reached from here."""
+        zone, servers = self.authority(fqdn)
+        if not servers:
+            return None
+        have, lacking, unreachable = [], [], []
+        for ns, addrs in servers:
+            state = None
+            for a in addrs:
+                try:
+                    got = D.txt_at(a, fqdn, port=self.auth_port)
+                except (D.DnsError, D.FormErr, OSError):
+                    continue
+                state = txt in got
+                break
+            (have if state else lacking if state is False else unreachable).append(ns)
+        if not have and not lacking:
+            self.say_once('auth:' + fqdn, 'the name servers of %s (%s) cannot be asked from '
+                          'here - the resolvers are asked instead'
+                          % (zone, ', '.join(unreachable)), 'warn')
+            return None
+        if lacking:
+            self.say_once('auth:' + fqdn, '%s TXT: on %s, not yet on %s' % (
+                fqdn, ', '.join(have) or 'none', ', '.join(lacking)))
+            return False
+        self.say_once('auth:' + fqdn, '%s TXT is on every name server of %s (%s)' % (
+            fqdn, zone, ', '.join(have)), 'ok')
+        return True
+
+
+# ---------------------------------------------------------------------------
+# HTTP-01
+# ---------------------------------------------------------------------------
+class HttpChallenge(Challenge):
+    types = ('http-01',)
+    vendor = 'HTTP'
+    doc = 'docs/validation.md'
+
+    def flag(self, key):
+        return as_bool(self.c(key, False))
+
+    def check_name(self, name):
+        n = D.norm(name)
+        if n.startswith('*.'):
+            raise PluginError('%s: a wildcard can only be proved by DNS-01 - choose a DNS '
+                              'challenge for it' % name, retry=False)
+        if not SAFE_NAME.match(n):
+            raise PluginError('"%s" is not a name acme can prove' % name, retry=False)
+        return n
+
+    @staticmethod
+    def check_token(token):
+        if not SAFE_TOKEN.match(str(token or '')):
+            raise PluginError('a token acme will not write: %r' % token, retry=False)
+        return token
+
+    def fetch(self, url, want, host=None, hops=3):
+        """(True|False, words): the body at url is `want` (redirects followed
+        as the CA follows them)."""
+        headers = {'User-Agent': 'acme-http01-check', 'Accept': '*/*'}
+        if host:
+            headers['Host'] = host
+        for _ in range(hops + 1):
+            try:
+                status, rh, body = self.ctx.http('GET', url, headers=headers, timeout=10,
+                                                 verify=False, proxy=False)
+            except Exception as e:                      # noqa: BLE001
+                return False, '%s: %s' % (url, e)
+            if status in (301, 302, 303, 307, 308):
+                loc = _header(rh, 'location')
+                if not loc:
+                    return False, '%s: a redirect with nowhere to go' % url
+                if loc.startswith('/'):
+                    loc = url.split('/', 3)[0] + '//' + url.split('/', 3)[2] + loc
+                url = loc
+                headers.pop('Host', None)
+                continue
+            if status != 200:
+                return False, '%s said %s' % (url, status)
+            text = body.decode('utf-8', 'replace') if isinstance(body, bytes) else str(body)
+            if text.strip() == want:
+                return True, '%s answers it' % url
+            return False, '%s answers something else (%r)' % (url, text.strip()[:60])
+        return False, '%s: too many redirects' % url
+
+
+def _header(h, name):
+    if not h:
+        return ''
+    if isinstance(h, dict):
+        for k, v in h.items():
+            if k.lower() == name:
+                return v
+        return ''
+    try:
+        return h.get(name) or ''
+    except AttributeError:
+        for k, v in h:
+            if k.lower() == name:
+                return v
+    return ''
+
+
+# ---------------------------------------------------------------------------
+# SSH
+# ---------------------------------------------------------------------------
+def ssh_fields(port=22, user='root', with_hostkey=True):
+    out = [
+        field('user', 'User', 'text', default=user, required=True),
+        field('auth', 'Signs in with', 'select', default='key',
+              options=[['key', 'a private key'], ['password', 'a password']]),
+        field('key', 'Private key', 'pem', show_if={'auth': ['key']},
+              help='OpenSSH or PEM private key; its public half in the user\'s '
+                   '~/.ssh/authorized_keys on the machine.'),
+        field('key_pass', 'Key passphrase', 'secret', show_if={'auth': ['key']}, advanced=True),
+        field('password', 'Password', 'secret', show_if={'auth': ['password']}),
+    ]
+    if with_hostkey:
+        out += [
+            field('hostkey', 'Host keys', 'list', default='',
+                  placeholder='web1.example.com ssh-ed25519 AAAAC3Nza...',
+                  help='Pinned host keys, as known_hosts lines (ssh-keyscan -t ed25519 HOST). '
+                       'A connection to a host whose key is not this is refused.'),
+            field('trust_first', 'Trust the first key seen', 'bool', default=False,
+                  help='With no host key pinned: the first key seen is kept and pinned from '
+                       'then on. Off: a host without a pinned key is not connected to.'),
+        ]
+    out.append(field('timeout', 'Timeout (s)', 'number', default=20, advanced=True))
+    return out
+
+
+def hostkey_for(lines, host):
+    """The known_hosts line(s) for a host from the pinned list."""
+    out = []
+    for line in as_list(lines):
+        first = line.split(None, 1)[0] if line.split() else ''
+        names = [x.strip('[]').split(']:')[0] for x in first.split(',')]
+        if host in names or ('[%s]' % host) in first:
+            out.append(line)
+    return '\n'.join(out)
+
+
+def ssh_conn(plugin, host, port=22):
+    c = plugin.c
+    auth = c('auth', 'key')
+    return {'host': host, 'port': int(port or 22), 'user': c('user', 'root'),
+            'password': c('password', '') if auth == 'password' else '',
+            'key': c('key', '') if auth != 'password' else '',
+            'key_pass': c('key_pass', '') if auth != 'password' else '',
+            'hostkey': hostkey_for(c('hostkey', ''), host),
+            'trust_first': as_bool(c('trust_first', False)),
+            'timeout': as_num(c('timeout', 20), 20)}
+
+
+def shq(s):
+    """A word for a POSIX shell."""
+    s = str(s)
+    if s and re.match(r'^[A-Za-z0-9_@%+=:,./-]+$', s):
+        return s
+    return "'" + s.replace("'", "'\"'\"'") + "'"

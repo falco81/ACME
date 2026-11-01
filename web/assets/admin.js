@@ -1,32 +1,67 @@
 /* The time pickers (1.0.53), in place of the <select>s they replace. */
-timePicker('ov-hours', {start: {k: 'rel', s: 86400}});
-timePicker('rq-hours', {start: {k: 'rel', s: 86400}});
-timePicker('en-since', {start: {k: 'rel', s: 604800}, all: true, unit: 's'});
 if ($('ev-time')) timePicker('ev-time', {start: {k: 'all'}, all: true});
-/* admin.js - the administration pages of acme, drawn the way isemon draws its
-   dashboard: the same header, tabs, rail, popups and panels (core.js), over
-   the acme daemon's API. The page works nothing out for itself. */
+/* admin.js - the administration pages of acme (certificates kept, renewed and
+   put in place by themselves), drawn the way isemon draws its dashboard: the
+   same header, tabs, rail, popups and panels (core.js), over the acme daemon's
+   API. The page works nothing out for itself.
+
+   ---- Extending the pages: what certs.js (or any later script) plugs into ----
+
+   certs.js is loaded after this file (admin/index.php, when it is there), and
+   the page starts only once every script has run (DOMContentLoaded), so what
+   is registered below is known before the first tab is opened.
+
+   window.ACME_EXTRA_TABS = [{name, draw, live}]
+       A main tab of its own. Its button (<button role="tab" data-tab="NAME">)
+       and its panel (<section class="panel" id="tab-NAME" hidden>) are printed
+       by admin/certs-ui.php (acme_certs_tab_buttons, acme_certs_tab_panels);
+       this only makes them work:
+         name   the NAME above - also what #NAME in the address opens
+         draw   function (ctx): called when the tab is shown, ctx = {live: false,
+                status: STATUS}; and, with live: true, again on every live tick
+                (every 5 s, unless paused, the window hidden, a popup open or the
+                reader holding the panel - selecting, typing, pointing at help),
+                ctx = {live: true, moved: <the daemon's serial changed>, status}
+         live   true to be drawn again on the tick
+       An entry named 'overview' adds no tab: its draw is called with the
+       Overview's (shown and, live: true, on the tick) - to fill <div id="ov-certs">.
+
+   window.ACME_EXTRA_PANES = {pane: draw}
+       A pane of Settings: its rail button (<button data-pane="PANE">) and its
+       <div class="ctl-pane" id="pane-PANE" hidden> are printed by certs-ui.php
+       (acme_certs_settings_nav, acme_certs_settings_panes); draw(pane) is called
+       each time the pane is opened. Settings of the daemon listed for that pane
+       (GET /api/settings, panes[PANE]) are drawn into <div id="sect-PANE"> when
+       it has one, and saved with the save bar like any other.
+
+   What else there is to use, all globals: api(name[, body]) (relayed by
+   admin/index.php: certs, certs/one, cas/create, targets/test, ... as named in
+   docs/architecture.md), showTab(name), showPane(pane), modal, peek, listTable,
+   el, clear, cmdButton, toast, oops, confirmThen, stepsList, nodeCell,
+   qSuggest, searchButtons, ADMIN (a full administrator), CERTADMIN (a full or a
+   cert administrator), ME, STATUS, TAB, PANE. */
 'use strict';
 
 ADMIN = !!(ME && ME.role === 'fulladmin');
-var TOKADMIN = !!(ME && (ME.role === 'fulladmin' || ME.role === 'tokenadmin'));
-var LIVE = true, SERIAL = STATUS ? STATUS.serial : '', PANE = 'radius';
+var CERTADMIN = !!(ME && (ME.role === 'fulladmin' || ME.role === 'certadmin'));
+var LIVE = true, SERIAL = STATUS ? STATUS.serial : '', PANE = '';
 var SETTINGS = null, DIRTY = {}, DRAWN_NODE = '';
-var PAGE = {tokens: 0, requests: 0, codes: 0, events: 0, enrolment: 0};
+var PAGE = {events: 0};
+window.ACME_EXTRA_TABS = window.ACME_EXTRA_TABS || [];
+window.ACME_EXTRA_PANES = window.ACME_EXTRA_PANES || {};
 
 function roleWords(role) {
-  return role === 'fulladmin' ? 'full admin' : (role === 'tokenadmin' ? 'token admin' : 'read only');
+  return role === 'fulladmin' ? 'full admin' : (role === 'certadmin' ? 'cert admin' : 'read only');
 }
 function roleTone(role) {
-  return role === 'fulladmin' ? 'violet' : (role === 'tokenadmin' ? 'warn' : 'dim');
+  return role === 'fulladmin' ? 'violet' : (role === 'certadmin' ? 'warn' : 'dim');
 }
 
 /* ---- what this account may not even see ---------------------------------- */
 (function roles() {
   document.querySelectorAll('.admin-only').forEach(function (n) { if (!ADMIN) n.hidden = true; });
   document.querySelectorAll('.fulladmin-only').forEach(function (n) { if (!ADMIN) n.hidden = true; });
-  document.querySelectorAll('.tokadmin-only').forEach(function (n) { if (!TOKADMIN) n.hidden = true; });
-  document.querySelectorAll('.token-admin').forEach(function (n) { if (!TOKADMIN) n.hidden = true; });
+  document.querySelectorAll('.certadmin-only').forEach(function (n) { if (!CERTADMIN) n.hidden = true; });
   if (!ADMIN) $('readonly-note').hidden = false;
   if (!ADMIN) $('save-bar').hidden = true;
 }());
@@ -50,9 +85,28 @@ dressButtons(document);
 }());
 
 /* ---- tabs ------------------------------------------------------------------ */
-var TABS = ['overview', 'tokens', 'requests', 'test', 'enrolment', 'events', 'settings'];
+var TABS = ['overview', 'events', 'settings'];
+/** Every tab there is: these, and the ones plugged in (ACME_EXTRA_TABS). */
+function allTabs() {
+  var all = TABS.slice();
+  (window.ACME_EXTRA_TABS || []).forEach(function (t) {
+    if (t && t.name && all.indexOf(t.name) < 0) all.push(t.name);
+  });
+  return all;
+}
+/** What is plugged in for one tab: its own, or more for the Overview. */
+function extraTabs(name) {
+  return (window.ACME_EXTRA_TABS || []).filter(function (t) { return t && t.name === name && typeof t.draw === 'function'; });
+}
+function extraDraw(name, ctx) {
+  extraTabs(name).forEach(function (t) {
+    if (ctx.live && !t.live) return;
+    try { t.draw(ctx); } catch (e) { if (window.console) console.error(e); }
+  });
+}
 window.optShowTab = function (name) {
-  if (TABS.indexOf(name) < 0) name = 'overview';
+  var all = allTabs();
+  if (all.indexOf(name) < 0 || !$('tab-' + name)) name = 'overview';
   /* A tab this account may not use (its button is hidden) is not opened by
      the address either (1.0.15). */
   var btn = document.querySelector('.tabs button[data-tab="' + name + '"]');
@@ -61,7 +115,7 @@ window.optShowTab = function (name) {
   document.querySelectorAll('.tabs button[data-tab]').forEach(function (b) {
     b.setAttribute('aria-selected', b.getAttribute('data-tab') === name ? 'true' : 'false');
   });
-  TABS.forEach(function (one) { $('tab-' + one).hidden = one !== name; });
+  all.forEach(function (one) { if ($('tab-' + one)) $('tab-' + one).hidden = one !== name; });
   writeHash();
   holdTheTallOnes();
   onTab(name);
@@ -70,17 +124,14 @@ document.querySelectorAll('.tabs button[data-tab]').forEach(function (b) {
   b.onclick = function () { showTab(b.getAttribute('data-tab')); };
 });
 function writeHash() {
-  var want = '#' + TAB + (TAB === 'settings' ? '/' + PANE : '');
+  var want = '#' + TAB + (TAB === 'settings' && PANE ? '/' + PANE : '');
   if (location.hash !== want) try { history.replaceState(null, '', want); } catch (e) { }
 }
-function onTab(name) {
+function onTab(name, live) {
   explainWhatWasDrawn(document);
   if (name === 'overview') loadOverview();
-  if (name === 'tokens') loadTokens();
-  if (name === 'requests') loadRequests();
-  if (name === 'test') loadTest();
   if (name === 'events') loadEvents();
-  if (name === 'enrolment') loadEnrolment();
+  if (TABS.indexOf(name) < 0 || name === 'overview') extraDraw(name, {live: !!live, moved: true, status: STATUS});
   /* Coming back with changes not yet saved keeps them (1.0.15). */
   /* ...and the ones waiting in boxes of their own too (1.0.94): a pasted
      certificate vanished from its box while the bar still counted it. */
@@ -100,14 +151,13 @@ function paintHeader(s) {
   }
   mailqBadge(s.mailq);
   var pill = $('state-pill');
-  var listening = s.radius && s.radius.listening && s.radius.listening.length;
-  var kind = !listening ? 'crit' : (s.problems && s.problems.length ? 'warn' : 'ok');
+  var probs = (s.problems || []).length;
   var inMaint = !!(s.maintenance && s.maintenance.on);
-  if (inMaint && listening) kind = 'warn';
+  var kind = probs || inMaint ? 'warn' : 'ok';
   pill.className = 'pill ' + kind;
-  pill.lastChild.textContent = !listening ? 'not listening' : (inMaint ? 'in maintenance'
-    : (kind === 'warn' ? 'answering, with trouble' : 'answering'));
-  pill.title = listening ? 'RADIUS on ' + s.radius.listening.join(', ') : 'The RADIUS server is not listening.';
+  pill.lastChild.textContent = inMaint ? 'in maintenance' : (probs ? 'running, with trouble' : 'running');
+  pill.title = inMaint ? 'This node is in maintenance: it renews and puts in place nothing until it is back in service.'
+    : (probs ? num(probs) + ' problem(s), listed under the header.' : 'The daemon answers and has nothing to complain about.');
   explainWhatWasDrawn(pill.parentNode);
   var pr = $('problems');
   clear(pr);
@@ -118,10 +168,6 @@ function paintHeader(s) {
   pr.hidden = !(s.problems && s.problems.length);
   drawTrials(s);
   $('updated-at').textContent = clockWords(new Date());
-  $('tabn-tokens').textContent = s.tokens ? num(s.tokens.all) : '';
-  var rej = s.day ? s.day.reject : 0;
-  $('tabn-requests').textContent = rej ? num(rej) : '';
-  $('tabn-requests').classList.toggle('hot', rej > 0);
 }
 
 /* A change on trial (1.0.137): a node's new network, or the firewall - kept
@@ -146,7 +192,7 @@ function drawTrials(s) {
       words.appendChild(left);
       words.appendChild(el('div', 'small', t.kind === 'net'
         ? 'Not kept, ' + t.node + ' goes back to its old network by itself and restarts. Keep it once you have checked that the node answers at its new address.'
-        : 'Not kept, the rules and the access lists as they were before come back by itself. Keep it once you have checked that SSH, the pages and RADIUS still answer.'));
+        : 'Not kept, the rules and the access lists as they were before come back by itself. Keep it once you have checked that SSH and the pages still answer.'));
       row.appendChild(words);
       var tools = el('div', 'trial-tools');
       if (ADMIN) {
@@ -194,18 +240,22 @@ function tick() {
        pointer over a help panel, a box being typed in, or a page further
        back, where every new request moved the rows under the reader. */
     var here = $('tab-' + TAB);
-    if (moved && (TAB === 'overview' || TAB === 'requests' || TAB === 'events')
-        && !document.querySelector('.modal:not([hidden])')
-        && !userHolds(here) && !pointerBusy(here)
-        && !(TAB === 'requests' && PAGE.requests > 0) && !(TAB === 'events' && PAGE.events > 0)) {
+    var free = here && !document.querySelector('.modal:not([hidden])')
+        && !userHolds(here) && !pointerBusy(here);
+    if (moved && TAB === 'events' && free && !(PAGE.events > 0)) {
       REDRAW_OWED = false;
       onTab(TAB);
-    } else if (moved && (TAB === 'overview' || TAB === 'requests' || TAB === 'events')) {
+    } else if (moved && TAB === 'events') {
       /* Held back under the reader (1.0.94): owed, not forgotten - the
          serial taken meant the next tick saw nothing new. */
       REDRAW_OWED = true;
     }
     if (TAB === 'overview') paintCards();
+    /* The tabs plugged in that asked to be live (ACME_EXTRA_TABS), and the
+       Overview's own part of them: drawn again under the same rule. */
+    if ((TAB === 'overview' || TABS.indexOf(TAB) < 0) && free) {
+      extraDraw(TAB, {live: true, moved: moved, status: s});
+    }
   }).catch(function (e) {
     var o = $('offline');
     o.hidden = false;
@@ -242,11 +292,11 @@ function showMe() {
     body.appendChild(head);
     var may = el('div', 'me-sec');
     may.appendChild(el('h3', '', 'What you may do'));
-    may.appendChild(el('p', '', ME.role === 'fulladmin' ? 'Anything: tokens, settings, accounts, the database.'
-      : (ME.role === 'tokenadmin' ? 'Look at every page and look after people’s tokens: make, replace, switch off, take away. No setting and no account.'
+    may.appendChild(el('p', '', ME.role === 'fulladmin' ? 'Anything: certificates and their keys, the authorities, the targets, settings, accounts, the database.'
+      : (ME.role === 'certadmin' ? 'Look at every page and look after the certificates: add, import, renew, put in place, export (never a private key). No setting and no account.'
          : 'Look at every page. Nothing can be changed from this account; how your own tables are laid out is yours to change.')));
     body.appendChild(may);
-    if (ME.source === 'directory' && TOKADMIN) {     /* whois is a token administrator's (1.0.146) */
+    if (ME.source === 'directory' && CERTADMIN) {     /* whois is a cert administrator's (1.0.146) */
       var dsec = el('div', 'me-sec');
       dsec.appendChild(el('h3', '', 'In the directory'));
       var dbody = el('div', 'muted', 'asking the directory…');
@@ -541,11 +591,6 @@ $('cols-import').onclick = function () { mePick(); };
 function paintCards() {
   var s = STATUS;
   if (!s) return;
-  $('m-accept').textContent = num(s.day.accept);
-  $('m-reject').textContent = num(s.day.reject);
-  $('m-tokens').textContent = num(s.tokens.all);
-  $('m-tokens-sub').textContent = num(s.tokens.active) + ' in use · ' + num(s.tokens.pending)
-    + ' waiting · ' + num(s.tokens.disabled) + ' off · ' + num(s.tokens.used_30d) + ' used in 30 days';
   var i = s.isemon || {};
   var sent = Object.keys(i.sent || {}).reduce(function (a, k) { return a + i.sent[k]; }, 0);
   $('m-isemon').textContent = i.on ? (Object.keys(i.trouble || {}).length ? '!' : num(sent)) : 'off';
@@ -553,89 +598,7 @@ function paintCards() {
     + (i.last_sent ? ' · last ' + ago(i.last_sent) : '')) : 'not sent; Settings → isemon';
   $('card-isemon').className = 'card metric ' + (!i.on ? 'info' : (Object.keys(i.trouble || {}).length ? 'crit' : 'ok'))
     + ($('card-isemon').classList.contains('tappable') ? ' tappable' : '');
-  $('m-accept-sub').textContent = s.last ? 'the last request ' + ago(s.last.ts) : 'nothing asked yet';
   paintCards2(s);
-}
-
-function codeNowTile(name) {
-  var box = el('div', 'tw-fact tw-code');
-  box.appendChild(el('dt', '', 'Code now'));
-  var dd = el('dd', '');
-  var hint = el('span', 'tw-code-hint', 'show');
-  dd.appendChild(hint);
-  box.appendChild(dd);
-  box.title = 'The code the phone shows right now. Seeing it is written in the events. Shown, a click copies it.';
-  box.setAttribute('role', 'button');
-  box.tabIndex = 0;
-  var st = {shown: false, code: '', next: '', ends: 0, period: 30, skew: 0, timer: null, asking: false};
-  var R = 11, C = 2 * Math.PI * R;
-  function ask(first) {
-    if (st.asking) return;
-    st.asking = true;
-    api('token', {action: 'code_now', name: name, first: !!first}).then(function (d) {
-      st.code = d.code; st.next = d.next; st.ends = d.ends; st.period = d.period;
-      st.skew = d.now - Date.now() / 1000;
-      if (!st.shown) draw();
-      paint();
-    }).catch(function (e) { oops(e); st.shown = false; }).then(function () { st.asking = false; });
-  }
-  var codeEl, ring, secs;
-  function draw() {
-    st.shown = true;
-    clear(dd);
-    var wrap = el('span', 'tw-code-row');
-    codeEl = noI18n(el('span', 'tw-code-v mono', ''));
-    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 28 28');
-    svg.setAttribute('class', 'tw-ring');
-    var back = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    back.setAttribute('cx', 14); back.setAttribute('cy', 14); back.setAttribute('r', R);
-    back.setAttribute('class', 'tw-ring-back');
-    ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    ring.setAttribute('cx', 14); ring.setAttribute('cy', 14); ring.setAttribute('r', R);
-    ring.setAttribute('class', 'tw-ring-fill');
-    ring.setAttribute('stroke-dasharray', C.toFixed(2));
-    svg.appendChild(back); svg.appendChild(ring);
-    secs = noI18n(el('span', 'tw-ring-s', ''));
-    var rw = el('span', 'tw-ring-wrap');
-    rw.appendChild(svg); rw.appendChild(secs);
-    wrap.appendChild(codeEl); wrap.appendChild(rw);
-    dd.appendChild(wrap);
-    clearInterval(st.timer);      /* never two at once (1.0.57) */
-    st.timer = setInterval(tick, 200);
-  }
-  function paint() {
-    if (!codeEl) return;
-    var c = String(st.code);
-    codeEl.textContent = c.length === 6 ? c.slice(0, 3) + ' ' + c.slice(3) : (c.length === 8 ? c.slice(0, 4) + ' ' + c.slice(4) : c);
-    tick();
-  }
-  function tick() {
-    /* Gone with its window, closed or not (1.0.44): a closed popup stays in
-       the page and kept asking for the code every half minute. */
-    if (!document.body.contains(box) || box.closest('.modal[hidden]')) { clearInterval(st.timer); return; }
-    var now = Date.now() / 1000 + st.skew;
-    var left = st.ends - now;
-    if (left <= 0) {
-      /* The next code is known already: shown at once, and the one after
-         it asked for. */
-      /* The next one not come (1.0.94): no code at all, not an old one
-         shown as if it still opened anything. */
-      st.code = st.next || ''; st.next = ''; st.ends += st.period; left += st.period;
-      paint();
-      ask(false);
-      return;
-    }
-    var part = Math.max(0, Math.min(1, left / st.period));
-    ring.setAttribute('stroke-dashoffset', (C * (1 - part)).toFixed(2));
-    ring.setAttribute('class', 'tw-ring-fill' + (left < 6 ? ' low' : ''));
-    secs.textContent = Math.ceil(left);
-  }
-  function copyCode() { copyText(String(st.code || ''), box, 'the code was copied'); }
-  function go() { if (!st.shown) ask(true); else copyCode(); }
-  box.onclick = go;
-  box.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
-  return box;
 }
 
 /* The second row (1.0.37): this server, the cluster, the database, maintenance. */
@@ -646,12 +609,11 @@ function upTime(sec) {
 }
 function paintCards2(s) {
   if (!$('card-server')) return;
-  var listening = s.radius && s.radius.listening && s.radius.listening.length;
   var probs = (s.problems || []).length;
   var maint = !!(s.maintenance && s.maintenance.on);
-  $('m-server').textContent = !listening ? 'down' : (maint ? 'maintenance' : (probs ? num(probs) + ' !' : 'OK'));
+  $('m-server').textContent = maint ? 'maintenance' : (probs ? num(probs) + ' !' : 'OK');
   $('m-server-sub').textContent = s.node + ' · ' + s.version + ' · up ' + upTime(s.uptime);
-  $('card-server').className = 'card metric ' + (!listening ? 'crit' : (maint || probs ? 'warn' : 'ok')) + ($('card-server').classList.contains('tappable') ? ' tappable' : '');
+  $('card-server').className = 'card metric ' + (maint || probs ? 'warn' : 'ok') + ($('card-server').classList.contains('tappable') ? ' tappable' : '');
   var nodes = s.nodes || [];
   var alive = nodes.filter(function (n) { return n.alive; }).length;
   var rep = s.replication || {};
@@ -685,7 +647,7 @@ function paintCards2(s) {
   $('m-maint').textContent = running ? 'upgrading' : (mn.length ? num(mn.length) + ' out of service' : 'in service');
   $('m-maint-sub').textContent = running ? 'to ' + up.plan.version
     : (mn.length ? mn.join(', ') + ' in maintenance'
-    : (up.package && verAbove(up.package, s.version) ? 'acme ' + up.package + ' is ready to be put in' : 'every node answers RADIUS'));
+    : (up.package && verAbove(up.package, s.version) ? 'acme ' + up.package + ' is ready to be put in' : 'every node is in service'));
   $('card-maint').className = 'card metric ' + (running ? 'info' : (mn.length ? 'warn' : 'ok'))
     + ($('card-maint').classList.contains('tappable') ? ' tappable' : '');
 }
@@ -711,74 +673,6 @@ function cardOpens(id, words, go) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
   };
 }
-function peekActivity(title, result, jumpWords) {
-  peek(title, function () {
-    return Promise.all([api('activity&hours=24&result=' + result + '&limit=200'), api('dashboard&hours=24')])
-      .then(function (two) { two[0].dash = two[1]; return two[0]; });
-  }, function (body, d) {
-    var rows = d.rows || [];
-    var by = {};
-    rows.forEach(function (r) {
-      var k = result === 'accept' ? (r.name || '–') : (r.why || '–');
-      var one = by[k] || (by[k] = {said: k, n: 0, last: 0});
-      one.n += 1;
-      one.last = Math.max(one.last, r.ts || 0);
-    });
-    var top = Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return b.n - a.n; });
-    var dash = d.dash || {};
-    /* Refusals counted by the server over the whole day, not out of the
-       rows fetched. */
-    if (result !== 'accept' && (dash.top_reasons || []).length) top = dash.top_reasons;
-    body.appendChild(peekFacts([[result === 'accept' ? 'Let in' : 'Refused', num(d.total)],
-      result === 'accept' ? ['People', num(top.length)] : ['Wrong codes', num(dash.acme_bad || 0)],
-      ['Newest', rows.length ? ago(rows[0].ts) : '–']]));
-    if (top.length) {
-      body.appendChild(el('h4', '', result === 'accept' ? 'Who' : 'Why'));
-      var t = el('div');
-      facet(t, top.slice(0, 8), result === 'accept' ? 'good' : 'reject', function (r) {
-        closeModal();
-        openRequests(result === 'accept' ? {name: r.said, result: result} : {reason: r.said, result: result});
-      });
-      body.appendChild(t);
-    }
-    body.appendChild(el('h4', '', 'The last of them'));
-    body.appendChild(activityTable(rows.slice(0, 50)));
-  }, {tab: 'requests', words: jumpWords, icon: 'list',
-      go: function () { openRequests({result: result, since: Date.now() / 1000 - 86400}); }});
-}
-function peekTokensCard() {
-  peek('Tokens', function () { return api('tokens&limit=1000&sort=last_used&desc=1'); }, function (body, d) {
-    var t = (STATUS || {}).tokens || {};
-    body.appendChild(peekFacts([['All', num(t.all)], ['In use', num(t.active)], ['Waiting for a code', num(t.pending)],
-      ['Switched off', num(t.disabled)], ['Used in 30 days', num(t.used_30d)]]));
-    var rows = (d.rows || d.tokens || []);
-    var locked = rows.filter(function (r) { return r.locked_until && r.locked_until * 1000 > Date.now(); });
-    var never = rows.filter(function (r) { return !r.last_used; }).length;
-    body.appendChild(el('p', 'note', num(never) + ' never used yet' + (locked.length ? ' · ' + num(locked.length) + ' locked out after wrong codes' : '') + '.'));
-    if (locked.length) {
-      body.appendChild(el('h4', '', 'Locked out now'));
-      locked.forEach(function (r) {
-        var p = el('div', 'fct tappable');
-        p.appendChild(noI18n(el('div', 'fct-said', r.name)));
-        p.onclick = function () { modalOver(function () { tokenPeek(r.name); }); };
-        body.appendChild(p);
-      });
-    }
-    var used = rows.filter(function (r) { return r.last_used; }).sort(function (a, b) { return b.last_used - a.last_used; }).slice(0, 12);
-    if (used.length) {
-      body.appendChild(el('h4', '', 'Used last'));
-      body.appendChild(listTable(['Name', 'Used', 'From'], used, function (r) {
-        var tr = el('tr');
-        tr.appendChild(noI18n(el('td', 'mono', r.name)));
-        tr.appendChild(el('td', 'muted', ago(r.last_used)));
-        tr.appendChild(fromCell(r));
-        tr.style.cursor = 'pointer';
-        tr.onclick = function () { modalOver(function () { tokenPeek(r.name); }); };
-        return tr;
-      }, 'plain'));
-    }
-  }, {tab: 'tokens', words: 'Open the tokens', icon: 'token'});
-}
 function peekIsemonCard() {
   var i = (STATUS || {}).isemon || {};
   peek('isemon', function () { return Promise.resolve(i); }, function (body) {
@@ -793,7 +687,6 @@ function peekIsemonCard() {
 function peekServerCard() {
   var s = STATUS || {};
   peek('This server: ' + s.node, function () { return Promise.resolve(s); }, function (body) {
-    var r = s.radius || {};
     var m = s.maintenance || {};
     body.appendChild(peekFacts([['Version', s.version], ['Running for', upTime(s.uptime)],
       ['Started', stamp(s.started)], ['Host', s.host], ['State', m.on ? 'in maintenance' : 'in service']]));
@@ -804,13 +697,8 @@ function peekServerCard() {
       if (m.by) { mp.appendChild(document.createTextNode(' · ')); mp.appendChild(noI18n(el('span', '', m.by))); }
       if (m.at) { mp.appendChild(document.createTextNode(' · ')); mp.appendChild(el('span', '', ago(m.at))); }
       body.appendChild(mp);
-      body.appendChild(el('p', 'note', 'RADIUS is not answered and /healthz says 503.'));
+      body.appendChild(el('p', 'note', 'Nothing is renewed or put in place from here, and /healthz says 503.'));
     }
-    body.appendChild(el('h4', '', 'RADIUS'));
-    var kv = [['Listening on', (r.listening || []).join(', ') || 'nothing'],
-              ['Clients', num(s.clients)], ['Realms', num(s.realms)], ['Directories', num(s.directories)]];
-    Object.keys(r.counts || {}).forEach(function (k) { kv.push([k, num(r.counts[k])]); });
-    body.appendChild(kvTable(kv));
     body.appendChild(el('h4', '', 'Problems'));
     if (!(s.problems || []).length) body.appendChild(el('p', 'note good', 'None.'));
     (s.problems || []).forEach(function (p) { body.appendChild(el('p', 'note bad', p)); });
@@ -931,260 +819,15 @@ function peekMaintCard() {
     if (d.package) body.appendChild(el('p', 'note good', 'acme ' + d.package.version + ' is sent and checked.'));
   }, ADMIN ? {tab: 'settings', pane: 'upgrade', words: 'Open Upgrades', icon: 'up'} : null);
 }
-cardOpens('card-accept', 'Everybody let in during the last 24 hours.', function () { peekActivity('Let in - the last 24 hours', 'accept', 'Open the Log'); });
-cardOpens('card-reject', 'Everything refused in the last 24 hours, and why.', function () { peekActivity('Refused - the last 24 hours', 'reject', 'Open the Log'); });
-cardOpens('card-tokens', 'The tokens: how many, which are locked out, which were used last.', peekTokensCard);
 cardOpens('card-isemon', 'What is sent to isemon, and whether it arrives.', peekIsemonCard);
-cardOpens('card-server', 'This server: its version, how long it has run, RADIUS, problems.', peekServerCard);
+cardOpens('card-server', 'This server: its version, how long it has run, problems.', peekServerCard);
 cardOpens('card-cluster', 'The nodes and the replication between them.', peekClusterCard);
 cardOpens('card-db', 'The database: where, how big, what it holds, the copies.', peekDbCard);
 cardOpens('card-maint', 'Which node is in service, and the upgrades.', peekMaintCard);
 
 function loadOverview() {
   paintCards();
-  var hours = Number($('ov-hours').value || 24);
-  apiLatest('dashboard', 'dashboard&hours=' + hours + tpQuery('ov-hours', 'since', 'until')).then(function (d) {
-    drawChart(d, Math.round(d.hours || hours));
-    $('m-reject-sub').textContent = num(d.refused) + ' · ' + $('ov-hours')._range().words + ' · '
-      + num(d.acme_bad) + ' wrong code(s)';
-    /* The Log opens on the same window as the overview (1.0.53). */
-    var win = function (f) { f.since = d.since; f.until = d.until; return f; };
-    facet('ov-names', d.top_refused_names, 'reject', function (r) { openRequests(win({name: r.said, result: 'reject'})); });
-    facet('ov-reasons', d.top_reasons, 'reject', function (r) { openRequests(win({reason: r.said, result: 'reject'})); });
-    facet('ov-clients', d.top_clients, 'good', function (r) { openRequests(win({client: r.said})); });
-    facet('ov-places', d.top_places, 'good', function (r) { openRequests(win({from: r.said})); });
-    explainWhatWasDrawn($('tab-overview'));
-  }).catch(oops);
-}
-$('ov-hours').onchange = loadOverview;
-function overWords(h) {
-  return h <= 6 ? '6 hours' : (h <= 24 ? '24 hours' : (h <= 72 ? '3 days' : (h <= 168 ? 'a week' : 'a month')));
-}
-
-function facet(id, rows, tone, go) {
-  var host = typeof id === 'string' ? $(id) : id;
-  clear(host);
-  if (!rows || !rows.length) { host.appendChild(el('p', 'muted small', 'Nothing in this window.')); return; }
-  var top = rows[0].n || 1;
-  /* Each one whole: the words on their own line, as long as they are, and
-     under them the bar, the count and when it was last. Nothing cut short. */
-  var list = el('div', 'facetlist');
-  rows.forEach(function (r) {
-    var row = el('div', 'fct tappable');
-    var said = noI18n(el('div', 'fct-said', r.said || '–'));
-    if (r.said && /\s/.test(r.said)) said.removeAttribute('data-no-i18n');
-    row.appendChild(said);
-    var line = el('div', 'fct-line');
-    var bb = el('div', 'bar' + (tone === 'good' ? ' good' : ''));
-    var fill = el('span');
-    fill.style.width = Math.max(3, Math.round(100 * r.n / top)) + '%';
-    bb.appendChild(fill);
-    line.appendChild(bb);
-    line.appendChild(el('span', 'fct-n', num(r.n)));
-    line.appendChild(el('span', 'fct-when muted small', ago(r.last)));
-    row.appendChild(line);
-    row.onclick = function () { go(r); };
-    list.appendChild(row);
-  });
-  host.appendChild(list);
-}
-
-function drawChart(d, hours) {
-  var host = $('ov-chart');
-  var tip = host.querySelector('.tip');
-  clear(host);
-  host.appendChild(tip);
-  var series = d.series || [];
-  if (!series.length) { host.appendChild(el('div', 'empty', 'Nothing has been asked yet')); return; }
-  var W = host.clientWidth || 700, H = host.clientHeight || 230;
-  var padL = 44, padR = 12, padT = 12, padB = 26;
-  var w = Math.max(10, W - padL - padR), h = Math.max(10, H - padT - padB);
-  var top = Math.max(1, series.reduce(function (m, p) { return Math.max(m, p.accept, p.reject); }, 0));
-  /* Whole numbers on the axis, four steps of the same size: a top of 3
-     read 0, 1, 2, 2, 3 when each step was rounded on its own. */
-  var unit = Math.max(1, Math.ceil(top / 4));
-  var mag = Math.pow(10, Math.floor(Math.log(unit) / Math.LN10));
-  unit = [1, 2, 5, 10].map(function (x) { return x * mag; }).filter(function (x) { return x >= unit; })[0] || unit;
-  var ceil = unit * 4;
-  // As wide as the widest number on the axis (1.0.61): 100 000 and up were
-  // cut to "00 000" at a fixed 44 px.
-  padL = Math.max(44, 16 + 7 * String(num(ceil)).length);
-  w = Math.max(10, W - padL - padR);
-  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-  svg.setAttribute('preserveAspectRatio', 'none');
-  function make(kind, attrs) {
-    var n = document.createElementNS('http://www.w3.org/2000/svg', kind);
-    for (var k in attrs) if (attrs.hasOwnProperty(k)) n.setAttribute(k, attrs[k]);
-    return n;
-  }
-  for (var g = 0; g <= 4; g++) {
-    var y = padT + h - (h * g / 4);
-    svg.appendChild(make('line', {x1: padL, x2: W - padR, y1: y, y2: y, stroke: '#262c37', 'stroke-width': 1}));
-    var label = make('text', {x: padL - 8, y: y + 4, fill: '#5b6472', 'font-size': 11, 'text-anchor': 'end'});
-    label.textContent = num(unit * g);
-    svg.appendChild(label);
-  }
-  var step = w / Math.max(1, series.length);
-  var barW = Math.max(1, Math.min(18, step * 0.38));
-  series.forEach(function (p, i) {
-    var x = padL + step * i + step / 2;
-    [['reject', '#f85149', -1], ['accept', '#3fb950', 0]].forEach(function (one) {
-      var v = p[one[0]];
-      if (!v) return;
-      var bh = Math.max(1, h * (v / ceil));
-      svg.appendChild(make('rect', {x: x + one[2] * (barW + 0.6) + 0.3, y: padT + h - bh, width: barW,
-                                    height: bh, fill: one[1], rx: 2, opacity: 0.88}));
-    });
-  });
-  var every = Math.max(1, Math.ceil(series.length / Math.max(3, Math.floor(w / 72))));
-  series.forEach(function (p, i) {
-    if (i % every) return;
-    var dd = new Date(p.t * 1000);
-    var t = make('text', {x: padL + step * i + step / 2, y: H - 8, fill: '#5b6472', 'font-size': 11,
-                          'text-anchor': 'middle'});
-    t.textContent = hours > 48 ? pad2(dd.getDate()) + '-' + pad2(dd.getMonth() + 1) : clockWords(dd, false);
-    svg.appendChild(t);
-  });
-  series.forEach(function (p, i) {
-    var hit = make('rect', {x: padL + step * i, y: padT, width: step, height: h, fill: 'transparent'});
-    var any = p.accept || p.reject;
-    hit.style.cursor = any ? 'pointer' : 'crosshair';
-    if (any) hit.addEventListener('click', function () {
-      // To where the next bar starts (1.0.61): on a day the clocks change a
-      // bar is 23 or 25 hours, not d.step.
-      var next = series[i + 1] ? series[i + 1].t : Math.min(p.t + d.step, d.until || p.t + d.step);
-      openRequests({since: p.t, until: next});
-    });
-    hit.addEventListener('mousemove', function (e) {
-      var box = host.getBoundingClientRect();
-      tip.innerHTML = '<b>' + stamp(p.t) + '</b><br>'
-        + (p.accept ? '<span style="color:#3fb950">' + num(p.accept) + ' let in</span><br>' : '')
-        + (p.reject ? '<span style="color:#f85149">' + num(p.reject) + ' refused</span><br>' : '')
-        + '<span style="color:#8b949e">' + (any ? 'press to open' : 'nothing') + '</span>';
-      tip.style.display = 'block';
-      var left = e.clientX - box.left + 12;
-      if (left + tip.offsetWidth > box.width) left = e.clientX - box.left - tip.offsetWidth - 12;
-      tip.style.left = Math.max(0, left) + 'px';
-      tip.style.top = Math.max(0, e.clientY - box.top - 12) + 'px';
-    });
-    hit.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
-    svg.appendChild(hit);
-  });
-  host.appendChild(svg);
-}
-
-/* ==========================================================================
-   Tokens
-   ========================================================================== */
-function stateTag(state) {
-  var words = {active: 'in use', pending: 'waiting for a code', disabled: 'switched off'}[state] || state;
-  return el('span', 'tag ' + ({active: 'ok', pending: 'warn', disabled: 'crit'}[state] || 'dim'), words);
-}
-
-function loadTokens() {
-  var per = Number($('tk-per').value);
-  apiLatest('tokens', 'tokens&q=' + encodeURIComponent($('tk-q').value) + '&state=' + $('tk-state').value
-      + '&kind=' + (($('tk-kind') || {}).value || '') + '&limit=' + per + '&offset=' + PAGE.tokens * per).then(function (d) {
-    QS.tokens.said(d.q_error || '');
-    var host = $('tk-table');
-    clear(host);
-    $('tk-said').textContent = num(d.counts.active) + ' in use · ' + num(d.counts.never_used)
-      + ' never used' + (d.counts.kind_mail || d.counts.kind_sms
-        ? ' · ' + num(d.counts.kind_totp || 0) + ' app · ' + num(d.counts.kind_mail || 0) + ' e-mail · '
-          + num(d.counts.kind_sms || 0) + ' SMS' : '');
-    host.appendChild(listTable(['Name', 'State', 'Codes', 'Language', 'Made', 'By', 'Last used', 'From',
-                                {words: 'Recovery codes', cls: 'num'}, {words: 'Wrong', cls: 'num'}, 'Note', ''],
-      d.rows, function (r) {
-        var tr = el('tr');
-        var n = el('td');
-        n.appendChild(noI18n(el('span', 'mono', r.name)));
-        if (r.display) n.appendChild(noI18n(el('span', 'sub', r.display)));
-        tr.appendChild(n);
-        var st = el('td');
-        st.appendChild(stateTag(r.state));
-        if (r.pending) st.appendChild(el('span', 'tag info', 'a new one waits'));
-        if (r.key_lost) st.appendChild(el('span', 'tag crit', 'key lost'));
-        tr.appendChild(st);
-        /* How the codes come and in what (1.0.85): the app, or sent by mail
-           or SMS - to where; the language, and a mail's form. What the
-           setting decides is shown muted. */
-        var kc = el('td');
-        var kind = r.kind || 'totp';
-        kc.appendChild(el('span', 'tag ' + kindTagClass(kind),
-          {totp: 'the app', mail: 'e-mail', sms: 'SMS'}[kind]));
-        if (kind !== 'totp' && r.dest) kc.appendChild(noI18n(el('span', 'sub mono', r.dest)));
-        tr.appendChild(kc);
-        var lc = el('td', 'small');
-        var lg = r.lang || d.lang_default || 'cs';
-        lc.appendChild(noI18n(el('span', r.lang ? '' : 'muted', lg.toUpperCase())));
-        if (kind === 'mail') {
-          var fm = r.mail_fmt || d.fmt_default || 'html';
-          lc.appendChild(document.createTextNode(' · '));
-          lc.appendChild(el('span', r.mail_fmt ? '' : 'muted', fm === 'text' ? 'text' : 'HTML'));
-        }
-        if (!r.lang && !(kind === 'mail' && r.mail_fmt)) lc.title = 'as the settings say';
-        tr.appendChild(lc);
-        tr.appendChild(stampCell(r.created));
-        tr.appendChild(noI18n(el('td', 'muted small', r.created_by || '')));
-        tr.appendChild(r.last_used ? stampCell(r.last_used) : el('td', 'muted', 'never'));
-        tr.appendChild(fromCell(r));
-        tr.appendChild(el('td', 'num', num(r.scratch_left)));
-        tr.appendChild(el('td', 'num', num(r.failures || 0)));
-        tr.appendChild(noI18n(el('td', 'muted small tok-note', r.note || '')));
-        tr.appendChild(tokenTools(r.name));
-        tr.onclick = function () { tokenPeek(r.name); };
-        return tr;
-      }, 'rows', {own: true}));
-    pager('tk-pager', PAGE.tokens, per, d.total, function (p) { PAGE.tokens = p; loadTokens(); });
-    explainWhatWasDrawn(host);
-  }).catch(oops);
-}
-$('tk-q').addEventListener('input', debounce(function () { PAGE.tokens = 0; loadTokens(); }, 300));
-$('tk-state').onchange = $('tk-per').onchange = function () { PAGE.tokens = 0; loadTokens(); };
-if ($('tk-kind')) $('tk-kind').onchange = function () { PAGE.tokens = 0; loadTokens(); };
-
-/** Edit and Delete at the end of a token's row. */
-function tokenTools(name) {
-  var tools = el('td', 'rowtools');
-  var who = iconButton('person', 'In the directory: who it is, whether the account is switched off, its groups');
-  who.onclick = function (ev) { ev.stopPropagation(); whoisPeek(name, 'token'); };
-  tools.appendChild(who);
-  var ed = iconButton('edit', 'Edit: the QR code, the recovery codes, switching it off, the note');
-  ed.onclick = function (ev) { ev.stopPropagation(); tokenPeek(name); };
-  tools.appendChild(ed);
-  if (TOKADMIN) {
-    var x = iconButton('trash', 'Take it away');
-    x.onclick = function (ev) { ev.stopPropagation(); tokenDelete(name); };
-    tools.appendChild(x);
-  }
-  return tools;
-}
-function tokenShowKey(name, which) {
-  confirmThen('Show the key of ' + name,
-    'Whoever has this QR code or key can make the codes of this token, as its owner can. '
-    + 'Show it only to its owner; that you looked is written down as an event.', 'Show it', function () {
-      api('token', {action: 'show', name: name, which: which}).then(function (d) {
-        /* Over the token's window, when it was asked from there (1.0.22). */
-        modalOver(function () { showMade(d.made); });
-      }).catch(oops);
-    }, false);
-}
-function tokenDelete(name, then) {
-  confirmThen('Take the token of ' + name + ' away',
-    'They cannot sign in to the VPN until they enrol a new one.', 'Take it away', function () {
-      tokenDo(name, 'delete', {}, function () { if (then) then(); });
-    });
-}
-function tokenDo(name, action, extra, then) {
-  var body = {action: action, name: name};
-  for (var k in (extra || {})) body[k] = extra[k];
-  return api('token', body).then(function (d) {
-    if (d.message) toast(d.message, 'good');
-    if (then) then(d);
-    loadTokens();
-    return d;
-  }).catch(oops);
+  explainWhatWasDrawn($('tab-overview'));
 }
 
 /** A section of a large popup: a card with a heading, a line saying what it
@@ -1199,400 +842,6 @@ function msect(title, lede, wide) {
   return box;
 }
 
-function tokenPeek(name) {
-  peek(name, function () { return api('token&name=' + encodeURIComponent(name)); }, function (body, d) {
-    var t = d.token;
-    $('modal-box').className = 'box tokwin';
-    var whoBtn = cmdButton('In the directory', 'person', '');
-    whoBtn.onclick = function () { modalOver(function () { whoisPeek(name, 'token'); }); };
-    if (!t) {
-      var none = el('div', 'msects');
-      var s0 = msect('No token', name + ' has no token: they cannot sign in to the VPN until they enrol one '
-        + 'on the enrolment pages, or one is made here.', true);
-      var r0 = el('div', 'btnrow');
-      if (TOKADMIN) {
-        var m = cmdButton('Make a token', 'token', 'primary');
-        m.onclick = function () { makeToken(name); };
-        r0.appendChild(m);
-      }
-      r0.appendChild(whoBtn);
-      s0._body.appendChild(r0);
-      none.appendChild(s0);
-      body.appendChild(none);
-      body.appendChild(historyButtons(name, d));
-      return;
-    }
-    /* The head: who, its state, and its story at a glance (1.0.20). */
-    var head = el('div', 'tw-head');
-    var ava = noI18n(el('div', 'me-ava', meInitials(name, t.display)));
-    head.appendChild(ava);
-    var hw = el('div', 'tw-who');
-    hw.appendChild(noI18n(el('div', 'tw-name', t.display || name)));
-    if (t.display) hw.appendChild(noI18n(el('div', 'tw-sub mono', name)));
-    var tags = el('div', 'me-tags');
-    tags.appendChild(stateTag(t.state));
-    if (t.pending) tags.appendChild(el('span', 'tag info', 'a new one waits'));
-    if (t.failures) tags.appendChild(el('span', 'tag warn', num(t.failures) + ' wrong in a row'));
-    if (t.key_lost) tags.appendChild(el('span', 'tag crit', 'key cannot be opened'));
-    hw.appendChild(tags);
-    head.appendChild(hw);
-    /* Its story beside the name rather than under it: the window fits on
-       the screen without scrolling (1.0.21). */
-    var facts = el('dl', 'tw-facts');
-    [['Made', stamp(t.created)], ['By', t.created_by || '–'],
-     ['Last used', t.last_used ? stamp(t.last_used) : 'never'],
-     ['Last from', (t.last_from || '–') + (t.last_client ? ' · ' + t.last_client : '')]].forEach(function (f) {
-      var box = el('div', 'tw-fact');
-      box.appendChild(el('dt', '', f[0]));
-      var v = el('dd', '', f[1]);
-      v.title = f[1];
-      box.appendChild(v);
-      facts.appendChild(box);
-    });
-    /* The code the phone shows now, with a ring counting its seconds down
-       (1.0.40): a full administrator only, and only once pressed - every
-       look is written in the events. */
-    var sent = t.kind && t.kind !== 'totp';           /* codes by mail or SMS (1.0.76) */
-    if (sent) tags.appendChild(el('span', 'tag ' + kindTagClass(t.kind), t.kind === 'mail' ? 'codes by e-mail' : 'codes by SMS'));
-    if (ADMIN && !t.key_lost && !sent && STATUS && STATUS.admin_show_key !== false) facts.appendChild(codeNowTile(name));
-    head.appendChild(facts);
-    body.appendChild(head);
-    /* Four cards of the same size, two by two (1.0.21). */
-    var grid = el('div', 'tw-grid');
-    var colA = grid, colB = grid;
-    var showKeys = ADMIN && STATUS && STATUS.admin_show_key !== false;
-
-    /* The phone - or where the codes are sent (1.0.76). */
-    var ph = sent ? actCard(t.kind === 'mail' ? 'Codes by e-mail' : 'Codes by SMS',
-      'After the directory password the VPN asks for a code sent to ' + (t.dest || '?'))
-      : actCard('The phone', (t.issuer || '') + ' · ' + (t.label || name) + ' · ' + t.digits + ' digits, '
-      + t.period + ' s, ' + t.algorithm);
-    if (sent && TOKADMIN) {
-      var db = textBox(t.dest || '', t.kind === 'mail' ? 'name@example.cz' : '+420 603 123 456', 'mono');
-      db.classList.add('tw-move');
-      var dsv = cmdButton('Save', 'save', '');
-      dsv.classList.add('tw-btn');
-      dsv.onclick = function () { tokenDo(name, 'dest', {dest: db.value}, function (x) { toast(x.message, 'good'); tokenPeek(name); }); };
-      ph.add('Where they go', t.kind === 'mail' ? 'The mailbox the codes are sent to.' : 'The phone number the codes are sent to.', [db, dsv]);
-      /* A test and another way in one row (1.0.85): the window fits the
-         screen without scrolling. */
-      var tst = cmdButton('Send a test', t.kind === 'mail' ? 'mail' : 'phone', '');
-      tst.onclick = function () {
-        /* The seconds counted on the button while the gateway works (1.0.109):
-           a Teltonika answers only once its modem has sent the SMS. */
-        var stop = busyCount(tst);
-        api('token', {action: 'send_test', name: name}).then(function (x) { toast(x.message, 'good'); }).catch(oops).then(stop);
-      };
-      var toApp = cmdButton('The app instead', 'refresh', '');
-      toApp.onclick = function () { modalOver(function () { makeToken(name); }, function () { tokenPeek(name); }); };
-      ph.add('Test it, or another way', 'A message the way a code goes, with a code that opens nothing - or a token in the app, made anew.', [tst, toApp]);
-    }
-    if (showKeys && !sent) {
-      var sh = cmdButton(t.pending ? 'Show the current one' : 'Show', 'eye', '');
-      sh.onclick = function () { modalOver(function () { tokenShowKey(name, t.pending ? 'current' : ''); }); };
-      ph.add('QR code and key', 'What the phone scans. That you looked is written down.', [sh]);
-    }
-    if (t.pending && TOKADMIN && !sent) {
-      var row = [];
-      if (showKeys) {
-        var sw = cmdButton('Show', 'eye', '');
-        sw.onclick = function () { modalOver(function () { tokenShowKey(name, 'waiting'); }); };
-        row.push(sw);
-      }
-      var drop = cmdButton('Throw away', 'forget', '');
-      drop.onclick = function () { modalOver(function () { confirmThen('Throw the new token away', 'The token waiting for its first code is deleted; the one in use stays.', 'Throw it away', function () { tokenDo(name, 'drop_staged', {}, function () { tokenPeek(name); }); }); }); };
-      row.push(drop);
-      ph.add('A new key waits', 'For a code from it; until then the old one works.', row);
-    }
-    if (TOKADMIN && !sent) {
-      var re = cmdButton('New QR code', 'refresh', '');
-      re.onclick = function () { modalOver(function () { makeToken(name); }, function () { tokenPeek(name); }); };
-      ph.add('A new key', 'The old one stops; the person scans the new one.', [re]);
-    }
-    if (showKeys && !t.key_lost && !sent) {
-      var ex = cmdButton('Export .totp', 'download', '');
-      ex.onclick = function () { modalOver(function () { tokenExport(name); }, function () { tokenPeek(name); }); };
-      ph.add('For another server', 'As totpcgi keeps it: key, options, unused recovery codes.', [ex]);
-    }
-    if (TOKADMIN) {
-      var code = textBox('', '123456', 'mono');
-      code.inputMode = 'numeric';
-      code.style.width = '120px';
-      var tb = cmdButton('Try', 'check', '');
-      var said = el('div', 'small muted', sent ? 'A recovery code: nothing is used up and nothing is counted.' : 'Nothing is used up and nothing is counted.');
-      tb.onclick = function () {
-        api('token', {action: 'test', name: name, code: code.value}).then(function (x) {
-          /* "Valid code used" said of a code nothing used up read wrong (1.0.36). */
-          /* Said plainly and marked, so it is seen at once (1.0.41). */
-          clear(said);
-          said.className = 'small';
-          var mark = el('span', 'try-said ' + (x.good ? 'ok' : 'crit'));
-          mark.appendChild(el('b', '', x.good ? '✓ RIGHT' : '✗ WRONG'));
-          mark.appendChild(el('span', '', x.good ? 'nothing was used up'
-              + (x.facts && x.facts.off ? ' (the phone is ' + x.facts.off + ' step(s) off)' : '')
-            : String(x.said || '')));
-          said.appendChild(mark);
-          code.classList.remove('try-ok', 'try-bad');
-          code.classList.add(x.good ? 'try-ok' : 'try-bad');
-        }).catch(oops);
-      };
-      code.addEventListener('keydown', function (e) { if (e.key === 'Enter') tb.click(); });
-      code.addEventListener('input', function () { code.classList.remove('try-ok', 'try-bad'); });
-      ph.add('Try a code', said, [code, tb]);
-    }
-    if (t.key_lost) ph.note('The key of this token cannot be opened: the key file of the database is not the one it was sealed with. Make a new one.', 'bad');
-    colA.appendChild(ph.card);
-
-    /* The recovery codes. */
-    var rc = actCard('Recovery codes', num(t.scratch_left || 0) + ' left · each works once, in place of a code from the phone');
-    if (showKeys) {
-      var sc0 = cmdButton('Show', 'eye', '');
-      sc0.disabled = !t.scratch_kept || !t.scratch_left;
-      sc0.onclick = function () { modalOver(function () {
-        confirmThen('Show the recovery codes of ' + name, 'Each of them signs in once in place of a code '
-          + 'from the phone. Show them only to their owner; that you looked is written down as an event.', 'Show them', function () {
-            api('token', {action: 'codes', name: name}).then(function (x) { modalOver(function () { showCodes(name, x.scratch, true); }); }).catch(oops);
-          }, false);
-      }); };
-      rc.add('The ones left', t.scratch_kept ? 'To read them out to their owner.' : 'Not kept to be shown again - made by an older version or brought over.', [sc0]);
-    }
-    if (showKeys) {      /* as the API: they are shown, so where keys may be (1.0.44) */
-      var sc = cmdButton('Make new ones', 'refresh', '');
-      sc.onclick = function () { modalOver(function () {
-        confirmThen('New recovery codes for ' + name, 'The ones there are stop working, and new ones are shown.',
-          'Make new ones', function () {
-            tokenDo(name, 'scratch', {}, function (x) {
-              modalOver(function () { showCodes(name, x.scratch); }, function () { tokenPeek(name); });
-            });
-          }, false);
-      }); };
-      rc.add('New ones', 'The ones there are stop working.', [sc]);
-    }
-    var rcCard = rc.card;
-
-    /* Signing in. */
-    if (TOKADMIN) {
-      var ac = actCard('Signing in', 'Switched off it refuses every code; wrong codes in a row pause it.');
-      var b;
-      if (t.state === 'disabled') {
-        b = cmdButton('Switch on', 'power', 'primary'); b.onclick = function () { tokenDo(name, 'enable', {}, function () { tokenPeek(name); }); };
-      } else {
-        b = cmdButton('Switch off', 'power', 'danger'); b.onclick = function () { modalOver(function () { confirmThen('Switch the token of ' + name + ' off', 'They cannot sign in to the VPN until it is switched on again.', 'Switch off', function () { tokenDo(name, 'disable', {}, function () { tokenPeek(name); }); }); }); };
-      }
-      ac.add('In use', t.state === 'disabled' ? 'Switched off: every code is refused.' : (t.state === 'pending' ? 'Waiting for its first code.' : 'Codes from it sign in.'), [b]);
-      var un = cmdButton(t.locked_until ? 'Unlock it' : 'Forget them', 'undo', t.locked_until ? 'primary' : '');
-      un.disabled = !t.failures && !t.locked_until;
-      un.onclick = function () { tokenDo(name, 'unlock', {}, function () { tokenPeek(name); }); };
-      /* The lock and until when (1.0.101): each round of wrong codes locks
-         it twice as long as the one before, up to a day. */
-      var lockWords = t.locked_until ? num(t.failures || 0) + ' now · locked until '
-        + dayWords(new Date(t.locked_until * 1000)) + ' ' + clockWords(new Date(t.locked_until * 1000)) + '.'
-        : num(t.failures || 0) + ' now.';
-      ac.add('Wrong codes in a row', lockWords, [un]);
-      var winOpts = [['-1', 'as the setting'], ['0', 'none'], ['1', '1 step'],
-                     ['2', '2 steps'], ['4', '4 steps'], ['8', '8 steps']];
-      var winNow = String(t.window_steps === null || t.window_steps === undefined ? -1 : t.window_steps);
-      /* One brought from elsewhere (totpcgi: 3) shown as it is (1.0.146), not blank. */
-      if (!winOpts.some(function (o) { return o[0] === winNow; })) winOpts.push([winNow, winNow + ' steps']);
-      var win = selectBox(winOpts, winNow);
-      win.style.width = '160px';
-      win.onchange = function () { tokenDo(name, 'window', {window: Number(win.value)}); };
-      if (!sent) ac.add('Clock drift allowed', 'How far the phone’s clock may be off, in steps of ' + t.period + ' s.', [win]);
-      /* Its language (1.0.82): the codes it is sent, and the words of the
-         VPN's second window. Taken from the enrolment page; changed here. */
-      var lg = selectBox([['', 'as the setting'], ['cs', 'Čeština'], ['en', 'English']], t.lang || '');
-      lg.style.width = '160px';
-      lg.onchange = function () { tokenDo(name, 'lang', {value: lg.value}); };
-      ac.add('Language', sent ? 'Of the codes sent and of the VPN’s question.' : 'Of the VPN’s question in a second window.', [lg]);
-      if (t.kind === 'mail') {
-        /* HTML or plain text (1.0.82), beside the language (1.0.85). */
-        var mfmt = selectBox([['', 'as the setting'], ['html', 'HTML'], ['text', 'plain text']], t.mail_fmt || '');
-        mfmt.style.width = '160px';
-        mfmt.onchange = function () { tokenDo(name, 'mail_fmt', {value: mfmt.value}); };
-        ac.add('The mail is', 'HTML in the look of a token’s mail, or plain text alone.', [mfmt]);
-      }
-      colB.appendChild(ac.card);
-      grid.appendChild(rcCard);
-
-      /* The person. */
-      var nt = actCard('The person', t.display || 'Who the token belongs to.');
-      nt.add('In the directory', 'Who it is, switched off or not, the groups.', [whoBtn]);
-      if (showKeys && !t.key_lost && !sent) {
-        /* Its QR code by mail again (1.0.27), to where it went last time. */
-        var mg = cmdButton('Send by mail', 'mail', '');
-        mg.onclick = function () { modalOver(function () { tokenMailAgain(name, d.mailed || {}); }, function () { tokenPeek(name); }); };
-        var ml = d.mailed && d.mailed.to ? 'Last sent to ' + d.mailed.to + ', ' + ago(d.mailed.at) + '.'
-          : 'The QR code to the person’s mailbox.';
-        nt.add('By mail', ml, [mg]);
-      }
-      var mbox = textBox(name, 'novak@example.cz', 'mono');
-      noI18n(mbox);
-      var rmove = cmdButton('Move', 'next', '');
-      rmove.disabled = true;
-      mbox.addEventListener('input', function () {
-        var to = mbox.value.trim().toLowerCase();
-        rmove.disabled = !to || to === name.toLowerCase();
-      });
-      rmove.onclick = function () {
-        var to = mbox.value.trim().toLowerCase();
-        var same = to.split('@')[0] === name.toLowerCase().split('@')[0];
-        /* Over the token window (1.0.36): "No" went back to nothing. */
-        modalOver(function () { confirmThen(same ? 'Move the token to another realm' : 'Give the token to somebody else',
-          'The token <b>' + htmlText(name) + '</b> becomes <b>' + htmlText(to) + '</b>: the same key, '
-          + 'the same recovery codes, the same history. '
-          + (same ? 'From then on it is checked with the groups and the directory of that realm, and the VPN has to send the new name.'
-                  : 'From then on it signs <b>' + htmlText(to) + '</b> in, not ' + htmlText(name) + ' - whoever has the phone it is on. Its owner\'s name is read again from the directory.'),
-          'Move it', function () {
-            tokenDo(name, 'rename', {to: to}, function (x) { toast(x.message, 'good'); tokenPeek(to); if (typeof loadTokens === 'function') loadTokens(); });
-          }, false); });
-      };
-      mbox.classList.add('tw-move');
-      rmove.classList.add('tw-btn');
-      nt.add('Move to', 'Another realm or another person.', [mbox, rmove]);
-      personSuggest(mbox, {});
-      var nb = textBox(t.note || '', 'a note', '');
-      nb.classList.add('tw-move');
-      var ns = cmdButton('Save', 'save', '');
-      ns.classList.add('tw-btn');   /* as wide as Move, the boxes in one line (1.0.74) */
-      ns.onclick = function () { tokenDo(name, 'note', {note: nb.value}); };
-      nt.add('Note', 'Seen only here.', [nb, ns]);
-      colB.appendChild(nt.card);
-    } else {
-      grid.appendChild(rcCard);
-      var nt2 = actCard('The person', t.display || '');
-      nt2.add('In the directory', t.note || '', [whoBtn]);
-      colB.appendChild(nt2.card);
-    }
-    body.appendChild(grid);
-    /* The history on the left, taking the token away on the right - a
-       button, not a card of its own. */
-    var foot = historyButtons(name, d);
-    foot.classList.add('tw-foot');
-    if (TOKADMIN) {
-      var del = cmdButton('Take the token away', 'forget', 'danger');
-      del.title = 'They cannot sign in to the VPN until they enrol a new one.';
-      del.onclick = function () { modalOver(function () { tokenDelete(name, closeModal); }); };
-      del.classList.add('tw-del');
-      foot.appendChild(del);
-    }
-    /* In the window's own foot, beside Close: the cards above then fit on
-       one screen without scrolling (1.0.21). */
-    var mf = $('modal-foot');
-    if (mf) { foot.style.marginTop = '0'; mf.insertBefore(foot, mf.firstChild); }
-    else body.appendChild(foot);
-  });
-  $('modal-box').className = 'box tokwin';
-}
-
-/** A token's QR code mailed again (1.0.27): the same choices as when it is
-    made, starting from where it went last time - or, if it never went, the
-    address the directory has. */
-function tokenMailAgain(name, mailed) {
-  api('mail').then(function (cfg) {
-    var off = (cfg.mode || 'off') === 'off';
-    var addr, codes, lang, said, list;
-    modal('Send the token of ' + name + ' by mail', function (body) {
-      if (off) body.appendChild(el('div', 'notice bad', 'Sending mail is switched off - Settings → Mail.'));
-      addr = textBox(mailed.to || '', 'novak@example.cz', 'mono');
-      addr.type = 'email';
-      noI18n(addr);
-      codes = switchBox(mailed.codes !== undefined ? !!mailed.codes : !!cfg.codes);
-      lang = selectBox([['cs', 'Čeština'], ['en', 'English']], mailed.lang || cfg.lang || 'cs');
-      noI18n(lang);
-      var g = el('div', 'formgrid');
-      g.appendChild(formField('To', addr, mailed.to ? 'Where it went last time' + (mailed.by ? ', sent by ' + mailed.by : '')
-        + ' - ' + stamp(mailed.at) + '. It can be changed.' : 'From the directory; it can be changed.'));
-      g.appendChild(formField('Language of the mail', lang));
-      body.appendChild(g);
-      var g2 = el('div', 'formgrid');
-      g2.appendChild(formField('With the recovery codes', codes, 'The ones not used yet. Each signs in once, in place of a code from the phone.'));
-      body.appendChild(g2);
-      body.appendChild(el('p', 'note warn small', 'Whoever reads this mail can make the person’s codes: send it only to their own mailbox. That it was sent is written down as an event.'));
-      said = el('div', 'said');
-      body.appendChild(said);
-      list = el('div');
-      body.appendChild(list);
-      if (!mailed.to) {
-        api('mail', {action: 'mail_of', user: name}).then(function (x) {
-          if (x.mail && !addr.value) addr.value = x.mail;
-        }).catch(function () {});
-      }
-    }, [{words: 'Close', close: true},
-        {words: 'Send it', cls: 'primary', icon: 'mail', go: function (button) {
-          if (off) return;
-          var to = addr.value.trim();
-          if (!to) { said.className = 'said bad'; said.textContent = 'a mail address to send it to'; return; }
-          busy(button, true);
-          said.className = 'said'; said.textContent = 'Sending…'; said.onclick = null; said.removeAttribute('role');
-          clear(list);
-          api('token', {action: 'mail', name: name, mail_to: to, mail_codes: codes._get(),
-                        mail_lang: lang.value, portal_url: location.origin + '/'}).then(function (x) {
-            said.className = 'said ' + (x.sent ? 'good' : 'bad');
-            said.textContent = x.sent ? 'Sent to ' + to + '.' : 'Not sent: ' + x.said;
-            stepsUnder(said, x.steps, list);
-            if (x.sent) { toast(x.message, 'good'); mailed = x.mailed || mailed; }
-          }).catch(function (e) { said.className = 'said bad'; said.textContent = e.message; })
-            .then(function () { busy(button, false); });
-        }}]);
-  }).catch(oops);
-}
-
-/** The steps of a sending, folded away under `head` (the line saying how
-    it went) until that line is clicked (1.0.28). `into` is where they go;
-    by default straight after it. */
-function stepsUnder(head, steps, into) {
-  if (!(steps || []).length) return;
-  var box = el('div', 'steps-fold');
-  box.hidden = true;
-  box.appendChild(stepsList(steps));
-  if (into) into.appendChild(box); else head.parentNode.insertBefore(box, head.nextSibling);
-  head.classList.add('folds');
-  var hint = el('span', 'fold-hint', 'details');
-  head.appendChild(hint);
-  head.tabIndex = 0;
-  head.setAttribute('role', 'button');
-  var flip = function () {
-    box.hidden = !box.hidden;
-    head.classList.toggle('open', !box.hidden);
-    hint.textContent = box.hidden ? 'details' : 'hide';
-  };
-  head.onclick = flip;
-  head.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } };
-}
-
-/** A card of actions, each a row: what it is and what it does on the left,
-    its controls on the right, every row the same height (1.0.20). `wide`
-    puts the controls under the words, for a box that needs the room. */
-function actCard(title, lede) {
-  var card = el('section', 'acard');
-  if (title) {
-    var h = el('header', 'acard-h');
-    h.appendChild(el('h4', '', title));
-    if (lede) h.appendChild(el('p', '', lede));
-    card.appendChild(h);
-  }
-  var make = function (cls, what, says, controls) {
-    var row = el('div', cls);
-    var t = el('div', 'arow-t');
-    t.appendChild(el('div', 'arow-k', what));
-    if (says) {
-      if (says.nodeType) t.appendChild(says); else t.appendChild(el('div', 'arow-s', says));
-    }
-    row.appendChild(t);
-    var c = el('div', 'arow-c');
-    (controls || []).forEach(function (x) { c.appendChild(x); });
-    row.appendChild(c);
-    card.appendChild(row);
-    return row;
-  };
-  return {card: card,
-          add: function (what, says, controls) { return make('arow', what, says, controls); },
-          wide: function (what, says, controls) { return make('arow wide', what, says, controls); },
-          note: function (words, tone) { card.appendChild(el('p', 'note ' + (tone || ''), words)); }};
-}
-
-/** What the directory says about somebody: an account here (`kind`
-    'account') or the owner of a token. */
 /* ---- a person as the directory knows them (1.0.19, isemon's person card) ---- */
 function meInitials(name, display) {
   var words = String(display || name || '?').replace(/[^\p{L}\p{N}\s._-]/gu, ' ')
@@ -1647,10 +896,9 @@ function personGroups(list) {
     var cards = el('div', 'me-groups');
     key.forEach(function (g) {
       var role = (g.gives || []).filter(function (x) { return x.role; })[0];
-      var card = el('div', 'me-group gives' + (role && role.role === 'readonly' ? ' ro' : (role ? '' : ' realm')));
+      var card = el('div', 'me-group gives' + (role && role.role === 'readonly' ? ' ro' : ''));
       (g.gives || []).forEach(function (x) {
-        card.appendChild(el('span', 'gwhy', x.role ? 'makes an administrator: ' + roleWords(x.role)
-          : 'lets into the realm ' + x.realm));
+        if (x.role) card.appendChild(el('span', 'gwhy', 'makes an administrator: ' + roleWords(x.role)));
       });
       card.appendChild(noI18n(el('span', 'gn', g.name)));
       var where = dnPlace(g.dn);
@@ -1699,9 +947,6 @@ function personCard(body, d, name) {
   if (e.expires) tags.appendChild(el('span', 'tag ' + (e.expires * 1000 < Date.now() ? 'crit' : 'warn'),
                                      (e.expires * 1000 < Date.now() ? 'expired ' : 'expires ') + stamp(e.expires)));
   if (d.role) tags.appendChild(el('span', 'tag ' + roleTone(d.role), roleWords(d.role)));
-  if (d.realm) tags.appendChild(noI18n(el('span', 'tag info', d.realm)));
-  if (d.token_state) tags.appendChild(el('span', 'tag ' + (d.token_state === 'active' ? 'ok' : 'warn'),
-                                         d.token_state === 'active' ? 'has a token' : 'token: ' + d.token_state));
   who.appendChild(tags);
   head.appendChild(who);
   body.appendChild(head);
@@ -1743,311 +988,7 @@ function whoisPeek(name, kind) {
   $('modal-box').className = 'box medium';
 }
 
-/** The story of a token, behind a button rather than under everything
-    else: the checks of a code and the requests, in a popup of their own,
-    with the way back to the token. (1.0.11) */
-function historyButtons(name, d) {
-  var row = el('div', 'btnrow');
-  row.style.marginTop = '18px';
-  var n1 = (d.checks || []).length, n2 = (d.requests || []).length;
-  var go = cmdButton('The history: ' + num(n1) + ' check(s) of a code, ' + num(n2) + ' request(s)', 'history', '');
-  go.disabled = !n1 && !n2;
-  go.onclick = function () { modalOver(function () {
-    modal('The history of ' + name, function (body) { peekHistory(body, d); },
-          [{words: 'Back to the token', icon: 'prev', left: true, close: true}], 'large');
-  }); };
-  row.appendChild(go);
-  var log = cmdButton('Everything in the Log', 'log', '');
-  log.onclick = function () {
-    closeModal();
-    openRequests({name: name});
-  };
-  row.appendChild(log);
-  return row;
-}
-
-function peekHistory(body, d) {
-    body.appendChild(el('h3', 'peek-h', 'The last checks of a code'));
-    var nd = manyNodes();
-    body.appendChild(listTable(['When', 'Right', 'Said', 'How', 'From'].concat(nd ? ['Node'] : []), d.checks, function (r) {
-      var tr = el('tr');
-      tr.appendChild(stampCell(r.ts));
-      var ok = el('td'); ok.appendChild(el('span', 'tag ' + (r.ok ? 'ok' : 'crit'), r.ok ? 'yes' : 'no'));
-      tr.appendChild(ok);
-      tr.appendChild(el('td', '', r.said));
-      tr.appendChild(el('td', 'muted', howWords(r.how)));
-      tr.appendChild(noI18n(el('td', 'mono small', r.src || '')));
-      if (nd) tr.appendChild(nodeCell(r.node));
-      return tr;
-    }));
-    body.appendChild(el('h3', 'peek-h', 'The last requests'));
-    body.appendChild(requestTable(d.requests));
-}
-
-function showCodes(name, codes, again) {
-  modal('Recovery codes for ' + name, function (body) {
-    body.appendChild(el('p', 'note', again ? 'Each works once, in place of a code from the phone. Give them only to their owner.'
-      : 'Each works once, in place of a code from the phone. Give them to their owner - the old ones no longer work.'));
-    var c = el('div', 'codes');
-    var used = 0;
-    codes.forEach(function (x) {
-      var code = typeof x === 'string' ? x : x.c;
-      var when = typeof x === 'string' ? null : x.used;
-      var one = el('span', when ? 'used' : '');
-      one.appendChild(noI18n(el('b', '', code)));
-      if (!when) copyOnClick(one, code, 'the recovery code was copied');
-      one.appendChild(el('small', '', when ? 'used ' + stamp(when) + (x.how ? ' · ' + howWords(x.how) : '') : 'free'));
-      if (when) used++;
-      c.appendChild(one);
-    });
-    body.appendChild(c);
-    if (again) body.appendChild(el('p', 'muted small', (codes.length - used) + ' free, ' + used + ' used'));
-  }, [{words: 'Print', icon: 'download', go: printModal}, {words: 'Close', close: true}], true);
-}
-
-/* The popup on top printed, and nothing else (1.0.36). */
-function printModal() {
-  document.body.classList.add('print-modal');
-  var done = function () { document.body.classList.remove('print-modal'); window.removeEventListener('afterprint', done); };
-  window.addEventListener('afterprint', done);
-  window.print();
-}
-
-function showMade(made, mailed) {
-  modal('The token for ' + made.name, function (body) {
-    if (mailed) {
-      var m = el('div', 'notice ' + (mailed.ok ? 'good' : 'bad'));
-      m.appendChild(el('b', '', mailed.ok ? 'Sent by mail to ' + mailed.to : 'The mail was not sent'));
-      if (!mailed.ok) m.appendChild(el('div', '', mailed.error));
-      body.appendChild(m);
-      /* The steps, folded under the line that says how it went (1.0.28):
-         a click on it shows them. */
-      stepsUnder(m, mailed.steps);
-    }
-    var grid = el('div', 'enrol');
-    var qr = el('div', 'qrbox');
-    var img = el('img'); img.src = made.qr; img.alt = 'QR code';
-    qr.appendChild(img);
-    grid.appendChild(qr);
-    var right = el('div');
-    right.appendChild(el('p', 'note', 'Scan it with the authenticator application, or type the key in.'));
-    right.appendChild(kvTable([['Issuer', made.issuer], ['Account', made.label],
-                               ['Key', copyOnClick(noI18n(el('span', 'keytext', made.secret_spaced)), String(made.secret_spaced || '').replace(/\s+/g, ''), 'the key was copied')]]));
-    grid.appendChild(right);
-    body.appendChild(grid);
-    if (made.scratch && made.scratch.length) {
-      body.appendChild(el('h3', 'peek-h', 'Recovery codes'));
-      var c = el('div', 'codes');
-      made.scratch.forEach(function (x) { c.appendChild(noI18n(el('span', '', x))); });
-      body.appendChild(c);
-    }
-  }, [{words: 'Print', icon: 'download', go: printModal}, {words: 'Close', close: true}], 'medium');
-}
-
-/** Make a token - or replace one: for whom (found in the directory as one
-    types), and whether its QR code goes to them by mail, with the recovery
-    codes or without, in Czech or in English (1.0.20). */
-function makeToken(name) {
-  var mailOn = MAIL ? Promise.resolve(MAIL) : api('mail').then(function (d) { MAIL = d; return d; }).catch(function () { return {mode: 'off'}; });
-  mailOn.then(function (mailCfg) {
-  modal(name ? 'Replace the token of ' + name : 'Make a token', function (body) {
-    var sec1 = el('div', 'form-sec');
-    var who = textBox(name || '', 'novak@example.cz', 'mono');
-    noI18n(who);
-    if (name) who.disabled = true;
-    sec1.appendChild(formField('For', who, 'The whole name as the VPN sends it, realm and all. Type part of a name and pick the person from the directory.'));
-    var display = '';
-    /* Where the codes come from (1.0.76): the app, or sent by mail or SMS. */
-    var kindSel = selectBox([['totp', 'the authenticator app (a QR code to scan)'], ['mail', 'sent by e-mail after the password'],
-                             ['sms', 'sent by SMS after the password']], 'totp');
-    var dest = textBox('', 'novak@example.cz', 'mono');
-    noI18n(dest);
-    var gk = el('div', 'formgrid');
-    gk.appendChild(formField('The codes come from', kindSel));
-    var fdest = formField('Sent to', dest, 'The mailbox or the phone number (+420…) the codes go to.');
-    /* Where it came from (1.0.91): the directory's mail or mobile, filled
-       in and left to be changed - or that the directory has none. */
-    var destSaid = el('div', 'says dest-said');
-    fdest.appendChild(destSaid);
-    gk.appendChild(fdest);
-    sec1.appendChild(gk);
-    var g = el('div', 'formgrid');
-    var pend = switchBox(false);
-    var fpend = formField('Not in use until confirmed', pend,
-      'The first code from the phone switches it on - for a token somebody scans later, on their own.');
-    g.appendChild(fpend);
-    var note = textBox('', '', '');
-    g.appendChild(formField('A note', note));
-    sec1.appendChild(g);
-    body.appendChild(sec1);
-
-    var sec2 = el('div', 'form-sec');
-    sec2.appendChild(el('h3', '', 'Send it by mail'));
-    var off = (mailCfg.mode || 'off') === 'off';
-    var send = switchBox(false);
-    var addr = textBox('', 'novak@example.cz', 'mono');
-    addr.type = 'email';
-    noI18n(addr);
-    var codes = switchBox(!!mailCfg.codes);
-    var lang = selectBox([['cs', 'Čeština'], ['en', 'English']], mailCfg.lang || 'cs');
-    noI18n(lang);
-    var g2 = el('div', 'formgrid');
-    var f1 = formField('Send the QR code', send, off ? 'Sending mail is switched off - Settings → Mail.' : 'To the address below, as soon as the token is made.');
-    g2.appendChild(f1);
-    var f2 = formField('With the recovery codes', codes, 'Each signs in once, in place of a code from the phone.');
-    g2.appendChild(f2);
-    sec2.appendChild(g2);
-    var g3 = el('div', 'formgrid');
-    var fa = formField('To', addr, 'Read from the directory when the person is picked; it can be changed.');
-    g3.appendChild(fa);
-    var fl = formField('Language of the mail', lang);
-    g3.appendChild(fl);
-    sec2.appendChild(g3);
-    var warn = el('p', 'note warn small', 'Whoever reads this mail can make the person’s codes: send it only to their own mailbox.');
-    sec2.appendChild(warn);
-    body.appendChild(sec2);
-    if (off) send._input.disabled = true;
-    var mobile = '', dirMail = '', looked = false, destByHand = false;
-    dest.addEventListener('input', function () { destByHand = !!dest.value.trim(); destSay(); });
-    var destSay = function () {
-      var k = kindSel.value;
-      destSaid.className = 'says dest-said';
-      if (k === 'totp') { destSaid.textContent = ''; return; }
-      var fromDir = k === 'mail' ? dirMail : mobile;
-      if (destByHand && dest.value.trim() !== fromDir) {
-        destSaid.textContent = fromDir ? (k === 'mail' ? 'Typed by hand - the directory has ' : 'Typed by hand - the directory has ') + fromDir : 'Typed by hand.';
-      } else if (fromDir) {
-        destSaid.classList.add('good');
-        destSaid.textContent = k === 'mail' ? 'From the directory (mail) - it can be changed.' : 'From the directory (mobile) - it can be changed.';
-      } else if (looked) {
-        destSaid.classList.add('warn');
-        destSaid.textContent = k === 'mail' ? 'The directory has no mail address for them: type it.' : 'The directory has no mobile number for them (mobile, telephoneNumber): type it.';
-      } else {
-        destSaid.textContent = 'Filled in from the directory once the person is picked.';
-      }
-    };
-    /* What the directory has goes in for the kind chosen - unless something
-       was typed by hand, which stays. */
-    var destFill = function () {
-      var k = kindSel.value;
-      if (k === 'totp' || destByHand) { destSay(); return; }
-      dest.value = (k === 'mail' ? dirMail || addr.value : mobile) || '';
-      destSay();
-    };
-    /* What was typed by hand for each kind, kept (1.0.103): mail → SMS →
-       mail emptied the address typed for the mail. */
-    var handFor = {}, kindWas = kindSel.value;
-    var kindPaint = function () {
-      var k = kindSel.value;
-      if (kindWas !== k) {
-        if (destByHand && kindWas !== 'totp') handFor[kindWas] = dest.value;
-        if (handFor[k]) { dest.value = handFor[k]; destByHand = true; }
-        else if (destByHand && kindWas !== 'totp' && k !== 'totp') { destByHand = false; dest.value = ''; }
-        kindWas = k;
-      }
-      fdest.hidden = k === 'totp';
-      sec2.hidden = k !== 'totp';
-      fpend.hidden = k !== 'totp';
-      dest.placeholder = k === 'sms' ? '+420 603 123 456' : 'novak@example.cz';
-      /* A hand-typed address is no phone number, nor the other way round. */
-      if (destByHand && (k === 'sms') === (dest.value.indexOf('@') > 0)) { destByHand = false; }
-      destFill();
-      if (k !== 'totp' && !looked) ask();
-    };
-    kindSel.addEventListener('change', kindPaint);
-    var paint = function () {
-      var on = send._get() && !off;
-      [f2, fa, fl, warn].forEach(function (x) { x.classList.toggle('asleep', !on); });
-      addr.disabled = codes._input.disabled = lang.disabled = !on;
-    };
-    send._input.addEventListener('change', paint);
-    paint();
-    /* The address out of the directory: when somebody is picked, or when
-       the name is typed whole and the box is left. Changed by hand, it is
-       left as it is. */
-    var byHand = false;
-    addr.addEventListener('input', function () { byHand = true; });
-    var fill = function (mail, shown, mob) {
-      if (shown) display = shown;
-      mobile = mob || '';
-      dirMail = mail || '';
-      looked = true;
-      destFill();
-      if (mail && (!byHand || !addr.value)) { addr.value = mail; byHand = false; }
-      if (mail && !off && !send._get()) { send._input.checked = true; paint(); }
-    };
-    var asked = '';
-    var ask = function () {
-      var n = who.value.trim();
-      if (!n || n === asked || n.indexOf('@') < 0) return;
-      asked = n;
-      looked = false;
-      api('mail', {action: 'mail_of', user: n}).then(function (d) { fill(d.mail, d.display, d.mobile); }).catch(function () {});
-    };
-    if (!name) personSuggest(who, {picked: function (p) { asked = p.name; fill(p.mail, p.display, p.mobile); }});
-    else ask();
-    who.addEventListener('blur', function () { setTimeout(ask, 200); });
-    var said = el('div', 'said');
-    body.appendChild(said);
-    kindPaint();
-    MODAL_GO = function (button) {
-      if (kindSel.value !== 'totp') {
-        if (!dest.value.trim()) { said.className = 'said bad'; said.textContent = kindSel.value === 'mail' ? 'a mail address to send the codes to' : 'a phone number to send the codes to'; return; }
-        busy(button, true);
-        api('token', {action: 'enroll', name: who.value, kind: kindSel.value, dest: dest.value.trim(), note: note.value,
-                      display: display}).then(function (d) {
-          loadTokens();
-          showSentToken(d.made, d.message);
-        }).catch(function (e) { said.className = 'said bad'; said.textContent = e.message; })
-          .then(function () { busy(button, false); });
-        return;
-      }
-      if (send._get() && !addr.value.trim()) { said.className = 'said bad'; said.textContent = 'a mail address to send it to'; return; }
-      busy(button, true);
-      api('token', {action: 'enroll', name: who.value, pending: pend._get(), note: note.value,
-                    mail: send._get() && !off, mail_to: addr.value.trim(), mail_codes: codes._get(),
-                    mail_lang: lang.value, display: display,
-                    portal_url: location.origin + '/'}).then(function (d) {
-        loadTokens();
-        var mailed = send._get() && !off ? {ok: !d.mail_error, to: addr.value.trim(), error: d.mail_error,
-                                             steps: d.mail_steps} : null;
-        showMade(d.made, mailed);
-      }).catch(function (e) { said.className = 'said bad'; said.textContent = e.message; })
-        .then(function () { busy(button, false); });
-    };
-  }, [{words: 'Close', close: true}, {words: name ? 'Replace it' : 'Make it', cls: 'primary', icon: 'token',
-       go: function (b) { MODAL_GO(b); }}], 'medium');
-  });
-}
 var MODAL_GO = null;
-$('tk-add').onclick = function () { makeToken(''); };
-
-/* A token whose codes are sent, just made (1.0.76): its recovery codes, once. */
-function showSentToken(made, words) {
-  modal('The token of ' + made.name, function (body) {
-    body.appendChild(el('p', 'note good', words || ''));
-    body.appendChild(el('p', 'note', 'After the directory password the VPN asks for a code in a second window; it is sent '
-      + (made.kind === 'mail' ? 'by e-mail' : 'by SMS') + ' to ' + made.dest + '.'));
-    if ((made.scratch || []).length) {
-      body.appendChild(el('h3', 'peek-h', 'Recovery codes'));
-      body.appendChild(el('p', 'note', 'Each works once in place of a sent code. Hand them to the person: they are not shown again unless showing keys is switched on.'));
-      var codes = el('div', 'codes');
-      made.scratch.forEach(function (c) { codes.appendChild(copyOnClick(noI18n(el('span', '', c)), c, 'copied')); });
-      body.appendChild(codes);
-    }
-  }, [{words: 'Close', close: true}], 'medium');
-}
-
-/* ==========================================================================
-   Requests and codes
-   ========================================================================== */
-var RQ_SINCE = null;
-function resultTag(r) {
-  var tone = {accept: 'ok', reject: 'crit', drop: 'warn', acct: 'dim', challenge: 'info'}[r] || 'dim';
-  var words = {accept: 'let in', reject: 'refused', drop: 'not answered', acct: 'accounting',
-               challenge: 'asked for the code'}[r] || r;
-  return el('span', 'tag ' + tone, words);
-}
 
 /* In a cluster, which node a line of a log was written on (1.0.45). */
 function manyNodes() {
@@ -2060,144 +1001,11 @@ function nodeCell(n) {
   return td;
 }
 
-function requestTable(rows) {
-  var nd = manyNodes();
-  return listTable(['When', 'Name', 'Result', 'Why', 'Client', 'From', 'Device', {words: 'ms', cls: 'num'}].concat(nd ? ['Node'] : []), rows, function (r) {
-    var tr = el('tr');
-    if (r.result === 'reject') tr.className = 'is-banned';
-    tr.appendChild(stampCell(r.ts));
-    var n = el('td');
-    n.appendChild(noI18n(el('span', 'mono', r.username || '–')));
-    if (r.realm) n.appendChild(noI18n(el('span', 'sub', r.realm)));
-    tr.appendChild(n);
-    var rs = el('td'); rs.appendChild(resultTag(r.result)); tr.appendChild(rs);
-    tr.appendChild(el('td', 'small', r.result === 'accept' ? (r.acme || '') : (r.reason || '')));
-    tr.appendChild(noI18n(el('td', '', r.client || '')));
-    tr.appendChild(noI18n(el('td', 'mono small', r.calling || '')));
-    tr.appendChild(noI18n(el('td', 'small', r.device || '')));
-    tr.appendChild(el('td', 'num', r.took_ms === null || r.took_ms === undefined ? '' : num(r.took_ms)));
-    if (nd) tr.appendChild(nodeCell(r.node));
-    tr.onclick = function () { requestPeek(r.id); };
-    return tr;
-  }, 'rows', {own: true});
-}
-
-/* A click-through into the Log (1.0.100): what it looks for is written into
-   the search box and the filters, in the words the box takes - name:,
-   reason~, from: - and the time picker set to the window clicked, so the
-   page says what it shows and every part of it can be changed or cleared. */
-function qQuote(v) { v = String(v || ''); return /[\s",()]/.test(v) ? '"' + v.replace(/"/g, '') + '"' : v; }
-function openRequests(f) {
-  var q = [];
-  if (f.name) q.push('name:' + qQuote(f.name));
-  if (f.reason) q.push('reason~' + qQuote(f.reason));
-  if (f.from) q.push('from:' + qQuote(f.from));
-  if (f.q) q.push(f.q);
-  $('rq-q').value = q.join(' ');
-  $('rq-result').value = f.result || '';
-  if (f.client) { ensureOption($('rq-client'), f.client); $('rq-client').value = f.client; }
-  else $('rq-client').value = '';
-  $('rq-kind').value = '';
-  RQ_SINCE = null;
-  var tp = $('rq-hours');
-  if (f.since && tp && tp._set) {
-    tp._quiet = true;
-    tp._set({k: 'abs', from: Math.floor(f.since), to: Math.ceil(f.until || 0) || 0});
-    tp._quiet = false;
-  }
-  PAGE.requests = 0;
-  if ($('rq-q')._sbPaint) $('rq-q')._sbPaint();
-  if (TAB === 'requests') loadRequests(); else showTab('requests');
-}
 function ensureOption(sel, value) {
   if (!Array.prototype.some.call(sel.options, function (o) { return o.value === value; })) {
     var o = el('option', '', value); o.value = value; sel.appendChild(o);
   }
 }
-
-/* Where a code was checked, in words (1.0.36): "test-dry" came up raw. */
-function howWords(h) {
-  h = String(h || '');
-  var dry = /-dry$/.test(h);
-  var base = h.replace(/-dry$/, '');
-  var w = ({portal: 'enrolment pages', test: 'a test', 'command line': 'command line',
-            radius: 'RADIUS', admin: 'administration', code: 'code', scratch: 'recovery code',
-            mail: 'code by e-mail', sms: 'code by SMS', 'send-mail': 'sent by e-mail',
-            'send-sms': 'sent by SMS'})[base] || base;
-  return dry ? w + ' (nothing used up)' : w;
-}
-
-function activityTable(rows) {
-  var nd = manyNodes();
-  return listTable(['When', 'Name', 'Result', 'Why - what the token said', 'Where', 'From', 'Device', {words: 'ms', cls: 'num'}].concat(nd ? ['Node'] : []).concat(['']), rows, function (r) {
-    var tr = el('tr');
-    if (r.result === 'reject') tr.className = 'is-banned';
-    tr.appendChild(stampCell(r.ts));
-    var n = el('td');
-    n.appendChild(noI18n(el('span', 'mono', r.name || '–')));
-    if (r.realm) n.appendChild(noI18n(el('span', 'sub', r.realm)));
-    tr.appendChild(n);
-    var rs = el('td');
-    rs.appendChild(r.kind === 'code' ? el('span', 'tag ' + (r.result === 'accept' ? 'ok' : 'crit'), r.result === 'accept' ? 'right' : 'wrong')
-                                     : resultTag(r.result));
-    tr.appendChild(rs);
-    tr.appendChild(el('td', 'small', r.why || ''));
-    var wh = el('td');
-    if (r.kind === 'code') wh.appendChild(el('span', 'tag dim', howWords(r.source) || 'code'));
-    else wh.appendChild(noI18n(el('span', '', r.source || '')));
-    tr.appendChild(wh);
-    tr.appendChild(noI18n(el('td', 'mono small', r.from || '')));
-    tr.appendChild(noI18n(el('td', 'small', r.device || '')));
-    tr.appendChild(el('td', 'num', r.ms === null || r.ms === undefined ? '' : num(r.ms)));
-    if (nd) tr.appendChild(nodeCell(r.node));
-    var tools = el('td', 'rowtools');
-    if (r.name) {
-      var tk = iconButton('token', 'Its token');
-      tk.onclick = function (ev) { ev.stopPropagation(); tokenPeek(r.name); };
-      tools.appendChild(tk);
-    }
-    tr.appendChild(tools);
-    tr.onclick = function () { if (r.kind === 'code') codePeek(r); else requestPeek(r.id); };
-    return tr;
-  }, 'rows', {own: true});
-}
-
-function loadRequests() {
-  var per = Number($('rq-per').value);
-  var hours = Number($('rq-hours').value) + 1;
-  if (RQ_SINCE) hours = Math.max(1, Math.ceil((Date.now() / 1000 - RQ_SINCE.since) / 3600) + 1);
-  $('rq-client').disabled = $('rq-kind').value === 'codes';
-  apiLatest('activity', 'activity&q=' + encodeURIComponent($('rq-q').value) + '&hours=' + hours + '&result=' + $('rq-result').value
-      + '&kind=' + $('rq-kind').value + '&client=' + encodeURIComponent($('rq-client').value)
-      + '&limit=' + per + '&offset=' + PAGE.requests * per
-      + (RQ_SINCE ? '&since=' + Math.floor(RQ_SINCE.since) + '&until=' + Math.ceil(RQ_SINCE.until) : tpQuery('rq-hours', 'since', 'until')))
-    .then(function (d) {
-    QS.requests.said(d.q_error || '');
-      var sel = $('rq-client');
-      (d.clients || []).forEach(function (c) { ensureOption(sel, c); });
-      var rows = d.rows;
-      var host = $('rq-table');
-      clear(host);
-      if (RQ_SINCE) {
-        var b = el('p', 'note');
-        b.textContent = 'Only ' + stamp(RQ_SINCE.since) + ' to ' + stamp(RQ_SINCE.until) + '. ';
-        var all = el('a', 'fgo', 'Show all');
-        all.onclick = function () { RQ_SINCE = null; loadRequests(); };
-        b.appendChild(all);
-        host.appendChild(b);
-      }
-      host.appendChild(activityTable(rows));
-      // Counted only so far (1.0.61): said as "more than", not a false last page.
-      $('rq-said').textContent = (d.more_than ? 'more than ' : '') + num(d.total) + ' matching';
-      pager('rq-pager', PAGE.requests, per, d.total, function (p) { PAGE.requests = p; loadRequests(); },
-            !!d.more_than);
-      explainWhatWasDrawn(host);
-    }).catch(oops);
-}
-$('rq-q').addEventListener('input', debounce(function () { PAGE.requests = 0; loadRequests(); }, 300));
-['rq-kind', 'rq-hours', 'rq-result', 'rq-client', 'rq-per'].forEach(function (id) {
-  $(id).onchange = function () { PAGE.requests = 0; RQ_SINCE = null; loadRequests(); };
-});
 
 function stepsList(steps) {
   var list = el('div', 'steps');
@@ -2215,160 +1023,6 @@ function stepsList(steps) {
   });
   return list;
 }
-
-function pairsTable(pairs) {
-  return listTable(['Attribute', 'Value'], pairs || [], function (p) {
-    var tr = el('tr');
-    tr.appendChild(noI18n(el('td', 'mono small', p[0])));
-    tr.appendChild(noI18n(el('td', 'mono small', p[1])));
-    return tr;
-  });
-}
-
-function requestPeek(id) {
-  peek('Request ' + id, function () { return api('radius-row&id=' + id); }, function (body, d) {
-    var r = d.row;
-    var res = el('span'); res.appendChild(resultTag(r.result));
-    body.appendChild(peekFacts([['When', stamp(r.ts)], ['Name', r.username || '–'], ['Result', res],
-                                ['Client', r.client || r.src], ['From', r.calling || '–'],
-                                ['Took', (r.took_ms || 0) + ' ms']].concat(manyNodes() ? [['Node', r.node || '–']] : [])));
-    if (r.reason) body.appendChild(el('p', 'note', r.reason));
-    if (r.steps && r.steps.length) {
-      body.appendChild(el('h3', 'peek-h', 'How it was decided'));
-      body.appendChild(stepsList(r.steps));
-    }
-    body.appendChild(el('h3', 'peek-h', 'What was asked'));
-    body.appendChild(pairsTable(r.attrs));
-    if (r.reply && r.reply.length) {
-      body.appendChild(el('h3', 'peek-h', 'What was answered'));
-      body.appendChild(pairsTable(r.reply));
-    }
-    var row = el('div', 'btnrow');
-    row.style.marginTop = '14px';
-    if (r.username) {
-      var tk = cmdButton('Its token', 'token', '');
-      tk.onclick = function () { tokenPeek(r.username); };
-      row.appendChild(tk);
-    }
-    body.appendChild(row);
-  });
-  $('modal-box').className = 'box medium';
-}
-
-function codePeek(r) {
-  if (r.kind === 'code') {
-    r = {id: r.id, ts: r.ts, name: r.name, ok: r.result === 'accept', said: r.why, how: r.source,
-         src: r.from, rid: r.rid, node: r.node};
-  }
-  modal(r.name, function (body) {
-    var ok = el('span'); ok.appendChild(el('span', 'tag ' + (r.ok ? 'ok' : 'crit'), r.ok ? 'yes' : 'no'));
-    body.appendChild(peekFacts([['When', stamp(r.ts)], ['Right', ok], ['How', howWords(r.how) || '–'], ['From', r.src || '–']]
-      .concat(manyNodes() ? [['Node', r.node || '–']] : [])));
-    body.appendChild(el('p', 'note', r.said + (r.step_off ? ' (' + (r.step_off > 0 ? '+' : '') + r.step_off + ' step)' : '')));
-    if (r.rid) body.appendChild(kvTable([['Request', r.rid]]));
-  }, [{words: 'Its token', icon: 'token', go: function () { tokenPeek(r.name); }},
-      {words: 'Its requests', icon: 'list', go: function () { closeModal(); openRequests({name: r.name}); }},
-      {spacer: true}, {words: 'Close', close: true}], 'medium');
-}
-
-/* ==========================================================================
-   Test
-   ========================================================================== */
-function loadTest() {
-  /* On which node (1.0.45): in a cluster the test can be made on any node
-     that answers, through the database both open. */
-  var nsel = $('rt-node');
-  if (nsel) {
-    var was0 = nsel.value;
-    clear(nsel);
-    var nodes = (STATUS && STATUS.nodes) || [];
-    nodes.forEach(function (n) {
-      var o = el('option', '', n.name + (n.me ? ' (this one)' : '') + (n.alive ? '' : ' - not answering'));
-      o.value = n.me ? '' : n.name;
-      o.disabled = !n.alive && !n.me;
-      nsel.appendChild(o);
-    });
-    $('rt-node-item').hidden = nodes.length <= 1;
-    if (was0 !== undefined) nsel.value = was0;
-  }
-  api('clients').then(function (d) {
-    var sel = $('rt-client');
-    var was = sel.value;
-    clear(sel);
-    d.clients.forEach(function (c) {
-      var o = el('option', '', c.name + ' (' + c.address + (c.realm ? ', @' + c.realm : '') + ')');
-      o.value = c.id;
-      sel.appendChild(o);
-    });
-    if (was) sel.value = was;
-  }).catch(oops);
-}
-$('rt-how').onchange = function () { $('rt-client-item').hidden = $('rt-how').value !== 'direct'; };
-function radtestAsk(extra) {
-  var body = {user: $('rt-user').value, password: $('rt-pass').value, how: $('rt-how').value,
-              client: $('rt-client').value, node: ($('rt-node') || {}).value || ''};
-  Object.keys(extra || {}).forEach(function (k) { body[k] = extra[k]; });
-  return api('radtest', body);
-}
-function radtestDraw(d) {
-  var out = $('rt-out');
-  clear(out);
-  var ok = d.result === 'accept';
-  var chal = d.result === 'challenge';
-  out.appendChild(el('div', 'result-big ' + (ok ? 'ok' : (chal ? 'info' : 'bad')),
-    ok ? 'Access-Accept' : (chal ? 'Access-Challenge' : (d.result === 'reject' || !d.result ? 'Access-Reject' : String(d.result)))));
-  if (d.node && manyNodes()) out.appendChild(el('p', 'muted small', 'Made on ' + d.node + '.'));
-  if (chal && d.state) {
-    /* The second window (1.0.81): the code typed here goes back with the
-       State, as the VPN client sends it. */
-    var box = el('div', 'rt-second');
-    box.appendChild(el('p', 'note', 'The VPN now shows a second window' + (d.message ? ': ' : '.')));
-    if (d.message) box.appendChild(noI18n(el('p', 'rt-msg', d.message)));
-    var row = el('div', 'btnrow');
-    var code = textBox('', '123456', 'mono');
-    code.inputMode = 'numeric';
-    code.style.width = '160px';
-    var go = cmdButton('Send the code', 'next', 'primary');
-    go.onclick = function () {
-      busy(go, true);
-      radtestAsk({password: code.value.trim(), state: d.state}).then(radtestDraw).catch(function (e) {
-        out.appendChild(el('p', 'bad', e.message));
-      }).then(function () { busy(go, false); });
-    };
-    code.addEventListener('keydown', function (e) { if (e.key === 'Enter') go.click(); });
-    row.appendChild(code); row.appendChild(go);
-    box.appendChild(row);
-    out.appendChild(box);
-    setTimeout(function () { code.focus(); }, 50);
-  }
-  if (d.how === 'udp') {
-    out.appendChild(el('p', 'muted small', 'Answered in ' + d.took_ms + ' ms.'));
-    out.appendChild(pairsTable(d.answer.filter(function (p) { return p[0] !== 'Message-Authenticator'; })));
-    if (d.row) {
-      var more = cmdButton('Every step of it', 'search', 'small');
-      more.style.marginTop = '10px';
-      more.onclick = function () { requestPeek(d.row); };
-      out.appendChild(more);
-    }
-  } else {
-    if (d.reason) out.appendChild(el('p', 'note', d.reason));
-    out.appendChild(stepsList(d.steps));
-    if (d.reply && d.reply.length) out.appendChild(pairsTable(d.reply));
-  }
-  explainWhatWasDrawn(out);
-}
-$('rt-go').onclick = function () {
-  var b = $('rt-go');
-  busy(b, true);
-  var out = $('rt-out');
-  clear(out);
-  var far = ($('rt-node') || {}).value || '';
-  out.appendChild(el('p', 'muted', far ? 'Asking ' + far + ' - through the database, up to 25 s…' : 'Asking…'));
-  radtestAsk({}).then(radtestDraw).catch(function (e) {
-    clear(out);
-    out.appendChild(el('p', 'bad', e.message));
-  }).then(function () { busy(b, false); });
-};
 
 /* ==========================================================================
    Events
@@ -2398,52 +1052,6 @@ function loadEvents() {
 }
 $('ev-q').addEventListener('input', debounce(function () { PAGE.events = 0; loadEvents(); }, 300));
 
-/* ---- the enrolment pages, person by person (1.0.16) ---------------------- */
-var EN_STEP = {signed_in: ['signed in', 'info'], enrolled: ['made a token', 'ok'],
-               confirmed: ['confirmed it', 'ok'], replacing: ['replaced it', 'warn'],
-               refused: ['could not sign in', 'crit'], not_allowed: ['may not enrol', 'crit'],
-               stopped: ['stopped replacing', 'dim'], other: ['other', 'dim']};
-function loadEnrolment() {
-  var per = 100;
-  apiLatest('enrolment', 'enrolment&q=' + encodeURIComponent($('en-q').value) + '&step=' + encodeURIComponent($('en-step').value)
-      + '&since=0' + tpQuery('en-since') + '&limit=' + per + '&offset=' + PAGE.enrolment * per).then(function (d) {
-    QS.enrolment.said(d.q_error || '');
-    var c = d.counts || {};
-    $('en-said').textContent = d.on ? num(d.total) + ' matching' : 'the enrolment pages are switched off';
-    var tiles = $('en-tiles');
-    clear(tiles);
-    [['signed_in', 'Signed in'], ['enrolled', 'Made a token'], ['confirmed', 'Confirmed'],
-     ['replacing', 'Replaced'], ['refused', 'Turned away'], ['not_allowed', 'Not allowed']].forEach(function (one) {
-      var f = el('div', 'fact');
-      f.appendChild(el('div', 'k', one[1]));
-      f.appendChild(el('div', 'v ' + (one[0] === 'refused' || one[0] === 'not_allowed' ? (c[one[0]] ? 'bad' : '') : ''), num(c[one[0]] || 0)));
-      tiles.appendChild(f);
-    });
-    var host = $('en-table');
-    clear(host);
-    var nd = manyNodes();
-    host.appendChild(listTable(['When', 'Who', 'Step', 'From', 'What happened'].concat(nd ? ['Node'] : []), d.rows, function (r) {
-      var tr = el('tr');
-      tr.appendChild(stampCell(r.ts));
-      tr.appendChild(noI18n(el('td', 'mono', r.who || '')));
-      var k = el('td');
-      var w = EN_STEP[r.step] || EN_STEP.other;
-      k.appendChild(el('span', 'tag ' + w[1], w[0] || r.step));
-      tr.appendChild(k);
-      tr.appendChild(noI18n(el('td', 'mono small muted', r.src || '')));
-      tr.appendChild(el('td', '', r.words));
-      if (nd) tr.appendChild(nodeCell(r.node));
-      if (r.who) {
-        tr.style.cursor = 'pointer';
-        tr.onclick = function () { tokenPeek(r.who); };
-      }
-      return tr;
-    }, 'plain|Nobody has been to the enrolment pages in this time', {own: true}));
-    pager('en-pager', PAGE.enrolment, per, d.total, function (p) { PAGE.enrolment = p; loadEnrolment(); });
-  }).catch(oops);
-}
-$('en-q').addEventListener('input', debounce(function () { PAGE.enrolment = 0; loadEnrolment(); }, 300));
-$('en-step').onchange = $('en-since').onchange = function () { PAGE.enrolment = 0; loadEnrolment(); };
 $('ev-kind').onchange = function () { PAGE.events = 0; loadEvents(); };
 if ($('ev-time')) $('ev-time').onchange = function () { PAGE.events = 0; loadEvents(); };
 $('log-read').onclick = function () {
@@ -2459,19 +1067,21 @@ $('log-read').onclick = function () {
    Settings: the rail, the panes, and the settings drawn from the daemon
    ========================================================================== */
 var RAIL = {pinned: false, open: null, shut: null};
+/** The pane shown when none is asked for: the first on the rail this account sees. */
+function firstPane() {
+  var b = Array.prototype.filter.call(document.querySelectorAll('#ctl-nav button[data-pane]'),
+    function (x) { return !x.hidden && $('pane-' + x.dataset.pane); })[0];
+  return b ? b.dataset.pane : 'about';
+}
 function showPane(name) {
-  if (!$('pane-' + name)) name = 'radius';
+  if (!name || !$('pane-' + name)) name = firstPane();
   PANE = name;
   document.querySelectorAll('#ctl-nav button[data-pane]').forEach(function (b) {
     b.classList.toggle('on', b.dataset.pane === name);
   });
   document.querySelectorAll('.ctl-pane').forEach(function (p) { p.hidden = p.id !== 'pane-' + name; });
   writeHash();
-  if (name === 'clients') loadClients();
-  if (name === 'guard') loadLockouts();
-  if (name === 'realms') loadRealms();
-  if (name === 'dir') loadDirs();
-  if (name === 'people') loadUsers();
+  if (name === 'people') { loadUsers(); loadDirs(); }
   if (name === 'db') { loadDb(); dbLinkNote(); }
   if (name === 'backup') loadRbackup();
   if (name === 'network') loadNet();
@@ -2497,6 +1107,9 @@ function showPane(name) {
   if (name === 'web') loadWeb();
   if (name === 'fw') loadFw();
   if (name === 'portal') { $('portal-url').textContent = location.protocol + '//' + location.host + '/'; loadArt(); }
+  /* A pane plugged in (ACME_EXTRA_PANES) draws itself. */
+  var extra = (window.ACME_EXTRA_PANES || {})[name];
+  if (typeof extra === 'function') { try { extra(name); } catch (e) { if (window.console) console.error(e); } }
   /* The save bar where there is a setting to save, and nowhere else - a page
      of clients or directories saves each one in its own window. */
   markDirtyCount();
@@ -2588,7 +1201,7 @@ function loadSettings(redraw) {
       DIRTY = {};
       drawSettings(); markDirtyCount();
       var hh = (location.hash || '').split('/');
-      showPane(PANE || (hh[1] || 'radius'));
+      showPane(PANE || hh[1] || '');
       return;
     }
     /* Typed while this was on its way (1.0.94): kept, not wiped by a redraw;
@@ -2607,7 +1220,7 @@ function loadSettings(redraw) {
     }
     JUST_SAVED = {};
     var h = (location.hash || '').split('/');
-    showPane(PANE || (h[1] || 'radius'));
+    showPane(PANE || h[1] || '');
   }).catch(oops);
 }
 var JUST_SAVED = {};
@@ -2618,7 +1231,7 @@ function isBool(s) {
   return typeof s.default === 'boolean' || (s.min === 0 && s.max === 1 && typeof s.default === 'number');
 }
 var TALL = {portal_help: 1, portal_groups: 1, sms_body: 1, sms_headers: 1, isemon_targets: 1, admin_group_full: 1,
-            admin_group_token: 1, admin_group_readonly: 1};
+            admin_group_cert: 1, admin_group_token: 1, admin_group_readonly: 1};
 
 /* A pane drawn in sections (1.0.88): what belongs together side by side,
    and what only one choice uses in a panel of its own that is there only
@@ -2639,7 +1252,7 @@ var PANE_LAYOUT = {
        {when: 'spool', title: 'A modem on this machine', icon: 'terminal',
         lede: 'smstools3 or gammu-smsd: every text a file in their spool folder, sent by their own daemon.',
         keys: ['sms_spool_dir'], wide: {sms_spool_dir: 2}},
-       {when: 'off', note: 'SMS is off: codes by SMS cannot be chosen on the enrolment pages, and the realms do not offer them.'}]}
+       {when: 'off', note: 'SMS is off: no code and no alert goes out as an SMS.'}]}
   ]
 };
 function layoutGrid(keys, wide, shown, cols) {
@@ -2736,7 +1349,7 @@ function smsTelExtra() {
   go.classList.add('right');
   head.appendChild(go);
   box.appendChild(head);
-  box.appendChild(el('div', 'says set-sub-lede', 'Signs in to the gateway with what is saved above and asks how its modems are - operator, signal, SIM. Nothing is sent; a test SMS goes from a token’s card.'));
+  box.appendChild(el('div', 'says set-sub-lede', 'Signs in to the gateway with what is saved above and asks how its modems are - operator, signal, SIM. Nothing is sent; a test SMS goes from Try an SMS, below.'));
   var out = el('div', 'tel-out');
   box.appendChild(out);
   go.onclick = function () {
@@ -3039,14 +1652,11 @@ function settingItemBare(s) {
   })) item.classList.add('wide');
   if (s.choices) {
     input = selectBox(s.choices.map(function (c) { return [c, (s.choice_words && s.choice_words[c]) || c]; }), s.value);
-  } else if (s.key === 'default_realm' || s.key === 'portal_realm') {
-    var rl = (SETTINGS.realms || []).slice();
-    if (s.value && rl.indexOf(s.value) < 0) rl.push(s.value);
-    input = selectBox([['', s.key === 'default_realm' ? 'none - a name has to be written whole'
-                                                      : 'as the default realm']]
-      .concat(rl.map(function (d) { return [d, '@' + d]; })), s.value);
-  } else if (s.key === 'admin_directory') {
-    input = selectBox([['', 'none - only the accounts made here']].concat((SETTINGS.directories || []).map(function (d) { return [d, d]; })), s.value);
+  } else if (s.key === 'admin_directory' || s.key === 'portal_directory') {
+    var dl = (SETTINGS.directories || []).slice();
+    if (s.value && dl.indexOf(s.value) < 0) dl.push(s.value);
+    input = selectBox([['', s.key === 'admin_directory' ? 'none - only the accounts made here'
+                                                        : 'the administrators’ one']].concat(dl.map(function (d) { return [d, d]; })), s.value);
   } else if (typeof s.min === 'number') {
     input = el('input');
     input.type = 'number';
@@ -3072,7 +1682,7 @@ function settingItemBare(s) {
   item.appendChild(input);
   if (s.key === 'portal_groups' && ADMIN) {
     /* The groups found in the directory and picked, rather than typed - the
-       same list as for a realm and for the administrators' groups. */
+       same list as for the administrators' groups. */
     var pickRow = el('div', 'btnrow');
     pickRow.style.marginTop = '8px';
     var pickGo = cmdButton('Find and pick the groups', 'search', 'small');
@@ -3188,12 +1798,12 @@ function hsList(host, rows, cls, title, redraw) {
   host.appendChild(ul);
 }
 
-/** The groups that may enrol, found in the directory: each one's button
+/** The groups that may sign in to the portal, found in the directory: each one's button
     puts it into the box or takes it out, and the box is saved with the
     other settings as before. */
 function portalGroupsPick(input, item, s) {
   var dirs = SETTINGS.directories || [];
-  if (!dirs.length) { toast('there is no directory to look in: Settings → Active Directory', 'bad'); return; }
+  if (!dirs.length) { toast('there is no directory to look in: Settings → Accounts, The directories', 'bad'); return; }
   var names = function () {
     return input.value.split(/[;\n]+/).map(function (x) { return x.trim(); }).filter(Boolean);
   };
@@ -3205,30 +1815,22 @@ function portalGroupsPick(input, item, s) {
     var cn = String(g.cn).toLowerCase(), dn = String(g.dn).toLowerCase();
     return names().filter(function (v) { v = v.toLowerCase(); return v === cn || v === dn; });
   };
-  modal('Groups that may enrol', function (body) {
-    body.appendChild(el('p', 'note', 'Find the groups in the directory and press May enrol beside each one that may: it goes into the box, and pressed again it comes out. Nested groups count - a member of a group inside one of these may enrol as well. Nothing is kept until Save the changes.'));
+  modal('Groups that may sign in to the portal', function (body) {
+    body.appendChild(el('p', 'note', 'Find the groups in the directory and press May sign in beside each one that may: it goes into the box, and pressed again it comes out. Nested groups count - a member of a group inside one of these may sign in as well. Nothing is kept until Save the changes.'));
     var dir = selectBox(dirs.map(function (d) { return [d, d]; }), dirs[0]);
     noI18n(dir);
-    /* The directory the enrolment pages sign people in against: the one of
-       their realm, or of the default realm. */
-    api('realms').then(function (d) {
-      var want = String(readValue(settingByKey('portal_realm') || {key: 'portal_realm'}) || '')
-        || String(readValue(settingByKey('default_realm') || {key: 'default_realm'}) || '');
-      var r = (d.realms || []).filter(function (x) {
-        return x.name === want || x.suffix === want;
-      })[0] || (d.realms || []).filter(function (x) { return x.directory && x.enabled; })[0];
-      if (r && r.directory && dirs.indexOf(r.directory) >= 0) {
-        dir.value = r.directory;
-        dir.dispatchEvent(new Event('change'));
-      }
-    }).catch(function () { /* the first one, then */ });
+    /* The directory the portal signs people in against, as set - or the
+       administrators' one. */
+    var want = String(readValue(settingByKey('portal_directory') || {key: 'portal_directory'}) || '')
+      || String(readValue(settingByKey('admin_directory') || {key: 'admin_directory'}) || '');
+    if (want && dirs.indexOf(want) >= 0) dir.value = want;
     if (dirs.length > 1) body.appendChild(formField('Look in the directory', dir));
     var chosen = el('div', 'chips');
     chosen.style.margin = '6px 0 12px';
     var drawChosen = function () {
       clear(chosen);
       var list = names();
-      if (!list.length) { chosen.appendChild(el('span', 'muted small', 'No group yet: nobody may enrol.')); return; }
+      if (!list.length) { chosen.appendChild(el('span', 'muted small', 'No group yet: nobody may sign in.')); return; }
       list.forEach(function (n) {
         var c = el('span', 'chip');
         /* A DN shown by its name, the whole of it on hover (1.0.101). */
@@ -3251,7 +1853,7 @@ function portalGroupsPick(input, item, s) {
     drawChosen();
     var gb = groupBrowser({
       dir: function () { return dir._get ? dir._get() : dir.value; },
-      buttons: [{words: 'May enrol', icon: 'check',
+      buttons: [{words: 'May sign in', icon: 'check',
                  on: function (g) { return has(g).length > 0; },
                  toggle: function (g) {
                    var hit = has(g);
@@ -3450,476 +2052,12 @@ window.addEventListener('beforeunload', function (e) {
   if (Object.keys(DIRTY).length || Object.keys(PENDING).length) { e.preventDefault(); e.returnValue = ''; }
 });
 
-/* ---- the clients ---------------------------------------------------------- */
-var CLIENTS = null;
-function loadClients() {
-  api('clients').then(function (d) {
-    CLIENTS = d;
-    var host = $('cl-table');
-    clear(host);
-    if (!d.clients.length) host.appendChild(el('p', 'note', 'No client yet: nothing can ask this server. Add the VPN concentrator, and 127.0.0.1 for testing.'));
-    host.appendChild(listTable(['Name', 'Address', 'Realm added', 'Secret', 'Message-Authenticator', 'State', 'Last asked', 'Note', ''],
-      d.clients, function (c) {
-        var tr = el('tr');
-        tr.appendChild(noI18n(el('td', '', c.name)));
-        tr.appendChild(noI18n(el('td', 'mono', c.address)));
-        tr.appendChild(noI18n(el('td', 'mono', c.realm ? '@' + c.realm : '–')));
-        var sec = el('td');
-        sec.appendChild(c.secret_lost ? el('span', 'tag crit', 'cannot be opened') : noI18n(el('span', 'mono muted', c.secret)));
-        tr.appendChild(sec);
-        tr.appendChild(el('td', 'muted', c.require_ma ? 'required' : 'checked when sent'));
-        var st = el('td'); st.appendChild(el('span', 'tag ' + (c.enabled ? 'ok' : 'dim'), c.enabled ? 'on' : 'off'));
-        tr.appendChild(st);
-        tr.appendChild(c.last_seen ? stampCell(c.last_seen) : el('td', 'muted', 'never'));
-        tr.appendChild(noI18n(el('td', 'muted small', c.note || '')));
-        var tools = el('td', 'rowtools');
-        if (ADMIN) {
-          var e = iconButton('edit', 'Edit');
-          e.onclick = function (ev) { ev.stopPropagation(); editClient(c); };
-          var x = iconButton('trash', 'Take it away');
-          x.onclick = function (ev) {
-            ev.stopPropagation();
-            confirmThen('Take the client ' + c.name + ' away',
-              'Requests from ' + htmlText(c.address) + ' are not answered any more.', 'Take it away', function () {
-                api('clients', {action: 'delete', id: c.id}).then(function (d2) { toast(d2.message, 'good'); loadClients(); }).catch(oops);
-              });
-          };
-          tools.appendChild(e); tools.appendChild(x);
-        }
-        tr.appendChild(tools);
-        if (ADMIN) tr.onclick = function () { editClient(c); };
-        return tr;
-      }, 'rows'));
-    explainWhatWasDrawn(host);
-  }).catch(oops);
-}
-$('cl-add').onclick = function () { editClient(null); };
-
-function editClient(c) {
-  /* A new client must sign its requests (1.0.101): a NAS that does not
-     can still be let off here. */
-  c = c || {enabled: 1, require_ma: 1};
-  modal(c.id ? 'The client ' + c.name : 'A new client', function (body) {
-    var g = el('div', 'formgrid');
-    var name = textBox(c.name, 'ASA', '');
-    var addr = textBox(c.address, '192.0.2.1 or 192.0.2.0/24', 'mono');
-    var secret = secretBox(c.id ? c.secret : '', c.id ? 'set - leave as it is to keep it' : 'something long', 'mono');
-    var realm = textBox(c.realm, 'example.cz', 'mono');
-    var ma = switchBox(c.require_ma);
-    var on = switchBox(c.enabled);
-    var note = textBox(c.note, '', '');
-    g.appendChild(formField('Name', name, 'What it is called here and in the logs.'));
-    g.appendChild(formField('Address', addr, 'The address the requests come from, or a range of them. The narrowest range that holds an address wins.'));
-    g.appendChild(formField('Shared secret', secret, 'The same as on the client. Up to 128 characters.'));
-    g.appendChild(formField('Realm added to names without one', realm,
-      'A name that comes as novak becomes novak@ this - what FreeRADIUS’s hints file did. Empty: names are taken as they come.'));
-    g.appendChild(formField('Must send a Message-Authenticator', ma,
-      'Refuse a request without one. Every current ASA sends it; requiring it closes the BlastRADIUS forgery for good.'));
-    g.appendChild(formField('In use', on));
-    /* The realms it may use (1.0.33): ticked, only those; none, any. */
-    var rbox = el('div', 'realmpick');
-    var picks = [];
-    var picksLoaded = false;
-    var have = String(c.realms || '').split(/[,;\n]+/).map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean);
-    api('realms').then(function (d) {
-      (d.realms || []).forEach(function (r) {
-        var lab = el('label', 'realmpick-one');
-        var cb = el('input'); cb.type = 'checkbox'; cb.value = r.name;
-        cb.checked = have.indexOf(r.name.toLowerCase()) >= 0;
-        lab.appendChild(cb);
-        lab.appendChild(noI18n(el('span', '', r.name)));
-        lab.appendChild(noI18n(el('span', 'muted small', r.suffix === '*' ? ' every name' : (r.suffix ? ' @' + r.suffix : ' without a realm'))));
-        picks.push(cb);
-        rbox.appendChild(lab);
-      });
-      if (!picks.length) rbox.appendChild(el('span', 'muted small', 'No realm yet.'));
-      picksLoaded = true;
-    }).catch(function () {
-      rbox.appendChild(el('span', 'muted small bad', 'The realms could not be read: the ones it may use stay as they are.'));
-    });
-    var rf = formField('Realms it may use', rbox, 'None ticked: any. Ticked: a name in any other realm is refused from this client - so nobody signs in to the VPN through the realm of the Wi-Fi, which asks for less.');
-    rf.classList.add('wide');
-    g.appendChild(rf);
-    var nf = formField('Note', note); nf.classList.add('wide');
-    g.appendChild(nf);
-    body.appendChild(g);
-    if (c.id) {
-      var show = cmdButton('Show the secret', 'eye', 'small');
-      show.style.marginTop = '10px';
-      show.onclick = function () {
-        api('clients', {action: 'secret', id: c.id}).then(function (d) { secret.value = d.secret; secret._show(); }).catch(oops);
-      };
-      body.appendChild(show);
-    }
-    MODAL_GO = function (b) {
-      busy(b, true);
-      api('clients', {action: 'save', client: {id: c.id, name: name.value, address: addr.value,
-        secret: secret.value === c.secret ? undefined : secret.value, realm: realm.value,
-        require_ma: ma._get(), enabled: on._get(), note: note.value,
-        /* Not sent before the list is there (1.0.44): an empty one would
-           have let the client use every realm. */
-        realms: picksLoaded ? picks.filter(function (x) { return x.checked; }).map(function (x) { return x.value; }) : undefined}}).then(function (d) {
-        toast(d.message, 'good'); closeModal(); loadClients();
-      }).catch(oops).then(function () { busy(b, false); });
-    };
-  }, [{words: 'Close', close: true}, {words: 'Save', cls: 'primary', icon: 'save', go: function (b) { MODAL_GO(b); }}], 'medium');
-}
-
-/* ---- the realms ----------------------------------------------------------- */
-var REALMS = null;
-var MODE_WORDS = {acme: 'the code alone', password_acme: 'the directory password, then the code',
-                  challenge: 'the directory password; the code in a second window',
-                  password: 'the directory password alone'};
-/* The kinds of token a realm offers (1.0.76). */
-var METHOD_WORDS = {totp: 'the app', mail: 'e-mail', sms: 'SMS'};
-var LOOKUP_WORDS = {upn: 'the whole name, as userPrincipalName', sam: 'the part before the @, as sAMAccountName',
-                    none: 'by the form of the name (with an @: userPrincipalName)'};
-function loadRealms() {
-  api('realms').then(function (d) {
-    REALMS = d;
-    var host = $('rl-table');
-    clear(host);
-    if (!d.realms.length) host.appendChild(el('p', 'note', 'No realm yet: every request is refused. Add one for what comes after the @ in your names.'));
-    host.appendChild(listTable(['Name', 'Takes', 'The password is', 'Directory', 'Groups', 'Answer', 'State', ''],
-      d.realms, function (r) {
-        var tr = el('tr');
-        tr.appendChild(noI18n(el('td', '', r.name)));
-        var tk = el('td');
-        if (r.suffix && r.suffix !== '*') tk.appendChild(noI18n(el('span', 'mono', '@' + r.suffix)));
-        else tk.appendChild(el('span', '', r.suffix === '*' ? 'every name' : 'names without a realm'));
-        (r.aliases || []).forEach(function (a) {
-          tk.appendChild(el('br'));
-          var al = noI18n(el('span', 'mono small muted', '+ @' + a));
-          al.title = 'also taken: its tokens are under @' + r.suffix;
-          tk.appendChild(al);
-        });
-        if (r.suffix && STATUS && STATUS.default_realm === r.suffix) {
-          tk.appendChild(el('br'));
-          tk.appendChild(el('span', 'tag info', 'default - also without @'));
-        }
-        tr.appendChild(tk);
-        var mc = el('td', '', MODE_WORDS[r.auth_mode]);
-        /* Always said (1.0.112): a realm of the app alone showed no tag at
-           all and looked like one that had lost it. */
-        {
-          mc.appendChild(el('br'));
-          ((r.methods || []).length ? r.methods : ['totp']).forEach(function (m) { mc.appendChild(el('span', 'tag ' + kindTagClass(m), METHOD_WORDS[m] || m)); mc.appendChild(document.createTextNode(' ')); });
-        }
-        tr.appendChild(mc);
-        var dc = el('td');
-        if (r.directory) {
-          dc.appendChild(noI18n(el('span', '', r.directory)));
-          dc.appendChild(el('span', 'muted small', ' (' + ({upn: 'UPN', sam: 'sAMAccountName'}[r.lookup] || 'by the form of the name') + ')'));
-        } else dc.textContent = '–';
-        tr.appendChild(dc);
-        var g = el('td');
-        if (!r.groups.length) g.appendChild(el('span', 'muted', 'anybody it finds'));
-        /* Each group by its name, the whole DN on hover; past three, the
-           rest one click away (1.0.103) - long DNs cut short and run together. */
-        g.appendChild(groupChips(r.groups.map(function (x) { return x.group; }), 3));
-        tr.appendChild(g);
-        tr.appendChild(noI18n(el('td', 'mono small', (r.reply || '').split('\n').join(' · '))));
-        var st = el('td'); st.appendChild(el('span', 'tag ' + (r.enabled ? 'ok' : 'dim'), r.enabled ? 'on' : 'off'));
-        tr.appendChild(st);
-        var tools = el('td', 'rowtools');
-        if (ADMIN) {
-          var ed = iconButton('edit', 'Edit');
-          ed.onclick = function (ev) { ev.stopPropagation(); editRealm(r); };
-          tools.appendChild(ed);
-          var x = iconButton('trash', 'Take it away');
-          x.onclick = function (ev) {
-            ev.stopPropagation();
-            confirmThen('Take the realm ' + r.name + ' away', 'Names in it are refused from now on.', 'Take it away', function () {
-              api('realms', {action: 'delete', id: r.id}).then(function (d2) { toast(d2.message, 'good'); loadRealms(); }).catch(oops);
-            });
-          };
-          tools.appendChild(x);
-          tr.onclick = function () { editRealm(r); };
-        }
-        tr.appendChild(tools);
-        return tr;
-      }, 'rows'));
-    explainWhatWasDrawn(host);
-  }).catch(oops);
-}
-$('rl-add').onclick = function () {
-  if (!REALMS) return;
-  editRealm({enabled: 1, check_disabled: 1, nested: 1, auth_mode: 'acme', lookup: 'upn', token_name: 'whole', methods: ['totp'],
-             groups: [], directory: (REALMS.directories || [])[0] || ''});
-};
-
-function editRealm(r) {
-  modal(r.id ? 'The realm ' + r.name : 'A new realm', function (body) {
-    var g = el('div', 'formgrid');
-    var name = textBox(r.name, 'example.cz', '');
-    var suffix = textBox(r.suffix, 'example.cz', 'mono');
-    var mode = selectBox(Object.keys(MODE_WORDS).map(function (k) { return [k, MODE_WORDS[k]]; }), r.auth_mode);
-    var dir = selectBox([['', 'none']].concat((REALMS.directories || []).map(function (d) { return [d, d]; })), r.directory);
-    var lookup = selectBox(Object.keys(LOOKUP_WORDS).map(function (k) { return [k, LOOKUP_WORDS[k]]; }), r.lookup);
-    var tname = selectBox([['whole', 'the whole name: novak@example.cz'], ['bare', 'the part before the @: novak']], r.token_name || 'whole');
-    var dis = switchBox(r.check_disabled);
-    var nested = switchBox(r.nested);
-    var on = switchBox(r.enabled);
-    var reply = el('textarea'); reply.value = r.reply || ''; reply.rows = 3; reply.placeholder = 'Class = VPN_USERS';
-    var secs = el('div', 'msects');
-    var s1 = msect('What it takes', 'The names this realm answers for, and what the password is.');
-    var g1 = el('div', 'formgrid');
-    g1.appendChild(formField('Name', name));
-    g1.appendChild(formField('Takes the names ending in @', suffix,
-      'What follows the @, such as example.cz. <code>*</code> takes every name no other realm does; empty takes names written without a realm.'));
-    /* Other suffixes of the same people (1.0.117): one realm, one token per
-       person, whichever of its suffixes they sign in with. */
-    var aliases = textBox((r.aliases || []).join(', '), 'example.local, example.com', 'mono');
-    g1.appendChild(formField('…and also the names ending in @', aliases,
-      'Other suffixes of the same people - an AD with <code>example.local</code> beside <code>example.cz</code>. '
-      + '<code>novak@example.local</code> is then the token <code>novak@example.cz</code>: one token, whichever is signed in with, '
-      + 'here and on the enrolment pages. Separated by commas.'));
-    s1._body.appendChild(g1);
-    if ((r.alias_tokens || []).length) {
-      var at = r.alias_tokens;
-      var free = at.filter(function (t) { return !t.clash; });
-      var box = el('div', 'note warn');
-      box.appendChild(el('div', '', num(at.length) + ' token(s) are kept under another suffix - made before it was one of this realm. They go on working as they are.'));
-      var list = noI18n(el('div', 'mono small', at.slice(0, 8).map(function (t) { return t.name + ' → ' + t.to + (t.clash ? ' ✗' : ''); }).join(', ') + (at.length > 8 ? ' …' : '')));
-      box.appendChild(list);
-      if (at.length > free.length)
-        box.appendChild(el('div', 'small', '✗: a token is there under that name already - left as it is; take one of the two away by hand.'));
-      if (free.length) {
-        var mv = cmdButton('Move them under @' + r.suffix, 'next', 'small');
-        mv.style.marginTop = '8px';
-        mv.onclick = function () {
-          rbConfirm('Move ' + num(free.length) + ' token(s) under @' + r.suffix + '?',
-            'Each is renamed as <i>Move</i> on a token does it: its key, recovery codes and history go with it. Nobody has to enrol again.',
-            'Move them', function () {
-              api('realms', {action: 'move_alias_tokens', id: r.id}).then(function (d) {
-                toast(d.message, 'good'); closeModal(); loadRealms();
-              }).catch(oops);
-            }, false);
-        };
-        box.appendChild(mv);
-      }
-      s1._body.appendChild(box);
-    }
-    s1._body.appendChild(formField('The password is', mode,
-      'The code alone is how the old token server worked: the VPN asks the directory password itself, somewhere else. The password followed by the code makes this the only server the VPN asks. '
-      + 'A second window: the VPN sends the directory password alone, and this server answers with an Access-Challenge - Cisco Secure Client (ASA, FTD) and others then show a second window for the code.'));
-    /* What people may choose (1.0.76): the app, a code by mail, a code by SMS. */
-    var chans = REALMS.channels || [];
-    var have = r.methods || ['totp'];
-    var mbox = el('div', 'methods-pick');
-    var mcb = {};
-    ['totp', 'mail', 'sms'].forEach(function (m) {
-      var lab = el('label', 'check');
-      var cb = el('input'); cb.type = 'checkbox'; cb.checked = have.indexOf(m) >= 0;
-      mcb[m] = cb;
-      lab.appendChild(cb);
-      lab.appendChild(el('span', '', {totp: 'The authenticator app (TOTP)', mail: 'A code by e-mail', sms: 'A code by SMS'}[m]));
-      if (m !== 'totp' && chans.indexOf(m) < 0) {
-        lab.appendChild(el('span', 'tag warn', m === 'mail' ? 'mail is not set up' : 'no SMS gateway set up'));
-      }
-      mbox.appendChild(lab);
-    });
-    s1._body.appendChild(formField('People may choose', mbox,
-      'What the enrolment pages offer to somebody of this realm who passes its groups. A code by e-mail or SMS is always sent after the directory password, and the VPN asks for it in a second window (RADIUS Access-Challenge) - whatever is chosen above for the app\'s tokens. Tokens of every kind work side by side.'));
-    /* The naming has long words to choose from: a row of its own, so none
-       of them is cut short (1.0.15). */
-    s1._body.appendChild(formField('The tokens are named by', tname));
-    s1._body.appendChild(formField('In use', on));
-    secs.appendChild(s1);
-    var s2 = msect('Looking the person up', 'Where the person is found, and what makes the directory refuse them.');
-    var g2 = el('div', 'formgrid');
-    g2.appendChild(formField('Look the person up in', dir));
-    g2.appendChild(formField('Names looked up by', lookup));
-    s2._body.appendChild(g2);
-    var g2b = el('div', 'formgrid');
-    g2b.appendChild(formField('Refuse an account switched off in the directory', dis));
-    g2b.appendChild(formField('Groups inside groups count', nested,
-      'A member of a group that is itself a member of one below lets in. Off: only direct members, which is what the old handler did.'));
-    s2._body.appendChild(g2b);
-    secs.appendChild(s2);
-    body.appendChild(secs);
-    var s3 = msect('The groups that let in', 'Any one of them lets in; none at all lets in anybody the directory finds. Each may add its own lines to the answer - the first group in this list that the person is in is the one whose lines are sent. A name (VPN_USERS) or a whole DN.', true);
-    var groupsHost = s3._body;
-    /* Each group a card of its own (1.0.103): its name to read, its whole
-       DN below it, never cut short; what it answers under it, the full width;
-       its place in the order - the first group the person is in answers -
-       moved with arrows. Many of them: counted, found by a word, scrolled. */
-    var gtools = el('div', 'grp-tools');
-    var gcount = el('span', 'grp-count');
-    var gfind = el('input');
-    gfind.type = 'search';
-    gfind.placeholder = 'find among them…';
-    gfind.className = 'grp-find';
-    gtools.appendChild(gcount);
-    gtools.appendChild(gfind);
-    groupsHost.appendChild(gtools);
-    var rows = el('div', 'grp-list');
-    var renumber = function () {
-      var all = Array.prototype.slice.call(rows.children);
-      all.forEach(function (c, i) {
-        c._num.textContent = String(i + 1);
-        c._up.disabled = i === 0;
-        c._down.disabled = i === all.length - 1;
-      });
-      gcount.textContent = all.length ? txT('Groups in the order') + ': ' + num(all.length) : txT('No group: anybody the directory finds is let in.');
-      gcount.className = 'grp-count' + (all.length ? '' : ' warn');
-      gfind.hidden = all.length < 6;
-      rows.classList.toggle('many', all.length > 6);
-    };
-    gfind.addEventListener('input', function () {
-      var w = gfind.value.trim().toLowerCase();
-      Array.prototype.forEach.call(rows.children, function (c) {
-        c.hidden = !!w && c._get().group.toLowerCase().indexOf(w) < 0;
-      });
-    });
-    function addRow(one, focus) {
-      var row = el('div', 'grp-card');
-      var head = el('div', 'grp-head');
-      var numb = el('span', 'grp-num');
-      head.appendChild(numb);
-      var title = el('div', 'grp-title');
-      var nm = noI18n(el('b', 'grp-name'));
-      var kind = el('span', 'tag small');
-      title.appendChild(nm);
-      title.appendChild(kind);
-      head.appendChild(title);
-      var acts = el('div', 'grp-acts');
-      var up = iconButton('up', 'Earlier in the order');
-      var down = iconButton('lower', 'Later in the order');
-      var edit = iconButton('edit', 'Change the group');
-      var x = iconButton('trash', 'Take it out');
-      [up, down, edit, x].forEach(function (b) { acts.appendChild(b); });
-      head.appendChild(acts);
-      row.appendChild(head);
-      var dnLine = noI18n(el('div', 'grp-dn mono'));
-      row.appendChild(dnLine);
-      var gname = el('textarea', 'mono grp-input');
-      gname.rows = 2;
-      gname.value = one.group || '';
-      gname.placeholder = 'CN=VPN_USERS,OU=Groups,DC=example,DC=cz - or a name alone';
-      gname.spellcheck = false;
-      gname.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); gname.blur(); } });
-      row.appendChild(gname);
-      /* Its own answer: shown when it has one; otherwise one small link, so
-         a long list of groups stays a list (1.0.103). */
-      var rbox = el('div', 'grp-reply');
-      var rl = el('div', 'grp-reply-h small muted', 'Its own lines of the answer (Name = value) - sent when this is the group that lets the person in');
-      rbox.appendChild(rl);
-      var gr = el('textarea'); gr.value = one.reply || ''; gr.rows = 1; gr.placeholder = 'Class = VPN_FULL  (Ctrl+Space)';
-      rbox.appendChild(gr);
-      row.appendChild(rbox);
-      replyEditor(gr, {compact: true});
-      var addReply = el('button', 'grp-addreply', '+ its own answer');
-      addReply.type = 'button';
-      addReply.onclick = function () { rbox.hidden = false; addReply.hidden = true; gr.focus(); };
-      row.appendChild(addReply);
-      rbox.hidden = !gr.value.trim();
-      addReply.hidden = !rbox.hidden;
-      var show = function (editing) {
-        var v = gname.value.trim();
-        var m = /^\s*cn=((?:\\.|[^,])+)/i.exec(v);
-        nm.textContent = m ? m[1].replace(/\\(.)/g, '$1') : (v || txT('a new group'));
-        var isDn = /=/.test(v) && /,/.test(v);
-        kind.textContent = !v ? '' : txT(isDn ? 'the whole DN' : 'a name alone');
-        kind.className = 'tag small ' + (isDn ? 'dim' : 'warn');
-        kind.hidden = !v;
-        kind.title = isDn ? '' : txT('A name alone is looked up in the directory: its sAMAccountName, or a cn only one group has. A whole DN is exact.');
-        dnLine.textContent = isDn ? v : '';
-        dnLine.hidden = editing || !isDn;
-        gname.hidden = !editing;
-        row.classList.toggle('editing', !!editing);
-      };
-      gname.addEventListener('blur', function () { if (gname.value.trim()) show(false); });
-      gname.addEventListener('input', function () { show(true); });
-      edit.onclick = function () { show(true); gname.focus(); };
-      dnLine.onclick = function () { show(true); gname.focus(); };
-      x.onclick = function () { row.remove(); renumber(); };
-      up.onclick = function () { if (row.previousSibling) { rows.insertBefore(row, row.previousSibling); renumber(); } };
-      down.onclick = function () { if (row.nextSibling) { rows.insertBefore(row.nextSibling, row); renumber(); } };
-      row._num = numb; row._up = up; row._down = down;
-      row._get = function () { return {group: gname.value.trim(), reply: gr.value}; };
-      rows.appendChild(row);
-      show(!one.group);
-      renumber();
-      if (focus) setTimeout(function () { gname.focus(); row.scrollIntoView({block: 'nearest'}); }, 30);
-      return row;
-    }
-    (r.groups || []).forEach(function (g) { addRow(g); });
-    groupsHost.appendChild(rows);
-    renumber();
-    var gb = el('div', 'btnrow');
-    var add = cmdButton('Add a group', 'add', 'small');
-    add.onclick = function () { addRow({group: '', reply: ''}, true); };
-    gb.appendChild(add);
-    groupsHost.appendChild(gb);
-    /* The groups, found rather than typed - the same list as the
-       administrators' groups under Accounts, isemon's. */
-    var findName = function (gg) {
-      var cn = String(gg.cn).toLowerCase(), dn = String(gg.dn).toLowerCase();
-      return Array.prototype.filter.call(rows.children, function (x) {
-        var v = x._get().group.toLowerCase();
-        return v === cn || v === dn;
-      });
-    };
-    groupsHost.appendChild(groupBrowser({
-      dir: function () { return dir._get ? dir._get() : dir.value; },
-      buttons: [{words: 'Lets in', icon: 'check',
-                 on: function (gg) { return findName(gg).length > 0; },
-                 toggle: function (gg) {
-                   var have = findName(gg);
-                   if (have.length) { have.forEach(function (x) { x.remove(); }); renumber(); return false; }
-                   addRow({group: gg.dn, reply: ''});   /* its DN (1.0.101) */
-                   return true;
-                 }}]
-    }));
-    var secs2 = el('div', 'msects');
-    secs2.appendChild(s3);
-    var s4 = msect('The answer to everybody let in', 'Lines that go back to the VPN with every Access-Accept, Name = value.', true);
-    var replyField = formField('Lines of the answer, Name = value', reply,
-      'What goes back to the VPN with every Access-Accept, a line each: <code>ASA-Group-Policy = GP_FULL</code>, '
-      + '<code>Session-Timeout = 43200</code>. <kbd>Ctrl+Space</kbd> lists what can be sent - for the product chosen above the box - and, after =, its values. '
-      + 'Any other vendor\'s attribute: <code>Vendor-3845-Attr-1 = value</code>.');
-    s4._body.appendChild(replyField);
-    replyEditor(reply);
-    var nt = textBox(r.note, '', '');
-    s4._body.appendChild(formField('Note', nt));
-    secs2.appendChild(s4);
-    body.appendChild(secs2);
-    var send = function (b, absorb) {
-      busy(b, true);
-      api('realms', {action: 'save', absorb: absorb || [], realm: {id: r.id, name: name.value, suffix: suffix.value, aliases: aliases.value, auth_mode: mode.value,
-        directory: dir.value, lookup: lookup.value, token_name: tname.value, check_disabled: dis._get(),
-        methods: ['totp', 'mail', 'sms'].filter(function (m) { return mcb[m].checked; }),
-        nested: nested._get(), enabled: on._get(), reply: reply.value, note: nt.value,
-        groups: Array.prototype.map.call(rows.children, function (x) { return x._get(); })
-          .filter(function (x) { return x.group; })}}).then(function (d) {
-        toast(d.message, 'good'); closeModal(); loadRealms();
-      }).catch(function (e) {
-        /* Another suffix that is a realm of its own (1.0.117): offered to be
-           taken into this one in the same step - its suffixes, its groups,
-           the clients allowed it - rather than a dead end. */
-        var m = /^@(\S+) is the realm (.+?) - to make it a second suffix/.exec(String(e.message || ''));
-        var other = m && (REALMS.realms || []).filter(function (x) { return x.name === m[2]; })[0];
-        if (!other) { oops(e); return; }
-        var og = (other.groups || []).map(function (g) { return g.group; });
-        /* Plain sentences, each translated whole. */
-        rbConfirm('Take the realm ' + other.name + ' into this one?',
-          htmlText('@' + other.suffix + ' becomes another suffix of this realm, and the realm ' + other.name + ' goes.') + '<br><br>'
-          + (og.length ? htmlText('Its groups follow this realm’s own: ' + og.join(', ') + '.') + '<br><br>' : '')
-          + htmlText('The clients allowed it are allowed this one. Its tokens stay as they are and keep working; this realm then offers to move them under @' + suffix.value.replace(/^@/, '') + '.'),
-          'Take it in', function () { send(b, [other.name]); }, false);
-      }).then(function () { busy(b, false); });
-    };
-    MODAL_GO = function (b) { send(b); };
-  }, [{words: 'Close', close: true}, {words: 'Save', cls: 'primary', icon: 'save', go: function (b) { MODAL_GO(b); }}], 'large');
-}
-
-/* ---- the directories ------------------------------------------------------ */
+/* ---- the directories administrators sign in against (Settings → Accounts) -- */
 function loadDirs() {
   api('directories').then(function (d) {
     var host = $('ad-table');
     clear(host);
-    if (!d.directories.length) host.appendChild(el('p', 'note', 'No directory yet. A realm without one checks the code and nothing else.'));
+    if (!d.directories.length) host.appendChild(el('p', 'note', 'No directory yet. Administrators sign in with the accounts of these pages only.'));
     var list = el('div', 'cardlist');
     d.directories.forEach(function (a) {
       var card = el('div', 'itemcard');
@@ -3938,7 +2076,7 @@ function loadDirs() {
       chk.onclick = function (ev) { ev.stopPropagation(); checkDir(a.name); };
       var who = cmdButton('Look a name up', 'search', 'small');
       who.onclick = function (ev) { ev.stopPropagation(); lookupDir(a.name); };
-      if (TOKADMIN) { tools.appendChild(chk); tools.appendChild(who); }
+      if (CERTADMIN) { tools.appendChild(chk); tools.appendChild(who); }
       if (ADMIN) {
         var ed = iconButton('edit', 'Edit');
         ed.onclick = function (ev) { ev.stopPropagation(); editDir(a); };
@@ -3946,7 +2084,7 @@ function loadDirs() {
         var x = iconButton('trash', 'Take it away');
         x.onclick = function (ev) {
           ev.stopPropagation();
-          confirmThen('Take the directory ' + a.name + ' away', 'Nothing is looked up in it any more.', 'Take it away', function () {
+          confirmThen('Take the directory ' + a.name + ' away', 'Nothing is looked up in it any more: nobody signs in against it.', 'Take it away', function () {
             api('directories', {action: 'delete', id: a.id}).then(function (d2) { toast(d2.message, 'good'); loadDirs(); }).catch(oops);
           });
         };
@@ -3980,7 +2118,7 @@ function loadDirs() {
     explainWhatWasDrawn(host);
   }).catch(oops);
 }
-$('ad-add').onclick = function () { editDir({tls: 'ldaps', port: 636, verify: 1, nested: 1, enabled: 1, timeout_s: 10, user_attr: 'sAMAccountName'}); };
+if ($('ad-add')) $('ad-add').onclick = function () { editDir({tls: 'ldaps', port: 636, verify: 1, nested: 1, enabled: 1, timeout_s: 10, user_attr: 'sAMAccountName'}); };
 
 function editDir(a) {
   modal(a.id ? 'The directory ' + a.name : 'A new directory', function (body) {
@@ -4005,7 +2143,7 @@ function editDir(a) {
     var secs = el('div', 'msects');
     var s1 = msect('How it is reached', 'The domain controllers, in the order they are asked, and how.');
     var g1 = el('div', 'formgrid');
-    g1.appendChild(formField('Name', name, 'What the realms call it.'));
+    g1.appendChild(formField('Name', name, 'What Accounts calls it, in Sign administrators in against the directory.'));
     g1.appendChild(formField('In use', on));
     s1._body.appendChild(g1);
     s1._body.appendChild(formField('Servers, in the order to ask them', hosts, 'Separated by commas. One that cannot be reached is passed over for the next.'));
@@ -4021,7 +2159,7 @@ function editDir(a) {
     s2._body.appendChild(formField('The account it reads with', bind, 'A user principal name (acme@example.local) or a whole DN. It needs nothing but to read.'));
     s2._body.appendChild(formField('Its password', pw));
     s2._body.appendChild(formField('Where to look (the base)', base));
-    s2._body.appendChild(formField('A short name is', attr, 'The attribute a name without its realm is looked up by.'));
+    s2._body.appendChild(formField('A short name is', attr, 'The attribute a name without its @domain is looked up by.'));
     secs.appendChild(s2);
     body.appendChild(secs);
     if (!a.id) {
@@ -4113,7 +2251,7 @@ function lookupDir(name) {
   askInModal('Look a name up in ' + name, 'What the directory says about one person: who they are, whether the '
     + 'account is switched off or has run out, and every group they are in, those inside groups as well.',
     [{label: 'Who', placeholder: 'novak@example.cz or novak', mono: true, people: {directory: name},
-      says: 'A name as the VPN sends it, or a short one - or part of a name, and pick one.'}], 'Look it up', 'search', function (v) {
+      says: 'A whole name, or a short one - or part of a name, and pick one.'}], 'Look it up', 'search', function (v) {
       var who = v[0].trim();
       if (!who) { toast('type a name first', 'bad'); return; }
       lookupDirShow(name, who);
@@ -4132,233 +2270,6 @@ function lookupDirShow(name, who) {
     (d.groups || []).slice().sort().forEach(function (gname) { box.appendChild(noI18n(el('span', 'tag namepill', gname))); });
     body.appendChild(box);
   });
-}
-
-/* ---- bringing tokens over ------------------------------------------------- */
-$('imp-drop').onclick = function () { $('imp-files').click(); };
-['dragover', 'dragenter'].forEach(function (k) {
-  $('imp-drop').addEventListener(k, function (e) { e.preventDefault(); $('imp-drop').classList.add('over'); });
-});
-$('imp-drop').addEventListener('dragleave', function () { $('imp-drop').classList.remove('over'); });
-$('imp-drop').addEventListener('drop', function (e) {
-  e.preventDefault();
-  $('imp-drop').classList.remove('over');
-  importFiles(e.dataTransfer.files);
-});
-$('imp-files').onchange = function () { importFiles(this.files); this.value = ''; };
-function importFiles(list) {
-  if (!ADMIN) { toast('only a full administrator may bring tokens over', 'bad'); return; }
-  var files = Array.prototype.slice.call(list || []);
-  if (!files.length) return;
-  Promise.all(files.map(function (f) {
-    /* A ZIP goes as it is, and is opened by the daemon (1.0.33). */
-    if (/\.zip$/i.test(f.name)) {
-      if (f.size > 5 * 1024 * 1024) return Promise.reject(new Error(f.name + ' is bigger than 5 MB: split it'));
-      return f.arrayBuffer().then(function (buf) {
-        var bytes = new Uint8Array(buf), bin = '';
-        for (var i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-        return {name: f.name, zip: btoa(bin)};
-      });
-    }
-    return f.text().then(function (t) { return {name: f.name, text: t}; });
-  })).then(function (got) {
-    /* A whole backup (1.0.96): looked into first, then picked from. */
-    var isBackup = got.some(function (g) { return g.text && /"kind"\s*:\s*"acme-tokens"/.test(g.text.slice(0, 400)); });
-    if (isBackup) { backupPeek(got.filter(function (g) { return g.text && /"kind"\s*:\s*"acme-tokens"/.test(g.text.slice(0, 400)); }), ''); return null; }
-    return zipImport(got, '');
-  }).then(function (d) {
-    if (!d) return;
-    importSaid(d);
-  }).catch(oops);
-}
-/* .totp files and ZIPs of them; a locked ZIP asks for its passphrase (1.0.167). */
-function zipImport(got, phrase) {
-  return api('token-import', {files: got, replace: $('imp-replace').checked, passphrase: phrase}).catch(function (e) {
-    if (!(e.status === 423 || /is locked|passphrase/.test(String(e.message)))) throw e;
-    return new Promise(function (done) {
-      modal('The ZIP is locked', function (body) {
-        body.appendChild(el('p', 'note', phrase ? 'That passphrase does not open it - try again.' : 'It was locked with a passphrase when it was exported: that passphrase opens it.'));
-        var pw = textBox('', 'the passphrase', 'mono');
-        pw.type = 'password';
-        noI18n(pw);
-        body.appendChild(formField('Passphrase', pw));
-        pw.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') MODAL_GO(); });
-        setTimeout(function () { pw.focus(); }, 50);
-        MODAL_GO = function () { var v = pw.value; closeModal(); done(zipImport(got, v)); };
-      }, [{words: 'Close', close: true}, {words: 'Open it', cls: 'primary', icon: 'key', go: function () { MODAL_GO(); }}], 'small');
-    });
-  });
-}
-function importSaid(d) {
-  {
-    var host = $('imp-out');
-    clear(host);
-    host.appendChild(listTable(['Token', 'What happened'], d.done || [], function (r) {
-      var tr = el('tr');
-      tr.appendChild(noI18n(el('td', 'mono', r.name)));
-      tr.appendChild(el('td', /^(imported|restored)/.test(r.said) ? 'good' : 'muted', r.said));
-      return tr;
-    }));
-    toast((d.done || []).length + ' token(s) read', 'good');
-  }
-}
-function backupPeek(files, phrase) {
-  api('token-import', {files: files, action: 'peek', passphrase: phrase}).then(function (d) {
-    backupPick(files, phrase, d.backup || {});
-  }).catch(function (e) {
-    if (e.status === 423 || /locked|passphrase/.test(String(e.message))) {
-      modalOver(function () {
-        modal('The backup is locked', function (body) {
-          body.appendChild(el('p', 'note', phrase ? 'That passphrase does not open it - try again.' : 'It was locked with a passphrase when it was made: that passphrase opens it.'));
-          var pw = textBox('', 'the passphrase', 'mono');
-          pw.type = 'password';
-          noI18n(pw);
-          body.appendChild(formField('Passphrase', pw));
-          pw.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') MODAL_GO(); });
-          setTimeout(function () { pw.focus(); }, 50);
-          MODAL_GO = function () { var v = pw.value; closeModal(); backupPeek(files, v); };
-        }, [{words: 'Close', close: true}, {words: 'Open it', cls: 'primary', icon: 'key', go: function () { MODAL_GO(); }}], 'small');
-      });
-      return;
-    }
-    oops(e);
-  });
-}
-function backupPick(files, phrase, bk) {
-  var toks = bk.tokens || [];
-  var picked = {}, replace = {};
-  /* Every token picked; one this server has already is kept as it is here
-     unless "replace" is chosen for it (1.0.100) - one by one, or for all. */
-  toks.forEach(function (t) { picked[t.name] = true; replace[t.name] = !!(t.here && $('imp-replace').checked); });
-  modal('Restoring from a backup', function (body) {
-    var when = bk.made ? dayWords(new Date(bk.made * 1000)) + ' ' + clockWords(new Date(bk.made * 1000)) : '?';
-    body.appendChild(el('p', 'note', num(toks.length) + ' token(s) · made ' + when + (bk.node ? ' on ' + bk.node : '')
-      + (bk.by ? ' by ' + bk.by : '') + (bk.version ? ' · acme ' + bk.version : '')));
-    if ((bk.lost || []).length) body.appendChild(el('p', 'note warn small', 'Not in it (their keys could not be opened where it was made): ' + bk.lost.join(', ')));
-    var bar = el('div', 'btnrow filters bk-bar');
-    var q = textBox('', 'a name, a note, a mail address, a phone number… (kind:mail state:active name:novak*)', '');
-    q.type = 'search';
-    q.style.flex = '1';
-    var kindSel = selectBox([['', 'every kind'], ['totp', 'the app'], ['mail', 'codes by e-mail'], ['sms', 'codes by SMS']], '');
-    var allB = cmdButton('All shown', 'check', ''), noneB = cmdButton('None', 'close', '');
-    [q, kindSel, allB, noneB].forEach(function (x) { bar.appendChild(x); });
-    body.appendChild(bar);
-    var here = toks.filter(function (t) { return t.here; });
-    var repRow = el('div', 'bk-here');
-    if (here.length) {
-      repRow.appendChild(el('span', 'tag warn', num(here.length) + ' here already'));
-      repRow.appendChild(el('span', 'small muted', 'For each of them: keep the one here, or replace it with the one in the backup.'));
-      var keepAll = cmdButton('Keep every one here', 'shield', 'small');
-      var repAll = cmdButton('Replace every one', 'refresh', 'small danger');
-      keepAll.onclick = function () { here.forEach(function (t) { replace[t.name] = false; }); draw(); };
-      repAll.onclick = function () { here.forEach(function (t) { replace[t.name] = true; picked[t.name] = true; }); draw(); };
-      repRow.appendChild(keepAll); repRow.appendChild(repAll);
-      body.appendChild(repRow);
-    }
-    var host = el('div', 'bk-list');
-    body.appendChild(host);
-    var said = el('div', 'said');
-    body.appendChild(said);
-    /* Found with the words of the token list (1.0.96) - asked of the
-       daemon, which reads the backup into a table of its own. */
-    var current = toks;
-    var shown = function () { return current; };
-    var qs = qSuggest(q, 'tokens');
-    var ask = debounce(function () {
-      var words = q.value.trim() + (kindSel.value ? ' kind:' + kindSel.value : '');
-      if (!words.trim()) { current = toks; qs.said(''); draw(); return; }
-      api('token-import', {files: files, action: 'peek', passphrase: phrase, q: words}).then(function (d) {
-        qs.said(d.q_error || '');
-        current = (d.backup || {}).tokens || [];
-        draw();
-      }).catch(oops);
-    }, 350);
-    var count = function () {
-      var n = toks.filter(function (t) { return picked[t.name] && (!t.here || replace[t.name]); }).length;
-      var kept = toks.filter(function (t) { return picked[t.name] && t.here && !replace[t.name]; }).length;
-      var rp = toks.filter(function (t) { return picked[t.name] && t.here && replace[t.name]; }).length;
-      said.className = 'said bk-said';
-      clear(said);
-      /* Each piece on its own, so each is said in the page's language. */
-      said.appendChild(el('span', 'good', num(n) + ' will be restored'));
-      if (rp) said.appendChild(el('span', 'warn', num(rp) + ' replace the one here'));
-      if (kept) said.appendChild(el('span', 'muted', num(kept) + ' kept as they are here'));
-      return n;
-    };
-    var draw = function () {
-      clear(host);
-      host.appendChild(listTable(['', 'Token', 'Codes', {words: 'Recovery codes', cls: 'num'}, 'State', 'On this server'], shown(), function (t) {
-        var tr = el('tr');
-        var c = el('td');
-        var cb = el('input'); cb.type = 'checkbox'; cb.checked = !!picked[t.name];
-        cb.onclick = function (e) { e.stopPropagation(); picked[t.name] = cb.checked; count(); };
-        c.appendChild(cb);
-        tr.appendChild(c);
-        var n = el('td');
-        n.appendChild(noI18n(el('span', 'mono', t.name)));
-        if (t.display) n.appendChild(noI18n(el('span', 'sub', t.display)));
-        tr.appendChild(n);
-        var kc = el('td');
-        kc.appendChild(el('span', 'tag ' + kindTagClass(t.kind), {totp: 'the app', mail: 'e-mail', sms: 'SMS'}[t.kind] || t.kind));
-        if (t.dest) kc.appendChild(noI18n(el('span', 'sub mono', t.dest)));
-        tr.appendChild(kc);
-        tr.appendChild(el('td', 'num', num(t.codes || 0)));
-        var st = el('td'); st.appendChild(stateTag(t.state)); tr.appendChild(st);
-        var hc = el('td', 'small');
-        if (t.here) {
-          /* Keep the one here, or replace it - its own choice (1.0.100). */
-          var seg = el('div', 'seg bk-seg');
-          [['keep', 'keep the one here'], ['replace', 'replace it']].forEach(function (o) {
-            var bt = el('button', (replace[t.name] ? o[0] === 'replace' : o[0] === 'keep') ? 'on' : '', o[1]);
-            bt.type = 'button';
-            if (o[0] === 'replace') bt.classList.add('danger');
-            bt.onclick = function (e) {
-              e.stopPropagation();
-              replace[t.name] = o[0] === 'replace';
-              if (replace[t.name]) picked[t.name] = true;
-              draw();
-            };
-            seg.appendChild(bt);
-          });
-          hc.appendChild(seg);
-        } else hc.appendChild(el('span', 'tag ok', 'new'));
-        tr.appendChild(hc);
-        tr.onclick = function () { cb.checked = !cb.checked; picked[t.name] = cb.checked; count(); };
-        return tr;
-      }, 'rows'));
-      count();
-    };
-    q.addEventListener('input', ask);
-    kindSel.onchange = ask;
-    searchButtons(q, ask, [kindSel]);
-    allB.onclick = function () { shown().forEach(function (t) { picked[t.name] = true; }); draw(); };
-    noneB.onclick = function () { shown().forEach(function (t) { picked[t.name] = false; }); draw(); };
-    draw();
-    MODAL_GO = function (button) {
-      var names = toks.filter(function (t) { return picked[t.name] && (!t.here || replace[t.name]); }).map(function (t) { return t.name; });
-      var repl = toks.filter(function (t) { return picked[t.name] && t.here && replace[t.name]; }).map(function (t) { return t.name; });
-      if (!names.length) { said.className = 'said bad'; said.textContent = 'nothing to restore - every one picked is kept as it is here'; return; }
-      var doIt = function () {
-      busy(button, true);
-      api('token-import', {files: files, passphrase: phrase, names: names, replace_names: repl}).then(function (d) {
-        closeModal();
-        importSaid(d);
-        if (typeof loadTokens === 'function') loadTokens();
-      }).catch(function (e) { said.className = 'said bad'; said.textContent = e.message; }).then(function () { busy(button, false); });
-      };
-      if (!repl.length) { doIt(); return; }
-      modalOver(function () {
-        modal('Replace ' + num(repl.length) + ' token(s) that are here', function (body) {
-          body.appendChild(el('p', 'note', 'Their keys and recovery codes here are thrown away for the ones in the backup. Whoever uses the token here signs in with the one from the backup from then on.'));
-          var ul = el('ul', 'bk-repl');
-          repl.slice(0, 12).forEach(function (x) { ul.appendChild(noI18n(el('li', 'mono', x))); });
-          if (repl.length > 12) ul.appendChild(el('li', 'muted', num(repl.length - 12) + ' more'));
-          body.appendChild(ul);
-        }, [{words: 'No, leave it', close: true},
-            {words: 'Replace them', cls: 'danger', icon: 'refresh', close: true, once: true, go: doIt}], true);
-      });
-    };
-  }, [{words: 'Close', close: true}, {words: 'Restore the ones picked', cls: 'primary', icon: 'upload', go: function (b) { MODAL_GO(b); }}], 'large');
 }
 
 /* ---- every node as a card of its own (1.0.169) ----------------------------------
@@ -4466,7 +2377,7 @@ function drawIsemon() {
         /* A sign-in isemon shows (1.0.178), under a name given. */
         var ts = cmdButton('Send a test sign-in…', 'person', 'small');
         ts.disabled = t.disabled;
-        explain(ts, 'A line in the very shape of totpcgi\'s (totp.cgi), from ' + n.node + ' to every isemon receiver: isemon shows it as a sign-in of the name given - its message says it is a test.');
+        explain(ts, 'A line from ' + n.node + ' to every isemon receiver that isemon shows as a sign-in of the name given - its message says it is a test.');
         ts.onclick = function () {
           var who, res;
           modal('A test sign-in for isemon', function (body) {
@@ -4519,11 +2430,7 @@ function drawIsemonGuide() {
   if (!host || host._drawn) return;
   host._drawn = true;
   host.appendChild(el('h2', '', 'On the isemon machine'));
-  host.appendChild(el('p', 'note', 'isemon reads a token server from two files under /var/log/remote/HOST/: totp.cgi.log and radius-detail.log. Its rsyslog needs a rule for both program names - deploy/isemon/11-acme.conf in this package, copied to /etc/rsyslog.d/ there - and in isemon: Settings → The ACME logs switched on, the folder of each node in it, and RADIUS detail switched on.'));
-  var pre = el('pre', 'wrap mono');
-  pre.textContent = 'if ($programname == "totp.cgi" or $programname == "radius-detail") then {\n'
-    + '    action(type="omfile" dynaFile="ACMEFile" fileOwner="root" fileGroup="isemon" fileCreateMode="0640")\n    stop\n}';
-  host.appendChild(noI18n(pre));
+  host.appendChild(el('p', 'note', 'isemon reads each node from the files its rsyslog writes under /var/log/remote/HOST/. Its rsyslog needs the rule for acme\'s program names - deploy/isemon/11-acme.conf in this package, copied to /etc/rsyslog.d/ there - and in isemon the folder of each node switched on.'));
 }
 
 /* ---- accounts ------------------------------------------------------------- */
@@ -4649,7 +2556,7 @@ function loadUsers() {
     host.appendChild(listTable(['Who', 'Where', 'From', 'Since', 'Last asked', ''], d.sessions, function (s) {
       var tr = el('tr');
       tr.appendChild(noI18n(el('td', 'mono', s.name)));
-      tr.appendChild(el('td', '', s.kind === 'admin' ? 'these pages' : 'the enrolment pages'));
+      tr.appendChild(el('td', '', s.kind === 'admin' ? 'these pages' : 'the portal'));
       tr.appendChild(noI18n(el('td', 'mono small', s.ip)));
       tr.appendChild(stampCell(s.created));
       tr.appendChild(el('td', 'muted', ago(s.last)));
@@ -4673,11 +2580,9 @@ function loadUsers() {
    again every 10 s while the card is on the screen; the time left counts
    down every second in between. */
 var LO = {data: null, skew: 0, fetched: 0, timer: null};
-/* Two views of the same counts (1.0.137): Accounts - every kind; Sign-in
-   protection - the VPN's places and the locked tokens, with a filter. */
+/* Where the counts are shown (1.0.137): Accounts. */
 var LO_VIEWS = [
-  {table: 'lo-table', tools: 'lo-tools', card: 'lo-card', kinds: null},
-  {table: 'gd-table', tools: 'gd-tools', card: 'gd-card', kinds: ['radius-src', 'token-locked', 'codes-sent'], find: 'gd-find'}
+  {table: 'lo-table', tools: 'lo-tools', card: 'lo-card', kinds: null}
 ];
 function loadLockouts() {
   if (!ADMIN || !LO_VIEWS.some(function (v) { return $(v.table); })) return;
@@ -4739,34 +2644,20 @@ function drawLockoutsIn(v) {
   var locked = rows.filter(function (r) { return r.locked; }).length;
   if (rows.length) {
     if (locked) { var lc = el('span', 'small bad', num(locked) + ' locked out'); lc.style.marginRight = '12px'; tools.appendChild(lc); }
-    if (!v.kinds) {
-      var all = cmdButton('Clear them all', 'broom', 'small');
-      all.onclick = function () {
-        confirmThen('Clear every lockout?', 'Every count of wrong attempts is forgotten' + (d.cluster ? ' on every node' : '')
-          + ' - the locked out may try again at once. Events keeps a line saying who did it.', 'Clear them all', function () {
-          loClear({action: 'clear_all'});
-        }, false);
-      };
-      tools.appendChild(all);
-    } else {
-      var these = cmdButton(find ? 'Clear these (' + num(rows.length) + ')' : 'Clear them all', 'broom', 'small');
-      these.onclick = function () {
-        var list = rows.slice();
-        confirmThen(find ? 'Clear these?' : 'Clear them all?', (find ? 'The ' + num(list.length) + ' shown' : 'Every place and token shown')
-          + ' may try again at once. Events keeps a line saying who did it.', 'Clear them', function () {
-          Promise.all(list.map(function (r) {
-            return api('lockouts', {action: 'clear', node: r.node, kind: r.kind, who: r.who}).catch(function () { return null; });
-          })).then(function () { toast('cleared: ' + num(list.length), 'good'); loadLockouts(); setTimeout(loadLockouts, 7000); });
-        }, false);
-      };
-      tools.appendChild(these);
-    }
+    var all = cmdButton('Clear them all', 'broom', 'small');
+    all.onclick = function () {
+      confirmThen('Clear every lockout?', 'Every count of wrong attempts is forgotten' + (d.cluster ? ' on every node' : '')
+        + ' - the locked out may try again at once. Events keeps a line saying who did it.', 'Clear them all', function () {
+        loClear({action: 'clear_all'});
+      }, false);
+    };
+    tools.appendChild(all);
   }
   }, true);
   liveFill(host, function (host) {
   if (!rows.length) {
     host.appendChild(el('p', 'note good', find ? 'Nothing counted for "' + find + '".'
-      : (v.kinds ? 'No place is counted or blocked, and no token is locked.' : 'Nobody is locked out, and no wrong attempt is being counted.')));
+      : 'Nobody is locked out, and no wrong attempt is being counted.'));
     return;
   }
   var heads = ['State', 'Who', 'Where', 'How many', 'Tried'].concat(d.cluster ? ['Node'] : []).concat(['Last', '']);
@@ -4774,7 +2665,7 @@ function drawLockoutsIn(v) {
     var tr = el('tr', r.locked ? 'lo-locked' : '');
     var st = el('td');
     if (r.locked) {
-      st.appendChild(el('span', 'tag crit', r.by === 'place' ? 'blocked' : 'locked out'));
+      st.appendChild(el('span', 'tag crit', 'locked out'));
       st.appendChild(el('div', 'small', span(r.until - now) + ' left'));
       if (r.why) st.appendChild(el('div', 'small muted', r.why));
     } else {
@@ -4784,8 +2675,7 @@ function drawLockoutsIn(v) {
     tr.appendChild(st);
     var who = el('td');
     who.appendChild(noI18n(el('div', 'mono', r.who)));
-    who.appendChild(el('div', 'small muted', r.by === 'address' ? 'an address' : (r.by === 'token' ? 'a token'
-      : (r.by === 'place' ? 'a place (Calling-Station-Id)' : 'a name'))));
+    who.appendChild(el('div', 'small muted', r.by === 'address' ? 'an address' : 'a name'));
     tr.appendChild(who);
     tr.appendChild(el('td', 'small', r.what));
     var w = el('td', 'num lo-count');
@@ -4794,16 +2684,10 @@ function drawLockoutsIn(v) {
     line.appendChild(document.createTextNode(' / ' + num(r.limit)));
     w.appendChild(line);
     w.appendChild(loBar(r.fails, r.limit, r.locked));
-    if (r.by === 'place' && r.names_limit) {
-      var nl = el('div', 'small muted');
-      nl.appendChild(document.createTextNode(num(r.names) + ' / ' + num(r.names_limit) + ' names'));
-      w.appendChild(nl);
-      w.appendChild(loBar(r.names, r.names_limit, false));
-    }
     tr.appendChild(w);
     var tried = el('td', 'small');
     if ((r.others || []).length) {
-      tried.appendChild(el('div', 'muted', r.by === 'address' || r.by === 'place' ? 'names:' : 'from:'));
+      tried.appendChild(el('div', 'muted', r.by === 'address' ? 'names:' : 'from:'));
       tried.appendChild(noI18n(el('div', 'mono', r.others.slice().reverse().join(', '))));
     } else tried.textContent = '–';
     tr.appendChild(tried);
@@ -4826,7 +2710,6 @@ function drawLockoutsIn(v) {
   }, 'plain'));
   }, true);
 }
-if ($('gd-find')) $('gd-find').addEventListener('input', function () { drawLockouts(); });
 function userDo(body) {
   /* Drawn again either way (1.0.44): a refused change stayed in its box. */
   api('users', body).then(function (d) { toast(d.message, 'good'); loadUsers(); })
@@ -4836,7 +2719,7 @@ $('us-add').onclick = function () {
   modal('A new account', function (body) {
     var g = el('div', 'formgrid');
     var name = textBox('', '', 'mono');
-    var role = selectBox([['readonly', 'read only'], ['tokenadmin', 'token admin'], ['fulladmin', 'full admin']], 'tokenadmin');
+    var role = selectBox([['readonly', 'read only'], ['certadmin', 'cert admin'], ['fulladmin', 'full admin']], 'certadmin');
     var pw = secretBox('', '8 characters at least', 'mono');
     var note = textBox('', '', '');
     g.appendChild(formField('Name', name));
@@ -4861,10 +2744,11 @@ var DBSTATE = null;
 var ENGINE_SAID = {sqlite: 'the file on this machine', mariadb: 'MariaDB', postgres: 'PostgreSQL'};
 var DUMP_SAID = {sqlite: 'a copy of the file', mariadb: 'a MariaDB dump',
                  postgres: 'a PostgreSQL dump', copy: 'a portable copy'};
-var TABLE_SAID = {tokens: 'tokens', radius_log: 'RADIUS requests', acme_log: 'checks of a code',
+var TABLE_SAID = {certs: 'certificates', cert_versions: 'certificates had before', cert_cas: 'own authorities',
+                  cert_ca_issued: 'signed by own authorities', cert_issuers: 'sources', cert_challenges: 'validations',
+                  cert_targets: 'targets', cert_deploys: 'deployments', cert_jobs: 'jobs', dns_records: 'DNS records',
                   events: 'events', accounts: 'accounts', sessions: 'sign-ins',
-                  clients: 'clients', realms: 'realms', directories: 'directories',
-                  settings: 'settings', meta: 'notes of its own'};
+                  directories: 'directories', settings: 'settings', meta: 'notes of its own'};
 
 function loadDb() {
   api('db').then(function (d) {
@@ -4876,12 +2760,12 @@ function loadDb() {
     keptTable($('db-backups'), d.copies || [], {
       kind: 'copy', head: 'Copies kept (' + d.keep + ' at most)',
       where: 'They are files on this machine, under ' + d.backup_dir + ', each with the key '
-        + 'that opens the tokens beside it. Copy them off it if they are to survive the machine.'
+        + 'that opens the sealed keys beside it. Copy them off it if they are to survive the machine.'
     });
     keptTable($('db-dumps'), d.dumps || [], {
       kind: 'dump', head: 'Dumps kept (' + d.keep + ' at most)',
       where: 'They are files on this machine, under ' + d.dump_dir + ', each with the key '
-        + 'that opens the tokens beside it. Copy them off it if they are to survive the machine.'
+        + 'that opens the sealed keys beside it. Copy them off it if they are to survive the machine.'
     });
     dumpCard(d);
     loadDbTls();                                        /* encryption to the server (1.0.170) */
@@ -4916,7 +2800,7 @@ function drawEngine(d) {
   host.appendChild(peekFacts([
     ['In use now', d.version],
     ['Where', noI18n(el('span', 'mono', d.where))],
-    ['Holding', num(c.tokens || 0) + ' token(s), ' + num(c.radius_log || 0) + ' RADIUS request(s)'],
+    ['Holding', num(c.certs || 0) + ' certificate(s), ' + num(c.cert_jobs || 0) + ' job(s)'],
     ['Room it takes', bytes(d.size || 0)]
   ]));
   Object.keys(d.drivers || {}).forEach(function (name) {
@@ -5098,7 +2982,7 @@ function drawCounts(d) {
     return tr;
   }));
   var key = el('p', 'note ' + (d.key_there ? '' : 'bad'));
-  key.appendChild(document.createTextNode(d.key_there ? 'The key that opens the tokens: ' : 'The key that opens the tokens is MISSING: '));
+  key.appendChild(document.createTextNode(d.key_there ? 'The key that opens the sealed keys: ' : 'The key that opens the sealed keys is MISSING: '));
   key.appendChild(noI18n(el('span', 'mono', d.key)));
   host.appendChild(key);
   if (d.free) {
@@ -5135,9 +3019,9 @@ function keptTable(into, rows, opts) {
     if (ADMIN) {
       var take = cmdButton('Download', 'down', 'small');
       explain(take, dump
-        ? 'Save this dump to the machine you are sitting at - with the key that opens its tokens, '
+        ? 'Save this dump to the machine you are sitting at - with the key that opens its sealed keys, '
           + 'locked with a passphrase you give, or without it.'
-        : 'Save this copy to the machine you are sitting at - with the key that opens its tokens, '
+        : 'Save this copy to the machine you are sitting at - with the key that opens its sealed keys, '
           + 'locked with a passphrase you give, or without it.');
       take.onclick = function () { dbDownloadAsk({name: b.name, kind: dump ? 'dump' : '', key: b.key}); };
       act.appendChild(take);
@@ -5212,9 +3096,9 @@ function askBeforeRestoring(says, what, go) {
                  ['What it is', DUMP_SAID[kind] || kind], ['Size', bytes(says.bytes || 0)],
                  ['Tables', num(says.tables || 0)], ['Accounts', num(n.accounts || 0)],
                  ['Full administrators', num(says.admins || 0)]];
-    if (n.tokens !== undefined) facts.push(['Tokens', num(n.tokens)]);
-    if (n.radius_log !== undefined) facts.push(['RADIUS requests', num(n.radius_log)]);
-    if (n.acme_log !== undefined) facts.push(['Checks of a code', num(n.acme_log)]);
+    if (n.certs !== undefined) facts.push(['Certificates', num(n.certs)]);
+    if (n.cert_targets !== undefined) facts.push(['Targets', num(n.cert_targets)]);
+    if (n.cert_jobs !== undefined) facts.push(['Jobs', num(n.cert_jobs)]);
     if (says.version) facts.push(['Made by acme', says.version]);
     /* Where it was made (1.0.63): the machine's config.json came with it, to
        be read - it is never put back. */
@@ -5239,7 +3123,7 @@ function askBeforeRestoring(says, what, go) {
     var warn = el('p', 'note bad');
     warn.textContent = 'Putting it back replaces everything in the live database with what is in that file. A copy of what is being replaced is made first and kept with the others, so this can be undone — but everything recorded since that file was made will only be in that copy.';
     body.appendChild(warn);
-    body.appendChild(el('p', 'btnhelp', 'You will probably be signed out: who is signed in came with the file like everything else. The key that opens the tokens is taken from beside the file, or from inside a downloaded copy; where there is none, the key in use stays.'));
+    body.appendChild(el('p', 'btnhelp', 'You will probably be signed out: who is signed in came with the file like everything else. The key that opens the sealed keys is taken from beside the file, or from inside a downloaded copy; where there is none, the key in use stays.'));
   }, [
     {words: 'No, leave it', close: true},
     {words: 'Restore it', cls: 'danger', icon: 'undo', close: true, go: function () {
@@ -5279,7 +3163,7 @@ function dbSend(file, check) {
 }
 
 /* ---- a copy or a dump with its key (1.0.123) ------------------------------
-   Downloaded with the key that opens its tokens, locked with a passphrase -
+   Downloaded with the key that opens its sealed keys, locked with a passphrase -
    one file that is all of it - or without it; and the same file put back
    with the passphrase. */
 function dbDownloadAsk(o) {
@@ -5292,8 +3176,8 @@ function dbDownloadAsk(o) {
     body.appendChild(seg);
     var withBox = el('div');
     withBox.appendChild(el('p', 'note', what === 'dump'
-      ? 'One file that is all of it: the dump and the key that opens its tokens, locked with the passphrase below. Put back here or on another machine (Put a dump back), the passphrase opens the key again. Lost, the key in the file is lost with it - it is not kept anywhere.'
-      : 'One file that is all of it: the copy and the key that opens its tokens, locked with the passphrase below. Put back here or on another machine (Put a copy back), the passphrase opens the key again. Lost, the key in the file is lost with it - it is not kept anywhere.'));
+      ? 'One file that is all of it: the dump and the key that opens its sealed keys, locked with the passphrase below. Put back here or on another machine (Put a dump back), the passphrase opens the key again. Lost, the key in the file is lost with it - it is not kept anywhere.'
+      : 'One file that is all of it: the copy and the key that opens its sealed keys, locked with the passphrase below. Put back here or on another machine (Put a copy back), the passphrase opens the key again. Lost, the key in the file is lost with it - it is not kept anywhere.'));
     var p1 = secretBox('', '10 characters at least', 'mono');
     var p2 = secretBox('', 'the same again', 'mono');
     p1.id = 'dbk-p1'; p2.id = 'dbk-p2';
@@ -5305,8 +3189,8 @@ function dbDownloadAsk(o) {
     var noBox = el('div');
     noBox.hidden = true;
     noBox.appendChild(el('p', 'note warn', what === 'dump'
-      ? 'The dump alone opens no token on another machine: the key is the .key file beside it in /var/lib/acme/dumps (or /var/lib/acme/secrets.key). Keep the two together.'
-      : 'The copy alone opens no token on another machine: the key is the .key file beside it in /var/lib/acme/backups (or /var/lib/acme/secrets.key). Keep the two together.'));
+      ? 'The dump alone opens no sealed key on another machine: the key is the .key file beside it in /var/lib/acme/dumps (or /var/lib/acme/secrets.key). Keep the two together.'
+      : 'The copy alone opens no sealed key on another machine: the key is the .key file beside it in /var/lib/acme/backups (or /var/lib/acme/secrets.key). Keep the two together.'));
     body.appendChild(noBox);
     body._with = true;
     withB.onclick = function () { body._with = true; withB.classList.add('on'); noB.classList.remove('on'); withBox.hidden = false; noBox.hidden = true; };
@@ -5337,7 +3221,7 @@ function dbDownloadAsk(o) {
 var MODAL_BODY_DBK = null;
 function dbAskPassphrase(d, fileName) {
   modal('The key in ' + fileName, function (body) {
-    body.appendChild(el('p', 'note', 'This file holds the database and the key that opens its tokens, locked with a passphrase. Give it, and both are put back.'));
+    body.appendChild(el('p', 'note', 'This file holds the database and the key that opens its sealed keys, locked with a passphrase. Give it, and both are put back.'));
     var p = secretBox('', '', 'mono');
     p.id = 'dbk-open';
     body.appendChild(formField('Passphrase', p));
@@ -5736,7 +3620,7 @@ if ($('db-engine-test')) {
     var want = dbAsked();
     var word = engineWord(want.db_engine);
     modal('Carrying everything into ' + word, function (body) {
-      body.appendChild(el('p', 'note', 'Every token, every request, every setting and every account is copied into ' + word + '. On a large database this takes minutes; you can close this and it carries on.'));
+      body.appendChild(el('p', 'note', 'Every certificate, every job, every setting and every account is copied into ' + word + '. On a large database this takes minutes; you can close this and it carries on.'));
       body.appendChild(el('p', 'note', 'What is here is not touched, and a copy of it is made first in any case. Nothing starts using the other database until you say so afterwards.'));
     }, [{words: 'Leave it', close: true}, {words: 'Carry it across', cls: 'primary', icon: 'save', close: true, go: function () {
       api('db', {action: 'move', settings: want}).then(function () { dbWatch(); }).catch(oops);
@@ -5802,16 +3686,16 @@ if ($('db-engine-test')) {
   };
   $('db-optimize').onclick = function () {
     confirmThen('Give the disk back', 'Each table is rebuilt and held shut while it is. In a cluster this node '
-      + 'answers no RADIUS meanwhile and the other node signs everybody in; alone, sign-ins wait for it - do it '
-      + 'when few sign in. It needs room for a second copy of the biggest table. Worth '
+      + 'renews nothing meanwhile and the other node does the work; alone, everything waits for it - do it '
+      + 'when little is going on. It needs room for a second copy of the biggest table. Worth '
       + 'doing after throwing a lot away, and not otherwise.', 'Give it back',
       function () { api('db', {action: 'give_back'}).then(function () { dbWatch(); }).catch(oops); }, false);
   };
   $('db-prune').onclick = function () {
     var days, everything;
     modal('Forget records older than…', function (body) {
-      body.appendChild(el('p', 'note', 'The RADIUS requests and the checks of a code older than this are '
-        + 'deleted now, whatever the keep-for numbers say. The tokens, the accounts, the settings and the events are not touched.'));
+      body.appendChild(el('p', 'note', 'The records of what was done - the jobs and their steps - older than this are '
+        + 'deleted now, whatever the keep-for numbers say. The certificates, the accounts, the settings and the events are not touched.'));
       days = el('input'); days.type = 'number'; days.min = 1; days.value = 90;
       body.appendChild(formField('Older than (days)', days));
       everything = switchBox(false);
@@ -5831,7 +3715,7 @@ function tuneRestartAsk() {
   {
     var unit = ((DBSTATE && DBSTATE.tune && DBSTATE.tune.restart) || {}).unit || 'postgresql';
     modal('Restart ' + unit, function (body) {
-      body.appendChild(el('p', 'note', 'PostgreSQL is stopped and started again so that the settings waiting for its next start take effect. It takes a few seconds; the RADIUS server waits for it meanwhile, and the requests in that moment are answered as soon as it is back.'));
+      body.appendChild(el('p', 'note', 'PostgreSQL is stopped and started again so that the settings waiting for its next start take effect. It takes a few seconds; the daemon waits for it meanwhile, and what was asked in that moment is done as soon as it is back.'));
       body.appendChild(el('p', 'note', 'Not done when it might not come back: a shared_buffers larger than the memory free now, or huge pages.'));
     }, [{words: 'Not now', close: true}, {words: 'Restart it', cls: 'primary', icon: 'power', go: function (b) {
       busy(b, true);
@@ -5871,7 +3755,7 @@ if ($('db-tune-undo')) {
       var ul = el('ul', 'ask-list');
       names.forEach(function (n) { ul.appendChild(el('li', '', n)); });
       body.appendChild(ul);
-      body.appendChild(el('p', 'note', 'The tokens, the accounts and every setting are not touched.'));
+      body.appendChild(el('p', 'note', 'The certificates, the accounts and every setting are not touched.'));
       body.appendChild(el('p', 'muted', 'A copy of the database is made first, so this can be undone by restoring it.'));
     }, [{words: 'No, leave it', close: true}, {words: 'Erase it', cls: 'danger', icon: 'forget', close: true, go: function () {
       api('db', {action: 'erase', groups: picked, tidy: $('erase-tidy').checked}).then(function () {
@@ -6013,8 +3897,8 @@ $('ex-file').onchange = function () {
         noI18n(phrase);
         body.appendChild(formField('Passphrase', phrase));
       }
-      body.appendChild(el('p', 'note', 'Clients, realms, directories and accounts of the same name are replaced; the settings, the certificates, the VIP address, who may reach the pages, the firewall and the mail server\'s authorities in it are saved. Your own account is left as it is.'));
-      body.appendChild(el('p', 'note', 'Add to what is here: anything not in the file stays. Exactly the file: clients, realms, directories and accounts not in it are taken away, and settings not in it go back to their defaults - as when a whole configuration is put back.'));
+      body.appendChild(el('p', 'note', 'Directories and accounts of the same name are replaced; the settings, the certificates, the VIP address, who may reach the pages, the firewall and the mail server\'s authorities in it are saved. Your own account is left as it is.'));
+      body.appendChild(el('p', 'note', 'Add to what is here: anything not in the file stays. Exactly the file: directories and accounts not in it are taken away, and settings not in it go back to their defaults - as when a whole configuration is put back.'));
     }, [{words: 'Close', close: true},
         {words: 'Exactly the file', cls: 'danger', icon: 'upload', close: true, go: function () {
           api('import', {config: conf, replace: true, passphrase: phrase ? phrase.value : ''}).then(function (d) { toast(d.message, 'good'); loadSettings(); }).catch(oops);
@@ -6031,12 +3915,10 @@ function drawAbout() {
   var host = $('about-state');
   clear(host);
   host.appendChild(el('h2', '', 'acme ' + (s.version || '')));
-  host.appendChild(peekFacts([['Running for', span(s.uptime || 0)], ['RADIUS', ((s.radius || {}).listening || []).join(', ') || 'not listening'],
-                              ['Clients', num(s.clients)], ['Realms', num(s.realms)], ['Directories', num(s.directories)],
+  host.appendChild(el('p', 'note', 'Certificates kept, renewed and put in place by themselves: Let\'s Encrypt and any other ACME CA, authorities of its own, MS AD CS and SCEP; put onto Linux over SSH, F5, NetScaler, MikroTik, FortiGate and more.'));
+  host.appendChild(peekFacts([['Running for', span(s.uptime || 0)], ['Directories', num(s.directories)],
                               ['Database', ({sqlite: 'SQLite', mariadb: 'MariaDB', postgres: 'PostgreSQL'})[(s.database || {}).engine] || (s.database || {}).engine]]));
-  var c = (s.radius || {}).counts || {};
-  host.appendChild(kvTable(Object.keys(c).sort().map(function (k) { return [k, num(c[k])]; })));
-  host.appendChild(el('p', 'muted small', 'One Python file (/usr/local/lib/acme/acme.py), the standard library, and these PHP pages that ask it. On the server: acme --help.'));
+  host.appendChild(el('p', 'muted small', 'The daemon (/usr/local/lib/acme/acme.py and acmelib), the standard library, and these PHP pages that ask it. On the server: acme --help.'));
   if (ADMIN) drawConsoleLogin(host);
   drawSoftware(host);
 }
@@ -6295,7 +4177,7 @@ function groupBrowser(opts) {
       toast(num(st.groups.length) + ' group(s) found', 'good');
     }).catch(function (e) {
       /* The groups of the directory asked before must not stay to be added
-         to a realm of another one (1.0.36). */
+         to a role of another one (1.0.36). */
       st.groups = []; st.q = ''; st.page = 0; draw(); oops(e);
     }).then(function () { busy(go, false); });
   }
@@ -6484,146 +4366,10 @@ if ($('ca-save')) {
   };
 }
 
-/* ---- tokens out as .totp files (1.0.20) --------------------------------- */
-if ($('exp-go')) {
-  qSuggest($('exp-q'), 'tokens');
-  var expPaint = function () {
-    var whole = $('exp-format').value === 'backup';
-    /* Locked unless chosen otherwise (1.0.167); under high security always
-       (1.0.168) - the choice is not even offered. */
-    var high = hsOn('export:unlocked');
-    if (high) $('exp-lock').value = 'lock';
-    $('exp-lock').hidden = high;
-    var lock = $('exp-lock').value === 'lock';
-    $('exp-pass').hidden = $('exp-gen').hidden = !lock;
-    /* Not locked: the passphrase is forgotten, not kept to be shown again (1.0.208). */
-    if (!lock) expForget();
-    $('exp-kind').disabled = !whole;
-  };
-  $('exp-format').onchange = expPaint;
-  $('exp-lock').onchange = expPaint;
-  expPaint();
-  $('exp-gen').onclick = function () {
-    var words = 'abcdefghijkmnopqrstuvwxyz23456789', out = [], a = new Uint32Array(25);
-    crypto.getRandomValues(a);
-    for (var i = 0; i < 5; i++) { var w = ''; for (var j = 0; j < 5; j++) w += words[a[i * 5 + j] % words.length]; out.push(w); }
-    $('exp-pass').value = out.join('-');
-    $('exp-pass').type = 'text';
-    /* Shown to be written down, and only that (1.0.205): typed over, it is dots again. */
-    $('exp-pass').oninput = function () { this.type = 'password'; this.oninput = null; };
-    $('exp-said').className = 'small warn';
-    $('exp-said').textContent = 'Write the passphrase down now - it is not kept anywhere, and without it the backup cannot be opened.';
-  };
-  $('exp-go').onclick = function () {
-    /* Written down by now: dots again, whatever comes of the export (1.0.208) -
-       a "No", a failure or another tab left it on the screen. */
-    $('exp-pass').type = 'password';
-    $('exp-pass').oninput = null;
-    var q = $('exp-q').value.trim(), st = $('exp-state').value;
-    if ($('exp-format').value === 'backup') {
-      var bLock = $('exp-lock').value === 'lock' || hsOn('export:unlocked');
-      var pass = bLock ? $('exp-pass').value : '';
-      if (bLock && pass.length < 8) { toast('a passphrase of 8 characters at least: the file holds every key', 'bad'); return; }
-      confirmThen('Back the tokens up', 'One file with ' + (q || st || $('exp-kind').value ? 'the tokens that match' : '<b>every</b> token')
-        + ': keys, recovery codes, where codes go. ' + (pass ? 'Locked with the passphrase.' : '<b>Not locked</b> - whoever has the file can sign in as any of them.'),
-        'Download it', function () {
-          busy($('exp-go'), true);
-          api('tokens-backup', {q: q, state: st, kind: $('exp-kind').value, passphrase: pass, lock: bLock}).then(function (d) {
-            saveFile(d.name, d.file);
-            expForget();
-            $('exp-said').className = 'small ' + (d.lost && d.lost.length ? 'warn' : 'good');
-            $('exp-said').textContent = num(d.count) + ' token(s) in ' + d.name + (d.locked ? ', locked' : ', not locked')
-              + (d.lost && d.lost.length ? ' - left out, their keys cannot be opened here: ' + d.lost.join(', ') : '');
-          }).catch(oops).then(function () { busy($('exp-go'), false); });
-        }, !pass);
-      return;
-    }
-    var lock = $('exp-lock').value === 'lock', pw = $('exp-pass').value;
-    if (lock && pw.length < 8) { toast('a passphrase of 8 characters at least - or choose not locked', 'bad'); return; }
-    confirmThen('Export the tokens as .totp files', 'A ZIP of ' + (q || st ? 'the tokens that match' : '<b>every</b> token')
-      + ', each with its key and its unused recovery codes. '
-      + (lock ? 'Locked with the passphrase (AES-256): 7-Zip, WinRAR or PeaZip open it with it, and acme reads it back.'
-              : '<b>Not locked</b> - whoever has the file can sign in as any of them.'),
-      'Export them', function () {
-        busy($('exp-go'), true);
-        tokensExport({q: q, state: st, lock: lock, passphrase: lock ? pw : ''}).then(function (d) {
-          expForget();
-          $('exp-said').className = 'small ' + (d.lost && d.lost.length ? 'warn' : 'good');
-          $('exp-said').textContent = num(d.count) + ' token(s) in ' + d.name + (d.locked ? ', locked' : ', not locked')
-            + (d.lost && d.lost.length ? ' - left out, their keys cannot be opened here: ' + d.lost.join(', ') : '');
-        }).catch(oops).then(function () { busy($('exp-go'), false); });
-      }, !lock);
-  };
-}
-/* The passphrase gone from the page once the file is saved (1.0.205): it opens
-   every key in it, and stayed in the box as plain text. */
-function expForget() {
-  $('exp-pass').value = '';
-  $('exp-pass').type = 'password';
-}
-/* The export as the daemon made it, saved (1.0.167): a ZIP locked with a
-   passphrase, or what was asked for not locked. */
-function tokensExport(q) {
-  return api('tokens-export', q).then(function (d) {
-    var bin = atob(d.file), bytes = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    var a = el('a');
-    a.href = URL.createObjectURL(new Blob([bytes], {type: d.mime || 'application/octet-stream'}));
-    a.download = d.name;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
-    return d;
-  });
-}
-function tokenExport(name) {
-  modal('Export the token of ' + name, function (body) {
-    body.appendChild(el('p', 'note', 'A .totp file with its key and its unused recovery codes. Whoever has the file can sign in as ' + name + '.'));
-    var how = {v: 'lock', value: function () { return this.v; }};
-    var sg = el('div', 'seg');
-    [['lock', 'Locked with a passphrase'], ['open', 'Not locked']].filter(function (o) { return o[0] === 'lock' || !hsOn('export:unlocked'); }).forEach(function (o) {
-      var bt = el('button', o[0] === how.v ? 'on' : '', o[1]);
-      bt.type = 'button';
-      bt.onclick = function () {
-        how.v = o[0];
-        Array.prototype.forEach.call(sg.children, function (x) { x.classList.toggle('on', x === bt); });
-        how.onchange(o[0]);
-      };
-      sg.appendChild(bt);
-    });
-    body.appendChild(formField('How', sg));
-    var pw = textBox('', 'a passphrase, 8 characters at least', 'mono');
-    pw.type = 'password';
-    pw.autocomplete = 'new-password';
-    var pf = formField('Passphrase', pw);
-    body.appendChild(pf);
-    var said = el('p', 'small muted', 'Locked: a ZIP with the .totp file in it, AES-256 - 7-Zip, WinRAR or PeaZip open it with the passphrase, and acme reads it back.');
-    body.appendChild(said);
-    how.onchange = function (v) {
-      pf.hidden = v !== 'lock';
-      said.className = 'small ' + (v === 'lock' ? 'muted' : 'warn');
-      said.textContent = v === 'lock' ? 'Locked: a ZIP with the .totp file in it, AES-256 - 7-Zip, WinRAR or PeaZip open it with the passphrase, and acme reads it back.'
-        : 'Not locked: the .totp file itself - whoever has it can sign in as ' + name + '.';
-    };
-    var going = false;
-    MODAL_GO = function (button) {
-      var lock = how.value() === 'lock';
-      if (lock && pw.value.length < 8) { toast('a passphrase of 8 characters at least - or choose not locked', 'bad'); return; }
-      if (going) return;               /* a double click made two files of the key (1.0.206) */
-      going = true;
-      busy(button, true);
-      tokensExport({name: name, lock: lock, passphrase: lock ? pw.value : ''}).then(function () { closeModal(); })
-        .catch(oops).then(function () { going = false; busy(button, false); });
-    };
-  }, [{words: 'Close', close: true}, {words: 'Export it', cls: 'primary', icon: 'download', go: function (b) { MODAL_GO(b); }}], 'small');
-}
-
 /* ---- mail (1.0.20) ------------------------------------------------------- */
-var MAIL = null;
 function loadMail() {
   setTimeout(mailViaShown, 0);
   return api('mail').then(function (d) {
-    MAIL = d;
     var list = d.ca_list || [];
     if (!$('mca-state')) return d;
     $('mca-when').textContent = list.length ? num(list.length) + ' certificate(s) kept' : 'none imported';
@@ -6721,7 +4467,7 @@ if ($('mail-test')) {
 
 /* ---- the administrators' groups, found rather than typed (as isemon) ---- */
 var AG_ROLES = [['admin_group_full', 'Full admin', 'shield', 'is-admin'],
-                ['admin_group_token', 'Token admin', 'key', 'is-token'],
+                ['admin_group_cert', 'Cert admin', 'key', 'is-cert'],
                 ['admin_group_readonly', 'Read only', 'eye', 'is-read']];
 var AG = {groups: [], q: '', page: 0, per: 25, capped: false};
 
@@ -6730,9 +4476,14 @@ function agDirectory() {
   var input = $('set-admin_directory');
   return input ? String(input._get ? input._get() : input.value || '') : '';
 }
+/** The box of a role's groups: the cert admins' under its older name
+    (admin_group_token) as long as the daemon still calls it that. */
+function agBox(key) {
+  return $('set-' + key) || (key === 'admin_group_cert' ? $('set-admin_group_token') : null);
+}
 /** What a role's groups are set to right now, in the editor, lower-cased. */
 function agWanted(key) {
-  var input = $('set-' + key);
+  var input = agBox(key);
   var said = input ? (input._get ? input._get() : input.value) : '';
   return String(said || '').split(/[;\n]/).map(function (x) {
     return x.trim().toLowerCase();
@@ -6741,7 +4492,7 @@ function agWanted(key) {
 /** Put a group into a role, or take it out, in the settings editor. Saved
     with the rest of the page - nothing happens until then. */
 function agToggle(key, dn, name) {
-  var input = $('set-' + key);
+  var input = agBox(key);
   if (!input) { toast('the settings are not drawn yet'); return; }
   var have = String(input.value || '').split(/[;\n]/).map(function (x) { return x.trim(); })
     .filter(Boolean);
@@ -6911,7 +4662,7 @@ if ($('ag-find')) {
         if (said.ok) {
           body.appendChild(kvTable([
             ['They are', said.display || said.name],
-            ['Role here', said.role ? ({fulladmin: 'full admin', tokenadmin: 'token admin',
+            ['Role here', said.role ? ({fulladmin: 'full admin', certadmin: 'cert admin',
                                          readonly: 'read only'}[said.role] || said.role)
                                     : 'none - they cannot sign in'],
             ['In the directory', said.dn || ''],
@@ -6935,19 +4686,9 @@ if ($('ag-find')) {
   };
 }
 
-/* ---- every list's search box offers its fields and values (1.0.19) ---- */
-if ($('rt-user')) personSuggest($('rt-user'));
 var QS = {
-  tokens: qSuggest($('tk-q'), 'tokens'),
   mailq: qSuggest($('mq-q'), 'mailq'),
-  requests: qSuggest($('rq-q'), 'radius', function () { return 'hours=' + $('rq-hours').value; }),
-  events: qSuggest($('ev-q'), 'events'),
-  enrolment: qSuggest($('en-q'), 'enrolment', function () {
-    /* The picker's own window (1.0.94): it is no <select> with a value. */
-    var r = $('en-since') && $('en-since')._range ? $('en-since')._range() : null;
-    var s = r && r.from ? Math.max(0, Date.now() / 1000 - r.from) : Number(($('en-since') || {}).value);
-    return s ? 'hours=' + Math.ceil(s / 3600) : '';
-  })
+  events: qSuggest($('ev-q'), 'events')
 };
 
 /* ---- Search and Clear beside every search box (1.0.100) ---------------- */
@@ -6994,32 +4735,31 @@ function searchButtons(input, go, selects, times) {
   input._sbPaint = paint;
   paint();
 }
-searchButtons($('tk-q'), function () { PAGE.tokens = 0; loadTokens(); }, ['tk-state', 'tk-kind']);
-searchButtons($('rq-q'), function () { PAGE.requests = 0; RQ_SINCE = null; loadRequests(); }, ['rq-kind', 'rq-result', 'rq-client'], ['rq-hours']);
 searchButtons($('ev-q'), function () { PAGE.events = 0; loadEvents(); }, ['ev-kind'], ['ev-time']);
-searchButtons($('en-q'), function () { if (PAGE.enrolment !== undefined) PAGE.enrolment = 0; loadEnrolment(); }, ['en-step'], ['en-since']);
 searchButtons($('mq-q'), function () { MQ.page = 0; loadMailq(); }, ['mq-state']);
 
 /* ---- starting ------------------------------------------------------------ */
-(function start() {
+/* Started once every script has run (DOMContentLoaded) - certs.js comes after
+   this file and plugs its tabs and panes in first (ACME_EXTRA_TABS, above). */
+function start() {
   var h = (location.hash || '#overview').slice(1).split('/');
-  if (h[0] === 'codes') h = ['requests'];
   if (h[1]) PANE = h[1];
   if (STATUS) paintHeader(STATUS);
   showTab(h[0] || 'overview');
   setInterval(tick, 5000);
   explainWhatWasDrawn(document);
-  /* A link to #settings/dir, or Back: the page follows the address. */
+  /* A link to #settings/people, or Back: the page follows the address. */
   window.addEventListener('hashchange', function () {
     var g = (location.hash || '#overview').slice(1).split('/');
-    if (TABS.indexOf(g[0]) < 0) return;
+    if (allTabs().indexOf(g[0]) < 0) return;
     if (g[0] === 'settings' && g[1] && g[1] !== PANE && typeof showPane === 'function'
         && TAB === 'settings') { showPane(g[1]); return; }
     if (g[1]) PANE = g[1];
     if (g[0] !== TAB) showTab(g[0]);
   });
-}());
-
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+else setTimeout(start, 0);
 
 /* ==========================================================================
    High availability (1.0.13)
@@ -7031,17 +4771,17 @@ var HA = null;
    cluster's, dimmed - switches flipped in place, and the cluster's own value
    changeable too. */
 var NODE_GROUPS = [
-  ['RADIUS and the ports', ['radius_bind', 'radius_auth_port', 'radius_acct_port', 'api_port']],
+  ['The ports', ['api_port']],
   ['What it calls itself', ['mail_helo', 'isemon_hostname', 'siem_hostname', 'acme_node_name']],
   ['Its copies of the database', ['backup_daily', 'backup_at', 'backup_keep']],
-  ['Writing down more (debug)', ['debug', 'debug_radius', 'debug_ldap', 'debug_api', 'debug_codes']]];
+  ['Writing down more (debug)', ['debug', 'debug_ldap', 'debug_api', 'debug_codes']]];
 var NODE_NAMES = {backup_daily: 'A copy of the database every day', backup_at: 'Made at',
-                  backup_keep: 'Copies kept', radius_bind: 'RADIUS listens on the address',
+                  backup_keep: 'Copies kept',
                   isemon_hostname: 'The name isemon files it under',
                   siem_hostname: 'The name the syslog servers file it under',
                   acme_node_name: 'The name of its own certificate (ACME)'};
 var NODE_EMPTY = {isemon_hostname: 'the machine’s own name', mail_helo: 'the machine’s own name',
-                  radius_bind: 'every address', siem_hostname: 'the machine’s own name',
+                  siem_hostname: 'the machine’s own name',
                   acme_node_name: 'the name of its certificate, else its full host name'};
 function nodeValWords(s, v) {
   if (isBool(s)) return (v === true || v === 1 || v === '1' || v === 'true') ? 'on' : 'off';
@@ -7196,7 +4936,7 @@ function drawNodeSettings(nodes, live) {
     });
     table.appendChild(tb);
     host.appendChild(table);
-    host.appendChild(el('p', 'btnhelp', 'A value marked “its own” is that node’s alone; the others take the cluster’s. The ports, the address RADIUS listens on and the API port take effect when the node reads its settings again (within seconds); the RADIUS clients must send to the port the node listens on.'));
+    host.appendChild(el('p', 'btnhelp', 'A value marked “its own” is that node’s alone; the others take the cluster’s. The API port takes effect when the node reads its settings again (within seconds).'));
     }, !!live);
   }).catch(oops);
 }
@@ -7212,7 +4952,7 @@ function loadHa(live) {
     var alive = nodes.filter(function (n) { return n.alive; }).length;
     $('ha-said').textContent = num(alive) + ' of ' + num(nodes.length) + ' answering · this page from ' + d.node;
     liveFill($('ha-nodes'), function (host) {
-    host.appendChild(listTable(['Node', 'Address', 'Version', 'RADIUS', 'Heard from', 'State', ''], nodes, function (n) {
+    host.appendChild(listTable(['Node', 'Address', 'Version', 'Heard from', 'State', ''], nodes, function (n) {
       var tr = el('tr');
       var nm = el('td');
       nm.appendChild(noI18n(el('b', '', n.name)));
@@ -7222,7 +4962,6 @@ function loadHa(live) {
       var v = el('td', n.version !== d.version ? 'warn' : '', n.version || '?');
       if (n.version !== d.version) explain(v, 'Not the version this node runs (' + d.version + '): both nodes should run the same one.');
       tr.appendChild(v);
-      tr.appendChild(noI18n(el('td', 'mono small', (n.radius || []).join(', '))));
       tr.appendChild(el('td', 'muted', ago(n.at)));
       var st = el('td');
       st.appendChild(el('span', 'tag ' + (n.alive ? 'ok' : 'crit'), n.alive ? 'answering' : 'gone'));
@@ -7269,8 +5008,7 @@ var LB_UI = (function () {
   return st;
 })();
 function lbKeep() {
-  /* The shared secret is never kept in the browser (1.0.57). */
-  try { localStorage.setItem('acme.lb', JSON.stringify(Object.assign({}, LB_UI, {secret: undefined}))); } catch (e) { /* not kept */ }
+  try { localStorage.setItem('acme.lb', JSON.stringify(Object.assign({}, LB_UI, {secret: undefined, hc: undefined}))); } catch (e) { /* not kept */ }
 }
 function lbCode(tpl, v) {
   /* {key} in the text is a value: put in, and marked. */
@@ -7316,10 +5054,9 @@ var LB_GUIDES = [
         + '    default-server inter 3s fall 2 rise 2 check check-ssl verify none check-send-proxy send-proxy-v2\n'
         + lbServers(v, function (n, i) { return '    server {n' + i + '} {a' + i + '}:443'; })]);
     }
-    out.push(['RADIUS: the open-source HAProxy does not balance UDP - give the VPN both nodes (Cisco ASA, FortiGate below) or use LVS.', '']);
     return out;
   }],
-  ['nginx', 'nginx', 'pages + RADIUS', function (v) {
+  ['nginx', 'nginx', 'pages', function (v) {
     return [['/etc/nginx/conf.d/acme-lb.conf - open-source nginx checks passively; nginx Plus can ask /healthz (the commented lines)',
       'upstream acme_nodes {\n' + lbServers(v, function (n, i) { return '    server {a' + i + '}:443 max_fails=2 fail_timeout=10s;'; })
       + '\n    keepalive 16;\n}\nserver {\n    listen {lb}:80;\n    server_name {name};\n    return 301 https://$host$request_uri;\n}\n'
@@ -7330,13 +5067,7 @@ var LB_GUIDES = [
       + '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto https;\n'
       + '        proxy_read_timeout 900s;\n        proxy_next_upstream error timeout http_502 http_503 http_504;\n'
       + '        # nginx Plus: health_check uri={hc} interval=3 fails=2 passes=2 match=acme_ok;\n    }\n}\n'
-      + '# nginx Plus: match acme_ok { status 200; body ~ "^ok "; }'],
-      ['/etc/nginx/nginx.conf - RADIUS over UDP (stream, outside http { })',
-      'stream {\n    upstream acme_radius {\n' + lbServers(v, function (n, i) { return '        server {a' + i + '}:{auth} max_fails=2 fail_timeout=10s;'; })
-      + '\n    }\n' + (v.acct ? '    upstream acme_accounting {\n' + lbServers(v, function (n, i) { return '        server {a' + i + '}:{acct};'; }) + '\n    }\n' : '')
-      + '    server { listen {lb}:{auth} udp; proxy_pass acme_radius; proxy_responses 1; proxy_timeout 10s; }\n'
-      + (v.acct ? '    server { listen {lb}:{acct} udp; proxy_pass acme_accounting; proxy_responses 1; proxy_timeout 10s; }\n' : '')
-      + '}\n# the nodes then see {lb} as the RADIUS client: add it in Clients, with the shared secret']];
+      + '# nginx Plus: match acme_ok { status 200; body ~ "^ok "; }']];
   }],
   ['apache', 'Apache httpd', 'pages', function (v) {
     return [['/etc/httpd/conf.d/acme-lb.conf - mod_proxy_balancer with mod_proxy_hcheck asking /healthz',
@@ -7347,20 +5078,16 @@ var LB_GUIDES = [
       + '\n        ProxySet lbmethod=byrequests\n    </Proxy>\n    ProxyPreserveHost On\n'
       + '    ProxyPass        "/" "balancer://acme/" timeout=900\n    ProxyPassReverse "/" "balancer://acme/"\n    LimitRequestBody 0\n</VirtualHost>']];
   }],
-  ['f5', 'F5 BIG-IP', 'pages + RADIUS', function (v) {
+  ['f5', 'F5 BIG-IP', 'pages', function (v) {
     return [['tmsh - a monitor that reads /healthz, the pool, the virtual server (SSL offload, X-Forwarded-For)',
       'create ltm monitor https acme_healthz defaults-from https interval 3 timeout 10 send "GET {hc} HTTP/1.1\\r\\nHost: {name}\\r\\nConnection: close\\r\\n\\r\\n" recv "^ok " recv-disable "maintenance"\n'
-      + 'create ltm monitor https acme_radius_health defaults-from https interval 3 timeout 10 send "GET /healthz?check=radius HTTP/1.1\\r\\nHost: {name}\\r\\nConnection: close\\r\\n\\r\\n" recv "^ok "\n'
       + 'create ltm pool acme_https monitor acme_healthz load-balancing-mode round-robin members add { '
       + v.nodes.map(function (n, i) { return '{a' + i + '}:443'; }).join(' ') + ' }\n'
-      + 'create ltm pool acme_radius monitor acme_radius_health members add { '
-      + v.nodes.map(function (n, i) { return '{a' + i + '}:{auth}'; }).join(' ') + ' }\n'
       + 'create ltm profile http acme_http insert-xforwarded-for enabled\n'
-      + 'create ltm virtual acme_vs destination {lb}:443 ip-protocol tcp pool acme_https profiles add { acme_http clientssl serverssl } source-address-translation { type automap }\n'
-      + 'create ltm virtual acme_radius_vs destination {lb}:{auth} ip-protocol udp pool acme_radius profiles add { udp } source-address-translation { type none }'],
-      ['Put your certificate for {name} into the clientssl profile. RADIUS without address translation keeps the concentrators\' addresses (their route back must go through the F5); with automap, add the self IPs in Clients.', '']];
+      + 'create ltm virtual acme_vs destination {lb}:443 ip-protocol tcp pool acme_https profiles add { acme_http clientssl serverssl } source-address-translation { type automap }'],
+      ['Put your certificate for {name} into the clientssl profile.', '']];
   }],
-  ['netscaler', 'Citrix ADC / NetScaler', 'pages + RADIUS', function (v) {
+  ['netscaler', 'Citrix ADC / NetScaler', 'pages', function (v) {
     return [['NetScaler CLI',
       'add lb monitor acme_healthz HTTP-ECV -send "GET {hc}" -recv "ok " -secure YES -interval 3 -resptimeout 2 -downTime 5\n'
       + lbServers(v, function (n, i) { return 'add server {n' + i + '} {a' + i + '}'; }) + '\n'
@@ -7368,38 +5095,7 @@ var LB_GUIDES = [
       + lbServers(v, function (n, i) { return 'bind serviceGroup acme_https {n' + i + '} 443'; }) + '\n'
       + 'bind serviceGroup acme_https -monitorName acme_healthz\n'
       + 'add lb vserver acme_vs SSL {lb} 443 -lbMethod ROUNDROBIN -persistenceType NONE\n'
-      + 'bind lb vserver acme_vs acme_https\nbind ssl vserver acme_vs -certkeyName {name}\n\n'
-      + 'add lb monitor acme_radius_health HTTP-ECV -send "GET /healthz?check=radius" -recv "ok " -secure YES -destPort 443 -interval 3\n'
-      + 'add serviceGroup acme_radius RADIUS -usip YES\n'
-      + lbServers(v, function (n, i) { return 'bind serviceGroup acme_radius {n' + i + '} {auth}'; }) + '\n'
-      + 'bind serviceGroup acme_radius -monitorName acme_radius_health\n'
-      + 'add lb vserver acme_radius_vs RADIUS {lb} {auth} -lbMethod ROUNDROBIN\nbind lb vserver acme_radius_vs acme_radius']];
-  }],
-  ['lvs', 'keepalived + LVS', 'RADIUS', function (v) {
-    var vs = function (port) {
-      return 'virtual_server {lb} ' + port + ' {\n    delay_loop 3\n    lb_algo rr\n    lb_kind NAT\n    protocol UDP\n'
-        + lbServers(v, function (n, i) {
-          return '    real_server {a' + i + '} ' + port + ' {\n        SSL_GET {\n            url { path /healthz?check=radius status_code 200 }\n'
-            + '            connect_port 443\n            connect_timeout 3\n            retry 2\n        }\n    }';
-        }) + '\n}';
-    };
-    return [['/etc/keepalived/keepalived.conf on the balancer (two Linux machines, not the acme nodes)',
-      vs('{auth}') + (v.acct ? '\n' + vs('{acct}') : '')],
-      ['With lb_kind NAT the nodes see the concentrators\' own addresses; their route back must go through the balancer.', '']];
-  }],
-  ['asa', 'Cisco ASA', 'RADIUS, no balancer', function (v) {
-    return [['Both nodes in one server group: the ASA asks the first, and the second when it does not answer',
-      'aaa-server ACME protocol radius\n max-failed-attempts 2\n reactivation-mode timed\n dead-time 1\n'
-      + lbServers(v, function (n, i) {
-        return 'aaa-server ACME (inside) host {a' + i + '}\n key {secret}\n authentication-port {auth}\n'
-          + (v.acct ? ' accounting-port {acct}\n' : '') + ' timeout 5';
-      })]];
-  }],
-  ['forti', 'FortiGate', 'RADIUS, no balancer', function (v) {
-    return [['FortiOS CLI - the second node as the secondary server',
-      'config user radius\n    edit "acme"\n        set server "{a0}"\n        set secret {secret}\n'
-      + (v.nodes[1] ? '        set secondary-server "{a1}"\n        set secondary-secret {secret}\n' : '')
-      + '        set auth-type pap\n        set radius-port {auth}\n        set timeout 5\n    next\nend']];
+      + 'bind lb vserver acme_vs acme_https\nbind ssl vserver acme_vs -certkeyName {name}']];
   }]
 ];
 
@@ -7416,7 +5112,7 @@ function drawHaLb(d) {
   var v0 = {
     lb: LB_UI.lb || trusted.replace(/\/(32|128)$/, '') || '192.0.2.5',
     name: LB_UI.name || (lb.vip && lb.vip.fqdn) || lb.server_name || location.hostname,
-    tls: LB_UI.tls || 'end', hc: LB_UI.hc || '/healthz', secret: LB_UI.secret || '<the shared secret>'};
+    tls: LB_UI.tls || 'end', hc: '/healthz'};
   host.appendChild(el('p', 'note', 'Both nodes answer everything, so any balancer spreads the pages round robin, without sticky sessions. Each node says GET /healthz: 200 "ok NODE" while it really works (the daemon, its database), 503 in maintenance or an upgrade - so the balancer takes it out by itself. Pick yours below: the configuration is filled in with this cluster\'s own names, addresses and ports, marked in colour, and follows what you type here.'));
   if (lb.vip && lb.vip.on) {
     host.appendChild(el('p', 'note warn', 'The built-in VIP address ' + lb.vip.address + ' is on: the pages need no balancer of yours. Use one or the other.'));
@@ -7435,7 +5131,6 @@ function drawHaLb(d) {
   };
   field('The balancer\'s address', 'lb', '192.0.2.5', 'its virtual address, the one people go to');
   field('The name people use', 'name', 'acme.example.cz', 'in its certificate');
-  field('RADIUS shared secret', 'secret', '<the shared secret>', 'only put into the text here, never sent anywhere');
   var segOf = function (words, key, opts) {
     var f = el('div', 'lb-f');
     f.appendChild(el('span', 'lb-f-k', words));
@@ -7450,7 +5145,6 @@ function drawHaLb(d) {
     form.appendChild(f);
   };
   segOf('TLS', 'tls', [['end', 'Ended on the balancer'], ['pass', 'Passed through (PROXY)']]);
-  segOf('Health check', 'hc', [['/healthz', 'The pages'], ['/healthz?check=radius', '+ RADIUS listening']]);
   host.appendChild(form);
   /* The nodes as they are. */
   var facts = el('div', 'lb-facts');
@@ -7460,15 +5154,13 @@ function drawHaLb(d) {
     c.appendChild(noI18n(document.createTextNode(' ' + (n.address || '?'))));
     facts.appendChild(c);
   });
-  facts.appendChild(noI18n(el('span', 'cchip', 'RADIUS ' + (lb.auth_port || 1812) + (lb.acct_port ? ' / ' + lb.acct_port : ''))));
   host.appendChild(facts);
   var trust = el('div', 'lb-trust');
   host.appendChild(trust);
   var list = el('div', 'lb-list');
   host.appendChild(list);
   function values() {
-    var v = {lb: LB_UI.lb || v0.lb, name: LB_UI.name || v0.name, hc: v0.hc, tls: v0.tls,
-             secret: LB_UI.secret || v0.secret, auth: lb.auth_port || 1812, acct: lb.acct_port || 0, nodes: nodes};
+    var v = {lb: LB_UI.lb || v0.lb, name: LB_UI.name || v0.name, hc: v0.hc, tls: v0.tls, nodes: nodes};
     nodes.forEach(function (n, i) { v['n' + i] = n.name; v['a' + i] = n.address || '192.0.2.1' + (i + 1); });
     return v;
   }
@@ -7490,8 +5182,8 @@ function drawHaLb(d) {
     LB_GUIDES.concat([['check', 'Check it', 'after', function () {
       return [['From any machine: each node, then through the balancer; maintenance must take a node out',
         lbServers(v, function (n, i) { return 'curl -sk https://{a' + i + '}{hc}            # ok {n' + i + '}'; })
-        + '\ncurl -sk https://{name}{hc}\n\n# on {n0}, as root:\notp --maintenance on --why "balancer test"\n'
-        + 'curl -sk https://{a0}/healthz             # 503 maintenance {n0} - the balancer sends everything to {n1}\notp --maintenance off']];
+        + '\ncurl -sk https://{name}{hc}\n\n# on {n0}, as root:\nacme --maintenance on --why "balancer test"\n'
+        + 'curl -sk https://{a0}/healthz             # 503 maintenance {n0} - the balancer sends everything to {n1}\nacme --maintenance off']];
     }]]).forEach(function (g) {
       var det = el('details', 'lb-guide');
       det.dataset.k = g[0];
@@ -7516,7 +5208,7 @@ if ($('ha-bundle')) {
   $('ha-bundle').onclick = function () {
     var host;
     modal('The bundle for the second node', function (body) {
-      body.appendChild(el('p', 'note', 'What the second node needs and nothing else: the database’s address and password and the key that opens the tokens - locked with a passphrase made here and shown once. Keep the two apart: the file over scp or a USB stick, the passphrase typed.'));
+      body.appendChild(el('p', 'note', 'What the second node needs and nothing else: the database’s address and password and the key that opens the sealed keys - locked with a passphrase made here and shown once. Keep the two apart: the file over scp or a USB stick, the passphrase typed.'));
       if (HA && HA.replication && HA.replication.mode === 'replicated') {
         body.appendChild(el('p', 'note', 'This node replicates with its own PostgreSQL: the bundle makes the other node of the two - or makes it again, after it was lost or reinstalled.'));
         host = {value: ''};
@@ -7555,7 +5247,7 @@ if ($('ha-bundle')) {
   $('ha-join').onclick = function () {
     var file = null, phrase, name, even;
     modal('Join a cluster', function (body) {
-      body.appendChild(el('p', 'note bad', 'This node then opens the cluster’s database and takes its key: what this node holds now - its own database, its own accounts and tokens - is no longer used. Do it on a node just installed.'));
+      body.appendChild(el('p', 'note bad', 'This node then opens the cluster’s database and takes its key: what this node holds now - its own database, its own accounts and certificates - is no longer used. Do it on a node just installed.'));
       var pick = el('input'); pick.type = 'file'; pick.accept = '.json,application/json';
       pick.onchange = function () { file = pick.files && pick.files[0]; };
       body.appendChild(formField('The bundle (acme-join-….json)', pick));
@@ -7565,7 +5257,7 @@ if ($('ha-bundle')) {
       name = textBox((HA && HA.node) || '', '', '');
       body.appendChild(formField('This node’s name', name, 'How it is called among the nodes.'));
       even = switchBox(false);
-      body.appendChild(formField('Even though this node has tokens of its own (they are left behind)', even));
+      body.appendChild(formField('Even though this node has certificates of its own (they are left behind)', even));
     }, [{words: 'Close', close: true}, {words: 'Join', cls: 'danger', icon: 'net', go: function (b) {
       if (!file) { toast('choose the bundle first', 'bad'); return; }
       busy(b, true);
@@ -7582,7 +5274,6 @@ if ($('ha-bundle')) {
     }}], 'medium');
   };
 }
-
 
 /* ---- the replication between the two PostgreSQLs (1.0.14) ---- */
 function drawHaRep(d, live) {
@@ -7764,17 +5455,6 @@ if ($('ha-pause')) {
   };
 }
 
-if ($('tk-names')) {
-  $('tk-names').onclick = function () {
-    var b = $('tk-names');
-    busy(b, true);
-    api('token', {action: 'fill_names'}).then(function (d) {
-      toast(d.message, d.filled ? 'good' : '');
-      if (typeof loadTokens === 'function') loadTokens();
-    }).catch(oops).then(function () { busy(b, false); });
-  };
-}
-
 /* The Test tab's password box, masked like every other (1.0.22). */
 (function () {
   var old = $('rt-pass');
@@ -7800,7 +5480,6 @@ if ($('tk-names')) {
     }
   }, 30000);
 })();
-
 
 /* ---- upgrades and maintenance (1.0.37) ------------------------------------ */
 var UP = {timer: null, held: null, misses: 0};
@@ -7847,8 +5526,8 @@ function maintenanceAsk(n, on, then) {
   modal('Take ' + n.name + ' out of service', function (body) {
     var p = el('p', 'note');
     p.textContent = alone
-      ? 'This is the only server: while it is in maintenance nobody can sign in to the VPN. Its pages go on working.'
-      : 'It stops answering RADIUS and its /healthz says 503: the VPN and the load balancer go to the other node. Its pages go on working.';
+      ? 'This is the only server: while it is in maintenance no certificate is renewed or put in place. Its pages go on working.'
+      : 'It renews and puts in place nothing and its /healthz says 503: the load balancer and the VIP address go to the other node, which does the work. Its pages go on working.';
     if (alone) p.className = 'note bad';
     body.appendChild(p);
     var why = textBox('', 'why - for the events', '');
@@ -7938,7 +5617,7 @@ function drawUpWeb(d) {
         var many = (d.nodes || []).length > 1;
         var c = chosen();
         confirmThen('Upgrade to acme ' + c.version + '?', htmlText('It is fetched from ' + (c.url || o.url) + ', its signature checked, and '
-          + (many ? 'the nodes are upgraded one at a time - each in maintenance while it is, so the service never stops.' : 'this server is upgraded: for a minute nobody can sign in to the VPN.')), 'Upgrade', function () {
+          + (many ? 'the nodes are upgraded one at a time - each in maintenance while it is, so the service never stops.' : 'this server is upgraded: for a minute nothing is renewed or put in place.')), 'Upgrade', function () {
           busy(up, true);
           api('upgrade', {action: 'online_get', version: c.version, start: true}).then(function (x) { toast(x.message, 'good'); drawUpgrade(x); })
             .catch(oops).then(function () { busy(up, false); });
@@ -7965,7 +5644,7 @@ function upDownConfirm(version, go) {
   var many = (d.nodes || []).filter(function (n) { return n.alive; }).length > 1;
   confirmThen('Go back to acme ' + version + '?', htmlText('The version running now is replaced by the older ' + version + (many
     ? ' on every node, one at a time - each in maintenance while it is, so the service never stops.'
-    : ' - for a minute nobody can sign in to the VPN.') + ' The database stays as it is. What came in the newer versions is gone until you upgrade again.'),
+    : ' - for a minute nothing is renewed or put in place.') + ' The database stays as it is. What came in the newer versions is gone until you upgrade again.'),
     'Go back', go, true);
 }
 function upDownChangelog(version) {
@@ -8352,8 +6031,8 @@ if ($('up-drop')) {
         api('upgrade', {action: 'start'}).then(function (r) { toast(r.message, 'good'); drawUpgrade(r); }).catch(oops);
       }); return; }
       confirmThen(many ? 'Upgrade every node to ' + p.version : 'Upgrade this server to ' + p.version,
-        many ? 'One node at a time: it is taken out of service, upgraded, checked and brought back, and only then the next one. The VPN and the load balancer use the other node meanwhile.'
-             : 'This server is the only one: while it is put in and restarted - a minute or two - nobody can sign in to the VPN, and these pages stop answering for a moment.',
+        many ? 'One node at a time: it is taken out of service, upgraded, checked and brought back, and only then the next one. The load balancer and the VIP address use the other node meanwhile.'
+             : 'This server is the only one: while it is put in and restarted - a minute or two - nothing is renewed or put in place, and these pages stop answering for a moment.',
         'Upgrade', function () {
           api('upgrade', {action: 'start'}).then(function (r) { toast(r.message, 'good'); drawUpgrade(r); }).catch(oops);
         }, !many);
@@ -9054,7 +6733,6 @@ function drawVip(d) {
   });
 }
 
-
 /* ---- Firewall and access (1.0.52) ---------------------------------------------------
    Who may reach which pages (nginx, page by page) and the machine's firewall:
    acme's own chain ACME-IN, the rules of your own first, then what acme's
@@ -9100,12 +6778,12 @@ function fwSave() {
       'Turn it on', false);
   } else if (!dr.on && was) {
     ask = askThen('Take acme\'s rules away', 'The chain ACME-IN and its jump go, on every node; the rest of the firewall stays exactly as it is. ' +
-      'Whatever only ACME-IN let in (RADIUS clients, the other node, the pages) is then up to your own rules.', 'Take them away');
+      'Whatever only ACME-IN let in (the DNS server, the other node, the pages) is then up to your own rules.', 'Take them away');
   }
   return ask.then(function (yes) { return yes ? go() : false; });
 }
 function loadFw() {
-  if (!TOKADMIN) {
+  if (!CERTADMIN) {
     /* The map of the network is not for every reader (1.0.57); said here once,
        not refused every five seconds (1.0.146). */
     var lede = $('fw-lede');
@@ -9211,7 +6889,7 @@ function drawFwAccess(d) {
   var rows = el('div', 'fw-acc');
   var me = d.nodes.filter(function (n) { return n.name === FW.node; })[0] || d.nodes[0] || {};
   var inner = (d.inner || {})[me.name] || [];
-  [['portal', 'The enrolment pages', 'https://…/ - where people make their token', 'people'],
+  [['portal', 'The portal', 'https://…/ - the certificate portal', 'people'],
    ['admin', 'The administration', 'https://…/admin/ - these pages', 'gear'],
    ['health', 'The health check', '/healthz - for a load balancer or monitoring (Zabbix, Nagios…)', 'pulse']].forEach(function (p) {
     var acc = FW.draft.access;
@@ -9347,7 +7025,7 @@ function drawFwBody(d) {
   h2.appendChild(el('h3', '', 'What acme lets in by itself'));
   h2.appendChild(noI18n(el('span', 'tag dim', n.name || '')));
   body.appendChild(h2);
-  body.appendChild(el('p', 'note', 'Worked out from what is set up, and changed with it: a RADIUS client added, the cluster made, the VIP address turned on. What keeps the cluster working cannot be turned off.'));
+  body.appendChild(el('p', 'note', 'Worked out from what is set up, and changed with it: the DNS server for DNS-01 switched on, the cluster made, the VIP address turned on. What keeps the cluster working cannot be turned off.'));
   var grid = el('div', 'fw-auto');
   (n.auto || []).forEach(function (item) {
     var card = el('div', 'fw-auto-card' + (item.on ? '' : ' off'));
@@ -9371,7 +7049,7 @@ function drawFwBody(d) {
     }
     card.appendChild(top);
     var list = el('div', 'fw-auto-rules');
-    if (!item.rules.length) list.appendChild(el('span', 'muted', item.key === 'radius' ? 'no RADIUS client yet' : 'nothing'));
+    if (!item.rules.length) list.appendChild(el('span', 'muted', 'nothing'));
     item.rules.slice(0, 12).forEach(function (r) { list.appendChild(fwRuleLine(r)); });
     if (item.rules.length > 12) list.appendChild(el('span', 'muted', '… and ' + (item.rules.length - 12) + ' more'));
     card.appendChild(list);
@@ -9488,7 +7166,6 @@ function fwRuleEdit(d, r) {
         }).catch(oops).then(function () { busy(b, false); });
       }}], 'medium');
 }
-
 
 /* ---- Replication's errors and the cluster's history (1.0.52) ------------------------ */
 function haErrors() {
@@ -9643,246 +7320,6 @@ function drawHaHistory(host, d) {
 }
 if ($('ha-history')) $('ha-history').onclick = haHistory;
 if ($('ha-errors')) $('ha-errors').onclick = haErrors;
-
-
-/* ---- The answer's lines, written with help (1.0.57) ----------------------------------
-   Ctrl+Space (or typing a name) lists the attributes - the standard ones and
-   those of the common VPN concentrators and firewalls, with what each does
-   and an example; after "=" the values a numbered one takes. A product to
-   narrow it to, ready-made lines, and every line checked as it is typed. */
-var RE_PRODUCT = (function () { try { return localStorage.getItem('acme.re.product') || ''; } catch (e) { return ''; } })();
-function reCat() { return (REALMS && REALMS.reply_catalogue) || {attrs: [], products: {}, snippets: [], product_says: {}}; }
-function reFind(name) {
-  var n = String(name || '').toLowerCase();
-  return reCat().attrs.filter(function (a) { return a.name.toLowerCase() === n; })[0] || null;
-}
-/* One line checked as the daemon will: '' when it will do. */
-function reCheck(line) {
-  var t = String(line || '').trim();
-  if (!t || t.charAt(0) === '#') return '';
-  var m = /^([A-Za-z0-9-]+)\s*:?\+?=\s*(.*)$/.exec(t);
-  if (!m) return 'write it as Name = value';
-  var name = m[1], value = m[2].trim().replace(/^"(.*)"$/, '$1');
-  var a = reFind(name);
-  if (!a) {
-    if (/^Vendor-\d{1,10}-Attr-\d{1,3}$/i.test(name)) return '';
-    return name + ' is not an attribute this server sends (Ctrl+Space lists them)';
-  }
-  if (!value) return 'no value';
-  if (a.type === 'integer' || a.type === 'tagint') {
-    if (a.values.length && a.values.map(function (v) { return v.toLowerCase(); }).indexOf(value.toLowerCase()) >= 0) return '';
-    if (a.name === 'Tunnel-Medium-Type' && value === '802') return '';
-    if (!/^\d+$/.test(value)) return a.name + ' takes a number' + (a.values.length ? ' or one of: ' + a.values.join(', ') : '');
-  }
-  if (a.type === 'ipaddr' && !/^(\d{1,3}\.){3}\d{1,3}$/.test(value)) return a.name + ' takes an IPv4 address';
-  if (new Blob([value]).size > 247) return 'longer than one attribute may be';
-  return '';
-}
-function caretXY(ta, pos) {
-  /* Where the caret is, on the screen: a copy of the box measured. */
-  var cs = getComputedStyle(ta);
-  var div = document.createElement('div');
-  ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'paddingTop', 'paddingLeft', 'paddingRight',
-   'paddingBottom', 'borderTopWidth', 'borderLeftWidth', 'boxSizing', 'whiteSpace', 'wordWrap', 'tabSize'].forEach(function (k) { div.style[k] = cs[k]; });
-  div.style.position = 'absolute'; div.style.visibility = 'hidden'; div.style.whiteSpace = 'pre-wrap';
-  div.style.width = ta.clientWidth + 'px';
-  div.textContent = ta.value.slice(0, pos);
-  var span = document.createElement('span'); span.textContent = '​'; div.appendChild(span);
-  document.body.appendChild(div);
-  var r = ta.getBoundingClientRect();
-  var x = r.left + span.offsetLeft - ta.scrollLeft, y = r.top + span.offsetTop - ta.scrollTop;
-  var lh = parseFloat(cs.lineHeight) || 18;
-  div.remove();
-  return {x: x, y: y + lh};
-}
-function replyEditor(ta, opts) {
-  opts = opts || {};
-  ta.classList.add('mono', 're-ta');
-  ta.spellcheck = false;
-  var wrap = el('div', 're-wrap' + (opts.compact ? ' compact' : ''));
-  ta.parentNode.insertBefore(wrap, ta);
-  if (!opts.compact) {
-    var bar = el('div', 're-bar');
-    var prods = reCat().products || {};
-    var psel = selectBox([['', 'every product']].concat(Object.keys(prods).map(function (k) { return [k, prods[k]]; })), RE_PRODUCT);
-    psel.className = 're-prod';
-    var snip = el('select', 're-snip');
-    var says = el('div', 're-says');
-    var fillSnips = function () {
-      clear(snip);
-      var o0 = el('option', '', 'Ready-made lines…'); o0.value = ''; snip.appendChild(o0);
-      (reCat().snippets || []).filter(function (sn) { return !RE_PRODUCT || sn.products.indexOf(RE_PRODUCT) >= 0; }).forEach(function (sn, i) {
-        var o = el('option', '', sn.name); o.value = String(reCat().snippets.indexOf(sn)); snip.appendChild(o);
-      });
-      var w = (reCat().product_says || {})[RE_PRODUCT];
-      says.textContent = w || '';
-      says.hidden = !w;
-    };
-    psel.onchange = function () {
-      RE_PRODUCT = psel.value;
-      try { localStorage.setItem('acme.re.product', RE_PRODUCT); } catch (e) { /* not kept */ }
-      fillSnips();
-    };
-    snip.onchange = function () {
-      var sn = reCat().snippets[Number(snip.value)];
-      snip.value = '';
-      if (!sn) return;
-      var v = ta.value.replace(/\s+$/, '');
-      ta.value = (v ? v + '\n' : '') + sn.lines.join('\n');
-      ta.dispatchEvent(new Event('input'));
-      ta.focus();
-    };
-    bar.appendChild(psel);
-    bar.appendChild(snip);
-    var hint = el('span', 're-hint'); hint.appendChild(noI18n(el('kbd', '', 'Ctrl+Space'))); hint.appendChild(el('span', '', 'suggestions'));
-    bar.appendChild(hint);
-    wrap.appendChild(bar);
-    wrap.appendChild(says);
-    fillSnips();
-  }
-  wrap.appendChild(ta);
-  var check = el('div', 're-check');
-  wrap.appendChild(check);
-  var pop = null, items = [], pick = 0, ctx = null;
-  function paintCheck() {
-    clear(check);
-    var bad = 0;
-    ta.value.split('\n').forEach(function (line, i) {
-      var why = reCheck(line);
-      if (why) {
-        bad++;
-        var r = el('div', 're-bad');
-        r.appendChild(noI18n(el('b', '', (i + 1) + ':')));
-        r.appendChild(el('span', '', why));
-        check.appendChild(r);
-      }
-    });
-    ta.classList.toggle('re-has-bad', bad > 0);
-  }
-  function lineAt() {
-    var pos = ta.selectionStart, v = ta.value;
-    var s0 = v.lastIndexOf('\n', pos - 1) + 1, e0 = v.indexOf('\n', pos); if (e0 < 0) e0 = v.length;
-    return {start: s0, end: e0, text: v.slice(s0, e0), col: pos - s0};
-  }
-  function close() { if (pop) { pop.remove(); pop = null; } }
-  function open(force) {
-    var L = lineAt();
-    var before = L.text.slice(0, L.col);
-    var eq = before.indexOf('=');
-    var list = [];
-    if (eq < 0) {
-      var typed = before.trim().toLowerCase();
-      if (!force && typed.length < 2) { close(); return; }
-      list = reCat().attrs.filter(function (a) {
-        return (!RE_PRODUCT || a.products.indexOf(RE_PRODUCT) >= 0 || a.vendor === 0) &&
-               (!typed || a.name.toLowerCase().indexOf(typed) >= 0 || (a.vendor_name || '').toLowerCase().indexOf(typed) >= 0);
-      }).sort(function (x, y) {
-        var px = x.name.toLowerCase().indexOf(typed) === 0 ? 0 : 1, py = y.name.toLowerCase().indexOf(typed) === 0 ? 0 : 1;
-        return px - py || (x.vendor === 0 ? 0 : 1) - (y.vendor === 0 ? 0 : 1) || x.name.localeCompare(y.name);
-      }).map(function (a) { return {kind: 'attr', a: a, text: a.name + ' = '}; });
-      ctx = {from: L.start + before.search(/\S|$/), to: L.start + L.col + (L.text.slice(L.col).match(/^[A-Za-z0-9-]*/) || [''])[0].length};
-    } else {
-      var a = reFind(before.slice(0, eq).trim());
-      if (!a) { close(); return; }
-      var typedV = before.slice(eq + 1).trim().toLowerCase();
-      if (a.values.length) {
-        /* The usual one first (VLAN for Tunnel-Type, not PPTP). */
-        list = a.values.filter(function (v) { return !typedV || v.toLowerCase().indexOf(typedV) >= 0; })
-          .sort(function (x, y) { return (x === a.example ? 0 : 1) - (y === a.example ? 0 : 1); })
-          .map(function (v) { return {kind: 'value', a: a, text: v}; });
-      }
-      if (!list.length && force) list = [{kind: 'example', a: a, text: a.example}];
-      var vstart = L.start + eq + 1 + (before.slice(eq + 1).match(/^\s*/) || [''])[0].length;
-      ctx = {from: vstart, to: L.end, value: true};
-    }
-    if (!list.length) { close(); return; }
-    items = list.slice(0, 60);
-    pick = 0;
-    if (!pop) {
-      pop = el('div', 're-pop');
-      document.body.appendChild(pop);
-      pop.addEventListener('mousedown', function (e) { e.preventDefault(); });
-    }
-    draw();
-    var xy = caretXY(ta, ta.selectionStart);
-    var w = Math.min(items[0].kind === 'attr' ? 560 : 320, window.innerWidth - 16);
-    pop.style.width = w + 'px';
-    pop.style.left = Math.max(8, Math.min(xy.x, window.innerWidth - w - 8)) + 'px';
-    var below = window.innerHeight - xy.y - 8;
-    pop.style.top = (below > 260 ? xy.y + 4 : Math.max(8, xy.y - 300)) + 'px';
-  }
-  function draw() {
-    clear(pop);
-    items.forEach(function (it, i) {
-      var row = el('div', 're-item' + (i === pick ? ' on' : ''));
-      var top = el('div', 're-top');
-      top.appendChild(noI18n(el('b', 'mono', it.kind === 'attr' ? it.a.name : it.text)));
-      if (it.kind === 'attr') {
-        top.appendChild(el('span', 're-vendor' + (it.a.vendor ? '' : ' std'), it.a.vendor ? (it.a.vendor_name || 'vendor ' + it.a.vendor) + ' · ' + it.a.vendor + '/' + it.a.num : 'RFC · ' + it.a.num));
-        top.appendChild(el('span', 're-type', {tagint: 'number (tagged)', tagstr: 'text (tagged)', integer: 'number', string: 'text', ipaddr: 'IPv4 address'}[it.a.type] || it.a.type));
-      } else if (it.kind === 'example') {
-        top.appendChild(el('span', 're-type', 'an example'));
-      }
-      row.appendChild(top);
-      if (it.kind === 'attr') {
-        row.appendChild(el('div', 're-says2', it.a.says));
-        var ex = el('div', 're-ex');
-        ex.appendChild(el('span', '', 'e.g. '));
-        ex.appendChild(noI18n(el('code', '', it.a.name + ' = ' + it.a.example)));
-        row.appendChild(ex);
-      }
-      row.onclick = function () { pick = i; accept(); };
-      pop.appendChild(row);
-    });
-    var on = pop.querySelector('.re-item.on');
-    if (on && on.scrollIntoView) on.scrollIntoView({block: 'nearest'});
-  }
-  function accept() {
-    var it = items[pick];
-    if (!it || !ctx) return;
-    var v = ta.value;
-    var put = it.text;
-    ta.value = v.slice(0, ctx.from) + put + v.slice(ctx.to);
-    var at = ctx.from + put.length;
-    ta.setSelectionRange(at, at);
-    close();
-    ta.dispatchEvent(new Event('input'));
-    /* A name chosen: its values at once, where it has named ones. */
-    if (it.kind === 'attr' && it.a.values.length) setTimeout(function () { open(true); }, 0);
-  }
-  ta.addEventListener('keydown', function (e) {
-    if ((e.ctrlKey || e.metaKey) && (e.key === ' ' || e.code === 'Space')) { e.preventDefault(); open(true); return; }
-    if (!pop) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); pick = Math.min(items.length - 1, pick + 1); draw(); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); pick = Math.max(0, pick - 1); draw(); }
-    else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); accept(); }
-    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
-  });
-  ta.addEventListener('input', function (e) {
-    paintCheck();
-    if (e && e.isTrusted === false) return;
-    var L = lineAt(), before = L.text.slice(0, L.col);
-    if (pop || /^[A-Za-z][A-Za-z0-9-]{1,}$/.test(before.trim()) || /=\s*$/.test(before)) open(/=\s*$/.test(before));
-  });
-  ta.addEventListener('blur', function () { setTimeout(close, 150); });
-  ta.addEventListener('click', function () { if (pop) open(true); });
-  paintCheck();
-  return wrap;
-}
-
-/* Where a token was last used: the address and, next to it, the RADIUS
-   client it came through (1.0.58). */
-function fromCell(r) {
-  var td = el('td', 'fromcell');
-  if (r.last_from) td.appendChild(noI18n(el('span', 'mono small', r.last_from)));
-  if (r.last_client) {
-    var c = noI18n(el('span', 'tag dim client-tag', r.last_client));
-    c.title = 'The RADIUS client it came through';
-    td.appendChild(c);
-  }
-  return td;
-}
-
 
 /* ---- the pictures on the sign-ins (1.0.71; each its own since 1.0.72) ----
    A press only marks the change (1.0.73); it is made with Save the changes
@@ -10039,7 +7476,6 @@ if ($('sms-try')) {
   };
 }
 
-
 /* ---- the outgoing mail (1.0.95) -------------------------------------------- */
 var MQ = {page: 0, per: 50, timer: null};
 var MQ_STATE_WORDS = {sending: ['being sent', 'info'], waiting: ['waiting', 'warn'], sent: ['sent', 'ok'],
@@ -10123,7 +7559,7 @@ function loadMailq(quiet) {
       tr.appendChild(said);
       if (cluster) tr.appendChild(noI18n(el('td', 'muted small', r.node || '')));
       var tools = el('td', 'rowtools');
-      if (TOKADMIN) {
+      if (CERTADMIN) {
         if (r.state === 'waiting' || r.state === 'failed') {
           var again = iconButton('refresh', 'Send it again now');
           again.onclick = function (e) { e.stopPropagation(); mailqDo('retry', [r.qid]); };
@@ -10186,9 +7622,9 @@ function mailqPeek(qid) {
       }
       if (!r.has_body && (r.state === 'sent' || r.state === 'expired'))
         body.appendChild(el('p', 'note muted small', 'What the mail held is not kept once it went or was given up.'));
-    }, [{words: 'Take it out', icon: 'trash', cls: 'danger', hidden: !TOKADMIN, go: function () { closeModal(); mailqDo('drop', [qid]); }},
+    }, [{words: 'Take it out', icon: 'trash', cls: 'danger', hidden: !CERTADMIN, go: function () { closeModal(); mailqDo('drop', [qid]); }},
         {spacer: true},
-        {words: 'Send it again now', icon: 'refresh', cls: 'primary', hidden: !TOKADMIN || !r.has_body || !(r.state === 'waiting' || r.state === 'failed'),
+        {words: 'Send it again now', icon: 'refresh', cls: 'primary', hidden: !CERTADMIN || !r.has_body || !(r.state === 'waiting' || r.state === 'failed'),
          go: function () { closeModal(); mailqDo('retry', [qid]); }},
         {words: 'Close', close: true}].filter(function (b) { return !b.hidden; }), 'medium');
   }).catch(oops);
@@ -10207,14 +7643,13 @@ if ($('mq-q')) {
 }
 
 /* ==========================================================================
-   The texts of the messages (1.0.103): every mail, SMS and question of the
-   VPN, in Czech and English, edited as they will look. A mail is shown as it
+   The texts of the messages (1.0.103): every mail and SMS, in Czech and English, edited as they will look. A mail is shown as it
    arrives - its texts written into where they stand; what is filled in when
    it is sent stands in blue chips. Saved in the database: both nodes of a
    cluster send the same words.
    ========================================================================== */
 var TX = {data: null, id: null, lang: 'cs', dirty: {}, eds: {}, active: null, range: null, frame: null};
-var TX_KINDS = [['mail', 'E-mails', 'mail'], ['sms', 'SMS', 'phone'], ['prompt', 'The VPN', 'globe']];
+var TX_KINDS = [['mail', 'E-mails', 'mail'], ['sms', 'SMS', 'phone']];
 var TX_COLORS = ['#111827', '#1d4ed8', '#b91c1c', '#15803d', '#b45309', '#7c3aed', '#6b7280'];
 function txT(s) {
   var got = typeof i18nText === 'function' ? i18nText(String(s)) : null;
@@ -10227,7 +7662,10 @@ function txValue(f) { return Object.prototype.hasOwnProperty.call(TX.dirty, f.ke
 
 function loadTexts() {
   api('texts').then(function (d) {
+    /* Only the mails and the SMS: what a VPN asked is gone with it. */
+    d.messages = (d.messages || []).filter(function (m) { return m.kind === 'mail' || m.kind === 'sms'; });
     TX.data = d;
+    if (!d.messages.length) { clear($('tx-root')); $('tx-root').appendChild(el('p', 'note', 'No message to change.')); return; }
     if (!txMsg(TX.id)) TX.id = d.messages[0].id;
     drawTexts();
   }).catch(oops);
@@ -10462,8 +7900,8 @@ function txDrawEditor(host) {
   var may = TX.data.may_change;
   var prev = cmdButton('Preview', 'eye', '');
   prev.onclick = txPreview;
-  if (m.kind !== 'prompt') bar.appendChild(prev);
-  if (may && m.kind !== 'prompt') {
+  bar.appendChild(prev);
+  if (may) {
     var test = cmdButton('Send a sample…', 'mail', '');
     test.onclick = txTest;
     bar.appendChild(test);
@@ -10477,9 +7915,8 @@ function txDrawEditor(host) {
   head.appendChild(bar);
   host.appendChild(head);
   if (!may) host.appendChild(el('p', 'note', 'Only a full administrator changes these words.'));
-  if (m.kind === 'mail') txDrawMail(host, m);
-  else if (m.kind === 'sms') txDrawSms(host, m);
-  else txDrawPrompts(host, m);
+  if (m.kind === 'sms') txDrawSms(host, m);
+  else txDrawMail(host, m);
   txBarState();
 }
 
@@ -10567,7 +8004,7 @@ function txDrawMail(host, m) {
   if (others.length) {
     var card = el('div', 'card tx-card');
     card.appendChild(el('h3', 'peek-h', 'When the name is not known'));
-    card.appendChild(el('p', 'small muted', 'Used instead of the texts above when the token has no name or account to put in.'));
+    card.appendChild(el('p', 'small muted', 'Used instead of the texts above when there is no name or account to put in.'));
     others.forEach(function (f) { card.appendChild(txFieldBox(f, 'tx-rich')); });
     host.appendChild(card);
   }
@@ -10575,12 +8012,9 @@ function txDrawMail(host, m) {
   if (plain.length) {
     var pc = el('div', 'card tx-card');
     pc.appendChild(el('h3', 'peek-h', 'The plain text version'));
-    pc.appendChild(el('p', 'small muted', 'What a mail program shows that does not show HTML, and what is sent alone when the token chose mails as plain text.'));
+    pc.appendChild(el('p', 'small muted', 'What a mail program shows that does not show HTML.'));
     plain.forEach(function (f) { pc.appendChild(txFieldBox(f, 'tx-plain')); });
     host.appendChild(pc);
-  }
-  if (m.id === 'token_mail') {
-    host.appendChild(el('p', 'note small', 'The plain text version of this mail is made from the texts above.'));
   }
 }
 /* One field in the page: its name, a box, what can be put in, its default. */
@@ -10785,40 +8219,6 @@ function txDrawSms(host, m) {
   draw();
 }
 
-/* ---- the second window of the VPN ---------------------------------------- */
-function txDrawPrompts(host, m) {
-  var card = el('div', 'card tx-card');
-  m.fields.forEach(function (f) {
-    var box = txFieldBox(f, 'tx-line');
-    var vpn = el('div', 'tx-vpn');
-    var bar = el('div', 'tx-vpn-bar');
-    bar.appendChild(el('span', '', 'VPN'));
-    vpn.appendChild(bar);
-    var said = noI18n(el('div', 'tx-vpn-said'));
-    vpn.appendChild(said);
-    var input = el('div', 'tx-vpn-input mono', '••••••');
-    vpn.appendChild(input);
-    var bytes = el('div', 'tx-count small');
-    var draw = function () {
-      var t = txFill(txValue(f), f.key);
-      said.textContent = t;
-      var n = new Blob([t]).size;
-      clear(bytes);
-      bytes.appendChild(el('span', n > 253 ? 'tag bad' : 'muted', num(n) + ' / 253 B'));
-    };
-    TX.eds[f.key]._onChange = draw;
-    draw();
-    var row = el('div', 'tx-prompt');
-    row.appendChild(box);
-    var side = el('div', '');
-    side.appendChild(vpn);
-    side.appendChild(bytes);
-    row.appendChild(side);
-    card.appendChild(row);
-  });
-  host.appendChild(card);
-}
-
 /* ---- saved, put back, looked at, sent ------------------------------------ */
 function txSave() {
   var m = txMsg();
@@ -10922,38 +8322,6 @@ function txTest() {
       };
     }, [{words: 'Close', close: true}, {words: 'Send', cls: 'primary', icon: sms ? 'phone' : 'mail', go: function (b) { MODAL_GO(b); }}], 'small');
   });
-}
-
-/* Groups as chips: the name to read, the whole DN on hover; past `most`,
-   the rest behind "+N more" (1.0.103). */
-function groupChips(list, most) {
-  var box = el('div', 'grp-chips');
-  var name = function (v) {
-    var m = /^\s*cn=((?:\\.|[^,])+)/i.exec(String(v));
-    return m ? m[1].replace(/\\(.)/g, '$1') : String(v);
-  };
-  var draw = function (all) {
-    clear(box);
-    (all ? list : list.slice(0, most)).forEach(function (v) {
-      var c = noI18n(el('span', 'grp-chip', name(v)));
-      c.title = v;
-      box.appendChild(c);
-    });
-    if (list.length > most) {
-      var more = el('button', 'grp-more', all ? txT('fewer') : '+' + num(list.length - most) + ' ' + txT('more'));
-      more.type = 'button';
-      more.onclick = function (e) { e.stopPropagation(); draw(!all); };
-      box.appendChild(more);
-    }
-  };
-  draw(false);
-  return box;
-}
-
-/* Each way of getting a code its own colour, the same everywhere (1.0.103):
-   the app violet, e-mail blue, SMS orange. */
-function kindTagClass(kind) {
-  return {totp: 'violet', mail: 'info', sms: 'load'}[kind] || 'dim';
 }
 
 /* An account made with a password somebody else chose must set its own before
@@ -11239,7 +8607,7 @@ function loadRbackup() {
   if (!top) return;
   if (!ME || ME.role !== 'fulladmin') {
     clear(top);
-    top.appendChild(el('p', 'note', 'Only a full administrator sees and changes the backups: they hold every token.'));
+    top.appendChild(el('p', 'note', 'Only a full administrator sees and changes the backups: they hold every private key.'));
     return;
   }
   api('rbackup').then(function (d) {
@@ -11337,7 +8705,7 @@ function drawRbTop() {
   acts.appendChild(now);
   var tryb = cmdButton('Try the newest', 'check', '');
   tryb.disabled = !on.length || (d.job && d.job.running);
-  explain(tryb, 'The newest backup of this node fetched back from the first destination, opened with the password, every file checked, the database read through and the tokens tried against the key in it - nothing is put back. And the newest nightly copy here read through.');
+  explain(tryb, 'The newest backup of this node fetched back from the first destination, opened with the password, every file checked, the database read through and the sealed keys tried against the key in it - nothing is put back. And the newest nightly copy here read through.');
   tryb.onclick = function () {
     busy(tryb, true);
     api('rbackup', {action: 'verify'}).then(function (x) { toast(x.message, 'good'); RB.job = x.job; rbWatch(); })
@@ -11348,7 +8716,7 @@ function drawRbTop() {
   explain(dl, 'A backup made now, saved on the computer you are sitting at - locked with the password as the others.');
   dl.onclick = function () {
     if (!d.locked) {
-      confirmThen('Download a backup that is not locked?', 'No password of the backups is set: the file will hold <b>every token’s key</b> readable. Set the password first unless you know where the file goes.', 'Download it', function () { window.location.href = '?api=rbackup-download'; }, false);
+      confirmThen('Download a backup that is not locked?', 'No password of the backups is set: the file will hold <b>every private key</b> readable. Set the password first unless you know where the file goes.', 'Download it', function () { window.location.href = '?api=rbackup-download'; }, false);
       return;
     }
     toast('the backup is being made - the download starts when it is ready', 'good');
@@ -11386,7 +8754,7 @@ function drawRbTop() {
       var c = nodeCard({node: n, me: n === d.node}, !last ? 'dim' : (bad ? 'bad' : 'ok'),
         !last ? 'no backup yet' : (last.ok ? 'went everywhere' : 'did not go everywhere'), !last ? 'dim' : (last.ok ? 'ok' : 'crit'));
       nodeBig(c, last ? ago(last.at) : '–', last ? 'the last backup' : '');
-      c.appendChild(netFacts([['Size', last && last.bytes ? rbBytes(last.bytes) : ''], ['Tokens', last && last.tokens != null ? num(last.tokens) : ''],
+      c.appendChild(netFacts([['Size', last && last.bytes ? rbBytes(last.bytes) : ''], ['Certificates', last && last.certs != null ? num(last.certs) : ''],
         ['Tried', tr ? (tr.ok ? 'can be put back' : 'NOT GOOD') + ' · ' + ago(tr.at) : 'never']]));
       grid.appendChild(c);
     });
@@ -12200,10 +9568,10 @@ function rbPutBackConfirm(what) {
     if (what.node) facts.push(['On', what.node]);
     if (what.manifest) {
       var m = what.manifest;
-      facts = [['Made', m.made_words], ['On', m.node + ' (' + (m.host || '') + ')'], ['acme', m.acme], ['Tokens', String(m.tokens)], ['Database', m.engine_words || m.engine]];
+      facts = [['Made', m.made_words], ['On', m.node + ' (' + (m.host || '') + ')'], ['acme', m.acme], ['Certificates', m.certs != null ? String(m.certs) : '–'], ['Database', m.engine_words || m.engine]];
     }
     if (facts.length) body.appendChild(peekFacts(facts));
-    body.appendChild(el('p', 'note warn', 'Everything in the database is replaced with what the backup holds - tokens, accounts, settings, certificates, logs, and who is signed in: you sign in again afterwards, with an account the backup has. A copy of what is here now is made first (Settings → The database → Copies). In a cluster it goes over to the other node too.'));
+    body.appendChild(el('p', 'note warn', 'Everything in the database is replaced with what the backup holds - certificates and their keys, accounts, settings, logs, and who is signed in: you sign in again afterwards, with an account the backup has. A copy of what is here now is made first (Settings → The database → Copies). In a cluster it goes over to the other node too.'));
     var pw = maskBox('', what.encrypted === false ? '(not locked)' : 'the password of the backups - empty: the one set here', 'mono');
     body.appendChild(formField('Its password', pw, 'Only when it was locked with another password than the one set here now.'));
     rbPutBackConfirm.pw = pw;
@@ -12400,7 +9768,6 @@ function netNowCard(n) {
     ['Search domains', (conf.ipv4_search || []).join(', '), true],
     ['IPv6', conf.ipv6_method === 'disabled' || conf.ipv6_method === 'ignore' || !conf.ipv6_method ? 'off' : (conf.ipv6_method === 'manual' ? 'on, set by hand' : 'on, automatic')],
     ['IPv6 addresses', v6.join(', '), true],
-    ['RADIUS listens on', now.radius_bind === '::' ? ':: (IPv4 and IPv6)' : (now.radius_bind || '0.0.0.0'), true],
     ['Read', now.at ? ago(now.at) : '']
   ]));
   if (!data.nm) card.appendChild(el('p', 'note warn', 'NetworkManager (nmcli) is not on ' + n.name + ': its network can only be set by hand there.'));
@@ -12439,7 +9806,7 @@ function netFormCard(n) {
   g2.appendChild(formField('Search domains', search));
   s1._body.appendChild(g2);
   card.appendChild(s1);
-  var s2 = msect('IPv6 (dual stack)', 'Switched on, the node takes IPv6 beside IPv4: RADIUS listens on both, nginx answers on both, the firewall is set for both. Replication between the databases stays on IPv4. The VIP address takes an IPv6 address of its own on High availability.');
+  var s2 = msect('IPv6 (dual stack)', 'Switched on, the node takes IPv6 beside IPv4: nginx answers on both, the firewall is set for both. Replication between the databases stays on IPv4. The VIP address takes an IPv6 address of its own on High availability.');
   var r6 = el('div', 'formgrid');
   r6.appendChild(formField('IPv6', s6));
   var g6 = el('div', 'formgrid');
@@ -12722,10 +10089,10 @@ function pwAsk(how, targets, order, n) {
   var d = PW.d;
   var who = targets.join(', ');
   var words;
-  if (how === 'poweroff') words = targets.length > 1 ? 'Both nodes are switched off. Nothing answers - RADIUS, the pages - until somebody switches them on again at the machines.'
+  if (how === 'poweroff') words = targets.length > 1 ? 'Both nodes are switched off. Nothing answers - the pages, the renewals - until somebody switches them on again at the machines.'
     : (d.cluster ? n.name + ' is switched off; the VIP address moves to the other node, which goes on answering alone. It has to be switched on again at the machine.' : 'The server is switched off. Nothing answers until somebody switches it on again at the machine.');
-  else if (order === 'rolling') words = 'One after the other: each goes into maintenance, the VIP address moves to the other node, it restarts and comes back into service - then the next. RADIUS and the pages go on answering all the time.';
-  else if (targets.length > 1) words = 'Both restart at the same moment: for a minute or two nothing answers - RADIUS, the pages, the VIP address.';
+  else if (order === 'rolling') words = 'One after the other: each goes into maintenance, the VIP address moves to the other node, it restarts and comes back into service - then the next. The pages go on answering all the time.';
+  else if (targets.length > 1) words = 'Both restart at the same moment: for a minute or two nothing answers - the pages, the VIP address.';
   else words = d.cluster ? n.name + ' goes into maintenance, the VIP address moves to the other node, and it restarts; back up, it comes back into service by itself.' : 'The server restarts: for a minute or two nothing answers.';
   confirmThen((how === 'reboot' ? 'Restart ' : 'Power off ') + who + '?', htmlText(words), how === 'reboot' ? 'Restart' : 'Power off', function () {
     api('power', {how: how, targets: targets, order: order}).then(function (r) {
@@ -13008,7 +10375,7 @@ function ntpForm() {
     /* A list, as it came (1.0.146): kept as the typed text, the next drawing
        of the pane broke on .join and it stopped refreshing. */
     allow.oninput = function () { dr.allow = allow.value.split(/[\s,;]+/).filter(Boolean); };
-    g.appendChild(formField('Serve the time to', allow, 'Networks that may ask these nodes for the time (UDP 123) - for the VPN concentrators, say. Empty: nobody. The firewall opens it by itself.'));
+    g.appendChild(formField('Serve the time to', allow, 'Networks that may ask these nodes for the time (UDP 123) - for the machines the certificates go to, say. Empty: nobody. The firewall opens it by itself.'));
     body.appendChild(g);
   };
   on._input.onchange = function () { dr.manage = !!on._get(); draw(); };
@@ -13413,7 +10780,7 @@ function drawOsup(live) {
     if (need.length && !(d.power && d.power.id)) {
       var rb = el('div', 'card full notice warn ou-reboot');
       rb.appendChild(el('h2', '', need.length > 1 ? 'The nodes need a restart' : need[0].name + ' needs a restart'));
-      rb.appendChild(el('p', 'note', 'A new kernel or libraries are in that only a restart brings into use. ' + (d.cluster ? 'Restarted one after the other, each in maintenance while it is, the service never stops.' : 'For a minute or two nobody signs in to the VPN.')));
+      rb.appendChild(el('p', 'note', 'A new kernel or libraries are in that only a restart brings into use. ' + (d.cluster ? 'Restarted one after the other, each in maintenance while it is, the service never stops.' : 'For a minute or two nothing is renewed or put in place.')));
       var go = cmdButton(need.length > 1 ? 'Restart them, one at a time' : 'Restart ' + need[0].name, 'refresh', 'primary');
       go.onclick = function () {
         confirmThen('Restart after the update', 'Restarted now: ' + htmlText(need.map(function (n) { return n.name; }).join(', ')) + (need.length > 1 ? ', one after the other.' : '.'), 'Restart', function () {
@@ -13472,8 +10839,8 @@ function drawOsup(live) {
       var uc = el('div', 'card full');
       uc.appendChild(el('h2', '', d.cluster ? 'Update the nodes' : 'Update this server'));
       uc.appendChild(el('p', 'note', d.cluster
-        ? 'The other node first, then this one - each out of service while it is updated, the VIP address on the other, RADIUS answered there; back in service before the next one starts.'
-        : 'dnf (or apt) updates every package. RADIUS goes on answering meanwhile; a restart it needs is offered at the end.'));
+        ? 'The other node first, then this one - each out of service while it is updated, the VIP address on the other, the work done there; back in service before the next one starts.'
+        : 'dnf (or apt) updates every package. The pages go on answering meanwhile; a restart it needs is offered at the end.'));
       var segb = el('div', 'seg');
       [['ask', 'Ask me when a restart is needed'], ['auto', 'Restart by itself when needed' + (d.cluster ? ', one at a time' : '')]].forEach(function (o) {
         var b = el('button', OU.reboot === o[0] ? 'on' : '', o[1]);
@@ -13598,7 +10965,6 @@ function drawOsup(live) {
     }
   }, live);
 }
-
 
 /* ---- Settings → Alerts and reports (1.0.162) ------------------------------------
    What is wrong now as the alerts see it, each node's disks, the report to look
@@ -13756,7 +11122,6 @@ function alLog() {
   });
 }
 
-
 /* ---- Settings → SSH server and notices (1.0.163) --------------------------------
    One wish for the cluster, each node putting it in by itself and saying what
    sshd makes of it; a change on trial until Keep it. Saved with the bar at
@@ -13797,76 +11162,6 @@ function sdAct(action, b) {
   if (b) busy(b, true);
   api('sshd', {action: action}).then(function (r) { toast(r.message, 'good'); SD.d = r; drawSshd(); sdPoll(true); })
     .catch(function (e) { if (b) busy(b, false); oops(e); });
-}
-function sdAct2(body) {
-  return api('sshd', body).then(function (r) { toast(r.message, 'good'); SD.d = r; drawSshd(); return r; }).catch(oops);
-}
-function sdTokenAsk(was) {
-  var who, note, kind = (was && was.kind) || 'app', dest, destF, langS, langF;
-  var ch = (SD.d && SD.d.channels) || [];
-  modal(was ? 'A new SSH token for ' + was.name : 'Add an SSH token', function (body) {
-    body.appendChild(el('p', 'note', 'A token of its own for signing in over SSH - not a VPN token. From an app (the QR code shown once, right after: have the app at hand), or codes sent by mail or SMS where sending is set up.'));
-    if (was) body.appendChild(el('p', 'note warn', 'The SSH token ' + was.name + ' has now stops working the moment this one is made - an app\'s secret is made anew.'));
-    var g = el('div', 'formgrid');
-    who = noI18n(textBox(was ? was.name : '', 'jan', 'mono'));
-    if (was) who.disabled = true;
-    g.appendChild(formField('The account', who, 'Its name on the nodes - the name typed at ssh.'));
-    note = textBox(was ? was.note || '' : '', 'Jan Novák, admin', '');
-    g.appendChild(formField('Note', note, 'Whose it is - for you, nothing else.'));
-    /* Where the codes come from (1.0.181): the app, or mail and SMS when set up. */
-    var seg = el('div', 'seg');
-    [['app', 'An app'], ['mail', 'By mail'], ['sms', 'By SMS']].forEach(function (o) {
-      var b = el('button', kind === o[0] ? 'on' : '', o[1]);
-      b.type = 'button';
-      if (o[0] !== 'app' && ch.indexOf(o[0]) < 0) { b.disabled = true; b.title = o[0] === 'mail' ? 'sending mail is not set up (Settings → Mail)' : 'sending SMS is not set up (Settings → Codes by e-mail and SMS)'; }
-      b.onclick = function () {
-        kind = o[0];
-        Array.prototype.forEach.call(seg.children, function (x) { x.className = x === b ? 'on' : ''; });
-        destF.hidden = langF.hidden = kind === 'app';
-        dest.placeholder = kind === 'sms' ? '+420 777 123 456' : 'jan@example.cz';
-      };
-      seg.appendChild(b);
-    });
-    g.appendChild(formField('The codes come', seg, 'By mail or SMS: Enter at the first prompt of ssh, then the code that was sent.'));
-    body.appendChild(g);
-    var g2 = el('div', 'formgrid');
-    dest = noI18n(textBox('', 'jan@example.cz', 'mono'));
-    destF = formField('Where to', dest, 'The address or the number the codes go to.');
-    g2.appendChild(destF);
-    /* Czech or English mails and SMS (1.0.183). */
-    langS = el('select');
-    [['cs', 'Czech'], ['en', 'English']].forEach(function (o) {
-      var op = el('option', '', o[1]); op.value = o[0];
-      if (o[0] === ((was && was.lang) || (SETTINGS && settingByKey('code_lang') ? settingByKey('code_lang').value : 'cs'))) op.selected = true;
-      langS.appendChild(op);
-    });
-    langF = formField('The language of its mails and SMS', langS, 'The words as Settings → Message texts has them, SSH, in this language.');
-    g2.appendChild(langF);
-    destF.hidden = langF.hidden = kind === 'app';
-    body.appendChild(g2);
-    setTimeout(function () { (was ? note : who).focus(); }, 60);
-  }, [{words: 'Close', close: true}, {words: was ? 'Make a new one' : 'Make it', cls: 'primary', icon: 'add', go: function (b) {
-    busy(b, true);
-    sdTokenMake(who.value.trim(), note.value.trim(), !!was, b, kind, dest.value.trim(), langS.value);
-  }}], 'medium');
-}
-function sdTokenMake(name, note, replace, b, kind, dest, lang) {
-  api('sshd', {action: 'sshotp_add', name: name, note: note || '', replace: !!replace, kind: kind || 'app', dest: dest || '', lang: lang || ''}).then(function (r) {
-    SD.d = r; drawSshd();
-    var m = r.made;
-    if (m.kind !== 'app') { closeModal(); toast(r.message, 'good'); return; }
-    modal('The SSH token of ' + m.name, function (body) {
-      var grid = el('div', 'enrol');
-      var qr = el('div', 'qrbox');
-      var img = el('img'); img.src = m.qr; img.alt = 'QR code';
-      qr.appendChild(img); grid.appendChild(qr);
-      var right = el('div');
-      right.appendChild(el('p', 'note', 'Scan it with the authenticator application now, or type the key in - it is not shown again. Then ssh ' + m.name + '@' + ((STATUS && STATUS.node) || 'acme1') + ' (any node): the code where the password is asked.'));
-      right.appendChild(kvTable([['Account', m.name], ['Key', copyOnClick(noI18n(el('span', 'keytext', m.secret)), m.secret.replace(/\s+/g, ''), 'the key was copied')]]));
-      grid.appendChild(right);
-      body.appendChild(grid);
-    }, [{words: 'Close', close: true}], 'medium');
-  }).catch(function (e) { if (b) busy(b, false); oops(e); });
 }
 function drawSshd(live) {
   var real = $('sd-host');
@@ -13911,8 +11206,6 @@ function drawSshd(live) {
         ['Who may sign in', v.allowusers || 'everybody'],
         ['Keys of root', String(n.keys)],
         ['SELinux', (n.now || {}).selinux || '–', true],
-        ['A code from acme', !n.radius || n.radius.pam === undefined ? '–' : (n.radius.pam ? 'asked (pam_radius)' : (n.radius.module ? 'not asked' : 'pam_radius is not here'))],
-        ['acme\'s gate for SSH', !(n.now || {}).gate ? '–' : (n.now.gate.listening ? '127.0.0.1:' + n.now.gate.port : (n.now.gate.error || 'not listening')), true],
         ['Read', n.now.at ? ago(n.now.at) : 'not yet']
       ]));
       if (n.now.error) c.appendChild(el('p', 'note bad', n.now.error));
@@ -13963,83 +11256,6 @@ function drawSshd(live) {
     if (dr.manage && !dr.password && dr.permit_root === 'yes')
       fc.appendChild(el('p', 'note', 'Passwords off: root signs in with a key either way.'));
     host.appendChild(fc);
-    /* A code from acme (1.0.178): pam_radius asks this node's own RADIUS. */
-    var rc = el('div', 'card full');
-    rc.appendChild(el('h2', '', 'Signing in with a code from acme'));
-    rc.appendChild(el('p', 'muted small', 'sshd asks for a code where it would ask for the account\'s password - from an SSH token of the account, below: tokens of their own, not the VPN\'s, in no realm and no RADIUS client. pam_radius asks acme\'s own gate on 127.0.0.1 of each node, on a free port of 18129-18199 each node finds for itself.'));
-    var rs = switchBox(dr.radius);
-    rs._input.disabled = !dr.manage;
-    rs._input.onchange = function () { dr.radius = !!rs._get(); sdDirty(); drawSshd(); };
-    rc.appendChild(formField('Ask for a code from acme', rs, dr.manage ? (dr.radius_with_key ? 'A key and then the code - as set below.' : 'A key alone still lets in - sshd asks for the code only where it asks for a password. For a key and the code: below.') : 'Needs acme to set the SSH server, above.'));
-    var rg = el('div', 'formgrid sd-grid' + (dr.manage && dr.radius ? '' : ' off'));
-    var ru = textBox((dr.radius_users || []).join(' '), 'everybody', 'mono');
-    ru.disabled = !dr.manage || !dr.radius;
-    ru.oninput = function () { dr.radius_users = ru.value.split(/[\s,]+/).filter(Boolean); sdDirty(); };
-    rg.appendChild(formField('Only these accounts', ru, 'Separated by spaces. Empty: everybody but root, unless root is asked too.'));
-    var rr = switchBox(dr.radius_root);
-    rr._input.disabled = !dr.manage || !dr.radius;
-    rr._input.onchange = function () { dr.radius_root = !!rr._get(); sdDirty(); };
-    rg.appendChild(formField('Root too', rr, 'Off: root signs in as before - a way in if acme itself is in trouble.'));
-    var rf = switchBox(dr.radius_fallback && dr.password);
-    rf._input.disabled = !dr.manage || !dr.radius || !dr.password;
-    rf._input.onchange = function () { dr.radius_fallback = !!rf._get(); sdDirty(); };
-    /* A key, then the code (1.0.183). */
-    var rk = switchBox(dr.radius_with_key);
-    rk._input.disabled = !dr.manage || !dr.radius;
-    rk._input.onchange = function () { dr.radius_with_key = !!rk._get(); sdDirty(); drawSshd(); };
-    rg.appendChild(formField('A key, and then the code', rk, 'On: an SSH key alone no longer lets in - after the key sshd asks for the code too (AuthenticationMethods publickey,keyboard-interactive), for the accounts the code is asked of. Off: a key alone lets in, the code is asked only where a password would be.'));
-    rg.appendChild(formField('The system password when acme does not answer', rf, dr.password ? 'pam_radius steps aside (localifdown) and the account\'s own password is asked.' : 'Needs passwords on - with them off, nobody gets in without the code.'));
-    /* The code hidden as it is typed (1.0.191). */
-    var rh = switchBox(dr.radius_hide);
-    rh._input.disabled = !dr.manage || !dr.radius;
-    rh._input.onchange = function () { dr.radius_hide = !!rh._get(); sdDirty(); };
-    rg.appendChild(formField('Hide the code as it is typed', rh, 'On: the SSH client shows nothing as the code is typed, as for a password (PuTTY and ssh show no stars). Off: the code is seen as it is typed.'));
-    rc.appendChild(rg);
-    if (dr.manage && dr.radius) {
-      var miss = nodes.filter(function (n) { return n.radius && n.radius.module === false; }).map(function (n) { return n.name; });
-      if (miss.length) rc.appendChild(el('p', 'note warn', 'pam_radius is not on ' + miss.join(', ') + ' - acme installs it when this is saved (RHEL: from EPEL - dnf install epel-release first).'));
-      if (dr.radius_with_key) {
-        var nk = nodes.filter(function (n) { return !n.keys; }).map(function (n) { return n.name; });
-        rc.appendChild(el('p', 'note warn', 'A key and then the code: whoever the code is asked of needs an SSH key of their own in ~/.ssh/authorized_keys on every node - without one, nobody gets in that way.' + (dr.radius_root && nk.length ? ' Root has no key on ' + nk.join(', ') + '.' : '')));
-      }
-      rc.appendChild(el('p', 'note', 'Keep the session you have open and try a new one while it is on trial. A kernel booted with ipv6.disable=1 breaks pam_radius 2.0 - nobody gets the code asked.'));
-    }
-    /* The SSH tokens (1.0.181): of their own, as the administration's second step. */
-    var tl = el('div', 'sd-tokens');
-    tl.appendChild(el('h3', '', 'SSH tokens'));
-    var list = d.sshotp || [];
-    if (!list.length) tl.appendChild(el('p', 'muted small', 'None yet. Each account that is to sign in with a code needs one - its name as on the nodes (jan, root…).'));
-    else {
-      var tb = el('table', 'rows');
-      var thr = el('tr');
-      ['Account', 'Note', 'The codes', 'Made', 'Last used', ''].forEach(function (h) { thr.appendChild(el('th', '', h)); });
-      var th = el('thead'); th.appendChild(thr); tb.appendChild(th);
-      var bd = el('tbody');
-      list.forEach(function (x) {
-        var tr = el('tr');
-        tr.appendChild(noI18n(el('td', 'mono', x.name)));
-        tr.appendChild(noI18n(el('td', '', x.note || '')));
-        tr.appendChild(el('td', 'small', x.kind === 'mail' ? 'mail · ' + x.dest + (x.lang ? ' · ' + x.lang.toUpperCase() : '') : (x.kind === 'sms' ? 'SMS · ' + x.dest + (x.lang ? ' · ' + x.lang.toUpperCase() : '') : 'an app')));
-        tr.appendChild(el('td', 'muted small', (x.at ? ago(x.at) : '') + (x.by ? ' · ' + x.by : '')));
-        tr.appendChild(el('td', 'muted small', x.used_at ? ago(x.used_at) + (x.used_on ? ' · ' + x.used_on : '') : 'never'));
-        var td = el('td', 'acts');
-        var nw = cmdButton('A new one…', 'refresh', 'small');
-        nw.onclick = function () { sdTokenAsk(x); };
-        var rm = cmdButton('Remove', 'trash', 'small danger');
-        rm.onclick = function () { confirmThen('Remove the SSH token of ' + x.name, x.name + ' then gets no code over SSH - with the system password when acme does not answer off, not in at all but with a key.', 'Remove', function () { sdAct2({action: 'sshotp_remove', name: x.name}); }, true); };
-        td.appendChild(nw); td.appendChild(rm);
-        tr.appendChild(td);
-        bd.appendChild(tr);
-      });
-      tb.appendChild(bd);
-      tl.appendChild(tb);
-    }
-    var add = cmdButton('Add an SSH token…', 'add', 'primary');
-    add.onclick = function () { sdTokenAsk(); };
-    var ar = el('div', 'btnrow'); ar.appendChild(add);
-    tl.appendChild(ar);
-    rc.appendChild(tl);
-    host.appendChild(rc);
     /* The notice. */
     var nc = el('div', 'card full');
     nc.appendChild(el('h2', '', 'The notice'));
@@ -14062,7 +11278,6 @@ function drawSshd(live) {
     host.appendChild(nc);
   }, live);
 }
-
 
 /* ---- Settings → Syslog and SIEM, Proxy, Disks and logs (1.0.166) ----------------
    Each node's own state; the settings are the pane's own card. */
@@ -14905,7 +12120,7 @@ function drawDbTls() {
   var title, sub;
   if (running) {
     title = 'Moving every node’s connection over…';
-    sub = 'Step ' + (DBT.run.at + 1) + ' of ' + DBT.run.steps.length + ': ' + DBT.run.steps[DBT.run.at] + '. RADIUS goes on all the time; this page follows it.';
+    sub = 'Step ' + (DBT.run.at + 1) + ' of ' + DBT.run.steps.length + ': ' + DBT.run.steps[DBT.run.at] + '. The daemon goes on all the time; this page follows it.';
   } else if (d.kind === 'sqlite') {
     title = 'Nothing to encrypt here: the database is a file on this machine';
     sub = '';
@@ -14914,7 +12129,7 @@ function drawDbTls() {
     sub = '';
   } else if (rescued.length) {
     title = 'The connection of ' + rescued.map(function (n) { return n.name; }).join(', ') + ' was moved back to no TLS by itself';
-    sub = 'It stopped working with TLS (' + (rescued[0].rescued.why || '') + ') - the database is on the same machine, so it went on without it and RADIUS kept answering. Put it right and encrypt it again.';
+    sub = 'It stopped working with TLS (' + (rescued[0].rescued.why || '') + ') - the database is on the same machine, so it went on without it and kept working. Put it right and encrypt it again.';
   } else if (checked) {
     title = 'Every node reaches its database encrypted and checked';
     /* Said outright (1.0.181): renewed while running, nothing stops. */
@@ -14926,7 +12141,7 @@ function drawDbTls() {
     sub = 'require encrypts but takes any certificate. verify-full also checks that it is the server’s.';
   } else {
     title = 'The connection to the database is not encrypted';
-    sub = d.kind === 'remote' ? 'Whoever is on the network between this node and the database server reads every row going over - the tokens sealed, but who signs in, when and from where - and can change them.'
+    sub = d.kind === 'remote' ? 'Whoever is on the network between this node and the database server reads every row going over - the private keys sealed, but who signs in, when and from where - and can change them.'
       : 'It does not leave the machine, so this matters less - but high security and the security check ask for it, and it is a few clicks.';
   }
   words.appendChild(el('b', '', title));
@@ -15093,7 +12308,6 @@ function dbtWizard() {
     }).then(function () { busy(b, false); }).catch(function (e) { busy(b, false); oops(e); });
   }
 }
-
 
 /* ==== isemon over TLS (1.0.172) ================================================
    The state of the encrypted sending, and the wizard: where isemon is, whose
@@ -15298,7 +12512,6 @@ function isemonTlsWizard(was) {
     }).catch(function (e) { busy(b, false); oops(e); });
   }
 }
-
 
 /* ==== Monitoring: Prometheus (1.0.173) =========================================
    A token made here and shown once; what prometheus.yml says to ask every

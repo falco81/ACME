@@ -1,4 +1,4 @@
-# /etc/systemd/system/acme-upgrade.path (1.0.37)
+# /etc/systemd/system/acme-upgrade.path
 #
 # Watches for a new version asked for on the pages: the acme service lays a
 # signed package and request.json down in /var/lib/acme/upgrade/, and this

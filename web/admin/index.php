@@ -2,8 +2,9 @@
 /**
  * admin/index.php — the administration pages of acme.
  *
- * isemon's dashboard, for a token server: the same header, the same tabs, the
- * same settings down a rail at the left edge, the same popups. It collects
+ * isemon's dashboard, for certificates kept, renewed and put in place by
+ * themselves: the same header, the same tabs, the same settings down a rail at
+ * the left edge, the same popups. It collects
  * nothing itself and decides nothing: every word comes from the acme daemon
  * over its API on localhost, and the daemon decides whether whoever is signed
  * in may have it.
@@ -15,6 +16,10 @@ define('ACME_COOKIE_PATH', '/admin/');
 require_once dirname(__DIR__) . '/acme-page.php';
 require_once dirname(__DIR__) . '/acme-api.php';
 require_once dirname(__DIR__) . '/acme-art.php';
+/* The certificate manager's tabs and panes (acme_certs_*), when they are there. */
+if (is_file(__DIR__ . '/certs-ui.php')) {
+    require_once __DIR__ . '/certs-ui.php';
+}
 
 /* nginx's question before it takes a big body (1.0.98, auth_request): is a
    full administrator signed in? Nothing else is answered here. */
@@ -277,13 +282,10 @@ if (isset($_GET['api'])) {
     /* Reads apart from writes, so a GET can never reach a road that changes
        something, whatever is typed in the address bar. */
     $reads = [
-        'status' => '/api/status', 'dashboard' => '/api/dashboard', 'radius' => '/api/radius',
-        'radius-row' => '/api/radius/row', 'acme' => '/api/acme', 'tokens' => '/api/tokens',
-        'activity' => '/api/activity',
-        'token' => '/api/token', 'clients' => '/api/clients', 'realms' => '/api/realms',
+        'status' => '/api/status',
         'directories' => '/api/directories', 'settings' => '/api/settings',
         'users' => '/api/users', 'sessions' => '/api/sessions', 'events' => '/api/events',
-        'enrolment' => '/api/enrolment', 'suggest' => '/api/suggest', 'mail' => '/api/mail',
+        'suggest' => '/api/suggest', 'mail' => '/api/mail',
         'log' => '/api/log', 'db' => '/api/db', 'whoami' => '/api/auth/whoami',
         'export' => '/api/export', 'my-settings' => '/api/auth/settings', 'ha' => '/api/ha',
         'upgrade' => '/api/upgrade', 'web' => '/api/web',
@@ -296,9 +298,7 @@ if (isset($_GET['api'])) {
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
     ];
     $writes = [
-        'token' => '/api/token', 'token-import' => '/api/token/import', 'tokens-backup' => '/api/tokens/backup', 'tokens-export' => '/api/tokens/export',
-        'clients' => '/api/clients', 'realms' => '/api/realms',
-        'directories' => '/api/directories', 'radtest' => '/api/radtest',
+        'directories' => '/api/directories',
         'settings' => '/api/settings', 'isemon' => '/api/isemon', 'users' => '/api/users',
         'sessions' => '/api/sessions', 'db' => '/api/db', 'import' => '/api/import',
         'password' => '/api/auth/password', 'prefs' => '/api/auth/prefs',
@@ -311,6 +311,21 @@ if (isset($_GET['api'])) {
         'sshkeys' => '/api/sshkeys', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
     ];
+    /* The certificate manager's API (docs/architecture.md), relayed under its
+       own name - certs, certs-one (or certs/one), cas-create, targets-test...
+       The daemon's routes are each one method, so a GET still never reaches a
+       write, and the daemon decides whether whoever is signed in may. */
+    if (preg_match('#^(certs|cas|plugins|sources|validations|targets|deploys|dns)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
+        $path = '/api/' . $road[1] . (isset($road[2]) && $road[2] !== '' ? '/' . $road[2] : '');
+        if ($post) {
+            acme_relay($path, 'POST', sent_json(), 120.0);
+            exit;
+        }
+        $query = $_GET;
+        unset($query['api']);
+        acme_relay($path . ($query ? '?' . http_build_query($query) : ''), 'GET', null, 60.0);
+        exit;
+    }
     if ($post) {
         if (!isset($writes[$what])) {
             http_response_code(404);
@@ -380,6 +395,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <html lang="<?= h($lang) ?>" class="app-shell-root<?= $load ? ' i18n-wait' : '' ?>">
 <head>
 <?php acme_head($title, $lang, $load, $nonce, '/'); ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/certs.css')): ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/certs.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/certs.css')) ?>">
+<?php endif; ?>
 </head>
 <body class="app-shell fold-words<?= $me ? ' framed' : '' ?>">
 <div class="wrap">
@@ -390,7 +408,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <?= $art_here ?>
     <div class="card">
     <h1 data-no-i18n><?= h($title) ?></h1>
-    <p class="lede">The one-time password server on <span data-no-i18n><?= h($host) ?></span>. Sign in to go on.</p>
+    <p class="lede">Certificates kept, renewed and put in place by themselves, on <span data-no-i18n><?= h($host) ?></span>. Sign in to go on.</p>
     <?php if (!$token_ok && $token_there): ?>
       <div class="offline">
         The daemon is running, but this page may not read what it wrote.<br><br>
@@ -437,7 +455,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <script nonce="<?= h($nonce) ?>">
 (function () {
   var form = $('signin-form'), said = $('in-said'), go = $('in-go');
-  /* The language, chosen before signing in - as on the enrolment pages (1.0.15). */
+  /* The language, chosen before signing in - as on the portal (1.0.15). */
   var host = $('langpick');
   if (host && window.ACME_LANGS && window.ACME_LANGS.length > 1) {
     window.ACME_LANGS.forEach(function (l) {
@@ -501,34 +519,18 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 
 <div class="tabs" role="tablist">
   <button role="tab" aria-selected="true" data-tab="overview" data-icon="chart"
-          title="The shape of the day: who was let in, who was refused and why, which clients asked.">Overview</button>
-  <button role="tab" aria-selected="false" data-tab="tokens" data-icon="token"
-          title="Everybody who has a token: when it was made, when it was last used, how many recovery codes are left. Click a row to look after one.">Tokens<span class="count" id="tabn-tokens"></span></button>
-  <button role="tab" aria-selected="false" data-tab="requests" data-icon="list"
-          title="Every RADIUS request with what the token said about its code, and every code checked anywhere else - the enrolment pages, a test. Click a row for every attribute and every step of the decision.">Log<span class="count" id="tabn-requests"></span></button>
-  <button role="tab" aria-selected="false" data-tab="test" data-icon="play" class="token-admin"
-          title="Ask this server the way the VPN does, and see every step of the answer - what radtest does, from here.">Test</button>
-  <button role="tab" aria-selected="false" data-tab="enrolment" data-icon="people"
-          title="Who came to the enrolment pages and what they did there: signed in, made a token, confirmed it, replaced it - or was turned away.">Enrolment</button>
+          title="The shape of things: the certificates, what runs out soonest, the nodes, the database.">Overview</button>
+<?php if (function_exists('acme_certs_tab_buttons')) { acme_certs_tab_buttons(); } ?>
   <button role="tab" aria-selected="false" data-tab="events" data-icon="history"
-          title="Every token made or taken away, every change of a setting, every sign-in - and the daemon’s own log.">Events</button>
+          title="Every certificate issued, renewed or put in place, every change of a setting, every sign-in - and the daemon’s own log.">Events</button>
   <button role="tab" aria-selected="false" data-tab="settings" data-icon="gear"
-          title="The RADIUS server, its clients, the realms, Active Directory, the tokens, the enrolment pages, isemon, the accounts and the database.">Settings</button>
+          title="The certificate manager, mail and SMS, the portal, the accounts, the network, high availability, the database, monitoring and updates.">Settings</button>
 </div>
 
 <!-- ===================== Overview ===================== -->
 <section class="panel" id="tab-overview">
+  <div id="ov-certs"></div>
   <div class="grid top">
-    <div class="card metric ok" id="card-accept"><div class="label">Let in, last 24 h</div>
-      <div class="value" id="m-accept">–</div><div class="sub" id="m-accept-sub">&nbsp;</div></div>
-    <div class="card metric crit" id="card-reject"><div class="label">Refused, last 24 h</div>
-      <div class="value" id="m-reject">–</div><div class="sub" id="m-reject-sub">&nbsp;</div></div>
-    <div class="card metric info" id="card-tokens"><div class="label">Tokens</div>
-      <div class="value" id="m-tokens">–</div><div class="sub" id="m-tokens-sub">&nbsp;</div></div>
-    <div class="card metric warn" id="card-isemon"><div class="label">isemon</div>
-      <div class="value" id="m-isemon">–</div><div class="sub" id="m-isemon-sub">&nbsp;</div></div>
-  </div>
-  <div class="grid top" style="margin-top:14px">
     <div class="card metric ok" id="card-server"><div class="label">This server</div>
       <div class="value" id="m-server">–</div><div class="sub" id="m-server-sub">&nbsp;</div></div>
     <div class="card metric info" id="card-cluster"><div class="label">High availability</div>
@@ -537,165 +539,18 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <div class="value" id="m-db">–</div><div class="sub" id="m-db-sub">&nbsp;</div></div>
     <div class="card metric ok" id="card-maint"><div class="label">Maintenance and upgrades</div>
       <div class="value" id="m-maint">–</div><div class="sub" id="m-maint-sub">&nbsp;</div></div>
-  </div>
-  <div class="card full" style="margin-top:14px">
-    <h2>Requests
-      <span class="right">
-        <select id="ov-hours" title="How far back the chart and the cards under it look.">
-          <option value="6">last 6 hours</option>
-          <option value="24" selected>last 24 hours</option>
-          <option value="72">last 3 days</option>
-          <option value="168">last week</option>
-          <option value="720">last month</option>
-        </select>
-      </span></h2>
-    <p class="note">Every Access-Request, as one line of time: green let in, red refused or not
-      answered. Press a bar to open that hour.</p>
-    <div class="chart" id="ov-chart"><div class="empty">…</div><div class="tip"></div></div>
-    <div class="legend">
-      <span><i style="background:#3fb950"></i>let in</span>
-      <span><i style="background:#f85149"></i>refused</span>
-    </div>
-  </div>
-  <div class="grid halves" style="margin-top:14px">
-    <div class="card facet"><h2>Refused the most</h2><div id="ov-names"></div></div>
-    <div class="card facet"><h2>Why they were refused</h2><div id="ov-reasons"></div></div>
-    <div class="card facet"><h2>Who asks</h2><div id="ov-clients"></div></div>
-    <div class="card facet"><h2>From where</h2><div id="ov-places"></div></div>
+    <div class="card metric warn" id="card-isemon"><div class="label">isemon</div>
+      <div class="value" id="m-isemon">–</div><div class="sub" id="m-isemon-sub">&nbsp;</div></div>
   </div>
 </section>
-
-<!-- ===================== Tokens ===================== -->
-<section class="panel" id="tab-tokens" hidden>
-  <div class="card full" data-hold>
-    <h2>Tokens <span class="right" id="tk-said"></span></h2>
-    <p class="note">Everybody who has a token. Click a row to switch one off, give new recovery
-      codes, test a code or take it away. A token is made by its owner on the enrolment pages,
-      or here.</p>
-    <div class="filterbar btnrow filters">
-      <input type="search" id="tk-q" placeholder="a name, a note, a mail address, a phone number…" style="flex:1;min-width:200px">
-      <select id="tk-state">
-        <option value="">every state</option>
-        <option value="active">in use</option>
-        <option value="pending">waiting for a code</option>
-        <option value="disabled">switched off</option>
-      </select>
-      <select id="tk-kind">
-        <option value="">every kind</option>
-        <option value="totp">the app</option>
-        <option value="mail">codes by e-mail</option>
-        <option value="sms">codes by SMS</option>
-      </select>
-      <select id="tk-per"><option>50</option><option selected>100</option><option>500</option></select>
-      <button class="btn cmd token-admin" id="tk-names" data-icon="person"
-              title="Every token without its owner's name is given it from the directory of its realm - as an enrolment on the enrolment pages does. Tokens brought over from totpcgi get theirs by themselves, in the background, after the import and every hour.">Names from the directory</button>
-      <button class="btn cmd primary token-admin" id="tk-add" data-icon="add"
-              title="Make a token for somebody and show its QR code here, to scan off this screen or to hand over.">Make a token</button>
-    </div>
-    <div id="tk-table" class="scroll rowsonly"></div>
-    <div class="pager" id="tk-pager"></div>
-  </div>
-</section>
-
-<!-- ===================== The log ===================== -->
-<section class="panel" id="tab-requests" hidden>
-  <div class="card full" data-hold>
-    <h2>The log <span class="right" id="rq-said"></span></h2>
-    <p class="note">One log of everything: every RADIUS request this server was asked, with what
-      the token said about its code, and every code checked anywhere else - on the enrolment
-      pages, in a test, on the command line. Newest first. Click a row for every attribute that
-      came, the answer, and each step of the decision. Old lines go by themselves after the days
-      under Settings - The database, which is also where they can be cleared.</p>
-    <div class="btnrow filters">
-      <input type="search" id="rq-q" placeholder="a name, an address, a reason…" style="flex:1;min-width:200px">
-      <select id="rq-kind">
-        <option value="">RADIUS and codes</option><option value="radius">RADIUS requests only</option>
-        <option value="codes">codes outside RADIUS only</option>
-      </select>
-      <select id="rq-hours">
-        <option value="1">last hour</option><option value="24" selected>last 24 hours</option>
-        <option value="168">last week</option><option value="720">last month</option>
-        <option value="8760">last year</option>
-      </select>
-      <select id="rq-result">
-        <option value="">everything</option><option value="access">sign-ins only</option>
-        <option value="accept">let in / right</option><option value="reject">refused / wrong</option>
-        <option value="drop">not answered</option><option value="acct">accounting</option>
-      </select>
-      <select id="rq-client"><option value="">every client</option></select>
-      <select id="rq-per"><option>50</option><option selected>100</option><option>500</option></select>
-    </div>
-    <div id="rq-table" class="scroll rowsonly"></div>
-    <div class="pager" id="rq-pager"></div>
-  </div>
-</section>
-
-<!-- ===================== Test ===================== -->
-<section class="panel" id="tab-test" hidden>
-  <div class="grid halves">
-    <div class="card">
-      <h2>Ask it as the VPN does</h2>
-      <p class="note">What <span class="mono">radtest falco 135830 acme.example.local 1812
-        testing123</span> asks, sent from this machine to this server as a real RADIUS packet,
-        with the shared secret of the client for 127.0.0.1. A right code is used up by it, as
-        it would be by the VPN.</p>
-      <div class="formgrid">
-        <div class="set-item"><label>Name</label><input type="text" id="rt-user" autocomplete="off" spellcheck="false"></div>
-        <div class="set-item"><label>Password</label><input type="password" id="rt-pass" autocomplete="new-password" spellcheck="false" class="mono"></div>
-        <div class="set-item"><label>How</label>
-          <select id="rt-how">
-            <option value="udp">a RADIUS packet to 127.0.0.1</option>
-            <option value="direct">straight into the decision, as from a client</option>
-          </select></div>
-        <div class="set-item" id="rt-client-item" hidden><label>As the client</label><select id="rt-client"></select></div>
-        <div class="set-item" id="rt-node-item" hidden><label>On the node</label><select id="rt-node"></select></div>
-      </div>
-      <div class="btnrow" style="margin-top:14px">
-        <button class="btn cmd primary" id="rt-go" data-icon="play">Ask</button>
-      </div>
-      <p class="muted small" style="margin-top:10px">From the server itself, the same:
-        <span class="mono">acme --radtest NAME CODE</span>, and with FreeRADIUS's own client:
-        <span class="mono">radtest NAME CODE 127.0.0.1 0 SECRET</span>.</p>
-    </div>
-    <div class="card"><h2>The answer</h2><div id="rt-out"><p class="muted">Nothing asked yet.</p></div></div>
-  </div>
-</section>
+<?php if (function_exists('acme_certs_tab_panels')) { acme_certs_tab_panels(); } ?>
 
 <!-- ===================== Events ===================== -->
-<section class="panel" id="tab-enrolment" hidden>
-  <div class="card full" data-hold>
-    <h2>Who enrolled <span class="right" id="en-said"></span></h2>
-    <p class="note">Everything that happened on the enrolment pages, person by person: who
-      signed in, who made a token, who confirmed it with a code, who replaced an old one - and
-      who was turned away, and why. Click a row to open the person's token.</p>
-    <div class="facts" id="en-tiles"></div>
-    <div class="btnrow filters">
-      <input type="search" id="en-q" placeholder="a name, an address…" style="flex:1;min-width:200px">
-      <select id="en-step">
-        <option value="">every step</option>
-        <option value="signed_in">signed in</option>
-        <option value="enrolled">made a token</option>
-        <option value="confirmed">confirmed it</option>
-        <option value="replacing">replaced it</option>
-        <option value="stopped">stopped replacing</option>
-        <option value="refused">could not sign in</option>
-        <option value="not_allowed">may not enrol</option>
-      </select>
-      <select id="en-since">
-        <option value="86400">last 24 hours</option><option value="604800" selected>last week</option>
-        <option value="2592000">last month</option><option value="0">all time</option>
-      </select>
-    </div>
-    <div id="en-table" class="scroll rowsonly"></div>
-    <div class="pager" id="en-pager"></div>
-  </div>
-</section>
-
 <section class="panel" id="tab-events" hidden>
   <div class="card full" data-hold>
     <h2>What this daemon has done</h2>
-    <p class="note">Every token made, replaced or taken away, every change of a setting, every
-      sign-in. Kept in the database, so it survives a restart.</p>
+    <p class="note">Every certificate issued, renewed, put in place or taken away, every change
+      of a setting, every sign-in. Kept in the database, so it survives a restart.</p>
     <div class="btnrow filters">
       <input type="search" id="ev-q" placeholder="anything in an event…" style="flex:1;min-width:200px">
       <select id="ev-kind"><option value="">everything</option></select>
@@ -725,33 +580,26 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         <div class="ctl-found" id="ctl-found" hidden></div>
       </div>
     </div>
-    <div class="ctl-group">RADIUS</div>
-    <button type="button" data-pane="radius" data-icon="router" title="Where the RADIUS server listens, what it answers and how.">The RADIUS server</button>
-    <button type="button" data-pane="guard" data-icon="shield" title="Somebody guessing codes or names from one place: counted, and blocked for a while; changes of the network and the firewall that go back by themselves unless kept.">Sign-in protection</button>
-    <button type="button" data-pane="clients" data-icon="net" title="The VPN concentrators and anything else that may ask: their addresses, their shared secrets, the realm added to their names.">Clients</button>
-    <button type="button" data-pane="realms" data-icon="globe" title="What a name after its @ means: which directory it is looked up in, which groups let it in, what the password is and what goes back in the answer.">Realms</button>
-    <button type="button" data-pane="dir" data-icon="key" title="The Active Directory servers the realms and the sign-ins ask: how they are reached, as whom, and a check that says which step failed.">Active Directory</button>
-    <div class="ctl-group">Tokens</div>
-    <button type="button" data-pane="tokens" data-icon="token" title="How long a code is, how long it lasts, how much clock drift is forgiven, how many wrong codes before a pause, recovery codes.">The tokens</button>
-    <button type="button" data-pane="codes" data-icon="phone" title="Codes sent after the password, by e-mail or SMS: how long they last, how many, and the SMS gateway.">Codes by e-mail and SMS</button>
-    <button type="button" data-pane="texts" data-icon="edit" title="Every word people get from this server - the mails, the SMS, what the VPN asks - in Czech and in English, edited as they will look.">Message texts</button>
-    <button type="button" data-pane="portal" data-icon="people" title="The pages where people enrol their own token: who may, what they see, what they have to prove.">The enrolment pages</button>
-    <button type="button" data-pane="import" data-icon="upload" title="Bring the tokens of a totpcgi server over: its .totp files, read here, nobody has to enrol again.">Bringing tokens over</button>
+<?php if (function_exists('acme_certs_settings_nav')) { acme_certs_settings_nav(); } ?>
+    <div class="ctl-group">Messages and the portal</div>
+    <button type="button" data-pane="codes" data-icon="phone" title="The SMS gateway, and the codes sent by e-mail or SMS for the administrators' second step and the notifications: how long they last, how many.">Codes by e-mail and SMS</button>
+    <button type="button" data-pane="texts" data-icon="edit" title="Every word people get from this server - the mails and the SMS - in Czech and in English, edited as they will look.">Message texts</button>
+    <button type="button" data-pane="portal" data-icon="people" title="The certificate portal: who may sign in to it, what they see, the picture on its sign-in.">The portal</button>
     <div class="ctl-group">Mail</div>
-    <button type="button" data-pane="mail" data-icon="mail" title="How a token's QR code reaches its owner by mail: a mail server, or straight to theirs.">Mail</button>
-    <button type="button" data-pane="mailq" data-icon="list" title="Every mail sent - a token's QR code, a code to sign in with - and what became of it: sent, waiting for another try (greylisting, a server away), failed. Sent again or taken away by hand.">Outgoing mail <span class="nav-badge" id="mq-badge" hidden></span></button>
+    <button type="button" data-pane="mail" data-icon="mail" title="How the mails of this server - alerts, reports, codes, notices of certificates - reach people: a mail server, or straight to theirs.">Mail</button>
+    <button type="button" data-pane="mailq" data-icon="list" title="Every mail sent - an alert, a report, a code to sign in with - and what became of it: sent, waiting for another try (greylisting, a server away), failed. Sent again or taken away by hand.">Outgoing mail <span class="nav-badge" id="mq-badge" hidden></span></button>
     <div class="ctl-group">Access</div>
     <button type="button" data-pane="people" data-icon="person" title="Who may open these pages, what each of them may do, and who is signed in right now.">Accounts</button>
     <button type="button" class="fulladmin-only" data-pane="hisec" data-icon="shield" title="Every way of doing something less safely switched off - and what stands against it now.">High security</button>
     <button type="button" data-pane="web" data-icon="lock" title="The certificates of the nodes and of the cluster's VIP address, and how TLS is spoken.">Certificates and TLS</button>
     <button type="button" class="fulladmin-only" data-pane="acme" data-icon="lock" title="The certificates ordered from Let's Encrypt (or another ACME CA) and renewed by themselves.">Automatic certificates</button>
-    <button type="button" data-pane="fw" data-icon="wall" title="Who may reach the enrolment pages, the administration and the health check; and the machine's firewall (iptables, IPv4 and IPv6) - what acme's functions need opens by itself.">Firewall and access</button>
+    <button type="button" data-pane="fw" data-icon="wall" title="Who may reach the portal, the administration and the health check; and the machine's firewall (iptables, IPv4 and IPv6) - what acme's functions need opens by itself.">Firewall and access</button>
     <button type="button" class="fulladmin-only" data-pane="sshd" data-icon="shield" title="How the SSH server lets people in - root, passwords, the port - and the notice shown before and after signing in.">SSH server and notices</button>
     <button type="button" class="fulladmin-only" data-pane="sshkeys" data-icon="key" title="The keys that may sign in to each node as root over SSH: made here, added or taken away.">SSH keys of root</button>
     <div class="ctl-group">Server</div>
     <button type="button" class="fulladmin-only" data-pane="network" data-icon="net" title="Each node's address, gateway, DNS servers, host name and IPv6 - put in by the node itself, a cluster kept whole.">Network</button>
     <button type="button" class="fulladmin-only" data-pane="proxy" data-icon="globe" title="An HTTP proxy, for what you switch on: the new versions, the system updates, ACME, the SMS gateway.">Proxy</button>
-    <button type="button" class="fulladmin-only" data-pane="time" data-icon="clock" title="The clock of each node: chrony, its time servers, how far off it is - codes from the app are worked out from it.">Time</button>
+    <button type="button" class="fulladmin-only" data-pane="time" data-icon="clock" title="The clock of each node: chrony, its time servers, how far off it is - certificates' dates and the codes of the second step are worked out from it.">Time</button>
     <button type="button" data-pane="ha" data-icon="ethernet" title="Two servers, both answering: the nodes, and the wizard that makes the second one.">High availability</button>
     <button type="button" class="fulladmin-only" data-pane="power" data-icon="power" title="Restart or switch off this node, the other, or both - the VIP address moved out of the way first.">Restart and power off</button>
     <button type="button" class="fulladmin-only" data-pane="logs" data-icon="chart" title="Each node's disks, and how much the system journal and acme's own logs may take.">Disks and logs</button>
@@ -762,10 +610,10 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="ctl-group">Monitoring and updates</div>
     <button type="button" class="fulladmin-only" data-pane="alerts" data-icon="bell" title="A mail when something is wrong, and a report of the week by mail.">Alerts and reports</button>
     <button type="button" class="fulladmin-only" data-pane="monitor" data-icon="pulse" title="Prometheus asks each node for its metrics.">Monitoring</button>
-    <button type="button" data-pane="isemon" data-icon="pulse" title="Sending every check of a code and every RADIUS packet to isemon, in the shape isemon already reads.">isemon</button>
+    <button type="button" data-pane="isemon" data-icon="pulse" title="Sending the events of this server to isemon, in the shape isemon already reads.">isemon</button>
     <button type="button" class="fulladmin-only" data-pane="siem" data-icon="log" title="Every event and every sign-in to a syslog server or a SIEM - UDP, TCP or TLS; JSON, CEF or RFC 5424.">Syslog and SIEM</button>
     <button type="button" class="fulladmin-only" data-pane="osup" data-icon="download" title="The operating system's packages updated, one node at a time, the VIP address moved out of the way first; a restart offered when one is needed.">System updates</button>
-    <button type="button" class="fulladmin-only" data-pane="upgrade" data-icon="up" title="A new version, put in from here; nodes in and out of service.">Upgrades</button>
+    <button type="button" class="fulladmin-only" data-pane="upgrade" data-icon="up" title="A new version, put in from here; nodes in and out of service.">Upgrades and maintenance</button>
     <button type="button" data-pane="about" data-icon="info" title="Version, what is running, the language, the debug log.">About</button>
   </nav>
 
@@ -775,98 +623,21 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <p class="note" style="margin:0">This account may not change the settings. A full administrator can change that under <i>Accounts</i>.</p>
   </div>
 
-  <div class="ctl-pane" id="pane-radius">
-    <div class="ctl-head"><h2 class="ctl-title">The RADIUS server</h2>
-      <p class="ctl-lede">acme answers RADIUS itself - no FreeRADIUS - on the ports below. A request
-        from an address that is not one of the clients is never answered.</p></div>
-    <div class="card full"><div id="sect-radius"></div></div>
-  </div>
-
-  <div class="ctl-pane" id="pane-guard" hidden>
-    <div class="ctl-head"><h2 class="ctl-title">Sign-in protection</h2>
-      <p class="ctl-lede">Guessing from one place held back - wrong passwords, wrong codes,
-        names nobody has.</p></div>
-    <div class="card full"><div id="sect-guard"></div></div>
-    <div class="card full fulladmin-only" id="gd-card"><h2>Counted and blocked now <span class="right" id="gd-tools"></span></h2>
-      <p class="note">The places the VPN's requests come from with refusals still counted, and the
-        tokens locked by wrong codes - how close each is to its limit, and how long a block still
-        runs. Type a name or an address to see only those; Clear lets them in again at once.</p>
-      <div class="btnrow" style="margin-bottom:10px"><input type="search" id="gd-find" class="mono" placeholder="a name or an address" autocomplete="off" style="max-width:320px"></div>
-      <div id="gd-table"></div></div>
-  </div>
-
-  <div class="ctl-pane" id="pane-clients" hidden>
-    <div class="ctl-head"><h2 class="ctl-title">Clients</h2>
-      <p class="ctl-lede">Everything that may ask: a VPN concentrator, a load balancer, this machine
-        for testing. A client is an address or a range, a shared secret, and - where its names
-        come without one - the realm added to them, which is what FreeRADIUS's hints file did.</p></div>
-    <div class="card full">
-      <div class="btnrow" style="margin-bottom:12px"><button class="btn cmd primary admin-only" id="cl-add" data-icon="add">Add a client</button></div>
-      <div id="cl-table"></div>
-    </div>
-  </div>
-
-  <div class="ctl-pane" id="pane-realms" hidden>
-    <div class="ctl-head"><h2 class="ctl-title">Realms</h2>
-      <p class="ctl-lede">A realm is what comes after the @. It says where the person is looked up,
-        which groups let them in, whether the password is the code alone or their directory
-        password followed by it, and what goes back to the VPN - a Class, a group policy - for
-        everybody, or for the members of one group.</p></div>
-    <div class="card full">
-      <div class="btnrow" style="margin-bottom:12px"><button class="btn cmd primary admin-only" id="rl-add" data-icon="add">Add a realm</button></div>
-      <div id="rl-table"></div>
-    </div>
-    <div class="card full"><div id="sect-realms"></div></div>
-  </div>
-
-  <div class="ctl-pane" id="pane-dir" hidden>
-    <div class="ctl-head"><h2 class="ctl-title">Active Directory</h2>
-      <p class="ctl-lede">The directories the realms look people up in and the enrolment pages sign
-        people in against. Read only: nothing is ever written to a directory, and the reading
-        account needs no right beyond reading.</p></div>
-    <div class="card full">
-      <div class="btnrow" style="margin-bottom:12px"><button class="btn cmd primary admin-only" id="ad-add" data-icon="add">Add a directory</button></div>
-      <div id="ad-table"></div>
-    </div>
-    <div class="card full" id="ca-card" hidden>
-      <h2>The certificate authority <span class="right muted small" id="ca-when"></span></h2>
-      <p class="note">Needed only when the directory is reached over TLS (LDAPS or StartTLS) and the domain controllers' certificates were signed by your own authority. Several can be kept for one directory - a chain for each domain or authority its controllers come from: paste one (or a whole chain), or read it from the .crt / .pem / .cer file, and press Save the changes below. Each is listed and can be taken out by itself.</p>
-      <div id="ca-pick"></div>
-      <div id="ca-state"></div>
-      <textarea id="ca-pem" rows="6" class="mono admin-only" style="width:100%;margin-top:10px"
-                placeholder="-----BEGIN CERTIFICATE-----&#10;MIID...&#10;-----END CERTIFICATE-----"></textarea>
-      <div class="btnrow admin-only" style="margin-top:10px">
-        <button class="btn cmd primary" id="ca-save" data-icon="save"
-                title="Read the certificate and keep it. It is checked for being a certificate at all before it is stored, and what it is gets shown above.">Add it</button>
-        <button class="btn cmd" id="ca-file" data-icon="upload"
-                title="Pick a .crt or .pem file instead of pasting it.">Read a file…</button>
-        <button class="btn cmd danger" id="ca-drop" data-icon="trash"
-                title="Take every certificate kept for this directory away. The domain controllers' certificates then have to be signed by one this machine already trusts.">Take them all away</button>
-        <input type="file" id="ca-input" accept=".pem,.crt,.cer,.txt" hidden>
-      </div>
-    </div>
-  </div>
-
-  <div class="ctl-pane" id="pane-tokens" hidden>
-    <div class="ctl-head"><h2 class="ctl-title">The tokens</h2>
-      <p class="ctl-lede">How codes are made and checked. A token keeps what it was made with:
-        a change here is for the tokens made after it.</p></div>
-    <div class="card full"><div id="sect-tokens"></div></div>
-  </div>
+<?php if (function_exists('acme_certs_settings_panes')) { acme_certs_settings_panes(); } ?>
 
   <div class="ctl-pane" id="pane-portal" hidden>
-    <div class="ctl-head"><h2 class="ctl-title">The enrolment pages</h2>
-      <p class="ctl-lede">Where people make their own token: <span class="mono" id="portal-url">/</span>
-        on this server. They sign in with their directory password, scan the QR code, keep the
-        recovery codes and prove it worked with a code.</p></div>
+    <div class="ctl-head"><h2 class="ctl-title">The portal</h2>
+      <p class="ctl-lede">The certificate portal: <span class="mono" id="portal-url">/</span>
+        on this server, where people sign in with their directory password - who may, what they
+        see there, and the picture above its sign-in.</p></div>
     <template id="art-gallery"><?php foreach (ACME_ARTS as $a): ?><div data-art="<?= h($a) ?>" data-words="<?= h(ACME_ART_WORDS[$a]) ?>"><?= acme_art_svg($a) ?></div><?php endforeach; ?></template>
     <div class="card full" id="art-card">
       <h2>The picture on the sign-in</h2>
       <div class="seg" id="art-slot" style="margin:4px 0 10px">
-        <button type="button" data-slot="portal">The enrolment pages</button>
+        <button type="button" data-slot="portal">The portal</button>
         <button type="button" data-slot="admin">The administration</button>
       </div>
-      <p class="note" id="art-note-portal">Shown above the sign-in of the enrolment pages, where people make their token.</p>
+      <p class="note" id="art-note-portal">Shown above the sign-in of the portal.</p>
       <p class="note" id="art-note-admin" hidden>Shown above the sign-in of these administration pages.</p>
       <p class="note small muted">Pick one of these, or a picture of your own (a logo: PNG, JPEG,
         GIF, WebP or SVG, at most 512 KB) - each sign-in its own. It is kept in the database: both
@@ -882,55 +653,6 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <p class="note small" id="art-said"></p>
     </div>
     <div class="card full"><div id="sect-portal"></div></div>
-  </div>
-
-  <div class="ctl-pane" id="pane-import" hidden>
-    <div class="ctl-head"><h2 class="ctl-title">Bringing tokens over</h2>
-      <p class="ctl-lede">A backup of every token - of every kind: the app, codes by e-mail, codes by SMS - and its restore, all of them or the ones picked; and the files of a totpcgi server (<code>/etc/totpcgi/totp/novak@example.cz.totp</code>), read so that everybody keeps the token they have: the same key, the same recovery codes, the same clock drift.</p></div>
-    <div class="card full fulladmin-only">
-      <h2>Restoring, or bringing over</h2>
-      <p class="note">A backup made below (<code>acme-tokens-….json</code>, locked with a passphrase or not): you see what is in it and pick what is restored. Or the <code>.totp</code> files of totpcgi, or a ZIP of them. The whole old server at once - its clients, the realm its hints file added, the directory and the groups of its handler, its settings and every token - is one command on this machine: <code>acme --import-legacy /path/to/old/root</code>.</p>
-      <div class="drop" id="imp-drop"><span>Drop a backup (.json), the .totp files or a ZIP of them here - or press to pick them</span></div>
-      <input type="file" id="imp-files" multiple accept=".totp,.zip,.json" hidden>
-      <div class="btnrow" style="margin-top:12px">
-        <label class="check small" style="margin-top:10px"><input type="checkbox" id="imp-replace"><span>replace a token that is here already</span></label>
-      </div>
-      <div id="imp-out" style="margin-top:12px"></div>
-    </div>
-    <div class="card full fulladmin-only">
-      <h2>Backing up, or taking tokens away</h2>
-      <p class="note">A whole backup holds every token chosen as it is: its key, its recovery codes,
-        how its codes come and where to, its language and its state - read back here or on another
-        acme, whose own sealing key it does not need. Lock it with a passphrase: every key in it
-        signs its owner in. Or the tokens of the app as .totp files in a ZIP, for totpcgi. Needs
-        <i>Settings → Tokens → Administrators may show a token's QR code and key</i>; every
-        backup is written down in the events.</p>
-      <div class="btnrow filters">
-        <input type="search" id="exp-q" placeholder="which ones - empty: all (realm:example.cz, name:novak*, kind:mail…)" style="flex:1;min-width:280px">
-        <select id="exp-state">
-          <option value="">every state</option><option value="active">in use</option>
-          <option value="pending">waiting for a code</option><option value="disabled">switched off</option>
-        </select>
-        <select id="exp-kind">
-          <option value="">every kind</option><option value="totp">the app</option>
-          <option value="mail">codes by e-mail</option><option value="sms">codes by SMS</option>
-        </select>
-      </div>
-      <div class="btnrow filters" style="margin-top:10px">
-        <select id="exp-format">
-          <option value="backup">a whole backup (.json) - every kind</option>
-          <option value="totp">.totp files in a ZIP - the app's tokens, for totpcgi</option>
-        </select>
-        <select id="exp-lock" title="Locked: the passphrase opens it - a ZIP with 7-Zip, WinRAR or PeaZip (AES-256), a backup with acme. Not locked: whoever has the file can sign in as any of the tokens in it.">
-          <option value="lock">locked with a passphrase</option>
-          <option value="open">not locked</option>
-        </select>
-        <input type="password" id="exp-pass" autocomplete="new-password" placeholder="a passphrase to lock it with (8 characters at least)" style="flex:1;min-width:260px">
-        <button class="btn cmd" id="exp-gen" data-icon="key" title="Make one up - it is shown once, keep it">Make one up</button>
-        <button class="btn cmd primary" id="exp-go" data-icon="download">Download</button>
-      </div>
-      <div id="exp-said" class="small" style="margin-top:8px"></div>
-    </div>
   </div>
 
   <div class="ctl-pane" id="pane-alerts" hidden>
@@ -973,7 +695,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   <div class="ctl-pane" id="pane-monitor" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Monitoring</h2>
       <p class="ctl-lede">Prometheus asks each node for its metrics at <code>https://NODE/metrics</code>:
-        RADIUS, the tokens, the database, the cluster and its replication, the certificates, the mail,
+        the certificates and the jobs, the database, the cluster and its replication, the mail,
         isemon and syslog, the alerts open now. And SNMPv3: each node answers it itself, and sends traps when
         something is wrong.</p></div>
     <div class="card full"><h2>Settings</h2><div id="sect-monitor"></div></div>
@@ -984,7 +706,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="ctl-head"><h2 class="ctl-title">Proxy</h2>
       <p class="ctl-lede">Where the servers may reach the web only through an HTTP proxy - on every node. Off
         by default, and switched on it is used only for what is switched on below: the new versions of acme, the
-        system updates, ACME and its DNS APIs, the SMS gateway; all of them off, nowhere. RADIUS, mail, Active
+        system updates, ACME and its DNS APIs, the SMS gateway; all of them off, nowhere. Mail, Active
         Directory, the database, syslog, isemon, the backups, the other node and the VIP address's check never go
         through it.</p></div>
     <div class="card full"><h2>Settings</h2><div id="sect-proxy"></div></div>
@@ -999,10 +721,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   </div>
   <div class="ctl-pane" id="pane-isemon" hidden>
     <div class="ctl-head"><h2 class="ctl-title">isemon</h2>
-      <p class="ctl-lede">Every check of a code goes to isemon as a <span class="mono">totp.cgi</span>
-        line and every RADIUS packet as a <span class="mono">radius-detail</span> line - exactly
-        what a totpcgi token server and its FreeRADIUS send it - so isemon reads this server with
-        what it already has.</p></div>
+      <p class="ctl-lede">The events of this server - certificates issued, renewed, put in place
+        or failing, sign-ins to these pages - go to isemon as syslog lines, so isemon watches this
+        server with what it already has.</p></div>
     <div id="isemon-state"></div>
     <div class="card full fulladmin-only" id="isemon-tls-card" hidden>
       <h2>Encrypted sending (TLS)</h2>
@@ -1020,16 +741,16 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   <div class="ctl-pane" id="pane-people" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Accounts</h2>
       <p class="ctl-lede">Who may open these pages. <b>full admin</b> may change everything;
-        <b>token admin</b> may look at everything and look after people's tokens; <b>read only</b>
-        may look and change nothing.</p></div>
+        <b>cert admin</b> may look at everything and add, import, renew, deploy and export
+        certificates (never a private key); <b>read only</b> may look and change nothing.</p></div>
     <div class="card full">
       <h2>Accounts <span class="right"><button class="btn cmd small primary admin-only" id="us-add" data-icon="add">Make an account</button></span></h2>
       <div id="us-table"></div>
     </div>
     <div class="card full fulladmin-only"><h2>Signed in now</h2><div id="se-table"></div></div>
     <div class="card full fulladmin-only" id="lo-card"><h2>Locked out <span class="right" id="lo-tools"></span></h2>
-      <p class="note">Addresses and names with wrong attempts still counted, codes sent to a person, and tokens
-        locked by wrong codes - at the limit they are locked out until the time runs out. Clear one, or all of them,
+      <p class="note">Addresses and names with wrong attempts still counted, and codes sent to a person for
+        the second step - at the limit they are locked out until the time runs out. Clear one, or all of them,
         and they may try again at once.</p>
       <div id="lo-table"></div></div>
     <div class="card full" id="cols-card">
@@ -1054,6 +775,31 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
                 title="Read a file saved by Export my settings - here or on another machine running acme.">Import settings…</button>
       </div>
     </div>
+    <div class="card full" id="ad-card">
+      <h2>The directories administrators sign in against <span class="right"><button class="btn cmd small primary admin-only" id="ad-add" data-icon="add">Add a directory</button></span></h2>
+      <p class="note">The Active Directory servers an administrator's name and password are checked
+        against, and the groups below are looked up in - chosen in <i>Sign administrators in
+        against the directory</i>. Read only: nothing is ever written to a directory, and the
+        reading account needs no right beyond reading.</p>
+      <div id="ad-table"></div>
+    </div>
+    <div class="card full" id="ca-card" hidden>
+      <h2>The certificate authority <span class="right muted small" id="ca-when"></span></h2>
+      <p class="note">Needed only when the directory is reached over TLS (LDAPS or StartTLS) and the domain controllers' certificates were signed by your own authority. Several can be kept for one directory - a chain for each domain or authority its controllers come from: paste one (or a whole chain), or read it from the .crt / .pem / .cer file, and press Save the changes below. Each is listed and can be taken out by itself.</p>
+      <div id="ca-pick"></div>
+      <div id="ca-state"></div>
+      <textarea id="ca-pem" rows="6" class="mono admin-only" style="width:100%;margin-top:10px"
+                placeholder="-----BEGIN CERTIFICATE-----&#10;MIID...&#10;-----END CERTIFICATE-----"></textarea>
+      <div class="btnrow admin-only" style="margin-top:10px">
+        <button class="btn cmd primary" id="ca-save" data-icon="save"
+                title="Read the certificate and keep it. It is checked for being a certificate at all before it is stored, and what it is gets shown above.">Add it</button>
+        <button class="btn cmd" id="ca-file" data-icon="upload"
+                title="Pick a .crt or .pem file instead of pasting it.">Read a file…</button>
+        <button class="btn cmd danger" id="ca-drop" data-icon="trash"
+                title="Take every certificate kept for this directory away. The domain controllers' certificates then have to be signed by one this machine already trusts.">Take them all away</button>
+        <input type="file" id="ca-input" accept=".pem,.crt,.cer,.txt" hidden>
+      </div>
+    </div>
     <div class="card full"><div id="sect-people"></div></div>
     <div class="card full">
       <h2>The groups, and what each one may do</h2>
@@ -1072,10 +818,11 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 
   <div class="ctl-pane" id="pane-db" hidden>
     <div class="ctl-head"><h2 class="ctl-title">The database</h2>
-      <p class="ctl-lede">One database holds everything: the tokens, the RADIUS requests, the
-        checks of a code, the settings and the accounts. It is a file on this machine unless you
-        say otherwise. The keys of the tokens are sealed with a key kept beside it, in the state
-        folder - and every copy and every dump is kept with that key beside it.</p></div>
+      <p class="ctl-lede">One database holds everything: the certificates and their keys, the
+        authorities, the targets, the jobs, the events, the settings and the accounts. It is a file
+        on this machine unless you say otherwise. The private keys and the secrets are sealed with
+        a key kept beside it, in the state folder - and every copy and every dump is kept with that
+        key beside it.</p></div>
     <div class="card full"><div id="sect-db"></div></div>
 
     <div class="card full" id="db-tls-card" hidden>
@@ -1108,7 +855,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <div class="admin-only" id="db-dump-upload" style="margin-top:18px">
         <h4>Put a dump back</h4>
         <p class="note">A dump from somewhere else — one downloaded from here, or a file
-          copied off the dumps folder. It replaces everything: every token, every request,
+          copied off the dumps folder. It replaces everything: every certificate, every job,
           every setting and every account. Nothing happens until it has been read, checked and
           shown to you.</p>
         <div class="drop" id="dump-drop">
@@ -1140,7 +887,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         <button class="btn cmd" id="db-engine-setup" data-icon="key"
                 title="Make the database and the account on that server, and give that account rights on that one database and no other, with a password made here and shown once. The first time it asks for an administrator on the server, uses it for this one connection and stores it nowhere. Afterwards it needs none: it opens the database and puts its tables right, which is worth doing after every upgrade.">Set it up…</button>
         <button class="btn cmd primary" id="db-engine-move" data-icon="save"
-                title="Copy everything that is here into that database: every token, every request, every setting and every account. What is here is left exactly as it is.">Carry everything across…</button>
+                title="Copy everything that is here into that database: every certificate, every job, every setting and every account. What is here is left exactly as it is.">Carry everything across…</button>
         <button class="btn cmd danger" id="db-engine-empty" data-icon="forget"
                 title="Throw away what is in the OTHER database, so that a move can be tried again. Never the one in use.">Empty it…</button>
         <button class="btn cmd" id="db-engine-use" data-icon="power"
@@ -1200,13 +947,13 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         <button class="btn cmd admin-only" id="db-backup" data-icon="save"
                 title="Copy the database as it is into the backups folder on this machine, now, rather than waiting for tonight.">Make a copy now</button>
         <button class="btn cmd admin-only" id="db-download" data-icon="down"
-                title="Make a copy now and save it to the machine you are sitting at, with the key that opens the tokens inside it. Nothing is kept here.">Download it</button>
+                title="Make a copy now and save it to the machine you are sitting at, with the key that opens the sealed keys inside it. Nothing is kept here.">Download it</button>
         <button class="btn cmd admin-only" id="db-check" data-icon="check"
                 title="Ask the database to read itself through and say whether anything in it is broken - SQLite's integrity check, MariaDB's CHECK TABLE, and on PostgreSQL every table read through. It only reads; on a large one it takes a while.">Check it</button>
         <button class="btn cmd admin-only" id="db-tidy" data-icon="broom"
-                title="Throws away exactly what the &quot;keep for&quot; numbers above already say is too old — the RADIUS requests, the checks of a code and the events, each by its own number of days. It happens by itself every hour; this is the same thing, now. Lowering one of those numbers deletes nothing by itself: this is what does it.">Apply what is kept, now</button>
+                title="Throws away exactly what the &quot;keep for&quot; numbers above already say is too old — the jobs and the events, each by its own number of days. It happens by itself every hour; this is the same thing, now. Lowering one of those numbers deletes nothing by itself: this is what does it.">Apply what is kept, now</button>
         <button class="btn cmd danger admin-only" id="db-prune" data-icon="forget"
-                title="Forgets the RADIUS requests and the checks of a code older than an age you choose here, whatever the &quot;keep for&quot; numbers say. Only those two kinds of record: the tokens, the accounts and the settings are not touched.">Forget records older than…</button>
+                title="Forgets the records of what happened older than an age you choose here, whatever the &quot;keep for&quot; numbers say. Only records: the certificates, the accounts and the settings are not touched.">Forget records older than…</button>
         <button class="btn cmd admin-only" id="db-optimize" data-icon="db"
                 title="Gives the space back to the DISK. Deleting rows frees room inside the database and the engine reuses it; nothing hands it back to the operating system until the whole thing is rebuilt. All three do that the same way — SQLite's VACUUM, MariaDB's OPTIMIZE TABLE, PostgreSQL's VACUUM FULL — and all three hold the table shut while they do it and need room for a second copy of the biggest one. Worth doing after throwing a lot away, and not otherwise.">Give the disk back</button>
       </div>
@@ -1214,7 +961,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <div class="admin-only" id="db-upload" style="margin-top:18px">
         <h4>Put a copy back</h4>
         <p class="note">A database from somewhere else — one downloaded from here, or a file
-          copied off the backups folder. It replaces everything: every token, every request,
+          copied off the backups folder. It replaces everything: every certificate, every job,
           every setting and every account. Nothing happens until it has been read, checked
           and shown to you.</p>
         <div class="drop" id="db-drop">
@@ -1231,10 +978,10 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="card full">
       <h2>Erase the collected data <span class="right" id="erase-size"></span></h2>
       <p class="note">What is recorded of what happened can be thrown away without anybody
-        losing anything they need: nobody has to enrol again and nothing stops working. Choose
+        losing anything they need: no certificate is lost and nothing stops working. Choose
         what goes; nothing is erased that you have not ticked.</p>
-      <p class="note"><b>The tokens, the accounts, the clients, the realms, the directories and
-        every setting are never touched by this.</b> They are not options you could tick by
+      <p class="note"><b>The certificates, the authorities, the targets, the accounts, the
+        directories and every setting are never touched by this.</b> They are not options you could tick by
         mistake: they are not in the list at all.</p>
       <div id="erase-list" class="erase-list"></div>
       <div class="btnrow admin-only" style="margin-top:14px;align-items:center">
@@ -1251,11 +998,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 
   <div class="ctl-pane" id="pane-codes" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Codes by e-mail and SMS</h2>
-      <p class="ctl-lede">Instead of the app, a realm may offer a code sent after the directory
-        password (Realms → People may choose). The VPN sends the password alone; this server
-        checks it and the groups, sends a code and answers with an Access-Challenge - Cisco Secure
-        Client (ASA, FTD) and others show a second window for the code. E-mail goes the way set
-        under Mail; SMS through a gateway or a modem set up here.</p></div>
+      <p class="ctl-lede">The codes an administrator gets as the second step of signing in to
+        these pages (Accounts), and the notifications and alerts sent as SMS. E-mail goes the way
+        set under Mail; SMS through a gateway or a modem set up here.</p></div>
     <div class="card full"><div id="sect-codes"></div></div>
     <div class="card full">
       <h2>Try an SMS <span class="right muted small" id="sms-said"></span></h2>
@@ -1266,31 +1011,22 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         <button class="btn cmd" id="sms-try" data-icon="phone">Send a test SMS</button>
       </div>
     </div>
-    <div class="card full">
-      <h2>On the VPN</h2>
-      <p class="note">Cisco ASA: <code>aaa-server ACME protocol radius</code>, the server with
-        <code>timeout 60</code>, and the tunnel group's <code>authentication-server-group ACME</code>.
-        Leave <code>password-management</code> off on the tunnel group: with it the ASA asks with
-        MS-CHAPv2, and a code can only travel as PAP. FTD (FMC): a RADIUS Server Group with the
-        timeout 60 s, the connection profile's AAA - authentication only - with that group.
-        The second window needs nothing on the clients.</p>
-    </div>
   </div>
 
   <div class="ctl-pane" id="pane-mail" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Mail</h2>
-      <p class="ctl-lede">A token's QR code - and its recovery codes, where wanted - can be sent to
-        the person it is for when it is made. The mail leaves through your mail server (SMTP), or
-        straight to the server of the recipient's domain with no relay at all.</p></div>
+      <p class="ctl-lede">The alerts, the reports, the codes of the second step and the notices
+        about certificates. The mail leaves through your mail server (SMTP), or straight to the
+        server of the recipient's domain with no relay at all.</p></div>
     <div class="card full"><div id="sect-mail"></div></div>
     <div class="card full">
       <h2>Try it <span class="right muted small" id="mail-said"></span></h2>
-      <p class="note">Sends a short message - or a sample of a token's mail, with a made-up key - the
-        way a token's mail would go, and shows every step: the server reached, TLS, signing in, the
-        message handed over and what the server said. Save the changes first.</p>
+      <p class="note">Sends a short message - or a sample of a sign-in code - the way this server's
+        mail goes, and shows every step: the server reached, TLS, signing in, the message handed
+        over and what the server said. Save the changes first.</p>
       <div class="btnrow admin-only filters">
         <input type="email" id="mail-to" placeholder="somebody@example.cz" style="flex:1;min-width:240px">
-        <select id="mail-test-kind"><option value="short">a short message</option><option value="token">a sample token mail</option><option value="code">a sample sign-in code (e-mail codes)</option><option value="verify">a sample address check (enrolment)</option></select>
+        <select id="mail-test-kind"><option value="short">a short message</option><option value="code">a sample sign-in code (e-mail codes)</option></select>
         <select id="mail-test-lang"><option value="cs">Čeština</option><option value="en">English</option></select>
         <select id="mail-test-via" title="With mail sent straight to the recipient's server: this once, every step shown here - or through the outgoing mail, as codes go: tried now, and tried again by itself while the other side does not take it yet (greylisting)." hidden><option value="queue">through the outgoing mail</option><option value="straight">straight, this once (to see every step)</option></select>
         <button class="btn cmd primary" id="mail-test" data-icon="mail">Send a test</button>
@@ -1323,8 +1059,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   </div>
   <div class="ctl-pane" id="pane-time" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Time</h2>
-      <p class="ctl-lede">A code from the app is worked out from the clock: a node whose clock is off by
-        more than a few seconds refuses codes that are right. Each node keeps its clock with chrony; here
+      <p class="ctl-lede">A certificate's dates, a renewal's time and the codes of the second step
+        are worked out from the clock: a node whose clock is off asks for certificates at the wrong
+        time and refuses codes that are right. Each node keeps its clock with chrony; here
         is how far off each one is, which servers it follows, and the time servers set for the whole cluster.</p></div>
     <div id="ntp-host"></div>
   </div>
@@ -1340,7 +1077,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="ctl-head"><h2 class="ctl-title">System updates</h2>
       <p class="ctl-lede">The operating system's packages, updated by dnf (or apt) on each node. In a cluster one
         node at a time: each is out of service while it is updated - the VIP address moves to the other,
-        which answers RADIUS meanwhile - and back in service before the next one starts. A restart an update
+        which answers meanwhile - and back in service before the next one starts. A restart an update
         needs is offered when it is done, or made by itself, one node after the other.</p></div>
     <div id="ou-host"></div>
     <div class="card full fulladmin-only"><h2>On a schedule</h2><div id="sect-osup"></div></div>
@@ -1352,7 +1089,6 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         Put in by each node's root helper as a file of acme's own beside the system's, checked by sshd before it
         is used, and on trial: unless it is kept in time, each node puts back what it had by itself.</p></div>
     <div id="sd-host"></div>
-    <div class="card full"><h2>acme’s gate for SSH</h2><div id="sect-sshd"></div></div>
   </div>
   <div class="ctl-pane" id="pane-sshkeys" hidden>
     <div class="ctl-head"><h2 class="ctl-title">SSH keys of root</h2>
@@ -1364,9 +1100,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   </div>
   <div class="ctl-pane" id="pane-backup" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Backups</h2>
-      <p class="ctl-lede">A backup is everything: the whole database (tokens, clients, realms,
-        accounts, every setting, the certificates, the VIP address, the firewall, the texts, the
-        logs), the key that opens the tokens and this machine's config.json - with RESTORE.md, the
+      <p class="ctl-lede">A backup is everything: the whole database (the certificates and their
+        keys, the authorities, the targets, the jobs, the accounts, every setting, the VIP address,
+        the firewall, the texts, the logs), the key that opens the sealed keys and this machine's config.json - with RESTORE.md, the
         exact steps to bring it all back on a machine installed from nothing, one server or a
         cluster. Locked with the password below; sent to every destination switched on - a
         folder, FTP, FTPS, SFTP, SCP or a Windows/Samba share. Each node of a cluster sends its own.</p></div>
@@ -1379,14 +1115,14 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   </div>
   <div class="ctl-pane" id="pane-texts" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Message texts</h2>
-      <p class="ctl-lede">What people get from this server - the mails, the SMS and the VPN's second window, in Czech and English. Click into a text to write; the blue parts are filled in when it is sent.</p></div>
+      <p class="ctl-lede">What people get from this server - the mails and the SMS, in Czech and English. Click into a text to write; the blue parts are filled in when it is sent.</p></div>
     <div id="tx-root"></div>
   </div>
 
   <div class="ctl-pane" id="pane-mailq" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Outgoing mail</h2>
-      <p class="ctl-lede">Every mail this server sends - a token's QR code, a code to sign in with, a
-        code to check an address - goes through here. What the receiving side does not take at
+      <p class="ctl-lede">Every mail this server sends - an alert, a report, a code to sign in with,
+        a notice about a certificate - goes through here. What the receiving side does not take at
         once (greylisting's "try again later", a server away, a full mailbox) waits and is tried
         again by itself; what it refuses for good is shown as failed. Both nodes of a cluster see
         the same list: a mail is sent by the node it was made on, or by the other when that one
@@ -1404,9 +1140,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
           <option value="failed">failed</option>
           <option value="expired">given up</option>
         </select>
-        <button class="btn cmd tokadmin-only" id="mq-retry-all" data-icon="refresh">Send every waiting one now</button>
-        <button class="btn cmd tokadmin-only" id="mq-drop-sent" data-icon="trash">Clear the sent ones</button>
-        <button class="btn cmd danger tokadmin-only" id="mq-drop-failed" data-icon="trash">Clear the failed ones</button>
+        <button class="btn cmd certadmin-only" id="mq-retry-all" data-icon="refresh">Send every waiting one now</button>
+        <button class="btn cmd certadmin-only" id="mq-drop-sent" data-icon="trash">Clear the sent ones</button>
+        <button class="btn cmd danger certadmin-only" id="mq-drop-failed" data-icon="trash">Clear the failed ones</button>
       </div>
       <div id="mq-said" class="muted small" style="margin:8px 0 0"></div>
       <div id="mq-table" class="scroll rowsonly" style="margin-top:10px"></div>
@@ -1420,10 +1156,10 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
                 title="What happened to the cluster: the VIP address moving, a node stopping and coming back, replication stopping, errors - and what was done by hand.">History</button></h2>
       <p class="ctl-lede" id="ha-lede-shared">Two servers, both answering - active/active. Both open the same
         PostgreSQL and keep nothing that matters anywhere else, so a load balancer may send any
-        request to either, round robin and without stickiness: a sign-in, an enrolment half done
-        on one and finished on the other, a RADIUS packet. Every change made on one is on the
+        request to either, round robin and without stickiness: a sign-in, a certificate added on
+        one and renewed by the other. Every change made on one is on the
         other within five seconds.</p>
-      <p class="ctl-lede" id="ha-lede-replicated" hidden>Two servers, both answering (active/active). Each has its own PostgreSQL and the two replicate to each other both ways, so a load balancer may send any request to either one, round robin and with no stickiness - a sign-in, a token enrolment started on one and finished on the other, a RADIUS packet. Either node goes on alone while the other is away and catches up when it is back.</p></div>
+      <p class="ctl-lede" id="ha-lede-replicated" hidden>Two servers, both answering (active/active). Each has its own PostgreSQL and the two replicate to each other both ways, so a load balancer may send any request to either one, round robin and with no stickiness - a sign-in, a certificate added on one and renewed by the other. Either node goes on alone while the other is away and catches up when it is back.</p></div>
     <div class="card full">
       <h2>The nodes <span class="right" id="ha-said"></span></h2>
       <p class="note">Each node writes into the database every fifteen seconds that it is
@@ -1434,14 +1170,13 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="card full" id="ha-own-card" hidden>
       <h2>Each node's own settings</h2>
       <p class="note">Everything else in Settings is the cluster's and goes to every node. These
-        belong to one machine: the address and ports RADIUS listens on, the port the pages ask
+        belong to one machine: the port the pages ask
         the daemon on, the name it greets mail servers with and the name isemon files it under,
         its own copies of the database (whether, when, how many - each node keeps them on its own
         disk), and the debug switches. Each node shows the value in effect on it: its own,
         marked, or the cluster's, dimmed.</p>
       <p class="note">The machine itself - its addresses, IPv6, gateway, DNS and host name - is
-        set per node in Settings → Network; turning IPv6 on there makes RADIUS listen on
-        <code>::</code> (IPv4 and IPv6) by itself. Its clock is in Settings → Time.</p>
+        set per node in Settings → Network. Its clock is in Settings → Time.</p>
       <div id="ha-own"></div>
     </div>
     <div class="card full" id="ha-rep-card" hidden>
@@ -1485,7 +1220,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <p class="note">An address for the pages that is on one node at a time - active and
         standby - held by keepalived. It leaves a node by itself when the node goes into
         maintenance, is upgraded or rebuilt, or when its pages stop answering their own
-        /healthz (nginx, PHP, the daemon, the database) or RADIUS stops listening; and when
+        /healthz (nginx, PHP, the daemon, the database); and when
         the node is gone altogether. It comes back to the node it is meant to be on once
         that is well again. With it off, a load balancer of your own works as before
         (docs/load-balancers.md).</p>
@@ -1503,7 +1238,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
           <pre class="ha-cmd" data-no-i18n>acme --ha-setup --ha-peer 192.0.2.12 --node-name acme1</pre>
           <p>It switches PostgreSQL to logical replication and restarts it (after asking), lets the second node in (pg_hba.conf, the firewall), publishes every table, numbers this node's rows odd - the second's will be even - and writes the bundle to <code>/root/acme-join-acme1.json</code>, printing its passphrase once. Write the passphrase down.</p>
           <p>For one PostgreSQL both nodes open instead (a server of its own, or a cluster's address) add <code>--ha-shared</code>, and <code>--ha-db-host ADDRESS</code> when the server is elsewhere.</p></li>
-        <li><p><b>The bundle</b> carries what the second node needs and nothing else: the database's account and password, and the key that opens the tokens - locked with the passphrase. Carry the file over on its own (scp, a USB stick) and tell the passphrase some other way. A fresh one, for a node to be rebuilt later:</p>
+        <li><p><b>The bundle</b> carries what the second node needs and nothing else: the database's account and password, and the key that opens the sealed keys - locked with the passphrase. Carry the file over on its own (scp, a USB stick) and tell the passphrase some other way. A fresh one, for a node to be rebuilt later:</p>
           <pre class="ha-cmd" data-no-i18n>acme --ha-bundle /root/acme-join-acme1.json</pre>
           <div class="btnrow admin-only">
             <button class="btn cmd primary" id="ha-bundle" data-icon="key">Make the bundle…</button>
@@ -1560,11 +1295,11 @@ acme --ha-join /root/acme-join-acme1.json --node-name acme2</pre>
           <tr><td data-no-i18n>acme --vip on<br>acme --vip off</td>
             <td>The VIP address on or off: root writes keepalived's configuration and starts it, or stops it and takes the address away - on both nodes.</td></tr>
           <tr><td data-no-i18n>acme --vip-move NODE</td>
-            <td>Move the address to that node now, by hand - it goes once the node is healthy (its pages answer, RADIUS listens, not in maintenance).</td></tr>
+            <td>Move the address to that node now, by hand - it goes once the node is healthy (its pages answer, not in maintenance).</td></tr>
           <tr><td data-no-i18n>acme --vip-return NODE<br>acme --vip-return stay</td>
             <td>Where it goes after a failure is over: always back to that node, or <i>stay</i> - it stays where it is until that node fails or it is moved by hand.</td></tr>
           <tr><td data-no-i18n>acme --maintenance on|off|status [--node NAME]</td>
-            <td>A node out of service and back: RADIUS is not answered, its /healthz says 503 - and the VIP address leaves it for the other node by itself.</td></tr>
+            <td>A node out of service and back: its /healthz says 503 - and the VIP address leaves it for the other node by itself.</td></tr>
           <tr><td data-no-i18n>acme --web-retry</td>
             <td>This node asks root again for what failed (keepalived's configuration, a certificate for nginx, the firewall).</td></tr>
           <tr><td data-no-i18n>systemctl status keepalived<br>journalctl -u keepalived -n 50<br>ip -br addr</td>
@@ -1584,10 +1319,10 @@ acme --ha-join /root/acme-join-acme1.json --node-name acme2</pre>
   <div class="ctl-pane" id="pane-carry" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Export and import</h2>
       <p class="ctl-lede">The whole configuration as one file: the settings (each node's own
-        too), the RADIUS clients, the realms, the directories, the accounts of these pages, the
-        certificates of the pages and the VIP address, the VIP address, who may reach which page,
-        the firewall and the mail server's authorities. The tokens are not in it: they move with a
-        copy of the database and its key. On the command line: acme --export-config FILE
+        too), the directories, the accounts of these pages, the certificates of the pages and the
+        VIP address, the VIP address, who may reach which page, the firewall and the mail server's
+        authorities. The certificates kept and their keys are not in it: they move with a copy of
+        the database and its key. On the command line: acme --export-config FILE
         [--with-secrets] and acme --import-config FILE --yes.</p></div>
     <div class="card full">
       <div class="btnrow">
@@ -1618,12 +1353,12 @@ acme --ha-join /root/acme-join-acme1.json --node-name acme2</pre>
   <div class="ctl-pane" id="pane-fw" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Firewall and access</h2>
       <p class="ctl-lede">Who may reach which pages, and the machine's own firewall: what acme's
-        functions need is let in by itself (a RADIUS client added, the cluster made, the web
-        address turned on), and you add whatever else you want - for IPv4 and IPv6. Inside
+        functions need is let in by itself (the DNS server for DNS-01 switched on, the cluster
+        made, the web address turned on), and you add whatever else you want - for IPv4 and IPv6. Inside
         the cluster everything is always let in.</p></div>
     <div class="card full">
       <h2>Who may reach the pages</h2>
-      <p class="note">The enrolment pages, the administration and the health check share
+      <p class="note">The portal, the administration and the health check share
         ports 80 and 443, so who sees which is said by nginx, page by page; the firewall
         below opens the ports only to these networks. The other node and the VIP address
         are always let in, and so is the machine itself.</p>
@@ -1641,14 +1376,14 @@ acme --ha-join /root/acme-join-acme1.json --node-name acme2</pre>
   <div class="ctl-pane" id="pane-upgrade" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Upgrades and maintenance</h2>
       <p class="ctl-lede">A new version put in from here: send the package, and the nodes are
-        upgraded one at a time - each taken out of service first, so the VPN and the load
-        balancer go to the other, and brought back only once it answers again. The command
+        upgraded one at a time - each taken out of service first, so the load balancer and the
+        VIP address go to the other, and brought back only once it answers again. The command
         line (install.sh --upgrade) works as it always has.</p></div>
     <div class="card full">
       <h2>The nodes</h2>
-      <p class="note">A node in maintenance answers no RADIUS request and its /healthz says
-        503, so the VPN and the load balancer leave it alone; these pages go on working.
-        With a single server, maintenance means nobody can sign in to the VPN.</p>
+      <p class="note">A node in maintenance renews and deploys nothing and its /healthz says
+        503, so the load balancer leaves it alone; these pages go on working. With a single
+        server, maintenance means no certificate is renewed or put in place until it is back.</p>
       <div id="up-nodes"></div>
     </div>
     <div class="card full admin-only" id="up-web-card">
@@ -1756,5 +1491,8 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION) ?>"></script>
 <script nonce="<?= h($nonce) ?>" src="/assets/cols.js?v=<?= h(ACME_VERSION) ?>"></script>
 <script nonce="<?= h($nonce) ?>" src="/assets/admin.js?v=<?= h(ACME_VERSION) ?>"></script>
+<?php if (is_file(dirname(__DIR__) . '/assets/certs.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/certs.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/certs.js')) ?>"></script>
+<?php endif; ?>
 </body>
 </html>

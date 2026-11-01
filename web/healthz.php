@@ -14,11 +14,11 @@ if (acme_token() === null) {
     exit;
 }
 // What is asked (1.0.47): web (the default - the pages: nginx, PHP, the
-// daemon, the database), radius (the same, and RADIUS listening - for a
-// balancer of UDP 1812/1813) or all (that, and replication running - for
-// monitoring, not for a balancer: one node cannot fix the other's).
+// daemon, the database) or all (that, and replication running - for
+// monitoring, not for a balancer: one node cannot fix the other's). Anything
+// else is web.
 $check = (string) ($_GET['check'] ?? 'web');
-if (!in_array($check, ['web', 'radius', 'all'], true)) {
+if (!in_array($check, ['web', 'all'], true)) {
     $check = 'web';
 }
 $got = acme_get('/api/health' . ($check === 'all' ? '?check=all' : ''), 3.0);
@@ -40,11 +40,6 @@ if (!empty($got['maintenance'])) {
     exit;
 }
 $node = preg_replace('/[^A-Za-z0-9._-]/', '', (string) ($got['node'] ?? ''));
-if ($check !== 'web' && empty($got['radius'])) {
-    http_response_code(503);
-    echo "down: RADIUS is not listening on $node\n";
-    exit;
-}
 if ($check === 'all' && isset($got['replication']) && empty($got['replication']['ok'])) {
     http_response_code(503);
     echo 'degraded: replication ' . (!empty($got['replication']['lost']) ? 'lost' : 'not running')

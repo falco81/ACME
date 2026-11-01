@@ -15,7 +15,12 @@ from __future__ import annotations
 # database has as NOT NULL with no default that the older version does not
 # know would make every row it writes there fail. Then it goes the road of an
 # upgrade - one node at a time, each in maintenance while it is done.
-DOWNGRADE_FLOOR_FILE = UPGRADE_HELPER.parent / 'downgrade-floor'
+# The floor lives at the top of /usr/local/lib/acme, beside versions/ - not in
+# a tree, which the next upgrade replaces.
+_LIB_TOP = UPGRADE_HELPER.resolve().parent
+if _LIB_TOP.parent.name == 'versions':
+    _LIB_TOP = _LIB_TOP.parent.parent
+DOWNGRADE_FLOOR_FILE = Path(os.environ.get('ACME_LIB') or str(_LIB_TOP)) / 'downgrade-floor'
 
 
 def downgrade_floor_note(store):
@@ -102,8 +107,8 @@ def downgrade_live_strict(db):
     return out
 
 
-# Run in a process of its own, on the package's own acme.py: its tables as it
-# makes them, made in a database in memory and read back.
+# Run in a process of its own, on the package's own acme.py and acmelib/: its
+# tables as it makes them, made in a database in memory and read back.
 _DOWNGRADE_SCHEMA_PY = r'''
 import json, sqlite3, sys
 sys.path.insert(0, sys.argv[1])
@@ -120,16 +125,22 @@ print(json.dumps({'version': acme.__version__, 'tables': out}))
 
 def downgrade_package_schema(path):
     """The tables and columns the package's version knows, read off its own
-    acme.py (the package checked and signed first)."""
+    acme.py and acmelib/ (the package checked and signed first)."""
     work = Path(tempfile.mkdtemp(prefix='acme-down-', dir=str(UPGRADE_DIR)))
     try:
         with tarfile.open(str(path), 'r:gz') as tf:
-            member = next((m for m in tf.getmembers()
-                           if re.match(r'^acme-[0-9.]+/acme\.py\Z', m.name) and m.isfile()), None)
-            if member is None:
-                raise ValueError('the package has no acme.py')
-            with tf.extractfile(member) as src, open(str(work / 'acme.py'), 'wb') as dst:
-                shutil.copyfileobj(src, dst)
+            found = False
+            for member in tf.getmembers():
+                mm = re.match(r'^acme-[0-9.]+/(acme\.py|acmelib/[A-Za-z0-9_./-]+)\Z', member.name)
+                if not mm or not member.isfile() or '..' in mm.group(1).split('/'):
+                    continue
+                found = found or mm.group(1) == 'acme.py'
+                dest = work / mm.group(1)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                with tf.extractfile(member) as src, open(str(dest), 'wb') as dst:
+                    shutil.copyfileobj(src, dst)
+            if not found or not (work / 'acmelib' / '__init__.py').is_file():
+                raise ValueError('the package has no acme.py and acmelib/')
         env = {'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'LANG': 'C.UTF-8',
                'ACME_STATE': str(work), 'ACME_CONFIG': str(work / 'none.json'),
                'ACME_LOGDIR': str(work), 'ACME_RUN': str(work)}

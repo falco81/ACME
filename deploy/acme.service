@@ -1,11 +1,18 @@
 # /etc/systemd/system/acme.service
 #
-# The one-time password server: RADIUS on UDP 1812/1813, the API the web
-# pages ask on 127.0.0.1:9861, and everything else. One process, its own
-# account, and nothing it may write outside its own folders - the same
-# shape as isemon.service.
+# The certificate manager: renewals and deployments on their schedule, its
+# own DNS server for DNS-01 (UDP and TCP 53, once switched on), the API the
+# web pages ask on 127.0.0.1:9861, and everything else. One process, its own
+# account, and nothing it may write outside its own folders.
+#
+# It runs the tree /usr/local/lib/acme/current points to (install.sh switches
+# that link in one step on an upgrade, and restarts this).
+#
+# What it calls: openssl (keys, CSRs, PKCS#12, its own CAs) and the OpenSSH
+# client (targets and HTTP-01 over SSH, backups over SFTP/SCP) - outbound
+# only. Its known_hosts and keys are in /var/lib/acme.
 [Unit]
-Description=acme - one-time password server (RADIUS, TOTP, enrolment, Active Directory)
+Description=acme - certificates kept, renewed and put in place (ACME, own CAs, DNS-01, deployments)
 Documentation=file:/usr/local/lib/acme/INSTALL.md
 After=network-online.target
 Wants=network-online.target
@@ -13,7 +20,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/usr/local/lib/acme/python /usr/local/lib/acme/acme.py --daemon
+ExecStart=/usr/local/lib/acme/python /usr/local/lib/acme/current/acme.py --daemon
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
@@ -28,8 +35,8 @@ StateDirectoryMode=0750
 LogsDirectory=acme
 LogsDirectoryMode=0750
 ReadWritePaths=/var/lib/acme /var/log/acme /etc/acme
-# RADIUS on its standard ports needs no privilege: 1812 and 1813 are above 1024.
-# SNMPv3 on 161 (1.0.182) does: binding a port below 1024, nothing else.
+# Its own DNS server on 53 (UDP and TCP) and SNMPv3 on 161 bind ports below
+# 1024: that privilege, and nothing else.
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 Environment=MALLOC_ARENA_MAX=2
@@ -42,8 +49,8 @@ NoNewPrivileges=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
-# AF_NETLINK (1.0.195): the network interfaces read - smbclient (backups over
-# SMB) stopped without them: "Could not determine network interfaces".
+# AF_NETLINK: the network interfaces read - smbclient (backups over SMB)
+# stopped without them: "Could not determine network interfaces".
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 RestrictNamespaces=yes
 LockPersonality=yes

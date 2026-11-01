@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""acme_upgrade.py - a new version of acme, put in by root (1.0.37).
+"""acme_upgrade.py - a new version of acme, put in by root.
 
 The pages cannot upgrade anything themselves: the service runs as `acme`,
 which may not write a byte of the program. What it may do is lay a package
@@ -17,17 +17,35 @@ runs this as root. This then trusts nothing it was handed:
     no links, no device, no path outside its one folder;
   * it is not older than the version installed (the same one again is a
     retry and is allowed) - unless going back is asked for (1.0.143), and
-    then not older than downgrade-floor beside this file: the highest floor
-    of every version install.sh put in here, which only root writes.
+    then not older than /usr/local/lib/acme/downgrade-floor: the highest
+    floor of every version install.sh put in here, which only root writes.
 
-Then its own install.sh --upgrade --yes is run, exactly as somebody would
-on the command line, and what it said is written back for the pages.
+A package is a tree (acme-X.Y.Z/: acme.py, acmelib/, web/, deploy/,
+install.sh, MANIFEST, MANIFEST.sig, ...); its version is the one in
+acmelib/__init__.py. Then its own install.sh --upgrade --yes is run, exactly
+as somebody would on the command line, and what it said is written back for
+the pages. install.sh puts the tree in beside the one running
+(/usr/local/lib/acme/versions/), switches the link `current` to it in one
+step and keeps the one before as `previous` - which --previous puts back.
+
+The layout under /usr/local/lib/acme (install.sh makes it):
+
+    current -> versions/X.Y.Z-STAMP    the tree that runs
+    previous -> versions/W.V.U-STAMP   the one before, kept for going back
+    versions/                          the trees themselves (root's)
+    acme.py, acme_upgrade.py, acme_web.py, ...   links into current/
+    python                             the Python acme runs on
+    release-keys/*.pub                 the keys a package must be signed by
+    downgrade-floor                    how far back this machine may go
 
   acme_upgrade.py                 serve request.json (as root, from systemd)
   acme_upgrade.py --inspect FILE  check a package and say what it is (JSON);
                                  any user - the daemon asks this way
   acme_upgrade.py --run FILE      check and put in a package by hand (root)
   acme_upgrade.py --run FILE --downgrade   the same for an older one (root)
+  acme_upgrade.py --previous      put back the tree that ran before (root):
+                                 its MANIFEST checked again, then its own
+                                 install.sh --upgrade --yes
 """
 import hashlib
 import json
@@ -50,7 +68,7 @@ LIB_DIR = os.environ.get('ACME_LIB', '/usr/local/lib/acme')
 KEYS_DIR = os.environ.get('ACME_RELEASE_KEYS', os.path.join(LIB_DIR, 'release-keys'))
 MOST_PACKED = 64 * 1024 * 1024
 MOST_UNPACKED = 256 * 1024 * 1024
-MOST_FILES = 5000
+MOST_FILES = 20000
 INSTALL_LIMIT_S = 20 * 60      # under TimeoutStartSec=25min and the daemon's 30 (1.0.59)
 TOP = re.compile(r'^acme-([0-9]+(?:\.[0-9]+){2,3})\Z')
 FLOOR_FILE = os.path.join(LIB_DIR, 'downgrade-floor')
@@ -99,15 +117,28 @@ def version_tuple(v):
     return tuple(int(x) for x in str(v).split('.'))
 
 
+VERSION_RE = re.compile(r"^__version__ = '([0-9]+(?:\.[0-9]+){2,3})'", re.M)
+
+
+def tree_version(tree):
+    """The version of an unpacked tree: acmelib/__init__.py (acme.py of a
+    tree from before the split, as a last resort)."""
+    for rel in ('acmelib/__init__.py', 'acme.py'):
+        try:
+            with open(os.path.join(tree, rel), encoding='utf-8') as f:
+                m = VERSION_RE.search(f.read(1 << 20))
+        except OSError:
+            continue
+        if m:
+            return m.group(1)
+    return ''
+
+
 def installed_version():
-    try:
-        with open(os.path.join(LIB_DIR, 'acme.py'), encoding='utf-8') as f:
-            for line in f:
-                m = re.match(r"^__version__ = '([0-9.]+)'", line)
-                if m:
-                    return m.group(1)
-    except OSError:
-        pass
+    for tree in (os.path.join(LIB_DIR, 'current'), LIB_DIR):
+        got = tree_version(tree)
+        if got:
+            return got
     return ''
 
 
@@ -197,7 +228,8 @@ def inspect(path, extract_to=None):
         for one in members:
             if one.isdir() and one.name.rstrip('/') not in needed:
                 raise Refused('the package has a folder no file of it is in: %s' % one.name[:120])
-        for need in ('MANIFEST', 'MANIFEST.sig', 'acme.py', 'install.sh'):
+        for need in ('MANIFEST', 'MANIFEST.sig', 'acme.py', 'install.sh',
+                     'acmelib/__init__.py'):
             if need not in files:
                 raise Refused('the package has no %s%s' % (need, ' - it is not signed'
                                                              if need.startswith('MANIFEST')
@@ -240,7 +272,7 @@ def inspect(path, extract_to=None):
             acme_version = ''
             for rel in sorted(have):
                 h = hashlib.sha256()
-                keep = rel in ('CHANGELOG.md', 'acme.py')
+                keep = rel in ('CHANGELOG.md', 'acmelib/__init__.py')
                 body = []
                 with tar.extractfile(files[rel]) as src:
                     while True:
@@ -252,7 +284,7 @@ def inspect(path, extract_to=None):
                             body.append(lump)
                 if h.hexdigest() != listed[rel]:
                     raise Refused('%s is not the file that was signed' % rel)
-                if rel == 'acme.py':
+                if rel == 'acmelib/__init__.py':
                     mm = re.search(rb"^__version__ = '([0-9.]+)'", b''.join(body), re.M)
                     acme_version = mm.group(1).decode() if mm else ''
                 if rel == 'CHANGELOG.md':
@@ -261,7 +293,8 @@ def inspect(path, extract_to=None):
                                    re.M | re.S)
                     changelog = mm.group(0).strip()[:20000] if mm else ''
             if acme_version != version:
-                raise Refused('the folder says %s and acme.py says %s' % (version, acme_version))
+                raise Refused('the folder says %s and acmelib/__init__.py says %s'
+                              % (version, acme_version or 'nothing'))
             if extract_to:
                 for one in members:
                     target = os.path.join(extract_to, one.name)
@@ -482,6 +515,86 @@ def put_in(package, ident='', want_sha='', by='the command line', log_to=None,
         shutil.rmtree(work, ignore_errors=True)
 
 
+def check_tree(tree, unsigned=False):
+    """A tree on this disk checked against its own MANIFEST: signed by a key
+    this machine trusts, and every file listed there the one signed. Files
+    install.sh added beside them (the compiled __pycache__, the helpers
+    copied to the top) are not in MANIFEST and are not looked at. Returns
+    who signed it, or '' for a tree without MANIFEST taken with `unsigned`."""
+    man = os.path.join(tree, 'MANIFEST')
+    sig = os.path.join(tree, 'MANIFEST.sig')
+    if not (os.path.isfile(man) and os.path.isfile(sig)):
+        if unsigned:
+            return ''
+        raise Refused('%s has no MANIFEST - it was put in from a source tree, not a release; '
+                      'run its install.sh --upgrade by hand if you trust it (or --unsigned)'
+                      % tree)
+    who = signed_by(man, sig)
+    if not who:
+        raise Refused('the MANIFEST of %s is not signed by any release key this machine '
+                      'trusts' % tree)
+    with open(man, encoding='utf-8') as f:
+        for line in f:
+            line = line.rstrip('\n')
+            if not line.strip():
+                continue
+            mm = re.match(r'^([0-9a-f]{64})  (.+)\Z', line)
+            if not mm or mm.group(2).startswith('/') or '..' in mm.group(2).split('/'):
+                raise Refused('the MANIFEST of %s has a line that does not read' % tree)
+            path = os.path.join(tree, mm.group(2))
+            h = hashlib.sha256()
+            try:
+                fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            except OSError:
+                raise Refused('%s is missing from %s' % (mm.group(2), tree))
+            with os.fdopen(fd, 'rb') as src:
+                for lump in iter(lambda: src.read(1 << 20), b''):
+                    h.update(lump)
+            if h.hexdigest() != mm.group(1):
+                raise Refused('%s in %s is not the file that was signed' % (mm.group(2), tree))
+    return who
+
+
+def put_back_previous(unsigned=False, log_to=print):
+    """The tree that ran before this one put back (its own install.sh
+    --upgrade), after the same checks an older package gets."""
+    if os.geteuid() != 0:
+        raise Refused('putting a version back takes root')
+    link = os.path.join(LIB_DIR, 'previous')
+    if not os.path.islink(link):
+        raise Refused('there is no previous tree (%s): only one version was put in here '
+                      'since the layout of versions/' % link)
+    tree = os.path.realpath(link)
+    versions = os.path.realpath(os.path.join(LIB_DIR, 'versions'))
+    if os.path.dirname(tree) != versions or not os.path.isdir(tree):
+        raise Refused('%s does not point into %s' % (link, versions))
+    st = os.stat(tree)
+    if st.st_uid != 0 or st.st_mode & 0o022:
+        raise Refused('%s is not root\'s alone' % tree)
+    if os.path.realpath(os.path.join(LIB_DIR, 'current')) == tree:
+        raise Refused('the previous tree is the one that runs')
+    version = tree_version(tree)
+    if not version or not os.path.isfile(os.path.join(tree, 'install.sh')):
+        raise Refused('%s is not a tree of acme' % tree)
+    have = installed_version()
+    if have and version_tuple(version) < version_tuple(have):
+        floor = root_floor()
+        if floor is None:
+            raise Refused('%s has no floor for going back (%s)' % (LIB_DIR, FLOOR_FILE))
+        if version_tuple(version) < version_tuple(floor):
+            raise Refused('%s is older than %s, the oldest the versions installed here allow'
+                          % (version, floor))
+    who = check_tree(tree, unsigned)
+    log_to('acme %s in %s%s - checked; putting it back in place of %s' % (
+        version, tree, (', signed by %s' % who) if who else ' (no MANIFEST, taken as asked)',
+        have or '?'))
+    env = {'PATH': '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+           'LANG': 'C.UTF-8', 'TERM': os.environ.get('TERM', 'dumb'),
+           'ACME_UPGRADE_BY': 'acme_upgrade.py --previous'}
+    return subprocess.call(['bash', os.path.join(tree, 'install.sh'), '--upgrade', '--yes'],
+                           cwd=tree, env=env, stdin=subprocess.DEVNULL)
+
+
 def serve_request():
     """What systemd starts when request.json appears."""
     req = os.path.join(UPGRADE_DIR, 'request.json')
@@ -571,6 +684,12 @@ def main(argv):
             print('refused: %s' % e)
             return 1
         return rc
+    if argv and argv[0] == '--previous':
+        try:
+            return put_back_previous(unsigned='--unsigned' in argv[1:])
+        except Refused as e:
+            print('refused: %s' % e)
+            return 1
     if not argv:
         return serve_request()
     print(__doc__)

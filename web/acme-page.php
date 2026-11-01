@@ -2,7 +2,7 @@
 /**
  * acme-page.php — what both pages share: the headers, the languages, the head.
  *
- * Included by index.php (the enrolment pages) and admin/index.php (the
+ * Included by index.php (the portal) and admin/index.php (the
  * administration pages), never a page of its own. Everything here is how
  * isemon's dashboard draws itself, so that the two look and behave alike:
  * one nonce per page in the Content-Security-Policy, nothing loaded from

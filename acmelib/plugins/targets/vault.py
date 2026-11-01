@@ -1,0 +1,98 @@
+# -*- coding: utf-8 -*-
+"""
+HashiCorp Vault (or OpenBao): the certificate written as a secret of a KV
+version 2 engine, for whatever reads it from there.
+"""
+from __future__ import annotations
+
+import urllib.parse
+
+from acmelib.plugins.targets._common import (
+    HttpTarget, PluginError, field, as_bool, fp_of, label_of, subst, stamp, tls_fields,
+    verify_fields, text)
+
+
+class VaultTarget(HttpTarget):
+    kind = 'vault'
+    title = 'HashiCorp Vault (KV v2)'
+    vendor = 'HashiCorp'
+    description = 'Writes the certificate, chain and key as a secret of a KV v2 engine.'
+    doc = 'targets.md'
+    fields = [
+        field('host', 'Vault address', 'text', required=True,
+              placeholder='https://vault.example.local:8200'),
+        field('auth', 'Sign in with', 'select', default='token',
+              options=[['token', 'a token'], ['approle', 'AppRole']]),
+        field('token', 'Token', 'secret', show_if={'auth': ['token']}),
+        field('role_id', 'Role ID', 'text', show_if={'auth': ['approle']}),
+        field('secret_id', 'Secret ID', 'secret', show_if={'auth': ['approle']}),
+        field('approle_mount', 'AppRole mount', 'text', default='approle', advanced=True,
+              show_if={'auth': ['approle']}),
+        field('namespace', 'Namespace', 'text', advanced=True, help='Vault Enterprise'),
+        field('mount', 'KV mount', 'text', default='secret'),
+    ] + tls_fields()
+    deploy_fields = [
+        field('path', 'Path', 'text', default='acme/{name}',
+              help='inside the mount; {name} is the certificate\'s name'),
+        field('include_key', 'With the private key', 'bool', default=True),
+    ] + verify_fields()
+
+    token = None
+
+    def auth_headers(self):
+        h = {}
+        if self.token:
+            h['X-Vault-Token'] = self.token
+        if self.c('namespace'):
+            h['X-Vault-Namespace'] = self.c('namespace')
+        return h
+
+    def login(self):
+        if (self.c('auth') or 'token') == 'token':
+            self.token = self.c('token')
+            if not self.token:
+                raise PluginError('no token is set', retry=False)
+            return
+        st, hd, d = self.req('POST', '/v1/auth/%s/login' % (self.c('approle_mount') or 'approle'),
+                             {'role_id': self.c('role_id'), 'secret_id': self.c('secret_id')},
+                             what='signing in (AppRole)')
+        try:
+            self.token = d['auth']['client_token']
+        except (TypeError, KeyError):
+            raise PluginError('Vault gave no token', detail=text(d))
+
+    def url(self, path):
+        mount = (self.c('mount') or 'secret').strip('/')
+        return '/v1/%s/data/%s' % (urllib.parse.quote(mount),
+                                   urllib.parse.quote(path.strip('/')))
+
+    def test(self):
+        self.login()
+        st, hd, d = self.req('GET', '/v1/auth/token/lookup-self', what='reading the token')
+        data = (d or {}).get('data') or {}
+        return 'signed in to Vault as %s (policies %s)' % (
+            data.get('display_name', '?'), ', '.join(data.get('policies') or []))
+
+    def deploy(self, bundle, options):
+        options = options or {}
+        self.login()
+        path = subst(self.opt(options, 'path', 'acme/{name}'),
+                     {'name': label_of(bundle, options), 'date': stamp(bundle)})
+        url = self.url(path)
+        fp = fp_of(bundle)
+        if not as_bool(options.get('force')):
+            st, hd, d = self.req('GET', url, ok=(200, 404), what='reading %s' % path)
+            have = (((d or {}).get('data') or {}).get('data') or {}) if st == 200 else {}
+            if have.get('fingerprint') == fp:
+                return self.same(bundle, 'at %s' % path)
+        data = {'certificate': bundle.cert_pem, 'chain': ''.join(bundle.chain_pems or []),
+                'fullchain': bundle.fullchain_pem, 'fingerprint': fp, 'serial': bundle.serial,
+                'names': ','.join(bundle.names or []), 'not_before': bundle.not_before,
+                'not_after': bundle.not_after}
+        if as_bool(self.opt(options, 'include_key', True), True):
+            data['private_key'] = text(bundle.key_pem)
+        st, hd, d = self.req('POST', url, {'data': data}, what='writing %s' % path)
+        ver = (((d or {}).get('data') or {}).get('version'))
+        self.ctx.step('wrote %s (version %s)' % (path, ver), 'ok')
+        self.remember(bundle, options)
+        return 'wrote %s/%s version %s' % (self.c('mount') or 'secret', path, ver)

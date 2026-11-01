@@ -1,9 +1,12 @@
-# /etc/systemd/system/acme-upgrade.service (1.0.37)
+# /etc/systemd/system/acme-upgrade.service
 #
 # Started by acme-upgrade.path, never by hand: it puts in the package the
 # pages asked for - only one signed by a release key in
 # /usr/local/lib/acme/release-keys/, and only after checking every file in it.
-# It runs apart from acme.service, which the upgrade restarts.
+# It runs apart from acme.service, which the upgrade restarts. The helper is
+# the one of the tree that runs (/usr/local/lib/acme/acme_upgrade.py is a link
+# into current/), on the system's own python3: it needs the standard library
+# alone.
 [Unit]
 Description=acme - putting in a new version asked for on the pages
 After=network-online.target

@@ -1,13 +1,13 @@
 <?php
 /**
- * index.php — the enrolment pages: where people make their own token.
+ * index.php — the certificate portal of acme (certificates kept, renewed and
+ * put in place by themselves).
  *
- * Signed in with their directory name and password, somebody sees whether
- * they have a token, makes one (a QR code to scan and the recovery codes to
- * keep), proves it was scanned by typing a code from it, and can replace it
- * with a code from the old one. Nothing is decided here: every answer comes
- * from the acme daemon, and this page holds nothing but a cookie the browser
- * cannot read.
+ * Signed in with their directory name and password, somebody sees what the
+ * portal offers them - drawn by portal.js and what is plugged into it
+ * (assets/certs-portal.js, when it is there). Nothing is decided here: every
+ * answer comes from the acme daemon, and this page holds nothing but a cookie
+ * the browser cannot read.
  */
 declare(strict_types=1);
 
@@ -61,14 +61,6 @@ if (isset($_GET['api'])) {
         exit;
     }
     $reads = ['me' => '/api/portal/me', 'info' => '/api/portal/info'];
-    $writes = ['enroll' => '/api/portal/enroll', 'confirm' => '/api/portal/confirm',
-               'reissue' => '/api/portal/reissue', 'cancel' => '/api/portal/cancel',
-               'verify' => '/api/portal/verify', 'sendold' => '/api/portal/sendold',
-               'codes' => '/api/portal/codes'];
-    if ($post && isset($writes[$what])) {
-        acme_relay($writes[$what], 'POST', sent_json(), 60.0);
-        exit;
-    }
     if (!$post && isset($reads[$what])) {
         acme_relay($reads[$what], 'GET', null, 30.0);
         exit;
@@ -93,7 +85,7 @@ $title = (string) ($info['title'] ?? '');
 // No title of the site's own: a heading of the page's own, in the page's language.
 $title_ours = $title === '';
 if ($title_ours) {
-    $title = 'One-time passwords';
+    $title = 'Certificates';
 }
 ?>
 <!doctype html>
@@ -110,12 +102,12 @@ if ($title_ours) {
     <?= acme_art_for(is_array($info) ? ($info['art'] ?? null) : null, 'portal', $title) ?>
     <div class="card">
       <h1<?= $title_ours ? '' : ' data-no-i18n' ?>><?= h($title) ?></h1>
-      <p class="lede">Sign in to make the token for your phone, or to replace it.</p>
+      <p class="lede">Sign in with your name and password to see your certificates.</p>
       <?php if (!$alive): ?>
         <div class="offline">The server is not answering just now. Try again in a while, or tell
           the administrator.</div>
       <?php elseif (empty($info['on'])): ?>
-        <div class="offline">Making a token here is switched off. Ask the administrator.</div>
+        <div class="offline">The portal is switched off. Ask the administrator.</div>
       <?php endif; ?>
       <form id="signin-form" autocomplete="on">
         <input type="text" id="in-name" name="username" placeholder="name" autocomplete="username"
@@ -168,6 +160,9 @@ if ($title_ours) {
 <script nonce="<?= h($nonce) ?>">var PORTAL_ME = <?= json_encode($me, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 <script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION) ?>"></script>
 <script nonce="<?= h($nonce) ?>" src="/assets/portal.js?v=<?= h(ACME_VERSION) ?>"></script>
+<?php if (is_file(__DIR__ . '/assets/certs-portal.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/certs-portal.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/certs-portal.js')) ?>"></script>
+<?php endif; ?>
 <script nonce="<?= h($nonce) ?>">portalApp(PORTAL_ME);</script>
 <?php endif; ?>
 </div>

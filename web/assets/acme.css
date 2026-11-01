@@ -104,7 +104,6 @@
     70%{box-shadow:0 0 0 2px var(--accent), 0 0 24px rgba(88,166,255,.3)}
     100%{box-shadow:0 0 0 0 rgba(88,166,255,0)}
   }
-  @media (max-width:900px){ }
 
   /* ...and the arrow where a select draws its own: 10px in from the right,
      which is what `background-position:right 10px center` comes to. */
@@ -1184,22 +1183,6 @@
     .signart .dot,.signart .halo{animation:none}
     .signart .dot{offset-distance:50%}
   }
-  /* The pictures to pick from (1.0.71): each with its own road for the dots. */
-  .signart.art-phone .dot{offset-path:path("M112 92 H170")}
-  .signart.art-qr .dot{offset-path:path("M160 98 H232")}
-  .signart .digit{fill:var(--ok);font:700 22px ui-monospace,Menlo,monospace}
-  @keyframes sa-ring{from{stroke-dashoffset:0}to{stroke-dashoffset:100}}
-  .signart .ring{animation:sa-ring 30s linear infinite}
-  @keyframes sa-scan{0%,100%{transform:translateY(0)}50%{transform:translateY(102px)}}
-  .signart .scan{animation:sa-scan 3.2s ease-in-out infinite;opacity:.75}
-  @keyframes sa-type{0%,8%{opacity:.15}20%,85%{opacity:1}100%{opacity:.15}}
-  .signart.art-lock .digit{animation:sa-type 6s ease-in-out infinite}
-  .signart.art-lock .d1{animation-delay:.3s}.signart.art-lock .d2{animation-delay:.6s}
-  .signart.art-lock .d3{animation-delay:.9s}.signart.art-lock .d4{animation-delay:1.2s}
-  .signart.art-lock .d5{animation-delay:1.5s}
-  @media (prefers-reduced-motion: reduce){
-    .signart .ring,.signart .scan,.signart.art-lock .digit{animation:none}
-  }
   .signlogo{display:flex;align-items:center;justify-content:center;min-height:80px;padding:6px 0}
   .signlogo img{display:block;max-width:100%;max-height:188px;object-fit:contain}
   .art-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:12px}
@@ -1313,9 +1296,6 @@
      for them they end in an ellipsis and the whole line is on hover. */
   .going{margin-top:10px;max-width:none}
 
-  @media (max-width:760px){
-
-  }
   .going.wide{max-width:none}
   .going .bar{height:7px;border-radius:99px;background:var(--panel2);overflow:hidden}
   .going .bar span{display:block;height:100%;width:0;border-radius:99px;
@@ -1729,9 +1709,6 @@
   .portal .help p{margin:0 0 10px}
   .enrol{display:grid;grid-template-columns:auto minmax(0,1fr);gap:26px;align-items:start}
   @media (max-width:700px){.enrol{grid-template-columns:minmax(0,1fr)}}
-  .qrbox{background:#fff;border-radius:14px;padding:10px;display:inline-block;line-height:0;
-    box-shadow:0 10px 30px rgba(0,0,0,.35)}
-  .qrbox img{width:240px;height:240px;image-rendering:pixelated}
   .keytext{font:600 15px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     letter-spacing:.5px;padding:8px 12px;border-radius:10px;background:var(--panel2);
     border:1px dashed var(--line);display:inline-block;user-select:all;word-break:normal;overflow-wrap:break-word;max-width:100%}
@@ -1740,9 +1717,6 @@
   .codes span{font:600 16px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     text-align:center;padding:8px 6px;border-radius:9px;background:var(--panel2);
     border:1px solid var(--line);letter-spacing:1px;user-select:all}
-  ol.howto{margin:6px 0 14px 18px;padding:0;color:var(--tx-dim);font-size:13.5px;line-height:1.6}
-  ol.howto li{margin:2px 0}
-  ol.howto b{color:var(--tx)}
   .codein{font:600 26px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace !important;
     letter-spacing:8px;text-align:center;width:220px !important;padding:10px 12px !important}
   .bigstate{display:flex;gap:14px;align-items:center;margin:4px 0 14px}
@@ -1776,41 +1750,7 @@
     border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--tx)}
   /* The groups of a realm as cards (1.0.103): the name to read, the whole
      DN wrapped under it, never cut; many of them scroll inside the section. */
-  .grp-tools{display:flex;align-items:center;gap:10px;margin:0 0 8px}
-  .grp-count{font-size:12px;color:var(--tx-dim);font-weight:600}
-  .grp-count.warn{color:var(--warn)}
-  .grp-find{margin-left:auto;max-width:260px;padding:5px 10px;font-size:12.5px}
-  .grp-list{display:flex;flex-direction:column;gap:8px}
-  .grp-list.many{max-height:min(62vh,640px);overflow:auto;padding-right:4px;
-    scrollbar-gutter:stable}
-  .grp-card{border:1px solid var(--line);border-radius:11px;background:var(--panel2);
-    padding:9px 11px 10px;transition:border-color .15s}
-  .grp-card:hover,.grp-card.editing{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
-  .grp-head{display:flex;align-items:center;gap:10px;min-width:0}
-  .grp-num{flex:none;min-width:22px;height:22px;border-radius:7px;display:grid;place-items:center;
-    font-size:11px;font-weight:700;color:var(--accent);
-    background:color-mix(in srgb,var(--accent) 14%,transparent)}
-  .grp-title{flex:1;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .grp-name{font-size:14px;overflow-wrap:anywhere}
-  .grp-acts{flex:none;display:flex;gap:2px}
-  .grp-acts button:disabled{opacity:.3;cursor:default}
-  .grp-dn{margin:5px 0 0 32px;font-size:11.5px;line-height:1.5;color:var(--tx-dim);
-    overflow-wrap:anywhere;cursor:text}
-  .grp-dn:hover{color:var(--tx)}
-  .grp-card textarea.grp-input{margin:7px 0 0;min-height:44px;width:100%}
-  .grp-reply{margin:8px 0 0 32px}
-  .grp-reply-h{margin:0 0 4px}
-  .grp-reply textarea{width:100%}
-  .grp-addreply{margin:6px 0 0 28px;background:none;border:0;padding:2px 4px;font-size:12px;
-    color:var(--accent);cursor:pointer;opacity:.75}
-  .grp-addreply:hover{opacity:1;text-decoration:underline}
-  @media (max-width:640px){.grp-reply{margin-left:0}}
-  @media (max-width:640px){.grp-dn{margin-left:0}}
-  .grp-chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center;max-width:420px}
-  .grp-chip{font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);
-    background:var(--panel2);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
-  .grp-more{font-size:11px;padding:2px 8px;border-radius:999px;border:1px dashed var(--line);
-    background:none;color:var(--accent);cursor:pointer}
+
   .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px 18px}
   .formgrid .wide{grid-column:1/-1}
   .result-big{font-size:22px;font-weight:700;margin:2px 0 8px}
@@ -1833,7 +1773,6 @@
        the key black on dark blue. */
     h1,h2,h3,h4,.note,.muted,.kv td,.kv th,table td,table th{color:#000 !important}
     .keytext{background:#fff !important;color:#000 !important;border:1px solid #999 !important}
-    .qrbox{background:#fff !important}
   }
   .wrap.portal{max-width:900px}
   .said.bad{color:var(--crit)} .said.good{color:var(--ok)}
@@ -1842,7 +1781,7 @@
 
   /* A group given a role, in the list of what the directory holds (as isemon). */
   tr.dgroup.is-admin td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
-  tr.dgroup.is-token td:first-child{box-shadow:inset 3px 0 0 var(--violet)}
+  tr.dgroup.is-cert td:first-child{box-shadow:inset 3px 0 0 var(--violet)}
   tr.dgroup.is-read td:first-child{box-shadow:inset 3px 0 0 var(--info)}
   tr.dgroup .rowtools .btn.on{border-color:var(--info);color:var(--info);background:var(--info-bg)}
   .modal .box.large{width:min(1120px,100%)}
@@ -1955,7 +1894,6 @@
   .formgrid > .set-item, .tune-machine > .set-item{margin-top:0 !important}
   .formgrid, .tune-machine{align-items:start}
   /* A token's window: wide, its four cards side by side (1.0.11). */
-  .modal .box.tokwin{width:min(1640px,97vw)}
   .msects.tokgrid{grid-template-columns:repeat(4,minmax(0,1fr))}
   @media (max-width: 1200px){ .msects.tokgrid{grid-template-columns:repeat(2,minmax(0,1fr))} }
   @media (max-width: 700px){ .msects.tokgrid{grid-template-columns:1fr} }
@@ -2064,8 +2002,6 @@ table td.mono, table td > .mono, table td > span.mono, .fields dd{white-space:no
 .qs-wrap.qs-open > .qs-said{display:none}
 .modal .qs-drop{z-index:120}
 /* the person card: a group that lets into a realm, in green (1.0.19) */
-.me-group.gives.realm{border-color:rgba(63,185,80,.5);background:var(--ok-bg, rgba(63,185,80,.1))}
-.me-group.gives.realm .gwhy{color:var(--ok)}
 .me-sec h3 .me-count{color:var(--tx-mut);font-weight:600;letter-spacing:0}
 .modal .me-kv{grid-template-columns:170px minmax(0,1fr)}
 
@@ -2155,15 +2091,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--info);box-shadow:0 0 
 .set-item .says.clamp.cut:not(.open):hover{color:var(--tx-dim)}
 .note.warn{color:var(--warn)}
 /* -- the token window (1.0.20) --------------------------------------------- */
-.modal .box.tokwin{width:min(1180px,96vw)}
-.tw-head{display:flex;align-items:center;gap:16px;margin:0 0 18px}
-.tw-head .me-ava{width:56px;height:56px;font-size:20px}
-.tw-who{min-width:0}
-.tw-name{font-size:19px;font-weight:700;line-height:1.25}
-.tw-sub{color:var(--tx-dim);font-size:13px;margin-top:2px}
-.tw-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
-.tw-col{display:flex;flex-direction:column;gap:16px;min-width:0}
-@media (max-width:980px){.tw-grid{grid-template-columns:1fr}}
+
 .acard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:4px 18px}
 .acard.danger{border-color:rgba(248,81,73,.35)}
 .acard-h{display:block;padding:12px 0 10px;border-bottom:1px solid var(--line)}
@@ -2184,9 +2112,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--info);box-shadow:0 0 
 table.plain th, table th{font-size:11.5px;letter-spacing:.6px}
 table.plain td, table td{font-size:14px}
 
-.modal .box.tokwin .facts{grid-template-columns:repeat(4,minmax(0,1fr))}
-@media (max-width:760px){.modal .box.tokwin .facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
-
 /* 1.0.20 - settings laid out on one grid: every name, every box and every
    explanation on a row start at the same height, and a wide one leaves no
    hole behind it (later ones fill in). */
@@ -2205,33 +2130,12 @@ table.plain td, table td{font-size:14px}
 .set-item.tall > textarea{min-height:64px}
 
 /* 1.0.21 - the token's window: on one screen, four cards of one size */
-.modal .box.tokwin{width:min(1320px,96vw)}
-.tw-head{gap:14px;margin:0 0 14px;flex-wrap:wrap}
-.tw-head .me-ava{width:48px;height:48px;font-size:17px;flex:none}
-.tw-who{flex:0 1 auto}
-.tw-facts{display:flex;gap:10px;margin:0 0 0 auto;flex-wrap:wrap}
-.tw-fact{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:150px}
-.tw-fact dt{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--tx-dim)}
-.tw-fact dd{margin:3px 0 0;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
-.tw-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:14px;align-items:stretch}
-.tw-grid > .acard{min-width:0}
 .acard-h{padding:10px 0 8px}
 .arow{min-height:50px;padding:7px 0}
-.arow-c input.tw-move{width:240px}
 /* Move to and Note (1.0.74): the boxes the same width whether or not the
    suggestions wrap one, the buttons the same width, so both lines end in
    one column. */
-.arow-c .qs-wrap:has(> input.tw-move){width:240px;flex:none}
-.arow-c .qs-wrap > input.tw-move{width:100%}
-.arow-c .tw-btn{min-width:132px;justify-content:center}
-.tw-foot{display:flex;align-items:center;gap:8px;margin-top:14px !important}
-.tw-foot .tw-del{margin-left:auto}
-@media (max-width:980px){.tw-grid{grid-template-columns:1fr;grid-auto-rows:auto}.tw-facts{margin:0}}
-.modal .foot > .tw-foot{flex:1 1 auto;margin:0 !important}
-.modal .foot > .tw-foot .tw-del{margin-left:auto;margin-right:8px}
-.tw-grid .acard{padding:0 18px 4px}
-.tw-grid .acard-h{padding:12px 0 8px}
-.tw-grid .acard-h h4{margin:0 !important}
+
 /* 1.0.22 - a popup over a popup: the one underneath stays, dimmed */
 .modal.under{pointer-events:none}
 .modal.over{background:rgba(5,8,12,.55)}
@@ -2245,9 +2149,6 @@ input.masked{font-family:var(--mono, ui-monospace, SFMono-Regular, Menlo, monosp
 .folds.open .fold-hint::after{content:' ▴'}
 .steps-fold{margin:6px 0 10px}
 /* 1.0.33 - the realms a client may use */
-.realmpick{display:flex;flex-wrap:wrap;gap:6px 14px;padding:8px 0}
-.realmpick-one{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer}
-.realmpick-one input{width:auto;height:auto;margin:0}
 
 /* The buttons at the end of a row are part of the row like any other cell
    (1.0.39) - no colour or place of their own; a table wider than its card
@@ -2298,28 +2199,9 @@ table.dbheld td.num, table.dbheld th.num{text-align:right;white-space:nowrap}
 
 /* The code the phone shows now, in the token window (1.0.40). */
 /* Code now: the same size hidden and shown (1.0.41) */
-.tw-fact.tw-code{cursor:pointer;width:170px;min-width:170px;flex:none;box-sizing:border-box}
-.tw-fact.tw-code:hover{border-color:var(--info)}
-.tw-fact.tw-code.copied{border-color:var(--ok)}
-.tw-code-hint{color:var(--info);font-weight:600}
-.tw-fact.tw-code dd{overflow:visible;max-width:none;height:20px;line-height:20px;display:flex;align-items:center}
-.tw-code-row{display:flex;align-items:center;gap:10px;height:20px}
-.tw-code-v{font-size:17px;line-height:20px;font-weight:700;letter-spacing:1px;color:var(--tx)}
-.tw-ring-wrap{position:relative;width:22px;height:22px;flex:none;margin:-1px 0}
-.tw-ring{width:22px;height:22px;transform:rotate(-90deg);display:block}
-.tw-ring-back{fill:none;stroke:var(--line);stroke-width:3}
-.tw-ring-fill{fill:none;stroke:var(--ok);stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset .2s linear}
-.tw-ring-fill.low{stroke:var(--warn)}
-.tw-ring-s{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;color:var(--tx-dim);line-height:1}
 
 /* Try a code: the answer marked in place of the line under it, so the
    row and the window keep their height (1.0.42) */
-.try-said{display:inline-block;vertical-align:top;line-height:inherit;padding:0 7px;margin:0;border-radius:4px;font-weight:600;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.try-said b{font-weight:800;letter-spacing:.4px;margin-right:6px}
-.try-said.ok{background:var(--ok-bg);color:var(--ok);box-shadow:inset 0 0 0 1px rgba(63,185,80,.35)}
-.try-said.crit{background:var(--crit-bg);color:var(--crit);box-shadow:inset 0 0 0 1px rgba(248,81,73,.35)}
-input.try-ok{border-color:var(--ok)!important;box-shadow:0 0 0 1px var(--ok)}
-input.try-bad{border-color:var(--crit)!important;box-shadow:0 0 0 1px var(--crit)}
 
 /* Phone width (1.0.44): a long button label wraps instead of pushing the
    page sideways. */
@@ -2582,33 +2464,9 @@ select.vip-iface{min-width:150px}
 @media (max-width:600px){.tp-cols{grid-template-columns:1fr}}
 
 /* ---- The answer's lines, with help (1.0.57) ----------------------------------- */
-.re-wrap{display:flex;flex-direction:column;gap:6px;min-width:0}
-.re-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.re-bar select{max-width:320px}
-.re-hint{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--tx-dim);margin-left:auto}
-.re-hint kbd,.formfield kbd,.note kbd{font:600 11px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--line);border-bottom-width:2px;
+.formfield kbd,.note kbd{font:600 11px ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid var(--line);border-bottom-width:2px;
   border-radius:5px;padding:1px 5px;background:var(--panel2);color:var(--tx)}
-.re-says{font-size:12.5px;color:var(--tx-dim);background:var(--info-bg);border-radius:8px;padding:6px 9px}
-.re-ta{width:100%;min-height:84px;font-size:13px;line-height:1.5}
-.re-wrap.compact .re-ta{min-height:38px}
-.re-ta.re-has-bad{border-color:rgba(248,81,73,.6)}
-.re-check{display:flex;flex-direction:column;gap:2px}
-.re-bad{font-size:12px;color:var(--crit);display:flex;gap:6px}
-.re-pop{position:fixed;z-index:4000;max-height:300px;overflow:auto;background:var(--panel);border:1px solid var(--line);
-  border-radius:10px;box-shadow:0 16px 40px rgba(0,0,0,.5);padding:4px}
-.re-item{padding:7px 9px;border-radius:7px;cursor:pointer}
-.re-item.on{background:var(--info-bg)}
-.re-item:hover{background:var(--panel2)}
-.re-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.re-top b{font-size:13px}
-.re-vendor{font-size:11px;font-weight:700;border-radius:5px;padding:1px 6px;background:var(--violet-bg);color:var(--violet)}
-.re-vendor.std{background:var(--panel2);color:var(--tx-dim)}
-.re-type{font-size:11px;color:var(--tx-mut)}
-.re-says2{font-size:12.5px;color:var(--tx-dim);margin-top:2px}
-.re-ex{font-size:12px;color:var(--tx-mut);margin-top:2px}
-.re-ex code{color:var(--tx)}
 .fromcell{white-space:nowrap}
-.fromcell .client-tag{margin-left:8px;vertical-align:middle}
 
 /* The upgrade's bars (1.0.67). */
 .up-bar{margin:6px 0 10px}
@@ -2656,7 +2514,6 @@ table.ha-cli tr.ha-cli-group td{padding-top:20px;font:650 13px var(--face);lette
 .ha-cli-fold{margin-top:10px}
 .ha-cli-fold > .ha-cli-in{padding:4px 14px 12px;overflow-x:auto}
 /* More pictures of the sign-in (1.0.75). */
-.signart.art-vpn .dot{offset-path:path("M90 152 H146")}
 @keyframes sa-drain{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 .signart .drain{transform-box:fill-box;transform-origin:left center;animation:sa-drain 30s linear infinite}
 @keyframes sa-caret{0%,49%{opacity:1}50%,100%{opacity:0}}
@@ -2665,27 +2522,8 @@ table.ha-cli tr.ha-cli-group td{padding-top:20px;font:650 13px var(--face);lette
 .signart .nowline{animation:sa-now 30s linear infinite}
 @media (prefers-reduced-motion: reduce){.signart .drain,.signart .caret,.signart .nowline{animation:none}}
 /* The ways of getting a code on the enrolment pages (1.0.76). */
-.way-tiles{display:grid;gap:10px;margin:14px 0 4px}
-.way-tile{display:flex;gap:12px;align-items:flex-start;text-align:left;padding:12px 14px;border-radius:12px;
-  background:var(--panel2);border:1.5px solid var(--line);color:var(--tx);cursor:pointer;font:inherit}
-.way-tile:hover{border-color:var(--accent)}
-.way-tile.on{border-color:var(--info);box-shadow:0 0 0 2px color-mix(in srgb,var(--info) 25%,transparent)}
-.way-ic{flex:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;
-  background:var(--info-bg);color:var(--info)}
-.way-tx{display:flex;flex-direction:column;gap:3px;min-width:0}
-.way-tx b{font-size:14.5px}
-.way-tx span{font-size:13px;color:var(--tx-dim);line-height:1.45}
-.way-dest{margin-top:12px}
-.way-dest input{width:100%;max-width:360px}
-.methods-pick{display:flex;flex-direction:column;gap:7px}
 /* The code box with its "Send me a code" beside it (1.0.80). */
-.code-ask{display:flex;gap:8px;align-items:stretch}
-.code-ask input{flex:1;min-width:0}
-.code-ask .btn{flex:none;white-space:nowrap}
 /* The test's second window (1.0.81). */
-.rt-second{margin:12px 0;padding:12px 14px;border:1px solid var(--info);border-radius:10px;background:var(--info-bg)}
-.rt-second .rt-msg{font-weight:600;margin:4px 0 10px}
-.way-prefs{margin-top:12px;max-width:620px}
 
 /* Settings drawn in sections (1.0.88): Codes by e-mail and SMS. Four even
    columns, a heading over each group, and what one way of sending SMS
@@ -2732,10 +2570,6 @@ table.ha-cli tr.ha-cli-group td{padding-top:20px;font:650 13px var(--face);lette
 .set-ca-seen:not(:empty){margin-top:12px;display:flex;flex-direction:column;gap:8px}
 
 /* Where "Sent to" came from (1.0.91). */
-.dest-said{font-size:12px;color:var(--tx-mut);margin-top:6px;line-height:1.45}
-.dest-said:empty{display:none}
-.dest-said.good{color:var(--ok)}
-.dest-said.warn{color:var(--warn)}
 
 /* The outgoing mail (1.0.95). */
 .nav-badge{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;border-radius:9px;
@@ -2768,16 +2602,6 @@ td.mq-said{max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:elli
 .btn.sb-clear.on{opacity:1;border-color:var(--warn);color:var(--warn)}
 
 /* 1.0.100: restoring from a backup - the counts and the ones replaced. */
-.bk-bar{flex-wrap:nowrap}
-.bk-bar .qs-wrap{flex:1 1 auto;min-width:240px}
-.bk-said{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13px}
-.bk-said span + span::before{content:'·';margin-right:14px;color:var(--tx-mut)}
-.bk-said .good{color:var(--ok)} .bk-said .warn{color:var(--warn)}
-.bk-here{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 6px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,190,80,.05)}
-.bk-here .small{flex:1 1 260px}
-ul.bk-repl{margin:10px 0 0;padding:8px 12px 8px 30px;border:1px solid var(--line);border-radius:8px;max-height:220px;overflow:auto;font-size:13px}
-ul.bk-repl li{margin:2px 0}
-.bk-here .btn{flex:0 0 auto;width:auto}
 
 /* 1.0.101: the SMS gateway checked by nobody, said plainly. */
 .sms-warn{margin:10px 0;padding:10px 12px;border:1px solid var(--warn);border-radius:8px;background:rgba(255,190,80,.07);color:var(--warn)}
@@ -2870,18 +2694,12 @@ ul.bk-repl li{margin:2px 0}
 .tx-bubble{align-self:flex-start;max-width:92%;background:#2a3140;color:#eef2f8;padding:9px 12px;border-radius:16px 16px 16px 4px;
   font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
 /* The VPN's second window. */
-.tx-prompt{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:16px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
-.tx-prompt:first-child{border-top:0;padding-top:0}
-.tx-vpn{border:1px solid #cfd6e0;border-radius:8px;background:#f8fafc;color:#111827;overflow:hidden;font-size:13px}
-.tx-vpn-bar{background:#1e3a8a;color:#fff;font-weight:700;font-size:11px;letter-spacing:.08em;padding:5px 10px}
-.tx-vpn-said{padding:10px 12px 6px;line-height:1.4;min-height:20px}
-.tx-vpn-input{margin:0 12px 12px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;padding:5px 8px;color:#6b7280}
 @media (max-width: 1100px){
   .tx-shell{grid-template-columns:1fr}
   .tx-list{position:static;flex-direction:row;flex-wrap:wrap}
   .tx-list-h{width:100%}
   .tx-item{flex:1 1 200px}
-  .tx-sms,.tx-prompt{grid-template-columns:1fr}
+  .tx-sms{grid-template-columns:1fr}
 }
 @media (max-width: 640px){
   .tx-head{grid-template-columns:1fr}
@@ -2891,7 +2709,6 @@ ul.bk-repl li{margin:2px 0}
 }
 #ha-nodes{overflow-x:auto;max-width:100%}
 #ha-nodes table{min-width:0}
-td.tok-note{min-width:150px;max-width:280px;overflow-wrap:anywhere}
 /* The link between the databases (1.0.104): one bar that says and mends. */
 .hal{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 14px;background:var(--panel2)}
 .hal.warn{border-color:color-mix(in srgb,var(--warn) 70%,transparent);background:var(--warn-bg)}
@@ -3036,9 +2853,8 @@ button.mebtn { cursor: pointer; }
 .tel-facts dd { margin: 0 0 4px; font-size: 13px; }
 
 /* Recovery codes shown again (1.0.113). */
-.codes-ask { margin: 4px 0 0; }
 /* Half the card on a wide screen, as the code box in the card above it. */
-@media (min-width: 760px) { .codes-ask .formgrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
 .codes .used { text-decoration: line-through; opacity: .45; }
 
 /* Network and power (1.0.119). */
@@ -3335,12 +3151,6 @@ body.app-shell #pane-mailq > .card.held{flex:1 1 auto;min-height:320px;max-heigh
 :where(.dbt-try:not(:empty)) {margin-top:18px}
 
 /* SSH tokens (1.0.181) */
-.sd-tokens{margin-top:22px;border-top:1px solid var(--line);padding-top:16px}
-.sd-tokens h3{margin:0 0 10px}
-.sd-tokens > .btnrow{margin-top:16px}
-.sd-tokens td.acts{text-align:right;white-space:nowrap}
-.sd-tokens td.acts .btn + .btn{margin-left:8px}
-
 
 /* A certificate downloaded (1.0.191): its format as a card to pick. */
 .fmt-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin:12px 0 4px}

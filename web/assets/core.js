@@ -337,7 +337,7 @@ function closeModal() {
   Array.prototype.forEach.call(document.querySelectorAll('#modal .tp'), function (t) { if (t._close) t._close(); });
   MODAL_GEN += 1;
   $('modal').hidden = true;
-  /* What the popup showed goes with it (1.0.101) - a token's key, its QR
+  /* What the popup showed goes with it (1.0.101) - a key, a QR
      code, recovery codes stayed in the page, hidden, until another popup
      opened. Emptied a moment later, once nothing opened in its place. */
   var shutGen = MODAL_GEN, shut = $('modal');
@@ -969,8 +969,8 @@ function headCells(headers) {
 
 /* Every table of the pages (1.0.165): its rows scroll inside it under headings
    that stay, and past LT_PER rows it is paged - the same buttons as every
-   list. The lists the daemon pages itself (`own`: the tokens, the log, the
-   enrolments, the events, the outgoing mail) keep their own. The page a table
+   list. The lists the daemon pages itself (`own`: the events, the outgoing
+   mail, the certificates and the jobs) keep their own. The page a table
    is on is kept while it is drawn again by itself. */
 var LT_PER = 50;
 var LT_PAGE = {};
@@ -1575,7 +1575,7 @@ window.addEventListener('resize', function () {
    ==========================================================================
    Under a search box: the fields of the list as `field:`, and once a field
    is typed, what it holds, busiest first. Under a box for a person: people
-   from the directory of the realm, and the realms after an @. ↑ ↓ choose,
+   from the directory. ↑ ↓ choose,
    Tab or Enter take, Esc closes. What the box does when somebody types, it
    does when something is taken. */
 function suggestBox(input) {
@@ -1810,76 +1810,32 @@ function qSuggest(input, list, extra) {
   return me;
 }
 
-/** A box for a person's name: the realms after an @, and while a name is
-    typed the people in the directory of its realm - with whether each has
-    a token already. `opts.realm()` names the realm when the box itself
-    does not; `opts.picked(person)` hears what was taken. */
+/** A box for a person's name: while a name is typed, the people in the
+    directory (`opts.directory`, else the one administrators sign in
+    against). `opts.picked(person)` hears what was taken. */
 function personSuggest(input, opts) {
   if (!input || input._ps) return;
   opts = opts || {};
   var box = suggestBox(input);
   input._ps = true;
-  var realmsList = function () {
-    if (window.REALMS_SEEN) return Promise.resolve(window.REALMS_SEEN);
-    return api('realms').then(function (d) { window.REALMS_SEEN = (d.realms || []).filter(function (r) { return r.enabled; }); return window.REALMS_SEEN; });
-  };
   suggestEngine(input, box, function (st) {
     var text = input.value.trim().toLowerCase();
     st.typed = !!text;
-    return realmsList().then(function (realms) {
-      var at = text.indexOf('@');
-      if (at >= 0 && !text.slice(at + 1).match(/^[a-z0-9.-]*\.[a-z]{2,}$/)) {
-        /* After the @: the realms. */
-        var part = text.slice(at + 1);
-        var items = realms.filter(function (r) { return r.suffix && r.suffix !== '*' && r.suffix.toLowerCase().indexOf(part) === 0; })
-          .map(function (r) {
-            return {show: '@' + r.suffix, note: r.name + (r.directory ? ' · ' + r.directory : ''), data: true,
-                    put: text.slice(0, at) + '@' + r.suffix, from: 0, to: input.value.length, done: false, space: false};
-          });
-        return items.length ? {title: 'Realms', items: items} : null;
-      }
-      var bare = at >= 0 ? text.slice(0, at) : text;
-      if (bare.length < 2) {
-        if (!text) {
-          var hint = realms.filter(function (r) { return r.suffix && r.suffix !== '*'; }).map(function (r) {
-            return {show: '@' + r.suffix, note: r.name, data: true, put: '@' + r.suffix, from: 0,
-                    to: input.value.length, done: false, space: false};
-          });
-          return hint.length ? {title: 'Realms - or type part of a name', items: hint} : null;
-        }
-        return null;
-      }
-      var realm = at >= 0 ? text.slice(at + 1) : (opts.realm ? opts.realm() : '');
-      /* The realm by its name, which is what the daemon asks by - whether it
-         came as the part after an @ or as a realm's name (1.0.34): by the
-         part after the @, Move to found nobody. A realm unknown here asks
-         every directory, as no realm at all does. */
-      var named = realm ? realms.filter(function (r) {
-        return r.directory && (String(r.suffix || '').toLowerCase() === realm || String(r.name).toLowerCase() === realm);
-      }) : [];
-      var asks = opts.directory ? ['']
-        : (named.length ? named.map(function (r) { return r.name; })
-           : realms.filter(function (r) { return r.directory; }).map(function (r) { return r.name; }));
-      return Promise.all(asks.slice(0, 4).map(function (rn) {
-        return api('directories', {action: 'people', like: bare, realm: rn, limit: 12,
-                                   directory: opts.directory || ''})
-          .catch(function () { return {people: []}; });
-      })).then(function (all) {
+    var bare = text.indexOf('@') >= 0 ? text.slice(0, text.indexOf('@')) : text;
+    if (bare.length < 2) return Promise.resolve(null);
+    return api('directories', {action: 'people', like: bare, limit: 12, directory: opts.directory || ''})
+      .catch(function () { return {people: []}; }).then(function (d) {
         var items = [], seen = {};
-        all.forEach(function (d) {
-          (d.people || []).forEach(function (p) {
-            if (!p.name || seen[p.name]) return;
-            seen[p.name] = 1;
-            items.push({show: p.name, note: (p.display || '') + (p.mail ? ' · ' + p.mail : '')
-                          + (p.disabled ? ' · switched off in the directory' : ''), data: true,
-                        tag: p.token ? (p.token === 'active' ? 'has a token' : 'token: ' + p.token) : '',
-                        put: p.name, from: 0, to: input.value.length, done: true, space: false,
-                        picked: opts.picked ? function () { opts.picked(p); } : null});
-          });
+        (d.people || []).forEach(function (p) {
+          if (!p.name || seen[p.name]) return;
+          seen[p.name] = 1;
+          items.push({show: p.name, note: (p.display || '') + (p.mail ? ' · ' + p.mail : '')
+                        + (p.disabled ? ' · switched off in the directory' : ''), data: true,
+                      put: p.name, from: 0, to: input.value.length, done: true, space: false,
+                      picked: opts.picked ? function () { opts.picked(p); } : null});
         });
         return items.length ? {title: 'In the directory', items: items.slice(0, 20)} : null;
       });
-    });
   }, null);
 }
 
@@ -2399,7 +2355,7 @@ function mfaDraw(box, d) {
       box.appendChild(sent);
     }
   } else {
-    box.appendChild(el('p', 'lede small', 'After the password these pages ask for a code too - choose how (the account\'s own, not a VPN token).'));
+    box.appendChild(el('p', 'lede small', 'After the password these pages ask for a code too - choose how.'));
     var seg = el('div', 'seg mfa-ways');
     var body = el('div', 'mfa-body');
     (d.methods || ['app']).forEach(function (k, i) {

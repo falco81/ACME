@@ -1,7 +1,7 @@
 # /etc/logrotate.d/acme
 #
-# The daemon's own log, and the two files it writes for isemon (the token
-# checks and the RADIUS packets, one to a line). The daemon notices a file
+# The daemon's own log, and the files it writes beside it (for isemon and
+# the SIEM, one event to a line). The daemon notices a file
 # that has been renamed and opens a new one by itself; the reload makes it
 # reopen its own log too.
 /var/log/acme/*.log {
@@ -17,7 +17,7 @@
     su acme acme
     create 0640 acme acme
     postrotate
-        # As acme, which may signal its own daemon (1.0.94) - systemctl reload
+        # As acme, which may signal its own daemon - systemctl reload
         # was refused to it; the daemon also notices a new file by itself.
         p=$(/usr/bin/systemctl show -p MainPID --value acme.service 2>/dev/null); [ -n "$p" ] && [ "$p" != 0 ] && kill -HUP "$p" 2>/dev/null || true
     endscript

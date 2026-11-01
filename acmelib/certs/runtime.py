@@ -1,0 +1,488 @@
+# -*- coding: utf-8 -*-
+"""
+What a module is handed: RunContext (the real acmelib.plugins.base.Context)
+and SshSession (the ssh and scp programs of OpenSSH).
+
+A module never touches the database, the sealing key or the network settings
+itself - everything goes through here, and every step is written into the
+job it runs in.
+
+SSH: the server's host key is always checked. The target's config holds it
+as known_hosts line(s) (`hostkey`); with none and `trust_first` on, the first
+key the server shows (ssh-keyscan) is taken, written back into the target's
+config and said in the job; with none and no trust_first the connection is
+refused, saying the fingerprint the server shows so it can be checked and
+pasted. A password or a key's passphrase goes through SSH_ASKPASS, never on a
+command line; one connection is shared by every command of a session
+(ControlMaster), so a password is asked for once.
+"""
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import os
+import re
+import secrets
+import shutil
+import ssl
+import subprocess
+import tempfile
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+from acmelib import engine as E
+from acmelib.plugins import base
+from acmelib.certs import store as S
+
+KV_PREFIX = 'certs:kv:'
+CHAL_PREFIX = 'acme:chal:'          # read by the engine's acme_challenge() for port 80
+HOSTKEY_ALIAS = 'acme-target'
+
+
+def shq(s):
+    return "'" + str(s).replace("'", "'\\''") + "'"
+
+
+class RunContext(base.Context):
+    """The Context of acmelib/plugins/base.py, for one job (or a test).
+
+    scope       whose little state kv_get/kv_set keep ('issuer:<name>', ...)
+    job         the jobs.Job the steps go into (None: kept in .steps)
+    on_hostkey  fn(known_hosts_text) - the first host key seen, to be kept
+                (the target's trust_first)
+    """
+
+    def __init__(self, store, job=None, scope='', on_hostkey=None):
+        self.store = store
+        self.job = job
+        self.scope = scope or 'any'
+        self.on_hostkey = on_hostkey
+        self.steps = []
+        self.node = E.node_name()
+        self.settings = S.settings_view()
+        self._stop = threading.Event()
+        self.record_names = []          # dns_records written, for the cleanup at the end
+        self.tokens = []
+
+    # ---- the job's log ------------------------------------------------------------------
+    def step(self, words, level='info'):
+        level = level if level in ('info', 'ok', 'warn', 'bad', 'debug') else 'info'
+        if self.job is not None:
+            self.job.step(words, level)
+        else:
+            self.steps.append([time.time(), level, str(words)[:4000]])
+
+    def debug(self, words):
+        if E.CONFIG.get('debug'):
+            self.step(words, 'debug')
+
+    def cancelled(self):
+        if self._stop.is_set():
+            return True
+        return bool(self.job is not None and self.job.cancelled())
+
+    def cancel(self):
+        self._stop.set()
+
+    # ---- HTTPS -------------------------------------------------------------------------
+    def http(self, method, url, body=None, headers=None, timeout=30, verify=True,
+             ca_pem=None, client_cert=None, proxy=True):
+        """(status, {header: value}, bytes). An answer of 4xx/5xx is an answer,
+        not an exception; a server that cannot be reached is a PluginError."""
+        if not re.match(r'^https?://', str(url or '')):
+            raise base.PluginError('%r is not an http(s) address' % url, retry=False)
+        if isinstance(body, str):
+            body = body.encode('utf-8')
+        elif isinstance(body, (dict, list)):
+            body = json.dumps(body).encode('utf-8')
+            headers = dict(headers or {})
+            headers.setdefault('Content-Type', 'application/json')
+        req = urllib.request.Request(url, data=body, method=str(method or 'GET').upper())
+        for k, v in (headers or {}).items():
+            req.add_header(k, v)
+        if not req.has_header('User-agent'):
+            req.add_header('User-Agent', 'acme/%s' % E.__version__)
+        ctx, tmp = None, None
+        if url.startswith('https'):
+            ctx = ssl.create_default_context()
+            if not verify:
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+            elif ca_pem:
+                ctx = ssl.create_default_context(cadata=str(ca_pem))
+            if client_cert:
+                tmp = tempfile.mkdtemp(prefix='acme-http-')
+                if isinstance(client_cert, (tuple, list)):
+                    cert_text, key_text = client_cert[0], client_cert[1]
+                elif isinstance(client_cert, dict):
+                    cert_text, key_text = client_cert.get('cert'), client_cert.get('key')
+                else:
+                    cert_text, key_text = client_cert, None
+                cf = os.path.join(tmp, 'c.pem')
+                with open(os.open(cf, os.O_WRONLY | os.O_CREAT, 0o600), 'w') as f:
+                    f.write(str(cert_text))
+                    if key_text:
+                        f.write('\n' + str(key_text))
+                try:
+                    ctx.load_cert_chain(cf)
+                except (ssl.SSLError, OSError) as e:
+                    shutil.rmtree(tmp, ignore_errors=True)
+                    raise base.PluginError('the client certificate cannot be used: %s' % e,
+                                           retry=False)
+        self.debug('%s %s' % (req.get_method(), url))
+        try:
+            try:
+                got = E.url_open(req, timeout=timeout, context=ctx,
+                                 purpose='acme' if proxy else '')
+                with got:
+                    return got.status, dict(got.headers.items()), got.read()
+            except urllib.error.HTTPError as e:
+                try:
+                    data = e.read()
+                except Exception:                       # noqa: BLE001
+                    data = b''
+                return e.code, dict((e.headers or {}).items()), data
+            except urllib.error.URLError as e:
+                raise base.PluginError('%s could not be reached: %s' % (
+                    urllib.parse.urlsplit(url).netloc, getattr(e, 'reason', e)))
+            except (OSError, ssl.SSLError) as e:
+                raise base.PluginError('%s: %s' % (urllib.parse.urlsplit(url).netloc, e))
+        finally:
+            if tmp:
+                shutil.rmtree(tmp, ignore_errors=True)
+
+    # ---- SSH and openssl ---------------------------------------------------------------
+    def ssh(self, conn):
+        return SshSession(self, conn)
+
+    def openssl(self, args, data=None, timeout=60):
+        exe = shutil.which('openssl')
+        if not exe:
+            raise base.PluginError('openssl is not on this machine', retry=False)
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        try:
+            got = subprocess.run([exe] + [str(a) for a in args], input=data,
+                                 capture_output=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise base.PluginError('openssl %s took more than %d s' % (
+                args[0] if args else '', timeout))
+        if got.returncode != 0:
+            said = got.stderr.decode('utf-8', 'replace').strip().splitlines()
+            raise base.PluginError('openssl %s: %s' % (args[0] if args else '',
+                                                       ' / '.join(said[-3:])[:400]),
+                                   detail=got.stderr.decode('utf-8', 'replace'))
+        return got.stdout
+
+    # ---- a little state of the module's own ---------------------------------------------
+    def _kv_key(self, key):
+        return '%s%s:%s' % (KV_PREFIX, self.scope, str(key)[:120])
+
+    def kv_get(self, key, default=None):
+        got = S.jload(self.store.get_meta(self._kv_key(key)), None)
+        if not isinstance(got, dict):
+            return default
+        if got.get('exp') and float(got['exp']) < time.time():
+            return default
+        return got.get('v', default)
+
+    def kv_set(self, key, value, ttl_s=None):
+        k = self._kv_key(key)
+        if value is None:
+            self.store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+            return
+        self.store.set_meta(k, json.dumps({'v': value, 'exp': (time.time() + ttl_s)
+                                                  if ttl_s else None}, default=str))
+
+    # ---- acme's own DNS server ----------------------------------------------------------
+    def dns_put(self, name, type, value, ttl=60):
+        name = str(name).strip().rstrip('.').lower()
+        rtype = str(type or 'TXT').upper()
+        t = time.time()
+        self.store.db.insert('dns_records', {
+            'name': name, 'rtype': rtype, 'value': str(value), 'ttl': int(ttl or 60),
+            'expires': t + 6 * 3600, 'created': t,
+            'owner': ('job:%s' % self.job.id) if self.job is not None else self.scope,
+            'note': 'put by %s' % self.scope})
+        self.record_names.append((name, rtype, str(value)))
+        self.step('DNS: %s %s "%s" put in acme\'s own DNS server' % (name, rtype, value))
+
+    def dns_drop(self, name, type, value=None):
+        name = str(name).strip().rstrip('.').lower()
+        rtype = str(type or 'TXT').upper()
+        if value is None:
+            self.store.db.run('DELETE FROM dns_records WHERE name = ? AND rtype = ?',
+                              (name, rtype))
+        else:
+            self.store.db.run('DELETE FROM dns_records WHERE name = ? AND rtype = ? AND value = ?',
+                              (name, rtype, str(value)))
+
+    # ---- HTTP-01 on this server's port 80 -----------------------------------------------
+    def http_token_put(self, token, key_authorization):
+        if not re.match(r'^[A-Za-z0-9_-]{8,256}\Z', str(token or '')):
+            raise base.PluginError('that is not an ACME token', retry=False)
+        self.store.set_meta(CHAL_PREFIX + token, json.dumps(
+            {'auth': str(key_authorization), 'at': time.time()}))
+        self.tokens.append(token)
+
+    def http_token_drop(self, token):
+        self.store.db.run('DELETE FROM meta WHERE k = ?', (CHAL_PREFIX + str(token),))
+
+    def tidy(self):
+        """Whatever the job left in the DNS server or on port 80 taken away."""
+        for name, rtype, value in self.record_names:
+            try:
+                self.dns_drop(name, rtype, value)
+            except Exception:                           # noqa: BLE001
+                pass
+        for tok in self.tokens:
+            try:
+                self.http_token_drop(tok)
+            except Exception:                           # noqa: BLE001
+                pass
+        self.record_names, self.tokens = [], []
+
+
+# ---------------------------------------------------------------------------
+# SSH
+# ---------------------------------------------------------------------------
+def hostkey_lines(text):
+    """known_hosts lines with the host part made our alias: 'host type key',
+    '[host]:port type key', '|1|hash type key' and a bare 'type key' alike."""
+    out = []
+    for line in str(text or '').splitlines():
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        parts = line.split()
+        if parts[0].startswith('@'):
+            parts = parts[1:]           # @cert-authority / @revoked: not for this
+        if len(parts) >= 2 and re.match(r'^(ssh-|ecdsa-|sk-)', parts[0]):
+            typ, key = parts[0], parts[1]
+        elif len(parts) >= 3:
+            typ, key = parts[1], parts[2]
+        else:
+            continue
+        try:
+            base64.b64decode(key, validate=True)
+        except (ValueError, TypeError):
+            continue
+        out.append('%s %s %s' % (HOSTKEY_ALIAS, typ, key))
+    return out
+
+
+def hostkey_fingerprint(line):
+    parts = line.split()
+    try:
+        raw = base64.b64decode(parts[-1] if len(parts) == 2 else parts[2])
+    except (ValueError, TypeError, IndexError):
+        return '?'
+    return '%s SHA256:%s' % (parts[-2] if len(parts) == 2 else parts[1],
+                             base64.b64encode(hashlib.sha256(raw).digest()).decode().rstrip('='))
+
+
+def keyscan(host, port, timeout=10):
+    if not shutil.which('ssh-keyscan'):
+        raise base.PluginError('ssh-keyscan is not on this machine (dnf install openssh-clients)',
+                               retry=False)
+    try:
+        got = subprocess.run(['ssh-keyscan', '-T', str(int(timeout)), '-p', str(int(port)),
+                              str(host).strip('[]')], capture_output=True, text=True,
+                             timeout=timeout + 20)
+    except subprocess.TimeoutExpired:
+        raise base.PluginError('%s:%s showed no host key in time' % (host, port))
+    lines = [x for x in got.stdout.splitlines() if x.strip() and not x.startswith('#')]
+    if not lines:
+        raise base.PluginError('%s:%s showed no host key: %s' % (
+            host, port, ' '.join((got.stderr or '').strip().splitlines()[-1:]) or 'no answer'))
+    return '\n'.join(lines) + '\n'
+
+
+class SshSession(base.SshSession):
+    """ctx.ssh(conn), conn = {'host', 'port', 'user', 'password', 'key', 'key_pass',
+    'hostkey', 'timeout', 'trust_first', 'scp_legacy'}.
+
+        s.run(command, input=None, timeout=120, check=True) -> (rc, stdout, stderr)  (text)
+        s.put(data, remote_path, mode=0o600, owner=None, via='shell'|'scp')
+        s.get(remote_path) -> bytes
+        s.close()
+    put via 'shell' writes through `cat` into a file beside the one meant and
+    moves it into place (whole or not at all); via 'scp' (for appliances with
+    no shell: MikroTik, FortiGate) copies it with scp straight to the path."""
+
+    def __init__(self, ctx, conn):
+        self.ctx = ctx
+        self.conn = dict(conn or {})
+        self.d = None
+        self.opts = []
+        self.env = None
+        self._open()
+
+    # ---- opening -------------------------------------------------------------------------
+    def _open(self):
+        c = self.conn
+        if not shutil.which('ssh'):
+            raise base.PluginError('ssh is not on this machine (dnf install openssh-clients)',
+                                   retry=False)
+        self.host = str(c.get('host') or '').strip().strip('[]')
+        if not self.host or not re.match(r'^[A-Za-z0-9_.:%-]{1,253}\Z', self.host) \
+                or self.host.startswith('-'):
+            raise base.PluginError('%r is not a host name or an address' % c.get('host'),
+                                   retry=False)
+        self.port = int(c.get('port') or 22)
+        self.user = str(c.get('user') or 'root')
+        if not re.match(r'^[A-Za-z0-9_.@\\-]{1,64}\Z', self.user) or self.user.startswith('-'):
+            raise base.PluginError('%r is not an account name' % self.user, retry=False)
+        self.timeout = int(c.get('timeout') or 20)
+        lines = hostkey_lines(c.get('hostkey'))
+        if not lines:
+            scanned = keyscan(self.host, self.port, min(self.timeout, 15))
+            lines = hostkey_lines(scanned)
+            prints = ', '.join(hostkey_fingerprint(x) for x in lines)
+            if not c.get('trust_first'):
+                raise base.PluginError(
+                    'the host key of %s is not trusted yet - it shows %s. Paste its known_hosts '
+                    'line into the target (or switch on "trust the first key seen")'
+                    % (self.host, prints), detail=scanned, retry=False)
+            self.ctx.step('the host key of %s taken as the first one seen: %s'
+                          % (self.host, prints), 'warn')
+            if self.ctx.on_hostkey:
+                try:
+                    self.ctx.on_hostkey(scanned)
+                except Exception as e:                  # noqa: BLE001
+                    self.ctx.step('the host key could not be kept: %s' % e, 'warn')
+        self.d = tempfile.mkdtemp(prefix='acme-ssh-')
+        kh = os.path.join(self.d, 'known_hosts')
+        with open(kh, 'w') as f:
+            f.write('\n'.join(lines) + '\n')
+        self.opts = ['-F', '/dev/null', '-o', 'StrictHostKeyChecking=yes',
+                     '-o', 'UserKnownHostsFile=' + kh, '-o', 'GlobalKnownHostsFile=/dev/null',
+                     '-o', 'HostKeyAlias=' + HOSTKEY_ALIAS, '-o', 'CheckHostIP=no',
+                     '-o', 'ConnectTimeout=%d' % self.timeout,
+                     '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4',
+                     '-o', 'LogLevel=ERROR', '-o', 'IdentitiesOnly=yes',
+                     '-o', 'ControlMaster=auto', '-o', 'ControlPath=' + os.path.join(self.d, 'cm'),
+                     '-o', 'ControlPersist=120']
+        key = str(c.get('key') or '').strip()
+        if key:
+            kf = os.path.join(self.d, 'id')
+            fd = os.open(kf, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, 'w') as f:
+                f.write(key + '\n')
+            self.opts += ['-i', kf]
+        else:
+            self.opts += ['-o', 'IdentityFile=/dev/null']
+        pw = str(c.get('password') or '')
+        kp = str(c.get('key_pass') or '')
+        ask = os.path.join(self.d, 'ask')
+        with open(ask, 'w') as f:
+            f.write('#!/bin/sh\ncase "$1" in\n  *assphrase*) printf "%s\\n" "$ACME_SSH_KEYPASS";;\n'
+                    '  *) printf "%s\\n" "$ACME_SSH_SECRET";;\nesac\n')
+        os.chmod(ask, 0o700)
+        self.env = dict(os.environ, DISPLAY=':0', SSH_ASKPASS_REQUIRE='force', SSH_ASKPASS=ask,
+                        ACME_SSH_SECRET=pw or kp, ACME_SSH_KEYPASS=kp or pw)
+        auths = ['publickey'] if key else []
+        if pw:
+            auths += ['password', 'keyboard-interactive']
+        if not auths:
+            self.close()
+            raise base.PluginError('neither a key nor a password is set for %s' % self.host,
+                                   retry=False)
+        self.opts += ['-o', 'PreferredAuthentications=' + ','.join(auths),
+                      '-o', 'NumberOfPasswordPrompts=1',
+                      '-o', 'BatchMode=%s' % ('no' if (pw or kp) else 'yes')]
+        self.dest = '%s@%s' % (self.user, self.host)
+        self.rdest = '%s@[%s]' % (self.user, self.host) if ':' in self.host else self.dest
+
+    # ---- the programs --------------------------------------------------------------------
+    def _exec(self, argv, data=None, timeout=120):
+        if self.ctx.cancelled():
+            raise base.PluginError('the job was stopped', retry=False)
+        try:
+            return subprocess.run(argv, input=data, capture_output=True, timeout=timeout,
+                                  env=self.env, start_new_session=True)
+        except subprocess.TimeoutExpired:
+            raise base.PluginError('%s on %s took more than %d s' % (argv[0], self.host, timeout))
+        except OSError as e:
+            raise base.PluginError('%s could not be run: %s' % (argv[0], e), retry=False)
+
+    def _why(self, err, rc):
+        said = [x for x in err.decode('utf-8', 'replace').strip().splitlines()
+                if x.strip() and not x.startswith('Warning: Permanently')]
+        tail = ' / '.join(said[-3:])[:400] or 'exit %d' % rc
+        if 'Host key verification failed' in tail or 'REMOTE HOST IDENTIFICATION' in tail \
+                or 'host key for' in tail.lower():
+            return ('%s shows another host key than the one trusted - if it was reinstalled on '
+                    'purpose, put its new known_hosts line into the target' % self.host)
+        if 'Permission denied' in tail:
+            return '%s did not let %s in (%s)' % (self.host, self.user, tail)
+        return tail
+
+    def run(self, command, input=None, timeout=120, check=True):
+        if isinstance(input, str):
+            input = input.encode('utf-8')
+        self.ctx.debug('ssh %s: %s' % (self.host, command))
+        got = self._exec(['ssh'] + self.opts + ['-p', str(self.port), self.dest, str(command)],
+                         data=input, timeout=timeout)
+        out = got.stdout.decode('utf-8', 'replace')
+        err = got.stderr.decode('utf-8', 'replace')
+        if got.returncode == 255:
+            raise base.PluginError('ssh to %s: %s' % (self.host, self._why(got.stderr, 255)))
+        if check and got.returncode != 0:
+            raise base.PluginError('on %s, "%s" ended with %d: %s' % (
+                self.host, str(command)[:120], got.returncode,
+                (err.strip() or out.strip())[-400:]), detail=err)
+        return got.returncode, out, err
+
+    def put(self, data, remote_path, mode=0o600, owner=None, via='shell'):
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        path = str(remote_path)
+        if not path or '\n' in path or '\0' in path:
+            raise base.PluginError('%r is not a path' % remote_path, retry=False)
+        if via == 'scp':
+            local = os.path.join(self.d, 'up-' + secrets.token_hex(4))
+            with open(os.open(local, os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as f:
+                f.write(data)
+            argv = ['scp'] + self.opts + ['-P', str(self.port), '-q']
+            if self.conn.get('scp_legacy'):
+                argv.append('-O')
+            got = self._exec(argv + [local, '%s:%s' % (self.rdest, path)], timeout=300)
+            os.unlink(local)
+            if got.returncode != 0:
+                raise base.PluginError('scp to %s:%s: %s' % (self.host, path,
+                                                            self._why(got.stderr, got.returncode)))
+            return
+        tmp = '%s.acme-%s.part' % (path, secrets.token_hex(4))
+        cmd = 'umask 077 && cat > %s' % shq(tmp)
+        if mode is not None:
+            cmd += ' && chmod %o %s' % (int(mode), shq(tmp))
+        if owner:
+            if not re.match(r'^[A-Za-z0-9_.-]+(:[A-Za-z0-9_.-]+)?\Z', str(owner)):
+                raise base.PluginError('%r is not an owner (user or user:group)' % owner,
+                                       retry=False)
+            cmd += ' && chown %s %s' % (owner, shq(tmp))
+        cmd += ' && mv -f %s %s || { rm -f %s; exit 1; }' % (shq(tmp), shq(path), shq(tmp))
+        self.run(cmd, input=data, timeout=300)
+
+    def get(self, remote_path):
+        got = self._exec(['ssh'] + self.opts + ['-p', str(self.port), self.dest,
+                                                'cat %s' % shq(remote_path)], timeout=300)
+        if got.returncode != 0:
+            raise base.PluginError('%s:%s could not be read: %s' % (
+                self.host, remote_path, self._why(got.stderr, got.returncode)))
+        return got.stdout
+
+    def close(self):
+        if self.d:
+            try:
+                subprocess.run(['ssh'] + self.opts + ['-O', 'exit', self.dest],
+                               capture_output=True, timeout=10, env=self.env)
+            except Exception:                           # noqa: BLE001
+                pass
+            shutil.rmtree(self.d, ignore_errors=True)
+            self.d = None

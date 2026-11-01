@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
 #
-# install.sh — set up acme on AlmaLinux 9 (and Rocky / RHEL 9 and 10, and,
-# with less of it automatic, Debian and Ubuntu).
+# install.sh — set up acme, the certificate-automation appliance, on AlmaLinux,
+# Rocky or RHEL 9 and 10, and (with less of it automatic) Debian and Ubuntu.
 #
-# The same shape as isemon's installer: packages, a fixed PHP (php2shell),
-# the service account, the configuration, the systemd unit, log rotation,
-# nginx with TLS and a php-fpm pool of acme's own, SELinux, the firewall, the
-# first account, a RADIUS client for testing from this machine, and a check
-# that it all works. Run it from inside the unpacked folder, as root:
+# acme orders and renews certificates (Let's Encrypt and any ACME CA, its own
+# CAs, AD CS, SCEP), answers the CA's validation itself (its own DNS server on
+# port 53, HTTP-01 on port 80 through nginx) and puts every new certificate
+# where it is used (over SSH, to load balancers, firewalls, appliances).
+#
+# What this does: packages (Python 3.14, PHP-FPM 8.3, nginx, openssl, the
+# OpenSSH client, chrony), a PHP fixed against php2shell, the accounts acme,
+# acme-www and the group acme-web, the program tree in /usr/local/lib/acme/
+# (put in beside the one running and switched to in one step - an upgrade
+# never leaves half a tree, and the tree before is kept for going back), the
+# configuration, the systemd units, log rotation, nginx with TLS and a php-fpm
+# pool of acme's own, SELinux, the firewall, the first account, the console at
+# root's login, and a check that it all works. Run it from inside the unpacked
+# folder, as root:
 #
 #     sudo ./install.sh
 #
@@ -20,15 +29,18 @@
 set -Eeuo pipefail
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION="$(sed -n "s/^__version__ = '\(.*\)'.*/\1/p" "$SOURCE_DIR/acme.py" 2>/dev/null | head -n1)"
+# The version is acmelib/__init__.py's; the floor for going back is the engine's.
+VERSION="$(sed -n "s/^__version__ = '\(.*\)'.*/\1/p" "$SOURCE_DIR/acmelib/__init__.py" 2>/dev/null | head -n1)"
 VERSION="${VERSION:-unknown}"
 SERVICE_USER="acme"
 WEB_GROUP="acme-web"
 POOL_USER="acme-www"
 LIB_DIR="/usr/local/lib/acme"
+TREES_DIR="$LIB_DIR/versions"
 BIN_LINK="/usr/local/bin/acme"
 CONFIG_DIR="/etc/acme"
 CONFIG_FILE="$CONFIG_DIR/config.json"
+PLUGINS_DIR="$CONFIG_DIR/plugins"
 STATE_DIR="/var/lib/acme"
 LOG_DIR="/var/log/acme"
 WEB_DIR="/var/www/acme"
@@ -40,6 +52,10 @@ WEB_PATH_UNIT="/etc/systemd/system/acme-web.path"
 WEB_SERVICE_UNIT="/etc/systemd/system/acme-web.service"
 UNIT_FILE="/etc/systemd/system/acme.service"
 LOGROTATE_FILE="/etc/logrotate.d/acme"
+# The Python acme is built on: 3.14 or newer (--python PATH decides otherwise).
+PY_WANT="3.14"
+# PHP-FPM for the pages: 8.3 or newer.
+PHP_WANT="8.3"
 
 DRY_RUN=""
 ASSUME_YES=""
@@ -50,7 +66,6 @@ DO_UNINSTALL=""
 WITH_DB=""
 NO_DB_RESTART=""
 PY_FORCE=""
-PY_SYSTEM=""
 ACME_PY=""
 DB_RESTART_AGAIN=""
 PHP_UPDATE="yes"
@@ -60,12 +75,10 @@ USE_REMI=""
 SERVER_NAME="acme.example.local"
 ADMIN_ALLOW=""
 PORTAL_ALLOW=""
-RADIUS_FROM=""
 ADMIN_USER="admin"
 ADMIN_PASSWORD=""
 CERT_FILE=""
 KEY_FILE=""
-LEGACY_ROOT=""
 ISEMON_TARGET=""
 ISEMON_HOSTNAME=""
 SITE_NAME=""
@@ -104,17 +117,17 @@ write_file() {      # write_file DEST MODE < content
         note "[would write] $dest (${#body} bytes, mode $mode)"
         return 0
     fi
-    # Written beside it and renamed over it (1.0.94): a redirect follows a
+    # Written beside it and renamed over it: a redirect follows a
     # link, and /etc/acme is the acme account's to change - a link put there
     # between the two steps made root write over any file it pointed to. A
     # rename replaces the name itself, whatever it was.
-    # ...and written in a folder only root can enter (1.0.101): a file made
+    # ...and written in a folder only root can enter: a file made
     # in /etc/acme itself could be swapped for a link by the acme account
     # between mktemp and the redirect. The folder is made beside the target
     # folder, so the rename stays on one file system.
     local dir tmpd
     dir="$(dirname -- "$dest")"
-    # Made only when missing (1.0.103): install -d also set the mode of one
+    # Made only when missing: install -d also set the mode of one
     # that was there - /etc/acme lost the acme group's write on every upgrade.
     [[ -d "$dir" ]] || install -d -m 0755 "$dir" 2>/dev/null || true
     tmpd="$(mktemp -d "$(dirname -- "$dir")/.acme-write.XXXXXX")" || fail "cannot write beside $dir"
@@ -125,17 +138,17 @@ write_file() {      # write_file DEST MODE < content
     rmdir -- "$tmpd" 2>/dev/null || true
 }
 
-# A folder inside one the acme account owns (1.0.44): made and set by the acme
+# A folder inside one the acme account owns: made and set by the acme
 # account itself, never by root through a path acme could swap for a link -
 # install -d as root follows a link and would hand its target to acme.
-# The copies of nginx's file, out of conf.d where they piled up (1.0.47).
+# The copies of nginx's file, out of conf.d where they piled up.
 NGINX_BAK_DIR=/etc/nginx/acme-backups
 nginx_backups_tidy() {
     [[ -n "$DRY_RUN" ]] && return 0
     mkdir -p "$NGINX_BAK_DIR"
     chmod 0750 "$NGINX_BAK_DIR"
     local f
-    for f in /etc/nginx/conf.d/acme.conf.before-* /etc/nginx/conf.d/opt.conf.before-*; do
+    for f in /etc/nginx/conf.d/acme.conf.before-*; do
         [[ -f "$f" ]] && mv -f "$f" "$NGINX_BAK_DIR/"
     done
     # The last ten kept.
@@ -226,46 +239,38 @@ confirm() {      # confirm "question" [default y|n]
 
 usage() {
     cat <<EOF
-acme installer $VERSION — a one-time password server (RADIUS, TOTP, enrolment, AD)
+acme installer $VERSION — certificates kept, renewed and put in place by themselves
 
 Usage: sudo ./install.sh [options]
 
   --server-name HOST        the pages' hostname (default $SERVER_NAME)
   --admin-allow CIDR[,..]   who may reach the administration pages (nginx allow)
-  --portal-allow CIDR[,..]  who may reach the enrolment pages (nginx allow)
+  --portal-allow CIDR[,..]  who may reach the portal page at / (nginx allow)
                             (both default to the RFC 1918 networks)
-  --radius-from CIDR[,..]   who may send RADIUS (UDP 1812/1813) through firewalld:
-                            the VPN concentrators. Without it, anybody may - and
-                            acme answers only its clients either way
   --admin-user NAME         the first account of the administration pages (admin)
   --admin-password PASS     its password (otherwise one is made and printed)
-  --cert FILE --key FILE    the TLS certificate and key for nginx
-  --import-legacy ROOT      bring an old totpcgi + FreeRADIUS server over: its
-                            clients, realms, directory, groups, settings and every
-                            token. ROOT holds its etc/raddb and etc/totpcgi
-                            (the unpacked acme.zip of the old server)
+  --cert FILE --key FILE    the TLS certificate and key for nginx (until acme
+                            issues its own: Settings -> TLS)
   --isemon HOST[:PORT][/tcp] send the logs to isemon's syslog receiver
   --isemon-hostname NAME    the host name isemon files them under (default: acme)
   --site-name NAME          what to call this installation on the pages
   --with-db ENGINE          the Python driver for mariadb, postgres or both
                             (the file on this machine needs none)
 
-  PHP (php2shell, CVE-2026-109618 / CVE-2026-109619 - fixed 21 October 2026):
-  --php-stream X.Y          the AppStream module stream to put PHP on (default 8.3,
-                            fixed in 8.3.36; 8.2 is fixed in 8.2.35)
-  --remi                    take PHP 8.4 from Remi's repository instead
+  PHP-FPM $PHP_WANT or newer runs the pages (php2shell, CVE-2026-109618 /
+  CVE-2026-109619 - fixed 21 October 2026 in 8.3.36):
+  --php-stream X.Y          the AppStream module stream to put PHP on (default 8.3)
+  --remi                    take PHP 8.3 from Remi's repository instead
                             (offered by itself when AppStream has no fixed build)
   --no-php-update           leave PHP exactly as it is (it is still checked);
                             a PHP already installed and fixed is left as it is anyway
 
   --no-web                  the daemon only: no pages, no nginx, no PHP
-  --python PATH             run acme on this Python (3.8 or newer) rather than the
-                            newest one found or installed (3.13, 3.12, 3.11)
-  --system-python           run acme on the system's own python3, as before 1.0.97
+  --python PATH             run acme on this Python rather than python$PY_WANT
+                            (the only way to run it on an older one; at your risk)
   --no-db-restart           the pages may not restart a PostgreSQL on this machine
                             (remembered for every later upgrade)
   --db-restart              they may again, after --no-db-restart
-                            after tuning it (they show the command instead)
   --upgrade                 replace the program and the pages, bring PHP up to the
                             fixed release, restart; keep everything else
   --rewrite-nginx           write the nginx file afresh even where one is there
@@ -283,12 +288,10 @@ while [[ $# -gt 0 ]]; do
         --server-name)     SERVER_NAME="$2"; shift 2;;
         --admin-allow)     ADMIN_ALLOW="$2"; shift 2;;
         --portal-allow)    PORTAL_ALLOW="$2"; shift 2;;
-        --radius-from)     RADIUS_FROM="$2"; shift 2;;
         --admin-user)      ADMIN_USER="$2"; shift 2;;
         --admin-password)  ADMIN_PASSWORD="$2"; shift 2;;
         --cert)            CERT_FILE="$2"; shift 2;;
         --key)             KEY_FILE="$2"; shift 2;;
-        --import-legacy)   LEGACY_ROOT="$2"; shift 2;;
         --isemon)          ISEMON_TARGET="$2"; shift 2;;
         --isemon-hostname) ISEMON_HOSTNAME="$2"; shift 2;;
         --site-name)       SITE_NAME="$2"; shift 2;;
@@ -302,7 +305,6 @@ while [[ $# -gt 0 ]]; do
         --no-web)          WITH_WEB=""; shift;;
         --no-db-restart)   NO_DB_RESTART="yes"; shift;;
         --python)          PY_FORCE="$2"; shift 2;;
-        --system-python)   PY_SYSTEM="yes"; shift;;
         --db-restart)      DB_RESTART_AGAIN="yes"; shift;;
         --upgrade)         DO_UPGRADE="yes"; shift;;
         --rewrite-nginx)   REWRITE_NGINX="yes"; shift;;
@@ -310,26 +312,41 @@ while [[ $# -gt 0 ]]; do
         --dry-run)         DRY_RUN="yes"; shift;;
         -y|--yes)          ASSUME_YES="yes"; shift;;
         -h|--help)         usage; exit 0;;
+        --radius-from|--import-legacy|--system-python)
+            fail "$1 belonged to otp, the one-time password server acme was made from; acme has no such thing - try --help";;
         *) fail "I do not know the option $1 — try --help";;
     esac
 done
-# Checked on every path (1.0.61), the upgrade's too: --admin-allow all went
-# through there and opened the administration pages to everybody.
-for v in ADMIN_ALLOW PORTAL_ALLOW RADIUS_FROM; do
+if [[ -n "$PY_FORCE" && "$PY_FORCE" != /* ]]; then
+    fail "--python takes the full path of a Python, such as /usr/bin/python3.14"
+fi
+# Checked on every path, the upgrade's too: --admin-allow all went through
+# there and opened the administration pages to everybody.
+for v in ADMIN_ALLOW PORTAL_ALLOW; do
     [[ -n "${!v}" ]] && { cidr_list_ok "${!v}" || fail "$v takes addresses and networks, comma separated"; }
 done
 
 [[ $EUID -eq 0 ]] || fail "run this as root: sudo ./install.sh"
-[[ -f "$SOURCE_DIR/acme.py" ]] || fail "acme.py is not beside this script; run it from inside the unpacked folder"
+for need in acme.py acmelib/__init__.py acmelib/engine/__init__.py web/index.php deploy/acme.service; do
+    [[ -f "$SOURCE_DIR/$need" ]] || fail "$need is not beside this script; run it from inside the unpacked folder (acme-X.Y.Z/)"
+done
+DOWNGRADE_FLOOR_NEW="$(sed -n "s/^DOWNGRADE_FLOOR = '\([0-9.]*\)'.*/\1/p" "$SOURCE_DIR"/acmelib/engine/[0-9]*.py 2>/dev/null | head -n 1 || true)"
 
 OS_PRETTY="$( . /etc/os-release 2>/dev/null; printf '%s' "${PRETTY_NAME:-}" )"
-OS_MAJOR="$( . /etc/os-release 2>/dev/null; v="${VERSION_ID:-}"; printf '%s' "${v%%.*}" )"   # none on Debian testing (1.0.146)
+OS_MAJOR="$( . /etc/os-release 2>/dev/null; v="${VERSION_ID:-}"; printf '%s' "${v%%.*}" )"   # none on Debian testing
+OS_ID="$( . /etc/os-release 2>/dev/null; printf '%s' "${ID:-}" )"
 case "$( . /etc/os-release 2>/dev/null; printf '%s%s' "${ID:-}" "${ID_LIKE:-}" )" in
     *rhel*|*fedora*|*centos*|*almalinux*|*rocky*) PKG="dnf";;
     *debian*|*ubuntu*) PKG="apt";;
     *) PKG="";;
 esac
 
+APT_UPDATED=""
+apt_update_once() {
+    [[ -n "$APT_UPDATED" ]] && return 0
+    APT_UPDATED=yes
+    run apt-get update -q >/dev/null 2>&1 || run apt-get update
+}
 # ---------------------------------------------------------------------------
 # Taking it away
 # ---------------------------------------------------------------------------
@@ -346,16 +363,15 @@ php_fpm_units() {
 
 if [[ -n "$DO_UNINSTALL" ]]; then
     step "Removing acme $VERSION"
-    say "The database, the key of the tokens, the configuration and the accounts are kept:"
-    say "  $STATE_DIR  and  $CONFIG_DIR"
-    # Asked even with --yes, as --help says (1.0.146): it said nothing and
-    # changed nothing, and exited 0.
+    say "The database, the sealing key, the certificates it keeps, the configuration,"
+    say "your own modules and the accounts are kept:  $STATE_DIR  and  $CONFIG_DIR"
+    # Asked even with --yes, as --help says.
     if [[ -n "$ASSUME_YES" && ! -t 0 ]]; then
         fail "removing is never a default: run --uninstall on a terminal, it asks"
     fi
     ASSUME_YES="" confirm "Go ahead?" n || { say "Nothing was changed."; exit 0; }
-    # An upgrade going on is not cut off under its own feet (1.0.44) - looked
-    # at before anything is stopped or taken away (1.0.146).
+    # An upgrade going on is not cut off under its own feet - looked at
+    # before anything is stopped or taken away.
     if [[ -z "$DRY_RUN" ]] && systemctl is-active --quiet acme-upgrade.service 2>/dev/null; then
         fail "an upgrade from the pages is running (acme-upgrade.service); wait for it, then again"
     fi
@@ -376,24 +392,25 @@ if [[ -n "$DO_UNINSTALL" ]]; then
                /etc/php-fpm.d/acme.conf /etc/php/*/fpm/pool.d/acme.conf /etc/profile.d/zz-acme-console.sh /etc/acme-console-login; do
         [[ -e "$one" ]] && run rm -f "$one"
     done
-    # sshd's PAM no longer asking an acme that is gone (1.0.206): every password
-    # and code over SSH was refused after it - keys alone went on working.
+    # sshd's PAM no longer asking an acme that is gone: every password and code
+    # over SSH was refused after it - keys alone went on working.
     if [[ -f "$SOURCE_DIR/deploy/acme_web.py" ]]; then
         run python3 -I "$SOURCE_DIR/deploy/acme_web.py" --pam-off || warn "sshd's PAM could not be put back: take acme's block out of /etc/pam.d/sshd by hand"
     fi
-    [[ -d "$LIB_DIR" ]] && run rm -rf "$LIB_DIR"
+    # Every tree, current and previous, and the links to them.
+    [[ -e "$LIB_DIR" || -L "$LIB_DIR" ]] && run rm -rf "$LIB_DIR"
     [[ -d "$WEB_DIR" ]] && run rm -rf "$WEB_DIR"
     run systemctl daemon-reload
     for unit in $(php_fpm_units); do run systemctl restart "$unit" || true; done
     command -v nginx >/dev/null && run systemctl reload nginx 2>/dev/null || true
     good "Gone. $STATE_DIR and $CONFIG_DIR were left alone."
     say "To remove the rest:  rm -rf $STATE_DIR $CONFIG_DIR $LOG_DIR; userdel $SERVICE_USER; userdel $POOL_USER; groupdel $WEB_GROUP"
-    # What it opened and made beside it, said rather than guessed at (1.0.44).
+    # What it opened and made beside it, said rather than guessed at.
     [[ -e /etc/nginx/certs/acme.pem ]] && say "  its certificate:  rm -f /etc/nginx/certs/acme.pem /etc/nginx/certs/acme.key"
     if command -v firewall-cmd >/dev/null 2>&1; then
-        say "  the firewall openings for RADIUS:  firewall-cmd --permanent --remove-port=1812/udp --remove-port=1813/udp; firewall-cmd --reload"
-        say "  (and any rich rules for 1812/1813:  firewall-cmd --list-rich-rules)"
+        say "  the firewall openings:  firewall-cmd --permanent --remove-service=http --remove-service=https; firewall-cmd --reload"
     fi
+    say "  the DNS server's port 53, if Settings -> Firewall opened it: iptables -S | grep -w 53"
     exit 0
 fi
 
@@ -411,7 +428,9 @@ fi
 # What this does: puts PHP on the stream asked for (8.3 unless told), brings
 # every PHP package up to the newest build, and checks the result by the
 # version and by the CVE in the changelog. Where AppStream has no fixed build
-# it offers Remi's PHP 8.4 (fixed in 8.4.27). Either way the guard goes on:
+# it offers Remi's PHP 8.3 (fixed in 8.3.36). acme's pages need PHP 8.3 or
+# newer (EL9: the php:8.3 module stream or Remi; EL10 and Ubuntu 24.04 have
+# 8.3 of their own; Debian 12 needs packages.sury.org). Either way the guard goes on:
 # upload progress off for every PHP on the machine, acme's own pool taking no
 # request body apart, and nginx refusing every multipart body.
 
@@ -446,7 +465,7 @@ php_fixed() {           # is the PHP that php-fpm runs fixed? 0 yes, 1 no
     esac
     [[ -n "$f" ]] && ver_ge "$v" "$f" && return 0
     # A backport keeps the old number: the changelog says it instead. Read
-    # whole first and searched after (1.0.36): `rpm | grep -q` under
+    # whole first and searched after: `rpm | grep -q` under
     # pipefail failed when grep found it early and rpm died on the pipe.
     if [[ "$PKG" == "dnf" ]]; then
         log="$(rpm -q --changelog php-fpm php-common 2>/dev/null || true)"
@@ -486,18 +505,18 @@ php_guard() {           # the second layer, for every PHP on the machine
 remi_php() {
     [[ "$PKG" == "dnf" ]] || { warn "Remi's repository is for the RHEL family only"; return 1; }
     local major="${OS_MAJOR:-9}"
-    say "Remi's repository (rpms.remirepo.net), PHP 8.4"
+    say "Remi's repository (rpms.remirepo.net), PHP 8.3"
     if ! rpm -q remi-release >/dev/null 2>&1; then
         run dnf install -y "https://rpms.remirepo.net/enterprise/remi-release-${major}.rpm" \
             || { warn "remi-release could not be installed (is rpms.remirepo.net reachable?)"; return 1; }
     fi
-    if dnf module list php 2>/dev/null | grep -q 'remi-8.4'; then
+    if dnf module list php 2>/dev/null | grep -q 'remi-8.3'; then
         run dnf module reset -y php
-        run dnf module enable -y php:remi-8.4
+        run dnf module enable -y php:remi-8.3
     else
         run dnf config-manager --set-enabled remi-modular 2>/dev/null || true
         run dnf module reset -y php || true
-        run dnf module enable -y php:remi-8.4 || { warn "php:remi-8.4 could not be enabled"; return 1; }
+        run dnf module enable -y php:remi-8.3 || { warn "php:remi-8.3 could not be enabled"; return 1; }
     fi
     run dnf distro-sync -y 'php*'
     run dnf install -y php-fpm php-cli php-common
@@ -511,13 +530,13 @@ ensure_php() {
         php_guard
         return 0
     fi
-    # PHP that is there and fixed is left exactly as it is (1.0.26): no
+    # PHP that is there and fixed is left exactly as it is: no
     # install, no stream switched, no restart. Updating it further is the
     # system's own business - dnf/apt upgrade - and any newer build or
     # stream is welcome; nothing here pins a version.
     local had_php=""
     if command -v php-fpm >/dev/null 2>&1 || ls /usr/sbin/php-fpm* >/dev/null 2>&1; then had_php=yes; fi
-    if [[ -n "$had_php" && -z "$USE_REMI" ]] && php_fixed; then
+    if [[ -n "$had_php" && -z "$USE_REMI" ]] && php_fixed && ver_ge "$(php_fpm_version)" "$PHP_WANT"; then
         note "PHP is installed and fixed: left as it is (updates come with dnf/apt upgrade)"
         php_says
         php_guard
@@ -526,6 +545,17 @@ ensure_php() {
     if [[ "$PKG" == "dnf" ]]; then
         if [[ -n "$USE_REMI" ]]; then
             remi_php || true
+        elif [[ -n "$had_php" ]] && ! ver_ge "$(php_fpm_version)" "$PHP_WANT"; then
+            # Older than 8.3: the stream is switched - every PHP site on the
+            # machine with it - only when a person says so, never during an
+            # upgrade from the pages.
+            warn "PHP $(php_fpm_version) is here; acme's pages need $PHP_WANT or newer"
+            if [[ -z "${ACME_UPGRADE_FROM_PAGES:-}" ]] && confirm "Switch PHP to the stream php:$PHP_STREAM (every PHP site on this machine moves with it)?" y; then
+                run dnf module reset -y php || true
+                run dnf module enable -y "php:$PHP_STREAM" || warn "php:$PHP_STREAM could not be enabled (--remi takes Remi's)"
+                run dnf distro-sync -y 'php*' || true
+                run dnf install -y php-fpm php-cli php-common || true
+            fi
         elif [[ -n "$had_php" ]]; then
             # There, but not fixed: only the packages already installed are
             # brought up to date, on whatever stream they are on.
@@ -550,15 +580,21 @@ ensure_php() {
             run dnf install -y php-fpm php-cli php-common
         fi
     elif [[ "$PKG" == "apt" ]]; then
-        if [[ -n "$had_php" ]]; then
+        if [[ -n "$had_php" ]] && ver_ge "$(php_fpm_version)" "$PHP_WANT"; then
             say "PHP is installed but not fixed: updating the packages that are there"
-            run apt-get update
+            apt_update_once
             local have
             have="$(dpkg-query -W -f='${Package} ${Status}\n' 'php*' 2>/dev/null | awk '/ installed$/{print $1}' | tr '\n' ' ' || true)"
             [[ -n "$have" ]] && { run apt-get install -y --only-upgrade $have || true; }
         else
-            run apt-get update
-            run apt-get install -y php-fpm php-cli
+            # php8.3-fpm by its own name where the distribution has it
+            # (Ubuntu 24.04), else its default PHP - checked below.
+            apt_update_once
+            if apt-cache policy "php$PHP_WANT-fpm" 2>/dev/null | grep -q 'Candidate: [0-9]'; then
+                run apt-get install -y "php$PHP_WANT-fpm" "php$PHP_WANT-cli"
+            else
+                run apt-get install -y php-fpm php-cli
+            fi
         fi
     else
         warn "this distribution is not one this knows: install php-fpm yourself, fixed against php2shell"
@@ -566,21 +602,20 @@ ensure_php() {
     [[ -n "$DRY_RUN" ]] && { php_guard; return 0; }
     if ! php_fixed && [[ "$PKG" == "dnf" && -z "$USE_REMI" ]]; then
         warn "the PHP AppStream has here is not fixed yet: $(php_fpm_version)"
-        # Never on its own in an upgrade (1.0.44): it moves every PHP site on
-        # the machine to 8.4. Asked of a person, or --remi.
+        # Never on its own in an upgrade: it moves every PHP site on the
+        # machine to Remi's PHP. Asked of a person, or --remi.
         if [[ -n "$DO_UPGRADE" || -n "${ACME_UPGRADE_FROM_PAGES:-}" ]]; then
-            note "Remi's PHP 8.4 is not taken during an upgrade by itself: ./install.sh --upgrade --remi"
-        elif confirm "Take PHP 8.4 from Remi's repository instead (fixed in 8.4.27)?" y; then
+            note "Remi's PHP 8.3 is not taken during an upgrade by itself: ./install.sh --upgrade --remi"
+        elif confirm "Take PHP 8.3 from Remi's repository instead (fixed in 8.3.36)?" y; then
             remi_php || true
         fi
     fi
     php_says
-    # PHP 8 at least (1.0.94): the pages' relay is written for it, and on a
-    # 7.4 every page was a 500 after an install that said it went well.
+    # PHP 8.3 at least: the pages are written for it.
     local pv
     pv="$(php_fpm_version)"
-    if [[ -n "$pv" && -z "$DRY_RUN" ]] && ! ver_ge "$pv" 8.0; then
-        fail "php-fpm here is $pv: acme's pages need PHP 8.0 or newer (on Debian 11 / Ubuntu 20.04 add a PHP 8 repository first, or install with --no-web)"
+    if [[ -n "$pv" && -z "$DRY_RUN" ]] && ! ver_ge "$pv" "$PHP_WANT"; then
+        fail "php-fpm here is $pv: acme's pages need PHP $PHP_WANT or newer (EL9: --php-stream 8.3 or --remi; Debian 12: packages.sury.org; Ubuntu 22.04: ppa:ondrej/php - or install with --no-web)"
     fi
     if ! php_fixed; then
         warn "Until it is fixed: dnf upgrade --refresh 'php*' (or apt upgrade) as soon as the"
@@ -619,7 +654,7 @@ allow_lines() {         # allow_lines "a,b" -> nginx allow lines, or the default
 
 php_pool_dir() {
     if [[ -d /etc/php-fpm.d ]]; then echo /etc/php-fpm.d; return; fi
-    # The pool folder of the php-fpm that is installed (1.0.36): the first
+    # The pool folder of the php-fpm that is installed: the first
     # folder by name was a 7.4 left behind by a removed package, whose pool
     # nobody ran, and nginx answered 502.
     local b v d
@@ -635,13 +670,26 @@ php_pool_dir() {
 
 install_pages() {
     step "The pages"
-    run install -d -m 0755 "$WEB_DIR" "$WEB_DIR/admin" "$WEB_DIR/assets" "$WEB_DIR/lang"
-    run install -m 0644 "$SOURCE_DIR/web/index.php" "$SOURCE_DIR/web/acme-api.php" "$SOURCE_DIR/web/healthz.php" \
-        "$SOURCE_DIR/web/acme-page.php" "$SOURCE_DIR/web/acme-art.php" "$SOURCE_DIR/web/.user.ini" "$WEB_DIR/"
-    run install -m 0644 "$SOURCE_DIR/web/admin/index.php" "$WEB_DIR/admin/"
-    run install -m 0644 "$SOURCE_DIR"/web/assets/* "$WEB_DIR/assets/"
-    run install -m 0644 "$SOURCE_DIR"/web/lang/*.json "$WEB_DIR/lang/"
-    run chown -R root:root "$WEB_DIR"
+    # The tree's web/ whole (acme.php for HTTP-01, metrics.php and all),
+    # made beside the one there and put in its place: never the pages of one
+    # version beside another's.
+    not_a_link "$WEB_DIR"
+    if [[ -n "$DRY_RUN" ]]; then
+        note "[would copy] $SOURCE_DIR/web -> $WEB_DIR (made beside it, then put in its place)"
+    else
+        local wnew wold=""
+        wnew="$(mktemp -d "$(dirname "$WEB_DIR")/.acme-web-new.XXXXXX")"
+        tar -C "$SOURCE_DIR/web" --exclude='__pycache__' -cf - . | tar -C "$wnew" --no-same-owner -xf -
+        chown -R root:root "$wnew"
+        find "$wnew" -type d -exec chmod 0755 {} +
+        find "$wnew" -type f -exec chmod 0644 {} +
+        if [[ -d "$WEB_DIR" ]]; then
+            wold="$(dirname "$WEB_DIR")/.acme-web-old.$$"
+            mv -T "$WEB_DIR" "$wold"
+        fi
+        mv -T "$wnew" "$WEB_DIR"
+        [[ -n "$wold" ]] && rm -rf "$wold"
+    fi
     good "$WEB_DIR"
 
     # ---- the pool ------------------------------------------------------------
@@ -667,7 +715,7 @@ install_pages() {
         if [[ -n "$DRY_RUN" ]]; then
             note "[would write] $pool_dir/acme.conf ($sock, for $owner)"
         elif [[ -n "$pool_changed" ]]; then
-            # What was there kept beside it (1.0.61): a pool tuned by hand
+            # What was there kept beside it: a pool tuned by hand
             # (pm.max_children, timeouts) was lost without a trace.
             if [[ -f "$pool_dir/acme.conf" ]]; then
                 cp -p "$pool_dir/acme.conf" "$pool_dir/acme.conf.before-$VERSION"
@@ -678,7 +726,7 @@ install_pages() {
         fi
         good "$pool_dir/acme.conf - a pool of acme's own, as $POOL_USER, on $sock"
         # Reloaded only when the pool changed or its socket is missing
-        # (1.0.36): every install restarted every php-fpm on the machine,
+        #: every install restarted every php-fpm on the machine,
         # other sites' too.
         for unit in $(php_fpm_units); do
             run systemctl enable "$unit" >/dev/null 2>&1 || true
@@ -704,7 +752,7 @@ install_pages() {
     else
         warn "no certificate given - making one this machine signs itself"
         note "Browsers will complain about it. Replace $CERT_DIR/acme.pem and acme.key with a"
-        note "real pair and reload nginx: people type their directory password on these pages."
+        note "real pair and reload nginx (or let acme issue one: Settings -> TLS): administrators sign in here."
         run openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
             -keyout "$CERT_DIR/acme.key" -out "$CERT_DIR/acme.pem" \
             -subj "/CN=$SERVER_NAME" -addext "subjectAltName=DNS:$SERVER_NAME" 2>/dev/null
@@ -713,19 +761,18 @@ install_pages() {
 
     # ---- nginx ---------------------------------------------------------------------
     # A file that is there is kept and brought up to date, upgrade or not
-    # (1.0.36): installing again wrote it afresh, and its server name, its
+    #: installing again wrote it afresh, and its server name, its
     # allow lists and the trusted proxy went back to the defaults.
     if [[ -f "$NGINX_CONF" && -z "$REWRITE_NGINX" ]]; then
         good "$NGINX_CONF is already there and its allow lists are kept (--rewrite-nginx writes it afresh)"
-        run install -D -m 0644 "$SOURCE_DIR/deploy/nginx-acme.conf" "$LIB_DIR/nginx-acme.conf"
-        note "the one this version ships is $LIB_DIR/nginx-acme.conf, for comparing"
+        note "the one this version ships is $LIB_DIR/deploy/nginx-acme.conf, for comparing"
         # What later versions need of it, put in where it is missing - with a
         # copy kept and nginx asked before anything is reloaded: a database
         # put back from the page (1.0.10, the file as the body, up to 4 GB)
-        # and the load balancer's health check (1.0.13).
+        # and the load balancer's health check.
         if [[ -z "$DRY_RUN" ]]; then
-            # Copies kept out of conf.d, the last ten (1.0.47); a retry of
-            # the same version keeps the first copy (1.0.44).
+            # Copies kept out of conf.d, the last ten; a retry of
+            # the same version keeps the first copy.
             nginx_backups_tidy
             NGINX_BAK="$NGINX_BAK_DIR/acme.conf.before-$VERSION"
             [[ -e "$NGINX_BAK" ]] && NGINX_BAK="$NGINX_BAK.$(date +%Y%m%d%H%M%S)"
@@ -758,7 +805,7 @@ if 'location = /healthz' not in text and 'location /assets/' in text:
 """ % (re.search(r'fastcgi_pass\s+([^;]+);', text).group(1))
     text = text.replace('    location /assets/', block + '    location /assets/', 1)
     said.append('GET /healthz for a load balancer')
-# 1.0.173: Prometheus asks /metrics of each node, with its token.
+# Prometheus asks /metrics of each node, with its token.
 if 'location = /metrics' not in text and 'location /assets/' in text:
     zone = re.search(r'limit_req_zone\s+\$binary_remote_addr\s+zone=([A-Za-z0-9_]+):', text)
     block = """    # Prometheus' scrape of this node, with its token (acme 1.0.173)
@@ -775,9 +822,23 @@ if 'location = /metrics' not in text and 'location /assets/' in text:
        re.search(r'fastcgi_pass\s+([^;]+);', text).group(1))
     text = text.replace('    location /assets/', block + '    location /assets/', 1)
     said.append('GET /metrics for Prometheus')
-# 1.0.15: the health check rate-limited like everything else (the zone is
+# The CAs' HTTP-01 challenge on port 80, to acme.php: put in
+# front of the redirect to HTTPS where it is missing.
+if '/.well-known/acme-challenge/' not in text:
+    m80 = re.search(r'(?m)^([ \t]*)location / \{\n\s*return 301 https://\$host\$request_uri;', text)
+    sockm = re.search(r'fastcgi_pass\s+([^;]+);', text)
+    if m80 and sockm:
+        pad = m80.group(1)
+        block = (pad + 'location ^~ /.well-known/acme-challenge/ {\n' +
+                 pad + '    fastcgi_pass  %s;\n' % sockm.group(1) +
+                 pad + '    fastcgi_param SCRIPT_FILENAME /var/www/acme/acme.php;\n' +
+                 pad + '    include       fastcgi_params;\n' +
+                 pad + '    fastcgi_read_timeout 10s;\n' + pad + '}\n')
+        text = text[:m80.start()] + block + text[m80.start():]
+        said.append('the CAs\' HTTP-01 challenges on port 80 go to acme.php')
+# the health check rate-limited like everything else (the zone is
 # whichever one the conf keeps for everybody; acme_all, as shipped).
-# Looked for in the whole block (1.0.67): the access lists put in front of
+# Looked for in the whole block: the access lists put in front of
 # it by the pages (HEALTH-ALLOW) made it look missing, a second limit_req was
 # added, nginx refused it - and every other addition of the upgrade with it.
 m = re.search(r'(?m)^(\s*)location = /healthz \{\n', text)
@@ -788,19 +849,19 @@ if m and zone and not (hblock and 'limit_req ' in hblock.group(0)):
     text = text.replace(m.group(0), m.group(0) + pad + 'limit_req zone=%s burst=10 nodelay;\n' % zone.group(1)
                         + pad + 'limit_req_status 429;\n', 1)
     said.append('/healthz rate-limited')
-# 1.0.15: sign-in attempts counted on the whole query string, not $arg_api,
+# sign-in attempts counted on the whole query string, not $arg_api,
 # which takes the first of two api= and decodes nothing.
 old_map = re.search(r'map \$arg_api \$acme_login_key \{\n\s*"login"\s+\$binary_remote_addr;', text)
 if old_map:
     text = text.replace(old_map.group(0),
                         'map $args $acme_login_key {\n    "~(^|&)api=login(&|$)"   $binary_remote_addr;', 1)
     said.append('the sign-in limit sees every spelling of api=login')
-# 1.0.15: no second Content-Security-Policy from nginx - the pages send their
+# no second Content-Security-Policy from nginx - the pages send their
 # own, with a nonce, and a browser given two enforces both.
 text, n = re.subn(r'(?m)^\s*add_header\s+Content-Security-Policy\s+"[^"]*"[^\n]*\n', '', text)
 if n:
     said.append("the Content-Security-Policy is the pages' own only")
-# 1.0.61: the body taken whole by nginx before PHP is asked - handed on as it
+# the body taken whole by nginx before PHP is asked - handed on as it
 # came, a few slow requests held every PHP worker, health check and all.
 text, n = re.subn(r'(?m)^(\s*)fastcgi_request_buffering\s+off;', r'\1fastcgi_request_buffering on;', text)
 if n:
@@ -863,21 +924,26 @@ PY
         run setsebool -P httpd_can_network_connect 1 2>/dev/null || warn "could not set httpd_can_network_connect"
         command -v restorecon >/dev/null && run restorecon -R "$WEB_DIR" 2>/dev/null || true
         good "the pages may talk to the daemon on 127.0.0.1"
-        note "If the pages say the token is unreadable: ausearch -m avc -ts recent | audit2allow -M acme-local"
+        note "If the pages cannot reach the daemon: ausearch -m avc -ts recent | audit2allow -M acme-local"
     fi
 }
 
 # ---------------------------------------------------------------------------
-# The program, the account, the folders
+# The program: Python, the tree, the account's folders, the units
 # ---------------------------------------------------------------------------
-# The Python acme runs on (1.0.97): the newest the distribution offers beside
-# its own - python3.14 where AppStream has it (1.0.204), else python3.12 on
-# RHEL, Rocky and AlmaLinux 9 (the system's python3 is 3.9) - with the database
-# driver for it, and only one that is shown to run acme. From the distribution
-# only, never one built or fetched by acme: its security fixes come with the
-# system updates. The choice is a link, $LIB_DIR/python, which
-# the service and the acme command start; the root helpers stay on the
-# system's own python3. --python PATH or --system-python decide instead.
+# acme is built on Python 3.14 (or newer). From the distribution where it has
+# one - python3.14 in AppStream on EL10 (and EL9 where it is there), the
+# distribution's own python3 where that is 3.14 already (Debian 14, Ubuntu
+# 26.04) - and on Ubuntu from the deadsnakes PPA otherwise. Nothing older is
+# taken by itself: without a 3.14 this stops and says how to get one, unless
+# --python PATH says which to use. The choice is $LIB_DIR/python, which the
+# service and the acme command start; the root helpers (acme_upgrade.py,
+# acme_web.py) use only the standard library and stay on the system's python3.
+#
+# The database drivers (psycopg2, PyMySQL) for that Python: the distribution's
+# packages for it where there are any (python3.14-psycopg2 on EL), else a
+# virtual environment of acme's own, $LIB_DIR/venv, that sees the system's
+# packages and has the driver from PyPI (psycopg2-binary, PyMySQL).
 py_mods_wanted() {
     local inuse=""
     inuse="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("db_engine") or "")' \
@@ -885,105 +951,310 @@ py_mods_wanted() {
     case "$inuse $WITH_DB" in *postgres*|*both*) echo psycopg2;; esac
     case "$inuse $WITH_DB" in *mariadb*|*mysql*|*both*) echo pymysql;; esac
 }
+py_new_enough() {        # py_new_enough PYTHON -> 0 when it is 3.14 or newer
+    "$1" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 14) else 1)' 2>/dev/null
+}
 py_runs_acme() {         # py_runs_acme PYTHON MODULE... -> 0 when it can run acme
     local py="$1"; shift
     [[ -x "$py" ]] || return 1
     "$py" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' 2>/dev/null || return 1
-    "$py" -c 'import ssl, sqlite3, hashlib, json, zipfile; hashlib.scrypt' 2>/dev/null || return 1
+    "$py" -c 'import ssl, sqlite3, hashlib, json, zipfile, venv; hashlib.scrypt' 2>/dev/null \
+        || "$py" -c 'import ssl, sqlite3, hashlib, json, zipfile; hashlib.scrypt' 2>/dev/null || return 1
     local m
     for m in "$@"; do "$py" -c "import $m" 2>/dev/null || return 1; done
-    "$py" "$SOURCE_DIR/acme.py" --version >/dev/null 2>&1
+    ( cd / && "$py" -I "$SOURCE_DIR/acme.py" --version >/dev/null 2>&1 )
+}
+py_found() {             # the first Python 3.14+ of the distribution's, or nothing
+    local py
+    for py in /usr/bin/python3.16 /usr/bin/python3.15 /usr/bin/python3.14 /usr/bin/python3; do
+        [[ -x "$py" ]] && py_new_enough "$py" && { echo "$py"; return 0; }
+    done
+    return 0
+}
+py_install() {           # puts python3.14 on the machine, from where the distribution has it
+    if [[ "$PKG" == "dnf" ]]; then
+        if [[ -n "$DRY_RUN" ]]; then note "[would run] dnf install -y python$PY_WANT"; return 0; fi
+        say "python$PY_WANT from the distribution (AppStream)"
+        dnf install -y "python$PY_WANT" >/dev/null 2>&1 || true
+    elif [[ "$PKG" == "apt" ]]; then
+        apt_update_once
+        local cand
+        cand="$(apt-cache policy "python$PY_WANT" 2>/dev/null | awk '/Candidate:/{print $2; exit}' || true)"
+        if [[ -z "$cand" || "$cand" == "(none)" ]] && [[ "$OS_ID" == "ubuntu" ]]; then
+            say "Ubuntu has no python$PY_WANT of its own here: the deadsnakes PPA (ppa:deadsnakes/ppa)"
+            if [[ -n "$DRY_RUN" ]]; then
+                note "[would run] apt-get install -y software-properties-common; add-apt-repository -y ppa:deadsnakes/ppa"
+            else
+                command -v add-apt-repository >/dev/null 2>&1 \
+                    || apt-get install -y software-properties-common >/dev/null 2>&1 || true
+                add-apt-repository -y ppa:deadsnakes/ppa >/dev/null 2>&1 \
+                    || warn "the deadsnakes PPA could not be added (is launchpad.net reachable?)"
+                APT_UPDATED=""; apt_update_once
+            fi
+            cand="ppa"
+        fi
+        if [[ -n "$cand" && "$cand" != "(none)" ]]; then
+            if [[ -n "$DRY_RUN" ]]; then note "[would run] apt-get install -y python$PY_WANT python$PY_WANT-venv"; return 0; fi
+            apt-get install -y "python$PY_WANT" "python$PY_WANT-venv" >/dev/null 2>&1 \
+                || apt-get install -y "python$PY_WANT" >/dev/null 2>&1 || true
+        fi
+    fi
+    return 0
+}
+py_driver_pkgs() {       # py_driver_pkgs PYTHON MODULE: the distribution's driver for that Python
+    local py="$1" mod="$2" v name
+    v="$("$py" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || true)"
+    case "$mod" in psycopg2) name=psycopg2;; pymysql) name=PyMySQL;; *) return 0;; esac
+    if [[ "$PKG" == "dnf" ]]; then
+        if [[ "$py" == /usr/bin/python3 ]]; then run dnf install -y "python3-$name" >/dev/null 2>&1 || true
+        else run dnf install -y "python$v-$name" >/dev/null 2>&1 || true; fi
+    elif [[ "$PKG" == "apt" ]]; then
+        # Debian's python3-* packages are for its own python3 only.
+        local sys_v
+        sys_v="$(/usr/bin/python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || true)"
+        if [[ "$v" == "$sys_v" ]]; then apt_update_once; run apt-get install -y "python3-${name,,}" >/dev/null 2>&1 || true; fi
+    fi
+    return 0
+}
+py_venv_drivers() {      # py_venv_drivers PYTHON MODULE...: $LIB_DIR/venv with the drivers from PyPI
+    local py="$1"; shift
+    local venv="$LIB_DIR/venv" pips=() m
+    for m in "$@"; do case "$m" in psycopg2) pips+=(psycopg2-binary);; pymysql) pips+=(PyMySQL);; esac; done
+    ((${#pips[@]})) || return 0
+    # The one made before, on this Python and with these drivers, is used as it is.
+    if [[ -x "$venv/bin/python" && "$(readlink -f "$venv/bin/python")" == "$(readlink -f "$py")" ]]; then
+        local all=yes
+        for m in "$@"; do "$venv/bin/python" -c "import $m" 2>/dev/null || all=""; done
+        [[ -n "$all" ]] && { note "$venv has ${pips[*]} already"; return 0; }
+    fi
+    if [[ -n "$DRY_RUN" ]]; then note "[would make] $venv on $py, with ${pips[*]} from PyPI"; return 0; fi
+    say "the distribution has no ${pips[*]} for $("$py" --version 2>&1): $venv, with them from PyPI"
+    if [[ ! -x "$venv/bin/python" ]] || [[ "$(readlink -f "$venv/bin/python")" != "$(readlink -f "$py")" ]]; then
+        rm -rf "$venv"
+        "$py" -m venv --system-site-packages "$venv" >/dev/null 2>&1 \
+            || { [[ "$PKG" == "apt" ]] && apt-get install -y "python$("$py" -c 'import sys; print("%d.%d" % sys.version_info[:2])')-venv" >/dev/null 2>&1 \
+                 && "$py" -m venv --system-site-packages "$venv" >/dev/null 2>&1; } \
+            || { warn "$venv could not be made ($py -m venv)"; rm -rf "$venv"; return 1; }
+    fi
+    "$venv/bin/python" -m pip install --quiet --disable-pip-version-check --upgrade "${pips[@]}" >/dev/null 2>&1 \
+        || { warn "pip could not install ${pips[*]} into $venv (is pypi.org reachable?)"; return 1; }
+    chown -R root:root "$venv"; chmod -R go-w "$venv"
+    return 0
 }
 runtime_python() {
     step "Python"
-    local mods=() cand=() py v m pkg
+    local mods=() cand=() py m kept="$LIB_DIR/python-choice"
     mapfile -t mods < <(py_mods_wanted)
-    # The choice of --python / --system-python kept for the next upgrade
-    # (1.0.147): the pages' upgrade and a plain --upgrade took the newest
-    # Python again.
-    local kept="$LIB_DIR/python-choice"
+    # The choice of --python kept for the next upgrade: the pages' upgrade and
+    # a plain --upgrade took the newest Python again.
     if [[ -n "$PY_FORCE" ]]; then
-        [[ -z "$DRY_RUN" ]] && printf '%s\n' "$PY_FORCE" > "$kept"
-    elif [[ -n "$PY_SYSTEM" ]]; then
-        [[ -z "$DRY_RUN" ]] && printf 'system\n' > "$kept"
+        [[ -z "$DRY_RUN" ]] && { install -d -m 0755 "$LIB_DIR"; printf '%s\n' "$PY_FORCE" > "$kept"; }
+        cand=("$PY_FORCE")
     elif [[ -f "$kept" && ! -L "$kept" ]]; then
         local was=""
         was="$(head -n1 "$kept" 2>/dev/null || true)"
-        [[ "$was" == "system" ]] && was=/usr/bin/python3
         if [[ "$was" == /* && -x "$was" ]]; then
-            # First, and the newest after it should it no longer run acme.
-            cand=("$was")
-            note "the Python chosen before is tried first: $was (--python PATH or --system-python to change it)"
+            PY_FORCE="$was"; cand=("$was")
+            note "the Python chosen before with --python is kept: $was (--python PATH to change it)"
         fi
     fi
-    if [[ ${#cand[@]} -gt 0 ]]; then cand+=(/usr/bin/python3.14 /usr/bin/python3.13 /usr/bin/python3.12 /usr/bin/python3.11 /usr/bin/python3)
-    elif [[ -n "$PY_FORCE" ]]; then cand=("$PY_FORCE")
-    elif [[ -n "$PY_SYSTEM" ]]; then cand=("/usr/bin/python3")
-    else cand=(/usr/bin/python3.14 /usr/bin/python3.13 /usr/bin/python3.12 /usr/bin/python3.11 /usr/bin/python3); fi
-    ACME_PY=""
-    for py in "${cand[@]}"; do
-        v="${py##*/python}"
-        if [[ ! -x "$py" && "$v" =~ ^3\.[0-9]+$ && "$PKG" == "dnf" && -z "$DRY_RUN" ]]; then
-            dnf install -y "python$v" >/dev/null 2>&1 || true
+    if [[ ${#cand[@]} -eq 0 ]]; then
+        py="$(py_found)"
+        if [[ -z "$py" ]]; then
+            note "no Python $PY_WANT or newer here yet"
+            py_install
+            py="$(py_found)"
         fi
-        [[ -x "$py" ]] || continue
-        for m in "${mods[@]}"; do
-            "$py" -c "import $m" 2>/dev/null && continue
-            [[ -n "$DRY_RUN" ]] && continue
-            case "$m" in psycopg2) pkg=psycopg2;; pymysql) pkg=PyMySQL;; esac
-            if [[ "$PKG" == "dnf" ]]; then
-                if [[ "$v" =~ ^3\.[0-9]+$ ]]; then dnf install -y "python$v-$pkg" >/dev/null 2>&1 || true
-                else dnf install -y "python3-$pkg" >/dev/null 2>&1 || true; fi
-            elif [[ "$PKG" == "apt" && ! "$v" =~ ^3\.[0-9]+$ ]]; then
-                apt-get install -y "python3-${pkg,,}" >/dev/null 2>&1 || true
-            fi
-        done
-        if [[ -n "$DRY_RUN" ]] || py_runs_acme "$py" "${mods[@]}"; then ACME_PY="$py"; break; fi
-        note "$py ($("$py" --version 2>&1)) cannot run acme here (a module missing: ${mods[*]:-none}) - the next one is tried"
+        if [[ -z "$py" && -n "$DRY_RUN" ]]; then
+            note "[would use] /usr/bin/python$PY_WANT once it is installed${mods[*]:+ (with ${mods[*]})}"
+            ACME_PY="/usr/bin/python$PY_WANT"
+            return 0
+        fi
+        [[ -n "$py" ]] || fail "acme needs Python $PY_WANT or newer, and none was found or could be installed here.
+    EL9/EL10:      dnf install python$PY_WANT   (AppStream; on EL9 once Red Hat ships it)
+    Ubuntu:        add-apt-repository ppa:deadsnakes/ppa && apt-get install python$PY_WANT python$PY_WANT-venv
+    Debian:        a release whose python3 is $PY_WANT or newer
+    Or say which Python to run it on (at your own risk if it is older):  --python /path/to/python3"
+        cand=("$py")
+    fi
+    py="${cand[0]}"
+    [[ -x "$py" ]] || fail "--python $py: there is no such program"
+    if ! py_new_enough "$py"; then
+        [[ -n "$PY_FORCE" ]] || fail "$py is $("$py" --version 2>&1), older than $PY_WANT"
+        warn "$py is $("$py" --version 2>&1): acme is built and tested on $PY_WANT and newer - taken because --python said so"
+    fi
+    # The drivers: the distribution's for this Python, else acme's own venv.
+    local missing=() use="$py"
+    for m in "${mods[@]}"; do
+        "$py" -c "import $m" 2>/dev/null && continue
+        py_driver_pkgs "$py" "$m"
+        "$py" -c "import $m" 2>/dev/null || missing+=("$m")
     done
-    [[ -n "$ACME_PY" ]] || fail "no Python here runs acme${mods[*]:+ with ${mods[*]}} - install python3.14 and python3.14-psycopg2 (or python3.12, python3.12-psycopg2) with dnf, or say which with --python"
-    run ln -sfn "$ACME_PY" "$LIB_DIR/python"
-    good "acme runs on $("$ACME_PY" --version 2>&1) - $ACME_PY${mods[*]:+ (with ${mods[*]})}"
-    if [[ "$ACME_PY" == /usr/bin/python3 && -z "$PY_SYSTEM" && -z "$PY_FORCE" ]] && \
-            /usr/bin/python3 -c 'import sys; sys.exit(0 if sys.version_info < (3, 11) else 1)' 2>/dev/null; then
-        note "the system's own python3 is used; a newer one (dnf install python3.14 python3.14-psycopg2, or python3.12) is faster, and is taken by the next upgrade"
+    if ((${#missing[@]})); then
+        if [[ -n "$DRY_RUN" ]]; then
+            py_venv_drivers "$py" "${missing[@]}"
+        elif py_venv_drivers "$py" "${missing[@]}"; then
+            use="$LIB_DIR/venv/bin/python"
+        fi
     fi
+    if [[ -z "$DRY_RUN" ]] && ! py_runs_acme "$use" "${mods[@]}"; then
+        fail "$use ($("$use" --version 2>&1)) cannot run acme here${mods[*]:+ (with ${mods[*]})} - $use -I $SOURCE_DIR/acme.py --version says why"
+    fi
+    ACME_PY="$use"
+    if [[ -n "$DRY_RUN" ]]; then
+        note "[would link] $LIB_DIR/python -> $ACME_PY"
+    else
+        install -d -m 0755 -o root -g root "$LIB_DIR"
+        rm -f "$LIB_DIR/.python.$$"
+        if [[ "$ACME_PY" == "$LIB_DIR/venv/bin/python" ]]; then
+            # A venv is found from the path it is started by: a link to its
+            # python from elsewhere would start the bare interpreter.
+            printf '#!/bin/sh\n# acme runs on its own venv (install.sh): %s\nexec %s "$@"\n' \
+                "$LIB_DIR/venv" "$LIB_DIR/venv/bin/python" > "$LIB_DIR/.python.$$"
+            chmod 0755 "$LIB_DIR/.python.$$"
+        else
+            ln -s "$ACME_PY" "$LIB_DIR/.python.$$"
+        fi
+        mv -Tf "$LIB_DIR/.python.$$" "$LIB_DIR/python"
+    fi
+    good "acme runs on $("$ACME_PY" --version 2>&1 || echo "Python $PY_WANT") - $ACME_PY${mods[*]:+ (with ${mods[*]})}"
+}
+
+# ---- the tree ----------------------------------------------------------------------
+# /usr/local/lib/acme/
+#     versions/X.Y.Z-STAMP/   one tree each: acme.py, acmelib/, web/, deploy/, docs/,
+#                             install.sh, MANIFEST - root's, compiled
+#     current  -> versions/…  the one that runs: switched in one rename(2)
+#     previous -> versions/…  the one before, kept for going back
+#                             (acme_upgrade.py --previous)
+#     acme.py, acme_upgrade.py, acme_web.py, acme-vip-check, deploy, docs,
+#     CHANGELOG.md, …         links into current/, so every path that named
+#                             them stays right
+#     python, python-choice, db-drivers, venv/, release-keys/, downgrade-floor
+#                             the machine's own, kept across versions
+NEW_TREE=""
+tree_copy_excludes=(--exclude=./.git --exclude=./.github --exclude=./.claude --exclude=./release
+                    --exclude=./build --exclude=./dist --exclude=./.venv --exclude=./venv
+                    --exclude='__pycache__' --exclude='*.pyc' --exclude='*.pyo'
+                    --exclude='.pytest_cache' --exclude='.mypy_cache' --exclude='.ruff_cache')
+swap_link() {            # swap_link LINK TARGET: the link made new beside it, renamed over it
+    local link="$1" target="$2"
+    [[ "$(readlink "$link" 2>/dev/null || true)" == "$target" ]] && return 0
+    [[ -e "$link" && ! -L "$link" ]] && fail "$link is there and is not a link - look at it before running this again"
+    rm -f "$link.new.$$"
+    ln -s "$target" "$link.new.$$"
+    mv -Tf "$link.new.$$" "$link"
+}
+flat_layout_aside() {    # a program put in as files straight into $LIB_DIR: made a tree of its own
+    [[ -f "$LIB_DIR/acme.py" && ! -L "$LIB_DIR/acme.py" ]] || return 0
+    local was dest one
+    was="$(sed -n "s/^__version__ = '\(.*\)'.*/\1/p" "$LIB_DIR/acmelib/__init__.py" "$LIB_DIR/acme.py" 2>/dev/null | head -n1 || true)"
+    dest="$TREES_DIR/${was:-0.0.0}-flat"
+    mkdir -p "$dest"; chmod 0755 "$dest"
+    for one in acme.py acmelib web deploy docs test tools acme_upgrade.py acme_web.py acme-vip-check \
+               install.sh INSTALL.md README.md CHANGELOG.md LICENSE.md MANIFEST MANIFEST.sig nginx-acme.conf; do
+        [[ -e "$LIB_DIR/$one" && ! -L "$LIB_DIR/$one" ]] && mv "$LIB_DIR/$one" "$dest/"
+    done
+    swap_link "$LIB_DIR/previous" "versions/$(basename "$dest")"
+    note "the program that was in $LIB_DIR itself is now $dest (kept as previous)"
+}
+install_tree() {
+    local stamp src_real trees_real old cur prev one
+    stamp="$(date -u +%Y%m%d%H%M%S)"
+    src_real="$(readlink -f "$SOURCE_DIR")"
+    trees_real="$(readlink -f "$TREES_DIR" 2>/dev/null || echo "$TREES_DIR")"
+    if [[ "$(dirname "$src_real")" == "$trees_real" ]]; then
+        # Run from one of the trees kept here (going back to previous): that
+        # tree itself becomes current again - nothing is copied.
+        NEW_TREE="$src_real"
+        note "$NEW_TREE is one of the trees kept here: it becomes the current one again"
+    else
+        NEW_TREE="$TREES_DIR/$VERSION-$stamp"
+    fi
+    if [[ -n "$DRY_RUN" ]]; then
+        note "[would copy] $SOURCE_DIR -> $NEW_TREE (acme.py, acmelib/, web/, deploy/, docs/, install.sh, MANIFEST)"
+        note "[would compile] $NEW_TREE with $ACME_PY -m compileall"
+        note "[would switch] $LIB_DIR/current -> versions/$(basename "$NEW_TREE"); the tree before becomes previous"
+        return 0
+    fi
+    [[ -L "$LIB_DIR" ]] && fail "$LIB_DIR is a link - look at it before running this again"
+    install -d -m 0755 -o root -g root "$LIB_DIR"
+    not_a_link "$TREES_DIR"
+    install -d -m 0755 -o root -g root "$TREES_DIR"
+    flat_layout_aside
+    if [[ "$NEW_TREE" != "$src_real" ]]; then
+        # Made under a name of its own, and only once whole renamed to the
+        # name it keeps: what was cut off half way is a .new- folder, never a tree.
+        local tmp="$TREES_DIR/.new-$VERSION-$stamp.$$"
+        rm -rf "$tmp"
+        mkdir -m 0700 "$tmp"
+        tar -C "$SOURCE_DIR" "${tree_copy_excludes[@]}" -cf - . | tar -C "$tmp" --no-same-owner -xf -
+        # root's helpers beside acme.py, where the engine and systemd look for them.
+        for one in acme_upgrade.py acme_web.py acme-vip-check; do
+            [[ -f "$tmp/deploy/$one" ]] && install -m 0755 "$tmp/deploy/$one" "$tmp/$one"
+        done
+        chown -R root:root "$tmp"
+        chmod -R u+rwX,go+rX,go-w "$tmp"
+        mv -T "$tmp" "$NEW_TREE"
+    fi
+    # Compiled where it stays, so tracebacks name the real files; the acme
+    # account cannot write here and would compile it on every start.
+    "$ACME_PY" -I -m compileall -q -j 0 -x '/(test|tools)/' "$NEW_TREE" >/dev/null 2>&1 \
+        || "$ACME_PY" -I -m compileall -q "$NEW_TREE" >/dev/null 2>&1 \
+        || warn "$NEW_TREE could not all be compiled: it runs, compiling as it goes"
+    chmod -R go-w "$NEW_TREE"
+    # The switch: one rename. What ran before is previous.
+    cur="$(readlink -e "$LIB_DIR/current" 2>/dev/null || true)"
+    swap_link "$LIB_DIR/current" "versions/$(basename "$NEW_TREE")"
+    if [[ -n "$cur" && -d "$cur" && "$cur" != "$NEW_TREE" ]]; then
+        swap_link "$LIB_DIR/previous" "versions/$(basename "$cur")"
+    fi
+    for one in acme.py acme_upgrade.py acme_web.py acme-vip-check deploy docs \
+               CHANGELOG.md README.md INSTALL.md LICENSE.md; do
+        swap_link "$LIB_DIR/$one" "current/$one"
+    done
+    # Only current and previous are kept (and whatever runs this script).
+    cur="$(readlink -e "$LIB_DIR/current")"
+    prev="$(readlink -e "$LIB_DIR/previous" 2>/dev/null || true)"
+    for old in "$TREES_DIR"/* "$TREES_DIR"/.new-*; do
+        [[ -e "$old" ]] || continue
+        old="$(readlink -f "$old")"
+        [[ "$old" == "$cur" || "$old" == "$prev" || "$old" == "$src_real" ]] && continue
+        rm -rf -- "$old"
+    done
+    good "$LIB_DIR/current -> versions/$(basename "$NEW_TREE")${prev:+ (previous: $(basename "$prev"))}"
 }
 
 install_program() {
-    step "The daemon"
-    run install -D -m 0755 "$SOURCE_DIR/acme.py" "$LIB_DIR/acme.py"
-    for extra in INSTALL.md README.md CHANGELOG.md; do
-        [[ -f "$SOURCE_DIR/$extra" ]] && run install -D -m 0644 "$SOURCE_DIR/$extra" "$LIB_DIR/$extra"
-    done
-    for d in docs test deploy; do
-        if [[ -d "$SOURCE_DIR/$d" ]]; then
-            run rm -rf "$LIB_DIR/$d"
-            run cp -r "$SOURCE_DIR/$d" "$LIB_DIR/$d"
-        fi
-    done
-    # The drivers asked for with --with-db kept for the next upgrade (1.0.206): a
-    # later --upgrade - one from the pages too - has none, and took a Python
-    # without them; the database could no longer be moved from the pages.
+    step "The program"
+    # The drivers asked for with --with-db kept for the next upgrade: a later
+    # --upgrade - one from the pages too - has none, and took a Python without
+    # them; the database could no longer be moved from the pages.
     local drivers="$LIB_DIR/db-drivers"
     if [[ -n "$WITH_DB" && -z "$DRY_RUN" ]]; then
+        install -d -m 0755 "$LIB_DIR"
         printf '%s\n' "$WITH_DB" > "$drivers" && chmod 600 "$drivers"
     elif [[ -z "$WITH_DB" && -f "$drivers" && ! -L "$drivers" ]]; then
         WITH_DB="$(head -n1 "$drivers" 2>/dev/null | tr -cd 'a-z')"
         [[ -n "$WITH_DB" ]] && note "the database drivers asked for before are kept: $WITH_DB (--with-db to change)"
     fi
     runtime_python
-    # The command, on the same Python as the daemon (1.0.97): a link to
-    # acme.py ran it on whatever python3 is first in PATH.
+    step "The tree"
+    install_tree
+    # The command, on the same Python as the daemon, from the tree that runs
+    # when it starts (one switched under it does not mix two versions).
+    # Imported, not run as a script: its compiled form is used; -I: nothing
+    # from the folder it is run in, nor PYTHON* settings.
     if [[ -z "$DRY_RUN" ]]; then
-        rm -f "$BIN_LINK"
-        # Imported, not run as a script (1.0.136): its compiled form is kept,
-        # so a command no longer spends most of a second compiling acme.py;
-        # -I: nothing from the folder it is run in, nor PYTHON* settings.
-        printf '#!/bin/sh\n# acme, on the Python install.sh chose (%s/python)\nexec %s/python -I -c '"'"'import sys; sys.path.insert(0, "%s"); sys.argv[0] = "acme"; import acme; acme.entry()'"'"' "$@"\n' \
-            "$LIB_DIR" "$LIB_DIR" "$LIB_DIR" > "$BIN_LINK"
-        chmod 0755 "$BIN_LINK"
-        "$LIB_DIR/python" -I -m py_compile "$LIB_DIR/acme.py" 2>/dev/null || true
+        rm -f "$BIN_LINK.new.$$"
+        cat > "$BIN_LINK.new.$$" <<EOB
+#!/bin/sh
+# acme, on the Python install.sh chose ($LIB_DIR/python), from $LIB_DIR/current
+T="\$(readlink -f $LIB_DIR/current)" || exit 1
+exec $LIB_DIR/python -I -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); sys.argv[0] = "acme"; import acme; acme.entry()' "\$T" "\$@"
+EOB
+        chmod 0755 "$BIN_LINK.new.$$"
+        mv -Tf "$BIN_LINK.new.$$" "$BIN_LINK"
     else
         note "[would write] $BIN_LINK"
     fi
@@ -994,7 +1265,12 @@ install_program() {
     run install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$LOG_DIR"
     # The daemon writes config.json itself when the database is moved, so the
     # folder is its group's - and nothing else in it is anybody's but root's.
-    run install -d -m 2770 -o root -g "$SERVICE_USER" "$CONFIG_DIR"
+    if [[ -d "$CONFIG_DIR" ]]; then
+        run chown root:"$SERVICE_USER" "$CONFIG_DIR"; run chmod 2770 "$CONFIG_DIR"
+    else
+        run install -d -m 2770 -o root -g "$SERVICE_USER" "$CONFIG_DIR"
+    fi
+    install_plugin_dirs
     run install -D -m 0644 "$SOURCE_DIR/deploy/acme.service" "$UNIT_FILE"
     run install -D -m 0644 "$SOURCE_DIR/deploy/acme.logrotate" "$LOGROTATE_FILE"
     install_upgrader
@@ -1004,38 +1280,67 @@ install_program() {
             || warn "acme-upgrade.path did not start; upgrades from the pages wait for it"
     fi
     if [[ -f "$WEB_PATH_UNIT" ]]; then
-        # Restarted, not only enabled (1.0.52): a path unit that is already
-        # running keeps watching what its old file named.
-        # One left failed by systemd's start limit (before 1.0.159) watches nothing.
+        # Restarted, not only enabled: a path unit that is already running
+        # keeps watching what its old file named. One left failed by systemd's
+        # start limit watches nothing.
         run systemctl reset-failed acme-web.service acme-web.path >/dev/null 2>&1 || true
         { run systemctl enable acme-web.path >/dev/null 2>&1 && run systemctl restart acme-web.path >/dev/null 2>&1; } \
             || warn "acme-web.path did not start; TLS and the web address from the pages wait for it"
     fi
 }
 
-# Upgrades from the pages (1.0.37): root's helper, the keys it trusts, and
-# the systemd units that start it when the pages ask. The keys are root's
-# alone, in the program's folder - never anywhere the acme account may write.
+# Your own modules: /etc/acme/plugins/{issuers,challenges,targets}/*.py, kept
+# across upgrades (one with the same `kind` wins over the built-in). Root's
+# alone: root's own acme command loads them too, so the acme account must not
+# be able to put code there.
+install_plugin_dirs() {
+    local d
+    not_a_link "$PLUGINS_DIR" "$PLUGINS_DIR/issuers" "$PLUGINS_DIR/challenges" "$PLUGINS_DIR/targets"
+    for d in "$PLUGINS_DIR" "$PLUGINS_DIR/issuers" "$PLUGINS_DIR/challenges" "$PLUGINS_DIR/targets"; do
+        if [[ -d "$d" ]]; then
+            run chown root:root "$d"; run chmod 0755 "$d"
+        else
+            run install -d -m 0755 -o root -g root "$d"
+        fi
+    done
+    if [[ ! -e "$PLUGINS_DIR/README" ]]; then
+        write_file "$PLUGINS_DIR/README" 0644 <<'EOR'
+Your own modules for acme, kept across upgrades.
+
+  issuers/*.py      where certificates come from      (class ...(Issuer))
+  challenges/*.py   how names are proved (DNS / HTTP)  (class ...(Challenge))
+  targets/*.py      where certificates are put         (class ...(Target))
+
+The contract is acmelib/plugins/base.py (/usr/local/lib/acme/current/acmelib/
+plugins/base.py); the built-in modules beside it are examples. A module here
+with the same `kind` as a built-in one takes its place. These folders and files
+must stay root's (0755 / 0644): root's own `acme` command loads them too.
+GET /api/plugins (Settings, the modules) lists what was found, and what broke.
+EOR
+    fi
+    good "$PLUGINS_DIR/{issuers,challenges,targets} - your own modules (root's)"
+}
+
+# Upgrades from the pages: root's helper, the keys it trusts, and the systemd
+# units that start it when the pages ask. The keys are root's alone, in the
+# program's folder - never anywhere the acme account may write.
 install_upgrader() {
     [[ -f "$SOURCE_DIR/deploy/acme_upgrade.py" ]] || return 0
-    run install -D -m 0755 "$SOURCE_DIR/deploy/acme_upgrade.py" "$LIB_DIR/acme_upgrade.py"
     run install -d -m 0755 -o root -g root "$LIB_DIR/release-keys"
     local k
     for k in "$SOURCE_DIR"/deploy/release-keys/*.pub; do
         [[ -f "$k" ]] && run install -m 0644 -o root -g root "$k" "$LIB_DIR/release-keys/"
     done
-    # Exactly the package's keys (1.0.44): one a release no longer ships is
-    # trusted no longer.
+    # Exactly the package's keys: one a release no longer ships is trusted no longer.
     compgen -G "$SOURCE_DIR/deploy/release-keys/*.pub" >/dev/null && for k in "$LIB_DIR"/release-keys/*.pub; do
         [[ -f "$k" ]] || continue
         [[ -f "$SOURCE_DIR/deploy/release-keys/$(basename "$k")" ]] || run rm -f "$k"
     done
     acme_subdir "$STATE_DIR/upgrade"
-    # How far back this machine may go (1.0.143): the highest floor of every
-    # version put in here - an older version's install.sh leaves it as it is,
-    # so going back never lowers it. Root's alone.
-    local floor new
-    new="$(sed -n "s/^DOWNGRADE_FLOOR = '\([0-9.]*\)'.*/\1/p" "$SOURCE_DIR/acme.py" | head -n 1)"
+    # How far back this machine may go: the highest floor of every version put
+    # in here - an older version's install.sh leaves it as it is, so going
+    # back never lowers it. Root's alone, beside versions/ (not in a tree).
+    local floor new="$DOWNGRADE_FLOOR_NEW"
     if [[ -n "$new" ]]; then
         floor=""
         if [[ -L "$LIB_DIR/downgrade-floor" ]]; then run rm -f "$LIB_DIR/downgrade-floor"
@@ -1046,14 +1351,12 @@ install_upgrader() {
         if [[ -n "$DRY_RUN" ]]; then note "[would write] $LIB_DIR/downgrade-floor: $floor"
         else printf '%s\n' "$floor" > "$LIB_DIR/downgrade-floor"; chown root:root "$LIB_DIR/downgrade-floor"; chmod 0644 "$LIB_DIR/downgrade-floor"; fi
     fi
-    # TLS and the cluster's web address from the pages (1.0.47): root's helper,
-    # keepalived's check, and the units that start the helper when asked.
+    # TLS and the cluster's web address from the pages: root's helper (in the
+    # tree, linked as $LIB_DIR/acme_web.py), keepalived's check, and the units
+    # that start the helper when asked.
     if [[ -f "$SOURCE_DIR/deploy/acme_web.py" ]]; then
-        run install -D -m 0755 "$SOURCE_DIR/deploy/acme_web.py" "$LIB_DIR/acme_web.py"
-        run install -D -m 0755 "$SOURCE_DIR/deploy/acme-vip-check" "$LIB_DIR/acme-vip-check"
-        # Where keepalived's scripts belong (1.0.47): SELinux lets keepalived
-        # run what is in /usr/libexec/keepalived (keepalived_unconfined_script_exec_t),
-        # and nothing it would refuse elsewhere.
+        # Where keepalived's scripts belong: SELinux lets keepalived run what is
+        # in /usr/libexec/keepalived (keepalived_unconfined_script_exec_t).
         run install -D -m 0755 "$SOURCE_DIR/deploy/acme-vip-check" /usr/libexec/keepalived/acme-vip-check
         command -v restorecon >/dev/null 2>&1 && run restorecon -R /usr/libexec/keepalived >/dev/null 2>&1 || true
         acme_subdir "$STATE_DIR/web"
@@ -1062,7 +1365,7 @@ install_upgrader() {
     fi
     run install -D -m 0644 "$SOURCE_DIR/deploy/acme-upgrade.service" "$UPGRADE_SERVICE_UNIT"
     run install -D -m 0644 "$SOURCE_DIR/deploy/acme-upgrade.path" "$UPGRADE_PATH_UNIT"
-    good "upgrades from the pages: acme-upgrade.path, packages signed by $(ls "$LIB_DIR/release-keys" 2>/dev/null | sed 's/\.pub$//' | paste -sd, - || true)"
+    good "upgrades from the pages: acme-upgrade.path, packages signed by $(ls "$SOURCE_DIR/deploy/release-keys" 2>/dev/null | sed 's/\.pub$//' | paste -sd, - || true)"
 }
 
 as_acme() {             # a command of acme's, as its own account
@@ -1084,63 +1387,13 @@ restart_daemon() {
     fi
 }
 
-install_colour() {      # colorama: the command line in colour, as isemon's
-    # Nothing needs it - without it acme writes the same escape sequences
-    # itself - so it is offered and never insisted on.
-    if python3 -c 'import colorama' 2>/dev/null; then
-        good "python3-colorama is here - the command line is in colour"
-        return 0
-    fi
-    if [[ "$PKG" == "dnf" ]]; then
-        run dnf install -y python3-colorama >/dev/null 2>&1 || true
-    elif [[ "$PKG" == "apt" ]]; then
-        run apt-get install -y python3-colorama >/dev/null 2>&1 || true
-    fi
-    # Not in the distribution's own repositories (on RHEL 9 it is EPEL's):
-    # pip, where there is one, for the system Python.
-    if ! python3 -c 'import colorama' 2>/dev/null && python3 -m pip --version >/dev/null 2>&1; then
-        run python3 -m pip install --quiet colorama >/dev/null 2>&1 || true
-    fi
-    if [[ -n "$DRY_RUN" ]] || python3 -c 'import colorama' 2>/dev/null; then
-        good "python3-colorama installed - the command line is in colour"
-    else
-        note "python3-colorama is not available; colour is written by hand instead,"
-        note "which works on this terminal and is the only difference."
-    fi
-}
-
-install_db_drivers() {
-    # The engine in use too (1.0.206): moved to PostgreSQL from the pages and
-    # upgraded without --with-db, its pg_dump never came - the nightly dumps
-    # quietly became the portable copies.
-    local inuse0=""
-    inuse0="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("db_engine") or "")' \
-              "$CONFIG_DIR/config.json" 2>/dev/null || true)"
-    [[ -n "$WITH_DB" || "$inuse0" == postgres || "$inuse0" == mariadb ]] || return 0
-    step "Database drivers"
-    local want=()
-    case "$WITH_DB" in
-        mariadb|mysql) want=("pymysql:python3-PyMySQL:PyMySQL");;
-        postgres|postgresql) want=("psycopg2:python3-psycopg2:psycopg2-binary");;
-        both) want=("pymysql:python3-PyMySQL:PyMySQL" "psycopg2:python3-psycopg2:psycopg2-binary");;
-    esac
-    local one mod pkg pipname
-    for one in "${want[@]}"; do
-        IFS=: read -r mod pkg pipname <<< "$one"
-        if "${ACME_PY:-python3}" -c "import $mod" 2>/dev/null; then good "$mod is already here"; continue; fi
-        if [[ "$PKG" == "dnf" ]]; then run dnf install -y "$pkg" || true
-        elif [[ "$PKG" == "apt" ]]; then run apt-get install -y "${pkg,,}" || true; fi
-        python3 -c "import $mod" 2>/dev/null || run pip3 install $(pip3 install --help 2>/dev/null | grep -q -- --break-system-packages && echo --break-system-packages) "$pipname" || true
-        python3 -c "import $mod" 2>/dev/null && good "$mod installed" || warn "$mod could not be installed"
-    done
-    # The engine's own programs, for the nightly dumps and for putting one
-    # back (Settings -> The database -> The dumps it keeps). The clients
-    # only, never a server.
-    # Only the client of the engine actually in use (the config file says
-    # which): --with-db both is for the drivers, so that the pages can move
-    # to either - it is not a reason to put the MariaDB client on a machine
-    # that runs on PostgreSQL. Switch engines and run --upgrade again, and
-    # the other one's client comes. (1.0.11)
+# The database engine's own programs, for the nightly dumps and for putting
+# one back (Settings -> The database -> The dumps it keeps). The clients only,
+# never a server - and only the client of the engine in use (the config file
+# says which; --with-db both is for the drivers, so the pages can move to
+# either). Switch engines and run --upgrade again, and the other's comes.
+# The Python drivers themselves come with the Python (runtime_python).
+install_db_tools() {
     local tools=() inuse=""
     inuse="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("db_engine") or "")' \
              "$CONFIG_DIR/config.json" 2>/dev/null || true)"
@@ -1150,16 +1403,20 @@ install_db_drivers() {
         *) case "$WITH_DB" in
                mariadb|mysql) tools=("mariadb-dump:mariadb:mariadb-client");;
                postgres|postgresql) tools=("pg_dump:postgresql:postgresql-client");;
+               both) tools=();;
            esac;;
     esac
-    local bin rpm deb
+    ((${#tools[@]})) || return 0
+    step "The database's own tools"
+    local one bin rpm deb
     for one in "${tools[@]}"; do
         IFS=: read -r bin rpm deb <<< "$one"
         if command -v "$bin" >/dev/null || { [[ "$bin" == mariadb-dump ]] && command -v mysqldump >/dev/null; }; then
             good "$bin is already here"; continue
         fi
         if [[ "$PKG" == "dnf" ]]; then run dnf install -y "$rpm" || true
-        elif [[ "$PKG" == "apt" ]]; then run apt-get install -y "$deb" || true; fi
+        elif [[ "$PKG" == "apt" ]]; then apt_update_once; run apt-get install -y "$deb" || true; fi
+        [[ -n "$DRY_RUN" ]] && continue
         command -v "$bin" >/dev/null && good "$bin installed (for the dumps)" \
             || warn "$bin could not be installed: the nightly dump is a portable copy instead"
     done
@@ -1172,7 +1429,7 @@ install_db_drivers() {
 install_db_restart() {
     local rules="/etc/polkit-1/rules.d/49-acme-database.rules"
     local mark="$CONFIG_DIR/may-restart-database"
-    # Remembered where only root writes (1.0.94): every later upgrade - the
+    # Remembered where only root writes: every later upgrade - the
     # pages' own among them - wrote the rule back.
     local forbid="/etc/polkit-1/rules.d/.acme-no-db-restart"
     if [[ -n "$DB_RESTART_AGAIN" ]]; then
@@ -1226,10 +1483,11 @@ EOR
 nginx_upload_guard() {
     [[ -f "$NGINX_CONF" && -z "$DRY_RUN" ]] || return 0
     if grep -q 'location = /admin/upload/' "$NGINX_CONF"; then
-        # A backup from another machine put back goes this way too (1.0.136):
+        # A backup from another machine put back goes this way too:
         # left out, it was refused at 32 MB.
         if grep -q 'api=(db-restore|upgrade-package)(&|\$)' "$NGINX_CONF"; then
-            local bak0="$NGINX_BAK_DIR/acme.conf.before-rbackup-upload.$(date +%Y%m%d%H%M%S)"
+            local bak0
+            bak0="$NGINX_BAK_DIR/acme.conf.before-rbackup-upload.$(date +%Y%m%d%H%M%S)"
             mkdir -p "$NGINX_BAK_DIR"; cp -a "$NGINX_CONF" "$bak0"
             sed -i 's/api=(db-restore|upgrade-package)(&|\$)/api=(db-restore|upgrade-package|rbackup-upload)(\&|$)/' "$NGINX_CONF"
             if nginx -t >/dev/null 2>&1; then
@@ -1242,11 +1500,12 @@ nginx_upload_guard() {
         return 0
     fi
     if ! nginx -V 2>&1 | grep -q -- '--with-http_auth_request_module'; then
-        # Without the question first, nobody may send 4 GB (1.0.149): nginx
+        # Without the question first, nobody may send 4 GB: nginx
         # wrote whatever anybody on the allow list sent to its disk - the
         # database's disk - before the page could refuse it.
         if grep -q 'client_max_body_size 4g;' "$NGINX_CONF"; then
-            local bak1="$NGINX_BAK_DIR/acme.conf.before-upload-limit.$(date +%Y%m%d%H%M%S)"
+            local bak1
+            bak1="$NGINX_BAK_DIR/acme.conf.before-upload-limit.$(date +%Y%m%d%H%M%S)"
             mkdir -p "$NGINX_BAK_DIR"; cp -a "$NGINX_CONF" "$bak1"
             sed -i 's/client_max_body_size 4g;/client_max_body_size 32m;/' "$NGINX_CONF"
             if nginx -t >/dev/null 2>&1; then
@@ -1258,7 +1517,8 @@ nginx_upload_guard() {
         note "nginx has no auth_request here: files over 32 MB (a database put back, a package) are not taken by the pages - put them in with acme --restore / --upgrade on the server"
         return 0
     fi
-    local bak="$NGINX_BAK_DIR/acme.conf.before-upload-guard.$(date +%Y%m%d%H%M%S)"
+    local bak
+    bak="$NGINX_BAK_DIR/acme.conf.before-upload-guard.$(date +%Y%m%d%H%M%S)"
     mkdir -p "$NGINX_BAK_DIR"; cp -a "$NGINX_CONF" "$bak"
     python3 - "$NGINX_CONF" <<'PY'
 import re, sys
@@ -1297,7 +1557,7 @@ print(done)
 PY
     if nginx -t >/dev/null 2>&1; then
         good "nginx asks who sends a database or a new version before it takes the file (copy: $bak)"
-        # Read again now (1.0.103): restarted before the guard was added, nginx
+        # Read again now: restarted before the guard was added, nginx
         # answered /admin/upload/ with 404 until something else reloaded it.
         run systemctl reload nginx || warn "nginx could not be reloaded - systemctl reload nginx"
     else
@@ -1308,144 +1568,74 @@ PY
 
 open_firewall() {
     step "The firewall"
-    if ! command -v firewall-cmd >/dev/null || ! systemctl is-active --quiet firewalld; then
-        warn "firewalld is not running here, so nothing was opened or narrowed."
-        note "Whatever filters this machine must let through: TCP 443 (and 80) to the pages,"
-        note "UDP 1812 and 1813 from the VPN concentrators${RADIUS_FROM:+ ($RADIUS_FROM)}."
-        return 0
-    fi
-    if [[ -n "$WITH_WEB" ]]; then
-        run firewall-cmd --permanent --add-service=https >/dev/null 2>&1 || true
-        run firewall-cmd --permanent --add-service=http >/dev/null 2>&1 || true
-        good "https (and http, which only sends to https) are open"
-    fi
-    if [[ -n "$RADIUS_FROM" ]]; then
-        IFS=',' read -r -a srcs <<< "$RADIUS_FROM"
-        for one in "${srcs[@]}"; do
-            one="$(echo "$one" | xargs)"; [[ -z "$one" ]] && continue
-            # this machine's own packets never meet the firewall
-            [[ "$one" == 127.* || "$one" == "::1" || "$one" == "::1/128" ]] && continue
-            for port in 1812 1813; do
-                run firewall-cmd --permanent --add-rich-rule="rule family=$( [[ "$one" == *:* ]] && echo ipv6 || echo ipv4 ) source address=$one port port=$port protocol=udp accept" >/dev/null 2>&1 || true
-            done
-        done
-        good "RADIUS (UDP 1812, 1813) is open to: $RADIUS_FROM"
-    else
-        run firewall-cmd --permanent --add-port=1812/udp >/dev/null 2>&1 || true
-        run firewall-cmd --permanent --add-port=1813/udp >/dev/null 2>&1 || true
-        warn "RADIUS (UDP 1812, 1813) is open to anybody: --radius-from narrows it."
-        note "acme answers nothing but its clients either way."
-    fi
-    run firewall-cmd --reload >/dev/null 2>&1 || true
-}
-
-# ===========================================================================
-# An upgrade: the program, the pages, PHP - and nothing else
-# ===========================================================================
-
-# ---------------------------------------------------------------------------
-# From opt to acme (1.0.37). Up to 1.0.36 this program was installed as "opt":
-# /usr/local/lib/opt, /var/lib/opt, /etc/opt-acme, opt.service, the accounts
-# opt, opt-web and opt-www. All of it is renamed here, once; the databases'
-# own names are renamed by  acme --rename-from-opt  further on.
-# ---------------------------------------------------------------------------
-MIGRATED=""
-migrate_from_opt() {
-    local old_lib=/usr/local/lib/opt
-    [[ -f "$old_lib/opt.py" || -f /etc/systemd/system/opt.service || -d /var/lib/opt || -d /etc/opt-acme ]] || return 0
-    step "From opt to acme - the new name, everywhere"
-    if [[ -n "$DRY_RUN" ]]; then
-        note "[would rename] opt.service, /usr/local/lib/opt, /var/lib/opt, /etc/opt-acme, /var/log/opt, /var/www/opt, the accounts opt, opt-web, opt-www, and the database's names"
-        MIGRATED=yes
-        return 0
-    fi
-    [[ -d /var/lib/opt && -d "$STATE_DIR" ]] && fail "both /var/lib/opt and $STATE_DIR are here: look at them and keep one before running this again"
-    [[ -d /etc/opt-acme && -d "$CONFIG_DIR" && -n "$(ls -A "$CONFIG_DIR" 2>/dev/null)" ]] && fail "both /etc/opt-acme and $CONFIG_DIR are here: keep one before running this again"
-    local u
-    for u in opt.service opt-upgrade.path opt-upgrade.service; do
-        systemctl stop "$u" >/dev/null 2>&1 || true
-        systemctl disable "$u" >/dev/null 2>&1 || true
-    done
-    rm -f /etc/systemd/system/opt.service /etc/systemd/system/opt-upgrade.path /etc/systemd/system/opt-upgrade.service
-    systemctl daemon-reload >/dev/null 2>&1 || true
-    good "opt.service is stopped and gone; acme.service takes its place"
-    # The accounts: renamed, so every file keeps its owner (the numbers stay).
-    # Nothing may run as them meanwhile: php-fpm runs the pages as opt-www,
-    # and is started again with the new pool further on.
-    for u in $(php_fpm_units); do systemctl stop "$u" >/dev/null 2>&1 || true; done
-    if id opt >/dev/null 2>&1 && ! id "$SERVICE_USER" >/dev/null 2>&1; then
-        usermod -l "$SERVICE_USER" opt || fail "the account opt could not be renamed - is something still running as it?  ps -u opt"
-        getent group opt >/dev/null && ! getent group "$SERVICE_USER" >/dev/null && groupmod -n "$SERVICE_USER" opt
-        usermod -d "$STATE_DIR" "$SERVICE_USER" >/dev/null 2>&1 || true
-        good "the account opt is now $SERVICE_USER"
-    fi
-    if getent group opt-web >/dev/null && ! getent group "$WEB_GROUP" >/dev/null; then
-        groupmod -n "$WEB_GROUP" opt-web
-        good "the group opt-web is now $WEB_GROUP"
-    fi
-    if id opt-www >/dev/null 2>&1 && ! id "$POOL_USER" >/dev/null 2>&1; then
-        usermod -l "$POOL_USER" opt-www || fail "the account opt-www could not be renamed - is something still running as it?  ps -u opt-www"
-        getent group opt-www >/dev/null && ! getent group "$POOL_USER" >/dev/null && groupmod -n "$POOL_USER" opt-www
-        usermod -d "$WEB_DIR" "$POOL_USER" >/dev/null 2>&1 || true
-        good "the account opt-www is now $POOL_USER"
-    fi
-    # The folders.
-    if [[ -d /var/lib/opt ]]; then
-        mv /var/lib/opt "$STATE_DIR"
-        local x
-        for x in "" -wal -shm; do
-            [[ -f "$STATE_DIR/opt.db$x" ]] && mv "$STATE_DIR/opt.db$x" "$STATE_DIR/acme.db$x"
-        done
-        rm -f "$STATE_DIR/opt.lock"
-        good "/var/lib/opt is now $STATE_DIR"
-    fi
-    if [[ -d /var/log/opt ]]; then
-        if [[ -d "$LOG_DIR" ]]; then cp -a /var/log/opt/. "$LOG_DIR"/ && rm -rf /var/log/opt; else mv /var/log/opt "$LOG_DIR"; fi
-        local f
-        for f in "$LOG_DIR"/opt.log*; do [[ -e "$f" ]] && mv "$f" "$LOG_DIR/acme.log${f#"$LOG_DIR"/opt.log}"; done
-        good "/var/log/opt is now $LOG_DIR"
-    fi
-    if [[ -d /etc/opt-acme ]]; then
-        if [[ -d "$CONFIG_DIR" ]]; then rmdir "$CONFIG_DIR"; fi
-        mv /etc/opt-acme "$CONFIG_DIR"
-        [[ -f "$CONFIG_DIR/config.json" ]] && sed -i 's#/etc/opt-acme/#/etc/acme/#g' "$CONFIG_DIR/config.json"
-        rm -f "$CONFIG_DIR/may-restart-database"
-        good "/etc/opt-acme is now $CONFIG_DIR"
-    fi
-    # The program, the pages and what was around them go; this version's come in.
-    rm -f /usr/local/bin/opt
-    [[ "$(readlink /usr/local/bin/acme 2>/dev/null || true)" == "$old_lib/opt.py" ]] && rm -f /usr/local/bin/acme
-    rm -rf "$old_lib" /var/www/opt
-    rm -f /etc/logrotate.d/opt /etc/polkit-1/rules.d/49-opt-database.rules
-    rm -f /etc/php-fpm.d/opt.conf /etc/php/*/fpm/pool.d/opt.conf
-    if [[ -f /etc/nginx/conf.d/opt.conf ]]; then
-        if [[ ! -f "$NGINX_CONF" ]]; then
-            # The administrator's file, with its host name and allow lists,
-            # under the new name and pointing at the new places.
-            sed -e 's#/var/www/opt\b#/var/www/acme#g' -e 's#/run/php-fpm/opt\.sock#/run/php-fpm/acme.sock#g' \
-                -e 's#/run/php/opt\.sock#/run/php/acme.sock#g' -e 's#/var/log/nginx/opt-#/var/log/nginx/acme-#g' \
-                -e 's#opt_login#acme_login#g' -e 's#opt_all#acme_all#g' -e 's#shared:OPT:#shared:ACME:#g' \
-                -e 's#(opt [0-9.]*)#(acme)#g' \
-                /etc/nginx/conf.d/opt.conf > "$NGINX_CONF"
+    # 443 for the pages; 80 for the ACME CAs' HTTP-01 challenge, answered by
+    # acme.php through nginx (everything else on 80 is sent to HTTPS).
+    # Port 53 (UDP and TCP) is NOT opened here: acme's own DNS server (for
+    # DNS-01) is off until it is switched on (Settings -> DNS server), and the
+    # engine's firewall (Settings -> Firewall and access, iptables/ip6tables)
+    # opens it then - and only then.
+    if command -v firewall-cmd >/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
+        if [[ -n "$WITH_WEB" ]]; then
+            run firewall-cmd --permanent --add-service=https >/dev/null 2>&1 || true
+            run firewall-cmd --permanent --add-service=http >/dev/null 2>&1 || true
+            run firewall-cmd --reload >/dev/null 2>&1 || true
+            good "firewalld: https, and http (the CAs' HTTP-01 challenges; everything else goes to https)"
         fi
-        mv /etc/nginx/conf.d/opt.conf /etc/nginx/opt.conf.before-acme
-        # The certificate and its key, under the new names too.
-        local ext
-        for ext in pem key; do
-            if [[ -f "$CERT_DIR/opt.$ext" && ! -f "$CERT_DIR/acme.$ext" ]]; then
-                mv "$CERT_DIR/opt.$ext" "$CERT_DIR/acme.$ext"
-            fi
-        done
-        sed -i -e "s#$CERT_DIR/opt\.pem#$CERT_DIR/acme.pem#g" -e "s#$CERT_DIR/opt\.key#$CERT_DIR/acme.key#g" "$NGINX_CONF"
-        good "nginx: /etc/nginx/conf.d/opt.conf is now $NGINX_CONF (the old one is /etc/nginx/opt.conf.before-acme)"
+    elif command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q '^Status: active'; then
+        if [[ -n "$WITH_WEB" ]]; then
+            run ufw allow 443/tcp >/dev/null 2>&1 || true
+            run ufw allow 80/tcp >/dev/null 2>&1 || true
+            good "ufw: 443/tcp, and 80/tcp (the CAs' HTTP-01 challenges)"
+        fi
+    else
+        warn "neither firewalld nor ufw is running here, so nothing was opened."
+        note "Whatever filters this machine must let through: TCP 443 to the pages and TCP 80"
+        note "for the CAs' HTTP-01 challenges, and out: HTTPS to the CAs, SSH to the targets."
     fi
-    MIGRATED=yes
-    DO_UPGRADE=yes
+    note "UDP and TCP 53 for acme's own DNS server (DNS-01) is opened by Settings -> Firewall"
+    note "and access once the DNS server is switched on - not before, and not by this script."
+    [[ -z "$WITH_WEB" ]] && note "--no-web: no nginx, so HTTP-01 cannot be answered on this machine (use DNS-01, or HTTP-01 over SSH)"
+    return 0
 }
 
-# The programs backups to another machine use (1.0.109): ssh, sftp and scp for
-# SFTP and SCP, smbclient for a Windows or Samba share. Best effort: without
-# them those destinations say what is missing, everything else works.
+# What acme itself calls: openssl (keys, CSRs, PKCS#12, its own CAs), the
+# OpenSSH client (targets and HTTP-01 over SSH, backups over SFTP/SCP),
+# runuser, curl (the checks below), tar, and the CA certificates for HTTPS to
+# the CAs and the DNS providers' APIs. nginx for the pages.
+install_base_packages() {
+    local need=() deb=() one
+    command -v openssl >/dev/null || need+=("openssl")
+    { command -v ssh >/dev/null && command -v ssh-keygen >/dev/null; } || need+=("openssh-clients")
+    command -v runuser >/dev/null || need+=("util-linux")
+    command -v curl >/dev/null || need+=("curl")
+    command -v tar >/dev/null || need+=("tar")
+    [[ -f /etc/ssl/certs/ca-certificates.crt || -f /etc/pki/tls/certs/ca-bundle.crt ]] || need+=("ca-certificates")
+    if [[ -n "$WITH_WEB" ]]; then
+        command -v nginx >/dev/null || need+=("nginx")
+    fi
+    if ! ((${#need[@]})); then
+        good "openssl, the OpenSSH client and the rest are already here"
+        return 0
+    fi
+    say "missing: ${need[*]}"
+    if [[ "$PKG" == "dnf" ]]; then
+        run dnf install -y "${need[@]}"
+    elif [[ "$PKG" == "apt" ]]; then
+        for one in "${need[@]}"; do [[ "$one" == openssh-clients ]] && deb+=("openssh-client") || deb+=("$one"); done
+        apt_update_once
+        run apt-get install -y "${deb[@]}"
+    else
+        fail "install these by hand and run this again: ${need[*]}"
+    fi
+    [[ -n "$DRY_RUN" ]] && return 0
+    command -v openssl >/dev/null || fail "openssl is needed and could not be installed"
+    command -v ssh >/dev/null || warn "the OpenSSH client (ssh) could not be installed: targets over SSH will not work"
+    return 0
+}
+
+# The programs backups to another machine use: ssh, sftp and scp for SFTP and
+# SCP (the OpenSSH client acme needs anyway), smbclient for a Windows or Samba
+# share. Best effort: without them those destinations say what is missing.
 install_backup_tools() {
     local opt=()
     { command -v ssh >/dev/null && command -v sftp >/dev/null && command -v ssh-keygen >/dev/null; } \
@@ -1460,11 +1650,13 @@ install_backup_tools() {
     elif [[ "$PKG" == "apt" ]]; then
         local deb=()
         for p in "${opt[@]}"; do [[ "$p" == "openssh-clients" ]] && deb+=("openssh-client") || deb+=("smbclient"); done
+        apt_update_once
         apt-get install -y "${deb[@]}" >/dev/null 2>&1 || warn "for backups: apt-get install ${deb[*]}"
     fi
 }
 
-# The clock (1.0.122): codes from the app are worked out from it, so chrony
+# The clock: certificates, the CAs' answers and the cluster's leases are
+# all read against it, so chrony
 # is put in and started on a fresh install and on every upgrade, wherever it
 # is missing or stopped. Its own /etc/chrony.conf (AlmaLinux's pool) is used
 # as it is; Settings → Time sets other servers when asked.
@@ -1474,11 +1666,11 @@ install_time_tools() {
     if ! command -v chronyd >/dev/null && ! command -v chronyc >/dev/null; then
         if [[ -n "$DRY_RUN" ]]; then say "would install chrony (the clock)"; return 0; fi
         if [[ "$PKG" == "dnf" ]]; then
-            dnf install -y chrony >/dev/null 2>&1 || { warn "chrony could not be installed: dnf install chrony - codes from the app depend on the clock"; return 0; }
+            dnf install -y chrony >/dev/null 2>&1 || { warn "chrony could not be installed: dnf install chrony - certificates and the CAs depend on the clock"; return 0; }
         elif [[ "$PKG" == "apt" ]]; then
-            apt-get install -y chrony >/dev/null 2>&1 || { warn "chrony could not be installed: apt-get install chrony"; return 0; }
+            apt_update_once; apt-get install -y chrony >/dev/null 2>&1 || { warn "chrony could not be installed: apt-get install chrony"; return 0; }
         else
-            warn "install chrony by hand - codes from the app depend on the clock"; return 0
+            warn "install chrony by hand - certificates and the CAs depend on the clock"; return 0
         fi
         good "chrony installed (the clock)"
     fi
@@ -1499,13 +1691,13 @@ install_time_tools() {
     fi
 }
 
-# The acme console at login (1.0.130): root signing in at the console or over
+# The acme console at login: root signing in at the console or over
 # SSH lands in `acme --console`; q leaves it for the shell. On unless switched
 # off (`acme --console-at-login off`), which an upgrade leaves as it is.
 install_console() {
     if [[ -n "$DRY_RUN" ]]; then note "[would write] /etc/profile.d/zz-acme-console.sh"; return 0; fi
     install -m 0644 "$SOURCE_DIR/deploy/acme-console-login.sh" /etc/profile.d/zz-acme-console.sh
-    # The choice is kept in /etc itself (1.0.136), where only root writes -
+    # The choice is kept in /etc itself, where only root writes -
     # in /etc/acme the acme account could have put a link or a pipe there for
     # root to follow. The old file's word is carried over once, read only
     # when it is a plain file, and the old file taken away.
@@ -1523,17 +1715,19 @@ install_console() {
     good "the acme console at login: $(head -c 4 "$flag") (acme --console-at-login on|off)"
 }
 
-migrate_from_opt
-
+# ===========================================================================
+# An upgrade: the program, the pages, PHP - and nothing else
+# ===========================================================================
 if [[ -n "$DO_UPGRADE" ]]; then
     step "Upgrading acme to $VERSION"
     id "$SERVICE_USER" >/dev/null 2>&1 || fail "acme is not installed here; run this without --upgrade"
+    install_base_packages
     install_backup_tools
     install_time_tools
     install_console
-    # This node out of service while it is done (1.0.37): the balancer and
-    # the VPN go to the other node first, not after a request has gone
-    # unanswered. Asked for on the pages, the daemon has done it already.
+    # This node out of service while it is done: the balancer goes to the
+    # other node first, and no renewal or deployment starts here meanwhile.
+    # Asked for on the pages, the daemon has done it already.
     MAINT_BY_US=""
     if [[ -z "${ACME_UPGRADE_FROM_PAGES:-}" && -z "$DRY_RUN" ]] && systemctl is-active --quiet acme.service; then
         if as_acme --maintenance status >/dev/null 2>&1; then
@@ -1545,15 +1739,16 @@ try:
     print(sum(1 for n in json.load(sys.stdin).get("nodes", []) if n.get("alive")))
 except Exception:
     print(0)' 2>/dev/null)" -gt 1 ]]; then
-                    say "waiting 20 s for the load balancer and the VPN to notice"
+                    say "waiting 20 s for the load balancer to notice"
                     sleep 20
                 fi
             fi
         fi
     fi
-    # Whatever stops the upgrade from here on (1.0.44): the daemon is started
-    # again and the node comes back into service, rather than staying out
-    # with half of it done.
+    # Whatever stops the upgrade from here on: the daemon is started again
+    # and the node comes back into service, rather than staying out with half
+    # of it done. The tree is switched in one step, so what runs is always one
+    # whole version - the old one until the switch, the new one after it.
     UPGRADE_STAGE=started
     upgrade_rescue() {
         local rc=$?
@@ -1566,39 +1761,26 @@ except Exception:
         fi
     }
     trap upgrade_rescue EXIT
-    # Stopped by a signal (1.0.146) - Ctrl-C, a hang-up, acme_upgrade.py's TERM
-    # at its deadline - the exit status was 0 and the rescue did nothing:
-    # the node stayed in maintenance.
+    # Stopped by a signal - Ctrl-C, a hang-up, acme_upgrade.py's TERM at its
+    # deadline - the exit status was 0 and the rescue did nothing.
     trap 'exit 130' INT
     trap 'exit 129' HUP
     trap 'exit 143' TERM
-    # A machine installed without the pages is upgraded without them
-    # (1.0.44): --upgrade from the pages cannot say --no-web.
+    # A machine installed without the pages is upgraded without them:
+    # --upgrade from the pages cannot say --no-web.
     if [[ -n "$WITH_WEB" && ! -e "$NGINX_CONF" && ! -d "$WEB_DIR" ]]; then
         WITH_WEB=""
         note "no pages were installed here (no $NGINX_CONF, no $WEB_DIR): the daemon alone is upgraded"
     fi
     install_program
-    install_db_drivers
-    if [[ -n "$MIGRATED" ]]; then
-        step "The database's names"
-        if [[ -n "$DRY_RUN" ]]; then
-            note "[would run] acme --rename-from-opt"
-        else
-            ACME_CONFIG="$CONFIG_FILE" "$LIB_DIR/python" "$LIB_DIR/acme.py" --rename-from-opt \
-                || warn "the database's names could not all be changed; it goes on under the old ones"
-            # Not through a link (1.0.94): only the file itself, as it is.
-            [[ -f "$CONFIG_FILE" && ! -L "$CONFIG_FILE" ]] && chown -h root:"$SERVICE_USER" "$CONFIG_FILE" 2>/dev/null || true
-        fi
-    fi
+    install_db_tools
     install_db_restart
-    install_colour
     if [[ -n "$WITH_WEB" ]]; then
         ensure_php
         install_pages
     fi
     restart_daemon
-    UPGRADE_STAGE=done
+    UPGRADE_STAGE="done"
     if [[ -n "$MAINT_BY_US" ]]; then
         sleep 3
         if as_acme --status >/dev/null 2>&1; then
@@ -1609,6 +1791,7 @@ except Exception:
     fi
     step "Done"
     as_acme --status || true
+    note "the version before is kept: $(readlink "$LIB_DIR/previous" 2>/dev/null || echo none) - /usr/bin/python3 -I $LIB_DIR/acme_upgrade.py --previous puts it back"
     exit 0
 fi
 
@@ -1618,45 +1801,30 @@ fi
 step "Looking at this machine"
 say "${OS_PRETTY:-unknown}"
 [[ -n "$PKG" ]] || warn "I do not recognise this distribution; no packages will be installed."
-python3 --version >/dev/null 2>&1 || fail "python3 is not installed"
-say "$(python3 --version)"
-python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' \
-    || fail "this Python is too old; acme needs 3.8 or newer"
-if ss -ulnp 2>/dev/null | grep -qE ':1812\b'; then
-    who="$(ss -ulnp 2>/dev/null | sed -n '/:1812\b/s/.*users:(("\([^"]*\)".*/\1/p' | head -1 || true)"
-    if [[ "$who" == "radiusd" || "$who" == "freeradius" ]]; then
-        warn "FreeRADIUS ($who) holds UDP 1812. acme answers RADIUS itself and needs the port."
-        if confirm "Stop and disable $who?" y; then
-            run systemctl disable --now radiusd 2>/dev/null || run systemctl disable --now freeradius 2>/dev/null || true
-        fi
-    elif [[ -n "$who" && "$who" != "python3" ]]; then
-        warn "$who holds UDP 1812; acme will not be able to listen there until it lets go"
-    fi
+command -v python3 >/dev/null 2>&1 || fail "python3 is not installed (the installer and root's helpers use the system's python3)"
+say "the system's $(python3 --version 2>&1) (for this script and root's helpers; acme itself runs on $PY_WANT)"
+# Port 53: acme's own DNS server (DNS-01) needs it once it is switched on.
+# systemd-resolved's stub (127.0.0.53, 127.0.0.54) does not stand in its way
+# on the machine's own addresses; anything else that holds 53 does.
+dns53="$(ss -H -lnup 2>/dev/null | awk '$4 ~ /:53$/ && $4 !~ /^127\.0\.0\.5[34]:/ {print $4" "$6}' | head -n 3 || true)"
+if [[ -n "$dns53" ]]; then
+    warn "something already listens on port 53 here - acme's own DNS server (DNS-01) will need it when switched on:"
+    while read -r line; do note "  $line"; done <<< "$dns53"
+fi
+web80="$(ss -H -lntp 2>/dev/null | awk '$4 ~ /:80$/ {print $6}' | grep -v nginx | head -n 1 || true)"
+if [[ -n "$web80" && -n "$WITH_WEB" ]]; then
+    warn "something other than nginx holds TCP 80 ($web80): the CAs' HTTP-01 challenges come there"
 fi
 
 step "Packages"
-need=()
-command -v openssl >/dev/null || need+=("openssl")
-command -v runuser >/dev/null || need+=("util-linux")
-if [[ -n "$WITH_WEB" ]]; then
-    command -v nginx >/dev/null || need+=("nginx")
-fi
-if ((${#need[@]})); then
-    say "missing: ${need[*]}"
-    if [[ "$PKG" == "dnf" ]]; then run dnf install -y "${need[@]}"
-    elif [[ "$PKG" == "apt" ]]; then run apt-get update && run apt-get install -y "${need[@]}"
-    else fail "install these by hand and run this again: ${need[*]}"; fi
-else
-    good "everything needed is already here"
-fi
+install_base_packages
 install_backup_tools
 install_time_tools
 install_console
-install_db_drivers
+install_db_tools
 install_db_restart
-install_colour
-# In an if, not after && (1.0.146): a function called after && runs with
-# errexit off, and a failure inside it went by unnoticed.
+# In an if, not after &&: a function called after && runs with errexit off,
+# and a failure inside it went by unnoticed.
 if [[ -n "$WITH_WEB" ]]; then ensure_php; fi
 
 step "The accounts it runs as"
@@ -1684,9 +1852,8 @@ if [[ -z "$ASSUME_YES" ]]; then
     if [[ -n "$WITH_WEB" ]]; then
         ask SERVER_NAME "The pages' hostname"
         ask ADMIN_ALLOW "Who may reach the administration pages (CIDRs, empty = RFC 1918)"
-        ask PORTAL_ALLOW "Who may reach the enrolment pages (CIDRs, empty = RFC 1918)"
+        ask PORTAL_ALLOW "Who may reach the portal page at / (CIDRs, empty = RFC 1918)"
     fi
-    ask RADIUS_FROM "Who sends RADIUS - the VPN concentrators (CIDRs, empty = anybody)"
     ask ISEMON_TARGET "isemon's syslog receiver, host[:port][/tcp] (empty = none for now)"
     if [[ -n "$ISEMON_TARGET" ]]; then
         ask ISEMON_HOSTNAME "The name isemon files this server under" "acme"
@@ -1694,7 +1861,7 @@ if [[ -z "$ASSUME_YES" ]]; then
     ask ADMIN_USER "The first account of the administration pages"
     ask_secret ADMIN_PASSWORD "Its password (empty = make one and print it)"
 fi
-for v in ADMIN_ALLOW PORTAL_ALLOW RADIUS_FROM; do
+for v in ADMIN_ALLOW PORTAL_ALLOW; do
     [[ -n "${!v}" ]] && { cidr_list_ok "${!v}" || fail "$v takes addresses and networks, comma separated"; }
 done
 
@@ -1708,12 +1875,9 @@ elif [[ -f "$CONFIG_FILE" ]]; then
 elif [[ -n "$DRY_RUN" ]]; then
     note "[would write] $CONFIG_FILE"
 else
-    # Made beside it and put in its place (1.0.146): /etc/acme is the acme
-    # account's to write, and a link it put there for config.json was
-    # followed by root - a file of root's anywhere made the acme group's.
-    # Made, its owner and mode set on the open file itself, never by name
-    # (1.0.147): a link put in place of the name between the steps was
-    # followed by chmod and chown.
+    # Made beside it and put in its place: /etc/acme is the acme account's to
+    # write, and a link it put there for config.json would be followed by
+    # root. Its owner and mode are set on the open file itself, never by name.
     SITE_NAME="${SITE_NAME:-${SERVER_NAME%%.*}}" python3 - "$CONFIG_DIR" "$CONFIG_FILE" "$SERVICE_USER" <<'PY'
 import grp, json, os, secrets, sys
 folder, final, group = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -1773,40 +1937,8 @@ print("yes" if any(str(r.get("name","")).lower() == want for r in rows) else "")
             warn "Write that down now — it is not shown again."
         fi
     fi
-fi
-
-if [[ -n "$LEGACY_ROOT" ]]; then
-    step "Bringing the old server over"
-    [[ -d "$LEGACY_ROOT" ]] || fail "$LEGACY_ROOT is not a folder"
-    # Read as root (the old files are often root's alone), written as acme.
-    if [[ -n "$DRY_RUN" ]]; then
-        note "[would import] $LEGACY_ROOT"
-    else
-        tmp="$(mktemp -d)"
-        # A copy that broke off is not imported half (1.0.36).
-        if cp -a "$LEGACY_ROOT"/. "$tmp/" && chown -R "$SERVICE_USER" "$tmp" && chmod -R u+rX "$tmp"; then
-            as_acme --import-legacy "$tmp" || warn "the import said something went wrong; see above"
-        else
-            warn "$LEGACY_ROOT could not be copied whole, so nothing was imported"
-        fi
-        rm -rf "$tmp"
-    fi
-fi
-
-step "A RADIUS client for testing from this machine"
-if [[ -z "$DRY_RUN" ]]; then
-    if as_acme --clients --json 2>/dev/null | python3 -c 'import json,sys
-rows = json.load(sys.stdin)
-import ipaddress
-sys.exit(0 if any(ipaddress.ip_address("127.0.0.1") in ipaddress.ip_network(r["address"], strict=False) for r in rows) else 1)'; then
-        good "there is a client for 127.0.0.1 already"
-    else
-        TEST_SECRET="$(python3 -c 'import secrets; print(secrets.token_hex(8))')"
-        ACME_SECRET="$TEST_SECRET" as_acme --add-client localhost --address 127.0.0.1 --secret - \
-            --note "for radtest and the Test page, from this machine" >/dev/null
-        good "localhost (127.0.0.1), secret $TEST_SECRET"
-        note "radtest NAME CODE 127.0.0.1 0 $TEST_SECRET   - or simply:  acme --radtest NAME CODE"
-    fi
+else
+    note "[would make] $ADMIN_USER, a full administrator"
 fi
 
 if [[ -n "$ISEMON_TARGET" ]]; then
@@ -1825,16 +1957,22 @@ as_acme --status || true
 if [[ -n "$WITH_WEB" && -z "$DRY_RUN" ]]; then
     code_admin="$(curl --noproxy '*' -k -s -o /dev/null -w '%{http_code}' --resolve "$SERVER_NAME:443:127.0.0.1" "https://$SERVER_NAME/admin/" || true)"
     code_multi="$(curl --noproxy '*' -k -s -o /dev/null -w '%{http_code}' --resolve "$SERVER_NAME:443:127.0.0.1" -F a=b "https://$SERVER_NAME/admin/" || true)"
+    # HTTP-01: a token nobody asked for is answered 404 by acme.php itself -
+    # not 301 to HTTPS, which would mean nginx never sends challenges there.
+    code_h01="$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --resolve "$SERVER_NAME:80:127.0.0.1" "http://$SERVER_NAME/.well-known/acme-challenge/install-check-0123456789" || true)"
     [[ "$code_admin" == "200" ]] && good "https://$SERVER_NAME/admin/ answers" || warn "https://$SERVER_NAME/admin/ answered $code_admin"
     [[ "$code_multi" == "403" ]] && good "a multipart body is refused (php2shell)" || warn "a multipart body was answered $code_multi, not 403"
+    [[ "$code_h01" == "404" ]] && good "http://$SERVER_NAME/.well-known/acme-challenge/ goes to acme (HTTP-01)" \
+        || warn "http://$SERVER_NAME/.well-known/acme-challenge/ answered $code_h01, not 404 from acme.php - HTTP-01 on this machine will not work"
     php_says
 fi
 
 step "Done"
-say "The enrolment pages:      https://$SERVER_NAME/"
 say "The administration pages: https://$SERVER_NAME/admin/"
-say "Next: Settings -> Active Directory, Realms and Clients (or acme --help), then"
-say "      acme --enroll somebody@example.cz  and  acme --radtest somebody 123456"
-[[ -n "$ISEMON_TARGET" ]] && say "On the isemon machine: deploy/isemon/11-acme.conf into /etc/rsyslog.d/, and"
-[[ -n "$ISEMON_TARGET" ]] && say "      Settings -> The ACME logs switched on, with RADIUS detail."
+say "Next: Settings -> Issuers (Let's Encrypt: the account and its e-mail), Challenges"
+say "      (HTTP-01 here, or DNS-01: acme's own DNS server or your DNS provider's API),"
+say "      Targets (where certificates go), then Certificates -> New."
+say "      On the command line: acme --help, acme --certs, acme --console."
+say "Your own modules go into $PLUGINS_DIR/{issuers,challenges,targets}/."
+[[ -n "$ISEMON_TARGET" ]] && say "On the isemon machine: deploy/isemon/11-acme.conf into /etc/rsyslog.d/."
 exit 0
