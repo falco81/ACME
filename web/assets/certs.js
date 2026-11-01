@@ -1283,6 +1283,7 @@ function modActions(r, p) {
 /** One of a module's actions run on a saved row ({id, action}): its steps in a job. */
 function modAction(key, r, a, button) {
   var m = MODS[key];
+  if (r.kind === 'acme_push' && a.key === 'discover') { pushDiscover(r, button); return; }
   var go = function () {
     busy(button, true);
     askRaw(m.list + '/action', {id: r.id, name: r.name, action: a.key}, 600).then(function (d) {
@@ -1295,6 +1296,77 @@ function modAction(key, r, a, button) {
   };
   if (a.confirm) confirmThen(r.name + ': ' + (a.label || a.key), htmlText(a.confirm) + (a.help ? '<br><span class="muted small">' + htmlText(a.help) + '</span>' : ''), a.label || a.key, go);
   else go();
+}
+/** Discover (acme push): the application's slots, and - for a full administrator - the
+    certificates and deployments made for those not covered yet. */
+function pushDiscover(r, button) {
+  busy(button, true);
+  Promise.all([capi('targets/discover', {name: r.name}, 120), loadRows('sources'), loadRows('validation')]).then(function (got) {
+    var d = got[0], srcs = got[1] || [], vals = got[2] || [];
+    var picks = {};
+    var plan, src, val;
+    over(function () {
+      modal('Discover', function (body) {
+        body.appendChild(data('p', 'muted', r.name));
+        var head = el('p', 'note');
+        head.appendChild(data('b', '', (d.app || '?') + ' ' + (d.version || '')));
+        if (d.cluster && d.cluster.on) { head.appendChild(data('span', '', ' \u00b7 ')); head.appendChild(el('span', '', 'a cluster')); }
+        body.appendChild(head);
+        var table = el('table', 'plain');
+        var hr = el('tr');
+        ['', 'Slot', 'Names', 'Has now', 'Kept by', 'From acme'].forEach(function (w) { hr.appendChild(el('th', '', w)); });
+        table.appendChild(hr);
+        arr(d.slots).forEach(function (sl) {
+          var tr = el('tr');
+          var free = !(sl.covered_by && sl.covered_by.length) && sl.installable !== false
+            && (sl.names || []).length && !/^follows:/.test(sl.managed_by || '');
+          var cb = el('td');
+          if (free && FULL) {
+            var c = document.createElement('input');
+            c.type = 'checkbox';
+            c.checked = true;
+            picks[sl.id] = c;
+            cb.appendChild(c);
+          }
+          tr.appendChild(cb);
+          tr.appendChild(td('', data('b', 'mono', sl.id)));
+          tr.appendChild(td('', data('span', 'mono', (sl.names || []).join(', ') || '–')));
+          var cur = sl.current;
+          tr.appendChild(td('', cur ? data('span', '', ((cur.names || []).join(', ') || '?') + ' · ' + (cur.not_after ? stamp(cur.not_after) : '?')) : el('span', 'muted', 'nothing')));
+          var by = /^follows:/.test(sl.managed_by || '') ? el('span', '', 'follows another by itself')
+            : el('span', '', {'acme-push': 'acme', 'own-acme': 'its own ACME', 'manual': 'put in by hand', 'none': 'nothing'}[sl.managed_by] || String(sl.managed_by || ''));
+          tr.appendChild(td('', by));
+          var cov = el('td');
+          if (sl.covered_by && sl.covered_by.length) cov.appendChild(data('span', 'good', sl.covered_by.map(function (x) { return x.cert; }).join(', ')));
+          else if (sl.installable === false) cov.appendChild(el('span', 'muted', 'cannot be put in'));
+          else if (/^follows:/.test(sl.managed_by || '')) cov.appendChild(el('span', 'muted', 'needs nothing'));
+          else cov.appendChild(el('span', 'warn', 'not covered'));
+          tr.appendChild(cov);
+          table.appendChild(tr);
+        });
+        body.appendChild(table);
+        if (!FULL || !Object.keys(picks).length) {
+          body.appendChild(el('p', 'note', Object.keys(picks).length ? 'A full administrator can make the certificates for those not covered.' : 'Every slot that needs a certificate has one from acme.'));
+          return;
+        }
+        plan = selectBox([['each', 'A certificate for each slot'], ['together', 'One certificate for all of them (every node’s name and the VIP address’s)']], 'each');
+        body.appendChild(formField('Certificates', plan));
+        src = selectBox([['', 'the default source']].concat(srcs.map(function (x) { return [x.name, x.name]; })), '');
+        body.appendChild(formField('From', src));
+        val = selectBox([['', 'the default validation']].concat(vals.map(function (x) { return [x.name, x.name]; })), '');
+        body.appendChild(formField('Validation', val, 'Each certificate is issued by itself and pushed to its slots; renewals the same.'));
+      }, [{words: 'Close', close: true}].concat(FULL && Object.keys(picks).length ? [{words: 'Make the certificates', cls: 'primary', icon: 'save', go: function (btn) {
+        var ids = Object.keys(picks).filter(function (k) { return picks[k].checked; });
+        if (!ids.length) { toast('Choose a slot first', 'bad'); return; }
+        busy(btn, true);
+        capi('targets/adopt', {name: r.name, slots: ids, plan: plan.value, issuer: src.value, challenge: val.value}, 180).then(function (x) {
+          closeModal();
+          toast(said(x, 'made'), 'good');
+          arr(x.left).forEach(function (l) { toast(l.slot + ': ' + l.why, 'warn'); });
+        }).catch(fail).then(function () { busy(btn, false); });
+      }}] : []));
+    });
+  }).catch(fail).then(function () { busy(button, false); });
 }
 /** The ACME sources with no contact e-mail: asked for once, set on all of them. */
 function contactAsk(host, names) {

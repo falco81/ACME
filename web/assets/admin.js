@@ -7133,6 +7133,7 @@ if ($('up-drop')) {
 var WEB = {last: null, timer: null};
 function loadWeb() {
   apiLatest('web', 'web').then(drawWeb).catch(oops);
+  loadPush();
   clearInterval(WEB.timer);
   WEB.timer = setInterval(function () {
     if (!paneLive('web')) { clearInterval(WEB.timer); return; }
@@ -7612,6 +7613,147 @@ function drawWeb(d) {
     host.appendChild(certCard(d, t));
   });
   }, undefined, function () { explainWhatWasDrawn($('pane-web')); });
+}
+
+/* ---- Certificates from acme (acme push, docs/acme-push-protocol.md) -----------------
+   An acme puts its certificates on these pages: paired once (a pairing code shown
+   here, or acme's key pasted), it signs every request, and the key travels sealed
+   to this server. */
+var PUSH = {last: null};
+function loadPush() {
+  if (!$('web-push')) return;
+  api('acme-push').then(function (v) { PUSH.last = v; drawPush(v); }).catch(function () {});
+}
+function pushDo(body, button) {
+  if (button) busy(button, true);
+  return api('acme-push', body).then(function (d) {
+    toast(d.message || 'kept', 'good');
+    if (d.view) { PUSH.last = d.view; drawPush(d.view); }
+    return d;
+  }).catch(oops).then(function (d) { if (button) busy(button, false); return d; });
+}
+function pushCode(code) {
+  modal('The pairing code', function (body) {
+    body.appendChild(el('p', 'note', 'Put it in acme: Targets → An application of ours (acme push) → Pairing code, with this address; then Try there. It is good for 15 minutes and once.'));
+    var c = noI18n(el('div', 'mono push-code', code));
+    c.style.fontSize = '1.6em';
+    c.style.letterSpacing = '0.08em';
+    c.style.margin = '12px 0';
+    body.appendChild(c);
+    var cp = el('button', 'btn small', 'Copy');
+    cp.type = 'button';
+    cp.onclick = function () { copyText(code, cp); };
+    body.appendChild(cp);
+  }, [{words: 'Close', close: true}], true);
+}
+function drawPush(v) {
+  var host = $('web-push');
+  if (!host) return;
+  var may = !!(WEB.last && WEB.last.may);
+  clear(host);
+  var top = el('div', 'set-item');
+  var sw = switchBox(v.on);
+  sw._input.disabled = !may;
+  sw._input.onchange = function () {
+    var on = sw._input.checked;
+    if (!on) {
+      askThen('Take no certificates from acme', 'acme can no longer put certificates here; the ones it put stay as they are. The pairings are kept.', 'Switch it off').then(function (yes) {
+        if (yes) pushDo({action: 'off'}); else sw._input.checked = true;
+      });
+      return;
+    }
+    pushDo({action: 'on'});
+  };
+  top.appendChild(sw);
+  var tl = el('span', '', 'Take certificates from acme');
+  tl.style.marginLeft = '8px';
+  top.appendChild(tl);
+  host.appendChild(top);
+  if (v.on) {
+    var keys = v.keys || [];
+    host.appendChild(el('h3', '', 'Paired with'));
+    if (!keys.length) host.appendChild(el('p', 'note warn', 'No acme yet: make a pairing code below, or paste acme’s key.'));
+    keys.forEach(function (k) {
+      var row = el('div', 'push-key');
+      row.appendChild(noI18n(el('b', '', k.name || 'acme')));
+      row.appendChild(noI18n(el('span', 'mono muted', ' ' + k.id + ' ')));
+      row.appendChild(el('span', 'muted', k.by === 'pairing code' ? 'by a pairing code' : 'pasted'));
+      if (k.at) row.appendChild(noI18n(el('span', 'muted', ' · ' + stamp(k.at))));
+      if (may) {
+        var f = el('button', 'btn small danger', 'Forget it');
+        f.type = 'button';
+        f.style.marginLeft = '8px';
+        f.onclick = function () {
+          askThen('Forget this acme', 'It can put nothing here from then on. The certificates it put stay.', 'Forget it').then(function (yes) {
+            if (yes) pushDo({action: 'key_forget', id: k.id}, f);
+          });
+        };
+        row.appendChild(f);
+      }
+      host.appendChild(row);
+    });
+    if (may) {
+      var bar = el('div', 'btns');
+      var pair = el('button', 'btn', v.pairing ? 'A new pairing code' : 'Pair with an acme');
+      pair.type = 'button';
+      pair.onclick = function () { pushDo({action: 'pair'}, pair).then(function (d) { if (d && d.code) pushCode(d.code); }); };
+      bar.appendChild(pair);
+      if (v.pairing) {
+        bar.appendChild(el('span', 'tag warn', 'a pairing code waits'));
+        var drop = el('button', 'btn small', 'Take it back');
+        drop.type = 'button';
+        drop.onclick = function () { pushDo({action: 'pair_drop'}, drop); };
+        bar.appendChild(drop);
+      }
+      host.appendChild(bar);
+      var paste = textBox('', 'acme-push-ed25519 AAAA…', 'mono');
+      var take = el('button', 'btn small', 'Take this key');
+      take.type = 'button';
+      take.onclick = function () {
+        if (!String(paste.value || '').trim()) { toast('Paste acme’s key first', 'bad'); return; }
+        pushDo({action: 'key_add', key: paste.value}, take);
+      };
+      var line = el('div', 'push-paste');
+      line.appendChild(paste);
+      line.appendChild(take);
+      host.appendChild(formField('Or paste acme’s key', line, 'acme’s Try on the target says it when it is not paired yet.'));
+      var other = switchBox(v.other_names);
+      other._input.onchange = function () { pushDo({action: 'other_names', on: other._input.checked}); };
+      host.appendChild(formField('Take certificates of other names', other, 'Off: a certificate is taken only when it holds the name of the pages it goes to - a browser would refuse it there otherwise. On: acme may say not to check (its target’s option).'));
+    }
+    var slots = v.slots || [];
+    if (slots.length) {
+      host.appendChild(el('h3', '', 'What acme sees here'));
+      host.appendChild(netFacts(slots.map(function (sl) {
+        var words = (sl.names || []).join(', ') || '–';
+        var by = {'acme-push': 'from acme', 'own-acme': 'Automatic certificates', 'manual': 'put in by hand', 'none': 'nothing yet'}[sl.managed_by] || sl.managed_by;
+        var val = el('span');
+        val.appendChild(noI18n(el('span', 'mono', words + ' · ')));
+        val.appendChild(el('span', '', by));
+        if (sl.current && sl.current.not_after) val.appendChild(noI18n(el('span', 'muted', ' · ' + stamp(sl.current.not_after))));
+        return [sl.id, val];
+      })));
+    }
+    if (v.last) {
+      var lp = el('p', 'note');
+      lp.appendChild(el('span', '', 'The last push'));
+      lp.appendChild(noI18n(el('span', '', ': ' + stamp(v.last.at) + ' · ' + (v.last.by || '') + ' · ' + (v.last.slots || []).join(', '))));
+      host.appendChild(lp);
+    }
+    host.appendChild(netFacts([['This server’s id', v.app_id, true], ['Its sealing key', v.enc_fp, true]]));
+  }
+  if (v.mine && v.mine.text) {
+    host.appendChild(el('h3', '', 'This acme’s own key'));
+    host.appendChild(el('p', 'note', 'For pasting into another application, when this acme puts certificates there (Targets → An application of ours). A pairing code there does the same without it.'));
+    var mk = noI18n(el('code', 'mono push-mine', v.mine.text));
+    mk.style.wordBreak = 'break-all';
+    host.appendChild(mk);
+    var cpy = el('button', 'btn small', 'Copy');
+    cpy.type = 'button';
+    cpy.style.marginLeft = '8px';
+    cpy.onclick = function () { copyText(v.mine.text, cpy); };
+    host.appendChild(cpy);
+  }
 }
 
 /* The VIP address lives on the High availability pane (1.0.49), kept up to

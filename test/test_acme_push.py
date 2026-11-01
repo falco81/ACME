@@ -286,6 +286,42 @@ class Receiver(unittest.TestCase):
             t2.test()
         self.assertIn('pairing_closed', str(e.exception))
 
+    def test_the_route_php_hands_on(self):
+        """POST /api/acme-push/<op> {body: base64 of the body as it came, headers: {...}}."""
+        t, ctx = self.paired()
+        box, me = E.push_box(STORE), E.push_identity(STORE)
+        raw = b'{}'
+
+        class H(object):
+            store = STORE
+            headers = E.push_signed(me['seed'], 'inventory', box['app_id'], raw)
+            got = []
+
+            def body(self):
+                return {'body': base64.b64encode(raw).decode(),
+                        'headers': {k[len('X-Acme-Push-'):]: v for k, v in self.headers.items()}}
+
+            def send_json(self, data, status=200):
+                self.got.append((status, data))
+        fn = E.ROUTES[('POST', '/api/acme-push/inventory')]
+        h = H()
+        fn(h)
+        self.assertEqual(h.got[0][0], 200)
+        self.assertEqual(h.got[0][1]['slots'][0]['id'], SLOT)
+        fn(h)
+        self.assertEqual(h.got[1][0], 401)
+        E.ROUTES[('GET', '/api/acme-push/hello')](h)
+        self.assertEqual(h.got[2][1]['app_id'], box['app_id'])
+
+    def test_try_asks_and_changes_nothing(self):
+        t, ctx = self.paired()
+        ctx.http.seen[:] = []
+        t.test()
+        self.assertEqual([x[1] for x in ctx.http.seen], ['hello', 'inventory'])
+        t.action('discover')
+        self.assertEqual(ctx.http.seen[-1][1], 'inventory')
+        self.assertNotIn('install', [x[1] for x in ctx.http.seen])
+
     def test_wrong_code_burns_it(self):
         right = code()
         for i in range(E.PUSH_CODE_TRIES):
@@ -394,6 +430,22 @@ class Receiver(unittest.TestCase):
         with self.assertRaises(base.PluginError) as e:
             t2.deploy(Bundle('a'), {})
         self.assertIn('bad_signature', str(e.exception))
+
+    def test_a_slot_that_follows_is_not_pushed_to(self):
+        t, ctx = self.paired()
+        real = E.push_slots
+        E.push_slots = lambda store: real(store) + [
+            {'id': 'front', 'kind': 'front', 'node': None, 'title': 'the server in front',
+             'names': ['app1.example.test'], 'managed_by': 'follows:' + SLOT,
+             'installable': True, 'current': None, 'why_not': ''}]
+        try:
+            got = t.deploy(Bundle('a'), {})
+            self.assertNotIn('front', got, 'auto leaves a slot that follows')
+            with self.assertRaises(base.PluginError) as e:
+                t.deploy(Bundle('a'), {'slots': 'front'})
+            self.assertIn('not_installable', str(e.exception))
+        finally:
+            E.push_slots = real
 
     def test_inventory_in_a_cluster(self):
         t, ctx = self.paired()

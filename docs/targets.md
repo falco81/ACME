@@ -37,6 +37,7 @@ Every module here works the same way:
 | `ssh` | Linux / Unix server (SSH) | Linux / Unix |
 | `local` | This machine (files) | acme |
 | `appliance` | This acme server (its pages) | acme |
+| `acme_push` | An application of ours (acme push: otp, isemon, zigmon, acme) | acme |
 | `windows_ssh` | Windows server (OpenSSH + PowerShell) | Microsoft |
 | `f5` | F5 BIG-IP | F5 |
 | `netscaler` | NetScaler / Citrix ADC | Citrix |
@@ -283,6 +284,47 @@ acme --deploy-add acme-pages pages --set where=auto
 (the engine's "alt", 1.0.196) on every node / the VIP - nginx gives each
 client the one it takes; the check compares both.
 
+
+## `acme_push` - an application of ours (otp, isemon, zigmon, another acme)
+
+The certificate put on another application of the same family through its
+own **Settings → Certificates and TLS → Certificates from acme** - each
+node's pages, the VIP address's, a server in front, a broker - over HTTPS
+to its administration pages, with every request signed (Ed25519) and the
+private key sealed to the application (X25519 + HKDF-SHA256 + AES-256-GCM).
+The whole protocol, for the applications to implement their side:
+[acme-push-protocol.md](acme-push-protocol.md).
+
+| Field | |
+|---|---|
+| `url` | the application's administration as opened in a browser: `https://otp.example.com/admin/`, `https://isemon.example.com/` |
+| `pair_code` | the one-time code the application shows (*Pair with an acme*, 15 minutes); Try pairs the two, after that it is not needed |
+| `verify_tls`, `ca_pem`, `timeout` | as everywhere |
+
+**Try** says hello, pairs where a code is given, and asks the inventory -
+nothing is changed. Not paired and no code: it says how, with this acme's
+key to paste there instead. **Discover** (a button of the target, and
+Certificates → the target's row) lists the application's slots - the names
+each must hold, what it has now, who keeps it - and makes the certificates
+and deployments for those not covered: one for each slot, or one for all
+(every node's name and the VIP address's).
+
+A deployment says **Slots** (`slots`, one a line): `auto` (default: each
+slot whose names the certificate holds), `nodes`, `vip`, `this`, or slot ids
+from Discover (`node:otp1`, `vip`, `front`, `broker`). The application
+refuses a certificate without a slot's names unless it allows other names
+and *The certificate must hold the slot's names* is off. Pushed twice, it
+answers *already there*. After the push acme makes a TLS handshake to each
+slot's name (SNI) until the new certificate is served (`verify_served`; or
+`verify` host:port lines instead).
+
+```
+acme --target-add otp --kind acme_push --set url=https://otp.example.com/admin/ --set pair_code=ABCD-EFGH-JKMN-PQRS
+acme --deploy-add otp.example.com otp --set slots=auto
+```
+
+**Dual certificate:** the twin goes with it (`alt`), the application's
+second certificate of the same pages.
 
 ## `windows_ssh` - Windows over OpenSSH
 

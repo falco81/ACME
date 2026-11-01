@@ -18,7 +18,8 @@ from __future__ import annotations
 #                  each POST signed with acme's Ed25519 key, its private key
 #                  sealed to this server's X25519 key (X25519 + HKDF-SHA256 +
 #                  AES-256-GCM). The PHP page hands the body and the headers on
-#                  as they came (POST /api/acme-push/<op>), and this decides.
+#                  as they came (POST /api/acme-push/<op>, both in its JSON), and
+#                  this decides.
 #   the sender     push_identity() - this acme's own Ed25519 key, made once and
 #                  sealed (meta acme_push:identity) - and push_signed(),
 #                  push_seal_key(), used by acmelib/plugins/targets/acme_push.py.
@@ -537,8 +538,9 @@ def push_pick(slots, asked, cert_names):
     out = []
     for a in asked:
         if a == 'auto':
-            got = [s for s in slots if s['names'] and all(push_covers(cert_names, n)
-                                                         for n in s['names'])]
+            got = [s for s in slots if s['names'] and s.get('installable', True) and
+                   not str(s.get('managed_by') or '').startswith('follows:') and
+                   all(push_covers(cert_names, n) for n in s['names'])]
             if not got:
                 raise PushError(422, 'names', 'no slot here has a name this certificate holds '
                                 '(it holds %s; the slots: %s)' % (
@@ -766,6 +768,9 @@ def push_do_install(store, b, conf, box, key):
     slots = push_pick(push_slots(store), b.get('slots'), names)
     check = b.get('check_names') is not False or not conf['other_names']
     for s in slots:
+        if str(s.get('managed_by') or '').startswith('follows:'):
+            raise PushError(409, 'not_installable', '%s follows %s by itself: push to that one'
+                            % (s['id'], s['managed_by'][8:]))
         if not s['installable']:
             raise PushError(409, 'not_installable', '%s: %s' % (s['id'], s['why_not']))
         if check:
@@ -807,13 +812,25 @@ def push_do_install(store, b, conf, box, key):
 
 # ---- the routes: what PHP hands on, and the card ---------------------------------------------
 def _push_route(op):
+    """What the page hands on: {"body": base64 of the body as it came, "headers":
+    {"Version", "Key", "Time", "Nonce", "Signature"}} - in the body, not as headers
+    of its own, so every application's relay takes it as it is."""
     def run(h):
-        raw = b''
+        raw, hd = b'', {}
         if op != 'hello':
             b = h.body()
-            raw = base64.b64decode(str(b.get('body') or ''), validate=False) if b.get('body') \
-                else b''
-        status, out = push_handle(h.store, op, raw, h.headers)
+            try:
+                raw = base64.b64decode(str(b.get('body') or ''), validate=True)
+            except (ValueError, binascii.Error):
+                raw = None
+            got = b.get('headers') if isinstance(b.get('headers'), dict) else {}
+            hd = {'X-Acme-Push-' + k: str(got.get(k) or '')[:300]
+                  for k in ('Version', 'Key', 'Time', 'Nonce', 'Signature')}
+        if raw is None:
+            h.send_json({'ok': False, 'code': 'bad_request',
+                         'error': 'the body did not arrive whole'}, 400)
+            return
+        status, out = push_handle(h.store, op, raw, hd)
         if not out.get('ok'):
             log('acme push %s refused (%s): %s' % (op, out.get('code'), out.get('error')), 'info')
         h.send_json(out, status)
@@ -830,7 +847,9 @@ def push_view(store):
     conf = push_conf(store)
     box = push_box(store) if conf['on'] else None
     p = conf['pairing'] or {}
-    me = push_identity(store)
+    # This server's own key as a sender - only where it is an acme (the
+    # certificate manager), which pushes to others.
+    me = push_identity(store) if PUSH_APP == 'acme' else None
     return {'on': conf['on'], 'other_names': conf['other_names'],
             'keys': [{k: x.get(k) for k in ('id', 'name', 'at', 'by')} for x in conf['keys']],
             'pairing': {'until': p.get('until'), 'tries': p.get('tries') or 0}
@@ -838,7 +857,7 @@ def push_view(store):
             'app_id': box['app_id'] if box else '',
             'enc_fp': push_key_id(box['pub']) if box else '', 'last': conf['last'],
             'slots': push_slots(store) if conf['on'] else [],
-            'mine': {'text': me['text'], 'id': me['id']}}
+            'mine': {'text': me['text'], 'id': me['id']} if me else None}
 
 
 @route('GET', '/api/acme-push')
