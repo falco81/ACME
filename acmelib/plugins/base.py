@@ -135,6 +135,10 @@ class Context(object):
         ctx.pages_put(where, cert_pem, key_pem, chain_pems, how) -> {'cn', 'not_after', ...}
                                             where: a node's name or 'vip'; every node puts
                                             its own in place within seconds
+
+    For a target that is another application of ours (targets/acme_push.py):
+        ctx.push_identity() -> {'seed', 'public', 'id', 'text'}
+                                            acme's own Ed25519 key it signs acme push with
     """
     node = ''
     settings = {}

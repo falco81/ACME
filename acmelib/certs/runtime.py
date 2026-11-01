@@ -343,6 +343,12 @@ class RunContext(base.Context):
                 {'auth': got['ka'], 'at': time.time()}))
         return got['token'], got['ka']
 
+    # ---- acme push (targets/acme_push.py) ------------------------------------------------
+    def push_identity(self):
+        """This acme's own Ed25519 key for acme push: {'seed', 'public', 'id', 'text'} -
+        made once, kept sealed in the database (every node signs with the same one)."""
+        return E.push_identity(self.store)
+
     # ---- acme's own pages (targets/appliance.py) ----------------------------------------
     # Through the engine's Certificates and TLS: the profile of a node or of the
     # VIP address (meta web:tls:<where>) - each node puts its own into nginx

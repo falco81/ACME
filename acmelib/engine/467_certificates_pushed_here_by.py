@@ -850,10 +850,12 @@ def _push_card(h):
 @route('POST', '/api/acme-push')
 def _push_card_do(h):
     s = h.me('fulladmin')
-    who = s['name']
-    b = h.body()
+    return push_card_do(h.store, h.body(), s['name'])
+
+
+def push_card_do(store, b, who):
+    """What the card asks: on, off, pair, pair_drop, key_add, key_forget, other_names."""
     act = str(b.get('action') or '')
-    store = h.store
     out = {}
     with PUSH_LOCK:
         conf = push_conf(store)

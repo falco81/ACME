@@ -1791,5 +1791,6 @@ from acmelib.certs import portal  # noqa: E402,F401
 # The SSH keys of the modules (fields of the type sshkey): their routes, and drafts kept on save.
 from acmelib.certs import api_sshkeys  # noqa: E402,F401
 from acmelib.certs import api_readiness  # noqa: E402,F401  (plan, check, dry run: before a certificate)
+from acmelib.certs import api_push  # noqa: E402,F401  (acme push: Discover, and what it makes)
 from acmelib.certs import api_dnssets  # noqa: E402,F401  (Settings → DNS: the sets of DNS servers)
 from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edit, renew, versions)
