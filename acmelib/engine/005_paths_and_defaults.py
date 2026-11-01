@@ -1250,8 +1250,9 @@ PANES = {
               'debug_api', 'debug_codes'],
 }
 
-# Settings a card of their own draws and saves (1.0.14): on their pane for the
-# search and the export, never drawn again as boxes of their own.
+# Settings a card of their own draws and saves (1.0.14): named on their pane (so
+# that they are on none else), left out of the boxes the panes draw (as otp
+# 1.0.219: drawn there they turned up under every pane, the card's rules aside).
 CARD_DRAWN = ('split_mode', 'split_prefer', 'split_arbiter', 'split_after_s', 'split_renew',
               'split_halve', 'split_freeze', 'split_report')
 

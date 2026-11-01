@@ -119,6 +119,11 @@ def lease_tick(store):
     """Take or keep the lease where this node should. True: this node leads."""
     me = E.node_name()
     t = time.time()
+    if E.split_no_lead():
+        # The nodes cannot reach each other and this one stepped aside, or is not the
+        # preferred one with split_renew on (1.0.14, docs/split-brain.md): it leads not.
+        lease_drop(store)
+        return False
     raw = store.get_meta(LEASE_KEY)
     cur = S.jload(raw, None)
     if not isinstance(cur, dict):
@@ -397,6 +402,10 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
     if not cert.get('issuer'):
         raise base.PluginError('%s has no issuer: it was imported, or is answered by a CSR - '
                                'nothing to renew it with' % cert['name'], retry=False)
+    held = E.split_issue_refused()
+    if held:
+        # Not on both halves of a split cluster (1.0.14): two versions, a paid one twice.
+        raise base.PluginError(held)
     if only == 'alt' and not cert.get('cert_pem'):
         only = None
     contexts = []
@@ -466,6 +475,7 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
                 _twin_failed(store, job, cert, e)
                 raise
             job.version = version
+            E.split_note(store, 'renew', cert['name'], 'renew:%s' % cert['id'])
             store.db.update('cert_issuers', irow['id'], {'last_ok': time.time(),
                                                          'last_error': ''})
             for c in contexts:
@@ -495,6 +505,7 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             version, info.get('serial') or '?', until), 'ok')
         store.add_event('certificates', '%s %s (version %d, until %s)' % (
             cert['name'], 'renewed' if cert.get('cert_pem') else 'issued', version, until))
+        E.split_note(store, 'renew', cert['name'], 'renew:%s' % cert['id'])
         twin_said = ''
         if twin:
             try:
@@ -561,6 +572,9 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
     if not irow:
         raise base.PluginError('%s has no issuer acme speaks to: revoke it where it was issued, '
                                'then delete it here' % cert['name'], retry=False)
+    held = E.split_issue_refused()
+    if held:
+        raise base.PluginError(held, retry=False)
     ctx = runtime.RunContext(store, job, scope='issuer:%s' % irow['name'])
     issuer = S.plugin_instance(store, 'issuer', irow, ctx)
     job.step('revoking %s (serial %s) at %s, reason %s' % (cert['name'], cert.get('serial'),
@@ -583,6 +597,7 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
                  (t, cert['id'], cert.get('version') or 0))
     store.add_event('certificates', '%s revoked (%s) by %s' % (cert['name'], reason, by or '?'),
                     'warn')
+    E.split_note(store, 'revoke', cert['name'], 'revoke:%s' % cert['id'])
     job.step('revoked', 'ok')
     return True, str(said or 'revoked')
 
@@ -761,6 +776,11 @@ class Renewer(object):
             except Exception as e:                      # noqa: BLE001
                 E.log_sparing('certs-dns', 'acme\'s DNS server: %s' % e, 'warn', every=600)
             try:
+                if self.leading and E.split_no_lead():
+                    # Stepped aside, or held back while apart (1.0.14): at once, not at
+                    # the next look at the lease.
+                    self.leading = False
+                    lease_drop(self.store)
                 if time.time() - self.last_lease >= LEASE_EVERY:
                     self.last_lease = time.time()
                     self.leading = False
@@ -793,6 +813,17 @@ class Renewer(object):
         except Exception:                               # noqa: BLE001
             pass
         on = bool(E.CONFIG.get('dns_server'))
+        # Stepped aside while the nodes cannot reach each other (1.0.14): no DNS answers
+        # here - the NS records name both nodes, resolvers ask the other.
+        aside = on and E.split_aside()
+        if aside:
+            on = False
+            if self.dns is not None:
+                E.log('acme\'s DNS server stops answering: this node stepped aside while the '
+                      'nodes cannot reach each other', 'warn')
+                self.dns_said = 'stepped aside'
+        elif self.dns_said == 'stepped aside':
+            self.dns_said = ''
         if self.dns is not None and (not on or sig != self.dns_sig):
             self.dns_stop()
             if on:

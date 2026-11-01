@@ -201,3 +201,53 @@ def _acme_dns_register(h, s):
     finally:
         ctx.tidy()
 
+
+
+@A.api('POST', '/api/validations/ssh_dns_discover', 'certadmin')
+def _ssh_dns_discover(h, s):
+    """What runs on the DNS server of an SSH DNS validation (challenges/ssh_dns.py),
+    found by read-only commands only, for its form: {id?, name?, config} (the form
+    as it is; secrets left empty or as dots are the ones kept, a key made in the
+    form is used) -> {ok, said, job_id, found: {server, version, flavour_suggested,
+    zones, keys, sudo, problems, fields, commands}}. Nothing is saved."""
+    from acmelib.certs import api_sshkeys, jobs, runtime
+    b = h.body()
+    by = A.who(s)
+    row = S.plugin_row(h.store, 'challenge', A._id(b['id'])) \
+        if b.get('id') not in (None, '', 0) else None
+    if b.get('id') not in (None, '', 0) and not row:
+        raise LookupError('there is no such validation')
+    cls = S.plugin_class('challenge', 'ssh_dns')
+    if cls is None:
+        raise ValueError('the SSH DNS module is not installed')
+    cfg = S.plugin_config('challenge', row) if row and row.get('kind') == 'ssh_dns' else {}
+    given = b.get('config') if isinstance(b.get('config'), dict) else {}
+    given, _took = api_sshkeys._with_drafts(h.store, 'challenge', 'ssh_dns', given, by)
+    for k, v in given.items():
+        if k in S.secret_fields(cls) and (v in (None, '') or E.is_masked(v)):
+            continue
+        cfg[k] = v
+    name = (row or {}).get('name') or str(b.get('name') or 'unsaved')
+    got = {}
+
+    def fn(job):
+        ctx = runtime.RunContext(h.store, job, scope='challenge:%s' % name)
+        try:
+            job.step('what runs on %s - read-only commands only' % (cfg.get('host') or '?'))
+            found = cls(cfg, ctx).discover()
+            got['found'] = found
+            for p in found.get('problems') or []:
+                job.step(p, 'warn')
+            if not found.get('ok'):
+                return False, 'discovery failed - every field can be set by hand'
+            words = ('%s %s' % (found.get('server'), found.get('version') or '')).strip() \
+                if found.get('server') else 'no DNS server acme knows was found there'
+            job.step(words, 'ok')
+            return True, words
+        finally:
+            ctx.tidy()
+    job = jobs.run_now(h.store, 'test', fn, by=by, said='challenge %s: find out what runs '
+                                                       'there' % name)
+    return {'ok': bool(job.ok), 'said': job.said, 'job_id': job.id,
+            'found': got.get('found') or {'ok': False, 'problems': [job.said], 'fields': {},
+                                          'zones': [], 'keys': [], 'commands': []}}

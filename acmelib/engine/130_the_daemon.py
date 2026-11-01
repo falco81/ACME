@@ -578,6 +578,10 @@ class Daemon(object):
                 except Exception as e:          # noqa: BLE001
                     log_sparing('sshd-tick', 'the SSH server: %s' % e, 'warn', every=600)
                 try:
+                    split_tick(self)            # the nodes losing each other (1.0.14)
+                except Exception as e:          # noqa: BLE001
+                    log_sparing('split-tick', 'watching the other node: %s' % e, 'warn', every=600)
+                try:
                     alerts_tick(self)           # alerts by mail, the report (1.0.162)
                 except Exception as e:          # noqa: BLE001
                     log_sparing('alerts-tick', 'the alerts: %s' % e, 'warn', every=600)

@@ -30,7 +30,7 @@ from acmelib.plugins.challenges import _dns as D
 
 # What every command for a Unix server starts with: the sbin directories where a
 # DNS server's tools live (an account that is not root has no /usr/sbin in PATH).
-PATH_PRE = 'PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin" '
+PATH_PRE = 'PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin"; export PATH; '
 MARK = '; acme-challenge'
 MAX_ZONE_BYTES = 8 * 1024 * 1024
 
@@ -98,6 +98,7 @@ def _records(text, path):
     out = []
     i, n = 0, len(text)
     toks, depth, line_start, blank_start = [], 0, True, False
+    blank_start0 = False
     while i < n:
         c = text[i]
         if line_start:
@@ -184,7 +185,7 @@ def next_serial(old, mode='auto', now=None):
     """The serial after `old`: 'date' YYYYMMDDnn, 'unixtime', 'increment' (+1);
     'auto' - a date where the serial looks like one, else +1."""
     now = time.time() if now is None else now
-    day = int(datetime.datetime.utcfromtimestamp(now).strftime('%Y%m%d')) * 100
+    day = int(datetime.datetime.fromtimestamp(now, datetime.timezone.utc).strftime('%Y%m%d')) * 100
     if mode == 'auto':
         s = '%d' % old
         mode = 'increment'
@@ -229,7 +230,7 @@ def edit_zone_text(text, fqdn, value, ttl, op, path='the zone file', serial_mode
     if not re.match(r'^[A-Za-z0-9_.+/=:-]{1,255}$', str(value or '')):
         raise PluginError('a TXT value acme will not write: %r' % value, retry=False)
     safe_name(fqdn)
-    old, s0, s1 = find_serial(text, path)
+    old, _s0, _s1 = find_serial(text, path)
     nl = '\r\n' if text.count('\r\n') > text.count('\n') // 2 and '\r\n' in text else '\n'
     lines = text.split('\n')
     ours = [i for i, ln in enumerate(lines) if _is_ours(ln, fqdn, value)]
@@ -246,12 +247,10 @@ def edit_zone_text(text, fqdn, value, ttl, op, path='the zone file', serial_mode
         drop = set(ours)
         body = '\n'.join(ln for i, ln in enumerate(lines) if i not in drop)
     new = next_serial(old, serial_mode, now)
-    # the serial sits before anything appended or taken away (lines after the SOA
-    # only - ours are whole lines that are no part of it): its offset still holds
-    if body[s0:s1] != '%d' % old and body[s0:s1] != text[s0:s1]:
-        raise NotPlain(path, 'the SOA moved while it was edited')
+    again, s0, s1 = find_serial(body, path)        # where the serial is now
+    if again != old:
+        raise NotPlain(path, 'its SOA changed while it was edited')
     body = body[:s0] + '%d' % new + body[s1:]
-    find_serial(body, path)
     return body, True, old, new
 
 
@@ -285,8 +284,7 @@ def edit_dnsmasq_text(text, fqdn, value, op):
     return '\n'.join(lines) + '\n', True
 
 
-def write_script(path, content, old_sha, check=None, reload=None, check_after=False,
-                 prefix=''):
+def write_script(path, content, old_sha, check=None, reload=None, check_after=False):
     """The shell script (POSIX sh, run by `sh -s`) that puts `content` in `path`:
     the file must still be what was read (old_sha; None: there was none), a copy
     kept as .NAME.acme-bak beside it, the new one written to .NAME.acme-new,
@@ -301,7 +299,7 @@ def write_script(path, content, old_sha, check=None, reload=None, check_after=Fa
     if content and not content.endswith('\n'):
         content += '\n'
     restore = ('if [ "$had" = 1 ]; then cp -p "$b" "$f"; else rm -f "$f"; fi')
-    out = ['set -u', PATH_PRE.strip() + '; export PATH', 'umask 022',
+    out = ['set -u', PATH_PRE.strip(), 'umask 022',
            'f=%s' % shq(path),
            'd=$(dirname -- "$f"); n=$(basename -- "$f")',
            't="$d/.$n.acme-new"; b="$d/.$n.acme-bak"',
@@ -319,20 +317,21 @@ def write_script(path, content, old_sha, check=None, reload=None, check_after=Fa
            'fi',
            'cat > "$t" <<\'%s\' || { rm -f "$t"; echo "acme: $t could not be written" >&2; '
            'exit 5; }' % delim]
-    out.append(content.rstrip('\n'))
+    if content:
+        out.append(content[:-1])                    # the here-doc gives each line its newline
     out.append(delim)
     if check and not check_after:
-        out.append('o=$(%s%s 2>&1) || { echo "$o" >&2; rm -f "$t"; echo "acme: the check '
-                   'refused the new file - nothing changed" >&2; exit 6; }' % (prefix, check))
+        out.append('o=$(%s 2>&1) || { echo "$o" >&2; rm -f "$t"; echo "acme: the check '
+                   'refused the new file - nothing changed" >&2; exit 6; }' % (check,))
     out.append('mv -f "$t" "$f" || { rm -f "$t"; echo "acme: $f could not be put in place" '
                '>&2; exit 5; }')
     if check and check_after:
-        out.append('o=$(%s%s 2>&1) || { echo "$o" >&2; %s; echo "acme: the check refused '
-                   'it - the file is back as it was" >&2; exit 6; }' % (prefix, check, restore))
+        out.append('o=$(%s 2>&1) || { echo "$o" >&2; %s; echo "acme: the check refused '
+                   'it - the file is back as it was" >&2; exit 6; }' % (check, restore))
     if reload:
-        out.append('o=$(%s%s 2>&1) || { echo "$o" >&2; %s; %s%s >/dev/null 2>&1; echo "acme: '
+        out.append('o=$(%s 2>&1) || { echo "$o" >&2; %s; %s >/dev/null 2>&1; echo "acme: '
                    'the server did not take it - the file is back as it was" >&2; exit 7; }'
-                   % (prefix, reload, restore, prefix, reload))
+                   % (reload, restore, reload))
     out.append('echo "acme: $f written"')
     return '\n'.join(out) + '\n'
 
@@ -538,7 +537,7 @@ TOOLS = ('named', 'named-checkconf', 'named-checkzone', 'rndc', 'nsupdate', 'pdn
 TOOLS_PROBE = 'for c in %s; do command -v "$c"; done' % ' '.join(TOOLS)
 UNITS = ('named', 'bind9', 'pdns', 'knot', 'nsd', 'dnsmasq', 'unbound')
 UNITS_PROBE = 'systemctl is-active ' + ' '.join(UNITS)
-PROCS_PROBE = "pgrep -l -x 'named|pdns_server|knotd|nsd|dnsmasq|unbound'"
+PROCS_PROBE = "pgrep -l -x 'named|pdns_server|knotd|nsd|nsd: main|dnsmasq|unbound'"
 KEY_GLOBS = ('/etc/bind/*.key', '/etc/bind/keys/*.key', '/etc/named/*.key', '/etc/named*.key',
              '/var/named/*.key', '/var/lib/bind/*.key', '/usr/local/etc/namedb/*.key')
 KEYS_PROBE = "grep -sH -E '^[[:space:]]*key[[:space:]]' -- " + ' '.join(KEY_GLOBS)
@@ -605,14 +604,16 @@ class Discovery(object):
         self.has_timeout = False
 
     # -- the commands -----------------------------------------------------------------
-    def sh(self, core, sudo=False, limit=True):
-        """(rc, out, err) of one read-only command; never raises for its exit."""
+    def sh(self, core, sudo=False, limit=True, plain=False):
+        """(rc, out, err) of one read-only command; never raises for its exit.
+        plain: as it is (Windows: no POSIX shell to set PATH in)."""
         cmd = core
         if sudo:
             cmd = 'sudo -n ' + cmd
         if limit and self.has_timeout:
             cmd = 'timeout %d %s' % (self.LIMIT, cmd)
-        cmd = PATH_PRE + cmd
+        if not plain:
+            cmd = PATH_PRE + cmd
         if not is_read_only(cmd):
             raise PluginError('discovery refused to send a command that is not on its read-only '
                               'list: %s' % core, retry=False)
@@ -684,35 +685,45 @@ class Discovery(object):
                 active |= {u for u, s in zip(UNITS, states) if s == 'active'}
         if 'pgrep' in self.tools:
             _rc, said, _e = self.sh(PROCS_PROBE)
-            procs = {ln.split()[-1] for ln in said.splitlines() if ln.split()}
+            procs = {ln.split(None, 1)[1].strip() for ln in said.splitlines()
+                     if len(ln.split(None, 1)) == 2}
             for p, u in (('named', 'named'), ('pdns_server', 'pdns'), ('knotd', 'knot'),
-                         ('nsd', 'nsd'), ('dnsmasq', 'dnsmasq'), ('unbound', 'unbound')):
+                         ('nsd', 'nsd'), ('nsd: main', 'nsd'), ('dnsmasq', 'dnsmasq'),
+                         ('unbound', 'unbound')):
                 if p in procs:
                     active.add(u)
         if 'bind9' in active:
             active.add('named')
-        servers = []
-        if 'named' in self.tools or 'named-checkconf' in self.tools or 'named' in active:
-            servers.append(self.bind('named' in active))
-        if 'pdnsutil' in self.tools or 'pdns_server' in self.tools or 'pdns' in active:
-            servers.append(self.pdns('pdns' in active))
-        if 'knotc' in self.tools or 'knot' in active:
-            servers.append(self.knot('knot' in active))
-        if 'nsd-checkconf' in self.tools or 'nsd' in active:
-            servers.append(self.nsd('nsd' in active))
-        if 'dnsmasq' in self.tools or 'dnsmasq' in active:
-            servers.append(self.dnsmasq('dnsmasq' in active))
-        if 'unbound-control' in self.tools or 'unbound' in active:
-            servers.append(self.unbound('unbound' in active))
+        servers, said = [], {}
+        for unit, tools, fn in (('named', ('named', 'named-checkconf'), self.bind),
+                                ('pdns', ('pdnsutil', 'pdns_server'), self.pdns),
+                                ('knot', ('knotc',), self.knot),
+                                ('nsd', ('nsd-checkconf',), self.nsd),
+                                ('dnsmasq', ('dnsmasq',), self.dnsmasq),
+                                ('unbound', ('unbound-control',), self.unbound)):
+            if unit in active or any(t in self.tools for t in tools):
+                n = len(self.problems)
+                srv = fn(unit in active)
+                said[id(srv)] = self.problems[n:]
+                del self.problems[n:]
+                servers.append(srv)
         out['servers'] = [{k: v for k, v in s.items() if k != 'fields'} for s in servers]
         if not servers:
             self.problem('no DNS server acme knows was found there (BIND, PowerDNS, Knot, NSD, '
                          'dnsmasq, Unbound) - set the fields by hand')
             out['ok'] = True
             return out
-        # the one that runs, then the one that can write most zones
-        best = sorted(servers, key=lambda s: (not s['active'], not s.get('flavour'),
-                                              -len(s.get('zones') or [])))[0]
+
+        def writable(s):
+            return len([z for z in s.get('zones') or [] if z.get('flavour')])
+        # the one with zones acme can write, then the one that runs, then the most zones
+        best = sorted(servers, key=lambda s: (not writable(s), not s['active'],
+                                              not s.get('flavour'), -writable(s)))[0]
+        # what is said of a server only installed (not running, nothing of its own) is noise
+        for s in servers:
+            if s is best or s['active'] or writable(s):
+                for p in said[id(s)]:
+                    self.problem(p)
         out.update(server=best['server'], version=best.get('version', ''),
                    flavour_suggested=best.get('flavour', ''), zones=best.get('zones', []),
                    keys=best.get('keys', []), fields=dict(best.get('fields') or {}),
@@ -726,7 +737,7 @@ class Discovery(object):
 
     # -- Windows ----------------------------------------------------------------------
     def windows(self, out, err):
-        rc, said, err2 = self.sh(WIN_PROBE, limit=False)
+        rc, said, err2 = self.sh(WIN_PROBE, limit=False, plain=True)
         if rc != 0:
             self.problem('the machine answered neither as Unix (uname) nor as Windows DNS '
                          '(Get-DnsServerZone): %s' % self.said(err2 or err))
@@ -791,7 +802,8 @@ class Discovery(object):
         paths = [p for i, p in enumerate(paths) if p not in paths[:i] and PATH_RE.match(p)]
         seen = {}
         if paths:
-            _rc, said, _e, _via = self.priv('ls -lnd -- ' + ' '.join(shq(p) for p in paths))
+            _rc, said, _e = self.sh('ls -lnd -- ' + ' '.join(shq(p) for p in paths),
+                                    sudo=self.sudo_ok and not self.root)
             seen = parse_ls(said)
         skey = next((p for p in skeys if p in seen), '')
         skey_read = bool(skey) and may(seen.get(skey), self.uid, self.gids, 'r')
@@ -1061,7 +1073,8 @@ class Discovery(object):
         paths = [p for i, p in enumerate(paths) if p not in paths[:i] and PATH_RE.match(p)]
         seen = {}
         if paths:
-            _rc, out, _e, _v = self.priv('ls -lnd -- ' + ' '.join(shq(p) for p in paths))
+            _rc, out, _e = self.sh('ls -lnd -- ' + ' '.join(shq(p) for p in paths),
+                                   sudo=self.sudo_ok and not self.root)
             seen = parse_ls(out)
         plain, need = [], False
         for z in names:

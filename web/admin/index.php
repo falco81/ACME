@@ -1274,6 +1274,15 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         (docs/load-balancers.md).</p>
       <div id="web-vip"></div>
     </div>
+    <div class="card full" id="ha-split-card" hidden>
+      <h2>When the nodes lose each other <span class="right" id="ha-split-state"></span></h2>
+      <p class="note">Two nodes that cannot reach each other each take the other for gone and go on alone
+        (split brain): a certificate may then be renewed on both halves, the wrong tries are counted on each half
+        apart, and what is changed on each half goes its own way. Without a third machine it cannot be
+        ruled out - but which node goes on, and what holds meanwhile, is chosen here. Each node watches
+        the other’s database every two seconds.</p>
+      <div id="ha-split"></div>
+    </div>
     <div class="card full"><div id="sect-ha"></div></div>
     <div class="card full" id="ha-make">
       <h2>Making it two, step by step</h2>

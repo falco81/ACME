@@ -366,6 +366,19 @@ def _record(store, ca_id, cert_pem, cert_id=None, by=''):
         'reason': '', 'created': _now(), 'by_who': str(by or '')})
     store.db.run('UPDATE cert_cas SET serial_next = COALESCE(serial_next, 0) + 1 WHERE id = ?',
                  (int(ca_id),))
+    E = _E()
+    if E.split_noting():
+        # Signed while the two nodes cannot reach each other (1.0.14): for the report - an
+        # authority signing on both halves counts its serials and its CRLs two ways.
+        name = store.db.value('SELECT name FROM cert_cas WHERE id = ?', (int(ca_id),)) or ca_id
+        E.split_took(store, 'sign', name, 'sign:%s' % int(ca_id))
+
+
+def _split_held():
+    """Not signed on both halves of a split cluster (1.0.14, docs/split-brain.md)."""
+    held = _E().split_issue_refused()
+    if held:
+        raise PkiError(held)
 
 
 def _child_path_len(parent_row, want):
@@ -736,6 +749,7 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
     ski + ca_key_usage (an intermediate's renewal: as its certificate had them),
     no_names (no subjectAltName from the request's CN).
     Without an eku the authority's own default (its profile's eku, ca_edit) is taken."""
+    _split_held()
     row = _row(store, ca_id)
     now = _now()
     _usable(row, now)
@@ -831,6 +845,7 @@ def _issued_row(store, ca_id, serial):
 
 def ca_revoke(store, ca_id, serial, reason='unspecified', by=''):
     """Revoke what an authority signed (by serial), and make its CRL anew."""
+    _split_held()
     row = _row(store, ca_id)
     reason = norm_reason(reason)
     r = _issued_row(store, row['id'], serial)

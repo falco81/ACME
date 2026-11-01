@@ -202,6 +202,38 @@ def alert_problems(store, lang='en'):
                     _al(lang, 'acme na %s nemohl použít databázi: %s',
                         'acme on %s could not use the database: %s') % (n, str(trouble)[:300]),
                     'db')
+    # The nodes apart (1.0.14, docs/split-brain.md): each node's own word, and the report
+    # of the time apart.
+    if CONFIG.get('split_report') and split_engaged():
+        for n in names:
+            st = split_state_of(store, n)
+            if st.get('apart') and now - float(st.get('at') or 0) < 90:
+                aside = st.get('role') == 'aside'
+                held = bool(st.get('held'))
+                add('split:' + n, 'bad', n,
+                    _al(lang, '%s nevidí druhý uzel%s' % (n, ' a ustoupil stranou' if aside else ''),
+                        '%s cannot reach the other node%s' % (n, ' and stepped aside' if aside else '')),
+                    _al(lang, 'Databáze druhého uzlu neodpovídá od %s. %s',
+                        'The other node\'s database has not answered since %s. %s')
+                    % (_al_when(st.get('since') or now),
+                       _al(lang, 'Tento uzel neobnovuje, nenasazuje ani neodpovídá na DNS - '
+                                 'nechává to druhému uzlu.' if aside else
+                           ('Tento uzel obsluhuje, ale obnovy a nasazení nechává '
+                            'upřednostněnému uzlu.' if held else
+                            'Tento uzel obnovuje, nasazuje a odpovídá na DNS sám.'),
+                           'This node does not renew, deploy or answer DNS - it leaves that '
+                           'to the other node.' if aside else
+                           ('This node answers, but leaves the renewals and deployments to '
+                            'the preferred node.' if held else
+                            'This node renews, deploys and answers DNS alone.'))), 'ha')
+        rep = _meta_json(store, 'split:report') or {}
+        if rep.get('twice_n') and now - float(rep.get('at') or 0) < 86400:
+            add('split:twice', 'warn', '',
+                _al(lang, 'Během rozpojení se totéž udělalo na obou uzlech',
+                    'The same was done on both nodes while they were apart'),
+                _al(lang, '%d: %s', '%d: %s') % (
+                    rep['twice_n'], ', '.join('%s (%s)' % (x.get('name'), x.get('kind'))
+                                              for x in (rep.get('twice') or [])[:10])), 'ha')
     # The VIP address (1.0.194): where keepalived put it, from each node's heartbeat.
     if CONFIG.get('alerts_vrrp', 1) and cluster and not quiet:
         try:

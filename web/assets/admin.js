@@ -5497,6 +5497,7 @@ function loadHa(live) {
   api('ha').then(function (d) {
     drawNodeSettings(d.nodes, live);
     HA = d;
+    loadSplit(d);
     var rep = !!(d.replication && d.replication.mode === 'replicated');
     if ($('ha-lede-shared')) { $('ha-lede-shared').hidden = rep; $('ha-lede-replicated').hidden = !rep; }
     var nodes = d.nodes || [];
@@ -5575,6 +5576,412 @@ function loadHa(live) {
     drawHaLb(d);
     explainWhatWasDrawn($('pane-ha'));
   }).catch(oops);
+}
+
+/* ==========================================================================
+   When the nodes lose each other - split brain (1.0.14, docs/split-brain.md;
+   the card of otp 1.0.218/1.0.219, in acme's terms)
+   ==========================================================================
+   One card on High availability: what the two nodes do now, who answers while
+   they cannot reach each other (three choices drawn as cards), what else holds
+   meanwhile (four switches), and a table of what happens in each kind of
+   failure - worked out from the choices as they are made, before saving. The
+   choices wait for the save bar at the bottom, as every other setting.
+   "Answers" is acme's: the VIP address, acme's DNS server and the lead (the
+   renewals, the deployments, the own authorities' signing); a node that
+   steps aside keeps its pages. Where otp has "recovery codes only with the
+   other node asked" (acme has none), acme has "renewals only on the
+   preferred node" (split_renew). */
+var SPLITC = {view: null, draft: null, tried: null, timer: null};
+var SPLITC_MODES = [
+  {k: 'off', icon: 'net', t: 'As until now: both nodes go on',
+   s: 'Each node goes on alone and answers everything. With every switch below off nothing of this runs at all - no question to the other node, no arbiter, nothing written: exactly as before.',
+   good: ['Nobody is ever turned away while one node answers'],
+   bad: ['A certificate may be renewed on both halves', 'The wrong tries are counted on each half apart',
+         'Changes made on each half go their own way']},
+  {k: 'arbiter', icon: 'globe', t: 'The node that still sees the network',
+   s: 'Each node asks its arbiter - its default gateway, or an address given. The node that reaches neither the other node nor its arbiter is the one cut off: it steps aside.',
+   good: ['A node cut off from the network stops at once', 'A node really gone: the other goes on alone'],
+   bad: ['When only the link between the two nodes breaks, both still answer']},
+  {k: 'priority', icon: 'pin', t: 'Only the preferred node',
+   s: 'While they cannot reach each other only the preferred node answers; the other steps aside.',
+   good: ['Never two halves answering'],
+   bad: ['If the preferred node itself is gone, nobody answers until it is back - or this is changed']}
+];
+var SPLITC_OPTS = [
+  {k: 'split_renew', icon: 'key', t: 'Renewals only on the preferred node while apart',
+   s: 'A certificate issued is issued for good - renewed on both halves it is two versions, a paid one paid twice, a CA\u2019s limits counted twice. While apart only the preferred node renews, deploys and lets acme\u2019s own authorities sign; the other waits, and the preferred catches up.'},
+  {k: 'split_halve', icon: 'lock', t: 'Half the tries while apart',
+   s: 'The pause after wrong passwords and codes comes after half its tries on each node - the administration and the portal - both halves together then allow what one node does.'},
+  {k: 'split_freeze', icon: 'edit', t: 'Changes only on the preferred node while apart',
+   s: 'On the other node the pages show everything and change nothing (certificates, authorities, sources, targets, deployments, settings) until the nodes see each other again - nothing goes two ways. This card can always be changed.'},
+  {k: 'split_report', icon: 'bell', t: 'Warn while apart, report afterwards',
+   s: 'An alert while the nodes cannot reach each other; once together again, a report of what each did without the other knowing - renewals, revocations, signing, changes, sign-ins - and of anything done on both.'}
+];
+
+function loadSplit(ha) {
+  var card = $('ha-split-card');
+  if (!card) return;
+  var cluster = !!(ha && ha.mode);
+  card.hidden = !cluster;
+  if (!cluster) return;
+  api('split').then(function (v) {
+    SPLITC.view = v;
+    if (!SPLITC.draft) SPLITC.draft = splitFresh(v);
+    drawSplit();
+  }).catch(function () { /* the card stays as it was */ });
+}
+function splitFresh(v) {
+  var c = v.conf || {}, arb = {};
+  (v.nodes || []).forEach(function (n) { arb[n.name] = n.arbiter || ''; });
+  return {mode: c.split_mode || 'off', prefer: c.split_prefer || '', after: Number(c.split_after_s) || 20,
+          split_renew: !!Number(c.split_renew), split_halve: !!Number(c.split_halve),
+          split_freeze: !!Number(c.split_freeze), split_report: !!Number(c.split_report),
+          arb: arb};
+}
+function splitChanged() {
+  var a = SPLITC.draft, b = splitFresh(SPLITC.view || {});
+  return JSON.stringify(a) !== JSON.stringify(b);
+}
+function splitTouched(noDraw) {
+  if (splitChanged()) {
+    pendingSet('split', {pane: 'ha', save: splitSave, reset: function () { SPLITC.draft = null; SPLITC.tried = null; loadSplit({mode: 1}); }});
+  } else if (PENDING.split) { delete PENDING.split; markDirtyCount(); }
+  if (!noDraw) drawSplit();
+}
+function splitArbTried() {
+  /* The arbiters as they are in the form, each node's answer good. */
+  var t = SPLITC.tried, d = SPLITC.draft;
+  if (!t || !t.done) return false;
+  return Object.keys(d.arb).every(function (n) {
+    return t.asked[n] === d.arb[n] && t.got[n] && t.got[n].verdict === true;
+  });
+}
+function splitSave() {
+  var d = SPLITC.draft, v = SPLITC.view || {}, c = v.conf || {};
+  if (d.mode === 'arbiter' && c.split_mode !== 'arbiter' && !splitArbTried()) {
+    toast('Try the arbiter from every node first: a node that cannot reach its arbiter would step aside the moment the other is away', 'bad');
+    var b = $('split-try'); if (b) b.scrollIntoView({block: 'center'});
+    return Promise.resolve(false);
+  }
+  var arbChanged = {};
+  (v.nodes || []).forEach(function (n) { if ((n.arbiter || '') !== d.arb[n.name]) arbChanged[n.name] = d.arb[n.name]; });
+  var body = {action: 'save', checked: d.mode !== 'arbiter' || splitArbTried() || c.split_mode === 'arbiter',
+              conf: {split_mode: d.mode, split_prefer: d.prefer, split_after_s: d.after,
+                     split_renew: d.split_renew ? 1 : 0, split_halve: d.split_halve ? 1 : 0,
+                     split_freeze: d.split_freeze ? 1 : 0, split_report: d.split_report ? 1 : 0},
+              arbiter: arbChanged};
+  return api('split', body).then(function (r) {
+    toast(r.message, 'good');
+    SPLITC.view = r.view; SPLITC.draft = null; SPLITC.tried = null;
+    SPLITC.draft = splitFresh(r.view);
+    drawSplit();
+    return true;
+  });
+}
+function splitTry(btn) {
+  var d = SPLITC.draft, asked = JSON.parse(JSON.stringify(d.arb));
+  busy(btn, true);
+  api('split', {action: 'try', targets: asked}).then(function (r) {
+    SPLITC.tried = {id: r.id, asked: asked, got: {}, nodes: r.nodes, done: false};
+    var tries = 0;
+    var poll = function () {
+      api('split', {action: 'poll', id: r.id}).then(function (p) {
+        var got = p.nodes || {};
+        Object.keys(got).forEach(function (n) { if (got[n]) SPLITC.tried.got[n] = got[n]; });
+        var all = (r.nodes || []).every(function (n) { return SPLITC.tried.got[n]; });
+        tries += 1;
+        if (all || tries > 20) { SPLITC.tried.done = true; busy(btn, false); }
+        drawSplit();
+        if (!all && tries <= 20) setTimeout(poll, 1000);
+      }).catch(function (e) { busy(btn, false); oops(e); });
+    };
+    setTimeout(poll, 600);
+  }).catch(function (e) { busy(btn, false); oops(e); });
+}
+function splitPreferred() {
+  var d = SPLITC.draft, v = SPLITC.view || {};
+  if (d.prefer) return d.prefer;
+  return v.preferred || ((v.nodes || [])[0] || {}).name || '';
+}
+/* Each kind of failure, with what each node does and what it costs - from the choices. */
+function splitScenarios() {
+  var d = SPLITC.draft, v = SPLITC.view || {};
+  var names = (v.nodes || []).map(function (n) { return n.name; });
+  if (names.length < 2) names = [names[0] || 'node 1', 'the other node'];
+  var P = splitPreferred(), A = names.indexOf(P) >= 0 ? P : names[0];
+  var B = names.filter(function (n) { return n !== A; })[0];
+  var rows = [];
+  var serve = {k: 'ok', w: 'answers'}, aside = {k: 'warn', w: 'steps aside'},
+      gone = {k: 'dim', w: 'gone'}, cut = {k: 'dim', w: 'cut off'};
+  var twice = [];
+  if (!d.split_renew) twice.push('a certificate may be renewed on both - two versions');
+  twice.push('an app code may pass on both within its 30 s');
+  if (!d.split_halve) twice.push('twice the wrong tries');
+  if (!d.split_freeze) twice.push('changes on both halves go two ways');
+  var safe = function (w) { return {k: 'ok', w: w}; }, risk = function (w) { return {k: 'warn', w: w}; },
+      down = function (w) { return {k: 'crit', w: w}; };
+  /* Renewals only on the preferred node: with it away, the one left answers and waits. */
+  var waits = d.split_renew ? risk('renewals wait until ' + A + ' is back') : null;
+  /* The other node really gone. */
+  [[A, B], [B, A]].forEach(function (pair) {
+    var dead = pair[0], left = pair[1];
+    var leftDoes = (d.mode === 'priority' && left !== A) ? aside : serve;
+    var cells = {}; cells[dead] = gone; cells[left] = leftDoes;
+    rows.push({t: dead + ' is switched off or fails', cells: cells,
+               out: leftDoes === serve ? safe(left + ' answers everything') : down('nobody answers until ' + dead + ' is back'),
+               risk: leftDoes !== serve ? down('no renewals, no DNS answers') : (dead === A && waits ? waits : safe('none'))});
+  });
+  /* One node cut off from the network (clients and arbiter out of its reach too). */
+  [[A, B], [B, A]].forEach(function (pair) {
+    var off = pair[0], left = pair[1];
+    var offDoes, leftDoes;
+    if (d.mode === 'arbiter') { offDoes = aside; leftDoes = serve; }
+    else if (d.mode === 'priority') { offDoes = off === A ? cut : aside; leftDoes = left === A ? serve : aside; }
+    else { offDoes = cut; leftDoes = serve; }
+    var cells = {}; cells[off] = offDoes; cells[left] = leftDoes;
+    var ok = leftDoes === serve;
+    rows.push({t: off + ' loses the network', cells: cells,
+               out: ok ? safe(left + ' answers everything') : down('nobody reachable answers'),
+               risk: !ok ? down('no renewals, no DNS answers') : (offDoes === aside ? (off === A && waits ? waits : safe('none'))
+                     : risk(['whatever still reaches ' + off + ':'].concat(twice).concat(off === A && waits ? [waits.w] : [])))});
+  });
+  /* Only the link between them. */
+  var linkA = serve, linkB = serve;
+  if (d.mode === 'priority') linkB = aside;
+  var cells = {}; cells[A] = linkA; cells[B] = linkB;
+  rows.push({t: 'Only the link between the two breaks (both still see the network)', cells: cells,
+             out: safe(linkB === aside ? A + ' answers everything' : 'both answer'),
+             risk: linkB === aside ? safe('none') : risk(twice)});
+  return {rows: rows, A: A, B: B};
+}
+/* Drawn again where it is (1.0.14, as otp 1.0.220): emptied for a moment, the pane was
+   short and a switch clicked half-way down sent the page to the top. */
+function drawSplit() {
+  var host_ = $('ha-split'), held_ = host_ ? scrollHeld(host_) : null;
+  var r_ = drawSplitIn();
+  if (held_) {
+    scrollBack(held_);
+    /* Once more after the page's words are put in its language (a moment later, by
+       its observer): the English is taller, and the box took the difference. */
+    Promise.resolve().then(function () { scrollBack(held_); });
+  }
+  return r_;
+}
+function drawSplitIn() {
+  var host = $('ha-split');
+  var v = SPLITC.view, d = SPLITC.draft;
+  if (!host || !v || !d) return;
+  var may = !!ADMIN;
+  var st = $('ha-split-state');
+  var apart = (v.nodes || []).some(function (n) { return n.fresh && n.state && n.state.apart; });
+  if (st) {
+    clear(st);
+    if (!v.active) st.appendChild(el('span', 'tag dim', 'one database - nothing to choose'));
+    else if (!v.engaged) st.appendChild(el('span', 'tag dim', 'as until now - not watched'));
+    else st.appendChild(el('span', 'tag ' + (apart ? 'crit' : 'ok'), apart ? 'apart now' : 'together'));
+  }
+  clear(host);
+  if (!v.active) {
+    host.appendChild(el('p', 'note', 'Both nodes open one database: whatever one node writes the other sees at once, so a code can never be let in twice, and the nodes cannot go two ways. Nothing here is needed - this is for two nodes that replicate.'));
+    return;
+  }
+  /* ---- now ---- */
+  var now = el('div', 'split-now');
+  (v.nodes || []).forEach(function (n, i) {
+    var s = n.state || {};
+    var tile = el('div', 'split-node' + (s.role === 'aside' ? ' aside' : '') + (n.fresh ? '' : ' stale'));
+    var top = el('div', 'split-node-top');
+    top.appendChild(noI18n(el('b', '', n.name)));
+    if (n.me) top.appendChild(el('span', 'tag dim', 'this page'));
+    if (n.name === splitPreferred()) top.appendChild(el('span', 'tag violet', 'preferred'));
+    var role = !v.engaged ? {k: 'dim', w: 'not watched'} : !n.fresh ? {k: 'dim', w: 'not heard from'} : (s.role === 'aside' ? {k: 'warn', w: 'stepped aside'} : {k: 'ok', w: 'answers'});
+    top.appendChild(el('span', 'tag ' + role.k + ' split-role', role.w));
+    tile.appendChild(top);
+    var line = function (ok, words, more) {
+      var r = el('div', 'split-line ' + (ok === true ? 'good' : ok === false ? 'bad' : 'muted'));
+      r.innerHTML = iconMarkup(ok === true ? 'check' : ok === false ? 'close' : 'info', 14);
+      r.appendChild(el('span', '', words));
+      if (more) r.appendChild(noI18n(el('span', 'muted small', ' ' + more)));
+      tile.appendChild(r);
+    };
+    if (!v.engaged) {
+      tile.appendChild(el('div', 'muted small', 'nothing is watched - as before: it goes on alone whatever happens to the other'));
+    } else if (n.fresh) {
+      line(!s.apart, s.apart ? 'cannot reach the other node' : 'reaches the other node',
+           s.apart ? '(' + ago(s.since) + ')' : '');
+      var arbs = s.arbiters || [];
+      if (arbs.length) arbs.forEach(function (a) { line(a.ok, 'arbiter', a.target + (a.words ? ' - ' + a.words : '')); });
+      else line(null, 'arbiter: ' + (s.gateway ? 'its gateway ' + s.gateway : 'none - no default gateway'));
+      if (s.why && s.apart) tile.appendChild(el('div', 'split-why muted small', s.why));
+      if (s.frozen) tile.appendChild(el('div', 'split-why small', 'changes on the pages wait here'));
+      if (s.halved) tile.appendChild(el('div', 'split-why small', 'half the tries'));
+      if (s.held && s.role !== 'aside') tile.appendChild(el('div', 'split-why small', 'renewals wait for the preferred node'));
+    } else {
+      tile.appendChild(el('div', 'muted small', n.alive ? 'its word has not come over yet' : 'nothing heard from it - it is down, or the link is'));
+    }
+    now.appendChild(tile);
+    if (i === 0 && (v.nodes || []).length > 1) {
+      var link = el('div', 'split-link ' + (apart ? 'broken' : 'whole'));
+      link.innerHTML = iconMarkup(apart ? 'close' : 'net', 18);
+      link.appendChild(el('span', 'small', apart ? 'apart' : 'together'));
+      now.appendChild(link);
+    }
+  });
+  host.appendChild(now);
+  /* ---- who answers ---- */
+  host.appendChild(el('h4', 'split-h', 'Who answers while they cannot reach each other'));
+  var choices = el('div', 'split-choices');
+  SPLITC_MODES.forEach(function (m) {
+    var b = el('button', 'split-choice' + (d.mode === m.k ? ' on' : ''));
+    b.type = 'button';
+    b.disabled = !may;
+    var head = el('div', 'split-choice-head');
+    var ic = el('span', 'split-ic'); ic.innerHTML = iconMarkup(m.icon, 20);
+    head.appendChild(ic);
+    head.appendChild(el('span', 'split-choice-k', m.t));
+    if (m.k === 'off') head.appendChild(el('span', 'tag dim', 'as before'));
+    b.appendChild(head);
+    b.appendChild(el('div', 'split-choice-s', m.s));
+    var ul = el('ul', 'split-pros');
+    m.good.forEach(function (g) { ul.appendChild(el('li', 'good', g)); });
+    m.bad.forEach(function (g) { ul.appendChild(el('li', 'bad', g)); });
+    b.appendChild(ul);
+    b.onclick = function () { d.mode = m.k; splitTouched(); };
+    choices.appendChild(b);
+  });
+  host.appendChild(choices);
+  var asBefore = d.mode === 'off' && !d.split_renew && !d.split_halve && !d.split_freeze && !d.split_report;
+  var said = el('p', 'split-said ' + (asBefore ? 'same' : 'new'));
+  said.innerHTML = iconMarkup(asBefore ? 'check' : 'info', 15);
+  said.appendChild(el('span', '', asBefore ? 'Exactly as before 1.0.14: nothing of this runs.'
+    : (d.mode === 'off' ? 'Both nodes go on; the switches below hold while they are apart - the other node\u2019s database is watched for it.'
+                        : 'The other node\u2019s database is watched every two seconds.')));
+  host.appendChild(said);
+  /* ---- its details ---- */
+  var g = el('div', 'set-grid split-fields');
+  var names = (v.nodes || []).map(function (n) { return [n.name, n.name]; });
+  var pref = selectBox([['', 'the first node (' + (v.preferred || '?') + ')']].concat(names), d.prefer);
+  pref.disabled = !may;
+  pref.onchange = function () { d.prefer = pref.value; splitTouched(); };
+  var pf = formField('The preferred node', pref, 'Answers alone with Only the preferred node; the only node where changes are made and certificates renewed while apart; makes the report afterwards.');
+  if (d.prefer !== ((v.conf || {}).split_prefer || '')) pf.classList.add('changed');
+  g.appendChild(pf);
+  var after = textBox(String(d.after), '20', '');
+  after.type = 'number'; after.min = 5; after.max = 300; after.disabled = !may;
+  after.onchange = function () { d.after = Math.max(5, Math.min(300, Number(after.value) || 20)); splitTouched(); };
+  var af = formField('Apart after (seconds)', after, 'How long the other node’s database must not answer before the nodes count as apart. Shorter: sooner safe; longer: a short hiccup of the network changes nothing.');
+  if (d.after !== Number((v.conf || {}).split_after_s || 20)) af.classList.add('changed');
+  g.appendChild(af);
+  host.appendChild(g);
+  if (d.mode === 'arbiter') {
+    var box = el('div', 'split-arb');
+    box.appendChild(el('p', 'note', 'Each node’s arbiter: what it asks to tell “the other node is gone” from “I am the one cut off”. Empty: its default gateway. Addresses are pinged; name:port is tried over TCP instead (for a network that drops ping). Up to five, any one answering is enough. Give something both nodes reach by different ways than they reach each other - the router, the load balancer, a DNS resolver.'));
+    var ag = el('div', 'set-grid');
+    (v.nodes || []).forEach(function (n) {
+      var s = n.state || {};
+      /* Its placeholder put in the page's language (the value never is). */
+      var t = textBox(d.arb[n.name] || '', s.gateway ? 'its gateway ' + s.gateway : 'its default gateway', 'mono');
+      t.disabled = !may;
+      /* Typed into without the card drawn again (the cursor stays); drawn when left. */
+      t.oninput = function () { d.arb[n.name] = t.value.trim(); SPLITC.tried = null; splitTouched(true); };
+      /* After the blur that sent it (the field is taken out by the drawing). */
+      t.onchange = function () { setTimeout(drawSplit, 0); };
+      var f = formField('Arbiter of ' + n.name, t);
+      if ((n.arbiter || '') !== (d.arb[n.name] || '')) f.classList.add('changed');
+      ag.appendChild(f);
+    });
+    box.appendChild(ag);
+    var row = el('div', 'btnrow');
+    var tb = cmdButton('Try it from every node', 'pulse', '');
+    tb.id = 'split-try';
+    tb.disabled = !may;
+    tb.onclick = function () { splitTry(tb); };
+    row.appendChild(tb);
+    if (splitArbTried()) row.appendChild(el('span', 'tag ok', 'every node reaches its arbiter'));
+    else if (SPLITC.tried && SPLITC.tried.done) row.appendChild(el('span', 'tag crit', 'not every node reaches its arbiter'));
+    else if ((v.conf || {}).split_mode !== 'arbiter') row.appendChild(el('span', 'small muted', 'needed before saving'));
+    box.appendChild(row);
+    if (SPLITC.tried) {
+      var res = el('div', 'split-tried');
+      (SPLITC.tried.nodes || []).forEach(function (n) {
+        var got = SPLITC.tried.got[n];
+        var r = el('div', 'split-line ' + (!got ? 'muted' : got.verdict === true ? 'good' : 'bad'));
+        r.innerHTML = iconMarkup(!got ? 'clock' : got.verdict === true ? 'check' : 'close', 14);
+        r.appendChild(noI18n(el('b', '', n + ': ')));
+        if (!got) r.appendChild(el('span', '', 'asking…'));
+        else (got.targets || []).forEach(function (x) {
+          r.appendChild(noI18n(el('span', 'mono small', x.target + ' ')));
+          r.appendChild(el('span', 'small', x.ok === true ? 'replies' : x.ok === false ? 'no answer' : 'cannot be asked'));
+          if (x.words) r.appendChild(el('span', 'small muted', ' (' + x.words + ') '));
+        });
+        if (got && !(got.targets || []).length) r.appendChild(el('span', 'small', got.error || 'no arbiter: no default gateway - give one'));
+        res.appendChild(r);
+      });
+      box.appendChild(res);
+    }
+    host.appendChild(box);
+  }
+  /* ---- while apart ---- */
+  host.appendChild(el('h4', 'split-h', 'And while they are apart'));
+  var opts = el('div', 'split-opts');
+  SPLITC_OPTS.forEach(function (o) {
+    var item = el('div', 'split-opt' + (d[o.k] ? ' on' : ''));
+    var sw = switchBox(d[o.k]);
+    sw._input.disabled = !may;
+    sw._input.onchange = function () { d[o.k] = !!sw._get(); splitTouched(); };
+    var ic = el('span', 'split-ic'); ic.innerHTML = iconMarkup(o.icon, 18);
+    var txt = el('div', 'split-opt-txt');
+    txt.appendChild(el('div', 'split-opt-k', o.t));
+    txt.appendChild(el('div', 'split-opt-s', o.s));
+    item.appendChild(ic); item.appendChild(txt); item.appendChild(sw);
+    if (!!Number((v.conf || {})[o.k] === undefined ? (o.k === 'split_report' ? 1 : 0) : (v.conf || {})[o.k]) !== d[o.k]) item.classList.add('changed');
+    opts.appendChild(item);
+  });
+  host.appendChild(opts);
+  /* ---- what happens ---- */
+  var sc = splitScenarios();
+  host.appendChild(el('h4', 'split-h', 'What happens - with the choices above'));
+  host.appendChild(listTable(['When', sc.A, sc.B, 'Renewals and DNS', 'What it costs'], sc.rows, function (r) {
+    var tr = el('tr');
+    tr.appendChild(el('td', 'split-when', r.t));
+    [sc.A, sc.B].forEach(function (n) {
+      var c = r.cells[n] || {k: 'dim', w: '-'};
+      var td = el('td');
+      td.appendChild(el('span', 'tag ' + c.k, c.w));
+      tr.appendChild(td);
+    });
+    /* Each piece a sentence of its own, so that each is put in the page's language. */
+    [r.out, r.risk].forEach(function (x) {
+      var td = el('td');
+      var box = el('span', 'split-out ' + x.k);
+      [].concat(x.w).forEach(function (w, i) {
+        if (i) box.appendChild(el('span', 'split-sep', '; '));
+        box.appendChild(el('span', '', w));
+      });
+      td.appendChild(box);
+      tr.appendChild(td);
+    });
+    return tr;
+  }, 'plain split-scen'));
+  /* ---- the last report ---- */
+  var rep = v.report;
+  if (rep && rep.at) {
+    var p = el('div', 'split-report ' + (rep.twice_n ? 'bad' : 'good'));
+    p.innerHTML = iconMarkup(rep.twice_n ? 'flag' : 'check', 16);
+    var words = el('span');
+    words.appendChild(el('b', '', 'The last time apart'));
+    words.appendChild(noI18n(el('span', '', ' (' + stamp(rep.since) + ' - ' + stamp(rep.at) + ') ')));
+    var taken = Object.keys(rep.taken || {}).map(function (n) { return n + ': ' + num(rep.taken[n]); }).join(', ');
+    words.appendChild(el('span', '', 'done without the other node knowing:'));
+    words.appendChild(noI18n(el('span', '', ' ' + (taken || '0') + ' · ')));
+    words.appendChild(el('span', '', 'done on both:'));
+    words.appendChild(noI18n(el('span', '', ' ' + num(rep.twice_n || 0))));
+    if ((rep.twice || []).length) words.appendChild(noI18n(el('span', 'mono small', ' - ' + rep.twice.map(function (x) { return x.name + ' (' + x.kind + ')'; }).join(', '))));
+    p.appendChild(words);
+    host.appendChild(p);
+  }
+  dressButtons(host);
 }
 
 /* The load balancer guides (1.0.52): one per kind, folded, filled in with

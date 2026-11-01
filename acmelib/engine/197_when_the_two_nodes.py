@@ -465,7 +465,7 @@ def split_issue_refused():
     (a renewal by hand, a request on the portal, Sign a CSR) - '' when it may."""
     if not split_no_lead():
         return ''
-    other = split_preferred_name() or 'the preferred node'
+    other = split_preferred_name(HA_STORE.get('store')) or 'the preferred node'
     if SPLIT['role'] == 'aside':
         return ('this node has stepped aside while the two nodes cannot reach each other (%s): '
                 'certificates are issued and signed by the other node' % (SPLIT['why'] or 'apart'))
@@ -497,7 +497,7 @@ def split_refuses(method, path, action=''):
         return ''
     if split_free_path(path, action):
         return ''
-    other = split_preferred_name() or 'the preferred node'
+    other = split_preferred_name(HA_STORE.get('store')) or 'the preferred node'
     return ('the two nodes cannot reach each other: changes are made on %s only until they '
             'do (Settings -> High availability -> When the nodes lose each other)' % other)
 

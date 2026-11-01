@@ -233,6 +233,92 @@ def cli_show(obj, pal, indent=2, depth=0, most=60):
         print('%s%s' % (pad, obj))
 
 
+def cli_split(args, pal, store, api, out):
+    """--split and its choices (1.0.14): the card's own save, try and view."""
+    view = api('GET', '/api/split')
+    arb = {}
+    for one in args.split_arbiter or []:
+        if '=' not in one:
+            raise SystemExit('acme: --split-arbiter NODE=TARGETS')
+        k, v = one.split('=', 1)
+        arb[k.strip()] = v.strip()
+    conf = {}
+    if args.split_mode:
+        conf['split_mode'] = args.split_mode
+    if args.split_prefer is not None:
+        conf['split_prefer'] = '' if args.split_prefer in ('', 'first') else args.split_prefer
+    if args.split_after is not None:
+        conf['split_after_s'] = args.split_after
+    for k in ('renew', 'halve', 'freeze', 'report'):
+        v = getattr(args, 'split_' + k)
+        if v:
+            conf['split_' + k] = 1 if v == 'on' else 0
+    checked = False
+    if args.split_try or (conf.get('split_mode') == 'arbiter' and
+                          view['conf'].get('split_mode') != 'arbiter'):
+        targets = {n['name']: arb.get(n['name'], n.get('arbiter') or '') for n in view['nodes']}
+        asked = api('POST', '/api/split', {'action': 'try', 'targets': targets})
+        print(pal.dim('  each node asks its own arbiter: %s' % ', '.join(asked['nodes'])))
+        got = cli_ask_wait(store, 'split_arbiter', asked, 25)
+        for n, g in got.items():
+            if not g:
+                print(pal.bad_line('%s: no answer - is acme running there?' % n))
+                continue
+            line = ', '.join('%s %s' % (x['target'], {True: 'replies', False: 'no answer'}.get(
+                x['ok'], 'cannot be asked') + (' (%s)' % x['words'] if x.get('words') else ''))
+                for x in g.get('targets') or []) or g.get('error') or \
+                'no arbiter: no default gateway - give one'
+            print((pal.ok_line if g.get('verdict') is True else pal.bad_line)('%s: %s' % (n, line)))
+        checked = bool(got) and all(g and g.get('verdict') is True for g in got.values())
+        if conf.get('split_mode') == 'arbiter' and not checked:
+            raise SystemExit('acme: not every node reaches its arbiter - nothing was saved: a '
+                             'node that cannot reach its arbiter would step aside the moment '
+                             'the other is away')
+    if conf or arb:
+        got = api('POST', '/api/split', {'action': 'save', 'conf': conf, 'arbiter': arb,
+                                         'checked': checked})
+        print(pal.ok_line(got['message']))
+        view = got['view']
+    elif args.split_try:
+        return 0
+    if args.json:
+        out(view)
+        return 0
+    c = view['conf']
+    if not view['active']:
+        print(pal.dim('one database (or one node) - nothing to choose: the database decides'))
+        return 0
+    print(pal.head('when the nodes lose each other') + pal.dim(
+        '  (%s; preferred: %s)' % ('as until now - not watched' if not view['engaged'] else
+                                   'mode %s' % c.get('split_mode'), view['preferred'] or '?')))
+    print('  %-16s %s s' % ('apart after', c.get('split_after_s')))
+    for k in ('split_renew', 'split_halve', 'split_freeze', 'split_report'):
+        print('  %-16s %s' % (k[6:], 'on' if int(c.get(k) or 0) else 'off'))
+    for n in view['nodes']:
+        st = n.get('state') or {}
+        if not view['engaged']:
+            words = 'not watched'
+        elif not n['fresh']:
+            words = 'not heard from'
+        else:
+            words = '%s, %s%s' % ('stepped aside' if st.get('role') == 'aside' else 'answers',
+                                  'apart since %s' % stamp(st['since']) if st.get('apart')
+                                  else 'reaches the other node',
+                                  ' - ' + st['why'] if st.get('why') and st.get('apart') else '')
+        mark = pal.bad_line if st.get('role') == 'aside' or st.get('apart') else pal.ok_line
+        print(mark('%-16s %s  (arbiter: %s)' % (n['name'], words, n.get('arbiter') or
+                                                 'its gateway %s' % (st.get('gateway') or '?'))))
+    rep = view.get('report') or {}
+    if rep.get('at'):
+        print(pal.head('the last time apart') + pal.dim('  %s - %s' % (stamp(rep['since']),
+                                                                      stamp(rep['at']))))
+        print('  done without the other node knowing: %s' % (', '.join(
+            '%s: %d' % kv for kv in sorted((rep.get('taken') or {}).items())) or '0'))
+        for x in rep.get('twice') or []:
+            print(pal.bad_line('done on both: %s (%s)' % (x.get('name'), x.get('kind'))))
+    return 0
+
+
 def cli_ask_said(pal, answers):
     """Each node's answer to an ask, one block each; the exit code."""
     bad = 0
@@ -603,6 +689,27 @@ def build_parser():
     g.add_argument('--ha-standalone', action='store_true', help='leave the cluster and go on '
                    'alone, keeping everything: replication off, the other node forgotten, '
                    'config.json one server\'s again (--yes)')
+    # When the nodes lose each other (1.0.14, docs/split-brain.md): the card of High
+    # availability on the command line.
+    g.add_argument('--split', action='store_true', help='when the two nodes lose each other: '
+                   'what each does now, the choices, the last time apart')
+    g.add_argument('--split-mode', choices=('off', 'arbiter', 'priority'), help='who answers '
+                   'while the nodes are apart: off (both, as before), arbiter (the node that '
+                   'reaches neither the other nor its arbiter steps aside - tried from every '
+                   'node first), priority (the preferred node alone)')
+    g.add_argument('--split-prefer', metavar='NODE|first', help='the preferred node (first: '
+                   'the first node of the cluster)')
+    g.add_argument('--split-after', type=int, metavar='S', help='seconds without the other '
+                   'node\'s database before the nodes count as apart, 5-300 [20]')
+    g.add_argument('--split-arbiter', action='append', metavar='NODE=TARGETS', help='a node\'s '
+                   'arbiter: addresses or name:port, up to five; NODE= alone: its gateway')
+    for _k, _w in (('renew', 'renewals, deployments and signing only on the preferred node'),
+                   ('halve', 'half the tries to the pause'),
+                   ('freeze', 'changes only on the preferred node'),
+                   ('report', 'an alert, and a report afterwards')):
+        g.add_argument('--split-' + _k, choices=('on', 'off'), help='while apart: ' + _w)
+    g.add_argument('--split-try', action='store_true', help='try each node\'s arbiter from '
+                   'that node (as saved, or as given with --split-arbiter)')
     g.add_argument('--ha-db-host', metavar='HOST', help='the database\'s address as the other '
                    'node reaches it (default: this machine\'s)')
     g.add_argument('--node-name', metavar='NAME', help='this node\'s name (--ha-join, '
@@ -3200,6 +3307,10 @@ def cli_main(argv=None):
             cli_show(got, pal)
         return 0
 
+    if args.split or args.split_try or args.split_mode or args.split_prefer is not None or \
+            args.split_after is not None or args.split_arbiter or any(
+                getattr(args, 'split_' + k) for k in ('renew', 'halve', 'freeze', 'report')):
+        return cli_split(args, pal, store, api, out)
     only = args.node or ''
     if args.siem_test:
         return asked('siem', api('POST', '/api/siem', {'action': 'test', 'node': only}))
