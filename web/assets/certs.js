@@ -2293,7 +2293,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
         if (typeof one === 'string') { li.appendChild(data('span', 'mono small', one)); list.appendChild(li); return; }
         li.appendChild(data('div', 'mono small', first(one.subject_dn, one.cn, '?')));
         var sub = el('div', 'muted small');
-        sub.appendChild(document.createTextNode('until ' + dayOnly(one.not_after)));
+        sub.appendChild(document.createTextNode(tr('until {0}').replace('{0}', dayOnly(one.not_after))));
         if (one.self_signed) sub.appendChild(el('span', 'tag dim', 'root'));
         li.appendChild(sub);
         list.appendChild(li);
@@ -3738,7 +3738,7 @@ function caNode(c, depth, kids) {
   if (c.crl_at) {
     var next = c.crl_next || (c.crl_at + (c.crl_days || 7) * 86400);
     var late = next < now();
-    ct = ftag('CRL', late ? 'out of date' : 'until ' + dayOnly(next), 'c');
+    ct = ftag('CRL', late ? tr('out of date') : tr('until {0}').replace('{0}', dayOnly(next)), 'c');
     if (late) ct.classList.add('bad');
   }
   f.appendChild(ct);

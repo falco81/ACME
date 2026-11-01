@@ -30891,6 +30891,10 @@
   "sc2627": {
    "source": "Revoke the ACME key at SSLmarket? Certificates of it stay valid.",
    "text": "Zneplatnit klíč ACME u SSLmarketu? Jeho certifikáty zůstanou platné."
+  },
+  "sx0009": {
+   "source": "until {0}",
+   "text": "do {0}"
   }
  },
  "patterns": {
