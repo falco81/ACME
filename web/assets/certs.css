@@ -488,3 +488,10 @@ select.ct-valsel option.ct-unfit{color:var(--tx-mut)}
 .ct-compat-p{display:flex;flex-direction:column;gap:2px;padding:4px 0}
 .btn.ct-blocked{opacity:.5}
 @media (max-width:560px){.ct-san{grid-template-columns:1fr auto}.ct-san .ct-san-type{grid-column:1 / -1}}
+
+/* acme-dns: the account made from the form */
+.ct-acmedns{margin-top:16px}
+.ct-acmedns .btn{margin-top:4px}
+.ct-acmedns-out{margin-top:12px}
+.ct-acmedns-out code{display:inline-block;margin:4px 0}
+.ct-acmedns-rec{display:flex;align-items:center;gap:10px}

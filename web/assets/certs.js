@@ -795,6 +795,18 @@ function fieldForm(fields, values, secrets, opts) {
   if (items.some(function (it) { return it.f.advanced && it.f.required; })) more.open = true;
   return {
     node: node,
+    /* A field given a value from outside (a helper of the form): as if typed. */
+    set: function (key, v) {
+      var it = items.filter(function (x) { return x.f.key === key; })[0];
+      if (!it) return false;
+      put(it, v);
+      var box = it.input._input || it.input;
+      box.dispatchEvent(new Event('input', {bubbles: true}));
+      box.dispatchEvent(new Event('change', {bubbles: true}));
+      if (it.f.advanced && more.parentNode) more.open = true;
+      it.item.classList.add('ct-filled');
+      return true;
+    },
     read: function () {
       var cur = current(), o = {};
       items.forEach(function (it) {
@@ -1617,6 +1629,51 @@ function setupHere(row) {
 
 /** dns-persist-01 (challenges/dns_persist.py): the record each ACME source needs, set
     once - whether it is there now, and whether each CA offers dns-persist-01 yet. */
+/* acme-dns: an account made at its server and put into the form (Save keeps it).
+   No names: one account (username, password, subdomain, full domain); names: one
+   account each, in "Accounts by name" - an account holds two TXT values only. */
+function acmeDnsHere(form) {
+  var box = el('div', 'ct-setup ct-acmedns');
+  box.appendChild(el('h4', 'ct-formh', 'An account at the acme-dns server'));
+  box.appendChild(el('p', 'note', 'Makes the account at the server above (POST /register) and fills it in here - nothing is saved until Save. With names, one account each (an acme-dns account keeps two TXT values only: a certificate of more names needs one a name); the CNAME of each is listed to copy.'));
+  var names = el('textarea', 'mono');
+  names.rows = 3;
+  names.spellcheck = false;
+  names.placeholder = 'www.example.com\nmail.example.com';
+  noI18n(names);
+  box.appendChild(formField('Names (empty: one account)', names));
+  var out = el('div', 'ct-acmedns-out');
+  var go = cmdButton('Register an account', 'add', '');
+  go.onclick = function () {
+    var cur = form.read();
+    var url = String(cur.url || '').trim();
+    if (!url) { toast('Set the acme-dns server first', 'bad'); return; }
+    var list = String(names.value || '').split(/[\s,;]+/).filter(Boolean);
+    busy(go, true);
+    clear(out);
+    capi('validations/acme_dns_register', {url: url, names: list, verify_tls: cur.verify_tls !== false}, 120).then(function (d) {
+      if (d.account) {
+        ['username', 'password', 'subdomain', 'fulldomain'].forEach(function (k) { form.set(k, d.account[k]); });
+        out.appendChild(el('p', 'good', 'Filled in - save the validation to keep it. Put into your DNS, once per name:'));
+        out.appendChild(data('code', 'mono', '_acme-challenge.NAME.  CNAME  ' + d.account.fulldomain + '.'));
+      } else {
+        form.set('accounts', JSON.stringify(d.accounts, null, 1));
+        out.appendChild(el('p', 'good', 'Filled in "Accounts by name" - save the validation to keep them. Put into your DNS:'));
+        arr(d.records).forEach(function (r) {
+          var line = el('div', 'ct-acmedns-rec');
+          line.appendChild(data('code', 'mono', r.name + '.  CNAME  ' + r.value));
+          var c = iconButton('copy', 'Copy');
+          c.onclick = function () { copyText(r.name + '. CNAME ' + r.value); };
+          line.appendChild(c);
+          out.appendChild(line);
+        });
+      }
+    }).catch(fail).then(function () { busy(go, false); });
+  };
+  box.appendChild(go);
+  box.appendChild(out);
+  return box;
+}
 function persistHere(row, p) {
   var box = el('div', 'ct-http ct-rd-setup ct-persist');
   box.appendChild(el('h4', 'ct-formh', 'The record to set once'));
@@ -1828,6 +1885,7 @@ function modForm(key, row, p, fromPick) {
     body.appendChild(testSaid);
     if (HTTP_HERE[p.kind]) body.appendChild(httpHere(row));
     if (row && row.id && MANAGE && p.kind === 'dns_persist') body.appendChild(persistHere(row, p));
+    if (FULL && p.kind === 'acme_dns') body.appendChild(acmeDnsHere(form));
     if (row && row.id && MANAGE && m.family === 'challenge') body.appendChild(setupHere(row));
     if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { if (!x.closest('.ct-http')) x.disabled = true; });
   }, buttons, 'medium');

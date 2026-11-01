@@ -32651,6 +32651,34 @@
   "su8161": {
    "source": "The name points at the public address that reaches the web servers",
    "text": "Jméno míří na veřejnou adresu, přes kterou se jde na webové servery"
+  },
+  "st8162": {
+   "source": "An account at the acme-dns server",
+   "text": "Účet na serveru acme-dns"
+  },
+  "st8163": {
+   "source": "Makes the account at the server above (POST /register) and fills it in here - nothing is saved until Save. With names, one account each (an acme-dns account keeps two TXT values only: a certificate of more names needs one a name); the CNAME of each is listed to copy.",
+   "text": "Založí účet na serveru výše (POST /register) a vyplní ho sem – nic se neuloží, dokud nedáte Uložit. Se jmény založí účet pro každé (účet acme-dns drží jen dvě hodnoty TXT: certifikát s více jmény potřebuje účet na jméno); CNAME každého se vypíše ke zkopírování."
+  },
+  "st8164": {
+   "source": "Names (empty: one account)",
+   "text": "Jména (prázdné: jeden účet)"
+  },
+  "st8165": {
+   "source": "Register an account",
+   "text": "Založit účet"
+  },
+  "st8166": {
+   "source": "Set the acme-dns server first",
+   "text": "Nejdřív vyplňte server acme-dns"
+  },
+  "st8167": {
+   "source": "Filled in - save the validation to keep it. Put into your DNS, once per name:",
+   "text": "Vyplněno – uložte validaci, ať se účet zachová. Do svého DNS vložte, jednou pro každé jméno:"
+  },
+  "st8168": {
+   "source": "Filled in \"Accounts by name\" - save the validation to keep them. Put into your DNS:",
+   "text": "Vyplněno „Účty podle jmen“ – uložte validaci, ať se zachovají. Do svého DNS vložte:"
   }
  },
  "patterns": {
@@ -42053,6 +42081,10 @@
   "pu2350": {
    "source": "Port {0} of {1} does not answer from acme - most likely its firewall (\"Open port 80 in their firewall\", or firewall-cmd --permanent --add-service=http)",
    "text": "Port {0} na {1} z acme neodpovídá – nejspíš jeho firewall („Otevřít port 80 v jejich firewallu“, nebo firewall-cmd --permanent --add-service=http)"
+  },
+  "pt2351": {
+   "source": "acme-dns answered without an account: {0}",
+   "text": "acme-dns odpověděl bez účtu: {0}"
   }
  },
  "rich": {

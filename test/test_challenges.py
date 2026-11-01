@@ -1535,6 +1535,33 @@ class TestHttpSsh(unittest.TestCase):
         self.assertIn('include /etc/nginx/snippets/acme-challenge.conf;', got['file']['text'])
 
 
+class TestAcmeDnsRegister(unittest.TestCase):
+    def test_register(self):
+        from acmelib.plugins.challenges import acme_dns
+        asked = []
+
+        def http(method, url, body, headers):
+            asked.append((method, url, json.loads(body) if body else None))
+            return 201, {}, json.dumps({'username': 'u1', 'password': 'p1', 'subdomain': 's1',
+                                        'fulldomain': 's1.auth.example.net',
+                                        'allowfrom': []}).encode()
+        got = acme_dns.register(FakeCtx(http=http), 'https://auth.example.net/',
+                                allow_from=['192.0.2.0/24'])
+        self.assertEqual(got, {'username': 'u1', 'password': 'p1', 'subdomain': 's1',
+                               'fulldomain': 's1.auth.example.net',
+                               'server_url': 'https://auth.example.net'})
+        self.assertEqual(asked, [('POST', 'https://auth.example.net/register',
+                                  {'allowfrom': ['192.0.2.0/24']})])
+        with self.assertRaises(PluginError):
+            acme_dns.register(FakeCtx(http=lambda *a: (201, {}, b'{}')), 'https://x.example')
+        with self.assertRaises(PluginError):
+            acme_dns.register(FakeCtx(http=http), 'ftp://x.example')
+        # an account made per name is found by that name
+        m = plugin('acme_dns')({'url': 'https://auth.example.net', 'accounts': json.dumps(
+            {'www.example.com': got})}, FakeCtx())
+        self.assertEqual(m.account('www.example.com')['fulldomain'], 's1.auth.example.net')
+
+
 class TestOtherModules(unittest.TestCase):
     def test_http_local(self):
         ctx = FakeCtx(http=lambda m, u, b, h: (200, {}, ctx.tokens.get(u.rsplit('/', 1)[1], '')

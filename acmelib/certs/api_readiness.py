@@ -163,3 +163,41 @@ def _persist(h, s):
         h.store.add_event('certificates', '%s: the ACME accounts its record names made where '
                           'there were none, by %s' % (row['name'], A.who(s)), who=A.who(s))
     return {'validation': {'id': row['id'], 'name': row['name']}, 'persist': got}
+
+
+@A.api('POST', '/api/validations/acme_dns_register', 'fulladmin')
+def _acme_dns_register(h, s):
+    """Accounts made at an acme-dns server for the form of an acme-dns validation:
+    {url, names[], verify_tls, allow_from[]} -> {account} (no names) or
+    {accounts: {name: account}} - nothing saved; the form keeps them on Save."""
+    from acmelib.certs import runtime
+    from acmelib.plugins.challenges import acme_dns, _dns as D
+    b = h.body()
+    names = []
+    for n in (b.get('names') or []):
+        n = D.norm(str(n).strip().lstrip('*.'))
+        if n and n not in names:
+            names.append(n)
+    if len(names) > 50:
+        raise ValueError('50 names at most at once')
+    ctx = runtime.RunContext(h.store, None, scope='challenge:acme-dns-register')
+    verify = b.get('verify_tls') not in (False, 0, '0', 'false', 'off')
+    allow = [str(x).strip() for x in (b.get('allow_from') or []) if str(x).strip()]
+    try:
+        if not names:
+            got = acme_dns.register(ctx, b.get('url'), verify, allow)
+            h.store.add_event('certificates', 'an acme-dns account made at %s (%s) by %s' % (
+                got['server_url'], got['fulldomain'], A.who(s)), who=A.who(s))
+            return {'account': got}
+        accounts = {}
+        for n in names:
+            accounts[n] = acme_dns.register(ctx, b.get('url'), verify, allow)
+        h.store.add_event('certificates', '%d acme-dns accounts made at %s by %s (%s)' % (
+            len(accounts), str(b.get('url') or '').rstrip('/'), A.who(s), ', '.join(names)),
+            who=A.who(s))
+        return {'accounts': accounts,
+                'records': [{'name': '_acme-challenge.' + n, 'type': 'CNAME',
+                             'value': a['fulldomain'] + '.'} for n, a in accounts.items()]}
+    finally:
+        ctx.tidy()
+

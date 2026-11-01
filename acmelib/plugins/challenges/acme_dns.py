@@ -127,3 +127,22 @@ class AcmeDns(DnsChallenge):
         steps.append(self.guide_wait())
         return guide_of(steps)
 
+
+def register(ctx, url, verify=True, allow_from=None):
+    """A new account at an acme-dns server (POST /register): {username, password,
+    subdomain, fulldomain, server_url}. allow_from: CIDR ranges the account may be
+    updated from (acme-dns allowfrom)."""
+    url = str(url or '').strip().rstrip('/')
+    if not url.lower().startswith(('https://', 'http://')):
+        raise PluginError('the acme-dns server is an http(s) address', retry=False)
+    body = {'allowfrom': list(allow_from)} if allow_from else None
+    _st, got = api(ctx, 'POST', url + '/register', body, who='acme-dns', ok=(200, 201),
+                   verify=verify)
+    got = got or {}
+    need = ('username', 'password', 'subdomain', 'fulldomain')
+    if not all(got.get(k) for k in need):
+        raise PluginError('acme-dns answered without an account: %s' % (json.dumps(got)[:200]))
+    out = {k: str(got[k]) for k in need}
+    out['server_url'] = url
+    return out
+
