@@ -47,6 +47,8 @@ CERT_DEFAULTS = {
     'dns_soa_mail': '',
     'dns_ttl': 60,
     'dns_static': '',
+    'dns_rate': 100,
+    'dns_cache': 1,
 }
 for _k, _v in CERT_DEFAULTS.items():
     DEFAULTS.setdefault(_k, _v)
@@ -77,6 +79,8 @@ NAMES.update({
     'dns_soa_mail': 'Mail of the zone’s keeper (SOA)',
     'dns_ttl': 'TTL of its answers (s)',
     'dns_static': 'Records of your own',
+    'dns_rate': 'Answers per second to one network',
+    'dns_cache': 'How long records are cached (s)',
 })
 SAYS.update({
     'certs_renew_days': 'A certificate renewed by itself is renewed this many days before it '
@@ -113,6 +117,8 @@ SAYS.update({
     'dns_soa_mail': 'The address in the SOA record (hostmaster@example.com).',
     'dns_ttl': 'How long resolvers may keep an answer.',
     'dns_static': 'One record a line: name type value (www A 192.0.2.10).',
+    'dns_rate': 'Past this many answers a second to one /24 (IPv6: /56), every other answer goes back truncated, so a real resolver asks again over TCP and a flood gets nothing.',
+    'dns_cache': 'Records are read from the database at most this often; both nodes of a cluster answer the same within it.',
 })
 SAYS_SHORT.update({
     'dns_static': 'One record a line: name type value.',
@@ -123,13 +129,14 @@ TUNABLE.update({
     'certs_keep_versions': (1, 1000), 'certs_keep_jobs_days': (1, 3650),
     'portal_cert': (0, 1), 'portal_cert_max': (1, 1000),
     'dns_server': (0, 1), 'dns_port': (1, 65535), 'dns_ttl': (0, 86400),
+    'dns_rate': (1, 100000), 'dns_cache': (0, 60),
 })
 PANES['certs'] = ['certs_renew_days', 'certs_check_min', 'certs_parallel', 'certs_retry_max_h',
                   'certs_notify_days', 'certs_notify_mail', 'certs_notify_sms',
                   'certs_keep_versions', 'certs_keep_jobs_days', 'portal_cert',
                   'portal_cert_suffixes', 'portal_cert_issuers', 'portal_cert_max']
 PANES['dnssrv'] = ['dns_server', 'dns_listen', 'dns_port', 'dns_zone', 'dns_ns_names',
-                   'dns_ns_addresses', 'dns_soa_mail', 'dns_ttl', 'dns_static']
+                   'dns_ns_addresses', 'dns_soa_mail', 'dns_ttl', 'dns_static', 'dns_rate', 'dns_cache']
 ONLY_WHEN.update({k: ['dns_server', '1'] for k in PANES['dnssrv'] if k != 'dns_server'})
 ONLY_WHEN.update({k: ['portal_cert', '1'] for k in ('portal_cert_suffixes',
                                                     'portal_cert_issuers', 'portal_cert_max')})

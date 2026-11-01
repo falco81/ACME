@@ -48,7 +48,16 @@ function acme_certs_tab_panels(): void
 <!-- ===================== Certificates ===================== -->
 <section class="panel" id="tab-certs" hidden>
   <div class="card full ct-held" data-hold>
-    <h2>Certificates <span class="right" id="ct-said"></span></h2>
+    <h2>Certificates <span class="right btnrow ct-acts">
+      <button class="btn cmd small ct-manage" id="ct-import" data-icon="upload"
+              title="Bring in a certificate you already have - PEM, CRT, CER, DER, P7B, PFX/P12, JKS or a key - by dropping the file here.">Import</button>
+      <button class="btn cmd small ct-manage" id="ct-self" data-icon="lock"
+              title="A self-signed certificate in one step: its names, its key and how long it lasts.">Self-signed</button>
+      <button class="btn cmd small ct-manage" id="ct-csr" data-icon="key"
+              title="A key made here and a CSR for an authority acme does not speak to; the certificate it sends back is uploaded later.">CSR for an outside CA</button>
+      <button class="btn cmd small primary ct-manage" id="ct-add" data-icon="add"
+              title="A new certificate: where it comes from, its names, its key, how its names are proved, when it renews and where it goes.">Add a certificate</button>
+    </span></h2>
     <p class="note">Every certificate acme keeps, renewed by itself before it runs out and put
       where it is deployed. Click a row for everything about one: its names and chain, every
       version it has had, where it is deployed, its jobs - and renew, deploy, export or revoke it.</p>
@@ -69,15 +78,7 @@ function acme_certs_tab_panels(): void
       </select>
       <select id="ct-issuer" title="Only the certificates from this source."><option value="">every source</option></select>
       <select id="ct-per" title="How many rows a page."><option>25</option><option selected>50</option><option>100</option><option>500</option></select>
-      <span class="spacer"></span>
-      <button class="btn cmd ct-manage" id="ct-import" data-icon="upload"
-              title="Bring in a certificate you already have - PEM, CRT, CER, DER, P7B, PFX/P12, JKS or a key - by dropping the file here.">Import</button>
-      <button class="btn cmd ct-manage" id="ct-self" data-icon="lock"
-              title="A self-signed certificate in one step: its names, its key and how long it lasts.">Self-signed</button>
-      <button class="btn cmd ct-manage" id="ct-csr" data-icon="key"
-              title="A key made here and a CSR for an authority acme does not speak to; the certificate it sends back is uploaded later.">CSR for an outside CA</button>
-      <button class="btn cmd primary ct-manage" id="ct-add" data-icon="add"
-              title="A new certificate: where it comes from, its names, its key, how its names are proved, when it renews and where it goes.">Add a certificate</button>
+      <span class="muted small ct-said" id="ct-said"></span>
     </div>
     <div id="ct-table" class="scroll rowsonly"></div>
     <div class="pager" id="ct-pager"></div>

@@ -43,7 +43,7 @@ LEASE_S = 90
 LEASE_EVERY = 30
 ARI_EVERY = 6 * 3600
 DNS_KEYS = ('dns_server', 'dns_listen', 'dns_port', 'dns_zone', 'dns_ns_names',
-            'dns_ns_addresses', 'dns_soa_mail', 'dns_ttl', 'dns_static')
+            'dns_ns_addresses', 'dns_soa_mail', 'dns_ttl', 'dns_static', 'dns_rate', 'dns_cache')
 RENEWER = [None]
 
 

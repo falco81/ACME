@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """DNS-01 by RFC 2136 dynamic update, signed with TSIG (RFC 8945) - BIND, Knot,
-PowerDNS, Windows DNS (with a TSIG key or "nonsecure and secure" updates),
-NSD-less setups. The UPDATE is written and signed here, no nsupdate needed."""
+PowerDNS; Windows DNS with "nonsecure and secure" updates and no key (it signs
+only with GSS-TSIG). The UPDATE is written and signed here, no nsupdate needed."""
 from __future__ import annotations
 
 from acmelib.plugins.base import PluginError, field
@@ -27,7 +27,7 @@ WHY = {
 
 class Rfc2136(DnsChallenge):
     kind = 'rfc2136'
-    title = 'RFC 2136 (BIND, Knot, PowerDNS, Windows DNS)'
+    title = 'RFC 2136 dynamic update (BIND, Knot, PowerDNS, Windows DNS)'
     vendor = 'DNS'
     description = ('Dynamic DNS UPDATE, signed with a TSIG key, sent to the zone\'s primary '
                    'name server.')

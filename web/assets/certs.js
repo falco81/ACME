@@ -1403,7 +1403,7 @@ function loadCerts(live) {
     $('ct-said').textContent = num(CL.total) + ' certificate(s)';
     liveFill(host, function (box) {
       if (!CL.total && !f.search && !f.state && !f.issuer) { box.appendChild(certsBlank()); return; }
-      box.appendChild(listTable(['State', 'Name', 'Names', 'Source', 'Expires', {words: 'Renews', cls: 'center'},
+      box.appendChild(listTable(['State', 'Name', 'Names', 'Source', 'Expires', 'Renews',
                                  'Deployed', 'Last job', ''], rows, certRow, 'rows ct-certs|Nothing matches', {own: true}));
     }, live);
     pager('ct-pager', CL.page, f.per, CL.total, function (p) { CL.page = p; loadCerts(); });
@@ -1453,7 +1453,7 @@ function certRow(c) {
     ec.appendChild(daysTag(c.not_after, c.renew_days));
   } else ec.appendChild(el('span', 'muted', '–'));
   tr.appendChild(ec);
-  var ac = el('td', 'center');
+  var ac = el('td');
   var auto = c.auto_renew === undefined || truthy(c.auto_renew);
   var at = el('span', 'tag ' + (auto ? 'ok' : 'dim'), auto ? 'auto' : 'by hand');
   if (auto && c.renew_days) explain(at, 'Renewed ' + c.renew_days + ' days before it runs out (or when the CA suggests).');
@@ -1486,10 +1486,9 @@ function deployCell(c) {
   var n = Number(first(c.deploys, c.deploy_count, c.deploys_total, 0)) || 0;
   if (Array.isArray(c.deploys)) n = c.deploys.length;
   var bad = Number(first(c.deploys_failed, c.deploys_bad, 0)) || 0;
-  var ok = first(c.deploys_ok, null);
   if (!n) { cell.appendChild(el('span', 'muted', '–')); return cell; }
-  var t = el('span', 'ct-depn ' + (bad ? 'crit' : (ok !== null && Number(ok) < n ? 'warn' : 'ok')));
-  t.textContent = ok !== null ? num(Number(ok)) + ' / ' + num(n) : num(n);
+  var t = el('span', 'ct-depn ' + (bad ? 'crit' : 'ok'), num(n));
+  explain(t, n === 1 ? 'Deployed on 1 target.' : 'Deployed on ' + n + ' targets.');
   cell.appendChild(t);
   if (bad) cell.appendChild(el('span', 'tag crit', num(bad) + ' failed'));
   return cell;

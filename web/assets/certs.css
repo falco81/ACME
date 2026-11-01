@@ -61,6 +61,8 @@ p.ct-bad{margin:8px 0;font-size:13px}
 
 /* ---- the certificate list ------------------------------------------------- */
 .ct-filters .spacer{flex:1}
+.card h2 .ct-acts{font-size:inherit;gap:8px}
+.ct-said{margin-left:auto;white-space:nowrap}
 table.ct-certs td{vertical-align:middle}
 table.ct-certs td.ct-cname b{font-weight:650}
 table.rows tbody tr.ct-hot td:first-child,table.plain tbody tr.ct-hot td:first-child{box-shadow:inset 3px 0 0 var(--crit)}
@@ -299,7 +301,8 @@ table.ct-jobs td{vertical-align:middle}
 
 /* ---- the overview ----------------------------------------------------------- */
 #ov-certs:not(:empty){margin-bottom:14px}
-#ov-certs .card + .card,#ov-certs .grid + .card,#ov-certs .card + .grid,#ov-certs .grid + .grid{margin-top:14px}
+#ov-certs > * + *{margin-top:14px}
+#ov-certs .grid > .card{margin-top:0}
 .ct-ovtiles .metric .value{font-variant-numeric:tabular-nums}
 .ct-lg{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .ct-lg.crit{background:var(--crit)} .ct-lg.warn{background:var(--warn)}

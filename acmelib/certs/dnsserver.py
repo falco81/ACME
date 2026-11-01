@@ -515,10 +515,8 @@ class DnsServer(object):
     def _housekeeping(self):
         while not self.stopping.wait(1.0):
             try:
-                cfg = self.cfg()
-                if self._listen_conf(cfg) != self._bound_cfg:
-                    threading.Thread(target=self.reload, daemon=True).start()
-                    continue
+                # (a change of where it listens is the caller's to act on:
+                # reload(), or the renewer's dns_watch making a new server)
                 now = self.clock()
                 if now - self._last_tidy > 300:
                     self._last_tidy = now
@@ -533,16 +531,16 @@ class DnsServer(object):
                 self._error('housekeeping: %s' % e)
 
     def _may_tidy(self):
-        """Only the node that leads tidies, where the engine says which one it is."""
-        E = _engine()
-        for fn in ('cert_leader', 'is_leader', 'leads'):
-            f = getattr(E, fn, None) if E is not None else None
-            if callable(f):
-                try:
-                    return bool(f(self.store))
-                except Exception:                       # noqa: BLE001
-                    return False
-        return True
+        """Only the node that leads deletes (acmelib.certs.renewer.leader), so
+        two nodes of a replicated database do not delete the same rows."""
+        if _engine() is None:
+            return True
+        try:
+            from acmelib.certs import renewer
+            cur = renewer.leader(self.store)
+        except Exception:                               # noqa: BLE001
+            return False
+        return bool(cur and cur.get('me'))
 
     # ---- the rate limit -----------------------------------------------------------
     def _allowed(self, addr):
