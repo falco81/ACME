@@ -7625,6 +7625,10 @@ function drawWeb(d) {
 var PUSH = {};
 function loadPush() {
   if (!$('web-push')) return;
+  /* As ai: the card is for full administrators only - nobody else sees it. */
+  var card = $('web-push-card');
+  if (card) card.hidden = !ADMIN;
+  if (!ADMIN) return;
   api('acme-push').then(drawPush).catch(function () { /* the card stays as it was */ });
 }
 function pushDo(body, then) {

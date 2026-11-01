@@ -32482,7 +32482,7 @@
   },
   "sp0037": {
    "source": "Take this key",
-   "text": "Přijmout tento klíč"
+   "text": "Vzít tento klíč"
   },
   "sp0038": {
    "source": "Paste acme’s key first",
@@ -32498,7 +32498,7 @@
   },
   "sp0041": {
    "source": "Take certificates of other names",
-   "text": "Brát certifikáty s jinými jmény"
+   "text": "Brát certifikáty i na jiná jména"
   },
   "sp0042": {
    "source": "Off: a certificate is taken only when it holds the name of the pages it goes to - a browser would refuse it there otherwise. On: acme may say not to check (its target’s option).",
@@ -32759,6 +32759,10 @@
   "sp0096": {
    "source": "acme’s own Certificates from acme card shows This acme’s own key: acme-push-ed25519 AAAA… acme then pins this server when it first sees it - keep Check the application’s certificate on there.",
    "text": "Karta Certifikáty z acme v samotném acme ukazuje Vlastní klíč tohoto acme: acme-push-ed25519 AAAA… acme si pak tento server zapamatuje, až ho poprvé uvidí – nechte tam zapnuté Kontrolovat certifikát aplikace."
+  },
+  "sp0097": {
+   "source": "paired with a code",
+   "text": "spárováno kódem"
   }
  },
  "patterns": {

@@ -124,7 +124,8 @@ class CertsCore(unittest.TestCase):
             'import sys; sys.path.insert(0, %r); import acme; acme.load_config(); '
             'st = acme.Storage(acme.open_db()); '
             'st.add_account("tester", "fulladmin", %r); '
-            'st.add_account("viewer", "readonly", %r)') % (ROOT, cls.pw, cls.pw)],
+            'st.add_account("viewer", "readonly", %r); '
+            'st.add_account("certer", "certadmin", %r)') % (ROOT, cls.pw, cls.pw, cls.pw)],
             env=cls.env, capture_output=True, text=True, timeout=120)
         if made.returncode != 0:
             raise RuntimeError('the accounts could not be made: %s' % made.stderr[-2000:])
@@ -149,6 +150,7 @@ class CertsCore(unittest.TestCase):
             cls.token = f.read().strip()
         cls.admin = cls.login('tester')
         cls.ro = cls.login('viewer')
+        cls.cert_admin = cls.login('certer')
 
     @classmethod
     def tearDownClass(cls):
@@ -927,6 +929,64 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         self.assertIn([[6, 3, 6, 0], 1], [[o, v] for o, v in snmp if o == [6, 3, 6, 0]])
         self.cli_ok('--deploy-del', str(did), '--yes')
         self.cli_ok('--target-del', 'pages', '--yes')
+
+    def test_18_deploy_files_preview_password_script(self):
+        """A deployment's files: the preview the page shows, the password acme makes
+        (sealed, shown as a full administrator sees a secret), the script written in
+        it (only a full administrator changes it), the test that changes nothing."""
+        web = self.ok('GET', '/api/certs/one', args={'name': 'web'})['cert']
+        base = os.path.join(self.tmp, 'files-out')
+        self.ok('POST', '/api/targets/save', {'name': 'files1', 'kind': 'local', 'config': {
+            'base': base, 'allow_scripts': True}})
+        said = os.path.join(self.tmp, 'script-said.txt')
+        opts = {'outputs': ['fullchain-pem {name}/fullchain.pem 0644',
+                            'key-pem {name}/privkey.pem 0600', 'pfx {name}/site.pfx'],
+                'pfx_password_mode': 'generate', 'script_mode': 'inline', 'script_interp': 'sh',
+                'script_body': 'echo "$ACME_DRY_RUN $ACME_PASSWORD $ACME_FILE_PFX" > %s\n' % said}
+        got = self.ok('POST', '/api/deploys/preview', {'cert_id': web['id'], 'target': 'files1',
+                                                       'options': opts})
+        self.assertEqual([f['format'] for f in got['files']], ['fullchain-pem', 'key-pem', 'pfx'])
+        self.assertEqual(got['files'][0]['full'], os.path.join(base, 'web/fullchain.pem'))
+        self.assertEqual(got['env']['ACME_PASSWORD'], '\u2022' * 8)
+        self.assertTrue(got['issued'])
+        # not issued yet (or no certificate at all): the names, sizes guessed
+        got = self.ok('POST', '/api/deploys/preview', {'target': 'files1', 'options': opts,
+                                                       'names': ['shop.example.test']})
+        self.assertEqual(got['files'][0]['path'], 'shop.example.test/fullchain.pem')
+        self.assertFalse(got['files'][0]['exact'])
+        # a certificate administrator may not write the script
+        st, refused = self.call('POST', '/api/deploys/save', {
+            'cert_id': web['id'], 'target': 'files1', 'options': opts}, self.cert_admin)
+        self.assertEqual(st, 403, refused)
+        did = self.ok('POST', '/api/deploys/save', {'cert_id': web['id'], 'target': 'files1',
+                                                    'options': opts})['id']
+        d = [x for x in self.ok('GET', '/api/deploys', args={'target': 'files1'})['rows']
+             if x['id'] == did][0]
+        self.assertIn('pfx_password', d['secret_set'])
+        self.assertTrue(d['options']['pfx_password'].startswith('\u2022' * 8))
+        # ...but may change the rest, the script kept as it is
+        self.ok('POST', '/api/deploys/save', {'id': did, 'options': dict(opts, jks_alias='x')},
+                session=self.cert_admin)
+        # the test: the script told ACME_DRY_RUN=1, nothing in place
+        t = self.ok('POST', '/api/deploys/dry_run', {'id': did})
+        self.assertTrue(t['ok'], t)
+        dry, pw, pfx = open(said).read().split()
+        self.assertEqual(dry, '1')
+        self.assertEqual(len(pw), 24)
+        self.assertFalse(os.path.exists(os.path.join(base, 'web', 'site.pfx')))
+        self.assertFalse(os.path.exists(pfx))
+        # deployed: the same password, kept; the file where it belongs
+        job = self.wait_job(self.ok('POST', '/api/deploys/run', {'id': did})['job_id'])
+        self.assertEqual(job['state'], 'ok', job)
+        dry2, pw2, pfx2 = open(said).read().split()
+        self.assertEqual((dry2, pw2), ('0', pw))
+        self.assertEqual(pfx2, os.path.join(os.path.realpath(base), 'web', 'site.pfx'))
+        self.assertTrue(os.path.exists(pfx2))
+        # a new one asked for: another password
+        self.ok('POST', '/api/deploys/save', {'id': did, 'options': dict(
+            opts, pfx_password_new=True)})
+        self.ok('POST', '/api/deploys/dry_run', {'id': did})
+        self.assertNotEqual(open(said).read().split()[1], pw)
 
 
 if __name__ == '__main__':
