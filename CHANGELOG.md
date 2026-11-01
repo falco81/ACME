@@ -4,6 +4,38 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.4 - 2026-11-01
+
+- **Renewal by itself switched on and off** from the list of certificates and
+  from a certificate - nothing is revoked, it stays valid and deployed.
+- **Revoking**: a dual certificate's both keys (ECDSA and RSA) are revoked, the
+  dialog says so; "Issue a new one at once" gives a new certificate with a new
+  key in the same job, deployed where the revoked one was. A revoked one has
+  "Issue a new one". The old "Switch renewal off" switch did nothing - gone.
+- **dns-persist-01**: one TXT record at `_validation-persist.DOMAIN`, set once,
+  for any certificate of the domain (subdomains and wildcards with
+  `policy=wildcard`). acme writes the exact record for each ACME account,
+  checks it, and uses it as soon as the CA offers it (Google Trust Services
+  does; Let's Encrypt has announced it) - a fallback validation until then.
+- **What fits together is checked before the CA is asked**: names, source,
+  validation, key type and twin, in one place - the wizard greys out what does
+  not fit and says why; a public CA refuses single labels, .local/.test and
+  private addresses.
+- **SAN editor**: typed SANs (DNS, IP, e-mail, URI), the CN apart with "CN is
+  also a SAN", many pasted at once.
+- **DigiCert, GeoTrust, Thawte, RapidSSL** products, with domain validation by
+  TXT, CNAME, HTTP file or e-mail placed by the validation; SSLmarket uses the
+  same.
+- **Settings → DNS**: named sets of DNS servers (UDP, TCP, DNS over TLS) given
+  to validation, public checks, APIs, targets, ACME and mail; the system's by
+  default.
+- **Own authorities edited** without removing them: settings, the name (the old
+  /pki/ addresses still served), the certificate renewed with the same key, its
+  history. A switched-off authority still publishes its CRL.
+- Name constraints written as "permitted DNS:…" are read too.
+- SSLmarket reworked after its API description, and SSLmarket ACME.
+- The authorities' tree drawn with joined lines; "until" of a CRL translated.
+
 ## 1.0.3 - 2026-11-01
 
 - **The pages after an upgrade are the new ones**: they said otp's version
