@@ -259,14 +259,18 @@ def stop(store, ident):
 def recover(store):
     """At the start of the daemon: the jobs this node left running are over."""
     try:
+        # Only this node's own: a certificate the other node is renewing right
+        # now is that node's to finish (shared database).
+        store.db.run("UPDATE certs SET state = 'failed', last_error = ? WHERE state = 'renewing' "
+                     "AND id IN (SELECT cert_id FROM cert_jobs WHERE node = ? AND "
+                     "state IN ('queued', 'running'))",
+                     ('acme stopped while it was renewed', E.node_name()))
         n = store.db.run("UPDATE cert_jobs SET state = 'failed', ok = 0, finished = ?, "
                          "said = ? WHERE node = ? AND state IN ('queued', 'running')",
                          (time.time(), 'acme stopped while it ran', E.node_name()))
         if n:
             store.add_event('certificates', '%s job(s) left running when acme stopped are marked '
                             'failed' % n, 'warn')
-        store.db.run("UPDATE certs SET state = 'failed', last_error = ? WHERE state = 'renewing'",
-                     ('acme stopped while it was renewed',))
     except Exception as e:                              # noqa: BLE001
         E.log('the jobs left running could not be tidied: %s' % e, 'warn')
 

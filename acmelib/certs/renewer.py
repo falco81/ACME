@@ -409,37 +409,15 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
 NOTIFY_EVERY = 6 * 3600
 
 
+NOTIFY_TEXTS = True
+
+
 def notify(store, key, subject, words, force=False):
-    """A mail to certs_notify_mail and an SMS to certs_notify_sms - each key at
-    most every 6 hours. Never raises."""
-    try:
-        mk = 'certs:notified:%s' % key
-        last = float(store.get_meta(mk) or 0)
-        if not force and time.time() - last < NOTIFY_EVERY:
-            return
-        store.set_meta(mk, str(time.time()))
-        to = [w for w in str(E.CONFIG.get('certs_notify_mail') or '').replace(';', ',')
-              .replace(' ', ',').split(',') if w]
-        if to:
-            from email.message import EmailMessage
-            msg = EmailMessage()
-            msg['Subject'] = '[acme %s] %s' % (E.node_name(), subject)
-            msg['From'] = E.mail_sender() or 'acme@%s' % E.node_name()
-            msg['To'] = ', '.join(to)
-            msg.set_content('%s\n\n%s\n\n-- acme on %s\n' % (subject, words, E.node_name()))
-            try:
-                E.mail_deliver(store, msg, to, kind='certs', purpose='certificates')
-            except Exception as e:                      # noqa: BLE001
-                E.log('the mail about %s could not go: %s' % (subject, e), 'warn')
-        tels = [w for w in str(E.CONFIG.get('certs_notify_sms') or '').replace(';', ',')
-                .replace(' ', ',').split(',') if w]
-        for tel in tels:
-            try:
-                E.sms_send(tel, ('acme: %s - %s' % (subject, words))[:300])
-            except Exception as e:                      # noqa: BLE001
-                E.log('the SMS about %s could not go to %s: %s' % (subject, tel, e), 'warn')
-    except Exception as e:                              # noqa: BLE001
-        E.log('telling about %s: %s' % (subject, e), 'warn')
+    """A mail to certs_notify_mail and an SMS to certs_notify_sms, in the words
+    of Settings -> Message texts (acmelib.certs.notices) - each key at most
+    every 6 hours. Never raises."""
+    from acmelib.certs import notices
+    return notices.notify(store, key, subject, words, force=force)
 
 
 # ---------------------------------------------------------------------------

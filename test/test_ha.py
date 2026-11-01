@@ -2,34 +2,48 @@
 """The certificate manager on every database engine and in both HA layouts.
 
     python3 test/test_ha.py                (or python3 -m unittest test.test_ha)
+    python3 test/test_ha.py --make-backup DIR    (a backup with certificates,
+                                                  for test/engines.sh)
 
-No root changes to the machine: daemons are started in folders of their own
-(ACME_CONFIG, ACME_STATE, ACME_RUN, ACME_LOGDIR; unusual ports; the VIP
-address off), the way test_certs_core.py starts one.
+Daemons are started in folders of their own (ACME_CONFIG, ACME_STATE,
+ACME_RUN, ACME_LOGDIR; unusual ports; their own node names; the VIP address
+off), the way test_certs_core.py starts one. The HA wizards are run for real,
+as root: they change the PostgreSQL clusters given (wal_level = logical,
+listen_addresses, pg_hba.conf lines for 127.0.0.1, the acme role's
+REPLICATION) and restart them with pg_ctlcluster. Every acme table in the
+databases given is dropped first - use servers kept for testing.
 
 What is tried, each part skipped when what it needs is not there:
 
-* SQLite: a database with certificates, an authority, a source, a target, a
-  deployment, jobs and DNS records - made, and a backup of it taken
-  (Populated). The backup is put back into MariaDB and PostgreSQL, and every
-  row, the sealed key among them, read back and opened there (Restore*).
-* MariaDB alone (MariaDbSingle): the tables, a long PEM, the byte-for-byte
-  UNIQUE names, a renewal and a deployment through a daemon.
-* Shared (SharedPair): two daemons, one PostgreSQL. One leader; a renewal job
-  runs once; the jobs and the certificates seen on both; both DNS servers say
-  the same TXT record; the leader killed, the other takes over in the lease.
-* Replicated (ReplicatedPair): two PostgreSQL clusters (5432 and the one
-  given by ACME_TEST_PG2_PORT, 5433), logical replication both ways the way
-  `acme --ha-setup` / `--ha-join` lay it out (odd/even numbers, acme_pub,
-  acme_sub_*). Rows made on each node reach the other, no number twice, and
-  only one node leads, also while replication is paused.
+* RestoreIntoEngines: a SQLite database with certificates, an authority, two
+  sources, a target, a deployment, jobs and a DNS record, and its backup
+  (Populated), put back into MariaDB and PostgreSQL: every row there, the
+  sealed keys and the target's password opened, new rows numbered past them.
+* EngineMove: Settings -> The database (try, move, use) from SQLite into
+  PostgreSQL, and on into MariaDB, the daemon started again on each.
+* MariaDbSingle: the engine's types (MEDIUMTEXT, VARCHAR(190) utf8mb4_bin), a
+  130 KB PEM, byte-for-byte UNIQUE names, renewals and a deployment.
+* LeaseRace: the certificate leader's lease on each engine - taken, kept,
+  taken over once run out, and of eight takers at once exactly one wins.
+* SharedPair: acme --ha-setup --ha-shared / --ha-join, two daemons on one
+  PostgreSQL. One leader; renewals run once, by it; jobs and certificates seen
+  on both; both DNS servers answer the same TXT record; the leader killed,
+  the other takes over.
+* ReplicatedPair: acme --ha-setup / --ha-join with two PostgreSQL clusters
+  (5432 and ACME_TEST_PG2_PORT, 5433), replicating both ways (acme_pub,
+  acme_from_1 / acme_from_2). The same checks, and: odd numbers on one node,
+  even on the other; with replication paused both ways still one leader; a
+  DNS record made on the second node answered by both.
+* SameRowsGuard: a row coming in by replication under a key that is here
+  already (a name, a certificate's version, an authority's serial) is
+  settled, not refused.
 
 The servers to use (all on 127.0.0.1, database "acme", account acme, password
-optpw unless said otherwise):
+optpw unless ACME_TEST_DB_PW says otherwise):
     ACME_TEST_PG_PORT (5432)  ACME_TEST_PG2_PORT (5433)  ACME_TEST_MY_PORT (3306)
-    (the second node's database is "acme" too, on the second cluster)
+(the second node's database is "acme" too, on the second cluster; the
+replicated wizard makes it there.)
 """
-import base64
 import json
 import os
 import shutil
