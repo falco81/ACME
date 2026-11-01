@@ -4,6 +4,42 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.10 - 2026-11-01
+
+- **Deployment designer** (SSH, Windows, this machine): the files on the target
+  by quick layouts or rows - format in plain words, path with {name} {cn}
+  {service} {date} {alt}, mode, owner; the PKCS#12/keystore password none, set,
+  or made by acme (24 characters, sealed, the same across renewals); after the
+  files a script already on the machine, or written here - uploaded on every
+  deployment, run with ACME_* variables (ACME_FILE_KEY_PEM, ACME_PASSWORD,
+  ACME_NAMES ...), then deleted; the previous files put back when it fails. A
+  live preview of the real paths and the variables, and a dry run
+  (ACME_DRY_RUN=1, files into a temporary folder). Only a full administrator
+  changes a script.
+- **Windows roles**: RDS (Connection Broker), RD Gateway, AD FS, Web Application
+  Proxy, SQL Server, LDAPS, WinRM HTTPS, SSTP VPN, IIS Central Certificate Store,
+  IIS FTP, Exchange (every service), Skype for Business, SharePoint SE (beta),
+  Windows Admin Center; read on the key for accounts; Test says which roles a
+  server has; the PowerShell shown before it runs.
+- **Owners and teams, a tag catalog, rights**: owners and teams with members
+  (acme's accounts, directory users and groups) and rights (view, request,
+  manage, approve); tags with a colour; nothing typed as free text any more.
+  Full administrators always see and do everything; certificate administrators
+  and read-only accounts see everything unless that is switched off (then only
+  their teams'). Expiry and failure mails also to the team's address.
+- **A certificate's details edited without a new certificate** (owner, tags,
+  note, renewal, reuse of the key, name, on/off); after changed names or key
+  "renew now, or at the next renewal?".
+- **The certificate portal**: acme's own accounts may sign in (with their
+  second factor); administrators see every certificate, others what is theirs
+  or their team's.
+- **Certificates from acme**: the card as in ai, every change through the save
+  bar.
+- **Backups**: modules of your own (/etc/acme/plugins) in them; a cluster's
+  backup put back says the exact steps to make it two again; a test proves a
+  backup on a clean installation is the installation it came from.
+- **Czech everywhere**: every message of the daemon shown in the pages.
+
 ## 1.0.9 - 2026-11-01
 
 - **Columns of a list no longer jump** when it is drawn again - a switch in a

@@ -947,7 +947,9 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         opts = {'outputs': ['fullchain-pem {name}/fullchain.pem 0644',
                             'key-pem {name}/privkey.pem 0600', 'pfx {name}/site.pfx'],
                 'pfx_password_mode': 'generate', 'script_mode': 'inline', 'script_interp': 'sh',
-                'script_body': 'echo "$ACME_DRY_RUN $ACME_PASSWORD $ACME_FILE_PFX" > %s\n' % said}
+                # appended: the daemon may deploy it by itself meanwhile (a new deployment
+                # is run by the next look) - each run its own line
+                'script_body': 'echo "$ACME_DRY_RUN $ACME_PASSWORD $ACME_FILE_PFX" >> %s\n' % said}
         got = self.ok('POST', '/api/deploys/preview', {'cert_id': web['id'], 'target': 'files1',
                                                        'options': opts})
         self.assertEqual([f['format'] for f in got['files']], ['fullchain-pem', 'key-pem', 'pfx'])
@@ -975,7 +977,8 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         # the test: the script told ACME_DRY_RUN=1, nothing in place
         t = self.ok('POST', '/api/deploys/dry_run', {'id': did})
         self.assertTrue(t['ok'], t)
-        dry, pw, pfx = self._read(said).split()
+        runs = [ln.split() for ln in self._read(said).splitlines() if ln.strip()]
+        dry, pw, pfx = [r for r in runs if r[0] == '1'][-1]
         self.assertEqual(dry, '1')
         self.assertEqual(len(pw), 24)
         self.assertNotIn(base, pfx)                     # a copy in a temporary folder...
@@ -983,7 +986,7 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         # deployed: the same password, kept; the file where it belongs
         job = self.wait_job(self.ok('POST', '/api/deploys/run', {'id': did})['job_id'])
         self.assertEqual(job['state'], 'ok', job)
-        dry2, pw2, pfx2 = self._read(said).split()
+        dry2, pw2, pfx2 = self._read(said).splitlines()[-1].split()
         self.assertEqual((dry2, pw2), ('0', pw))
         self.assertEqual(pfx2, os.path.join(os.path.realpath(base), 'web', 'site.pfx'))
         self.assertTrue(os.path.exists(pfx2))
@@ -991,7 +994,8 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         self.ok('POST', '/api/deploys/save', {'id': did, 'options': dict(
             opts, pfx_password_new=True)})
         self.ok('POST', '/api/deploys/dry_run', {'id': did})
-        self.assertNotEqual(self._read(said).split()[1], pw)
+        last_dry = [ln.split() for ln in self._read(said).splitlines() if ln.startswith('1 ')][-1]
+        self.assertNotEqual(last_dry[1], pw)
 
 
 if __name__ == '__main__':
