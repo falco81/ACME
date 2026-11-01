@@ -10,12 +10,13 @@ import binascii
 import hashlib
 import os
 import posixpath
+import re
 import time
 
 from acmelib.plugins.base import PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges import _nginx as NG
-from acmelib.plugins.challenges._common import (HttpChallenge, as_bool, as_list, shq, ssh_conn,
+from acmelib.plugins.challenges._common import (HttpChallenge, as_bool, as_list, pinned, shq, ssh_conn,
                                                 ssh_fields)
 
 WEBROOT = '/var/www/acme-challenge/.well-known/acme-challenge'
@@ -49,9 +50,22 @@ class HttpSsh(HttpChallenge):
               help='Run on each machine after the file is written (and after it is taken away).'),
         field('check', 'Check before the CA is asked', 'select', default='each',
               options=[['each', 'each machine by its address (Host: NAME)'],
+                       ['at', 'at other addresses - a load balancer, a public IP, NAT (Host '
+                              'and SNI: NAME)'],
                        ['name', 'http://NAME/ as the CA will (needs this machine to reach it)'],
                        ['none', 'no check']],
               help='The token is fetched over HTTP on port 80 and compared.'),
+        field('check_at', 'Check at', 'list', default='',
+              placeholder='203.0.113.10\n203.0.113.10:8080\nhttps://203.0.113.10',
+              show_if={'check': ['at']},
+              help='Where the check connects instead of the web servers\' own addresses: an IP '
+                   'or a name, with :port, or https:// for TLS. The request still carries the '
+                   'certificate\'s name - Host and SNI - so a load balancer or a virtual host '
+                   'answers as it answers the CA; redirects are followed the same way.'),
+        field('check_name', 'Name for Test', 'text', default='', placeholder='www.example.com',
+              show_if={'check': ['at', 'each']},
+              help='The name Test sends (Host, SNI) - Test has no certificate. Empty: the '
+                   'address itself.'),
         field('check_port', 'HTTP port for the check', 'number', default=80, advanced=True),
         field('balancer', 'Load balancer in front', 'list', default='', advanced=True,
               placeholder='198.51.100.20',
@@ -244,6 +258,40 @@ class HttpSsh(HttpChallenge):
         return {'token': token, 'ka': key_authorization, 'name': n, 'path': path,
                 'hosts': done}
 
+    def check_targets(self):
+        """[(scheme, address, port)] of "Check at"."""
+        out = []
+        dport = int(float(self.c('check_port', 80) or 80))
+        for raw in as_list(self.c('check_at', '')):
+            v = str(raw).strip()
+            if not v:
+                continue
+            scheme = 'http'
+            m = re.match(r'^(https?)://(.+?)/*$', v, re.I)
+            if m:
+                scheme, v = m.group(1).lower(), m.group(2)
+            host, port = D.split_hostport(v, 443 if scheme == 'https' else dport)
+            if not host or not all(c.isalnum() or c in '.-:_' for c in host):
+                raise PluginError('"%s" is not an address to check at' % raw, retry=False)
+            out.append((scheme, host, port))
+        if not out:
+            raise PluginError('"Check at" is empty - an address, or another kind of check',
+                              retry=False)
+        return out
+
+    def fetch_at(self, name, token, want):
+        """[(ok, words)] of the token fetched at every "Check at" address as NAME."""
+        got = []
+        for scheme, addr, port in self.check_targets():
+            n = name or addr
+            sport = '' if port == (443 if scheme == 'https' else 80) else ':%d' % port
+            hn = '[%s]' % n if ':' in n else n
+            url = '%s://%s%s/.well-known/acme-challenge/%s' % (scheme, hn, sport, token)
+            with pinned({n: addr} if name else {}):
+                ok, words = self.fetch(url, want)
+            got.append((ok, '%s (at %s)' % (words, addr) if name else words))
+        return got
+
     def ready(self, name, handle):
         handle = handle or {}
         how = self.c('check', 'each')
@@ -252,6 +300,13 @@ class HttpSsh(HttpChallenge):
         port = int(float(self.c('check_port', 80) or 80))
         sport = '' if port == 80 else ':%d' % port
         token, ka, n = handle.get('token'), handle.get('ka'), handle.get('name') or name
+        if how == 'at':
+            bad = [w for ok, w in self.fetch_at(n, token, ka) if not ok]
+            if bad:
+                self.ctx.step('not answered yet: %s' % '; '.join(bad))
+                return False
+            self.ctx.step('every "Check at" address answers the token for %s' % n, 'ok')
+            return True
         if how == 'name':
             ok, words = self.fetch('http://%s%s/.well-known/acme-challenge/%s' % (n, sport, token),
                                    ka)
@@ -689,6 +744,9 @@ class HttpSsh(HttpChallenge):
                     back = back.encode()
                 if back.strip() != data:
                     raise PluginError('wrote a probe file but read back something else')
+                if self.c('check', 'each') == 'at':
+                    keep.append(host)
+                    return
                 if self.c('check', 'each') == 'each':
                     port = int(float(self.c('check_port', 80) or 80))
                     h = '[%s]' % host if ':' in host else host
@@ -698,7 +756,9 @@ class HttpSsh(HttpChallenge):
                     for wait in (0, 1, 2):
                         if wait:
                             time.sleep(wait)
-                        ok, words = self.fetch(url, data.decode())
+                        ok, words = self.fetch(url, data.decode(),
+                                               host=str(self.c('check_name', '') or '').strip()
+                                               or None)
                         if ok:
                             break
                     if not ok:
@@ -715,11 +775,33 @@ class HttpSsh(HttpChallenge):
                                           'validation.md)? "Set nginx up by itself" puts the '
                                           'server block there' % words)
             finally:
-                self._remove(s, path)
+                if host not in keep:
+                    self._remove(s, path)
             good.append(host)
+        keep, at_words = [], []
         failed = self._each(probe, 'probe')
+        if self.c('check', 'each') == 'at':
+            try:
+                if not failed:
+                    name = str(self.c('check_name', '') or '').strip()
+                    for wait in (0, 1, 2):
+                        if wait:
+                            time.sleep(wait)
+                        got = self.fetch_at(name, token, data.decode())
+                        if all(ok for ok, _w in got):
+                            break
+                    for ok, words in got:
+                        self.ctx.step(words, 'ok' if ok else 'warn')
+                    bad = [w for ok, w in got if not ok]
+                    if bad:
+                        failed.append(('check at', '; '.join(bad)))
+                    else:
+                        good.extend(keep)
+                        at_words.extend(w for _ok, w in got)
+            finally:
+                self._each(lambda s, h: self._remove(s, path) if h in keep else None, 'remove')
         lines = ['%s: a probe file written to %s, read back and taken away' % (h, root)
-                 for h in good]
+                 for h in good] + at_words
         if failed:
             raise PluginError('; '.join('%s: %s' % f for f in failed),
                               detail='\n'.join(lines + ['%s: %s' % f for f in failed]))

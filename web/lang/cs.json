@@ -32147,6 +32147,26 @@
   "shk0010": {
    "source": "host keys added to the form - Save to keep them",
    "text": "klíče serverů přidány do formuláře – uložte, aby se zachovaly"
+  },
+  "sw8036": {
+   "source": "at other addresses - a load balancer, a public IP, NAT (Host and SNI: NAME)",
+   "text": "na jiných adresách – load balancer, veřejná IP, NAT (Host a SNI: JMÉNO)"
+  },
+  "sw8037": {
+   "source": "Check at",
+   "text": "Kontrolovat na"
+  },
+  "sw8038": {
+   "source": "Where the check connects instead of the web servers' own addresses: an IP or a name, with :port, or https:// for TLS. The request still carries the certificate's name - Host and SNI - so a load balancer or a virtual host answers as it answers the CA; redirects are followed the same way.",
+   "text": "Kam se kontrola připojí místo vlastních adres webových serverů: IP nebo jméno, s :port, nebo https:// pro TLS. Požadavek přitom nese jméno certifikátu – Host i SNI – takže load balancer nebo virtuální host odpoví stejně jako CA; přesměrování se sledují stejně."
+  },
+  "sw8039": {
+   "source": "Name for Test",
+   "text": "Jméno pro Test"
+  },
+  "sw8040": {
+   "source": "The name Test sends (Host, SNI) - Test has no certificate. Empty: the address itself.",
+   "text": "Jméno, které Test pošle (Host, SNI) – Test nemá certifikát. Prázdné: samotná adresa."
   }
  },
  "patterns": {
@@ -41421,6 +41441,18 @@
   "pshk0002": {
    "source": "no host key could be read from {0}: {1}",
    "text": "z {0} se nepodařilo přečíst klíč serveru: {1}"
+  },
+  "pw2319": {
+   "source": "{0} (at {1})",
+   "text": "{0} (na {1})"
+  },
+  "pw2320": {
+   "source": "every \"Check at\" address answers the token for {0}",
+   "text": "každá adresa z „Kontrolovat na“ odpovídá tokenem pro {0}"
+  },
+  "pw2321": {
+   "source": "\"{0}\" is not an address to check at",
+   "text": "„{0}“ není adresa pro kontrolu"
   }
  },
  "rich": {

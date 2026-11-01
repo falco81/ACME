@@ -22,11 +22,48 @@ import json
 import os
 import re
 import shutil
+import socket
 import tempfile
+import threading
 import time
 
 from acmelib.plugins.base import Challenge, PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
+
+# A name connected to at an address of its own, in this thread only (a check of
+# HTTP-01 made at a load balancer, a public address, NAT): the URL keeps the
+# name - its Host and its TLS SNI are the name's - the connection goes there.
+_PIN = threading.local()
+_PIN_PREV = {'fn': None}
+
+
+def _pinned_getaddrinfo(host, port, *a, **k):
+    pins = getattr(_PIN, 'map', None)
+    if pins and host:
+        h = (host.decode() if isinstance(host, bytes) else str(host)).lower().rstrip('.')
+        if h in pins:
+            return _PIN_PREV['fn'](pins[h], port, *a, **k)
+    return _PIN_PREV['fn'](host, port, *a, **k)
+
+
+class pinned(object):
+    """with pinned({'www.example.com': '203.0.113.7'}): connections to that name
+    in this thread go to that address."""
+    def __init__(self, pins):
+        self.pins = {str(k).lower().rstrip('.'): str(v).strip('[]')
+                     for k, v in (pins or {}).items() if k and v}
+
+    def __enter__(self):
+        if _PIN_PREV['fn'] is None:
+            _PIN_PREV['fn'] = socket.getaddrinfo
+            socket.getaddrinfo = _pinned_getaddrinfo
+        self.was = getattr(_PIN, 'map', None)
+        _PIN.map = dict(self.was or {}, **self.pins)
+        return self
+
+    def __exit__(self, *exc):
+        _PIN.map = self.was
+        return False
 
 SAFE_TOKEN = re.compile(r'^[A-Za-z0-9_-]{1,256}$')
 SAFE_NAME = re.compile(r'^[A-Za-z0-9_*.-]{1,253}$')

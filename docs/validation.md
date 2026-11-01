@@ -871,6 +871,15 @@ another block is the default server of port 80 already, name the names in
 IPv6 too* and *Everything else to HTTPS* (else 404) are under *More*. Run
 again, it changes nothing that is in place.
 
+**Check before the CA is asked** - *at other addresses* (`check: at`): the
+token is fetched at each address of *Check at* (`check_at`: an IP or name,
+`:port`, or `https://` for TLS) instead of each web server's own address -
+a load balancer, the public IP, a NAT in front. The URL keeps the
+certificate's name and only the connection goes to the address, so Host and
+the TLS SNI are the name's and a redirect (to HTTPS) is followed as the CA
+follows it. *Name for Test* (`check_name`) is the name Test sends then (and
+the Host of Test in *each machine*).
+
 **nginx answering port 80 already** (your sites, a certbot redirect to
 HTTPS): *How "Prepare" sets nginx up* (`prepare_how`):
 

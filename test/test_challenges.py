@@ -1386,6 +1386,32 @@ class TestHttpSsh(unittest.TestCase):
             '    location /.well-known/acme-challenge/ { root /srv/x; }\n}\n'),
     }
 
+    def test_check_at_other_addresses(self):
+        import socket
+        from acmelib.plugins.challenges._common import pinned
+        # pinned: the name connects to the address given, in this thread only
+        with pinned({'www.example.com': '127.0.0.1'}):
+            self.assertEqual(socket.getaddrinfo('www.example.com', 80)[0][4][0], '127.0.0.1')
+        m, world, served = self.module(check='at', check_at='203.0.113.10\nhttps://198.51.100.7:8443',
+                                       check_name='www.example.com')
+        self.assertEqual(m.check_targets(), [('http', '203.0.113.10', 80),
+                                             ('https', '198.51.100.7', 8443)])
+        asked = []
+        m.ctx.http = lambda method, url, body=None, headers=None, **kw: (
+            asked.append((url, (headers or {}).get('Host'))) or (200, {}, b'tok.ka'))
+        h = m.present('www.example.com', 'tok', 'tok.ka', '')
+        self.assertTrue(m.ready('www.example.com', h))
+        self.assertEqual([u for u, _h in asked], [
+            'http://www.example.com/.well-known/acme-challenge/tok',
+            'https://www.example.com:8443/.well-known/acme-challenge/tok'])
+        self.assertTrue(all(hh is None for _u, hh in asked))   # the name is in the URL itself
+        m2, _w, _s = self.module(check='at', check_at='')
+        with self.assertRaises(PluginError):
+            m2.check_targets()
+        m3, _w, _s = self.module(check='at', check_at='bad host!')
+        with self.assertRaises(PluginError):
+            m3.check_targets()
+
     def test_nginx_parser(self):
         from acmelib.plugins.challenges import _nginx as NG
         dump = ''.join('# configuration file %s:\n%s\n' % kv for kv in self.SITES.items())
