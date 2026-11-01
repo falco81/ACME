@@ -610,7 +610,16 @@ function fieldForm(fields, values, secrets, opts) {
     var v = Object.prototype.hasOwnProperty.call(values, f.key) ? values[f.key] : f['default'];
     var type = f.type || 'text';
     var input, get, wide = false;
-    if (type === 'bool') {
+    /* A type drawn by a part of its own (window.ACME_FIELD_TYPES[type] -
+       sshkey.js: the SSH key card): {input, get, item?}. */
+    var own = window.ACME_FIELD_TYPES && typeof window.ACME_FIELD_TYPES[type] === 'function'
+      ? window.ACME_FIELD_TYPES[type](f, v, {values: values, secrets: secrets, opts: opts, form: node,
+                                             current: function () { return current(); }}) : null;
+    if (own) {
+      input = own.input;
+      get = own.get;
+      wide = true;
+    } else if (type === 'bool') {
       input = switchBox(v === undefined ? false : truthy(v));
       get = function () { return !!input._get(); };
     } else if (type === 'select') {
@@ -653,10 +662,10 @@ function fieldForm(fields, values, secrets, opts) {
       get = function () { return input.value.trim(); };
     }
     var label = String(f.label || f.key);
-    var item = formField(label, input, f.help || '');
+    var item = own && own.item ? own.item : formField(label, input, f.help || '');
     item.dataset.fkey = f.key;
     if (f.required) item.classList.add('ct-req');
-    if (type === 'secret' || f.secret) {
+    if (!own && (type === 'secret' || f.secret)) {
       var lab = item.querySelector('label');
       if (lab) lab.appendChild(el('span', 'tag ' + (secrets[f.key] ? 'ok' : 'dim') + ' ct-secret-tag', secrets[f.key] ? 'set' : 'not set'));
     }
@@ -1551,7 +1560,7 @@ function modForm(key, row, p, fromPick) {
     g.appendChild(nf);
     body.appendChild(g);
     body.appendChild(el('h4', 'ct-formh', 'Settings of the module'));
-    form = fieldForm(p.fields || [], cfg, secretsOf(row), {noneWords: 'This module needs nothing set.'});
+    form = fieldForm(p.fields || [], cfg, secretsOf(row), {noneWords: 'This module needs nothing set.', family: m.family, row: row, plug: p});
     body.appendChild(form.node);
     testSaid = saidLine('', '');
     body.appendChild(testSaid);
