@@ -53,6 +53,30 @@ if (isset($_GET['api'])) {
         echo json_encode(is_array($data) ? $data : ['ok' => false, 'error' => 'sign-in failed']);
         exit;
     }
+    if ($what === 'mfa' && $post) {
+        /* The second step of an account of acme's own (portal_local), as the
+           administration's: given, the daemon hands a new sign-in - its cookie
+           set here, the token never shown to the page. */
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        [$status, $body] = acme_call('/api/portal/mfa', 'POST', sent_json(), 90.0);
+        if ($status === 0) {
+            http_response_code(503);
+            echo json_encode(['ok' => false, 'error' => 'the server is not answering - try again in a while']);
+            exit;
+        }
+        $data = json_decode($body, true);
+        if (is_array($data) && !empty($data['token'])) {
+            if ($status === 200) {
+                acme_set_session((string) $data['token']);
+            }
+            unset($data['token']);
+            $body = json_encode($data);
+        }
+        http_response_code($status);
+        echo $body;
+        exit;
+    }
     if ($what === 'logout' && $post) {
         acme_call('/api/portal/logout', 'POST', [], 10.0);
         acme_clear_session();
@@ -60,7 +84,8 @@ if (isset($_GET['api'])) {
         echo json_encode(['ok' => true]);
         exit;
     }
-    $reads = ['me' => '/api/portal/me', 'info' => '/api/portal/info', 'certs' => '/api/portal/certs'];
+    $reads = ['me' => '/api/portal/me', 'info' => '/api/portal/info', 'certs' => '/api/portal/certs',
+              'mfa' => '/api/portal/mfa'];
     $writes = ['cert-download' => '/api/portal/cert_download', 'cert-request' => '/api/portal/cert_request'];
     if ($post && isset($writes[$what])) {
         acme_relay($writes[$what], 'POST', sent_json(), 120.0);
@@ -85,9 +110,12 @@ if (isset($_GET['api'])) {
 $info  = acme_get('/api/portal/info', 5.0);
 $alive = is_array($info);
 $me    = null;
+$mfa   = '';
 if ($alive && acme_session() !== '') {
     $got = acme_get('/api/portal/me', 8.0);
     $me = is_array($got) ? ($got['me'] ?? null) : null;
+    /* The password given, its second step not yet (an account of acme's own). */
+    $mfa = (is_array($got) && !$me && !empty($got['mfa'])) ? (string) $got['mfa'] : '';
 }
 $lang = acme_lang_pick(null, (string) ($info['lang'] ?? 'cs'));
 $load = $lang !== 'en' && acme_lang_pack($lang) !== null;
@@ -125,7 +153,8 @@ if ($title_ours) {
       <?php elseif (empty($info['on'])): ?>
         <div class="offline">The portal is switched off. Ask the administrator.</div>
       <?php endif; ?>
-      <form id="signin-form" autocomplete="on">
+      <div id="mfa-box" data-stage="<?= h($mfa) ?>" hidden></div>
+      <form id="signin-form" autocomplete="on"<?= $mfa !== '' ? ' hidden' : '' ?>>
         <input type="text" id="in-name" name="username" placeholder="name" autocomplete="username"
                autocapitalize="none" spellcheck="false" required>
         <input type="password" id="in-pass" name="password" placeholder="password"

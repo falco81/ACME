@@ -216,14 +216,30 @@ def mfa_pending(s):
     return str(((s or {}).get('data') or {}).get('mfa') or '')
 
 
-def _mfa_session(h):
-    s = h.session('admin')
+def _mfa_session(h, kind='admin'):
+    s = h.session(kind)
     if not s:
         raise ApiError(401, 'not signed in, or the sign-in has run out')
+    if kind == 'portal':
+        # On the enrolment pages only an account of acme's own has a second
+        # step (portal_local): a directory sign-in has none to give.
+        if (s.get('data') or {}).get('kind') != 'local' or not CONFIG.get('portal') or \
+                not CONFIG.get('portal_local'):
+            raise ApiError(401, 'this sign-in has no second step to give')
     acc = h.store.account(s['name'])
-    if not acc or acc.get('disabled'):
+    if not acc or acc.get('disabled') or (kind == 'portal' and acc.get('source') == 'directory'):
         raise ApiError(401, 'that account may no longer sign in')
     return s, acc
+
+
+def _mfa_throttle(h, kind, name):
+    """Wrong codes counted as the wrong passwords of the same sign-in are."""
+    if kind == 'portal':
+        return h.throttle('portal', int(CONFIG.get('portal_tries') or 5),
+                          int(CONFIG.get('portal_wait_min') or 15), name=name,
+                          what='wrong codes')
+    return h.throttle('admin', int(CONFIG.get('login_tries') or 5),
+                      int(CONFIG.get('login_wait_min') or 15), name=name, what='wrong codes')
 
 
 def _mfa_code_ok(saved, code):
@@ -262,23 +278,40 @@ def _mfa_send(h, s, kind, dest, field):
     return dest_masked(kind, dest)
 
 
-def _mfa_done(h, s, how):
+def _mfa_done(h, s, how, kind='admin'):
     """The second step given: a sign-in of its own from here on (1.0.149) - the
     one the password alone opened is ended, not made whole: whoever had seen
     its cookie had the pages once the code was given."""
     data = {k: v for k, v in (s.get('data') or {}).items()
             if k not in ('mfa', 'mfa_new', 'mfa_code', 'mfa_sent_at', 'mfa_sent')}
     hours = max(0.05, (float(s.get('expires') or 0) - time.time()) / 3600.0)
-    token = h.store.session_new('admin', s['name'], s['role'], h.client_ip(), hours, data=data)
+    token = h.store.session_new(kind, s['name'], s['role'], h.client_ip(), hours, data=data)
     h.store.session_drop(s['id'])
-    h.store.add_event('sign-ins', '%s gave the second step (%s) from %s' % (
-        s['name'], how, h.client_ip()), who=s['name'])
+    h.store.add_event('sign-ins', '%s gave the second step (%s) from %s%s' % (
+        s['name'], how, h.client_ip(), ' on the enrolment pages' if kind == 'portal' else ''),
+        who=s['name'])
     return token
 
 
 @route('GET', '/api/auth/mfa')
 def _mfa(h):
-    s, acc = _mfa_session(h)
+    return _mfa_view(h, 'admin')
+
+
+@route('GET', '/api/portal/mfa')
+def _portal_mfa(h):
+    # The same second step, for an account of acme's own signed in on the
+    # enrolment pages (portal_local).
+    return _mfa_view(h, 'portal')
+
+
+@route('POST', '/api/portal/mfa')
+def _portal_mfa_do(h):
+    return _mfa_act(h, 'portal')
+
+
+def _mfa_view(h, kind):
+    s, acc = _mfa_session(h, kind)
     stage = mfa_pending(s)
     rec = mfa_get(h.store, s['name']) or {}
     new = (s.get('data') or {}).get('mfa_new') or {}
@@ -293,7 +326,11 @@ def _mfa(h):
 
 @route('POST', '/api/auth/mfa')
 def _mfa_do(h):
-    s, acc = _mfa_session(h)
+    return _mfa_act(h, 'admin')
+
+
+def _mfa_act(h, kind):
+    s, acc = _mfa_session(h, kind)
     stage = mfa_pending(s)
     if not stage:
         raise ApiError(409, 'this sign-in has no second step to give')
@@ -332,9 +369,7 @@ def _mfa_do(h):
         new = data.get('mfa_new') or {}
         if not new.get('kind'):
             raise ApiError(400, 'choose a way first')
-        key = h.throttle('admin', int(CONFIG.get('login_tries') or 5),
-                         int(CONFIG.get('login_wait_min') or 15), name=name,
-                         what='wrong codes')
+        key = _mfa_throttle(h, kind, name)
         code = re.sub(r'\s', '', str(b.get('code') or ''))
         rec = {'kind': new['kind'], 'at': time.time(), 'by': name}
         if new['kind'] == 'app':
@@ -355,7 +390,7 @@ def _mfa_do(h):
                 raise ApiError(409, 'this account has its second step set up already - sign '
                                     'in again')
             h.store.set_meta(mfa_key(name), json.dumps(rec))
-        token = _mfa_done(h, s, 'set up now: %s' % MFA_KIND_WORDS.get(rec['kind']))
+        token = _mfa_done(h, s, 'set up now: %s' % MFA_KIND_WORDS.get(rec['kind']), kind)
         h.store.add_event('accounts', '%s set up the second step of signing in: %s%s' % (
             name, MFA_KIND_WORDS.get(rec['kind']),
             ' (%s)' % dest_masked(rec['kind'], rec.get('dest')) if rec.get('dest') else ''),
@@ -377,9 +412,7 @@ def _mfa_do(h):
         if stage != 'check':
             raise ApiError(409, 'set the second step up first')
         rec = mfa_get(h.store, name) or {}
-        key = h.throttle('admin', int(CONFIG.get('login_tries') or 5),
-                         int(CONFIG.get('login_wait_min') or 15), name=name,
-                         what='wrong codes')
+        key = _mfa_throttle(h, kind, name)
         code = re.sub(r'\s', '', str(b.get('code') or ''))
         if rec.get('kind') == 'app':
             # Read, checked and written under one lock (1.0.136): two requests
@@ -407,7 +440,7 @@ def _mfa_do(h):
                     not h.store.session_take(s['id'], 'mfa_code'):
                 h.failed(key)
                 raise ApiError(400, 'that code is not right, or no longer good - send another')
-        token = _mfa_done(h, s, MFA_KIND_WORDS.get(rec.get('kind')))
+        token = _mfa_done(h, s, MFA_KIND_WORDS.get(rec.get('kind')), kind)
         return {'message': 'signed in', 'done': True, 'token': token}
     raise ApiError(400, 'no such thing to do')
 

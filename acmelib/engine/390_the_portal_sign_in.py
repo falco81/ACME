@@ -7,6 +7,9 @@ from __future__ import annotations
 #   POST /api/portal/login {name, password}   signed in against the directory
 #        (Settings - The enrolment pages: which one, and who may), counted and
 #        paused as the administrators' sign-in is → {token, name}
+#        - with portal_local, an account of acme's own (Accounts) first: its
+#        password, its second step (→ {mfa: 'check'|'enrol'}, given through
+#        GET/POST /api/portal/mfa as the administration's /api/auth/mfa)
 #   POST /api/portal/logout                   the sign-in ended
 #   GET  /api/portal/me                       who is signed in: {me: {name, display, about,
 #        ...}} - and whatever each function of PORTAL_ME adds
@@ -16,7 +19,9 @@ from __future__ import annotations
 # A route of a module asks portal_me(h) for the session (401 without one, 403
 # once the pages are switched off) and keeps what it needs between two
 # requests with portal_data_set(h, s, key=value). The session is a row of
-# `sessions` of kind 'portal': the same on both nodes of a cluster.
+# `sessions` of kind 'portal': the same on both nodes of a cluster. Its data
+# says {kind: 'directory'|'local', role}: the role of an account of acme's
+# own, read again at every request ('' for the directory's people).
 PORTAL_ME = []          # fn(h, s) -> {key: value} added to GET /api/portal/me
 
 
@@ -28,7 +33,45 @@ def portal_me(h):
     if not CONFIG.get('portal'):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(403, 'these pages are switched off')
+    if portal_mfa_pending(s):
+        raise ApiError(401, 'the second step of signing in is not done yet')
+    if not portal_local_ok(h, s):
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        raise ApiError(401, 'that account may no longer sign in here')
     return s
+
+
+def portal_mfa_pending(s):
+    """The second step of an account of acme's own, still to be given."""
+    data = s.get('data') or {}
+    return str(data.get('mfa') or '') if data.get('kind') == 'local' and \
+        CONFIG.get('admin_2fa') else ''
+
+
+def portal_local_ok(h, s):
+    """A sign-in of an account of acme's own still good: portal_local still on,
+    the account there, not switched off - its role as it is now put in the
+    session (taken away or changed in Accounts, it counts at once)."""
+    data = s.get('data') if isinstance(s.get('data'), dict) else {}
+    if data.get('kind') != 'local':
+        return True
+    if not CONFIG.get('portal_local'):
+        return False
+    acc = h.store.account(s['name'])
+    if not acc or acc.get('disabled') or acc.get('source') == 'directory':
+        return False
+    data['role'] = acc.get('role') or 'readonly'
+    s['data'] = data
+    return True
+
+
+def portal_sees_all(s):
+    """Whether this sign-in sees every certificate (portal_admins_all): an
+    account of acme's own with the role of a certificate or full
+    administrator."""
+    data = s.get('data') or {}
+    return bool(data.get('kind') == 'local' and CONFIG.get('portal_admins_all', 1)
+                and data.get('role') in ('certadmin', 'fulladmin'))
 
 
 # The pictures of the two sign-ins (1.0.71; each its own since 1.0.72):
@@ -295,13 +338,27 @@ def _portal_login(h):
         h.failed(key)
         raise ApiError(400, 'that name has letters this server does not take (accents or '
                             'another language) - ask the administrator')
+    local = bool(CONFIG.get('portal_local'))
+    if local and name and password:
+        # acme's own accounts first (portal_local): the name as it is written
+        # in Accounts, its password as the administration checks it.
+        acc = h.store.account(name)
+        if acc and acc.get('source') != 'directory':
+            if acc.get('pw') and password_ok(password, acc['pw']):
+                return portal_local_login(h, key, name, acc)
+            h.store.add_event('sign-ins', 'a wrong password for %s (an account here) on the '
+                              'enrolment pages from %s' % (name, h.client_ip()), 'warn')
+        else:
+            # As long as for a name that is there: how long the answer took
+            # told which names exist.
+            password_ok(password, DUMMY_PW_HASH)
     ad = portal_directory(h)
-    if not ad:
+    if not ad and not local:
         # Nobody can sign in yet - and the one trying is most likely the
         # administrator who has just installed this, at the wrong door.
         raise ApiError(503, 'nobody can sign in here yet: no directory is set up for these '
                             'pages. Administrators sign in at /admin/')
-    if not name or not password:
+    if not name or not password or not ad:
         h.failed(key)
         raise ApiError(401, 'the name or the password is not right')
     bare, how = admin_name_parts(name)
@@ -348,6 +405,7 @@ def _portal_login(h):
     token = h.store.session_new('portal', who, 'portal', h.client_ip(),
                                 max(1, int(CONFIG.get('portal_session_min') or 15)) / 60.0 * 4,
                                 {'display': entry.get('display') or '', 'dn': entry['dn'],
+                                 'kind': 'directory', 'role': '',
                                  'login': name, 'mail': entry.get('mail') or '',
                                  'mobile': entry.get('mobile') or '',
                                  # What the page shows under the name (1.0.113).
@@ -365,6 +423,38 @@ def _portal_login(h):
     return {'token': token, 'name': who}
 
 
+def portal_local_login(h, key, name, acc):
+    """An account of acme's own, its password right: switched off, it is
+    said as a wrong password (and counted as one), as in the administration;
+    with the second step on (admin_2fa) the sign-in can do nothing but give it."""
+    if acc.get('disabled'):
+        h.failed(key)
+        h.store.add_event('sign-ins', '%s, switched off, tried to sign in to the enrolment '
+                          'pages from %s' % (acc['name'], h.client_ip()), 'warn')
+        raise ApiError(401, 'the name or the password is not right')
+    if acc.get('must_change'):
+        raise ApiError(403, 'change the password first - in the administration (/admin/)')
+    who = acc['name']
+    stage = mfa_stage(h.store, who) if CONFIG.get('admin_2fa') else ''
+    rec = mfa_get(h.store, who) or {}
+    mail = rec.get('dest') if rec.get('kind') == 'mail' else ''
+    data = {'kind': 'local', 'role': acc.get('role') or 'readonly',
+            'display': acc.get('display') or '', 'dn': '', 'login': name, 'mail': mail or '',
+            'mobile': (rec.get('dest') if rec.get('kind') == 'sms' else '') or '',
+            'about': {'local': True, 'role': acc.get('role') or 'readonly'}}
+    if stage:
+        data['mfa'] = stage
+    token = h.store.session_new('portal', who, 'portal', h.client_ip(),
+                                max(1, int(CONFIG.get('portal_session_min') or 15)) / 60.0 * 4,
+                                data)
+    h.store.set_account(who, last_in=time.time(), last_from=h.client_ip())
+    h.store.add_event('sign-ins', '%s signed in to the enrolment pages from %s (an account '
+                      'here, %s)%s' % (who, h.client_ip(), acc.get('role') or 'readonly', {
+                          'check': ' - the second step to give',
+                          'enrol': ' - the second step to set up'}.get(stage, '')), who=who)
+    return {'token': token, 'name': who, 'kind': 'local', 'mfa': stage}
+
+
 @route('POST', '/api/portal/logout')
 def _portal_logout(h):
     h.store.session_end(h.headers.get('X-Acme-Session'))
@@ -379,6 +469,8 @@ def portal_state(h, s):
     about.update(login=data.get('login') or '', mail=data.get('mail') or '',
                  mobile=data.get('mobile') or '')
     out = {'name': s['name'], 'display': data.get('display') or '', 'about': about,
+           'kind': data.get('kind') or 'directory', 'role': data.get('role') or '',
+           'sees_all': portal_sees_all(s),
            'title': CONFIG.get('portal_title') or '', 'help': CONFIG.get('portal_help') or ''}
     for fn in PORTAL_ME:
         try:
@@ -397,6 +489,12 @@ def _portal_whoami(h):
         return {'me': None}
     if not CONFIG.get('portal'):
         # Switched off meanwhile: nothing more of it shown (1.0.44).
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        return {'me': None}
+    if portal_mfa_pending(s):
+        # The password given, the second step not yet: the sign-in page asks it.
+        return {'me': None, 'mfa': portal_mfa_pending(s)}
+    if not portal_local_ok(h, s):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         return {'me': None}
     return {'me': portal_state(h, s)}

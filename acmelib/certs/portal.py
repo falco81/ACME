@@ -4,7 +4,10 @@ The certificate portal: what people signed in on the enrolment pages (a
 `portal` session, against the directory) may do with certificates - kept
 modest. Their certificates are those whose `owner` is them (their name,
 account, UPN or mail) or a directory group they are in (its name or DN,
-"group:" in front allowed).
+"group:" in front allowed). An account of acme's own signed in there
+(portal_local) owns those whose owner is its name or "local:" and its name;
+with portal_admins_all one with the role certadmin or fulladmin sees every
+certificate (via '*'). What it asks for is owned by "local:NAME".
 
     GET  /api/portal/certs             their certificates, the job of each, and what
                                        they may ask for
@@ -70,10 +73,23 @@ def name_allowed(name, suffixes):
 # ---------------------------------------------------------------------------
 # Whose certificates
 # ---------------------------------------------------------------------------
+def is_local(s):
+    return (s.get('data') or {}).get('kind') == 'local'
+
+
+def owner_word(s):
+    """What a certificate asked for by this sign-in is owned by: the
+    directory's name of the person, or local:NAME for an account here - so a
+    person of the directory with the same name does not get it."""
+    return ('local:%s' % s['name']) if is_local(s) else str(s['name'])
+
+
 def my_names(s):
     data = s.get('data') or {}
     about = data.get('about') or {}
     out = {str(s['name']).lower()}
+    if is_local(s):
+        return out | {'local:' + str(s['name']).lower()}
     for v in (data.get('login'), about.get('sam'), about.get('upn'), data.get('mail')):
         if v:
             out.add(str(v).strip().lower())
@@ -85,6 +101,8 @@ def my_groups(h, s):
     directory at most every GROUPS_KEEP_S and kept in the session; what was
     kept when the directory cannot be reached."""
     data = s.get('data') or {}
+    if is_local(s):
+        return []
     kept = data.get('cert_groups')
     if isinstance(kept, list) and time.time() - float(data.get('cert_groups_at') or 0) < GROUPS_KEEP_S:
         return [tuple(g) for g in kept]
@@ -146,10 +164,16 @@ def public(store, r, via):
 
 
 def mine(h, s, rows=None):
-    """Their certificates: owned by them or by a group they are in."""
+    """Their certificates: owned by them or by a group they are in - every
+    one for an administrator of acme's own (portal_admins_all)."""
     store = h.store
     names = my_names(s)
     groups = my_groups(h, s)
+    if E.portal_sees_all(s):
+        out = [public(store, r, owner_of(r, names, groups) or '*')
+               for r in store.db.rows('SELECT * FROM certs ORDER BY name')]
+        out.sort(key=lambda o: (o.get('via') != 'me', str(o.get('name') or '').lower()))
+        return out
     want = sorted(names | {cn.lower() for _, cn in groups} | {dn.lower() for dn, _ in groups}
                   | {'group:' + cn.lower() for _, cn in groups})
     out = []
@@ -174,6 +198,8 @@ def used(store, who):
 
 def need_mine(h, s, ref):
     row = S.cert_get(h.store, A._id(ref))
+    if row and E.portal_sees_all(s):
+        return row
     if not row or not owner_of(row, my_names(s), my_groups(h, s)):
         raise E.ApiError(404, 'there is no such certificate of yours')
     return row
@@ -316,13 +342,14 @@ def _portal_certs(h):
         if row and row.get('enabled', 1):
             iss.append({'name': row['name'], 'kind': row.get('kind') or ''})
     have = mine(h, s)
-    n = used(h.store, str(s['name']))
+    n = used(h.store, owner_word(s))
     return {'rows': have, 'suffixes': sufs, 'issuers': [i['name'] for i in iss],
             'issuer_kinds': {i['name']: i['kind'] for i in iss}, 'formats': formats(),
             'key_types': list(schema.KEY_TYPES), 'most': most(), 'used': n,
             'auto': bool(E.CONFIG.get('portal_cert_auto')),
             'keys': bool(E.CONFIG.get('portal_cert_keys')),
             'groups': [cn for _, cn in my_groups(h, s)][:50],
+            'sees_all': E.portal_sees_all(s), 'kind': 'local' if is_local(s) else 'directory',
             'may_request': bool(sufs and iss) and n < most()}
 
 
@@ -381,7 +408,7 @@ def _portal_request(h):
     s = portal_session(h)
     b = h.body()
     store = h.store
-    who = str(s['name'])
+    who = owner_word(s)
     sufs = words_list('portal_cert_suffixes')
     allowed = words_list('portal_cert_issuers')
     if not sufs or not allowed:
