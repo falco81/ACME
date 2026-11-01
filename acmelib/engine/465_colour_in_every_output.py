@@ -1081,6 +1081,15 @@ def cli_ha_join_replicated(args, pal, data, ask):
     node = args.node_name or ask('This node\'s name', socket.gethostname().split('.')[0])
     port = int(FILE_CONFIG.get('db_port') or 5432) if FILE_CONFIG.get('db_engine') == 'postgres' \
         else 5432
+    # Marked as begun (1.0.210): a join that stops half way left a PostgreSQL
+    # account with the cluster's password and config.json without it, and
+    # every command said only "password authentication failed".
+    try:
+        write_private(HA_JOINING_FILE, json.dumps({
+            'at': time.time(), 'file': str(Path(args.ha_join).resolve()), 'node': node,
+            'peer': peer.get('address'), 'peer_name': peer.get('name')}) + '\n')
+    except OSError:
+        pass
     # This node's own address before PostgreSQL is prepared (1.0.210): its
     # line in pg_hba.conf is for the address given here, the one the other
     # node's subscription comes back to.
@@ -1129,7 +1138,14 @@ def cli_ha_join_replicated(args, pal, data, ask):
     except (ValueError, DbError) as e:
         if os.geteuid() == 0 and not os.environ.get('ACME_HA_NO_RESTART'):
             subprocess.run(['systemctl', 'start', 'acme'], capture_output=True)
-        raise SystemExit('acme: %s' % e)
+        try:
+            j = json.loads(HA_JOINING_FILE.read_text())
+            j['error'] = scrub_secret(str(e))[:300]
+            write_private(HA_JOINING_FILE, json.dumps(j) + '\n')
+        except (OSError, ValueError):
+            pass
+        raise SystemExit('acme: %s\nacme: the join stopped half way - run the same command '
+                         'again: it drops what was left and starts afresh' % e)
     now = sealing_key()
     if now and now.hex() != data['key']:
         write_replacing(sealing_key_path().with_name('secrets.key.before-join'), now.hex() + '\n',
@@ -1142,6 +1158,10 @@ def cli_ha_join_replicated(args, pal, data, ask):
                          'ha_slot': int(data.get('slot') or 2), 'ha_peer': peer['address'],
                          'ha_peer_port': int(peer.get('port') or 5432), 'ha_address': me})
     chown_to_service(CONFIG_FILE, 0o640)
+    try:
+        HA_JOINING_FILE.unlink()
+    except OSError:
+        pass
     say('every row of %s is here: %d' % (peer.get('name') or 'the other node', got['rows']))
     say('both directions replicate: this node -> %s and %s -> this node'
         % (peer.get('name'), peer.get('name')))
@@ -1649,12 +1669,36 @@ def cli_stage_files(args):
         raise SystemExit('acme: %s' % e)
 
 
+HA_JOINING_FILE = STATE_DIR / 'ha-joining.json'
+
+
+def ha_joining_words():
+    """A join begun on this node and not finished (1.0.210), in words that say
+    what state it is left in and what to run - '' when there is none."""
+    try:
+        j = json.loads(HA_JOINING_FILE.read_text())
+    except (OSError, ValueError):
+        return ''
+    return ('this node is half joined: acme --ha-join %s (the cluster of %s at %s) began %s '
+            'and did not finish%s. Its PostgreSQL account already has the cluster\'s password '
+            '(so config.json\'s no longer opens it) and its tables may be half copied. Run it '
+            'again - it starts afresh, dropping what was left:  acme --ha-join %s --node-name '
+            '%s   (acme --ha-status on %s shows the other side)' % (
+                j.get('file') or 'FILE', j.get('peer_name') or '?', j.get('peer') or '?',
+                time.strftime('%Y-%m-%d %H:%M', time.localtime(float(j.get('at') or 0))),
+                (' (%s)' % j['error']) if j.get('error') else '', j.get('file') or 'FILE',
+                j.get('node') or 'NAME', j.get('peer_name') or 'the other node'))
+
+
 def cli_store():
     become_service_user()
     load_config(saved=None)
     try:
         db = open_db()
     except DbError as e:
+        half = ha_joining_words()
+        if half:
+            raise SystemExit('acme: %s\nacme: %s' % (e, half))
         raise SystemExit('acme: %s' % e)
     store = Storage(db, quick=True)
     _cli_name_held()
