@@ -1789,7 +1789,7 @@ function hsList(host, rows, cls, title, redraw) {
           if (STATUS) STATUS.hisec_waived = (v.waived || []).map(function (r) { return r.rule; });
           redraw(v);
           if ($('hs-host') && redraw !== drawHisec) drawHisec(v);
-        }).catch(function (e) { box._input.disabled = false; box._set(!want); oops(e); });
+        }).catch(function (e) { box._input.disabled = false; box._input.checked = !want; oops(e); });
       };
       it.appendChild(sw);
     }
