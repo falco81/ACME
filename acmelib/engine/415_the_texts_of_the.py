@@ -235,10 +235,10 @@ def _mfa_session(h, kind='admin'):
 def _mfa_throttle(h, kind, name):
     """Wrong codes counted as the wrong passwords of the same sign-in are."""
     if kind == 'portal':
-        return h.throttle('portal', int(CONFIG.get('portal_tries') or 5),
+        return h.throttle('portal', split_limit('portal_tries', 5),
                           int(CONFIG.get('portal_wait_min') or 15), name=name,
                           what='wrong codes')
-    return h.throttle('admin', int(CONFIG.get('login_tries') or 5),
+    return h.throttle('admin', split_limit('login_tries', 5),
                       int(CONFIG.get('login_wait_min') or 15), name=name, what='wrong codes')
 
 

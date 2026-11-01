@@ -91,6 +91,11 @@ def maintenance_now(store):
         # given back in a cluster too (1.0.150): VACUUM FULL holds each table
         # shut - the other node answers meanwhile.
         return {'on': True, 'why': RESTORE_WHY[0] or 'a backup is being put back'}
+    if split_aside():
+        # Stepped aside while the nodes cannot reach each other (1.0.14): maintenance
+        # nobody asked for, ended by itself - the VIP address goes, /healthz says so.
+        return {'on': True, 'why': 'stepped aside: ' + (SPLIT['why'] or 'the nodes are apart'),
+                'split': True}
     now = time.monotonic()      # not held by a clock stepped back (1.0.207)
     if now - MAINT_CACHE['at'] > 2:
         MAINT_CACHE['at'] = now

@@ -442,7 +442,7 @@ def _login(h):
     # No account has a longer name (1.0.146): megabytes typed went into the log.
     name = str(b.get('name') or '').strip()[:190]
     password = str(b.get('password') or '')
-    key = h.throttle('admin', int(CONFIG.get('login_tries') or 5),
+    key = h.throttle('admin', split_limit('login_tries', 5),
                      int(CONFIG.get('login_wait_min') or 15), name=name)
     acc = h.store.account(name) or (h.store.account(admin_name_parts(name)[0])
                                     if CONFIG.get('admin_directory') else None)
@@ -489,6 +489,7 @@ def _login(h):
         ok['name'], h.client_ip(), {'check': ' - the second step to give',
                                      'enrol': ' - the second step to set up'}.get(stage, '')),
                       who=ok['name'])
+    split_note(h.store, 'signin', ok['name'], 'signin:admin:' + str(ok['name']).lower())
     return {'token': token, 'who': {'name': ok['name'], 'role': ok['role'] if not stage else ''},
             'must_change': bool(ok.get('must_change')), 'mfa': stage}
 

@@ -330,7 +330,7 @@ def _portal_login(h):
     b = h.body()
     name = str(b.get('name') or '').strip()
     password = str(b.get('password') or '')
-    key = h.throttle('portal', int(CONFIG.get('portal_tries') or 5),
+    key = h.throttle('portal', split_limit('portal_tries', 5),
                      int(CONFIG.get('portal_wait_min') or 15), name=name)
     if name and name_letters_problem(name):
         # Letters with accents or of another language, switched off (1.0.154): said plainly -
@@ -420,6 +420,7 @@ def _portal_login(h):
                                            'directory': ad.name}})
     h.store.add_event('portal', '%s signed in to the enrolment pages from %s'
                       % (who, h.client_ip()), who=who)
+    split_note(h.store, 'signin', who, 'signin:portal:' + str(who).lower())
     return {'token': token, 'name': who}
 
 
@@ -452,6 +453,7 @@ def portal_local_login(h, key, name, acc):
                       'here, %s)%s' % (who, h.client_ip(), acc.get('role') or 'readonly', {
                           'check': ' - the second step to give',
                           'enrol': ' - the second step to set up'}.get(stage, '')), who=who)
+    split_note(h.store, 'signin', who, 'signin:portal:' + str(who).lower())
     return {'token': token, 'name': who, 'kind': 'local', 'mfa': stage}
 
 

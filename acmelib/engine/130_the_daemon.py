@@ -233,6 +233,11 @@ class Daemon(object):
             if key in ('ha_mode', 'ha_slot', 'ha_peer', 'ha_peer_port', 'ha_address', 'ha_tls',
                        'ha_tls_ca'):
                 continue                    # the cluster's own wiring, set by its wizard
+            if key in CARD_DRAWN:
+                # Its own card on High availability (1.0.14, as otp 1.0.219): drawn as boxes
+                # of the pane they were drawn again, the card's rules (try the arbiter first)
+                # aside.
+                continue
             value = CONFIG.get(key)
             shape = TUNABLE.get(key)
             source = 'saved' if key in saved else ('file' if key in FILE_KEYS else 'default')

@@ -680,8 +680,13 @@ def once_take(store, kind, name, value):
     if db.value('SELECT 1 FROM used_once WHERE k = ? AND node <> ?', (k, me)):
         return False                    # the other node took it, and it came over
     if me and CONFIG.get('ha_mode') == 'replicated' and CONFIG.get('ha_peer'):
-        if _once_peer_has(k, me, store):
+        got = _once_peer_has(k, me, store)
+        if got:
             return False                # the other node took it, not over yet
+        if got is None:
+            # Let in without the other node's word (it cannot be asked): written down for
+            # the report of the time apart (1.0.14) - the same key on both nodes.
+            split_took(store, kind, str(name).split(':', 1)[-1], k)
     return True
 
 

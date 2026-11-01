@@ -261,6 +261,16 @@ DEFAULTS = {
     # High availability page's button, apart from Database → TLS.
     'ha_tls': '',
     'ha_tls_ca': '',
+    # When the two nodes lose each other (1.0.14, docs/split-brain.md): drawn
+    # by the card of their own on High availability, saved through its save bar.
+    'split_mode': 'off',
+    'split_prefer': '',
+    'split_arbiter': '',
+    'split_after_s': 20,
+    'split_renew': 0,
+    'split_halve': 0,
+    'split_freeze': 0,
+    'split_report': 0,
     'site_name': '',
     'ui_lang': 'cs',
     'api_port': 9861,
@@ -286,7 +296,7 @@ FILE_ONLY_KEYS = DB_KEYS + ('node_name', 'ha_mode', 'ha_slot', 'ha_peer', 'ha_pe
 # the debug switches.
 NODE_KEYS = ('api_port', 'mail_helo',
              'isemon_hostname', 'siem_hostname', 'acme_node_name', 'backup_daily', 'backup_at', 'backup_keep', 'debug',
-             'debug_ldap', 'debug_api', 'debug_codes', 'snmp_bind')
+             'debug_ldap', 'debug_api', 'debug_codes', 'snmp_bind', 'split_arbiter')
 # 1.0.67: its copies of the database - each node keeps its own on its own
 # disk: when, whether, how many.
 
@@ -374,6 +384,8 @@ TUNABLE = {
     'sms_mode': ('off', 'http', 'spool', 'teltonika'), 'sms_method': ('POST', 'GET'),
     'sms_tel_https': (0, 1), 'sms_tel_verify': (0, 1), 'sms_tel_api': ('rest', 'cgi'),
     'sms_plain': (0, 1),
+    'split_mode': ('off', 'arbiter', 'priority'), 'split_after_s': (5, 300),
+    'split_renew': (0, 1), 'split_halve': (0, 1), 'split_freeze': (0, 1), 'split_report': (0, 1),
 }
 
 CHOICE_WORDS = {
@@ -661,6 +673,14 @@ NAMES = {
     'db_tls_ca': 'Its certificate authority (file)',
     'db_path': 'The file (SQLite)',
     'node_name': 'The name of this node',
+    'split_mode': 'Who answers while the nodes are apart',
+    'split_prefer': 'The preferred node',
+    'split_arbiter': 'The arbiter',
+    'split_after_s': 'Apart after',
+    'split_renew': 'Renewals only on the preferred node while apart',
+    'split_halve': 'Half the tries while apart',
+    'split_freeze': 'Changes only on the preferred node while apart',
+    'split_report': 'Warn while apart, report afterwards',
     'site_name': 'What to call this installation',
     'ui_lang': 'Language of the pages',
     'api_port': 'API port (localhost)',
@@ -1125,6 +1145,25 @@ SAYS = {
     'db_path': 'Where the SQLite file is. Empty: acme.db in the state folder (/var/lib/acme). '
                'Set by Settings → The database → Move to another database.',
     'node_name': 'What this server is called among the nodes of a cluster - in the list of nodes, in its events and on the pages it answers. Kept in config.json, since it belongs to this machine and not to the database both share. Empty: the machine\'s own name.',
+    'split_mode': 'When the two nodes of a replicated cluster cannot reach each other: off - '
+                  'both go on as before; arbiter - the node that reaches neither the other '
+                  'node nor its arbiter steps aside; priority - only the preferred node goes '
+                  'on. Settings → High availability → When the nodes lose each other.',
+    'split_prefer': 'The node that goes on alone with "priority", the only one where changes '
+                    'and renewals are made while apart, and that makes the report. Empty: the '
+                    'first node of the cluster.',
+    'split_arbiter': 'What this node asks to tell "the other node is gone" from "I am the one '
+                     'cut off": up to five addresses (pinged) or name:port (tried over TCP). '
+                     'Empty: its default gateway.',
+    'split_after_s': 'How long the other node\'s database must not answer before the nodes '
+                     'count as apart.',
+    'split_renew': 'While apart, only the preferred node renews, deploys and lets acme\'s own '
+                   'authorities sign - a certificate is never issued on both halves.',
+    'split_halve': 'While apart, the pause after wrong passwords and codes (administration '
+                   'and portal) comes after half its tries on each node.',
+    'split_freeze': 'While apart, the other node\'s pages show everything and change nothing.',
+    'split_report': 'An alert while apart; once together again, a report of what was done on '
+                    'each half - and of anything done on both.',
     'site_name': 'The name at the top of the administration pages. Empty: the machine’s '
                  'own name.',
     'ui_lang': 'The language every page opens in until somebody chooses another for '
@@ -1170,7 +1209,8 @@ PANES = {
            'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'backup_daily', 'backup_keep',
            'backup_at',
            'retain_events_days'],
-    'ha': ['node_name'],
+    'ha': ['node_name', 'split_mode', 'split_prefer', 'split_arbiter', 'split_after_s',
+           'split_renew', 'split_halve', 'split_freeze', 'split_report'],
     'backup': ['rbackup', 'rbackup_at', 'rbackup_every', 'rbackup_day', 'rbackup_keep',
                'rbackup_keep_days', 'rbackup_password', 'rbackup_verify'],
     'osup': ['osup_check', 'osup_check_at', 'osup_auto', 'osup_auto_what', 'osup_auto_every',
@@ -1209,6 +1249,11 @@ PANES = {
     'about': ['site_name', 'ui_lang', 'api_port', 'debug', 'debug_ldap',
               'debug_api', 'debug_codes'],
 }
+
+# Settings a card of their own draws and saves (1.0.14): on their pane for the
+# search and the export, never drawn again as boxes of their own.
+CARD_DRAWN = ('split_mode', 'split_prefer', 'split_arbiter', 'split_after_s', 'split_renew',
+              'split_halve', 'split_freeze', 'split_report')
 
 # A setting that only means something while another one says so. Shown
 # greyed out with the reason beside it, as on isemon.
@@ -1409,6 +1454,11 @@ def check_setting(key, value):
         raise BadSetting('%s: a host name, an address, or the path of a socket' % key)
     if key in SECRET_KEYS and any(ord(ch) < 32 or ord(ch) == 127 for ch in str(got or '')):
         raise BadSetting('%s: no line breaks or other control characters' % key)
+    if key == 'split_arbiter' and str(got or '').strip():
+        try:
+            split_targets_parse(got)
+        except ValueError as e:
+            raise BadSetting('split_arbiter: %s' % e)
     if key == 'node_name' and str(got or '').strip() and \
             not re.match(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,62}\Z', str(got).strip()):
         raise BadSetting('node_name: letters, digits, dots, dashes and _ - 63 at most')

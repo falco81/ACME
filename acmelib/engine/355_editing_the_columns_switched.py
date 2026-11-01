@@ -165,7 +165,7 @@ def _password(h):
                        'changed in the directory')
     # Counted as sign-ins are (1.0.57): a session left open was a way to
     # guess the password without end.
-    key = h.throttle('password', int(CONFIG.get('login_tries') or 5), 5, name=acc['name'])
+    key = h.throttle('password', split_limit('login_tries', 5), 5, name=acc['name'])
     if not password_ok(str(b.get('old') or ''), acc.get('pw')):
         h.failed(key)
         raise ApiError(400, 'the password you have now is not right')

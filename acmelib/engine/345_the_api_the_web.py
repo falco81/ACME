@@ -203,12 +203,20 @@ class ApiHandler(BaseHTTPRequestHandler):
         if not fn:
             return self.send_json({'ok': False, 'error': 'no such endpoint: %s %s'
                                    % (method, path)}, 404)
+        # Changes wait while the nodes are apart, on all but the preferred node (1.0.14,
+        # split_freeze): what was changed on each half went its own way.
+        if method == 'POST' and split_frozen():
+            frozen = split_refuses(method, path, self._split_action())
+            if frozen:
+                return self.send_json({'ok': False, 'error': frozen, 'split': True}, 409)
         self._held = None
         self._failed = False
         try:
             got = fn(self)
             if got is not None:
                 self.send_json(got if 'ok' in got else dict(ok=True, **got))
+            if method == 'POST' and split_noting():
+                self._split_noted(path)
         except ApiError as e:
             # What went wrong in detail - a domain controller's name, a bind
             # DN - only to somebody signed in (1.0.33); the rest is in the log.
@@ -269,6 +277,30 @@ class ApiHandler(BaseHTTPRequestHandler):
                                                   'service (/var/log/acme/acme.log)'}, 500)
         finally:
             self._release()
+
+    def _split_action(self):
+        try:
+            b = self.body()
+            return str(b.get('action') or '') if isinstance(b, dict) else ''
+        except Exception:                               # noqa: BLE001
+            return ''
+
+    def _split_noted(self, path):
+        """A change made while apart (1.0.14, split_report): written down for the report -
+        the same route and thing on both nodes is the same key."""
+        if split_free_path(path, self._split_action()):
+            return
+        try:
+            b = self.body()
+        except Exception:                               # noqa: BLE001
+            b = {}
+        b = b if isinstance(b, dict) else {}
+        what = next((str(b[k]) for k in ('id', 'cert_id', 'name', 'key', 'node')
+                     if b.get(k) not in (None, '') and not isinstance(b.get(k), (dict, list))), '')
+        act = str(b.get('action') or '')[:40]
+        thing = path + (' ' + act if act else '') + (' #' + what[:80] if what else '')
+        split_took(self.store, 'change', thing, 'change:' + hashlib.sha256(
+            thing.encode('utf-8')).hexdigest()[:40])
 
     def _signed_in(self):
         token = str(self.headers.get('X-Acme-Session') or '')
