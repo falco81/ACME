@@ -145,12 +145,45 @@ def fw_apply_wait(store, wait=60, run_helper=False):
         time.sleep(0.5)
 
 
+FW_HERE = {'store': None}         # the command line's database, for fw_here_words
+
+
+def iptables_blocks(src):
+    """Whether this machine's own INPUT (iptables-services, not acme's chain)
+    ends in a REJECT or a DROP that `src` would meet, read as root (1.0.210):
+    the words with the rule that lets it in, or ''."""
+    if os.geteuid() != 0 or not shutil.which('iptables'):
+        return ''
+    fam = 'ip6tables' if ':' in str(src) else 'iptables'
+    try:
+        lines = subprocess.run([fam, '-S', 'INPUT'], capture_output=True, text=True,
+                               timeout=10).stdout.splitlines()
+    except (OSError, subprocess.TimeoutExpired):
+        return ''
+    policy_drop = any(x.startswith('-P INPUT') and ('DROP' in x or 'REJECT' in x) for x in lines)
+    for x in lines:
+        if x.startswith('-A INPUT') and re.search(r'-s %s(/(32|128))? .*-j ACCEPT' %
+                                                    re.escape(str(src)), x):
+            return ''
+        if x.startswith('-A INPUT -j ACME-IN'):
+            return ''          # acme's chain comes first: it is what lets it in or not
+        if x.startswith('-A INPUT') and re.search(r'-j (REJECT|DROP)\b', x) and ' -s ' not in x \
+                and ' --dport ' not in x:
+            return ('this machine\'s iptables (INPUT) %s everything not let in before it: '
+                    'iptables -I INPUT 1 -s %s -j ACCEPT  lets the other node in' % (
+                        'rejects' if 'REJECT' in x else 'drops', src))
+    if policy_drop:
+        return ('this machine\'s iptables drops what INPUT does not let in: iptables -I INPUT 1 '
+                '-s %s -j ACCEPT  lets the other node in' % src)
+    return ''
+
+
 def fw_here_words(src, port=5432):
     """What could keep `src` from reaching this node's PostgreSQL, said
     plainly (1.0.210): acme's own chain (ACME-IN) and whether it lets `src`
     in, as the root helper last applied it, and firewalld if it runs here."""
     out = []
-    store = HA_STORE.get('store')
+    store = HA_STORE.get('store') or FW_HERE.get('store')
     try:
         src_ip = str(plain_ip(str(src), 'address'))
     except ValueError:
@@ -186,6 +219,9 @@ def fw_here_words(src, port=5432):
                        'address="%s" port port="%d" protocol="tcp" accept\' && firewall-cmd '
                        '--reload' % (_fw_zone(), src_ip, port, 6 if ':' in src_ip else 4,
                                      src_ip, port))
+    blocks = iptables_blocks(src_ip)
+    if blocks:
+        out.append(blocks)
     return '; '.join(out)
 
 
