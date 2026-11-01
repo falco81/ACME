@@ -171,7 +171,7 @@ class AcmePushTarget(HttpTarget):
     def paired(self, h=None):
         """The application, paired: its hello and the pin acme keeps of it."""
         h = h or self.hello()
-        pin = self.ctx.kv_get('pin') or {}
+        pin = self.ctx.push_pin(self.base_url()) or {}
         me = self.ctx.push_identity()
         code = text(self.c('pair_code')).strip()
         if pin and pin.get('app_id') == h['app_id'] and pin.get('enc_key') == h['enc_key']:
@@ -194,7 +194,7 @@ class AcmePushTarget(HttpTarget):
             raise
         pin = {'app_id': h['app_id'], 'enc_key': h['enc_key'], 'how': 'first seen',
                'app': h.get('app'), 'at': int(time.time()), 'url': self.base_url()}
-        self.ctx.kv_set('pin', pin)
+        self.ctx.push_pin(self.base_url(), pin)
         self.ctx.step('acme\'s key is taken there (pasted); the application\'s key %s is kept '
                       'as first seen' % E.push_key_id(E.push_unb64(h['enc_key'], 32))[:16], 'ok')
         return h, pin
@@ -215,7 +215,7 @@ class AcmePushTarget(HttpTarget):
                               'hello - somebody in between? Nothing is kept.', retry=False)
         pin = {'app_id': h['app_id'], 'enc_key': h['enc_key'], 'how': 'pairing code',
                'app': h.get('app'), 'at': int(time.time()), 'url': self.base_url()}
-        self.ctx.kv_set('pin', pin)
+        self.ctx.push_pin(self.base_url(), pin)
         self.ctx.step('paired with %s %s at %s (acme\'s key %s)' % (
             h.get('app'), h.get('version') or '', self.base_url(), me['id']), 'ok')
         return pin

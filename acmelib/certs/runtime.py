@@ -349,6 +349,10 @@ class RunContext(base.Context):
         made once, kept sealed in the database (every node signs with the same one)."""
         return E.push_identity(self.store)
 
+    def push_pin(self, url, pin=None):
+        """What acme keeps of the application at `url` it is paired with (or pin=...)."""
+        return E.push_pin(self.store, url, pin)
+
     # ---- acme's own pages (targets/appliance.py) ----------------------------------------
     # Through the engine's Certificates and TLS: the profile of a node or of the
     # VIP address (meta web:tls:<where>) - each node puts its own into nginx

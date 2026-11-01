@@ -399,6 +399,18 @@ def push_identity(store):
             'text': push_key_text(pub, '%s@%s' % (PUSH_APP, node_name()))}
 
 
+def push_pin(store, url, pin=None):
+    """What the sender keeps of an application it is paired with ({app_id, enc_key,
+    how, ...}), by the application's address - not by the target's name, so a Try
+    before the target is saved (or after it is renamed) pairs it for good."""
+    k = 'acme_push:pin:' + hashlib.sha256(str(url).encode('utf-8')).hexdigest()[:32]
+    if pin is None:
+        got = _meta_json(store, k)
+        return got if isinstance(got, dict) else None
+    store.set_meta(k, json.dumps(dict(pin, url=str(url))))
+    return pin
+
+
 def push_box(store):
     """This server's own keys (the receiver's): app_id and the X25519 pair."""
     with PUSH_LOCK:

@@ -141,6 +141,19 @@ node's TLS; nginx keeps the files it has.
 
 ---
 
+### Certificates from acme (acme push)
+
+The card under the certificates lets another acme put its certificates on
+these pages and renew them (each node's, the VIP address's): switch it on,
+*Pair with an acme* shows a one-time code for that acme's target *An
+application of ours*, or paste that acme's key. Every request of it is
+signed, the private key travels sealed to this server, and a certificate
+must hold the name of the pages it goes to. What it puts in is kept as an
+upload here would be - every node takes it within seconds, and Automatic
+certificates leaves those pages alone. The card also shows *This acme's own
+key*, for pasting into an application this acme pushes to. The protocol:
+[acme-push-protocol.md](acme-push-protocol.md).
+
 ## The VIP address
 
 ### How it works

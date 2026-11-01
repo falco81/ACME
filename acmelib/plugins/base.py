@@ -139,6 +139,8 @@ class Context(object):
     For a target that is another application of ours (targets/acme_push.py):
         ctx.push_identity() -> {'seed', 'public', 'id', 'text'}
                                             acme's own Ed25519 key it signs acme push with
+        ctx.push_pin(url, pin=None) -> {'app_id', 'enc_key', 'how', ...} or None
+                                            the application at url, as paired (pin=: kept)
     """
     node = ''
     settings = {}

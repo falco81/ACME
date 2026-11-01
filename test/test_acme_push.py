@@ -137,6 +137,7 @@ def receiver_reset(on=True):
     for k in ('acme_push:conf', 'acme_push:nonces', 'web:tls:' + NODE, 'web:tls:vip'):
         STORE.db.run('DELETE FROM meta WHERE k = ?', (k,))
     STORE.db.run('DELETE FROM meta WHERE k LIKE ?', ('certs:kv:target:%',))
+    STORE.db.run("DELETE FROM meta WHERE k LIKE 'acme_push:pin:%'")
     STORE.db.run("DELETE FROM meta WHERE k LIKE 'acme:care:%'")
     if on:
         E.push_card_do(STORE, {'action': 'on'}, 'tester')
@@ -274,13 +275,13 @@ class Receiver(unittest.TestCase):
         said = t.test()
         self.assertIn(SLOT, said)
         self.assertEqual(E.tls_profile(STORE, NODE), before)
-        pin = ctx.kv_get('pin')
+        pin = ctx.push_pin(t.base_url())
         self.assertEqual(pin['how'], 'pairing code')
         conf = E.push_conf(STORE)
         self.assertEqual(len(conf['keys']), 1)
         self.assertIsNone(conf['pairing'], 'a code is used once')
         # The code is gone: a second acme cannot pair with it.
-        STORE.db.run('DELETE FROM meta WHERE k LIKE ?', ('certs:kv:target:%',))
+        STORE.db.run("DELETE FROM meta WHERE k LIKE 'acme_push:pin:%'")
         t2, _ = target({'pair_code': 'AAAA-BBBB-CCCC-DDDD'}, name='other')
         with self.assertRaises(base.PluginError) as e:
             t2.test()
@@ -322,6 +323,13 @@ class Receiver(unittest.TestCase):
         self.assertEqual(ctx.http.seen[-1][1], 'inventory')
         self.assertNotIn('install', [x[1] for x in ctx.http.seen])
 
+    def test_tried_before_it_was_saved(self):
+        """Try on a form not saved yet pairs it for the target saved after."""
+        t, _ = target({'pair_code': code()}, name='unsaved')
+        t.test()
+        t2, _ = target({'pair_code': ''}, name='app')
+        self.assertIn(SLOT, t2.deploy(Bundle('a'), {}))
+
     def test_wrong_code_burns_it(self):
         right = code()
         for i in range(E.PUSH_CODE_TRIES):
@@ -340,7 +348,7 @@ class Receiver(unittest.TestCase):
         E.push_card_do(STORE, {'action': 'key_add', 'key': me['text']}, 'tester')
         t, ctx = target()
         t.test()
-        self.assertEqual(ctx.kv_get('pin')['how'], 'first seen')
+        self.assertEqual(ctx.push_pin(t.base_url())['how'], 'first seen')
         # The server's keys change (a reinstall, or somebody in between): refused.
         STORE.db.run('DELETE FROM meta WHERE k = ?', ('acme_push:box',))
         with self.assertRaises(base.PluginError) as e:

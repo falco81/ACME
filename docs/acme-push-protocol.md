@@ -507,8 +507,10 @@ Nothing else changes. `inventory` and `hello` change nothing at all.
 
 The target `acme_push` (docs/targets.md): `url`, `pair_code`, `verify_tls`,
 `ca_pem`, `timeout`; a deployment's `slots`, `check_names`, `verify_served`,
-`verify`. Its state, per target, in acme's database (both nodes): `pin`
-(`app_id`, `enc_key`, how it was learned) and `inventory` (the last one).
+`verify`. Its state, in acme's database (both nodes): the **pin** of each
+application by its address (meta `acme_push:pin:…`: `app_id`, `enc_key`, how
+it was learned - so a Try before the target is saved pairs it for good), and
+the target's last `inventory`.
 
 - **Try** = hello, the pairing when a code is given, inventory. Nothing is
   changed there.
