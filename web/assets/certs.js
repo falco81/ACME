@@ -1303,14 +1303,15 @@ function httpRowLine(r) {
   httpInfo(r).then(function (d) {
     if (!d || !d.applies) return;
     var nodes = arr(d.nodes).length;
-    var bits = [' · answered by ' + nodes + ' node(s)' + (d.vip && d.vip.on ? ' and the VIP address' : '')];
+    more.appendChild(el('span', '', ' · '));
+    more.appendChild(el('span', '', 'answered by ' + nodes + ' node(s)' + (d.vip && d.vip.on ? ' and the VIP address' : '')));
     var names = arr(d.names);
     if (names.length) {
       var good = names.filter(function (n) { return n.ours === true; }).length;
-      bits.push(good + ' of ' + names.length + ' name(s) point at acme');
+      more.appendChild(el('span', '', ' · '));
+      more.appendChild(el('span', '', good + ' of ' + names.length + ' name(s) point at acme'));
       if (good < names.length) line.classList.add('ct-http-warn');
     }
-    more.textContent = bits.join(' · ');
   }).catch(function () { });
   return line;
 }
@@ -3412,8 +3413,18 @@ function pkiSection(c, pki, back) {
     ['Certificate (PEM)', urlLine(u.cert_pem)],
     ['Every one published', urlLine(u.index)],
     ['Last CRL', pki.this_update ? stamp(pki.this_update) + (pki.number ? ' · #' + pki.number : '') : 'not yet'],
-    ['Next update', nu ? (function () { var x = el('span', late ? 'ct-badtext' : ''); x.textContent = stamp(nu) + (late ? ' - ' + tr('it has run out') : ''); return x; }()) : '–'],
-    ['Made again by', pki.refresh_due ? stamp(pki.refresh_due) + ' ' + tr('(half its life: the node that leads makes it anew, and after every revocation)') : '–'],
+    ['Next update', nu ? (function () {
+      var x = el('span', late ? 'ct-badtext' : '');
+      x.appendChild(data('span', '', stamp(nu)));
+      if (late) x.appendChild(el('span', 'tag crit small', 'it has run out'));
+      return x;
+    }()) : '–'],
+    ['Made again by', pki.refresh_due ? (function () {
+      var x = el('span', '');
+      x.appendChild(data('span', '', stamp(pki.refresh_due)));
+      x.appendChild(el('div', 'muted small', 'At half its life the node that leads makes it anew - and after every revocation.'));
+      return x;
+    }()) : '–'],
     ['In what it signs', pki.own_urls ? el('span', 'tag ok', 'acme’s own addresses') : (function () {
       var x = el('span', '');
       x.appendChild(el('span', 'tag warn', 'other addresses'));
@@ -3458,11 +3469,12 @@ function pkiCard(list) {
     clear(box);
     var pubs = list.filter(function (c) { return c.published; });
     var line = el('p', 'note ct-pki-line');
-    line.appendChild(el('b', '', 'Published on acme: '));
+    line.appendChild(el('b', '', 'Published on acme:'));
+    line.appendChild(document.createTextNode(' '));
     if (pubs.length) {
-      line.appendChild(el('span', '', pubs.length + ' authority(ies) - their CRL and certificate at /pki/ on port 80 of every node and the VIP address. '));
+      line.appendChild(el('span', '', pubs.length + ' authority(ies): their CRL and certificate at /pki/ on port 80 of every node and the VIP address.'));
     } else {
-      line.appendChild(el('span', '', 'nothing yet - switched off, or no authority has a certificate. '));
+      line.appendChild(el('span', '', 'nothing yet - switched off, or no authority has a certificate.'));
     }
     var open = cmdButton('What is published', 'globe', 'small');
     open.onclick = function () { window.open('/pki/', '_blank', 'noopener'); };

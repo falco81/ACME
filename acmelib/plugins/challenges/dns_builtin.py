@@ -308,9 +308,10 @@ class BuiltinDns(DnsChallenge):
             ok = bool(set(seen) & (expect or set(addrs)))
             for a in addrs[:2]:
                 rec = {'name': ns, 'type': 'AAAA' if ':' in a else 'A', 'value': a, 'ttl': 3600}
+                # another address than acme knows (a NAT in front): said, not blocking
                 steps.append(guide_step(
                     'glue', what, where=(where + ', as glue') if inside else 'the DNS of %s'
-                    % D.registrable(ns), record=rec, done=ok,
+                    % D.registrable(ns), record=rec, done=ok, blocking=not seen,
                     said=('%s is %s' % (ns, ', '.join(seen))) if seen else
                     '%s has no address' % ns,
                     fix='Create %s. %s %s%s' % (ns, rec['type'], a, ' (glue, at the registrar '

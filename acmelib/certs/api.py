@@ -1566,3 +1566,7 @@ def _dns_record_delete(h, s):
 
 # The certificate portal's routes live beside these.
 from acmelib.certs import portal  # noqa: E402,F401
+
+
+# The SSH keys of the modules (fields of the type sshkey): their routes, and drafts kept on save.
+from acmelib.certs import api_sshkeys  # noqa: E402,F401

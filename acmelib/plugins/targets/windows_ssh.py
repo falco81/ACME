@@ -30,7 +30,8 @@ class WindowsSshTarget(SshMixin, Base):
                    'the Remote Desktop listener and Exchange as asked, and removes the '
                    'old ones.')
     doc = 'targets.md'
-    fields = ssh_fields(sudo=False, user_default='Administrator') + [
+    fields = ssh_fields(sudo=False, user_default='Administrator', howto='windows',
+                        try_command='whoami') + [
         field('tmp_dir', 'Folder for uploads', 'text', default='C:/Windows/Temp', advanced=True),
         field('timeout', 'Timeout (s)', 'number', default=60, advanced=True),
     ]

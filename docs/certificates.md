@@ -171,6 +171,10 @@ Each certificate that is due gets a job:
    What a challenge puts in place (DNS records in acme's own server, HTTP-01
    answers on port 80) is taken away at the end of the job, whether it
    worked or not.
+   Before the first certificate, and after a renewal that failed on its
+   validation, what those challenges need is checked first; the CA is not
+   asked while something is missing (see *Before the first certificate*
+   below, `certs_precheck`).
 4. `Issuer.issue(CertRequest)` is called. The chain is put in order, and acme
    checks that the key fits the certificate.
 5. The new certificate becomes the current version (the old one stays in
@@ -183,6 +187,55 @@ notification.
 
 Asked by a person (the page, `acme --renew NAME`), a certificate is renewed
 whether it is due or not.
+
+
+## Before the first certificate: what acme checks and tells you
+
+Let's Encrypt counts failed validations (five an hour for one account and
+name) and then refuses the name for a while. So acme does not try blindly:
+
+* **Before the first certificate** of a certificate (it has no version yet),
+  and **after a renewal that failed on its validation** (the CA did not
+  accept the proof, it was not seen in time - kept in `meta
+  certs:validation_failed:<id>` until a renewal works), the renewer first
+  checks what each name's validation needs (`readiness.check()`, read-only:
+  DNS asked at the zones' own name servers, a provider's API read, a probe
+  acme answers fetched).
+* While something **blocks** - the CNAME `_acme-challenge.www.firma.cz.
+  CNAME www.firma.cz.acme.example.net.` is missing, the name points
+  elsewhere, the zone is not at the DNS provider, the credentials are
+  refused - **the CA is not asked**. The certificate becomes `failed`, its
+  `last_error` says what to do (*the CA was not asked - the validation is not
+  ready: Create in the DNS of firma.cz: _acme-challenge.shop.firma.cz. CNAME
+  shop.firma.cz.acme.example.net.*), and the job's steps hold the whole guide:
+  each step ✔/✘ with where, what was found, what to do and the exact record.
+  It is tried again after the usual wait (5 minutes, doubled), checked again
+  each time, so once the record is there the certificate comes by itself.
+* What cannot be told from here (whether the internet reaches acme's DNS
+  server, a step that did not finish in 45 s) does not block: the CA is asked.
+* `certs_precheck` (on) switches this off; a renewal of a certificate that
+  has one is not checked unless its last one failed on validation.
+
+The same check, for any names, before a certificate is even made:
+`acme --check-names a,b,c [--issuer X] [--challenge Y]`, `acme --cert-check
+NAME` for one acme keeps, and `acme --dry-run NAME|names` to try the
+validation for real with no CA (a job, kind `dry-run`). The names may come
+from different domains: they are grouped by zone, each with its own
+validation (`challenge_map`) and acme's suggestions of which validation would
+do (a DNS provider holding the zone, acme's own DNS server, HTTP-01 here or
+on the web servers). What each kind checks: [validation.md](validation.md#before-the-first-certificate-what-acme-checks-and-tells-you).
+
+For the pages (and anything else) the functions are in
+`acmelib/certs/readiness.py`:
+
+| | |
+|---|---|
+| `plan(store, names, issuer=None, challenge=None, challenge_map=None, cert=None)` | `{groups: [{domain, names, validation, kind, suggested: [{validation, kind, why}], guide: {steps, ok}}], issuer, issuer_needs_validation, ok, blocking: [{domain, name, validation, key, what, said, fix, record}], complete, took_ms}` - at most 60 s |
+| `check(...)` | the same, suggestions only for a group that blocks - at most 45 s (the renewer's) |
+| `dry_run(store, names, ..., by='', cert_id=None)` | a job id; `dry_run_result(store, job_id)` what it found, in the same shape |
+
+A step: `{key, what, where, record: {name, type, value, ttl} or null, done:
+true|false|null, said, fix, blocking, name}`.
 
 ## Deploying
 
@@ -401,6 +454,8 @@ approval and the mails - is in [certificate-portal.md](certificate-portal.md).
 | `certs_notify_ok` | 0 | tell renewals and deployments that went well too |
 | `certs_keep_versions` | 10 | old certificates kept, each |
 | `certs_keep_jobs_days` | 90 | jobs kept |
+| `certs_precheck` | 1 | before the first certificate (and after a failed validation) check the validation first; the CA is not asked while something blocks |
+| `certs_dry_run_s` | 120 | how long a dry run waits for its test value to be seen |
 | `pki_publish` | 1 | the CRLs and certificates of acme's own authorities served at `/pki/` on port 80 (docs/own-ca.md) |
 | `pki_base_url` | '' | where: `http://NAME/pki/`; empty: the VIP address's name when it is on, else this server's |
 | `portal_cert`, `portal_cert_suffixes`, `portal_cert_issuers`, `portal_cert_challenge`, `portal_cert_max`, `portal_cert_auto`, `portal_cert_keys` | 0, '', '', '', 10, 0, 0 | the certificate portal |

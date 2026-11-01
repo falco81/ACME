@@ -383,8 +383,11 @@ def parse_outputs(spec, vars=None, max_outputs=20, absolute=True):
 # ---------------------------------------------------------------------------
 # Fields every module uses
 # ---------------------------------------------------------------------------
-def ssh_fields(sudo=True, port=22, prefix='', show_if=None, advanced=False, user_default='root'):
-    """The SSH sign-in: host, port, user, key or password, host key."""
+def ssh_fields(sudo=True, port=22, prefix='', show_if=None, advanced=False, user_default='root',
+               howto='linux', try_command=None):
+    """The SSH sign-in: host, port, user, key or password, host key. The key is
+    the key card of isemon (type sshkey): made here or brought, kept sealed; a
+    passphrase of a key brought is kept in <prefix>key_pass, as before."""
     p = prefix
     si = dict(show_if or {})
 
@@ -403,11 +406,11 @@ def ssh_fields(sudo=True, port=22, prefix='', show_if=None, advanced=False, user
         f(p + 'user', 'User', 'text', default=user_default, required=not p),
         f(p + 'auth', 'Sign in with', 'select', default='key',
           options=[['key', 'a private key'], ['password', 'a password']]),
-        f(p + 'key', 'Private key', 'secret', multiline=True,
-          help='OpenSSH or PEM private key (ed25519, ECDSA or RSA)',
-          show_if=dict(si, **{p + 'auth': ['key']})),
-        f(p + 'key_pass', 'Key passphrase', 'secret',
-          show_if=dict(si, **{p + 'auth': ['key']})),
+        f(p + 'key', 'The SSH key', 'sshkey', secret=True, pass_key=p + 'key_pass',
+          auth_key=p + 'auth', ssh_prefix=p, howto=howto,
+          **({'try_command': try_command} if try_command else {}),
+          help='Made here (ed25519) or your own (OpenSSH or PEM); its public half goes on '
+               'the machine. Shown whatever "Sign in with" says, as isemon shows it.'),
         f(p + 'password', 'Password', 'secret',
           show_if=dict(si, **{p + 'auth': ['password']})),
         f(p + 'hostkey', 'Host key', 'text', advanced=True,

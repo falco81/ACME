@@ -625,6 +625,31 @@ class TestEngine(unittest.TestCase):
         self.assertIn('the validation looks ready', words)
         self.assertEqual(FakeAcme.calls, [['www.firma.cz']])
 
+    def test_cli_check_names(self):
+        import subprocess
+        tmp = tempfile.mkdtemp(prefix='acme-readiness-cli-')
+        with open(os.path.join(tmp, 'config.json'), 'w') as f:
+            json.dump(dict(ACME_CFG, node_name='testnode', upgrade_check=0), f)
+        env = dict(os.environ, ACME_CONFIG=os.path.join(tmp, 'config.json'), ACME_STATE=tmp,
+                   ACME_RUN=tmp, ACME_LOGDIR=tmp, ACME_PLUGINS=os.path.join(tmp, 'plugins'),
+                   NO_COLOR='1', ACME_STAY_ROOT='1')
+
+        def acme(*args):
+            return subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py')] + list(args),
+                                  env=env, capture_output=True, text=True, timeout=180)
+        self.assertEqual(acme('--validation-add', 'own', '--kind', 'dns_builtin').returncode, 0)
+        got = acme('--check-names', 'www.firma.cz,shop.firma.cz', '--challenge', 'own')
+        self.assertEqual(got.returncode, 1, got.stdout + got.stderr)
+        self.assertIn('firma.cz  www.firma.cz, shop.firma.cz', got.stdout)
+        self.assertIn('record _acme-challenge.shop.firma.cz. 3600 CNAME '
+                      'shop.firma.cz.acme.example.net.', got.stdout)
+        self.assertIn('1 thing(s) to set up first', got.stdout)
+        got = acme('--check-names', 'www.firma.cz', '--challenge', 'own', '--json')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.assertTrue(json.loads(got.stdout)['ok'])
+        got = acme('--check-names', 'www.firma.cz', '--challenge', 'nope')
+        self.assertIn('there is no validation nope', got.stderr)
+
     def test_failed_on_validation(self):
         self.assertTrue(self.R.failed_on_validation(base.PluginError(
             'the CA did not accept www.firma.cz: unauthorized')))

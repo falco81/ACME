@@ -39,8 +39,10 @@ class MikroTikTarget(SshMixin, HttpTarget):
               help='for REST, and for SSH when no key is given'),
         field('port', 'HTTPS port', 'number', default=443, show_if={'mode': ['rest']}),
         field('ssh_port', 'SSH port', 'number', default=22),
-        field('ssh_key', 'SSH private key', 'secret', multiline=True, advanced=True),
-        field('ssh_key_pass', 'Key passphrase', 'secret', advanced=True),
+        field('ssh_key', 'The SSH key', 'sshkey', secret=True, pass_key='ssh_key_pass',
+              howto='mikrotik', try_command='/system identity print',
+              help='for the files over SSH (and for everything in SSH mode); without one '
+                   'the password is used'),
         field('hostkey', 'SSH host key', 'text', advanced=True),
         field('trust_first', 'Trust the first host key seen', 'bool', default=True,
               advanced=True),

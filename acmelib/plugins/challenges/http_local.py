@@ -90,11 +90,16 @@ class HttpLocal(HttpChallenge):
         own = self.answering(name)
         front = as_list(self.c('public_addresses', ''))
         want = front + [a for a in own if a not in front]
+        # acme known only by private addresses, the name public: a NAT may well be in
+        # front - said, but no reason to keep the CA from asking
+        got = self.lookup(n)
+        soft = not front and bool(own) and all(_private(a) for a in own) and \
+            any(not _private(a) for a in got)
         steps = [self.guide_points(
             n, want, (front or own or [''])[0],
             'Point %s at acme (%s) - or, when a NAT or a proxy in front of acme sends port 80 '
             'to it, put that address under "Addresses in front of acme"' % (
-                n, ', '.join(want) or 'its address'))]
+                n, ', '.join(want) or 'its address'), soft=soft)]
         fw = self.ctx.port_open('tcp', int(self.http_port))
         steps.append(guide_step(
             'port80', 'The firewall of acme lets port %d in from anywhere' % int(self.http_port),
@@ -119,4 +124,16 @@ class HttpLocal(HttpChallenge):
                 blocking=False,
                 fix='From here the name does not reach acme - the CA asks from the internet, '
                     'where it may: the dry run says more'))
+            if ok:
+                # the name reaches acme: wherever it points, it works
+                steps[0]['blocking'] = False
         return guide_of(steps)
+
+
+def _private(addr):
+    import ipaddress
+    try:
+        ip = ipaddress.ip_address(str(addr))
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback or ip.is_link_local

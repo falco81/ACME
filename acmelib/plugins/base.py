@@ -47,8 +47,18 @@ import traceback
 #   pem       a certificate or a key pasted or read from a file; secret=True: a private
 #             key - kept and shown as a secret (the last two of its body, not of -----END)
 #   list      several values, one a line (names, addresses, commands)
+#   sshkey    the SSH key acme signs in with, drawn as isemon's key card: Make a key
+#             (ed25519; key_type='rsa4096' for something old), Use my own (pasted or a
+#             file, its passphrase asked and checked), Download it, Forget it, Try
+#             reaching it, How to set it up. Give it secret=True: the value kept is the
+#             private key, sealed; beside it, not secret, <key>.sshkey holds the public
+#             half and the fingerprint (acmelib/certs/api_sshkeys.py). Options:
+#             pass_key='key_pass' (where a passphrase of a key brought is kept),
+#             auth_key='auth' (the select saying key or password), ssh_prefix='ssh_',
+#             try_command='id -un; uname -n', howto='linux' | 'windows' | 'mikrotik' |
+#             'pfsense' | 'opnsense' | 'generic' (the module's sshkey_howto otherwise)
 FIELD_TYPES = ('text', 'secret', 'number', 'bool', 'select', 'textarea', 'pem', 'list',
-               'hostport')
+               'hostport', 'sshkey')
 
 
 def field(key, label, type='text', **more):
@@ -230,6 +240,11 @@ class Plugin(object):
     vendor = ''             # grouping on the page: 'Linux', 'F5', 'Fortinet', 'Public CA'
     fields = []             # the form of its settings
     doc = ''                # docs/<file>.md, said on the page as "read more"
+    # How its SSH key (a field of the type sshkey) is put on the machine, said in
+    # "How to set it up on ..." of the key card: 'linux' | 'windows' | 'mikrotik' |
+    # 'pfsense' | 'opnsense' | 'generic', or {'title', 'steps': [{'title', 'html',
+    # 'code'}], 'note'} of its own ({pub} {user} {from} {host} are filled in).
+    sshkey_howto = ''
     # Things it can do besides its work, offered as buttons on the page, in the
     # console and as `acme --validation-action NAME KEY` (and --source-action,
     # --target-action): [{'key': 'prepare', 'label': 'Prepare the hosts',
@@ -268,6 +283,7 @@ class Plugin(object):
                 'description': cls.description, 'vendor': cls.vendor,
                 'fields': list(cls.fields), 'doc': cls.doc,
                 'actions': [dict(a) for a in (cls.actions or [])],
+                'sshkey_howto': cls.sshkey_howto,
                 'module': getattr(cls, '_module_file', '')}
 
 

@@ -72,7 +72,7 @@ class PfSenseTarget(SshMixin, Base):
     description = ('Imports the certificate into the pfSense certificate manager over SSH '
                    '(its own PHP functions), makes the web GUI use it and deletes older ones.')
     doc = 'targets.md'
-    fields = ssh_fields(sudo=False, user_default='admin') + [
+    fields = ssh_fields(sudo=False, user_default='admin', howto='pfsense') + [
         field('php', 'PHP', 'text', default='/usr/local/bin/php', advanced=True),
         field('timeout', 'Timeout (s)', 'number', default=60, advanced=True),
     ]

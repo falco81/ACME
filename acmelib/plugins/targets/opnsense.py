@@ -39,7 +39,7 @@ class OPNsenseTarget(SshMixin, HttpTarget):
     fields = http_fields(443, 'opnsense.example.local') + [
         field('api_key', 'API key', 'text', required=True),
         field('api_secret', 'API secret', 'secret', required=True),
-    ] + tls_fields() + ssh_fields(sudo=False, prefix='ssh_', advanced=True)
+    ] + tls_fields() + ssh_fields(sudo=False, prefix='ssh_', advanced=True, howto='opnsense')
     deploy_fields = [
         field('webgui', 'Web GUI certificate', 'bool', default=False,
               help='needs the SSH sign-in of the target (root)'),

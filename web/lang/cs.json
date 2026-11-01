@@ -26339,6 +26339,374 @@
   "sc1517": {
    "source": "The orders of the account, with their state and the end of the subscription - to find the order to reuse. Orders nothing.",
    "text": "Objednávky účtu s jejich stavem a koncem předplatného – k nalezení objednávky k opětovnému použití. Nic neobjedná."
+  },
+  "sc1518": {
+   "source": "A new certificate comes from it when no source is said.",
+   "text": "Nový certifikát z něj pochází, když se zdroj neuvede."
+  },
+  "sc1519": {
+   "source": "A new certificate from an ACME CA is proved by it when nothing else is said.",
+   "text": "Nový certifikát od ACME autority se jí prokazuje, když se neuvede nic jiného."
+  },
+  "sc1520": {
+   "source": "Offered first when a certificate is deployed - in the new certificate and in a new deployment.",
+   "text": "Nabízí se jako první při nasazení certifikátu – v novém certifikátu i v novém nasazení."
+  },
+  "sc1521": {
+   "source": "Offered first for a new source of the kind \"own certificate authority\" and for signing a CSR.",
+   "text": "Nabízí se jako první pro nový zdroj typu „vlastní certifikační autorita“ a pro podepsání CSR."
+  },
+  "sc1522": {
+   "source": "it is the default now",
+   "text": "teď je výchozí"
+  },
+  "sc1523": {
+   "source": "there is no default now",
+   "text": "teď není žádný výchozí"
+  },
+  "sc1524": {
+   "source": "there is no default authority now",
+   "text": "teď není žádná výchozí autorita"
+  },
+  "sc1525": {
+   "source": "The default - press to have no default",
+   "text": "Výchozí – stiskem nebude žádný výchozí"
+  },
+  "sc1526": {
+   "source": "Make it the default",
+   "text": "Nastavit jako výchozí"
+  },
+  "sc1527": {
+   "source": "No default",
+   "text": "Žádný výchozí"
+  },
+  "sc1528": {
+   "source": "The default authority comes first (the star on Authorities).",
+   "text": "Výchozí autorita je první (hvězdička na kartě Autority)."
+  },
+  "sc1529": {
+   "source": "No authority can sign yet: create one first",
+   "text": "Zatím nemůže podepisovat žádná autorita: nejdřív nějakou vytvořte"
+  },
+  "sc1530": {
+   "source": "The authorities of acme's own: roots, and the intermediates each of them signed, as a tree. A source of the kind \"own certificate authority\" issues certificates from one of them. Click one for what it signed, its revocation list, where it is published, and to sign a CSR from elsewhere. The star makes one the default: offered first for a new source and for signing a CSR.",
+   "text": "Vlastní autority acme: kořenové a podřízené, které každá z nich podepsala, jako strom. Zdroj typu „vlastní certifikační autorita“ vydává certifikáty z jedné z nich. Kliknutím na autoritu uvidíte, co podepsala, její seznam odvolaných certifikátů, kde se publikuje, a můžete podepsat CSR odjinud. Hvězdička jednu nastaví jako výchozí: nabízí se jako první pro nový zdroj a pro podepsání CSR."
+  },
+  "sc1531": {
+   "source": "Where certificates come from. Each is one module - ACME (Let's Encrypt, ZeroSSL, your own ACME server), an authority of acme's own, self-signed, Microsoft AD CS, SCEP - with its own settings. Test tries it without changing anything. The star makes one the default: a new certificate comes from it when no source is said.",
+   "text": "Odkud certifikáty pocházejí. Každý zdroj je jeden modul – ACME (Let's Encrypt, ZeroSSL, váš vlastní ACME server), vlastní autorita acme, self-signed, Microsoft AD CS, SCEP – s vlastním nastavením. Test ho vyzkouší, aniž by cokoli změnil. Hvězdička jeden nastaví jako výchozí: nový certifikát z něj pochází, když se zdroj neuvede."
+  },
+  "sc1532": {
+   "source": "How names are proved to an ACME CA. DNS-01 puts a TXT record in DNS - in acme's own DNS server, or at your DNS provider - and is the only way for a wildcard; HTTP-01 answers on port 80, here or on your own web servers over SSH, so acme itself is never reachable from the internet. The star makes one the default: a new certificate from an ACME CA is proved by it.",
+   "text": "Jak se jména prokazují ACME autoritě. DNS-01 vloží TXT záznam do DNS – do vlastního DNS serveru acme nebo k vašemu poskytovateli DNS – a je jedinou cestou pro wildcard; HTTP-01 odpovídá na portu 80, zde nebo na vašich vlastních webových serverech přes SSH, takže acme samo nikdy nemusí být dosažitelné z internetu. Hvězdička jednu nastaví jako výchozí: nový certifikát od ACME autority se jí prokazuje."
+  },
+  "sc1533": {
+   "source": "Where certificates go: a Linux server over SSH, a load balancer, a firewall, a router. A certificate is deployed on a target with options of its own - paths, formats, the profile it goes into, the commands after. Click a target for what is deployed on it. The star makes one the default: offered first when a certificate is deployed.",
+   "text": "Kam certifikáty jdou: linuxový server přes SSH, load balancer, firewall, router. Certifikát se na cíl nasazuje s vlastními volbami – cesty, formáty, profil, do kterého jde, příkazy potom. Kliknutím na cíl uvidíte, co je na něm nasazeno. Hvězdička jeden nastaví jako výchozí: nabízí se jako první při nasazení certifikátu."
+  },
+  "sc1534": {
+   "source": "A request made elsewhere signed by one of the authorities here - the default one first.",
+   "text": "Žádost vytvořená jinde podepsaná jednou ze zdejších autorit – výchozí je první."
+  },
+  "sc1535": {
+   "source": "Publish CRLs on acme",
+   "text": "Publikovat CRL na acme"
+  },
+  "sc1536": {
+   "source": "Their address",
+   "text": "Jejich adresa"
+  },
+  "sc1537": {
+   "source": "Every node and the VIP address serve the CRL and the certificate of each of acme’s own authorities over plain HTTP at /pki/ (port 80, no sign-in, from the database), and keep each CRL fresh. A new authority puts these addresses into what it signs; port 80 is let in from anywhere.",
+   "text": "Každý uzel i VIP adresa podávají CRL a certifikát každé vlastní autority acme přes prosté HTTP na /pki/ (port 80, bez přihlášení, z databáze) a udržují každý CRL čerstvý. Nová autorita tyto adresy vkládá do všeho, co podepíše; port 80 se pouští odkudkoli."
+  },
+  "sc1538": {
+   "source": "Where they are found, http://NAME/pki/. Empty: http:// and the VIP address’s name when it is on, else this server’s name, and /pki/.",
+   "text": "Kde se najdou, http://JMÉNO/pki/. Prázdné: http:// a jméno VIP adresy, je-li zapnutá, jinak jméno tohoto serveru, a /pki/."
+  },
+  "sc1539": {
+   "source": "Publish on acme",
+   "text": "Publikovat na acme"
+  },
+  "sc1540": {
+   "source": "Its CRL and certificate served by acme itself at /pki/ (port 80, every node and the VIP address). The two addresses below are then acme’s own unless given - so every certificate it signs points here.",
+   "text": "Její CRL a certifikát podává samo acme na /pki/ (port 80, každý uzel i VIP adresa). Obě adresy níže jsou pak adresy acme, pokud nezadáte jiné – takže každý certifikát, který podepíše, ukazuje sem."
+  },
+  "sc1541": {
+   "source": "Written into what it signs, so a client can find the CRL. Empty: acme’s own when it is published on acme, else none.",
+   "text": "Zapíše se do všeho, co podepíše, aby klient CRL našel. Prázdné: adresa acme, když se publikuje na acme, jinak žádná."
+  },
+  "sc1542": {
+   "source": "Where its own certificate can be fetched. Empty: acme’s own when it is published on acme.",
+   "text": "Odkud lze stáhnout její vlastní certifikát. Prázdné: adresa acme, když se publikuje na acme."
+  },
+  "sc1543": {
+   "source": "Published on acme",
+   "text": "Publikováno na acme"
+  },
+  "sc1544": {
+   "source": "Published on acme:",
+   "text": "Publikováno na acme:"
+  },
+  "sc1545": {
+   "source": "published on acme",
+   "text": "publikováno na acme"
+  },
+  "sc1546": {
+   "source": "Its CRL and certificate are served by acme itself at /pki/, over plain HTTP.",
+   "text": "Její CRL a certifikát podává samo acme na /pki/, přes prosté HTTP."
+  },
+  "sc1547": {
+   "source": "Its CRL and its certificate over plain HTTP, from every node and the VIP address alike (from the database) - for everybody, no sign-in, never sent to HTTPS.",
+   "text": "Její CRL a certifikát přes prosté HTTP, z každého uzlu i z VIP adresy stejně (z databáze) – pro každého, bez přihlášení, nikdy se nepřesměruje na HTTPS."
+  },
+  "sc1548": {
+   "source": "Publishing is switched off for every authority (Settings → Renewal and notices: Publish CRLs on acme).",
+   "text": "Publikování je vypnuté pro všechny autority (Nastavení → Obnovování a upozornění: Publikovat CRL na acme)."
+  },
+  "sc1549": {
+   "source": "Switch it on…",
+   "text": "Zapnout…"
+  },
+  "sc1550": {
+   "source": "published",
+   "text": "publikováno"
+  },
+  "sc1551": {
+   "source": "not published",
+   "text": "nepublikováno"
+  },
+  "sc1552": {
+   "source": "Published",
+   "text": "Publikováno"
+  },
+  "sc1553": {
+   "source": "CRL (DER)",
+   "text": "CRL (DER)"
+  },
+  "sc1554": {
+   "source": "CRL (PEM)",
+   "text": "CRL (PEM)"
+  },
+  "sc1555": {
+   "source": "Certificate (DER)",
+   "text": "Certifikát (DER)"
+  },
+  "sc1556": {
+   "source": "Certificate (PEM)",
+   "text": "Certifikát (PEM)"
+  },
+  "sc1557": {
+   "source": "Every one published",
+   "text": "Vše publikované"
+  },
+  "sc1558": {
+   "source": "Last CRL",
+   "text": "Poslední CRL"
+  },
+  "sc1559": {
+   "source": "Next update",
+   "text": "Další aktualizace"
+  },
+  "sc1560": {
+   "source": "it has run out",
+   "text": "vypršel"
+  },
+  "sc1561": {
+   "source": "Made again by",
+   "text": "Znovu vytvořen do"
+  },
+  "sc1562": {
+   "source": "At half its life the node that leads makes it anew - and after every revocation.",
+   "text": "V polovině jeho platnosti ho uzel, který vede, vytvoří znovu – a také po každém odvolání."
+  },
+  "sc1563": {
+   "source": "In what it signs",
+   "text": "V tom, co podepisuje"
+  },
+  "sc1564": {
+   "source": "acme’s own addresses",
+   "text": "adresy acme"
+  },
+  "sc1565": {
+   "source": "other addresses",
+   "text": "jiné adresy"
+  },
+  "sc1566": {
+   "source": "Fetching it over HTTP…",
+   "text": "Stahuje se přes HTTP…"
+  },
+  "sc1567": {
+   "source": "What is published is right.",
+   "text": "To, co je publikované, je v pořádku."
+  },
+  "sc1568": {
+   "source": "it is not right",
+   "text": "není to v pořádku"
+  },
+  "sc1569": {
+   "source": "Use acme’s own URLs",
+   "text": "Použít adresy acme"
+  },
+  "sc1570": {
+   "source": "Use them",
+   "text": "Použít je"
+  },
+  "sc1571": {
+   "source": "Copy the address",
+   "text": "Zkopírovat adresu"
+  },
+  "sc1572": {
+   "source": "the address was copied",
+   "text": "adresa byla zkopírována"
+  },
+  "sc1573": {
+   "source": "nothing yet - switched off, or no authority has a certificate.",
+   "text": "zatím nic – publikování je vypnuté, nebo žádná autorita nemá certifikát."
+  },
+  "sc1574": {
+   "source": "What is published",
+   "text": "Co je publikované"
+  },
+  "sc1575": {
+   "source": "How it works here",
+   "text": "Jak to tu funguje"
+  },
+  "sc1576": {
+   "source": "The CA fetches",
+   "text": "Autorita stahuje"
+  },
+  "sc1577": {
+   "source": "- port 80, plain HTTP, from the internet. The path and the port are fixed by the ACME standard (RFC 8555) and cannot be set; what can be set is above: whether acme fetches it itself first (Check before the CA is asked) and the address Test tries. Each name must point at acme - a node or the VIP address - or at a proxy that forwards /.well-known/acme-challenge/ to acme.",
+   "text": "– port 80, prosté HTTP, z internetu. Cestu a port určuje standard ACME (RFC 8555) a nastavit je nelze; co nastavit lze, je výše: zda to acme nejdřív stáhne samo (Kontrola, než se zeptá CA) a adresa, kterou zkouší Test. Každé jméno musí ukazovat na acme – na uzel nebo VIP adresu – nebo na proxy, která /.well-known/acme-challenge/ přeposílá na acme."
+  },
+  "sc1578": {
+   "source": "Saved, it shows here which machines answer, port 80 in their firewall, and where each name that uses it points.",
+   "text": "Po uložení zde ukáže, které stroje odpovídají, port 80 v jejich firewallu a kam ukazuje každé jméno, které ji používá."
+  },
+  "sc1579": {
+   "source": "answers",
+   "text": "odpovídá"
+  },
+  "sc1580": {
+   "source": "not heard",
+   "text": "neozývá se"
+  },
+  "sc1581": {
+   "source": "holds the VIP address",
+   "text": "drží VIP adresu"
+  },
+  "sc1582": {
+   "source": "Answered by",
+   "text": "Odpovídá"
+  },
+  "sc1583": {
+   "source": "Port 80 in the firewall",
+   "text": "Port 80 ve firewallu"
+  },
+  "sc1584": {
+   "source": "Port 80",
+   "text": "Port 80"
+  },
+  "sc1585": {
+   "source": "closed",
+   "text": "zavřený"
+  },
+  "sc1586": {
+   "source": "open from anywhere",
+   "text": "otevřený odkudkoli"
+  },
+  "sc1587": {
+   "source": "open to some networks",
+   "text": "otevřený jen některým sítím"
+  },
+  "sc1588": {
+   "source": "Names proved by it",
+   "text": "Jména, která prokazuje"
+  },
+  "sc1589": {
+   "source": "No certificate uses it yet.",
+   "text": "Zatím ji nepoužívá žádný certifikát."
+  },
+  "sc1590": {
+   "source": "Resolves to",
+   "text": "Překládá se na"
+  },
+  "sc1591": {
+   "source": "Check this name: a probe token fetched from it",
+   "text": "Ověřit toto jméno: stáhne se z něj zkušební token"
+  },
+  "sc1592": {
+   "source": "Check a name",
+   "text": "Ověřit jméno"
+  },
+  "sc1593": {
+   "source": "acme puts a probe token in place and fetches http://NAME/.well-known/acme-challenge/<token> itself, step by step. Fetched from this node: behind NAT a router may not loop back to its own public address (hairpin NAT) although the CA from outside is answered.",
+   "text": "acme vystaví zkušební token a samo stáhne http://JMÉNO/.well-known/acme-challenge/<token>, krok za krokem. Stahuje se z tohoto uzlu: za NATem se router nemusí vracet na vlastní veřejnou adresu (hairpin NAT), i když autorita zvenku odpověď dostane."
+  },
+  "sc1594": {
+   "source": "it answers",
+   "text": "odpovídá"
+  },
+  "sc1595": {
+   "source": "it does not answer",
+   "text": "neodpovídá"
+  },
+  "sc1596": {
+   "source": "acme does not keep a firewall on this node: port 80 is as the machine has it",
+   "text": "acme na tomto uzlu firewall nespravuje: port 80 je takový, jaký ho má stroj"
+  },
+  "sc1597": {
+   "source": "the card HTTP / HTTPS is switched off under What acme lets in by itself: port 80 is open only by a rule of your own",
+   "text": "karta HTTP / HTTPS je v části Co acme pouští samo vypnutá: port 80 je otevřený jen vlastním pravidlem"
+  },
+  "sc1598": {
+   "source": "the pages are kept to some networks, but port 80 is open from anywhere for HTTP-01 and /pki/",
+   "text": "stránky jsou omezené na některé sítě, ale port 80 je otevřený odkudkoli kvůli HTTP-01 a /pki/"
+  },
+  "sc1599": {
+   "source": "open from anywhere (HTTP / HTTPS)",
+   "text": "otevřený odkudkoli (HTTP / HTTPS)"
+  },
+  "sc1600": {
+   "source": "open only from the networks of Who may reach the pages",
+   "text": "otevřený jen ze sítí v Kdo smí na stránky"
+  },
+  "sc1601": {
+   "source": "it has no address in DNS",
+   "text": "v DNS nemá žádnou adresu"
+  },
+  "sc1602": {
+   "source": "DNS did not answer in time",
+   "text": "DNS neodpověděl včas"
+  },
+  "sc1603": {
+   "source": "a wildcard cannot be proved by HTTP-01: give it a DNS-01 validation",
+   "text": "wildcard nelze prokázat přes HTTP-01: dejte mu validaci DNS-01"
+  },
+  "sc1604": {
+   "source": "a probe token put in place (it lives an hour at most, and is taken away at the end)",
+   "text": "zkušební token vystaven (žije nejvýš hodinu a na konci se odebere)"
+  },
+  "sc1605": {
+   "source": "fetched from this node: where the name is acme's own public address behind NAT, the router may not loop back (no hairpin NAT) although the CA from outside would be answered - then switch \"Check before the CA is asked\" off",
+   "text": "staženo z tohoto uzlu: je-li jméno vlastní veřejnou adresou acme za NATem, router se nemusí vracet zpět (bez hairpin NAT), i když autorita zvenku by odpověď dostala – pak vypněte „Kontrola, než se zeptá CA“"
+  },
+  "sc1606": {
+   "source": "openssl crl -inform DER reads it",
+   "text": "openssl crl -inform DER ho přečte"
+  },
+  "sc1607": {
+   "source": "its signature is the authority's",
+   "text": "jeho podpis je podpis autority"
+  },
+  "sc1608": {
+   "source": "what is published is right",
+   "text": "to, co je publikované, je v pořádku"
+  },
+  "sc1609": {
+   "source": "publishing is switched off (Settings → Certificates: Publish CRLs on acme)",
+   "text": "publikování je vypnuté (Nastavení → Certifikáty: Publikovat CRL na acme)"
   }
  },
  "patterns": {
@@ -33849,6 +34217,250 @@
   "px0001": {
    "source": "The certificates that end within {0} days.",
    "text": "Certifikáty, které skončí do {0} dní."
+  },
+  "pc0307": {
+   "source": "{0} is the default now",
+   "text": "{0} je teď výchozí"
+  },
+  "pc0308": {
+   "source": "{0} is the default authority now",
+   "text": "{0} je teď výchozí autorita"
+  },
+  "pc0309": {
+   "source": "{0} is now the default source (by {1})",
+   "text": "{0} je teď výchozí zdroj ({1})"
+  },
+  "pc0310": {
+   "source": "{0} is now the default validation (by {1})",
+   "text": "{0} je teď výchozí validace ({1})"
+  },
+  "pc0311": {
+   "source": "{0} is now the default target (by {1})",
+   "text": "{0} je teď výchozí cíl ({1})"
+  },
+  "pc0312": {
+   "source": "{0} is now the default authority (by {1})",
+   "text": "{0} je teď výchozí autorita ({1})"
+  },
+  "pc0313": {
+   "source": "no default source any more (by {0})",
+   "text": "už žádný výchozí zdroj ({0})"
+  },
+  "pc0314": {
+   "source": "no default validation any more (by {0})",
+   "text": "už žádná výchozí validace ({0})"
+  },
+  "pc0315": {
+   "source": "no default target any more (by {0})",
+   "text": "už žádný výchozí cíl ({0})"
+  },
+  "pc0316": {
+   "source": "no default authority any more (by {0})",
+   "text": "už žádná výchozí autorita ({0})"
+  },
+  "pc0317": {
+   "source": "no default source any more - it was {0} (by {1})",
+   "text": "už žádný výchozí zdroj – byl to {0} ({1})"
+  },
+  "pc0318": {
+   "source": "no default validation any more - it was {0} (by {1})",
+   "text": "už žádná výchozí validace – byla to {0} ({1})"
+  },
+  "pc0319": {
+   "source": "no default target any more - it was {0} (by {1})",
+   "text": "už žádný výchozí cíl – byl to {0} ({1})"
+  },
+  "pc0320": {
+   "source": "no default authority any more - it was {0} (by {1})",
+   "text": "už žádná výchozí autorita – byla to {0} ({1})"
+  },
+  "pc0321": {
+   "source": "{0} was the default source: there is none now",
+   "text": "{0} byl výchozí zdroj: teď žádný není"
+  },
+  "pc0322": {
+   "source": "{0} was the default validation: there is none now",
+   "text": "{0} byla výchozí validace: teď žádná není"
+  },
+  "pc0323": {
+   "source": "{0} was the default target: there is none now",
+   "text": "{0} byl výchozí cíl: teď žádný není"
+  },
+  "pc0324": {
+   "source": "{0} was the default authority: there is none now",
+   "text": "{0} byla výchozí autorita: teď žádná není"
+  },
+  "pc0325": {
+   "source": "the source {0} is switched off - it cannot be the default",
+   "text": "zdroj {0} je vypnutý – nemůže být výchozí"
+  },
+  "pc0326": {
+   "source": "the validation {0} is switched off - it cannot be the default",
+   "text": "validace {0} je vypnutá – nemůže být výchozí"
+  },
+  "pc0327": {
+   "source": "the target {0} is switched off - it cannot be the default",
+   "text": "cíl {0} je vypnutý – nemůže být výchozí"
+  },
+  "pc0328": {
+   "source": "authority {0} made by {1} - its CRL and certificate published on acme ({2})",
+   "text": "autoritu {0} vytvořil {1} – její CRL a certifikát se publikují na acme ({2})"
+  },
+  "pc0329": {
+   "source": "authority {0} imported by {1} - published on acme ({2})",
+   "text": "autoritu {0} importoval {1} – publikuje se na acme ({2})"
+  },
+  "pc0330": {
+   "source": "the CRL and certificate of authority {0} published on acme (by {1})",
+   "text": "CRL a certifikát autority {0} se publikují na acme ({1})"
+  },
+  "pc0331": {
+   "source": "the CRL and certificate of authority {0} no longer published on acme (by {1})",
+   "text": "CRL a certifikát autority {0} se už na acme nepublikují ({1})"
+  },
+  "pc0332": {
+   "source": "authority {0} puts acme's own addresses into what it signs from now on: CRL {1}, CA certificate {2} (by {3})",
+   "text": "autorita {0} od teď vkládá do toho, co podepíše, adresy acme: CRL {1}, certifikát autority {2} ({3})"
+  },
+  "pc0333": {
+   "source": "CRL made again (half its life was over): {0}",
+   "text": "CRL vytvořen znovu (uplynula polovina jeho platnosti): {0}"
+  },
+  "pc0334": {
+   "source": "{0} published",
+   "text": "{0} se publikuje"
+  },
+  "pc0335": {
+   "source": "{0} no longer published",
+   "text": "{0} se už nepublikuje"
+  },
+  "pc0336": {
+   "source": "what {0} signs from now on points at acme",
+   "text": "to, co {0} od teď podepíše, ukazuje na acme"
+  },
+  "pc0337": {
+   "source": "{0} authority(ies): their CRL and certificate at /pki/ on port 80 of every node and the VIP address.",
+   "text": "{0} {0:autorita|autority|autorit}: jejich CRL a certifikát na /pki/ na portu 80 každého uzlu i VIP adresy."
+  },
+  "pc0338": {
+   "source": "What {0} signs from now on carries the CRL address {1} and the CA certificate address {2}. Certificates it issued before keep the addresses they have - they change at their next renewal.",
+   "text": "To, co {0} od teď podepíše, ponese adresu CRL {1} a adresu certifikátu autority {2}. Certifikáty vydané dřív si své adresy ponechají – změní se při jejich příštím obnovení."
+  },
+  "pc0339": {
+   "source": "fetching {0}",
+   "text": "stahuje se {0}"
+  },
+  "pc0340": {
+   "source": "HTTP {0}, {1}, {2} bytes",
+   "text": "HTTP {0}, {1}, {2} bajtů"
+  },
+  "pc0341": {
+   "source": "issuer {0} - the authority",
+   "text": "vydavatel {0} – tato autorita"
+  },
+  "pc0342": {
+   "source": "next update {0} (in {1})",
+   "text": "další aktualizace {0} (za {1})"
+  },
+  "pc0343": {
+   "source": "CRL number {0}, {1} revoked",
+   "text": "CRL číslo {0}, odvolaných {1}"
+  },
+  "pc0344": {
+   "source": "HTTP {0}, {1}: the authority's certificate",
+   "text": "HTTP {0}, {1}: certifikát autority"
+  },
+  "pc0345": {
+   "source": "HTTP {0} from {1}",
+   "text": "HTTP {0} z {1}"
+  },
+  "pc0346": {
+   "source": "could not be fetched: {0} - does {1} point at acme, and is port 80 open?",
+   "text": "nepodařilo se stáhnout: {0} – ukazuje {1} na acme a je port 80 otevřený?"
+  },
+  "pc0347": {
+   "source": "could not be fetched: {0}",
+   "text": "nepodařilo se stáhnout: {0}"
+  },
+  "pc0348": {
+   "source": "it has run out (next update {0})",
+   "text": "vypršel (další aktualizace {0})"
+  },
+  "pc0349": {
+   "source": "{0} is not published (its switch is off, or it has no certificate yet)",
+   "text": "{0} se nepublikuje (má vypnutý přepínač nebo ještě nemá certifikát)"
+  },
+  "pc0350": {
+   "source": "answered by {0} node(s)",
+   "text": "odpovídá {0} {0:uzel|uzly|uzlů}"
+  },
+  "pc0351": {
+   "source": "answered by {0} node(s) and the VIP address",
+   "text": "odpovídá {0} {0:uzel|uzly|uzlů} a VIP adresa"
+  },
+  "pc0352": {
+   "source": "{0} of {1} name(s) point at acme",
+   "text": "{0} z {1} jmen ukazuje na acme"
+  },
+  "pc0353": {
+   "source": "{0} (this node)",
+   "text": "{0} (tento uzel)"
+  },
+  "pc0354": {
+   "source": "Fetching a probe token from {0}…",
+   "text": "Stahuje se zkušební token z {0}…"
+  },
+  "pc0355": {
+   "source": "points at acme ({0})",
+   "text": "ukazuje na acme ({0})"
+  },
+  "pc0356": {
+   "source": "node {0}",
+   "text": "uzel {0}"
+  },
+  "pc0357": {
+   "source": "this node ({0})",
+   "text": "tento uzel ({0})"
+  },
+  "pc0358": {
+   "source": "points elsewhere: {0} - set its DNS to the VIP address {1} or put a proxy there that forwards /.well-known/acme-challenge/ to acme",
+   "text": "ukazuje jinam: {0} – nastavte v DNS VIP adresu {1}, nebo tam dejte proxy, která /.well-known/acme-challenge/ přeposílá na acme"
+  },
+  "pc0359": {
+   "source": "points elsewhere: {0} - set its DNS to acme's address or put a proxy there that forwards /.well-known/acme-challenge/ to acme",
+   "text": "ukazuje jinam: {0} – nastavte v DNS adresu acme, nebo tam dejte proxy, která /.well-known/acme-challenge/ přeposílá na acme"
+  },
+  "pc0360": {
+   "source": "{0}: points at acme ({1})",
+   "text": "{0}: ukazuje na acme ({1})"
+  },
+  "pc0361": {
+   "source": "{0}: points elsewhere: {1} - set its DNS to the VIP address {2} or put a proxy there that forwards /.well-known/acme-challenge/ to acme",
+   "text": "{0}: ukazuje jinam: {1} – nastavte v DNS VIP adresu {2}, nebo tam dejte proxy, která /.well-known/acme-challenge/ přeposílá na acme"
+  },
+  "pc0362": {
+   "source": "{0}: points elsewhere: {1} - set its DNS to acme's address or put a proxy there that forwards /.well-known/acme-challenge/ to acme",
+   "text": "{0}: ukazuje jinam: {1} – nastavte v DNS adresu acme, nebo tam dejte proxy, která /.well-known/acme-challenge/ přeposílá na acme"
+  },
+  "pc0363": {
+   "source": "{0}: it has no address in DNS",
+   "text": "{0}: v DNS nemá žádnou adresu"
+  },
+  "pc0364": {
+   "source": "{0}: DNS did not answer in time",
+   "text": "{0}: DNS neodpověděl včas"
+  },
+  "pc0365": {
+   "source": "the CA would fetch http://{0}/.well-known/acme-challenge/<token> on port 80, plain HTTP",
+   "text": "autorita by stahovala http://{0}/.well-known/acme-challenge/<token> na portu 80, prostým HTTP"
+  },
+  "pc0366": {
+   "source": "http://{0}/.well-known/acme-challenge/ answers acme's probe - the CA will be answered",
+   "text": "http://{0}/.well-known/acme-challenge/ odpovídá na zkoušku acme – autorita odpověď dostane"
+  },
+  "pc0367": {
+   "source": "HTTP-01 check of {0} ({1})",
+   "text": "kontrola HTTP-01 jména {0} ({1})"
   }
  },
  "rich": {

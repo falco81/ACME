@@ -932,10 +932,10 @@ def ssh_fields(port=22, user='root', with_hostkey=True):
         field('user', 'User', 'text', default=user, required=True),
         field('auth', 'Signs in with', 'select', default='key',
               options=[['key', 'a private key'], ['password', 'a password']]),
-        field('key', 'Private key', 'pem', secret=True, show_if={'auth': ['key']},
-              help='OpenSSH or PEM private key; its public half in the user\'s '
-                   '~/.ssh/authorized_keys on the machine.'),
-        field('key_pass', 'Key passphrase', 'secret', show_if={'auth': ['key']}, advanced=True),
+        field('key', 'The SSH key', 'sshkey', secret=True, pass_key='key_pass',
+              auth_key='auth', howto='linux',
+              help='Made here (ed25519) or your own (OpenSSH or PEM); its public half in the '
+                   'user\'s ~/.ssh/authorized_keys on the machine.'),
         field('password', 'Password', 'secret', show_if={'auth': ['password']}),
     ]
     if with_hostkey:
