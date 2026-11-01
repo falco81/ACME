@@ -740,7 +740,7 @@ def push_do_pair(store, raw, headers, conf, box):
     with PUSH_LOCK:
         c2 = push_conf(store)
         keys = [k for k in c2['keys'] if k.get('id') != key['id']]
-        keys.append(dict(key, name=name, at=time.time(), by='pairing code'))
+        keys.append(dict(key, name=name, at=time.time(), by='pairing code', how='paired with a code'))
         c2['keys'] = keys[-PUSH_KEYS_MOST:]
         c2['pairing'] = None
         push_conf_save(store, c2)
@@ -804,20 +804,22 @@ def push_do_install(store, b, conf, box, key):
             continue
         push_put(store, s, got, alt, by)
         put.append(s)
-    with PUSH_LOCK:
-        c2 = push_conf(store)
-        c2['last'] = {'at': time.time(), 'by': by, 'fingerprint': fp,
-                      'slots': [s['id'] for s in slots], 'put': [s['id'] for s in put]}
-        push_conf_save(store, c2)
-    one = lambda s, st: {'slot': s['id'], 'names': s['names'], 'node': s['node'],  # noqa: E731
-                         'fingerprint': fp, 'not_after': got['info'].get('not_after'),
-                         'state': st}
     said = []
     if put:
         said.append('put in for %s - each node puts it into nginx within seconds'
                     % ', '.join(s['id'] for s in put))
     if same:
         said.append('already there for %s' % ', '.join(s['id'] for s in same))
+    with PUSH_LOCK:
+        c2 = push_conf(store)
+        # acme and said as well: the card's "The last push" line (as ai's).
+        c2['last'] = {'at': time.time(), 'by': by, 'acme': by, 'said': '; '.join(said),
+                      'fingerprint': fp, 'slots': [s['id'] for s in slots],
+                      'put': [s['id'] for s in put]}
+        push_conf_save(store, c2)
+    one = lambda s, st: {'slot': s['id'], 'names': s['names'], 'node': s['node'],  # noqa: E731
+                         'fingerprint': fp, 'not_after': got['info'].get('not_after'),
+                         'state': st}
     return {'ok': True, 'installed': [one(s, 'installed') for s in put] +
             [one(s, 'already') for s in same], 'said': '; '.join(said)}
 
@@ -863,11 +865,15 @@ def push_view(store):
     # certificate manager), which pushes to others.
     me = push_identity(store) if PUSH_APP == 'acme' else None
     return {'on': conf['on'], 'other_names': conf['other_names'],
-            'keys': [{k: x.get(k) for k in ('id', 'name', 'at', 'by')} for x in conf['keys']],
+            # key_id and how as well: the card is ai's (the same words and columns).
+            'keys': [dict({k: x.get(k) for k in ('id', 'name', 'at', 'by')}, key_id=x.get('id'),
+                          how=x.get('how') or ('paired with a code' if x.get('by') == 'pairing code'
+                                               else 'pasted')) for x in conf['keys']],
             'pairing': {'until': p.get('until'), 'tries': p.get('tries') or 0}
             if p and float(p.get('until') or 0) > time.time() else None,
             'app_id': box['app_id'] if box else '',
-            'enc_fp': push_key_id(box['pub']) if box else '', 'last': conf['last'],
+            'enc_fp': push_key_id(box['pub']) if box else '',
+            'enc_key': push_b64(box['pub']) if box else '', 'last': conf['last'],
             'slots': push_slots(store) if conf['on'] else [],
             'mine': {'text': me['text'], 'id': me['id']} if me else None}
 
@@ -885,8 +891,13 @@ def _push_card_do(h):
 
 
 def push_card_do(store, b, who):
-    """What the card asks: on, off, pair, pair_drop, key_add, key_forget, other_names."""
+    """What the card asks: on, off, pair, pair_drop, key_add, key_forget, other_names
+    (and ai's words for the same: switch {on}, pair_stop, key_forget {key_id})."""
     act = str(b.get('action') or '')
+    if act == 'switch':
+        act = 'on' if b.get('on') is True else 'off'
+    elif act == 'pair_stop':
+        act = 'pair_drop'
     out = {}
     with PUSH_LOCK:
         conf = push_conf(store)
@@ -918,12 +929,13 @@ def push_card_do(store, b, who):
             keys = [k for k in conf['keys'] if k.get('id') != kid]
             if len(keys) >= PUSH_KEYS_MOST:
                 raise ApiError(409, 'at most %d acme keys - forget one first' % PUSH_KEYS_MOST)
-            keys.append({'id': kid, 'public': push_b64(pub), 'name': comment[:80] or 'acme',
-                         'at': time.time(), 'by': who})
+            name = re.sub(r'[^A-Za-z0-9 ._@()+:-]', '', str(b.get('name') or '').strip())[:80]
+            keys.append({'id': kid, 'public': push_b64(pub), 'name': name or comment[:80] or 'acme',
+                         'at': time.time(), 'by': who, 'how': 'pasted'})
             conf['keys'] = keys
             msg = 'acme\'s key %s is taken' % kid
         elif act == 'key_forget':
-            kid = str(b.get('id') or '')
+            kid = str(b.get('id') or b.get('key_id') or '')
             if not any(k.get('id') == kid for k in conf['keys']):
                 raise ApiError(404, 'there is no such acme key here')
             conf['keys'] = [k for k in conf['keys'] if k.get('id') != kid]
