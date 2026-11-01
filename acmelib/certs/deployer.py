@@ -7,6 +7,12 @@ service take it, and is asked whether it is what is served now.
 
 A deployment that fails is tried again by the renewer after a wait that
 doubles each time (5 min, 10, 20 ... certs_retry_max_h at most).
+
+A dual certificate (ECDSA and RSA of the same names): a target that can serve
+both (Target.dual - nginx, Apache, HAProxy over SSH, F5, acme's own pages...)
+gets the bundle whole, the twin as bundle.alt; any other target gets one of
+the two, as its deployment's option `variant` says - 'auto' (the default) the
+RSA one, which every client can use.
 """
 from __future__ import annotations
 
@@ -41,6 +47,21 @@ def target_context(store, job, target_row):
                               on_hostkey=hostkey_keeper(store, target_row))
 
 
+def pick_variant(bundle, options, target_cls):
+    """What a target is handed of a (maybe dual) certificate: the bundle whole for
+    a target that serves both, else the one its option `variant` says."""
+    if bundle.alt is None or getattr(target_cls, 'dual', False):
+        return bundle
+    want = str((options or {}).get('variant') or 'auto').strip().lower()
+    if want == 'auto':
+        rsa = [b for b in bundle.variants() if b.family == 'rsa']
+        return rsa[0] if rsa else bundle
+    try:
+        return bundle.variant(want)
+    except Exception as e:                              # noqa: BLE001
+        raise base.PluginError('the deployment asks for %s: %s' % (want, e), retry=False)
+
+
 def deploy_one(store, job, cert, dep, force=False):
     """One deployment run. (ok, words). `force`: asked by a person - the target puts it
     in place even where the fingerprint there is the same (options['force'])."""
@@ -65,8 +86,17 @@ def deploy_one(store, job, cert, dep, force=False):
     ctx = target_context(store, job, trow)
     try:
         target = S.plugin_instance(store, 'target', trow, ctx)
-        bundle = S.bundle_of(cert)
         opts = S.deploy_options(store, dep)
+        whole = S.bundle_of(cert)
+        bundle = pick_variant(whole, opts, type(target))
+        if whole.alt is not None:
+            if bundle is whole:
+                step('dual: both go to %s (%s and %s)' % (
+                    trow['name'], whole.key_type, whole.alt.key_type))
+            else:
+                step('dual: %s holds one certificate - the %s one goes there (its option '
+                     '"variant": %s)' % (trow['name'], bundle.key_type,
+                                         opts.get('variant') or 'auto'))
         if force:
             opts['force'] = True
         said = target.deploy(bundle, opts)
@@ -102,7 +132,7 @@ def deploy_one(store, job, cert, dep, force=False):
         ctx.tidy()
     t2 = time.time()
     store.db.update('cert_deploys', dep['id'], {
-        'state': 'ok', 'deployed_version': cert.get('version'),
+        'state': 'ok', 'deployed_version': S.generation(cert),
         'deployed_fp': cert.get('fingerprint'), 'last_ok': t2, 'last_error': '', 'fails': 0,
         'next_try': None})
     store.db.update('cert_targets', trow['id'], {'last_ok': t2, 'last_error': ''})

@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 A webhook: the certificate POSTed to a URL as JSON or multipart, signed with
-an HMAC header so the receiver can tell it came from acme.
+an HMAC header so the receiver can tell it came from acme. A dual certificate:
+the twin as "alt" in the JSON (its own cert_pem, chain_pem, fullchain_pem,
+key_type...), and as files fmt@alt in a multipart body.
 """
 from __future__ import annotations
 
@@ -12,7 +14,7 @@ import time
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, fp_of, multipart, label_of, text,
-    tls_fields, verify_fields, PFX_FORMATS)
+    tls_fields, verify_fields, PFX_FORMATS, alt_of, variant_of)
 
 
 def sign(secret, ts, body):
@@ -28,6 +30,7 @@ class WebhookTarget(HttpTarget):
     description = ('POSTs the certificate to a URL - JSON or multipart - with an HMAC '
                    'signature header, for anything acme has no module for.')
     doc = 'targets.md'
+    dual = True             # a dual certificate: the twin as "alt" in the body
     fields = [
         field('url', 'URL', 'text', required=True, placeholder='https://hooks.example.com/cert'),
         field('secret', 'Signing secret', 'secret',
@@ -75,6 +78,16 @@ class WebhookTarget(HttpTarget):
              'fullchain_pem': bundle.fullchain_pem}
         if key:
             d['key_pem'] = text(bundle.key_pem)
+        alt = alt_of(bundle)
+        if alt is not None:
+            d['key_type'] = getattr(bundle, 'key_type', '')
+            d['alt'] = {'key_type': getattr(alt, 'key_type', ''), 'serial': alt.serial,
+                        'fingerprint': fp_of(alt), 'not_before': alt.not_before,
+                        'not_after': alt.not_after, 'cert_pem': alt.cert_pem,
+                        'chain_pem': ''.join(alt.chain_pems or []),
+                        'fullchain_pem': alt.fullchain_pem}
+            if key:
+                d['alt']['key_pem'] = text(alt.key_pem)
         extra = (options.get('extra') or '').strip()
         if extra:
             try:
@@ -98,17 +111,24 @@ class WebhookTarget(HttpTarget):
         d, key = self.payload(bundle, options)
         if (options.get('body') or 'json') == 'multipart':
             parts = [(k, json.dumps(v) if isinstance(v, (list, dict)) else text(v))
-                     for k, v in d.items() if not k.endswith('_pem')]
+                     for k, v in d.items() if not k.endswith('_pem') and k != 'alt']
             name = label_of(bundle, options)
-            for fmt in lines(self.opt(options, 'formats')):
-                if fmt not in bundle.FORMATS:
+            fmts = lines(self.opt(options, 'formats'))
+            if alt_of(bundle) is not None:
+                fmts += [f + '@alt' for f in fmts if '@' not in f]
+            for fmt in fmts:
+                base, _, which = fmt.partition('@')
+                if base not in bundle.FORMATS:
                     raise PluginError('not a format: %s' % fmt, retry=False)
-                if not key and (fmt.startswith('key') or fmt in PFX_FORMATS or
-                                fmt == 'combined-pem'):
+                if not key and (base.startswith('key') or base in PFX_FORMATS or
+                                base == 'combined-pem'):
                     raise PluginError('%s holds the private key, and this webhook does not '
                                       'send keys' % fmt, retry=False)
-                data = bundle.as_format(fmt, password=options.get('pfx_password') or None,
-                                        alias=name)
+                one = variant_of(bundle, which)
+                if one is None:
+                    raise PluginError('%s: the certificate has no such one' % fmt, retry=False)
+                data = one.as_format(base, password=options.get('pfx_password') or None,
+                                     alias=name)
                 parts.append((fmt, ('%s.%s' % (name, fmt), data, 'application/octet-stream')))
             body, ctype = multipart(parts)
         else:

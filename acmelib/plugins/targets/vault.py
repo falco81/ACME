@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 HashiCorp Vault (or OpenBao): the certificate written as a secret of a KV
-version 2 engine, for whatever reads it from there.
+version 2 engine, for whatever reads it from there. A dual certificate: the
+twin in the same secret, its fields with alt_ before them (alt_certificate,
+alt_fullchain, alt_private_key, alt_key_type...).
 """
 from __future__ import annotations
 
@@ -9,7 +11,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, fp_of, label_of, subst, stamp, tls_fields,
-    verify_fields, text)
+    verify_fields, text, alt_of, dual_fp)
 
 
 class VaultTarget(HttpTarget):
@@ -18,6 +20,7 @@ class VaultTarget(HttpTarget):
     vendor = 'HashiCorp'
     description = 'Writes the certificate, chain and key as a secret of a KV v2 engine.'
     doc = 'targets.md'
+    dual = True             # a dual certificate: the twin's fields beside, alt_*
     fields = [
         field('host', 'Vault address', 'text', required=True,
               placeholder='https://vault.example.local:8200'),
@@ -80,10 +83,12 @@ class VaultTarget(HttpTarget):
                      {'name': label_of(bundle, options), 'date': stamp(bundle)})
         url = self.url(path)
         fp = fp_of(bundle)
+        alt = alt_of(bundle)
         if not as_bool(options.get('force')):
             st, hd, d = self.req('GET', url, ok=(200, 404), what='reading %s' % path)
             have = (((d or {}).get('data') or {}).get('data') or {}) if st == 200 else {}
-            if have.get('fingerprint') == fp:
+            if have.get('fingerprint') == fp and (have.get('alt_fingerprint') or '') == \
+                    (fp_of(alt) if alt is not None else ''):
                 return self.same(bundle, 'at %s' % path)
         data = {'certificate': bundle.cert_pem, 'chain': ''.join(bundle.chain_pems or []),
                 'fullchain': bundle.fullchain_pem, 'fingerprint': fp, 'serial': bundle.serial,
@@ -91,6 +96,14 @@ class VaultTarget(HttpTarget):
                 'not_after': bundle.not_after}
         if as_bool(self.opt(options, 'include_key', True), True):
             data['private_key'] = text(bundle.key_pem)
+        if alt is not None:
+            data.update(alt_certificate=alt.cert_pem, alt_chain=''.join(alt.chain_pems or []),
+                        alt_fullchain=alt.fullchain_pem, alt_fingerprint=fp_of(alt),
+                        alt_serial=alt.serial, alt_not_after=alt.not_after,
+                        key_type=getattr(bundle, 'key_type', ''),
+                        alt_key_type=getattr(alt, 'key_type', ''), dual_fingerprint=dual_fp(bundle))
+            if 'private_key' in data:
+                data['alt_private_key'] = text(alt.key_pem)
         st, hd, d = self.req('POST', url, {'data': data}, what='writing %s' % path)
         ver = (((d or {}).get('data') or {}).get('version'))
         self.ctx.step('wrote %s (version %s)' % (path, ver), 'ok')

@@ -422,12 +422,12 @@ class Challenge(Plugin):
             steps.append(st)
             lvl = 'ok' if st['done'] is True else ('bad' if st['blocking'] else
                                                    'warn' if st['done'] is False else 'info')
-            words = st['what']
+            # a line each (each translated by itself on the pages)
+            self.ctx.step(st['what'], lvl)
             if st['said']:
-                words += ': ' + st['said']
-            if st['fix'] and st['done'] is not True:
-                words += ' - ' + st['fix']
-            self.ctx.step(words, lvl)
+                self.ctx.step(st['said'], 'info')
+            if st['fix'] and st['done'] is False:
+                self.ctx.step(st['fix'], lvl)
 
         if wait is None:
             try:

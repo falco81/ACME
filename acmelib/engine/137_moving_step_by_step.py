@@ -75,10 +75,16 @@ def db_move_guard(store):
     if mode and not recent:
         out['stale'] = True
         last = min((float(n.get('age') or 0) for n in others), default=None)
-        out['why'] = ('config.json says this node is one of a cluster (ha_mode "%s"), but no '
-                      'other node has been heard from %s. Its database is still the cluster\'s '
-                      'as far as acme knows, so it is not moved.'
-                      % (mode, ('for %s' % _ago_words(last)) if last is not None else 'at all'))
+        if last is None:
+            out['why'] = ('config.json says this node is one of a cluster (ha_mode "%s"), but no '
+                          'other node has ever been heard from. Its database is still the '
+                          'cluster\'s as far as acme knows, so it is not moved.' % mode)
+        else:
+            out['why'] = ('config.json says this node is one of a cluster (ha_mode "%s"), but no '
+                          'other node has been heard from since %s. Its database is still the '
+                          'cluster\'s as far as acme knows, so it is not moved.'
+                          % (mode, datetime.fromtimestamp(time.time() - last).strftime(
+                              '%d-%m-%Y %H:%M')))
         out['how'] = [
             'If this node really is alone for good, take it out of the cluster mode: as root '
             'on this machine, acme --ha-standalone --yes - it keeps the database, the key and '
@@ -87,15 +93,23 @@ def db_move_guard(store):
             'Build the cluster again afterwards if you want one: Settings → High availability.']
         return out
     if mode:
-        out['why'] = ('this node is one of a cluster (%s): its database is the cluster\'s. '
-                      'Moving it would break the %s and leave the other node on its own.'
-                      % ('replicated - a PostgreSQL on each node' if mode == 'replicated'
-                         else 'shared - both nodes open one PostgreSQL',
-                         'replication' if mode == 'replicated' else 'cluster'))
+        out['why'] = ('this node is one of a cluster (replicated - a PostgreSQL on each node): '
+                      'its database is the cluster\'s. Moving it would break the replication '
+                      'and leave the other node on its own.' if mode == 'replicated' else
+                      'this node is one of a cluster (shared - both nodes open one PostgreSQL): '
+                      'its database is the cluster\'s. Moving it would break the cluster and '
+                      'leave the other node on its own.')
     else:
         out['why'] = ('another node (%s) is using this database right now: moving it would '
                       'take it away from under that node.'
                       % ', '.join(n['name'] for n in alive))
+    if not mode:
+        out['how'] = [
+            'Stop acme on the other node (or uninstall it there). A node gone for good is '
+            'taken off the list on Settings → High availability, or with acme --ha-forget NAME.',
+            'Then move the database here: Settings → The database → Move to another database.',
+            'Then build the cluster again if you want one: Settings → High availability.']
+        return out
     out['how'] = [
         ('Take the cluster apart first: Settings → High availability → Switch it off… (the '
          'replication), then as root on this node acme --ha-standalone --yes, and the same on '
@@ -245,8 +259,7 @@ def _db_fix(c, err):
         return ('the account %s or its password is wrong - or that account may not come in from '
                 'this machine (%s). Type the password again, or let the wizard make the account '
                 '(Back → Make the database and the account).'
-                % (c.get('db_user'), 'pg_hba.conf' if eng == 'postgres'
-                   else "the host part of a MariaDB account, 'acme'@'this machine'"))
+                % (c.get('db_user'), 'pg_hba.conf' if eng == 'postgres' else "'user'@'host'"))
     if 'no pg_hba.conf entry' in e:
         return ('PostgreSQL does not let this machine in: add to its pg_hba.conf "hostssl %s %s '
                 '%s/32 scram-sha-256" and reload it (systemctl reload postgresql).'
@@ -259,8 +272,8 @@ def _db_fix(c, err):
         return ('nothing answers at %s:%d. Is the server running (systemctl status %s)? Is the '
                 'port right? On another machine: does it listen there (%s) and does its firewall '
                 'let this machine in?'
-                % (host, port, svc, 'listen_addresses in postgresql.conf' if eng == 'postgres'
-                   else 'bind-address in its server.cnf'))
+                % (host, port, svc, 'postgresql.conf: listen_addresses' if eng == 'postgres'
+                   else 'server.cnf: bind-address'))
     if 'timeout' in e or 'timed out' in e:
         return ('no answer from %s:%d in %s s - a firewall in between, or the wrong address?'
                 % (host, port, c.get('db_timeout_s') or 10))
@@ -336,14 +349,14 @@ def db_move_checks(store, c, overwrite=False):
         row('same', 'Another database than the one in use', False,
             'that is the database acme uses now (%s)' % store.db.where(),
             'choose another one in step 1 or 2')
-        return {'checks': rows, 'ok': False, 'target': target}
+        return {'checks': rows, 'ready': False, 'target': target}
     if not sealing_key():
         row('key', 'The key of the sealed secrets', False, 'there is no %s' % sealing_key_path(),
             'put the key back first (it is beside every backup): without it nothing sealed opens')
     try:
         backup_room_check(store)
         free = shutil.disk_usage(str(BACKUP_DIR if BACKUP_DIR.exists() else STATE_DIR)).free
-        row('backup', 'Room for the copy made first', True, '%s free in %s' % (
+        row('backup', 'Room for the copy made first', True, 'there is %s free in %s' % (
             human_bytes(free), BACKUP_DIR))
     except ValueError as e:
         row('backup', 'Room for the copy made first', False, str(e),
@@ -357,7 +370,7 @@ def db_move_checks(store, c, overwrite=False):
         if not parent.is_dir():
             row('file', 'The file', False, '%s is not a folder on this machine' % parent,
                 'make it first (mkdir -p %s; chown acme: %s) or choose another place' % (parent, parent))
-            return {'checks': rows, 'ok': False, 'target': target}
+            return {'checks': rows, 'ready': False, 'target': target}
         writable = os.access(str(path if path.exists() else parent), os.W_OK)
         row('file', 'The file', writable,
             '%s %s' % (path, 'is there already' if path.exists() else 'is made there'),
@@ -372,14 +385,14 @@ def db_move_checks(store, c, overwrite=False):
         except OSError:
             pass
         if not writable:
-            return {'checks': rows, 'ok': False, 'target': target}
+            return {'checks': rows, 'ready': False, 'target': target}
         if path.exists():
             try:
                 db = db_open(c)
             except Exception as e:                      # noqa: BLE001
                 row('reach', 'It opens', False, str(e).split('\n')[0][:300],
                     'that file is not a SQLite database acme can open: choose another name')
-                return {'checks': rows, 'ok': False, 'target': target}
+                return {'checks': rows, 'ready': False, 'target': target}
             row('version', 'The engine', True, db.version())
     else:
         d = db_drivers_said().get(eng) or {}
@@ -387,7 +400,7 @@ def db_move_checks(store, c, overwrite=False):
             row('driver', 'The driver in acme\'s Python', False, d.get('says'),
                 'install it: %s - then press Check again (if it still says so: systemctl '
                 'restart acme)' % d.get('install'))
-            return {'checks': rows, 'ok': False, 'target': target}
+            return {'checks': rows, 'ready': False, 'target': target}
         row('driver', 'The driver in acme\'s Python', True, '%s, in %s' % (d.get('module'),
                                                                           sys.executable))
         try:
@@ -400,7 +413,7 @@ def db_move_checks(store, c, overwrite=False):
             row('reach', 'Reached as %s' % c.get('db_user'), False, said, _db_fix(c, said))
             if db is not None:
                 db.close()
-            return {'checks': rows, 'ok': False, 'target': target}
+            return {'checks': rows, 'ready': False, 'target': target}
         row('reach', 'Reached as %s' % c.get('db_user'), True, db_where(c))
         ver = db.version()
         warn = ''
@@ -504,8 +517,9 @@ def db_move_checks(store, c, overwrite=False):
             db.close()
     elif eng == 'sqlite':
         row('empty', 'Empty', True, 'a new file')
-    ok = not any(r['ok'] is False for r in rows)
-    return {'checks': rows, 'ok': ok, 'target': target}
+    ready = not any(r['ok'] is False for r in rows)
+    # 'ready', not 'ok' (1.0.210): the pages take an answer with ok false for an error.
+    return {'checks': rows, 'ready': ready, 'target': target}
 
 
 def _room_row(row, folder, here_size):
@@ -806,7 +820,7 @@ def db_move_work(store, c, by, overwrite=False, progress=None, restart=None):
                         'left as it was; acme starts again on the new one'
                         % (by, ENGINE_WORDS.get(c['db_engine']), db_where(c),
                            sum(loaded.values()), store.db.where()), 'warn', who=by)
-        _mv_step('switch', 'ok', '%s now names %s' % (CONFIG_FILE, db_where(c)))
+        _mv_step('switch', 'ok', '%s names the new database now: %s' % (CONFIG_FILE, db_where(c)))
         MOVE['state'] = 'restarting'
         _mv_step('restart', 'run', 'acme stops here and starts again on %s' % db_where(c))
         progress(whole, whole, 'restarting on the new database')
@@ -1001,7 +1015,7 @@ def db_move_api(h, s, act, b):
         return {'made': said, 'password': made, 'message': 'made: %s' % '; '.join(said)}
     if act == 'wiz_go':
         got = db_move_checks(store, c, bool(b.get('overwrite')))
-        if not got['ok']:
+        if not got['ready']:
             bad = [r for r in got['checks'] if r['ok'] is False]
             raise ApiError(400, 'it is not ready: %s' % '; '.join(
                 '%s - %s' % (r['what'], r['said']) for r in bad[:3]))
@@ -1074,7 +1088,7 @@ def db_move_cli(args):
         print('  %s %s: %s' % (mark, r['what'], r['said']))
         if r['fix'] and r['ok'] is not True:
             print('       what to do: %s' % r['fix'])
-    if not got['ok']:
+    if not got['ready']:
         print('acme: %s is not ready for the move' % db_where(c), file=sys.stderr)
         return 1
     if args.db_check:

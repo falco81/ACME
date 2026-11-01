@@ -473,24 +473,38 @@ def fixes(result, most=3):
     return '; '.join(out[:most]) + (' (and %d more)' % more if more > 0 else '')
 
 
+def group_line(g):
+    if g.get('validation'):
+        return 'Names %s in %s, proved by %s' % (', '.join(g['names']), g['domain'],
+                                                 g['validation'])
+    return 'Names %s in %s: no validation is chosen' % (', '.join(g['names']), g['domain'])
+
+
+def _step_lines(job, st):
+    """One guide step as job lines: what, what was found, what to do, the record -
+    each a line of its own (the pages translate each by itself)."""
+    lvl = 'ok' if st['done'] is True else 'bad' if st['blocking'] else \
+        'warn' if st['done'] is False else 'info'
+    job.step(st['what'], lvl)
+    if st.get('said'):
+        job.step(st['said'], 'info')
+    if st.get('fix') and st['done'] is False:
+        job.step(st['fix'], lvl)
+    rec = st.get('record') or {}
+    if rec.get('type') and st['done'] is False and not str(rec.get('value') or '').startswith('('):
+        job.step(record_text(rec), lvl)
+
+
 def job_steps(job, result):
-    """A plan written into a job's steps, a step a line."""
+    """A plan written into a job's steps."""
     for st in (result.get('head') or {}).get('steps') or []:
-        job.step(step_line(st), 'ok' if st['done'] is True else 'bad' if st['blocking'] else
-                 'info')
+        _step_lines(job, st)
     for g in result.get('groups') or []:
-        job.step('%s: %s - %s' % (g['domain'], ', '.join(g['names']),
-                                  ('by %s' % g['validation']) if g['validation'] else
-                                  'no validation'))
+        job.step(group_line(g))
         for st in (g.get('guide') or {}).get('steps') or []:
-            lvl = 'ok' if st['done'] is True else 'bad' if st['blocking'] else \
-                'warn' if st['done'] is False else 'info'
-            job.step(step_line(st), lvl)
-            if st.get('record') and st['done'] is not True and st.get('record', {}).get('type'):
-                job.step('  %s: %s' % (st.get('where') or 'DNS', record_text(st['record'])),
-                         lvl)
+            _step_lines(job, st)
         for s in g.get('suggested') or []:
-            job.step('  could also be: %s (%s)' % (s['validation'] or s['kind'], s['why']))
+            job.step('Could also be: %s (%s)' % (s['validation'] or s['kind'], s['why']))
 
 
 # ---------------------------------------------------------------------------
@@ -524,20 +538,18 @@ def _dry(store, job, names, which, wait):
         index[k]['names'].append(n)
     for g in groups:
         job.check()
-        job.step('%s: %s - %s' % (g['domain'], ', '.join(g['names']),
-                                  ('by %s' % g['validation']) if g['validation'] else
-                                  'no validation'))
+        job.step(group_line(g))
         if not g['validation']:
             g['guide'] = base.guide_of([_step(
                 'validation', 'A validation proves the names', False,
                 said='no validation is chosen', fix='Choose a validation for them')])
-            job.step(step_line(g['guide']['steps'][0]), 'bad')
+            _step_lines(job, g['guide']['steps'][0])
             continue
         row, inst, words = module(store, g['validation'], job)
         if inst is None:
             g['guide'] = base.guide_of([_step('validation', 'The validation can be used', False,
                                               said=words, fix='Choose another validation')])
-            job.step(step_line(g['guide']['steps'][0]), 'bad')
+            _step_lines(job, g['guide']['steps'][0])
             continue
         g['kind'] = row.get('kind')
         parts = []

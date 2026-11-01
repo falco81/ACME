@@ -169,7 +169,8 @@ LIST_COLS = ('id', 'name', 'cn', 'names', 'key_type', 'issuer', 'challenge', 'au
              'renew_days', 'reuse_key', 'serial', 'fingerprint', 'not_before', 'not_after',
              'issuer_dn', 'subject_dn', 'source', 'state', 'state_at', 'last_try', 'last_ok',
              'last_error', 'next_try', 'fails', 'version', 'tags', 'note', 'owner', 'created',
-             'created_by', 'updated', 'updated_by', 'enabled')
+             'created_by', 'updated', 'updated_by', 'enabled', 'key_type_alt', 'alt_not_after',
+             'alt_state', 'alt_version', 'alt_fingerprint', 'alt_serial')
 
 
 def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, per=50):
@@ -274,9 +275,62 @@ def cert_one(store, ref, full=False):
             out['info'] = S.info_of(row['cert_pem'])
         except Exception as e:                          # noqa: BLE001
             out['info'] = {'error': str(e)}
-    out['due'] = renewer.due_why(row)
+    # A dual certificate: both, side by side - the main one and its twin.
+    dual_ok = bool(row.get('key_type_alt')) and S.issuer_dual(store, row.get('issuer')) \
+        if row.get('issuer') else bool(row.get('key_type_alt'))
+    out['variants'] = [_variant_view(row, '')]
+    if row.get('key_type_alt') or row.get('alt_cert_pem'):
+        out['variants'].append(_variant_view(row, 'alt'))
+    out['dual_source'] = dual_ok
+    out['due'] = renewer.due_why(row, dual=dual_ok)
     out['busy'] = jobs.cert_busy(store, row['id'])
     return {'cert': out, 'versions': versions, 'deploys': deps, 'jobs': js}
+
+
+def _variant_view(row, variant):
+    """One of a dual certificate's two, as the page shows it side by side."""
+    p = 'alt_' if variant == 'alt' else ''
+    pem = row.get(p + 'cert_pem')
+    out = {'variant': variant or 'main',
+           'key_type': row.get('key_type_alt' if variant == 'alt' else 'key_type') or '',
+           'version': row.get(p + 'version'), 'serial': row.get(p + 'serial'),
+           'fingerprint': row.get(p + 'fingerprint'), 'not_before': row.get(p + 'not_before'),
+           'not_after': row.get(p + 'not_after'), 'issuer_dn': row.get(p + 'issuer_dn'),
+           'has_key': bool(row.get(p + 'key_sealed')), 'issued': bool(pem),
+           'days_left': S.days_left({'not_after': row.get(p + 'not_after')}),
+           'ari': S.jload(row.get(p + 'ari'), {}) or {}}
+    out['family'] = S.key_family(out['key_type'])
+    if variant == 'alt':
+        out.update(state=row.get('alt_state') or ('ok' if pem else 'new'),
+                   error=row.get('alt_error') or '', next_try=row.get('alt_next_try'),
+                   fails=int(row.get('alt_fails') or 0))
+    else:
+        out.update(state=row.get('state') or 'new', error=row.get('last_error') or '',
+                   next_try=row.get('next_try'), fails=int(row.get('fails') or 0))
+    if pem:
+        try:
+            info = S.info_of(pem)
+            out['info'] = {k: info.get(k) for k in ('key_type', 'key_bits', 'sig_alg',
+                                                     'issuer_cn', 'subject_dn', 'names', 'sha1',
+                                                     'sha256') if k in info}
+            out['key_type'] = out['key_type'] or info.get('key_type') or ''
+        except Exception as e:                          # noqa: BLE001
+            out['info'] = {'error': str(e)}
+    return out
+
+
+def key_type_alt_of(v, key_type):
+    """The twin's key type as saved: '' (none) or a key type of another kind than
+    the main one - ECDSA beside RSA, RSA beside ECDSA."""
+    kt = str(v or '').strip().lower()
+    if kt in ('', 'none', 'no', 'off', '-', '0'):
+        return ''
+    if kt not in schema.KEY_TYPES:
+        raise ValueError('the twin\'s key type is one of %s, or none' % ', '.join(schema.KEY_TYPES))
+    if S.key_family(kt) == S.key_family(key_type):
+        raise ValueError('the twin needs another kind of key than %s (ECDSA beside RSA, or RSA '
+                         'beside ECDSA)' % key_type)
+    return kt
 
 
 @api('GET', '/api/certs/one')
@@ -309,6 +363,14 @@ def cert_save(store, b, by):
         if kt not in schema.KEY_TYPES:
             raise ValueError('the key type is one of %s' % ', '.join(schema.KEY_TYPES))
         fields['key_type'] = kt
+    if 'key_type_alt' in b or (row and 'key_type' in fields and row.get('key_type_alt')):
+        kta = key_type_alt_of(b.get('key_type_alt', (row or {}).get('key_type_alt')),
+                              fields.get('key_type') or (row or {}).get('key_type') or 'ec-256')
+        fields['key_type_alt'] = kta
+        if row and kta != (row.get('key_type_alt') or ''):
+            # Another twin (or none): the one it had is no longer current - the next look
+            # issues the new one; versions keep the old.
+            fields.update(S.ALT_CLEAR)
     if not row:
         # Not said at all (not said empty): Let's Encrypt first (defaults.py),
         # and an ACME issuer's names proved by this server's HTTP-01 unless a
@@ -606,25 +668,39 @@ def cert_export(store, b, s, allowed=None):
     if fmt in S.KEY_FORMATS and not may(s, 'fulladmin'):
         raise E.ApiError(403, 'only a full administrator may take a private key out')
     vrow = None
+    variant = str(b.get('variant') or 'main').strip().lower()
+    if variant not in ('main', 'alt', 'ec', 'rsa', 'ed', 'ecdsa'):
+        raise ValueError('the variant is main or alt (or ec, rsa)')
     if b.get('version') not in (None, '', 0):
         vrow = S.version_row(store, row['id'], int(b['version']))
         if not vrow:
             raise LookupError('%s has no version %s' % (row['name'], b['version']))
     if not (vrow or row).get('cert_pem'):
         raise ValueError('%s has not been issued yet' % row['name'])
-    bundle = S.bundle_of(row, vrow)
+    if vrow is None and variant != 'main':
+        try:
+            bundle = S.bundle_of(row).variant(variant)
+        except Exception as e:                          # noqa: BLE001
+            raise ValueError(str(e))
+    else:
+        bundle = S.bundle_of(row, vrow, 'main' if vrow is None else None)
+    variant = getattr(bundle, 'variant_name', 'main')
     if fmt in S.KEY_FORMATS and not getattr(bundle, 'key_pem', None):
         raise ValueError('acme does not have the key of %s' % row['name'])
     data = bundle.as_format(fmt, _text(b, 'password', 1000) or None)
     if isinstance(data, str):
         data = data.encode('utf-8')
     ext, mime = FORMAT_FILES[fmt]
-    fname = re.sub(r'[^A-Za-z0-9._-]+', '_', row['name']) + ext
+    fname = re.sub(r'[^A-Za-z0-9._-]+', '_', row['name'])
+    if variant == 'alt' or (row.get('key_type_alt') and vrow is None):
+        fname += '.' + (getattr(bundle, 'family', '') or variant)   # site.rsa.crt, site.ec.crt
+    fname += ext
     if fmt in S.KEY_FORMATS:
-        store.add_event('certificates', 'the private key of %s was exported (%s) by %s' % (
-            row['name'], fmt, who(s)), 'warn', who=who(s))
+        store.add_event('certificates', 'the private key of %s%s was exported (%s) by %s' % (
+            row['name'], ' (its twin)' if variant == 'alt' else '', fmt, who(s)), 'warn',
+            who=who(s))
     return {'filename': fname, 'mime': mime, 'data_b64': base64.b64encode(data).decode('ascii'),
-            'format': fmt}
+            'format': fmt, 'variant': variant, 'key_type': getattr(bundle, 'key_type', '')}
 
 
 @api('POST', '/api/certs/export', 'certadmin')
@@ -1449,7 +1525,9 @@ def deploy_rows(store, target='', cert='', full=False):
         where.append('d.cert_id = ?')
         args.append(c['id'])
     rows = store.db.rows(
-        'SELECT d.*, c.name AS cert_name, c.version AS cert_version, c.state AS cert_state '
+        'SELECT d.*, c.name AS cert_name, c.version AS cert_version, c.state AS cert_state, '
+        'c.alt_version AS cert_alt_version, c.key_type_alt AS cert_key_type_alt, '
+        'c.alt_fingerprint AS cert_alt_fp '
         'FROM cert_deploys d JOIN certs c ON c.id = d.cert_id%s ORDER BY c.name, d.position, d.id'
         % (' WHERE ' + ' AND '.join(where) if where else ''), args)
     out = []
@@ -1457,8 +1535,14 @@ def deploy_rows(store, target='', cert='', full=False):
     for r in rows:
         one = S.deploy_public(store, r, full)
         one['target_kind'] = kinds.get(r['target'])
-        one['outdated'] = bool(r.get('cert_version') and r.get('deployed_version') and
-                               int(r['deployed_version']) < int(r['cert_version']))
+        gen = S.generation({'version': r.get('cert_version'),
+                            'alt_version': r.get('cert_alt_version'),
+                            'key_type_alt': r.get('cert_key_type_alt'),
+                            'alt_cert_pem': 'x' if r.get('cert_alt_fp') else None})
+        one['cert_generation'] = gen
+        one['cert_dual'] = bool(r.get('cert_key_type_alt'))
+        one['outdated'] = bool(gen and r.get('deployed_version') and
+                               int(r['deployed_version']) < gen)
         out.append(one)
     return out
 

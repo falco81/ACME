@@ -29335,6 +29335,1298 @@
   "sc2266": {
    "source": "Container",
    "text": "Kontejner"
+  },
+  "sc2267": {
+   "source": "What each domain needs",
+   "text": "Co potřebuje která doména"
+  },
+  "sc2268": {
+   "source": "The names grouped by their DNS zone, each with what its validation needs and where - checked now, nothing is changed. A record to create is shown exactly, with Copy.",
+   "text": "Jména seskupená podle jejich zóny DNS, u každé co její validace potřebuje a kde – ověřeno teď, nic se nemění. Záznam, který je třeba vytvořit, je ukázán přesně, s tlačítkem Kopírovat."
+  },
+  "sc2269": {
+   "source": "Check",
+   "text": "Zkontrolovat"
+  },
+  "sc2270": {
+   "source": "Check again",
+   "text": "Zkontrolovat znovu"
+  },
+  "sc2271": {
+   "source": "Dry run",
+   "text": "Zkouška nanečisto"
+  },
+  "sc2272": {
+   "source": "dry run",
+   "text": "zkouška nanečisto"
+  },
+  "sc2273": {
+   "source": "A test record or file put in place, looked for from outside and taken away - no CA is asked",
+   "text": "Zkušební záznam nebo soubor se vloží, vyhledá zvenku a zase odstraní – CA se na nic neptá"
+  },
+  "sc2274": {
+   "source": "Checking DNS, the addresses and the validations…",
+   "text": "Kontroluji DNS, adresy a validace…"
+  },
+  "sc2275": {
+   "source": "Check asks DNS, the addresses and the validations now - nothing is changed.",
+   "text": "Kontrola se teď zeptá DNS, adres a validací – nic se nemění."
+  },
+  "sc2276": {
+   "source": "Starting…",
+   "text": "Spouštím…"
+  },
+  "sc2277": {
+   "source": "The dry run worked: the CA will find what it looks for.",
+   "text": "Zkouška nanečisto prošla: CA najde, co hledá."
+  },
+  "sc2278": {
+   "source": "The dry run found what is missing - see the ✘ below.",
+   "text": "Zkouška nanečisto našla, co chybí – viz ✘ níže."
+  },
+  "sc2279": {
+   "source": "Everything that can be checked from here is in place. A dry run tries it for real, with no CA asked.",
+   "text": "Vše, co lze odsud ověřit, je na svém místě. Zkouška nanečisto to vyzkouší naostro, bez dotazu na CA."
+  },
+  "sc2280": {
+   "source": "1 thing to set up first - see the ✘ below.",
+   "text": "Nejdřív je třeba nastavit 1 věc – viz ✘ níže."
+  },
+  "sc2281": {
+   "source": "Not every check finished in time - a DNS server or an API answers slowly. Check again in a moment.",
+   "text": "Ne každá kontrola doběhla včas – některý server DNS nebo API odpovídá pomalu. Zkontrolujte znovu za chvíli."
+  },
+  "sc2282": {
+   "source": "This source needs no validation: nothing has to be set up for the names.",
+   "text": "Tento zdroj validaci nepotřebuje: pro jména se nic nastavovat nemusí."
+  },
+  "sc2283": {
+   "source": "Nothing to check for these names.",
+   "text": "Pro tato jména není co kontrolovat."
+  },
+  "sc2284": {
+   "source": "proved by",
+   "text": "prokazuje"
+  },
+  "sc2285": {
+   "source": "no validation",
+   "text": "bez validace"
+  },
+  "sc2286": {
+   "source": "This would do:",
+   "text": "Tohle by šlo:"
+  },
+  "sc2287": {
+   "source": "Could also be:",
+   "text": "Šlo by také:"
+  },
+  "sc2288": {
+   "source": "Use",
+   "text": "Použít"
+  },
+  "sc2289": {
+   "source": "does not block",
+   "text": "neblokuje"
+  },
+  "sc2290": {
+   "source": "Back to the validation",
+   "text": "Zpět k validaci"
+  },
+  "sc2291": {
+   "source": "Create anyway (it will wait until this is in place)",
+   "text": "Přesto vytvořit (počká, až to bude na místě)"
+  },
+  "sc2292": {
+   "source": "Checking what the validation needs…",
+   "text": "Kontroluji, co validace potřebuje…"
+  },
+  "sc2293": {
+   "source": "The validation looks ready: nothing that blocks was found.",
+   "text": "Validace vypadá připravená: nic blokujícího se nenašlo."
+  },
+  "sc2294": {
+   "source": "Not in place yet",
+   "text": "Ještě není na místě"
+  },
+  "sc2295": {
+   "source": "Created now, it waits: acme does not ask the CA until this is there, and tries again by itself.",
+   "text": "Vytvořený teď počká: acme se CA nezeptá, dokud tohle nebude na místě, a pak to zkusí znovu sám."
+  },
+  "sc2296": {
+   "source": "The CA was not asked: what is missing is marked ✘, with the record to create. Once it is there, acme tries again by itself.",
+   "text": "CA nebyla požádána: co chybí, je označeno ✘, se záznamem, který je třeba vytvořit. Jakmile tam bude, acme to zkusí znovu sám."
+  },
+  "sc2297": {
+   "source": "What its names need for their validation, and where - checked now, nothing is changed.",
+   "text": "Co jeho jména potřebují ke své validaci a kde – ověřeno teď, nic se nemění."
+  },
+  "sc2298": {
+   "source": "What to set up",
+   "text": "Co nastavit"
+  },
+  "sc2299": {
+   "source": "For each certificate that uses it: what its names need, where, and whether it is there now. Nothing is changed.",
+   "text": "U každého certifikátu, který ji používá: co jeho jména potřebují, kde, a zda to tam teď je. Nic se nemění."
+  },
+  "sc2300": {
+   "source": "Nothing to create for its names.",
+   "text": "Pro jeho jména není třeba nic vytvářet."
+  },
+  "sc2301": {
+   "source": "the check of the validation",
+   "text": "kontrolu validace"
+  },
+  "sc2302": {
+   "source": "the dry run",
+   "text": "zkoušku nanečisto"
+  },
+  "sc2303": {
+   "source": "what to set up",
+   "text": "co nastavit"
+  },
+  "sc2304": {
+   "source": "Check the validation before the CA is asked",
+   "text": "Ověřit validaci, než se požádá CA"
+  },
+  "sc2305": {
+   "source": "A dry run waits at most (s)",
+   "text": "Zkouška nanečisto čeká nejvýš (s)"
+  },
+  "sc2306": {
+   "source": "Before the first certificate of a name, and after a renewal that failed on its validation, acme checks what the validation needs (the CNAME, the zone, the address the name points at) - and while something is missing it does not ask the CA but says what to set up where. Let’s Encrypt counts failed validations and stops a domain for an hour.",
+   "text": "Před prvním certifikátem jména a po obnově, která selhala na validaci, acme ověří, co validace potřebuje (CNAME, zónu, adresu, kam jméno míří) – a dokud něco chybí, CA se neptá, ale řekne, co a kde nastavit. Let’s Encrypt počítá neúspěšné validace a doménu na hodinu zastaví."
+  },
+  "sc2307": {
+   "source": "How long a dry run of a validation waits for its test record or file to be seen before it says it is not.",
+   "text": "Jak dlouho zkouška validace nanečisto čeká, než je zkušební záznam nebo soubor vidět, než řekne, že není."
+  },
+  "sc2308": {
+   "source": "A dry run shows whether this validation works for the name",
+   "text": "Zkouška nanečisto ukáže, zda tato validace pro jméno funguje"
+  },
+  "sc2309": {
+   "source": "this validation cannot tell what it needs before it is tried",
+   "text": "tato validace neumí říct, co potřebuje, dokud se nevyzkouší"
+  },
+  "sc2310": {
+   "source": "Run a dry run: acme puts a test record in place, looks for it from outside and takes it away again",
+   "text": "Spusťte zkoušku nanečisto: acme vloží zkušební záznam, vyhledá ho zvenku a zase ho odstraní"
+  },
+  "sc2311": {
+   "source": "The test value is put in place",
+   "text": "Zkušební hodnota je vložena"
+  },
+  "sc2312": {
+   "source": "Correct the validation's settings, then try again",
+   "text": "Opravte nastavení validace a zkuste to znovu"
+  },
+  "sc2313": {
+   "source": "The test value can be seen where the CA will look",
+   "text": "Zkušební hodnota je vidět tam, kde se podívá CA"
+  },
+  "sc2314": {
+   "source": "seen",
+   "text": "vidět"
+  },
+  "sc2315": {
+   "source": "See the steps above: the record or file is not where the CA looks for it",
+   "text": "Viz kroky výše: záznam nebo soubor není tam, kde ho CA hledá"
+  },
+  "sc2316": {
+   "source": "The test value is taken away again",
+   "text": "Zkušební hodnota je zase odstraněna"
+  },
+  "sc2317": {
+   "source": "Take it away by hand",
+   "text": "Odstraňte ji ručně"
+  },
+  "sc2318": {
+   "source": "The name can be proved by DNS-01",
+   "text": "Jméno lze prokázat přes DNS-01"
+  },
+  "sc2319": {
+   "source": "Correct the name",
+   "text": "Opravte jméno"
+  },
+  "sc2320": {
+   "source": "The TXT record goes where _acme-challenge points",
+   "text": "Záznam TXT jde tam, kam míří _acme-challenge"
+  },
+  "sc2321": {
+   "source": "this can be checked once acme can sign in there",
+   "text": "to lze ověřit, až se tam acme dokáže přihlásit"
+  },
+  "sc2322": {
+   "source": "A dry run shows whether the record is really put in",
+   "text": "Zkouška nanečisto ukáže, zda se záznam opravdu vloží"
+  },
+  "sc2323": {
+   "source": "Run a dry run: a test record is put in, looked for and taken away",
+   "text": "Spusťte zkoušku nanečisto: zkušební záznam se vloží, vyhledá a odstraní"
+  },
+  "sc2324": {
+   "source": "Correct the settings of the validation (credentials, address), then check again",
+   "text": "Opravte nastavení validace (přihlašovací údaje, adresu) a zkontrolujte znovu"
+  },
+  "sc2325": {
+   "source": "Correct the settings of the validation, then check again",
+   "text": "Opravte nastavení validace a zkontrolujte znovu"
+  },
+  "sc2326": {
+   "source": "The zone of the TXT record is known",
+   "text": "Zóna záznamu TXT je známa"
+  },
+  "sc2327": {
+   "source": "Set the zone in the validation's settings",
+   "text": "Nastavte zónu v nastavení validace"
+  },
+  "sc2328": {
+   "source": "acme writes the TXT record itself at every order",
+   "text": "acme zapisuje záznam TXT sám při každé objednávce"
+  },
+  "sc2329": {
+   "source": "(new at every order)",
+   "text": "(při každé objednávce nový)"
+  },
+  "sc2330": {
+   "source": "every name server of the zone has it",
+   "text": "ho mají všechny jmenné servery zóny"
+  },
+  "sc2331": {
+   "source": "every name server of the zone, then the public resolvers have it",
+   "text": "ho mají všechny jmenné servery zóny a pak veřejné resolvery"
+  },
+  "sc2332": {
+   "source": "the resolvers of the validation see it",
+   "text": "ho vidí resolvery validace"
+  },
+  "sc2333": {
+   "source": "nothing: the CA is asked at once",
+   "text": "na nic: CA se zeptá hned"
+  },
+  "sc2334": {
+   "source": "acme waits until the record can be seen",
+   "text": "acme čeká, až bude záznam vidět"
+  },
+  "sc2335": {
+   "source": "The zone's own name servers answer the test value",
+   "text": "Vlastní jmenné servery zóny odpovídají zkušební hodnotou"
+  },
+  "sc2336": {
+   "source": "none of them can be asked from here",
+   "text": "odsud se nelze zeptat žádného z nich"
+  },
+  "sc2337": {
+   "source": "none of them answered from here",
+   "text": "odsud neodpověděl žádný z nich"
+  },
+  "sc2338": {
+   "source": "A resolver may still keep an older answer (its TTL); the CA asks without one",
+   "text": "Resolver může ještě držet starší odpověď (její TTL); CA se ptá bez ní"
+  },
+  "sc2339": {
+   "source": "HTTP-01 can prove this name",
+   "text": "HTTP-01 může toto jméno prokázat"
+  },
+  "sc2340": {
+   "source": "The name points at the machine that answers HTTP-01",
+   "text": "Jméno míří na stroj, který odpovídá na HTTP-01"
+  },
+  "sc2341": {
+   "source": "This machine may not reach its own public name (no hairpin NAT); the CA asks from the internet - the steps below say more",
+   "text": "Tento stroj se možná nedostane na vlastní veřejné jméno (bez hairpin NAT); CA se ptá z internetu – víc řeknou kroky níže"
+  },
+  "sc2342": {
+   "source": "acme's own DNS server has a zone",
+   "text": "Vlastní DNS server acme má zónu"
+  },
+  "sc2343": {
+   "source": "Settings → DNS server: switch it on and give it its zone (e.g. acme.example.net)",
+   "text": "Nastavení → DNS server: zapněte ho a dejte mu zónu (např. acme.example.net)"
+  },
+  "sc2344": {
+   "source": "The name is pointed at acme's DNS server by a CNAME",
+   "text": "Jméno míří na DNS server acme záznamem CNAME"
+  },
+  "sc2345": {
+   "source": "The internet reaches acme's DNS server",
+   "text": "Internet se dostane na DNS server acme"
+  },
+  "sc2346": {
+   "source": "acme's own DNS server answers for its zone",
+   "text": "Vlastní DNS server acme odpovídá za svou zónu"
+  },
+  "sc2347": {
+   "source": "Settings → DNS server: switch it on (it says why it does not listen)",
+   "text": "Nastavení → DNS server: zapněte ho (řekne, proč neposlouchá)"
+  },
+  "sc2348": {
+   "source": "acme's zone is delegated to acme's DNS server",
+   "text": "Zóna acme je delegována na DNS server acme"
+  },
+  "sc2349": {
+   "source": "your DNS",
+   "text": "vaše DNS"
+  },
+  "sc2350": {
+   "source": "acme knows no public address of its own",
+   "text": "acme nezná žádnou svou veřejnou adresu"
+  },
+  "sc2351": {
+   "source": "Settings → DNS server: set its addresses",
+   "text": "Nastavení → DNS server: nastavte jeho adresy"
+  },
+  "sc2352": {
+   "source": "its address",
+   "text": "jeho adresu"
+  },
+  "sc2353": {
+   "source": "it is let in",
+   "text": "je povolen"
+  },
+  "sc2354": {
+   "source": "it is not let in from anywhere",
+   "text": "není povolen odkudkoli"
+  },
+  "sc2355": {
+   "source": "acme's firewall cannot be asked from here",
+   "text": "firewallu acme se odsud nelze zeptat"
+  },
+  "sc2356": {
+   "source": "From here the name does not reach acme - the CA asks from the internet, where it may: the dry run says more",
+   "text": "Odsud jméno na acme nedosáhne – CA se ptá z internetu, kde se to může podařit: víc řekne zkouška nanečisto"
+  },
+  "sc2357": {
+   "source": "The web servers are set",
+   "text": "Webové servery jsou nastaveny"
+  },
+  "sc2358": {
+   "source": "Set the web servers of the validation",
+   "text": "Nastavte webové servery validace"
+  },
+  "sc2359": {
+   "source": "Addresses in front of acme",
+   "text": "Adresy před acme"
+  },
+  "sc2360": {
+   "source": "Where the names point when acme is not reached at its own addresses: a NAT, a port forward or a proxy that sends port 80 to acme. The guide takes a name pointing at one of these as pointing at acme.",
+   "text": "Kam jména míří, když se na acme nechodí na jeho vlastní adresy: NAT, přesměrování portu nebo proxy, která posílá port 80 na acme. Průvodce bere jméno mířící na některou z nich, jako by mířilo na acme."
+  },
+  "sc2361": {
+   "source": "Load balancer in front",
+   "text": "Balancer před nimi"
+  },
+  "sc2362": {
+   "source": "The addresses the names point at when a load balancer stands in front of the web servers: the guide takes a name pointing there as right.",
+   "text": "Adresy, na které jména míří, když před webovými servery stojí balancer: průvodce bere jméno mířící tam jako správné."
+  },
+  "sc2363": {
+   "source": "The primary server answers DNS",
+   "text": "Primární server odpovídá na DNS"
+  },
+  "sc2364": {
+   "source": "Set the address of the zone's primary server",
+   "text": "Nastavte adresu primárního serveru zóny"
+  },
+  "sc2365": {
+   "source": "a trial update without changes was accepted",
+   "text": "zkušební změna bez změn byla přijata"
+  },
+  "sc2366": {
+   "source": "There is an acme-dns account for the name",
+   "text": "Pro jméno existuje účet acme-dns"
+  },
+  "sc2367": {
+   "source": "Register an account at the acme-dns server and set it in the validation",
+   "text": "Zaregistrujte účet na serveru acme-dns a nastavte ho ve validaci"
+  },
+  "sc2368": {
+   "source": "The name is pointed at acme-dns by a CNAME",
+   "text": "Jméno míří na acme-dns záznamem CNAME"
+  },
+  "sc2369": {
+   "source": "the account has no full domain set",
+   "text": "účet nemá nastavenou plnou doménu"
+  },
+  "sc2370": {
+   "source": "Set the full domain of the account (from /register)",
+   "text": "Nastavte plnou doménu účtu (z /register)"
+  },
+  "sc2371": {
+   "source": "You put the TXT record in by hand at every order",
+   "text": "Záznam TXT vkládáte ručně při každé objednávce"
+  },
+  "sc2372": {
+   "source": "(acme shows it at every order)",
+   "text": "(acme ho ukáže při každé objednávce)"
+  },
+  "sc2373": {
+   "source": "the names point at acme: HTTP-01 answered here",
+   "text": "jména míří na acme: HTTP-01 se odpovídá tady"
+  },
+  "sc2374": {
+   "source": "the names point at its web servers: HTTP-01 written there",
+   "text": "jména míří na jeho webové servery: HTTP-01 se zapisuje tam"
+  },
+  "sc2375": {
+   "source": "A validation proves the names",
+   "text": "Jména prokazuje validace"
+  },
+  "sc2376": {
+   "source": "Choose a validation for them (or one for each name)",
+   "text": "Zvolte pro ně validaci (nebo pro každé jméno jednu)"
+  },
+  "sc2377": {
+   "source": "Choose another validation, or switch it on",
+   "text": "Zvolte jinou validaci, nebo ji zapněte"
+  },
+  "sc2378": {
+   "source": "The name can be proved this way",
+   "text": "Jméno lze prokázat tímto způsobem"
+  },
+  "sc2379": {
+   "source": "The validation can say what it needs",
+   "text": "Validace umí říct, co potřebuje"
+  },
+  "sc2380": {
+   "source": "The source is there",
+   "text": "Zdroj existuje"
+  },
+  "sc2381": {
+   "source": "Choose a source (Certificates → Sources)",
+   "text": "Zvolte zdroj (Certifikáty → Zdroje)"
+  },
+  "sc2382": {
+   "source": "Choose another source",
+   "text": "Zvolte jiný zdroj"
+  },
+  "sc2383": {
+   "source": "The source gives wildcard certificates",
+   "text": "Zdroj vydává wildcard certifikáty"
+  },
+  "sc2384": {
+   "source": "Choose a source that does, e.g. Let's Encrypt",
+   "text": "Zvolte zdroj, který je vydává, např. Let's Encrypt"
+  },
+  "sc2385": {
+   "source": "The source gives certificates for addresses",
+   "text": "Zdroj vydává certifikáty pro adresy"
+  },
+  "sc2386": {
+   "source": "Take the addresses out, or choose a source that does",
+   "text": "Adresy odeberte, nebo zvolte zdroj, který je vydává"
+  },
+  "sc2387": {
+   "source": "The certificate has names",
+   "text": "Certifikát má jména"
+  },
+  "sc2388": {
+   "source": "Give it its names",
+   "text": "Dejte mu jména"
+  },
+  "sc2389": {
+   "source": "Every check finished in time",
+   "text": "Všechny kontroly doběhly včas"
+  },
+  "sc2390": {
+   "source": "The validation can be used",
+   "text": "Validaci lze použít"
+  },
+  "sc2391": {
+   "source": "Choose another validation",
+   "text": "Zvolte jinou validaci"
+  },
+  "sc2392": {
+   "source": "no validation is chosen",
+   "text": "není zvolena žádná validace"
+  },
+  "sc2393": {
+   "source": "Choose a validation for them",
+   "text": "Zvolte pro ně validaci"
+  },
+  "sc2394": {
+   "source": "before the CA is asked, what the validation needs is checked (certs_precheck; Let's Encrypt counts failed validations)",
+   "text": "než se požádá CA, ověří se, co validace potřebuje (certs_precheck; Let's Encrypt počítá neúspěšné validace)"
+  },
+  "sc2395": {
+   "source": "not every check finished in time: the CA is asked anyway",
+   "text": "ne každá kontrola doběhla včas: CA se požádá i tak"
+  },
+  "sc2396": {
+   "source": "the validation looks ready: the CA is asked",
+   "text": "validace vypadá připravená: žádá se CA"
+  },
+  "sc2397": {
+   "source": "Where everything is kept: a file on this machine (SQLite), or a MariaDB or a PostgreSQL server. Its address is the one setting kept in the config file rather than in the database - a database cannot hold the address of itself.",
+   "text": "Kde je všechno uloženo: soubor na tomto stroji (SQLite), nebo server MariaDB či PostgreSQL. Jeho adresa je jediné nastavení uložené v konfiguračním souboru, a ne v databázi – databáze nemůže držet adresu sama sebe."
+  },
+  "sc2398": {
+   "source": "Moving to another one is a wizard: it asks where to and how to reach it, checks it, says what will happen, and then does all of it - a copy made first, every row copied, counted and its sealed secrets opened there, the config file switched and the service started again on it. The database it came from is left exactly as it was: it is the way back.",
+   "text": "Přechod na jinou je průvodce: zeptá se kam a jak se k ní dostat, zkontroluje ji, řekne, co se stane, a pak to celé provede – nejdřív kopie, každý řádek zkopírován, spočítán a zapečetěné tajné údaje tam otevřeny, konfigurační soubor přepnut a služba na ní znovu spuštěna. Databáze, ze které se přešlo, zůstane přesně tak, jak byla: je to cesta zpět."
+  },
+  "sc2399": {
+   "source": "Move to another database…",
+   "text": "Přejít na jinou databázi…"
+  },
+  "sc2400": {
+   "source": "Move to another database",
+   "text": "Přejít na jinou databázi"
+  },
+  "sc2401": {
+   "source": "Step by step: where to, how to reach it, the checks, what will happen - then everything is carried across and acme starts again on it. Nothing is changed until the last step.",
+   "text": "Krok za krokem: kam, jak se k ní dostat, kontroly, co se stane – pak se vše přenese a acme se na ní znovu spustí. Až do posledního kroku se nic nemění."
+  },
+  "sc2402": {
+   "source": "Not on a node of a cluster: see why above.",
+   "text": "Ne na uzlu clusteru: proč, je uvedeno výše."
+  },
+  "sc2403": {
+   "source": "This node is still set up as one of a cluster",
+   "text": "Tento uzel je stále nastaven jako součást clusteru"
+  },
+  "sc2404": {
+   "source": "This node is one of a cluster",
+   "text": "Tento uzel je součástí clusteru"
+  },
+  "sc2405": {
+   "source": "Nodes heard on this database: ",
+   "text": "Uzly slyšené na této databázi: "
+  },
+  "sc2406": {
+   "source": "Open High availability",
+   "text": "Otevřít Vysokou dostupnost"
+  },
+  "sc2407": {
+   "source": "If this node really is alone for good, take it out of the cluster mode: as root on this machine, acme --ha-standalone --yes - it keeps the database, the key and everything in them, and starts acme again as a single server.",
+   "text": "Pokud tento uzel opravdu zůstane natrvalo sám, vyjměte ho z režimu clusteru: jako root na tomto stroji acme --ha-standalone --yes – databáze, klíč i vše v nich zůstane a acme se znovu spustí jako samostatný server."
+  },
+  "sc2408": {
+   "source": "Then move the database here: Settings → The database → Move to another database.",
+   "text": "Pak zde přesuňte databázi: Nastavení → Databáze → Přejít na jinou databázi."
+  },
+  "sc2409": {
+   "source": "Build the cluster again afterwards if you want one: Settings → High availability.",
+   "text": "Cluster pak postavte znovu, pokud ho chcete: Nastavení → Vysoká dostupnost."
+  },
+  "sc2410": {
+   "source": "Take the cluster apart first: Settings → High availability → Switch it off… (the replication), then as root on this node acme --ha-standalone --yes, and the same on the other node (or uninstall it there).",
+   "text": "Nejdřív cluster rozeberte: Nastavení → Vysoká dostupnost → Vypnout… (replikaci), pak jako root na tomto uzlu acme --ha-standalone --yes a totéž na druhém uzlu (nebo ho tam odinstalujte)."
+  },
+  "sc2411": {
+   "source": "Take the cluster apart first: stop acme on the other node (or uninstall it), then as root on this node acme --ha-standalone --yes.",
+   "text": "Nejdřív cluster rozeberte: zastavte acme na druhém uzlu (nebo ho odinstalujte), pak jako root na tomto uzlu acme --ha-standalone --yes."
+  },
+  "sc2412": {
+   "source": "Then build the cluster again: Settings → High availability → Make the bundle… here, and Join a cluster… on the other node.",
+   "text": "Pak cluster postavte znovu: Nastavení → Vysoká dostupnost → Vytvořit balíček… zde a Připojit ke clusteru… na druhém uzlu."
+  },
+  "sc2413": {
+   "source": "Stop acme on the other node (or uninstall it there). A node gone for good is taken off the list on Settings → High availability, or with acme --ha-forget NAME.",
+   "text": "Zastavte acme na druhém uzlu (nebo ho tam odinstalujte). Uzel, který je pryč natrvalo, se odebere ze seznamu v Nastavení → Vysoká dostupnost nebo příkazem acme --ha-forget NÁZEV."
+  },
+  "sc2414": {
+   "source": "this node is one of a cluster (replicated - a PostgreSQL on each node): its database is the cluster's. Moving it would break the replication and leave the other node on its own.",
+   "text": "tento uzel je součástí clusteru (replikovaného – PostgreSQL na každém uzlu): jeho databáze je databází clusteru. Přesun by rozbil replikaci a druhý uzel by zůstal sám."
+  },
+  "sc2415": {
+   "source": "this node is one of a cluster (shared - both nodes open one PostgreSQL): its database is the cluster's. Moving it would break the cluster and leave the other node on its own.",
+   "text": "tento uzel je součástí clusteru (sdíleného – oba uzly otevírají jednu PostgreSQL): jeho databáze je databází clusteru. Přesun by rozbil cluster a druhý uzel by zůstal sám."
+  },
+  "sc2416": {
+   "source": "Then build the cluster again if you want one: Settings → High availability.",
+   "text": "Pak cluster postavte znovu, pokud ho chcete: Nastavení → Vysoká dostupnost."
+  },
+  "sc2417": {
+   "source": "A move to another database is going on",
+   "text": "Probíhá přechod na jinou databázi"
+  },
+  "sc2418": {
+   "source": "The last move went through",
+   "text": "Poslední přechod proběhl"
+  },
+  "sc2419": {
+   "source": "The last move was cancelled",
+   "text": "Poslední přechod byl zrušen"
+  },
+  "sc2420": {
+   "source": "The last move failed",
+   "text": "Poslední přechod selhal"
+  },
+  "sc2421": {
+   "source": "Follow it",
+   "text": "Sledovat"
+  },
+  "sc2422": {
+   "source": "Moving",
+   "text": "Přenos"
+  },
+  "sc2423": {
+   "source": "Move it now",
+   "text": "Přejít teď"
+  },
+  "sc2424": {
+   "source": "Here now",
+   "text": "Teď zde"
+  },
+  "sc2425": {
+   "source": "The rows of each table",
+   "text": "Řádky jednotlivých tabulek"
+  },
+  "sc2426": {
+   "source": "Move it to",
+   "text": "Přejít na"
+  },
+  "sc2427": {
+   "source": "SQLite - a file on this machine",
+   "text": "SQLite – soubor na tomto stroji"
+  },
+  "sc2428": {
+   "source": "MariaDB (or MySQL)",
+   "text": "MariaDB (nebo MySQL)"
+  },
+  "sc2429": {
+   "source": "Nothing to install or look after; one server only. Copied with the backups.",
+   "text": "Nic k instalaci ani údržbě; jen jeden server. Kopíruje se se zálohami."
+  },
+  "sc2430": {
+   "source": "A database server you run already. One server: a cluster of two acme nodes needs PostgreSQL.",
+   "text": "Databázový server, který už provozujete. Jeden server: cluster dvou uzlů acme potřebuje PostgreSQL."
+  },
+  "sc2431": {
+   "source": "A database server; the one high availability needs (16 or later) - two acme nodes, shared or replicated.",
+   "text": "Databázový server; ten, který potřebuje vysoká dostupnost (16 nebo novější) – dva uzly acme, sdílené nebo replikované."
+  },
+  "sc2432": {
+   "source": "in use - another file",
+   "text": "používá se – jiný soubor"
+  },
+  "sc2433": {
+   "source": "in use - another server",
+   "text": "používá se – jiný server"
+  },
+  "sc2434": {
+   "source": "high availability",
+   "text": "vysoká dostupnost"
+  },
+  "sc2435": {
+   "source": "driver missing",
+   "text": "chybí ovladač"
+  },
+  "sc2436": {
+   "source": "driver installed",
+   "text": "ovladač nainstalován"
+  },
+  "sc2437": {
+   "source": "The driver for it is not installed in acme’s Python. Install it, as root:",
+   "text": "Ovladač pro ni není v Pythonu acme nainstalován. Nainstalujte ho jako root:"
+  },
+  "sc2438": {
+   "source": "You can go on meanwhile - the check in step 3 tries again.",
+   "text": "Mezitím můžete pokračovat – kontrola ve 3. kroku to zkusí znovu."
+  },
+  "sc2439": {
+   "source": "choose the database to move to",
+   "text": "vyberte databázi, na kterou se má přejít"
+  },
+  "sc2440": {
+   "source": "the file is a full path ending in .db",
+   "text": "soubor je úplná cesta končící .db"
+  },
+  "sc2441": {
+   "source": "the server is needed",
+   "text": "je potřeba server"
+  },
+  "sc2442": {
+   "source": "the database name is letters, digits and _, starting with a letter",
+   "text": "název databáze tvoří písmena, číslice a _, na začátku písmeno"
+  },
+  "sc2443": {
+   "source": "the account is letters, digits and _, starting with a letter",
+   "text": "účet tvoří písmena, číslice a _, na začátku písmeno"
+  },
+  "sc2444": {
+   "source": "the port is a number up to 65535",
+   "text": "port je číslo do 65535"
+  },
+  "sc2445": {
+   "source": "its password is needed (or let the wizard make the account: it makes one)",
+   "text": "je potřeba jeho heslo (nebo nechte účet vytvořit průvodce: heslo vytvoří)"
+  },
+  "sc2446": {
+   "source": "verify-full needs the authority that signed the server’s certificate",
+   "text": "verify-full potřebuje autoritu, která podepsala certifikát serveru"
+  },
+  "sc2447": {
+   "source": "A file on this machine. acme makes it, and the folder it is in must be one acme may write to - the state folder is.",
+   "text": "Soubor na tomto stroji. acme ho vytvoří a složka, ve které je, musí být taková, do které acme smí zapisovat – stavová složka taková je."
+  },
+  "sc2448": {
+   "source": "A full path ending in .db. If a file of acme is there already - one left by an earlier move - the check says so, and it is thrown away only if you say so.",
+   "text": "Úplná cesta končící .db. Pokud tam už soubor acme je – zbylý po dřívějším přechodu –, kontrola to řekne a zahodí se jen, když to řeknete."
+  },
+  "sc2449": {
+   "source": "127.0.0.1 for a server on this machine.",
+   "text": "127.0.0.1 pro server na tomto stroji."
+  },
+  "sc2450": {
+   "source": "Typed, it shows dots only. Empty: the wizard makes one when it makes the account.",
+   "text": "Při psaní ukazuje jen tečky. Prázdné: průvodce heslo vytvoří, když vytváří účet."
+  },
+  "sc2451": {
+   "source": "require - always encrypted",
+   "text": "require – vždy šifrováno"
+  },
+  "sc2452": {
+   "source": "verify-full - encrypted, the server’s certificate and name checked",
+   "text": "verify-full – šifrováno, certifikát a jméno serveru ověřeny"
+  },
+  "sc2453": {
+   "source": "Encryption (TLS)",
+   "text": "Šifrování (TLS)"
+  },
+  "sc2454": {
+   "source": "On another machine, require at least: the keys and passwords travel to it. The server needs TLS switched on.",
+   "text": "Na jiném stroji aspoň require: putují k němu klíče a hesla. Server musí mít TLS zapnuté."
+  },
+  "sc2455": {
+   "source": "The authority that signed the server’s certificate (PEM):",
+   "text": "Autorita, která podepsala certifikát serveru (PEM):"
+  },
+  "sc2456": {
+   "source": "Another file…",
+   "text": "Jiný soubor…"
+  },
+  "sc2457": {
+   "source": "Choose the file…",
+   "text": "Vybrat soubor…"
+  },
+  "sc2458": {
+   "source": "that is not a PEM certificate",
+   "text": "to není certifikát PEM"
+  },
+  "sc2459": {
+   "source": "The database and the account",
+   "text": "Databáze a účet"
+  },
+  "sc2460": {
+   "source": "The server is on this machine: acme can make the database and the account itself, as root - as postgres, with no password typed anywhere. A password is made for the account if none is typed above.",
+   "text": "Server je na tomto stroji: acme může databázi a účet vytvořit samo, jako root – jako postgres, bez zadávání jakéhokoli hesla. Pokud výše žádné heslo není, účtu se vytvoří."
+  },
+  "sc2461": {
+   "source": "The server is on this machine: acme can make the database and the account itself, as root - as root over its socket, with no password typed anywhere. A password is made for the account if none is typed above.",
+   "text": "Server je na tomto stroji: acme může databázi a účet vytvořit samo, jako root – jako root přes jeho socket, bez zadávání jakéhokoli hesla. Pokud výše žádné heslo není, účtu se vytvoří."
+  },
+  "sc2462": {
+   "source": "Make the database and the account for me",
+   "text": "Vytvořit databázi a účet za mě"
+  },
+  "sc2463": {
+   "source": "A password was made for the account and is filled in above. It goes into the config file at the end - nothing has to be noted down.",
+   "text": "Pro účet bylo vytvořeno heslo a je vyplněno výše. Na konci se zapíše do konfiguračního souboru – nic si nemusíte poznamenávat."
+  },
+  "sc2464": {
+   "source": "On another machine: run this there as its administrator - or let an administrator account of that server do it from here.",
+   "text": "Na jiném stroji: spusťte tohle tam jako jeho správce – nebo to odsud nechte udělat správcovský účet toho serveru."
+  },
+  "sc2465": {
+   "source": "Show the SQL to run there",
+   "text": "Ukázat SQL ke spuštění tam"
+  },
+  "sc2466": {
+   "source": "A password was made for the account: it is in the SQL and filled in above.",
+   "text": "Pro účet bylo vytvořeno heslo: je v SQL a vyplněno výše."
+  },
+  "sc2467": {
+   "source": "Or with an administrator account of that server",
+   "text": "Nebo správcovským účtem toho serveru"
+  },
+  "sc2468": {
+   "source": "Administrator",
+   "text": "Správce"
+  },
+  "sc2469": {
+   "source": "Used for this one connection, kept nowhere.",
+   "text": "Použije se pro toto jedno spojení, nikde se neuloží."
+  },
+  "sc2470": {
+   "source": "Make them with it",
+   "text": "Vytvořit je s ním"
+  },
+  "sc2471": {
+   "source": "as root on the MariaDB server: mariadb -u root -p",
+   "text": "jako root na serveru MariaDB: mariadb -u root -p"
+  },
+  "sc2472": {
+   "source": "as postgres on the PostgreSQL server: sudo -u postgres psql",
+   "text": "jako postgres na serveru PostgreSQL: sudo -u postgres psql"
+  },
+  "sc2473": {
+   "source": "What to do: ",
+   "text": "Co dělat: "
+  },
+  "sc2474": {
+   "source": "press Check first",
+   "text": "nejdřív stiskněte Zkontrolovat"
+  },
+  "sc2475": {
+   "source": "not every check is passed yet: put right what is marked, and check again",
+   "text": "ještě neprošly všechny kontroly: opravte, co je označeno, a zkontrolujte znovu"
+  },
+  "sc2476": {
+   "source": "It holds acme already",
+   "text": "Už obsahuje acme"
+  },
+  "sc2477": {
+   "source": "A copy left there by an earlier move - the way back, say - can be thrown away and moved over. Everything of acme in it is deleted first; a copy of what is HERE is made in any case. If it is another installation’s database, stop and choose another one: two are never mixed.",
+   "text": "Kopii, která tam zbyla po dřívějším přechodu – třeba jako cesta zpět –, lze zahodit a přejít přes ni. Vše z acme se v ní nejdřív smaže; kopie toho, co je ZDE, se udělá v každém případě. Pokud je to databáze jiné instalace, zastavte se a vyberte jinou: dvě se nikdy nemíchají."
+  },
+  "sc2478": {
+   "source": "Throw away what of acme is in it, and move over it",
+   "text": "Zahodit, co v ní z acme je, a přejít přes to"
+  },
+  "sc2479": {
+   "source": "Every check is passed: Next says what will happen.",
+   "text": "Všechny kontroly prošly: Další řekne, co se stane."
+  },
+  "sc2480": {
+   "source": "Not ready yet: put right what is marked ✘, then Check again.",
+   "text": "Ještě to není připravené: opravte, co je označeno ✘, a pak Zkontrolovat znovu."
+  },
+  "sc2481": {
+   "source": "Another database than the one in use",
+   "text": "Jiná databáze než ta používaná"
+  },
+  "sc2482": {
+   "source": "The key of the sealed secrets",
+   "text": "Klíč zapečetěných tajných údajů"
+  },
+  "sc2483": {
+   "source": "Room for the copy made first",
+   "text": "Místo pro kopii vytvořenou předem"
+  },
+  "sc2484": {
+   "source": "The driver in acme's Python",
+   "text": "Ovladač v Pythonu acme"
+  },
+  "sc2485": {
+   "source": "It opens",
+   "text": "Otevře se"
+  },
+  "sc2486": {
+   "source": "The engine",
+   "text": "Databázový stroj"
+  },
+  "sc2487": {
+   "source": "What the account may do there",
+   "text": "Co tam účet smí"
+  },
+  "sc2488": {
+   "source": "Empty",
+   "text": "Prázdná"
+  },
+  "sc2489": {
+   "source": "Characters",
+   "text": "Znaky"
+  },
+  "sc2490": {
+   "source": "Room on the disk",
+   "text": "Místo na disku"
+  },
+  "sc2491": {
+   "source": "Room on the server's disk",
+   "text": "Místo na disku serveru"
+  },
+  "sc2492": {
+   "source": "a new file",
+   "text": "nový soubor"
+  },
+  "sc2493": {
+   "source": "nothing of acme in it",
+   "text": "nic z acme v ní není"
+  },
+  "sc2494": {
+   "source": "not encrypted - on this machine, nothing travels over the network",
+   "text": "nešifrováno – na tomto stroji nic neputuje po síti"
+  },
+  "sc2495": {
+   "source": "not encrypted: the keys and passwords travel to that server as they are",
+   "text": "nešifrováno: klíče a hesla putují k tomu serveru tak, jak jsou"
+  },
+  "sc2496": {
+   "source": "choose require or verify-full in step 2 (the server needs TLS switched on)",
+   "text": "zvolte ve 2. kroku require nebo verify-full (server musí mít TLS zapnuté)"
+  },
+  "sc2497": {
+   "source": "TLS, the server's certificate and name checked",
+   "text": "TLS, certifikát a jméno serveru ověřeny"
+  },
+  "sc2498": {
+   "source": "choose another one in step 1 or 2",
+   "text": "vyberte jinou v 1. nebo 2. kroku"
+  },
+  "sc2499": {
+   "source": "put the key back first (it is beside every backup): without it nothing sealed opens",
+   "text": "nejdřív vraťte klíč (je vedle každé zálohy): bez něj se nic zapečetěného neotevře"
+  },
+  "sc2500": {
+   "source": "that file is not a SQLite database acme can open: choose another name",
+   "text": "ten soubor není databáze SQLite, kterou acme umí otevřít: zvolte jiné jméno"
+  },
+  "sc2501": {
+   "source": "acme may not write that file",
+   "text": "acme do toho souboru nesmí zapisovat"
+  },
+  "sc2502": {
+   "source": "if it is a copy left from before (an earlier move, the way back): choose \"throw what is there away\" below. Otherwise choose another database - two installations are never mixed.",
+   "text": "pokud je to kopie zbylá z dřívějška (dřívější přechod, cesta zpět): níže zvolte „zahodit, co tam je“. Jinak vyberte jinou databázi – dvě instalace se nikdy nemíchají."
+  },
+  "sc2503": {
+   "source": "give that disk more room before moving",
+   "text": "před přechodem dejte tomu disku víc místa"
+  },
+  "sc2504": {
+   "source": "read what the server said above; the address, the account and its password are asked in step 2.",
+   "text": "přečtěte si, co server řekl výše; adresa, účet a jeho heslo se zadávají ve 2. kroku."
+  },
+  "sc2505": {
+   "source": "the encryption did not go: \"require\" needs TLS switched on at the server; \"verify-full\" also needs the authority that signed its certificate, and the server's name as that certificate has it.",
+   "text": "šifrování nešlo: „require“ potřebuje na serveru zapnuté TLS; „verify-full“ navíc autoritu, která podepsala jeho certifikát, a jméno serveru tak, jak ho ten certifikát má."
+  },
+  "sc2506": {
+   "source": "This is what will be done, in this order. Nothing has been changed yet.",
+   "text": "Tohle se provede, v tomto pořadí. Zatím se nic nezměnilo."
+  },
+  "sc2507": {
+   "source": "Rows to copy",
+   "text": "Řádků ke zkopírování"
+  },
+  "sc2508": {
+   "source": "How long",
+   "text": "Jak dlouho"
+  },
+  "sc2509": {
+   "source": "Meanwhile",
+   "text": "Mezitím"
+  },
+  "sc2510": {
+   "source": "the pages answer; renewals and deployments wait until it is done; the service is away for a few seconds while it starts again",
+   "text": "stránky odpovídají; obnovy a nasazení počkají, až to skončí; služba je na pár sekund pryč, když se znovu spouští"
+  },
+  "sc2511": {
+   "source": "A copy of everything here is made first",
+   "text": "Nejdřív se vytvoří kopie všeho zde"
+  },
+  "sc2512": {
+   "source": "The tables are made there",
+   "text": "Tam se vytvoří tabulky"
+  },
+  "sc2513": {
+   "source": "what of acme is in it now is thrown away first",
+   "text": "co v ní teď z acme je, se nejdřív zahodí"
+  },
+  "sc2514": {
+   "source": "in the empty database",
+   "text": "v prázdné databázi"
+  },
+  "sc2515": {
+   "source": "Every row is copied",
+   "text": "Zkopíruje se každý řádek"
+  },
+  "sc2516": {
+   "source": "as one transaction: all of it or nothing",
+   "text": "jako jedna transakce: všechno, nebo nic"
+  },
+  "sc2517": {
+   "source": "It is checked there",
+   "text": "Tam se to zkontroluje"
+  },
+  "sc2518": {
+   "source": "every table counted against the copy, every sealed secret (keys, passwords) opened with the key",
+   "text": "každá tabulka spočítána proti kopii, každý zapečetěný tajný údaj (klíče, hesla) otevřen klíčem"
+  },
+  "sc2519": {
+   "source": "The config file is switched to it",
+   "text": "Konfigurační soubor se na ni přepne"
+  },
+  "sc2520": {
+   "source": "acme starts again on it",
+   "text": "acme se na ní znovu spustí"
+  },
+  "sc2521": {
+   "source": "and this page waits for it, and asks it whether it answers",
+   "text": "a tato stránka na něj počká a zeptá se, jestli odpovídá"
+  },
+  "sc2522": {
+   "source": "The old database is left exactly as it was",
+   "text": "Stará databáze zůstane přesně tak, jak byla"
+  },
+  "sc2523": {
+   "source": "it is the way back: the same wizard, the other way, moves back to it",
+   "text": "je to cesta zpět: tentýž průvodce opačným směrem se na ni vrátí"
+  },
+  "sc2524": {
+   "source": "Cancel stops it at any step until the config file is switched; after that it goes through.",
+   "text": "Zrušit to zastaví v kterémkoli kroku, dokud se nepřepne konfigurační soubor; potom už to doběhne."
+  },
+  "sc2525": {
+   "source": "I have read this: move everything now",
+   "text": "Přečetl/a jsem to: přenést vše teď"
+  },
+  "sc2526": {
+   "source": "say first that you have read it",
+   "text": "nejdřív potvrďte, že jste to přečetl/a"
+  },
+  "sc2527": {
+   "source": "A copy of everything here, first",
+   "text": "Nejdřív kopie všeho zde"
+  },
+  "sc2528": {
+   "source": "The tables made there",
+   "text": "Tabulky vytvořeny tam"
+  },
+  "sc2529": {
+   "source": "Every row copied",
+   "text": "Každý řádek zkopírován"
+  },
+  "sc2530": {
+   "source": "The rows counted there, every sealed secret opened",
+   "text": "Řádky tam spočítány, každý zapečetěný tajný údaj otevřen"
+  },
+  "sc2531": {
+   "source": "config.json switched to it",
+   "text": "config.json na ni přepnut"
+  },
+  "sc2532": {
+   "source": "acme started again on it",
+   "text": "acme na ní znovu spuštěno"
+  },
+  "sc2533": {
+   "source": "It answers on the new database",
+   "text": "Odpovídá na nové databázi"
+  },
+  "sc2534": {
+   "source": "Cancel the move",
+   "text": "Zrušit přechod"
+  },
+  "sc2535": {
+   "source": "the move stops at its next step",
+   "text": "přechod se zastaví na dalším kroku"
+  },
+  "sc2536": {
+   "source": "The move is no longer known here.",
+   "text": "Přechod už zde není známý."
+  },
+  "sc2537": {
+   "source": "acme is starting again on the new database - waiting for it…",
+   "text": "acme se znovu spouští na nové databázi – čekám na něj…"
+  },
+  "sc2538": {
+   "source": "Ask again",
+   "text": "Zeptat se znovu"
+  },
+  "sc2539": {
+   "source": "The move was cancelled. ",
+   "text": "Přechod byl zrušen. "
+  },
+  "sc2540": {
+   "source": "The move failed. ",
+   "text": "Přechod selhal. "
+  },
+  "sc2541": {
+   "source": "Back to the checks",
+   "text": "Zpět ke kontrolám"
+  },
+  "sc2542": {
+   "source": "What was done",
+   "text": "Co bylo provedeno"
+  },
+  "sc2543": {
+   "source": "What next",
+   "text": "Co dál"
+  },
+  "sc2544": {
+   "source": "Look around the pages: the certificates, the jobs, the settings - everything is where it was.",
+   "text": "Projděte stránky: certifikáty, úlohy, nastavení – vše je tam, kde bylo."
+  },
+  "sc2545": {
+   "source": "Going back",
+   "text": "Cesta zpět"
+  },
+  "sc2546": {
+   "source": "The old database is still there: moving back is the same wizard the other way. It holds what was there before this move, so it is thrown away and filled again with what is here now.",
+   "text": "Stará databáze tam stále je: návrat je tentýž průvodce opačným směrem. Obsahuje to, co tam bylo před tímto přechodem, proto se zahodí a znovu naplní tím, co je teď zde."
+  },
+  "sc2547": {
+   "source": "Move back…",
+   "text": "Vrátit zpět…"
+  },
+  "sc2548": {
+   "source": "there is nothing to cancel: no move is going on",
+   "text": "není co rušit: neprobíhá žádný přechod"
+  },
+  "sc2549": {
+   "source": "there is nothing to cancel: it is switching over already - it cannot be stopped half-way",
+   "text": "není co rušit: už se přepíná – v půli to zastavit nejde"
+  },
+  "sc2550": {
+   "source": "a move is going on",
+   "text": "probíhá přechod"
+  },
+  "sc2551": {
+   "source": "a file needs no SQL",
+   "text": "soubor nepotřebuje SQL"
+  },
+  "sc2552": {
+   "source": "a file needs nothing made",
+   "text": "pro soubor se nic nevytváří"
+  },
+  "sc2553": {
+   "source": "only a server on this machine is made by acme itself: run the SQL shown on that server, or give an administrator of it",
+   "text": "acme samo vytvoří jen server na tomto stroji: spusťte na tom serveru zobrazené SQL, nebo zadejte jeho správce"
+  },
+  "sc2554": {
+   "source": "the encryption is off, require or verify-full",
+   "text": "šifrování je vypnuto, require nebo verify-full"
+  },
+  "sc2555": {
+   "source": "the authority is a PEM file: -----BEGIN CERTIFICATE----- …",
+   "text": "autorita je soubor PEM: -----BEGIN CERTIFICATE----- …"
+  },
+  "sc2556": {
+   "source": "it holds records of acme already",
+   "text": "už obsahuje záznamy acme"
+  },
+  "sc2557": {
+   "source": "no such step of the wizard",
+   "text": "takový krok průvodce neexistuje"
+  },
+  "sc2558": {
+   "source": "The file (SQLite)",
+   "text": "Soubor (SQLite)"
+  },
+  "sc2559": {
+   "source": "Where the SQLite file is. Empty: acme.db in the state folder (/var/lib/acme). Set by Settings → The database → Move to another database.",
+   "text": "Kde je soubor SQLite. Prázdné: acme.db ve stavové složce (/var/lib/acme). Nastavuje Nastavení → Databáze → Přejít na jinou databázi."
+  },
+  "sc2560": {
+   "source": "The database now",
+   "text": "Databáze teď"
+  },
+  "sc2561": {
+   "source": "The new database",
+   "text": "Nová databáze"
+  },
+  "sd0001": {
+   "source": "No - one certificate",
+   "text": "Ne – jeden certifikát"
+  },
+  "sd0002": {
+   "source": "This source gives one certificate of the names (a twin with another kind of key is not offered by it).",
+   "text": "Tento zdroj vydává na tato jména jeden certifikát (dvojče s jiným druhem klíče nenabízí)."
+  },
+  "sd0003": {
+   "source": "Also a twin",
+   "text": "K tomu i dvojče"
+  },
+  "sd0004": {
+   "source": "A dual certificate: the same names twice, ECDSA and RSA, renewed together. Some clients cannot use ECDSA (old Windows and Java, some appliances, payment terminals) - the server gives each client the one it takes; a target that holds only one certificate gets the one its deployment says.",
+   "text": "Duální certifikát: stejná jména dvakrát, ECDSA i RSA, obnovované spolu. Někteří klienti ECDSA nepoužijí (starší Windows a Java, některá zařízení, platební terminály) – server dá každému klientovi ten, který bere; cíl, který drží jen jeden certifikát, dostane ten, který říká jeho nasazení."
+  },
+  "sd0005": {
+   "source": "dual",
+   "text": "duální"
+  },
+  "sd0006": {
+   "source": "The twin (dual certificate)",
+   "text": "Dvojče (duální certifikát)"
+  },
+  "sd0007": {
+   "source": "The same names with another kind of key, issued and renewed with it - for the clients that cannot use the main one.",
+   "text": "Stejná jména s jiným druhem klíče, vydávané a obnovované spolu s ním – pro klienty, kteří ten hlavní použít nemohou."
+  },
+  "sd0008": {
+   "source": "The twin failed",
+   "text": "Dvojče se nepodařilo"
+  },
+  "sd0009": {
+   "source": "its source gives no twin",
+   "text": "jeho zdroj dvojče nevydává"
+  },
+  "sd0010": {
+   "source": "not issued yet - the next look issues it",
+   "text": "zatím nevydáno – vydá ho příští kontrola"
+  },
+  "sd0011": {
+   "source": "twin",
+   "text": "dvojče"
+  },
+  "sd0012": {
+   "source": "the main one",
+   "text": "hlavní"
+  },
+  "sd0013": {
+   "source": "the twin",
+   "text": "dvojče"
+  },
+  "sd0014": {
+   "source": "Which certificate",
+   "text": "Který certifikát"
+  },
+  "sd0015": {
+   "source": "It is dual: the same names with two kinds of key.",
+   "text": "Je duální: stejná jména se dvěma druhy klíče."
+  },
+  "sd0016": {
+   "source": "The certificate is dual (ECDSA and RSA): this target takes both, and gives each client the one it takes.",
+   "text": "Certifikát je duální (ECDSA a RSA): tento cíl vezme oba a každému klientovi dá ten, který bere."
+  },
+  "sd0017": {
+   "source": "The certificate is dual (ECDSA and RSA): this target holds one at a time - choose which below (RSA where unsure: every client can use it).",
+   "text": "Certifikát je duální (ECDSA a RSA): tento cíl drží jen jeden – vyberte níže který (když si nejste jisti, RSA: použije ho každý klient)."
+  },
+  "sd0018": {
+   "source": "Which certificate (when it is dual)",
+   "text": "Který certifikát (když je duální)"
+  },
+  "sd0019": {
+   "source": "RSA where there is one (works with every client)",
+   "text": "RSA, kde je (funguje s každým klientem)"
+  },
+  "sd0020": {
+   "source": "the main one (its own key type)",
+   "text": "hlavní (jeho vlastní typ klíče)"
+  },
+  "sd0021": {
+   "source": "the RSA one",
+   "text": "ten s RSA"
+  },
+  "sd0022": {
+   "source": "the ECDSA one",
+   "text": "ten s ECDSA"
+  },
+  "sd0023": {
+   "source": "This target holds one certificate at a time: of a dual certificate (ECDSA and RSA of the same names) it gets the one chosen here. Nothing changes for a certificate that is not dual.",
+   "text": "Tento cíl drží jeden certifikát najednou: z duálního certifikátu (ECDSA a RSA na stejná jména) dostane ten, který je zvolen zde. U certifikátu, který duální není, se nic nemění."
+  },
+  "sd0024": {
+   "source": "Allow a second (paid) order for a dual certificate",
+   "text": "Povolit druhou (placenou) objednávku pro duální certifikát"
+  },
+  "sd0025": {
+   "source": "A dual certificate (ECDSA and RSA of the same names) is two orders here, each paid for. Off: a twin is not ordered from this source.",
+   "text": "Duální certifikát (ECDSA a RSA na stejná jména) jsou zde dvě objednávky, každá placená. Vypnuto: dvojče se u tohoto zdroje neobjednává."
+  },
+  "sd0026": {
+   "source": "one a line: format path [mode] [owner[:group]]. Formats: cert-pem, fullchain-pem, chain-pem, key-pem, key-rsa, combined-pem (key + fullchain), cert-der, key-der, p7b, pfx/p12, p12-legacy, jks. In paths: {name} {cn} {service} {date} {alt}. A dual certificate: format@rsa, format@ec (or @main, @alt) for one of its two - a preset writes both by itself",
+   "text": "jeden na řádek: formát cesta [režim] [vlastník[:skupina]]. Formáty: cert-pem, fullchain-pem, chain-pem, key-pem, key-rsa, combined-pem (klíč + fullchain), cert-der, key-der, p7b, pfx/p12, p12-legacy, jks. V cestách: {name} {cn} {service} {date} {alt}. Duální certifikát: formát@rsa, formát@ec (nebo @main, @alt) pro jeden z jeho dvou – předvolba zapíše oba sama"
+  },
+  "sd0027": {
+   "source": "one a line: format path [mode] - the path inside the folder; of a dual certificate format@rsa / format@ec (@main, @alt) for one of its two, {alt} its twin's kind",
+   "text": "jeden na řádek: formát cesta [režim] – cesta uvnitř složky; u duálního certifikátu formát@rsa / formát@ec (@main, @alt) pro jeden z jeho dvou, {alt} je druh jeho dvojčete"
+  },
+  "sc2562": {
+   "source": "The account’s password",
+   "text": "Heslo účtu"
   }
  },
  "patterns": {
@@ -37401,6 +38693,690 @@
   "pc0445": {
    "source": "{0}; NameSilo's name servers often take 15 minutes",
    "text": "{0}; jmenným serverům NameSilo to často trvá 15 minut"
+  },
+  "pc0446": {
+   "source": "{0} things to set up first - see the ✘ below.",
+   "text": "Nejdřív je třeba nastavit {0} {0:věc|věci|věcí} – viz ✘ níže."
+  },
+  "pc0447": {
+   "source": "Dry run for {0}: a test value is put in place, looked for and taken away again - no CA is asked",
+   "text": "Zkouška nanečisto pro {0}: zkušební hodnota se vloží, vyhledá a zase odstraní – CA se na nic neptá"
+  },
+  "pc0448": {
+   "source": "not seen after {0} s",
+   "text": "ani po {0} s není vidět"
+  },
+  "pc0449": {
+   "source": "your DNS at {0}",
+   "text": "vaše DNS u {0}"
+  },
+  "pc0450": {
+   "source": "{0} is a CNAME to {1}",
+   "text": "{0} je CNAME na {1}"
+  },
+  "pc0451": {
+   "source": "The zone of the TXT record is at {0}",
+   "text": "Zóna záznamu TXT je u {0}"
+  },
+  "pc0452": {
+   "source": "{0} puts the record in by means acme cannot look into beforehand",
+   "text": "{0} vkládá záznam způsobem, do kterého acme předem nevidí"
+  },
+  "pc0453": {
+   "source": "acme can reach and sign in to {0}",
+   "text": "acme se dostane k {0} a přihlásí se"
+  },
+  "pc0454": {
+   "source": "Add the zone of {0} at {1}, or give the credentials access to it",
+   "text": "Přidejte zónu jména {0} u {1}, nebo k ní dejte přihlašovacím údajům přístup"
+  },
+  "pc0455": {
+   "source": "Add the zone of {0} at {1}, or give the credentials access to it - or point {2} by CNAME into a zone that is there: {3}. CNAME {4}.{5}.",
+   "text": "Přidejte zónu jména {0} u {1}, nebo k ní dejte přihlašovacím údajům přístup – nebo nasměrujte {2} záznamem CNAME do zóny, která tam je: {3}. CNAME {4}.{5}."
+  },
+  "pc0456": {
+   "source": "{0} is in no zone these credentials see",
+   "text": "{0} není v žádné zóně, kterou tyto přihlašovací údaje vidí"
+  },
+  "pc0457": {
+   "source": "{0} goes in the zone {1}",
+   "text": "{0} patří do zóny {1}"
+  },
+  "pc0458": {
+   "source": "The internet asks {0} for the record",
+   "text": "Internet se na záznam ptá {0}"
+  },
+  "pc0459": {
+   "source": "the DNS of {0}",
+   "text": "DNS domény {0}"
+  },
+  "pc0460": {
+   "source": "{0} is in the zone {1} on the internet, not in {2}",
+   "text": "{0} je na internetu v zóně {1}, ne v {2}"
+  },
+  "pc0461": {
+   "source": "The zone {0} is delegated elsewhere: write the record there (another validation), or take that delegation away",
+   "text": "Zóna {0} je delegována jinam: zapište záznam tam (jinou validací), nebo tu delegaci zrušte"
+  },
+  "pc0462": {
+   "source": "the registry of {0}",
+   "text": "registr domény {0}"
+  },
+  "pc0463": {
+   "source": "the name servers of {0} could not be looked up: {1}",
+   "text": "jmenné servery {0} se nepodařilo dohledat: {1}"
+  },
+  "pc0464": {
+   "source": "the zone {0} has no name servers on the internet",
+   "text": "zóna {0} nemá na internetu žádné jmenné servery"
+  },
+  "pc0465": {
+   "source": "Make the registrar of {0} point it at the name servers of {1}",
+   "text": "Ať ji registrátor domény {0} nasměruje na jmenné servery {1}"
+  },
+  "pc0466": {
+   "source": "{0} is answered by {1}",
+   "text": "za {0} odpovídá {1}"
+  },
+  "pc0467": {
+   "source": "nothing to create by hand: {0} is written and taken away by acme",
+   "text": "ručně není co vytvářet: {0} zapíše a odstraní acme"
+  },
+  "pc0468": {
+   "source": "TTL {0} s; before the CA looks, acme waits until {1}",
+   "text": "TTL {0} s; než se CA podívá, acme čeká, dokud {1}"
+  },
+  "pc0469": {
+   "source": "TTL {0} s; before the CA looks, acme waits until {1} (and at least {2} s)",
+   "text": "TTL {0} s; než se CA podívá, acme čeká, dokud {1} (a nejméně {2} s)"
+  },
+  "pc0470": {
+   "source": "The CA is led from {0} to the test value",
+   "text": "CA se od {0} dostane ke zkušební hodnotě"
+  },
+  "pc0471": {
+   "source": "{0} has no CNAME",
+   "text": "{0} nemá CNAME"
+  },
+  "pc0472": {
+   "source": "Create in your DNS: {0}. CNAME {1}.",
+   "text": "Vytvořte ve svém DNS: {0}. CNAME {1}."
+  },
+  "pc0473": {
+   "source": "the name servers of {0}",
+   "text": "jmenné servery {0}"
+  },
+  "pc0474": {
+   "source": "The record is not on every name server of {0}: is the zone delegated to the servers acme writes to (the NS records at its parent)?",
+   "text": "Záznam není na všech jmenných serverech {0}: je zóna delegována na servery, do kterých acme zapisuje (záznamy NS u nadřazené zóny)?"
+  },
+  "pc0475": {
+   "source": "Public resolvers see the test value at {0}",
+   "text": "Veřejné resolvery vidí zkušební hodnotu u {0}"
+  },
+  "pc0477": {
+   "source": "not seen by {0}",
+   "text": "nevidí ji {0}"
+  },
+  "pc0478": {
+   "source": "{0} is a wildcard: the CA proves a wildcard by DNS-01 only",
+   "text": "{0} je wildcard: wildcard CA prokazuje jen přes DNS-01"
+  },
+  "pc0479": {
+   "source": "Choose a DNS validation for {0} (acme's own DNS server or your DNS provider)",
+   "text": "Zvolte pro {0} validaci přes DNS (vlastní DNS server acme nebo vašeho poskytovatele DNS)"
+  },
+  "pc0480": {
+   "source": "{0} has no A or AAAA record",
+   "text": "{0} nemá záznam A ani AAAA"
+  },
+  "pc0481": {
+   "source": "Create in your DNS: {0}. {1} {2}",
+   "text": "Vytvořte ve svém DNS: {0}. {1} {2}"
+  },
+  "pc0482": {
+   "source": "Create an A record for {0}",
+   "text": "Vytvořte záznam A pro {0}"
+  },
+  "pc0485": {
+   "source": "The test file is served at http://{0}/",
+   "text": "Zkušební soubor je vystaven na http://{0}/"
+  },
+  "pc0486": {
+   "source": "The test file is served by {0}",
+   "text": "Zkušební soubor vystavuje {0}"
+  },
+  "pc0487": {
+   "source": "the web server {0}",
+   "text": "webový server {0}"
+  },
+  "pc0488": {
+   "source": "Make {0} serve /.well-known/acme-challenge/ for {1} on port {2}",
+   "text": "Ať {0} vystavuje /.well-known/acme-challenge/ pro {1} na portu {2}"
+  },
+  "pc0489": {
+   "source": "Create in the DNS of {0}: {1}. CNAME {2}.",
+   "text": "Vytvořte v DNS domény {0}: {1}. CNAME {2}."
+  },
+  "pc0491": {
+   "source": "Change the CNAME in the DNS of {0}: {1}. CNAME {2}.",
+   "text": "Změňte CNAME v DNS domény {0}: {1}. CNAME {2}."
+  },
+  "pc0492": {
+   "source": "acme's firewall does not let UDP and TCP port {0} in from anywhere",
+   "text": "firewall acme nepouští UDP a TCP port {0} odkudkoli"
+  },
+  "pc0493": {
+   "source": "Settings → Firewall: let in UDP and TCP port {0} (the card \"DNS server\")",
+   "text": "Nastavení → Firewall: povolte UDP a TCP port {0} (karta „DNS server“)"
+  },
+  "pc0494": {
+   "source": "UDP and TCP port {0} must reach acme from the internet (a public address or a port forward) - the dry run tries it",
+   "text": "UDP a TCP port {0} musí být na acme dosažitelný z internetu (veřejná adresa nebo přesměrování portu) – vyzkouší to zkouška nanečisto"
+  },
+  "pc0495": {
+   "source": "nothing to create by hand: acme's own DNS server answers {0}",
+   "text": "ručně není co vytvářet: {0} odpovídá vlastní DNS server acme"
+  },
+  "pc0496": {
+   "source": "no answer on {0} port {1}: {2}",
+   "text": "žádná odpověď na {0} port {1}: {2}"
+  },
+  "pc0497": {
+   "source": "it answers for {0} on {1} port {2}",
+   "text": "odpovídá za {0} na {1} port {2}"
+  },
+  "pc0498": {
+   "source": "it said {0} for {1}",
+   "text": "pro {1} řekl {0}"
+  },
+  "pc0499": {
+   "source": "Settings → DNS server: add {0} to its zones",
+   "text": "Nastavení → DNS server: přidejte {0} mezi jeho zóny"
+  },
+  "pc0500": {
+   "source": "the DNS of {0} (the parent zone)",
+   "text": "DNS domény {0} (nadřazená zóna)"
+  },
+  "pc0501": {
+   "source": "the DNS of {0} (the parent zone), as glue",
+   "text": "DNS domény {0} (nadřazená zóna), jako glue"
+  },
+  "pc0502": {
+   "source": "the NS records of {0} could not be looked up: {1}",
+   "text": "záznamy NS zóny {0} se nepodařilo dohledat: {1}"
+  },
+  "pc0503": {
+   "source": "{0} is sent to {1}",
+   "text": "{0} se posílá na {1}"
+  },
+  "pc0504": {
+   "source": "{0} is not delegated",
+   "text": "{0} není delegována"
+  },
+  "pc0505": {
+   "source": "Create in the DNS of {0}: {1}. NS {2}.",
+   "text": "Vytvořte v DNS domény {0}: {1}. NS {2}."
+  },
+  "pc0506": {
+   "source": "The name server {0} has acme's address",
+   "text": "Jmenný server {0} má adresu acme"
+  },
+  "pc0507": {
+   "source": "{0} has no address",
+   "text": "{0} nemá adresu"
+  },
+  "pc0510": {
+   "source": "Point {0} at acme ({1}) - or, when a NAT or a proxy in front of acme sends port 80 to it, put that address under \"Addresses in front of acme\"",
+   "text": "Nasměrujte {0} na acme ({1}) – nebo, když před acme stojí NAT či proxy, která na něj posílá port 80, uveďte její adresu v „Adresy před acme“"
+  },
+  "pc0511": {
+   "source": "The firewall of acme lets port {0} in from anywhere",
+   "text": "Firewall acme pouští port {0} odkudkoli"
+  },
+  "pc0512": {
+   "source": "Settings → Firewall: let TCP port {0} in from anywhere - the CA asks from the internet",
+   "text": "Nastavení → Firewall: povolte TCP port {0} odkudkoli – CA se ptá z internetu"
+  },
+  "pc0513": {
+   "source": "acme answers /.well-known/acme-challenge/ on port {0} of {1}",
+   "text": "acme odpovídá na /.well-known/acme-challenge/ na portu {0} adresy {1}"
+  },
+  "pc0514": {
+   "source": "Is nginx of acme serving port {0}? (Settings → Certificates and TLS)",
+   "text": "Obsluhuje nginx acme port {0}? (Nastavení → Certifikáty a TLS)"
+  },
+  "pc0515": {
+   "source": "A probe is served at http://{0}/",
+   "text": "Zkušební soubor je vystaven na http://{0}/"
+  },
+  "pc0516": {
+   "source": "Point {0} at the web servers ({1}); if a load balancer stands in front of them, put its address under \"Load balancer in front\"",
+   "text": "Nasměrujte {0} na webové servery ({1}); stojí-li před nimi balancer, uveďte jeho adresu v „Balancer před nimi“"
+  },
+  "pc0517": {
+   "source": "acme signs in to {0} over SSH",
+   "text": "acme se přihlásí k {0} přes SSH"
+  },
+  "pc0518": {
+   "source": "Put acme's public key into ~{0}/.ssh/authorized_keys there, and pin the host key (docs/validation.md)",
+   "text": "Vložte veřejný klíč acme do ~{0}/.ssh/authorized_keys tam a připněte klíč hostitele (docs/validation.md)"
+  },
+  "pc0519": {
+   "source": "{0} answers HTTP on port {1}",
+   "text": "{0} odpovídá na HTTP na portu {1}"
+  },
+  "pc0520": {
+   "source": "Open port {0} on {1} and serve /.well-known/acme-challenge/ from {2} (the action \"Prepare the hosts\" writes the nginx block)",
+   "text": "Otevřete port {0} na {1} a vystavujte /.well-known/acme-challenge/ z {2} (blok pro nginx zapíše akce „Připravit servery“)"
+  },
+  "pc0521": {
+   "source": "{0} does not answer DNS on port {1}: {2}",
+   "text": "{0} neodpovídá na DNS na portu {1}: {2}"
+  },
+  "pc0522": {
+   "source": "Let acme reach TCP and UDP port {0} of {1}",
+   "text": "Umožněte acme dosáhnout na TCP a UDP port {0} serveru {1}"
+  },
+  "pc0523": {
+   "source": "{0} answers on port {1}",
+   "text": "{0} odpovídá na portu {1}"
+  },
+  "pc0524": {
+   "source": "The server takes updates of {0} with the key",
+   "text": "Server přijímá s klíčem změny zóny {0}"
+  },
+  "pc0525": {
+   "source": "Allow the key {0} to update TXT records in {1} on that server",
+   "text": "Povolte na tom serveru klíči {0} měnit záznamy TXT v {1}"
+  },
+  "pc0526": {
+   "source": "at each order acme shows the value and waits until the name servers of {0} have it",
+   "text": "při každé objednávce acme ukáže hodnotu a počká, až ji budou mít jmenné servery {0}"
+  },
+  "pc0527": {
+   "source": "every name server of {0} has it",
+   "text": "mají ho všechny jmenné servery {0}"
+  },
+  "pc0528": {
+   "source": "not on every name server of {0} yet",
+   "text": "zatím není na všech jmenných serverech {0}"
+  },
+  "pc0529": {
+   "source": "the name servers of {0} cannot be asked",
+   "text": "jmenných serverů {0} se nelze zeptat"
+  },
+  "pc0530": {
+   "source": "Put it in your DNS now: {0}. 60 IN TXT \"{1}\"",
+   "text": "Vložte ho teď do svého DNS: {0}. 60 IN TXT \"{1}\""
+  },
+  "pc0531": {
+   "source": "TTL {0} s; before the CA looks, acme waits until {1}; then {2} s more for deSEC's name servers elsewhere in the world (anycast). A TTL under the domain's minimum (3600 s as a rule) is raised to it",
+   "text": "TTL {0} s; než se CA podívá, acme čeká, dokud {1}; pak ještě {2} s na jmenné servery deSEC jinde ve světě (anycast). TTL pod minimem domény (zpravidla 3600 s) se na něj zvýší"
+  },
+  "pc0532": {
+   "source": "the zone {0} is at {1}",
+   "text": "zóna {0} je u {1}"
+  },
+  "pc0533": {
+   "source": "its server holds the zone {0}",
+   "text": "jeho server drží zónu {0}"
+  },
+  "pc0534": {
+   "source": "acme's own DNS server: one CNAME per name in {0}, no DNS credentials",
+   "text": "vlastní DNS server acme: jeden CNAME na jméno v {0}, bez přihlašovacích údajů k DNS"
+  },
+  "pc0535": {
+   "source": "set up acme's own DNS server (Settings → DNS server): then one CNAME per name in {0}, no DNS credentials",
+   "text": "nastavte vlastní DNS server acme (Nastavení → DNS server): pak jeden CNAME na jméno v {0}, bez přihlašovacích údajů k DNS"
+  },
+  "pc0536": {
+   "source": "no validation is chosen for {0}",
+   "text": "pro {0} není zvolena žádná validace"
+  },
+  "pc0537": {
+   "source": "The validation {0} can be used",
+   "text": "Validaci {0} lze použít"
+  },
+  "pc0538": {
+   "source": "{0} is an IP address: DNS-01 cannot prove it",
+   "text": "{0} je adresa IP: DNS-01 ji prokázat neumí"
+  },
+  "pc0539": {
+   "source": "Choose an HTTP-01 validation for {0}",
+   "text": "Zvolte pro {0} validaci HTTP-01"
+  },
+  "pc0540": {
+   "source": "there is no source {0}",
+   "text": "zdroj {0} neexistuje"
+  },
+  "pc0541": {
+   "source": "the module {0} of {1} is missing",
+   "text": "modul {0} zdroje {1} chybí"
+  },
+  "pc0542": {
+   "source": "{0} gives none",
+   "text": "{0} je nevydává"
+  },
+  "pc0543": {
+   "source": "{0} gives none for IP addresses",
+   "text": "{0} je pro adresy IP nevydává"
+  },
+  "pc0544": {
+   "source": "not every check finished within {0} s - a DNS server or an API answers slowly",
+   "text": "ne každá kontrola doběhla do {0} s – některý server DNS nebo API odpovídá pomalu"
+  },
+  "pc0545": {
+   "source": "Names {0} in {1}, proved by {2}",
+   "text": "Jména {0} v {1}, prokazuje {2}"
+  },
+  "pc0546": {
+   "source": "Names {0} in {1}: no validation is chosen",
+   "text": "Jména {0} v {1}: není zvolena žádná validace"
+  },
+  "pc0547": {
+   "source": "Could also be: {0} ({1})",
+   "text": "Šlo by také: {0} ({1})"
+  },
+  "pc0548": {
+   "source": "the dry run found what is missing: {0}",
+   "text": "zkouška nanečisto našla, co chybí: {0}"
+  },
+  "pc0549": {
+   "source": "the dry run worked for {0}",
+   "text": "zkouška nanečisto prošla pro {0}"
+  },
+  "pc0550": {
+   "source": "the CA was not asked - the validation is not ready: {0}",
+   "text": "CA nebyla požádána – validace není připravená: {0}"
+  },
+  "pc0551": {
+   "source": "Nodes heard on this database: {0}",
+   "text": "Uzly slyšené na této databázi: {0}"
+  },
+  "pc0552": {
+   "source": "How acme reaches {0}. These go into the config file at the end, and nowhere else.",
+   "text": "Jak se acme dostane k {0}. Na konci se zapíše do konfiguračního souboru a nikam jinam."
+  },
+  "pc0553": {
+   "source": "Empty: {0}, the usual one.",
+   "text": "Prázdné: {0}, obvyklý."
+  },
+  "pc0554": {
+   "source": "{0} in {1} table(s)",
+   "text": "{0} v {1} {1:tabulce|tabulkách|tabulkách}"
+  },
+  "pc0555": {
+   "source": "about {0} s",
+   "text": "asi {0} s"
+  },
+  "pc0556": {
+   "source": "about {0} min",
+   "text": "asi {0} min"
+  },
+  "pc0557": {
+   "source": "kept in {0}, with the key that opens its sealed secrets beside it",
+   "text": "uložena v {0}, s klíčem, který otevírá její zapečetěné tajné údaje, vedle ní"
+  },
+  "pc0558": {
+   "source": "What of acme is in {0} now is thrown away first.",
+   "text": "Co je teď z acme v {0}, se nejdřív zahodí."
+  },
+  "pc0559": {
+   "source": "acme now runs on {0}",
+   "text": "acme teď běží na {0}"
+  },
+  "pc0560": {
+   "source": "{0} · {1} row(s) · {2} sealed secret(s) open",
+   "text": "{0} · {1} {1:řádek|řádky|řádků} · {2} {2:zapečetěný tajný údaj otevřen|zapečetěné tajné údaje otevřeny|zapečetěných tajných údajů otevřeno}"
+  },
+  "pc0561": {
+   "source": "The copy made first is kept: {0}.",
+   "text": "Kopie vytvořená předem je uložena: {0}."
+  },
+  "pc0562": {
+   "source": "The old database ({0}) is left as it was - keep it until you are sure; then delete the file, or drop that database on its server.",
+   "text": "Stará databáze ({0}) zůstala, jak byla – nechte si ji, dokud si nejste jistí; pak soubor smažte, nebo tu databázi na jejím serveru zrušte."
+  },
+  "pc0563": {
+   "source": "acme has not answered for three minutes: {0}. Look at it on the server: systemctl status acme; journalctl -u acme",
+   "text": "acme tři minuty neodpovídá: {0}. Podívejte se na server: systemctl status acme; journalctl -u acme"
+  },
+  "pc0564": {
+   "source": "the database of this node is not moved: {0}",
+   "text": "databáze tohoto uzlu se nepřesouvá: {0}"
+  },
+  "pc0565": {
+   "source": "config.json says this node is one of a cluster (ha_mode \"{0}\"), but no other node has ever been heard from. Its database is still the cluster's as far as acme knows, so it is not moved.",
+   "text": "config.json říká, že tento uzel je součástí clusteru (ha_mode „{0}“), ale žádný jiný uzel se nikdy neozval. Jeho databáze je pro acme stále databází clusteru, proto se nepřesouvá."
+  },
+  "pc0566": {
+   "source": "config.json says this node is one of a cluster (ha_mode \"{0}\"), but no other node has been heard from since {1}. Its database is still the cluster's as far as acme knows, so it is not moved.",
+   "text": "config.json říká, že tento uzel je součástí clusteru (ha_mode „{0}“), ale žádný jiný uzel se neozval od {1}. Jeho databáze je pro acme stále databází clusteru, proto se nepřesouvá."
+  },
+  "pc0567": {
+   "source": "{0} / {1}; acme's tables are utf8mb4 and their names utf8mb4_bin (compared byte for byte) whatever the database says",
+   "text": "{0} / {1}; tabulky acme jsou utf8mb4 a jejich jména utf8mb4_bin (porovnávají se bajt po bajtu), ať databáze říká cokoli"
+  },
+  "pc0568": {
+   "source": "another node ({0}) is using this database right now: moving it would take it away from under that node.",
+   "text": "tuto databázi právě používá jiný uzel ({0}): přesun by mu ji vzal pod rukama."
+  },
+  "pc0570": {
+   "source": "{0} free, about {1} needed",
+   "text": "{0} volných, potřeba asi {1}"
+  },
+  "pc0571": {
+   "source": "{0} free under {1}, about {2} needed",
+   "text": "{0} volných v {1}, potřeba asi {2}"
+  },
+  "pc0572": {
+   "source": "Reached as {0}",
+   "text": "Dosažena jako {0}"
+  },
+  "pc0573": {
+   "source": "{0} is made there",
+   "text": "{0} se tam vytvoří"
+  },
+  "pc0574": {
+   "source": "that is the database acme uses now ({0})",
+   "text": "to je databáze, kterou acme teď používá ({0})"
+  },
+  "pc0575": {
+   "source": "it holds {0} record(s) of acme already{1}",
+   "text": "už obsahuje {0} {0:záznam|záznamy|záznamů} acme{1}"
+  },
+  "pc0576": {
+   "source": "it holds {0} record(s) of acme{1} - they are thrown away, as you said",
+   "text": "obsahuje {0} {0:záznam|záznamy|záznamů} acme{1} – zahodí se, jak jste řekl/a"
+  },
+  "pc0577": {
+   "source": " (its newest event {0})",
+   "text": " (její nejnovější událost {0})"
+  },
+  "pc0578": {
+   "source": "nothing of acme in it ({0} table(s) of acme, empty - used as they are)",
+   "text": "nic z acme v ní není ({0} {0:prázdná tabulka|prázdné tabulky|prázdných tabulek} acme – použijí se, jak jsou)"
+  },
+  "pc0579": {
+   "source": "UTF8, collation {0}",
+   "text": "UTF8, řazení {0}"
+  },
+  "pc0580": {
+   "source": "UTF8, collation {0} (names are compared as C by acme itself)",
+   "text": "UTF8, řazení {0} (jména porovnává acme samo jako C)"
+  },
+  "pc0581": {
+   "source": "{0}; fine for one server; two acme nodes (high availability) need 16 or later",
+   "text": "{0}; pro jeden server v pořádku; dva uzly acme (vysoká dostupnost) potřebují 16 nebo novější"
+  },
+  "pc0582": {
+   "source": "install it: {0} - then press Check again (if it still says so: systemctl restart acme)",
+   "text": "nainstalujte ho: {0} – pak stiskněte Zkontrolovat znovu (pokud to stále hlásí: systemctl restart acme)"
+  },
+  "pc0583": {
+   "source": "{0} is not in {1} ({2})",
+   "text": "{0} není v {1} ({2})"
+  },
+  "pc0584": {
+   "source": "the account {0} or its password is wrong - or that account may not come in from this machine ({1}). Type the password again, or let the wizard make the account (Back → Make the database and the account).",
+   "text": "účet {0} nebo jeho heslo je špatně – nebo se ten účet z tohoto stroje nesmí přihlásit ({1}). Zadejte heslo znovu, nebo nechte účet vytvořit průvodce (Zpět → Vytvořit databázi a účet)."
+  },
+  "pc0585": {
+   "source": "the database {0} is not there yet: let the wizard make it (Back → Make the database and the account), or run the SQL it shows on that server.",
+   "text": "databáze {0} tam zatím není: nechte ji vytvořit průvodce (Zpět → Vytvořit databázi a účet), nebo na tom serveru spusťte SQL, které ukáže."
+  },
+  "pc0586": {
+   "source": "nothing answers at {0}. Is the server running (systemctl status {1})? Is the port right? On another machine: does it listen there ({2}) and does its firewall let this machine in?",
+   "text": "na {0} nic neodpovídá. Běží server (systemctl status {1})? Je port správně? Na jiném stroji: poslouchá tam ({2}) a pustí jeho firewall tento stroj dovnitř?"
+  },
+  "pc0587": {
+   "source": "no answer from {0} in {1} s - a firewall in between, or the wrong address?",
+   "text": "žádná odpověď z {0} za {1} s – firewall mezi tím, nebo špatná adresa?"
+  },
+  "pc0588": {
+   "source": "the name {0} does not resolve here: use its IP address, or put the name in DNS.",
+   "text": "jméno {0} se tu nepřeloží: použijte jeho IP adresu, nebo jméno dejte do DNS."
+  },
+  "pc0589": {
+   "source": "{0}: {1} row(s) in {2} table(s)",
+   "text": "{0}: {1} {1:řádek|řádky|řádků} v {2} {2:tabulce|tabulkách|tabulkách}"
+  },
+  "pc0590": {
+   "source": "{0} row(s) in {1} table(s)",
+   "text": "{0} {0:řádek|řádky|řádků} v {1} {1:tabulce|tabulkách|tabulkách}"
+  },
+  "pc0591": {
+   "source": "{0} (with its key beside it)",
+   "text": "{0} (s klíčem vedle)"
+  },
+  "pc0592": {
+   "source": "{0} table(s) ready in {1}",
+   "text": "{0} {0:tabulka připravena|tabulky připraveny|tabulek připraveno} v {1}"
+  },
+  "pc0593": {
+   "source": "{0} table(s) of acme there thrown away; {1} table(s) ready in {2}",
+   "text": "{0} {0:tabulka|tabulky|tabulek} acme tam {0:zahozena|zahozeny|zahozeno}; {1} {1:tabulka připravena|tabulky připraveny|tabulek připraveno} v {2}"
+  },
+  "pc0594": {
+   "source": "every table has the rows of the copy ({0}); {1} sealed secret(s), each opened with the key",
+   "text": "každá tabulka má řádky kopie ({0}); {1} {1:zapečetěný tajný údaj|zapečetěné tajné údaje|zapečetěných tajných údajů}, každý otevřen klíčem"
+  },
+  "pc0595": {
+   "source": "every table has the rows of the copy ({0}); {1} sealed secret(s), each opened with the key · {2} event(s) of the move carried",
+   "text": "každá tabulka má řádky kopie ({0}); {1} {1:zapečetěný tajný údaj|zapečetěné tajné údaje|zapečetěných tajných údajů}, každý otevřen klíčem · {2} {2:událost|události|událostí} přechodu přeneseno"
+  },
+  "pc0597": {
+   "source": "acme stops here and starts again on {0}",
+   "text": "acme se tu zastaví a znovu spustí na {0}"
+  },
+  "pc0598": {
+   "source": "acme {0} started again",
+   "text": "acme {0} znovu spuštěno"
+  },
+  "pc0599": {
+   "source": "{0} answers: {1} row(s), {2} sealed secret(s) open",
+   "text": "{0} odpovídá: {1} {1:řádek|řádky|řádků}, {2} {2:zapečetěný tajný údaj otevřen|zapečetěné tajné údaje otevřeny|zapečetěných tajných údajů otevřeno}"
+  },
+  "pc0600": {
+   "source": "cancelled by {0}",
+   "text": "zrušil/a {0}"
+  },
+  "pc0601": {
+   "source": "nothing was switched: acme goes on with {0} as before. The other database may hold the tables made - the wizard throws them away next time.",
+   "text": "nic nebylo přepnuto: acme pokračuje s {0} jako předtím. Druhá databáze může obsahovat vytvořené tabulky – průvodce je příště zahodí."
+  },
+  "pc0602": {
+   "source": "Nothing was switched: acme goes on with {0} as before.",
+   "text": "Nic nebylo přepnuto: acme pokračuje s {0} jako předtím."
+  },
+  "pc0603": {
+   "source": "the database {0} is made, owned by {1}",
+   "text": "databáze {0} je vytvořena, vlastní ji {1}"
+  },
+  "pc0604": {
+   "source": "the account {0} was there: its password is new",
+   "text": "účet {0} už existoval: má nové heslo"
+  },
+  "pc0605": {
+   "source": "the database {0} was there: {1} owns it now",
+   "text": "databáze {0} už existovala: teď ji vlastní {1}"
+  },
+  "pc0606": {
+   "source": "the database {0} (utf8mb4, compared byte for byte)",
+   "text": "databáze {0} (utf8mb4, porovnávání bajt po bajtu)"
+  },
+  "pc0607": {
+   "source": "the account '{0}' on localhost, 127.0.0.1 and ::1, with every right on {1} and none elsewhere",
+   "text": "účet '{0}' na localhost, 127.0.0.1 a ::1, se všemi právy na {1} a nikde jinde žádnými"
+  },
+  "pc0608": {
+   "source": "it is not ready: {0}",
+   "text": "není to připravené: {0}"
+  },
+  "pc0609": {
+   "source": "a move is going on already (started by {0})",
+   "text": "přechod už probíhá (spustil/a {0})"
+  },
+  "pc0610": {
+   "source": "the database is changed on Settings - The database - Move to another database…, which carries everything across first ({0} not saved)",
+   "text": "databáze se mění v Nastavení → Databáze → Přejít na jinou databázi…, který nejdřív vše přenese ({0} neuloženo)"
+  },
+  "pc0611": {
+   "source": "the file of SQLite is a full path ending in .db, as {0}",
+   "text": "soubor SQLite je úplná cesta končící .db, např. {0}"
+  },
+  "pc0612": {
+   "source": "the authority file {0} is not on this machine",
+   "text": "soubor autority {0} na tomto stroji není"
+  },
+  "pc0613": {
+   "source": "{0} is not a folder on this machine",
+   "text": "{0} na tomto stroji není složka"
+  },
+  "pc0614": {
+   "source": "the root helper of this machine did not answer in 90 s - is acme-web.path running? (systemctl status acme-web.path) - or run the SQL shown on the server yourself",
+   "text": "pomocník s právy roota na tomto stroji neodpověděl do 90 s – běží acme-web.path? (systemctl status acme-web.path) – nebo SQL zobrazené na serveru spusťte sami"
+  },
+  "pc0615": {
+   "source": "there is {0} free in {1}",
+   "text": "v {1} je volných {0}"
+  },
+  "pc0616": {
+   "source": "{0} names the new database now: {1}",
+   "text": "{0} teď ukazuje na novou databázi: {1}"
+  },
+  "pd0001": {
+   "source": "Yes - and one with {0}",
+   "text": "Ano – a jeden s {0}"
+  },
+  "pc0617": {
+   "source": "{0} resolves to {1}",
+   "text": "{0} se překládá na {1}"
+  },
+  "pc0618": {
+   "source": "{0} resolves to {1}, not to {2}",
+   "text": "{0} se překládá na {1}, ne na {2}"
+  },
+  "pc0619": {
+   "source": "{0} is a CNAME that leads to {1}",
+   "text": "{0} je CNAME, který vede na {1}"
+  },
+  "pc0620": {
+   "source": "{0} has the address {1}",
+   "text": "{0} má adresu {1}"
+  },
+  "pc0621": {
+   "source": "Create the record {0}. {1} {2}",
+   "text": "Vytvořte záznam {0}. {1} {2}"
+  },
+  "pc0622": {
+   "source": "Create the record {0}. {1} {2} (glue, at the registrar or in {3})",
+   "text": "Vytvořte záznam {0}. {1} {2} (glue, u registrátora nebo v {3})"
+  },
+  "pc0623": {
+   "source": "seen by the resolvers {0}",
+   "text": "vidí ji resolvery {0}"
   }
  },
  "rich": {

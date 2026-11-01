@@ -300,6 +300,11 @@ def plugin_public(store, family, row, full=False):
     if family == 'issuer':
         out['used_by'] = int(store.db.value('SELECT COUNT(*) FROM certs WHERE issuer = ?',
                                             (row['name'],), 0) or 0)
+        # A dual certificate (ECDSA beside RSA) can come from it, as its settings are now.
+        try:
+            out['dual'] = bool(cls and cls.dual_for(cfg))
+        except Exception:                               # noqa: BLE001
+            out['dual'] = False
     elif family == 'challenge':
         out['used_by'] = int(store.db.value(
             "SELECT COUNT(*) FROM certs WHERE challenge = ? OR challenge_map LIKE ?",

@@ -336,15 +336,21 @@ class RunContext(base.Context):
         if not prof.get('cert'):
             return None
         info = prof.get('info') or {}
+        alt = E.tls_alt(prof) or {}
         return {'fingerprint': str(info.get('fingerprint') or '').replace(':', '').lower(),
                 'cn': info.get('cn') or '', 'not_after': info.get('not_after'),
                 'subject': info.get('subject') or '', 'how': prof.get('how') or '',
-                'at': prof.get('at')}
+                'at': prof.get('at'),
+                'alt_fingerprint': str((alt.get('info') or {}).get('fingerprint') or '')
+                .replace(':', '').lower()}
 
-    def pages_put(self, where, cert_pem, key_pem, chain_pems=None, how='the certificate manager'):
+    def pages_put(self, where, cert_pem, key_pem, chain_pems=None, how='the certificate manager',
+                  alt=None):
         """The certificate (and its key and chain) as the one of the pages of
         `where`, as Certificates and TLS would take an upload: its TLS settings
-        kept, the engine's own ACME no longer renewing it."""
+        kept, the engine's own ACME no longer renewing it. `alt` (cert_pem, key_pem,
+        chain_pems): the twin of a dual certificate, the engine's second certificate
+        of the pages (1.0.196) - nginx gives each client the one it takes."""
         where = self._pages_check(where)
         chain = ''.join(str(p).strip() + '\n' for p in (chain_pems or []) if str(p).strip())
         try:
@@ -361,6 +367,17 @@ class RunContext(base.Context):
                     verify=got['verify'], how=str(how)[:190])
         for k in ('pending_key', 'csr', 'alt'):
             prof.pop(k, None)
+        if alt:
+            a_cert, a_key, a_chain = alt
+            try:
+                g2 = E.cert_bundle(a_cert, a_key, ''.join(str(p).strip() + '\n'
+                                                          for p in (a_chain or [])
+                                                          if str(p).strip()))
+            except ValueError as e:
+                raise base.PluginError('the pages do not take the twin: %s' % e, retry=False)
+            prof['alt'] = {'cert': g2['cert'], 'chain': g2['chain'],
+                           'key': E.seal_secret(g2['key'], 'web:tls'), 'info': g2['info'],
+                           'for': E.tls_alt_for(got['cert'])}
         prof.setdefault('preset', 'standard')
         prof.setdefault('dh', 'none')
         by = 'certificates (%s)' % (self.scope or 'a job')
@@ -377,7 +394,7 @@ class RunContext(base.Context):
                              who=by)
         return {'cn': info.get('cn'), 'not_after': info.get('not_after'),
                 'fingerprint': str(info.get('fingerprint') or '').replace(':', '').lower(),
-                'verify': got.get('verify') or ''}
+                'verify': got.get('verify') or '', 'alt': bool(alt)}
 
     def tidy(self):
         """Whatever the job left in the DNS server or on port 80 taken away."""

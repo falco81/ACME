@@ -326,6 +326,11 @@ class AcmeIssuer(Issuer):
             raise PluginError('the CA made the order invalid at once', detail=json.dumps(order))
         if order.get('status') == 'pending':
             self._authorize(cl, req, order)
+        elif order.get('status') in ('ready', 'processing', 'valid'):
+            # The second order of a dual certificate (or one soon after another): the CA
+            # still holds every name as proved - nothing is put in place again.
+            self._say('every name is proved already (authorizations still valid) - nothing '
+                      'to put in place')
         o = order
         if o.get('status') in ('pending', 'ready'):
             o = cl.poll(order_url, ('ready', 'processing', 'valid'), 'the order', self._num('wait_valid', 180),

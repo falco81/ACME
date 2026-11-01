@@ -100,15 +100,18 @@ they were shown keeps what is set.
 |---|---|
 | `GET /api/certs/overview` | counts by state, what runs out soonest, recent jobs, expiry by week |
 | `GET /api/certs` `?search= &state= &issuer= &tag= &page= &per=` | `{rows, total}` |
-| `GET /api/certs/one?id=` | `{cert, versions, deploys, jobs}` |
-| `POST /api/certs/save` | `{id?, name, names[], key_type, issuer, challenge, challenge_map{}, auto_renew, renew_days, reuse_key, profile{}, tags[], note, owner}` → `{id}` |
+| `GET /api/certs/one?id=` | `{cert, versions, deploys, jobs}` - `cert.variants`: the main one and a dual certificate's twin side by side |
+| `POST /api/certs/save` | `{id?, name, names[], key_type, key_type_alt (a dual certificate's twin, '' none), issuer, challenge, challenge_map{}, auto_renew, renew_days, reuse_key, profile{}, tags[], note, owner}` → `{id}` |
 | `POST /api/certs/delete` | `{id}` |
 | `POST /api/certs/renew` | `{id, force}` → `{job_id}` |
+| `POST /api/certs/plan` | `{names, issuer, challenge, challenge_map}` → `{plan}`: before a certificate, its names grouped by DNS zone, each group's validation, guide (steps ✔/✘/? with where, the record to create, what to do) and suggestions - read-only, at most 25 s (`acmelib/certs/api_readiness.py`, [validation.md](validation.md#before-the-first-certificate-what-acme-checks-and-tells-you)) |
+| `POST /api/certs/check` | `{id}` → `{plan}` the same for a certificate acme keeps (`plan.cert.precheck_blocked`: the renewer did not ask the CA because of it) |
+| `POST /api/certs/dry_run` · `GET /api/certs/dry_run_result?job=` | `{names, issuer, challenge, challenge_map}` or `{id}` → `{job_id}`: the validation tried for real without a CA, a job (kind `dry-run`) · `{result}` what it found, in the plan's shape (null while it runs) |
 | `POST /api/certs/deploy` | `{id, deploy_id?}` → `{job_id}` |
 | `POST /api/certs/revoke` | `{id, reason}` → `{job_id}` |
 | `POST /api/certs/parse` | `{data_b64, filename, password}` → what is in a file, nothing kept |
 | `POST /api/certs/import` | `{name, data_b64, filename, password, key_b64?, key_password?, tags[], note}` → `{id}` |
-| `POST /api/certs/export` | `{id, format, password?, version?}` → `{filename, mime, data_b64}` |
+| `POST /api/certs/export` | `{id, format, password?, version?, variant? (main / alt of a dual certificate)}` → `{filename, mime, data_b64}` |
 | `POST /api/certs/csr` | `{id}` → a CSR for an issuer acme does not speak to: `{csr_pem}`; `POST /api/certs/csr_answer {id, data_b64}` takes the certificate back |
 | `GET /api/certs/jobs` `?cert_id= &kind= &ok= &page=` | `{rows, total}` |
 | `GET /api/certs/job?id=` | one job, every step; `POST /api/certs/job_stop {id}` |
@@ -123,6 +126,7 @@ they were shown keeps what is set.
 | `GET /api/sources` · `POST /api/sources/save` · `/delete` · `/test` · `/action` · `/default` | the issuers (`cert_issuers`); each row says `actions` and `is_default`; `/default {name}` makes it the default (`''`: none) |
 | `GET /api/validations` · `POST /api/validations/save` · `/delete` · `/test` · `/action` · `/default` | the challenges (`cert_challenges`) |
 | `GET /api/validations/info?name=` · `POST /api/validations/check` | HTTP-01 answered here: how it works (nodes, VIP, port 80, the names and where they point) · `{id, host}` a probe token fetched |
+| `GET /api/validations/setup?id=\|name=` | for each certificate that uses the validation: its names, `ok`, and the guide's steps (the CNAMEs, the delegation, each with its state) |
 | `GET /api/targets` · `POST /api/targets/save` · `/delete` · `/test` · `/action` · `/default` | the targets |
 | `POST /api/{sources,validations,targets}/action` | `{id, action}` - one of the module's `actions`, in a job: `{ok, said, job_id, steps}` |
 | `POST /api/sources/contact` | `{email, all?}` - the contact e-mail of the ACME sources that have none |

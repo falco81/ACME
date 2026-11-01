@@ -12,7 +12,7 @@ import tempfile
 
 from acmelib.plugins.targets._common import (
     Base, PluginError, field, lines, label_of, stamp, parse_outputs, subst, PFX_FORMATS,
-    verify_fields, as_int, text)
+    verify_fields, as_int, text, alt_of, family_of, outputs_for)
 
 
 class LocalTarget(Base):
@@ -22,6 +22,7 @@ class LocalTarget(Base):
     description = ('Writes the certificate as files under one folder of this machine, for '
                    'something else to pick up; runs one command it is allowed to.')
     doc = 'targets.md'
+    dual = True             # a dual certificate: format@rsa, format@ec lines write each
     fields = [
         field('base', 'Folder', 'text', default='/etc/acme/out', required=True,
               help='every file goes under this folder, nowhere else'),
@@ -32,7 +33,9 @@ class LocalTarget(Base):
     deploy_fields = [
         field('outputs', 'Files', 'list',
               placeholder='fullchain-pem {name}/fullchain.pem\nkey-pem {name}/privkey.pem 0600',
-              help='one a line: format path [mode] - the path inside the folder'),
+              help='one a line: format path [mode] - the path inside the folder; of a dual '
+                   'certificate format@rsa / format@ec (@main, @alt) for one of its two, '
+                   '{alt} its twin\'s kind'),
         field('pfx_password', 'PKCS#12 / keystore password', 'secret'),
         field('command', 'Then run', 'text', advanced=True,
               help='one of the commands the target allows'),
@@ -71,9 +74,13 @@ class LocalTarget(Base):
     def deploy(self, bundle, options):
         options = options or {}
         base = self._base()
+        alt = alt_of(bundle)
         vars = {'name': label_of(bundle, options), 'date': stamp(bundle),
-                'cn': label_of(bundle, {'object_name': (bundle.names or ['cert'])[0]})}
-        outs = parse_outputs(options.get('outputs'), vars, absolute=False)
+                'cn': label_of(bundle, {'object_name': (bundle.names or ['cert'])[0]}),
+                'alt': family_of(alt) if alt is not None else 'alt'}
+        pairs = outputs_for(self.ctx, bundle,
+                            parse_outputs(options.get('outputs'), vars, absolute=False))
+        outs = [o for o, _b in pairs]
         if not outs:
             raise PluginError('no files to write', retry=False)
         cmd = (options.get('command') or '').strip()
@@ -84,10 +91,10 @@ class LocalTarget(Base):
                 os.path.exists(os.path.join(base, o['path'].lstrip('/'))) for o in outs)):
             return self.same(bundle, 'in %s' % base)
         os.makedirs(base, mode=0o750, exist_ok=True)
-        for o in outs:
+        for o, b in pairs:
             full = self._place(base, o['path'])
             pw = options.get('pfx_password') if o['format'] in PFX_FORMATS else None
-            data = bundle.as_format(o['format'], password=pw or None, alias=vars['name'])
+            data = b.as_format(o['format'], password=pw or None, alias=vars['name'])
             if isinstance(data, str):
                 data = data.encode()
             fd, tmp = tempfile.mkstemp(prefix='.acme-', dir=os.path.dirname(full))

@@ -650,6 +650,37 @@ class TestEngine(unittest.TestCase):
         got = acme('--check-names', 'www.firma.cz', '--challenge', 'nope')
         self.assertIn('there is no validation nope', got.stderr)
 
+    def test_api_routes(self):
+        from acmelib.certs import api  # noqa: F401  (the routes, api_readiness among them)
+        from acmelib.certs import cli, jobs
+        d = cli._Daemon(self.store)
+
+        def call(method, path, body=None, args=None):
+            return self.E.cli_api(d, 'command line', method, path, body=body, args=args)
+        got = call('POST', '/api/certs/plan', {'names': 'www.firma.cz, shop.firma.cz', 'issuer': 'fake',
+                                               'challenge': 'builtin'})['plan']
+        self.assertEqual([g['domain'] for g in got['groups']], ['firma.cz'])
+        self.assertEqual([b['name'] for b in got['blocking']], ['shop.firma.cz'])
+        with self.assertRaises(SystemExit):
+            call('POST', '/api/certs/plan', {'names': 'a.firma.cz', 'challenge': 'nope'})
+        with self.assertRaises(SystemExit):
+            call('POST', '/api/certs/plan', {'names': ''})
+        cid = self.cert('apicert', ['shop.firma.cz'], 'builtin')
+        chk = call('POST', '/api/certs/check', {'id': cid})['plan']
+        self.assertFalse(chk['ok'])
+        self.assertEqual(chk['cert']['name'], 'apicert')
+        jid = call('POST', '/api/certs/dry_run', {'id': cid})['job_id']
+        end = time.time() + 60
+        while time.time() < end and jobs.job_view(self.store, jid)['state'] in ('queued', 'running'):
+            time.sleep(0.2)
+        res = call('GET', '/api/certs/dry_run_result', args={'job': str(jid)})['result']
+        self.assertFalse(res['ok'])
+        setup = call('GET', '/api/validations/setup', args={'name': 'builtin'})
+        names = {c['name']: c for c in setup['certs']}
+        self.assertIn('apicert', names)
+        self.assertTrue(any(st.get('record') and st['record']['type'] == 'CNAME' and st['done'] is False
+                            for st in names['apicert']['steps']))
+
     def test_failed_on_validation(self):
         self.assertTrue(self.R.failed_on_validation(base.PluginError(
             'the CA did not accept www.firma.cz: unauthorized')))

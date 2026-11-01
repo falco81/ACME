@@ -1875,8 +1875,22 @@ function deployEdit(o) {
         return;
       }
       formHost.appendChild(el('h4', 'ct-formh', 'Options on ' + (p.title || p.kind)));
-      form = fieldForm(p.deploy_fields || [], obj(d.options), secretsOf(d), {noneWords: 'This target needs nothing more: the certificate goes where the module puts it.'});
+      /* A dual certificate (ECDSA + RSA): a target of one certificate is asked which
+         of the two it gets; one that serves both is told it takes both. */
+      var dual = deployDual();
+      var opts = obj(d.options);
+      var fields = arr(p.deploy_fields).filter(function (f) { return !f.dual_only || dual || opts[f.key]; });
+      if (dual) formHost.appendChild(el('p', 'muted small', p.dual
+        ? 'The certificate is dual (ECDSA and RSA): this target takes both, and gives each client the one it takes.'
+        : 'The certificate is dual (ECDSA and RSA): this target holds one at a time - choose which below (RSA where unsure: every client can use it).'));
+      form = fieldForm(fields, opts, secretsOf(d), {noneWords: 'This target needs nothing more: the certificate goes where the module puts it.'});
       formHost.appendChild(form.node);
+    };
+    var deployDual = function () {
+      if (o.cert && o.cert.key_type_alt) return true;
+      if (d.cert_dual) return true;
+      var cid = cSel ? cSel.value : '';
+      return !!(cid && arr(certs).some(function (c) { return String(c.id) === String(cid) && c.key_type_alt; }));
     };
     var save = function (b, run) {
       var t = target();
@@ -1909,6 +1923,7 @@ function deployEdit(o) {
       } else {
         cSel = selectBox([['', 'choose one…']].concat(certs.map(function (c) { return [String(c.id), c.name + (c.cn && c.cn !== c.name ? ' (' + c.cn + ')' : '')]; })), '');
         noI18n(cSel);
+        cSel.onchange = function () { drawFields(); };
         g.appendChild(formField('Certificate', cSel));
       }
       if (tName && (o.target || d.id)) {
@@ -2239,6 +2254,8 @@ function certBody(body, c, versions, deploys, jobs, back) {
     info.error ? ['Read', data('span', 'ct-bad', info.error)] : null
   ]));
   grid.appendChild(cs);
+  /* a dual certificate: its twin beside it */
+  if (c.key_type_alt || arr(c.variants).length > 1) grid.appendChild(twinSection(c));
   /* how it is renewed */
   var rs = section('Where it comes from and how it renews');
   var prof = obj(c.profile);
@@ -2310,7 +2327,8 @@ function certBody(body, c, versions, deploys, jobs, back) {
   vs._body.appendChild(listTable(['Version', 'Serial', 'Valid', 'Why', 'By', ''], versions, function (v) {
     var tr = el('tr');
     var vc = td('num', 'v' + (v.version || '?'));
-    if (Number(v.version) === Number(c.version)) vc.appendChild(el('span', 'tag info ct-cur', 'in use'));
+    if (Number(v.version) === Number(c.version) || (v.variant === 'alt' && Number(v.version) === Number(c.alt_version))) vc.appendChild(el('span', 'tag info ct-cur', 'in use'));
+    if (v.variant === 'alt') vc.appendChild(el('span', 'tag dim', 'twin'));
     tr.appendChild(vc);
     tr.appendChild(td('', data('span', 'mono small', v.serial || '–')));
     tr.appendChild(td('small', dayOnly(v.not_before) + ' – ' + dayOnly(v.not_after)));
@@ -2335,6 +2353,51 @@ function certBody(body, c, versions, deploys, jobs, back) {
   body.appendChild(grid);
 }
 
+/* The twin of a dual certificate, side by side with the certificate itself. */
+function twinSection(c) {
+  var alt = arr(c.variants).filter(function (v) { return v.variant === 'alt'; })[0] || {};
+  var sect = section('The twin (dual certificate)', 'The same names with another kind of key, issued and renewed with it - for the clients that cannot use the main one.');
+  var ai = obj(alt.info);
+  if (alt.state === 'failed' && alt.error) {
+    var le = el('div', 'ct-errbox');
+    var lh = el('div', 'ct-errbox-h');
+    lh.appendChild(el('b', '', 'The twin failed'));
+    if (alt.fails) lh.appendChild(el('span', 'muted small', num(alt.fails) + ' time(s) in a row'));
+    if (alt.next_try) lh.appendChild(el('span', 'muted small', 'tried again ' + stamp(alt.next_try)));
+    le.appendChild(lh);
+    le.appendChild(saidBox(alt.error));
+    sect._body.appendChild(le);
+  }
+  if (!alt.issued) {
+    sect._body.appendChild(kvTable([
+      ['Key', keyWords(c.key_type_alt)],
+      ['State', c.dual_source === false ? 'its source gives no twin' : 'not issued yet - the next look issues it']
+    ]));
+    return sect;
+  }
+  if (alt.not_before && alt.not_after) {
+    var lw = el('div', 'ct-lifewrap');
+    lw.appendChild(el('span', 'muted small', dayOnly(alt.not_before)));
+    lw.appendChild(lifeBar(alt.not_before, alt.not_after));
+    lw.appendChild(el('span', 'muted small', dayOnly(alt.not_after)));
+    sect._body.appendChild(lw);
+  }
+  sect._body.appendChild(kvTable([
+    ['Key', keyWords(first(alt.key_type, c.key_type_alt)) + (ai.key_bits ? ' · ' + ai.key_bits + ' bits' : '')
+      + (alt.has_key === false ? ' · not kept here' : '')],
+    ['Issued by', data('span', 'mono small', first(alt.issuer_dn, '–'))],
+    ['Serial', alt.serial ? copyable(alt.serial, 'the serial was copied') : '–'],
+    ['SHA-256', alt.fingerprint ? copyable(fpWords(alt.fingerprint), 'the fingerprint was copied') : '–'],
+    ai.sha1 ? ['SHA-1', copyable(fpWords(ai.sha1), 'the fingerprint was copied')] : null,
+    ['Valid from', alt.not_before ? stamp(alt.not_before) : '–'],
+    ['Valid to', alt.not_after ? stamp(alt.not_after) + (alt.days_left !== null && alt.days_left !== undefined ? ' · ' + alt.days_left + ' ' + tr('days') : '') : '–'],
+    ['Version', alt.version ? 'v' + alt.version : '–'],
+    obj(alt.ari).start ? ['CA suggests', stamp(obj(alt.ari).start) + ' – ' + stamp(obj(alt.ari).end)] : null,
+    ai.sig_alg ? ['Signed with', data('span', 'mono small', ai.sig_alg)] : null
+  ]));
+  return sect;
+}
+
 /* ---- export ---------------------------------------------------------------- */
 var FORMATS = [
   ['cert-pem', 'Certificate', 'PEM', 'The certificate alone, as text (.crt / .pem).', false, false],
@@ -2350,7 +2413,8 @@ var FORMATS = [
   ['jks', 'Java keystore', 'JKS', 'For Tomcat and other Java servers, locked with a password.', true, true]
 ];
 function exportDialog(c, versions, version) {
-  var pick = null, pass = null, alias = null, vSel = null, passItem = null;
+  var pick = null, pass = null, alias = null, vSel = null, passItem = null, varSel = null;
+  var twin = arr(c.variants).filter(function (v) { return v.variant === 'alt' && v.issued; })[0];
   modal('Export ' + c.name, function (body) {
     body.appendChild(el('p', 'note', FULL
       ? 'Choose the shape. A format with the private key is written down in the events, with who took it.'
@@ -2392,6 +2456,12 @@ function exportDialog(c, versions, version) {
       }), String(version || c.version || versions[0].version));
       g.appendChild(formField('Version', vSel));
     }
+    if (twin && !version) {
+      /* a dual certificate: which of its two */
+      varSel = selectBox([['main', keyWords(c.key_type) + ' · ' + tr('the main one')],
+                          ['alt', keyWords(twin.key_type || c.key_type_alt) + ' · ' + tr('the twin')]], 'main');
+      g.appendChild(formField('Which certificate', varSel, 'It is dual: the same names with two kinds of key.'));
+    }
     body.appendChild(g);
     var paint = function () {
       var needs = !!(pick && pick[5]);
@@ -2408,9 +2478,13 @@ function exportDialog(c, versions, version) {
     if (!pick) { toast('choose a format', 'bad'); return; }
     if (pick[5] && !pass.value) { toast('a file with the key needs a password', 'bad'); pass.focus(); return; }
     busy(b, true);
+    var vWant = vSel ? Number(vSel.value) : (version || undefined);
+    var other = varSel && varSel.value === 'alt';
+    if (other && vWant && Number(vWant) === Number(c.version)) vWant = undefined;     /* the twin in use */
     capi('certs/export', {id: c.id, format: pick[0], password: pick[5] ? pass.value : undefined,
                           alias: pick[0] === 'jks' ? alias.value : undefined,
-                          version: vSel ? Number(vSel.value) : (version || undefined)}).then(function (d) {
+                          variant: other ? 'alt' : 'main',
+                          version: vWant}).then(function (d) {
       download(d);
       toast((d.filename || 'the file') + ' was downloaded', 'good');
     }).catch(fail).then(function () { busy(b, false); });
@@ -2660,6 +2734,7 @@ function certWizard(cert, detail) {
   var subj = obj(prof.subject);
   W.d = {
     issuer: c.issuer || '', name: c.name || '', names: arr(c.names).join('\n'), key_type: c.key_type || 'ec-256',
+    key_type_alt: c.key_type_alt || '',
     challenge: c.challenge || '', challenge_map: obj(c.challenge_map),
     auto_renew: c.id ? (c.auto_renew === undefined || truthy(c.auto_renew)) : true,
     renew_days: c.renew_days || 30, reuse_key: truthy(c.reuse_key),
@@ -2869,6 +2944,38 @@ function certWizard(cert, detail) {
     });
     host.appendChild(grid);
     if (can().makesKey) host.appendChild(el('p', 'muted small', 'This source makes the key itself; the type is what is asked of it.'));
+    drawTwin(host, grid);
+  }
+  /* A dual certificate: a twin of the same names with the other kind of key -
+     offered only where the source gives one (its "dual"). */
+  function twinPairs() {
+    var ec = /^ec/.test(W.d.key_type || 'ec-256');
+    var out = [['', 'No - one certificate']];
+    KEY_TYPES.forEach(function (k) {
+      if (k[0] === 'ed25519' || /^ec/.test(k[0]) === ec) return;
+      out.push([k[0], 'Yes - and one with ' + k[1]]);
+    });
+    return out;
+  }
+  function drawTwin(host, grid) {
+    var s = src();
+    var box = el('div', 'ct-twin');
+    host.appendChild(box);
+    var draw = function () {
+      box.textContent = '';
+      if (!s || !s.dual) {
+        if (W.d.key_type_alt) W.d.key_type_alt = '';
+        if (s) box.appendChild(el('p', 'muted small', 'This source gives one certificate of the names (a twin with another kind of key is not offered by it).'));
+        return;
+      }
+      var pairs = twinPairs();
+      if (!pairs.some(function (p) { return p[0] === W.d.key_type_alt; })) W.d.key_type_alt = '';
+      var sel = selectBox(pairs, W.d.key_type_alt);
+      sel.onchange = function () { W.d.key_type_alt = sel.value; };
+      box.appendChild(formField('Also a twin', sel, 'A dual certificate: the same names twice, ECDSA and RSA, renewed together. Some clients cannot use ECDSA (old Windows and Java, some appliances, payment terminals) - the server gives each client the one it takes; a target that holds only one certificate gets the one its deployment says.'));
+    };
+    draw();
+    grid.addEventListener('click', function () { setTimeout(draw, 0); });
   }
   /* -- 4. validation -- */
   function drawValidation(host) {
@@ -3081,7 +3188,8 @@ function certWizard(cert, detail) {
         forms[t.name] = null;
         if (!cb.checked) return;
         if (!p) { fh.appendChild(el('p', 'ct-bad', 'Its module is not installed.')); return; }
-        var f = fieldForm(p.deploy_fields || [], W.deploys[t.name] || {}, {}, {noneWords: 'Nothing to set for this target.'});
+        var f = fieldForm(arr(p.deploy_fields).filter(function (x) { return !x.dual_only || W.d.key_type_alt; }),
+                          W.deploys[t.name] || {}, {}, {noneWords: 'Nothing to set for this target.'});
         forms[t.name] = f;
         fh.appendChild(f.node);
       };
@@ -3112,7 +3220,7 @@ function certWizard(cert, detail) {
       ['Source', s ? s.name + ' · ' + plugTitle('issuer', s.kind) : W.d.issuer],
       ['Name in acme', W.d.name || (list[0] ? certName(list[0]) : '–')],
       ['Names', namesChips(list)],
-      ['Key', keyWords(W.d.key_type)]
+      ['Key', keyWords(W.d.key_type) + (W.d.key_type_alt ? ' + ' + keyWords(W.d.key_type_alt) + ' (' + tr('dual') + ')' : '')]
     ];
     if (can().challenge) pairs.push(['Validation', W.d.challenge + (Object.keys(W.d.challenge_map).length ? ' · ' + Object.keys(W.d.challenge_map).length + ' name(s) otherwise' : '')]);
     pairs.push(['Renews', W.d.auto_renew ? 'by itself, ' + W.d.renew_days + ' days before the end' : 'only when asked']);
@@ -3168,7 +3276,8 @@ function certWizard(cert, detail) {
     Object.keys(d.subject).forEach(function (k) { if (d.subject[k]) subject[k] = d.subject[k]; });
     if (Object.keys(subject).length) profile.subject = subject;
     var useChallenge = can().challenge;
-    return {id: c.id, name: d.name || certName(names()[0]), names: names(), key_type: d.key_type, issuer: d.issuer,
+    return {id: c.id, name: d.name || certName(names()[0]), names: names(), key_type: d.key_type,
+            key_type_alt: (src() && src().dual) ? (d.key_type_alt || '') : '', issuer: d.issuer,
             challenge: useChallenge ? d.challenge : '', challenge_map: useChallenge ? d.challenge_map : {},
             auto_renew: !!d.auto_renew, renew_days: Number(d.renew_days || 30), reuse_key: !!d.reuse_key,
             profile: profile, tags: splitNames(d.tags), note: d.note, owner: d.owner};

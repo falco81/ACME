@@ -58,8 +58,8 @@ FAMILIES = {'issuer': ('source', 'sources', 'source'),
             'target': ('target', 'targets', 'target')}
 CA_FORMATS = ('cert', 'cert-der', 'chain', 'crl', 'crl-der', 'p7b', 'bundle', 'csr', 'key',
               'p12', 'pfx')
-CERT_SETS = ('names', 'issuer', 'challenge', 'key_type', 'auto_renew', 'renew_days',
-             'reuse_key', 'tags', 'note', 'owner', 'enabled', 'challenge_map.NAME',
+CERT_SETS = ('names', 'issuer', 'challenge', 'key_type', 'key_type_alt', 'auto_renew',
+             'renew_days', 'reuse_key', 'tags', 'note', 'owner', 'enabled', 'challenge_map.NAME',
              'profile.KEY')
 
 
@@ -86,6 +86,10 @@ def add_args(p):
     g.add_argument('--key-type', metavar='TYPE', help='with --cert-add, --cert-edit, '
                    '--selfsigned, --ca-create, --ca-sub: ec-256 ec-384 rsa-2048 rsa-3072 '
                    'rsa-4096 ed25519')
+    g.add_argument('--key-type-alt', metavar='TYPE|none', help='with --cert-add, --cert-edit: '
+                   'a dual certificate - a twin of the same names with this key type too '
+                   '(rsa-2048 beside ec-256, or ec-256 beside rsa-*), for clients that cannot '
+                   'use ECDSA; none: no twin')
     g.add_argument('--renew', metavar='NAME|all', help='renew it now (all: every one due; with '
                    '--force every one acme can renew)')
     g.add_argument('--force', action='store_true', help='with --renew all: not only those due; '
@@ -111,6 +115,8 @@ def add_args(p):
     g.add_argument('--format', metavar='F', default='fullchain-pem', help='with --export: '
                    'cert-pem cert-der chain-pem fullchain-pem p7b key-pem key-rsa key-der '
                    'combined-pem pfx p12 p12-legacy jks [fullchain-pem]')
+    g.add_argument('--variant', metavar='main|alt', default='main', help='with --export: of a '
+                   'dual certificate the main one or its twin (alt; or ec, rsa) [main]')
     g.add_argument('--out', metavar='FILE', help='with --export, --csr, --ca-export, --ca-crl, '
                    '--ca-sign: where it goes (- for stdout)')
     g.add_argument('--selfsigned', metavar='NAME', help='a self-signed certificate for --names, '
@@ -611,6 +617,7 @@ class Cli(object):
                      ('valid', '%s - %s' % (_when(c.get('not_before')), _when(c.get('not_after')))
                       if c.get('not_after') else ''),
                      ('days left', c.get('days_left')), ('version', c.get('version')),
+                     ('twin', self._twin_words(c)),
                      ('last error', c.get('last_error')),
                      ('next try', _when(c.get('next_try')) if c.get('next_try') else ''),
                      ('due', c.get('due')), ('owner', c.get('owner')), ('note', c.get('note')),
@@ -622,7 +629,8 @@ class Cli(object):
             print(p.head('\nversions'))
             self.table([[v['version'], _when(v['created']), v.get('why') or '',
                          v.get('serial') or '', _when(v.get('not_after'), '%Y-%m-%d'),
-                         'revoked' if v.get('revoked') else ''] for v in got['versions']],
+                         ('twin ' if v.get('variant') == 'alt' else '') +
+                         ('revoked' if v.get('revoked') else '')] for v in got['versions']],
                        ['v', 'made', 'why', 'serial', 'ends', ''])
         if got['deploys']:
             print(p.head('\ndeployments'))
@@ -631,6 +639,22 @@ class Cli(object):
             print(p.head('\njobs'))
             self._job_table(got['jobs'][:10])
         return 0
+
+    @staticmethod
+    def _twin_words(c):
+        """The twin of a dual certificate, in one line."""
+        if not c.get('key_type_alt'):
+            return ''
+        alt = [v for v in c.get('variants') or [] if v.get('variant') == 'alt']
+        alt = alt[0] if alt else {}
+        if not alt.get('issued'):
+            return '%s - not issued yet%s' % (c['key_type_alt'], (': ' + alt['error'])
+                                              if alt.get('error') else '')
+        return '%s, version %s, serial %s, until %s%s%s' % (
+            c['key_type_alt'], alt.get('version'), alt.get('serial') or '?',
+            _when(alt.get('not_after'), '%Y-%m-%d'),
+            ', sha-256 %s' % alt['fingerprint'] if alt.get('fingerprint') else '',
+            ' - FAILED: %s' % alt['error'] if alt.get('state') == 'failed' else '')
 
     def _cert_body(self, row=None):
         """--names, --issuer, --challenge, --key-type, --name, --note, --enabled
@@ -645,6 +669,9 @@ class Cli(object):
             b['challenge'] = a.challenge
         if a.key_type:
             b['key_type'] = a.key_type
+        if getattr(a, 'key_type_alt', None) is not None:
+            b['key_type_alt'] = '' if a.key_type_alt.strip().lower() in ('none', '-', '') \
+                else a.key_type_alt.strip()
         if row is not None and a.name:
             b['name'] = a.name
         if a.note:
@@ -674,6 +701,8 @@ class Cli(object):
                     [x for x in list((cur or {}).get(k) or []) if x not in vals]
             elif k in ('issuer', 'challenge', 'key_type', 'note', 'owner'):
                 b[k] = v
+            elif k == 'key_type_alt':
+                b[k] = '' if v.strip().lower() in ('none', '-', '') else v.strip()
             elif k.startswith('challenge_map.') and len(k) > 14:
                 cmap = b.setdefault('challenge_map', dict((cur or {}).get('challenge_map') or {}))
                 if v:
@@ -727,7 +756,7 @@ class Cli(object):
         b = self._cert_body(row)
         if not b:
             raise SystemExit('acme: nothing to change - --names, --issuer, --challenge, '
-                             '--key-type, --name, --note, --enabled, --set %s' % ' '.join(
+                             '--key-type, --key-type-alt, --name, --note, --enabled, --set %s' % ' '.join(
                                  CERT_SETS))
         b['id'] = row['id']
         got = self.api('POST', '/api/certs/save', body=b)
@@ -786,7 +815,9 @@ class Cli(object):
                 return 0
             bad = 0
             for r in todo:
-                job = self._run_job('renew', renewer.renew_job(r['id'], a.force, self.WHO),
+                only = 'alt' if not a.force and not renewer.main_due(r) else None
+                job = self._run_job('renew', renewer.renew_job(r['id'], a.force, self.WHO,
+                                                               only),
                                     r['id'], '%s: %s' % (r['name'], renewer.due_why(r) or
                                                          'forced'))
                 bad += 0 if job.ok else 1
@@ -1012,7 +1043,8 @@ class Cli(object):
                 raise SystemExit('acme: a %s is locked with a password: add --password'
                                  % a.format)
         got = self.api('POST', '/api/certs/export', body={'id': row['id'], 'format': a.format,
-                                                          'password': pw})
+                                                          'password': pw,
+                                                          'variant': a.variant or 'main'})
         data = base64.b64decode(got['data_b64'])
         if a.out == '-':
             self._stdout(data)
@@ -1021,7 +1053,9 @@ class Cli(object):
         if self.json:
             self.out({'file': a.out, 'format': a.format, 'bytes': len(data)})
         else:
-            print(self.pal.ok_line('%s written (%s, %d bytes)' % (a.out, a.format, len(data))))
+            print(self.pal.ok_line('%s written (%s%s, %d bytes)' % (
+                a.out, a.format, ', the twin (%s)' % got.get('key_type')
+                if got.get('variant') == 'alt' else '', len(data))))
         return 0
 
     def selfsigned(self):

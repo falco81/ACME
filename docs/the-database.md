@@ -60,18 +60,86 @@ A copy put back keeps the rows' numbers, and the numbering goes on past them.
 
 ## Moving to another engine
 
-On the pages: *Settings → The database*, then *Try it → Set it up → Carry
-everything across → Start using it*. *Carry everything across* makes a copy
-of what is here and loads it into the other database (which must be empty);
-*Start using it* writes the new address into config.json and starts the daemon
-again on it. Nothing is taken out of the old database, so going back is the
-same steps the other way.
+On the pages: *Settings → The database → Move to another database…*, a wizard
+with Next and Back (what was typed is kept going back):
+
+1. **Where to** - the database in use (its engine, size and the rows of each
+   table) and the one to move to: SQLite (a file on this machine), MariaDB or
+   PostgreSQL, each with a word on what it is for (two nodes need PostgreSQL)
+   and whether its driver is installed - if not, the exact package for acme's
+   Python (`dnf install python3.14-psycopg2`, `python3-PyMySQL`, … as
+   `install.sh` puts them in).
+2. **Connection** - for a server: its address, port (empty: 3306 / 5432), the
+   database, the account and its password (dots only), TLS (off, `require`,
+   `verify-full` with the authority's PEM file chosen on the page, kept as
+   `/var/lib/acme/db-move-ca.pem`). With the server on this machine, *Make the
+   database and the account for me* does it as root through the root helper
+   (`acme_web.py --dbmake`: PostgreSQL as `postgres`, MariaDB as root over its
+   socket - no administrator's password typed) and makes the account a password
+   if none was typed. On another machine the wizard shows the SQL to run there,
+   with Copy, or uses an administrator account of that server given for that
+   one connection. For SQLite: the file (empty: `/var/lib/acme/acme.db`; any
+   full path ending in `.db` in a folder acme may write - `db_path` in
+   config.json).
+3. **Check** - each a row with ✔ / ! / ✘ and what to do: another database
+   than the one in use, room for the copy made first, the driver, reached as
+   that account (a refused connection, a wrong password, pg_hba.conf, a missing
+   database, a name that does not resolve, TLS - each said in plain words),
+   the engine's version (PostgreSQL before 16: fine alone, not for two nodes),
+   encrypted or not, what the account may do there (CREATE TABLE, CREATE INDEX,
+   INSERT, UPDATE, SELECT, DELETE, ALTER, DROP - tried on a table of its own),
+   empty or not, the characters (MariaDB utf8mb4, the names `utf8mb4_bin`;
+   PostgreSQL UTF8) and the room on a disk of this machine. A database that
+   holds acme already - a copy left by an earlier move, the way back - is
+   refused until *throw away what of acme is in it, and move over it* is
+   switched on; another installation's database is never mixed in.
+4. **What happens** - from and to, the rows to copy, about how long, and the
+   order below; switched on *I have read this* before *Move it now*.
+5. **Moving** - one job (the daemon's one long job at a time), each step with
+   what it said and each table with the rows copied of all:
+   a copy of everything here, first (`/var/lib/acme/backups/`, its key beside
+   it) → the tables made there → every row copied, as one transaction → the
+   rows of every table counted against the copy, and every sealed secret there
+   opened with the key, each under the bind it was sealed with (the certificate
+   manager's too) → config.json switched to it → acme started again on it
+   (systemd starts it, `Restart=always`) → asked whether it answers there.
+   Meanwhile the pages answer and renewals and deployments wait. *Cancel the
+   move* stops it at any step until config.json is switched; nothing here is
+   changed then. The state of the move is kept in `/var/lib/acme/db-move.json`,
+   so the page follows it through the restart and reads its end from the
+   daemon that answers on the new database.
+6. **Done** - what it runs on now, what was done, where the copy is, and
+   *Move back…*: the old database is left exactly as it was, so going back is
+   the same wizard the other way (it is thrown away and filled again with what
+   is here now).
+
+On the command line, the same steps:
+
+```bash
+ACME_DB_PASSWORD=… acme --db-move postgres --db-host 127.0.0.1 --db-name acme --db-user acme --db-check
+ACME_DB_PASSWORD=… acme --db-move postgres --db-host 127.0.0.1 --db-name acme --db-user acme --yes
+acme --db-move sqlite --db-path /var/lib/acme/acme.db --db-overwrite --yes     # back to the file
+```
+
+(`--db-tls-mode require|verify-full` and `--ca FILE` for TLS; `--db-check`
+only checks; it restarts acme with systemctl at the end.)
+
+**Not on a node of a cluster.** With `ha_mode` set in config.json, or another
+node heard on this database a moment ago, the wizard does not start - the
+page says why and how - and the API (409) and `acme --db-move` refuse too:
+moving the database of one node would break the replication (or take the
+shared database away from the other node). Take the cluster apart first
+(*Settings → High availability → Switch it off…*, then
+`acme --ha-standalone --yes` on each node), move, then build the cluster again
+(*Make the bundle…*). A node whose config.json still says `ha_mode` though no
+other node has been heard from for an hour is refused as well, and told to
+leave the cluster mode with `acme --ha-standalone --yes`.
 
 By hand, make the database and its account first:
 
 ```sql
 -- MariaDB
-CREATE DATABASE acme CHARACTER SET utf8mb4;
+CREATE DATABASE acme CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 CREATE USER 'acme'@'localhost' IDENTIFIED BY '…';
 GRANT ALL ON acme.* TO 'acme'@'localhost';
 ```
@@ -79,10 +147,10 @@ GRANT ALL ON acme.* TO 'acme'@'localhost';
 ```bash
 # PostgreSQL
 sudo -u postgres psql -c "CREATE USER acme PASSWORD '…'"
-sudo -u postgres psql -c "CREATE DATABASE acme OWNER acme"
+sudo -u postgres psql -c "CREATE DATABASE acme OWNER acme ENCODING 'UTF8' TEMPLATE template0"
 ```
 
-then:
+then, without the wizard:
 
 ```bash
 acme --backup
@@ -105,6 +173,16 @@ account made, the daemon started and asked, the configuration exported and
 imported, the events read, a copy made; last, the move from SQLite into
 PostgreSQL and on into MariaDB by the pages' own steps. A copy with
 certificates in it is made by `python3 test/test_ha.py --make-backup DIR`.
+
+`test/test_db_move.py` moves one populated installation by the wizard's own
+questions around all six directions - SQLite → MariaDB → PostgreSQL (TLS,
+`verify-full`) → MariaDB (over the older copy) → SQLite (another file) →
+PostgreSQL → SQLite - and after each counts every table on the new database
+against the old one, opens every sealed secret there, starts the daemon again
+on it and renews a certificate; it also cancels a move half-way, moves by
+`acme --db-move`, and checks the refusal on a node of a cluster (the API's
+409 and the command line). It needs the servers on this machine and root (the
+wizard makes its own database `acmemv` there) and is skipped without them.
 
 `test/test_ha.py` tries the same in Python, and more: the types and limits
 above on MariaDB (a 130 KB PEM, the 190-character unique names), the lease of

@@ -214,6 +214,104 @@ notification.
 Asked by a person (the page, `acme --renew NAME`), a certificate is renewed
 whether it is due or not.
 
+A dual certificate (a twin with another kind of key, `key_type_alt`) is
+renewed with its twin in the same job - see *Dual certificates* below.
+
+
+## Dual certificates (ECDSA + RSA)
+
+One certificate in acme can hold **two variants of the same names**: the main
+key type (`key_type`, e.g. `ec-256`) and a **twin** of the other kind
+(`key_type_alt`, e.g. `rsa-2048` - or the other way round, an RSA main and an
+ECDSA twin). A server that serves both gives each client the one it takes:
+ECDSA (smaller, faster) to everything modern, RSA to the clients that cannot
+use ECDSA - old Windows and Java, some appliances, payment terminals. This is
+what Let's Encrypt advises for sites that still have such clients.
+
+Set it in the wizard's *Key* step (*Also a twin*, offered only where the
+source can give one), with `acme --cert-add NAME ... --key-type ec-256
+--key-type-alt rsa-2048` or `acme --cert-edit NAME --key-type-alt none`, or
+`key_type_alt` in `POST /api/certs/save` (`''` or `none`: no twin). The twin
+must be of another kind than the main key (ECDSA beside RSA).
+
+**Which sources** (`Issuer.dual`, shown as `dual` on each source):
+
+| Source | Twin |
+|---|---|
+| ACME (Let's Encrypt, ZeroSSL, Google, Buypass, step-ca, ...) | yes - the second order reuses the names proved for the first |
+| own authority (`internal_ca`), self-signed | yes |
+| MS AD CS, EST, CMP, Vault PKI, EJBCA, step-ca, AWS Private CA, Google CAS, FreeIPA | yes, where the template / profile / role takes both kinds of key (else the twin fails and says why) |
+| SCEP | no (SCEP needs an RSA key) |
+| SSLmarket, DigiCert CertCentral, GlobalSign Atlas | only with *Allow a second (paid) order for a dual certificate* (`dual_order`) on: each variant is an order of its own, paid for |
+
+**Issuing.** One job issues both: two keys, two CSRs, two `issue()` calls -
+the main one first, then the twin. For ACME the second order finds every
+name proved already (the CA keeps a valid authorization for a while), so no
+challenge is put in place twice - the order is `ready` at once and only
+finalized ("every name is proved already"); what the first order put in place
+is cleaned up once, at the end of the job. A CA that does not reuse
+authorizations validates the names again for the twin.
+
+**When the twin fails**, the main certificate still counts: it is kept as the
+new version and deployed (with the twin it had before, if any); the job ends
+*failed* saying the twin failed, and the twin has its own retry -
+`alt_state` `failed`, `alt_error`, `alt_fails`, `alt_next_try` (5 minutes,
+doubling, at most `certs_retry_max_h`). A failure of the main one fails the
+whole job as before (the twin is not tried).
+
+**Due when either one is due.** The main one due (its days before the end,
+its ARI window, failed and past its wait, never issued) renews both. The twin
+alone due - not issued yet, its own end near, its own ARI window (asked for
+each variant: `certs.alt_ari`), failed and past its wait - renews the twin
+alone; the main one is left as it is. Changing `key_type_alt` drops the
+current twin (its versions stay) and the next look issues the new one.
+
+**Kept.** The twin lives in the same row of `certs`: `alt_cert_pem`,
+`alt_chain_pem`, `alt_key_sealed` (sealed under
+`certs:<id>:alt_key_sealed:<alt_version>`, registered in `SEAL_BINDS`, so
+backups, the backup check, the configuration's export and replication open
+it as the main key), `alt_serial`, `alt_fingerprint`, `alt_not_before`,
+`alt_not_after`, `alt_issuer_dn`, `alt_ari`, `alt_version`, `alt_state`,
+`alt_error`, `alt_fails`, `alt_next_try`. Its versions are rows of
+`cert_versions` with `variant` `'alt'` (the main ones `''`), numbered in the
+same sequence as the main ones - so a deployment is up to date when its
+`deployed_version` is the newest of the two (`store.generation()`), and a
+renewed twin alone deploys again.
+
+**Seeing and exporting.** `GET /api/certs/one` gives `cert.variants`: the main
+one and the twin side by side (key, serial, fingerprint, validity, state, the
+error of the last try); the page's detail shows the twin beside the
+certificate. `POST /api/certs/export` takes `variant` (`main`, `alt`, or
+`ec` / `rsa` - whichever has that key); a version of the twin (`version`)
+exports the twin. `acme --export NAME --variant alt --format fullchain-pem
+--out site.rsa.crt`. The counts of the overview are counts of certificates,
+a dual one counted once.
+
+**Deploying.** `CertBundle.alt` is the twin (a bundle of its own, or None),
+`b.variant('main' | 'alt' | 'ec' | 'rsa')` either one, and
+`b.as_format('fullchain-pem@rsa')` a format of one. A target that can serve
+both (`Target.dual = True`) is handed the whole and puts both in place:
+
+* `ssh` / `local`: an output line names a variant with a suffix -
+  `fullchain-pem@rsa`, `key-pem@ec`, `@main`, `@alt` (a line for a variant
+  the certificate does not have is left out); the presets of the services
+  that serve both write the twin's files by themselves - nginx, Apache,
+  Postfix, Dovecot, Exim: `{name}.crt` / `{name}.key` and
+  `{name}.rsa.crt` / `{name}.rsa.key` (`{alt}` in a path: the twin's kind);
+  HAProxy: the multi-certificate bundle `{name}.pem.ecdsa` + `{name}.pem.rsa`.
+* `f5`: both installed, two cert-key-chain entries in each client-ssl profile.
+* `appliance`: the twin becomes the engine's second certificate of the pages
+  (1.0.196) - nginx gives each client the one it takes.
+* `kubernetes`, `vault`, `webhook`: both in what is sent.
+
+Every other target holds one certificate at a time and gets the option
+**Which certificate** (`variant`: `auto` - the RSA one, which every client can
+use; `main`, `alt`, `rsa`, `ec`); its form shows it only for a dual
+certificate. The check of what is served (`verify`) asks for each variant on
+its own: a TLS 1.2 handshake offering only ECDSA cipher suites, then one
+offering only RSA ones; a server that offers no TLS 1.2 is compared with
+either. See [targets.md](targets.md) for each target.
+
 
 ## Before the first certificate: what acme checks and tells you
 
@@ -262,6 +360,21 @@ For the pages (and anything else) the functions are in
 
 A step: `{key, what, where, record: {name, type, value, ttl} or null, done:
 true|false|null, said, fix, blocking, name}`.
+
+**On the pages.** The certificate's wizard shows, in its *Validation* step, the
+plan grouped by domain: each group with the validation that proves it, the
+guide of each name (✔ / ✘ / ?, where, what was found, what to do, the exact
+record with *Copy*), and the validations that would do instead - *Use* one and
+the group's names are written into `challenge_map` (or out of it, when it is
+the one for every name). *Check again* asks anew; *Dry run* runs the job and
+shows its steps in place, then what it found. It checks by itself when the
+step opens and again at the end: when something blocks, the last step says
+what is missing and offers *Create anyway (it will wait until this is in
+place)* - the renewer then holds the CA back until it is - or *Back to the
+validation*. A certificate's popup has a *Validation* section with the same
+(checked by itself while it is new or failed), at the top when the last
+renewal was held back by the precheck. A validation's popup lists *What to set
+up* for every certificate that uses it.
 
 ## Deploying
 

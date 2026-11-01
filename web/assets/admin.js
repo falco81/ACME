@@ -2777,22 +2777,9 @@ function loadDb() {
 }
 
 /* ---- which database everything is kept in -------------------------------- */
-function dbAsked() {
-  var out = {};
-  ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password', 'db_timeout_s'].forEach(function (k) {
-    var input = $('set-' + k);
-    if (!input) return;
-    var v = input._get ? input._get() : input.value;
-    if (k === 'db_password' && (v === '' || String(v).indexOf('•') === 0)) return;
-    out[k] = (k === 'db_port' || k === 'db_timeout_s') ? (String(v).trim() === '' ? 0 : Number(v)) : v;
-  });
-  return out;
-}
-function engineChosen() { return String(dbAsked().db_engine || (DBSTATE && DBSTATE.engine) || 'sqlite'); }
 function engineWord(name) { return ENGINE_SAID[name] || name; }
 
 function drawEngine(d) {
-  $('db-engine-file').textContent = d.config_file || 'the config file';
   $('db-engine-now').textContent = (ENGINE_SAID[d.engine] || d.engine) + ' · ' + d.where;
   var host = $('db-engine-says');
   clear(host);
@@ -2803,43 +2790,709 @@ function drawEngine(d) {
     ['Holding', num(c.certs || 0) + ' certificate(s), ' + num(c.cert_jobs || 0) + ' job(s)'],
     ['Room it takes', bytes(d.size || 0)]
   ]));
-  Object.keys(d.drivers || {}).forEach(function (name) {
-    var one = d.drivers[name];
-    host.appendChild(el('p', 'btnhelp', engineWord(name) + ': '
-      + (one.ready ? 'the driver is installed'
-         : (one.says || 'no driver') + ' — install ' + one.package)));
-  });
-  engineButtons();
-}
-function engineButtons() {
-  var chosen = engineChosen();
-  var live = String((DBSTATE && DBSTATE.engine) || 'sqlite');
-  var same = chosen === live;
-  if ($('db-engine-setup')) $('db-engine-setup').disabled = chosen === 'sqlite';
-  if ($('db-engine-move')) $('db-engine-move').disabled = same;
-  if ($('db-engine-empty')) $('db-engine-empty').disabled = same;
-  if ($('db-engine-use')) $('db-engine-use').disabled = same;
-}
-document.addEventListener('change', function (e) {
-  if (e.target && e.target.id === 'set-db_engine') engineButtons();
-});
-
-function engineFacts(d) {
-  var facts = [['Reached', d.reached ? 'yes' : 'no'], ['Where', d.where || '']];
-  if (d.version) facts.push(['It says it is', d.version]);
-  if (d.reached) {
-    facts.push(['Tables there', num((d.tables || []).length) + ' of ours']);
-    facts.push(['Records in it', num(d.rows || 0)]);
-    facts.push(['May this account write', d.writable ? 'yes' : 'NO']);
+  dbMoveGuardDraw($('db-move-guard'), d.move_guard, true);
+  if ($('db-move-open')) {
+    $('db-move-open').disabled = !!d.move_guard;
+    $('db-move-open').title = d.move_guard ? 'Not on a node of a cluster: see why above.'
+      : 'Step by step: where to, how to reach it, the checks, what will happen - then everything is carried across and acme starts again on it. Nothing is changed until the last step.';
   }
-  return peekFacts(facts);
+  dbMoveLastDraw(d.move);
+}
+
+/* ==========================================================================
+   Move to another database - the wizard (1.0.210)
+   Where to → how to reach it → the checks → what happens → moving → done.
+   The move is the daemon's one job; its state is kept beside the database, so
+   this follows it through the restart and reads its end from the daemon that
+   answers on the new database.
+   ========================================================================== */
+var DBW_ICON = {sqlite: 'archive', mariadb: 'db', postgres: 'db'};
+var DBW_RUNNING = ['running', 'switching', 'restarting'];
+var DBW_STEP_WORDS = {backup: 'A copy of everything here, first', schema: 'The tables made there',
+  copy: 'Every row copied', verify: 'The rows counted there, every sealed secret opened',
+  switch: 'config.json switched to it', restart: 'acme started again on it',
+  reconnect: 'It answers on the new database'};
+
+/* Why the wizard does not start on a node of a cluster, and how to get there. */
+function dbMoveGuardDraw(host, g, compact) {
+  if (!host) return;
+  clear(host);
+  if (!g) return;
+  var box = el('div', 'dbw-guard');
+  var head = el('div', 'dbw-guard-head');
+  var ic = el('span', 'dbw-guard-ic');
+  ic.innerHTML = iconMarkup('ethernet', 20);
+  head.appendChild(ic);
+  head.appendChild(el('b', '', g.stale ? 'This node is still set up as one of a cluster' : 'This node is one of a cluster'));
+  box.appendChild(head);
+  box.appendChild(el('p', 'note', g.why));
+  var ol = el('ol', 'dbw-guard-how');
+  (g.how || []).forEach(function (line) { ol.appendChild(el('li', '', line)); });
+  box.appendChild(ol);
+  if ((g.nodes || []).length) {
+    var seen = el('p', 'note small muted');
+    seen.appendChild(document.createTextNode('Nodes heard on this database: '));
+    seen.appendChild(noI18n(el('span', 'mono', g.nodes.map(function (n) {
+      return n.name + (n.alive ? ' (now)' : ' (' + Math.round(n.age / 60) + ' min ago)');
+    }).join(', '))));
+    box.appendChild(seen);
+  }
+  var row = el('div', 'btnrow');
+  var go = cmdButton('Open High availability', 'ethernet', compact ? 'small' : '');
+  go.onclick = function () { closeModal(); showTab('settings'); showPane('ha'); };
+  row.appendChild(go);
+  box.appendChild(row);
+  host.appendChild(box);
+}
+
+/* The last move under the button: one going on (follow it), or how it ended. */
+function dbMoveLastDraw(m) {
+  var host = $('db-move-last');
+  if (!host) return;
+  clear(host);
+  if (!m || !m.id) return;
+  var running = DBW_RUNNING.indexOf(m.state) >= 0;
+  var cls = running ? 'info' : (m.state === 'done' ? 'good' : 'bad');
+  var box = el('div', 'dbw-last ' + cls);
+  var words = el('div', 'dbw-last-w');
+  var to = (m.to || {}).where || '';
+  if (running) words.appendChild(el('b', '', 'A move to another database is going on'));
+  else if (m.state === 'done') words.appendChild(el('b', '', 'The last move went through'));
+  else if (m.state === 'cancelled') words.appendChild(el('b', '', 'The last move was cancelled'));
+  else words.appendChild(el('b', '', 'The last move failed'));
+  var line = el('div', 'small');
+  line.appendChild(noI18n(el('span', 'mono', ((m.from || {}).where || '') + ' → ' + to)));
+  if (m.ended) line.appendChild(noI18n(el('span', 'muted', ' · ' + stamp(m.ended))));
+  words.appendChild(line);
+  if (m.error) words.appendChild(el('div', 'small', m.error));
+  box.appendChild(words);
+  var b = cmdButton(running ? 'Follow it' : 'Show it', running ? 'eye' : 'info', 'small');
+  b.onclick = function () { dbMoveWizard({follow: true}); };
+  box.appendChild(b);
+  if (!running) {
+    var f = cmdButton('Hide this', 'close', 'small');
+    f.onclick = function () { api('db', {action: 'wiz_forget'}).then(function () { clear(host); }).catch(oops); };
+    box.appendChild(f);
+  }
+  host.appendChild(box);
+}
+
+function dbMoveWizard(opts) {
+  opts = opts || {};
+  api('db', {action: 'wiz_start'}).then(function (info) {
+    var m = info.move;
+    if (opts.follow && m && m.id) { dbMoveRun(info, null, m); return; }
+    if (info.guard) {
+      modal('Move to another database', function (body) {
+        dbMoveGuardDraw(body, info.guard, false);
+      }, [{words: 'Close', close: true}], 'medium');
+      return;
+    }
+    if (m && DBW_RUNNING.indexOf(m.state) >= 0) { dbMoveRun(info, null, m); return; }
+    dbMoveSteps(info, opts.preset || null);
+  }).catch(oops);
+}
+
+function dbMoveSteps(info, preset) {
+  var here = info.here || {};
+  var hs = here.settings || {};
+  var W = {step: 0, seen: {0: true}, check: null, checking: false, sure: false, made: '', sql: null};
+  var p = preset || {};
+  W.d = {engine: p.engine || '', host: p.host || '127.0.0.1', port: p.port || '', name: p.name || 'acme',
+         user: p.user || 'acme', password: '', tls: p.tls || '', ca_pem: '', ca_name: p.tls_ca || '',
+         path: p.path || '', overwrite: !!p.overwrite, admin_user: '', admin_password: ''};
+  if (!W.d.path) W.d.path = here.engine === 'sqlite' && String(here.where) === info.sqlite_default
+    ? info.state_dir + '/acme-moved.db' : info.sqlite_default;
+  var STEPS = [
+    {key: 'where', title: 'Where to', draw: drawWhere, check: function () { return W.d.engine ? '' : 'choose the database to move to'; }},
+    {key: 'conn', title: 'Connection', draw: drawConn, check: checkConn},
+    {key: 'check', title: 'Check', draw: drawCheck, check: function () {
+      if (!W.check) return 'press Check first';
+      return W.check.ready ? '' : 'not every check is passed yet: put right what is marked, and check again';
+    }},
+    {key: 'what', title: 'What happens', draw: drawWhat},
+    {key: 'run', title: 'Moving'},
+    {key: 'done', title: 'Done'}
+  ];
+  var read = null;
+  function settings() {
+    var d = W.d;
+    if (d.engine === 'sqlite') return {db_engine: 'sqlite', db_path: d.path.trim()};
+    var out = {db_engine: d.engine, db_host: d.host.trim(), db_port: Number(d.port) || info.engines[d.engine].port,
+               db_name: d.name.trim(), db_user: d.user.trim(), db_password: d.password,
+               db_tls: d.tls, db_tls_ca: d.tls && !d.ca_pem ? d.ca_name : ''};
+    return out;
+  }
+  function body(extra) {
+    return Object.assign({settings: settings(), ca_pem: W.d.tls ? W.d.ca_pem : '', overwrite: !!W.d.overwrite}, extra || {});
+  }
+  function go(to) {
+    if (read) read();
+    W.step = Math.max(0, Math.min(3, to));
+    W.seen[W.step] = true;
+    paint();
+  }
+  function paint() {
+    var st = STEPS[W.step];
+    read = null;
+    var buttons = [];
+    if (W.step > 0) buttons.push({words: 'Back', icon: 'prev', left: true, go: function () { go(W.step - 1); }});
+    buttons.push({words: 'Close', close: true});
+    if (st.key === 'what') {
+      buttons.push({words: 'Move it now', cls: 'primary', icon: 'play', go: function (b) { start(b); }});
+    } else {
+      buttons.push({words: 'Next', cls: 'primary', icon: 'next', go: function () {
+        if (read) read();
+        var bad = st.check ? st.check() : '';
+        if (bad) { toast(bad, 'bad'); return; }
+        go(W.step + 1);
+      }});
+    }
+    modal('Move to another database', function (b) {
+      b.appendChild(dbMoveRail(STEPS, W.step, W.seen, function (i) {
+        if (i > W.step) {
+          if (read) read();
+          for (var k = W.step; k < i; k++) {
+            var bad = STEPS[k].check ? STEPS[k].check() : '';
+            if (bad) { toast(bad, 'bad'); return; }
+          }
+        }
+        go(i);
+      }));
+      var host = el('div', 'dbw-body');
+      host.id = 'dbw-step-' + st.key;
+      b.appendChild(host);
+      st.draw(host);
+    }, buttons, 'large');
+    if (st.key === 'what') {
+      var mv = Array.prototype.filter.call($('modal-foot').querySelectorAll('.btn.primary'), function (x) { return true; })[0];
+      if (mv) { mv.id = 'dbw-go'; mv.disabled = !W.sure; }
+    }
+    explainWhatWasDrawn($('modal-body'));
+  }
+
+  /* -- 1. where from, where to -- */
+  function drawWhere(host) {
+    var from = el('div', 'dbw-here');
+    var ic = el('span', 'dbw-tile-ic');
+    ic.innerHTML = iconMarkup(DBW_ICON[here.engine] || 'db', 22);
+    from.appendChild(ic);
+    var w = el('div', 'dbw-here-w');
+    w.appendChild(el('span', 'dbw-k', 'Here now'));
+    w.appendChild(el('b', '', engineWord(here.engine)));
+    w.appendChild(noI18n(el('span', 'mono small', here.where)));
+    w.appendChild(el('span', 'small muted', here.version + ' · ' + bytes(here.size) + ' · ' + num(here.rows) + ' row(s)'));
+    from.appendChild(w);
+    host.appendChild(from);
+    var fold = el('details', 'dbw-tables');
+    fold.appendChild(el('summary', '', 'The rows of each table'));
+    var grid = el('div', 'dbw-tgrid');
+    (here.tables || []).forEach(function (t) {
+      if (t.table === 'meta') return;
+      var r = el('div', 'dbw-trow');
+      r.appendChild(el('span', '', TABLE_SAID[t.table] || t.table));
+      r.appendChild(noI18n(el('span', 'mono', num(t.rows))));
+      grid.appendChild(r);
+    });
+    fold.appendChild(grid);
+    host.appendChild(fold);
+    host.appendChild(el('h4', 'dbw-h', 'Move it to'));
+    var tiles = el('div', 'dbw-tiles');
+    ['sqlite', 'mariadb', 'postgres'].forEach(function (e) {
+      var t = el('button', 'dbw-tile' + (W.d.engine === e ? ' on' : ''));
+      t.type = 'button';
+      t.id = 'dbw-engine-' + e;
+      var i2 = el('span', 'dbw-tile-ic');
+      i2.innerHTML = iconMarkup(DBW_ICON[e], 22);
+      t.appendChild(i2);
+      var tw = el('span', 'dbw-tile-w');
+      tw.appendChild(el('b', '', (info.engines[e] || {}).words || e));
+      tw.appendChild(el('span', 'small', (info.engines[e] || {}).note || ''));
+      var chips = el('span', 'dbw-chips');
+      if (here.engine === e) chips.appendChild(el('span', 'tag info', e === 'sqlite' ? 'in use - another file' : 'in use - another server'));
+      if (e === 'postgres') chips.appendChild(el('span', 'tag ok', 'high availability'));
+      var dr = (info.drivers || {})[e];
+      if (dr && !dr.ready) chips.appendChild(el('span', 'tag warn', 'driver missing'));
+      else if (dr) chips.appendChild(el('span', 'tag dim', 'driver installed'));
+      tw.appendChild(chips);
+      t.appendChild(tw);
+      t.onclick = function () {
+        if (W.d.engine !== e) { W.check = null; W.d.overwrite = false; W.d.port = ''; }
+        W.d.engine = e;
+        Array.prototype.forEach.call(tiles.children, function (x) { x.classList.remove('on'); });
+        t.classList.add('on');
+        drawDriver();
+      };
+      t.ondblclick = function () { t.onclick(); go(1); };
+      tiles.appendChild(t);
+    });
+    host.appendChild(tiles);
+    var drv = el('div', 'dbw-driver');
+    host.appendChild(drv);
+    function drawDriver() {
+      clear(drv);
+      var dr = (info.drivers || {})[W.d.engine];
+      if (!dr || dr.ready) return;
+      var n = el('div', 'note warn');
+      n.appendChild(el('b', '', 'The driver for it is not installed in acme’s Python. Install it, as root:'));
+      n.appendChild(dbwCmd(dr.install));
+      n.appendChild(el('div', 'small', 'You can go on meanwhile - the check in step 3 tries again.'));
+      drv.appendChild(n);
+    }
+    drawDriver();
+  }
+
+  /* -- 2. how to reach it -- */
+  function checkConn() {
+    var d = W.d;
+    if (d.engine === 'sqlite') return /^\/.+\.db$/.test(d.path.trim()) ? '' : 'the file is a full path ending in .db';
+    if (!d.host.trim()) return 'the server is needed';
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(d.name.trim())) return 'the database name is letters, digits and _, starting with a letter';
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(d.user.trim())) return 'the account is letters, digits and _, starting with a letter';
+    if (d.port && !(Number(d.port) > 0 && Number(d.port) < 65536)) return 'the port is a number up to 65535';
+    if (!d.password) return 'its password is needed (or let the wizard make the account: it makes one)';
+    if (d.tls === 'verify-full' && !d.ca_pem && !d.ca_name) return 'verify-full needs the authority that signed the server’s certificate';
+    return '';
+  }
+  function drawConn(host) {
+    var d = W.d;
+    if (d.engine === 'sqlite') {
+      host.appendChild(el('p', 'note', 'A file on this machine. acme makes it, and the folder it is in must be one acme may write to - the state folder is.'));
+      var path = textBox(d.path, info.sqlite_default, 'mono');
+      path.id = 'dbw-path';
+      noI18n(path);
+      host.appendChild(formField('The file', path, 'A full path ending in .db. If a file of acme is there already - one left by an earlier move - the check says so, and it is thrown away only if you say so.'));
+      read = function () { d.path = path.value; };
+      return;
+    }
+    var eng = info.engines[d.engine] || {};
+    host.appendChild(el('p', 'note', 'How acme reaches ' + engineWord(d.engine) + '. These go into the config file at the end, and nowhere else.'));
+    var g = el('div', 'formgrid');
+    var hostBox = textBox(d.host, '127.0.0.1', 'mono'); hostBox.id = 'dbw-host'; noI18n(hostBox);
+    hostBox.onchange = function () { if (read) read(); paint(); };
+    var port = textBox(d.port, String(eng.port), 'mono'); port.id = 'dbw-port'; noI18n(port);
+    var name = textBox(d.name, 'acme', 'mono'); name.id = 'dbw-name'; noI18n(name);
+    var user = textBox(d.user, 'acme', 'mono'); user.id = 'dbw-user'; noI18n(user);
+    var pw = maskBox(d.password, '', 'mono'); pw.id = 'dbw-password';
+    g.appendChild(formField('Server', hostBox, '127.0.0.1 for a server on this machine.'));
+    g.appendChild(formField('Port', port, 'Empty: ' + eng.port + ', the usual one.'));
+    g.appendChild(formField('Database name', name));
+    g.appendChild(formField('Account', user));
+    g.appendChild(formField('The account’s password', pw, 'Typed, it shows dots only. Empty: the wizard makes one when it makes the account.'));
+    var tls = selectBox([['', 'off'], ['require', 'require - always encrypted'], ['verify-full', 'verify-full - encrypted, the server’s certificate and name checked']], d.tls);
+    tls.id = 'dbw-tls';
+    g.appendChild(formField('Encryption (TLS)', tls, 'On another machine, require at least: the keys and passwords travel to it. The server needs TLS switched on.'));
+    host.appendChild(g);
+    var caRow = el('div', 'dbw-ca');
+    host.appendChild(caRow);
+    var caPick = el('input'); caPick.type = 'file'; caPick.accept = '.pem,.crt,.cer,.txt'; caPick.hidden = true; caPick.id = 'dbw-ca-file';
+    host.appendChild(caPick);
+    function drawCa() {
+      clear(caRow);
+      if (tls.value !== 'verify-full') return;
+      var line = el('div', 'dbw-ca-line');
+      line.appendChild(el('span', '', 'The authority that signed the server’s certificate (PEM):'));
+      line.appendChild(noI18n(el('b', 'mono', d.ca_name || '-')));
+      var b = cmdButton(d.ca_pem ? 'Another file…' : 'Choose the file…', 'upload', 'small');
+      b.onclick = function () { caPick.click(); };
+      line.appendChild(b);
+      caRow.appendChild(line);
+    }
+    caPick.onchange = function () {
+      var f = caPick.files && caPick.files[0];
+      if (!f) return;
+      var r = new FileReader();
+      r.onload = function () {
+        var t = String(r.result || '');
+        if (t.indexOf('-----BEGIN CERTIFICATE-----') < 0) { toast('that is not a PEM certificate', 'bad'); return; }
+        d.ca_pem = t; d.ca_name = f.name; W.check = null; drawCa();
+      };
+      r.readAsText(f);
+      caPick.value = '';
+    };
+    tls.onchange = function () { d.tls = tls.value; drawCa(); };
+    drawCa();
+    read = function () {
+      var before = JSON.stringify([d.host, d.port, d.name, d.user, d.password, d.tls]);
+      d.host = hostBox.value; d.port = port.value; d.name = name.value; d.user = user.value;
+      d.password = pw.value; d.tls = tls.value;
+      if (JSON.stringify([d.host, d.port, d.name, d.user, d.password, d.tls]) !== before) W.check = null;
+    };
+    /* Making the database and the account. */
+    var mk = el('div', 'dbw-make');
+    mk.appendChild(el('h4', 'dbw-h', 'The database and the account'));
+    var said = el('div', 'dbw-make-said');
+    var local = ['', 'localhost', '127.0.0.1', '::1'].indexOf(hostBox.value.trim().toLowerCase()) >= 0;
+    if (local) {
+      mk.appendChild(el('p', 'note', 'The server is on this machine: acme can make the database and the account itself, as root - ' + (d.engine === 'postgres' ? 'as postgres, with no password typed anywhere' : 'as root over its socket, with no password typed anywhere') + '. A password is made for the account if none is typed above.'));
+      var b = cmdButton('Make the database and the account for me', 'key', 'primary');
+      b.id = 'dbw-make';
+      b.onclick = function () {
+        read();
+        busy(b, true);
+        api('db', body({action: 'wiz_make', how: 'local'}), 120).then(function (x) {
+          if (x.password) { d.password = x.password; pw.value = x.password; W.made = x.password; }
+          W.check = null;
+          clear(said);
+          (x.made || []).forEach(function (line) { said.appendChild(el('div', 'note good', '✓ ' + line)); });
+          if (x.password) said.appendChild(el('div', 'note', 'A password was made for the account and is filled in above. It goes into the config file at the end - nothing has to be noted down.'));
+        }).catch(function (e) { clear(said); said.appendChild(el('div', 'note bad', e.message || String(e))); })
+          .then(function () { busy(b, false); });
+      };
+      mk.appendChild(el('div', 'btnrow')).appendChild(b);
+      mk.appendChild(said);
+    } else {
+      mk.appendChild(el('p', 'note', 'On another machine: run this there as its administrator - or let an administrator account of that server do it from here.'));
+      var sqlHost = el('div', 'dbw-sql');
+      mk.appendChild(sqlHost);
+      var show = cmdButton('Show the SQL to run there', 'terminal', '');
+      show.id = 'dbw-sql';
+      show.onclick = function () {
+        read();
+        api('db', body({action: 'wiz_sql'})).then(function (x) {
+          if (x.password) { d.password = x.password; pw.value = x.password; }
+          clear(sqlHost);
+          sqlHost.appendChild(el('div', 'small muted', x.run));
+          sqlHost.appendChild(dbwCmd(x.sql));
+          if (x.also) sqlHost.appendChild(el('p', 'note small', x.also));
+          if (x.password) sqlHost.appendChild(el('p', 'note small', 'A password was made for the account: it is in the SQL and filled in above.'));
+        }).catch(oops);
+      };
+      mk.appendChild(el('div', 'btnrow')).appendChild(show);
+      var adm = el('details', 'dbw-admin');
+      adm.appendChild(el('summary', '', 'Or with an administrator account of that server'));
+      var ag = el('div', 'formgrid');
+      var au = textBox(d.admin_user, d.engine === 'postgres' ? 'postgres' : 'root', 'mono'); noI18n(au);
+      var ap = maskBox('', '', 'mono');
+      ag.appendChild(formField('Administrator', au, 'Used for this one connection, kept nowhere.'));
+      ag.appendChild(formField('Its password', ap));
+      adm.appendChild(ag);
+      var ab = cmdButton('Make them with it', 'key', '');
+      ab.onclick = function () {
+        read();
+        busy(ab, true);
+        api('db', body({action: 'wiz_make', how: 'admin', admin_user: au.value.trim(), admin_password: ap.value}), 120).then(function (x) {
+          if (x.password) { d.password = x.password; pw.value = x.password; }
+          W.check = null;
+          clear(said);
+          (x.made || []).forEach(function (line) { said.appendChild(el('div', 'note good', '✓ ' + line)); });
+        }).catch(function (e) { clear(said); said.appendChild(el('div', 'note bad', e.message || String(e))); })
+          .then(function () { busy(ab, false); });
+      };
+      adm.appendChild(el('div', 'btnrow')).appendChild(ab);
+      mk.appendChild(adm);
+      mk.appendChild(said);
+    }
+    host.appendChild(mk);
+  }
+
+  /* -- 3. the checks -- */
+  function runCheck(host) {
+    W.checking = true;
+    clear(host);
+    host.appendChild(el('div', 'note muted', 'Checking…'));
+    api('db', body({action: 'wiz_check'}), 90).then(function (x) {
+      W.check = x;
+      W.checking = false;
+      if (x.target && !x.target.rows) W.d.overwrite = false;
+      drawChecks(host);
+    }).catch(function (e) {
+      W.checking = false;
+      W.check = null;
+      clear(host);
+      host.appendChild(el('div', 'note bad', e.message || String(e)));
+    });
+  }
+  function drawCheck(host) {
+    var head = el('div', 'dbw-check-head');
+    var hw = el('span', 'dbw-check-to');
+    hw.appendChild(el('b', '', engineWord(W.d.engine)));
+    hw.appendChild(noI18n(el('span', 'mono', ' · ' + (W.d.engine === 'sqlite' ? W.d.path : W.d.user + '@' + W.d.host + ':' + (W.d.port || info.engines[W.d.engine].port) + '/' + W.d.name))));
+    head.appendChild(hw);
+    var again = cmdButton('Check again', 'refresh', 'small');
+    again.id = 'dbw-recheck';
+    head.appendChild(again);
+    host.appendChild(head);
+    var list = el('div', 'dbw-checks');
+    host.appendChild(list);
+    again.onclick = function () { runCheck(list); };
+    if (W.check) drawChecks(list); else runCheck(list);
+  }
+  function drawChecks(host) {
+    clear(host);
+    var x = W.check;
+    (x.checks || []).forEach(function (r) {
+      var row = el('div', 'dbw-check ' + (r.ok === true ? 'ok' : (r.ok === 'warn' ? 'warn' : 'bad')));
+      row.appendChild(noI18n(el('span', 'dbw-mark', r.ok === true ? '✔' : (r.ok === 'warn' ? '!' : '✘'))));
+      var w = el('div', 'dbw-check-w');
+      w.appendChild(el('b', '', r.what));
+      if (r.said) w.appendChild(el('span', 'small', r.said));
+      if (r.fix && r.ok !== true) {
+        var f = el('div', 'dbw-fix');
+        f.appendChild(el('b', '', 'What to do: '));
+        f.appendChild(el('span', '', r.fix));
+        w.appendChild(f);
+      }
+      row.appendChild(w);
+      host.appendChild(row);
+    });
+    if (x.target && x.target.rows) {
+      var box = el('div', 'dbw-over' + (W.d.overwrite ? ' on' : ''));
+      box.appendChild(el('b', '', 'It holds acme already'));
+      box.appendChild(el('p', 'note', 'A copy left there by an earlier move - the way back, say - can be thrown away and moved over. Everything of acme in it is deleted first; a copy of what is HERE is made in any case. If it is another installation’s database, stop and choose another one: two are never mixed.'));
+      var sw = switchBox(W.d.overwrite);
+      sw._input.id = 'dbw-overwrite';
+      var lab = el('label', 'dbw-over-sw');
+      lab.appendChild(sw);
+      lab.appendChild(el('span', '', 'Throw away what of acme is in it, and move over it'));
+      box.appendChild(lab);
+      sw._input.onchange = function () { W.d.overwrite = !!sw._get(); W.sure = false; runCheck(host); };
+      host.appendChild(box);
+    }
+    var sum = el('div', 'note ' + (x.ready ? 'good' : 'bad'), x.ready ? 'Every check is passed: Next says what will happen.' : 'Not ready yet: put right what is marked ✘, then Check again.');
+    host.appendChild(sum);
+  }
+
+  /* -- 4. what happens -- */
+  function drawWhat(host) {
+    var x = W.check || {};
+    var hereC = (x.here || {}).counts || {};
+    var rows = 0;
+    Object.keys(hereC).forEach(function (k) { rows += Number(hereC[k] || 0); });
+    var est = Number(x.estimate_s || 15);
+    host.appendChild(el('p', 'note', 'This is what will be done, in this order. Nothing has been changed yet.'));
+    var t = kvTable([
+      ['The database now', noI18n(el('span', 'mono', here.where))],
+      ['The new database', noI18n(el('span', 'mono', (x.to || {}).where || ''))],
+      ['Rows to copy', num(rows) + ' in ' + Object.keys(hereC).length + ' table(s)'],
+      ['How long', est < 60 ? 'about ' + est + ' s' : 'about ' + Math.ceil(est / 60) + ' min'],
+      ['Meanwhile', 'the pages answer; renewals and deployments wait until it is done; the service is away for a few seconds while it starts again']
+    ]);
+    t.classList.add('dbw-sum');
+    host.appendChild(t);
+    var ol = el('ol', 'dbw-plan');
+    [['A copy of everything here is made first', 'kept in ' + (x.backup_dir || info.backup_dir) + ', with the key that opens its sealed secrets beside it'],
+     ['The tables are made there', W.d.overwrite ? 'what of acme is in it now is thrown away first' : 'in the empty database'],
+     ['Every row is copied', 'as one transaction: all of it or nothing'],
+     ['It is checked there', 'every table counted against the copy, every sealed secret (keys, passwords) opened with the key'],
+     ['The config file is switched to it', x.config_file || info.config_file],
+     ['acme starts again on it', 'and this page waits for it, and asks it whether it answers'],
+     ['The old database is left exactly as it was', 'it is the way back: the same wizard, the other way, moves back to it']].forEach(function (p) {
+      var li = el('li', '');
+      li.appendChild(el('b', '', p[0]));
+      li.appendChild(noI18n(el('span', 'small muted', ' - ')));
+      li.appendChild(el('span', 'small muted', p[1]));
+      ol.appendChild(li);
+    });
+    host.appendChild(ol);
+    if (W.d.overwrite) host.appendChild(el('div', 'note bad', 'What of acme is in ' + ((x.to || {}).where || 'it') + ' now is thrown away first.'));
+    host.appendChild(el('p', 'note small', 'Cancel stops it at any step until the config file is switched; after that it goes through.'));
+    var sw = switchBox(W.sure);
+    sw._input.id = 'dbw-sure';
+    var lab = el('label', 'dbw-over-sw');
+    lab.appendChild(sw);
+    lab.appendChild(el('span', '', 'I have read this: move everything now'));
+    host.appendChild(lab);
+    sw._input.onchange = function () {
+      W.sure = !!sw._get();
+      if ($('dbw-go')) $('dbw-go').disabled = !W.sure;
+    };
+  }
+  function start(b) {
+    if (!W.sure) { toast('say first that you have read it', 'bad'); return; }
+    busy(b, true);
+    api('db', body({action: 'wiz_go'}), 120).then(function (x) {
+      dbMoveRun(info, W, x.move);
+    }).catch(function (e) { busy(b, false); oops(e); });
+  }
+  paint();
+}
+
+/* The rail of the steps along the top. */
+function dbMoveRail(steps, at, seen, pick) {
+  var strip = el('ol', 'dbw-rail');
+  steps.forEach(function (s, i) {
+    var li = el('li', (i === at ? 'on' : '') + (i < at ? ' done' : ''));
+    var b = el('button', '');
+    b.type = 'button';
+    b.appendChild(el('span', 'n', String(i + 1)));
+    b.appendChild(el('span', 'w', s.title));
+    b.disabled = !pick || i > 3 || !(seen[i] || i <= at);
+    if (pick) b.onclick = function () { pick(i); };
+    li.appendChild(b);
+    strip.appendChild(li);
+  });
+  return strip;
+}
+
+/* A command or SQL in a box, with Copy. */
+function dbwCmd(text) {
+  var wrap = el('div', 'dbw-cmd');
+  var pre = noI18n(el('pre', 'mono', text));
+  wrap.appendChild(pre);
+  var c = cmdButton('Copy', 'copy', 'small');
+  c.onclick = function () { copyText(text, c); };
+  wrap.appendChild(c);
+  return wrap;
+}
+
+/* -- 5. moving, and 6. done: followed through the restart -- */
+function dbMoveRun(info, W, m) {
+  var RAIL = [{title: 'Where to'}, {title: 'Connection'}, {title: 'Check'}, {title: 'What happens'}, {title: 'Moving'}, {title: 'Done'}];
+  var steps, tables, said, timer = null, ticket, away = 0, lastId = m && m.id;
+  function frame(at) {
+    modal('Move to another database', function (b) {
+      b.appendChild(dbMoveRail(RAIL, at, {}, null));
+      var host = el('div', 'dbw-body');
+      host.id = at === 4 ? 'dbw-step-run' : 'dbw-step-done';
+      b.appendChild(host);
+      if (at === 4) {
+        said = el('div', 'dbw-run-head');
+        host.appendChild(said);
+        steps = haLiveSteps(Object.keys(DBW_STEP_WORDS).map(function (k) { return {key: k, what: DBW_STEP_WORDS[k]}; }));
+        steps.classList.add('dbw-live');
+        host.appendChild(steps);
+        tables = el('div', 'dbw-tprog');
+        host.appendChild(tables);
+      }
+    }, [], 'large');
+    ticket = modalTicket();
+  }
+  function foot(list) { haFoot(list); }
+  function draw(mv) {
+    if (!modalStill(ticket)) return;
+    clear(said);
+    said.appendChild(noI18n(el('span', 'mono', ((mv.from || {}).where || '') + ' → ' + ((mv.to || {}).where || ''))));
+    (mv.steps || []).forEach(function (s) {
+      var state = s.state === 'wait' ? 'wait' : s.state;
+      steps.set(s.key, state, s.said, s.state === 'bad' ? mv.fix : '');
+    });
+    clear(tables);
+    var copying = (mv.steps || []).filter(function (s) { return s.key === 'copy'; })[0] || {};
+    if (copying.state && copying.state !== 'wait') {
+      (mv.tables || []).forEach(function (t) {
+        if (!t.whole && !t.done) return;
+        var r = el('div', 'dbw-tp');
+        r.appendChild(el('span', 'dbw-tp-n', TABLE_SAID[t.table] || t.table));
+        var bar = el('span', 'dbw-tp-bar');
+        var fill = el('span', '');
+        var pct = t.whole ? Math.min(100, Math.round(100 * (t.there !== undefined ? t.there : t.done) / t.whole)) : 100;
+        fill.style.width = pct + '%';
+        bar.appendChild(fill);
+        r.appendChild(bar);
+        r.appendChild(noI18n(el('span', 'dbw-tp-c mono', num(t.there !== undefined ? t.there : t.done) + ' / ' + num(t.whole))));
+        tables.appendChild(r);
+      });
+    }
+    if (mv.state === 'running') {
+      foot([{words: 'Close', icon: 'close', left: true, go: function () { stop(); closeModal(); }},
+            {key: 'cancel', words: 'Cancel the move', icon: 'cancel', cls: 'danger', go: function (b) {
+              busy(b, true);
+              api('db', {action: 'wiz_cancel'}).then(function (x) { toast(x.message, 'good'); }).catch(function (e) { busy(b, false); oops(e); });
+            }}]);
+    } else if (DBW_RUNNING.indexOf(mv.state) >= 0) {
+      foot([{words: 'Close', icon: 'close', left: true, go: function () { stop(); closeModal(); }}]);
+    }
+  }
+  function stop() { if (timer) clearTimeout(timer); timer = null; }
+  function poll() {
+    stop();
+    api('db', {action: 'wiz_state'}, 10).then(function (x) {
+      away = 0;
+      var mv = x.move;
+      if (!mv || (lastId && mv.id !== lastId)) {
+        if (!modalStill(ticket)) return;
+        clear(said); said.appendChild(el('div', 'note bad', 'The move is no longer known here.'));
+        foot([{words: 'Close', icon: 'close', go: closeModal}]);
+        return;
+      }
+      if (mv.state === 'done') { stop(); done(mv, x); return; }
+      draw(mv);
+      if (mv.state === 'failed' || mv.state === 'cancelled') { stop(); ended(mv); return; }
+      if (modalStill(ticket)) timer = setTimeout(poll, 1000);
+    }).catch(function (e) {
+      /* Away while it starts again on the new database: asked again. */
+      away += 1;
+      if (!modalStill(ticket)) return;
+      var r = steps && steps.querySelector('.step.run .d');
+      if (r) r.textContent = 'acme is starting again on the new database - waiting for it…';
+      if (away > 180) {
+        clear(said); said.appendChild(el('div', 'note bad', 'acme has not answered for three minutes: ' + (e.message || e) + '. Look at it on the server: systemctl status acme; journalctl -u acme'));
+        foot([{words: 'Close', icon: 'close', go: closeModal}, {words: 'Ask again', icon: 'refresh', cls: 'primary', go: function () { away = 0; poll(); }}]);
+        return;
+      }
+      timer = setTimeout(poll, 1000);
+    });
+  }
+  function ended(mv) {
+    var r = el('div', 'note ' + (mv.state === 'cancelled' ? 'warn' : 'bad'));
+    r.id = 'dbw-ended';
+    r.appendChild(el('b', '', mv.state === 'cancelled' ? 'The move was cancelled. ' : 'The move failed. '));
+    r.appendChild(el('span', '', mv.error || ''));
+    if (mv.fix) { r.appendChild(el('br')); r.appendChild(el('span', '', mv.fix)); }
+    said.parentNode.appendChild(r);
+    var list = [{words: 'Close', icon: 'close', left: true, go: function () { closeModal(); loadDb(); }}];
+    if (W) list.push({words: 'Back to the checks', icon: 'prev', cls: 'primary', go: function () { W.check = null; dbMoveSteps(info, presetOf(W)); }});
+    foot(list);
+    loadDb();
+  }
+  function presetOf(w) {
+    var d = w.d;
+    return {engine: d.engine, host: d.host, port: d.port, name: d.name, user: d.user, tls: d.tls, tls_ca: d.ca_name, path: d.path};
+  }
+  function done(mv, x) {
+    frame(5);
+    var host = $('dbw-step-done');
+    var res = mv.result || {};
+    var ok = el('div', 'dbw-done');
+    var ic = el('span', 'dbw-done-ic');
+    ic.innerHTML = iconMarkup('check', 26);
+    ok.appendChild(ic);
+    var w = el('div', '');
+    w.appendChild(el('b', '', 'acme now runs on ' + engineWord(x.engine)));
+    w.appendChild(noI18n(el('div', 'mono small', x.where)));
+    w.appendChild(el('div', 'small', (res.version || '') + ' · ' + num(res.rows || 0) + ' row(s) · ' + num(((res.sealed || {}).opened) || 0) + ' sealed secret(s) open'));
+    ok.appendChild(w);
+    host.appendChild(ok);
+    var st = haLiveSteps(Object.keys(DBW_STEP_WORDS).map(function (k) { return {key: k, what: DBW_STEP_WORDS[k]}; }));
+    st.classList.add('dbw-live');
+    (mv.steps || []).forEach(function (s) { st.set(s.key, s.state, s.said); });
+    var fold = el('details', 'dbw-steps-fold');
+    fold.appendChild(el('summary', '', 'What was done'));
+    fold.appendChild(st);
+    host.appendChild(fold);
+    host.appendChild(el('h4', 'dbw-h', 'What next'));
+    var ol = el('ol', 'dbw-plan');
+    ['Look around the pages: the certificates, the jobs, the settings - everything is where it was.',
+     'The copy made first is kept: ' + (mv.backup || '') + '.',
+     'The old database (' + ((mv.from || {}).where || '') + ') is left as it was - keep it until you are sure; then delete the file, or drop that database on its server.'].forEach(function (t) {
+      ol.appendChild(el('li', '', t));
+    });
+    host.appendChild(ol);
+    var back = el('div', 'dbw-back');
+    back.appendChild(el('b', '', 'Going back'));
+    back.appendChild(el('p', 'note', 'The old database is still there: moving back is the same wizard the other way. It holds what was there before this move, so it is thrown away and filled again with what is here now.'));
+    host.appendChild(back);
+    var from = mv.from || {};
+    haFoot([{words: 'Close', icon: 'close', left: true, go: function () { closeModal(); loadDb(); }},
+            {key: 'back', words: 'Move back…', icon: 'undo', go: function () {
+              api('db', {action: 'wiz_start'}).then(function (inf) {
+                dbMoveSteps(inf, {engine: from.engine, host: from.host, port: from.port, name: from.name, user: from.user,
+                                  tls: from.tls, tls_ca: from.tls_ca, path: from.path, overwrite: true});
+              }).catch(oops);
+            }}]);
+    loadDb();
+  }
+  frame(4);
+  if (m) draw(m);
+  poll();
 }
 
 /* ---- the job going on, and the bar that says how far ---------------------- */
 var DB_WATCHING = null;
 function dbBusyButtons(on) {
   ['db-backup', 'db-dump-make', 'db-optimize', 'db-check', 'db-prune', 'db-tidy',
-   'db-restore', 'dump-restore', 'db-engine-move', 'erase-go'].forEach(function (id) {
+   'db-restore', 'dump-restore', 'db-move-open', 'erase-go'].forEach(function (id) {
     var b = $(id);
     if (b) b.disabled = on || (id === 'erase-go' && !erasePicked().length)
       || ((id === 'db-restore' || id === 'dump-restore') && !b._held);
@@ -3549,110 +4202,8 @@ function markErase() {
   setButtonIcon(go, 'forget', picked.length ? 'Erase ' + picked.length + ' of these…' : 'Erase what is ticked…');
 }
 
-if ($('db-engine-test')) {
-  $('db-engine-test').onclick = function () {
-    busy($('db-engine-test'), true);
-    api('db', {action: 'try', settings: dbAsked()}).then(function (d) {
-      modal('Trying ' + d.words, function (body) {
-        body.appendChild(el('p', 'note', 'Nothing was saved and nothing was written: this opened it, asked what it is, counted what is in it and closed it again.'));
-        body.appendChild(engineFacts(d));
-        if (!d.reached) body.appendChild(el('p', 'note bad', String(d.trouble || '')));
-        else if (d.in_use) body.appendChild(el('p', 'note', 'This is the database in use.'));
-        else if (!d.writable) body.appendChild(el('p', 'note bad', 'It answers, but this account may not make anything in it. Set it up, or give the account rights on that database.'));
-        else if (!d.rows) body.appendChild(el('p', 'note good', 'It is reachable and empty of ours, which is exactly what something to carry everything into should look like.'));
-      }, [{words: 'Close', close: true}], true);
-    }).catch(oops).then(function () { busy($('db-engine-test'), false); });
-  };
-
-  $('db-engine-setup').onclick = function () {
-    var want = dbAsked();
-    var who, word;
-    modal('Setting up ' + engineWord(want.db_engine), function (body) {
-      body.appendChild(el('p', 'note', 'This makes the database and the account on that server, and gives the account rights on that one database and no other. The first time, it needs an administrator on the server to do it — root on MariaDB, postgres on PostgreSQL, or anyone who may create a database.'));
-      body.appendChild(el('p', 'note', 'That administrator is used for this one connection and is stored nowhere: not in the settings, not in the database, not in any log.'));
-      body.appendChild(el('p', 'note', 'The account this program will use is made with a password of its own, generated here — you do not have to invent one. It is written into the config file, and shown once when this is done so you can keep a copy.'));
-      body.appendChild(el('p', 'note', 'Press this again later and it does the other half of the job: if the account already gets in, nothing is made and no administrator is wanted — it opens the database and puts its tables right. Leave the two boxes empty for that.'));
-      var g = el('div', 'formgrid');
-      who = textBox('', want.db_engine === 'postgres' ? 'postgres' : 'root', '');
-      who.autocomplete = 'off';
-      word = maskBox('', '', '');
-      g.appendChild(formField('An administrator on that server', who, 'Only needed the first time, or if the account cannot get in.'));
-      g.appendChild(formField('Its password', word));
-      body.appendChild(g);
-    }, [{words: 'Close', close: true}, {words: 'Set it up', cls: 'primary', icon: 'key', go: function (b) {
-      var ticket = modalTicket();
-      busy(b, true);
-      api('db', {action: 'setup', settings: want, admin_user: who.value.trim(), admin_password: word.value}).then(function (d) {
-        if (!modalStill(ticket)) modal('The database, set up', function () {}, [{words: 'Close', close: true}]);
-        var body = $('modal-body');
-        clear(body);
-        (d.made || []).forEach(function (line) { body.appendChild(el('p', 'note good', line)); });
-        body.appendChild(engineFacts(d.try || {}));
-        if (d.password) {
-          body.appendChild(el('h4', '', 'The password made for ' + (want.db_user || 'it')));
-          var pw = el('input');
-          pw.type = 'text'; pw.readOnly = true; pw.className = 'mono'; pw.value = d.password;
-          pw.onclick = function () { pw.select(); };
-          noI18n(pw);
-          body.appendChild(pw);
-          var copy = cmdButton('Copy it', 'copy', 'small');
-          copy.style.marginTop = '8px';
-          copy.onclick = function () {
-            pw.select();
-            var ok = false;
-            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-            toast(ok ? 'copied' : 'press Ctrl+C — it is selected', ok ? 'good' : 'warn');
-          };
-          body.appendChild(copy);
-          body.appendChild(el('p', 'note', 'It is saved in ' + (d.kept_in || 'the config file') + ' and nowhere else, so nothing has to be typed in above. This is the only time it is shown — keep a copy if you want one, though nothing here needs it again.'));
-        }
-        body.appendChild(el('p', 'note', 'The address is saved. Nothing has moved yet: carry everything across when you are ready.'));
-        clear($('modal-foot'));
-        var close = cmdButton('Close', 'close', '');
-        close.onclick = closeModal;
-        $('modal-foot').appendChild(close);
-        loadSettings();
-      }).catch(function (e) { busy(b, false); oops(e); });
-    }}], 'medium');
-  };
-
-  $('db-engine-move').onclick = function () {
-    var want = dbAsked();
-    var word = engineWord(want.db_engine);
-    modal('Carrying everything into ' + word, function (body) {
-      body.appendChild(el('p', 'note', 'Every certificate, every job, every setting and every account is copied into ' + word + '. On a large database this takes minutes; you can close this and it carries on.'));
-      body.appendChild(el('p', 'note', 'What is here is not touched, and a copy of it is made first in any case. Nothing starts using the other database until you say so afterwards.'));
-    }, [{words: 'Leave it', close: true}, {words: 'Carry it across', cls: 'primary', icon: 'save', close: true, go: function () {
-      api('db', {action: 'move', settings: want}).then(function () { dbWatch(); }).catch(oops);
-    }}], true);
-  };
-
-  $('db-engine-empty').onclick = function () {
-    var want = dbAsked();
-    var word = engineWord(want.db_engine);
-    modal('Emptying ' + word, function (body) {
-      body.appendChild(el('p', 'note bad', 'This throws away everything of acme in the OTHER database — the ' + word + ' above, not the one in use. It is for when a first attempt at moving left something in it and the move will not go on.'));
-      body.appendChild(el('p', 'note', 'Nothing in the database this installation is running on is touched, and this is refused outright if the two are the same.'));
-    }, [{words: 'Leave it', close: true}, {words: 'Empty it', cls: 'danger', icon: 'forget', close: true, go: function () {
-      api('db', {action: 'empty', settings: want}).then(function (d) { toast(d.message, 'good'); loadDb(); }).catch(oops);
-    }}], true);
-  };
-
-  $('db-engine-use').onclick = function () {
-    var want = dbAsked();
-    var word = engineWord(want.db_engine);
-    modal('Start using ' + word, function (body) {
-      body.appendChild(el('p', 'note', 'This writes the address into ' + ((DBSTATE && DBSTATE.config_file) || 'the config file') + ' and restarts the daemon, which takes a few seconds. Nothing in either database is touched.'));
-      body.appendChild(el('p', 'note', want.db_engine === 'sqlite'
-        ? 'Everything will be read out of the file on this machine from then on, and the server may be uninstalled once you are happy.'
-        : 'Everything will be read out of ' + word + ' from then on, and the file on this machine may be deleted once you are happy. Carry everything across first if you have not — this does not move anything.'));
-    }, [{words: 'Not yet', close: true}, {words: 'Start using it', cls: 'primary', icon: 'power', close: true, go: function () {
-      api('db', {action: 'use', settings: want}).then(function (d) {
-        toast(d.message, 'good');
-        setTimeout(function () { location.reload(); }, 9000);
-      }).catch(oops);
-    }}], true);
-  };
+if ($('db-engine-card')) {
+  $('db-move-open').onclick = function () { dbMoveWizard(); };
 
   $('db-backup').onclick = function () {
     busy($('db-backup'), true);

@@ -269,7 +269,7 @@ class EveryDirection(unittest.TestCase):
             done = []
             # 1. SQLite → MariaDB, its database and account made by the wizard.
             got = mv.check(MY)
-            self.assertFalse(got['ok'])
+            self.assertFalse(got['ready'])
             mv.make(MY)
             mv.move(MY)
             done.append('sqlite → mariadb')
@@ -343,7 +343,7 @@ class CancelAndRefusals(unittest.TestCase):
             self.assertEqual(s['engine'], 'sqlite')
             # A second try goes, over what the first left there.
             got = mv.check(PG, overwrite=True)
-            self.assertTrue(got['ok'], got)
+            self.assertTrue(got['ready'], got)
         finally:
             node.cleanup()
             reset_pg()
@@ -355,7 +355,7 @@ class CancelAndRefusals(unittest.TestCase):
             node.start()
             mv = Mover(self, node)
             lite = {'db_engine': 'sqlite', 'db_path': os.path.join(node.tmp, 'state', 'other.db')}
-            self.assertTrue(mv.check(lite)['ok'])
+            self.assertTrue(mv.check(lite)['ready'])
             # Another node heard on this database a moment ago.
             node.py('st.db.run("INSERT INTO meta (k, v) VALUES (?, ?)", ("node:other", '
                     'json.dumps({"at": __import__("time").time()})))')

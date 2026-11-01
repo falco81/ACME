@@ -35,6 +35,7 @@ class ApplianceTarget(Target):
                    'the VIP address\'s - as Settings → Certificates and TLS would take it; '
                    'renewals put the new one there on every node by themselves.')
     doc = 'targets.md'
+    dual = True             # a dual certificate: the twin is the pages' second certificate
     fields = []
     deploy_fields = [
         field('where', 'Which pages', 'select', default='auto', options=WHERE,
@@ -125,16 +126,24 @@ class ApplianceTarget(Target):
             if self.ctx.cancelled():
                 raise PluginError('the job was stopped')
             have = self.ctx.pages_get(one) or {}
-            if have.get('fingerprint') == _fp(bundle.fingerprint) and not options.get('force'):
+            alt = getattr(bundle, 'alt', None)
+            want_alt = _fp(alt.fingerprint) if alt is not None else ''
+            if have.get('fingerprint') == _fp(bundle.fingerprint) and not options.get('force') \
+                    and (have.get('alt_fingerprint') or '') == want_alt:
                 same.append(one)
                 continue
+            more = {'alt': (alt.cert_pem, alt.key_pem, alt.chain_pems)} if alt is not None \
+                else {}
             got = self.ctx.pages_put(one, bundle.cert_pem, bundle.key_pem, bundle.chain_pems,
-                                     how='the certificate manager: %s' % bundle.name)
+                                     how='the certificate manager: %s' % bundle.name, **more)
             self.ctx.step('the pages of %s take %s (until %s)%s' % (
                 'the VIP address' if one == 'vip' else one, got.get('cn') or bundle.name,
                 time.strftime('%Y-%m-%d', time.gmtime(bundle.not_after))
                 if bundle.not_after else '?',
                 '' if got.get('verify') in ('', 'ok') else ' - the chain: %s' % got['verify']))
+            if alt is not None:
+                self.ctx.step('and its twin (%s) as the second certificate of those pages - '
+                              'nginx gives each client the one it takes' % alt.key_type)
             put.append(one)
         if same:
             self.ctx.step('already on the pages of %s' % ', '.join(same))
@@ -147,5 +156,8 @@ class ApplianceTarget(Target):
         for one in self._all(w, options or {}):
             have = self.ctx.pages_get(one) or {}
             if have.get('fingerprint') != _fp(bundle.fingerprint):
+                return False
+            alt = getattr(bundle, 'alt', None)
+            if alt is not None and have.get('alt_fingerprint') != _fp(alt.fingerprint):
                 return False
         return True

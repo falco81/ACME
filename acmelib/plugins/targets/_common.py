@@ -10,6 +10,8 @@ starting with "_").
     files       parse_outputs(lines, vars) - the "format path [mode] [owner]" lines
     HTTP        HttpTarget.req() - ctx.http with JSON, errors in words
     state       Base.unchanged() / Base.remember() - the same certificate twice is a no-op
+    dual        alt_of(bundle), variant_of(bundle, v), variants_of(bundle), family_of(bundle):
+                a dual certificate (ECDSA and RSA of the same names) - see Target.dual
 
 Your own module in /etc/acme/plugins/targets/ may import all of this:
 
@@ -39,6 +41,8 @@ __all__ = [
     'check_served', 'multipart', 'form', 'parse_outputs', 'subst', 'random_password',
     'ssh_fields', 'http_fields', 'verify_fields', 'keep_field', 'ssh_conn', 'text',
     'PFX_FORMATS', 'quote', 'chain_list', 'tls_fields', 'put_scp',
+    'alt_of', 'variant_of', 'variants_of', 'family_of', 'dual_fp', 'VARIANT_WORDS',
+    'outputs_for',
 ]
 
 PFX_FORMATS = ('pfx', 'p12', 'p12-legacy', 'jks')
@@ -132,6 +136,58 @@ def chain_id(pem):
         return hashlib.sha256(text(pem).encode()).hexdigest()[:8]
 
 
+# ---------------------------------------------------------------------------
+# A dual certificate: the main one and its twin (another kind of key)
+# ---------------------------------------------------------------------------
+VARIANT_WORDS = ('main', 'alt', 'ec', 'ecdsa', 'rsa', 'ed', 'ed25519')
+_FAMILY = {'ecdsa': 'ec', 'ed25519': 'ed'}
+
+
+def family_of(bundle):
+    """'ec' | 'rsa' | 'ed' - the kind of the bundle's key."""
+    fam = getattr(bundle, 'family', None)
+    if fam:
+        return fam
+    kt = text(getattr(bundle, 'key_type', '')).lower()
+    if not kt:
+        pem = text(getattr(bundle, 'key_pem', ''))
+        kt = 'ec' if 'EC PRIVATE' in pem else ('rsa' if 'RSA PRIVATE' in pem else '')
+    return 'ec' if kt.startswith('ec') else ('rsa' if kt.startswith('rsa') else
+                                             ('ed' if kt.startswith('ed') else kt))
+
+
+def alt_of(bundle):
+    """The twin of a dual certificate, or None."""
+    return getattr(bundle, 'alt', None)
+
+
+def variants_of(bundle):
+    """[main] or [main, twin]."""
+    alt = alt_of(bundle)
+    return [bundle] + ([alt] if alt is not None else [])
+
+
+def variant_of(bundle, v):
+    """'main' / '' -> the bundle; 'alt' -> its twin; 'ec' / 'rsa' / 'ed' -> the one with
+    that kind of key. None when there is no such one."""
+    v = text(v).strip().lower()
+    v = _FAMILY.get(v, v)
+    if v in ('', 'main'):
+        return bundle
+    if v == 'alt':
+        return alt_of(bundle)
+    for b in variants_of(bundle):
+        if family_of(b) == v:
+            return b
+    return None
+
+
+def dual_fp(bundle):
+    """What says "the same certificate" for a target: the fingerprint, and the twin's
+    after it when the certificate is dual."""
+    return '+'.join(fp_of(b) for b in variants_of(bundle))
+
+
 def chain_list(bundle):
     out = []
     for p in list(getattr(bundle, 'chain_pems', None) or []):
@@ -210,10 +266,19 @@ def split_hostport(s, default_port=443):
     return s, default_port
 
 
-def served_der(host, port, sni=None, timeout=10):
+# Offering only these (TLS 1.2: the cipher suite says the kind of the server's key),
+# a server that holds a certificate of each kind shows the one asked for.
+ONLY_CIPHERS = {'ec': 'aECDSA:@SECLEVEL=0', 'ed': 'aECDSA:@SECLEVEL=0',
+                'rsa': 'aRSA:@SECLEVEL=0'}
+
+
+def served_der(host, port, sni=None, timeout=10, only=None):
     """The certificate a server shows on a TLS handshake (DER). SNI is sent
     as `sni` (or the host when it is a name). The trust is not checked: this
-    is only to compare what is served with what was deployed."""
+    is only to compare what is served with what was deployed. `only` 'ec' or
+    'rsa': the handshake offers only what that kind of key signs (TLS 1.2, the
+    cipher suites of ECDSA or of RSA), so a server with both - a dual
+    certificate - shows that one."""
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -223,6 +288,9 @@ def served_der(host, port, sni=None, timeout=10):
             ctx.minimum_version = ssl.TLSVersion.TLSv1
     except (ValueError, AttributeError):
         pass
+    if only:
+        ctx.maximum_version = ssl.TLSVersion.TLSv1_2
+        ctx.set_ciphers(ONLY_CIPHERS.get(only, 'ALL'))
     name = sni or host
     if name and re.match(r'^[0-9.]+$|:', name):
         name = None                             # no SNI for an address
@@ -234,14 +302,19 @@ def served_der(host, port, sni=None, timeout=10):
     return der
 
 
-def served_fingerprint(host, port, sni=None, timeout=10):
-    return hashlib.sha256(served_der(host, port, sni, timeout)).hexdigest()
+def served_fingerprint(host, port, sni=None, timeout=10, only=None):
+    return hashlib.sha256(served_der(host, port, sni, timeout, only)).hexdigest()
 
 
 def check_served(ctx, bundle, hostports, sni=None, tries=3, wait=3.0, sleep=time.sleep,
                  default_port=443):
     """Is the bundle's certificate what each host:port serves?
-    True: all of them; False: one serves another; None: none could be asked."""
+    True: all of them; False: one serves another; None: none could be asked.
+    A dual certificate: each of the two asked for on its own (a handshake that
+    offers only ECDSA, then one that offers only RSA)."""
+    if alt_of(bundle) is not None:
+        return _check_served_dual(ctx, bundle, hostports, sni, tries, wait, sleep,
+                                  default_port)
     want = fp_of(bundle)
     if not sni:
         names = [n for n in (getattr(bundle, 'names', None) or []) if not n.startswith('*')]
@@ -269,6 +342,64 @@ def check_served(ctx, bundle, hostports, sni=None, tries=3, wait=3.0, sleep=time
         else:
             all_ok = False
             ctx.step('%s:%s serves another certificate (%s…)' % (host, port, got[:16]), 'bad')
+    if not seen_any:
+        return None
+    return all_ok
+
+
+def _check_served_dual(ctx, bundle, hostports, sni, tries, wait, sleep, default_port):
+    if not sni:
+        names = [n for n in (getattr(bundle, 'names', None) or []) if not n.startswith('*')]
+        sni = names[0] if names else None
+    seen_any, all_ok = False, True
+    pairs = [(family_of(b), fp_of(b), b) for b in variants_of(bundle)]
+    for hp in lines(hostports):
+        host, port = split_hostport(hp, default_port)
+        refused = []
+        for fam, want, b in pairs:
+            got, err = None, None
+            for i in range(max(1, as_int(tries, 3))):
+                try:
+                    got = served_fingerprint(host, port, sni, only=fam)
+                    err = None
+                except (OSError, ssl.SSLError, ValueError) as e:
+                    got, err = None, e
+                if got == want:
+                    break
+                if i + 1 < tries:
+                    sleep(wait)
+            if got is None:
+                refused.append((fam, err))
+                continue
+            seen_any = True
+            if got == want:
+                ctx.step('%s:%s serves the new %s certificate' % (host, port, fam.upper()), 'ok')
+            else:
+                all_ok = False
+                ctx.step('%s:%s serves another %s certificate (%s…)' % (
+                    host, port, fam.upper(), got[:16]), 'bad')
+        if len(refused) == len(pairs):
+            # No TLS 1.2 there (or nothing answers): which one goes to which client
+            # cannot be told - what is served is compared with either.
+            try:
+                got = served_fingerprint(host, port, sni)
+            except (OSError, ssl.SSLError, ValueError) as e:
+                ctx.step('%s:%s cannot be asked: %s' % (host, port, e), 'warn')
+                continue
+            seen_any = True
+            if got in [w for _f, w, _b in pairs]:
+                ctx.step('%s:%s serves one of the two new certificates (TLS 1.2 is not offered: '
+                         'which one each client gets cannot be told)' % (host, port), 'ok')
+            else:
+                all_ok = False
+                ctx.step('%s:%s serves another certificate (%s…)' % (host, port, got[:16]),
+                         'bad')
+            continue
+        for fam, err in refused:
+            all_ok = False
+            ctx.step('%s:%s does not serve the %s certificate (a handshake offering only %s '
+                     'failed: %s) - is the server told of both (two ssl_certificate lines, two '
+                     'certificate files)?' % (host, port, fam.upper(), fam.upper(), err), 'bad')
     if not seen_any:
         return None
     return all_ok
@@ -338,19 +469,30 @@ def subst(s, vars):
 
 def parse_outputs(spec, vars=None, max_outputs=20, absolute=True):
     """The output lines of a deployment ->
-    [{'format', 'path', 'mode' (int), 'owner' (str or None)}].
+    [{'format', 'variant', 'path', 'mode' (int), 'owner' (str or None)}].
 
         fullchain-pem  /etc/nginx/ssl/{name}.crt   0644  root:root
         key-pem        /etc/nginx/ssl/{name}.key   0600
         pfx            /opt/app/keystore.p12       0640  app:app
-    """
+        fullchain-pem@rsa  /etc/nginx/ssl/{name}.rsa.crt   (a dual certificate's RSA one;
+        key-pem@alt        /etc/nginx/ssl/{name}.alt.key    @ec @rsa @main @alt)
+
+    'variant' is '' (the main one) or what follows the @; render_outputs()
+    leaves out a line whose variant the certificate does not have."""
     out, seen = [], set()
     for n, line in enumerate(lines(spec), 1):
         parts = line.split()
         if len(parts) < 2 or len(parts) > 4:
             raise PluginError('output line %d is not "format path [mode] [owner]": %s'
                               % (n, line), retry=False)
-        fmt = FORMAT_ALIASES.get(parts[0].lower(), parts[0].lower())
+        word, _, variant = parts[0].lower().partition('@')
+        variant = _FAMILY.get(variant, variant)
+        if variant == 'main':
+            variant = ''
+        if variant and variant not in VARIANT_WORDS:
+            raise PluginError('output line %d: "@%s" is not one of a dual certificate\'s two '
+                              '(@main @alt @ec @rsa)' % (n, variant), retry=False)
+        fmt = FORMAT_ALIASES.get(word, word)
         if fmt not in ALL_FORMATS:
             raise PluginError('output line %d: "%s" is not a format (%s)'
                               % (n, parts[0], ', '.join(ALL_FORMATS)), retry=False)
@@ -374,10 +516,30 @@ def parse_outputs(spec, vars=None, max_outputs=20, absolute=True):
         if path in seen:
             raise PluginError('output line %d: %s is written twice' % (n, path), retry=False)
         seen.add(path)
-        out.append({'format': fmt, 'path': path, 'mode': mode, 'owner': owner})
+        out.append({'format': fmt, 'variant': variant, 'path': path, 'mode': mode,
+                    'owner': owner})
     if len(out) > max_outputs:
         raise PluginError('at most %d outputs' % max_outputs, retry=False)
     return out
+
+
+def outputs_for(ctx, bundle, outs):
+    """The outputs with the bundle each is written from: [(output, bundle)]. A
+    line for a variant the certificate does not have (@rsa of one that is only
+    ECDSA, @alt of one that is not dual) is left out, and said."""
+    got = []
+    for o in outs:
+        b = variant_of(bundle, o.get('variant'))
+        if b is None:
+            try:
+                ctx.step('%s is left out: the certificate has no %s one%s' % (
+                    o['path'], o['variant'].upper() if o['variant'] != 'alt' else 'second',
+                    '' if alt_of(bundle) is not None else ' (it is not dual)'))
+            except Exception:                           # noqa: BLE001
+                pass
+            continue
+        got.append((o, b))
+    return got
 
 
 # ---------------------------------------------------------------------------
@@ -519,7 +681,7 @@ class Base(Target):
                 v = json.loads(v)
             except ValueError:
                 v = {'fp': v}
-        if not isinstance(v, dict) or norm_fp(v.get('fp')) != fp_of(bundle):
+        if not isinstance(v, dict) or norm_fp(v.get('fp')) != norm_fp(dual_fp(bundle)):
             return False
         if present is not None:
             try:
@@ -530,7 +692,7 @@ class Base(Target):
         return True
 
     def remember(self, bundle, options, **more):
-        d = {'fp': fp_of(bundle), 'at': int(time.time())}
+        d = {'fp': dual_fp(bundle), 'at': int(time.time())}
         d.update(more)
         try:
             self.ctx.kv_set(self.state_key(options), d)

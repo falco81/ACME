@@ -173,8 +173,40 @@ def renew_days(row):
     return int(row.get('renew_days') or E.CONFIG.get('certs_renew_days') or 30)
 
 
-def due_why(row, t=None):
-    """Why the certificate is due now, or '' when it is not."""
+def due_why(row, t=None, dual=True):
+    """Why the certificate is due now, or '' when it is not - the main one, or
+    (a dual certificate, `dual`: its source gives a twin) its twin."""
+    return main_due(row, t) or (alt_due(row, t) if dual else '')
+
+
+def alt_due(row, t=None):
+    """Why the twin of a dual certificate is due on its own, or '': not issued
+    yet, failed and past its wait, near its end, inside its ARI window."""
+    t = t or time.time()
+    if not row.get('key_type_alt') or not row.get('cert_pem'):
+        return ''
+    if not row.get('auto_renew') or row.get('enabled') == 0 or not row.get('issuer'):
+        return ''
+    if row.get('state') in ('renewing', 'pending', 'revoked', 'disabled', 'new'):
+        return ''
+    what = 'the twin (%s)' % row['key_type_alt']
+    if row.get('alt_state') == 'failed':
+        return '%s failed last time; the wait is over' % what \
+            if float(row.get('alt_next_try') or 0) <= t else ''
+    if not row.get('alt_cert_pem'):
+        return '%s has not been issued yet' % what
+    na = float(row.get('alt_not_after') or 0)
+    if na - renew_days(row) * 86400 <= t:
+        return '%s ends in %s' % (what, E.human_span(max(0, na - t))) if na > t else \
+            '%s has expired' % what
+    ari = S.jload(row.get('alt_ari'), {}) or {}
+    if ari.get('at') and float(ari['at']) <= t:
+        return '%s is inside the renewal window its CA suggests (ARI)' % what
+    return ''
+
+
+def main_due(row, t=None):
+    """Why the (main) certificate is due now, or '' when it is not."""
     t = t or time.time()
     if not row.get('auto_renew') or row.get('enabled') == 0 or not row.get('issuer'):
         return ''
@@ -194,21 +226,24 @@ def due_why(row, t=None):
     return ''
 
 
-def ari_refresh(store, row):
-    """The renewal window the issuer suggests, asked at most every 6 hours."""
-    ari = S.jload(row.get('ari'), {}) or {}
-    if time.time() - float(ari.get('checked') or 0) < ARI_EVERY or not row.get('cert_pem'):
+def ari_refresh(store, row, variant=''):
+    """The renewal window the issuer suggests, asked at most every 6 hours - for
+    the main certificate, or (`variant` 'alt') for the twin of a dual one."""
+    col, pem = ('alt_ari', row.get('alt_cert_pem')) if variant == 'alt' else \
+        ('ari', row.get('cert_pem'))
+    ari = S.jload(row.get(col), {}) or {}
+    if time.time() - float(ari.get('checked') or 0) < ARI_EVERY or not pem:
         return
     irow = S.plugin_row(store, 'issuer', row.get('issuer'))
     if not irow:
         return
     ctx = runtime.RunContext(store, None, scope='issuer:%s' % irow['name'])
     try:
-        win = S.plugin_instance(store, 'issuer', irow, ctx).renewal_window(row['cert_pem'])
+        win = S.plugin_instance(store, 'issuer', irow, ctx).renewal_window(pem)
     except Exception as e:                              # noqa: BLE001
         ari['checked'] = time.time()
         ari['error'] = str(e)[:300]
-        store.db.update('certs', row['id'], {'ari': json.dumps(ari)})
+        store.db.update('certs', row['id'], {col: json.dumps(ari)})
         return
     ari['checked'] = time.time()
     ari.pop('error', None)
@@ -221,23 +256,149 @@ def ari_refresh(store, row):
     else:
         for k in ('start', 'end', 'at'):
             ari.pop(k, None)
-    store.db.update('certs', row['id'], {'ari': json.dumps(ari)})
+    store.db.update('certs', row['id'], {col: json.dumps(ari)})
 
 
 # ---------------------------------------------------------------------------
 # Renewing one
 # ---------------------------------------------------------------------------
-def renew_cert(store, job, cert_id, force=False, by=''):
-    """Issue or renew one certificate, then deploy it. (ok, words)."""
+def _challenges(store, job, cert, names, contexts):
+    """{name: Challenge instance} for every name, each challenge made once."""
+    made, out = {}, {}
+    for n in names:
+        which = S.challenge_for(cert, n)
+        if not which:
+            raise base.PluginError('there is no way of proving %s: give the certificate a '
+                                   'challenge (or one for that name)' % n, retry=False)
+        if which not in made:
+            crow = S.plugin_row(store, 'challenge', which)
+            if not crow:
+                raise base.PluginError('there is no challenge %s (for %s)' % (which, n),
+                                       retry=False)
+            if not crow.get('enabled', 1):
+                raise base.PluginError('the challenge %s is switched off' % which,
+                                       retry=False)
+            cctx = runtime.RunContext(store, job, scope='challenge:%s' % crow['name'])
+            contexts.append(cctx)
+            made[which] = S.plugin_instance(store, 'challenge', crow, cctx)
+        out[n] = made[which]
+        job.step('%s is proved by %s' % (n, which))
+    return out
+
+
+def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_type,
+               kept_key, previous, what=''):
+    """One certificate of `key_type` from the issuer: a key (or `kept_key`), a CSR,
+    issue(), the chain put in order, the key checked. -> (cert_pem, chain, key, info,
+    issued_info)."""
     pki = S.pki()
+    key_pem = kept_key
+    if key_pem:
+        job.step('%sthe key it has is kept (reuse_key)' % what)
+    else:
+        key_pem = pki.make_key(key_type)
+        job.step('%sa new %s key made' % (what, key_type))
+    job.check()
+    subject = profile.get('subject') or {}
+    csr = pki.make_csr(key_pem, names, subject=subject or None,
+                       must_staple=bool(profile.get('must_staple')), eku=profile.get('eku'))
+    csr_pem, csr_der = (csr if isinstance(csr, (tuple, list)) else (csr, b''))
+    req = base.CertRequest(names=names, key_type=key_type, key_pem=key_pem, csr_pem=csr_pem,
+                           csr_der=csr_der, subject=subject, days=profile.get('days'),
+                           profile=profile, challenges=challenges,
+                           previous=previous or None, cert_id=cert['id'])
+    job.check()
+    issued = issuer.issue(req)
+    job.check()
+    if not issued or not getattr(issued, 'cert_pem', None):
+        raise base.PluginError('%s gave no certificate' % irow['name'])
+    key_out = issued.key_pem or key_pem
+    chain = list(issued.chain_pems or [])
+    try:
+        ordered = pki.order_chain(issued.cert_pem, chain)
+        if isinstance(ordered, (list, tuple)) and ordered:
+            chain = [p for p in ordered if p.strip() != issued.cert_pem.strip()]
+    except Exception as e:                              # noqa: BLE001
+        job.step('the chain could not be put in order: %s' % e, 'warn')
+    try:
+        if pki.key_matches(issued.cert_pem, key_out) is False:
+            raise base.PluginError('the certificate %s gave does not belong to the key'
+                                   % irow['name'])
+    except base.PluginError:
+        raise
+    except Exception as e:                              # noqa: BLE001
+        job.step('whether the key fits could not be checked: %s' % e, 'warn')
+    info = S.info_of(issued.cert_pem)
+    return issued.cert_pem, chain, key_out, info, dict(issued.info or {})
+
+
+def _ari_of(info, issued_info):
+    ari = {}
+    if issued_info.get('ari_id') or info.get('ari_id'):
+        ari['id'] = issued_info.get('ari_id') or info.get('ari_id')
+    return ari
+
+
+def _until(info):
+    return time.strftime('%Y-%m-%d', time.gmtime(info['not_after'])) \
+        if info.get('not_after') else '?'
+
+
+def _twin(store, job, cert, irow, issuer, names, profile, challenges, by):
+    """The twin of a dual certificate issued and kept. (version, until)."""
+    alt_type = cert['key_type_alt']
+    kept = S.cert_key(cert, 'alt') if cert.get('reuse_key') and cert.get('alt_key_sealed') \
+        else None
+    job.step('the twin: the same names with a %s key%s' % (
+        alt_type, ' - the names proved for the first one are used again'
+        if issuer.needs_challenge else ''))
+    pem, chain, key, info, iinfo = _issue_one(
+        store, job, cert, irow, issuer, names, profile, challenges, alt_type, kept,
+        cert.get('alt_cert_pem'), 'the twin: ')     # ARI 'replaces': its own one only
+    version = S.save_alt(store, cert['id'], pem, chain, key,
+                         'renewal' if cert.get('alt_cert_pem') else 'issue', by, info=info,
+                         extra={'alt_ari': json.dumps(_ari_of(info, iinfo))})
+    until = _until(info)
+    job.step('the twin issued: version %d, %s, serial %s, valid until %s' % (
+        version, alt_type, info.get('serial') or '?', until), 'ok')
+    store.add_event('certificates', '%s: its twin (%s) %s (version %d, until %s)' % (
+        cert['name'], alt_type, 'renewed' if cert.get('alt_cert_pem') else 'issued', version,
+        until))
+    return version, until
+
+
+def _twin_failed(store, job, cert, e):
+    """The twin did not come: the main one counts all the same. Words said."""
+    why = str(e) if isinstance(e, base.PluginError) else '%s: %s' % (type(e).__name__, e)
+    wait = S.alt_failed(store, cert['id'], why)
+    words = 'the twin (%s) failed: %s - tried again in %s' % (cert.get('key_type_alt'), why,
+                                                              E.human_span(wait))
+    job.step(words, 'bad')
+    store.add_event('certificates', '%s: %s' % (cert['name'], words), 'bad')
+    notify(store, 'renew-alt:%s' % cert['id'], 'The twin of %s failed' % cert['name'], why)
+    return words
+
+
+def renew_cert(store, job, cert_id, force=False, by='', only=None):
+    """Issue or renew one certificate, then deploy it. (ok, words).
+
+    A dual certificate (key_type_alt, from a source that gives a twin) is issued
+    twice in the one job: the main key type, then the twin - two keys, two CSRs,
+    two orders; for ACME the second order finds the names proved already, so no
+    challenge is put in place twice, and they are all cleaned up once. When the
+    twin fails, the main one counts (kept, deployed) and the twin is tried again
+    after its own wait. `only` 'alt': the twin alone (it was due, the main one not)."""
     cert = S.cert_need(store, cert_id)
     if not cert.get('issuer'):
         raise base.PluginError('%s has no issuer: it was imported, or is answered by a CSR - '
                                'nothing to renew it with' % cert['name'], retry=False)
+    if only == 'alt' and not cert.get('cert_pem'):
+        only = None
     contexts = []
     was = cert.get('state')
-    store.db.update('certs', cert['id'], {'state': 'renewing', 'state_at': time.time(),
-                                          'last_try': time.time()})
+    if only != 'alt':
+        store.db.update('certs', cert['id'], {'state': 'renewing', 'state_at': time.time(),
+                                              'last_try': time.time()})
     try:
         irow = S.plugin_row(store, 'issuer', cert['issuer'])
         if not irow:
@@ -250,9 +411,22 @@ def renew_cert(store, job, cert_id, force=False, by=''):
         ctx = runtime.RunContext(store, job, scope='issuer:%s' % irow['name'])
         contexts.append(ctx)
         issuer = S.plugin_instance(store, 'issuer', irow, ctx)
-        job.step('%s %s for %s from %s (%s)' % ('renewing' if cert.get('cert_pem') else 'issuing',
-                                              cert['name'], ', '.join(names), irow['name'],
-                                              irow['kind']))
+        twin = bool(cert.get('key_type_alt'))
+        if twin and not issuer.can_dual():
+            job.step('%s gives no twin (a second certificate with a %s key)%s - only the %s one '
+                     'is issued' % (irow['name'], cert['key_type_alt'],
+                                    ' unless "%s" is on' % issuer.dual_field
+                                    if issuer.dual_field else '',
+                                    cert.get('key_type') or 'ec-256'), 'warn')
+            twin = False
+            if only == 'alt':
+                return True, 'the source gives no twin'
+        job.step('%s %s for %s from %s (%s)%s' % (
+            'renewing' if cert.get('cert_pem') else 'issuing',
+            'the twin of %s' % cert['name'] if only == 'alt' else cert['name'],
+            ', '.join(names), irow['name'], irow['kind'],
+            ' - dual: %s and %s' % (cert.get('key_type') or 'ec-256', cert['key_type_alt'])
+            if twin else ''))
         if any(n.startswith('*.') for n in names) and not issuer.wildcards:
             raise base.PluginError('%s gives no wildcard certificates' % irow['name'], retry=False)
         if not issuer.ip_names and any(':' in n or n.replace('.', '').isdigit() for n in names):
@@ -261,88 +435,61 @@ def renew_cert(store, job, cert_id, force=False, by=''):
         # The first certificate, or after a failed validation: what the validation
         # needs is checked first, and the CA is not asked while something is missing
         # (Let's Encrypt counts failed validations) - certs_precheck.
-        if issuer.needs_challenge and readiness.precheck_due(store, cert):
+        if issuer.needs_challenge and only != 'alt' and readiness.precheck_due(store, cert):
             readiness.precheck(store, job, cert, names)
         profile = S.jload(cert.get('profile'), {}) or {}
+        challenges = _challenges(store, job, cert, names, contexts) \
+            if issuer.needs_challenge else {}
+        if only == 'alt':
+            try:
+                version, until = _twin(store, job, cert, irow, issuer, names, profile,
+                                       challenges, by)
+            except jobs.JobStopped:
+                raise
+            except Exception as e:
+                cert = S.cert_need(store, cert_id)
+                _twin_failed(store, job, cert, e)
+                raise
+            job.version = version
+            store.db.update('cert_issuers', irow['id'], {'last_ok': time.time(),
+                                                         'last_error': ''})
+            for c in contexts:
+                c.tidy()
+            contexts = []
+            ok, said = deployer.run_deploys(store, job, cert['id'])
+            if not ok:
+                notify(store, 'deploy:%s' % cert['id'], 'Deploying %s failed' % cert['name'],
+                       said)
+            return ok, 'the twin: version %d, valid until %s; %s' % (version, until, said)
         key_type = cert.get('key_type') or 'ec-256'
-        key_pem = None
-        if cert.get('reuse_key') and cert.get('key_sealed'):
-            key_pem = S.cert_key(cert)
-            if key_pem:
-                job.step('the key it has is kept (reuse_key)')
-        if not key_pem:
-            key_pem = pki.make_key(key_type)
-            job.step('a new %s key made' % key_type)
-        job.check()
-        subject = profile.get('subject') or {}
-        csr = pki.make_csr(key_pem, names, subject=subject or None,
-                           must_staple=bool(profile.get('must_staple')), eku=profile.get('eku'))
-        csr_pem, csr_der = (csr if isinstance(csr, (tuple, list)) else (csr, b''))
-        challenges = {}
-        if issuer.needs_challenge:
-            made = {}
-            for n in names:
-                which = S.challenge_for(cert, n)
-                if not which:
-                    raise base.PluginError('there is no way of proving %s: give the certificate a '
-                                           'challenge (or one for that name)' % n, retry=False)
-                if which not in made:
-                    crow = S.plugin_row(store, 'challenge', which)
-                    if not crow:
-                        raise base.PluginError('there is no challenge %s (for %s)' % (which, n),
-                                               retry=False)
-                    if not crow.get('enabled', 1):
-                        raise base.PluginError('the challenge %s is switched off' % which,
-                                               retry=False)
-                    cctx = runtime.RunContext(store, job, scope='challenge:%s' % crow['name'])
-                    contexts.append(cctx)
-                    made[which] = S.plugin_instance(store, 'challenge', crow, cctx)
-                challenges[n] = made[which]
-                job.step('%s is proved by %s' % (n, which))
-        req = base.CertRequest(names=names, key_type=key_type, key_pem=key_pem, csr_pem=csr_pem,
-                               csr_der=csr_der, subject=subject, days=profile.get('days'),
-                               profile=profile, challenges=challenges,
-                               previous=cert.get('cert_pem') or None, cert_id=cert['id'])
-        job.check()
-        issued = issuer.issue(req)
-        job.check()
-        if not issued or not getattr(issued, 'cert_pem', None):
-            raise base.PluginError('%s gave no certificate' % irow['name'])
-        key_out = issued.key_pem or key_pem
-        chain = list(issued.chain_pems or [])
-        try:
-            ordered = pki.order_chain(issued.cert_pem, chain)
-            if isinstance(ordered, (list, tuple)) and ordered:
-                chain = [p for p in ordered if p.strip() != issued.cert_pem.strip()]
-        except Exception as e:                          # noqa: BLE001
-            job.step('the chain could not be put in order: %s' % e, 'warn')
-        try:
-            if pki.key_matches(issued.cert_pem, key_out) is False:
-                raise base.PluginError('the certificate %s gave does not belong to the key'
-                                       % irow['name'])
-        except base.PluginError:
-            raise
-        except Exception as e:                          # noqa: BLE001
-            job.step('whether the key fits could not be checked: %s' % e, 'warn')
-        info = S.info_of(issued.cert_pem)
-        ari = {}
-        if (issued.info or {}).get('ari_id') or info.get('ari_id'):
-            ari['id'] = (issued.info or {}).get('ari_id') or info.get('ari_id')
-        extra = {'ari': json.dumps(ari), 'csr_pending': None}
+        kept = S.cert_key(cert) if cert.get('reuse_key') and cert.get('key_sealed') else None
+        pem, chain, key_out, info, iinfo = _issue_one(
+            store, job, cert, irow, issuer, names, profile, challenges, key_type, kept,
+            cert.get('cert_pem'))
+        extra = {'ari': json.dumps(_ari_of(info, iinfo)), 'csr_pending': None}
         if info.get('cn'):
             extra['cn'] = str(info['cn'])[:190]
-        version = S.save_version(store, cert['id'], issued.cert_pem, chain, key_out,
+        version = S.save_version(store, cert['id'], pem, chain, key_out,
                                  'renewal' if cert.get('cert_pem') else 'issue', by,
                                  info=info, extra=extra)
         job.version = version
         store.db.update('cert_issuers', irow['id'], {'last_ok': time.time(), 'last_error': ''})
         readiness.mark(store, cert['id'], False)
-        until = time.strftime('%Y-%m-%d', time.gmtime(info['not_after'])) \
-            if info.get('not_after') else '?'
+        until = _until(info)
         job.step('issued: version %d, serial %s, valid until %s' % (
             version, info.get('serial') or '?', until), 'ok')
         store.add_event('certificates', '%s %s (version %d, until %s)' % (
             cert['name'], 'renewed' if cert.get('cert_pem') else 'issued', version, until))
+        twin_said = ''
+        if twin:
+            try:
+                v2, _u2 = _twin(store, job, S.cert_need(store, cert_id), irow, issuer, names,
+                                profile, challenges, by)
+                job.version = v2
+            except jobs.JobStopped:
+                raise
+            except Exception as e:                      # noqa: BLE001
+                twin_said = _twin_failed(store, job, S.cert_need(store, cert_id), e)
         for c in contexts:
             c.tidy()
         contexts = []
@@ -350,10 +497,13 @@ def renew_cert(store, job, cert_id, force=False, by=''):
         words = 'version %d, valid until %s; %s' % (version, until, said)
         if not ok:
             notify(store, 'deploy:%s' % cert['id'], 'Deploying %s failed' % cert['name'], said)
+        if twin_said:
+            return False, words + '; ' + twin_said
         return ok, words
     except jobs.JobStopped:
-        store.db.update('certs', cert['id'], {'state': was if was != 'renewing' else 'failed',
-                                              'state_at': time.time()})
+        if only != 'alt':
+            store.db.update('certs', cert['id'], {
+                'state': was if was != 'renewing' else 'failed', 'state_at': time.time()})
         raise
     except Exception as e:
         cert = S.cert_need(store, cert_id)
@@ -374,15 +524,17 @@ def renew_cert(store, job, cert_id, force=False, by=''):
             except Exception:                           # noqa: BLE001
                 pass
             notify(store, 'renew:%s' % cert['id'], 'Renewing %s failed' % cert['name'], why)
+        elif only == 'alt' and cert.get('alt_state') != 'failed':
+            S.alt_failed(store, cert['id'], str(e))
         raise
     finally:
         for c in contexts:
             c.tidy()
 
 
-def renew_job(cert_id, force=False, by=''):
+def renew_job(cert_id, force=False, by='', only=None):
     def fn(job):
-        return renew_cert(job.store, job, cert_id, force, by)
+        return renew_cert(job.store, job, cert_id, force, by, only)
     return fn
 
 
@@ -399,6 +551,16 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
     job.step('revoking %s (serial %s) at %s, reason %s' % (cert['name'], cert.get('serial'),
                                                           irow['name'], reason))
     said = issuer.revoke(cert['cert_pem'], reason, S.cert_key(cert))
+    if cert.get('alt_cert_pem'):
+        # The twin of a dual certificate: the same names, revoked with it.
+        job.step('revoking its twin (%s, serial %s) too' % (cert.get('key_type_alt') or '?',
+                                                           cert.get('alt_serial')))
+        try:
+            issuer.revoke(cert['alt_cert_pem'], reason, S.cert_key(cert, 'alt'))
+            store.db.run('UPDATE cert_versions SET revoked = ? WHERE cert_id = ? AND version = ?',
+                         (time.time(), cert['id'], cert.get('alt_version') or 0))
+        except base.PluginError as e:
+            job.step('the twin was not revoked: %s' % e, 'warn')
     t = time.time()
     store.db.update('certs', cert['id'], {'state': 'revoked', 'state_at': t, 'auto_renew': 0,
                                           'updated': t, 'updated_by': str(by)[:190]})
@@ -482,21 +644,30 @@ def scan(store, by='the renewer'):
                          "COALESCE(auto_renew, 0) <> 0 AND COALESCE(issuer, '') <> ''")
     for r in rows:
         try:
+            dual = bool(r.get('key_type_alt')) and S.issuer_dual(store, r.get('issuer'))
             if r.get('cert_pem') and r.get('state') in ('ok', 'due'):
                 ari_refresh(store, r)
+                if dual and r.get('alt_cert_pem'):
+                    ari_refresh(store, S.cert_get(store, r['id']) or r, 'alt')
                 r = S.cert_get(store, r['id']) or r
-            why = due_why(r, t)
+            # Either one due: the main one due renews both; the twin alone due, the twin.
+            why = main_due(r, t)
+            only = None
+            if not why and dual:
+                why, only = alt_due(r, t), 'alt'
             if not why or jobs.cert_busy(store, r['id']):
                 continue
-            jobs.submit(store, 'renew', renew_job(r['id'], by=by), cert_id=r['id'], by=by,
-                        said=why)
+            jobs.submit(store, 'renew', renew_job(r['id'], by=by, only=only), cert_id=r['id'],
+                        by=by, said=why)
             started += 1
         except Exception as e:                          # noqa: BLE001
             E.log_sparing('certs-scan:%s' % r.get('id'), 'looking at %s: %s' % (r.get('name'), e),
                           'warn', every=3600)
     # Deployments: failed and past their wait, or not given the current version yet.
     deps = store.db.rows(
-        "SELECT d.*, c.version AS cur_version FROM cert_deploys d JOIN certs c ON c.id = d.cert_id "
+        "SELECT d.*, c.version AS cur_version, c.alt_version AS cur_alt_version, "
+        "c.key_type_alt AS cur_key_type_alt, c.alt_cert_pem IS NOT NULL AS cur_has_alt "
+        "FROM cert_deploys d JOIN certs c ON c.id = d.cert_id "
         "WHERE COALESCE(d.enabled, 1) <> 0 AND COALESCE(c.enabled, 1) <> 0 AND "
         "c.cert_pem IS NOT NULL AND c.state IN ('ok', 'due', 'failed')")
     todo = {}
@@ -504,7 +675,11 @@ def scan(store, by='the renewer'):
         if d.get('state') == 'failed':
             if float(d.get('next_try') or 0) > t:
                 continue
-        elif d.get('deployed_version') == d.get('cur_version') or d.get('state') == 'deploying':
+        elif int(d.get('deployed_version') or 0) == S.generation({
+                'version': d.get('cur_version'), 'alt_version': d.get('cur_alt_version'),
+                'key_type_alt': d.get('cur_key_type_alt'),
+                'alt_cert_pem': 'x' if d.get('cur_has_alt') else None}) or \
+                d.get('state') == 'deploying':
             continue
         todo.setdefault(d['cert_id'], []).append(d['id'])
     for cert_id, ids in todo.items():

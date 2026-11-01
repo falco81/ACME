@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 Kubernetes over its API with a bearer token: a kubernetes.io/tls secret made
-or replaced; deployments rolled when asked.
+or replaced; deployments rolled when asked. A dual certificate: the twin in the
+same secret beside tls.crt / tls.key, as tls-rsa.crt / tls-rsa.key (or tls-ec.*)
+- an ingress reads tls.*, whatever else needs the other kind reads those.
 """
 from __future__ import annotations
 
@@ -10,7 +12,8 @@ import time
 import urllib.parse
 
 from acmelib.plugins.targets._common import (
-    HttpTarget, PluginError, field, lines, as_bool, label_of, tls_fields, verify_fields)
+    HttpTarget, PluginError, field, lines, as_bool, label_of, tls_fields, verify_fields,
+    alt_of, family_of, dual_fp)
 
 
 def b64(data):
@@ -24,6 +27,7 @@ class KubernetesTarget(HttpTarget):
     description = ('Makes or replaces a kubernetes.io/tls secret through the API server, '
                    'and can restart deployments that read it.')
     doc = 'targets.md'
+    dual = True             # a dual certificate: tls-<kind>.crt / .key beside tls.*
     fields = [
         field('host', 'API server', 'text', required=True,
               placeholder='https://k8s.example.local:6443'),
@@ -63,16 +67,22 @@ class KubernetesTarget(HttpTarget):
                 'tls.key': b64(bundle.as_format('key-pem'))}
         if as_bool(options.get('ca')):
             data['ca.crt'] = b64(bundle.as_format('chain-pem'))
+        alt = alt_of(bundle)
+        if alt is not None:
+            fam = family_of(alt)
+            data['tls-%s.crt' % fam] = b64(alt.as_format('fullchain-pem'))
+            data['tls-%s.key' % fam] = b64(alt.as_format('key-pem'))
         st, hd, cur = self.req('GET', url, ok=(200, 404), what='reading %s/%s' % (ns, name))
         if st == 200:
             have = (cur or {}).get('data') or {}
-            if have.get('tls.crt') == data['tls.crt'] and not as_bool(options.get('force')):
+            if all(have.get(k) == v for k, v in data.items() if k.endswith('.crt')) and \
+                    not as_bool(options.get('force')):
                 return self.same(bundle, 'in %s/%s' % (ns, name))
             if (cur or {}).get('type') not in (None, 'kubernetes.io/tls'):
                 raise PluginError('%s/%s is a secret of another type (%s)' % (
                     ns, name, cur.get('type')), retry=False)
             self.req('PATCH', url, {'data': data, 'metadata': {'annotations': {
-                'acme/fingerprint': bundle.fingerprint or ''}}},
+                'acme/fingerprint': dual_fp(bundle)}}},
                 {'Content-Type': 'application/merge-patch+json'},
                 what='updating %s/%s' % (ns, name))
             words = ['updated %s/%s' % (ns, name)]
@@ -81,7 +91,7 @@ class KubernetesTarget(HttpTarget):
                 'apiVersion': 'v1', 'kind': 'Secret', 'type': 'kubernetes.io/tls',
                 'metadata': {'name': name, 'namespace': ns, 'labels': {
                     'app.kubernetes.io/managed-by': 'acme'},
-                    'annotations': {'acme/fingerprint': bundle.fingerprint or ''}},
+                    'annotations': {'acme/fingerprint': dual_fp(bundle)}},
                 'data': data}, what='making %s/%s' % (ns, name))
             words = ['made %s/%s' % (ns, name)]
         self.ctx.step(words[0], 'ok')

@@ -2,6 +2,14 @@
 """
 Linux / Unix over SSH: the certificate written as files (any formats, any
 places), the service tested and reloaded, rolled back when it does not take it.
+
+A dual certificate (ECDSA and RSA of the same names): an output line names
+one of the two with a suffix - fullchain-pem@rsa, key-pem@ec, @alt, @main -
+and the presets of the services that serve both (nginx, Apache, HAProxy,
+Postfix, Dovecot, Exim) write the twin's files beside the main ones by
+themselves: {name}.crt / {name}.key and {name}.rsa.crt / {name}.rsa.key
+({alt} in a path is the twin's kind: rsa or ec). HAProxy gets its
+multi-certificate bundle: {name}.pem.ecdsa and {name}.pem.rsa.
 """
 from __future__ import annotations
 
@@ -11,46 +19,69 @@ import time
 
 from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, lines, as_bool, label_of, stamp,
-    parse_outputs, subst, quote, ssh_fields, verify_fields, PFX_FORMATS)
+    parse_outputs, subst, quote, ssh_fields, verify_fields, PFX_FORMATS, alt_of, family_of,
+    variants_of, outputs_for)
 
 
 # A preset fills what is left empty: outputs, commands, the port to check.
 # {name} is the certificate's name made safe, {service} the field below.
+# A dual certificate: 'alt_outputs' are written too (the twin's files, {alt}
+# its kind: rsa or ec), or 'dual_outputs' are written instead of 'outputs'
+# (HAProxy's bundle) when the two are one ECDSA and one RSA.
 PRESETS = {
     'custom': {'title': 'Custom (fill the fields)'},
     'nginx': {
         'title': 'nginx',
         'outputs': ['fullchain-pem /etc/nginx/ssl/{name}.crt 0644 root:root',
                     'key-pem /etc/nginx/ssl/{name}.key 0600 root:root'],
+        # nginx: ssl_certificate and ssl_certificate_key twice, one pair each
+        'alt_outputs': ['fullchain-pem@alt /etc/nginx/ssl/{name}.{alt}.crt 0644 root:root',
+                        'key-pem@alt /etc/nginx/ssl/{name}.{alt}.key 0600 root:root'],
         'test_cmd': ['nginx -t'], 'reload_cmd': ['systemctl reload nginx'], 'port': 443},
     'apache': {
         'title': 'Apache httpd',
         'outputs': ['cert-pem /etc/ssl/acme/{name}.crt 0644 root:root',
                     'chain-pem /etc/ssl/acme/{name}.chain.crt 0644 root:root',
                     'key-pem /etc/ssl/acme/{name}.key 0600 root:root'],
+        # Apache 2.4.8+: a second SSLCertificateFile / SSLCertificateKeyFile pair (the
+        # twin's file holds its own chain - its intermediate is not the main one's)
+        'alt_outputs': ['fullchain-pem@alt /etc/ssl/acme/{name}.{alt}.crt 0644 root:root',
+                        'key-pem@alt /etc/ssl/acme/{name}.{alt}.key 0600 root:root'],
         'test_cmd': ['apachectl -t'],
         'reload_cmd': ['systemctl reload apache2 2>/dev/null || systemctl reload httpd'],
         'port': 443},
     'haproxy': {
         'title': 'HAProxy (key + chain in one PEM)',
         'outputs': ['combined-pem /etc/haproxy/certs/{name}.pem 0600 root:root'],
+        # the multi-certificate bundle: "crt /etc/haproxy/certs/{name}.pem" loads both
+        'dual_outputs': ['combined-pem@ec /etc/haproxy/certs/{name}.pem.ecdsa 0600 root:root',
+                         'combined-pem@rsa /etc/haproxy/certs/{name}.pem.rsa 0600 root:root'],
         'test_cmd': ['haproxy -c -q -f /etc/haproxy/haproxy.cfg'],
         'reload_cmd': ['systemctl reload haproxy'], 'port': 443},
     'postfix': {
         'title': 'Postfix',
         'outputs': ['fullchain-pem /etc/postfix/ssl/{name}.crt 0644 root:root',
                     'key-pem /etc/postfix/ssl/{name}.key 0600 root:root'],
+        # smtpd_tls_chain_files = {name}.key, {name}.crt, {name}.rsa.key, {name}.rsa.crt
+        'alt_outputs': ['fullchain-pem@alt /etc/postfix/ssl/{name}.{alt}.crt 0644 root:root',
+                        'key-pem@alt /etc/postfix/ssl/{name}.{alt}.key 0600 root:root'],
         'test_cmd': ['postfix check'], 'reload_cmd': ['postfix reload'], 'port': 465},
     'dovecot': {
         'title': 'Dovecot',
         'outputs': ['fullchain-pem /etc/dovecot/ssl/{name}.crt 0644 root:root',
                     'key-pem /etc/dovecot/ssl/{name}.key 0600 root:root'],
+        # ssl_alt_cert / ssl_alt_key
+        'alt_outputs': ['fullchain-pem@alt /etc/dovecot/ssl/{name}.{alt}.crt 0644 root:root',
+                        'key-pem@alt /etc/dovecot/ssl/{name}.{alt}.key 0600 root:root'],
         'test_cmd': ['doveconf -n >/dev/null'], 'reload_cmd': ['systemctl reload dovecot'],
         'port': 993},
     'exim': {
         'title': 'Exim',
         'outputs': ['fullchain-pem /etc/exim4/{name}.crt 0644 root:Debian-exim',
                     'key-pem /etc/exim4/{name}.key 0640 root:Debian-exim'],
+        # tls_certificate and tls_privatekey as lists of two (Exim 4.92+)
+        'alt_outputs': ['fullchain-pem@alt /etc/exim4/{name}.{alt}.crt 0644 root:Debian-exim',
+                        'key-pem@alt /etc/exim4/{name}.{alt}.key 0640 root:Debian-exim'],
         'test_cmd': ['exim -bV >/dev/null'], 'reload_cmd': ['systemctl restart exim4'],
         'port': 465},
     'proxmox': {
@@ -152,6 +183,7 @@ class SshTarget(SshMixin, Base):
                    '(atomically, the old ones kept as .bak), tests the configuration, '
                    'reloads the service and puts the old files back when it fails.')
     doc = 'targets.md'
+    dual = True             # a dual certificate: both written, as the outputs say (@rsa, @ec)
     fields = ssh_fields(sudo=True) + [
         field('tmp_dir', 'Folder for uploads', 'text', default='/tmp', advanced=True,
               help='where files are put first, before they are moved into place'),
@@ -167,7 +199,9 @@ class SshTarget(SshMixin, Base):
               help='one a line: format path [mode] [owner[:group]]. Formats: cert-pem, '
                    'fullchain-pem, chain-pem, key-pem, key-rsa, combined-pem (key + '
                    'fullchain), cert-der, key-der, p7b, pfx/p12, p12-legacy, jks. '
-                   'In paths: {name} {cn} {service} {date}'),
+                   'In paths: {name} {cn} {service} {date} {alt}. A dual certificate: '
+                   'format@rsa, format@ec (or @main, @alt) for one of its two - a '
+                   'preset writes both by itself'),
         field('pfx_password', 'PKCS#12 / keystore password', 'secret',
               help='for pfx, p12, p12-legacy and jks files (jks needs one)'),
         field('jks_alias', 'Keystore alias', 'text', advanced=True,
@@ -189,6 +223,18 @@ class SshTarget(SshMixin, Base):
     _sleep = staticmethod(time.sleep)
 
     # -- what the options say, the preset filling in ------------------------
+    @staticmethod
+    def preset_outputs(preset, bundle):
+        """The preset's files for this certificate: a dual one's twin's too."""
+        outs = list(preset.get('outputs') or [])
+        alt = alt_of(bundle)
+        if alt is None:
+            return outs
+        fams = sorted(family_of(b) for b in variants_of(bundle))
+        if preset.get('dual_outputs') and fams == ['ec', 'rsa']:
+            return list(preset['dual_outputs'])
+        return outs + list(preset.get('alt_outputs') or [])
+
     def resolved(self, bundle, options):
         options = dict(options or {})
         preset = PRESETS.get(options.get('preset') or 'custom') or PRESETS['custom']
@@ -196,7 +242,12 @@ class SshTarget(SshMixin, Base):
         for key in ('outputs', 'test_cmd', 'reload_cmd', 'service', 'jks_alias', 'pfx_password',
                     'backup'):
             v = options.get(key)
-            if v in (None, '', []) and key in preset:
+            if key == 'outputs' and preset.get('outputs') and \
+                    lines(v) in ([], lines(preset['outputs'])):
+                # The preset's own files (left empty, or filled in by the page as the
+                # preset has them): a dual certificate's twin's files with them.
+                v = self.preset_outputs(preset, bundle)
+            elif v in (None, '', []) and key in preset:
                 v = preset[key]
             out[key] = v
         for key in ('pre_cmd', 'post_cmd'):
@@ -204,10 +255,14 @@ class SshTarget(SshMixin, Base):
         out['backup'] = as_bool(out['backup'], True)
         name = label_of(bundle, options)
         cn = label_of(bundle, {'object_name': (list(bundle.names or [name]))[0]})
+        alt = alt_of(bundle)
         vars = {'name': name, 'cn': cn, 'date': stamp(bundle),
-                'service': out['service'] or name, 'host': self.c('host')}
+                'service': out['service'] or name, 'host': self.c('host'),
+                'alt': family_of(alt) if alt is not None else 'alt'}
         out['vars'] = vars
-        out['files'] = parse_outputs(out['outputs'], vars)
+        files = parse_outputs(out['outputs'], vars)
+        out['pairs'] = outputs_for(self.ctx, bundle, files)
+        out['files'] = [f for f, _b in out['pairs']]
         if not out['files']:
             raise PluginError('no files to write: choose a service or fill in "Files"',
                               retry=False)
@@ -219,14 +274,14 @@ class SshTarget(SshMixin, Base):
         """The bytes of each file."""
         alias = r['jks_alias'] or r['vars']['name']
         datas = []
-        for f in r['files']:
+        for f, b in r.get('pairs') or [(f, bundle) for f in r['files']]:
             pw = None
             if f['format'] in PFX_FORMATS:
                 pw = r['pfx_password'] or None
                 if f['format'] == 'jks' and (not pw or len(pw) < 6):
                     raise PluginError('a jks keystore needs a password of 6 characters '
                                       'or more', retry=False)
-            data = bundle.as_format(f['format'], password=pw, alias=alias)
+            data = b.as_format(f['format'], password=pw, alias=alias)
             if isinstance(data, str):
                 data = data.encode()
             datas.append(data)

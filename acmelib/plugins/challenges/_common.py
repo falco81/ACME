@@ -758,7 +758,7 @@ class DnsChallenge(Challenge):
         out.append(guide_step(
             'public', 'Public resolvers see the test value at %s' % rr,
             where=', '.join(pub), done=state, blocking=False,
-            said=('seen by %s' % ', '.join(have)) if state else
+            said=('seen by the resolvers %s' % ', '.join(have)) if state else
                  ('not seen by %s' % ', '.join(lacking)) if lacking else
                  'none of them answered from here',
             fix='A resolver may still keep an older answer (its TTL); the CA asks without one'))
@@ -871,11 +871,11 @@ class HttpChallenge(Challenge):
         if hit:
             return guide_step('address', 'The name points at the machine that answers HTTP-01',
                               where='your DNS at %s' % home, record=rec, done=True,
-                              said='%s points at %s' % (n, ', '.join(hit)))
+                              said='%s resolves to %s' % (n, ', '.join(hit)))
         return guide_step('address', 'The name points at the machine that answers HTTP-01',
                           where='your DNS at %s' % home, record=rec, done=False,
                           blocking=not soft,
-                          said='%s points at %s, not at %s' % (
+                          said='%s resolves to %s, not to %s' % (
                               n, ', '.join(got), ', '.join(want) or 'any address acme knows'),
                           fix=fix_else)
 

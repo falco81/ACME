@@ -71,6 +71,16 @@ Every module here works the same way:
 | `fritzbox` | AVM FRITZ!Box | AVM |
 | `unifi_os` | UniFi OS console (UDM, UCG, Cloud Key) | Ubiquiti |
 
+**A dual certificate** (ECDSA and RSA of the same names, see
+[certificates.md](certificates.md#dual-certificates-ecdsa--rsa)): the targets
+that can serve both put both in place - `ssh` and `local` (the `@variant`
+outputs, the presets of nginx, Apache, HAProxy, Postfix, Dovecot and Exim),
+`f5`, `appliance`, `kubernetes`, `vault`, `webhook`. Every other target holds
+one certificate at a time and gets the deployment option **Which certificate**
+(`variant`: `auto` = the RSA one, which every client can use - the default;
+`main`, `alt`, `rsa`, `ec`). *Check what is served* asks for each variant the
+target has: a TLS 1.2 handshake offering only ECDSA, then only RSA.
+
 Your own module goes in `/etc/acme/plugins/targets/` - see
 [writing-a-module.md](writing-a-module.md).
 
@@ -192,6 +202,25 @@ on); deployment preset *nginx*, verify `web1.example.com:443` → the files
 `/etc/nginx/ssl/www.example.com.{crt,key}`, `nginx -t`, `systemctl reload
 nginx`, and the served certificate compared.
 
+**Dual certificate.** An output line names one of the two by a suffix:
+`fullchain-pem@rsa`, `key-pem@ec`, `@main`, `@alt` (`{alt}` in a path is the
+twin's kind, `rsa` or `ec`); a line for a variant the certificate does not
+have is left out. The presets write the twin's files beside the main ones by
+themselves (also when the page filled the preset's lines in):
+
+| Preset | Files of a dual certificate | The service told of both |
+|---|---|---|
+| nginx | `{name}.crt` `{name}.key` + `{name}.rsa.crt` `{name}.rsa.key` | `ssl_certificate` and `ssl_certificate_key` twice, one pair each |
+| Apache | `{name}.crt` `.chain.crt` `.key` + `{name}.rsa.crt` (with its chain) `{name}.rsa.key` | a second `SSLCertificateFile` / `SSLCertificateKeyFile` pair (2.4.8+) |
+| HAProxy | `{name}.pem.ecdsa` + `{name}.pem.rsa` (instead of `{name}.pem`) | `crt /etc/haproxy/certs/{name}.pem` loads the bundle (remove an old `{name}.pem` from a crt directory) |
+| Postfix | `{name}.crt` `{name}.key` + `{name}.rsa.crt` `{name}.rsa.key` | `smtpd_tls_chain_files = {name}.key, {name}.crt, {name}.rsa.key, {name}.rsa.crt` |
+| Dovecot | + `{name}.rsa.crt` `{name}.rsa.key` | `ssl_alt_cert` / `ssl_alt_key` |
+| Exim | + `{name}.rsa.crt` `{name}.rsa.key` | `tls_certificate` / `tls_privatekey` as lists of two |
+
+(An RSA main certificate with an ECDSA twin: `.ec.` instead of `.rsa.`.) The
+other presets write the main one only - add `@alt` lines for more.
+
+
 ## `local` - this machine
 
 Writes files under one folder of the acme server only (*Folder*, default
@@ -207,6 +236,10 @@ acme user, with a plain `PATH`.
 
 **Rights**: the acme user must be able to write the folder:
 `install -d -o acme -g acme -m 0750 /etc/acme/out`.
+
+**Dual certificate:** as `ssh` - `format@rsa` / `format@ec` (`@main`, `@alt`)
+lines, `{alt}` the twin's kind.
+
 
 ## `appliance` - this acme server (its pages)
 
@@ -235,6 +268,11 @@ node. `verify` compares what each of those pages holds with the new one.
 acme --target-add pages --kind appliance
 acme --deploy-add acme-pages pages --set where=auto
 ```
+
+**Dual certificate:** the twin becomes the second certificate of the pages
+(the engine's "alt", 1.0.196) on every node / the VIP - nginx gives each
+client the one it takes; the check compares both.
+
 
 ## `windows_ssh` - Windows over OpenSSH
 
@@ -290,6 +328,15 @@ user (`tmsh modify auth user acme partition-access … shell none` is fine).
 
 **Example**: partition `Common`, profiles `/Common/www_clientssl`,
 `/Common/api_clientssl`, device group `dg-failover`, verify `vip.example.com:443`.
+
+**Dual certificate:** both are installed - the twin as
+`acme-<name>-<kind>-<date>-<serial>` (e.g. `acme-www.example.com-rsa-...`) -
+and each client-ssl profile gets two cert-key-chain entries: the main one in
+the entry of acme's (or `default`), the twin in one of its own (`acme-rsa` /
+`acme-ec`), found again by its name on the next renewal. A profile may hold
+one certificate of each kind: take away an entry of the twin's kind that is
+not acme's.
+
 
 ## `netscaler` - NetScaler / Citrix ADC
 
@@ -452,6 +499,11 @@ rules:
 
 and the API server's CA in *CA certificate*.
 
+**Dual certificate:** the twin goes into the same secret as `tls-rsa.crt` /
+`tls-rsa.key` (or `tls-ec.*`); an ingress reads `tls.crt` / `tls.key`, the
+main one.
+
+
 ## `webhook` - a URL
 
 `POST`s the certificate as JSON:
@@ -468,6 +520,12 @@ and the API server's CA in *CA certificate*.
 `X-Acme-Signature: sha256=<hex HMAC-SHA256(secret, timestamp + "." + body)>` -
 check it, and that the timestamp is recent, on the receiving side. *Test*
 sends `{"event": "ping"}`. Any 2xx is success.
+
+**Dual certificate:** the JSON gets `key_type` and `alt` - the twin's
+`key_type`, `serial`, `fingerprint`, `not_before`, `not_after`, `cert_pem`,
+`chain_pem`, `fullchain_pem` (and `key_pem` where keys are sent); a multipart
+body gets each file again as `fmt@alt`.
+
 
 ## `vault` - HashiCorp Vault KV v2
 
@@ -490,6 +548,12 @@ The modules below were added from what other certificate tools deploy to
 deployers) and from the vendors' own API documentation; each module's file
 names its sources at the top. Where a vendor documents a thing only loosely,
 the section says so under **Uncertain**.
+
+**Dual certificate:** the twin in the same secret: `alt_certificate`,
+`alt_chain`, `alt_fullchain`, `alt_fingerprint`, `alt_serial`,
+`alt_not_after`, `alt_key_type`, `alt_private_key` (with the key),
+`key_type` and `dual_fingerprint`.
+
 
 ## `aws_acm` - AWS Certificate Manager
 

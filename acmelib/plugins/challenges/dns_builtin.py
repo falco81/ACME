@@ -216,7 +216,7 @@ class BuiltinDns(DnsChallenge):
                                             home, rr, target)))
             else:
                 steps.append(guide_step('cname', what, where=where, record=rec, done=False,
-                                        said='%s leads to %s' % (rr, chain[-1]),
+                                        said='%s is a CNAME that leads to %s' % (rr, chain[-1]),
                                         fix='Change the CNAME in the DNS of %s: %s. CNAME %s.'
                                             % (home, rr, target)))
         port = int(info.get('port') or 53)
@@ -312,9 +312,9 @@ class BuiltinDns(DnsChallenge):
                 steps.append(guide_step(
                     'glue', what, where=(where + ', as glue') if inside else 'the DNS of %s'
                     % D.registrable(ns), record=rec, done=ok, blocking=not seen,
-                    said=('%s is %s' % (ns, ', '.join(seen))) if seen else
+                    said=('%s has the address %s' % (ns, ', '.join(seen))) if seen else
                     '%s has no address' % ns,
-                    fix='Create %s. %s %s%s' % (ns, rec['type'], a, ' (glue, at the registrar '
+                    fix='Create the record %s. %s %s%s' % (ns, rec['type'], a, ' (glue, at the registrar '
                                                 'or in %s)' % parent if inside else '')))
         return steps
 
