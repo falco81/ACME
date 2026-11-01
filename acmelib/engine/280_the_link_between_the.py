@@ -247,6 +247,9 @@ def hatls_view(store):
                                        ('done', 'failed', 'off_done') for x in nodes)}
 
 
+HATLS_SINCE = (1, 0, 0)
+
+
 def hatls_start(store, by, here=True):
     """The button: both nodes, every step, from wherever they are."""
     if CONFIG.get('ha_mode') != 'replicated':
@@ -254,7 +257,10 @@ def hatls_start(store, by, here=True):
     if store.db.engine != 'postgres':
         raise ValueError('the link is between two PostgreSQLs')
     peer = next((n for n in ha_nodes(store) if not n['me']), None)
-    if peer and peer.get('alive') and hatls_version(peer.get('version')) < (1, 0, 104):
+    # Every acme has the encrypted link (it came from otp 1.0.104, before acme
+    # 1.0.0): only a node too old to say its version, or not acme, is refused.
+    # otp's own floor stayed here at first and refused acme 1.0.1 against 1.0.1.
+    if peer and peer.get('alive') and hatls_version(peer.get('version')) < HATLS_SINCE:
         raise ValueError('the other node runs acme %s: upgrade it to this version first'
                          % peer.get('version'))
     if not WEB_DIR.is_dir():
