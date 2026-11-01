@@ -32,7 +32,7 @@ import ipaddress
 import re
 import time
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, PluginError, field, dual_order_field
 from acmelib.plugins.issuers import _source_common as sc
 
 REASONS = {0: 'unspecified', 1: 'keyCompromise', 3: 'affiliationChanged', 4: 'superseded',
@@ -51,6 +51,7 @@ def _is_ip(n):
 
 class GlobalSignAtlasIssuer(Issuer):
     kind = 'globalsign_atlas'
+    dual_field = 'dual_order'       # a twin is a second order, paid for: only when allowed
     title = 'GlobalSign Atlas (HVCA)'
     description = ('Certificates from GlobalSign Atlas through its HVCA API, signed in with the '
                    'account\'s client certificate and an API key; the names must be verified '
@@ -81,6 +82,7 @@ class GlobalSignAtlasIssuer(Issuer):
         field('ca_pem', 'CA certificate of the API\'s TLS', 'pem', advanced=True),
         field('verify', 'Check the API\'s TLS certificate', 'bool', default=True, advanced=True),
     ]
+    fields = fields + [dual_order_field()]
 
     _token = None
     _token_at = 0.0

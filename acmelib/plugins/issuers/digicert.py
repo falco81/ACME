@@ -46,7 +46,7 @@ import json
 import re
 import time
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, PluginError, field, dual_order_field
 from acmelib.plugins.issuers import _source_common as sc
 from acmelib.plugins.issuers import sslmarket as _sm
 
@@ -79,6 +79,7 @@ PATHS = [
 
 class DigicertIssuer(Issuer):
     kind = 'digicert'
+    dual_field = 'dual_order'       # a twin is a second order, paid for: only when allowed
     title = 'DigiCert CertCentral (API)'
     description = ('Commercial DigiCert, GeoTrust and RapidSSL certificates through the '
                    'CertCentral Services API: reissued inside a paid order, the DCV record put '
@@ -127,6 +128,7 @@ class DigicertIssuer(Issuer):
     ] + [field(k, 'Path: ' + words, 'text', default=d, advanced=True,
                help='Under the API address; {order}, {product} and {certificate} are filled in.')
          for k, words, d in PATHS]
+    fields = fields + [dual_order_field()]
 
     # The DCV records are put in place as SSLmarket's module does it.
     _challenge_for = _sm.SslmarketIssuer._challenge_for

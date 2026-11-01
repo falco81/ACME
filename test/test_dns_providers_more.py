@@ -23,8 +23,6 @@ with ftplib.FTP_TLS); SFTP against the SSH fake of test_challenges.py; S3,
 Azure Blob and WebDAV against fakes of their HTTP APIs.
 """
 import base64
-import datetime
-import email.utils
 import hashlib
 import hmac
 import json
@@ -43,7 +41,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
 
 from test_challenges import FakeCtx, SshWorld, plugin  # noqa: E402
-from test_dns_providers import NAME, SLEPT, ZONES, Base, Fake, form, module, q  # noqa: E402
+from test_dns_providers import NAME, ZONES, Base, Fake, form, module, q  # noqa: E402
 from acmelib.plugins.base import PluginError  # noqa: E402
 
 

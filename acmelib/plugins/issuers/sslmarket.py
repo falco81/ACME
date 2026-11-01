@@ -62,7 +62,7 @@ import re
 import time
 import urllib.parse
 
-from acmelib.plugins.base import Issuer, Issued, PluginError, field
+from acmelib.plugins.base import Issuer, Issued, PluginError, field, dual_order_field
 
 API_URLS = {
     'cz': 'https://www.sslmarket.cz/api',
@@ -224,6 +224,7 @@ def _pem_all(data):
 
 class SslmarketIssuer(Issuer):
     kind = 'sslmarket'
+    dual_field = 'dual_order'       # a twin is a second order, paid for: only when allowed
     title = 'SSLmarket.cz (DigiCert, Sectigo, GeoTrust…)'
     description = ('Commercial certificates (DigiCert, GeoTrust, Thawte, RapidSSL, Sectigo) '
                    'ordered and reissued through the API of SSLmarket; the DCV record or file '
@@ -346,6 +347,7 @@ class SslmarketIssuer(Issuer):
     ] + [field(k, 'Path: ' + words, 'text', default=d, advanced=True,
                help='Under the API address; {order} and {product} are filled in.')
          for k, words, d in PATHS]
+    fields = fields + [dual_order_field()]
 
     def __init__(self, config, ctx):
         Issuer.__init__(self, config, ctx)
