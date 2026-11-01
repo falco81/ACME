@@ -27,12 +27,17 @@ function capi(path, body, wait) {
   var q = '', at = path.indexOf('?');
   if (at >= 0) { q = path.slice(at + 1); path = path.slice(0, at); }
   return api(apiName(path) + (q ? '&' + q : ''), body, wait).catch(function (e) {
-    if (e && (e.status === 404 || e.status === 501)
-        && /unknown endpoint|^not found|no such (road|route|endpoint|path)|^HTTP 40[45]|not (there|available) yet/i.test(String(e.message || ''))) {
-      e.missing = true;
-    }
+    looksMissing(e);
     throw e;
   });
+}
+/** A part of the daemon that is not there (yet): its road is not known. */
+function looksMissing(e) {
+  if (e && (e.status === 404 || e.status === 501)
+      && /unknown endpoint|^not found|no such (road|route|endpoint|path)|^HTTP 40[45]|not (there|available) yet/i.test(String(e.message || ''))) {
+    e.missing = true;
+  }
+  return !!(e && e.missing);
 }
 function qs(o) {
   var bits = [];
@@ -97,7 +102,7 @@ function missingBox(what) {
   return box;
 }
 function failedBox(e, what) {
-  if (e && e.missing) return missingBox(what);
+  if (looksMissing(e)) return missingBox(what);
   var p = el('p', 'ct-bad');
   p.textContent = wordsOf(e);
   return p;
@@ -111,7 +116,7 @@ function failInto(host, what) {
   };
 }
 function fail(e) {
-  if (e && e.missing) { toast('not available yet - the daemon does not do this yet', 'warn'); return; }
+  if (looksMissing(e)) { toast('not available yet - the daemon does not do this yet', 'warn'); return; }
   oops(e);
 }
 
@@ -996,9 +1001,11 @@ function drawModTab(key, live) {
         tr.appendChild(td('num', n === null ? '–' : num(n)));
         tr.appendChild(modStateCell(r));
         var tools = el('td', 'rowtools');
-        var t = iconButton('play', 'Test it now, without changing anything');
-        t.onclick = function (ev) { ev.stopPropagation(); modTest(key, r, t); };
-        tools.appendChild(t);
+        if (MANAGE) {
+          var t = iconButton('play', 'Test it now, without changing anything');
+          t.onclick = function (ev) { ev.stopPropagation(); modTest(key, r, t); };
+          tools.appendChild(t);
+        }
         if (FULL) {
           var e = iconButton('edit', 'Edit');
           e.onclick = function (ev) { ev.stopPropagation(); modEdit(key, r); };
@@ -1103,7 +1110,7 @@ function modForm(key, row, p, fromPick) {
   var buttons = [];
   if (fromPick) buttons.push({words: 'Back', icon: 'prev', left: true, go: function () { modPick(key); }});
   buttons.push({words: 'Close', close: true});
-  buttons.push({words: 'Test', icon: 'play', go: function (b) {
+  if (MANAGE) buttons.push({words: 'Test', icon: 'play', go: function (b) {
     var g = gather();
     testSaid.className = 'said';
     testSaid.textContent = 'Trying…';
@@ -1264,7 +1271,7 @@ function targetPeek(r) {
         body.appendChild(grid);
       },
       buttons: [{words: 'Close', close: true},
-        {words: 'Test', icon: 'play', go: function (b) { modTest('targets', r, b); }},
+        MANAGE ? {words: 'Test', icon: 'play', go: function (b) { modTest('targets', r, b); }} : null,
         FULL ? {words: 'Edit', icon: 'edit', go: function () { modEdit('targets', r); }} : null
       ].filter(Boolean)
     };
