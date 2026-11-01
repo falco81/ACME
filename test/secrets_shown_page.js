@@ -30,9 +30,16 @@ const { chromium } = require('playwright');
       // Its tools: ... Edit, Take it away (titles in the page's language).
       const tools = row.locator('.rowtools button');
       await tools.nth((await tools.count()) - 2).click();
+      // An SSH key is isemon's key card (sshkey.js): what it says, never the key.
+      const card = page.locator('.ct-fform .sshk[data-fkey="' + field + '"]').first();
       const box = page.locator('.ct-fform [data-fkey="' + field + '"] input').first();
-      await box.waitFor();
-      out[key].kept = await box.evaluate(new Function('return ' + shownOf)());
+      if (key === 'validation') {
+        await card.waitFor();
+        out[key].kept = await card.evaluate(n => n.innerText);
+      } else {
+        await box.waitFor();
+        out[key].kept = await box.evaluate(new Function('return ' + shownOf)());
+      }
       // The page's own HTML of the form: the secret nowhere in it.
       out[key].html = await page.locator('.ct-fform').first().evaluate(n => n.outerHTML);
       if (key === 'targets') {

@@ -419,7 +419,9 @@ class SecretsShown(unittest.TestCase):
         self.assertEqual(seen['signin_type'], 'password')
         self.assertEqual(seen['targets']['kept'], DOTS + OTHERS['target'][-2:])
         self.assertEqual(seen['sources']['kept'], DOTS + OTHERS['eab'][-2:])
-        self.assertEqual(seen['validation']['kept'], SSH_KEY_SHOWN)
+        # The SSH key: isemon's card - a key is held, and nothing of it is shown.
+        self.assertIn('a key this machine holds', seen['validation']['kept'])
+        self.assertNotIn(SSH_KEY_SHOWN, seen['validation']['kept'])
         self.assertEqual(seen['targets']['typing'], '\u2022' * len('NewSecretTyped'))
         self.assertEqual(seen['targets']['real'], 'NewSecretTyped')
         for key in ('targets', 'sources', 'validation'):

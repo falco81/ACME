@@ -521,11 +521,16 @@ def _with_drafts(store, family, kind, config, by, plain_pass=True, pasted=False)
                 given[pass_key(f)] = d['passphrase'] or ''
             took[f['key']] = (d.get('meta') or {}, d['passphrase'], draft_token(v))
         elif pasted and isinstance(v, str) and 'PRIVATE KEY-----' in v:
-            # pasted whole (acme --target-edit --set key=@file:...): read here
-            private, public, need = read_own(v, given.get(pass_key(f), '') if pass_key(f) else '',
-                                             strip=not pass_key(f))
-            given[f['key']] = private
-            took[f['key']] = (meta_for(public, 'own', by), need, '')
+            # Pasted whole (the API as before, acme --target-edit --set key=@file:...):
+            # kept as it was given, as it always was; its public half when it reads.
+            pp = (given.get(pass_key(f)) or '') if pass_key(f) else ''
+            try:
+                private, public, need = read_own(v, pp, strip=not pass_key(f))
+                given[f['key']] = private
+                meta = meta_for(public, 'own', by)
+            except ValueError:
+                need, meta = pp, {'how': 'pasted', 'made': time.time(), 'by': str(by or '')[:190]}
+            took[f['key']] = (meta, need, '')
     return given, took
 
 
@@ -618,7 +623,7 @@ def sessions(obj, family, f):
     if hasattr(obj, 'sshkey_sessions'):
         return obj.sshkey_sessions(f['key'])
     if family == 'challenge':
-        from acmelib.plugins.challenges._common import ssh_conn
+        from acmelib.plugins.challenges._common import ssh_conn as ch_conn
         if hasattr(obj, 'hosts'):
             hosts = obj.hosts()
         else:
@@ -628,7 +633,7 @@ def sessions(obj, family, f):
             if not host:
                 continue
             out.append(('%s:%s' % (host, port),
-                        (lambda h=host, p=port: obj.ctx.ssh(ssh_conn(obj, h, p)))))
+                        (lambda h=host, p=port: obj.ctx.ssh(ch_conn(obj, h, p)))))
         if not out:
             raise PluginError('there is no machine to reach yet: fill its address in',
                               retry=False)
@@ -638,10 +643,12 @@ def sessions(obj, family, f):
     if not host:
         raise PluginError('there is no address to reach yet: fill it in', retry=False)
     if prefix or not hasattr(obj, 'ssh'):
-        from acmelib.plugins.targets._common import ssh_conn
-        conn = ssh_conn(obj, prefix)
+        from acmelib.plugins.targets._common import ssh_conn as tg_conn
+        conn = tg_conn(obj, prefix)
         return [('%s:%s' % (host, conn['port']), lambda: obj.ctx.ssh(conn))]
-    return [(str(host), obj.ssh)]
+    port = obj.c('ssh_port') if any(x.get('key') == 'ssh_port' for x in obj.fields) \
+        else obj.c('port')
+    return [('%s:%s' % (host, port or 22), obj.ssh)]
 
 
 def _overlay(cfg, given, cls):
