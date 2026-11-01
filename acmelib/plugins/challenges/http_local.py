@@ -32,6 +32,40 @@ class HttpLocal(HttpChallenge):
                    'takes a name pointing at one of these as pointing at acme.'),
     ]
 
+    # A commercial CA's DCV file (/.well-known/pki-validation/...) is answered here too:
+    # nginx sends that path to acme.php as it does the ACME tokens (deploy/nginx-acme.conf).
+    proofs = ('http-file-any',)
+    DCV_DAYS = 30
+
+    @classmethod
+    def place_problem(cls, proof, where, config, settings):
+        bad = HttpChallenge.place_problem.__func__(cls, proof, where, config, settings)
+        if bad or proof != 'http-file-any':
+            return bad
+        if not str(where or '/.well-known/pki-validation/').startswith(
+                '/.well-known/pki-validation/'):
+            return ('this server answers only /.well-known/acme-challenge/ and '
+                    '/.well-known/pki-validation/, not %s' % where)
+        return ''
+
+    def place_file(self, name, path, data):
+        if not path.startswith('/.well-known/pki-validation/'):
+            raise PluginError('this server answers only /.well-known/pki-validation/ for a CA\'s '
+                              'DCV file, not %s' % path, retry=False)
+        put = getattr(self.ctx, 'http_file_put', None)
+        if not callable(put):
+            raise PluginError('this version of acme cannot answer a DCV file', retry=False)
+        put(name, path, data.decode('utf-8'), self.DCV_DAYS * 86400)
+        return {'host': name, 'path': path}
+
+    def unplace_file(self, handle):
+        drop = getattr(self.ctx, 'http_file_drop', None)
+        if callable(drop):
+            drop(handle.get('name'), handle.get('path'))
+
+    def dcv_self_check(self):
+        return self.flag('self_check')
+
     def present(self, name, token, key_authorization, txt_value):
         n = self.check_name(name)
         self.check_token(token)

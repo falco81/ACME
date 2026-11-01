@@ -80,6 +80,32 @@ class UploadHttp(HttpChallenge):
             return str(self.c('check_url')).strip().rstrip('/') + '/'
         return 'http://%s/' % D.norm(name)
 
+    # -- a commercial CA's DCV file, anywhere under /.well-known/ ---------------------
+    proofs = ('http-file-any',)
+
+    def place_file(self, name, path, data):
+        key = self.prefix() + path.lstrip('/')
+        self.put_object(key, data)
+        return {'key': key}
+
+    def unplace_file(self, handle):
+        key = ((handle or {}).get('h') or {}).get('key')
+        if key and key.startswith(self.prefix() + '.well-known/'):
+            try:
+                self.drop_object(key)
+            except PluginError as e:
+                self.ctx.step('%s could not be taken away from %s: %s' % (key, self.where_words, e),
+                              'warn')
+
+    def placed_ready(self, handle):
+        h = handle or {}
+        if self.c('check', 'name') == 'none':
+            return True
+        ok, words = self.fetch(self.check_base(h.get('name')) + str(h.get('path') or '').lstrip('/'),
+                               str(h.get('content') or '').strip())
+        self.ctx.step(words, 'ok' if ok else 'info')
+        return ok
+
     # -- the contract ---------------------------------------------------------------
     def present(self, name, token, key_authorization, txt_value):
         n = self.check_name(name)

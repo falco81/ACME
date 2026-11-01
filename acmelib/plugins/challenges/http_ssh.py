@@ -138,6 +138,58 @@ class HttpSsh(HttpChallenge):
                 failed.append((host, str(e) or type(e).__name__))
         return failed
 
+    # -- a commercial CA's DCV file: beside the tokens, under the same web root ----------
+    @classmethod
+    def _docroot_of(cls, webroot):
+        w = posixpath.normpath(str(webroot or WEBROOT))
+        if w.endswith('/.well-known/acme-challenge'):
+            return posixpath.dirname(posixpath.dirname(w))
+        return None
+
+    @classmethod
+    def proofs_for(cls, config):
+        out = ['acme-http-01']
+        if cls._docroot_of((config or {}).get('webroot') or WEBROOT):
+            out.append('http-file-any')
+        return out
+
+    @classmethod
+    def place_problem(cls, proof, where, config, settings):
+        if proof == 'http-file-any' and not cls._docroot_of((config or {}).get('webroot') or
+                                                             WEBROOT):
+            return ('its folder does not end in /.well-known/acme-challenge, so acme cannot tell '
+                    'where /.well-known/pki-validation/ is on the web servers')
+        return HttpChallenge.place_problem.__func__(cls, proof, where, config, settings)
+
+    def place_file(self, name, path, data):
+        root = self._docroot_of(self.webroot())
+        if not root:
+            raise PluginError('the folder does not end in /.well-known/acme-challenge: acme cannot '
+                              'tell where %s goes' % path, retry=False)
+        full = posixpath.join(root, path.lstrip('/'))
+        done = []
+
+        def put(s, host):
+            self._write(s, full, data)
+            done.append(host)
+        failed = self._each(put, 'write')
+        if failed:
+            self._each(lambda s, h: self._remove(s, full) if h in done else None, 'remove')
+            raise PluginError('the DCV file could not be written on %s' % '; '.join(
+                '%s: %s' % f for f in failed))
+        return {'file': full, 'hosts': done}
+
+    def unplace_file(self, handle):
+        full = ((handle or {}).get('h') or {}).get('file')
+        root = self._docroot_of(self.webroot())
+        if not full or not root or not full.startswith(root + '/.well-known/'):
+            return
+        for host, err in self._each(lambda s, h: self._remove(s, full), 'remove'):
+            self.ctx.step('%s could not be taken away on %s: %s' % (full, host, err), 'warn')
+
+    def dcv_self_check(self):
+        return self.c('check', 'each') != 'none'
+
     # -- the contract ---------------------------------------------------------------
     def present(self, name, token, key_authorization, txt_value):
         n = self.check_name(name)
@@ -217,8 +269,17 @@ class HttpSsh(HttpChallenge):
                   '        default_type text/plain;',
                   '        autoindex off;',
                   '    }',
-                  '',
-                  '    location / {',
+                  '']
+        root = self._docroot_of(self.webroot())
+        if root:
+            # a commercial CA's DCV file (DigiCert, Sectigo), written beside the tokens
+            lines += ['    location ^~ /.well-known/pki-validation/ {',
+                      '        alias %s/.well-known/pki-validation/;' % root,
+                      '        default_type text/plain;',
+                      '        autoindex off;',
+                      '    }',
+                      '']
+        lines += ['    location / {',
                   '        return %s;' % ('301 https://$host$request_uri'
                                           if as_bool(self.c('prepare_redirect', True)) else '404'),
                   '    }',

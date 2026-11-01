@@ -412,6 +412,68 @@ class DnsChallenge(Challenge):
         """Take that one value away; quiet when it is gone already."""
         raise NotImplementedError
 
+    def add_cname(self, fqdn, target):
+        """Make fqdn a CNAME to target (a module whose API can; NotImplementedError
+        otherwise - the module then does not offer cname-any). Returns a handle."""
+        raise NotImplementedError
+
+    def del_cname(self, fqdn, target, handle):
+        raise NotImplementedError
+
+    # -- any record, for a commercial CA's DCV (base.Challenge.place) -----------------------
+    @classmethod
+    def writes_cname(cls):
+        return getattr(cls, 'add_cname') is not DnsChallenge.add_cname
+
+    @classmethod
+    def proofs_for(cls, config):
+        out = ['acme-dns-01', 'txt-any']
+        if cls.writes_cname():
+            out.append('cname-any')
+        return out
+
+    def place(self, kind, name, where, content):
+        fqdn = D.norm(where)
+        if not SAFE_NAME.match(fqdn) or '*' in fqdn:
+            raise PluginError('"%s" is not a name acme writes a record at' % where, retry=False)
+        content = str(content or '').strip()
+        if kind == 'txt':
+            if not re.match(r'^[A-Za-z0-9_.+/=:-]{1,255}\Z', content):
+                raise PluginError('a TXT value acme will not write: %r' % content, retry=False)
+            target = self.target(fqdn)
+            h = self.add_txt(target, content)
+            self.ctx.step('%s TXT "%s" put in (%s)' % (target, content, self.title or self.kind))
+            return {'kind': 'txt', 'rr': fqdn, 'fqdn': target, 'txt': content,
+                    'at': time.time(), 'h': h}
+        if kind == 'cname':
+            tgt = D.norm(content)
+            if not SAFE_NAME.match(tgt) or '*' in tgt:
+                raise PluginError('"%s" is not a name a CNAME points at' % content, retry=False)
+            if not self.writes_cname():
+                raise NotImplementedError('%s writes no CNAME records' % (self.title or self.kind))
+            h = self.add_cname(fqdn, tgt)
+            self.ctx.step('%s CNAME %s put in (%s)' % (fqdn, tgt, self.title or self.kind))
+            return {'kind': 'cname', 'rr': fqdn, 'target': tgt, 'at': time.time(), 'h': h}
+        raise NotImplementedError('%s puts no %s in place' % (self.title or self.kind, kind))
+
+    def placed_ready(self, handle):
+        h = handle or {}
+        if h.get('kind') == 'cname':
+            if self.c('propagation', 'auth') == 'none':
+                return True
+            if time.time() < float(h.get('at') or 0) + self.num('delay', 0):
+                return False
+            chain = self.cname_chain(h.get('rr'))
+            return len(chain) > 1 and chain[1] == D.norm(h.get('target'))
+        return self.ready(h.get('rr'), h)
+
+    def unplace(self, handle):
+        h = handle or {}
+        if h.get('kind') == 'cname':
+            self.del_cname(h.get('rr'), h.get('target'), h.get('h'))
+        elif h.get('fqdn'):
+            self.del_txt(h['fqdn'], h.get('txt'), h.get('h'))
+
     # -- is it there -------------------------------------------------------------------------
     def seen_by(self, servers, name, txt, who):
         """Every one of `servers` (asked with recursion) sees txt at name."""
@@ -790,6 +852,68 @@ class HttpChallenge(Challenge):
         if not SAFE_TOKEN.match(str(token or '')):
             raise PluginError('a token acme will not write: %r' % token, retry=False)
         return token
+
+    # -- any file under /.well-known/, for a commercial CA's DCV (base.Challenge.place) ----
+    @staticmethod
+    def dcv_path(where):
+        """A path a DCV file may have: under /.well-known/, plain letters only."""
+        p = '/' + str(where or '').strip().lstrip('/')
+        if not re.match(r'^/\.well-known/[A-Za-z0-9_-]+(/[A-Za-z0-9_.-]+)+\Z', p) or \
+                '/../' in p + '/' or '/./' in p + '/':
+            raise PluginError('acme writes files only under /.well-known/, not %r' % where,
+                              retry=False)
+        return p
+
+    @classmethod
+    def place_problem(cls, proof, where, config, settings):
+        bad = Challenge.place_problem.__func__(cls, proof, where, config, settings)
+        if bad or proof != 'http-file-any':
+            return bad
+        try:
+            cls.dcv_path(where if str(where or '').count('/') > 2 else
+                         '/.well-known/pki-validation/fileauth.txt')
+        except PluginError as e:
+            return str(e)
+        return ''
+
+    def place_file(self, name, path, data):
+        """Write the DCV file (a module that can): returns a handle of its own."""
+        raise NotImplementedError('%s writes no files but its ACME tokens' % (self.title or
+                                                                           self.kind))
+
+    def unplace_file(self, handle):
+        pass
+
+    def place(self, kind, name, where, content):
+        if kind != 'file':
+            raise NotImplementedError('%s puts no %s record in place' % (self.title or self.kind,
+                                                                        kind))
+        n = self.check_name(name)
+        path = self.dcv_path(where)
+        data = str(content if content is not None else '').encode('utf-8')
+        if len(data) > 8192:
+            raise PluginError('a DCV file of more than 8 KiB will not be written', retry=False)
+        h = self.place_file(n, path, data)
+        self.ctx.step('http://%s%s put in place (%s)' % (n, path, self.title or self.kind))
+        return {'kind': 'file', 'name': n, 'path': path, 'content': data.decode('utf-8'),
+                'h': h}
+
+    def placed_ready(self, handle):
+        h = handle or {}
+        if not self.dcv_self_check():
+            return True
+        ok, words = self.fetch('http://%s%s' % (h.get('name'), h.get('path')),
+                               str(h.get('content') or '').strip())
+        self.ctx.step(words, 'ok' if ok else 'info')
+        return ok
+
+    def dcv_self_check(self):
+        return True
+
+    def unplace(self, handle):
+        h = handle or {}
+        if h.get('kind') == 'file' and h.get('path'):
+            self.unplace_file(h)
 
     def fetch(self, url, want, host=None, hops=3):
         """(True|False, words): the body at url is `want` (redirects followed

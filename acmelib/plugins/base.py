@@ -99,6 +99,10 @@ class Context(object):
                                             a record in acme's own DNS server
         ctx.http_token_put(token, key_authorization) / ctx.http_token_drop(token)
                                             an answer on this server's /.well-known/acme-challenge/
+        ctx.http_file_put(host, path, content, ttl_s) / ctx.http_file_drop(host, path)
+                                            a file this server answers for http://host/path, path
+                                            under /.well-known/pki-validation/ (a commercial CA's
+                                            DCV file, kept for days)
         ctx.cancelled() -> bool             the job was stopped: give up at the next step
         ctx.node                            this node's name
         ctx.settings                        the settings (read only)
@@ -235,6 +239,27 @@ class Bundle(object):
 
 
 # ---------------------------------------------------------------------------
+# What proves a name: the words an issuer and a validation agree in
+# ---------------------------------------------------------------------------
+# An issuer says which of these prove a name to it (Issuer.proofs_for), a
+# validation which of them it can put in place (Challenge.proofs_for); a name
+# is proved where the two meet - wildcards only by a DNS one, IP addresses only
+# by an HTTP one (acmelib/certs/compat.py decides it, for every page alike).
+PROOFS = {
+    'acme-dns-01': 'the ACME TXT record at _acme-challenge.NAME',
+    'acme-http-01': 'the ACME file http://NAME/.well-known/acme-challenge/TOKEN',
+    'txt-any': 'a TXT record at any name with any value (a commercial CA\'s DCV)',
+    'cname-any': 'a CNAME record at any name pointing anywhere (a commercial CA\'s DCV)',
+    'http-file-any': 'a file at any path under http://NAME/.well-known/ (a commercial CA\'s DCV)',
+    'email': 'an e-mail to the domain that a person approves - no validation module',
+}
+DNS_PROOFS = ('acme-dns-01', 'txt-any', 'cname-any')
+HTTP_PROOFS = ('acme-http-01', 'http-file-any')
+# The kinds of place(): what each puts where.
+PLACE_KINDS = {'txt': 'txt-any', 'cname': 'cname-any', 'file': 'http-file-any'}
+
+
+# ---------------------------------------------------------------------------
 # The three kinds of module
 # ---------------------------------------------------------------------------
 class Plugin(object):
@@ -297,7 +322,23 @@ class Plugin(object):
 
 
 class Issuer(Plugin):
-    """Where a certificate comes from."""
+    """Where a certificate comes from.
+
+    What a certificate of this source may be (acmelib/certs/compat.py checks it
+    everywhere - the pages, the API, the command line, the portal, the renewer):
+
+        needs_challenge / needs_challenge_for(config)   each name proved by a validation
+        challenge_types   ACME: the challenge types it takes ('dns-01', 'http-01')
+        dcv / dcv_field   a commercial CA's domain validation: {method: {'proof': one of
+                          PROOFS, 'words': ..., 'record': 'the shape, e.g. TXT at NAME'}},
+                          the method chosen by the setting `dcv_field`; 'email' (proof
+                          None) needs no validation at all
+        proofs_for(config) -> [proofs]   any one of them proves a name (see PROOFS)
+        wildcards, ip_names              names of those kinds are taken
+        key_types / key_types_for(config) the key types it signs (None: all of them)
+        public_names / public_for(config) a publicly trusted CA: only fully qualified
+                          names under a public suffix (no "intranet", no .local)
+        dual / dual_field                a twin of another key type (below)"""
     family = 'issuer'
     needs_challenge = False         # True: each name has to be proved (ACME)
     challenge_types = ()            # ('dns-01', 'http-01', 'tls-alpn-01') it can use
@@ -305,6 +346,11 @@ class Issuer(Plugin):
     wildcards = True
     ip_names = False
     choose_days = False             # the validity can be asked for
+    dcv = {}                        # {method: {'proof', 'words', 'record'}} - a commercial CA
+    dcv_field = ''                  # the setting that chooses the method of `dcv`
+    dcv_default = ''                # the method when the setting is empty
+    key_types = None                # None: every key type acme makes
+    public_names = False            # True: a publicly trusted CA (CA/B Forum rules on names)
     # A dual certificate (docs/certificates.md): the same names issued twice in one
     # job, the main key type and a twin of another kind (ECDSA beside RSA) - two
     # keys, two CSRs, two issue() calls. True: this source can give the twin. A
@@ -324,11 +370,72 @@ class Issuer(Plugin):
     def can_dual(self):
         return type(self).dual_for(self.config)
 
+    # -- what a certificate of it may be (acmelib/certs/compat.py) -------------------------
+    @classmethod
+    def dcv_method(cls, config):
+        """The DCV method chosen in these settings ('' where the source has none)."""
+        if not cls.dcv:
+            return ''
+        m = str((config or {}).get(cls.dcv_field) or '').strip() if cls.dcv_field else ''
+        if m not in cls.dcv:
+            m = cls.dcv_default if cls.dcv_default in cls.dcv else sorted(cls.dcv)[0]
+        return m
+
+    @classmethod
+    def proofs_for(cls, config):
+        """The proofs (PROOFS) any one of which proves a name to this source;
+        [] where none is needed (an authority of its own, DCV by e-mail)."""
+        if cls.dcv:
+            p = (cls.dcv.get(cls.dcv_method(config)) or {}).get('proof')
+            return [p] if p else []
+        if not cls.needs_challenge:
+            return []
+        return ['acme-' + t for t in (cls.challenge_types or ()) if 'acme-' + t in PROOFS]
+
+    @classmethod
+    def needs_challenge_for(cls, config):
+        if cls.dcv:
+            return bool(cls.proofs_for(config))
+        return bool(cls.needs_challenge)
+
+    @classmethod
+    def dcv_where(cls, config, name, proof):
+        """Where this source wants `proof` for `name` - the record's name (DNS) or
+        the file's path (HTTP) - so a validation can say whether it can put it
+        there. A commercial CA says it (its _dnsauth label, its file)."""
+        bare = str(name or '').lower().rstrip('.')
+        bare = bare[2:] if bare.startswith('*.') else bare
+        if proof == 'acme-dns-01':
+            return '_acme-challenge.' + bare
+        if proof == 'acme-http-01':
+            return '/.well-known/acme-challenge/'
+        if proof == 'http-file-any':
+            return '/.well-known/pki-validation/'
+        return bare
+
+    @classmethod
+    def key_types_for(cls, config):
+        """The key types this source signs (None: all of them)."""
+        return list(cls.key_types) if cls.key_types is not None else None
+
+    @classmethod
+    def public_for(cls, config):
+        """Whether the source is a publicly trusted CA with these settings."""
+        return bool(cls.public_names)
+
     @classmethod
     def describe(cls):
         d = Plugin.describe.__func__(cls)
         d['dual'] = bool(cls.dual) or bool(cls.dual_field)
         d['dual_field'] = cls.dual_field
+        d['dcv'] = {k: dict(v) for k, v in (cls.dcv or {}).items()}
+        d['dcv_field'] = cls.dcv_field
+        d['key_types'] = list(cls.key_types) if cls.key_types is not None else None
+        d['public_names'] = bool(cls.public_names)
+        for k in ('wildcards', 'ip_names', 'choose_days', 'makes_key'):
+            d.setdefault(k, bool(getattr(cls, k, False)))
+        d.setdefault('needs_challenge', bool(cls.needs_challenge))
+        d.setdefault('challenge_types', list(cls.challenge_types or ()))
         return d
 
     def issue(self, req):
@@ -390,12 +497,60 @@ def _b64u(data):
 
 
 class Challenge(Plugin):
-    """How a name is proved to an ACME CA."""
+    """How a name is proved to a CA: an ACME challenge (present / ready /
+    cleanup), and - where the module can put any record or file in place - a
+    commercial CA's domain validation (DCV) through place / placed_ready /
+    unplace:
+
+        proofs_for(config) -> [PROOFS]       what it can put in place
+        place_problem(proof, where, config, settings) -> '' or words: why it
+                                             cannot put `proof` at `where` (a record's
+                                             name, a file's path) - read-only, no network
+        place(kind, name, where, content) -> handle
+            kind 'txt'   a TXT record at the name `where` holding `content`
+                 'cname' a CNAME record at `where` pointing at `content`
+                 'file'  the file `where` (a path under /.well-known/) holding
+                         `content`, served for http://name/
+        placed_ready(handle) -> bool         it can be seen from outside
+        unplace(handle)                      taken away again (quiet when gone)
+    A module that cannot raises NotImplementedError from place(): acme then
+    calls the pairing incompatible, before anything is ordered."""
     family = 'challenge'
     types = ()                      # ('dns-01',) or ('http-01',)
+    proofs = ()                     # PROOFS it can put in place besides its ACME types
     parallel = True                 # several at once (False: one name at a time)
     dry_wait = 120                  # seconds dry_run() waits for ready() at most
     dry_every = 2.0                 # and how often it asks
+
+    # -- what it can put in place (acmelib/certs/compat.py) ---------------------------------
+    @classmethod
+    def proofs_for(cls, config):
+        out = ['acme-' + t for t in (cls.types or ()) if 'acme-' + t in PROOFS]
+        return out + [p for p in (cls.proofs or ()) if p not in out]
+
+    @classmethod
+    def place_problem(cls, proof, where, config, settings):
+        """'' when `proof` can be put at `where` (a record's name, a file's path),
+        else the reason in words. Read-only and quick: no network."""
+        if proof not in cls.proofs_for(config):
+            return '%s cannot put %s in place' % (cls.title or cls.kind, PROOFS.get(proof, proof))
+        return ''
+
+    def place(self, kind, name, where, content):
+        raise NotImplementedError('%s cannot put a %s in place' % (self.title or self.kind, kind))
+
+    def placed_ready(self, handle):
+        return True
+
+    def unplace(self, handle):
+        pass
+
+    @classmethod
+    def describe(cls):
+        d = Plugin.describe.__func__(cls)
+        d['types'] = list(cls.types or ())
+        d['proofs'] = cls.proofs_for({})
+        return d
 
     # -- what a person is told ---------------------------------------------------------
     def guide(self, name):
