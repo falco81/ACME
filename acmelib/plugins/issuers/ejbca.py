@@ -40,6 +40,7 @@ REVOKE = {0: 'UNSPECIFIED', 1: 'KEY_COMPROMISE', 2: 'CA_COMPROMISE', 3: 'AFFILIA
 
 class EjbcaIssuer(Issuer):
     kind = 'ejbca'
+    dual = True                     # where the certificate profile allows both algorithms
     title = 'EJBCA (REST API)'
     description = ('Certificates from EJBCA (Keyfactor, Community or Enterprise) through its '
                    'REST API: the request enrolled with a certificate profile, an end entity '

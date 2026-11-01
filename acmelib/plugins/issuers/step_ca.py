@@ -38,6 +38,7 @@ from acmelib.plugins.issuers import _source_common as sc
 
 class StepCaIssuer(Issuer):
     kind = 'step_ca'
+    dual = True
     title = 'Smallstep step-ca (JWK provisioner)'
     description = ('Certificates from step-ca by its own API: each request carries a one-time '
                    'token signed with a JWK provisioner\'s key - no ACME validation, for internal '

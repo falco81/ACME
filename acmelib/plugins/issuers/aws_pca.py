@@ -48,6 +48,7 @@ ALGOS = ['SHA256WITHECDSA', 'SHA384WITHECDSA', 'SHA512WITHECDSA', 'SHA256WITHRSA
 
 class AwsPcaIssuer(Issuer):
     kind = 'aws_pca'
+    dual = True
     title = 'AWS Private CA'
     description = ('Certificates issued by a private CA of AWS Private CA (ACM PCA) from acme\'s '
                    'request, signed in with an IAM access key. Revocation included.')

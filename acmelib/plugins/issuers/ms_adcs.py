@@ -224,6 +224,7 @@ class AdcsHttp(object):
 
 class MsAdcsIssuer(Issuer):
     kind = 'ms_adcs'
+    dual = True                     # where the template takes both kinds of key (its Cryptography tab)
     title = 'Microsoft AD CS (Web Enrollment)'
     description = ('Certificates from a Microsoft CA through its Web Enrollment pages '
                    '(/certsrv), with a template; signed in with NTLM, Basic or a client '

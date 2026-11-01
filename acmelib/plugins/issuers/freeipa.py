@@ -35,6 +35,7 @@ from acmelib.plugins.issuers import _source_common as sc
 
 class FreeIpaIssuer(Issuer):
     kind = 'freeipa'
+    dual = True
     title = 'FreeIPA / Red Hat IdM'
     description = ('Certificates from the CA of FreeIPA (Red Hat Identity Management, Dogtag) '
                    'for a service principal, through the IPA JSON-RPC API with a user and '

@@ -17,6 +17,7 @@ def _list(v):
 
 class InternalCaIssuer(Issuer):
     kind = 'internal_ca'
+    dual = True
     title = 'Own certificate authority'
     description = ('Signed at once by one of acme\'s own authorities (Settings → Authorities): '
                    'for internal servers, devices and clients that trust your root.')

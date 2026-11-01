@@ -56,6 +56,7 @@ def _unseal(ctx, value, bind):
 
 class AcmeIssuer(Issuer):
     kind = 'acme'
+    dual = True                     # the second order reuses the names proved for the first
     title = "ACME (Let's Encrypt and others)"
     description = ("Certificates from Let's Encrypt or any other ACME CA (ZeroSSL, Google "
                    "Trust Services, Buypass, SSL.com, step-ca), each name proved by DNS-01 "

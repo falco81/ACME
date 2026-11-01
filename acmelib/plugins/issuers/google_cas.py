@@ -44,6 +44,7 @@ ID_RE = re.compile(r'^[A-Za-z0-9_-]{1,63}\Z')
 
 class GoogleCasIssuer(Issuer):
     kind = 'google_cas'
+    dual = True
     title = 'Google Cloud CA Service'
     description = ('Certificates from a CA pool of Google Cloud Certificate Authority Service '
                    '(private CAs), signed in with a service account\'s key. Revocation included.')

@@ -42,6 +42,7 @@ def _is_ip(name):
 
 class VaultPkiIssuer(Issuer):
     kind = 'vault_pki'
+    dual = True                     # where the role's key_type is any
     title = 'HashiCorp Vault PKI'
     description = ('Certificates signed by the PKI secrets engine of HashiCorp Vault (or '
                    'OpenBao) under a role, signed in with a token or AppRole; acme\'s key never '

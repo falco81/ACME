@@ -96,6 +96,7 @@ class _Relay(object):
 
 class CmpIssuer(Issuer):
     kind = 'cmp'
+    dual = True                     # where the CA's profile takes both kinds of key
     title = 'CMP (RFC 4210 / 9480)'
     description = ('Certificates by the Certificate Management Protocol (CMPv2, RFC 4210 and '
                    '9480; the Lightweight CMP Profile): EJBCA, Nokia, Siemens, Insta and other '

@@ -41,6 +41,7 @@ from acmelib.plugins.issuers import _scep_pkcs7 as p7
 
 class EstIssuer(Issuer):
     kind = 'est'
+    dual = True                     # where the CA's profile takes both kinds of key
     title = 'EST (RFC 7030)'
     description = ('Certificates from a CA that speaks EST (Enrollment over Secure Transport, '
                    'RFC 7030): Cisco, EJBCA, Keyfactor, Entrust, GlobalSign and others, signed '

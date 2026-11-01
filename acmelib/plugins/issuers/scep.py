@@ -23,6 +23,7 @@ from acmelib.plugins.issuers import _scep_pkcs7 as p7
 
 class ScepIssuer(Issuer):
     kind = 'scep'
+    dual = False                    # SCEP needs an RSA key: no ECDSA twin
     title = 'SCEP (NDES, EJBCA, step-ca, ...)'
     description = ('Certificates from a CA that speaks SCEP (RFC 8894): Microsoft NDES, EJBCA, '
                    'step-ca and others, with a challenge password. Requests the CA holds '
