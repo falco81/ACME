@@ -244,8 +244,18 @@ function i18nWork(s, depth) {
     /* No lookbehind in a literal: a browser without it (Safari before
        16.4) refused this whole script, and with it every page. The end of a
        sentence is marked first and split on after. (1.10.155) */
+    /* A name, a colon and a sentence of its own - "web1: the application
+       said 422 (names): ..." - is the name and that sentence whole, before
+       the sentence is cut at its own colons (1.0.9). */
+    var named = /^([^\s:]+): (.*[A-Za-z]{2}.*)$/.exec(key);
+    if (named) {
+      var rest = i18nText(named[2], depth + 1);
+      if (rest !== null) return named[1] + ': ' + rest;
+    }
+    /* ...or joined by a dash, as the daemon joins what it says: "nothing
+       to deploy - the target is switched off" (1.0.9). */
     var parts = key.replace(/([.!?:;])\s+/g, '$1\u0001')
-      .split(/(\s+[\u00b7\u2022|\u2014]\s+|\u0001)/)
+      .split(/(\s+[\u00b7\u2022|\u2014\u2013-]\s+|\u0001)/)
       .map(function (bit) { return bit === '\u0001' ? ' ' : bit; });
     if (parts.length > 1) {
       var any = false;
@@ -254,7 +264,10 @@ function i18nWork(s, depth) {
         var one = i18nText(parts[k], depth + 1);
         if (one !== null) { parts[k] = one; any = true; }
       }
-      if (any) return parts.join('');
+      if (any) {
+        for (var q = 1; q < parts.length; q += 2) if (/^\s+-\s+$/.test(parts[q])) parts[q] = ' \u2013 ';
+        return parts.join('');
+      }
     }
   }
   return null;
