@@ -1,0 +1,15 @@
+# /etc/systemd/system/acme-upgrade.service (1.0.37)
+#
+# Started by acme-upgrade.path, never by hand: it puts in the package the
+# pages asked for - only one signed by a release key in
+# /usr/local/lib/acme/release-keys/, and only after checking every file in it.
+# It runs apart from acme.service, which the upgrade restarts.
+[Unit]
+Description=acme - putting in a new version asked for on the pages
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /usr/local/lib/acme/acme_upgrade.py
+TimeoutStartSec=25min
+PrivateTmp=no

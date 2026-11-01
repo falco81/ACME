@@ -1,0 +1,12 @@
+[Unit]
+Description=acme - TLS and the cluster's web address (keepalived), as asked on the pages
+After=network-online.target
+# Started once per thing asked from the pages, often several in a few seconds
+# (1.0.159): systemd's limit of five starts in ten seconds left the path unit
+# failed and every later ask unanswered.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /usr/local/lib/acme/acme_web.py
+TimeoutStartSec=30min

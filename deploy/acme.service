@@ -1,0 +1,54 @@
+# /etc/systemd/system/acme.service
+#
+# The one-time password server: RADIUS on UDP 1812/1813, the API the web
+# pages ask on 127.0.0.1:9861, and everything else. One process, its own
+# account, and nothing it may write outside its own folders - the same
+# shape as isemon.service.
+[Unit]
+Description=acme - one-time password server (RADIUS, TOTP, enrolment, Active Directory)
+Documentation=file:/usr/local/lib/acme/INSTALL.md
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/local/lib/acme/python /usr/local/lib/acme/acme.py --daemon
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+User=acme
+Group=acme
+SupplementaryGroups=acme-web
+UMask=0027
+RuntimeDirectory=acme
+RuntimeDirectoryMode=0750
+StateDirectory=acme
+StateDirectoryMode=0750
+LogsDirectory=acme
+LogsDirectoryMode=0750
+ReadWritePaths=/var/lib/acme /var/log/acme /etc/acme
+# RADIUS on its standard ports needs no privilege: 1812 and 1813 are above 1024.
+# SNMPv3 on 161 (1.0.182) does: binding a port below 1024, nothing else.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+Environment=MALLOC_ARENA_MAX=2
+Nice=-5
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+# AF_NETLINK (1.0.195): the network interfaces read - smbclient (backups over
+# SMB) stopped without them: "Could not determine network interfaces".
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+{
+  "_about": "The settings acme starts with. Everything saved on the administration pages goes into the database and wins over this file; only which database that is (db_*) has to live here. Every setting is listed by: acme --settings",
+  "db_engine": "sqlite",
+  "radius_auth_port": 1812,
+  "radius_acct_port": 1813,
+  "api_port": 9861,
+  "ui_lang": "cs"
+}

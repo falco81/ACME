@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- The same shield as isemon's, holding a token: six digits on a fob. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#58a6ff"/>
+      <stop offset="1" stop-color="#1f6feb"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#161b22"/>
+  <path d="M32 9l19 7v15c0 12-8 20-19 24-11-4-19-12-19-24V16z"
+        fill="url(#g)" opacity=".18" stroke="url(#g)" stroke-width="2.5"
+        stroke-linejoin="round"/>
+  <rect x="19" y="25" width="26" height="14" rx="3.5" fill="none" stroke="#3fb950" stroke-width="3"/>
+  <path d="M24.5 32h2M31 32h2M37.5 32h2" stroke="#3fb950" stroke-width="3" stroke-linecap="round"/>
+</svg>

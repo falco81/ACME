@@ -1,0 +1,956 @@
+# -*- coding: utf-8 -*-
+from __future__ import annotations
+# ---- settings, accounts, events, the database --------------------------------------------
+@route('GET', '/api/settings')
+def _settings(h):
+    s = h.me()
+    full = s['role'] == 'fulladmin'
+    return {'settings': h.d.settings_state(full), 'may_change': full, 'panes': PANES,
+            'only_when': ONLY_WHEN, 'config_file': str(CONFIG_FILE),
+            'database': h.store.db.where(), 'directories': [d['name'] for d in
+                                                            h.store.directories()],
+            'realms': [r['suffix'] for r in h.store.realms()
+                       if r.get('suffix') and r['suffix'] != '*'],
+            'isemon': h.d.shipper.state() if h.d.shipper else {},
+            'node': node_name(), 'nodes': h.d.cluster_nodes(),
+            'cluster': bool(CONFIG.get('ha_mode')) or len(h.d.cluster_nodes()) > 1}
+
+
+@route('POST', '/api/settings')
+def _settings_do(h):
+    s = h.me('fulladmin')
+    b = h.body()
+    asked = b.get('settings') or {}
+    moved = [k for k in asked if k in ('db_engine', 'db_host', 'db_port', 'db_name', 'db_user',
+                                         'db_password') and
+             not (k == 'db_password' and is_masked(asked[k])) and
+             str(asked[k]) != str(CONFIG.get(k) if CONFIG.get(k) is not None else '')]
+    ha = [k for k in asked if k in ('ha_mode', 'ha_slot', 'ha_peer', 'ha_peer_port', 'ha_address',
+                                    'ha_tls', 'ha_tls_ca')
+          and str(asked[k]) != str(CONFIG.get(k) if CONFIG.get(k) is not None else '')]
+    if ha:
+        # The cluster is made and taken apart by its own steps (1.0.57).
+        raise ApiError(400, 'the cluster is changed on Settings - High availability or with '
+                            'acme --ha-setup / --ha-join / --ha-standalone (%s not saved)'
+                       % ', '.join(ha))
+    if moved:
+        # Saved here, the next restart opened a database nothing had been
+        # carried into (1.0.37). The way to another one is the four steps.
+        raise ApiError(400, 'the database is changed on Settings - The database with its own '
+                            'steps: Try it, Set it up, Carry everything across, Start using it '
+                            '(%s not saved)' % ', '.join(moved))
+    try:
+        # The other sign-ins ended when the second step is switched on: in
+        # save_settings, the one saving it kept.
+        return h.d.save_settings(asked, by=s['name'], node=b.get('node'),
+                                 drawn_by=b.get('drawn_by'), keep_session=s.get('id'))
+    except NodeMoved as e:
+        raise ApiError(409, str(e))
+    except HiSecConflict as e:
+        raise ApiError(409, str(e), detail={'hisec': e.findings})
+    except BadSetting as e:
+        raise ApiError(400, str(e))
+
+
+@route('GET', '/api/hisec')
+def _hisec(h):
+    h.me('fulladmin')
+    return hisec_view(h.store)
+
+
+@route('POST', '/api/hisec')
+def _hisec_do(h):
+    s = h.me('fulladmin')
+    b = h.body()
+    if str(b.get('action') or '') != 'waive':
+        raise ApiError(400, 'no such thing to do')
+    try:
+        hisec_waive(h.store, str(b.get('rule') or ''), bool(b.get('on')), s['name'])
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    return hisec_view(h.store)
+
+
+@route('POST', '/api/isemon')
+def _isemon_do(h):
+    s = h.me('fulladmin')
+    b = h.body()
+    act = str(b.get('action') or '')
+    if act == 'result':
+        return {'nodes': node_ask_results(h.store, 'isemon', str(b.get('id') or ''))}
+    if act.startswith('tls_'):
+        try:
+            return _isemon_tls_do(h, s, b, act)
+        except (ValueError, BadSetting) as e:
+            raise ApiError(400, str(e))
+    if not CONFIG.get('isemon'):
+        raise ApiError(400, 'sending to isemon is off')
+    # From every node (1.0.169): each sends its own test line.
+    who = str(b.get('as_user') or '').strip()
+    if who and not re.match(r'^[A-Za-z0-9._@-]{1,64}\Z', who):
+        raise ApiError(400, 'the name is letters, digits and . _ @ - only')
+    return node_ask(h.d, 'isemon', {'by': s['name'], 'only': str(b.get('node') or ''),
+                                    'as_user': who, 'ok': bool(b.get('ok', True))}, s['name'])
+
+
+def _isemon_tls_target(b):
+    host = str(b.get('host') or '').strip().strip('[]')
+    if not re.match(r'^[A-Za-z0-9.:\-]{1,253}\Z', host):
+        raise ValueError('isemon\'s address is a name or an address')
+    try:
+        port = int(b.get('port') or 6514)
+    except (TypeError, ValueError):
+        raise ValueError('the port is a number')
+    if not 0 < port < 65536:
+        raise ValueError('the port is 1 to 65535')
+    return host, port
+
+
+def _isemon_tls_do(h, s, b, act):
+    """Encrypted sending to isemon (1.0.172): try it on every node, the
+    bundle for isemon, switch over, switch off."""
+    store = h.store
+    if act == 'tls_result':
+        return {'nodes': node_ask_results(store, 'isemon_tls', str(b.get('id') or '')),
+                'tls': isemon_tls_view(store)}
+    src = str(b.get('ca_source') or 'acme')
+    if src not in ('acme', 'given', 'system'):
+        raise ValueError('the authority is acme\'s, given, or the system\'s')
+    pem = str(b.get('ca_pem') or '').strip()
+    if src == 'given' and '-----BEGIN CERTIFICATE-----' not in pem:
+        raise ValueError('isemon\'s authority is a PEM certificate (-----BEGIN CERTIFICATE-----)')
+    if act == 'tls_probe':
+        host, port = _isemon_tls_target(b)
+        return node_ask(h.d, 'isemon_tls', {'host': host, 'port': port, 'ca_source': src,
+                                            'ca_pem': pem if src == 'given' else '',
+                                            'verify': bool(b.get('verify', True)),
+                                            'mtls': bool(b.get('mtls'))}, s['name'])
+    if act == 'tls_bundle':
+        _host, port = _isemon_tls_target(b)
+        names = [x for x in re.split(r'[\s,;]+', str(b.get('names') or '')) if x]
+        blob = isemon_tls_bundle(store, names, port, bool(b.get('mtls')),
+                                 str(b.get('passphrase') or ''), s['name'])
+        return {'name': 'isemon-tls.zip', 'file': base64.b64encode(blob).decode(),
+                'tls': isemon_tls_view(store)}
+    if act == 'tls_apply':
+        host, port = _isemon_tls_target(b)
+        verify = bool(b.get('verify', True))
+        if not verify and hisec_enforced('isemon', store):
+            raise ValueError('high security is on: isemon\'s certificate is checked')
+        keep = [t for t in syslog_targets(CONFIG.get('isemon_targets')) if t[0] != host]
+        targets = [syslog_target_text(*t) for t in keep] + [syslog_target_text(host, port, 'tls')]
+        ca = hatls_trust(hatls_ca(store)) if src == 'acme' else (pem if src == 'given' else '')
+        h.d.save_settings({'isemon': 1, 'isemon_targets': ', '.join(targets), 'isemon_ca': ca,
+                           'isemon_verify': 1 if verify else 0,
+                           'isemon_mtls': 1 if b.get('mtls') else 0}, by=s['name'])
+        store.add_event('settings', '%s: isemon at %s:%d is sent to over TLS%s' % (
+            s['name'], host, port, ', each node showing its own certificate' if b.get('mtls')
+            else ''), 'info', who=s['name'])
+        return {'message': 'isemon at %s:%d is sent to over TLS from now on' % (host, port),
+                'tls': isemon_tls_view(store)}
+    if act == 'tls_off':
+        host = str(b.get('host') or '').strip().strip('[]')
+        targets = [syslog_target_text(*((t[0], 514, 'tcp') if t[2] == 'tls' and (not host or t[0] == host)
+                                        else t)) for t in syslog_targets(CONFIG.get('isemon_targets'))]
+        if hisec_enforced('isemon', store):
+            raise ValueError('high security is on: isemon is sent to over TLS only')
+        h.d.save_settings({'isemon_targets': ', '.join(targets), 'isemon_mtls': 0}, by=s['name'])
+        store.add_event('settings', '%s: isemon is sent to over plain TCP again' % s['name'],
+                        'warn', who=s['name'])
+        return {'message': 'isemon is sent to over plain TCP (514) again', 'tls': isemon_tls_view(store)}
+    raise ValueError('no such thing to do')
+
+
+@route('GET', '/api/isemon')
+def _isemon(h):
+    """What each node sends to isemon (1.0.169): this one as it is now, the
+    other as its own row of the last minute says."""
+    h.me()
+    nodes = [n['name'] for n in ha_nodes(h.store)] if CONFIG.get('ha_mode') else [node_name()]
+    out = []
+    for n in sorted(set(nodes) | {node_name()}):
+        row = _meta_json(h.store, 'host:health:' + n) or {}
+        st = (h.d.shipper.state() if h.d.shipper else {}) if n == node_name() else \
+            (row.get('isemon') or {})
+        out.append(dict(st, node=n, me=n == node_name(),
+                        at=time.time() if n == node_name() else row.get('at')))
+    return {'nodes': out, 'on': bool(CONFIG.get('isemon')),
+            'tls': isemon_tls_view(h.store) if h.me().get('role') == 'fulladmin' else None}
+
+
+@route('GET', '/api/users')
+def _users(h):
+    s = h.me()
+    mfa = mfa_all(h.store)
+    users = h.store.accounts()
+    for u in users:
+        u['mfa'] = mfa.get(str(u.get('name') or '').lower())
+    return {'users': users, 'may_change': s['role'] == 'fulladmin',
+            'mfa_on': bool(CONFIG.get('admin_2fa')),
+            'roles': [{'role': r, 'words': ROLE_WORDS[r]} for r in ROLES_ALL]}
+
+
+@route('POST', '/api/users')
+def _users_do(h):
+    s = h.me('fulladmin')
+    b = h.body()
+    act, name = b.get('action'), str(b.get('name') or '').strip()
+    who = s['name']
+    if act == 'add':
+        h.store.add_account(name, b.get('role') or 'readonly', b.get('password'),
+                            note=b.get('note') or '', must_change=b.get('must_change', 1))
+        h.store.add_event('accounts', '%s made the account %s (%s)' % (who, name,
+                                                                         b.get('role')), who=who)
+        return {'message': 'the account %s is made' % name}
+    acc = h.store.account(name)
+    if not name:
+        raise ApiError(400, 'which account?')                          # 1.0.103
+    if not acc:
+        raise ApiError(404, 'there is no account called %s' % name)
+    if act in ('delete', 'disable') or (act == 'role' and b.get('role') != 'fulladmin'):
+        if acc['role'] == 'fulladmin' and not h.store.fulladmins_left(but=name):
+            raise ApiError(400, 'that is the last full administrator who can sign in')
+    if act == 'delete':
+        h.store.drop_account(name)
+        h.store.add_event('accounts', '%s removed the account %s' % (who, name), 'warn', who=who)
+        return {'message': 'the account %s is gone' % name}
+    if act == 'role':
+        h.store.set_account(name, role=b.get('role'))
+        h.store.add_event('accounts', '%s made %s %s' % (who, name,
+                                                         ROLE_WORDS.get(b.get('role'))), who=who)
+        return {'message': 'saved'}
+    if act == 'mfa_reset':
+        had = mfa_reset(h.store, acc['name'], who)
+        h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
+                       ('admin', acc['name'].lower()))
+        return {'message': ('the second step of %s is reset: they set it up again at the next '
+                            'sign-in; their sign-ins are ended' if had else
+                            '%s had no second step set up') % acc['name']}
+    if act == 'reset_cols':
+        h.store.put_user_cols(acc['name'], {})
+        h.store.add_event('accounts', '%s put the columns of every table back as they come '
+                          'for %s' % (who, acc['name']), who=who)
+        return {'message': 'the columns of %s are back as they come; they see it at their '
+                           'next page load' % acc['name']}
+    if act == 'password':
+        h.store.set_account(name, password=b.get('password'), must_change=int(bool(
+            b.get('must_change', 1))))
+        h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
+                       ('admin', name.lower()))
+        h.store.add_event('accounts', '%s set a new password for %s; their sign-ins are ended'
+                          % (who, name), 'warn', who=who)
+        return {'message': 'the password is set'}
+    if act in ('disable', 'enable'):
+        h.store.set_account(name, disabled=1 if act == 'disable' else 0)
+        if act == 'disable':
+            h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
+                           ('admin', name.lower()))
+        h.store.add_event('accounts', '%s switched %s %s' % (who, name, 'off' if
+                                                            act == 'disable' else 'on'), who=who)
+        return {'message': 'saved'}
+    raise ApiError(400, 'no such thing to do to an account')
+
+
+@route('GET', '/api/sessions')
+def _sessions(h):
+    h.me('fulladmin')
+    # The list is of who could still ask: the ones that sat too long are
+    # tidied first (1.0.15), not shown as signed in for hours.
+    h.store.sessions_tidy(int(CONFIG.get('session_idle_min') or 120) * 60,
+                          int(CONFIG.get('portal_session_min') or 15) * 60)
+    return {'sessions': h.store.sessions()}
+
+
+@route('POST', '/api/sessions')
+def _sessions_do(h):
+    s = h.me('fulladmin')
+    ident = int(h.body().get('id') or 0)
+    row = h.store.db.row('SELECT kind, name, ip FROM sessions WHERE id = ?', (ident,))
+    if not row:
+        # Gone already (1.0.61): not written down as "ended the sign-in of ?".
+        raise ApiError(404, 'that sign-in has ended already')
+    h.store.session_drop(ident)
+    h.store.add_event('sign-ins', '%s ended the sign-in of %s%s' % (
+        s['name'], (row or {}).get('name') or '?', (' from %s' % row['ip']) if row and
+        row.get('ip') else ''), 'warn', who=s['name'])
+    return {'message': 'ended'}
+
+
+def time_span(h, lq):
+    """The time picker's window (1.0.53), `from` and `to` as seconds since
+    1970, added to what the search box asked."""
+    since, until = h.num('from', 0, 0, 10 ** 11), h.num('to', 0, 0, 10 ** 11)
+    parts, args = ([lq.sql] if lq.sql else []), list(lq.args or [])
+    if since:
+        parts.append('ts >= ?')
+        args.append(since)
+    if until:
+        parts.append('ts < ?')
+        args.append(until)
+    lq.sql, lq.args = ' AND '.join('(%s)' % x for x in parts), args
+    return since, until
+
+
+@route('GET', '/api/events')
+def _events(h):
+    h.me()
+    lq, bad = list_query('events', h.arg('q'))
+    if bad:
+        return {'rows': [], 'total': 0, 'q_error': bad, 'kinds': h.reader.event_kinds()}
+    time_span(h, lq)
+    rows, total = h.reader.events(h.num('limit', 100, 1, 1000), h.num('offset', 0),
+                                 lq.words, h.arg('kind'), extra=(lq.sql, lq.args))
+    return {'rows': rows, 'total': total, 'kinds': h.reader.event_kinds()}
+
+
+@route('GET', '/api/enrolment')
+def _enrolment(h):
+    h.me()
+    since = h.num('since', 0, 0, 10 ** 9)
+    lq, bad = list_query('enrolment', h.arg('q'))
+    if bad:
+        return {'rows': [], 'total': 0, 'q_error': bad, 'counts': {}, 'on': True}
+    t_from, t_to = time_span(h, lq)
+    rows, total = h.store.enrolment(h.num('limit', 100, 1, 1000), h.num('offset', 0),
+                                    lq.words, h.arg('step'), since, extra=(lq.sql, lq.args))
+    return {'rows': rows, 'total': total,
+            'counts': h.store.enrolment_counts(since, t_from, t_to),
+            'on': bool(CONFIG.get('portal'))}
+
+
+@route('GET', '/api/mail')
+def _mail(h):
+    h.me()
+    return {'mode': CONFIG.get('mail_mode') or 'off', 'ca_list': describe_certificates(
+        mail_ca_pem(h.store)), 'from': CONFIG.get('mail_from') or '',
+        'sms_ca_list': describe_certificates(sms_ca_pem(h.store)),
+        'lang': CONFIG.get('mail_lang') or 'cs', 'codes': bool(CONFIG.get('mail_codes'))}
+
+
+@route('POST', '/api/mail')
+def _mail_do(h):
+    b = h.body()
+    act = str(b.get('action') or '')
+    if act == 'test':
+        s = h.me('fulladmin')
+        to = str(b.get('to') or '').strip()
+        if not re.match(r'^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+\Z', to):
+            raise ApiError(400, 'a mail address to send it to')
+        began = time.time()
+        try:
+            lang = str(b.get('lang') or 'cs')
+            if b.get('kind') == 'token':
+                # A token's mail as it would go, with a key made up for it
+                # (1.0.27): whether that gets through - pictures, codes and
+                # all - is not the same question as whether a line of text
+                # does. The key opens nothing.
+                fake = base64.b32encode(secrets.token_bytes(20)).decode().rstrip('=')
+                pic = h.d.tokens.picture('novak@example.cz', fake)
+                msg = token_mail(to, 'novak@example.cz', pic,
+                                 codes=['%08d' % secrets.randbelow(10 ** 8) for _ in range(5)],
+                                 lang=lang if lang in MAIL_WORDS else 'cs',
+                                 display='Jan Novák' if lang == 'cs' else 'John Doe',
+                                 by=s['name'])
+            elif b.get('kind') in ('code', 'verify'):
+                # The mail of a sign-in code, or of checking an address on
+                # the enrolment pages (1.0.78) - with a code that opens nothing.
+                msg = code_message('mail', to, code_new(),
+                                   'signin' if b.get('kind') == 'code' else 'verify',
+                                   lang=lang if lang in CODE_TEXTS else None,
+                                   name='novak@example.cz',
+                                   display='Jan Novák' if lang == 'cs' else 'John Doe')
+            else:
+                msg = test_mail(to, lang)
+            # Through the outgoing mail, as codes go (1.0.103): tried now, and
+            # if the other side does not take it yet (greylisting) tried again
+            # by itself - or straight, once, with every step said here.
+            queued = str(b.get('via') or '') == 'queue'
+            if queued:
+                steps = mail_deliver(h.store, msg, [to], kind='test', by=s['name'],
+                                     purpose='test')
+            else:
+                steps = mail_send(h.store, msg, [to])
+        except MailError as e:
+            h.store.add_event('mail', 'a test mail to %s failed: %s' % (to, e), 'warn',
+                              who=s['name'])
+            return {'sent': False, 'said': str(e), 'steps': e.steps,
+                    'queued': getattr(e, 'queued', None) if str(b.get('via') or '') == 'queue'
+                    else None,
+                    'took_ms': int((time.time() - began) * 1000)}
+        h.store.add_event('mail', '%s sent a test mail%s to %s%s' % (
+            s['name'], {'token': ' shaped as a token\'s', 'code': ' shaped as a sign-in code\'s',
+                        'verify': ' shaped as an address check\'s'}.get(b.get('kind'), ''), to,
+            mail_reply_words(steps)), who=s['name'])
+        return {'sent': True, 'said': 'sent to %s' % to, 'steps': steps,
+                'queued': 'sent' if str(b.get('via') or '') == 'queue' else None,
+                'took_ms': int((time.time() - began) * 1000)}
+    if act == 'sms_test':
+        # An SMS the way a sign-in code goes (1.0.76), with a code that opens
+        # nothing, and what the gateway said.
+        s = h.me('fulladmin')
+        try:
+            to = phone_checked(b.get('to'))
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        began = time.time()
+        try:
+            said = sms_send(to, code_message('sms', to, code_new(), 'verify'))
+        except SmsError as e:
+            h.store.add_event('settings', 'a test SMS to %s failed: %s' % (to, e), 'warn',
+                              who=s['name'])
+            return {'sent': False, 'said': str(e), 'took_ms': int((time.time() - began) * 1000)}
+        h.store.add_event('settings', '%s sent a test SMS to %s' % (s['name'], to), who=s['name'])
+        return {'sent': True, 'said': said, 'to': to,
+                'took_ms': int((time.time() - began) * 1000)}
+    if act == 'sms_ca':
+        # The Teltonika gateway's certificates (1.0.89).
+        s = h.me('fulladmin')
+        mode = str(b.get('mode') or 'add')
+        try:
+            got = sms_ca_set(h.store, b.get('ca'), mode, str(b.get('fingerprint') or ''))
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        h.store.add_event('settings', '%s %s the certificates of the SMS gateway'
+                          % (s['name'], {'add': 'added to', 'drop': 'took one out of'}.get(
+                              mode, 'emptied')), who=s['name'])
+        return {'ca_list': got, 'message': 'the SMS gateway is checked against %d certificate(s)'
+                % len(got)}
+    if act == 'tel_test':
+        # The Teltonika tried without sending anything (1.0.113).
+        s = h.me('fulladmin')
+        began = time.time()
+        got = tel_test()
+        got['took_ms'] = int((time.time() - began) * 1000)
+        bad = [x for x in got['steps'] if not x['ok']]
+        h.store.add_event('settings', '%s tried the SMS gateway %s: %s' % (
+            s['name'], got.get('host') or '?', 'it answers' if got['ok'] else
+            (bad[0]['said'] if bad else 'it did not answer')), 'info' if got['ok'] else 'warn',
+            who=s['name'])
+        return got
+    if act == 'sms_ca_fetch':
+        # What the gateway shows, for the administrator to look at and trust.
+        h.me('fulladmin')
+        try:
+            pem = tel_peer_chain()
+        except SmsError as e:
+            raise ApiError(502, str(e))
+        return {'pem': pem, 'certs': describe_certificates(pem)}
+    if act == 'ca':
+        s = h.me('fulladmin')
+        mode = str(b.get('mode') or 'add')
+        try:
+            got = mail_ca_set(h.store, b.get('ca'), mode, str(b.get('fingerprint') or ''))
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        h.store.add_event('settings', '%s %s the certificate authorities of the mail server'
+                          % (s['name'], {'add': 'added to', 'drop': 'took one out of'}.get(
+                              mode, 'emptied')), who=s['name'])
+        return {'ca_list': got, 'message': 'the mail server keeps %d certificate(s)' % len(got)}
+    if act == 'mail_of':
+        # A person's mail address out of the directory of their realm, for
+        # the box beside "Make a token" (1.0.20).
+        h.me('tokenadmin')
+        who = str(b.get('user') or '').strip()
+        realm = h.store.realm_for(who)
+        ad = h.d.dirs.get(str((realm or {}).get('directory') or '').lower())
+        if not ad:
+            return {'mail': '', 'display': ''}
+        how = realm.get('lookup') if realm.get('lookup') in ('upn', 'sam') else (
+            'upn' if '@' in who else 'sam')
+        try:
+            entry = ad.find_user(who if how == 'upn' else who.split('@', 1)[0], how)
+        except Exception:
+            entry = None
+        return {'mail': (entry or {}).get('mail') or '', 'display': (entry or {}).get('display')
+                or '', 'mobile': (entry or {}).get('mobile') or ''}
+    raise ApiError(400, 'no such thing to do')
+
+
+@route('GET', '/api/log')
+def _log(h):
+    h.me('fulladmin')
+    return {'lines': log_tail(h.num('lines', 400, 10, 5000)), 'file': str(LOG_DIR / 'acme.log')}
+
+
+def _db_files(h):
+    db = h.store.db
+    disk, grew, parts = db_disk(h.store)
+    return {'copies': kept_copies(), 'dumps': kept_dumps(db.engine), 'dump': dump_info(db.engine),
+            'keep': int(CONFIG.get('backup_keep') or 14), 'disk': disk, 'growth': grew,
+            'parts': parts, 'cache': db_cache(h.store), 'drivers': drivers_state(),
+            'erasable': db_erasable(h.store), 'tune': tune_state(h.store),
+            'backup_dir': str(BACKUP_DIR), 'dump_dir': str(DUMP_DIR)}
+
+
+@route('GET', '/api/db')
+def _db(h):
+    h.me()
+    db = h.store.db
+    files = _db_files(h)
+    return dict(files, **{'engine': db.engine, 'words': ENGINE_WORDS.get(db.engine), 'where': db.where(),
+            'version': db.version(), 'size': db.size(), 'free': db_free_inside(db),
+            'counts': h.store.counts(), 'tables': db_table_sizes(db), 'backups': backups(),
+            'key': str(sealing_key_path()), 'key_there': bool(sealing_key()),
+            'config_file': str(CONFIG_FILE), 'job': job_read(), 'node': node_name(),
+            'tuned': bool(json.loads(h.store.get_meta('tune_before:' + node_name()) or '{}')),
+            'retain': {k: CONFIG.get(k) for k in ('retain_radius_days', 'retain_acme_days',
+                                                    'retain_events_days')}})
+
+
+def _kept_path(name, kind):
+    name = os.path.basename(str(name or ''))
+    if not NAME_RE.match(name):
+        raise ApiError(404, 'there is no such file')
+    folder = DUMP_DIR if kind == 'dump' else BACKUP_DIR
+    path = folder / name
+    if not path.is_file():
+        raise ApiError(404, 'there is no such file: %s' % name)
+    return path
+
+
+def copy_with_key(src_path, dst_path, key_hex):
+    """A copy with the key that opens its tokens written into its first line."""
+    import gzip
+    if not re.match(r'^[0-9a-f]{64}\Z', str(key_hex or '')):
+        raise ApiError(409, 'the key beside the copy does not read')
+    with gzip.open(str(src_path), 'rt', encoding='utf-8') as src, \
+            gzip.open(str(dst_path), 'wt', encoding='utf-8') as dst:
+        head = json.loads(src.readline())
+        head['key'] = key_hex
+        dst.write(json.dumps(head, default=str) + '\n')
+        shutil.copyfileobj(src, dst, 1 << 20)
+
+
+@route('GET', '/api/db/download')
+def _db_download(h):
+    s = h.me('fulladmin')
+    # Made by the page's question first (1.0.123): the file with its key,
+    # waiting for this one browser - the passphrase never in an address.
+    if h.arg('ticket'):
+        v = dbkey_ticket_take(h.arg('ticket'), s['name'])
+        if not v:
+            raise ApiError(404, 'that download is not waiting any more: ask for it again')
+        try:
+            h.send_file(v['path'], v['name'])
+        finally:
+            shutil.rmtree(str(v['dir']), ignore_errors=True)
+        return None
+    name, kind = h.arg('name'), h.arg('kind')
+    if name:
+        path = _kept_path(name, kind)
+        h.store.add_event('backups', '%s downloaded %s, without the key that opens its tokens'
+                          % (s['name'], path.name), who=s['name'])
+        h.send_file(path, path.name)
+        return None
+    # Made now, for the machine somebody is sitting at, and not kept here.
+    tmp = Path(tempfile.mkdtemp(prefix='acme-download-', dir=str(STATE_DIR)))
+    try:
+        path = _db_made_now(h, kind, tmp)
+        h.store.add_event('backups', '%s downloaded %s, made for it, without the key that opens '
+                          'its tokens' % (s['name'], path.name), who=s['name'])
+        h.send_file(path, path.name)
+    finally:
+        shutil.rmtree(str(tmp), ignore_errors=True)
+    return None
+
+
+def _db_made_now(h, kind, folder):
+    if kind == 'dump':
+        return make_dump(h.store, 'download', folder=folder)
+    path = Path(folder) / ('acme-copy-%s-download.json.gz' % _stamp())
+    dump_tables(h.store.db, path)
+    return path
+
+
+def _db_download_ticket(h, s, b):
+    """The file asked for - kept or made now - with the key that opens its
+    tokens, locked with the passphrase given: made, and left for the browser
+    to fetch with the ticket."""
+    by = s['name']
+    dbkey_passphrase_checked(b.get('passphrase'))
+    kind = 'dump' if b.get('kind') == 'dump' else ''
+    work = Path(tempfile.mkdtemp(prefix='acme-dl-', dir=str(STATE_DIR)))
+    os.chmod(str(work), 0o700)
+    try:
+        if b.get('name'):
+            src = _kept_path(b.get('name'), kind)
+            keyf = _key_beside(src)
+            # The key beside a kept one is the one that opens it - the one in
+            # use now may be newer.
+            if keyf.is_file() and sealing_key() and \
+                    keyf.read_text().strip() != sealing_key().hex():
+                raise ApiError(409, 'the key beside %s is not the one in use now: download it '
+                                    'without the key, and the .key beside it from the machine'
+                                    % src.name)
+        else:
+            src = _db_made_now(h, kind, work)
+        out = dbkey_bundle(src, src.name, b.get('passphrase'), work)
+        if src.parent == work:
+            src.unlink()
+    except ApiError:
+        shutil.rmtree(str(work), ignore_errors=True)
+        raise
+    except ValueError as e:
+        shutil.rmtree(str(work), ignore_errors=True)
+        raise ApiError(400, str(e))
+    h.store.add_event('backups', '%s downloaded %s WITH the key that opens its tokens, locked with '
+                      'a passphrase' % (by, out.name), 'warn', who=by)
+    return {'ticket': dbkey_ticket_put(out, out.name, by), 'name': out.name}
+
+
+@route('POST', '/api/db/restore')
+def _db_restore(h):
+    s = h.me('fulladmin')
+    fd, tmp = tempfile.mkstemp(prefix='acme-upload-', dir=str(STATE_DIR))
+    os.close(fd)
+    tmp = Path(tmp)
+    try:
+        h.body_to_file(tmp, 4 * 1024 ** 3)
+        if dbkey_is_bundle(tmp):
+            # With its key, locked (1.0.123): kept here, opened with the
+            # passphrase once it is given.
+            work = Path(tempfile.mkdtemp(prefix='acme-peek-', dir=str(STATE_DIR)))
+            try:
+                inner, _k, head = dbkey_open(tmp, work)
+                said, why = db_file_peek(inner, h.store.db.engine)
+            except ValueError as e:
+                raise ApiError(400, str(e))
+            finally:
+                shutil.rmtree(str(work), ignore_errors=True)
+            if said is None:
+                raise ApiError(400, why)
+            return {'says': said, 'upload': dbkey_keep_upload(tmp), 'locked': True,
+                    'file': head.get('file')}
+        if h.arg('check'):
+            said, why = db_file_peek(tmp, h.store.db.engine)
+            if said is None:
+                raise ApiError(400, why)
+            return {'says': said}
+        try:
+            got = db_file_restore(h.store, tmp, s['name'], from_name='the page')
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        h.d.reload_all('a database was put back') if hasattr(h.d, 'reload_all') else None
+        BIND_STRICT['tokens'] = False
+        bind_tokens(h.store)
+        return got
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
+@route('POST', '/api/db')
+def _db_do(h):
+    s = h.me('fulladmin')
+    act = h.body().get('action')
+    if act == 'backup':
+        out = make_backup(h.store, 'by %s' % s['name'])
+        return {'message': 'a copy was made: %s' % out.name}
+    if act == 'tidy':
+        return {'message': 'tidied: %s' % h.store.tidy()}
+    b = h.body()
+    if act == 'job':
+        return {'job': job_read()}
+    if act == 'dump':
+        try:
+            out = make_dump(h.store, 'by-hand')
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        return {'name': out.name, 'bytes': out.stat().st_size,
+                'message': 'made: %s' % out.name}
+    if act == 'download_ticket':
+        return _db_download_ticket(h, s, b)
+    if act == 'upload_restore':
+        try:
+            src = dbkey_upload(b.get('upload'))
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        passphrase = str(b.get('passphrase') or '')
+        if b.get('check'):
+            work = Path(tempfile.mkdtemp(prefix='acme-peek-', dir=str(STATE_DIR)))
+            os.chmod(str(work), 0o700)
+            try:
+                inner, _k, _head = dbkey_open(src, work, passphrase)
+                said, why = db_file_peek(inner, h.store.db.engine)
+            except ValueError as e:
+                raise ApiError(400, str(e))
+            finally:
+                shutil.rmtree(str(work), ignore_errors=True)
+            if said is None:
+                raise ApiError(400, why)
+            said['with_key'] = True
+            return {'says': said}
+        # Put back as a job the page follows (1.0.123): a big database takes
+        # longer than a page waits for an answer.
+        store, daemon, by = h.store, h.d, s['name']
+
+        def work_(progress):
+            work = Path(tempfile.mkdtemp(prefix='acme-putback-', dir=str(STATE_DIR)))
+            os.chmod(str(work), 0o700)
+            try:
+                progress(1, 3, 'the file opened with its passphrase')
+                inner, keyf, head = dbkey_open(src, work, passphrase)
+                progress(2, 3, 'put back')
+                got = db_file_restore(store, inner, by, key_file=keyf,
+                                      from_name=head.get('file') or 'a file with its key')
+                progress(3, 3, 'done')
+                try:
+                    daemon.reload_all('a database was put back')
+                except Exception:                       # noqa: BLE001
+                    pass
+                BIND_STRICT['tokens'] = False
+                bind_tokens(store)
+                return got
+            finally:
+                shutil.rmtree(str(work), ignore_errors=True)
+                try:
+                    src.unlink()
+                except OSError:
+                    pass
+        try:
+            db_job('putting a database back with its key', work_)
+        except ValueError as e:
+            raise ApiError(409, str(e))
+        return {'message': 'the database is being put back', 'job': job_read()}
+    if act in ('restore_kept', 'delete'):
+        path = _kept_path(b.get('name'), b.get('kind'))
+        if act == 'delete':
+            for f in (path, _key_beside(path)):
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
+            h.store.add_event('backups', '%s deleted %s' % (s['name'], path.name), 'warn',
+                              who=s['name'])
+            return {'message': '%s is deleted' % path.name}
+        if b.get('check'):
+            said, why = db_file_peek(path, h.store.db.engine)
+            if said is None:
+                raise ApiError(400, why)
+            return {'says': said}
+        try:
+            got = db_file_restore(h.store, path, s['name'], key_file=_key_beside(path),
+                                  from_name=path.name)
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        if hasattr(h.d, 'reload_all'):
+            h.d.reload_all('a database was put back')
+        BIND_STRICT['tokens'] = False
+        bind_tokens(h.store)
+        return got
+    if act == 'erase':
+        try:
+            return {'job': db_erase_job(h.store, list(b.get('groups') or []),
+                                        bool(b.get('tidy')), s['name'])}
+        except ValueError as e:
+            raise ApiError(400, str(e))
+    if act == 'tune_restart':
+        try:
+            return tune_restart(h.store, s['name'])
+        except ValueError as e:
+            raise ApiError(400, str(e))
+    if CONFIG.get('ha_mode') and act in ('move', 'use', 'empty'):
+        raise ApiError(409, 'this node is one of a cluster: its database is not moved from here '
+                            '(switch the replication off first - Settings → High availability)')
+    try:
+        if act in ('try', 'setup', 'empty', 'move', 'use'):
+            c = engine_asked(b.get('settings') or {})
+            words = ENGINE_WORDS.get(c['db_engine'])
+            if act == 'try':
+                got = db_try(c)
+                got['in_use'] = same_database(c, h.store.db)
+                return got
+            if act == 'setup':
+                if c['db_engine'] == 'sqlite':
+                    raise ApiError(400, 'the file on this machine needs no setting up')
+                first = db_try(c) if c.get('db_password') else {'reached': False}
+                fresh = ''
+                if first.get('reached') and first.get('writable'):
+                    made = ['the database and the account are there already, and it gets in']
+                else:
+                    who = str(b.get('admin_user') or '').strip()
+                    if not who:
+                        raise ApiError(400, 'an administrator of that server is needed to make '
+                                            'a database and an account on it')
+                    if not c.get('db_password'):
+                        fresh = c['db_password'] = db_password_made()
+                    made = db_make(c, who, str(b.get('admin_password') or ''))
+                keep = {k: c[k] for k in DB_KEYS if k != 'db_engine'}
+                write_file_settings(keep)
+                far = db_open(c)
+                try:
+                    far.make_tables()
+                    far.add_missing_columns()
+                finally:
+                    far.close()
+                got = db_try(c)
+                h.store.add_event('settings', '%s set up %s at %s' % (s['name'], words,
+                                                                       db_where(c)), who=s['name'])
+                return {'made': made, 'password': fresh, 'kept_in': str(CONFIG_FILE),
+                        'try': got, 'message': '%s at %s is ready' % (words, db_where(c))}
+            if same_database(c, h.store.db) and act in ('empty', 'move'):
+                raise ApiError(400, 'that is the database in use; this only ever touches the '
+                                    'other one')
+            if act == 'empty':
+                got = db_try(c)
+                if not got.get('reached'):
+                    raise ApiError(400, got.get('trouble') or 'it cannot be reached')
+                gone = db_empty(c)
+                h.store.add_event('settings', '%s emptied %s at %s' % (s['name'], words,
+                                                                        db_where(c)), 'warn',
+                                  who=s['name'])
+                return {'message': 'emptied: %d table(s) thrown away' % len(gone)}
+            if act == 'move':
+                got = db_try(c)
+                if not got.get('reached'):
+                    raise ApiError(400, got.get('trouble') or 'it cannot be reached')
+                if not got.get('writable'):
+                    raise ApiError(400, 'that account may not write to it')
+                if got.get('rows'):
+                    raise ApiError(400, 'there are %d record(s) in it already. Moving into a '
+                                        'database that is not empty would mix two '
+                                        'installations; empty it first if it really is spare.'
+                                   % got['rows'])
+                return {'job': db_move(h.store, c, s['name'])}
+            if act == 'use':
+                if same_database(c, h.store.db):
+                    raise ApiError(400, 'that is the database in use already')
+                got = db_try(c)
+                if not got.get('reached'):
+                    raise ApiError(400, got.get('trouble') or 'it cannot be reached')
+                if not got.get('rows') and not b.get('even_empty'):
+                    raise ApiError(400, 'it is empty: carry everything across first')
+                # An older copy is not taken for this one (1.0.37): going back
+                # to a database left behind by an earlier move opened what it
+                # held then, and everything since was out of sight.
+                if not b.get('even_older'):
+                    try:
+                        # The codes used as well as the events (1.0.205): a recovery
+                        # code used between the carry and this press is in
+                        # token_once alone - and was usable again on the new one.
+                        # (A code's time step is good a minute at most: not waited for.)
+                        def newest(db):
+                            return max(float(db.value('SELECT MAX(ts) FROM events') or 0),
+                                       float(db.value("SELECT MAX(ts) FROM token_once WHERE k "
+                                                      "LIKE 'scratch:%'") or 0))
+                        far = db_open(c)
+                        try:
+                            there = newest(far)
+                        finally:
+                            far.close()
+                        here = newest(h.store.db)
+                    except Exception:                   # noqa: BLE001
+                        there = here = 0
+                    if there and here and there < here - 60:
+                        raise ApiError(409, 'it holds an older copy: its newest event is from '
+                                            '%s, this one\'s from %s. Empty it and carry '
+                                            'everything across first, so nothing written '
+                                            'since is left behind.' % (
+                                                datetime.fromtimestamp(there).strftime(
+                                                    '%d-%m-%Y %H:%M'),
+                                                datetime.fromtimestamp(here).strftime(
+                                                    '%d-%m-%Y %H:%M')))
+                write_file_settings({k: c[k] for k in DB_KEYS})
+                h.store.add_event('settings', '%s switched the database to %s at %s; the '
+                                  'daemon starts again on it' % (s['name'], words, db_where(c)),
+                                  'warn', who=s['name'])
+                log('the database is now %s; starting again on it' % db_where(c), 'warn')
+                # systemd starts it again (Restart=always), on the new one.
+                threading.Timer(1.5, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
+                return {'message': 'the daemon starts again on %s in a moment' % words,
+                        'restarting': True}
+        if act == 'check':
+            own = db_own(h.store)
+            try:
+                got = db_check(own or h.store.db)
+            finally:
+                if own:
+                    own.close()
+            h.store.add_event('settings', '%s checked the database: %s' % (
+                s['name'], 'nothing broken' if got['ok'] else 'TROUBLE'),
+                'info' if got['ok'] else 'warn', who=s['name'])
+            return got
+        if act == 'statistics':
+            own = db_own(h.store)
+            try:
+                return {'message': db_statistics(own or h.store.db)}
+            finally:
+                if own:
+                    own.close()
+        if act == 'give_back':
+            by = s['name']
+
+            def work(progress):
+                got = db_give_back(h.store, progress)
+                h.store.add_event('settings', '%s gave the disk back: %s -> %s'
+                                  % (by, got['before'], got['after']), who=by)
+                return got
+            return {'job': db_job('giving the disk back', work)}
+        if act == 'prune':
+            days = 0 if b.get('everything') else int(b.get('days') or 0)
+            if days < 1 and not b.get('everything'):
+                raise ApiError(400, 'older than how many days? 1 at least')
+            gone = db_prune(h.store, days)
+            h.store.add_event('settings', '%s forgot the requests and checks older than %d '
+                              'day(s): %s' % (s['name'], days, gone), 'warn', who=s['name'])
+            return {'message': 'forgotten: %d request(s), %d check(s) of a code'
+                    % (gone['radius_log'], gone['acme_log'])}
+        if act == 'tune_plan':
+            return tune_plan_for(h.store, b.get('machine') or {})
+        if act == 'tune_apply':
+            return tune_apply(h.store, b.get('machine') or {}, str(b.get('admin_user') or ''),
+                              str(b.get('admin_password') or ''), s['name'])
+        if act == 'tune_undo':
+            return tune_undo(h.store, str(b.get('admin_user') or ''),
+                             str(b.get('admin_password') or ''), s['name'])
+    except ApiError:
+        raise
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    except Exception as e:
+        raise ApiError(400, str(e).split('\n')[0][:300])
+    raise ApiError(400, 'no such thing to do to the database')
+
+
+@route('GET', '/api/export')
+def _export(h):
+    s = h.me('fulladmin')
+    whole = h.arg('secrets') == '1'
+    out = config_export(h.store, whole)
+    if whole:
+        # Locked with a passphrase made here (1.0.136), as the cluster's
+        # bundle is: the file leaves this machine with every shared secret,
+        # password and private key in it.
+        phrase = ha_passphrase()
+        h.store.add_event('settings', 'the configuration was exported with the secrets in it '
+                          '(locked with a passphrase)', 'warn', who=s['name'])
+        return {'bundle': bundle_lock({'config': out}, phrase, kind=CONFIG_BUNDLE_KIND),
+                'passphrase': phrase}
+    return {'config': out}
+
+
+@route('POST', '/api/import')
+def _import(h):
+    s = h.me('fulladmin')
+    conf = h.body().get('config') or {}
+    if isinstance(conf, dict) and conf.get('kind') == CONFIG_BUNDLE_KIND:
+        try:
+            conf = bundle_open(conf, str(h.body().get('passphrase') or ''),
+                               kinds=(CONFIG_BUNDLE_KIND,)).get('config') or {}
+        except ValueError as e:
+            raise ApiError(400, str(e))
+    if isinstance(conf, dict) and isinstance(conf.get('config'), dict):
+        conf = conf['config']           # the command line's file, whole (1.0.62)
+
+    def not_me_out(acc):
+        access_not_me_out(h, h.store, acc, {})
+    said = config_import(h.store, h.d, conf, s['name'], keep_account=s['name'],
+                         access_check=not_me_out, replace=bool(h.body().get('replace')))
+    return {'message': 'imported: %s%s' % (
+        ', '.join('%s %d' % kv for kv in sorted(said.items()) if ':' not in kv[0]) or 'nothing',
+        ''.join('; %d %s' % (v, k) for k, v in sorted(said.items()) if ':' in k)),
+            'imported': dict(said)}
+
+

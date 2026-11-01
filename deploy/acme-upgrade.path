@@ -1,0 +1,15 @@
+# /etc/systemd/system/acme-upgrade.path (1.0.37)
+#
+# Watches for a new version asked for on the pages: the acme service lays a
+# signed package and request.json down in /var/lib/acme/upgrade/, and this
+# starts acme-upgrade.service, which checks the package as root and runs its
+# install.sh --upgrade. Nothing else can be asked for this way.
+[Unit]
+Description=acme - a new version asked for on the pages
+
+[Path]
+PathExists=/var/lib/acme/upgrade/request.json
+Unit=acme-upgrade.service
+
+[Install]
+WantedBy=multi-user.target
