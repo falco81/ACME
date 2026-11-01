@@ -497,6 +497,17 @@ select.ct-valsel option.ct-unfit{color:var(--tx-mut)}
 .ct-acmedns-out code{display:inline-block;margin:4px 0}
 .ct-acmedns-rec{display:flex;align-items:center;gap:10px}
 
+/* SSH DNS: what runs on the DNS server, found from the form */
+.ct-sshdns{margin-top:16px}
+.ct-sshdns > .btn{margin-top:4px}
+.ct-sshdns-out{margin-top:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.ct-sshdns-out table{width:100%}
+.ct-sshdns-zones td{vertical-align:middle;overflow-wrap:anywhere}
+.ct-sshdns-problems{margin:0;padding-left:18px}
+.ct-sshdns-ask{padding:8px 10px;border:1px dashed var(--line);border-radius:8px}
+.ct-sshdns-out .ct-steps-btn{align-self:flex-start}
+@media (max-width:560px){.ct-sshdns-zones th:nth-child(3),.ct-sshdns-zones td:nth-child(3){display:none}}
+
 /* ---- a deployment's files and the script after them (deployfiles.js) -------
    The designer on the left, what it will really be on the right; one column
    where the popup is narrow. No box of its own scrolls but the code. */
@@ -639,3 +650,8 @@ textarea.df-code-t:focus{border:0}
 /* Where a target's files and script are set: a quiet line, as the help under a field. */
 .ct-deploy-hint{margin-top:14px;font-size:12px;line-height:1.5;color:var(--tx-dim)}
 .ct-deploy-hint span{color:inherit;font-weight:400}
+
+/* Editing a certificate already issued: the steps in the certificate itself. */
+.ct-wsteps .ct-wstep-cert{display:inline-flex;margin-left:6px;color:var(--warn);opacity:.85;vertical-align:middle}
+.note.tm-acme-only{border-left-color:var(--ok)}
+.tm-details h4 .ct-d-edit{margin-left:12px;vertical-align:middle;text-transform:none;letter-spacing:0}

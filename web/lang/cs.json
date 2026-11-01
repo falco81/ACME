@@ -39675,6 +39675,750 @@
   "sq9917": {
    "source": "set for each certificate in its deployment - Certificates → the certificate → Deployments → \"Deploy it on a target\", or \"Deploy a certificate here\" in the detail of this target. Here only how acme reaches the machine, and the script it runs when a deployment says nothing.",
    "text": "nastavují se u každého certifikátu v jeho nasazení – Certifikáty → certifikát → Nasazení → „Nasadit na cíl“, nebo „Nasadit sem certifikát“ v detailu tohoto cíle. Zde je jen to, jak se acme na stroj dostane, a skript, který spustí, když nasazení neřekne jinak."
+  },
+  "ssb0001": {
+   "source": "When the nodes lose each other",
+   "text": "Když se uzly ztratí"
+  },
+  "ssb0002": {
+   "source": "one database - nothing to choose",
+   "text": "jedna databáze – není co volit"
+  },
+  "ssb0003": {
+   "source": "apart now",
+   "text": "teď odděleně"
+  },
+  "ssb0004": {
+   "source": "together",
+   "text": "spolu"
+  },
+  "ssb0005": {
+   "source": "apart",
+   "text": "odděleně"
+  },
+  "ssb0006": {
+   "source": "Both nodes open one database: whatever one node writes the other sees at once, so a code can never be let in twice, and the nodes cannot go two ways. Nothing here is needed - this is for two nodes that replicate.",
+   "text": "Oba uzly otevírají jednu databázi: co jeden zapíše, druhý hned vidí, takže kód nikdy neprojde dvakrát a uzly se nemohou rozejít. Nic z toho tu není potřeba – je to pro dva uzly, které se replikují."
+  },
+  "ssb0007": {
+   "source": "stepped aside",
+   "text": "ustoupil stranou"
+  },
+  "ssb0008": {
+   "source": "cannot reach the other node",
+   "text": "nevidí druhý uzel"
+  },
+  "ssb0009": {
+   "source": "reaches the other node",
+   "text": "vidí druhý uzel"
+  },
+  "ssb0010": {
+   "source": "arbiter",
+   "text": "arbitr"
+  },
+  "ssb0011": {
+   "source": "changes on the pages wait here",
+   "text": "změny na stránkách tu čekají"
+  },
+  "ssb0012": {
+   "source": "half the tries",
+   "text": "poloviční pokusy"
+  },
+  "ssb0013": {
+   "source": "its word has not come over yet",
+   "text": "jeho stav sem ještě nedorazil"
+  },
+  "ssb0014": {
+   "source": "nothing heard from it - it is down, or the link is",
+   "text": "nic od něj nepřišlo – je dole, nebo spojení"
+  },
+  "ssb0015": {
+   "source": "Who answers while they cannot reach each other",
+   "text": "Kdo obsluhuje, když se uzly nevidí"
+  },
+  "ssb0016": {
+   "source": "As until now: both nodes go on",
+   "text": "Jako dosud: pokračují oba uzly"
+  },
+  "ssb0017": {
+   "source": "Each node goes on alone and answers everything. With every switch below off nothing of this runs at all - no question to the other node, no arbiter, nothing written: exactly as before.",
+   "text": "Každý uzel pokračuje sám a obsluhuje vše. Se všemi přepínači níže vypnutými neběží vůbec nic z toho – žádný dotaz na druhý uzel, žádný arbitr, nic se nezapisuje: přesně jako dřív."
+  },
+  "ssb0018": {
+   "source": "as until now - not watched",
+   "text": "jako dosud – nesleduje se"
+  },
+  "ssb0019": {
+   "source": "not watched",
+   "text": "nesleduje se"
+  },
+  "ssb0020": {
+   "source": "nothing is watched - as before: it goes on alone whatever happens to the other",
+   "text": "nic se nesleduje – jako dřív: pokračuje sám, ať se s druhým děje cokoli"
+  },
+  "ssb0021": {
+   "source": "Both nodes go on; the switches below hold while they are apart - the other node’s database is watched for it.",
+   "text": "Pokračují oba uzly; přepínače níže platí, zatímco jsou odděleně – kvůli tomu se sleduje databáze druhého uzlu."
+  },
+  "ssb0022": {
+   "source": "The other node’s database is watched every two seconds.",
+   "text": "Databáze druhého uzlu se kontroluje každé dvě sekundy."
+  },
+  "ssb0023": {
+   "source": "Nobody is ever turned away while one node answers",
+   "text": "Dokud odpovídá aspoň jeden uzel, nikdo není odmítnut"
+  },
+  "ssb0024": {
+   "source": "The wrong tries are counted on each half apart",
+   "text": "Špatné pokusy se počítají v každé polovině zvlášť"
+  },
+  "ssb0025": {
+   "source": "Changes made on each half go their own way",
+   "text": "Změny na každé straně jdou vlastní cestou"
+  },
+  "ssb0026": {
+   "source": "The node that still sees the network",
+   "text": "Uzel, který stále vidí síť"
+  },
+  "ssb0027": {
+   "source": "Each node asks its arbiter - its default gateway, or an address given. The node that reaches neither the other node nor its arbiter is the one cut off: it steps aside.",
+   "text": "Každý uzel se ptá svého arbitra – své výchozí brány nebo zadané adresy. Uzel, který nevidí druhý uzel ani svého arbitra, je ten odříznutý: ustoupí stranou."
+  },
+  "ssb0028": {
+   "source": "A node cut off from the network stops at once",
+   "text": "Uzel odříznutý od sítě hned přestane obsluhovat"
+  },
+  "ssb0029": {
+   "source": "A node really gone: the other goes on alone",
+   "text": "Když uzel opravdu vypadne, druhý pokračuje sám"
+  },
+  "ssb0030": {
+   "source": "When only the link between the two nodes breaks, both still answer",
+   "text": "Když se přeruší jen spojení mezi uzly, obsluhují dál oba"
+  },
+  "ssb0031": {
+   "source": "Only the preferred node",
+   "text": "Jen upřednostněný uzel"
+  },
+  "ssb0032": {
+   "source": "While they cannot reach each other only the preferred node answers; the other steps aside.",
+   "text": "Dokud se nevidí, obsluhuje jen upřednostněný uzel; druhý ustoupí stranou."
+  },
+  "ssb0033": {
+   "source": "Never two halves answering",
+   "text": "Nikdy neobsluhují dvě poloviny"
+  },
+  "ssb0034": {
+   "source": "If the preferred node itself is gone, nobody answers until it is back - or this is changed",
+   "text": "Když vypadne sám upřednostněný uzel, nikdo neobsluhuje, dokud se nevrátí – nebo dokud se tohle nezmění"
+  },
+  "ssb0035": {
+   "source": "as before",
+   "text": "jako dosud"
+  },
+  "ssb0036": {
+   "source": "The preferred node",
+   "text": "Upřednostněný uzel"
+  },
+  "ssb0037": {
+   "source": "Apart after (seconds)",
+   "text": "Odděleně po (sekundách)"
+  },
+  "ssb0038": {
+   "source": "How long the other node’s database must not answer before the nodes count as apart. Shorter: sooner safe; longer: a short hiccup of the network changes nothing.",
+   "text": "Jak dlouho nesmí databáze druhého uzlu odpovídat, než se uzly považují za oddělené. Kratší: dřív v bezpečí; delší: krátký výpadek sítě nic nezmění."
+  },
+  "ssb0039": {
+   "source": "Try it from every node",
+   "text": "Vyzkoušet ze všech uzlů"
+  },
+  "ssb0040": {
+   "source": "every node reaches its arbiter",
+   "text": "každý uzel vidí svého arbitra"
+  },
+  "ssb0041": {
+   "source": "not every node reaches its arbiter",
+   "text": "ne každý uzel vidí svého arbitra"
+  },
+  "ssb0042": {
+   "source": "needed before saving",
+   "text": "nutné před uložením"
+  },
+  "ssb0043": {
+   "source": "its default gateway",
+   "text": "jeho výchozí brána"
+  },
+  "ssb0044": {
+   "source": "replies",
+   "text": "odpovídá"
+  },
+  "ssb0045": {
+   "source": "cannot be asked",
+   "text": "nelze se zeptat"
+  },
+  "ssb0046": {
+   "source": "no arbiter: no default gateway - give one",
+   "text": "žádný arbitr: chybí výchozí brána – zadejte ho"
+  },
+  "ssb0047": {
+   "source": "And while they are apart",
+   "text": "A zatímco jsou odděleně"
+  },
+  "ssb0048": {
+   "source": "Half the tries while apart",
+   "text": "Poloviční pokusy během oddělení"
+  },
+  "ssb0049": {
+   "source": "Changes only on the preferred node while apart",
+   "text": "Změny jen na upřednostněném uzlu během oddělení"
+  },
+  "ssb0050": {
+   "source": "Warn while apart, report afterwards",
+   "text": "Upozornit během oddělení, report potom"
+  },
+  "ssb0051": {
+   "source": "What happens - with the choices above",
+   "text": "Co se stane – s volbami výše"
+  },
+  "ssb0052": {
+   "source": "What it costs",
+   "text": "Co to stojí"
+  },
+  "ssb0053": {
+   "source": "steps aside",
+   "text": "ustoupí stranou"
+  },
+  "ssb0054": {
+   "source": "cut off",
+   "text": "odříznutý"
+  },
+  "ssb0055": {
+   "source": "nobody reachable answers",
+   "text": "neobsluhuje nikdo dosažitelný"
+  },
+  "ssb0056": {
+   "source": "both answer",
+   "text": "obsluhují oba"
+  },
+  "ssb0057": {
+   "source": "an app code may pass on both within its 30 s",
+   "text": "kód z aplikace může projít na obou během svých 30 s"
+  },
+  "ssb0058": {
+   "source": "twice the wrong tries",
+   "text": "dvojnásobek špatných pokusů"
+  },
+  "ssb0059": {
+   "source": "changes on both halves go two ways",
+   "text": "změny na obou stranách se rozejdou"
+  },
+  "ssb0060": {
+   "source": "Only the link between the two breaks (both still see the network)",
+   "text": "Přeruší se jen spojení mezi nimi (oba dál vidí síť)"
+  },
+  "ssb0061": {
+   "source": "The last time apart",
+   "text": "Poslední oddělení"
+  },
+  "ssb0062": {
+   "source": "Try the arbiter from every node first: a node that cannot reach its arbiter would step aside the moment the other is away",
+   "text": "Nejdřív vyzkoušejte arbitra ze všech uzlů: uzel, který na svého arbitra nedosáhne, by ustoupil stranou, jakmile by druhý vypadl"
+  },
+  "ssb0063": {
+   "source": "kept - each node follows it within seconds",
+   "text": "uloženo – každý uzel se tím do pár sekund řídí"
+  },
+  "ssb0064": {
+   "source": "the nodes cannot reach each other and this is not the preferred node",
+   "text": "uzly se nevidí a tento uzel není upřednostněný"
+  },
+  "ssb0065": {
+   "source": "the preferred node answers while the nodes are apart",
+   "text": "upřednostněný uzel obsluhuje, dokud jsou uzly odděleně"
+  },
+  "ssb0066": {
+   "source": "neither the other node nor the arbiter can be reached - this node is the one cut off",
+   "text": "nedosáhne na druhý uzel ani na arbitra – odříznutý je tento uzel"
+  },
+  "ssb0067": {
+   "source": "the arbiter cannot be asked from here - this node answers",
+   "text": "arbitra se odsud nelze zeptat – tento uzel obsluhuje"
+  },
+  "ssb0068": {
+   "source": "the arbiter is reached - this node answers",
+   "text": "arbitr odpovídá – tento uzel obsluhuje"
+  },
+  "ssb0069": {
+   "source": "both nodes answer while they are apart (no rule chosen)",
+   "text": "oba uzly obsluhují, dokud jsou odděleně (žádné pravidlo nezvoleno)"
+  },
+  "ssb0070": {
+   "source": "Who answers while the nodes are apart",
+   "text": "Kdo obsluhuje, když jsou uzly odděleně"
+  },
+  "ssb0071": {
+   "source": "The arbiter",
+   "text": "Arbitr"
+  },
+  "ssb0072": {
+   "source": "Apart after",
+   "text": "Odděleně po"
+  },
+  "ssb0073": {
+   "source": "Two nodes that cannot reach each other each take the other for gone and go on alone (split brain): a certificate may then be renewed on both halves, the wrong tries are counted on each half apart, and what is changed on each half goes its own way. Without a third machine it cannot be ruled out - but which node goes on, and what holds meanwhile, is chosen here. Each node watches the other’s database every two seconds.",
+   "text": "Dva uzly, které se navzájem nevidí, považují jeden druhého za mrtvý a pokračují každý sám (split brain): certifikát se pak může obnovit v obou polovinách, špatné pokusy se počítají v každé polovině zvlášť a co se změní na každé straně, jde vlastní cestou. Bez třetího stroje se to vyloučit nedá – ale který uzel pokračuje a co mezitím platí, se volí tady. Každý uzel kontroluje databázi toho druhého každé dvě sekundy."
+  },
+  "ssb0074": {
+   "source": "A certificate may be renewed on both halves",
+   "text": "Certifikát se může obnovit v obou polovinách"
+  },
+  "ssb0075": {
+   "source": "Renewals only on the preferred node while apart",
+   "text": "Obnovy jen na upřednostněném uzlu během oddělení"
+  },
+  "ssb0076": {
+   "source": "A certificate issued is issued for good - renewed on both halves it is two versions, a paid one paid twice, a CA’s limits counted twice. While apart only the preferred node renews, deploys and lets acme’s own authorities sign; the other waits, and the preferred catches up.",
+   "text": "Vydaný certifikát je vydaný navždy – obnovený v obou polovinách znamená dvě verze, placený zaplacený dvakrát a limity CA započtené dvakrát. Během oddělení obnovuje, nasazuje a nechává podepisovat vlastní autority acme jen upřednostněný uzel; druhý čeká a upřednostněný vše dožene."
+  },
+  "ssb0077": {
+   "source": "The pause after wrong passwords and codes comes after half its tries on each node - the administration and the portal - both halves together then allow what one node does.",
+   "text": "Pauza po špatných heslech a kódech přijde na každém uzlu po polovině pokusů – v administraci i na portálu – obě poloviny dohromady pak dovolí tolik, co jeden uzel."
+  },
+  "ssb0078": {
+   "source": "On the other node the pages show everything and change nothing (certificates, authorities, sources, targets, deployments, settings) until the nodes see each other again - nothing goes two ways. This card can always be changed.",
+   "text": "Na druhém uzlu stránky vše ukazují, ale nic nemění (certifikáty, autority, zdroje, cíle, nasazení, nastavení), dokud se uzly znovu neuvidí – nic se nerozejde. Tuto kartu lze měnit vždy."
+  },
+  "ssb0079": {
+   "source": "An alert while the nodes cannot reach each other; once together again, a report of what each did without the other knowing - renewals, revocations, signing, changes, sign-ins - and of anything done on both.",
+   "text": "Upozornění, dokud se uzly nevidí; po spojení report toho, co každý udělal bez vědomí druhého – obnovy, revokace, podpisy, změny, přihlášení – a toho, co se udělalo na obou."
+  },
+  "ssb0080": {
+   "source": "a certificate may be renewed on both - two versions",
+   "text": "certifikát se může obnovit na obou – dvě verze"
+  },
+  "ssb0081": {
+   "source": "no renewals, no DNS answers",
+   "text": "žádné obnovy, žádné odpovědi DNS"
+  },
+  "ssb0082": {
+   "source": "renewals wait for the preferred node",
+   "text": "obnovy čekají na upřednostněný uzel"
+  },
+  "ssb0083": {
+   "source": "Exactly as before 1.0.14: nothing of this runs.",
+   "text": "Přesně jako před 1.0.14: nic z toho neběží."
+  },
+  "ssb0084": {
+   "source": "Answers alone with Only the preferred node; the only node where changes are made and certificates renewed while apart; makes the report afterwards.",
+   "text": "Obsluhuje sám při volbě Jen upřednostněný uzel; jediný uzel, kde se během oddělení dělají změny a obnovují certifikáty; po spojení sestaví report."
+  },
+  "ssb0085": {
+   "source": "Each node’s arbiter: what it asks to tell “the other node is gone” from “I am the one cut off”. Empty: its default gateway. Addresses are pinged; name:port is tried over TCP instead (for a network that drops ping). Up to five, any one answering is enough. Give something both nodes reach by different ways than they reach each other - the router, the load balancer, a DNS resolver.",
+   "text": "Arbitr každého uzlu: koho se ptá, aby rozlišil „druhý uzel vypadl“ od „odřízli mě“. Prázdné: jeho výchozí brána. Adresy se pingají; jméno:port se místo toho zkouší přes TCP (pro síť, která ping zahazuje). Nejvýš pět, stačí, když odpoví kterýkoli. Zadejte něco, k čemu se oba uzly dostanou jinou cestou než k sobě navzájem – router, load balancer, DNS resolver."
+  },
+  "ssb0086": {
+   "source": "Renewals and DNS",
+   "text": "Obnovy a DNS"
+  },
+  "ssb0087": {
+   "source": "done without the other node knowing:",
+   "text": "uděláno bez vědomí druhého uzlu:"
+  },
+  "ssb0088": {
+   "source": "done on both:",
+   "text": "uděláno na obou:"
+  },
+  "ssb0089": {
+   "source": "arbiter: none - no default gateway",
+   "text": "arbitr: žádný – chybí výchozí brána"
+  },
+  "ssb0090": {
+   "source": "node 1",
+   "text": "uzel 1"
+  },
+  "so10008": {
+   "source": "In the certificate itself: a change here takes a new certificate (now, or at its next renewal).",
+   "text": "V samotném certifikátu: změna zde vyžaduje nový certifikát (hned, nebo při příští obnově)."
+  },
+  "so10009": {
+   "source": "In the certificate itself: what is changed here goes into a new certificate - saving issues nothing; after Save you choose: renew now, or at its next renewal.",
+   "text": "V samotném certifikátu: co se tu změní, přijde do nového certifikátu – uložení nic nevydává; po Uložit si vyberete: obnovit hned, nebo při příští obnově."
+  },
+  "so10010": {
+   "source": "Only how acme works with it: a change here applies at once, the certificate stays as it is.",
+   "text": "Jen to, jak s ním acme pracuje: změna platí hned, certifikát zůstává, jak je."
+  },
+  "so10011": {
+   "source": "Change names, key, source…",
+   "text": "Změnit jména, klíč, zdroj…"
+  },
+  "so10012": {
+   "source": "The whole set-up, step by step. What is in the certificate itself (names, key, source, profile) takes a new certificate - you choose: now, or at its next renewal. Owner, tags, note and renewal are changed at once in Details above.",
+   "text": "Celé nastavení krok za krokem. Co je v samotném certifikátu (jména, klíč, zdroj, profil), vyžaduje nový certifikát – vyberete si: hned, nebo při příští obnově. Vlastníka, štítky, poznámku a obnovu změníte hned v Údajích nahoře."
+  },
+  "ssd0001": {
+   "source": "acme signs in to the DNS server over SSH and puts the record straight into its zones: BIND (nsupdate or the zone file), PowerDNS, Knot DNS, NSD, dnsmasq, Unbound, Windows DNS, or commands of your own. \"Find out what runs there\" reads what the server is and fills the form in.",
+   "text": "acme se přes SSH přihlásí k DNS serveru a vloží záznam přímo do jeho zón: BIND (nsupdate nebo soubor zóny), PowerDNS, Knot DNS, NSD, dnsmasq, Unbound, Windows DNS, nebo vlastní příkazy. „Zjistit, co tam běží“ přečte, jaký server to je, a vyplní formulář."
+  },
+  "ssd0002": {
+   "source": "\"Find out what runs there\" below chooses it for you.",
+   "text": "Níže to za vás vybere „Zjistit, co tam běží“."
+  },
+  "ssd0003": {
+   "source": "BIND: the zone file edited, then rndc reload",
+   "text": "BIND: úprava souboru zóny, pak rndc reload"
+  },
+  "ssd0004": {
+   "source": "PowerDNS: pdnsutil",
+   "text": "PowerDNS: pdnsutil"
+  },
+  "ssd0005": {
+   "source": "PowerDNS: its HTTP API on that machine",
+   "text": "PowerDNS: jeho HTTP API na tom stroji"
+  },
+  "ssd0006": {
+   "source": "Knot DNS: knotc, in a transaction",
+   "text": "Knot DNS: knotc, v transakci"
+  },
+  "ssd0007": {
+   "source": "NSD: the zone file edited, then nsd-control reload",
+   "text": "NSD: úprava souboru zóny, pak nsd-control reload"
+  },
+  "ssd0008": {
+   "source": "dnsmasq: txt-record lines in a file of acme's own",
+   "text": "dnsmasq: řádky txt-record ve vlastním souboru acme"
+  },
+  "ssd0009": {
+   "source": "Unbound: unbound-control local_data (in memory)",
+   "text": "Unbound: unbound-control local_data (v paměti)"
+  },
+  "ssd0010": {
+   "source": "Commands run as \"sudo -n ...\" (a sudoers line for exactly them). Where a zone file is edited (BIND's zone file, NSD, dnsmasq) the whole script runs as \"sudo -n sh -s\".",
+   "text": "Příkazy běží jako „sudo -n …“ (řádek v sudoers právě pro ně). Kde se upravuje soubor zóny (soubor zóny BINDu, NSD, dnsmasq), běží celý skript jako „sudo -n sh -s“."
+  },
+  "ssd0011": {
+   "source": "Empty: the longest of \"Zones there\" the name is in, else found by its SOA. Windows DNS needs it right (the zone as in DNS Manager).",
+   "text": "Prázdné: nejdelší ze „Zóny tam“, ve které jméno leží, jinak nalezená podle SOA. Windows DNS ji potřebuje přesně (zóna jako v DNS Manageru)."
+  },
+  "ssd0012": {
+   "source": "Zones there",
+   "text": "Zóny tam"
+  },
+  "ssd0013": {
+   "source": "The zones this server holds (Find out what runs there fills them in): a record goes in the longest of them its name is in.",
+   "text": "Zóny, které tento server drží (vyplní je „Zjistit, co tam běží“): záznam jde do nejdelší z nich, ve které jeho jméno leží."
+  },
+  "ssd0014": {
+   "source": "Session key file",
+   "text": "Soubor klíče relace"
+  },
+  "ssd0015": {
+   "source": "Empty: where nsupdate -l looks by itself. Set it when named.conf has a session-keyfile of its own.",
+   "text": "Prázdné: kde ho nsupdate -l hledá sám. Nastavte, když má named.conf vlastní session-keyfile."
+  },
+  "ssd0016": {
+   "source": "Zone files",
+   "text": "Soubory zón"
+  },
+  "ssd0017": {
+   "source": "A line a zone: the zone and its file there. acme adds and takes away only lines of its own (marked \"; acme-challenge\"), raises the SOA serial, checks the new file before the server reloads it, keeps the old one beside it (.FILE.acme-bak) and puts it back when the reload fails. A file it cannot read safely ($INCLUDE, no single SOA) is refused.",
+   "text": "Řádek na zónu: zóna a její soubor tam. acme přidává a odebírá jen vlastní řádky (označené „; acme-challenge“), zvýší sériové číslo SOA, nový soubor zkontroluje dřív, než ho server načte, starý ponechá vedle (.SOUBOR.acme-bak) a vrátí ho, když načtení selže. Soubor, který nedokáže bezpečně přečíst ($INCLUDE, ne právě jedno SOA), odmítne."
+  },
+  "ssd0018": {
+   "source": "Raising the SOA serial",
+   "text": "Zvýšení sériového čísla SOA"
+  },
+  "ssd0019": {
+   "source": "as it is written: a date (YYYYMMDDnn) or a number + 1",
+   "text": "podle zápisu: datum (YYYYMMDDnn), nebo číslo + 1"
+  },
+  "ssd0020": {
+   "source": "a date, YYYYMMDDnn",
+   "text": "datum, YYYYMMDDnn"
+  },
+  "ssd0021": {
+   "source": "the time, Unix seconds",
+   "text": "čas, unixové sekundy"
+  },
+  "ssd0022": {
+   "source": "the number + 1",
+   "text": "číslo + 1"
+  },
+  "ssd0023": {
+   "source": "Freeze a dynamic zone while its file is edited",
+   "text": "Zmrazit dynamickou zónu po dobu úpravy jejího souboru"
+  },
+  "ssd0024": {
+   "source": "A zone with a journal (.jnl): rndc freeze before, rndc thaw after. Off: such a zone is refused - use nsupdate for it.",
+   "text": "Zóna s žurnálem (.jnl): předtím rndc freeze, potom rndc thaw. Vypnuto: taková zóna se odmítne – použijte pro ni nsupdate."
+  },
+  "ssd0025": {
+   "source": "rndc command",
+   "text": "Příkaz rndc"
+  },
+  "ssd0026": {
+   "source": "Zone check command",
+   "text": "Příkaz kontroly zóny"
+  },
+  "ssd0027": {
+   "source": "named.conf",
+   "text": "named.conf"
+  },
+  "ssd0028": {
+   "source": "Empty: the one named-checkconf reads by itself. Read by \"Find out what runs there\" only.",
+   "text": "Prázdné: ten, který named-checkconf čte sám. Čte ho jen „Zjistit, co tam běží“."
+  },
+  "ssd0029": {
+   "source": "PowerDNS configuration directory",
+   "text": "Adresář konfigurace PowerDNS"
+  },
+  "ssd0030": {
+   "source": "PowerDNS API there",
+   "text": "API PowerDNS tam"
+  },
+  "ssd0031": {
+   "source": "Asked by curl on that machine - the API needs to listen on localhost only.",
+   "text": "Ptá se ho curl na tom stroji – API stačí naslouchat jen na localhostu."
+  },
+  "ssd0032": {
+   "source": "api-key of pdns.conf. Handed to curl on its input, never on a command line.",
+   "text": "api-key z pdns.conf. Předá se curlu na vstup, nikdy na příkazové řádce."
+  },
+  "ssd0033": {
+   "source": "Rectify the zone after a change",
+   "text": "Po změně zónu opravit (rectify)"
+  },
+  "ssd0034": {
+   "source": "pdnsutil rectify-zone (the API: PUT .../rectify) - what a DNSSEC-signed zone needs; harmless for any other.",
+   "text": "pdnsutil rectify-zone (API: PUT …/rectify) – potřebuje to zóna podepsaná DNSSEC; ostatním neuškodí."
+  },
+  "ssd0035": {
+   "source": "Raise the SOA serial after a change",
+   "text": "Po změně zvýšit sériové číslo SOA"
+  },
+  "ssd0036": {
+   "source": "pdnsutil increase-serial - for secondaries that transfer the zone.",
+   "text": "pdnsutil increase-serial – pro sekundární servery, které si zónu přenášejí."
+  },
+  "ssd0037": {
+   "source": "knot.conf",
+   "text": "knot.conf"
+  },
+  "ssd0038": {
+   "source": "nsd.conf",
+   "text": "nsd.conf"
+  },
+  "ssd0039": {
+   "source": "nsd-control command",
+   "text": "Příkaz nsd-control"
+  },
+  "ssd0040": {
+   "source": "File of acme's own",
+   "text": "Vlastní soubor acme"
+  },
+  "ssd0041": {
+   "source": "Holds only acme's txt-record lines; dnsmasq must read the directory (conf-dir=/etc/dnsmasq.d/,*.conf).",
+   "text": "Obsahuje jen řádky txt-record od acme; dnsmasq musí číst jeho adresář (conf-dir=/etc/dnsmasq.d/,*.conf)."
+  },
+  "ssd0042": {
+   "source": "Restart command",
+   "text": "Příkaz restartu"
+  },
+  "ssd0043": {
+   "source": "dnsmasq reads txt-record lines only when it starts - a SIGHUP does not reload them, so it is restarted (its cache is lost). dnsmasq --test runs first; a failed restart puts the file back.",
+   "text": "dnsmasq čte řádky txt-record jen při startu – SIGHUP je znovu nenačte, proto se restartuje (přijde o cache). Nejdřív proběhne dnsmasq --test; nepovedený restart soubor vrátí."
+  },
+  "ssd0044": {
+   "source": "dnsmasq.conf",
+   "text": "dnsmasq.conf"
+  },
+  "ssd0045": {
+   "source": "Empty: its own. For dnsmasq --test (-C).",
+   "text": "Prázdné: jeho vlastní. Pro dnsmasq --test (-C)."
+  },
+  "ssd0046": {
+   "source": "unbound.conf",
+   "text": "unbound.conf"
+  },
+  "ssd0047": {
+   "source": "Empty: its own. unbound-control -c.",
+   "text": "Prázdné: jeho vlastní. unbound-control -c."
+  },
+  "ssd0048": {
+   "source": "Find out what runs there",
+   "text": "Zjistit, co tam běží"
+  },
+  "ssd0049": {
+   "source": "Signs in over SSH and runs read-only commands only: which DNS server runs there, its zones, their files and keys, whether sudo works. Nothing is written, reloaded or restarted.",
+   "text": "Přihlásí se přes SSH a spustí jen příkazy, které nic nemění: jaký DNS server tam běží, jeho zóny, jejich soubory a klíče, zda funguje sudo. Nic se nezapíše, nenačte znovu ani nerestartuje."
+  },
+  "ssd0050": {
+   "source": "What runs there",
+   "text": "Co tam běží"
+  },
+  "ssd0051": {
+   "source": "acme signs in over SSH and only reads: which DNS server runs there, its zones, their files and keys, whether sudo works. Nothing is written, reloaded or restarted. What it finds is filled in below - check it, then Save. If it finds nothing, every field can be set by hand.",
+   "text": "acme se přihlásí přes SSH a jen čte: jaký DNS server tam běží, jeho zóny, jejich soubory a klíče, zda funguje sudo. Nic se nezapíše, nenačte znovu ani nerestartuje. Co najde, vyplní níže – zkontrolujte to a uložte. Když nic nenajde, každé pole jde nastavit ručně."
+  },
+  "ssd0052": {
+   "source": "These are set otherwise than what was found - replace them?",
+   "text": "Tato pole jsou nastavená jinak, než co se našlo – nahradit je?"
+  },
+  "ssd0053": {
+   "source": "Field",
+   "text": "Pole"
+  },
+  "ssd0054": {
+   "source": "Found",
+   "text": "Nalezeno"
+  },
+  "ssd0055": {
+   "source": "Replace the ticked ones",
+   "text": "Nahradit zaškrtnutá"
+  },
+  "ssd0056": {
+   "source": "Nothing replaced.",
+   "text": "Nic nenahrazeno."
+  },
+  "ssd0057": {
+   "source": "Kept as it was.",
+   "text": "Ponecháno, jak bylo."
+  },
+  "ssd0058": {
+   "source": "The form already says what was found.",
+   "text": "Formulář už říká, co se našlo."
+  },
+  "ssd0059": {
+   "source": "It could not be found out",
+   "text": "Nepodařilo se to zjistit"
+  },
+  "ssd0060": {
+   "source": "Every field below can still be set by hand.",
+   "text": "Každé pole níže jde i tak nastavit ručně."
+  },
+  "ssd0061": {
+   "source": "Suggested",
+   "text": "Doporučeno"
+  },
+  "ssd0062": {
+   "source": "sudo -n",
+   "text": "sudo -n"
+  },
+  "ssd0063": {
+   "source": "not needed",
+   "text": "není potřeba"
+  },
+  "ssd0064": {
+   "source": "works, needed",
+   "text": "funguje, je potřeba"
+  },
+  "ssd0065": {
+   "source": "works",
+   "text": "funguje"
+  },
+  "ssd0066": {
+   "source": "does not work",
+   "text": "nefunguje"
+  },
+  "ssd0067": {
+   "source": "none found",
+   "text": "žádný nenalezen"
+  },
+  "ssd0068": {
+   "source": "Dynamic",
+   "text": "Dynamická"
+  },
+  "ssd0069": {
+   "source": "How acme writes it",
+   "text": "Jak ji acme zapisuje"
+  },
+  "ssd0070": {
+   "source": "Use only this one",
+   "text": "Použít jen tuto"
+  },
+  "ssd0071": {
+   "source": "not by acme",
+   "text": "acme ne"
+  },
+  "ssd0072": {
+   "source": "With Zone left empty each name goes in the longest of \"Zones there\" it is in.",
+   "text": "Když zůstane Zóna prázdná, jde každé jméno do nejdelší ze „Zóny tam“, ve které leží."
+  },
+  "ssd0073": {
+   "source": "Keys: ",
+   "text": "Klíče: "
+  },
+  "ssd0074": {
+   "source": "What was run there (read-only)",
+   "text": "Co se tam spustilo (jen čtení)"
+  },
+  "ssd0075": {
+   "source": "Set the DNS server first",
+   "text": "Nejdřív nastavte DNS server"
+  },
+  "ssd0076": {
+   "source": "what runs there",
+   "text": "co tam běží"
+  },
+  "ssd0077": {
+   "source": "no DNS server acme knows was found there",
+   "text": "nenašel se tam žádný DNS server, který acme zná"
+  },
+  "ssd0078": {
+   "source": "discovery failed - every field can be set by hand",
+   "text": "zjišťování selhalo – každé pole jde nastavit ručně"
+  },
+  "ssd0079": {
+   "source": "BIND: zones in views - rndc reload is told the zone name only",
+   "text": "BIND: zóny ve views – rndc reload dostane jen jméno zóny"
+  },
+  "ssd0080": {
+   "source": "BIND: no zone of its own in the configuration",
+   "text": "BIND: v konfiguraci není žádná jeho vlastní zóna"
+  },
+  "ssd0081": {
+   "source": "BIND: named-checkconf is not there - its zones cannot be read",
+   "text": "BIND: named-checkconf tam není – jeho zóny nejde přečíst"
+  },
+  "ssd0082": {
+   "source": "PowerDNS: pdnsutil is not there",
+   "text": "PowerDNS: pdnsutil tam není"
+  },
+  "ssd0083": {
+   "source": "PowerDNS: it has no zones yet",
+   "text": "PowerDNS: zatím nemá žádné zóny"
+  },
+  "ssd0084": {
+   "source": "PowerDNS: its HTTP API is on (api=yes) - set its API key",
+   "text": "PowerDNS: jeho HTTP API je zapnuté (api=yes) – nastavte jeho klíč API"
+  },
+  "ssd0085": {
+   "source": "Knot: knotd does not answer knotc - the zones are those of its configuration",
+   "text": "Knot: knotd neodpovídá knotc – zóny jsou ty z jeho konfigurace"
+  },
+  "ssd0086": {
+   "source": "NSD: nsd-checkconf is not there - its zones cannot be read",
+   "text": "NSD: nsd-checkconf tam není – jeho zóny nejde přečíst"
+  },
+  "ssd0087": {
+   "source": "dnsmasq: it reads txt-record only when it starts - acme restarts it (systemctl restart dnsmasq) for each change",
+   "text": "dnsmasq: txt-record čte jen při startu – acme ho při každé změně restartuje (systemctl restart dnsmasq)"
+  },
+  "ssd0088": {
+   "source": "Unbound: a resolver - the CA asks the zone's authoritative servers; local data helps only where Unbound is the one asked (an internal CA)",
+   "text": "Unbound: resolver – autorita se ptá autoritativních serverů zóny; lokální data pomohou jen tam, kde se ptá právě Unbound (interní autorita)"
+  },
+  "ssd0089": {
+   "source": "no DNS server acme knows was found there (BIND, PowerDNS, Knot, NSD, dnsmasq, Unbound) - set the fields by hand",
+   "text": "nenašel se tam žádný DNS server, který acme zná (BIND, PowerDNS, Knot, NSD, dnsmasq, Unbound) – nastavte pole ručně"
+  },
+  "ssd0090": {
+   "source": "the API key of PowerDNS is not set",
+   "text": "klíč API PowerDNS není nastaven"
+  },
+  "so10103": {
+   "source": "Change",
+   "text": "Změnit"
   }
  },
  "patterns": {
@@ -55181,6 +55925,210 @@
   "px3710": {
    "source": "the twin of {0}",
    "text": "dvojče {0}"
+  },
+  "psb0001": {
+   "source": "{0} is switched off or fails",
+   "text": "{0} se vypne nebo selže"
+  },
+  "psb0002": {
+   "source": "{0} loses the network",
+   "text": "{0} ztratí síť"
+  },
+  "psb0003": {
+   "source": "{0} answers everything",
+   "text": "{0} obsluhuje vše"
+  },
+  "psb0004": {
+   "source": "nobody answers until {0} is back",
+   "text": "nikdo neobsluhuje, dokud se {0} nevrátí"
+  },
+  "psb0005": {
+   "source": "whatever still reaches {0}:",
+   "text": "co se ještě dostane na {0}:"
+  },
+  "psb0006": {
+   "source": "Arbiter of {0}",
+   "text": "Arbitr uzlu {0}"
+  },
+  "psb0007": {
+   "source": "the first node ({0})",
+   "text": "první uzel ({0})"
+  },
+  "psb0008": {
+   "source": "arbiter: its gateway {0}",
+   "text": "arbitr: jeho brána {0}"
+  },
+  "psb0009": {
+   "source": "its gateway {0}",
+   "text": "jeho brána {0}"
+  },
+  "psb0010": {
+   "source": "stepped aside: {0}",
+   "text": "ustoupil stranou: {0}"
+  },
+  "psb0011": {
+   "source": "the two nodes cannot reach each other: changes are made on {0} only until they do (Settings -> High availability -> When the nodes lose each other)",
+   "text": "uzly se navzájem nevidí: změny se dělají jen na {0}, dokud se neuvidí (Nastavení → Vysoká dostupnost → Když se uzly ztratí)"
+  },
+  "psb0012": {
+   "source": "renewals wait until {0} is back",
+   "text": "obnovy čekají, dokud se {0} nevrátí"
+  },
+  "psb0013": {
+   "source": "this node has stepped aside while the two nodes cannot reach each other ({0}): certificates are issued and signed by the other node",
+   "text": "tento uzel ustoupil stranou, dokud se oba uzly nevidí ({0}): certifikáty vydává a podepisuje druhý uzel"
+  },
+  "psb0014": {
+   "source": "the two nodes cannot reach each other: certificates are issued, renewed, revoked and signed on {0} only until they do (Settings -> High availability -> When the nodes lose each other)",
+   "text": "uzly se navzájem nevidí: certifikáty se vydávají, obnovují, revokují a podepisují jen na {0}, dokud se neuvidí (Nastavení → Vysoká dostupnost → Když se uzly ztratí)"
+  },
+  "pssd0001": {
+   "source": "Filled in: {0} - save the validation to keep it.",
+   "text": "Vyplněno: {0} – uložte validaci, aby zůstalo."
+  },
+  "pssd0002": {
+   "source": "Replaced: {0} - save the validation to keep it.",
+   "text": "Nahrazeno: {0} – uložte validaci, aby zůstalo."
+  },
+  "pssd0003": {
+   "source": "Zone: {0}",
+   "text": "Zóna: {0}"
+  },
+  "pssd0004": {
+   "source": "what runs on {0} - read-only commands only",
+   "text": "co běží na {0} – jen příkazy, které nic nemění"
+  },
+  "pssd0005": {
+   "source": "challenge {0}: find out what runs there",
+   "text": "validace {0}: zjistit, co tam běží"
+  },
+  "pssd0006": {
+   "source": "{0}: discovery failed - every field can be set by hand",
+   "text": "{0}: zjišťování selhalo – každé pole jde nastavit ručně"
+  },
+  "pssd0007": {
+   "source": "{0}: no DNS server acme knows was found there",
+   "text": "{0}: nenašel se tam žádný DNS server, který acme zná"
+  },
+  "pssd0008": {
+   "source": "{0} is not a zone file acme edits safely ({1}) - use a dynamic zone (nsupdate) for it instead",
+   "text": "{0} není soubor zóny, který acme bezpečně upraví ({1}) – použijte pro něj raději dynamickou zónu (nsupdate)"
+  },
+  "pssd0009": {
+   "source": "{0} runs there too - acme suggests {1}; another validation can use the other one",
+   "text": "běží tam i {0} – acme doporučuje {1}; ten druhý může použít jiná validace"
+  },
+  "pssd0010": {
+   "source": "BIND: {0} written another way ({1}) - another validation can do those",
+   "text": "BIND: {0} se zapisují jinak ({1}) – ty může dělat jiná validace"
+  },
+  "pssd0011": {
+   "source": "BIND: named-checkconf -p could not read the configuration: {0}",
+   "text": "BIND: named-checkconf -p nedokázal přečíst konfiguraci: {0}"
+  },
+  "pssd0012": {
+   "source": "BIND: the session key ({0}) is not there yet - named makes it when it runs with a zone of update-policy local",
+   "text": "BIND: klíč relace ({0}) tam zatím není – named ho vytvoří, když běží se zónou s update-policy local"
+  },
+  "pssd0013": {
+   "source": "BIND: {0} cannot read the session key {1} - put it in the group of named (bind) or allow sudo -n nsupdate",
+   "text": "BIND: {0} nemůže číst klíč relace {1} – dejte ho do skupiny named (bind), nebo povolte sudo -n nsupdate"
+  },
+  "pssd0014": {
+   "source": "BIND: {0} cannot write the zone files and sudo -n does not work - allow sudo (sh) or make them writable by its group",
+   "text": "BIND: {0} nemůže zapisovat soubory zón a sudo -n nefunguje – povolte sudo (sh), nebo je zpřístupněte k zápisu jeho skupině"
+  },
+  "pssd0015": {
+   "source": "BIND: zones take updates signed by {0}, but no key file of it was found there - set the key file by hand",
+   "text": "BIND: zóny přijímají změny podepsané {0}, ale jeho soubor s klíčem se tam nenašel – nastavte soubor s klíčem ručně"
+  },
+  "pssd0016": {
+   "source": "PowerDNS: pdnsutil list-all-zones did not work: {0}",
+   "text": "PowerDNS: pdnsutil list-all-zones nefungoval: {0}"
+  },
+  "pssd0017": {
+   "source": "Knot: knotc could not ask the server ({0}) - is knotd running, and may this account use its control socket?",
+   "text": "Knot: knotc se nemohl zeptat serveru ({0}) – běží knotd a smí tento účet používat jeho řídicí socket?"
+  },
+  "pssd0018": {
+   "source": "NSD: nsd-checkconf could not read {0}: {1}",
+   "text": "NSD: nsd-checkconf nedokázal přečíst {0}: {1}"
+  },
+  "pssd0019": {
+   "source": "dnsmasq: {0} is not there - make it, and have dnsmasq read it (conf-dir={1}/,*.conf)",
+   "text": "dnsmasq: {0} tam není – vytvořte ho a nechte ho dnsmasq číst (conf-dir={1}/,*.conf)"
+  },
+  "pssd0020": {
+   "source": "dnsmasq: its configuration names no conf-dir={0}",
+   "text": "dnsmasq: jeho konfigurace neuvádí conf-dir={0}"
+  },
+  "pssd0021": {
+   "source": "Unbound: unbound-control could not ask it ({0}) - remote-control enabled, and may this account use it?",
+   "text": "Unbound: unbound-control se ho nemohl zeptat ({0}) – je zapnuté remote-control a smí ho tento účet používat?"
+  },
+  "pssd0022": {
+   "source": "the machine answered neither as Unix (uname) nor as Windows DNS (Get-DnsServerZone): {0}",
+   "text": "stroj neodpověděl ani jako Unix (uname), ani jako Windows DNS (Get-DnsServerZone): {0}"
+  },
+  "pssd0023": {
+   "source": "{0}: the zone files can be edited safely - {1}",
+   "text": "{0}: soubory zón jde bezpečně upravit – {1}"
+  },
+  "pssd0024": {
+   "source": "{0}: {1} answers, {2} zone(s): {3}",
+   "text": "{0}: {1} odpovídá, {2} {2:zóna|zóny|zón}: {3}"
+  },
+  "pssd0025": {
+   "source": "{0}: {1} has no zone {2} (it has {3})",
+   "text": "{0}: {1} nemá zónu {2} (má {3})"
+  },
+  "pssd0026": {
+   "source": "{0}: unbound-control answers ({1} local zones)",
+   "text": "{0}: unbound-control odpovídá ({1} {1:lokální zóna|lokální zóny|lokálních zón})"
+  },
+  "pssd0027": {
+   "source": "{0}: the TXT line added, serial {1} -> {2}",
+   "text": "{0}: řádek TXT přidán, sériové číslo {1} -> {2}"
+  },
+  "pssd0028": {
+   "source": "{0}: the TXT line taken away, serial {1} -> {2}",
+   "text": "{0}: řádek TXT odebrán, sériové číslo {1} -> {2}"
+  },
+  "pssd0029": {
+   "source": "no zone file is set for {0} - add the line \"{1} /path/to/its/file\" to Zone files (Find out what runs there fills them in)",
+   "text": "pro {0} není nastaven soubor zóny – přidejte do Souborů zón řádek „{1} /cesta/k/jejímu/souboru“ (vyplní je „Zjistit, co tam běží“)"
+  },
+  "pssd0030": {
+   "source": "{0} is a dynamic zone ({1}.jnl is there): its file is not edited while named writes it - use nsupdate, or switch on freezing",
+   "text": "{0} je dynamická zóna (je tam {1}.jnl): její soubor se neupravuje, dokud do něj zapisuje named – použijte nsupdate, nebo zapněte zmrazení"
+  },
+  "pssd0031": {
+   "source": "{0} could not be read there: {1}",
+   "text": "{0} tam nejde přečíst: {1}"
+  },
+  "pssd0032": {
+   "source": "the PowerDNS API said {0}: {1}",
+   "text": "API PowerDNS řeklo {0}: {1}"
+  },
+  "pssd0033": {
+   "source": "{0}: {1} - nsupdate -l cannot be tried without changing the zone: a dry run puts a test record in and takes it away",
+   "text": "{0}: {1} – nsupdate -l nejde vyzkoušet bez změny zóny: zkušební běh vloží zkušební záznam a zase ho odebere"
+  },
+  "pssd0034": {
+   "source": "discovery refused to send a command that is not on its read-only list: {0}",
+   "text": "zjišťování odmítlo poslat příkaz, který není na jeho seznamu příkazů jen pro čtení: {0}"
+  },
+  "pssd0035": {
+   "source": "{0} is not a {1} acme uses (an absolute path of plain letters)",
+   "text": "{0} není {1}, kterou acme použije (absolutní cesta z obyčejných znaků)"
+  },
+  "pssd0036": {
+   "source": "{0} is not a {1} acme runs (words and paths only - no ; | & $ ` > <)",
+   "text": "{0} není {1}, který acme spustí (jen slova a cesty – žádné ; | & $ ` > <)"
+  },
+  "pssd0037": {
+   "source": "the SOA serial {0} cannot be raised that way ({1}): set the serial by hand or choose another way of raising it",
+   "text": "sériové číslo SOA {0} tak zvýšit nejde ({1}): nastavte ho ručně, nebo zvolte jiný způsob zvyšování"
   }
  },
  "rich": {

@@ -241,6 +241,7 @@ function modal(title, build, buttons, narrow) {
     var button = el('button', 'btn cmd' + (b.cls ? ' ' + b.cls : ''), b.words);
     setButtonIcon(button, b.icon || iconForWords(b.words), b.words);
     if (b.left) button.classList.add('left');
+    if (b.says) explain(button, b.says);
     var run = function () {
       var was = MODAL_GEN;
       if (b.go) b.go(button);

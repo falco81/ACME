@@ -822,6 +822,8 @@ function fieldForm(fields, values, secrets, opts) {
       it.item.classList.add('ct-filled');
       return true;
     },
+    /* A field's value now, shown or not (a helper of the form compares with it). */
+    get: function (key) { return current()[key]; },
     read: function () {
       var cur = current(), o = {};
       items.forEach(function (it) {
@@ -1689,6 +1691,160 @@ function acmeDnsHere(form) {
   box.appendChild(out);
   return box;
 }
+/* SSH DNS (challenges/ssh_dns.py): "Find out what runs there" - acme signs in and runs
+   read-only commands only; what it found fills the form in (empty fields at once, the
+   ones set otherwise only when asked), the zones listed to pick one. Every field stays
+   editable: nothing is saved until Save. */
+function sshDnsHere(form, row, p, nameNow) {
+  var box = el('div', 'ct-setup ct-sshdns');
+  box.appendChild(el('h4', 'ct-formh', 'What runs there'));
+  box.appendChild(el('p', 'note', 'acme signs in over SSH and only reads: which DNS server runs there, its zones, their files and keys, whether sudo works. Nothing is written, reloaded or restarted. What it finds is filled in below - check it, then Save. If it finds nothing, every field can be set by hand.'));
+  var go = cmdButton('Find out what runs there', 'search', '');
+  var out = el('div', 'ct-sshdns-out');
+  var fieldsOf = {};
+  arr(p.fields).forEach(function (f) { fieldsOf[f.key] = f; });
+  var same = function (a, b) {
+    var s = function (v) { return Array.isArray(v) ? v.map(String).join('\n') : (v === undefined || v === null ? '' : String(v)); };
+    if (typeof a === 'boolean' || typeof b === 'boolean') return truthy(a) === truthy(b);
+    return s(a).trim() === s(b).trim();
+  };
+  var empty = function (k, v) {
+    var f = fieldsOf[k] || {};
+    if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) return true;
+    return f['default'] !== undefined && same(v, f['default']);
+  };
+  var shown = function (v) { return Array.isArray(v) ? v.join(', ') : (typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v)); };
+  var fill = function (fields, host) {
+    var now = [], ask = [];
+    /* the way first: the fields of that way are the ones shown then */
+    var keys = Object.keys(fields || {}).sort(function (a, b) { return (b === 'flavour') - (a === 'flavour'); });
+    keys.forEach(function (k) {
+      if (!fieldsOf[k]) return;
+      var cur = form.get(k), v = fields[k];
+      if (same(cur, v)) return;
+      if (empty(k, cur)) now.push(k); else ask.push(k);
+    });
+    now.forEach(function (k) { form.set(k, fields[k]); });
+    if (now.length) host.appendChild(el('p', 'good', 'Filled in: ' + now.map(function (k) { return fieldsOf[k].label || k; }).join(', ') + ' - save the validation to keep it.'));
+    if (!ask.length) { if (!now.length) host.appendChild(el('p', 'muted small', 'The form already says what was found.')); return; }
+    var pane = el('div', 'ct-sshdns-ask');
+    pane.appendChild(el('p', 'warn', 'These are set otherwise than what was found - replace them?'));
+    var list = el('table', 'plain tight');
+    var hr = el('tr');
+    ['', 'Field', 'Now', 'Found'].forEach(function (w) { hr.appendChild(el('th', '', w)); });
+    list.appendChild(hr);
+    var picks = {};
+    ask.forEach(function (k) {
+      var tr = el('tr');
+      var c = document.createElement('input');
+      c.type = 'checkbox';
+      c.checked = true;
+      picks[k] = c;
+      var cb = el('td');
+      cb.appendChild(c);
+      tr.appendChild(cb);
+      tr.appendChild(td('', el('span', '', fieldsOf[k].label || k)));
+      tr.appendChild(td('', data('span', 'mono', shown(form.get(k)))));
+      tr.appendChild(td('', data('span', 'mono', shown(fields[k]))));
+      list.appendChild(tr);
+    });
+    pane.appendChild(list);
+    var bar = el('div', 'btnrow');
+    var yes = cmdButton('Replace the ticked ones', 'check', 'primary small');
+    var no = cmdButton('Keep mine', 'cancel', 'small');
+    yes.onclick = function () {
+      var did = ask.filter(function (k) { return picks[k].checked; });
+      did.forEach(function (k) { form.set(k, fields[k]); });
+      clear(pane);
+      pane.appendChild(el('p', 'good', did.length ? 'Replaced: ' + did.map(function (k) { return fieldsOf[k].label || k; }).join(', ') + ' - save the validation to keep it.' : 'Nothing replaced.'));
+    };
+    no.onclick = function () { clear(pane); pane.appendChild(el('p', 'muted small', 'Kept as it was.')); };
+    bar.appendChild(yes);
+    bar.appendChild(no);
+    pane.appendChild(bar);
+    host.appendChild(pane);
+  };
+  var draw = function (d) {
+    var f = d.found || {};
+    clear(out);
+    if (!f.ok) {
+      var bad = el('div', 'ct-errbox');
+      bad.appendChild(el('b', '', 'It could not be found out'));
+      arr(f.problems).forEach(function (w) { bad.appendChild(data('p', 'said', w)); });
+      bad.appendChild(el('p', 'muted small', 'Every field below can still be set by hand.'));
+      out.appendChild(bad);
+    } else {
+      out.appendChild(factsRow([
+        ['Server', f.server ? data('b', '', f.server + (f.version ? ' ' + f.version : '')) : el('span', 'muted', 'none found')],
+        ['Suggested', f.flavour_suggested ? mono(f.flavour_suggested) : '–'],
+        ['Signed in as', f.user ? mono(f.user + (f.root ? ' (root)' : '')) : '–'],
+        ['sudo -n', f.root ? 'not needed' : (f.sudo_works ? (f.sudo ? 'works, needed' : 'works') : 'does not work')]
+      ]));
+      var zones = arr(f.zones);
+      if (zones.length) {
+        var t = el('table', 'plain tight ct-sshdns-zones');
+        var hr = el('tr');
+        ['Zone', 'File', 'Dynamic', 'How acme writes it', ''].forEach(function (w) { hr.appendChild(el('th', '', w)); });
+        t.appendChild(hr);
+        zones.forEach(function (z) {
+          var tr = el('tr');
+          tr.appendChild(td('', data('b', 'mono', z.name)));
+          tr.appendChild(td('', z.file ? data('span', 'mono small', z.file) : el('span', 'muted', '–')));
+          tr.appendChild(td('', el('span', '', z.dynamic || z.journal ? 'yes' : 'no')));
+          tr.appendChild(td('', z.flavour ? data('span', '', z.how_writable || z.flavour) : data('span', 'muted', z.how_writable || 'not by acme')));
+          var c = el('td');
+          if (z.flavour) {
+            var use = cmdButton('Use only this one', 'check', 'small');
+            use.onclick = function () { form.set('zone', z.name); toast('Zone: ' + z.name, 'good'); };
+            c.appendChild(use);
+          }
+          tr.appendChild(c);
+          t.appendChild(tr);
+        });
+        out.appendChild(t);
+        out.appendChild(el('p', 'muted small', 'With Zone left empty each name goes in the longest of "Zones there" it is in.'));
+      }
+      var keys = arr(f.keys).filter(function (k) { return k.name; });
+      if (keys.length) {
+        var kp = el('p', 'small');
+        kp.appendChild(el('span', 'muted', 'Keys: '));
+        kp.appendChild(data('span', 'mono', keys.map(function (k) { return k.name + (k.file ? ' (' + k.file + ')' : ''); }).join(', ')));
+        out.appendChild(kp);
+      }
+      if (arr(f.problems).length) {
+        var pb = el('ul', 'ct-sshdns-problems');
+        arr(f.problems).forEach(function (w) { pb.appendChild(data('li', 'warn small', w)); });
+        out.appendChild(pb);
+      }
+      fill(f.fields || {}, out);
+    }
+    if (arr(f.commands).length) {
+      var det = el('details', 'ct-more');
+      det.appendChild(el('summary', '', 'What was run there (read-only)'));
+      det.appendChild(saidBox(arr(f.commands).join('\n')));
+      out.appendChild(det);
+    }
+    if (d.job_id) {
+      var st = el('button', 'btn small ct-steps-btn', 'every step');
+      st.type = 'button';
+      st.onclick = function () { over(function () { jobPeek(d.job_id); }); };
+      out.appendChild(st);
+    }
+  };
+  go.onclick = function () {
+    var cur = form.read();
+    if (!String(cur.host || '').trim()) { toast('Set the DNS server first', 'bad'); return; }
+    busy(go, true);
+    clear(out);
+    out.appendChild(el('p', 'muted', 'Asking…'));
+    capi('validations/ssh_dns_discover', {id: row && row.id, name: nameNow ? nameNow() : '', kind: 'ssh_dns', config: cur}, 150)
+      .then(draw).catch(function (e) { clear(out); out.appendChild(failedBox(e, 'what runs there')); })
+      .then(function () { busy(go, false); });
+  };
+  box.appendChild(go);
+  box.appendChild(out);
+  return box;
+}
 function persistHere(row, p) {
   var box = el('div', 'ct-http ct-rd-setup ct-persist');
   box.appendChild(el('h4', 'ct-formh', 'The record to set once'));
@@ -1909,6 +2065,7 @@ function modForm(key, row, p, fromPick) {
     if (HTTP_HERE[p.kind]) body.appendChild(httpHere(row));
     if (row && row.id && MANAGE && p.kind === 'dns_persist') body.appendChild(persistHere(row, p));
     if (FULL && p.kind === 'acme_dns') body.appendChild(acmeDnsHere(form));
+    if (MANAGE && p.kind === 'ssh_dns') body.appendChild(sshDnsHere(form, row, p, function () { return name.value.trim(); }));
     if (row && row.id && MANAGE && m.family === 'challenge') body.appendChild(setupHere(row));
     if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { if (!x.closest('.ct-http')) x.disabled = true; });
   }, buttons, 'medium');
@@ -2457,7 +2614,9 @@ function certPeek(id) {
     buttons.push({words: 'Close', close: true});
     if (MANAGE && c.issuer && c.not_after && c.state !== 'revoked')
       buttons.push({words: 'Revoke', icon: 'ban', go: function () { over(function () { revokeDialog(c); }, back); }});
-    if (MANAGE && c.issuer) buttons.push({words: 'Edit', icon: 'edit', go: function () { certWizard(c, d); }});
+    if (MANAGE && c.issuer) buttons.push({words: c.not_after ? 'Change names, key, source…' : 'Edit', icon: 'edit',
+      says: c.not_after ? 'The whole set-up, step by step. What is in the certificate itself (names, key, source, profile) takes a new certificate - you choose: now, or at its next renewal. Owner, tags, note and renewal are changed at once in Details above.' : '',
+      go: function () { certWizard(c, d); }});
     if (MANAGE && (c.not_after || versions.length)) buttons.push({words: 'Export', icon: 'download', go: function () { over(function () { exportDialog(c, versions); }, back); }});
     if (MANAGE && waiting) buttons.push({words: 'Upload the answer', cls: 'primary', icon: 'upload', go: function () { over(function () { csrAnswer(c); }, back); }});
     if (MANAGE && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
@@ -2551,7 +2710,8 @@ function detailsSection(c, back) {
     sec._body.appendChild(foot);
   };
   if (MANAGE) {
-    var pen = iconButton('edit', 'Change the details - owner, tags, note, renewal - without a new certificate');
+    var pen = cmdButton('Change', 'edit', 'small');
+    explain(pen, 'Change the details - owner, tags, note, renewal - without a new certificate');
     pen.classList.add('ct-d-edit');
     pen.id = 'ct-d-edit';
     pen.onclick = edit;
@@ -2693,7 +2853,8 @@ function certBody(body, c, versions, deploys, jobs, back) {
     rs._body.appendChild(mt);
   }
   grid.appendChild(rs);
-  grid.appendChild(detailsSection(c, back));
+  /* Details first: what is changed at once, without a new certificate. */
+  grid.insertBefore(detailsSection(c, back), grid.firstChild);
   /* the chain */
   var chain = rowsOf(c.chain || c.chain_info || c.chain_certs);
   var chainPems = String(c.chain_pem || '').split('-----BEGIN CERTIFICATE-----').length - 1;
@@ -3333,6 +3494,14 @@ function certWizard(cert, detail) {
         b.type = 'button';
         b.appendChild(el('span', 'n', String(i + 1)));
         b.appendChild(el('span', 'w', s.title));
+        /* Editing one already issued: which steps are in the certificate itself
+           (a change waits for a new one) and which are acme's alone. */
+        if (editing && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(s.key) >= 0) {
+          var mk = el('span', 'ct-wstep-cert');
+          mk.innerHTML = iconMarkup('refresh', 12);
+          b.appendChild(mk);
+          explain(b, 'In the certificate itself: a change here takes a new certificate (now, or at its next renewal).');
+        }
         b.disabled = !(editing || W.seen[i] || i <= W.step);
         b.onclick = function () {
           if (i > W.step && !editing) {
@@ -3347,8 +3516,10 @@ function certWizard(cert, detail) {
       });
       body.appendChild(strip);
       /* What is in the certificate itself changes with its next renewal - never by saving. */
-      if (editing && c.not_after && ['source', 'names', 'key', 'validation', 'profile'].indexOf(st.key) >= 0)
-        body.appendChild(el('p', 'note tm-next-renewal', 'Already issued: what is changed here goes into the certificate at its next renewal - saving issues nothing. After Save you are asked whether to renew it now.'));
+      if (editing && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(st.key) >= 0)
+        body.appendChild(el('p', 'note tm-next-renewal', 'In the certificate itself: what is changed here goes into a new certificate - saving issues nothing; after Save you choose: renew now, or at its next renewal.'));
+      else if (editing && c.not_after && st.key !== 'review')
+        body.appendChild(el('p', 'note tm-acme-only', 'Only how acme works with it: a change here applies at once, the certificate stays as it is.'));
       var host = el('div', 'ct-wbody');
       body.appendChild(host);
       st.draw(host);
@@ -4127,8 +4298,9 @@ function certWizard(cert, detail) {
     /* What would make another certificate: changed on one already issued, the
        question after the save - now, or at the next renewal. */
     var inCert = function (x) {
+      /* the validation is how the names are proved - not in the certificate */
       return JSON.stringify([arr(x.names).slice().sort(), x.key_type || '', x.key_type_alt || '', x.issuer || '',
-                             x.challenge || '', obj(x.challenge_map), obj(x.profile)]);
+                             obj(x.profile)]);
     };
     var reissue = editing && !issue && !!c.not_after && inCert(sent) !== inCert(c);
     capi('certs/save', sent).then(function (d) {
