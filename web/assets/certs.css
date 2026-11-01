@@ -427,3 +427,11 @@ table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:
 .ct-rd-review{margin-top:12px}
 .ct-rd-review .ct-errbox .ct-rd-step{padding:6px 0}
 .ct-rd-where{padding:1px 7px;border-radius:6px;background:var(--panel2);border:1px solid var(--line)}
+
+/* A button that follows words on the same line - "deSEC: signed in…" then
+   [every step] - keeps a gap from them, wherever it is put inline: in what a
+   test said, a note, a says box, a line of a table. Rows of buttons (.btnrow,
+   modal feet) have their own gaps and are left as they are. */
+.said > :not(:first-child).btn, .says > :not(:first-child).btn, .note > :not(:first-child).btn,
+p > :not(:first-child).btn, td > :not(:first-child).btn, li > :not(:first-child).btn,
+.ct-steps-btn { margin-left: 10px; }

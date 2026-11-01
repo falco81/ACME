@@ -4,6 +4,20 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.3 - 2026-11-01
+
+- **The pages after an upgrade are the new ones**: they said otp's version
+  (1.0.209) for every acme release, so browsers kept core.js and admin.js from
+  before - the default buttons without their star, errors of old scripts on
+  new pages after F5. Every script and stylesheet is keyed by its own file now,
+  and a release keeps the pages' version equal to acme's.
+- acme's own DNS server answering on the VIP only: the validation's Test and
+  its wait ask the VIP, not 127.0.0.1 where the server does not listen then.
+- The SQLite file's setting is on The database pane, not under every pane; a
+  test keeps every setting on a pane of its own.
+- A button after words on the same line keeps its gap ("… is there" [every
+  step]).
+
 ## 1.0.2 - 2026-11-01
 
 - **Validation that tells you what to do, and tests itself.** For every name of
