@@ -39385,6 +39385,46 @@
   "pc0624": {
    "source": "dry run #{0}",
    "text": "zkouška nanečisto č. {0}"
+  },
+  "pc0625": {
+   "source": "{0} answers with the right value",
+   "text": "{0} odpovídá správnou hodnotou"
+  },
+  "pc0626": {
+   "source": "{0} answers something else ({1})",
+   "text": "{0} odpovídá něčím jiným ({1})"
+  },
+  "pc0627": {
+   "source": "{0}: too many redirects",
+   "text": "{0}: příliš mnoho přesměrování"
+  },
+  "pc0628": {
+   "source": "{0}: a redirect with nowhere to go",
+   "text": "{0}: přesměrování nikam"
+  },
+  "pc0629": {
+   "source": "{0} TXT not yet seen by {1}",
+   "text": "{0} TXT zatím nevidí {1}"
+  },
+  "pc0630": {
+   "source": "{0} TXT seen by {1}",
+   "text": "{0} TXT vidí {1}"
+  },
+  "pc0631": {
+   "source": "{0} TXT: on {1}, not yet on {2}",
+   "text": "{0} TXT: je na {1}, zatím není na {2}"
+  },
+  "pc0632": {
+   "source": "{0} TXT is on every name server of {1} ({2})",
+   "text": "{0} TXT je na všech jmenných serverech {1} ({2})"
+  },
+  "pc0633": {
+   "source": "the name servers of {0} ({1}) cannot be asked from here - the resolvers are asked instead",
+   "text": "jmenných serverů {0} ({1}) se odsud nelze zeptat – ptám se místo nich resolverů"
+  },
+  "pc0634": {
+   "source": "none of {0} answered for {1}",
+   "text": "pro {1} neodpověděl žádný z {0}"
   }
  },
  "rich": {

@@ -816,7 +816,7 @@ class HttpChallenge(Challenge):
                 return False, '%s said %s' % (url, status)
             text = body.decode('utf-8', 'replace') if isinstance(body, bytes) else str(body)
             if text.strip() == want:
-                return True, '%s answers it' % url
+                return True, '%s answers with the right value' % url
             return False, '%s answers something else (%r)' % (url, text.strip()[:60])
         return False, '%s: too many redirects' % url
 
