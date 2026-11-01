@@ -68,7 +68,8 @@
         var tr = el('tr', s.builtin ? 'dnss-builtin' : '');
         var nm = cell('', '');
         nm.appendChild(s.builtin ? el('b', '', s.name) : data('b', '', s.name));
-        if (s.builtin) nm.appendChild(el('span', 'tag dim dnss-tag', 'built in'));
+        var pub = s.keep || (s.builtin && s.name !== d.system);
+        if (s.builtin || s.keep) nm.appendChild(el('span', 'tag dim dnss-tag', 'built in'));
         if (s.note) nm.appendChild(s.builtin ? el('div', 'muted small', s.note) : data('div', 'muted small', s.note));
         tr.appendChild(nm);
         var sv = cell('mono small', '');
@@ -76,7 +77,7 @@
         if (s.protocol === 'dot' && s.tls_name) sv.appendChild(data('div', 'muted', 'TLS: ' + s.tls_name));
         tr.appendChild(sv);
         tr.appendChild(cell('small', protoWords(s.protocol)));
-        tr.appendChild(cell('num muted', s.builtin ? '–' : (s.timeout + ' s')));
+        tr.appendChild(cell('num muted', s.builtin && !pub ? '–' : (s.timeout + ' s')));
         var u = cell('small', '');
         var list = used[s.name] || [];
         if (!list.length) u.appendChild(el('span', 'muted', 'nothing'));
@@ -87,11 +88,14 @@
         test.classList.add('dnss-test');
         test.onclick = function () { testSet(s); };
         tools.appendChild(test);
-        if (full() && !s.builtin) {
+        /* "Public" is built in too: changed, never deleted nor renamed. */
+        if (full() && (!s.builtin || pub)) {
           var ed = iconButton('edit', 'Edit this set');
           ed.classList.add('dnss-edit');
           ed.onclick = function () { editSet(s); };
           tools.appendChild(ed);
+        }
+        if (full() && !s.builtin && !s.keep) {
           var del = iconButton('trash', 'Delete this set');
           del.classList.add('dnss-del');
           del.onclick = function () { deleteSet(s, list); };
@@ -146,10 +150,12 @@
     var isNew = !s;
     s = s || {name: '', servers: [], protocol: 'udp', tls_name: '', timeout: 3, note: ''};
     modal(isNew ? 'A new DNS set' : 'The DNS set ' + s.name, function (body) {
+      if (s.keep || s.builtin) body.appendChild(el('p', 'note', 'Built in: its servers, protocol and timeout may be changed; it keeps its name and cannot be deleted - the functions fall back to it.'));
       body.appendChild(el('p', 'note', 'Addresses only - a DNS server is not looked up by a name. One a line: 192.0.2.53, 192.0.2.53:5353, 2001:db8::53 or [2001:db8::53]:5353.'));
       var g = el('div', 'formgrid');
       f.name = textBox(s.name, 'Company DNS', '');
       f.name.id = 'dnss-f-name';
+      if (s.keep || s.builtin) { f.name.readOnly = true; f.name.title = ''; }
       g.appendChild(formField('Name', f.name, 'Letters, digits, spaces and . _ @ + - (as every name in acme).'));
       f.servers = el('textarea', 'mono');
       f.servers.id = 'dnss-f-servers';

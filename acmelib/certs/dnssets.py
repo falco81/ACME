@@ -307,11 +307,9 @@ def _load(store=None):
 
 
 def ensure(store):
-    """The suggested set "Public" made once, at the first start - deleted, it
-    stays deleted."""
+    """The set "Public" is always there: made at the first start and again
+    whenever it is missing (it cannot be deleted - only changed)."""
     try:
-        if store.get_meta(SEEDED):
-            return
         if not store.db.value('SELECT COUNT(*) FROM %s WHERE name = ?' % TABLE, (PUBLIC,), 0):
             store.db.insert(TABLE, {
                 'name': PUBLIC, 'servers': '\n'.join(PUBLIC_SERVERS), 'protocol': 'udp',
@@ -319,15 +317,29 @@ def ensure(store):
                 'note': 'Cloudflare, Google and Quad9: the internet as a CA sees it.',
                 'created': time.time(), 'created_by': 'acme', 'updated': time.time(),
                 'updated_by': 'acme'})
-        store.set_meta(SEEDED, str(int(time.time())))
+            store.set_meta(SEEDED, str(int(time.time())))
     except Exception as e:                              # noqa: BLE001
         E.log('DNS sets: the set Public could not be made: %s' % e, 'warn')
     forget()
 
 
+def public_view():
+    """"Public" when no set of that name is kept (deleted, or never made): built in,
+    shown, never hidden behind a default nobody can see."""
+    return {'name': PUBLIC, 'builtin': True, 'servers': list(PUBLIC_SERVERS),
+            'protocol': 'udp', 'tls_name': '', 'timeout': DEFAULT_TIMEOUT,
+            'note': 'Cloudflare, Google and Quad9: the internet as a CA sees it.'}
+
+
 def sets(store):
     got, _uses = _load(store)
-    return [system_view()] + [got[k] for k in sorted(got, key=str.lower)]
+    out = [system_view()] + ([] if PUBLIC in got else [public_view()])
+    for k in sorted(got, key=str.lower):
+        v = dict(got[k])
+        if k == PUBLIC:
+            v['keep'] = True            # changed, never deleted nor renamed
+        out.append(v)
+    return out
 
 
 def purposes(store):
@@ -343,9 +355,7 @@ def purposes(store):
 
 def _default_of(purpose, sets_):
     want = dict((p[0], p[2]) for p in PURPOSES).get(purpose, SYSTEM)
-    if want != SYSTEM and want not in sets_:
-        return SYSTEM if purpose != 'public' else want
-    return want
+    return want                 # SYSTEM, or PUBLIC - kept, or built in
 
 
 def _legacy(key, settings=None):
@@ -373,7 +383,7 @@ def dns_set_for(purpose, store=None, settings=None):
             purpose, ', '.join(PURPOSE_KEYS)))
     sets_, uses = _load(store)
     chosen = uses.get(purpose)
-    if chosen and (chosen == SYSTEM or chosen in sets_):
+    if chosen and (chosen in (SYSTEM, PUBLIC) or chosen in sets_):
         return chosen, 'assigned'
     legacy = dict((p[0], p[4]) for p in PURPOSES)[purpose]
     if _legacy(legacy, settings):
@@ -388,7 +398,7 @@ def resolver_of(name, store=None, purpose=''):
     sets_, _uses = _load(store)
     v = sets_.get(name)
     if v is None:
-        if name == PUBLIC and purpose == 'public':
+        if name == PUBLIC:
             return Resolver(PUBLIC_SERVERS, name=PUBLIC)
         return None
     return Resolver(v['servers'], v['protocol'], v['timeout'], v['tls_name'], name=name)
@@ -491,9 +501,11 @@ def save_set(store, b, by):
     old = str(b.get('old_name') or '').strip()
     if old == SYSTEM:
         raise ValueError('"%s" is built in: it cannot be changed' % SYSTEM)
+    if old == PUBLIC and row['name'] != PUBLIC:
+        raise ValueError('"%s" keeps its name - the functions fall back to it' % PUBLIC)
     t = time.time()
     have = store.db.row('SELECT * FROM %s WHERE name = ?' % TABLE, (old,)) if old else None
-    if old and not have:
+    if old and not have and old != PUBLIC:
         raise LookupError('there is no DNS set %s' % old)
     clash = store.db.row('SELECT id FROM %s WHERE name = ?' % TABLE, (row['name'],))
     if clash and (not have or clash['id'] != have['id']):
@@ -517,8 +529,9 @@ def save_set(store, b, by):
 
 def delete_set(store, name, by):
     name = str(name or '').strip()
-    if name == SYSTEM:
-        raise ValueError('"%s" is built in: it cannot be deleted' % SYSTEM)
+    if name in (SYSTEM, PUBLIC):
+        raise ValueError('"%s" is built in: it cannot be deleted%s' % (
+            name, ' - change its servers instead' if name == PUBLIC else ''))
     row = store.db.row('SELECT id FROM %s WHERE name = ?' % TABLE, (name,))
     if not row:
         raise LookupError('there is no DNS set %s' % name)
@@ -536,7 +549,7 @@ def assign(store, purpose, name, by):
         raise ValueError('no such function: %s (%s)' % (purpose, ', '.join(PURPOSE_KEYS)))
     name = str(name or '').strip()
     sets_, _uses = _load(store)
-    if name and name != SYSTEM and name not in sets_:
+    if name and name not in (SYSTEM, PUBLIC) and name not in sets_:
         raise LookupError('there is no DNS set %s' % name)
     title = dict((p[0], p[1]) for p in PURPOSES)[purpose]
     store.db.run('DELETE FROM %s WHERE purpose = ?' % USES, (purpose,))

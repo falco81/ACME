@@ -113,9 +113,25 @@ class Sets(unittest.TestCase):
         self.assertIn(N.PUBLIC, names)
         pub = [s for s in N.sets(STORE) if s['name'] == N.PUBLIC][0]
         self.assertEqual(pub['servers'], list(N.PUBLIC_SERVERS))
-        N.delete_set(STORE, N.PUBLIC, 'tester')
-        N.ensure(STORE)                         # deleted, it stays deleted
-        self.assertNotIn(N.PUBLIC, [s['name'] for s in N.sets(STORE)])
+        with self.assertRaises(ValueError):          # not deleted...
+            N.delete_set(STORE, N.PUBLIC, 'tester')
+        with self.assertRaises(ValueError):          # ...nor renamed
+            N.save_set(STORE, {'old_name': N.PUBLIC, 'name': 'Other', 'servers': '9.9.9.9'}, 'x')
+        got = N.save_set(STORE, {'old_name': N.PUBLIC, 'name': N.PUBLIC,
+                                 'servers': '9.9.9.9\n1.1.1.1'}, 'tester')   # ...but changed
+        self.assertEqual(got['servers'], ['9.9.9.9', '1.1.1.1'])
+        self.assertTrue([s for s in N.sets(STORE) if s['name'] == N.PUBLIC][0].get('keep'))
+        # gone anyway (from before 1.0.6): made again at the next start
+        STORE.db.run("DELETE FROM dns_sets WHERE name = ?", (N.PUBLIC,))
+        N.forget()
+        N.ensure(STORE)
+        self.assertEqual(STORE.db.value("SELECT COUNT(*) FROM dns_sets WHERE name = ?",
+                                        (N.PUBLIC,), 0), 1)
+        self.assertEqual(N.dns_set_for('public', STORE), (N.PUBLIC, 'default'))
+        N.assign(STORE, 'apis', N.PUBLIC, 'tester')
+        self.assertEqual(N.dns_set_for('apis', STORE), (N.PUBLIC, 'assigned'))
+        N.assign(STORE, 'apis', '', 'tester')
+        N.assign(STORE, 'apis', '', 'tester')
 
     def test_crud_and_rename(self):
         add('Inside', SRV['pa'], note='the company resolvers')
@@ -164,7 +180,8 @@ class Assignments(unittest.TestCase):
             want = N.PUBLIC if p == 'public' else N.SYSTEM
             self.assertEqual(N.dns_set_for(p, STORE), (want, 'default'), p)
         self.assertEqual(list(N.resolver('public', STORE)), list(N.PUBLIC_SERVERS))
-        N.delete_set(STORE, N.PUBLIC, 'x')      # Public gone: the public resolvers still
+        STORE.db.run("DELETE FROM dns_sets WHERE name = ?", (N.PUBLIC,))   # gone (before 1.0.6)
+        N.forget()                              # Public gone: the public resolvers still
         self.assertEqual(list(N.resolver('public', STORE)), list(N.PUBLIC_SERVERS))
 
     def test_chosen_legacy_and_fallback(self):

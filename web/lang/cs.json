@@ -32331,6 +32331,10 @@
   "swg042": {
    "source": "Correct the settings of the validation (login, API key, API), then check again",
    "text": "Opravte nastavení validace (login, API klíč, API) a zkontrolujte znovu"
+  },
+  "sv8082": {
+   "source": "Built in: its servers, protocol and timeout may be changed; it keeps its name and cannot be deleted - the functions fall back to it.",
+   "text": "Vestavěná: servery, protokol a časový limit lze změnit; jméno zůstává a nelze ji smazat – funkce se k ní vracejí."
   }
  },
  "patterns": {
@@ -41685,6 +41689,14 @@
   "pwg017": {
    "source": "stored as the own certificate of {0} at Webglobe",
    "text": "uloženo jako vlastní certifikát {0} u Webglobe"
+  },
+  "pv2339": {
+   "source": "\"{0}\" is built in: it cannot be deleted - change its servers instead",
+   "text": "„{0}“ je vestavěná: nelze ji smazat – změňte místo toho její servery"
+  },
+  "pv2340": {
+   "source": "\"{0}\" keeps its name - the functions fall back to it",
+   "text": "„{0}“ si ponechává jméno – funkce se k ní vracejí"
   }
  },
  "rich": {
