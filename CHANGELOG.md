@@ -24,6 +24,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - **Try reaching it fills in the host keys** of the form (every form with an SSH
   key); a different key pinned already is shown with a warning and "Replace
   with the key seen", never replaced by itself. Kept by Save.
+- **Webglobe**: DNS-01 validation (login + API key; only the record it made is
+  taken away) and a target uploading your own certificate to a hosted domain.
+- The nginx config for HTTP-01 printed by `acme --validation-action NAME
+  nginx_files`.
 - Settings → DNS: a function's set waits for Save on the bar (Put back undoes
   it); Test of a set opens over its form and gives the form back as it was.
 - High security: a refused exception switch turns back instead of an error.
