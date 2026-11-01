@@ -109,9 +109,14 @@ DOWNGRADE_FLOOR = '1.0.0'
 #   cli_args(parser)              add options to the command line
 #   cli_run(args) -> int|None     run them; a number is the exit code, None: not mine
 #   console_main(console) -> [(key, words, fn)]   lines of the console's main menu
-#   status(store) -> [lines]      lines for `acme --status`
+#   status(store, pal) -> [lines] lines for `acme --status`
+#   alerts(store) -> [{'key', 'level' ('warn'|'bad'), 'words'}]   what Alerts and reports mails
+#   report(store, since) -> [(heading, [lines])]                  sections of the weekly report
+#   metrics(store) -> [(name, help, 'gauge'|'counter', [({labels}, value)])]   for Prometheus
+#   carry_tables -> table names that belong to the configuration (Export and import)
 HOOKS = {'daemon_start': [], 'daemon_stop': [], 'cli_args': [], 'cli_run': [],
-         'console_main': [], 'status': []}
+         'console_main': [], 'status': [], 'alerts': [], 'report': [], 'metrics': [],
+         'carry_tables': []}
 
 
 def hook(kind):
