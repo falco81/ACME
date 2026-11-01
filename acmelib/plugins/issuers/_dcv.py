@@ -161,9 +161,28 @@ class Placer(object):
                       % ', '.join(p['rec']['domain'] for p in todo), 'warn')
         return not todo
 
+    # The ways a record was put in before 1.0.5 (SSLmarket's own code): an order
+    # waiting across the upgrade still holds them, and they are taken away the same.
+    LEGACY = ('record', 'present', 'txt', 'file')
+
+    def _legacy_cleanup(self, ch, p):
+        h = p.get('handle') or {}
+        if p['how'] == 'record':
+            fn = getattr(ch, 'cleanup_record', None)
+            if callable(fn):
+                fn(p['name'], p['handle'])
+        elif p['how'] == 'present':
+            ch.cleanup(p['name'], p['handle'])
+        elif p['how'] == 'txt':
+            ch.del_txt(h.get('fqdn'), h.get('txt'), h.get('h'))
+        elif p['how'] == 'file':
+            rm = getattr(ch, '_remove', None)
+            if h.get('path') and callable(rm):
+                ch._each(lambda s, host: rm(s, h['path']), 'remove')
+
     def cleanup(self, req, placed):
         for p in placed or []:
-            if p.get('how') != 'placed':
+            if p.get('how') != 'placed' and p.get('how') not in self.LEGACY:
                 continue
             ch = self._module(req, p)
             if ch is None:
@@ -172,7 +191,10 @@ class Placer(object):
                           'warn')
                 continue
             try:
-                ch.unplace(p['handle'])
+                if p['how'] == 'placed':
+                    ch.unplace(p['handle'])
+                else:
+                    self._legacy_cleanup(ch, p)
             except Exception as e:                      # noqa: BLE001
                 self._say('the DCV record of %s could not be taken away: %s'
                           % (p['rec']['domain'], e), 'warn')

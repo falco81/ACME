@@ -851,5 +851,42 @@ class TestAcmeKey(unittest.TestCase):
         self.assertEqual(len(self.api.posts(SM.P_ACME)), 1)
 
 
+
+
+class TestLegacyDcv(unittest.TestCase):
+    """An order waiting across the upgrade to 1.0.5 holds its DCV records in the
+    way of before ('present', 'txt', 'file', 'record'): taken away all the same."""
+    def test_legacy_records_taken_away(self):
+        from acmelib.plugins.issuers import _dcv
+        gone = []
+
+        class Ch(object):
+            kind = 'fake'
+            def cleanup(self, name, handle): gone.append(('present', name, handle))
+            def del_txt(self, fqdn, txt, h): gone.append(('txt', fqdn, txt))
+            def cleanup_record(self, name, handle): gone.append(('record', name, handle))
+            def unplace(self, handle): gone.append(('placed', handle))
+
+        class Req(object):
+            challenges = {'www.example.com': Ch()}
+
+        class Iss(object):
+            ctx = None
+            def c(self, k, d=None): return d
+        placer = _dcv.Placer.__new__(_dcv.Placer)
+        placer.issuer = Iss()
+        placer._say = lambda *a, **k: None
+        rec = {'domain': 'example.com'}
+        placer.cleanup(Req(), [
+            {'rec': rec, 'name': 'www.example.com', 'how': 'present', 'handle': {'x': 1}, 'kind': 'fake'},
+            {'rec': rec, 'name': 'www.example.com', 'how': 'txt', 'kind': 'fake',
+             'handle': {'fqdn': '_dnsauth.example.com', 'txt': 'v1'}},
+            {'rec': rec, 'name': 'www.example.com', 'how': 'record', 'handle': {'r': 2}, 'kind': 'fake'},
+            {'rec': rec, 'name': 'www.example.com', 'how': 'placed', 'handle': {'p': 3}, 'kind': 'fake'},
+            {'rec': rec, 'name': 'www.example.com', 'how': 'manual', 'handle': None, 'kind': ''}])
+        self.assertEqual([g[0] for g in gone], ['present', 'txt', 'record', 'placed'])
+        self.assertIn(('txt', '_dnsauth.example.com', 'v1'), gone)
+
+
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(verbosity=2)
