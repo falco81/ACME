@@ -2929,9 +2929,18 @@ def cli_main(argv=None):
         for x in got['said']:
             print(pal.ok_line(x))
         print('now:  systemctl restart acme')
-        if m.get('ha_mode') == 'replicated':
-            print('it came from a cluster: this machine is one server now - make it two again '
-                  'with  acme --ha-setup  (RESTORE.md, section 4)')
+        if m.get('ha_mode') in ('replicated', 'shared'):
+            print('it came from a cluster: this machine is one server now with everything in it.')
+            print('make it two again (RESTORE.md, section 4):')
+            if m.get('ha_mode') == 'replicated':
+                print('  1. move it to PostgreSQL:  Settings -> The database -> Move to another '
+                      'database (PostgreSQL 16+)')
+            print('  2. here:        acme --ha-setup --ha-peer %s --node-name %s'
+                  % (m.get('ha_peer') or 'ADDRESS-OF-THE-SECOND', m.get('node') or node_name()))
+            print('  3. on the second, a clean install:  ./install.sh --with-db postgres --yes  '
+                  'and  acme --ha-join FILE  (the file step 2 makes)')
+            print('     the VIP address, the firewall, the certificates of the pages and the '
+                  'encrypted link come back by themselves from the database')
         return 0
 
     if args.restore:

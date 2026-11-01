@@ -26,6 +26,11 @@ def rb_files_named():
     return out
 
 
+def rb_plugins_dir():
+    """The folder of modules of your own (acmelib/plugins/base.py REGISTRY)."""
+    return os.environ.get('ACME_PLUGINS', '/etc/acme/plugins')
+
+
 def rb_restore_md(m):
     """RESTORE.md: the exact steps, filled in with what this backup is."""
     enc = m.get('encrypted')
@@ -74,7 +79,8 @@ def rb_restore_md(m):
     lines += [
         'Inside: `acme-copy.json.gz` (the database, in a shape SQLite, MariaDB and PostgreSQL',
         'all take), `secrets.key`, `config.json`, `manifest.json` (a checksum of each file),',
-        'this file, and the files config.json names (`files/`).', '',
+        'this file, the files config.json names (`files/`) and modules of your own',
+        '(`plugins/`, put back into /etc/acme/plugins).', '',
         '## 2. A machine to put it on', '',
         'AlmaLinux / Rocky / RHEL 9 (or the machine it came from). Install acme **%s or newer**' % ver,
         'from its package - the same way as the first time:', '', '```bash',
@@ -206,6 +212,18 @@ def rb_build(store, work, progress=None):
         os.makedirs(os.path.join(inner, 'files'))
         for p in extra:
             shutil.copyfile(p, os.path.join(inner, 'files', os.path.basename(p)))
+    # Modules of your own (ACME_PLUGINS, /etc/acme/plugins): sources, validations,
+    # targets written for this installation - put back with the rest.
+    pdir = rb_plugins_dir()
+    if pdir and os.path.isdir(pdir):
+        for root, _dirs, files in os.walk(pdir):
+            for n in files:
+                if not n.endswith('.py'):
+                    continue
+                src = os.path.join(root, n)
+                dst = os.path.join(inner, 'plugins', os.path.relpath(src, pdir))
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copyfile(src, dst)
     say(2, 'what is in it is counted')
     pw = rb_password()
     m = rb_manifest(store, base, rb_counts(store))

@@ -91,6 +91,25 @@ def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True)
                               key_file=os.path.join(top, 'secrets.key'),
                               from_name=os.path.basename(str(path)), need_admin=need_admin)
         said = [got.get('key') or '']
+        # Modules of your own, as they were (a file of the same name is replaced).
+        pin = os.path.join(top, 'plugins')
+        if os.path.isdir(pin):
+            pdir = rb_plugins_dir()
+            n = 0
+            try:
+                for root, _dirs, files in os.walk(pin):
+                    for f in files:
+                        if not f.endswith('.py'):
+                            continue
+                        src = os.path.join(root, f)
+                        dst = os.path.join(pdir, os.path.relpath(src, pin))
+                        os.makedirs(os.path.dirname(dst), exist_ok=True)
+                        shutil.copyfile(src, dst)
+                        n += 1
+                said.append('%d module(s) of your own put back into %s' % (n, pdir))
+            except OSError as e:
+                said.append('the modules of your own could not be put into %s: %s - they '
+                            'are in plugins/ of the backup' % (pdir, e))
         old_name = node_name()
         if m.get('node') and not keep_node_name and m['node'] != old_name and \
                 not CONFIG.get('ha_mode'):
