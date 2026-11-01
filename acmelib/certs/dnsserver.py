@@ -57,6 +57,7 @@ from acmelib.plugins.challenges import _dns as D
 
 DEFAULTS = {'dns_listen': '0.0.0.0,::', 'dns_port': 53, 'dns_zone': '', 'dns_ns_names': '',
             'dns_ns_addresses': '', 'dns_soa_mail': '', 'dns_ttl': 60, 'dns_static': '',
+            'dns_expose': 'both',
             'dns_rate': 100, 'dns_cache': 1.0}
 EDNS_SIZE = 1232
 TCP_MAX_CONN = 64
@@ -269,6 +270,16 @@ IP_FREEBIND = getattr(socket, 'IP_FREEBIND', 15)
 IPV6_FREEBIND = getattr(socket, 'IPV6_FREEBIND', 78)
 
 
+def _asked_at(ancillary, v6):
+    """The address a UDP question arrived at, from its pktinfo."""
+    for level, kind, data in ancillary:
+        if not v6 and level == socket.IPPROTO_IP and kind == IP_PKTINFO and len(data) >= 12:
+            return socket.inet_ntop(socket.AF_INET, data[8:12])
+        if v6 and level == socket.IPPROTO_IPV6 and kind == IPV6_PKTINFO and len(data) >= 20:
+            return socket.inet_ntop(socket.AF_INET6, data[:16])
+    return None
+
+
 def _reply_from(ancillary, v6):
     """The ancillary data that makes a reply leave from the address the
     question arrived at: in_pktinfo / in6_pktinfo with that address, the
@@ -346,7 +357,36 @@ class DnsServer(object):
             v = src.get(k) if hasattr(src, 'get') else None
             if v not in (None, ''):
                 out[k] = v
+        if not str(out.get('dns_ns_addresses') or '').strip():
+            # The name servers' addresses (glue) where none are set: where it
+            # answers - the VIP, the nodes, or both.
+            got = self.answering_addresses(out)
+            if got:
+                out['dns_ns_addresses'] = ','.join(got)
         return out
+
+    def answering_addresses(self, cfg):
+        """The public addresses it answers on, as its exposure says."""
+        vip = self.vip_address()
+        e = str(cfg.get('dns_expose') or 'both').strip().lower()
+        nodes = []
+        E = _engine()
+        if E is not None and self.store is not None:
+            try:
+                nodes = [str(n['address']).split('/')[0] for n in E.ha_nodes(self.store)
+                         if n.get('address')]
+            except Exception:                           # noqa: BLE001
+                nodes = []
+            if not nodes:
+                try:
+                    nodes = [str(E.node_address())]
+                except Exception:                       # noqa: BLE001
+                    nodes = []
+        if e == 'vip' and vip:
+            return [vip]
+        if e == 'nodes' or not vip:
+            return nodes
+        return [vip] + [n for n in nodes if n != vip]
 
     def _listen_conf(self, cfg):
         try:
@@ -355,6 +395,15 @@ class DnsServer(object):
             port = 53
         addrs = list(_split(cfg.get('dns_listen')))
         vip = self.vip_address()
+        expose = self.expose(cfg)
+        if expose == 'vip' and vip:
+            # Only on the VIP address: bound to it alone (IP_FREEBIND), so the
+            # nodes' own addresses do not answer at all.
+            return (vip,), port
+        if expose == 'nodes':
+            # Only on the nodes' own addresses: the VIP is not added, and a
+            # question that reaches it through a 0.0.0.0 socket goes unanswered.
+            return tuple(addrs), port
         if vip and not _covers(addrs, vip):
             # The cluster's VIP address answers too, whatever dns_listen names:
             # the NS records of the zone point at it. Bound with IP_FREEBIND,
@@ -362,6 +411,21 @@ class DnsServer(object):
             # it moves here.
             addrs.append(vip)
         return tuple(addrs), port
+
+    def expose(self, cfg=None):
+        """Where it answers: 'vip' (the cluster's VIP address only), 'nodes'
+        (the nodes' own addresses only) or 'both'. 'vip' with no VIP switched
+        on answers on the nodes meanwhile - state() says so."""
+        cfg = cfg or self.cfg()
+        e = str(cfg.get('dns_expose') or 'both').strip().lower()
+        return e if e in ('vip', 'nodes', 'both') else 'both'
+
+    def refuses(self, dst):
+        """A question that arrived at `dst` and must not be answered: the VIP's,
+        when it answers on the nodes only."""
+        if not dst or self.expose() != 'nodes':
+            return False
+        return dst == self.vip_address()
 
     def vip_address(self):
         """The cluster's VIP address when it is switched on, else None."""
@@ -529,6 +593,10 @@ class DnsServer(object):
             'port': port,
             'listen': list(addrs),
             'vip': self.vip_address(),
+            'expose': self.expose(cfg),
+            'expose_note': ('the VIP address is not switched on: it answers on the nodes '
+                            'until it is' if self.expose(cfg) == 'vip' and
+                            not self.vip_address() else ''),
             'listening': list(self.listening),
             'failed': [dict(f) for f in self.failed],
             'records': z.count if z else 0,
@@ -672,6 +740,9 @@ class DnsServer(object):
             try:
                 if info:
                     data, anc_in, _flags, peer = s.recvmsg(65535, socket.CMSG_SPACE(32))
+                    if self.refuses(_asked_at(anc_in, v6)):
+                        self.stats['not_here'] = self.stats.get('not_here', 0) + 1
+                        continue
                     anc = _reply_from(anc_in, v6)
                 else:
                     data, peer = s.recvfrom(65535)
@@ -708,6 +779,14 @@ class DnsServer(object):
                 if self.stopping.is_set():
                     return
                 time.sleep(0.05)
+                continue
+            try:
+                here = c.getsockname()[0]
+            except OSError:
+                here = None
+            if self.refuses(here):
+                self.stats['not_here'] = self.stats.get('not_here', 0) + 1
+                c.close()
                 continue
             if not self.tcp_slots.acquire(blocking=False):
                 self.stats['dropped'] += 1

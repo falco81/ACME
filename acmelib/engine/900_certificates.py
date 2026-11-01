@@ -53,6 +53,7 @@ CERT_DEFAULTS = {
     'dns_ttl': 60,
     'dns_static': '',
     'dns_rate': 100,
+    'dns_expose': 'both',
     'dns_cache': 1,
 }
 for _k, _v in CERT_DEFAULTS.items():
@@ -89,6 +90,7 @@ NAMES.update({
     'dns_ttl': 'TTL of its answers (s)',
     'dns_static': 'Records of your own',
     'dns_rate': 'Answers per second to one network',
+    'dns_expose': 'Where it answers',
     'dns_cache': 'How long records are cached (s)',
 })
 SAYS.update({
@@ -141,6 +143,10 @@ SAYS.update({
     'dns_ttl': 'How long resolvers may keep an answer.',
     'dns_static': 'One record a line: name type value (www A 192.0.2.10).',
     'dns_rate': 'Past this many answers a second to one /24 (IPv6: /56), every other answer goes back truncated, so a real resolver asks again over TCP and a flood gets nothing.',
+    'dns_expose': 'On the cluster\'s VIP address only, on the nodes\' own addresses only, or on both. '
+                  'The VIP only: one address in your NS records, whichever node holds it answers. '
+                  'The nodes only: each node by its own address (two NS records, no VIP needed). '
+                  'Their addresses below are filled in from this when left empty.',
     'dns_cache': 'Records are read from the database at most this often; both nodes of a cluster answer the same within it.',
 })
 SAYS_SHORT.update({
@@ -153,6 +159,7 @@ TUNABLE.update({
     'portal_cert': (0, 1), 'portal_cert_max': (1, 1000), 'portal_cert_auto': (0, 1),
     'portal_cert_keys': (0, 1),
     'dns_server': (0, 1), 'dns_port': (1, 65535), 'dns_ttl': (0, 86400),
+    'dns_expose': ('both', 'vip', 'nodes'),
     'dns_rate': (1, 100000), 'dns_cache': (0, 60),
 })
 PANES['certs'] = ['certs_renew_days', 'certs_check_min', 'certs_parallel', 'certs_retry_max_h',
@@ -169,7 +176,7 @@ PORTAL_CERT_KEYS = ['portal_cert', 'portal_cert_suffixes', 'portal_cert_issuers'
 PANES['portal'] = [k for k in PANES.get('portal', []) if k not in PORTAL_CERT_KEYS
                    and k != 'portal_help'] + PORTAL_CERT_KEYS + (
     ['portal_help'] if 'portal_help' in PANES.get('portal', []) else [])
-PANES['dnssrv'] = ['dns_server', 'dns_listen', 'dns_port', 'dns_zone', 'dns_ns_names',
+PANES['dnssrv'] = ['dns_server', 'dns_expose', 'dns_listen', 'dns_port', 'dns_zone', 'dns_ns_names',
                    'dns_ns_addresses', 'dns_soa_mail', 'dns_ttl', 'dns_static', 'dns_rate', 'dns_cache']
 ONLY_WHEN.update({k: ['dns_server', '1'] for k in PANES['dnssrv'] if k != 'dns_server'})
 ONLY_WHEN.update({k: ['portal_cert', '1'] for k in PORTAL_CERT_KEYS if k != 'portal_cert'})
@@ -310,3 +317,8 @@ def certs_firewall(store, node):
                     'so from anywhere, UDP and TCP',
              'rules': [{'family': f, 'proto': p, 'port': str(port), 'source': ''}
                        for f in (4, 6) for p in ('udp', 'tcp')]}]
+
+
+CHOICE_WORDS['dns_expose'] = {'both': 'on the VIP address and on the nodes',
+                              'vip': 'on the VIP address only',
+                              'nodes': 'on the nodes only'}
