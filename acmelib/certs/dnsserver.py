@@ -260,6 +260,47 @@ class _Bucket(object):
         self.slip = 0
 
 
+
+# ---- answering from the address that was asked (the VIP among them) ---------------
+IP_PKTINFO = getattr(socket, 'IP_PKTINFO', 8)
+IPV6_RECVPKTINFO = getattr(socket, 'IPV6_RECVPKTINFO', 49)
+IPV6_PKTINFO = getattr(socket, 'IPV6_PKTINFO', 50)
+IP_FREEBIND = getattr(socket, 'IP_FREEBIND', 15)
+IPV6_FREEBIND = getattr(socket, 'IPV6_FREEBIND', 78)
+
+
+def _reply_from(ancillary, v6):
+    """The ancillary data that makes a reply leave from the address the
+    question arrived at: in_pktinfo / in6_pktinfo with that address, the
+    interface left to routing."""
+    for level, kind, data in ancillary:
+        if not v6 and level == socket.IPPROTO_IP and kind == IP_PKTINFO and len(data) >= 12:
+            # struct in_pktinfo { int ifindex; in_addr spec_dst; in_addr addr; }
+            dst = data[8:12]
+            return [(socket.IPPROTO_IP, IP_PKTINFO, struct.pack('=i4s4s', 0, dst, bytes(4)))]
+        if v6 and level == socket.IPPROTO_IPV6 and kind == IPV6_PKTINFO and len(data) >= 20:
+            # struct in6_pktinfo { in6_addr addr; unsigned int ifindex; }
+            dst = data[:16]
+            return [(socket.IPPROTO_IPV6, IPV6_PKTINFO, struct.pack('=16sI', dst, 0))]
+    return []
+
+
+def _covers(addrs, ip):
+    """Does one of the listening addresses take questions to `ip`?"""
+    try:
+        want = ipaddress.ip_address(ip)
+    except ValueError:
+        return True
+    for a in addrs:
+        try:
+            got = ipaddress.ip_address(str(a).strip('[]'))
+        except ValueError:
+            continue
+        if got == want or (got.is_unspecified and got.version == want.version):
+            return True
+    return False
+
+
 class DnsServer(object):
     """The server. `store` has .db.rows(sql, args) and .db.run(sql, args)
     (the engine's Store, or anything shaped so). `config` defaults to the
@@ -267,6 +308,7 @@ class DnsServer(object):
 
     def __init__(self, store, config=None, clock=time.time):
         self.store = store
+        self.pktinfo = set()
         self._config = config
         self.clock = clock
         self.lock = threading.Lock()
@@ -311,7 +353,32 @@ class DnsServer(object):
             port = int(cfg.get('dns_port') or 53)
         except (TypeError, ValueError):
             port = 53
-        return tuple(_split(cfg.get('dns_listen'))), port
+        addrs = list(_split(cfg.get('dns_listen')))
+        vip = self.vip_address()
+        if vip and not _covers(addrs, vip):
+            # The cluster's VIP address answers too, whatever dns_listen names:
+            # the NS records of the zone point at it. Bound with IP_FREEBIND,
+            # so the node that does not hold it right now is ready the moment
+            # it moves here.
+            addrs.append(vip)
+        return tuple(addrs), port
+
+    def vip_address(self):
+        """The cluster's VIP address when it is switched on, else None."""
+        E = _engine()
+        if E is None or self.store is None:
+            return None
+        try:
+            v = E.vip_conf(self.store) or {}
+        except Exception:                               # noqa: BLE001
+            return None
+        if not v.get('on') or not v.get('address'):
+            return None
+        a = str(v['address']).split('/')[0].strip().strip('[]')
+        try:
+            return str(ipaddress.ip_address(a))
+        except ValueError:
+            return None
 
     # ---- starting and stopping ------------------------------------------------
     def start(self):
@@ -336,6 +403,7 @@ class DnsServer(object):
         addrs, port = self._listen_conf(cfg)
         self._bound_cfg = (addrs, port)
         self.failed, self.listening = [], []
+        self.pktinfo = set()
         for a in addrs:
             try:
                 ip = ipaddress.ip_address(a.strip('[]'))
@@ -350,6 +418,24 @@ class DnsServer(object):
                     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                     if fam == socket.AF_INET6:
                         s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+                    wild = ip.is_unspecified
+                    if proto == 'udp' and wild:
+                        # Answered from the address the question came to (the VIP
+                        # among them): a reply from a socket on 0.0.0.0 leaves
+                        # from the address routing picks - the node's own - and
+                        # the resolver, which asked the VIP, throws it away.
+                        if fam == socket.AF_INET6:
+                            s.setsockopt(socket.IPPROTO_IPV6, IPV6_RECVPKTINFO, 1)
+                        else:
+                            s.setsockopt(socket.IPPROTO_IP, IP_PKTINFO, 1)
+                    if not wild and str(ip) == self.vip_address():
+                        try:
+                            if fam == socket.AF_INET6:
+                                s.setsockopt(socket.IPPROTO_IPV6, IPV6_FREEBIND, 1)
+                            else:
+                                s.setsockopt(socket.IPPROTO_IP, IP_FREEBIND, 1)
+                        except OSError:
+                            pass
                     s.bind((str(ip), port))
                     if proto == 'tcp':
                         s.listen(64)
@@ -364,6 +450,8 @@ class DnsServer(object):
                     self._fail(str(ip), proto, self._bind_words(e, str(ip), port, proto), fatal)
                     continue
                 where = ('[%s]:%d' if fam == socket.AF_INET6 else '%s:%d') % (ip, s.getsockname()[1])
+                if proto == 'udp' and ip.is_unspecified:
+                    self.pktinfo.add(s.fileno())
                 self.socks.append((s, proto, where))
                 self.listening.append('%s/%s' % (where, proto))
                 t = threading.Thread(target=self._udp_loop if proto == 'udp' else self._tcp_loop,
@@ -440,6 +528,7 @@ class DnsServer(object):
             'serial': z.serial if z else None,
             'port': port,
             'listen': list(addrs),
+            'vip': self.vip_address(),
             'listening': list(self.listening),
             'failed': [dict(f) for f in self.failed],
             'records': z.count if z else 0,
@@ -576,9 +665,16 @@ class DnsServer(object):
 
     # ---- the loops ------------------------------------------------------------------
     def _udp_loop(self, s):
+        info = s.fileno() in self.pktinfo
+        v6 = s.family == socket.AF_INET6
         while not self.stopping.is_set():
+            anc = []
             try:
-                data, peer = s.recvfrom(65535)
+                if info:
+                    data, anc_in, _flags, peer = s.recvmsg(65535, socket.CMSG_SPACE(32))
+                    anc = _reply_from(anc_in, v6)
+                else:
+                    data, peer = s.recvfrom(65535)
             except socket.timeout:
                 continue
             except OSError:
@@ -595,7 +691,10 @@ class DnsServer(object):
                     continue
                 out = self.answer(data, peer[0], tcp=False, slip=(ok == 'slip'))
                 if out:
-                    s.sendto(out, peer)
+                    if anc:
+                        s.sendmsg([out], anc, 0, peer)
+                    else:
+                        s.sendto(out, peer)
             except Exception as e:                      # noqa: BLE001
                 self._error('a UDP question from %s: %s' % (peer[0], e))
 

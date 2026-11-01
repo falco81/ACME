@@ -581,6 +581,13 @@ class Renewer(object):
     # ---- acme's own DNS server ------------------------------------------------------------
     def dns_watch(self):
         sig = tuple(str(E.CONFIG.get(k)) for k in DNS_KEYS)
+        # The VIP address too: switched on, moved or switched off, the DNS
+        # server binds again (it answers on the VIP whatever dns_listen says).
+        try:
+            v = E.vip_conf(self.store) or {}
+            sig += (str(v.get('address') or '') if v.get('on') else '',)
+        except Exception:                               # noqa: BLE001
+            pass
         on = bool(E.CONFIG.get('dns_server'))
         if self.dns is not None and (not on or sig != self.dns_sig):
             self.dns_stop()

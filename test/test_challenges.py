@@ -1416,7 +1416,11 @@ class TestOtherModules(unittest.TestCase):
         self.assertEqual(REG.broken, [])
         want = {'dns_builtin', 'rfc2136', 'cloudflare', 'powerdns', 'route53', 'azure_dns',
                 'hetzner', 'digitalocean', 'ovh', 'gcloud_dns', 'acme_dns', 'ssh_dns', 'script',
-                'manual', 'http_local', 'http_ssh'}
+                'manual', 'http_local', 'http_ssh',
+                'desec', 'gandi', 'linode', 'vultr', 'porkbun', 'namecheap', 'godaddy',
+                'dnsimple', 'ns1', 'bunny', 'cloudns', 'inwx', 'transip', 'netcup', 'ionos',
+                'scaleway', 'exoscale', 'infoblox', 'technitium', 'he_net', 'wedos', 'active24',
+                'websupport'}
         self.assertEqual(set(found), want)
         for kind, cls in found.items():
             d = cls.describe()
@@ -1427,6 +1431,70 @@ class TestOtherModules(unittest.TestCase):
                 if f['type'] == 'select':
                     self.assertTrue(f.get('options'), (kind, f['key']))
                     self.assertIn(f.get('default'), [o[0] for o in f['options']], (kind, f['key']))
+
+
+
+# ---------------------------------------------------------------------------
+# The VIP address: answered from the address that was asked
+# ---------------------------------------------------------------------------
+class TestDnsServerVip(unittest.TestCase):
+    """A server on 0.0.0.0 asked at another address of this machine (here
+    127.0.0.2, standing for the cluster's VIP) answers FROM that address: a
+    resolver that asked the VIP throws away an answer from the node's own."""
+
+    def ask_from(self, srv_addr, port):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(3)
+        try:
+            s.sendto(D.make_query('ns1.' + ZONE, 'A').to_wire(), (srv_addr, port))
+            data, src = s.recvfrom(4096)
+            return data, src
+        finally:
+            s.close()
+
+    def test_wildcard_answers_from_the_asked_address(self):
+        port = free_port()
+        srv = DnsServer(MemStore(), server_config(port, dns_listen='0.0.0.0'))
+        st = srv.start()
+        try:
+            self.assertTrue(st['ok'], st)
+            for addr in ('127.0.0.1', '127.0.0.2'):
+                data, src = self.ask_from(addr, port)
+                self.assertEqual(src[0], addr)
+                self.assertTrue(D.parse(data).answer)
+        finally:
+            srv.stop()
+
+    def test_vip_added_to_listen_and_bound_freely(self):
+        port = free_port()
+        srv = DnsServer(MemStore(), server_config(port, dns_listen='127.0.0.1'))
+        srv.vip_address = lambda: '127.0.0.2'
+        st = srv.start()
+        try:
+            self.assertIn('127.0.0.2', st['listen'])
+            self.assertTrue(any(x.startswith('127.0.0.2:') for x in st['listening']), st)
+            data, src = self.ask_from('127.0.0.2', port)
+            self.assertEqual(src[0], '127.0.0.2')
+        finally:
+            srv.stop()
+
+    def test_vip_covered_by_a_wildcard_not_added(self):
+        srv = DnsServer(MemStore(), server_config(free_port(), dns_listen='0.0.0.0,::'))
+        srv.vip_address = lambda: '192.0.2.50'
+        addrs, _port = srv._listen_conf(srv.cfg())
+        self.assertEqual(list(addrs), ['0.0.0.0', '::'])
+
+    def test_vip_not_on_this_node_yet_still_bound(self):
+        # 192.0.2.50 is on no interface here: IP_FREEBIND lets it be bound, as
+        # on the node of a cluster that does not hold the VIP right now.
+        port = free_port()
+        srv = DnsServer(MemStore(), server_config(port, dns_listen='127.0.0.1'))
+        srv.vip_address = lambda: '192.0.2.50'
+        st = srv.start()
+        try:
+            self.assertTrue(any(x.startswith('192.0.2.50:') for x in st['listening']), st)
+        finally:
+            srv.stop()
 
 
 if __name__ == '__main__':
