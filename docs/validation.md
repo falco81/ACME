@@ -75,7 +75,7 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `duckdns` | Duck DNS - **one TXT value per name** (proved one after another) | the account's token; your own names by CNAME to a duckdns.org name |
 | `webglobe` | Webglobe API (JWT sign-in; staging selectable); `txt-any` and `cname-any` for a commercial CA's DCV | login + an API key that allows acme's IP address |
 | `acme_dns` | an [acme-dns](https://github.com/joohoi/acme-dns) server | account(s); `_acme-challenge.NAME CNAME <fulldomain>` once |
-| `ssh_dns` | commands on the DNS server over SSH: `nsupdate -l`, `nsupdate -k`, PowerShell `Add-DnsServerResourceRecord` (Windows DNS via OpenSSH), or your own (edit a zone file + `rndc reload`) | an SSH account there (sudo optional) |
+| `ssh_dns` | commands on the DNS server itself over SSH, straight into its zones: BIND (`nsupdate -l`, `nsupdate -k`, or the zone file + `rndc reload`), PowerDNS (`pdnsutil` or its HTTP API there), Knot (`knotc` transaction), NSD (zone file + `nsd-control reload`), dnsmasq (`txt-record`), Unbound (`local_data`), Windows DNS (PowerShell via OpenSSH), or your own commands; **Find out what runs there** reads the server (read-only) and fills the form in | an SSH account there (sudo optional) |
 | `script` | a program on this machine (`present`/`cleanup`, dehydrated- or lego-style), `ACME_*` variables | the program |
 | `dns_persist` | **dns-persist-01**: one TXT record at `_validation-persist.DOMAIN`, set once, names the ACME account - no record per order, wildcards and subdomains with `policy=wildcard`; a fallback validation while the CA does not offer it ([below](#a-record-set-once-dns-persist-01-dns_persist)) | an ACME source; the record put in your DNS once |
 | `manual` | shows the record to put in by hand; waits until the zone's name servers have it (or until it is confirmed) | someone there |
@@ -1028,22 +1028,194 @@ then `PUT` and `DELETE` (RFC 4918). Basic authentication: use HTTPS.
 
 ## DNS-01 over SSH (`ssh_dns`)
 
-* **BIND on that machine**: `nsupdate -l` uses BIND's local session key; the
-  zone needs `update-policy local;` (or `{ grant local-ddns zonesub any; };`).
-  The SSH user must read `/run/named/session.key` (group bind/named) or use sudo.
-* **A TSIG key file there**: `nsupdate -k /etc/bind/acme.key`, sent to the
-  server set (127.0.0.1 by default).
-* **Windows DNS**: OpenSSH Server on the DNS server (or a machine with the
-  DnsServer RSAT module, `-ComputerName`); the account in DnsAdmins. The zone
-  must be set as DNS Manager shows it.
-* **Your own commands**: `{fqdn} {relative} {zone} {value} {ttl} {name}` are
-  put in shell-quoted, e.g. a zone file included by the real one:
+acme signs in to the DNS server itself over SSH and writes the TXT record
+straight into the zone there - no API, no TSIG key over the network. Every
+setting is a field of its own and can be set by hand; **Find out what runs
+there** (the button under the form, or `acme --validation-action NAME discover`)
+reads what the server is and fills them in.
 
-  ```
-  add:  printf '%s 60 IN TXT "%s"\n' {fqdn}. {value} >> /var/named/acme-challenge.inc && rndc reload {zone}
-  del:  sed -i /{value}/d /var/named/acme-challenge.inc && rndc reload {zone}
-  ```
-  (the zone's SOA serial must change for secondaries: prefer `nsupdate -l`).
+| How (`flavour`) | Server | What acme runs there | Needs |
+|---|---|---|---|
+| `nsupdate_local` | BIND | `nsupdate -l` (`-k` the session key when *Session key file* is set) | the zone with `update-policy local;`; the account reads the session key (group `bind`/`named`) or sudo |
+| `nsupdate_key` | BIND | `nsupdate -k KEYFILE`, sent to *Server nsupdate sends to* (127.0.0.1) | a TSIG key file there, granted in `update-policy`/`allow-update` |
+| `bind_file` | BIND (static zone) | the zone file edited (below), `named-checkzone`, `rndc reload ZONE`; a zone with a journal: `rndc freeze` before, `rndc thaw` after | *Zone files*; write access to the file and its directory (or sudo) |
+| `pdnsutil` *(PowerDNS default)* | PowerDNS | `pdnsutil list-zone` (read), `add-record` / `replace-rrset` (the other TXT values at the name kept) / `delete-rrset`, `increase-serial`, `rectify-zone` | the account may run pdnsutil (it reads the backend: usually sudo) |
+| `pdns_api` | PowerDNS | `curl` on that machine to its HTTP API on localhost: GET the RRset, PATCH `REPLACE`/`DELETE`, PUT `rectify` for a DNSSEC zone; the API key goes to curl on its input (`-K -`), never on a command line | `api=yes`, `webserver=yes`, the API key |
+| `knot` | Knot DNS | `knotc zone-read`, then `zone-begin` / `zone-set` or `zone-unset` / `zone-commit` (`zone-abort` on any error) | access to knotd's control socket (group `knot` or sudo) |
+| `nsd` | NSD | the zone file edited, `nsd-checkzone`, `nsd-control reload ZONE` | *Zone files*; `nsd-control` set up (`nsd-control-setup` or a unix socket) |
+| `dnsmasq` | dnsmasq | `txt-record=NAME,"VALUE"` lines in a file of acme's own (`/etc/dnsmasq.d/acme-challenge.conf`), `dnsmasq --test`, then *Restart command* | dnsmasq reading that directory (`conf-dir=/etc/dnsmasq.d/,*.conf`) |
+| `unbound` | Unbound | `unbound-control local_data 'NAME TTL IN TXT "VALUE"'`; taken away by `local_data_remove NAME` and the other records at that name put back - in memory, no restart | remote-control enabled; only useful where Unbound is the server asked (an internal CA) |
+| `powershell` | Windows DNS | `Add-DnsServerResourceRecord` / `Remove-DnsServerResourceRecord` (OpenSSH for Windows) | the account in DnsAdmins; *Zone* as DNS Manager shows it |
+| `custom` | anything | your *Command to add* / *to take away* / *to try* | |
+
+Every name and value is checked (letters, digits, `_ . - *`) and every word is
+shell-quoted; paths must be absolute plain paths, and the command fields (rndc,
+the restart) words without `; | & $ \` > <`. With **Through sudo** each tool
+runs as `sudo -n TOOL ...` (a sudoers line can name exactly it); where a file is
+edited (`bind_file`, `nsd`, `dnsmasq`) the whole script runs as `sudo -n sh -s`.
+The tools are looked for in `/usr/sbin`, `/sbin` and `/usr/local/sbin` too.
+
+**Which zone.** *Zone* when it is set (and the name is in it); else the longest
+of *Zones there* (and of *Zone files*) the name is in; else the zone found by
+its SOA. dnsmasq and Unbound need none: the record is put at its name. Writing
+is idempotent: a value already there is not added again, and taking it away
+takes only acme's value - other TXT records at the same name stay.
+
+**The zone file editor** (`bind_file`, `nsd`). acme reads the file, adds the
+line `_acme-challenge.NAME. TTL IN TXT "VALUE" ; acme-challenge` at its end (or
+takes exactly that line away - a line without the mark is never touched) and
+raises the SOA serial: *as it is written* - a date `YYYYMMDDnn` stays one (today's
+`00`, or the old one + 1), any other number + 1; or always the date, the Unix time,
++ 1. A file it cannot read whole is refused, with "use a dynamic zone (nsupdate)
+instead": `$INCLUDE`, no SOA or more than one, a parenthesis or a quote that
+does not end, not a text file (a raw or map zone). The new file is put in place
+by one script there (`sh -s`, the content in a quoted here-document):
+
+1. the file must still be what was read (its SHA-256) - else nothing is written;
+2. a copy is kept beside it as `.FILE.acme-bak`, the new one written to
+   `.FILE.acme-new` (owner and mode kept);
+3. `named-checkzone ZONE .FILE.acme-new` (`nsd-checkzone`) - refused: the new
+   one removed, nothing changed;
+4. moved into place, `rndc reload ZONE` (`nsd-control reload ZONE`) - failed:
+   the copy put back and reloaded again.
+
+Nothing but acme's own two files is ever removed. A BIND zone with a journal
+(`FILE.jnl`: it is dynamic) is frozen first (`rndc freeze`) and thawed after
+(`rndc thaw`, which reloads it), also when something failed - or refused when
+*Freeze a dynamic zone* is off. dnsmasq's file is acme's own: the same script,
+`dnsmasq --test` once it is in place (the whole configuration), then the restart.
+dnsmasq reads `txt-record` only when it starts - a SIGHUP does **not** reload it
+- so it is restarted (`systemctl restart dnsmasq`; its cache is lost).
+
+**Test** changes nothing: nsupdate there (and the key readable), the zone files
+read and checked (`named-checkzone`/`nsd-checkzone` on the file as it is, the
+serial said), `rndc status` / `nsd-control status`, `pdnsutil list-all-zones`,
+the API's zone list, `knotc zone-status`, `dnsmasq --test`, `unbound-control
+list_local_zones` - each zone set must be there. `nsupdate -l` cannot be tried
+without changing the zone: the **dry run** (any flavour) puts a random test TXT
+record in, waits until the zone's name servers answer it, and takes it away.
+
+### Find out what runs there
+
+Read-only, always: each command is checked against a fixed list of read-only
+commands before it is sent (anything else is refused before it leaves acme),
+runs under `timeout 10` where `timeout` is there, and a tool that is missing or
+fails is only said. Nothing is written, reloaded or restarted. What needs root
+is tried as the account first, then with `sudo -n` when that works. The
+commands (`PATH` with the sbin directories before each):
+
+```
+uname -s; id -u; id -un; id -G
+for c in named named-checkconf named-checkzone rndc nsupdate pdnsutil pdns_server pdns_control knotc knotd nsd nsd-checkconf nsd-checkzone nsd-control dnsmasq unbound unbound-control systemctl pgrep sudo timeout sha256sum curl powershell; do command -v "$c"; done
+sudo -n true                                            # not as root
+systemctl is-active named bind9 pdns knot nsd dnsmasq unbound
+pgrep -l -x 'named|pdns_server|knotd|nsd|nsd: main|dnsmasq|unbound'
+# BIND
+named -v
+named-checkconf -p [NAMED_CONF]                         # zones, views, update-policy, allow-update, keys (their secrets are never kept)
+ls -lnd -- ZONEFILE ZONEFILE.jnl ZONEDIR ... /run/named/session.key /var/run/named/session.key
+grep -sH -E '^[[:space:]]*key[[:space:]]' -- /etc/bind/*.key /etc/bind/keys/*.key /etc/named/*.key /etc/named*.key /var/named/*.key /var/lib/bind/*.key /usr/local/etc/namedb/*.key
+# PowerDNS
+pdns_server --version
+grep -hsE '^[[:space:]]*(api|webserver|webserver-address|webserver-port|launch)[[:space:]]*=' /etc/powerdns/pdns.conf /etc/pdns/pdns.conf /etc/powerdns/pdns.d/*.conf   # never api-key
+pdnsutil [--config-dir=DIR] list-all-zones
+pdnsutil [--config-dir=DIR] show-zone ZONE              # DNSSEC, primary or secondary (20 zones at most)
+# Knot
+knotc [-c CONF] [-s SOCKET] -V | zone-status | conf-read zone.domain
+# NSD
+nsd -v
+nsd-checkconf -o zones|-o zonesdir /etc/nsd/nsd.conf
+nsd-checkconf -z ZONE -o zonefile|-o request-xfr /etc/nsd/nsd.conf
+ls -lnd -- ZONEFILE ZONEDIR ...
+# dnsmasq
+dnsmasq --version
+grep -hsE '^[[:space:]]*(conf-dir|conf-file|auth-zone|auth-server|local|domain|txt-record|port)=' /etc/dnsmasq.conf /etc/dnsmasq.d/*.conf
+ls -lnd -- /etc/dnsmasq.d
+# Unbound
+unbound -V
+unbound-control [-c CONF] list_local_zones
+# Windows (when uname does not answer)
+powershell -NoProfile -NonInteractive -Command "Get-DnsServerZone | ForEach-Object { ... }"
+```
+
+It answers which server runs there (and its version), the way it suggests,
+each zone with its file, whether it is dynamic and how acme would write it
+(a secondary: "written on its primary"), the keys found (names and files), whether
+sudo works and is needed, and what is in the way. The page fills in the fields
+it found: an empty field (or one at its default) at once, a field set otherwise
+only when you tick it in the list it shows; *Use only this one* puts a zone into
+*Zone*. Nothing is saved until **Save**; when it cannot find anything (no SSH,
+no server it knows) it says why, and every field stays to be set by hand. When
+several servers run there, the one with zones acme can write is suggested, the
+other named (another validation can use it).
+
+### Setting it up by hand
+
+**BIND, nsupdate -l** (the simplest: no key to manage):
+
+```
+zone "example.com" {
+    type primary;
+    file "/var/lib/bind/db.example.com";      # a directory named may write (the journal)
+    update-policy local;                      # = grant local-ddns zonesub any;
+};
+```
+
+named makes `/run/named/session.key` (`session-keyfile` moves it - then set
+*Session key file*). The SSH account reads it: `usermod -aG bind acme` (Debian;
+`named` on RHEL), or *Through sudo* with
+`acme ALL=(root) NOPASSWD: /usr/bin/nsupdate`. To allow only TXT records:
+`update-policy { grant local-ddns zonesub TXT; };`.
+
+**BIND, a key of its own** (`nsupdate_key`):
+
+```
+tsig-keygen -a hmac-sha256 acme-key > /etc/bind/acme.key   # chgrp bind, chmod 640
+include "/etc/bind/acme.key";
+zone "example.com" { type primary; file "..."; update-policy { grant acme-key zonesub TXT; }; };
+```
+
+**BIND, a static zone** (`bind_file`): *Zone files* `example.com
+/etc/bind/db.example.com`; the account may write the file and its directory and
+run `rndc` (group `bind`), or *Through sudo* with `acme ALL=(root) NOPASSWD:
+/bin/sh -s, /usr/bin/cat, /usr/bin/test` (a shell as root - prefer the group).
+Secondaries get the change by NOTIFY, as the serial is raised.
+
+**PowerDNS** (`pdnsutil`): `acme ALL=(root) NOPASSWD: /usr/bin/pdnsutil` (or the
+account in the group that reads the backend). The HTTP API instead
+(`pdns_api`): in `pdns.conf` `api=yes`, `api-key=...`, `webserver=yes`,
+`webserver-address=127.0.0.1`, `webserver-port=8081`; curl on the server.
+
+**Knot DNS** (`knot`): the account in the group `knot` (it may use
+`/run/knot/knot.sock`), or `acme ALL=(root) NOPASSWD: /usr/sbin/knotc`. For a
+zone loaded from a file add `zonefile-sync: -1` / `journal-content: all` as you
+keep it - the change lives in Knot's journal and is signed when the zone is
+(`dnssec-signing: on`). An ACL is needed only for RFC 2136 (`rfc2136`), not here:
+`acl: [{id: acme, key: acme-key, action: update, update-type: [TXT]}]`.
+
+**NSD** (`nsd`): `nsd-control-setup` once (or `control-interface: /run/nsd/nsd.ctl`),
+*Zone files* as `nsd-checkconf -z ZONE -o zonefile` says (relative to
+`zonesdir`); sudo for the zone files, as for BIND.
+
+**dnsmasq** (`dnsmasq`): `conf-dir=/etc/dnsmasq.d/,*.conf` in `dnsmasq.conf`
+(Debian reads the directory by itself); sudo for the file and the restart.
+
+**Unbound** (`unbound`): `remote-control: control-enable: yes` (`unbound-control-setup`),
+and the account allowed to use it (sudo). Unbound is a resolver: a public CA asks
+the zone's authoritative servers, never it.
+
+**Windows DNS**: OpenSSH Server on the DNS server (or a machine with the
+DnsServer RSAT module, `-ComputerName`); the account in DnsAdmins. The zone
+must be set as DNS Manager shows it.
+
+**Your own commands**: `{fqdn} {relative} {zone} {value} {ttl} {name}` are
+put in shell-quoted, e.g. a zone file included by the real one:
+
+```
+add:  printf '%s 60 IN TXT "%s"\n' {fqdn}. {value} >> /var/named/acme-challenge.inc && rndc reload {zone}
+del:  sed -i /{value}/d /var/named/acme-challenge.inc && rndc reload {zone}
+```
+(the zone's SOA serial must change for secondaries: prefer a flavour above).
 
 ## RFC 2136 (`rfc2136`)
 

@@ -5808,8 +5808,15 @@ function drawSplitIn() {
     if (!v.engaged) {
       tile.appendChild(el('div', 'muted small', 'nothing is watched - as before: it goes on alone whatever happens to the other'));
     } else if (n.fresh) {
-      line(!s.apart, s.apart ? 'cannot reach the other node' : 'reaches the other node',
-           s.apart ? '(' + ago(s.since) + ')' : '');
+      line(!s.apart, s.apart ? 'cannot reach the other node' : 'reaches the other node');
+      if (s.apart) {
+        /* How long, in the page's language ("{0} min ago" is one of its patterns). */
+        var since = el('span', 'muted small');
+        since.appendChild(document.createTextNode(' ('));
+        since.appendChild(el('span', '', ago(s.since)));
+        since.appendChild(document.createTextNode(')'));
+        tile.lastChild.appendChild(since);
+      }
       var arbs = s.arbiters || [];
       if (arbs.length) arbs.forEach(function (a) { line(a.ok, 'arbiter', a.target + (a.words ? ' - ' + a.words : '')); });
       else line(null, 'arbiter: ' + (s.gateway ? 'its gateway ' + s.gateway : 'none - no default gateway'));
@@ -5963,7 +5970,8 @@ function drawSplitIn() {
       tr.appendChild(td);
     });
     return tr;
-  }, 'plain split-scen'));
+  /* Its own fixed widths (acme.css, as otp 1.0.221): not the lists' steadied columns. */
+  }, 'plain split-scen', {free: true}));
   /* ---- the last report ---- */
   var rep = v.report;
   if (rep && rep.at) {
