@@ -285,7 +285,8 @@ class CertsCore(unittest.TestCase):
         self.assertIn('fake', kinds, got.get('broken'))
         self.assertIn('selfsigned', {d['kind'] for d in got['issuer']})
         fake = [d for d in got['target'] if d['kind'] == 'fake'][0]
-        self.assertEqual([f['key'] for f in fake['deploy_fields']], ['file', 'pfx_password'])
+        self.assertEqual([f['key'] for f in fake['deploy_fields'] if not f.get('dual_only')],
+                         ['file', 'pfx_password'])
 
     def test_02_selfsigned_renew_deploy(self):
         sid = self.ok('POST', '/api/sources/save', {'name': 'self', 'kind': 'selfsigned',
@@ -491,7 +492,8 @@ class CertsCore(unittest.TestCase):
         # The fields of a module, as --set takes them.
         got = self.cli_json('--plugin', 'fake')
         mod = got['modules'][0]
-        self.assertEqual([f['key'] for f in mod['deploy_fields']], ['file', 'pfx_password'])
+        self.assertEqual([f['key'] for f in mod['deploy_fields'] if not f.get('dual_only')],
+                         ['file', 'pfx_password'])
         self.assertEqual(mod['actions'][0]['key'], 'hello')
         self.assertIn('pfx_password', self.cli_ok('--plugin', 'target/fake').stdout)
         # Checked against them: a needed one, a choice, a number, a key it has not.
