@@ -157,7 +157,10 @@ TUNABLE.update({
 })
 PANES['certs'] = ['certs_renew_days', 'certs_check_min', 'certs_parallel', 'certs_retry_max_h',
                   'certs_notify_days', 'certs_notify_mail', 'certs_notify_sms',
-                  'certs_notify_ok', 'certs_keep_versions', 'certs_keep_jobs_days']
+                  'certs_notify_ok']
+# How long the certificate manager keeps things, on The database pane beside
+# how long the events are kept - where otp kept its own retention.
+PANES['db'] = list(PANES['db']) + ['certs_keep_jobs_days', 'certs_keep_versions']
 # The certificate portal's settings, on the pane of the portal (the enrolment
 # pages), after the engine's own of who may sign in there.
 PORTAL_CERT_KEYS = ['portal_cert', 'portal_cert_suffixes', 'portal_cert_issuers',

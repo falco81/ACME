@@ -5112,7 +5112,7 @@ function drawHaLb(d) {
   var v0 = {
     lb: LB_UI.lb || trusted.replace(/\/(32|128)$/, '') || '192.0.2.5',
     name: LB_UI.name || (lb.vip && lb.vip.fqdn) || lb.server_name || location.hostname,
-    tls: LB_UI.tls || 'end', hc: '/healthz'};
+    tls: LB_UI.tls || 'end', hc: LB_UI.hc || '/healthz'};
   host.appendChild(el('p', 'note', 'Both nodes answer everything, so any balancer spreads the pages round robin, without sticky sessions. Each node says GET /healthz: 200 "ok NODE" while it really works (the daemon, its database), 503 in maintenance or an upgrade - so the balancer takes it out by itself. Pick yours below: the configuration is filled in with this cluster\'s own names, addresses and ports, marked in colour, and follows what you type here.'));
   if (lb.vip && lb.vip.on) {
     host.appendChild(el('p', 'note warn', 'The built-in VIP address ' + lb.vip.address + ' is on: the pages need no balancer of yours. Use one or the other.'));
@@ -5145,6 +5145,7 @@ function drawHaLb(d) {
     form.appendChild(f);
   };
   segOf('TLS', 'tls', [['end', 'Ended on the balancer'], ['pass', 'Passed through (PROXY)']]);
+  segOf('Health check', 'hc', [['/healthz', 'The pages'], ['/healthz?check=dns', '+ DNS server listening']]);
   host.appendChild(form);
   /* The nodes as they are. */
   var facts = el('div', 'lb-facts');
@@ -6889,7 +6890,7 @@ function drawFwAccess(d) {
   var rows = el('div', 'fw-acc');
   var me = d.nodes.filter(function (n) { return n.name === FW.node; })[0] || d.nodes[0] || {};
   var inner = (d.inner || {})[me.name] || [];
-  [['portal', 'The portal', 'https://…/ - the certificate portal', 'people'],
+  [['portal', 'The enrolment pages', 'https://…/ - the certificate portal', 'people'],
    ['admin', 'The administration', 'https://…/admin/ - these pages', 'gear'],
    ['health', 'The health check', '/healthz - for a load balancer or monitoring (Zabbix, Nagios…)', 'pulse']].forEach(function (p) {
     var acc = FW.draft.access;

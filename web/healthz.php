@@ -15,13 +15,14 @@ if (acme_token() === null) {
 }
 // What is asked (1.0.47): web (the default - the pages: nginx, PHP, the
 // daemon, the database) or all (that, and replication running - for
-// monitoring, not for a balancer: one node cannot fix the other's). Anything
-// else is web.
+// monitoring, not for a balancer: one node cannot fix the other's), or dns
+// (the pages, and acme's own DNS server listening here - for a balancer in
+// front of port 53). Anything else is web.
 $check = (string) ($_GET['check'] ?? 'web');
-if (!in_array($check, ['web', 'all'], true)) {
+if (!in_array($check, ['web', 'all', 'dns'], true)) {
     $check = 'web';
 }
-$got = acme_get('/api/health' . ($check === 'all' ? '?check=all' : ''), 3.0);
+$got = acme_get('/api/health' . ($check === 'web' ? '' : '?check=' . $check), 3.0);
 if (!is_array($got) || empty($got['ok'])) {
     http_response_code(503);
     echo "down: the daemon is not answering\n";
@@ -43,6 +44,12 @@ $node = preg_replace('/[^A-Za-z0-9._-]/', '', (string) ($got['node'] ?? ''));
 if ($check === 'all' && isset($got['replication']) && empty($got['replication']['ok'])) {
     http_response_code(503);
     echo 'degraded: replication ' . (!empty($got['replication']['lost']) ? 'lost' : 'not running')
+        . " on $node\n";
+    exit;
+}
+if ($check === 'dns' && empty($got['dns']['ok'])) {
+    http_response_code(503);
+    echo 'down: the DNS server is ' . (empty($got['dns']['on']) ? 'switched off' : 'not listening')
         . " on $node\n";
     exit;
 }

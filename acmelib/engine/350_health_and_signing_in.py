@@ -265,6 +265,16 @@ def _health(h):
             out['replication'] = {'ok': bool(rep.get('healthy')), 'lost': bool(rep.get('lost'))}
         except Exception:                               # noqa: BLE001
             out['replication'] = {'ok': False}
+    # For a balancer in front of acme's own DNS server: is it listening here?
+    if h.arg('check') == 'dns':
+        try:
+            from acmelib.certs import renewer as _ren
+            r = _ren.RENEWER[0]
+            st = r.dns_state() if r is not None else {'running': False}
+            out['dns'] = {'ok': bool(st.get('running') and st.get('listening')),
+                          'on': bool(int(CONFIG.get('dns_server') or 0))}
+        except Exception:                               # noqa: BLE001
+            out['dns'] = {'ok': False, 'on': bool(int(CONFIG.get('dns_server') or 0))}
     return out
 
 

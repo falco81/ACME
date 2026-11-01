@@ -584,7 +584,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="ctl-group">Messages and the portal</div>
     <button type="button" data-pane="codes" data-icon="phone" title="The SMS gateway, and the codes sent by e-mail or SMS for the administrators' second step and the notifications: how long they last, how many.">Codes by e-mail and SMS</button>
     <button type="button" data-pane="texts" data-icon="edit" title="Every word people get from this server - the mails and the SMS - in Czech and in English, edited as they will look.">Message texts</button>
-    <button type="button" data-pane="portal" data-icon="people" title="The certificate portal: who may sign in to it, what they see, the picture on its sign-in.">The portal</button>
+    <button type="button" data-pane="portal" data-icon="people" title="The certificate portal: who may sign in to it, what they see, the picture on its sign-in.">The enrolment pages</button>
     <div class="ctl-group">Mail</div>
     <button type="button" data-pane="mail" data-icon="mail" title="How the mails of this server - alerts, reports, codes, notices of certificates - reach people: a mail server, or straight to theirs.">Mail</button>
     <button type="button" data-pane="mailq" data-icon="list" title="Every mail sent - an alert, a report, a code to sign in with - and what became of it: sent, waiting for another try (greylisting, a server away), failed. Sent again or taken away by hand.">Outgoing mail <span class="nav-badge" id="mq-badge" hidden></span></button>
@@ -626,7 +626,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <?php if (function_exists('acme_certs_settings_panes')) { acme_certs_settings_panes(); } ?>
 
   <div class="ctl-pane" id="pane-portal" hidden>
-    <div class="ctl-head"><h2 class="ctl-title">The portal</h2>
+    <div class="ctl-head"><h2 class="ctl-title">The enrolment pages</h2>
       <p class="ctl-lede">The certificate portal: <span class="mono" id="portal-url">/</span>
         on this server, where people sign in with their directory password - who may, what they
         see there, and the picture above its sign-in.</p></div>
@@ -634,7 +634,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="card full" id="art-card">
       <h2>The picture on the sign-in</h2>
       <div class="seg" id="art-slot" style="margin:4px 0 10px">
-        <button type="button" data-slot="portal">The portal</button>
+        <button type="button" data-slot="portal">The enrolment pages</button>
         <button type="button" data-slot="admin">The administration</button>
       </div>
       <p class="note" id="art-note-portal">Shown above the sign-in of the portal.</p>
