@@ -25483,6 +25483,14 @@
   "sc1307": {
    "source": "psql failed",
    "text": "psql selhal"
+  },
+  "sc1308": {
+   "source": "One address, or several with a comma between them.",
+   "text": "Jedna adresa, nebo několik oddělených čárkou."
+  },
+  "sc1309": {
+   "source": "That is not an e-mail address",
+   "text": "To není e-mailová adresa"
   }
  },
  "patterns": {
@@ -32857,6 +32865,10 @@
   "pc0273": {
    "source": "what to ask for could not be made: {0}",
    "text": "dotaz nešlo sestavit: {0}"
+  },
+  "pc0274": {
+   "source": "Set on every ACME source that has none: {0}. The CA writes there before a certificate runs out unrenewed and when its rules change; nothing else is sent.",
+   "text": "Nastaví se u každého zdroje ACME, který ho nemá: {0}. CA tam píše, když certifikát brzy vyprší neobnovený a když se mění její pravidla; nic jiného se neposílá."
   }
  },
  "rich": {
@@ -33475,6 +33487,10 @@
   "r0154": {
    "source": "The very same lines go into <code>/var/log/acme/acme-certs.log</code> as well, whether or not they are sent. Something on this machine can then forward them, and they are there to read when the network is not.",
    "text": "Úplně stejné řádky jdou také do <code>/var/log/acme/acme-certs.log</code>, ať se posílají, nebo ne. Něco na tomto stroji je pak může přeposílat a jsou k přečtení, i když síť není."
+  },
+  "r0155": {
+   "source": "Two ways. <b>One shared PostgreSQL</b> (both nodes open the same database) is done on the pages alone: <b>Make the bundle…</b> here asks for the second node's address, lets it through this node's firewall and into PostgreSQL here at once, and saves the bundle; <b>Join a cluster…</b> on the second node's pages takes it. <b>Replicated</b> (a PostgreSQL on each node) is done on the command line, as root, because it installs and restarts PostgreSQL there. The pages show the result and look after it afterwards. In the examples the first node is <code>acme1</code> at <code>192.0.2.11</code> and the second <code>acme2</code> at <code>192.0.2.12</code>; put your own names and addresses in.",
+   "text": "Dva způsoby. <b>Jedna sdílená PostgreSQL</b> (oba uzly otevírají stejnou databázi) se udělá jen na stránkách: <b>Vytvořit balíček…</b> zde se zeptá na adresu druhého uzlu, hned ho pustí přes firewall tohoto uzlu a do zdejší PostgreSQL a uloží balíček; <b>Připojit ke clusteru…</b> na stránkách druhého uzlu ho převezme. <b>Replikovaný</b> (PostgreSQL na každém uzlu) se dělá na příkazové řádce jako root, protože tam instaluje a restartuje PostgreSQL. Stránky pak ukazují výsledek a starají se o něj. V příkladech je první uzel <code>acme1</code> na <code>192.0.2.11</code> a druhý <code>acme2</code> na <code>192.0.2.12</code>; dosaďte svá jména a adresy."
   }
  }
 }

@@ -4,6 +4,45 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.1 - 2026-11-01
+
+- **High availability: joining does everything by itself, on both sides.**
+  - The node a bundle is made for is let through the firewall of the first
+    node at once (for a day, until it has joined; a firewall change on trial
+    never takes it back), and the joining node opens its own firewall to the
+    first one before it reaches the database or copies anything - acme's own
+    chain (ACME-IN) and firewalld alike, each opening checked and said
+    truthfully ("does NOT let ..." with the command, when it did not work).
+  - The bundle made on the pages prepares PostgreSQL on the first node as
+    `acme --ha-setup` does: it listens on the node's address, the joining
+    node is in pg_hba.conf, PostgreSQL is restarted - each step shown.
+  - A node's PostgreSQL lets in its own address too: the replicated join
+    stopped half way on "no pg_hba.conf entry for host <own address>".
+  - Every failure of a join is named with its fix: connection refused (not
+    listening there), timed out / no route (a firewall), pg_hba, password,
+    name. "Check from here" tries it before joining. A half-done join is said
+    to be one, and running it again finishes it cleanly.
+  - Shared mode writes `ha_mode` on both nodes (they ran as two single
+    servers on one database).
+  - `--ha-status` and the page saw the outgoing replication as missing while
+    both directions ran (the slots were looked for under otp's names); the
+    cluster counted as unhealthy for /healthz?check=all and the alerts.
+  - The Make the bundle and Join a cluster popups redrawn: a drop zone and
+    what the bundle holds, the passphrase checked as typed, live steps.
+- **Secrets as otp shows them, everywhere**: a stored password is dots and
+  its last two characters to a full administrator, dots only to everybody
+  else, and only dots while it is typed - the certificate manager's sources,
+  validations, targets and deployments included. The SSH keys of validations
+  and the acme-dns accounts are sealed now; the configuration export carries
+  module secrets only when it is locked with a password.
+- **Czech everywhere**: every tab, settings pane, popup and module form of
+  the certificate manager, the job steps and the errors.
+- No browser dialogs: the contact e-mail of the ACME sources is asked in
+  acme's own popup.
+- As in otp: "The enrolment pages" keeps its name; the balancer's health
+  check offers "+ DNS server listening" (`/healthz?check=dns`) where otp
+  offered RADIUS; the certificate manager's retention is on The database.
+
 ## 1.0.0 - 2026-11-01
 
 The first version of **acme**: certificates kept, renewed and put in place by
