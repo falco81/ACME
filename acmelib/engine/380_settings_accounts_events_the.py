@@ -728,9 +728,18 @@ def _db_do(h):
             return tune_restart(h.store, s['name'])
         except ValueError as e:
             raise ApiError(400, str(e))
-    if CONFIG.get('ha_mode') and act in ('move', 'use', 'empty'):
-        raise ApiError(409, 'this node is one of a cluster: its database is not moved from here '
-                            '(switch the replication off first - Settings → High availability)')
+    if str(act or '').startswith('wiz_'):
+        # The wizard: Settings → The database → Move to another database (1.0.210).
+        try:
+            return db_move_api(h, s, act, b)
+        except ApiError:
+            raise
+        except ValueError as e:
+            raise ApiError(400, str(e))
+    if act in ('move', 'use', 'empty'):
+        # Not on a node of a cluster, nor under another node using this database
+        # (1.0.210: a peer heard, or ha_mode set).
+        db_move_refuse(h.store)
     try:
         if act in ('try', 'setup', 'empty', 'move', 'use'):
             c = engine_asked(b.get('settings') or {})

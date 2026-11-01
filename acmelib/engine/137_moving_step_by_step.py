@@ -441,7 +441,7 @@ def db_move_checks(store, c, overwrite=False):
             target['rows'] = sum(int(db.value('SELECT COUNT(*) FROM %s' % t) or 0)
                                  for t in ours if t not in ('meta',))
             target['ours'] = bool(ours)
-            if True:
+            if db is not None:
                 tried = _probe_rights(db)
                 bad = [r for r in tried if not r[1]]
                 row('rights', 'What the account may do there', not bad,
@@ -517,15 +517,6 @@ def _room_row(row, folder, here_size):
     row('room', 'Room on the server\'s disk', True if free >= need else 'warn',
         '%s free under %s, about %s needed' % (human_bytes(free), folder, human_bytes(need)),
         '' if free >= need else 'give that disk more room before moving')
-
-
-def human_bytes(n):
-    n = float(n or 0)
-    for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
-        if n < 1024 or unit == 'TB':
-            return ('%d %s' % (n, unit)) if unit == 'B' else ('%.1f %s' % (n, unit))
-        n /= 1024.0
-    return '%d B' % n
 
 
 # ---- making the database and its account ------------------------------------------
@@ -1072,7 +1063,7 @@ def db_move_cli(args):
             given['db_tls_ca'] = args.ca
         if not given['db_password']:
             given['db_password'] = ask_password('the password of %s' % given['db_user'],
-                                                env='ACME_DB_PASSWORD')
+                                                twice=False, env='ACME_DB_PASSWORD')
     try:
         c = db_move_settings(given)
     except ValueError as e:
