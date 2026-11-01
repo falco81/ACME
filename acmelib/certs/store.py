@@ -2,7 +2,8 @@
 """
 The certificate manager's tables, read and written: the certificates and
 their versions, the issuers, challenges and targets with their settings
-(secrets sealed, never sent back), the deployments.
+(secrets sealed; shown as dots - and their last two characters to a full
+administrator - never in clear), the deployments.
 
 Sealing binds every secret to its place:
     a certificate's key        'certs:<id>:key_sealed:<version>'  (the same value
@@ -100,9 +101,34 @@ def plugin_class(family, kind):
 
 
 def secret_fields(cls, attr='fields'):
+    """The keys kept sealed: type 'secret', and a 'pem' (or any) field marked
+    secret=True - a private key pasted in (the SSH key of a validation)."""
     if cls is None:
         return set()
-    return {f['key'] for f in (getattr(cls, attr, None) or []) if f.get('type') == 'secret'}
+    return {f['key'] for f in (getattr(cls, attr, None) or [])
+            if f.get('type') == 'secret' or f.get('secret')}
+
+
+SECRET_DOTS = '\u2022' * 8
+
+
+def secret_view(plain, full=False):
+    """A kept secret as it is shown (the engine's rule, secret_shown): to a full
+    administrator eight dots and its last two characters, to anybody else eight
+    dots, "" when none is set. A PEM key or other text of several lines: the
+    last two characters of its body - the BEGIN/END lines, whitespace, '-' and
+    '=' left out (those end every key alike and tell nothing)."""
+    if plain in (None, ''):
+        return ''
+    text = str(plain)
+    if not full:
+        return SECRET_DOTS
+    if '-----' in text or '\n' in text:
+        text = re.sub(r'-----[A-Z0-9 ]+-----', '', text)
+        text = re.sub(r'[\s=-]', '', text)
+        if not text:
+            return SECRET_DOTS
+    return E.secret_shown(text) or SECRET_DOTS
 
 
 def bool_fields(cls, attr='fields'):
@@ -130,30 +156,105 @@ def config_seal(new, old, place, secrets):
         if not re.match(r'^[A-Za-z0-9_.-]{1,64}\Z', str(k)):
             raise ValueError('a setting called %r is not one a module has' % k)
         if k in secrets:
-            if v in (None, ''):
+            # "" or what the page was shown (dots, its last two): the one kept.
+            if v in (None, '') or E.is_masked(v):
                 if old.get(k):
-                    out[k] = old[k]
+                    out[k] = _sealed_kept(old[k], '%s:%s' % (place, k))
                 continue
             out[k] = E.seal_secret(str(v), '%s:%s' % (place, k))
         else:
             out[k] = v
     for k in secrets:
         if k not in new and old.get(k):
-            out[k] = old[k]
+            out[k] = _sealed_kept(old[k], '%s:%s' % (place, k))
     return out
 
 
-def config_masked(cfg, secrets):
-    """What a page is shown: "" for each secret, and which ones are set."""
+def _sealed_kept(v, place):
+    """A secret kept: sealed already, or - kept in clear before its field was
+    marked secret (the SSH key of a validation) - sealed now."""
+    if isinstance(v, str) and v and not v.startswith('sealed:'):
+        return E.seal_secret(v, place)
+    return v
+
+
+def config_masked(cfg, secrets, place=None, full=False):
+    """What a page is shown (secret_view): each secret as dots and its last two
+    for a full administrator (`place` '<table>:<id>' opens it), dots for
+    anybody else, "" when not set - and which ones are set."""
     out, is_set = {}, []
     for k, v in (cfg or {}).items():
         if k in secrets or (isinstance(v, str) and v.startswith('sealed:')):
-            out[k] = ''
+            plain = None
+            if v and full and place:
+                plain = E.unseal_secret(v, '%s:%s' % (place, k))
+            out[k] = secret_view(plain, True) if plain else (SECRET_DOTS if v else '')
             if v:
                 is_set.append(k)
         else:
             out[k] = v
     return out, sorted(is_set)
+
+
+# The settings kept as JSON, where secrets sit inside (Export and import of the
+# configuration): table -> (column, what their place starts with).
+JSON_SECRET_COLS = {'cert_issuers': 'config', 'cert_challenges': 'config',
+                    'cert_targets': 'config', 'cert_deploys': 'options'}
+
+
+def carry_out(table, row, whole):
+    """A row as the configuration's file carries it: each sealed value in its
+    settings opened (`whole`, a file locked with a passphrase) or eight dots
+    (secret_shown last=False) - never sealed for a row of this machine."""
+    col = JSON_SECRET_COLS.get(table)
+    if not col or not row.get(col):
+        return row
+    cfg = jload(row.get(col), {})
+    if not isinstance(cfg, dict):
+        return row
+    for k, v in list(cfg.items()):
+        if isinstance(v, str) and v.startswith('sealed:'):
+            if whole:
+                cfg[k] = E.unseal_secret(v, '%s:%s:%s' % (table, row.get('id'), k)) or ''
+            else:
+                cfg[k] = E.secret_shown(v, last=False)
+    return dict(row, **{col: json.dumps(cfg)})
+
+
+def carry_in(store, table, ident, old):
+    """A row put in from such a file: a secret in clear sealed for its place
+    here; eight dots (a file without the secrets) - the one kept here stays,
+    or none."""
+    col = JSON_SECRET_COLS.get(table)
+    if not col:
+        return
+    row = store.db.row('SELECT * FROM %s WHERE id = ?' % table, (ident,))
+    if not row:
+        return
+    if table == 'cert_deploys':
+        secrets = deploy_secrets(store, row)
+    else:
+        fam = FAMILY_OF.get(table)
+        secrets = secret_fields(plugin_class(fam, row.get('kind'))) if fam else set()
+    cfg = jload(row.get(col), {})
+    if not isinstance(cfg, dict):
+        return
+    had = jload((old or {}).get(col), {}) if old else {}
+    had = had if isinstance(had, dict) else {}
+    out = dict(cfg)
+    for k, v in cfg.items():
+        if not isinstance(v, str) or not (k in secrets or v.startswith('sealed:')):
+            continue
+        place = '%s:%s:%s' % (table, ident, k)
+        if v == '' or E.is_masked(v):
+            if had.get(k) and E.unseal_secret(had[k], place) is not None:
+                out[k] = had[k]
+            else:
+                out.pop(k, None)
+        elif not v.startswith('sealed:'):
+            out[k] = E.seal_secret(v, place)
+    if out != cfg:
+        store.db.update(table, ident, {col: json.dumps(out)})
 
 
 def plugin_row(store, family, ref):
@@ -175,9 +276,12 @@ def plugin_config(family, row):
                        secret_fields(cls))
 
 
-def plugin_public(store, family, row):
+def plugin_public(store, family, row, full=False):
+    """A row as it is shown; `full`: to a full administrator (its secrets as dots
+    and their last two characters - dots alone otherwise)."""
     cls = plugin_class(family, row.get('kind'))
-    cfg, is_set = config_masked(jload(row.get('config'), {}), secret_fields(cls))
+    cfg, is_set = config_masked(jload(row.get('config'), {}), secret_fields(cls),
+                                '%s:%s' % (TABLE_OF[family], row['id']), full)
     out = {k: row.get(k) for k in ('id', 'name', 'kind', 'enabled', 'note', 'created',
                                    'created_by', 'updated', 'last_ok', 'last_error')}
     out['config'] = cfg
@@ -459,8 +563,9 @@ def deploy_options(store, row):
                        deploy_secrets(store, row))
 
 
-def deploy_public(store, row):
-    opts, is_set = config_masked(jload(row.get('options'), {}), deploy_secrets(store, row))
+def deploy_public(store, row, full=False):
+    opts, is_set = config_masked(jload(row.get('options'), {}), deploy_secrets(store, row),
+                                 'cert_deploys:%s' % row['id'], full)
     out = {k: v for k, v in row.items() if k != 'options'}
     out['options'] = opts
     out['secret_set'] = is_set

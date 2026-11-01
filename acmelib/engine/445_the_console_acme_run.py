@@ -1668,7 +1668,9 @@ class Console(object):
             body = []
             for para in helptext.split('\n'):
                 body += textwrap.wrap(para, ww - 4) or ['']
-            facts = ['now: %s%s' % ('(hidden)' if secret else (self._shown(st.get('value')) or '(empty)'),
+            # A secret as the pages show it to a full administrator: dots and its last two.
+            facts = ['now: %s%s' % ((self._shown(st.get('value')) or '(not set)') if secret else
+                                    (self._shown(st.get('value')) or '(empty)'),
                                     '' if st.get('source') == 'default' else
                                     '   - %s' % (st.get('source_says') or st.get('source'))),
                      'as it comes: %s' % (self._shown(st.get('default')) or '(empty)')]
@@ -1768,7 +1770,7 @@ class Console(object):
             if rc != 0:
                 err = (out.strip().splitlines() or ['it was not saved'])[-1]
                 continue
-            return ('%s = %s - saved%s' % (key, '(hidden)' if secret else value,
+            return ('%s = %s - saved%s' % (key, secret_shown(value) if secret else value,
                                            '; the running service takes it within seconds'
                                            if not st.get('file_only') else
                                            '; restart the service for it'), False)

@@ -22227,6 +22227,2706 @@
   "sx0004": {
    "source": "The contact e-mail of the ACME sources",
    "text": "Kontaktní e-mail zdrojů ACME"
+  },
+  "sc0484": {
+   "source": "_acme-challenge.NAME CNAME LABEL.zone for every name.",
+   "text": "_acme-challenge.JMÉNO jako CNAME na POPISEK.zóna pro každé jméno."
+  },
+  "sc0485": {
+   "source": "_acme-challenge.NAME itself - its zone is delegated to acme",
+   "text": "samo _acme-challenge.JMÉNO – jeho zóna je delegovaná na acme"
+  },
+  "sc0486": {
+   "source": "-ComputerName: empty for the machine signed in to.",
+   "text": "-ComputerName: prázdné pro stroj, ke kterému se přihlašuje."
+  },
+  "sc0487": {
+   "source": "{fqdn} {relative} {zone} {value} {ttl} {name} are put in, shell-quoted.",
+   "text": "Doplní se {fqdn} {relative} {zone} {value} {ttl} {name}, ošetřené pro shell."
+  },
+  "sc0488": {
+   "source": "{service} in the paths and commands",
+   "text": "{service} v cestách a příkazech"
+  },
+  "sc0489": {
+   "source": "3DES (any PAN-OS)",
+   "text": "3DES (jakýkoli PAN-OS)"
+  },
+  "sc0490": {
+   "source": "3DES (any Windows)",
+   "text": "3DES (jakákoli verze Windows)"
+  },
+  "sc0491": {
+   "source": "60 or more (1 is Cloudflare's \"auto\").",
+   "text": "60 nebo víc (1 je „auto“ Cloudflaru)."
+  },
+  "sc0492": {
+   "source": "A backup is everything: the whole database (the certificates and their keys, the authorities, the targets, the jobs, the accounts, every setting, the VIP address, the firewall, the texts, the logs), the key that opens the sealed keys and this machine's config.json - with RESTORE.md, the exact steps to bring it all back on a machine installed from nothing, one server or a cluster. Locked with the password below; sent to every destination switched on - a folder, FTP, FTPS, SFTP, SCP or a Windows/Samba share. Each node of a cluster sends its own.",
+   "text": "Záloha je všechno: celá databáze (certifikáty a jejich klíče, autority, cíle, úlohy, účty, všechna nastavení, VIP adresa, firewall, texty, logy), klíč, který otevírá zapečetěné klíče, a config.json tohoto stroje – s RESTORE.md, přesným postupem, jak vše vrátit na stroji nainstalovaném od nuly, ať jde o jeden server, nebo cluster. Zamčená heslem níže; posílá se do každého zapnutého úložiště – složka, FTP, FTPS, SFTP, SCP nebo sdílení Windows/Samba. Každý uzel clusteru posílá svou."
+  },
+  "sc0493": {
+   "source": "A certificate deployed",
+   "text": "Certifikát nasazen"
+  },
+  "sc0494": {
+   "source": "A certificate ends soon",
+   "text": "Certifikát brzy vyprší"
+  },
+  "sc0495": {
+   "source": "A certificate has expired",
+   "text": "Certifikát vypršel"
+  },
+  "sc0496": {
+   "source": "A certificate renewed",
+   "text": "Certifikát obnoven"
+  },
+  "sc0497": {
+   "source": "A certificate renewed by itself is renewed this many days before it ends, unless it says otherwise or its CA suggests a window of its own (ARI). 30 suits the 90 days of Let’s Encrypt.",
+   "text": "Certifikát obnovovaný sám se obnoví tolik dní před koncem platnosti, pokud u něj není řečeno jinak nebo jeho CA nenavrhne vlastní okno (ARI). 30 sedí na 90 dní u Let’s Encrypt."
+  },
+  "sc0498": {
+   "source": "A certificate signed by its own key: nothing trusts it but what is told to (a pinned fingerprint, a test, a device that only wants a certificate).",
+   "text": "Certifikát podepsaný vlastním klíčem: nevěří mu nic kromě toho, komu se to řekne (připnutý otisk, test, zařízení, které jen chce nějaký certifikát)."
+  },
+  "sc0499": {
+   "source": "A certificate that ends sooner and is not renewed by itself (or whose renewal fails) is an event, an alert and a mail every day.",
+   "text": "Certifikát, který končí dřív a neobnovuje se sám (nebo jehož obnovení selhává), je každý den událostí, upozorněním a mailem."
+  },
+  "sc0500": {
+   "source": "A certificate, kept and renewed by itself",
+   "text": "Certifikát, uložený a obnovovaný sám"
+  },
+  "sc0501": {
+   "source": "A certificate, kept and renewed by itself (as the portal came)",
+   "text": "Certifikát, uložený a obnovovaný sám (jak portál přišel)"
+  },
+  "sc0502": {
+   "source": "A certificate's dates, a renewal's time and the codes of the second step are worked out from the clock: a node whose clock is off asks for certificates at the wrong time and refuses codes that are right. Each node keeps its clock with chrony; here is how far off each one is, which servers it follows, and the time servers set for the whole cluster.",
+   "text": "Data certifikátů, čas obnovení i kódy druhého kroku se počítají podle hodin: uzel, jehož hodiny se liší, žádá o certifikáty ve špatnou dobu a odmítá správné kódy. Každý uzel si hodiny drží přes chrony; tady je vidět, o kolik se který liší, které servery sleduje, a časové servery nastavené pro celý cluster."
+  },
+  "sc0503": {
+   "source": "A change of the firewall or of who may reach the pages is put in - and what was there before comes back by itself unless somebody presses Keep it within these minutes: a rule that shuts SSH or the pages out does not stay. 0: kept at once, as before.",
+   "text": "Změna firewallu nebo toho, kdo smí na stránky, se nastaví – a pokud nikdo do těchto minut nestiskne Ponechat, samo se vrátí to, co bylo předtím: pravidlo, které odřízne SSH nebo stránky, nezůstane. 0: ponechá se hned, jako dřív."
+  },
+  "sc0504": {
+   "source": "A database from somewhere else — one downloaded from here, or a file copied off the backups folder. It replaces everything: every certificate, every job, every setting and every account. Nothing happens until it has been read, checked and shown to you.",
+   "text": "Databáze odjinud — stažená odtud, nebo soubor zkopírovaný ze složky záloh. Nahradí všechno: každý certifikát, každou úlohu, každé nastavení a každý účet. Nic se nestane, dokud se nepřečte, nezkontroluje a neukáže vám."
+  },
+  "sc0505": {
+   "source": "A dump from somewhere else — one downloaded from here, or a file copied off the dumps folder. It replaces everything: every certificate, every job, every setting and every account. Nothing happens until it has been read, checked and shown to you.",
+   "text": "Dump odjinud — stažený odtud, nebo soubor zkopírovaný ze složky dumpů. Nahradí všechno: každý certifikát, každou úlohu, každé nastavení a každý účet. Nic se nestane, dokud se nepřečte, nezkontroluje a neukáže vám."
+  },
+  "sc0506": {
+   "source": "A failed renewal or deployment is tried again after 5 minutes, then after twice as long each time - never longer than this.",
+   "text": "Neúspěšné obnovení nebo nasazení se zkusí znovu po 5 minutách, pak pokaždé po dvojnásobné době – nikdy ne déle než toto."
+  },
+  "sc0507": {
+   "source": "a fixed label - every name in one place (LABEL.zone)",
+   "text": "pevný popisek – všechna jména na jednom místě (POPISEK.zóna)"
+  },
+  "sc0508": {
+   "source": "a known_hosts line; empty with \"trust the first\" takes the one seen first",
+   "text": "řádek known_hosts; prázdné s „věřit prvnímu“ vezme ten, který uvidí první"
+  },
+  "sc0510": {
+   "source": "A new version put in from here: send the package, and the nodes are upgraded one at a time - each taken out of service first, so the load balancer and the VIP address go to the other, and brought back only once it answers again. The command line (install.sh --upgrade) works as it always has.",
+   "text": "Nová verze nasazená odtud: pošlete balíček a uzly se aktualizují jeden po druhém – každý se nejdřív vyřadí z provozu, takže balancer i VIP adresa jdou na ten druhý, a vrátí se teprve, až zase odpovídá. Příkazová řádka (install.sh --upgrade) funguje jako vždy."
+  },
+  "sc0511": {
+   "source": "A node in maintenance renews and deploys nothing and its /healthz says 503, so the load balancer leaves it alone; these pages go on working. With a single server, maintenance means no certificate is renewed or put in place until it is back.",
+   "text": "Uzel v údržbě nic neobnovuje ani nenasazuje a jeho /healthz vrací 503, takže ho balancer nechá být; tyto stránky fungují dál. U jediného serveru znamená údržba, že se do jejího konce žádný certifikát neobnoví ani nenasadí."
+  },
+  "sc0512": {
+   "source": "A node out of service and back: its /healthz says 503 - and the VIP address leaves it for the other node by itself.",
+   "text": "Uzel mimo provoz a zpět: jeho /healthz vrací 503 – a VIP adresa z něj sama přejde na druhý uzel."
+  },
+  "sc0513": {
+   "source": "A node, the replication or the database down",
+   "text": "Výpadek uzlu, replikace nebo databáze"
+  },
+  "sc0514": {
+   "source": "a private key or the configuration exported not locked",
+   "text": "soukromý klíč nebo konfigurace exportované bez zamčení"
+  },
+  "sc0515": {
+   "source": "a profile not found is made with clientssl as its parent",
+   "text": "nenalezený profil se vytvoří s clientssl jako rodičem"
+  },
+  "sc0516": {
+   "source": "A program on this machine puts the TXT record in and takes it away - for a DNS acme has no module for.",
+   "text": "Program na tomto stroji vloží TXT záznam a zase ho odebere – pro DNS, pro které acme nemá modul."
+  },
+  "sc0517": {
+   "source": "A report of the period by mail: the certificates (renewed, deployed, failed, running out), the sign-ins to the administration, the events worth a look, the servers and what is wrong now. One node of a cluster sends it.",
+   "text": "Report za období mailem: certifikáty (obnovené, nasazené, selhané, končící), přihlášení do administrace, události stojící za pohled, servery a co je teď špatně. V clusteru ho posílá jeden uzel."
+  },
+  "sc0518": {
+   "source": "A script of your own",
+   "text": "Vlastní skript"
+  },
+  "sc0519": {
+   "source": "A sign-in to the enrolment pages lasts (min)",
+   "text": "Přihlášení na stránky registrace trvá (min)"
+  },
+  "sc0520": {
+   "source": "Account key",
+   "text": "Klíč účtu"
+  },
+  "sc0521": {
+   "source": "Accounts by name (JSON)",
+   "text": "Účty podle jména (JSON)"
+  },
+  "sc0522": {
+   "source": "ACME (Let's Encrypt and others)",
+   "text": "ACME (Let's Encrypt a další)"
+  },
+  "sc0523": {
+   "source": "acme answers DNS itself for the zone below - the _acme-challenge TXT records of DNS-01, and records of your own. Delegate _acme-challenge (or a zone) to this machine with NS records.",
+   "text": "acme sám odpovídá na DNS pro zónu níže – TXT záznamy _acme-challenge pro DNS-01 a vlastní záznamy. Delegujte _acme-challenge (nebo zónu) na tento stroj záznamy NS."
+  },
+  "sc0524": {
+   "source": "acme shows the TXT record to put in your DNS and waits until the zone's name servers have it. For a renewal nobody watches, choose another way.",
+   "text": "acme ukáže TXT záznam, který máte vložit do svého DNS, a počká, až ho budou mít jmenné servery zóny. Pro obnovování, u kterého nikdo nesedí, zvolte jiný způsob."
+  },
+  "sc0525": {
+   "source": "acme signs in to the DNS server over SSH and puts the record in there: nsupdate -l (BIND), nsupdate with a key, PowerShell on Windows DNS, or commands of your own.",
+   "text": "acme se přes SSH přihlásí k DNS serveru a vloží tam záznam: nsupdate -l (BIND), nsupdate s klíčem, PowerShell na Windows DNS, nebo vlastní příkazy."
+  },
+  "sc0526": {
+   "source": "acme's own DNS server",
+   "text": "Vlastní DNS server acme"
+  },
+  "sc0527": {
+   "source": "acme's zone",
+   "text": "Zóna acme"
+  },
+  "sc0528": {
+   "source": "Add ca.crt (the chain)",
+   "text": "Přidat ca.crt (řetězec)"
+  },
+  "sc0529": {
+   "source": "Address tried by Test",
+   "text": "Adresa, kterou zkouší Test"
+  },
+  "sc0530": {
+   "source": "Addresses and names with wrong attempts still counted, and codes sent to a person for the second step - at the limit they are locked out until the time runs out. Clear one, or all of them, and they may try again at once.",
+   "text": "Adresy a jména, u kterých se ještě počítají chybné pokusy, a kódy poslané člověku pro druhý krok – po dosažení limitu jsou zablokované, dokud čas nevyprší. Vymažte jeden nebo všechny a mohou to hned zkusit znovu."
+  },
+  "sc0531": {
+   "source": "Addresses it listens on, comma between them.",
+   "text": "Adresy, na kterých naslouchá, oddělené čárkou."
+  },
+  "sc0532": {
+   "source": "Addresses told when a renewal or a deployment fails, or a certificate is about to end (comma between them). Empty: nobody.",
+   "text": "Adresy, kterým se dá vědět, když obnovení nebo nasazení selže nebo když certifikátu končí platnost (oddělené čárkou). Prázdné: nikomu."
+  },
+  "sc0533": {
+   "source": "AES-256 (Windows Server 2019 and later)",
+   "text": "AES-256 (Windows Server 2019 a novější)"
+  },
+  "sc0534": {
+   "source": "After reloading",
+   "text": "Po novém načtení"
+  },
+  "sc0535": {
+   "source": "after saving, config-sync to this group (HA pair); empty: no sync",
+   "text": "po uložení config-sync do této skupiny (HA pár); prázdné: bez synchronizace"
+  },
+  "sc0536": {
+   "source": "After the password, every account - local or from the directory - gives a code too. The first time, the account chooses how and sets it up (an authenticator app, or a code sent to an address or a phone it proves it has). Accounts → Reset the second step, or acme --reset-2fa NAME, makes it choose again. Sign-ins already open stay open.",
+   "text": "Po hesle zadá každý účet – místní i z adresáře – ještě kód. Napoprvé si účet vybere způsob a nastaví ho (aplikace autentikátoru, nebo kód poslaný na adresu či telefon, které prokáže, že má). Účty → Resetovat druhý krok, nebo acme --reset-2fa JMÉNO, ho nechá vybrat znovu. Už otevřená přihlášení zůstávají."
+  },
+  "sc0537": {
+   "source": "All that the Events page lists: a certificate renewed or deployed, a setting changed, a node gone.",
+   "text": "Vše, co uvádí stránka Události: obnovený nebo nasazený certifikát, změněné nastavení, výpadek uzlu."
+  },
+  "sc0538": {
+   "source": "Also a mail and an SMS when a certificate is renewed or deployed - not only when something fails or runs out. The words are on Settings → Message texts.",
+   "text": "Mail a SMS i tehdy, když se certifikát obnoví nebo nasadí – nejen když něco selže nebo vyprší. Texty jsou v Nastavení → Texty zpráv."
+  },
+  "sc0539": {
+   "source": "An account with Enroll on the template: user, DOMAIN\\user or user@domain.",
+   "text": "Účet s právem Enroll na šabloně: uživatel, DOMÉNA\\uživatel nebo uživatel@doména."
+  },
+  "sc0540": {
+   "source": "An acme-dns server answers the TXT records; your DNS has _acme-challenge.NAME as a CNAME to the account's fulldomain, put in once.",
+   "text": "TXT záznamy obsluhuje server acme-dns; vaše DNS má _acme-challenge.JMÉNO jako CNAME na fulldomain účtu, vložený jednou."
+  },
+  "sc0541": {
+   "source": "An address for the pages that is on one node at a time - active and standby - held by keepalived. It leaves a node by itself when the node goes into maintenance, is upgraded or rebuilt, or when its pages stop answering their own /healthz (nginx, PHP, the daemon, the database); and when the node is gone altogether. It comes back to the node it is meant to be on once that is well again. With it off, a load balancer of your own works as before (docs/load-balancers.md).",
+   "text": "Adresa pro stránky, která je vždy jen na jednom uzlu – aktivní a záložní – a drží ji keepalived. Z uzlu sama odejde, když jde uzel do údržby, aktualizuje se nebo přestavuje, když jeho stránky přestanou odpovídat na vlastní /healthz (nginx, PHP, démon, databáze) – a také když uzel úplně zmizí. Na uzel, na kterém má být, se vrátí, jakmile je zase v pořádku. Když je vypnutá, funguje dál vlastní load balancer (docs/load-balancers.md)."
+  },
+  "sc0542": {
+   "source": "an API key",
+   "text": "API klíčem"
+  },
+  "sc0543": {
+   "source": "An app registration with the role \"DNS Zone Contributor\" on the zone (or its resource group).",
+   "text": "Registrace aplikace s rolí „DNS Zone Contributor“ na zóně (nebo její skupině prostředků)."
+  },
+  "sc0544": {
+   "source": "An IAM user with route53:ListHostedZonesByName, ListResourceRecordSets, ChangeResourceRecordSets (and GetChange) on the zones.",
+   "text": "Uživatel IAM s oprávněními route53:ListHostedZonesByName, ListResourceRecordSets, ChangeResourceRecordSets (a GetChange) na zónách."
+  },
+  "sc0545": {
+   "source": "An SMS gateway with an HTTP API (most operators and services), or a GSM modem on this machine run by smstools3 or gammu-smsd: acme writes each message as a file into its spool folder, or a Teltonika gateway (TRB140, RUT…) on the network through its own API, the way zigmon sends its texts. Off: no code and no alert goes by SMS.",
+   "text": "SMS brána s HTTP API (většina operátorů a služeb), GSM modem na tomto stroji obsluhovaný smstools3 nebo gammu-smsd: acme zapíše každou zprávu jako soubor do jeho složky spool, nebo brána Teltonika (TRB140, RUT…) v síti přes její vlastní API, stejně jako posílá zprávy zigmon. Vypnuto: žádný kód ani upozornění neodejde jako SMS."
+  },
+  "sc0546": {
+   "source": "Another ACME server (its directory URL)",
+   "text": "Jiný ACME server (URL jeho directory)"
+  },
+  "sc0547": {
+   "source": "Another kind makes a new account at the CA (renewals are not counted as renewals of certificates the old account ordered).",
+   "text": "Jiný druh vytvoří u CA nový účet (obnovení se pak nepočítají jako obnovení certifikátů, které objednal starý účet)."
+  },
+  "sc0548": {
+   "source": "Answers per second to one network",
+   "text": "Odpovědí za sekundu do jedné sítě"
+  },
+  "sc0549": {
+   "source": "anyone in the directory may sign in to the enrolment pages",
+   "text": "na stránky registrace se smí přihlásit kdokoli z adresáře"
+  },
+  "sc0550": {
+   "source": "API → Tokens: with the scopes domain:read, domain:create, domain:delete (or Write).",
+   "text": "API → Tokens: s oprávněními domain:read, domain:create, domain:delete (nebo Write)."
+  },
+  "sc0551": {
+   "source": "API secret",
+   "text": "Tajný klíč API"
+  },
+  "sc0552": {
+   "source": "api-key of pdns.conf.",
+   "text": "api-key z pdns.conf."
+  },
+  "sc0553": {
+   "source": "Application key",
+   "text": "Klíč aplikace"
+  },
+  "sc0554": {
+   "source": "Application secret",
+   "text": "Tajný klíč aplikace"
+  },
+  "sc0555": {
+   "source": "As in the server's key statement (tsig-keygen -a hmac-sha256 acme-key). Empty: unsigned (only for a server that allows it by address).",
+   "text": "Jako v příkazu key na serveru (tsig-keygen -a hmac-sha256 acme-key). Prázdné: bez podpisu (jen pro server, který to povolí podle adresy)."
+  },
+  "sc0556": {
+   "source": "As the CA says (AES-256, else 3DES)",
+   "text": "Podle CA (AES-256, jinak 3DES)"
+  },
+  "sc0557": {
+   "source": "As the CA says (SHA-256, else SHA-1)",
+   "text": "Podle CA (SHA-256, jinak SHA-1)"
+  },
+  "sc0558": {
+   "source": "Ask again every (s)",
+   "text": "Ptát se znovu každých (s)"
+  },
+  "sc0559": {
+   "source": "Asked at the end when \"then public resolvers\" is chosen.",
+   "text": "Ptá se na konci, když je zvoleno „pak veřejné resolvery“."
+  },
+  "sc0560": {
+   "source": "Before the CA is asked, _acme-challenge.NAME is looked up: on, a name whose CNAME does not lead to acme fails at once with what to put in your DNS; off, it is only said.",
+   "text": "Než se zeptá CA, vyhledá se _acme-challenge.JMÉNO: zapnuto – jméno, jehož CNAME nevede na acme, hned selže s tím, co vložit do DNS; vypnuto – jen se to řekne."
+  },
+  "sc0561": {
+   "source": "Before the CA is told to look, acme asks every name server of the zone (found by NS) for the record, without recursion, until each has it - the CA asks them the same way. Through public resolvers too, when your name servers are anycast or hidden behind a provider.",
+   "text": "Než se CA řekne, ať se podívá, zeptá se acme na záznam každého jmenného serveru zóny (nalezeného přes NS), bez rekurze, dokud ho nemá každý – CA se jich ptá stejně. Také přes veřejné resolvery, když jsou vaše jmenné servery anycastové nebo schované za poskytovatelem."
+  },
+  "sc0562": {
+   "source": "Before writing",
+   "text": "Před zápisem"
+  },
+  "sc0563": {
+   "source": "Body",
+   "text": "Tělo"
+  },
+  "sc0564": {
+   "source": "CA certificate of the ACME server",
+   "text": "Certifikát CA ACME serveru"
+  },
+  "sc0565": {
+   "source": "CA certificate of the web server",
+   "text": "Certifikát CA webového serveru"
+  },
+  "sc0566": {
+   "source": "CA fingerprint",
+   "text": "Otisk CA"
+  },
+  "sc0567": {
+   "source": "CA identifier",
+   "text": "Identifikátor CA"
+  },
+  "sc0568": {
+   "source": "Called as",
+   "text": "Volá se jako"
+  },
+  "sc0569": {
+   "source": "Certificate authority",
+   "text": "Certifikační autorita"
+  },
+  "sc0570": {
+   "source": "Certificates from a CA that speaks SCEP (RFC 8894): Microsoft NDES, EJBCA, step-ca and others, with a challenge password. Requests the CA holds (PENDING) are asked for again.",
+   "text": "Certifikáty od CA, která mluví SCEP (RFC 8894): Microsoft NDES, EJBCA, step-ca a další, s challenge heslem. Na žádosti, které CA drží (PENDING), se ptá znovu."
+  },
+  "sc0571": {
+   "source": "Certificates from a Microsoft CA through its Web Enrollment pages (/certsrv), with a template; signed in with NTLM, Basic or a client certificate. Requests waiting for approval are fetched later.",
+   "text": "Certifikáty od Microsoft CA přes její stránky Web Enrollment (/certsrv), se šablonou; přihlášení přes NTLM, Basic nebo klientský certifikát. Žádosti čekající na schválení se vyzvednou později."
+  },
+  "sc0572": {
+   "source": "Certificates from Let's Encrypt or any other ACME CA (ZeroSSL, Google Trust Services, Buypass, SSL.com, step-ca), each name proved by DNS-01 or HTTP-01, renewed in the CA's own window (ARI).",
+   "text": "Certifikáty od Let's Encrypt nebo jiné ACME CA (ZeroSSL, Google Trust Services, Buypass, SSL.com, step-ca), každé jméno prokázané přes DNS-01 nebo HTTP-01, obnovované v okně, které určí CA (ARI)."
+  },
+  "sc0573": {
+   "source": "certificates had before",
+   "text": "certifikáty, které měly dřív"
+  },
+  "sc0574": {
+   "source": "Certificates kept, renewed and put in place by themselves: Let's Encrypt and any other ACME CA, authorities of its own, MS AD CS and SCEP; put onto Linux over SSH, F5, NetScaler, MikroTik, FortiGate and more.",
+   "text": "Certifikáty uložené, obnovované a nasazované samy: Let's Encrypt a jakákoli jiná ACME CA, vlastní autority, MS AD CS a SCEP; nasazení na Linux přes SSH, F5, NetScaler, MikroTik, FortiGate a další."
+  },
+  "sc0575": {
+   "source": "Check before the CA is asked",
+   "text": "Kontrola, než se zeptá CA"
+  },
+  "sc0576": {
+   "source": "Check the API's certificate",
+   "text": "Ověřovat certifikát API"
+  },
+  "sc0577": {
+   "source": "Check the device's certificate",
+   "text": "Ověřovat certifikát zařízení"
+  },
+  "sc0578": {
+   "source": "Check the server's certificate",
+   "text": "Ověřovat certifikát serveru"
+  },
+  "sc0579": {
+   "source": "Check the server's TLS certificate",
+   "text": "Ověřovat TLS certifikát serveru"
+  },
+  "sc0580": {
+   "source": "Check the web server's TLS certificate",
+   "text": "Ověřovat TLS certifikát webového serveru"
+  },
+  "sc0581": {
+   "source": "Check what is served",
+   "text": "Zkontrolovat, co se servíruje"
+  },
+  "sc0582": {
+   "source": "chrony out of sync, or the clock off by more than half a second - the certificates' dates and the codes of the authenticator apps are worked out from it.",
+   "text": "chrony není synchronizované nebo se hodiny liší o víc než půl sekundy – data certifikátů a kódy aplikací autentikátoru se počítají z hodin."
+  },
+  "sc0583": {
+   "source": "a member of the administrators group, without 2-step verification",
+   "text": "člen skupiny administrators, bez dvoufázového ověření"
+  },
+  "sc0584": {
+   "source": "Client (application) ID",
+   "text": "ID klienta (aplikace)"
+  },
+  "sc0585": {
+   "source": "Client secret",
+   "text": "Tajný klíč klienta"
+  },
+  "sc0586": {
+   "source": "Cloud: a project's API token with Read & Write. Old DNS Console: an API token from dns.hetzner.com → API tokens.",
+   "text": "Cloud: API token projektu s Read & Write. Stará DNS Console: API token z dns.hetzner.com → API tokens."
+  },
+  "sc0587": {
+   "source": "Command after writing",
+   "text": "Příkaz po zápisu"
+  },
+  "sc0588": {
+   "source": "Command to add",
+   "text": "Příkaz pro vložení"
+  },
+  "sc0589": {
+   "source": "Command to take away",
+   "text": "Příkaz pro odebrání"
+  },
+  "sc0590": {
+   "source": "Command to try",
+   "text": "Příkaz k vyzkoušení"
+  },
+  "sc0591": {
+   "source": "Commands allowed",
+   "text": "Povolené příkazy"
+  },
+  "sc0592": {
+   "source": "commands of my own",
+   "text": "vlastní příkazy"
+  },
+  "sc0593": {
+   "source": "Commands on the DNS server over SSH",
+   "text": "Příkazy na DNS serveru přes SSH"
+  },
+  "sc0594": {
+   "source": "Commands run as \"sudo -n ...\" (a sudoers line for exactly them).",
+   "text": "Příkazy se spouštějí jako „sudo -n ...“ (řádek v sudoers přesně pro ně)."
+  },
+  "sc0595": {
+   "source": "commands run first; one failing stops the deployment",
+   "text": "příkazy spuštěné nejdřív; když jeden selže, nasazení se zastaví"
+  },
+  "sc0596": {
+   "source": "commit acme's own changes only",
+   "text": "commitovat jen vlastní změny acme"
+  },
+  "sc0597": {
+   "source": "Contact e-mails",
+   "text": "Kontaktní e-maily"
+  },
+  "sc0598": {
+   "source": "Copy everything that is here into that database: every certificate, every job, every setting and every account. What is here is left exactly as it is.",
+   "text": "Zkopírovat do té databáze vše, co je zde: každý certifikát, každou úlohu, každé nastavení a každý účet. Co je zde, zůstane přesně tak, jak je."
+  },
+  "sc0599": {
+   "source": "Custom (fill the fields)",
+   "text": "Vlastní (vyplňte pole)"
+  },
+  "sc0600": {
+   "source": "Deploying a certificate failed",
+   "text": "Nasazení certifikátu selhalo"
+  },
+  "sc0601": {
+   "source": "deployments",
+   "text": "nasazení"
+  },
+  "sc0602": {
+   "source": "Description on the NAS",
+   "text": "Popis na NAS"
+  },
+  "sc0603": {
+   "source": "DigitalOcean takes 30 or more.",
+   "text": "DigitalOcean bere 30 nebo víc."
+  },
+  "sc0604": {
+   "source": "dnf (or apt) updates every package. The pages go on answering meanwhile; a restart it needs is offered at the end.",
+   "text": "dnf (nebo apt) aktualizuje všechny balíčky. Stránky mezitím dál odpovídají; potřebný restart se nabídne na konci."
+  },
+  "sc0605": {
+   "source": "DNS records",
+   "text": "DNS záznamy"
+  },
+  "sc0606": {
+   "source": "DNS server for the cmdlets",
+   "text": "DNS server pro cmdlety"
+  },
+  "sc0607": {
+   "source": "DNS servers acme looks names up with (CNAMEs, the zone, its name servers). Empty: Settings → ACME resolvers, else this machine's.",
+   "text": "DNS servery, přes které acme vyhledává jména (CNAME, zónu, její jmenné servery). Prázdné: Nastavení → ACME resolvery, jinak resolvery tohoto stroje."
+  },
+  "sc0608": {
+   "source": "do not commit",
+   "text": "necommitovat"
+  },
+  "sc0609": {
+   "source": "Domain",
+   "text": "Doména"
+  },
+  "sc0610": {
+   "source": "Dynamic DNS UPDATE, signed with a TSIG key, sent to the zone's primary name server.",
+   "text": "Dynamický DNS UPDATE podepsaný klíčem TSIG, poslaný na primární jmenný server zóny."
+  },
+  "sc0611": {
+   "source": "Each certificate keeps this many of the certificates it had.",
+   "text": "Každý certifikát si uchová tolik certifikátů, které měl předtím."
+  },
+  "sc0612": {
+   "source": "each machine by its address (Host: NAME)",
+   "text": "každý stroj podle jeho adresy (Host: JMÉNO)"
+  },
+  "sc0613": {
+   "source": "EACH ONE SIGNED BY THE ONE BEFORE",
+   "text": "KAŽDÝ PODEPSANÝ TÍM PŘED NÍM"
+  },
+  "sc0614": {
+   "source": "Each sign-in to the administration and the enrolment pages: who, from where, let in or refused and why. A password or code typed is never sent.",
+   "text": "Každé přihlášení do administrace a na stránky registrace: kdo, odkud, puštěn nebo odmítnut a proč. Zadané heslo ani kód se nikdy neposílá."
+  },
+  "sc0615": {
+   "source": "empty on a FortiGate without VDOMs",
+   "text": "prázdné na FortiGate bez VDOM"
+  },
+  "sc0616": {
+   "source": "Empty: found by asking the server (then DNS) for the SOA of the name.",
+   "text": "Prázdné: najde se dotazem na SOA jména u serveru (pak v DNS)."
+  },
+  "sc0617": {
+   "source": "Empty: found by its SOA. Windows DNS needs it right (the zone as in DNS Manager).",
+   "text": "Prázdné: najde se podle SOA. Windows DNS ji potřebuje přesně (zóna jako v DNS Manageru)."
+  },
+  "sc0618": {
+   "source": "Empty: found by the name (a public zone first).",
+   "text": "Prázdné: najde se podle jména (nejdřív veřejná zóna)."
+  },
+  "sc0619": {
+   "source": "Empty: found by the name (needs Zone:Read).",
+   "text": "Prázdné: najde se podle jména (potřebuje Zone:Read)."
+  },
+  "sc0620": {
+   "source": "Empty: found by the name.",
+   "text": "Prázdné: najde se podle jména."
+  },
+  "sc0621": {
+   "source": "Empty: it is the default server of port 80 (it answers for any name). Where another block is the default server already, name the names here.",
+   "text": "Prázdné: je to výchozí server portu 80 (odpovídá na jakékoli jméno). Kde je výchozím serverem už jiný blok, vyjmenujte jména zde."
+  },
+  "sc0622": {
+   "source": "empty: sudo must not ask (NOPASSWD)",
+   "text": "prázdné: sudo se nesmí ptát (NOPASSWD)"
+  },
+  "sc0623": {
+   "source": "empty: the certificate's name",
+   "text": "prázdné: název certifikátu"
+  },
+  "sc0624": {
+   "source": "Empty: the longest zone the name is in.",
+   "text": "Prázdné: nejdelší zóna, ve které jméno je."
+  },
+  "sc0625": {
+   "source": "Empty: the longest zone the server has that the name is in.",
+   "text": "Prázdné: nejdelší zóna na serveru, ve které jméno je."
+  },
+  "sc0626": {
+   "source": "Empty: the project of the service account.",
+   "text": "Prázdné: projekt servisního účtu."
+  },
+  "sc0627": {
+   "source": "empty: the target's",
+   "text": "prázdné: to cíle"
+  },
+  "sc0628": {
+   "source": "Enable-ExchangeCertificate -Services …; empty: not Exchange",
+   "text": "Enable-ExchangeCertificate -Services …; prázdné: není Exchange"
+  },
+  "sc0629": {
+   "source": "Every backup is locked with it (AES-256, opened with acme or with openssl alone). Keep it apart from the backups as well - in a password vault: without it nobody, you included, opens them. Empty: the backups are not locked, and anybody with one has every private key.",
+   "text": "Každá záloha je jím zamčená (AES-256, otevře ji acme nebo samotný openssl). Mějte ho i mimo zálohy – v trezoru hesel: bez něj je nikdo neotevře, vy také ne. Prázdné: zálohy nejsou zamčené a kdokoli s nějakou má všechny soukromé klíče."
+  },
+  "sc0630": {
+   "source": "Every certificate issued, renewed or put in place, every change of a setting, every sign-in - and the daemon’s own log.",
+   "text": "Každý vydaný, obnovený či nasazený certifikát, každá změna nastavení, každé přihlášení – a vlastní log démona."
+  },
+  "sc0631": {
+   "source": "Every certificate issued, renewed, put in place or taken away, every change of a setting, every sign-in. Kept in the database, so it survives a restart.",
+   "text": "Každý vydaný, obnovený, nasazený či odebraný certifikát, každá změna nastavení, každé přihlášení. Uchováno v databázi, takže přežije restart."
+  },
+  "sc0632": {
+   "source": "Every event and every sign-in, as syslog (RFC 5424), to the servers below - from each node, as it happens. Sent by a thread of its own: nothing waits for it. Off until switched on.",
+   "text": "Každá událost a každé přihlášení jako syslog (RFC 5424) na servery níže – z každého uzlu, hned jak se stanou. Posílá to vlastní vlákno: nic na to nečeká. Vypnuté, dokud nezapnete."
+  },
+  "sc0633": {
+   "source": "every file goes under this folder, nowhere else",
+   "text": "každý soubor jde pod tuto složku, nikam jinam"
+  },
+  "sc0634": {
+   "source": "Every machine that answers http://NAME/ - all of them get the file, and all must succeed (the CA may ask any of them). host or host:port (SSH).",
+   "text": "Každý stroj, který odpovídá na http://JMÉNO/ – všechny dostanou soubor a u všech se to musí povést (CA se může zeptat kteréhokoli). host nebo host:port (SSH)."
+  },
+  "sc0635": {
+   "source": "Every mail sent - an alert, a report, a code to sign in with - and what became of it: sent, waiting for another try (greylisting, a server away), failed. Sent again or taken away by hand.",
+   "text": "Každý odeslaný mail – upozornění, report, kód k přihlášení – a co se s ním stalo: odešel, čeká na další pokus (greylisting, server nedostupný), selhal. Ručně jde odeslat znovu nebo odebrat."
+  },
+  "sc0636": {
+   "source": "Every mail this server sends - an alert, a report, a code to sign in with, a notice about a certificate - goes through here. What the receiving side does not take at once (greylisting's \"try again later\", a server away, a full mailbox) waits and is tried again by itself; what it refuses for good is shown as failed. Both nodes of a cluster see the same list: a mail is sent by the node it was made on, or by the other when that one is gone. What a mail held is never kept once it went.",
+   "text": "Každý mail, který tento server posílá – upozornění, report, kód k přihlášení, oznámení o certifikátu – jde přes tuto frontu. Co přijímající strana hned nepřevezme (greylisting „zkuste později“, nedostupný server, plná schránka), čeká a zkouší se znovu samo; co definitivně odmítne, je vidět jako selhané. Oba uzly clusteru vidí stejný seznam: mail odesílá uzel, na kterém vznikl, nebo ten druhý, když první není. Obsah mailu se po odeslání nedrží."
+  },
+  "sc0637": {
+   "source": "every node is in service",
+   "text": "všechny uzly jsou v provozu"
+  },
+  "sc0638": {
+   "source": "Every node puts the settings below in again and says how much its journal and logs take - the one this page is on at once, the other within a minute.",
+   "text": "Každý uzel znovu nastaví hodnoty níže a ohlásí, kolik zabírá jeho žurnál a logy – ten, na kterém je tato stránka, hned, druhý do minuty."
+  },
+  "sc0639": {
+   "source": "every node, and the VIP address in a cluster that has one",
+   "text": "každý uzel a VIP adresa v clusteru, který ji má"
+  },
+  "sc0640": {
+   "source": "every node's own pages",
+   "text": "vlastní stránky každého uzlu"
+  },
+  "sc0641": {
+   "source": "Every sign-in to the administration, let in or refused",
+   "text": "Každé přihlášení do administrace, puštěné i odmítnuté"
+  },
+  "sc0642": {
+   "source": "Every word people get from this server - the mails and the SMS - in Czech and in English, edited as they will look.",
+   "text": "Všechno, co lidé od tohoto serveru dostanou – maily a SMS – česky i anglicky, upravované tak, jak budou vypadat."
+  },
+  "sc0643": {
+   "source": "Everything else to HTTPS",
+   "text": "Vše ostatní na HTTPS"
+  },
+  "sc0644": {
+   "source": "External Account Binding: the key id from the CA (ZeroSSL, Google, SSL.com, Sectigo, step-ca with EAB). Empty for Let's Encrypt.",
+   "text": "External Account Binding: ID klíče od CA (ZeroSSL, Google, SSL.com, Sectigo, step-ca s EAB). Pro Let's Encrypt prázdné."
+  },
+  "sc0645": {
+   "source": "Fetch http://NAME/.well-known/acme-challenge/TOKEN from here first. Off where this machine cannot reach its own public name (no hairpin NAT).",
+   "text": "Nejdřív stáhnout http://JMÉNO/.well-known/acme-challenge/TOKEN odsud. Vypněte tam, kde tento stroj nedosáhne na své vlastní veřejné jméno (bez hairpin NAT)."
+  },
+  "sc0646": {
+   "source": "Files",
+   "text": "Soubory"
+  },
+  "sc0647": {
+   "source": "fills the files and commands below with what that service usually wants; whatever you set yourself wins",
+   "text": "vyplní soubory a příkazy níže tím, co ta služba obvykle chce; co nastavíte sami, má přednost"
+  },
+  "sc0648": {
+   "source": "firewall ssl-ssh-profile names (server certificate of inbound inspection)",
+   "text": "názvy firewall ssl-ssh-profile (certifikát serveru u inspekce příchozího provozu)"
+  },
+  "sc0649": {
+   "source": "Folder for uploads",
+   "text": "Složka pro nahrávání"
+  },
+  "sc0650": {
+   "source": "Folder of the tokens",
+   "text": "Složka tokenů"
+  },
+  "sc0651": {
+   "source": "Follow a CNAME at _acme-challenge",
+   "text": "Následovat CNAME u _acme-challenge"
+  },
+  "sc0652": {
+   "source": "For an ACME server of your own whose TLS certificate is from a private CA.",
+   "text": "Pro vlastní ACME server, jehož TLS certifikát je od soukromé CA."
+  },
+  "sc0653": {
+   "source": "For HTTPS with a private CA.",
+   "text": "Pro HTTPS se soukromou CA."
+  },
+  "sc0654": {
+   "source": "For looking up the CNAMEs. Empty: Settings → ACME resolvers, else this machine's.",
+   "text": "K vyhledávání CNAME. Prázdné: Nastavení → ACME resolvery, jinak resolvery tohoto stroje."
+  },
+  "sc0655": {
+   "source": "for pfx, p12, p12-legacy and jks files (jks needs one)",
+   "text": "pro soubory pfx, p12, p12-legacy a jks (jks ho potřebuje)"
+  },
+  "sc0656": {
+   "source": "for REST, and for SSH when no key is given",
+   "text": "pro REST, a pro SSH, když není zadán klíč"
+  },
+  "sc0657": {
+   "source": "Forgets the records of what happened older than an age you choose here, whatever the \"keep for\" numbers say. Only records: the certificates, the accounts and the settings are not touched.",
+   "text": "Zapomene záznamy o tom, co se stalo, starší, než zde zvolíte, bez ohledu na čísla „uchovávat“. Jen záznamy: certifikátů, účtů ani nastavení se to nedotkne."
+  },
+  "sc0658": {
+   "source": "formats, one a line; key formats only when the target sends keys",
+   "text": "formáty, jeden na řádek; formáty klíče, jen když cíl posílá klíče"
+  },
+  "sc0659": {
+   "source": "From https://eu.api.ovh.com/createToken/ with GET/POST/DELETE on /domain/zone/*.",
+   "text": "Z https://eu.api.ovh.com/createToken/ s GET/POST/DELETE na /domain/zone/*."
+  },
+  "sc0660": {
+   "source": "Full domain",
+   "text": "Celá doména"
+  },
+  "sc0661": {
+   "source": "global (every VDOM, the admin GUI)",
+   "text": "globální (všechny VDOM, administrační GUI)"
+  },
+  "sc0662": {
+   "source": "go out through the proxy of Settings → Proxy",
+   "text": "jít ven přes proxy z Nastavení → Proxy"
+  },
+  "sc0663": {
+   "source": "Going direct: whether a server that offers no STARTTLS still gets the mail, in the clear. Required is safer - a mail can hold a code to sign in with, and anybody on the way can strip the offer - but a domain whose server has no TLS then gets nothing.",
+   "text": "Při přímém odesílání: zda server, který STARTTLS nenabízí, dostane poštu i tak – nešifrovaně. Povinné šifrování je bezpečnější – mail může obsahovat kód k přihlášení a kdokoli po cestě může nabídku TLS odstranit – ale doména, jejíž server TLS nemá, pak nedostane nic."
+  },
+  "sc0664": {
+   "source": "Group of certificate administrators",
+   "text": "Skupina správců certifikátů"
+  },
+  "sc0665": {
+   "source": "Groups that may sign in",
+   "text": "Skupiny, které se smějí přihlásit"
+  },
+  "sc0666": {
+   "source": "HAProxy (key + chain in one PEM)",
+   "text": "HAProxy (klíč + řetězec v jednom PEM)"
+  },
+  "sc0667": {
+   "source": "host:port, one a line: after deploying acme makes a TLS handshake there and compares the certificate served with the new one",
+   "text": "host:port, jeden na řádek: po nasazení tam acme udělá TLS handshake a porovná servírovaný certifikát s novým"
+  },
+  "sc0668": {
+   "source": "How acme’s mail leaves this machine: through your mail server, or straight to the server of each recipient’s domain (its MX record) with no relay - which only works where port 25 may go out and the receiving side trusts this machine (SPF, a reverse DNS name).",
+   "text": "Jak mail acme opustí tento stroj: přes váš poštovní server, nebo rovnou na server domény každého příjemce (jeho MX záznam) bez relaye – to funguje jen tam, kde smí ven port 25 a přijímající strana tomuto stroji věří (SPF, reverzní DNS jméno)."
+  },
+  "sc0669": {
+   "source": "How long a code sent by mail or SMS is - the second step of an administrator's sign-in, and proving an address or a number.",
+   "text": "Délka kódu posílaného e-mailem nebo SMS – druhý krok přihlášení administrátora a ověření adresy nebo čísla."
+  },
+  "sc0670": {
+   "source": "How long a sent code can be typed. A mail can take a while; 300 s is usual.",
+   "text": "Jak dlouho lze zaslaný kód zadat. E-mail může chvíli trvat; obvyklých je 300 s."
+  },
+  "sc0671": {
+   "source": "How long DNS records are waited for (propagation).",
+   "text": "Jak dlouho se čeká na DNS záznamy (propagace)."
+  },
+  "sc0672": {
+   "source": "how long it has left",
+   "text": "kolik mu zbývá"
+  },
+  "sc0673": {
+   "source": "How long records are cached (s)",
+   "text": "Jak dlouho se záznamy drží v cache (s)"
+  },
+  "sc0674": {
+   "source": "How long resolvers may keep an answer.",
+   "text": "Jak dlouho smí resolvery odpověď držet."
+  },
+  "sc0675": {
+   "source": "How long somebody stays signed in on the enrolment pages without anything being asked.",
+   "text": "Jak dlouho zůstane člověk přihlášen na stránkách registrace, aniž by se na cokoli ptal."
+  },
+  "sc0676": {
+   "source": "How long the outgoing mail keeps a mail that went, or that was given up, in its list - what it said and when. What a mail held (a code, an attachment) is never kept once it went.",
+   "text": "Jak dlouho odchozí pošta drží v seznamu odeslaný nebo vzdaný mail – co se stalo a kdy. Obsah mailu (kód, příloha) se po odeslání nikdy nedrží."
+  },
+  "sc0677": {
+   "source": "How long to wait for a pending request within a try; it is fetched again at later tries anyway.",
+   "text": "Jak dlouho v rámci jednoho pokusu čekat na vyřízení žádosti; při dalších pokusech se stejně vyzvedne znovu."
+  },
+  "sc0678": {
+   "source": "How many renewals and deployments run side by side.",
+   "text": "Kolik obnovení a nasazení běží souběžně."
+  },
+  "sc0679": {
+   "source": "How often the node that leads looks for certificates due and deployments to try again.",
+   "text": "Jak často uzel, který vede, hledá certifikáty k obnovení a nasazení k opakování."
+  },
+  "sc0680": {
+   "source": "How the mails of this server - alerts, reports, codes, notices of certificates - reach people: a mail server, or straight to theirs.",
+   "text": "Jak se maily tohoto serveru – upozornění, reporty, kódy, oznámení o certifikátech – dostanou k lidem: přes poštovní server, nebo rovnou na jejich."
+  },
+  "sc0681": {
+   "source": "HTML in the look of acme's other mails, the plain text always beside it - or plain text alone, for mail systems that strip HTML or people who want it so.",
+   "text": "HTML vzhledem jako ostatní maily acme, vždy s prostým textem vedle – nebo jen prostý text, pro poštovní systémy, které HTML odstraňují, nebo pro lidi, kteří to tak chtějí."
+  },
+  "sc0682": {
+   "source": "HTML, as acme’s other mails look - with the plain text beside it",
+   "text": "HTML, vzhledem jako ostatní maily acme – s prostým textem vedle"
+  },
+  "sc0683": {
+   "source": "HTTP port for the check",
+   "text": "HTTP port pro kontrolu"
+  },
+  "sc0684": {
+   "source": "HTTP-01 on this server",
+   "text": "HTTP-01 na tomto serveru"
+  },
+  "sc0685": {
+   "source": "HTTP-01 on web servers over SSH",
+   "text": "HTTP-01 na webových serverech přes SSH"
+  },
+  "sc0686": {
+   "source": "http://NAME/ as the CA will (needs this machine to reach it)",
+   "text": "http://JMÉNO/ tak, jak to udělá CA (tento stroj na něj musí dosáhnout)"
+  },
+  "sc0687": {
+   "source": "https://…/ - the certificate portal",
+   "text": "https://…/ – portál certifikátů"
+  },
+  "sc0688": {
+   "source": "IAM → Service accounts → Keys → Add key → JSON, pasted whole. The account needs the role \"DNS Administrator\" (dns.admin) on the project.",
+   "text": "IAM → Service accounts → Keys → Add key → JSON, vložený celý. Účet potřebuje na projektu roli „DNS Administrator“ (dns.admin)."
+  },
+  "sc0689": {
+   "source": "Import as",
+   "text": "Importovat jako"
+  },
+  "sc0690": {
+   "source": "Import into",
+   "text": "Importovat do"
+  },
+  "sc0691": {
+   "source": "Import the intermediates as CA certificates",
+   "text": "Importovat mezilehlé certifikáty jako certifikáty CA"
+  },
+  "sc0692": {
+   "source": "Imports the certificate and key through the PAN-OS XML API, points SSL/TLS service profiles at it, deletes older ones and commits.",
+   "text": "Importuje certifikát a klíč přes PAN-OS XML API, nasměruje na něj SSL/TLS service profily, smaže starší a provede commit."
+  },
+  "sc0693": {
+   "source": "Imports the certificate into the machine store, binds it to IIS sites, the Remote Desktop listener and Exchange as asked, and removes the old ones.",
+   "text": "Importuje certifikát do úložiště stroje, sváže ho s weby IIS, posluchačem Vzdálené plochy a Exchange podle zadání a odebere staré."
+  },
+  "sc0694": {
+   "source": "Imports the certificate into the pfSense certificate manager over SSH (its own PHP functions), makes the web GUI use it and deletes older ones.",
+   "text": "Importuje certifikát do správce certifikátů pfSense přes SSH (jeho vlastními funkcemi PHP), nastaví ho webovému GUI a smaže starší."
+  },
+  "sc0695": {
+   "source": "Imports the certificate through the DSM web API, replacing the one acme put there before, and can make it the default certificate.",
+   "text": "Importuje certifikát přes webové API DSM, nahradí ten, který tam acme dal minule, a může ho nastavit jako výchozí certifikát."
+  },
+  "sc0696": {
+   "source": "Imports the certificate through the FortiOS REST API and uses it for the admin GUI, SSL VPN, inspection profiles and virtual IPs; deletes older ones acme put there.",
+   "text": "Importuje certifikát přes FortiOS REST API a použije ho pro administrační GUI, SSL VPN, inspekční profily a virtuální IP; smaže starší, které tam dal acme."
+  },
+  "sc0697": {
+   "source": "Imports the certificate through the OPNsense API (System → Trust); can make the web GUI use it (over SSH).",
+   "text": "Importuje certifikát přes API OPNsense (System → Trust); může ho nastavit webovému GUI (přes SSH)."
+  },
+  "sc0698": {
+   "source": "IN USE",
+   "text": "POUŽÍVÁ SE"
+  },
+  "sc0699": {
+   "source": "inside the mount; {name} is the certificate's name",
+   "text": "uvnitř mountu; {name} je název certifikátu"
+  },
+  "sc0700": {
+   "source": "Installs the key, certificate and chain through iControl REST, points client-ssl profiles at them, saves and syncs the configuration.",
+   "text": "Nainstaluje klíč, certifikát a řetězec přes iControl REST, nasměruje na ně client-ssl profily, uloží a synchronizuje konfiguraci."
+  },
+  "sc0701": {
+   "source": "isemon is sent plain syslog (UDP/TCP) - only over TLS (1.0.172)",
+   "text": "do isemonu jde prostý syslog (UDP/TCP) – jen přes TLS (1.0.172)"
+  },
+  "sc0702": {
+   "source": "isemon reads each node from the files its rsyslog writes under /var/log/remote/HOST/. Its rsyslog needs the rule for acme's program names - deploy/isemon/11-acme.conf in this package, copied to /etc/rsyslog.d/ there - and in isemon the folder of each node switched on.",
+   "text": "isemon čte každý uzel ze souborů, které jeho rsyslog zapisuje pod /var/log/remote/HOST/. Jeho rsyslog potřebuje pravidlo pro názvy programů acme – deploy/isemon/11-acme.conf v tomto balíčku, zkopírované tam do /etc/rsyslog.d/ – a v isemonu zapnutou složku každého uzlu."
+  },
+  "sc0703": {
+   "source": "ISSUED",
+   "text": "VYDÁN"
+  },
+  "sc0704": {
+   "source": "Issuing CA",
+   "text": "Vydávající CA"
+  },
+  "sc0705": {
+   "source": "IT WOULD RUN OUT",
+   "text": "VYPRŠEL BY"
+  },
+  "sc0706": {
+   "source": "Its API address.",
+   "text": "Jeho adresa API."
+  },
+  "sc0707": {
+   "source": "Its name in Cloud DNS (not the domain). Empty: found by the domain.",
+   "text": "Její název v Cloud DNS (ne doména). Prázdné: najde se podle domény."
+  },
+  "sc0708": {
+   "source": "Its name servers (NS)",
+   "text": "Její jmenné servery (NS)"
+  },
+  "sc0709": {
+   "source": "Its password (or the OAuth access token for XOAUTH2). Kept in the database sealed with the key of this installation.",
+   "text": "Jeho heslo (nebo přístupový token OAuth pro XOAUTH2). Uloženo v databázi zapečetěné klíčem této instalace."
+  },
+  "sc0710": {
+   "source": "its serial number",
+   "text": "jeho sériové číslo"
+  },
+  "sc0711": {
+   "source": "its version in acme",
+   "text": "jeho verze v acme"
+  },
+  "sc0712": {
+   "source": "Its zone",
+   "text": "Její zóna"
+  },
+  "sc0713": {
+   "source": "jobs",
+   "text": "úlohy"
+  },
+  "sc0714": {
+   "source": "Jobs at once",
+   "text": "Úloh najednou"
+  },
+  "sc0715": {
+   "source": "Jobs kept (days)",
+   "text": "Úlohy uchovávat (dní)"
+  },
+  "sc0716": {
+   "source": "Jobs older than this are deleted, with their steps.",
+   "text": "Starší úlohy se mažou i s jejich kroky."
+  },
+  "sc0717": {
+   "source": "Keep the previous files as .bak",
+   "text": "Předchozí soubory ponechat jako .bak"
+  },
+  "sc0718": {
+   "source": "KEPT · RENEWED · PUT IN PLACE",
+   "text": "ULOŽEN · OBNOVEN · NASAZEN"
+  },
+  "sc0719": {
+   "source": "Key as",
+   "text": "Klíč jako"
+  },
+  "sc0720": {
+   "source": "Key file there",
+   "text": "Soubor klíče tam"
+  },
+  "sc0721": {
+   "source": "Key passphrase",
+   "text": "Heslová fráze klíče"
+  },
+  "sc0722": {
+   "source": "KEY=VALUE lines kept sealed (API keys for the script).",
+   "text": "Řádky KLÍČ=HODNOTA uložené zapečetěné (API klíče pro skript)."
+  },
+  "sc0723": {
+   "source": "KEY=VALUE, one a line.",
+   "text": "KLÍČ=HODNOTA, jeden na řádek."
+  },
+  "sc0724": {
+   "source": "Let's Encrypt staging (for tests, not trusted)",
+   "text": "Let's Encrypt staging (na zkoušky, nedůvěryhodný)"
+  },
+  "sc0725": {
+   "source": "Lines added to CertAttrib (e.g. SAN:..., where the CA takes them).",
+   "text": "Řádky přidané do CertAttrib (např. SAN:..., kde je CA bere)."
+  },
+  "sc0726": {
+   "source": "lines run last; $thumb is the new thumbprint",
+   "text": "řádky spuštěné nakonec; $thumb je nový thumbprint"
+  },
+  "sc0727": {
+   "source": "Login provider",
+   "text": "Poskytovatel přihlášení"
+  },
+  "sc0728": {
+   "source": "Longest wait before trying again (h)",
+   "text": "Nejdelší čekání před dalším pokusem (h)"
+  },
+  "sc0729": {
+   "source": "Look for what is due every (min)",
+   "text": "Hledat, co je na řadě, každých (min)"
+  },
+  "sc0730": {
+   "source": "Mail of the zone’s keeper (SOA)",
+   "text": "Mail správce zóny (SOA)"
+  },
+  "sc0731": {
+   "source": "Make a copy now and save it to the machine you are sitting at, with the key that opens the sealed keys inside it. Nothing is kept here.",
+   "text": "Vytvořit kopii teď a uložit ji do počítače, u kterého sedíte, i s klíčem k zapečetěným klíčům uvnitř. Tady se nic neuchová."
+  },
+  "sc0732": {
+   "source": "Make it the default certificate",
+   "text": "Nastavit jako výchozí certifikát"
+  },
+  "sc0733": {
+   "source": "Make missing profiles",
+   "text": "Vytvořit chybějící profily"
+  },
+  "sc0734": {
+   "source": "Makes or replaces a kubernetes.io/tls secret through the API server, and can restart deployments that read it.",
+   "text": "Vytvoří nebo nahradí secret kubernetes.io/tls přes API server a může restartovat deploymenty, které ho čtou."
+  },
+  "sc0735": {
+   "source": "Members may look at everything and look after the certificates - add, import, renew, deploy, export (no private keys) - and change no setting.",
+   "text": "Členové smí vidět vše a starat se o certifikáty – přidávat, importovat, obnovovat, nasazovat, exportovat (bez soukromých klíčů) – a nemění žádné nastavení."
+  },
+  "sc0736": {
+   "source": "Messages and the portal",
+   "text": "Zprávy a portál"
+  },
+  "sc0737": {
+   "source": "More attributes",
+   "text": "Další atributy"
+  },
+  "sc0738": {
+   "source": "More environment",
+   "text": "Další prostředí"
+  },
+  "sc0739": {
+   "source": "More headers",
+   "text": "Další hlavičky"
+  },
+  "sc0740": {
+   "source": "Move the address to that node now, by hand - it goes once the node is healthy (its pages answer, not in maintenance).",
+   "text": "Přesune adresu na daný uzel hned, ručně – přejde, jakmile je uzel zdravý (jeho stránky odpovídají, není v údržbě)."
+  },
+  "sc0741": {
+   "source": "My Profile → API Tokens → Create Token → \"Edit zone DNS\", limited to the zones acme may change (Zone:DNS:Edit and Zone:Zone:Read).",
+   "text": "My Profile → API Tokens → Create Token → „Edit zone DNS“, omezený na zóny, které smí acme měnit (Zone:DNS:Edit a Zone:Zone:Read)."
+  },
+  "sc0742": {
+   "source": "The heading on every enrolment page and the title of the browser tab. Empty: Certificates, in the language of the page.",
+   "text": "Nadpis každé stránky registrace a titulek karty prohlížeče. Prázdné: Certifikáty, v jazyce stránky."
+  },
+  "sc0743": {
+   "source": "name or IP address",
+   "text": "jméno nebo IP adresa"
+  },
+  "sc0744": {
+   "source": "name or IP address of the management interface",
+   "text": "jméno nebo IP adresa management rozhraní"
+  },
+  "sc0745": {
+   "source": "NAME.zone - one record per name (www.example.com.acme.example.net)",
+   "text": "JMÉNO.zóna – jeden záznam na jméno (www.example.com.acme.example.net)"
+  },
+  "sc0746": {
+   "source": "Names that block answers for",
+   "text": "Jména, na která blok odpovídá"
+  },
+  "sc0747": {
+   "source": "Names to check in Test",
+   "text": "Jména ke kontrole v Testu"
+  },
+  "sc0748": {
+   "source": "needs the SSH sign-in of the target (root)",
+   "text": "potřebuje SSH přihlášení k cíli (root)"
+  },
+  "sc0749": {
+   "source": "Never past the end of the authority itself.",
+   "text": "Nikdy po konci platnosti samotné autority."
+  },
+  "sc0750": {
+   "source": "No directory yet. Administrators sign in with the accounts of these pages only.",
+   "text": "Zatím žádný adresář. Administrátoři se přihlašují jen účty těchto stránek."
+  },
+  "sc0751": {
+   "source": "Nodes (or vip)",
+   "text": "Uzly (nebo vip)"
+  },
+  "sc0752": {
+   "source": "nothing: the CA is asked at once (after the delay)",
+   "text": "nic: CA se zeptá hned (po prodlevě)"
+  },
+  "sc0753": {
+   "source": "nsupdate -k KEYFILE (a TSIG key file there)",
+   "text": "nsupdate -k SOUBOR_KLÍČE (soubor s klíčem TSIG tam)"
+  },
+  "sc0754": {
+   "source": "nsupdate -l (BIND on that machine, its session key)",
+   "text": "nsupdate -l (BIND na tom stroji, jeho klíč relace)"
+  },
+  "sc0755": {
+   "source": "Numbers told the same by SMS (Settings → Codes by mail and SMS says how SMS go out). Empty: nobody.",
+   "text": "Čísla, kterým se totéž pošle přes SMS (jak SMS odcházejí, říká Nastavení → Kódy e-mailem a SMS). Prázdné: nikomu."
+  },
+  "sc0756": {
+   "source": "of a service account allowed to get, create and patch secrets",
+   "text": "servisního účtu, který smí číst, vytvářet a měnit secrets"
+  },
+  "sc0757": {
+   "source": "Of the account (from POST /register).",
+   "text": "Účtu (z POST /register)."
+  },
+  "sc0758": {
+   "source": "Of the DNS zone. Empty: every zone of the subscription is looked through.",
+   "text": "DNS zóny. Prázdné: prohledá se každá zóna předplatného."
+  },
+  "sc0759": {
+   "source": "off only for a device that still has its self-signed certificate",
+   "text": "vypnout jen u zařízení, které má stále svůj self-signed certifikát"
+  },
+  "sc0760": {
+   "source": "off: only the certificate and chain leave acme",
+   "text": "vypnuto: z acme odejde jen certifikát a řetězec"
+  },
+  "sc0761": {
+   "source": "Off: the block answers 404 for anything but the challenge files.",
+   "text": "Vypnuto: blok odpovídá 404 na cokoli kromě souborů výzvy."
+  },
+  "sc0762": {
+   "source": "Old certificates kept (each)",
+   "text": "Uchovávat staré certifikáty (každého)"
+  },
+  "sc0763": {
+   "source": "older certificates acme put there (named acme-…-date-serial) are deleted beyond this many; -1 keeps all",
+   "text": "starší certifikáty, které tam acme dal (pojmenované acme-…-datum-sériové číslo), se nad tento počet mažou; -1 ponechá všechny"
+  },
+  "sc0764": {
+   "source": "On every web server: find nginx, write the server block for /.well-known/acme-challenge/ (nginx_conf) and make the webroot, check it with nginx -t, reload nginx - then the probe of Test. Needs root or sudo there.",
+   "text": "Na každém webovém serveru: najít nginx, zapsat server blok pro /.well-known/acme-challenge/ (nginx_conf) a vytvořit webroot, zkontrolovat přes nginx -t, znovu načíst nginx – a pak sonda z Testu. Potřebuje tam root nebo sudo."
+  },
+  "sc0765": {
+   "source": "one a line, deployment names in the namespace (a rollout restart)",
+   "text": "jeden na řádek, názvy deploymentů v namespace (rollout restart)"
+  },
+  "sc0766": {
+   "source": "one a line; \"name sni\" binds it as an SNI certificate",
+   "text": "jeden na řádek; „název sni“ ho sváže jako SNI certifikát"
+  },
+  "sc0767": {
+   "source": "one a line; empty: every node of the cluster",
+   "text": "jeden na řádek; prázdné: všechny uzly clusteru"
+  },
+  "sc0768": {
+   "source": "one a line; the cert-key-chain entry of the old acme certificate (or the only/default one) is replaced",
+   "text": "jeden na řádek; nahradí se položka cert-key-chain starého certifikátu acme (nebo jediná/výchozí)"
+  },
+  "sc0769": {
+   "source": "One a line: a node's name as the cluster knows it, or vip.",
+   "text": "Jeden na řádek: název uzlu, jak ho zná cluster, nebo vip."
+  },
+  "sc0770": {
+   "source": "one a line: format path [mode] - the path inside the folder",
+   "text": "jeden na řádek: formát cesta [režim] – cesta uvnitř složky"
+  },
+  "sc0771": {
+   "source": "one a line: format path [mode] [owner[:group]]. Formats: cert-pem, fullchain-pem, chain-pem, key-pem, key-rsa, combined-pem (key + fullchain), cert-der, key-der, p7b, pfx/p12, p12-legacy, jks. In paths: {name} {cn} {service} {date}",
+   "text": "jeden na řádek: formát cesta [režim] [vlastník[:skupina]]. Formáty: cert-pem, fullchain-pem, chain-pem, key-pem, key-rsa, combined-pem (klíč + fullchain), cert-der, key-der, p7b, pfx/p12, p12-legacy, jks. V cestách: {name} {cn} {service} {date}"
+  },
+  "sc0772": {
+   "source": "one a line: the profiles (GlobalProtect, admin GUI, …) to use it",
+   "text": "jeden na řádek: profily (GlobalProtect, administrační GUI, …), které ho mají použít"
+  },
+  "sc0773": {
+   "source": "one a line: www-ssl, api-ssl, sstp, ovpn",
+   "text": "jeden na řádek: www-ssl, api-ssl, sstp, ovpn"
+  },
+  "sc0774": {
+   "source": "One certificate, put in place everywhere",
+   "text": "Jeden certifikát, nasazený všude"
+  },
+  "sc0775": {
+   "source": "One certificate, put in place everywhere (as the administration came)",
+   "text": "Jeden certifikát, nasazený všude (jak administrace přišla)"
+  },
+  "sc0776": {
+   "source": "One database holds everything: the certificates and their keys, the authorities, the targets, the jobs, the events, the settings and the accounts. It is a file on this machine unless you say otherwise. The private keys and the secrets are sealed with a key kept beside it, in the state folder - and every copy and every dump is kept with that key beside it.",
+   "text": "Jedna databáze drží všechno: certifikáty a jejich klíče, autority, cíle, úlohy, události, nastavení a účty. Je to soubor na tomto stroji, pokud neřeknete jinak. Soukromé klíče a tajné údaje jsou zapečetěné klíčem uloženým vedle ní, ve složce stavu – a každá kopie i každý dump se uchovává s tímto klíčem vedle sebe."
+  },
+  "sc0777": {
+   "source": "one of the commands the target allows",
+   "text": "jeden z příkazů, které cíl povoluje"
+  },
+  "sc0778": {
+   "source": "One of the zones acme's DNS server serves (Settings → DNS server). Empty: the first one.",
+   "text": "Jedna ze zón, které obsluhuje DNS server acme (Nastavení → DNS server). Prázdné: první."
+  },
+  "sc0779": {
+   "source": "One record a line: name type value (www A 192.0.2.10).",
+   "text": "Jeden záznam na řádek: jméno typ hodnota (www A 192.0.2.10)."
+  },
+  "sc0780": {
+   "source": "One record a line: name type value.",
+   "text": "Jeden záznam na řádek: jméno typ hodnota."
+  },
+  "sc0781": {
+   "source": "Only for temporary credentials (STS).",
+   "text": "Jen pro dočasné přihlašovací údaje (STS)."
+  },
+  "sc0782": {
+   "source": "OpenSSH or PEM private key (ed25519, ECDSA or RSA)",
+   "text": "Soukromý klíč OpenSSH nebo PEM (ed25519, ECDSA nebo RSA)"
+  },
+  "sc0783": {
+   "source": "OpenSSH or PEM private key; its public half in the user's ~/.ssh/authorized_keys on the machine.",
+   "text": "Soukromý klíč OpenSSH nebo PEM; jeho veřejná polovina v ~/.ssh/authorized_keys uživatele na stroji."
+  },
+  "sc0784": {
+   "source": "own authorities",
+   "text": "vlastní autority"
+  },
+  "sc0785": {
+   "source": "Own certificate authority",
+   "text": "Vlastní certifikační autorita"
+  },
+  "sc0786": {
+   "source": "Past this many answers a second to one /24 (IPv6: /56), every other answer goes back truncated, so a real resolver asks again over TCP and a flood gets nothing.",
+   "text": "Nad tento počet odpovědí za sekundu do jedné /24 (IPv6: /56) jde každá další odpověď zpět zkrácená, takže skutečný resolver se zeptá znovu přes TCP a záplava nedostane nic."
+  },
+  "sc0787": {
+   "source": "People sign in against the directory",
+   "text": "Lidé se přihlašují vůči adresáři"
+  },
+  "sc0788": {
+   "source": "Pinned host keys, as known_hosts lines (ssh-keyscan -t ed25519 HOST). A connection to a host whose key is not this is refused.",
+   "text": "Připnuté klíče serverů jako řádky known_hosts (ssh-keyscan -t ed25519 HOST). Spojení se serverem, jehož klíč není tento, se odmítne."
+  },
+  "sc0789": {
+   "source": "PostgreSQL: the driver psycopg2 is not installed (No module named 'psycopg2._psycopg') — install python3-psycopg2",
+   "text": "PostgreSQL: ovladač psycopg2 není nainstalován (No module named 'psycopg2._psycopg') – nainstalujte python3-psycopg2"
+  },
+  "sc0790": {
+   "source": "POSTs the certificate to a URL - JSON or multipart - with an HMAC signature header, for anything acme has no module for.",
+   "text": "Pošle certifikát POSTem na URL – JSON nebo multipart – s hlavičkou s podpisem HMAC, pro cokoli, pro co acme nemá modul."
+  },
+  "sc0791": {
+   "source": "Preferred chain",
+   "text": "Preferovaný řetězec"
+  },
+  "sc0792": {
+   "source": "Prepare the hosts",
+   "text": "Připravit servery"
+  },
+  "sc0793": {
+   "source": "Previous versions to keep",
+   "text": "Kolik předchozích verzí ponechat"
+  },
+  "sc0794": {
+   "source": "Primary server",
+   "text": "Primární server"
+  },
+  "sc0795": {
+   "source": "PROGRAM present|cleanup RECORD VALUE (and ACME_* variables)",
+   "text": "PROGRAM present|cleanup ZÁZNAM HODNOTA (a proměnné ACME_*)"
+  },
+  "sc0796": {
+   "source": "Public CA",
+   "text": "Veřejná CA"
+  },
+  "sc0797": {
+   "source": "Public resolvers",
+   "text": "Veřejné resolvery"
+  },
+  "sc0798": {
+   "source": "Put your certificate for 127.0.0.1 into the clientssl profile.",
+   "text": "Vložte svůj certifikát pro 127.0.0.1 do profilu clientssl."
+  },
+  "sc0799": {
+   "source": "Puts the certificate on the router over SSH, imports it and binds it to www-ssl, api-ssl, SSTP or OpenVPN through the REST API (v7) or the CLI (v6), and removes the old ones.",
+   "text": "Nahraje certifikát na router přes SSH, naimportuje ho a sváže s www-ssl, api-ssl, SSTP nebo OpenVPN přes REST API (v7) nebo CLI (v6) a odebere staré."
+  },
+  "sc0800": {
+   "source": "Records are read from the database at most this often; both nodes of a cluster answer the same within it.",
+   "text": "Záznamy se z databáze čtou nejvýš takto často; oba uzly clusteru v rámci této doby odpovídají stejně."
+  },
+  "sc0801": {
+   "source": "Records of your own",
+   "text": "Vlastní záznamy"
+  },
+  "sc0802": {
+   "source": "Refuse a name not pointed at acme",
+   "text": "Odmítnout jméno, které nemíří na acme"
+  },
+  "sc0803": {
+   "source": "Refuse it when a node's name (or the VIP address's) is not one of its names - a browser would refuse it there.",
+   "text": "Odmítnout, když jméno uzlu (nebo VIP adresy) není jedním z jeho jmen – prohlížeč by ho tam odmítl."
+  },
+  "sc0804": {
+   "source": "Renew this many days before the end",
+   "text": "Obnovovat tolik dní před koncem"
+  },
+  "sc0805": {
+   "source": "RENEWED · PUT IN PLACE · CHECKED",
+   "text": "OBNOVEN · NASAZEN · ZKONTROLOVÁN"
+  },
+  "sc0806": {
+   "source": "RENEWED BY ITSELF",
+   "text": "OBNOVUJE SE SÁM"
+  },
+  "sc0807": {
+   "source": "RENEWED HERE",
+   "text": "OBNOVENO ZDE"
+  },
+  "sc0808": {
+   "source": "Renewed well before it runs out",
+   "text": "Obnoven dlouho před vypršením"
+  },
+  "sc0809": {
+   "source": "Renewing a certificate failed",
+   "text": "Obnovení certifikátu selhalo"
+  },
+  "sc0810": {
+   "source": "REST API (RouterOS 7) + SSH for the files",
+   "text": "REST API (RouterOS 7) + SSH pro soubory"
+  },
+  "sc0811": {
+   "source": "Restart these deployments",
+   "text": "Restartovat tyto deploymenty"
+  },
+  "sc0812": {
+   "source": "The chain of trust: the root, the intermediate, your name",
+   "text": "Řetězec důvěry: kořen, mezilehlá, vaše jméno"
+  },
+  "sc0813": {
+   "source": "run after the test; when one fails the previous files are put back and these run again",
+   "text": "spouštějí se po testu; když jeden selže, vrátí se předchozí soubory a tyto se spustí znovu"
+  },
+  "sc0814": {
+   "source": "run after writing; when one fails the previous files are put back",
+   "text": "spouštějí se po zápisu; když jeden selže, vrátí se předchozí soubory"
+  },
+  "sc0815": {
+   "source": "Run as the user acme, with the environment below. It must exit 0. Keep it where only root can change it (/etc/acme/hooks).",
+   "text": "Spouští se jako uživatel acme, s prostředím níže. Musí skončit s kódem 0. Mějte ho tam, kde ho smí měnit jen root (/etc/acme/hooks)."
+  },
+  "sc0816": {
+   "source": "run last; a failure here is only a warning",
+   "text": "spouštějí se nakonec; selhání zde je jen varování"
+  },
+  "sc0817": {
+   "source": "Run on each machine after the file is written (and after it is taken away).",
+   "text": "Spouští se na každém stroji po zápisu souboru (a po jeho odebrání)."
+  },
+  "sc0818": {
+   "source": "Say to take it away afterwards",
+   "text": "Říct, ať se potom odebere"
+  },
+  "sc0819": {
+   "source": "Seconds after the record is put in before the first look - for a DNS provider that says \"done\" before its servers have it.",
+   "text": "Sekundy po vložení záznamu před prvním pohledem – pro poskytovatele DNS, který řekne „hotovo“ dřív, než to jeho servery mají."
+  },
+  "sc0820": {
+   "source": "Secret environment",
+   "text": "Tajné prostředí"
+  },
+  "sc0821": {
+   "source": "Secret ID",
+   "text": "Secret ID"
+  },
+  "sc0822": {
+   "source": "Secret name",
+   "text": "Název secretu"
+  },
+  "sc0823": {
+   "source": "Send the private key",
+   "text": "Poslat soukromý klíč"
+  },
+  "sc0824": {
+   "source": "Sending the events of this server to isemon, in the shape isemon already reads.",
+   "text": "Odesílání událostí tohoto serveru do isemonu v podobě, kterou isemon už umí číst."
+  },
+  "sc0825": {
+   "source": "Sends a short message - or a sample of a sign-in code - the way this server's mail goes, and shows every step: the server reached, TLS, signing in, the message handed over and what the server said. Save the changes first.",
+   "text": "Pošle krátkou zprávu – nebo ukázku přihlašovacího kódu – cestou, kterou chodí pošta tohoto serveru, a ukáže každý krok: spojení se serverem, TLS, přihlášení, předání zprávy a co server odpověděl. Nejdřív uložte změny."
+  },
+  "sc0826": {
+   "source": "Sent after a deployment went well, when Settings → Certificates says to tell what went well too (certs_notify_ok).",
+   "text": "Posílá se po úspěšném nasazení, když Nastavení → Certifikáty říká, že se má hlásit i to, co se povedlo (certs_notify_ok)."
+  },
+  "sc0827": {
+   "source": "Sent after a renewal (or the first issue), when Settings → Certificates says to tell what went well too (certs_notify_ok).",
+   "text": "Posílá se po obnovení (nebo prvním vydání), když Nastavení → Certifikáty říká, že se má hlásit i to, co se povedlo (certs_notify_ok)."
+  },
+  "sc0828": {
+   "source": "Sent once when a certificate has run out.",
+   "text": "Posílá se jednou, když certifikát vypršel."
+  },
+  "sc0829": {
+   "source": "Sent over",
+   "text": "Posílá se přes"
+  },
+  "sc0830": {
+   "source": "Sent to check a number something will be sent to by SMS.",
+   "text": "Posílá se k ověření čísla, na které se bude něco posílat přes SMS."
+  },
+  "sc0831": {
+   "source": "Sent to check an address something will be mailed to.",
+   "text": "Posílá se k ověření adresy, na kterou se bude něco posílat mailem."
+  },
+  "sc0832": {
+   "source": "Sent to the person who asked for a certificate on the enrolment pages, once it is issued.",
+   "text": "Posílá se člověku, který o certifikát požádal na stránkách registrace, jakmile je vydán."
+  },
+  "sc0833": {
+   "source": "Sent to the person who asked for a certificate on the enrolment pages, when it is declined.",
+   "text": "Posílá se člověku, který o certifikát požádal na stránkách registrace, když je zamítnut."
+  },
+  "sc0834": {
+   "source": "Sent when a certificate ends within certs_notify_days and nothing renews it by itself (or its renewal keeps failing).",
+   "text": "Posílá se, když certifikát končí do certs_notify_days a nic ho neobnovuje samo (nebo jeho obnovení stále selhává)."
+  },
+  "sc0835": {
+   "source": "Sent when a renewal fails (at most every 6 hours for one certificate).",
+   "text": "Posílá se, když obnovení selže (nejvýš každých 6 hodin u jednoho certifikátu)."
+  },
+  "sc0836": {
+   "source": "Sent when putting a certificate on a target fails (at most every 6 hours for one deployment).",
+   "text": "Posílá se, když nasazení certifikátu na cíl selže (nejvýš každých 6 hodin u jednoho nasazení)."
+  },
+  "sc0837": {
+   "source": "Server nsupdate sends to",
+   "text": "Server, kam nsupdate posílá"
+  },
+  "sc0838": {
+   "source": "serverAuth, clientAuth, codeSigning, emailProtection, an OID ...",
+   "text": "serverAuth, clientAuth, codeSigning, emailProtection, OID ..."
+  },
+  "sc0839": {
+   "source": "Several accounts, as acme-dns-client / lego keep them: {\"example.com\": {\"username\": .., \"password\": .., \"subdomain\": .., \"fulldomain\": ..}, ...}. An acme-dns account keeps two TXT values only, so a certificate of more than two names needs one account per name.",
+   "text": "Několik účtů, jak je drží acme-dns-client / lego: {\"example.com\": {\"username\": .., \"password\": .., \"subdomain\": .., \"fulldomain\": ..}, ...}. Účet acme-dns drží jen dvě hodnoty TXT, takže certifikát s více než dvěma jmény potřebuje účet pro každé jméno."
+  },
+  "sc0840": {
+   "source": "SHA-256 (or SHA-1/MD5) of the CA certificate",
+   "text": "SHA-256 (nebo SHA-1/MD5) certifikátu CA"
+  },
+  "sc0841": {
+   "source": "Shown above the sign-in of the portal.",
+   "text": "Zobrazuje se nad přihlášením na portál."
+  },
+  "sc0842": {
+   "source": "Sign in with",
+   "text": "Přihlásit se přes"
+  },
+  "sc0843": {
+   "source": "Sign in with your name and password to see your certificates.",
+   "text": "Přihlaste se svým jménem a heslem a uvidíte své certifikáty."
+  },
+  "sc0844": {
+   "source": "Signed at once by one of acme's own authorities (Settings → Authorities): for internal servers, devices and clients that trust your root.",
+   "text": "Podepsán hned jednou z vlastních autorit acme (Nastavení → Autority): pro interní servery, zařízení a klienty, kteří věří vašemu kořeni."
+  },
+  "sc0845": {
+   "source": "signed by own authorities",
+   "text": "podepsané vlastními autoritami"
+  },
+  "sc0846": {
+   "source": "Signing secret",
+   "text": "Tajný klíč pro podpis"
+  },
+  "sc0847": {
+   "source": "Signs in with",
+   "text": "Přihlašuje se přes"
+  },
+  "sc0848": {
+   "source": "site | host name | port [| ip], one a line. A host name makes an SNI binding; none binds the port for all names. Missing https bindings are made.",
+   "text": "web | název hostitele | port [| ip], jeden na řádek. Název hostitele vytvoří vazbu SNI; bez něj se port sváže pro všechna jména. Chybějící vazby https se vytvoří."
+  },
+  "sc0849": {
+   "source": "SMS is off: no code and no alert goes out as an SMS.",
+   "text": "SMS jsou vypnuté: žádný kód ani upozornění neodejde jako SMS."
+  },
+  "sc0850": {
+   "source": "SNI name for the check",
+   "text": "Jméno SNI pro kontrolu"
+  },
+  "sc0851": {
+   "source": "sources",
+   "text": "zdroje"
+  },
+  "sc0852": {
+   "source": "Speak through",
+   "text": "Mluvit přes"
+  },
+  "sc0853": {
+   "source": "SSH only (RouterOS 6)",
+   "text": "Jen SSH (RouterOS 6)"
+  },
+  "sc0854": {
+   "source": "SSL virtual servers",
+   "text": "SSL virtuální servery"
+  },
+  "sc0855": {
+   "source": "Subdomain",
+   "text": "Subdoména"
+  },
+  "sc0856": {
+   "source": "Sync to device group",
+   "text": "Synchronizovat do skupiny zařízení"
+  },
+  "sc0857": {
+   "source": "Tell by mail",
+   "text": "Dát vědět mailem"
+  },
+  "sc0858": {
+   "source": "Tell by SMS",
+   "text": "Dát vědět přes SMS"
+  },
+  "sc0859": {
+   "source": "Tell what went well too",
+   "text": "Hlásit i to, co se povedlo"
+  },
+  "sc0860": {
+   "source": "Template",
+   "text": "Šablona"
+  },
+  "sc0862": {
+   "source": "Test command",
+   "text": "Testovací příkaz"
+  },
+  "sc0863": {
+   "source": "Test from outside",
+   "text": "Test zvenku"
+  },
+  "sc0864": {
+   "source": "Test looks up each one's _acme-challenge CNAME as the CA will.",
+   "text": "Test vyhledá CNAME _acme-challenge každého z nich, jako to udělá CA."
+  },
+  "sc0865": {
+   "source": "Test puts a short-lived TXT record in and asks public resolvers for it: proof that the internet reaches acme's DNS server.",
+   "text": "Test vloží krátkodobý TXT záznam a zeptá se na něj veřejných resolverů: důkaz, že internet dosáhne na DNS server acme."
+  },
+  "sc0866": {
+   "source": "That block listens on IPv6 too",
+   "text": "Ten blok naslouchá i na IPv6"
+  },
+  "sc0867": {
+   "source": "The \"message\" of GetCACert where the server hosts several CAs (EJBCA: the CA name).",
+   "text": "„message“ pro GetCACert, když server hostí několik CA (EJBCA: název CA)."
+  },
+  "sc0868": {
+   "source": "The ACME directory of your server (step-ca: https://HOST/acme/PROVISIONER/directory).",
+   "text": "ACME directory vašeho serveru (step-ca: https://HOST/acme/PROVISIONER/directory)."
+  },
+  "sc0869": {
+   "source": "The address in the SOA record (hostmaster@example.com).",
+   "text": "Adresa v záznamu SOA (hostmaster@example.com)."
+  },
+  "sc0870": {
+   "source": "the administrators’ one",
+   "text": "ten administrátorů"
+  },
+  "sc0871": {
+   "source": "The alerts, the reports, the codes of the second step and the notices about certificates. The mail leaves through your mail server (SMTP), or straight to the server of the recipient's domain with no relay at all.",
+   "text": "Upozornění, reporty, kódy druhého kroku a oznámení o certifikátech. E-mail odejde přes váš poštovní server (SMTP), nebo rovnou na server domény příjemce bez jakéhokoli relaye."
+  },
+  "sc0872": {
+   "source": "the alias in a jks or pfx; empty: the certificate's name",
+   "text": "alias v jks nebo pfx; prázdné: název certifikátu"
+  },
+  "sc0873": {
+   "source": "The authority that signs; its chain goes with the certificate.",
+   "text": "Autorita, která podepisuje; její řetězec jde s certifikátem."
+  },
+  "sc0874": {
+   "source": "The base64 secret of the key (secret \"...\";).",
+   "text": "Tajemství klíče v base64 (secret \"...\";)."
+  },
+  "sc0875": {
+   "source": "The CA certificate the server sends must be this one - set it: SCEP is often over plain HTTP.",
+   "text": "Certifikát CA, který server pošle, musí být tento – nastavte ho: SCEP bývá přes prosté HTTP."
+  },
+  "sc0876": {
+   "source": "The CA fetches http://NAME/.well-known/acme-challenge/… from acme itself, on port 80 - the name must point at acme (or a proxy that sends that path to it). Not for wildcards.",
+   "text": "CA stahuje http://JMÉNO/.well-known/acme-challenge/… přímo z acme, na portu 80 – jméno musí mířit na acme (nebo na proxy, která mu tu cestu pošle). Ne pro wildcardy."
+  },
+  "sc0877": {
+   "source": "the CA the device's own certificate is from, when not a public one",
+   "text": "CA, od které je vlastní certifikát zařízení, když není veřejná"
+  },
+  "sc0878": {
+   "source": "The CA's certificate profile (Let's Encrypt: classic, tlsserver, shortlived - 6-day certificates, IP addresses). A certificate's own profile wins.",
+   "text": "Profil certifikátu u CA (Let's Encrypt: classic, tlsserver, shortlived – 6denní certifikáty, IP adresy). Vlastní profil certifikátu má přednost."
+  },
+  "sc0879": {
+   "source": "The CA's IIS with Web Enrollment (/certsrv is added when missing).",
+   "text": "IIS autority s Web Enrollment (/certsrv se doplní, když chybí)."
+  },
+  "sc0880": {
+   "source": "THE CERTIFICATE",
+   "text": "CERTIFIKÁT"
+  },
+  "sc0881": {
+   "source": "the certificate acme replaces each time; empty: acme <name>",
+   "text": "certifikát, který acme pokaždé nahradí; prázdné: acme <název>"
+  },
+  "sc0882": {
+   "source": "The certificate becomes the one of acme's own pages - each node's and/or the VIP address's - as Settings → Certificates and TLS would take it; renewals put the new one there on every node by themselves.",
+   "text": "Certifikát se stane certifikátem vlastních stránek acme – každého uzlu a/nebo VIP adresy – tak, jak by ho vzalo Nastavení → Certifikáty a TLS; obnovení tam ten nový na každém uzlu dají sama."
+  },
+  "sc0883": {
+   "source": "The certificate manager, mail and SMS, the portal, the accounts, the network, high availability, the database, monitoring and updates.",
+   "text": "Správce certifikátů, pošta a SMS, portál, účty, síť, vysoká dostupnost, databáze, monitoring a aktualizace."
+  },
+  "sc0884": {
+   "source": "The certificate must hold the names",
+   "text": "Certifikát musí obsahovat jména"
+  },
+  "sc0885": {
+   "source": "The certificate portal:",
+   "text": "Portál certifikátů:"
+  },
+  "sc0886": {
+   "source": "The certificate portal: who may sign in to it, what they see, the picture on its sign-in.",
+   "text": "Portál certifikátů: kdo se na něj smí přihlásit, co tam vidí, obrázek u jeho přihlášení."
+  },
+  "sc0887": {
+   "source": "the certificate’s name in acme",
+   "text": "název certifikátu v acme"
+  },
+  "sc0888": {
+   "source": "The certificates ordered from Let's Encrypt (or another ACME CA) and renewed by themselves.",
+   "text": "Certifikáty objednávané u Let's Encrypt (nebo jiné ACME CA) a obnovované samy."
+  },
+  "sc0889": {
+   "source": "the certkey kept across renewals; empty: acme-<certificate name>",
+   "text": "certkey zachovaný přes obnovení; prázdné: acme-<název certifikátu>"
+  },
+  "sc0890": {
+   "source": "The clock of each node: chrony, its time servers, how far off it is - certificates' dates and the codes of the second step are worked out from it.",
+   "text": "Hodiny každého uzlu: chrony, jeho časové servery a odchylka – data certifikátů a kódy druhého kroku se počítají podle nich."
+  },
+  "sc0891": {
+   "source": "The codes an administrator gets as the second step of signing in to these pages (Accounts), and the notifications and alerts sent as SMS. E-mail goes the way set under Mail; SMS through a gateway or a modem set up here.",
+   "text": "Kódy, které administrátor dostane jako druhý krok přihlášení do těchto stránek (Účty), a oznámení a upozornění posílaná jako SMS. E-mail jde tak, jak je nastaveno v Pošta; SMS přes bránu nebo modem nastavené zde."
+  },
+  "sc0892": {
+   "source": "the codes of the administrators' app are taken more than one step (30 s) either side",
+   "text": "kódy aplikace administrátorů se berou víc než jeden krok (30 s) na každou stranu"
+  },
+  "sc0893": {
+   "source": "The common name of the root (or intermediate) the chain should end at, where the CA offers several.",
+   "text": "Common name kořene (nebo mezilehlé), kterým má řetězec končit, když jich CA nabízí víc."
+  },
+  "sc0894": {
+   "source": "The daemon (/usr/local/lib/acme/acme.py and acmelib), the standard library, and these PHP pages that ask it. On the server: acme --help.",
+   "text": "Démon (/usr/local/lib/acme/acme.py a acmelib), standardní knihovna a tyto PHP stránky, které se ho ptají. Na serveru: acme --help."
+  },
+  "sc0895": {
+   "source": "The daemon answers and has nothing to complain about.",
+   "text": "Démon odpovídá a nemá si na co stěžovat."
+  },
+  "sc0896": {
+   "source": "The directories administrators sign in against",
+   "text": "Adresáře, vůči kterým se přihlašují administrátoři"
+  },
+  "sc0897": {
+   "source": "The enrolment pages: a certificate issued",
+   "text": "Stránky registrace: certifikát vydán"
+  },
+  "sc0898": {
+   "source": "The enrolment pages: a request declined",
+   "text": "Stránky registrace: žádost zamítnuta"
+  },
+  "sc0899": {
+   "source": "The environment always has ACME_ACTION, ACME_NAME, ACME_RECORD (where the TXT goes, its CNAME followed), ACME_CHALLENGE_NAME (_acme-challenge.NAME), ACME_TXT, ACME_TOKEN, ACME_ZONE (when known), ACME_TTL.",
+   "text": "Prostředí má vždy ACME_ACTION, ACME_NAME, ACME_RECORD (kam jde TXT, po následování CNAME), ACME_CHALLENGE_NAME (_acme-challenge.JMÉNO), ACME_TXT, ACME_TOKEN, ACME_ZONE (když je známá), ACME_TTL."
+  },
+  "sc0900": {
+   "source": "The events of this server - certificates issued, renewed, put in place or failing, sign-ins to these pages - go to isemon as syslog lines, so isemon watches this server with what it already has.",
+   "text": "Události tohoto serveru – vydané, obnovené, nasazené či selhávající certifikáty, přihlášení do těchto stránek – jdou do isemonu jako řádky syslogu, takže isemon hlídá tento server tím, co už má."
+  },
+  "sc0901": {
+   "source": "the exact commands a deployment may run, one a line (no shell: pipes and ; are not); empty: none",
+   "text": "přesné příkazy, které smí nasazení spustit, jeden na řádek (bez shellu: roury a ; nejdou); prázdné: žádný"
+  },
+  "sc0902": {
+   "source": "The file is written to /tmp and put in place with \"sudo -n install\" (a sudoers line for install and rm in that folder).",
+   "text": "Soubor se zapíše do /tmp a na místo ho dá „sudo -n install“ (řádek v sudoers pro install a rm v té složce)."
+  },
+  "sc0903": {
+   "source": "The fixed label",
+   "text": "Pevný popisek"
+  },
+  "sc0904": {
+   "source": "The HMAC key that comes with the key id (base64url, as the CA shows it).",
+   "text": "HMAC klíč, který patří k ID klíče (base64url, jak ho CA ukazuje)."
+  },
+  "sc0905": {
+   "source": "The key that opens the sealed keys:",
+   "text": "Klíč, který otevírá zapečetěné klíče:"
+  },
+  "sc0906": {
+   "source": "the key that seals the secrets is there",
+   "text": "klíč, který pečetí tajné údaje, je na místě"
+  },
+  "sc0907": {
+   "source": "The keys that may sign in to each node as root over SSH: made here, added or taken away.",
+   "text": "Klíče, které se smějí přihlásit na každý uzel jako root přes SSH: vytvořené zde, přidané nebo odebrané."
+  },
+  "sc0908": {
+   "source": "The language acme’s mails are written in: the codes, the tests, the alerts and the report unless they say otherwise.",
+   "text": "Jazyk, kterým jsou psané maily acme: kódy, zkoušky, upozornění a report, pokud neříkají jinak."
+  },
+  "sc0909": {
+   "source": "The language of the mail or SMS with the code - unless the page it was asked from is in another one (the language of the page is taken then).",
+   "text": "Jazyk mailu nebo SMS s kódem – pokud není stránka, odkud se o něj žádalo, v jiném (pak se vezme jazyk stránky)."
+  },
+  "sc0910": {
+   "source": "The letters of Czech and Slovak with their accents (á č ď é ě í ľ ĺ ň ó ô ŕ ř š ť ú ů ý ž ä) in the names of accounts. With both this and the one beside it off, a name takes letters without accents, digits, . _ - and @ only, and one with any other letter is refused: on the enrolment pages, when an account is made and when an administrator from the directory signs in. Most directories keep their sign-in names so (novak), and only the display names have accents - those are never checked.",
+   "text": "Písmena češtiny a slovenštiny s háčky a čárkami (á č ď é ě í ľ ĺ ň ó ô ŕ ř š ť ú ů ý ž ä) ve jménech účtů. Když je vypnutá tato i vedlejší volba, jméno bere jen písmena bez diakritiky, číslice, . _ - a @ a jméno s jakýmkoli jiným znakem se odmítne: na stránkách registrace, při zakládání účtu i při přihlášení administrátora z adresáře. Většina adresářů má přihlašovací jména bez diakritiky (novak) a diakritiku jen v zobrazovaném jménu – to se nekontroluje nikdy."
+  },
+  "sc0911": {
+   "source": "The name server that takes updates (the zone's primary), host or address, port 53 unless said.",
+   "text": "Jmenný server, který přijímá aktualizace (primární server zóny), host nebo adresa, port 53, pokud není řečeno jinak."
+  },
+  "sc0912": {
+   "source": "the names in it",
+   "text": "jména v něm"
+  },
+  "sc0913": {
+   "source": "The names of its name servers, as the NS records of the zone.",
+   "text": "Jména jejích jmenných serverů, jako záznamy NS zóny."
+  },
+  "sc0914": {
+   "source": "The NetBIOS name of the domain (empty: the one the server says).",
+   "text": "NetBIOS název domény (prázdné: ten, který řekne server)."
+  },
+  "sc0915": {
+   "source": "The newest backup fetched back, opened with the password, every file checked, the database read through and its secrets tried against the key in it - nothing is put back. After every backup, or once a week.",
+   "text": "Nejnovější záloha se stáhne zpět, otevře heslem, zkontroluje se každý soubor, databáze se přečte celá a její tajné údaje se vyzkouší proti klíči v ní – nic se neobnovuje. Po každé záloze, nebo jednou týdně."
+  },
+  "sc0916": {
+   "source": "The newest backup of this node fetched back from the first destination, opened with the password, every file checked, the database read through and the sealed keys tried against the key in it - nothing is put back. And the newest nightly copy here read through.",
+   "text": "Nejnovější záloha tohoto uzlu se stáhne z prvního cíle, otevře heslem, zkontroluje se každý soubor, databáze se přečte celá a zapečetěné klíče se vyzkouší proti klíči v ní – nic se neobnovuje. A přečte se i nejnovější noční kopie zde."
+  },
+  "sc0917": {
+   "source": "the node that did it",
+   "text": "uzel, který to udělal"
+  },
+  "sc0918": {
+   "source": "the old DNS Console (dns.hetzner.com)",
+   "text": "stará DNS Console (dns.hetzner.com)"
+  },
+  "sc0919": {
+   "source": "The one-time or fixed password the CA gives for enrolment (NDES: from /certsrv/mscep_admin).",
+   "text": "Jednorázové nebo pevné heslo, které CA dává pro zápis (NDES: z /certsrv/mscep_admin)."
+  },
+  "sc0920": {
+   "source": "the ones named below",
+   "text": "ty vyjmenované níže"
+  },
+  "sc0921": {
+   "source": "The operating system's packages updated, one node at a time, the VIP address moved out of the way first; a restart offered when one is needed.",
+   "text": "Balíčky operačního systému aktualizované po jednom uzlu, VIP adresa napřed přesunutá z cesty; restart nabídnutý, když je potřeba."
+  },
+  "sc0922": {
+   "source": "The operating system's packages, updated by dnf (or apt) on each node. In a cluster one node at a time: each is out of service while it is updated - the VIP address moves to the other, which answers meanwhile - and back in service before the next one starts. A restart an update needs is offered when it is done, or made by itself, one node after the other.",
+   "text": "Balíčky operačního systému, aktualizované přes dnf (nebo apt) na každém uzlu. V clusteru vždy jeden uzel po druhém: během aktualizace je mimo provoz – VIP adresa přejde na druhý uzel, který mezitím odpovídá – a do provozu se vrátí dřív, než začne další. Restart, který aktualizace potřebuje, se po dokončení nabídne, nebo proběhne sám, uzel po uzlu."
+  },
+  "sc0923": {
+   "source": "The other node not heard from, the replication stopped, the database in trouble, the nodes on different versions.",
+   "text": "Druhý uzel neodpovídá, replikace stojí, potíže s databází, uzly s různými verzemi."
+  },
+  "sc0924": {
+   "source": "The pages for people who are no administrators (/), signed in with their password in the directory. Switched off they say so and let nobody in.",
+   "text": "Stránky pro lidi, kteří nejsou administrátoři (/), s přihlášením heslem z adresáře. Vypnuté to oznámí a nikoho nepustí."
+  },
+  "sc0925": {
+   "source": "The pages of each node are reached by the node's own name; the VIP address's by its name (Settings → High availability).",
+   "text": "Na stránky každého uzlu se jde přes vlastní jméno uzlu; na stránky VIP adresy přes její jméno (Nastavení → Vysoká dostupnost)."
+  },
+  "sc0926": {
+   "source": "The portal, the administration and the health check share ports 80 and 443, so who sees which is said by nginx, page by page; the firewall below opens the ports only to these networks. The other node and the VIP address are always let in, and so is the machine itself.",
+   "text": "Portál, administrace a kontrola stavu sdílejí porty 80 a 443, takže kdo vidí kterou, určuje nginx stránku po stránce; firewall níže otevře porty jen těmto sítím. Druhý uzel a VIP adresa mají přístup vždy, stejně jako stroj sám."
+  },
+  "sc0927": {
+   "source": "the resolvers below only",
+   "text": "jen resolvery níže"
+  },
+  "sc0928": {
+   "source": "THE ROOT",
+   "text": "KOŘEN"
+  },
+  "sc0929": {
+   "source": "The SCEP URL of the CA (NDES: .../certsrv/mscep/mscep.dll; EJBCA: .../ejbca/publicweb/apply/scep/ALIAS/pkiclient.exe; step-ca: .../scep/PROVISIONER).",
+   "text": "SCEP URL autority (NDES: .../certsrv/mscep/mscep.dll; EJBCA: .../ejbca/publicweb/apply/scep/ALIAS/pkiclient.exe; step-ca: .../scep/PROVISIONER)."
+  },
+  "sc0930": {
+   "source": "The second step with an authenticator app: how many periods either side of now a code is still taken in. 1 is thirty seconds of a phone’s clock being wrong either way; 0 takes only the code of this very period.",
+   "text": "Druhý krok s aplikací autentikátoru: kolik period na každou stranu od teď se kód ještě přijme. 1 je třicet sekund chyby hodin telefonu oběma směry; 0 přijme jen kód právě této periody."
+  },
+  "sc0931": {
+   "source": "The server block for /.well-known/acme-challenge/ that the action \"Prepare the hosts\" puts on each machine.",
+   "text": "Server blok pro /.well-known/acme-challenge/, který na každý stroj dá akce „Připravit servery“."
+  },
+  "sc0932": {
+   "source": "The shape of things: the certificates, what runs out soonest, the nodes, the database.",
+   "text": "Jak se věci mají: certifikáty, co nejdřív vyprší, uzly, databáze."
+  },
+  "sc0933": {
+   "source": "The SMS gateway, and the codes sent by e-mail or SMS for the administrators' second step and the notifications: how long they last, how many.",
+   "text": "SMS brána a kódy posílané e-mailem nebo SMS pro druhý krok administrátorů a oznámení: jak dlouho platí, kolik jich je."
+  },
+  "sc0934": {
+   "source": "THE TARGETS",
+   "text": "CÍLE"
+  },
+  "sc0935": {
+   "source": "The template's name (not its display name): WebServer, or a copy of it.",
+   "text": "Název šablony (ne její zobrazovaný název): WebServer, nebo její kopie."
+  },
+  "sc0936": {
+   "source": "The token file is written over SSH into the webroot of every web server the name points at (nginx, Apache, …); the CA fetches it from them. acme itself stays unreachable from the internet. Not for wildcards.",
+   "text": "Soubor s tokenem se přes SSH zapíše do webrootu každého webového serveru, na který jméno míří (nginx, Apache, …); CA si ho od nich stáhne. acme sám zůstává z internetu nedostupný. Ne pro wildcardy."
+  },
+  "sc0937": {
+   "source": "The token is fetched over HTTP on port 80 and compared.",
+   "text": "Token se stáhne přes HTTP na portu 80 a porovná."
+  },
+  "sc0938": {
+   "source": "The TXT records are answered by acme's own DNS server. Your DNS points _acme-challenge.NAME at it once with a CNAME (or delegates a zone to it with NS records); no DNS credentials are needed.",
+   "text": "Na TXT záznamy odpovídá vlastní DNS server acme. Vaše DNS na něj jednou nasměruje _acme-challenge.JMÉNO záznamem CNAME (nebo na něj deleguje zónu záznamy NS); žádné přihlašovací údaje k DNS nejsou potřeba."
+  },
+  "sc0939": {
+   "source": "the user is not root: commands and writes go through sudo",
+   "text": "uživatel není root: příkazy a zápisy jdou přes sudo"
+  },
+  "sc0940": {
+   "source": "the VDOM",
+   "text": "VDOM"
+  },
+  "sc0941": {
+   "source": "The webserver of pdns.conf (webserver-address, webserver-port), api=yes.",
+   "text": "Webserver z pdns.conf (webserver-address, webserver-port), api=yes."
+  },
+  "sc0942": {
+   "source": "The whole configuration as one file: the settings (each node's own too), the directories, the accounts of these pages, the certificates of the pages and the VIP address, the VIP address, who may reach which page, the firewall and the mail server's authorities. The certificates kept and their keys are not in it: they move with a copy of the database and its key. On the command line: acme --export-config FILE [--with-secrets] and acme --import-config FILE --yes.",
+   "text": "Celá konfigurace jako jeden soubor: nastavení (i vlastní nastavení každého uzlu), adresáře, účty těchto stránek, certifikáty stránek a VIP adresy, VIP adresa, kdo smí na kterou stránku, firewall a certifikační autority mailového serveru. Uložené certifikáty a jejich klíče v něm nejsou: přenášejí se s kopií databáze a jejím klíčem. Na příkazové řádce: acme --export-config SOUBOR [--with-secrets] a acme --import-config SOUBOR --yes."
+  },
+  "sc0943": {
+   "source": "The zone it answers for, e.g. acme.example.com.",
+   "text": "Zóna, za kterou odpovídá, např. acme.example.com."
+  },
+  "sc0944": {
+   "source": "the zone's name servers, then public resolvers",
+   "text": "jmenné servery zóny, pak veřejné resolvery"
+  },
+  "sc0945": {
+   "source": "the zone's own name servers (asked straight)",
+   "text": "vlastní jmenné servery zóny (dotazované přímo)"
+  },
+  "sc0946": {
+   "source": "Their addresses (A / AAAA of those names), comma between them.",
+   "text": "Jejich adresy (A / AAAA těch jmen), oddělené čárkou."
+  },
+  "sc0947": {
+   "source": "Their addresses",
+   "text": "Jejich adresy"
+  },
+  "sc0948": {
+   "source": "Then run",
+   "text": "Pak spustit"
+  },
+  "sc0949": {
+   "source": "This acme server (its pages)",
+   "text": "Tento server acme (jeho stránky)"
+  },
+  "sc0950": {
+   "source": "This machine (files)",
+   "text": "Tento stroj (soubory)"
+  },
+  "sc0951": {
+   "source": "this node only (the one that deploys)",
+   "text": "jen tento uzel (ten, který nasazuje)"
+  },
+  "sc0952": {
+   "source": "Through sudo",
+   "text": "Přes sudo"
+  },
+  "sc0953": {
+   "source": "Throws away exactly what the \"keep for\" numbers above already say is too old — the jobs and the events, each by its own number of days. It happens by itself every hour; this is the same thing, now. Lowering one of those numbers deletes nothing by itself: this is what does it.",
+   "text": "Zahodí přesně to, co podle čísel „uchovávat“ výše už je příliš staré – úlohy a události, každé podle svého počtu dní. Děje se to samo každou hodinu; tohle je totéž, hned teď. Snížení některého z čísel samo o sobě nic nesmaže: smaže to až tohle."
+  },
+  "sc0954": {
+   "source": "tmos for local users; the name of a remote auth provider otherwise",
+   "text": "tmos pro místní uživatele; jinak název vzdáleného poskytovatele ověření"
+  },
+  "sc0955": {
+   "source": "Told to the CA with the account (expiry and policy mails). ZeroSSL needs one to make the EAB itself.",
+   "text": "Sdělí se CA s účtem (maily o vypršení a pravidlech). ZeroSSL ho potřebuje, aby si EAB vytvořilo samo."
+  },
+  "sc0956": {
+   "source": "traditional RSA (BEGIN RSA PRIVATE KEY; EC keys go as PKCS#8)",
+   "text": "tradiční RSA (BEGIN RSA PRIVATE KEY; EC klíče jdou jako PKCS#8)"
+  },
+  "sc0957": {
+   "source": "Trust the first host key seen",
+   "text": "Věřit prvnímu viděnému klíči serveru"
+  },
+  "sc0958": {
+   "source": "Trust the first key seen",
+   "text": "Věřit prvnímu viděnému klíči"
+  },
+  "sc0959": {
+   "source": "TSIG algorithm",
+   "text": "Algoritmus TSIG"
+  },
+  "sc0960": {
+   "source": "TSIG secret",
+   "text": "Tajemství TSIG"
+  },
+  "sc0961": {
+   "source": "TTL of its answers (s)",
+   "text": "TTL jeho odpovědí (s)"
+  },
+  "sc0962": {
+   "source": "TTL of the records (s)",
+   "text": "TTL záznamů (s)"
+  },
+  "sc0963": {
+   "source": "Two servers, both answering - active/active. Both open the same PostgreSQL and keep nothing that matters anywhere else, so a load balancer may send any request to either, round robin and without stickiness: a sign-in, a certificate added on one and renewed by the other. Every change made on one is on the other within five seconds.",
+   "text": "Dva servery, oba odpovídají – active/active. Oba otevírají stejnou PostgreSQL a nic důležitého nedrží jinde, takže load balancer smí poslat libovolný požadavek kterémukoli z nich, round robin a bez perzistence: přihlášení, certifikát přidaný na jednom a obnovený druhým. Každá změna udělaná na jednom je na druhém do pěti sekund."
+  },
+  "sc0964": {
+   "source": "TXT records in a Cloud DNS managed zone, with a service account's key.",
+   "text": "TXT záznamy ve spravované zóně Cloud DNS, s klíčem servisního účtu."
+  },
+  "sc0965": {
+   "source": "TXT records in a DigitalOcean domain, with a personal access token.",
+   "text": "TXT záznamy v doméně DigitalOcean, s osobním přístupovým tokenem."
+  },
+  "sc0966": {
+   "source": "TXT records in a Route 53 hosted zone, with an IAM access key.",
+   "text": "TXT záznamy v hostované zóně Route 53, s přístupovým klíčem IAM."
+  },
+  "sc0967": {
+   "source": "TXT records in a zone at Hetzner, with an API token.",
+   "text": "TXT záznamy v zóně u Hetzneru, s API tokenem."
+  },
+  "sc0968": {
+   "source": "TXT records in a zone at OVHcloud, through its API.",
+   "text": "TXT záznamy v zóně u OVHcloud, přes jeho API."
+  },
+  "sc0969": {
+   "source": "TXT records in an Azure DNS zone, with an app registration's client secret.",
+   "text": "TXT záznamy v zóně Azure DNS, s tajným klíčem klienta registrace aplikace."
+  },
+  "sc0970": {
+   "source": "TXT records through the Cloudflare API, with an API token.",
+   "text": "TXT záznamy přes Cloudflare API, s API tokenem."
+  },
+  "sc0971": {
+   "source": "TXT records through the PowerDNS Authoritative server's HTTP API.",
+   "text": "TXT záznamy přes HTTP API autoritativního serveru PowerDNS."
+  },
+  "sc0972": {
+   "source": "UDP (TCP when cut short)",
+   "text": "UDP (TCP, když se odpověď zkrátí)"
+  },
+  "sc0973": {
+   "source": "UDP and TCP. 53 is what the world asks.",
+   "text": "UDP i TCP. 53 je to, na co se ptá svět."
+  },
+  "sc0974": {
+   "source": "Uploads the certificate and key over NITRO, updates the certkey in place (or adds it), links the intermediates, binds SSL virtual servers and saves the configuration.",
+   "text": "Nahraje certifikát a klíč přes NITRO, aktualizuje certkey na místě (nebo ho přidá), propojí mezilehlé certifikáty, sváže SSL virtuální servery a uloží konfiguraci."
+  },
+  "sc0975": {
+   "source": "Uploads the certificate as the custom certificate of the nodes' web interface through the Proxmox VE API and restarts pveproxy.",
+   "text": "Nahraje certifikát jako vlastní certifikát webového rozhraní uzlů přes API Proxmox VE a restartuje pveproxy."
+  },
+  "sc0976": {
+   "source": "Use it for",
+   "text": "Použít pro"
+  },
+  "sc0977": {
+   "source": "Use sudo",
+   "text": "Použít sudo"
+  },
+  "sc0978": {
+   "source": "Used instead of the texts above when there is no name or account to put in.",
+   "text": "Použije se místo textů výše, když není jméno nebo účet, které by se doplnily."
+  },
+  "sc0979": {
+   "source": "user and password",
+   "text": "uživatelem a heslem"
+  },
+  "sc0980": {
+   "source": "Validity (days)",
+   "text": "Platnost (dny)"
+  },
+  "sc0981": {
+   "source": "Vault address",
+   "text": "Adresa Vaultu"
+  },
+  "sc0982": {
+   "source": "Virtual IPs",
+   "text": "Virtuální IP"
+  },
+  "sc0983": {
+   "source": "Virtual system",
+   "text": "Virtuální systém"
+  },
+  "sc0984": {
+   "source": "Wait at least (seconds)",
+   "text": "Čekat aspoň (sekund)"
+  },
+  "sc0985": {
+   "source": "Wait for approval (s)",
+   "text": "Čekat na schválení (s)"
+  },
+  "sc0986": {
+   "source": "Wait for INSYNC",
+   "text": "Čekat na INSYNC"
+  },
+  "sc0987": {
+   "source": "Wait for the CA to check (s)",
+   "text": "Čekat, až CA zkontroluje (s)"
+  },
+  "sc0988": {
+   "source": "Wait for the certificate (s)",
+   "text": "Čekat na certifikát (s)"
+  },
+  "sc0989": {
+   "source": "Wait for the commit (s)",
+   "text": "Čekat na commit (s)"
+  },
+  "sc0990": {
+   "source": "Wait for the proof to be visible (s)",
+   "text": "Čekat, až bude důkaz vidět (s)"
+  },
+  "sc0991": {
+   "source": "Wait until it is seen by",
+   "text": "Čekat, až ho uvidí"
+  },
+  "sc0992": {
+   "source": "Wait until Route 53 says the change is on all its servers before looking at DNS.",
+   "text": "Počkat, až Route 53 řekne, že je změna na všech jeho serverech, než se podívá do DNS."
+  },
+  "sc0993": {
+   "source": "Warn this many days before the end",
+   "text": "Varovat tolik dní před koncem"
+  },
+  "sc0994": {
+   "source": "Web servers",
+   "text": "Webové servery"
+  },
+  "sc0995": {
+   "source": "What _acme-challenge.NAME is a CNAME to.",
+   "text": "Na co je _acme-challenge.JMÉNO CNAME."
+  },
+  "sc0996": {
+   "source": "What _acme-challenge.NAME is made a CNAME to in your DNS. \"NAME.zone\" keeps each name apart; \"a fixed label\" lets every name share one CNAME target (the CA reads all the values there); \"itself\" is for a zone (or the _acme-challenge.NAME subzone) delegated to acme by NS and listed among its zones.",
+   "text": "Na co se _acme-challenge.JMÉNO ve vašem DNS udělá CNAME. „JMÉNO.zóna“ drží každé jméno zvlášť; „pevný popisek“ nechá všechna jména sdílet jeden cíl CNAME (CA tam přečte všechny hodnoty); „samo“ je pro zónu (nebo subzónu _acme-challenge.JMÉNO) delegovanou na acme přes NS a uvedenou mezi jeho zónami."
+  },
+  "sc0997": {
+   "source": "What a mail program shows that does not show HTML.",
+   "text": "Co ukáže poštovní program, který neumí HTML."
+  },
+  "sc0998": {
+   "source": "What is recorded of what happened can be thrown away without anybody losing anything they need: no certificate is lost and nothing stops working. Choose what goes; nothing is erased that you have not ticked.",
+   "text": "Záznamy o tom, co se stalo, lze zahodit, aniž by kdokoli přišel o něco potřebného: žádný certifikát se neztratí a nic nepřestane fungovat. Vyberte, co půjde pryč; nesmaže se nic, co nezaškrtnete."
+  },
+  "sc0999": {
+   "source": "What people get from this server - the mails and the SMS, in Czech and English. Click into a text to write; the blue parts are filled in when it is sent.",
+   "text": "Co lidé od tohoto serveru dostanou – e-maily a SMS, česky i anglicky. Klikněte do textu a pište; modré části se doplní při odeslání."
+  },
+  "sc1000": {
+   "source": "what this program noted about itself: sign-ins, changes, copies, starts and stops, and what happened to the certificates. Nothing reads them back: they are the record of what happened.",
+   "text": "co si tento program zapsal o sobě: přihlášení, změny, kopie, spuštění a zastavení a co se dělo s certifikáty. Nic je zpět nečte: jsou záznamem toho, co se stalo."
+  },
+  "sc1001": {
+   "source": "What to do",
+   "text": "Co dělat"
+  },
+  "sc1002": {
+   "source": "what went wrong",
+   "text": "co se pokazilo"
+  },
+  "sc1003": {
+   "source": "When _acme-challenge.NAME is a CNAME (a delegation to another zone), the TXT record is written where it points - the CA follows it too.",
+   "text": "Když je _acme-challenge.JMÉNO CNAME (delegace do jiné zóny), TXT záznam se zapíše tam, kam míří – CA ho také následuje."
+  },
+  "sc1004": {
+   "source": "when it ends",
+   "text": "kdy končí"
+  },
+  "sc1005": {
+   "source": "when it is tried again",
+   "text": "kdy se to zkusí znovu"
+  },
+  "sc1006": {
+   "source": "Where everything is kept: the certificates and their keys (sealed), the settings, the jobs, the events. A file on this machine needs nothing; MariaDB and PostgreSQL need their server and their Python driver.",
+   "text": "Kde je vše uloženo: certifikáty a jejich klíče (zapečetěné), nastavení, úlohy, události. Soubor na tomto stroji nepotřebuje nic; MariaDB a PostgreSQL potřebují svůj server a ovladač pro Python."
+  },
+  "sc1007": {
+   "source": "where files are put first, before they are moved into place",
+   "text": "kam se soubory dávají nejdřív, než se přesunou na místo"
+  },
+  "sc1008": {
+   "source": "Where http://NAME/.well-known/acme-challenge/TOKEN is read from on those machines. Made when missing.",
+   "text": "Odkud se na těch strojích čte http://JMÉNO/.well-known/acme-challenge/TOKEN. Vytvoří se, když chybí."
+  },
+  "sc1009": {
+   "source": "Where in that zone",
+   "text": "Kde v té zóně"
+  },
+  "sc1010": {
+   "source": "where it comes from",
+   "text": "odkud pochází"
+  },
+  "sc1011": {
+   "source": "where it was deployed",
+   "text": "kam byl nasazen"
+  },
+  "sc1012": {
+   "source": "Where Test fetches a probe token from: this machine's nginx on port 80.",
+   "text": "Odkud Test stahuje zkušební token: nginx tohoto stroje na portu 80."
+  },
+  "sc1013": {
+   "source": "Where the servers may reach the web only through an HTTP proxy - on every node. Off by default, and switched on it is used only for what is switched on below: the new versions of acme, the system updates, ACME and its DNS APIs, the SMS gateway; all of them off, nowhere. Mail, Active Directory, the database, syslog, isemon, the backups, the other node and the VIP address's check never go through it.",
+   "text": "Kde servery smí na web jen přes HTTP proxy – na každém uzlu. Ve výchozím stavu vypnutá; zapnutá se použije jen pro to, co je níže zapnuté: nové verze acme, aktualizace systému, ACME a jeho DNS API, SMS brána; vše vypnuté – nikde. Pošta, Active Directory, databáze, syslog, isemon, zálohy, druhý uzel a kontrola VIP adresy přes ni nikdy nejdou."
+  },
+  "sc1014": {
+   "source": "Which pages",
+   "text": "Které stránky"
+  },
+  "sc1015": {
+   "source": "Who may reach the portal, the administration and the health check; and the machine's firewall (iptables, IPv4 and IPv6) - what acme's functions need opens by itself.",
+   "text": "Kdo smí na portál, administraci a kontrolu stavu; a firewall stroje (iptables, IPv4 i IPv6) – co potřebují funkce acme, se otevře samo."
+  },
+  "sc1016": {
+   "source": "Who may reach which pages, and the machine's own firewall: what acme's functions need is let in by itself (the DNS server for DNS-01 switched on, the cluster made, the web address turned on), and you add whatever else you want - for IPv4 and IPv6. Inside the cluster everything is always let in.",
+   "text": "Kdo smí na které stránky a vlastní firewall stroje: co potřebují funkce acme, se povolí samo (zapnutý DNS server pro DNS-01, vytvořený cluster, zapnutá webová adresa) a cokoli dalšího přidáte sami – pro IPv4 i IPv6. Uvnitř clusteru je vždy povoleno vše."
+  },
+  "sc1017": {
+   "source": "Who may sign in: anybody the directory knows and lets in, or only the members of the groups below.",
+   "text": "Kdo se smí přihlásit: kdokoli, koho adresář zná a pustí, nebo jen členové skupin níže."
+  },
+  "sc1018": {
+   "source": "why",
+   "text": "proč"
+  },
+  "sc1019": {
+   "source": "With no host key pinned: the first key seen is kept and pinned from then on. Off: a host without a pinned key is not connected to.",
+   "text": "Když není připnutý žádný klíč serveru: první viděný klíč se uloží a od té doby je připnutý. Vypnuto: k serveru bez připnutého klíče se nepřipojí."
+  },
+  "sc1020": {
+   "source": "With the private key",
+   "text": "I se soukromým klíčem"
+  },
+  "sc1021": {
+   "source": "Words shown on the enrolment pages under the title: what they are for, whom to ring. Plain text; an empty line starts a new paragraph.",
+   "text": "Text zobrazený na stránkách registrace pod titulkem: k čemu jsou, komu zavolat. Prostý text; prázdný řádek začíná nový odstavec."
+  },
+  "sc1022": {
+   "source": "Worked out from what is set up, and changed with it: the DNS server for DNS-01 switched on, the cluster made, the VIP address turned on. What keeps the cluster working cannot be turned off.",
+   "text": "Odvozeno z toho, co je nastaveno, a mění se s tím: zapnutý DNS server pro DNS-01, vytvořený cluster, zapnutá VIP adresa. Co drží cluster v chodu, vypnout nelze."
+  },
+  "sc1023": {
+   "source": "Write the nginx server block for the challenge files on every web server and reload nginx there?",
+   "text": "Zapsat na každém webovém serveru server blok nginx pro soubory výzvy a znovu tam načíst nginx?"
+  },
+  "sc1024": {
+   "source": "Writes the certificate as files in the formats and places asked (atomically, the old ones kept as .bak), tests the configuration, reloads the service and puts the old files back when it fails.",
+   "text": "Zapíše certifikát jako soubory v požadovaných formátech a místech (atomicky, staré ponechá jako .bak), otestuje konfiguraci, znovu načte službu a když to selže, vrátí staré soubory."
+  },
+  "sc1025": {
+   "source": "Writes the certificate as files under one folder of this machine, for something else to pick up; runs one command it is allowed to.",
+   "text": "Zapíše certifikát jako soubory pod jednu složku tohoto stroje, aby si je vyzvedlo něco jiného; spustí jeden příkaz, který smí."
+  },
+  "sc1026": {
+   "source": "Writes the certificate, chain and key as a secret of a KV v2 engine.",
+   "text": "Zapíše certifikát, řetězec a klíč jako secret enginu KV v2."
+  },
+  "sc1027": {
+   "source": "Wrong codes typed before that code is gone and a new one has to be sent. Every wrong code also counts towards the pause of signing in (Accounts).",
+   "text": "Kolik chybných kódů lze zadat, než kód propadne a musí se poslat nový. Každý chybný kód se také počítá do pauzy přihlašování (Účty)."
+  },
+  "sc1028": {
+   "source": "Your internal root, for the TLS of the CA's IIS.",
+   "text": "Váš interní kořen, pro TLS na IIS autority."
+  },
+  "sc1029": {
+   "source": "YOUR NAME",
+   "text": "VAŠE JMÉNO"
+  },
+  "sc1030": {
+   "source": "on this server, where people sign in with their directory password - who may, what they see there, and the picture above its sign-in.",
+   "text": "na tomto serveru, kde se lidé přihlašují heslem z adresáře – kdo smí, co tam vidí a obrázek nad jeho přihlášením."
+  },
+  "sc1031": {
+   "source": "Certificates kept, renewed and put in place by themselves, on",
+   "text": "Certifikáty uložené, obnovované a nasazované samy, na"
+  },
+  "sc1032": {
+   "source": "cert admin",
+   "text": "správce certifikátů"
+  },
+  "sc1033": {
+   "source": "no files to write: choose a service or fill in \"Files\"",
+   "text": "nic k zápisu: zvolte službu, nebo vyplňte „Soubory“"
+  },
+  "sc1036": {
+   "source": "This server: its version, how long it has run, problems.",
+   "text": "Tento server: verze, jak dlouho běží, problémy."
+  },
+  "sc1037": {
+   "source": "Certificates: The enrolment pages: a certificate issued",
+   "text": "Certifikáty: Stránky registrace: certifikát vydán"
+  },
+  "sc1038": {
+   "source": "Certificates: The enrolment pages: a request declined",
+   "text": "Certifikáty: Stránky registrace: žádost zamítnuta"
+  },
+  "sc1039": {
+   "source": "SCEP (NDES, EJBCA, step-ca, ...)",
+   "text": "SCEP (NDES, EJBCA, step-ca, …)"
+  },
+  "sc1040": {
+   "source": "RFC 2136 dynamic update (BIND, Knot, PowerDNS, Windows DNS)",
+   "text": "Dynamická aktualizace RFC 2136 (BIND, Knot, PowerDNS, Windows DNS)"
+  },
+  "sc1041": {
+   "source": "Linux / Unix server (SSH)",
+   "text": "Server Linux / Unix (SSH)"
+  },
+  "sc1042": {
+   "source": "Windows server (OpenSSH + PowerShell)",
+   "text": "Server Windows (OpenSSH + PowerShell)"
+  },
+  "sc1043": {
+   "source": "Kubernetes TLS secret",
+   "text": "TLS secret v Kubernetes"
+  },
+  "sc1044": {
+   "source": "Kubernetes TLS secret (kubectl)",
+   "text": "TLS secret v Kubernetes (kubectl)"
+  },
+  "sc1045": {
+   "source": "Docker volume (container restarted)",
+   "text": "Docker volume (kontejner se restartuje)"
+  },
+  "sc1046": {
+   "source": "Web Enrollment address",
+   "text": "Adresa Web Enrollment"
+  },
+  "sc1047": {
+   "source": "Basic (over HTTPS)",
+   "text": "Basic (přes HTTPS)"
+  },
+  "sc1048": {
+   "source": "Client certificate's key",
+   "text": "Klíč klientského certifikátu"
+  },
+  "sc1049": {
+   "source": "Directory URL",
+   "text": "URL directory"
+  },
+  "sc1050": {
+   "source": "EAB key id",
+   "text": "ID klíče EAB"
+  },
+  "sc1051": {
+   "source": "EAB HMAC key",
+   "text": "HMAC klíč EAB"
+  },
+  "sc1052": {
+   "source": "SCEP address",
+   "text": "Adresa SCEP"
+  },
+  "sc1053": {
+   "source": "Challenge password",
+   "text": "Challenge heslo"
+  },
+  "sc1054": {
+   "source": "3DES (old servers)",
+   "text": "3DES (staré servery)"
+  },
+  "sc1055": {
+   "source": "SHA-1 (old servers)",
+   "text": "SHA-1 (staré servery)"
+  },
+  "sc1056": {
+   "source": "Extended key usage",
+   "text": "Rozšířené použití klíče"
+  },
+  "sc1057": {
+   "source": "Access key ID",
+   "text": "ID přístupového klíče"
+  },
+  "sc1058": {
+   "source": "Secret access key",
+   "text": "Tajný přístupový klíč"
+  },
+  "sc1059": {
+   "source": "Session token",
+   "text": "Token relace"
+  },
+  "sc1060": {
+   "source": "Hosted zone ID",
+   "text": "ID hostované zóny"
+  },
+  "sc1061": {
+   "source": "Partition",
+   "text": "Oddíl"
+  },
+  "sc1062": {
+   "source": "Resolvers",
+   "text": "Resolvery"
+  },
+  "sc1063": {
+   "source": "Zone ID",
+   "text": "ID zóny"
+  },
+  "sc1064": {
+   "source": "API address",
+   "text": "Adresa API"
+  },
+  "sc1065": {
+   "source": "Timeout (s)",
+   "text": "Časový limit (s)"
+  },
+  "sc1066": {
+   "source": "a private key",
+   "text": "soukromý klíč"
+  },
+  "sc1067": {
+   "source": "Host keys",
+   "text": "Klíče serverů"
+  },
+  "sc1068": {
+   "source": "Windows DNS: PowerShell DnsServer cmdlets",
+   "text": "Windows DNS: cmdlety PowerShellu DnsServer"
+  },
+  "sc1069": {
+   "source": "TSIG key name",
+   "text": "Název klíče TSIG"
+  },
+  "sc1070": {
+   "source": "hmac-md5 (old)",
+   "text": "hmac-md5 (starý)"
+  },
+  "sc1071": {
+   "source": "acme-dns server",
+   "text": "Server acme-dns"
+  },
+  "sc1072": {
+   "source": "Username",
+   "text": "Uživatelské jméno"
+  },
+  "sc1073": {
+   "source": "Password (API key)",
+   "text": "Heslo (API klíč)"
+  },
+  "sc1074": {
+   "source": "Personal access token",
+   "text": "Osobní přístupový token"
+  },
+  "sc1075": {
+   "source": "Service account key (JSON)",
+   "text": "Klíč servisního účtu (JSON)"
+  },
+  "sc1076": {
+   "source": "Project ID",
+   "text": "ID projektu"
+  },
+  "sc1077": {
+   "source": "Managed zone",
+   "text": "Spravovaná zóna"
+  },
+  "sc1078": {
+   "source": "Write through sudo",
+   "text": "Zapisovat přes sudo"
+  },
+  "sc1079": {
+   "source": "File mode",
+   "text": "Práva souboru"
+  },
+  "sc1080": {
+   "source": "no check",
+   "text": "bez kontroly"
+  },
+  "sc1081": {
+   "source": "nginx file \"Prepare\" writes",
+   "text": "Soubor nginx, který zapíše „Připravit“"
+  },
+  "sc1082": {
+   "source": "Tenant (directory) ID",
+   "text": "ID tenanta (adresáře)"
+  },
+  "sc1083": {
+   "source": "Subscription ID",
+   "text": "ID předplatného"
+  },
+  "sc1084": {
+   "source": "Resource group",
+   "text": "Skupina prostředků"
+  },
+  "sc1085": {
+   "source": "Azure China (21Vianet)",
+   "text": "Azure Čína (21Vianet)"
+  },
+  "sc1086": {
+   "source": "Azure US Government",
+   "text": "Azure pro vládu USA"
+  },
+  "sc1087": {
+   "source": "OVH Europe",
+   "text": "OVH Evropa"
+  },
+  "sc1088": {
+   "source": "OVH Canada",
+   "text": "OVH Kanada"
+  },
+  "sc1089": {
+   "source": "API key",
+   "text": "API klíč"
+  },
+  "sc1090": {
+   "source": "Server id",
+   "text": "ID serveru"
+  },
+  "sc1091": {
+   "source": "HTTPS port",
+   "text": "Port HTTPS"
+  },
+  "sc1092": {
+   "source": "CA certificate",
+   "text": "Certifikát CA"
+  },
+  "sc1093": {
+   "source": "Certkey name",
+   "text": "Název certkey"
+  },
+  "sc1094": {
+   "source": "Host key",
+   "text": "Klíč serveru"
+  },
+  "sc1095": {
+   "source": "Web GUI certificate",
+   "text": "Certifikát webového GUI"
+  },
+  "sc1096": {
+   "source": "Client SSL profiles",
+   "text": "Profily Client SSL"
+  },
+  "sc1097": {
+   "source": "Admin GUI certificate",
+   "text": "Certifikát administračního GUI"
+  },
+  "sc1098": {
+   "source": "SSL VPN certificate",
+   "text": "Certifikát SSL VPN"
+  },
+  "sc1099": {
+   "source": "SSL/SSH inspection profiles",
+   "text": "Profily inspekce SSL/SSH"
+  },
+  "sc1100": {
+   "source": "firewall vip names (ssl-certificate)",
+   "text": "názvy firewall vip (ssl-certificate)"
+  },
+  "sc1101": {
+   "source": "certificate + key (PEM)",
+   "text": "certifikát + klíč (PEM)"
+  },
+  "sc1102": {
+   "source": "multipart/form-data (files)",
+   "text": "multipart/form-data (soubory)"
+  },
+  "sc1103": {
+   "source": "Files (multipart)",
+   "text": "Soubory (multipart)"
+  },
+  "sc1104": {
+   "source": "PKCS#12 password",
+   "text": "Heslo PKCS#12"
+  },
+  "sc1105": {
+   "source": "Extra JSON fields",
+   "text": "Další pole JSON"
+  },
+  "sc1106": {
+   "source": "AppRole mount",
+   "text": "Mount AppRole"
+  },
+  "sc1107": {
+   "source": "KV mount",
+   "text": "Mount KV"
+  },
+  "sc1108": {
+   "source": "Path",
+   "text": "Cesta"
+  },
+  "sc1109": {
+   "source": "sudo password",
+   "text": "Heslo pro sudo"
+  },
+  "sc1110": {
+   "source": "Service",
+   "text": "Služba"
+  },
+  "sc1111": {
+   "source": "PKCS#12 / keystore password",
+   "text": "Heslo PKCS#12 / keystore"
+  },
+  "sc1112": {
+   "source": "Keystore alias",
+   "text": "Alias v keystore"
+  },
+  "sc1113": {
+   "source": "Service / container / secret name",
+   "text": "Název služby / kontejneru / secretu"
+  },
+  "sc1114": {
+   "source": "Reload / restart",
+   "text": "Znovu načíst / restartovat"
+  },
+  "sc1115": {
+   "source": "IIS bindings",
+   "text": "Vazby IIS"
+  },
+  "sc1116": {
+   "source": "Remote Desktop listener",
+   "text": "Posluchač Vzdálené plochy"
+  },
+  "sc1117": {
+   "source": "Exchange services",
+   "text": "Služby Exchange"
+  },
+  "sc1118": {
+   "source": "PKCS#12 kind",
+   "text": "Druh PKCS#12"
+  },
+  "sc1119": {
+   "source": "Key exportable",
+   "text": "Klíč exportovatelný"
+  },
+  "sc1120": {
+   "source": "PowerShell after",
+   "text": "PowerShell potom"
+  },
+  "sc1121": {
+   "source": "SSH private key",
+   "text": "Soukromý klíč SSH"
+  },
+  "sc1122": {
+   "source": "SSH host key",
+   "text": "Klíč SSH serveru"
+  },
+  "sc1123": {
+   "source": "empty: shared (Device → Certificates, shared)",
+   "text": "prázdné: shared (Device → Certificates, shared)"
+  },
+  "sc1124": {
+   "source": "SSL/TLS service profiles",
+   "text": "SSL/TLS service profily"
+  },
+  "sc1125": {
+   "source": "commit everything pending",
+   "text": "commitovat vše čekající"
+  },
+  "sc1126": {
+   "source": "API token ID",
+   "text": "ID API tokenu"
+  },
+  "sc1127": {
+   "source": "API token secret",
+   "text": "Tajemství API tokenu"
+  },
+  "sc1128": {
+   "source": "Folder",
+   "text": "Složka"
+  },
+  "sc1129": {
+   "source": "A line from vm to every isemon receiver that isemon shows as a sign-in of the name given - its message says it is a test.",
+   "text": "Řádek z vm do každého přijímače isemonu, který isemon ukáže jako přihlášení zadaného jména – jeho zpráva říká, že jde o test."
+  },
+  "sc1130": {
+   "source": "Tento server: its version, how long it has run, problems.",
+   "text": "Tento server: verze, jak dlouho běží, problémy."
+  },
+  "sc1131": {
+   "source": "a certificate needs at least one name",
+   "text": "certifikát potřebuje aspoň jedno jméno"
+  },
+  "sc1132": {
+   "source": "renew_days: 1 to 3650",
+   "text": "renew_days: 1 až 3650"
+  },
+  "sc1133": {
+   "source": "the profile is too big",
+   "text": "profil je příliš velký"
+  },
+  "sc1134": {
+   "source": "the file is locked: give its password",
+   "text": "soubor je zamčený: zadejte jeho heslo"
+  },
+  "sc1135": {
+   "source": "there is no certificate in that file",
+   "text": "v tom souboru není žádný certifikát"
+  },
+  "sc1136": {
+   "source": "the key is locked: give its password (key_password)",
+   "text": "klíč je zamčený: zadejte jeho heslo (key_password)"
+  },
+  "sc1137": {
+   "source": "there is no private key in the key file",
+   "text": "v souboru klíče není žádný soukromý klíč"
+  },
+  "sc1138": {
+   "source": "the key does not belong to the certificate",
+   "text": "klíč nepatří k certifikátu"
+  },
+  "sc1139": {
+   "source": "the key of the CSR cannot be opened on this machine",
+   "text": "klíč CSR nelze na tomto stroji otevřít"
+  },
+  "sc1140": {
+   "source": "that certificate is not the answer to the CSR (another key)",
+   "text": "ten certifikát není odpovědí na CSR (jiný klíč)"
+  },
+  "sc1141": {
+   "source": "which authority?",
+   "text": "která autorita?"
+  },
+  "sc1142": {
+   "source": "the subject is {CN, O, OU, C, ST, L} or \"CN=..,O=..\"",
+   "text": "subjekt je {CN, O, OU, C, ST, L} nebo „CN=..,O=..“"
+  },
+  "sc1143": {
+   "source": "the subject needs a CN (the authority's name as people see it)",
+   "text": "subjekt potřebuje CN (název autority, jak ho lidé uvidí)"
+  },
+  "sc1144": {
+   "source": "no certificate of the authority was given",
+   "text": "nebyl zadán žádný certifikát autority"
+  },
+  "sc1145": {
+   "source": "no key of the authority was given: without it, it cannot sign",
+   "text": "nebyl zadán klíč autority: bez něj nemůže podepisovat"
+  },
+  "sc1146": {
+   "source": "csr_pem is a certificate request (PEM)",
+   "text": "csr_pem je žádost o certifikát (PEM)"
+  },
+  "sc1147": {
+   "source": "which serial?",
+   "text": "které sériové číslo?"
+  },
+  "sc1148": {
+   "source": "there is no such issuer",
+   "text": "takový zdroj neexistuje"
+  },
+  "sc1149": {
+   "source": "there is no such challenge",
+   "text": "taková validace neexistuje"
+  },
+  "sc1150": {
+   "source": "there is no such target",
+   "text": "takový cíl neexistuje"
+  },
+  "sc1151": {
+   "source": "those settings are too big",
+   "text": "ta nastavení jsou příliš velká"
+  },
+  "sc1152": {
+   "source": "nothing besides its work",
+   "text": "nic kromě své práce"
+  },
+  "sc1153": {
+   "source": "every ACME source has a contact e-mail already",
+   "text": "každý zdroj ACME už kontaktní e-mail má"
+  },
+  "sc1154": {
+   "source": "there is no such deployment",
+   "text": "takové nasazení neexistuje"
+  },
+  "sc1155": {
+   "source": "not the daemon",
+   "text": "není to démon"
+  },
+  "sc1156": {
+   "source": "@ is the zone, and no zone is set (dns_zone)",
+   "text": "@ je zóna, a žádná zóna není nastavená (dns_zone)"
+  },
+  "sc1157": {
+   "source": "a value of one line is needed",
+   "text": "je potřeba hodnota na jeden řádek"
+  },
+  "sc1158": {
+   "source": "an A record holds an IPv4 address",
+   "text": "záznam A obsahuje adresu IPv4"
+  },
+  "sc1159": {
+   "source": "an AAAA record holds an IPv6 address",
+   "text": "záznam AAAA obsahuje adresu IPv6"
+  },
+  "sc1160": {
+   "source": "ttl: 0 to 604800 seconds",
+   "text": "ttl: 0 až 604800 sekund"
+  },
+  "sc1161": {
+   "source": "there is no such record",
+   "text": "takový záznam neexistuje"
+  },
+  "sc1162": {
+   "source": "a job is already working on that certificate",
+   "text": "na tom certifikátu už pracuje jiná úloha"
   }
  },
  "patterns": {
@@ -28809,6 +31509,366 @@
   "pcp0021": {
    "source": "the key type is one of {0}",
    "text": "typ klíče je jeden z: {0}"
+  },
+  "pc0076": {
+   "source": "certificate {0} added by {1}",
+   "text": "certifikát {0} přidal {1}"
+  },
+  "pc0077": {
+   "source": "certificate {0} changed by {1}",
+   "text": "certifikát {0} změnil {1}"
+  },
+  "pc0078": {
+   "source": "certificate {0} deleted by {1}",
+   "text": "certifikát {0} smazal {1}"
+  },
+  "pc0079": {
+   "source": "certificate {0} imported by {1} (version {2})",
+   "text": "certifikát {0} naimportoval {1} (verze {2})"
+  },
+  "pc0080": {
+   "source": "certificate {0} imported by {1} (version {2}, without its key)",
+   "text": "certifikát {0} naimportoval {1} (verze {2}, bez klíče)"
+  },
+  "pc0081": {
+   "source": "issuer {0} saved by {1}",
+   "text": "zdroj {0} uložil {1}"
+  },
+  "pc0082": {
+   "source": "challenge {0} saved by {1}",
+   "text": "validaci {0} uložil {1}"
+  },
+  "pc0083": {
+   "source": "target {0} saved by {1}",
+   "text": "cíl {0} uložil {1}"
+  },
+  "pc0084": {
+   "source": "issuer {0} deleted by {1}",
+   "text": "zdroj {0} smazal {1}"
+  },
+  "pc0085": {
+   "source": "challenge {0} deleted by {1}",
+   "text": "validaci {0} smazal {1}"
+  },
+  "pc0086": {
+   "source": "target {0} deleted by {1}",
+   "text": "cíl {0} smazal {1}"
+  },
+  "pc0087": {
+   "source": "deployment of {0} to {1} saved by {2}",
+   "text": "nasazení {0} na {1} uložil {2}"
+  },
+  "pc0088": {
+   "source": "a deployment to {0} deleted by {1}",
+   "text": "nasazení na {0} smazal {1}"
+  },
+  "pc0089": {
+   "source": "deploying {0} to {1} failed: {2}",
+   "text": "nasazení {0} na {1} selhalo: {2}"
+  },
+  "pc0090": {
+   "source": "renewing {0} failed: {1}",
+   "text": "obnovení {0} selhalo: {1}"
+  },
+  "pc0091": {
+   "source": "{0} issued (version {1}, until {2})",
+   "text": "{0} vydán (verze {1}, do {2})"
+  },
+  "pc0092": {
+   "source": "{0} renewed (version {1}, until {2})",
+   "text": "{0} obnoven (verze {1}, do {2})"
+  },
+  "pc0093": {
+   "source": "{0} (version {1}) deployed to {2}",
+   "text": "{0} (verze {1}) nasazen na {2}"
+  },
+  "pc0094": {
+   "source": "{0} now renews and deploys the certificates",
+   "text": "{0} teď obnovuje a nasazuje certifikáty"
+  },
+  "pc0095": {
+   "source": "{0} now renews and deploys the certificates (it holds the VIP address)",
+   "text": "{0} teď obnovuje a nasazuje certifikáty (drží VIP adresu)"
+  },
+  "pc0096": {
+   "source": "{0} has expired",
+   "text": "{0} vypršel"
+  },
+  "pc0097": {
+   "source": "{0} ends in {1} and is not renewed by itself",
+   "text": "{0} vyprší za {1} a sám se neobnovuje"
+  },
+  "pc0098": {
+   "source": "{0} revoked ({1}) by {2}",
+   "text": "{0} odvolal ({1}) {2}"
+  },
+  "pc0099": {
+   "source": "authority {0} made by {1}",
+   "text": "autoritu {0} vytvořil {1}"
+  },
+  "pc0100": {
+   "source": "authority {0} imported by {1}",
+   "text": "autoritu {0} naimportoval {1}"
+  },
+  "pc0101": {
+   "source": "authority {0} deleted by {1}",
+   "text": "autoritu {0} smazal {1}"
+  },
+  "pc0102": {
+   "source": "authority {0} revoked serial {1} ({2}) - {3}",
+   "text": "autorita {0} odvolala sériové číslo {1} ({2}) – {3}"
+  },
+  "pc0103": {
+   "source": "authority {0} signed a CSR from elsewhere (asked by {1})",
+   "text": "autorita {0} podepsala CSR odjinud (požádal {1})"
+  },
+  "pc0104": {
+   "source": "a new CRL of {0} made by {1}",
+   "text": "nový CRL autority {0} vytvořil {1}"
+  },
+  "pc0105": {
+   "source": "a CSR for {0} given out to {1}",
+   "text": "CSR pro {0} vydán uživateli {1}"
+  },
+  "pc0106": {
+   "source": "the answer to the CSR of {0} taken ({1}) by {2}",
+   "text": "odpověď na CSR {0} převzal ({1}) {2}"
+  },
+  "pc0107": {
+   "source": "the contact e-mail of {0} set to {1} by {2}",
+   "text": "kontaktní e-mail {0} nastavil na {1} {2}"
+  },
+  "pc0108": {
+   "source": "the key of authority {0} was exported by {1}",
+   "text": "klíč autority {0} exportoval {1}"
+  },
+  "pc0109": {
+   "source": "the private key of {0} was exported ({1}) by {2}",
+   "text": "soukromý klíč {0} exportoval ({1}) {2}"
+  },
+  "pc0110": {
+   "source": "the host key of target {0} was taken as the first one seen (trust_first)",
+   "text": "klíč serveru cíle {0} byl přijat jako první viděný (trust_first)"
+  },
+  "pc0111": {
+   "source": "{0} job(s) left running when acme stopped are marked failed",
+   "text": "{0} {0:úloha, která běžela|úlohy, které běžely|úloh, které běžely} při zastavení acme, {0:je označena|jsou označeny|je označeno} jako {0:neúspěšná|neúspěšné|neúspěšné}"
+  },
+  "pc0112": {
+   "source": "ready to go: {0} made (Let's Encrypt first)",
+   "text": "připraveno: vytvořeno {0} (Let's Encrypt jako první)"
+  },
+  "pc0113": {
+   "source": "acme's DNS server did not start: {0}",
+   "text": "DNS server acme se nespustil: {0}"
+  },
+  "pc0114": {
+   "source": "DNS record {0} {1} {2} saved by {3}",
+   "text": "DNS záznam {0} {1} {2} uložil {3}"
+  },
+  "pc0115": {
+   "source": "DNS record {0} {1} deleted by {2}",
+   "text": "DNS záznam {0} {1} smazal {2}"
+  },
+  "pc0116": {
+   "source": "{0} took {1} ({2}) from the portal",
+   "text": "{0} si z portálu vzal {1} ({2})"
+  },
+  "pc0117": {
+   "source": "{0} asked on the portal for {1} ({2}) from {3} - issued without approval",
+   "text": "{0} požádal na portálu o {1} ({2}) od {3} – vydáno bez schválení"
+  },
+  "pc0118": {
+   "source": "{0} asked on the portal for {1} ({2}) from {3} - it waits for an administrator's approval",
+   "text": "{0} požádal na portálu o {1} ({2}) od {3} – čeká na schválení administrátorem"
+  },
+  "pc0119": {
+   "source": "{0} approved {1}, asked for on the portal by {2}",
+   "text": "{0} schválil {1}, o který na portálu požádal {2}"
+  },
+  "pc0120": {
+   "source": "{0} approved {1}, asked for on the portal by {2}: {3}",
+   "text": "{0} schválil {1}, o který na portálu požádal {2}: {3}"
+  },
+  "pc0121": {
+   "source": "{0} declined {1}, asked for on the portal by {2}: {3}",
+   "text": "{0} zamítl {1}, o který na portálu požádal {2}: {3}"
+  },
+  "pc0122": {
+   "source": "the certificate of the pages of {0} is now {1} (until {2}), from the certificate manager",
+   "text": "certifikát stránek {0} je teď {1} (do {2}), ze správce certifikátů"
+  },
+  "pc0123": {
+   "source": "acme {0} started on {1}",
+   "text": "acme {0} spuštěn na {1}"
+  },
+  "pc0124": {
+   "source": "made a copy of the file (every night): {0}",
+   "text": "vytvořena kopie souboru (každou noc): {0}"
+  },
+  "pc0125": {
+   "source": "{0} (http-01)",
+   "text": "{0} (http-01)"
+  },
+  "pc0126": {
+   "source": "{0} (dns-01)",
+   "text": "{0} (dns-01)"
+  },
+  "pc0127": {
+   "source": "{0} (dns-01, http-01)",
+   "text": "{0} (dns-01, http-01)"
+  },
+  "pc0128": {
+   "source": "{0} (http-01, dns-01)",
+   "text": "{0} (http-01, dns-01)"
+  },
+  "pc0129": {
+   "source": "challenge {0}: \"{1}\" run by {2} - done",
+   "text": "validace {0}: „{1}“ spustil {2} – hotovo"
+  },
+  "pc0130": {
+   "source": "challenge {0}: \"{1}\" run by {2} - failed: {3}",
+   "text": "validace {0}: „{1}“ spustil {2} – selhalo: {3}"
+  },
+  "pc0131": {
+   "source": "target {0}: \"{1}\" run by {2} - done",
+   "text": "cíl {0}: „{1}“ spustil {2} – hotovo"
+  },
+  "pc0132": {
+   "source": "target {0}: \"{1}\" run by {2} - failed: {3}",
+   "text": "cíl {0}: „{1}“ spustil {2} – selhalo: {3}"
+  },
+  "pc0133": {
+   "source": "issuer {0}: \"{1}\" run by {2} - done",
+   "text": "zdroj {0}: „{1}“ spustil {2} – hotovo"
+  },
+  "pc0134": {
+   "source": "issuer {0}: \"{1}\" run by {2} - failed: {3}",
+   "text": "zdroj {0}: „{1}“ spustil {2} – selhalo: {3}"
+  },
+  "pc0135": {
+   "source": "A line from {0} to every isemon receiver that isemon shows as a sign-in of the name given - its message says it is a test.",
+   "text": "Řádek z {0} do každého přijímače isemonu, který isemon ukáže jako přihlášení zadaného jména – jeho zpráva říká, že jde o test."
+  },
+  "pc0136": {
+   "source": "Certificates: {0} (SMS)",
+   "text": "Certifikáty: {0} (SMS)"
+  },
+  "pc0137": {
+   "source": "there is a certificate called {0} already",
+   "text": "certifikát s názvem {0} už existuje"
+  },
+  "pc0138": {
+   "source": "there is no issuer {0}",
+   "text": "zdroj {0} neexistuje"
+  },
+  "pc0139": {
+   "source": "there is no challenge {0}",
+   "text": "validace {0} neexistuje"
+  },
+  "pc0140": {
+   "source": "there is no challenge {0} (for {1})",
+   "text": "validace {0} neexistuje (pro {1})"
+  },
+  "pc0141": {
+   "source": "{0} is not a name or a pattern of names",
+   "text": "{0} není jméno ani vzor jmen"
+  },
+  "pc0142": {
+   "source": "{0} deleted",
+   "text": "{0} smazán"
+  },
+  "pc0143": {
+   "source": "{0} has no issuer - it was imported or is answered by a CSR; import the new certificate instead",
+   "text": "{0} nemá zdroj – byl naimportován nebo ho vyřizuje CSR; místo toho naimportujte nový certifikát"
+  },
+  "pc0144": {
+   "source": "{0} has not been issued yet",
+   "text": "{0} ještě nebyl vydán"
+  },
+  "pc0145": {
+   "source": "that deployment is not one of {0}",
+   "text": "to nasazení nepatří k {0}"
+  },
+  "pc0146": {
+   "source": "the reason is one of {0}",
+   "text": "důvod je jeden z: {0}"
+  },
+  "pc0147": {
+   "source": "{0} has no version {1}",
+   "text": "{0} nemá verzi {1}"
+  },
+  "pc0148": {
+   "source": "acme does not have the key of {0}",
+   "text": "acme nemá klíč certifikátu {0}"
+  },
+  "pc0149": {
+   "source": "{0} has no names",
+   "text": "{0} nemá žádná jména"
+  },
+  "pc0150": {
+   "source": "no CSR of {0} is waiting for its answer",
+   "text": "žádný CSR certifikátu {0} nečeká na odpověď"
+  },
+  "pc0151": {
+   "source": "there is no authority {0}",
+   "text": "autorita {0} neexistuje"
+  },
+  "pc0152": {
+   "source": "the issuer(s) {0} sign with {1}: change them first",
+   "text": "{1} používá k podepisování zdroj(e) {0}: nejdřív je změňte"
+  },
+  "pc0153": {
+   "source": "serial {0} revoked",
+   "text": "sériové číslo {0} odvoláno"
+  },
+  "pc0154": {
+   "source": "there is one called {0} already",
+   "text": "něco s názvem {0} už existuje"
+  },
+  "pc0155": {
+   "source": "there is no issuer module \"{0}\"",
+   "text": "modul zdroje „{0}“ neexistuje"
+  },
+  "pc0156": {
+   "source": "there is no challenge module \"{0}\"",
+   "text": "modul validace „{0}“ neexistuje"
+  },
+  "pc0157": {
+   "source": "there is no target module \"{0}\"",
+   "text": "modul cíle „{0}“ neexistuje"
+  },
+  "pc0158": {
+   "source": "{0}: {1} is needed",
+   "text": "{0}: je potřeba {1}"
+  },
+  "pc0159": {
+   "source": "{0} is in use ({1}): change those first",
+   "text": "{0} se používá ({1}): nejdřív změňte ta místa"
+  },
+  "pc0160": {
+   "source": "{0} ({1}) can do {2}",
+   "text": "{0} ({1}) umí: {2}"
+  },
+  "pc0161": {
+   "source": "{0} is not an e-mail address",
+   "text": "{0} není e-mailová adresa"
+  },
+  "pc0162": {
+   "source": "set on {0}",
+   "text": "nastaveno u {0}"
+  },
+  "pc0163": {
+   "source": "there is no target {0}",
+   "text": "cíl {0} neexistuje"
+  },
+  "pc0164": {
+   "source": "{0} is not a DNS name",
+   "text": "{0} není DNS jméno"
+  },
+  "pc0165": {
+   "source": "the type is one of {0}",
+   "text": "typ je jeden z: {0}"
   }
  },
  "rich": {
@@ -29379,6 +32439,54 @@
   "r0142": {
    "source": "this node’s own - every node of the cluster has one of its own; the others’ are under the box, and all of them in Settings → High availability",
    "text": "vlastní nastavení tohoto uzlu – každý uzel clusteru má své; ostatních jsou pod polem a všechny v Nastavení → Vysoká dostupnost"
+  },
+  "r0143": {
+   "source": "A copy of the database once a day, into <code>/var/lib/acme/backups</code>, with the key that opens its secrets beside it.",
+   "text": "Jednou denně kopie databáze do <code>/var/lib/acme/backups</code>, s klíčem k jejím tajným údajům hned vedle."
+  },
+  "r0144": {
+   "source": "The directory (by its name under <i>Active Directory</i>) people sign in against on these pages. Empty: the one administrators sign in against (Accounts).",
+   "text": "Adresář (podle názvu v sekci <i>Active Directory</i>), vůči kterému se lidé na těchto stránkách přihlašují. Prázdné: ten, vůči kterému se přihlašují administrátoři (Účty)."
+  },
+  "r0145": {
+   "source": "Send what happens to the certificates - a renewal, a deployment, a failure, one running out - to isemon, as syslog lines of the program <code>acme-certs</code>, one event a line with key=value fields (and with the switch below, every other event of acme as <code>acme</code> lines).",
+   "text": "Posílat do isemonu, co se děje s certifikáty – obnovení, nasazení, selhání, blížící se konec platnosti – jako řádky syslogu programu <code>acme-certs</code>, jedna událost na řádek s poli klíč=hodnota (a s přepínačem níže i každou další událost acme jako řádky <code>acme</code>)."
+  },
+  "r0146": {
+   "source": "Every other event of acme as well (a setting changed, a sign-in, a node gone), as <code>acme</code> lines.",
+   "text": "I každou další událost acme (změněné nastavení, přihlášení, výpadek uzlu), jako řádky <code>acme</code>."
+  },
+  "r0147": {
+   "source": "Each node answers <code>https://NODE/metrics</code> in Prometheus’ format - the database, the cluster, the certificates, the mail, the alerts. Asked with the token below.",
+   "text": "Každý uzel odpovídá na <code>https://UZEL/metrics</code> ve formátu Promethea – databáze, cluster, certifikáty, pošta, upozornění. S tokenem níže."
+  },
+  "r0148": {
+   "source": "Prometheus asks each node for its metrics at <code>https://NODE/metrics</code>: the certificates and the jobs, the database, the cluster and its replication, the mail, isemon and syslog, the alerts open now. And SNMPv3: each node answers it itself, and sends traps when something is wrong.",
+   "text": "Prometheus se ptá každého uzlu na jeho metriky na <code>https://UZEL/metrics</code>: certifikáty a úlohy, databáze, cluster a jeho replikace, pošta, isemon a syslog, právě otevřená upozornění. A SNMPv3: každý uzel na něj odpovídá sám a posílá trapy, když je něco špatně."
+  },
+  "r0149": {
+   "source": "Who may open these pages. <b>full admin</b> may change everything; <b>cert admin</b> may look at everything and add, import, renew, deploy and export certificates (never a private key); <b>read only</b> may look and change nothing.",
+   "text": "Kdo smí otevřít tyto stránky. <b>plný admin</b> smí měnit vše; <b>správce certifikátů</b> smí vidět vše a přidávat, importovat, obnovovat, nasazovat a exportovat certifikáty (nikdy soukromý klíč); <b>jen pro čtení</b> smí se dívat a nic neměnit."
+  },
+  "r0150": {
+   "source": "<b>The certificates, the authorities, the targets, the accounts, the directories and every setting are never touched by this.</b> They are not options you could tick by mistake: they are not in the list at all.",
+   "text": "<b>Certifikátů, autorit, cílů, účtů, adresářů ani žádného nastavení se to nikdy nedotkne.</b> Nejsou to volby, které byste mohli omylem zaškrtnout: v seznamu vůbec nejsou."
+  },
+  "r0151": {
+   "source": "The Active Directory servers an administrator's name and password are checked against, and the groups below are looked up in - chosen in <i>Sign administrators in against the directory</i>. Read only: nothing is ever written to a directory, and the reading account needs no right beyond reading.",
+   "text": "Servery Active Directory, vůči kterým se ověřuje jméno a heslo administrátora a ve kterých se hledají skupiny níže – zvolené v <i>Přihlašovat administrátory vůči adresáři</i>. Jen pro čtení: do adresáře se nikdy nic nezapisuje a čtecí účet nepotřebuje jiné právo než čtení."
+  },
+  "r0152": {
+   "source": "<b>The bundle</b> carries what the second node needs and nothing else: the database's account and password, and the key that opens the sealed keys - locked with the passphrase. Carry the file over on its own (scp, a USB stick) and tell the passphrase some other way. A fresh one, for a node to be rebuilt later:",
+   "text": "<b>Balíček</b> nese, co druhý uzel potřebuje, a nic víc: účet a heslo databáze a klíč, který otevírá zapečetěné klíče – zamčené heslovou frází. Soubor přeneste zvlášť (scp, USB) a frázi sdělte jinou cestou. Nový, pro uzel obnovovaný později:"
+  },
+  "r0153": {
+   "source": "The host name on every line, which is the folder isemon’s rsyslog files them under: <code>/var/log/remote/<this>/acme-certs.log</code>. isemon looks in <code>/var/log/remote/acme</code> unless told otherwise, so <code>acme</code> needs nothing changed there. Empty: this machine’s own short name.",
+   "text": "Název hostitele na každém řádku – podle něj je rsyslog isemonu ukládá do složky: <code>/var/log/remote/<this>/acme-certs.log</code>. isemon hledá v <code>/var/log/remote/acme</code>, pokud se mu neřekne jinak, takže <code>acme</code> tam nic měnit nepotřebuje. Prázdné: vlastní krátké jméno tohoto stroje."
+  },
+  "r0154": {
+   "source": "The very same lines go into <code>/var/log/acme/acme-certs.log</code> as well, whether or not they are sent. Something on this machine can then forward them, and they are there to read when the network is not.",
+   "text": "Úplně stejné řádky jdou také do <code>/var/log/acme/acme-certs.log</code>, ať se posílají, nebo ne. Něco na tomto stroji je pak může přeposílat a jsou k přečtení, i když síť není."
   }
  }
 }

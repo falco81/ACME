@@ -275,3 +275,13 @@ CERT_CARRY_TABLES = ['cert_issuers', 'cert_challenges', 'cert_targets', 'cert_ca
 @_certs_hook('carry_tables')
 def certs_carry_tables(*_args):
     return list(CERT_CARRY_TABLES)
+
+
+@_certs_hook('carry_row_out')
+def certs_carry_row_out(table, row, whole):
+    return certs_mod('store').carry_out(table, row, whole)
+
+
+@_certs_hook('carry_row_in')
+def certs_carry_row_in(store, table, ident, old):
+    return certs_mod('store').carry_in(store, table, ident, old)

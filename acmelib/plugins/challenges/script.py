@@ -30,7 +30,7 @@ class Script(DnsChallenge):
                    'ACME_TXT, ACME_TOKEN, ACME_ZONE (when known), ACME_TTL.'),
         field('env', 'More environment', 'list', default='', placeholder='DNS_API_KEY=...',
               help='KEY=VALUE, one a line.'),
-        field('secret_env', 'Secret environment', 'secret', default='',
+        field('secret_env', 'Secret environment', 'secret', multiline=True, default='',
               help='KEY=VALUE lines kept sealed (API keys for the script).'),
         field('timeout', 'Timeout (s)', 'number', default=120, advanced=True),
         field('ttl', 'TTL (s)', 'number', default=60, advanced=True),

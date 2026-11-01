@@ -127,7 +127,7 @@ def add_args(p):
     g.add_argument('--targets', action='store_true', help='where certificates go')
     for fam, (word, _path, _one) in FAMILIES.items():
         g.add_argument('--%s-show' % word, dest='%s_show' % word, metavar='NAME',
-                       help='one %s: its settings (secrets: only whether set)%s' % (
+                       help='one %s: its settings (secrets: eight dots and their last two)%s' % (
                            word, ' and its deployments' if fam == 'target' else ''))
         g.add_argument('--%s-add' % word, dest='%s_add' % word, metavar='NAME',
                        help='a new %s: --kind and --set KEY=VALUE' % word)
@@ -421,7 +421,7 @@ class Cli(object):
             if f is None:
                 raise SystemExit('acme: %s has no setting %s - it has: %s' % (
                     what or 'that module', k, ', '.join(by_key) or 'none'))
-            if f.get('type') == 'secret':
+            if f.get('type') == 'secret' or (f.get('secret') and not v.startswith('@file:')):
                 if op != '=':
                     raise SystemExit('acme: %s is a secret: %s=- asks for it' % (k, k))
                 cfg[k] = self.secret(k, v)
@@ -453,7 +453,8 @@ class Cli(object):
             if not f.get('required') or not shown(f, cfg):
                 continue
             v = cfg.get(f['key'])
-            if f.get('type') == 'secret' and v == '' and f['key'] in (cur or {}).get(
+            if (f.get('type') == 'secret' or f.get('secret')) and (
+                    v == '' or self.E.is_masked(v)) and f['key'] in (cur or {}).get(
                     '__secret_set__', ()):
                 continue
             if v in (None, '', []) and f.get('default') in (None, '', []):
@@ -1002,12 +1003,12 @@ class Cli(object):
     def fam_show(self, fam, name):
         from acmelib.certs import store as S
         row = self.fam_row(fam, name)
-        pub = S.plugin_public(self.store, fam, row)
+        pub = S.plugin_public(self.store, fam, row, True)
         cls = S.plugin_class(fam, row['kind'])
         deps = []
         if fam == 'target':
             from acmelib.certs import api
-            deps = api.deploy_rows(self.store, target=row['name'])
+            deps = api.deploy_rows(self.store, target=row['name'], full=True)
         if self.json:
             self.out(dict(pub, deploys=deps) if fam == 'target' else pub)
             return 0
@@ -1018,8 +1019,9 @@ class Cli(object):
         rows = []
         for f in (cls.fields if cls else []) or []:
             k = f['key']
-            if f.get('type') == 'secret':
-                v = 'set' if k in pub.get('secret_set', []) else 'not set'
+            if f.get('type') == 'secret' or f.get('secret'):
+                # Dots and its last two (the command line is root on the box).
+                v = cfg.get(k) or 'not set'
             else:
                 v = cfg.get(k)
                 v = _short(v, 70) if v not in (None, '', []) else (
@@ -1070,7 +1072,7 @@ class Cli(object):
         row = self.fam_row(fam, name)
         kind = a.kind or row['kind']
         cls, fields = self.fam_fields(fam, kind)
-        pub = S.plugin_public(self.store, fam, row)
+        pub = S.plugin_public(self.store, fam, row, True)
         cur = dict(pub.get('config') or {}) if kind == row['kind'] else {}
         if kind == row['kind']:
             cur['__secret_set__'] = list(pub.get('secret_set') or [])
@@ -1234,7 +1236,7 @@ class Cli(object):
         for d in rows:
             opts = dict(d.get('options') or {})
             for k in d.get('secret_set') or []:
-                opts[k] = '(set)'
+                opts[k] = opts.get(k) or '(set)'          # dots and its last two
             st = d.get('state') or ''
             if d.get('outdated') and st == 'ok':
                 st = 'outdated'
@@ -1253,7 +1255,7 @@ class Cli(object):
         if cert:
             self.cert_ref(cert)
         try:
-            rows = api.deploy_rows(self.store, cert=cert)
+            rows = api.deploy_rows(self.store, cert=cert, full=True)
         except LookupError as e:
             raise SystemExit('acme: %s' % e)
         if self.json:
@@ -1292,7 +1294,7 @@ class Cli(object):
         from acmelib.certs import store as S
         row = self._deploy_row(self.args.deploy_edit)
         trow, fields = self._deploy_fields(row['target'])
-        pub = S.deploy_public(self.store, row)
+        pub = S.deploy_public(self.store, row, True)
         cur = dict(pub.get('options') or {})
         cur['__secret_set__'] = list(pub.get('secret_set') or [])
         body = {'id': row['id']}

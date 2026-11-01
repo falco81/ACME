@@ -13,7 +13,7 @@ def _dirs(h):
     if s['role'] != 'fulladmin':
         for d in dirs:
             if d.get('bind_pw'):
-                d['bind_pw'] = '••••••'
+                d['bind_pw'] = secret_shown(d['bind_pw'], last=False)    # dots alone
     return {'directories': dirs, 'may_change': s['role'] == 'fulladmin'}
 
 

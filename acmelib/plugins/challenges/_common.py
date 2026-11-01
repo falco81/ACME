@@ -433,7 +433,7 @@ def ssh_fields(port=22, user='root', with_hostkey=True):
         field('user', 'User', 'text', default=user, required=True),
         field('auth', 'Signs in with', 'select', default='key',
               options=[['key', 'a private key'], ['password', 'a password']]),
-        field('key', 'Private key', 'pem', show_if={'auth': ['key']},
+        field('key', 'Private key', 'pem', secret=True, show_if={'auth': ['key']},
               help='OpenSSH or PEM private key; its public half in the user\'s '
                    '~/.ssh/authorized_keys on the machine.'),
         field('key_pass', 'Key passphrase', 'secret', show_if={'auth': ['key']}, advanced=True),

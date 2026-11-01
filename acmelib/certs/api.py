@@ -9,8 +9,11 @@ is through) adds, imports, renews, deploys and exports certificates - no
 private key; `fulladmin` does everything: the authorities, the issuers,
 the challenges, the targets, acme's DNS server, private keys out.
 
-A secret setting of a module is never sent back: `config` holds "" there
-and `secret_set` lists which are set; "" saved keeps what is set.
+A secret setting of a module is never sent back in clear: `config` holds
+it as the engine's secret_shown has it - eight dots and its last two
+characters for a full administrator, eight dots for anybody else, "" when
+it is not set - and `secret_set` lists which are set. Saved as "" or as
+what was shown (starting with a dot), the one kept stays.
 """
 from __future__ import annotations
 
@@ -255,13 +258,13 @@ def _certs(h, s):
                      h.num('page', 1, 1), h.num('per', 50, 1, 1000))
 
 
-def cert_one(store, ref):
+def cert_one(store, ref, full=False):
     row = S.cert_need(store, ref)
     out = S.cert_public(row, full=True)
     versions = [S.version_public(v) for v in store.db.rows(
         'SELECT * FROM cert_versions WHERE cert_id = ? ORDER BY version DESC', (row['id'],))]
-    deps = [S.deploy_public(store, d) for d in deployer.deploys_of(store, row['id'],
-                                                                    enabled=False)]
+    deps = [S.deploy_public(store, d, full) for d in deployer.deploys_of(store, row['id'],
+                                                                          enabled=False)]
     js = jobs.job_rows(store, cert_id=row['id'], per=20)['rows']
     if row.get('cert_pem'):
         try:
@@ -275,7 +278,7 @@ def cert_one(store, ref):
 
 @api('GET', '/api/certs/one')
 def _cert_one(h, s):
-    return cert_one(h.store, h.arg('id') or h.arg('name'))
+    return cert_one(h.store, h.arg('id') or h.arg('name'), may(s, 'fulladmin'))
 
 
 def cert_save(store, b, by):
@@ -962,9 +965,9 @@ def _plugins(h, s):
 
 
 # ---- issuers (sources), challenges (validations), targets: one shape ---------------
-def family_rows(store, family):
+def family_rows(store, family, full=False):
     table = S.TABLE_OF[family]
-    return [S.plugin_public(store, family, r) for r in store.db.rows(
+    return [S.plugin_public(store, family, r, full) for r in store.db.rows(
         'SELECT * FROM %s ORDER BY %s' % (table, store.db.name_order()))]
 
 
@@ -1063,8 +1066,8 @@ def family_test(store, family, b, by, echo=None):
         raise ValueError('there is no %s module "%s"' % (family, kind))
     cfg = S.plugin_config(family, row) if row and row.get('kind') == kind else {}
     for k, v in (_dict(b.get('config'), 'config') or {}).items():
-        if v in (None, '') and k in S.secret_fields(cls):
-            continue
+        if k in S.secret_fields(cls) and (v in (None, '') or E.is_masked(v)):
+            continue                # "" or the dots shown: the one kept
         cfg[k] = v
     name = (row or {}).get('name') or str(b.get('name') or 'unsaved')
 
@@ -1140,7 +1143,7 @@ def _family_routes(family, path):
     @api('GET', '/api/%s' % path)
     def _rows(h, s):
         DF.ensure(h.store)
-        return {'rows': family_rows(h.store, family)}
+        return {'rows': family_rows(h.store, family, may(s, 'fulladmin'))}
 
     @api('POST', '/api/%s/action' % path, 'certadmin')
     def _action(h, s):
@@ -1248,7 +1251,7 @@ def deploy_save(store, b, by):
     return row['id']
 
 
-def deploy_rows(store, target='', cert=''):
+def deploy_rows(store, target='', cert='', full=False):
     """The deployments, of one target or one certificate (or all), each with its
     certificate's name and version."""
     where, args = [], []
@@ -1269,7 +1272,7 @@ def deploy_rows(store, target='', cert=''):
     out = []
     kinds = {r['name']: r['kind'] for r in store.db.rows('SELECT name, kind FROM cert_targets')}
     for r in rows:
-        one = S.deploy_public(store, r)
+        one = S.deploy_public(store, r, full)
         one['target_kind'] = kinds.get(r['target'])
         one['outdated'] = bool(r.get('cert_version') and r.get('deployed_version') and
                                int(r['deployed_version']) < int(r['cert_version']))
@@ -1280,7 +1283,7 @@ def deploy_rows(store, target='', cert=''):
 @api('GET', '/api/deploys')
 def _deploys(h, s):
     rows = deploy_rows(h.store, h.arg('target').strip(), h.arg('cert').strip() or
-                       h.arg('cert_id').strip())
+                       h.arg('cert_id').strip(), may(s, 'fulladmin'))
     return {'rows': rows, 'deploys': rows, 'total': len(rows)}
 
 

@@ -257,10 +257,20 @@ class Daemon(object):
                 one['saved_at'] = written[key]['at']
                 one['saved_by'] = written[key]['by']
             if key in SECRET_KEYS:
+                # Dots and the last two to a full administrator, dots alone to
+                # anybody else - never in clear, nor in what sits beside it.
                 plain = unseal_secret(value) if key in SEALED_KEYS else value
-                one['value'] = secret_shown(plain or '') if may_change else ''
+                one['value'] = (secret_shown(plain or '', last=may_change) or
+                                secret_shown('x', last=False)) if value else ''
                 one['set'] = bool(value)
                 one['file'] = None
+                one['default'] = secret_shown(DEFAULTS[key] or '', last=False)
+                for k in ('shared',):
+                    if one.get(k):
+                        one[k] = secret_shown('x', last=False)
+                if one.get('per_node'):
+                    one['per_node'] = {n: secret_shown('x', last=False) if v else ''
+                                       for n, v in one['per_node'].items()}
             if isinstance(shape, tuple) and shape and isinstance(shape[0], str):
                 one['choices'] = list(shape)
                 if key in CHOICE_WORDS:

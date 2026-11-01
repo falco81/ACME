@@ -145,6 +145,16 @@ var STATE = {
   /* asked for on the portal (acmelib/certs/portal.py) */
   'pending-approval': ['waiting for approval', 'warn'], declined: ['declined', 'crit']
 };
+/** A popup's title of words and a name: the name is data, the words are
+    translated as they stand ("Revoke " + a name the pattern cannot tell
+    from words, such as www.example.cz). */
+function nameInTitle(words, name) {
+  var t = $('modal-title');
+  if (!t) return;
+  clear(t);
+  t.appendChild(document.createTextNode(words + ' '));
+  t.appendChild(data('span', '', String(name)));
+}
 function asked(c) { return c.state === 'pending-approval' || c.state === 'declined'; }
 function stateTag(st) {
   var s = STATE[st] || [st || '–', 'dim'];
@@ -568,14 +578,16 @@ function fieldForm(fields, values, secrets, opts) {
     } else if (type === 'number') {
       input = numberBox(v, f.placeholder, f.min, f.max);
       get = function () { return input.value === '' ? null : Number(input.value); };
-    } else if (type === 'secret' && f.multiline) {
-      input = areaBox('', secrets[f.key] ? 'set - leave empty to keep it' : (f.placeholder || 'paste it here'), 4, 'mono ct-secretarea');
-      noI18n(input);
-      get = function () { return input.value; };
+    } else if ((type === 'secret' && f.multiline) || (type === 'pem' && f.secret)) {
+      /* A key or lines kept secret: typed or pasted unseen (dots), read from a
+         file; the one kept shown as the daemon sends it - dots and its last
+         two - and sent back as it is when untouched (it keeps the one kept). */
+      input = secretPemBox(keptSecret(v), secrets[f.key] ? 'set - leave empty to keep it' : (f.placeholder || 'paste it here'));
+      get = function () { return input._get(); };
       wide = true;
     } else if (type === 'secret') {
       var isSet = !!secrets[f.key];
-      input = secretBox('', isSet ? 'set - leave empty to keep it' : (f.placeholder || 'not set'), 'mono');
+      input = secretBox(keptSecret(v), isSet ? 'set - leave empty to keep it' : (f.placeholder || 'not set'), 'mono');
       noI18n(input);
       get = function () { return input.value; };
     } else if (type === 'textarea') {
@@ -601,7 +613,7 @@ function fieldForm(fields, values, secrets, opts) {
     var item = formField(label, input, f.help || '');
     item.dataset.fkey = f.key;
     if (f.required) item.classList.add('ct-req');
-    if (type === 'secret') {
+    if (type === 'secret' || f.secret) {
       var lab = item.querySelector('label');
       if (lab) lab.appendChild(el('span', 'tag ' + (secrets[f.key] ? 'ok' : 'dim') + ' ct-secret-tag', secrets[f.key] ? 'set' : 'not set'));
     }
@@ -628,7 +640,7 @@ function fieldForm(fields, values, secrets, opts) {
   var put = function (it, v) {
     var box = it.input._input || it.input;
     if (it.f.type === 'bool') { box.checked = truthy(v); return; }
-    if (it.f.type === 'pem') { it.input._input.value = v || ''; return; }
+    if (it.f.type === 'pem' || it.input._input) { it.input._input.value = v || ''; return; }
     if (Array.isArray(v)) v = v.join('\n');
     box.value = v === undefined || v === null ? '' : String(v);
   };
@@ -682,7 +694,7 @@ function fieldForm(fields, values, secrets, opts) {
         if (!it.f.required || !shown(it, cur)) return;
         var v = cur[it.f.key];
         var empty = v === '' || v === null || v === undefined || (Array.isArray(v) && !v.length);
-        if (it.f.type === 'secret' && secrets[it.f.key]) empty = false;
+        if ((it.f.type === 'secret' || it.f.secret) && secrets[it.f.key]) empty = false;
         if (it.f.type === 'bool') empty = false;
         if (empty) {
           it.item.classList.add('refused');
@@ -697,6 +709,51 @@ function fieldForm(fields, values, secrets, opts) {
       return bad;
     }
   };
+}
+/** A kept secret as the daemon sends it: dots (and, to a full administrator,
+    its last two characters) - never anything else into a secret's box. */
+function keptSecret(v) {
+  v = v === undefined || v === null ? '' : String(v);
+  return v.charAt(0) === '\u2022' ? v : '';
+}
+/** A secret of several lines (a private key, JSON, KEY=VALUE lines): a box
+    that shows dots only while it is typed or pasted - its lines kept - with
+    "Read from a file" beside it. `_get()` its text, or the dots of the one
+    kept when untouched. */
+/** "set" / "not set" - with the kept one as dots and its last two when the daemon gave them. */
+function secretShownTag(isSet, v) {
+  var t = el('span', '');
+  t.appendChild(el('span', 'tag ' + (isSet ? 'ok' : 'dim'), isSet ? 'set' : 'not set'));
+  var k = keptSecret(v);
+  if (isSet && k) { t.appendChild(document.createTextNode(' ')); t.appendChild(mono(k)); }
+  return t;
+}
+function secretPemBox(value, placeholder) {
+  var wrap = el('div', 'ct-pem ct-secretpem');
+  var box = maskBox(value || '', placeholder || '', 'mono', true);
+  noI18n(box);
+  wrap.appendChild(box);
+  var b = cmdButton('Read from a file', 'upload', 'small');
+  var input = el('input');
+  input.type = 'file';
+  input.hidden = true;
+  b.onclick = function () { input.click(); };
+  input.onchange = function () {
+    var f = input.files && input.files[0];
+    input.value = '';
+    if (!f) return;
+    fileText(f).then(function (t) {
+      box.value = String(t).trim();
+      box.dispatchEvent(new Event('input', {bubbles: true}));
+    }).catch(oops);
+  };
+  var row = el('div', 'btnrow ct-pem-tools');
+  row.appendChild(b);
+  row.appendChild(input);
+  wrap.appendChild(row);
+  wrap._input = box;
+  wrap._get = function () { return box.value.trim(); };
+  return wrap;
 }
 function secretsOf(row) {
   var s = row && (row.secret_set || row.secrets_set || row.secrets);
@@ -831,7 +888,7 @@ function kindPicker(family, go, filter) {
       noI18n(ic);
       t.appendChild(ic);
       var w = el('span', 'ct-kind-w');
-      w.appendChild(data('span', 'ct-kind-t', p.title || p.kind));
+      w.appendChild(el('span', 'ct-kind-t', p.title || p.kind));
       if (p.description) {
         var desc = el('span', 'ct-kind-d', p.description);
         w.appendChild(desc);
@@ -869,7 +926,7 @@ function plugHead(p, family) {
   h.appendChild(ic);
   var w = el('div', 'ct-plughead-w');
   var t = el('div', 'ct-plughead-t');
-  t.appendChild(data('b', '', p.title || p.kind));
+  t.appendChild(el('b', '', p.title || p.kind));
   if (p.vendor) t.appendChild(data('span', 'tag dim', p.vendor));
   t.appendChild(mono(p.kind, 'muted small'));
   w.appendChild(t);
@@ -1003,7 +1060,7 @@ function drawModTab(key, live) {
         var kc = el('td');
         var p = plugOf(m.family, r.kind);
         var missingMod = r.module_missing || (PLUG && !p);
-        kc.appendChild(data('div', '', p ? p.title : (r.title || r.kind)));
+        kc.appendChild(el('div', '', p ? p.title : (r.title || r.kind)));
         kc.appendChild(data('div', missingMod ? 'small ct-badtext' : 'muted small', missingMod ? 'module missing: ' + r.kind : (p ? (p.vendor || r.kind) : r.kind)));
         tr.appendChild(kc);
         tr.appendChild(td('', modSummary(m, r)));
@@ -1302,7 +1359,7 @@ function targetPeek(r) {
         var sset = secretsOf(r);
         (p.fields || []).forEach(function (f) {
           var v = cfg[f.key];
-          if (f.type === 'secret') { pairs.push([f.label || f.key, el('span', 'tag ' + (sset[f.key] ? 'ok' : 'dim'), sset[f.key] ? 'set' : 'not set')]); return; }
+          if (f.type === 'secret' || f.secret) { pairs.push([f.label || f.key, secretShownTag(sset[f.key], v)]); return; }
           if (v === undefined || v === null || v === '') return;
           if (f.type === 'bool') v = truthy(v) ? 'yes' : 'no';
           else if (Array.isArray(v)) v = v.join('\n');
@@ -1349,7 +1406,7 @@ function deployTable(rows, o) {
     } else {
       nc.appendChild(data('b', '', d.target));
       var tg = (LISTS.targets || []).filter(function (t) { return t.name === d.target; })[0];
-      if (tg) nc.appendChild(data('div', 'muted small', plugTitle('target', tg.kind)));
+      if (tg) nc.appendChild(el('div', 'muted small', plugTitle('target', tg.kind)));
     }
     tr.appendChild(nc);
     tr.appendChild(td('', deployTag(d, (o.cert && o.cert.version) || d.cert_version)));
@@ -1458,7 +1515,7 @@ function deployEdit(o) {
         var tt = target();
         var fx = el('div', 'ct-fixed');
         fx.appendChild(data('span', '', tName));
-        if (tt.kind) fx.appendChild(data('span', 'muted small', ' · ' + plugTitle('target', tt.kind)));
+        if (tt.kind) { var fxk = el('span', 'muted small', ' · '); fxk.appendChild(el('span', '', plugTitle('target', tt.kind))); fx.appendChild(fxk); }
         g.appendChild(formField('Target', fx));
       } else {
         tSel = selectBox([['', 'choose one…']].concat(targets.map(function (t) { return [t.name, t.name + ' · ' + plugTitle('target', t.kind)]; })), tName || '');
@@ -1937,6 +1994,7 @@ function exportDialog(c, versions, version) {
       toast((d.filename || 'the file') + ' was downloaded', 'good');
     }).catch(fail).then(function () { busy(b, false); });
   }}], 'medium');
+  nameInTitle('Export', c.name);
 }
 
 /* ---- revoke ---------------------------------------------------------------- */
@@ -1955,6 +2013,7 @@ function revokeDialog(c) {
       jobStarted(d, 'revoking');
     }).catch(fail).then(function () { busy(b, false); });
   }}], 'narrow');
+  nameInTitle('Revoke', c.name);
 }
 
 /* ==========================================================================
@@ -2055,6 +2114,7 @@ function certWizard(cert, detail) {
       body.appendChild(host);
       st.draw(host);
     }, buttons, 'large');
+    if (editing) nameInTitle('Edit', c.name);
     explainWhatWasDrawn($('modal-body'));
   }
 
@@ -2083,7 +2143,7 @@ function certWizard(cert, detail) {
       t.appendChild(ic);
       var w = el('span', 'ct-src-w');
       w.appendChild(data('b', '', s.name));
-      w.appendChild(data('span', 'muted small', p ? p.title : s.kind));
+      w.appendChild(el('span', 'muted small', p ? p.title : s.kind));
       var cn = issuerCan(s.kind);
       var chips = el('span', 'ct-src-chips');
       if (cn.challenge) chips.appendChild(el('span', 'tag info', 'proves names'));
@@ -2433,6 +2493,7 @@ function certWizard(cert, detail) {
   }
 
   modal(editing ? 'Edit ' + c.name : 'Add a certificate', function (bd) { bd.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], 'large');
+  if (editing) nameInTitle('Edit', c.name);
   var ticket = modalTicket();
   Promise.all([rowsSafe('sources'), rowsSafe('validation'), rowsSafe('targets'), plugins().catch(function () { return null; })])
     .then(function (got) {
@@ -2996,6 +3057,7 @@ function caRevoke(ca, r) {
       closeModal();
     }).catch(fail).then(function () { busy(b, false); });
   }}], 'narrow');
+  nameInTitle('Revoke', r.serial);
 }
 function subjectFields(g, f, cnNeeded) {
   [['CN', 'Common name', 'Example Root CA', true], ['O', 'Organisation', 'Example s.r.o.'], ['OU', 'Unit', 'IT'],

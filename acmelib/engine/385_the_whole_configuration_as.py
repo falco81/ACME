@@ -57,6 +57,10 @@ def carry_export(store, whole):
                         row[c] = ''
                 else:
                     row.pop(c, None)
+            # Secrets inside a column of its own (a module's settings as JSON):
+            # opened for the file with the secrets, dots only without them.
+            for fn in HOOKS.get('carry_row_out', []):
+                row = fn(table, row, whole) or row
             rows.append(row)
         out[table] = rows
     return out
@@ -86,9 +90,9 @@ def carry_import(store, tables, by, replace, said):
             plain = {c: row.pop(c) for c in cols if c in row}
             old = None
             if key and row.get(key) is not None:
-                old = store.db.row('SELECT id FROM %s WHERE %s = ?' % (table, key), (row[key],))
+                old = store.db.row('SELECT * FROM %s WHERE %s = ?' % (table, key), (row[key],))
             elif fid is not None:
-                old = store.db.row('SELECT id FROM %s WHERE id = ?' % table, (fid,))
+                old = store.db.row('SELECT * FROM %s WHERE id = ?' % table, (fid,))
             if old:
                 ident = old['id']
                 if row:
@@ -105,6 +109,11 @@ def carry_import(store, tables, by, replace, said):
                       not str(v).startswith((SEALED, SEALED2))}
             if sealed and ident is not None:
                 store.db.update(table, ident, sealed)
+            if ident is not None:
+                # The secrets of a module's settings sealed again for this row
+                # (dots in the file: the ones kept here stay).
+                for fn in HOOKS.get('carry_row_in', []):
+                    fn(store, table, ident, old)
             kept.add(ident)
             said[table] += 1
         if replace:

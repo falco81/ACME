@@ -1376,7 +1376,9 @@ function maskShown(real) {
      one that is kept - it comes from the daemon as dots and its last two. */
   return new Array(real.length + 1).join('\u2022');
 }
-function maskBox(value, placeholder, cls) {
+function maskBox(value, placeholder, cls, keepLines) {
+  /* keepLines: a secret of several lines (a private key pasted in) keeps
+     them - still shown as dots only. */
   var i = textBox('', placeholder, cls);
   i.autocomplete = 'off';
   i.setAttribute('data-lpignore', 'true');
@@ -1430,7 +1432,7 @@ function maskBox(value, placeholder, cls) {
     if (data === null && e.dataTransfer) data = e.dataTransfer.getData('text/plain');
     if (t.indexOf('insert') === 0) {
       if (t === 'insertLineBreak' || t === 'insertParagraph') return;
-      data = String(data || '').replace(/[\r\n]+/g, '');
+      data = keepLines ? String(data || '').replace(/\r\n?/g, '\n') : String(data || '').replace(/[\r\n]+/g, '');
       real = real.slice(0, a) + data + real.slice(z);
       changed(a + data.length);
     } else if (t.indexOf('delete') === 0) {

@@ -139,9 +139,11 @@ def _form_fields(fields, cur, secret_set):
             one.update(kind='choice', options=[('1', 'yes'), ('0', 'no')],
                        value=_norm(have if have not in (None, '') else False))
         elif t == 'secret':
+            # Typed as stars; the one kept as dots and its last two (root's console).
             one.update(kind='secret', value='',
-                       help=('(set - empty keeps it) ' if f['key'] in secret_set else '') +
-                       one['help'])
+                       help=('(set: %s - empty keeps it) ' % (
+                           have if isinstance(have, str) and have.startswith('\u2022') else
+                           '\u2022' * 8) if f['key'] in secret_set else '') + one['help'])
         elif t == 'pem':
             one.update(value='', help='A file on this machine to read it from (or empty to '
                        'keep it as it is). ' + one['help'])

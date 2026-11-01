@@ -40,8 +40,11 @@ import traceback
 #    'advanced': False}                             # folded away under "More"
 #
 # type: text | secret | number | bool | select | textarea | pem | list | hostport
-#   secret    sealed in the database, never sent back to a page (only whether it is set)
-#   pem       a certificate or a key pasted or read from a file
+#   secret    sealed in the database, never sent back in clear: a full administrator is
+#             shown eight dots and its last two characters, anybody else eight dots; saved
+#             as "" or as those dots, the one kept stays. multiline=True: a key, JSON, lines
+#   pem       a certificate or a key pasted or read from a file; secret=True: a private
+#             key - kept and shown as a secret (the last two of its body, not of -----END)
 #   list      several values, one a line (names, addresses, commands)
 FIELD_TYPES = ('text', 'secret', 'number', 'bool', 'select', 'textarea', 'pem', 'list',
                'hostport')

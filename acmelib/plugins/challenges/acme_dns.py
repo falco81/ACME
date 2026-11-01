@@ -28,7 +28,8 @@ class AcmeDns(DnsChallenge):
         field('fulldomain', 'Full domain', 'text', default='',
               placeholder='d420c923-bbd7-4056-ab64-c3ca54c9b3cf.auth.acme-dns.io',
               help='What _acme-challenge.NAME is a CNAME to.'),
-        field('accounts', 'Accounts by name (JSON)', 'textarea', default='', advanced=True,
+        field('accounts', 'Accounts by name (JSON)', 'secret', multiline=True, default='',
+              advanced=True,
               help='Several accounts, as acme-dns-client / lego keep them: {"example.com": '
                    '{"username": .., "password": .., "subdomain": .., "fulldomain": ..}, ...}. '
                    'An acme-dns account keeps two TXT values only, so a certificate of more '
