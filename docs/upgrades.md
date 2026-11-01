@@ -9,24 +9,55 @@ Two ways to put in a new version. Both stay: use whichever suits you.
 | One server | out of service for a minute or two | the same |
 | A cluster | node by node, by hand | every node in turn, by itself |
 
-## From any version
+## What an upgrade changes on the machine
 
-Any older version - back to the first `opt` 1.0.0 - is upgraded straight to
-this one, on SQLite, MariaDB and PostgreSQL: the tables are brought up to date
-when the new version starts (columns added, nothing taken away), `opt` is
-renamed to `acme` by install.sh, and copies made by any older version go back
-into this one. Tested from every release 1.0.0 - 1.0.61 on SQLite and from
-releases across that range on MariaDB and PostgreSQL (1.0.62). In a cluster the nodes are upgraded one after the other; while
-one is new and the other old, what the new one writes into a table that gained
-a column waits in its replication until the other is upgraded too, and then
-goes over - nothing is lost.
+The program is a tree - `acme.py`, `acmelib/`, `web/`, `deploy/`, `docs/`,
+`install.sh`, `MANIFEST` - and every version gets a tree of its own:
+
+```
+/usr/local/lib/acme/
+    versions/1.0.1-20261201101500/   the new one: copied, root's, compiled
+    versions/1.0.0-20261101093700/   the one before
+    current  -> versions/1.0.1-…     what runs
+    previous -> versions/1.0.0-…     kept for going back
+    acme.py, acme_upgrade.py, acme_web.py, deploy, docs, CHANGELOG.md -> current/…
+    python, venv/, release-keys/, downgrade-floor, db-drivers, python-choice
+```
+
+`install.sh --upgrade` makes the new tree under a name of its own, compiles
+it, and only then switches `current` to it - one `rename(2)` of a link - and
+restarts the service. Cut off at any moment, the machine runs one whole
+version: the old one until the switch, the new one after it; a half-copied
+tree is a `.new-…` folder nobody runs, cleared by the next install. The tree
+that ran before becomes `previous`; older ones are deleted. The pages
+(`/var/www/acme`) are copied whole beside the old ones and put in their place
+the same way.
+
+The database is brought up to date when the new version starts (columns and
+tables added, nothing taken away). In a cluster the nodes are upgraded one
+after the other; while one is new and the other old, what the new one writes
+into a table that gained a column waits in its replication until the other
+is upgraded too, and then goes over - nothing is lost.
+
+### The tree before, back
+
+```bash
+sudo /usr/bin/python3 -I /usr/local/lib/acme/acme_upgrade.py --previous
+```
+
+checks the previous tree as root checks a package - its `MANIFEST.sig` by a
+release key this machine trusts, every file listed in its `MANIFEST` the one
+signed (a tree put in from a git checkout has none: `--unsigned` takes it
+anyway), not below the machine's floor for going back - and then runs its own
+`install.sh --upgrade --yes`, which makes it `current` again without copying
+it (and the newer one `previous`). Going back on the database is the same as
+below: only to a version that reads what the newer one wrote.
 
 ## Maintenance
 
-A node **in maintenance** answers no RADIUS request and its `/healthz` says
-`503 maintenance`, so the VPN and the load balancer take it for down and use
-the other node. Its pages go on working, so it can be looked at and brought
-back.
+A node **in maintenance** starts no renewal or deployment and its `/healthz`
+says `503 maintenance`, so the load balancer (and the VIP address) go to the
+other node. Its pages go on working, so it can be looked at and brought back.
 
 ```
 acme --maintenance on --why "new disk"     # out of service
@@ -40,7 +71,7 @@ maintenance also gives the address up to the other node.
 
 On the pages: *Settings → Upgrades → The nodes*, or the *Maintenance and
 upgrades* card on the Overview. With a single server, maintenance means
-nobody can sign in to the VPN.
+nothing is renewed or deployed meanwhile.
 
 ## On the command line
 
@@ -49,9 +80,9 @@ tar xzf acme-X.Y.Z.tar.gz && cd acme-X.Y.Z
 sudo ./install.sh --upgrade
 ```
 
-From 1.0.37 on, `install.sh --upgrade` takes the node out of service before it
-touches anything (and waits 20 s in a cluster, for the balancer and the VPN to
-notice), and puts it back once the new version answers. A node that was in
+`install.sh --upgrade` takes the node out of service before it touches
+anything (and waits 20 s in a cluster, for the balancer to notice), and puts
+it back once the new version answers. A node that was in
 maintenance already stays in it. In a cluster, upgrade one node, check it
 (`acme --check`, `acme --ha-status`), then the other.
 
@@ -66,9 +97,8 @@ maintenance already stays in it. In a cluster, upgrade one node, check it
    1. the node goes into maintenance, and waits 20 s for the balancer;
    2. the package is handed to root (see below), which runs its
       `install.sh --upgrade`;
-   3. the node comes back as the new version, checks that its database opens
-      and RADIUS listens, reads the list of replicated tables again, and leaves
-      maintenance;
+   3. the node comes back as the new version, checks that its database opens,
+      reads the list of replicated tables again, and leaves maintenance;
    4. only then the next node begins.
 
    A node that fails stops the upgrade there, goes back into service as it
@@ -78,14 +108,15 @@ maintenance already stays in it. In a cluster, upgrade one node, check it
 `acme --upgrade-status` shows the same on the command line, and
 `acme --upgrade-cancel` stops it.
 
-### From the web (1.0.123)
+### From the web
 
 *Settings → Upgrades → From the web* looks once a day (and when *Look now*
 is pressed) at `upgrade_url` for `acme-X.Y.Z.tar.gz` packages:
 
 | `upgrade_url` | how it is read |
 |---|---|
-| `https://github.com/OWNER/REPO/tree/BRANCH/FOLDER` (the default: `https://github.com/falco81/ACME/tree/main/release`, which keeps the last ten versions) | GitHub's API lists the folder; the packages come from `raw.githubusercontent.com`. When the API refuses (60 questions an hour without an account), the folder's own page is read for the names. |
+| `https://github.com/OWNER/REPO/tree/BRANCH/FOLDER` (the default: `https://github.com/falco81/ACME/tree/main/release`, which keeps the last ten versions) | the folder's `index.json` (written by `tools/release.py`: name, version, size, sha256, date, download address of each) from `raw.githubusercontent.com`; where there is none, GitHub's API lists the folder, and when that refuses (60 questions an hour without an account), the folder's own page is read for the names. The packages come from `raw.githubusercontent.com`. |
+| an `index.json` (or any JSON list of `{name, download_url, size, sha256}`) | its entries |
 | a web page or a folder listing (nginx, Apache autoindex) | every link to an `acme-X.Y.Z.tar.gz` |
 | one package's address | that package |
 
@@ -93,13 +124,15 @@ HTTPS only. A proxy, if the server needs one, comes from `https_proxy` in the
 service's environment (`systemctl edit acme`: `Environment=https_proxy=…`).
 The node needs to reach the address (and `api.github.com`,
 `raw.githubusercontent.com` for GitHub) - Settings → Firewall and access lets
-everything out.
+everything out. A package whose index gave its `sha256` must have that one,
+before anything else is looked at. How a release gets there:
+[releasing.md](releasing.md).
 
 The newest one newer than what runs here is offered: **Upgrade to X now**
 fetches it, checks it exactly as a package sent by hand (below - the signature
 of a release key this server trusts, every file in it), keeps it in the
 database and begins the upgrade; **Only fetch it** stops before the upgrade.
-With more than one version there newer than this one (1.0.142), a list beside
+With more than one version there newer than this one, a list beside
 the buttons lets you choose which to go to - the newest is chosen, and the
 buttons follow the choice; with only one, the page is as before. An older one
 than what runs here is never offered, nor taken.
@@ -113,7 +146,7 @@ On the command line (and in `acme --console` → Upgrades):
 ```bash
 acme --upgrade-check              # what is at upgrade_url, and whether it is newer
 acme --upgrade-online             # the newest: fetched, checked, every node upgraded
-acme --upgrade-online 1.0.140 --yes
+acme --upgrade-online 1.0.2 --yes
 acme --upgrade-follow             # follow one going on, with its progress bars
 ```
 
@@ -136,16 +169,19 @@ pages therefore never install anything themselves:
     device, no path outside its one folder;
   - it is not older than what is installed (going back is done on the command
     line).
+  - its version is the one in `acmelib/__init__.py`, and its folder is named
+    after it (`acme-X.Y.Z/`).
 - Then it runs the package's own `install.sh --upgrade --yes`, exactly as
-  somebody would by hand, and writes what it said to
+  somebody would by hand - which puts the new tree in beside the old one and
+  switches to it (above) - and writes what it said to
   `/var/lib/acme/upgrade/last.log`.
 
 A package that was changed, or signed by a key the server does not know, is
-refused - put it in on the command line if you trust it. The first version
-with this (1.0.37) has to be put in on the command line once: that installs the
-units and the key.
+refused - put it in on the command line if you trust it. The keys trusted are
+exactly those of the version installed (`deploy/release-keys/*.pub`, acme's
+own - the key of otp, which acme was made from, is not one of them).
 
-## Going back to an older version (1.0.143)
+## Going back to an older version
 
 Only to a version it is safe to go back to, and never by putting a database
 back: the tables stay as they are - whatever their size - and the older
@@ -153,7 +189,7 @@ program runs on them. Every column a newer version added is one an older one
 leaves alone (they are all added NULL).
 
 **How far back.** Each version says the oldest one it may go back to
-(`DOWNGRADE_FLOOR` in acme.py): one that reads what it writes into the
+(`DOWNGRADE_FLOOR` in `acmelib/engine/000_start.py`): one that reads what it writes into the
 database and config.json the same, and has every security fix that matters.
 Going back is refused below the highest of these
 
@@ -161,7 +197,8 @@ Going back is refused below the highest of these
   own in the database (`downgrade:floor:NODE`), so a version that ran once
   still counts after going back from it;
 - of any version installed on this machine - install.sh keeps it in
-  `/usr/local/lib/acme/downgrade-floor`, root's alone. The acme account cannot
+  `/usr/local/lib/acme/downgrade-floor` (beside `versions/`, not in a tree),
+  root's alone. The acme account cannot
   lower it, so nobody who has only the pages (or the acme account) can take the
   server back to a version with a hole a later one fixed. An older version's
   install.sh leaves it as it is.
@@ -187,8 +224,8 @@ its floor file.
 
   ```bash
   acme --downgrade-check                  # the older versions there, and which are safe
-  acme --downgrade 1.0.140                # from upgrade_url, every node, followed here
-  acme --downgrade /root/acme-1.0.140.tar.gz
+  acme --downgrade 1.0.1                  # from upgrade_url, every node, followed here
+  acme --downgrade /root/acme-1.0.1.tar.gz
   ```
 
 - The console: *Upgrades → Go back to an older version (only a safe one)*.
@@ -200,11 +237,11 @@ that only a newer version knows stay in the database and are used again then.
 
 ## A cluster: what goes where
 
-Settings, clients, realms, directories, tokens and accounts are the cluster's
+Settings, certificates, authorities, issuers, challenges, targets and accounts are the cluster's
 and replicate. A few settings belong to one machine and each node has its own
-(*Settings → High availability → Each node's own settings*): the address RADIUS
-listens on, the port the pages ask the daemon on, the name it greets mail
-servers with, the name isemon files it under, and the debug switches. The
+(*Settings → High availability → Each node's own settings*): the port the
+pages ask the daemon on, the name it greets mail servers with, the name isemon
+files it under, and the debug switches. The
 database address and the cluster's wiring are in each node's
 `/etc/acme/config.json` and never replicate. Maintenance, heartbeats and the
 upgrade's progress are kept per node.

@@ -238,8 +238,8 @@ Over NITRO:
 6. `save ns config`, and deletes older acme files beyond *keep*.
 
 An HA pair syncs the files and configuration by itself.
-*Key as* traditional (`BEGIN RSA/EC PRIVATE KEY`) works on every release;
-PKCS#8 on recent ones.
+*Key as* traditional (`BEGIN RSA PRIVATE KEY`) works on every release for
+RSA keys; EC keys always go as PKCS#8 (NetScaler 12.1 and later).
 
 **Rights**: a system user with a command policy allowing `systemfile`,
 `ssl certKey`, `ssl vserver` binding and `save ns config` - or the built-in

@@ -1699,17 +1699,14 @@
   /* ==========================================================================
      acme's own, on top of isemon's look
      ========================================================================== */
-  /* The enrolment pages: one column, a card at a time, wide enough for the
-     QR code and the words beside it. */
+  /* The portal: one column, a card at a time. */
   .portal{max-width:860px;margin:0 auto}
   .portal header{margin-bottom:18px}
   .portal .card{padding:22px 24px}
   .portal .lede{color:var(--tx-dim);font-size:14px;margin:0 0 16px;max-width:70ch}
   .portal .help{color:var(--tx-dim);font-size:13.5px;line-height:1.6;margin:0 0 6px}
   .portal .help p{margin:0 0 10px}
-  .enrol{display:grid;grid-template-columns:auto minmax(0,1fr);gap:26px;align-items:start}
-  @media (max-width:700px){.enrol{grid-template-columns:minmax(0,1fr)}}
-  .keytext{font:600 15px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    .keytext{font:600 15px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     letter-spacing:.5px;padding:8px 12px;border-radius:10px;background:var(--panel2);
     border:1px dashed var(--line);display:inline-block;user-select:all;word-break:normal;overflow-wrap:break-word;max-width:100%}
   .codes{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;
@@ -1732,7 +1729,6 @@
     color:var(--tx-dim);font:inherit;font-size:12px;font-weight:600;padding:3px 9px;
     border-radius:999px;cursor:pointer}
   .langpick button.on{color:var(--info);border-color:rgba(88,166,255,.45);background:var(--info-bg)}
-  /* A row in the editors of the clients, the realms and the directories. */
   /* The buttons at the end of a row. The cell stays a table cell - a td made
      display:flex leaves the table, and the buttons were drawn over the
      columns before them (1.0.5). */
@@ -1748,8 +1744,6 @@
   .grouprow textarea,.set-item textarea{width:100%;min-height:38px;resize:vertical;
     font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:7px 10px;
     border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--tx)}
-  /* The groups of a realm as cards (1.0.103): the name to read, the whole
-     DN wrapped under it, never cut; many of them scroll inside the section. */
 
   .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px 18px}
   .formgrid .wide{grid-column:1/-1}
@@ -1893,10 +1887,6 @@
   .msect-body > .set-item + .set-item{margin-top:4px}
   .formgrid > .set-item, .tune-machine > .set-item{margin-top:0 !important}
   .formgrid, .tune-machine{align-items:start}
-  /* A token's window: wide, its four cards side by side (1.0.11). */
-  .msects.tokgrid{grid-template-columns:repeat(4,minmax(0,1fr))}
-  @media (max-width: 1200px){ .msects.tokgrid{grid-template-columns:repeat(2,minmax(0,1fr))} }
-  @media (max-width: 700px){ .msects.tokgrid{grid-template-columns:1fr} }
   .subsect{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
   .subsect h4{margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--tx-mut)}
   .subsect .note{margin:0 0 10px}
@@ -1911,14 +1901,6 @@
 td.fp-full{white-space:nowrap;user-select:all;line-height:1.5}
 
 /* ---- 1.0.15: tables that wrapped where they should not ---- */
-/* The realms: name, suffix, password mode and directory stay on one line;
-   the groups take the room, and an empty answer column takes none. */
-#rl-table td:nth-child(-n+4){white-space:nowrap}
-#rl-table td:nth-child(5){width:50%}
-/* The tokens: the number of wrong codes and the recovery codes are narrow
-   and right-aligned; the note takes what is left. */
-#tk-table td.num, #tk-table th.num{white-space:nowrap;padding-left:18px}
-#tk-table td:nth-child(9){width:28%}
 /* The events: who did it never breaks in two. */
 #ev-table td:nth-child(3){white-space:nowrap}
 /* The replication: the two numbers on the right keep their room. */
@@ -1931,10 +1913,6 @@ td.fp-full{white-space:nowrap;user-select:all;line-height:1.5}
 table.ha-cli td:first-child{white-space:nowrap;vertical-align:top;color:var(--info);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.7}
 table.ha-cli td{vertical-align:top}
 table.ha-cli td:last-child{color:var(--tx-dim);font-size:13px;line-height:1.5}
-/* The enrolment tab: six tiles of equal width over the list (1.0.16). */
-#en-tiles .fact{flex:1 1 120px}
-#en-tiles .fact .v.bad{color:var(--crit)}
-#en-table tbody tr:hover td{background:rgba(88,166,255,.05)}
 
 /* ---- 1.0.17: a long list keeps its search and its pager where they are
    (as isemon): the card is a column of head, note, filters, a body that
@@ -2001,7 +1979,7 @@ table td.mono, table td > .mono, table td > span.mono, .fields dd{white-space:no
 .t-sug-foot .qs-syn-says{margin-right:12px}
 .qs-wrap.qs-open > .qs-said{display:none}
 .modal .qs-drop{z-index:120}
-/* the person card: a group that lets into a realm, in green (1.0.19) */
+/* the person card (1.0.19) */
 .me-sec h3 .me-count{color:var(--tx-mut);font-weight:600;letter-spacing:0}
 .modal .me-kv{grid-template-columns:170px minmax(0,1fr)}
 
@@ -2090,7 +2068,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--info);box-shadow:0 0 
   -webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
 .set-item .says.clamp.cut:not(.open):hover{color:var(--tx-dim)}
 .note.warn{color:var(--warn)}
-/* -- the token window (1.0.20) --------------------------------------------- */
+/* -- cards of actions in a popup (1.0.20) ---------------------------------- */
 
 .acard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:4px 18px}
 .acard.danger{border-color:rgba(248,81,73,.35)}
@@ -2129,7 +2107,7 @@ table.plain td, table td{font-size:14px}
 .set-item.asleep > .set-tail > div:not(.says){opacity:.45}
 .set-item.tall > textarea{min-height:64px}
 
-/* 1.0.21 - the token's window: on one screen, four cards of one size */
+/* 1.0.21 - rows of actions: one height */
 .acard-h{padding:10px 0 8px}
 .arow{min-height:50px;padding:7px 0}
 /* Move to and Note (1.0.74): the boxes the same width whether or not the
@@ -2148,14 +2126,13 @@ input.masked{font-family:var(--mono, ui-monospace, SFMono-Regular, Menlo, monosp
 .folds .fold-hint::after{content:' ▾'}
 .folds.open .fold-hint::after{content:' ▴'}
 .steps-fold{margin:6px 0 10px}
-/* 1.0.33 - the realms a client may use */
 
 /* The buttons at the end of a row are part of the row like any other cell
    (1.0.39) - no colour or place of their own; a table wider than its card
    scrolls sideways, as the tables in Settings do. */
   #portal > .card + .card{margin-top:16px}
 /* A phone: an action's buttons go under its words, and a box with a button
-   shares the width - the token window no longer scrolls sideways (1.0.36). */
+   shares the width - a popup no longer scrolls sideways (1.0.36). */
 @media (max-width:560px){
   .arow{flex-wrap:wrap}
   .arow-c{flex:1 1 100%;flex-wrap:wrap;justify-content:flex-end}
@@ -2196,12 +2173,6 @@ table.dbheld td.barcell{width:28%;min-width:90px}
 table.dbheld td.barcell .bar{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden}
 table.dbheld td.barcell .bar > span{display:block;height:100%;background:var(--info);border-radius:3px}
 table.dbheld td.num, table.dbheld th.num{text-align:right;white-space:nowrap}
-
-/* The code the phone shows now, in the token window (1.0.40). */
-/* Code now: the same size hidden and shown (1.0.41) */
-
-/* Try a code: the answer marked in place of the line under it, so the
-   row and the window keep their height (1.0.42) */
 
 /* Phone width (1.0.44): a long button label wraps instead of pushing the
    page sideways. */
@@ -2521,9 +2492,6 @@ table.ha-cli tr.ha-cli-group td{padding-top:20px;font:650 13px var(--face);lette
 @keyframes sa-now{from{transform:translateX(0)}to{transform:translateX(86px)}}
 .signart .nowline{animation:sa-now 30s linear infinite}
 @media (prefers-reduced-motion: reduce){.signart .drain,.signart .caret,.signart .nowline{animation:none}}
-/* The ways of getting a code on the enrolment pages (1.0.76). */
-/* The code box with its "Send me a code" beside it (1.0.80). */
-/* The test's second window (1.0.81). */
 
 /* Settings drawn in sections (1.0.88): Codes by e-mail and SMS. Four even
    columns, a heading over each group, and what one way of sending SMS
@@ -2831,7 +2799,7 @@ td.mq-said{max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:elli
 .md-table td, .md-table th { border-bottom: 1px solid var(--line); padding: 5px 12px 5px 0; text-align: left; vertical-align: top; }
 .md-table th { font-weight: 600; }
 
-/* About you on the enrolment page (1.0.113). */
+/* About you on the portal (1.0.113). */
 .about-me { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0 0 14px; }
 .about-me dt { color: var(--muted, #8b949e); font-size: 13px; }
 .about-me dd { margin: 0; word-break: break-word; }
@@ -3149,8 +3117,6 @@ body.app-shell #pane-mailq > .card.held{flex:1 1 auto;min-height:320px;max-heigh
 :where(.card, #modal-body, .set-item) > :where(.btnrow + *:not(.btnrow)) {margin-top:16px}
 :where(.card, #modal-body) > :where(.btn:not(:first-child)) {margin-top:14px}
 :where(.dbt-try:not(:empty)) {margin-top:18px}
-
-/* SSH tokens (1.0.181) */
 
 /* A certificate downloaded (1.0.191): its format as a card to pick. */
 .fmt-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin:12px 0 4px}

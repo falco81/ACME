@@ -15,13 +15,13 @@ var MANAGE = FULL || ROLE === 'certadmin';
 var CT = window.ACME_CERTS = window.ACME_CERTS || {};
 
 /* ---- asking the daemon ----------------------------------------------------
-   The pages' relay knows each road by a short name: /api/ha/history is
-   `ha-history`, so /api/certs/overview is `certs-overview`. A page that names
-   them otherwise says how in window.ACME_CERTS_API (a function of the path). */
+   admin/index.php relays the certificate manager's roads under their own
+   names (?api=certs/one is /api/certs/one). A page that names them otherwise
+   says how in window.ACME_CERTS_API (a function of the path). */
 function apiName(path) {
   if (typeof window.ACME_CERTS_API === 'function') return window.ACME_CERTS_API(path);
-  if (window.ACME_CERTS_API_STYLE === 'path') return path;
-  return path.replace(/\//g, '-');
+  if (window.ACME_CERTS_API_STYLE === 'dash') return path.replace(/\//g, '-');
+  return path;
 }
 function capi(path, body, wait) {
   var q = '', at = path.indexOf('?');
@@ -177,7 +177,7 @@ var EKUS = [['serverAuth', 'TLS server'], ['clientAuth', 'TLS client'], ['codeSi
             ['emailProtection', 'e-mail (S/MIME)'], ['timeStamping', 'time stamping'], ['OCSPSigning', 'OCSP signing']];
 var REVOKE_REASONS = [['unspecified', 'no reason given'], ['keyCompromise', 'the key got out'],
   ['superseded', 'replaced by another'], ['cessationOfOperation', 'no longer used'],
-  ['affiliationChanged', 'the owner changed'], ['caCompromise', 'the CA was compromised']];
+  ['affiliationChanged', 'the owner changed'], ['cACompromise', 'the CA was compromised']];
 
 /* ---- time ------------------------------------------------------------------ */
 function now() { return Date.now() / 1000; }
@@ -1051,6 +1051,7 @@ function modForm(key, row, p, fromPick) {
 /* ---- a target and what is deployed on it --------------------------------- */
 var DEPLOY_STATE = {ok: ['deployed', 'ok'], deployed: ['deployed', 'ok'], failed: ['failed', 'crit'],
   pending: ['waiting', 'dim'], 'new': ['not yet', 'dim'], running: ['deploying', 'info'],
+  deploying: ['deploying', 'info'], changed: ['options changed', 'warn'],
   outdated: ['old version', 'warn'], disabled: ['off', 'dim'], unknown: ['–', 'dim']};
 function deployTag(d, certVersion) {
   var st = d.state || (d.last_error ? 'failed' : (d.last_ok ? 'ok' : 'new'));
@@ -1317,7 +1318,7 @@ function loadCerts(live) {
   var f = certFilters();
   if (!live && !host.children.length) host.appendChild(el('p', 'muted', 'Asking…'));
   apiLatest('ct-list', apiName('certs') + '&' + qs({search: f.search, state: f.state, issuer: f.issuer,
-                                                    page: CL.page, per: f.per}).slice(1)).then(function (d) {
+                                                    page: CL.page + 1, per: f.per}).slice(1)).then(function (d) {
     var rows = rowsOf(d, 'certs');
     CL.rows = rows;
     CL.total = Number(first(d.total, rows.length));
@@ -2695,7 +2696,7 @@ function caRevoke(ca, r) {
   var reason = null;
   modal('Revoke ' + r.serial, function (body) {
     body.appendChild(el('p', 'note', 'It goes into the CRL of ' + ca.name + ' at once, and a new CRL is made. This cannot be taken back.'));
-    reason = selectBox(REVOKE_REASONS.filter(function (x) { return x[0] !== 'caCompromise'; }), 'unspecified');
+    reason = selectBox(REVOKE_REASONS.filter(function (x) { return x[0] !== 'cACompromise'; }), 'unspecified');
     body.appendChild(formField('Why', reason));
   }, [{words: 'No, leave it', close: true}, {words: 'Revoke it', cls: 'danger', icon: 'ban', go: function (b) {
     busy(b, true);
@@ -2915,7 +2916,7 @@ function loadJobs(live) {
   var f = jobFilters();
   if (!live && !host.children.length) host.appendChild(el('p', 'muted', 'Asking…'));
   apiLatest('ct-jobs', apiName('certs/jobs') + '&' + qs({kind: f.kind, ok: f.ok, state: f.state, cert_id: f.cert_id,
-                                                         page: JL.page, per: f.per}).slice(1)).then(function (d) {
+                                                         page: JL.page + 1, per: f.per}).slice(1)).then(function (d) {
     var rows = rowsOf(d, 'jobs');
     if (f.state === 'running') rows = rows.filter(jobRunning);
     JL.rows = rows;

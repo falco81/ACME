@@ -38,7 +38,7 @@ class NetScalerTarget(HttpTarget):
         field('vservers', 'SSL virtual servers', 'list', placeholder='vs_www_ssl\nvs_mail sni',
               help='one a line; "name sni" binds it as an SNI certificate'),
         field('key_format', 'Key as', 'select', default='key-rsa', advanced=True,
-              options=[['key-rsa', 'traditional (BEGIN RSA/EC PRIVATE KEY)'],
+              options=[['key-rsa', 'traditional RSA (BEGIN RSA PRIVATE KEY; EC keys go as PKCS#8)'],
                        ['key-pem', 'PKCS#8 (BEGIN PRIVATE KEY)']]),
         keep_field(2),
     ] + verify_fields()
@@ -131,7 +131,11 @@ class NetScalerTarget(HttpTarget):
                               cur.get('cert', '').split('/')[-1] == crt):
                 return self.same(bundle, 'in %s' % ck)
             self.upload(crt, bundle.as_format('cert-pem'))
-            self.upload(key, bundle.as_format(options.get('key_format') or 'key-rsa'))
+            try:
+                key_data = bundle.as_format(options.get('key_format') or 'key-rsa')
+            except Exception:                           # noqa: BLE001 - an EC key: PKCS#8
+                key_data = bundle.as_format('key-pem')
+            self.upload(key, key_data)
             if cur:
                 self.nitro('POST', 'sslcertkey?action=update', {'sslcertkey': {
                     'certkey': ck, 'cert': crt, 'key': key, 'nodomaincheck': True}},
