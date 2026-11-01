@@ -252,7 +252,7 @@ class CertsCore(unittest.TestCase):
         self.assertIn('LetsEncrypt', ov['contact_missing'])
         # A new certificate with nothing said: Let's Encrypt, proved by HTTP-01 here.
         cid = self.ok('POST', '/api/certs/save', {'name': 'le-default',
-                                                  'names': ['le.example.test'],
+                                                  'names': ['le.example.com'],
                                                   'auto_renew': 0})['id']
         one = self.ok('GET', '/api/certs/one', args={'id': cid})['cert']
         self.assertEqual((one['issuer'], one['challenge']), ('LetsEncrypt',

@@ -343,8 +343,9 @@ function namesChips(names, most) {
   names = arr(names);
   var shown = most ? names.slice(0, most) : names;
   shown.forEach(function (n) {
-    var k = nameKind(n);
-    var c = noI18n(el('span', 'ct-name ' + k, n));
+    var m = /^(email|uri):(.*)$/.exec(String(n || ''));
+    var k = m ? m[1] : nameKind(n);
+    var c = noI18n(el('span', 'ct-name ' + k, m ? m[2] : n));
     box.appendChild(c);
   });
   if (most && names.length > most) {
@@ -2227,7 +2228,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   t.appendChild(stateTag(c.state));
   if (c.not_after) t.appendChild(daysTag(c.not_after, c.renew_days));
   hw.appendChild(t);
-  hw.appendChild(namesChips(c.names));
+  hw.appendChild(namesChips(arr(c.names).concat(arr(obj(c.profile).san_other))));
   if (arr(c.tags).length || c.owner) {
     var tl = el('div', 'ct-head-tags');
     if (c.owner) tl.appendChild(data('span', 'tag info', c.owner));
@@ -2278,7 +2279,20 @@ function certBody(body, c, versions, deploys, jobs, back) {
   var sha256 = first(info.sha256, c.fingerprint);
   var sha1 = first(info.sha1, c.fingerprint_sha1);
   var uses = arr(info.eku);
+  /* the common name apart, the subjectAltNames by their type */
+  var sanRows = [];
+  var byType = {DNS: [], IP: [], email: [], URI: []};
+  if (arr(info.san).length) arr(info.san).forEach(function (x) { if (byType[x[0]]) byType[x[0]].push(x[1]); });
+  else {
+    arr(c.names).forEach(function (n) { byType[nameKind(n) === 'ip' ? 'IP' : 'DNS'].push(n); });
+    arr(obj(c.profile).san_other).forEach(function (n) { var m = /^(email|uri):(.*)$/.exec(n); if (m) byType[m[1] === 'uri' ? 'URI' : 'email'].push(m[2]); });
+  }
+  [['DNS', 'DNS names'], ['IP', 'IP addresses'], ['email', 'E-mail addresses'], ['URI', 'URIs']].forEach(function (t) {
+    if (byType[t[0]].length) sanRows.push([t[1], namesChips(byType[t[0]])]);
+  });
   cs._body.appendChild(kvTable([
+    ['Common name (CN)', data('span', 'mono', first(info.cn, obj(obj(c.profile).subject).CN, c.cn, arr(c.names)[0], '–'))]
+  ].concat(sanRows).concat([
     ['Subject', data('span', 'mono small', first(info.subject_dn, c.subject_dn, 'CN=' + (c.cn || c.names[0] || '')))],
     ['Issued by', data('span', 'mono small', first(info.issuer_dn, c.issuer_dn, '–'))],
     ['Serial', first(info.serial, c.serial) ? copyable(first(info.serial, c.serial), 'the serial was copied') : '–'],
@@ -2295,7 +2309,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
     arr(info.crl).length ? ['CRL', data('span', 'mono small', arr(info.crl).join(' '))] : null,
     info.sig_alg ? ['Signed with', data('span', 'mono small', info.sig_alg)] : null,
     info.error ? ['Read', data('span', 'ct-bad', info.error)] : null
-  ]));
+  ])));
   grid.appendChild(cs);
   /* a dual certificate: its twin beside it */
   if (c.key_type_alt || arr(c.variants).length > 1) grid.appendChild(twinSection(c));

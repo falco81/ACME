@@ -289,7 +289,7 @@ class DigicertIssuer(Issuer):
             raise PluginError('set the product (its name_id)', retry=False)
         return p
 
-    def _check_product(self, req):
+    def _check_product(self, req, new=False):
         info = product_info(self.product())
         if not info:
             return
@@ -300,7 +300,7 @@ class DigicertIssuer(Issuer):
         if info['wildcard'] == 'only' and not wild:
             raise PluginError('%s %s is a wildcard product - give the certificate a wildcard name'
                               % (info['brand'], info['title']), retry=False)
-        if info['level'] in ('ov', 'ev') and not str(self.c('organization_id') or '').strip():
+        if new and info['level'] in ('ov', 'ev') and not str(self.c('organization_id') or '').strip():
             raise PluginError('%s %s is %s: set the organization ID (the action "List the '
                               'organizations")' % (info['brand'], info['title'],
                                                    info['level'].upper()), retry=False)
@@ -379,6 +379,7 @@ class DigicertIssuer(Issuer):
                                 what='the reissue', order=oid)
                 self._say('reissue inside order %s asked for (free)' % oid, 'ok')
             else:
+                self._check_product(req, new=True)
                 body = {'certificate': self.cert_body(req), 'dcv_method': dcv,
                         'certificate_dcv_scope': scope,
                         'order_validity': {'years': int(self.c('years') or 1)},

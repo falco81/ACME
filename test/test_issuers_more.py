@@ -801,6 +801,15 @@ class DnsBoard(Challenge):
     def ready(self, name, handle):
         return True
 
+    # the placement API of a commercial CA's DCV (base.Challenge.place)
+    def place(self, kind, name, where, content):
+        if kind != 'txt':
+            raise NotImplementedError(kind)
+        return {'fqdn': where, 'value': content, 'h': self.add_txt(where, content)}
+
+    def unplace(self, handle):
+        self.del_txt(handle['fqdn'], handle['value'], handle['h'])
+
 
 class TestDigicert(Base):
     def server(self):

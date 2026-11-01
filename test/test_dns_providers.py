@@ -966,7 +966,7 @@ class TestShared(unittest.TestCase):
                      'scaleway', 'exoscale', 'infoblox', 'technitium', 'he_net', 'wedos',
                      'active24', 'websupport'):
             d = plugin(kind).describe()
-            self.assertEqual(d['types'] if 'types' in d else plugin(kind).types, ('dns-01',))
+            self.assertEqual(tuple(d['types'] if 'types' in d else plugin(kind).types), ('dns-01',))
             secrets = [f for f in d['fields'] if f['type'] == 'secret' or f.get('secret')]
             self.assertTrue(secrets, kind)
             for f in d['fields']:

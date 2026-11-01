@@ -241,7 +241,7 @@ class DefaultsPki(unittest.TestCase):
         self.assertFalse(src['LetsEncrypt']['is_default'])
         self.assertEqual(self.ok('GET', '/api/certs/overview')['defaults']['issuer'],
                          'LetsEncrypt staging')
-        cid = self.ok('POST', '/api/certs/save', {'name': 'd1', 'names': ['d1.example.test'],
+        cid = self.ok('POST', '/api/certs/save', {'name': 'd1', 'names': ['d1.example.com'],
                                                   'auto_renew': 0})['id']
         self.assertEqual(self.ok('GET', '/api/certs/one', args={'id': cid})['cert']['issuer'],
                          'LetsEncrypt staging')
@@ -257,7 +257,7 @@ class DefaultsPki(unittest.TestCase):
         # None: '' - and a new certificate then has no source (a CSR for outside).
         self.assertEqual(self.ok('POST', '/api/sources/default', {'name': ''})['default'], '')
         self.assertFalse(any(r['is_default'] for r in self.rows('/api/sources').values()))
-        cid = self.ok('POST', '/api/certs/save', {'name': 'd2', 'names': ['d2.example.test'],
+        cid = self.ok('POST', '/api/certs/save', {'name': 'd2', 'names': ['d2.example.com'],
                                                   'auto_renew': 0})['id']
         self.assertFalse(self.ok('GET', '/api/certs/one', args={'id': cid})['cert']['issuer'])
         self.assertTrue(self.events('no default source any more'))
@@ -493,7 +493,8 @@ class DefaultsPki(unittest.TestCase):
 
     # ---- HTTP-01 answered here ---------------------------------------------------------------
     def test_40_http01_info_and_check(self):
-        self.ok('POST', '/api/certs/save', {'name': 'here', 'names': ['localhost'],
+        # (a public CA: a fully qualified name - "localhost" is refused for Let's Encrypt)
+        self.ok('POST', '/api/certs/save', {'name': 'here', 'names': ['here.example.com'],
                                             'issuer': 'LetsEncrypt',
                                             'challenge': 'This server HTTP-01',
                                             'auto_renew': 0})
@@ -504,9 +505,9 @@ class DefaultsPki(unittest.TestCase):
         self.assertIn('testnode', [n['name'] for n in got['nodes']])
         self.assertTrue(got['firewall'] and got['firewall'][0]['node'] == 'testnode')
         names = {n['name']: n for n in got['names']}
-        self.assertIn('localhost', names)
-        self.assertEqual(names['localhost']['cert'], 'here')
-        self.assertIn('words', names['localhost'])
+        self.assertIn('here.example.com', names)
+        self.assertEqual(names['here.example.com']['cert'], 'here')
+        self.assertIn('words', names['here.example.com'])
         self.assertIn('self_check', [f['key'] for f in got['fields']])
         # Another kind: nothing to say.
         self.ok('POST', '/api/validations/save', {'name': 'by-hand', 'kind': 'manual',
@@ -530,7 +531,7 @@ class DefaultsPki(unittest.TestCase):
         self.assertIn('wildcard', wild['said'])
         out = self.cli_ok('--validation-show', 'This server HTTP-01').stdout
         self.assertIn('/.well-known/acme-challenge/<token>', out)
-        self.assertIn('localhost', out)
+        self.assertIn('here.example.com', out)
 
     # ---- safe names -------------------------------------------------------------------------
     def test_60_safe_name(self):

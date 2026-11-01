@@ -193,7 +193,7 @@ def nc_normalize(items):
         which = 'permitted'
         if s.startswith('!'):
             which, s = 'excluded', s[1:].strip()
-        m = re.match(r'^(permitted|excluded)[;:]\s*(.*)$', s, re.I)
+        m = re.match(r'^(permitted|excluded)(?:[;:]|\s)\s*(.*)$', s, re.I)
         if m:
             which, s = m.group(1).lower(), m.group(2).strip()
         if ':' in s and s.split(':', 1)[0].upper() in ('DNS', 'IP', 'EMAIL', 'URI'):
