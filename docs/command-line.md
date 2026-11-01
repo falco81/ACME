@@ -30,7 +30,7 @@ each is checked against the module's own fields before anything is saved:
 | `KEY=VALUE` | text, a number (`number`), on/off (`bool`: yes/no, on/off, 1/0), one of the choices (`select` - a wrong one is refused with the list) |
 | `KEY=a,b,c` | a list (one a line on the pages); with a line break in VALUE, one a line |
 | `KEY+=VALUE` / `KEY-=VALUE` | one more in a list / one taken out of it |
-| `KEY=-` | a **secret** (a password, a token, a key's passphrase): asked for on the terminal (twice), or one line of stdin, or `ACME_VALUE_KEY` from the environment. A secret written out on the command line is refused: `ps` and the shell's history would keep it. It is never shown again, only whether it is set |
+| `KEY=-` | a **secret** (a password, a token, a key's passphrase): asked for on the terminal (twice), or one line of stdin, or `ACME_VALUE_KEY` from the environment. A secret written out on the command line is refused: `ps` and the shell's history would keep it. It is never shown again in clear: eight dots and its last two characters |
 | `KEY=@env` | from `ACME_VALUE_KEY` (what the console passes) |
 | `KEY=@file:PATH` | the contents of a file - a PEM, a private key |
 | `KEY=` | empty; for a secret: keep the one that is set |
@@ -72,7 +72,7 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 | | |
 |---|---|
 | `acme --sources` · `--validations` · `--targets` | the list; `*` marks the default a new certificate takes |
-| `acme --source-show NAME` | one: every setting (a secret: only whether it is set), what uses it, its last test, its actions. `--target-show` also lists the target's deployments |
+| `acme --source-show NAME` | one: every setting (a secret: eight dots and its last two characters), what uses it, its last test, its actions. `--target-show` also lists the target's deployments |
 | `acme --source-add NAME --kind KIND --set KEY=VALUE ...` | a new one of that module (`acme --plugins`) |
 | `acme --source-edit NAME [--set ...] [--name NEW] [--note TEXT] [--enabled on\|off] [--kind KIND]` | change it; what is not said stays. Another `--kind` starts its settings from nothing. A new name is carried into the certificates and deployments that use it |
 | `acme --source-del NAME [--yes]` | delete one nothing uses |

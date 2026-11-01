@@ -42,7 +42,10 @@ and set:
 - `title`, `vendor`, `description` - for the page (modules are grouped by vendor);
 - `fields` - **the target's form**: how acme reaches and signs in to the
   device. Types: `text secret number bool select textarea pem list hostport`;
-  `secret` values are sealed and never sent back to a page. Options:
+  `secret` values are sealed and never sent back in clear (a full administrator
+  sees eight dots and the last two characters, anybody else dots; the dots
+  saved back keep the one set) - `multiline=True` for a key or lines, and a
+  `pem` field with `secret=True` (a private key) is kept the same way. Options:
   `required`, `default`, `placeholder`, `help`, `options` (select),
   `show_if` (`{'auth': ['password']}`), `advanced` (folded under *More*);
 - `deploy_fields` - **one deployment's form**: what to do with *this*

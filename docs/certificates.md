@@ -56,10 +56,28 @@ place, `<table>:<id>:<field>`, so a value copied to another row does not
 open. A certificate's private key is bound to `certs:<id>:key_sealed:<version>`,
 and a key waiting for a CSR's answer to `certs:<id>:csr_pending`.
 
-A secret is never sent back to a page. `config` holds `""` in its place,
-and `secret_set` lists which secrets are set. Saving `""` keeps the one
+A secret is never sent back to a page in clear - the rule of the whole
+appliance (and of otp): a full administrator is shown eight dots and its
+last two characters (`••••••••et`), so "the one I set" can be told from
+another; a certificate administrator or a reader eight dots only; `""`
+when none is set. `secret_set` lists which secrets are set. Saving `""`, or
+the value as it was shown (anything that starts with a dot), keeps the one
 that is set. The same goes for the secret options of a deployment
-(`deploy_fields`).
+(`deploy_fields`), the command line (`--target-show` and the others: root
+on the box, so dots and the last two) and the console.
+
+A private key or another secret of several lines (an SSH key pasted into a
+validation or a target - a `pem` field marked `secret=True`, or a `secret`
+with `multiline=True` - the JSON of a service account, acme-dns accounts) is
+sealed the same way. Its last two characters would be the dashes of
+`-----END ... KEY-----`, which every key ends with alike: what is shown is
+the last two characters of its body instead, the BEGIN/END lines, spaces,
+`-` and `=` left out. A key kept in clear by a version before this one is
+sealed the next time its row is saved.
+
+In the configuration's export without the secrets, a module's secrets are
+eight dots (put back, the ones kept here stay); with the secrets (locked with
+the passphrase) they are opened, and sealed again for their row when imported.
 
 ## Renewing
 

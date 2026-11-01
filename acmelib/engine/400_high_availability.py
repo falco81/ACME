@@ -16,7 +16,33 @@ def _ha(h):
             # How the link between the databases is protected (1.0.101), and
             # where the button that protects it is (1.0.104).
             'db_tls': CONFIG.get('db_tls') or '', 'link_tls': _hatls_view_safe(h.store),
-            'readdress': readdress_view(h.store) if CONFIG.get('ha_mode') == 'replicated' else None}
+            'readdress': readdress_view(h.store) if CONFIG.get('ha_mode') == 'replicated' else None,
+            # Setting the pair up (1.0.210): who is let in for being joined,
+            # PostgreSQL here as the node being joined will find it, and
+            # what this node holds of its own that a join would leave behind.
+            'pending': ha_pending(h.store), 'pg_open': ha_pg_view(h.store),
+            'fw_on': bool((fw_desired(h.store) or {}).get('on')),
+            'peer': CONFIG.get('ha_peer') or '', 'local': ha_local_held(h.store)}
+
+
+def ha_local_held(store):
+    """What this node has of its own - what a join leaves behind (1.0.210):
+    None in a cluster already."""
+    if CONFIG.get('ha_mode'):
+        return None
+    out = {'engine': store.db.engine, 'certs': 0, 'accounts': 0, 'sealed': False}
+    for k, t in (('certs', 'certs'), ('accounts', 'accounts')):
+        try:
+            out[k] = int(store.db.value('SELECT COUNT(*) FROM %s' % t) or 0)
+        except Exception:                               # noqa: BLE001
+            pass
+    try:
+        out['sealed'] = bool(sealed_held(store.db))
+    except Exception:                                   # noqa: BLE001
+        out['sealed'] = True
+    # One account is the one signed in now, made at the install: not "its own".
+    out['held'] = bool(out['certs'] or out['sealed'] or out['accounts'] > 1)
+    return out
 
 
 def _hatls_view_safe(store):
@@ -100,8 +126,43 @@ def _ha_do(h):
                           'on)' % (s['name'], node_name()), who=s['name'])
         return {'message': 'cleared: the errors are counted from now on', **repl_errors(
             h.store, ask_log=False)}
-    if act == 'bundle':
+    if act == 'prepare':
+        # The first node made ready for the node being joined (1.0.210), one
+        # step at a time so the page shows each as it goes: 'pending' lets its
+        # address in, 'firewall' waits for root to put it in, 'pg' opens
+        # PostgreSQL here to it (listen_addresses, pg_hba.conf, a restart).
+        step = str(b.get('step') or '')
+        peer = str(b.get('peer') or '').strip()
         try:
+            if step == 'pending':
+                ips = ha_pending_add(h.store, str(peer_address(peer)), s['name'],
+                                     'the node being joined')
+                one = ha_pending(h.store)
+                until = max([float(x.get('until') or 0) for x in one if x['address'] in ips] or [0])
+                h.store.add_event('settings', '%s let %s into %s for being joined (until %s)' % (
+                    s['name'], ', '.join(ips), node_name(),
+                    time.strftime('%Y-%m-%d %H:%M', time.localtime(until))), 'warn', who=s['name'])
+                return {'steps': [{'key': 'pending', 'ok': True, 'until': until,
+                                   'said': '%s is let in as the node being joined, until %s' % (
+                                       ', '.join(ips), time.strftime('%d.%m. %H:%M',
+                                                                     time.localtime(until)))}]}
+            if step == 'firewall':
+                got = fw_apply_wait(h.store, 60)
+                return {'steps': [{'key': 'firewall', 'ok': got['state'] in ('done', 'off'),
+                                   'state': got['state'], 'said': got['said']}]}
+            if step == 'pg':
+                return {'steps': ha_pg_open(h.store, peer, s['name'])}
+            if step == 'forget':
+                ha_pending_drop(h.store, peer or None)
+                return {'message': 'no longer let in as a node being joined'}
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        raise ApiError(400, 'pending, firewall, pg or forget')
+    if act == 'bundle':
+        joining = str(b.get('peer') or '').strip()
+        try:
+            if joining:
+                joining = str(peer_address(joining))
             if CONFIG.get('ha_mode') == 'replicated':
                 # The second node of two replicating ones - or the same one
                 # again, after it was lost or reinstalled.
@@ -110,14 +171,53 @@ def _ha_do(h):
                 data = ha_bundle_data(h.store, str(b.get('db_host') or '').strip())
         except ValueError as e:
             raise ApiError(400, str(e))
+        if joining:
+            data['joining'] = joining
         phrase = ha_passphrase()
         locked = bundle_lock(data, phrase)
+        locked['about'] = ha_bundle_about(data)
         h.store.add_event('settings', '%s made a bundle for a second node to join this one '
                           '(the database at %s) - it carries the key that opens every secret'
                           % (s['name'], data['db']['db_host']), 'warn', who=s['name'])
         return {'bundle': locked, 'passphrase': phrase, 'db_host': data['db'].get('db_host', ''),
                 'mode': data.get('mode') or 'shared',
                 'name': 'acme-join-%s-%s.json' % (node_name(), datetime.now().strftime('%Y%m%d'))}
+    if act == 'join_step':
+        # The join taken a step at a time (1.0.210), for the page to show:
+        # 'bundle' opens it and says what it holds, 'firewall' lets the first
+        # node in here, 'db' tries its database from here and says why not.
+        step = str(b.get('step') or '')
+        try:
+            data = bundle_open(b.get('bundle'), str(b.get('passphrase') or ''))
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        view = ha_bundle_view(data)
+        if step == 'bundle':
+            return {'bundle': view, 'local': ha_local_held(h.store), 'node': node_name(),
+                    'steps': [{'key': 'bundle', 'ok': True, 'said': 'the bundle opens: the '
+                               'cluster %s of %s (%s)' % (view['cluster'], view['node'] or '?',
+                                                          view['address'] or '?')}]}
+        if data.get('mode') == 'replicated':
+            raise ApiError(400, 'this bundle makes this node replicate with its own PostgreSQL, '
+                                'which takes root on this machine: copy it here and run  acme '
+                                '--ha-join FILE  as root')
+        if step == 'firewall':
+            got = ha_join_open(h.store, data, s['name'])
+            return {'steps': [{'key': 'firewall', 'ok': got['state'] in ('done', 'off'),
+                               'state': got['state'], 'said': got['said']}]}
+        if step == 'db':
+            db = {k: v for k, v in (data.get('db') or {}).items() if k in DB_KEYS}
+            got = db_try(db)
+            if got.get('reached'):
+                return {'steps': [{'key': 'db', 'ok': True, 'said': 'the database answers from '
+                                   'here: %s, %s record(s)' % (db_where(db), got.get('rows'))}]}
+            fwv = {'state': 'off' if not (fw_desired(h.store) or {}).get('on') else
+                   ('done' if ha_pending(h.store) else 'failed'),
+                   'said': 'it was not opened to the first node yet'}
+            why = db_trouble(got.get('trouble') or '', db, fwv)
+            return {'steps': [{'key': 'db', 'ok': False, 'said': why['says'], 'fix': why['fix'],
+                               'kind': why['kind']}]}
+        raise ApiError(400, 'bundle, firewall or db')
     if act == 'join':
         try:
             data = bundle_open(b.get('bundle'), str(b.get('passphrase') or ''))
@@ -125,8 +225,10 @@ def _ha_do(h):
                 raise ValueError('this bundle makes this node replicate with its own PostgreSQL, '
                                  'which takes root on this machine (installing and setting up '
                                  'PostgreSQL): copy it here and run  acme --ha-join FILE  as root')
+            steps = []
             got = ha_join(data, str(b.get('name') or '').strip(), bool(b.get('even_if_data')),
-                          s['name'])
+                          s['name'], say=lambda k, ok, words: steps.append(
+                              {'key': k, 'ok': ok, 'said': words}))
         except ValueError as e:
             raise ApiError(400, str(e))
         h.store.add_event('settings', '%s joined this node to the cluster of %s; it starts '
@@ -135,6 +237,8 @@ def _ha_do(h):
         log('joining the cluster: starting again on %s' % got['where'], 'warn')
         threading.Timer(1.5, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
         got['restarting'] = True
+        got['steps'] = steps
+        got['cluster'] = str(data.get('cluster') or '')
         return got
     if act in ('pause', 'resume', 'pause_in', 'pause_out', 'resume_in', 'resume_out', 'stop',
                'refresh'):

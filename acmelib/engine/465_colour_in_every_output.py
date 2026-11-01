@@ -813,8 +813,11 @@ def cli_ha(args, pal):
             HA_STORE['store'] = store0
         except Exception:                               # noqa: BLE001
             pass
+        def said(step, ok, words):
+            print((pal.ok_line if ok else pal.warn_line)(words))
         try:
-            got = ha_join(data, name, even_if_data=args.discard_local)
+            got = ha_join(data, name, even_if_data=args.discard_local, by='command line',
+                          say=said)
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
         chown_to_service(sealing_key_path(), 0o600)
@@ -886,6 +889,8 @@ def cli_ha(args, pal):
                     else:
                         print(pal.bad_line('restart %s before the other node joins' % unit))
             firewall_peer(peer, pal, 5432)
+        if peer:
+            cli_ha_open_now(store, peer, pal)
         if args.trusted_proxy:
             nginx_trusted_proxies(args.trusted_proxy, pal)
         name = args.node_name
@@ -893,9 +898,12 @@ def cli_ha(args, pal):
             write_file_settings({'node_name': name})
             chown_to_service(CONFIG_FILE, 0o640)
     data = ha_bundle_data(store, db_host)
+    if args.ha_setup and args.ha_peer:
+        data['joining'] = args.ha_peer
     phrase = ha_passphrase()
     target = Path(args.ha_bundle or '/root/acme-join-%s.json' % node_name())
-    write_private(target, json.dumps(bundle_lock(data, phrase), indent=1) + '\n')
+    write_private(target, json.dumps(dict(bundle_lock(data, phrase), about=ha_bundle_about(data)),
+                                     indent=1) + '\n')
     store.add_event('settings', 'a bundle for a second node was made on the command line '
                     '(the database at %s)' % db_host, 'warn', who='command line')
     print('')
@@ -911,6 +919,21 @@ def cli_ha(args, pal):
     print('  HTTPS: round robin, no stickiness needed; health check  GET /healthz  (200 = up).')
     print('  The load balancer\'s address on both nodes:  acme --trusted-proxy CIDR')
     return 0
+
+
+def cli_ha_open_now(store, peer, pal):
+    """The node being joined let into this node's firewall at once (1.0.210),
+    for a day - before the cluster is made, the firewall knew of no other
+    node and kept it out."""
+    try:
+        ips = ha_pending_add(store, peer, 'command line', 'the node being joined')
+        got = fw_apply_wait(store, 60)
+    except Exception as e:                              # noqa: BLE001
+        print(pal.warn_line('the firewall could not be opened to %s: %s' % (peer, e)))
+        return
+    words = 'the firewall lets %s in (for a day, until it has joined): %s' % (
+        ', '.join(ips), got['said'])
+    print((pal.ok_line if got['state'] in ('done', 'off') else pal.warn_line)(words))
 
 
 def firewall_peer(peer, pal, port=5432):
@@ -978,6 +1001,7 @@ def cli_ha_setup_replicated(args, pal, store, ask):
     except ValueError as e:
         raise SystemExit('acme: %s' % e)
     firewall_peer(peer, pal, port)
+    cli_ha_open_now(store, peer, pal)
     if args.trusted_proxy:
         nginx_trusted_proxies(args.trusted_proxy, pal)
     me = args.ha_address or CONFIG.get('ha_address') or node_address()
@@ -1004,10 +1028,11 @@ def cli_ha_setup_replicated(args, pal, store, ask):
             'slot': 2,
             'db': {'db_name': name, 'db_user': user, 'db_password': pw},
             'peer': {'name': node_name(), 'address': me, 'port': port, 'slot': 1},
-            'cluster': CONFIG.get('site_name') or 'acme'}
+            'cluster': CONFIG.get('site_name') or 'acme', 'joining': peer}
     phrase = ha_passphrase()
     target = Path(args.ha_bundle or '/root/acme-join-%s.json' % node_name())
-    write_private(target, json.dumps(bundle_lock(data, phrase), indent=1) + '\n')
+    write_private(target, json.dumps(dict(bundle_lock(data, phrase), about=ha_bundle_about(data)),
+                                     indent=1) + '\n')
     store.add_event('settings', 'this node became the first of two, replicating with %s; a '
                     'bundle for the second was made on the command line' % peer, 'warn',
                     who='command line')
@@ -1041,6 +1066,22 @@ def cli_ha_join_replicated(args, pal, data, ask):
     node = args.node_name or ask('This node\'s name', socket.gethostname().split('.')[0])
     port = int(FILE_CONFIG.get('db_port') or 5432) if FILE_CONFIG.get('db_engine') == 'postgres' \
         else 5432
+    # This node's own address before PostgreSQL is prepared (1.0.210): its
+    # line in pg_hba.conf is for the address given here, the one the other
+    # node's subscription comes back to.
+    if args.ha_address:
+        CONFIG['ha_address'] = args.ha_address
+    # The first node let into this one's firewall before anything is asked of
+    # it (1.0.210): with the firewall on, the copy failed on a dropped packet.
+    try:
+        # The database this node has now (not HA_STORE: the rebuild below
+        # writes its maintenance into that one).
+        fw = ha_join_open(Storage(open_db()), data, 'command line')
+        (say if fw['state'] in ('done', 'off') else (lambda t: print(pal.warn_line(t))))(
+            'the firewall: %s' % fw['said'])
+    except Exception as e:                              # noqa: BLE001
+        print(pal.warn_line('the firewall could not be opened to %s: %s' % (
+            peer.get('address'), e)))
     try:
         if not pg_local_running(port):
             pg_install_local(int(data.get('pg_major') or 16), say)

@@ -330,7 +330,25 @@ def ha_wait_copied(db, sub, say, seconds=3600):
     raise ValueError('the copy from the other node did not finish in %d s' % seconds)
 
 
-def ha_subscribe(db, sub, conninfo, copy_data):
+def ha_subscribe_trouble(e, whose):
+    """Why a subscription's connection was refused, with what to do (1.0.210)."""
+    t = scrub_secret(str(e).split('\n')[0][:300])
+    m = re.search(r'no pg_hba\.conf entry for host "([^"]+)"', str(e))
+    if m:
+        t += (' - pg_hba.conf of %s has no line for %s: run the join again (acme --ha-join '
+              'FILE as root - it adds the line and starts the copy afresh), or add  host %s %s '
+              '%s/%d scram-sha-256  there and reload PostgreSQL' % (
+                  whose, m.group(1), CONFIG.get('db_name') or 'acme', CONFIG.get('db_user')
+                  or 'acme', m.group(1), 128 if ':' in m.group(1) else 32))
+    elif 'connection refused' in t.lower():
+        t += ' - PostgreSQL of %s does not listen on that address (listen_addresses)' % whose
+    elif 'timeout' in t.lower() or 'timed out' in t.lower():
+        t += (' - nothing answers: a firewall between the nodes (acme opens the nodes\' own, '
+              'Settings → Firewall)')
+    return t
+
+
+def ha_subscribe(db, sub, conninfo, copy_data, whose='the other node'):
     """A subscription made on `db`. The statement carries the password of
     the account in its conninfo, so it is kept out of PostgreSQL's log for
     the session, and out of any error that comes back."""
@@ -346,9 +364,9 @@ def ha_subscribe(db, sub, conninfo, copy_data):
     except ImportError:
         pass
     except Exception as e:                              # noqa: BLE001
-        raise ValueError('the other node\'s database cannot be reached from here, so the '
+        raise ValueError('the database of %s cannot be reached from here, so the '
                          'subscription %s was not made: %s'
-                         % (sub, scrub_secret(str(e).split('\n')[0][:300])))
+                         % (whose, sub, ha_subscribe_trouble(e, whose)))
     for quiet in ("SET log_statement = 'none'", "SET log_min_error_statement = 'panic'"):
         try:
             db.run(quiet)
@@ -425,7 +443,8 @@ def _ha_rebuild(local, remote, my_slot, peer_slot, my_host, my_port, peer_host, 
         # was written in between never went over.
         say('the other node takes this one\'s rows from now on')
         ha_subscribe(remote, mine_on_peer, ha_conninfo(my_host, my_port, name, user, password),
-                     copy_data=False)
+                     copy_data=False, whose='this node (%s, as the other node reaches it)'
+                     % my_host)
         done = True
     finally:
         # Odd or even again whatever happened (1.0.57): RESTART IDENTITY

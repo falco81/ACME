@@ -90,8 +90,11 @@ the issuers, the challenges, the targets, the settings, private keys out.
 ## The API of the certificate manager
 
 All JSON, through the pages' relay (`/admin/api.php` → `127.0.0.1:9861`), with the
-session of the person. A secret field is never sent back: `config` holds `""`
-there and `secret_set` says which are set; saving `""` keeps what is set.
+session of the person. A secret field is never sent back in clear: `config`
+holds it as the engine's `secret_shown` has it - eight dots and its last two
+characters for a full administrator, eight dots for anybody else, `""` when it
+is not set - and `secret_set` says which are set; saving `""` or the dots as
+they were shown keeps what is set.
 
 | | |
 |---|---|

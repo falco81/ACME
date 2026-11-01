@@ -24792,14 +24792,6 @@
    "source": "Folder",
    "text": "Složka"
   },
-  "sc1129": {
-   "source": "A line from vm to every isemon receiver that isemon shows as a sign-in of the name given - its message says it is a test.",
-   "text": "Řádek z vm do každého přijímače isemonu, který isemon ukáže jako přihlášení zadaného jména – jeho zpráva říká, že jde o test."
-  },
-  "sc1130": {
-   "source": "Tento server: its version, how long it has run, problems.",
-   "text": "Tento server: verze, jak dlouho běží, problémy."
-  },
   "sc1131": {
    "source": "a certificate needs at least one name",
    "text": "certifikát potřebuje aspoň jedno jméno"
@@ -24927,6 +24919,82 @@
   "sc1162": {
    "source": "a job is already working on that certificate",
    "text": "na tom certifikátu už pracuje jiná úloha"
+  },
+  "sc1163": {
+   "source": "A line from vm to every isemon receiver that isemon shows as a sign-in of the name given - its message says it is a test.",
+   "text": "Řádek z vm do každého přijímače isemonu, který isemon ukáže jako přihlášení zadaného jména – jeho zpráva říká, že jde o test."
+  },
+  "sc1164": {
+   "source": "Tento server: its version, how long it has run, problems.",
+   "text": "Tento server: verze, jak dlouho běží, problémy."
+  },
+  "sc1165": {
+   "source": "· running:",
+   "text": "· běží:"
+  },
+  "sc1166": {
+   "source": "NOTHING RUNS OUT UNSEEN",
+   "text": "NIC NEVYPRŠÍ BEZ POVŠIMNUTÍ"
+  },
+  "sc1167": {
+   "source": "INTERMEDIATE",
+   "text": "MEZILEHLÁ"
+  },
+  "sc1168": {
+   "source": "Root CA",
+   "text": "Kořenová CA"
+  },
+  "sc1169": {
+   "source": "acme’s own DNS server",
+   "text": "Vlastní DNS server acme"
+  },
+  "sc1170": {
+   "source": "validations",
+   "text": "validace"
+  },
+  "sc1171": {
+   "source": "targets",
+   "text": "cíle"
+  },
+  "sc1172": {
+   "source": "+ DNS server listening",
+   "text": "+ naslouchá DNS server"
+  },
+  "sc1173": {
+   "source": "no deployment to run",
+   "text": "žádné nasazení ke spuštění"
+  },
+  "sc1174": {
+   "source": "stopped before it began",
+   "text": "zastaveno dřív, než začalo"
+  },
+  "sc1175": {
+   "source": "the key it has is kept (reuse_key)",
+   "text": "ponechává se klíč, který má (reuse_key)"
+  },
+  "sc1176": {
+   "source": "the probe of Test, on every machine",
+   "text": "sonda z Testu na každém stroji"
+  },
+  "sc1177": {
+   "source": "nothing to commit",
+   "text": "není co commitovat"
+  },
+  "sc1178": {
+   "source": "Remote Desktop listener uses it",
+   "text": "používá ho posluchač Vzdálené plochy"
+  },
+  "sc1179": {
+   "source": "Exchange uses it",
+   "text": "používá ho Exchange"
+  },
+  "sc1180": {
+   "source": "no files to write:",
+   "text": "nic k zápisu:"
+  },
+  "sc1181": {
+   "source": "choose a service or fill in \"Files\"",
+   "text": "zvolte službu, nebo vyplňte „Soubory“"
   }
  },
  "patterns": {
@@ -31869,6 +31937,298 @@
   "pc0165": {
    "source": "the type is one of {0}",
    "text": "typ je jeden z: {0}"
+  },
+  "pc0166": {
+   "source": "trying {0} {1} ({2})",
+   "text": "zkouší se {0} {1} ({2})"
+  },
+  "pc0167": {
+   "source": "revoking {0} (serial {1}) at {2}, reason {3}",
+   "text": "odvolává se {0} (sériové číslo {1}) u {2}, důvod {3}"
+  },
+  "pc0168": {
+   "source": "renewing {0} for {1} from {2} ({3})",
+   "text": "obnovuje se {0} pro {1} od {2} ({3})"
+  },
+  "pc0169": {
+   "source": "issuing {0} for {1} from {2} ({3})",
+   "text": "vydává se {0} pro {1} od {2} ({3})"
+  },
+  "pc0170": {
+   "source": "issued: version {0}, serial {1}, valid until {2}",
+   "text": "vydáno: verze {0}, sériové číslo {1}, platí do {2}"
+  },
+  "pc0171": {
+   "source": "a new {0} key made",
+   "text": "vytvořen nový klíč {0}"
+  },
+  "pc0172": {
+   "source": "{0} is proved by {1}",
+   "text": "{0} se prokazuje přes {1}"
+  },
+  "pc0173": {
+   "source": "the chain could not be put in order: {0}",
+   "text": "řetězec nešlo seřadit: {0}"
+  },
+  "pc0174": {
+   "source": "whether the key fits could not be checked: {0}",
+   "text": "nešlo ověřit, zda klíč sedí: {0}"
+  },
+  "pc0175": {
+   "source": "tried again in {0}",
+   "text": "znovu za {0}"
+  },
+  "pc0176": {
+   "source": "DNS: {0} {1} \"{2}\" put in acme's own DNS server",
+   "text": "DNS: {0} {1} „{2}“ vložen do vlastního DNS serveru acme"
+  },
+  "pc0177": {
+   "source": "the host key of {0} taken as the first one seen: {1}",
+   "text": "klíč serveru {0} přijat jako první viděný: {1}"
+  },
+  "pc0178": {
+   "source": "the engine's own ACME could not be told to leave it: {0}",
+   "text": "vlastnímu ACME enginu nešlo říct, ať ho nechá být: {0}"
+  },
+  "pc0179": {
+   "source": "the host key could not be kept: {0}",
+   "text": "klíč serveru nešlo uložit: {0}"
+  },
+  "pc0180": {
+   "source": "{0} TXT \"{1}\" put in ({2})",
+   "text": "{0} TXT „{1}“ vložen ({2})"
+  },
+  "pc0181": {
+   "source": "{0} is a CNAME to {1}: the TXT record goes there",
+   "text": "{0} je CNAME na {1}: TXT záznam jde tam"
+  },
+  "pc0182": {
+   "source": "acme-dns has {0} TXT \"{1}\"",
+   "text": "acme-dns má {0} TXT „{1}“"
+  },
+  "pc0183": {
+   "source": "{0} TXT \"{1}\" put in acme's own DNS server",
+   "text": "{0} TXT „{1}“ vložen do vlastního DNS serveru acme"
+  },
+  "pc0184": {
+   "source": "{0} TXT could not be taken away: {1}",
+   "text": "{0} TXT nešlo odebrat: {1}"
+  },
+  "pc0185": {
+   "source": "http://{0}/.well-known/acme-challenge/{1} is answered by acme",
+   "text": "na http://{0}/.well-known/acme-challenge/{1} odpovídá acme"
+  },
+  "pc0186": {
+   "source": "the token could not be taken away: {0}",
+   "text": "token nešlo odebrat: {0}"
+  },
+  "pc0187": {
+   "source": "{0} written on {1}",
+   "text": "{0} zapsán na {1}"
+  },
+  "pc0188": {
+   "source": "every web server answers the token for {0}",
+   "text": "každý webový server odpovídá tokenem pro {0}"
+  },
+  "pc0189": {
+   "source": "not answered yet: {0}",
+   "text": "zatím bez odpovědi: {0}"
+  },
+  "pc0190": {
+   "source": "{0} could not be taken away on {1}: {2}",
+   "text": "{0} nešlo odebrat na {1}: {2}"
+  },
+  "pc0191": {
+   "source": "Put this in your DNS now: {0}. 60 IN TXT \"{1}\" - acme waits until the name servers of the zone have it",
+   "text": "Teď vložte do svého DNS: {0}. 60 IN TXT \"{1}\" – acme počká, až ho budou mít jmenné servery zóny"
+  },
+  "pc0192": {
+   "source": "the TXT record {0} \"{1}\" may be taken out of your DNS again",
+   "text": "TXT záznam {0} „{1}“ můžete ze svého DNS zase odebrat"
+  },
+  "pc0193": {
+   "source": "signed by the own authority: serial {0}, until {1}",
+   "text": "podepsáno vlastní autoritou: sériové číslo {0}, do {1}"
+  },
+  "pc0194": {
+   "source": "{0} {1} - nothing to do (force to do it again)",
+   "text": "{0} {1} – není co dělat (force pro nové provedení)"
+  },
+  "pc0195": {
+   "source": "unchanged: the same certificate is {0}",
+   "text": "beze změny: stejný certifikát je {0}"
+  },
+  "pc0196": {
+   "source": "{0}:{1} cannot be asked: {2}",
+   "text": "{0}:{1} se nelze zeptat: {2}"
+  },
+  "pc0197": {
+   "source": "{0}:{1} serves the new certificate",
+   "text": "{0}:{1} servíruje nový certifikát"
+  },
+  "pc0198": {
+   "source": "{0}:{1} serves another certificate ({2}…)",
+   "text": "{0}:{1} servíruje jiný certifikát ({2}…)"
+  },
+  "pc0199": {
+   "source": "the pages of {0} take {1} (until {2})",
+   "text": "stránky {0} berou {1} (do {2})"
+  },
+  "pc0200": {
+   "source": "already on the pages of {0}",
+   "text": "už je na stránkách {0}"
+  },
+  "pc0201": {
+   "source": "{0} is there already",
+   "text": "{0} už tam je"
+  },
+  "pc0202": {
+   "source": "installed {0}",
+   "text": "nainstalováno {0}"
+  },
+  "pc0203": {
+   "source": "synced to {0}",
+   "text": "synchronizováno do {0}"
+  },
+  "pc0204": {
+   "source": "deleted the old {0}",
+   "text": "smazán starý {0}"
+  },
+  "pc0205": {
+   "source": "installed the chain as {0}",
+   "text": "řetězec nainstalován jako {0}"
+  },
+  "pc0206": {
+   "source": "the old {0} stays: {1}",
+   "text": "starý {0} zůstává: {1}"
+  },
+  "pc0207": {
+   "source": "admin GUI uses {0}",
+   "text": "administrační GUI používá {0}"
+  },
+  "pc0208": {
+   "source": "SSL VPN uses {0}",
+   "text": "SSL VPN používá {0}"
+  },
+  "pc0209": {
+   "source": "VIP {0} uses {1}",
+   "text": "VIP {0} používá {1}"
+  },
+  "pc0210": {
+   "source": "the old certificates cannot be listed: {0}",
+   "text": "staré certifikáty nelze vypsat: {0}"
+  },
+  "pc0211": {
+   "source": "restarting deployment {0}",
+   "text": "restartuje se deployment {0}"
+  },
+  "pc0212": {
+   "source": "imported as {0}",
+   "text": "naimportováno jako {0}"
+  },
+  "pc0213": {
+   "source": "put {0} and {1} on the router",
+   "text": "{0} a {1} nahrány na router"
+  },
+  "pc0214": {
+   "source": "the old {0} is still used: kept",
+   "text": "starý {0} se ještě používá: ponechán"
+  },
+  "pc0215": {
+   "source": "deleted the old files {0}.*",
+   "text": "smazány staré soubory {0}.*"
+  },
+  "pc0216": {
+   "source": "the old files cannot be listed: {0}",
+   "text": "staré soubory nelze vypsat: {0}"
+  },
+  "pc0217": {
+   "source": "linked {0} to {1}",
+   "text": "{0} propojen s {1}"
+  },
+  "pc0218": {
+   "source": "the web GUI uses {0}",
+   "text": "webové GUI používá {0}"
+  },
+  "pc0219": {
+   "source": "added the intermediate {0}",
+   "text": "přidán mezilehlý {0}"
+  },
+  "pc0220": {
+   "source": "commit job {0} started",
+   "text": "úloha commitu {0} spuštěna"
+  },
+  "pc0221": {
+   "source": "imported {0}",
+   "text": "naimportováno {0}"
+  },
+  "pc0222": {
+   "source": "profile {0} uses {1}",
+   "text": "profil {0} používá {1}"
+  },
+  "pc0223": {
+   "source": "imported the intermediate {0}",
+   "text": "naimportován mezilehlý {0}"
+  },
+  "pc0224": {
+   "source": "committed (job {0})",
+   "text": "commit proveden (úloha {0})"
+  },
+  "pc0225": {
+   "source": "the old {0} stays (still used?): {1}",
+   "text": "starý {0} zůstává (ještě se používá?): {1}"
+  },
+  "pc0226": {
+   "source": "the web GUI uses {0} and was restarted",
+   "text": "webové GUI používá {0} a bylo restartováno"
+  },
+  "pc0227": {
+   "source": "{0} has the new certificate",
+   "text": "{0} má nový certifikát"
+  },
+  "pc0228": {
+   "source": "ran {0}",
+   "text": "spuštěno {0}"
+  },
+  "pc0229": {
+   "source": "wrote {0}",
+   "text": "zapsáno {0}"
+  },
+  "pc0230": {
+   "source": "wrote {0} (version {1})",
+   "text": "zapsáno {0} (verze {1})"
+  },
+  "pc0231": {
+   "source": "bound to IIS {0}",
+   "text": "svázáno s IIS {0}"
+  },
+  "pc0232": {
+   "source": "removed the old {0}",
+   "text": "odebrán starý {0}"
+  },
+  "pc0233": {
+   "source": "the old {0} is still bound: kept",
+   "text": "starý {0} je ještě svázán: ponechán"
+  },
+  "pc0234": {
+   "source": "{0} of {1} deployment(s) failed - {2}",
+   "text": "{0} z {1} {1:nasazení selhalo|nasazení selhala|nasazení selhalo} – {2}"
+  },
+  "pc0235": {
+   "source": "{0} deployment(s) done",
+   "text": "{0} {0:nasazení hotovo|nasazení hotova|nasazení hotovo}"
+  },
+  "pc0236": {
+   "source": "version {0}, valid until {1}",
+   "text": "verze {0}, platí do {1}"
+  },
+  "pc0237": {
+   "source": "told {0} by mail",
+   "text": "{0} dostal mail"
+  },
+  "pc0238": {
+   "source": "a mail to {0} waits in the outgoing mail ({1})",
+   "text": "mail pro {0} čeká v odchozí poště ({1})"
   }
  },
  "rich": {

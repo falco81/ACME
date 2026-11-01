@@ -1101,6 +1101,221 @@ class SameRowsGuard(unittest.TestCase):
             node.cleanup()
             pg_empty()
 
+# A root helper stood in for (1.0.210): whatever the daemon asks for in
+# request.json is "applied" as acme_web.py would - its rules checked and made
+# into iptables lines by the helper's own functions (dry: nothing is run) - and
+# status.json says done under the hash asked, as the real one does.
+FAKE_HELPER = r"""
+import importlib.util, threading, os, json, time
+spec = importlib.util.spec_from_file_location('acme_web', os.path.join(%(root)r, 'deploy', 'acme_web.py'))
+W = importlib.util.module_from_spec(spec); spec.loader.exec_module(W)
+web = str(acme.WEB_DIR); os.makedirs(web, exist_ok=True)
+APPLIED = []
+def helper():
+    end = time.time() + 30
+    while time.time() < end:
+        req = os.path.join(web, 'request.json')
+        if os.path.exists(req):
+            r = json.load(open(req)); os.unlink(req)
+            lines = [W.fw_args(W.fw_rule_checked(x)) for x in (r.get('fw') or {}).get('rules') or []]
+            APPLIED.append(lines)
+            json.dump({'at': time.time(), 'id': r['id'], 'hash': r['hash'], 'state': 'done',
+                       'said': ['IPv4: %%d rule(s)' %% len(lines)]}, open(os.path.join(web, 'status.json'), 'w'))
+        time.sleep(0.1)
+threading.Thread(target=helper, daemon=True).start()
+"""
+
+
+def has_source(rules, addr):
+    return any(r.get('source') in (addr, addr + '/32') and r.get('proto') == 'any'
+               for r in rules)
+
+
+class HaFirewallSteps(unittest.TestCase):
+    """The firewall while a pair is made (1.0.210): node 1 lets the node being
+    joined in at once - a pending peer, for a day, not reverted by a firewall
+    trial - and node 2 lets node 1 in from the bundle before it tries the
+    database; the join writes ha_peer. What is computed (fw_auto, fw_rules_for)
+    and what is published to the root helper (request.json), and the helper's
+    own iptables lines made from it, dry."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.n = Node('fw1', None, {'node_name': 'fw1'})
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.n.cleanup()
+
+    def run_py(self, code):
+        out = self.n.py(FAKE_HELPER % {'root': ROOT} + code)
+        return json.loads(out.strip().splitlines()[-1])
+
+    def test_01_first_node_pending_peer(self):
+        got = self.run_py(r"""
+st.set_meta('fw:conf', json.dumps({'on': True, 'set': True, 'off': [], 'rules': []}))
+before = acme.fw_rules_for(st, 'fw1')
+acme.fw_trial_begin(st, 'tester')       # a trial running: the opening is not part of it
+ips = acme.ha_pending_add(st, '192.0.2.12', 'tester', 'the node being joined')
+auto = {x['key']: x for x in acme.fw_auto(st, 'fw1')}
+rules = acme.fw_rules_for(st, 'fw1')
+applied = acme.fw_apply_wait(st, 20)
+trial = json.loads(st.get_meta('fw:trial') or '{}')
+acme.fw_put_back(st, trial, 'test')     # the trial goes back: the opening stays
+after_back = acme.fw_rules_for(st, 'fw1')
+print(json.dumps({'ips': ips, 'before': before, 'cluster': auto.get('cluster'), 'rules': rules,
+                  'applied': applied, 'lines': APPLIED[-1] if APPLIED else [],
+                  'after_back': after_back,
+                  'access': acme.cluster_addresses(st, 'fw1')}))
+""")
+        self.assertEqual(got['ips'], ['192.0.2.12'])
+        self.assertFalse(has_source(got['before'], '192.0.2.12'))
+        self.assertTrue(got['cluster'] and got['cluster']['fixed'])
+        self.assertEqual([x['address'] for x in got['cluster']['pending']], ['192.0.2.12'])
+        self.assertTrue(has_source(got['rules'], '192.0.2.12'), got['rules'])
+        # First of all: nothing of anybody's comes before it.
+        self.assertEqual(got['rules'][0]['source'], '192.0.2.12')
+        self.assertEqual(got['applied']['state'], 'done', got['applied'])
+        self.assertTrue(any('-s 192.0.2.12/32' in x and x.endswith('-j ACCEPT')
+                            for x in got['lines']), got['lines'])
+        self.assertTrue(has_source(got['after_back'], '192.0.2.12'))
+        self.assertIn('192.0.2.12', got['access'])
+
+    def test_02_pending_runs_out(self):
+        got = self.run_py(r"""
+acme.ha_pending_drop(st)
+acme.ha_pending_add(st, '192.0.2.13', 'tester', 'x', seconds=1)
+now = acme.fw_rules_for(st, 'fw1')
+time.sleep(1.3)
+later = acme.fw_rules_for(st, 'fw1')
+print(json.dumps({'now': now, 'later': later, 'left': acme.ha_pending(st),
+                  'auto': [x['key'] for x in acme.fw_auto(st, 'fw1')]}))
+""")
+        self.assertTrue(has_source(got['now'], '192.0.2.13'))
+        self.assertFalse(has_source(got['later'], '192.0.2.13'))
+        self.assertEqual(got['left'], [])
+        self.assertNotIn('cluster', got['auto'])
+
+    def test_03_second_node_opens_before_db(self):
+        # The join: the first node's address from the bundle let in, the
+        # firewall applied, THEN the database tried (unreachable here: refused,
+        # said as such) - and nothing written into config.json.
+        got = self.run_py(r"""
+st.set_meta('fw:conf', json.dumps({'on': True, 'set': True, 'off': [], 'rules': []}))
+acme.HA_STORE['store'] = st
+data = {'db': {'db_engine': 'postgres', 'db_host': '127.0.0.1', 'db_port': 1, 'db_name': 'acme',
+               'db_user': 'acme', 'db_password': 'x'}, 'key': '0' * 64, 'mode': 'shared',
+        'peer': {'name': 'n1', 'address': '192.0.2.21'}, 'cluster': 'acme'}
+said = []
+try:
+    acme.ha_join(data, 'fw2', by='tester', say=lambda k, ok, w: said.append([k, ok, w]))
+    err = ''
+except ValueError as e:
+    err = str(e)
+print(json.dumps({'said': said, 'err': err, 'rules': acme.fw_rules_for(st, 'fw1'),
+                  'lines': APPLIED[-1] if APPLIED else [],
+                  'trouble': acme.db_trouble('could not connect to server: Connection refused',
+                                             data['db']),
+                  'timeout': acme.db_trouble('timeout expired', data['db'], {'state': 'done'}),
+                  'hba': acme.db_trouble('FATAL:  no pg_hba.conf entry for host "192.0.2.22"',
+                                         data['db'])}))
+""")
+        self.assertEqual(got['said'][0][0], 'firewall', got['said'])
+        self.assertTrue(got['said'][0][1], got['said'])
+        self.assertEqual(got['said'][1][:2], ['db', False])
+        self.assertIn('refused', got['err'])
+        self.assertTrue(has_source(got['rules'], '192.0.2.21'))
+        self.assertTrue(any('-s 192.0.2.21/32' in x for x in got['lines']), got['lines'])
+        self.assertNotIn('ha_mode', self.n.conf)
+        self.assertEqual(got['trouble']['kind'], 'refused')
+        self.assertIn('listen', got['trouble']['says'])
+        self.assertEqual(got['timeout']['kind'], 'timeout')
+        self.assertIn('in between', got['timeout']['fix'])
+        self.assertEqual(got['hba']['kind'], 'hba')
+
+    def test_04_firewall_off_nothing_to_do(self):
+        got = self.run_py(r"""
+st.set_meta('fw:conf', json.dumps({'on': False, 'set': True, 'off': [], 'rules': []}))
+print(json.dumps(acme.fw_apply_wait(st, 5)))
+""")
+        self.assertEqual(got['state'], 'off')
+
+    def test_05_helper_pg_hba_line(self):
+        # The helper's pg_hba line for the node being joined: hostssl with TLS
+        # on, host without, none again when one is there.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('acme_web_t', os.path.join(ROOT, 'deploy',
+                                                                                  'acme_web.py'))
+        W = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(W)
+        r = {'db': 'acme', 'user': 'acme', 'peer': '192.0.2.12', 'port': 5432}
+        for ssl, kind in (('on', 'hostssl'), ('off', 'host')):
+            W.pg_sql = lambda port, sql, db='postgres', ssl=ssl: ssl
+            text, k = W.pg_hba_ha_line(r, 'local all all peer\n')
+            self.assertEqual(k, kind)
+            self.assertIn('%s    acme    acme    192.0.2.12/32    scram-sha-256' % kind,
+                          text.split('\n')[1])
+            self.assertTrue(text.endswith('local all all peer\n'))
+            again, k2 = W.pg_hba_ha_line(r, text)
+            self.assertIsNone(again)
+            self.assertEqual(k2, kind)
+        self.assertEqual(W.pgtls_checked({'id': 'abcdef0123', 'do': 'ha_open', 'db': 'acme',
+                                          'user': 'acme', 'peer': '192.0.2.12',
+                                          'listen': '192.0.2.11'})['listen'], '192.0.2.11')
+        with self.assertRaises(W.Refused):
+            W.pgtls_checked({'id': 'abcdef0123', 'do': 'ha_open', 'db': 'acme', 'user': 'acme',
+                             'peer': '192.0.2.12', 'listen': '0.0.0.0/0'})
+
+
+class HaPgHbaLines(unittest.TestCase):
+    """For real, as root on the second cluster: the replicated wizard's
+    pg_hba.conf lets in the other node, 127.0.0.1 and this node's OWN address
+    (the other node's subscription is tried from here first), and the root
+    helper's ha_open lets the node being joined in and says PostgreSQL
+    answers."""
+
+    def setUp(self):
+        need_pg(self, PG2_PORT)
+        if not pg_admin_ok(PG2_PORT):
+            raise unittest.SkipTest('needs root and psql as postgres on %d' % PG2_PORT)
+
+    def hba(self):
+        got = subprocess.run(['runuser', '-u', 'postgres', '--', 'psql', '-XAtq', '-p',
+                              str(PG2_PORT), '-c', 'SHOW hba_file'], capture_output=True,
+                             text=True)
+        with open(got.stdout.strip()) as f:
+            return f.read()
+
+    def test_own_address(self):
+        n = Node('hba1', PG2, {'ha_address': '127.0.0.3'})
+        try:
+            n.py('acme.pg_prepare_local(%d, "192.0.2.31", "acme", "acme", %r, print)'
+                 % (PG2_PORT, DB_PW))
+        finally:
+            n.cleanup()
+        text = self.hba()
+        for who in ('192.0.2.31/32', '127.0.0.1/32', '127.0.0.3/32'):
+            self.assertRegex(text, r'(?m)^host(ssl)?\s+acme\s+acme\s+%s\s+scram-sha-256'
+                             % who.replace('.', r'\.'))
+
+    def test_helper_ha_open(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('acme_web_t2', os.path.join(
+            ROOT, 'deploy', 'acme_web.py'))
+        W = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(W)
+        r = W.pgtls_checked({'id': 'abcdef0124', 'do': 'ha_open', 'db': 'acme', 'user': 'acme',
+                             'peer': '192.0.2.32', 'listen': '127.0.0.1', 'port': PG2_PORT})
+        got = W.pgtls_ha_open(r)
+        keys = [x['key'] for x in got['steps']]
+        self.assertEqual(keys, ['listen', 'hba', 'restart', 'answers'], got)
+        self.assertTrue(all(x['ok'] for x in got['steps']), got)
+        self.assertRegex(self.hba(), r'(?m)^host(ssl)?\s+acme\s+acme\s+192\.0\.2\.32/32\s+'
+                         r'scram-sha-256')
+        again = W.pgtls_ha_open(r)
+        self.assertIn('already', again['steps'][1]['said'])
+
+
 def tearDownModule():
     if Populated.made:
         Populated.made['node'].cleanup()

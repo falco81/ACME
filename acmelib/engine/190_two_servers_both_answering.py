@@ -581,7 +581,8 @@ def ha_bundle_about(data):
     peer = data.get('peer') or {}
     return {'cluster': str(data.get('cluster') or ''), 'mode': data.get('mode') or 'shared',
             'node': str(peer.get('name') or ''), 'address': str(peer.get('address') or ''),
-            'db': '%s:%s/%s' % (db.get('db_host') or '', db.get('db_port') or 5432,
+            'db': '%s:%s/%s' % (db.get('db_host') or peer.get('address') or '',
+                                db.get('db_port') or peer.get('port') or 5432,
                                 db.get('db_name') or ''),
             'joining': str(data.get('joining') or '')}
 
@@ -651,7 +652,7 @@ def db_trouble(trouble, db, fw=None):
                         'group, or the first node\'s own firewall not managed by acme '
                         '(firewalld) - let TCP %d through from this node to %s' % (port, host))
                 if fw_open else ('this node\'s firewall could not be opened to it (%s); then '
-                                 'look at the network in between' % (fw or {}).get('said')}
+                                 'look at the network in between' % (fw or {}).get('said'))}
     if 'no pg_hba.conf entry' in low:
         return {'kind': 'hba', 'says': 'PostgreSQL at %s answers, but pg_hba.conf has no line '
                 'for this node' % where,
@@ -741,7 +742,7 @@ def ha_pg_open(store, peer, by='', wait=150):
     store.add_event('settings', '%s: PostgreSQL on %s opened to the node being joined (%s): %s'
                     % (by or 'acme', node_name(), peer, '; '.join(
                         str(x.get('said')) for x in steps)[:600]),
-                    'warn' if not all(x.get('ok') for x in steps) else 'info', who=by or None)
+                    'warn' if not all(x.get('ok') for x in steps) else 'info', who=by or '')
     return steps
 
 
