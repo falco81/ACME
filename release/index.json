@@ -1,5 +1,13 @@
 [
   {
+    "name": "acme-1.0.6.tar.gz",
+    "version": "1.0.6",
+    "size": 2737129,
+    "sha256": "8aaf41848bcad25dd9716ea95a59b58a49c8826e6dc1ad36bf22f2cbcc7c9fb9",
+    "date": "2026-11-01T18:45:10Z",
+    "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-1.0.6.tar.gz"
+  },
+  {
     "name": "acme-1.0.5.tar.gz",
     "version": "1.0.5",
     "size": 2685261,

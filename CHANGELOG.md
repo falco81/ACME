@@ -4,6 +4,23 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.6 - 2026-11-01
+
+- **acme push - certificates for our other applications** (otp, isemon,
+  zigmon and acme itself): a target that pairs with the application once
+  (a one-time code shown there, Settings → Certificates and TLS →
+  "Certificates from acme"), then installs each certificate and its renewals
+  with signed requests, the private key sealed to the application.
+  **Discover** reads the application's certificate slots (each node, the VIP
+  address, zigmon's front server and broker) and makes the certificates and
+  deployments for those not covered. The receiving side is in the engine;
+  docs/acme-push-protocol.md is the specification for the other projects.
+- HTTP-01 over SSH **behind NAT**: the guide never suggests a private address
+  (the public one, from a name it knows); "Public addresses (NAT, load
+  balancer)"; port 80 checked with the name; a name nginx does not answer said
+  as such; the name validated added to acme's own block.
+- Settings → DNS: **Public is built in** - always there, changed, never deleted.
+
 ## 1.0.5 - 2026-11-01
 
 - **HTTP-01 on web servers over SSH where nginx answers port 80 already**:
