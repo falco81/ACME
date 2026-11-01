@@ -20,7 +20,7 @@ def _settings_do(h):
     b = h.body()
     asked = b.get('settings') or {}
     moved = [k for k in asked if k in ('db_engine', 'db_host', 'db_port', 'db_name', 'db_user',
-                                         'db_password') and
+                                         'db_password', 'db_path') and
              not (k == 'db_password' and is_masked(asked[k])) and
              str(asked[k]) != str(CONFIG.get(k) if CONFIG.get(k) is not None else '')]
     ha = [k for k in asked if k in ('ha_mode', 'ha_slot', 'ha_peer', 'ha_peer_port', 'ha_address',
@@ -34,8 +34,8 @@ def _settings_do(h):
     if moved:
         # Saved here, the next restart opened a database nothing had been
         # carried into (1.0.37). The way to another one is the four steps.
-        raise ApiError(400, 'the database is changed on Settings - The database with its own '
-                            'steps: Try it, Set it up, Carry everything across, Start using it '
+        raise ApiError(400, 'the database is changed on Settings - The database - Move to '
+                            'another database…, which carries everything across first '
                             '(%s not saved)' % ', '.join(moved))
     try:
         # The other sign-ins ended when the second step is switched on: in

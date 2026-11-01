@@ -242,8 +242,9 @@ the other node in - it asks before restarting PostgreSQL.
 
 ## 4. Moving from SQLite to PostgreSQL
 
-Either on the pages - *Settings → The database*: *Try it → Set it up → Carry
-everything across → Start using it* - or on the command line as below. Both
+Either on the pages - *Settings → The database → Move to another database…*, a
+wizard ([the-database.md](the-database.md#moving-to-another-engine)) - or on the
+command line (`acme --db-move postgres`, or by hand as below). Both
 carry everything: settings, certificates and keys, accounts, jobs, logs, events.
 
 1. PostgreSQL ready as in [section 3](#3-postgresql-16-on-almalinux-9), and the

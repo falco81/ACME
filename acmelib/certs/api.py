@@ -1587,3 +1587,4 @@ from acmelib.certs import portal  # noqa: E402,F401
 
 # The SSH keys of the modules (fields of the type sshkey): their routes, and drafts kept on save.
 from acmelib.certs import api_sshkeys  # noqa: E402,F401
+from acmelib.certs import api_readiness  # noqa: E402,F401  (plan, check, dry run: before a certificate)

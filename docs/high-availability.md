@@ -57,8 +57,8 @@ from. In a cluster, the page header shows which node answered it.
 ## Building it - replicated (each node its own PostgreSQL)
 
 1. **On the first node, move the database to PostgreSQL** if it is not there
-   yet: *Settings → The database*, then *Try it → Set it up → Carry everything
-   across → Start using it*. It has to be PostgreSQL 16 or later on this
+   yet: *Settings → The database → Move to another database…* (or
+   `acme --db-move postgres`). It has to be PostgreSQL 16 or later on this
    machine.
 2. **On the first node**, as root:
 

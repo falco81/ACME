@@ -2,8 +2,10 @@
 
 The `acme` issuer (Sources → Add → *ACME (Let's Encrypt and others)*) orders
 certificates from any CA that speaks ACME (RFC 8555). Let's Encrypt is the
-default; ZeroSSL, Google Trust Services, Buypass, SSL.com and your own ACME
-server (step-ca, an internal CA, pebble) work the same way.
+default; ZeroSSL, Google Trust Services, Buypass, SSL.com, DigiCert, Sectigo,
+Actalis, Certum, HARICA, SwissSign and your own ACME server (step-ca, an
+internal CA, pebble) work the same way. Certificate sources that are not ACME
+(EST, CMP, Vault, EJBCA, cloud CAs, CA APIs) are in `sources.md`.
 
 This is about the certificates acme *manages*. The appliance's own web
 certificate has its own page (see `acme.md`).
@@ -35,7 +37,7 @@ the time to try again.
 
 | Field | |
 |---|---|
-| CA | Let's Encrypt, its staging, ZeroSSL, Google (and staging), Buypass, SSL.com RSA / ECC, DigiCert, or another ACME server by its directory URL |
+| CA | Let's Encrypt, its staging, ZeroSSL, Google (and staging), Buypass, SSL.com RSA / ECC, DigiCert, Actalis, Certum, Sectigo DV / OV, or another ACME server by its directory URL |
 | Contact e-mails | told to the CA with the account; changing them updates the account |
 | EAB key id / HMAC key | External Account Binding - see below |
 | Account key | ECDSA P-256 (default), P-384, RSA 2048/3072/4096. **Changing it makes a new account** |
@@ -55,8 +57,22 @@ the time to try again.
 | Buypass Go SSL | `https://api.buypass.com/acme/directory` | no |
 | SSL.com | `https://acme.ssl.com/sslcom-dv-rsa` / `-ecc` | yes - the account's API credentials page |
 | DigiCert (CertCentral, or as sold by SSLmarket) | `https://acme.digicert.com/v2/acme/directory/` (a regional URL where DigiCert / SSLmarket gives one: *Another ACME server*) | yes - CertCentral → Automation → ACME, or SSLmarket's customer administration (see `sslmarket.md`) |
-| Sectigo | choose *Another ACME server*; e.g. `https://acme.sectigo.com/v2/DV` (or OV/EV, or your Sectigo Certificate Manager URL) | yes - from Sectigo |
+| Sectigo DV / OV | `https://acme.sectigo.com/v2/DV`, `https://acme.sectigo.com/v2/OV` (presets *Sectigo DV / OV*; EV, or a Sectigo Certificate Manager account of your own: *Another ACME server* with its URL) | yes - from Sectigo (SCM: Enrollment → ACME) |
+| Actalis | `https://acme-api.actalis.com/acme/directory` | yes - Actalis customer area → Manage with ACME → ACME Credentials. The free plan gives single-name 90-day DV certificates (reported by users: no SAN, no wildcard) |
+| Certum | `https://acme.certum.pl/directory` | yes - the kid and HMAC from the Certum order's details (an ACME product bought at Certum) |
+| HARICA | *Another ACME server*: `https://acme-v02.harica.gr/acme/<account id>/directory` - the URL is different for every account | yes - with the URL, from HARICA's CertManager (ACME) |
+| SwissSign | *Another ACME server*: `https://acme.swisssign.ch/v1/<your ACME URL>/directory` - from the RA portal (ra.swisssign.ch → ACME → ACME Client URLs) | per SwissSign's set-up (RSA keys only, its guide says) |
 | step-ca (Smallstep) | `https://ca.example.local/acme/<provisioner>/directory`, with its root as *CA certificate* | only when the provisioner has `requireEAB` |
+
+Where the URLs are from (read 2026-11): Actalis - acme.sh's built-in list
+(`CA_ACTALIS`, github.com/acmesh-official/acme.sh) and HCL's Domino CertMgr
+list of ACME providers; Certum - Certum's own Certbot instructions
+(support.certum.eu); Sectigo - Sectigo's CaaS guides (docs.sectigo.com/caas,
+OV) and its Certbot connector pages; HARICA - university guides of HARICA's
+ACME (e.g. DFN, UNED); SwissSign - SwissSign's *Instructions Certbot ACME
+Client* (2024-10). GoGetSSL is not a preset: no ACME directory of its own could
+be confirmed. Let's Encrypt's profiles (`classic`, `tlsserver`, `shortlived`)
+are the *ACME profile* field.
 
 EAB: the HMAC key is given as base64url, exactly as the CA shows it. An EAB key
 id usually makes only one account - the account kept in acme's state is reused

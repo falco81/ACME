@@ -1647,8 +1647,8 @@ class Console(object):
                 '%s is changed by the cluster\'s own steps: Settings - High availability on '
                 'the pages, or acme --ha-setup / --ha-join / --ha-standalone.' % key)
                 if key.startswith('ha_') else (
-                '%s names the database: it is moved on the pages (Settings - The database: '
-                'Try it, Set it up, Carry everything across, Start using it). Only to point at '
+                '%s names the database: it is moved on the pages (Settings - The database - '
+                'Move to another database) or with acme --db-move ENGINE. Only to point at '
                 'the same data somewhere new (a moved server, a new password), on the command '
                 'line:  acme --set %s=%s --yes' % (key, key, '-' if key in SECRET_KEYS else '...')))
             return None
