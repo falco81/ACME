@@ -184,7 +184,9 @@
       showTls();
     }, [{words: 'Close', close: true},
         {words: 'Test', icon: 'play', go: function () {
-          testSet({name: f.name.value.trim(), draft: fields(f)});
+          /* Over the form: closing the test gives the form back as it was left. */
+          var draft = {name: f.name.value.trim(), draft: fields(f)};
+          modalOver(function () { testSet(draft); });
         }},
         {words: isNew ? 'Add it' : 'Save', cls: 'primary', icon: isNew ? 'add' : 'save', go: function (b) {
           var body = fields(f);
