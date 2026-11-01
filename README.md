@@ -32,7 +32,7 @@ The daemon itself is `acme --daemon` (systemd starts it). The pages are
 | | |
 |---|---|
 | issuers | ACME (RFC 8555; Let's Encrypt, ZeroSSL, step-ca, ...; EAB, profiles, ARI - RFC 9773), acme's own CAs (root and intermediate, CRLs, name constraints), self-signed, Microsoft AD CS, SCEP |
-| challenges | DNS-01: acme's own DNS server, RFC 2136, Cloudflare, Route 53, Azure, Google Cloud, Hetzner, OVH, DigitalOcean, PowerDNS, acme-dns, a script, by hand; HTTP-01: here (nginx → `acme.php`), or on another web server over SSH |
+| challenges | DNS-01: acme's own DNS server, RFC 2136, Cloudflare, Route 53, Azure, Google Cloud, Hetzner, OVH, DigitalOcean, PowerDNS, deSEC, Gandi, Linode, Vultr, Porkbun, Namecheap, GoDaddy, DNSimple, NS1, bunny.net, ClouDNS, INWX, TransIP, netcup, IONOS, Scaleway, Exoscale, Infoblox, Technitium, Hurricane Electric, WEDOS, Active24, Websupport, acme-dns, a script, by hand ([validation.md](docs/validation.md)); HTTP-01: here (nginx → `acme.php`), or on another web server over SSH |
 | targets | Linux and Windows over SSH, F5 BIG-IP, NetScaler, FortiGate, MikroTik, Palo Alto, pfSense, OPNsense, Proxmox, Synology, Kubernetes, HashiCorp Vault, a webhook, this machine |
 | your own | modules in `/etc/acme/plugins/{issuers,challenges,targets}/` - kept across upgrades ([docs/architecture.md](docs/architecture.md)) |
 | the platform | SQLite, MariaDB or PostgreSQL; secrets sealed; two nodes with a VIP address, one renewing at a time; backups (also to another machine); the firewall, the network and the time from the pages; Prometheus and SNMPv3; the console at root's login |

@@ -27,6 +27,29 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `hetzner` | Hetzner Console/Cloud API zones, or the old dns.hetzner.com | API token |
 | `digitalocean` | DigitalOcean Domains | personal access token |
 | `ovh` | OVHcloud API | application key/secret, consumer key on /domain/zone/* |
+| `desec` | [deSEC.io](https://desec.io) (dedyn.io names too); TTL raised to the domain's minimum (3600); waits 60 s more after both name servers have it (anycast) | an API token (a token policy limiting it to TXT at `_acme-challenge` is best) |
+| `gandi` | Gandi LiveDNS v5 | a personal access token ("Manage domain name technical configurations") or an older API key |
+| `linode` | Linode / Akamai Cloud Domains (API v4) | a personal access token, Domains Read/Write |
+| `vultr` | Vultr DNS (API v2) | an API key, acme's address under Access Control |
+| `porkbun` | Porkbun (API v3) | API key + secret, *API Access* on for each domain |
+| `namecheap` | Namecheap XML API - **setHosts rewrites every record of the domain** (read-modify-write, see below) | API user + key, acme's public IP whitelisted |
+| `godaddy` | GoDaddy Domains API v1 | API key + secret (production API only for qualifying accounts) |
+| `dnsimple` | DNSimple API v2 | an account access token (a user token: the account ID too) |
+| `ns1` | NS1 / IBM NS1 Connect | an API key with View and Manage zones |
+| `bunny` | bunny.net DNS | the account's API key |
+| `cloudns` | ClouDNS | an API user or sub-user (auth-id / sub-auth-id + password), acme's address allowed |
+| `inwx` | INWX JSON-RPC (DomRobot); two-factor accounts by their TOTP secret | user + password (+ 2FA secret) |
+| `transip` | TransIP API v6, the sign-in signed RSA-SHA512 by openssl | login + the key pair's private key |
+| `netcup` | netcup CCP DNS API | customer number, API key, API password |
+| `ionos` | IONOS Hosting DNS API | an API key (public prefix + secret) |
+| `scaleway` | Scaleway Domains and DNS (v2beta1) | an API secret key with DomainsDNS access |
+| `exoscale` | Exoscale DNS (API v2, EXO2-HMAC-SHA256 signed here) | API key + secret, a role with the DNS operations |
+| `infoblox` | Infoblox NIOS WAPI | an admin with API access and rights on the zones; the Grid Master's CA |
+| `technitium` | Technitium DNS Server HTTP API | an API token of a user with Modify on the zones |
+| `he_net` | dns.he.net dynamic TXT update - **one value per name**, record made by hand | a dynamic key per record |
+| `wedos` | WEDOS WAPI (JSON) | WAPI login + WAPI password, acme's IP allowed in WAPI |
+| `active24` | Active24 REST API v2 (Websupport-group signing) | API key + secret |
+| `websupport` | Websupport.sk / .cz REST API v1 (HMAC-SHA1 signed) | API key + secret |
 | `acme_dns` | an [acme-dns](https://github.com/joohoi/acme-dns) server | account(s); `_acme-challenge.NAME CNAME <fulldomain>` once |
 | `ssh_dns` | commands on the DNS server over SSH: `nsupdate -l`, `nsupdate -k`, PowerShell `Add-DnsServerResourceRecord` (Windows DNS via OpenSSH), or your own (edit a zone file + `rndc reload`) | an SSH account there (sudo optional) |
 | `script` | a program on this machine (`present`/`cleanup`, dehydrated- or lego-style), `ACME_*` variables | the program |
@@ -63,6 +86,240 @@ its own away again, so `example.com` and `*.example.com` (one TXT name, two
 values), or two renewals at once, do not take each other's records away.
 (acme-dns keeps only the newest two values per account: give a certificate
 with more names one account per name - the `accounts` field.)
+
+## DNS providers with an API
+
+What every one of them does the same way:
+
+* **The zone** is the one set (*Zone* / *Domain*), else the longest of the
+  zones the credentials may see that the name is in (`www.dev.example.com`
+  goes to `dev.example.com` when the account has both). netcup and
+  dns.he.net cannot list zones: netcup is asked name by name, dns.he.net
+  goes by the SOA.
+* **Several values at one name**: our value is added next to the ones there,
+  and cleanup removes only ours. Where the API keeps a whole RRset (deSEC,
+  Gandi, GoDaddy, NS1, Namecheap) it is read, changed and written back, one
+  change at a time on this node. Removing a value that is gone already is
+  not an error.
+* **Throttling**: a `429 Too Many Requests` is waited out as long as its
+  `Retry-After` says (at most 60 s, three times) and the job says so; then
+  it fails with "try again later".
+* **Test** signs in and lists the zones (or reads the zone set) - it never
+  changes a record.
+* **Seen**: as every DNS-01 module, by the zone's own name servers (above).
+
+Where acme knows an API less well than it would like, the module's own
+docstring (`acmelib/plugins/challenges/<kind>.py`) says which part, and so
+does this page.
+
+### deSEC (`desec`)
+
+desec.io → *Token management* → **+**. Best with a *token policy*: write
+access to type `TXT` at subname `_acme-challenge` (and the names below it)
+only, and the addresses acme calls from. A `dedyn.io` name is a domain of the
+account like any other. deSEC takes no TTL under the domain's *minimum TTL*
+(3600 s for most accounts): a lower one is raised. Its name servers are
+anycast: once both have the record acme waits *Wait after it is seen* (60 s)
+more, so the CA's other vantage points see it too. The API is
+`https://desec.io/api/v1/domains/{domain}/rrsets/` (`Authorization: Token`),
+the same acme uses for its own certificates (Settings → ACME → deSEC).
+
+```
+token: (the token)      zone: example.dedyn.io (or empty)
+```
+
+### Gandi (`gandi`)
+
+admin.gandi.net → *Organizations* → yours → *Sharing* → *Personal Access
+Tokens* → *Create a token*: the domains acme may change, permission **Manage
+domain name technical configurations**. An older API key works too (*Signs in
+with: an API key*). LiveDNS v5; TTL at least 300.
+
+### Linode (`linode`)
+
+cloud.linode.com → your name → *API Tokens* → *Create a Personal Access
+Token*: **Domains: Read/Write**, everything else *No Access*.
+
+### Vultr (`vultr`)
+
+my.vultr.com → *Account* → *API* → *Enable API*. Under *Access Control* add
+the address acme reaches the internet from - Vultr refuses the key from any
+other. Vultr keeps TXT values in quotes; acme sends them so.
+
+### Porkbun (`porkbun`)
+
+porkbun.com → *Account* → *API Access* → *Create API Key* (key `pk1_…`,
+secret `sk1_…`). Then for **each domain**: *Domain Management* → the domain →
+*Details* → *API Access* **on** - without it Porkbun says the domain is not
+opted in. TTL at least 600.
+
+### Namecheap (`namecheap`)
+
+*Profile* → *Tools* → *Business & Dev Tools* → *Namecheap API Access* → on
+(Namecheap grants it only to accounts that meet its terms), and **whitelist
+the public IPv4 address** acme calls from (the proxy's, through a proxy) - set
+the same address as *Client IP*. The domain has to use Namecheap's own DNS
+(*BasicDNS* / *PremiumDNS*).
+
+> **setHosts replaces ALL records of the domain.** Namecheap has no call that
+> adds or removes one record. acme reads every record (getHosts), adds or
+> removes its one TXT value and writes them all back with the domain's
+> *EmailType*, one change at a time on this node. A record someone changes by
+> hand in that same second can be lost, and a record getHosts does not show
+> would be dropped: look at a domain with unusual records once after the first
+> certificate. *Allow rewriting every record* (on) is that consent; off, acme
+> refuses to change the domain.
+
+### GoDaddy (`godaddy`)
+
+developer.godaddy.com → *API Keys* → *Create New API Key*, environment
+**Production** (OTE is GoDaddy's test copy, *Endpoint*). Since 2024 GoDaddy
+answers its production API only for accounts with enough domains (or a
+Discount Domain Club plan): others get `403 ACCESS_DENIED`. TTL at least 600.
+
+### DNSimple (`dnsimple`)
+
+dnsimple.com → the account → *Account* → *Access tokens* → *New access
+token* (an account token). A user token sees several accounts: set the
+*Account ID*.
+
+### NS1 (`ns1`)
+
+The NS1 portal → *Account settings* → *Users & teams* → *API keys* → *Add
+key*: DNS **View zones** and **Manage zones**, limited to the zones acme may
+change. NS1 makes a record with PUT and changes it with POST; acme does both.
+
+### bunny.net (`bunny`)
+
+dash.bunny.net → *Account settings* → *API key*. bunny.net has no key limited
+to DNS: this key can do everything in the account.
+
+### ClouDNS (`cloudns`)
+
+cloudns.net → *API & Resellers* → *API users*: a **sub-user** limited to the
+zones acme may change (sub-auth-id) is best, the main API user (auth-id)
+works. Allow the address acme calls from there. ClouDNS knows only some TTLs
+(60, 300, 900, 1800, 3600, …): another is raised to the next.
+
+### INWX (`inwx`)
+
+Best an extra user for acme (*Account* → *Account access*) with DNS rights and
+**no two-factor sign-in**. For an account with 2FA give its **two-factor
+secret** - the base32 key shown when 2FA was set up, not a 6-digit code - acme
+makes the code (TOTP) from it for each sign-in. `api.ote.domrobot.com` is
+INWX's test system. TTL at least 300.
+
+### TransIP (`transip`)
+
+Control panel → *Account* → *API* → *Key pairs* → *Generate*: the private key
+is shown once - paste it whole. Either switch *Accept only from whitelisted IP
+addresses* off (then leave *The key pair is not limited to whitelisted
+addresses* on), or whitelist acme's address. acme signs the sign-in
+(`POST /v6/auth`, header `Signature`) with that key by the openssl program
+(RSA-SHA512); the token it gets lives 30 minutes. TransIP knows the TTLs 60,
+300, 3600 and 86400.
+
+### netcup (`netcup`)
+
+Customer Control Panel → *Master Data* → *API*: create an **API key** and an
+**API password**; the customer number is your login number. netcup has no
+call that lists zones: without *Domain* acme asks `infoDnsZone` for the name
+and each name above it. netcup's name servers take a while (5-15 minutes is
+usual): leave the propagation check on.
+
+### IONOS (`ionos`)
+
+developer.hosting.ionos.com → *API keys* → *Create*: the **public prefix**
+and the **secret** (acme sends `prefix.secret` in `X-API-Key`). This is the
+Hosting DNS API for IONOS domains; IONOS Cloud (DCD) DNS is a different API.
+
+### Scaleway (`scaleway`)
+
+console.scaleway.com → *IAM* → an application with a policy giving
+**DomainsDNSFullAccess** (or the read and write DNS permission sets) on the
+project of the zone → *API keys* → *Generate*: the **secret key** is what
+acme needs. A zone that is a subdomain (`dev.example.com`) is found as such.
+
+### Exoscale (`exoscale`)
+
+portal.exoscale.com → *IAM* → *API keys* → *Add*, with a role allowing the DNS
+operations (`list-dns-domains`, `list-dns-domain-records`,
+`create-dns-domain-record`, `delete-dns-domain-record`). Every request is
+signed EXO2-HMAC-SHA256 here - the scheme of Exoscale's own SDKs (method and
+path, body, signed query values, headers, expiry, HMAC-SHA256, base64); acme
+signs no query arguments.
+
+### Infoblox (`infoblox`)
+
+An admin group with **API** access and read-write permission on the zones
+(or on TXT records in them), a user of its own for acme. *Grid Master* is its
+address (or the VIP), *WAPI version* what the grid speaks (`2.10` and later
+have everything acme uses). The Grid Master's certificate is usually made by
+the organisation's own CA: paste that CA under *CA of the Grid Master's
+certificate* rather than switching the check off. *DNS view* is `default`
+unless your grid uses views.
+
+### Technitium (`technitium`)
+
+The web console → your user → *Create API Token* (or *Administration* →
+*Sessions* → *Create Token*) for a user with **Modify** on the zones
+(*Administration* → *Permissions*). *Server address* is the console's,
+`http://HOST:5380` or `https://HOST:53443`.
+
+### Hurricane Electric (`he_net`)
+
+dns.he.net has no API besides its dynamic update, so:
+
+1. make the TXT record `_acme-challenge.NAME` by hand in dns.he.net (any
+   value), with **Enable entry for dynamic dns** ticked;
+2. generate its key (the arrows button beside the record) - **one key per
+   record**;
+3. put a line `_acme-challenge.NAME KEY` per record under *Records and their
+   keys* (a line with only a key is used for every name not listed).
+
+Its limits: the record holds **one value** - it is replaced, never added to.
+`example.com` and `*.example.com` in one certificate need two values at one
+name at once, which dns.he.net cannot hold: acme proves such names one after
+the other (the module is not parallel) and refuses a second value while the
+first is in use (it is tried again later). Cleanup cannot delete the record:
+it is set to *Value when idle* (`acme-idle`). *Test* cannot try a key without
+changing the record: it only checks, at HE's name servers, that each record
+listed is there.
+
+### WEDOS (`wedos`)
+
+Customer administration → *Customer* → **WAPI interface**: order WAPI (it is
+free), set a **WAPI password** (its own, not the account's), choose the
+**JSON** protocol, and **allow the IP address** acme calls from - WEDOS
+refuses every other. *Login* is the e-mail you sign in with. Each call is
+signed `sha1(login + sha1(WAPI password) + hour)`, the hour being the hour
+now in Europe/Prague: this machine's clock has to be right (NTP). After each
+change acme commits the domain (`dns-domain-commit`); WEDOS's name servers
+then take a few minutes. TTL at least 300.
+
+### Active24 (`active24`)
+
+The Active24 administration → your name → *Security and login* → *API
+access* → generate an access: the identifier is *API key*, the secret *API
+secret*. Requests are signed as Websupport signs them (below), against
+`https://rest.active24.cz` - records under `/v2/service/{id}/dns/record`.
+**Less certain**: Active24 moved its customers onto the Websupport platform
+in 2023-2024; the calls are written as its v2 documentation describes them,
+but the list of services (which id is which domain, `/v1/user/self/service`)
+is the part acme is least sure of - when the domain is not found, set its
+*Service ID* (the number in the address of the domain's page in the
+administration) and the list is not asked.
+
+### Websupport (`websupport`)
+
+admin.websupport.sk (or .cz) → your name → *Security and login* → *API
+access* → *Generate new access*. Every request is signed: HMAC-SHA1 with the
+secret over `METHOD PATH UNIXTIME` (the path without its query), hex, sent as
+basic authentication `KEY:SIGNATURE` with a `Date` header of that time
+(`YYYYmmddTHHMMSSZ`) - this machine's clock has to be right. acme uses REST
+API v1 (`/v1/user/self/zone/{domain}/record`); Websupport has a v2 beside it
+(the one Active24 uses), and *API address* can be pointed elsewhere should
+v1 go away.
 
 ## HTTP-01 on web servers over SSH (`http_ssh`)
 
