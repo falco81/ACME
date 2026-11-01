@@ -4,6 +4,30 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.5 - 2026-11-01
+
+- **HTTP-01 on web servers over SSH where nginx answers port 80 already**:
+  "Prepare the hosts" puts one line, `include
+  /etc/nginx/snippets/acme-challenge.conf;`, at the top of each port-80 server
+  block - nothing else in them changes (a certbot redirect to HTTPS goes on as
+  before). Every file is checked unchanged since it was read, copied to
+  /var/backups/acme-nginx/, and put back when nginx -t fails. With names
+  given and no block answering them, acme's own block listens for those
+  names only (not the default server). "I put it in myself": "Download the
+  nginx config" gives the file and the line, and Prepare only checks.
+- "Set nginx up by itself" (before Test and every validation) and "Open port
+  80 in their firewall" (firewalld, ufw); a port 80 closed by the firewall is
+  said as such ("No route to host" while SSH works).
+- The check before the CA is asked can be made **at other addresses** - a load
+  balancer, the public IP, NAT; https:// too - with the certificate's name as
+  Host and SNI; "Name for Test".
+- **Try reaching it fills in the host keys** of the form (every form with an SSH
+  key); a different key pinned already is shown with a warning and "Replace
+  with the key seen", never replaced by itself. Kept by Save.
+- Settings → DNS: a function's set waits for Save on the bar (Put back undoes
+  it); Test of a set opens over its form and gives the form back as it was.
+- High security: a refused exception switch turns back instead of an error.
+
 ## 1.0.4 - 2026-11-01
 
 - **Renewal by itself switched on and off** from the list of certificates and
