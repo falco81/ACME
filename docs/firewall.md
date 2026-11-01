@@ -3,7 +3,8 @@
 Settings → **Firewall and access** looks after two things, on every node of
 the cluster at once:
 
-1. **Who may reach which pages.** The enrolment pages (`/`), the
+1. **Who may reach which pages.** The enrolment pages (`/`, the certificate
+   portal), the
    administration (`/admin/`) and the health check (`/healthz`) all answer
    on ports 80 and 443, so a firewall cannot tell them apart. nginx does: each
    of the three has an allow list in `/etc/nginx/conf.d/acme.conf`, between
@@ -49,14 +50,19 @@ and nothing else.
 | SSH | both | tcp 22 from anywhere | yes - keep a rule of your own if you do |
 | ICMP / ICMPv6 | both | ping; IPv6 needs ICMPv6 for neighbour discovery | yes |
 | DHCPv6 client | 6 | udp 546 from fe80::/10 | yes |
-| HTTP / HTTPS | both | tcp 80,443 - from everybody when one of the three page lists is for everybody, else from the networks of the three lists | yes |
-| RADIUS | as the client | udp 1812 (and 1813 for accounting) from each enabled RADIUS client, only from them | yes |
+| HTTP / HTTPS | both | tcp 80,443 - from everybody when one of the three page lists is for everybody, else from the networks of the three lists; tcp 80 from everybody anyway while the pages' own certificate is renewed over HTTP-01 (the CA asks from the internet) | yes |
+| NTP (time served) | as the network | udp 123 from the networks under *Settings → Time → Serve the time to* | yes |
 | SNMPv3 | as the network | udp 161 (the port set) from the networks under *Settings → Monitoring → Only from*, from everywhere when none is set - only while SNMPv3 is on | yes |
 | The other node | as the node | everything from the other node (replication, its pages, the health check, its answers) | no |
 | VRRP | as the node | IP protocol 112 from the other node, while the VIP address is on | no |
 
-They follow what is set up: a client added, the cluster made, the VIP address
-turned on - and the rules change within a few seconds.
+They follow what is set up: the cluster made, the VIP address turned on,
+SNMPv3 or the time served switched on - and the rules change within a few
+seconds.
+
+acme's own DNS server (for DNS-01) is not opened by itself: add a rule of
+your own for udp and tcp 53 from where the CA's questions come (from
+anywhere, usually) - [dns-server.md](dns-server.md).
 
 ### Rules of your own
 
@@ -80,7 +86,7 @@ page. What firewalld must let in is in [tls-and-vip.md](tls-and-vip.md).
 ## Doing it by hand instead
 
 The same as acme does, on each node (here acme1 = 192.168.42.32, acme2 =
-192.168.42.33, a RADIUS client 10.1.2.3):
+192.168.42.33, acme's own DNS server answering everybody):
 
 ```
 iptables -N ACME-IN
@@ -88,7 +94,8 @@ iptables -I INPUT 1 -j ACME-IN
 iptables -A ACME-IN -i lo -j ACCEPT
 iptables -A ACME-IN -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A ACME-IN -p tcp -m multiport --dports 80,443 -j ACCEPT
-iptables -A ACME-IN -s 10.1.2.3 -p udp -m multiport --dports 1812,1813 -j ACCEPT
+iptables -A ACME-IN -p udp --dport 53 -j ACCEPT
+iptables -A ACME-IN -p tcp --dport 53 -j ACCEPT
 iptables -A ACME-IN -s 192.168.42.33 -j ACCEPT
 iptables -A ACME-IN -s 192.168.42.33 -p vrrp -j ACCEPT
 service iptables save
@@ -109,4 +116,4 @@ acme --web-status                  # what root did last, node by node
 
 A change of the firewall or of who may reach the pages goes back by itself
 unless kept within `fw_confirm_min` minutes (5): the banner on every page, or
-`acme --change-keep fw`. See [sign-in-protection.md](sign-in-protection.md).
+`acme --change-keep fw`. See [changes-that-go-back.md](changes-that-go-back.md).

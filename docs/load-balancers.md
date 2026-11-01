@@ -1,12 +1,18 @@
 # Load balancers in front of a cluster
 
-Two acme nodes both answer everything - the pages, the administration and
-RADIUS - so any load balancer can spread the traffic over both, round robin,
+Two acme nodes both answer the pages - the enrolment pages (the certificate
+portal), the administration and the API - so any load balancer can spread
+them over both, round robin,
 **without sticky sessions** (a sign-in and everything half done is in the
 database). Instead of a load balancer of your own, the pages can also use the
 built-in VIP address (VIP, active/standby): [tls-and-vip.md](tls-and-vip.md).
 Use one or the other for the pages; with the VIP address off, a load
 balancer works exactly as described here.
+
+The renewals and deployments are not the balancer's business: one node at a
+time does them (the one that leads - [high-availability.md](high-availability.md)),
+whichever node the pages are asked of. acme's own DNS server, for DNS-01,
+answers on each node by itself ([dns-server.md](dns-server.md)).
 
 In the examples: the nodes `acme1` 192.0.2.11 and `acme2` 192.0.2.12, the
 balancer 192.0.2.5, the name `acme.example.cz`.
@@ -21,12 +27,12 @@ never cached, and checks the whole path a real request takes:
 | URL | 200 means | 503 when |
 |---|---|---|
 | `/healthz` | nginx → PHP-FPM → the acme daemon → the database all answer; the node is not in maintenance | anything on that path is down; the database does not open; the node is in maintenance or being upgraded |
-| `/healthz?check=radius` | the same, **and RADIUS is listening** | the above, or the RADIUS server is not bound |
 | `/healthz?check=all` | the same, and replication runs both ways | the above, or `degraded: replication not running / lost` - for **monitoring** only, not for a balancer (a node cannot fix its peer's replication, and both would be taken out) |
 
 The body says why, on one line: `ok acme1`, `maintenance acme1`,
 `down: the daemon is not answering`, `down: the database does not open`,
-`down: RADIUS is not listening on acme1`. Match on the status code, or on the
+`down: the pages cannot read the daemon's API token`. Anything else after
+`?check=` is the same as `/healthz`. Match on the status code, or on the
 body starting with `ok `.
 
 Recommended: check every 2-5 s, take a node out after 2-3 failures, back in
@@ -111,12 +117,6 @@ backend acme_nodes
 and the PROXY-protocol lines in nginx on both nodes (above). The health
 check must send the PROXY header too (`check-send-proxy`), or nginx refuses it.
 
-### RADIUS through HAProxy
-
-The open-source HAProxy does not balance UDP. Give the VPN both nodes
-instead ([Cisco ASA](#cisco-asa--radius-without-a-balancer)), or use
-keepalived/LVS, nginx `stream`, F5 or NetScaler below.
-
 ---
 
 ## nginx as the balancer
@@ -158,22 +158,6 @@ server {
   match acme_ok { status 200; body ~ "^ok "; }
   location / { proxy_pass https://acme_nodes; health_check uri=/healthz interval=3 fails=2 passes=2 match=acme_ok; ... }
   ```
-
-- RADIUS with nginx `stream` (UDP, passive checks only in open source):
-
-  ```nginx
-  stream {
-      upstream acme_radius      { server 192.0.2.11:1812 max_fails=2 fail_timeout=10s; server 192.0.2.12:1812 max_fails=2 fail_timeout=10s; }
-      upstream acme_accounting  { server 192.0.2.11:1813; server 192.0.2.12:1813; }
-      server { listen 1812 udp; proxy_pass acme_radius;     proxy_responses 1; proxy_timeout 10s; }
-      server { listen 1813 udp; proxy_pass acme_accounting; proxy_responses 1; proxy_timeout 10s; }
-  }
-  ```
-
-  The nodes then see the balancer's address as the RADIUS client: add the
-  balancer as the client in acme (its address and the shared secret), or use
-  `proxy_bind $remote_addr transparent;` (needs routing set up for it).
-  Giving the VPN both nodes directly is simpler.
 
 On both nodes: `acme --trusted-proxy 192.0.2.5/32`.
 
@@ -242,14 +226,6 @@ server SSL profile towards the nodes, HTTP profile with *Insert
 X-Forwarded-For* enabled; then `acme --trusted-proxy <self IPs>`), or
 performance L4 with the PROXY protocol (iRule) as above.
 
-**RADIUS**: a UDP virtual server on 1812 and 1813, members on both nodes,
-monitored with an HTTPS monitor like the one above but
-`GET /healthz?check=radius` - it says whether RADIUS is listening, without
-needing a test account. (F5's own RADIUS monitor works as well, with a test
-account and its code - impractical with one-time codes.) Use
-`source-address-translation none` so the nodes see the concentrators'
-addresses, or add the F5's self IPs as RADIUS clients in acme.
-
 ---
 
 ## Citrix ADC / NetScaler
@@ -265,77 +241,10 @@ bind serviceGroup acme_https -monitorName acme_healthz
 add lb vserver acme_vs SSL 192.0.2.5 443 -lbMethod ROUNDROBIN -persistenceType NONE
 bind lb vserver acme_vs acme_https
 bind ssl vserver acme_vs -certkeyName acme.example.cz
-
-add lb monitor acme_radius_health HTTP-ECV -send "GET /healthz?check=radius" -recv "ok " -secure YES -destPort 443 -interval 3
-add serviceGroup acme_radius RADIUS -usip YES
-bind serviceGroup acme_radius acme1 1812
-bind serviceGroup acme_radius acme2 1812
-bind serviceGroup acme_radius -monitorName acme_radius_health
-add lb vserver acme_radius_vs RADIUS 192.0.2.5 1812 -lbMethod ROUNDROBIN
-bind lb vserver acme_radius_vs acme_radius
 ```
 
-`-usip YES` keeps the concentrators' addresses (otherwise add the SNIP as a
-RADIUS client in acme). On both nodes: `acme --trusted-proxy <SNIP>/32`.
-
----
-
-## keepalived + LVS (IPVS) - balancing RADIUS on Linux
-
-A pair of Linux machines (not the acme nodes) can balance UDP RADIUS with the
-kernel's IPVS, checked by asking each node's `/healthz?check=radius`:
-
-```
-virtual_server 192.0.2.5 1812 {
-    delay_loop 3
-    lb_algo rr
-    lb_kind NAT
-    protocol UDP
-    real_server 192.0.2.11 1812 {
-        HTTP_GET {
-            url { path /healthz?check=radius status_code 200 }
-            connect_port 443
-            connect_timeout 3
-            retry 2
-        }
-    }
-    real_server 192.0.2.12 1812 { HTTP_GET { url { path /healthz?check=radius status_code 200 } connect_port 443 connect_timeout 3 retry 2 } }
-}
-```
-
-(Use `SSL_GET` instead of `HTTP_GET` for HTTPS; the same for 1813.) With
-`lb_kind NAT` the nodes see the concentrators' addresses; their default
-route must go back through the balancer.
-
----
-
-## Cisco ASA: RADIUS without a balancer
-
-The simplest for RADIUS is no balancer at all: both nodes in one server
-group. The ASA asks the first; when it does not answer, the next.
-
-```
-aaa-server ACME protocol radius
- max-failed-attempts 2
- reactivation-mode timed
- dead-time 1
-aaa-server ACME (inside) host 192.0.2.11
- key <the shared secret>
- authentication-port 1812
- accounting-port 1813
- timeout 5
-aaa-server ACME (inside) host 192.0.2.12
- key <the shared secret>
- authentication-port 1812
- accounting-port 1813
- timeout 5
-```
-
-A node in maintenance does not answer RADIUS at all, so the ASA goes to the
-other one after `timeout`. Add the ASA once as a client in acme - both nodes
-use it. Other VPNs (FortiGate, Palo Alto, strongSwan, Windows NPS as a
-proxy) have the same: two RADIUS servers, the second used when the first
-does not answer.
+`-cip ENABLED X-Forwarded-For` sends the client's address on. On both nodes:
+`acme --trusted-proxy <SNIP>/32`.
 
 ---
 

@@ -2,7 +2,8 @@
 
 *Settings → The database → Encryption to the database server*, for a full
 administrator: the daemon's own connection to its database - on every node -
-encrypted and checked, on the running installation. RADIUS answers all the time.
+encrypted and checked, on the running installation. Renewals and deployments go on all
+the time.
 
 ## What it does, by where the database is
 
@@ -39,15 +40,15 @@ certificates out of the PostgreSQLs (`ALTER SYSTEM RESET`, ssl as
   it ends, and made again when the machine's names or addresses change (a new
   address, a node renamed). The connections go on: PostgreSQL takes the new
   certificate with a reload (`pg_reload_conf()`), never a restart - the
-  connections open keep going, new ones get the new certificate, RADIUS does not
-  notice. In a cluster whose link between the databases has its TLS on, the
+  connections open keep going, new ones get the new certificate, nothing
+  notices. In a cluster whose link between the databases has its TLS on, the
   certificate is the link's and is renewed with it (45 days before it ends, the
   cluster's authority two years before), the same way. A database server
   elsewhere (*remote*) renews its certificate as its administrator does it -
   acme only checks it.
 - A connection on the same machine that stops working because of its TLS - the
   certificate gone, PostgreSQL set up again, `ssl` switched off by hand - is moved
-  back to no TLS within seconds, said in the events and on the card, so RADIUS
+  back to no TLS within seconds, said in the events and on the card, so the daemon
   goes on. It never leaves the machine. Under high security (`db:tls` not an
   exception) it is not moved back, only said.
 - In a cluster, the link's TLS (*High availability → Switch TLS off*) cannot be

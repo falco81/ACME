@@ -43,7 +43,7 @@ checked here, not changed.
 | The nodes take each other too | in a cluster, each node is one more source for the other (`server OTHER iburst`, `allow OTHER`). With the servers out of reach the two still keep one time, which is what codes need. |
 | Step when off by more than / in the first updates | chrony's `makestep` - further off than this, the clock jumps instead of being slewed; 3 updates is after a boot, -1 is any time |
 | Sources that have to agree | `minsources` |
-| Serve the time to | networks that may ask these nodes for the time (`allow`, UDP 123) - VPN concentrators, say. The firewall (Firewall and access) opens it by itself as *NTP (time served)*. |
+| Serve the time to | networks that may ask these nodes for the time (`allow`, UDP 123) - routers or targets, say. The firewall (Firewall and access) opens it by itself as *NTP (time served)*. |
 | Time zone | `timedatectl set-timezone`, on every node. The logs and the times on the pages use it; codes do not depend on it. |
 
 How it is written: in `/etc/chrony.conf`, the file's own `server`, `pool`,

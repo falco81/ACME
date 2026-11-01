@@ -23,5 +23,5 @@ A file is:
 Change only `text`, never `source`; an empty `text` shows the English.
 `{0:one|two-four|five+}` picks the Czech plural by the number in `{0}`.
 A new language is a new file with its own `code`; it appears in the menus
-by itself. Data — names, addresses, codes, the totpcgi messages isemon
+by itself. Data — names, addresses, codes, the lines isemon
 reads — is never translated.

@@ -10,7 +10,7 @@ For each node (a tab per node in a cluster):
 
 - **As it is now** - the host name, the NetworkManager connection, the IPv4
   address with its prefix, the gateway, the DNS servers, the search domains,
-  IPv6, and what RADIUS listens on. *Read it again* asks the node at once (each
+  IPv6, and the address SNMP listens on (`snmp_bind`). *Read it again* asks the node at once (each
   node also says it by itself every five minutes).
 - **New settings** - the host name (FQDN), IPv4 (address/prefix, gateway, DNS,
   search domains) and IPv6. *Check it* lists what will happen. *Change it and
@@ -28,7 +28,7 @@ page says so and the network is set by hand.
    (the same as *The addresses of the two nodes* on High availability,
    docs/renaming-and-readdressing.md). It then waits for this node there.
 3. **This node's own settings** that named the old address or host name change
-   with it: `ha_address`, RADIUS's address (`radius_bind`), the mail greeting
+   with it: `ha_address`, SNMP's address (`snmp_bind`), the mail greeting
    (`mail_helo`), the isemon name, `db_host`.
 4. **Its own certificate** (Certificates and TLS), where it was made here, is
    made again with the new address and name in it. A certificate from an
@@ -66,8 +66,8 @@ address's network is refused unless you tick that it is meant to be so.
 Switched on for a node, by hand (address/prefix, gateway, DNS) or automatically
 (SLAAC/DHCPv6):
 
-- RADIUS listens on `::`, which is IPv4 and IPv6 together. Where the machine
-  has no IPv6 after all, it falls back to IPv4 and says so in the log.
+- acme's own DNS server listens on IPv4 and IPv6 alike (`dns_listen`,
+  `0.0.0.0,::` by default - [dns-server.md](dns-server.md)).
 - nginx answers on IPv6 too (`listen [::]:…` is in acme.conf).
 - The firewall (Firewall and access) covers IPv4 and IPv6 alike.
 - The VIP address takes an IPv6 address of its own under *High availability →
@@ -83,7 +83,7 @@ version) with **Restart** and **Power off**. In a cluster:
 
 | | |
 |---|---|
-| **Restart one after the other** | the other node first, then this one. Each goes into maintenance (the VIP address moves away), restarts, and comes back into service before the next starts. RADIUS and the pages never stop. |
+| **Restart one after the other** | the other node first, then this one. Each goes into maintenance (the VIP address moves away), restarts, and comes back into service before the next starts. The pages, the DNS server and the renewals never stop. |
 | **Restart both at once** | both at the same moment: a minute or two with nothing answering. |
 | **Power off both** | both switched off; someone switches them on at the machines. |
 
@@ -106,7 +106,7 @@ A new network is put in on trial: unless somebody presses *Keep it* (the
 banner on every page, or `acme --change-keep net --node NODE`) within
 `net_confirm_min` minutes (10), the node goes back to its old network by itself
 - also at once when it comes up without its new address. See
-[sign-in-protection.md](sign-in-protection.md).
+[changes-that-go-back.md](changes-that-go-back.md).
 
 ### What going back puts back (1.0.140)
 
@@ -117,7 +117,7 @@ exactly that back - not the old values worked out again:
   NetworkManager profile (every address, route, MTU, DHCP or set by hand -
   a network from DHCP can go back too), the host name, `/etc/hosts` and the
   IPv6 switch (in `/var/lib/acme-net`, root's alone), and loads them back.
-- **This node's settings and certificate**: `radius_bind`, `mail_helo`,
+- **This node's settings and certificate**: `snmp_bind`, `mail_helo`,
   `isemon_hostname`, `db_host`, `ha_address` and the pages' own certificate as
   they were.
 - **The other node**: told the old address again - its `pg_hba.conf` lets the

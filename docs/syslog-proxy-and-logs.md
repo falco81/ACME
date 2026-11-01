@@ -1,7 +1,7 @@
 # Syslog and SIEM, the proxy, the disks and the logs (1.0.166)
 
 All three are in *Settings*, for a full administrator, and the same for every
-node of a cluster. None of them is on the way of a sign-in.
+node of a cluster. None of them is on the way of a renewal or a sign-in.
 
 ## Syslog and SIEM
 
@@ -9,10 +9,9 @@ node of a cluster. None of them is on the way of a sign-in.
 happen:
 
 - every event of the Events page (`siem_events`), and
-- every RADIUS Access-Request with its result (`siem_signins`): the user, the
-  realm, the client, the NAS and source address, Calling-Station-Id, the
-  device, let in / refused / asked for a code, the reason, how long it took.
-  The password and the code typed are never sent.
+- every sign-in to the administration and the enrolment pages (the
+  certificate portal) with its result (`siem_signins`): who, from where, let
+  in or refused and why. The password and the code typed are never sent.
 
 Where to: up to 8 servers, `tls://siem.example.cz:6514`, `tcp://host:514` or
 `udp://host:514`. TCP and TLS use octet counting (RFC 5425 / 6587); TLS checks
@@ -23,7 +22,7 @@ The message, after an RFC 5424 header (`<PRI>1 time host acme pid type`):
 
 | `siem_format` | what follows the header |
 |---|---|
-| `json` | one JSON object: `type`, `event` (`signin-accept`, `signin-reject`, `event`...), `user`, `client`, `result`, `reason`, `message`, `node`... |
+| `json` | one JSON object: `type`, `event` (`signin-ok`, `signin-refused`, `event`, `test`), `kind`, `level`, `who`, `message`, `node`... |
 | `cef` | `CEF:0|acme|acme|VERSION|event|text|severity|key=value ...` |
 | `rfc5424` | structured data `[acme@32473 key="value" ...]` and the text |
 

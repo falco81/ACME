@@ -1,39 +1,27 @@
 # Sending acme's logs to isemon
 
-isemon already reads a token server: a totpcgi server and the FreeRADIUS in
-front of it, whose lines arrive over syslog into `/var/log/remote/<host>/`.
-acme writes exactly those lines, so isemon needs no new code — only the rule
-that files them, and its ACME settings switched on.
+isemon receives what happens to the certificates over syslog, into
+`/var/log/remote/<host>/`. acme sends it as it happens; on the isemon side
+only a rule that files the lines is needed.
 
 ## What acme sends
 
-Every check of a code, as the token server's own line (facility `auth`,
-program `totp.cgi`):
+What happens to the certificates - an order, a renewal, a deployment, a
+failure, one running out - one event a line, program `acme-certs` (facility
+`daemon`), key=value fields:
 
 ```
-<37>Oct 22 16:33:01 acme totp.cgi[4711]: Failure: user=falco@dpmo.cz, mode=PAM_SM_AUTH, host=127.0.0.1, rid=192.9.212.1:23, message=Not a valid token
-<37>Oct 22 16:34:12 acme totp.cgi[4711]: Success: user=falco@dpmo.cz, mode=PAM_SM_AUTH, host=127.0.0.1, rid=192.9.212.1:24, message=Valid token used
+<29>Oct 22 15:31:02 acme1 acme-certs[812]: level=warn kind=certificates node=acme1 who="acme" msg="www.example.cz: the renewal failed - ..."
 ```
 
-The messages are totpcgi's own, word for word: `Valid token used`, `Valid
-token within window size used`, `Scratch-token used`, `Not a valid token`,
-`Token has already been used once`, `Rate-limit reached, please try again
-later`, `No token is enrolled for this account`.
+A value with a space or a quote in it is in quotes, its quotes and
+backslashes escaped; a line never breaks.
 
-Every RADIUS packet behind it, as a `radius-detail` line (facility `local5`) —
-the request, the answer and accounting, with `Totp-Request-Id` tying the
-packet to the check of the code (`rid=` above), the way the detail
-forwarding in isemon's `docs/acme-radius-detail/` does it:
+Optionally every other event of acme (a setting changed, a sign-in, a node
+gone), the same way as program `acme` - with `isemon_events` on.
 
-```
-<173>Oct 22 16:33:01 acme radius-detail[4711]: nas=192.9.212.1 id=… file=auth-detail-20261022 ts=[Thu Oct 22 16:33:01 2026] Packet-Type = Access-Request, User-Name = "falco", Calling-Station-Id = "203.0.113.7", …, Totp-Request-Id = "192.9.212.1:23"
-```
-
-Optionally its own events (a token made, a setting changed), program `acme`.
-isemon does not read those.
-
-The very same lines are written to `/var/log/acme/totp.cgi.log` and
-`/var/log/acme/radius-detail.log` whether or not they are sent.
+The very same `acme-certs` lines are written to
+`/var/log/acme/acme-certs.log` whether or not they are sent (`ship_files`).
 
 ## On the acme server
 
@@ -42,32 +30,34 @@ Settings → isemon, or:
 ```bash
 acme --set isemon=1 \
     --set isemon_targets=isemon.example.local:514/tcp \
-    --set isemon_hostname=acme \
-    --set isemon_detail=1
+    --set isemon_hostname=acme
 acme --isemon-test
 ```
 
-- `isemon_targets` — `host`, `host:port`, `/udp` or `/tcp` after it; several,
-  separated by commas. TCP is the better choice: a detail line is long and
-  UDP loses lines when the network does.
+- `isemon_targets` — `host`, `host:port`, `/udp`, `/tcp` or `/tls` after it;
+  several, separated by commas. TCP is the better choice: UDP loses lines
+  when the network does.
 - `isemon_hostname` — the host name on every line, which is the folder isemon
-  files them under. isemon reads `/var/log/remote/acme` and
-  `/var/log/remote/acmesec` by default, so `acme` (and `acmesec` for a second
-  server) need nothing changed there.
+  files them under. isemon reads `/var/log/remote/acme` by default, so `acme`
+  needs nothing changed there. Empty: the machine's own short name.
+- `isemon_events` — every other event of acme as well, as `acme` lines.
 - `isemon_max_bytes` — a longer line is cut with `...TRUNCATED`.
 
 ## On the isemon server
 
-1. Copy `deploy/isemon/11-acme.conf` from this package to `/etc/rsyslog.d/`.
-2. For UDP, raise the message size: `$MaxMessageSize 8192` as the very first
-   line of `/etc/rsyslog.conf`. Over TCP, open 514/tcp and load `imtcp` if it
-   is not loaded.
+1. A rule in `/etc/rsyslog.d/` that files the programs `acme-certs` (and
+   `acme`, if you send those) into the folder named after the host, as the
+   file named after the program -
+   `/var/log/remote/%HOSTNAME%/%PROGRAMNAME%.log`, readable by the group
+   `isemon`. `deploy/isemon/11-acme.conf` in this package is the template.
+2. Over TCP, open 514/tcp and load `imtcp` if it is not loaded. Over UDP, a
+   line longer than 2048 bytes needs `$MaxMessageSize` raised as the very
+   first line of `/etc/rsyslog.conf`.
 3. `rsyslogd -N1 && systemctl restart rsyslog`
-4. isemon → Settings → *The ACME logs*: switched on, the folder `acme` in its
-   paths, and *RADIUS detail* switched on.
 
 Then `acme --isemon-test` on the acme server, and
-`tail /var/log/remote/acme/totp.cgi.log` on the isemon server.
+`tail /var/log/remote/acme/acme-certs.log` on the isemon server after the
+next renewal or deployment (the test line is an `acme` line).
 
 ## When nothing arrives
 

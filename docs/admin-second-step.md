@@ -3,8 +3,7 @@
 *Settings → Accounts → A second step when signing in to these pages*
 (`admin_2fa`, off by default). On, every account of the administration - a
 local one or one from the directory - gives a code after its password. It is
-the account's own, set up for these pages, and has nothing to do with the
-person's VPN token.
+the account's own, set up for these pages.
 
 ## The ways
 
@@ -38,7 +37,7 @@ its second step goes straight in.
 
 ## Its messages
 
-The codes it sends have words of their own, not the VPN's - four messages in
+The codes it sends have words of their own - four messages in
 *Settings → Message texts*, edited like the others:
 
 - *The administration: a sign-in code by mail* / *…by SMS* - each sign-in;

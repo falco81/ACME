@@ -1,8 +1,8 @@
 # isemon over TLS (1.0.172)
 
-acme sends isemon its `totp.cgi` and `radius-detail` lines over syslog. Plain
-UDP/TCP goes over the network readable by anyone on the way: who signs in, when,
-from where, from which device. Over TLS (RFC 5425, port 6514/tcp) it is
+acme sends isemon its `acme-certs` lines (and, with `isemon_events`, its other
+events) over syslog. Plain UDP/TCP goes over the network readable by anyone on
+the way: which certificates, for which names, on which targets, what failed. Over TLS (RFC 5425, port 6514/tcp) it is
 encrypted, and acme checks that it is isemon that answers; with **mutual TLS**
 isemon checks too that it is one of acme's nodes that sends.
 
@@ -82,7 +82,7 @@ input(type="imtcp" port="6514" name="acme-tls"
   checks nobody, acme still checks isemon.
 - **The rule that files the lines** - `11-acme.conf` from `deploy/isemon/` - stays
   as it is: lines that arrive over TLS are filed the same way, into
-  `/var/log/remote/<host>/totp.cgi.log` and `radius-detail.log`.
+  `/var/log/remote/<host>/acme-certs.log`.
 - **SELinux** - 6514/tcp is `syslog_tls_port_t`, which rsyslog may listen on;
   nothing to change. `restorecon` above labels the key and certificates.
 - **rsyslog older than 8.2106** (RHEL/AlmaLinux 8): the stream driver settings
