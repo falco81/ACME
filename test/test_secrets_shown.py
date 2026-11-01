@@ -378,6 +378,55 @@ class SecretsShown(unittest.TestCase):
             self.assertNoClear(json.dumps(self.ok('GET', path, args={'per': '500'})), path)
         self.assertNoClear(self.cli_ok('--events', '--limit', '500').stdout, 'acme --events')
 
+    def test_09_the_pages(self):
+        """In Chromium (Playwright): the kept secret shown as dots and its last two,
+        typing shows dots only. The pages from a copy of web/ whose acme-api.php
+        asks this daemon (its run folder, not /run/acme)."""
+        node = shutil.which('node')
+        if not node or not shutil.which('php'):
+            self.skipTest('no node or php here')
+        probe = subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                               cwd=ROOT)
+        if probe.returncode != 0:
+            self.skipTest('no playwright for node here')
+        web = os.path.join(self.tmp, 'web')
+        shutil.copytree(os.path.join(ROOT, 'web'), web)
+        api_php = os.path.join(web, 'acme-api.php')
+        with open(api_php, encoding='utf-8') as f:
+            text = f.read()
+        with open(api_php, 'w', encoding='utf-8') as f:
+            f.write(text.replace('/run/acme/', os.path.join(self.tmp, 'run') + '/'))
+        port = TCC.free_port()
+        php = subprocess.Popen(['php', '-S', '127.0.0.1:%d' % port], cwd=web,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            end = time.time() + 20
+            while time.time() < end:
+                try:
+                    urllib.request.urlopen('http://127.0.0.1:%d/admin/index.php' % port, timeout=2)
+                    break
+                except OSError:
+                    time.sleep(0.3)
+            got = subprocess.run([node, os.path.join(HERE, 'secrets_shown_page.js'),
+                                  'http://127.0.0.1:%d' % port, 'tester', self.pw],
+                                 capture_output=True, text=True, timeout=180, cwd=ROOT)
+            self.assertEqual(got.returncode, 0, got.stderr[-2000:])
+            seen = json.loads(got.stdout.strip().splitlines()[-1])
+        finally:
+            php.terminate()
+            php.wait(10)
+        self.assertNotIn('error', seen, seen.get('error'))
+        self.assertEqual(seen['signin_type'], 'password')
+        self.assertEqual(seen['targets']['kept'], DOTS + OTHERS['target'][-2:])
+        self.assertEqual(seen['sources']['kept'], DOTS + OTHERS['eab'][-2:])
+        self.assertEqual(seen['validation']['kept'], SSH_KEY_SHOWN)
+        self.assertEqual(seen['targets']['typing'], '\u2022' * len('NewSecretTyped'))
+        self.assertEqual(seen['targets']['real'], 'NewSecretTyped')
+        for key in ('targets', 'sources', 'validation'):
+            self.assertNoClear(seen[key]['html'], 'the form of %s' % key)
+            self.assertNoClear(seen[key]['list'], 'the list of %s' % key)
+            self.assertNotIn('NewSecretTyped', seen[key]['html'])
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

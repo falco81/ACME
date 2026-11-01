@@ -1956,7 +1956,6 @@ function exportDialog(c, versions, version) {
     body.appendChild(grid);
     var g = el('div', 'formgrid ct-expopts');
     pass = secretBox('', 'a password for the file', 'mono');
-    pass._show();
     passItem = formField('Password of the file', pass, 'Needed to open it again. Not kept here.');
     g.appendChild(passItem);
     alias = textBox(c.name, '', 'mono');
@@ -2542,7 +2541,6 @@ function importDialog(into) {
     if (words) box.appendChild(data('div', 'muted small', words));
     var row = el('div', 'btnrow');
     var mirror = secretBox(pass.value, 'the password of the file', 'mono');
-    mirror._show();
     mirror.style.flex = '1';
     var go = cmdButton('Open it', 'lock', 'primary');
     go.onclick = function () { pass.value = mirror.value; parse(); };
@@ -2620,7 +2618,6 @@ function importDialog(into) {
     drop = dropZone('Drop the file here, or press to choose it', take, '.pem,.crt,.cer,.der,.p7b,.p7c,.pfx,.p12,.jks,.key,.txt', true);
     body.appendChild(drop);
     pass = secretBox('', 'only for a locked file', 'mono');
-    pass._show();
     found = el('div', 'ct-foundhost');
     body.appendChild(found);
     keyRow = el('div', 'ct-keyrow');
@@ -2633,7 +2630,6 @@ function importDialog(into) {
     keyRow.appendChild(kd);
     keyRow.appendChild(el('span', 'ct-keyname muted small', ''));
     keyPass = secretBox('', 'the key’s password, if it has one', 'mono');
-    keyPass._show();
     keyRow.appendChild(formField('Password of the key', keyPass));
     body.appendChild(keyRow);
     var g = el('div', 'formgrid');
@@ -3142,7 +3138,6 @@ function caImport() {
     noI18n(f.name);
     g.appendChild(formField('Name in acme', f.name));
     f.pass = secretBox('', 'only if the key is locked', 'mono');
-    f.pass._show();
     g.appendChild(formField('Password of the key', f.pass));
     f.cert = pemBox('', '-----BEGIN CERTIFICATE-----', 5);
     g.appendChild(wideField('Its certificate', f.cert));

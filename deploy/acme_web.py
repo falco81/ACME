@@ -1566,8 +1566,8 @@ def pgtls_checked(r):
     if not re.match(r'^[0-9a-f]{8,40}\Z', out['id']):
         raise Refused('the request has no id')
     out['do'] = r.get('do')
-    if out['do'] not in ('server', 'hba', 'peer', 'hba_off', 'server_off'):
-        raise Refused('server, hba, peer, hba_off or server_off')
+    if out['do'] not in ('server', 'hba', 'peer', 'hba_off', 'server_off', 'ha_open'):
+        raise Refused('server, hba, peer, hba_off, server_off or ha_open')
     try:
         out['port'] = int(r.get('port') or 5432)
     except (TypeError, ValueError):
@@ -1597,6 +1597,15 @@ def pgtls_checked(r):
             raise Refused('the other node\'s new address is needed')
         out['keep_old'] = bool(r.get('keep_old'))
         out['drop_old'] = bool(r.get('drop_old'))
+    if out['do'] == 'ha_open':
+        # The first node of a shared pair (1.0.210): the address it listens on
+        # beside the ones it has, and the node being joined let in.
+        if not out['peer']:
+            raise Refused('the address of the node being joined is needed')
+        try:
+            out['listen'] = str(plain(str(r.get('listen') or '').strip(), 'address'))
+        except ValueError:
+            raise Refused('the address to listen on is one plain address')
     if str(r.get('ca_file') or HA_CA_FILE) != HA_CA_FILE:
         raise Refused('the authorities go into %s' % HA_CA_FILE)
     if out['do'] == 'server':
@@ -1856,6 +1865,126 @@ def pgtls_server_off(r):
                     'away: %s' % (now, ', '.join(gone) or 'nothing')}
 
 
+def pg_restart_here(port):
+    """This PostgreSQL started again (1.0.210) - its systemd unit, or Debian's
+    pg_ctlcluster - and waited for until it answers."""
+    major = int(pg_sql(port, 'SHOW server_version_num')) // 10000
+    done = ''
+    if not NO_SERVICES and shutil.which('systemctl'):
+        for unit in ('postgresql-%d' % major, 'postgresql@%d-main' % major, 'postgresql'):
+            if subprocess.run(['systemctl', 'is-active', '--quiet', unit],
+                              capture_output=True).returncode == 0:
+                got = subprocess.run(['systemctl', 'restart', unit], capture_output=True,
+                                     text=True, timeout=120)
+                if got.returncode != 0:
+                    raise Refused('systemctl restart %s: %s' % (unit, (got.stderr or '').strip()[-200:]))
+                done = unit
+                break
+    if not done and shutil.which('pg_lsclusters'):
+        for line in subprocess.run(['pg_lsclusters', '-h'], capture_output=True,
+                                   text=True).stdout.splitlines():
+            f = line.split()
+            if len(f) >= 3 and f[2] == str(int(port)):
+                got = subprocess.run(['pg_ctlcluster', f[0], f[1], 'restart'], capture_output=True,
+                                     text=True, timeout=120)
+                if got.returncode != 0:
+                    raise Refused('pg_ctlcluster %s %s restart: %s' % (
+                        f[0], f[1], (got.stderr or '').strip()[-200:]))
+                done = 'cluster %s/%s' % (f[0], f[1])
+                break
+    if not done:
+        raise Refused('PostgreSQL could not be restarted: no service of it was found - '
+                      'restart it yourself')
+    for _ in range(60):
+        try:
+            if pg_sql(port, 'SELECT 1') == '1':
+                return done
+        except Refused:
+            pass
+        time.sleep(1)
+    raise Refused('PostgreSQL did not come back after its restart (%s)' % done)
+
+
+def pg_hba_ha_line(r, text):
+    """pg_hba.conf with a line for the node being joined in front - hostssl
+    when this PostgreSQL has TLS on - or None when one is there already."""
+    net = pg_peer_net(r['peer'])
+    for line in text.split('\n'):
+        f = line.split()
+        if len(f) >= 4 and f[0] in ('host', 'hostssl') and f[1] == r['db'] and f[2] == r['user'] \
+                and f[3] == net:
+            return None, f[0]
+    kind = 'hostssl' if pg_sql(r['port'], 'SHOW ssl') == 'on' else 'host'
+    line = '%s    %s    %s    %s    scram-sha-256' % (kind, r['db'], r['user'], net)
+    return ('# acme high availability: the node being joined (%s)\n%s\n%s'
+            % (time.strftime('%Y-%m-%d'), line, text)), kind
+
+
+def pgtls_ha_open(r):
+    """PostgreSQL on the first node of a shared pair opened to the node being
+    joined (1.0.210), what  acme --ha-setup --ha-shared  does as root, asked
+    from the pages: it listens on this node's address too, pg_hba.conf lets
+    the other node in (scram-sha-256), it is reloaded - restarted when it has
+    to listen anew - and is checked to answer there."""
+    import socket
+    steps = []
+    listen = pg_sql(r['port'], 'SHOW listen_addresses')
+    words = [w.strip() for w in listen.split(',') if w.strip()]
+    restart = False
+    if '*' in words or '0.0.0.0' in words or r['listen'] in words or \
+            ('::' in words and ':' in r['listen']):
+        steps.append({'key': 'listen', 'ok': True, 'said': 'PostgreSQL listens on %s already '
+                      '(listen_addresses = %s)' % (r['listen'], listen)})
+    else:
+        new = ','.join(words + [r['listen']])
+        pg_sql(r['port'], 'ALTER SYSTEM SET listen_addresses = %s' % pg_lit(new))
+        restart = True
+        steps.append({'key': 'listen', 'ok': True, 'said': 'listen_addresses = %s (was %s)'
+                      % (new, listen or "''")})
+    hba = pg_sql(r['port'], 'SHOW hba_file')
+    if not hba.startswith('/') or not os.path.isfile(hba):
+        raise Refused('pg_hba.conf was not found (%s)' % hba[:100])
+    text = pg_file_read(hba)
+    new_text, kind = pg_hba_ha_line(r, text)
+    if new_text is None:
+        steps.append({'key': 'hba', 'ok': True, 'said': 'pg_hba.conf lets %s in already (%s)'
+                      % (r['peer'], kind)})
+    else:
+        st = os.lstat(hba)
+        pg_file_copy(hba, hba + '.acme-before-join')
+        pg_file_put(hba, new_text, stat.S_IMODE(st.st_mode), st.st_uid, st.st_gid)
+        try:
+            pg_sql(r['port'], 'SELECT pg_reload_conf()')
+            bad = pg_sql(r['port'], 'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL')
+            if bad not in ('', '0'):
+                raise Refused('PostgreSQL does not read pg_hba.conf as written')
+        except Refused:
+            pg_file_copy(hba + '.acme-before-join', hba)
+            pg_sql(r['port'], 'SELECT pg_reload_conf()')
+            raise
+        steps.append({'key': 'hba', 'ok': True, 'said': '%s: %s %s %s %s scram-sha-256' % (
+            hba, kind, r['db'], r['user'], pg_peer_net(r['peer']))})
+    if restart:
+        how = pg_restart_here(r['port'])
+        steps.append({'key': 'restart', 'ok': True, 'said': 'PostgreSQL started again to listen '
+                      'on the network (%s)' % how})
+    else:
+        pg_sql(r['port'], 'SELECT pg_reload_conf()')
+        steps.append({'key': 'restart', 'ok': True, 'said': 'PostgreSQL read its configuration '
+                      'again (no restart needed)'})
+    ok = False
+    try:
+        s = socket.create_connection((r['listen'], r['port']), timeout=4)
+        s.close()
+        ok = True
+    except OSError as e:
+        why = str(e)
+    steps.append({'key': 'answers', 'ok': ok, 'said': ('PostgreSQL answers at %s:%d' % (
+        r['listen'], r['port'])) if ok else ('PostgreSQL does not answer at %s:%d: %s' % (
+            r['listen'], r['port'], why))})
+    return {'said': '; '.join(x['said'] for x in steps), 'steps': steps}
+
+
 def pgtls_part():
     d = web_fd()
     try:
@@ -1872,7 +2001,8 @@ def pgtls_part():
         out['id'] = str((r or {}).get('id') or '')[:40] if isinstance(r, dict) else ''
         r = pgtls_checked(r)
         out.update({'server': pgtls_server, 'peer': pgtls_peer, 'hba': pgtls_hba,
-                    'hba_off': pgtls_hba_off, 'server_off': pgtls_server_off}[r['do']](r))
+                    'hba_off': pgtls_hba_off, 'server_off': pgtls_server_off,
+                    'ha_open': pgtls_ha_open}[r['do']](r))
         out['ok'] = True
     except Refused as e:
         out['said'] = str(e)[:400]

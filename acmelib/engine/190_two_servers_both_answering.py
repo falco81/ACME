@@ -506,9 +506,11 @@ def ha_replicated_bundle_data(store):
     return data
 
 
-def ha_join(data, name='', even_if_data=False, by=''):
+def ha_join(data, name='', even_if_data=False, by='', say=None):
     """This node into the cluster: the database's address into config.json and
-    the key beside it. The daemon starts again on it afterwards."""
+    the key beside it. The daemon starts again on it afterwards. Before the
+    database is tried, this node's firewall lets the first node in (1.0.210)."""
+    say = say or (lambda step, ok, words: None)
     db = data.get('db') or {}
     if db.get('db_engine') != 'postgres':
         raise ValueError('the bundle does not name a PostgreSQL')
@@ -523,10 +525,15 @@ def ha_join(data, name='', even_if_data=False, by=''):
     key_hex = str(data.get('key') or '')
     if not re.match(r'^[0-9a-f]{64}\Z', key_hex):
         raise ValueError('the bundle holds no key')
+    fw = ha_join_open(HA_STORE.get('store'), data, by)
+    say('firewall', fw['state'] in ('done', 'off'), fw['said'])
     got = db_try(db)
     if not got.get('reached'):
-        raise ValueError('the database in the bundle cannot be reached from here: %s'
-                         % (got.get('trouble') or 'no answer'))
+        why = db_trouble(got.get('trouble') or '', db, fw)
+        say('db', False, why['says'])
+        raise ValueError('the database in the bundle cannot be reached from here: %s - %s'
+                         % (why['says'], why['fix']))
+    say('db', True, 'the database answers: %s, %s record(s)' % (db_where(db), got.get('rows')))
     now = sealing_key()
     if now and now.hex() != key_hex and not even_if_data:
         # This node has a key of its own: whatever it sealed would be lost.
@@ -548,12 +555,194 @@ def ha_join(data, name='', even_if_data=False, by=''):
     changes = {k: db.get(k) for k in DB_KEYS if k in db}
     # One of two on one database (ha_mode "shared"): it was never written, and
     # the second node ran as a server alone on the cluster's database.
-    changes.update(ha_mode='shared', ha_slot=0, ha_peer='', ha_address='')
+    # The first node by its address (1.0.210): ha_peer was written empty, so
+    # this node never knew it - the firewall's item for the other node and
+    # the VIP address waited for its heartbeat.
+    peer = str((data.get('peer') or {}).get('address') or '')
+    try:
+        peer = str(plain_ip(peer, 'address')) if peer else ''
+    except ValueError:
+        peer = ''
+    changes.update(ha_mode='shared', ha_slot=0, ha_peer=peer,
+                   ha_address=CONFIG.get('ha_address') or node_address())
     if name:
         changes['node_name'] = name
     write_file_settings(changes)
+    say('key', True, 'the key that opens the sealed secrets is the cluster\'s now')
     return {'where': db_where(db), 'rows': got.get('rows'), 'peer': data.get('peer') or {},
             'message': 'this node joins the cluster: it starts again on %s' % db_where(db)}
+
+
+def ha_bundle_about(data):
+    """What the bundle is, outside its lock (1.0.210): for the page that is
+    given the file to show before the passphrase is typed - the cluster, the
+    first node and the database's address; never the key, never a password."""
+    db = data.get('db') or {}
+    peer = data.get('peer') or {}
+    return {'cluster': str(data.get('cluster') or ''), 'mode': data.get('mode') or 'shared',
+            'node': str(peer.get('name') or ''), 'address': str(peer.get('address') or ''),
+            'db': '%s:%s/%s' % (db.get('db_host') or '', db.get('db_port') or 5432,
+                                db.get('db_name') or ''),
+            'joining': str(data.get('joining') or '')}
+
+
+def ha_bundle_view(data):
+    """An opened bundle as the pages may show it: what it says, never the
+    key nor the password."""
+    out = ha_bundle_about(data)
+    db = data.get('db') or {}
+    out.update(made=data.get('_made'), made_by=data.get('_from') or '',
+               db_user=str(db.get('db_user') or ''), has_key=bool(data.get('key')),
+               tls=bool(data.get('tls')))
+    return out
+
+
+def ha_join_open(store, data, by=''):
+    """The first node let into this one's firewall before its database is
+    tried (1.0.210): its address and the database's, from the bundle, as a
+    node being joined - at once, waited for until the root helper put it in."""
+    if store is None:
+        return {'state': 'off', 'said': 'the firewall was not looked at (no database here)'}
+    db = data.get('db') or {}
+    want = []
+    for a in ((data.get('peer') or {}).get('address'), db.get('db_host')):
+        a = str(a or '').strip()
+        if a and a not in ('localhost', '127.0.0.1', '::1') and not a.startswith('/') \
+                and a not in want:
+            want.append(a)
+    if not want:
+        return {'state': 'off', 'said': 'the bundle names no address to let in'}
+    got = []
+    for a in want:
+        try:
+            got += ha_pending_add(store, a, by, 'the cluster being joined (%s)' % (
+                (data.get('peer') or {}).get('name') or '?'))
+        except ValueError as e:
+            return {'state': 'failed', 'said': str(e)}
+    out = fw_apply_wait(store, 60)
+    if out['state'] == 'done':
+        out['said'] = 'this node lets %s in (PostgreSQL, the pages, the health check)' % \
+            ', '.join(sorted(set(got)))
+    out['addresses'] = sorted(set(got))
+    return out
+
+
+def db_trouble(trouble, db, fw=None):
+    """Why a PostgreSQL could not be reached, in words that say what to do
+    (1.0.210): {kind, says, fix}."""
+    t = str(trouble or '')
+    low = t.lower()
+    host = str(db.get('db_host') or '')
+    port = int(db.get('db_port') or 5432)
+    where = '%s:%d' % (host, port)
+    fw_open = (fw or {}).get('state') in ('done', 'off')
+    if 'connection refused' in low:
+        return {'kind': 'refused', 'says': 'PostgreSQL at %s refused the connection: it does not '
+                'listen on that address (listen_addresses), or it is not running' % where,
+                'fix': 'on the first node, press Make the bundle… again with this node\'s address '
+                '(it prepares PostgreSQL: listen_addresses, pg_hba.conf, a restart) - or as root '
+                'there:  acme --ha-setup --ha-shared --ha-peer THIS-NODE'}
+    if 'timeout' in low or 'timed out' in low or 'no route to host' in low or \
+            'network is unreachable' in low:
+        return {'kind': 'timeout', 'says': 'PostgreSQL at %s did not answer at all (%s)' % (
+            where, 'timed out' if 'time' in low else 'no route'),
+                'fix': ('this node\'s firewall and the first node\'s are opened by acme, so '
+                        'something in between drops it: a firewall of the network, a security '
+                        'group, or the first node\'s own firewall not managed by acme '
+                        '(firewalld) - let TCP %d through from this node to %s' % (port, host))
+                if fw_open else ('this node\'s firewall could not be opened to it (%s); then '
+                                 'look at the network in between' % (fw or {}).get('said')}
+    if 'no pg_hba.conf entry' in low:
+        return {'kind': 'hba', 'says': 'PostgreSQL at %s answers, but pg_hba.conf has no line '
+                'for this node' % where,
+                'fix': 'on the first node, press Make the bundle… again giving this node\'s '
+                'address as PostgreSQL sees it (it adds the line) - or add  host %s %s '
+                'THIS-ADDRESS/32 scram-sha-256  to pg_hba.conf there and reload PostgreSQL' % (
+                    db.get('db_name') or 'acme', db.get('db_user') or 'acme')}
+    if 'password authentication failed' in low:
+        return {'kind': 'password', 'says': 'PostgreSQL at %s answers, but does not take the '
+                'password of the account %s' % (where, db.get('db_user') or '?'),
+                'fix': 'the bundle is older than a change of that password: make a new bundle on '
+                'the first node'}
+    if 'does not exist' in low:
+        return {'kind': 'missing', 'says': 'PostgreSQL at %s answers: %s' % (where, t[:200]),
+                'fix': 'make a new bundle on the first node - it names its own database'}
+    if 'could not translate host name' in low or 'name or service not known' in low:
+        return {'kind': 'name', 'says': 'the name %s is not known here' % host,
+                'fix': 'make the bundle again on the first node with its address in place of '
+                'the name, or put the name into this node\'s DNS or /etc/hosts'}
+    return {'kind': 'other', 'says': t[:300] or 'no answer', 'fix': 'see the first node\'s '
+            'PostgreSQL log'}
+
+
+def ha_pg_local(store):
+    """Whether this node's PostgreSQL is on this machine - the one the other
+    node of a shared pair has to reach here (1.0.210)."""
+    host = str(CONFIG.get('db_host') or '')
+    return store.db.engine == 'postgres' and host in ('', 'localhost', '127.0.0.1', '::1') \
+        and CONFIG.get('ha_mode') != 'replicated'
+
+
+def ha_pg_view(store):
+    """For the page: whether PostgreSQL here still has to be opened to the
+    node being joined, and what was done last."""
+    if not ha_pg_local(store):
+        return None
+    listen = ''
+    try:
+        listen = str(store.db.value('SHOW listen_addresses') or '')
+    except Exception:                                   # noqa: BLE001
+        pass
+    words = [w.strip() for w in listen.split(',') if w.strip()]
+    only_local = bool(words) and all(w in ('localhost', '127.0.0.1', '::1') for w in words)
+    return {'listen': listen, 'only_local': only_local or not words,
+            'last': _json_meta(store, 'ha:pgopen:' + node_name()) or {}}
+
+
+def ha_pg_open(store, peer, by='', wait=150):
+    """PostgreSQL on this machine opened to the node being joined (1.0.210),
+    through the root helper: [{key, ok, said}]."""
+    if not ha_pg_local(store):
+        return [{'key': 'pg', 'ok': True, 'said': 'PostgreSQL is not on this machine (%s): it '
+                 'has to let %s in itself' % (CONFIG.get('db_host'), peer)}]
+    peer = str(peer_address(peer))
+    listen = str(CONFIG.get('ha_address') or node_address())
+    if not WEB_DIR.is_dir():
+        return [{'key': 'pg', 'ok': False, 'said': 'the root helper is not installed here: as '
+                 'root,  acme --ha-setup --ha-shared --ha-peer %s' % peer}]
+    ask = secrets.token_hex(8)
+    pgtls_send({'id': ask, 'do': 'ha_open', 'port': int(CONFIG.get('db_port') or 5432),
+                'db': str(CONFIG.get('db_name') or 'acme'),
+                'user': str(CONFIG.get('db_user') or 'acme'), 'peer': peer, 'listen': listen,
+                'ca_file': str(HA_CA_FILE)})
+    end = time.time() + wait
+    got = None
+    while time.time() < end:
+        try:
+            one = json.loads((WEB_DIR / PGTLS_FILE).read_text())
+        except (OSError, ValueError):
+            one = None
+        if isinstance(one, dict) and one.get('id') == ask:
+            got = one
+            break
+        time.sleep(0.5)
+    if got is None:
+        steps = [{'key': 'pg', 'ok': False, 'said': 'the root helper did not answer in %d s - '
+                  'is acme-web.path running?  systemctl status acme-web.path' % wait}]
+    elif not got.get('ok'):
+        steps = [{'key': 'pg', 'ok': False, 'said': str(got.get('said') or 'the root helper '
+                                                          'said no')[:400]}]
+    else:
+        steps = [x for x in got.get('steps') or [] if isinstance(x, dict)][:8] or \
+            [{'key': 'pg', 'ok': True, 'said': str(got.get('said') or '')[:400]}]
+    store.set_meta('ha:pgopen:' + node_name(), json.dumps(
+        {'at': time.time(), 'peer': peer, 'listen': listen, 'by': by,
+         'ok': all(x.get('ok') for x in steps), 'steps': steps}))
+    store.add_event('settings', '%s: PostgreSQL on %s opened to the node being joined (%s): %s'
+                    % (by or 'acme', node_name(), peer, '; '.join(
+                        str(x.get('said')) for x in steps)[:600]),
+                    'warn' if not all(x.get('ok') for x in steps) else 'info', who=by or None)
+    return steps
 
 
 # ---- the PostgreSQL side, as root on the machine it runs on ------------------------

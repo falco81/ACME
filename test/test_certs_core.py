@@ -296,9 +296,13 @@ class CertsCore(unittest.TestCase):
         out = os.path.join(self.tmp, 'out')
         self.ok('POST', '/api/targets/save', {'name': 'fake1', 'kind': 'fake',
                                               'config': {'dir': out, 'password': 's3cret'}})
-        # The secret never comes back; "" keeps it.
+        # The secret never comes back in clear: dots and its last two (a full
+        # administrator), dots alone (a reader); "" keeps it.
         t = [r for r in self.ok('GET', '/api/targets')['rows'] if r['name'] == 'fake1'][0]
-        self.assertEqual(t['config']['password'], '')
+        self.assertEqual(t['config']['password'], '\u2022' * 8 + 'et')
+        t_ro = [r for r in self.ok('GET', '/api/targets', session=self.ro)['rows']
+                if r['name'] == 'fake1'][0]
+        self.assertEqual(t_ro['config']['password'], '\u2022' * 8)
         self.assertIn('password', t['secret_set'])
         self.ok('POST', '/api/targets/save', {'id': t['id'], 'name': 'fake1', 'kind': 'fake',
                                               'config': {'dir': out, 'password': ''}})
@@ -309,7 +313,7 @@ class CertsCore(unittest.TestCase):
                                                     'options': {'file': 'web.pem',
                                                                 'pfx_password': 'pfxpw'}})['id']
         d = self.ok('GET', '/api/certs/one', args={'id': cid})['deploys'][0]
-        self.assertEqual(d['options']['pfx_password'], '')
+        self.assertEqual(d['options']['pfx_password'], '\u2022' * 8 + 'pw')
         self.assertEqual(d['secret_set'], ['pfx_password'])
         # Renewed (the first issue), then deployed, every step in the job.
         jid = self.ok('POST', '/api/certs/renew', {'id': cid})['job_id']
@@ -505,7 +509,7 @@ class CertsCore(unittest.TestCase):
                     '--set', 'password=-', '--set', 'mode=b', '--set', 'port=7',
                     '--set', 'names=a.test,b.test', '--set', 'flag=yes', stdin='s3cret\n')
         row = self.cli_json('--target-show', 'fake2')
-        self.assertEqual(row['config']['password'], '')
+        self.assertEqual(row['config']['password'], '\u2022' * 8 + 'et')
         self.assertEqual(row['secret_set'], ['password'])
         self.assertEqual((row['config']['mode'], row['config']['port'], row['config']['names'],
                           row['config']['flag']), ('b', 7, ['a.test', 'b.test'], True))
@@ -565,7 +569,8 @@ class CertsCore(unittest.TestCase):
         rows = self.cli_json('--deploys', 'web')['rows']
         mine = [d for d in rows if d['id'] == did][0]
         self.assertEqual((mine['target'], mine['options']['file'], mine['options']['pfx_password'],
-                          mine['secret_set']), ('fake3', 'cli.pem', '', ['pfx_password']))
+                          mine['secret_set']), ('fake3', 'cli.pem', '\u2022' * 8 + 'nv',
+                                                ['pfx_password']))
         by_t = self.ok('GET', '/api/deploys', args={'target': 'fake3'})
         self.assertEqual([d['id'] for d in by_t['rows']], [did])
         self.assertEqual(by_t['rows'][0]['cert_name'], 'web')

@@ -23,10 +23,108 @@ def access_conf(store):
     return _json_meta(store, 'web:access') or {}
 
 
+# A node being joined (1.0.210): its address, given when the bundle is made on
+# the first node - and the first node's, taken from the bundle on the second -
+# let in AT ONCE, before the cluster is made: the firewall otherwise held
+# PostgreSQL, the pages and the health checks shut until the heartbeat of the
+# other node came, which it never did, since the join failed on it. Kept per
+# node ('ha:pending:NODE', written by that node only - two nodes writing one
+# row of a replicated meta stop the replication) and for a day at most. Not a
+# part of fw:conf: a firewall change on trial that goes back never takes it.
+HA_PENDING_S = 24 * 3600
+
+
+def ha_pending(store, node=None):
+    """The addresses `node` (this one by default) lets in for a node being
+    joined: [{address, until, at, by, why}], the ones run out left out."""
+    node = node or node_name()
+    try:
+        raw = _json_meta(store, 'ha:pending:' + node) or {}
+    except Exception:                                   # noqa: BLE001
+        raw = {}
+    now = time.time()
+    out = []
+    for x in (raw.get('peers') if isinstance(raw, dict) else None) or []:
+        if isinstance(x, dict) and x.get('address') and float(x.get('until') or 0) > now:
+            out.append(x)
+    return out
+
+
+def ha_pending_add(store, address, by='', why='', seconds=None):
+    """`address` let into this node for a day (or `seconds`): one plain
+    address; a host name is taken by its addresses. Returns the addresses."""
+    said = str(address or '').strip()
+    if not said:
+        raise ValueError('the other node\'s address is needed')
+    try:
+        ips = [str(plain_ip(said, 'address'))]
+    except ValueError:
+        ips = []
+        for ip in addresses_cached(said):
+            try:
+                ips.append(str(plain_ip(ip, 'address')))
+            except ValueError:
+                pass
+        if not ips:
+            raise ValueError('%s is not an address, nor a name that resolves here' % said[:80])
+    now = time.time()
+    keep = [x for x in ha_pending(store) if x.get('address') not in ips]
+    for ip in ips:
+        keep.append({'address': ip, 'at': now, 'until': now + (seconds or HA_PENDING_S),
+                     'by': str(by or '')[:80], 'why': str(why or '')[:120],
+                     'name': said if said != ip else ''})
+    store.set_meta('ha:pending:' + node_name(), json.dumps({'peers': keep[-8:]}))
+    return ips
+
+
+def ha_pending_drop(store, address=None):
+    """One address (or all of them) no longer let in as a node being joined."""
+    keep = [x for x in ha_pending(store) if address and x.get('address') != address]
+    store.set_meta('ha:pending:' + node_name(), json.dumps({'peers': keep}))
+
+
+def fw_apply_wait(store, wait=60):
+    """The firewall as it is wanted now, given to the root helper and waited for
+    (1.0.210): {'state': 'off' | 'done' | 'failed' | 'no-helper' | 'timeout',
+    'said'}. 'off' when acme does not manage this node's firewall, or it is off:
+    nothing to open then."""
+    want = fw_desired(store)
+    if want is None or not want.get('on'):
+        return {'state': 'off', 'said': 'the firewall of this node is not managed by acme, or '
+                'is off: nothing to open'}
+    if not WEB_DIR.is_dir():
+        return {'state': 'no-helper', 'said': 'the root helper is not installed here (%s)'
+                % WEB_DIR}
+    try:
+        h = web_hash(web_desired(store))
+    except Exception as e:                              # noqa: BLE001
+        return {'state': 'failed', 'said': 'what to ask for could not be made: %s' % e}
+    end = time.time() + wait
+    while True:
+        st = web_status()
+        if st.get('hash') == h and st.get('state') in ('done', 'failed'):
+            said = '; '.join(st.get('said') or [])[:400]
+            if st.get('state') == 'done':
+                try:
+                    fw_now_publish(store)
+                except Exception:                       # noqa: BLE001
+                    pass
+                return {'state': 'done', 'said': said or 'the firewall is as wanted'}
+            return {'state': 'failed', 'said': said or 'the root helper said no'}
+        if time.time() > end:
+            return {'state': 'timeout', 'said': 'the root helper did not apply it in %d s - is '
+                    'acme-web.path running?  systemctl status acme-web.path' % wait}
+        try:
+            web_tick(store)
+        except Exception as e:                          # noqa: BLE001
+            return {'state': 'failed', 'said': 'it could not be asked for: %s' % e}
+        time.sleep(0.5)
+
+
 def cluster_addresses(store, node):
     """The other nodes' addresses, seen from `node`: what must always get in."""
     me = node_name()
-    out = set()
+    out = set(x['address'] for x in ha_pending(store, node))
     for n in ha_nodes(store):
         if n['name'] != node and n.get('address'):
             out.add(n['address'])
@@ -174,12 +272,19 @@ def fw_auto(store, node):
                     'rules': [{'family': _fam(n.split('/')[0]), 'proto': 'udp', 'port': port,
                                'source': n} for n in nets] or
                     [{'family': f, 'proto': 'udp', 'port': port, 'source': ''} for f in (4, 6)]})
-    # Inside the cluster: always, never turned off.
-    if CONFIG.get('ha_mode') and peers:
+    # Inside the cluster: always, never turned off. And from a node being
+    # joined (1.0.210), before the cluster is made, for as long as it waits.
+    pend = ha_pending(store, node)
+    if (CONFIG.get('ha_mode') or pend) and peers:
+        # Said as waiting only until the node itself is heard from.
+        heard = {str(n.get('address') or '') for n in ha_nodes(store) if n['name'] != node}
+        pend = [x for x in pend if x['address'] not in heard]
         nodes_only = [p for p in peers if p != str(v.get('address') or '').split('/')[0]]
         out.append({'key': 'cluster', 'title': 'The other node', 'fixed': True,
                     'why': 'replication (PostgreSQL), its pages and the health check - inside '
                     'the cluster everything has to work',
+                    'pending': [{'address': x['address'], 'until': x.get('until'),
+                                 'why': x.get('why') or ''} for x in pend],
                     # Everything from it (1.0.59): its answers to this node's
                     # own asking came from other ports and were dropped.
                     'rules': [{'family': _fam(p), 'proto': 'any', 'port': '',

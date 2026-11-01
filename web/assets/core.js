@@ -1454,7 +1454,9 @@ function maskBox(value, placeholder, cls, keepLines) {
   });
   /* Pressed, a kept one is chosen whole: what is typed replaces it. */
   i.addEventListener('focus', function () {
-    if (real.charAt(0) === '\u2022') setTimeout(function () { try { i.select(); } catch (e) { } }, 0);
+    /* Still the kept one when the timer comes (typed into at once, the first
+       letters were chosen whole and replaced by the next). */
+    if (real.charAt(0) === '\u2022') setTimeout(function () { try { if (real.charAt(0) === '\u2022') i.select(); } catch (e) { } }, 0);
   });
   i.addEventListener('copy', function (e) { e.preventDefault(); });
   i.addEventListener('cut', function (e) { e.preventDefault(); });
