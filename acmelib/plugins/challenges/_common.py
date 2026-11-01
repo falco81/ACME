@@ -9,12 +9,20 @@ not take it for a module):
                     public resolvers if asked), the fields for that
     HttpChallenge   the base of the HTTP-01 modules: the file fetched as the CA will
     api()           a JSON API asked through ctx.http, its errors in words
+    http_call()     one request through ctx.http, a 429 waited out (Retry-After)
+    suffixes() / longest_zone() / no_zone() / zones_seen()   what the API modules
+                    share to find the zone a name is in and to say what they see
+    openssl_sign()  data signed with a private key by the openssl program
     ssh fields / ssh_conn()   how to reach a machine over SSH
 """
 from __future__ import annotations
 
+import email.utils
 import json
+import os
 import re
+import shutil
+import tempfile
 import time
 
 from acmelib.plugins.base import Challenge, PluginError, field
@@ -86,23 +94,67 @@ def settings(ctx):
 # ---------------------------------------------------------------------------
 # A JSON API through ctx.http
 # ---------------------------------------------------------------------------
+RETRIES_429 = 3             # how often a "429 Too Many Requests" is waited out
+WAIT_429_MAX = 60.0         # the longest wait a Retry-After is believed for
+SLEEP = time.sleep          # a test puts its own here
+
+
+def retry_after(headers, default=5.0, now=None):
+    """Seconds a Retry-After header asks for (a number or an HTTP date)."""
+    v = str(_header(headers, 'retry-after') or '').strip()
+    if not v:
+        return default
+    try:
+        return max(0.0, float(v))
+    except ValueError:
+        pass
+    try:
+        when = email.utils.parsedate_to_datetime(v).timestamp()
+    except (TypeError, ValueError, IndexError):
+        return default
+    return max(0.0, when - (time.time() if now is None else now))
+
+
+def http_call(ctx, method, url, body=None, headers=None, who='the API', timeout=30,
+              verify=True, ca_pem=None, retries=None):
+    """(status, headers, bytes) through ctx.http (so through the proxy of
+    Settings → Proxy). A 429 is waited out as long as it says (Retry-After, at
+    most WAIT_429_MAX), up to RETRIES_429 times, the job told so; a server that
+    cannot be reached is a PluginError in words."""
+    retries = RETRIES_429 if retries is None else retries
+    kw = {'ca_pem': ca_pem} if ca_pem else {}
+    for attempt in range(retries + 1):
+        try:
+            status, rh, got = ctx.http(method, url, body=body, headers=headers,
+                                       timeout=timeout, verify=verify, **kw)
+        except PluginError:
+            raise
+        except Exception as e:                          # noqa: BLE001
+            raise PluginError('%s did not answer: %s' % (who, e))
+        if status != 429 or attempt >= retries:
+            return status, rh, got
+        pause = min(max(retry_after(rh), 1.0), WAIT_429_MAX)
+        ctx.step('%s asks to slow down (429): waiting %d s' % (who, pause), 'warn')
+        if getattr(ctx, 'cancelled', lambda: False)():
+            break
+        SLEEP(pause)
+    return status, rh, got
+
+
 def api(ctx, method, url, body=None, headers=None, who='the API', ok=(200, 201, 202, 204),
-        verify=True, raw_body=None, timeout=30, missing_ok=False):
-    """(status, parsed JSON or None). Raises PluginError in words on a status
-    not in `ok` (404 returns (404, None) when missing_ok)."""
+        verify=True, raw_body=None, timeout=30, missing_ok=False, ca_pem=None, retries=None,
+        with_headers=False):
+    """(status, parsed JSON or None) - with the answer's headers third when
+    with_headers. Raises PluginError in words on a status not in `ok` (404
+    returns (404, None) when missing_ok); a 429 is waited out first."""
     h = {'Accept': 'application/json', 'User-Agent': 'acme-challenge'}
     data = raw_body
     if body is not None:
         data = json.dumps(body).encode()
         h['Content-Type'] = 'application/json'
     h.update(headers or {})
-    try:
-        status, rh, got = ctx.http(method, url, body=data, headers=h, timeout=timeout,
-                                   verify=verify)
-    except PluginError:
-        raise
-    except Exception as e:                              # noqa: BLE001
-        raise PluginError('%s did not answer: %s' % (who, e))
+    status, rh, got = http_call(ctx, method, url, data, h, who=who, timeout=timeout,
+                                verify=verify, ca_pem=ca_pem, retries=retries)
     parsed = None
     if got:
         try:
@@ -110,15 +162,22 @@ def api(ctx, method, url, body=None, headers=None, who='the API', ok=(200, 201, 
         except (ValueError, UnicodeDecodeError):
             parsed = None
     if status == 404 and missing_ok:
-        return status, parsed
+        return (status, parsed, rh) if with_headers else (status, parsed)
     if status not in ok:
-        said = _said(parsed) or (got[:300].decode('utf-8', 'replace') if isinstance(got, bytes)
-                                  else str(got)[:300])
-        words = '%s said %s: %s' % (who, status, said.strip() or 'nothing more')
-        if status in (401, 403):
-            words += ' - the credentials are wrong or may not do this'
-        raise PluginError(words, detail=said, retry=status >= 500 or status == 429)
-    return status, parsed
+        raise said_error(who, status, parsed, got)
+    return (status, parsed, rh) if with_headers else (status, parsed)
+
+
+def said_error(who, status, parsed, got):
+    """The PluginError for an answer that is not what was asked for."""
+    said = _said(parsed) or (got[:300].decode('utf-8', 'replace') if isinstance(got, bytes)
+                              else str(got or '')[:300])
+    words = '%s said %s: %s' % (who, status, said.strip() or 'nothing more')
+    if status in (401, 403):
+        words += ' - the credentials are wrong or may not do this'
+    elif status == 429:
+        words += ' - it kept asking to wait; try again later'
+    return PluginError(words, detail=said, retry=status >= 500 or status == 429)
 
 
 def _said(p):
@@ -134,6 +193,70 @@ def _said(p):
         if v:
             return str(v)
     return ''
+
+
+# ---------------------------------------------------------------------------
+# What the API modules share
+# ---------------------------------------------------------------------------
+def suffixes(fqdn):
+    """The names a zone of `fqdn` can be, longest first, the top level left out:
+    _acme-challenge.www.example.co.uk -> ..., example.co.uk, co.uk."""
+    labels = D.norm(fqdn).split('.')
+    return ['.'.join(labels[i:]) for i in range(len(labels) - 1)]
+
+
+def longest_zone(fqdn, zones):
+    """The longest of `zones` that fqdn is in, or None."""
+    best = None
+    for z in zones or []:
+        z = D.norm(z)
+        if z and D.in_zone(fqdn, z) and (best is None or len(z) > len(best)):
+            best = z
+    return best
+
+
+def no_zone(who, fqdn):
+    return PluginError('%s has no zone for %s that these credentials may see - set the zone, '
+                       'or give them access to it' % (who, D.norm(fqdn)), retry=False)
+
+
+def zones_seen(who, names):
+    """What a test() says when it could sign in and list the zones."""
+    names = [D.norm(n) for n in names or [] if n]
+    if not names:
+        return '%s: signed in, but no zone is seen - give the credentials access to one' % who
+    return '%s: signed in, %d zone(s) seen: %s' % (who, len(names), ', '.join(names[:20]) + (
+        ', …' if len(names) > 20 else ''))
+
+
+def unquote_txt(v):
+    """A TXT value as the API wrote it ("abc", "ab" "c") as the one string it is."""
+    v = str(v or '').strip()
+    if len(v) >= 2 and v[0] == '"' and v[-1] == '"':
+        return ''.join(re.findall(r'"((?:[^"\\]|\\.)*)"', v)) or v[1:-1]
+    return v
+
+
+def openssl_sign(ctx, key_pem, data, digest='sha256'):
+    """`data` signed with the private key by the openssl program (RSA PKCS#1
+    v1.5 or ECDSA, as the key is), the key in a file of its own for the moment."""
+    work = tempfile.mkdtemp(prefix='acme-sign-')
+    try:
+        os.chmod(work, 0o700)
+        kf = os.path.join(work, 'key.pem')
+        fd = os.open(kf, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            f.write(str(key_pem).strip() + '\n')
+        try:
+            sig = ctx.openssl(['dgst', '-' + digest, '-sign', kf], data=data)
+        except Exception as e:                          # noqa: BLE001
+            raise PluginError('openssl could not sign with the private key - is it a '
+                              'PEM private key without a passphrase? (%s)' % e, retry=False)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    if not sig:
+        raise PluginError('openssl did not sign', retry=False)
+    return sig
 
 
 # ---------------------------------------------------------------------------
@@ -482,3 +605,51 @@ def shq(s):
     if s and re.match(r'^[A-Za-z0-9_@%+=:,./-]+$', s):
         return s
     return "'" + s.replace("'", "'\"'\"'") + "'"
+
+
+# ---------------------------------------------------------------------------
+# A DNS provider's API
+# ---------------------------------------------------------------------------
+_RMW_LOCKS = {}
+
+
+def rmw_lock(key):
+    """One lock per provider (and account): a module that writes a whole
+    RRset (read, add ours, write back) holds it, so two orders on this node
+    do not write over each other's value."""
+    import threading
+    return _RMW_LOCKS.setdefault(key, threading.Lock())
+
+
+class ApiDns(DnsChallenge):
+    """The base of the modules that speak a DNS provider's API: the zone is
+    the one set, else the longest of the provider's zones the name is in
+    (zone_names(), asked once), the TTL never under what the provider takes
+    (min_ttl), test() lists the zones. A module writes zone_names(), add_txt
+    and del_txt."""
+    who = ''                        # the provider in words: 'deSEC', 'Gandi'
+    min_ttl = 60
+
+    def ttl(self):
+        return max(int(self.num('ttl', self.min_ttl) or self.min_ttl), self.min_ttl)
+
+    def zone_names(self):
+        """Every zone the credentials may see (names). None: the API cannot list them."""
+        raise NotImplementedError
+
+    def _zone_names(self):
+        if getattr(self, '_zone_list', None) is None:
+            self._zone_list = [D.norm(z) for z in (self.zone_names() or []) if z]
+        return self._zone_list
+
+    def zone_hint(self, fqdn):
+        z = DnsChallenge.zone_hint(self, fqdn)
+        if z:
+            return z
+        best = longest_zone(fqdn, self._zone_names())
+        if not best:
+            raise no_zone(self.who or self.title, fqdn)
+        return best
+
+    def test(self):
+        return zones_seen(self.who or self.title, self._zone_names())
