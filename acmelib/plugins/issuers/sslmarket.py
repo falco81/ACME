@@ -631,7 +631,7 @@ class SslmarketIssuer(Issuer):
         given = str(self.c('order_id') or '').strip()
         kept = self._get(sub_key) or {}
         order = given or kept.get('order_id')
-        why = ''
+        why, renewable = '', bool(order)
         if policy == 'reissue' and order:
             try:
                 det = self.detail(order)
@@ -640,13 +640,14 @@ class SslmarketIssuer(Issuer):
                     raise PluginError('the order to reuse, %s, cannot be read: %s' % (order, e),
                                       retry=e.retry)
                 det, why = None, 'the order %s acme made is not known to SSLmarket (%s)' % (order, e)
+                renewable = False
             if det is not None:
                 state, words = self.state_of(det)
                 end = self.subscription_end(det)
                 left = (end - _now()) / 86400.0 if end else None
                 margin = _num(self.c('min_days'), 30)
                 if state == 'failed' and not re.search(r'expir', words, re.I):
-                    why = 'the order %s is %s' % (order, words)
+                    why, renewable = 'the order %s is %s' % (order, words), False
                 elif left is not None and left < margin:
                     why = 'the subscription of order %s ends %s (%d days)' % (
                         order, time.strftime('%Y-%m-%d', time.gmtime(end)), max(0, int(left)))
@@ -662,7 +663,7 @@ class SslmarketIssuer(Issuer):
                   'for the first certificate)'
         else:
             why = 'the policy is to make a %s order at every renewal' % policy
-        kind = 'renew' if (policy == 'renew' or (policy == 'reissue' and order)) else 'new'
+        kind = 'renew' if (policy == 'renew' or (policy == 'reissue' and renewable)) else 'new'
         if not allowed:
             raise PluginError('nothing ordered: %s, and a %s order would be a purchase. Paid orders '
                               'are not allowed for this source - switch on "Allow new orders '
@@ -828,8 +829,10 @@ class SslmarketIssuer(Issuer):
         if isinstance(found, list):
             items = [x for x in found if isinstance(x, dict)]
         elif isinstance(found, dict):
-            if any(isinstance(v, dict) for v in found.values()) and not _dig(
-                    found, 'value', 'record_value', 'txt', 'token', 'content', 'file_content'):
+            direct = {str(k).lower() for k in found}
+            if any(isinstance(v, dict) for v in found.values()) and not direct & {
+                    'value', 'record_value', 'txt_value', 'txt', 'token', 'content',
+                    'file_content', 'cname_value'}:
                 for k, v in found.items():
                     if isinstance(v, dict):
                         items.append(dict(v, domain=v.get('domain') or k))
@@ -905,7 +908,8 @@ class SslmarketIssuer(Issuer):
                 manual.append(rec)
                 placed.append({'rec': rec, 'name': name, 'how': 'manual', 'handle': None})
                 continue
-            placed.append({'rec': rec, 'name': name, 'how': how, 'handle': handle})
+            placed.append({'rec': rec, 'name': name, 'how': how, 'handle': handle,
+                           'kind': getattr(ch, 'kind', '')})
         for rec in manual:
             if rec['type'] == 'file':
                 self._say('put in place by hand, for the CA: http://%s%s holding "%s" (no '
@@ -982,7 +986,14 @@ class SslmarketIssuer(Issuer):
             if p.get('how') in (None, 'manual'):
                 continue
             _n, ch = self._challenge_for(req, p['rec']['domain'])
+            if ch is None or getattr(ch, 'kind', '') != p.get('kind', getattr(ch, 'kind', '')):
+                # the names changed since: a module of the same kind takes it away
+                ch = next((c for c in (req.challenges or {}).values()
+                           if getattr(c, 'kind', '') == p.get('kind')), None)
             if ch is None:
+                self._say('the DCV record of %s is left (no challenge module of kind %s here) - '
+                          'take it away by hand' % (p['rec']['domain'], p.get('kind') or '?'),
+                          'warn')
                 continue
             try:
                 if p['how'] == 'record':

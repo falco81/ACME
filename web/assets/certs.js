@@ -3127,8 +3127,8 @@ function loadCas(live) {
   var host = $('ca-tree');
   if (!host) return;
   if (!live && !host.children.length) host.appendChild(el('p', 'muted', 'Asking…'));
-  pkiCard();
   casNow(true).then(function () {
+    pkiCard(CAS);
     $('ca-said').textContent = CAS.length ? num(CAS.length) + ' in all' : '';
     if ($('ca-inter')) $('ca-inter').disabled = !CAS.length;
     liveFill(host, function (box) {
@@ -3449,11 +3449,10 @@ function pkiSection(c, pki, back) {
   return sec;
 }
 /** The card above the tree: whether acme publishes, and where. */
-function pkiCard() {
+function pkiCard(list) {
   var box = $('ca-pki');
   if (!box) return;
-  capi('certs/settings_view').catch(function () { return null; }).then(function () { });
-  casNow().then(function (list) {
+  (function () {
     clear(box);
     var pubs = list.filter(function (c) { return c.published; });
     var line = el('p', 'note ct-pki-line');
@@ -3476,7 +3475,7 @@ function pkiCard() {
       line.appendChild(st);
     }
     box.appendChild(line);
-  }).catch(function () { clear(box); });
+  }());
 }
 function caRevoke(ca, r) {
   var reason = null;
