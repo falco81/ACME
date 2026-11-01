@@ -124,6 +124,23 @@ def sealed_columns():
     return out
 
 
+# How a sealed column's value is bound, by (table, column): a module whose
+# values are sealed under a bind of its own registers it here, so a backup's
+# check and the export of the configuration open them as the module does.
+SEAL_BINDS = {}
+
+
+def seal_bind(table, row, col):
+    """The bind `row`'s `col` of `table` was sealed under."""
+    fn = SEAL_BINDS.get((table, col))
+    if fn is not None:
+        try:
+            return fn(row)
+        except (KeyError, TypeError, ValueError):
+            pass
+    return '%s:%s:%s' % (table, row.get('id'), col)
+
+
 def sealed_held(db):
     """Whether `db` holds anything sealed with a key (it cannot be asked:
     held, to be safe)."""

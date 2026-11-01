@@ -138,7 +138,12 @@ def rb_counts(store):
     out = {}
     for t in TABLES:
         try:
-            out[t] = int(store.db.value('SELECT COUNT(*) FROM %s' % t) or 0)
+            # meta as the copy holds it: without the pieces of an uploaded
+            # package, which the copy leaves out - counted, they made every
+            # backup after an upgrade from the pages "not good".
+            out[t] = int(store.db.value(
+                "SELECT COUNT(*) FROM meta WHERE k NOT LIKE 'upgrade:piece:%'" if t == 'meta'
+                else 'SELECT COUNT(*) FROM %s' % t) or 0)
         except Exception:                               # noqa: BLE001
             continue                    # a table not made (yet) in this database
     return out

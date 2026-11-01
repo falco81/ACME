@@ -35,10 +35,6 @@ def _sealed_cols(table):
     return [c for t, c in sealed_columns() if t == table]
 
 
-def _bind_of(table, ident, col):
-    return '%s:%s:%s' % (table, ident, col)
-
-
 def carry_export(store, whole):
     """{table: [rows]} of carry_tables(), the sealed columns opened (whole)
     or left out."""
@@ -51,7 +47,7 @@ def carry_export(store, whole):
             for c in cols:
                 v = row.get(c)
                 if whole and v:
-                    row[c] = unseal_secret(v, _bind_of(table, row.get('id'), c)) \
+                    row[c] = unseal_secret(v, seal_bind(table, row, c)) \
                         if str(v).startswith(SEALED2) else unseal_secret(v)
                     if row[c] is None:
                         row[c] = ''
@@ -104,7 +100,7 @@ def carry_import(store, tables, by, replace, said):
                 ident = store.db.insert(table, row)
                 if ident is None:
                     ident = row.get('id')
-            sealed = {c: seal_secret(v, _bind_of(table, ident, c)) if v else ''
+            sealed = {c: seal_secret(v, seal_bind(table, dict(row, id=ident), c)) if v else ''
                       for c, v in plain.items() if v is not None and
                       not str(v).startswith((SEALED, SEALED2))}
             if sealed and ident is not None:

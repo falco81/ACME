@@ -86,7 +86,7 @@ def copy_read_through(path, key=None, sample=50, child=False):
                 pairs = [(value, None)] if isinstance(value, str) and \
                     value.startswith(SEALED) else []
             else:
-                pairs = [(got.get(c), '%s:%s:%s' % (table, got.get('id'), c))
+                pairs = [(got.get(c), seal_bind(table, got, c))
                          for c in cols.get(table, ()) if got.get(c)]
             for value, bind in pairs:
                 ok = _seal_tag_ok(key, value, bind)

@@ -34,6 +34,8 @@ CERT_DEFAULTS = {
     'certs_notify_ok': 0,
     'certs_keep_versions': 10,
     'certs_keep_jobs_days': 90,
+    'certs_precheck': 1,
+    'certs_dry_run_s': 120,
     # --- the CRLs and certificates of acme's own authorities, on acme (port 80) --------
     'pki_publish': 1,
     'pki_base_url': '',
@@ -76,6 +78,8 @@ NAMES.update({
     'certs_notify_ok': 'Tell what went well too',
     'certs_keep_versions': 'Old certificates kept (each)',
     'certs_keep_jobs_days': 'Jobs kept (days)',
+    'certs_precheck': 'Check the validation before the CA is asked',
+    'certs_dry_run_s': 'A dry run waits at most (s)',
     'pki_publish': 'Publish CRLs on acme',
     'pki_base_url': 'Their address',
     'portal_cert': 'Certificates on the portal',
@@ -118,6 +122,13 @@ SAYS.update({
                        'Message texts.',
     'certs_keep_versions': 'Each certificate keeps this many of the certificates it had.',
     'certs_keep_jobs_days': 'Jobs older than this are deleted, with their steps.',
+    'certs_precheck': 'Before the first certificate of a name, and after a renewal that failed '
+                      'on its validation, acme checks what the validation needs (the CNAME, '
+                      'the zone, the address the name points at) - and while something is '
+                      'missing it does not ask the CA but says what to set up where. Let’s '
+                      'Encrypt counts failed validations and stops a domain for an hour.',
+    'certs_dry_run_s': 'How long a dry run of a validation waits for its test record or file '
+                       'to be seen before it says it is not.',
     'pki_publish': 'Every node and the VIP address serve the CRL and the certificate of each of '
                    'acme’s own authorities over plain HTTP at /pki/ (port 80, no sign-in, '
                    'from the database), and keep each CRL fresh. A new authority puts these '
@@ -167,6 +178,7 @@ TUNABLE.update({
     'certs_renew_days': (1, 3650), 'certs_check_min': (1, 1440), 'certs_parallel': (1, 32),
     'certs_retry_max_h': (1, 168), 'certs_notify_days': (0, 365), 'certs_notify_ok': (0, 1),
     'certs_keep_versions': (1, 1000), 'certs_keep_jobs_days': (1, 3650),
+    'certs_precheck': (0, 1), 'certs_dry_run_s': (10, 1800),
     'pki_publish': (0, 1),
     'portal_cert': (0, 1), 'portal_cert_max': (1, 1000), 'portal_cert_auto': (0, 1),
     'portal_cert_keys': (0, 1),
@@ -176,7 +188,8 @@ TUNABLE.update({
 })
 PANES['certs'] = ['certs_renew_days', 'certs_check_min', 'certs_parallel', 'certs_retry_max_h',
                   'certs_notify_days', 'certs_notify_mail', 'certs_notify_sms',
-                  'certs_notify_ok', 'pki_publish', 'pki_base_url']
+                  'certs_notify_ok', 'certs_precheck', 'certs_dry_run_s', 'pki_publish',
+                  'pki_base_url']
 ONLY_WHEN.update({'pki_base_url': ['pki_publish', '1']})
 # How long the certificate manager keeps things, on The database pane beside
 # how long the events are kept - where otp kept its own retention.
@@ -356,3 +369,13 @@ def certs_firewall(store, node):
 CHOICE_WORDS['dns_expose'] = {'both': 'on the VIP address and on the nodes',
                               'vip': 'on the VIP address only',
                               'nodes': 'on the nodes only'}
+
+
+# The private keys of the certificate manager are sealed under binds of their
+# own (acmelib/certs/store.py key_place, acmelib/certs/ca.py): told to the
+# engine, so a backup's check and the configuration's export open them.
+SEAL_BINDS[('cert_cas', 'key_sealed')] = lambda r: 'cert_cas:%d:key' % int(r['id'])
+SEAL_BINDS[('certs', 'key_sealed')] = \
+    lambda r: 'certs:%s:key_sealed:%s' % (r['id'], r.get('version') or 0)
+SEAL_BINDS[('cert_versions', 'key_sealed')] = \
+    lambda r: 'certs:%s:key_sealed:%s' % (r['cert_id'], r.get('version') or 0)
