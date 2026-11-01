@@ -53,8 +53,11 @@ def covered_by(store, row, slot):
     out = []
     for dep in store.db.rows('SELECT * FROM cert_deploys WHERE target = ?', (row['name'],)):
         opts = S.jload(dep.get('options'), {}) or {}
-        asked = [x.strip() for x in str(opts.get('slots') or 'auto').replace(',', '\n')
-                 .splitlines() if x.strip()] or ['auto']
+        raw = opts.get('slots') or 'auto'
+        if isinstance(raw, (list, tuple)):
+            raw = '\n'.join(str(x) for x in raw)
+        asked = [x.strip() for x in str(raw).replace(',', '\n').splitlines()
+                 if x.strip()] or ['auto']
         cert = store.db.row('SELECT id, name, names FROM certs WHERE id = ?', (dep['cert_id'],))
         if not cert:
             continue

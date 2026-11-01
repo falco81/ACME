@@ -1305,6 +1305,11 @@ function pushDiscover(r, button) {
     var d = got[0], srcs = got[1] || [], vals = got[2] || [];
     var picks = {};
     var plan, src, val;
+    /* Known before the popup is drawn: its buttons are made with it. */
+    var freeN = arr(d.slots).filter(function (sl) {
+      return !(sl.covered_by && sl.covered_by.length) && sl.installable !== false
+        && (sl.names || []).length && !/^follows:/.test(sl.managed_by || '');
+    }).length;
     over(function () {
       modal('Discover', function (body) {
         body.appendChild(data('p', 'muted', r.name));
@@ -1344,6 +1349,7 @@ function pushDiscover(r, button) {
           tr.appendChild(cov);
           table.appendChild(tr);
         });
+        table.style.marginBottom = '18px';
         body.appendChild(table);
         if (!FULL || !Object.keys(picks).length) {
           body.appendChild(el('p', 'note', Object.keys(picks).length ? 'A full administrator can make the certificates for those not covered.' : 'Every slot that needs a certificate has one from acme.'));
@@ -1355,7 +1361,7 @@ function pushDiscover(r, button) {
         body.appendChild(formField('From', src));
         val = selectBox([['', 'the default validation']].concat(vals.map(function (x) { return [x.name, x.name]; })), '');
         body.appendChild(formField('Validation', val, 'Each certificate is issued by itself and pushed to its slots; renewals the same.'));
-      }, [{words: 'Close', close: true}].concat(FULL && Object.keys(picks).length ? [{words: 'Make the certificates', cls: 'primary', icon: 'save', go: function (btn) {
+      }, [{words: 'Close', close: true}].concat(FULL && freeN ? [{words: 'Make the certificates', cls: 'primary', icon: 'save', go: function (btn) {
         var ids = Object.keys(picks).filter(function (k) { return picks[k].checked; });
         if (!ids.length) { toast('Choose a slot first', 'bad'); return; }
         busy(btn, true);
