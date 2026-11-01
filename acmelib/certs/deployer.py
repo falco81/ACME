@@ -85,9 +85,11 @@ def deploy_one(store, job, cert, dep, force=False):
     store.db.update('cert_deploys', dep['id'], {'last_try': t, 'state': 'deploying'})
     ctx = target_context(store, job, trow)
     ctx.deploy_id = dep['id']       # what a target wrote for this deployment is kept by it
+    ctx.target_name = trow['name']  # ACME_TARGET of a script after the files
     try:
         target = S.plugin_instance(store, 'target', trow, ctx)
         opts = S.deploy_options(store, dep)
+        generated_password(store, dep, opts, step)
         whole = S.bundle_of(cert)
         bundle = pick_variant(whole, opts, type(target))
         if whole.alt is not None:
@@ -144,6 +146,27 @@ def deploy_one(store, job, cert, dep, force=False):
         _tell(store, 'cert_deployed', 'deployed:%s:%s' % (dep['id'], cert.get('version')), cert,
               trow)
     return True, 'deployed to %s' % trow['name']
+
+
+def generated_password(store, dep, opts, step=None, again=False):
+    """A deployment whose PKCS#12 / keystore password acme makes (pfx_password_mode
+    'generate') and that has none yet - made by the command line, say -: one made
+    now, kept sealed in its options, and put into `opts`. -> the password or None."""
+    if str(opts.get('pfx_password_mode') or '') != 'generate':
+        return None
+    if opts.get('pfx_password') and not again:
+        return opts['pfx_password']
+    from acmelib.plugins.targets._common import random_password
+    pw = random_password(24)
+    row = store.db.row('SELECT options FROM cert_deploys WHERE id = ?', (dep['id'],))
+    kept = S.jload((row or {}).get('options'), {}) or {}
+    kept['pfx_password'] = E.seal_secret(pw, 'cert_deploys:%s:pfx_password' % dep['id'])
+    store.db.update('cert_deploys', dep['id'], {'options': json.dumps(kept)})
+    opts['pfx_password'] = pw
+    if step:
+        step('a password for the PKCS#12 / keystore files was made and kept with the '
+             'deployment (a full administrator sees it)')
+    return pw
 
 
 def _notices():

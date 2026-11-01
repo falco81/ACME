@@ -1345,6 +1345,9 @@ def family_save(store, family, b, by):
                     raise ValueError('%s: %s is needed' % (name, f.get('label') or f['key']))
         if len(json.dumps(cfg)) > 200000:
             raise ValueError('those settings are too big')
+        if family == 'target' and cfg.get('script_body'):
+            from acmelib.plugins.targets import _script
+            _script.check_body(cfg['script_body'])
         fields['config'] = json.dumps(cfg)
     if fields:
         store.db.update(table, row['id'], fields)
@@ -1587,7 +1590,9 @@ def _sources_contact(h, s):
 # ---------------------------------------------------------------------------
 # Deployments
 # ---------------------------------------------------------------------------
-def deploy_save(store, b, by):
+def deploy_save(store, b, by, full=True):
+    """A deployment saved. `full`: by a full administrator - only one may change
+    the script written in it (it runs on the target)."""
     t = time.time()
     row = None
     if b.get('id') not in (None, '', 0):
@@ -1617,8 +1622,22 @@ def deploy_save(store, b, by):
         old = S.jload(row.get('options'), {}) or {}
         if row.get('target') != trow['name']:
             old = {}
-        opts = S.config_seal(_dict(b.get('options'), 'options'), old,
+        given = dict(_dict(b.get('options'), 'options'))
+        again = _flag(given.pop('pfx_password_new', None))
+        if 'script_body' in given:
+            from acmelib.plugins.targets import _script
+            _script.check_body(given['script_body'])
+            if not full and str(given.get('script_body') or '') != str(old.get('script_body') or ''):
+                raise E.ApiError(403, 'only a full administrator may change the script of a '
+                                      'deployment (it runs on the target)')
+        opts = S.config_seal(given, old,
                              'cert_deploys:%s' % row['id'], S.secret_fields(cls, 'deploy_fields'))
+        if opts.get('pfx_password_mode') == 'generate' and (
+                again or not opts.get('pfx_password') or
+                old.get('pfx_password_mode') != 'generate'):
+            from acmelib.plugins.targets._common import random_password
+            opts['pfx_password'] = E.seal_secret(random_password(24), 'cert_deploys:%s:%s' % (
+                row['id'], 'pfx_password'))
         if cls is not None:
             for f in cls.deploy_fields or []:
                 if f.get('required') and opts.get(f['key']) in (None, '') and \
@@ -1680,7 +1699,7 @@ def _deploys(h, s):
 
 @api('POST', '/api/deploys/save', 'certadmin')
 def _deploy_save(h, s):
-    return {'id': deploy_save(h.store, h.body(), who(s))}
+    return {'id': deploy_save(h.store, h.body(), who(s), full=may(s, 'fulladmin'))}
 
 
 @api('POST', '/api/deploys/delete', 'certadmin')
@@ -1798,4 +1817,5 @@ from acmelib.certs import api_sshkeys  # noqa: E402,F401
 from acmelib.certs import api_readiness  # noqa: E402,F401  (plan, check, dry run: before a certificate)
 from acmelib.certs import api_push  # noqa: E402,F401  (acme push: Discover, and what it makes)
 from acmelib.certs import api_dnssets  # noqa: E402,F401  (Settings → DNS: the sets of DNS servers)
+from acmelib.certs import api_deploys  # noqa: E402,F401  (a deployment's files: preview, test)
 from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edit, renew, versions)

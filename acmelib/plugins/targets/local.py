@@ -1,18 +1,24 @@
 # -*- coding: utf-8 -*-
 """
 This machine: files written under one folder only (/etc/acme/out by default)
-and, when asked, one command run - only a command the target itself allows.
+and, when asked, one command run - only a command the target itself allows -
+or a script written in the deployment, only where the target allows scripts
+(it runs here, on acme's own machine, as acme).
 """
 from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import tempfile
 
 from acmelib.plugins.targets._common import (
     Base, PluginError, field, lines, label_of, stamp, parse_outputs, subst, PFX_FORMATS,
-    verify_fields, as_int, text, alt_of, family_of, outputs_for)
+    verify_fields, as_int, as_bool, text, alt_of, family_of, outputs_for)
+from acmelib.plugins.targets import _script as SC
+
+INTERPS = ('bash', 'sh', 'python3')
 
 
 class LocalTarget(Base):
@@ -29,17 +35,24 @@ class LocalTarget(Base):
         field('allow_commands', 'Commands allowed', 'list', advanced=True,
               help='the exact commands a deployment may run, one a line (no shell: '
                    'pipes and ; are not); empty: none'),
+        field('allow_scripts', 'Scripts written in a deployment may run here', 'bool',
+              default=False, advanced=True,
+              help='off: a deployment runs only a command allowed above. On: a script '
+                   'written in the deployment (by a full administrator) runs on this machine '
+                   'as acme, after the files'),
     ]
     deploy_fields = [
-        field('outputs', 'Files', 'list',
+        field('outputs', 'Files', 'list', ui='files',
               placeholder='fullchain-pem {name}/fullchain.pem\nkey-pem {name}/privkey.pem 0600',
               help='one a line: format path [mode] - the path inside the folder; of a dual '
                    'certificate format@rsa / format@ec (@main, @alt) for one of its two, '
                    '{alt} its twin\'s kind'),
-        field('pfx_password', 'PKCS#12 / keystore password', 'secret'),
+    ] + SC.password_fields() + [
         field('command', 'Then run', 'text', advanced=True,
               help='one of the commands the target allows'),
-    ] + verify_fields()
+    ] + SC.script_fields(INTERPS) + verify_fields()
+    files_ui = SC.files_ui('local', INTERPS, SC.layouts('{name}', 'posix'), owners=False,
+                           base='/etc/acme/out')
 
     def ident(self):
         return self.c('base')
@@ -71,15 +84,54 @@ class LocalTarget(Base):
             raise PluginError('acme cannot write in %s' % b, retry=False)
         return '%s can be written' % b
 
+    def _vars(self, bundle, options):
+        alt = alt_of(bundle)
+        name = label_of(bundle, options)
+        return {'name': name, 'date': stamp(bundle),
+                'cn': label_of(bundle, {'object_name': (bundle.names or ['cert'])[0]}),
+                'service': (options or {}).get('service') or name,
+                'alt': family_of(alt) if alt is not None else 'alt'}
+
+    def _pairs(self, bundle, options, vars):
+        return outputs_for(self.ctx, bundle,
+                           parse_outputs(options.get('outputs'), vars, absolute=False))
+
+    def _script(self, options, vars):
+        """The script after the files, as this target lets it run - PluginError if not."""
+        sc = SC.script_of(self, options, vars, INTERPS)
+        why = self._script_refused(sc, options)
+        if why:
+            raise PluginError(why, retry=False)
+        return sc
+
+    def _script_refused(self, sc, options=None):
+        if sc is None:
+            return ''
+        if sc['mode'] == 'inline' and not as_bool(self.c('allow_scripts')):
+            return ('this target does not let scripts run on this machine (its setting '
+                    '"Scripts written in a deployment may run here" is off)')
+        if sc['mode'] == 'path':
+            o = options or {}
+            raw = ('%s %s' % (o.get('script_path') or '', o.get('script_args') or '')).strip()
+            allowed = lines(self.c('allow_commands'))
+            if raw not in allowed and (o.get('script_args') or sc['path'] not in allowed):
+                return 'the command "%s" is not one this target allows' % raw
+        return ''
+
+    def _render(self, pairs, options, vars):
+        pw = SC.password_of(options)
+        out = []
+        for o, b in pairs:
+            data = b.as_format(o['format'], password=(pw if o['format'] in PFX_FORMATS else None),
+                               alias=options.get('jks_alias') or vars['name'])
+            out.append(data.encode() if isinstance(data, str) else data)
+        return out
+
     def deploy(self, bundle, options):
         options = options or {}
         base = self._base()
-        alt = alt_of(bundle)
-        vars = {'name': label_of(bundle, options), 'date': stamp(bundle),
-                'cn': label_of(bundle, {'object_name': (bundle.names or ['cert'])[0]}),
-                'alt': family_of(alt) if alt is not None else 'alt'}
-        pairs = outputs_for(self.ctx, bundle,
-                            parse_outputs(options.get('outputs'), vars, absolute=False))
+        vars = self._vars(bundle, options)
+        pairs = self._pairs(bundle, options, vars)
         outs = [o for o, _b in pairs]
         if not outs:
             raise PluginError('no files to write', retry=False)
@@ -87,34 +139,155 @@ class LocalTarget(Base):
         if cmd and cmd not in lines(self.c('allow_commands')):
             raise PluginError('the command "%s" is not one this target allows' % cmd,
                               retry=False)
+        sc = self._script(options, vars)
         if self.unchanged(bundle, options, present=lambda: all(
                 os.path.exists(os.path.join(base, o['path'].lstrip('/'))) for o in outs)):
             return self.same(bundle, 'in %s' % base)
         os.makedirs(base, mode=0o750, exist_ok=True)
-        for o, b in pairs:
+        datas = self._render(pairs, options, vars)
+        before = []                 # (path, the bytes there before or None)
+        written = []
+        for (o, b), data in zip(pairs, datas):
             full = self._place(base, o['path'])
-            pw = options.get('pfx_password') if o['format'] in PFX_FORMATS else None
-            data = b.as_format(o['format'], password=pw or None, alias=vars['name'])
-            if isinstance(data, str):
-                data = data.encode()
-            fd, tmp = tempfile.mkstemp(prefix='.acme-', dir=os.path.dirname(full))
             try:
-                with os.fdopen(fd, 'wb') as fh:
-                    fh.write(data)
-                os.chmod(tmp, o['mode'])
-                os.replace(tmp, full)
-            except BaseException:
-                try:
-                    os.unlink(tmp)
-                except OSError:
-                    pass
-                raise
+                with open(full, 'rb') as fh:
+                    before.append((full, fh.read()))
+            except OSError:
+                before.append((full, None))
+            self._write(full, data, o['mode'])
+            written.append((o, full))
             self.ctx.step('wrote %s' % full)
+        if sc:
+            env = SC.env_for(self, bundle, [(dict(o, path=full), b) for (o, full), (_o, b)
+                                            in zip(written, pairs)], vars, SC.password_of(options))
+            rc, out, err = self._run_script(sc, env, base)
+            said = SC.tell(self, sc, rc, out, err)
+            if rc != 0:
+                self._put_back(before)
+                raise PluginError('%s failed (exit %s), the previous files are back%s' % (
+                    SC._what(sc), rc, (': ' + said.splitlines()[-1][-200:]) if said else ''),
+                    retry=False)
         if cmd:
             self._run(subst(cmd, vars))
         self.remember(bundle, options)
-        return '%d file%s in %s%s' % (len(outs), '' if len(outs) == 1 else 's', base,
-                                       ', ran %s' % cmd if cmd else '')
+        return '%d file%s in %s%s%s' % (len(outs), '' if len(outs) == 1 else 's', base,
+                                         ', the script ran' if sc else '',
+                                         ', ran %s' % cmd if cmd else '')
+
+    def _write(self, full, data, mode):
+        fd, tmp = tempfile.mkstemp(prefix='.acme-', dir=os.path.dirname(full))
+        try:
+            with os.fdopen(fd, 'wb') as fh:
+                fh.write(data)
+            os.chmod(tmp, mode)
+            os.replace(tmp, full)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+
+    def _put_back(self, before):
+        for full, data in before:
+            try:
+                if data is None:
+                    os.unlink(full)
+                else:
+                    self._write(full, data, os.stat(full).st_mode & 0o777)
+            except OSError as e:
+                self.ctx.step('%s could not be put back: %s' % (full, e), 'bad')
+        self.ctx.step('the previous files are back', 'warn')
+
+    def _run_script(self, sc, env, cwd, timeout=300):
+        """The script run here, in a private temporary folder, with a small PATH
+        and the ACME_* variables only - never through a shell."""
+        argv_args = shlex.split(sc['args']) if sc['args'] else []
+        folder = tempfile.mkdtemp(prefix='acme-script-')
+        try:
+            if sc['mode'] == 'inline':
+                path = os.path.join(folder, 'script' + SC.INTERPS[sc['interp']][2])
+                with open(path, 'w', encoding='utf-8') as fh:
+                    fh.write(sc['body'])
+                os.chmod(path, 0o700)
+                argv = [SC.INTERPS[sc['interp']][1], path] + argv_args
+            else:
+                argv = [sc['path']] + argv_args
+            e = {'PATH': '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                 'LANG': 'C.UTF-8', 'HOME': folder}
+            e.update({k: str(v) for k, v in env.items()})
+            runner = getattr(self.ctx, 'run_local', None)
+            if runner:
+                try:
+                    return runner(argv, timeout=timeout, env=e, cwd=cwd)
+                except TypeError:
+                    pass
+            try:
+                p = subprocess.run(argv, capture_output=True, timeout=timeout, shell=False,
+                                   env=e, cwd=cwd if os.path.isdir(cwd) else folder)
+            except (OSError, subprocess.TimeoutExpired) as ex:
+                return 127, b'', str(ex).encode()
+            return p.returncode, p.stdout, p.stderr
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+
+    def preview(self, bundle, options):
+        options = dict(options or {})
+        problems = []
+        vars = self._vars(bundle, options)
+        try:
+            pairs = self._pairs(bundle, options, vars)
+        except PluginError as e:
+            problems.append({'level': 'bad', 'words': str(e)})
+            pairs = []
+        base = os.path.realpath(self.c('base') or '/etc/acme/out')
+        for o, _b in pairs:
+            full = os.path.normpath(os.path.join(base, o['path'].lstrip('/')))
+            if not full.startswith(base + os.sep):
+                problems.append({'level': 'bad', 'words': '%s is outside %s' % (o['path'], base)})
+        cmd = (options.get('command') or '').strip()
+        if cmd and cmd not in lines(self.c('allow_commands')):
+            problems.append({'level': 'bad', 'words': 'the command "%s" is not one this target '
+                             'allows' % cmd})
+        return SC.preview(self, bundle, options, pairs, vars, problems, base=base, owners=False,
+                          interps=INTERPS,
+                          script_ok=lambda sc: self._script_refused(sc, options))
+
+    def dry_run(self, bundle, options, run_script=True):
+        """The files made into a temporary folder (not under the target's folder),
+        the script run there with ACME_DRY_RUN=1, the folder deleted."""
+        options = dict(options or {})
+        base = self._base()
+        vars = self._vars(bundle, options)
+        pairs = self._pairs(bundle, options, vars)
+        if not pairs:
+            raise PluginError('no files to write', retry=False)
+        sc = self._script(options, vars)
+        if os.path.isdir(base) and not os.access(base, os.W_OK):
+            self.ctx.step('acme cannot write in %s' % base, 'bad')
+        datas = self._render(pairs, options, vars)
+        folder = tempfile.mkdtemp(prefix='acme-test-')
+        try:
+            moved = []
+            for i, ((o, b), data) in enumerate(zip(pairs, datas)):
+                p = os.path.join(folder, '%d-%s' % (i + 1, os.path.basename(o['path'])))
+                self._write(p, data, o['mode'])
+                moved.append((dict(o, path=p), b))
+                self.ctx.step('%s: %s, %d B' % (os.path.join(base, o['path'].lstrip('/')),
+                                                o['format'], len(data)))
+            if sc and run_script:
+                env = SC.env_for(self, bundle, moved, vars, SC.password_of(options), dry_run=True,
+                                 extra={'ACME_TEST_DIR': folder})
+                rc, out, err = self._run_script(sc, env, folder)
+                SC.tell(self, sc, rc, out, err, dry_run=True)
+                if rc != 0:
+                    raise PluginError('%s failed on the test (exit %s)' % (SC._what(sc), rc),
+                                      retry=False)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+        return 'the test passed: %d file%s%s' % (len(pairs), '' if len(pairs) == 1 else 's',
+                                                 ', the script ran with ACME_DRY_RUN=1'
+                                                 if sc and run_script else '')
 
     def _run(self, cmd):
         argv = shlex.split(cmd)

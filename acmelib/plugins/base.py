@@ -776,6 +776,11 @@ class Target(Plugin):
         if not cls.dual and not any(f.get('key') == 'variant' for f in cls.deploy_fields):
             d['deploy_fields'].append(dict(VARIANT_FIELD))
         d['dual'] = bool(cls.dual)
+        # A target that writes the certificate as files (ssh, windows_ssh, local): what
+        # the page's files designer needs - formats in words, quick layouts, the
+        # variables of the script after them (targets/_script.py files_ui()).
+        if getattr(cls, 'files_ui', None):
+            d['files_ui'] = cls.files_ui
         return d
 
 

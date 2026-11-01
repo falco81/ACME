@@ -30,6 +30,7 @@ from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, lines, as_bool, label_of, stamp,
     parse_outputs, subst, quote, ssh_fields, verify_fields, PFX_FORMATS, alt_of, family_of,
     variants_of, outputs_for)
+from acmelib.plugins.targets import _script as SC
 
 
 # A preset fills what is left empty: outputs, commands, the port to check.
@@ -180,6 +181,8 @@ def _preset_fills():
     return out
 
 
+INTERPS = ('bash', 'sh', 'python3')
+
 SAMPLE = ('fullchain-pem /etc/nginx/ssl/{name}.crt 0644 root:root\n'
           'key-pem /etc/nginx/ssl/{name}.key 0600 root:root\n'
           'pfx /opt/app/keystore.p12 0640 app:app')
@@ -198,7 +201,7 @@ class SshTarget(SshMixin, Base):
         field('tmp_dir', 'Folder for uploads', 'text', default='/tmp', advanced=True,
               help='where files are put first, before they are moved into place'),
         field('timeout', 'Timeout (s)', 'number', default=30, advanced=True),
-    ]
+    ] + SC.script_fields(INTERPS, deploy=False)
     deploy_fields = [
         field('preset', 'Service', 'select', default='custom',
               options=[[k, p['title']] for k, p in PRESETS.items()],
@@ -208,20 +211,18 @@ class SshTarget(SshMixin, Base):
                    'RSA): the twin\'s files are written too - for HAProxy {name}.ecdsa.pem '
                    'and {name}.rsa.pem, loaded by "crt /etc/haproxy/certs/" (the folder) '
                    'or a crt-list'),
-        field('outputs', 'Files', 'list', placeholder=SAMPLE,
+        field('outputs', 'Files', 'list', placeholder=SAMPLE, ui='files',
               help='one a line: format path [mode] [owner[:group]]. Formats: cert-pem, '
                    'fullchain-pem, chain-pem, key-pem, key-rsa, combined-pem (key + '
                    'fullchain), cert-der, key-der, p7b, pfx/p12, p12-legacy, jks. '
                    'In paths: {name} {cn} {service} {date} {alt}. A dual certificate: '
                    'format@rsa, format@ec (or @main, @alt) for one of its two - a '
                    'preset writes both by itself'),
-        field('pfx_password', 'PKCS#12 / keystore password', 'secret',
-              help='for pfx, p12, p12-legacy and jks files (jks needs one)'),
-        field('jks_alias', 'Keystore alias', 'text', advanced=True,
-              help='the alias in a jks or pfx; empty: the certificate\'s name'),
+    ] + SC.password_fields() + [
         field('service', 'Service / container / secret name', 'text', advanced=True,
               help='{service} in the paths and commands'),
         field('backup', 'Keep the previous files as .bak', 'bool', default=True),
+    ] + SC.script_fields(INTERPS) + [
         field('pre_cmd', 'Before writing', 'list', advanced=True,
               help='commands run first; one failing stops the deployment'),
         field('test_cmd', 'Test command', 'list', placeholder='nginx -t',
@@ -232,6 +233,9 @@ class SshTarget(SshMixin, Base):
         field('post_cmd', 'After reloading', 'list', advanced=True,
               help='run last; a failure here is only a warning'),
     ] + verify_fields()
+
+    files_ui = SC.files_ui('posix', INTERPS, SC.layouts('/etc/ssl/acme/{name}'),
+                           presets=[[k, p['title']] for k, p in PRESETS.items()])
 
     _sleep = staticmethod(time.sleep)
 
@@ -248,7 +252,7 @@ class SshTarget(SshMixin, Base):
             return list(preset['dual_outputs'])
         return outs + list(preset.get('alt_outputs') or [])
 
-    def resolved(self, bundle, options):
+    def resolved(self, bundle, options, partial=False):
         options = dict(options or {})
         preset = PRESETS.get(options.get('preset') or 'custom') or PRESETS['custom']
         out = {}
@@ -276,11 +280,13 @@ class SshTarget(SshMixin, Base):
         files = parse_outputs(out['outputs'], vars)
         out['pairs'] = outputs_for(self.ctx, bundle, files)
         out['files'] = [f for f, _b in out['pairs']]
-        if not out['files']:
+        if not out['files'] and not partial:
             raise PluginError('no files to write: choose a service or fill in "Files"',
                               retry=False)
         for key in ('pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd'):
             out[key] = [subst(c, vars) for c in lines(out[key])]
+        out['password'] = SC.password_of(dict(options, pfx_password=out['pfx_password']))
+        out['script'] = SC.script_of(self, options, vars, INTERPS)
         return out
 
     def render(self, bundle, r):
@@ -290,7 +296,7 @@ class SshTarget(SshMixin, Base):
         for f, b in r.get('pairs') or [(f, bundle) for f in r['files']]:
             pw = None
             if f['format'] in PFX_FORMATS:
-                pw = r['pfx_password'] or None
+                pw = r.get('password', r.get('pfx_password')) or None
                 if f['format'] == 'jks' and (not pw or len(pw) < 6):
                     raise PluginError('a jks keystore needs a password of 6 characters '
                                       'or more', retry=False)
@@ -348,6 +354,17 @@ class SshTarget(SshMixin, Base):
                     self._stale_back(s, moved)
                     raise PluginError('the test "%s" failed, the previous files are back: %s'
                                       % failed, retry=False)
+                if r['script']:
+                    env = SC.env_for(self, bundle, r['pairs'], r['vars'], r['password'])
+                    rc, out, err = SC.run_posix(self, s, r['script'], env, tmpdir)
+                    said = SC.tell(self, r['script'], rc, out, err)
+                    if rc != 0:
+                        self._rollback(s, files, existed, suffix)
+                        self._stale_back(s, moved)
+                        raise PluginError('%s failed (exit %s), the previous files are back%s'
+                                          % (SC._what(r['script']), rc,
+                                             (': ' + said.splitlines()[-1][-200:]) if said
+                                             else ''), retry=False)
                 failed = self._commands(s, r['reload_cmd'], 'reload')
                 if failed:
                     self._rollback(s, files, existed, suffix)
@@ -371,9 +388,112 @@ class SshTarget(SshMixin, Base):
                         pass
         self.remember(bundle, options)
         self._written(options, [f['path'] for f in files])
-        return '%d file%s written on %s%s' % (
+        return '%d file%s written on %s%s%s' % (
             len(files), '' if len(files) == 1 else 's', self.c('host'),
-            ', reloaded' if r['reload_cmd'] else '')
+            ', the script ran' if r['script'] else '', ', reloaded' if r['reload_cmd'] else '')
+
+    # -- what it would do: the page's preview, and a test that changes nothing ---------
+    def preview(self, bundle, options):
+        problems = []
+        try:
+            r = self.resolved(bundle, options, partial=True)
+            pairs, vars = r['pairs'], r['vars']
+        except PluginError as e:
+            problems.append({'level': 'bad', 'words': str(e)})
+            pairs, vars = [], self._vars(bundle, options)
+        o = dict(options or {})
+        if not o.get('pfx_password') and (PRESETS.get(o.get('preset') or '') or {}).get(
+                'pfx_password'):
+            o['pfx_password'] = PRESETS[o['preset']]['pfx_password']
+        got = SC.preview(self, bundle, o, pairs, vars, problems, interps=INTERPS)
+        if pairs:
+            got['commands'] = {k: r[k] for k in ('pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd')}
+        return got
+
+    def _vars(self, bundle, options):
+        name = label_of(bundle, options)
+        return {'name': name, 'cn': name, 'date': stamp(bundle),
+                'service': (options or {}).get('service') or name, 'alt': 'alt'}
+
+    def dry_run(self, bundle, options, run_script=True):
+        """Signed in; the files made and written into a temporary folder (not
+        their places), where they go looked at; the script run there with
+        ACME_DRY_RUN=1; the folder deleted. Nothing of the service is touched:
+        the commands before, test and reload are not run."""
+        options = dict(options or {})
+        r = self.resolved(bundle, options)
+        datas = self.render(bundle, r)
+        files = r['files']
+        tmpdir = (self.c('tmp_dir') or '/tmp').rstrip('/') or '/tmp'
+        with self.ssh() as s:
+            rc, out, err = self.sh(s, 'id -un', what='signing in')
+            self.ctx.step('signed in as %s on %s' % (out.strip(), self.c('host')), 'ok')
+            rc, out, err = self.sh(s, 'mktemp -d %s/.acme-test-XXXXXXXX' % quote(tmpdir),
+                                   what='a temporary folder')
+            tdir = out.strip().splitlines()[-1] if out.strip() else ''
+            if not tdir.startswith(tmpdir + '/.acme-test-') or '..' in tdir:
+                raise PluginError('the temporary folder is not where it was asked: %r' % tdir)
+            try:
+                self._look_at_places(s, files)
+                pairs = []
+                for i, ((f, b), data) in enumerate(zip(r['pairs'], datas)):
+                    p = '%s/%d-%s' % (tdir, i + 1, f['path'].rstrip('/').split('/')[-1])
+                    s.put(data, p, 0o600)
+                    fix = 'chmod %o %s' % (f['mode'], quote(p))
+                    if f['owner']:
+                        fix += ' && { chown %s %s || echo "OWNER"; }' % (quote(f['owner']), quote(p))
+                    rc, out, err = self.sh(s, fix, check=False)
+                    if 'OWNER' in out or rc != 0:
+                        self.ctx.step('%s: the owner %s cannot be set there (%s)' % (
+                            f['path'], f['owner'], (err.strip() or out.strip())[-160:]), 'warn')
+                    pairs.append((dict(f, path=p), b))
+                self.ctx.step('made %d file%s (%s) in %s - not in their places' % (
+                    len(files), '' if len(files) == 1 else 's',
+                    ', '.join('%s %d B' % (f['format'], len(d)) for f, d in zip(files, datas)),
+                    tdir), 'ok')
+                for c in r['pre_cmd'] + r['test_cmd'] + r['reload_cmd'] + r['post_cmd']:
+                    self.ctx.step('not run on a test: %s' % c)
+                if r['script'] and run_script:
+                    env = SC.env_for(self, bundle, pairs, r['vars'], r['password'], dry_run=True,
+                                     extra={'ACME_TEST_DIR': tdir})
+                    rc, out, err = SC.run_posix(self, s, r['script'], env, tmpdir)
+                    SC.tell(self, r['script'], rc, out, err, dry_run=True)
+                    if rc != 0:
+                        raise PluginError('%s failed on the test (exit %s)' % (
+                            SC._what(r['script']), rc), retry=False)
+                elif r['script']:
+                    self.ctx.step('the script is not run on this test')
+            finally:
+                self.sh(s, 'rm -rf %s' % quote(tdir), check=False)
+                self.ctx.step('the temporary folder is gone')
+        return 'the test passed: %d file%s%s' % (
+            len(files), '' if len(files) == 1 else 's',
+            ', the script ran with ACME_DRY_RUN=1' if r['script'] and run_script else '')
+
+    def _look_at_places(self, s, files):
+        """Where each file goes: is its folder there, may it be written, is a file there now."""
+        script = []
+        for i, f in enumerate(files):
+            p = quote(f['path'])
+            script.append('d=$(dirname %s); printf "%d %%s %%s %%s\\n" "$([ -d "$d" ] && echo 1 || '
+                          'echo 0)" "$([ -w "$d" ] && echo 1 || echo 0)" "$([ -e %s ] && echo 1 || '
+                          'echo 0)"' % (p, i, p))
+        rc, out, err = self.sh(s, '\n'.join(script), check=False)
+        seen = {}
+        for line in out.splitlines():
+            bits = line.split()
+            if len(bits) == 4 and bits[0].isdigit():
+                seen[int(bits[0])] = bits[1:]
+        for i, f in enumerate(files):
+            d, w, e = seen.get(i, ['?', '?', '?'])
+            if d == '0':
+                self.ctx.step('%s: its folder is not there yet - it is made' % f['path'], 'warn')
+            elif w == '0':
+                self.ctx.step('%s: its folder cannot be written%s' % (
+                    f['path'], '' if as_bool(self.c('sudo')) else ' (sudo is off)'), 'bad')
+            else:
+                self.ctx.step('%s: %s' % (f['path'], 'replaces the one there' if e == '1'
+                                          else 'a new file'))
 
     # -- the files this deployment wrote, and the ones it no longer writes --------------
     def _written_key(self, options):

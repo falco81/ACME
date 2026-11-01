@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 Windows over OpenSSH: the PFX imported into LocalMachine\\My, bound to IIS
-sites, the RDP listener and Exchange as asked; old ones taken away.
+sites, the RDP listener and Exchange as asked; old ones taken away. Besides,
+when asked: the certificate written as files (any formats, any places) and a
+PowerShell script run after them (uploaded each time, or one already there).
 """
 from __future__ import annotations
 
@@ -10,7 +12,11 @@ import secrets
 
 from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, lines, as_bool, as_int, object_name, name_prefix,
-    ssh_fields, verify_fields, keep_field, sha1_thumb, random_password, text, put_scp)
+    ssh_fields, verify_fields, keep_field, sha1_thumb, random_password, text, put_scp,
+    label_of, stamp, parse_outputs, outputs_for, alt_of, family_of, PFX_FORMATS)
+from acmelib.plugins.targets import _script as SC
+
+INTERPS = ('powershell',)
 
 
 def ps_str(s):
@@ -34,7 +40,7 @@ class WindowsSshTarget(SshMixin, Base):
                         try_command='whoami') + [
         field('tmp_dir', 'Folder for uploads', 'text', default='C:/Windows/Temp', advanced=True),
         field('timeout', 'Timeout (s)', 'number', default=60, advanced=True),
-    ]
+    ] + SC.script_fields(INTERPS, deploy=False, default='powershell')
     deploy_fields = [
         field('iis', 'IIS bindings', 'list',
               placeholder='Default Web Site | www.example.com | 443',
@@ -51,7 +57,19 @@ class WindowsSshTarget(SshMixin, Base):
         field('post_ps', 'PowerShell after', 'list', advanced=True,
               help='lines run last; $thumb is the new thumbprint'),
         keep_field(1),
-    ] + verify_fields()
+        field('outputs', 'Files', 'list', ui='files', advanced=True,
+              placeholder='pfx C:/certs/{name}.pfx\nfullchain-pem C:/nginx/conf/{name}.crt',
+              help='besides the machine store, when asked: one a line, format path - the '
+                   'same formats as on Linux (cert-pem, fullchain-pem, key-pem, pfx, '
+                   'p12-legacy, jks...); {name} {cn} {service} {date} in paths'),
+    ] + SC.password_fields() + [
+        field('service', 'Service name', 'text', advanced=True,
+              help='{service} in the paths, ACME_SERVICE for the script'),
+    ] + SC.script_fields(INTERPS, default='powershell') + verify_fields()
+    files_ui = SC.files_ui('windows', INTERPS, SC.layouts('C:/certs/{name}', 'windows'),
+                           owners=False)
+
+    _did = []
 
     def run_ps(self, s, script, what='PowerShell', check=True, timeout=300):
         full = ("$ErrorActionPreference = 'Stop'\n$ProgressPreference = 'SilentlyContinue'\n"
@@ -167,9 +185,167 @@ class WindowsSshTarget(SshMixin, Base):
             ]
         return '\n'.join(sc)
 
+    # -- files and the script after them ------------------------------------------------
+    def _vars(self, bundle, options):
+        alt = alt_of(bundle)
+        name = label_of(bundle, options)
+        return {'name': name, 'date': stamp(bundle),
+                'cn': label_of(bundle, {'object_name': (list(bundle.names or [name]))[0]}),
+                'service': (options or {}).get('service') or name,
+                'alt': family_of(alt) if alt is not None else 'alt'}
+
+    def _files(self, bundle, options, vars):
+        return outputs_for(self.ctx, bundle, parse_outputs(options.get('outputs'), vars))
+
+    def _render(self, pairs, options, vars):
+        pw = SC.password_of(options)
+        out = []
+        for o, b in pairs:
+            if o['format'] == 'jks' and (not pw or len(pw) < 6):
+                raise PluginError('a jks keystore needs a password of 6 characters or more',
+                                  retry=False)
+            data = b.as_format(o['format'], password=pw if o['format'] in PFX_FORMATS else None,
+                               alias=options.get('jks_alias') or vars['name'])
+            out.append(data.encode() if isinstance(data, str) else data)
+        return out
+
+    def _tmp(self):
+        return (self.c('tmp_dir') or 'C:/Windows/Temp').rstrip('/\\')
+
+    def _write_files(self, s, pairs, datas):
+        """Each uploaded, then moved into place, the one there kept as .acme-prev.
+        -> the paths that were there before."""
+        token = secrets.token_hex(6)
+        tmps = []
+        for i, data in enumerate(datas):
+            tmps.append('%s/acme-%s-%d.part' % (self._tmp(), token, i))
+            put_scp(s, data, tmps[-1])
+        sc = ["$had = @()"]
+        for (o, _b), tmp in zip(pairs, tmps):
+            p = ps_str(o['path'])
+            sc += ["New-Item -ItemType Directory -Force -Path (Split-Path -Parent %s) | Out-Null" % p,
+                   "if (Test-Path -LiteralPath %s) { Copy-Item -LiteralPath %s -Destination %s "
+                   "-Force; Write-Output ('HAD ' + %s) }" % (p, p, ps_str(o['path'] + '.acme-prev'), p),
+                   "Move-Item -LiteralPath %s -Destination %s -Force" % (ps_str(tmp), p)]
+        rc, out, err = self.run_ps(s, '\n'.join(sc), 'writing the files', check=False)
+        had = [x[4:].strip() for x in out.splitlines() if x.startswith('HAD ')]
+        if rc != 0:
+            self._put_back(s, pairs, had)
+            self.run_ps(s, '; '.join("Remove-Item -LiteralPath %s -Force -ErrorAction "
+                                     "SilentlyContinue" % ps_str(t) for t in tmps),
+                        'cleaning up', check=False)
+            said = [x[7:] for x in out.splitlines() if x.startswith('ERROR: ')]
+            raise PluginError('the files could not be written, the previous ones are back: %s'
+                              % (said[-1] if said else (err.strip() or out.strip())[-300:]))
+        self.ctx.step('wrote %s' % ', '.join(o['path'] for o, _b in pairs), 'ok')
+        return had
+
+    def _put_back(self, s, pairs, had):
+        sc = []
+        for o, _b in pairs:
+            p = ps_str(o['path'])
+            if o['path'] in had:
+                sc.append("Copy-Item -LiteralPath %s -Destination %s -Force"
+                          % (ps_str(o['path'] + '.acme-prev'), p))
+            else:
+                sc.append("Remove-Item -LiteralPath %s -Force -ErrorAction SilentlyContinue" % p)
+        if sc:
+            rc, out, err = self.run_ps(s, '\n'.join(sc), 'putting the files back', check=False)
+            self.ctx.step('the previous files are back' if rc == 0 else
+                          'putting the previous files back failed: %s' % (err or out)[-200:],
+                          'warn' if rc == 0 else 'bad')
+
+    def _drop_previous(self, s, pairs):
+        self.run_ps(s, '; '.join("Remove-Item -LiteralPath %s -Force -ErrorAction "
+                                 "SilentlyContinue" % ps_str(o['path'] + '.acme-prev')
+                                 for o, _b in pairs), 'cleaning up', check=False)
+
+    def _after(self, s, bundle, options, vars, pairs):
+        """The files written and the script run after them; a failing script puts
+        the previous files back. -> words for the result, or ''."""
+        sc = SC.script_of(self, options, vars, INTERPS)
+        if not pairs and not sc:
+            return ''
+        datas = self._render(pairs, options, vars)
+        had = self._write_files(s, pairs, datas) if pairs else []
+        if sc:
+            env = SC.env_for(self, bundle, pairs, vars, SC.password_of(options),
+                             extra={'ACME_THUMBPRINT': sha1_thumb(bundle)})
+            rc, out, err = SC.run_windows(self, s, sc, env, self._tmp())
+            said = SC.tell(self, sc, rc, out, err)
+            if rc != 0:
+                if pairs:
+                    self._put_back(s, pairs, had)
+                raise PluginError('%s failed (exit %s)%s%s' % (
+                    SC._what(sc), rc, ', the previous files are back' if pairs else '',
+                    (': ' + said.splitlines()[-1][-200:]) if said else ''), retry=False)
+        if pairs:
+            self._drop_previous(s, pairs)
+        return ', '.join(x for x in ('%d file%s' % (len(pairs), '' if len(pairs) == 1 else 's')
+                                     if pairs else '', 'the script ran' if sc else '') if x)
+
+    def preview(self, bundle, options):
+        options = dict(options or {})
+        problems = []
+        vars = self._vars(bundle, options)
+        try:
+            pairs = self._files(bundle, options, vars)
+        except PluginError as e:
+            problems.append({'level': 'bad', 'words': str(e)})
+            pairs = []
+        got = SC.preview(self, bundle, options, pairs, vars, problems, owners=False,
+                         interps=INTERPS, windows=True)
+        got['env']['ACME_THUMBPRINT'] = sha1_thumb(bundle) if getattr(bundle, 'cert_pem', '') \
+            else ''
+        got['problems'] = [p for p in got['problems'] if p['words'] != 'no files are written']
+        return got
+
+    def dry_run(self, bundle, options, run_script=True):
+        """Signed in; the files made into a temporary folder; the script run with
+        ACME_DRY_RUN=1; the folder deleted. The machine store and the bindings are
+        not touched."""
+        options = dict(options or {})
+        vars = self._vars(bundle, options)
+        pairs = self._files(bundle, options, vars)
+        sc = SC.script_of(self, options, vars, INTERPS)
+        datas = self._render(pairs, options, vars)
+        with self.ssh() as s:
+            tdir = '%s/acme-test-%s' % (self._tmp(), secrets.token_hex(6))
+            self.run_ps(s, "New-Item -ItemType Directory -Force -Path %s | Out-Null" % ps_str(tdir),
+                        'signing in')
+            self.ctx.step('signed in on %s' % self.c('host'), 'ok')
+            try:
+                moved = []
+                for i, ((o, b), data) in enumerate(zip(pairs, datas)):
+                    p = '%s/%d-%s' % (tdir, i + 1, o['path'].replace('\\', '/').split('/')[-1])
+                    put_scp(s, data, p)
+                    moved.append((dict(o, path=p), b))
+                    self.ctx.step('%s: %s, %d B - into the temporary folder' % (
+                        o['path'], o['format'], len(data)))
+                self.ctx.step('the machine store and the bindings are not touched on a test')
+                if sc and run_script:
+                    env = SC.env_for(self, bundle, moved, vars, SC.password_of(options),
+                                     dry_run=True, extra={'ACME_THUMBPRINT': sha1_thumb(bundle),
+                                                          'ACME_TEST_DIR': tdir})
+                    rc, out, err = SC.run_windows(self, s, sc, env, self._tmp())
+                    SC.tell(self, sc, rc, out, err, dry_run=True)
+                    if rc != 0:
+                        raise PluginError('%s failed on the test (exit %s)' % (SC._what(sc), rc),
+                                          retry=False)
+            finally:
+                self.run_ps(s, "Remove-Item -LiteralPath %s -Recurse -Force -ErrorAction "
+                            "SilentlyContinue" % ps_str(tdir), 'cleaning up', check=False)
+                self.ctx.step('the temporary folder is gone')
+        return 'the test passed: %d file%s%s' % (len(pairs), '' if len(pairs) == 1 else 's',
+                                                 ', the script ran with ACME_DRY_RUN=1'
+                                                 if sc and run_script else '')
+
     def deploy(self, bundle, options):
         options = options or {}
         thumb = sha1_thumb(bundle)
+        vars = self._vars(bundle, options)
+        pairs = self._files(bundle, options, vars)
+        SC.script_of(self, options, vars, INTERPS)      # refused before anything is done
         with self.ssh() as s:
             if self.unchanged(bundle, options, present=lambda: 'YES' in self.run_ps(
                     s, "if (Test-Path 'Cert:\\LocalMachine\\My\\%s') { 'YES' } else { 'NO' }"
@@ -183,7 +359,16 @@ class WindowsSshTarget(SshMixin, Base):
             put_scp(s, data, path)
             rc, out, err = self.run_ps(s, self.script(bundle, options, path, password),
                                        'importing the certificate')
-        did = ['imported %s' % thumb[:12]]
+            self._said(out)
+            after = self._after(s, bundle, options, vars, pairs)
+        did = ['imported %s' % thumb[:12]] + self._did
+        if after:
+            did.append(after)
+        self.remember(bundle, options)
+        return ', '.join(did)
+
+    def _said(self, out):
+        did = []
         for line in out.splitlines():
             if line.startswith('IIS '):
                 did.append('IIS %s' % line[4:])
@@ -198,5 +383,4 @@ class WindowsSshTarget(SshMixin, Base):
                 self.ctx.step('removed the old %s' % line[8:])
             elif line.startswith('INUSE '):
                 self.ctx.step('the old %s is still bound: kept' % line[6:], 'warn')
-        self.remember(bundle, options)
-        return ', '.join(did)
+        self._did = did
