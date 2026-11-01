@@ -1,6 +1,6 @@
-1.0.8
-acme-1.0.8.tar.gz
-sha256 afe2cd1866bbb14a6df27d64432efa7fc422617a3d50594f3610854a83ff3fef
-size 2742953
-date 2026-11-01T19:28:11Z
-url https://raw.githubusercontent.com/falco81/ACME/main/release/acme-1.0.8.tar.gz
+1.0.9
+acme-1.0.9.tar.gz
+sha256 a6a52a96b94fef8cfba39052cf8150e3382d48568337c3a7ea4676bf09d8fd1c
+size 2745383
+date 2026-11-01T20:04:25Z
+url https://raw.githubusercontent.com/falco81/ACME/main/release/acme-1.0.9.tar.gz
