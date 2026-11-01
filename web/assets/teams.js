@@ -624,7 +624,9 @@
     });
   }
 
-  function tr(s) { return typeof window.tr === 'function' ? window.tr(s) : s; }
+  function tr(s) {
+    try { var got = typeof i18nText === 'function' ? i18nText(s) : null; return got || s; } catch (e) { return s; }
+  }
 
   window.ACME_TEAMS = {load: load, ownerPicker: ownerPicker, tagPicker: tagPicker, tagChip: tagChip,
                        ownerChip: ownerChip, fillFilters: fillFilters, teamOf: teamOf, tagOf: tagOf};
