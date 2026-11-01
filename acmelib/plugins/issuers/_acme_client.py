@@ -41,13 +41,16 @@ DIRECTORIES = {
     'buypass-staging': 'https://api.test4.buypass.no/acme/directory',
     'sslcom-rsa': 'https://acme.ssl.com/sslcom-dv-rsa',
     'sslcom-ecc': 'https://acme.ssl.com/sslcom-dv-ecc',
+    # DigiCert CertCentral (also as sold by SSLmarket: the EAB from its customer
+    # administration) - see docs/sslmarket.md
+    'digicert': 'https://acme.digicert.com/v2/acme/directory/',
 }
 DIRECTORY_WORDS = {
     'letsencrypt': "Let's Encrypt", 'letsencrypt-staging': "Let's Encrypt (staging)",
     'zerossl': 'ZeroSSL', 'google': 'Google Trust Services',
     'google-staging': 'Google Trust Services (staging)', 'buypass': 'Buypass Go SSL',
     'buypass-staging': 'Buypass (test)', 'sslcom-rsa': 'SSL.com (RSA)',
-    'sslcom-ecc': 'SSL.com (ECC)', 'custom': 'your own ACME server',
+    'sslcom-ecc': 'SSL.com (ECC)', 'digicert': 'DigiCert (EAB)', 'custom': 'your own ACME server',
 }
 ACCOUNT_KEYS = {'ec-256': ('ES256', '-sha256', 32), 'ec-384': ('ES384', '-sha384', 48),
                 'rsa-2048': ('RS256', '-sha256', 0), 'rsa-3072': ('RS256', '-sha256', 0),

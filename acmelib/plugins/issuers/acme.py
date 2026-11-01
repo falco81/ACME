@@ -76,6 +76,7 @@ class AcmeIssuer(Issuer):
                        ['buypass', 'Buypass Go SSL'],
                        ['sslcom-rsa', 'SSL.com RSA (EAB)'],
                        ['sslcom-ecc', 'SSL.com ECC (EAB)'],
+                       ['digicert', 'DigiCert (EAB - CertCentral, SSLmarket)'],
                        ['custom', 'Another ACME server (its directory URL)']]),
         field('directory_url', 'Directory URL', 'text', placeholder='https://ca.example.local/acme/acme/directory',
               show_if={'directory': ['custom']},

@@ -26,10 +26,42 @@ function apiName(path) {
 function capi(path, body, wait) {
   var q = '', at = path.indexOf('?');
   if (at >= 0) { q = path.slice(at + 1); path = path.slice(0, at); }
-  return api(apiName(path) + (q ? '&' + q : ''), body, wait).catch(function (e) {
+  var writes = body !== undefined && body !== null && !READS.test(path);
+  return api(apiName(path) + (q ? '&' + q : ''), body, wait).then(function (d) {
+    if (writes) afterWrite(path);
+    return d;
+  }, function (e) {
     looksMissing(e);
     throw e;
   });
+}
+/* ---- always current ------------------------------------------------------
+   What this page keeps of the daemon's answers (the lists of Sources,
+   Validation and Targets, the modules with the choices of their fields -
+   the authorities, sources, validations, targets inside a select -, the
+   authorities, the filters filled once) is forgotten after every request
+   that changes something, so the next tab, popup or form asks again: a
+   thing made in one tab is in every other at once, without F5. POSTs that
+   only read (a file looked into, an export, a test, a check) keep them. */
+var READS = /(^|\/)(parse|export|test|pki_check|check|csr)$/;
+var FRESH = {n: 0};
+function forgetAll() {
+  FRESH.n++;
+  if (typeof LISTS === 'object' && LISTS) Object.keys(LISTS).forEach(function (k) { delete LISTS[k]; });
+  PLUG = null;
+  PLUG_ASK = null;
+  CAS_FRESH = 0;
+  JL.certsFilled = false;
+  var f = $('ct-issuer');
+  if (f) f._filled = false;
+  LAST = {};
+}
+var countsSoon = null;
+function afterWrite(path) {
+  forgetAll();
+  /* The counts on the tabs (Certificates, Jobs) follow too. */
+  clearTimeout(countsSoon);
+  countsSoon = setTimeout(tabCounts, 400);
 }
 /** A part of the daemon that is not there (yet): its road is not known. */
 function looksMissing(e) {
@@ -769,15 +801,23 @@ function secretsOf(row) {
    The modules there are (GET /api/plugins)
    ========================================================================== */
 var PLUG = null, PLUG_ASK = null;
+/** The modules, with the choices of their fields resolved by the daemon (the
+    authorities, sources, validations, targets there are now). `again`: asked
+    anew - a popup that offers choices asks so. What was asked before the
+    last change (FRESH) is never given out as current. */
 function plugins(again) {
-  if (PLUG && !again) return Promise.resolve(PLUG);
-  if (!PLUG_ASK || again) {
-    PLUG_ASK = capi('plugins').then(function (d) {
+  if (PLUG && !again && PLUG._gen === FRESH.n) return Promise.resolve(PLUG);
+  if (!PLUG_ASK || again || PLUG_ASK._gen !== FRESH.n) {
+    var gen = FRESH.n;
+    var ask = capi('plugins').then(function (d) {
       d = d || {};
-      PLUG = {issuer: rowsOf(d.issuer || d.issuers), challenge: rowsOf(d.challenge || d.challenges),
-              target: rowsOf(d.target || d.targets), broken: rowsOf(d.broken)};
-      return PLUG;
-    }).catch(function (e) { PLUG_ASK = null; throw e; });
+      var got = {issuer: rowsOf(d.issuer || d.issuers), challenge: rowsOf(d.challenge || d.challenges),
+                 target: rowsOf(d.target || d.targets), broken: rowsOf(d.broken), _gen: gen};
+      if (!PLUG || gen >= (PLUG._gen || 0)) PLUG = got;
+      return got;
+    }).catch(function (e) { if (PLUG_ASK === ask) PLUG_ASK = null; throw e; });
+    ask._gen = gen;
+    PLUG_ASK = ask;
   }
   return PLUG_ASK;
 }
@@ -971,14 +1011,18 @@ var MODS = {
 var LISTS = {};
 function loadRows(key, again) {
   var m = MODS[key];
-  if (LISTS[key] && !again) return Promise.resolve(LISTS[key]);
+  if (LISTS[key] && !again && LISTS[key]._gen === FRESH.n) return Promise.resolve(LISTS[key]);
+  var gen = FRESH.n;
   return capi(m.list).then(function (d) {
     var rows = rowsOf.apply(null, [d].concat(m.keys));
     rows.forEach(function (r) { r.config = obj(r.config); });
-    LISTS[key] = rows;
+    rows._gen = gen;
+    if (!LISTS[key] || gen >= (LISTS[key]._gen || 0)) LISTS[key] = rows;
     return rows;
   });
 }
+/** The default of a list (is_default), or null. */
+function defaultOf(rows) { return arr(rows).filter(function (r) { return r.is_default; })[0] || null; }
 function rowsSafe(key) { return loadRows(key).catch(function () { return []; }); }
 function modSummary(m, r) {
   var p = plugOf(m.family, r.kind);
@@ -1027,7 +1071,8 @@ function drawModTab(key, live) {
   var host = $(m.host);
   if (!host) return;
   if (!live && !host.children.length) host.appendChild(el('p', 'muted', 'Asking…'));
-  var pl = plugins().catch(function () { return null; });
+  /* Shown: the modules asked anew too (the choices of their fields). */
+  var pl = plugins(!live).catch(function () { return null; });
   Promise.all([pl, loadRows(key, true)]).then(function (got) {
     var b = $(m.broken);
     if (b) { clear(b); b.appendChild(brokenBox(m.family)); }
@@ -1067,7 +1112,9 @@ function drawModTab(key, live) {
         kc.appendChild(el('div', '', p ? p.title : (r.title || r.kind)));
         kc.appendChild(data('div', missingMod ? 'small ct-badtext' : 'muted small', missingMod ? 'module missing: ' + r.kind : (p ? (p.vendor || r.kind) : r.kind)));
         tr.appendChild(kc);
-        tr.appendChild(td('', modSummary(m, r)));
+        var sumCell = td('', modSummary(m, r));
+        if (HTTP_HERE[r.kind]) sumCell.appendChild(httpRowLine(r));
+        tr.appendChild(sumCell);
         var n = usedCount(r);
         tr.appendChild(td('num', n === null ? '–' : num(n)));
         tr.appendChild(modStateCell(r));
@@ -1085,6 +1132,7 @@ function drawModTab(key, live) {
           tools.appendChild(ab);
         });
         if (FULL) {
+          tools.appendChild(defaultButton(key, r));
           var e = iconButton('edit', 'Edit');
           e.onclick = function (ev) { ev.stopPropagation(); modEdit(key, r); };
           tools.appendChild(e);
@@ -1127,6 +1175,7 @@ function askRaw(path, body, wait) {
         e2.missing = r.status === 404 && /no such endpoint|unknown endpoint/i.test(String(d.error || ''));
         throw e2;
       }
+      if (!READS.test(path)) afterWrite(path);
       return d;
     });
   }, function () { clearTimeout(timer); throw new Error('the server could not be reached'); });
@@ -1218,9 +1267,59 @@ function modDelete(key, r) {
       }).catch(fail);
     });
 }
+/* ---- the default of a list ------------------------------------------------ */
+var DEFAULT_WORDS = {
+  sources: 'A new certificate comes from it when no source is said.',
+  validation: 'A new certificate from an ACME CA is proved by it when nothing else is said.',
+  targets: 'Offered first when a certificate is deployed - in the new certificate and in a new deployment.',
+  cas: 'Offered first for a new source of the kind "own certificate authority" and for signing a CSR.'
+};
+/** {name} ('' for none) to POST /api/<list>/default; the authorities {id}. */
+function setDefault(key, r, yes, button) {
+  var path = key === 'cas' ? 'cas/default' : MODS[key].list + '/default';
+  var body = key === 'cas' ? {id: yes ? r.id : ''} : {name: yes ? r.name : ''};
+  if (button) busy(button, true);
+  return capi(path, body).then(function (d) {
+    toast(said(d, yes ? 'it is the default now' : 'there is no default now'), 'good');
+    if (key === 'cas') loadCas(true); else drawModTab(key, true);
+    return d;
+  }).catch(fail).then(function (d) { if (button) busy(button, false); return d; });
+}
+/** The star in a row: "Make it the default" - or, on the default, "no default". */
+function defaultButton(key, r) {
+  var on = !!r.is_default;
+  var b = iconButton('star', on ? 'The default - press to have no default' : 'Make it the default');
+  b.classList.add('ct-star');
+  if (on) b.classList.add('on');
+  b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.onclick = function (ev) { ev.stopPropagation(); setDefault(key, r, !on, b); };
+  return b;
+}
+/** The same in a popup: a button of the foot. */
+function defaultFoot(key, r, back) {
+  if (!FULL || !r || !(r.id || r.name)) return null;
+  var on = !!r.is_default;
+  return {words: on ? 'No default' : 'Make it the default', icon: 'star', go: function (b) {
+    setDefault(key, r, !on, b).then(function (d) {
+      if (!d) return;
+      r.is_default = !on;
+      if (back) back(); else closeModal();
+    });
+  }};
+}
+/** The tag and the words of a default in a popup. */
+function defaultNote(key, r) {
+  if (!r || !r.is_default) return null;
+  var p = el('p', 'note ct-default-note');
+  p.appendChild(el('span', 'tag ok small', 'default'));
+  p.appendChild(el('span', '', ' ' + DEFAULT_WORDS[key]));
+  return p;
+}
+
 function modEdit(key, row, p, fromPick) {
   var m = MODS[key];
-  plugins().then(function () {
+  /* A form offers choices (an authority, a source, a validation): asked anew. */
+  plugins(true).then(function () {
     if (!row && !p) { modPick(key); return; }
     p = p || plugOf(m.family, row.kind) || {kind: row.kind, title: row.kind, fields: [], missing: true};
     modForm(key, row, p, fromPick);
@@ -1261,6 +1360,8 @@ function modForm(key, row, p, fromPick) {
       }
     });
   }});
+  var df = row ? defaultFoot(key, row, function () { closeModal(); modEdit(key, row); }) : null;
+  if (df) buttons.push(df);
   if (row && FULL) buttons.push({words: 'Take it away', cls: 'danger', icon: 'trash', go: function () {
     capi(m.list + '/delete', {id: row.id, name: row.name}).then(function (d) {
       toast(said(d, 'taken away'), 'good'); closeModal(); delete LISTS[key]; drawModTab(key);
@@ -1281,6 +1382,8 @@ function modForm(key, row, p, fromPick) {
   }});
   modal(title, function (body) {
     body.appendChild(plugHead(p, m.family));
+    var dn = defaultNote(key, row);
+    if (dn) body.appendChild(dn);
     if (p.missing) body.appendChild(el('p', 'ct-bad', 'The module of this kind is not installed (or would not load): its settings are shown as they are kept.'));
     var g = el('div', 'formgrid ct-basic');
     name = textBox(row ? row.name : (p.title || p.kind), 'a name of its own', '');
@@ -1302,7 +1405,8 @@ function modForm(key, row, p, fromPick) {
     body.appendChild(form.node);
     testSaid = saidLine('', '');
     body.appendChild(testSaid);
-    if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { x.disabled = true; });
+    if (HTTP_HERE[p.kind]) body.appendChild(httpHere(row));
+    if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { if (!x.closest('.ct-http')) x.disabled = true; });
   }, buttons, 'medium');
 }
 
@@ -1351,6 +1455,8 @@ function targetPeek(r) {
       size: 'large',
       build: function (body) {
         body.appendChild(plugHead(p, 'target'));
+        var dn = defaultNote('targets', r);
+        if (dn) body.appendChild(dn);
         var cfg = r.config || {};
         var addr = first(cfg.host, cfg.address, cfg.hostport, cfg.url, cfg.server, '');
         body.appendChild(factsRow([
@@ -1406,6 +1512,7 @@ function targetPeek(r) {
         body.appendChild(grid);
       },
       buttons: [{words: 'Close', close: true},
+        defaultFoot('targets', r, function () { closeModal(); targetPeek(r); }),
         MANAGE ? {words: 'Test', icon: 'play', go: function (b) { modTest('targets', r, b); }} : null,
         FULL ? {words: 'Edit', icon: 'edit', go: function () { modEdit('targets', r); }} : null
       ].filter(Boolean)
@@ -1575,9 +1682,10 @@ function fillIssuerFilter() {
   var sel = $('ct-issuer');
   if (!sel || sel._filled) return;
   rowsSafe('sources').then(function (rows) {
-    if (!rows.length) return;
     sel._filled = true;
     var keep = sel.value;
+    /* Filled anew after a change (forgetAll): the first option ("any") stays. */
+    while (sel.options.length > 1) sel.remove(1);
     rows.forEach(function (r) {
       var o = el('option', '', r.name);
       o.value = r.name;
@@ -3271,6 +3379,7 @@ function fillJobCerts() {
   JL.certsFilled = true;
   capi('certs' + qs({per: 1000})).then(function (d) {
     var keep = sel.value;
+    while (sel.options.length > 1) sel.remove(1);
     rowsOf(d, 'certs').forEach(function (c) {
       var o = el('option', '', c.name);
       o.value = String(c.id);
@@ -4072,15 +4181,18 @@ function start() {
     if (typeof TAB === 'string' && TAB === 'settings' && typeof PANE === 'string' && MY_PANES[PANE]) drawPane(PANE);
   }
   /* The count on the tab, on whatever tab the page opens. */
-  setTimeout(function () {
-    if (TAB === 'overview') return;
-    capi('certs/overview').then(function (d) {
-      var counts = d.by_state || d.counts || {};
-      var total = Number(first(d.total, Object.keys(counts).reduce(function (a, k) { return a + Number(counts[k] || 0); }, 0)));
-      tabCount('tabn-certs', total, Number(counts.failed || 0) + Number(first(d.expired, counts.expired, 0)) > 0);
-      tabCount('tabn-jobs', Number(d.running || 0), false);
-    }).catch(function () { });
-  }, 300);
+  setTimeout(function () { if (TAB !== 'overview') tabCounts(); }, 300);
+}
+/** The counts on the tabs Certificates and Jobs - at the start, and after
+    every change (afterWrite); on the Overview its own drawing does it. */
+function tabCounts() {
+  if (TAB === 'overview') { drawTab('overview', true, true); return; }
+  capi('certs/overview').then(function (d) {
+    var counts = d.by_state || d.counts || {};
+    var total = Number(first(d.total, Object.keys(counts).reduce(function (a, k) { return a + Number(counts[k] || 0); }, 0)));
+    tabCount('tabn-certs', total, Number(counts.failed || 0) + Number(first(d.expired, counts.expired, 0)) > 0);
+    tabCount('tabn-jobs', Number(d.running || 0), false);
+  }).catch(function () { });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
 else setTimeout(start, 0);
