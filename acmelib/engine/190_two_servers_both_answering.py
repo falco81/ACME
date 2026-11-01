@@ -506,7 +506,7 @@ def ha_replicated_bundle_data(store):
     return data
 
 
-def ha_join(data, name='', even_if_data=False, by='', say=None):
+def ha_join(data, name='', even_if_data=False, by='', say=None, root_now=False):
     """This node into the cluster: the database's address into config.json and
     the key beside it. The daemon starts again on it afterwards. Before the
     database is tried, this node's firewall lets the first node in (1.0.210)."""
@@ -525,7 +525,7 @@ def ha_join(data, name='', even_if_data=False, by='', say=None):
     key_hex = str(data.get('key') or '')
     if not re.match(r'^[0-9a-f]{64}\Z', key_hex):
         raise ValueError('the bundle holds no key')
-    fw = ha_join_open(HA_STORE.get('store'), data, by)
+    fw = ha_join_open(HA_STORE.get('store'), data, by, root_now)
     say('firewall', fw['state'] in ('done', 'off'), fw['said'])
     got = db_try(db)
     if not got.get('reached'):
@@ -598,7 +598,7 @@ def ha_bundle_view(data):
     return out
 
 
-def ha_join_open(store, data, by=''):
+def ha_join_open(store, data, by='', root_now=False):
     """The first node let into this one's firewall before its database is
     tried (1.0.210): its address and the database's, from the bundle, as a
     node being joined - at once, waited for until the root helper put it in."""
@@ -620,7 +620,7 @@ def ha_join_open(store, data, by=''):
                 (data.get('peer') or {}).get('name') or '?'))
         except ValueError as e:
             return {'state': 'failed', 'said': str(e)}
-    out = fw_apply_wait(store, 60)
+    out = fw_apply_wait(store, 60, run_helper=root_now)
     if out['state'] == 'done':
         out['said'] = 'this node lets %s in (PostgreSQL, the pages, the health check)' % \
             ', '.join(sorted(set(got)))

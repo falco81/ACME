@@ -83,7 +83,17 @@ def ha_pending_drop(store, address=None):
     store.set_meta('ha:pending:' + node_name(), json.dumps({'peers': keep}))
 
 
-def fw_apply_wait(store, wait=60):
+def web_helper_path():
+    """The root helper beside acme.py (installed), or in the source tree."""
+    here = Path(__file__).resolve().parent
+    for p in (os.environ.get('ACME_WEB_HELPER'), here / 'acme_web.py',
+              here / 'deploy' / 'acme_web.py'):
+        if p and Path(p).is_file():
+            return Path(p)
+    return None
+
+
+def fw_apply_wait(store, wait=60, run_helper=False):
     """The firewall as it is wanted now, given to the root helper and waited for
     (1.0.210): {'state': 'off' | 'done' | 'failed' | 'no-helper' | 'timeout',
     'said'}. 'off' when acme does not manage this node's firewall, or it is off:
@@ -118,7 +128,73 @@ def fw_apply_wait(store, wait=60):
             web_tick(store)
         except Exception as e:                          # noqa: BLE001
             return {'state': 'failed', 'said': 'it could not be asked for: %s' % e}
+        if run_helper and os.geteuid() == 0 and (WEB_DIR / 'request.json').exists():
+            # As root on the command line (1.0.210): the helper run here and
+            # now, not waited for from its path unit - which may not be there
+            # on a machine half set up, and the join went on with it shut.
+            helper = web_helper_path()
+            if helper:
+                try:
+                    subprocess.run([sys.executable, '-I', str(helper)], capture_output=True,
+                                   timeout=max(30, wait), env=dict(os.environ,
+                                                                    ACME_STATE=str(STATE_DIR)))
+                except (OSError, subprocess.TimeoutExpired) as e:
+                    return {'state': 'failed', 'said': 'the root helper %s: %s' % (helper, e)}
+            run_helper = False
+            continue
         time.sleep(0.5)
+
+
+def fw_here_words(src, port=5432):
+    """What could keep `src` from reaching this node's PostgreSQL, said
+    plainly (1.0.210): acme's own chain (ACME-IN) and whether it lets `src`
+    in, as the root helper last applied it, and firewalld if it runs here."""
+    out = []
+    store = HA_STORE.get('store')
+    try:
+        src_ip = str(plain_ip(str(src), 'address'))
+    except ValueError:
+        src_ip = str(src or '')
+    if store is not None:
+        try:
+            want = fw_desired(store)
+        except Exception:                               # noqa: BLE001
+            want = None
+        if want and want.get('on'):
+            ours = [r for r in want.get('rules') or [] if r.get('source') in (
+                src_ip, src_ip + '/32', src_ip + '/128') and r.get('action') == 'accept']
+            st = web_status()
+            applied = st.get('state') == 'done' and st.get('hash') == web_hash(web_desired(store))
+            out.append('acme\'s firewall (ACME-IN) on this node is on and %s %s%s' % (
+                'lets' if ours else 'does NOT let', src_ip,
+                (' in: -A ACME-IN -s %s -j ACCEPT ("%s")%s' % (
+                    src_ip, ours[0].get('note') or '', '' if applied else
+                    ' - but the root helper has not applied it yet (%s)' % (
+                        '; '.join(st.get('said') or []) or 'acme-web.path not running?')))
+                if ours else ' in (Settings → Firewall)'))
+        elif want is not None:
+            out.append('acme\'s firewall (ACME-IN) on this node is off')
+    if shutil.which('firewall-cmd'):
+        try:
+            on = subprocess.run(['firewall-cmd', '--state'], capture_output=True,
+                                timeout=10).returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            on = False
+        if on:
+            out.append('firewalld runs on this node (zone %s): it has to let %s reach TCP %d - '
+                       'firewall-cmd --permanent --add-rich-rule=\'rule family="ipv%d" source '
+                       'address="%s" port port="%d" protocol="tcp" accept\' && firewall-cmd '
+                       '--reload' % (_fw_zone(), src_ip, port, 6 if ':' in src_ip else 4,
+                                     src_ip, port))
+    return '; '.join(out)
+
+
+def _fw_zone():
+    try:
+        return subprocess.run(['firewall-cmd', '--get-default-zone'], capture_output=True,
+                              text=True, timeout=10).stdout.strip() or '?'
+    except (OSError, subprocess.TimeoutExpired):
+        return '?'
 
 
 def cluster_addresses(store, node):

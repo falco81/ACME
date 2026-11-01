@@ -817,7 +817,7 @@ def cli_ha(args, pal):
             print((pal.ok_line if ok else pal.warn_line)(words))
         try:
             got = ha_join(data, name, even_if_data=args.discard_local, by='command line',
-                          say=said)
+                          say=said, root_now=True)
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
         chown_to_service(sealing_key_path(), 0o600)
@@ -927,7 +927,7 @@ def cli_ha_open_now(store, peer, pal):
     node and kept it out."""
     try:
         ips = ha_pending_add(store, peer, 'command line', 'the node being joined')
-        got = fw_apply_wait(store, 60)
+        got = fw_apply_wait(store, 60, run_helper=True)
     except Exception as e:                              # noqa: BLE001
         print(pal.warn_line('the firewall could not be opened to %s: %s' % (peer, e)))
         return
@@ -943,10 +943,25 @@ def firewall_peer(peer, pal, port=5432):
         rule = ('rule family="%s" source address="%s/%d" port port="%d" protocol="tcp" accept'
                 % ('ipv4' if a.version == 4 else 'ipv6', a, 32 if a.version == 4 else 128,
                    port))
-        subprocess.run(['firewall-cmd', '--permanent', '--add-rich-rule=' + rule],
-                       capture_output=True)
-        subprocess.run(['firewall-cmd', '--reload'], capture_output=True)
-        print(pal.ok_line('firewalld lets %s reach PostgreSQL (TCP %d)' % (peer, port)))
+        # Every step checked and said as it is (1.0.210): "lets ... in" was
+        # printed whatever firewall-cmd answered.
+        if subprocess.run(['firewall-cmd', '--state'], capture_output=True).returncode != 0:
+            return
+        bad = ''
+        for args in (['--permanent', '--add-rich-rule=' + rule], ['--add-rich-rule=' + rule]):
+            got = subprocess.run(['firewall-cmd'] + args, capture_output=True, text=True)
+            if got.returncode != 0 and 'ALREADY_ENABLED' not in (got.stderr + got.stdout):
+                bad = (got.stderr or got.stdout).strip()[-200:] or 'exit %d' % got.returncode
+                break
+        live = subprocess.run(['firewall-cmd', '--query-rich-rule=' + rule], capture_output=True)
+        if bad or live.returncode != 0:
+            print(pal.bad_line('firewalld does NOT let %s reach PostgreSQL (TCP %d): %s - as '
+                               'root:  firewall-cmd --permanent --add-rich-rule=\'%s\' && '
+                               'firewall-cmd --reload' % (peer, port, bad or 'the rule is not '
+                                                          'in force', rule)))
+            return
+        print(pal.ok_line('firewalld lets %s reach PostgreSQL (TCP %d, zone %s): %s'
+                          % (peer, port, _fw_zone(), rule)))
 
 
 def cli_ha_bundle_again(args, pal, store):
@@ -1076,7 +1091,7 @@ def cli_ha_join_replicated(args, pal, data, ask):
     try:
         # The database this node has now (not HA_STORE: the rebuild below
         # writes its maintenance into that one).
-        fw = ha_join_open(Storage(open_db()), data, 'command line')
+        fw = ha_join_open(Storage(open_db()), data, 'command line', root_now=True)
         (say if fw['state'] in ('done', 'off') else (lambda t: print(pal.warn_line(t))))(
             'the firewall: %s' % fw['said'])
     except Exception as e:                              # noqa: BLE001
