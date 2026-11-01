@@ -529,7 +529,6 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 
 <!-- ===================== Overview ===================== -->
 <section class="panel" id="tab-overview">
-  <div id="ov-certs"></div>
   <div class="grid top">
     <div class="card metric ok" id="card-server"><div class="label">This server</div>
       <div class="value" id="m-server">–</div><div class="sub" id="m-server-sub">&nbsp;</div></div>
@@ -542,6 +541,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="card metric warn" id="card-isemon"><div class="label">isemon</div>
       <div class="value" id="m-isemon">–</div><div class="sub" id="m-isemon-sub">&nbsp;</div></div>
   </div>
+  <div id="ov-certs"></div>
 </section>
 <?php if (function_exists('acme_certs_tab_panels')) { acme_certs_tab_panels(); } ?>
 

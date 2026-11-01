@@ -373,3 +373,7 @@ table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:
 .msect .scroll,.ct-ovcard .scroll{overflow-x:auto}
 .set-item > label:has(.ct-secret-tag){display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .set-item > label .ct-secret-tag{margin-left:0}
+
+/* The overview: the platform tiles first (as in otp), the certificates under them
+   with the same gap the cards keep between them. */
+#tab-overview > .grid.top + #ov-certs { margin-top: 16px; }
