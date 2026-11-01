@@ -30627,6 +30627,10 @@
   "sc2562": {
    "source": "The account’s password",
    "text": "Heslo účtu"
+  },
+  "sd0100": {
+   "source": "fills the files and commands below with what that service usually wants; whatever you set yourself wins. A dual certificate (ECDSA + RSA): the twin's files are written too - for HAProxy {name}.ecdsa.pem and {name}.rsa.pem, loaded by \"crt /etc/haproxy/certs/\" (the folder) or a crt-list",
+   "text": "vyplní soubory a příkazy níže tím, co ta služba obvykle chce; co nastavíte sami, má přednost. Duální certifikát (ECDSA + RSA): zapíšou se i soubory dvojčete – pro HAProxy {name}.ecdsa.pem a {name}.rsa.pem, které načte „crt /etc/haproxy/certs/“ (složka) nebo crt-list"
   }
  },
  "patterns": {
@@ -39377,6 +39381,10 @@
   "pc0623": {
    "source": "seen by the resolvers {0}",
    "text": "vidí ji resolvery {0}"
+  },
+  "pc0624": {
+   "source": "dry run #{0}",
+   "text": "zkouška nanečisto č. {0}"
   }
  },
  "rich": {

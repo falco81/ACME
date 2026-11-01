@@ -212,13 +212,22 @@ themselves (also when the page filled the preset's lines in):
 |---|---|---|
 | nginx | `{name}.crt` `{name}.key` + `{name}.rsa.crt` `{name}.rsa.key` | `ssl_certificate` and `ssl_certificate_key` twice, one pair each |
 | Apache | `{name}.crt` `.chain.crt` `.key` + `{name}.rsa.crt` (with its chain) `{name}.rsa.key` | a second `SSLCertificateFile` / `SSLCertificateKeyFile` pair (2.4.8+) |
-| HAProxy | `{name}.pem.ecdsa` + `{name}.pem.rsa` (instead of `{name}.pem`) | `crt /etc/haproxy/certs/{name}.pem` loads the bundle (remove an old `{name}.pem` from a crt directory) |
+| HAProxy | `{name}.ecdsa.pem` + `{name}.rsa.pem` (instead of `{name}.pem`) | `crt /etc/haproxy/certs/` - the folder: HAProxy loads every file in it and gives each client the ECDSA or the RSA one of the same name - or a crt-list naming both. Not `crt {name}.pem` with `.ecdsa` / `.rsa` beside it: that multi-certificate bundle is gone since HAProxy 2.3 |
 | Postfix | `{name}.crt` `{name}.key` + `{name}.rsa.crt` `{name}.rsa.key` | `smtpd_tls_chain_files = {name}.key, {name}.crt, {name}.rsa.key, {name}.rsa.crt` |
 | Dovecot | + `{name}.rsa.crt` `{name}.rsa.key` | `ssl_alt_cert` / `ssl_alt_key` |
 | Exim | + `{name}.rsa.crt` `{name}.rsa.key` | `tls_certificate` / `tls_privatekey` as lists of two |
 
 (An RSA main certificate with an ECDSA twin: `.ec.` instead of `.rsa.`.) The
 other presets write the main one only - add `@alt` lines for more.
+
+**Files no longer written are taken away.** acme remembers, per deployment,
+the files it wrote. When the set changes - the certificate becomes dual (the
+HAProxy preset then writes `{name}.ecdsa.pem` and `{name}.rsa.pem` instead of
+`{name}.pem`), stops being dual (the twin's `.rsa.` files), or the outputs are
+edited - the files it wrote before and not now are moved aside before the
+test, removed once the reload worked, and put back when the test or the
+reload fails. Only files acme itself wrote for that deployment, never any
+other file (a link is left alone).
 
 
 ## `local` - this machine

@@ -298,7 +298,11 @@ both (`Target.dual = True`) is handed the whole and puts both in place:
   that serve both write the twin's files by themselves - nginx, Apache,
   Postfix, Dovecot, Exim: `{name}.crt` / `{name}.key` and
   `{name}.rsa.crt` / `{name}.rsa.key` (`{alt}` in a path: the twin's kind);
-  HAProxy: the multi-certificate bundle `{name}.pem.ecdsa` + `{name}.pem.rsa`.
+  HAProxy: `{name}.ecdsa.pem` + `{name}.rsa.pem`, loaded by `crt
+  /etc/haproxy/certs/` (the folder) or a crt-list - not the multi-certificate
+  bundle, gone since HAProxy 2.3. When the set of files changes (a
+  certificate becomes dual, or no longer is), the files acme wrote before for
+  that deployment and does not write now are taken away - never another file.
 * `f5`: both installed, two cert-key-chain entries in each client-ssl profile.
 * `appliance`: the twin becomes the engine's second certificate of the pages
   (1.0.196) - nginx gives each client the one it takes.

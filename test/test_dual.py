@@ -511,8 +511,8 @@ class DualTargets(unittest.TestCase):
         self.assertEqual(len(r['files']), 4)
         r = t.resolved(self.b, {'preset': 'haproxy'})
         self.assertEqual([f['path'] for f in r['files']], [
-            '/etc/haproxy/certs/targets.example.pem.ecdsa',
-            '/etc/haproxy/certs/targets.example.pem.rsa'])
+            '/etc/haproxy/certs/targets.example.ecdsa.pem',
+            '/etc/haproxy/certs/targets.example.rsa.pem'])
         datas = t.render(self.b, r)
         self.assertTrue(datas[0].startswith(self.b.key_pem.encode()))
         self.assertTrue(datas[1].startswith(self.b.alt.key_pem.encode()))
@@ -539,6 +539,63 @@ class DualTargets(unittest.TestCase):
         mixed = S.bundle_of(S.cert_get(STORE, self.cid))
         mixed.alt = other.alt
         self.assertIn('4 files written', t.deploy(mixed, opts))
+
+    def test_stale_files_taken_away(self):
+        """Single -> dual -> single: the files acme wrote before and not now go, put
+        back when the test fails; a file acme did not write stays."""
+        d = tempfile.mkdtemp(dir=TMP)
+        ctx = TT.FakeCtx(ssh=TT.FakeSsh(local=True))
+        ctx.deploy_id = 41
+        t = TT.make('ssh', {'host': 'srv', 'tmp_dir': d}, ctx)
+        opts = {'outputs': 'fullchain-pem %s/s.crt\nkey-pem %s/s.key\n'
+                           'fullchain-pem@rsa %s/s.rsa.crt\nkey-pem@rsa %s/s.rsa.key'
+                           % (d, d, d, d), 'test_cmd': 'true', 'reload_cmd': 'true'}
+        with open(d + '/mine.pem', 'w') as f:
+            f.write('not acme\'s')
+        t.deploy(self.single, opts)                     # the RSA lines left out
+        self.assertFalse(os.path.exists(d + '/s.rsa.crt'))
+        t.deploy(self.b, opts)
+        self.assertEqual(TT.read(d + '/s.rsa.key'), self.b.alt.key_pem)
+        # back to one: the test fails - the twin's files are back where they were
+        with self.assertRaises(base.PluginError):
+            t.deploy(self.single, dict(opts, test_cmd='false'))
+        self.assertEqual(TT.read(d + '/s.rsa.key'), self.b.alt.key_pem)
+        t.deploy(self.single, opts)
+        self.assertFalse(os.path.exists(d + '/s.rsa.crt'))
+        self.assertFalse(os.path.exists(d + '/s.rsa.key'))
+        self.assertFalse([f for f in os.listdir(d) if 'acme-stale' in f])
+        self.assertTrue(os.path.exists(d + '/s.crt'))
+        self.assertEqual(TT.read(d + '/mine.pem'), 'not acme\'s')
+        # another deployment of the same certificate on the same host keeps its own
+        ctx.deploy_id = 42
+        self.assertEqual(t._written(opts), [])
+
+    def test_haproxy_single_to_dual_removes_the_old_pem(self):
+        ssh = TT.FakeSsh()
+        ctx = TT.FakeCtx(ssh=ssh)
+        ctx.deploy_id = 7
+        t = TT.make('ssh', {'host': 'srv'}, ctx)
+        t.deploy(self.single, {'preset': 'haproxy'})
+        old = '/etc/haproxy/certs/targets.example.pem'
+        self.assertEqual(t._written({}), [old])
+        self.assertFalse(any('acme-stale' in c for c, _i in ssh.runs))
+        t.deploy(self.b, {'preset': 'haproxy'})
+        aside = [c for c, _i in ssh.runs if 'acme-stale' in c and 'for p in' in c]
+        self.assertEqual(len(aside), 1)
+        self.assertIn(old, aside[0])
+        self.assertNotIn('ecdsa.pem', aside[0])
+        self.assertEqual(sorted(t._written({})), [
+            '/etc/haproxy/certs/targets.example.ecdsa.pem',
+            '/etc/haproxy/certs/targets.example.rsa.pem'])
+        # nginx: dual -> single takes the twin's pair away
+        ssh.runs[:] = []
+        t.deploy(self.b, {'preset': 'nginx'})
+        ssh.runs[:] = []
+        t.deploy(self.single, {'preset': 'nginx'})
+        aside = [c for c, _i in ssh.runs if 'acme-stale' in c and 'for p in' in c][0]
+        self.assertIn('/etc/nginx/ssl/targets.example.rsa.crt', aside)
+        self.assertIn('/etc/nginx/ssl/targets.example.rsa.key', aside)
+        self.assertNotIn('targets.example.crt ', aside + ' ')
 
     def test_f5_two_entries(self):
         routes = TT.F5Test().routes()

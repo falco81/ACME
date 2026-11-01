@@ -8,12 +8,21 @@ one of the two with a suffix - fullchain-pem@rsa, key-pem@ec, @alt, @main -
 and the presets of the services that serve both (nginx, Apache, HAProxy,
 Postfix, Dovecot, Exim) write the twin's files beside the main ones by
 themselves: {name}.crt / {name}.key and {name}.rsa.crt / {name}.rsa.key
-({alt} in a path is the twin's kind: rsa or ec). HAProxy gets its
-multi-certificate bundle: {name}.pem.ecdsa and {name}.pem.rsa.
+({alt} in a path is the twin's kind: rsa or ec). HAProxy gets two files,
+{name}.ecdsa.pem and {name}.rsa.pem - "crt /etc/haproxy/certs/" (the folder:
+HAProxy loads every file in it and gives each client the ECDSA or the RSA one
+of the same name) or a crt-list; not the multi-certificate bundle
+(crt site.pem loading site.pem.ecdsa / .rsa), which HAProxy 2.3 took away.
+
+The files a deployment wrote are remembered (per deployment); when the set
+changes - a certificate becomes dual, or no longer is, or its outputs are
+edited - the ones written before and not now are taken away (only those acme
+wrote itself, never another file), put back if the test or reload fails.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 import time
 
@@ -53,9 +62,10 @@ PRESETS = {
     'haproxy': {
         'title': 'HAProxy (key + chain in one PEM)',
         'outputs': ['combined-pem /etc/haproxy/certs/{name}.pem 0600 root:root'],
-        # the multi-certificate bundle: "crt /etc/haproxy/certs/{name}.pem" loads both
-        'dual_outputs': ['combined-pem@ec /etc/haproxy/certs/{name}.pem.ecdsa 0600 root:root',
-                         'combined-pem@rsa /etc/haproxy/certs/{name}.pem.rsa 0600 root:root'],
+        # a dual certificate: two files, "crt /etc/haproxy/certs/" (the folder) or a
+        # crt-list loads both - not the bundle (site.pem.ecdsa), gone since HAProxy 2.3
+        'dual_outputs': ['combined-pem@ec /etc/haproxy/certs/{name}.ecdsa.pem 0600 root:root',
+                         'combined-pem@rsa /etc/haproxy/certs/{name}.rsa.pem 0600 root:root'],
         'test_cmd': ['haproxy -c -q -f /etc/haproxy/haproxy.cfg'],
         'reload_cmd': ['systemctl reload haproxy'], 'port': 443},
     'postfix': {
@@ -194,7 +204,10 @@ class SshTarget(SshMixin, Base):
               options=[[k, p['title']] for k, p in PRESETS.items()],
               fills=_preset_fills(),
               help='fills the files and commands below with what that service usually '
-                   'wants; whatever you set yourself wins'),
+                   'wants; whatever you set yourself wins. A dual certificate (ECDSA + '
+                   'RSA): the twin\'s files are written too - for HAProxy {name}.ecdsa.pem '
+                   'and {name}.rsa.pem, loaded by "crt /etc/haproxy/certs/" (the folder) '
+                   'or a crt-list'),
         field('outputs', 'Files', 'list', placeholder=SAMPLE,
               help='one a line: format path [mode] [owner[:group]]. Formats: cert-pem, '
                    'fullchain-pem, chain-pem, key-pem, key-rsa, combined-pem (key + '
@@ -312,8 +325,10 @@ class SshTarget(SshMixin, Base):
         token = secrets.token_hex(6)
         suffix = '.bak' if r['backup'] else '.acme-prev'
 
+        before = self._written(options)
+        stale = [p for p in before if p not in {f['path'] for f in files}]
         with self.ssh() as s:
-            if not force and self._all_same(s, files, datas, bundle, options):
+            if not force and not stale and self._all_same(s, files, datas, bundle, options):
                 return self.same(bundle, 'in every file')
             for c in r['pre_cmd']:
                 self.sh(s, c, what='"%s"' % c)
@@ -326,16 +341,20 @@ class SshTarget(SshMixin, Base):
                     tmps.append(tmp)
                 existed = self._install(s, files, tmps, suffix)
                 self.ctx.step('wrote %s' % ', '.join(f['path'] for f in files), 'ok')
+                moved = self._stale_aside(s, stale)
                 failed = self._commands(s, r['test_cmd'], 'test')
                 if failed:
                     self._rollback(s, files, existed, suffix)
+                    self._stale_back(s, moved)
                     raise PluginError('the test "%s" failed, the previous files are back: %s'
                                       % failed, retry=False)
                 failed = self._commands(s, r['reload_cmd'], 'reload')
                 if failed:
                     self._rollback(s, files, existed, suffix)
+                    self._stale_back(s, moved)
                     self._commands(s, r['reload_cmd'], 'reload with the previous files')
                     raise PluginError('"%s" failed, the previous files are back: %s' % failed)
+                self._stale_gone(s, moved)
                 if not r['backup']:
                     self.sh(s, 'rm -f ' + ' '.join(quote(f['path'] + suffix) for f in files),
                             check=False)
@@ -351,9 +370,62 @@ class SshTarget(SshMixin, Base):
                     except Exception:                       # noqa: BLE001
                         pass
         self.remember(bundle, options)
+        self._written(options, [f['path'] for f in files])
         return '%d file%s written on %s%s' % (
             len(files), '' if len(files) == 1 else 's', self.c('host'),
             ', reloaded' if r['reload_cmd'] else '')
+
+    # -- the files this deployment wrote, and the ones it no longer writes --------------
+    def _written_key(self, options):
+        dep = getattr(self.ctx, 'deploy_id', None)
+        if dep not in (None, ''):
+            return 'written:%s:%s:%s' % (self.kind, self.ident(), dep)
+        return self.state_key(options).replace('deployed:', 'written:', 1)
+
+    def _written(self, options, paths=None):
+        """The paths acme wrote for this deployment last time; with `paths`, kept."""
+        key = self._written_key(options)
+        if paths is not None:
+            try:
+                self.ctx.kv_set(key, json.dumps(sorted(set(paths))))
+            except Exception as e:                          # noqa: BLE001
+                self.ctx.debug('cannot remember the files written: %s' % e)
+            return paths
+        try:
+            got = self.ctx.kv_get(key)
+        except Exception:                                   # noqa: BLE001
+            got = None
+        if isinstance(got, str):
+            try:
+                got = json.loads(got)
+            except ValueError:
+                got = None
+        return [str(p) for p in got if isinstance(p, str) and p.startswith('/')] \
+            if isinstance(got, list) else []
+
+    def _stale_aside(self, s, stale):
+        """Files acme wrote before and does not write now, moved aside. -> moved."""
+        if not stale:
+            return []
+        script = ['for p in %s; do if [ -e "$p" ] && [ ! -L "$p" ]; then mv -f "$p" "$p.acme-stale" '
+                  '&& echo "MOVED $p"; fi; done' % ' '.join(quote(p) for p in stale)]
+        rc, out, err = self.sh(s, '\n'.join(script), check=False)
+        moved = [line[6:].strip() for line in out.splitlines() if line.startswith('MOVED ')]
+        if moved:
+            self.ctx.step('taken away (written by acme before, not any more): %s'
+                          % ', '.join(moved))
+        return moved
+
+    def _stale_back(self, s, moved):
+        if moved:
+            self.sh(s, '; '.join('mv -f %s %s' % (quote(p + '.acme-stale'), quote(p))
+                                 for p in moved), check=False)
+
+    def _stale_gone(self, s, moved):
+        if moved:
+            self.sh(s, 'rm -f ' + ' '.join(quote(p + x) for p in moved
+                                           for x in ('.acme-stale', '.bak', '.acme-prev')),
+                    check=False)
 
     def _all_same(self, s, files, datas, bundle, options):
         """Every text file there already holds exactly this (PEM is the same

@@ -84,6 +84,7 @@ def deploy_one(store, job, cert, dep, force=False):
                                                   trow['name'], trow['kind']))
     store.db.update('cert_deploys', dep['id'], {'last_try': t, 'state': 'deploying'})
     ctx = target_context(store, job, trow)
+    ctx.deploy_id = dep['id']       # what a target wrote for this deployment is kept by it
     try:
         target = S.plugin_instance(store, 'target', trow, ctx)
         opts = S.deploy_options(store, dep)
