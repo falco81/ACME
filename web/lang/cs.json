@@ -24995,6 +24995,494 @@
   "sc1185": {
    "source": "AWS China (route53.amazonaws.com.cn, cn-northwest-1)",
    "text": "AWS Čína (route53.amazonaws.com.cn, cn-northwest-1)"
+  },
+  "sc1186": {
+   "source": "Opened for the node being joined:",
+   "text": "Otevřeno pro připojovaný uzel:"
+  },
+  "sc1187": {
+   "source": ", until",
+   "text": ", do"
+  },
+  "sc1188": {
+   "source": "(the firewall and PostgreSQL’s lists)",
+   "text": "(seznamy firewallu a PostgreSQL)"
+  },
+  "sc1189": {
+   "source": "Let in already for being joined:",
+   "text": "Už vpuštěn jako připojovaný uzel:"
+  },
+  "sc1190": {
+   "source": "PostgreSQL here was opened to",
+   "text": "PostgreSQL zde byl otevřen pro"
+  },
+  "sc1191": {
+   "source": "- not all of it worked",
+   "text": "– ne všechno se povedlo"
+  },
+  "sc1192": {
+   "source": "PostgreSQL is not on this machine (",
+   "text": "PostgreSQL není na tomto stroji ("
+  },
+  "sc1193": {
+   "source": "): it has to let the second node in itself.",
+   "text": "): druhý uzel musí vpustit sám."
+  },
+  "sc1194": {
+   "source": "saved to your downloads ·",
+   "text": "uloženo do vašich stažených souborů ·"
+  },
+  "sc1195": {
+   "source": "Only",
+   "text": "Jen"
+  },
+  "sc1196": {
+   "source": "is let in for it, for 24 hours - the database it will open:",
+   "text": "je kvůli tomu vpuštěn, na 24 hodin – databáze, kterou otevře:"
+  },
+  "sc1197": {
+   "source": "The database it will open:",
+   "text": "Databáze, kterou otevře:"
+  },
+  "sc1198": {
+   "source": "· made",
+   "text": "· vytvořen"
+  },
+  "sc1199": {
+   "source": "by",
+   "text": "od"
+  },
+  "sc1200": {
+   "source": ", this node runs",
+   "text": ", tento uzel běží na"
+  },
+  "sc1201": {
+   "source": ": both nodes should run the same version.",
+   "text": ": oba uzly by měly běžet na stejné verzi."
+  },
+  "sc1202": {
+   "source": "✓ The passphrase opens it: the cluster",
+   "text": "✓ Heslová fráze ho otevře: cluster"
+  },
+  "sc1203": {
+   "source": "of",
+   "text": "z"
+  },
+  "sc1204": {
+   "source": "), the database",
+   "text": "), databáze"
+  },
+  "sc1205": {
+   "source": "as",
+   "text": "jako"
+  },
+  "sc1206": {
+   "source": "Joining the cluster",
+   "text": "Připojování ke clusteru"
+  },
+  "sc1207": {
+   "source": "Checking from here:",
+   "text": "Kontrola odsud:"
+  },
+  "sc1208": {
+   "source": ", the first node",
+   "text": ", první uzel"
+  },
+  "sc1209": {
+   "source": "of 25",
+   "text": "z 25"
+  },
+  "sc1210": {
+   "source": "certificate(s)",
+   "text": "certifikát(y)"
+  },
+  "sc1211": {
+   "source": "Close it again",
+   "text": "Zase zavřít"
+  },
+  "sc1212": {
+   "source": "PostgreSQL on this machine listens only on localhost: a second node cannot reach it. Before it joins, PostgreSQL here has to listen on this node’s address and let it in.",
+   "text": "PostgreSQL na tomto stroji naslouchá jen na localhostu: druhý uzel na něj nedosáhne. Než se připojí, musí zdejší PostgreSQL naslouchat na adrese tohoto uzlu a vpustit ho."
+  },
+  "sc1213": {
+   "source": "Prepare it…",
+   "text": "Připravit…"
+  },
+  "sc1214": {
+   "source": "Prepare it",
+   "text": "Připravit"
+  },
+  "sc1215": {
+   "source": "working on it…",
+   "text": "pracuje se na tom…"
+  },
+  "sc1216": {
+   "source": "What to do:",
+   "text": "Co dělat:"
+  },
+  "sc1217": {
+   "source": "5 groups of 5 letters and digits",
+   "text": "5 skupin po 5 písmenech a číslicích"
+  },
+  "sc1218": {
+   "source": "it has letters a passphrase of acme never has (l, 0, 1 or others)",
+   "text": "má znaky, které heslová fráze acme nikdy nemá (l, 0, 1 nebo jiné)"
+  },
+  "sc1219": {
+   "source": "too long: 25 letters and digits",
+   "text": "příliš dlouhé: 25 písmen a číslic"
+  },
+  "sc1220": {
+   "source": "complete",
+   "text": "úplné"
+  },
+  "sc1221": {
+   "source": "Prepare this node for the second one",
+   "text": "Připravit tento uzel na druhý"
+  },
+  "sc1222": {
+   "source": "Let the second node in, before it joins",
+   "text": "Vpustit druhý uzel, než se připojí"
+  },
+  "sc1223": {
+   "source": "Everything the second node needs, locked",
+   "text": "Vše, co druhý uzel potřebuje, zamčené"
+  },
+  "sc1224": {
+   "source": "This node lets the second one through its firewall at once, for 24 hours, and opens PostgreSQL here to it - what the join needs to reach this node.",
+   "text": "Tento uzel hned pustí druhý přes svůj firewall, na 24 hodin, a otevře mu zdejší PostgreSQL – to, co připojení potřebuje, aby na tento uzel dosáhlo."
+  },
+  "sc1225": {
+   "source": "How to open the database, its password and the key that opens the sealed secrets - locked with a passphrase made here and shown once. Carry the file and the passphrase apart: the file over scp or a USB stick, the passphrase typed.",
+   "text": "Jak otevřít databázi, její heslo a klíč, který otevírá zapečetěné tajné údaje – zamčené heslovou frází vytvořenou zde a ukázanou jednou. Soubor a frázi přenášejte zvlášť: soubor přes scp nebo USB, frázi opsanou."
+  },
+  "sc1226": {
+   "source": "replicated - a PostgreSQL on each node",
+   "text": "replikovaný – PostgreSQL na každém uzlu"
+  },
+  "sc1227": {
+   "source": "shared - both nodes open one PostgreSQL",
+   "text": "sdílený – oba uzly otevírají jednu PostgreSQL"
+  },
+  "sc1228": {
+   "source": "This node",
+   "text": "Tento uzel"
+  },
+  "sc1229": {
+   "source": "This node replicates already: the bundle makes the other node of the two - or makes it again, after it was lost or reinstalled. Join with it on that node, as root: acme --ha-join FILE.",
+   "text": "Tento uzel už replikuje: balíček vytvoří druhý uzel z dvojice – nebo ho vytvoří znovu, když se ztratil nebo byl přeinstalován. Připojte se s ním na tom uzlu jako root: acme --ha-join SOUBOR."
+  },
+  "sc1230": {
+   "source": "The second node’s address",
+   "text": "Adresa druhého uzlu"
+  },
+  "sc1231": {
+   "source": "The node that will join. It is let through this node’s firewall at once, for 24 hours, and into PostgreSQL here (pg_hba.conf) - without it the join waits on both. Optional, but recommended.",
+   "text": "Uzel, který se připojí. Hned se pustí přes firewall tohoto uzlu, na 24 hodin, a do zdejší PostgreSQL (pg_hba.conf) – bez toho připojení čeká na obojí. Nepovinné, ale doporučené."
+  },
+  "sc1232": {
+   "source": "none given: the firewall and PostgreSQL are left as they are",
+   "text": "nezadána: firewall a PostgreSQL zůstanou, jak jsou"
+  },
+  "sc1233": {
+   "source": "✓ an address",
+   "text": "✓ adresa"
+  },
+  "sc1234": {
+   "source": "one address (IPv4 or IPv6), not a name or a range",
+   "text": "jedna adresa (IPv4 nebo IPv6), ne jméno ani rozsah"
+  },
+  "sc1235": {
+   "source": "This machine’s address when PostgreSQL runs here; the server’s own address when it runs elsewhere.",
+   "text": "Adresa tohoto stroje, když PostgreSQL běží zde; vlastní adresa serveru, když běží jinde."
+  },
+  "sc1236": {
+   "source": "PostgreSQL runs on this machine and listens only on localhost: the second node cannot reach it yet. Given the second node’s address, it is opened to it here: listen_addresses, a line in pg_hba.conf (scram-sha-256), a restart of PostgreSQL - a few seconds.",
+   "text": "PostgreSQL běží na tomto stroji a naslouchá jen na localhostu: druhý uzel na něj zatím nedosáhne. Se zadanou adresou druhého uzlu se mu zde otevře: listen_addresses, řádek v pg_hba.conf (scram-sha-256), restart PostgreSQL – pár sekund."
+  },
+  "sc1237": {
+   "source": "PostgreSQL runs on this machine and listens on the network; the second node’s line in pg_hba.conf is put in when its address is given.",
+   "text": "PostgreSQL běží na tomto stroji a naslouchá v síti; řádek druhého uzlu v pg_hba.conf se vloží, když je zadána jeho adresa."
+  },
+  "sc1238": {
+   "source": "acme does not manage this node’s firewall (Settings → Firewall): nothing to open there.",
+   "text": "acme nespravuje firewall tohoto uzlu (Nastavení → Firewall): není tam co otevírat."
+  },
+  "sc1239": {
+   "source": "the second node’s address: one address, IPv4 or IPv6",
+   "text": "adresa druhého uzlu: jedna adresa, IPv4 nebo IPv6"
+  },
+  "sc1240": {
+   "source": "the second node’s address is needed",
+   "text": "je potřeba adresa druhého uzlu"
+  },
+  "sc1241": {
+   "source": "Letting the second node in",
+   "text": "Vpouštění druhého uzlu"
+  },
+  "sc1242": {
+   "source": "Opening this node’s firewall",
+   "text": "Otevírání firewallu tohoto uzlu"
+  },
+  "sc1243": {
+   "source": "Preparing PostgreSQL here",
+   "text": "Příprava zdejší PostgreSQL"
+  },
+  "sc1244": {
+   "source": "Making the bundle",
+   "text": "Vytváření balíčku"
+  },
+  "sc1245": {
+   "source": "not all of it worked",
+   "text": "ne všechno se povedlo"
+  },
+  "sc1246": {
+   "source": "no address of the second node was given",
+   "text": "adresa druhého uzlu nebyla zadána"
+  },
+  "sc1247": {
+   "source": "Not all of it worked - what failed says what to do. The join will fail on it until then.",
+   "text": "Ne všechno se povedlo – u toho, co selhalo, je napsáno, co dělat. Do té doby na tom připojení selže."
+  },
+  "sc1248": {
+   "source": "This node is ready for the second one: join it there now (Join a cluster… on its pages).",
+   "text": "Tento uzel je na druhý připravený: připojte ho teď tam (Připojit ke clusteru… na jeho stránkách)."
+  },
+  "sc1249": {
+   "source": "locked with a passphrase made now",
+   "text": "zamčeno heslovou frází vytvořenou teď"
+  },
+  "sc1250": {
+   "source": "Its passphrase - shown only now. Write it down:",
+   "text": "Jeho heslová fráze – ukázaná jen teď. Zapište si ji:"
+  },
+  "sc1251": {
+   "source": "The bundle is made, but not every step before it worked (see above): the join fails until that is put right.",
+   "text": "Balíček je vytvořený, ale ne každý krok před ním se povedl (viz výše): připojení selže, dokud se to nespraví."
+  },
+  "sc1252": {
+   "source": "Install the same version of acme there.",
+   "text": "Nainstalujte tam stejnou verzi acme."
+  },
+  "sc1253": {
+   "source": "Copy the bundle over and join, as root:",
+   "text": "Zkopírujte tam balíček a připojte se jako root:"
+  },
+  "sc1254": {
+   "source": "Sign in to its pages: Settings → High availability → Join a cluster…",
+   "text": "Přihlaste se na jeho stránky: Nastavení → Vysoká dostupnost → Připojit ke clusteru…"
+  },
+  "sc1255": {
+   "source": "Drop the bundle there and type the passphrase - or, as root:",
+   "text": "Přetáhněte tam balíček a napište heslovou frázi – nebo jako root:"
+  },
+  "sc1256": {
+   "source": "This node becomes the second node of a cluster",
+   "text": "Tento uzel se stane druhým uzlem clusteru"
+  },
+  "sc1257": {
+   "source": "It opens the cluster’s database and takes its key, and from then on answers the same as the first node, with the same accounts. Use the bundle made on the first node.",
+   "text": "Otevře databázi clusteru a převezme jeho klíč a od té chvíle odpovídá stejně jako první uzel, se stejnými účty. Použijte balíček vytvořený na prvním uzlu."
+  },
+  "sc1258": {
+   "source": "Printed once when the bundle was made: five groups of five, dashes or not. Typed, it shows dots only.",
+   "text": "Vypsaná jednou při vytvoření balíčku: pět skupin po pěti, s pomlčkami nebo bez. Při psaní ukazuje jen tečky."
+  },
+  "sc1259": {
+   "source": "How it is called among the nodes - in the list of nodes, in the logs, on the VIP address. Each node needs a name of its own, letters, digits, dots and dashes.",
+   "text": "Jak se jmenuje mezi uzly – v seznamu uzlů, v logech, na VIP adrese. Každý uzel potřebuje vlastní jméno: písmena, číslice, tečky a pomlčky."
+  },
+  "sc1260": {
+   "source": "Check from here",
+   "text": "Zkontrolovat odsud"
+  },
+  "sc1261": {
+   "source": "too big for a bundle",
+   "text": "na balíček příliš velký"
+  },
+  "sc1262": {
+   "source": "this is not a bundle made by acme (Make the bundle… on the first node, or acme --ha-bundle)",
+   "text": "tohle není balíček vytvořený acme (Vytvořit balíček… na prvním uzlu, nebo acme --ha-bundle)"
+  },
+  "sc1263": {
+   "source": "Drop the bundle here, or press to choose it",
+   "text": "Přetáhněte balíček sem, nebo klikněte a vyberte ho"
+  },
+  "sc1264": {
+   "source": "Another file",
+   "text": "Jiný soubor"
+  },
+  "sc1265": {
+   "source": "The first node",
+   "text": "První uzel"
+  },
+  "sc1266": {
+   "source": "The database it will open",
+   "text": "Databáze, kterou otevře"
+  },
+  "sc1267": {
+   "source": "Made for",
+   "text": "Vytvořen pro"
+  },
+  "sc1268": {
+   "source": "A bundle of an earlier version: what it holds is shown once the passphrase opens it.",
+   "text": "Balíček starší verze: co obsahuje, se ukáže, až ho heslová fráze otevře."
+  },
+  "sc1269": {
+   "source": "A replicated cluster: this node gets a PostgreSQL of its own, which takes root on this machine (installing and setting it up). Copy the bundle here and run, as root:",
+   "text": "Replikovaný cluster: tento uzel dostane vlastní PostgreSQL, což na tomto stroji vyžaduje roota (instalace a nastavení). Zkopírujte sem balíček a spusťte jako root:"
+  },
+  "sc1270": {
+   "source": "a name is needed",
+   "text": "je potřeba jméno"
+  },
+  "sc1271": {
+   "source": "letters, digits, dots, dashes and _ - 63 at most",
+   "text": "písmena, číslice, tečky, pomlčky a _ – nejvýš 63"
+  },
+  "sc1272": {
+   "source": "that is the first node’s name: each node needs its own",
+   "text": "to je jméno prvního uzlu: každý uzel potřebuje vlastní"
+  },
+  "sc1273": {
+   "source": "This node has data of its own",
+   "text": "Tento uzel má vlastní data"
+  },
+  "sc1274": {
+   "source": "sealed secrets (private keys, passwords)",
+   "text": "zapečetěné tajné údaje (soukromé klíče, hesla)"
+  },
+  "sc1275": {
+   "source": "Joining does not delete them, but leaves them behind: this node then works only with the cluster’s database and key. They stay in its old database, and its key is kept as secrets.key.before-join - but nothing uses them any more. To keep a certificate, export it first.",
+   "text": "Připojení je nesmaže, ale nechá je za sebou: tento uzel pak pracuje jen s databází a klíčem clusteru. Zůstanou v jeho staré databázi a jeho klíč se uchová jako secrets.key.before-join – ale už je nic nepoužívá. Chcete-li si certifikát ponechat, nejdřív ho exportujte."
+  },
+  "sc1276": {
+   "source": "Leave what this node has behind, and join",
+   "text": "Nechat, co tento uzel má, za sebou a připojit"
+  },
+  "sc1277": {
+   "source": "Checking the bundle",
+   "text": "Kontrola balíčku"
+  },
+  "sc1278": {
+   "source": "Opening the firewall to the first node",
+   "text": "Otevírání firewallu k prvnímu uzlu"
+  },
+  "sc1279": {
+   "source": "Reaching the database",
+   "text": "Spojení s databází"
+  },
+  "sc1280": {
+   "source": "Taking the key",
+   "text": "Převzetí klíče"
+  },
+  "sc1281": {
+   "source": "Starting again on the cluster’s database",
+   "text": "Nový start na databázi clusteru"
+  },
+  "sc1282": {
+   "source": "Not reached from here - what failed says why and what to do. Nothing on this node was changed except its firewall.",
+   "text": "Odsud nedosažitelné – u toho, co selhalo, je napsáno proč a co dělat. Na tomto uzlu se nic nezměnilo kromě jeho firewallu."
+  },
+  "sc1283": {
+   "source": "Everything the join needs answers from here. Nothing on this node was changed except its firewall: press Join to go on.",
+   "text": "Vše, co připojení potřebuje, odsud odpovídá. Na tomto uzlu se nic nezměnilo kromě jeho firewallu: pokračujte tlačítkem Připojit."
+  },
+  "sc1284": {
+   "source": "the key is the cluster’s",
+   "text": "klíč je teď klíčem clusteru"
+  },
+  "sc1285": {
+   "source": "the cluster’s database",
+   "text": "databáze clusteru"
+  },
+  "sc1286": {
+   "source": "it answers again, on the cluster’s database",
+   "text": "znovu odpovídá, na databázi clusteru"
+  },
+  "sc1287": {
+   "source": "it has not answered yet - it may take a little longer",
+   "text": "zatím neodpověděl – může to trvat o něco déle"
+  },
+  "sc1288": {
+   "source": "This node is now one of the cluster",
+   "text": "Tento uzel je teď součástí clusteru"
+  },
+  "sc1289": {
+   "source": "Sign in again - with the cluster’s accounts: the ones of this node were in its own database, which is no longer used. Both nodes are then in the list on this page.",
+   "text": "Přihlaste se znovu – účty clusteru: účty tohoto uzlu byly v jeho vlastní databázi, která se už nepoužívá. Oba uzly pak budou v seznamu na této stránce."
+  },
+  "sc1290": {
+   "source": "Sign in again",
+   "text": "Přihlásit se znovu"
+  },
+  "sc1291": {
+   "source": "The join did not go on: nothing on this node was changed but its firewall. Put right what failed, then try again.",
+   "text": "Připojení nepokračovalo: na tomto uzlu se nezměnilo nic kromě jeho firewallu. Spravte, co selhalo, a zkuste to znovu."
+  },
+  "sc1292": {
+   "source": "The whole firewall on this node (read only)",
+   "text": "Celý firewall na tomto uzlu (jen pro čtení)"
+  },
+  "sc1293": {
+   "source": "it was not opened to the first node yet",
+   "text": "k prvnímu uzlu zatím nebyl otevřen"
+  },
+  "sc1294": {
+   "source": "make a new bundle on the first node - it names its own database",
+   "text": "vytvořte na prvním uzlu nový balíček – uvádí svou vlastní databázi"
+  },
+  "sc1295": {
+   "source": "make the bundle again on the first node with its address in place of the name, or put the name into this node's DNS or /etc/hosts",
+   "text": "vytvořte balíček na prvním uzlu znovu s jeho adresou místo jména, nebo dejte jméno do DNS tohoto uzlu či do /etc/hosts"
+  },
+  "sc1296": {
+   "source": "no longer let in as a node being joined",
+   "text": "už není vpuštěn jako připojovaný uzel"
+  },
+  "sc1297": {
+   "source": "on the first node, press Make the bundle… again with this node's address (it prepares PostgreSQL: listen_addresses, pg_hba.conf, a restart) - or as root there: acme --ha-setup --ha-shared --ha-peer THIS-NODE",
+   "text": "na prvním uzlu stiskněte znovu Vytvořit balíček… s adresou tohoto uzlu (připraví PostgreSQL: listen_addresses, pg_hba.conf, restart) – nebo tam jako root: acme --ha-setup --ha-shared --ha-peer TENTO-UZEL"
+  },
+  "sc1298": {
+   "source": "see the first node's PostgreSQL log",
+   "text": "podívejte se do logu PostgreSQL na prvním uzlu"
+  },
+  "sc1299": {
+   "source": "the bundle is older than a change of that password: make a new bundle on the first node",
+   "text": "balíček je starší než změna toho hesla: vytvořte na prvním uzlu nový"
+  },
+  "sc1300": {
+   "source": "the bundle names no address to let in",
+   "text": "balíček neuvádí adresu, kterou vpustit"
+  },
+  "sc1301": {
+   "source": "the firewall of this node is not managed by acme, or is off: nothing to open",
+   "text": "firewall tohoto uzlu acme nespravuje, nebo je vypnutý: není co otevírat"
+  },
+  "sc1302": {
+   "source": "the firewall was not looked at (no database here)",
+   "text": "na firewall se nehledělo (zde není databáze)"
+  },
+  "sc1303": {
+   "source": "the key that opens the sealed secrets is the cluster's now",
+   "text": "klíč, který otevírá zapečetěné tajné údaje, je teď klíčem clusteru"
+  },
+  "sc1304": {
+   "source": "the key that seals the secrets is missing",
+   "text": "chybí klíč, který pečetí tajné údaje"
+  },
+  "sc1305": {
+   "source": "this bundle makes this node replicate with its own PostgreSQL, which takes root on this machine: copy it here and run acme --ha-join FILE as root",
+   "text": "tento balíček nechá tento uzel replikovat s vlastní PostgreSQL, což na tomto stroji vyžaduje roota: zkopírujte ho sem a jako root spusťte acme --ha-join SOUBOR"
+  },
+  "sc1306": {
+   "source": "this node holds secrets of its own (private keys, passwords), sealed with another key; joining replaces both its database and its key. Say so to go on (--discard-local, or tick it on the page)",
+   "text": "tento uzel drží vlastní tajné údaje (soukromé klíče, hesla) zapečetěné jiným klíčem; připojení nahradí jeho databázi i klíč. Pro pokračování to potvrďte (--discard-local, nebo zaškrtnutím na stránce)"
+  },
+  "sc1307": {
+   "source": "psql failed",
+   "text": "psql selhal"
   }
  },
  "patterns": {
@@ -32265,6 +32753,110 @@
   "pc0247": {
    "source": "bound {0} to {1} (SNI)",
    "text": "{0} svázán s {1} (SNI)"
+  },
+  "pc0248": {
+   "source": "acme starts again on {0}",
+   "text": "acme znovu startuje na: {0}"
+  },
+  "pc0249": {
+   "source": "{0} is let in as the node being joined, until {1}",
+   "text": "{0} je vpuštěn jako připojovaný uzel, do {1}"
+  },
+  "pc0250": {
+   "source": "{0} is letters, digits and _ only, starting with a letter",
+   "text": "{0} smí obsahovat jen písmena, číslice a _ a začínat písmenem"
+  },
+  "pc0251": {
+   "source": "PostgreSQL at {0} answers, but does not take the password of the account {1}",
+   "text": "PostgreSQL na {0} odpovídá, ale nepřijímá heslo účtu {1}"
+  },
+  "pc0252": {
+   "source": "PostgreSQL at {0} answers, but pg_hba.conf has no line for this node",
+   "text": "PostgreSQL na {0} odpovídá, ale pg_hba.conf nemá řádek pro tento uzel"
+  },
+  "pc0253": {
+   "source": "PostgreSQL at {0} answers: {1}",
+   "text": "PostgreSQL na {0} odpovídá: {1}"
+  },
+  "pc0254": {
+   "source": "PostgreSQL at {0} did not answer at all ({1})",
+   "text": "PostgreSQL na {0} vůbec neodpověděl ({1})"
+  },
+  "pc0255": {
+   "source": "PostgreSQL at {0} refused the connection: it does not listen on that address (listen_addresses), or it is not running",
+   "text": "PostgreSQL na {0} odmítl spojení: na té adrese nenaslouchá (listen_addresses), nebo neběží"
+  },
+  "pc0256": {
+   "source": "PostgreSQL is not on this machine ({0}): it has to let {1} in itself",
+   "text": "PostgreSQL není na tomto stroji ({0}): {1} musí vpustit sám"
+  },
+  "pc0257": {
+   "source": "it could not be asked for: {0}",
+   "text": "nešlo se na to zeptat: {0}"
+  },
+  "pc0258": {
+   "source": "on the first node, press Make the bundle… again giving this node's address as PostgreSQL sees it (it adds the line) - or add host {0} {1} THIS-ADDRESS/32 scram-sha-256 to pg_hba.conf there and reload PostgreSQL",
+   "text": "na prvním uzlu stiskněte znovu Vytvořit balíček… s adresou tohoto uzlu, jak ji vidí PostgreSQL (řádek přidá) – nebo tam do pg_hba.conf přidejte host {0} {1} TATO-ADRESA/32 scram-sha-256 a znovu načtěte PostgreSQL"
+  },
+  "pc0259": {
+   "source": "the bundle opens: the cluster {0} of {1} ({2})",
+   "text": "balíček se otevře: cluster {0} z {1} ({2})"
+  },
+  "pc0260": {
+   "source": "the bundle or the name will not do: {0}",
+   "text": "balíček nebo jméno nevyhovuje: {0}"
+  },
+  "pc0261": {
+   "source": "the database answers from here: {0}, {1} record(s)",
+   "text": "databáze odsud odpovídá: {0}, {1} {1:záznam|záznamy|záznamů}"
+  },
+  "pc0262": {
+   "source": "the database answers: {0}, {1} record(s)",
+   "text": "databáze odpovídá: {0}, {1} {1:záznam|záznamy|záznamů}"
+  },
+  "pc0263": {
+   "source": "the database in the bundle cannot be reached from here: {0} - {1}",
+   "text": "na databázi z balíčku odsud nelze dosáhnout: {0} – {1}"
+  },
+  "pc0264": {
+   "source": "the name {0} is not known here",
+   "text": "jméno {0} tu není známé"
+  },
+  "pc0265": {
+   "source": "the root helper {0}: {1}",
+   "text": "pomocník roota {0}: {1}"
+  },
+  "pc0266": {
+   "source": "the root helper did not answer in {0} s - is acme-web.path running? systemctl status acme-web.path",
+   "text": "pomocník roota neodpověděl do {0} s – běží acme-web.path? systemctl status acme-web.path"
+  },
+  "pc0267": {
+   "source": "the root helper did not apply it in {0} s - is acme-web.path running? systemctl status acme-web.path",
+   "text": "pomocník roota to nepoužil do {0} s – běží acme-web.path? systemctl status acme-web.path"
+  },
+  "pc0268": {
+   "source": "the root helper is not installed here ({0})",
+   "text": "pomocník roota tu není nainstalován ({0})"
+  },
+  "pc0269": {
+   "source": "the root helper is not installed here: as root, acme --ha-setup --ha-shared --ha-peer {0}",
+   "text": "pomocník roota tu není nainstalován: jako root acme --ha-setup --ha-shared --ha-peer {0}"
+  },
+  "pc0270": {
+   "source": "this node's firewall and the first node's are opened by acme, so something in between drops it: a firewall of the network, a security group, or the first node's own firewall not managed by acme (firewalld) - let TCP {0} through from this node to {1}",
+   "text": "firewall tohoto i prvního uzlu otevírá acme, takže to zahazuje něco mezi nimi: firewall v síti, security group, nebo vlastní firewall prvního uzlu, který acme nespravuje (firewalld) – propusťte TCP {0} z tohoto uzlu na {1}"
+  },
+  "pc0271": {
+   "source": "this node's firewall could not be opened to it ({0}); then look at the network in between",
+   "text": "firewall tohoto uzlu se mu nepodařilo otevřít ({0}); pak se podívejte na síť mezi nimi"
+  },
+  "pc0272": {
+   "source": "this request reached {0}, not {1}: open the page of {2} itself (its own address) to do that",
+   "text": "tento požadavek došel na {0}, ne na {1}: k tomu otevřete stránku samotného {2} (jeho vlastní adresu)"
+  },
+  "pc0273": {
+   "source": "what to ask for could not be made: {0}",
+   "text": "dotaz nešlo sestavit: {0}"
   }
  },
  "rich": {
