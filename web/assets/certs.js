@@ -1288,6 +1288,8 @@ function modAction(key, r, a, button) {
     askRaw(m.list + '/action', {id: r.id, name: r.name, action: a.key}, 600).then(function (d) {
       var good = d.ok !== false && !d.error;
       toast(String(d.said || d.message || d.error || (good ? 'done' : 'it did not work')).split('\n')[0], good ? 'good' : 'bad');
+      /* An action that hands a file over (a config to put in place by hand): saved, no job shown. */
+      if (good && d.file && d.file.name) { saveText(d.file.name, d.file.text || ''); return; }
       if (d.job_id) over(function () { jobPeek(d.job_id); });
     }).catch(fail).then(function () { busy(button, false); delete LISTS[key]; drawModTab(key, true); });
   };

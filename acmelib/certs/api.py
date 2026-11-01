@@ -1439,6 +1439,7 @@ def family_action(store, family, b, by, echo=None):
         raise ValueError('%s (%s) can do %s' % (row['name'], row['kind'], ', '.join(
             a['key'] for a in cls.actions or []) or 'nothing besides its work'))
     cfg = S.plugin_config(family, row)
+    got = {}
 
     def fn(job):
         if family == 'target':
@@ -1448,6 +1449,11 @@ def family_action(store, family, b, by, echo=None):
         try:
             job.step('%s %s (%s): %s' % (family, row['name'], row['kind'], act.get('label') or key))
             said = cls(cfg, ctx).action(key)
+            if isinstance(said, dict):
+                # a file to hand over (a config to put in place by hand)
+                if said.get('file'):
+                    got['file'] = said['file']
+                said = said.get('said')
             job.step(str(said or 'done'), 'ok')
             return True, str(said or 'done')
         finally:
@@ -1457,8 +1463,12 @@ def family_action(store, family, b, by, echo=None):
     store.add_event('certificates', '%s %s: "%s" run by %s - %s' % (
         family, row['name'], act.get('label') or key, by, 'done' if job.ok else 'failed: %s'
         % job.said), 'info' if job.ok else 'warn', who=by)
-    return {'ok': bool(job.ok), 'said': job.said, 'job_id': job.id, 'steps': job.steps,
-            'action': key}
+    out = {'ok': bool(job.ok), 'said': job.said, 'job_id': job.id, 'steps': job.steps,
+           'action': key}
+    if got.get('file') and job.ok:
+        f = got['file']
+        out['file'] = {'name': str(f.get('name') or 'file.txt'), 'text': str(f.get('text') or '')}
+    return out
 
 
 def action_role(family, b, store):

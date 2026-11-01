@@ -32047,6 +32047,66 @@
   "sdp0054": {
    "source": "DNS-PERSIST-01 (a TXT record set once)",
    "text": "DNS-PERSIST-01 (záznam TXT nastavený jednou)"
+  },
+  "sy8011": {
+   "source": "Set nginx up by itself",
+   "text": "Nastavit nginx automaticky"
+  },
+  "sy8012": {
+   "source": "On: before Test and before every validation acme makes sure the nginx server block for /.well-known/acme-challenge/ is on each web server (as \"Prepare the hosts\") - written and nginx reloaded only when it is missing or different; checked with nginx -t, put back when it fails. Needs root or sudo there. Off: put in place once by the action, or by hand.",
+   "text": "Zapnuto: před Testem a před každou validací acme zajistí, že na každém webovém serveru je blok nginx pro /.well-known/acme-challenge/ (jako „Připravit servery“) – zapíše ho a nginx znovu načte jen tehdy, když chybí nebo se liší; ověří ho nginx -t a při chybě vrátí původní stav. Potřebuje root nebo sudo. Vypnuto: nastaví se jednou akcí, nebo ručně."
+  },
+  "sy8013": {
+   "source": "Open port 80 in their firewall",
+   "text": "Otevřít port 80 v jejich firewallu"
+  },
+  "sy8014": {
+   "source": "With \"Prepare\" (and \"Set nginx up by itself\"): port 80/tcp opened in firewalld or ufw on each web server when it is closed there. Nothing else is touched; another firewall is said, not changed.",
+   "text": "S „Připravit“ (a „Nastavit nginx automaticky“): na každém webovém serveru se otevře port 80/tcp ve firewalld nebo ufw, pokud je zavřený. Nic jiného se nemění; jiný firewall se jen ohlásí, nezmění."
+  },
+  "sy8015": {
+   "source": "no firewalld or ufw running - port 80 left as it is",
+   "text": "neběží firewalld ani ufw – port 80 zůstává, jak je"
+  },
+  "sx8016": {
+   "source": "How \"Prepare\" sets nginx up",
+   "text": "Jak „Připravit“ nastaví nginx"
+  },
+  "sx8017": {
+   "source": "by itself - its own block, or into the blocks already on port 80",
+   "text": "samo – vlastní blok, nebo do bloků, které už na portu 80 jsou"
+  },
+  "sx8018": {
+   "source": "I put it in myself - \"Prepare\" only checks",
+   "text": "vložím to sám – „Připravit“ jen zkontroluje"
+  },
+  "sx8019": {
+   "source": "always its own server block (default, or for the names below)",
+   "text": "vždy vlastní server blok (výchozí, nebo pro jména níže)"
+  },
+  "sx8020": {
+   "source": "nginx answering port 80 already (your sites, a redirect to HTTPS): one line, include /etc/nginx/snippets/acme-challenge.conf, goes at the top of each of its port-80 server blocks - nothing else in them changes, every file is kept as it was and put back when nginx -t fails. \"I put it in myself\": \"Download the nginx config\" gives the file and the line; \"Prepare\" then only checks every block has it.",
+   "text": "Když nginx na portu 80 už odpovídá (vaše weby, přesměrování na HTTPS): na začátek každého jeho server bloku na portu 80 přijde jediný řádek include /etc/nginx/snippets/acme-challenge.conf – nic jiného se v nich nemění, každý soubor se zazálohuje a když nginx -t selže, vrátí se. „Vložím to sám“: „Stáhnout config pro nginx“ dá soubor a řádek; „Připravit“ pak jen zkontroluje, že ho má každý blok."
+  },
+  "sx8021": {
+   "source": "Names acme's own block answers for",
+   "text": "Jména, pro která odpovídá vlastní blok acme"
+  },
+  "sx8022": {
+   "source": "acme's own server block on port 80 listens for these names only - not the default server. Empty: it is the default server (any name). A name another block on port 80 answers already: the include goes into that block instead.",
+   "text": "Vlastní server blok acme na portu 80 naslouchá jen pro tato jména – není výchozím serverem. Prázdné: je výchozím serverem (jakékoli jméno). Jméno, na které už odpovídá jiný blok na portu 80: include se vloží do toho bloku."
+  },
+  "sx8023": {
+   "source": "Download the nginx config",
+   "text": "Stáhnout config pro nginx"
+  },
+  "sx8024": {
+   "source": "The snippet for /etc/nginx/snippets/acme-challenge.conf and how to include it in your port-80 server blocks - to put in place yourself; then \"Prepare the hosts\" checks it.",
+   "text": "Soubor pro /etc/nginx/snippets/acme-challenge.conf a návod, jak ho vložit do server bloků na portu 80 – nahrajete ho sám; „Připravit servery“ ho pak zkontroluje."
+  },
+  "sx8025": {
+   "source": "the nginx config to put in place yourself",
+   "text": "config pro nginx k ručnímu nahrání"
   }
  },
  "patterns": {
@@ -41265,6 +41325,54 @@
   "pdp0032": {
    "source": "{0}: not asked - an order only to look is made at a staging CA only; its next real order shows it",
    "text": "{0}: nedotázáno – objednávka jen pro zjištění se dělá jen u staging CA; ukáže to jeho příští skutečná objednávka"
+  },
+  "py2305": {
+   "source": "nginx could not be set up on {0}",
+   "text": "nginx se nepodařilo nastavit na {0}"
+  },
+  "py2306": {
+   "source": "{0}: port 80 opened in firewalld",
+   "text": "{0}: port 80 otevřen ve firewalld"
+  },
+  "py2307": {
+   "source": "{0}: port 80 opened in ufw",
+   "text": "{0}: port 80 otevřen v ufw"
+  },
+  "py2308": {
+   "source": "{0}: firewalld refused to open port 80",
+   "text": "{0}: firewalld odmítl otevřít port 80"
+  },
+  "py2309": {
+   "source": "{0}: ufw refused to open port 80",
+   "text": "{0}: ufw odmítl otevřít port 80"
+  },
+  "py2310": {
+   "source": "{0}: no firewalld or ufw running - port 80 left as it is",
+   "text": "{0}: neběží firewalld ani ufw – port 80 zůstává, jak je"
+  },
+  "py2311": {
+   "source": "the file is written but port {0} of {1} does not answer ({2}) - SSH reaches it, so most likely its firewall closes port {3} (firewalld answers \"No route to host\"): switch on \"Open port 80 in their firewall\" and \"Set nginx up by itself\", or open it by hand",
+   "text": "soubor je zapsaný, ale port {0} na {1} neodpovídá ({2}) – SSH se tam dostane, takže port {3} nejspíš zavírá jeho firewall (firewalld odpovídá „No route to host“): zapněte „Otevřít port 80 v jejich firewallu“ a „Nastavit nginx automaticky“, nebo ho otevřete ručně"
+  },
+  "px2312": {
+   "source": "{0}: nginx answers port 80 already ({1}) - the include goes into those blocks, nothing else is changed",
+   "text": "{0}: nginx už na portu 80 odpovídá ({1}) – include se vloží do těch bloků, nic jiného se nemění"
+  },
+  "px2313": {
+   "source": "{0}: written and reloaded - the include in {1} server block(s) of {2} file(s), nothing else changed",
+   "text": "{0}: zapsáno a načteno – include v {1} server blocích ve {2} souborech, nic jiného se nezměnilo"
+  },
+  "px2314": {
+   "source": "{0}: already in place in every port-80 server block ({1} file(s))",
+   "text": "{0}: už je v každém server bloku na portu 80 ({1} souborů)"
+  },
+  "px2315": {
+   "source": "{0}: the include is in every port-80 server block ({1} file(s)) - checked, nothing changed",
+   "text": "{0}: include je v každém server bloku na portu 80 ({1} souborů) – zkontrolováno, nic nezměněno"
+  },
+  "px2316": {
+   "source": "{0}: {1} answered by another block already ({2}) - the include goes into the blocks instead",
+   "text": "{0}: na {1} už odpovídá jiný blok ({2}) – include se proto vloží do bloků"
   }
  },
  "rich": {

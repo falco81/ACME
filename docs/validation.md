@@ -871,6 +871,40 @@ another block is the default server of port 80 already, name the names in
 IPv6 too* and *Everything else to HTTPS* (else 404) are under *More*. Run
 again, it changes nothing that is in place.
 
+**nginx answering port 80 already** (your sites, a certbot redirect to
+HTTPS): *How "Prepare" sets nginx up* (`prepare_how`):
+
+* **by itself** (`auto`, the default) - with nothing else on port 80, acme's
+  own server block; with *Names acme's own block answers for* filled in and no
+  other block answering those names, its own block for them only (not the
+  default server); otherwise one line,
+  `include /etc/nginx/snippets/acme-challenge.conf;  # acme`, goes at the top
+  of every port-80 server block. Nothing else in them changes. The snippet
+  starts with `rewrite ^(/\.well-known/acme-challenge/.*)$ $1 break;` - at the
+  server level nginx runs rewrite, return and if in order, so a `return 301`
+  or certbot's `if ($host = …) { return 301 …; }` would answer first; `break`
+  ends that for these paths only and the snippet's `location ^~` (with
+  `root`) serves the file. Each file is checked unchanged since it was read,
+  copied to `/var/backups/acme-nginx/DATE/` (outside nginx's folders, where a
+  `sites-enabled/*` would load a copy), written in place (owner and mode
+  kept), `nginx -t` - every file put back when it fails - and nginx reloaded.
+  A block with a location for `/.well-known/acme-challenge/` of its own is
+  left as it is (said in the job).
+* **I put it in myself** (`manual`) - acme changes nothing: *Download the
+  nginx config* gives the snippet and the line; *Prepare the hosts* then only
+  checks every port-80 block includes it, and runs the probe.
+* **always its own server block** (`own`) - as before.
+
+**Set nginx up by itself** (`auto_prepare`, off by default) does the same
+before *Test* and before every validation, once a job: nothing is written and
+nginx is not reloaded while the block is in place as it should be. A web
+server where it fails fails the validation before any token is written.
+**Open port 80 in their firewall** (`prepare_firewall`, off by default) adds
+port 80/tcp to firewalld (`--add-service=http`, permanent) or ufw when it is
+closed there; another firewall is said in the job, not changed. An SSH that
+works while HTTP says *No route to host* is that firewall (firewalld rejects
+so) - the check says so.
+
 With a server block of your own on port 80 already, put just the `location
 ^~ /.well-known/acme-challenge/ { root /var/www/acme-challenge; ... }` into it
 (before any redirect). Apache: `Alias /.well-known/acme-challenge/

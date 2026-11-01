@@ -1270,6 +1270,7 @@ class TestHttpSsh(unittest.TestCase):
             self.uid, self.answer, self.scripts = uid, answer, []
 
     def prep_module(self, world, **cfg):
+        cfg.setdefault('prepare_how', 'own')
         m, world, served = self.module(world, **cfg)
         orig = FakeSsh.run
 
@@ -1292,7 +1293,7 @@ class TestHttpSsh(unittest.TestCase):
 
     def test_prepare_action(self):
         d = plugin('http_ssh').describe()
-        self.assertEqual([a['key'] for a in d['actions']], ['prepare'])
+        self.assertEqual([a['key'] for a in d['actions']], ['nginx_files', 'prepare'])
         world = self.PrepWorld()
         m, world, _s = self.prep_module(world)
         said = m.action('prepare')
@@ -1337,6 +1338,150 @@ class TestHttpSsh(unittest.TestCase):
         m2, _w, _s = self.prep_module(self.PrepWorld(), nginx_conf='/tmp/x.conf')
         with self.assertRaises(PluginError):
             m2.action('prepare')
+
+    def test_auto_prepare_and_firewall(self):
+        # Off (the default): present() runs no prepare script.
+        world = self.PrepWorld()
+        m, world, _s = self.prep_module(world)
+        m.present('www.example.com', 'tok1', 'tok1.ka', '')
+        self.assertEqual(world.scripts, [])
+        # On: once a job, on every machine, before the token - and not again.
+        world = self.PrepWorld(answer=(0, b'ACME-FW: port 80 opened in firewalld\n'
+                                          b'ACME: written and reloaded\n'))
+        m, world, _s = self.prep_module(world, auto_prepare=True, prepare_firewall=True)
+        m.present('www.example.com', 'tok2', 'tok2.ka', '')
+        m.present('mail.example.com', 'tok3', 'tok3.ka', '')
+        self.assertEqual(len(world.scripts), 3)
+        script = world.scripts[0][2]
+        self.assertIn('firewall-cmd --permanent --add-service=http', script)
+        self.assertIn('ufw allow 80/tcp', script)
+        self.assertTrue(any('port 80 opened in firewalld' in str(x) for x in m.ctx.steps))
+        # Without the firewall switch the script leaves the firewall alone.
+        world = self.PrepWorld()
+        m, world, _s = self.prep_module(world, auto_prepare=True, check='none')
+        m.test()
+        self.assertEqual(len(world.scripts), 3)
+        self.assertNotIn('firewall-cmd', world.scripts[0][2])
+        # A machine where it fails: the validation fails before any token is written.
+        world = self.PrepWorld(answer=(3, b'ACME: no nginx here\n'))
+        m, world, _s = self.prep_module(world, auto_prepare=True)
+        with self.assertRaises(PluginError) as e:
+            m.present('www.example.com', 'tok4', 'tok4.ka', '')
+        self.assertIn('nginx could not be set up', str(e.exception))
+        self.assertTrue(all(not f for f in world.files.values()))
+
+    # -- nginx already answering port 80: the include into its blocks --------------------
+    SITES = {
+        '/etc/nginx/nginx.conf': 'http {\n    include /etc/nginx/sites-enabled/*;\n}\n',
+        '/etc/nginx/sites-enabled/default': (
+            'server {\n    listen 80 default_server;\n    server_name _;\n'
+            '    root /var/www/html;\n}\n'
+            'server {\n    listen 443 ssl;\n    server_name secure;\n}\n'),
+        '/etc/nginx/sites-enabled/certbot': (
+            'server {\n    if ($host = www.example.com) {\n        return 301 https://$host$request_uri;\n'
+            '    } # managed by Certbot\n    listen 80;\n    server_name www.example.com;\n'
+            '    return 404; # "quoted { brace"\n}\n'),
+        '/etc/nginx/sites-enabled/own-challenge': (
+            'server {\n    listen 80;\n    server_name legacy.example.com;\n'
+            '    location /.well-known/acme-challenge/ { root /srv/x; }\n}\n'),
+    }
+
+    def test_nginx_parser(self):
+        from acmelib.plugins.challenges import _nginx as NG
+        dump = ''.join('# configuration file %s:\n%s\n' % kv for kv in self.SITES.items())
+        files = NG.split_dump(dump)
+        self.assertEqual(sorted(files), sorted(self.SITES))
+        blocks = NG.server_blocks(self.SITES['/etc/nginx/sites-enabled/default'])
+        self.assertEqual([NG.on_port_80(b) for b in blocks], [True, False])
+        line = 'include /etc/nginx/snippets/acme-challenge.conf;  # acme'
+        new, done, left = NG.patch(self.SITES['/etc/nginx/sites-enabled/certbot'], line)
+        self.assertEqual(done, ['www.example.com'])
+        self.assertTrue(new.startswith('server {\n    %s\n' % line))
+        # nothing else changed: take the line out and it is the file it was
+        self.assertEqual(new.replace('\n    %s\n' % line, '', 1),
+                         self.SITES['/etc/nginx/sites-enabled/certbot'])
+        self.assertEqual(NG.patch(new, line)[1], [])               # once only
+        _n, done, left = NG.patch(self.SITES['/etc/nginx/sites-enabled/own-challenge'], line)
+        self.assertEqual(done, [])
+        self.assertIn('of its own', left[0][1])
+        for listen, yes in (('80', True), ('0.0.0.0:80', True), ('[::]:80', True),
+                            ('8080', False), ('443 ssl', False), ('80 default_server', True)):
+            b = NG.server_blocks('server { listen %s; }' % listen)[0]
+            self.assertEqual(NG.on_port_80(b), yes, listen)
+        self.assertTrue(NG.on_port_80(NG.server_blocks('server { server_name x; }')[0]))
+        snip = NG.snippet_text('/var/www/acme-challenge')
+        self.assertIn('rewrite ^(/\\.well-known/acme-challenge/.*)$ $1 break;', snip)
+        self.assertIn('root /var/www/acme-challenge;', snip)
+        self.assertNotIn('alias', snip)
+
+    def nginx_world(self, files, answer=(0, b'ACME-BK: /var/backups/acme-nginx/x\nACME: written and reloaded\n')):
+        world = self.PrepWorld(uid=b'0\n', answer=answer)
+        dump = ''.join('# configuration file %s:\n%s\n' % kv for kv in files.items()).encode()
+        real = ''.join('ACME-FILE %s %s\n' % (p, base64.b64encode(t.encode()).decode())
+                       for p, t in files.items()).encode()
+
+        def ans(host):
+            script = world.scripts[-1][2]
+            if 'nginx -T' in script:
+                return 0, dump
+            if 'ACME-FILE' in script:
+                return 0, real
+            return answer
+        world.answer = ans
+        return world
+
+    def test_prepare_into_existing_blocks(self):
+        world = self.nginx_world(self.SITES)
+        m, world, _s = self.prep_module(world, user='root', prepare_how='auto', check='none',
+                                        hosts='192.0.2.21')
+        said = m.action('prepare')
+        self.assertIn('nothing else changed', said)
+        script = world.scripts[-1][2]
+        self.assertIn('sha256sum /etc/nginx/sites-enabled/certbot', script)   # unchanged since read
+        self.assertIn('cp -p --parents /etc/nginx/sites-enabled/certbot "$bk"', script)
+        self.assertIn('bk=/var/backups/acme-nginx/', script)               # not in sites-enabled
+        self.assertNotIn('.acme-old', script)
+        self.assertIn('if ! nginx -t 2>&1; then restore;', script)
+        self.assertNotIn('own-challenge', script.split('nginx -t')[0].split('sha256sum')[-1])
+        self.assertTrue(any('of its own - left as it is' in str(x) for x in m.ctx.steps))
+        # manual: the same machine only checked - nothing written
+        world = self.nginx_world(self.SITES)
+        m, world, _s = self.prep_module(world, user='root', prepare_how='manual', check='none',
+                                        hosts='192.0.2.21')
+        with self.assertRaises(PluginError) as e:
+            m.action('prepare')
+        self.assertIn('nginx is not set up yet', str(e.exception))
+        self.assertFalse(any('base64 -d' in sc for _h, _c, sc in world.scripts))
+        # ... and once it is all there, the check passes
+        done = {}
+        for p, t in self.SITES.items():
+            from acmelib.plugins.challenges import _nginx as NG
+            done[p] = NG.patch(t, 'include /etc/nginx/snippets/acme-challenge.conf;  # acme')[0]
+        done['/etc/nginx/snippets/acme-challenge.conf'] = m.snippet()
+        world = self.nginx_world(done)
+        m, world, _s = self.prep_module(world, user='root', prepare_how='manual', check='none',
+                                        hosts='192.0.2.21')
+        self.assertIn('checked, nothing changed', m.action('prepare'))
+        # Names of its own that no block answers: acme's own block for them, not default.
+        world = self.nginx_world(self.SITES)
+        m, world, _s = self.prep_module(world, user='root', prepare_how='auto', check='none',
+                                        hosts='192.0.2.21', prepare_names='shop.example.com')
+        m.action('prepare')
+        script = world.scripts[-1][2]
+        self.assertIn('server_name shop.example.com;', script)
+        self.assertNotIn('default_server', script)
+        self.assertNotIn('sites-enabled', script)
+        # ... a name a block answers already: the include into the blocks instead
+        world = self.nginx_world(self.SITES)
+        m, world, _s = self.prep_module(world, user='root', prepare_how='auto', check='none',
+                                        hosts='192.0.2.21', prepare_names='www.example.com')
+        m.action('prepare')
+        self.assertIn('sha256sum /etc/nginx/sites-enabled/certbot', world.scripts[-1][2])
+        self.assertTrue(any('answered by another block already' in str(x) for x in m.ctx.steps))
+        # the file to download
+        got = m.action('nginx_files')
+        self.assertEqual(got['file']['name'], 'acme-challenge.conf')
+        self.assertIn('include /etc/nginx/snippets/acme-challenge.conf;', got['file']['text'])
 
 
 class TestOtherModules(unittest.TestCase):

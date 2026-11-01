@@ -5,17 +5,23 @@ the token file into their webroot, so acme itself is never reachable from the
 internet. docs/validation.md has the nginx server block for those machines."""
 from __future__ import annotations
 
+import base64
 import binascii
+import hashlib
 import os
 import posixpath
+import time
 
 from acmelib.plugins.base import PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
+from acmelib.plugins.challenges import _nginx as NG
 from acmelib.plugins.challenges._common import (HttpChallenge, as_bool, as_list, shq, ssh_conn,
                                                 ssh_fields)
 
 WEBROOT = '/var/www/acme-challenge/.well-known/acme-challenge'
 NGINX_CONF = '/etc/nginx/conf.d/acme-challenge.conf'
+SNIPPET = '/etc/nginx/snippets/acme-challenge.conf'
+INCLUDE = 'include %s;  ' + NG.MARK
 
 
 class HttpSsh(HttpChallenge):
@@ -51,14 +57,34 @@ class HttpSsh(HttpChallenge):
               placeholder='198.51.100.20',
               help='The addresses the names point at when a load balancer stands in front of '
                    'the web servers: the guide takes a name pointing there as right.'),
+        field('prepare_names', 'Names acme\'s own block answers for', 'list', default='',
+              placeholder='www.example.com\nexample.com',
+              help='acme\'s own server block on port 80 listens for these names only - not the '
+                   'default server. Empty: it is the default server (any name). A name another '
+                   'block on port 80 answers already: the include goes into that block instead.'),
+        field('prepare_how', 'How "Prepare" sets nginx up', 'select', default='auto',
+              options=[['auto', 'by itself - its own block, or into the blocks already on port 80'],
+                       ['manual', 'I put it in myself - "Prepare" only checks'],
+                       ['own', 'always its own server block (default, or for the names below)']],
+              help='nginx answering port 80 already (your sites, a redirect to HTTPS): one line, '
+                   'include ' + SNIPPET + ', goes at the top of each of its port-80 server '
+                   'blocks - nothing else in them changes, every file is kept as it was and put '
+                   'back when nginx -t fails. "I put it in myself": "Download the nginx config" '
+                   'gives the file and the line; "Prepare" then only checks every block has it.'),
+        field('auto_prepare', 'Set nginx up by itself', 'bool', default=False,
+              help='On: before Test and before every validation acme makes sure the nginx '
+                   'server block for /.well-known/acme-challenge/ is on each web server (as '
+                   '"Prepare the hosts") - written and nginx reloaded only when it is missing '
+                   'or different; checked with nginx -t, put back when it fails. Needs root or '
+                   'sudo there. Off: put in place once by the action, or by hand.'),
+        field('prepare_firewall', 'Open port 80 in their firewall', 'bool', default=False,
+              help='With "Prepare" (and "Set nginx up by itself"): port 80/tcp opened in '
+                   'firewalld or ufw on each web server when it is closed there. Nothing else '
+                   'is touched; another firewall is said, not changed.'),
         field('nginx_conf', 'nginx file "Prepare" writes', 'text', default=NGINX_CONF,
               advanced=True,
               help='The server block for /.well-known/acme-challenge/ that the action '
                    '"Prepare the hosts" puts on each machine.'),
-        field('prepare_names', 'Names that block answers for', 'list', default='',
-              advanced=True, placeholder='www.example.com\nexample.com',
-              help='Empty: it is the default server of port 80 (it answers for any name). '
-                   'Where another block is the default server already, name the names here.'),
         field('prepare_ipv6', 'That block listens on IPv6 too', 'bool', default=True,
               advanced=True),
         field('prepare_redirect', 'Everything else to HTTPS', 'bool', default=True,
@@ -66,7 +92,12 @@ class HttpSsh(HttpChallenge):
               help='Off: the block answers 404 for anything but the challenge files.'),
     ]
     parallel = True
-    actions = [{'key': 'prepare', 'label': 'Prepare the hosts',
+    actions = [{'key': 'nginx_files', 'label': 'Download the nginx config',
+                'help': 'The snippet for ' + SNIPPET + ' and how to include it in your port-80 '
+                        'server blocks - to put in place yourself; then "Prepare the hosts" '
+                        'checks it.',
+                'changes': False},
+               {'key': 'prepare', 'label': 'Prepare the hosts',
                 'help': 'On every web server: find nginx, write the server block for '
                         '/.well-known/acme-challenge/ (nginx_conf) and make the webroot, check '
                         'it with nginx -t, reload nginx - then the probe of Test. Needs root or '
@@ -162,6 +193,7 @@ class HttpSsh(HttpChallenge):
         return HttpChallenge.place_problem.__func__(cls, proof, where, config, settings)
 
     def place_file(self, name, path, data):
+        self.ensure_prepared()
         root = self._docroot_of(self.webroot())
         if not root:
             raise PluginError('the folder does not end in /.well-known/acme-challenge: acme cannot '
@@ -194,6 +226,7 @@ class HttpSsh(HttpChallenge):
     def present(self, name, token, key_authorization, txt_value):
         n = self.check_name(name)
         self.check_token(token)
+        self.ensure_prepared()
         path = posixpath.join(self.webroot(), token)
         data = key_authorization.encode('ascii')
         done = []
@@ -300,6 +333,28 @@ class HttpSsh(HttpChallenge):
         block = self.nginx_block()
         if 'ACME_EOF' in block:
             raise PluginError('that block cannot be written', retry=False)
+        fw = self.firewall_lines() if as_bool(self.c('prepare_firewall', False)) else []
+        return self._own_script(conf, root, block, owner, fw)
+
+    def firewall_lines(self):
+        return [
+                'if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then',
+                '    if firewall-cmd --query-service=http >/dev/null 2>&1 || '
+                'firewall-cmd --query-port=80/tcp >/dev/null 2>&1; then :; else',
+                '        firewall-cmd --permanent --add-service=http >/dev/null && '
+                'firewall-cmd --reload >/dev/null && echo "ACME-FW: port 80 opened in firewalld" '
+                '|| echo "ACME-FW: firewalld refused to open port 80"',
+                '    fi',
+                'elif command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then',
+                '    ufw status 2>/dev/null | grep -Eq "^(80|80/tcp|Nginx HTTP|Nginx Full|WWW)[[:space:]]+ALLOW" || '
+                '{ ufw allow 80/tcp >/dev/null && echo "ACME-FW: port 80 opened in ufw" '
+                '|| echo "ACME-FW: ufw refused to open port 80"; }',
+                'else',
+                '    echo "ACME-FW: no firewalld or ufw running - port 80 left as it is"',
+                'fi']
+
+    @staticmethod
+    def _own_script(conf, root, block, owner, fw):
         return '\n'.join([
             'set -u',
             'conf=%s' % shq(conf),
@@ -307,7 +362,7 @@ class HttpSsh(HttpChallenge):
             'PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin"',
             'command -v nginx >/dev/null 2>&1 || { echo "ACME: no nginx here"; exit 3; }',
             '[ -d "$(dirname "$conf")" ] || { echo "ACME: no folder $(dirname "$conf")"; exit 4; }',
-            'mkdir -p "$root" && chmod 755 "$root" || exit 7',
+            'mkdir -p "$root" && chmod 755 "$root" || exit 7'] + fw + [
             ('chown %s "$root" || exit 7' % shq(owner)) if owner else ':',
             'new=$(mktemp) || exit 7',
             "cat > \"$new\" <<'ACME_EOF'",
@@ -327,10 +382,226 @@ class HttpSsh(HttpChallenge):
             'rm -f "$conf.acme-old"',
             '{ systemctl reload nginx 2>/dev/null || nginx -s reload; } || '
             '{ echo "ACME: nginx did not reload"; exit 6; }',
+                  'sleep 1',
             'echo "ACME: written and reloaded"', ''])
+
+    # -- nginx already answering port 80: the include ---------------------------------
+    def _as_root(self, s, root, script, timeout=120):
+        rc, out, err = s.run('sh -s' if root else 'sudo -n sh -s', input=script.encode(),
+                             timeout=timeout, check=False)
+        said = (out.decode('utf-8', 'replace') if isinstance(out, bytes) else str(out or '')) + \
+            (err.decode('utf-8', 'replace') if isinstance(err, bytes) else str(err or ''))
+        if rc and ('a password is required' in said or 'a terminal is required' in said):
+            raise PluginError('sudo asks for a password: root, or a sudoers line for sh '
+                              '(NOPASSWD)', detail=said[-4000:])
+        return rc, said
+
+    def nginx_dump(self, s, root):
+        """{file: text} of the nginx running there (nginx -T), or raises."""
+        rc, said = self._as_root(s, root, 'PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin"\n'
+                                 'command -v nginx >/dev/null 2>&1 || { echo "ACME: no nginx '
+                                 'here"; exit 3; }\nnginx -T 2>/dev/null\n')
+        if rc == 3:
+            raise PluginError('nginx is not installed there - for Apache or another server put '
+                              'the alias in by hand (docs/validation.md)')
+        files = NG.split_dump(said)
+        if rc or not files:
+            raise PluginError('nginx -T fails there - its configuration has an error of its own',
+                              detail=said[-4000:])
+        # The files to be changed read as they are (nginx -T adds lines between them).
+        want = [p for p, t in files.items()
+                if any(NG.on_port_80(b) for b in NG.server_blocks(t))]
+        if want:
+            rc, said = self._as_root(s, root, ''.join(
+                'printf "ACME-FILE %%s " %s; base64 -w0 %s 2>/dev/null || base64 %s | tr -d '
+                '"\\n"; echo\n' % (shq(p), shq(p), shq(p)) for p in want))
+            for ln in said.splitlines():
+                if ln.startswith('ACME-FILE '):
+                    path, _sp, b64 = ln[10:].partition(' ')
+                    try:
+                        files[path] = base64.b64decode(b64).decode('utf-8')
+                    except (ValueError, UnicodeDecodeError):
+                        files[path] = files.get(path, '')
+        return files
+
+    def _docroot_needed(self):
+        root = self._docroot_of(self.webroot())
+        if not root:
+            raise PluginError('the folder of the tokens does not end in /.well-known/'
+                              'acme-challenge: the include needs one that does (the default)',
+                              retry=False)
+        return root
+
+    def snippet(self):
+        return NG.snippet_text(self._docroot_needed())
+
+    def port80_plan(self, files):
+        """{file: (new text, [blocks patched], [left])} for every file with a port-80
+        server block but acme's own."""
+        own = self.nginx_conf()
+        line = INCLUDE % SNIPPET
+        plan = {}
+        for path, text in files.items():
+            if path == own or path == SNIPPET:
+                continue
+            new, done, left = NG.patch(text, line)
+            blocks = [b for b in NG.server_blocks(text) if NG.on_port_80(b)]
+            if blocks:
+                plan[path] = (new if done else None, done, left, len(blocks))
+        return plan
+
+    def include_one(self, s, host, root, files, check_only=False, owner=''):
+        """The include put into every port-80 block (or, check_only, looked for)."""
+        plan = self.port80_plan(files)
+        snippet = self.snippet()
+        have = files.get(SNIPPET)
+        missing = [(p, d) for p, (new, d, _l, _n) in plan.items() if d]
+        left = ['%s: %s' % (p, ' / '.join('%s %s' % x for x in l))
+                for p, (_n, _d, l, _c) in plan.items() if l]
+        if check_only:
+            probs = []
+            if have is None:
+                probs.append('%s is not there (nginx does not include it anywhere)' % SNIPPET)
+            elif have.strip() != snippet.strip():
+                probs.append('%s differs from what "Download the nginx config" gives' % SNIPPET)
+            for p, d in missing:
+                probs.append('%s: no "include %s;" in the server block of %s'
+                             % (p, SNIPPET, ', '.join(d)))
+            if probs:
+                raise PluginError('nginx is not set up yet: ' + '; '.join(probs) +
+                                  ' - put it in as "Download the nginx config" says, reload '
+                                  'nginx, then Prepare again')
+            words = 'the include is in every port-80 server block (%d file(s)) - checked, ' \
+                    'nothing changed' % len(plan)
+            for x in left:
+                self.ctx.step('%s: %s' % (host, x), 'warn')
+            self.ctx.step('%s: %s' % (host, words), 'ok')
+            return words
+        if not missing and have is not None and have.strip() == snippet.strip() and \
+                s.run('test -d %s' % shq(self.webroot()), check=False)[0] == 0:
+            words = 'already in place in every port-80 server block (%d file(s))' % len(plan)
+            self.ctx.step('%s: %s' % (host, words), 'ok')
+            return words
+        sums = {p: hashlib.sha256(files[p].encode('utf-8')).hexdigest() for p, _d in missing}
+        lines = ['set -u', 'PATH="$PATH:/usr/sbin:/sbin:/usr/local/sbin"',
+                 'snip=%s' % shq(SNIPPET), 'changed=""',
+                 # the copies outside nginx's folders: a sites-enabled/* would load them
+                 'bk=/var/backups/acme-nginx/$(date +%Y%m%d-%H%M%S)',
+                 'restore() { for f in $changed; do [ -f "$bk$f" ] && cat "$bk$f" > "$f"; done; '
+                 'if [ -n "${snipnew:-}" ]; then rm -f "$snip"; elif [ -f "$bk$snip" ]; then '
+                 'cat "$bk$snip" > "$snip"; fi; }']
+        # every file still as it was read (changed since: nothing is written)
+        for p, _d in missing:
+            lines.append('[ "$(sha256sum %s | cut -d" " -f1)" = %s ] || { echo "ACME: %s '
+                         'changed while it was read - nothing written"; exit 8; }'
+                         % (shq(p), sums[p], p.replace('"', '')))
+        lines += ['mkdir -p %s && chmod 755 %s || exit 7' % (shq(self.webroot()),
+                                                             shq(self.webroot())),
+                  ('chown %s %s || exit 7' % (shq(owner), shq(self.webroot()))) if owner else ':',
+                  'mkdir -p "$(dirname "$snip")" || exit 7',
+                  'snipnew=""; [ -f "$snip" ] || snipnew=1',
+                  'mkdir -p "$bk" && chmod 700 /var/backups/acme-nginx || exit 7',
+                  '[ -f "$snip" ] && cp -p --parents "$snip" "$bk"',
+                  'printf %%s %s | base64 -d > "$snip" || { restore; exit 7; }'
+                  % shq(base64.b64encode(snippet.encode()).decode())]
+        for p, _d in missing:
+            new = plan[p][0]
+            lines += ['cp -p --parents %s "$bk" || { restore; exit 7; }' % shq(p),
+                      'changed="$changed %s"' % p,
+                      # cat > keeps the file's owner and mode
+                      'printf %%s %s | base64 -d > %s || { restore; exit 7; }'
+                      % (shq(base64.b64encode(new.encode('utf-8')).decode()), shq(p))]
+        lines += ['if ! nginx -t 2>&1; then restore; echo "ACME: nginx -t fails - put back as '
+                  'it was"; exit 5; fi',
+                  'echo "ACME-BK: $bk"',
+                  '{ systemctl reload nginx 2>/dev/null || nginx -s reload; } || '
+                  '{ echo "ACME: nginx did not reload"; exit 6; }',
+                  'sleep 1',
+                  'echo "ACME: written and reloaded"', '']
+        rc, said = self._as_root(s, root, '\n'.join(lines))
+        last = [ln for ln in said.splitlines() if ln.startswith('ACME: ')]
+        words = last[-1][6:] if last else said.strip()[-300:]
+        if rc:
+            raise PluginError(words or 'exit %d' % rc, detail=said[-4000:])
+        bk = ([ln[8:].strip() for ln in said.splitlines() if ln.startswith('ACME-BK: ')]
+              or ['/var/backups/acme-nginx'])[-1]
+        for p, d in missing:
+            self.ctx.step('%s: %s - "include %s;" put at the top of the server block of %s '
+                          '(the file as it was: %s%s)' % (host, p, SNIPPET, ', '.join(d), bk, p),
+                          'ok')
+        for x in left:
+            self.ctx.step('%s: %s' % (host, x), 'warn')
+        words = 'written and reloaded - the include in %d server block(s) of %d file(s), ' \
+                'nothing else changed' % (sum(len(d) for _p, d in missing), len(missing))
+        self.ctx.step('%s: %s' % (host, words), 'ok')
+        return words
+
+    def nginx_files(self):
+        """What "Download the nginx config" gives: one text file, the snippet and how."""
+        snippet = self.snippet()
+        how = ['# acme - the nginx config for HTTP-01 on your web servers',
+               '#',
+               '# 1. Save the part between the lines below as %s' % SNIPPET,
+               '# 2. Put this line at the top of EVERY server block that listens on port 80',
+               '#    (sites-enabled/*, conf.d/*.conf - before any return, rewrite or if):',
+               '#',
+               '#        include %s;' % SNIPPET,
+               '#',
+               '# 3. nginx -t && systemctl reload nginx',
+               '# 4. In acme: "Prepare the hosts" (with "I put it in myself" it only checks).',
+               '#',
+               '# Nothing else in your blocks needs to change: the rewrite ... break in it',
+               '# lets these paths past a return 301 / if ($host ...) of the block.',
+               '# ---------------------------------------------------------------------------']
+        return '\n'.join(how) + '\n' + snippet + \
+            '# ---------------------------------------------------------------------------\n'
 
     def prepare_one(self, s, host):
         """One machine made ready: (words). Raises PluginError."""
+        how = str(self.c('prepare_how', 'auto') or 'auto')
+        if how in ('auto', 'manual'):
+            rc0, out0, _e0 = s.run('id -u', check=False)
+            root0 = (out0.decode() if isinstance(out0, bytes) else str(out0 or '')).strip() == '0'
+            files = self.nginx_dump(s, root0)
+            plan = self.port80_plan(files)
+            names = [n.lower() for n in as_list(self.c('prepare_names', '')) if n]
+            if how == 'auto' and plan and names:
+                taken = NG.port80_names(files, skip=(self.nginx_conf(), SNIPPET))
+                clash = [n for n in names if n in taken]
+                if not clash:
+                    # Its own block for these names only: the other blocks never see them.
+                    self.ctx.step('%s: nginx answers port 80 already, but not for %s - acme\'s '
+                                  'own server block for those names only (not the default '
+                                  'server)' % (host, ', '.join(names)))
+                    return self.prepare_own(s, host)
+                self.ctx.step('%s: %s answered by another block already (%s) - the include '
+                              'goes into the blocks instead' % (
+                                  host, ', '.join(clash), ', '.join(sorted(
+                                      set(taken[n] for n in clash)))), 'warn')
+            if how == 'manual' or plan:
+                if how == 'auto':
+                    self.ctx.step('%s: nginx answers port 80 already (%s) - the include goes '
+                                  'into those blocks, nothing else is changed'
+                                  % (host, ', '.join(sorted(plan))))
+                    self._fw_only(s, root0, host)
+                user = str(self.c('user', '') or '')
+                owner = user if (not root0 and not self._sudo() and user and
+                                 all(c.isalnum() or c in '._-' for c in user)) else ''
+                return self.include_one(s, host, root0, files, check_only=(how == 'manual'),
+                                        owner=owner)
+        return self.prepare_own(s, host)
+
+    def _fw_only(self, s, root, host):
+        if not as_bool(self.c('prepare_firewall', False)):
+            return
+        rc, said = self._as_root(s, root, '\n'.join(self.firewall_lines()) + '\n')
+        for ln in said.splitlines():
+            if ln.startswith('ACME-FW: '):
+                self.ctx.step('%s: %s' % (host, ln[9:]),
+                              'warn' if 'refused' in ln or 'no firewalld' in ln else 'ok')
+
+    def prepare_own(self, s, host):
+        """acme's own server block (nothing else on port 80): (words)."""
         rc, out, _err = s.run('id -u', check=False)
         root = (out.decode() if isinstance(out, bytes) else str(out or '')).strip() == '0'
         user = str(self.c('user', '') or '')
@@ -356,10 +627,31 @@ class HttpSsh(HttpChallenge):
                 words = 'nginx is not installed there - for Apache or another server put the ' \
                         'alias in by hand (docs/validation.md)'
             raise PluginError(words or 'exit %d' % rc, detail=said[-4000:])
+        for ln in said.splitlines():
+            if ln.startswith('ACME-FW: '):
+                self.ctx.step('%s: %s' % (host, ln[9:]),
+                              'warn' if 'refused' in ln or 'no firewalld' in ln else 'ok')
+                words += '; ' + ln[9:]
         self.ctx.step('%s: %s (%s)' % (host, words, self.nginx_conf()), 'ok')
         return words
 
+    def ensure_prepared(self):
+        """With "Set nginx up by itself": the block on every machine (once a job)."""
+        if not as_bool(self.c('auto_prepare', False)) or getattr(self, '_prepared', False):
+            return
+        self.webroot()
+        self.nginx_conf()
+        self.nginx_block()
+        failed = self._each(lambda s, host: self.prepare_one(s, host), 'prepare')
+        if failed:
+            raise PluginError('nginx could not be set up on %s' % '; '.join(
+                '%s: %s' % f for f in failed))
+        self._prepared = True
+
     def action(self, key):
+        if key == 'nginx_files':
+            return {'said': 'the nginx config to put in place yourself',
+                    'file': {'name': 'acme-challenge.conf', 'text': self.nginx_files()}}
         if key != 'prepare':
             return HttpChallenge.action(self, key)
         self.webroot()
@@ -379,6 +671,7 @@ class HttpSsh(HttpChallenge):
         return '\n'.join(done)
 
     def test(self):
+        self.ensure_prepared()
         root = self.webroot()
         token = 'acme-probe-' + binascii.hexlify(os.urandom(8)).decode()
         data = ('acme probe ' + binascii.hexlify(os.urandom(8)).decode()).encode()
@@ -399,12 +692,28 @@ class HttpSsh(HttpChallenge):
                 if self.c('check', 'each') == 'each':
                     port = int(float(self.c('check_port', 80) or 80))
                     h = '[%s]' % host if ':' in host else host
-                    ok, words = self.fetch('http://%s%s/.well-known/acme-challenge/%s' % (
-                        h, '' if port == 80 else ':%d' % port, token), data.decode())
+                    url = 'http://%s%s/.well-known/acme-challenge/%s' % (
+                        h, '' if port == 80 else ':%d' % port, token)
+                    # nginx reloads its workers a moment after it is told to
+                    for wait in (0, 1, 2):
+                        if wait:
+                            time.sleep(wait)
+                        ok, words = self.fetch(url, data.decode())
+                        if ok:
+                            break
                     if not ok:
+                        low = str(words).lower()
+                        if 'no route to host' in low or 'refused' in low or 'timed out' in low:
+                            raise PluginError(
+                                'the file is written but port %d of %s does not answer (%s) - '
+                                'SSH reaches it, so most likely its firewall closes port %d '
+                                '(firewalld answers "No route to host"): switch on "Open port 80 '
+                                'in their firewall" and "Set nginx up by itself", or open it '
+                                'by hand' % (port, host, words, port))
                         raise PluginError('the file is written but not served over HTTP: %s - '
                                           'is the webroot the one nginx serves (docs/'
-                                          'validation.md)?' % words)
+                                          'validation.md)? "Set nginx up by itself" puts the '
+                                          'server block there' % words)
             finally:
                 self._remove(s, path)
             good.append(host)
