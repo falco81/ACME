@@ -426,3 +426,4 @@ table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:
 .ct-rd-dry .ct-log{max-height:260px;min-height:60px}
 .ct-rd-review{margin-top:12px}
 .ct-rd-review .ct-errbox .ct-rd-step{padding:6px 0}
+.ct-rd-where{padding:1px 7px;border-radius:6px;background:var(--panel2);border:1px solid var(--line)}

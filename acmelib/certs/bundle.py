@@ -25,6 +25,15 @@ The formats (Bundle.FORMATS, and a few more):
 
 The password of `password`; the alias (friendly name) `alias`, else the
 bundle's name.
+
+A dual certificate (the same names with two kinds of key, docs/certificates.md):
+
+    b.alt                        the twin, a CertBundle of its own (None: not dual)
+    b.variant(v)                 'main' | 'alt' | 'ec' | 'rsa' | 'ed' -> that one;
+                                 '' / None the main one; PkiError when there is none
+    b.variants()                 [main, twin] - the twin only when there is one
+    b.as_format('fmt@variant')   a format of one of them ('fullchain-pem@rsa')
+    b.family                     'ec' | 'rsa' | 'ed' - the kind of its key
 """
 from __future__ import annotations
 
@@ -37,6 +46,20 @@ from acmelib.certs.pki import PkiError
 from acmelib.plugins.base import Bundle
 
 EXTRA_FORMATS = ('key-pem-enc', 'key-traditional', 'p7b-pem')
+VARIANT_ALIASES = {'ecdsa': 'ec', 'ecc': 'ec', 'ed25519': 'ed', 'twin': 'alt', 'second': 'alt',
+                   'first': 'main'}
+
+
+def key_family(key_type):
+    """'ec' | 'rsa' | 'ed' of a key type (ec-256, rsa-2048, ed25519)."""
+    kt = str(key_type or '').lower()
+    if kt.startswith('ec'):
+        return 'ec'
+    if kt.startswith('rsa'):
+        return 'rsa'
+    if kt.startswith('ed'):
+        return 'ed'
+    return kt
 
 MIME = {'cert-pem': 'application/x-pem-file', 'cert-der': 'application/pkix-cert',
         'key-pem': 'application/x-pem-file', 'key-rsa': 'application/x-pem-file',
@@ -100,6 +123,34 @@ class CertBundle(Bundle):
         self.not_after = self.info['not_after']
         self.fullchain_pem = self.cert_pem + ''.join(self.chain_pems)
         self.key_type = self.info['key_type']
+        self.alt = None                 # the twin of a dual certificate
+        self.variant_name = 'main'
+
+    @property
+    def family(self):
+        return key_family(self.key_type)
+
+    def variants(self):
+        """The main one, and the twin where there is one."""
+        return [self] + ([self.alt] if self.alt is not None else [])
+
+    def variant(self, v=None):
+        """The main one or the twin: 'main' (or ''), 'alt', or by the kind of key
+        ('ec' / 'ecdsa', 'rsa', 'ed' / 'ed25519') - whichever of the two has it."""
+        want = VARIANT_ALIASES.get(str(v or '').strip().lower(), str(v or '').strip().lower())
+        if want in ('', 'main'):
+            return self
+        if want == 'alt':
+            if self.alt is None:
+                raise PkiError('%s is not dual: it has no twin' % (self.name or 'the certificate'),
+                               retry=False)
+            return self.alt
+        for b in self.variants():
+            if b.family == want:
+                return b
+        raise PkiError('%s has no %s certificate (it has %s)' % (
+            self.name or 'the certificate', want.upper(),
+            ' and '.join(b.key_type for b in self.variants())), retry=False)
 
     def __repr__(self):
         return '<CertBundle %s %s>' % (self.name, self.serial)
@@ -125,6 +176,9 @@ class CertBundle(Bundle):
 
     def as_format(self, fmt, password=None, alias=None):
         fmt = str(fmt or '').lower()
+        if '@' in fmt:
+            fmt, _, v = fmt.partition('@')
+            return self.variant(v).as_format(fmt, password, alias)
         if fmt == 'cert-pem':
             return self.cert_pem.encode('ascii')
         if fmt == 'cert-der':

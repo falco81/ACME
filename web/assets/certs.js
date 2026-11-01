@@ -2487,11 +2487,11 @@ function rdStep(st) {
   var w = el('div', 'ct-rd-w');
   var top = el('div', 'ct-rd-what');
   top.appendChild(el('b', '', st.what || ''));
-  if (st.where) top.appendChild(el('span', 'tag dim small ct-rd-where', st.where));
+  if (st.where) top.appendChild(el('span', 'muted small ct-rd-where', st.where));
   if (st.done === false && !st.blocking) top.appendChild(el('span', 'tag warn small', 'does not block'));
   w.appendChild(top);
   if (st.said) w.appendChild(el('div', 'muted small ct-rd-said', st.said));
-  if (st.fix && st.done !== true) w.appendChild(el('div', 'ct-rd-fix', st.fix));
+  if (st.fix && st.done === false) w.appendChild(el('div', 'ct-rd-fix', st.fix));
   var rec = st.record;
   if (rec && rec.type && st.done !== true && String(rec.value || '').charAt(0) !== '(') w.appendChild(rdRecord(rec));
   else if (rec && rec.type && st.done === true) w.appendChild(data('div', 'mono small muted', rdRecordText(rec)));

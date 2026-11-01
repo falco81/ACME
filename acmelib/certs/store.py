@@ -8,6 +8,8 @@ administrator - never in clear), the deployments.
 Sealing binds every secret to its place:
     a certificate's key        'certs:<id>:key_sealed:<version>'  (the same value
                                in certs and in cert_versions, so it is copied as it is)
+    the twin's key (dual)      'certs:<id>:alt_key_sealed:<alt_version>'  (likewise; in
+                               cert_versions the row of variant 'alt')
     a module's secret setting  '<table>:<id>:<field>'   e.g. 'cert_targets:4:password'
     a deployment's secret      'cert_deploys:<id>:<field>'
     a key waiting for a CSR's answer  'certs:<id>:csr_pending'
@@ -414,8 +416,68 @@ def challenge_for(cert, name):
 # ---------------------------------------------------------------------------
 # Certificates
 # ---------------------------------------------------------------------------
-def key_place(cert_id, version):
-    return 'certs:%s:key_sealed:%s' % (cert_id, version)
+def key_place(cert_id, version, variant=''):
+    """The bind a certificate's key is sealed under; `variant` 'alt': its twin's."""
+    return 'certs:%s:%s:%s' % (cert_id, 'alt_key_sealed' if variant == 'alt' else 'key_sealed',
+                               version)
+
+
+def key_family(key_type):
+    """'ec' | 'rsa' | 'ed' (or the text itself) of a key type: ec-256 -> ec."""
+    kt = str(key_type or '').lower()
+    if kt.startswith(('ec', 'ecdsa', 'p-')):
+        return 'ec'
+    if kt.startswith('rsa'):
+        return 'rsa'
+    if kt.startswith('ed'):
+        return 'ed'
+    return kt
+
+
+def generation(row):
+    """The newest version of a certificate, its twin's too: what a deployment that
+    is up to date has (cert_deploys.deployed_version)."""
+    return max(int(row.get('version') or 0), int(row.get('alt_version') or 0)
+               if row.get('key_type_alt') and row.get('alt_cert_pem') else 0)
+
+
+def is_dual(row):
+    """The certificate is dual and its twin has been issued."""
+    return bool(row.get('key_type_alt')) and bool(row.get('alt_cert_pem'))
+
+
+def issuer_dual(store, ref):
+    """Whether the source (a row of cert_issuers, or its name) gives a twin."""
+    irow = ref if isinstance(ref, dict) else plugin_row(store, 'issuer', ref)
+    if not irow:
+        return False
+    cls = plugin_class('issuer', irow.get('kind'))
+    if cls is None:
+        return False
+    try:
+        return bool(cls.dual_for(jload(irow.get('config'), {}) or {}))
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+# The twin's columns in certs, and those of the main certificate they stand for.
+ALT_COLS = {'alt_cert_pem': 'cert_pem', 'alt_chain_pem': 'chain_pem',
+            'alt_key_sealed': 'key_sealed', 'alt_serial': 'serial',
+            'alt_fingerprint': 'fingerprint', 'alt_not_before': 'not_before',
+            'alt_not_after': 'not_after', 'alt_issuer_dn': 'issuer_dn', 'alt_ari': 'ari',
+            'alt_version': 'version'}
+ALT_CLEAR = dict({k: None for k in ALT_COLS}, alt_state='', alt_error='', alt_fails=0,
+                 alt_next_try=None)
+
+
+def alt_view(row):
+    """The twin of a row of certs as a row of its own (cert_pem, version...), or None."""
+    if not row.get('alt_cert_pem'):
+        return None
+    out = {main: row.get(alt) for alt, main in ALT_COLS.items()}
+    out.update(id=row.get('id'), name=row.get('name'), names=row.get('names'),
+               key_type=row.get('key_type_alt'), variant='alt')
+    return out
 
 
 def cert_get(store, ref):
@@ -435,8 +497,13 @@ def cert_need(store, ref):
     return got
 
 
-def cert_key(row):
-    """The certificate's private key (PEM), or None."""
+def cert_key(row, variant=''):
+    """The certificate's private key (PEM), or None; `variant` 'alt': its twin's."""
+    if variant == 'alt':
+        if not row.get('alt_key_sealed'):
+            return None
+        return E.unseal_secret(row['alt_key_sealed'],
+                               key_place(row['id'], row.get('alt_version') or 0, 'alt'))
     if not row.get('key_sealed'):
         return None
     return E.unseal_secret(row['key_sealed'], key_place(row['id'], row.get('version') or 0))
@@ -457,8 +524,9 @@ def days_left(row, t=None):
     return int((float(na) - (t or now())) // 86400)
 
 
-PUBLIC_SKIP = ('key_sealed', 'csr_pending')
-JSON_COLS = {'names': [], 'challenge_map': {}, 'profile': {}, 'ari': {}, 'tags': []}
+PUBLIC_SKIP = ('key_sealed', 'csr_pending', 'alt_key_sealed')
+JSON_COLS = {'names': [], 'challenge_map': {}, 'profile': {}, 'ari': {}, 'tags': [],
+             'alt_ari': {}}
 
 
 def cert_public(row, full=False):
@@ -469,10 +537,15 @@ def cert_public(row, full=False):
             continue
         if k in JSON_COLS:
             v = jload(v, JSON_COLS[k])
-        if not full and k in ('cert_pem', 'chain_pem'):
+        if not full and k in ('cert_pem', 'chain_pem', 'alt_cert_pem', 'alt_chain_pem'):
             continue
         out[k] = v
     out['has_key'] = bool(row.get('key_sealed'))
+    out['has_alt_key'] = bool(row.get('alt_key_sealed'))
+    out['dual'] = bool(row.get('key_type_alt'))
+    out['generation'] = generation(row)
+    out['alt_days_left'] = days_left({'not_after': row.get('alt_not_after')}) \
+        if row.get('alt_not_after') else None
     out['csr_waiting'] = bool(row.get('csr_pending'))
     out['days_left'] = days_left(row)
     out['state_words'] = STATES().get(row.get('state') or '', '')
@@ -504,9 +577,7 @@ def save_version(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=No
     the current one. Returns the version's number."""
     row = cert_need(store, cert_id)
     info = info or info_of(cert_pem)
-    version = int(store.db.value('SELECT MAX(version) FROM cert_versions WHERE cert_id = ?',
-                                 (row['id'],), 0) or 0)
-    version = max(version, int(row.get('version') or 0)) + 1
+    version = next_version(store, row)
     sealed = E.seal_secret(key_pem, key_place(row['id'], version)) if key_pem else None
     chain = ''.join(p if p.endswith('\n') else p + '\n' for p in (chain_pems or []))
     t = now()
@@ -515,7 +586,8 @@ def save_version(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=No
         'key_sealed': sealed, 'serial': str(info.get('serial') or '')[:190],
         'fingerprint': str(info.get('sha256') or '')[:190], 'not_before': info.get('not_before'),
         'not_after': info.get('not_after'), 'issuer_dn': info.get('issuer_dn') or '',
-        'created': t, 'why': str(why)[:60], 'by_who': str(by or '')[:190], 'revoked': None})
+        'created': t, 'why': str(why)[:60], 'by_who': str(by or '')[:190], 'revoked': None,
+        'variant': ''})
     fields = {
         'cert_pem': cert_pem, 'chain_pem': chain, 'key_sealed': sealed,
         'serial': str(info.get('serial') or '')[:190],
@@ -534,14 +606,72 @@ def save_version(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=No
     return version
 
 
+def next_version(store, row):
+    """The number of a certificate's next version - main and twin share one sequence."""
+    version = int(store.db.value('SELECT MAX(version) FROM cert_versions WHERE cert_id = ?',
+                                 (row['id'],), 0) or 0)
+    return max(version, int(row.get('version') or 0), int(row.get('alt_version') or 0)) + 1
+
+
+def save_alt(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=None, extra=None):
+    """A new twin (the second certificate of a dual one): kept in cert_versions
+    (variant 'alt') and made the current twin - the main certificate is left as
+    it is. Returns the twin's version number."""
+    row = cert_need(store, cert_id)
+    info = info or info_of(cert_pem)
+    version = next_version(store, row)
+    sealed = E.seal_secret(key_pem, key_place(row['id'], version, 'alt')) if key_pem else None
+    chain = ''.join(p if p.endswith('\n') else p + '\n' for p in (chain_pems or []))
+    t = now()
+    store.db.insert('cert_versions', {
+        'cert_id': row['id'], 'version': version, 'cert_pem': cert_pem, 'chain_pem': chain,
+        'key_sealed': sealed, 'serial': str(info.get('serial') or '')[:190],
+        'fingerprint': str(info.get('sha256') or '')[:190], 'not_before': info.get('not_before'),
+        'not_after': info.get('not_after'), 'issuer_dn': info.get('issuer_dn') or '',
+        'created': t, 'why': str(why)[:60], 'by_who': str(by or '')[:190], 'revoked': None,
+        'variant': 'alt'})
+    fields = {
+        'alt_cert_pem': cert_pem, 'alt_chain_pem': chain, 'alt_key_sealed': sealed,
+        'alt_serial': str(info.get('serial') or '')[:190],
+        'alt_fingerprint': str(info.get('sha256') or '')[:190],
+        'alt_not_before': info.get('not_before'), 'alt_not_after': info.get('not_after'),
+        'alt_issuer_dn': info.get('issuer_dn') or '', 'alt_version': version,
+        'alt_state': 'ok', 'alt_error': '', 'alt_fails': 0, 'alt_next_try': None,
+        'updated': t, 'updated_by': str(by or '')[:190]}
+    if extra:
+        fields.update(extra)
+    store.db.update('certs', row['id'], fields)
+    prune_versions(store, row['id'])
+    return version
+
+
+def alt_failed(store, cert_id, why):
+    """The twin did not come: said on the row, tried again after its own wait.
+    Returns the wait in seconds."""
+    row = cert_need(store, cert_id)
+    fails = int(row.get('alt_fails') or 0) + 1
+    wait = backoff(fails)
+    store.db.update('certs', row['id'], {'alt_state': 'failed', 'alt_error': str(why)[:2000],
+                                         'alt_fails': fails, 'alt_next_try': now() + wait})
+    return wait
+
+
 def prune_versions(store, cert_id, current=None):
+    """The oldest versions beyond certs_keep_versions dropped - the main ones and
+    the twin's counted each on their own; the current ones always kept."""
     keep = max(1, int(E.CONFIG.get('certs_keep_versions') or 10))
-    rows = store.db.rows('SELECT id, version FROM cert_versions WHERE cert_id = ? '
+    row = cert_get(store, cert_id) or {}
+    mine = {int(row.get('version') or 0), int(row.get('alt_version') or 0)}
+    if current is not None:
+        mine.add(int(current))
+    rows = store.db.rows('SELECT id, version, variant FROM cert_versions WHERE cert_id = ? '
                          'ORDER BY version DESC', (cert_id,))
-    for r in rows[keep:]:
-        if current is not None and r['version'] == current:
-            continue
-        store.db.run('DELETE FROM cert_versions WHERE id = ?', (r['id'],))
+    for variant in ('', 'alt'):
+        some = [r for r in rows if (r.get('variant') or '') == variant]
+        for r in some[keep:]:
+            if r['version'] in mine:
+                continue
+            store.db.run('DELETE FROM cert_versions WHERE id = ?', (r['id'],))
 
 
 def version_row(store, cert_id, version):
@@ -552,18 +682,32 @@ def version_row(store, cert_id, version):
 def version_public(r):
     return {k: r.get(k) for k in ('id', 'cert_id', 'version', 'serial', 'fingerprint',
                                   'not_before', 'not_after', 'issuer_dn', 'created', 'why',
-                                  'by_who', 'revoked')} | {'has_key': bool(r.get('key_sealed'))}
+                                  'by_who', 'revoked')} | {'has_key': bool(r.get('key_sealed')),
+                                                           'variant': r.get('variant') or ''}
 
 
-def bundle_of(row, version_row_=None):
-    """The certificate (or one of its versions) as a target gets it."""
+def bundle_of(row, version_row_=None, variant=None):
+    """The certificate (or one of its versions) as a target gets it. A dual
+    certificate's current one carries its twin as b.alt; `variant` 'alt' (or a
+    version row of the twin) gives the twin itself, 'main' the main one alone."""
     from acmelib.certs import bundle as _bundle
+    if version_row_ is None and variant in ('alt', 'main'):
+        if variant == 'alt':
+            alt = alt_view(row) if row.get('key_type_alt') or row.get('alt_cert_pem') else None
+            if not alt:
+                raise LookupError('%s has no twin (no second certificate)' % row['name'])
+            return bundle_of(row, alt)
+        return bundle_of(dict(row, key_type_alt='', alt_cert_pem=None))
     src = version_row_ or row
     version = src.get('version') or 0
-    key = E.unseal_secret(src['key_sealed'], key_place(row['id'], version)) \
+    which = 'alt' if src.get('variant') == 'alt' else ''
+    key = E.unseal_secret(src['key_sealed'], key_place(row['id'], version, which)) \
         if src.get('key_sealed') else None
     chain = chain_list(src.get('chain_pem'))
     b = _bundle.CertBundle(row['name'], src['cert_pem'], key, chain)
+    b.variant_name = 'alt' if which else 'main'
+    if version_row_ is None and is_dual(row):
+        b.alt = bundle_of(row, alt_view(row))
     # What the contract (base.Bundle) promises, where the library left it out.
     for k, v in (('name', row['name']), ('names', jload(row.get('names'), [])),
                  ('serial', src.get('serial')), ('fingerprint', src.get('fingerprint')),
