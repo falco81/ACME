@@ -579,6 +579,127 @@
       if (!box.children.length) box.appendChild(el('div', '', '(it said nothing)'));
       return box;
     };
+    /* ---- the host keys it saw, into the form's "Host keys" -----------------
+       Try reaching it says the host key(s) each machine shows (d.hostkeys,
+       acmelib/certs/api_sshkeys.hostkey_report): a machine with none pinned
+       gets its line (ed25519 first) added to the field at once; one whose
+       pinned key is another is warned of, and replaced only when the person
+       says so. Only the form changes: its Save keeps it, as any field. */
+    var hkBox = function (key) {
+      var item = key && ctx.form ? ctx.form.querySelector('[data-fkey="' + key + '"]') : null;
+      var box = item ? item.querySelector('textarea, input') : null;
+      return box ? {item: item, box: box} : null;
+    };
+    var hkLines = function (box) {
+      return String(box.value || '').split(/\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+    };
+    var hkBlob = function (line) {
+      var p = String(line || '').trim().split(/\s+/);
+      if (p[0] && p[0].charAt(0) === '@') p.shift();
+      return /^(ssh-|ecdsa-|sk-)/.test(p[0] || '') ? (p[1] || '') : (p[2] || '');
+    };
+    var hkPut = function (hb, lines) {
+      hb.box.value = lines.join('\n');
+      /* in "More", closed: opened, so what changed is seen */
+      var more = hb.item.closest('details');
+      if (more && !more.open) more.open = true;
+      hb.item.classList.add('sshk-hk-changed');
+      hb.box.dispatchEvent(new Event('input', {bubbles: true}));
+      hb.box.dispatchEvent(new Event('change', {bubbles: true}));
+    };
+    var hkFill = function (d) {
+      var hb = hkBox(d.hostkey_field);
+      var added = [];
+      if (!hb) return {hb: null, added: added};
+      var lines = hkLines(hb.box);
+      (d.hostkeys || []).forEach(function (h) {
+        if (h.status !== 'new' || !h.line) return;
+        var blob = hkBlob(h.line);
+        if (lines.some(function (x) { return hkBlob(x) === blob; })) return;
+        lines.push(h.line);
+        added.push(h);
+      });
+      if (added.length) hkPut(hb, lines);
+      return {hb: hb, added: added};
+    };
+    var hkReplace = function (hb, h) {
+      var pinned = (h.pinned || []).map(function (x) { return String(x).trim(); });
+      var lines = hkLines(hb.box).filter(function (x) { return pinned.indexOf(x) < 0; });
+      var blob = hkBlob(h.line);
+      if (!lines.some(function (x) { return hkBlob(x) === blob; })) lines.push(h.line);
+      hkPut(hb, lines);
+    };
+    var hkFpLine = function (where, fp) {
+      var line = el('div', 'sshk-hk-fp');
+      if (where) line.appendChild(noI18n(el('b', '', where)));
+      line.appendChild(noI18n(el('span', 'mono', fp)));
+      return line;
+    };
+    var hkReport = function (body, d, got) {
+      var hk = d.hostkeys || [];
+      if (!hk.length) return;
+      var box = el('div', 'sshk-hk');
+      box.dataset.sk = 'hostkeys';
+      box.appendChild(el('h4', '', 'Host keys'));
+      if (got.added.length) {
+        var a = el('div', 'note good sshk-hk-added');
+        a.appendChild(el('p', '', 'Added to the form\u2019s host keys \u2014 Save to keep them:'));
+        got.added.forEach(function (h) { a.appendChild(hkFpLine(h.where, h.fp)); });
+        box.appendChild(a);
+      }
+      var same = hk.filter(function (h) { return h.status === 'same'; });
+      if (same.length) {
+        var sm = el('div', 'note sshk-hk-same');
+        sm.appendChild(el('p', '', 'Already pinned, and the same as shown:'));
+        same.forEach(function (h) { sm.appendChild(hkFpLine(h.where, h.fp)); });
+        box.appendChild(sm);
+      }
+      if (!got.hb) {
+        var nf = hk.filter(function (h) { return h.status === 'new'; });
+        if (nf.length) {
+          var n = el('div', 'note sshk-hk-seen');
+          n.appendChild(el('p', '', 'It shows:'));
+          nf.forEach(function (h) { n.appendChild(hkFpLine(h.where, h.fp)); });
+          box.appendChild(n);
+        }
+      }
+      hk.filter(function (h) { return h.status === 'other'; }).forEach(function (h) {
+        var w = el('div', 'note warn sshk-hk-other');
+        w.dataset.where = h.where;
+        w.appendChild(noI18n(el('b', '', h.where)));
+        w.appendChild(el('p', '', 'It shows another host key than the one pinned. Somebody may be '
+          + 'in between (a man-in-the-middle) - or the machine was reinstalled and has a new one. '
+          + 'Compare it with the machine\u2019s own (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub '
+          + 'on it) before you replace it.'));
+        var k1 = el('div', 'sshk-hk-pair');
+        k1.appendChild(el('span', 'k', 'Pinned'));
+        (h.pinned_fps && h.pinned_fps.length ? h.pinned_fps : h.pinned || []).forEach(function (fp) {
+          k1.appendChild(hkFpLine('', fp));
+        });
+        w.appendChild(k1);
+        var k2 = el('div', 'sshk-hk-pair');
+        k2.appendChild(el('span', 'k', 'Shown now'));
+        k2.appendChild(hkFpLine('', h.fp));
+        w.appendChild(k2);
+        if (got.hb && skFull()) {
+          var rb = cmdButton('Replace with the key seen', 'refresh', 'small danger');
+          rb.dataset.sk = 'hk-replace';
+          var done = el('p', 'btnhelp', '');
+          rb.onclick = function () {
+            hkReplace(got.hb, h);
+            rb.disabled = true;
+            done.textContent = 'Replaced in the form \u2014 Save to keep it.';
+            toast('the host key was replaced in the form - Save to keep it', 'good');
+          };
+          var r = el('div', 'btnrow');
+          r.appendChild(rb);
+          w.appendChild(r);
+          w.appendChild(done);
+        }
+        box.appendChild(w);
+      });
+      body.appendChild(box);
+    };
     test.onclick = function () {
       if (test.disabled) return;
       busy(test, true);
@@ -589,10 +710,13 @@
           if (d.reached) { row.last_ok = Date.now() / 1000; row.last_error = ''; }
           else row.last_error = d.said || 'it did not answer';
         }
+        var got = skFull() ? hkFill(d) : {hb: null, added: []};
+        if (got.added.length) toast('host keys added to the form - Save to keep them', 'good');
         if (d.reached) {
           modalOver(function () {
             modal('It answered', function (body) {
               body.appendChild(el('p', 'note', skT('answered', words)));
+              hkReport(body, d, got);
               body.appendChild(stepLines(d.steps));
             }, [{words: 'Good', cls: 'primary', close: true}], true);
           });
@@ -600,6 +724,7 @@
           modalOver(function () {
             modal('It did not answer', function (body) {
               body.appendChild(el('p', 'note', skT('failed', words)));
+              hkReport(body, d, got);
               body.appendChild(stepLines(d.steps));
               body.appendChild(el('p', 'note', skT('causes', words)));
             }, [{words: 'Close', close: true}], true);

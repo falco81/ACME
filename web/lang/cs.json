@@ -32107,6 +32107,46 @@
   "sx8025": {
    "source": "the nginx config to put in place yourself",
    "text": "config pro nginx k ručnímu nahrání"
+  },
+  "shk0001": {
+   "source": "Added to the form’s host keys — Save to keep them:",
+   "text": "Přidáno do klíčů serverů ve formuláři – uložte, aby se zachovaly:"
+  },
+  "shk0002": {
+   "source": "Already pinned, and the same as shown:",
+   "text": "Už připnuté a stejné jako ukázaný:"
+  },
+  "shk0003": {
+   "source": "It shows:",
+   "text": "Ukazuje:"
+  },
+  "shk0004": {
+   "source": "It shows another host key than the one pinned. Somebody may be in between (a man-in-the-middle) - or the machine was reinstalled and has a new one. Compare it with the machine’s own (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub on it) before you replace it.",
+   "text": "Ukazuje jiný klíč serveru, než je připnutý. Někdo může být mezi vámi (útok man-in-the-middle) – nebo byl stroj přeinstalován a má nový. Než ho nahradíte, porovnejte ho s klíčem přímo na stroji (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub na něm)."
+  },
+  "shk0005": {
+   "source": "Pinned",
+   "text": "Připnutý"
+  },
+  "shk0006": {
+   "source": "Shown now",
+   "text": "Ukázaný teď"
+  },
+  "shk0007": {
+   "source": "Replace with the key seen",
+   "text": "Nahradit viděným klíčem"
+  },
+  "shk0008": {
+   "source": "Replaced in the form — Save to keep it.",
+   "text": "Nahrazeno ve formuláři – uložte, aby se zachovalo."
+  },
+  "shk0009": {
+   "source": "the host key was replaced in the form - Save to keep it",
+   "text": "klíč serveru byl ve formuláři nahrazen – uložte, aby se zachoval"
+  },
+  "shk0010": {
+   "source": "host keys added to the form - Save to keep them",
+   "text": "klíče serverů přidány do formuláře – uložte, aby se zachovaly"
   }
  },
  "patterns": {
@@ -41373,6 +41413,14 @@
   "px2316": {
    "source": "{0}: {1} answered by another block already ({2}) - the include goes into the blocks instead",
    "text": "{0}: na {1} už odpovídá jiný blok ({2}) – include se proto vloží do bloků"
+  },
+  "pshk0001": {
+   "source": "{0} shows the host key(s) {1}",
+   "text": "{0} ukazuje klíč(e) serveru {1}"
+  },
+  "pshk0002": {
+   "source": "no host key could be read from {0}: {1}",
+   "text": "z {0} se nepodařilo přečíst klíč serveru: {1}"
   }
  },
  "rich": {

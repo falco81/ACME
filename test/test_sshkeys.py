@@ -383,8 +383,42 @@ class SshKeys(unittest.TestCase):
                                          % d['fp']) for w in words), words)
         self.assertEqual(words[-1], 'nothing was written and nothing was changed')
         self.assertFalse(self.row(ident)['last_error'])
-        # the host key seen first is kept (trust_first), as a deployment keeps it
-        self.assertIn('ssh-ed25519', self.opened(ident).get('hostkey') or '')
+        # the host key it sees comes back for the form's Host key, as a known_hosts
+        # line ([host]:port off 22) - and nothing is written: the form's Save keeps it
+        with open(os.path.join(self.tmp, 'sshd', 'hostkey.pub')) as f:
+            hk = f.read().split()[:2]
+        line = '[127.0.0.1]:%d %s %s' % (self.sshd_port, hk[0], hk[1])
+        self.assertEqual(got['hostkey_field'], 'hostkey')
+        self.assertEqual(len(got['hostkeys']), 1, got['hostkeys'])
+        seen = got['hostkeys'][0]
+        self.assertEqual((seen['status'], seen['line'], seen['type']), ('new', line, 'ssh-ed25519'))
+        self.assertEqual(seen['fp'], 'ssh-ed25519 ' + fingerprint(' '.join(hk)))
+        self.assertTrue(any(w.startswith('127.0.0.1:%d shows the host key(s) ssh-ed25519 SHA256:'
+                                         % self.sshd_port) for w in words), words)
+        self.assertFalse(self.opened(ident).get('hostkey'))
+        # pinned and the same: nothing to add
+        got = self.ok('POST', '/api/sshkey/try', {'family': 'target', 'id': ident,
+                                                  'config': {'hostkey': line}})
+        self.assertTrue(got['reached'], got)
+        self.assertEqual(got['hostkeys'][0]['status'], 'same')
+        # pinned and another: refused, and said as another - with the one seen to replace it
+        other = '127.0.0.1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
+        got = self.ok('POST', '/api/sshkey/try', {'family': 'target', 'id': ident,
+                                                  'config': {'hostkey': other}})
+        self.assertFalse(got['reached'], got)
+        self.assertIn('another host key', got['said'])
+        seen = got['hostkeys'][0]
+        self.assertEqual((seen['status'], seen['pinned'], seen['line']), ('other', [other], line))
+        self.assertFalse(self.opened(ident).get('hostkey'))
+        # the form saved with it keeps it
+        base = {'host': '127.0.0.1', 'port': self.sshd_port, 'user': 'root', 'auth': 'key',
+                'trust_first': True}
+        self.ok('POST', '/api/targets/save', {'id': ident, 'name': 'reach1', 'kind': 'ssh',
+                                              'config': dict(base, hostkey=line)})
+        self.assertEqual(self.opened(ident).get('hostkey'), line)
+        self.ok('POST', '/api/targets/save', {'id': ident, 'name': 'reach1', 'kind': 'ssh',
+                                              'config': dict(base, hostkey='')})
+        self.assertFalse(self.opened(ident).get('hostkey'))
         # the module's own Test signs in with it the same way
         tested = self.ok('POST', '/api/targets/test', {'id': ident})
         self.assertTrue(tested['ok'], tested)
@@ -405,9 +439,83 @@ class SshKeys(unittest.TestCase):
             f.write('%s\n' % locked_pub)
         got = self.ok('POST', '/api/sshkey/try', {'family': 'target', 'id': ident, 'config': {}})
         self.assertTrue(got['reached'], got)
-        # and the command line's try
+        # and the command line's try - which, with no form, keeps the first seen
         self.cli_ok('--target-key', 'reach1', 'try')
+        self.assertIn('ssh-ed25519', self.opened(ident).get('hostkey') or '')
 
+    @unittest.skipUnless(SSHD and os.geteuid() == 0, 'an sshd is started only as root')
+    def test_09_a_validation_on_several_hosts(self):
+        """http_ssh: one line a host, a host pinned already left as it is."""
+        if not self.sshd_port:
+            self.skipTest('the sshd did not start')
+        with open(os.path.join(self.tmp, 'sshd', 'hostkey.pub')) as f:
+            hk = ' '.join(f.read().split()[:2])
+        pinned = '[localhost]:%d %s' % (self.sshd_port, hk)
+        got = self.ok('POST', '/api/sshkey/try', {
+            'family': 'challenge', 'kind': 'http_ssh', 'name': 'webs',
+            'config': {'hosts': ['127.0.0.1:%d' % self.sshd_port,
+                                 'localhost:%d' % self.sshd_port],
+                       'user': 'root', 'auth': 'password', 'password': 'x',
+                       'hostkey': [pinned], 'trust_first': False}})
+        by = {h['host']: h for h in got['hostkeys']}
+        self.assertEqual(got['hostkey_field'], 'hostkey')
+        self.assertEqual(by['127.0.0.1']['status'], 'new')
+        self.assertEqual(by['127.0.0.1']['line'], '[127.0.0.1]:%d %s' % (self.sshd_port, hk))
+        self.assertEqual(by['localhost']['status'], 'same')
+        self.assertEqual(by['localhost']['pinned'], [pinned])
+
+
+class HostkeyReport(unittest.TestCase):
+    """What Try reaching it says of the host keys seen, against the form's field."""
+    ED = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
+    ED2 = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJm'
+    RSA = 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7'
+    ECD = 'ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTY='
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, ROOT)
+        from acmelib.certs import api_sshkeys
+        cls.K = api_sshkeys
+
+    def test_best_line_and_ports(self):
+        r = self.K.hostkey_report([('192.0.2.21', 22, '192.0.2.21 %s\n192.0.2.21 %s\n192.0.2.21 %s\n'
+                                    % (self.RSA, self.ECD, self.ED)),
+                                   ('web2', 2222, '[web2]:2222 %s\n[web2]:2222 %s\n'
+                                    % (self.RSA, self.ECD))], '')
+        self.assertEqual([x['line'] for x in r], ['192.0.2.21 ' + self.ED,
+                                                  '[web2]:2222 ' + self.ECD])
+        self.assertEqual([x['status'] for x in r], ['new', 'new'])
+        self.assertEqual(len(r[0]['keys']), 3)
+
+    def test_per_host_same_other_new(self):
+        field = ['web1 ' + self.RSA, '[web2]:2222 ' + self.ED2]
+        r = self.K.hostkey_report([('web1', 22, 'web1 %s\nweb1 %s' % (self.ED, self.RSA)),
+                                   ('web2', 2222, '[web2]:2222 ' + self.ED),
+                                   ('web3', 22, 'web3 ' + self.ED)], field)
+        self.assertEqual([x['status'] for x in r], ['same', 'other', 'new'])
+        self.assertEqual(r[1]['pinned'], ['[web2]:2222 ' + self.ED2])
+        self.assertEqual(r[1]['line'], '[web2]:2222 ' + self.ED)
+
+    def test_one_machine_every_line_pins_it(self):
+        r = self.K.hostkey_report([('h', 22, 'h ' + self.ED)], 'server.local ' + self.ED,
+                                  per_host=False)
+        self.assertEqual(r[0]['status'], 'same')
+        r = self.K.hostkey_report([('h', 22, 'h ' + self.ED)], 'junk', per_host=False)
+        self.assertEqual((r[0]['status'], r[0]['pinned']), ('other', ['junk']))
+        r = self.K.hostkey_report([('h', 22, 'h ' + self.ED)], None, per_host=False)
+        self.assertEqual(r[0]['status'], 'new')
+
+    def test_where_and_field(self):
+        self.assertEqual(self.K._where('2001:db8::1:2222'), ('2001:db8::1', 2222))
+        self.assertEqual(self.K._where('web1:22'), ('web1', 22))
+        from acmelib.plugins.targets.mikrotik import MikroTikTarget
+        from acmelib.plugins.targets.opnsense import OPNsenseTarget
+        from acmelib.plugins.targets.ssh import SshTarget
+        for cls, key, want in ((SshTarget, 'key', 'hostkey'), (OPNsenseTarget, 'ssh_key', 'ssh_hostkey'),
+                               (MikroTikTarget, 'ssh_key', 'hostkey')):
+            f = [x for x in cls.fields if x['key'] == key][0]
+            self.assertEqual(self.K.hostkey_key(cls, f), want, cls.__name__)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

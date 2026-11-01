@@ -652,6 +652,114 @@ def sessions(obj, family, f):
     return [('%s:%s' % (host, port or 22), obj.ssh)]
 
 
+# ---- the host keys it sees, for the form's "Host keys" ---------------------
+# Try reaching it reads the host key(s) each machine shows (ssh-keyscan, as a
+# first connection does) and says them back with what the form pins for that
+# machine: `new` (nothing pinned - the page adds the line), `same` (one pinned
+# is one shown) or `other` (what is pinned is not what it shows: somebody in
+# between, or the machine reinstalled - the page warns, and replaces it only
+# when the person says so). Nothing is written here: the form's Save keeps it.
+HOSTKEY_RANK = ('ssh-ed25519', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384',
+                'ecdsa-sha2-nistp521', 'rsa-sha2-512', 'rsa-sha2-256', 'ssh-rsa')
+
+
+def hostkey_key(cls, f):
+    """The form's field the host keys are pinned in, for the key field `f`."""
+    keys = [x.get('key') for x in (getattr(cls, 'fields', None) or [])]
+    for k in (f.get('hostkey_key'), str(f.get('ssh_prefix') or '') + 'hostkey', 'hostkey'):
+        if k and k in keys:
+            return k
+    return None
+
+
+def _where(where, port=22):
+    s = str(where or '')
+    if ':' in s and s.rsplit(':', 1)[1].isdigit():
+        h, p = s.rsplit(':', 1)
+        return h.strip('[]'), int(p)
+    return s.strip('[]'), port
+
+
+def hostkey_line(host, port, typ, key):
+    """A known_hosts line: 'host type key', '[host]:port type key' off port 22."""
+    h = str(host).strip('[]')
+    return '%s %s %s' % (h if int(port or 22) == 22 else '[%s]:%d' % (h, int(port)), typ, key)
+
+
+def _key_of(line):
+    """(type, base64) of a known_hosts line, or None."""
+    got = runtime.hostkey_lines(line)
+    if not got:
+        return None
+    parts = got[0].split()
+    return parts[1], parts[2]
+
+
+def _rank(typ):
+    return HOSTKEY_RANK.index(typ) if typ in HOSTKEY_RANK else len(HOSTKEY_RANK)
+
+
+def _field_lines(v):
+    if v in (None, ''):
+        return []
+    if isinstance(v, (list, tuple)):
+        v = '\n'.join(str(x) for x in v)
+    return [x.strip() for x in str(v).splitlines() if x.strip() and not x.strip().startswith('#')]
+
+
+def _line_hosts(line):
+    """The hosts a known_hosts line is for ('' when it names none)."""
+    parts = line.split()
+    if parts and parts[0].startswith('@'):
+        parts = parts[1:]
+    if not parts or re.match(r'^(ssh-|ecdsa-|sk-)', parts[0]):
+        return set()
+    out = set()
+    for x in parts[0].split(','):
+        m = re.match(r'^\[([^\]]+)\](?::\d+)?\Z', x)
+        out.add((m.group(1) if m else x).lower())
+    return out
+
+
+def hostkey_pinned(lines, host, per_host=True):
+    """The lines of the field that pin `host`: those naming it (a form for
+    several machines, as challenges/_common.hostkey_for), or every line (a
+    form for one machine, as runtime.SshSession reads them)."""
+    if not per_host:
+        return list(lines)
+    h = str(host).strip('[]').lower()
+    return [x for x in lines if h in _line_hosts(x)]
+
+
+def hostkey_report(seen, value, per_host=True):
+    """What the page is told of the host keys seen: [{where, host, port, line,
+    type, fp, keys, status: new|same|other, pinned, pinned_fps}] - `seen` is
+    [(host, port, known_hosts text)], `value` the form's field as it is."""
+    lines = _field_lines(value)
+    out = []
+    for host, port, text in seen:
+        keys = []
+        for x in runtime.hostkey_lines(text):
+            typ, key = x.split()[1:3]
+            if (typ, key) not in [k[:2] for k in keys]:
+                keys.append((typ, key, hostkey_line(host, port, typ, key)))
+        if not keys:
+            continue
+        keys.sort(key=lambda k: _rank(k[0]))
+        best = keys[0]
+        pinned = hostkey_pinned(lines, host, per_host)
+        have = set(filter(None, (_key_of(x) for x in pinned)))
+        status = 'same' if any(k[:2] in have for k in keys) else ('other' if pinned else 'new')
+        out.append({'where': '%s:%s' % (host, port), 'host': host, 'port': port,
+                    'line': best[2], 'type': best[0],
+                    'fp': runtime.hostkey_fingerprint(best[2]),
+                    'keys': [runtime.hostkey_fingerprint(k[2]) for k in keys],
+                    'status': status, 'pinned': pinned,
+                    'pinned_fps': [runtime.hostkey_fingerprint(x) for x in pinned
+                                   if _key_of(x)]})
+    return out
+
+
 def _overlay(cfg, given, cls):
     secrets_ = S.secret_fields(cls)
     for k, v in (given or {}).items():
@@ -661,7 +769,11 @@ def _overlay(cfg, given, cls):
     return cfg
 
 
-def do_try(store, b, by):
+def do_try(store, b, by, keep_hostkey=False):
+    """A real sign-in that changes nothing. The host keys each machine shows
+    come back as `hostkeys` (hostkey_report) for the form to pin; a host key
+    taken as the first seen is kept in the saved target only with
+    `keep_hostkey` (the command line, which has no form to keep it)."""
     ref = Ref(store, b)
     cfg = S.plugin_config(ref.family, ref.row) if ref.row else {}
     cfg = _overlay(cfg, A._dict(b.get('config'), 'config'), ref.cls)
@@ -674,15 +786,33 @@ def do_try(store, b, by):
         v = key_view(store, ref) if (ref.row or ref.draft) else {}
         fp = v.get('fp') or ''
 
+    hk_key = hostkey_key(ref.cls, ref.f)
+    seen = []
+
+    def scan(ctx, job, where):
+        host, port = _where(where)
+        try:
+            from acmelib.certs import dnssets
+            text = runtime.keyscan(dnssets.ssh_address(ctx, host), port, 10)
+        except Exception as e:                          # noqa: BLE001
+            job.step('no host key could be read from %s: %s' % (where, e), 'warn')
+            return
+        prints = ', '.join(runtime.hostkey_fingerprint(x) for x in runtime.hostkey_lines(text))
+        job.step('%s shows the host key(s) %s' % (where, prints))
+        seen.append((host, port, text))
+
     def fn(job):
-        if ref.family == 'target' and ref.row:
+        if ref.family == 'target' and ref.row and keep_hostkey:
             ctx = deployer.target_context(store, job, ref.row)
         else:
             ctx = runtime.RunContext(store, job, scope='%s:%s' % (ref.family, ref.name))
         said = []
         try:
             obj = ref.cls(cfg, ctx)
-            for where, opener in sessions(obj, ref.family, ref.f):
+            reach = list(sessions(obj, ref.family, ref.f))
+            for where, _opener in reach:
+                scan(ctx, job, where)
+            for where, opener in reach:
                 job.step('reaching %s over SSH' % where)
                 with opener() as s:
                     rc, out, err = s.run(command, timeout=30, check=False)
@@ -704,7 +834,12 @@ def do_try(store, b, by):
                         {'last_ok': time.time(), 'last_error': ''} if job.ok
                         else {'last_error': job.said[:2000]})
     # `reached`, not `ok`: an answer that it did not get in is still an answer.
-    return {'reached': bool(job.ok), 'said': job.said, 'job_id': job.id, 'steps': job.steps}
+    out = {'reached': bool(job.ok), 'said': job.said, 'job_id': job.id, 'steps': job.steps,
+           'hostkey_field': hk_key, 'hostkeys': []}
+    if seen:
+        out['hostkeys'] = hostkey_report(seen, cfg.get(hk_key) if hk_key else '',
+                                         per_host=ref.family == 'challenge')
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -848,7 +983,7 @@ def cli(c, family, words):
         except LookupError as e:
             raise SystemExit('acme: %s' % e)
         return out_text(got['text'], got['file'])
-    got = do_try(store, b, by)
+    got = do_try(store, b, by, keep_hostkey=True)
     if c.json:
         c.out(got)
     else:

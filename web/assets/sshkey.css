@@ -54,3 +54,17 @@
 .sshk .btn.primary{background:var(--info-bg);border-color:rgba(88,166,255,.35);color:var(--info)}
 .sshk .btn.primary:hover:not(:disabled){background:var(--info-bg);border-color:var(--info);color:var(--info)}
 .sshk .btn.primary svg{opacity:.85}
+
+/* the host keys Try reaching it saw, and what was done with them in the form */
+.sshk-hk{margin:10px 0 12px}
+.sshk-hk > h4{margin:0 0 6px}
+.sshk-hk .note{margin:0 0 8px;padding:10px 12px;border-radius:10px;background:var(--panel2)}
+.sshk-hk .note.good{background:var(--ok-bg, var(--panel2));border-left:3px solid var(--ok)}
+.sshk-hk .note.warn{background:var(--warn-bg);border-left:3px solid var(--warn)}
+.sshk-hk .note p{margin:2px 0 6px}
+.sshk-hk-fp{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;font-size:12.5px;margin:2px 0}
+.sshk-hk-fp .mono{word-break:break-all}
+.sshk-hk-pair{display:flex;gap:10px;align-items:baseline;margin:4px 0}
+.sshk-hk-pair .k{color:var(--tx-dim);min-width:90px;font-size:12.5px}
+.sshk-hk .btnrow{display:flex;gap:9px;margin-top:8px}
+.ct-fform .sshk-hk-changed textarea,.ct-fform .sshk-hk-changed input{border-color:var(--ok)}
