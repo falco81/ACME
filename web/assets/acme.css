@@ -3135,3 +3135,70 @@ body.app-shell #pane-mailq > .card.held{flex:1 1 auto;min-height:320px;max-heigh
 .fmt-key{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .fmt-key .formgrid{margin-top:10px}
 #cx-legacy-row{margin-top:14px}
+
+/* ---- making the pair: the bundle and the join (1.0.210) ------------------ */
+.ha-lead{display:flex;gap:14px;align-items:flex-start;margin:0 0 16px}
+.ha-lead-ico{flex:none;display:flex;align-items:center;justify-content:center;width:42px;height:42px;
+  border-radius:12px;background:var(--info-bg);color:var(--info)}
+.ha-lead b{display:block;font-size:14.5px;margin:2px 0 4px}
+.ha-lead .note{margin:0}
+.ha-drop{flex-direction:row;gap:14px;min-height:96px;margin-bottom:12px}
+.ha-drop-ico{display:flex;color:var(--info)}
+.ha-drop-w{display:flex;flex-direction:column;gap:4px;text-align:left}
+.ha-drop-w b{font-size:13.5px;color:var(--tx)}
+.ha-drop-w .mono{color:var(--tx-mut)}
+.ha-file{display:flex;align-items:center;gap:12px;padding:12px 14px;margin:0 0 10px;
+  border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.ha-file.ok{border-color:rgba(63,185,80,.45);background:var(--ok-bg)}
+.ha-file.bad{border-color:rgba(248,81,73,.45)}
+.ha-file-ico{flex:none;display:flex;color:var(--info)}
+.ha-file.ok .ha-file-ico{color:var(--ok)}
+.ha-file.bad .ha-file-ico{color:var(--crit)}
+.ha-file-w{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1;font-size:12.5px;color:var(--tx-dim)}
+.ha-file-w b{font-size:13.5px;color:var(--tx);overflow-wrap:anywhere}
+.ha-filehost table.plain{margin:2px 0 12px}
+.ha-inline{font-size:12px;margin-top:4px;min-height:16px}
+.ha-inline .good,.ha-phrase-said .good{color:var(--ok)}
+.ha-inline .bad,.ha-phrase-said .bad{color:var(--crit)}
+.ha-phrase input{letter-spacing:2px}
+.ha-phrase.bad input{border-color:var(--crit)}
+.ha-phrase-meter{display:flex;align-items:center;gap:5px;margin-top:6px}
+.ha-pg{width:26px;height:5px;border-radius:3px;background:var(--line);transition:background .15s}
+.ha-pg.some{background:rgba(88,166,255,.45)}
+.ha-pg.full{background:var(--ok)}
+.ha-phrase.bad .ha-pg.full,.ha-phrase.bad .ha-pg.some{background:var(--crit)}
+.ha-phrase-said{margin-left:8px;font-size:12px;color:var(--tx-mut)}
+.ha-opened{margin-top:0}
+.ha-sure{margin:14px 0 4px;padding:12px 14px;border:1px solid rgba(210,153,34,.5);border-radius:10px;background:var(--warn-bg)}
+.ha-sure > b{display:block;margin-bottom:4px;color:var(--warn)}
+.ha-sure .note{margin:4px 0}
+.ha-sure-sw{display:flex;align-items:center;gap:10px;margin-top:8px;font-weight:600;font-size:13px;cursor:pointer}
+.ha-run-head{margin:0 0 8px;font-size:13.5px}
+.ha-live .step.wait{opacity:.5}
+.ha-live .step.run{background:var(--info-bg)}
+.ha-live .step.run .step-mark{color:var(--info)}
+.ha-live .step.warn{background:var(--warn-bg)}
+.ha-live .step.warn .step-mark{color:var(--warn)}
+.ha-live .step.skip{opacity:.65}
+.ha-live .step.skip .step-mark{color:var(--tx-mut)}
+.ha-live .step-words{min-width:0;overflow-wrap:anywhere}
+.ha-spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;
+  border-radius:50%;animation:turn .8s linear infinite}
+.ha-step-more:empty{display:none}
+.ha-sub{display:flex;gap:6px;font-size:12.5px;color:var(--tx-dim);margin-top:3px}
+.ha-sub.ok .ha-sub-mark{color:var(--ok)}
+.ha-sub.bad .ha-sub-mark{color:var(--crit)}
+.ha-fix{margin:6px 0 0;font-size:12.5px}
+.ha-pass{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.ha-pass-k{font-size:12.5px;color:var(--tx-dim);margin-bottom:6px}
+.ha-pass-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ha-pass-v{font:600 18px/1.3 ui-monospace,monospace;letter-spacing:1px;color:var(--tx);user-select:all;overflow-wrap:anywhere}
+.ha-next{margin-top:10px;font-size:13px}
+.ha-next ol{margin:6px 0 8px;padding-left:20px}
+.ha-next li{margin:3px 0}
+.ha-next pre{margin:6px 0}
+.ha-done{margin-top:12px;padding:12px 14px;border-radius:10px;border:1px solid rgba(63,185,80,.45);background:var(--ok-bg)}
+.ha-done b{display:block;color:var(--ok);margin-bottom:4px}
+.ha-pending{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fw-auto-card .fw-pending{margin:6px 0 2px;font-size:12px;color:var(--info)}
+@media (max-width:600px){.ha-drop{flex-direction:column;text-align:center}.ha-drop-w{text-align:center}}

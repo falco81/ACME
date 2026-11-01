@@ -1232,7 +1232,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <div id="ha-checks"></div>
       <div class="btnrow" id="ha-make-open" hidden><button class="btn cmd" id="ha-make-btn" data-icon="eye">Show how it was made</button></div>
       <div id="ha-make-body">
-      <p class="note">Everything below is done on the command line, as root, because it changes PostgreSQL's own configuration and restarts it. The pages show the result and look after it afterwards. In the examples the first node is <code>acme1</code> at <code>192.0.2.11</code> and the second <code>acme2</code> at <code>192.0.2.12</code>; put your own names and addresses in.</p>
+      <p class="note">Two ways. <b>One shared PostgreSQL</b> (both nodes open the same database) is done on the pages alone: <b>Make the bundle…</b> here asks for the second node's address, lets it through this node's firewall and into PostgreSQL here at once, and saves the bundle; <b>Join a cluster…</b> on the second node's pages takes it. <b>Replicated</b> (a PostgreSQL on each node) is done on the command line, as root, because it installs and restarts PostgreSQL there. The pages show the result and look after it afterwards. In the examples the first node is <code>acme1</code> at <code>192.0.2.11</code> and the second <code>acme2</code> at <code>192.0.2.12</code>; put your own names and addresses in.</p>
       <ol class="ha-steps">
         <li><p><b>On this node, the first one.</b> Its database has to be PostgreSQL 16 or later on this machine (<i>Settings → The database</i> moves it there if it is not yet). Then:</p>
           <pre class="ha-cmd" data-no-i18n>acme --ha-setup --ha-peer 192.0.2.12 --node-name acme1</pre>
