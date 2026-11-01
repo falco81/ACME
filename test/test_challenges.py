@@ -1190,7 +1190,12 @@ class TestHttpSsh(unittest.TestCase):
         served = served if served is not None else {}
 
         def http(method, url, body, headers):
+            from acmelib.plugins.challenges import _common as CM
             host = urllib.parse.urlsplit(url).hostname
+            pins = getattr(CM._PIN, 'map', None) or {}
+            if host in pins:            # the name's URL, connected to that machine
+                headers = dict(headers or {}, Host=host)
+                host = pins[host]
             path = urllib.parse.urlsplit(url).path
             files = world.files.get(host, {})
             for p, data in files.items():

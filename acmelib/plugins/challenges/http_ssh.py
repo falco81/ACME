@@ -314,11 +314,13 @@ class HttpSsh(HttpChallenge):
             return ok
         bad = []
         for host, _p in self.hosts():
-            h = '[%s]' % host if ':' in host else host
-            ok, words = self.fetch('http://%s%s/.well-known/acme-challenge/%s' % (h, sport, token),
-                                   ka, host=n)
+            # the name's URL (Host and a redirect's SNI the name's), connected to this machine
+            hn = '[%s]' % n if ':' in n else n
+            with pinned({n: host}):
+                ok, words = self.fetch('http://%s%s/.well-known/acme-challenge/%s'
+                                       % (hn, sport, token), ka)
             if not ok:
-                bad.append(words)
+                bad.append('%s (at %s)' % (words, host))
         if bad:
             self.ctx.step('not answered yet: %s' % '; '.join(bad))
             return False
@@ -749,18 +751,21 @@ class HttpSsh(HttpChallenge):
                     return
                 if self.c('check', 'each') == 'each':
                     port = int(float(self.c('check_port', 80) or 80))
-                    h = '[%s]' % host if ':' in host else host
+                    name = str(self.c('check_name', '') or '').strip()
+                    h = name or host
+                    h = '[%s]' % h if ':' in h else h
                     url = 'http://%s%s/.well-known/acme-challenge/%s' % (
                         h, '' if port == 80 else ':%d' % port, token)
                     # nginx reloads its workers a moment after it is told to
                     for wait in (0, 1, 2):
                         if wait:
                             time.sleep(wait)
-                        ok, words = self.fetch(url, data.decode(),
-                                               host=str(self.c('check_name', '') or '').strip()
-                                               or None)
+                        with pinned({name: host} if name else {}):
+                            ok, words = self.fetch(url, data.decode())
                         if ok:
                             break
+                    if name:
+                        words = '%s (at %s)' % (words, host)
                     if not ok:
                         low = str(words).lower()
                         if 'no route to host' in low or 'refused' in low or 'timed out' in low:
