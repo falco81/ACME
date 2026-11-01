@@ -19,6 +19,7 @@ API_VERSION = '2018-05-01'
 
 class AzureDns(DnsChallenge):
     kind = 'azure_dns'
+    api_provider = True             # its zones are asked of its API (guide)
     title = 'Azure DNS'
     vendor = 'Microsoft'
     description = 'TXT records in an Azure DNS zone, with an app registration\'s client secret.'

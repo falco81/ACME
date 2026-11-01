@@ -11,6 +11,7 @@ from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge,
 
 class PowerDns(DnsChallenge):
     kind = 'powerdns'
+    api_provider = True             # its zones are asked of its API (guide)
     title = 'PowerDNS (HTTP API)'
     vendor = 'PowerDNS'
     description = 'TXT records through the PowerDNS Authoritative server\'s HTTP API.'

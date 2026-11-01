@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import time
 
-from acmelib.plugins.base import PluginError, field
+from acmelib.plugins.base import PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import (DnsChallenge, as_list, base_name, check_txt,
                                                 settings)
@@ -175,6 +175,147 @@ class BuiltinDns(DnsChallenge):
                            % (rr, rr, fqdn))
         return False, ('%s leads to %s, not %s: change that CNAME to "%s."'
                        % (rr, chain[-1], fqdn, fqdn))
+
+    # -- what a person is told -------------------------------------------------------
+    def guide(self, name):
+        try:
+            base = base_name(name)
+        except PluginError as e:
+            return guide_of([guide_step('name', 'The name can be proved by DNS-01', done=False,
+                                        said=str(e), fix='Correct the name')])
+        info = self.ctx.dns_server_info() or {}
+        steps = []
+        try:
+            self.zone()
+            target = self.target_of(name)
+        except PluginError as e:
+            return guide_of([guide_step('server', 'acme\'s own DNS server has a zone',
+                                        where='acme', done=False, said=str(e),
+                                        fix='Settings → DNS server: switch it on and give it '
+                                            'its zone (e.g. acme.example.net)')])
+        rr = self.record_name(name)
+        scheme = self.c('scheme', 'name')
+        served = self.zone_for(target)
+        steps.append(self.guide_server(served, info))
+        steps += self.guide_delegation(served, info)
+        home = self.home_of(base)
+        if scheme == 'direct':
+            pass                # the delegation of the zone holding rr is the whole of it
+        else:
+            chain = self.cname_chain(rr)
+            rec = {'name': rr, 'type': 'CNAME', 'value': target + '.', 'ttl': 3600}
+            what = 'The name is pointed at acme\'s DNS server by a CNAME'
+            where = 'your DNS at %s' % home
+            if chain[-1] == D.norm(target):
+                steps.append(guide_step('cname', what, where=where, record=rec, done=True,
+                                        said='%s is a CNAME to %s' % (rr, target)))
+            elif len(chain) == 1:
+                steps.append(guide_step('cname', what, where=where, record=rec, done=False,
+                                        said='%s has no CNAME' % rr,
+                                        fix='Create in the DNS of %s: %s. CNAME %s.' % (
+                                            home, rr, target)))
+            else:
+                steps.append(guide_step('cname', what, where=where, record=rec, done=False,
+                                        said='%s leads to %s' % (rr, chain[-1]),
+                                        fix='Change the CNAME in the DNS of %s: %s. CNAME %s.'
+                                            % (home, rr, target)))
+        port = int(info.get('port') or 53)
+        fw = [self.ctx.port_open(p, port) for p in ('udp', 'tcp')]
+        if False in fw:
+            steps.append(guide_step(
+                'reach', 'The internet reaches acme\'s DNS server', where='acme', done=False,
+                said='acme\'s firewall does not let UDP and TCP port %d in from anywhere' % port,
+                fix='Settings → Firewall: let in UDP and TCP port %d (the card "DNS server")'
+                    % port))
+        else:
+            steps.append(guide_step(
+                'reach', 'The internet reaches acme\'s DNS server', where='acme', done=None,
+                blocking=False,
+                said='UDP and TCP port %d must reach acme from the internet (a public address '
+                     'or a port forward) - the dry run tries it' % port))
+        steps.append(guide_step('txt', 'acme writes the TXT record itself at every order',
+                                where='acme', record={'name': target, 'type': 'TXT',
+                                                      'value': '(new at every order)',
+                                                      'ttl': self.ttl()},
+                                done=None, blocking=False,
+                                said='nothing to create by hand: acme\'s own DNS server '
+                                     'answers %s' % target))
+        return guide_of(steps)
+
+    def guide_server(self, zone, info):
+        host, port = D.own_server_address(settings(self.ctx))
+        what = 'acme\'s own DNS server answers for its zone'
+        try:
+            m = D.query(host, zone, 6, port=port, rd=False, timeout=self.guide_timeout)
+        except (D.DnsError, D.FormErr, OSError) as e:
+            return guide_step('server', what, where='acme', done=False,
+                              said='no answer on %s port %d: %s' % (host, port, e),
+                              fix='Settings → DNS server: switch it on (it says why it does '
+                                  'not listen)')
+        if m.rcode == D.NOERROR and m.records(6):
+            return guide_step('server', what, where='acme', done=True,
+                              said='it answers for %s on %s port %d' % (zone, host, port))
+        return guide_step('server', what, where='acme', done=False,
+                          said='it said %s for %s' % (D.RCODES.get(m.rcode, m.rcode), zone),
+                          fix='Settings → DNS server: add %s to its zones' % zone)
+
+    def guide_delegation(self, zone, info):
+        """The steps: acme's zone delegated to it by NS records in its parent,
+        with glue for name servers inside it, reaching the addresses acme
+        answers on."""
+        zone = D.norm(zone)
+        parent = zone.split('.', 1)[1] if '.' in zone else zone
+        want_ns = [D.norm(n) for n in (info.get('ns') or [])] or ['ns1.' + zone]
+        glue = {D.norm(k): list(v) for k, v in (info.get('glue') or {}).items()}
+        expect = set(info.get('answering') or []) | {a for v in glue.values() for a in v}
+        steps = []
+        got_ns, err = set(), ''
+        try:
+            m = D.ask_any(self.resolvers(), zone, 2, self.guide_timeout)
+            got_ns = {D.norm(r.text) for r in m.answer + m.authority if r.rtype == 2 and
+                      D.norm(r.name) == zone}
+        except (D.DnsError, D.FormErr, OSError) as e:
+            err = str(e)
+        where = 'the DNS of %s (the parent zone)' % parent
+        for ns in want_ns:
+            rec = {'name': zone, 'type': 'NS', 'value': ns + '.', 'ttl': 3600}
+            what = 'acme\'s zone is delegated to acme\'s DNS server'
+            if ns in got_ns:
+                steps.append(guide_step('delegation', what, where=where, record=rec, done=True,
+                                        said='%s NS %s' % (zone, ns)))
+            elif err:
+                steps.append(guide_step('delegation', what, where=where, record=rec, done=None,
+                                        blocking=False,
+                                        said='the NS records of %s could not be looked up: %s'
+                                             % (zone, err)))
+            else:
+                steps.append(guide_step(
+                    'delegation', what, where=where, record=rec, done=False,
+                    said=('%s is sent to %s' % (zone, ', '.join(sorted(got_ns)))) if got_ns
+                    else '%s is not delegated' % zone,
+                    fix='Create in the DNS of %s: %s. NS %s.' % (parent, zone, ns)))
+        for ns in want_ns:
+            inside = D.in_zone(ns, zone)
+            addrs = glue.get(ns) or sorted(expect)
+            what = 'The name server %s has acme\'s address' % ns
+            if not addrs:
+                steps.append(guide_step(
+                    'glue', what, where=where if inside else 'your DNS', done=None,
+                    blocking=False, said='acme knows no public address of its own',
+                    fix='Settings → DNS server: set its addresses'))
+                continue
+            seen = D.addresses(ns, self.resolvers(), timeout=self.guide_timeout)
+            ok = bool(set(seen) & (expect or set(addrs)))
+            for a in addrs[:2]:
+                rec = {'name': ns, 'type': 'AAAA' if ':' in a else 'A', 'value': a, 'ttl': 3600}
+                steps.append(guide_step(
+                    'glue', what, where=(where + ', as glue') if inside else 'the DNS of %s'
+                    % D.registrable(ns), record=rec, done=ok,
+                    said=('%s is %s' % (ns, ', '.join(seen))) if seen else
+                    '%s has no address' % ns,
+                    fix='Create %s. %s %s%s' % (ns, rec['type'], a, ' (glue, at the registrar '
+                                                'or in %s)' % parent if inside else '')))
+        return steps
 
     def instructions(self):
         cfg = settings(self.ctx)

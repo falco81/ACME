@@ -22,6 +22,7 @@ def _ps(s):
 
 class SshDns(DnsChallenge):
     kind = 'ssh_dns'
+    guide_needs_dry_run = True
     title = 'Commands on the DNS server over SSH'
     vendor = 'DNS'
     description = ('acme signs in to the DNS server over SSH and puts the record in there: '

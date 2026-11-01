@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import time
 
-from acmelib.plugins.base import field
+from acmelib.plugins.base import field, guide_step
+from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, check_txt
 
 
@@ -65,3 +66,35 @@ class Manual(DnsChallenge):
 
     def test(self):
         return 'nothing to try: the record is put in by hand at every order'
+
+    # -- what a person is told -------------------------------------------------------
+    def guide_access(self):
+        return []
+
+    def guide_txt(self, fqdn, rr=None):
+        try:
+            waiting = self.ctx.kv_get('manual:waiting:%s' % (rr or fqdn))
+        except Exception:                               # noqa: BLE001
+            waiting = None
+        what = 'You put the TXT record in by hand at every order'
+        try:
+            zone = self.zone_for(fqdn)
+        except Exception:                               # noqa: BLE001
+            zone = D.registrable(fqdn)
+        where = 'your DNS at %s' % zone
+        if not waiting:
+            return guide_step('txt', what, where=where,
+                              record={'name': fqdn, 'type': 'TXT',
+                                      'value': '(acme shows it at every order)', 'ttl': 60},
+                              done=None, blocking=False,
+                              said='at each order acme shows the value and waits until the '
+                                   'name servers of %s have it' % zone)
+        state = self.seen_by_authority(fqdn, waiting)
+        return guide_step('txt', what, where=where,
+                          record={'name': fqdn, 'type': 'TXT', 'value': waiting, 'ttl': 60},
+                          done=state, blocking=False,
+                          said={True: 'every name server of %s has it' % zone,
+                                False: 'not on every name server of %s yet' % zone,
+                                None: 'the name servers of %s cannot be asked' % zone}[state],
+                          fix='Put it in your DNS now: %s. 60 IN TXT "%s"' % (fqdn, waiting))
+

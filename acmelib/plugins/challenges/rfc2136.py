@@ -4,7 +4,7 @@ PowerDNS; Windows DNS with "nonsecure and secure" updates and no key (it signs
 only with GSS-TSIG). The UPDATE is written and signed here, no nsupdate needed."""
 from __future__ import annotations
 
-from acmelib.plugins.base import PluginError, field
+from acmelib.plugins.base import PluginError, field, guide_step
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge
 
@@ -133,3 +133,40 @@ class Rfc2136(DnsChallenge):
         name = self.c('tsig_name', '') or 'no key'
         return ('%s takes updates for %s with %s (a trial update without changes was '
                 'accepted)' % (host, zone, name))
+
+    # -- what a person is told -------------------------------------------------------
+    def guide_access(self):
+        where = str(self.c('server', '') or 'the primary server')
+        what = 'The primary server answers DNS'
+        try:
+            addr, port, host = self._server()
+            D.query(addr, '.', 6, port=port, rd=False, timeout=self.guide_timeout)
+        except PluginError as e:
+            return [guide_step('access', what, where=where, done=False, said=str(e),
+                               fix='Set the address of the zone\'s primary server')]
+        except (D.DnsError, D.FormErr, OSError) as e:
+            return [guide_step('access', what, where=where, done=False,
+                               said='%s does not answer DNS on port %d: %s' % (host, port, e),
+                               fix='Let acme reach TCP and UDP port %d of %s' % (port, host))]
+        return [guide_step('access', what, where=where, done=True,
+                           said='%s answers on port %d' % (host, port))]
+
+    def guide_zone(self, rr, fqdn, home):
+        out = DnsChallenge.guide_zone(self, rr, fqdn, home)
+        if not out or out[-1]['done'] is not True:
+            return out
+        zone = self.zone_for(fqdn)
+        where = str(self.c('server', '') or 'the primary server')
+        what = 'The server takes updates of %s with the key' % zone
+        try:
+            # one prerequisite (the SOA is there) and nothing to change: changes nothing
+            self._send(D.make_update(zone, prereq=[(zone, 'SOA')]), 'a trial update of %s' % zone)
+        except PluginError as e:
+            out.append(guide_step('update', what, where=where, done=False, said=str(e),
+                                  fix='Allow the key %s to update TXT records in %s on that '
+                                      'server' % (self.c('tsig_name', '') or '(none)', zone)))
+            return out
+        out.append(guide_step('update', what, where=where, done=True,
+                              said='a trial update without changes was accepted'))
+        return out
+

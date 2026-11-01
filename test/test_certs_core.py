@@ -246,8 +246,9 @@ class CertsCore(unittest.TestCase):
         self.assertTrue(vals['This server (HTTP-01)']['is_default'])
         self.assertNotIn("acme's DNS server", vals)          # no dns_zone set
         ov = self.ok('GET', '/api/certs/overview')
-        self.assertEqual(ov['defaults'], {'issuer': "Let's Encrypt",
-                                          'challenge': 'This server (HTTP-01)'})
+        self.assertEqual({k: ov['defaults'][k] for k in ('issuer', 'challenge')},
+                         {'issuer': "Let's Encrypt", 'challenge': 'This server (HTTP-01)'})
+        self.assertEqual((ov['defaults']['target'], ov['defaults']['ca']), ('', ''))
         self.assertIn("Let's Encrypt", ov['contact_missing'])
         # A new certificate with nothing said: Let's Encrypt, proved by HTTP-01 here.
         cid = self.ok('POST', '/api/certs/save', {'name': 'le-default',

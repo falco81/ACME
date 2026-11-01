@@ -79,6 +79,7 @@ def sigv4(method, url, headers, body, access_key, secret_key, region, service, a
 # ---------------------------------------------------------------------------
 class Route53(DnsChallenge):
     kind = 'route53'
+    api_provider = True             # its zones are asked of its API (guide)
     title = 'Amazon Route 53'
     vendor = 'Amazon'
     description = 'TXT records in a Route 53 hosted zone, with an IAM access key.'

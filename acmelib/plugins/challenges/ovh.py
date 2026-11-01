@@ -23,6 +23,7 @@ def ovh_signature(app_secret, consumer_key, method, url, body, ts):
 
 class Ovh(DnsChallenge):
     kind = 'ovh'
+    api_provider = True             # its zones are asked of its API (guide)
     title = 'OVHcloud'
     vendor = 'OVHcloud'
     description = 'TXT records in a zone at OVHcloud, through its API.'

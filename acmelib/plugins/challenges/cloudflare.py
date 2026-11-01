@@ -11,6 +11,7 @@ from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge,
 
 class Cloudflare(DnsChallenge):
     kind = 'cloudflare'
+    api_provider = True             # its zones are asked of its API (guide)
     title = 'Cloudflare'
     vendor = 'Cloudflare'
     description = 'TXT records through the Cloudflare API, with an API token.'

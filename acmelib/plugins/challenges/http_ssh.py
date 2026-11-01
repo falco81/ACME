@@ -9,7 +9,7 @@ import binascii
 import os
 import posixpath
 
-from acmelib.plugins.base import PluginError, field
+from acmelib.plugins.base import PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import (HttpChallenge, as_bool, as_list, shq, ssh_conn,
                                                 ssh_fields)
@@ -47,6 +47,10 @@ class HttpSsh(HttpChallenge):
                        ['none', 'no check']],
               help='The token is fetched over HTTP on port 80 and compared.'),
         field('check_port', 'HTTP port for the check', 'number', default=80, advanced=True),
+        field('balancer', 'Load balancer in front', 'list', default='', advanced=True,
+              placeholder='198.51.100.20',
+              help='The addresses the names point at when a load balancer stands in front of '
+                   'the web servers: the guide takes a name pointing there as right.'),
         field('nginx_conf', 'nginx file "Prepare" writes', 'text', default=NGINX_CONF,
               advanced=True,
               help='The server block for /.well-known/acme-challenge/ that the action '
@@ -350,3 +354,80 @@ class HttpSsh(HttpChallenge):
             raise PluginError('; '.join('%s: %s' % f for f in failed),
                               detail='\n'.join(lines + ['%s: %s' % f for f in failed]))
         return '\n'.join(lines)
+
+    # -- what a person is told ---------------------------------------------------------
+    def answering(self, name):
+        out = []
+        try:
+            hosts = self.hosts()
+        except PluginError:
+            return out
+        for host, _p in hosts:
+            for a in (self.lookup(host) or [host]):
+                if a not in out:
+                    out.append(a)
+        return out
+
+    def guide(self, name):
+        bad = self.guide_wildcard(name)
+        if bad:
+            return guide_of(bad)
+        n = D.norm(name)
+        try:
+            hosts = self.hosts()
+        except PluginError as e:
+            return guide_of([guide_step('hosts', 'The web servers are set', where='acme',
+                                        done=False, said=str(e),
+                                        fix='Set the web servers of the validation')])
+        old_port = self.http_port
+        self.http_port = int(float(self.c('check_port', 80) or 80))
+        try:
+            return guide_of(self._guide(n, hosts))
+        finally:
+            self.http_port = old_port
+
+    def _guide(self, n, hosts):
+        addrs = self.answering(n)
+        front = as_list(self.c('balancer', ''))
+        steps = [self.guide_points(
+            n, front + addrs, (front or addrs or [''])[0],
+            'Point %s at the web servers (%s); if a load balancer stands in front of them, put '
+            'its address under "Load balancer in front"' % (n, ', '.join(addrs)),
+            soft=not front)]
+        for host, port in hosts:
+            where = 'the web server %s' % host
+            try:
+                with self.ctx.ssh(ssh_conn(self, host, port)) as s:
+                    s.run('true', timeout=30, check=True)
+                steps.append(guide_step('ssh', 'acme signs in to %s over SSH' % host,
+                                        where=where, done=True, said='signed in'))
+            except Exception as e:                      # noqa: BLE001
+                steps.append(guide_step('ssh', 'acme signs in to %s over SSH' % host,
+                                        where=where, done=False, said=str(e) or type(e).__name__,
+                                        fix='Put acme\'s public key into ~%s/.ssh/authorized_keys '
+                                            'there, and pin the host key (docs/validation.md)'
+                                            % (self.c('user', 'acme') or 'acme')))
+            url = self.url(host, 'acme-guide-' + binascii.hexlify(os.urandom(6)).decode())
+            try:
+                st, _h, _b = self.ctx.http('GET', url, headers={'Host': n,
+                                                                 'User-Agent': 'acme-guide'},
+                                           timeout=10, verify=False, proxy=False)
+                steps.append(guide_step(
+                    'web', '%s answers HTTP on port %d' % (host, self.http_port), where=where,
+                    done=True, said='it answers (%s for a file that is not there)' % st))
+            except Exception as e:                      # noqa: BLE001
+                steps.append(guide_step(
+                    'web', '%s answers HTTP on port %d' % (host, self.http_port), where=where,
+                    done=False, said=str(e) or type(e).__name__,
+                    fix='Open port %d on %s and serve /.well-known/acme-challenge/ from %s (the '
+                        'action "Prepare the hosts" writes the nginx block)'
+                        % (self.http_port, host, self.webroot())))
+        return steps
+
+    def seen_outside(self, name, handle):
+        old_port = self.http_port
+        self.http_port = int(float(self.c('check_port', 80) or 80))
+        try:
+            return HttpChallenge.seen_outside(self, name, handle)
+        finally:
+            self.http_port = old_port

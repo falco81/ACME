@@ -14,6 +14,7 @@ BASE = 'https://api.digitalocean.com/v2'
 
 class DigitalOcean(DnsChallenge):
     kind = 'digitalocean'
+    api_provider = True             # its zones are asked of its API (guide)
     title = 'DigitalOcean'
     vendor = 'DigitalOcean'
     description = 'TXT records in a DigitalOcean domain, with a personal access token.'

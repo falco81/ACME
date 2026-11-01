@@ -115,6 +115,11 @@ class Desec(ApiDns):
             return False
         return True
 
+    def wait_words(self):
+        return ApiDns.wait_words(self) + (
+            '; then %d s more for deSEC\'s name servers elsewhere in the world (anycast). A TTL '
+            'under the domain\'s minimum (3600 s as a rule) is raised to it' % self.num('settle', 60))
+
     def test(self):
         doms = self._call('GET', '/domains/') or []
         if self.c('zone'):

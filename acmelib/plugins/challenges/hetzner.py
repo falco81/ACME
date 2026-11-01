@@ -13,6 +13,7 @@ from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, DnsChallenge
 
 class Hetzner(DnsChallenge):
     kind = 'hetzner'
+    api_provider = True             # its zones are asked of its API (guide)
     title = 'Hetzner DNS'
     vendor = 'Hetzner'
     description = 'TXT records in a zone at Hetzner, with an API token.'

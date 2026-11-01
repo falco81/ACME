@@ -930,6 +930,55 @@ def pg2_empty():
         pg_empty(PG2_PORT)
 
 
+def pg_admin_sql(port, sql, db='postgres'):
+    got = subprocess.run(['runuser', '-u', 'postgres', '--', 'psql', '-XAtq', '-p', str(port),
+                          '-d', db, '-c', sql], capture_output=True, text=True)
+    return got.stdout.strip()
+
+
+def link_steps(node):
+    v = node.ok('GET', '/api/ha').get('link_tls') or {}
+    return {x['name']: x.get('step') for x in v.get('nodes') or []}
+
+
+def _link_failed(node):
+    return 'failed' in link_steps(node).values()
+
+
+class RootHelper(object):
+    """Each node's root helper as acme-web.path starts it: deploy/acme_web.py
+    run as root whenever the daemon leaves a request in its folder - here for
+    the link's TLS (pgtls.ask). nginx's folder is a scratch one."""
+
+    def __init__(self, nodes):
+        import threading
+        self.nodes, self.said, self.going = nodes, [], True
+        self.t = threading.Thread(target=self.run, daemon=True)
+        self.t.start()
+
+    def run(self):
+        while self.going:
+            for n in self.nodes:
+                web = os.path.join(n.tmp, 'state', 'web')
+                if os.path.exists(os.path.join(web, 'pgtls.ask')):
+                    env = dict(os.environ, ACME_STATE=os.path.join(n.tmp, 'state'),
+                               ACME_HA_CA=n.env['ACME_HA_CA'], ACME_VIP_NO_SERVICES='1',
+                               ACME_VIP_NGINX_DIR=os.path.join(n.tmp, 'out'))
+                    got = subprocess.run([sys.executable, '-I', os.path.join(
+                        ROOT, 'deploy', 'acme_web.py')], env=env, capture_output=True, text=True,
+                        timeout=120)
+                    try:
+                        with open(os.path.join(web, 'pgtls.json')) as f:
+                            self.said.append((n.name, json.load(f), got.stderr[-500:]))
+                    except (OSError, ValueError):
+                        self.said.append((n.name, None, got.stderr[-500:]))
+            time.sleep(0.5)
+
+    def stop(self):
+        self.going = False
+        self.t.join(5)
+
+
 class ReplicatedPair(PairChecks, unittest.TestCase):
     """Two daemons, each on its own PostgreSQL (127.0.0.1:5432 and :5433),
     replicating both ways - set up with the wizard: acme --ha-setup on the
@@ -965,8 +1014,14 @@ class ReplicatedPair(PairChecks, unittest.TestCase):
         cls.b = Node('n2', PG2, extra)
         cls.a.add_account()
         bundle = os.path.join(cls.a.tmp, 'bundle.json')
+        # The cluster's authority where PostgreSQL's own workers can read it
+        # (the link's TLS, test_04): a folder of its own, open to them.
+        cls.cadir = tempfile.mkdtemp(prefix='acme-ha-ca-')
+        os.chmod(cls.cadir, 0o755)
         for n in (cls.a, cls.b):
             n.env['ACME_HA_NO_RESTART'] = '1'
+            n.env['ACME_HA_CA'] = os.path.join(cls.cadir, n.name + '.pem')
+            os.makedirs(os.path.join(n.tmp, 'state', 'web'), exist_ok=True)
         got = cls.a.cli('--ha-setup', '--ha-peer', '127.0.0.1', '--ha-peer-port', str(PG2_PORT),
                         '--ha-address', '127.0.0.1', '--node-name', 'n1', '--ha-bundle', bundle,
                         '--yes')
@@ -989,6 +1044,8 @@ class ReplicatedPair(PairChecks, unittest.TestCase):
         for n in ('a', 'b'):
             if getattr(cls, n, None):
                 getattr(cls, n).cleanup()
+        if getattr(cls, 'cadir', None):
+            shutil.rmtree(cls.cadir, ignore_errors=True)
         if not os.environ.get('ACME_TEST_KEEP'):
             for port in (PG_PORT, PG2_PORT):
                 try:
@@ -1011,6 +1068,54 @@ class ReplicatedPair(PairChecks, unittest.TestCase):
         status = self.a.cli('--ha-status')
         self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
         self.assertIn('n2', status.stdout)
+
+    def test_04_link_tls_on_and_off(self):
+        """Settings → High availability → the link between the databases, end
+        to end: the button (POST tls_link) on one node, both daemons through
+        every step, the root parts done by the real root helper
+        (deploy/acme_web.py, run as the path unit would when pgtls.ask comes);
+        then switched off again (tls_off). Replication runs all along."""
+        helper = RootHelper([self.a, self.b])
+        try:
+            self.a.ok('POST', '/api/ha', {'action': 'tls_link'})
+            for n in (self.a, self.b):
+                wait_for(lambda: link_steps(n) == {'n1': 'done', 'n2': 'done'} or
+                         _link_failed(n), 300, 2, 'the link encrypted (%s)' % n.name)
+                self.assertEqual(link_steps(n), {'n1': 'done', 'n2': 'done'},
+                                 (n.out()[-3000:], helper.said))
+            for n in (self.a, self.b):
+                self.assertEqual(n.conf.get('ha_tls'), 'verify-full')
+                self.assertEqual(n.conf.get('ha_tls_ca'), n.env['ACME_HA_CA'])
+                v = n.ok('GET', '/api/ha')['link_tls']
+                self.assertEqual(v['mode'], 'verify-full')
+                self.assertTrue(v['own'])
+            for port in (PG_PORT, PG2_PORT):
+                self.assertEqual(pg_admin_sql(port, 'SHOW ssl'), 'on')
+                self.assertTrue(pg_admin_sql(port, 'SHOW ssl_cert_file').endswith('acme-ha.crt'))
+                conn = pg_admin_sql(port, "SELECT subconninfo FROM pg_subscription WHERE "
+                                          "subname LIKE 'acme!_from!_%' ESCAPE '!'", 'acme')
+                self.assertIn("sslmode='verify-full'", conn)
+                self.assertIn('sslrootcert=', conn)
+            self.sync()                         # both ways, over TLS
+            got = self.a.cli('--ha-tls')
+            self.assertIn('verify-full', got.stdout, got.stdout + got.stderr)
+            self.assertNotIn('failed', got.stdout)
+            # And off again.
+            self.b.ok('POST', '/api/ha', {'action': 'tls_off'})
+            for n in (self.a, self.b):
+                wait_for(lambda: link_steps(n) == {'n1': 'off_done', 'n2': 'off_done'} or
+                         _link_failed(n), 300, 2, 'the link back without TLS (%s)' % n.name)
+                self.assertEqual(link_steps(n), {'n1': 'off_done', 'n2': 'off_done'},
+                                 (n.out()[-3000:], helper.said))
+                self.assertFalse(n.conf.get('ha_tls'))
+            for port in (PG_PORT, PG2_PORT):
+                self.assertFalse(pg_admin_sql(port, 'SHOW ssl_cert_file').endswith('acme-ha.crt'))
+                conn = pg_admin_sql(port, "SELECT subconninfo FROM pg_subscription WHERE "
+                                          "subname LIKE 'acme!_from!_%' ESCAPE '!'", 'acme')
+                self.assertNotIn('verify-full', conn)
+            self.sync()
+        finally:
+            helper.stop()
 
     def test_05_numbers_odd_and_even(self):
         ids = self.ids
@@ -1424,6 +1529,16 @@ class HaPgHbaLines(unittest.TestCase):
                          r'scram-sha-256')
         again = W.pgtls_ha_open(r)
         self.assertIn('already', again['steps'][1]['said'])
+        # The link's TLS (the hba / hba_off requests): the other node's line
+        # host -> hostssl, and back - PostgreSQL reads the file each time.
+        rr = W.pgtls_checked({'id': 'abcdef0125', 'do': 'hba', 'db': 'acme', 'user': 'acme',
+                              'peer': '192.0.2.32', 'port': PG2_PORT})
+        self.assertIn('TLS only', W.pgtls_hba(rr)['said'])
+        self.assertRegex(self.hba(), r'(?m)^hostssl\s+acme\s+acme\s+192\.0\.2\.32/32\s')
+        self.assertIn('already', W.pgtls_hba(rr)['said'])
+        rr['do'] = 'hba_off'
+        self.assertIn('without TLS', W.pgtls_hba_off(rr)['said'])
+        self.assertRegex(self.hba(), r'(?m)^host\s+acme\s+acme\s+192\.0\.2\.32/32\s')
 
 
 def tearDownModule():

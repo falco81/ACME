@@ -477,6 +477,7 @@ class DnsChallenge(Challenge):
     # -- what a person is told (guide) and the dry run --------------------------------------
     guide_timeout = 2.0             # seconds for one DNS question of guide()
     api_provider = False            # True: zone_hint() asks the provider which zones it holds
+    guide_needs_dry_run = False     # True: only a dry run can tell (a script, commands)
 
     def who_words(self):
         return self.who if getattr(self, 'who', '') else (self.title or self.kind)
@@ -555,7 +556,7 @@ class DnsChallenge(Challenge):
             return None
         try:
             return self.zone_hint(fqdn)
-        except PluginError:
+        except Exception:                               # noqa: BLE001
             return None
 
     def guide(self, name):
@@ -586,8 +587,15 @@ class DnsChallenge(Challenge):
                                     said='this can be checked once acme can sign in there'))
         else:
             steps += self.guide_zone(rr, fqdn, home)
-        steps.append(self.guide_txt(fqdn))
+        steps.append(self.guide_txt(fqdn, rr))
         steps.append(self.guide_wait())
+        if self.guide_needs_dry_run:
+            steps.append(guide_step(
+                'try', 'A dry run shows whether the record is really put in', where='acme',
+                done=None, blocking=False,
+                said='%s puts the record in by means acme cannot look into beforehand'
+                     % self.who_words(),
+                fix='Run a dry run: a test record is put in, looked for and taken away'))
         return guide_of(steps)
 
     def guide_access(self):
@@ -674,7 +682,7 @@ class DnsChallenge(Challenge):
                           where='the registry of %s' % zone, done=True,
                           said='%s is answered by %s' % (zone, ', '.join(n for n, _a in ns)))
 
-    def guide_txt(self, fqdn):
+    def guide_txt(self, fqdn, rr=None):
         return guide_step('txt', 'acme writes the TXT record itself at every order',
                           where=self.who_words(),
                           record={'name': fqdn, 'type': 'TXT', 'value': '(new at every order)',
@@ -984,6 +992,7 @@ class ApiDns(DnsChallenge):
     and del_txt."""
     who = ''                        # the provider in words: 'deSEC', 'Gandi'
     min_ttl = 60
+    api_provider = True
 
     def ttl(self):
         return max(int(self.num('ttl', self.min_ttl) or self.min_ttl), self.min_ttl)

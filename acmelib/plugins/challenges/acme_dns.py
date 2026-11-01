@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import time
 
-from acmelib.plugins.base import PluginError, field
+from acmelib.plugins.base import PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, DnsChallenge, api, as_bool,
                                                 base_name, check_txt)
@@ -77,3 +77,40 @@ class AcmeDns(DnsChallenge):
         if fd:
             out.append('put in your DNS, once per name: _acme-challenge.NAME. CNAME %s.' % fd)
         return '\n'.join(out)
+
+    # -- what a person is told -------------------------------------------------------
+    def guide(self, name):
+        try:
+            base = base_name(name)
+            acct = self.account(name)
+        except PluginError as e:
+            return guide_of([guide_step('account', 'There is an acme-dns account for the name',
+                                        where='acme', done=False, said=str(e),
+                                        fix='Register an account at the acme-dns server and '
+                                            'set it in the validation')])
+        steps = self.guide_access()
+        rr = '_acme-challenge.' + base
+        full = D.norm(acct.get('fulldomain'))
+        home = self.home_of(base)
+        if not full:
+            steps.append(guide_step('cname', 'The name is pointed at acme-dns by a CNAME',
+                                    where='your DNS at %s' % home, done=False,
+                                    said='the account has no full domain set',
+                                    fix='Set the full domain of the account (from /register)'))
+            return guide_of(steps)
+        rec = {'name': rr, 'type': 'CNAME', 'value': full + '.', 'ttl': 3600}
+        chain = self.cname_chain(rr)
+        if chain[-1] == full:
+            steps.append(guide_step('cname', 'The name is pointed at acme-dns by a CNAME',
+                                    where='your DNS at %s' % home, record=rec, done=True,
+                                    said='%s is a CNAME to %s' % (rr, full)))
+        else:
+            steps.append(guide_step('cname', 'The name is pointed at acme-dns by a CNAME',
+                                    where='your DNS at %s' % home, record=rec, done=False,
+                                    said=('%s leads to %s' % (rr, chain[-1])) if len(chain) > 1
+                                    else '%s has no CNAME' % rr,
+                                    fix='Create in the DNS of %s: %s. CNAME %s.' % (home, rr,
+                                                                                   full)))
+        steps.append(self.guide_wait())
+        return guide_of(steps)
+

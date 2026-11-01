@@ -47,6 +47,24 @@ def shq(s):
     return "'" + str(s).replace("'", "'\\''") + "'"
 
 
+def port_in(port, spec):
+    """Is `port` in a firewall rule's ports ('' any, '80,443', '1000-2000', '1000:2000')."""
+    spec = str(spec or '').replace(' ', '')
+    if not spec:
+        return True
+    port = int(port)
+    for part in spec.split(','):
+        lo, sep, hi = part.replace(':', '-').partition('-')
+        try:
+            if sep and int(lo) <= port <= int(hi):
+                return True
+            if not sep and int(lo) == port:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 class RunContext(base.Context):
     """The Context of acmelib/plugins/base.py, for one job (or a test).
 
@@ -231,6 +249,68 @@ class RunContext(base.Context):
 
     def http_token_drop(self, token):
         self.store.db.run('DELETE FROM meta WHERE k = ?', (CHAL_PREFIX + str(token),))
+
+    # ---- what a challenge's guide asks about acme ----------------------------------------
+    def dns_server_info(self):
+        from acmelib.certs import dnsserver
+        return dnsserver.server_info(self.store)
+
+    def own_addresses(self):
+        """{'vip': the cluster's VIP address when it is on, 'nodes': the nodes' own}."""
+        vip = None
+        try:
+            v = E.vip_conf(self.store) or {}
+            if E.CONFIG.get('ha_mode') and v.get('on') and v.get('address'):
+                vip = str(v['address']).split('/')[0].strip().strip('[]')
+        except Exception:                               # noqa: BLE001
+            vip = None
+        nodes = []
+        try:
+            nodes = [str(n['address']).split('/')[0] for n in E.ha_nodes(self.store)
+                     if n.get('address')]
+        except Exception:                               # noqa: BLE001
+            nodes = []
+        if not nodes:
+            try:
+                nodes = [str(E.node_address())]
+            except Exception:                           # noqa: BLE001
+                nodes = []
+        return {'vip': vip, 'nodes': [n for n in nodes if n and n != vip]}
+
+    def port_open(self, proto, port):
+        """Does acme's firewall let `proto` `port` in from anywhere: True, False,
+        or None when acme does not keep the firewall of this machine."""
+        try:
+            c = E.fw_conf(self.store)
+            if not c.get('set'):
+                return None
+            if not c.get('on'):
+                return True
+            rules = E.fw_rules_for(self.store, E.node_name())
+        except Exception:                               # noqa: BLE001
+            return None
+        for r in rules:
+            if (r.get('action') or 'accept') != 'accept' or r.get('source'):
+                continue
+            if str(r.get('proto') or 'any') not in (str(proto), 'any'):
+                continue
+            if port_in(port, r.get('port')):
+                return True
+        return False
+
+    def http_probe(self):
+        """(token, key authorization) of a probe acme answers on its own port 80
+        (as an HTTP-01 answer), made once and kept fresh."""
+        got = S.jload(self.store.get_meta('certs:guide_probe'), None)
+        if not isinstance(got, dict) or not got.get('token') or not got.get('ka'):
+            tok = 'acme-guide-' + secrets.token_hex(12)
+            got = {'token': tok, 'ka': tok + '.' + secrets.token_hex(16)}
+            self.store.set_meta('certs:guide_probe', json.dumps(got))
+        have = S.jload(self.store.get_meta(CHAL_PREFIX + got['token']), {}) or {}
+        if have.get('auth') != got['ka'] or time.time() - float(have.get('at') or 0) > 600:
+            self.store.set_meta(CHAL_PREFIX + got['token'], json.dumps(
+                {'auth': got['ka'], 'at': time.time()}))
+        return got['token'], got['ka']
 
     # ---- acme's own pages (targets/appliance.py) ----------------------------------------
     # Through the engine's Certificates and TLS: the profile of a node or of the

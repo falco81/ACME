@@ -6,8 +6,9 @@ from __future__ import annotations
 import binascii
 import os
 
-from acmelib.plugins.base import PluginError, field
-from acmelib.plugins.challenges._common import HttpChallenge
+from acmelib.plugins.base import PluginError, field, guide_of, guide_step
+from acmelib.plugins.challenges import _dns as D
+from acmelib.plugins.challenges._common import HttpChallenge, as_list
 
 
 class HttpLocal(HttpChallenge):
@@ -24,6 +25,11 @@ class HttpLocal(HttpChallenge):
         field('test_url', 'Address tried by Test', 'text', default='http://127.0.0.1',
               advanced=True,
               help='Where Test fetches a probe token from: this machine\'s nginx on port 80.'),
+        field('public_addresses', 'Addresses in front of acme', 'list', default='',
+              advanced=True, placeholder='198.51.100.7',
+              help='Where the names point when acme is not reached at its own addresses: a '
+                   'NAT, a port forward or a proxy that sends port 80 to acme. The guide '
+                   'takes a name pointing at one of these as pointing at acme.'),
     ]
 
     def present(self, name, token, key_authorization, txt_value):
@@ -66,3 +72,51 @@ class HttpLocal(HttpChallenge):
             raise PluginError('this server does not answer a probe token: %s - is nginx '
                               'serving /.well-known/acme-challenge/ on port 80?' % words)
         return words + ' (a probe token, taken away again)'
+
+    # -- what a person is told ---------------------------------------------------------
+    def answering(self, name):
+        own = self.ctx.own_addresses() or {}
+        out = []
+        for a in ([own.get('vip')] if own.get('vip') else []) + list(own.get('nodes') or []):
+            if a and a not in out:
+                out.append(str(a))
+        return out
+
+    def guide(self, name):
+        bad = self.guide_wildcard(name)
+        if bad:
+            return guide_of(bad)
+        n = D.norm(name)
+        own = self.answering(name)
+        front = as_list(self.c('public_addresses', ''))
+        want = front + [a for a in own if a not in front]
+        steps = [self.guide_points(
+            n, want, (front or own or [''])[0],
+            'Point %s at acme (%s) - or, when a NAT or a proxy in front of acme sends port 80 '
+            'to it, put that address under "Addresses in front of acme"' % (
+                n, ', '.join(want) or 'its address'))]
+        fw = self.ctx.port_open('tcp', int(self.http_port))
+        steps.append(guide_step(
+            'port80', 'The firewall of acme lets port %d in from anywhere' % int(self.http_port),
+            where='acme', done=fw, blocking=fw is False,
+            said={True: 'it is let in', False: 'it is not let in from anywhere',
+                  None: 'acme\'s firewall cannot be asked from here'}[fw],
+            fix='Settings → Firewall: let TCP port %d in from anywhere - the CA asks from the '
+                'internet' % int(self.http_port)))
+        probe = self.ctx.http_probe()
+        if probe:
+            token, ka = probe
+            for addr in own[:4]:
+                ok, words = self.fetch(self.url(addr, token), ka, host=n)
+                steps.append(guide_step(
+                    'probe', 'acme answers /.well-known/acme-challenge/ on port %d of %s'
+                    % (int(self.http_port), addr), where='acme', done=ok, said=words,
+                    fix='Is nginx of acme serving port %d? (Settings → Certificates and TLS)'
+                        % int(self.http_port)))
+            ok, words = self.fetch(self.url(n, token), ka)
+            steps.append(guide_step(
+                'by_name', 'A probe is served at http://%s/' % n, where=n, done=ok, said=words,
+                blocking=False,
+                fix='From here the name does not reach acme - the CA asks from the internet, '
+                    'where it may: the dry run says more'))
+        return guide_of(steps)

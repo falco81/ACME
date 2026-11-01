@@ -12,6 +12,7 @@ from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge,
 
 class Script(DnsChallenge):
     kind = 'script'
+    guide_needs_dry_run = True
     title = 'A script of your own'
     vendor = 'DNS'
     description = ('A program on this machine puts the TXT record in and takes it away - for a '
