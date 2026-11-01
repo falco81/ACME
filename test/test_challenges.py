@@ -1399,7 +1399,7 @@ class TestHttpSsh(unittest.TestCase):
         m.lookup = lambda n, *a, **k: dns.get(n, [])
         st = m._guide_points('test.falco81.net', ['192.168.43.17'])     # no record yet
         self.assertFalse(st['done'])
-        self.assertEqual(st['record']['value'], '195.189.0.26')        # never the private one
+        self.assertEqual((st['record']['type'], st['record']['value']), ('CNAME', 'acmewww.falco81.net.'))   # never the private one
         self.assertIn('Public addresses', st['fix'])
         st = m._guide_points('shop.falco81.net', ['192.168.43.17'])     # public: right (NAT)
         self.assertTrue(st['done'])

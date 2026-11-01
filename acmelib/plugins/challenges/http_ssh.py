@@ -896,8 +896,10 @@ class HttpSsh(HttpChallenge):
                                    'under "Public addresses (NAT, load balancer)" to say so.'
                                    % (n, ', '.join(pub), ', '.join(addrs)))
         hint, by = self._public_hint()
-        rec = {'name': n, 'type': 'AAAA' if hint and ':' in hint else 'A', 'value': hint,
-               'ttl': None} if hint else None
+        # a CNAME to the name that has the public address already: the address kept once
+        rec = ({'name': n, 'type': 'CNAME', 'value': by + '.', 'ttl': None} if by and by != n
+               else {'name': n, 'type': 'AAAA' if ':' in hint else 'A', 'value': hint,
+                     'ttl': None}) if hint else None
         if got:
             said = '%s resolves to %s - a private address the CA cannot reach' % (
                 n, ', '.join(got))
@@ -905,7 +907,9 @@ class HttpSsh(HttpChallenge):
             said = '%s has no A or AAAA record' % n
         fix = ('Point %s at the public address that reaches the web servers%s, and put it '
                'under "Public addresses (NAT, load balancer)"' % (
-                   n, (' - %s, as %s has' % (hint, by)) if hint else ''))
+                   n, (' - a CNAME to %s (%s), or an A record %s; a name served by another '
+                       'web server: redirect its /.well-known/acme-challenge/ there to '
+                       'http://%s instead' % (by, hint, hint, by)) if hint else ''))
         return guide_step('address', title, where='your DNS at %s' % home, record=rec,
                           done=False, said=said, fix=fix)
 
@@ -936,6 +940,16 @@ class HttpSsh(HttpChallenge):
             except Exception as e:                      # noqa: BLE001
                 said = str(e) or type(e).__name__
                 low = said.lower()
+                own = [x.lower() for x in as_list(self.c('prepare_names', '')) if x]
+                if ('closed connection' in low or 'remote end closed' in low or 'reset' in low) \
+                        and own and n not in own and as_bool(self.c('auto_prepare', False)):
+                    # its own block answers some names only - and the name validated is added
+                    # to it before the CA is asked: not a thing to set up
+                    steps.append(guide_step(
+                        'web', title, where=where, done=True, blocking=False,
+                        said='%s is not one of the names acme\'s own block answers yet - "Set '
+                             'nginx up by itself" adds it before the CA is asked' % n))
+                    continue
                 if 'closed connection' in low or 'remote end closed' in low or 'reset' in low:
                     fix = ('nginx on %s closed the connection for %s: no server block answers '
                            'that name (the default one refuses names it does not know). Leave '

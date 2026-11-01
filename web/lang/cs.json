@@ -42085,6 +42085,14 @@
   "pt2351": {
    "source": "acme-dns answered without an account: {0}",
    "text": "acme-dns odpověděl bez účtu: {0}"
+  },
+  "ps2352": {
+   "source": "{0} is not one of the names acme's own block answers yet - \"Set nginx up by itself\" adds it before the CA is asked",
+   "text": "{0} zatím není mezi jmény, na která odpovídá vlastní blok acme – „Nastavit nginx automaticky“ ho přidá před dotazem na CA"
+  },
+  "ps2353": {
+   "source": "Point {0} at the public address that reaches the web servers - a CNAME to {1} ({2}), or an A record {3}; a name served by another web server: redirect its /.well-known/acme-challenge/ there to http://{4} instead, and put it under \"Public addresses (NAT, load balancer)\"",
+   "text": "Nasměrujte {0} na veřejnou adresu, přes kterou se jde na webové servery – CNAME na {1} ({2}), nebo A záznam {3}; jméno obsluhované jiným webovým serverem: tam přesměrujte jeho /.well-known/acme-challenge/ na http://{4}, a zapište ji do „Veřejné adresy (NAT, load balancer)“"
   }
  },
  "rich": {
