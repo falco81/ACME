@@ -1,0 +1,31 @@
+/* teams.css - Settings → Owners and teams (teams.js): the owners and their
+   members, the tags, what is not defined yet - and the owner and tag pickers
+   used wherever a certificate is made or changed. Scoped to .tm* only. */
+.tm td.tm-members{min-width:280px}
+.tm .tm-member{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:0 0 4px}
+.tm .tm-member .mono{word-break:break-all}
+.tm b + .tm-kind{margin-left:8px}
+.tm .tm-right{font-size:11px}
+.tm-legacy h2{color:var(--warn)}
+.tag.tm-undef{background:transparent;border:1px dashed var(--line);color:var(--muted)}
+.tm-pick{display:flex;flex-direction:column;gap:6px;min-width:0}
+.tm-pick select{max-width:100%}
+.tm-undef-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.tm-undef-line:empty{display:none}
+.tm-tags .tm-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:24px}
+.tm-chip{display:inline-flex;align-items:center;gap:2px}
+.tm-chip .iconbtn{width:22px;height:22px;min-height:0;padding:0;border:0;background:transparent}
+.tm-mlist{margin:0 0 10px}
+.tm-mtable td.center, .tm-mtable th.center{text-align:center}
+.tm-addm{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tm-addm input{flex:1;min-width:220px}
+.tm-addm select{width:auto;max-width:100%}
+.tm-prev{margin-left:10px}
+/* The details of a certificate edited where they are shown (certs.js). */
+.tm-details .formgrid{margin-top:4px}
+.tm-details .tm-dfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.tm-next-renewal{margin:0 0 10px}
+@media (max-width:640px){
+  .tm td.tm-members{min-width:0}
+  .tm-addm input{min-width:0;width:100%}
+}

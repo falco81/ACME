@@ -81,6 +81,8 @@ function acme_certs_tab_panels(): void
         <option value="disabled">switched off</option>
       </select>
       <select id="ct-issuer" title="Only the certificates from this source."><option value="">every source</option></select>
+      <select id="ct-owner" title="Only the certificates of this owner." hidden><option value="">every owner</option></select>
+      <select id="ct-tag" title="Only the certificates with this tag." hidden><option value="">every tag</option></select>
       <select id="ct-per" title="How many rows a page."><option>25</option><option selected>50</option><option>100</option><option>500</option></select>
       <span class="muted small ct-said" id="ct-said"></span>
     </div>
@@ -203,6 +205,7 @@ function acme_certs_settings_nav(): void
     <div class="ctl-group">Certificates</div>
     <button type="button" data-pane="certs" data-icon="lock" title="When certificates are renewed, how often a failed one is tried again, and who is told when something goes wrong.">Renewal and notices</button>
     <button type="button" data-pane="dnssrv" data-icon="globe" title="acme's own DNS server for DNS-01: the zone it answers for, its NS names, where it listens, and the records in it.">DNS server</button>
+    <button type="button" data-pane="teams" data-icon="people" title="Who certificates belong to - teams and persons, their members from acme's accounts and the directory, what each may do - and the tags certificates and targets pick from.">Owners and teams</button>
 <?php
 }
 
@@ -217,6 +220,15 @@ function acme_certs_settings_panes(): void
         by mail, SMS, syslog and isemon, as every other alert.</p></div>
     <div class="card full" id="cset-summary" hidden></div>
     <div class="card full"><div id="sect-certs"></div></div>
+  </div>
+
+  <div class="ctl-pane" id="pane-teams" hidden>
+    <div class="ctl-head"><h2 class="ctl-title">Owners and teams</h2>
+      <p class="ctl-lede">Who each certificate belongs to and what its people may do with it, and the
+        tags - defined once here and picked from lists everywhere else, never typed. A full
+        administrator always sees and does everything.</p></div>
+    <div id="teams-host"></div>
+    <div class="card full"><h2>Who sees which certificates</h2><div id="sect-teams"></div></div>
   </div>
 
   <div class="ctl-pane" id="pane-dnssrv" hidden>
