@@ -2934,7 +2934,12 @@ function certWizard(cert, detail) {
     if (W.step > 0) buttons.push({words: 'Back', icon: 'prev', left: true, go: function () { go(W.step - 1); }});
     buttons.push({words: 'Close', close: true});
     if (editing && st.key !== 'review') buttons.push({words: 'Save', icon: 'save', go: function (b) { if (read) read(); finish(b, false); }});
-    if (st.key === 'review' && !editing && planBlocks()) {
+    var unfit = st.key === 'review' ? compatProblems() : [];
+    if (unfit.length) {
+      var at = list.map(function (x) { return x.key; }).indexOf(unfit[0].step);
+      if (at >= 0 && at !== W.step) buttons.push({words: 'Back to ' + tr(list[at].title), cls: 'primary', icon: 'prev', go: function () { go(at); }});
+      buttons.push({words: editing ? 'Save' : 'Create', icon: 'save', cls: 'ct-blocked', go: function () { toast(tr('This does not fit yet - it cannot be created so') + ': ' + unfit[0].what, 'bad'); }});
+    } else if (st.key === 'review' && !editing && planBlocks()) {
       var vstep = list.map(function (x) { return x.key; }).indexOf('validation');
       if (vstep >= 0) buttons.push({words: 'Back to the validation', icon: 'prev', go: function () { go(vstep); }});
       buttons.push({words: 'Create anyway (it will wait until this is in place)', cls: 'primary', icon: 'save', go: function (b) { finish(b, false); }});
@@ -3662,7 +3667,8 @@ function certWizard(cert, detail) {
     var pairs = [
       ['Source', s ? s.name + ' · ' + plugTitle('issuer', s.kind) : W.d.issuer],
       ['Name in acme', W.d.name || (list[0] ? certName(list[0]) : '–')],
-      ['Names', namesChips(list)],
+      ['Common name (CN)', data('span', 'mono', String(W.d.cn || '').trim() || list[0] || '–')],
+      ['Names', namesChips(list.concat(sanOther()))],
       ['Key', keyWords(W.d.key_type) + (W.d.key_type_alt ? ' + ' + keyWords(W.d.key_type_alt) + ' (' + tr('dual') + ')' : '')]
     ];
     if (can().challenge) pairs.push(['Validation', W.d.challenge + (Object.keys(W.d.challenge_map).length ? ' · ' + Object.keys(W.d.challenge_map).length + ' name(s) otherwise' : '')]);
@@ -3679,6 +3685,13 @@ function certWizard(cert, detail) {
     host.appendChild(kvTable(pairs));
     var bad = checkNames();
     if (bad) host.appendChild(el('p', 'ct-bad', bad));
+    /* What does not fit (compat): said, and Create is blocked while it is so. */
+    if (!compatThen(host, steps()[W.step])) return;
+    var left = compatProblems();
+    if (left.length) {
+      host.appendChild(problemBox('This does not fit yet - it cannot be created so', left));
+      bad = bad || left[0].what;
+    }
     /* Before the first certificate: what the validation needs, checked at once.
        While something is missing the CA is not asked (certs_precheck). */
     if (can().challenge && !bad) {
@@ -3717,16 +3730,20 @@ function certWizard(cert, detail) {
     if (d.template) profile.template = d.template;
     var subject = {};
     Object.keys(d.subject).forEach(function (k) { if (d.subject[k]) subject[k] = d.subject[k]; });
+    if (String(d.cn || '').trim()) subject.CN = String(d.cn).trim();
     if (Object.keys(subject).length) profile.subject = subject;
+    if (sanOther().length) profile.san_other = sanOther();
     var useChallenge = can().challenge;
-    return {id: c.id, name: d.name || certName(names()[0]), names: names(), key_type: d.key_type,
-            key_type_alt: (src() && src().dual) ? (d.key_type_alt || '') : '', issuer: d.issuer,
+    var tw = W.compat && W.compat.source && W.compat.source.name === d.issuer ? W.compat.twin.ok : (src() && src().dual);
+    return {id: c.id, name: d.name || certName(names()[0] || String(d.cn || '').trim()), names: names(), key_type: d.key_type,
+            key_type_alt: tw ? (d.key_type_alt || '') : '', issuer: d.issuer,
             challenge: useChallenge ? d.challenge : '', challenge_map: useChallenge ? d.challenge_map : {},
             auto_renew: !!d.auto_renew, renew_days: Number(d.renew_days || 30), reuse_key: !!d.reuse_key,
             profile: profile, tags: splitNames(d.tags), note: d.note, owner: d.owner};
   }
   function finish(b, issue) {
-    var bad = checkNames() || (!W.d.issuer ? 'choose where it comes from' : '');
+    var bad = checkNames() || (!W.d.issuer ? 'choose where it comes from' : '') ||
+      ((compatProblems()[0] || {}).what || '');
     if (bad) { toast(bad, 'bad'); return; }
     busy(b, true);
     capi('certs/save', body()).then(function (d) {
