@@ -1062,6 +1062,17 @@ class ReplicatedPair(PairChecks, unittest.TestCase):
             jobs = node.ok('GET', '/api/certs/jobs', args={'cert_id': cid})['rows']
             self.assertEqual([(j['kind'], j['node']) for j in jobs], [('renew', lead.name)])
 
+    def test_08_replication_state_healthy(self):
+        # Both directions seen from each node (1.0.210): the slots found by
+        # acme's own names - 'o__!_from!_%' missed acme_from_N, and a pair
+        # replicating both ways said "nothing is taken from this node".
+        for n in (self.a, self.b):
+            r = wait_for(lambda: (lambda x: x if x.get('healthy') else None)(
+                n.ok('GET', '/api/ha')['replication']), 60, 1, '%s healthy' % n.name)
+            self.assertTrue(r['outgoing'], (n.name, r))
+            self.assertTrue(all(x['name'].startswith('acme_from_') for x in r['outgoing']), r)
+            self.assertTrue(r['incoming'], (n.name, r))
+
     def test_07_dns_record_from_the_other(self):
         self.b.ok('POST', '/api/dns/record', {'name': '_acme-challenge.from2.acme.test',
                                               'rtype': 'TXT', 'value': 'made-on-n2', 'ttl': 30})
@@ -1274,6 +1285,93 @@ print(json.dumps(acme.fw_apply_wait(st, 5)))
         with self.assertRaises(W.Refused):
             W.pgtls_checked({'id': 'abcdef0123', 'do': 'ha_open', 'db': 'acme', 'user': 'acme',
                              'peer': '192.0.2.12', 'listen': '0.0.0.0/0'})
+
+    def test_06_iptables_blocks_and_open(self):
+        # The customer's acme2: INPUT jumps to ACME-IN (no rule for the other
+        # node), then ends in a REJECT. Seen as shutting it out; the rule put
+        # in is checked (-C) before it is said to be there.
+        got = self.run_py(r"""
+INPUT = '\n'.join(['-P INPUT ACCEPT', '-A INPUT -j ACME-IN',
+    '-A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT', '-A INPUT -p icmp -j ACCEPT',
+    '-A INPUT -i lo -j ACCEPT', '-A INPUT -p tcp -m state --state NEW -m tcp --dport 22 -j ACCEPT',
+    '-A INPUT -j REJECT --reject-with icmp-host-prohibited'])
+CHAIN = ['-N ACME-IN', '-A ACME-IN -i lo -j ACCEPT', '-A ACME-IN -p tcp --dport 22 -j ACCEPT']
+done = []
+class R:
+    def __init__(s, out='', rc=0): s.stdout, s.stderr, s.returncode = out, '', rc
+def run(cmd, **kw):
+    done.append(' '.join(cmd))
+    if cmd[1:3] == ['-S', 'INPUT']: return R(INPUT)
+    if cmd[1:3] == ['-S', 'ACME-IN']: return R('\n'.join(CHAIN))
+    if cmd[1] == '-I': return R()
+    if cmd[1] == '-C': return R(rc=0 if any(' -I ' in ' ' + d for d in done) else 1)
+    return R()
+acme.subprocess.run = run
+acme.shutil.which = lambda n: '/usr/sbin/' + n
+blocks = acme.iptables_blocks('192.168.42.35')
+ok, words = acme.iptables_open('192.168.42.35')
+CHAIN.append('-A ACME-IN -s 192.168.42.35/32 -m comment --comment "acme: The other node" -j ACCEPT')
+after = acme.iptables_blocks('192.168.42.35')
+print(json.dumps({'blocks': blocks, 'ok': ok, 'words': words, 'after': after, 'done': done}))
+""")
+        self.assertIn('rejects', got['blocks'])
+        self.assertIn('iptables -I INPUT 1 -s 192.168.42.35 -j ACCEPT', got['blocks'])
+        self.assertTrue(got['ok'], got)
+        self.assertTrue(any(d.startswith('iptables -I INPUT 1 -s 192.168.42.35') for d in got['done']))
+        self.assertTrue(any(d.startswith('iptables -C INPUT -s 192.168.42.35') for d in got['done']))
+        self.assertEqual(got['after'], '')
+
+    def test_07_firewall_peer_truthful(self):
+        # firewall-cmd there but firewalld not running: nothing said as opened;
+        # running but the rule refused: said so, with the command.
+        got = self.run_py(r"""
+import io, contextlib
+class R:
+    def __init__(s, rc=0, out=''): s.returncode, s.stdout, s.stderr = rc, out, 'Error: INVALID_RULE'
+state = {'running': False}
+def run(cmd, **kw):
+    if cmd[:2] == ['firewall-cmd', '--state']: return R(0 if state['running'] else 252)
+    if cmd[:2] == ['firewall-cmd', '--get-default-zone']: return R(0, 'public')
+    return R(1)
+acme.subprocess.run = run
+acme.shutil.which = lambda n: '/usr/bin/' + n
+pal = acme.Palette(False)
+out = {}
+for k in (False, True):
+    state['running'] = k
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        acme.firewall_peer('192.168.42.35', pal, 5432)
+    out[str(k)] = buf.getvalue()
+print(json.dumps(out))
+""")
+        self.assertEqual(got['False'], '')
+        self.assertIn('does NOT let 192.168.42.35', got['True'])
+        self.assertNotIn('firewalld lets', got['True'])
+
+    def test_08_half_joined_said(self):
+        got = self.run_py(r"""
+acme.write_private(acme.HA_JOINING_FILE, json.dumps({'at': time.time(), 'file': '/root/acme-join-acme1.json',
+    'node': 'acme2', 'peer': '192.168.42.35', 'peer_name': 'acme1', 'error': 'No route to host'}))
+w = acme.ha_joining_words()
+acme.HA_JOINING_FILE.unlink()
+print(json.dumps({'w': w, 'none': acme.ha_joining_words()}))
+""")
+        self.assertIn('half joined', got['w'])
+        self.assertIn('acme --ha-join /root/acme-join-acme1.json --node-name acme2', got['w'])
+        self.assertIn('password', got['w'])
+        self.assertEqual(got['none'], '')
+
+    def test_09_subscription_trouble_words(self):
+        got = self.run_py(r"""
+print(json.dumps({
+  'hba': acme.ha_subscribe_trouble(Exception('FATAL:  no pg_hba.conf entry for host "192.168.42.36", user "acme"'), 'this node'),
+  'route': acme.ha_subscribe_trouble(Exception('could not connect to the publisher: connection to server at "192.168.42.36", port 5432 failed: No route to host'), 'this node (192.168.42.36)', '192.168.42.35'),
+  'refused': acme.ha_subscribe_trouble(Exception('Connection refused'), 'the other node')}))
+""")
+        self.assertIn('host acme acme 192.168.42.36/32 scram-sha-256', got['hba'])
+        self.assertIn('firewall', got['route'])
+        self.assertIn('listen_addresses', got['refused'])
 
 
 class HaPgHbaLines(unittest.TestCase):

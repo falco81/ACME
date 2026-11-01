@@ -166,7 +166,15 @@ def iptables_blocks(src):
                                                     re.escape(str(src)), x):
             return ''
         if x.startswith('-A INPUT -j ACME-IN'):
-            return ''          # acme's chain comes first: it is what lets it in or not
+            # acme's chain first: enough when it lets the other node in.
+            try:
+                chain = subprocess.run([fam, '-S', 'ACME-IN'], capture_output=True, text=True,
+                                       timeout=10).stdout.splitlines()
+            except (OSError, subprocess.TimeoutExpired):
+                chain = []
+            if any(re.search(r'-s %s(/(32|128))? .*-j ACCEPT' % re.escape(str(src)), y)
+                   for y in chain):
+                return ''
         if x.startswith('-A INPUT') and re.search(r'-j (REJECT|DROP)\b', x) and ' -s ' not in x \
                 and ' --dport ' not in x:
             return ('this machine\'s iptables (INPUT) %s everything not let in before it: '
@@ -176,6 +184,30 @@ def iptables_blocks(src):
         return ('this machine\'s iptables drops what INPUT does not let in: iptables -I INPUT 1 '
                 '-s %s -j ACCEPT  lets the other node in' % src)
     return ''
+
+
+def iptables_open(src):
+    """As root on the command line (1.0.210): the other node let in ahead of
+    this machine's own INPUT when that would turn it away and acme's chain
+    is not what decides - one rule, live, checked with -C afterwards.
+    Returns (ok, words); (True, '') when nothing was needed."""
+    if not iptables_blocks(src):
+        return True, ''
+    fam = 'ip6tables' if ':' in str(src) else 'iptables'
+    rule = ['INPUT', '-s', str(src), '-m', 'comment', '--comment', 'acme: the other node (join)',
+            '-j', 'ACCEPT']
+    try:
+        got = subprocess.run([fam, '-I'] + rule[:1] + ['1'] + rule[1:], capture_output=True,
+                             text=True, timeout=15)
+        there = subprocess.run([fam, '-C'] + rule, capture_output=True, timeout=15).returncode == 0
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, '%s could not be changed: %s' % (fam, e)
+    if got.returncode != 0 or not there:
+        return False, ('%s does NOT let %s in: %s - as root:  %s -I INPUT 1 -s %s -j ACCEPT' % (
+            fam, src, (got.stderr or '').strip()[-200:] or 'the rule is not there', fam, src))
+    return True, ('%s lets %s in: -I INPUT 1 -s %s -j ACCEPT ("acme: the other node (join)") - '
+                  'live, not kept over a reboot; acme\'s own firewall (Settings → Firewall) '
+                  'keeps the cluster open for good' % (fam, src, src))
 
 
 def fw_here_words(src, port=5432):

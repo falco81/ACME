@@ -117,6 +117,18 @@ def heartbeat(store, daemon=None):
         pass
     beat['mid'] = machine_id()
     name_clash_check(store, beat)
+    # A node being joined that is heard from now (1.0.210): no longer waited
+    # for - the item for the other node lets it in for good.
+    try:
+        pend = ha_pending(store)
+        if pend:
+            heard = {str(n.get('address') or '') for n in ha_nodes(store)
+                     if not n.get('me') and n.get('alive')} | {str(CONFIG.get('ha_peer') or '')}
+            for x in pend:
+                if x['address'] in heard and CONFIG.get('ha_mode'):
+                    ha_pending_drop(store, x['address'])
+    except Exception:                                   # noqa: BLE001
+        pass
     store.set_meta('node:' + node_name(), json.dumps(beat))
     return beat
 

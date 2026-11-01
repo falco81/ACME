@@ -815,6 +815,15 @@ def cli_ha(args, pal):
             pass
         def said(step, ok, words):
             print((pal.ok_line if ok else pal.warn_line)(words))
+            if step == 'firewall':
+                for a in {str(peer.get('address') or ''), str(data['db'].get('db_host') or '')}:
+                    try:
+                        plain_ip(a, 'address')
+                    except ValueError:
+                        continue
+                    okb, w = iptables_open(a)
+                    if w:
+                        print((pal.ok_line if okb else pal.bad_line)(w))
         try:
             got = ha_join(data, name, even_if_data=args.discard_local, by='command line',
                           say=said, root_now=True)
@@ -940,9 +949,9 @@ def cli_ha_open_now(store, peer, pal):
         print(pal.bad_line('acme\'s firewall (ACME-IN) does NOT let %s in yet: %s' % (
             ', '.join(ips), got['said'])))
     for ip in ips:
-        blocks = iptables_blocks(ip)
-        if blocks:
-            print(pal.bad_line(blocks))
+        okb, words = iptables_open(ip)
+        if words:
+            print((pal.ok_line if okb else pal.bad_line)(words))
 
 
 def firewall_peer(peer, pal, port=5432):
@@ -1113,9 +1122,9 @@ def cli_ha_join_replicated(args, pal, data, ask):
         fw = ha_join_open(FW_HERE['store'], data, 'command line', root_now=True)
         (say if fw['state'] in ('done', 'off') else (lambda t: print(pal.bad_line(t))))(
             'the firewall: %s' % fw['said'])
-        blocks = iptables_blocks(peer.get('address') or '')
-        if blocks:
-            print(pal.bad_line(blocks))
+        okb, words = iptables_open(peer.get('address') or '')
+        if words:
+            print((pal.ok_line if okb else pal.bad_line)(words))
     except Exception as e:                              # noqa: BLE001
         print(pal.warn_line('the firewall could not be opened to %s: %s' % (
             peer.get('address'), e)))
@@ -1127,6 +1136,23 @@ def cli_ha_join_replicated(args, pal, data, ask):
             pg_restart_local(port)
             say('PostgreSQL started again')
         firewall_peer(peer['address'], pal, port)
+        # Both ways tried before anything is copied (1.0.210): the other
+        # node's database from here, and this node's own by its address - the
+        # one the other node's subscription comes to - each failure said with
+        # its cause, not met half way through.
+        me0 = args.ha_address or CONFIG.get('ha_address') or node_address()
+        for host, p, whose, src in ((peer['address'], int(peer.get('port') or 5432),
+                                     'the other node (%s)' % peer['address'], me0),
+                                    (me0, port, 'this node (%s, by its own address)' % me0,
+                                     peer['address'])):
+            try:
+                db_open({'db_engine': 'postgres', 'db_host': host, 'db_port': p, 'db_name': name,
+                         'db_user': user, 'db_password': pw, 'db_timeout_s': 10}).close()
+            except Exception as e:                      # noqa: BLE001
+                raise ValueError('the database of %s cannot be reached from here: %s' % (
+                    whose, ha_subscribe_trouble(e, whose, src if whose.startswith('this')
+                                                else '')))
+            say('the database of %s answers from here' % whose)
         local = db_open({'db_engine': 'postgres', 'db_host': '127.0.0.1', 'db_port': port,
                          'db_name': name, 'db_user': user, 'db_password': pw})
         local.make_tables()

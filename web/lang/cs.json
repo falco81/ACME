@@ -24988,17 +24988,13 @@
    "source": "choose a service or fill in \"Files\"",
    "text": "zvolte službu, nebo vyplňte „Soubory“"
   },
-  "sc1182": {
-   "source": "A line from vm to every isemon receiver that isemon shows as a sign-in of the name given - its message says it is a test.",
-   "text": "Řádek z vm do každého přijímače isemonu, který isemon ukáže jako přihlášení zadaného jména – jeho zpráva říká, že jde o test."
-  },
-  "sc1183": {
-   "source": "Tento server: its version, how long it has run, problems.",
-   "text": "Tento server: verze, jak dlouho běží, problémy."
-  },
   "sc1184": {
    "source": "the renewer",
    "text": "automatické obnovování"
+  },
+  "sc1185": {
+   "source": "AWS China (route53.amazonaws.com.cn, cn-northwest-1)",
+   "text": "AWS Čína (route53.amazonaws.com.cn, cn-northwest-1)"
   }
  },
  "patterns": {
