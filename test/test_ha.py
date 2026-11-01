@@ -808,25 +808,76 @@ class SharedPair(PairChecks, unittest.TestCase):
                                       if x.get('alive')]) == 2 else None, 40, 1, 'both nodes alive')
         self.assertEqual(sorted(x['name'] for x in nodes), ['n1', 'n2'])
 
-    def test_04_lease_is_one_write(self):
-        """Many takers at the same moment of a lease that ran out: one wins."""
-        code = r'''
+
+LEASE_RACE = r'''
 import threading
+import acmelib.engine as E
 from acmelib.certs import renewer
-acme.CONFIG['node_name'] = sys.argv[-1] if False else acme.CONFIG.get('node_name')
-st.set_meta(renewer.LEASE_KEY, json.dumps({'node': 'gone', 'until': 1, 'vip': False}))
-won = []
-def one(name):
-    s2 = acme.Storage(acme.open_db())
-    import acmelib.engine as E
-    old = E.node_name
-    won.append((name, renewer.lease_tick(s2)))
-ts = [threading.Thread(target=one, args=(i,)) for i in range(8)]
-[t.start() for t in ts]; [t.join() for t in ts]
-print(json.dumps(sum(1 for _n, w in won if w)))
+st.db.run('DELETE FROM meta WHERE k = ?', (renewer.LEASE_KEY,))
+
+def as_node(name, fn, *a):
+    E.CONFIG['node_name'] = name
+    return fn(*a)
+
+out = {}
+out['n1_takes'] = as_node('n1', renewer.lease_tick, st)
+out['n2_waits'] = as_node('n2', renewer.lease_tick, st)
+out['n1_keeps'] = as_node('n1', renewer.lease_tick, st)
+st.set_meta(renewer.LEASE_KEY, json.dumps({'node': 'n1', 'until': 1, 'vip': False}))
+out['n2_takes_run_out'] = as_node('n2', renewer.lease_tick, st)
+out['n1_waits'] = as_node('n1', renewer.lease_tick, st)
+as_node('n1', renewer.lease_drop, st)
+out['drop_not_mine'] = renewer.lease_read(st)['node']
+as_node('n2', renewer.lease_drop, st)
+out['dropped'] = renewer.lease_read(st)
+
+# Eight takers of a lease that ran out (and of none at all), at the same moment.
+for start in ('run out', 'none'):
+    if start == 'none':
+        st.db.run('DELETE FROM meta WHERE k = ?', (renewer.LEASE_KEY,))
+    else:
+        st.set_meta(renewer.LEASE_KEY, json.dumps({'node': 'gone', 'until': 1, 'vip': False}))
+    raw = st.get_meta(renewer.LEASE_KEY)
+    go = threading.Barrier(8)
+    won = []
+    def one(i):
+        s2 = acme.Storage(acme.open_db())
+        go.wait()
+        won.append(renewer.lease_swap(s2, raw, json.dumps({'node': 't%d' % i, 'until': 2e9})))
+    ts = [threading.Thread(target=one, args=(i,)) for i in range(8)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    out['winners ' + start] = sum(1 for w in won if w)
+st.db.run('DELETE FROM meta WHERE k = ?', (renewer.LEASE_KEY,))
+print(json.dumps(out))
 '''
-        # Lease ticks of one process race each other as two nodes would; the
-        # live daemons may take it too - so they are not asked here: at most
-        # one of these and of them.
-        n = int(self.a.py(code).strip().splitlines()[-1])
-        self.assertLessEqual(n, 1)
+
+
+class LeaseRace(unittest.TestCase):
+    """The lease of one database (alone, or shared by two nodes): taken by one,
+    kept, taken over once it ran out, and of many asking at once one wins."""
+
+    def check(self, db, empty=None):
+        if empty:
+            empty()
+        node = Node('lease', db)
+        try:
+            node.py('st.db.make_tables()')
+            got = json.loads(node.py(LEASE_RACE).strip().splitlines()[-1])
+        finally:
+            node.cleanup()
+        self.assertEqual(got, {'n1_takes': True, 'n2_waits': False, 'n1_keeps': True,
+                               'n2_takes_run_out': True, 'n1_waits': False,
+                               'drop_not_mine': 'n2', 'dropped': None,
+                               'winners run out': 1, 'winners none': 1})
+
+    def test_sqlite(self):
+        self.check({'db_engine': 'sqlite'})
+
+    def test_postgres(self):
+        need_pg(self)
+        self.check(PG, pg_empty)
+
+    def test_mariadb(self):
+        need_my(self)
+        self.check(MY, my_empty)
