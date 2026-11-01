@@ -374,7 +374,7 @@ class DnsServer(object):
             _log('listening on %s' % ', '.join(self.listening))
         for f in self.failed:
             _log('%s %s: %s' % (f['address'], f['proto'], f['error']),
-                 'bad' if f['fatal'] else 'info')
+                 'error' if f['fatal'] else 'info')
 
     @staticmethod
     def _bind_words(e, addr, port, proto):

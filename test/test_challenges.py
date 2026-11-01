@@ -520,7 +520,6 @@ class TestDnsServer(unittest.TestCase):
         self.assertIn('127.0.0.1:%d/udp' % self.port, st['listening'])
         self.assertIn('127.0.0.1:%d/tcp' % self.port, st['listening'])
         self.assertGreater(st['queries'], 0)
-        self.assertEqual(st['zones'], [ZONE, 'example.com'] if False else st['zones'])
         self.assertIn(ZONE, st['zones'])
 
     def test_database_away(self):

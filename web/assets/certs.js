@@ -523,6 +523,11 @@ function fieldForm(fields, values, secrets, opts) {
     } else if (type === 'number') {
       input = numberBox(v, f.placeholder, f.min, f.max);
       get = function () { return input.value === '' ? null : Number(input.value); };
+    } else if (type === 'secret' && f.multiline) {
+      input = areaBox('', secrets[f.key] ? 'set - leave empty to keep it' : (f.placeholder || 'paste it here'), 4, 'mono ct-secretarea');
+      noI18n(input);
+      get = function () { return input.value; };
+      wide = true;
     } else if (type === 'secret') {
       var isSet = !!secrets[f.key];
       input = secretBox('', isSet ? 'set - leave empty to keep it' : (f.placeholder || 'not set'), 'mono');
@@ -573,6 +578,26 @@ function fieldForm(fields, values, secrets, opts) {
     items.forEach(function (it) { o[it.f.key] = it.get(); });
     return o;
   };
+  /* A choice that fills others in (`fills`: {option: {key: value}}) - a
+     preset of a service, say: chosen, the fields below take its values. */
+  var put = function (it, v) {
+    var box = it.input._input || it.input;
+    if (it.f.type === 'bool') { box.checked = truthy(v); return; }
+    if (it.f.type === 'pem') { it.input._input.value = v || ''; return; }
+    if (Array.isArray(v)) v = v.join('\n');
+    box.value = v === undefined || v === null ? '' : String(v);
+  };
+  items.forEach(function (it) {
+    if (!it.f.fills || it.f.type !== 'select') return;
+    it.input.addEventListener('change', function () {
+      var want = it.f.fills[it.input.value];
+      if (!want) return;
+      Object.keys(want).forEach(function (k) {
+        var other = items.filter(function (x) { return x.f.key === k; })[0];
+        if (other) put(other, want[k]);
+      });
+    });
+  });
   var shown = function (it, cur) {
     var cond = it.f.show_if;
     if (!cond || typeof cond !== 'object') return true;
