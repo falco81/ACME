@@ -140,13 +140,25 @@ class BuiltinDns(DnsChallenge):
         except Exception as e:                          # noqa: BLE001
             self.ctx.step('%s TXT could not be taken away: %s' % (fqdn, e), 'warn')
 
+    def _own_address(self, cfg):
+        """(host, port) acme's DNS server is asked at: where it really answers -
+        the VIP when it answers on the VIP only (Settings → DNS server)."""
+        answering = None
+        info = getattr(self.ctx, 'dns_server_info', None)
+        if callable(info):
+            try:
+                answering = (info() or {}).get('answering')
+            except Exception:                           # noqa: BLE001
+                answering = None
+        return D.own_server_address(cfg, answering)
+
     def ready(self, name, handle):
         handle = handle or {}
         fqdn, rr, txt = handle.get('fqdn'), handle.get('rr'), handle.get('txt')
         if fqdn and rr and fqdn != rr and not self._said.get('cname:' + rr):
             ok, words = self.cname_ok(rr, fqdn)
             self.say_once('cname:' + rr, words, 'ok' if ok else 'warn')
-        host, port = D.own_server_address(settings(self.ctx))
+        host, port = self._own_address(settings(self.ctx))
         try:
             got = D.txt_at(host, fqdn, port=port, timeout=2.0)
         except (D.DnsError, D.FormErr, OSError) as e:
@@ -243,7 +255,7 @@ class BuiltinDns(DnsChallenge):
         return guide_of(steps)
 
     def guide_server(self, zone, info):
-        host, port = D.own_server_address(settings(self.ctx))
+        host, port = self._own_address(settings(self.ctx))
         what = 'acme\'s own DNS server answers for its zone'
         try:
             m = D.query(host, zone, 6, port=port, rd=False, timeout=self.guide_timeout)
@@ -349,7 +361,7 @@ class BuiltinDns(DnsChallenge):
         out, bad = list(self.instructions()), []
         cfg = settings(self.ctx)
         zone = self.zone()
-        host, port = D.own_server_address(cfg)
+        host, port = self._own_address(cfg)
         try:
             m = D.query(host, zone, 6, port=port, rd=False, timeout=2.0)
             if m.rcode == D.NOERROR and m.records(6):

@@ -91,5 +91,54 @@ class Expose(unittest.TestCase):
         self.assertEqual(srv.cfg()['dns_ns_addresses'], VIP)
 
 
+
+class BuiltinAsksWhereItAnswers(unittest.TestCase):
+    """The validation 'acme's own DNS server' asks the server where it really
+    answers: on the VIP only, the VIP - not 127.0.0.1, where it does not listen
+    then (Test said "does not answer on 127.0.0.1 port 53 ... refused")."""
+
+    def test_vip_only_test_and_ready(self):
+        from test_challenges import FakeCtx, plugin
+        port = free_port()
+        cfg = server_config(port, dns_listen='0.0.0.0', dns_expose='vip')
+        store = MemStore()
+        srv = DnsServer(store, cfg)
+        srv.vip_address = lambda: VIP
+        srv.start()
+        try:
+            ctx = FakeCtx(store, settings=cfg)
+            ctx.dns_server_info = lambda: {'answering': [VIP], 'expose': 'vip'}
+            m = plugin('dns_builtin')({'zone': ZONE}, ctx)
+            self.assertEqual(m._own_address(cfg), (VIP, port))
+            from acmelib.plugins.base import PluginError
+            try:
+                said = m.test()
+            except PluginError as e:         # no delegation in a test - that part may fail
+                said = str(e.detail or e)
+            self.assertIn('answers for %s on %s port %d' % (ZONE, VIP, port), said)
+            self.assertNotIn('does not answer', said)
+            name = 'www.example.com'
+            h = m.present(name, 'tok', 'tok.key', 'proof-of-it')
+            import time
+            for _ in range(20):                 # the server reads records at most every 1 s
+                if m.ready(name, h):
+                    break
+                time.sleep(0.2)
+            else:
+                self.fail('not answered on the VIP: %s' % ctx.steps)
+            m.cleanup(name, h)
+            # and on the nodes it is not reachable at all - which is the point
+            self.assertFalse(ask(NODE, port))
+        finally:
+            srv.stop()
+
+    def test_both_still_asks_here(self):
+        from acmelib.plugins.challenges import _dns as DD
+        self.assertEqual(DD.own_server_address({'dns_port': 53, 'dns_expose': 'both'},
+                                               [VIP, NODE])[0], '127.0.0.1')
+        self.assertEqual(DD.own_server_address({'dns_port': 53, 'dns_expose': 'vip'},
+                                               [VIP])[0], VIP)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

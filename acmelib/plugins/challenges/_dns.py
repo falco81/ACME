@@ -878,9 +878,14 @@ def txt_at(server, name, port=53, timeout=3.0, rd=False):
     return [r.text for r in m.answer if r.rtype == 16 and norm(r.name) == norm(name)]
 
 
-def own_server_address(cfg):
-    """Where acme's own DNS server can be asked from this machine."""
+def own_server_address(cfg, answering=None):
+    """Where acme's own DNS server can be asked from this machine. With the
+    server answering on the VIP address only (dns_expose 'vip'), the VIP - it
+    does not listen on this machine's own addresses then, 127.0.0.1 neither;
+    `answering` is dnsserver.server_info()['answering'] ([the VIP] there)."""
     port = int(cfg.get('dns_port') or 53)
+    if str(cfg.get('dns_expose') or 'both').strip().lower() == 'vip' and answering:
+        return str(answering[0]), port
     listen = [x.strip() for x in str(cfg.get('dns_listen') or '0.0.0.0,::').split(',') if x.strip()]
     for a in listen:
         if a in ('0.0.0.0', '127.0.0.1'):
