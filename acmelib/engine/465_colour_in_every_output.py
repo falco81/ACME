@@ -931,9 +931,18 @@ def cli_ha_open_now(store, peer, pal):
     except Exception as e:                              # noqa: BLE001
         print(pal.warn_line('the firewall could not be opened to %s: %s' % (peer, e)))
         return
-    words = 'the firewall lets %s in (for a day, until it has joined): %s' % (
-        ', '.join(ips), got['said'])
-    print((pal.ok_line if got['state'] in ('done', 'off') else pal.warn_line)(words))
+    if got['state'] == 'done':
+        print(pal.ok_line('acme\'s firewall (ACME-IN) lets %s in, for a day until it has joined '
+                          '- applied: %s' % (', '.join(ips), got['said'])))
+    elif got['state'] == 'off':
+        print(pal.dim('  acme\'s firewall (ACME-IN): %s' % got['said']))
+    else:
+        print(pal.bad_line('acme\'s firewall (ACME-IN) does NOT let %s in yet: %s' % (
+            ', '.join(ips), got['said'])))
+    for ip in ips:
+        blocks = iptables_blocks(ip)
+        if blocks:
+            print(pal.bad_line(blocks))
 
 
 def firewall_peer(peer, pal, port=5432):
@@ -1100,9 +1109,13 @@ def cli_ha_join_replicated(args, pal, data, ask):
     try:
         # The database this node has now (not HA_STORE: the rebuild below
         # writes its maintenance into that one).
-        fw = ha_join_open(Storage(open_db()), data, 'command line', root_now=True)
-        (say if fw['state'] in ('done', 'off') else (lambda t: print(pal.warn_line(t))))(
+        FW_HERE['store'] = Storage(open_db())
+        fw = ha_join_open(FW_HERE['store'], data, 'command line', root_now=True)
+        (say if fw['state'] in ('done', 'off') else (lambda t: print(pal.bad_line(t))))(
             'the firewall: %s' % fw['said'])
+        blocks = iptables_blocks(peer.get('address') or '')
+        if blocks:
+            print(pal.bad_line(blocks))
     except Exception as e:                              # noqa: BLE001
         print(pal.warn_line('the firewall could not be opened to %s: %s' % (
             peer.get('address'), e)))
@@ -1270,11 +1283,11 @@ def cli_ha_standalone(args, pal):
         # names from before - taken away too.
         for r in store.db.rows("SELECT subname FROM pg_subscription WHERE subdbid = (SELECT oid "
                                "FROM pg_database WHERE datname = current_database()) AND subname "
-                               "LIKE 'o__!_from!_%' ESCAPE '!'"):
+                               "LIKE 'acme!_from!_%' ESCAPE '!'"):
             ha_drop_sub(store.db, r['subname'])
             say('the subscription %s is gone' % r['subname'])
         for r in store.db.rows("SELECT slot_name FROM pg_replication_slots WHERE slot_name "
-                               "LIKE 'o__!_from!_%' ESCAPE '!' AND database = current_database()"):
+                               "LIKE 'acme!_from!_%' ESCAPE '!' AND database = current_database()"):
             try:
                 _ha_drop_slot(store.db, r['slot_name'])
                 say('the replication slot %s is gone (nothing is kept for the other node '

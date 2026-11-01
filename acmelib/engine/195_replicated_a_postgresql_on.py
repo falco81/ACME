@@ -330,7 +330,7 @@ def ha_wait_copied(db, sub, say, seconds=3600):
     raise ValueError('the copy from the other node did not finish in %d s' % seconds)
 
 
-def ha_subscribe_trouble(e, whose):
+def ha_subscribe_trouble(e, whose, src=''):
     """Why a subscription's connection was refused, with what to do (1.0.210)."""
     t = scrub_secret(str(e).split('\n')[0][:300])
     m = re.search(r'no pg_hba\.conf entry for host "([^"]+)"', str(e))
@@ -341,14 +341,17 @@ def ha_subscribe_trouble(e, whose):
                   whose, m.group(1), CONFIG.get('db_name') or 'acme', CONFIG.get('db_user')
                   or 'acme', m.group(1), 128 if ':' in m.group(1) else 32))
     elif 'connection refused' in t.lower():
-        t += ' - PostgreSQL of %s does not listen on that address (listen_addresses)' % whose
-    elif 'timeout' in t.lower() or 'timed out' in t.lower():
-        t += (' - nothing answers: a firewall between the nodes (acme opens the nodes\' own, '
-              'Settings → Firewall)')
+        t += (' - PostgreSQL of %s does not listen on that address (listen_addresses: '
+              'acme --ha-join / --ha-setup set it to *, then restart PostgreSQL)' % whose)
+    elif any(w in t.lower() for w in ('no route to host', 'timeout', 'timed out',
+                                      'network is unreachable')):
+        here = fw_here_words(src) if src else ''
+        t += (' - a firewall drops or rejects it: %s, or one in between%s' % (
+            'the one on %s' % whose, (' (%s)' % here) if here else ''))
     return t
 
 
-def ha_subscribe(db, sub, conninfo, copy_data, whose='the other node'):
+def ha_subscribe(db, sub, conninfo, copy_data, whose='the other node', src=''):
     """A subscription made on `db`. The statement carries the password of
     the account in its conninfo, so it is kept out of PostgreSQL's log for
     the session, and out of any error that comes back."""
@@ -378,7 +381,7 @@ def ha_subscribe(db, sub, conninfo, copy_data, whose='the other node'):
                                           'true' if copy_data else 'false')))
     except Exception as e:                              # noqa: BLE001
         raise ValueError('the subscription %s could not be made: %s'
-                         % (sub, scrub_secret(str(e).split('\n')[0][:300])))
+                         % (sub, ha_subscribe_trouble(e, whose, src)))
     finally:
         for back in ('RESET log_statement', 'RESET log_min_error_statement'):
             try:
@@ -444,7 +447,7 @@ def _ha_rebuild(local, remote, my_slot, peer_slot, my_host, my_port, peer_host, 
         say('the other node takes this one\'s rows from now on')
         ha_subscribe(remote, mine_on_peer, ha_conninfo(my_host, my_port, name, user, password),
                      copy_data=False, whose='this node (%s, as the other node reaches it)'
-                     % my_host)
+                     % my_host, src=peer_host)
         done = True
     finally:
         # Odd or even again whatever happened (1.0.57): RESTART IDENTITY
@@ -497,7 +500,7 @@ def ha_repl_state(store):
         for r in db.rows(
                 "SELECT slot_name AS name, active, wal_status, "
                 "pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) AS behind "
-                "FROM pg_replication_slots WHERE slot_name LIKE 'o__!_from!_%' ESCAPE '!' "
+                "FROM pg_replication_slots WHERE slot_name LIKE 'acme!_from!_%' ESCAPE '!' "
                 "AND database = current_database()"):
             r['behind'] = int(float(r.get('behind') or 0))
             out['outgoing'].append(r)
