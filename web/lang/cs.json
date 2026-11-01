@@ -19931,6 +19931,1938 @@
   "s4981": {
    "source": "✗: a token is there under that name already - left as it is; take one of the two away by hand.",
    "text": "✗: pod tím jménem už token je – zůstává, jak je; jeden z nich odeberte ručně."
+  },
+  "sc0001": {
+   "source": "Every certificate acme keeps: when each runs out, where it comes from, where it is deployed. Click a row for everything about one - renew, deploy, export, revoke.",
+   "text": "Všechny certifikáty, které acme spravuje: kdy který vyprší, odkud pochází a kde je nasazený. Kliknutím na řádek zobrazíte vše o certifikátu – obnovení, nasazení, export, odvolání."
+  },
+  "sc0002": {
+   "source": "The certificate authorities of acme's own - roots and the intermediates under them, what each signed, its revocation list.",
+   "text": "Vlastní certifikační autority acme – kořenové a podřízené pod nimi, co která podepsala a její seznam odvolaných certifikátů."
+  },
+  "sc0003": {
+   "source": "Authorities",
+   "text": "Autority"
+  },
+  "sc0004": {
+   "source": "Where certificates come from: Let's Encrypt or another ACME CA, an authority of acme's own, self-signed, Microsoft AD CS, SCEP.",
+   "text": "Odkud certifikáty pocházejí: Let's Encrypt nebo jiná ACME CA, vlastní autorita acme, self-signed, Microsoft AD CS, SCEP."
+  },
+  "sc0005": {
+   "source": "Sources",
+   "text": "Zdroje"
+  },
+  "sc0006": {
+   "source": "How names are proved to an ACME CA: DNS-01 through acme's own DNS server or your DNS provider, HTTP-01 here or on your web servers over SSH.",
+   "text": "Jak se jména prokazují ACME autoritě: DNS-01 přes vlastní DNS server acme nebo vašeho DNS poskytovatele, HTTP-01 zde nebo na vašich webových serverech přes SSH."
+  },
+  "sc0007": {
+   "source": "Validation",
+   "text": "Validace"
+  },
+  "sc0008": {
+   "source": "Where certificates go: Linux servers over SSH, F5, NetScaler, MikroTik, FortiGate and the rest - and what is deployed on each.",
+   "text": "Kam certifikáty míří: linuxové servery přes SSH, F5, NetScaler, MikroTik, FortiGate a další – a co je na kterém nasazeno."
+  },
+  "sc0009": {
+   "source": "Targets",
+   "text": "Cíle"
+  },
+  "sc0010": {
+   "source": "Every piece of work - an issue, a renewal, a deployment, a test - with each of its steps. Running ones update by themselves.",
+   "text": "Každá úloha – vystavení, obnovení, nasazení, test – se všemi svými kroky. Běžící se obnovují samy."
+  },
+  "sc0011": {
+   "source": "Jobs",
+   "text": "Úlohy"
+  },
+  "sc0012": {
+   "source": "Bring in a certificate you already have - PEM, CRT, CER, DER, P7B, PFX/P12, JKS or a key - by dropping the file here.",
+   "text": "Přeneste sem certifikát, který už máte – PEM, CRT, CER, DER, P7B, PFX/P12, JKS nebo klíč – přetažením souboru."
+  },
+  "sc0013": {
+   "source": "Import",
+   "text": "Import"
+  },
+  "sc0014": {
+   "source": "A self-signed certificate in one step: its names, its key and how long it lasts.",
+   "text": "Self-signed certifikát jedním krokem: jména, klíč a doba platnosti."
+  },
+  "sc0015": {
+   "source": "A key made here and a CSR for an authority acme does not speak to; the certificate it sends back is uploaded later.",
+   "text": "Klíč vytvořený zde a CSR pro autoritu, se kterou acme nekomunikuje; certifikát, který vrátí, se nahraje později."
+  },
+  "sc0016": {
+   "source": "CSR for an outside CA",
+   "text": "CSR pro externí CA"
+  },
+  "sc0017": {
+   "source": "A new certificate: where it comes from, its names, its key, how its names are proved, when it renews and where it goes.",
+   "text": "Nový certifikát: odkud pochází, jeho jména, klíč, jak se jména prokazují, kdy se obnovuje a kam se nasazuje."
+  },
+  "sc0018": {
+   "source": "Add a certificate",
+   "text": "Přidat certifikát"
+  },
+  "sc0019": {
+   "source": "Every certificate acme keeps, renewed by itself before it runs out and put where it is deployed. Click a row for everything about one: its names and chain, every version it has had, where it is deployed, its jobs - and renew, deploy, export or revoke it.",
+   "text": "Všechny certifikáty, které acme spravuje – samy se obnoví, než vyprší, a nasadí se tam, kam patří. Kliknutím na řádek zobrazíte vše o certifikátu: jména a řetězec, všechny jeho verze, kde je nasazený, jeho úlohy – a můžete jej obnovit, nasadit, exportovat nebo odvolat."
+  },
+  "sc0020": {
+   "source": "a name, a serial, a tag…",
+   "text": "jméno, sériové číslo, štítek…"
+  },
+  "sc0021": {
+   "source": "Only the certificates in this state.",
+   "text": "Jen certifikáty v tomto stavu."
+  },
+  "sc0022": {
+   "source": "running out soon",
+   "text": "brzy vyprší"
+  },
+  "sc0023": {
+   "source": "due for renewal",
+   "text": "k obnovení"
+  },
+  "sc0024": {
+   "source": "being renewed",
+   "text": "obnovuje se"
+  },
+  "sc0025": {
+   "source": "renewal failed",
+   "text": "obnovení selhalo"
+  },
+  "sc0026": {
+   "source": "has expired",
+   "text": "vypršel"
+  },
+  "sc0027": {
+   "source": "waiting for an outside CA",
+   "text": "čeká na externí CA"
+  },
+  "sc0028": {
+   "source": "not issued yet",
+   "text": "zatím nevystaven"
+  },
+  "sc0029": {
+   "source": "revoked",
+   "text": "odvolán"
+  },
+  "sc0030": {
+   "source": "Only the certificates from this source.",
+   "text": "Jen certifikáty z tohoto zdroje."
+  },
+  "sc0031": {
+   "source": "every source",
+   "text": "každý zdroj"
+  },
+  "sc0032": {
+   "source": "How many rows a page.",
+   "text": "Kolik řádků na stránku."
+  },
+  "sc0033": {
+   "source": "Certificate authorities",
+   "text": "Certifikační autority"
+  },
+  "sc0034": {
+   "source": "The authorities of acme's own: roots, and the intermediates each of them signed, as a tree. A source of the kind \"own certificate authority\" issues certificates from one of them. Click one for what it signed, its revocation list, and to sign a CSR from elsewhere.",
+   "text": "Vlastní autority acme: kořenové a podřízené, které každá z nich podepsala, jako strom. Zdroj druhu „vlastní certifikační autorita“ vystavuje certifikáty z některé z nich. Kliknutím zobrazíte, co podepsala, její seznam odvolaných certifikátů, a můžete podepsat CSR odjinud."
+  },
+  "sc0035": {
+   "source": "A new root authority: its own key, signed by itself.",
+   "text": "Nová kořenová autorita: vlastní klíč, podepsaná sama sebou."
+  },
+  "sc0036": {
+   "source": "Create a root",
+   "text": "Vytvořit kořenovou"
+  },
+  "sc0037": {
+   "source": "A new intermediate authority, signed by one of the authorities here.",
+   "text": "Nová podřízená autorita, podepsaná některou ze zdejších autorit."
+  },
+  "sc0038": {
+   "source": "Create an intermediate",
+   "text": "Vytvořit podřízenou"
+  },
+  "sc0039": {
+   "source": "An authority you already have - its certificate and its key - to issue from here.",
+   "text": "Autorita, kterou už máte – její certifikát a klíč – k vystavování odsud."
+  },
+  "sc0040": {
+   "source": "Import an authority",
+   "text": "Importovat autoritu"
+  },
+  "sc0041": {
+   "source": "Where certificates come from. Each is one module - ACME (Let's Encrypt, ZeroSSL, your own ACME server), an authority of acme's own, self-signed, Microsoft AD CS, SCEP - with its own settings. Test tries it without changing anything.",
+   "text": "Odkud certifikáty pocházejí. Každý zdroj je jeden modul – ACME (Let's Encrypt, ZeroSSL, váš vlastní ACME server), vlastní autorita acme, self-signed, Microsoft AD CS, SCEP – s vlastním nastavením. Test jej vyzkouší, aniž by cokoli měnil."
+  },
+  "sc0042": {
+   "source": "Add a source",
+   "text": "Přidat zdroj"
+  },
+  "sc0043": {
+   "source": "How names are proved to an ACME CA. DNS-01 puts a TXT record in DNS - in acme's own DNS server, or at your DNS provider - and is the only way for a wildcard; HTTP-01 answers on port 80, here or on your own web servers over SSH, so acme itself is never reachable from the internet.",
+   "text": "Jak se jména prokazují ACME autoritě. DNS-01 vloží TXT záznam do DNS – do vlastního DNS serveru acme, nebo u vašeho DNS poskytovatele – a je to jediná cesta pro wildcard; HTTP-01 odpovídá na portu 80, zde nebo na vašich webových serverech přes SSH, takže acme samo nikdy není z internetu dostupné."
+  },
+  "sc0044": {
+   "source": "Add a way of validation",
+   "text": "Přidat způsob validace"
+  },
+  "sc0045": {
+   "source": "Where certificates go: a Linux server over SSH, a load balancer, a firewall, a router. A certificate is deployed on a target with options of its own - paths, formats, the profile it goes into, the commands after. Click a target for what is deployed on it.",
+   "text": "Kam certifikáty míří: linuxový server přes SSH, load balancer, firewall, router. Certifikát se na cíl nasazuje s vlastními volbami – cesty, formáty, profil, do kterého patří, příkazy potom. Kliknutím na cíl zobrazíte, co je na něm nasazeno."
+  },
+  "sc0046": {
+   "source": "a name, an address, a kind…",
+   "text": "název, adresa, druh…"
+  },
+  "sc0047": {
+   "source": "Add a target",
+   "text": "Přidat cíl"
+  },
+  "sc0048": {
+   "source": "Every piece of work acme did or is doing: issuing and renewing, deploying, revoking, testing - each with every step it took. Running ones update by themselves; click a row for its log.",
+   "text": "Každá úloha, kterou acme provedlo nebo právě provádí: vystavení a obnovení, nasazení, odvolání, testy – každá se všemi svými kroky. Běžící se obnovují samy; kliknutím na řádek zobrazíte její záznam."
+  },
+  "sc0049": {
+   "source": "Only jobs of this kind.",
+   "text": "Jen úlohy tohoto druhu."
+  },
+  "sc0050": {
+   "source": "issue",
+   "text": "vystavení"
+  },
+  "sc0051": {
+   "source": "renewal",
+   "text": "obnovení"
+  },
+  "sc0052": {
+   "source": "deployment",
+   "text": "nasazení"
+  },
+  "sc0053": {
+   "source": "revocation",
+   "text": "odvolání"
+  },
+  "sc0054": {
+   "source": "Only jobs that ended like this.",
+   "text": "Jen úlohy, které skončily takto."
+  },
+  "sc0055": {
+   "source": "however they ended",
+   "text": "jakkoli skončily"
+  },
+  "sc0056": {
+   "source": "went well",
+   "text": "povedlo se"
+  },
+  "sc0057": {
+   "source": "Only the jobs of one certificate.",
+   "text": "Jen úlohy jednoho certifikátu."
+  },
+  "sc0058": {
+   "source": "every certificate",
+   "text": "každý certifikát"
+  },
+  "sc0059": {
+   "source": "When certificates are renewed, how often a failed one is tried again, and who is told when something goes wrong.",
+   "text": "Kdy se certifikáty obnovují, jak často se zkouší znovu ten, který selhal, a kdo se dozví, když se něco pokazí."
+  },
+  "sc0060": {
+   "source": "Renewal and notices",
+   "text": "Obnovování a upozornění"
+  },
+  "sc0061": {
+   "source": "acme's own DNS server for DNS-01: the zone it answers for, its NS names, where it listens, and the records in it.",
+   "text": "Vlastní DNS server acme pro DNS-01: zóna, za kterou odpovídá, jeho NS jména, kde naslouchá a záznamy v něm."
+  },
+  "sc0062": {
+   "source": "DNS server",
+   "text": "DNS server"
+  },
+  "sc0063": {
+   "source": "How far before the end a certificate is renewed when it does not say for itself, how long acme waits before trying a failed one again, and who hears about it - by mail, SMS, syslog and isemon, as every other alert.",
+   "text": "Jak dlouho před koncem se certifikát obnoví, když to neurčuje sám, jak dlouho acme čeká, než znovu zkusí ten, který selhal, a kdo se o tom dozví – mailem, SMS, přes syslog a isemon, jako u každého jiného upozornění."
+  },
+  "sc0064": {
+   "source": "acme's own DNS server, for DNS-01 without giving acme the keys to your DNS: delegate one zone to it (an NS record in your DNS), point the _acme-challenge name of each certificate name at it with a CNAME, and the TXT records are put here and taken away again by themselves.",
+   "text": "Vlastní DNS server acme pro DNS-01, aniž byste acme dávali klíče ke svému DNS: delegujte na něj jednu zónu (NS záznam ve vašem DNS), nasměrujte na něj jméno _acme-challenge každého jména certifikátu CNAME záznamem a TXT záznamy se sem budou vkládat a zase odstraňovat samy."
+  },
+  "sc0065": {
+   "source": "Records",
+   "text": "Záznamy"
+  },
+  "sc0066": {
+   "source": "What the server answers with: the challenge TXT records while a job proves a name (they go by themselves), and records of your own.",
+   "text": "Čím server odpovídá: TXT záznamy výzev, zatímco úloha prokazuje jméno (zmizí samy), a vaše vlastní záznamy."
+  },
+  "sc0067": {
+   "source": "a name, a value…",
+   "text": "jméno, hodnota…"
+  },
+  "sc0068": {
+   "source": "Add a record",
+   "text": "Přidat záznam"
+  },
+  "sc0069": {
+   "source": "Not available yet",
+   "text": "Zatím není k dispozici"
+  },
+  "sc0070": {
+   "source": "This server does not answer for this yet - it comes with a later version of the daemon.",
+   "text": "Tento server na to zatím neodpovídá – přijde s pozdější verzí démona."
+  },
+  "sc0071": {
+   "source": "not available yet - the daemon does not do this yet",
+   "text": "zatím není k dispozici – démon to ještě neumí"
+  },
+  "sc0072": {
+   "source": "not available yet",
+   "text": "zatím není k dispozici"
+  },
+  "sc0073": {
+   "source": "waiting for a CA",
+   "text": "čeká na CA"
+  },
+  "sc0074": {
+   "source": "due",
+   "text": "k obnovení"
+  },
+  "sc0075": {
+   "source": "renewing",
+   "text": "obnovuje se"
+  },
+  "sc0076": {
+   "source": "with warnings",
+   "text": "s varováními"
+  },
+  "sc0077": {
+   "source": "stopping",
+   "text": "zastavuje se"
+  },
+  "sc0078": {
+   "source": "CSR",
+   "text": "CSR"
+  },
+  "sc0079": {
+   "source": "CRL",
+   "text": "CRL"
+  },
+  "sc0080": {
+   "source": "check",
+   "text": "kontrola"
+  },
+  "sc0081": {
+   "source": "export",
+   "text": "export"
+  },
+  "sc0082": {
+   "source": "Small and fast, understood by everything made in the last ten years. The usual choice.",
+   "text": "Malý a rychlý, rozumí mu vše z posledních deseti let. Obvyklá volba."
+  },
+  "sc0083": {
+   "source": "A longer curve, where a policy asks for one.",
+   "text": "Delší křivka, kde to vyžaduje politika."
+  },
+  "sc0084": {
+   "source": "For old devices and appliances that speak no EC.",
+   "text": "Pro stará zařízení a appliance, které neumí EC."
+  },
+  "sc0085": {
+   "source": "RSA, longer: where 2048 is no longer allowed.",
+   "text": "Delší RSA: tam, kde 2048 už není povoleno."
+  },
+  "sc0086": {
+   "source": "The longest RSA; slower handshakes, bigger certificates.",
+   "text": "Nejdelší RSA; pomalejší handshake, větší certifikáty."
+  },
+  "sc0087": {
+   "source": "Modern and small - but not for browsers or public CAs.",
+   "text": "Moderní a malý – ale ne pro prohlížeče ani veřejné CA."
+  },
+  "sc0088": {
+   "source": "TLS server",
+   "text": "TLS server"
+  },
+  "sc0089": {
+   "source": "TLS client",
+   "text": "TLS klient"
+  },
+  "sc0090": {
+   "source": "code signing",
+   "text": "podepisování kódu"
+  },
+  "sc0091": {
+   "source": "e-mail (S/MIME)",
+   "text": "e-mail (S/MIME)"
+  },
+  "sc0092": {
+   "source": "time stamping",
+   "text": "časová razítka"
+  },
+  "sc0093": {
+   "source": "OCSP signing",
+   "text": "podepisování OCSP"
+  },
+  "sc0094": {
+   "source": "no reason given",
+   "text": "bez udání důvodu"
+  },
+  "sc0095": {
+   "source": "the key got out",
+   "text": "klíč unikl"
+  },
+  "sc0096": {
+   "source": "replaced by another",
+   "text": "nahrazen jiným"
+  },
+  "sc0097": {
+   "source": "no longer used",
+   "text": "už se nepoužívá"
+  },
+  "sc0098": {
+   "source": "the owner changed",
+   "text": "změnil se vlastník"
+  },
+  "sc0099": {
+   "source": "the CA was compromised",
+   "text": "CA byla kompromitována"
+  },
+  "sc0100": {
+   "source": "expired a day ago",
+   "text": "vypršel včera"
+  },
+  "sc0101": {
+   "source": "ends today",
+   "text": "končí dnes"
+  },
+  "sc0102": {
+   "source": "1 day left",
+   "text": "zbývá 1 den"
+  },
+  "sc0103": {
+   "source": "the file could not be read",
+   "text": "soubor nelze přečíst"
+  },
+  "sc0104": {
+   "source": "Read from a file",
+   "text": "Načíst ze souboru"
+  },
+  "sc0105": {
+   "source": "set - leave empty to keep it",
+   "text": "nastaveno – nechte prázdné, aby zůstalo"
+  },
+  "sc0106": {
+   "source": "paste it here",
+   "text": "vložte sem"
+  },
+  "sc0107": {
+   "source": "set",
+   "text": "nastaveno"
+  },
+  "sc0108": {
+   "source": "one a line",
+   "text": "jeden na řádek"
+  },
+  "sc0109": {
+   "source": "Nothing to set: this module needs nothing more.",
+   "text": "Není co nastavit: tento modul nic dalšího nepotřebuje."
+  },
+  "sc0110": {
+   "source": "A module that would not load",
+   "text": "Modul, který se nepodařilo načíst"
+  },
+  "sc0111": {
+   "source": "These files are there but could not be read, so what they offer is missing below. Fix the file, then restart acme (or reload the modules).",
+   "text": "Tyto soubory existují, ale nepodařilo se je načíst, takže to, co nabízejí, níže chybí. Opravte soubor a restartujte acme (nebo znovu načtěte moduly)."
+  },
+  "sc0112": {
+   "source": "What Python said",
+   "text": "Co řekl Python"
+  },
+  "sc0113": {
+   "source": "No module of this family is installed.",
+   "text": "Žádný modul tohoto druhu není nainstalován."
+  },
+  "sc0114": {
+   "source": "find a module…",
+   "text": "najít modul…"
+  },
+  "sc0115": {
+   "source": "More in",
+   "text": "Více v "
+  },
+  "sc0116": {
+   "source": "A new source",
+   "text": "Nový zdroj"
+  },
+  "sc0117": {
+   "source": "The source",
+   "text": "Zdroj"
+  },
+  "sc0118": {
+   "source": "No source yet. Add one - Let’s Encrypt, an authority of acme’s own, self-signed - before the first certificate.",
+   "text": "Zatím žádný zdroj. Před prvním certifikátem nějaký přidejte – Let’s Encrypt, vlastní autoritu acme, self-signed."
+  },
+  "sc0119": {
+   "source": "Where should certificates come from? Each module asks for what it needs next.",
+   "text": "Odkud mají certifikáty pocházet? Každý modul se pak zeptá na to, co potřebuje."
+  },
+  "sc0120": {
+   "source": "A new way of validation",
+   "text": "Nový způsob validace"
+  },
+  "sc0121": {
+   "source": "The validation",
+   "text": "Validace"
+  },
+  "sc0122": {
+   "source": "No way of validation yet. A certificate from an ACME CA needs one: acme’s own DNS server, your DNS provider, or HTTP-01.",
+   "text": "Zatím žádný způsob validace. Certifikát od ACME autority nějaký potřebuje: vlastní DNS server acme, vašeho DNS poskytovatele nebo HTTP-01."
+  },
+  "sc0123": {
+   "source": "How should names be proved? DNS-01 for wildcards and names not reachable from the internet; HTTP-01 for a web server that is.",
+   "text": "Jak se mají jména prokazovat? DNS-01 pro wildcardy a jména nedostupná z internetu; HTTP-01 pro webový server, který dostupný je."
+  },
+  "sc0124": {
+   "source": "A new target",
+   "text": "Nový cíl"
+  },
+  "sc0125": {
+   "source": "The target",
+   "text": "Cíl"
+  },
+  "sc0126": {
+   "source": "No target yet. Add the servers and devices certificates should go to.",
+   "text": "Zatím žádný cíl. Přidejte servery a zařízení, kam mají certifikáty jít."
+  },
+  "sc0127": {
+   "source": "What kind of machine is it? The module knows how to put a certificate on it and make the service take it.",
+   "text": "Jaký je to stroj? Modul ví, jak na něj certifikát dostat a jak přimět službu, aby si jej vzala."
+  },
+  "sc0128": {
+   "source": "Used by",
+   "text": "Používá"
+  },
+  "sc0129": {
+   "source": "Test it now, without changing anything",
+   "text": "Vyzkoušet hned, bez jakékoli změny"
+  },
+  "sc0130": {
+   "source": "Nothing matches",
+   "text": "Nic neodpovídá"
+  },
+  "sc0131": {
+   "source": "failing",
+   "text": "selhává"
+  },
+  "sc0132": {
+   "source": "it works",
+   "text": "funguje to"
+  },
+  "sc0133": {
+   "source": "it does not work",
+   "text": "nefunguje to"
+  },
+  "sc0134": {
+   "source": "Its settings and secrets go with it.",
+   "text": "Jeho nastavení a tajné údaje zmizí s ním."
+  },
+  "sc0135": {
+   "source": "Trying…",
+   "text": "Zkouším…"
+  },
+  "sc0136": {
+   "source": "it needs a name",
+   "text": "potřebuje název"
+  },
+  "sc0137": {
+   "source": "The module of this kind is not installed (or would not load): its settings are shown as they are kept.",
+   "text": "Modul tohoto druhu není nainstalován (nebo se nenačetl): nastavení se zobrazuje tak, jak je uložené."
+  },
+  "sc0138": {
+   "source": "a name of its own",
+   "text": "vlastní název"
+  },
+  "sc0139": {
+   "source": "What it is called here, in the certificates and the jobs.",
+   "text": "Jak se jmenuje zde, v certifikátech a v úlohách."
+  },
+  "sc0140": {
+   "source": "Off: kept, but not used for anything.",
+   "text": "Vypnuto: zůstává uložen, ale k ničemu se nepoužívá."
+  },
+  "sc0141": {
+   "source": "Tags",
+   "text": "Štítky"
+  },
+  "sc0142": {
+   "source": "Words to find and group targets by.",
+   "text": "Slova, podle kterých cíle najdete a seskupíte."
+  },
+  "sc0143": {
+   "source": "Settings of the module",
+   "text": "Nastavení modulu"
+  },
+  "sc0144": {
+   "source": "This module needs nothing set.",
+   "text": "Tento modul nepotřebuje nic nastavit."
+  },
+  "sc0145": {
+   "source": "deployed",
+   "text": "nasazeno"
+  },
+  "sc0146": {
+   "source": "deploying",
+   "text": "nasazuje se"
+  },
+  "sc0147": {
+   "source": "options changed",
+   "text": "volby změněny"
+  },
+  "sc0148": {
+   "source": "old version",
+   "text": "stará verze"
+  },
+  "sc0149": {
+   "source": "Last worked",
+   "text": "Naposledy fungoval"
+  },
+  "sc0150": {
+   "source": "The last time it failed",
+   "text": "Kdy naposledy selhal"
+  },
+  "sc0151": {
+   "source": "Certificates deployed here",
+   "text": "Certifikáty nasazené zde"
+  },
+  "sc0152": {
+   "source": "Each with the options it has on this target. Run deploys it again now.",
+   "text": "Každý s volbami, které má na tomto cíli. Spuštěním jej hned nasadíte znovu."
+  },
+  "sc0153": {
+   "source": "Deploy a certificate here",
+   "text": "Nasadit sem certifikát"
+  },
+  "sc0154": {
+   "source": "How acme reaches it. Secrets are never shown - only whether they are set.",
+   "text": "Jak se k němu acme dostane. Tajné údaje se nikdy nezobrazují – jen to, zda jsou nastavené."
+  },
+  "sc0155": {
+   "source": "Nothing set.",
+   "text": "Nic nenastaveno."
+  },
+  "sc0156": {
+   "source": "About it",
+   "text": "O něm"
+  },
+  "sc0157": {
+   "source": "Changed",
+   "text": "Změněno"
+  },
+  "sc0158": {
+   "source": "Module",
+   "text": "Modul"
+  },
+  "sc0159": {
+   "source": "Target",
+   "text": "Cíl"
+  },
+  "sc0160": {
+   "source": "Last deployed",
+   "text": "Naposledy nasazeno"
+  },
+  "sc0161": {
+   "source": "Options",
+   "text": "Volby"
+  },
+  "sc0162": {
+   "source": "Deploy it there again now",
+   "text": "Nasadit tam hned znovu"
+  },
+  "sc0163": {
+   "source": "The options of this deployment",
+   "text": "Volby tohoto nasazení"
+  },
+  "sc0164": {
+   "source": "Not deployed anywhere yet",
+   "text": "Zatím nikde nenasazeno"
+  },
+  "sc0165": {
+   "source": "A deployment",
+   "text": "Nasazení"
+  },
+  "sc0166": {
+   "source": "Choose a target first.",
+   "text": "Nejdřív zvolte cíl."
+  },
+  "sc0167": {
+   "source": "This target needs nothing more: the certificate goes where the module puts it.",
+   "text": "Tento cíl nic dalšího nepotřebuje: certifikát půjde tam, kam jej modul dá."
+  },
+  "sc0168": {
+   "source": "choose the certificate",
+   "text": "zvolte certifikát"
+  },
+  "sc0169": {
+   "source": "choose the target",
+   "text": "zvolte cíl"
+  },
+  "sc0170": {
+   "source": "taken off",
+   "text": "odebráno"
+  },
+  "sc0171": {
+   "source": "Save and deploy now",
+   "text": "Uložit a hned nasadit"
+  },
+  "sc0172": {
+   "source": "Deploy a certificate",
+   "text": "Nasadit certifikát"
+  },
+  "sc0173": {
+   "source": "Where the certificate goes on this target and in what shape. When it is renewed, it is put there again by itself - and the job checks what is served afterwards.",
+   "text": "Kam na tomto cíli certifikát půjde a v jaké podobě. Po obnovení se tam nasadí znovu sám – a úloha potom zkontroluje, co se skutečně podává."
+  },
+  "sc0174": {
+   "source": "choose one…",
+   "text": "zvolte…"
+  },
+  "sc0175": {
+   "source": "No target yet - a full administrator adds them under Targets.",
+   "text": "Zatím žádný cíl – přidává je plný administrátor v záložce Cíle."
+  },
+  "sc0176": {
+   "source": "Off: kept, but the certificate is not put there.",
+   "text": "Vypnuto: zůstává uloženo, ale certifikát se tam nenasazuje."
+  },
+  "sc0177": {
+   "source": "Renews",
+   "text": "Obnova"
+  },
+  "sc0178": {
+   "source": "Deployed",
+   "text": "Nasazen"
+  },
+  "sc0179": {
+   "source": "Last job",
+   "text": "Poslední úloha"
+  },
+  "sc0180": {
+   "source": "No certificate yet",
+   "text": "Zatím žádný certifikát"
+  },
+  "sc0181": {
+   "source": "Add one from a source - Let’s Encrypt, an authority of acme’s own, self-signed - or import one you already have. acme renews it before it runs out and deploys it where you say.",
+   "text": "Přidejte certifikát ze zdroje – Let’s Encrypt, vlastní autorita acme, self-signed – nebo importujte ten, který už máte. acme jej obnoví, než vyprší, a nasadí jej tam, kam řeknete."
+  },
+  "sc0182": {
+   "source": "outside CA",
+   "text": "externí CA"
+  },
+  "sc0183": {
+   "source": "auto",
+   "text": "samo"
+  },
+  "sc0184": {
+   "source": "Renew it now",
+   "text": "Obnovit hned"
+  },
+  "sc0185": {
+   "source": "Deployed on 1 target.",
+   "text": "Nasazen na 1 cíli."
+  },
+  "sc0186": {
+   "source": "A certificate",
+   "text": "Certifikát"
+  },
+  "sc0187": {
+   "source": "Revoke",
+   "text": "Odvolat"
+  },
+  "sc0188": {
+   "source": "Upload the answer",
+   "text": "Nahrát odpověď"
+  },
+  "sc0189": {
+   "source": "Import a new one",
+   "text": "Importovat nový"
+  },
+  "sc0190": {
+   "source": "Deploy now",
+   "text": "Nasadit hned"
+  },
+  "sc0191": {
+   "source": "Issue now",
+   "text": "Vystavit hned"
+  },
+  "sc0192": {
+   "source": "The last renewal failed",
+   "text": "Poslední obnovení selhalo"
+  },
+  "sc0193": {
+   "source": "Serial",
+   "text": "Sériové číslo"
+  },
+  "sc0194": {
+   "source": "the serial was copied",
+   "text": "sériové číslo zkopírováno"
+  },
+  "sc0195": {
+   "source": "the fingerprint was copied",
+   "text": "otisk zkopírován"
+  },
+  "sc0196": {
+   "source": "Valid from",
+   "text": "Platný od"
+  },
+  "sc0197": {
+   "source": "Valid to",
+   "text": "Platný do"
+  },
+  "sc0198": {
+   "source": "Used for",
+   "text": "Použití"
+  },
+  "sc0199": {
+   "source": "OCSP must-staple",
+   "text": "OCSP must-staple"
+  },
+  "sc0200": {
+   "source": "Signed with",
+   "text": "Podepsán"
+  },
+  "sc0201": {
+   "source": "Where it comes from and how it renews",
+   "text": "Odkud pochází a jak se obnovuje"
+  },
+  "sc0202": {
+   "source": "imported - renewed by importing again",
+   "text": "importován – obnovuje se novým importem"
+  },
+  "sc0203": {
+   "source": "an outside CA, by a CSR",
+   "text": "externí CA, přes CSR"
+  },
+  "sc0204": {
+   "source": "only when asked",
+   "text": "jen na požádání"
+  },
+  "sc0205": {
+   "source": "Key on renewal",
+   "text": "Klíč při obnovení"
+  },
+  "sc0206": {
+   "source": "a new one each time",
+   "text": "pokaždé nový"
+  },
+  "sc0207": {
+   "source": "Last renewed",
+   "text": "Naposledy obnoven"
+  },
+  "sc0208": {
+   "source": "Next look",
+   "text": "Příští kontrola"
+  },
+  "sc0209": {
+   "source": "Validity asked",
+   "text": "Požadovaná platnost"
+  },
+  "sc0210": {
+   "source": "CA suggests",
+   "text": "CA navrhuje"
+  },
+  "sc0211": {
+   "source": "Names proved otherwise:",
+   "text": "Jména prokazovaná jinak:"
+  },
+  "sc0212": {
+   "source": "The chain",
+   "text": "Řetězec"
+  },
+  "sc0213": {
+   "source": "Above the certificate, nearest first.",
+   "text": "Nad certifikátem, nejbližší první."
+  },
+  "sc0214": {
+   "source": "1 certificate",
+   "text": "1 certifikát"
+  },
+  "sc0215": {
+   "source": "root",
+   "text": "kořenová"
+  },
+  "sc0216": {
+   "source": "Deployments",
+   "text": "Nasazení"
+  },
+  "sc0217": {
+   "source": "Where it is put each time it is renewed.",
+   "text": "Kam se nasadí při každém obnovení."
+  },
+  "sc0218": {
+   "source": "Deploy it on a target",
+   "text": "Nasadit na cíl"
+  },
+  "sc0219": {
+   "source": "Versions",
+   "text": "Verze"
+  },
+  "sc0220": {
+   "source": "Every certificate it has had - renewals, imports. The newest is the one in use.",
+   "text": "Všechny certifikáty, které měl – obnovení, importy. Nejnovější je ten používaný."
+  },
+  "sc0221": {
+   "source": "Valid",
+   "text": "Platnost"
+  },
+  "sc0222": {
+   "source": "Export this version",
+   "text": "Exportovat tuto verzi"
+  },
+  "sc0223": {
+   "source": "No version yet: it has not been issued",
+   "text": "Zatím žádná verze: ještě nebyl vystaven"
+  },
+  "sc0224": {
+   "source": "The latest work on it. Click one for every step.",
+   "text": "Poslední práce na něm. Kliknutím zobrazíte všechny kroky."
+  },
+  "sc0225": {
+   "source": "The certificate alone, as text (.crt / .pem).",
+   "text": "Jen certifikát, jako text (.crt / .pem)."
+  },
+  "sc0226": {
+   "source": "Full chain",
+   "text": "Celý řetězec"
+  },
+  "sc0227": {
+   "source": "The certificate and the chain above it - what nginx and most servers want.",
+   "text": "Certifikát a řetězec nad ním – to, co chce nginx a většina serverů."
+  },
+  "sc0228": {
+   "source": "Only the authorities above it, nearest first.",
+   "text": "Jen autority nad ním, nejbližší první."
+  },
+  "sc0229": {
+   "source": "Binary (.der / .cer), for Windows and Java tools.",
+   "text": "Binárně (.der / .cer), pro Windows a nástroje v Javě."
+  },
+  "sc0230": {
+   "source": "The certificate with its chain, without the key - for Windows and IIS.",
+   "text": "Certifikát s řetězcem, bez klíče – pro Windows a IIS."
+  },
+  "sc0231": {
+   "source": "Private key",
+   "text": "Soukromý klíč"
+  },
+  "sc0232": {
+   "source": "The key alone, PKCS#8.",
+   "text": "Jen klíč, PKCS#8."
+  },
+  "sc0233": {
+   "source": "The key in the old RSA format, for software that wants BEGIN RSA PRIVATE KEY.",
+   "text": "Klíč ve starém formátu RSA, pro software, který chce BEGIN RSA PRIVATE KEY."
+  },
+  "sc0234": {
+   "source": "Key and full chain",
+   "text": "Klíč a celý řetězec"
+  },
+  "sc0235": {
+   "source": "Key, certificate and chain in one file - HAProxy, some appliances.",
+   "text": "Klíč, certifikát a řetězec v jednom souboru – HAProxy, některé appliance."
+  },
+  "sc0236": {
+   "source": "Key, certificate and chain in one file locked with a password (AES).",
+   "text": "Klíč, certifikát a řetězec v jednom souboru zamčeném heslem (AES)."
+  },
+  "sc0237": {
+   "source": "P12, legacy",
+   "text": "P12, starší"
+  },
+  "sc0238": {
+   "source": "The same with 3DES/RC2, for old devices and Windows Server 2016 and earlier.",
+   "text": "Totéž s 3DES/RC2, pro stará zařízení a Windows Server 2016 a starší."
+  },
+  "sc0239": {
+   "source": "Java keystore",
+   "text": "Java keystore"
+  },
+  "sc0240": {
+   "source": "For Tomcat and other Java servers, locked with a password.",
+   "text": "Pro Tomcat a jiné servery v Javě, zamčený heslem."
+  },
+  "sc0241": {
+   "source": "Choose the shape. A format with the private key is written down in the events, with who took it.",
+   "text": "Zvolte podobu. Formát se soukromým klíčem se zapíše do událostí i s tím, kdo jej vzal."
+  },
+  "sc0242": {
+   "source": "Choose the shape. Formats with the private key are for a full administrator only.",
+   "text": "Zvolte podobu. Formáty se soukromým klíčem jsou jen pro plného administrátora."
+  },
+  "sc0243": {
+   "source": "with the key",
+   "text": "s klíčem"
+  },
+  "sc0244": {
+   "source": "a password for the file",
+   "text": "heslo souboru"
+  },
+  "sc0245": {
+   "source": "Needed to open it again. Not kept here.",
+   "text": "Je potřeba k jeho otevření. Zde se neukládá."
+  },
+  "sc0246": {
+   "source": "Alias in the keystore",
+   "text": "Alias v keystoru"
+  },
+  "sc0247": {
+   "source": "choose a format",
+   "text": "zvolte formát"
+  },
+  "sc0248": {
+   "source": "a file with the key needs a password",
+   "text": "soubor s klíčem potřebuje heslo"
+  },
+  "sc0249": {
+   "source": "The CA that issued it is told it must not be trusted any more - this cannot be taken back. Browsers and devices that check will refuse it; deploy a new one first if it is in use.",
+   "text": "Autorita, která jej vydala, se dozví, že mu už nelze důvěřovat – nelze to vzít zpět. Prohlížeče a zařízení, které to kontrolují, jej odmítnou; pokud se používá, nasaďte nejdřív nový."
+  },
+  "sc0250": {
+   "source": "Said to the CA. \"The key got out\" is the one that matters most.",
+   "text": "Sdělí se autoritě. Nejvíc záleží na „klíč unikl“."
+  },
+  "sc0251": {
+   "source": "Switch renewal off",
+   "text": "Vypnout obnovování"
+  },
+  "sc0252": {
+   "source": "Otherwise it is issued anew at the next look.",
+   "text": "Jinak se při příští kontrole vystaví znovu."
+  },
+  "sc0253": {
+   "source": "Revoke it",
+   "text": "Odvolat"
+  },
+  "sc0254": {
+   "source": "choose where it comes from",
+   "text": "zvolte, odkud pochází"
+  },
+  "sc0255": {
+   "source": "choose how the names are proved",
+   "text": "zvolte, jak se jména prokazují"
+  },
+  "sc0256": {
+   "source": "Renewal",
+   "text": "Obnovování"
+  },
+  "sc0257": {
+   "source": "Profile",
+   "text": "Profil"
+  },
+  "sc0258": {
+   "source": "Review",
+   "text": "Shrnutí"
+  },
+  "sc0259": {
+   "source": "Add only",
+   "text": "Jen přidat"
+  },
+  "sc0260": {
+   "source": "Add and issue now",
+   "text": "Přidat a hned vystavit"
+  },
+  "sc0261": {
+   "source": "Where the certificate comes from. A source is set up once under Sources - an ACME account, an authority, a Windows CA.",
+   "text": "Odkud certifikát pochází. Zdroj se nastavuje jednou v záložce Zdroje – účet ACME, autorita, Windows CA."
+  },
+  "sc0262": {
+   "source": "No source is set up yet.",
+   "text": "Zatím není nastaven žádný zdroj."
+  },
+  "sc0263": {
+   "source": "A full administrator adds them under Sources.",
+   "text": "Přidává je plný administrátor v záložce Zdroje."
+  },
+  "sc0264": {
+   "source": "proves names",
+   "text": "prokazuje jména"
+  },
+  "sc0265": {
+   "source": "wildcards",
+   "text": "wildcardy"
+  },
+  "sc0266": {
+   "source": "IP addresses",
+   "text": "IP adresy"
+  },
+  "sc0267": {
+   "source": "validity chosen",
+   "text": "volitelná platnost"
+  },
+  "sc0268": {
+   "source": "it needs at least one name",
+   "text": "potřebuje alespoň jedno jméno"
+  },
+  "sc0269": {
+   "source": "*.example.com covers one level of names under it.",
+   "text": "*.example.com pokrývá jednu úroveň jmen pod sebou."
+  },
+  "sc0270": {
+   "source": "IP addresses can be in it too.",
+   "text": "Mohou v něm být i IP adresy."
+  },
+  "sc0271": {
+   "source": "This source takes no IP addresses.",
+   "text": "Tento zdroj IP adresy nebere."
+  },
+  "sc0272": {
+   "source": "the first name",
+   "text": "první jméno"
+  },
+  "sc0273": {
+   "source": "Name in acme",
+   "text": "Název v acme"
+  },
+  "sc0274": {
+   "source": "What it is called here. The first name, unless you say otherwise.",
+   "text": "Jak se jmenuje zde. První jméno, pokud neurčíte jinak."
+  },
+  "sc0275": {
+   "source": "Words to find it by, with spaces between.",
+   "text": "Slova, podle kterých jej najdete, oddělená mezerami."
+  },
+  "sc0276": {
+   "source": "team or person",
+   "text": "tým nebo osoba"
+  },
+  "sc0277": {
+   "source": "Owner",
+   "text": "Vlastník"
+  },
+  "sc0278": {
+   "source": "Who to ask about it.",
+   "text": "Koho se na něj ptát."
+  },
+  "sc0279": {
+   "source": "not a name",
+   "text": "není jméno"
+  },
+  "sc0280": {
+   "source": "no wildcards here",
+   "text": "zde bez wildcardů"
+  },
+  "sc0281": {
+   "source": "IP address",
+   "text": "IP adresa"
+  },
+  "sc0282": {
+   "source": "no IP addresses here",
+   "text": "zde bez IP adres"
+  },
+  "sc0283": {
+   "source": "wildcard",
+   "text": "wildcard"
+  },
+  "sc0284": {
+   "source": "common name",
+   "text": "common name"
+  },
+  "sc0285": {
+   "source": "1 name",
+   "text": "1 jméno"
+  },
+  "sc0286": {
+   "source": "The key is made here, on this server, and never leaves it unless a full administrator exports it.",
+   "text": "Klíč se vytvoří zde, na tomto serveru, a nikdy jej neopustí, pokud jej plný administrátor neexportuje."
+  },
+  "sc0287": {
+   "source": "This source makes the key itself; the type is what is asked of it.",
+   "text": "Tento zdroj si klíč vytváří sám; typ je to, oč se žádá."
+  },
+  "sc0288": {
+   "source": "How the CA is shown these names are yours. One way for all of them, and another for any name that needs it - a wildcard can only be proved by DNS-01.",
+   "text": "Jak se autoritě prokáže, že jména jsou vaše. Jeden způsob pro všechna a jiný pro kterékoli jméno, které to potřebuje – wildcard lze prokázat jen přes DNS-01."
+  },
+  "sc0289": {
+   "source": "No way of validation is set up yet.",
+   "text": "Zatím není nastaven žádný způsob validace."
+  },
+  "sc0290": {
+   "source": "For every name",
+   "text": "Pro všechna jména"
+  },
+  "sc0291": {
+   "source": "Name by name",
+   "text": "Jméno po jménu"
+  },
+  "sc0292": {
+   "source": "Proved by",
+   "text": "Prokazuje"
+  },
+  "sc0293": {
+   "source": "as for every name",
+   "text": "jako pro všechna jména"
+  },
+  "sc0294": {
+   "source": "a wildcard needs DNS-01",
+   "text": "wildcard potřebuje DNS-01"
+  },
+  "sc0295": {
+   "source": "acme looks every few minutes for certificates due. An ACME CA that suggests its own window (ARI) is listened to as well.",
+   "text": "acme každých pár minut hledá certifikáty k obnovení. Na ACME autoritu, která navrhuje vlastní okno (ARI), se dá také."
+  },
+  "sc0296": {
+   "source": "Renew by itself",
+   "text": "Obnovovat samo"
+  },
+  "sc0297": {
+   "source": "Off: only when Renew now is pressed.",
+   "text": "Vypnuto: jen po stisku Obnovit hned."
+  },
+  "sc0298": {
+   "source": "Days before the end",
+   "text": "Dní před koncem"
+  },
+  "sc0299": {
+   "source": "Renewed this many days before it runs out. A third of its life is a good rule: 30 for 90 days.",
+   "text": "Obnoví se tolik dní před vypršením. Dobré pravidlo je třetina doby platnosti: 30 pro 90 dní."
+  },
+  "sc0300": {
+   "source": "Keep the key",
+   "text": "Ponechat klíč"
+  },
+  "sc0301": {
+   "source": "On: the same key in every renewal - for pinning, or a device that takes only the certificate. Off (better): a new key each time.",
+   "text": "Zapnuto: stejný klíč při každém obnovení – kvůli pinningu nebo zařízení, které bere jen certifikát. Vypnuto (lepší): pokaždé nový klíč."
+  },
+  "sc0302": {
+   "source": "What is in the certificate beside its names. A public CA decides most of this itself; an authority of your own takes what is asked.",
+   "text": "Co je v certifikátu kromě jmen. Veřejná CA o většině rozhoduje sama; vlastní autorita vezme, co se žádá."
+  },
+  "sc0303": {
+   "source": "Valid for (days)",
+   "text": "Platnost (dny)"
+  },
+  "sc0304": {
+   "source": "Empty: what the source gives. Browsers take at most 398 days for a public name.",
+   "text": "Prázdné: kolik dá zdroj. Prohlížeče u veřejného jména berou nejvýš 398 dní."
+  },
+  "sc0305": {
+   "source": "ACME profile",
+   "text": "ACME profil"
+  },
+  "sc0306": {
+   "source": "A profile the CA offers (Let’s Encrypt: classic, tlsserver, shortlived). Empty: its default.",
+   "text": "Profil, který autorita nabízí (Let’s Encrypt: classic, tlsserver, shortlived). Prázdné: její výchozí."
+  },
+  "sc0307": {
+   "source": "Only where the server staples OCSP answers.",
+   "text": "Jen tam, kde server přikládá odpovědi OCSP."
+  },
+  "sc0308": {
+   "source": "Certificate template",
+   "text": "Šablona certifikátu"
+  },
+  "sc0309": {
+   "source": "The template on the Windows CA. Empty: the source’s own.",
+   "text": "Šablona na Windows CA. Prázdné: šablona zdroje."
+  },
+  "sc0310": {
+   "source": "A public CA puts in what it puts in; this is what is asked.",
+   "text": "Veřejná CA vloží, co vloží; toto je to, oč se žádá."
+  },
+  "sc0311": {
+   "source": "Region",
+   "text": "Kraj"
+  },
+  "sc0312": {
+   "source": "A public ACME CA puts only the names in; the subject is for an authority of your own, AD CS or SCEP.",
+   "text": "Veřejná ACME CA vkládá jen jména; subjekt je pro vlastní autoritu, AD CS nebo SCEP."
+  },
+  "sc0313": {
+   "source": "Where it goes once it is issued, and again after each renewal. More can be added later from the certificate or the target.",
+   "text": "Kam půjde po vystavení a znovu po každém obnovení. Další lze přidat později z certifikátu nebo z cíle."
+  },
+  "sc0314": {
+   "source": "No target yet - add them under Targets; this step can be skipped.",
+   "text": "Zatím žádný cíl – přidejte je v záložce Cíle; tento krok lze přeskočit."
+  },
+  "sc0315": {
+   "source": "No target yet - this step can be skipped.",
+   "text": "Zatím žádný cíl – tento krok lze přeskočit."
+  },
+  "sc0316": {
+   "source": "Its module is not installed.",
+   "text": "Jeho modul není nainstalován."
+  },
+  "sc0317": {
+   "source": "Nothing to set for this target.",
+   "text": "Pro tento cíl není co nastavit."
+  },
+  "sc0318": {
+   "source": "Deployed on",
+   "text": "Nasazen na"
+  },
+  "sc0319": {
+   "source": "nowhere yet",
+   "text": "zatím nikde"
+  },
+  "sc0320": {
+   "source": "What it will be. Saved, it takes effect at its next renewal - press Renew now in it to have it at once.",
+   "text": "Jak bude vypadat. Po uložení platí od příštího obnovení – chcete-li hned, stiskněte v něm Obnovit hned."
+  },
+  "sc0321": {
+   "source": "What it will be. \"Add and issue now\" asks the source at once, in a job you can watch; \"Add only\" waits for the next look.",
+   "text": "Jak bude vypadat. „Přidat a hned vystavit“ požádá zdroj okamžitě, v úloze, kterou můžete sledovat; „Jen přidat“ počká na příští kontrolu."
+  },
+  "sc0322": {
+   "source": "added",
+   "text": "přidáno"
+  },
+  "sc0323": {
+   "source": "issuing",
+   "text": "vystavuje se"
+  },
+  "sc0324": {
+   "source": "reading certificate files",
+   "text": "čtení souborů s certifikáty"
+  },
+  "sc0325": {
+   "source": "It is locked with a password",
+   "text": "Je zamčený heslem"
+  },
+  "sc0326": {
+   "source": "the password of the file",
+   "text": "heslo souboru"
+  },
+  "sc0327": {
+   "source": "with its key",
+   "text": "s klíčem"
+  },
+  "sc0328": {
+   "source": "no key",
+   "text": "bez klíče"
+  },
+  "sc0329": {
+   "source": "the key fits",
+   "text": "klíč sedí"
+  },
+  "sc0330": {
+   "source": "the key does not fit",
+   "text": "klíč nesedí"
+  },
+  "sc0331": {
+   "source": "authority",
+   "text": "autorita"
+  },
+  "sc0332": {
+   "source": "the certificate",
+   "text": "certifikát"
+  },
+  "sc0333": {
+   "source": "issued by",
+   "text": "vydal"
+  },
+  "sc0334": {
+   "source": "Import a certificate",
+   "text": "Importovat certifikát"
+  },
+  "sc0335": {
+   "source": "Any file a certificate comes in: PEM, CRT, CER, DER, P7B, PFX/P12, JKS - with its key in it, or the key in a file of its own (.key) dropped beside it. It is read first and shown; nothing is kept until you press Import.",
+   "text": "Jakýkoli soubor, ve kterém certifikát přichází: PEM, CRT, CER, DER, P7B, PFX/P12, JKS – s klíčem v něm, nebo s klíčem ve vlastním souboru (.key) přetaženým vedle. Nejdřív se přečte a zobrazí; nic se neuloží, dokud nestisknete Import."
+  },
+  "sc0336": {
+   "source": "Drop the file here, or press to choose it",
+   "text": "Přetáhněte soubor sem, nebo klikněte a vyberte jej"
+  },
+  "sc0337": {
+   "source": "only for a locked file",
+   "text": "jen pro zamčený soubor"
+  },
+  "sc0338": {
+   "source": "The key, if it is in a file of its own",
+   "text": "Klíč, pokud je ve vlastním souboru"
+  },
+  "sc0339": {
+   "source": "Drop the key here",
+   "text": "Přetáhněte sem klíč"
+  },
+  "sc0340": {
+   "source": "the key’s password, if it has one",
+   "text": "heslo klíče, pokud nějaké má"
+  },
+  "sc0341": {
+   "source": "Password of the key",
+   "text": "Heslo klíče"
+  },
+  "sc0342": {
+   "source": "from the certificate",
+   "text": "z certifikátu"
+  },
+  "sc0343": {
+   "source": "For a PFX/P12 or JKS. It is asked for if needed.",
+   "text": "Pro PFX/P12 nebo JKS. Bude vyžádáno, bude-li potřeba."
+  },
+  "sc0344": {
+   "source": "drop a file first",
+   "text": "nejdřív přetáhněte soubor"
+  },
+  "sc0345": {
+   "source": "A self-signed certificate",
+   "text": "Self-signed certifikát"
+  },
+  "sc0346": {
+   "source": "Signed by its own key: encrypted, but trusted by nobody until its certificate is put in their trust store. For tests, internal tools and devices that only want something.",
+   "text": "Podepsaný vlastním klíčem: šifruje, ale nikdo mu nedůvěřuje, dokud jeho certifikát nevloží do svého úložiště důvěryhodných. Pro testy, interní nástroje a zařízení, která jen chtějí nějaký."
+  },
+  "sc0347": {
+   "source": "One a line; IP addresses too. The first is its common name.",
+   "text": "Jedno na řádek; i IP adresy. První je common name."
+  },
+  "sc0348": {
+   "source": "30 days before it runs out, as a new self-signed one.",
+   "text": "30 dní před vypršením, jako nový self-signed."
+  },
+  "sc0349": {
+   "source": "There is no self-signed source yet: one is made with it.",
+   "text": "Zatím neexistuje self-signed zdroj: vytvoří se s ním."
+  },
+  "sc0350": {
+   "source": "There is no self-signed source yet - a full administrator adds one under Sources.",
+   "text": "Zatím neexistuje self-signed zdroj – přidá jej plný administrátor v záložce Zdroje."
+  },
+  "sc0351": {
+   "source": "there is no self-signed source - a full administrator adds one under Sources",
+   "text": "neexistuje self-signed zdroj – přidá jej plný administrátor v záložce Zdroje"
+  },
+  "sc0352": {
+   "source": "A CSR for an outside CA",
+   "text": "CSR pro externí CA"
+  },
+  "sc0353": {
+   "source": "For an authority acme does not speak to: the key is made here and kept here, you take the request (CSR) to the CA, and upload what it sends back - then acme deploys it like any other. It is renewed the same way, by hand.",
+   "text": "Pro autoritu, se kterou acme nekomunikuje: klíč se vytvoří a zůstane zde, žádost (CSR) odnesete autoritě a nahrajete, co vrátí – acme jej pak nasadí jako každý jiný. Obnovuje se stejně, ručně."
+  },
+  "sc0354": {
+   "source": "One a line. The first is the common name.",
+   "text": "Jedno na řádek. První je common name."
+  },
+  "sc0355": {
+   "source": "Many commercial CAs still want RSA.",
+   "text": "Mnoho komerčních CA stále chce RSA."
+  },
+  "sc0356": {
+   "source": "Make the CSR",
+   "text": "Vytvořit CSR"
+  },
+  "sc0357": {
+   "source": "Give this to the CA. When it sends the certificate back, drop it below - now, or later from the certificate (it waits in the state \"waiting for a CA\").",
+   "text": "Předejte to autoritě. Až certifikát vrátí, přetáhněte jej níže – hned, nebo později z certifikátu (čeká ve stavu „čeká na CA“)."
+  },
+  "sc0358": {
+   "source": "the CSR was copied",
+   "text": "CSR zkopírováno"
+  },
+  "sc0359": {
+   "source": "What the CA sent back",
+   "text": "Co autorita vrátila"
+  },
+  "sc0360": {
+   "source": "Drop the certificate the CA sent (PEM, CRT, CER, DER, P7B)",
+   "text": "Přetáhněte certifikát, který autorita poslala (PEM, CRT, CER, DER, P7B)"
+  },
+  "sc0361": {
+   "source": "taken: the certificate is in use",
+   "text": "převzato: certifikát se používá"
+  },
+  "sc0362": {
+   "source": "the certificate is in use",
+   "text": "certifikát se používá"
+  },
+  "sc0363": {
+   "source": "The certificate the outside CA issued for the CSR made here. It is checked against the key kept here before it is taken.",
+   "text": "Certifikát, který externí autorita vydala pro zde vytvořené CSR. Před převzetím se ověří proti zde uloženému klíči."
+  },
+  "sc0364": {
+   "source": "Show the CSR again",
+   "text": "Znovu zobrazit CSR"
+  },
+  "sc0365": {
+   "source": "No authority of acme’s own yet",
+   "text": "Zatím žádná vlastní autorita acme"
+  },
+  "sc0366": {
+   "source": "Make a root - and an intermediate under it to issue from - for certificates only your own machines need to trust: internal servers, devices, VPN clients. Or import the authority you already have.",
+   "text": "Vytvořte kořenovou – a pod ní podřízenou, ze které se bude vystavovat – pro certifikáty, kterým musí důvěřovat jen vaše vlastní stroje: interní servery, zařízení, VPN klienti. Nebo importujte autoritu, kterou už máte."
+  },
+  "sc0367": {
+   "source": "intermediate",
+   "text": "podřízená"
+  },
+  "sc0368": {
+   "source": "acme has only its certificate: it cannot sign with it.",
+   "text": "acme má jen její certifikát: nemůže s ní podepisovat."
+  },
+  "sc0369": {
+   "source": "Until",
+   "text": "Do"
+  },
+  "sc0370": {
+   "source": "Signed",
+   "text": "Podepsáno"
+  },
+  "sc0371": {
+   "source": "out of date",
+   "text": "zastaralý"
+  },
+  "sc0372": {
+   "source": "Below",
+   "text": "Pod ní"
+  },
+  "sc0373": {
+   "source": "An authority",
+   "text": "Autorita"
+  },
+  "sc0374": {
+   "source": "New CRL",
+   "text": "Nový CRL"
+  },
+  "sc0375": {
+   "source": "a new CRL was made",
+   "text": "nový CRL vytvořen"
+  },
+  "sc0376": {
+   "source": "Sign a CSR",
+   "text": "Podepsat CSR"
+  },
+  "sc0377": {
+   "source": "no key - it cannot sign",
+   "text": "bez klíče – nemůže podepisovat"
+  },
+  "sc0378": {
+   "source": "The authority",
+   "text": "Autorita"
+  },
+  "sc0379": {
+   "source": "Path length",
+   "text": "Délka cesty"
+  },
+  "sc0380": {
+   "source": "no limit",
+   "text": "bez omezení"
+  },
+  "sc0381": {
+   "source": "Name constraints",
+   "text": "Omezení jmen"
+  },
+  "sc0382": {
+   "source": "Next serial",
+   "text": "Další sériové číslo"
+  },
+  "sc0383": {
+   "source": "Revocation and where it is published",
+   "text": "Odvolávání a kde se publikuje"
+  },
+  "sc0384": {
+   "source": "CRL number",
+   "text": "Číslo CRL"
+  },
+  "sc0385": {
+   "source": "Made anew every",
+   "text": "Vytváří se znovu každých"
+  },
+  "sc0386": {
+   "source": "CRL address",
+   "text": "Adresa CRL"
+  },
+  "sc0387": {
+   "source": "AIA address",
+   "text": "Adresa AIA"
+  },
+  "sc0388": {
+   "source": "What it signed",
+   "text": "Co podepsala"
+  },
+  "sc0389": {
+   "source": "Every certificate this authority issued; a revoked one is in its CRL.",
+   "text": "Každý certifikát, který tato autorita vydala; odvolaný je v jejím CRL."
+  },
+  "sc0390": {
+   "source": "a name, a serial…",
+   "text": "jméno, sériové číslo…"
+  },
+  "sc0391": {
+   "source": "Revoke it: into the CRL",
+   "text": "Odvolat: do CRL"
+  },
+  "sc0392": {
+   "source": "Nothing signed yet",
+   "text": "Zatím nic nepodepsáno"
+  },
+  "sc0393": {
+   "source": "Common name",
+   "text": "Common name"
+  },
+  "sc0394": {
+   "source": "A new root authority",
+   "text": "Nová kořenová autorita"
+  },
+  "sc0395": {
+   "source": "A new intermediate authority",
+   "text": "Nová podřízená autorita"
+  },
+  "sc0396": {
+   "source": "A root signs itself and is what your machines trust. Keep it for signing intermediates and issue certificates from those: a root that is never used directly is one that never has to be replaced.",
+   "text": "Kořenová autorita podepisuje sama sebe a je tím, čemu vaše stroje důvěřují. Používejte ji k podepisování podřízených a certifikáty vystavujte z nich: kořenovou, která se nikdy nepoužívá přímo, nikdy nebude třeba nahrazovat."
+  },
+  "sc0397": {
+   "source": "An intermediate is signed by the authority above it and issues the certificates. Machines that trust the root trust it too.",
+   "text": "Podřízenou podepisuje autorita nad ní a ona vystavuje certifikáty. Stroje, které důvěřují kořenové, důvěřují i jí."
+  },
+  "sc0398": {
+   "source": "10 years is usual for a root.",
+   "text": "Pro kořenovou je obvyklých 10 let."
+  },
+  "sc0399": {
+   "source": "Shorter than the root above it.",
+   "text": "Kratší než kořenová nad ní."
+  },
+  "sc0400": {
+   "source": "How many authorities may still come under it. 0: it signs only certificates. Empty: no limit.",
+   "text": "Kolik autorit pod ní ještě smí být. 0: podepisuje jen certifikáty. Prázdné: bez omezení."
+  },
+  "sc0401": {
+   "source": "Revocation and publishing",
+   "text": "Odvolávání a publikace"
+  },
+  "sc0402": {
+   "source": "CRL made anew every (days)",
+   "text": "CRL vytvářet znovu každých (dní)"
+  },
+  "sc0403": {
+   "source": "Written into what it signs, so a client can find the CRL. Empty: none.",
+   "text": "Zapíše se do toho, co podepíše, aby klient CRL našel. Prázdné: žádná."
+  },
+  "sc0404": {
+   "source": "Where its own certificate can be fetched.",
+   "text": "Odkud lze stáhnout její vlastní certifikát."
+  },
+  "sc0405": {
+   "source": "One a line: names it may (permitted) or may not (excluded) sign for. Empty: any.",
+   "text": "Jedno na řádek: jména, pro která smí (permitted) nebo nesmí (excluded) podepisovat. Prázdné: jakákoli."
+  },
+  "sc0406": {
+   "source": "Create it",
+   "text": "Vytvořit"
+  },
+  "sc0407": {
+   "source": "it needs a common name",
+   "text": "potřebuje common name"
+  },
+  "sc0408": {
+   "source": "created",
+   "text": "vytvořeno"
+  },
+  "sc0409": {
+   "source": "An authority you already have, to issue from here: its certificate and its private key (PEM), and the chain above it if it is an intermediate. The key is sealed in the database like every other.",
+   "text": "Autorita, kterou už máte, k vystavování odsud: její certifikát a soukromý klíč (PEM) a řetězec nad ní, je-li podřízená. Klíč se v databázi zapečetí jako každý jiný."
+  },
+  "sc0410": {
+   "source": "only if the key is locked",
+   "text": "jen je-li klíč zamčený"
+  },
+  "sc0411": {
+   "source": "Its certificate",
+   "text": "Její certifikát"
+  },
+  "sc0412": {
+   "source": "Its private key",
+   "text": "Její soukromý klíč"
+  },
+  "sc0413": {
+   "source": "the authorities above it, if any",
+   "text": "autority nad ní, pokud nějaké jsou"
+  },
+  "sc0414": {
+   "source": "Empty for a root.",
+   "text": "Pro kořenovou prázdné."
+  },
+  "sc0415": {
+   "source": "it needs the certificate and the key",
+   "text": "potřebuje certifikát i klíč"
+  },
+  "sc0416": {
+   "source": "A request made elsewhere - by a device, another server, a person - signed by this authority. The certificate is shown at once; it is kept in what this authority signed, not as a certificate acme renews.",
+   "text": "Žádost vytvořená jinde – zařízením, jiným serverem, člověkem – podepsaná touto autoritou. Certifikát se zobrazí hned; uloží se mezi to, co tato autorita podepsala, ne jako certifikát, který acme obnovuje."
+  },
+  "sc0417": {
+   "source": "The CSR",
+   "text": "CSR"
+  },
+  "sc0418": {
+   "source": "Sign it",
+   "text": "Podepsat"
+  },
+  "sc0419": {
+   "source": "paste the CSR",
+   "text": "vložte CSR"
+  },
+  "sc0420": {
+   "source": "the certificate was copied",
+   "text": "certifikát zkopírován"
+  },
+  "sc0421": {
+   "source": "signed",
+   "text": "podepsáno"
+  },
+  "sc0422": {
+   "source": "DER",
+   "text": "DER"
+  },
+  "sc0423": {
+   "source": "No job yet",
+   "text": "Zatím žádná úloha"
+  },
+  "sc0424": {
+   "source": "the jobs",
+   "text": "úlohy"
+  },
+  "sc0425": {
+   "source": "No step yet.",
+   "text": "Zatím žádný krok."
+  },
+  "sc0426": {
+   "source": "asked to stop",
+   "text": "požádáno o zastavení"
+  },
+  "sc0427": {
+   "source": "A job",
+   "text": "Úloha"
+  },
+  "sc0428": {
+   "source": "revoking",
+   "text": "odvolává se"
+  },
+  "sc0429": {
+   "source": "Running out soon",
+   "text": "Brzy vyprší"
+  },
+  "sc0430": {
+   "source": "Failing",
+   "text": "Selhává"
+  },
+  "sc0431": {
+   "source": "nothing failing",
+   "text": "nic neselhává"
+  },
+  "sc0432": {
+   "source": "Expired",
+   "text": "Vypršelo"
+  },
+  "sc0433": {
+   "source": "no longer valid",
+   "text": "už neplatí"
+  },
+  "sc0434": {
+   "source": "Waiting for a CA",
+   "text": "Čeká na CA"
+  },
+  "sc0435": {
+   "source": "a CSR given out",
+   "text": "vydané CSR"
+  },
+  "sc0436": {
+   "source": "When certificates run out",
+   "text": "Kdy certifikáty vyprší"
+  },
+  "sc0437": {
+   "source": "How many certificates end in each week ahead. Those that renew by themselves will be renewed before - a red bar of certificates renewed by hand is the one to look at.",
+   "text": "Kolik certifikátů vyprší v každém z příštích týdnů. Ty, které se obnovují samy, se obnoví dřív – pozornost si zaslouží červený sloupec certifikátů obnovovaných ručně."
+  },
+  "sc0438": {
+   "source": "within 2 weeks",
+   "text": "do 2 týdnů"
+  },
+  "sc0439": {
+   "source": "within 6 weeks",
+   "text": "do 6 týdnů"
+  },
+  "sc0440": {
+   "source": "later",
+   "text": "později"
+  },
+  "sc0441": {
+   "source": "renewed by hand",
+   "text": "obnovované ručně"
+  },
+  "sc0442": {
+   "source": "Running out soonest",
+   "text": "Vyprší nejdřív"
+  },
+  "sc0443": {
+   "source": "Nothing to run out.",
+   "text": "Nic nevyprší."
+  },
+  "sc0444": {
+   "source": "What needs a look",
+   "text": "Co potřebuje pozornost"
+  },
+  "sc0445": {
+   "source": "Nothing is failing: every renewal and deployment went well.",
+   "text": "Nic neselhává: všechna obnovení a nasazení se povedla."
+  },
+  "sc0446": {
+   "source": "Recent jobs",
+   "text": "Poslední úlohy"
+  },
+  "sc0447": {
+   "source": "All jobs",
+   "text": "Všechny úlohy"
+  },
+  "sc0448": {
+   "source": "Nothing runs out in the weeks ahead",
+   "text": "V příštích týdnech nic nevyprší"
+  },
+  "sc0449": {
+   "source": "1 certificate ends",
+   "text": "vyprší 1 certifikát"
+  },
+  "sc0450": {
+   "source": "nothing ends",
+   "text": "nic nevyprší"
+  },
+  "sc0451": {
+   "source": "Zone",
+   "text": "Zóna"
+  },
+  "sc0452": {
+   "source": "Name servers",
+   "text": "Jmenné servery"
+  },
+  "sc0453": {
+   "source": "Listens on",
+   "text": "Naslouchá na"
+  },
+  "sc0454": {
+   "source": "Answered",
+   "text": "Odpovězeno"
+  },
+  "sc0455": {
+   "source": "Up since",
+   "text": "Běží od"
+  },
+  "sc0456": {
+   "source": "The DNS server is not installed with this version of acme.",
+   "text": "DNS server není v této verzi acme nainstalován."
+  },
+  "sc0457": {
+   "source": "It is switched off: switch it on below, with the zone it answers for.",
+   "text": "Je vypnutý: zapněte jej níže, spolu se zónou, za kterou odpovídá."
+  },
+  "sc0458": {
+   "source": "Delegate the zone to acme with an NS record (and an address for each name server, if it is inside the zone), then point the challenge name of every certificate name at it:",
+   "text": "Delegujte zónu na acme NS záznamem (a adresou každého jmenného serveru, je-li uvnitř zóny), pak na ni nasměrujte jméno výzvy každého jména certifikátu:"
+  },
+  "sc0459": {
+   "source": "No zone is set yet: set it below, and the NS names this server is known by.",
+   "text": "Zatím není nastavena žádná zóna: nastavte ji níže spolu s NS jmény, pod kterými je tento server znám."
+  },
+  "sc0460": {
+   "source": "Goes",
+   "text": "Zmizí"
+  },
+  "sc0461": {
+   "source": "Put there by",
+   "text": "Vložil"
+  },
+  "sc0462": {
+   "source": "a job",
+   "text": "úloha"
+  },
+  "sc0463": {
+   "source": "Take the record away",
+   "text": "Odebrat záznam"
+  },
+  "sc0464": {
+   "source": "No record yet",
+   "text": "Zatím žádný záznam"
+  },
+  "sc0465": {
+   "source": "A record of your own",
+   "text": "Vlastní záznam"
+  },
+  "sc0466": {
+   "source": "TTL (seconds)",
+   "text": "TTL (sekundy)"
+  },
+  "sc0467": {
+   "source": "it needs a name and a value",
+   "text": "potřebuje jméno a hodnotu"
+  },
+  "sc0468": {
+   "source": "What these apply to",
+   "text": "Na co se vztahují"
+  },
+  "sc0469": {
+   "source": "Renewed by themselves",
+   "text": "Obnovují se samy"
+  },
+  "sc0470": {
+   "source": "Due now",
+   "text": "K obnovení teď"
+  },
+  "sc0471": {
+   "source": "Issues for",
+   "text": "Vystavuje na"
+  },
+  "sc0472": {
+   "source": "the sources",
+   "text": "zdroje"
+  },
+  "sc0473": {
+   "source": "the targets",
+   "text": "cíle"
+  },
+  "sc0474": {
+   "source": "the certificates",
+   "text": "certifikáty"
+  },
+  "sc0475": {
+   "source": "certificates",
+   "text": "certifikáty"
+  },
+  "sc0476": {
+   "source": "the authorities",
+   "text": "autority"
+  },
+  "sc0477": {
+   "source": "the deployments of a target",
+   "text": "nasazení na cíl"
+  },
+  "sc0478": {
+   "source": "its own DNS server",
+   "text": "vlastní DNS server"
+  },
+  "sc0479": {
+   "source": "Every name the certificate is for, one a line.",
+   "text": "Všechna jména, pro která certifikát je, jedno na řádek."
+  },
+  "sc0480": {
+   "source": "The first is its common name.",
+   "text": "První je jeho common name."
+  },
+  "sc0481": {
+   "source": "This source issues no wildcards.",
+   "text": "Tento zdroj nevystavuje wildcardy."
+  },
+  "sc0482": {
+   "source": "Answered by acme’s DNS server as long as it is here. The whole name, or @ for the zone itself.",
+   "text": "DNS server acme jím odpovídá, dokud tu je. Celé jméno, nebo @ pro zónu samotnou."
+  },
+  "sc0483": {
+   "source": "the file",
+   "text": "soubor"
   }
  },
  "patterns": {
@@ -26137,6 +28069,306 @@
   "p1551": {
    "source": "✓ last sent {0} · {1}",
    "text": "✓ naposledy odesláno {0} · {1}"
+  },
+  "pc0001": {
+   "source": "This could not be drawn whole: {0}",
+   "text": "Nepodařilo se to vykreslit celé: {0}"
+  },
+  "pc0002": {
+   "source": "This server does not answer for {0} yet - it comes with a later version of the daemon.",
+   "text": "Tento server zatím neodpovídá za {0} – přijde s pozdější verzí démona."
+  },
+  "pc0003": {
+   "source": "expired {0} days ago",
+   "text": "vypršel před {0} dny"
+  },
+  "pc0004": {
+   "source": "{0} modules that would not load",
+   "text": "{0} {0:modul, který se nepodařilo|moduly, které se nepodařilo|modulů, které se nepodařilo} načíst"
+  },
+  "pc0005": {
+   "source": "{0} is needed",
+   "text": "{0} je potřeba"
+  },
+  "pc0006": {
+   "source": "module missing: {0}",
+   "text": "chybí modul: {0}"
+  },
+  "pc0007": {
+   "source": "last worked {0}",
+   "text": "naposledy fungoval {0}"
+  },
+  "pc0008": {
+   "source": "last tried {0}",
+   "text": "naposledy zkoušeno {0}"
+  },
+  "pc0009": {
+   "source": "renewal failed {0}",
+   "text": "obnovení selhalo {0}"
+  },
+  "pc0010": {
+   "source": "last renewed {0}",
+   "text": "naposledy obnoven {0}"
+  },
+  "pc0011": {
+   "source": "The source {0}",
+   "text": "Zdroj {0}"
+  },
+  "pc0012": {
+   "source": "The target {0}",
+   "text": "Cíl {0}"
+  },
+  "pc0013": {
+   "source": "The validation {0}",
+   "text": "Validace {0}"
+  },
+  "pc0014": {
+   "source": "The source {0}: take it away",
+   "text": "Zdroj {0}: odebrat"
+  },
+  "pc0015": {
+   "source": "The target {0}: take it away",
+   "text": "Cíl {0}: odebrat"
+  },
+  "pc0016": {
+   "source": "The validation {0}: take it away",
+   "text": "Validace {0}: odebrat"
+  },
+  "pc0017": {
+   "source": "A new source · {0}",
+   "text": "Nový zdroj · {0}"
+  },
+  "pc0018": {
+   "source": "A new target · {0}",
+   "text": "Nový cíl · {0}"
+  },
+  "pc0019": {
+   "source": "A new way of validation · {0}",
+   "text": "Nový způsob validace · {0}"
+  },
+  "pc0020": {
+   "source": "Options on {0}",
+   "text": "Volby na {0}"
+  },
+  "pc0021": {
+   "source": "It is used by {0} certificate(s) or deployment(s): change those first.",
+   "text": "Používá jej {0} {0:certifikát nebo nasazení|certifikáty nebo nasazení|certifikátů nebo nasazení}: nejdřív změňte ty."
+  },
+  "pc0022": {
+   "source": "The module of this target ({0}) is not installed: its options cannot be drawn.",
+   "text": "Modul tohoto cíle ({0}) není nainstalován: jeho volby nelze zobrazit."
+  },
+  "pc0023": {
+   "source": "The deployment of {0} on {1}",
+   "text": "Nasazení {0} na {1}"
+  },
+  "pc0024": {
+   "source": "{0} certificate(s)",
+   "text": "{0} {0:certifikát|certifikáty|certifikátů}"
+  },
+  "pc0025": {
+   "source": "Renewed {0} days before it runs out (or when the CA suggests).",
+   "text": "Obnoví se {0} dní před vypršením (nebo kdy navrhne CA)."
+  },
+  "pc0026": {
+   "source": "Deployed on {0} targets.",
+   "text": "Nasazen na {0} cílech."
+  },
+  "pc0027": {
+   "source": "{0} failed",
+   "text": "{0} {0:selhalo|selhala|selhalo}"
+  },
+  "pc0028": {
+   "source": "{0} time(s) in a row",
+   "text": "{0}× za sebou"
+  },
+  "pc0029": {
+   "source": "tried again {0}",
+   "text": "znovu se zkusí {0}"
+  },
+  "pc0030": {
+   "source": "{0} · not kept here",
+   "text": "{0} · zde neuložen"
+  },
+  "pc0031": {
+   "source": "{0} · {1} bits · not kept here",
+   "text": "{0} · {1} bitů · zde neuložen"
+  },
+  "pc0032": {
+   "source": "{0} · {1} bits",
+   "text": "{0} · {1} bitů"
+  },
+  "pc0033": {
+   "source": "{0} · {1} name(s) otherwise",
+   "text": "{0} · {1} {1:jméno|jména|jmen} jinak"
+  },
+  "pc0034": {
+   "source": "by itself, {0} days before the end",
+   "text": "samo, {0} dní před koncem"
+  },
+  "pc0035": {
+   "source": "{0} days",
+   "text": "{0} {0:den|dny|dní}"
+  },
+  "pc0036": {
+   "source": "{0} certificates",
+   "text": "{0} {0:certifikát|certifikáty|certifikátů}"
+  },
+  "pc0037": {
+   "source": "Export {0}",
+   "text": "Export {0}"
+  },
+  "pc0038": {
+   "source": "Revoke {0}",
+   "text": "Odvolat {0}"
+  },
+  "pc0039": {
+   "source": "Edit {0}",
+   "text": "Upravit {0}"
+  },
+  "pc0040": {
+   "source": "{0} was downloaded",
+   "text": "{0} staženo"
+  },
+  "pc0041": {
+   "source": "{0} (in use)",
+   "text": "{0} (používá se)"
+  },
+  "pc0042": {
+   "source": "Every name the certificate is for, one a line. The first is its common name. {0}",
+   "text": "Všechna jména, pro která certifikát je, jedno na řádek. První je jeho common name. {0}"
+  },
+  "pc0043": {
+   "source": "not possible here: {0}",
+   "text": "zde nelze: {0}"
+  },
+  "pc0044": {
+   "source": "{0} names",
+   "text": "{0} {0:jméno|jména|jmen}"
+  },
+  "pc0045": {
+   "source": "This source can use: {0}.",
+   "text": "Tento zdroj umí: {0}."
+  },
+  "pc0046": {
+   "source": "{0} days unless asked",
+   "text": "{0} dní, nežádá-li se jinak"
+  },
+  "pc0047": {
+   "source": "Reading {0}…",
+   "text": "Čtu {0}…"
+  },
+  "pc0048": {
+   "source": "A new certificate for {0}",
+   "text": "Nový certifikát pro {0}"
+  },
+  "pc0049": {
+   "source": "It becomes the next version of {0} and is deployed where that one is. Without a key in the file, the key kept for it is used.",
+   "text": "Stane se další verzí {0} a nasadí se tam, kde je ta současná. Není-li v souboru klíč, použije se klíč uložený pro něj."
+  },
+  "pc0050": {
+   "source": "The CSR of {0}",
+   "text": "CSR pro {0}"
+  },
+  "pc0051": {
+   "source": "The answer of the CA for {0}",
+   "text": "Odpověď autority pro {0}"
+  },
+  "pc0052": {
+   "source": "It goes into the CRL of {0} at once, and a new CRL is made. This cannot be taken back.",
+   "text": "Hned se zapíše do CRL autority {0} a vytvoří se nový CRL. Nelze to vzít zpět."
+  },
+  "pc0053": {
+   "source": "Sign a CSR with {0}",
+   "text": "Podepsat CSR autoritou {0}"
+  },
+  "pc0054": {
+   "source": "{0} job(s)",
+   "text": "{0} {0:úloha|úlohy|úloh}"
+  },
+  "pc0055": {
+   "source": "{0} job(s) · {1} running",
+   "text": "{0} {0:úloha|úlohy|úloh} · {1} {1:běží|běží|běží}"
+  },
+  "pc0056": {
+   "source": "{0} so far",
+   "text": "zatím {0}"
+  },
+  "pc0057": {
+   "source": "{0} on {1}",
+   "text": "{0} na {1}"
+  },
+  "pc0058": {
+   "source": "{0} valid",
+   "text": "{0} {0:platný|platné|platných}"
+  },
+  "pc0059": {
+   "source": "{0} valid · {1} being renewed",
+   "text": "{0} {0:platný|platné|platných} · {1} se obnovuje"
+  },
+  "pc0060": {
+   "source": "within {0} days",
+   "text": "do {0} dní"
+  },
+  "pc0061": {
+   "source": "{0} renewal(s) · {1} deployment(s)",
+   "text": "{0} {0:obnovení|obnovení|obnovení} · {1} {1:nasazení|nasazení|nasazení}"
+  },
+  "pc0062": {
+   "source": "the next {0} weeks",
+   "text": "příštích {0} týdnů"
+  },
+  "pc0063": {
+   "source": "{0} certificates end",
+   "text": "vyprší {0} {0:certifikát|certifikáty|certifikátů}"
+  },
+  "pc0064": {
+   "source": "{0} renewed by hand",
+   "text": "{0} obnovováno ručně"
+  },
+  "pc0065": {
+   "source": "Ending {0} – {1}",
+   "text": "Vyprší {0} – {1}"
+  },
+  "pc0066": {
+   "source": "{0} record(s)",
+   "text": "{0} {0:záznam|záznamy|záznamů}"
+  },
+  "pc0067": {
+   "source": "{0} is not answered any more.",
+   "text": "{0} se už nebude odpovídat."
+  },
+  "pc0068": {
+   "source": "Answered by acme’s DNS server as long as it is here. The whole name, or @ for the zone itself ({0}).",
+   "text": "DNS server acme jím odpovídá, dokud tu je. Celé jméno, nebo @ pro zónu samotnou ({0})."
+  },
+  "pc0069": {
+   "source": "renewal #{0}",
+   "text": "obnovení č. {0}"
+  },
+  "pc0070": {
+   "source": "issue #{0}",
+   "text": "vystavení č. {0}"
+  },
+  "pc0071": {
+   "source": "deployment #{0}",
+   "text": "nasazení č. {0}"
+  },
+  "pc0072": {
+   "source": "revocation #{0}",
+   "text": "odvolání č. {0}"
+  },
+  "pc0073": {
+   "source": "import #{0}",
+   "text": "import č. {0}"
+  },
+  "pc0074": {
+   "source": "test #{0}",
+   "text": "test č. {0}"
+  },
+  "pc0075": {
+   "source": "Deployed on {0} target(s).",
+   "text": "Nasazen na {0} {0:cíli|cílech|cílech}."
   }
  },
  "rich": {

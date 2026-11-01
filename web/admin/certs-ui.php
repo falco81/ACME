@@ -70,7 +70,7 @@ function acme_certs_tab_panels(): void
         <option value="due">due for renewal</option>
         <option value="renewing">being renewed</option>
         <option value="failed">renewal failed</option>
-        <option value="expired">expired</option>
+        <option value="expired">has expired</option>
         <option value="pending">waiting for an outside CA</option>
         <option value="new">not issued yet</option>
         <option value="revoked">revoked</option>
@@ -90,7 +90,7 @@ function acme_certs_tab_panels(): void
   <div class="card full">
     <h2>Certificate authorities <span class="right" id="ca-said"></span></h2>
     <p class="note">The authorities of acme's own: roots, and the intermediates each of them
-      signed, as a tree. A source of the kind <i>own CA</i> issues certificates from one of them.
+      signed, as a tree. A source of the kind "own certificate authority" issues certificates from one of them.
       Click one for what it signed, its revocation list, and to sign a CSR from elsewhere.</p>
     <div class="btnrow ct-fulladmin" style="margin-bottom:12px">
       <button class="btn cmd primary" id="ca-root" data-icon="add"
@@ -211,8 +211,8 @@ function acme_certs_settings_panes(): void
   <div class="ctl-pane" id="pane-dnssrv" hidden>
     <div class="ctl-head"><h2 class="ctl-title">DNS server</h2>
       <p class="ctl-lede">acme's own DNS server, for DNS-01 without giving acme the keys to your
-        DNS: delegate one zone to it (an NS record in your DNS), point
-        <code>_acme-challenge.&lt;name&gt;</code> at it with a CNAME, and the TXT records are put
+        DNS: delegate one zone to it (an NS record in your DNS), point the _acme-challenge name of
+        each certificate name at it with a CNAME, and the TXT records are put
         here and taken away again by themselves.</p></div>
     <div class="card full" id="dns-state"></div>
     <div class="card full"><h2>Settings</h2><div id="sect-dnssrv"></div></div>

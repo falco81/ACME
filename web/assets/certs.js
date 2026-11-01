@@ -135,7 +135,7 @@ if (typeof ICONS === 'object') {
 /* ---- words ----------------------------------------------------------------- */
 var STATE = {
   'new': ['not issued yet', 'dim'], ok: ['valid', 'ok'], due: ['due', 'warn'],
-  renewing: ['renewing', 'info'], failed: ['failed', 'crit'], expired: ['expired', 'crit'],
+  renewing: ['renewing', 'info'], failed: ['failed', 'crit'], expired: ['has expired', 'crit'],
   pending: ['waiting for a CA', 'violet'], revoked: ['revoked', 'crit'], disabled: ['switched off', 'dim']
 };
 function stateTag(st) {
@@ -295,6 +295,14 @@ function td(cls, content) {
   if (content.nodeType) c.appendChild(content); else c.textContent = String(content);
   return c;
 }
+/** Who did it and how long ago, each in a piece of its own (the time is
+    translated, the name is not). */
+function whoWhen(by, ts) {
+  var c = el('td', 'muted small ct-whowhen');
+  c.appendChild(data('span', '', by || '–'));
+  if (ts) c.appendChild(el('span', '', ago(ts)));
+  return c;
+}
 function emptyNote(words) { return el('p', 'muted ct-empty', words); }
 function section(title, lede, wide) {
   var box = el('section', 'msect' + (wide ? ' wide' : ''));
@@ -306,6 +314,16 @@ function section(title, lede, wide) {
   return box;
 }
 function factsRow(pairs) { return peekFacts(pairs); }
+/** Two sections side by side take half each, one takes the row - not a
+    third of it beside two empty thirds. */
+function fitSections(root) {
+  if (!root) return;
+  Array.prototype.forEach.call(root.querySelectorAll('.msects'), function (g) {
+    var narrow = Array.prototype.filter.call(g.children, function (x) { return !x.classList.contains('wide'); }).length;
+    g.classList.toggle('ct-two', narrow === 2);
+    g.classList.toggle('ct-one', narrow === 1);
+  });
+}
 
 /* ---- files ----------------------------------------------------------------- */
 function fileB64(file) {
@@ -456,8 +474,27 @@ function popup(title, ask, draw, size, what) {
   return Promise.resolve().then(ask).then(function (d) {
     if (!modalStill(ticket)) return;
     var r = draw(d) || {};
-    modal(r.title || title, r.build, r.buttons, r.size || size);
+    var build = r.build;
+    modal(r.title || title, function (body) {
+      try { if (build) build(body); }
+      catch (e) {
+        if (window.console) console.error(e);
+        body.appendChild(el('p', 'ct-bad', 'This could not be drawn whole: ' + wordsOf(e)));
+      }
+    }, r.buttons, r.size || size);
     explainWhatWasDrawn($('modal-body'));
+    fitSections($('modal-body'));
+    /* A popup to read opens at its top: the page's popup puts the cursor in
+       its first box, which here is a search far down. */
+    setTimeout(function () {
+      var a = document.activeElement, b = $('modal-body');
+      if (a && a.type === 'search' && b && b.contains(a)) {
+        a.blur();
+        var go = $('modal-foot') && $('modal-foot').querySelector('.btn.primary:not(.danger)');
+        if (go) { try { go.focus({preventScroll: true}); } catch (e) { } }
+        b.scrollTop = 0;
+      }
+    }, 30);
     if (r.after) r.after();
   }).catch(function (e) {
     if (!modalStill(ticket)) return;
@@ -712,7 +749,10 @@ function brokenBox(family) {
   list = list.filter(function (b) {
     var file = Array.isArray(b) ? b[0] : (b.file || b.path || '');
     var fam = !Array.isArray(b) && b.family;
-    return fam ? fam === family : (!folder || String(file).indexOf('/' + folder + '/') >= 0 || list.length < 2);
+    if (fam) return fam === family;
+    var f = String(file);
+    var any = /\/(issuers|challenges|targets)\//.test(f);
+    return !folder || !any || f.indexOf('/' + folder + '/') >= 0;
   });
   if (!list.length) return box;
   var card = el('div', 'ct-broken');
@@ -756,27 +796,43 @@ function kindPicker(family, go, filter) {
     box.appendChild(find);
   }
   var groups = {}, order = [];
+  /* The ones most people want first. */
+  var FIRST = ['acme', 'internal_ca', 'selfsigned', 'dns_builtin', 'http_local', 'http_ssh', 'ssh', 'local'];
+  list = list.slice().sort(function (a, b) {
+    var x = FIRST.indexOf(a.kind), y = FIRST.indexOf(b.kind);
+    return (x < 0 ? 99 : x) - (y < 0 ? 99 : y);
+  });
   list.forEach(function (p) {
     var v = p.vendor || 'Other';
     if (!groups[v]) { groups[v] = []; order.push(v); }
     groups[v].push(p);
   });
+  /* Mostly one module a vendor: one grid, the vendor said on each card. */
+  var flat = order.length > list.length / 2;
+  if (flat) { groups = {'': list}; order = ['']; }
   var tiles = [];
   order.forEach(function (v) {
     var g = el('div', 'ct-kind-group');
-    g.appendChild(data('div', 'ct-vendor', v));
+    if (v) g.appendChild(data('div', 'ct-vendor', v));
     var grid = el('div', 'ct-kind-grid');
     groups[v].forEach(function (p) {
       var t = el('button', 'ct-kind-tile');
       t.type = 'button';
-      var ic = el('span', 'ct-kind-ic v-' + String(v).toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+      var ic = el('span', 'ct-kind-ic v-' + String(p.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
       ic.appendChild(document.createTextNode(String(p.title || p.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?'));
       noI18n(ic);
       t.appendChild(ic);
       var w = el('span', 'ct-kind-w');
       w.appendChild(data('span', 'ct-kind-t', p.title || p.kind));
-      if (p.description) w.appendChild(el('span', 'ct-kind-d', p.description));
-      w.appendChild(mono(p.kind, 'ct-kind-k'));
+      if (p.description) {
+        var desc = el('span', 'ct-kind-d', p.description);
+        w.appendChild(desc);
+        if (String(p.description).length > 130) explain(t, p.description);
+      }
+      var foot = el('span', 'ct-kind-foot');
+      if (flat && p.vendor) foot.appendChild(data('span', 'ct-kind-v', p.vendor));
+      foot.appendChild(mono(p.kind, 'ct-kind-k'));
+      w.appendChild(foot);
       t.appendChild(w);
       t.onclick = function () { go(p); };
       t._words = ((p.title || '') + ' ' + p.kind + ' ' + v + ' ' + (p.description || '')).toLowerCase();
@@ -888,7 +944,7 @@ function modStateCell(r) {
     explain(b, String(r.last_error));
     c.appendChild(b);
   } else if (r.last_ok) {
-    c.appendChild(el('span', 'muted small', 'worked ' + ago(r.last_ok)));
+    c.appendChild(el('span', 'muted small', 'last worked ' + ago(r.last_ok)));
   }
   return c;
 }
@@ -1011,7 +1067,7 @@ function modDelete(key, r) {
   var m = MODS[key];
   var n = usedCount(r);
   confirmThen(m.one + ' ' + r.name + ': take it away',
-    (n ? '<b>' + num(n) + ' certificate(s)</b> use it - they will have nothing to use instead until another is chosen. ' : '')
+    (n ? htmlText('It is used by ' + num(n) + ' certificate(s) or deployment(s): change those first.') + ' ' : '')
     + 'Its settings and secrets go with it.', 'Take it away', function () {
       capi(m.list + '/delete', {id: r.id, name: r.name}).then(function (d) {
         toast(said(d, 'taken away'), 'good');
@@ -1236,7 +1292,7 @@ function deployTable(rows, o) {
     tr.appendChild(nc);
     tr.appendChild(td('', deployTag(d, (o.cert && o.cert.version) || d.cert_version)));
     tr.appendChild(td('num', d.deployed_version ? 'v' + d.deployed_version : '–'));
-    tr.appendChild(d.last_ok ? stampCell(d.last_ok) : td('muted', d.last_try ? 'tried ' + ago(d.last_try) : 'never'));
+    tr.appendChild(d.last_ok ? stampCell(d.last_ok) : td('muted', d.last_try ? 'last tried ' + ago(d.last_try) : 'never'));
     var opt = obj(d.options);
     var keys = Object.keys(opt).filter(function (k) { return opt[k] !== '' && opt[k] !== null && typeof opt[k] !== 'object'; }).slice(0, 2);
     var oc = el('td', 'ct-sum');
@@ -1299,7 +1355,7 @@ function deployEdit(o) {
         form = null;
         return;
       }
-      formHost.appendChild(el('h4', 'ct-formh', 'On ' + (p.title || p.kind)));
+      formHost.appendChild(el('h4', 'ct-formh', 'Options on ' + (p.title || p.kind)));
       form = fieldForm(p.deploy_fields || [], obj(d.options), secretsOf(d), {noneWords: 'This target needs nothing more: the certificate goes where the module puts it.'});
       formHost.appendChild(form.node);
     };
@@ -1464,11 +1520,12 @@ function certRow(c) {
   var lj = c.last_job || null;
   if (lj && typeof lj === 'object') {
     jc.appendChild(jobTag(lj));
-    jc.appendChild(el('span', 'muted small', ' ' + (JOB_KIND[lj.kind] || lj.kind || '') + ' · ' + ago(lj.ts)));
+    jc.appendChild(el('span', 'muted small ct-jk', JOB_KIND[lj.kind] || lj.kind || ''));
+    jc.appendChild(el('span', 'muted small', ago(lj.ts)));
     jc.onclick = function (e) { e.stopPropagation(); jobPeek(lj.id); };
     jc.classList.add('ct-link');
   } else if (c.last_try || c.last_ok) {
-    jc.appendChild(el('span', 'muted small', c.last_error ? 'failed ' + ago(c.last_try) : 'ok ' + ago(c.last_ok || c.last_try)));
+    jc.appendChild(el('span', 'muted small', c.last_error ? 'renewal failed ' + ago(c.last_try) : 'last renewed ' + ago(c.last_ok || c.last_try)));
   } else jc.appendChild(el('span', 'muted', '–'));
   if (c.last_error && (c.state === 'failed')) explain(jc, String(c.last_error));
   tr.appendChild(jc);
@@ -1514,19 +1571,20 @@ function certPeek(id) {
     c.names = arr(c.names);
     var versions = rowsOf(d.versions), deploys = rowsOf(d.deploys), jobs = rowsOf(d.jobs);
     var back = function () { certPeek(c.id); };
-    var buttons = [{words: 'Close', close: true}];
-    if (MANAGE) {
-      buttons.unshift({words: 'Delete', cls: 'danger', icon: 'trash', left: true, go: function () {
-        capi('certs/delete', {id: c.id}).then(function (x) { toast(said(x, 'deleted'), 'good'); closeModal(); CT.refresh(); }).catch(fail);
-      }});
-      if (c.not_after && c.state !== 'revoked' && c.state !== 'pending')
-        buttons.splice(1, 0, {words: 'Revoke', icon: 'ban', go: function () { over(function () { revokeDialog(c); }, back); }});
-      buttons.push({words: 'Edit', icon: 'edit', go: function () { certWizard(c, d); }});
-    }
-    if (c.not_after || versions.length) buttons.push({words: 'Export', icon: 'download', go: function () { over(function () { exportDialog(c, versions); }, back); }});
-    if (MANAGE && c.state === 'pending') buttons.push({words: 'Upload the answer', cls: 'primary', icon: 'upload', go: function () { over(function () { csrAnswer(c); }, back); }});
-    if (MANAGE && deploys.length && c.state !== 'revoked') buttons.push({words: 'Deploy now', icon: 'deploy', go: function (b) { certDeploy(c, b, back); }});
-    if (MANAGE && c.state !== 'revoked' && c.state !== 'pending') buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
+    var buttons = [];
+    var waiting = c.state === 'pending' || c.csr_waiting;
+    if (MANAGE) buttons.push({words: 'Delete', cls: 'danger', icon: 'trash', left: true, go: function () {
+      capi('certs/delete', {id: c.id}).then(function (x) { toast(said(x, 'deleted'), 'good'); closeModal(); CT.refresh(); }).catch(fail);
+    }});
+    buttons.push({words: 'Close', close: true});
+    if (MANAGE && c.issuer && c.not_after && c.state !== 'revoked')
+      buttons.push({words: 'Revoke', icon: 'ban', go: function () { over(function () { revokeDialog(c); }, back); }});
+    if (MANAGE && c.issuer) buttons.push({words: 'Edit', icon: 'edit', go: function () { certWizard(c, d); }});
+    if (MANAGE && (c.not_after || versions.length)) buttons.push({words: 'Export', icon: 'download', go: function () { over(function () { exportDialog(c, versions); }, back); }});
+    if (MANAGE && waiting) buttons.push({words: 'Upload the answer', cls: 'primary', icon: 'upload', go: function () { over(function () { csrAnswer(c); }, back); }});
+    if (MANAGE && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
+    if (MANAGE && deploys.length && c.not_after && c.state !== 'revoked') buttons.push({words: 'Deploy now', icon: 'deploy', go: function (b) { certDeploy(c, b, back); }});
+    if (MANAGE && c.issuer && c.state !== 'revoked' && !waiting) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
     return {
       title: c.name,
       size: 'large',
@@ -1623,6 +1681,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   }
   grid.appendChild(rs);
   /* the chain */
+  var chain = rowsOf(c.chain || c.chain_info || c.chain_certs);
   var chainPems = String(c.chain_pem || '').split('-----BEGIN CERTIFICATE-----').length - 1;
   if (chain.length || chainPems) {
     var ch = section('The chain', 'Above the certificate, nearest first.');
@@ -1674,11 +1733,13 @@ function certBody(body, c, versions, deploys, jobs, back) {
     var why = td('', v.why || '–');
     if (v.revoked) why.appendChild(el('span', 'tag crit', 'revoked'));
     tr.appendChild(why);
-    tr.appendChild(td('muted small', (v.by_who || '–') + (v.created ? ' · ' + ago(v.created) : '')));
+    tr.appendChild(whoWhen(v.by_who, v.created));
     var tools = el('td', 'rowtools');
-    var ex = iconButton('download', 'Export this version');
-    ex.onclick = function () { over(function () { exportDialog(c, versions, v.version); }, back); };
-    tools.appendChild(ex);
+    if (MANAGE) {
+      var ex = iconButton('download', 'Export this version');
+      ex.onclick = function () { over(function () { exportDialog(c, versions, v.version); }, back); };
+      tools.appendChild(ex);
+    }
     tr.appendChild(tools);
     return tr;
   }, 'plain ct-vertable|No version yet: it has not been issued'));
@@ -2283,7 +2344,8 @@ function certWizard(cert, detail) {
    Import, self-signed, a CSR for an outside CA
    ========================================================================== */
 var KEY_EXT = /\.(key)$/i;
-function importDialog() {
+function importDialog(into) {
+  into = into && into.id ? into : null;
   var held = {main: null, key: null, mainB64: '', keyB64: '', parsed: null};
   var pass = null, keyPass = null, name = null, tags = null, note = null, found = null, drop = null, keyRow = null;
   var parse = function () {
@@ -2383,7 +2445,8 @@ function importDialog() {
       }).catch(oops);
     });
   };
-  modal('Import a certificate', function (body) {
+  modal(into ? 'A new certificate for ' + into.name : 'Import a certificate', function (body) {
+    if (into) body.appendChild(el('p', 'note', 'It becomes the next version of ' + into.name + ' and is deployed where that one is. Without a key in the file, the key kept for it is used.'));
     body.appendChild(el('p', 'note', 'Any file a certificate comes in: PEM, CRT, CER, DER, P7B, PFX/P12, JKS - with its key in it, or the key in a file of its own (.key) dropped beside it. It is read first and shown; nothing is kept until you press Import.'));
     drop = dropZone('Drop the file here, or press to choose it', take, '.pem,.crt,.cer,.der,.p7b,.p7c,.pfx,.p12,.jks,.key,.txt', true);
     body.appendChild(drop);
@@ -2405,29 +2468,32 @@ function importDialog() {
     keyRow.appendChild(formField('Password of the key', keyPass));
     body.appendChild(keyRow);
     var g = el('div', 'formgrid');
-    name = textBox('', 'from the certificate', '');
+    name = textBox(into ? into.name : '', 'from the certificate', '');
     noI18n(name);
-    g.appendChild(formField('Name in acme', name));
     tags = textBox('', 'prod web', '');
     noI18n(tags);
-    g.appendChild(formField('Tags', tags));
     note = textBox('', '', '');
-    var nf = formField('Note', note);
-    nf.classList.add('wide');
-    g.appendChild(nf);
-    var pf = formField('Password of the file', pass, 'For a PFX/P12 or JKS. It is asked for if needed.');
-    g.appendChild(pf);
+    if (!into) {
+      g.appendChild(formField('Name in acme', name));
+      g.appendChild(formField('Tags', tags));
+    }
+    g.appendChild(formField('Password of the file', pass, 'For a PFX/P12 or JKS. It is asked for if needed.'));
+    if (!into) {
+      var nf = formField('Note', note);
+      nf.classList.add('wide');
+      g.appendChild(nf);
+    }
     body.appendChild(g);
   }, [{words: 'Close', close: true}, {words: 'Import', cls: 'primary', icon: 'upload', go: function (b) {
     if (!held.main) { toast('drop a file first', 'bad'); return; }
     busy(b, true);
-    capi('certs/import', {name: name.value.trim() || undefined, data_b64: held.mainB64, filename: held.main.name,
+    capi('certs/import', {id: into ? into.id : undefined, name: into ? undefined : (name.value.trim() || undefined), data_b64: held.mainB64, filename: held.main.name,
                           password: pass.value || undefined, key_b64: held.keyB64 || undefined, key_filename: held.key ? held.key.name : undefined,
                           key_password: keyPass.value || undefined, tags: splitNames(tags.value), note: note.value}).then(function (d) {
       toast(said(d, 'imported'), 'good');
       closeModal();
       CT.refresh();
-      if (d && d.id) certPeek(d.id);
+      if (d && d.id && !into) certPeek(d.id);
     }).catch(fail).then(function () { busy(b, false); });
   }}], 'medium');
 }
@@ -2660,28 +2726,29 @@ function caNode(c, depth, kids) {
   w.appendChild(data('div', 'mono small muted ct-node-dn', c.subject_dn || ''));
   n.appendChild(w);
   var f = el('div', 'ct-node-f');
-  f.appendChild(ftag('Key', keyWords(c.key_type)));
-  f.appendChild(ftag('Until', c.not_after ? dayOnly(c.not_after) : '–'));
+  f.appendChild(ftag('Key', keyWords(c.key_type), 'k'));
+  f.appendChild(ftag('Until', c.not_after ? dayOnly(c.not_after) : '–', 'u'));
   var d = daysLeftOf(c.not_after);
-  var dt = el('span', 'ct-days ' + (d === null ? 'dim' : (d < 0 ? 'crit' : (d < 90 ? 'warn' : 'ok'))), d === null ? '' : daysWords(d));
+  var dt = el('span', 'ct-days ct-ft-d ' + (d === null ? 'dim' : (d < 0 ? 'crit' : (d < 90 ? 'warn' : 'ok'))), d === null ? '' : daysWords(d));
   f.appendChild(dt);
   var issued = first(c.issued, c.issued_count, c.signed);
-  if (issued !== undefined) f.appendChild(ftag('Signed', num(Number(issued))));
+  f.appendChild(ftag('Signed', issued === undefined ? '–' : num(Number(issued)), 's'));
+  var ct = ftag('CRL', '–', 'c');
   if (c.crl_at) {
     var next = c.crl_next || (c.crl_at + (c.crl_days || 7) * 86400);
     var late = next < now();
-    var ct = ftag('CRL', late ? 'out of date' : 'until ' + dayOnly(next));
+    ct = ftag('CRL', late ? 'out of date' : 'until ' + dayOnly(next), 'c');
     if (late) ct.classList.add('bad');
-    f.appendChild(ct);
   }
-  if (kids) f.appendChild(ftag('Below', num(kids)));
+  f.appendChild(ct);
+  f.appendChild(ftag('Below', kids ? num(kids) : '–', 'b'));
   n.appendChild(f);
   n.onclick = function () { caPeek(c.id); };
   n.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); caPeek(c.id); } };
   return n;
 }
-function ftag(k, v) {
-  var s = el('span', 'ct-ft');
+function ftag(k, v, cls) {
+  var s = el('span', 'ct-ft' + (cls ? ' ct-ft-' + cls : ''));
   s.appendChild(el('i', '', k));
   s.appendChild(data('b', '', v));
   return s;
@@ -2782,10 +2849,10 @@ function caPeek(id) {
               var rt = el('span', 'tag crit', 'revoked');
               explain(rt, stamp(r.revoked) + (r.reason ? ' · ' + r.reason : ''));
               st.appendChild(rt);
-            } else if (r.not_after && r.not_after < now()) st.appendChild(el('span', 'tag dim', 'expired'));
+            } else if (r.not_after && r.not_after < now()) st.appendChild(el('span', 'tag dim', 'has expired'));
             else st.appendChild(el('span', 'tag ok', 'valid'));
             tr.appendChild(st);
-            tr.appendChild(td('muted small', (r.by_who || '–') + (r.created ? ' · ' + ago(r.created) : '')));
+            tr.appendChild(whoWhen(r.by_who, r.created));
             var tools = el('td', 'rowtools');
             if (FULL && !r.revoked) {
               var x = iconButton('ban', 'Revoke it: into the CRL');
@@ -3279,7 +3346,10 @@ function drawOverviewCerts(box, d, counts, total) {
       row.tabIndex = 0;
       var w = el('div', 'ct-ovrow-w');
       w.appendChild(data('b', '', r.name));
-      w.appendChild(data('span', 'muted small', (r.issuer || '') + (r.auto_renew !== undefined && !truthy(r.auto_renew) ? ' · by hand' : '')));
+      var sub = el('span', 'muted small ct-whowhen');
+      sub.appendChild(data('span', '', r.issuer || ''));
+      if (r.auto_renew !== undefined && !truthy(r.auto_renew)) sub.appendChild(el('span', '', 'by hand'));
+      w.appendChild(sub);
       row.appendChild(w);
       var right1 = el('div', 'ct-ovrow-r');
       right1.appendChild(stateTag(r.state));
@@ -3316,7 +3386,7 @@ function drawOverviewCerts(box, d, counts, total) {
       var rr = el('div', 'ct-ovrow-r');
       var kind = m ? m[1] : '';
       rr.appendChild(el('span', 'tag ' + (a.level === 'bad' ? 'crit' : 'warn'),
-        {failed: 'renewal', expired: 'expired', expiring: 'by hand', deploy: 'deployment'}[kind] || (a.level === 'bad' ? 'failing' : 'warning')));
+        {failed: 'renewal', expired: 'has expired', expiring: 'by hand', deploy: 'deployment'}[kind] || (a.level === 'bad' ? 'failing' : 'warning')));
       row.appendChild(rr);
       var open = function () {
         if (m && kind !== 'deploy') certPeek(Number(m[2]));

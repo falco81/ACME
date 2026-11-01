@@ -38,6 +38,7 @@ p.ct-bad{margin:8px 0;font-size:13px}
 .ct-tags{display:inline-flex;flex-wrap:wrap;gap:4px;margin-left:6px;vertical-align:1px}
 .ct-tagchip{text-transform:none;letter-spacing:0;font-weight:600}
 .ct-copy{cursor:copy;font-size:12px;overflow-wrap:anywhere;border-bottom:1px dotted var(--tx-mut)}
+.msect td .ct-copy{word-break:break-all}
 .ct-copy:hover{color:var(--info);border-bottom-color:var(--info)}
 
 /* a life bar: how much of its validity is gone */
@@ -148,6 +149,8 @@ table.ct-cmap td{padding-top:3px;padding-bottom:3px}
 .ct-src-w{display:flex;flex-direction:column;gap:3px;min-width:0}
 .ct-src-w b{font-size:14px;overflow-wrap:anywhere}
 .ct-src-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.ct-src .tag.dim,.ct-kind-tile .tag.dim,.ct-node .tag.dim{background:var(--panel);box-shadow:inset 0 0 0 1px var(--line)}
+.ct-fmt input{color-scheme:dark}
 .ct-keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .ct-keyt{flex-direction:column;gap:5px}
 .ct-keyt b{font-size:14.5px}
@@ -179,7 +182,10 @@ table.ct-cmaptable select{min-width:220px}
 .ct-kind-tile[hidden]{display:none}
 .ct-kind-w{display:flex;flex-direction:column;gap:3px;min-width:0}
 .ct-kind-t{font-weight:650;font-size:14px}
-.ct-kind-d{font-size:12px;color:var(--tx-dim);line-height:1.45}
+.ct-kind-d{font-size:12px;color:var(--tx-dim);line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;
+  -webkit-box-orient:vertical;overflow:hidden}
+.ct-kind-foot{display:flex;gap:8px;align-items:center;margin-top:2px}
+.ct-kind-v{font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;font-weight:700;color:var(--tx-mut)}
 .ct-kind-k{font-size:11px;color:var(--tx-mut)}
 .ct-kind-ic{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
   font:750 12.5px/1 var(--face);letter-spacing:.3px;color:var(--info);background:var(--info-bg)}
@@ -219,6 +225,7 @@ details.ct-more > .joblines{margin:0 10px 10px}
 .ct-modstate{white-space:nowrap}
 .ct-modstate .tag + .tag,.ct-modstate .tag + .muted{margin-left:6px}
 table.ct-modtable td,table.ct-deptable td{vertical-align:middle}
+table.ct-modtable td.num,table.ct-modtable th:nth-child(4){padding-right:24px;text-align:right}
 .ct-broken{border:1px solid rgba(210,153,34,.4);background:var(--warn-bg);border-radius:12px;padding:12px 14px;margin-bottom:14px}
 .ct-broken-h{display:flex;gap:8px;align-items:center;color:var(--warn)}
 .ct-broken-h b{color:var(--tx)}
@@ -274,6 +281,8 @@ textarea.ct-csr{width:100%;font-size:11.5px;margin-bottom:8px}
 .ct-ft i{font-style:normal;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--tx-mut);font-weight:700}
 .ct-ft b{font-size:13px;font-weight:600}
 .ct-ft.bad b{color:var(--crit)}
+.ct-ft-k{width:78px} .ct-ft-u{width:88px} .ct-ft-d{width:118px;text-align:right} .ct-ft-s{width:58px}
+.ct-ft-c{width:124px} .ct-ft-b{width:48px}
 
 /* ---- jobs ----------------------------------------------------------------- */
 table.ct-jobs td{vertical-align:middle}
@@ -341,3 +350,24 @@ pre.ct-dnslines{margin:4px 0;width:100%;white-space:pre;overflow-x:auto}
   .ct-log-d{margin-left:14px}
   .ct-filters .spacer{display:none}
 }
+
+/* long values (fingerprints, DNs, addresses) wrap inside the sections of a popup */
+.msect table.tight{table-layout:auto;width:100%}
+.msect table.tight td:last-child{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.msect table.tight td .mono{white-space:pre-wrap;overflow-wrap:anywhere}
+.msect{min-width:0;overflow:hidden}
+
+.msects.ct-two{grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr))}
+@media (min-width: 760px){.msects.ct-two{grid-template-columns:1fr 1fr}}
+.msects.ct-one > .msect:not(.wide){grid-column:1 / -1}
+
+.ct-whowhen span + span::before,.ct-lastjob .ct-jk + span::before{content:' · '}
+.ct-lastjob .tag + .ct-jk{margin-left:6px}
+
+/* Wide tables scroll sideways on a narrow screen rather than squeeze every
+   column into a tower of wrapped words. */
+table.ct-certs{min-width:1020px}
+table.ct-jobs{min-width:920px}
+table.ct-modtable{min-width:780px}
+table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:640px}
+.msect .scroll,.ct-ovcard .scroll{overflow-x:auto}
