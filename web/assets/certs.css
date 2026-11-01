@@ -261,9 +261,21 @@ textarea.ct-csr{width:100%;font-size:11.5px;margin-bottom:8px}
 
 /* ---- authorities as a tree -------------------------------------------------- */
 .ct-tree,.ct-tree ul{list-style:none;margin:0;padding:0}
-.ct-tree ul{margin-left:22px;padding-left:18px;border-left:1.5px solid var(--line)}
+/* The tree of authorities: each child hangs off its parent's icon by a line
+   that turns into it with a rounded elbow (├ for one with siblings below it,
+   └ for the last), tinted like the icons, the vertical stopping at the last
+   child rather than running on past it. */
+.ct-tree{--ct-tree-line:color-mix(in srgb, var(--info) 38%, var(--line));--ct-tree-mid:36px}
+.ct-tree ul{margin-left:30px;padding-left:24px;border-left:0}
 .ct-tree li{position:relative;padding:5px 0}
-.ct-tree ul > li::before{content:'';position:absolute;left:-18px;top:30px;width:16px;border-top:1.5px solid var(--line)}
+.ct-tree ul > li::before{content:'';position:absolute;left:-24px;top:-5px;width:20px;
+  height:calc(var(--ct-tree-mid) + 5px);border-left:2px solid var(--ct-tree-line);
+  border-bottom:2px solid var(--ct-tree-line);border-bottom-left-radius:12px}
+.ct-tree ul > li:not(:last-child)::after{content:'';position:absolute;left:-24px;top:-5px;
+  bottom:-5px;border-left:2px solid var(--ct-tree-line)}
+.ct-tree ul > li > .ct-node::before{content:'';position:absolute;left:-6px;top:calc(var(--ct-tree-mid) - 5px - 4px);
+  width:8px;height:8px;border-radius:50%;background:var(--ct-tree-line);box-shadow:0 0 0 3px var(--bg)}
+.ct-tree .ct-node{position:relative}
 .ct-node{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--line);
   border-radius:13px;background:var(--panel2);cursor:pointer;transition:border-color .12s,background .12s}
 .ct-node:hover{border-color:rgba(88,166,255,.5);background:var(--panel)}
@@ -276,7 +288,7 @@ textarea.ct-csr{width:100%;font-size:11.5px;margin-bottom:8px}
 .ct-node-t{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 .ct-node-t b{font-size:14.5px}
 .ct-node-dn{overflow-wrap:anywhere}
-.ct-node-f{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.ct-node-f{display:flex;gap:16px 26px;align-items:center;flex-wrap:wrap}
 .ct-ft{display:flex;flex-direction:column;gap:1px;min-width:56px}
 .ct-ft i{font-style:normal;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--tx-mut);font-weight:700}
 .ct-ft b{font-size:13px;font-weight:600}
@@ -344,8 +356,9 @@ pre.ct-dnslines{margin:4px 0;width:100%;white-space:pre;overflow-x:auto}
   .ct-wsteps .w{display:none}
   .ct-wsteps li.on .w{display:inline}
   .ct-node-f{gap:10px}
-  .ct-tree ul{margin-left:8px;padding-left:12px}
-  .ct-tree ul > li::before{left:-12px;width:10px}
+  .ct-tree ul{margin-left:14px;padding-left:16px}
+  .ct-tree ul > li::before,.ct-tree ul > li:not(:last-child)::after{left:-16px}
+  .ct-tree ul > li::before{width:13px}
   .ct-head-name{font-size:17px}
   .ct-log-d{margin-left:14px}
   .ct-filters .spacer{display:none}
