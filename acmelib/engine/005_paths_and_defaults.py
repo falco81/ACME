@@ -276,6 +276,16 @@ DEFAULTS = {
     'split_halve': 0,
     'split_freeze': 0,
     'split_report': 0,
+    # The clocks and the health of the nodes (1.0.21, docs/clock-guard.md): drawn by the card
+    # of their own on Settings -> Time. Off: nothing of it runs.
+    'clock_mode': 'off',
+    'clock_warn_s': 2,
+    'clock_aside_s': 20,
+    'clock_ref': '',
+    'clock_codes': 0,
+    'clock_beat': 0,
+    'clock_locks': 0,
+    'health_dir': 0,
     'site_name': '',
     'ui_lang': 'cs',
     'api_port': 9861,
@@ -301,7 +311,7 @@ FILE_ONLY_KEYS = DB_KEYS + ('node_name', 'ha_mode', 'ha_slot', 'ha_peer', 'ha_pe
 # the debug switches.
 NODE_KEYS = ('api_port', 'mail_helo',
              'isemon_hostname', 'siem_hostname', 'acme_node_name', 'backup_daily', 'backup_at', 'backup_keep', 'debug',
-             'debug_ldap', 'debug_api', 'debug_codes', 'snmp_bind', 'split_arbiter')
+             'debug_ldap', 'debug_api', 'debug_codes', 'snmp_bind', 'split_arbiter', 'clock_ref')
 # 1.0.67: its copies of the database - each node keeps its own on its own
 # disk: when, whether, how many.
 
@@ -391,6 +401,8 @@ TUNABLE = {
     'sms_plain': (0, 1),
     'split_mode': ('off', 'arbiter', 'priority'), 'split_after_s': (5, 300),
     'split_renew': (0, 1), 'split_halve': (0, 1), 'split_freeze': (0, 1), 'split_report': (0, 1),
+    'clock_mode': ('off', 'watch', 'guard'), 'clock_warn_s': (1, 60), 'clock_aside_s': (5, 600),
+    'clock_codes': (0, 1), 'clock_beat': (0, 1), 'clock_locks': (0, 1), 'health_dir': (0, 1),
 }
 
 CHOICE_WORDS = {
@@ -688,6 +700,14 @@ NAMES = {
     'split_halve': 'Half the tries while apart',
     'split_freeze': 'Changes only on the preferred node while apart',
     'split_report': 'Warn while apart, report afterwards',
+    'clock_mode': 'The clocks of the nodes',
+    'clock_warn_s': 'Warn when off by more than',
+    'clock_aside_s': 'Step aside when off by more than',
+    'clock_ref': 'Reference time servers',
+    'clock_codes': 'Codes by the corrected time',
+    'clock_beat': 'Heartbeats by the measured difference',
+    'clock_locks': 'Pauses and lockouts by the corrected time',
+    'health_dir': 'Step aside when the directory cannot be reached',
     'site_name': 'What to call this installation',
     'ui_lang': 'Language of the pages',
     'api_port': 'API port (localhost)',
@@ -1184,6 +1204,21 @@ SAYS = {
     'split_freeze': 'While apart, the other node\'s pages show everything and change nothing.',
     'split_report': 'An alert while apart; once together again, a report of what was done on '
                     'each half - and of anything done on both.',
+    'clock_mode': 'What is done about a node whose clock is off: off - nothing of this runs; '
+                  'watch - each node measures its clock against the time servers and the '
+                  'other node, and warns; guard - and a node whose clock is off steps aside '
+                  'while the other is well. Settings → Time → The clocks of the nodes.',
+    'clock_warn_s': 'Off by more than this: an alert, and the corrected time used (with the '
+                    'switches).',
+    'clock_aside_s': 'Off by more than this: guard steps the node aside. More than the warning.',
+    'clock_ref': 'This node\'s own reference time servers (up to five, name or name:port), '
+                 'asked over SNTP apart from chrony. Empty: the time servers of Settings → Time.',
+    'clock_codes': 'The codes of the second step checked against the corrected time.',
+    'clock_beat': 'The other node\'s heartbeat and lease judged with the measured difference '
+                  'of the clocks.',
+    'clock_locks': 'The pauses after wrong passwords and codes timed by the corrected time.',
+    'health_dir': 'With guard: a node that cannot reach the directory steps aside while the '
+                  'other node reaches it.',
     'site_name': 'The name at the top of the administration pages. Empty: the machine’s '
                  'own name.',
     'ui_lang': 'The language every page opens in until somebody chooses another for '
@@ -1231,6 +1266,8 @@ PANES = {
            'retain_events_days'],
     'ha': ['node_name', 'split_mode', 'split_prefer', 'split_arbiter', 'split_after_s',
            'split_renew', 'split_halve', 'split_freeze', 'split_report'],
+    'time': ['clock_mode', 'clock_warn_s', 'clock_aside_s', 'clock_ref', 'clock_codes',
+             'clock_beat', 'clock_locks', 'health_dir'],
     'backup': ['rbackup', 'rbackup_at', 'rbackup_every', 'rbackup_day', 'rbackup_keep',
                'rbackup_keep_days', 'rbackup_password', 'rbackup_verify'],
     'osup': ['osup_check', 'osup_check_at', 'osup_auto', 'osup_auto_what', 'osup_auto_every',
@@ -1274,7 +1311,10 @@ PANES = {
 # that they are on none else), left out of the boxes the panes draw (as otp
 # 1.0.219: drawn there they turned up under every pane, the card's rules aside).
 CARD_DRAWN = ('split_mode', 'split_prefer', 'split_arbiter', 'split_after_s', 'split_renew',
-              'split_halve', 'split_freeze', 'split_report')
+              'split_halve', 'split_freeze', 'split_report',
+              # Settings -> Time -> The clocks of the nodes (1.0.21, as otp 1.0.222)
+              'clock_mode', 'clock_warn_s', 'clock_aside_s', 'clock_ref', 'clock_codes',
+              'clock_beat', 'clock_locks', 'health_dir')
 
 # A setting that only means something while another one says so. Shown
 # greyed out with the reason beside it, as on isemon.
@@ -1483,6 +1523,11 @@ def check_setting(key, value):
             split_targets_parse(got)
         except ValueError as e:
             raise BadSetting('split_arbiter: %s' % e)
+    if key == 'clock_ref' and str(got or '').strip():
+        try:
+            split_targets_parse(got)
+        except ValueError as e:
+            raise BadSetting('clock_ref: %s' % e)
     if key == 'node_name' and str(got or '').strip() and \
             not re.match(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,62}\Z', str(got).strip()):
         raise BadSetting('node_name: letters, digits, dots, dashes and _ - 63 at most')

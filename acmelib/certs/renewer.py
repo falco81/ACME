@@ -129,7 +129,9 @@ def lease_tick(store):
     if not isinstance(cur, dict):
         cur = None
     vip = vip_mine(store)
-    live = bool(cur) and float(cur.get('until') or 0) >= t
+    # Another node's lease in this node's time (clock_beat, 1.0.21): as written otherwise.
+    live = bool(cur) and E.clock_their_time(store, cur.get('node'),
+                                            float(cur.get('until') or 0)) >= t
     if replicated():
         want = vip or (not vip_elsewhere(store) and bool(E.ha_lead(store)))
         if not want:
@@ -158,7 +160,8 @@ def lease_tick(store):
 def leader(store):
     """{'node', 'until', 'vip', 'me'} - who leads now, or None."""
     cur = lease_read(store)
-    if not cur or float(cur.get('until') or 0) < time.time():
+    if not cur or E.clock_their_time(store, cur.get('node'),
+                                     float(cur.get('until') or 0)) < time.time():
         return None
     cur['me'] = cur.get('node') == E.node_name()
     return cur

@@ -234,6 +234,57 @@ def alert_problems(store, lang='en'):
                 _al(lang, '%d: %s', '%d: %s') % (
                     rep['twice_n'], ', '.join('%s (%s)' % (x.get('name'), x.get('kind'))
                                               for x in (rep.get('twice') or [])[:10])), 'ha')
+    # The clocks of the nodes (1.0.21, docs/clock-guard.md): each node's own word, only when
+    # the mode is not off - as until now nothing of it is said.
+    if clock_engaged():
+        warn_s = float(CONFIG.get('clock_warn_s') or 2)
+        aside_s = float(CONFIG.get('clock_aside_s') or 20)
+        for n in names:
+            st = clock_state_of(store, n)
+            if not st or now - float(st.get('at') or 0) > 90 + abs(float(st.get('skew') or 0)):
+                continue
+            if st.get('role') == 'aside':
+                add('clock:aside:' + n, 'bad', n,
+                    _al(lang, '%s ustoupil stranou' % n, '%s stepped aside' % n),
+                    _al(lang, 'Neobnovuje, nenasazuje ani neodpovídá na DNS, VIP adresa je na '
+                              'druhém uzlu: %s.', 'It does not renew, deploy or answer DNS, the '
+                                                  'VIP address is on the other node: %s.')
+                    % (st.get('why') or '?'), 'time')
+            ref = st.get('ref')
+            if ref is None:
+                add('clock:ref:' + n, 'warn', n,
+                    _al(lang, '%s se nemůže zeptat na správný čas' % n,
+                        '%s cannot ask for the right time' % n),
+                    _al(lang, 'Žádný referenční časový server neodpověděl: %s. Podle ničeho se '
+                              'neposoudí - stranou neustoupí.',
+                        'No reference time server answered: %s. It is judged by nothing - '
+                        'never stepped aside.') % (st.get('ref_err') or '?'), 'time')
+            elif abs(float(ref)) > warn_s:
+                off = abs(float(ref))
+                fixed = bool(st.get('codes_fixed'))
+                add('clock:skew:' + n, 'bad' if off > aside_s else 'warn', n,
+                    _al(lang, 'Hodiny %s jdou o %.1f s %s' % (n, off, 'pozadu' if ref > 0 else 'napřed'),
+                        'The clock of %s is %.1f s %s' % (n, off, 'behind' if ref > 0 else 'ahead')),
+                    _al(lang, 'Proti referenčním časovým serverům (%s). %s',
+                        'Against the reference time servers (%s). %s')
+                    % (st.get('ref_src') or '?',
+                       _al(lang, 'Kódy druhého kroku se počítají z opraveného času.' if fixed else
+                           'Správné kódy druhého kroku mohou být odmítnuty.',
+                           'The codes of the second step are worked out with the corrected time.'
+                           if fixed else 'Right codes of the second step may be refused.')), 'time')
+            sk = st.get('skew')
+            if sk is not None and abs(float(sk)) > warn_s:
+                add('clock:peer:' + n, 'warn', n,
+                    _al(lang, 'Hodiny uzlů se liší o %.1f s' % abs(float(sk)),
+                        'The clocks of the nodes differ by %.1f s' % abs(float(sk))),
+                    _al(lang, 'Změřeno na %s proti %s.', 'Measured on %s against %s.')
+                    % (n, st.get('skew_of') or '?'), 'time')
+            if CONFIG.get('health_dir') and st.get('dir_ok') is False:
+                bad = ', '.join('%s (%s)' % (d.get('name'), d.get('words'))
+                                for d in (st.get('dirs') or []) if not d.get('ok'))
+                add('clock:dir:' + n, 'bad', n,
+                    _al(lang, '%s nedosáhne na adresář' % n, '%s cannot reach the directory' % n),
+                    bad[:400] or '?', 'time')
     # The VIP address (1.0.194): where keepalived put it, from each node's heartbeat.
     if CONFIG.get('alerts_vrrp', 1) and cluster and not quiet:
         try:

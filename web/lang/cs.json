@@ -42519,6 +42519,322 @@
   "sl0044": {
    "source": "written - not seen in DNS yet",
    "text": "zapsáno – v DNS zatím není vidět"
+  },
+  "sclk0001": {
+   "source": "The clocks of the nodes",
+   "text": "Hodiny uzlů"
+  },
+  "sclk0002": {
+   "source": "A node whose clock is off refuses codes that are right - and answers, so nobody is sent to the other node. Its heartbeat, its lease, its pauses and lockouts are off with it; a node that cannot reach the directory refuses every password the same way. Here each node measures itself against the time servers and the other node, and what is done about it is chosen.",
+   "text": "Uzel, jehož hodiny jdou špatně, odmítá správné kódy – a přitom odpovídá, takže nikoho nepošle na druhý uzel. Jeho heartbeat, vedení (lease), pauzy i zámky jsou posunuté s ním; uzel, který nedosáhne na adresář, stejně tak odmítá každé heslo. Tady se každý uzel měří proti časovým serverům a proti druhému uzlu a volí se, co se s tím udělá."
+  },
+  "sclk0003": {
+   "source": "As until now: nothing is watched",
+   "text": "Jako dosud: nic se nesleduje"
+  },
+  "sclk0004": {
+   "source": "Each node keeps its clock with chrony, as the tiles above show; nothing of this card runs - no question to a time server, no measuring, nothing written: exactly as before.",
+   "text": "Každý uzel si hodiny drží chronyd, jak ukazují dlaždice výše; nic z této karty neběží – žádný dotaz na časový server, žádné měření, nic se nezapisuje: přesně jako dřív."
+  },
+  "sclk0005": {
+   "source": "Nothing new runs",
+   "text": "Nic nového neběží"
+  },
+  "sclk0006": {
+   "source": "A node whose clock is off refuses right codes - and says nothing of why",
+   "text": "Uzel se špatnými hodinami odmítá správné kódy – a neřekne proč"
+  },
+  "sclk0007": {
+   "source": "A heartbeat of a node with a wrong clock looks dead, or alive for ever",
+   "text": "Heartbeat uzlu se špatnými hodinami vypadá mrtvý, nebo věčně živý"
+  },
+  "sclk0008": {
+   "source": "Measure and warn",
+   "text": "Měřit a varovat"
+  },
+  "sclk0009": {
+   "source": "Each node asks the reference time servers itself (SNTP, every 30 s) and measures the other node’s clock through its database. Shown here, and an alert when off - nothing else changes unless a switch below says so.",
+   "text": "Každý uzel se sám ptá referenčních časových serverů (SNTP, každých 30 s) a měří hodiny druhého uzlu přes jeho databázi. Ukáže se to tady a při odchylce přijde upozornění – nic jiného se nemění, pokud to neřekne přepínač níže."
+  },
+  "sclk0010": {
+   "source": "You learn of a clock going wrong before people do",
+   "text": "O rozjetých hodinách se dozvíte dřív než uživatelé"
+  },
+  "sclk0011": {
+   "source": "Each node measured on its own, not by its chrony’s word",
+   "text": "Každý uzel změřen sám, ne podle slova svého chronyd"
+  },
+  "sclk0012": {
+   "source": "A node whose clock is off still answers - and refuses right codes",
+   "text": "Uzel se špatnými hodinami dál odpovídá – a odmítá správné kódy"
+  },
+  "sclk0013": {
+   "source": "Step aside when not well",
+   "text": "Ustoupit stranou, když není v pořádku"
+  },
+  "sclk0014": {
+   "source": "As Measure and warn, and a node whose clock is off by more than the limit steps aside: the other node renews, deploys and answers DNS, the VIP address goes to it - only while the other node is well, never both.",
+   "text": "Jako Měřit a varovat, a navíc uzel, jehož hodiny jdou víc než o limit, ustoupí stranou: obnovuje, nasazuje a na DNS odpovídá druhý uzel, VIP adresa přejde na něj – jen dokud je druhý uzel v pořádku, nikdy oba."
+  },
+  "sclk0015": {
+   "source": "A node with a broken clock stops refusing right codes - the other answers",
+   "text": "Uzel s rozbitými hodinami přestane odmítat správné kódy – obsluhuje druhý"
+  },
+  "sclk0016": {
+   "source": "Heals by itself when the clock is right again",
+   "text": "Sám se vrátí, když hodiny zase jdou správně"
+  },
+  "sclk0017": {
+   "source": "With one node only, or the other not well, nothing steps aside",
+   "text": "S jediným uzlem, nebo když druhý není v pořádku, nikdo neustoupí"
+  },
+  "sclk0018": {
+   "source": "Codes by the corrected time",
+   "text": "Kódy podle opraveného času"
+  },
+  "sclk0019": {
+   "source": "The code from the app (the second step of signing in) is checked against the reference’s time (this clock plus its measured offset), not this machine’s clock - right codes keep working on a node whose clock is off. With it, guard does not step a node aside for its clock.",
+   "text": "Kód z aplikace (druhý krok přihlášení) se ověřuje podle času reference (tyto hodiny plus jejich změřená odchylka), ne podle hodin tohoto stroje – správné kódy fungují dál i na uzlu se špatnými hodinami. S tímto přepínačem hlídání kvůli hodinám uzel stranou neodsune."
+  },
+  "sclk0020": {
+   "source": "Heartbeats by the measured difference",
+   "text": "Heartbeaty podle změřeného rozdílu"
+  },
+  "sclk0021": {
+   "source": "The other node’s heartbeat and its lease of the renewals are judged with the difference of the two clocks measured here: a node 10 min behind no longer looks dead, one ahead no longer looks alive for ever.",
+   "text": "Heartbeat druhého uzlu a jeho vedení obnov (lease) se posuzují se zde změřeným rozdílem obou hodin: uzel o 10 min pozadu už nevypadá mrtvý a uzel napřed už nevypadá věčně živý."
+  },
+  "sclk0022": {
+   "source": "Pauses and lockouts by the corrected time",
+   "text": "Pauzy a zámky podle opraveného času"
+  },
+  "sclk0023": {
+   "source": "The pause after wrong passwords and codes is timed by the corrected time: on a node whose clock is off it lasts as long as on the other, not minutes more or nothing at all.",
+   "text": "Pauza po špatných heslech a kódech se měří opraveným časem: na uzlu se špatnými hodinami trvá stejně dlouho jako na druhém, ne o minuty déle nebo vůbec."
+  },
+  "sclk0024": {
+   "source": "Step aside when the directory cannot be reached",
+   "text": "Ustoupit stranou, když není dosažitelný adresář"
+  },
+  "sclk0025": {
+   "source": "With Step aside when not well: a node that cannot reach the directory the administrators and the portal sign in against (checked every 15 s) steps aside while the other node reaches it - rather than refusing every password.",
+   "text": "S volbou Ustoupit stranou: uzel, který nedosáhne na adresář, proti kterému se přihlašují administrátoři a portál (kontrola každých 15 s), ustoupí stranou, dokud na něj druhý uzel dosáhne – místo aby odmítal každé heslo."
+  },
+  "sclk0026": {
+   "source": "Stepping aside comes after the warning: more seconds than it",
+   "text": "Ustoupení přichází až po varování: víc sekund než ono"
+  },
+  "sclk0027": {
+   "source": "Try the reference from every node first: a node that cannot ask it is never stepped aside, and you would not know it is unguarded",
+   "text": "Nejdřív vyzkoušejte referenci ze všech uzlů: uzel, který se jí nemůže zeptat, nikdy neustoupí – a nevěděli byste, že není hlídaný"
+  },
+  "sclk0028": {
+   "source": "behind by",
+   "text": "pozadu o"
+  },
+  "sclk0029": {
+   "source": "ahead by",
+   "text": "napřed o"
+  },
+  "sclk0030": {
+   "source": "answers - codes corrected",
+   "text": "obsluhuje – kódy opraveny"
+  },
+  "sclk0031": {
+   "source": "refuses right codes",
+   "text": "odmítá správné kódy"
+  },
+  "sclk0032": {
+   "source": "refuses every password",
+   "text": "odmítá každé heslo"
+  },
+  "sclk0033": {
+   "source": "nobody is told",
+   "text": "nikdo se to nedozví"
+  },
+  "sclk0034": {
+   "source": "Both clocks off alike",
+   "text": "Oboje hodiny jdou stejně špatně"
+  },
+  "sclk0035": {
+   "source": "right codes refused on both",
+   "text": "správné kódy odmítnuty na obou"
+  },
+  "sclk0036": {
+   "source": "never stepped aside - the other is no better",
+   "text": "nikdo neustoupí – druhý není o nic lepší"
+  },
+  "sclk0037": {
+   "source": "none - not asked",
+   "text": "žádné – neptá se"
+  },
+  "sclk0038": {
+   "source": "all well",
+   "text": "vše v pořádku"
+  },
+  "sclk0039": {
+   "source": "nothing is measured - its clock is kept by chrony, as the tile above shows",
+   "text": "nic se neměří – hodiny drží chronyd, jak ukazuje dlaždice výše"
+  },
+  "sclk0040": {
+   "source": "the reference:",
+   "text": "reference:"
+  },
+  "sclk0041": {
+   "source": "the reference cannot be asked",
+   "text": "reference se nedá zeptat"
+  },
+  "sclk0042": {
+   "source": "alike",
+   "text": "stejně"
+  },
+  "sclk0043": {
+   "source": "ahead of this one by",
+   "text": "napřed před tímto o"
+  },
+  "sclk0044": {
+   "source": "behind this one by",
+   "text": "pozadu za tímto o"
+  },
+  "sclk0045": {
+   "source": "the other side’s clock cannot be read",
+   "text": "hodiny druhé strany nejdou přečíst"
+  },
+  "sclk0046": {
+   "source": "the other side’s clock: not measured yet",
+   "text": "hodiny druhé strany: zatím nezměřeny"
+  },
+  "sclk0047": {
+   "source": "reaches the directory",
+   "text": "dosáhne na adresář"
+  },
+  "sclk0048": {
+   "source": "cannot reach the directory",
+   "text": "nedosáhne na adresář"
+  },
+  "sclk0049": {
+   "source": "no directory is signed in against",
+   "text": "proti žádnému adresáři se nepřihlašuje"
+  },
+  "sclk0050": {
+   "source": "codes worked out with the corrected time",
+   "text": "kódy se počítají z opraveného času"
+  },
+  "sclk0051": {
+   "source": "not measured",
+   "text": "neměřeno"
+  },
+  "sclk0052": {
+   "source": "What is done about the clocks",
+   "text": "Co se s hodinami dělá"
+  },
+  "sclk0053": {
+   "source": "Exactly as before 1.0.21: nothing of this runs, whatever the switches below say.",
+   "text": "Přesně jako před 1.0.21: nic z toho neběží, ať přepínače níže říkají cokoli."
+  },
+  "sclk0054": {
+   "source": "Each node asks the reference every 30 s and the other side’s clock every 5 s.",
+   "text": "Každý uzel se ptá reference každých 30 s a hodin druhé strany každých 5 s."
+  },
+  "sclk0055": {
+   "source": "Warn when off by more than (seconds)",
+   "text": "Varovat při odchylce větší než (sekundy)"
+  },
+  "sclk0056": {
+   "source": "An alert, and the codes corrected (with the switch below), past this. A code lives 30 s and one step either way is let in: past some 30 s right codes start to be refused.",
+   "text": "Nad tuto hodnotu přijde upozornění a kódy se opraví (s přepínačem níže). Kód platí 30 s a projde i o krok vedle: zhruba nad 30 s se začnou odmítat správné kódy."
+  },
+  "sclk0057": {
+   "source": "Step aside when off by more than (seconds)",
+   "text": "Ustoupit stranou při odchylce větší než (sekundy)"
+  },
+  "sclk0058": {
+   "source": "With Step aside when not well. More than the warning; 20 s leaves room before the first right code is refused.",
+   "text": "S volbou Ustoupit stranou. Víc než varování; 20 s nechává rezervu, než se odmítne první správný kód."
+  },
+  "sclk0059": {
+   "source": "Each node’s reference: the time servers it asks itself, apart from its chrony, to tell how far off its clock is. Empty: the time servers above (for the whole cluster). Up to five, name or name:port; the middle of their answers is taken, so one gone wild does not count.",
+   "text": "Reference každého uzlu: časové servery, kterých se sám ptá mimo svůj chronyd, aby zjistil, o kolik jdou jeho hodiny. Prázdné: časové servery výše (pro celý cluster). Nejvýš pět, jméno nebo jméno:port; bere se prostřední z odpovědí, takže jeden ujetý se nepočítá."
+  },
+  "sclk0060": {
+   "source": "the time servers above",
+   "text": "časové servery výše"
+  },
+  "sclk0061": {
+   "source": "every node asks its reference",
+   "text": "každý uzel se ptá své reference"
+  },
+  "sclk0062": {
+   "source": "not every node can ask its reference",
+   "text": "ne každý uzel se může zeptat své reference"
+  },
+  "sclk0063": {
+   "source": "no time server given - give one, or set the time servers above",
+   "text": "není zadán časový server – zadejte ho, nebo nastavte časové servery výše"
+  },
+  "sclk0064": {
+   "source": "And with the clock measured",
+   "text": "A se změřenými hodinami"
+  },
+  "sclk0065": {
+   "source": "One node: nothing can step aside - there is no other node to answer. Measure and warn, and the corrected codes, work alone.",
+   "text": "Jeden uzel: nikdo nemůže ustoupit – není druhý uzel, který by obsluhoval. Měřit a varovat i opravené kódy fungují i samostatně."
+  },
+  "sclk0066": {
+   "source": "Warn when off by more than",
+   "text": "Varovat při odchylce větší než"
+  },
+  "sclk0067": {
+   "source": "Step aside when off by more than",
+   "text": "Ustoupit stranou při odchylce větší než"
+  },
+  "sclk0068": {
+   "source": "Reference time servers",
+   "text": "Referenční časové servery"
+  },
+  "sclk0069": {
+   "source": "Sign-ins",
+   "text": "Přihlášení"
+  },
+  "sclk0070": {
+   "source": "this node's clock is off, but the other node cannot take over - it answers",
+   "text": "hodiny tohoto uzlu jdou špatně, ale druhý uzel nemůže převzít – obsluhuje tento"
+  },
+  "sclk0071": {
+   "source": "this node cannot reach the directory - the other node answers",
+   "text": "tento uzel nedosáhne na adresář – obsluhuje druhý uzel"
+  },
+  "sclk0072": {
+   "source": "the directory cannot be reached, but neither can the other node take over",
+   "text": "adresář není dosažitelný, ale převzít nemůže ani druhý uzel"
+  },
+  "sclk0073": {
+   "source": "stepping aside comes after the warning: more seconds than it",
+   "text": "ustoupení přichází až po varování: víc sekund než ono"
+  },
+  "sclk0074": {
+   "source": "try the reference from every node first (Try it): a node that cannot ask it is never stepped aside, but you would not know it is unguarded",
+   "text": "nejdřív vyzkoušejte referenci ze všech uzlů (Vyzkoušet): uzel, který se jí nemůže zeptat, nikdy neustoupí – ale nevěděli byste, že není hlídaný"
+  },
+  "sclk0075": {
+   "source": "the mode is off, watch or guard",
+   "text": "režim je off, watch nebo guard"
+  },
+  "sclk0076": {
+   "source": "the preferred node is in maintenance - this node answers",
+   "text": "upřednostněný uzel je v údržbě – obsluhuje tento uzel"
+  },
+  "sclk0077": {
+   "source": "the preferred node stepped aside for its clock - this node answers",
+   "text": "upřednostněný uzel ustoupil stranou kvůli hodinám – obsluhuje tento uzel"
+  },
+  "sclk0078": {
+   "source": "the preferred node's database refuses connections while its machine answers - this node answers",
+   "text": "databáze upřednostněného uzlu odmítá spojení, zatímco jeho stroj odpovídá – obsluhuje tento uzel"
+  },
+  "sclk0079": {
+   "source": "pauses there last minutes more or not at all",
+   "text": "pauzy tam trvají o minuty déle nebo vůbec"
   }
  },
  "patterns": {
@@ -59137,6 +59453,58 @@
   "swedos01": {
    "source": "WEDOS refused the sign-in a moment ago: WAPI is not asked again for {0} s (more wrong requests would block this address) - check the login, the WAPI password, this machine's clock and the IP addresses allowed for WAPI",
    "text": "WEDOS před chvílí odmítl přihlášení: WAPI se znovu nezeptá dřív než za {0} s (další chybné požadavky by tuto adresu zablokovaly) – zkontrolujte login, heslo k WAPI, hodiny tohoto stroje a IP adresy povolené pro WAPI"
+  },
+  "pclk0001": {
+   "source": "people sent to {0} are refused",
+   "text": "lidé poslaní na {0} jsou odmítnuti"
+  },
+  "pclk0002": {
+   "source": "{0}’s heartbeat looks dead or alive for ever",
+   "text": "heartbeat {0} vypadá mrtvý nebo věčně živý"
+  },
+  "pclk0003": {
+   "source": "{0}’s clock is 5 min off",
+   "text": "hodiny {0} jdou o 5 min špatně"
+  },
+  "pclk0004": {
+   "source": "right codes refused on {0}",
+   "text": "správné kódy odmítnuty na {0}"
+  },
+  "pclk0005": {
+   "source": "The time servers cannot be reached from {0}",
+   "text": "Časové servery nejsou z {0} dosažitelné"
+  },
+  "pclk0006": {
+   "source": "an alert; {0} is judged by nothing - never stepped aside",
+   "text": "upozornění; {0} se nemá podle čeho posoudit – nikdy neustoupí"
+  },
+  "pclk0007": {
+   "source": "{0} cannot reach the directory, {1} can",
+   "text": "{0} nedosáhne na adresář, {1} ano"
+  },
+  "pclk0008": {
+   "source": "passwords refused on {0}",
+   "text": "hesla odmítnuta na {0}"
+  },
+  "pclk0009": {
+   "source": "until it is mended or {0} is taken out by hand",
+   "text": "dokud se to neopraví nebo se {0} nevyřadí ručně"
+  },
+  "pclk0010": {
+   "source": "Reference of {0}",
+   "text": "Reference uzlu {0}"
+  },
+  "pclk0011": {
+   "source": "the time servers above: {0}",
+   "text": "časové servery výše: {0}"
+  },
+  "pclk0012": {
+   "source": "this node's clock is {0} s off the time servers - the other node answers",
+   "text": "hodiny tohoto uzlu jdou o {0} s vedle časových serverů – obsluhuje druhý uzel"
+  },
+  "pclk0013": {
+   "source": "the preferred node's database refuses ({0}) - its machine is there - this node answers",
+   "text": "databáze upřednostněného uzlu odmítá ({0}) – jeho stroj je k dispozici – obsluhuje tento uzel"
   }
  },
  "rich": {

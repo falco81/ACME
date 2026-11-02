@@ -3329,6 +3329,11 @@ body.app-shell #pane-mailq > .card.held{flex:1 1 auto;min-height:320px;max-heigh
 .split-line.bad svg{color:var(--crit)}
 .split-line.bad{color:var(--crit)}
 .split-line.muted svg{color:var(--tx-dim)}
+/* The clocks of the nodes (1.0.21, as otp 1.0.222): the split card's classes, and these two. */
+.split-line.warn svg,.split-line.warn{color:var(--warn)}
+.split-fields .set-item.bad input{border-color:var(--crit)}
+/* "odmítá správné kódy" is wider than a node's 13 %: wrapped in its tag, not over the next one. */
+#clock-guard table.split-scen td .tag{white-space:normal}
 .split-why{margin-left:20px}
 .split-link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
   padding:0 6px;color:var(--ok)}

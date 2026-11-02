@@ -450,7 +450,7 @@ class ApiHandler(BaseHTTPRequestHandler):
                 pre, sep, who = who.rpartition('>')
             who = who.split('\\', 1)[-1].rsplit('@', 1)[0].strip()
             keys.append((kind + '-name', (pre + sep + who)[:190]))
-        t = time.time()
+        t = clock_now('locks')          # the corrected time with clock_locks (1.0.21)
         span = wait_min * 60
         with self.THROTTLE_LOCK:
             for i, key in enumerate(keys):

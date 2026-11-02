@@ -96,6 +96,11 @@ def maintenance_now(store):
         # nobody asked for, ended by itself - the VIP address goes, /healthz says so.
         return {'on': True, 'why': 'stepped aside: ' + (SPLIT['why'] or 'the nodes are apart'),
                 'split': True}
+    if clock_aside():
+        # Stepped aside for its clock or the directory (1.0.21, clock_mode guard): only
+        # while the other node is well, ended by itself.
+        return {'on': True, 'why': 'stepped aside: ' + (CLOCK['why'] or 'this node is not well'),
+                'clock': True}
     now = time.monotonic()      # not held by a clock stepped back (1.0.207)
     if now - MAINT_CACHE['at'] > 2:
         MAINT_CACHE['at'] = now

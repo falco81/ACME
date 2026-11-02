@@ -26,7 +26,7 @@ THROTTLE_GUARD = threading.Lock()
 def lockouts_view(d):
     """What this node counts now: one line per address or name with a wrong
     attempt still counted, locked or not yet."""
-    t = time.time()
+    t = clock_now('locks')          # as the counts are written (clock_locks, 1.0.21)
     rows = []
     for key, fails in list(d.login_fails.items()):
         info = d.login_info.get(key) or {}
@@ -165,7 +165,7 @@ def _lockouts(h):
     h.me('fulladmin')
     me = node_name()
     out = [{'node': me, 'me': True, 'fresh': True, 'rows': lockouts_view(h.d)}]
-    now = time.time()
+    now = clock_now('locks')
     for n in h.d.cluster_nodes():
         if n == me:
             continue

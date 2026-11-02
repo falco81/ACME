@@ -154,6 +154,13 @@ class Daemon(object):
             if checked['split_prefer'] not in names:
                 raise BadSetting('split_prefer: there is no node called %s'
                                  % checked['split_prefer'])
+        if 'clock_warn_s' in checked or 'clock_aside_s' in checked:
+            # Stepping aside comes after the warning (1.0.21, as the card asks).
+            w = int(checked.get('clock_warn_s', CONFIG.get('clock_warn_s') or 2))
+            a = int(checked.get('clock_aside_s', CONFIG.get('clock_aside_s') or 20))
+            if a <= w:
+                raise BadSetting('clock_aside_s: stepping aside comes after the warning - more '
+                                 'seconds than clock_warn_s (%d)' % w)
         file_side = {k: v for k, v in checked.items() if k in FILE_ONLY_KEYS}
         if file_side and node != node_name() and not cluster_wide:
             raise NodeMoved('%s belongs to the machine %s and is saved on it (its own address), '
@@ -593,6 +600,10 @@ class Daemon(object):
                     split_tick(self)            # the nodes losing each other (1.0.14)
                 except Exception as e:          # noqa: BLE001
                     log_sparing('split-tick', 'watching the other node: %s' % e, 'warn', every=600)
+                try:
+                    clock_tick(self)            # the clocks of the nodes (1.0.21)
+                except Exception as e:          # noqa: BLE001
+                    log_sparing('clock-tick', 'watching the clocks: %s' % e, 'warn', every=600)
                 try:
                     alerts_tick(self)           # alerts by mail, the report (1.0.162)
                 except Exception as e:          # noqa: BLE001

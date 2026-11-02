@@ -11846,6 +11846,419 @@ function drawPowerAway() {
   box.appendChild(el('p', 'note', 'Not answering for ' + span(away) + ' - asked again every two seconds; the page comes back by itself.'));
 }
 
+/* ==========================================================================
+   The clocks of the nodes - gray failures (1.0.21, docs/clock-guard.md -
+   the card of otp 1.0.222, in acme's terms)
+   ==========================================================================
+   One card on Settings -> Time: how far each node's clock is from the reference
+   and from the other node, whether it reaches the directory, and what is done
+   about it - three ways (drawn as cards), four switches, and a table of what
+   happens in each kind of trouble, worked out from the choices before saving.
+   The choices wait for the save bar at the bottom, as every other setting.
+   "Answers" is acme's, as on the split card: the VIP address, acme's DNS
+   server and the lead (renewals, deployments, the own authorities' signing);
+   the codes are the second step of signing in (the administration, the
+   portal). */
+var CLOCKC = {view: null, draft: null, tried: null};
+var CLOCKC_MODES = [
+  {k: 'off', icon: 'clock', t: 'As until now: nothing is watched',
+   s: 'Each node keeps its clock with chrony, as the tiles above show; nothing of this card runs - no question to a time server, no measuring, nothing written: exactly as before.',
+   good: ['Nothing new runs'],
+   bad: ['A node whose clock is off refuses right codes - and says nothing of why',
+         'A heartbeat of a node with a wrong clock looks dead, or alive for ever']},
+  {k: 'watch', icon: 'eye', t: 'Measure and warn',
+   s: 'Each node asks the reference time servers itself (SNTP, every 30 s) and measures the other node’s clock through its database. Shown here, and an alert when off - nothing else changes unless a switch below says so.',
+   good: ['You learn of a clock going wrong before people do', 'Each node measured on its own, not by its chrony’s word'],
+   bad: ['A node whose clock is off still answers - and refuses right codes']},
+  {k: 'guard', icon: 'shield', t: 'Step aside when not well',
+   s: 'As Measure and warn, and a node whose clock is off by more than the limit steps aside: the other node renews, deploys and answers DNS, the VIP address goes to it - only while the other node is well, never both.',
+   good: ['A node with a broken clock stops refusing right codes - the other answers', 'Heals by itself when the clock is right again'],
+   bad: ['With one node only, or the other not well, nothing steps aside']}
+];
+var CLOCKC_OPTS = [
+  {k: 'clock_codes', icon: 'key', t: 'Codes by the corrected time',
+   s: 'The code from the app (the second step of signing in) is checked against the reference’s time (this clock plus its measured offset), not this machine’s clock - right codes keep working on a node whose clock is off. With it, guard does not step a node aside for its clock.'},
+  {k: 'clock_beat', icon: 'pulse', t: 'Heartbeats by the measured difference',
+   s: 'The other node’s heartbeat and its lease of the renewals are judged with the difference of the two clocks measured here: a node 10 min behind no longer looks dead, one ahead no longer looks alive for ever.'},
+  {k: 'clock_locks', icon: 'lock', t: 'Pauses and lockouts by the corrected time',
+   s: 'The pause after wrong passwords and codes is timed by the corrected time: on a node whose clock is off it lasts as long as on the other, not minutes more or nothing at all.'},
+  {k: 'health_dir', icon: 'people', t: 'Step aside when the directory cannot be reached',
+   s: 'With Step aside when not well: a node that cannot reach the directory the administrators and the portal sign in against (checked every 15 s) steps aside while the other node reaches it - rather than refusing every password.'}
+];
+
+function loadClock(quiet) {
+  var card = $('clock-card');
+  if (!card) return;
+  api('clock').then(function (v) {
+    CLOCKC.view = v;
+    card.hidden = false;
+    if (!CLOCKC.draft || !PENDING.clock) CLOCKC.draft = clockFresh(v);
+    if (!quiet || !liveWorkedIn($('clock-guard'))) drawClock();
+  }).catch(function () { /* the card stays as it was */ });
+}
+function clockFresh(v) {
+  var c = v.conf || {}, ref = {};
+  (v.nodes || []).forEach(function (n) { ref[n.name] = n.ref || ''; });
+  return {mode: c.clock_mode || 'off', warn: Number(c.clock_warn_s) || 2, aside: Number(c.clock_aside_s) || 20,
+          clock_codes: !!Number(c.clock_codes), clock_beat: !!Number(c.clock_beat),
+          clock_locks: !!Number(c.clock_locks), health_dir: !!Number(c.health_dir), ref: ref};
+}
+function clockChanged() {
+  return JSON.stringify(CLOCKC.draft) !== JSON.stringify(clockFresh(CLOCKC.view || {}));
+}
+function clockTouched(noDraw) {
+  if (clockChanged()) {
+    pendingSet('clock', {pane: 'time', save: clockSave, reset: function () { CLOCKC.draft = null; CLOCKC.tried = null; loadClock(); }});
+  } else if (PENDING.clock) { delete PENDING.clock; markDirtyCount(); }
+  if (!noDraw) drawClock();
+}
+function clockTried() {
+  /* The reference servers as they are in the form, each node's answer good. */
+  var t = CLOCKC.tried, d = CLOCKC.draft;
+  if (!t || !t.done) return false;
+  return Object.keys(d.ref).every(function (n) {
+    return t.asked[n] === d.ref[n] && t.got[n] && t.got[n].ok === true;
+  });
+}
+function clockSave() {
+  var d = CLOCKC.draft, v = CLOCKC.view || {}, c = v.conf || {};
+  if (d.aside <= d.warn) {
+    toast('Stepping aside comes after the warning: more seconds than it', 'bad');
+    return Promise.resolve(false);
+  }
+  if (d.mode === 'guard' && c.clock_mode !== 'guard' && !clockTried()) {
+    toast('Try the reference from every node first: a node that cannot ask it is never stepped aside, and you would not know it is unguarded', 'bad');
+    var b = $('clock-try'); if (b) b.scrollIntoView({block: 'center'});
+    return Promise.resolve(false);
+  }
+  var refChanged = {};
+  (v.nodes || []).forEach(function (n) { if ((n.ref || '') !== d.ref[n.name]) refChanged[n.name] = d.ref[n.name]; });
+  var body = {action: 'save', checked: d.mode !== 'guard' || clockTried() || c.clock_mode === 'guard',
+              conf: {clock_mode: d.mode, clock_warn_s: d.warn, clock_aside_s: d.aside,
+                     clock_codes: d.clock_codes ? 1 : 0, clock_beat: d.clock_beat ? 1 : 0,
+                     clock_locks: d.clock_locks ? 1 : 0, health_dir: d.health_dir ? 1 : 0},
+              refs: refChanged};
+  return api('clock', body).then(function (r) {
+    toast(r.message, 'good');
+    CLOCKC.view = r.view; CLOCKC.tried = null;
+    CLOCKC.draft = clockFresh(r.view);
+    drawClock();
+    return true;
+  });
+}
+function clockTry(btn) {
+  var asked = JSON.parse(JSON.stringify(CLOCKC.draft.ref));
+  busy(btn, true);
+  api('clock', {action: 'try', refs: asked}).then(function (r) {
+    CLOCKC.tried = {id: r.id, asked: asked, got: {}, nodes: r.nodes, done: false};
+    var tries = 0;
+    var poll = function () {
+      api('clock', {action: 'poll', id: r.id}).then(function (p) {
+        var got = p.nodes || {};
+        Object.keys(got).forEach(function (n) { if (got[n]) CLOCKC.tried.got[n] = got[n]; });
+        var all = (r.nodes || []).every(function (n) { return CLOCKC.tried.got[n]; });
+        tries += 1;
+        if (all || tries > 20) { CLOCKC.tried.done = true; busy(btn, false); }
+        drawClock();
+        if (!all && tries <= 20) setTimeout(poll, 1000);
+      }).catch(function (e) { busy(btn, false); oops(e); });
+    };
+    setTimeout(poll, 800);
+  }).catch(function (e) { busy(btn, false); oops(e); });
+}
+/* "behind by 1.2 s" / "ahead by 300 s" - the reference's offset is the server's time minus this one's. */
+function clockOff(ref) {
+  if (ref === null || ref === undefined || isNaN(ref)) return null;
+  var a = Math.abs(ref);
+  var n = a >= 100 ? a.toFixed(0) + ' s' : a >= 1 ? a.toFixed(1) + ' s' : (a * 1000).toFixed(0) + ' ms';
+  return {w: ref > 0 ? 'behind by' : 'ahead by', n: n, a: a};
+}
+/* Each kind of trouble, with what each node does and what it costs - from the choices. */
+function clockScenarios() {
+  var d = CLOCKC.draft, v = CLOCKC.view || {};
+  var names = (v.nodes || []).map(function (n) { return n.name; });
+  var two = names.length > 1;
+  if (!two) names = [names[0] || 'this node', 'the other node'];
+  var A = names[0], B = names[1];
+  var watched = d.mode !== 'off', guard = d.mode === 'guard';
+  var serve = {k: 'ok', w: 'answers'}, aside = {k: 'warn', w: 'steps aside'}, refuses = {k: 'crit', w: 'refuses right codes'},
+      fixed = {k: 'ok', w: 'answers - codes corrected'}, nodir = {k: 'crit', w: 'refuses every password'};
+  var safe = function (w) { return {k: 'ok', w: w}; }, risk = function (w) { return {k: 'warn', w: w}; },
+      down = function (w) { return {k: 'crit', w: w}; };
+  var rows = [];
+  /* One node's clock 5 minutes off, the other right. */
+  [[A, B], [B, A]].forEach(function (p) {
+    var bad = p[0], good = p[1], cells = {};
+    var does = d.clock_codes && watched ? fixed : (guard && two ? aside : refuses);
+    cells[bad] = does; cells[good] = serve;
+    var costs = [];
+    if (does === refuses) costs.push('people sent to ' + bad + ' are refused');
+    if (!d.clock_locks && does !== aside) costs.push('pauses there last minutes more or not at all');
+    if (!d.clock_beat) costs.push(bad + '’s heartbeat looks dead or alive for ever');
+    if (!watched) costs.push('nobody is told');
+    rows.push({t: bad + '’s clock is 5 min off', cells: cells,
+               out: does === refuses ? down('right codes refused on ' + bad) : safe(does === aside ? good + ' answers everything' : 'both answer'),
+               risk: costs.length ? (does === refuses ? down(costs) : risk(costs)) : safe('none')});
+  });
+  /* Both clocks off alike (the time servers themselves wrong, or unreachable for long). */
+  var both = d.clock_codes && watched ? fixed : refuses, cb = {};
+  cb[A] = both; cb[B] = both;
+  rows.push({t: 'Both clocks off alike', cells: cb,
+             out: both === fixed ? safe('both answer') : down('right codes refused on both'),
+             risk: both === fixed ? safe('none') : down(watched ? ['never stepped aside - the other is no better'] : ['nobody is told'])});
+  /* The reference unreachable from a node. */
+  var cr = {}; cr[A] = serve; cr[B] = serve;
+  rows.push({t: 'The time servers cannot be reached from ' + A, cells: cr,
+             out: safe('both answer'),
+             risk: watched ? risk(['an alert; ' + A + ' is judged by nothing - never stepped aside']) : safe('none - not asked')});
+  /* The directory. */
+  var cd = {}; var dirAside = guard && d.health_dir && two;
+  cd[A] = dirAside ? aside : nodir; cd[B] = serve;
+  rows.push({t: A + ' cannot reach the directory, ' + B + ' can', cells: cd,
+             out: dirAside ? safe(B + ' answers everything') : down('passwords refused on ' + A),
+             risk: dirAside ? safe('none') : down(['until it is mended or ' + A + ' is taken out by hand'])});
+  return {rows: rows, A: A, B: B, two: two};
+}
+/* Drawn again where it is: emptied for a moment, the pane was short and a switch
+   clicked half-way down sent the page to the top. */
+function drawClock() {
+  var host_ = $('clock-guard'), held_ = host_ ? scrollHeld(host_) : null;
+  var r_ = drawClockIn();
+  if (held_) {
+    scrollBack(held_);
+    /* Once more after the page's words are put in its language (as drawSplit). */
+    Promise.resolve().then(function () { scrollBack(held_); });
+  }
+  return r_;
+}
+function drawClockIn() {
+  var host = $('clock-guard');
+  var v = CLOCKC.view, d = CLOCKC.draft;
+  if (!host || !v || !d) return;
+  var may = !!ADMIN;
+  var warnS = Number((v.conf || {}).clock_warn_s) || 2, asideS = Number((v.conf || {}).clock_aside_s) || 20;
+  var st = $('clock-state');
+  var anyBad = (v.nodes || []).some(function (n) {
+    var s = n.state || {};
+    return n.fresh && (s.role === 'aside' || (s.ref !== null && s.ref !== undefined && Math.abs(s.ref) > warnS) || s.dir_ok === false);
+  });
+  if (st) {
+    clear(st);
+    if (!v.engaged) st.appendChild(el('span', 'tag dim', 'as until now - not watched'));
+    else st.appendChild(el('span', 'tag ' + (anyBad ? 'crit' : 'ok'), anyBad ? 'not well' : 'all well'));
+  }
+  clear(host);
+  /* ---- now ---- */
+  var now = el('div', 'split-now');
+  (v.nodes || []).forEach(function (n, i) {
+    var s = n.state || {};
+    var tile = el('div', 'split-node' + (s.role === 'aside' ? ' aside' : '') + (n.fresh || !v.engaged ? '' : ' stale'));
+    var top = el('div', 'split-node-top');
+    top.appendChild(noI18n(el('b', '', n.name)));
+    if (n.me) top.appendChild(el('span', 'tag dim', 'this page'));
+    var role = !v.engaged ? {k: 'dim', w: 'not watched'} : !n.fresh ? {k: 'dim', w: 'not heard from'} : (s.role === 'aside' ? {k: 'warn', w: 'stepped aside'} : {k: 'ok', w: 'answers'});
+    top.appendChild(el('span', 'tag ' + role.k + ' split-role', role.w));
+    tile.appendChild(top);
+    var line = function (ok, words, more) {
+      var r = el('div', 'split-line ' + (ok === true ? 'good' : ok === false ? 'bad' : 'muted'));
+      r.innerHTML = iconMarkup(ok === true ? 'check' : ok === false ? 'close' : 'info', 14);
+      r.appendChild(el('span', '', words));
+      if (more) r.appendChild(noI18n(el('span', 'muted small', ' ' + more)));
+      tile.appendChild(r);
+    };
+    if (!v.engaged) {
+      tile.appendChild(el('div', 'muted small', 'nothing is measured - its clock is kept by chrony, as the tile above shows'));
+    } else if (n.fresh) {
+      var o = clockOff(s.ref);
+      if (o) {
+        var r = el('div', 'split-line ' + (o.a > asideS ? 'bad' : o.a > warnS ? 'warn' : 'good'));
+        r.innerHTML = iconMarkup(o.a > warnS ? 'clock' : 'check', 14);
+        r.appendChild(el('span', '', 'the reference: '));
+        r.appendChild(el('span', '', o.a <= warnS ? 'right' : o.w));
+        r.appendChild(noI18n(el('span', 'muted small', ' ' + (o.a <= warnS ? '(' + (s.ref > 0 ? '-' : '+') + o.n + ')' : o.n))));
+        tile.appendChild(r);
+      } else line(false, 'the reference cannot be asked', s.ref_err ? '- ' + s.ref_err : '');
+      var k = clockOff(s.skew);
+      if (k && s.skew_of) {
+        var r2 = el('div', 'split-line ' + (k.a > warnS ? 'warn' : 'good'));
+        r2.innerHTML = iconMarkup(k.a > warnS ? 'clock' : 'check', 14);
+        r2.appendChild(noI18n(el('span', '', s.skew_of + ': ')));
+        r2.appendChild(el('span', '', k.a <= warnS ? 'alike' : (s.skew > 0 ? 'ahead of this one by' : 'behind this one by')));
+        r2.appendChild(noI18n(el('span', 'muted small', ' ' + k.n)));
+        tile.appendChild(r2);
+      } else if (s.skew_err) line(false, 'the other side’s clock cannot be read', '- ' + s.skew_err);
+      else if (v.cluster) line(null, 'the other side’s clock: not measured yet');
+      if ((v.conf || {}).health_dir) {
+        if (s.dir_ok === true) line(true, 'reaches the directory');
+        else if (s.dir_ok === false) line(false, 'cannot reach the directory', (s.dirs || []).filter(function (x) { return !x.ok; }).map(function (x) { return x.name + ' (' + x.words + ')'; }).join(', '));
+        else line(null, 'no directory is signed in against');
+      }
+      if (s.codes_fixed) tile.appendChild(el('div', 'split-why small', 'codes worked out with the corrected time'));
+      if (s.why) tile.appendChild(el('div', 'split-why muted small', s.why));
+    } else {
+      tile.appendChild(el('div', 'muted small', n.alive ? 'its word has not come over yet' : 'nothing heard from it - it is down, or the link is'));
+    }
+    now.appendChild(tile);
+    if (i === 0 && (v.nodes || []).length > 1) {
+      var sk = (s.skew !== null && s.skew !== undefined) ? Math.abs(s.skew) : null;
+      var far = v.engaged && sk !== null && sk > warnS;
+      var link = el('div', 'split-link ' + (far ? 'broken' : 'whole'));
+      link.innerHTML = iconMarkup('clock', 18);
+      link.appendChild(el('span', 'small', !v.engaged || sk === null ? 'not measured' : far ? 'apart' : 'alike'));
+      now.appendChild(link);
+    }
+  });
+  host.appendChild(now);
+  /* ---- what is done ---- */
+  host.appendChild(el('h4', 'split-h', 'What is done about the clocks'));
+  var choices = el('div', 'split-choices');
+  CLOCKC_MODES.forEach(function (m) {
+    var b = el('button', 'split-choice' + (d.mode === m.k ? ' on' : ''));
+    b.type = 'button';
+    b.disabled = !may;
+    var head = el('div', 'split-choice-head');
+    var ic = el('span', 'split-ic'); ic.innerHTML = iconMarkup(m.icon, 20);
+    head.appendChild(ic);
+    head.appendChild(el('span', 'split-choice-k', m.t));
+    if (m.k === 'off') head.appendChild(el('span', 'tag dim', 'as before'));
+    b.appendChild(head);
+    b.appendChild(el('div', 'split-choice-s', m.s));
+    var ul = el('ul', 'split-pros');
+    m.good.forEach(function (g) { ul.appendChild(el('li', 'good', g)); });
+    m.bad.forEach(function (g) { ul.appendChild(el('li', 'bad', g)); });
+    b.appendChild(ul);
+    b.onclick = function () { d.mode = m.k; clockTouched(); };
+    choices.appendChild(b);
+  });
+  host.appendChild(choices);
+  var asBefore = d.mode === 'off';
+  var said = el('p', 'split-said ' + (asBefore ? 'same' : 'new'));
+  said.innerHTML = iconMarkup(asBefore ? 'check' : 'info', 15);
+  said.appendChild(el('span', '', asBefore ? 'Exactly as before 1.0.21: nothing of this runs, whatever the switches below say.'
+    : 'Each node asks the reference every 30 s and the other side’s clock every 5 s.'));
+  host.appendChild(said);
+  /* ---- its details ---- */
+  var g = el('div', 'set-grid split-fields');
+  var warn = textBox(String(d.warn), '2', '');
+  warn.type = 'number'; warn.min = 1; warn.max = 60; warn.disabled = !may;
+  warn.onchange = function () { d.warn = Math.max(1, Math.min(60, Number(warn.value) || 2)); clockTouched(); };
+  var wf = formField('Warn when off by more than (seconds)', warn, 'An alert, and the codes corrected (with the switch below), past this. A code lives 30 s and one step either way is let in: past some 30 s right codes start to be refused.');
+  if (d.warn !== Number((v.conf || {}).clock_warn_s || 2)) wf.classList.add('changed');
+  g.appendChild(wf);
+  var asd = textBox(String(d.aside), '20', '');
+  asd.type = 'number'; asd.min = 5; asd.max = 600; asd.disabled = !may;
+  asd.onchange = function () { d.aside = Math.max(5, Math.min(600, Number(asd.value) || 20)); clockTouched(); };
+  var sf = formField('Step aside when off by more than (seconds)', asd, 'With Step aside when not well. More than the warning; 20 s leaves room before the first right code is refused.');
+  if (d.aside !== Number((v.conf || {}).clock_aside_s || 20)) sf.classList.add('changed');
+  if (d.aside <= d.warn) sf.classList.add('bad');
+  g.appendChild(sf);
+  host.appendChild(g);
+  if (d.mode !== 'off') {
+    var box = el('div', 'split-arb');
+    box.appendChild(el('p', 'note', 'Each node’s reference: the time servers it asks itself, apart from its chrony, to tell how far off its clock is. Empty: the time servers above (for the whole cluster). Up to five, name or name:port; the middle of their answers is taken, so one gone wild does not count.'));
+    var ag = el('div', 'set-grid');
+    (v.nodes || []).forEach(function (n) {
+      var t = textBox(d.ref[n.name] || '', (v.common || []).length ? 'the time servers above: ' + v.common.join(', ') : 'the time servers above', 'mono');
+      t.disabled = !may;
+      /* Typed into without the card drawn again (the cursor stays); drawn when left. */
+      t.oninput = function () { d.ref[n.name] = t.value.trim(); CLOCKC.tried = null; clockTouched(true); };
+      /* After the blur that sent it (the field is taken out by the drawing). */
+      t.onchange = function () { setTimeout(drawClock, 0); };
+      var f = formField('Reference of ' + n.name, t);
+      if ((n.ref || '') !== (d.ref[n.name] || '')) f.classList.add('changed');
+      ag.appendChild(f);
+    });
+    box.appendChild(ag);
+    var row = el('div', 'btnrow');
+    var tb = cmdButton('Try it from every node', 'pulse', '');
+    tb.id = 'clock-try';
+    tb.disabled = !may;
+    tb.onclick = function () { clockTry(tb); };
+    row.appendChild(tb);
+    if (clockTried()) row.appendChild(el('span', 'tag ok', 'every node asks its reference'));
+    else if (CLOCKC.tried && CLOCKC.tried.done) row.appendChild(el('span', 'tag crit', 'not every node can ask its reference'));
+    else if (d.mode === 'guard' && (v.conf || {}).clock_mode !== 'guard') row.appendChild(el('span', 'small muted', 'needed before saving'));
+    box.appendChild(row);
+    if (CLOCKC.tried) {
+      var res = el('div', 'split-tried');
+      (CLOCKC.tried.nodes || []).forEach(function (n) {
+        var got = CLOCKC.tried.got[n];
+        var r = el('div', 'split-line ' + (!got ? 'muted' : got.ok === true ? 'good' : 'bad'));
+        r.innerHTML = iconMarkup(!got ? 'clock' : got.ok === true ? 'check' : 'close', 14);
+        r.appendChild(noI18n(el('b', '', n + ': ')));
+        if (!got) r.appendChild(el('span', '', 'asking…'));
+        else {
+          (got.refs || []).forEach(function (x) {
+            r.appendChild(noI18n(el('span', 'mono small', x.server + ' ')));
+            var oo = clockOff(x.offset);
+            if (oo) { r.appendChild(el('span', 'small', oo.w)); r.appendChild(noI18n(el('span', 'small', ' ' + oo.n + ' '))); }
+            else r.appendChild(el('span', 'small', 'no answer'));
+            if (x.words) r.appendChild(noI18n(el('span', 'small muted', ' (' + x.words + ') ')));
+          });
+          if (!(got.refs || []).length) r.appendChild(el('span', 'small', 'no time server given - give one, or set the time servers above'));
+          var ko = clockOff(got.skew);
+          if (ko && got.skew_of) {
+            r.appendChild(el('span', 'split-sep', ' · '));
+            r.appendChild(noI18n(el('span', 'small', got.skew_of + ': ')));
+            r.appendChild(el('span', 'small', got.skew > 0 ? 'ahead of this one by' : 'behind this one by'));
+            r.appendChild(noI18n(el('span', 'small', ' ' + ko.n)));
+          }
+          if (got.dir_ok === false) { r.appendChild(el('span', 'split-sep', ' · ')); r.appendChild(el('span', 'small', 'cannot reach the directory')); }
+          else if (got.dir_ok === true) { r.appendChild(el('span', 'split-sep', ' · ')); r.appendChild(el('span', 'small', 'reaches the directory')); }
+        }
+        res.appendChild(r);
+      });
+      box.appendChild(res);
+    }
+    host.appendChild(box);
+  }
+  /* ---- and what else ---- */
+  host.appendChild(el('h4', 'split-h', 'And with the clock measured'));
+  var opts = el('div', 'split-opts');
+  CLOCKC_OPTS.forEach(function (o) {
+    var item = el('div', 'split-opt' + (d[o.k] ? ' on' : ''));
+    var sw = switchBox(d[o.k]);
+    sw._input.disabled = !may;
+    sw._input.onchange = function () { d[o.k] = !!sw._get(); clockTouched(); };
+    var ic = el('span', 'split-ic'); ic.innerHTML = iconMarkup(o.icon, 18);
+    var txt = el('div', 'split-opt-txt');
+    txt.appendChild(el('div', 'split-opt-k', o.t));
+    txt.appendChild(el('div', 'split-opt-s', o.s));
+    item.appendChild(ic); item.appendChild(txt); item.appendChild(sw);
+    if (!!Number((v.conf || {})[o.k] || 0) !== d[o.k]) item.classList.add('changed');
+    opts.appendChild(item);
+  });
+  host.appendChild(opts);
+  /* ---- what happens ---- */
+  var sc = clockScenarios();
+  host.appendChild(el('h4', 'split-h', 'What happens - with the choices above'));
+  host.appendChild(listTable(['When', sc.A, sc.B, 'Sign-ins', 'What it costs'], sc.rows, function (r) {
+    var tr = el('tr');
+    tr.appendChild(el('td', 'split-when', r.t));
+    [sc.A, sc.B].forEach(function (n) {
+      var c = r.cells[n] || {k: 'dim', w: '-'};
+      var td = el('td');
+      td.appendChild(el('span', 'tag ' + c.k, c.w));
+      tr.appendChild(td);
+    });
+    /* Each piece a sentence of its own, so that each is put in the page's language. */
+    [r.out, r.risk].forEach(function (x) {
+      var td = el('td');
+      var box = el('span', 'split-out ' + x.k);
+      [].concat(x.w).forEach(function (w, i) {
+        if (i) box.appendChild(el('span', 'split-sep', '; '));
+        box.appendChild(el('span', '', w));
+      });
+      td.appendChild(box);
+      tr.appendChild(td);
+    });
+    return tr;
+  /* Its own fixed widths (acme.css, the split card's): not the lists' steadied columns. */
+  }, 'plain split-scen', {free: true}));
+  if (!sc.two) host.appendChild(el('p', 'note', 'One node: nothing can step aside - there is no other node to answer. Measure and warn, and the corrected codes, work alone.'));
+  dressButtons(host);
+}
+
 /* ---- Settings → Time (1.0.120) -------------------------------------------------
    Each node's clock as chrony sees it, its sources, and the time servers for the
    whole cluster. */
@@ -11855,9 +12268,11 @@ function loadNtp() {
     NTP.d = d;
     if (!NTP.node) NTP.node = (d.nodes[0] || {}).name;
     drawNtp();
+    loadClock();                    /* the clocks of the nodes (1.0.21) */
     if (!NTP.poll) NTP.poll = setInterval(function () {
       if (TAB !== 'settings' || PANE !== 'time') { clearInterval(NTP.poll); NTP.poll = null; return; }
       api('ntp').then(function (x) { NTP.d = x; drawNtp(true); }).catch(function () {});
+      loadClock(true);
     }, 10000);
   }).catch(oops);
 }
