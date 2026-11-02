@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.23 - 2026-11-02
 
+- The root helper (acme-web.service) writes in the journal each of its parts
+  that takes 3 s or more (`journalctl -u acme-web.service`) - a page that waits
+  on one of them shows which one held it up.
+
 - Delete with revoke: the certificate stays in the list as "being revoked, then
   deleted" until its CA has it, and only then goes; a revocation that fails
   leaves it "revocation failed" with the reason - nothing deleted, not renewed

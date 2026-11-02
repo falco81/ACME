@@ -4245,52 +4245,31 @@ def osup_job(ident, kind, security=False):
     return 0
 
 
+SLOW_PART_S = 3.0
+
+
+def _serve_parts():
+    return [(pglog_part, 'the PostgreSQL log'), (pgtls_part, 'the database link'),
+            (dbmake_part, 'a database made'), (fw_read_part, 'the firewall as it is'),
+            (net_part, 'the network'), (ntp_part, 'the time'),
+            (console_part, 'the console at login'), (sshkeys_part, "root's SSH keys"),
+            (osup_part, 'the updates of the system'), (sshd_part, 'the SSH server'),
+            (logs_part, 'the journal and the logs')]
+
+
 def serve():
     d = web_fd()
-    try:
-        pglog_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: the PostgreSQL log: %s' % e, file=sys.stderr)
-    try:
-        pgtls_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: the database link: %s' % e, file=sys.stderr)
-    try:
-        dbmake_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: a database made: %s' % e, file=sys.stderr)
-    try:
-        fw_read_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: the firewall as it is: %s' % e, file=sys.stderr)
-    try:
-        net_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: the network: %s' % e, file=sys.stderr)
-    try:
-        ntp_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: the time: %s' % e, file=sys.stderr)
-    try:
-        console_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: the console at login: %s' % e, file=sys.stderr)
-    try:
-        sshkeys_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: root\'s SSH keys: %s' % e, file=sys.stderr)
-    try:
-        osup_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: the updates of the system: %s' % e, file=sys.stderr)
-    try:
-        sshd_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: the SSH server: %s' % e, file=sys.stderr)
-    try:
-        logs_part()
-    except Exception as e:                              # noqa: BLE001
-        print('acme_web.py: the journal and the logs: %s' % e, file=sys.stderr)
+    # Each part on its own, its time said in the journal when it is slow (1.0.23): a
+    # page that waits on one ask waits for every part before it.
+    for fn, what in _serve_parts():
+        t0 = time.time()
+        try:
+            fn()
+        except Exception as e:                          # noqa: BLE001
+            print('acme_web.py: %s: %s' % (what, e), file=sys.stderr)
+        took = time.time() - t0
+        if took >= SLOW_PART_S:
+            print('acme_web.py: %s took %.1f s' % (what, took), file=sys.stderr)
     try:
         os.replace('request.json', 'request.taken', src_dir_fd=d, dst_dir_fd=d)
     except FileNotFoundError:
