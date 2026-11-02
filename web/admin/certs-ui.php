@@ -126,8 +126,10 @@ function acme_certs_tab_panels(): void
       your own ACME server), an authority of acme's own, self-signed, Microsoft AD CS, SCEP - with
       its own settings. Test tries it without changing anything. The star makes one the default:
       a new certificate comes from it when no source is said.</p>
-    <div class="btnrow ct-fulladmin" style="margin-bottom:12px">
-      <button class="btn cmd primary" id="src-add" data-icon="add">Add a source</button>
+    <div class="btnrow filters">
+      <input type="search" id="src-q" placeholder="a name, a kind, a setting…" style="flex:1;min-width:200px">
+      <span class="spacer"></span>
+      <button class="btn cmd primary ct-fulladmin" id="src-add" data-icon="add">Add a source</button>
     </div>
     <div id="src-broken"></div>
     <div id="src-list"></div>
@@ -143,8 +145,10 @@ function acme_certs_tab_panels(): void
       HTTP-01 answers on port 80, here or on your own web servers over SSH, so acme itself is
       never reachable from the internet. The star makes one the default: a new certificate from
       an ACME CA is proved by it.</p>
-    <div class="btnrow ct-fulladmin" style="margin-bottom:12px">
-      <button class="btn cmd primary" id="val-add" data-icon="add">Add a way of validation</button>
+    <div class="btnrow filters">
+      <input type="search" id="val-q" placeholder="a name, a kind, a domain…" style="flex:1;min-width:200px">
+      <span class="spacer"></span>
+      <button class="btn cmd primary ct-fulladmin" id="val-add" data-icon="add">Add a way of validation</button>
     </div>
     <div id="val-broken"></div>
     <div id="val-list"></div>

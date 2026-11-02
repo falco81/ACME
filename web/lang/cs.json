@@ -45499,6 +45499,14 @@
   "sup035": {
    "source": "{0} own",
    "text": "{0} vlastní"
+  },
+  "sup036": {
+   "source": "a name, a kind, a setting…",
+   "text": "název, druh, nastavení…"
+  },
+  "sup037": {
+   "source": "a name, a kind, a domain…",
+   "text": "název, druh, doména…"
   }
  },
  "patterns": {

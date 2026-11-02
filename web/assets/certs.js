@@ -1225,7 +1225,8 @@ function drawModTab(key, live) {
     var b = $(m.broken);
     if (b) { clear(b); b.appendChild(brokenBox(m.family)); }
     var rows = got[1];
-    var q = key === 'targets' && $('tg-q') ? $('tg-q').value.trim().toLowerCase() : '';
+    var qbox = $({targets: 'tg-q', sources: 'src-q', validation: 'val-q'}[key] || '');
+    var q = qbox ? qbox.value.trim().toLowerCase() : '';
     if (q) rows = rows.filter(function (r) {
       return (r.name + ' ' + r.kind + ' ' + plugTitle(m.family, r.kind) + ' ' + JSON.stringify(r.config || {}) + ' '
               + arr(r.tags).join(' ') + ' ' + (r.note || '')).toLowerCase().indexOf(q) >= 0;
@@ -7302,6 +7303,8 @@ on('src-add', 'click', function () { modEdit('sources'); });
 on('val-add', 'click', function () { modEdit('validation'); });
 on('tg-add', 'click', function () { modEdit('targets'); });
 on('tg-q', 'input', debounce(function () { drawModTab('targets', true); }, 200));
+on('src-q', 'input', debounce(function () { drawModTab('sources', true); }, 200));
+on('val-q', 'input', debounce(function () { drawModTab('validation', true); }, 200));
 on('dns-add', 'click', function () { dnsAdd(); });
 on('dns-q', 'input', debounce(function () { drawDnsRecords(); }, 150));
 
