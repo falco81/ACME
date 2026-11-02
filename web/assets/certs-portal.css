@@ -31,3 +31,4 @@ textarea.cp-names{width:100%;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Con
   .cp-table th:nth-child(3),.cp-table td:nth-child(3){display:none}
   .cp-table td,.cp-table th{padding-left:6px;padding-right:6px}
 }
+.cp-auto{display:inline-flex;align-items:center;gap:10px}

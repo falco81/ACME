@@ -4,6 +4,17 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.16 - 2026-11-02
+
+- **A team's rights work on the enrolment pages**, not only in the
+  administration: *manage* gives *Renew now*, renewed by itself on/off and
+  *Revoke* in the certificate's dialog; *approve* (or *manage*) gives *Approve*
+  and *Decline* of the team's waiting requests. The dialog says what the person
+  may (*You may*), the list says *team X* for a team's certificate.
+- *Ask for a certificate* is shown dimmed, with the reason, to whoever may ask
+  for a team while the enrolment pages do not say yet which names and sources
+  may be asked for (before: missing). Owners and teams says so too.
+
 ## 1.0.15 - 2026-11-02
 
 - The enrolment pages no longer go blank while *Certificates on the portal* is

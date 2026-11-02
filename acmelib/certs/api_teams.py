@@ -35,7 +35,9 @@ def summary(store, s):
             # Whether the members can see anything on the enrolment pages at all
             # (1.0.15): with either switch off, nothing is offered there.
             'portal': {'on': bool(E.CONFIG.get('portal')),
-                       'certs': bool(E.CONFIG.get('portal_cert'))},
+                       'certs': bool(E.CONFIG.get('portal_cert')),
+                       'ask': bool(str(E.CONFIG.get('portal_cert_suffixes') or '').strip()
+                                   and str(E.CONFIG.get('portal_cert_issuers') or '').strip())},
             'scoped': {'view': T.scope(store, s, 'view') is not None,
                        'manage': T.scope(store, s, 'manage') is not None}}
 

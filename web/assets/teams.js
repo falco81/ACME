@@ -270,6 +270,16 @@
       go.onclick = function () { location.hash = '#settings/portal'; };
       off.appendChild(go);
       card.appendChild(off);
+    } else if (d.portal && !d.portal.ask && (d.teams || []).some(function (t) {
+      return (t.members || []).some(function (m) { return (m.rights || []).indexOf('request') >= 0 || (m.rights || []).indexOf('manage') >= 0; });
+    })) {
+      /* A member may ask for new ones, and the portal has nothing they may ask for (1.0.16). */
+      var noask = el('div', 'tm-portal-off');
+      noask.appendChild(el('span', '', 'Some members may ask for new certificates, but the enrolment pages do not say yet which names and sources may be asked for: they see the button dimmed.'));
+      var go2 = cmdButton('Open the setting', 'gear', 'small');
+      go2.onclick = function () { location.hash = '#settings/portal'; };
+      noask.appendChild(go2);
+      card.appendChild(noask);
     }
     card.appendChild(listTable(['Name', 'Members and what they may', 'Told', {words: 'Certificates', cls: 'num'}, ''],
       d.teams || [], function (t) {

@@ -40559,6 +40559,78 @@
   "sportoff05": {
    "source": "Your administrator switches them on (Settings → The enrolment pages → Certificates on the portal).",
    "text": "Zapíná je váš správce (Nastavení → Stránky registrace → Certifikáty na portálu)."
+  },
+  "sptr01": {
+   "source": "approved - it is being issued",
+   "text": "schváleno – vydává se"
+  },
+  "sptr02": {
+   "source": "it is being renewed - its job is shown here",
+   "text": "obnovuje se – jeho úloha je vidět zde"
+  },
+  "sptr03": {
+   "source": "it is being revoked - its job is shown here",
+   "text": "revokuje se – jeho úloha je vidět zde"
+  },
+  "sptr04": {
+   "source": "declined - the person who asked is told",
+   "text": "zamítnuto – žadatel dostane zprávu"
+  },
+  "sptr05": {
+   "source": "say why it is declined",
+   "text": "napište, proč je zamítnut"
+  },
+  "sptr06": {
+   "source": "You may",
+   "text": "Smíte"
+  },
+  "sptr07": {
+   "source": "What the team that owns it gives you (Settings → Owners and teams) - an administrator changes it there.",
+   "text": "Co vám dává tým, který ho vlastní (Nastavení → Vlastníci a týmy) – správce to mění tam."
+  },
+  "sptr08": {
+   "source": "Decline it",
+   "text": "Zamítnout"
+  },
+  "sptr09": {
+   "source": "The person who asked is told why, by mail.",
+   "text": "Žadatel dostane e-mailem zprávu proč."
+  },
+  "sptr10": {
+   "source": "With a new key, deployed where this one is, and renewed by itself again.",
+   "text": "S novým klíčem, nasazený tam, kde je tento, a znovu se sám obnovuje."
+  },
+  "sptr11": {
+   "source": "Asking for certificates here is not set up yet: your administrator says which names and sources may be asked for (Settings → The enrolment pages).",
+   "text": "Žádosti o certifikáty tu zatím nejsou nastavené: správce určí, o jaké názvy a zdroje se smí žádat (Nastavení → Stránky registrace)."
+  },
+  "sptr12": {
+   "source": "Some members may ask for new certificates, but the enrolment pages do not say yet which names and sources may be asked for: they see the button dimmed.",
+   "text": "Někteří členové smějí žádat o nové certifikáty, ale stránky registrace zatím neříkají, o jaké názvy a zdroje se smí žádat: tlačítko vidí ztlumené."
+  },
+  "sptr13": {
+   "source": "you may not change this certificate - its team gives you the right manage for that",
+   "text": "tento certifikát nesmíte měnit – k tomu vám jeho tým musí dát právo spravovat"
+  },
+  "sptr14": {
+   "source": "you may not approve this certificate - its team gives you the right approve for that",
+   "text": "tento certifikát nesmíte schválit – k tomu vám jeho tým musí dát právo schvalovat"
+  },
+  "sptm01": {
+   "source": "your team",
+   "text": "váš tým"
+  },
+  "sptm02": {
+   "source": "a group you are in",
+   "text": "skupina, ve které jste"
+  },
+  "sptm03": {
+   "source": "team ",
+   "text": "tým "
+  },
+  "sptm04": {
+   "source": "Yours through your team (Settings → Owners and teams).",
+   "text": "Váš přes váš tým (Nastavení → Vlastníci a týmy)."
   }
  },
  "patterns": {
@@ -56305,6 +56377,42 @@
   "prole03": {
    "source": "{0} changed their own password (on the enrolment pages)",
    "text": "{0} si změnil heslo (na enrolment stránkách)"
+  },
+  "pptr01": {
+   "source": "Decline {0}",
+   "text": "Zamítnout {0}"
+  },
+  "pptr02": {
+   "source": "{0} has not been approved",
+   "text": "{0} nebyl schválen"
+  },
+  "pptr03": {
+   "source": "{0} is not a certificate that can be revoked",
+   "text": "{0} není certifikát, který lze revokovat"
+  },
+  "pptr04": {
+   "source": "{0} renews {1} from the portal",
+   "text": "{0} obnovuje {1} z portálu"
+  },
+  "pptr05": {
+   "source": "{0} revokes {1} from the portal ({2})",
+   "text": "{0} revokuje {1} z portálu ({2})"
+  },
+  "pptr06": {
+   "source": "{0} was refused on the portal: renewing {1} (needs the right {2})",
+   "text": "{0} byl na portálu odmítnut: obnovení {1} (potřebuje právo {2})"
+  },
+  "pptr07": {
+   "source": "{0} was refused on the portal: revoking {1} (needs the right {2})",
+   "text": "{0} byl na portálu odmítnut: revokace {1} (potřebuje právo {2})"
+  },
+  "pptr08": {
+   "source": "{0} was refused on the portal: switching renewing for {1} (needs the right {2})",
+   "text": "{0} byl na portálu odmítnut: přepnutí obnovování u {1} (potřebuje právo {2})"
+  },
+  "pptr09": {
+   "source": "{0} was refused on the portal: approving {1} (needs the right {2})",
+   "text": "{0} byl na portálu odmítnut: schválení {1} (potřebuje právo {2})"
   }
  },
  "rich": {

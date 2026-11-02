@@ -160,7 +160,7 @@ def last_job(store, cid):
     return r
 
 
-def public(store, r, via):
+def public_row(store, r, via):
     one = S.cert_public(r)
     why = one.get('last_error') if one.get('state') in (DECLINED, 'failed') else ''
     for k in ('last_error', 'challenge_map', 'profile', 'ari', 'updated_by', 'csr_waiting',
@@ -173,6 +173,25 @@ def public(store, r, via):
     return one
 
 
+ALL_RIGHTS = ('view', 'request', 'manage', 'approve')
+
+
+def rights_of(s, row, names, groups, tms):
+    """What this sign-in may do with one certificate (1.0.16): an administrator
+    of acme's own who sees all (portal_admins_all) everything; otherwise the
+    rights of the team that owns it (Settings → Owners and teams), and seeing
+    it when it is owned by them or a group of theirs - as before."""
+    if E.portal_sees_all(s):
+        return set(ALL_RIGHTS)
+    owner = str(row.get('owner') or '').strip().lower()
+    got = set()
+    if owner and owner in tms:
+        got |= set(tms[owner][1])
+    if owner_of(row, names, groups, None):
+        got.add('view')
+    return got
+
+
 def mine(h, s, rows=None):
     """Their certificates: owned by them or by a group they are in - every
     one for an administrator of acme's own (portal_admins_all)."""
@@ -180,6 +199,12 @@ def mine(h, s, rows=None):
     names = my_names(s)
     groups = my_groups(h, s)
     tms = my_teams(h, s)
+
+    def public(st_, r, via):
+        one = public_row(st_, r, via)
+        one['may'] = [w for w in ALL_RIGHTS if w in rights_of(s, r, names, groups, tms)]
+        one['team'] = str(r.get('owner') or '').strip().lower() in tms
+        return one
     if E.portal_sees_all(s):
         out = [public(store, r, owner_of(r, names, groups, tms) or '*')
                for r in store.db.rows('SELECT * FROM certs ORDER BY name')]
@@ -214,6 +239,23 @@ def need_mine(h, s, ref):
         return row
     if not row or not owner_of(row, my_names(s), my_groups(h, s), my_teams(h, s)):
         raise E.ApiError(404, 'there is no such certificate of yours')
+    return row
+
+
+def need_right(h, s, ref, right, doing):
+    """One of their certificates, and the right asked for on it - or a 403 in
+    words and an event saying who was refused what."""
+    row = need_mine(h, s, ref)
+    have = rights_of(s, row, my_names(s), my_groups(h, s), my_teams(h, s))
+    ok = right in have or (right == 'approve' and 'manage' in have)
+    if not ok:
+        h.store.add_event('certificates', '%s was refused on the portal: %s %s (needs the right '
+                          '%s)' % (s['name'], doing, row['name'], right), 'warn', who=s['name'])
+        raise E.ApiError(403, {'manage': 'you may not change this certificate - its team gives '
+                                         'you the right manage for that',
+                               'approve': 'you may not approve this certificate - its team gives '
+                                          'you the right approve for that'}.get(
+            right, 'you may not do that'))
     return row
 
 
@@ -501,19 +543,95 @@ def _portal_request(h):
 
 
 # ---------------------------------------------------------------------------
+# What a team's rights give on the portal (1.0.16): manage - renew, renewed by
+# itself or not, revoke; approve - the team's requests approved or declined.
+# ---------------------------------------------------------------------------
+def portal_by(s):
+    return 'portal:%s' % s['name']
+
+
+@E.route('POST', '/api/portal/cert_renew')
+def _portal_renew(h):
+    s = portal_session(h)
+    row = need_right(h, s, h.body().get('id'), 'manage', 'renewing')
+    if row.get('state') in (WAITING, DECLINED):
+        raise E.ApiError(409, '%s has not been approved' % row['name'])
+    try:
+        job_id = A.start_renew(h.store, row['id'], False, portal_by(s))
+    except (ValueError, LookupError) as e:
+        raise E.ApiError(400, str(e))
+    h.store.add_event('certificates', '%s renews %s from the portal' % (s['name'], row['name']),
+                      who=s['name'])
+    return {'job_id': job_id}
+
+
+@E.route('POST', '/api/portal/cert_auto')
+def _portal_auto(h):
+    s = portal_session(h)
+    b = h.body()
+    row = need_right(h, s, b.get('id'), 'manage', 'switching renewing for')
+    try:
+        return A.cert_auto(h.store, row['id'], A._flag(b.get('auto_renew'), 1), portal_by(s))
+    except (ValueError, LookupError) as e:
+        raise E.ApiError(400, str(e))
+
+
+@E.route('POST', '/api/portal/cert_revoke')
+def _portal_revoke(h):
+    s = portal_session(h)
+    b = h.body()
+    row = need_right(h, s, b.get('id'), 'manage', 'revoking')
+    if not row.get('cert_pem') or row.get('state') == 'revoked':
+        raise E.ApiError(409, '%s is not a certificate that can be revoked' % row['name'])
+    reason = str(b.get('reason') or 'unspecified')
+    if reason not in A.REVOKE_REASONS:
+        raise E.ApiError(400, 'the reason is one of %s' % ', '.join(A.REVOKE_REASONS))
+    by = portal_by(s)
+    again = A._flag(b.get('renew'), 0)
+
+    def fn(job):
+        got = renewer.revoke_cert(job.store, job, row['id'], reason, by)
+        if not again:
+            return got
+        job.step('issuing a new one in its place')
+        job.store.db.update('certs', row['id'], {'auto_renew': 1})
+        return renewer.renew_cert(job.store, job, row['id'], True, by)
+    try:
+        job_id = jobs.submit(h.store, 'revoke', fn, cert_id=row['id'], by=by,
+                             said='reason: %s%s, from the portal' % (
+                                 reason, ', a new one at once' if again else ''))
+    except ValueError as e:
+        raise E.ApiError(409, str(e))
+    h.store.add_event('certificates', '%s revokes %s from the portal (%s)' % (
+        s['name'], row['name'], reason), 'warn', who=s['name'])
+    return {'job_id': job_id}
+
+
+@E.route('POST', '/api/portal/cert_approve')
+def _portal_approve(h):
+    s = portal_session(h)
+    b = h.body()
+    row = need_right(h, s, b.get('id'), 'approve', 'approving')
+    return approve_request(h.store, row, portal_by(s), A._flag(b.get('ok')),
+                           str(b.get('why') or '').strip()[:500])
+
+
+# ---------------------------------------------------------------------------
 # The administrators' side: approving or declining
 # ---------------------------------------------------------------------------
 @A.api('POST', '/api/certs/approve', 'certadmin')
 def _cert_approve(h, s):
     b = h.body()
-    store = h.store
-    row = S.cert_need(store, A._id(b.get('id')))
+    row = S.cert_need(h.store, A._id(b.get('id')))
+    return approve_request(h.store, row, A.who(s), A._flag(b.get('ok')),
+                           str(b.get('why') or '').strip()[:500])
+
+
+def approve_request(store, row, by, ok, why):
     if row.get('state') != WAITING:
         raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
-    by = A.who(s)
-    why = str(b.get('why') or '').strip()[:500]
     t = time.time()
-    if A._flag(b.get('ok')):
+    if ok:
         store.db.update('certs', row['id'], {'state': 'new', 'state_at': t, 'auto_renew': 1,
                                              'last_error': '', 'updated': t,
                                              'updated_by': str(by)[:190]})

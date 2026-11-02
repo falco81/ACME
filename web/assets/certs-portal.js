@@ -186,12 +186,16 @@ function load() {
 function draw(d) {
   var host = CP.host, rows = d.rows || [];
   var ask = $('cp-ask');
-  ask.hidden = !(d.suffixes || []).length || !(d.issuers || []).length;
-  ask.disabled = !d.may_request;
-  if (!d.may_request && !ask.hidden) explain(ask, 'You have asked for as many certificates as one person may. Ask the administrator for more.');
+  var setUp = !!(d.suffixes || []).length && !!(d.issuers || []).length;
+  /* A team gives them asking (request) but the pages are not set up for it:
+     the button is there, dimmed, and says why (1.0.16) - not just missing. */
+  ask.hidden = !setUp && !(d.teams || []).length;
+  ask.disabled = !setUp || !d.may_request;
+  if (!setUp && !ask.hidden) explain(ask, 'Asking for certificates here is not set up yet: your administrator says which names and sources may be asked for (Settings → The enrolment pages).');
+  else if (!d.may_request && !ask.hidden) explain(ask, 'You have asked for as many certificates as one person may. Ask the administrator for more.');
   var said = $('cp-said');
   clear(said);
-  if (!ask.hidden) {
+  if (!ask.hidden && setUp) {
     said.appendChild(document.createTextNode(d.used + ' of ' + d.most + ' requests used'));
     said.appendChild(document.createTextNode(' · '));
     said.appendChild(document.createTextNode(d.auto ? 'issued at once' : 'an administrator approves each one'));
@@ -235,9 +239,9 @@ function row(c) {
   var nc = el('td', 'ct-cname');
   nc.appendChild(data('b', '', c.cn || c.name));
   if (c.via && c.via !== 'me' && c.via !== '*') {
-    var g = el('span', 'tag info cp-via', 'group ');
+    var g = el('span', 'tag info cp-via', c.team ? 'team ' : 'group ');
     g.appendChild(data('span', '', c.via));
-    explain(g, 'Yours through the directory group ' + c.via + '.');
+    explain(g, c.team ? 'Yours through your team (Settings → Owners and teams).' : 'Yours through the directory group ' + c.via + '.');
     nc.appendChild(document.createTextNode(' '));
     nc.appendChild(g);
   }
@@ -277,6 +281,32 @@ function certDialog(id, fresh) {
   clearTimeout(CP.jobTimer);
   var logHost = null, jobId = c.job && c.job.id;
   var buttons = [{words: 'Close', close: true}];
+  /* What the team that owns it gives (Settings → Owners and teams, 1.0.16). */
+  var may = c.may || ['view'];
+  var manage = may.indexOf('manage') >= 0, approve = manage || may.indexOf('approve') >= 0;
+  var waiting = c.state === 'pending-approval';
+  if (approve && waiting) {
+    buttons.push({words: 'Decline', icon: 'ban', go: function () { modalOver(function () { declineDialog(c); }); }});
+    buttons.push({words: 'Approve', cls: 'primary', icon: 'check', go: function (b) {
+      busy(b, true);
+      api('cert-approve', {id: c.id, ok: 1}).then(function () {
+        toast('approved - it is being issued', 'good');
+        load();
+      }).catch(oops).then(function () { busy(b, false); });
+    }});
+  }
+  if (manage && c.not_after && c.state !== 'revoked') {
+    buttons.push({words: 'Revoke', icon: 'ban', go: function () { modalOver(function () { revokeDialogP(c); }); }});
+  }
+  if (manage && c.issuer && !waiting && c.state !== 'declined' && c.state !== 'revoked') {
+    buttons.push({words: 'Renew now', icon: 'refresh', go: function (b) {
+      busy(b, true);
+      api('cert-renew', {id: c.id}).then(function () {
+        toast('it is being renewed - its job is shown here', 'good');
+        load();
+      }).catch(oops).then(function () { busy(b, false); });
+    }});
+  }
   if (c.not_after && c.state !== 'revoked') buttons.push({words: 'Download', cls: 'primary', icon: 'download', go: function () {
     modalOver(function () { downloadDialog(c); });
   }});
@@ -312,9 +342,11 @@ function certDialog(id, fresh) {
       ['Valid to', c.not_after ? stamp(c.not_after) : '–'],
       ['Serial', c.serial ? data('span', 'mono small', c.serial) : '–'],
       ['Issued by', c.issuer_dn ? data('span', 'mono small', c.issuer_dn) : '–'],
-      ['Renews', c.auto_renew ? 'by itself, before it runs out' : 'not by itself'],
-      ['Owner', c.via === '*' ? (c.owner ? data('span', 'mono', c.owner) : 'nobody') : (c.via && c.via !== 'me' ? data('span', '', c.owner + ' (a group of yours)') : 'you')],
-      ['Asked for', c.created ? stamp(c.created) : '–']
+      ['Renews', manage && c.issuer && c.state !== 'revoked' && !waiting ? autoSwitch(c)
+        : (c.auto_renew ? 'by itself, before it runs out' : 'not by itself')],
+      ['Owner', c.via === '*' ? (c.owner ? data('span', 'mono', c.owner) : 'nobody') : (c.via && c.via !== 'me' ? ownerWords(c) : 'you')],
+      ['Asked for', c.created ? stamp(c.created) : '–'],
+      ['You may', mayTags(may)]
     ]);
     body.appendChild(kv);
     if (jobId) {
@@ -335,6 +367,82 @@ function certDialog(id, fresh) {
     if (n.state !== c.state || (n.job && n.job.id) !== jobId || n.not_after !== c.not_after) certDialog(id);
   }};
   if (jobId) followJob(jobId, logHost, ticket);
+}
+
+var RIGHT_WORDS_P = {view: 'see', request: 'ask for new', manage: 'manage', approve: 'approve'};
+function ownerWords(c) {
+  var w = el('span', '');
+  w.appendChild(data('span', '', c.owner));
+  w.appendChild(document.createTextNode(' · '));
+  w.appendChild(el('span', 'muted', c.team ? 'your team' : 'a group you are in'));
+  return w;
+}
+function mayTags(may) {
+  var w = el('span', 'cp-may');
+  ['view', 'request', 'manage', 'approve'].forEach(function (r) {
+    if (may.indexOf(r) < 0) return;
+    w.appendChild(el('span', 'tag info', RIGHT_WORDS_P[r]));
+    w.appendChild(document.createTextNode(' '));
+  });
+  explain(w, 'What the team that owns it gives you (Settings → Owners and teams) - an administrator changes it there.');
+  return w;
+}
+/* Renewed by itself or not - at once, as the switch in the administration's list. */
+function autoSwitch(c) {
+  var wrap = el('span', 'cp-auto');
+  var sw = switchBox(c.auto_renew);
+  var words = el('span', 'small', c.auto_renew ? 'by itself, before it runs out' : 'not by itself');
+  sw._input.onchange = function () {
+    var on = sw._get();
+    sw._input.disabled = true;
+    api('cert-auto', {id: c.id, auto_renew: on}).then(function (d) {
+      c.auto_renew = on;
+      words.textContent = on ? 'by itself, before it runs out' : 'not by itself';
+      toast(d.said || 'changed', 'good');
+      load();
+    }).catch(function (e) { sw._input.checked = !on; oops(e); })
+      .then(function () { sw._input.disabled = false; });
+  };
+  wrap.appendChild(sw);
+  wrap.appendChild(words);
+  return wrap;
+}
+var REVOKE_REASONS_P = [['unspecified', 'no reason given'], ['keyCompromise', 'the key got out'],
+  ['superseded', 'replaced by another'], ['cessationOfOperation', 'no longer used'],
+  ['affiliationChanged', 'the owner changed']];
+function revokeDialogP(c) {
+  var reason = null, also = null;
+  modal('Revoke ' + (c.cn || c.name), function (body) {
+    body.appendChild(el('p', 'note', 'The CA that issued it is told it must not be trusted any more - this cannot be taken back. Browsers and devices that check will refuse it; deploy a new one first if it is in use.'));
+    reason = selectBox(REVOKE_REASONS_P, 'unspecified');
+    body.appendChild(formField('Why', reason, 'Said to the CA. "The key got out" is the one that matters most.'));
+    also = switchBox(false);
+    body.appendChild(formField('Issue a new one at once', also, 'With a new key, deployed where this one is, and renewed by itself again.'));
+  }, [{words: 'No, leave it', close: true}, {words: 'Revoke it', cls: 'danger', icon: 'ban', go: function (b) {
+    busy(b, true);
+    api('cert-revoke', {id: c.id, reason: reason.value, renew: also._get()}).then(function () {
+      closeModal();
+      toast('it is being revoked - its job is shown here', 'good');
+      load();
+    }).catch(oops).then(function () { busy(b, false); });
+  }}], 'narrow');
+}
+function declineDialog(c) {
+  var why = null;
+  modal('Decline ' + (c.cn || c.name), function (body) {
+    body.appendChild(el('p', 'note', 'The person who asked is told why, by mail.'));
+    why = el('textarea');
+    why.rows = 3;
+    body.appendChild(formField('Why', why, ''));
+  }, [{words: 'No, leave it', close: true}, {words: 'Decline it', cls: 'danger', icon: 'ban', go: function (b) {
+    if (!String(why.value || '').trim()) { why.focus(); toast('say why it is declined'); return; }
+    busy(b, true);
+    api('cert-approve', {id: c.id, ok: 0, why: why.value}).then(function () {
+      closeModal();
+      toast('declined - the person who asked is told', 'good');
+      load();
+    }).catch(oops).then(function () { busy(b, false); });
+  }}], 'narrow');
 }
 
 function stateNote(kind, title, words) {

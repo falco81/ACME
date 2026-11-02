@@ -45,6 +45,7 @@ class PortalLocal(unittest.TestCase):
     call = TCC.CertsCore.__dict__['call']
     login = TCC.CertsCore.__dict__['login']
     ok = TCC.CertsCore.ok
+    wait_job = TCC.CertsCore.wait_job
     py = TCC.CertsCore.py
 
     @classmethod
@@ -367,6 +368,65 @@ class PortalLocal(unittest.TestCase):
         finally:
             self.settings(admin_directory='', admin_group_portal='', portal_who='anyone',
                           portal_groups='', portal_enrolers=1)
+
+
+    def test_22_team_rights_on_the_portal(self):
+        """What a team gives on the portal (1.0.16): see only - no changes;
+        manage - renew, renewed by itself or not, revoke; approve - its requests."""
+        self.py('st.add_account("teamer", "portal", %r); print(1)' % PW)
+        self.ok('POST', '/api/teams/save', {'name': 'Ops22', 'members': ['local:teamer=view']})
+        a = self.ok('POST', '/api/certs/save', {'name': 'ops22-a', 'names': ['ops22-a.example.test'],
+                                                'issuer': 'self', 'key_type': 'ec-256',
+                                                'auto_renew': 1, 'owner': 'Ops22'})['id']
+        self.wait_job(self.ok('POST', '/api/certs/renew', {'id': a})['job_id'])
+        try:
+            st, got = self.portal_in('teamer')
+            tok = got['token']
+            st, d = self.call('GET', '/api/portal/certs', None, tok)
+            one = [r for r in d['rows'] if r['id'] == a][0]
+            self.assertEqual(one['may'], ['view'])
+            for path, body in (('/api/portal/cert_renew', {'id': a}),
+                               ('/api/portal/cert_auto', {'id': a, 'auto_renew': 0}),
+                               ('/api/portal/cert_revoke', {'id': a})):
+                st, got = self.call('POST', path, body, tok)
+                self.assertEqual(st, 403, (path, got))
+            # manage
+            self.ok('POST', '/api/teams/save', {'name': 'Ops22', 'old_name': 'Ops22',
+                                                'members': ['local:teamer=manage']})
+            st, d = self.call('GET', '/api/portal/certs', None, tok)
+            one = [r for r in d['rows'] if r['id'] == a][0]
+            self.assertEqual(one['may'], ['view', 'request', 'manage'])
+            self.assertEqual(d['teams'], ['Ops22'])
+            st, got = self.call('POST', '/api/portal/cert_auto', {'id': a, 'auto_renew': 0}, tok)
+            self.assertEqual(st, 200, got)
+            self.assertEqual(self.py('print(st.db.value("SELECT auto_renew FROM certs WHERE id = ?", (%d,)))' % a), 0)
+            st, got = self.call('POST', '/api/portal/cert_renew', {'id': a}, tok)
+            self.assertEqual(st, 200, got)
+            self.assertEqual(self.wait_job(got['job_id'])['state'], 'ok')
+            st, got = self.call('POST', '/api/portal/cert_revoke', {'id': a, 'reason': 'superseded'}, tok)
+            self.assertEqual(st, 200, got)
+            job = self.wait_job(got['job_id'])
+            # (a self-signed one cannot be revoked: the job says so - it ran, as the person)
+            self.assertEqual((job['kind'], job['by_who']), ('revoke', 'portal:teamer'))
+            # approve: a request of the team waiting
+            self.settings(portal_cert_suffixes='example.test', portal_cert_issuers='self', portal_cert_auto=0)
+            st, r = self.call('POST', '/api/portal/cert_request',
+                              {'names': ['ops22-b.example.test'], 'issuer': 'self', 'team': 'Ops22'}, tok)
+            self.assertEqual(st, 200, r)
+            self.assertTrue(r['waits'])
+            self.ok('POST', '/api/teams/save', {'name': 'Ops22', 'old_name': 'Ops22',
+                                                'members': ['local:teamer=view']})
+            st, got = self.call('POST', '/api/portal/cert_approve', {'id': r['id'], 'ok': 1}, tok)
+            self.assertEqual(st, 403, got)
+            self.ok('POST', '/api/teams/save', {'name': 'Ops22', 'old_name': 'Ops22',
+                                                'members': ['local:teamer=approve']})
+            st, got = self.call('POST', '/api/portal/cert_approve', {'id': r['id'], 'ok': 0}, tok)
+            self.assertEqual(st, 400, got)          # a decline says why
+            st, got = self.call('POST', '/api/portal/cert_approve', {'id': r['id'], 'ok': 1}, tok)
+            self.assertEqual(st, 200, got)
+            self.wait_job(got['job_id'])
+        finally:
+            self.py('st.db.run("DELETE FROM accounts WHERE name = \'teamer\'"); print(1)')
 
 
 if __name__ == '__main__':

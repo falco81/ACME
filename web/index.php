@@ -87,7 +87,9 @@ if (isset($_GET['api'])) {
     $reads = ['me' => '/api/portal/me', 'info' => '/api/portal/info', 'certs' => '/api/portal/certs',
               'mfa' => '/api/portal/mfa'];
     $writes = ['cert-download' => '/api/portal/cert_download', 'cert-request' => '/api/portal/cert_request',
-               'password' => '/api/portal/password'];
+               'password' => '/api/portal/password', 'cert-renew' => '/api/portal/cert_renew',
+               'cert-auto' => '/api/portal/cert_auto', 'cert-revoke' => '/api/portal/cert_revoke',
+               'cert-approve' => '/api/portal/cert_approve'];
     if ($post && isset($writes[$what])) {
         acme_relay($writes[$what], 'POST', sent_json(), 120.0);
         exit;
