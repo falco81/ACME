@@ -42,7 +42,7 @@ __all__ = [
     'ssh_fields', 'http_fields', 'verify_fields', 'keep_field', 'ssh_conn', 'text',
     'PFX_FORMATS', 'quote', 'chain_list', 'tls_fields', 'put_scp',
     'alt_of', 'variant_of', 'variants_of', 'family_of', 'dual_fp', 'VARIANT_WORDS',
-    'outputs_for',
+    'outputs_for', 'ours', 'covers',
 ]
 
 PFX_FORMATS = ('pfx', 'p12', 'p12-legacy', 'jks')
@@ -233,6 +233,25 @@ def name_prefix(bundle, options=None, maxlen=63, serial_len=8):
 
 
 _TAIL_RE = re.compile(r'(\d{8})-([0-9a-f]+)$')
+
+
+def covers(names, host):
+    """Whether one of a certificate's names covers the hostname (a wildcard: one label)."""
+    host = text(host).lower().rstrip('.')
+    for n in names or []:
+        n = text(n).lower().rstrip('.')
+        if n == host:
+            return True
+        if n.startswith('*.') and '.' in host and host.split('.', 1)[1] == n[2:]:
+            return True
+    return False
+
+
+def ours(name, prefix):
+    """Whether `name` is one object_name() made with this prefix (prefix + date + serial)
+    - not the twin's or another deployment's that only starts the same."""
+    name = text(name)
+    return name.startswith(prefix) and bool(_TAIL_RE.match(name[len(prefix):]))
 
 
 def prune(names, prefix, keep, current):

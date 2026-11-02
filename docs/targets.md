@@ -72,12 +72,23 @@ Every module here works the same way:
 | `fritzbox` | AVM FRITZ!Box | AVM |
 | `unifi_os` | UniFi OS console (UDM, UCG, Cloud Key) | Ubiquiti |
 | `webglobe` | Webglobe hosting | Webglobe |
+| `kong` | Kong Gateway | Kong |
+| `nginx_proxy_manager` | Nginx Proxy Manager | Nginx Proxy Manager |
+| `avi` | VMware Avi Load Balancer (NSX ALB) | VMware |
+| `a10` | A10 Thunder (ACOS aXAPI) | A10 Networks |
+| `hetzner_lb` | Hetzner Cloud Load Balancer | Hetzner |
+| `digitalocean_lb` | DigitalOcean Load Balancer | DigitalOcean |
+| `azure_appservice` | Azure App Service | Microsoft |
+| `bunny` | bunny.net CDN (pull zone hostnames) | bunny.net |
+| `fastly` | Fastly TLS (your own certificate) | Fastly |
+| `nutanix` | Nutanix cluster (Prism Central v4 API) | Nutanix |
 
 **A dual certificate** (ECDSA and RSA of the same names, see
 [certificates.md](certificates.md#dual-certificates-ecdsa--rsa)): the targets
 that can serve both put both in place - `ssh` and `local` (the `@variant`
 outputs, the presets of nginx, Apache, HAProxy, Postfix, Dovecot and Exim),
-`f5`, `appliance`, `kubernetes`, `vault`, `webhook`. Every other target holds
+`f5`, `kong` (`cert_alt`), `avi` (one of each kind), `appliance`,
+`kubernetes`, `vault`, `webhook`. Every other target holds
 one certificate at a time and gets the deployment option **Which certificate**
 (`variant`: `auto` = the RSA one, which every client can use - the default;
 `main`, `alt`, `rsa`, `ec`). *Check what is served* asks for each variant the
@@ -1103,3 +1114,250 @@ new own certificate replaces the one stored before or is kept beside it
 (acme deletes nothing; older ones can be removed in the administration);
 the answer of `own-certificate` is described twice (an `id`, or the checked
 certificate's data) - both are read.
+
+## `kong` - Kong Gateway
+
+The Kong **Admin API** (`http://<kong>:8001`; Kong Gateway Enterprise: the
+*Workspace* and an RBAC *Admin token*, sent as `Kong-Admin-Token`). Each
+renewal adds a **new certificate object** (`POST /certificates`, the full
+chain and the key, tagged `acme`, `acme-<name>`, `acme-fp-<fingerprint>` and
+`acme-at-<date>-<serial>`), then points each **SNI** at it (`PUT
+/snis/<name>` `{"certificate": {"id"}}` - an upsert, so an SNI that is not
+there yet is made). *SNIs* empty: the names of the certificate (wildcards
+too, Kong takes `*.example.com`). Older acme certificates of this name beyond
+*keep* are deleted (`DELETE /certificates/<id>`) - never one an SNI still
+uses. A **dual certificate** goes into one object: the twin as `cert_alt` /
+`key_alt`, and Kong serves each client the kind it takes. *Test* reads the
+version (`GET /`) and one certificate. Kong without a database (DB-less) has
+an Admin API that cannot change anything - acme says so.
+
+Sources (Kong's own code, the Admin API's definition):
+<https://github.com/Kong/kong/blob/master/kong/db/schema/entities/certificates.lua>,
+<https://github.com/Kong/kong/blob/master/kong/db/schema/entities/snis.lua>,
+<https://github.com/Kong/kong/blob/master/kong/api/routes/certificates.lua>,
+<https://github.com/Kong/kong/blob/master/kong/api/endpoints.lua> (the `tags`
+filter). **Uncertain**: Kong's documentation site was not reachable from here,
+so its pages were not read; Kong Konnect (the hosted control plane) is not
+covered - only a Kong Admin API.
+
+## `hetzner_lb` - Hetzner Cloud Load Balancer
+
+The Hetzner Cloud API (`https://api.hetzner.cloud/v1`, a project's API token
+with *Read & Write*, `Authorization: Bearer`). The certificate is uploaded as
+type `uploaded` under a dated name (`POST /certificates` - full chain and
+key, label `managed-by=acme`); each listed **load balancer** (its name or ID)
+is read (`GET /load_balancers/<id>` or `?name=`) and each of its **HTTPS
+services** - all of them, or those of the *Listen ports* listed - gets it
+(`POST /load_balancers/<id>/actions/update_service` `{"listen_port", "http":
+{"certificates": [...]}}`, the action waited for at `GET
+/load_balancers/actions/<id>`). A service holds several certificates (chosen
+by SNI): only the older acme one of this certificate is taken out, others
+stay - unless *Replace every certificate of the service*. Older acme
+certificates beyond *keep* that no load balancer uses are deleted. The action
+**List the load balancers** shows them, their HTTPS services and the
+certificates on each - it changes nothing.
+
+Sources (Hetzner's official Go library, which the `hcloud` CLI is built on):
+<https://github.com/hetznercloud/hcloud-go/blob/main/hcloud/certificate.go>,
+<https://github.com/hetznercloud/hcloud-go/blob/main/hcloud/schema/certificate.go>,
+<https://github.com/hetznercloud/hcloud-go/blob/main/hcloud/load_balancer.go>,
+<https://github.com/hetznercloud/hcloud-go/blob/main/hcloud/schema/load_balancer.go>,
+<https://github.com/hetznercloud/hcloud-go/blob/main/hcloud/action.go>,
+<https://github.com/hetznercloud/hcloud-go/blob/main/hcloud/client.go>.
+**Uncertain**: docs.hetzner.cloud was not reachable from here; the calls are
+those of the library.
+
+## `digitalocean_lb` - DigitalOcean Load Balancer
+
+The DigitalOcean API (`https://api.digitalocean.com`, a personal access token
+with the *certificate* and *load_balancer* scopes). The certificate is
+uploaded as a `custom` certificate under a dated name (`POST
+/v2/certificates` - `leaf_certificate`, `certificate_chain`, `private_key`);
+each listed **load balancer** (name or ID) is read and sent back whole with
+its **HTTPS forwarding rules** (`https`, `http2`, `http3`; not TLS
+passthrough; all, or those of the *Entry ports* listed) pointed at it (`PUT
+/v2/load_balancers/<id>` - DigitalOcean replaces a load balancer as a whole,
+so acme sends exactly what the official library's `AsRequest()` sends: the
+same settings, the region as its slug). Older acme certificates beyond *keep*
+are deleted; one still used is refused by DigitalOcean and stays. **List the
+load balancers** shows them and their HTTPS rules - it changes nothing.
+
+Sources (DigitalOcean's official Go library, which `doctl` is built on):
+<https://github.com/digitalocean/godo/blob/main/certificates.go>,
+<https://github.com/digitalocean/godo/blob/main/load_balancers.go>,
+<https://github.com/digitalocean/godo/blob/main/godo.go>. **Uncertain**:
+docs.digitalocean.com was not reachable from here.
+
+## `avi` - VMware Avi Load Balancer (NSX ALB)
+
+The Avi Controller's REST API: `POST /login` (a local or remote user; the
+session and the CSRF token come back as two cookies), then each call with
+`X-CSRFToken`, `Referer`, `X-Avi-Tenant` (*Tenant*) and `X-Avi-Version` (the
+Controller's own, or *API version*). The intermediates are added once as CA
+certificates (`acme-ca-<id>`, type `SSL_CERTIFICATE_TYPE_CA` - Avi builds the
+chain from its CA certificates), the certificate as an SSL key and
+certificate under a dated name (`POST /api/sslkeyandcertificate`, type
+`SSL_CERTIFICATE_TYPE_VIRTUALSERVICE`); each listed **virtual service** gets
+it in place of the older acme one (`PATCH /api/virtualservice/<uuid>`
+`{"replace": {"ssl_key_and_certificate_refs": [...]}}`). *Controller portal
+certificate* instead makes it a `SSL_CERTIFICATE_TYPE_SYSTEM` certificate
+(named `acme-<name>-portal-…`) and sets it as the portal's
+(`portal_configuration.sslkeyandcertificate_refs` of `/api/systemconfiguration`,
+the rest of the portal configuration sent back as it was) - one deployment
+for the portal, another for virtual services. A **dual certificate**: both
+are added (the twin as `acme-<name>-<kind>-…`) and a virtual service gets one
+of each kind. Older acme ones beyond *keep* are deleted; Avi refuses one in
+use, and it stays. acme signs out at the end (`POST /logout`).
+
+Sources (VMware's official Avi SDK and its object model):
+<https://github.com/vmware/alb-sdk/blob/eng/python/avi/sdk/avi_api.py>,
+<https://github.com/vmware/alb-sdk/blob/eng/python/avi/sdk/utils/ansible_utils.py>
+(the `replace` patch), <https://github.com/vmware/alb-sdk/blob/eng/go/models/s_s_l_key_and_certificate.go>,
+<https://github.com/vmware/alb-sdk/blob/eng/go/models/s_s_l_certificate.go>,
+<https://github.com/vmware/alb-sdk/blob/eng/go/models/virtual_service.go>,
+<https://github.com/vmware/alb-sdk/blob/eng/go/models/portal_configuration.go>.
+**Uncertain**: the field of the Controller version in the login answer
+(`version.Version`; set *API version* when acme cannot read it).
+
+## `bunny` - bunny.net CDN (pull zone hostnames)
+
+The bunny.net API (`https://api.bunny.net`, the account's API key as the
+`AccessKey` header). The **pull zone** is found by its ID (`GET
+/pullzone/<id>`) or its name (`GET /pullzone?search=`), and each **custom
+hostname** - those listed, or every one the certificate covers - gets the
+certificate (`POST /pullzone/<id>/addCertificate` `{"Hostname",
+"Certificate", "CertificateKey"}`, the full chain and the key base64). bunny
+keeps one certificate a hostname: the new one takes the place of the one
+before, and nothing is left to clean up. **List the pull zones** shows them
+and their hostnames - it changes nothing.
+
+Sources (bunny.net's official Terraform provider):
+<https://github.com/BunnyWay/terraform-provider-bunnynet/blob/main/internal/api/pullzone_hostname.go>,
+<https://github.com/BunnyWay/terraform-provider-bunnynet/blob/main/internal/api/pullzone.go>,
+<https://github.com/BunnyWay/terraform-provider-bunnynet/blob/main/internal/api/client.go>.
+**Uncertain**: docs.bunny.net was not reachable from here; *Try it* and the
+list ask `GET /pullzone?search=` with nothing searched for.
+
+## `fastly` - Fastly TLS (your own certificate)
+
+The Fastly API (`https://api.fastly.com`, a token as `Fastly-Key`, JSON:API
+bodies). The new key is uploaded under a dated name (`POST
+/tls/private_keys`), then the certificate acme put on Fastly before - found
+by its name, or the one given as *Fastly certificate ID* - is **replaced in
+place** (`PATCH /tls/certificates/<id>` with the full chain), so its
+activations (the domains it serves, on which TLS configuration) stay. The
+first time there is none: a new certificate is added (`POST
+/tls/certificates`) and acme says to **activate it once** in Fastly; every
+renewal after that replaces it. Older acme keys no certificate uses any more
+(`GET /tls/private_keys?filter[in_use]=false`) are deleted beyond *keep*.
+
+Sources (Fastly's official Go client, which the Fastly CLI and Terraform
+provider use): <https://github.com/fastly/go-fastly/blob/main/fastly/tls_custom_certificate.go>,
+<https://github.com/fastly/go-fastly/blob/main/fastly/tls_private_keys.go>,
+<https://github.com/fastly/go-fastly/blob/main/fastly/client.go>.
+**Uncertain**: activations are not made by acme (the first one is yours);
+developer.fastly.com was not reachable from here.
+
+## `nginx_proxy_manager` - Nginx Proxy Manager
+
+Its API (`http://<npm>:81/api`): a token from `POST /api/tokens` (an NPM
+user's e-mail and password; a user with two-factor sign-in cannot be used),
+the certificate added as a **custom certificate** under a dated name (`POST
+/api/nginx/certificates` `{"provider": "other"}`), its files uploaded (`POST
+…/<id>/upload`: certificate, key, intermediates), then each listed **proxy
+host** (a domain name it serves, or its ID), redirection host and 404 host
+pointed at it (`PUT /api/nginx/proxy-hosts/<id>` `{"certificate_id"}` - NPM
+writes the host's nginx configuration and reloads nginx). *Also the hosts
+that use the older one* (on by default) moves every host that used an older
+acme certificate of this name too. Older acme certificates beyond *keep* are
+deleted only when no host uses them; Let's Encrypt certificates NPM made
+itself are never touched.
+
+Sources (the project's own code):
+<https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/backend/routes/nginx/certificates.js>,
+<https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/backend/internal/certificate.js>,
+<https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/backend/routes/tokens.js>,
+<https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/backend/internal/token.js>,
+<https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/backend/internal/proxy-host.js>,
+<https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/backend/schema/paths/nginx/certificates/post.json>,
+<https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/backend/schema/paths/nginx/proxy-hosts/hostID/put.json>.
+
+## `a10` - A10 Thunder (ACOS aXAPI)
+
+aXAPI v3: `POST /axapi/v3/auth` (then `Authorization: A10 <signature>`), the
+*Partition* made active when it is not `shared`. The certificate and its key
+are imported as SSL files under a dated name (`POST /axapi/v3/file/ssl-cert`
+and `/file/ssl-key`, multipart: a `json` part `{"ssl-cert": {"file",
+"action": "import", "certificate-type": "pem", "file-handle"}}` and the
+`file`), the intermediates once as one chain file `acme-ca-<id>`; each listed
+**client-SSL template** gets them (`POST
+/axapi/v3/slb/template/client-ssl/<name>/certificate` `{"certificate":
+{"cert", "key", "chain-cert"}}`); *Write the configuration* (on) does `write
+memory`. Older acme files beyond *keep* are deleted (`POST /axapi/v3/pki/delete`
+`{"delete": {"cert-name"}}` and `{"private-key"}`); ACOS refuses one in use
+and it stays. acme signs off at the end.
+
+Sources (A10's official Ansible collection, generated from the aXAPI schema):
+<https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/module_utils/auth.py>,
+<https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/module_utils/client.py>,
+<https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/module_utils/axapi_client.py>,
+<https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/modules/a10_file_ssl_cert.py>,
+<https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/modules/a10_file_ssl_key.py>,
+<https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/modules/a10_slb_template_client_ssl_certificate.py>,
+<https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/modules/a10_write_memory.py>,
+<https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/modules/a10_pki_delete.py>.
+**Uncertain**: the shape of the file list (`GET /axapi/v3/file/ssl-cert/oper`,
+`file-list[].file`) is taken from the module's `oper` description; ACOS 4.1
+and later (the `certificate` object of a client-SSL template).
+
+## `nutanix` - Nutanix cluster (Prism Central v4 API)
+
+Replaces the **SSL certificate of a cluster** - its Prism web console and API
+- through Prism Central's v4 API (HTTP basic sign-in of a Prism Central
+user, port 9440). The cluster is its `extId` or its name; *Clusters of Prism
+Central* → *Load the list* asks `GET /api/clustermgmt/<v>/config/clusters`
+and fills the extId in (it can always be typed). The certificate's ETag is
+read (`GET …/clusters/<extId>/ssl-certificate`), then the certificate, key
+and chain are sent base64 with the key's algorithm (`PUT …/ssl-certificate`,
+`If-Match` and a new `NTNX-Request-Id`; `ECDSA_256`, `ECDSA_384`,
+`ECDSA_521`, `RSA_2048`, `RSA_4096` - taken from the key, or chosen in *Key
+algorithm*; an RSA 3072 key is refused, Nutanix has no such one), and the
+task it starts is waited for (`GET /api/prism/<v>/config/tasks/<extId>` until
+`SUCCEEDED`). The web console restarts with the new certificate; *Check what
+is served* (port 9440 by default) then sees it. *API version* (`v4.3` by
+default) is the version of the clustermgmt and prism APIs Prism Central
+serves.
+
+Sources (Nutanix's official v4 Go client and Terraform provider):
+<https://github.com/nutanix/ntnx-api-golang-clients/blob/df3e26f212cf436be4eaad979d67907ab887ccf3/clustermgmt-go-client/api/ssl_certificate_api.go>,
+<https://github.com/nutanix/ntnx-api-golang-clients/blob/df3e26f212cf436be4eaad979d67907ab887ccf3/clustermgmt-go-client/api/clusters_api.go>,
+<https://github.com/nutanix/ntnx-api-golang-clients/blob/df3e26f212cf436be4eaad979d67907ab887ccf3/clustermgmt-go-client/models/clustermgmt/v4/config/config_model.go>,
+<https://github.com/nutanix/ntnx-api-golang-clients/blob/df3e26f212cf436be4eaad979d67907ab887ccf3/prism-go-client/api/tasks_api.go>,
+<https://github.com/nutanix/terraform-provider-nutanix/blob/dadc2b20bd0a96f6358104a555f89a3e0b3638ca/nutanix/services/clustersv2/resource_nutanix_ssl_certificate_v2.go>,
+<https://github.com/nutanix/terraform-provider-nutanix/blob/dadc2b20bd0a96f6358104a555f89a3e0b3638ca/website/docs/r/ssl_certificate_v2.html.markdown>.
+**Uncertain**: the older v4 versions (`v4.0`-`v4.2`) were not checked for
+the ssl-certificate call; the key goes as PKCS#8 PEM (`BEGIN PRIVATE KEY`).
+
+## `azure_appservice` - Azure App Service
+
+Azure Resource Manager (`https://management.azure.com`, `api-version=2023-12-01`;
+an app registration's client secret, as `azure_keyvault`). The certificate is
+uploaded as a PKCS#12 (3DES by default, a one-time password) to the resource
+group under a dated name, in the web app's region and App Service plan (`PUT
+…/Microsoft.Web/certificates/<name>` `{"location", "properties": {"pfxBlob",
+"password", "serverFarmId"}}`), then each **custom hostname** of the *Web
+app* - those listed, or every one the certificate covers (not
+`*.azurewebsites.net`) - is bound to it with SNI SSL (`PUT
+…/sites/<app>/hostNameBindings/<host>` `{"properties": {"sslState":
+"SniEnabled", "thumbprint"}}`); one bound to it already is left alone. Older
+acme certificates of the resource group beyond *keep* are deleted; Azure
+refuses one still bound, and it stays.
+
+**Rights**: *Website Contributor* on the web apps and *Web Plan Contributor*
+on their plan (or *Contributor* on the resource group).
+
+Sources (Microsoft's official REST API specification):
+<https://github.com/Azure/azure-rest-api-specs/blob/main/specification/web/resource-manager/Microsoft.Web/AppService/stable/2023-12-01/Certificates.json>,
+<https://github.com/Azure/azure-rest-api-specs/blob/main/specification/web/resource-manager/Microsoft.Web/AppService/stable/2023-12-01/WebApps.json>.
+**Uncertain**: deployment slots are not handled (only the production app);
+learn.microsoft.com was not reachable from here.

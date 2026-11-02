@@ -76,6 +76,22 @@ def port_in(port, spec):
 SECRET_PARAM = re.compile(r'(key|token|pass|secret|sig|auth|credential|session|code)', re.I)
 
 
+def header_dict(msg):
+    """The headers of an answer as {name: value}. A header sent more than once is
+    one value, joined by ", " as RFC 9110 joins them - Set-Cookie too (each cookie
+    is still found by its name in it): a controller that hands its session and its
+    CSRF token as two cookies (Avi) keeps both."""
+    out, low = {}, {}
+    for k, v in (msg.items() if msg is not None else []):
+        first = low.get(k.lower())
+        if first is None:
+            low[k.lower()] = k
+            out[k] = v
+        else:
+            out[first] = '%s, %s' % (out[first], v)
+    return out
+
+
 def url_shown(url):
     """A URL as a job's steps say it: an API key, token or password given in its
     query (Duck DNS, DreamHost...) or in the address itself as dots."""
@@ -223,13 +239,13 @@ class RunContext(base.Context):
                 got = E.url_open(req, timeout=timeout, context=ctx,
                                  purpose='acme' if proxy else '')
             with got:
-                return got.status, dict(got.headers.items()), got.read()
+                return got.status, header_dict(got.headers), got.read()
         except urllib.error.HTTPError as e:
             try:
                 data = e.read()
             except Exception:                       # noqa: BLE001
                 data = b''
-            return e.code, dict((e.headers or {}).items()), data
+            return e.code, header_dict(e.headers), data
         except urllib.error.URLError as e:
             raise base.PluginError('%s could not be reached: %s' % (
                 urllib.parse.urlsplit(url).netloc, getattr(e, 'reason', e)))
