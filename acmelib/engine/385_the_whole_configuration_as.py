@@ -70,6 +70,11 @@ def carry_import(store, tables, by, replace, said):
     file goes. A sealed column sealed again, bound to the row's number here."""
     named = dict(schema_named_columns())
     wanted = carry_tables()
+    # The number each row of the file has here now, by table (1.0.19): a row
+    # matched by its name, or made where its number was taken, has another one
+    # here - and a row naming it by number (a deployment its certificate) was
+    # left on whatever row had that number here: another certificate deployed.
+    moved, taken = {}, []
     for table, rows in (tables or {}).items():
         if table not in wanted:
             said['tables left out: not of the configuration here'] += 1
@@ -112,12 +117,54 @@ def carry_import(store, tables, by, replace, said):
                     fn(store, table, ident, old)
             kept.add(ident)
             said[table] += 1
+            if fid is not None and ident is not None:
+                moved.setdefault(table, {})[_carry_num(fid)] = ident
+                taken.append((table, ident, row))
         if replace:
             for one in store.db.rows('SELECT id FROM %s' % table):
                 if one['id'] not in kept:
                     store.db.run('DELETE FROM %s WHERE id = ?' % table, (one['id'],))
                     said['%s taken away' % table] += 1
         db_numbering_fix(store.db, [table])
+    carry_refs_fix(store, moved, taken)
+
+
+def _carry_num(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return v
+
+
+def carry_refs():
+    """{(table, column): the table whose row it names by number} - of the
+    modules (HOOKS['carry_refs'])."""
+    out = {}
+    for fn in HOOKS.get('carry_refs', []):
+        try:
+            got = fn() if callable(fn) else fn
+        except Exception as e:                          # noqa: BLE001
+            log('a module\'s references between its tables could not be asked: %s' % e, 'warn')
+            continue
+        if isinstance(got, dict):
+            out.update(got)
+    return out
+
+
+def carry_refs_fix(store, moved, taken):
+    """Each row put in that names another of the file by its number: the
+    number that row has here now."""
+    refs = carry_refs()
+    for table, ident, row in taken:
+        fix = {}
+        for (t, col), target in refs.items():
+            if t != table or row.get(col) in (None, ''):
+                continue
+            now = moved.get(target, {}).get(_carry_num(row.get(col)))
+            if now is not None and now != _carry_num(row.get(col)):
+                fix[col] = now
+        if fix:
+            store.db.update(table, ident, fix)
 
 
 def config_export(store, whole):
@@ -310,6 +357,14 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                     per_node.append((base, mapping.get(node, node), v))
                 else:
                     want[base] = v
+            if want.get('split_prefer'):
+                # The preferred node by this cluster's name of it (1.0.19); one this
+                # cluster does not have is left out - it stopped the settings.
+                want['split_prefer'] = mapping.get(want['split_prefer'], want['split_prefer'])
+                if want['split_prefer'] not in ([n['name'] for n in ha_nodes(store)] or
+                                                [node_name()]):
+                    want.pop('split_prefer')
+                    said['the preferred node left out: not a node here'] += 1
             if want:
                 # A secret of this machine is not sent to a server the file names
                 # (1.0.207): taken away where the file moves its server and does

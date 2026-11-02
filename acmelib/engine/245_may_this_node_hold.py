@@ -181,8 +181,16 @@ def node_carry(store, old, new, by='the daemon'):
     if changed:
         store.set_meta('web:vip', json.dumps(v))
         said.append('its place in the VIP address')
+    # Its place as the preferred node when the two lose each other (1.0.19): left on the
+    # old name, neither node was the preferred one - with "priority" both stepped aside
+    # while apart, and nobody answered, renewed or changed anything.
+    if str(store.settings_saved().get('split_prefer') or '') == old:
+        store.save_setting('split_prefer', new, by)
+        said.append('its place as the preferred node when the nodes lose each other')
+    if str(CONFIG.get('split_prefer') or '') == old:
+        CONFIG['split_prefer'] = new
     for k in ('node:', 'maint:', 'upgrade:node:', 'web:tls:', 'web:retry:', 'db_job:', 'fw:now:',
-              'db_sizes:', 'hatls:node:'):
+              'db_sizes:', 'hatls:node:', 'split:state:'):
         store.db.run('DELETE FROM meta WHERE k = ?', (k + old,))
     store.add_event('settings', 'the node %s is called %s now; carried over: %s' % (
         old, new, ', '.join(said) or 'nothing (it had nothing of its own)'), 'warn', who=by)

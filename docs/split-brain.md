@@ -197,8 +197,12 @@ each other: changes are made on <preferred> only until they do (…)"}`. Always 
 `/api/alerts`, `/api/logs`, the portal's sign-in (`/api/portal/login|logout|mfa`),
 `/api/console-login`, a node into maintenance (`/api/upgrade` action `maintenance`), and what
 only reads (`/api/certs/parse|dry_run|export`, `/api/cas/export|pki_check`,
-`/api/deploys/dry_run|preview`, `/api/sshkey/show|download`, `/api/portal/cert_download`).
-GET is never refused.
+`/api/deploys/dry_run|preview`, `/api/sshkey/show|download`, `/api/portal/cert_download`,
+`/api/certs/compat`, the actions that only read of `/api/db` (`job`, `download_ticket`,
+`check`, `tune_plan`), `/api/rbackup` (`job`, `list`, `verified`, `restore_md`), `/api/texts`
+and `/api/metrics` (`preview`), `/api/firewall` (`rule_check`), `/api/directories`
+(`lookup`)). GET is never refused. What only reads is not
+written down for the report either.
 
 ### 7.5 Warning and report (`split_report`)
 

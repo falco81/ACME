@@ -440,6 +440,7 @@ def ca_create(store, name, subject, key_type='ec-384', days=3650, parent_id=None
     key = pki.make_key(key_type)
     parent = None
     if parent_id not in (None, '', 0, '0'):
+        _split_held()                   # the parent signs it (1.0.19)
         parent = _row(store, parent_id)
         _usable(parent, now)
         path_len = _child_path_len(parent, path_len)
@@ -860,6 +861,7 @@ def ca_revoke(store, ca_id, serial, reason='unspecified', by=''):
 
 def ca_unrevoke(store, ca_id, serial, by=''):
     """Take back a revocation on hold (certificateHold) - the only kind that may be."""
+    _split_held()                       # a new CRL signed, as a revocation (1.0.19)
     row = _row(store, ca_id)
     r = _issued_row(store, row['id'], serial)
     if r.get('revoked') is None:
@@ -1227,6 +1229,7 @@ def ca_renew(store, ca_id, days=None, path_len=KEEP, name_constraints=None, by='
 
     -> {id, pending, csr_pem, version, cert_pem, not_before, not_after, capped,
         children, how ('self' | 'parent' | 'request')}"""
+    _split_held()                       # signed, and its CRL made (1.0.19)
     row = _row(store, ca_id)
     if _pending(row):
         raise PkiError('the authority "%s" waits for its first certificate - install that '

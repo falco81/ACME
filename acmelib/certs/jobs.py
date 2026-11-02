@@ -255,13 +255,26 @@ def stop(store, ident):
     if row['state'] not in ('queued', 'running'):
         return 'job %d is not running (%s)' % (ident, row['state'])
     store.set_meta(STOP_PREFIX + str(ident), '1')
-    if row['node'] == E.node_name():
-        # Ours, but this process does not run it: left by a daemon that is gone.
+    if row['node'] == E.node_name() or not _node_alive(store, row['node']):
+        # Ours, but this process does not run it: left by a daemon that is gone - or
+        # by another node that is gone (1.0.19): asked, it never answered, and the
+        # certificate stayed busy for two hours.
         store.db.update('cert_jobs', ident, {'state': 'stopped', 'ok': 0,
                                              'finished': time.time(),
                                              'said': 'stopped (nothing was running it)'})
         return 'job %d marked stopped' % ident
     return 'job %d on %s is asked to stop' % (ident, row['node'])
+
+
+def _node_alive(store, name):
+    """Whether the node that runs a job is heard from (True when it cannot be told)."""
+    try:
+        for n in E.ha_nodes(store):
+            if n.get('name') == name:
+                return bool(n.get('alive'))
+    except Exception:                                   # noqa: BLE001
+        return True
+    return False
 
 
 def recover(store):

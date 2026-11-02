@@ -1187,6 +1187,7 @@ def _ca_delete(h, s):
 @api('POST', '/api/cas/crl', 'certadmin')
 def _ca_crl(h, s):
     r = ca_row(h.store, h.body().get('id'))
+    _lib('ca')._split_held()            # a CRL is signed (1.0.19, docs/split-brain.md)
     crl = _lib('ca').ca_crl(h.store, r['id'])
     data = crl.encode('ascii') if isinstance(crl, str) else bytes(crl or b'')
     h.store.add_event('certificates', 'a new CRL of %s made by %s' % (r['name'], who(s)),

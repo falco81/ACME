@@ -349,6 +349,31 @@ class Freeze(unittest.TestCase):
         self.assertEqual(json.loads(rows[0]['v'])['name'], '/api/certs/save x #7')
         h._split_noted('/api/auth/login')                   # a free path is no change
         self.assertEqual(len(STORE.db.rows("SELECT k FROM meta WHERE k LIKE 'split:took:%'")), 1)
+        # What only reads, though a POST (1.0.19): not a change done on both halves.
+        h._body = {'action': 'job'}
+        h._split_noted('/api/db')
+        h._body = {'names': ['a.example']}
+        h._split_noted('/api/certs/compat')
+        self.assertEqual(len(STORE.db.rows("SELECT k FROM meta WHERE k LIKE 'split:took:%'")), 1)
+
+    def test_reads_go_on_while_frozen(self):
+        """The page of a job, a copy downloaded, the wizard's choices, a preview: POSTs that
+        only read - not refused on the node that is frozen (1.0.19)."""
+        reset(split_freeze=1, ha_slot=2)
+        apart()
+        self.assertTrue(E.split_frozen())
+        for path, act in (('/api/db', 'job'), ('/api/db', 'download_ticket'),
+                          ('/api/rbackup', 'job'), ('/api/rbackup', 'list'),
+                          ('/api/rbackup', 'restore_md'), ('/api/texts', 'preview'),
+                          ('/api/metrics', 'preview'), ('/api/firewall', 'rule_check'),
+                          ('/api/certs/compat', '')):
+            self.assertEqual(E.split_refuses('POST', path, act), '', (path, act))
+        for path, act in (('/api/db', 'backup'), ('/api/db', 'upload_restore'),
+                          ('/api/rbackup', 'save'), ('/api/rbackup', 'run'),
+                          ('/api/texts', 'save'), ('/api/firewall', 'save'),
+                          ('/api/certs/save', '')):
+            self.assertIn('cannot reach each other', E.split_refuses('POST', path, act),
+                          (path, act))
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +387,24 @@ class StepAside(unittest.TestCase):
         self.assertTrue(E.split_no_lead())
         self.assertFalse(renewer.lease_tick(STORE))
         self.assertIsNone(renewer.leader(STORE))         # its lease let go
+
+    def test_the_preferred_node_renamed(self):
+        """Renamed, the preferred node stays the preferred one (1.0.19): left on the old
+        name, with "priority" both nodes stepped aside while apart."""
+        reset(split_mode='priority', split_prefer='acme1')
+        STORE.save_setting('split_prefer', 'acme1', 'test')
+        try:
+            said = E.node_carry(STORE, 'acme1', 'acme9', by='test')
+            self.assertEqual(STORE.settings_saved().get('split_prefer'), 'acme9')
+            self.assertEqual(E.CONFIG['split_prefer'], 'acme9')
+            self.assertTrue(any('preferred node' in x for x in said), said)
+            E.CONFIG['node_name'] = 'acme9'
+            self.assertTrue(E.split_me_preferred())
+            apart()
+            self.assertEqual(E.SPLIT['role'], 'serve')
+        finally:
+            STORE.drop_setting('split_prefer')
+            reset()
 
     def test_renew_only_on_the_preferred_node(self):
         reset(split_renew=1, ha_slot=2)
@@ -380,11 +423,25 @@ class StepAside(unittest.TestCase):
         ca_id = int(CA.ca_create(STORE, 'Split CA', {'CN': 'Split CA'}, key_type='ec-256'))
         key = pki.make_key('ec-256')
         csr, _der = pki.make_csr(key, ['split.test.example'])
-        CA.ca_sign(STORE, ca_id, csr, 30)                 # as until now: signed
+        cert, _chain = CA.ca_sign(STORE, ca_id, csr, 30)   # as until now: signed
+        held = pki.cert_info(cert)['serial']
+        CA.ca_revoke(STORE, ca_id, held, 'certificateHold')
+        crl_before = STORE.db.value('SELECT crl_number FROM cert_cas WHERE id = ?', (ca_id,))
         reset(split_mode='priority', ha_slot=2)
         apart()
         self.assertRaises(pki.PkiError, CA.ca_sign, STORE, ca_id, csr, 30)
         self.assertRaises(pki.PkiError, CA.ca_revoke, STORE, ca_id, '01')
+        # Nor its hold released, its certificate renewed, an authority signed under it
+        # (1.0.19): each signed with its key - a CRL, a certificate.
+        self.assertRaises(pki.PkiError, CA.ca_unrevoke, STORE, ca_id, held)
+        self.assertEqual(STORE.db.value('SELECT revoked IS NOT NULL FROM cert_ca_issued WHERE '
+                                        'ca_id = ? AND serial = ?', (ca_id, held)), 1)
+        self.assertEqual(STORE.db.value('SELECT crl_number FROM cert_cas WHERE id = ?',
+                                        (ca_id,)), crl_before)
+        self.assertRaises(pki.PkiError, CA.ca_renew, STORE, ca_id)
+        self.assertRaises(pki.PkiError, CA.ca_create, STORE, 'Split sub', {'CN': 'Split sub'},
+                          key_type='ec-256', parent_id=ca_id)
+        self.assertFalse(STORE.db.value("SELECT COUNT(*) FROM cert_cas WHERE name = 'Split sub'"))
         cid = STORE.db.insert('certs', {'name': 'split-one', 'names': '["split.test.example"]',
                                         'issuer': 'nobody', 'state': 'ok'})
 
@@ -507,6 +564,27 @@ class Card(unittest.TestCase):
         self.assertEqual(v['preferred'], 'acme1')
         self.assertEqual(set(v['conf']), set(E.SPLIT_KEYS))
         self.assertIn('split_renew', v['conf'])
+
+    def test_prefer_a_node_that_is_not_here(self):
+        """Saved past the card (`acme --set`, a configuration read back): a node of this
+        cluster, or nothing saved (1.0.19) - neither node was the preferred one."""
+        reset()
+        try:
+            with self.assertRaises(E.BadSetting):
+                DAEMON.save_settings({'split_prefer': 'acme9'}, by='test', node='*')
+            self.assertNotIn('split_prefer', STORE.settings_saved())
+            DAEMON.save_settings({'split_prefer': 'acme2'}, by='test', node='*')
+            self.assertEqual(STORE.settings_saved().get('split_prefer'), 'acme2')
+            got = E.config_import(STORE, DAEMON, {'settings': {'split_prefer': 'elsewhere',
+                                                               'split_after_s': 30}}, 'test')
+            self.assertEqual(STORE.settings_saved().get('split_prefer'), 'acme2')
+            self.assertEqual(STORE.settings_saved().get('split_after_s'), 30)
+            self.assertIn('the preferred node left out: not a node here', json.dumps(got))
+        finally:
+            for k in ('split_prefer', 'split_after_s'):
+                STORE.drop_setting(k)
+            E.load_config()
+            reset()
 
     def test_save(self):
         reset()

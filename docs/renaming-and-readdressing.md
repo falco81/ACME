@@ -38,6 +38,8 @@ On the restart the node carries over everything kept under its old name:
 - its maintenance, if it was in maintenance;
 - its certificate and TLS settings of the pages;
 - its place in the VIP address (preferred node, interface);
+- its place as the preferred node when the two nodes lose each other
+  (`split_prefer`, docs/split-brain.md);
 - the encrypted link between the databases - its progress is started again
   under the new name and its database certificate is renewed by itself.
 

@@ -2557,6 +2557,10 @@ def cli_main(argv=None):
         # --hours when given (1.0.207): every event of any age was listed.
         given = any(w == '--hours' or w.startswith('--hours=')
                     for w in (sys.argv[1:] if argv is None else list(argv)))
+        if args.limit < 1:
+            # 1.0.19: -5 was every event on SQLite and an error of the database's on
+            # PostgreSQL and MariaDB.
+            raise SystemExit('acme: --limit is 1 or more')
         rows, total = store.events(args.limit, 0, args.search, extra=(
             'ts >= ?', [time.time() - float(args.hours) * 3600]) if given else None)
         if args.json:

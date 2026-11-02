@@ -67,6 +67,29 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   import, a self-signed certificate and a CSR, the secret boxes of the modules
   and the PKCS#12 password, *choose one…* of a new deployment, *default* of a
   file's mode, a script's arguments, a tag's meaning.
+- A configuration read back into an installation that has certificates or
+  authorities of its own keeps each deployment with its certificate (and what an
+  authority signed, an authority's parent): a certificate given another number
+  here left its deployments on whichever certificate had its number - another
+  certificate was deployed there.
+- A backup tried (*Try it*, after every backup, weekly) is no longer "not good"
+  because a job, a sign-in or a code used once was written while its copy was
+  made.
+- Two nodes apart: a node stepped aside (or held back with *Renewals only on the
+  preferred node*) no longer signs with acme's own authorities when a hold is
+  released, a CRL is made by hand, an authority is renewed or one is made under
+  another; and what only reads - the progress of a job, a copy downloaded, the
+  wizard's choices, a preview, a check of the database - goes on on the node
+  whose changes wait, and is not in the report as a change done on both.
+- The preferred node renamed stays the preferred node; one that is not a node of
+  the cluster can no longer be saved (`acme --set`, a configuration read back) -
+  with *priority* both nodes then stepped aside while apart.
+- *Stop* of a job left running by a node of the cluster that is gone (or was
+  renamed) marks it stopped: it was asked of that node for ever, and the
+  certificate stayed busy for two hours.
+- `acme --job`, `--cert`, `--ca-show` and the others with a number beyond 64
+  bits say there is none (a traceback on SQLite); `acme --events --limit` below 1
+  is refused (every event, or the database's error).
 
 ## 1.0.18 - 2026-11-02
 

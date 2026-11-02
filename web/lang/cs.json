@@ -41319,6 +41319,14 @@
   "sb2x04": {
    "source": "only a full administrator may test commands other than the ones saved",
    "text": "jiné než uložené příkazy smí vyzkoušet jen plný správce"
+  },
+  "sr3e0000": {
+   "source": "its place as the preferred node when the nodes lose each other",
+   "text": "jeho místo preferovaného uzlu, když se uzly ztratí"
+  },
+  "sr3e0001": {
+   "source": "the preferred node left out: not a node here",
+   "text": "preferovaný uzel vynechán: zde takový uzel není"
   }
  },
  "patterns": {
@@ -57313,6 +57321,10 @@
   "sb1x03": {
    "source": "the directory no longer lets {0} use the enrolment pages: signed out",
    "text": "adresář už {0} nepouští na stránky registrace: odhlášen"
+  },
+  "pr3e0000": {
+   "source": "split_prefer: there is no node called {0}",
+   "text": "split_prefer: žádný uzel se nejmenuje {0}"
   }
  },
  "rich": {

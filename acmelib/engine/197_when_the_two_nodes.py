@@ -485,8 +485,20 @@ SPLIT_FREE = ('/api/auth/', '/api/split', '/api/ha', '/api/power', '/api/acme-pu
               '/api/sshkey/show', '/api/sshkey/download', '/api/portal/cert_download')
 
 
+# What only reads, though asked with POST (1.0.19): refused while frozen, the page of a
+# job, a copy to download, the wizard's choices and a preview stayed empty there - and,
+# asked on both halves, each was in the report as a change done on both.
+SPLIT_READS = {'/api/certs/compat': None,
+               '/api/db': ('job', 'download_ticket', 'check', 'tune_plan'),
+               '/api/rbackup': ('job', 'list', 'verified', 'restore_md'),
+               '/api/texts': ('preview',), '/api/metrics': ('preview',),
+               '/api/firewall': ('rule_check',), '/api/directories': ('lookup',)}
+
+
 def split_free_path(path, action=''):
     if any(path == p.rstrip('/') or path.startswith(p) for p in SPLIT_FREE):
+        return True
+    if path in SPLIT_READS and (SPLIT_READS[path] is None or action in SPLIT_READS[path]):
         return True
     # A node into maintenance and back (Settings -> Upgrades): as otp's /api/maintenance.
     return path == '/api/upgrade' and action == 'maintenance'

@@ -146,6 +146,14 @@ class Daemon(object):
                 raise BadSetting('node_name: %s is the name of another node (%s, answering now) - '
                                  'two machines with one name look like one, and the other as '
                                  'gone' % (checked['node_name'], taken.get('address') or '?'))
+        if checked.get('split_prefer'):
+            # A node of this cluster (1.0.19), as the card asks: one named that is not
+            # (`acme --set`, a file read back) made neither node the preferred one - with
+            # "priority" both stepped aside while apart.
+            names = [n['name'] for n in ha_nodes(self.store)] or [node_name()]
+            if checked['split_prefer'] not in names:
+                raise BadSetting('split_prefer: there is no node called %s'
+                                 % checked['split_prefer'])
         file_side = {k: v for k, v in checked.items() if k in FILE_ONLY_KEYS}
         if file_side and node != node_name() and not cluster_wide:
             raise NodeMoved('%s belongs to the machine %s and is saved on it (its own address), '

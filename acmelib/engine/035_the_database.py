@@ -506,7 +506,12 @@ class Db(object):
     # ---- asking --------------------------------------------------------------
     def _run(self, sql, args, fetch):
         if self.engine == 'sqlite':
-            cur = self.conn.execute(sql, tuple(args or ()))
+            # A number beyond 64 bits (1.0.19): SQLite raised OverflowError where
+            # PostgreSQL and MariaDB find no row - `acme --job 99999999999999999999`
+            # ended in a traceback. As a REAL it matches no row, as there.
+            cur = self.conn.execute(sql, tuple(
+                float(a) if type(a) is int and not -(1 << 63) <= a < (1 << 63) else a
+                for a in (args or ())))
             rows = [dict(r) for r in cur.fetchall()] if fetch else None
             return rows, cur.rowcount, cur.lastrowid
         if self.engine == 'mariadb':

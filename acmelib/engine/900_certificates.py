@@ -314,6 +314,10 @@ def certs_event_fields(kind, words, level):
     return certs_mod('monitor').event_fields(kind, words, level)
 
 
+# Its jobs come by themselves, also while a backup's copy is made (1.0.19).
+if 'cert_jobs' not in RB_GROWING:
+    RB_GROWING.append('cert_jobs')
+
 # The configuration's tables (Export and import of the configuration): what is
 # set up, not what happened (cert_jobs, cert_versions stay out).
 CERT_CARRY_TABLES = ['cert_issuers', 'cert_challenges', 'cert_targets', 'cert_cas',
@@ -324,6 +328,17 @@ CERT_CARRY_TABLES = ['cert_issuers', 'cert_challenges', 'cert_targets', 'cert_ca
 @_certs_hook('carry_tables')
 def certs_carry_tables(*_args):
     return list(CERT_CARRY_TABLES)
+
+
+# The rows of those tables that name another by its number - given the number
+# the other has after an import (a deployment its certificate).
+CERT_CARRY_REFS = {('cert_deploys', 'cert_id'): 'certs', ('cert_ca_issued', 'ca_id'): 'cert_cas',
+                   ('cert_ca_issued', 'cert_id'): 'certs', ('cert_cas', 'parent_id'): 'cert_cas'}
+
+
+@_certs_hook('carry_refs')
+def certs_carry_refs(*_args):
+    return dict(CERT_CARRY_REFS)
 
 
 @_certs_hook('carry_row_out')

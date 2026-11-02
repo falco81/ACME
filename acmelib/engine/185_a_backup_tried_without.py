@@ -96,6 +96,12 @@ def copy_read_through(path, key=None, sample=50, child=False):
     return {'head': head, 'counts': counts, 'admins': admins, 'tried': tried, 'opened': opened}
 
 
+# Rows that come by themselves while the copy is made, as the logs do (1.0.19): a sign-in,
+# a code used once, a job of the certificate manager (900 adds its own) - one of them in
+# that moment made the backup "not good" when it was tried.
+RB_GROWING = ['sessions', 'used_once']
+
+
 def rb_verify_file(path, password, work, made_here=True):
     """The checks on one backup file: [(what, ok, said)] and its manifest."""
     checks = []
@@ -126,7 +132,7 @@ def rb_verify_file(path, password, work, made_here=True):
         # The logs grow while the copy is made: the tables the manifest counted
         # that are no log are to hold as many rows as it says.
         short = sorted(t for t, n in want.items() if t not in LOG_TABLES and t != 'events'
-                       and isinstance(n, int) and c.get(t, 0) < n)
+                       and t not in RB_GROWING and isinstance(n, int) and c.get(t, 0) < n)
         if want:
             check('every row the manifest counts is in it', not short,
                   ', '.join('%s %d of %d' % (t, c.get(t, 0), want[t]) for t in short)
