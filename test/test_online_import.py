@@ -289,6 +289,10 @@ class TestSsls(unittest.TestCase):
         with self.assertRaises(ValueError) as e:
             call('POST', '/api/certs/add_key', {'id': row['id'], 'key_pem': wrong})
         self.assertIn('does not belong', str(e.exception))
+        with self.assertRaises(ValueError) as e:
+            call('POST', '/api/certs/add_key', {'id': row['id'], 'key_pem':
+                 '-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMG\n-----END PRIVATE KEY-----'})
+        self.assertIn('cannot be read', str(e.exception))
         got = call('POST', '/api/certs/add_key', {'id': row['id'], 'key_pem': key_a})
         self.assertTrue(got['added']['main'])
         row = S.cert_need(STORE, row['id'])

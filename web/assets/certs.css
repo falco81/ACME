@@ -681,9 +681,9 @@ textarea.df-code-t:focus{border:0}
 .tm-details h4 .ct-d-edit{margin-left:12px;vertical-align:middle;text-transform:none;letter-spacing:0}
 
 /* Import from a source: what the account has there, one row each, ticked to import. */
-.ct-oi-top{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px}
+.ct-oi-top{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:6px}
 .ct-oi-top > .set-item{flex:1 1 280px;min-width:0;margin-bottom:0}
-.ct-oi-top > .btn{margin-bottom:2px}
+.ct-oi-top > .btn{margin-top:27px}
 .ct-oi-sum:not(:empty){margin:8px 0 4px}
 .ct-oi-bar{align-items:center;margin:10px 0 8px}
 .ct-oi-bar input[type=search]{flex:1 1 220px;min-width:0}
@@ -708,9 +708,10 @@ textarea.df-code-t:focus{border:0}
 .ct-oi-res .ct-oi-resline{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)}
 .ct-oi-res .ct-oi-resline:last-of-type{border-bottom:0}
 .ct-oi-res .btnrow{margin-top:10px}
+.ct-oi-ref{font-size:11.5px;overflow-wrap:anywhere;min-width:0}
 @media (max-width:640px){
   .ct-oi-row{padding:10px 11px;gap:10px}
-  .ct-oi-top > .btn{width:100%}
+  .ct-oi-top > .btn{width:100%;margin-top:0}
   .ct-oi-list{max-height:none}
 }
 

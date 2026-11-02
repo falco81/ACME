@@ -2790,9 +2790,6 @@ function certPeek(id) {
     if (MANAGE && (c.not_after || versions.length)) buttons.push({words: 'Export', icon: 'download', go: function () { over(function () { exportDialog(c, versions); }, back); }});
     if (MANAGE && waiting) buttons.push({words: 'Upload the answer', cls: 'primary', icon: 'upload', go: function () { over(function () { csrAnswer(c); }, back); }});
     if (MANAGE && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
-    if (MANAGE && c.not_after && !c.from_csr && (c.has_key === false || (c.dual && c.alt_not_after && c.has_alt_key === false)))
-      buttons.push({words: 'Add its private key', icon: 'key', says: 'The key of this certificate, which acme does not hold (imported without it): checked to belong to it, then kept sealed.',
-                    go: function () { over(function () { addKeyDialog(c); }, back); }});
     if (MANAGE && deploys.length && c.not_after && c.state !== 'revoked') buttons.push({words: 'Deploy now', icon: 'deploy', go: function (b) { certDeploy(c, b, back); }});
     if (MANAGE && c.issuer && c.state === 'revoked') buttons.push({words: 'Issue a new one', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
     if (MANAGE && c.issuer && c.state !== 'revoked' && !waiting && !asked(c)) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
@@ -4876,8 +4873,8 @@ function onlineImport() {
         var mine = el('div', 'small ct-oi-mine');
         mine.appendChild(el('span', 'muted', 'In acme as'));
         mine.appendChild(document.createTextNode(' '));
-        var a = data('a', '', it.in_acme.name);
-        a.href = '#';
+        var a = data('button', 'linkish', it.in_acme.name);
+        a.type = 'button';
         a.onclick = function (e) { e.preventDefault(); e.stopPropagation(); over(function () { certPeek(it.in_acme.id); }); };
         mine.appendChild(a);
         w.appendChild(mine);
@@ -4932,13 +4929,14 @@ function onlineImport() {
         var line = el('div', 'ct-oi-resline');
         var kind = x.state === 'imported' ? ['ok', 'imported'] : (x.state === 'failed' ? ['crit', 'failed'] : ['dim', 'skipped']);
         line.appendChild(el('span', 'tag ' + kind[0], kind[1]));
-        line.appendChild(mono(x.ref));
+        if (!(x.state === 'imported' && x.id)) line.appendChild(mono(x.ref, 'ct-oi-ref'));
         if (x.state === 'imported' && x.id) {
-          var a = data('a', '', x.name || ('#' + x.id));
-          a.href = '#';
-          a.onclick = function (e) { e.preventDefault(); over(function () { certPeek(x.id); }); };
+          var a = data('button', 'linkish', x.name || ('#' + x.id));
+          a.type = 'button';
+          a.onclick = function () { over(function () { certPeek(x.id); }); };
           line.appendChild(a);
           line.appendChild(el('span', 'muted small', 'without its private key - add it in its window'));
+          line.appendChild(mono(x.ref, 'ct-oi-ref muted'));
         }
         if (x.why) line.appendChild(el('span', x.state === 'failed' ? 'ct-bad small' : 'muted small', x.why));
         box.appendChild(line);
@@ -5010,7 +5008,7 @@ function onlineImport() {
           return;
         }
         var top = el('div', 'ct-oi-top');
-        pick = selectBox(srcs.map(function (x) { return [x.name, x.name + ' · ' + x.title]; }), (srcs.filter(function (x) { return x.enabled; })[0] || srcs[0]).name);
+        pick = selectBox(srcs.map(function (x) { return [x.name, x.name + ' · ' + tr(x.title)]; }), (srcs.filter(function (x) { return x.enabled; })[0] || srcs[0]).name);
         noI18n(pick);
         pick.onchange = function () { load(); };
         top.appendChild(formField('Source', pick, 'Only the sources whose API can list the certificates of the account.'));
@@ -5046,7 +5044,7 @@ function onlineImport() {
         var g = el('div', 'formgrid');
         owner = ownerBox('');
         tags = tagsBox([]);
-        val = selectBox([['', tr('none yet - chosen before its first renewal')]].concat(vals.map(function (v) { return [v.name, v.name]; })), '');
+        val = selectBox([['', tr('none for now')]].concat(vals.map(function (v) { return [v.name, v.name]; })), '');
         auto = switchBox(true);
         g.appendChild(formField('Owner', owner, 'Who they belong to (Settings → Owners and teams).'));
         g.appendChild(formField('Tags', tags));
@@ -5077,7 +5075,7 @@ function addKeyDialog(c) {
     if (main) {
       f.key = pemBox('', '-----BEGIN PRIVATE KEY-----', 6);
       noI18n(f.key._input);
-      g.appendChild(wideField(twin ? 'Its private key (the first certificate)' : 'Its private key', f.key, 'A PFX/P12 file is read in as it is; give its password below.'));
+      g.appendChild(wideField(twin ? 'The private key of the first certificate' : 'The private key of the certificate', f.key, 'A PFX/P12 file is read in as it is; give its password below.'));
       f.pass = secretBox('', 'only for a locked key or a PFX', 'mono');
       g.appendChild(formField('Password', f.pass));
     }
@@ -5132,6 +5130,7 @@ function noKeyBox(c, back) {
     : 'It goes only where the certificate alone is needed: a deployment that needs the key is refused until the key is added.'));
   if (MANAGE) {
     var go = cmdButton('Add its private key', 'key', 'small');
+    explain(go, 'The key of this certificate, which acme does not hold (imported without it): checked to belong to it, then kept sealed.');
     go.onclick = function () { over(function () { addKeyDialog(c); }, back); };
     box.appendChild(go);
   }

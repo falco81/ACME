@@ -42680,10 +42680,6 @@
    "source": "Given to each one picked. Owner, tags and renewal can be changed later in its Details, its validation with Change.",
    "text": "Dostane je každý vybraný. Vlastníka, štítky a obnovu lze později změnit v jeho Podrobnostech, validaci přes Změnit."
   },
-  "soi041": {
-   "source": "none yet - chosen before its first renewal",
-   "text": "zatím žádná – zvolí se před první obnovou"
-  },
   "soi042": {
    "source": "Who they belong to (Settings → Owners and teams).",
    "text": "Komu patří (Nastavení → Vlastníci a týmy)."
@@ -42703,10 +42699,6 @@
   "soi046": {
    "source": "The private key that belongs to this certificate - PEM (PKCS#8 or the older RSA/EC form) pasted, or a .key, .pem, .pfx or .p12 file read in. It is checked to belong to the certificate before anything is kept, then kept sealed like the key of any certificate. Deployments that need the key work from then on.",
    "text": "Soukromý klíč, který k tomuto certifikátu patří – vložený PEM (PKCS#8 nebo starší tvar RSA/EC), nebo načtený soubor .key, .pem, .pfx či .p12. Než se cokoli uloží, ověří se, že k certifikátu patří; pak se uloží zapečetěný jako klíč každého jiného certifikátu. Nasazení, která klíč potřebují, od té chvíle fungují."
-  },
-  "soi047": {
-   "source": "Its private key (the first certificate)",
-   "text": "Jeho soukromý klíč (první certifikát)"
   },
   "soi048": {
    "source": "A PFX/P12 file is read in as it is; give its password below.",
@@ -42867,6 +42859,18 @@
   "soi087": {
    "source": "Path: List of orders",
    "text": "Cesta: seznam objednávek (výpis)"
+  },
+  "soi088": {
+   "source": "none for now",
+   "text": "zatím žádná"
+  },
+  "soi089": {
+   "source": "The private key of the certificate",
+   "text": "Soukromý klíč certifikátu"
+  },
+  "soi090": {
+   "source": "The private key of the first certificate",
+   "text": "Soukromý klíč prvního certifikátu"
   }
  },
  "patterns": {

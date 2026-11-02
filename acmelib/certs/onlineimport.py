@@ -434,6 +434,10 @@ def _read_key(b, prefix=''):
     key = got.get('key') or ((got.get('keys') or [None])[0])
     if not key:
         raise ValueError('there is no private key in what was given')
+    try:
+        S.pki().key_info(key)
+    except Exception as e:                              # noqa: BLE001
+        raise ValueError('the key cannot be read: %s' % e)
     return key
 
 
