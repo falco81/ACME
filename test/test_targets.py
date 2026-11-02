@@ -914,7 +914,11 @@ class OthersTest(unittest.TestCase):
             json.dumps(d)
             for f in d['fields'] + d['deploy_fields']:
                 self.assertIn(f['type'], ('text', 'secret', 'number', 'bool', 'select',
-                                          'textarea', 'pem', 'list', 'hostport', 'sshkey'), d['kind'])
+                                          'textarea', 'pem', 'list', 'hostport', 'sshkey',
+                                          'catalog'), d['kind'])
+                if f['type'] == 'catalog':          # the list a module fetches: it has one
+                    self.assertTrue(f.get('catalog') and callable(
+                        getattr(reg.get('target', d['kind']), 'catalog', None)), d['kind'])
             self.assertTrue(d['vendor'] and d['description'], d['kind'])
 
 

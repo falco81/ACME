@@ -133,6 +133,7 @@ combined-pem p7b pfx p12 p12-legacy jks`.
 | `SshMixin` | `self.ssh()` from `ssh_fields()`, `self.sh(s, script)` - through sudo when the target says so |
 | `http_fields(port, placeholder)`, `tls_fields()`, `ssh_fields(sudo=)`, `verify_fields()`, `keep_field(n)` | the usual fields |
 | `object_name(bundle, options, maxlen=)`, `name_prefix(…)`, `prune(names, prefix, keep, current)` | dated names and which old ones to delete |
+| `ours(name, prefix)`, `covers(names, host)` | is a name one of those dated ones (not a twin's that only starts the same); does a certificate's name (a wildcard too) cover a hostname |
 | `chain_list(bundle)`, `chain_id(pem)` | the intermediates one by one, a stable short id each |
 | `check_served(ctx, bundle, hostports, sni)`, `served_fingerprint(host, port, sni)` | the TLS handshake check |
 | `parse_outputs(lines, vars)` | the `format path [mode] [owner]` lines of the ssh module |

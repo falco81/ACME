@@ -42523,6 +42523,418 @@
   "sdp22_12": {
    "source": "a DNS validation",
    "text": "DNS validace"
+  },
+  "stg001": {
+   "source": "Kong Gateway",
+   "text": "Kong Gateway"
+  },
+  "stg002": {
+   "source": "Adds the certificate through the Kong Admin API, points its SNIs at it and deletes the older ones acme put there.",
+   "text": "Přidá certifikát přes Kong Admin API, nasměruje na něj jeho SNI a smaže starší, které tam acme dalo."
+  },
+  "stg003": {
+   "source": "Kong",
+   "text": "Kong"
+  },
+  "stg004": {
+   "source": "Admin API",
+   "text": "Admin API"
+  },
+  "stg005": {
+   "source": "the address of the Kong Admin API, with http:// or https:// and its port",
+   "text": "adresa Kong Admin API, s http:// nebo https:// a portem"
+  },
+  "stg006": {
+   "source": "Admin token",
+   "text": "Admin token"
+  },
+  "stg007": {
+   "source": "Kong Gateway Enterprise with RBAC: the Kong-Admin-Token of an admin that may change certificates and SNIs; empty for Kong without RBAC",
+   "text": "Kong Gateway Enterprise s RBAC: Kong-Admin-Token administrátora, který smí měnit certifikáty a SNI; prázdné pro Kong bez RBAC"
+  },
+  "stg008": {
+   "source": "Workspace",
+   "text": "Workspace"
+  },
+  "stg009": {
+   "source": "Kong Gateway Enterprise: the workspace; empty: the default one",
+   "text": "Kong Gateway Enterprise: workspace; prázdné: výchozí"
+  },
+  "stg010": {
+   "source": "Through the proxy",
+   "text": "Přes proxy"
+  },
+  "stg011": {
+   "source": "SNIs",
+   "text": "SNI"
+  },
+  "stg012": {
+   "source": "one a line: the server names Kong serves this certificate for; empty: the names of the certificate",
+   "text": "jeden na řádek: jména serverů, pro která Kong tento certifikát podává; prázdné: jména certifikátu"
+  },
+  "stg013": {
+   "source": "Hetzner Cloud Load Balancer",
+   "text": "Hetzner Cloud Load Balancer"
+  },
+  "stg014": {
+   "source": "Uploads the certificate to a Hetzner Cloud project and puts it on the HTTPS services of its load balancers in place of the older one.",
+   "text": "Nahraje certifikát do projektu Hetzner Cloud a dá ho na HTTPS služby jeho load balancerů místo staršího."
+  },
+  "stg015": {
+   "source": "Hetzner",
+   "text": "Hetzner"
+  },
+  "stg016": {
+   "source": "Hetzner Console → the project → Security → API tokens: a token with Read & Write",
+   "text": "Hetzner Console → projekt → Security → API tokens: token s právy Read & Write"
+  },
+  "stg017": {
+   "source": "Load balancers",
+   "text": "Load balancery"
+  },
+  "stg018": {
+   "source": "one a line: the name or ID of each load balancer; \"List the load balancers\" shows them",
+   "text": "jeden na řádek: název nebo ID každého load balanceru; „Vypsat load balancery“ je ukáže"
+  },
+  "stg019": {
+   "source": "Listen ports",
+   "text": "Naslouchací porty"
+  },
+  "stg020": {
+   "source": "one a line: the HTTPS services (by their listen port) to use the certificate; empty: every HTTPS service of the load balancer",
+   "text": "jeden na řádek: HTTPS služby (podle naslouchacího portu), které mají certifikát používat; prázdné: všechny HTTPS služby load balanceru"
+  },
+  "stg021": {
+   "source": "Replace every certificate of the service",
+   "text": "Nahradit všechny certifikáty služby"
+  },
+  "stg022": {
+   "source": "off: only the older acme one of this certificate is replaced, others stay (a service holds several, chosen by SNI); on: the service holds this one only",
+   "text": "vypnuto: nahradí se jen starší certifikát acme tohoto certifikátu, ostatní zůstanou (služba jich drží několik, vybírá se podle SNI); zapnuto: služba bude mít jen tento"
+  },
+  "stg023": {
+   "source": "List the load balancers",
+   "text": "Vypsat load balancery"
+  },
+  "stg024": {
+   "source": "Lists the load balancers of the project and their HTTPS services, with the certificates each uses - it changes nothing.",
+   "text": "Vypíše load balancery projektu a jejich HTTPS služby s certifikáty, které každá používá – nic nemění."
+  },
+  "stg025": {
+   "source": "DigitalOcean Load Balancer",
+   "text": "DigitalOcean Load Balancer"
+  },
+  "stg026": {
+   "source": "Uploads the certificate to DigitalOcean and puts it on the HTTPS forwarding rules of the load balancers in place of the older one.",
+   "text": "Nahraje certifikát do DigitalOcean a dá ho na HTTPS pravidla přesměrování load balancerů místo staršího."
+  },
+  "stg027": {
+   "source": "DigitalOcean",
+   "text": "DigitalOcean"
+  },
+  "stg028": {
+   "source": "DigitalOcean → API → Personal access tokens: a token with the scopes certificate (create, read, delete) and load_balancer (read, update)",
+   "text": "DigitalOcean → API → Personal access tokens: token s oprávněními certificate (create, read, delete) a load_balancer (read, update)"
+  },
+  "stg029": {
+   "source": "Entry ports",
+   "text": "Vstupní porty"
+  },
+  "stg030": {
+   "source": "one a line: the HTTPS forwarding rules (by their entry port) to use the certificate; empty: every HTTPS rule that is not TLS passthrough",
+   "text": "jeden na řádek: HTTPS pravidla přesměrování (podle vstupního portu), která mají certifikát používat; prázdné: všechna HTTPS pravidla, která nejsou TLS passthrough"
+  },
+  "stg031": {
+   "source": "Lists the load balancers and their HTTPS forwarding rules, with the certificates each uses - it changes nothing.",
+   "text": "Vypíše load balancery a jejich HTTPS pravidla přesměrování s certifikáty, které každé používá – nic nemění."
+  },
+  "stg032": {
+   "source": "VMware Avi Load Balancer (NSX ALB)",
+   "text": "VMware Avi Load Balancer (NSX ALB)"
+  },
+  "stg033": {
+   "source": "Adds the certificate through the Avi Controller API under a new name, points virtual services (and the Controller portal) at it and deletes the older ones.",
+   "text": "Přidá certifikát přes API Avi Controlleru pod novým názvem, nasměruje na něj virtuální služby (a portál Controlleru) a smaže starší."
+  },
+  "stg034": {
+   "source": "VMware",
+   "text": "VMware"
+  },
+  "stg035": {
+   "source": "Tenant",
+   "text": "Tenant"
+  },
+  "stg036": {
+   "source": "the tenant of the virtual services and certificates",
+   "text": "tenant virtuálních služeb a certifikátů"
+  },
+  "stg037": {
+   "source": "API version",
+   "text": "Verze API"
+  },
+  "stg038": {
+   "source": "X-Avi-Version sent with each call; empty: the Controller's own version",
+   "text": "X-Avi-Version posílaná s každým voláním; prázdné: vlastní verze Controlleru"
+  },
+  "stg039": {
+   "source": "one a line: the names of the virtual services to use the certificate",
+   "text": "jeden na řádek: názvy virtuálních služeb, které mají certifikát používat"
+  },
+  "stg040": {
+   "source": "Controller portal certificate",
+   "text": "Certifikát portálu Controlleru"
+  },
+  "stg041": {
+   "source": "also the certificate of the Controller's own web interface and API",
+   "text": "také certifikát vlastního webového rozhraní a API Controlleru"
+  },
+  "stg042": {
+   "source": "Add the intermediates as CA certificates",
+   "text": "Přidat mezilehlé certifikáty jako certifikáty CA"
+  },
+  "stg043": {
+   "source": "Avi finds the chain among its CA certificates",
+   "text": "Avi si řetězec najde mezi svými certifikáty CA"
+  },
+  "stg044": {
+   "source": "bunny.net CDN (pull zone hostnames)",
+   "text": "bunny.net CDN (hostname pull zóny)"
+  },
+  "stg045": {
+   "source": "Puts the certificate on the custom hostnames of a bunny.net pull zone through the bunny.net API.",
+   "text": "Dá certifikát na vlastní hostname pull zóny bunny.net přes bunny.net API."
+  },
+  "stg046": {
+   "source": "bunny.net",
+   "text": "bunny.net"
+  },
+  "stg047": {
+   "source": "bunny.net dashboard → Account settings → API key",
+   "text": "panel bunny.net → Account settings → API key"
+  },
+  "stg048": {
+   "source": "Pull zone",
+   "text": "Pull zóna"
+  },
+  "stg049": {
+   "source": "its name or ID; \"List the pull zones\" shows them",
+   "text": "její název nebo ID; „Vypsat pull zóny“ je ukáže"
+  },
+  "stg050": {
+   "source": "Hostnames",
+   "text": "Hostname"
+  },
+  "stg051": {
+   "source": "one a line: the custom hostnames of the pull zone to get the certificate; empty: each of them the certificate covers",
+   "text": "jeden na řádek: vlastní hostname pull zóny, které mají certifikát dostat; prázdné: každý z nich, který certifikát pokrývá"
+  },
+  "stg052": {
+   "source": "List the pull zones",
+   "text": "Vypsat pull zóny"
+  },
+  "stg053": {
+   "source": "Lists the pull zones and their hostnames, with whether each has a certificate - it changes nothing.",
+   "text": "Vypíše pull zóny a jejich hostname a u každého, zda má certifikát – nic nemění."
+  },
+  "stg054": {
+   "source": "Fastly TLS (your own certificate)",
+   "text": "Fastly TLS (vlastní certifikát)"
+  },
+  "stg055": {
+   "source": "Uploads the key and replaces the certificate acme put on Fastly before, keeping its activations; deletes the older keys.",
+   "text": "Nahraje klíč a nahradí certifikát, který acme na Fastly dalo dříve, s ponecháním jeho aktivací; smaže starší klíče."
+  },
+  "stg056": {
+   "source": "Fastly",
+   "text": "Fastly"
+  },
+  "stg057": {
+   "source": "Fastly → Account → API tokens: a token with the scope global (TLS management needs it) of a user who may manage TLS",
+   "text": "Fastly → Account → API tokens: token s oprávněním global (správa TLS ho potřebuje) uživatele, který smí spravovat TLS"
+  },
+  "stg058": {
+   "source": "Fastly certificate ID",
+   "text": "ID certifikátu ve Fastly"
+  },
+  "stg059": {
+   "source": "the certificate to replace; empty: the one acme put there before for this certificate (found by its name), else a new one is added",
+   "text": "certifikát k nahrazení; prázdné: ten, který tam acme pro tento certifikát dalo dříve (najde se podle názvu), jinak se přidá nový"
+  },
+  "stg060": {
+   "source": "Nginx Proxy Manager",
+   "text": "Nginx Proxy Manager"
+  },
+  "stg061": {
+   "source": "Adds the certificate as a custom certificate through the Nginx Proxy Manager API and points its hosts at it; deletes the older ones.",
+   "text": "Přidá certifikát jako vlastní (custom) certifikát přes API Nginx Proxy Manageru a nasměruje na něj jeho hosty; smaže starší."
+  },
+  "stg062": {
+   "source": "the address of the Nginx Proxy Manager administration, with http:// or https:// and its port (81 by default)",
+   "text": "adresa administrace Nginx Proxy Manageru, s http:// nebo https:// a portem (výchozí 81)"
+  },
+  "stg063": {
+   "source": "the e-mail an NPM user signs in with - one without two-factor sign-in, allowed to manage certificates and hosts",
+   "text": "e-mail, kterým se přihlašuje uživatel NPM – takový, který nemá dvoufázové přihlášení a smí spravovat certifikáty a hosty"
+  },
+  "stg064": {
+   "source": "Proxy hosts",
+   "text": "Proxy hosty"
+  },
+  "stg065": {
+   "source": "one a line: a domain name a proxy host serves, or its ID",
+   "text": "jeden na řádek: doménové jméno, které proxy host obsluhuje, nebo jeho ID"
+  },
+  "stg066": {
+   "source": "Redirection hosts",
+   "text": "Hosty přesměrování"
+  },
+  "stg067": {
+   "source": "one a line: a domain name or ID",
+   "text": "jeden na řádek: doménové jméno nebo ID"
+  },
+  "stg068": {
+   "source": "404 hosts",
+   "text": "Hosty 404"
+  },
+  "stg069": {
+   "source": "Also the hosts that use the older one",
+   "text": "Také hosty, které používají starší"
+  },
+  "stg070": {
+   "source": "every host that used an older acme certificate of this name is pointed at the new one",
+   "text": "každý host, který používal starší certifikát acme tohoto názvu, se nasměruje na nový"
+  },
+  "stg071": {
+   "source": "A10 Thunder (ACOS aXAPI)",
+   "text": "A10 Thunder (ACOS aXAPI)"
+  },
+  "stg072": {
+   "source": "Imports the certificate, key and chain through aXAPI v3 under new names, points client-SSL templates at them, writes the configuration and deletes the older files.",
+   "text": "Naimportuje certifikát, klíč a řetězec přes aXAPI v3 pod novými názvy, nasměruje na ně client-SSL šablony, zapíše konfiguraci a smaže starší soubory."
+  },
+  "stg073": {
+   "source": "A10 Networks",
+   "text": "A10 Networks"
+  },
+  "stg074": {
+   "source": "the partition of the templates and files; shared: the shared one",
+   "text": "partition šablon a souborů; shared: sdílená"
+  },
+  "stg075": {
+   "source": "Client-SSL templates",
+   "text": "Client-SSL šablony"
+  },
+  "stg076": {
+   "source": "one a line: the client-SSL templates to use the certificate",
+   "text": "jeden na řádek: client-SSL šablony, které mají certifikát používat"
+  },
+  "stg077": {
+   "source": "Write the configuration",
+   "text": "Zapsat konfiguraci"
+  },
+  "stg078": {
+   "source": "write memory after the change, so it survives a reboot",
+   "text": "po změně write memory, aby přežila restart"
+  },
+  "stg079": {
+   "source": "Nutanix cluster (Prism Central v4 API)",
+   "text": "Cluster Nutanix (v4 API Prism Central)"
+  },
+  "stg080": {
+   "source": "Replaces the SSL certificate of a Nutanix cluster (its Prism web console) through the v4 API of Prism Central.",
+   "text": "Nahradí SSL certifikát clusteru Nutanix (jeho webové konzole Prism) přes v4 API Prism Central."
+  },
+  "stg081": {
+   "source": "Nutanix",
+   "text": "Nutanix"
+  },
+  "stg082": {
+   "source": "Cluster",
+   "text": "Cluster"
+  },
+  "stg083": {
+   "source": "the extId of the cluster, or its name; \"Load the list\" below fills it in",
+   "text": "extId clusteru nebo jeho název; „Načíst seznam“ níže ho vyplní"
+  },
+  "stg084": {
+   "source": "Clusters of Prism Central",
+   "text": "Clustery Prism Central"
+  },
+  "stg085": {
+   "source": "picked from the list, the cluster above is set to it",
+   "text": "vybraný ze seznamu se nastaví do pole Cluster výše"
+  },
+  "stg086": {
+   "source": "the version of the clustermgmt and prism APIs your Prism Central serves",
+   "text": "verze API clustermgmt a prism, kterou vaše Prism Central podává"
+  },
+  "stg087": {
+   "source": "v4.3",
+   "text": "v4.3"
+  },
+  "stg088": {
+   "source": "v4.2",
+   "text": "v4.2"
+  },
+  "stg089": {
+   "source": "v4.1",
+   "text": "v4.1"
+  },
+  "stg090": {
+   "source": "v4.0",
+   "text": "v4.0"
+  },
+  "stg091": {
+   "source": "Key algorithm",
+   "text": "Algoritmus klíče"
+  },
+  "stg092": {
+   "source": "as the certificate's key",
+   "text": "podle klíče certifikátu"
+  },
+  "stg093": {
+   "source": "Wait for the task (s)",
+   "text": "Čekat na úlohu (s)"
+  },
+  "stg094": {
+   "source": "Azure App Service",
+   "text": "Azure App Service"
+  },
+  "stg095": {
+   "source": "Uploads the certificate to Azure App Service and binds the custom hostnames of a web app to it (SNI SSL); deletes the older ones.",
+   "text": "Nahraje certifikát do Azure App Service a sváže s ním vlastní hostname webové aplikace (SNI SSL); smaže starší."
+  },
+  "stg096": {
+   "source": "Microsoft",
+   "text": "Microsoft"
+  },
+  "stg097": {
+   "source": "the resource group of the web apps (their certificates are kept there)",
+   "text": "skupina prostředků webových aplikací (drží se v ní i jejich certifikáty)"
+  },
+  "stg098": {
+   "source": "An app registration with the role \"Website Contributor\" on the web apps and \"Web Plan Contributor\" on their App Service plan (or Contributor on the resource group).",
+   "text": "Registrace aplikace s rolí „Website Contributor“ na webových aplikacích a „Web Plan Contributor“ na jejich plánu App Service (nebo Contributor na skupině prostředků)."
+  },
+  "stg099": {
+   "source": "Web app",
+   "text": "Webová aplikace"
+  },
+  "stg100": {
+   "source": "the name of the App Service web app",
+   "text": "název webové aplikace App Service"
+  },
+  "stg101": {
+   "source": "one a line: the custom hostnames of the app to bind; empty: each of them the certificate covers",
+   "text": "jeden na řádek: vlastní hostname aplikace k navázání; prázdné: každý z nich, který certifikát pokrývá"
+  },
+  "stg102": {
+   "source": "3DES (as App Service documents it)",
+   "text": "3DES (jak to App Service popisuje)"
+  },
+  "stg103": {
+   "source": "AES-256",
+   "text": "AES-256"
   }
  },
  "patterns": {
