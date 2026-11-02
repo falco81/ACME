@@ -626,7 +626,7 @@ def days_left(row, t=None):
     return int((float(na) - (t or now())) // 86400)
 
 
-PUBLIC_SKIP = ('key_sealed', 'csr_pending', 'alt_key_sealed')
+PUBLIC_SKIP = ('key_sealed', 'csr_pending', 'alt_key_sealed', 'csr_given')
 JSON_COLS = {'names': [], 'challenge_map': {}, 'profile': {}, 'ari': {}, 'tags': [],
              'alt_ari': {}}
 
@@ -649,6 +649,8 @@ def cert_public(row, full=False):
     out['alt_days_left'] = days_left({'not_after': row.get('alt_not_after')}) \
         if row.get('alt_not_after') else None
     out['csr_waiting'] = bool(row.get('csr_pending'))
+    # Issued for a CSR sent in (a request profile, 1.0.17): acme never had its key.
+    out['from_csr'] = bool(row.get('csr_given'))
     out['days_left'] = days_left(row)
     out['state_words'] = STATES().get(row.get('state') or '', '')
     return out
