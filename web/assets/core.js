@@ -1736,6 +1736,7 @@ function suggestBox(input) {
   window.addEventListener('resize', onMove);
   return {wrap: wrap, drop: drop, said: said, place: place};
 }
+document.addEventListener('keydown', function (e) { if (e.key === 'Tab') window.SUGGEST_TAB_AT = Date.now(); }, true);
 function suggestEngine(input, box, offer, foot) {
   var st = {items: [], at: -1, moved: false, asked: 0, hold: false, typed: false,
             /* a box that comes already filled in is as good as picked */
@@ -1812,11 +1813,17 @@ function suggestEngine(input, box, offer, foot) {
     if (st.taken !== null && st.taken !== undefined && input.value !== st.taken) st.taken = null;
     st.hold = false; soon();
   });
-  input.addEventListener('focus', function () { st.hold = false; soon(); });
+  /* Opened by a person (1.0.25): clicked into, reached by Tab, or typed in - not
+     by a popup that puts the caret in its first box as it opens. */
+  input.addEventListener('focus', function () {
+    if (Date.now() - (window.SUGGEST_TAB_AT || 0) < 700) { st.hold = false; soon(); }
+  });
   input.addEventListener('click', function () { st.hold = false; soon(); });
   input.addEventListener('blur', function () { setTimeout(close, 150); });
   input.addEventListener('keydown', function (e) {
     var open = !box.drop.hidden && st.items.length;
+    /* closed (not opened when the popup put the caret here): ↓ opens it */
+    if (!open && e.key === 'ArrowDown' && box.drop.hidden) { e.preventDefault(); st.hold = false; soon(); return; }
     if (!open) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); st.moved = true; mark(Math.min(st.items.length - 1, st.at + 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); st.moved = true; mark(Math.max(0, st.at - 1)); }
