@@ -59,9 +59,96 @@
   }
 
   /* ---- one tag, one owner --------------------------------------------------- */
+  /* A tag's colour as its class: the first six acme.css's own, the others teams.css's. */
+  var OWN_COLOURS = ['dim', 'info', 'ok', 'warn', 'crit', 'violet'];
+  var COLOUR_WORDS = {dim: 'grey', info: 'blue', ok: 'green', warn: 'yellow', crit: 'red', violet: 'violet',
+                      teal: 'teal', cyan: 'cyan', indigo: 'indigo', pink: 'pink', rose: 'rose', orange: 'orange',
+                      amber: 'amber', lime: 'lime', brown: 'brown', slate: 'slate'};
+  function colourClass(c) {
+    c = String(c || 'dim');
+    return OWN_COLOURS.indexOf(c) >= 0 ? c : 'tc-' + c.replace(/[^a-z]/g, '');
+  }
+  /* The colour picked from the tags themselves: a button showing the tag in its
+     colour, and a panel of the tag in every colour under it. .value as a select. */
+  function colourPicker(colours, now, nameOf) {
+    var wrap = el('div', 'tm-cpick');
+    var btn = el('button', 'tm-cpick-btn');
+    btn.type = 'button';
+    /* The panel floats over the page (as the search boxes' lists, core.js):
+       inside the popup it was cut by the popup's own edge. */
+    var panel = el('div', 'tm-cpick-panel qs-float');
+    panel.hidden = true;
+    wrap.appendChild(btn);
+    var place = function () {
+      var r = btn.getBoundingClientRect();
+      var w = Math.min(520, window.innerWidth - 16);
+      panel.style.width = w + 'px';
+      panel.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
+      var below = window.innerHeight - r.bottom - 12;
+      panel.style.maxHeight = Math.max(160, Math.max(below, r.top - 12)) + 'px';
+      if (below < 220 && r.top > below) { panel.style.top = ''; panel.style.bottom = (window.innerHeight - r.top + 6) + 'px'; }
+      else { panel.style.bottom = ''; panel.style.top = (r.bottom + 6) + 'px'; }
+    };
+    var shut = function () { panel.hidden = true; if (panel.parentNode) panel.parentNode.removeChild(panel); };
+    var open = function () {
+      document.body.appendChild(panel);
+      panel.hidden = false;
+      place();
+    };
+    wrap.value = colours.indexOf(now) >= 0 ? now : 'dim';
+    var chip = function (c) {
+      return data('span', 'tag ' + colourClass(c), nameOf() || 'tag');
+    };
+    var paint = function () {
+      clear(btn);
+      btn.appendChild(chip(wrap.value));
+      btn.appendChild(el('span', 'tm-cpick-w', COLOUR_WORDS[wrap.value] || wrap.value));
+      btn.appendChild(el('span', 'tm-cpick-caret', '▾'));
+      clear(panel);
+      colours.forEach(function (c) {
+        var o = el('button', 'tm-cpick-opt' + (c === wrap.value ? ' on' : ''));
+        o.type = 'button';
+        o.appendChild(chip(c));
+        o.appendChild(el('span', 'tm-cpick-w', COLOUR_WORDS[c] || c));
+        o.onclick = function () {
+          wrap.value = c;
+          shut();
+          paint();
+          wrap.dispatchEvent(new Event('change', {bubbles: true}));
+          btn.focus();
+        };
+        panel.appendChild(o);
+      });
+    };
+    btn.onclick = function () {
+      if (!panel.hidden) { shut(); return; }
+      open();
+      var on = panel.querySelector('.on') || panel.firstChild;
+      if (on) on.focus();
+    };
+    var keys = function (e) {
+      if (e.key === 'Escape' && !panel.hidden) { e.stopPropagation(); e.preventDefault(); shut(); btn.focus(); }
+      if (!panel.hidden && /^Arrow/.test(e.key)) {
+        var opts = Array.prototype.slice.call(panel.querySelectorAll('.tm-cpick-opt'));
+        var at = opts.indexOf(document.activeElement);
+        var cols = Math.max(1, Math.round(panel.clientWidth / ((opts[0] && opts[0].offsetWidth) || 1)));
+        var step = {ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols}[e.key];
+        var to = opts[Math.max(0, Math.min(opts.length - 1, (at < 0 ? 0 : at) + step))];
+        if (to) { e.preventDefault(); to.focus(); }
+      }
+    };
+    wrap.addEventListener('keydown', keys);
+    panel.addEventListener('keydown', keys);
+    document.addEventListener('mousedown', function (e) { if (!wrap.contains(e.target) && !panel.contains(e.target)) shut(); });
+    window.addEventListener('resize', function () { if (!panel.hidden) place(); });
+    document.addEventListener('scroll', function () { if (!panel.hidden) place(); }, true);
+    wrap._repaint = paint;
+    paint();
+    return wrap;
+  }
   function tagChip(name) {
     var t = tagOf(name);
-    var c = data('span', 'tag ' + (t ? (t.colour || 'dim') : 'dim tm-undef') + ' ct-tagchip', name);
+    var c = data('span', 'tag ' + (t ? colourClass(t.colour) : 'dim tm-undef') + ' ct-tagchip', name);
     if (t && t.description) c.title = t.description;
     if (!t && TM.d) c.title = tr('not defined - Settings → Owners and teams');
     return c;
@@ -598,22 +685,18 @@
     var isNew = !t;
     t = t || {name: '', colour: 'dim', description: ''};
     var f = {};
-    var colours = (TM.d && TM.d.colours) || ['dim', 'info', 'ok', 'warn', 'crit', 'violet'];
-    var cw = {dim: 'grey', info: 'blue', ok: 'green', warn: 'orange', crit: 'red', violet: 'violet'};
+    var colours = (TM.d && TM.d.colours) || Object.keys(COLOUR_WORDS);
     modal(isNew ? 'A new tag' : 'The tag ' + t.name, function (body) {
       var g = el('div', 'formgrid');
       f.name = textBox(t.name, 'prod', 'mono');
       f.name.id = 'tm-t-name';
       noI18n(f.name);
       g.appendChild(formField('Tag', f.name, 'One word: letters, digits and . _ : + -. Renamed, it is renamed on every certificate and target.'));
-      f.colour = selectBox(colours.map(function (c) { return [c, cw[c] || c]; }), t.colour || 'dim');
+      f.colour = colourPicker(colours, t.colour || 'dim', function () { return f.name.value.trim(); });
       f.colour.id = 'tm-t-colour';
-      var prev = el('span', 'tm-prev');
-      var paint = function () { clear(prev); prev.appendChild(data('span', 'tag ' + f.colour.value, f.name.value || 'tag')); };
-      f.colour.onchange = paint;
+      var paint = function () { f.colour._repaint(); };
       f.name.oninput = paint;
       var cf = formField('Colour', f.colour);
-      cf.appendChild(prev);
       g.appendChild(cf);
       f.desc = textBox(t.description || '', tr('what it means'), '');
       noI18n(f.desc);

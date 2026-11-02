@@ -45671,6 +45671,46 @@
   "sup078": {
    "source": "who added it",
    "text": "kdo ho přidal"
+  },
+  "sup079": {
+   "source": "yellow",
+   "text": "žlutá"
+  },
+  "sup080": {
+   "source": "teal",
+   "text": "modrozelená"
+  },
+  "sup081": {
+   "source": "cyan",
+   "text": "azurová"
+  },
+  "sup082": {
+   "source": "indigo",
+   "text": "indigová"
+  },
+  "sup083": {
+   "source": "pink",
+   "text": "růžová"
+  },
+  "sup084": {
+   "source": "rose",
+   "text": "korálová"
+  },
+  "sup085": {
+   "source": "amber",
+   "text": "jantarová"
+  },
+  "sup086": {
+   "source": "lime",
+   "text": "limetková"
+  },
+  "sup087": {
+   "source": "brown",
+   "text": "hnědá"
+  },
+  "sup088": {
+   "source": "slate",
+   "text": "břidlicová"
   }
  },
  "patterns": {

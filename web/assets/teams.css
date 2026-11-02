@@ -31,3 +31,28 @@
   .tm td.tm-members{min-width:0}
   .tm-addm input{min-width:0;width:100%}
 }
+
+/* More colours of tags (1.0.24): .tag.tc-<colour>, as acme.css's own six. */
+.tag.tc-teal{background:rgba(45,212,191,.14);color:#2dd4bf}
+.tag.tc-cyan{background:rgba(34,211,238,.14);color:#22d3ee}
+.tag.tc-indigo{background:rgba(129,140,248,.16);color:#818cf8}
+.tag.tc-pink{background:rgba(244,114,182,.15);color:#f472b6}
+.tag.tc-rose{background:rgba(251,113,133,.15);color:#fb7185}
+.tag.tc-orange{background:rgba(240,136,62,.15);color:#f0883e}
+.tag.tc-amber{background:rgba(251,191,36,.14);color:#fbbf24}
+.tag.tc-lime{background:rgba(163,230,53,.14);color:#a3e635}
+.tag.tc-brown{background:rgba(196,140,98,.17);color:#d6a27a}
+.tag.tc-slate{background:rgba(148,163,184,.16);color:#cbd5e1}
+/* The colour picked from the tags themselves: a button and a panel of chips. */
+.tm-cpick{position:relative;display:inline-block;min-width:220px;max-width:100%}
+.tm-cpick-btn{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--tx);cursor:pointer;font:inherit;text-align:left}
+.tm-cpick-btn:hover,.tm-cpick-btn:focus-visible{border-color:var(--info)}
+.tm-cpick-w{color:var(--tx-mut);font-size:13px}
+.tm-cpick-caret{margin-left:auto;color:var(--tx-mut);font-size:11px}
+.tm-cpick-panel{position:fixed;z-index:1000;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:0 12px 32px rgba(0,0,0,.45)}
+.tm-cpick-panel[hidden]{display:none}
+.tm-cpick-opt{display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--tx);cursor:pointer;font:inherit;text-align:left;min-width:0}
+.tm-cpick-opt .tag{max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-cpick-opt:hover,.tm-cpick-opt:focus-visible{background:var(--panel2);border-color:var(--line);outline:0}
+.tm-cpick-opt.on{border-color:var(--info);background:var(--info-bg)}
+@media (max-width:700px){.tm-cpick{min-width:0;width:100%}.tm-cpick-panel{grid-template-columns:repeat(2,minmax(0,1fr))}}

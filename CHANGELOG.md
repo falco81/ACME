@@ -6,6 +6,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.24 - not released
 
+- **Tags: sixteen colours**, ten more (teal, cyan, indigo, pink, rose, orange,
+  amber, lime, brown, slate), picked from the tag itself shown in each colour.
+
 - **Every search box reads `field:value` and offers as one types**, as Events
   and the outgoing mail did (and otp does): Certificates (`state:failed`,
   `dns:*.example.cz`, `-tag:test`, `source:"Let's Encrypt"`, `renew:no` -

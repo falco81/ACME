@@ -29,7 +29,9 @@ IMPLIES = {'view': {'view'}, 'request': {'view', 'request'},
            'manage': {'view', 'request', 'manage'}, 'approve': {'view', 'approve'}}
 KINDS = ('team', 'person')
 DEFAULT_RIGHTS = ['view', 'request']
-COLOURS = ('dim', 'info', 'ok', 'warn', 'crit', 'violet')
+COLOURS = ('dim', 'info', 'ok', 'warn', 'crit', 'violet',
+           # 1.0.24: more to tell tags apart (teams.css: .tag.tc-<colour>)
+           'teal', 'cyan', 'indigo', 'pink', 'rose', 'orange', 'amber', 'lime', 'brown', 'slate')
 TAG_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:+-]{0,59}\Z')
 MAIL_RE = re.compile(r'^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+\Z')
 MEMBER_MAX = 500
