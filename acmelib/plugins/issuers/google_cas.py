@@ -15,6 +15,11 @@ reference/rest):
   -> a Certificate {name, pemCertificate, pemCertificateChain [...]}.
 * POST .../certificates/<id>:revoke {reason, requestId}.
 * GET .../caPools/<pool> and POST .../caPools/<pool>:fetchCaCerts for "Try it".
+* GET .../caPools/<pool>/certificates?pageSize=&pageToken= -> {certificates [...],
+  nextPageToken} (projects.locations.caPools.certificates.list, https://cloud.google.com/
+  certificate-authority-service/docs/reference/rest/v1/projects.locations.caPools.
+  certificates/list; IAM privateca.certificates.list) and GET .../certificates/<id>:
+  Import from a source.
 * Scope https://www.googleapis.com/auth/cloud-platform; the service account
   needs roles/privateca.certificateRequester (and certificateManager to revoke).
 
@@ -55,6 +60,7 @@ class GoogleCasIssuer(Issuer):
     wildcards = True
     ip_names = True
     choose_days = True
+    lists_existing = True           # certificates.list: Certificates → Import from a source
     fields = [
         field('service_account', 'Service account key (JSON)', 'secret', multiline=True,
               required=True,
@@ -162,6 +168,59 @@ class GoogleCasIssuer(Issuer):
         if got.get('name'):
             self.ctx.kv_set('gcas-cert:%s' % sc.fingerprint(out.cert_pem)[:40], got['name'],
                             ttl_s=800 * 86400)
+        return out
+
+    # -- the certificates of the pool (Certificates → Import from a source) ---------------
+    def _item(self, c, now):
+        from acmelib.certs import pki
+        name = str(c.get('name') or '')
+        try:
+            info = pki.cert_info(c.get('pemCertificate') or '')
+        except Exception as e:                          # noqa: BLE001
+            return {'ref': name, 'downloadable': False, 'renewable': 'none',
+                    'note': 'it cannot be read: %s' % e}
+        revoked = bool(c.get('revocationDetails'))
+        na = info.get('not_after')
+        return {'ref': name, 'cn': info.get('cn') or '', 'names': info.get('names') or [],
+                'product': name.split('/certificates/')[0].split('/')[-1],
+                'status': 'revoked' if revoked else ('expired' if na and na < now else 'valid'),
+                'not_before': info.get('not_before'), 'not_after': na,
+                'serial': info.get('serial'), 'fingerprint': info.get('sha256'),
+                'downloadable': not revoked, 'renewable': 'none' if revoked else 'issue',
+                'note': 'revoked at CA Service' if revoked else ''}
+
+    def list_existing(self):
+        """Every certificate of the pool (certificates.list, page by page) - read only."""
+        out, token, now = [], '', time.time()
+        for _page in range(40):
+            q = {'pageSize': 500}
+            if token:
+                q['pageToken'] = token
+            got = self._call('GET', '%s/certificates?%s' % (self._pool_path(),
+                                                             urllib.parse.urlencode(q)),
+                             what='CA Service (the list of certificates)')
+            for c in got.get('certificates') or []:
+                if isinstance(c, dict) and c.get('name'):
+                    out.append(self._item(c, now))
+            token = str(got.get('nextPageToken') or '')
+            if not token:
+                break
+        return out
+
+    def fetch_existing(self, ref):
+        """The certificate `ref` (its full name) and its chain - read only."""
+        name = str(ref or '').strip()
+        if not name.startswith(self._pool_path() + '/certificates/') or \
+                not re.match(r'^projects/[A-Za-z0-9._:/-]+\Z', name):
+            raise PluginError('%s is not a certificate of the pool %s' % (
+                name or '?', self._pool_path()), retry=False)
+        got = self._call('GET', name, what='CA Service (the certificate)')
+        out = sc.existing(sc.certs_of(got.get('pemCertificate')),
+                          sc.certs_of(got.get('pemCertificateChain') or []), who='CA Service',
+                          ref=name)
+        # Its name kept by its fingerprint, as for one acme issued: it can be revoked.
+        self.ctx.kv_set('gcas-cert:%s' % sc.fingerprint(out['cert_pem'])[:40], name,
+                        ttl_s=800 * 86400)
         return out
 
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):

@@ -53,6 +53,8 @@ function acme_certs_tab_panels(): void
               title="Certificates asked for on the portal that wait for an administrator: click one, then Approve or Decline."></button>
       <button class="btn cmd small ct-manage" id="ct-import" data-icon="upload"
               title="Bring in a certificate you already have - PEM, CRT, CER, DER, P7B, PFX/P12, JKS or a key - by dropping the file here.">Import</button>
+      <button class="btn cmd small ct-manage" id="ct-onlineimport" data-icon="download"
+              title="The certificates your account already has at a source - SSLS.cz, SSLmarket, DigiCert, Vault, an authority of acme's own… - listed and brought in, each renewed through its own order there.">Import from a source</button>
       <button class="btn cmd small ct-manage" id="ct-self" data-icon="lock"
               title="A self-signed certificate in one step: its names, its key and how long it lasts.">Self-signed</button>
       <button class="btn cmd small ct-manage" id="ct-csr" data-icon="key"

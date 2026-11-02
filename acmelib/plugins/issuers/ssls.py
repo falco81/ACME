@@ -34,7 +34,8 @@ The methods used here, and when:
     certStatus     the state of the certificate (P, A, R, C, U, N, E), its end
                    (NVA) and the end of its subscription (SNVA)
     getCert        the certificate and the intermediate certificates
-    myCerts        the action "List the certificates"
+    myCerts        the action "List the certificates", and Import from a source
+                   (list_existing: every certificate of the account)
 
 What the documentation leaves open, and how it is read here:
 
@@ -447,6 +448,7 @@ class SslsIssuer(Issuer):
     ip_names = False
     choose_days = False
     public_names = True
+    lists_existing = True           # myCerts + getCert: Certificates → Import from a source
     key_types = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
     dcv_field = 'dcv'
     dcv_default = 'dns'
@@ -892,7 +894,9 @@ class SslsIssuer(Issuer):
         PluginError where a purchase would be needed and is not allowed."""
         policy = self.c('policy') or 'reissue'
         allowed = _as_bool(self.c('allow_paid'))
-        given = self._given(req)
+        # A certificate imported from this account (Import from a source) names its own
+        # SSLS ID: that one is reissued, whatever "Certificate to reuse" says.
+        given = str(getattr(req, 'ref', None) or '').strip() or self._given(req)
         kept = self._get(sub_key) or {}
         cert = given or kept.get('cert_id')
         st = None
@@ -1186,7 +1190,87 @@ class SslsIssuer(Issuer):
                       {'cert_id': cert_id}, ttl_s=6 * 366 * 86400)
         except Exception:                               # noqa: BLE001
             pass
-        return Issued(leaf, chain, info={'ssls_id': cert_id})
+        return Issued(leaf, chain, info={'ssls_id': cert_id, 'ref': cert_id})
+
+    # -- the certificates of the account (Certificates → Import from a source) -------------
+    def _acme_ids(self):
+        """{SSLS ID: acme's certificate id} of the orders acme made or reissued here."""
+        out = {}
+        try:
+            kept = self.ctx.kv_keys('ssls-order:')
+        except (AttributeError, NotImplementedError):
+            return out
+        for k, v in kept.items():
+            if isinstance(v, str):
+                try:
+                    v = json.loads(v)
+                except ValueError:
+                    continue
+            cid = k.split(':')[1] if k.count(':') >= 2 else ''
+            if isinstance(v, dict) and v.get('cert_id') and cid.isdigit():
+                out[str(v['cert_id'])] = int(cid)
+        return out
+
+    def list_existing(self):
+        """Every certificate of the account (myCerts) - read only."""
+        mine = self._acme_ids()
+        out = []
+        for c in self.api().mine():
+            cid = str(c.get('certID') or '').strip()
+            if not cid:
+                continue
+            code = str(c.get('status') or '').upper()
+            names = [str(c.get('CN') or '').strip()] + [
+                x.strip() for x in re.split(r'[\s,;]+', str(c.get('SAN') or '')) if x.strip()]
+            names = [n for i, n in enumerate(names) if n and n not in names[:i]]
+            end = _num(c.get('SNVA'), 0) or _num(c.get('NVA'), 0)
+            product = str(c.get('productName') or '')
+            certum = is_certum('', '', product)
+            if code in ISSUED and not certum and (not end or end > _now()):
+                renew = 'reissue'
+            else:
+                renew = 'order'
+            note = ''
+            if code not in ISSUED:
+                note = 'SSLS.cz says it is %s (state %s)' % (
+                    STATUS_WORDS.get(code, 'in an unknown state'), code or '?')
+            elif certum:
+                note = 'Certum certificates are never reissued through the API: a renewal is a ' \
+                       'new (paid) order'
+            out.append({'ref': cid, 'cn': names[0] if names else '', 'names': names,
+                        'product': product, 'status': STATUS_WORDS.get(code, code or '?'),
+                        'not_before': _num(c.get('NVB'), 0) or None,
+                        'not_after': _num(c.get('NVA'), 0) or None,
+                        'paid_until': _num(c.get('SNVA'), 0) or None,
+                        'downloadable': code in ISSUED, 'renewable': renew, 'note': note,
+                        'acme_cert_id': mine.get(cid)})
+        return out
+
+    def fetch_existing(self, ref):
+        """The certificate of the SSLS ID `ref` and its chain (getCert) - read only."""
+        from acmelib.certs import pki
+        cid = str(ref or '').strip()
+        if not re.match(r'^\d{1,20}$', cid):
+            raise PluginError('%s is not an SSLS ID' % (cid or '?'), retry=False)
+        got = self.api().call(M_GET, {'certID': cid}, what='the certificate %s' % cid)
+        items = got.get('certificates') or []
+        if isinstance(items, dict):
+            items = list(items.values())
+        pems = []
+        for it in items:
+            text = it.get('Contents') if isinstance(it, dict) else it
+            for c in _certs_in(text):
+                if c not in pems:
+                    pems.append(c)
+        leafs = [c for c in pems if not pki.cert_info(c).get('is_ca')]
+        if not leafs:
+            raise PluginError('SSLS.cz sent no certificate for %s (not issued yet?)' % cid,
+                              retry=False)
+        leaf = max(leafs, key=lambda c: pki.cert_info(c).get('not_before') or 0)
+        others = [c for c in pems if c != leaf and pki.cert_info(c).get('is_ca')]
+        chain = pki.order_chain(leaf, others) or others
+        return {'cert_pem': leaf, 'chain_pems': [c for c in chain if c.strip() != leaf.strip()],
+                'ref': cid, 'acme_cert_id': self._acme_ids().get(cid)}
 
     # -- revocation, trying it, the actions ------------------------------------------------------
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):

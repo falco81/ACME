@@ -13,6 +13,10 @@ api-docs/secret/pki/index.mdx, 2026-11):
   exclude_cn_from_sans, remove_roots_from_chain}; the answer's data holds
   certificate, issuing_ca, ca_chain [...], serial_number (aa:bb:..).
 * POST /v1/<mount>/revoke {serial_number} (or {certificate}).
+* LIST /v1/<mount>/certs (sent as GET ...?list=true) -> data.keys: the serial
+  numbers of the current certificates; GET /v1/<mount>/cert/<serial> -> data.
+  certificate (PEM) - "List certificates" and "Read certificate" of the same page
+  (https://developer.hashicorp.com/vault/api-docs/secret/pki): Import from a source.
 * GET /v1/<mount>/cert/ca_chain - the default issuer's chain (JSON) - and
   LIST /v1/<mount>/roles for "Try it".
 * Signing in: X-Vault-Token, or AppRole: POST /v1/auth/<mount>/login
@@ -26,6 +30,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import time
 import urllib.parse
 
 from acmelib.plugins.base import Issuer, PluginError, field
@@ -53,6 +58,7 @@ class VaultPkiIssuer(Issuer):
     wildcards = True
     ip_names = True
     choose_days = True
+    lists_existing = True           # LIST certs + read: Certificates → Import from a source
     fields = [
         field('url', 'Vault address', 'text', required=True, placeholder='https://vault.example.local:8200'),
         field('mount', 'PKI mount', 'text', default='pki', placeholder='pki_int',
@@ -183,6 +189,61 @@ class VaultPkiIssuer(Issuer):
             sc.say(self.ctx, 'Vault warns: %s' % w, 'warn')
         return sc.finish(self.ctx, req, certs, chain, who='Vault',
                          info={'vault_serial': d.get('serial_number'), 'vault_role': role})
+
+    # -- what the mount holds (Certificates → Import from a source) ----------------------
+    READ_MOST = 150                 # certificates read one by one in a listing
+
+    def _read_cert(self, serial):
+        if not re.match(r'^[0-9A-Fa-f:-]{1,200}\Z', str(serial or '')):
+            raise PluginError('%s is not a serial number' % (serial or '?'), retry=False)
+        got = self._call('GET', '%s/cert/%s' % (self._mount(), serial), token=False,
+                         what='Vault (the certificate %s)' % serial)
+        return (got.get('data') or {}).get('certificate') or ''
+
+    def list_existing(self):
+        """The current certificates of the mount (LIST certs, each read) - read only."""
+        from acmelib.certs import pki
+        got = self._call('GET', '%s/certs?list=true' % self._mount(), ok=(200, 204, 404),
+                         what='Vault (the list of certificates)')
+        keys = [str(k) for k in ((got.get('data') or {}).get('keys') or [])]
+        out, now = [], time.time()
+        for i, serial in enumerate(keys):
+            if self.ctx.cancelled():
+                break
+            if i >= self.READ_MOST:
+                out.append({'ref': serial, 'serial': serial, 'downloadable': True,
+                            'renewable': 'issue', 'cn': '', 'names': [],
+                            'note': 'more than %d certificates: this one is read when it is '
+                                    'imported' % self.READ_MOST})
+                continue
+            try:
+                info = pki.cert_info(self._read_cert(serial))
+            except Exception as e:                      # noqa: BLE001
+                out.append({'ref': serial, 'serial': serial, 'downloadable': False,
+                            'renewable': 'none', 'note': 'it cannot be read: %s' % e})
+                continue
+            if info.get('is_ca'):
+                continue
+            na = sc.num(info.get('not_after'), 0) or None
+            out.append({'ref': serial, 'cn': info.get('cn') or '', 'names': info.get('names') or [],
+                        'product': self.c('role') or '', 'status': 'expired' if na and na < now
+                        else 'valid', 'not_before': info.get('not_before'), 'not_after': na,
+                        'serial': info.get('serial'), 'fingerprint': info.get('sha256'),
+                        'downloadable': True, 'renewable': 'issue'})
+        return out
+
+    def fetch_existing(self, ref):
+        """The certificate of serial `ref` and the mount's chain - read only."""
+        certs = sc.certs_of(self._read_cert(ref))
+        chain = []
+        try:
+            got = self._call('GET', '%s/cert/ca_chain' % self._mount(), token=False,
+                             what='Vault (CA chain)')
+            chain = sc.certs_of(((got.get('data') or {}).get('ca_chain')) or
+                                (got.get('data') or {}).get('certificate'))
+        except PluginError as e:
+            sc.say(self.ctx, 'the chain of the mount could not be read: %s' % e, 'warn')
+        return sc.existing(certs, chain, who='Vault', ref=ref)
 
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):
         serial = sc.serial_hex(cert_pem, ':').lower()

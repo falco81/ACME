@@ -6,6 +6,26 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.21 - 2026-11-02
 
+- **Import from a source** (Certificates, beside *Import*): the certificates
+  your account already has at SSLS.cz, SSLmarket, DigiCert CertCentral, Vault,
+  EJBCA, FreeIPA, Google CA Service, GlobalSign Atlas or an authority of acme's
+  own are listed (only asked - nothing is ordered or changed there), each with
+  its names, product, state, validity, what is paid and its id there, *already
+  in acme* marked; the ones ticked are imported in one job with an owner, tags,
+  a validation and *Renew by itself*, and the popup says what was imported,
+  skipped or failed and why. Each stays bound to its source with its own id
+  there: a renewal reissues that very SSLS ID or order (free while it runs; a
+  new order only with *Allow new orders (paid)*) - no *Certificate to reuse*
+  needed. ACME sources cannot list what they issued (docs/certificates.md).
+- **Add its private key** in a certificate's window, for one acme holds no key
+  of (imported from a source, or from a file without it): pasted PEM or a
+  .key/.pem/.pfx/.p12 file, checked to belong to the certificate, then kept
+  sealed (a dual certificate's twin too). Until then a deployment that needs the
+  key is refused in those words; one that needs only the certificate works. The
+  first renewal of an imported certificate makes a new key, held by acme.
+- An authority of acme's own keeps every certificate it signs (also a CSR
+  signed by hand), so it can be imported later.
+
 - WEDOS (WAPI) as its documentation says: the record's comment sent as
   `author_comment` (was `auth_comment`), every page of the domains (50 a page
   before - an account with more did not find its domain), only primary, active

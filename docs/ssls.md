@@ -142,6 +142,17 @@ Push notifications (SSLS.cz posts to a URL of yours when an AlpiroSSL
 certificate is issued) are not used: polling is enough, and acme's pages need
 not be reachable from the internet.
 
+## Certificates bought already: Import from a source
+
+*Certificates → Import from a source* with this source lists every certificate
+of the account (`myCerts` - nothing is ordered) and brings in the ones picked
+(`getCert`): each keeps its SSLS ID, and its renewals reissue that SSLS ID
+(`quickReissue`) - no "Certificate to reuse" needed, one source serves them
+all. Its key is added in the certificate's window (*Add its private key*), or
+the first renewal makes a new one. A certificate being validated (state P, U,
+N) cannot be fetched yet; Certum is renewed only by a new (paid) order. See
+docs/certificates.md "Import from a source".
+
 ## Money (*Pozor na cenu*)
 
 * A new order is paid from the credit. Look at the products and prices at

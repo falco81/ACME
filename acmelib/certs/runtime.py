@@ -271,6 +271,23 @@ class RunContext(base.Context):
             return default
         return got.get('v', default)
 
+    def kv_keys(self, prefix=''):
+        """{key: value} of the module's own state whose keys start with `prefix`
+        (what it keeps for each certificate, say) - read-only."""
+        own = self._kv_key('')
+        start = own + str(prefix)
+        out = {}
+        # LIKE's _ and % only widen what is read; startswith() decides.
+        for r in self.store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?', (start + '%',)):
+            k = str(r.get('k') or '')
+            got = S.jload(r.get('v'), None)
+            if not k.startswith(start) or not isinstance(got, dict):
+                continue
+            if got.get('exp') and float(got['exp']) < time.time():
+                continue
+            out[k[len(own):]] = got.get('v')
+        return out
+
     def kv_set(self, key, value, ttl_s=None):
         k = self._kv_key(key)
         if value is None:

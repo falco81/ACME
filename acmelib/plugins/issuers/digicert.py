@@ -42,6 +42,11 @@ answers, DCV endpoints), github.com/grindsa/acme2certifier docs/digicert.md):
 * GET /organization - the organizations (OV/EV); GET /product - the products.
 * GET /certificate/download/order/{order_id}/format/pem_all - the chain.
 * PUT /certificate/{certificate_id}/revoke {reason, comments}; GET /user/me.
+* GET /order/certificate?offset=&limit= - every order of the account ("List orders",
+  https://dev.digicert.com/en/certcentral-apis/services-api/orders/list-orders.html):
+  {orders [{id, certificate {common_name, dns_names, valid_till...}, status,
+  product {name_id, name}...}], page {total, limit, offset}} - limit at most 1000
+  (5000 in newer versions of the page): Import from a source, page by page.
 
 UNCERTAIN (every path is a setting, More): the exact shape of the DCV records
 (the TXT at the domain itself or at _dnsauth. - both are accepted by DigiCert,
@@ -61,6 +66,7 @@ import calendar
 import json
 import re
 import time
+import urllib.parse
 
 from acmelib.plugins.base import Issuer, PluginError, field, dual_order_field
 from acmelib.plugins.issuers import _dcv
@@ -102,6 +108,7 @@ PATHS = [
     ('path_order', 'New order', '/order/certificate/{product}'),
     ('path_reissue', 'Reissue', '/order/certificate/{order}/reissue'),
     ('path_detail', 'Order detail', '/order/certificate/{order}'),
+    ('path_orders', 'List of orders', '/order/certificate'),
     ('path_random', 'DCV random value', '/order/certificate/{order}/dcv-random-value'),
     ('path_check', 'DCV check', '/order/certificate/{order}/check-dcv'),
     ('path_domains', 'Domains of the account', '/domain?include_validation=true&limit=1000'),
@@ -133,6 +140,7 @@ class DigicertIssuer(Issuer):
     challenge_types = ('dns-01', 'http-01')
     wildcards = True
     ip_names = False
+    lists_existing = True           # List orders + download: Certificates → Import from a source
     public_names = True
     key_types = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
     # The domain validation: which proof each method needs of the certificate's validation.
@@ -268,10 +276,14 @@ class DigicertIssuer(Issuer):
             raise PluginError('the path %s is not complete: %s' % (key, p), retry=False)
         return p
 
-    def call(self, method, key, body=None, what='', raw=False, ok=(200, 201, 204), **fill):
+    def call(self, method, key, body=None, what='', raw=False, ok=(200, 201, 204), query=None,
+             **fill):
         if not self.c('api_key'):
             raise PluginError('set the CertCentral API key', retry=False)
-        status, _h, data = sc.http(self.ctx, method, self._base() + self._path(key, **fill), body,
+        url = self._base() + self._path(key, **fill)
+        if query:
+            url += ('&' if '?' in url else '?') + urllib.parse.urlencode(query)
+        status, _h, data = sc.http(self.ctx, method, url, body,
                                    {'X-DC-DEVKEY': str(self.c('api_key')).strip(),
                                     'Accept': '*/*' if raw else 'application/json'},
                                    who='DigiCert')
@@ -326,7 +338,9 @@ class DigicertIssuer(Issuer):
     def _order_to_use(self, req, sub_key):
         """(how, order_id, renewal_of): 'reissue' inside an order, or 'new' (paid) -
         a renewal order of the one that ends where there is one."""
-        oid = str(self.c('order_id') or '').strip()
+        # A certificate imported from this account (Import from a source) names its own
+        # order: that one is reissued, whatever "Order to reuse" says.
+        oid = str(getattr(req, 'ref', None) or '').strip() or str(self.c('order_id') or '').strip()
         if not oid:
             kept = sc.parse_json(self.ctx.kv_get(sub_key) or '') or {}
             oid = str(kept.get('order_id') or '')
@@ -528,7 +542,7 @@ class DigicertIssuer(Issuer):
                 try:
                     out = sc.finish(self.ctx, r, certs, who='DigiCert',
                                     key_pem=r.key_pem if r is not req else None,
-                                    info={'order_id': oid,
+                                    info={'order_id': oid, 'ref': oid,
                                           'certificate_id': (det.get('certificate') or {}).get('id')})
                 except PluginError:
                     out = None              # the order's old certificate still: the reissue waits
@@ -549,6 +563,79 @@ class DigicertIssuer(Issuer):
                 raise PluginError('DigiCert has not issued yet (order %s: %s) - the DCV records '
                                   'stay in place; acme asks again at the next try' % (oid, st or '?'))
             self._sleep(every)
+
+    # -- the orders of the account (Certificates → Import from a source) -----------------------
+    def _acme_ids(self):
+        """{order id: acme's certificate id} of the orders acme made here."""
+        out = {}
+        try:
+            kept = self.ctx.kv_keys('digicert-order:')
+        except (AttributeError, NotImplementedError):
+            return out
+        for k, v in kept.items():
+            v = sc.parse_json(v) if isinstance(v, (str, bytes)) else v
+            cid = k.split(':', 1)[1] if ':' in k else ''
+            if isinstance(v, dict) and v.get('order_id') and cid.isdigit():
+                out[str(v['order_id'])] = int(cid)
+        return out
+
+    def list_existing(self):
+        """Every order of the account (List orders, page by page) - read only."""
+        mine = self._acme_ids()
+        out, offset, per = [], 0, 1000
+        for _page in range(50):
+            got = self.call('GET', 'path_orders', what='the list of orders',
+                            query={'offset': offset, 'limit': per})
+            orders = [o for o in (got.get('orders') or []) if isinstance(o, dict)]
+            for o in orders:
+                oid = str(o.get('id') or '').strip()
+                if not oid:
+                    continue
+                c = o.get('certificate') if isinstance(o.get('certificate'), dict) else {}
+                cn = str(c.get('common_name') or '').strip()
+                names = [cn] + [str(n).strip() for n in (c.get('dns_names') or [])
+                                if str(n).strip()]
+                names = [n for i, n in enumerate(names) if n and n not in names[:i]]
+                st = str(o.get('status') or '').lower()
+                prod = o.get('product') if isinstance(o.get('product'), dict) else {}
+                end = self._until(o)
+                cert_end = self._day(c.get('valid_till'))
+                out.append({'ref': oid, 'cn': cn or (names[0] if names else ''),
+                            'names': names,
+                            'product': str(prod.get('name') or prod.get('name_id') or ''),
+                            'status': st, 'not_before': self._day(c.get('valid_from')),
+                            'not_after': cert_end,
+                            'paid_until': end if end and end != cert_end else None,
+                            'serial': str(c.get('serial_number') or ''),
+                            'downloadable': st in ISSUED,
+                            'renewable': 'reissue' if st in ISSUED and (
+                                end is None or end > time.time() + 7 * 86400) else 'order',
+                            'note': '' if st in ISSUED else 'the order is %s' % (st or '?'),
+                            'acme_cert_id': mine.get(oid)})
+            page = got.get('page') if isinstance(got.get('page'), dict) else {}
+            total = int(sc.num(page.get('total'), 0))
+            offset += len(orders)
+            if not orders or len(orders) < per or (total and offset >= total):
+                break
+        return out
+
+    @staticmethod
+    def _day(v):
+        try:
+            return calendar.timegm(time.strptime(str(v)[:10], '%Y-%m-%d')) if v else None
+        except (TypeError, ValueError):
+            return None
+
+    def fetch_existing(self, ref):
+        """The certificate of order `ref` and its chain (the download, pem_all) - read
+        only."""
+        oid = str(ref or '').strip()
+        if not re.match(r'^\d{1,20}\Z', oid):
+            raise PluginError('%s is not an order number' % (oid or '?'), retry=False)
+        data = self.call('GET', 'path_download', what='the download', raw=True, order=oid)
+        out = sc.existing(sc.certs_of(data), who='DigiCert', ref=oid)
+        out['acme_cert_id'] = self._acme_ids().get(oid)
+        return out
 
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):
         cid = self.ctx.kv_get('digicert-cert:%s' % sc.fingerprint(cert_pem)[:40])

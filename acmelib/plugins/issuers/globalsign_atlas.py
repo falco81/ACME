@@ -20,6 +20,10 @@ apis/api-documentation/globalsign_atlas_certificate_management_api.html):
   updated_at}; 202 or 404 while it is being made (asked again).
 * GET /trustchain -> the chain (PEM, a list); GET /validationpolicy for "Try it".
 * PATCH /certificates/<serial> {revocation_reason, revocation_time}.
+* GET /stats/issued?page=N&per_page=M&from=EPOCH&to=EPOCH -> [{serial_number (hex),
+  not_before, not_after (epoch)}], the header Total-Count (hvclient client_api.go
+  StatsIssued, api_helpers.go paginationString, cert_meta.go): Import from a source -
+  each one then read with GET /certificates/<serial>.
 
 The names must be verified domains of the account (Atlas: Domains → verify,
 or the /claims/domains API) - Atlas refuses others.
@@ -65,6 +69,7 @@ class GlobalSignAtlasIssuer(Issuer):
     public_names = True             # a publicly trusted CA
     key_types = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
     choose_days = True
+    lists_existing = True           # /stats/issued + read: Certificates → Import from a source
     fields = [
         field('url', 'API address', 'text', required=True,
               default='https://emea.api.hvca.globalsign.com:8443/v2',
@@ -206,6 +211,74 @@ class GlobalSignAtlasIssuer(Issuer):
         return sc.finish(self.ctx, r, sc.certs_of(got['certificate']), chain,
                          who='GlobalSign Atlas', key_pem=r.key_pem if r is not req else None,
                          info={'atlas_serial': serial})
+
+    # -- the certificates of the account (Certificates → Import from a source) -------------
+    READ_MOST = 150                 # certificates read one by one in a listing
+    PER_PAGE = 100
+
+    def _one(self, serial):
+        if not re.match(r'^[0-9A-Fa-f]{1,64}\Z', str(serial or '')):
+            raise PluginError('%s is not a serial number' % (serial or '?'), retry=False)
+        _s, _h, got = self._call('GET', '/certificates/%s' % serial,
+                                 what='certificate %s' % serial)
+        return got or {}
+
+    def list_existing(self):
+        """The certificates issued in the last 400 days (/stats/issued, page by page),
+        the newest read - read only."""
+        from acmelib.certs import pki
+        now = int(time.time())
+        metas, page = [], 1
+        while page <= 100:
+            _s, h, got = self._call('GET', '/stats/issued?page=%d&per_page=%d&from=%d&to=%d' % (
+                page, self.PER_PAGE, now - 400 * 86400, now), what='the issued certificates')
+            items = [x for x in (got or []) if isinstance(x, dict)] if isinstance(got, list) \
+                else []
+            metas.extend(items)
+            total = int(sc.num({k.lower(): v for k, v in (h or {}).items()}.get('total-count'),
+                               0))
+            if len(items) < self.PER_PAGE or (total and len(metas) >= total):
+                break
+            page += 1
+        metas.sort(key=lambda m: -sc.num(m.get('not_before'), 0))
+        out = []
+        for i, m in enumerate(metas):
+            serial = str(m.get('serial_number') or '').upper()
+            if not serial:
+                continue
+            na = sc.num(m.get('not_after'), 0) or None
+            one = {'ref': serial, 'serial': serial, 'not_before': sc.num(m.get('not_before'), 0)
+                   or None, 'not_after': na, 'downloadable': True, 'renewable': 'issue',
+                   'status': 'expired' if na and na < now else 'issued'}
+            if i < self.READ_MOST and not self.ctx.cancelled():
+                try:
+                    got = self._one(serial)
+                    info = pki.cert_info(got.get('certificate') or '')
+                    one.update(cn=info.get('cn') or '', names=info.get('names') or [],
+                               fingerprint=info.get('sha256'))
+                    if str(got.get('status') or '').upper() == 'REVOKED':
+                        one.update(status='revoked', downloadable=False, renewable='none')
+                except Exception as e:                  # noqa: BLE001
+                    one['note'] = 'it cannot be read: %s' % e
+            else:
+                one['note'] = 'more than %d certificates: this one is read when it is ' \
+                              'imported' % self.READ_MOST
+            out.append(one)
+        return out
+
+    def fetch_existing(self, ref):
+        """The certificate of serial `ref` and the trust chain - read only."""
+        got = self._one(ref)
+        if str(got.get('status') or '').upper() == 'REVOKED':
+            raise PluginError('the certificate %s is revoked' % ref, retry=False)
+        chain = []
+        try:
+            _s, _h, tc = self._call('GET', '/trustchain', what='trust chain')
+            chain = sc.certs_of(tc or [])
+        except PluginError as e:
+            sc.say(self.ctx, 'the trust chain could not be fetched: %s' % e, 'warn')
+        return sc.existing(sc.certs_of(got.get('certificate')), chain, who='GlobalSign Atlas',
+                           ref=str(ref).upper())
 
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):
         serial = sc.serial_hex(cert_pem)

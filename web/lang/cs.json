@@ -42519,6 +42519,354 @@
   "sl0044": {
    "source": "written - not seen in DNS yet",
    "text": "zapsáno – v DNS zatím není vidět"
+  },
+  "soi001": {
+   "source": "Import from a source",
+   "text": "Import ze zdroje"
+  },
+  "soi002": {
+   "source": "import from a source",
+   "text": "import ze zdroje"
+  },
+  "soi003": {
+   "source": "importing from a source",
+   "text": "import ze zdroje"
+  },
+  "soi004": {
+   "source": "The certificates your account already has at a source - SSLS.cz, SSLmarket, DigiCert, Vault, an authority of acme's own… - listed and brought in, each renewed through its own order there.",
+   "text": "Certifikáty, které váš účet u zdroje už má – SSLS.cz, SSLmarket, DigiCert, Vault, vlastní autorita acme… – vypsané a přenesené sem; každý se obnovuje přes svou vlastní objednávku tam."
+  },
+  "soi005": {
+   "source": "renewed by a free reissue",
+   "text": "obnovuje se bezplatným přegenerováním"
+  },
+  "soi006": {
+   "source": "Each renewal reissues this very order at the source while it runs - nothing is bought.",
+   "text": "Každá obnova přegeneruje právě tuto objednávku u zdroje, dokud běží – nic se nekupuje."
+  },
+  "soi007": {
+   "source": "a renewal is a new order",
+   "text": "obnova je nová objednávka"
+  },
+  "soi008": {
+   "source": "It cannot be reissued (its order ended, or the product never is): a renewal is a new, paid order - only with \"Allow new orders (paid)\" on the source.",
+   "text": "Nelze ho přegenerovat (jeho objednávka skončila nebo se produkt nepřegenerovává nikdy): obnova je nová, placená objednávka – jen se zapnutým „Povolit nové objednávky (placené)“ u zdroje."
+  },
+  "soi009": {
+   "source": "renewed by the source",
+   "text": "obnovuje ho zdroj"
+  },
+  "soi010": {
+   "source": "A renewal is a new certificate from the same source - there is no order to buy.",
+   "text": "Obnova je nový certifikát od téhož zdroje – žádná objednávka se nekupuje."
+  },
+  "soi011": {
+   "source": "not renewable",
+   "text": "nelze obnovit"
+  },
+  "soi012": {
+   "source": "The source cannot renew it.",
+   "text": "Zdroj ho obnovit neumí."
+  },
+  "soi013": {
+   "source": "by its id at the source",
+   "text": "podle jeho ID u zdroje"
+  },
+  "soi014": {
+   "source": "acme ordered it",
+   "text": "objednalo ho acme"
+  },
+  "soi015": {
+   "source": "by its serial",
+   "text": "podle sériového čísla"
+  },
+  "soi016": {
+   "source": "by its fingerprint",
+   "text": "podle otisku"
+  },
+  "soi017": {
+   "source": "acme has it already",
+   "text": "acme ho už má"
+  },
+  "soi018": {
+   "source": "already in acme",
+   "text": "už je v acme"
+  },
+  "soi019": {
+   "source": "cannot be fetched",
+   "text": "nelze stáhnout"
+  },
+  "soi020": {
+   "source": "paid until",
+   "text": "zaplaceno do"
+  },
+  "soi021": {
+   "source": "its id there",
+   "text": "jeho ID tam"
+  },
+  "soi022": {
+   "source": "In acme as",
+   "text": "V acme jako"
+  },
+  "soi023": {
+   "source": "The account has no certificates at this source.",
+   "text": "Účet nemá u tohoto zdroje žádné certifikáty."
+  },
+  "soi024": {
+   "source": "Asking the source… nothing is ordered or changed there.",
+   "text": "Ptám se zdroje… nic se tam neobjednává ani nemění."
+  },
+  "soi025": {
+   "source": "the list of the source",
+   "text": "seznam zdroje"
+  },
+  "soi026": {
+   "source": "skipped",
+   "text": "přeskočeno"
+  },
+  "soi027": {
+   "source": "without its private key - add it in its window",
+   "text": "bez soukromého klíče – doplňte ho v jeho okně"
+  },
+  "soi028": {
+   "source": "Nothing was done.",
+   "text": "Nic se neudělalo."
+  },
+  "soi029": {
+   "source": "Its job",
+   "text": "Jeho úloha"
+  },
+  "soi030": {
+   "source": "pick at least one certificate to import",
+   "text": "vyberte aspoň jeden certifikát k importu"
+  },
+  "soi031": {
+   "source": "the import",
+   "text": "import"
+  },
+  "soi032": {
+   "source": "The certificates your account already has at a source that can list them - SSLS.cz, SSLmarket, DigiCert, Vault, an authority of acme’s own… The source is only asked: nothing is ordered or changed there. Each one imported stays bound to the source with its own id there, so its renewals go through that very order. Its private key is not at the source: add it later in the certificate’s window - until then it goes only where the certificate alone is needed (its first renewal makes a new key).",
+   "text": "Certifikáty, které váš účet už má u zdroje, jenž je umí vypsat – SSLS.cz, SSLmarket, DigiCert, Vault, vlastní autorita acme… Zdroj se jen ptá: nic se tam neobjednává ani nemění. Každý importovaný zůstane vázaný na zdroj se svým tamním ID, takže jeho obnovy jdou právě přes tuto objednávku. Jeho soukromý klíč u zdroje není: doplňte ho později v okně certifikátu – do té doby jde jen tam, kde stačí samotný certifikát (při první obnově vznikne nový klíč)."
+  },
+  "soi033": {
+   "source": "No source can list its certificates",
+   "text": "Žádný zdroj neumí vypsat své certifikáty"
+  },
+  "soi034": {
+   "source": "Add a source of SSLS.cz, SSLmarket, DigiCert CertCentral, GlobalSign Atlas, Google CA Service, Vault, EJBCA, FreeIPA or an authority of acme’s own under Sources first. ACME sources (Let’s Encrypt…) cannot list what they issued.",
+   "text": "Nejdřív přidejte v Zdrojích zdroj SSLS.cz, SSLmarket, DigiCert CertCentral, GlobalSign Atlas, Google CA Service, Vault, EJBCA, FreeIPA nebo vlastní autoritu acme. Zdroje ACME (Let’s Encrypt…) neumí vypsat, co vydaly."
+  },
+  "soi035": {
+   "source": "Only the sources whose API can list the certificates of the account.",
+   "text": "Jen zdroje, jejichž API umí vypsat certifikáty účtu."
+  },
+  "soi036": {
+   "source": "Load the list again",
+   "text": "Načíst seznam znovu"
+  },
+  "soi037": {
+   "source": "a name, a product, its id there…",
+   "text": "jméno, produkt, ID u zdroje…"
+  },
+  "soi038": {
+   "source": "All that can be imported",
+   "text": "Vše, co lze importovat"
+  },
+  "soi039": {
+   "source": "The certificates imported",
+   "text": "Importované certifikáty"
+  },
+  "soi040": {
+   "source": "Given to each one picked. Owner, tags and renewal can be changed later in its Details, its validation with Change.",
+   "text": "Dostane je každý vybraný. Vlastníka, štítky a obnovu lze později změnit v jeho Podrobnostech, validaci přes Změnit."
+  },
+  "soi041": {
+   "source": "none yet - chosen before its first renewal",
+   "text": "zatím žádná – zvolí se před první obnovou"
+  },
+  "soi042": {
+   "source": "Who they belong to (Settings → Owners and teams).",
+   "text": "Komu patří (Nastavení → Vlastníci a týmy)."
+  },
+  "soi043": {
+   "source": "How their names are proved at a renewal - for a CA that checks the domains by DNS or a file (SSLS.cz, SSLmarket, DigiCert). Not needed for e-mail validation or a private CA.",
+   "text": "Jak se při obnově prokážou jejich jména – pro CA, která domény ověřuje přes DNS nebo soubor (SSLS.cz, SSLmarket, DigiCert). Pro ověření e-mailem ani pro soukromou CA není potřeba."
+  },
+  "soi044": {
+   "source": "On: renewed before they run out, through their own order at the source - where the source can renew them.",
+   "text": "Zapnuto: obnoví se před vypršením přes svou vlastní objednávku u zdroje – tam, kde je zdroj obnovit umí."
+  },
+  "soi045": {
+   "source": "Add its private key",
+   "text": "Doplnit soukromý klíč"
+  },
+  "soi046": {
+   "source": "The private key that belongs to this certificate - PEM (PKCS#8 or the older RSA/EC form) pasted, or a .key, .pem, .pfx or .p12 file read in. It is checked to belong to the certificate before anything is kept, then kept sealed like the key of any certificate. Deployments that need the key work from then on.",
+   "text": "Soukromý klíč, který k tomuto certifikátu patří – vložený PEM (PKCS#8 nebo starší tvar RSA/EC), nebo načtený soubor .key, .pem, .pfx či .p12. Než se cokoli uloží, ověří se, že k certifikátu patří; pak se uloží zapečetěný jako klíč každého jiného certifikátu. Nasazení, která klíč potřebují, od té chvíle fungují."
+  },
+  "soi047": {
+   "source": "Its private key (the first certificate)",
+   "text": "Jeho soukromý klíč (první certifikát)"
+  },
+  "soi048": {
+   "source": "A PFX/P12 file is read in as it is; give its password below.",
+   "text": "Soubor PFX/P12 se načte tak, jak je; heslo zadejte níže."
+  },
+  "soi049": {
+   "source": "only for a locked key or a PFX",
+   "text": "jen pro zamčený klíč nebo PFX"
+  },
+  "soi050": {
+   "source": "The key of its twin",
+   "text": "Klíč jeho dvojčete"
+  },
+  "soi051": {
+   "source": "A dual certificate: the twin has its own key. Leave a box empty to add only the other key.",
+   "text": "Duální certifikát: dvojče má vlastní klíč. Nechte pole prázdné, chcete-li doplnit jen ten druhý."
+  },
+  "soi052": {
+   "source": "Password of the twin’s key",
+   "text": "Heslo klíče dvojčete"
+  },
+  "soi053": {
+   "source": "Add the key",
+   "text": "Doplnit klíč"
+  },
+  "soi054": {
+   "source": "give the private key: paste it, or read its file",
+   "text": "zadejte soukromý klíč: vložte ho, nebo načtěte jeho soubor"
+  },
+  "soi055": {
+   "source": "the private key was added",
+   "text": "soukromý klíč byl doplněn"
+  },
+  "soi056": {
+   "source": "acme does not hold its private key",
+   "text": "acme nemá jeho soukromý klíč"
+  },
+  "soi057": {
+   "source": "acme does not hold the private key of its twin",
+   "text": "acme nemá soukromý klíč jeho dvojčete"
+  },
+  "soi058": {
+   "source": "It goes only where the certificate alone is needed: a deployment that needs the key is refused until the key is added. Its next renewal makes a new key, and acme holds that one.",
+   "text": "Jde jen tam, kde stačí samotný certifikát: nasazení, které potřebuje klíč, se odmítne, dokud se klíč nedoplní. Při příští obnově vznikne nový klíč a ten už acme má."
+  },
+  "soi059": {
+   "source": "It goes only where the certificate alone is needed: a deployment that needs the key is refused until the key is added.",
+   "text": "Jde jen tam, kde stačí samotný certifikát: nasazení, které potřebuje klíč, se odmítne, dokud se klíč nedoplní."
+  },
+  "soi060": {
+   "source": "The key of this certificate, which acme does not hold (imported without it): checked to belong to it, then kept sealed.",
+   "text": "Klíč tohoto certifikátu, který acme nemá (importovaný bez něj): ověří se, že k němu patří, a uloží se zapečetěný."
+  },
+  "soi061": {
+   "source": "Its id at the source",
+   "text": "Jeho ID u zdroje"
+  },
+  "soi062": {
+   "source": "Imported from its source: each renewal reissues this order (or certificate) there.",
+   "text": "Importovaný ze svého zdroje: každá obnova tam přegeneruje tuto objednávku (či certifikát)."
+  },
+  "soi063": {
+   "source": "issued",
+   "text": "vydán"
+  },
+  "soi064": {
+   "source": "the private key was added - it fits the certificate",
+   "text": "soukromý klíč byl doplněn – k certifikátu patří"
+  },
+  "soi065": {
+   "source": "500 certificates at most in one import",
+   "text": "v jednom importu nejvýš 500 certifikátů"
+  },
+  "soi066": {
+   "source": "a certificate to import has no id of the source",
+   "text": "certifikát k importu nemá ID zdroje"
+  },
+  "soi067": {
+   "source": "each certificate to import is an object",
+   "text": "každý certifikát k importu je objekt"
+  },
+  "soi068": {
+   "source": "give the private key: paste it, or drop its file",
+   "text": "zadejte soukromý klíč: vložte ho, nebo přetáhněte jeho soubor"
+  },
+  "soi069": {
+   "source": "that is not a key: too long",
+   "text": "to není klíč: příliš dlouhé"
+  },
+  "soi070": {
+   "source": "the file is not base64",
+   "text": "soubor není base64"
+  },
+  "soi071": {
+   "source": "the file is too big for a key",
+   "text": "soubor je na klíč příliš velký"
+  },
+  "soi072": {
+   "source": "the key is locked: give its password",
+   "text": "klíč je zamčený: zadejte jeho heslo"
+  },
+  "soi073": {
+   "source": "the password: 1000 characters at most",
+   "text": "heslo: nejvýš 1000 znaků"
+  },
+  "soi074": {
+   "source": "the tags are a list",
+   "text": "štítky jsou seznam"
+  },
+  "soi075": {
+   "source": "there is no private key in what was given",
+   "text": "v zadaném není žádný soukromý klíč"
+  },
+  "soi076": {
+   "source": "Certum certificates are never reissued through the API: a renewal is a new (paid) order",
+   "text": "Certifikáty Certum se přes API nikdy nepřegenerovávají: obnova je nová (placená) objednávka"
+  },
+  "soi077": {
+   "source": "the list of orders",
+   "text": "seznam objednávek"
+  },
+  "soi078": {
+   "source": "acme did not keep this certificate (signed before 1.0.21) - import its file instead",
+   "text": "acme tento certifikát neuložilo (podepsán před verzí 1.0.21) – importujte místo toho jeho soubor"
+  },
+  "soi079": {
+   "source": "Vault (the list of certificates)",
+   "text": "Vault (seznam certifikátů)"
+  },
+  "soi080": {
+   "source": "CA Service (the certificate)",
+   "text": "CA Service (certifikát)"
+  },
+  "soi081": {
+   "source": "CA Service (the list of certificates)",
+   "text": "CA Service (seznam certifikátů)"
+  },
+  "soi082": {
+   "source": "revoked at CA Service",
+   "text": "odvolán v CA Service"
+  },
+  "soi083": {
+   "source": "the issued certificates",
+   "text": "vydané certifikáty"
+  },
+  "soi084": {
+   "source": "EJBCA (search)",
+   "text": "EJBCA (hledání)"
+  },
+  "soi085": {
+   "source": "set the CA",
+   "text": "nastavte CA"
+  },
+  "soi086": {
+   "source": "the list of certificates",
+   "text": "seznam certifikátů"
+  },
+  "soi087": {
+   "source": "Path: List of orders",
+   "text": "Cesta: seznam objednávek (výpis)"
   }
  },
  "patterns": {
@@ -59137,6 +59485,210 @@
   "swedos01": {
    "source": "WEDOS refused the sign-in a moment ago: WAPI is not asked again for {0} s (more wrong requests would block this address) - check the login, the WAPI password, this machine's clock and the IP addresses allowed for WAPI",
    "text": "WEDOS před chvílí odmítl přihlášení: WAPI se znovu nezeptá dřív než za {0} s (další chybné požadavky by tuto adresu zablokovaly) – zkontrolujte login, heslo k WAPI, hodiny tohoto stroje a IP adresy povolené pro WAPI"
+  },
+  "poi001": {
+   "source": "acme has it already: {0}",
+   "text": "acme ho už má: {0}"
+  },
+  "poi002": {
+   "source": "acme holds the key of the twin of {0} already",
+   "text": "acme už má klíč dvojčete {0}"
+  },
+  "poi003": {
+   "source": "acme holds the key of {0} already",
+   "text": "acme už má klíč {0}"
+  },
+  "poi004": {
+   "source": "an import's result could not be kept: {0}",
+   "text": "výsledek importu nešlo uložit: {0}"
+  },
+  "poi005": {
+   "source": "certificate {0} imported from {1} (its id there {2}) by {3}, without its key",
+   "text": "certifikát {0} importován ze zdroje {1} (jeho ID tam {2}) uživatelem {3}, bez klíče"
+  },
+  "poi006": {
+   "source": "importing {0} certificate(s) from {1} ({2}) - nothing is ordered there",
+   "text": "importuji {0} certifikát(ů) ze zdroje {1} ({2}) – nic se tam neobjednává"
+  },
+  "poi007": {
+   "source": "the key cannot be read: {0}",
+   "text": "klíč nelze přečíst: {0}"
+  },
+  "poi008": {
+   "source": "the key does not belong to the certificate {0} (its public key is another one)",
+   "text": "klíč nepatří k certifikátu {0} (jeho veřejný klíč je jiný)"
+  },
+  "poi009": {
+   "source": "the private key of {0}{1} was added by {2} - it fits the certificate",
+   "text": "soukromý klíč {0}{1} doplnil {2} – k certifikátu patří"
+  },
+  "poi010": {
+   "source": "the second key does not belong to the twin of {0}",
+   "text": "druhý klíč nepatří k dvojčeti {0}"
+  },
+  "poi011": {
+   "source": "the source gave no certificate for {0}",
+   "text": "zdroj nedal žádný certifikát pro {0}"
+  },
+  "poi012": {
+   "source": "the source {0} ({1}) cannot list the certificates of its account",
+   "text": "zdroj {0} ({1}) neumí vypsat certifikáty svého účtu"
+  },
+  "poi013": {
+   "source": "{0} certificate(s) from {1}",
+   "text": "{0} certifikát(ů) ze zdroje {1}"
+  },
+  "poi014": {
+   "source": "{0} certificates at {1}, {2} of them can be imported",
+   "text": "{0} certifikátů u zdroje {1}, z toho {2} lze importovat"
+  },
+  "poi015": {
+   "source": "{0} has no certificate yet",
+   "text": "{0} zatím nemá certifikát"
+  },
+  "poi016": {
+   "source": "{0} imported {1} certificate(s) from {2}",
+   "text": "{0} importoval {1} certifikát(ů) ze zdroje {2}"
+  },
+  "poi017": {
+   "source": "{0} imported, {1} skipped, {2} failed (from {3})",
+   "text": "{0} importováno, {1} přeskočeno, {2} selhalo (ze zdroje {3})"
+  },
+  "poi018": {
+   "source": "{0} is a certificate authority, not a certificate",
+   "text": "{0} je certifikační autorita, ne certifikát"
+  },
+  "poi019": {
+   "source": "{0} was issued for a CSR that was sent in: its key stays where the CSR was made",
+   "text": "{0} byl vydán pro zaslaný CSR: jeho klíč zůstává tam, kde CSR vznikl"
+  },
+  "poi020": {
+   "source": "{0}: imported as {1} ({2}, valid until {3}) - without its private key",
+   "text": "{0}: importován jako {1} ({2}, platný do {3}) – bez soukromého klíče"
+  },
+  "poi021": {
+   "source": "{0}: not imported - {1}",
+   "text": "{0}: neimportován – {1}"
+  },
+  "poi022": {
+   "source": "the source's certificate is {0} from now on",
+   "text": "certifikát u zdroje je odteď {0}"
+  },
+  "poi023": {
+   "source": "{0}the source's own certificate {1} is renewed (imported from {2})",
+   "text": "{0}obnovuje se vlastní certifikát zdroje {1} (importovaný ze zdroje {2})"
+  },
+  "poi024": {
+   "source": "acme does not hold the private key of {0} yet, and {1} needs it ({2}) - add it in the certificate's window (Add its private key), or deploy it where only the certificate is needed",
+   "text": "acme zatím nemá soukromý klíč {0} a {1} ho potřebuje ({2}) – doplňte ho v okně certifikátu (Doplnit soukromý klíč), nebo ho nasaďte tam, kde stačí samotný certifikát"
+  },
+  "poi025": {
+   "source": "SSLS.cz says it is {0} (state {1})",
+   "text": "SSLS.cz uvádí, že je {0} (stav {1})"
+  },
+  "poi026": {
+   "source": "SSLS.cz sent no certificate for {0} (not issued yet?)",
+   "text": "SSLS.cz neposlalo žádný certifikát pro {0} (ještě nevydán?)"
+  },
+  "poi027": {
+   "source": "{0} is not an SSLS ID",
+   "text": "{0} není SSLS ID"
+  },
+  "poi028": {
+   "source": "SSLmarket sent no certificate for order {0} (not issued yet?)",
+   "text": "SSLmarket neposlal žádný certifikát pro objednávku {0} (ještě nevydán?)"
+  },
+  "poi029": {
+   "source": "the intermediate certificates could not be read ({0})",
+   "text": "mezilehlé certifikáty nešlo přečíst ({0})"
+  },
+  "poi030": {
+   "source": "the order has no certificate yet ({0})",
+   "text": "objednávka zatím nemá certifikát ({0})"
+  },
+  "poi031": {
+   "source": "the order is {0}",
+   "text": "objednávka je {0}"
+  },
+  "poi032": {
+   "source": "{0} is not an order number",
+   "text": "{0} není číslo objednávky"
+  },
+  "poi033": {
+   "source": "acme did not keep the certificate {0} (signed before 1.0.21) - import its file instead",
+   "text": "acme certifikát {0} neuložilo (podepsán před verzí 1.0.21) – importujte místo toho jeho soubor"
+  },
+  "poi034": {
+   "source": "the authority \"{0}\" signed no certificate {1}",
+   "text": "autorita „{0}“ nepodepsala žádný certifikát {1}"
+  },
+  "poi035": {
+   "source": "the certificate {0} is revoked",
+   "text": "certifikát {0} je odvolán"
+  },
+  "poi036": {
+   "source": "{0} is not a serial number",
+   "text": "{0} není sériové číslo"
+  },
+  "poi037": {
+   "source": "Vault (the certificate {0})",
+   "text": "Vault (certifikát {0})"
+  },
+  "poi038": {
+   "source": "it cannot be read: {0}",
+   "text": "nelze ho přečíst: {0}"
+  },
+  "poi039": {
+   "source": "more than {0} certificates: this one is read when it is imported",
+   "text": "více než {0} certifikátů: tento se přečte až při importu"
+  },
+  "poi040": {
+   "source": "the chain of the mount could not be read: {0}",
+   "text": "řetězec mountu nešlo přečíst: {0}"
+  },
+  "poi041": {
+   "source": "{0} is not a certificate of the pool {1}",
+   "text": "{0} není certifikát poolu {1}"
+  },
+  "poi042": {
+   "source": "EJBCA has more than {0} active certificates of the CA: the first {1} are listed",
+   "text": "EJBCA má víc než {0} aktivních certifikátů CA: vypsáno je prvních {1}"
+  },
+  "poi043": {
+   "source": "EJBCA has no certificate {0} of the CA {1}",
+   "text": "EJBCA nemá certifikát {0} CA {1}"
+  },
+  "poi044": {
+   "source": "the chain of the CA could not be read: {0}",
+   "text": "řetězec CA nešlo přečíst: {0}"
+  },
+  "poi045": {
+   "source": "IPA listed only the first {0} certificates",
+   "text": "IPA vypsala jen prvních {0} certifikátů"
+  },
+  "poi046": {
+   "source": "{0} is not a serial number of IPA",
+   "text": "{0} není sériové číslo IPA"
+  },
+  "poi047": {
+   "source": "{0} sent only certificates of authorities",
+   "text": "{0} poslal jen certifikáty autorit"
+  },
+  "poi048": {
+   "source": "{0} cannot hand out the certificates of its account",
+   "text": "{0} neumí vydat certifikáty svého účtu"
+  },
+  "poi049": {
+   "source": "{0} cannot list the certificates of its account",
+   "text": "{0} neumí vypsat certifikáty svého účtu"
+  },
+  "poi050": {
+   "source": "certificate {0}",
+   "text": "certifikát {0}"
+  },
+  "poi051": {
+   "source": "Add the private key of {0}",
+   "text": "Doplnit soukromý klíč certifikátu {0}"
   }
  },
  "rich": {

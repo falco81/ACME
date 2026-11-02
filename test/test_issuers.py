@@ -94,6 +94,9 @@ class FakeContext(Context):
     def kv_get(self, key):
         return self.kv.get(key)
 
+    def kv_keys(self, prefix=''):
+        return {k: v for k, v in self.kv.items() if k.startswith(prefix)}
+
     def kv_set(self, key, value, ttl_s=None):
         assert len(key) <= 120, key            # what the real Context keeps
         if value is None:

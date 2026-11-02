@@ -90,9 +90,10 @@ an event (`warn`) saying who was refused what:
   `/api/certs/jobs`, `/api/deploys` - filtered;
 - `GET /api/certs/one`, `/api/certs/job` - `view`;
 - `/api/certs/save` (an existing one), `auto`, `delete`, `renew`, `deploy`, `revoke`,
-  `export`, `csr_answer`, `plan`, `check`, `dry_run`, `job_stop`,
+  `export`, `csr_answer`, `plan`, `check`, `dry_run`, `add_key`, `job_stop`,
   `/api/deploys/save|delete|run|dry_run` - `manage`;
-- a new certificate (`save` without id, `csr`, `import`, the portal's request) - its
+- a new certificate (`save` without id, `csr`, `import`, each one of `online_import`
+  (Import from a source), the portal's request) - its
   owner must be a team the person holds `request` (or `manage`) for; without an owner
   it is refused (only a full administrator makes certificates without one);
 - changing a certificate's owner - `manage` on the old team and `request`/`manage` on

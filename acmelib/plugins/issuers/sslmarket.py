@@ -373,6 +373,7 @@ class SslmarketIssuer(_Common, Issuer):
     # setting `dcv` and the proof each needs of the certificate's validation - a record
     # or file put in place through base.Challenge.place (acmelib/plugins/issuers/_dcv.py).
     public_names = True
+    lists_existing = True           # /order/list + download: Certificates → Import from a source
     key_types = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
     dcv_field = 'dcv'
     dcv_default = 'DNS'
@@ -660,7 +661,9 @@ class SslmarketIssuer(_Common, Issuer):
         PluginError where a purchase would be needed and is not allowed."""
         policy = self.c('policy') or 'reissue'
         allowed = _as_bool(self.c('allow_paid'))
-        given = self._given(req)
+        # A certificate imported from this account (Import from a source) names its own
+        # order: that one is reissued, whatever "Order to reuse" says.
+        given = str(getattr(req, 'ref', None) or '').strip() or self._given(req)
         kept = self._get(sub_key) or {}
         order = given or kept.get('order_id')
         why = ''
@@ -1019,7 +1022,8 @@ class SslmarketIssuer(_Common, Issuer):
                       {'order_id': order_id}, ttl_s=5 * 366 * 86400)
         except Exception:                               # noqa: BLE001
             pass
-        return Issued(leaf, chain, info={'order_id': order_id, 'api': self.base_url()})
+        return Issued(leaf, chain, info={'order_id': order_id, 'api': self.base_url(),
+                                         'ref': order_id})
 
     # -- revocation, trying it, the actions ------------------------------------------------------
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):
@@ -1056,6 +1060,77 @@ class SslmarketIssuer(_Common, Issuer):
         bits.append('new paid orders %s' % ('ALLOWED' if _as_bool(self.c('allow_paid'))
                                             else 'not allowed (reissues only)'))
         return '; '.join(bits)
+
+    # -- the orders of the account (Certificates → Import from a source) ---------------------
+    def _acme_ids(self):
+        """{order id: acme's certificate id} of the orders acme made or reissued here."""
+        out = {}
+        try:
+            kept = self.ctx.kv_keys('sslmarket-order:')
+        except (AttributeError, NotImplementedError):
+            return out
+        for k, v in kept.items():
+            if isinstance(v, str):
+                try:
+                    v = json.loads(v)
+                except ValueError:
+                    continue
+            cid = k.split(':')[1] if k.count(':') >= 2 else ''
+            if isinstance(v, dict) and v.get('order_id') and cid.isdigit():
+                out[str(v['order_id'])] = int(cid)
+        return out
+
+    def list_existing(self):
+        """Every order of the account (/order/list) - read only."""
+        mine = self._acme_ids()
+        out = []
+        for o in self.api().orders():
+            oid = str(o.get('order_id') or '').strip()
+            if not oid:
+                continue
+            names = [str(o.get('domain') or '').strip()] + [
+                x.strip() for x in re.split(r'[\s,;]+', str(o.get('dns_names') or ''))
+                if x.strip()]
+            names = [n for i, n in enumerate(names) if n and n not in names[:i]]
+            end = _when(o.get('expired'))
+            failed = self.failed(o)
+            issued = bool(_when(o.get('published'))) and not failed
+            note = ''
+            if failed:
+                note = 'the order is %s' % (o.get('state') or '?')
+            elif not issued:
+                note = 'the order has no certificate yet (%s)' % (o.get('state') or '?')
+            out.append({'ref': oid, 'cn': names[0] if names else '', 'names': names,
+                        'product': str(o.get('product_code') or ''),
+                        'status': str(o.get('state') or ''),
+                        'not_before': _when(o.get('published')), 'not_after': None,
+                        'paid_until': end, 'downloadable': issued,
+                        'renewable': 'reissue' if issued and (not end or end > _now())
+                        else 'order', 'note': note, 'acme_cert_id': mine.get(oid)})
+        return out
+
+    def fetch_existing(self, ref):
+        """The certificate of order `ref` and its chain (…/format/pem_server and
+        pem_intermediate) - read only."""
+        from acmelib.certs import pki
+        oid = str(ref or '').strip()
+        if not re.match(r'^\d{1,20}$', oid):
+            raise PluginError('%s is not an order number' % (oid or '?'), retry=False)
+        pems = _certs_in(self._fetch(oid, 'pem_server'))
+        leafs = [c for c in pems if not pki.cert_info(c).get('is_ca')]
+        if not leafs:
+            raise PluginError('SSLmarket sent no certificate for order %s (not issued yet?)'
+                              % oid, retry=False)
+        leaf = max(leafs, key=lambda c: pki.cert_info(c).get('not_before') or 0)
+        others = [c for c in pems if c != leaf]
+        try:
+            others += _certs_in(self._fetch(oid, 'pem_intermediate'))
+        except PluginError as e:
+            self._say('the intermediate certificates could not be read (%s)' % e, 'warn')
+        chain = pki.order_chain(leaf, others) or [c for c in others
+                                                  if pki.cert_info(c).get('is_ca')]
+        return {'cert_pem': leaf, 'chain_pems': [c for c in chain if c.strip() != leaf.strip()],
+                'ref': oid, 'acme_cert_id': self._acme_ids().get(oid)}
 
     def _orders_to_act_on(self):
         out = [self._s('order_id')] if self._s('order_id') else []

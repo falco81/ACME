@@ -405,6 +405,53 @@ validation*. A certificate's popup has a *Validation* section with the same
 renewal was held back by the precheck. A validation's popup lists *What to set
 up* for every certificate that uses it.
 
+## Import from a source
+
+*Certificates → Import from a source* brings in the certificates an account
+already has at a source whose API can list them - bought at www.ssls.cz, in
+SSLmarket's or DigiCert's administration, issued by Vault, EJBCA, FreeIPA,
+Google CA Service, GlobalSign Atlas, or signed by an authority of acme's own
+outside acme (a CSR signed by hand). Pick the source: it is asked for the
+list (only asked - nothing is ordered or changed there) and every certificate
+is shown with its names, product, state, validity, the end of what was paid
+and its id at the source; *already in acme* marks those acme has (by that id,
+by the order acme made itself, by the serial or fingerprint). Tick the ones to
+bring in, give them an owner, tags, a validation (optional now; a renewal of a
+CA that checks domains by DNS or a file needs one) and *Renew by itself*, and
+press *Import*: a job (kind `online-import`) fetches each certificate and its
+chain and keeps it, bound to the source with its own id there
+(`certs.issuer_ref`). The popup then says what was imported, skipped (acme has
+it) or failed, and why.
+
+A source holds no private key: an imported certificate has none at first. It
+goes to targets that need only the certificate; a deployment that needs the key
+is refused in words until it is there. *Add its private key* in the
+certificate's window (also for any certificate imported from a file without
+its key) takes it pasted as PEM or read from a .key, .pem, .pfx or .p12 file
+(with its password), checks that it belongs to the certificate, and keeps it
+sealed with the current version - a dual certificate's twin has its own box.
+
+A renewal goes through the source's API with that id: SSLS.cz reissues that
+SSLS ID (`quickReissue`), SSLmarket and DigiCert reissue that order - free
+while the subscription or order runs; a new order is bought only with *Allow
+new orders (paid)*, as always - and the certificate's own id wins over the
+source's *Certificate/Order to reuse*. When the source answers with another
+order (a new one), that one is kept as the certificate's id. A private CA
+(Vault, EJBCA, FreeIPA, CA Service, Atlas, acme's own) simply issues a new one.
+The key is made by acme at the first renewal (*keep the key* is off), so acme
+holds the key from then on. Changing the certificate's source forgets the id.
+
+Which sources can (`lists_existing`, docs/writing-a-module.md): `ssls`
+(myCerts + getCert), `sslmarket` (/order/list + the download), `digicert`
+(List orders + the download), `internal_ca` (what the authority signed - the
+certificate itself is kept since 1.0.21), `vault_pki` (LIST certs + read),
+`google_cas` (certificates.list), `globalsign_atlas` (/stats/issued + read),
+`ejbca` (certificate/search), `freeipa` (cert_find + cert_show). Not: `acme`
+and `sslmarket_acme` (ACME has no list of an account's certificates), `est`,
+`cmp`, `scep` (the protocols have none), `ms_adcs` (Web Enrollment has none),
+`step_ca` (its API has none), `aws_pca` (AWS Private CA lists issued
+certificates only in an audit report written to S3), `selfsigned`.
+
 ## Deploying
 
 For each deployment, the target's module is handed a `Bundle` (the

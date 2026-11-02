@@ -102,6 +102,7 @@ class Context(object):
         ctx.openssl(args, data=None, timeout=60) -> bytes     the openssl program
         ctx.kv_get(key) / ctx.kv_set(key, value, ttl_s=None)  a little state of the module's own,
                                             in the database (both nodes of a cluster see it)
+        ctx.kv_keys(prefix='') -> {key: value}  every one of them whose key starts with prefix
         ctx.dns_put(name, type, value, ttl=60) / ctx.dns_drop(name, type, value)
                                             a record in acme's own DNS server
         ctx.http_token_put(token, key_authorization) / ctx.http_token_drop(token)
@@ -230,6 +231,10 @@ class CertRequest(object):
         challenges   {name: Challenge instance} - for each name, how it is proved
         previous     the certificate being renewed (PEM) or None (ARI 'replaces')
         cert_id      the certificate's id in acme
+        ref          the source's own id of this certificate (its order, its certificate
+                     ID) where acme keeps one - a certificate imported from the source
+                     (Import from a source): the order a renewal reissues. None: the
+                     source finds its order as it always did (its settings, its state)
     """
     def __init__(self, **kw):
         self.names = []
@@ -244,6 +249,7 @@ class CertRequest(object):
         self.sans = []
         self.previous = None
         self.cert_id = None
+        self.ref = None
         self.__dict__.update(kw)
 
 
@@ -498,11 +504,40 @@ class Issuer(Plugin):
             d.setdefault(k, bool(getattr(cls, k, False)))
         d.setdefault('needs_challenge', bool(cls.needs_challenge))
         d.setdefault('challenge_types', list(cls.challenge_types or ()))
+        d['lists_existing'] = bool(cls.lists_existing)
         return d
 
     def issue(self, req):
         """-> Issued. Raise PluginError when it does not."""
         raise NotImplementedError
+
+    # -- the certificates the account has already (Certificates → Import from a source) --
+    # A source whose API lists the account's certificates sets lists_existing and
+    # gives both of these. Both only READ - nothing is ordered, reissued or changed.
+    lists_existing = False
+
+    def list_existing(self):
+        """Every certificate the account has at the source: a list of
+        {'ref'          the source's own id of it (order id, certificate ID, serial) -
+                        what fetch_existing() takes and a renewal reissues (req.ref)
+         'cn', 'names', 'product', 'status' (words), 'not_before', 'not_after' (epoch),
+         'paid_until'   the end of the order or subscription (epoch), where there is one
+         'serial'       hex, where known (acme matches the certificates it has by it)
+         'downloadable' bool: fetch_existing() can give the certificate now
+         'renewable'    'reissue' (a free reissue of that order) | 'order' (only a new,
+                        paid order) | 'issue' (a new certificate from the source, no
+                        order: a private CA) | 'none'
+         'note'         words, e.g. why it cannot be imported
+         'acme_cert_id' the certificate of acme this one is, where the module knows}"""
+        raise PluginError('%s cannot list the certificates of its account' % self.title,
+                          retry=False)
+
+    def fetch_existing(self, ref):
+        """The certificate `ref` of list_existing(): {'cert_pem', 'chain_pems' (nearest
+        first), 'ref' (the id to keep, when it is another one), 'acme_cert_id' (where the
+        module knows acme has it)}. Never a key."""
+        raise PluginError('%s cannot hand out the certificates of its account' % self.title,
+                          retry=False)
 
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):
         raise PluginError('%s cannot revoke a certificate' % self.title, retry=False)

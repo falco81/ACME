@@ -112,6 +112,9 @@ they were shown keeps what is set.
 | `POST /api/certs/revoke` | `{id, reason}` → `{job_id}` |
 | `POST /api/certs/parse` | `{data_b64, filename, password}` → what is in a file, nothing kept |
 | `POST /api/certs/import` | `{name, data_b64, filename, password, key_b64?, key_password?, tags[], note}` → `{id}` |
+| `GET /api/certs/online_sources` · `POST /api/certs/online_list` | Import from a source (acmelib/certs/onlineimport.py): the sources whose module lists the account's certificates · `{source}` → `{items: [{ref, cn, names, product, status, not_before, not_after, paid_until, serial, downloadable, renewable, note, in_acme, importable}], said, steps}` - only read, no job |
+| `POST /api/certs/online_import` · `GET /api/certs/online_import_result?job=` | `{source, items: [{ref, owner, tags, challenge, auto_renew, name?}]}` → `{job_id}` (kind `online-import`): each fetched, bound to the source with `issuer_ref`, no key · `{result: {source, results: [{ref, state: imported/skipped/failed, why, id, name}]}}` |
+| `POST /api/certs/add_key` | `{id, key_pem \| key_b64 + key_filename, key_password?, alt_key_pem…}` → the private key of a certificate acme holds none of, checked to fit (`pki.key_matches`), sealed with its current version |
 | `POST /api/certs/export` | `{id, format, password?, version?, variant? (main / alt of a dual certificate)}` → `{filename, mime, data_b64}` |
 | `POST /api/certs/csr` | `{id}` → a CSR for an issuer acme does not speak to: `{csr_pem}`; `POST /api/certs/csr_answer {id, data_b64}` takes the certificate back |
 | `GET /api/certs/jobs` `?cert_id= &kind= &ok= &page=` | `{rows, total}` |

@@ -295,10 +295,11 @@ def _challenges(store, job, cert, names, contexts):
 
 
 def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_type,
-               kept_key, previous, what=''):
+               kept_key, previous, what='', ref=None):
     """One certificate of `key_type` from the issuer: a key (or `kept_key`), a CSR,
     issue(), the chain put in order, the key checked. -> (cert_pem, chain, key, info,
-    issued_info)."""
+    issued_info). `ref`: the source's own id of the certificate (imported from it) -
+    its order is the one reissued."""
     pki = S.pki()
     given = str(cert.get('csr_given') or '').strip()
     subject = profile.get('subject') or {}
@@ -330,7 +331,10 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
                            csr_pem=csr_pem,
                            csr_der=csr_der, subject=subject, days=profile.get('days'),
                            profile=profile, challenges=challenges,
-                           previous=previous or None, cert_id=cert['id'])
+                           previous=previous or None, cert_id=cert['id'], ref=ref or None)
+    if ref:
+        job.step('%sthe source\'s own certificate %s is renewed (imported from %s)'
+                 % (what, ref, irow['name']))
     job.check()
     issued = issuer.issue(req)
     job.check()
@@ -514,8 +518,13 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         kept = S.cert_key(cert) if cert.get('reuse_key') and cert.get('key_sealed') else None
         pem, chain, key_out, info, iinfo = _issue_one(
             store, job, cert, irow, issuer, names, profile, challenges, key_type, kept,
-            cert.get('cert_pem'))
+            cert.get('cert_pem'), ref=cert.get('issuer_ref'))
         extra = {'ari': json.dumps(_ari_of(info, iinfo)), 'csr_pending': None}
+        if cert.get('issuer_ref') and iinfo.get('ref') and \
+                str(iinfo['ref']) != str(cert['issuer_ref']):
+            # The source used another order (a new one, paid): that one is renewed next.
+            extra['issuer_ref'] = str(iinfo['ref'])[:190]
+            job.step('the source\'s certificate is %s from now on' % extra['issuer_ref'])
         if info.get('cn'):
             extra['cn'] = str(info['cn'])[:190]
         version = S.save_version(store, cert['id'], pem, chain, key_out,

@@ -254,6 +254,45 @@ class ExampleSsh(SshMixin, Base):
         return 'imported %s' % name
 ```
 
+## A source that lists its account's certificates
+
+Sources (`acmelib/plugins/issuers/`, base class `Issuer`) whose API can list
+the certificates of the account offer them to *Certificates → Import from a
+source* (acmelib/certs/onlineimport.py). Set `lists_existing = True` and give
+both, each only reading - never ordering, reissuing or changing anything:
+
+```python
+lists_existing = True
+
+def list_existing(self):        # -> [ {...}, ... ]
+    return [{'ref': '1234567890',           # the source's own id: order id, certificate ID, serial
+             'cn': 'www.example.cz', 'names': ['www.example.cz', 'example.cz'],
+             'product': 'PositiveSSL', 'status': 'issued and active',
+             'not_before': 1767225600, 'not_after': 1784505600,   # epoch
+             'paid_until': 1830297600,      # the end of the order/subscription, or None
+             'serial': '0A1B…',             # hex where known: acme matches its own by it
+             'downloadable': True,          # fetch_existing() can give it now
+             'renewable': 'reissue',        # 'reissue' | 'order' (only a new, paid one) |
+                                            # 'issue' (a private CA) | 'none'
+             'note': '',                    # words: why it cannot be imported, say
+             'acme_cert_id': None}]         # acme's certificate it is, where the module knows
+
+def fetch_existing(self, ref):  # -> the certificate, never a key
+    return {'cert_pem': leaf, 'chain_pems': [intermediate, root], 'ref': ref,
+            'acme_cert_id': None}
+```
+
+`ctx.kv_keys(prefix)` gives the module's own state by key prefix - how
+`ssls`, `sslmarket` and `digicert` find the orders acme made for its
+certificates (`acme_cert_id`). `acmelib.plugins.issuers._source_common.existing(certs_der,
+chain_der, who, ref)` picks the certificate among those an API sent and puts
+its chain in order.
+
+The `ref` is kept with the imported certificate (`certs.issuer_ref`) and
+handed to `issue()` at every renewal as `req.ref`: renew *that* order (it wins
+over a setting like "Certificate to reuse"), and say in `Issued.info['ref']`
+the id actually used - a new order's - so acme keeps it for the next time.
+
 ## Trying it without a device
 
 `test/test_targets.py` has a fake `Context` (`FakeCtx`: canned answers per

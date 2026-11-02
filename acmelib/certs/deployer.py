@@ -123,6 +123,12 @@ def deploy_one(store, job, cert, dep, force=False):
             why = ('%s was issued for a CSR that was sent in, so acme holds no key, and %s needs '
                    'one (%s) - deploy it where only the certificate is needed, or put it in place '
                    'by hand beside its key' % (cert['name'], trow['name'], why))
+        elif not cert.get('key_sealed') and 'key' in why.lower():
+            # Imported without its key (a file, or Import from a source): the certificate
+            # alone goes where only it is needed; here the key is wanted too.
+            why = ('acme does not hold the private key of %s yet, and %s needs it (%s) - add '
+                   'it in the certificate\'s window (Add its private key), or deploy it where '
+                   'only the certificate is needed' % (cert['name'], trow['name'], why))
         if isinstance(e, base.PluginError) and e.detail:
             step(str(e.detail)[:4000], 'debug')
         fails = _failed(store, dep, why)
