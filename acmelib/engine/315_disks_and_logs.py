@@ -922,7 +922,10 @@ def sshd_tick(daemon):
                                dropins=got.get('dropins'), keys=got.get('keys'),
                                trial=got.get('trial') or {}, selinux=got.get('selinux') or '')
                     if what != 'apply':
-                        row['error'] = '' if what != 'read' else row.get('error', '')
+                        # A read that worked clears a read's own error (1.0.22: "did not
+                        # answer in 60 s" from a moment the helper was being upgraded
+                        # stayed on the card for good); a change that failed stays said.
+                        row['error'] = row.get('error', '') if row.get('failed') else ''
                 except ValueError as e:
                     if what == 'apply':
                         row.update(failed=c['hash'], error=str(e)[:300])

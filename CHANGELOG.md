@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.22 - 2026-11-02
 
+- Settings → SSH server: an error of one read ("the root helper of this node
+  did not answer in 60 s", e.g. while the node was being upgraded) no longer
+  stays on the node's card after the reads that worked since; a change that
+  failed still stays said until one works.
 - DNS-PERSIST-01: *Test* says what is still to do as numbered steps (make the
   account, write the record through the chosen validation, choose a fallback)
   and fails only when a certificate would fail - not for an account to be made
