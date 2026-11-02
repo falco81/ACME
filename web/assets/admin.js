@@ -4673,34 +4673,41 @@ function groupBrowser(opts) {
       tr.classList.toggle('is-read', any);
     });
   }
+  /* The box made once and kept while the rows under it are drawn again (1.0.25):
+     its fields offered as every search box offers them (core.js qLocal). */
+  var fb = null, f = null, counted = null, rowsHost = null;
+  var spec = Object.assign({}, GROUP_Q, {rows: function () { return st.groups; }});
   function draw() {
-    clear(list);
-    if (!st.groups.length) { list.appendChild(el('p', 'note', 'The directory has no groups under that base matching that.')); return; }
-    var low = st.q.toLowerCase();
-    var rows = !low ? st.groups : st.groups.filter(function (g) {
-      return (g.cn + ' ' + g.dn + ' ' + (g.description || '')).toLowerCase().indexOf(low) >= 0;
-    });
-    var fb = el('div', 'btnrow');
-    fb.style.alignItems = 'center';
-    var f = el('input');
-    f.type = 'search';
-    f.placeholder = 'narrow this list…';
-    f.value = st.q;
-    f.style.maxWidth = '420px';
-    f.style.minWidth = '320px';
-    f.oninput = function () {
-      st.q = f.value; st.page = 0;
-      var at = f.selectionStart;
-      draw();
-      var again = list.querySelector('input[type=search]');
-      if (again) { again.focus(); try { again.setSelectionRange(at, at); } catch (e) { } }
-    };
-    fb.appendChild(f);
-    fb.appendChild(el('span', 'muted small', num(rows.length) + ' of ' + num(st.groups.length)));
-    list.appendChild(fb);
+    if (!st.groups.length) {
+      clear(list); fb = null;
+      list.appendChild(el('p', 'note', 'The directory has no groups under that base matching that.'));
+      return;
+    }
+    if (!fb || !fb.isConnected) {
+      clear(list);
+      fb = el('div', 'btnrow');
+      fb.style.alignItems = 'center';
+      f = el('input');
+      f.type = 'search';
+      f.placeholder = 'narrow this list…';
+      f.value = st.q;
+      f.style.maxWidth = '420px';
+      f.style.minWidth = '320px';
+      f.oninput = function () { st.q = f.value; st.page = 0; draw(); };
+      fb.appendChild(f);
+      counted = el('span', 'muted small');
+      fb.appendChild(counted);
+      list.appendChild(fb);
+      qLocal(f, spec);
+      rowsHost = el('div');
+      list.appendChild(rowsHost);
+    }
+    clear(rowsHost);
+    var rows = qFilter(f, spec, st.groups);
+    counted.textContent = num(rows.length) + ' / ' + num(st.groups.length);
     var pages = Math.max(1, Math.ceil(rows.length / st.per));
     if (st.page >= pages) st.page = pages - 1;
-    list.appendChild(listTable(['Group', 'What it is for', ''], rows.slice(st.page * st.per, st.page * st.per + st.per), function (g) {
+    rowsHost.appendChild(listTable(['Group', 'What it is for', ''], rows.slice(st.page * st.per, st.page * st.per + st.per), function (g) {
       var tr = el('tr', 'dgroup');
       tr._g = g;
       var n = el('td');
@@ -4729,10 +4736,10 @@ function groupBrowser(opts) {
       nav.appendChild(prev);
       nav.appendChild(el('span', 'muted small', 'page ' + (st.page + 1) + ' of ' + pages));
       nav.appendChild(next);
-      list.appendChild(nav);
+      rowsHost.appendChild(nav);
     }
     paint();
-    explainWhatWasDrawn(list);
+    explainWhatWasDrawn(rowsHost);
   }
   function find() {
     var d = opts.dir();
@@ -5091,6 +5098,14 @@ function agPaint() {
     });
   });
 }
+/* The search words over a directory's groups (1.0.25): name, dn, about. */
+var GROUP_Q = {
+  fields: [['name', 'the group\u2019s name (cn)', 'name:acme*'], ['dn', 'where it is in the directory', 'dn~OU=IT'],
+           ['about', 'what it is for (its description)', 'about~admin']],
+  value: function (g, f) { return {name: g.cn, dn: g.dn, about: g.description || ''}[f]; },
+  words: function (g) { return g.cn + ' ' + g.dn + ' ' + (g.description || ''); },
+  rows: function () { return (typeof AG === 'object' && AG && AG.groups) || []; }
+};
 function agDraw() {
   var host = $('ag-groups');
   clear(host);
@@ -5100,10 +5115,6 @@ function agDraw() {
       + 'that - or the base is not where they live.'));
     return;
   }
-  var low = AG.q.toLowerCase();
-  var rows = !low ? all : all.filter(function (g) {
-    return (g.cn + ' ' + g.dn + ' ' + (g.description || '')).toLowerCase().indexOf(low) >= 0;
-  });
   var lead = el('p', 'note');
   lead.innerHTML = '<b>' + num(all.length) + '</b> group(s). Press a role beside one to put it '
     + 'in that role; press it again to take it out. More than one group may hold a role, and '
@@ -5117,22 +5128,24 @@ function agDraw() {
   find.placeholder = 'narrow this list…';
   find.value = AG.q;
   find.style.maxWidth = '320px';
-  var found = el('span', 'muted small', num(rows.length) + ' shown');
-  find.oninput = function () {
-    AG.q = find.value;
-    AG.page = 0;
-    var at = find.selectionStart;
-    agDraw();
-    var again = $('ag-groups').querySelector('input[type=search]');
-    if (again) { again.focus(); try { again.setSelectionRange(at, at); } catch (e) { } }
-  };
+  var found = el('span', 'muted small', '');
+  /* The box stays as it is while the list under it is drawn again (1.0.25): its
+     fields offered as every search box offers them (core.js qLocal). */
+  find.oninput = function () { AG.q = find.value; AG.page = 0; drawRows(); };
   bar.appendChild(find);
   bar.appendChild(found);
   host.appendChild(bar);
+  qLocal(find, GROUP_Q);
+  var rowsHost = el('div');
+  host.appendChild(rowsHost);
+  var drawRows = function () {
+  clear(rowsHost);
+  var rows = qFilter(find, GROUP_Q, all);
+  found.textContent = num(rows.length) + ' ' + (typeof i18nText === 'function' ? (i18nText('shown') || 'shown') : 'shown');
   var pages = Math.max(1, Math.ceil(rows.length / AG.per));
   if (AG.page >= pages) AG.page = pages - 1;
   var page = rows.slice(AG.page * AG.per, AG.page * AG.per + AG.per);
-  host.appendChild(listTable(['Group', 'What it is for', ''], page, function (g) {
+  rowsHost.appendChild(listTable(['Group', 'What it is for', ''], page, function (g) {
     var tr = el('tr', 'dgroup');
     tr.dataset.dn = g.dn;
     tr.dataset.name = g.cn;
@@ -5159,17 +5172,19 @@ function agDraw() {
     nav.style.marginTop = '10px';
     var prev = cmdButton('Back', 'prev', 'small');
     prev.disabled = AG.page === 0;
-    prev.onclick = function () { AG.page--; agDraw(); };
+    prev.onclick = function () { AG.page--; drawRows(); };
     var next = cmdButton('Next', 'next', 'small');
     next.disabled = AG.page >= pages - 1;
-    next.onclick = function () { AG.page++; agDraw(); };
+    next.onclick = function () { AG.page++; drawRows(); };
     nav.appendChild(prev);
     nav.appendChild(el('span', 'muted small', 'page ' + (AG.page + 1) + ' of ' + pages));
     nav.appendChild(next);
-    host.appendChild(nav);
+    rowsHost.appendChild(nav);
   }
   agPaint();
-  explainWhatWasDrawn(host);
+  explainWhatWasDrawn(rowsHost);
+  };
+  drawRows();
 }
 if ($('ag-find')) {
   var agFind = function () {

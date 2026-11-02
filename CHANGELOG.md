@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.25 - not released
 
+- The directory's groups (Settings → Administrators and the teams' members):
+  *narrow this list* reads `name:`, `dn~`, `about:` with its funnel too, and the
+  box stays as it is while the list under it is drawn again.
+
 - **A search box's fields open only when asked**: by the funnel at the right
   of the box (beside the clearing cross, in its colour) or Ctrl+Space - never by
   themselves, when a popup opens or something is typed; once open they follow

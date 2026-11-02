@@ -1697,6 +1697,9 @@ function suggestBox(input) {
   wrap.appendChild(input);
   if (input.style.flex) { wrap.style.flex = input.style.flex; input.style.flex = ''; }
   if (input.style.minWidth) { wrap.style.minWidth = input.style.minWidth; input.style.minWidth = ''; }
+  /* its width limits the box with its funnel, not the box alone (1.0.25) */
+  if (input.style.maxWidth) { wrap.style.maxWidth = input.style.maxWidth; input.style.maxWidth = ''; wrap.style.width = '100%'; }
+  if (input.style.width) { wrap.style.width = input.style.width; input.style.width = ''; }
   /* The list floats over the page, not inside the box's own card: in a
      popup that scrolls, a list inside it was cut to a sliver with
      scrollbars of its own (1.0.20). It is placed under the box each time

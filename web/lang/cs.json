@@ -45759,6 +45759,18 @@
   "sup100": {
    "source": "Ctrl+Space opens · ↑ ↓ and Tab or Enter take one · Esc closes",
    "text": "Ctrl+mezerník otevře · ↑ ↓ a Tab nebo Enter vybere · Esc zavře"
+  },
+  "sup101": {
+   "source": "the group’s name (cn)",
+   "text": "název skupiny (cn)"
+  },
+  "sup102": {
+   "source": "where it is in the directory",
+   "text": "kde je v adresáři"
+  },
+  "sup103": {
+   "source": "what it is for (its description)",
+   "text": "k čemu je (její popis)"
   }
  },
  "patterns": {
