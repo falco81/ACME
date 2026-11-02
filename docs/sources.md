@@ -19,6 +19,11 @@ certificate with its chain, ordered and checked against the key. *Try it*
 | [FreeIPA / Red Hat IdM](#freeipa--red-hat-idm) | `freeipa` | user and password | - | yes |
 | [GlobalSign Atlas](#globalsign-atlas-hvca) | `globalsign_atlas` | mTLS + API key and secret | yes (kept for the next try) | yes |
 | [DigiCert CertCentral](#digicert-certcentral-api) (DigiCert, GeoTrust, Thawte, RapidSSL) | `digicert` | API key | yes (DCV, OV/EV: kept) | yes |
+| [ZeroSSL (REST API)](#zerossl-rest-api) | `zerossl` | API key | yes (DCV: kept) | yes |
+| [CyberArk Certificate Manager Self-Hosted (Venafi TPP)](#cyberark-certificate-manager-self-hosted-venafi-tpp) | `venafi_tpp` | user and password (OAuth) or access token | yes (kept for the next try) | yes |
+| [CyberArk Certificate Manager SaaS (Venafi Cloud)](#cyberark-certificate-manager-saas-venafi-cloud) | `venafi_cloud` | API key | yes (kept for the next try) | - (GraphQL only) |
+| [Keyfactor Command](#keyfactor-command) | `keyfactor_command` | HTTP Basic or OAuth client | - (an approval is said) | yes |
+| [Cloudflare Origin CA](#cloudflare-origin-ca) | `cloudflare_origin_ca` | API token or Origin CA Key | - | yes |
 
 A request a CA keeps waiting is remembered in the module's state together
 with its key (sealed): the next try asks for it again instead of making a new
@@ -28,10 +33,17 @@ Not here, and why: **Sectigo Certificate Manager** and **HARICA**, **Actalis**,
 **Certum**, **SwissSign** speak ACME with EAB - they are presets (or *Another
 ACME server*) of the `acme` source. **Azure Key Vault** makes the key itself
 and is a store more than a CA (its CSR-and-merge flow is the other way round).
-**Keyfactor Command** and **Venafi TLS Protect / CyberArk Certificate Manager**:
-their API documentation could not be read from where these modules were
-written; Keyfactor's EJBCA is here, and both products offer ACME or EST
-endpoints, which are.
+**Keyfactor Command** and **CyberArk Certificate Manager (Venafi)** are here
+since 1.0.23, from their vendors' own clients (below). Still not here, because
+no API description by the vendor itself could be read where these modules were
+written (the vendors' sites were out of reach, and no client of theirs is
+public): **Sectigo Certificate Manager's REST API** (its SDK and Terraform
+provider are not public; SCM's ACME with EAB is the `acme` source),
+**GoGetSSL** (its PHP SDK on Packagist is a third party's), **Entrust
+Certificate Services** (only Ansible's community modules speak it; Entrust's
+public certificates moved to Sectigo), **Certum's** partner API and
+**Namecheap's** SSL API (no client of theirs). Without a source we can check,
+no endpoint is guessed.
 
 ---
 
@@ -349,3 +361,185 @@ Uncertain: the shape of the answers between products, the reissue states, the
 TXT label (`_dnsauth` or the domain itself - a setting), the CNAME's shape (a
 setting), whether `GET /domain` filters by name (all are read, at most 1000),
 `renewal_of_order_id` on a renewal order.
+
+## ZeroSSL (REST API)
+
+What it is: ZeroSSL's REST API (not its ACME server: that one is the `acme`
+source's preset *ZeroSSL*). Take this module for what ACME does not do there:
+the certificates in the account's dashboard (and Import from a source), 1-year
+certificates where the plan sells them, DCV by e-mail.
+
+What acme does: `POST /certificates` with the names (`certificate_domains`),
+the CSR, `certificate_validity_days` (90 or 365) and `strict_domains=1`; the
+DCV record or file ZeroSSL answers with (`validation.other_methods`) is put in
+place by the certificate's validation, as for DigiCert; then
+`POST /certificates/{id}/challenges` (`CNAME_CSR_HASH`, `HTTP_CSR_HASH` or
+`EMAIL` with the approver addresses), `GET /certificates/{id}` until `issued`,
+`GET /certificates/{id}/download/return` (the certificate and `ca_bundle.crt`).
+A certificate still waiting is kept for the next try - nothing asked for twice.
+`POST /certificates/{id}/revoke?reason=…` revokes it. *Try it*:
+`GET /certificates?limit=1`. Import from a source: `GET /certificates` page by
+page, each one's `download/return`.
+
+| *Domain validation (DCV)* | Method | What is put in place | Validations that can |
+|---|---|---|---|
+| DNS CNAME record | `CNAME_CSR_HASH` | CNAME `cname_validation_p1` (`_HASH.NAME`) → `cname_validation_p2` | the DNS validations that write CNAMEs (`desec`, `cloudflare`, `rfc2136`, `manual`, acme's own DNS server inside its zones) |
+| HTTP file | `HTTP_CSR_HASH` | `http://NAME/.well-known/pki-validation/HASH.txt` holding the lines ZeroSSL gives | the HTTP validations (`http_local`, `http_ssh`, `http_ftp`, `http_s3`, …). Not for wildcards |
+| E-mail | `EMAIL` | nothing: ZeroSSL mails the approver address (*Approver mailbox*) | no validation needed |
+
+The API key: since August 2026 in the header `Authorization: ApiKey KEY`; an
+older account that still wants the parameter `access_key` chooses *How the API
+key is sent*. ZeroSSL answers 200 even to an error - `{"success": false,
+"error": {code, type}}` is said in words; the key never goes into a step.
+
+Verified against (ZeroSSL's documentation, https://zerossl.com/documentation/api/,
+could not be read from where this was written): ZeroSSL's own Go client - Caddy
+is ZeroSSL's project -
+https://raw.githubusercontent.com/caddyserver/zerossl/master/endpoints.go,
+https://raw.githubusercontent.com/caddyserver/zerossl/master/client.go,
+https://raw.githubusercontent.com/caddyserver/zerossl/master/models.go,
+https://raw.githubusercontent.com/caddyserver/zerossl/master/zerossl.go
+(github.com/caddyserver/zerossl).
+
+Where to get credentials: the ZeroSSL dashboard → Developer → the API access
+key. Uncertain: what `replacement_for_certificate` does to an account (not
+sent); `HTTPS_CSR_HASH` is not offered.
+
+## CyberArk Certificate Manager Self-Hosted (Venafi TPP)
+
+What it is: the Venafi Trust Protection Platform, now *CyberArk Certificate
+Manager, Self-Hosted*, through its WebSDK.
+
+What acme does: signs in with `POST /vedauth/authorize/oauth` (`client_id`
+`vcert-sdk`, scope `certificate:manage,revoke` - both settings) or uses an
+access token made in the platform; `POST /vedsdk/certificates/request` with the
+CSR into the policy folder (`PolicyDN` `\VED\Policy\…`, the SANs, an optional
+`CADN`), then `POST /vedsdk/certificates/retrieve` until the certificate is
+there (with its chain). A renewal - and a certificate imported from the platform
+(its DN is its id) - goes to `POST /vedsdk/certificates/renew` of that object
+(*Renew the same certificate object*). `POST /vedsdk/certificates/revoke` by the
+SHA-1 thumbprint. *Try it*: `GET /vedsdk/Identity/Self`. The form's list of
+folders: `POST /vedsdk/config/findobjectsofclass` (Class `Policy`) - a token
+without the *configuration* scope cannot read it; type the folder in *Policy
+folder typed* then. Import from a source:
+`GET /vedsdk/certificates/?ParentDNRecursive=…&limit=…&offset=…&ValidToGreater=…`.
+
+Verified against Venafi's own client, vcert:
+https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/tpp/tpp.go,
+https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/tpp/connector.go,
+https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/tpp/search.go,
+https://raw.githubusercontent.com/Venafi/vcert/master/pkg/certificate/certificate.go,
+https://raw.githubusercontent.com/Venafi/vcert/master/README-CLI-PLATFORM.md
+(github.com/Venafi/vcert).
+
+Where to get credentials: a user with *WebSDK access* and the right to request
+certificates in the folder; the API integration *VCert* (`vcert-sdk`) with the
+scope `certificate:manage,revoke` (Platform → API → Integrations).
+
+## CyberArk Certificate Manager SaaS (Venafi Cloud)
+
+What it is: Venafi as a Service / TLS Protect Cloud, now *CyberArk Certificate
+Manager, SaaS*.
+
+What acme does: `GET /outagedetection/v1/applications/name/{application}` (its
+id and its issuing templates by API alias), `POST
+/outagedetection/v1/certificaterequests` with the CSR, the application, the
+template and `validityPeriod` (`P<days>D`, when set), `GET
+/outagedetection/v1/certificaterequests/{id}` until `ISSUED`, then `GET
+/outagedetection/v1/certificates/{id}/contents?chainOrder=EE_FIRST&format=PEM`.
+A renewal - and an imported certificate - is a request with
+`existingCertificateId` and the application and template of the request that
+made it (`GET /outagedetection/v1/certificates/{id}`). *Try it*: `GET
+/v1/useraccounts`. Import from a source: `POST
+/outagedetection/v1/certificatesearch` (the application, `validityEnd` ≥ now,
+50 a page). Regions: `api.venafi.cloud` (US), `api.venafi.eu`,
+`api.au.venafi.cloud`, `api.uk.venafi.cloud`, `api.sg.venafi.cloud`,
+`api.ca.venafi.cloud`; the key in the header `tppl-api-key`. Revocation goes
+through the service's GraphQL API in vcert, so it is not offered here.
+
+Verified against vcert:
+https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/cloud/connector.go,
+https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/cloud/cloud.go,
+https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/cloud/search.go,
+https://raw.githubusercontent.com/Venafi/vcert/master/pkg/util/utils.go,
+https://raw.githubusercontent.com/Venafi/vcert/master/README-CLI-CLOUD.md.
+
+Where to get credentials: the web interface → your name → Preferences → API
+Keys; an application you own with an issuing template assigned (its API alias).
+
+## Keyfactor Command
+
+What it is: Keyfactor Command (its REST API, `/KeyfactorAPI`). Keyfactor's
+EJBCA is the `ejbca` source.
+
+What acme does: `POST /KeyfactorAPI/Enrollment/CSR` (header
+`x-certificateformat: PEM`) with the CSR, the template, the CA, the SANs and
+`IncludeChain` - the certificate and its chain come in the answer; a template
+that needs an approval leaves the request waiting in Command, and acme says so.
+`POST /KeyfactorAPI/Certificates/Revoke` by the certificate's Keyfactor id
+(kept, or found by its thumbprint with `GET /KeyfactorAPI/Certificates?
+pq.queryString=Thumbprint -eq "…"`). The form's lists and *Try it*: `GET
+/KeyfactorAPI/Enrollment/CSR/Context/My` (the templates and their CAs the user
+may enroll with). Import from a source: `GET /KeyfactorAPI/Certificates`
+(`pq.pageReturned`, `pq.returnLimit`, `pq.includeExpired=false`, an optional
+query of your own) and `POST /KeyfactorAPI/Certificates/Download` (P7B). Every
+request carries `x-keyfactor-api-version: 1` and `x-keyfactor-requested-with:
+APIClient`. Signing in: HTTP Basic (`DOMAIN\user`) or an OAuth client's token
+(client credentials at the identity provider's token address).
+
+Verified against Keyfactor's own clients:
+https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client-sdk/main/README.md,
+https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client-sdk/main/docs/EnrollmentApi.md,
+https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client-sdk/main/docs/CertificateApi.md,
+https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client-sdk/main/docs/ModelsEnrollmentCSREnrollmentRequest.md,
+https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client-sdk/main/docs/ModelsPkcs10CertificateResponse.md,
+https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client-sdk/main/docs/CoreModelsEnrollmentEnrollmentTemplate.md,
+https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client-sdk/main/docs/ModelsCertificateDownloadRequest.md,
+https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client-sdk/main/docs/ModelsRevokeCertificateRequest.md,
+https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client-sdk/main/docs/ModelsCertificateRetrievalResponse.md
+(github.com/Keyfactor/keyfactor-go-client-sdk, generated from Command's
+OpenAPI), https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client/main/v3/api/certificate.go
+and `certificate_models.go` (the headers, the download, the revocation), and
+https://raw.githubusercontent.com/Keyfactor/keyfactor-auth-client-go/main/auth_providers/auth_core.go,
+`auth_basic.go`, `auth_oauth.go` (the API path, Basic and OAuth).
+
+Where to get credentials: a Command user (or an OAuth client of the identity
+provider Command trusts) with *Certificate Enrollment: Enroll CSR* and, to
+revoke and import, *Certificates: Read / Revoke* on the certificates.
+
+## Cloudflare Origin CA
+
+What it is: Cloudflare's Origin CA - certificates for the server behind
+Cloudflare's proxy, trusted by Cloudflare's edge only (not by browsers; the
+source is not a public CA in the wizard). Free, issued at once, up to 15 years.
+
+What acme does: `POST /client/v4/certificates` with the CSR, the hostnames,
+`request_type` (`origin-ecc` for an EC key, `origin-rsa` for RSA - a setting)
+and `requested_validity` (7, 30, 90, 365, 730, 1095 or 5475 days); the root
+of the Origin CA (`origin_ca_ecc_root.pem` / `origin_ca_rsa_root.pem` at
+developers.cloudflare.com) is put above it. `DELETE
+/client/v4/certificates/{id}` revokes it. *Try it*: `GET
+/client/v4/user/tokens/verify` (an API token). The form's list of zones: `GET
+/client/v4/zones`. Import from a source: `GET
+/client/v4/certificates?zone_id=…` (Cloudflare lists them zone by zone) and
+`GET /client/v4/certificates/{id}`. Signing in: an API token (`Bearer`, Zone →
+SSL and Certificates → Edit) or the Origin CA Key (`X-Auth-User-Service-Key`).
+
+Verified against Cloudflare's own Go client:
+https://raw.githubusercontent.com/cloudflare/cloudflare-go/v0/origin_ca.go,
+https://raw.githubusercontent.com/cloudflare/cloudflare-go/v0/consts.go,
+https://raw.githubusercontent.com/cloudflare/cloudflare-go/v0/cloudflare.go,
+https://raw.githubusercontent.com/cloudflare/cloudflare-go/v0/api_token.go,
+https://raw.githubusercontent.com/cloudflare/cloudflare-go/v0/zone.go,
+https://raw.githubusercontent.com/cloudflare/cloudflare-go/v0/pagination.go,
+https://raw.githubusercontent.com/cloudflare/cloudflare-go/main/origin_ca_certificates/origincacertificate.go,
+https://raw.githubusercontent.com/cloudflare/cloudflare-go/main/shared/shared.go
+(`request_type`), https://raw.githubusercontent.com/cloudflare/cloudflare-go/main/ssl/certificatepack.go
+(`requested_validity`) (github.com/cloudflare/cloudflare-go).
+
+Where to get credentials: My Profile → API Tokens → Create Token (Zone → SSL
+and Certificates → Edit; Zone → Zone → Read for the list of zones), or My
+Profile → API Tokens → Origin CA Key. The names must be in zones of the account.
+
+`test/test_sources_vendors.py` lists, for each of these five, every path the
+module may call as the vendor's client has it (a contract test).

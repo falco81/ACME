@@ -44099,6 +44099,602 @@
   "scv229": {
    "source": "It is kept in what this authority signed. Copy it or download it with its chain below.",
    "text": "Uloží se mezi to, co tato autorita podepsala. Zkopírujte ho nebo stáhněte i s řetězcem níže."
+  },
+  "svnd0001": {
+   "source": "1 year (only where the plan sells it)",
+   "text": "1 rok (jen pokud ho tarif prodává)"
+  },
+  "svnd0002": {
+   "source": "As the parameter access_key (older accounts)",
+   "text": "Jako parametr access_key (starší účty)"
+  },
+  "svnd0003": {
+   "source": "CNAME at the name ZeroSSL says (_HASH.NAME) to its target",
+   "text": "CNAME na jménu, které ZeroSSL určí (_HASH.JMÉNO), na jeho cíl"
+  },
+  "svnd0004": {
+   "source": "Certificates from ZeroSSL through its REST API: asked for with acme's request, the domain validation record or file put in place by the certificate's validation (or an e-mail), the certificate downloaded. Lists the account's certificates for importing.",
+   "text": "Certifikáty od ZeroSSL přes jeho REST API: žádá se žádostí acme, záznam nebo soubor ověření domény vloží validace certifikátu (nebo e-mail), certifikát se stáhne. Vypíše certifikáty účtu k importu."
+  },
+  "svnd0005": {
+   "source": "DNS CNAME record (CNAME_CSR_HASH)",
+   "text": "Záznam DNS CNAME (CNAME_CSR_HASH)"
+  },
+  "svnd0006": {
+   "source": "DNS CNAME record (by the certificate's DNS validation)",
+   "text": "Záznam DNS CNAME (vloží DNS validace certifikátu)"
+  },
+  "svnd0007": {
+   "source": "For each domain the address is picked from those ZeroSSL offers: this mailbox, else the first offered.",
+   "text": "Pro každou doménu se adresa vybere z těch, které ZeroSSL nabídne: tato schránka, jinak první nabídnutá."
+  },
+  "svnd0008": {
+   "source": "HTTP file (HTTP_CSR_HASH)",
+   "text": "Soubor HTTP (HTTP_CSR_HASH)"
+  },
+  "svnd0009": {
+   "source": "HTTP file in /.well-known/pki-validation/ (by the certificate's HTTP validation; no wildcards)",
+   "text": "Soubor HTTP v /.well-known/pki-validation/ (vloží HTTP validace certifikátu; ne pro wildcardy)"
+  },
+  "svnd0010": {
+   "source": "How ZeroSSL checks the domains. The certificate's validation must be able to put that record or file in place - the wizard offers only those that can; e-mail needs a person to click.",
+   "text": "Jak ZeroSSL ověřuje domény. Validace certifikátu musí umět vložit ten záznam nebo soubor – průvodce nabídne jen ty, které to umí; e-mail potřebuje, aby někdo klikl."
+  },
+  "svnd0011": {
+   "source": "How the API key is sent",
+   "text": "Jak se API klíč posílá"
+  },
+  "svnd0012": {
+   "source": "In the header Authorization: ApiKey (since August 2026)",
+   "text": "V hlavičce Authorization: ApiKey (od srpna 2026)"
+  },
+  "svnd0013": {
+   "source": "Longer: the certificate is asked for again at the next try - nothing is asked for twice.",
+   "text": "Déle: o certifikát se požádá znovu při dalším pokusu – o nic se nežádá dvakrát."
+  },
+  "svnd0014": {
+   "source": "ZeroSSL (REST API)",
+   "text": "ZeroSSL (REST API)"
+  },
+  "svnd0015": {
+   "source": "ZeroSSL dashboard → Developer: the account's API access key. Never written into a job's steps.",
+   "text": "Nástěnka ZeroSSL → Developer: přístupový API klíč účtu. Nikdy se nezapíše do kroků úlohy."
+  },
+  "svnd0016": {
+   "source": "ZeroSSL moved the key into the Authorization header in August 2026; the parameter in the address is for an account that still wants it.",
+   "text": "ZeroSSL přesunul klíč v srpnu 2026 do hlavičky Authorization; parametr v adrese je pro účet, který ho ještě chce."
+  },
+  "svnd0017": {
+   "source": "ZeroSSL offered no approver address for the domains",
+   "text": "ZeroSSL pro domény nenabídl žádnou schvalovací adresu"
+  },
+  "svnd0018": {
+   "source": "ZeroSSL proves a wildcard name by DNS or e-mail, not by an HTTP file - choose the DNS CNAME record",
+   "text": "ZeroSSL ověřuje wildcard jméno přes DNS nebo e-mail, ne souborem HTTP – zvolte záznam DNS CNAME"
+  },
+  "svnd0019": {
+   "source": "ZeroSSL said no CNAME record for the domains",
+   "text": "ZeroSSL pro domény neuvedl žádný záznam CNAME"
+  },
+  "svnd0020": {
+   "source": "ZeroSSL said no file for the domains",
+   "text": "ZeroSSL pro domény neuvedl žádný soubor"
+  },
+  "svnd0021": {
+   "source": "a draft (not validated yet)",
+   "text": "koncept (zatím neověřený)"
+  },
+  "svnd0022": {
+   "source": "acme does not know the certificate's id at ZeroSSL - revoke it in the ZeroSSL dashboard",
+   "text": "acme nezná ID certifikátu u ZeroSSL – zneplatněte ho na nástěnce ZeroSSL"
+  },
+  "svnd0023": {
+   "source": "certificate_validity_days of a new certificate.",
+   "text": "certificate_validity_days nového certifikátu."
+  },
+  "svnd0024": {
+   "source": "http://NAME/.well-known/pki-validation/HASH.txt holding ZeroSSL's lines",
+   "text": "http://JMÉNO/.well-known/pki-validation/HASH.txt s řádky od ZeroSSL"
+  },
+  "svnd0025": {
+   "source": "set the ZeroSSL API key",
+   "text": "nastavte API klíč ZeroSSL"
+  },
+  "svnd0026": {
+   "source": "the ZeroSSL API address is not an https address",
+   "text": "adresa API ZeroSSL není adresa https"
+  },
+  "svnd0027": {
+   "source": "the domain validation",
+   "text": "ověření domén"
+  },
+  "svnd0028": {
+   "source": "the e-mail validation",
+   "text": "ověření e-mailem"
+  },
+  "svnd0029": {
+   "source": "the first address ZeroSSL offers",
+   "text": "první adresa, kterou ZeroSSL nabídne"
+  },
+  "svnd0030": {
+   "source": "the new certificate",
+   "text": "nový certifikát"
+  },
+  "svnd0031": {
+   "source": "waiting for the domain validation",
+   "text": "čeká na ověření domény"
+  },
+  "svnd0032": {
+   "source": "A renewal (and a certificate imported from the platform) renews its object (certificates/renew) instead of asking for a new one.",
+   "text": "Obnova (i certifikát importovaný z platformy) obnoví jeho objekt (certificates/renew), místo aby žádala o nový."
+  },
+  "svnd0033": {
+   "source": "A user with WebSDK access and the right to request certificates in the folder.",
+   "text": "Uživatel s přístupem k WebSDK a právem žádat o certifikáty ve složce."
+  },
+  "svnd0034": {
+   "source": "API application (client_id)",
+   "text": "Aplikace API (client_id)"
+  },
+  "svnd0035": {
+   "source": "An access token made in the platform",
+   "text": "Access token vytvořený v platformě"
+  },
+  "svnd0036": {
+   "source": "CA certificate of the platform's TLS",
+   "text": "Certifikát CA pro TLS platformy"
+  },
+  "svnd0037": {
+   "source": "CA template (CADN)",
+   "text": "Šablona CA (CADN)"
+  },
+  "svnd0038": {
+   "source": "Certificates from CyberArk Certificate Manager, Self-Hosted (Venafi Trust Protection Platform) through its WebSDK: acme's request sent into a policy folder, fetched when issued, renewed in place, revoked. Lists the folder's certificates for importing.",
+   "text": "Certifikáty z CyberArk Certificate Manager, Self-Hosted (Venafi Trust Protection Platform) přes jeho WebSDK: žádost acme se pošle do složky politik, po vydání se stáhne, obnovuje se na místě, zneplatňuje se. Vypíše certifikáty složky k importu."
+  },
+  "svnd0039": {
+   "source": "Check the platform's TLS certificate",
+   "text": "Ověřovat TLS certifikát platformy"
+  },
+  "svnd0040": {
+   "source": "CyberArk Certificate Manager Self-Hosted (Venafi TPP)",
+   "text": "CyberArk Certificate Manager Self-Hosted (Venafi TPP)"
+  },
+  "svnd0041": {
+   "source": "DevOps\\Web servers",
+   "text": "DevOps\\Web servers"
+  },
+  "svnd0042": {
+   "source": "Empty: the one the folder's policy sets.",
+   "text": "Prázdné: ta, kterou určuje politika složky."
+  },
+  "svnd0043": {
+   "source": "Load the list (the platform is asked, nothing changes) and pick the folder the certificates go into.",
+   "text": "Načtěte seznam (zeptá se platformy, nic se nemění) a vyberte složku, do které certifikáty patří."
+  },
+  "svnd0044": {
+   "source": "Longer (an approval in the platform): acme asks again at the next try.",
+   "text": "Déle (schvalování v platformě): acme se zeptá znovu při dalším pokusu."
+  },
+  "svnd0045": {
+   "source": "Made for the API application with the scope certificate:manage,revoke. It is used as it is - make a new one before it ends.",
+   "text": "Vytvořený pro aplikaci API s rozsahem certificate:manage,revoke. Použije se tak, jak je – před jeho koncem vytvořte nový."
+  },
+  "svnd0046": {
+   "source": "Name of the certificate object",
+   "text": "Jméno objektu certifikátu"
+  },
+  "svnd0047": {
+   "source": "Only where the list cannot be loaded here: the folder under \\VED\\Policy (written with or without it), used instead of Policy folder.",
+   "text": "Jen pokud seznam zde nelze načíst: složka pod \\VED\\Policy (zapsaná s ním i bez něj), použije se místo Složky politik."
+  },
+  "svnd0048": {
+   "source": "Platform address",
+   "text": "Adresa platformy"
+  },
+  "svnd0049": {
+   "source": "Policy folder",
+   "text": "Složka politik"
+  },
+  "svnd0050": {
+   "source": "Policy folder typed",
+   "text": "Složka politik zapsaná ručně"
+  },
+  "svnd0051": {
+   "source": "Renew the same certificate object",
+   "text": "Obnovovat tentýž objekt certifikátu"
+  },
+  "svnd0052": {
+   "source": "Scope of the token",
+   "text": "Rozsah tokenu"
+  },
+  "svnd0053": {
+   "source": "The address of the platform (WebSDK); /vedsdk at its end is left out by itself.",
+   "text": "Adresa platformy (WebSDK); /vedsdk na jejím konci se vynechá samo."
+  },
+  "svnd0054": {
+   "source": "User and password (an OAuth token made by acme)",
+   "text": "Uživatel a heslo (OAuth token vytvoří acme)"
+  },
+  "svnd0055": {
+   "source": "\\VED\\Policy\\Certificate Authorities\\Issuing CA",
+   "text": "\\VED\\Policy\\Certificate Authorities\\Issuing CA"
+  },
+  "svnd0056": {
+   "source": "as the platform names it (the common name)",
+   "text": "jak ho pojmenuje platforma (common name)"
+  },
+  "svnd0057": {
+   "source": "https://tpp.example.local",
+   "text": "https://tpp.example.local"
+  },
+  "svnd0058": {
+   "source": "set the access token",
+   "text": "nastavte access token"
+  },
+  "svnd0059": {
+   "source": "set the platform address (https://host)",
+   "text": "nastavte adresu platformy (https://host)"
+  },
+  "svnd0060": {
+   "source": "set the policy folder",
+   "text": "nastavte složku politik"
+  },
+  "svnd0061": {
+   "source": "set the user and the password",
+   "text": "nastavte uživatele a heslo"
+  },
+  "svnd0062": {
+   "source": "the first name of the certificate",
+   "text": "první jméno certifikátu"
+  },
+  "svnd0063": {
+   "source": "the platform gave no access token",
+   "text": "platforma nedala žádný access token"
+  },
+  "svnd0064": {
+   "source": "the policy folders",
+   "text": "složky politik"
+  },
+  "svnd0065": {
+   "source": "who signs in",
+   "text": "kdo se přihlašuje"
+  },
+  "svnd0066": {
+   "source": "0: as the issuing template says. A certificate's own days win.",
+   "text": "0: jak říká šablona vydávání. Vlastní dny certifikátu mají přednost."
+  },
+  "svnd0067": {
+   "source": "A renewal (and a certificate imported from the service) is asked for as a renewal of it (existingCertificateId), so the service keeps its history.",
+   "text": "O obnovu (i certifikátu importovaného ze služby) se žádá jako o jeho obnovu (existingCertificateId), takže služba drží jeho historii."
+  },
+  "svnd0068": {
+   "source": "AU (api.au.venafi.cloud)",
+   "text": "AU (api.au.venafi.cloud)"
+  },
+  "svnd0069": {
+   "source": "CA (api.ca.venafi.cloud)",
+   "text": "CA (api.ca.venafi.cloud)"
+  },
+  "svnd0070": {
+   "source": "Certificates from CyberArk Certificate Manager, SaaS (Venafi as a Service, TLS Protect Cloud) through its REST API: acme's request for an application and issuing template, fetched when issued, renewed in place. Lists the application's certificates for importing.",
+   "text": "Certifikáty z CyberArk Certificate Manager, SaaS (Venafi as a Service, TLS Protect Cloud) přes jeho REST API: žádost acme pro aplikaci a šablonu vydávání, po vydání se stáhne, obnovuje se na místě. Vypíše certifikáty aplikace k importu."
+  },
+  "svnd0071": {
+   "source": "CyberArk Certificate Manager SaaS (Venafi Cloud)",
+   "text": "CyberArk Certificate Manager SaaS (Venafi Cloud)"
+  },
+  "svnd0072": {
+   "source": "EU (api.venafi.eu)",
+   "text": "EU (api.venafi.eu)"
+  },
+  "svnd0073": {
+   "source": "Issuing template",
+   "text": "Šablona vydávání"
+  },
+  "svnd0074": {
+   "source": "Issuing template typed (API alias)",
+   "text": "Šablona vydávání zapsaná ručně (API alias)"
+  },
+  "svnd0075": {
+   "source": "Load the list (the application's issuing templates, by their API alias - nothing changes) and pick the one that issues the certificates.",
+   "text": "Načtěte seznam (šablony vydávání aplikace podle jejich API aliasu – nic se nemění) a vyberte tu, která certifikáty vydává."
+  },
+  "svnd0076": {
+   "source": "Longer (a CA that takes its time): acme asks again at the next try.",
+   "text": "Déle (CA, která si dává na čas): acme se zeptá znovu při dalším pokusu."
+  },
+  "svnd0077": {
+   "source": "Only where the list cannot be loaded here: the API alias, used instead of Issuing template.",
+   "text": "Jen pokud seznam zde nelze načíst: API alias, použije se místo Šablony vydávání."
+  },
+  "svnd0078": {
+   "source": "Renew the same certificate",
+   "text": "Obnovovat tentýž certifikát"
+  },
+  "svnd0079": {
+   "source": "SG (api.sg.venafi.cloud)",
+   "text": "SG (api.sg.venafi.cloud)"
+  },
+  "svnd0080": {
+   "source": "The name of the application the certificates belong to (you must be among its owners).",
+   "text": "Jméno aplikace, ke které certifikáty patří (musíte být mezi jejími vlastníky)."
+  },
+  "svnd0081": {
+   "source": "The web interface → your name → Preferences → API Keys. Sent as the header tppl-api-key.",
+   "text": "Webové rozhraní → vaše jméno → Preferences → API Keys. Posílá se jako hlavička tppl-api-key."
+  },
+  "svnd0082": {
+   "source": "UK (api.uk.venafi.cloud)",
+   "text": "UK (api.uk.venafi.cloud)"
+  },
+  "svnd0083": {
+   "source": "US (api.venafi.cloud)",
+   "text": "US (api.venafi.cloud)"
+  },
+  "svnd0084": {
+   "source": "https://api.venafi.cloud",
+   "text": "https://api.venafi.cloud"
+  },
+  "svnd0085": {
+   "source": "its request",
+   "text": "jeho žádost"
+  },
+  "svnd0086": {
+   "source": "set the API address (https://api.venafi.cloud)",
+   "text": "nastavte adresu API (https://api.venafi.cloud)"
+  },
+  "svnd0087": {
+   "source": "set the API key",
+   "text": "nastavte API klíč"
+  },
+  "svnd0088": {
+   "source": "set the application",
+   "text": "nastavte aplikaci"
+  },
+  "svnd0089": {
+   "source": "set the issuing template",
+   "text": "nastavte šablonu vydávání"
+  },
+  "svnd0090": {
+   "source": "A Command query (pq.queryString) for Import from a source. Empty: every certificate the user may see that is valid.",
+   "text": "Dotaz Commandu (pq.queryString) pro Import ze zdroje. Prázdné: každý platný certifikát, který uživatel smí vidět."
+  },
+  "svnd0091": {
+   "source": "API path",
+   "text": "Cesta API"
+  },
+  "svnd0092": {
+   "source": "CA certificate of Command's TLS",
+   "text": "Certifikát CA pro TLS Commandu"
+  },
+  "svnd0093": {
+   "source": "Certificate authority typed",
+   "text": "Certifikační autorita zapsaná ručně"
+  },
+  "svnd0094": {
+   "source": "Certificates from Keyfactor Command through its REST API: acme's request enrolled with a template and a CA, the certificate with its chain, revoked. Lists the certificates Command knows for importing.",
+   "text": "Certifikáty z Keyfactor Command přes jeho REST API: žádost acme se zapíše se šablonou a CA, certifikát přijde s řetězcem, zneplatňuje se. Vypíše certifikáty, které Command zná, k importu."
+  },
+  "svnd0095": {
+   "source": "Check Command's TLS certificate",
+   "text": "Ověřovat TLS certifikát Commandu"
+  },
+  "svnd0096": {
+   "source": "Client ID",
+   "text": "ID klienta"
+  },
+  "svnd0097": {
+   "source": "Command address",
+   "text": "Adresa Commandu"
+  },
+  "svnd0098": {
+   "source": "Domain of the user",
+   "text": "Doména uživatele"
+  },
+  "svnd0099": {
+   "source": "IssuedCN -contains \"example.cz\"",
+   "text": "IssuedCN -contains \"example.cz\""
+  },
+  "svnd0100": {
+   "source": "Keyfactor Command",
+   "text": "Keyfactor Command"
+  },
+  "svnd0101": {
+   "source": "Load the list (the CSR enrollment templates the user may use - nothing changes) and pick one. Its CA is set by itself when it has only one.",
+   "text": "Načtěte seznam (šablony pro žádosti CSR, které uživatel smí použít – nic se nemění) a vyberte jednu. Její CA se nastaví sama, když má jen jednu."
+  },
+  "svnd0102": {
+   "source": "OAuth client (client ID and secret)",
+   "text": "OAuth klient (ID klienta a tajný klíč)"
+  },
+  "svnd0103": {
+   "source": "Only where the list cannot be loaded here, used instead of Certificate authority.",
+   "text": "Jen pokud seznam zde nelze načíst, použije se místo Certifikační autority."
+  },
+  "svnd0104": {
+   "source": "Only where the list cannot be loaded here: the template's short name, used instead of Template.",
+   "text": "Jen pokud seznam zde nelze načíst: krátké jméno šablony, použije se místo Šablony."
+  },
+  "svnd0105": {
+   "source": "Sent as DOMAIN\\user. Empty: the user alone.",
+   "text": "Posílá se jako DOMÉNA\\uživatel. Prázdné: jen uživatel."
+  },
+  "svnd0106": {
+   "source": "Space separated, when the identity provider wants them.",
+   "text": "Oddělené mezerami, pokud je poskytovatel identity chce."
+  },
+  "svnd0107": {
+   "source": "Template typed",
+   "text": "Šablona zapsaná ručně"
+  },
+  "svnd0108": {
+   "source": "The CA of the template, as Command names it (HOST\\CA name).",
+   "text": "CA šablony, jak ji Command pojmenovává (HOST\\jméno CA)."
+  },
+  "svnd0109": {
+   "source": "The address of the Command server (its REST API is under /KeyfactorAPI).",
+   "text": "Adresa serveru Command (jeho REST API je pod /KeyfactorAPI)."
+  },
+  "svnd0110": {
+   "source": "The token endpoint of the identity provider Command trusts.",
+   "text": "Adresa pro tokeny poskytovatele identity, kterému Command důvěřuje."
+  },
+  "svnd0111": {
+   "source": "Token address",
+   "text": "Adresa pro tokeny"
+  },
+  "svnd0112": {
+   "source": "Which certificates to list",
+   "text": "Které certifikáty vypsat"
+  },
+  "svnd0113": {
+   "source": "ca01.example.local\\Example Issuing CA",
+   "text": "ca01.example.local\\Example Issuing CA"
+  },
+  "svnd0114": {
+   "source": "https://idp.example.local/realms/Keyfactor/protocol/openid-connect/token",
+   "text": "https://idp.example.local/realms/Keyfactor/protocol/openid-connect/token"
+  },
+  "svnd0115": {
+   "source": "https://keyfactor.example.local",
+   "text": "https://keyfactor.example.local"
+  },
+  "svnd0116": {
+   "source": "set the Command address (https://host)",
+   "text": "nastavte adresu Commandu (https://host)"
+  },
+  "svnd0117": {
+   "source": "set the certificate authority",
+   "text": "nastavte certifikační autoritu"
+  },
+  "svnd0118": {
+   "source": "set the client ID and the client secret",
+   "text": "nastavte ID klienta a tajný klíč klienta"
+  },
+  "svnd0119": {
+   "source": "set the token address (https://…)",
+   "text": "nastavte adresu pro tokeny (https://…)"
+  },
+  "svnd0120": {
+   "source": "the enrollment",
+   "text": "žádost o certifikát"
+  },
+  "svnd0121": {
+   "source": "the enrollment templates",
+   "text": "šablony pro žádosti"
+  },
+  "svnd0122": {
+   "source": "023e105f4ecef8ad9ca31a8372d0c353",
+   "text": "023e105f4ecef8ad9ca31a8372d0c353"
+  },
+  "svnd0123": {
+   "source": "API token (Zone - SSL and Certificates - Edit)",
+   "text": "API token (Zone - SSL and Certificates - Edit)"
+  },
+  "svnd0124": {
+   "source": "An API token is the better one: it can be limited to the zones it needs.",
+   "text": "API token je lepší: dá se omezit na zóny, které potřebuje."
+  },
+  "svnd0125": {
+   "source": "Certificates for a server behind Cloudflare's proxy from the Cloudflare Origin CA: trusted by Cloudflare only, not by browsers. Issued at once for names in the account's zones; revocation included. Lists a zone's Origin CA certificates for importing.",
+   "text": "Certifikáty pro server za proxy Cloudflare od Cloudflare Origin CA: důvěřuje jim jen Cloudflare, ne prohlížeče. Vydávají se hned pro jména v zónách účtu; i se zneplatněním. Vypíše certifikáty Origin CA zóny k importu."
+  },
+  "svnd0126": {
+   "source": "Cloudflare Origin CA",
+   "text": "Cloudflare Origin CA"
+  },
+  "svnd0127": {
+   "source": "Cloudflare's answer holds the certificate alone; its root is fetched from developers.cloudflare.com for the chain.",
+   "text": "Odpověď Cloudflare obsahuje jen certifikát; jeho kořen se pro řetězec stáhne z developers.cloudflare.com."
+  },
+  "svnd0128": {
+   "source": "Kind of the certificate",
+   "text": "Druh certifikátu"
+  },
+  "svnd0129": {
+   "source": "My Profile → API Tokens → Create Token, with Zone → SSL and Certificates → Edit (and Zone → Zone → Read for the list of zones).",
+   "text": "My Profile → API Tokens → Create Token, s Zone → SSL and Certificates → Edit (a Zone → Zone → Read pro seznam zón)."
+  },
+  "svnd0130": {
+   "source": "My Profile → API Tokens → Origin CA Key → View.",
+   "text": "My Profile → API Tokens → Origin CA Key → View."
+  },
+  "svnd0131": {
+   "source": "Only for Import from a source: Cloudflare lists Origin CA certificates zone by zone. Load the list and pick the zone.",
+   "text": "Jen pro Import ze zdroje: Cloudflare vypisuje certifikáty Origin CA zónu po zóně. Načtěte seznam a vyberte zónu."
+  },
+  "svnd0132": {
+   "source": "Only where the list cannot be loaded here (an Origin CA Key reads no zones): the zone's ID from its Overview page, used instead of Zone.",
+   "text": "Jen pokud seznam zde nelze načíst (Origin CA Key zóny nečte): ID zóny z její stránky Overview, použije se místo Zóny."
+  },
+  "svnd0133": {
+   "source": "Origin CA Key",
+   "text": "Origin CA Key"
+  },
+  "svnd0134": {
+   "source": "Origin CA Key (X-Auth-User-Service-Key)",
+   "text": "Origin CA Key (X-Auth-User-Service-Key)"
+  },
+  "svnd0135": {
+   "source": "Put the Origin CA root above the certificate",
+   "text": "Dát nad certifikát kořen Origin CA"
+  },
+  "svnd0136": {
+   "source": "Zone (for importing)",
+   "text": "Zóna (pro import)"
+  },
+  "svnd0137": {
+   "source": "Zone ID typed",
+   "text": "ID zóny zapsané ručně"
+  },
+  "svnd0138": {
+   "source": "acme does not know the certificate's id at Cloudflare - revoke it in the dashboard (SSL/TLS → Origin Server)",
+   "text": "acme nezná ID certifikátu u Cloudflare – zneplatněte ho na nástěnce (SSL/TLS → Origin Server)"
+  },
+  "svnd0139": {
+   "source": "as the key: ECDSA keys origin-ecc, RSA keys origin-rsa",
+   "text": "podle klíče: klíče ECDSA origin-ecc, klíče RSA origin-rsa"
+  },
+  "svnd0140": {
+   "source": "origin-ecc",
+   "text": "origin-ecc"
+  },
+  "svnd0141": {
+   "source": "origin-rsa",
+   "text": "origin-rsa"
+  },
+  "svnd0142": {
+   "source": "requested_validity of each certificate.",
+   "text": "requested_validity každého certifikátu."
+  },
+  "svnd0143": {
+   "source": "set the API token",
+   "text": "nastavte API token"
+  },
+  "svnd0144": {
+   "source": "set the Origin CA Key",
+   "text": "nastavte Origin CA Key"
+  },
+  "svnd0145": {
+   "source": "set the zone (Load the list) or type its ID",
+   "text": "nastavte zónu (Načíst seznam) nebo zapište její ID"
+  },
+  "svnd0146": {
+   "source": "the API token",
+   "text": "API token"
+  },
+  "svnd0147": {
+   "source": "the Cloudflare API address is not an https address",
+   "text": "adresa API Cloudflare není adresa https"
+  },
+  "svnd0148": {
+   "source": "the zone's certificates",
+   "text": "certifikáty zóny"
+  },
+  "svnd0149": {
+   "source": "the zones",
+   "text": "zóny"
   }
  },
  "patterns": {
@@ -61141,6 +61737,194 @@
   "pcv225": {
    "source": "It holds no certificate request, only: {0}",
    "text": "Není v ní žádná žádost o certifikát, jen: {0}"
+  },
+  "pvnd001": {
+   "source": "\"{0}\" is not a ZeroSSL certificate id",
+   "text": "„{0}“ není ID certifikátu ZeroSSL"
+  },
+  "pvnd002": {
+   "source": "ZeroSSL answers: the API key is let in; the account has {0} certificate(s)",
+   "text": "ZeroSSL odpovídá: API klíč je přijat; účet má certifikátů: {0}"
+  },
+  "pvnd003": {
+   "source": "ZeroSSL did not issue: the certificate {0} is {1}",
+   "text": "ZeroSSL nevydal: certifikát {0} je {1}"
+  },
+  "pvnd004": {
+   "source": "ZeroSSL has not issued yet (certificate {0}: {1}) - the DCV records stay in place; acme asks again at the next try",
+   "text": "ZeroSSL zatím nevydal (certifikát {0}: {1}) – záznamy DCV zůstávají; acme se zeptá znovu při dalším pokusu"
+  },
+  "pvnd005": {
+   "source": "ZeroSSL mails {0} - someone there approves the certificate",
+   "text": "ZeroSSL posílá e-mail na {0} – někdo tam certifikát schválí"
+  },
+  "pvnd006": {
+   "source": "ZeroSSL refused {0}: {1} (error {2})",
+   "text": "ZeroSSL odmítl {0}: {1} (chyba {2})"
+  },
+  "pvnd007": {
+   "source": "ZeroSSL refused {0}: {1} (error {2}) - the API key is wrong or not active",
+   "text": "ZeroSSL odmítl {0}: {1} (chyba {2}) – API klíč je špatný nebo není aktivní"
+  },
+  "pvnd008": {
+   "source": "ZeroSSL revoked certificate {0} ({1})",
+   "text": "ZeroSSL zneplatnil certifikát {0} ({1})"
+  },
+  "pvnd009": {
+   "source": "ZeroSSL took the request for {0}: certificate {1}",
+   "text": "ZeroSSL přijal žádost pro {0}: certifikát {1}"
+  },
+  "pvnd010": {
+   "source": "ZeroSSL was asked to check the domains ({0})",
+   "text": "ZeroSSL byl požádán o ověření domén ({0})"
+  },
+  "pvnd011": {
+   "source": "the certificate {0} waits at ZeroSSL since {1} - asked for again, nothing new is asked for",
+   "text": "certifikát {0} čeká u ZeroSSL od {1} – žádá se o něj znovu, o nic nového se nežádá"
+  },
+  "pvnd012": {
+   "source": "the download of {0}",
+   "text": "stažení {0}"
+  },
+  "pvnd013": {
+   "source": "the platform did not renew {0}: {1}",
+   "text": "platforma neobnovila {0}: {1}"
+  },
+  "pvnd014": {
+   "source": "the platform did not revoke it: {0}",
+   "text": "platforma ho nezneplatnila: {0}"
+  },
+  "pvnd015": {
+   "source": "the platform had revoked {0} already",
+   "text": "platforma už {0} zneplatnila dříve"
+  },
+  "pvnd016": {
+   "source": "the platform has no certificate in {0} ({1})",
+   "text": "platforma nemá v {0} žádný certifikát ({1})"
+  },
+  "pvnd017": {
+   "source": "the platform has not issued {0} yet ({1}) - acme asks again at the next try",
+   "text": "platforma zatím nevydala {0} ({1}) – acme se zeptá znovu při dalším pokusu"
+  },
+  "pvnd018": {
+   "source": "the platform renews {0} with acme's request",
+   "text": "platforma obnovuje {0} se žádostí acme"
+  },
+  "pvnd019": {
+   "source": "the platform took no request: {0}",
+   "text": "platforma žádost nepřijala: {0}"
+  },
+  "pvnd020": {
+   "source": "the platform took the request: {0}",
+   "text": "platforma přijala žádost: {0}"
+  },
+  "pvnd021": {
+   "source": "the platform took the revocation of {0}",
+   "text": "platforma přijala zneplatnění {0}"
+  },
+  "pvnd022": {
+   "source": "the renewal of {0}",
+   "text": "obnova {0}"
+  },
+  "pvnd023": {
+   "source": "the request {0} waits in the platform - asked for again",
+   "text": "žádost {0} čeká v platformě – žádá se o ni znovu"
+  },
+  "pvnd024": {
+   "source": "{0} is not a certificate of the platform (\\VED\\Policy\\…)",
+   "text": "{0} není certifikát platformy (\\VED\\Policy\\…)"
+  },
+  "pvnd025": {
+   "source": "\"{0}\" is not an id of the service",
+   "text": "„{0}“ není ID služby"
+  },
+  "pvnd026": {
+   "source": "the application {0}",
+   "text": "aplikace {0}"
+  },
+  "pvnd027": {
+   "source": "the application {0} has no issuing template \"{1}\" (it has: {2})",
+   "text": "aplikace {0} nemá šablonu vydávání „{1}“ (má: {2})"
+  },
+  "pvnd028": {
+   "source": "the request {0}",
+   "text": "žádost {0}"
+  },
+  "pvnd029": {
+   "source": "the request {0} waits at the service - asked for again",
+   "text": "žádost {0} čeká ve službě – žádá se o ni znovu"
+  },
+  "pvnd030": {
+   "source": "the service did not issue (request {0}): {1}",
+   "text": "služba nevydala (žádost {0}): {1}"
+  },
+  "pvnd031": {
+   "source": "the service has no certificate {0} to give yet",
+   "text": "služba zatím nemá certifikát {0} k vydání"
+  },
+  "pvnd032": {
+   "source": "the service has not issued yet (request {0}: {1}) - acme asks again at the next try",
+   "text": "služba zatím nevydala (žádost {0}: {1}) – acme se zeptá znovu při dalším pokusu"
+  },
+  "pvnd033": {
+   "source": "the service took the renewal of {0}: request {1}",
+   "text": "služba přijala obnovu {0}: žádost {1}"
+  },
+  "pvnd034": {
+   "source": "the service took the request: {0}",
+   "text": "služba přijala žádost: {0}"
+  },
+  "pvnd035": {
+   "source": "there is no application \"{0}\"",
+   "text": "aplikace „{0}“ neexistuje"
+  },
+  "pvnd036": {
+   "source": "Keyfactor Command did not issue request {0}: {1}",
+   "text": "Keyfactor Command nevydal žádost {0}: {1}"
+  },
+  "pvnd037": {
+   "source": "Keyfactor Command does not know the certificate {0}",
+   "text": "Keyfactor Command nezná certifikát {0}"
+  },
+  "pvnd038": {
+   "source": "Keyfactor Command keeps request {0} waiting for an approval ({1}) - approve it in Command, or use a template that needs none",
+   "text": "Keyfactor Command drží žádost {0} ve schvalování ({1}) – schvalte ji v Commandu, nebo použijte šablonu, která schválení nepotřebuje"
+  },
+  "pvnd039": {
+   "source": "Keyfactor Command revoked certificate {0}",
+   "text": "Keyfactor Command zneplatnil certifikát {0}"
+  },
+  "pvnd040": {
+   "source": "the API path \"{0}\" is not a path",
+   "text": "cesta API „{0}“ není cesta"
+  },
+  "pvnd041": {
+   "source": "{0} is not a certificate id of Command",
+   "text": "{0} není ID certifikátu v Commandu"
+  },
+  "pvnd042": {
+   "source": "\"{0}\" is not an Origin CA certificate id",
+   "text": "„{0}“ není ID certifikátu Origin CA"
+  },
+  "pvnd043": {
+   "source": "Cloudflare gives Origin CA certificates for {0} days only",
+   "text": "Cloudflare dává certifikáty Origin CA jen na tyto počty dní: {0}"
+  },
+  "pvnd044": {
+   "source": "Cloudflare refused {0}: {1}",
+   "text": "Cloudflare odmítl {0}: {1}"
+  },
+  "pvnd045": {
+   "source": "Cloudflare refused {0}: {1} - the token or key is wrong, or may not do this",
+   "text": "Cloudflare odmítl {0}: {1} – token nebo klíč je špatný, nebo to nesmí"
+  },
+  "pvnd046": {
+   "source": "Cloudflare revoked the Origin CA certificate {0}",
+   "text": "Cloudflare zneplatnil certifikát Origin CA {0}"
+  },
+  "pvnd047": {
+   "source": "the Origin CA root could not be fetched ({0}) - the certificate comes without it",
+   "text": "kořen Origin CA nešel stáhnout ({0}) – certifikát přijde bez něj"
   }
  },
  "rich": {
