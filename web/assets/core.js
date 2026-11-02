@@ -412,7 +412,9 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape' && typeof SETHELP !== 'undefined' && SETHELP
       && SETHELP.style.display !== 'none') {
     hideHelp();
-    return;                              /* the help first, the popup next time */
+    /* A help shown by pointing goes with the popup under it (1.0.26): a pointer
+       resting on a card took the first Escape, and a popup needed two. */
+    if (!$('modal') || $('modal').hidden) return;
   }
   if (e.key !== 'Escape' || !$('modal') || $('modal').hidden) return;
   /* Escape closes what is on top, and only that: the column menu or the

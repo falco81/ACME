@@ -63181,6 +63181,10 @@
   "psup025": {
    "source": "{0} template(s) in {1}",
    "text": "{0} šablon v {1}"
+  },
+  "psup026": {
+   "source": "{0}: only a full administrator sets {1} of a certificate (where a file is written)",
+   "text": "{0}: {1} certifikátu nastavuje jen plný administrátor (kam se zapisuje soubor)"
   }
  },
  "rich": {

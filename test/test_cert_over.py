@@ -56,6 +56,9 @@ class Fields(unittest.TestCase):
         ssh = keys('challenge', 'http_ssh')
         for k in ('webroot', 'sudo', 'command_after', 'hosts', 'nginx_conf'):
             self.assertNotIn(k, ssh)
+        for k in ('sudo', 'command_after', 'hosts', 'nginx_conf'):      # never, by anybody
+            self.assertNotIn(k, [f['key'] for f in S.over_fields(
+                S.plugin_class('challenge', 'http_ssh'), full=True)])
         for k in keys('challenge', 'ssh_dns'):
             self.assertFalse(S.OVER_NEVER.search(k), k)
         for fam in ('issuer', 'challenge'):
@@ -135,6 +138,46 @@ class Saved(unittest.TestCase):
                                  S.cert_over(row, 'challenge', 'wedos-x'))
         self.assertEqual(inst.c('zone'), 'other.cz')
         self.assertEqual(inst.c('wapi_password'), 'WPw-2')
+
+    def test_where_a_file_is_written_is_a_full_administrators(self):
+        A.family_save(STORE, 'challenge', {'name': 'web-ssh-x', 'kind': 'http_ssh', 'config': {
+            'hosts': ['web01.example.local'], 'user': 'acme', 'webroot': '/var/www/html'}},
+            'tester')
+        self.assertIn('webroot', [f['key'] for f in S.over_fields(
+            S.plugin_class('challenge', 'http_ssh'), full=True)])
+        self.assertNotIn('webroot', keys('challenge', 'http_ssh'))
+        base = {'name': 'site2.example.local', 'names': ['site2.example.local'],
+                'issuer': 'Win CA', 'challenge': 'web-ssh-x', 'key_type': 'rsa-2048'}
+        # a certificate administrator may not set it
+        with self.assertRaises(ValueError) as e:
+            A.cert_save(STORE, dict(base, profile={'over': {'validation': {
+                'web-ssh-x': {'webroot': '/srv/site2'}}}}), 'cadmin', full=False)
+        self.assertIn('only a full administrator', str(e.exception))
+        # a full administrator sets it
+        got = A.cert_save(STORE, dict(base, profile={'over': {'validation': {
+            'web-ssh-x': {'webroot': '/srv/site2'}}}}), 'boss', full=True)
+        cid = got['id'] if isinstance(got, dict) else got
+        row = S.cert_need(STORE, cid)
+        self.assertEqual(S.cert_over(row, 'challenge', 'web-ssh-x'), {'webroot': '/srv/site2'})
+        crow = S.plugin_row(STORE, 'challenge', 'web-ssh-x')
+        inst = S.plugin_instance(STORE, 'challenge', crow, None,
+                                 S.cert_over(row, 'challenge', 'web-ssh-x'))
+        self.assertEqual(inst.c('webroot'), '/srv/site2')
+        # saved again by a certificate administrator (the wizard sends no webroot): kept
+        A.cert_save(STORE, {'id': cid, 'profile': {'over': {'validation': {
+            'web-ssh-x': {'check': 'none'}}}}}, 'cadmin', full=False)
+        self.assertEqual(S.cert_over(S.cert_need(STORE, cid), 'challenge', 'web-ssh-x'),
+                         {'webroot': '/srv/site2', 'check': 'none'})
+        A.cert_save(STORE, {'id': cid, 'profile': {}}, 'cadmin', full=False)
+        self.assertEqual(S.cert_over(S.cert_need(STORE, cid), 'challenge', 'web-ssh-x'),
+                         {'webroot': '/srv/site2'})
+        # nor changed by one
+        with self.assertRaises(ValueError):
+            A.cert_save(STORE, {'id': cid, 'profile': {'over': {'validation': {
+                'web-ssh-x': {'webroot': '/etc'}}}}}, 'cadmin', full=False)
+        # a full administrator takes it away
+        A.cert_save(STORE, {'id': cid, 'profile': {}}, 'boss', full=True)
+        self.assertEqual(S.cert_over(S.cert_need(STORE, cid), 'challenge', 'web-ssh-x'), {})
 
     def test_config_over_only_its_fields(self):
         cls = S.plugin_class('issuer', 'ms_adcs')

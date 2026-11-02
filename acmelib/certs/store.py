@@ -365,13 +365,18 @@ OVER_NOT = frozenset((
 # may not set what only a full administrator sets on a module - a command, a script, a
 # path or file on a machine, sudo.
 OVER_NEVER = re.compile(r'(^|_)(command|commands|path|env|sudo|script|conf|file|files|'
-                        r'reload|control|socket|hook|webroot|folder|container|bucket|'
+                        r'reload|control|socket|hook|'
                         r'prepare|balancer|computer|rndc|checkzone|writer|style|mode)(_|$)')
+# Where a file is written - the web root, a folder, a container, a bucket (1.0.26): a
+# certificate's own only when a full administrator sets it (as on the module itself);
+# a certificate administrator keeps what was set, and cannot change it.
+OVER_PLACES = re.compile(r'(^|_)(webroot|folder|container|bucket)(_|$)')
 OVER_TYPES = ('text', 'select', 'bool', 'number', 'list', 'catalog', 'textarea')
 
 
-def over_fields(cls):
-    """The fields of a module a certificate may set itself."""
+def over_fields(cls, full=False):
+    """The fields of a module a certificate may set itself - with `full`, also where a
+    file is written (OVER_PLACES: a full administrator's)."""
     out = []
     for f in (getattr(cls, 'fields', None) or []) if cls is not None else []:
         if not isinstance(f, dict) or not f.get('key'):
@@ -379,6 +384,10 @@ def over_fields(cls):
         mark = f.get('cert')
         if mark is False or f.get('type') == 'secret' or f.get('secret') or \
                 OVER_NEVER.search(f['key']):
+            continue
+        if OVER_PLACES.search(f['key']):
+            if full and f.get('type', 'text') in OVER_TYPES:
+                out.append(f)
             continue
         if mark is True or (f.get('type', 'text') in OVER_TYPES and f['key'] not in OVER_NOT
                             and not f['key'].startswith('path_')):
@@ -390,7 +399,7 @@ def config_over(cls, cfg, over):
     """`cfg` with a certificate's own values over it - only of over_fields."""
     if not over or not isinstance(over, dict):
         return cfg
-    keys = {f['key'] for f in over_fields(cls)}
+    keys = {f['key'] for f in over_fields(cls, full=True)}   # checked when saved
     out = dict(cfg or {})
     for k, v in over.items():
         if k in keys:
@@ -415,20 +424,40 @@ def cert_over(cert, family, name=''):
     return dict(got) if isinstance(got, dict) else {}
 
 
-def clean_over(store, over, issuer, challenges):
+def place_keys(cls):
+    """The fields of over_fields(full=True) only a full administrator sets."""
+    return [f['key'] for f in over_fields(cls, full=True) if OVER_PLACES.search(f['key'])]
+
+
+def clean_over(store, over, issuer, challenges, full=False, old=None):
     """profile.over as given, checked: only the fields each module lets a certificate
     set, values of their kind (a choice one of its options), the source's for the
-    certificate's source and the validations' for those it uses. -> the clean dict."""
-    if over in (None, '', {}):
-        return {}
+    certificate's source and the validations' for those it uses. -> the clean dict.
+    Where a file is written (OVER_PLACES) only `full` (a full administrator) sets; saved
+    by anybody else, what `old` (the profile.over before) holds of it is kept as it is."""
+    old = old if isinstance(old, dict) else {}
+    if over in (None, ''):
+        over = {}
     if not isinstance(over, dict):
         raise ValueError('profile.over is an object')
+    if not over and (full or not old):
+        return {}
 
-    def one(cls, given, what):
+    def one(cls, given, what, before):
         if not isinstance(given, dict):
             raise ValueError('the own settings of %s are an object' % what)
-        fields = {f['key']: f for f in over_fields(cls)}
+        fields = {f['key']: f for f in over_fields(cls, full=True)}
+        places = set(place_keys(cls))
+        before = before if isinstance(before, dict) else {}
         out = {}
+        if not full:
+            for k in places:
+                if k in given and given[k] != before.get(k):
+                    raise ValueError('%s: only a full administrator sets %s of a certificate '
+                                     '(where a file is written)' % (
+                                         what, (fields.get(k) or {}).get('label') or k))
+                if k not in given and k in before:
+                    out[k] = before[k]          # kept as a full administrator set it
         for k, v in given.items():
             f = fields.get(k)
             if f is None:
@@ -460,30 +489,39 @@ def clean_over(store, over, issuer, challenges):
             out[k] = v
         return out
     res = {}
+    old_src = old.get('source') if isinstance(old.get('source'), dict) else {}
+    old_vals = old.get('validation') if isinstance(old.get('validation'), dict) else {}
     src = over.get('source')
-    if src:
+    if src or (not full and old_src):
         irow = plugin_row(store, 'issuer', issuer) if issuer else None
-        if not irow:
+        if not irow and src:
             raise ValueError('own settings of a source, but the certificate has none')
-        got = one(plugin_class('issuer', irow.get('kind')), src, irow['name'])
-        if got:
-            res['source'] = got
-    vals = over.get('validation')
-    if vals:
-        if not isinstance(vals, dict):
-            raise ValueError('the own settings of the validations are an object')
-        keep = {}
-        for name, given in vals.items():
-            crow = plugin_row(store, 'challenge', name)
-            if not crow:
-                raise ValueError('there is no validation %s' % name)
-            if crow['name'] not in challenges:
-                continue                # a validation it no longer uses: dropped
-            got = one(plugin_class('challenge', crow.get('kind')), given, crow['name'])
+        if irow:
+            got = one(plugin_class('issuer', irow.get('kind')), src or {}, irow['name'], old_src)
             if got:
-                keep[crow['name']] = got
-        if keep:
-            res['validation'] = keep
+                res['source'] = got
+    vals = over.get('validation')
+    if vals and not isinstance(vals, dict):
+        raise ValueError('the own settings of the validations are an object')
+    vals = dict(vals or {})
+    if not full:
+        for name in old_vals:
+            vals.setdefault(name, {})
+    keep = {}
+    for name, given in vals.items():
+        crow = plugin_row(store, 'challenge', name)
+        if not crow:
+            if name in old_vals and name not in (over.get('validation') or {}):
+                continue                # gone since: nothing to keep
+            raise ValueError('there is no validation %s' % name)
+        if crow['name'] not in challenges:
+            continue                    # a validation it no longer uses: dropped
+        got = one(plugin_class('challenge', crow.get('kind')), given, crow['name'],
+                  old_vals.get(name))
+        if got:
+            keep[crow['name']] = got
+    if keep:
+        res['validation'] = keep
     return res
 
 

@@ -4570,7 +4570,10 @@ function certWizard(cert, detail, opts) {
     var s = src();
     var push = function (family, row, over) {
       var p = plugOf(family, row.kind) || {};
-      var keys = arr(p.cert_fields);
+      /* where a file is written (a web root, a folder): a full administrator's alone -
+         kept as it is when somebody else saves (api.cert_save) */
+      var fullOnly = arr(p.cert_fields_full);
+      var keys = arr(p.cert_fields).filter(function (k) { return FULL || fullOnly.indexOf(k) < 0; });
       if (!keys.length) return;
       out.push({family: family, row: row, plug: p, keys: keys, over: over, cfg: obj(row.config),
                 fields: arr(p.fields).filter(function (f) { return keys.indexOf(f.key) >= 0; })});

@@ -385,7 +385,7 @@ def _cert_one(h, s):
 KEEP_STATES = ('revoked', 'pending-approval', 'declined', 'pending', 'deleting', 'revoke-failed')
 
 
-def cert_save(store, b, by):
+def cert_save(store, b, by, full=False):
     t = time.time()
     ident = b.get('id')
     row = S.cert_need(store, _id(ident)) if ident not in (None, '', 0) else None
@@ -497,14 +497,17 @@ def cert_save(store, b, by):
             prof['san_other'] = S.clean_sans(prof.get('san_other'))
         else:
             prof.pop('san_other', None)
-        if prof.get('over'):
-            # A certificate's own settings of its source and validations (1.0.24).
+        old_over = (S.jload((row or {}).get('profile'), {}) or {}).get('over') if row else None
+        if prof.get('over') or (old_over and not full):
+            # A certificate's own settings of its source and validations (1.0.24); where
+            # a file is written only a full administrator sets (1.0.26).
             iss_ = fields.get('issuer') if 'issuer' in fields else (row or {}).get('issuer')
             ch_ = fields.get('challenge') if 'challenge' in fields else (row or {}).get('challenge')
             cm_ = S.jload(fields['challenge_map'], {}) if 'challenge_map' in fields else \
                 (S.jload((row or {}).get('challenge_map'), {}) or {})
             used = set([ch_] if ch_ else []) | set((cm_ or {}).values())
-            prof['over'] = S.clean_over(store, prof.get('over'), iss_, used)
+            prof['over'] = S.clean_over(store, prof.get('over'), iss_, used, full=full,
+                                        old=old_over)
             if not prof['over']:
                 prof.pop('over')
         else:
@@ -565,7 +568,7 @@ def cert_save(store, b, by):
 
 @api('POST', '/api/certs/save', 'certadmin')
 def _cert_save(h, s):
-    return {'id': cert_save(h.store, h.body(), who(s))}
+    return {'id': cert_save(h.store, h.body(), who(s), full=may(s, 'fulladmin'))}
 
 
 def cert_auto(store, ref, on, by):
@@ -1521,8 +1524,10 @@ def plugins_view(store, again=False):
             one['fields'] = _resolve(store, one.get('fields'))
             if fam in ('issuer', 'challenge'):
                 # what one certificate may set itself (store.over_fields)
-                one['cert_fields'] = [f['key'] for f in S.over_fields(
-                    S.plugin_class(fam, one.get('kind')))]
+                pcls = S.plugin_class(fam, one.get('kind'))
+                one['cert_fields'] = [f['key'] for f in S.over_fields(pcls, full=True)]
+                # where a file is written: a full administrator's alone (1.0.26)
+                one['cert_fields_full'] = S.place_keys(pcls)
             if 'deploy_fields' in one:
                 one['deploy_fields'] = _resolve(store, one.get('deploy_fields'))
     d['broken'] = [{'file': b[0], 'words': b[1]} for b in reg.broken]

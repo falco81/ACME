@@ -6,6 +6,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.26 - not released
 
+- **Escape closes a popup at the first press**, everywhere: a help shown by the
+  pointer resting on a card or a button took the first Escape, and the popup
+  needed a second.
+
+- **A certificate's own web root** (or folder, container, bucket) of an HTTP-01
+  validation - *Add a certificate → Settings* - set by a full administrator
+  only, as on the module itself; a certificate administrator does not see it,
+  and saving the certificate keeps it as it was set. Commands, scripts and sudo
+  stay the module's alone.
+
 ## 1.0.25 - 2026-11-02
 
 - **Lists loaded from the CA, in the source's form and for each certificate in

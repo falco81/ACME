@@ -213,8 +213,12 @@ form except a secret, where or as whom it signs in (address, user, account,
 API key ID, region...), what *Add a certificate* asks itself (validity, key
 usages, the ACME profile) - and never what runs or is written where: a
 command, a script, a path or file on a machine, sudo (those stay a full
-administrator's). A module can mark a field `cert: False` (never) or `cert:
-True` (always). They are kept in the certificate's profile as `over`:
+administrator's). Where a file is written - a web root, a folder, a container
+or a bucket of an HTTP-01 validation (`store.OVER_PLACES`, 1.0.26) - only a
+**full administrator** sets for a certificate, as on the module itself: a
+certificate administrator does not see it in *Settings*, and saving the
+certificate keeps what a full administrator set, unchanged. A module can mark a
+field `cert: False` (never) or `cert: True` (always). They are kept in the certificate's profile as `over`:
 `{"source": {key: value}, "validation": {validation name: {key: value}}}`,
 checked when saved (a choice one of its options, a number a number), and used
 over the module's settings whenever the certificate is issued, renewed or
