@@ -4,6 +4,13 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.15 - 2026-11-02
+
+- The enrolment pages no longer go blank while *Certificates on the portal* is
+  off: they say that certificates are not offered yet and where the
+  administrator switches them on. Settings → Owners and teams says the same
+  (the members would see nothing there), with a button to the setting.
+
 ## 1.0.14 - 2026-11-02
 
 - **A role for the enrolment pages only** ("enrolment pages only"): an account

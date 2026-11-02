@@ -260,6 +260,17 @@
     h.appendChild(right);
     card.appendChild(h);
     card.appendChild(el('p', 'note', 'Who a certificate belongs to: a team or a person, picked from this list wherever a certificate is made or changed. Its members - accounts of acme, users and groups of the directory - see its certificates on the portal and, with the settings below off, in the administration; what each may do is said beside them. Its mail is told when one of its certificates fails or runs out.'));
+    /* Members see nothing on the portal while it offers no certificates (1.0.15). */
+    if (d.portal && (!d.portal.on || !d.portal.certs)) {
+      var off = el('div', 'tm-portal-off');
+      off.appendChild(el('span', '', !d.portal.on
+        ? 'The enrolment pages are switched off: the members see nothing there.'
+        : 'Certificates on the portal is off: the members sign in on the enrolment pages and see nothing there - no certificate of their teams, no asking for one.'));
+      var go = cmdButton('Open the setting', 'gear', 'small');
+      go.onclick = function () { location.hash = '#settings/portal'; };
+      off.appendChild(go);
+      card.appendChild(off);
+    }
     card.appendChild(listTable(['Name', 'Members and what they may', 'Told', {words: 'Certificates', cls: 'num'}, ''],
       d.teams || [], function (t) {
         var tr_ = el('tr', 'tm-team');

@@ -7,6 +7,8 @@
 .tm b + .tm-kind{margin-left:8px}
 .tm .tm-right{font-size:11px}
 .tm-legacy h2{color:var(--warn)}
+.tm-portal-off{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding:10px 12px;border:1px solid var(--warn);border-radius:8px;color:var(--warn);font-size:13px}
+.tm-portal-off span{flex:1 1 320px}
 .tag.tm-undef{background:transparent;border:1px dashed var(--line);color:var(--muted)}
 .tm-pick{display:flex;flex-direction:column;gap:6px;min-width:0}
 .tm-pick select{max-width:100%}

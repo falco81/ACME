@@ -18,6 +18,7 @@ the routes the pages ask, and the command line.
 """
 from __future__ import annotations
 
+from acmelib import engine as E
 from acmelib.certs import api as A
 from acmelib.certs import teams as T
 
@@ -31,6 +32,10 @@ def summary(store, s):
             # The owners a new certificate (or a new owner) may be given by this account.
             'choosable': [t['name'] for t in teams if T.owner_in(sc, t['name'])],
             'unowned_ok': sc is None,
+            # Whether the members can see anything on the enrolment pages at all
+            # (1.0.15): with either switch off, nothing is offered there.
+            'portal': {'on': bool(E.CONFIG.get('portal')),
+                       'certs': bool(E.CONFIG.get('portal_cert'))},
             'scoped': {'view': T.scope(store, s, 'view') is not None,
                        'manage': T.scope(store, s, 'manage') is not None}}
 

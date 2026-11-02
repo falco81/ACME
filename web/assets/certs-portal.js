@@ -167,8 +167,14 @@ function load() {
   }).catch(function (e) {
     if (e && e.stopped) return;
     if (e && e.status === 403) {
+      /* Not offered (portal_cert off): said, not an empty page (1.0.15). */
       var card = $('cp-card');
-      if (card) card.remove();
+      if (card) {
+        clear(card);
+        card.appendChild(stateCard('warn', 'Certificates are not offered here yet',
+          'Your administrator switches them on (Settings → The enrolment pages → Certificates on the portal).'));
+        explainWhatWasDrawn(card);
+      }
       return;
     }
     clear(CP.host);

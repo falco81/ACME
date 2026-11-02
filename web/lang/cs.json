@@ -40539,6 +40539,26 @@
   "ssd0106": {
    "source": "dynamic",
    "text": "dynamická"
+  },
+  "sportoff01": {
+   "source": "The enrolment pages are switched off: the members see nothing there.",
+   "text": "Enrolment stránky jsou vypnuté: členové tam nic neuvidí."
+  },
+  "sportoff02": {
+   "source": "Certificates on the portal is off: the members sign in on the enrolment pages and see nothing there - no certificate of their teams, no asking for one.",
+   "text": "Certifikáty na portálu jsou vypnuté: členové se na enrolment stránky přihlásí, ale nic tam neuvidí – žádný certifikát svých týmů a nemohou o žádný požádat."
+  },
+  "sportoff03": {
+   "source": "Open the setting",
+   "text": "Otevřít nastavení"
+  },
+  "sportoff04": {
+   "source": "Certificates are not offered here yet",
+   "text": "Certifikáty tu zatím nejsou nabízeny"
+  },
+  "sportoff05": {
+   "source": "Your administrator switches them on (Settings → The enrolment pages → Certificates on the portal).",
+   "text": "Zapíná je váš správce (Nastavení → Stránky registrace → Certifikáty na portálu)."
   }
  },
  "patterns": {
