@@ -45823,6 +45823,42 @@
   "sup116": {
    "source": "acme no longer puts the certificate there, nor after its renewals. What is on the target now stays there.",
    "text": "acme tam certifikát už nebude dávat, ani po obnovách. Co na cíli teď je, tam zůstane."
+  },
+  "sup117": {
+   "source": "just now",
+   "text": "právě teď"
+  },
+  "sup118": {
+   "source": "{0} s ago",
+   "text": "před {0} s"
+  },
+  "sup119": {
+   "source": "{0} min ago",
+   "text": "před {0} min"
+  },
+  "sup120": {
+   "source": "took {0} s",
+   "text": "trvalo {0} s"
+  },
+  "sup121": {
+   "source": "{0} to set up",
+   "text": "{0} k nastavení"
+  },
+  "sup122": {
+   "source": "all in place",
+   "text": "vše připraveno"
+  },
+  "sup123": {
+   "source": "the check failed",
+   "text": "kontrola selhala"
+  },
+  "sup124": {
+   "source": "checking…",
+   "text": "kontroluji…"
+  },
+  "sup125": {
+   "source": "took {0} ms",
+   "text": "trvalo {0} ms"
   }
  },
  "patterns": {

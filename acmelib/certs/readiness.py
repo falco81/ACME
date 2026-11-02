@@ -54,6 +54,13 @@ class NotReady(base.PluginError):
     """The precheck found something missing: the CA was not asked."""
 
 
+def forget():
+    """Every zone found forgotten (1.0.26): Check again asks DNS and the providers
+    anew - a delegation just set right was still seen as it was for two minutes."""
+    with _CACHE_LOCK:
+        _CACHE.clear()
+
+
 def _cached(key, fn, ttl=CACHE_S):
     t = time.time()
     with _CACHE_LOCK:

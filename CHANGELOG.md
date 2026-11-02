@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.26 - not released
 
+- **Check again checks again**, and says so: in *Add a certificate* it gave back
+  the answer of a moment ago, and the zones found were kept two minutes (a
+  delegation just set right still showed as it was); now everything is asked
+  anew, and beside the buttons a quiet line says when it was checked, how long
+  ago, how long it took and how it came out.
+
 - **A deployment taken off from its row**: beside its Edit, a button that asks
   once in a popup and takes it off (what is on the target stays there).
 

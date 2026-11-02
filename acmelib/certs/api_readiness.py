@@ -81,12 +81,16 @@ def _args(store, b):
 
 @A.api('POST', '/api/certs/plan', 'certadmin')
 def _plan(h, s):
-    b = h.body()
+    b = dict(h.body())
+    if A._flag(b.pop('fresh', None), 0):
+        R.forget()                      # Check again: everything asked anew
     return {'plan': R.plan(h.store, _names(b), timeout=PLAN_S, **_args(h.store, b))}
 
 
 @A.api('POST', '/api/certs/check', 'certadmin')
 def _check(h, s):
+    if A._flag(h.body().get('fresh'), 0):
+        R.forget()                      # Check again: everything asked anew
     row = S.cert_need(h.store, A._id(h.body().get('id')))
     names, issuer, _c, _m = R.cert_args(row)
     got = R.plan(h.store, names, issuer=issuer, cert=row, timeout=PLAN_S)

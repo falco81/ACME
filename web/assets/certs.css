@@ -772,3 +772,12 @@ textarea.df-code-t:focus{border:0}
   .ct-tune-grid{grid-template-columns:1fr}
   .ct-tune-tile.on{grid-column:auto}
 }
+
+/* When the validation was last checked (1.0.26): quiet, beside Check again. */
+.ct-rd-bar{align-items:center}
+.ct-rd-stamp{display:inline-flex;align-items:center;gap:6px;margin-left:6px;padding:3px 8px;border-radius:999px;transition:background .6s}
+.ct-rd-dot{width:7px;height:7px;border-radius:50%;background:var(--tx-dim);flex:none}
+.ct-rd-dot.good{background:var(--ok)}
+.ct-rd-dot.bad{background:var(--crit)}
+@keyframes ct-rd-flash{0%{background:var(--info-bg)}100%{background:transparent}}
+.ct-rd-stamp.ct-rd-flash{animation:ct-rd-flash 1.6s ease-out}

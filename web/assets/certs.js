@@ -3174,7 +3174,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
     valSection.classList.add('ct-rd-sect');
     var cview = readinessView({
       auto: blocked || c.state === 'new' || c.state === 'failed',
-      ask: function (force) { return rdAsk('check:' + c.id + ':' + (c.updated || c.last_try || ''), function () { return capi('certs/check', {id: c.id}).then(function (d) { return d.plan || d; }); }, force); },
+      ask: function (force) { return rdAsk('check:' + c.id + ':' + (c.updated || c.last_try || ''), function () { return capi('certs/check', {id: c.id, fresh: force ? true : undefined}).then(function (d) { return d.plan || d; }); }, force); },
       dry: function () { return capi('certs/dry_run', {id: c.id}); }
     });
     valSection._body.appendChild(cview.node);
@@ -3716,7 +3716,34 @@ function readinessView(o) {
   dry.title = 'A test record or file put in place, looked for from outside and taken away - no CA is asked';
   bar.appendChild(again);
   if (MANAGE && o.dry) bar.appendChild(dry);
+  /* When it was last checked, how long it took and how it came out (1.0.26) -
+     "Check again" changed nothing to see when the answer was the same. */
+  var stamp = el('span', 'ct-rd-stamp muted small');
+  bar.appendChild(stamp);
   node.appendChild(bar);
+  var stampAt = 0, stampTook = 0, stampWords = '', stampKind = '';
+  var hhmmss = function (t) { var d = new Date(t); return [d.getHours(), d.getMinutes(), d.getSeconds()].map(function (x) { return (x < 10 ? '0' : '') + x; }).join(':'); };
+  var stampPaint = function () {
+    if (!stamp.isConnected && stampAt) { clearInterval(stampTick); return; }
+    if (!stampAt) return;
+    var ago = Math.max(0, Math.round((Date.now() - stampAt) / 1000));
+    clear(stamp);
+    var dot = el('span', 'ct-rd-dot ' + stampKind);
+    stamp.appendChild(dot);
+    stamp.appendChild(document.createTextNode(tr('checked') + ' ' + hhmmss(stampAt) + ' · ' +
+      (ago < 5 ? tr('just now') : (ago < 120 ? tr('{0} s ago').replace('{0}', ago) : tr('{0} min ago').replace('{0}', Math.round(ago / 60)))) +
+      ' · ' + (stampTook < 1000 ? tr('took {0} ms').replace('{0}', Math.max(1, Math.round(stampTook)))
+                                 : tr('took {0} s').replace('{0}', (stampTook / 1000).toFixed(1))) +
+      (stampWords ? ' · ' + stampWords : '')));
+  };
+  var stampTick = setInterval(stampPaint, 5000);
+  var stampSet = function (kind, words, took) {
+    stampAt = Date.now(); stampKind = kind; stampWords = words; stampTook = took;
+    stampPaint();
+    stamp.classList.remove('ct-rd-flash');
+    void stamp.offsetWidth;                     /* the flash once more */
+    stamp.classList.add('ct-rd-flash');
+  };
   var sumHost = el('div');
   node.appendChild(sumHost);
   var dryHost = el('div', 'ct-rd-dry');
@@ -3727,10 +3754,15 @@ function readinessView(o) {
     busy(again, true);
     clear(sumHost);
     sumHost.appendChild(saidLine('', 'Checking DNS, the addresses and the validations…'));
+    clear(stamp);
+    stamp.appendChild(document.createTextNode(tr('checking…')));
     var t = V.ticket = {};
+    var t0 = Date.now();
     return o.ask(force !== false).then(function (plan) {
       if (V.ticket !== t) return plan;
       V.plan = plan;
+      var nb = arr(obj(plan).blocking).length;
+      stampSet(nb ? 'bad' : 'good', nb ? tr('{0} to set up').replace('{0}', nb) : tr('all in place'), Date.now() - t0);
       clear(sumHost);
       sumHost.appendChild(rdSummary(plan));
       rdPlan(planHost, plan, o);
@@ -3740,6 +3772,7 @@ function readinessView(o) {
       if (V.ticket !== t) return;
       clear(sumHost);
       sumHost.appendChild(failedBox(e, 'the check of the validation'));
+      stampSet('bad', tr('the check failed'), Date.now() - t0);
     }).then(function (x) { busy(again, false); return x; });
   };
   var runDry = function () {
@@ -4548,7 +4581,8 @@ function certWizard(cert, detail, opts) {
     host.appendChild(el('h4', 'ct-formh', 'What each domain needs'));
     host.appendChild(el('p', 'muted small', 'The names grouped by their DNS zone, each with what its validation needs and where - checked now, nothing is changed. A record to create is shown exactly, with Copy.'));
     var view = readinessView({
-      ask: function () { read(); return planNow(); },
+      /* Check again asks anew (1.0.26): it gave back what was asked a moment ago */
+      ask: function (force) { read(); return planNow(force); },
       dry: function () { read(); return capi('certs/dry_run', planBody()); },
       onUse: function (g, v) {
         arr(g.names).forEach(function (n) {
@@ -4571,10 +4605,10 @@ function certWizard(cert, detail, opts) {
   function planBody() {
     return {names: names(), issuer: W.d.issuer, challenge: W.d.challenge, challenge_map: W.d.challenge_map};
   }
-  function planNow() {
+  function planNow(force) {
     var key = JSON.stringify(planBody());
-    if (W.plan && W.planKey === key) return Promise.resolve(W.plan);
-    return capi('certs/plan', planBody()).then(function (d) {
+    if (!force && W.plan && W.planKey === key) return Promise.resolve(W.plan);
+    return capi('certs/plan', force ? Object.assign({fresh: true}, planBody()) : planBody()).then(function (d) {
       W.plan = d.plan || d;
       W.planKey = key;
       return W.plan;
