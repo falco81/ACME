@@ -135,10 +135,20 @@ class RunContext(base.Context):
         self._stop.set()
 
     # ---- HTTPS -------------------------------------------------------------------------
+    shares_limits = True            # sign-ins and reads shared (acmelib/plugins/limits.py)
+
     def http(self, method, url, body=None, headers=None, timeout=30, verify=True,
-             ca_pem=None, client_cert=None, proxy=True):
+             ca_pem=None, client_cert=None, proxy=True, idempotent=None, retries=None):
         """(status, {header: value}, bytes). An answer of 4xx/5xx is an answer,
-        not an exception; a server that cannot be reached is a PluginError."""
+        not an exception; a server that cannot be reached is a PluginError.
+
+        Kind to the server (acmelib/plugins/limits.py): a few requests a second
+        and two at once to one host at most; a host that asked to slow down is
+        not asked before its time; an idempotent call (GET, HEAD, PUT, DELETE,
+        or `idempotent`) answered 429 / 503 / "too many attempts" is asked again
+        after the wait it asked for (else a growing one), at most `retries`
+        times (limits.RETRIES) - the job told so in words."""
+        from acmelib.plugins import limits as L
         if not re.match(r'^https?://', str(url or '')):
             raise base.PluginError('%r is not an http(s) address' % url, retry=False)
         if isinstance(body, str):
@@ -147,7 +157,11 @@ class RunContext(base.Context):
             body = json.dumps(body).encode('utf-8')
             headers = dict(headers or {})
             headers.setdefault('Content-Type', 'application/json')
-        req = urllib.request.Request(url, data=body, method=str(method or 'GET').upper())
+        verb = str(method or 'GET').upper()
+        if idempotent is None:
+            idempotent = verb in L.IDEMPOTENT
+        tries = L.RETRIES if retries is None else max(0, int(retries))
+        req = urllib.request.Request(url, data=body, method=verb)
         for k, v in (headers or {}).items():
             req.add_header(k, v)
         if not req.has_header('User-agent'):
@@ -179,29 +193,49 @@ class RunContext(base.Context):
                     shutil.rmtree(tmp, ignore_errors=True)
                     raise base.PluginError('the client certificate cannot be used: %s' % e,
                                            retry=False)
-        self.debug('%s %s' % (req.get_method(), url_shown(url)))
         try:
-            try:
-                from acmelib.certs import dnssets       # the name asked of Settings → DNS
-                with dnssets.scope(dnssets.purpose_of(self.scope), self.store, say=self.debug):
-                    got = E.url_open(req, timeout=timeout, context=ctx,
-                                     purpose='acme' if proxy else '')
-                with got:
-                    return got.status, dict(got.headers.items()), got.read()
-            except urllib.error.HTTPError as e:
-                try:
-                    data = e.read()
-                except Exception:                       # noqa: BLE001
-                    data = b''
-                return e.code, dict((e.headers or {}).items()), data
-            except urllib.error.URLError as e:
-                raise base.PluginError('%s could not be reached: %s' % (
-                    urllib.parse.urlsplit(url).netloc, getattr(e, 'reason', e)))
-            except (OSError, ssl.SSLError) as e:
-                raise base.PluginError('%s: %s' % (urllib.parse.urlsplit(url).netloc, e))
+            attempt = 0
+            while True:
+                with L.throttle(url, say=lambda w: self.step(w, 'warn'),
+                                cancelled=self.cancelled, method=verb):
+                    got = self._http_once(req, url, timeout, ctx, proxy)
+                wait = L.slowdown(*got)
+                if wait is None:
+                    return got
+                pause = L.pause(attempt, wait)
+                L.note_slow(url, pause)
+                if not idempotent or attempt >= tries or pause > L.WAIT_MAX or \
+                        self.cancelled():
+                    self.step('%s asked acme to slow down (HTTP %s) - not asked again now' % (
+                        L.host_of(url).rsplit(':', 1)[0], got[0]), 'warn')
+                    return got
+                self.step(L.waiting_words(url, pause, got[0]), 'warn')
+                L._sleep(pause, self.cancelled)
+                attempt += 1
         finally:
             if tmp:
                 shutil.rmtree(tmp, ignore_errors=True)
+
+    def _http_once(self, req, url, timeout, ctx, proxy):
+        self.debug('%s %s' % (req.get_method(), url_shown(url)))
+        try:
+            from acmelib.certs import dnssets       # the name asked of Settings → DNS
+            with dnssets.scope(dnssets.purpose_of(self.scope), self.store, say=self.debug):
+                got = E.url_open(req, timeout=timeout, context=ctx,
+                                 purpose='acme' if proxy else '')
+            with got:
+                return got.status, dict(got.headers.items()), got.read()
+        except urllib.error.HTTPError as e:
+            try:
+                data = e.read()
+            except Exception:                       # noqa: BLE001
+                data = b''
+            return e.code, dict((e.headers or {}).items()), data
+        except urllib.error.URLError as e:
+            raise base.PluginError('%s could not be reached: %s' % (
+                urllib.parse.urlsplit(url).netloc, getattr(e, 'reason', e)))
+        except (OSError, ssl.SSLError) as e:
+            raise base.PluginError('%s: %s' % (urllib.parse.urlsplit(url).netloc, e))
 
     # ---- SSH and openssl ---------------------------------------------------------------
     def ssh(self, conn):
