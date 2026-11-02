@@ -6,6 +6,29 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.19 - 2026-11-02
 
+- Route 53, PowerDNS, Azure DNS and Google Cloud DNS validations write the TXT
+  values at a name as a whole: two jobs at once (two certificates, or a
+  certificate and a dry run) could each write over the other's value, and one
+  validation failed. They now write one after another.
+- A certificate administrator who changed a saved source's, validation's or
+  target's settings (the API address, the host) and tried them (Test, *Try
+  reaching it*, *Find out what runs there*) had them tried with the API key,
+  password or TSIG kept for it - which could so be sent elsewhere. Settings not
+  saved are tried with the kept secrets by a full administrator only (tried as
+  saved, or with the secrets typed in again, as before).
+- With debug on, the steps of a job showed each address a module asked in
+  full - with the token of Duck DNS or the API key of DreamHost in it. The
+  secrets in an address are shown as dots.
+- Behind a NAT with a split DNS (the web server 192.168.43.17 inside, the name
+  published with the public address), the check before the CA is asked held
+  an HTTP-01 certificate back: here the name resolved to the private address.
+  Where the validation's resolvers give private addresses only, the public view
+  (Settings → DNS) is asked as well, and its answer - what the CA sees -
+  counts; with the public address set, a name the internet sees elsewhere is
+  no longer taken as right because it resolves to the server here.
+- A commercial CA's DCV records (DigiCert, SSLmarket) put in place before an
+  error other than a refusal (a broken connection, say) are taken away again.
+
 - A backup put back that was made while a job ran no longer leaves its
   certificate busy for hours: those jobs come back marked failed.
 - The key on the enrolment pages is also given to the person who asked for the

@@ -919,6 +919,39 @@ class TestApiModules(unittest.TestCase):
         m.cleanup('*.example.com', h2)
         self.assertEqual(rrset['records'], [])
 
+    def test_powerdns_two_jobs_at_once_keep_both_values(self):
+        # 1.0.19: the RRset is read and written whole - two jobs side by side (two
+        # certificates, certs_parallel) lost one value without one writer at a time
+        import threading
+        rrset = {'records': []}
+        base = 'http://pdns:8081/api/v1/servers/localhost'
+        r = Router()
+
+        def read(u, b, h):
+            got = list(rrset['records'])
+            time.sleep(0.2)                     # both read before either writes
+            return {'rrsets': [{'name': '_acme-challenge.example.com.', 'type': 'TXT',
+                                'records': got}] if got else []}
+        r.on('GET', base + '/zones/example.com.?', read)
+        r.on('GET', base + '/zones', lambda u, b, h: [{'name': 'example.com.'}])
+
+        def patch(u, b, h):
+            rs = json.loads(b)['rrsets'][0]
+            rrset['records'] = list(rs.get('records', [])) if \
+                rs['changetype'] == 'REPLACE' else []
+            return 204, b''
+        r.on('PATCH', base + '/zones/example.com.', patch)
+        cfg = {'url': 'http://pdns:8081', 'api_key': 'k', 'propagation': 'none'}
+        a = plugin('powerdns')(dict(cfg), FakeCtx(http=r))
+        b = plugin('powerdns')(dict(cfg), FakeCtx(http=r))
+        ts = [threading.Thread(target=a.present, args=('example.com', 't', 'k', 'one')),
+              threading.Thread(target=b.present, args=('example.com', 't', 'k', 'two'))]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        self.assertEqual(sorted(x['content'] for x in rrset['records']), ['"one"', '"two"'])
+
     def test_route53(self):
         state = {'values': []}
         base = 'https://route53.amazonaws.com/2013-04-01'
@@ -1406,6 +1439,28 @@ class TestHttpSsh(unittest.TestCase):
         st = m._guide_points('bad.falco81.net', ['192.168.43.17'])      # private: unreachable
         self.assertFalse(st['done'])
         self.assertIn('private address', st['said'])
+        # 1.0.19: a split DNS - here the name resolves to the server's private address,
+        # the internet (the CA) sees the public one in front of it: the public view counts
+        public = {'shop.falco81.net': ['195.189.0.26'], 'bad.falco81.net': ['192.168.43.17'],
+                  'wrong.falco81.net': ['89.24.1.99']}
+        m.lookup_public = lambda n: public.get(n, [])
+        dns.update({'shop.falco81.net': ['192.168.43.17'],
+                    'wrong.falco81.net': ['192.168.43.17']})
+        st = m._guide_points('shop.falco81.net', ['192.168.43.17'])
+        self.assertTrue(st['done'], st)
+        self.assertIn('195.189.0.26', st['said'])
+        self.assertIn('here it resolves to 192.168.43.17', st['said'])
+        st = m._guide_points('bad.falco81.net', ['192.168.43.17'])      # private everywhere
+        self.assertFalse(st['done'])
+        # the public address said (NAT): the inside answer no longer makes it right
+        m3, _w, _s = self.module(hosts='192.168.43.17', balancer='195.189.0.26')
+        m3.lookup = lambda n, *a, **k: dns.get(n, [])
+        m3.lookup_public = lambda n: public.get(n, [])
+        self.assertTrue(m3._guide_points('shop.falco81.net', ['192.168.43.17'])['done'])
+        st = m3._guide_points('wrong.falco81.net', ['192.168.43.17'])
+        self.assertFalse(st['done'], st)
+        self.assertTrue(st['blocking'])
+        self.assertIn('89.24.1.99', st['said'])
         # its own block for some names: the name being validated is added to it
         m2, _w, _s = self.module(prepare_names='acmewww.falco81.net', prepare_how='own')
         m2._extra_names = ['test.falco81.net']

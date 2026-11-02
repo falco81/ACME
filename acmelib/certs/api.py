@@ -1492,6 +1492,52 @@ def family_delete(store, family, b, by):
     return row['name']
 
 
+def _same_value(f, a, b):
+    if f.get('type') == 'bool':
+        def yes(v):
+            return str(v).strip().lower() in ('1', 'true', 'yes', 'on')
+        return yes(a) == yes(b)
+    if f.get('type') == 'list':
+        def items(v):
+            v = v if isinstance(v, (list, tuple)) else re.split(r'[\n,]', str(v or ''))
+            return [str(x).strip() for x in v if str(x).strip()]
+        return items(a) == items(b)
+    if isinstance(a, (list, dict)) or isinstance(b, (list, dict)):
+        return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+    return str('' if a is None else a).strip() == str('' if b is None else b).strip()
+
+
+def kept_secrets_guard(store, family, b, s, kind=None):
+    """A saved module's settings tried changed (Test, Try reaching it, discovery)
+    use the secrets it keeps: changed by anybody but a full administrator - who
+    alone may save it - those secrets could be sent elsewhere (another API
+    address, another host), so that is refused. Tried as saved, or with every
+    secret typed in again, it is not."""
+    if may(s, 'fulladmin') or b.get('id') in (None, '', 0) or \
+            not isinstance(b.get('config'), dict):
+        return
+    row = S.plugin_row(store, family, _id(b['id']))
+    kind = kind or str(b.get('kind') or (row or {}).get('kind') or '')
+    if not row or row.get('kind') != kind:
+        return
+    cls = S.plugin_class(family, kind)
+    if cls is None:
+        return
+    secrets_ = S.secret_fields(cls)
+    given = b['config']
+    if not any(given.get(k) in (None, '') or E.is_masked(given.get(k))
+               for k in secrets_ if S.plugin_config(family, row).get(k)):
+        return                          # every kept secret given again: none of them used
+    saved = S.plugin_config(family, row)
+    for f in cls.fields or []:
+        k = f.get('key')
+        if not k or k in secrets_ or f.get('type') == 'sshkey' or k not in given:
+            continue
+        if not _same_value(f, given[k], saved.get(k, f.get('default'))):
+            raise E.ApiError(403, 'settings that are not saved are tried with the secrets '
+                                  'kept by a full administrator')
+
+
 def family_test(store, family, b, by, echo=None):
     """The module tried as saved, or with the settings given over them."""
     table = S.TABLE_OF[family]
@@ -1610,7 +1656,9 @@ def _family_routes(family, path):
 
     @api('POST', '/api/%s/test' % path, 'certadmin')
     def _test(h, s):
-        return family_test(h.store, family, h.body(), who(s))
+        b = h.body()
+        kept_secrets_guard(h.store, family, b, s)
+        return family_test(h.store, family, b, who(s))
 
     @api('POST', '/api/%s/default' % path, 'fulladmin')
     def _default(h, s):

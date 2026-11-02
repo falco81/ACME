@@ -6,7 +6,8 @@ import urllib.parse
 
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, api, as_bool
+from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, api, as_bool, \
+    rmw_lock
 
 
 class PowerDns(DnsChallenge):
@@ -72,18 +73,21 @@ class PowerDns(DnsChallenge):
 
     def add_txt(self, fqdn, value):
         zone = self.zone_for(fqdn)
-        have = self._values(zone, fqdn)
         one = '"%s"' % value
-        if one not in have:
-            self._put(zone, fqdn, have + [one])
+        # the RRset is written whole (REPLACE): one writer at a time
+        with rmw_lock(('powerdns', str(self.c('url', '')), zone)):
+            have = self._values(zone, fqdn)
+            if one not in have:
+                self._put(zone, fqdn, have + [one])
         return {'zone': zone}
 
     def del_txt(self, fqdn, value, handle):
         zone = (handle or {}).get('zone') or self.zone_for(fqdn)
-        have = self._values(zone, fqdn)
         one = '"%s"' % value
-        if one in have:
-            self._put(zone, fqdn, [x for x in have if x != one])
+        with rmw_lock(('powerdns', str(self.c('url', '')), zone)):
+            have = self._values(zone, fqdn)
+            if one in have:
+                self._put(zone, fqdn, [x for x in have if x != one])
 
     def test(self):
         info = self._api('GET', '') or {}

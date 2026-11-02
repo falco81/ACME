@@ -126,7 +126,7 @@ class HttpLocal(HttpChallenge):
         want = front + [a for a in own if a not in front]
         # acme known only by private addresses, the name public: a NAT may well be in
         # front - said, but no reason to keep the CA from asking
-        got = self.lookup(n)
+        got, _inside = self.ca_view(n)
         soft = not front and bool(own) and all(_private(a) for a in own) and \
             any(not _private(a) for a in got)
         steps = [self.guide_points(

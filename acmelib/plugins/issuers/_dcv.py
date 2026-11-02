@@ -110,7 +110,9 @@ class Placer(object):
                     self._say('put in place by hand, for the CA: %s (%s)' % (
                         record_words(rec), p.get('why')), 'warn')
                 placed.append(p)
-        except PluginError:
+        except Exception:                               # noqa: BLE001
+            # whatever stopped it (a refusal, the SSH session, a bug): the records put
+            # in place so far are taken away again - no order holds them
             self.cleanup(req, placed)
             raise
         return placed

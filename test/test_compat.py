@@ -457,6 +457,41 @@ class TestPlacement(unittest.TestCase):
         self.assertEqual(placed[0]['how'], 'manual')
         self.assertTrue(any('by hand' in w for _l, w in ctx.lines))
 
+    def test_placer_takes_away_what_it_put_when_a_later_one_breaks(self):
+        # 1.0.19: only a PluginError took the records put in place so far away again -
+        # any other error (an SSH session, a bug) left them in the customer's DNS
+        ctx = Ctx()
+        took = []
+
+        class Ch(object):
+            kind = 'fake'
+
+            def __init__(self, bad):
+                self.bad = bad
+
+            def place(self, kind, name, where, content):
+                if self.bad:
+                    raise OSError('the connection broke')
+                return {'where': where}
+
+            def unplace(self, handle):
+                took.append(handle['where'])
+
+        class Iss(object):
+            pass
+        iss = Iss()
+        iss.ctx = ctx
+        iss.c = lambda k, d=None: d
+        req = base.CertRequest(names=['www.firma.cz', 'shop.firma.sk'],
+                               challenges={'www.firma.cz': Ch(False), 'shop.firma.sk': Ch(True)})
+        with self.assertRaises(OSError):
+            _dcv.Placer(iss).place_all(req, [
+                {'domain': 'www.firma.cz', 'type': 'txt', 'fqdn': '_dnsauth.www.firma.cz',
+                 'value': 'RND1'},
+                {'domain': 'shop.firma.sk', 'type': 'txt', 'fqdn': '_dnsauth.shop.firma.sk',
+                 'value': 'RND2'}])
+        self.assertEqual(took, ['_dnsauth.www.firma.cz'])
+
 
 # ---------------------------------------------------------------------------
 # Through a real daemon: the API, the command line, the renewer

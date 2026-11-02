@@ -885,8 +885,9 @@ class HttpSsh(HttpChallenge):
                 'Point %s at the web servers (%s); if they are reached through a public '
                 'address (NAT) or a load balancer, put it under "Public addresses (NAT, load '
                 'balancer)"' % (n, ', '.join(addrs)), soft=not front)
-        # The web servers have private addresses: the CA reaches them through a public one.
-        got = self.lookup(n) or []
+        # The web servers have private addresses: the CA reaches them through a public one
+        # (and a split DNS may give the private one here: the public view is what counts).
+        got, inside = self.ca_view(n)
         title = 'The name points at the public address that reaches the web servers'
         pub = [a for a in got if not self._private(a)]
         if pub:
@@ -894,7 +895,9 @@ class HttpSsh(HttpChallenge):
                               said='%s resolves to %s - a public address; the web servers are '
                                    'on %s (NAT): right when it forwards port 80 to them. Put it '
                                    'under "Public addresses (NAT, load balancer)" to say so.'
-                                   % (n, ', '.join(pub), ', '.join(addrs)))
+                                   % (n, ', '.join(pub), ', '.join(addrs)) +
+                              ((' (As the internet sees it; here it resolves to %s.)'
+                                % ', '.join(inside)) if inside else ''))
         hint, by = self._public_hint()
         # a CNAME to the name that has the public address already: the address kept once
         rec = ({'name': n, 'type': 'CNAME', 'value': by + '.', 'ttl': None} if by and by != n

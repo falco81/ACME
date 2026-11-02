@@ -12,7 +12,7 @@ from xml.sax.saxutils import escape
 
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge
+from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, rmw_lock
 
 NS = '{https://route53.amazonaws.com/doc/2013-04-01/}'
 VERSION = '2013-04-01'
@@ -181,11 +181,15 @@ class Route53(DnsChallenge):
 
     def add_txt(self, fqdn, value):
         zid, _z = self._zone(fqdn)
-        ttl, have = self._values(zid, fqdn)
         one = '"%s"' % value
         cid = None
-        if one not in have:
-            cid = self._change(zid, 'UPSERT', fqdn, ttl if have else self.ttl(), have + [one])
+        # the RRset is read and written whole: one writer at a time (two orders side by
+        # side - a wildcard and its domain, two certificates - keep each other's value)
+        with rmw_lock('route53:' + str(zid)):
+            ttl, have = self._values(zid, fqdn)
+            if one not in have:
+                cid = self._change(zid, 'UPSERT', fqdn, ttl if have else self.ttl(),
+                                   have + [one])
         return {'zone_id': zid, 'change': cid}
 
     def ready(self, name, handle):
@@ -202,15 +206,16 @@ class Route53(DnsChallenge):
 
     def del_txt(self, fqdn, value, handle):
         zid = (handle or {}).get('zone_id') or self._zone(fqdn)[0]
-        ttl, have = self._values(zid, fqdn)
         one = '"%s"' % value
-        if one not in have:
-            return
-        left = [v for v in have if v != one]
-        if left:
-            self._change(zid, 'UPSERT', fqdn, ttl, left)
-        else:
-            self._change(zid, 'DELETE', fqdn, ttl, have)
+        with rmw_lock('route53:' + str(zid)):
+            ttl, have = self._values(zid, fqdn)
+            if one not in have:
+                return
+            left = [v for v in have if v != one]
+            if left:
+                self._change(zid, 'UPSERT', fqdn, ttl, left)
+            else:
+                self._change(zid, 'DELETE', fqdn, ttl, have)
 
     def test(self):
         if self.c('hosted_zone_id'):

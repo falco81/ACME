@@ -900,7 +900,11 @@ def _download(h, s):
 
 @A.api('POST', '/api/sshkey/try', 'certadmin')
 def _try(h, s):
-    return do_try(h.store, h.body(), A.who(s))
+    b = h.body()
+    fam = FAMILY_NAMES.get(str(b.get('family') or 'target').strip().lower())
+    if fam:
+        A.kept_secrets_guard(h.store, fam, b, s)
+    return do_try(h.store, b, A.who(s))
 
 
 install()

@@ -73,6 +73,25 @@ def port_in(port, spec):
     return False
 
 
+SECRET_PARAM = re.compile(r'(key|token|pass|secret|sig|auth|credential|session|code)', re.I)
+
+
+def url_shown(url):
+    """A URL as a job's steps say it: an API key, token or password given in its
+    query (Duck DNS, DreamHost...) or in the address itself as dots."""
+    try:
+        u = urllib.parse.urlsplit(str(url))
+    except ValueError:
+        return '?'
+    net = u.netloc
+    if '@' in net:
+        net = '\u2022\u2022\u2022@' + net.rsplit('@', 1)[1]
+    q = '&'.join(
+        '%s=%s' % (k, '\u2022' * 8 if SECRET_PARAM.search(k) and v else v) if eq else k
+        for k, eq, v in (p.partition('=') for p in u.query.split('&') if p)) if u.query else ''
+    return urllib.parse.urlunsplit((u.scheme, net, u.path, q, ''))
+
+
 class RunContext(base.Context):
     """The Context of acmelib/plugins/base.py, for one job (or a test).
 
@@ -160,7 +179,7 @@ class RunContext(base.Context):
                     shutil.rmtree(tmp, ignore_errors=True)
                     raise base.PluginError('the client certificate cannot be used: %s' % e,
                                            retry=False)
-        self.debug('%s %s' % (req.get_method(), url))
+        self.debug('%s %s' % (req.get_method(), url_shown(url)))
         try:
             try:
                 from acmelib.certs import dnssets       # the name asked of Settings → DNS

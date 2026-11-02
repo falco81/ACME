@@ -9,7 +9,7 @@ import urllib.parse
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, DnsChallenge, api,
-                                                relative)
+                                                relative, rmw_lock)
 
 CLOUDS = {'public': ('https://login.microsoftonline.com', 'https://management.azure.com'),
           'china': ('https://login.chinacloudapi.cn', 'https://management.chinacloudapi.cn'),
@@ -126,16 +126,19 @@ class AzureDns(DnsChallenge):
 
     def add_txt(self, fqdn, value):
         path = self._rs(fqdn)
-        have = self._values(path)
-        if value not in have:
-            self._put(path, have + [value])
+        # the record set is written whole (PUT): one writer at a time
+        with rmw_lock(('azure', path)):
+            have = self._values(path)
+            if value not in have:
+                self._put(path, have + [value])
         return {'path': path}
 
     def del_txt(self, fqdn, value, handle):
         path = (handle or {}).get('path') or self._rs(fqdn)
-        have = self._values(path)
-        if value in have:
-            self._put(path, [v for v in have if v != value])
+        with rmw_lock(('azure', path)):
+            have = self._values(path)
+            if value in have:
+                self._put(path, [v for v in have if v != value])
 
     def test(self):
         zones = self._zone_list()

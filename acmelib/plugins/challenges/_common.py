@@ -872,6 +872,9 @@ class DnsChallenge(Challenge):
 # ---------------------------------------------------------------------------
 # HTTP-01
 # ---------------------------------------------------------------------------
+_PUBLIC_DOWN = {}                   # the public view's servers -> not asked again until
+
+
 class HttpChallenge(Challenge):
     types = ('http-01',)
     vendor = 'HTTP'
@@ -1000,6 +1003,44 @@ class HttpChallenge(Challenge):
         except (D.DnsError, D.FormErr, OSError):
             return []
 
+    def lookup_public(self, name):
+        """The addresses a name has as the internet sees it (Settings → DNS: the
+        public view) - [] when that cannot be asked from here (then for a minute
+        it is not asked again: a machine without the internet waits once)."""
+        n = D.norm(name)
+        try:
+            servers = D.resolver('public', (), self.ctx)
+        except Exception:                               # noqa: BLE001
+            return []
+        key = D.servers_words(servers)
+        if _PUBLIC_DOWN.get(key, 0) > time.time():
+            return []
+        out = []
+        for qt in (1, 28):
+            try:
+                m = D.ask_any(servers, n, qt, self.guide_timeout)
+            except (D.DnsError, D.FormErr, OSError):
+                if qt == 1:
+                    _PUBLIC_DOWN[key] = time.time() + 60
+                    return []
+                continue
+            out += [r.text for r in m.answer if r.rtype == qt]
+        return out
+
+    def ca_view(self, name):
+        """(addresses, inside) of a name as the CA sees it. The validation's
+        resolvers first; where they give private addresses only (or none) - the
+        inside view of a split DNS, the server's own address behind a NAT - the
+        public view is asked as well, and its public addresses are the ones the CA
+        connects to. `inside`: the addresses here, when they were set aside so."""
+        got = self.lookup(name)
+        if got and not all(private_ip(a) for a in got):
+            return got, []
+        pub = [a for a in self.lookup_public(name) if not private_ip(a)]
+        if pub:
+            return pub, got
+        return got, []
+
     def url(self, host, token):
         h = '[%s]' % host if ':' in host else host
         return 'http://%s%s/.well-known/acme-challenge/%s' % (
@@ -1021,9 +1062,11 @@ class HttpChallenge(Challenge):
 
     def guide_points(self, name, want, record_value, fix_else, soft=False):
         """The step: the name's A/AAAA are among `want` addresses."""
-        got = self.lookup(name)
+        got, inside = self.ca_view(name)
         n = D.norm(name)
         home = D.registrable(n)
+        seen = (' (as the internet sees it; here it resolves to %s)' % ', '.join(inside)) \
+            if inside else ''
         rtype = 'AAAA' if ':' in (record_value or '') else 'A'
         rec = {'name': n, 'type': rtype, 'value': record_value, 'ttl': None} \
             if record_value else None
@@ -1037,12 +1080,13 @@ class HttpChallenge(Challenge):
         if hit:
             return guide_step('address', 'The name points at the machine that answers HTTP-01',
                               where='your DNS at %s' % home, record=rec, done=True,
-                              said='%s resolves to %s' % (n, ', '.join(hit)))
+                              said='%s resolves to %s%s' % (n, ', '.join(hit), seen))
         return guide_step('address', 'The name points at the machine that answers HTTP-01',
                           where='your DNS at %s' % home, record=rec, done=False,
                           blocking=not soft,
-                          said='%s resolves to %s, not to %s' % (
-                              n, ', '.join(got), ', '.join(want) or 'any address acme knows'),
+                          said='%s resolves to %s, not to %s%s' % (
+                              n, ', '.join(got), ', '.join(want) or 'any address acme knows',
+                              seen),
                           fix=fix_else)
 
     def dry_said(self, name, handle):
@@ -1071,6 +1115,16 @@ class HttpChallenge(Challenge):
                                   fix='Make %s serve /.well-known/acme-challenge/ for %s on '
                                       'port %d' % (addr, n, int(self.http_port))))
         return out
+
+
+def private_ip(addr):
+    """Is it an address the internet cannot reach (private, loopback, link-local)?"""
+    import ipaddress
+    try:
+        ip = ipaddress.ip_address(str(addr).strip('[]'))
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback or ip.is_link_local
 
 
 def _header(h, name):

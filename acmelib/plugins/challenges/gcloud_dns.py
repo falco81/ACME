@@ -13,7 +13,7 @@ import urllib.parse
 
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, api
+from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, api, rmw_lock
 
 SCOPE = 'https://www.googleapis.com/auth/ndev.clouddns.readwrite'
 BASE = 'https://dns.googleapis.com/dns/v1'
@@ -136,20 +136,23 @@ class GoogleCloudDns(DnsChallenge):
 
     def add_txt(self, fqdn, value):
         mz = self._managed_zone(fqdn)
-        old = self._rrset(mz, fqdn)
-        have = list((old or {}).get('rrdatas') or [])
         one = '"%s"' % value
-        if one not in have:
-            self._replace(mz, fqdn, old, have + [one])
+        # the RRset is replaced whole: one writer at a time
+        with rmw_lock(('gcloud', self._project(), mz)):
+            old = self._rrset(mz, fqdn)
+            have = list((old or {}).get('rrdatas') or [])
+            if one not in have:
+                self._replace(mz, fqdn, old, have + [one])
         return {'managed_zone': mz}
 
     def del_txt(self, fqdn, value, handle):
         mz = (handle or {}).get('managed_zone') or self._managed_zone(fqdn)
-        old = self._rrset(mz, fqdn)
-        have = list((old or {}).get('rrdatas') or [])
         one = '"%s"' % value
-        if one in have:
-            self._replace(mz, fqdn, old, [v for v in have if v != one])
+        with rmw_lock(('gcloud', self._project(), mz)):
+            old = self._rrset(mz, fqdn)
+            have = list((old or {}).get('rrdatas') or [])
+            if one in have:
+                self._replace(mz, fqdn, old, [v for v in have if v != one])
 
     def test(self):
         got = self._call('GET', '/managedZones') or {}
