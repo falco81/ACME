@@ -3386,3 +3386,13 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .split-said svg{flex:none}
 @media (max-width:720px){.split-opts{grid-template-columns:1fr}.split-now{grid-template-columns:1fr}.split-link{flex-direction:row;padding:4px 0}
   .split-link::before,.split-link::after{width:auto;height:2px;min-height:0;min-width:20px}}
+
+/* Popups that grow with the screen (1.0.17) - in measure: about 60-70 % of
+   a wide window, never the whole of it; below 1400 px as before, on a phone
+   the whole width. The cards of a certificate or a deployment then sit side
+   by side rather than stacked under a narrow column. */
+.modal .box{width:min(max(1320px,72vw),1560px,100%)}
+.modal .box.narrow{width:min(max(560px,30vw),680px,100%)}
+.modal .box.medium{width:min(max(900px,58vw),1280px,100%)}
+.modal .box.large{width:min(max(1120px,66vw),1440px,100%)}
+.modal .box.tune{width:min(max(1240px,70vw),1500px,100%)}
