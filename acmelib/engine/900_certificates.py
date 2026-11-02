@@ -318,7 +318,7 @@ def certs_event_fields(kind, words, level):
 # set up, not what happened (cert_jobs, cert_versions stay out).
 CERT_CARRY_TABLES = ['cert_issuers', 'cert_challenges', 'cert_targets', 'cert_cas',
                      'cert_ca_issued', 'certs', 'cert_deploys', 'dns_records',
-                     'dns_sets', 'dns_set_uses', 'cert_teams', 'cert_tags']
+                     'dns_sets', 'dns_set_uses', 'cert_teams', 'cert_tags', 'cert_req_profiles']
 
 
 @_certs_hook('carry_tables')

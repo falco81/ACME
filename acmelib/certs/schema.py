@@ -24,7 +24,7 @@ SCHEMA = [
         csr_pending {B}, enabled {I}, key_type_alt {K}, alt_cert_pem {B}, alt_chain_pem {B},
         alt_key_sealed {B}, alt_serial {K}, alt_fingerprint {K}, alt_not_before {N},
         alt_not_after {N}, alt_issuer_dn {T}, alt_ari {T}, alt_version {I}, alt_state {K},
-        alt_error {T}, alt_fails {I}, alt_next_try {N})'''),
+        alt_error {T}, alt_fails {I}, alt_next_try {N}, csr_given {B})'''),
     # Every certificate one of them has had, the current one too. A dual
     # certificate's twin (key_type_alt) has rows of its own, variant 'alt',
     # numbered in the same sequence as the main ones (variant '').
@@ -104,6 +104,13 @@ SCHEMA = [
     ('cert_tags', '''CREATE TABLE IF NOT EXISTS cert_tags (
         id {ID}, name {K} NOT NULL UNIQUE, colour {K}, description {T}, created {N},
         created_by {K}, updated {N}, updated_by {K})'''),
+    # Settings → Request profiles (acmelib/certs/reqprofiles.py, docs/request-profiles.md):
+    # what may be asked for on the portal, everything but the names set beforehand -
+    # the source, the validation, the names allowed, the key or a CSR, the subject,
+    # renewal, approval, owner, tags and who may use it (config: JSON).
+    ('cert_req_profiles', '''CREATE TABLE IF NOT EXISTS cert_req_profiles (
+        id {ID}, name {K} NOT NULL UNIQUE, description {T}, enabled {I}, config {B},
+        created {N}, created_by {K}, updated {N}, updated_by {K})'''),
 ]
 
 INDEXES = [
