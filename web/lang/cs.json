@@ -41339,6 +41339,38 @@
   "sr4v0000": {
    "source": "settings that are not saved are tried with the secrets kept by a full administrator",
    "text": "neuložená nastavení s uloženými tajnými údaji zkouší jen plný administrátor"
+  },
+  "sb5_001": {
+   "source": "on the VIP address only",
+   "text": "jen na VIP adrese"
+  },
+  "sb5_002": {
+   "source": "that code is not right, and it was the last try for it - send another",
+   "text": "tento kód nesedí a byl to u něj poslední pokus – pošlete si další"
+  },
+  "sb5_003": {
+   "source": "Each table is rebuilt and held shut while it is. In a cluster this node renews nothing meanwhile and the other node does the work; alone, everything waits for it - do it when little is going on. It needs room for a second copy of the biggest table. Worth doing after throwing a lot away, and not otherwise.",
+   "text": "Každá tabulka se přestaví a je mezitím zavřená. V clusteru tento uzel mezitím nic neobnovuje a práci dělá druhý uzel; samostatný server nechá vše čekat – dělejte to, když se děje málo. Potřebuje místo na druhou kopii největší tabulky. Vyplatí se po zahození velkého množství dat, jinak ne."
+  },
+  "sb5_004": {
+   "source": "Signs in to the gateway with what is saved above and asks how its modems are - operator, signal, SIM. Nothing is sent; a test SMS goes from Try an SMS, below.",
+   "text": "Přihlásí se do brány s tím, co je výše uložené, a zeptá se na stav jejích modemů – operátor, signál, SIM. Nic se neodesílá; testovací SMS se posílá z Vyzkoušet SMS níže."
+  },
+  "sb5_005": {
+   "source": "The attribute a name without its @domain is looked up by.",
+   "text": "Atribut, podle kterého se hledá jméno bez @domény."
+  },
+  "sb5_006": {
+   "source": "PostgreSQL is stopped and started again so that the settings waiting for its next start take effect. It takes a few seconds; the daemon waits for it meanwhile, and what was asked in that moment is done as soon as it is back.",
+   "text": "PostgreSQL se zastaví a znovu spustí, aby začala platit nastavení čekající na jeho příští start. Trvá to pár sekund; démon mezitím čeká a co se v tu chvíli požadovalo, se provede, jakmile bude zpět."
+  },
+  "sb5_007": {
+   "source": "A value marked “its own” is that node’s alone; the others take the cluster’s. The API port takes effect when the node reads its settings again (within seconds).",
+   "text": "Hodnota označená „vlastní“ patří jen tomu uzlu; ostatní berou hodnotu clusteru. Port API platí, jakmile si uzel znovu načte nastavení (během několika sekund)."
+  },
+  "sb5_008": {
+   "source": "The nodes not begun stay as they are; a node being updated finishes.",
+   "text": "Uzly, které ještě nezačaly, zůstanou, jak jsou; právě aktualizovaný uzel dokončí."
   }
  },
  "patterns": {

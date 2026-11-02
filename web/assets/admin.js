@@ -1664,7 +1664,7 @@ function settingItemBare(s) {
     input.min = s.min;
     input.max = s.max;
     input.value = s.value;
-  } else if (TALL[s.key]) {
+  } else if (TALL[s.key] || s.tall) {
     item.classList.add('tall');
     input = el('textarea');
     input.value = s.value === null || s.value === undefined ? '' : String(s.value);
@@ -2473,7 +2473,22 @@ function loadUsers() {
       if (ADMIN) {
         /* The role first, the buttons as one group after it. */
         var role = selectBox(d.roles.map(function (x) { return [x.role, x.words]; }), u.role);
-        role.onchange = function () { userDo({action: 'role', name: u.name, role: role.value}); };
+        /* Saved with the save bar (1.0.19), as every other change here: a
+           role picked by a slip of the wheel or the keyboard was given at
+           once. */
+        var rkey = 'role:' + u.name;
+        if (PENDING[rkey]) role.value = PENDING[rkey].role;      /* drawn again, still not saved */
+        role.onchange = function () {
+          if (role.value === u.role) { delete PENDING[rkey]; markDirtyCount(); return; }
+          var want = role.value;
+          pendingSet(rkey, {pane: 'people', role: want, save: function () {
+            return api('users', {action: 'role', name: u.name, role: want}).then(function (r) {
+              toast(r.message, 'good');
+              loadUsers();
+              return true;
+            });
+          }, reset: function () { loadUsers(); }});
+        };
         role.style.marginRight = '10px';
         tools.appendChild(role);
       }

@@ -260,7 +260,10 @@ class Daemon(object):
                    'in_file': key in FILE_KEYS,
                    'file': FILE_CONFIG.get(key) if key in FILE_KEYS else None,
                    'file_only': key in FILE_ONLY_KEYS,
-                   'node_key': key in NODE_KEYS, 'hisec': hisec_ui(key)}
+                   'node_key': key in NODE_KEYS, 'hisec': hisec_ui(key),
+                   # Several lines (1.0.19): a PEM or the records of the DNS server
+                   # typed into a box of one line lost their line breaks.
+                   'tall': key in SETTING_TALL}
             if key in NODE_KEYS:
                 one['per_node'] = {k.split('@', 1)[1]: v for k, v in saved.items()
                                    if k.startswith(key + '@')}

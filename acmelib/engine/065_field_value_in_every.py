@@ -780,10 +780,11 @@ class Storage(object):
                 return data
         return data
 
-    def session_count_try(self, ident, field, code, most):
+    def session_count_try(self, ident, field, code, most, keep=()):
         """A wrong try counted on the one-time code kept under `field` - the
         one whose hash is `code` - as the database holds it now (1.0.101);
-        taken away at the last try. Whether it is gone now."""
+        taken away at the last try (but the fields named in `keep`). Whether
+        it is gone now."""
         for _round in range(16):
             raw = self.db.value('SELECT data FROM sessions WHERE id = ?', (ident,))
             if raw is None:
@@ -793,11 +794,13 @@ class Storage(object):
             except ValueError:
                 return True
             cur = data.get(field)
-            if not isinstance(cur, dict) or cur.get('code') != code:
+            if not isinstance(cur, dict) or cur.get('hash', cur.get('code')) != code:
                 return True             # taken, or another code asked for since
             cur['tries'] = int(cur.get('tries') or 0) + 1
             gone = cur['tries'] >= most
-            if gone:
+            if gone and keep:
+                data[field] = {k: cur[k] for k in keep if k in cur}
+            elif gone:
                 data.pop(field, None)
             else:
                 data[field] = cur

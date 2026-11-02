@@ -6,6 +6,24 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.19 - 2026-11-02
 
+- *Wrong codes before it has to be sent again* (Settings → Codes by e-mail and
+  SMS) was never asked: a code of the second step sent by mail or SMS could be
+  tried any number of times while it was good. It is gone after that many wrong
+  tries, and another has to be sent.
+- A CA certificate pasted for isemon, for syslog or for another ACME CA lost its
+  line breaks in a box of one line - and was then refused when it was used; the
+  records of acme's own DNS server could be given only one. These are boxes of
+  several lines now.
+- An account's role in Settings → Accounts waits for Save in the bar at the
+  bottom, as every other change there - it was given the moment the list changed.
+- Settings → Time and Upgrades no longer scroll sideways on a phone; a list
+  narrower than its words there (the nodes of Upgrades) scrolls in its own box
+  rather than laying one cell's tags over the next; a long message (an error
+  with a path in it) or address breaks inside its box instead of running off it.
+- In Czech: what a screen reader is told of a setting whose help has a name or
+  an address in it, the words of *Give the disk back*, of the Teltonika check,
+  of restarting PostgreSQL, of stopping a system update and *on the VIP address
+  only* (DNS server) are translated.
 - SSH DNS: the server nsupdate sends to is checked (one host and a port);
   Microsoft AD CS: more attributes saved as text are read line by line.
 - Route 53, PowerDNS, Azure DNS and Google Cloud DNS validations write the TXT

@@ -120,5 +120,68 @@ class PopupStack(unittest.TestCase):
         self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
 
 
+class ExplainSpoken(unittest.TestCase):
+    """What explain() puts in aria-label in the page's language (core.js with
+    i18n.js, in a browser): a setting's help with <i> or <code> in it is among
+    the rich translations only, and stayed English to a screen reader (1.0.19)."""
+
+    def test_rich_help_translated(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          timeout=60).returncode:
+            self.skipTest('no playwright for node here')
+        got = subprocess.run([node, os.path.join(ROOT, 'test', 'explain_aria_page.js'),
+                              os.path.join(ROOT, 'web', 'assets')],
+                             capture_output=True, text=True, timeout=120)
+        out = json.loads((got.stdout.strip().splitlines() or ['{}'])[-1])
+        self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
+
+
+def read(*parts):
+    with open(os.path.join(ROOT, *parts), encoding='utf-8') as f:
+        return f.read()
+
+
+class SavedWithTheBar(unittest.TestCase):
+    def test_role_waits_for_the_save_bar(self):
+        """An account's role in Settings → Accounts was given the moment the
+        select changed (1.0.19): it waits for Save as every other change."""
+        js = read('web', 'assets', 'admin.js')
+        self.assertNotRegex(js, r"role\.onchange = function \(\) \{ userDo\(")
+        self.assertIn("pendingSet(rkey, {pane: 'people', role: want", js)
+
+
+class SteadyNarrow(unittest.TestCase):
+    """Steady columns (core.js) in a box narrower than the list, in a browser: the
+    list keeps its own width and scrolls in its box - the tags of one cell lay over
+    the next at 390 px (Settings → Upgrades, 1.0.19)."""
+
+    def test_list_wider_than_its_box(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          timeout=60).returncode:
+            self.skipTest('no playwright for node here')
+        got = subprocess.run([node, os.path.join(ROOT, 'test', 'steady_narrow_page.js'),
+                              os.path.join(ROOT, 'web', 'assets', 'core.js')],
+                             capture_output=True, text=True, timeout=120)
+        out = json.loads((got.stdout.strip().splitlines() or ['{}'])[-1])
+        self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
+
+
+class Phone(unittest.TestCase):
+    def test_node_cards_fit_a_phone(self):
+        """Settings → Time scrolled sideways at 390 px: its cards were 520 px at
+        least (1.0.19). The columns of node cards are never wider than the page."""
+        css = read('web', 'assets', 'acme.css')
+        self.assertIn('#ntp-host .pw-grid{grid-template-columns:repeat(auto-fill,'
+                      'minmax(min(520px,100%),1fr))}', css)
+        self.assertIn('.pw-grid{grid-template-columns:repeat(auto-fill,'
+                      'minmax(min(360px,100%),1fr))}', css)
+
+
 if __name__ == '__main__':
     sys.exit(unittest.main())

@@ -843,7 +843,12 @@ function explain(over, words, extra) {
        tags taken out, the English never matched a translation. */
     var spoken = String(words).replace(/<\/?(?:b|i|em|strong|code|kbd|br)\s*\/?>/gi, '');
     if (typeof i18nText === 'function') {
-      var tr = i18nText(String(words));
+      /* Words with tags in them (<i>, <code>) are among the rich ones only
+         (1.0.19): the help of a setting stayed English to a screen reader -
+         or came out half of it, a pattern taking a piece of the sentence. */
+      var tr = (typeof I18N === 'object' && I18N.rich && typeof i18nFold === 'function')
+        ? I18N.rich.get(i18nFold(words)) : undefined;
+      if (tr === undefined) tr = i18nText(String(words));
       if (tr && tr !== String(words)) spoken = String(tr).replace(/<[^>]*>/g, '');
     }
     over.setAttribute('aria-label', spoken.slice(0, 300));
@@ -1057,6 +1062,11 @@ function listTable(headers, rows, cell, cls, opts) {
    wraps inside its column; nothing else moves. Kept for the page's life; a
    list whose columns are shown or hidden is a list of its own. */
 var LT_WIDTHS = {};
+/* The width a list had where it was wider than its box (1.0.19): on a phone
+   the shares were of the box, every column squeezed under its words, and the
+   tags of one cell lay over the next. Kept at its own width, it scrolls in its
+   box as it did before it was kept. */
+var LT_PX = {};
 function ltSteady(table, base) {
   var visible = function () {
     var ths = table.tHead ? table.tHead.rows[0].cells : [];
@@ -1065,7 +1075,7 @@ function ltSteady(table, base) {
   var keyOf = function (ths) {
     return base + '|' + ths.map(function (th) { return th.textContent.trim(); }).join('|');
   };
-  var apply = function (ths, shares) {
+  var apply = function (ths, shares, px) {
     /* A colgroup of its own: the headings' own widths are cols.js's. */
     var cg = table.querySelector('colgroup.lt-steady');
     if (cg) cg.remove();
@@ -1081,6 +1091,8 @@ function ltSteady(table, base) {
     });
     table.insertBefore(cg, table.firstChild);
     table.style.tableLayout = 'fixed';
+    var box = table.parentElement;
+    table.style.width = px && box && px > box.clientWidth + 1 ? px + 'px' : '';
   };
   var measure = function () {
     /* Widths somebody set by hand (cols.js) come first. */
@@ -1090,7 +1102,7 @@ function ltSteady(table, base) {
     var key = keyOf(ths);
     var got = LT_WIDTHS[key];
     if (got && got.length === ths.length) {
-      apply(ths, got);
+      apply(ths, got, LT_PX[key]);
       /* Something that does not fit its kept column (a long word wider than any
          before): laid out by its words once more - still before the paint. */
       var over = Array.prototype.some.call(table.querySelectorAll('tbody td'), function (td) {
@@ -1100,12 +1112,15 @@ function ltSteady(table, base) {
       var cg0 = table.querySelector('colgroup.lt-steady');
       if (cg0) cg0.remove();
       table.style.tableLayout = '';
+      table.style.width = '';
     }
     var widths = ths.map(function (th) { return th.getBoundingClientRect().width; });
     var total = widths.reduce(function (a, b) { return a + b; }, 0);
     if (total < 50) return;                     /* not laid out (a hidden tab) */
     LT_WIDTHS[key] = widths.map(function (w) { return Math.round(w / total * 10000) / 100; });
-    apply(ths, LT_WIDTHS[key]);
+    var holder = table.parentElement;
+    LT_PX[key] = holder && total > holder.clientWidth + 1 ? Math.ceil(total) : 0;
+    apply(ths, LT_WIDTHS[key], LT_PX[key]);
   };
   /* Put in place before it is painted where the list is known already;
      measured once it is in the page otherwise. */

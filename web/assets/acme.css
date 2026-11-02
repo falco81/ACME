@@ -286,7 +286,7 @@
   .ctl-pane > div:not(.card):not(.ctl-head):not(.grid):not(:empty) + .card,
   .ctl-pane > .card + div:not(.card):not(.grid) > .card:first-child,
   .ctl-pane > div:not(.card):not(.ctl-head):not(.grid):not(:empty) + div:not(.card):not(.grid) > .card:first-child{margin-top:14px}
-  p.note{color:var(--tx-dim);font-size:13px;margin:0 0 14px;max-width:940px}
+  p.note{color:var(--tx-dim);font-size:13px;margin:0 0 14px;max-width:940px;overflow-wrap:anywhere}
   p.note b{color:var(--tx);font-weight:600}
   .btnhelp{color:var(--tx-mut);font-size:12.5px;margin:6px 0 4px}
 
@@ -922,6 +922,10 @@
   .set-item label{font-size:13px;font-weight:650;letter-spacing:0;color:var(--tx);
                   display:flex;align-items:center;gap:6px;line-height:1.3}
   .set-item .says{font-size:12px;color:var(--tx-mut);line-height:1.45}
+  /* An address in the words broken where it must (1.0.19): a whole GitHub path
+     ran off the screen of a phone. */
+  .set-item .says code{overflow-wrap:anywhere}
+  #up-web p.mono{overflow-wrap:anywhere}
   /* :not(.sw) - the switch's own checkbox is hidden behind its track at
      width:0, and `.set-item input` is the more specific rule, so without this
      it becomes 44 pixels wide, absolutely positioned four pixels in, and
@@ -2868,7 +2872,11 @@ button.mebtn { cursor: pointer; }
 #ntp-host .pw-grid{margin-bottom:12px}
 #ntp-host .ntp-node .btnrow{margin-top:12px}
 .ntp-node .net-facts{grid-template-columns:repeat(3,minmax(0,1fr))}
-#ntp-host .pw-grid{grid-template-columns:repeat(auto-fill,minmax(520px,1fr))}
+#ntp-host .pw-grid{grid-template-columns:repeat(auto-fill,minmax(min(520px,100%),1fr))}
+/* On a phone (1.0.19): a column of 520 px (360 for the others) made Settings → Time
+   scroll sideways at 390 px, and a node's last facts were off the screen. */
+.pw-grid{grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr))}
+@media (max-width:520px){.ntp-node .net-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
 #ntp-form .formgrid > .set-item:only-child{max-width:460px}
 /* 1.0.123: Hide this, and the settings under From the web */
 .hide-row{display:flex;gap:10px;align-items:center;margin-top:10px}

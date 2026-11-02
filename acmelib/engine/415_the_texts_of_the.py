@@ -253,6 +253,19 @@ def _mfa_code_ok(saved, code):
                                str(saved.get('hash') or ''))
 
 
+def _mfa_wrong(h, s, field, saved):
+    """A wrong code counted on the code itself (1.0.19): after code_tries of them it is
+    gone and another has to be sent - "Wrong codes before it has to be sent again" was
+    shown in Settings and never asked, a code was good for any number of tries."""
+    if not isinstance(saved, dict) or not saved.get('hash'):
+        return
+    most = max(1, int(CONFIG.get('code_tries') or 3))
+    if h.store.session_count_try(s['id'], field, saved['hash'], most,
+                                 keep=('kind', 'dest') if field == 'mfa_new' else ()):
+        raise ApiError(400, 'that code is not right, and it was the last try for it - '
+                            'send another')
+
+
 def _mfa_send(h, s, kind, dest, field):
     data = s.get('data') or {}
     t = time.time()
@@ -387,6 +400,7 @@ def _mfa_act(h, kind):
         else:
             if not _mfa_code_ok(new, code):
                 h.failed(key)
+                _mfa_wrong(h, s, 'mfa_new', new)
                 raise ApiError(400, 'that code is not right, or no longer good - send another')
             rec['dest'] = new['dest']
         with MFA_LOCK:
@@ -443,6 +457,7 @@ def _mfa_act(h, kind):
             if not _mfa_code_ok(data.get('mfa_code'), code) or \
                     not h.store.session_take(s['id'], 'mfa_code'):
                 h.failed(key)
+                _mfa_wrong(h, s, 'mfa_code', data.get('mfa_code'))
                 raise ApiError(400, 'that code is not right, or no longer good - send another')
         token = _mfa_done(h, s, MFA_KIND_WORDS.get(rec.get('kind')), kind)
         return {'message': 'signed in', 'done': True, 'token': token}
