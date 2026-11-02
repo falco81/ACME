@@ -6,6 +6,30 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.23 - 2026-11-02
 
+- **Show a certificate** (Certificates, beside *Import* - for everybody, read-only
+  too): drop any file or paste its text - PEM with any number of blocks, DER,
+  PKCS#7 (.p7b/.p7c), PFX/P12 (modern and legacy, a Java PKCS12 keystore too),
+  JKS and JCEKS keystores, a CSR, a CRL, a private or public key, base64 without
+  its lines, a ZIP of them - and see everything in it in the largest popup. On
+  top the chain as a rail, leaf to root: each certificate a station, the
+  signature of each link checked, the root in this server's trust store or not,
+  a missing issuer said; a keystore's entries by alias. Below, the one picked in
+  cards over the whole width: subject and issuer by each part, validity with a
+  bar, key, serial (hex and decimal), fingerprints, names, key usage and EKU,
+  basic and name constraints, policies (DV/OV/EV), CRL and OCSP addresses, key
+  ids, CT SCTs, must-staple, any other extension as its OID and bytes, the PEM
+  to copy or download. A locked file asks for its password in the popup (a
+  wrong one is said); a JKS shows its certificates even without one. A private
+  key is only described - its type, whether it was encrypted, which certificate
+  it fits - never sent back. Nothing is kept and nothing changes.
+- **Sign a CSR** (Authorities): the request is read as soon as it is pasted or
+  read from a file and shown beside the form - its subject, names, key, whether
+  it is signed by its own key, the extensions it asks for - with what the
+  certificate will get (the issuer, from and until with the authority's end,
+  names, key usage, what it is used for). The signed certificate is shown in
+  the same viewer with its chain, with *Copy* and *Download*; a CSR in DER (read
+  from a file) is signed too.
+
 - What happens with several deployments: a junction - the plan's line branches
   into a track to each deployment's station (its target, module, host, how
   many steps, whether it holds the key); the one picked is shown below over the
