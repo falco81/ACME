@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.23 - 2026-11-02
 
+- Delete with revoke: the certificate stays in the list as "being revoked, then
+  deleted" until its CA has it, and only then goes; a revocation that fails
+  leaves it "revocation failed" with the reason - nothing deleted, not renewed
+  or deployed by itself - with *Delete* (again, with or without revoking) and
+  *Keep it* in its dialog.
+
 ## 1.0.22 - 2026-11-02
 
 - Settings → SSH server: an error of one read ("the root helper of this node

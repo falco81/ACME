@@ -42523,6 +42523,34 @@
   "sdp22_12": {
    "source": "a DNS validation",
    "text": "DNS validace"
+  },
+  "srvf01": {
+   "source": "being revoked, then deleted",
+   "text": "odvolává se, pak se smaže"
+  },
+  "srvf02": {
+   "source": "revocation failed",
+   "text": "odvolání selhalo"
+  },
+  "srvf03": {
+   "source": "It is being revoked at its CA; once the CA has it, it is deleted from acme. If the revocation fails it stays here, as \"revocation failed\", and nothing is deleted.",
+   "text": "Odvolává se u své CA; jakmile to CA přijme, smaže se z acme. Když odvolání selže, zůstane tu ve stavu „odvolání selhalo“ a nic se nesmaže."
+  },
+  "srvf04": {
+   "source": "It stays, as it is - valid, and renewed by itself again.",
+   "text": "Zůstane, jak je – platný a znovu se sám obnovuje."
+  },
+  "srvf05": {
+   "source": "The revocation failed - nothing was deleted",
+   "text": "Odvolání selhalo – nic se nesmazalo"
+  },
+  "srvf06": {
+   "source": "Delete again (with or without revoking it), or keep it: it is not renewed or deployed by itself until you choose.",
+   "text": "Smažte ho znovu (s odvoláním, nebo bez), nebo ho ponechte: dokud se nerozhodnete, sám se neobnovuje ani nenasazuje."
+  },
+  "srvf07": {
+   "source": "it is being revoked now",
+   "text": "právě se odvolává"
   }
  },
  "patterns": {
@@ -59185,6 +59213,26 @@
   "sdp22_11": {
    "source": "the record is right; still - {0}",
    "text": "záznam je v pořádku; ještě – {0}"
+  },
+  "srvf08": {
+   "source": "the revocation failed, nothing was deleted: {0}",
+   "text": "odvolání selhalo, nic se nesmazalo: {0}"
+  },
+  "srvf09": {
+   "source": "{0}: the revocation failed, it was not deleted: {1}",
+   "text": "{0}: odvolání selhalo, nesmazal se: {1}"
+  },
+  "srvf10": {
+   "source": "{0} is not waiting after a failed revocation",
+   "text": "{0} nečeká po neúspěšném odvolání"
+  },
+  "srvf11": {
+   "source": "{0} kept after a failed revocation, by {1}",
+   "text": "{0} ponechán po neúspěšném odvolání, {1}"
+  },
+  "srvf12": {
+   "source": "{0} is kept",
+   "text": "{0} je ponechán"
   }
  },
  "rich": {

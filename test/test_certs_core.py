@@ -1032,6 +1032,29 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         self.assertEqual(st, 400, got)
         self.ok('POST', '/api/certs/delete', {'id': cid2})
 
+    def test_19b_a_failed_revocation_keeps_it(self):
+        """1.0.23: "being revoked, then deleted" while it goes; a revocation that fails
+        leaves it "revocation failed" (not deleted, not renewed), Keep it brings it back."""
+        cid = self.ok('POST', '/api/certs/save', {'name': 'delfail', 'names': ['delfail.example.test'],
+                                                  'issuer': 'own', 'auto_renew': 1})['id']
+        self.wait_job(self.ok('POST', '/api/certs/renew', {'id': cid})['job_id'])
+        # its source now one acme cannot reach: the revocation fails
+        self.ok('POST', '/api/sources/save', {'name': 'gone-ca', 'kind': 'acme', 'config': {
+            'directory': 'custom', 'directory_url': 'http://127.0.0.1:9/directory',
+            'email': 'x@example.test'}})
+        self.py('st.db.run("UPDATE certs SET issuer = ? WHERE id = ?", ("gone-ca", %d)); print(1)' % cid)
+        got = self.ok('POST', '/api/certs/delete', {'id': cid, 'revoke': 1})
+        job = self.wait_job(got['job_id'])
+        self.assertEqual(job['state'], 'failed', job)
+        one = self.ok('GET', '/api/certs/one', args={'id': cid})['cert']
+        self.assertEqual(one['state'], 'revoke-failed')
+        self.assertIn('nothing was deleted', one['last_error'])
+        self.assertEqual(self.py('print(json.dumps(__import__("acmelib.certs.renewer", fromlist=["x"])'
+                                 '.due_why(st.db.row("SELECT * FROM certs WHERE id = ?", (%d,)))))' % cid), '')
+        self.ok('POST', '/api/certs/keep', {'id': cid})
+        self.assertEqual(self.ok('GET', '/api/certs/one', args={'id': cid})['cert']['state'], 'ok')
+        self.ok('POST', '/api/certs/delete', {'id': cid})
+
 
 if __name__ == '__main__':
     import urllib.parse  # noqa: F401

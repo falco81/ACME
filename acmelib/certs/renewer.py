@@ -217,8 +217,9 @@ def main_due(row, t=None):
     if not row.get('auto_renew') or row.get('enabled') == 0 or not row.get('issuer'):
         return ''
     # A request of the portal not approved (1.0.19) is never issued by itself.
+    # Being revoked to be deleted, or its revocation failed (1.0.23): asked to go away.
     if row.get('state') in ('renewing', 'pending', 'revoked', 'disabled', 'pending-approval',
-                            'declined'):
+                            'declined', 'deleting', 'revoke-failed'):
         return ''
     if row.get('state') == 'failed':
         return 'it failed last time; the wait is over' \

@@ -244,7 +244,9 @@ var STATE = {
   renewing: ['renewing', 'info'], failed: ['failed', 'crit'], expired: ['has expired', 'crit'],
   pending: ['waiting for a CA', 'violet'], revoked: ['revoked', 'crit'], disabled: ['switched off', 'dim'],
   /* asked for on the portal (acmelib/certs/portal.py) */
-  'pending-approval': ['waiting for approval', 'warn'], declined: ['declined', 'crit']
+  'pending-approval': ['waiting for approval', 'warn'], declined: ['declined', 'crit'],
+  /* Delete with revoke (1.0.23): seen as it goes, kept when the CA refused */
+  deleting: ['being revoked, then deleted', 'info'], 'revoke-failed': ['revocation failed', 'crit']
 };
 /** A popup's title of words and a name: the name is data, the words are
     translated as they stand ("Revoke " + a name the pattern cannot tell
@@ -2600,7 +2602,7 @@ function certsBlank() {
 }
 function certRow(c) {
   var tr = el('tr');
-  if (c.state === 'failed' || c.state === 'expired') tr.classList.add('ct-hot');
+  if (c.state === 'failed' || c.state === 'expired' || c.state === 'revoke-failed') tr.classList.add('ct-hot');
   tr.appendChild(td('', stateTag(c.state)));
   var nc = el('td', 'ct-cname');
   nc.appendChild(data('b', '', c.name));
@@ -2635,7 +2637,8 @@ function certRow(c) {
   if (c.last_error && (c.state === 'failed')) explain(jc, String(c.last_error));
   tr.appendChild(jc);
   var tools = el('td', 'rowtools');
-  if (MANAGE && c.state !== 'revoked' && c.state !== 'pending' && !asked(c)) {
+  if (MANAGE && c.state !== 'revoked' && c.state !== 'pending' && !asked(c) &&
+      c.state !== 'deleting' && c.state !== 'revoke-failed') {
     var r = iconButton('refresh', 'Renew it now');
     r.onclick = function (ev) { ev.stopPropagation(); certRenew(c, r); };
     tools.appendChild(r);
@@ -2785,9 +2788,26 @@ function certPeek(id) {
     var back = function () { certPeek(c.id); };
     var buttons = [];
     var waiting = c.state === 'pending' || c.csr_waiting;
+    /* Being revoked to be deleted (1.0.23): nothing is started on it meanwhile. */
+    var going = c.state === 'deleting';
+    if (going) {
+      buttons.push({words: 'Close', close: true});
+      return {title: c.name, size: 'large', buttons: buttons,
+              build: function (body) {
+                body.appendChild(el('p', 'note', 'It is being revoked at its CA; once the CA has it, it is deleted from acme. If the revocation fails it stays here, as "revocation failed", and nothing is deleted.'));
+                certBody(body, c, versions, deploys, jobs, back);
+              }};
+    }
     if (MANAGE) buttons.push({words: 'Delete', cls: 'danger', icon: 'trash', left: true, once: true, go: function () {
       over(function () { deleteDialog(c); }, back);
     }});
+    if (MANAGE && c.state === 'revoke-failed') {
+      buttons.push({words: 'Keep it', icon: 'undo', says: 'It stays, as it is - valid, and renewed by itself again.', go: function (b) {
+        busy(b, true);
+        capi('certs/keep', {id: c.id}).then(function (x) { toast(said(x, 'kept'), 'good'); closeModal(); CT.refresh(); })
+          .catch(fail).then(function () { busy(b, false); });
+      }});
+    }
     buttons.push({words: 'Close', close: true});
     if (window.ACME_RUNPLAN) buttons.push({words: 'What happens', icon: 'list',
       says: 'Everything a renewal of it does, step by step: the key, every call to its source, how each name is proved, and on each target every call, file and command - worked out without doing any of it.',
@@ -2802,7 +2822,7 @@ function certPeek(id) {
     if (MANAGE && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
     if (MANAGE && deploys.length && c.not_after && c.state !== 'revoked') buttons.push({words: 'Deploy now', icon: 'deploy', go: function (b) { certDeploy(c, b, back); }});
     if (MANAGE && c.issuer && c.state === 'revoked') buttons.push({words: 'Issue a new one', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
-    if (MANAGE && c.issuer && c.state !== 'revoked' && !waiting && !asked(c)) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
+    if (MANAGE && c.issuer && c.state !== 'revoked' && c.state !== 'revoke-failed' && !waiting && !asked(c)) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
     if (MANAGE && c.state === 'pending-approval') {
       buttons.push({words: 'Decline', icon: 'ban', go: function () { over(function () { approveDialog(c, false, back); }, back); }});
       buttons.push({words: 'Approve', cls: 'primary', icon: 'check', go: function () { over(function () { approveDialog(c, true, back); }, back); }});
@@ -2940,7 +2960,15 @@ function certBody(body, c, versions, deploys, jobs, back) {
     lw.appendChild(el('span', 'muted small', dayOnly(c.not_after)));
     body.appendChild(lw);
   }
-  if (c.last_error && (c.state === 'failed' || c.fails)) {
+  if (c.state === 'revoke-failed') {
+    var rf = el('div', 'ct-errbox');
+    var rh = el('div', 'ct-errbox-h');
+    rh.appendChild(el('b', '', 'The revocation failed - nothing was deleted'));
+    rf.appendChild(rh);
+    if (c.last_error) rf.appendChild(saidBox(c.last_error));
+    rf.appendChild(el('p', 'note small', 'Delete again (with or without revoking it), or keep it: it is not renewed or deployed by itself until you choose.'));
+    body.appendChild(rf);
+  } else if (c.last_error && (c.state === 'failed' || c.fails)) {
     var le = el('div', 'ct-errbox');
     var lh = el('div', 'ct-errbox-h');
     lh.appendChild(el('b', '', 'The last renewal failed'));

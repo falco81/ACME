@@ -377,7 +377,7 @@ def _cert_one(h, s):
     return cert_one(h.store, h.arg('id') or h.arg('name'), may(s, 'fulladmin'))
 
 
-KEEP_STATES = ('revoked', 'pending-approval', 'declined', 'pending')
+KEEP_STATES = ('revoked', 'pending-approval', 'declined', 'pending', 'deleting', 'revoke-failed')
 
 
 def cert_save(store, b, by):
@@ -661,6 +661,8 @@ def revocable(store, row):
         return 'it has not been issued'
     if row.get('state') == 'revoked':
         return 'it is revoked already'
+    if row.get('state') == 'deleting':
+        return 'it is being revoked now'
     irow = S.plugin_row(store, 'issuer', row.get('issuer')) if row.get('issuer') else None
     if not irow:
         return 'it has no source acme speaks to'
@@ -689,8 +691,20 @@ def _cert_delete(h, s):
     if reason not in REVOKE_REASONS:
         raise ValueError('the reason is one of %s' % ', '.join(REVOKE_REASONS))
 
+    # Seen in the list as it goes (1.0.23): "being revoked, then deleted" until the
+    # CA has it; a revocation that fails leaves it "revocation failed", not deleted.
+    h.store.db.update('certs', row['id'], {'state': 'deleting', 'state_at': time.time()})
+
     def fn(job):
-        renewer.revoke_cert(job.store, job, row['id'], reason, by)
+        try:
+            renewer.revoke_cert(job.store, job, row['id'], reason, by)
+        except Exception as e:
+            job.store.db.update('certs', row['id'], {
+                'state': 'revoke-failed', 'state_at': time.time(),
+                'last_error': ('the revocation failed, nothing was deleted: %s' % e)[:2000]})
+            job.store.add_event('certificates', '%s: the revocation failed, it was not deleted: '
+                                '%s' % (row['name'], e), 'warn', who=by)
+            raise
         job.step('revoked - now deleted from acme', 'ok')
         cert_drop(job.store, row, by)
         return True, '%s revoked and deleted' % row['name']
@@ -698,8 +712,26 @@ def _cert_delete(h, s):
         job_id = jobs.submit(h.store, 'revoke', fn, cert_id=row['id'], by=by,
                              said='reason: %s, then deleted' % reason)
     except ValueError as e:
+        h.store.db.update('certs', row['id'], {'state': row.get('state') or 'ok'})
         raise E.ApiError(409, str(e))
     return {'job_id': job_id, 'message': '%s is being revoked, then deleted' % row['name']}
+
+
+@api('POST', '/api/certs/keep', 'certadmin')
+def _cert_keep(h, s):
+    """A certificate whose revocation (to delete it) failed, kept after all (1.0.23):
+    back to what it is - valid, or expired - and renewed by itself again."""
+    row = S.cert_need(h.store, _id(h.body().get('id')))
+    if row.get('state') != 'revoke-failed':
+        raise E.ApiError(409, '%s is not waiting after a failed revocation' % row['name'])
+    t = time.time()
+    na = float(row.get('not_after') or 0)
+    state = ('ok' if na > t else 'expired') if row.get('cert_pem') else 'new'
+    h.store.db.update('certs', row['id'], {'state': state, 'state_at': t, 'last_error': '',
+                                           'updated': t, 'updated_by': who(s)[:190]})
+    h.store.add_event('certificates', '%s kept after a failed revocation, by %s' % (
+        row['name'], who(s)), who=who(s))
+    return {'message': '%s is kept' % row['name']}
 
 
 def start_renew(store, ref, force, by):
