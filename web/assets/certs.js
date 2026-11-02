@@ -2463,6 +2463,10 @@ function deployTable(rows, o) {
       var ed = iconButton('edit', 'The options of this deployment');
       ed.onclick = function (ev) { ev.stopPropagation(); over(function () { deployEdit({deploy: d, cert: o.cert, target: o.target}); }, o.back); };
       tools.appendChild(ed);
+      /* Taken off here too (1.0.26), asked first - as Edit is, a button of the row. */
+      var off = iconButton('trash', 'Take this deployment off');
+      off.onclick = function (ev) { ev.stopPropagation(); over(function () { deployOff(d, o.back); }, o.back); };
+      tools.appendChild(off);
     }
     tr.appendChild(tools);
     if (d.last_error) {
@@ -2475,6 +2479,29 @@ function deployTable(rows, o) {
 }
 /** One certificate on one target: its options drawn from the target's
     module (`deploy_fields`). o: {deploy, cert ({id,name}), target (row or name)}. */
+/* A deployment taken off, asked first (1.0.26): nothing is removed from the target -
+   acme no longer puts the certificate there. `twice`: from its own window, which
+   goes too. */
+function deployOff(d, back, twice) {
+  var where = d.target || d.target_name || '';
+  var what = d.cert_name || (d.cert && d.cert.name) || '';
+  /* This popup is the question: asked once, not again as "Really?" (once). */
+  modal('Take this deployment off?', function (body) {
+    var p = el('p', 'note');
+    p.innerHTML = htmlText((what ? what + ' ' : '') + '\u2192 ' + where) + '<br><br>' +
+      tr('acme no longer puts the certificate there, nor after its renewals. What is on the target now stays there.');
+    body.appendChild(p);
+  }, [{words: 'No, leave it', close: true},
+      {words: 'Take it off', cls: 'danger', icon: 'trash', once: true, go: function (b) {
+        busy(b, true);
+        capi('deploys/delete', {id: d.id}).then(function (x) {
+          toast(said(x, 'taken off'), 'good');
+          closeModal();
+          if (twice) closeModal();
+          CT.refresh();         /* the window under it is drawn again as it comes back */
+        }).catch(function (e) { busy(b, false); fail(e); });
+      }}], true);
+}
 function deployEdit(o) {
   var d = o.deploy || {};
   var certId = first(d.cert_id, o.cert && o.cert.id);
@@ -2557,7 +2584,7 @@ function deployEdit(o) {
       if (form && form.test) form.test(b);
     }});
     if (d.id && MANAGE) buttons.push({words: 'Take it off', cls: 'danger', icon: 'trash', go: function () {
-      capi('deploys/delete', {id: d.id}).then(function (x) { toast(said(x, 'taken off'), 'good'); closeModal(); CT.refresh(); }).catch(fail);
+      over(function () { deployOff(d, null, true); });
     }});
     if (MANAGE) {
       buttons.push({words: 'Save', icon: 'save', go: function (b) { save(b, false); }});

@@ -6,6 +6,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.26 - not released
 
+- **A deployment taken off from its row**: beside its Edit, a button that asks
+  once in a popup and takes it off (what is on the target stays there).
+
 - **Add only adds, and issues nothing**: the certificate waits as *added, not
   issued* until *Issue now* is pressed in its window (the look right after the
   save issued it at once before).

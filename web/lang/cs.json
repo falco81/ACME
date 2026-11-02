@@ -45811,6 +45811,18 @@
   "sup113": {
    "source": "What it will be. \"Add and issue now\" asks the source at once, in a job you can watch; \"Add only\" keeps it unissued until Issue now is pressed in its window.",
    "text": "Jak bude vypadat. „Přidat a hned vystavit“ požádá zdroj okamžitě, v úloze, kterou můžete sledovat; „Jen přidat“ ho nechá nevystavený, dokud v jeho okně nestisknete Vystavit teď."
+  },
+  "sup114": {
+   "source": "Take this deployment off",
+   "text": "Odebrat toto nasazení"
+  },
+  "sup115": {
+   "source": "Take this deployment off?",
+   "text": "Odebrat toto nasazení?"
+  },
+  "sup116": {
+   "source": "acme no longer puts the certificate there, nor after its renewals. What is on the target now stays there.",
+   "text": "acme tam certifikát už nebude dávat, ani po obnovách. Co na cíli teď je, tam zůstane."
   }
  },
  "patterns": {
