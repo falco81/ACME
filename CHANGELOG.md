@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.24 - not released
 
+- **Active24: both of its APIs**, checked against Active24's own descriptions -
+  the REST API v2 (rest.active24.cz: *Test* asks /v2/check, a Service ID alone
+  gives its domain by /v2/service/{id}/dns/zone, a domain missing from the
+  list of services is asked for itself) and the Active24 API (api.active24.com,
+  with a token - chosen under *API*).
+
 - **Tags: sixteen colours**, ten more (teal, cyan, indigo, pink, rose, orange,
   amber, lime, brown, slate), picked from the tag itself shown in each colour.
 

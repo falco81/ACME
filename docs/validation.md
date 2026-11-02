@@ -48,7 +48,7 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `technitium` | Technitium DNS Server HTTP API | an API token of a user with Modify on the zones |
 | `he_net` | dns.he.net dynamic TXT update - **one value per name**, record made by hand | a dynamic key per record |
 | `wedos` | WEDOS WAPI (JSON) | WAPI login + WAPI password, acme's IP allowed in WAPI |
-| `active24` | Active24 REST API v2 (Websupport-group signing) | API key + secret |
+| `active24` | Active24 REST API v2 (Websupport-group signing), or the Active24 API (api.active24.com) | API key + secret, or a token |
 | `websupport` | Websupport.sk / .cz REST API v1 (HMAC-SHA1 signed) | API key + secret |
 | `subreg` | Subreg.cz / Gransy SOAP API (envelope written by hand) | API login + password, acme's IP allowed |
 | `czechia` | CZECHIA.COM (ZONER) REST API; zone by SOA - no read call, so a dry run is the test | the account's API token |
@@ -614,6 +614,28 @@ service list - but its `Date` header is RFC 3339 (`2025-01-31T12:00:00Z`),
 which acme now sends for Active24 too (it sent the basic form
 `20250131T120000Z` of API v1 before). Websupport (`websupport`, API v1)
 keeps the basic form.
+
+Checked in 1.0.24 against Active24's own descriptions of both its APIs:
+
+* **REST API v2** - `https://rest.active24.cz/v2/docs/openapi.json` (OpenAPI 3,
+  "Rest API 2.0.0"): `/v2/check` (*Test* asks it: signed in?),
+  `/v2/service/{service}/dns/zone` (the zone's name - with a *Service ID*
+  alone the domain is read from it, not guessed from its SOA),
+  `/v2/service/{service}/dns/record` with `filters[name]` and
+  `filters[type][]`, POST of `{type, name, content, ttl}` answered 204 with
+  no body, DELETE `/v2/service/{service}/dns/record/{record}`; basicAuth.
+  A domain set under *Domain* but missing from the list of services is asked
+  for itself, `/v1/user/self/zone/{domain}` (its `id`), as acme.sh's
+  `dns_active24.sh` does; neither /v1 lookup is in the v2 description.
+* **Active24 API** - `https://api.active24.com/v2/api-docs` (Swagger 2.0,
+  "Active24 REST API Documentation"), *API* set to *Active24 API -
+  api.active24.com*, with its token (`Authorization: Bearer`):
+  `GET /dns/domains/v1` (the domains), `GET /dns/{domain}/records/v1`,
+  `POST /dns/{domain}/txt/v1` `{name, text, ttl}`, `DELETE
+  /dns/{domain}/{hashId}/v1` (400 `DNS_RECORD_TO_DELETE_NOT_FOUND`: gone
+  already). The description names only `name` and `ttl` of a listed record;
+  `hashId`, `type` and `text` are read as Posh-ACME's Active24 plugin
+  (github.com/rmbolger/Posh-ACME, `Plugins/Active24.ps1`) reads them.
 
 ### Websupport (`websupport`)
 

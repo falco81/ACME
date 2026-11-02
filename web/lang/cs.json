@@ -45711,6 +45711,34 @@
   "sup088": {
    "source": "slate",
    "text": "břidlicová"
+  },
+  "sup089": {
+   "source": "Which one your account has: the Czech and Slovak administration (on the Websupport platform) gives a key and a secret; the older Active24 administration a token.",
+   "text": "Které má váš účet: česká a slovenská administrace (na platformě Websupport) dává klíč a tajemství; starší administrace Active24 token."
+  },
+  "sup090": {
+   "source": "REST API v2 - rest.active24.cz (an API key and secret)",
+   "text": "REST API v2 – rest.active24.cz (API klíč a tajemství)"
+  },
+  "sup091": {
+   "source": "Active24 API - api.active24.com (a token)",
+   "text": "Active24 API – api.active24.com (token)"
+  },
+  "sup092": {
+   "source": "The token of the Active24 API (the administration → API).",
+   "text": "Token Active24 API (administrace → API)."
+  },
+  "sup093": {
+   "source": "Empty: the platform's own (rest.active24.cz or api.active24.com).",
+   "text": "Prázdné: adresa platformy (rest.active24.cz nebo api.active24.com)."
+  },
+  "sup094": {
+   "source": "TXT records in a domain at Active24 - through its REST API v2 (rest.active24.cz) or its Active24 API (api.active24.com).",
+   "text": "TXT záznamy v doméně u Active24 – přes jeho REST API v2 (rest.active24.cz) nebo Active24 API (api.active24.com)."
+  },
+  "sup095": {
+   "source": "Active24 did not take the API key and secret (/v2/check: not verified)",
+   "text": "Active24 nepřijal API klíč a tajemství (/v2/check: neověřeno)"
   }
  },
  "patterns": {

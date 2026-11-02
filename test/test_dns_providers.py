@@ -725,11 +725,19 @@ class WebsupportFake(Fake):
         self.t.assertEqual((key, sig), ('wkey', want))
         p = u.path.strip('/').split('/')
         if self.v2:
+            if p == ['v2', 'check']:
+                return 200, {'verified': True}
+            if p[:4] == ['v1', 'user', 'self', 'zone']:
+                # one domain's service (acme.sh's lookup): other.org is not in the list
+                return (200, {'id': 777, 'name': p[4]}) if p[4] == 'other.org' else (404, {})
+            if len(p) == 5 and p[3:] == ['dns', 'zone']:
+                return 200, {'name': ZONES[int(p[2]) - 500] if int(p[2]) != 777 else 'other.org',
+                             'dnssecSigning': 'inactive'}
             if p == ['v1', 'user', 'self', 'service']:
                 return 200, {'items': [{'id': 500 + i, 'serviceName': 'domain', 'name': z}
-                                       for i, z in enumerate(ZONES)] + [
+                                       for i, z in enumerate(ZONES) if z != 'other.org'] + [
                     {'id': 9, 'serviceName': 'hosting', 'name': 'x'}]}
-            zone = ZONES[int(p[2]) - 500]
+            zone = 'other.org' if int(p[2]) == 777 else ZONES[int(p[2]) - 500]
             recs = 'data'
             rid_at = 5
         else:
@@ -749,10 +757,37 @@ class WebsupportFake(Fake):
         if method == 'POST':
             b = json.loads(body)
             rid = self.add(zone, self.full(zone, b['name']), b['content'])
-            return 201, ({'id': rid} if self.v2 else {'status': 'success', 'item': {'id': rid}})
+            # v2: 204 and no body, as its OpenAPI description says
+            return (204, None) if self.v2 else (201, {'status': 'success', 'item': {'id': rid}})
         if method == 'DELETE':
             return (200, {'status': 'success'}) if self.drop(
                 lambda r: str(r['id']) == p[rid_at]) else (404, {'message': 'not found'})
+
+
+class Active24ComFake(Fake):
+    """api.active24.com: a Bearer token, records by their hashId."""
+    def handle(self, method, url, body, h):
+        u = urllib.parse.urlsplit(url)
+        self.t.assertEqual(u.netloc, 'api.active24.com')
+        self.t.assertEqual(h['Authorization'], 'Bearer a24tok')
+        p = u.path.strip('/').split('/')
+        if p == ['dns', 'domains', 'v1']:
+            return 200, ZONES
+        zone = p[1]
+        if method == 'GET' and p[2:] == ['records', 'v1']:
+            return 200, [{'hashId': 'h%d' % r['id'], 'type': 'TXT', 'ttl': r['ttl'],
+                          'name': self.rel(zone, r['name']) or '@', 'text': r['value']}
+                         for r in self.recs if r['zone'] == zone] + [
+                {'hashId': 'hA', 'type': 'A', 'name': 'www', 'ip': '192.0.2.1', 'ttl': 300}]
+        if method == 'POST' and p[2:] == ['txt', 'v1']:
+            b = json.loads(body)
+            self.t.assertEqual(set(b), {'name', 'text', 'ttl'})
+            self.add(zone, self.full(zone, b['name']), b['text'], b['ttl'])
+            return 204, None
+        if method == 'DELETE' and p[3] == 'v1':
+            return (204, None) if self.drop(lambda r: 'h%d' % r['id'] == p[2]) else \
+                (400, {'message': 'DNS_RECORD_TO_DELETE_NOT_FOUND'})
+        return 404, {}
 
 
 # ---------------------------------------------------------------------------
@@ -960,8 +995,23 @@ class TestProviders(Base):
             ('k:' + sig).encode()).decode())
 
     def test_active24(self):
-        self.run_module('active24', WebsupportFake(self, 'rest.active24.cz', v2=True),
-                        api_key='wkey', api_secret='wsec')
+        f = WebsupportFake(self, 'rest.active24.cz', v2=True)
+        m = self.run_module('active24', f, api_key='wkey', api_secret='wsec')
+        # a domain not in the list of services, set as the domain: asked for itself
+        # (/v1/user/self/zone/...)
+        mo, _ = module('active24', f, api_key='wkey', api_secret='wsec', zone='other.org')
+        h = mo.present('www.other.org', 't', 'k', 'v9')
+        self.assertEqual(f.values('_acme-challenge.www.other.org'), ['v9'])
+        mo.cleanup('www.other.org', h)
+        self.assertEqual(f.values('_acme-challenge.www.other.org'), [])
+        self.assertIn('/v2/check', ' '.join(c[1] for c in f.calls))
+        # a service ID alone: its zone read from /v2/service/{id}/dns/zone
+        m2, _ = module('active24', f, api_key='wkey', api_secret='wsec', service_id='501')
+        self.assertEqual(m2.zone_for(NAME.replace('www.example.com', 'www.dev.example.com')),
+                         'dev.example.com')
+
+    def test_active24_com(self):
+        self.run_module('active24', Active24ComFake(self), platform='com', token='a24tok')
 
 
 class TestHeNet(unittest.TestCase):
