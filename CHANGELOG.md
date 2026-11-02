@@ -6,6 +6,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.23 - 2026-11-02
 
+- **A target switched on and off right in its list** (a switch in Targets; off
+  asks first when certificates are deployed there). Its deployments are kept;
+  on the Certificates list a certificate says "N target(s) off", and in its
+  dialog the deployment says "target switched off" - nothing is put there until
+  it is on again.
+- A switch drawn on was taken as an edit of the person's: a live redraw of a list
+  put it back on after it was turned off (the target's switch, and any switch
+  whose value changed meanwhile).
+
 - What happens with several deployments: a junction - the plan's line branches
   into a track to each deployment's station (its target, module, host, how
   many steps, whether it holds the key); the one picked is shown below over the

@@ -42567,6 +42567,30 @@
   "srpj04": {
    "source": "Pick a deployment: only it is shown below, over the whole width.",
    "text": "Vyberte nasazení: níže se ukáže jen ono, přes celou šířku."
+  },
+  "stoff01": {
+   "source": "The target is switched off (Targets): this deployment is kept, but the certificate is not put there until the target is switched on again.",
+   "text": "Cíl je vypnutý (Cíle): nasazení zůstává, ale certifikát se tam nenasadí, dokud se cíl znovu nezapne."
+  },
+  "stoff03": {
+   "source": "A target it is deployed on is switched off (Targets): it is not put there until the target is on again.",
+   "text": "Cíl, na který se nasazuje, je vypnutý (Cíle): nenasadí se tam, dokud se cíl znovu nezapne."
+  },
+  "stoff04": {
+   "source": "On: certificates are put there. Switch it off to stop that without removing anything.",
+   "text": "Zapnuto: certifikáty se tam nasazují. Vypnutím to zastavíte, aniž by se cokoli odstranilo."
+  },
+  "stoff05": {
+   "source": "Off: nothing is put there; its deployments are kept.",
+   "text": "Vypnuto: nic se tam nenasazuje; nasazení zůstávají."
+  },
+  "stoff08": {
+   "source": "Switch the target off",
+   "text": "Vypnout cíl"
+  },
+  "stoff09": {
+   "source": "Switch the target off:",
+   "text": "Vypnout cíl:"
   }
  },
  "patterns": {
@@ -59257,6 +59281,26 @@
   "srpj03": {
    "source": "{0} deployment(s) side by side",
    "text": "{0} nasazení vedle sebe"
+  },
+  "stoff02": {
+   "source": "{0} target(s) off",
+   "text": "vypnuté cíle: {0}"
+  },
+  "stoff06": {
+   "source": "{0}: switched on",
+   "text": "{0}: zapnuto"
+  },
+  "stoff07": {
+   "source": "{0}: switched off",
+   "text": "{0}: vypnuto"
+  },
+  "stoff10": {
+   "source": "While it is off, no certificate is put on {0} - not at a renewal, not by Deploy now. Its deployments are kept and say \"target switched off\" on the certificates; switched on again, they go on as before.",
+   "text": "Dokud je vypnutý, na {0} se nenasadí žádný certifikát – ani při obnově, ani tlačítkem Nasadit teď. Nasazení zůstávají a u certifikátů ukazují „cíl je vypnutý“; po zapnutí pokračují jako dřív."
+  },
+  "stoff11": {
+   "source": "{0} deployment(s) on it.",
+   "text": "nasazení na něm: {0}."
   }
  },
  "rich": {

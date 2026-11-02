@@ -858,6 +858,10 @@ def deploy_public(store, row, full=False):
     out = {k: v for k, v in row.items() if k != 'options'}
     out['options'] = opts
     out['secret_set'] = is_set
+    # Its target switched off (1.0.23): said with the deployment, where the certificate is.
+    trow = store.db.row('SELECT enabled FROM cert_targets WHERE name = ?', (row.get('target'),))
+    out['target_off'] = bool(trow) and not int(trow.get('enabled') if trow.get('enabled')
+                                               is not None else 1)
     return out
 
 

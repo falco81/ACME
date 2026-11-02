@@ -1159,10 +1159,47 @@ function modSummary(m, r) {
   if (!bits.length) box.appendChild(el('span', 'muted', '–'));
   return box;
 }
-function modStateCell(r) {
+function modStateCell(r, key) {
   var c = el('td', 'ct-modstate');
   var on = r.enabled === undefined || truthy(r.enabled);
-  c.appendChild(el('span', 'tag ' + (on ? 'ok' : 'dim'), on ? 'on' : 'off'));
+  /* A target switched on and off right in the list (1.0.23): a switch for a full
+     administrator - off asks first when certificates are deployed there. */
+  if (key === 'targets' && FULL) {
+    var sw = switchBox(on);
+    sw.classList.add('ct-modsw');
+    sw.onclick = function (ev) { ev.stopPropagation(); };
+    explain(sw, on ? 'On: certificates are put there. Switch it off to stop that without removing anything.' : 'Off: nothing is put there; its deployments are kept.');
+    sw._input.onchange = function () {
+      var want = sw._get();
+      /* Never an edit the page keeps over a redraw (liveCarry): it is saved, or put back. */
+      sw._input.defaultChecked = sw._input.checked;
+      var go = function () {
+        sw._input.disabled = true;
+        capi('targets/save', {id: r.id, name: r.name, enabled: want}).then(function () {
+          r.enabled = want;
+          sw._input.checked = sw._input.defaultChecked = !!want;
+          /* not "worked in" any more: the row is drawn anew with what was saved */
+          try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) { }
+          if (typeof LIVE_PRESS !== 'undefined') LIVE_PRESS = null;
+          if (typeof SELECTED_AT !== 'undefined') SELECTED_AT = 0;
+          toast(want ? r.name + ': switched on' : r.name + ': switched off', 'good');
+          delete LISTS.targets;
+          drawModTab('targets', true);
+        }).catch(function (e) { sw._input.checked = sw._input.defaultChecked = !want; fail(e); })
+          .then(function () { sw._input.disabled = false; });
+      };
+      var n = usedCount(r) || 0;
+      if (want || !n) return go();
+      sw._input.checked = sw._input.defaultChecked = true;   /* on until it is said yes */
+      modal('Switch the target off', function (body) {
+        body.appendChild(el('p', 'note', 'While it is off, no certificate is put on ' + r.name + ' - not at a renewal, not by Deploy now. Its deployments are kept and say "target switched off" on the certificates; switched on again, they go on as before.'));
+        body.appendChild(el('p', 'note small muted', n + ' deployment(s) on it.'));
+      }, [{words: 'No, leave it', close: true},
+          {words: 'Switch it off', cls: 'primary', icon: 'power', go: function () { closeModal(); go(); }}], 'narrow');
+      nameInTitle('Switch the target off:', r.name);
+    };
+    c.appendChild(sw);
+  } else c.appendChild(el('span', 'tag ' + (on ? 'ok' : 'dim'), on ? 'on' : 'off'));
   if (r.last_error) {
     var b = el('span', 'tag crit', 'failing');
     explain(b, String(r.last_error));
@@ -1228,7 +1265,7 @@ function drawModTab(key, live) {
         tr.appendChild(sumCell);
         var n = usedCount(r);
         tr.appendChild(td('num', n === null ? '–' : num(n)));
-        tr.appendChild(modStateCell(r));
+        tr.appendChild(modStateCell(r, key));
         var tools = el('td', 'rowtools');
         if (MANAGE) {
           var t = iconButton('play', 'Test it now, without changing anything');
@@ -2314,7 +2351,16 @@ function deployTable(rows, o) {
       if (tg) nc.appendChild(el('div', 'muted small', plugTitle('target', tg.kind)));
     }
     tr.appendChild(nc);
-    tr.appendChild(td('', deployTag(d, (o.cert && o.cert.version) || d.cert_version)));
+    var stc = td('', deployTag(d, (o.cert && o.cert.version) || d.cert_version));
+    /* Its target switched off (1.0.23): kept, and not put there until it is on again. */
+    if (d.target_off) {
+      var off = el('span', 'tag warn', 'target switched off');
+      explain(off, 'The target is switched off (Targets): this deployment is kept, but the certificate is not put there until the target is switched on again.');
+      stc.appendChild(document.createTextNode(' '));
+      stc.appendChild(off);
+      tr.classList.add('ct-depoff');
+    }
+    tr.appendChild(stc);
     tr.appendChild(td('num', d.deployed_version ? 'v' + d.deployed_version : '–'));
     tr.appendChild(d.last_ok ? stampCell(d.last_ok) : td('muted', d.last_try ? 'last tried ' + ago(d.last_try) : 'never'));
     var opt = obj(d.options);
@@ -2701,6 +2747,12 @@ function deployCell(c) {
   explain(t, n === 1 ? 'Deployed on 1 target.' : 'Deployed on ' + n + ' targets.');
   cell.appendChild(t);
   if (bad) cell.appendChild(el('span', 'tag crit', num(bad) + ' failed'));
+  var off = Number(c.deploys_target_off || 0);
+  if (off) {
+    var o = el('span', 'tag warn', num(off) + ' target(s) off');
+    explain(o, 'A target it is deployed on is switched off (Targets): it is not put there until the target is on again.');
+    cell.appendChild(o);
+  }
   return cell;
 }
 /* Delete (1.0.21): asked in a popup, and revoked at its CA first unless the box

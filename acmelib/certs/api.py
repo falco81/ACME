@@ -222,6 +222,10 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
         one['deploys_failed'] = int(store.db.value(
             "SELECT COUNT(*) FROM cert_deploys WHERE cert_id = ? AND state = 'failed'",
             (r['id'],), 0) or 0)
+        # Deployments whose target is switched off (1.0.23): said in the list.
+        one['deploys_target_off'] = int(store.db.value(
+            'SELECT COUNT(*) FROM cert_deploys d JOIN cert_targets t ON t.name = d.target '
+            'WHERE d.cert_id = ? AND t.enabled = 0', (r['id'],), 0) or 0)
         out.append(one)
     return {'rows': out, 'total': total, 'page': page, 'per': per}
 

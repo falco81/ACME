@@ -1583,6 +1583,10 @@ function switchBox(on) {
   var input = document.createElement('input');
   input.type = 'checkbox';
   input.checked = !!on && String(on) !== '0';
+  /* What it was drawn with is its default (1.0.23): a switch drawn on is not an
+     edit the page carries over a redraw - a target switched off in its list came
+     back on, as if somebody had just turned it on. */
+  input.defaultChecked = input.checked;
   wrap.appendChild(input);
   wrap.appendChild(el('span', 'knob'));
   wrap._get = function () { return input.checked ? 1 : 0; };
