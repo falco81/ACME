@@ -4,6 +4,13 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.17 - 2026-11-02
+
+- **Popups are wider on a wide screen**: every popup grows with the window -
+  about two thirds to three quarters of it on a big screen (a certificate's
+  details 1480 px at 2000 px), never the whole of it; below 1400 px as before,
+  on a phone the whole width.
+
 ## 1.0.16 - 2026-11-02
 
 - **A team's rights work on the enrolment pages**, not only in the
