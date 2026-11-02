@@ -257,6 +257,21 @@ class TestSsls(unittest.TestCase):
         self.assertTrue(row['chain_pem'].count('BEGIN CERTIFICATE') >= 1)
         self.assertEqual(json.loads(row['tags']), ['imported'])
         self.assertEqual(row['auto_renew'], 1)
+        # -- to be set up as Add a certificate sets one up; the profile read from it
+        self.assertEqual(row['setup_due'], 1)
+        prof = json.loads(row['profile'])
+        from acmelib.certs import onlineimport as OI
+        self.assertEqual(prof, OI.profile_of(S.info_of(row['cert_pem'])))
+        self.assertEqual(OI.profile_of({'subject': {'CN': 'x', 'O': 'Firma', 'C': 'CZ'},
+                                        'eku': ['serverAuth', '1.2.3'], 'must_staple': True}),
+                         {'subject': {'O': 'Firma', 'C': 'CZ'}, 'eku': ['serverAuth'],
+                          'must_staple': True})
+        self.assertEqual(call('GET', '/api/certs/one', args={'id': row['id']})['cert']
+                         ['setup_due'], 1)
+        call('POST', '/api/certs/save', {'id': row['id'], 'renew_days': 20})
+        self.assertEqual(S.cert_need(STORE, row['id'])['setup_due'], 1)
+        call('POST', '/api/certs/save', {'id': row['id'], 'renew_days': 25, 'setup_done': True})
+        self.assertEqual(S.cert_need(STORE, row['id'])['setup_due'], 0)
         # -- listed again: both are in acme now; importing again skips them
         again = {x['ref']: x for x in call('POST', '/api/certs/online_list',
                                            {'source': 'SSLS'})['items']}

@@ -326,6 +326,30 @@ def run_import(store, job, irow, picks, by):
     return n_bad == 0, words
 
 
+SUBJECT_KEPT = ('O', 'OU', 'C', 'ST', 'L', 'emailAddress')
+EKU_KEPT = ('serverAuth', 'clientAuth', 'codeSigning', 'emailProtection', 'timeStamping',
+            'OCSPSigning')
+
+
+def profile_of(info):
+    """What the certificate imported says of itself, as the profile of Add a certificate:
+    its subject (O, OU, C...), its extended key usages and must-staple - so its set-up
+    starts from what it is, and a renewal asks for the same."""
+    prof = {}
+    subj = {}
+    for k, v in (info.get('subject') or {}).items():
+        if k in SUBJECT_KEPT and isinstance(v, str) and v.strip():
+            subj[k] = v.strip()[:190]
+    if subj:
+        prof['subject'] = subj
+    eku = [e for e in (info.get('eku') or []) if e in EKU_KEPT]
+    if eku:
+        prof['eku'] = eku
+    if info.get('must_staple'):
+        prof['must_staple'] = True
+    return prof
+
+
 def _keep(store, irow, p, got, kn, by):
     """(id, name, info) of the certificate made, or (None, why, {}) when it is not."""
     pki = S.pki()
@@ -359,12 +383,13 @@ def _keep(store, irow, p, got, kn, by):
         name = S.safe_name(first.replace('*.', 'wildcard.'), taken)
     ref = str(got.get('ref') or p['ref'])[:190]
     t = time.time()
+    prof = profile_of(info)
     cid = store.db.insert('certs', {
         'name': name, 'cn': str(info.get('cn') or (names[0] if names else ''))[:190],
         'names': json.dumps(names), 'key_type': _key_type(info), 'issuer': irow['name'],
         'issuer_ref': ref, 'challenge': p['challenge'], 'challenge_map': '{}',
-        'auto_renew': p['auto_renew'], 'renew_days': None, 'reuse_key': 0, 'profile': '{}',
-        'source': 'import', 'state': 'new', 'state_at': t, 'version': 0, 'fails': 0,
+        'auto_renew': p['auto_renew'], 'renew_days': None, 'reuse_key': 0,
+        'profile': json.dumps(prof), 'setup_due': 1, 'source': 'import', 'state': 'new', 'state_at': t, 'version': 0, 'fails': 0,
         'tags': json.dumps(p['tags']), 'note': '', 'owner': p['owner'], 'created': t,
         'created_by': str(by)[:190], 'enabled': 1, 'ari': '{}'})
     S.save_version(store, cid, leaf, chain, None, 'import', by, info=info)

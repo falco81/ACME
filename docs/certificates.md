@@ -423,6 +423,20 @@ chain and keeps it, bound to the source with its own id there
 (`certs.issuer_ref`). The popup then says what was imported, skipped (acme has
 it) or failed, and why.
 
+**Set it up** (1.0.24): each certificate imported is then set up exactly as
+*Add a certificate* sets up a new one - the same wizard, every step: source,
+names, key, validation (one for all names or one per name), renewal, profile
+(validity, usages, must-staple, template or ACME profile, the subject's O, OU,
+C...) and deployments. It starts from what the certificate itself says (its
+names, key type, subject, extended key usages and must-staple are read into
+its profile at the import) and what the import set (owner, tags, validation).
+One imported opens its set-up at once; several are offered *Set it up* each
+and *Set up each one*, one after another. *Save the set-up* keeps the
+certificate imported as it is - valid, in use, nothing is issued - creates
+its deployments (those that need the key wait for it), and makes its next
+renewal with what was set. Until then the list marks it *to set up*
+(`certs.setup_due`) and its window offers *Set it up*.
+
 A source holds no private key: an imported certificate has none at first. It
 goes to targets that need only the certificate; a deployment that needs the key
 is refused in words until it is there. *Add its private key* in the

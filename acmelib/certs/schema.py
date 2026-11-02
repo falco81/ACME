@@ -24,7 +24,7 @@ SCHEMA = [
         csr_pending {B}, enabled {I}, key_type_alt {K}, alt_cert_pem {B}, alt_chain_pem {B},
         alt_key_sealed {B}, alt_serial {K}, alt_fingerprint {K}, alt_not_before {N},
         alt_not_after {N}, alt_issuer_dn {T}, alt_ari {T}, alt_version {I}, alt_state {K},
-        alt_error {T}, alt_fails {I}, alt_next_try {N}, csr_given {B}, issuer_ref {T})'''),
+        alt_error {T}, alt_fails {I}, alt_next_try {N}, csr_given {B}, issuer_ref {T}, setup_due {I})'''),
     # Every certificate one of them has had, the current one too. A dual
     # certificate's twin (key_type_alt) has rows of its own, variant 'alt',
     # numbered in the same sequence as the main ones (variant '').
@@ -139,6 +139,9 @@ VARIANTS = ('main', 'alt')
 # Import from a source, acmelib/certs/onlineimport.py) - its order, its certificate ID
 # - handed to the source at every renewal (CertRequest.ref), so that very order is
 # reissued; kept up to date from what the source says it used (Issued.info['ref']).
+# setup_due: 1 for a certificate imported from a source whose set-up (its validation,
+# profile, renewal, targets - the steps of Add a certificate) has not been gone through
+# yet; the wizard's Save (setup_done) clears it.
 
 # The states of a certificate.
 STATES = {

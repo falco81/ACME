@@ -2656,6 +2656,12 @@ function certRow(c) {
   var nc = el('td', 'ct-cname');
   nc.appendChild(data('b', '', c.name));
   if (arr(c.tags).length) nc.appendChild(tagChips(c.tags));
+  if (truthy(c.setup_due)) {
+    var su = el('span', 'tag info', 'to set up');
+    su.style.marginLeft = '6px';
+    explain(su, 'Imported from its source: its validation, profile, renewal and targets are not set up yet - open it and press Set it up.');
+    nc.appendChild(su);
+  }
   tr.appendChild(nc);
   tr.appendChild(td('', namesChips(c.names || c.cn, 2)));
   var ic = el('td', 'muted');
@@ -2869,6 +2875,9 @@ function certPeek(id) {
       go: function () { ACME_RUNPLAN.open({id: c.id, name: c.name, back: back}); }});
     if (MANAGE && c.issuer && c.not_after && c.state !== 'revoked')
       buttons.push({words: 'Revoke', icon: 'ban', go: function () { over(function () { revokeDialog(c); }, back); }});
+    if (MANAGE && c.issuer && truthy(c.setup_due)) buttons.push({words: 'Set it up', cls: 'primary', icon: 'edit',
+      says: 'Imported from its source: every step of Add a certificate - validation, key, renewal, profile, targets - read from the certificate, set as for a new one. The certificate in use stays as it is.',
+      go: function () { certWizard(c, d, {setup: true}); }});
     if (MANAGE && c.issuer) buttons.push({words: c.not_after ? 'Change names, key, source…' : 'Edit', icon: 'edit',
       says: c.not_after ? 'The whole set-up, step by step. What is in the certificate itself (names, key, source, profile) takes a new certificate - you choose: now, or at its next renewal. Owner, tags, note and renewal are changed at once in Details above.' : '',
       go: function () { certWizard(c, d); }});
@@ -3697,8 +3706,13 @@ function sansOf(c, prof) {
   return out;
 }
 
-function certWizard(cert, detail) {
+/* opts.setup: a certificate imported from a source, set up as if added here - every
+   step of Add a certificate, its deployments too; Save keeps the certificate as it is
+   (its settings go into its next renewal). opts.after(id): what follows the Save. */
+function certWizard(cert, detail, opts) {
+  opts = opts || {};
   var editing = !!(cert && cert.id);
+  var SETUP = editing && !!opts.setup;
   var W = {step: 0, seen: {0: true}, sources: [], vals: [], targets: [], deploys: {}};
   var c = cert || {};
   var prof = obj(c.profile);
@@ -3802,7 +3816,7 @@ function certWizard(cert, detail) {
      check: function () { return W.d.challenge || Object.keys(W.d.challenge_map).length === names().length ? '' : 'choose how the names are proved'; }},
     {key: 'renewal', title: 'Renewal', draw: drawRenewal},
     {key: 'profile', title: 'Profile', draw: drawProfile},
-    {key: 'deploy', title: 'Deployments', draw: drawDeploy, show: function () { return !editing; }},
+    {key: 'deploy', title: 'Deployments', draw: drawDeploy, show: function () { return !editing || SETUP; }},
     {key: 'review', title: 'Review', draw: drawReview}
   ];
   var steps = function () { return STEPS.filter(function (s) { return !s.show || s.show(); }); };
@@ -3823,7 +3837,7 @@ function certWizard(cert, detail) {
     var buttons = [];
     if (W.step > 0) buttons.push({words: 'Back', icon: 'prev', left: true, go: function () { go(W.step - 1); }});
     buttons.push({words: 'Close', close: true});
-    if (editing && st.key !== 'review') buttons.push({words: 'Save', icon: 'save', go: function (b) { if (read) read(); finish(b, false); }});
+    if (editing && !SETUP && st.key !== 'review') buttons.push({words: 'Save', icon: 'save', go: function (b) { if (read) read(); finish(b, false); }});
     var unfit = st.key === 'review' ? compatProblems() : [];
     if (unfit.length) {
       var at = list.map(function (x) { return x.key; }).indexOf(unfit[0].step);
@@ -3839,7 +3853,7 @@ function certWizard(cert, detail) {
         says: 'Everything it will do, step by step - the key, the source, how each name is proved, every call, file and command on its targets - from what is set here now; nothing is saved or contacted.',
         go: function () { planOpen(); }});
       if (!editing) buttons.push({words: 'Add only', icon: 'save', go: function (b) { finish(b, false); }});
-      buttons.push({words: editing ? 'Save' : 'Add and issue now', cls: 'primary', icon: editing ? 'save' : 'play', go: function (b) { finish(b, !editing); }});
+      buttons.push({words: SETUP ? 'Save the set-up' : (editing ? 'Save' : 'Add and issue now'), cls: 'primary', icon: editing ? 'save' : 'play', go: function (b) { finish(b, !editing); }});
     } else {
       buttons.push({words: 'Next', cls: 'primary', icon: 'next', go: function () {
         if (read) read();
@@ -3848,7 +3862,7 @@ function certWizard(cert, detail) {
         go(W.step + 1);
       }});
     }
-    modal(editing ? 'Edit ' + c.name : 'Add a certificate', function (body) {
+    modal(SETUP ? 'Set up ' + c.name : (editing ? 'Edit ' + c.name : 'Add a certificate'), function (body) {
       var strip = el('ol', 'ct-wsteps');
       list.forEach(function (s, i) {
         var li = el('li', (i === W.step ? 'on' : '') + (i < W.step || W.seen[i] ? ' done' : ''));
@@ -3858,7 +3872,7 @@ function certWizard(cert, detail) {
         b.appendChild(el('span', 'w', s.title));
         /* Editing one already issued: which steps are in the certificate itself
            (a change waits for a new one) and which are acme's alone. */
-        if (editing && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(s.key) >= 0) {
+        if (editing && !SETUP && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(s.key) >= 0) {
           var mk = el('span', 'ct-wstep-cert');
           mk.innerHTML = iconMarkup('refresh', 12);
           b.appendChild(mk);
@@ -3878,7 +3892,9 @@ function certWizard(cert, detail) {
       });
       body.appendChild(strip);
       /* What is in the certificate itself changes with its next renewal - never by saving. */
-      if (editing && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(st.key) >= 0)
+      if (SETUP && st.key !== 'review')
+        body.appendChild(el('p', 'note tm-setup', 'Imported from ' + (c.issuer || 'its source') + ': this is read from the certificate itself and what the import set. Set it as for a new certificate - the certificate imported stays in use as it is, and its next renewal is made so.'));
+      else if (editing && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(st.key) >= 0)
         body.appendChild(el('p', 'note tm-next-renewal', 'In the certificate itself: what is changed here goes into a new certificate - saving issues nothing; after Save you choose: renew now, or at its next renewal.'));
       else if (editing && c.not_after && st.key !== 'review')
         body.appendChild(el('p', 'note tm-acme-only', 'Only how acme works with it: a change here applies at once, the certificate stays as it is.'));
@@ -3886,7 +3902,7 @@ function certWizard(cert, detail) {
       body.appendChild(host);
       st.draw(host);
     }, buttons, 'large');
-    if (editing) nameInTitle('Edit', c.name);
+    if (editing) nameInTitle(SETUP ? 'Set up' : 'Edit', c.name);
     explainWhatWasDrawn($('modal-body'));
   }
 
@@ -4588,9 +4604,10 @@ function certWizard(cert, detail) {
     pairs.push(['Used for', W.d.eku.join(', ') || '–']);
     var subj = Object.keys(W.d.subject).filter(function (k) { return W.d.subject[k]; }).map(function (k) { return k + '=' + W.d.subject[k]; });
     if (subj.length) pairs.push(['Subject', data('span', 'mono small', subj.join(', '))]);
-    if (!editing) pairs.push(['Deployed on', Object.keys(W.deploys).length ? Object.keys(W.deploys).join(', ') : 'nowhere yet']);
+    if (!editing || SETUP) pairs.push(['Deployed on', Object.keys(W.deploys).length ? Object.keys(W.deploys).join(', ') : 'nowhere yet']);
     if (W.d.tags) pairs.push(['Tags', tagChips(splitNames(W.d.tags))]);
-    host.appendChild(el('p', 'note', editing ? 'What it will be. Saved, it takes effect at its next renewal - press Renew now in it to have it at once.'
+    if (SETUP) host.appendChild(el('p', 'note', 'Saved, the certificate imported stays as it is - valid, in use. Its deployments get it now (those that need its private key once the key is added); its next renewal asks ' + (W.d.issuer || 'the source') + ' for it with what is set here.'));
+    else host.appendChild(el('p', 'note', editing ? 'What it will be. Saved, it takes effect at its next renewal - press Renew now in it to have it at once.'
       : 'What it will be. "Add and issue now" asks the source at once, in a job you can watch; "Add only" waits for the next look.'));
     host.appendChild(kvTable(pairs));
     var bad = checkNames();
@@ -4649,7 +4666,7 @@ function certWizard(cert, detail) {
             key_type_alt: tw ? (d.key_type_alt || '') : '', issuer: d.issuer,
             challenge: useChallenge ? d.challenge : '', challenge_map: useChallenge ? d.challenge_map : {},
             auto_renew: !!d.auto_renew, renew_days: Number(d.renew_days || 30), reuse_key: !!d.reuse_key,
-            profile: profile, tags: splitNames(d.tags), note: d.note, owner: d.owner};
+            profile: profile, tags: splitNames(d.tags), note: d.note, owner: d.owner, setup_done: SETUP || undefined};
   }
   /* What happens (runplan.js): the plan of what is set here now, over the wizard. */
   function planOpen() {
@@ -4671,7 +4688,7 @@ function certWizard(cert, detail) {
       return JSON.stringify([arr(x.names).slice().sort(), x.key_type || '', x.key_type_alt || '', x.issuer || '',
                              obj(x.profile)]);
     };
-    var reissue = editing && !issue && !!c.not_after && inCert(sent) !== inCert(c);
+    var reissue = editing && !SETUP && !issue && !!c.not_after && inCert(sent) !== inCert(c);
     capi('certs/save', sent).then(function (d) {
       var id = (d && d.id) || c.id;
       /* Saved: pressed again after a deployment was refused, it is this certificate
@@ -4693,13 +4710,14 @@ function certWizard(cert, detail) {
         if (issue) return capi('certs/renew', {id: id, force: true}).then(function (x) { closeModal(); jobStarted(x, 'issuing'); },
           function (e) { closeModal(); fail(e); certPeek(id); });
         if (reissue) { closeModal(); renewAsk(id, c.name); return; }
-        if (editing) { closeModal(); certPeek(id); } else { closeModal(); certPeek(id); }
+        closeModal();
+        if (typeof opts.after === 'function') opts.after(id); else certPeek(id);
       });
     }).catch(fail).then(function () { busy(b, false); });
   }
 
-  modal(editing ? 'Edit ' + c.name : 'Add a certificate', function (bd) { bd.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], 'large');
-  if (editing) nameInTitle('Edit', c.name);
+  modal(SETUP ? 'Set up ' + c.name : (editing ? 'Edit ' + c.name : 'Add a certificate'), function (bd) { bd.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], 'large');
+  if (editing) nameInTitle(SETUP ? 'Set up' : 'Edit', c.name);
   var ticket = modalTicket();
   /* Asked anew each time it opens: what was made a moment ago in another tab
      (or on the other node) is offered at once. */
@@ -5013,9 +5031,29 @@ function onlineImport() {
         count();
       }).then(function () { busy(again, false); });
     };
-    var results = function (r, jobId) {
+    var results = function (r, jobId, fresh) {
       clear(resHost);
       var list = arr(r && r.results);
+      var done = S.setUp = S.setUp || {};
+      /* Each one imported set up as if added here (certWizard, setup): one by one,
+         the next opened once the one before is saved. */
+      var setUp = function (queue) {
+        queue = queue.filter(function (x) { return !done[x.id]; });
+        if (!queue.length) return;
+        var x = queue[0];
+        over(function () {
+          capi('certs/one' + qs({id: x.id})).then(function (d) {
+            var c = d.cert || d;
+            c.names = arr(c.names);
+            certWizard(c, d, {setup: true, after: function (id) {
+              done[id] = true;
+              results(r, jobId);
+              if (queue.length > 1) setTimeout(function () { setUp(queue.slice(1)); }, 0);
+            }});
+          }).catch(fail);
+        });
+      };
+      var mine = list.filter(function (x) { return x.state === 'imported' && x.id; });
       var box = el('div', 'ct-oi-res');
       box.appendChild(el('h4', 'ct-formh', 'What was done'));
       list.forEach(function (x) {
@@ -5030,17 +5068,33 @@ function onlineImport() {
           line.appendChild(a);
           line.appendChild(el('span', 'muted small', 'without its private key - add it in its window'));
           line.appendChild(mono(x.ref, 'ct-oi-ref muted'));
+          if (done[x.id]) line.appendChild(el('span', 'tag ok', 'set up'));
+          else {
+            var sb = cmdButton('Set it up', 'edit', 'small');
+            explain(sb, 'Every step of Add a certificate for it: validation, key, renewal, profile, targets.');
+            sb.onclick = function () { setUp([x]); };
+            line.appendChild(sb);
+          }
         }
         if (x.why) line.appendChild(el('span', x.state === 'failed' ? 'ct-bad small' : 'muted small', x.why));
         box.appendChild(line);
       });
       if (!list.length) box.appendChild(emptyNote('Nothing was done.'));
       var more = el('div', 'btnrow');
+      var left = mine.filter(function (x) { return !done[x.id]; });
+      if (left.length > 1) {
+        var all = cmdButton('Set up each one (' + left.length + ')', 'edit', 'primary small');
+        explain(all, 'The wizard of Add a certificate for each one imported, one after another - the next opens once one is saved.');
+        all.onclick = function () { setUp(left); };
+        more.appendChild(all);
+      }
       var lg = cmdButton('Its job', 'list', 'small');
       lg.onclick = function () { over(function () { jobPeek(jobId); }); };
       more.appendChild(lg);
       box.appendChild(more);
       resHost.appendChild(box);
+      /* One imported: its set-up opened at once, as Add a certificate goes on. */
+      if (fresh && mine.length === 1) setUp(mine);
     };
     var run = function () {
       var items = picked();
@@ -5074,7 +5128,7 @@ function onlineImport() {
             CT.refresh();
             capi('certs/online_import_result' + qs({job: id})).then(function (r) {
               if (!modalStill(ticket)) return;
-              results(r && r.result, id);
+              results(r && r.result, id, true);
               load(true);
             }).catch(fail);
           }).catch(function () { setTimeout(poll, 2000); });
@@ -5133,7 +5187,7 @@ function onlineImport() {
         body.appendChild(bar);
         listHost = el('div', 'ct-oi-host');
         body.appendChild(listHost);
-        var sec = section('The certificates imported', 'Given to each one picked. Owner, tags and renewal can be changed later in its Details, its validation with Change.');
+        var sec = section('The certificates imported', 'Given to each one picked. After the import each one is set up as a new certificate is - validation, key, renewal, profile, targets: Set it up (opened at once when one is imported).');
         var g = el('div', 'formgrid');
         owner = ownerBox('');
         tags = tagsBox([]);

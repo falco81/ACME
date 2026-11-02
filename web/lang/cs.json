@@ -43065,8 +43065,8 @@
    "text": "Importované certifikáty"
   },
   "soi040": {
-   "source": "Given to each one picked. Owner, tags and renewal can be changed later in its Details, its validation with Change.",
-   "text": "Dostane je každý vybraný. Vlastníka, štítky a obnovu lze později změnit v jeho Podrobnostech, validaci přes Změnit."
+   "source": "Given to each one picked. After the import each one is set up as a new certificate is - validation, key, renewal, profile, targets: Set it up (opened at once when one is imported).",
+   "text": "Dostane je každý vybraný. Po importu se každý nastaví jako nový certifikát – validace, klíč, obnova, profil, cíle: Nastavit (otevře se hned, když se importuje jeden)."
   },
   "soi042": {
    "source": "Who they belong to (Settings → Owners and teams).",
@@ -44099,6 +44099,38 @@
   "scv229": {
    "source": "It is kept in what this authority signed. Copy it or download it with its chain below.",
    "text": "Uloží se mezi to, co tato autorita podepsala. Zkopírujte ho nebo stáhněte i s řetězcem níže."
+  },
+  "sup001": {
+   "source": "to set up",
+   "text": "k nastavení"
+  },
+  "sup002": {
+   "source": "Imported from its source: its validation, profile, renewal and targets are not set up yet - open it and press Set it up.",
+   "text": "Importován ze svého zdroje: validace, profil, obnova a cíle ještě nejsou nastaveny – otevřete ho a stiskněte Nastavit."
+  },
+  "sup003": {
+   "source": "Imported from its source: every step of Add a certificate - validation, key, renewal, profile, targets - read from the certificate, set as for a new one. The certificate in use stays as it is.",
+   "text": "Importován ze svého zdroje: všechny kroky Přidání certifikátu – validace, klíč, obnova, profil, cíle – načtené z certifikátu a nastavené jako u nového. Používaný certifikát zůstává, jak je."
+  },
+  "sup004": {
+   "source": "Every step of Add a certificate for it: validation, key, renewal, profile, targets.",
+   "text": "Všechny kroky Přidání certifikátu pro něj: validace, klíč, obnova, profil, cíle."
+  },
+  "sup005": {
+   "source": "The wizard of Add a certificate for each one imported, one after another - the next opens once one is saved.",
+   "text": "Průvodce Přidáním certifikátu pro každý importovaný, jeden po druhém – další se otevře, jakmile se předchozí uloží."
+  },
+  "sup006": {
+   "source": "Save the set-up",
+   "text": "Uložit nastavení"
+  },
+  "sup007": {
+   "source": "Set up",
+   "text": "Nastavit"
+  },
+  "sup008": {
+   "source": "its source",
+   "text": "jeho zdroje"
   }
  },
  "patterns": {
@@ -61141,6 +61173,22 @@
   "pcv225": {
    "source": "It holds no certificate request, only: {0}",
    "text": "Není v ní žádná žádost o certifikát, jen: {0}"
+  },
+  "psup001": {
+   "source": "Set up each one ({0})",
+   "text": "Nastavit každý ({0})"
+  },
+  "psup002": {
+   "source": "Set up {0}",
+   "text": "Nastavit {0}"
+  },
+  "psup003": {
+   "source": "Imported from {0}: this is read from the certificate itself and what the import set. Set it as for a new certificate - the certificate imported stays in use as it is, and its next renewal is made so.",
+   "text": "Importováno z {0}: toto je načteno ze samotného certifikátu a z toho, co nastavil import. Nastavte ho jako nový certifikát – importovaný certifikát zůstává v používání, jak je, a podle tohoto nastavení se udělá jeho příští obnova."
+  },
+  "psup004": {
+   "source": "Saved, the certificate imported stays as it is - valid, in use. Its deployments get it now (those that need its private key once the key is added); its next renewal asks {0} for it with what is set here.",
+   "text": "Po uložení zůstává importovaný certifikát, jak je – platný a používaný. Jeho nasazení ho dostanou hned (ta, která potřebují soukromý klíč, až bude klíč přidán); jeho příští obnova si ho vyžádá od {0} s tím, co je nastaveno zde."
   }
  },
  "rich": {

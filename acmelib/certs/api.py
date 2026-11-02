@@ -173,7 +173,7 @@ LIST_COLS = ('id', 'name', 'cn', 'names', 'key_type', 'issuer', 'challenge', 'au
              'issuer_dn', 'subject_dn', 'source', 'state', 'state_at', 'last_try', 'last_ok',
              'last_error', 'next_try', 'fails', 'version', 'tags', 'note', 'owner', 'created',
              'created_by', 'updated', 'updated_by', 'enabled', 'key_type_alt', 'alt_not_after',
-             'alt_state', 'alt_version', 'alt_fingerprint', 'alt_serial')
+             'alt_state', 'alt_version', 'alt_fingerprint', 'alt_serial', 'setup_due')
 
 
 def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, per=50,
@@ -509,6 +509,9 @@ def cert_save(store, b, by):
         fields['note'] = _text(b, 'note', 4000)
     if 'owner' in b or not row:
         fields['owner'] = _text(b, 'owner', 190).strip()
+    if row and row.get('setup_due') and _flag(b.get('setup_done'), 0):
+        # Imported from a source, its set-up gone through in the wizard.
+        fields['setup_due'] = 0
     if 'enabled' in b:
         fields['enabled'] = _flag(b.get('enabled'), 1)
         if row and row.get('state') in KEEP_STATES:

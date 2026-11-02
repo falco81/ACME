@@ -6,6 +6,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.24 - not released
 
+- **Import from a source: each certificate set up like a new one.** After the
+  import the wizard of *Add a certificate* opens for it (for several: *Set it
+  up* at each, or *Set up each one*): validation, key, renewal, profile,
+  deployments - everything the source supports, as for a certificate added
+  there. It starts from what the certificate says (its subject, key usages
+  and must-staple are kept as its profile); saving keeps the certificate in
+  use as it is and makes its next renewal so. Until set up it is marked *to set
+  up* in the list.
+
 ## 1.0.23 - 2026-11-02
 
 - An upgrade added no column declared last before a table's own rule (UNIQUE):
