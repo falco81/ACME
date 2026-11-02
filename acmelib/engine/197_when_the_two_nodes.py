@@ -636,7 +636,9 @@ SPLIT_READS = {'/api/certs/compat': None,
                '/api/firewall': ('rule_check',), '/api/directories': ('lookup',),
                # a module's list read live for its form (1.0.21: SSLS.cz products)
                '/api/sources/catalog': None, '/api/validations/catalog': None,
-               '/api/targets/catalog': None}
+               '/api/targets/catalog': None,
+               # Show a certificate (1.0.23): a file read and described, nothing kept
+               '/api/certs/inspect': None}
 
 
 def split_free_path(path, action=''):

@@ -43259,6 +43259,846 @@
   "soi090": {
    "source": "The private key of the first certificate",
    "text": "Soukromý klíč prvního certifikátu"
+  },
+  "scv001": {
+   "source": "Organization",
+   "text": "Organizace"
+  },
+  "scv002": {
+   "source": "Organizational unit",
+   "text": "Organizační jednotka"
+  },
+  "scv003": {
+   "source": "State or province",
+   "text": "Kraj"
+  },
+  "scv004": {
+   "source": "Locality",
+   "text": "Obec"
+  },
+  "scv005": {
+   "source": "Serial number of the subject",
+   "text": "Sériové číslo subjektu"
+  },
+  "scv006": {
+   "source": "Domain component",
+   "text": "Složka domény"
+  },
+  "scv007": {
+   "source": "Initials",
+   "text": "Iniciály"
+  },
+  "scv008": {
+   "source": "Business category",
+   "text": "Obchodní kategorie"
+  },
+  "scv009": {
+   "source": "Organization identifier",
+   "text": "Identifikátor organizace"
+  },
+  "scv010": {
+   "source": "Jurisdiction (country)",
+   "text": "Jurisdikce (země)"
+  },
+  "scv011": {
+   "source": "Jurisdiction (state)",
+   "text": "Jurisdikce (kraj)"
+  },
+  "scv012": {
+   "source": "Jurisdiction (locality)",
+   "text": "Jurisdikce (obec)"
+  },
+  "scv013": {
+   "source": "Pseudonym",
+   "text": "Pseudonym"
+  },
+  "scv014": {
+   "source": "DN qualifier",
+   "text": "Kvalifikátor DN"
+  },
+  "scv015": {
+   "source": "Generation",
+   "text": "Generace"
+  },
+  "scv016": {
+   "source": "digital signature",
+   "text": "digitální podpis"
+  },
+  "scv017": {
+   "source": "non-repudiation",
+   "text": "nepopiratelnost"
+  },
+  "scv018": {
+   "source": "key encipherment",
+   "text": "šifrování klíčů"
+  },
+  "scv019": {
+   "source": "data encipherment",
+   "text": "šifrování dat"
+  },
+  "scv020": {
+   "source": "key agreement",
+   "text": "dohoda o klíči"
+  },
+  "scv021": {
+   "source": "signs certificates",
+   "text": "podepisuje certifikáty"
+  },
+  "scv022": {
+   "source": "signs CRLs",
+   "text": "podepisuje CRL"
+  },
+  "scv023": {
+   "source": "encipher only",
+   "text": "jen šifrování"
+  },
+  "scv024": {
+   "source": "decipher only",
+   "text": "jen dešifrování"
+  },
+  "scv025": {
+   "source": "any purpose",
+   "text": "jakýkoli účel"
+  },
+  "scv026": {
+   "source": "smart card logon",
+   "text": "přihlášení čipovou kartou"
+  },
+  "scv027": {
+   "source": "IPsec IKE",
+   "text": "IPsec IKE"
+  },
+  "scv028": {
+   "source": "IPsec end system",
+   "text": "koncový systém IPsec"
+  },
+  "scv029": {
+   "source": "IPsec tunnel",
+   "text": "tunel IPsec"
+  },
+  "scv030": {
+   "source": "IPsec user",
+   "text": "uživatel IPsec"
+  },
+  "scv031": {
+   "source": "encrypting file system",
+   "text": "šifrovaný souborový systém"
+  },
+  "scv032": {
+   "source": "document signing",
+   "text": "podepisování dokumentů"
+  },
+  "scv033": {
+   "source": "Kerberos KDC",
+   "text": "Kerberos KDC"
+  },
+  "scv034": {
+   "source": "SSH client",
+   "text": "SSH klient"
+  },
+  "scv035": {
+   "source": "SSH server",
+   "text": "SSH server"
+  },
+  "scv036": {
+   "source": "Alternative names",
+   "text": "Alternativní jména"
+  },
+  "scv037": {
+   "source": "Alternative names of the issuer",
+   "text": "Alternativní jména vydavatele"
+  },
+  "scv038": {
+   "source": "Basic constraints",
+   "text": "Základní omezení"
+  },
+  "scv039": {
+   "source": "Certificate policies",
+   "text": "Certifikační politiky"
+  },
+  "scv040": {
+   "source": "CRL distribution points",
+   "text": "Distribuční body CRL"
+  },
+  "scv041": {
+   "source": "Delta CRLs",
+   "text": "Rozdílové CRL"
+  },
+  "scv042": {
+   "source": "Authority information access",
+   "text": "Přístup k informacím o autoritě"
+  },
+  "scv043": {
+   "source": "Subject information access",
+   "text": "Přístup k informacím o subjektu"
+  },
+  "scv044": {
+   "source": "Subject key identifier",
+   "text": "Identifikátor klíče subjektu"
+  },
+  "scv045": {
+   "source": "Authority key identifier",
+   "text": "Identifikátor klíče autority"
+  },
+  "scv046": {
+   "source": "Certificate Transparency (SCTs)",
+   "text": "Certificate Transparency (SCT)"
+  },
+  "scv047": {
+   "source": "Precertificate (CT poison)",
+   "text": "Předcertifikát (CT poison)"
+  },
+  "scv048": {
+   "source": "TLS feature (must-staple)",
+   "text": "TLS feature (must-staple)"
+  },
+  "scv049": {
+   "source": "Inhibit any policy",
+   "text": "Zákaz libovolné politiky"
+  },
+  "scv050": {
+   "source": "Policy constraints",
+   "text": "Omezení politik"
+  },
+  "scv051": {
+   "source": "Policy mappings",
+   "text": "Mapování politik"
+  },
+  "scv052": {
+   "source": "OCSP no check",
+   "text": "OCSP bez kontroly"
+  },
+  "scv053": {
+   "source": "Certificate template (Microsoft)",
+   "text": "Šablona certifikátu (Microsoft)"
+  },
+  "scv054": {
+   "source": "Certificate template name (Microsoft)",
+   "text": "Název šablony certifikátu (Microsoft)"
+  },
+  "scv055": {
+   "source": "CA version (Microsoft)",
+   "text": "Verze CA (Microsoft)"
+  },
+  "scv056": {
+   "source": "Comment (Netscape)",
+   "text": "Komentář (Netscape)"
+  },
+  "scv057": {
+   "source": "Certificate type (Netscape)",
+   "text": "Typ certifikátu (Netscape)"
+  },
+  "scv058": {
+   "source": "Qualified certificate statements",
+   "text": "Prohlášení kvalifikovaného certifikátu"
+  },
+  "scv059": {
+   "source": "Private key usage period",
+   "text": "Doba použití soukromého klíče"
+  },
+  "scv060": {
+   "source": "end entity",
+   "text": "koncový"
+  },
+  "scv061": {
+   "source": "intermediate CA",
+   "text": "mezilehlá CA"
+  },
+  "scv062": {
+   "source": "root CA",
+   "text": "kořenová CA"
+  },
+  "scv063": {
+   "source": "self-signed",
+   "text": "self-signed"
+  },
+  "scv064": {
+   "source": "not valid yet",
+   "text": "ještě neplatí"
+  },
+  "scv065": {
+   "source": "Extensions",
+   "text": "Rozšíření"
+  },
+  "scv066": {
+   "source": "Unknown extension",
+   "text": "Neznámé rozšíření"
+  },
+  "scv067": {
+   "source": "critical",
+   "text": "kritické"
+  },
+  "scv068": {
+   "source": "a CA: may sign certificates",
+   "text": "CA: smí podepisovat certifikáty"
+  },
+  "scv069": {
+   "source": "not a CA",
+   "text": "není CA"
+  },
+  "scv071": {
+   "source": "Only under",
+   "text": "Jen pod"
+  },
+  "scv072": {
+   "source": "Never under",
+   "text": "Nikdy pod"
+  },
+  "scv073": {
+   "source": "The issuer’s certificate",
+   "text": "Certifikát vydavatele"
+  },
+  "scv075": {
+   "source": "a precertificate: not to be used",
+   "text": "předcertifikát: nepoužívá se"
+  },
+  "scv076": {
+   "source": "the OCSP responder’s own certificate is not checked",
+   "text": "vlastní certifikát OCSP respondéru se nekontroluje"
+  },
+  "scv077": {
+   "source": "could not be read: the bytes as they are",
+   "text": "nedá se přečíst: bajty tak, jak jsou"
+  },
+  "scv078": {
+   "source": "not known here: the bytes as they are",
+   "text": "zde neznámé: bajty tak, jak jsou"
+  },
+  "scv080": {
+   "source": "(no name)",
+   "text": "(bez jména)"
+  },
+  "scv081": {
+   "source": "from this server’s trust store - not in what you gave",
+   "text": "z úložiště důvěryhodných certifikátů tohoto serveru – není v tom, co jste dali"
+  },
+  "scv082": {
+   "source": "its private key is in the file",
+   "text": "jeho soukromý klíč je v souboru"
+  },
+  "scv083": {
+   "source": "must-staple",
+   "text": "must-staple"
+  },
+  "scv084": {
+   "source": "Who it is",
+   "text": "Komu patří"
+  },
+  "scv085": {
+   "source": "Self-signed: it is its own issuer.",
+   "text": "Self-signed: je sám svým vydavatelem."
+  },
+  "scv086": {
+   "source": "Signature checked: signed with the key of",
+   "text": "Podpis ověřen: podepsán klíčem certifikátu"
+  },
+  "scv087": {
+   "source": "The signature does not fit the key of",
+   "text": "Podpis neodpovídá klíči certifikátu"
+  },
+  "scv088": {
+   "source": "Not checked:",
+   "text": "Neověřeno:"
+  },
+  "scv089": {
+   "source": "The issuer of this certificate is not in what you gave.",
+   "text": "Vydavatel tohoto certifikátu není v tom, co jste dali."
+  },
+  "scv090": {
+   "source": "Exponent",
+   "text": "Exponent"
+  },
+  "scv091": {
+   "source": "SHA-256 of the public key",
+   "text": "SHA-256 veřejného klíče"
+  },
+  "scv092": {
+   "source": "Signature algorithm",
+   "text": "Algoritmus podpisu"
+  },
+  "scv093": {
+   "source": "… in decimal",
+   "text": "… desítkově"
+  },
+  "scv094": {
+   "source": "Its private key is in the file:",
+   "text": "Jeho soukromý klíč je v souboru:"
+  },
+  "scv095": {
+   "source": "Fingerprints",
+   "text": "Otisky"
+  },
+  "scv096": {
+   "source": "Key identifier (SKI)",
+   "text": "Identifikátor klíče (SKI)"
+  },
+  "scv097": {
+   "source": "Issuer’s key (AKI)",
+   "text": "Klíč vydavatele (AKI)"
+  },
+  "scv099": {
+   "source": "What it may be used for",
+   "text": "K čemu smí sloužit"
+  },
+  "scv100": {
+   "source": "Where it is checked",
+   "text": "Kde se ověřuje"
+  },
+  "scv101": {
+   "source": "The certificate (PEM)",
+   "text": "Certifikát (PEM)"
+  },
+  "scv102": {
+   "source": "Show the PEM",
+   "text": "Ukázat PEM"
+  },
+  "scv103": {
+   "source": "the PEM was copied",
+   "text": "PEM byl zkopírován"
+  },
+  "scv104": {
+   "source": "(no subject)",
+   "text": "(bez subjektu)"
+  },
+  "scv105": {
+   "source": "certificate request (CSR)",
+   "text": "žádost o certifikát (CSR)"
+  },
+  "scv106": {
+   "source": "signed by its own key ✓",
+   "text": "podepsáno vlastním klíčem ✓"
+  },
+  "scv107": {
+   "source": "its signature does not fit its key ✗",
+   "text": "podpis neodpovídá jejímu klíči ✗"
+  },
+  "scv108": {
+   "source": "Extensions it asks for",
+   "text": "Rozšíření, o která žádá"
+  },
+  "scv109": {
+   "source": "The request (PEM)",
+   "text": "Žádost (PEM)"
+  },
+  "scv110": {
+   "source": "Who it is for",
+   "text": "Pro koho je"
+  },
+  "scv111": {
+   "source": "An empty subject: only the names below.",
+   "text": "Prázdný subjekt: jen jména níže."
+  },
+  "scv112": {
+   "source": "No alternative names: only the common name.",
+   "text": "Žádná alternativní jména: jen běžné jméno."
+  },
+  "scv113": {
+   "source": "right: signed by its own key",
+   "text": "správný: podepsáno vlastním klíčem"
+  },
+  "scv114": {
+   "source": "wrong: not signed by its key",
+   "text": "špatný: není podepsáno jejím klíčem"
+  },
+  "scv115": {
+   "source": "there is one (not shown)",
+   "text": "je zadáno (neukazuje se)"
+  },
+  "scv116": {
+   "source": "TLS feature",
+   "text": "TLS feature"
+  },
+  "scv117": {
+   "source": "A certificate with this key is in the file:",
+   "text": "Certifikát s tímto klíčem je v souboru:"
+  },
+  "scv118": {
+   "source": "revocation list (CRL)",
+   "text": "seznam odvolaných (CRL)"
+  },
+  "scv119": {
+   "source": "current",
+   "text": "aktuální"
+  },
+  "scv120": {
+   "source": "signed by its issuer ✓",
+   "text": "podepsán svým vydavatelem ✓"
+  },
+  "scv121": {
+   "source": "its signature does not fit its issuer ✗",
+   "text": "podpis neodpovídá vydavateli ✗"
+  },
+  "scv122": {
+   "source": "Its issuer is in the file:",
+   "text": "Jeho vydavatel je v souboru:"
+  },
+  "scv123": {
+   "source": "Updates",
+   "text": "Aktualizace"
+  },
+  "scv124": {
+   "source": "This update",
+   "text": "Tato aktualizace"
+  },
+  "scv125": {
+   "source": "Revoked certificates",
+   "text": "Odvolané certifikáty"
+  },
+  "scv126": {
+   "source": "Revoked",
+   "text": "Odvoláno"
+  },
+  "scv127": {
+   "source": "Nothing is revoked.",
+   "text": "Nic není odvoláno."
+  },
+  "scv129": {
+   "source": "Reason",
+   "text": "Důvod"
+  },
+  "scv130": {
+   "source": "The CRL (PEM)",
+   "text": "CRL (PEM)"
+  },
+  "scv131": {
+   "source": "A public key",
+   "text": "Veřejný klíč"
+  },
+  "scv132": {
+   "source": "A private key",
+   "text": "Soukromý klíč"
+  },
+  "scv133": {
+   "source": "was encrypted",
+   "text": "byl šifrovaný"
+  },
+  "scv134": {
+   "source": "not encrypted",
+   "text": "nešifrovaný"
+  },
+  "scv135": {
+   "source": "locked: give its password",
+   "text": "zamčený: zadejte jeho heslo"
+  },
+  "scv136": {
+   "source": "The public key",
+   "text": "Veřejný klíč"
+  },
+  "scv137": {
+   "source": "The private key",
+   "text": "Soukromý klíč"
+  },
+  "scv138": {
+   "source": "cannot be read without its password",
+   "text": "bez hesla se nedá přečíst"
+  },
+  "scv139": {
+   "source": "Encrypted with",
+   "text": "Šifrováno"
+  },
+  "scv140": {
+   "source": "The key itself is never shown and never leaves the server: only what it is.",
+   "text": "Samotný klíč se nikdy neukazuje a nikdy neopustí server: jen to, co je zač."
+  },
+  "scv141": {
+   "source": "Belongs to",
+   "text": "Patří k"
+  },
+  "scv142": {
+   "source": "It fits the certificate",
+   "text": "Odpovídá certifikátu"
+  },
+  "scv143": {
+   "source": "No certificate in what you gave has this key.",
+   "text": "Žádný certifikát v tom, co jste dali, nemá tento klíč."
+  },
+  "scv144": {
+   "source": "Which certificate it fits can be told once it is read.",
+   "text": "Ke kterému certifikátu patří, se pozná, až se přečte."
+  },
+  "scv145": {
+   "source": "1 private key",
+   "text": "1 soukromý klíč"
+  },
+  "scv147": {
+   "source": "1 request",
+   "text": "1 žádost"
+  },
+  "scv149": {
+   "source": "1 CRL",
+   "text": "1 CRL"
+  },
+  "scv151": {
+   "source": "1 public key",
+   "text": "1 veřejný klíč"
+  },
+  "scv153": {
+   "source": "MAC",
+   "text": "MAC"
+  },
+  "scv154": {
+   "source": "Certificates encrypted with",
+   "text": "Certifikáty šifrovány"
+  },
+  "scv155": {
+   "source": "Keys encrypted with",
+   "text": "Klíče šifrovány"
+  },
+  "scv156": {
+   "source": "legacy encryption (RC2/3DES): read with openssl -legacy",
+   "text": "staré šifrování (RC2/3DES): přečteno přes openssl -legacy"
+  },
+  "scv157": {
+   "source": "Keystore",
+   "text": "Úložiště klíčů"
+  },
+  "scv158": {
+   "source": "Entries",
+   "text": "Položky"
+  },
+  "scv159": {
+   "source": "Integrity",
+   "text": "Integrita"
+  },
+  "scv160": {
+   "source": "checked with the password ✓",
+   "text": "ověřena heslem ✓"
+  },
+  "scv161": {
+   "source": "does not pass: wrong password or changed",
+   "text": "neprošla: špatné heslo nebo změněno"
+  },
+  "scv162": {
+   "source": "not checked: no password given",
+   "text": "neověřena: heslo nezadáno"
+  },
+  "scv164": {
+   "source": "a signature in the chain does not fit",
+   "text": "podpis v řetězci nesedí"
+  },
+  "scv165": {
+   "source": "incomplete: the issuer of the last one is not here",
+   "text": "neúplný: vydavatel posledního tu není"
+  },
+  "scv166": {
+   "source": "ends in a root this server trusts",
+   "text": "končí kořenem, kterému tento server důvěřuje"
+  },
+  "scv167": {
+   "source": "ends in a root this server does not trust",
+   "text": "končí kořenem, kterému tento server nedůvěřuje"
+  },
+  "scv170": {
+   "source": "a public key",
+   "text": "veřejný klíč"
+  },
+  "scv171": {
+   "source": "a private key (not shown)",
+   "text": "soukromý klíč (neukazuje se)"
+  },
+  "scv172": {
+   "source": "a private key, locked",
+   "text": "soukromý klíč, zamčený"
+  },
+  "scv173": {
+   "source": "key",
+   "text": "klíč"
+  },
+  "scv174": {
+   "source": "trust store",
+   "text": "důvěryhodné úložiště"
+  },
+  "scv175": {
+   "source": "signature ✓",
+   "text": "podpis ✓"
+  },
+  "scv176": {
+   "source": "signature ✗",
+   "text": "podpis ✗"
+  },
+  "scv177": {
+   "source": "fits a certificate",
+   "text": "patří k certifikátu"
+  },
+  "scv178": {
+   "source": "wrong password",
+   "text": "špatné heslo"
+  },
+  "scv179": {
+   "source": "locked",
+   "text": "zamčeno"
+  },
+  "scv180": {
+   "source": "signed by",
+   "text": "podepsal"
+  },
+  "scv181": {
+   "source": "not checked",
+   "text": "neověřeno"
+  },
+  "scv182": {
+   "source": "Its issuer is not here",
+   "text": "Jeho vydavatel tu není"
+  },
+  "scv183": {
+   "source": "taken from this server’s trust store",
+   "text": "vzato z úložiště důvěryhodných certifikátů tohoto serveru"
+  },
+  "scv184": {
+   "source": "in this server’s trust store",
+   "text": "v úložišti důvěryhodných certifikátů tohoto serveru"
+  },
+  "scv185": {
+   "source": "not in this server’s trust store",
+   "text": "není v úložišti důvěryhodných certifikátů tohoto serveru"
+  },
+  "scv188": {
+   "source": "Other certificates",
+   "text": "Další certifikáty"
+  },
+  "scv190": {
+   "source": "Also in the file",
+   "text": "V souboru je také"
+  },
+  "scv191": {
+   "source": "In the file",
+   "text": "V souboru"
+  },
+  "scv192": {
+   "source": "(no alias)",
+   "text": "(bez aliasu)"
+  },
+  "scv194": {
+   "source": "a secret key (not read)",
+   "text": "tajný klíč (nečte se)"
+  },
+  "scv195": {
+   "source": "trusted certificate",
+   "text": "důvěryhodný certifikát"
+  },
+  "scv196": {
+   "source": "a certificate",
+   "text": "certifikát"
+  },
+  "scv197": {
+   "source": "drop a file or paste its text first",
+   "text": "nejdřív přetáhněte soubor nebo vložte jeho text"
+  },
+  "scv198": {
+   "source": "Reading it…",
+   "text": "Čte se…"
+  },
+  "scv199": {
+   "source": "The password is wrong",
+   "text": "Heslo je špatné"
+  },
+  "scv200": {
+   "source": "Give the password to see everything",
+   "text": "Zadejte heslo a uvidíte vše"
+  },
+  "scv201": {
+   "source": "The file is locked",
+   "text": "Soubor je zamčený"
+  },
+  "scv202": {
+   "source": "the key’s own password, if it has another",
+   "text": "vlastní heslo klíče, má-li jiné"
+  },
+  "scv203": {
+   "source": "Show a certificate",
+   "text": "Zobrazit certifikát"
+  },
+  "scv204": {
+   "source": "Any certificate, chain, request, CRL, key or keystore - PEM, CRT, CER, DER, P7B/P7C, PFX/P12, JKS, JCEKS, CSR, CRL, KEY, base64 or a ZIP of them. It is read and shown; nothing is kept and nothing changes. A private key is only described, never shown.",
+   "text": "Jakýkoli certifikát, řetězec, žádost, CRL, klíč nebo úložiště klíčů – PEM, CRT, CER, DER, P7B/P7C, PFX/P12, JKS, JCEKS, CSR, CRL, KEY, base64 nebo jejich ZIP. Přečte se a ukáže; nic se neuloží a nic se nezmění. Soukromý klíč se jen popíše, nikdy neukáže."
+  },
+  "scv205": {
+   "source": "or paste it here",
+   "text": "nebo ho vložte sem"
+  },
+  "scv206": {
+   "source": "Show another",
+   "text": "Zobrazit jiný"
+  },
+  "scv207": {
+   "source": "Look inside any certificate, chain, request, CRL, key or keystore - PEM, DER, P7B, PFX/P12, JKS, JCEKS - dropped or pasted. Nothing is kept and nothing changes.",
+   "text": "Podívejte se dovnitř jakéhokoli certifikátu, řetězce, žádosti, CRL, klíče nebo úložiště klíčů – PEM, DER, P7B, PFX/P12, JKS, JCEKS – přetaženého nebo vloženého. Nic se neuloží a nic se nezmění."
+  },
+  "scv208": {
+   "source": "the PKCS#12 file is locked: give its password",
+   "text": "soubor PKCS#12 je zamčený: zadejte jeho heslo"
+  },
+  "scv209": {
+   "source": "the password of the keystore is wrong: its integrity check does not pass (the certificates are shown, the keys are not read)",
+   "text": "heslo úložiště klíčů je špatné: kontrola integrity neprošla (certifikáty se ukazují, klíče se nečtou)"
+  },
+  "scv210": {
+   "source": "without the keystore's password its integrity cannot be checked and its keys cannot be read; the certificates are shown",
+   "text": "bez hesla úložiště klíčů nelze ověřit jeho integritu ani přečíst klíče; certifikáty se ukazují"
+  },
+  "scv212": {
+   "source": "the private key is encrypted: a password is needed",
+   "text": "soukromý klíč je šifrovaný: je potřeba heslo"
+  },
+  "scv213": {
+   "source": "the private key is encrypted: the password is wrong",
+   "text": "soukromý klíč je šifrovaný: heslo je špatné"
+  },
+  "scv215": {
+   "source": "Reading the request…",
+   "text": "Žádost se čte…"
+  },
+  "scv216": {
+   "source": "This is not a request that can be read",
+   "text": "Tohle není žádost, kterou lze přečíst"
+  },
+  "scv217": {
+   "source": "Paste the request, or read it from a file",
+   "text": "Vložte žádost, nebo ji načtěte ze souboru"
+  },
+  "scv218": {
+   "source": "It is read at once and shown here - its subject, names, key and signature - with what the certificate will get.",
+   "text": "Hned se přečte a ukáže tady – její subjekt, jména, klíč a podpis – spolu s tím, co certifikát dostane."
+  },
+  "scv219": {
+   "source": "The request",
+   "text": "Žádost"
+  },
+  "scv220": {
+   "source": "What the certificate will get",
+   "text": "Co certifikát dostane"
+  },
+  "scv221": {
+   "source": "Cut to the end of the authority: it runs out before the days asked.",
+   "text": "Zkráceno na konec autority: ta vyprší dřív než za požadované dny."
+  },
+  "scv222": {
+   "source": "none: only the subject",
+   "text": "žádná: jen subjekt"
+  },
+  "scv223": {
+   "source": "the authority’s own (else TLS server and client)",
+   "text": "vlastní nastavení autority (jinak TLS server a klient)"
+  },
+  "scv224": {
+   "source": "A request not signed by its own key is refused.",
+   "text": "Žádost, která není podepsaná vlastním klíčem, se odmítne."
+  },
+  "scv226": {
+   "source": "It holds no certificate request.",
+   "text": "Není v ní žádná žádost o certifikát."
+  },
+  "scv227": {
+   "source": "Sign another",
+   "text": "Podepsat další"
+  },
+  "scv228": {
+   "source": "Reading the certificate…",
+   "text": "Certifikát se čte…"
+  },
+  "scv229": {
+   "source": "It is kept in what this authority signed. Copy it or download it with its chain below.",
+   "text": "Uloží se mezi to, co tato autorita podepsala. Zkopírujte ho nebo stáhněte i s řetězcem níže."
   }
  },
  "patterns": {
@@ -60225,6 +61065,82 @@
   "poi051": {
    "source": "Add the private key of {0}",
    "text": "Doplnit soukromý klíč certifikátu {0}"
+  },
+  "pcv70": {
+   "source": "path length {0}",
+   "text": "délka cesty {0}"
+  },
+  "pcv74": {
+   "source": "{0} SCT(s): logged in Certificate Transparency",
+   "text": "{0} SCT: zapsáno v Certificate Transparency"
+  },
+  "pcv79": {
+   "source": "{0} days in all",
+   "text": "celkem {0} {0:den|dny|dní}"
+  },
+  "pcv98": {
+   "source": "{0} name(s) it is valid for",
+   "text": "Platí pro {0} {0:jméno|jména|jmen}"
+  },
+  "pcv128": {
+   "source": "The first {0} of {1}",
+   "text": "Prvních {0} z {1}"
+  },
+  "pcv146": {
+   "source": "{0} private keys",
+   "text": "{0} {0:soukromý klíč|soukromé klíče|soukromých klíčů}"
+  },
+  "pcv148": {
+   "source": "{0} requests",
+   "text": "{0} {0:žádost|žádosti|žádostí}"
+  },
+  "pcv150": {
+   "source": "{0} CRLs",
+   "text": "{0} CRL"
+  },
+  "pcv152": {
+   "source": "{0} public keys",
+   "text": "{0} {0:veřejný klíč|veřejné klíče|veřejných klíčů}"
+  },
+  "pcv163": {
+   "source": "{0} certificate(s), {1} CRL(s), {2} signer(s)",
+   "text": "certifikátů: {0}, CRL: {1}, podepisujících: {2}"
+  },
+  "pcv168": {
+   "source": "{0} name(s)",
+   "text": "jmen: {0}"
+  },
+  "pcv169": {
+   "source": "{0} revoked",
+   "text": "odvoláno: {0}"
+  },
+  "pcv186": {
+   "source": "Chain {0}",
+   "text": "Řetězec {0}"
+  },
+  "pcv187": {
+   "source": "{0} certificates, the certificate first",
+   "text": "{0} {0:certifikát|certifikáty|certifikátů}, certifikát první"
+  },
+  "pcv189": {
+   "source": "{0} certificate(s), each by itself",
+   "text": "certifikátů: {0}, každý sám o sobě"
+  },
+  "pcv193": {
+   "source": "private key + {0} certificate(s)",
+   "text": "soukromý klíč + certifikátů: {0}"
+  },
+  "pcv211": {
+   "source": "the password of the key \"{0}\" is wrong - give the key's own password if it has one",
+   "text": "heslo klíče „{0}“ je špatné – zadejte vlastní heslo klíče, pokud nějaké má"
+  },
+  "pcv214": {
+   "source": "{0} in the ZIP is encrypted",
+   "text": "{0} v ZIPu je šifrovaný"
+  },
+  "pcv225": {
+   "source": "It holds no certificate request, only: {0}",
+   "text": "Není v ní žádná žádost o certifikát, jen: {0}"
   }
  },
  "rich": {

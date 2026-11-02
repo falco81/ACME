@@ -5935,64 +5935,200 @@ function signCsr(ca) {
   casNow(true).catch(function () { return CAS; }).then(function () { signCsrForm(ca); });
 }
 function signCsrForm(ca) {
+  /* 1.0.23: the request is read as soon as it is pasted or read from a file
+     (POST certs/inspect, the viewer's road - nothing kept) and shown beside
+     the form with what the certificate will get; once signed, the
+     certificate and its chain are shown in the viewer (certview.js). */
   var f = {};
+  var CV = window.ACME_CERTVIEW || null;
   var signers = CAS.filter(caSigns);
   var pick = ca || defaultOf(signers) || signers[0] || null;
   if (!pick) { toast('No authority can sign yet: create one first', 'bad'); return; }
   var caOf = function () { return CAS.filter(function (x) { return String(x.id) === String(f.ca ? f.ca.value : pick.id); })[0] || pick; };
+  var ekusChosen = function () { return Object.keys(f.eku || {}).filter(function (k) { return f.eku[k].checked; }); };
+  var csr = null, csrPem = '', asked = 0;
+  var drawSide = function (state) {
+    if (!f.side) return;
+    clear(f.side);
+    if (state === 'reading') {
+      var w = el('div', 'cs-empty');
+      w.appendChild(el('p', '', 'Reading the request…'));
+      f.side.appendChild(w);
+      return;
+    }
+    if (state && state.error) {
+      var bad = el('div', 'cs-empty');
+      bad.appendChild(el('b', 'ct-bad', 'This is not a request that can be read'));
+      bad.appendChild(data('p', 'small', state.error));
+      f.side.appendChild(bad);
+      return;
+    }
+    if (!csr) {
+      var e = el('div', 'cs-empty');
+      var ic = el('span', 'cv-ic');
+      ic.innerHTML = iconMarkup('key', 28);
+      e.appendChild(ic);
+      e.appendChild(el('b', '', 'Paste the request, or read it from a file'));
+      e.appendChild(el('p', 'small', 'It is read at once and shown here - its subject, names, key and signature - with what the certificate will get.'));
+      f.side.appendChild(e);
+      return;
+    }
+    var h = el('h4', 'cs-side-h');
+    h.appendChild(el('span', '', 'The request'));
+    h.appendChild(csr.signature_ok ? el('span', 'tag ok', 'signed by its own key ✓') : el('span', 'tag crit', 'its signature does not fit its key ✗'));
+    f.side.appendChild(h);
+    var cards = el('div', 'cv-cards');
+    cards.appendChild(willCard());
+    cards.appendChild(CV.csrCard(csr));
+    f.side.appendChild(cards);
+  };
+  var willCard = function () {
+    var c = caOf();
+    var card = el('section', 'cv-card cs-will');
+    var hh = el('h4', 'cv-card-h');
+    var ic = el('span', 'cv-ic');
+    ic.innerHTML = iconMarkup('cert', 15);
+    hh.appendChild(ic);
+    hh.appendChild(el('span', '', 'What the certificate will get'));
+    card.appendChild(hh);
+    var days = Math.max(1, Number(f.days.value || c.days_default || 397));
+    var from = Date.now() / 1000, until = from + days * 86400;
+    var capped = c.not_after && Number(c.not_after) < until;
+    if (capped) until = Number(c.not_after);
+    var dl = el('dl', 'cv-rows');
+    var row = function (k, v) {
+      dl.appendChild(el('dt', '', k));
+      var dd = el('dd', '');
+      dd.appendChild(v);
+      dl.appendChild(dd);
+    };
+    row('Issuer', data('span', 'cv-val', c.subject_dn || c.name));
+    row('Subject', csr.subject_dn ? data('span', 'cv-val', csr.subject_dn) : el('span', 'muted', 'from the names'));
+    var valid = el('span', 'cv-val');
+    valid.appendChild(data('span', 'mono', CV.when(from) + ' → ' + CV.when(until)));
+    valid.appendChild(document.createTextNode(' '));
+    valid.appendChild(el('span', 'tag info', Math.round((until - from) / 86400) + ' days'));
+    if (capped) valid.appendChild(el('div', 'small ct-warnline', 'Cut to the end of the authority: it runs out before the days asked.'));
+    row('Valid', valid);
+    var names = arr(csr.names).map(function (n) { return n[1]; });
+    var nb = el('div', 'cv-chips');
+    if (names.length) names.forEach(function (n) { nb.appendChild(data('span', 'cv-chip name', n)); });
+    else nb.appendChild(el('span', 'muted', 'none: only the subject'));
+    row('Names', nb);
+    var kb = el('div', 'cv-chips');
+    var ku = /^rsa/.test(String(csr.key && csr.key.type)) ? ['digital signature', 'key encipherment'] : ['digital signature'];
+    ku.forEach(function (k) { kb.appendChild(el('span', 'cv-chip', k)); });
+    row('Key usage', kb);
+    var eb = el('div', 'cv-chips');
+    var chosen = ekusChosen();
+    if (chosen.length) chosen.forEach(function (k) { eb.appendChild(el('span', 'cv-chip', CV.EKU[k] || k)); });
+    else eb.appendChild(el('span', 'muted', 'the authority’s own (else TLS server and client)'));
+    row('Used for', eb);
+    row('Basic constraints', el('span', 'tag dim', 'not a CA'));
+    row('Key', data('span', 'cv-val', CV.keyLine(csr.key)));
+    card.appendChild(dl);
+    if (!csr.signature_ok) card.appendChild(el('p', 'cv-note warn', 'A request not signed by its own key is refused.'));
+    return card;
+  };
+  var read = function () {
+    var text = f.csr ? f.csr._get() : '';
+    csr = null;
+    csrPem = '';
+    if (!CV) return;
+    if (!text) { drawSide(null); return; }
+    var mine = ++asked;
+    drawSide('reading');
+    CV.inspect({text: text}).then(function (ans) {
+      if (mine !== asked) return;
+      var r = arr(ans.things).filter(function (t) { return t.kind === 'csr'; })[0];
+      if (!r) { drawSide({error: ans.things.length ? 'It holds no certificate request, only: ' + ans.things.map(function (t) { return t.kind; }).join(', ') : 'It holds no certificate request.'}); return; }
+      csr = r;
+      csrPem = r.pem;
+      drawSide(null);
+    }).catch(function (e) { if (mine === asked) drawSide({error: wordsOf(e)}); });
+  };
+  var later = debounce(read, 350);
   modal('Sign a CSR', function (body) {
     body.appendChild(el('p', 'note', 'A request made elsewhere - by a device, another server, a person - signed by this authority. The certificate is shown at once; it is kept in what this authority signed, not as a certificate acme renews.'));
+    var cols = el('div', CV ? 'cs-cols' : '');
+    var left = el('div', 'cs-form');
     var cg = el('div', 'formgrid');
     f.ca = selectBox(caPairs(signers.length ? signers : [pick]), String(pick.id));
     noI18n(f.ca);
     cg.appendChild(formField('Signed by', f.ca, 'The default authority comes first (the star on Authorities).'));
-    body.appendChild(cg);
-    f.csr = pemBox('', '-----BEGIN CERTIFICATE REQUEST-----', 8);
-    body.appendChild(wideField('The CSR', f.csr));
+    left.appendChild(cg);
+    f.csr = pemBox('', '-----BEGIN CERTIFICATE REQUEST-----', 9);
+    f.csr._input.addEventListener('input', later);
+    left.appendChild(wideField('The CSR', f.csr));
     var g = el('div', 'formgrid');
     f.days = numberBox(pick.days_default || 397, '397', 1, 36500);
-    f.ca.addEventListener('change', function () { var c = caOf(); if (c && c.days_default) f.days.value = c.days_default; });
+    f.ca.addEventListener('change', function () { var c = caOf(); if (c && c.days_default) f.days.value = c.days_default; if (csr) drawSide(null); });
+    f.days.addEventListener('input', function () { if (csr) drawSide(null); });
     g.appendChild(formField('Valid for (days)', f.days));
-    var ek = el('div', 'ct-ekus');
+    var ek = el('div', 'ct-ekus cs-ekus');
     f.eku = {};
     EKUS.forEach(function (e, i) {
       var lab = el('label', 'set-check');
       var cb = el('input');
       cb.type = 'checkbox';
       cb.checked = i === 0;
+      cb.addEventListener('change', function () { if (csr) drawSide(null); });
       f.eku[e[0]] = cb;
       lab.appendChild(cb);
       lab.appendChild(el('span', '', e[1]));
       ek.appendChild(lab);
     });
-    g.appendChild(formField('Used for', ek));
-    body.appendChild(g);
-    f.out = el('div');
-    body.appendChild(f.out);
+    var ef = formField('Used for', ek);
+    ef.classList.add('wide');
+    g.appendChild(ef);
+    left.appendChild(g);
+    cols.appendChild(left);
+    if (CV) {
+      f.side = el('div', 'cs-side');
+      cols.appendChild(f.side);
+      drawSide(null);
+    }
+    body.appendChild(cols);
   }, [{words: 'Close', close: true}, {words: 'Sign it', cls: 'primary', icon: 'key', go: function (b) {
     if (!f.csr._get()) { toast('paste the CSR', 'bad'); return; }
+    if (CV && csr && !csr.signature_ok) { toast('the request is not signed by its own key', 'bad'); return; }
+    var c = caOf();
     busy(b, true);
-    capi('cas/sign_csr', {id: caOf().id, csr_pem: f.csr._get(), days: Number(f.days.value || 397),
-                          eku: Object.keys(f.eku).filter(function (k) { return f.eku[k].checked; })}).then(function (d) {
+    capi('cas/sign_csr', {id: c.id, csr_pem: csrPem || f.csr._get(), days: Number(f.days.value || 397),
+                          eku: ekusChosen()}).then(function (d) {
       var pem = d.cert_pem || d.certificate || '';
       var chain = d.chain_pem || '';
-      clear(f.out);
-      f.out.appendChild(el('h4', 'ct-formh', 'The certificate'));
-      var ta = areaBox(pem + (chain ? '\n' + chain : ''), '', 8, 'mono ct-csr');
-      ta.readOnly = true;
-      noI18n(ta);
-      f.out.appendChild(ta);
-      var row = el('div', 'btnrow');
-      var cp = cmdButton('Copy', 'copy', 'small');
-      cp.onclick = function () { copyText(ta.value, cp, 'the certificate was copied'); };
-      var dl = cmdButton('Download', 'download', 'small');
-      dl.onclick = function () { saveText((d.serial || 'certificate') + '.crt', ta.value, 'application/x-pem-file'); };
-      row.appendChild(cp);
-      row.appendChild(dl);
-      f.out.appendChild(row);
+      var all = pem + (chain ? (/\n$/.test(pem) ? '' : '\n') + chain : '');
       toast(said(d, 'signed'), 'good');
+      var buttons = [{words: 'Sign another', icon: 'key', left: true, go: function () { signCsrForm(c); }},
+                     {words: 'Copy', icon: 'copy', go: function (bt) { copyText(all, bt, 'the certificate was copied'); }},
+                     {words: 'Download', icon: 'download', go: function () { saveText((d.serial || 'certificate') + '.crt', all, 'application/x-pem-file'); }},
+                     {words: 'Close', close: true, cls: 'primary'}];
+      var plain = function (host, why) {
+        clear(host);
+        if (why) host.appendChild(el('p', 'ct-bad', why));
+        var ta = areaBox(all, '', 12, 'mono ct-csr');
+        ta.readOnly = true;
+        noI18n(ta);
+        host.appendChild(ta);
+      };
+      if (!CV) { modal('The certificate', function (b2) { plain(b2); }, buttons, 'medium'); return; }
+      modal('Signed', function (b2) {
+        var w = el('div', 'cv-wait');
+        w.appendChild(el('p', '', 'Reading the certificate…'));
+        b2.appendChild(w);
+      }, buttons, 'certview');
+      var ticket = modalTicket();
+      CV.inspect({text: all}).then(function (ans) {
+        if (!modalStill(ticket)) return;
+        var before = el('div', 'cv-signed');
+        before.appendChild(el('b', '', 'Signed by'));
+        before.appendChild(data('b', '', ' ' + c.name));
+        before.appendChild(el('span', 'muted', 'It is kept in what this authority signed. Copy it or download it with its chain below.'));
+        CV.render($('modal-body'), ans, {before: before});
+      }).catch(function (e) { if (modalStill(ticket)) plain($('modal-body'), wordsOf(e)); });
     }).catch(fail).then(function () { busy(b, false); });
-  }}], 'medium');
+  }}]);
 }
 
 /* ==========================================================================
@@ -6746,6 +6882,7 @@ CT.fieldForm = fieldForm;
 CT.jobLog = jobLog;
 CT.keptSecret = keptSecret;
 CT.api = capi;
+CT.dropZone = dropZone;
 
 window.ACME_EXTRA_TABS = window.ACME_EXTRA_TABS || [];
 Object.keys(MY_TABS).concat(['overview']).forEach(function (name) {
@@ -6821,6 +6958,8 @@ function on(id, ev, fn) { var n = $(id); if (n) n.addEventListener(ev, fn); }
 on('ct-add', 'click', function () { certWizard(); });
 on('ct-import', 'click', function () { importDialog(); });
 on('ct-onlineimport', 'click', function () { onlineImport(); });
+/* Show a certificate (1.0.23): certview.js, for anybody signed in - it changes nothing. */
+on('ct-view', 'click', function () { if (window.ACME_CERTVIEW) window.ACME_CERTVIEW.open(); });
 on('ct-self', 'click', function () { selfSigned(); });
 on('ct-csr', 'click', function () { csrDialog(); });
 var certsAgain = debounce(function () { CL.page = 0; loadCerts(); }, 250);

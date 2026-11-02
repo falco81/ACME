@@ -111,6 +111,7 @@ they were shown keeps what is set.
 | `POST /api/certs/deploy` | `{id, deploy_id?}` → `{job_id}` |
 | `POST /api/certs/revoke` | `{id, reason}` → `{job_id}` |
 | `POST /api/certs/parse` | `{data_b64, filename, password}` → what is in a file, nothing kept |
+| `POST /api/certs/inspect` | `{data_b64 + filename \| text, password?, key_password?}` → Show a certificate: everything in a file (certificates, chains with each link checked, CSRs, CRLs, keystore entries; a private key only described), for anybody signed in, nothing kept |
 | `POST /api/certs/import` | `{name, data_b64, filename, password, key_b64?, key_password?, tags[], note}` → `{id}` |
 | `GET /api/certs/online_sources` · `POST /api/certs/online_list` | Import from a source (acmelib/certs/onlineimport.py): the sources whose module lists the account's certificates · `{source}` → `{items: [{ref, cn, names, product, status, not_before, not_after, paid_until, serial, downloadable, renewable, note, in_acme, importable}], said, steps}` - only read, no job |
 | `POST /api/certs/online_import` · `GET /api/certs/online_import_result?job=` | `{source, items: [{ref, owner, tags, challenge, auto_renew, name?}]}` → `{job_id}` (kind `online-import`): each fetched, bound to the source with `issuer_ref`, no key · `{result: {source, results: [{ref, state: imported/skipped/failed, why, id, name}]}}` |

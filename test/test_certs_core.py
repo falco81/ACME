@@ -402,6 +402,33 @@ class CertsCore(unittest.TestCase):
         st, err = self.call('POST', '/api/certs/auto', {'id': got['id'], 'auto_renew': 1}, self.admin)
         self.assertEqual(st, 400, err)
 
+    def test_04b_show_a_certificate(self):
+        """Show a certificate (1.0.23): read and described for anybody signed in, the key
+        never sent back, nothing kept."""
+        b64 = base64.b64encode(self.pfx).decode()
+        before = len(self.ok('GET', '/api/certs').get('rows') or [])
+        got = self.ok('POST', '/api/certs/inspect', {'data_b64': b64, 'filename': 'web.pfx'},
+                      session=self.ro)
+        self.assertTrue(got['password']['needed'])
+        got = self.ok('POST', '/api/certs/inspect', {'data_b64': b64, 'filename': 'web.pfx',
+                                                     'password': 'Export-pw1'}, session=self.ro)
+        self.assertEqual(got['format'], 'pkcs12')
+        self.assertNotIn('PRIVATE KEY', json.dumps(got))
+        keys = [t for t in got['things'] if t['kind'] == 'key']
+        self.assertEqual(len(keys), 1)
+        self.assertTrue(keys[0]['matches'])
+        leaf = [t for t in got['things'] if t['id'] == keys[0]['matches'][0]][0]
+        self.assertFalse(leaf['is_ca'])
+        self.assertIn(['DNS', 'www.example.test'], leaf['names'])
+        pem = leaf['pem']
+        got = self.ok('POST', '/api/certs/inspect', {'text': pem}, session=self.ro)
+        self.assertEqual(got['things'][0]['sha256'], leaf['sha256'])
+        st, err = self.call('POST', '/api/certs/inspect', {'text': 'not a certificate'}, self.ro)
+        self.assertEqual(st, 400, err)
+        st, err = self.call('POST', '/api/certs/inspect', {'text': pem}, None)
+        self.assertEqual(st, 401, err)
+        self.assertEqual(len(self.ok('GET', '/api/certs').get('rows') or []), before)
+
     def test_04c_add_and_issue_now(self):
         # saved, the look starts issuing it at once; "issue now" then gets that job
         cid = self.ok('POST', '/api/certs/save', {'name': 'add-issue', 'names': ['ai.example.test'],
