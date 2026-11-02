@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.21 - 2026-11-02
 
+- WEDOS (WAPI) as its documentation says: the record's comment sent as
+  `author_comment` (was `auth_comment`), every page of the domains (50 a page
+  before - an account with more did not find its domain), only primary, active
+  domains written to, 2316 ("already exists") taken as done, the rows read in
+  either shape, and a refused sign-in holds every call to WAPI for 5 minutes -
+  more wrong requests block the address at WEDOS.
 - **acme never runs into the limits of the services it talks to**: a
   validation signs in **once** for all the certificates it covers - "What to
   set up" of a Webglobe validation with six certificates signed in six times

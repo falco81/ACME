@@ -669,14 +669,27 @@ class WedosFake(Fake):
         if cmd == 'ping':
             return ok()
         if cmd == 'dns-domains-list':
-            return ok({'domain': [{'name': z, 'type': 'primary', 'status': 'active'}
-                                  for z in ZONES]})
+            # as WAPI: 50 a page unless asked; a secondary and a disabled one among them
+            every = [{'name': 'zz%03d.example.net' % i, 'type': 'primary', 'status': 'active'}
+                     for i in range(getattr(self, 'filler', 0))] + \
+                [{'name': 'sec.example.com', 'type': 'secondary', 'status': 'active'},
+                 {'name': 'off.example.com', 'type': 'primary', 'status': 'disabled'}] + \
+                [{'name': z, 'type': 'primary', 'status': 'active'} for z in ZONES]
+            per = int(d.get('page_limit') or 50)
+            page = int(d.get('page') or 1)
+            return ok({'domain': every[(page - 1) * per:page * per], 'total': len(every),
+                       'page': page, 'page_limit': per})
         if cmd == 'dns-rows-list':
-            return ok({'row': [{'ID': str(x['id']), 'name': self.rel(d['domain'], x['name']),
-                                'ttl': '300', 'rdtype': 'TXT', 'rdata': x['value']}
-                               for x in self.recs if x['zone'] == d['domain']]})
+            rows = [{'ID': str(x['id']), 'name': self.rel(d['domain'], x['name']),
+                     'ttl': '300', 'rdtype': 'TXT', 'rdata': x['value']}
+                    for x in self.recs if x['zone'] == d['domain']]
+            if getattr(self, 'numbered', False):        # the docs' template: row1, row2...
+                return ok({'row%d' % (i + 1): r for i, r in enumerate(rows)})
+            return ok({'row': rows})
         if cmd == 'dns-row-add':
             self.t.assertGreaterEqual(d['ttl'], 300)
+            self.t.assertNotIn('auth_comment', d)       # the parameter is author_comment
+            self.t.assertIn('author_comment', d)
             self.add(d['domain'], self.full(d['domain'], d['name']), d['rdata'])
             self.commits = getattr(self, 'commits', 0) - 1
             return ok()
@@ -870,6 +883,56 @@ class TestProviders(Base):
         f = WedosFake(self)
         self.run_module('wedos', f, login='me@example.cz', wapi_password='wp')
         self.assertEqual(f.commits, 0, 'every change is committed')
+
+    def test_wedos_pages_numbered_rows_and_secondary(self):
+        """1.0.21: every page of the domains (a 600-domain account), only primary active
+        ones, the rows as row1, row2... too."""
+        f = WedosFake(self)
+        f.filler, f.numbered = 600, True
+        self.run_module('wedos', f, login='me@example.cz', wapi_password='wp')
+        m, _ = module('wedos', f, login='me@example.cz', wapi_password='wp')
+        zones = m.zone_names()
+        self.assertIn('zz599.example.net', zones)
+        self.assertIn('example.com', zones)
+        self.assertNotIn('sec.example.com', zones)
+        self.assertNotIn('off.example.com', zones)
+
+    def test_wedos_refused_sign_in_holds_wapi(self):
+        """A refused sign-in (2051...): WAPI is not asked again for a while - more wrong
+        requests would block the address (1.0.21)."""
+        from acmelib.plugins import limits
+        from acmelib.plugins.base import PluginError
+        f = WedosFake(self)
+        calls = []
+
+        def refuse(method, url, body, h):
+            calls.append(1)
+            return 200, {'response': {'code': 2051, 'result': 'Access not allowed from this IP'}}
+        f.handle = refuse
+        m, _ = module('wedos', f, login='me@example.cz', wapi_password='wp')
+        try:
+            with self.assertRaises(PluginError):
+                m._call('ping')
+            with self.assertRaises(PluginError) as e:
+                m._call('ping')
+            self.assertEqual(len(calls), 1, 'not asked again while held')
+            self.assertIn('not asked again', str(e.exception))
+        finally:
+            limits.forget()
+
+    def test_wedos_record_there_already(self):
+        """2316 (this record already exists) is the record being there."""
+        f = WedosFake(self)
+        orig = f.handle
+
+        def there(method, url, body, h):
+            r = json.loads(form(body)['request'])['request']
+            if r['command'] == 'dns-row-add':
+                return 200, {'response': {'code': 2316, 'result': 'Record already exists'}}
+            return orig(method, url, body, h)
+        f.handle = there
+        m, _ = module('wedos', f, login='me@example.cz', wapi_password='wp')
+        m.add_txt('_acme-challenge.www.example.com', 'v1')
 
     def test_wedos_auth_hour_in_prague(self):
         from acmelib.plugins.challenges import wedos as W

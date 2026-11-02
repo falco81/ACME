@@ -8,9 +8,11 @@ AUTH = sha1(LOGIN + sha1(WAPI password) + the hour now in Europe/Prague, "00".."
 hex - so the clock of this machine has to be right (NTP). Commands:
 
     ping                                                      signs in
-    dns-domains-list                                          {domain: [{name, type, status}]}
+    dns-domains-list {page, page_limit}                       {domain: [{name, type, status}],
+                                                               total, page, page_limit}
     dns-rows-list    {domain}                                 {row: [{ID, name, rdtype, rdata}]}
-    dns-row-add      {domain, name, ttl, type, rdata, auth_comment}
+                                                              (or row1, row2... as the docs show)
+    dns-row-add      {domain, name, ttl, type, rdata, author_comment}
     dns-row-delete   {domain, row_id}
     dns-domain-commit {name}                                  the changes made live
 
@@ -19,6 +21,13 @@ Answers {"response": {"code": 1000, "result": "OK", "data": ...}}; a code of
 administration (Customer → WAPI interface), and answers only the IP addresses
 allowed there. WEDOS takes no TTL under 300, and its name servers take a few
 minutes after the commit.
+
+WAPI's own limits (its manual): 1000 requests an hour per account, and more
+than 10 invalid requests (a wrong auth, an address not allowed, a wrong input)
+block the address for a minute per request, longer with each - so a refused
+sign-in holds every call to WAPI for a while (1.0.21) instead of trying again.
+Only primary, active domains are written to (a secondary one refuses, 2318);
+2316 (the record is there already) is the record being there.
 """
 from __future__ import annotations
 
@@ -28,11 +37,15 @@ import json
 import time
 import urllib.parse
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, http_call, relative,
                                                 said_error, unquote_txt)
 
 API = 'https://api.wedos.com/wapi/json'
+AUTH_CODES = (2050, 2051, 2052, 2053)
+AUTH_HOLD_S = 300           # a refused sign-in: WAPI not asked again for this long
+PAGE = 500
 
 
 def prague_hour(now=None):
@@ -81,6 +94,12 @@ class Wedos(ApiDns):
     ] + PROPAGATION_FIELDS
 
     def _call(self, command, data=None, ok=(1000,), now=None):
+        wait = limits.held(API)
+        if wait > 0:
+            raise PluginError('WEDOS refused the sign-in a moment ago: WAPI is not asked again '
+                              'for %d s (more wrong requests would block this address) - check '
+                              'the login, the WAPI password, this machine\'s clock and the IP '
+                              'addresses allowed for WAPI' % int(wait + 0.5), retry=True)
         login = str(self.c('login', ''))
         req = {'request': {'user': login,
                            'auth': wedos_auth(login, str(self.c('wapi_password', '')), now),
@@ -100,24 +119,49 @@ class Wedos(ApiDns):
         code = int(ans.get('code') or 0)
         if code not in ok:
             words = 'WEDOS said %s: %s' % (code, ans.get('result') or 'nothing more')
-            if code in (2050, 2051, 2052, 2053):
+            if code in AUTH_CODES:
                 words += ' - check the login, the WAPI password, this machine\'s clock and the ' \
                          'IP addresses allowed for WAPI'
+                limits.note_slow(API, AUTH_HOLD_S)
             raise PluginError(words, detail=ans, retry=code < 2000 or code >= 5000)
         return ans.get('data') or {}
 
     def zone_names(self):
-        got = self._call('dns-domains-list').get('domain') or []
-        if isinstance(got, dict):
-            got = list(got.values())
-        return [d.get('name') for d in got if isinstance(d, dict)]
+        """Every primary, active domain of the account - page by page (WAPI gives 50 a
+        page unless asked for more)."""
+        out, page = [], 1
+        while page <= 100:
+            got = self._call('dns-domains-list', {'page': page, 'page_limit': PAGE})
+            rows = got.get('domain') or []
+            if isinstance(rows, dict):
+                rows = list(rows.values())
+            rows = [d for d in rows if isinstance(d, dict)]
+            out += [d.get('name') for d in rows
+                    if str(d.get('type') or 'primary').lower() == 'primary' and
+                    str(d.get('status') or 'active').lower() == 'active']
+            try:
+                total = int(got.get('total') or 0)
+            except (TypeError, ValueError):
+                total = 0
+            if len(rows) < PAGE or not total or page * PAGE >= total:
+                break
+            page += 1
+        return out
+
+    @staticmethod
+    def _rows(data):
+        """The records of dns-rows-list: data.row (a list or a map), or row1, row2..."""
+        rows = data.get('row')
+        if rows is None:
+            rows = [v for k, v in data.items() if str(k).startswith('row')]
+        if isinstance(rows, dict):
+            rows = list(rows.values()) if not ('ID' in rows or 'name' in rows) else [rows]
+        return [r for r in rows or [] if isinstance(r, dict)]
 
     def _ours(self, zone, rel, value):
         name = '' if rel == '@' else rel
-        rows = self._call('dns-rows-list', {'domain': zone}).get('row') or []
-        if isinstance(rows, dict):
-            rows = list(rows.values())
-        return [r.get('ID') for r in rows if isinstance(r, dict) and
+        rows = self._rows(self._call('dns-rows-list', {'domain': zone}))
+        return [r.get('ID') for r in rows if
                 str(r.get('rdtype')).upper() == 'TXT' and (r.get('name') or '') == name and
                 unquote_txt(r.get('rdata')) == value]
 
@@ -125,9 +169,10 @@ class Wedos(ApiDns):
         zone = self.zone_for(fqdn)
         rel = relative(fqdn, zone)
         if not self._ours(zone, rel, value):
+            # 2316: the record is there already (put in a moment ago by another job)
             self._call('dns-row-add', {'domain': zone, 'name': '' if rel == '@' else rel,
                                        'ttl': self.ttl(), 'type': 'TXT', 'rdata': value,
-                                       'auth_comment': 'acme DNS-01'})
+                                       'author_comment': 'acme DNS-01'}, ok=(1000, 2316))
             self._call('dns-domain-commit', {'name': zone})
         return {'zone': zone, 'rel': rel}
 

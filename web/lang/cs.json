@@ -59133,6 +59133,10 @@
   "pl0049": {
    "source": "nothing written: {0}",
    "text": "nic nezapsáno: {0}"
+  },
+  "swedos01": {
+   "source": "WEDOS refused the sign-in a moment ago: WAPI is not asked again for {0} s (more wrong requests would block this address) - check the login, the WAPI password, this machine's clock and the IP addresses allowed for WAPI",
+   "text": "WEDOS před chvílí odmítl přihlášení: WAPI se znovu nezeptá dřív než za {0} s (další chybné požadavky by tuto adresu zablokovaly) – zkontrolujte login, heslo k WAPI, hodiny tohoto stroje a IP adresy povolené pro WAPI"
   }
  },
  "rich": {
