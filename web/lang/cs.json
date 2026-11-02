@@ -40663,6 +40663,642 @@
   "srnw08": {
    "source": "A public CA counts every certificate it issues: renewing again and again can hit its limits.",
    "text": "Veřejná CA počítá každý vydaný certifikát: opakované obnovování může narazit na její limity."
+  },
+  "srp001": {
+   "source": "A CSR made with a new key, for the same names - it is checked, kept and the certificate issued again at once. From then on, every renewal uses it.",
+   "text": "CSR vytvořený s novým klíčem pro stejná jména – zkontroluje se, uloží a certifikát se hned vydá znovu. Od té doby ho použije každá obnova."
+  },
+  "srp002": {
+   "source": "A TLS certificate for a web server of the company, issued at once.",
+   "text": "Certifikát TLS pro webový server firmy, vydaný hned."
+  },
+  "srp003": {
+   "source": "A key made here (and kept for you), or a CSR made where the key is to stay - your server, your device.",
+   "text": "Klíč vytvořený zde (a uložený pro vás), nebo CSR vytvořený tam, kde má klíč zůstat – na vašem serveru, vašem zařízení."
+  },
+  "srp004": {
+   "source": "A name like *.example.com - only where the source gives them, proved by DNS.",
+   "text": "Jméno jako *.example.com – jen kde je zdroj vydává, prokázané přes DNS."
+  },
+  "srp005": {
+   "source": "A new request profile",
+   "text": "Nový profil žádosti"
+  },
+  "srp006": {
+   "source": "A public CA puts in what it puts in; an authority of your own what is asked.",
+   "text": "Veřejná CA vloží, co vkládá sama; vlastní autorita to, oč se žádá."
+  },
+  "srp007": {
+   "source": "Add a profile",
+   "text": "Přidat profil"
+  },
+  "srp008": {
+   "source": "Against the profile",
+   "text": "Oproti profilu"
+  },
+  "srp009": {
+   "source": "Approval and owner",
+   "text": "Schválení a vlastník"
+  },
+  "srp010": {
+   "source": "Approved by the certificate administrators (Certificates → waiting for approval), and on the portal by the members with the right approve of the team that owns it.",
+   "text": "Schvalují správci certifikátů (Certifikáty → čeká na schválení) a na portálu členové s právem schvalovat v týmu, který ho vlastní."
+  },
+  "srp011": {
+   "source": "At most.",
+   "text": "Nejvýše."
+  },
+  "srp012": {
+   "source": "Beside the names (the common name is the first of them). Fixed: put in as said here, whatever a CSR says. Filled by the person: what they type - or what their CSR says - with the value here as the default.",
+   "text": "Vedle jmen (obecné jméno je první z nich). Pevné: vloží se, jak je zde uvedeno, ať CSR říká cokoli. Vyplní žadatel: co napíše – nebo co říká jeho CSR – s hodnotou zde jako výchozí."
+  },
+  "srp013": {
+   "source": "Certificates on the portal is off: nobody sees these profiles there.",
+   "text": "Certifikáty na portálu jsou vypnuté: tyto profily tam nikdo neuvidí."
+  },
+  "srp014": {
+   "source": "Certificates → Sources.",
+   "text": "Certifikáty → Zdroje."
+  },
+  "srp015": {
+   "source": "Certificates → Validation: how its names are proved to the CA.",
+   "text": "Certifikáty → Validace: jak se jeho jména prokazují CA."
+  },
+  "srp016": {
+   "source": "Choose a file",
+   "text": "Vybrat soubor"
+  },
+  "srp017": {
+   "source": "Choose the team it belongs to.",
+   "text": "Vyberte tým, kterému bude patřit."
+  },
+  "srp018": {
+   "source": "Decode it",
+   "text": "Rozkódovat"
+  },
+  "srp019": {
+   "source": "Delete the request profile",
+   "text": "Smazat profil žádosti"
+  },
+  "srp020": {
+   "source": "Delete this profile",
+   "text": "Smazat tento profil"
+  },
+  "srp021": {
+   "source": "Domain part",
+   "text": "Část domény"
+  },
+  "srp022": {
+   "source": "Each is a kind of certificate people may ask for on the enrolment pages: they pick one, give its names (or send their CSR) and what it leaves to them; everything else is as it says. Who may use one is said by its teams - none: everybody who may sign in there. Asked for, a certificate is issued at once or waits for approval - by the certificate administrators here, and on the portal by the members with the right approve of the team that owns it.",
+   "text": "Každý je druh certifikátu, o který mohou lidé požádat na stránkách registrace: jeden vyberou, zadají jeho jména (nebo pošlou svůj CSR) a to, co jim profil nechává; vše ostatní je podle něj. Kdo ho smí použít, určují jeho týmy – žádný: každý, kdo se tam smí přihlásit. Vyžádaný certifikát se vydá hned, nebo čeká na schválení – správci certifikátů zde a na portálu členy s právem schvalovat v týmu, který ho vlastní."
+  },
+  "srp023": {
+   "source": "Edit the request profile",
+   "text": "Upravit profil žádosti"
+  },
+  "srp024": {
+   "source": "Edit this profile",
+   "text": "Upravit tento profil"
+  },
+  "srp025": {
+   "source": "Empty: as Renewal and notices says.",
+   "text": "Prázdné: podle Obnovování a upozornění."
+  },
+  "srp026": {
+   "source": "Filled in for you - change it if it is not right.",
+   "text": "Vyplněno za vás – změňte, pokud nesedí."
+  },
+  "srp027": {
+   "source": "Given name",
+   "text": "Křestní jméno"
+  },
+  "srp028": {
+   "source": "How many names",
+   "text": "Kolik jmen"
+  },
+  "srp029": {
+   "source": "In the CSR",
+   "text": "V CSR"
+  },
+  "srp030": {
+   "source": "In the certificate",
+   "text": "V certifikátu"
+  },
+  "srp031": {
+   "source": "In the subject",
+   "text": "V předmětu"
+  },
+  "srp032": {
+   "source": "Issued for the CSR you sent",
+   "text": "Vydán pro CSR, který jste poslali"
+  },
+  "srp033": {
+   "source": "Issued for the CSR you sent: for a new one, send a new CSR (a new key) afterwards.",
+   "text": "Vydán pro CSR, který jste poslali: pro nový pak pošlete nový CSR (nový klíč)."
+  },
+  "srp034": {
+   "source": "Issued for the CSR you sent: its private key is where you made the CSR.",
+   "text": "Vydán pro CSR, který jste poslali: jeho soukromý klíč je tam, kde jste CSR vytvořili."
+  },
+  "srp035": {
+   "source": "Its names, where it comes from and its key - chosen by you.",
+   "text": "Jeho jména, odkud bude a jeho klíč – podle vás."
+  },
+  "srp036": {
+   "source": "Its private key is where you made the CSR - acme never had it, so there is no PFX with the key here. Every renewal uses the same CSR, so the same key; to change the key, send a new CSR.",
+   "text": "Jeho soukromý klíč je tam, kde jste vytvořili CSR – acme ho nikdy neměl, proto tu není PFX s klíčem. Každá obnova použije stejný CSR, tedy stejný klíč; chcete-li klíč změnit, pošlete nový CSR."
+  },
+  "srp037": {
+   "source": "Key and signature",
+   "text": "Klíč a podpis"
+  },
+  "srp038": {
+   "source": "Key type",
+   "text": "Typ klíče"
+  },
+  "srp039": {
+   "source": "Key types allowed",
+   "text": "Povolené typy klíčů"
+  },
+  "srp040": {
+   "source": "Key usage",
+   "text": "Použití klíče"
+  },
+  "srp041": {
+   "source": "Look at what the CSR says above, then ask again.",
+   "text": "Prohlédněte si, co CSR říká (výše), a pak požádejte znovu."
+  },
+  "srp042": {
+   "source": "Made where the key is to stay. It is decoded and checked against this profile first; renewals use the same CSR.",
+   "text": "Vytvořený tam, kde má klíč zůstat. Nejdřív se rozkóduje a zkontroluje oproti tomuto profilu; obnovy použijí stejný CSR."
+  },
+  "srp043": {
+   "source": "Names in one certificate",
+   "text": "Jmen v jednom certifikátu"
+  },
+  "srp044": {
+   "source": "Names proved by",
+   "text": "Jména prokazuje"
+  },
+  "srp045": {
+   "source": "Names under",
+   "text": "Jména pod"
+  },
+  "srp046": {
+   "source": "No owner or team yet - Settings → Owners and teams.",
+   "text": "Zatím žádný vlastník ani tým – Nastavení → Vlastníci a týmy."
+  },
+  "srp047": {
+   "source": "No subjectAltName: the common name is taken as its name.",
+   "text": "Bez subjectAltName: jako jméno se vezme obecné jméno (CN)."
+  },
+  "srp048": {
+   "source": "Of a key made here, and of a CSR sent in. Greyed: the source does not sign it.",
+   "text": "Klíče vytvořeného zde i poslaného CSR. Šedé: zdroj ho nepodepíše."
+  },
+  "srp049": {
+   "source": "Off: kept, not shown on the portal.",
+   "text": "Vypnuto: zůstane uložen, na portálu se nezobrazí."
+  },
+  "srp050": {
+   "source": "Off: only when somebody presses Renew now.",
+   "text": "Vypnuto: jen když někdo stiskne Obnovit teď."
+  },
+  "srp051": {
+   "source": "Offered first",
+   "text": "Nabízený jako první"
+  },
+  "srp052": {
+   "source": "Offered",
+   "text": "Nabízen"
+  },
+  "srp053": {
+   "source": "One a line: a name is the domain itself or under it.",
+   "text": "Jedna na řádek: jméno je sama doména nebo jméno pod ní."
+  },
+  "srp054": {
+   "source": "Owners and teams: the members of its team see it on the portal and are told when it fails.",
+   "text": "Vlastníci a týmy: členové jeho týmu ho vidí na portálu a dozvědí se, když selže."
+  },
+  "srp055": {
+   "source": "PFX with the key",
+   "text": "PFX s klíčem"
+  },
+  "srp056": {
+   "source": "Paste it (PEM), or choose its file (PEM or DER).",
+   "text": "Vložte ho (PEM), nebo vyberte jeho soubor (PEM nebo DER)."
+  },
+  "srp057": {
+   "source": "Paste it (PEM), or choose its file (PEM or DER). It is decoded and checked against this profile before anything is asked.",
+   "text": "Vložte ho (PEM), nebo vyberte jeho soubor (PEM nebo DER). Než se o cokoli požádá, rozkóduje se a zkontroluje oproti tomuto profilu."
+  },
+  "srp058": {
+   "source": "Paste the CSR, or choose its file, then Decode it.",
+   "text": "Vložte CSR nebo vyberte jeho soubor a pak ho rozkódujte."
+  },
+  "srp059": {
+   "source": "Paste the CSR, or choose its file.",
+   "text": "Vložte CSR, nebo vyberte jeho soubor."
+  },
+  "srp060": {
+   "source": "Pick what you need. Each kind says where the certificate comes from and what is in it - you give only its names and what is left to you.",
+   "text": "Vyberte, co potřebujete. U každého druhu je uvedeno, odkud certifikát bude a co v něm bude – zadáte jen jeho jména a to, co je ponecháno na vás."
+  },
+  "srp061": {
+   "source": "Postal code",
+   "text": "PSČ"
+  },
+  "srp062": {
+   "source": "Public key",
+   "text": "Veřejný klíč"
+  },
+  "srp063": {
+   "source": "Put on every certificate asked for from it, beside \"portal\".",
+   "text": "Dostane je každý certifikát vyžádaný z tohoto profilu, vedle „portal“."
+  },
+  "srp064": {
+   "source": "Renewed with the same CSR - so the same key. To change the key later, send a new CSR from the certificate.",
+   "text": "Obnovuje se se stejným CSR – tedy se stejným klíčem. Chcete-li klíč později změnit, pošlete u certifikátu nový CSR."
+  },
+  "srp065": {
+   "source": "Request profile",
+   "text": "Profil žádosti"
+  },
+  "srp066": {
+   "source": "Request profiles",
+   "text": "Profily žádostí"
+  },
+  "srp067": {
+   "source": "Send a CSR",
+   "text": "Poslat CSR"
+  },
+  "srp068": {
+   "source": "Send a new CSR",
+   "text": "Poslat nový CSR"
+  },
+  "srp069": {
+   "source": "Serial number",
+   "text": "Sériové číslo"
+  },
+  "srp070": {
+   "source": "Shown to people on the portal beside its name.",
+   "text": "Zobrazí se lidem na portálu vedle jeho názvu."
+  },
+  "srp071": {
+   "source": "Something else",
+   "text": "Něco jiného"
+  },
+  "srp072": {
+   "source": "Source and validation",
+   "text": "Zdroj a validace"
+  },
+  "srp073": {
+   "source": "The CSR does not fit this profile - see what is marked ✗ above.",
+   "text": "CSR do tohoto profilu nepasuje – viz, co je výše označeno ✗."
+  },
+  "srp074": {
+   "source": "The certificate is for:",
+   "text": "Certifikát je pro:"
+  },
+  "srp075": {
+   "source": "The enrolment pages are switched off: nobody sees these profiles.",
+   "text": "Stránky registrace jsou vypnuté: tyto profily nikdo neuvidí."
+  },
+  "srp076": {
+   "source": "The key is made here and kept, sealed; the person downloads the certificate (and, if allowed below, a PFX with the key).",
+   "text": "Klíč se vytvoří zde a uloží zapečetěný; žadatel si stáhne certifikát (a pokud to níže povolíte, i PFX s klíčem)."
+  },
+  "srp077": {
+   "source": "The members of these teams with the right to ask for new ones (Owners and teams). None chosen: everybody who may sign in to the enrolment pages.",
+   "text": "Členové těchto týmů s právem žádat o nové (Vlastníci a týmy). Žádný nevybrán: každý, kdo se smí přihlásit na stránky registrace."
+  },
+  "srp078": {
+   "source": "The name it is called by (CN).",
+   "text": "Jméno, podle kterého se jmenuje (CN)."
+  },
+  "srp079": {
+   "source": "The person may download the certificate with its private key, locked with a password they choose. Only for a key acme made.",
+   "text": "Žadatel si smí stáhnout certifikát s jeho soukromým klíčem, zamčený heslem, které si zvolí. Jen pro klíč vytvořený acme."
+  },
+  "srp080": {
+   "source": "The person may send a CSR",
+   "text": "Žadatel smí poslat CSR"
+  },
+  "srp081": {
+   "source": "The subject",
+   "text": "Předmět"
+  },
+  "srp082": {
+   "source": "The subject: in the CSR and in the certificate",
+   "text": "Předmět: v CSR a v certifikátu"
+  },
+  "srp083": {
+   "source": "The team",
+   "text": "Tým"
+  },
+  "srp084": {
+   "source": "This source signs only a key acme makes and holds.",
+   "text": "Tento zdroj podepíše jen klíč, který vytvoří a drží acme."
+  },
+  "srp085": {
+   "source": "Under these domains",
+   "text": "Pod těmito doménami"
+  },
+  "srp086": {
+   "source": "Use and renewal",
+   "text": "Použití a obnova"
+  },
+  "srp087": {
+   "source": "User ID",
+   "text": "ID uživatele"
+  },
+  "srp088": {
+   "source": "What people may ask for on the enrolment pages, with everything set beforehand - where it comes from, how its names are proved, which names, the key or their own CSR, the subject, renewal, approval and whose it is. They give only its names and what a profile leaves to them. With none defined, the portal asks as before.",
+   "text": "O co mohou lidé požádat na stránkách registrace, se vším nastaveným předem – odkud bude, jak se prokazují jeho jména, která jména, klíč nebo jejich vlastní CSR, předmět, obnova, schválení a čí bude. Zadají jen jeho jména a to, co jim profil nechává. Není-li žádný definován, portál se ptá jako dřív."
+  },
+  "srp089": {
+   "source": "What people may ask for on the portal with everything set beforehand - the source, the validation, the names allowed, the key or their CSR, the subject, approval and owner: they give only the names.",
+   "text": "O co mohou lidé požádat na portálu se vším nastaveným předem – zdroj, validace, povolená jména, klíč nebo jejich CSR, předmět, schválení a vlastník: zadají jen jména."
+  },
+  "srp090": {
+   "source": "What people pick on the portal. Letters, digits, spaces and . _ @ + -.",
+   "text": "Co lidé vybírají na portálu. Písmena, číslice, mezery a . _ @ + -."
+  },
+  "srp091": {
+   "source": "What this profile gives",
+   "text": "Co tento profil dává"
+  },
+  "srp092": {
+   "source": "When asked for",
+   "text": "Po vyžádání"
+  },
+  "srp093": {
+   "source": "Who may use it",
+   "text": "Kdo ho smí použít"
+  },
+  "srp094": {
+   "source": "Your CSR",
+   "text": "Váš CSR"
+  },
+  "srp095": {
+   "source": "Gives",
+   "text": "Dává"
+  },
+  "srp096": {
+   "source": "Approval",
+   "text": "Schválení"
+  },
+  "srp097": {
+   "source": "Signature",
+   "text": "Podpis"
+  },
+  "srp098": {
+   "source": "Surname",
+   "text": "Příjmení"
+  },
+  "srp099": {
+   "source": "Taken",
+   "text": "Odkud"
+  },
+  "srp100": {
+   "source": "Wildcards",
+   "text": "Zástupné znaky"
+  },
+  "srp101": {
+   "source": "a CSR is a few kilobytes - that file is too big",
+   "text": "CSR má pár kilobajtů – ten soubor je příliš velký"
+  },
+  "srp102": {
+   "source": "a CSR is a few kilobytes - that is too much",
+   "text": "CSR má pár kilobajtů – tohle je příliš"
+  },
+  "srp103": {
+   "source": "a default (may be empty)",
+   "text": "výchozí hodnota (může být prázdná)"
+  },
+  "srp104": {
+   "source": "a team of yours, chosen below",
+   "text": "váš tým, vyberete níže"
+  },
+  "srp105": {
+   "source": "a team they pick (where they may ask)",
+   "text": "tým, který vyberou (kde smějí žádat)"
+  },
+  "srp106": {
+   "source": "acme makes the key",
+   "text": "Klíč vytvoří acme"
+  },
+  "srp107": {
+   "source": "an approver of its team, or an administrator, approves it first",
+   "text": "nejdřív ho schválí schvalovatel jeho týmu nebo správce"
+  },
+  "srp108": {
+   "source": "an empty subject",
+   "text": "prázdný předmět"
+  },
+  "srp109": {
+   "source": "anybody who may sign in",
+   "text": "každý, kdo se smí přihlásit"
+  },
+  "srp110": {
+   "source": "approved first",
+   "text": "nejdřív schválení"
+  },
+  "srp111": {
+   "source": "asked for - it waits for approval",
+   "text": "vyžádáno – čeká na schválení"
+  },
+  "srp112": {
+   "source": "choose a team",
+   "text": "vyberte tým"
+  },
+  "srp113": {
+   "source": "choose one",
+   "text": "vyberte"
+  },
+  "srp114": {
+   "source": "does not fit the profile",
+   "text": "nepasuje do profilu"
+  },
+  "srp115": {
+   "source": "download it again where it is used",
+   "text": "stáhněte ho znovu tam, kde se používá"
+  },
+  "srp116": {
+   "source": "filled by the person",
+   "text": "vyplní žadatel"
+  },
+  "srp117": {
+   "source": "fits the profile",
+   "text": "pasuje do profilu"
+  },
+  "srp118": {
+   "source": "fixed by the profile",
+   "text": "pevně dáno profilem"
+  },
+  "srp119": {
+   "source": "from the names",
+   "text": "ze jmen"
+  },
+  "srp120": {
+   "source": "from your CSR",
+   "text": "z vašeho CSR"
+  },
+  "srp121": {
+   "source": "its value",
+   "text": "jeho hodnota"
+  },
+  "srp122": {
+   "source": "key made by acme",
+   "text": "klíč vytvoří acme"
+  },
+  "srp123": {
+   "source": "key made for you",
+   "text": "klíč vytvořen za vás"
+  },
+  "srp124": {
+   "source": "no wildcards",
+   "text": "bez zástupných znaků"
+  },
+  "srp125": {
+   "source": "wildcards too",
+   "text": "i zástupné znaky"
+  },
+  "srp126": {
+   "source": "not put in",
+   "text": "nevloží se"
+  },
+  "srp127": {
+   "source": "not valid",
+   "text": "neplatný"
+  },
+  "srp128": {
+   "source": "nothing beside the names",
+   "text": "nic kromě jmen"
+  },
+  "srp129": {
+   "source": "one too many",
+   "text": "o jedno navíc"
+  },
+  "srp130": {
+   "source": "paste the CSR, or choose its file",
+   "text": "vložte CSR, nebo vyberte jeho soubor"
+  },
+  "srp131": {
+   "source": "present (not used here)",
+   "text": "přítomno (zde se nepoužije)"
+  },
+  "srp132": {
+   "source": "the new CSR was taken",
+   "text": "nový CSR byl přijat"
+  },
+  "srp133": {
+   "source": "the person who asks",
+   "text": "žadatel"
+  },
+  "srp134": {
+   "source": "the same key - the CSR you sent is used again",
+   "text": "stejný klíč – znovu se použije CSR, který jste poslali"
+  },
+  "srp135": {
+   "source": "this team",
+   "text": "tento tým"
+  },
+  "srp136": {
+   "source": "waits for approval",
+   "text": "čeká na schválení"
+  },
+  "srp137": {
+   "source": "your CSR",
+   "text": "váš CSR"
+  },
+  "srp138": {
+   "source": "yours (the CSR, or the default)",
+   "text": "vaše (z CSR, nebo výchozí)"
+  },
+  "srp139": {
+   "source": "No request profile yet - the portal asks with its free form (The enrolment pages), if that is set",
+   "text": "Zatím žádný profil žádosti – portál se ptá svým volným formulářem (Stránky registrace), je-li nastaven"
+  },
+  "srp140": {
+   "source": "The subject is empty",
+   "text": "Předmět je prázdný"
+  },
+  "srp141": {
+   "source": "Decoding…",
+   "text": "Rozkódovávám…"
+  },
+  "srp142": {
+   "source": "signed by its own key",
+   "text": "podepsán vlastním klíčem"
+  },
+  "srp143": {
+   "source": "not signed by the key in it",
+   "text": "nepodepsán klíčem, který obsahuje"
+  },
+  "srp144": {
+   "source": "allowed",
+   "text": "povoleno"
+  },
+  "srp145": {
+   "source": "no wildcards in this profile",
+   "text": "tento profil nedává zástupné znaky"
+  },
+  "srp146": {
+   "source": "this profile takes no CSR",
+   "text": "tento profil nepřijímá CSR"
+  },
+  "srp147": {
+   "source": "the CSR names no DNS name",
+   "text": "CSR neuvádí žádné jméno DNS"
+  },
+  "srp148": {
+   "source": "the CA takes a CSR with only the names it proves - make the CSR without e-mail or URI names",
+   "text": "CA přijme CSR jen se jmény, která prokazuje – vytvořte CSR bez e-mailových a URI jmen"
+  },
+  "srp149": {
+   "source": "this profile takes a CSR: send yours",
+   "text": "tento profil přijímá CSR: pošlete svůj"
+  },
+  "srp150": {
+   "source": "say under which domains names may be asked for",
+   "text": "uveďte, pod kterými doménami se smí žádat o jména"
+  },
+  "srp151": {
+   "source": "either acme makes the key, or the person sends a CSR - or both",
+   "text": "buď klíč vytvoří acme, nebo žadatel pošle CSR – nebo obojí"
+  },
+  "srp152": {
+   "source": "choose at least one key type",
+   "text": "vyberte aspoň jeden typ klíče"
+  },
+  "srp153": {
+   "source": "the owner is the person, a team they pick, or a team of the profile",
+   "text": "vlastníkem je žadatel, tým, který vybere, nebo tým profilu"
+  },
+  "srp154": {
+   "source": "choose the team that owns what is asked for (Owners and teams)",
+   "text": "vyberte tým, který bude vlastnit, co se vyžádá (Vlastníci a týmy)"
+  },
+  "srp155": {
+   "source": "choose the source (Certificates → Sources)",
+   "text": "vyberte zdroj (Certifikáty → Zdroje)"
+  },
+  "srp156": {
+   "source": "the country (C) is two letters (CZ, SK, DE…)",
+   "text": "země (C) jsou dvě písmena (CZ, SK, DE…)"
+  },
+  "srp157": {
+   "source": "a subject field is off, fixed or person",
+   "text": "pole předmětu je nepoužité, pevné, nebo ho vyplní žadatel"
+  },
+  "srp158": {
+   "source": "the CSR sent in is used - its own key, which acme does not hold",
+   "text": "použije se poslaný CSR – jeho vlastní klíč, který acme nemá"
+  },
+  "srp159": {
+   "source": "the same key - the CSR sent in is used again",
+   "text": "stejný klíč – znovu se použije poslaný CSR"
   }
  },
  "patterns": {
@@ -56453,6 +57089,198 @@
   "prnw02": {
    "source": "Renew {0} now?",
    "text": "Obnovit {0} teď?"
+  },
+  "prp001": {
+   "source": "at most {0} name(s)",
+   "text": "nejvýše {0} jmen(a)"
+  },
+  "prp002": {
+   "source": "At most {0} name(s) in one certificate of this profile.",
+   "text": "Nejvýše {0} jmen(a) v jednom certifikátu tohoto profilu."
+  },
+  "prp003": {
+   "source": "A new CSR for {0}",
+   "text": "Nový CSR pro {0}"
+  },
+  "prp004": {
+   "source": "{0} bit",
+   "text": "{0} bitů"
+  },
+  "prp005": {
+   "source": "The request profile {0} is deleted. The certificates asked for from it stay as they are.",
+   "text": "Profil žádosti {0} bude smazán. Certifikáty z něj vyžádané zůstanou, jak jsou."
+  },
+  "prp006": {
+   "source": "not under {0}",
+   "text": "není pod {0}"
+  },
+  "prp007": {
+   "source": "{0} names - the profile gives at most {1}",
+   "text": "{0} jmen – profil dává nejvýše {1}"
+  },
+  "prp008": {
+   "source": "not put in the certificate: {0}",
+   "text": "do certifikátu se nevloží: {0}"
+  },
+  "prp009": {
+   "source": "{0} - the profile takes {1}",
+   "text": "{0} – profil přijímá {1}"
+  },
+  "prp010": {
+   "source": "the CSR does not fit the profile: {0}",
+   "text": "CSR do profilu nepasuje: {0}"
+  },
+  "prp011": {
+   "source": "there is no request profile {0} you may use",
+   "text": "neexistuje profil žádosti {0}, který smíte použít"
+  },
+  "prp012": {
+   "source": "there is no request profile {0}",
+   "text": "neexistuje profil žádosti {0}"
+  },
+  "prp013": {
+   "source": "there is a request profile called {0} already",
+   "text": "profil žádosti {0} už existuje"
+  },
+  "prp014": {
+   "source": "the request profile {0} was saved",
+   "text": "profil žádosti {0} byl uložen"
+  },
+  "prp015": {
+   "source": "the request profile {0} was deleted",
+   "text": "profil žádosti {0} byl smazán"
+  },
+  "prp016": {
+   "source": "the request profile {0} added by {1}",
+   "text": "profil žádosti {0} přidal {1}"
+  },
+  "prp017": {
+   "source": "the request profile {0} changed by {1}",
+   "text": "profil žádosti {0} změnil {1}"
+  },
+  "prp018": {
+   "source": "the request profile {0} changed by {1} (was {2})",
+   "text": "profil žádosti {0} změnil {1} (dříve {2})"
+  },
+  "prp019": {
+   "source": "the request profile {0} deleted by {1} - the certificates asked for from it stay",
+   "text": "profil žádosti {0} smazal {1} – certifikáty z něj vyžádané zůstávají"
+  },
+  "prp020": {
+   "source": "{0} proves names: choose how (Certificates → Validation)",
+   "text": "{0} prokazuje jména: vyberte jak (Certifikáty → Validace)"
+  },
+  "prp021": {
+   "source": "{0} signs only a key acme makes and holds - switch the CSR off, or choose another source",
+   "text": "{0} podepíše jen klíč, který vytvoří a drží acme – vypněte CSR, nebo vyberte jiný zdroj"
+  },
+  "prp022": {
+   "source": "{0} does not sign {1} keys",
+   "text": "{0} nepodepisuje klíče {1}"
+  },
+  "prp023": {
+   "source": "there is no tag {0} (Owners and teams)",
+   "text": "štítek {0} neexistuje (Vlastníci a týmy)"
+  },
+  "prp024": {
+   "source": "there is no owner or team {0} (Owners and teams)",
+   "text": "vlastník ani tým {0} neexistuje (Vlastníci a týmy)"
+  },
+  "prp025": {
+   "source": "the subject field {0} is fixed by the profile: give its value",
+   "text": "pole předmětu {0} je pevně dané profilem: zadejte jeho hodnotu"
+  },
+  "prp026": {
+   "source": "{0}: 64 characters at most, no control characters",
+   "text": "{0}: nejvýše 64 znaků, žádné řídicí znaky"
+  },
+  "prp027": {
+   "source": "{0} is not a domain",
+   "text": "{0} není doména"
+  },
+  "prp028": {
+   "source": "the source {0} is switched off",
+   "text": "zdroj {0} je vypnutý"
+  },
+  "prp029": {
+   "source": "there is no team {0}",
+   "text": "neexistuje tým {0}"
+  },
+  "prp030": {
+   "source": "this profile gives at most {0} name(s) in one certificate",
+   "text": "tento profil dává nejvýše {0} jmen(a) v jednom certifikátu"
+  },
+  "prp031": {
+   "source": "not a name you may ask for here: {0}",
+   "text": "o tato jména zde žádat nemůžete: {0}"
+  },
+  "prp032": {
+   "source": "choose one of your teams: {0}",
+   "text": "vyberte jeden ze svých týmů: {0}"
+  },
+  "prp033": {
+   "source": "{0} was refused on the portal: a certificate of the profile {1} for the team {2} (needs the right request)",
+   "text": "{0} byl na portálu odmítnut: certifikát profilu {1} pro tým {2} (potřebuje právo žádat)"
+  },
+  "prp034": {
+   "source": "{0} asked on the portal for {1} ({2}) from the request profile {3} - issued without approval",
+   "text": "{0} požádal na portálu o {1} ({2}) z profilu žádosti {3} – vydáno bez schválení"
+  },
+  "prp035": {
+   "source": "{0} asked on the portal for {1} ({2}) from the request profile {3} - it waits for approval",
+   "text": "{0} požádal na portálu o {1} ({2}) z profilu žádosti {3} – čeká na schválení"
+  },
+  "prp036": {
+   "source": "{0} asked on the portal for {1} ({2}) from the request profile {3} with a CSR - issued without approval",
+   "text": "{0} požádal na portálu o {1} ({2}) z profilu žádosti {3} s CSR – vydáno bez schválení"
+  },
+  "prp037": {
+   "source": "{0} asked on the portal for {1} ({2}) from the request profile {3} with a CSR - it waits for approval",
+   "text": "{0} požádal na portálu o {1} ({2}) z profilu žádosti {3} s CSR – čeká na schválení"
+  },
+  "prp038": {
+   "source": "{0} was not issued for a CSR - acme makes its key",
+   "text": "{0} nebyl vydán pro CSR – jeho klíč vytváří acme"
+  },
+  "prp039": {
+   "source": "the new CSR has to name the same names: {0}",
+   "text": "nový CSR musí uvádět stejná jména: {0}"
+  },
+  "prp040": {
+   "source": "{0} sent a new CSR for {1} from the portal ({2}) - it is issued again",
+   "text": "{0} poslal z portálu nový CSR pro {1} ({2}) – vydává se znovu"
+  },
+  "prp041": {
+   "source": "the new CSR was taken - {0} is being issued again",
+   "text": "nový CSR byl přijat – {0} se vydává znovu"
+  },
+  "prp042": {
+   "source": "{0} was issued for the CSR you sent: acme never had its key - it is where you made the CSR",
+   "text": "{0} byl vydán pro CSR, který jste poslali: acme jeho klíč nikdy neměl – je tam, kde jste CSR vytvořili"
+  },
+  "prp043": {
+   "source": "{0} was issued for a CSR that was sent in: acme never had its key - it stays where the CSR was made, so no file with the key can be made here",
+   "text": "{0} byl vydán pro poslaný CSR: acme jeho klíč nikdy neměl – zůstává tam, kde CSR vznikl, takže soubor s klíčem tu vytvořit nelze"
+  },
+  "prp044": {
+   "source": "{0} was issued for a CSR that was sent in, so acme holds no key, and {1} needs one ({2}) - deploy it where only the certificate is needed, or put it in place by hand beside its key",
+   "text": "{0} byl vydán pro poslaný CSR, takže acme nemá klíč, a {1} ho potřebuje ({2}) – nasaďte ho tam, kde stačí certifikát, nebo ho umístěte ručně vedle jeho klíče"
+  },
+  "prp045": {
+   "source": "{0} was revoked and is issued for a CSR sent in: send a new CSR (a new key) - the same one is not used again",
+   "text": "{0} byl odvolán a je vydán pro poslaný CSR: pošlete nový CSR (nový klíč) – stejný se znovu nepoužije"
+  },
+  "prp046": {
+   "source": "the certificate {0} gave is not for the key of the CSR sent in",
+   "text": "certifikát, který dal {0}, není pro klíč poslaného CSR"
+  },
+  "prp047": {
+   "source": "{0}the CSR sent in is used - its own key, which acme does not hold",
+   "text": "{0}použije se poslaný CSR – jeho vlastní klíč, který acme nemá"
+  },
+  "prp048": {
+   "source": "not under the domains of the profile: {0}",
+   "text": "není pod doménami profilu: {0}"
   }
  },
  "rich": {

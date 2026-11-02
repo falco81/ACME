@@ -4,6 +4,24 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.18 - 2026-11-02
+
+- **Request profiles** (Settings → Request profiles, docs/request-profiles.md):
+  kinds of certificates people may ask for on the enrolment pages with the
+  source, the validation, the domains (wildcards, how many names), the key or
+  their own CSR, the subject (each field not used, fixed or filled by the
+  person), renewal, validity, usage, approval, owner, tags, who may use it and
+  the PFX set beforehand - the person gives only the names. Each is picked from
+  the catalogs and checked as it is saved. With none defined the portal asks as
+  before.
+- **A CSR sent in is decoded and shown first** on the portal - its subject, its
+  names, key, signature (valid or not), usages - with every check against the
+  profile and what the certificate will say beside what the CSR says; only a
+  CSR that fits is asked for. Such a certificate holds no key: the CSR is kept
+  and used again at every renewal (same key); *Send a new CSR* changes the key.
+  A PFX or a deployment that needs the key is refused in words.
+- *Renew now* on the portal asks first, as in the administration.
+
 ## 1.0.17 - 2026-11-02
 
 - **Popups are wider on a wide screen**: every popup grows with the window -

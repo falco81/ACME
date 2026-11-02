@@ -32,3 +32,71 @@ textarea.cp-names{width:100%;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Con
   .cp-table td,.cp-table th{padding-left:6px;padding-right:6px}
 }
 .cp-auto{display:inline-flex;align-items:center;gap:10px}
+/* Request profiles (1.0.18): the picker, a profile's form, a CSR decoded. */
+.cp-note.info{border-color:rgba(88,166,255,.4);background:var(--info-bg,var(--panel2))}
+.cp-note.info b{color:var(--info)}
+.cp-profiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.cp-prof{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;
+  padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);min-width:0}
+.cp-prof:hover,.cp-prof:focus-visible{border-color:var(--info);box-shadow:0 0 0 1px var(--info) inset}
+.cp-prof-t{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cp-prof-t b{font-size:14px}
+.cp-prof-t .tag{margin-left:auto}
+.cp-prof-d{color:var(--tx-dim);font-size:12.5px;line-height:1.45;overflow-wrap:anywhere}
+.cp-prof-c{display:flex;flex-wrap:wrap;gap:4px}
+.cp-prof-c .tag,.cp-fixed .tag,.cp-ekus .tag{text-transform:none;letter-spacing:0}
+.cp-prof-free{border-style:dashed}
+.cp-prof-lede{margin-top:0}
+.cp-facts{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:0 0 14px;background:var(--panel2)}
+.cp-facts summary{cursor:pointer;font-weight:600;font-size:13px}
+.cp-facts table{margin-top:8px}
+.cp-fixed{display:inline-flex;flex-wrap:wrap;gap:4px}
+.cp-how{margin-bottom:2px}
+.cp-how button.on{background:var(--info-bg,var(--panel2));color:var(--tx)}
+.cp-csr-text{width:100%;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.cp-csr-row{margin-top:6px;align-items:center}
+.cp-csr-host{margin-top:12px}
+.cp-csr-card{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel2)}
+.cp-csr-card.fits{border-color:rgba(63,185,80,.45)}
+.cp-csr-card.nofit{border-color:rgba(248,81,73,.45)}
+.cp-csr-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.cp-csr-tw{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.cp-csr-cn{font-size:15px;overflow-wrap:anywhere}
+.cp-csr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.cp-csr-sec{min-width:0;margin-top:10px}
+.cp-csr-grid .cp-csr-sec{margin-top:0}
+.cp-csr-h{font:600 11px/1.4 var(--face);text-transform:uppercase;letter-spacing:.06em;color:var(--tx-mut);margin-bottom:6px}
+.cp-rdn td{overflow-wrap:anywhere}
+.cp-rdn-k{font-size:11px;color:var(--tx-mut)}
+.cp-sha{overflow-wrap:anywhere}
+.cp-mark{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;
+  font:700 10.5px/1 var(--face);flex:none}
+.cp-mark.ok{background:var(--ok-bg,rgba(63,185,80,.15));color:var(--ok)}
+.cp-mark.bad{background:var(--crit-bg);color:var(--crit)}
+.cp-mark.note{background:var(--warn-bg);color:var(--warn)}
+.cp-checks{display:flex;flex-direction:column;gap:4px}
+.cp-check{display:flex;align-items:flex-start;gap:8px;padding:5px 8px;border-radius:8px}
+.cp-check.bad{background:var(--crit-bg)}
+.cp-check-w{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere}
+.cp-check-w b{font-size:12.5px}
+.cp-sig{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+td.cp-changed{color:var(--warn);font-weight:600}
+.cp-subj td{overflow-wrap:anywhere}
+@media (max-width:640px){
+  .cp-profiles{grid-template-columns:1fr}
+  .cp-csr-grid{grid-template-columns:1fr}
+}
+.cp-prof-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.cp-prof-name{font-size:16px}
+.cp-csr-sec table{width:100%;table-layout:fixed}
+.cp-csr-sec table td{overflow-wrap:anywhere;word-break:break-word}
+.cp-csr-sec table td:first-child{width:42%}
+.cp-csr-sec .cp-subj td:first-child{width:auto}
+.cp-how-key>.set-item,.cp-how-csr>.set-item,.cp-how-key>.formgrid{margin-top:14px}
+.cp-csr-sec table td{white-space:normal}
+.cp-csr-sec table td:first-child{white-space:normal}
+.cp-sha{display:block;word-break:break-all;white-space:normal}
+@media (max-width:640px){
+  .cp-csr-sec .cp-subj th:nth-child(4),.cp-csr-sec .cp-subj td:nth-child(4){display:none}
+}
+.cp-csr-sec table td > span.cp-sha,.cp-csr-sec table td > span.mono{white-space:normal}

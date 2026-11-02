@@ -1,0 +1,20 @@
+/* reqprofiles.css - Settings → Request profiles (reqprofiles.js), beside teams.css
+   and certs.css (ct-name chips, ct-ekus). */
+.rp-table td{vertical-align:top}
+.rp-desc{max-width:360px;overflow-wrap:anywhere}
+.rp-off{margin-left:6px}
+.rp-sufs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.rp-how{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:3px}
+.rp-table .tag{text-transform:none;letter-spacing:0}
+.rp-kts,.rp-teams{display:flex;flex-wrap:wrap;gap:4px 18px}
+.rp-kts .set-check,.rp-teams .set-check,.rp-ekus .set-check{margin:2px 0}
+.rp-grey{opacity:.45}
+.rp-subj{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.rp-subj-row{display:grid;grid-template-columns:150px 210px 1fr;gap:8px;align-items:center}
+.rp-subj-k{font-size:13px}
+textarea.rp-f-sufs,textarea.rp-f-desc{width:100%}
+@media (max-width:640px){
+  .rp-subj-row{grid-template-columns:1fr 1fr}
+  .rp-subj-row .rp-subj-k{grid-column:1 / -1}
+  .rp-subj-row .rp-subj-v{grid-column:1 / -1}
+}

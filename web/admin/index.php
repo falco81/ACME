@@ -353,7 +353,7 @@ if (isset($_GET['api'])) {
        own name - certs, certs-one (or certs/one), cas-create, targets-test...
        The daemon's routes are each one method, so a GET still never reaches a
        write, and the daemon decides whether whoever is signed in may. */
-    if (preg_match('#^(certs|cas|plugins|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
+    if (preg_match('#^(certs|cas|plugins|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
         $path = '/api/' . $road[1] . (isset($road[2]) && $road[2] !== '' ? '/' . $road[2] : '');
         if ($post) {
             acme_relay($path, 'POST', sent_json(), 120.0);
@@ -441,6 +441,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <?php endif; ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/teams.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/teams.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/teams.css')) ?>">
+<?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/reqprofiles.css')): ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/reqprofiles.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/reqprofiles.css')) ?>">
 <?php endif; ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/sshkey.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/sshkey.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/sshkey.css')) ?>">
@@ -636,6 +639,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <button type="button" data-pane="codes" data-icon="phone" title="The SMS gateway, and the codes sent by e-mail or SMS for the administrators' second step and the notifications: how long they last, how many.">Codes by e-mail and SMS</button>
     <button type="button" data-pane="texts" data-icon="edit" title="Every word people get from this server - the mails and the SMS - in Czech and in English, edited as they will look.">Message texts</button>
     <button type="button" data-pane="portal" data-icon="people" title="The certificate portal: who may sign in to it, what they see, the picture on its sign-in.">The enrolment pages</button>
+<?php if (function_exists('acme_certs_settings_nav')): ?>
+    <button type="button" data-pane="reqprofiles" data-icon="list" title="What people may ask for on the portal with everything set beforehand - the source, the validation, the names allowed, the key or their CSR, the subject, approval and owner: they give only the names.">Request profiles</button>
+<?php endif; ?>
     <div class="ctl-group">Mail</div>
     <button type="button" data-pane="mail" data-icon="mail" title="How the mails of this server - alerts, reports, codes, notices of certificates - reach people: a mail server, or straight to theirs.">Mail</button>
     <button type="button" data-pane="mailq" data-icon="list" title="Every mail sent - an alert, a report, a code to sign in with - and what became of it: sent, waiting for another try (greylisting, a server away), failed. Sent again or taken away by hand.">Outgoing mail <span class="nav-badge" id="mq-badge" hidden></span></button>
@@ -1565,6 +1571,9 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/teams.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/teams.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/teams.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/reqprofiles.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/reqprofiles.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/reqprofiles.js')) ?>"></script>
 <?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/sshkey.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/sshkey.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/sshkey.js')) ?>"></script>

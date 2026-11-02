@@ -2612,14 +2612,19 @@ function certRenew(c, button, back) {
       body.appendChild(el('p', 'note', 'A new certificate is asked for at once, whether it is due or not - the one in use now stays valid until it runs out (it is not revoked).'));
       var facts = [];
       if (c.issuer) facts.push(['From', data('span', '', c.issuer)]);
-      facts.push(['Its key', c.reuse_key ? 'the same key is kept' : 'a new key']);
+      facts.push(['Its key', c.from_csr ? 'the same key - the CSR sent in is used again' : (c.reuse_key ? 'the same key is kept' : 'a new key')]);
       if (c.key_type_alt) facts.push(['Dual', 'both certificates - ' + (c.key_type || '') + ' and ' + c.key_type_alt]);
       var n = Array.isArray(c.deploys) ? c.deploys.length : (Number(c.deploy_count || c.deploys_total || 0) || 0);
       facts.push(['Then', n ? 'put in place again on its targets' : 'nothing to deploy']);
       body.appendChild(kvTable(facts));
-      var lim = el('p', 'note small muted', 'A public CA counts every certificate it issues: renewing again and again can hit its limits.');
-      lim.style.marginTop = '12px';
-      body.appendChild(lim);
+      /* Only for a source of a public CA (ACME and the commercial ones): an own
+         authority or self-signed has no such limits. */
+      var src = ((typeof LISTS === 'object' && LISTS && LISTS.sources) || []).filter(function (x) { return x.name === c.issuer; })[0];
+      if (src && /acme|letsencrypt|zerossl|buypass|google|digicert|sectigo|sslmarket|globalsign|entrust/i.test(String(src.kind || ''))) {
+        var lim = el('p', 'note small muted', 'A public CA counts every certificate it issues: renewing again and again can hit its limits.');
+        lim.style.marginTop = '12px';
+        body.appendChild(lim);
+      }
     }, [{words: 'No, leave it', close: true}, {words: 'Renew now', cls: 'primary', icon: 'refresh', go: function (b) {
       busy(b, true);
       capi('certs/renew', {id: c.id, force: true}).then(function (d) { closeModal(); jobStarted(d, 'renewing'); })

@@ -143,6 +143,18 @@ A source that proves names (ACME) uses the validation named in
 `certs` with `created_by = portal:<them>`); declined ones and deleted ones do
 not count.
 
+### From a request profile
+
+A full administrator can define **request profiles** (Settings → Request
+profiles, [request-profiles.md](request-profiles.md)): kinds of certificates
+with the source, the validation, the names allowed, the key or a CSR, the
+subject, renewal, approval and owner set beforehand. When the person may use
+any, *Ask for a certificate* first shows them as cards (and *Something else* -
+the form above - only when `portal_cert_suffixes` and `portal_cert_issuers` are
+set); a profile's form asks only what it leaves to them. A CSR sent in is
+decoded and checked against the profile before it is asked for. With no
+profile defined the portal asks exactly as above.
+
 ## Approving
 
 In the administration, Certificates: a badge "N waiting for approval" next
@@ -175,7 +187,9 @@ Relayed by `web/index.php` (`?api=…`) with the person's portal session:
 | `mfa` → `GET/POST /api/portal/mfa` | the second step of an account of acme's own, as `/api/auth/mfa` |
 | `cert-job&id=` → `GET /api/portal/cert_job` | one job of one of their certificates, its steps (no debug lines) |
 | `cert-download` → `POST /api/portal/cert_download` | `{id, format, password?}` → `{filename, mime, data_b64}` |
-| `cert-request` → `POST /api/portal/cert_request` | `{names[], issuer, key_type, note}` → `{id, name, job_id, state, waits}` |
+| `cert-request` → `POST /api/portal/cert_request` | `{names[], issuer, key_type, note}` → `{id, name, job_id, state, waits}`; with `profile` see [request-profiles.md](request-profiles.md) |
+| `csr-decode` → `POST /api/portal/csr_decode` | `{profile, csr \| csr_b64}` → the CSR decoded and checked against the profile |
+| `cert-csr` → `POST /api/portal/cert_csr` | `{id, csr \| csr_b64}` → a new CSR for one issued for a CSR (right *manage*), issued again |
 
 The code: `acmelib/certs/portal.py` (the routes, the approval, the mail),
 `web/assets/certs-portal.js` and `certs-portal.css` (the page's part, plugged

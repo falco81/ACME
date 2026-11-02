@@ -231,6 +231,15 @@ function acme_certs_settings_panes(): void
     <div class="card full"><h2>Who sees which certificates</h2><div id="sect-teams"></div></div>
   </div>
 
+  <div class="ctl-pane" id="pane-reqprofiles" hidden>
+    <div class="ctl-head"><h2 class="ctl-title">Request profiles</h2>
+      <p class="ctl-lede">What people may ask for on the enrolment pages, with everything set
+        beforehand - where it comes from, how its names are proved, which names, the key or their
+        own CSR, the subject, renewal, approval and whose it is. They give only its names and what a
+        profile leaves to them. With none defined, the portal asks as before.</p></div>
+    <div id="rp-host"></div>
+  </div>
+
   <div class="ctl-pane" id="pane-dnssrv" hidden>
     <div class="ctl-head"><h2 class="ctl-title">DNS server</h2>
       <p class="ctl-lede">acme's own DNS server, for DNS-01 without giving acme the keys to your

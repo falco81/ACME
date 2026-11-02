@@ -402,9 +402,17 @@ def may_use(h, s, r, mine=None):
         mine = request_teams(h, s) if mine is None else mine
         if not any(_low(t) in {_low(m) for m in mine} for t in who):
             return False
-    if cfg.get('owner') == 'team' and not (mine if mine is not None else request_teams(h, s)):
+    if cfg.get('owner') == 'team' and not pickable(
+            cfg, mine if mine is not None else request_teams(h, s)):
         return False
     return True
+
+
+def pickable(cfg, mine):
+    """The teams a person may pick as the owner: theirs (right request) - only
+    the profile's own when the profile is for certain teams (1.0.18)."""
+    who = {_low(t) for t in cfg.get('teams') or []}
+    return [t for t in mine if not who or _low(t) in who]
 
 
 def portal_view(store, r, mine):
@@ -425,7 +433,7 @@ def portal_view(store, r, mine):
             'days': cfg.get('days'), 'eku': cfg.get('eku') or [],
             'approval': bool(cfg.get('approval')), 'owner': cfg.get('owner') or 'person',
             'owner_team': cfg.get('owner_team') or '',
-            'owner_choices': mine if cfg.get('owner') == 'team' else [],
+            'owner_choices': pickable(cfg, mine) if cfg.get('owner') == 'team' else [],
             'tags': cfg.get('tags') or [], 'pfx': bool(cfg.get('pfx')),
             'acme': bool((info or {}).get('needs_validation'))}
 
@@ -478,7 +486,7 @@ def name_why(n, cfg):
     if wild and not cfg.get('wildcards'):
         return 'no wildcards in this profile'
     if not any(bare == suf or bare.endswith('.' + suf) for suf in cfg.get('suffixes') or []):
-        return 'not under %s' % ', '.join(cfg.get('suffixes') or [])
+        return 'not under the domains of the profile: %s' % ', '.join(cfg.get('suffixes') or [])
     return ''
 
 
@@ -527,8 +535,8 @@ def csr_review(store, r, info):
         checks.append({'what': 'count', 'ok': False,
                        'said': '%d names - the profile gives at most %d' % (len(names), most)})
     if other:
-        checks.append({'what': 'other', 'ok': None, 'said': 'not put in the certificate: %s' % ', '.join(
-                           '%s:%s' % (t, v) for t, v in other)})
+        checks.append({'what': 'other', 'ok': None, 'said': 'not put in the certificate: %s'
+                       % ', '.join('%s:%s' % (t, v) for t, v in other)})
     kt = info.get('key_type') or ''
     kok = kt in (cfg.get('key_types') or [])
     checks.append({'what': 'key', 'ok': kok, 'said': '%s%s' % (
@@ -648,7 +656,7 @@ def request(h, s, b):
         owner = T.team_get(store, cfg.get('owner_team'))['name']
     elif cfg.get('owner') == 'team':
         pick = str(b.get('team') or '').strip()
-        mine = request_teams(h, s)
+        mine = pickable(cfg, request_teams(h, s))
         got = [t for t in mine if _low(t) == _low(pick)]
         if not got:
             store.add_event('certificates', '%s was refused on the portal: a certificate of the '

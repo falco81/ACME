@@ -36,6 +36,28 @@ E.load_config()
 st = E.Storage(E.open_db())
 print(E.rb_build(st, sys.argv[1])[0])
 '''
+PROFILE = r'''
+import acmelib.engine as E, json, time
+E.load_config()
+st = E.Storage(E.open_db())
+E.HA_STORE['store'] = st
+from acmelib.certs import reqprofiles as R, pki, jobs, renewer, api
+R.save_profile(st, {'name': 'Web', 'issuer': 'Own', 'suffixes': ['example.test'],
+                    'make_key': True, 'csr': True, 'key_types': ['ec-256'], 'max_names': 2,
+                    'subject': {'O': {'mode': 'fixed', 'value': 'Example'}}, 'owner': 'fixed',
+                    'owner_team': 'Ops', 'tags': ['prod'], 'teams': ['Ops']}, 'test')
+csr = pki.make_csr(pki.make_key('ec-256'), ['csr.example.test'])[0]
+t = time.time()
+cid = st.db.insert('certs', {'name': 'csr.example.test', 'cn': 'csr.example.test',
+                             'names': json.dumps(['csr.example.test']), 'key_type': 'ec-256',
+                             'issuer': 'Own', 'challenge': '', 'challenge_map': '{}',
+                             'auto_renew': 1, 'reuse_key': 0, 'profile': '{}', 'source': 'portal',
+                             'state': 'new', 'state_at': t, 'version': 0, 'fails': 0,
+                             'tags': '[]', 'owner': 'Ops', 'created': t, 'enabled': 1,
+                             'ari': '{}', 'csr_given': csr})
+jobs.run_now(st, 'issue', renewer.renew_job(cid, True, 'test'), cert_id=cid)
+assert st.db.row('SELECT cert_pem FROM certs WHERE id = ?', (cid,))['cert_pem']
+'''
 MOMENT = ('sessions', 'events')                 # not carried / written by the restore
 META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial')
 
@@ -108,6 +130,8 @@ class FullRestore(unittest.TestCase):
         self.run_ok(A, '--cert-edit', 'web.example.test', '--set', 'owner=Ops', '--set',
                     'tags=prod')
         self.run_ok(A, '--dns-set-add', 'Inside', '--servers', '192.0.2.53')
+        # a request profile (1.0.18) and a certificate issued for a CSR sent in (no key here)
+        self.py(A, PROFILE)
         a_env_pw = dict(A, ACME_PASSWORD='Keeper-Password-4711!')
         self.run_ok(a_env_pw, '--add-user', 'keeper', '--role', 'certadmin')
         with open(os.path.join(A['ACME_PLUGINS'], 'targets', 'mine.py'), 'w') as f:
@@ -140,7 +164,7 @@ class FullRestore(unittest.TestCase):
                              '%d only after' % (t, len(ka - kb), len(kb - ka)))
         for t in ('certs', 'cert_versions', 'cert_cas', 'cert_ca_versions', 'cert_ca_issued',
                   'cert_issuers', 'cert_targets', 'cert_deploys', 'cert_teams', 'cert_tags',
-                  'dns_sets', 'accounts'):
+                  'dns_sets', 'accounts', 'cert_req_profiles'):
             self.assertTrue(new['tables'][t], 'nothing in %s' % t)
         with open(os.path.join(os.path.dirname(A['ACME_STATE']), 'state', 'secrets.key')) as f1, \
                 open(os.path.join(b['ACME_STATE'], 'secrets.key')) as f2:
@@ -152,6 +176,7 @@ class FullRestore(unittest.TestCase):
         self.run_ok(b, '--renew', 'web.example.test', '--force')
         self.assertTrue(glob.glob(os.path.join(out_dir, 'web.example.test.key')))
         self.run_ok(b, '--renew', 'dual.example.test', '--force')
+        self.run_ok(b, '--renew', 'csr.example.test', '--force')       # its CSR, back too
 
 
 if __name__ == '__main__':
