@@ -6,6 +6,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.24 - not released
 
+- **Each certificate its own settings of its source and validations** - no
+  second source for each template, product or zone. *Add a certificate* has
+  the step *Settings*: every setting of the chosen source and of the
+  validations its names use, with what they use, and *Own* to give this
+  certificate a value of its own (an AD CS template loaded from the CA, an
+  SSLS.cz product, a DNS zone, a TTL...). It follows what is chosen, and the
+  renewal, *What happens* and the check of what fits use it. Secrets, where
+  and as whom a module signs in, and anything that runs a command or writes a
+  file stay the module's (a full administrator's).
+
 - **New sources**, each written from its vendor's own API client (the files
   are named in docs/sources.md): ZeroSSL (REST API, not ACME - CNAME, file or
   e-mail validation, revocation), CyberArk Certificate Manager Self-Hosted
@@ -37,16 +47,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - **Microsoft AD CS: the templates loaded from the CA.** *Template* is picked
   from the list the CA offers the user (its Web Enrollment page
   *certrqxt.asp*, read only) - in the source's form, and for each certificate
-  in *Add a certificate → Profile*. One not listed (a schema 3 template) can
+  in *Add a certificate → Settings*. One not listed (a schema 3 template) can
   still be typed: *Type it yourself…*.
 - **Every list a module loads can also be typed** (*Type it yourself…*): a
   product of SSLS.cz, a server type, a template.
-- **Add a certificate → Profile asks what the source lets each certificate set
-  itself**: the AD CS template, the template of AWS Private CA and Google CA
-  Service, the certificate profile of EJBCA and FreeIPA, the role of Vault -
-  before, only AD CS had it, and saving the wizard dropped a Vault role set by
-  the API.
-
+- Saving the wizard no longer drops a Vault role or a template set by the API: they are
+  the source's settings of the certificate now (*Settings*).
 - **Import from a source: each certificate set up like a new one.** After the
   import the wizard of *Add a certificate* opens for it (for several: *Set it
   up* at each, or *Set up each one*): validation, key, renewal, profile,

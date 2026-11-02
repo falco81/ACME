@@ -117,7 +117,8 @@ class AcmeIssuer(Issuer):
               advanced=True,
               help='Another kind makes a new account at the CA (renewals are not counted as '
                    'renewals of certificates the old account ordered).'),
-        field('profile', 'ACME profile', 'text', placeholder='classic | tlsserver | shortlived',
+        field('profile', 'ACME profile', 'text', cert=False,
+              placeholder='classic | tlsserver | shortlived',
               advanced=True,
               help="The CA's certificate profile (Let's Encrypt: classic, tlsserver, shortlived - "
                    "6-day certificates, IP addresses). A certificate's own profile wins."),

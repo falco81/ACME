@@ -834,6 +834,7 @@ def plan(store, cert, deploys, full=False):
     irow = S.plugin_row(store, 'issuer', cert.get('issuer')) if cert.get('issuer') else None
     icls = _cls('issuer', irow.get('kind')) if irow else None
     icfg = S.plugin_config('issuer', irow) if irow else {}
+    icfg = S.config_over(icls, icfg, S.cert_over({'profile': profile}, 'issuer'))
     runs = []
     rid = [0]
 
@@ -860,7 +861,8 @@ def plan(store, cert, deploys, full=False):
         if not crow or not ccls:
             vinfo[which] = {'row': crow, 'cls': ccls, 'runs': []}
             continue
-        ccfg = S.plugin_config('challenge', crow)
+        ccfg = S.config_over(ccls, S.plugin_config('challenge', crow),
+                             S.cert_over({'profile': profile}, 'challenge', crow['name']))
         scfg, marks = secrets_.stand_ins(_fields_of(ccls), ccfg)
         vinfo[which] = {'row': crow, 'cls': ccls, 'cfg': ccfg, 'runs': []}
         if crow.get('kind') == 'dns_persist':

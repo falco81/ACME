@@ -3730,8 +3730,14 @@ function certWizard(cert, detail, opts) {
     sans: sansOf(c, prof), cn: subj.CN || '', cn_san: true,
     /* What the source lets each certificate set itself (its per_cert: an AD CS
        template, a Vault role...), kept in the profile under the same keys. */
-    per: {}
+    per: {},
+    /* Its own values of the settings of its source and of its validations (1.0.24):
+       {source: {key: value}, validation: {name: {key: value}}} - profile.over. */
+    over: {source: Object.assign({}, obj(obj(prof.over).source)), validation: {}}
   };
+  Object.keys(obj(obj(prof.over).validation)).forEach(function (k) {
+    W.d.over.validation[k] = Object.assign({}, obj(obj(prof.over).validation[k]));
+  });
   var PROF0 = prof;
   if (!W.d.sans.length) W.d.sans = [{type: 'dns', value: ''}];
   W.d.cn_san = !W.d.cn || arr(c.names).indexOf(String(W.d.cn).toLowerCase()) >= 0;
@@ -3774,7 +3780,8 @@ function certWizard(cert, detail, opts) {
   function compatBody() {
     return {names: names(), issuer: W.d.issuer, challenge: W.d.challenge, challenge_map: W.d.challenge_map,
             key_type: W.d.key_type, key_type_alt: W.d.key_type_alt,
-            profile: {subject: W.d.cn ? {CN: String(W.d.cn).trim()} : {}, san_other: sanOther(), acme_profile: W.d.acme_profile}};
+            profile: {subject: W.d.cn ? {CN: String(W.d.cn).trim()} : {}, san_other: sanOther(), acme_profile: W.d.acme_profile,
+                      over: {source: W.d.over.source, validation: W.d.over.validation}}};
   }
   function compatFresh() { return W.compatKey === JSON.stringify(compatBody()); }
   function compatNow() {
@@ -3818,6 +3825,7 @@ function certWizard(cert, detail, opts) {
     {key: 'key', title: 'Key', draw: drawKey},
     {key: 'validation', title: 'Validation', draw: drawValidation, show: function () { return can().challenge; },
      check: function () { return W.d.challenge || Object.keys(W.d.challenge_map).length === names().length ? '' : 'choose how the names are proved'; }},
+    {key: 'tune', title: 'Settings', draw: drawTune, show: function () { return tuneMods().length > 0; }},
     {key: 'renewal', title: 'Renewal', draw: drawRenewal},
     {key: 'profile', title: 'Profile', draw: drawProfile},
     {key: 'deploy', title: 'Deployments', draw: drawDeploy, show: function () { return !editing || SETUP; }},
@@ -4466,6 +4474,240 @@ function certWizard(cert, detail, opts) {
     host.appendChild(g);
     read = function () { W.d.auto_renew = !!auto._get(); W.d.renew_days = Number(days.value || 30); W.d.reuse_key = !!reuse._get(); };
   }
+  /* -- for this certificate: the settings of its source and validations (1.0.24) --
+     Each module's settings a certificate may set itself (cert_fields, store.over_fields):
+     shown with what the source or validation uses, "Own" switched on to give this
+     certificate a value of its own - kept in profile.over, used over the module's
+     settings when it is issued (the module itself stays as it is for the others). */
+  W.migrated = {};
+  W.overFor = c.issuer || undefined;
+  function tuneMods() {
+    var out = [];
+    var s = src();
+    var push = function (family, row, over) {
+      var p = plugOf(family, row.kind) || {};
+      var keys = arr(p.cert_fields);
+      if (!keys.length) return;
+      out.push({family: family, row: row, plug: p, keys: keys, over: over, cfg: obj(row.config),
+                fields: arr(p.fields).filter(function (f) { return keys.indexOf(f.key) >= 0; })});
+    };
+    if (s && W.overFor !== undefined && W.overFor !== s.name) {
+      /* Another source: what was set for the one before means nothing to it. */
+      Object.keys(W.d.over.source).forEach(function (k) { delete W.d.over.source[k]; });
+    }
+    if (s) W.overFor = s.name;
+    if (s) {
+      /* What an earlier wizard kept in the profile (per_cert: an AD CS template, a
+         Vault role) is the same setting: taken over, once. */
+      arr((plugOf('issuer', s.kind) || {}).per_cert).forEach(function (pc) {
+        if (W.migrated[pc.key]) return;
+        W.migrated[pc.key] = true;
+        var v = pc.key === 'template' ? W.d.template : PROF0[pc.key];
+        if (pc.field && v && W.d.over.source[pc.field] === undefined) W.d.over.source[pc.field] = v;
+      });
+      push('issuer', s, W.d.over.source);
+    }
+    if (can().challenge) {
+      /* Only those its names are proved by (store.challenge_for's rule). */
+      var used = [];
+      var ns = names();
+      (ns.length ? ns : ['']).forEach(function (n) {
+        var v = n ? challengeOf(n) : W.d.challenge;
+        if (v && used.indexOf(v) < 0) used.push(v);
+      });
+      used.forEach(function (name) {
+        var row = W.vals.filter(function (v) { return v.name === name; })[0];
+        if (!row) return;
+        if (!W.d.over.validation[name]) W.d.over.validation[name] = {};
+        push('challenge', row, W.d.over.validation[name]);
+      });
+    }
+    return out;
+  }
+  function challengeOf(name) {
+    var cmap = {};
+    Object.keys(W.d.challenge_map).forEach(function (k) {
+      if (W.d.challenge_map[k]) cmap[String(k).toLowerCase().replace(/\.$/, '')] = W.d.challenge_map[k];
+    });
+    var n = String(name).toLowerCase().replace(/\.$/, '');
+    if (cmap[n]) return cmap[n];
+    var bare = n.indexOf('*.') === 0 ? n.slice(2) : n;
+    if (bare.indexOf('.') >= 0 && n.indexOf('*.') !== 0) {
+      var parent = bare.split('.').slice(1).join('.');
+      if (cmap['*.' + parent]) return cmap['*.' + parent];
+    }
+    var best = null, bestLen = -1;
+    Object.keys(cmap).forEach(function (k) {
+      var k2 = (k.indexOf('*.') === 0 ? k.slice(2) : k).replace(/^\.+/, '');
+      if ((bare === k2 || bare.slice(-(k2.length + 1)) === '.' + k2) && k2.length > bestLen) { best = cmap[k]; bestLen = k2.length; }
+    });
+    return best || W.d.challenge || null;
+  }
+  function tuneDefault(m, f) {
+    var v = m.cfg[f.key];
+    if (v === undefined || v === null || v === '') return {v: f['default'], dflt: true};
+    return {v: v, dflt: false};
+  }
+  function tuneShow(f, v) {
+    if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) return '–';
+    if (f.type === 'bool') return tr(truthy(v) ? 'on' : 'off');
+    if (f.type === 'select') {
+      var o = optionPairs(f).filter(function (x) { return x[0] === String(v); })[0];
+      return o ? o[1] : String(v);
+    }
+    if (Array.isArray(v)) return v.join(', ');
+    return String(v);
+  }
+  /* A value shown: a choice or a switch in words of the page's language, data as it is. */
+  function tuneValue(f, v, cls) {
+    var words = tuneShow(f, v);
+    if (f.type === 'select' || f.type === 'bool' || words === '–') return el('b', cls, words);
+    return data('b', 'mono ' + cls, words);
+  }
+  function tuneVisible(f, cur) {
+    var cond = f.show_if;
+    if (!cond || typeof cond !== 'object') return true;
+    return Object.keys(cond).every(function (k) {
+      var want = Array.isArray(cond[k]) ? cond[k] : [cond[k]];
+      var have = cur[k];
+      return want.some(function (w) {
+        if (typeof w === 'boolean' || typeof have === 'boolean') return truthy(w) === truthy(have);
+        return String(w) === String(have === undefined || have === null ? '' : have);
+      });
+    });
+  }
+  function drawTune(host) {
+    host.appendChild(el('p', 'note', 'What this certificate does its own way. Each setting shows what its source or validation uses; switch Own on to give it another value for this certificate only - the source and the validation stay as they are for every other certificate.'));
+    var mods = tuneMods();
+    var all = [];
+    var wrap = el('div', 'ct-tune');
+    host.appendChild(wrap);
+    mods.forEach(function (m) {
+      var sec = el('section', 'ct-tune-mod');
+      var h = el('div', 'ct-tune-mh');
+      var ic = el('span', 'ct-kind-ic v-' + String(m.plug.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+      ic.textContent = String(m.plug.title || m.row.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+      noI18n(ic);
+      h.appendChild(ic);
+      var ht = el('div', 'ct-tune-mt');
+      var l1 = el('div', 'ct-tune-mt1');
+      l1.appendChild(data('b', '', m.row.name));
+      l1.appendChild(el('span', 'tag ' + (m.family === 'issuer' ? 'info' : 'dim'), m.family === 'issuer' ? 'source' : 'validation'));
+      ht.appendChild(l1);
+      ht.appendChild(el('div', 'muted small', m.plug.title || m.row.kind));
+      h.appendChild(ht);
+      var cnt = el('span', 'ct-tune-n');
+      h.appendChild(cnt);
+      sec.appendChild(h);
+      var grid = el('div', 'ct-tune-grid');
+      var adv = el('details', 'ct-tune-adv');
+      var advSum = el('summary', '');
+      adv.appendChild(advSum);
+      var agrid = el('div', 'ct-tune-grid');
+      adv.appendChild(agrid);
+      m.tiles = [];
+      m.fields.forEach(function (f) {
+        var t = tuneTile(m, f);
+        m.tiles.push(t);
+        all.push(t);
+        (f.advanced ? agrid : grid).appendChild(t.node);
+        if (f.advanced && t.on()) adv.open = true;
+      });
+      if (grid.children.length) sec.appendChild(grid);
+      if (agrid.children.length) sec.appendChild(adv);
+      m.paint = function () {
+        var cur = Object.assign({}, m.cfg);
+        m.tiles.forEach(function (t) { cur[t.f.key] = t.on() ? t.get() : tuneDefault(m, t.f).v; });
+        var n = 0, na = 0, shownAdv = 0;
+        m.tiles.forEach(function (t) {
+          var vis = tuneVisible(t.f, cur);
+          t.node.hidden = !vis;
+          if (vis && t.on()) { n += 1; if (t.f.advanced) na += 1; }
+          if (vis && t.f.advanced) shownAdv += 1;
+        });
+        clear(cnt);
+        cnt.className = 'ct-tune-n' + (n ? ' on' : '');
+        cnt.appendChild(document.createTextNode(n ? tr('{0} own').replace('{0}', n) : tr('all from it')));
+        clear(advSum);
+        advSum.appendChild(document.createTextNode(tr('More settings')));
+        advSum.appendChild(el('span', 'muted small', ' · ' + shownAdv + (na ? ' · ' + tr('{0} own').replace('{0}', na) : '')));
+        adv.hidden = !shownAdv;
+      };
+      sec.addEventListener('input', m.paint);
+      sec.addEventListener('change', m.paint);
+      m.paint();
+      wrap.appendChild(sec);
+    });
+    read = function () {
+      mods.forEach(function (m) {
+        m.tiles.forEach(function (t) {
+          if (t.on() && !t.node.hidden) m.over[t.f.key] = t.get(); else delete m.over[t.f.key];
+        });
+      });
+    };
+  }
+  function tuneTile(m, f) {
+    var on = Object.prototype.hasOwnProperty.call(m.over, f.key);
+    var node = el('div', 'ct-tune-tile' + (on ? ' on' : ''));
+    node.dataset.fkey = f.key;
+    var top = el('div', 'ct-tune-top');
+    var lab = el('div', 'ct-tune-lab');
+    lab.appendChild(el('b', '', f.label || f.key));
+    if (f.help) explain(lab, f.help);
+    top.appendChild(lab);
+    var swl = el('label', 'ct-tune-sw');
+    var sw = switchBox(on);
+    swl.appendChild(el('span', '', 'Own'));
+    swl.appendChild(sw);
+    top.appendChild(swl);
+    node.appendChild(top);
+    var d = tuneDefault(m, f);
+    var def = el('div', 'ct-tune-def');
+    def.appendChild(el('span', 'muted', m.family === 'issuer' ? (d.dflt ? 'the module’s default:' : 'the source:') : (d.dflt ? 'the module’s default:' : 'the validation:')));
+    def.appendChild(tuneValue(f, d.v, 'ct-tune-dv'));
+    node.appendChild(def);
+    var box = el('div', 'ct-tune-in');
+    node.appendChild(box);
+    var get = null;
+    var start = on ? m.over[f.key] : d.v;
+    var CF = window.ACME_FIELD_TYPES && window.ACME_FIELD_TYPES.catalog;
+    var build = function (v) {
+      clear(box);
+      if (f.type === 'catalog' && CF) {
+        var made = CF(f, v, {opts: {family: m.family, row: m.row, plug: m.plug}, current: function () {
+          var cur = Object.assign({}, m.cfg);
+          (m.tiles || []).forEach(function (t) { if (t !== me && t.on()) cur[t.f.key] = t.get(); });
+          return cur;
+        }});
+        box.appendChild(made.input);
+        get = made.get;
+      } else {
+        var ff = fieldForm([Object.assign({}, f, {label: tr('For this certificate'), help: '', advanced: false,
+                                                  show_if: null, required: false, wide: true})],
+                           (function () { var o = {}; o[f.key] = v; return o; })(), {}, {none: false});
+        box.appendChild(ff.node);
+        get = function () { return ff.get(f.key); };
+      }
+    };
+    var me = {f: f, node: node, on: function () { return !!sw._get(); }, get: function () { return get ? get() : start; }};
+    var shown = function () {
+      node.classList.toggle('on', !!sw._get());
+      box.hidden = !sw._get();
+      def.classList.toggle('ct-tune-was', !!sw._get());
+    };
+    if (on) build(start);
+    sw._input.addEventListener('change', function () {
+      if (sw._get() && !get) build(start);
+      shown();
+      if (sw._get()) {
+        var first = box.querySelector('input:not([type=checkbox]), select, textarea');
+        if (first) first.focus();
+      }
+    });
+    shown();
+    return me;
+  }
+
   /* -- 6. profile -- */
   function drawProfile(host) {
     var cn = can();
@@ -4485,26 +4727,7 @@ function certWizard(cert, detail, opts) {
       staple = switchBox(W.d.must_staple);
       g.appendChild(formField('OCSP must-staple', staple, 'Only where the server staples OCSP answers.'));
     }
-    /* What the source lets each certificate set itself (Issuer.per_cert): picked from
-       the list the source gives (Load the list - its own settings, saved), or typed. */
     var perGets = {};
-    arr((plugOf('issuer', kind) || {}).per_cert).forEach(function (pf) {
-      if (!pf || !pf.key) return;
-      var v = Object.prototype.hasOwnProperty.call(W.d.per, pf.key) ? W.d.per[pf.key]
-        : (pf.key === 'template' ? W.d.template : String(PROF0[pf.key] || ''));
-      var CF = window.ACME_FIELD_TYPES && window.ACME_FIELD_TYPES.catalog;
-      if (pf.catalog && pf.field && CF && s && s.id) {
-        var made = CF({key: pf.field, placeholder: pf.placeholder || ''}, v,
-                      {opts: {family: 'issuer', row: s, plug: {kind: kind}}, current: function () { return {}; }});
-        perGets[pf.key] = made.get;
-        g.appendChild(formField(pf.label || pf.key, made.input, pf.help || ''));
-      } else {
-        var tb = textBox(v, pf.placeholder || '', 'mono');
-        noI18n(tb);
-        perGets[pf.key] = function () { return tb.value.trim(); };
-        g.appendChild(formField(pf.label || pf.key, tb, pf.help || ''));
-      }
-    });
     host.appendChild(g);
     var ek = el('div', 'ct-ekus');
     var boxes = {};
@@ -4624,10 +4847,18 @@ function certWizard(cert, detail, opts) {
     pairs.push(['Renews', W.d.auto_renew ? 'by itself, ' + W.d.renew_days + ' days before the end' : 'only when asked']);
     pairs.push(['Key on renewal', W.d.reuse_key ? 'kept' : 'a new one each time']);
     if (W.d.days) pairs.push(['Valid for', W.d.days + ' days']);
-    arr((plugOf('issuer', (src() || {}).kind) || {}).per_cert).forEach(function (pf) {
-      var pv = Object.prototype.hasOwnProperty.call(W.d.per, pf.key) ? W.d.per[pf.key]
-        : (pf.key === 'template' ? W.d.template : String(PROF0[pf.key] || ''));
-      pairs.push([pf.label || pf.key, pv ? data('span', 'mono', pv) : tr('the source’s own')]);
+    tuneMods().forEach(function (m) {
+      var set = Object.keys(m.over).filter(function (k) { return m.keys.indexOf(k) >= 0; });
+      if (!set.length) return;
+      var box = el('div', 'ct-tune-sum');
+      set.forEach(function (k) {
+        var f = m.fields.filter(function (x) { return x.key === k; })[0] || {key: k};
+        var chip = el('span', 'ct-tune-chip');
+        chip.appendChild(el('span', 'muted', f.label || k));
+        chip.appendChild(tuneValue(f, m.over[k], ''));
+        box.appendChild(chip);
+      });
+      pairs.push([tr(m.family === 'issuer' ? 'Own settings of the source' : 'Own settings of the validation') + ' ' + m.row.name, box]);
     });
     pairs.push(['Used for', W.d.eku.join(', ') || '–']);
     var subj = Object.keys(W.d.subject).filter(function (k) { return W.d.subject[k]; }).map(function (k) { return k + '=' + W.d.subject[k]; });
@@ -4683,16 +4914,21 @@ function certWizard(cert, detail, opts) {
     if (d.must_staple) profile.must_staple = true;
     if (d.acme_profile) profile.acme_profile = d.acme_profile;
     if (d.template) profile.template = d.template;
-    /* the source's own keys (per_cert) - and the ones the wizard does not draw for
-       this source kept as they were */
-    var perKeys = arr((plugOf('issuer', (src() || {}).kind) || {}).per_cert).map(function (x) { return x.key; });
-    Object.keys(PROF0).forEach(function (k) {
-      if (perKeys.indexOf(k) >= 0 && !Object.prototype.hasOwnProperty.call(d.per, k) && profile[k] === undefined && PROF0[k]) profile[k] = PROF0[k];
+    /* Its own settings of its source and validations (profile.over): the legacy
+       per_cert keys of the profile are those settings now (tuneMods takes them over). */
+    var over = {};
+    var mods = tuneMods();
+    mods.forEach(function (m) {
+      var o = {};
+      Object.keys(m.over).forEach(function (k) { if (m.keys.indexOf(k) >= 0) o[k] = m.over[k]; });
+      if (!Object.keys(o).length) return;
+      if (m.family === 'issuer') over.source = o;
+      else { over.validation = over.validation || {}; over.validation[m.row.name] = o; }
     });
-    Object.keys(d.per).forEach(function (k) {
-      if (perKeys.indexOf(k) < 0) return;
-      if (d.per[k]) profile[k] = d.per[k]; else delete profile[k];
+    arr((plugOf('issuer', (src() || {}).kind) || {}).per_cert).forEach(function (pc) {
+      if (pc.field) delete profile[pc.key];
     });
+    if (Object.keys(over).length) profile.over = over;
     var subject = {};
     Object.keys(d.subject).forEach(function (k) { if (d.subject[k]) subject[k] = d.subject[k]; });
     if (String(d.cn || '').trim()) subject.CN = String(d.cn).trim();

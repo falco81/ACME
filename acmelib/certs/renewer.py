@@ -251,7 +251,8 @@ def ari_refresh(store, row, variant=''):
         return
     ctx = runtime.RunContext(store, None, scope='issuer:%s' % irow['name'])
     try:
-        win = S.plugin_instance(store, 'issuer', irow, ctx).renewal_window(pem)
+        win = S.plugin_instance(store, 'issuer', irow, ctx,
+                                S.cert_over(row, 'issuer')).renewal_window(pem)
     except Exception as e:                              # noqa: BLE001
         ari['checked'] = time.time()
         ari['error'] = str(e)[:300]
@@ -292,7 +293,8 @@ def _challenges(store, job, cert, names, contexts):
                                        retry=False)
             cctx = runtime.RunContext(store, job, scope='challenge:%s' % crow['name'])
             contexts.append(cctx)
-            made[which] = S.plugin_instance(store, 'challenge', crow, cctx)
+            made[which] = S.plugin_instance(store, 'challenge', crow, cctx,
+                                            S.cert_over(cert, 'challenge', crow['name']))
         out[n] = made[which]
         job.step('%s is proved by %s' % (n, which))
     return out
@@ -460,7 +462,10 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             raise base.PluginError('%s has no names' % cert['name'], retry=False)
         ctx = runtime.RunContext(store, job, scope='issuer:%s' % irow['name'])
         contexts.append(ctx)
-        issuer = S.plugin_instance(store, 'issuer', irow, ctx)
+        issuer = S.plugin_instance(store, 'issuer', irow, ctx, S.cert_over(cert, 'issuer'))
+        if S.cert_over(cert, 'issuer'):
+            job.step('its own settings of %s: %s' % (irow['name'], ', '.join(
+                '%s=%s' % (k, v) for k, v in sorted(S.cert_over(cert, 'issuer').items()))))
         twin = bool(cert.get('key_type_alt')) and not cert.get('csr_given')
         if twin and not issuer.can_dual():
             job.step('%s gives no twin (a second certificate with a %s key)%s - only the %s one '
@@ -613,7 +618,7 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
     if held:
         raise base.PluginError(held, retry=False)
     ctx = runtime.RunContext(store, job, scope='issuer:%s' % irow['name'])
-    issuer = S.plugin_instance(store, 'issuer', irow, ctx)
+    issuer = S.plugin_instance(store, 'issuer', irow, ctx, S.cert_over(cert, 'issuer'))
     job.step('revoking %s (serial %s) at %s, reason %s' % (cert['name'], cert.get('serial'),
                                                           irow['name'], reason))
     said = issuer.revoke(cert['cert_pem'], reason, S.cert_key(cert))

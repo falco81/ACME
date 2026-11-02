@@ -45435,6 +45435,70 @@
   "stg103": {
    "source": "AES-256",
    "text": "AES-256"
+  },
+  "sup020": {
+   "source": "What this certificate does its own way. Each setting shows what its source or validation uses; switch Own on to give it another value for this certificate only - the source and the validation stay as they are for every other certificate.",
+   "text": "Co tento certifikát dělá po svém. U každého nastavení vidíte, co používá jeho zdroj nebo validace; zapnutím Vlastní mu dáte jinou hodnotu jen pro tento certifikát – zdroj i validace zůstávají pro všechny ostatní certifikáty, jak jsou."
+  },
+  "sup021": {
+   "source": "source",
+   "text": "zdroj"
+  },
+  "sup022": {
+   "source": "validation",
+   "text": "validace"
+  },
+  "sup023": {
+   "source": "all from it",
+   "text": "vše převzato"
+  },
+  "sup024": {
+   "source": "More settings",
+   "text": "Další nastavení"
+  },
+  "sup025": {
+   "source": "Own",
+   "text": "Vlastní"
+  },
+  "sup026": {
+   "source": "the module’s default:",
+   "text": "výchozí modulu:"
+  },
+  "sup027": {
+   "source": "the source:",
+   "text": "ze zdroje:"
+  },
+  "sup028": {
+   "source": "the validation:",
+   "text": "z validace:"
+  },
+  "sup029": {
+   "source": "For this certificate",
+   "text": "Pro tento certifikát"
+  },
+  "sup030": {
+   "source": "Own settings of the source",
+   "text": "Vlastní nastavení zdroje"
+  },
+  "sup031": {
+   "source": "Own settings of the validation",
+   "text": "Vlastní nastavení validace"
+  },
+  "sup032": {
+   "source": "profile.over is an object",
+   "text": "profile.over je objekt"
+  },
+  "sup033": {
+   "source": "own settings of a source, but the certificate has none",
+   "text": "vlastní nastavení zdroje, ale certifikát žádný zdroj nemá"
+  },
+  "sup034": {
+   "source": "the own settings of the validations are an object",
+   "text": "vlastní nastavení validací je objekt"
+  },
+  "sup035": {
+   "source": "{0} own",
+   "text": "{0} vlastní"
   }
  },
  "patterns": {
@@ -62761,6 +62825,46 @@
   "pvm22_17": {
    "source": "Rackspace has no domain {0} on this account",
    "text": "Rackspace nemá na tomto účtu doménu {0}"
+  },
+  "psup008": {
+   "source": "{0} own",
+   "text": "{0} vlastní"
+  },
+  "psup009": {
+   "source": "Own settings of the source {0}",
+   "text": "Vlastní nastavení zdroje {0}"
+  },
+  "psup010": {
+   "source": "Own settings of the validation {0}",
+   "text": "Vlastní nastavení validace {0}"
+  },
+  "psup011": {
+   "source": "its own settings of {0}: {1}",
+   "text": "vlastní nastavení pro {0}: {1}"
+  },
+  "psup012": {
+   "source": "{0}: a certificate cannot set \"{1}\" itself",
+   "text": "{0}: „{1}“ si certifikát nastavit nemůže"
+  },
+  "psup013": {
+   "source": "{0}: {1} is a number",
+   "text": "{0}: {1} je číslo"
+  },
+  "psup014": {
+   "source": "{0}: {1} is a list",
+   "text": "{0}: {1} je seznam"
+  },
+  "psup015": {
+   "source": "{0}: {1} is too long",
+   "text": "{0}: {1} je příliš dlouhé"
+  },
+  "psup016": {
+   "source": "{0}: {1} is one of {2}",
+   "text": "{0}: {1} je jedno z: {2}"
+  },
+  "psup017": {
+   "source": "the own settings of {0} are an object",
+   "text": "vlastní nastavení {0} je objekt"
   }
  },
  "rich": {

@@ -720,3 +720,41 @@ textarea.df-code-t:focus{border:0}
 .ct-keynote-h{display:flex;gap:8px;align-items:center;color:var(--warn)}
 .ct-keynote-h b{font-size:13px}
 .ct-keynote p{margin:6px 0 8px;color:var(--tx)}
+
+/* Add a certificate → Settings (1.0.24): the settings of its source and validations
+   this certificate sets itself - one card per module, a tile per setting. */
+.ct-tune{display:flex;flex-direction:column;gap:16px;min-width:0}
+.ct-tune-mod{border:1px solid var(--line);border-radius:14px;background:var(--panel2);padding:14px 16px 16px;min-width:0}
+.ct-tune-mh{display:flex;align-items:center;gap:12px;margin-bottom:12px;min-width:0}
+.ct-tune-mh .ct-kind-ic{width:38px;height:38px;border-radius:10px;font-size:13px;flex:none}
+.ct-tune-mt{flex:1;min-width:0}
+.ct-tune-mt1{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:15px}
+.ct-tune-n{flex:none;font-size:12px;font-weight:600;color:var(--tx-dim);border:1px solid var(--line);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.ct-tune-n.on{color:var(--info);border-color:var(--info);background:var(--info-bg)}
+.ct-tune-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;min-width:0}
+.ct-tune-tile{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0;transition:border-color .12s,box-shadow .12s}
+.ct-tune-tile.on{border-color:var(--info);box-shadow:0 0 0 1px var(--info) inset;grid-column:span 2}
+.ct-tune-tile[hidden]{display:none}
+.ct-tune-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;min-width:0}
+.ct-tune-lab{min-width:0;font-size:13.5px;line-height:1.3;overflow-wrap:anywhere}
+.ct-tune-sw{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--tx-mut);cursor:pointer;flex:none}
+.ct-tune-tile.on .ct-tune-sw{color:var(--info);font-weight:600}
+.ct-tune-def{display:flex;gap:6px;align-items:baseline;font-size:12.5px;min-width:0}
+.ct-tune-def > .muted{white-space:nowrap;flex:none}
+.ct-tune-def b{font-weight:500}
+.ct-tune-def .ct-tune-dv{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;color:var(--tx)}
+.ct-tune-def.ct-tune-was .ct-tune-dv{text-decoration:line-through;color:var(--tx-dim)}
+.ct-tune-in .ct-fform .formgrid{grid-template-columns:1fr;gap:6px}
+.ct-tune-in .ct-fform{margin:0}
+.ct-tune-in label{font-size:12px}
+.ct-tune-adv{margin-top:12px}
+.ct-tune-adv > summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--tx-mut);padding:4px 0 8px}
+.ct-tune-adv[hidden]{display:none}
+.ct-tune-sum{display:flex;flex-wrap:wrap;gap:6px}
+.ct-tune-chip{display:inline-flex;gap:6px;align-items:baseline;border:1px solid var(--info);background:var(--info-bg);border-radius:8px;padding:2px 8px;font-size:12.5px;max-width:100%;overflow:hidden}
+.ct-tune-chip b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:700px){
+  .ct-tune-mod{padding:12px}
+  .ct-tune-grid{grid-template-columns:1fr}
+  .ct-tune-tile.on{grid-column:auto}
+}

@@ -273,7 +273,7 @@ class MsAdcsIssuer(Issuer):
         field('user', 'User', 'text', placeholder='svc-acme', show_if={'auth': ['ntlm', 'basic']},
               help='An account with Enroll on the template: user, DOMAIN\\user or user@domain.'),
         field('password', 'Password', 'secret', show_if={'auth': ['ntlm', 'basic']}),
-        field('domain', 'Domain', 'text', placeholder='EXAMPLE', show_if={'auth': ['ntlm', 'basic']},
+        field('domain', 'Domain', 'text', placeholder='EXAMPLE', cert=False, show_if={'auth': ['ntlm', 'basic']},
               help='The NetBIOS name of the domain (empty: the one the server says).'),
         field('client_cert', 'Client certificate', 'pem', show_if={'auth': ['cert']}),
         field('client_key', 'Client certificate\'s key', 'secret', show_if={'auth': ['cert']}),

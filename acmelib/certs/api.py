@@ -496,6 +496,18 @@ def cert_save(store, b, by):
             prof['san_other'] = S.clean_sans(prof.get('san_other'))
         else:
             prof.pop('san_other', None)
+        if prof.get('over'):
+            # A certificate's own settings of its source and validations (1.0.24).
+            iss_ = fields.get('issuer') if 'issuer' in fields else (row or {}).get('issuer')
+            ch_ = fields.get('challenge') if 'challenge' in fields else (row or {}).get('challenge')
+            cm_ = S.jload(fields['challenge_map'], {}) if 'challenge_map' in fields else \
+                (S.jload((row or {}).get('challenge_map'), {}) or {})
+            used = set([ch_] if ch_ else []) | set((cm_ or {}).values())
+            prof['over'] = S.clean_over(store, prof.get('over'), iss_, used)
+            if not prof['over']:
+                prof.pop('over')
+        else:
+            prof.pop('over', None)
         if len(json.dumps(prof)) > 20000:
             raise ValueError('the profile is too big')
         fields['profile'] = json.dumps(prof)
@@ -1506,6 +1518,10 @@ def plugins_view(store, again=False):
             one['default_name'] = S.safe_name(one.get('default_name') or SUGGESTED.get(
                 (fam, one.get('kind'))) or one.get('title') or one.get('kind'))
             one['fields'] = _resolve(store, one.get('fields'))
+            if fam in ('issuer', 'challenge'):
+                # what one certificate may set itself (store.over_fields)
+                one['cert_fields'] = [f['key'] for f in S.over_fields(
+                    S.plugin_class(fam, one.get('kind')))]
             if 'deploy_fields' in one:
                 one['deploy_fields'] = _resolve(store, one.get('deploy_fields'))
     d['broken'] = [{'file': b[0], 'words': b[1]} for b in reg.broken]

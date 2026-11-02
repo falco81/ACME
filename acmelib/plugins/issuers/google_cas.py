@@ -61,7 +61,7 @@ class GoogleCasIssuer(Issuer):
     ip_names = True
     choose_days = True
     lists_existing = True           # certificates.list: Certificates → Import from a source
-    per_cert = [{'key': 'template', 'label': 'Certificate template',
+    per_cert = [{'key': 'template', 'field': 'template', 'label': 'Certificate template',
                  'placeholder': 'projects/P/locations/L/certificateTemplates/T',
                  'help': 'The CA Service template (its full name) for this certificate. Empty: the '
                          'source\'s own.'}]

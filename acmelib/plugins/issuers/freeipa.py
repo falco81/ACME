@@ -51,7 +51,7 @@ class FreeIpaIssuer(Issuer):
     wildcards = False
     ip_names = True
     lists_existing = True           # cert_find + cert_show: Certificates → Import from a source
-    per_cert = [{'key': 'template', 'label': 'Certificate profile', 'placeholder': 'caIPAserviceCert',
+    per_cert = [{'key': 'template', 'field': 'profile', 'label': 'Certificate profile', 'placeholder': 'caIPAserviceCert',
                  'help': 'The IPA certificate profile for this certificate. Empty: the source\'s own.'}]
     fields = [
         field('url', 'IPA server', 'text', required=True, placeholder='https://ipa.example.local'),

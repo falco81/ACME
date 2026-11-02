@@ -322,12 +322,169 @@ def plugin_public(store, family, row, full=False):
     return out
 
 
-def plugin_instance(store, family, row, ctx):
+def plugin_instance(store, family, row, ctx, over=None):
+    """The module of a row, with its settings - and a certificate's own values of the
+    settings it may set itself (`over`, cert_over) over them."""
     cls = plugin_class(family, row.get('kind'))
     if cls is None:
         raise base.PluginError('there is no %s module "%s" (it was taken away, or did not load)'
                                % (family, row.get('kind')), retry=False)
-    return cls(plugin_config(family, row), ctx)
+    return cls(config_over(cls, plugin_config(family, row), over), ctx)
+
+
+# ---------------------------------------------------------------------------
+# A certificate's own settings of its source and validations (1.0.24)
+# ---------------------------------------------------------------------------
+# profile.over = {'source': {field: value}, 'validation': {validation name: {field:
+# value}}} - what one certificate sets itself over the settings of its source and of
+# its validations (Add a certificate: "for this certificate"), so one source serves
+# certificates of other templates, products, zones... Only what a certificate may set:
+# not a secret, not where or as whom the module signs in (OVER_NOT), unless the field
+# says `cert: True`; `cert: False` keeps any field out.
+OVER_NOT = frozenset((
+    'url', 'host', 'hostname', 'port', 'server', 'servers', 'endpoint', 'base_url', 'api_url',
+    'api_base', 'directory', 'user', 'username', 'login', 'account', 'account_id', 'auth',
+    'domain_user',
+    'token', 'api_key', 'key_id', 'client_id', 'client_cert', 'client_key', 'tenant',
+    'tenant_id', 'subscription', 'subscription_id', 'region', 'project', 'project_id',
+    'verify', 'ca_pem', 'timeout', 'proxy', 'eab_kid', 'eab_hmac', 'contact', 'email_contact',
+    'ssh_host', 'ssh_user', 'ssh_port', 'ssh_key', 'ssh_password', 'sandbox', 'test',
+    'environment', 'location', 'zone_id_api', 'directory_url', 'account_key', 'contacts',
+    'api', 'api_version', 'domain_auth', 'netbios', 'access_key', 'token_url', 'scope',
+    'audience', 'api_path', 'role_id', 'approle_mount', 'namespace', 'ca_fingerprint',
+    'ca_ident', 'kid', 'given_kid', 'provisioner', 'reference', 'recipient', 'key_in',
+    'client_token', 'auth_id', 'user_kind', 'key', 'access_key_id', 'api_user', 'client_ip',
+    'user_name', 'customer', 'app_key', 'secret_id', 'tenancy', 'fingerprint', 'global_key',
+    'tsig_name', 'tsig_alg', 'ftp_user', 'hostkey', 'trust_first', 'keyfile', 'session_key',
+    'hosts', 'team', 'identity', 'subdomain', 'fulldomain', 'flavour', 'nsupdate_server',
+    'named_conf', 'pdns_config_dir', 'pdns_api_url', 'wapi_version', 'server_id', 'cloud',
+    'partition', 'protocol', 'verify_tls', 'transport', 'resource_group', 'compartment',
+    # asked in Add a certificate itself already (Profile: valid for, used for)
+    'days', 'eku'))
+# Never by a certificate (whatever runs, or is written where): a certificate's manager
+# may not set what only a full administrator sets on a module - a command, a script, a
+# path or file on a machine, sudo.
+OVER_NEVER = re.compile(r'(^|_)(command|commands|path|env|sudo|script|conf|file|files|'
+                        r'reload|control|socket|hook|webroot|folder|container|bucket|'
+                        r'prepare|balancer|computer|rndc|checkzone|writer|style|mode)(_|$)')
+OVER_TYPES = ('text', 'select', 'bool', 'number', 'list', 'catalog', 'textarea')
+
+
+def over_fields(cls):
+    """The fields of a module a certificate may set itself."""
+    out = []
+    for f in (getattr(cls, 'fields', None) or []) if cls is not None else []:
+        if not isinstance(f, dict) or not f.get('key'):
+            continue
+        mark = f.get('cert')
+        if mark is False or f.get('type') == 'secret' or f.get('secret') or \
+                OVER_NEVER.search(f['key']):
+            continue
+        if mark is True or (f.get('type', 'text') in OVER_TYPES and f['key'] not in OVER_NOT
+                            and not f['key'].startswith('path_')):
+            out.append(f)
+    return out
+
+
+def config_over(cls, cfg, over):
+    """`cfg` with a certificate's own values over it - only of over_fields."""
+    if not over or not isinstance(over, dict):
+        return cfg
+    keys = {f['key'] for f in over_fields(cls)}
+    out = dict(cfg or {})
+    for k, v in over.items():
+        if k in keys:
+            out[k] = v
+    return out
+
+
+def cert_over(cert, family, name=''):
+    """A certificate's own values for its source ('issuer') or for the validation `name`
+    ('challenge'): {} when it sets none."""
+    prof = cert.get('profile') if isinstance(cert, dict) else None
+    if isinstance(prof, str):
+        prof = jload(prof, {})
+    over = (prof or {}).get('over') if isinstance(prof, dict) else None
+    if not isinstance(over, dict):
+        return {}
+    if family == 'issuer':
+        got = over.get('source')
+    else:
+        got = (over.get('validation') or {}).get(name) if isinstance(over.get('validation'),
+                                                                      dict) else None
+    return dict(got) if isinstance(got, dict) else {}
+
+
+def clean_over(store, over, issuer, challenges):
+    """profile.over as given, checked: only the fields each module lets a certificate
+    set, values of their kind (a choice one of its options), the source's for the
+    certificate's source and the validations' for those it uses. -> the clean dict."""
+    if over in (None, '', {}):
+        return {}
+    if not isinstance(over, dict):
+        raise ValueError('profile.over is an object')
+
+    def one(cls, given, what):
+        if not isinstance(given, dict):
+            raise ValueError('the own settings of %s are an object' % what)
+        fields = {f['key']: f for f in over_fields(cls)}
+        out = {}
+        for k, v in given.items():
+            f = fields.get(k)
+            if f is None:
+                raise ValueError('%s: a certificate cannot set "%s" itself' % (what, k))
+            t = f.get('type', 'text')
+            if t == 'bool':
+                v = v is True or str(v).strip().lower() in ('1', 'true', 'yes', 'on')
+            elif t == 'number':
+                try:
+                    v = float(v) if '.' in str(v) else int(v)
+                except (TypeError, ValueError):
+                    raise ValueError('%s: %s is a number' % (what, f.get('label') or k))
+            elif t == 'list':
+                if isinstance(v, str):
+                    v = [x.strip() for x in v.splitlines() if x.strip()]
+                if not isinstance(v, list):
+                    raise ValueError('%s: %s is a list' % (what, f.get('label') or k))
+                v = [str(x)[:1000] for x in v][:200]
+            else:
+                v = str(v if v is not None else '')
+                if len(v) > 4000:
+                    raise ValueError('%s: %s is too long' % (what, f.get('label') or k))
+                if t == 'select' and f.get('options'):
+                    allowed = [str(o[0] if isinstance(o, (list, tuple)) else o)
+                               for o in f['options']]
+                    if v not in allowed:
+                        raise ValueError('%s: %s is one of %s' % (
+                            what, f.get('label') or k, ', '.join(allowed)))
+            out[k] = v
+        return out
+    res = {}
+    src = over.get('source')
+    if src:
+        irow = plugin_row(store, 'issuer', issuer) if issuer else None
+        if not irow:
+            raise ValueError('own settings of a source, but the certificate has none')
+        got = one(plugin_class('issuer', irow.get('kind')), src, irow['name'])
+        if got:
+            res['source'] = got
+    vals = over.get('validation')
+    if vals:
+        if not isinstance(vals, dict):
+            raise ValueError('the own settings of the validations are an object')
+        keep = {}
+        for name, given in vals.items():
+            crow = plugin_row(store, 'challenge', name)
+            if not crow:
+                raise ValueError('there is no validation %s' % name)
+            if crow['name'] not in challenges:
+                continue                # a validation it no longer uses: dropped
+            got = one(plugin_class('challenge', crow.get('kind')), given, crow['name'])
+            if got:
+                keep[crow['name']] = got
+        if keep:
+            res['validation'] = keep
+    return res
 
 
 # ---------------------------------------------------------------------------

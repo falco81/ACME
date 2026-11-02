@@ -192,6 +192,39 @@ In the configuration's export without the secrets, a module's secrets are
 eight dots (put back, the ones kept here stay); with the secrets (locked with
 the passphrase) they are opened, and sealed again for their row when imported.
 
+## A certificate's own settings of its source and validations
+
+One source serves certificates of different templates, products, zones...: no
+second source is needed for each variant. *Add a certificate* (and *Change
+names, key, source…*) has the step **Settings** whenever the source or a
+validation its names use has settings a certificate may set itself. Each
+module is a card, each setting a tile showing what the source (or the
+validation) uses - its saved value, or the module's default. Switch **Own** on
+and give it a value for this certificate only: the source and the validation
+stay as they are for every other certificate. The settings follow what is
+chosen: another source shows its own settings (what was set for the one
+before is dropped), a validation shows up only when one of the names is
+proved by it, and a setting shown only under a condition (show_if) follows
+the values in effect. Lists the module loads (an AD CS template, a product)
+load here too, and can be typed.
+
+What a certificate may set (`store.over_fields`): every field of the module's
+form except a secret, where or as whom it signs in (address, user, account,
+API key ID, region...), what *Add a certificate* asks itself (validity, key
+usages, the ACME profile) - and never what runs or is written where: a
+command, a script, a path or file on a machine, sudo (those stay a full
+administrator's). A module can mark a field `cert: False` (never) or `cert:
+True` (always). They are kept in the certificate's profile as `over`:
+`{"source": {key: value}, "validation": {validation name: {key: value}}}`,
+checked when saved (a choice one of its options, a number a number), and used
+over the module's settings whenever the certificate is issued, renewed or
+revoked, in *What happens* and in the check of what fits (an AD CS template
+of its own that takes ECDSA keys, say). The job says them: *its own settings
+of Windows CA: template=WebServerV3*.
+
+A template set the earlier way (profile `template`, or a Vault `role`) is
+shown as the source's setting it is and kept so from the next save.
+
 ## Renewing
 
 The renewer is a thread of the daemon. Every `certs_check_min` minutes the

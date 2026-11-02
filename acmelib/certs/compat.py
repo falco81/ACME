@@ -186,7 +186,7 @@ def _proof_words(p):
             'cname-any': 'a DNS CNAME record', 'http-file-any': 'an HTTP file'}.get(p, p)
 
 
-def validation_fits(icls, iconfig, info, crow, name, settings):
+def validation_fits(icls, iconfig, info, crow, name, settings, profile=None):
     """'' when the validation (a row of cert_challenges) proves `name` to this
     source, else why not, in words."""
     if not crow:
@@ -197,6 +197,8 @@ def validation_fits(icls, iconfig, info, crow, name, settings):
     if ccls is None:
         return 'the module %s of %s is missing' % (crow.get('kind'), crow['name'])
     cconf = S.jload(crow.get('config'), {}) or {}
+    cconf = S.config_over(ccls, cconf, S.cert_over({'profile': profile or {}}, 'challenge',
+                                                   crow['name']))
     k = kind_of(name)
     want = allowed_proofs(info, name)
     if not want:
@@ -298,6 +300,7 @@ def _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type
                               % (irow.get('kind'), irow['name']), 'Choose another source'))
         else:
             iconf = S.jload(irow.get('config'), {}) or {}
+            iconf = S.config_over(icls, iconf, S.cert_over({'profile': profile}, 'issuer'))
             info = source_info(icls, iconf, irow.get('kind'))
             info['name'] = irow['name']
             out['source'] = info
@@ -348,8 +351,7 @@ def _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type
                               'leave it empty: the first name is taken', name=cn))
     if info and info.get('ip_profile') and any(kind_of(n) == 'ip' for n in names):
         want = info['ip_profile']
-        have = str(profile.get('acme_profile') or (S.jload(irow.get('config'), {}) or {}).get(
-            'profile') or '').strip()
+        have = str(profile.get('acme_profile') or (iconf or {}).get('profile') or '').strip()
         if have != want:
             P.append(_problem('names', 'names', '%s issues for IP addresses only in its "%s" '
                               'profile (certificates of 6 days)' % (info['title'], want),
@@ -396,7 +398,7 @@ def _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type
                                   'Choose a validation for it', name=n))
                 continue
             crow = row_of(which)
-            why = validation_fits(icls, iconf, info, crow, n, settings)
+            why = validation_fits(icls, iconf, info, crow, n, settings, profile)
             if why:
                 fix = 'Choose a validation that can prove it'
                 if kind_of(n) == 'wild':
@@ -407,7 +409,7 @@ def _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type
                                   validation=crow['name'] if crow else which))
         if all_validations:
             for crow in store.db.rows('SELECT * FROM cert_challenges ORDER BY name'):
-                each = {n: validation_fits(icls, iconf, info, crow, n, settings)
+                each = {n: validation_fits(icls, iconf, info, crow, n, settings, profile)
                         for n in names if kind_of(n) != 'bad'}
                 ccls = S.plugin_class('challenge', crow.get('kind'))
                 cconf = S.jload(crow.get('config'), {}) or {}
