@@ -274,6 +274,28 @@ defaults nothing of it runs - no question to the other node, no ping, nothing
 written. `acme --split` shows it on the command line. All of it:
 [split-brain.md](split-brain.md).
 
+Since 1.0.21 (as otp 1.0.224-1.0.227): the report waits for the other node's
+rows to come over (its state row written after it found this one again, 10 min
+at most) and counts only this time apart; with *Only the preferred node*, the
+preferred node's database refusing (PostgreSQL shutting down or starting up, or
+refusing while its machine answers on 443, 22 or 80), its maintenance, or its
+clock's step aside (while its row is fresh) let the other node go on; a node
+that steps aside is silent at once; and in every mode the question before a
+code, held off after the other database did not answer, is asked again every
+2 s and its hold lifted the moment it answers.
+
+## The clocks of the nodes (gray failures, 1.0.21)
+
+A node whose clock is off answers, and wrongly: codes of the second step that
+are right are refused, its heartbeat and its lease look dead or alive for ever
+on the other node, the pauses after wrong tries are off with it - and it keeps
+the VIP address. *Settings → Time → The clocks of the nodes* (otp's card):
+each node measures itself against the time servers (SNTP, apart from chrony)
+and the other node's database server clock, warns, and - chosen - steps aside
+while the other node is well (never both), corrects the codes, the heartbeats
+and lease, and the pauses. By default nothing of it runs. All of it:
+[clock-guard.md](clock-guard.md).
+
 ## The load balancer
 
 Two ways for the pages: the built-in **VIP address** (one address,

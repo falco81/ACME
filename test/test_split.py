@@ -73,6 +73,12 @@ def reset(**conf):
     beat('acme2')
 
 
+def peer_row(at, apart=False, name='acme2'):
+    """The other node's state row, as it comes over by replication."""
+    STORE.set_meta('split:state:' + name, json.dumps({'at': at, 'node': name, 'apart': apart,
+                                                      'role': 'serve'}))
+
+
 def apart(store=STORE, **kw):
     """Apart: the other node silent for longer than split_after_s."""
     t0 = time.time()
@@ -492,7 +498,12 @@ class Report(unittest.TestCase):
                                                                 'at': time.time()}))
         t = time.time() + 100
         E.split_step(STORE, now=t, peer=True)
-        E.split_step(STORE, now=t + 31, peer=True)       # the report 30 s after together
+        E.split_step(STORE, now=t + 31, peer=True)       # 30 s after together...
+        # ...but only once the other node's row written after it found this one has come
+        # over (otp 1.0.224): its rows of the time apart came before it.
+        self.assertIsNone(STORE.get_meta('split:report'))
+        peer_row(t + 20)
+        E.split_step(STORE, now=t + 33, peer=True)
         rep = json.loads(STORE.get_meta('split:report'))
         self.assertEqual(rep['taken'], {'acme1': 3, 'acme2': 3})
         self.assertEqual(rep['twice_n'], 1)              # a sign-in on both is no clash
@@ -540,6 +551,206 @@ class Report(unittest.TestCase):
         self.assertIn('stepped aside', al['split:acme1']['title'])
         self.assertIn('does not renew', al['split:acme1']['said'])
         self.assertIn('nevidí druhý uzel', E.alert_problems(STORE, 'cs')['split:acme1']['title'])
+
+
+class ReportAfter(unittest.TestCase):
+    """The report of the time apart (otp 1.0.224): made once the other node's rows are here,
+    at the latest 10 min later; from the first thing it could not be asked about - an earlier
+    short outage left out; each thing once."""
+    def took(self, node, k, kind, at):
+        STORE.set_meta('split:took:%s:%s' % (node, k),
+                       json.dumps({'name': k, 'kind': kind, 'at': at}))
+
+    def test_at_the_latest_ten_minutes(self):
+        reset(split_report=1)
+        t = apart()
+        self.took('acme1', 'renew:1', 'renew', t - 10)
+        E.split_step(STORE, now=t + 1, peer=True)
+        E.split_step(STORE, now=t + 40, peer=True)
+        E.split_step(STORE, now=t + 500, peer=True)
+        self.assertIsNone(STORE.get_meta('split:report'))     # the other's row not here
+        E.split_step(STORE, now=t + 602, peer=True)
+        self.assertTrue(STORE.get_meta('split:report'))       # made anyway
+
+    def test_an_old_row_of_the_other_is_not_enough(self):
+        reset(split_report=1)
+        t = apart()
+        self.took('acme1', 'renew:1', 'renew', t - 10)
+        peer_row(t - 30)                                       # from before it found this one
+        E.split_step(STORE, now=t + 1, peer=True)
+        E.split_step(STORE, now=t + 40, peer=True)
+        self.assertIsNone(STORE.get_meta('split:report'))
+        peer_row(t + 35, apart=True)                           # still apart there
+        E.split_step(STORE, now=t + 42, peer=True)
+        self.assertIsNone(STORE.get_meta('split:report'))
+        peer_row(t + 41)
+        E.split_step(STORE, now=t + 44, peer=True)
+        self.assertTrue(STORE.get_meta('split:report'))
+
+    def test_an_earlier_short_outage_left_out_each_once(self):
+        reset(split_report=1)
+        t0 = time.time()
+        # A code let in unasked in a blip an hour ago (the nodes never apart then).
+        self.took('acme1', 'step:old', 'step', t0 - 3600)
+        self.took('acme2', 'step:old', 'step', t0 - 3590)
+        t = apart()
+        self.took('acme1', 'step:new', 'step', t - 30)
+        self.took('acme2', 'step:new', 'step', t - 25)
+        self.took('acme2', 'renew:7', 'renew', t - 20)
+        E.split_step(STORE, now=t + 1, peer=True)
+        peer_row(t + 2)
+        E.split_step(STORE, now=t + 31, peer=True)
+        rep = json.loads(STORE.get_meta('split:report'))
+        self.assertEqual(rep['taken'], {'acme1': 1, 'acme2': 2})
+        self.assertEqual(rep['kinds']['acme2'], {'step': 1, 'renew': 1})
+        self.assertFalse(STORE.db.rows("SELECT k FROM meta WHERE k LIKE 'split:took:%'"))
+        self.assertGreaterEqual(rep['since'], t - 60)
+
+    def test_only_an_old_blip_no_report(self):
+        reset(split_report=1)
+        self.took('acme1', 'step:old', 'step', time.time() - 3600)
+        t = apart()
+        E.split_step(STORE, now=t + 1, peer=True)
+        peer_row(t + 2)
+        E.split_step(STORE, now=t + 31, peer=True)
+        self.assertIsNone(STORE.get_meta('split:report'))
+        self.assertFalse(STORE.db.rows("SELECT k FROM meta WHERE k LIKE 'split:took:%'"))
+
+    def test_the_pooled_connections_closed(self):
+        reset(split_report=1)
+        t = apart()
+        gen = E.ONCE_PEER['gen']
+        E.split_step(STORE, now=t + 1, peer=True)
+        self.assertEqual(E.ONCE_PEER['gen'], gen + 1)
+        self.assertEqual(E.ONCE_PEER['pool'], [])
+
+
+class HoldLifted(unittest.TestCase):
+    """In any mode, as until now too (otp 1.0.224): while the question before a code is held
+    off, the watch asks every 2 s and lifts the hold the moment the other database answers."""
+    def tearDown(self):
+        E.ONCE_PEER.update(down_until=0.0, fails=0)
+
+    def test_as_until_now_lifted(self):
+        reset()
+        E.ONCE_PEER.update(down_until=time.time() + 300, fails=3)
+        E.split_step(STORE, now=time.time(), peer='no answer')
+        self.assertGreater(E.ONCE_PEER['down_until'], time.time())     # still held
+        E.split_step(STORE, now=time.time(), peer=True)
+        self.assertEqual((E.ONCE_PEER['down_until'], E.ONCE_PEER['fails']), (0.0, 0))
+        self.assertEqual(STORE.db.value("SELECT COUNT(*) FROM meta WHERE k LIKE 'split:%'"), 0)
+
+    def test_no_hold_nothing_asked(self):
+        reset()
+        with Spy() as spy:
+            for i in range(3):
+                E.split_step(STORE, now=time.time() + i)
+        self.assertEqual(spy.peer, 0)
+
+    def test_held_asked_by_the_watch(self):
+        reset()
+        E.ONCE_PEER.update(down_until=time.time() + 300, fails=1)
+        with Spy() as spy:
+            E.split_step(STORE, now=time.time())
+        self.assertEqual(spy.peer, 1)
+
+    def test_not_a_pair_nothing_asked(self):
+        reset(ha_mode='shared')
+        E.ONCE_PEER.update(down_until=time.time() + 300, fails=1)
+        with Spy() as spy:
+            E.split_step(STORE, now=time.time())
+        self.assertEqual(spy.peer, 0)
+
+
+class PreferredUnable(unittest.TestCase):
+    """The preferred node's database down while its machine is up (otp 1.0.226/1.0.227)."""
+    def setUp(self):
+        reset(split_mode='priority', ha_slot=2)        # acme2 is the preferred node
+        self._there = E.split_machine_there
+        self.there = False
+        sys.modules['acmelib.engine'].__dict__['split_machine_there'] = \
+            lambda host, *a, **k: self.there
+
+    def tearDown(self):
+        sys.modules['acmelib.engine'].__dict__['split_machine_there'] = self._there
+        STORE.db.run("DELETE FROM meta WHERE k LIKE 'clock:state:%' OR k = 'maint:acme2'")
+        E.CLOCK.update(skew=None, skew_at=0.0, skew_of='')
+        reset()
+
+    def go(self, words):
+        E.SPLIT['there'] = None
+        t0 = time.time()
+        E.split_step(STORE, now=t0, peer=words)
+        E.split_step(STORE, now=t0 + 30, peer=words)
+        self.assertTrue(E.split_apart())
+
+    def test_postgresql_says_shutting_down(self):
+        self.go('connection to server at "192.0.2.250", port 5432 failed: FATAL:  the '
+                'database system is shutting down')
+        self.assertFalse(E.split_aside())
+        self.assertIn('refuses', E.SPLIT['why'])
+        self.go('FATAL:  the database system is starting up')
+        self.assertFalse(E.split_aside())
+
+    def test_a_bare_refusal_with_the_machine_there(self):
+        self.there = True
+        self.go('connection to server at "192.0.2.250", port 5432 failed: Connection refused')
+        self.assertFalse(E.split_aside())
+
+    def test_a_bare_refusal_alone_is_a_firewall(self):
+        self.there = False
+        self.go('connection to server at "192.0.2.250", port 5432 failed: Connection refused')
+        self.assertTrue(E.split_aside())
+
+    def test_no_answer_is_a_cut_link(self):
+        self.there = True                             # never asked for a silence
+        self.go('no answer within 3.5 s')
+        self.assertTrue(E.split_aside())
+
+    def test_in_maintenance(self):
+        STORE.set_meta('maint:acme2', json.dumps({'on': True, 'why': 'upgrade'}))
+        self.go('no answer within 3.5 s')
+        self.assertFalse(E.split_aside())
+        self.assertIn('maintenance', E.SPLIT['why'])
+
+    def test_its_clock_aside_only_while_its_row_is_fresh(self):
+        t0 = time.time()
+        STORE.set_meta('clock:state:acme2', json.dumps({'at': t0 + 20, 'role': 'aside'}))
+        E.split_step(STORE, now=t0, peer='no answer')
+        E.split_step(STORE, now=t0 + 30, peer='no answer')
+        self.assertFalse(E.split_aside())                 # 10 s old: it is aside
+        E.split_step(STORE, now=t0 + 60, peer='no answer')
+        self.assertTrue(E.split_aside())                  # 40 s old: no longer counted
+        # Its clock 300 s behind, measured here: a row "300 s old" is fresh.
+        E.CLOCK.update(skew=-300.0, skew_at=time.time(), skew_of='acme2')
+        STORE.set_meta('clock:state:acme2', json.dumps({'at': time.time() - 295,
+                                                         'role': 'aside'}))
+        self.assertTrue(E.split_preferred_unable(STORE, time.time()))
+
+    def test_the_preferred_node_itself_never(self):
+        reset(split_mode='priority')
+        self.go('FATAL:  the database system is shutting down')
+        self.assertFalse(E.split_aside())
+        self.assertEqual(E.SPLIT['unable'], '')
+
+    def test_decide(self):
+        self.assertEqual(E.split_decide('priority', True, None, False, 'x')[0], 'serve')
+        self.assertEqual(E.split_decide('priority', True, None, False, '')[0], 'aside')
+        self.assertEqual(E.split_decide('arbiter', True, False, False, 'x')[0], 'aside')
+
+
+class SilentAtOnce(unittest.TestCase):
+    def test_healthz_told_at_once(self):
+        """A node that steps aside is silent at once (otp 1.0.227): /healthz's second of
+        cache dropped, the VIP check's maintenance read again."""
+        reset(split_mode='priority', ha_slot=2)
+        E.HEALTH_SEEN['db'] = (time.time(), (1, True, False))
+        E.MAINT_CACHE['at'] = time.monotonic()
+        apart()
+        self.assertNotIn('db', E.HEALTH_SEEN)
+        self.assertEqual(E.MAINT_CACHE['at'], 0)
+        self.assertTrue(E.maintenance_now(STORE)['on'])
+        reset()
 
 
 # ---------------------------------------------------------------------------
@@ -641,7 +852,8 @@ class Card(unittest.TestCase):
         """On their pane (so on no other), never drawn as boxes (otp 1.0.219)."""
         keys = {s['key'] for s in DAEMON.settings_state(True)}
         self.assertFalse([k for k in keys if k.startswith('split_')])
-        self.assertTrue(set(E.CARD_DRAWN) <= set(E.PANES['ha']))
+        self.assertTrue(set(k for k in E.CARD_DRAWN if k.startswith('split_')) <=
+                        set(E.PANES['ha']))
         self.assertIn('split_arbiter', E.NODE_KEYS)
 
     def test_the_card_on_the_pages(self):

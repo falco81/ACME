@@ -6,6 +6,24 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.21 - 2026-11-02
 
+- **The clocks of the nodes** (Settings → Time, the card of otp): a node whose
+  clock is off refuses right codes of the second step and keeps the VIP
+  address. Chosen there: *As until now* (the default - nothing of it runs),
+  *Measure and warn* (each node asks the time servers itself over SNTP and
+  measures the other node's clock through its database; alerts), or *Step
+  aside when not well* (the node whose clock is off steps aside - no lead, no
+  DNS answers, the VIP address and /healthz go to the other node - only while
+  the other is well, never both). Switches: the codes, the heartbeats and the
+  lead's lease, the pauses after wrong tries by the corrected time; step aside
+  when the directory cannot be reached. docs/clock-guard.md.
+- **When the nodes lose each other**, as otp 1.0.224-1.0.227: the report
+  waits for the other node's rows to come over (10 min at most) and counts
+  only this time apart, each thing once; with *Only the preferred node* the
+  other node goes on when the preferred node's database refuses (PostgreSQL
+  shutting down or starting up, or refusing while its machine answers), is
+  in maintenance, or stepped aside for its clock; a node that steps aside is
+  silent at once; and the question before a code, held off after the other
+  database did not answer, is asked every 2 s again - in every mode.
 - WEDOS (WAPI) as its documentation says: the record's comment sent as
   `author_comment` (was `auth_comment`), every page of the domains (50 a page
   before - an account with more did not find its domain), only primary, active
