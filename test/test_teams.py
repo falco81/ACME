@@ -169,7 +169,7 @@ class Catalogs(unittest.TestCase):
         with self.assertRaises(ValueError):
             T.save_tag(STORE, {'name': 'two words'}, 'x')
         with self.assertRaises(ValueError):
-            T.save_tag(STORE, {'name': 'x', 'colour': 'pink'}, 'x')
+            T.save_tag(STORE, {'name': 'x', 'colour': 'chartreuse'}, 'x')
         got = call('GET', '/api/teams')
         self.assertEqual([(t['name'], t['certs'], t['targets']) for t in got['tags']],
                          [('prod', 1, 1)])
