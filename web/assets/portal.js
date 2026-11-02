@@ -131,16 +131,24 @@ function aboutMe() {
     var p = el('p', 'note small');
     if (ME.kind === 'local') {
       p.textContent = ME.sees_all ? 'As a certificate administrator you see every certificate here, not only the ones you own.'
-        : 'You see the certificates whose owner is your account here (its name, or local: and its name).';
+        : 'You see the certificates whose owner is your account here (its name, or local: and its name), and those of the teams you are a member of.';
       body.appendChild(p);
       return;
     }
     p.textContent = 'As the directory had it when you signed in. Something wrong here is wrong there too - your IT department puts it right.';
     body.appendChild(p);
-  }, [{words: 'Close', close: true}], true);
+  }, (ME.kind === 'local' ? [{words: 'Change the password', icon: 'key', go: function () { closeModal(); changePassword(); }}] : [])
+    .concat([{words: 'Close', close: true}]), true);
 }
 
-var ROLE_WORDS_P = {readonly: 'an account of acme’s own - a reader',
+function changePassword() {
+  modal('Change the password', function (body) {
+    passwordForm(body, false, closeModal).focus();
+  }, [{words: 'Close', close: true}]);
+}
+
+var ROLE_WORDS_P = {portal: 'an account of acme’s own - the enrolment pages only',
+  readonly: 'an account of acme’s own - a reader',
   certadmin: 'an account of acme’s own - a certificate administrator',
   fulladmin: 'an account of acme’s own - a full administrator'};
 
@@ -156,9 +164,51 @@ function stateCard(kind, title, words) {
   return box;
 }
 
+/* A password to change first (1.0.14): an account of acme's own - one of the
+   enrolment pages only has nowhere else to do it. In the page, not a dialog:
+   until it is changed there is nothing else to show. */
+function passwordForm(host, first, done) {
+  var g = el('div', 'formgrid');
+  var old = secretBox('', '', 'mono'), pw = secretBox('', '8 characters at least', 'mono'),
+    again = secretBox('', '', 'mono');
+  g.appendChild(formField(first ? 'The password you were given' : 'The password you have now', old));
+  g.appendChild(formField('A new password', pw));
+  g.appendChild(formField('The new password again', again));
+  host.appendChild(g);
+  var said = el('p', 'said');
+  host.appendChild(said);
+  var row = el('div', 'btnrow');
+  var go = cmdButton('Change the password', 'key', 'primary');
+  row.appendChild(go);
+  host.appendChild(row);
+  go.onclick = function () {
+    said.className = 'said';
+    said.textContent = '';
+    if (pw.value !== again.value) { said.className = 'said bad'; said.textContent = 'The two new passwords are not the same.'; return; }
+    busy(go, true);
+    api('password', {old: old.value, 'new': pw.value}).then(function () {
+      toast('The password is changed.', 'good');
+      done();
+    }).catch(function (e) {
+      said.className = 'said bad';
+      said.textContent = String(e.message || e);
+    }).then(function () { busy(go, false); });
+  };
+  return old;
+}
+
 function drawPortal() {
   var host = $('portal');
   clear(host);
+  if (ME.must_change) {
+    var pc = el('div', 'card');
+    pc.appendChild(stateCard('warn', 'Choose your own password first', 'The one you were given was for the first sign-in only.'));
+    var first = passwordForm(pc, true, function () { location.reload(); });
+    host.appendChild(pc);
+    explainWhatWasDrawn(host);
+    first.focus();
+    return;
+  }
   var card = el('div', 'card');
   card.appendChild(stateCard('ok', 'You are signed in', (ME.display || ME.name)
     + ' · the certificates this portal offers you are below.'));

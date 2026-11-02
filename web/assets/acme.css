@@ -1777,6 +1777,7 @@
   tr.dgroup.is-admin td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
   tr.dgroup.is-cert td:first-child{box-shadow:inset 3px 0 0 var(--violet)}
   tr.dgroup.is-read td:first-child{box-shadow:inset 3px 0 0 var(--info)}
+  tr.dgroup.is-portal td:first-child{box-shadow:inset 3px 0 0 var(--ok)}
   tr.dgroup .rowtools .btn.on{border-color:var(--info);color:var(--info);background:var(--info-bg)}
   .modal .box.large{width:min(1120px,100%)}
 
@@ -3361,7 +3362,9 @@ body.app-shell #pane-mailq > .card.held{flex:1 1 auto;min-height:320px;max-heigh
 .split-scen td{vertical-align:top}
 /* Columns of fixed widths (as otp 1.0.221): laid out by their words, they moved with every
    switch - the costs are longer or shorter with each choice. */
-table.split-scen{table-layout:fixed;width:100%;min-width:760px}
+/* 1060 px, not otp's 760: a node's column (13 %) holds "ustoupí stranou" (127 px) and its
+   padding - at 760 it was 99 px and the tags ran into each other. */
+table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .split-scen th:nth-child(1),.split-scen td:nth-child(1){width:25%}
 .split-scen th:nth-child(2),.split-scen td:nth-child(2),
 .split-scen th:nth-child(3),.split-scen td:nth-child(3){width:13%}

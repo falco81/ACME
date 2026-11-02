@@ -501,12 +501,15 @@ select.ct-valsel option.ct-unfit{color:var(--tx-mut)}
 .ct-sshdns{margin-top:16px}
 .ct-sshdns > .btn{margin-top:4px}
 .ct-sshdns-out{margin-top:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
-.ct-sshdns-out table{width:100%}
-.ct-sshdns-zones td{vertical-align:middle;overflow-wrap:anywhere}
+.ct-sshdns-zones{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.ct-sshdns-zone{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 16px;padding:8px 2px;border-bottom:1px solid var(--line);align-items:center}
+.ct-sshdns-zone.off{opacity:.7}
+.ct-sshdns-file{word-break:break-all;margin-top:2px}
+.ct-sshdns-how .btn{margin-top:6px}
 .ct-sshdns-problems{margin:0;padding-left:18px}
 .ct-sshdns-ask{padding:8px 10px;border:1px dashed var(--line);border-radius:8px}
 .ct-sshdns-out .ct-steps-btn{align-self:flex-start}
-@media (max-width:560px){.ct-sshdns-zones th:nth-child(3),.ct-sshdns-zones td:nth-child(3){display:none}}
+@media (max-width:560px){.ct-sshdns-zone{grid-template-columns:minmax(0,1fr)}}
 
 /* ---- a deployment's files and the script after them (deployfiles.js) -------
    The designer on the left, what it will really be on the right; one column

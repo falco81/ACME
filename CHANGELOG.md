@@ -4,6 +4,26 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.14 - 2026-11-02
+
+- **A role for the enrolment pages only** ("enrolment pages only"): an account
+  that never gets into the administration, signs in on the enrolment pages and
+  sees and asks for what its teams give it (Owners and teams). For acme's own
+  accounts (Accounts → role) and from the directory (*Group of
+  enrolment-only accounts*, picked with *Find the groups*). Settings → The
+  enrolment pages → *Accounts of the role Enrolment pages only may sign in*
+  (on). Its first password - and any later one - is changed on the enrolment
+  pages.
+- **Split brain protection** for a cluster of two, as otp's: what each node
+  does when it cannot reach the other (step aside, an arbiter, the preferred
+  node, renewals only there, half the tries, frozen changes, the report of
+  what was done apart). Default: as until now, nothing runs.
+- **Validation over SSH straight on the DNS server** (BIND, PowerDNS, Knot,
+  NSD, dnsmasq, Unbound, Windows): *Find what runs there* only reads, and
+  fills in the server, the zones, the keys - every field stays editable.
+- A certificate's details are first, with *Change*: what can be changed without
+  a new certificate is said, the wizard marks the steps that make one.
+
 ## 1.0.13 - 2026-11-01
 
 - The line on a target's form saying where files, script and roles are set is

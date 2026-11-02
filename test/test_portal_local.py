@@ -305,5 +305,69 @@ class PortalLocal(unittest.TestCase):
         self.assertNotIn(r['name'], names)
 
 
+    # ---- the role of the enrolment pages only (1.0.14) ---------------------------------------
+    def test_20_enrolment_only_account(self):
+        self.py('st.add_account("enrol", "portal", %r, must_change=1); print(1)' % PW)
+        try:
+            # never into the administration - said as the wrong door
+            st, got = self.call('POST', '/api/auth/login', {'name': 'enrol', 'password': PW})
+            self.assertEqual(st, 403, got)
+            self.assertNotIn('token', got)
+            # on the enrolment pages, even with portal_local off
+            self.settings(portal_local=0)
+            st, got = self.portal_in('enrol')
+            self.assertEqual(st, 200, got)
+            tok = got['token']
+            st, me = self.call('GET', '/api/portal/me', None, tok)
+            self.assertEqual((me['me']['role'], me['me']['must_change'], me['me']['sees_all']),
+                             ('portal', True, False))
+            # nothing until the password is changed - here
+            st, _ = self.call('GET', '/api/portal/certs', None, tok)
+            self.assertEqual(st, 403)
+            st, got = self.call('POST', '/api/portal/password', {'old': 'wrong', 'new': 'x'}, tok)
+            self.assertEqual(st, 400, got)
+            new = 'Enrol-Own-Pw-2026!'
+            st, got = self.call('POST', '/api/portal/password', {'old': PW, 'new': new}, tok)
+            self.assertEqual(st, 200, got)
+            st, me = self.call('GET', '/api/portal/me', None, tok)
+            self.assertFalse(me['me']['must_change'])
+            # what it sees: its teams' certificates only
+            names, _ = self.certs_of(tok)
+            self.assertEqual(names, {})
+            self.ok('POST', '/api/teams/save', {'name': 'Enrolers', 'members': ['local:enrol=view']})
+            self.ok('POST', '/api/certs/save', {'id': self.ids['of-nobody'], 'owner': 'Enrolers'})
+            names, _ = self.certs_of(tok)
+            self.assertIn('of-nobody', names)
+            # switched off for this role: out, even signed in
+            self.settings(portal_enrolers=0)
+            st, _ = self.call('GET', '/api/portal/certs', None, tok)
+            self.assertEqual(st, 401)
+            st, got = self.portal_in('enrol', new)
+            self.assertEqual(st, 401, got)
+        finally:
+            self.settings(portal_local=1, portal_enrolers=1)
+            self.py('st.db.run("DELETE FROM accounts WHERE name = \'enrol\'"); print(1)')
+
+    def test_21_enrolment_only_directory_group(self):
+        self.settings(admin_directory='corp', admin_group_portal='CERT_USERS',
+                      portal_who='groups', portal_groups='CERT_SUPPLIER_X')
+        try:
+            # in the group of the enrolment pages only, in none of portal_groups: let in
+            st, got = self.portal_in('falco', 'falco-password-1')
+            self.assertEqual(st, 200, got)
+            # and never into the administration, no account made for it
+            st, got = self.call('POST', '/api/auth/login',
+                                {'name': 'falco', 'password': 'falco-password-1'})
+            self.assertEqual(st, 403, got)
+            self.assertIsNone(self.py('print(json.dumps(st.account("falco")))'))
+            # switched off: the groups above only
+            self.settings(portal_enrolers=0)
+            st, got = self.portal_in('falco', 'falco-password-1')
+            self.assertEqual(st, 403, got)
+        finally:
+            self.settings(admin_directory='', admin_group_portal='', portal_who='anyone',
+                          portal_groups='', portal_enrolers=1)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

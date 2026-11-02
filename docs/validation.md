@@ -1178,7 +1178,8 @@ zone "example.com" { type primary; file "..."; update-policy { grant acme-key zo
 **BIND, a static zone** (`bind_file`): *Zone files* `example.com
 /etc/bind/db.example.com`; the account may write the file and its directory and
 run `rndc` (group `bind`), or *Through sudo* with `acme ALL=(root) NOPASSWD:
-/bin/sh -s, /usr/bin/cat, /usr/bin/test` (a shell as root - prefer the group).
+/bin/sh -s, /usr/bin/cat, /usr/bin/test, /usr/sbin/rndc` (a shell as root - prefer
+the group).
 Secondaries get the change by NOTIFY, as the serial is raised.
 
 **PowerDNS** (`pdnsutil`): `acme ALL=(root) NOPASSWD: /usr/bin/pdnsutil` (or the
@@ -1187,10 +1188,11 @@ account in the group that reads the backend). The HTTP API instead
 `webserver-address=127.0.0.1`, `webserver-port=8081`; curl on the server.
 
 **Knot DNS** (`knot`): the account in the group `knot` (it may use
-`/run/knot/knot.sock`), or `acme ALL=(root) NOPASSWD: /usr/sbin/knotc`. For a
-zone loaded from a file add `zonefile-sync: -1` / `journal-content: all` as you
-keep it - the change lives in Knot's journal and is signed when the zone is
-(`dnssec-signing: on`). An ACL is needed only for RFC 2136 (`rfc2136`), not here:
+`/run/knot/knot.sock`), or `acme ALL=(root) NOPASSWD: /usr/sbin/knotc`. A change
+made by knotc goes to Knot's journal (the `database: storage` directory must
+exist) and back into the zone file as `zonefile-sync` says; a signed zone
+(`dnssec-signing: on`) is signed again by Knot. An ACL is needed only for RFC 2136
+(`rfc2136`), not here:
 `acl: [{id: acme, key: acme-key, action: update, update-type: [TXT]}]`.
 
 **NSD** (`nsd`): `nsd-control-setup` once (or `control-interface: /run/nsd/nsd.ctl`),

@@ -17,9 +17,12 @@ WEB_GROUP = 'acme-web'
 # certificates: it may look at everything, add, import, renew, deploy and
 # export certificates (no private keys) - and nothing else: no setting, no
 # account, no authority, issuer, challenge or target.
-ROLES_ALL = ('fulladmin', 'certadmin', 'readonly')
+# `portal` (1.0.14) never gets into the administration at all: it signs in on
+# the enrolment pages only (portal_enrolers), and sees and asks for there what
+# the teams it is a member of give it (Owners and teams).
+ROLES_ALL = ('fulladmin', 'certadmin', 'readonly', 'portal')
 ROLE_WORDS = {'fulladmin': 'full admin', 'certadmin': 'cert admin',
-              'readonly': 'read only'}
+              'readonly': 'read only', 'portal': 'enrolment pages only'}
 
 DEFAULTS = {
     # --- changes that could cut this machine off go back by themselves --------
@@ -42,6 +45,7 @@ DEFAULTS = {
     'portal_tries': 5,
     'portal_wait_min': 15,
     'portal_local': 0,
+    'portal_enrolers': 1,
     'portal_admins_all': 1,
     # --- the administration pages -------------------------------------------
     'session_hours': 12,
@@ -52,6 +56,7 @@ DEFAULTS = {
     'admin_group_full': '',
     'admin_group_cert': '',
     'admin_group_readonly': '',
+    'admin_group_portal': '',
     'names_czsk_letters': 0,
     'names_any_letters': 0,
     # --- a second step for the administration (1.0.125) -------------------
@@ -326,7 +331,7 @@ TUNABLE = {
     'portal': (0, 1), 'portal_who': ('anyone', 'groups'),
     'portal_session_min': (1, 240),
     'portal_tries': (1, 100), 'portal_wait_min': (1, 1440),
-    'portal_local': (0, 1), 'portal_admins_all': (0, 1),
+    'portal_local': (0, 1), 'portal_admins_all': (0, 1), 'portal_enrolers': (0, 1),
     'session_hours': (1, 168), 'session_idle_min': (5, 1440),
     'login_tries': (1, 100), 'login_wait_min': (1, 1440),
     'admin_2fa': (0, 1), 'admin_2fa_app': (0, 1), 'admin_2fa_mail': (0, 1), 'admin_2fa_sms': (0, 1),
@@ -525,6 +530,7 @@ NAMES = {
     'portal_tries': 'Wrong passwords on the enrolment pages before a pause',
     'portal_wait_min': '...and the pause (min)',
     'portal_local': 'acme’s own accounts may sign in too',
+    'portal_enrolers': 'Accounts of the role Enrolment pages only may sign in',
     'portal_admins_all': 'Certificate and full administrators see every certificate',
     'session_hours': 'A sign-in lasts (h)',
     'session_idle_min': '...and may sit untouched (min)',
@@ -534,6 +540,7 @@ NAMES = {
     'admin_group_full': 'Group of full administrators',
     'admin_group_cert': 'Group of certificate administrators',
     'admin_group_readonly': 'Group of read-only accounts',
+    'admin_group_portal': 'Group of enrolment-only accounts',
     'admin_2fa': 'A second step when signing in to these pages',
     'admin_2fa_app': '...with an authenticator app',
     'admin_2fa_mail': '...with a code by e-mail',
@@ -865,6 +872,14 @@ SAYS = {
                     'before the directory. The same password, the same second step '
                     '(<i>A second step when signing in</i>) and the same pause after wrong '
                     'passwords as above; an account switched off cannot sign in.',
+    'portal_enrolers': 'On: the accounts with the role <i>enrolment pages only</i> sign in '
+                       'here - acme’s own (<i>Accounts</i>, whether or not acme’s own accounts '
+                       'may sign in) and the members of <i>Group of enrolment-only accounts</i> '
+                       'in the directory (<i>Accounts</i>), even when they are in none of the '
+                       'groups above. They never get into the administration; what they see '
+                       'and may ask for is given by the teams they are in (<i>Owners and '
+                       'teams</i>). An account of acme’s own with a password to change changes '
+                       'it here, at its first sign-in.',
     'portal_admins_all': 'Who sees which certificate: a person sees the certificates whose '
                          '<i>Owner</i> is them (their account, UPN, mail or the name of an '
                          'account here, also <code>local:NAME</code>) or a group they are in '
@@ -887,6 +902,11 @@ SAYS = {
                         'add, import, renew, deploy, export (no private keys) - and change no '
                         'setting.',
     'admin_group_readonly': 'Members may look at everything and change nothing.',
+    'admin_group_portal': 'Members never get into the administration: they sign in on the '
+                          'enrolment pages only (<i>The enrolment pages</i> → <i>Accounts of '
+                          'the role Enrolment pages only may sign in</i>), whoever else may sign '
+                          'in there, and see and ask for what the teams they are in give them '
+                          '(<i>Owners and teams</i>). By name or by whole DN.',
     'admin_2fa': 'After the password, every account - local or from the directory - gives a '
                  'code too. The first time, the account chooses how '
                  'and sets it up (an authenticator app, or a code sent to an address or a phone '
@@ -1195,7 +1215,7 @@ PANES = {
     'portal': ['portal', 'portal_title', 'portal_directory', 'portal_hint', 'portal_who',
                'portal_groups',
                'portal_session_min', 'portal_tries', 'portal_wait_min',
-               'portal_local', 'portal_admins_all',
+               'portal_enrolers', 'portal_local', 'portal_admins_all',
                'portal_help'],
     'isemon': ['isemon', 'isemon_targets', 'isemon_hostname',
                'isemon_events', 'isemon_max_bytes', 'isemon_verify', 'isemon_mtls',
@@ -1203,7 +1223,7 @@ PANES = {
     'people': ['session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
                'admin_2fa', 'admin_2fa_app', 'admin_2fa_mail', 'admin_2fa_sms',
                'admin_directory', 'admin_group_full', 'admin_group_cert',
-               'admin_group_readonly', 'totp_window', 'names_czsk_letters',
+               'admin_group_readonly', 'admin_group_portal', 'totp_window', 'names_czsk_letters',
                'names_any_letters'],
     'db': ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
            'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'backup_daily', 'backup_keep',
@@ -1266,6 +1286,7 @@ ONLY_WHEN = {
     'portal_help': ['portal', '1'], 'portal_tries': ['portal', '1'],
     'portal_wait_min': ['portal', '1'],
     'portal_local': ['portal', '1'], 'portal_admins_all': ['portal_local', '1'],
+    'portal_enrolers': ['portal', '1'],
     'isemon_targets': ['isemon', '1'], 'isemon_hostname': ['isemon', '1'],
     'isemon_events': ['isemon', '1'],
     'isemon_max_bytes': ['isemon', '1'], 'isemon_ca': ['isemon', '1'],
@@ -1278,6 +1299,7 @@ ONLY_WHEN = {
     'isemon_verify': ['isemon', '1'], 'isemon_mtls': ['isemon', '1'],
     'admin_group_full': ['admin_directory', '*'], 'admin_group_cert': ['admin_directory', '*'],
     'admin_group_readonly': ['admin_directory', '*'],
+    'admin_group_portal': ['admin_directory', '*'],
     'admin_2fa_app': ['admin_2fa', '1'], 'admin_2fa_mail': ['admin_2fa', '1'],
     'admin_2fa_sms': ['admin_2fa', '1'],
     'db_host': ['db_engine', 'sqlite-not'], 'db_port': ['db_engine', 'sqlite-not'],
@@ -1401,7 +1423,8 @@ def _coerce(current, value):
 
 # Settings of several lines (1.0.103): the rest are one line each.
 SETTING_TALL = ('portal_help', 'portal_groups', 'sms_body', 'sms_headers', 'isemon_targets', 'isemon_ca', 'siem_ca', 'acme_ca_pem',
-                'admin_group_full', 'admin_group_cert', 'admin_group_readonly', 'mail_ca')
+                'admin_group_full', 'admin_group_cert', 'admin_group_readonly', 'admin_group_portal',
+                'mail_ca')
 
 
 def check_setting(key, value):

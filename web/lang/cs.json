@@ -40419,6 +40419,126 @@
   "so10103": {
    "source": "Change",
    "text": "Změnit"
+  },
+  "ssd0091": {
+   "source": "Filled in",
+   "text": "Vyplněno"
+  },
+  "ssd0092": {
+   "source": "Save the validation to keep it.",
+   "text": "Uložte validaci, aby to zůstalo."
+  },
+  "ssd0093": {
+   "source": "nsupdate -l (update-policy local)",
+   "text": "nsupdate -l (update-policy local)"
+  },
+  "ssd0094": {
+   "source": "the zone file edited, then rndc reload",
+   "text": "úprava souboru zóny, pak rndc reload"
+  },
+  "ssd0095": {
+   "source": "the zone file edited, then rndc freeze/thaw (it is dynamic)",
+   "text": "úprava souboru zóny, pak rndc freeze/thaw (je dynamická)"
+  },
+  "ssd0096": {
+   "source": "a secondary zone: written on its primary",
+   "text": "sekundární zóna: zapisuje se na jejím primárním serveru"
+  },
+  "ssd0097": {
+   "source": "no file and no updates: acme cannot write it",
+   "text": "žádný soubor ani dynamické změny: acme ji zapsat neumí"
+  },
+  "ssd0098": {
+   "source": "pdnsutil add-record / replace-rrset",
+   "text": "pdnsutil add-record / replace-rrset"
+  },
+  "ssd0099": {
+   "source": "knotc zone-begin / zone-set / zone-commit",
+   "text": "knotc zone-begin / zone-set / zone-commit"
+  },
+  "ssd0100": {
+   "source": "the zone file edited, then nsd-control reload",
+   "text": "úprava souboru zóny, pak nsd-control reload"
+  },
+  "ssd0101": {
+   "source": "the zone file edited, then nsd-control reload (the file is not there yet)",
+   "text": "úprava souboru zóny, pak nsd-control reload (soubor tam zatím není)"
+  },
+  "ssd0102": {
+   "source": "no zone file known",
+   "text": "soubor zóny není známý"
+  },
+  "ssd0103": {
+   "source": "unbound-control local_data (in memory)",
+   "text": "unbound-control local_data (v paměti)"
+  },
+  "ssd0104": {
+   "source": "PowerShell Add-DnsServerResourceRecord",
+   "text": "PowerShell Add-DnsServerResourceRecord"
+  },
+  "ssd0105": {
+   "source": "its key file was not found",
+   "text": "jeho soubor s klíčem se nenašel"
+  },
+  "srole01": {
+   "source": "enrolment pages only",
+   "text": "jen enrolment stránky"
+  },
+  "srole02": {
+   "source": "Enrolment pages only",
+   "text": "Jen enrolment stránky"
+  },
+  "srole03": {
+   "source": "Accounts of the role Enrolment pages only may sign in",
+   "text": "Přihlásit se mohou účty s rolí Jen enrolment stránky"
+  },
+  "srole04": {
+   "source": "Group of enrolment-only accounts",
+   "text": "Skupina účtů jen pro enrolment stránky"
+  },
+  "srole05": {
+   "source": "this account signs in on the enrolment pages only, not here",
+   "text": "tento účet se přihlašuje jen na enrolment stránky, ne sem"
+  },
+  "srole06": {
+   "source": "Enrolment pages only: never gets into the administration - signs in on the enrolment pages and sees and asks for what the teams it is in give it (Owners and teams).",
+   "text": "Jen enrolment stránky: do administrace se nikdy nedostane – přihlašuje se na enrolment stránky a vidí a žádá to, co mu dávají týmy, jejichž je členem (Vlastníci a týmy)."
+  },
+  "srole07": {
+   "source": "The password you were given",
+   "text": "Heslo, které jste dostali"
+  },
+  "srole08": {
+   "source": "The password you have now",
+   "text": "Současné heslo"
+  },
+  "srole09": {
+   "source": "The new password again",
+   "text": "Nové heslo znovu"
+  },
+  "srole10": {
+   "source": "The two new passwords are not the same.",
+   "text": "Obě nová hesla nejsou stejná."
+  },
+  "srole11": {
+   "source": "The password is changed.",
+   "text": "Heslo je změněno."
+  },
+  "srole12": {
+   "source": "The one you were given was for the first sign-in only.",
+   "text": "Heslo, které jste dostali, platilo jen pro první přihlášení."
+  },
+  "srole13": {
+   "source": "an account of acme’s own - the enrolment pages only",
+   "text": "vlastní účet acme – jen enrolment stránky"
+  },
+  "srole14": {
+   "source": "You see the certificates whose owner is your account here (its name, or local: and its name), and those of the teams you are a member of.",
+   "text": "Vidíte certifikáty, jejichž vlastníkem je váš účet zde (jeho jméno, nebo local: a jeho jméno), a certifikáty týmů, jejichž jste členem."
+  },
+  "ssd0106": {
+   "source": "dynamic",
+   "text": "dynamická"
   }
  },
  "patterns": {
@@ -56129,6 +56249,42 @@
   "pssd0037": {
    "source": "the SOA serial {0} cannot be raised that way ({1}): set the serial by hand or choose another way of raising it",
    "text": "sériové číslo SOA {0} tak zvýšit nejde ({1}): nastavte ho ručně, nebo zvolte jiný způsob zvyšování"
+  },
+  "pssd0038": {
+   "source": "nsupdate -k with the key {0} ({1})",
+   "text": "nsupdate -k s klíčem {0} ({1})"
+  },
+  "pssd0039": {
+   "source": "nsupdate -k with the key {0} - its key file was not found",
+   "text": "nsupdate -k s klíčem {0} – jeho soubor s klíčem se nenašel"
+  },
+  "pssd0040": {
+   "source": "a {0} zone: written on its primary {1}",
+   "text": "zóna typu {0}: zapisuje se na jejím primárním serveru {1}"
+  },
+  "pssd0041": {
+   "source": "a secondary zone: written on its primary {0}",
+   "text": "sekundární zóna: zapisuje se na jejím primárním serveru {0}"
+  },
+  "pssd0042": {
+   "source": "a {0} zone: written where it is primary",
+   "text": "zóna typu {0}: zapisuje se tam, kde je primární"
+  },
+  "pssd0043": {
+   "source": "txt-record in {0}, then a restart",
+   "text": "txt-record v {0}, pak restart"
+  },
+  "prole01": {
+   "source": "{0} (enrolment pages only) tried to sign in to the administration from {1}",
+   "text": "{0} (jen enrolment stránky) se pokusil přihlásit do administrace z {1}"
+  },
+  "prole02": {
+   "source": "the directory knows {0}, a member of the group of enrolment-only accounts - refused here (from {1})",
+   "text": "adresář zná {0}, člena skupiny účtů jen pro enrolment stránky – zde odmítnut (z {1})"
+  },
+  "prole03": {
+   "source": "{0} changed their own password (on the enrolment pages)",
+   "text": "{0} si změnil heslo (na enrolment stránkách)"
   }
  },
  "rich": {
@@ -56955,6 +57111,14 @@
   "rx0001": {
    "source": "With <i>members of the groups named below</i>: the groups, by name (<code>CERT_USERS</code>) or by whole DN, separated by semicolons or new lines.",
    "text": "S volbou <i>členové níže uvedených skupin</i>: skupiny jménem (<code>CERT_USERS</code>) nebo celým DN, oddělené středníky nebo novými řádky."
+  },
+  "rrole01": {
+   "source": "Members never get into the administration: they sign in on the enrolment pages only (<i>The enrolment pages</i> → <i>Accounts of the role Enrolment pages only may sign in</i>), whoever else may sign in there, and see and ask for what the teams they are in give them (<i>Owners and teams</i>). By name or by whole DN.",
+   "text": "Členové se nikdy nedostanou do administrace: přihlašují se jen na enrolment stránky (<i>Enrolment stránky</i> → <i>Přihlásit se mohou účty s rolí Jen enrolment stránky</i>), bez ohledu na to, kdo další se tam smí přihlásit, a vidí a žádají to, co jim dávají týmy, jejichž jsou členy (<i>Vlastníci a týmy</i>). Jménem nebo celým DN."
+  },
+  "rrole02": {
+   "source": "On: the accounts with the role <i>enrolment pages only</i> sign in here - acme’s own (<i>Accounts</i>, whether or not acme’s own accounts may sign in) and the members of <i>Group of enrolment-only accounts</i> in the directory (<i>Accounts</i>), even when they are in none of the groups above. They never get into the administration; what they see and may ask for is given by the teams they are in (<i>Owners and teams</i>). An account of acme’s own with a password to change changes it here, at its first sign-in.",
+   "text": "Zapnuto: přihlásit se zde mohou účty s rolí <i>jen enrolment stránky</i> – vlastní účty acme (<i>Účty</i>, ať už se vlastní účty acme přihlásit smějí, nebo ne) i členové <i>Skupiny účtů jen pro enrolment stránky</i> v adresáři (<i>Účty</i>), i když nejsou v žádné ze skupin výše. Do administrace se nikdy nedostanou; co vidí a o co smějí žádat, určují týmy, jejichž jsou členy (<i>Vlastníci a týmy</i>). Vlastní účet acme, který si má změnit heslo, si ho změní zde při prvním přihlášení."
   }
  }
 }

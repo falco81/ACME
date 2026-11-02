@@ -1713,6 +1713,19 @@ function sshDnsHere(form, row, p, nameNow) {
     if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) return true;
     return f['default'] !== undefined && same(v, f['default']);
   };
+  /* "Filled in: Zone, Zones there. Save ..." - each label a text of its own (translated) */
+  var labelsLine = function (cls, head, keys) {
+    var line = el('p', cls);
+    line.appendChild(el('span', '', head));
+    line.appendChild(document.createTextNode(': '));
+    keys.forEach(function (k, i) {
+      if (i) line.appendChild(document.createTextNode(', '));
+      line.appendChild(el('b', '', (fieldsOf[k] || {}).label || k));
+    });
+    line.appendChild(document.createTextNode('. '));
+    line.appendChild(el('span', '', 'Save the validation to keep it.'));
+    return line;
+  };
   var shown = function (v) { return Array.isArray(v) ? v.join(', ') : (typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v)); };
   var fill = function (fields, host) {
     var now = [], ask = [];
@@ -1725,7 +1738,7 @@ function sshDnsHere(form, row, p, nameNow) {
       if (empty(k, cur)) now.push(k); else ask.push(k);
     });
     now.forEach(function (k) { form.set(k, fields[k]); });
-    if (now.length) host.appendChild(el('p', 'good', 'Filled in: ' + now.map(function (k) { return fieldsOf[k].label || k; }).join(', ') + ' - save the validation to keep it.'));
+    if (now.length) host.appendChild(labelsLine('good', 'Filled in', now));
     if (!ask.length) { if (!now.length) host.appendChild(el('p', 'muted small', 'The form already says what was found.')); return; }
     var pane = el('div', 'ct-sshdns-ask');
     pane.appendChild(el('p', 'warn', 'These are set otherwise than what was found - replace them?'));
@@ -1756,7 +1769,7 @@ function sshDnsHere(form, row, p, nameNow) {
       var did = ask.filter(function (k) { return picks[k].checked; });
       did.forEach(function (k) { form.set(k, fields[k]); });
       clear(pane);
-      pane.appendChild(el('p', 'good', did.length ? 'Replaced: ' + did.map(function (k) { return fieldsOf[k].label || k; }).join(', ') + ' - save the validation to keep it.' : 'Nothing replaced.'));
+      pane.appendChild(did.length ? labelsLine('good', 'Replaced', did) : el('p', 'muted small', 'Nothing replaced.'));
     };
     no.onclick = function () { clear(pane); pane.appendChild(el('p', 'muted small', 'Kept as it was.')); };
     bar.appendChild(yes);
@@ -1770,7 +1783,7 @@ function sshDnsHere(form, row, p, nameNow) {
     if (!f.ok) {
       var bad = el('div', 'ct-errbox');
       bad.appendChild(el('b', '', 'It could not be found out'));
-      arr(f.problems).forEach(function (w) { bad.appendChild(data('p', 'said', w)); });
+      arr(f.problems).forEach(function (w) { bad.appendChild(el('p', 'said', w)); });
       bad.appendChild(el('p', 'muted small', 'Every field below can still be set by hand.'));
       out.appendChild(bad);
     } else {
@@ -1782,24 +1795,23 @@ function sshDnsHere(form, row, p, nameNow) {
       ]));
       var zones = arr(f.zones);
       if (zones.length) {
-        var t = el('table', 'plain tight ct-sshdns-zones');
-        var hr = el('tr');
-        ['Zone', 'File', 'Dynamic', 'How acme writes it', ''].forEach(function (w) { hr.appendChild(el('th', '', w)); });
-        t.appendChild(hr);
+        var t = el('div', 'ct-sshdns-zones');
         zones.forEach(function (z) {
-          var tr = el('tr');
-          tr.appendChild(td('', data('b', 'mono', z.name)));
-          tr.appendChild(td('', z.file ? data('span', 'mono small', z.file) : el('span', 'muted', '–')));
-          tr.appendChild(td('', el('span', '', z.dynamic || z.journal ? 'yes' : 'no')));
-          tr.appendChild(td('', z.flavour ? data('span', '', z.how_writable || z.flavour) : data('span', 'muted', z.how_writable || 'not by acme')));
-          var c = el('td');
-          if (z.flavour) {
+          var row = el('div', 'ct-sshdns-zone' + (z.flavour ? '' : ' off'));
+          var left = el('div', 'ct-sshdns-zname');
+          left.appendChild(data('b', 'mono', z.name));
+          if (z.dynamic || z.journal) { left.appendChild(document.createTextNode(' ')); left.appendChild(el('span', 'tag dim', 'dynamic')); }
+          if (z.file) left.appendChild(data('div', 'mono small muted ct-sshdns-file', z.file));
+          row.appendChild(left);
+          var right = el('div', 'ct-sshdns-how');
+          right.appendChild(el('div', z.flavour ? '' : 'muted', z.how_writable || z.flavour || 'not by acme'));
+          if (z.flavour && z.flavour === f.flavour_suggested) {
             var use = cmdButton('Use only this one', 'check', 'small');
             use.onclick = function () { form.set('zone', z.name); toast('Zone: ' + z.name, 'good'); };
-            c.appendChild(use);
+            right.appendChild(use);
           }
-          tr.appendChild(c);
-          t.appendChild(tr);
+          row.appendChild(right);
+          t.appendChild(row);
         });
         out.appendChild(t);
         out.appendChild(el('p', 'muted small', 'With Zone left empty each name goes in the longest of "Zones there" it is in.'));
@@ -1813,7 +1825,7 @@ function sshDnsHere(form, row, p, nameNow) {
       }
       if (arr(f.problems).length) {
         var pb = el('ul', 'ct-sshdns-problems');
-        arr(f.problems).forEach(function (w) { pb.appendChild(data('li', 'warn small', w)); });
+        arr(f.problems).forEach(function (w) { pb.appendChild(el('li', 'warn small', w)); });
         out.appendChild(pb);
       }
       fill(f.fields || {}, out);

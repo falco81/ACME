@@ -578,6 +578,12 @@ class Card(unittest.TestCase):
                       "pendingSet('split'", 'loadSplit(d);', "k: 'split_renew'"):
             self.assertIn(piece, js)
         self.assertNotIn('split_scratch', js)
+        # Drawn again where it is (otp 1.0.220); its table of fixed widths, not steadied
+        # by the lists' columns, and the switches two by two (otp 1.0.221).
+        self.assertIn('var r_ = drawSplitIn();', js)
+        self.assertIn("'plain split-scen', {free: true}", js)
+        self.assertIn('.split-opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))', css)
+        self.assertIn('table.split-scen{table-layout:fixed;width:100%;min-width:1060px}', css)
         for piece in ('.split-now{', '.split-choice.on{', '.split-opt{', '.split-report.bad{'):
             self.assertIn(piece, css)
         cs = json.load(open(os.path.join(ROOT, 'web', 'lang', 'cs.json'), encoding='utf-8'))

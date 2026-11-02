@@ -257,6 +257,23 @@ makes first.
    into its config.json. From then on, sign in with the cluster's accounts.
 4. **On both nodes**: `acme --trusted-proxy 192.0.2.10/32`.
 
+## When the nodes lose each other (split brain, 1.0.14)
+
+Two replicating nodes that cannot reach each other each take the other for gone:
+both lead (a certificate renewed twice, an own authority signing on both halves),
+the wrong passwords are counted on each half apart, and what is changed on each
+half goes its own way. The card *When the nodes lose each other* on this pane
+(the same card as otp's) chooses who goes on while they are apart - both (as
+before, the default), the node that still reaches its arbiter (its default
+gateway, or addresses given - tried from every node before it is saved), or the
+preferred node alone - and what holds meanwhile: renewals only on the preferred
+node, half the tries, changes only on the preferred node, an alert and a report.
+A node that steps aside does not lead, its DNS server goes quiet, the VIP address
+and the load balancer's /healthz go to the other node; its pages stay. With the
+defaults nothing of it runs - no question to the other node, no ping, nothing
+written. `acme --split` shows it on the command line. All of it:
+[split-brain.md](split-brain.md).
+
 ## The load balancer
 
 Two ways for the pages: the built-in **VIP address** (one address,
@@ -331,6 +348,10 @@ leaving the cluster): [operations.md](operations.md).
   deployed twice - a CA's rate limits count both. Without a third machine a
   cut cannot be told from a dead node; the VIP address (keepalived) has the
   same limit. A paused or broken replication alone does not do this.
+  What the nodes do then - which one goes on, renewals only on one of them, the
+  tries, changes, a report - is chosen on *Settings → High availability → When
+  the nodes lose each other* (1.0.14): see [split-brain.md](split-brain.md). By
+  default nothing of it runs, as before.
 - **Replicated: a renewal by hand on the node that does not lead**, while
   the leader renews the same certificate, makes the same version on both;
   the same one of the two is kept on both, the other node's certificate

@@ -20,6 +20,7 @@ Settings → The portal (`sect-portal`, `PANES['portal']`):
 | `portal_title`, `portal_hint`, `portal_help` | | the words on the pages |
 | `portal_local` | 0 | acme's own accounts (Settings → Accounts) may sign in too |
 | `portal_admins_all` | 1 | (with `portal_local`) their certificate and full administrators see every certificate |
+| `portal_enrolers` | 1 | accounts of the role *enrolment pages only* sign in (acme's own, and the directory's group `admin_group_portal`) |
 
 The sign-in is the engine's (`acmelib/engine/390_the_portal_sign_in.py`):
 a session of kind `portal`, the same on both nodes of a cluster. Its data
@@ -35,8 +36,9 @@ written there - not `DOMAIN\name` or a UPN), then the directory:
   directory (somebody there may have the same name), and every wrong
   password counts towards `portal_tries` / `portal_wait_min`;
 * an account **switched off** cannot sign in (said as a wrong password, and
-  counted as one); one that must change its password is told to do that in
-  the administration first;
+  counted as one); one that must change its password changes it here, on the
+  page after the password, before anything else (`POST /api/portal/password`,
+  relayed as `?api=password`; also *Change the password* under the name);
 * **the second step** exactly as the administration's (`admin_2fa`): the code
   from the authenticator app, or a code sent by mail or SMS - the account's
   own way, the same one it uses at `/admin/`. With none set up yet the
@@ -51,6 +53,26 @@ written there - not `DOMAIN\name` or a UPN), then the directory:
 
 Without any directory set up and `portal_local` on, the pages let in acme's
 own accounts only.
+
+### The role *enrolment pages only* (`portal`, `portal_enrolers`)
+
+A role of its own for people who should use these pages and nothing else:
+
+* **acme's own account** (Settings → Accounts → role *enrolment pages only*,
+  or `acme --add-user NAME --role portal`): signs in here whether
+  `portal_local` is on or not (`portal_enrolers` decides); its first password
+  it changes here;
+* **from the directory**: the members of *Group of enrolment-only accounts*
+  (`admin_group_portal`, Settings → Accounts, next to the other role groups,
+  picked with *Find the groups*) are let in here even with `portal_who` =
+  groups and in none of `portal_groups`; no account is made for them;
+* **never into the administration**: `/admin/` says "this account signs in on
+  the enrolment pages only" (counted as a wrong password); an administrator's
+  sign-in given this role (or put into that group) ends at its next request;
+* **what they see and may ask for** comes from the teams they are members of
+  (Settings → Owners and teams: `local:NAME`, the person, or a group, with the
+  rights *see*, *ask for new*, ...) and from certificates owned by them -
+  never every certificate, `portal_admins_all` does not apply to them.
 
 ## Who sees which certificate
 

@@ -51,10 +51,11 @@ window.ACME_EXTRA_TABS = window.ACME_EXTRA_TABS || [];
 window.ACME_EXTRA_PANES = window.ACME_EXTRA_PANES || {};
 
 function roleWords(role) {
-  return role === 'fulladmin' ? 'full admin' : (role === 'certadmin' ? 'cert admin' : 'read only');
+  return role === 'fulladmin' ? 'full admin' : (role === 'certadmin' ? 'cert admin'
+    : (role === 'portal' ? 'enrolment pages only' : 'read only'));
 }
 function roleTone(role) {
-  return role === 'fulladmin' ? 'violet' : (role === 'certadmin' ? 'warn' : 'dim');
+  return role === 'fulladmin' ? 'violet' : (role === 'certadmin' ? 'warn' : (role === 'portal' ? 'ok' : 'dim'));
 }
 
 /* ---- what this account may not even see ---------------------------------- */
@@ -1231,7 +1232,7 @@ function isBool(s) {
   return typeof s.default === 'boolean' || (s.min === 0 && s.max === 1 && typeof s.default === 'number');
 }
 var TALL = {portal_help: 1, portal_groups: 1, sms_body: 1, sms_headers: 1, isemon_targets: 1, admin_group_full: 1,
-            admin_group_cert: 1, admin_group_token: 1, admin_group_readonly: 1};
+            admin_group_cert: 1, admin_group_token: 1, admin_group_readonly: 1, admin_group_portal: 1};
 
 /* A pane drawn in sections (1.0.88): what belongs together side by side,
    and what only one choice uses in a panel of its own that is there only
@@ -2719,11 +2720,11 @@ $('us-add').onclick = function () {
   modal('A new account', function (body) {
     var g = el('div', 'formgrid');
     var name = textBox('', '', 'mono');
-    var role = selectBox([['readonly', 'read only'], ['certadmin', 'cert admin'], ['fulladmin', 'full admin']], 'certadmin');
+    var role = selectBox([['portal', 'enrolment pages only'], ['readonly', 'read only'], ['certadmin', 'cert admin'], ['fulladmin', 'full admin']], 'certadmin');
     var pw = secretBox('', '8 characters at least', 'mono');
     var note = textBox('', '', '');
     g.appendChild(formField('Name', name));
-    g.appendChild(formField('Role', role));
+    g.appendChild(formField('Role', role, 'Enrolment pages only: never gets into the administration - signs in on the enrolment pages and sees and asks for what the teams it is in give it (Owners and teams).'));
     g.appendChild(formField('A first password', pw, 'They choose their own at the first sign-in.'));
     g.appendChild(formField('Note', note));
     body.appendChild(g);
@@ -5019,7 +5020,8 @@ if ($('mail-test')) {
 /* ---- the administrators' groups, found rather than typed (as isemon) ---- */
 var AG_ROLES = [['admin_group_full', 'Full admin', 'shield', 'is-admin'],
                 ['admin_group_cert', 'Cert admin', 'key', 'is-cert'],
-                ['admin_group_readonly', 'Read only', 'eye', 'is-read']];
+                ['admin_group_readonly', 'Read only', 'eye', 'is-read'],
+                ['admin_group_portal', 'Enrolment pages only', 'person', 'is-portal']];
 var AG = {groups: [], q: '', page: 0, per: 25, capped: false};
 
 /** The directory chosen in the editor right now - saved or not. */
@@ -5962,8 +5964,10 @@ function drawSplitIn() {
     [r.out, r.risk].forEach(function (x) {
       var td = el('td');
       var box = el('span', 'split-out ' + x.k);
-      [].concat(x.w).forEach(function (w, i) {
-        if (i) box.appendChild(el('span', 'split-sep', '; '));
+      var ws = [].concat(x.w);
+      ws.forEach(function (w, i) {
+        /* No "; " after a lead-in that ends in a colon ("whatever still reaches X:"). */
+        if (i) box.appendChild(el('span', 'split-sep', /:$/.test(ws[i - 1]) ? ' ' : '; '));
         box.appendChild(el('span', '', w));
       });
       td.appendChild(box);

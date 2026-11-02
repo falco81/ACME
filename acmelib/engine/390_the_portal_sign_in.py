@@ -38,6 +38,8 @@ def portal_me(h):
     if not portal_local_ok(h, s):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(401, 'that account may no longer sign in here')
+    if portal_must_change(s):
+        raise ApiError(403, 'change the password first')
     return s
 
 
@@ -55,14 +57,30 @@ def portal_local_ok(h, s):
     data = s.get('data') if isinstance(s.get('data'), dict) else {}
     if data.get('kind') != 'local':
         return True
-    if not CONFIG.get('portal_local'):
-        return False
     acc = h.store.account(s['name'])
     if not acc or acc.get('disabled') or acc.get('source') == 'directory':
+        return False
+    if not portal_local_may(acc):
         return False
     data['role'] = acc.get('role') or 'readonly'
     s['data'] = data
     return True
+
+
+def portal_local_may(acc):
+    """Whether an account of acme's own may sign in on these pages: one of
+    the role of the enrolment pages only with portal_enrolers (1.0.14), any
+    other with portal_local."""
+    if (acc.get('role') or '') == 'portal':
+        return bool(CONFIG.get('portal_enrolers', 1))
+    return bool(CONFIG.get('portal_local'))
+
+
+def portal_must_change(s):
+    """An account of acme's own whose password is to be changed first
+    (1.0.14): until it is, the sign-in can do nothing else."""
+    data = s.get('data') or {}
+    return bool(data.get('kind') == 'local' and data.get('must_change'))
 
 
 def portal_sees_all(s):
@@ -338,12 +356,15 @@ def _portal_login(h):
         h.failed(key)
         raise ApiError(400, 'that name has letters this server does not take (accents or '
                             'another language) - ask the administrator')
-    local = bool(CONFIG.get('portal_local'))
+    local = bool(CONFIG.get('portal_local')) or bool(
+        CONFIG.get('portal_enrolers', 1) and h.store.db.row(
+            "SELECT 1 FROM accounts WHERE role = 'portal' AND source <> 'directory'"))
     if local and name and password:
-        # acme's own accounts first (portal_local): the name as it is written
-        # in Accounts, its password as the administration checks it.
+        # acme's own accounts first (portal_local; those of the enrolment pages
+        # only with portal_enrolers): the name as it is written in Accounts,
+        # its password as the administration checks it.
         acc = h.store.account(name)
-        if acc and acc.get('source') != 'directory':
+        if acc and acc.get('source') != 'directory' and portal_local_may(acc):
             if acc.get('pw') and password_ok(password, acc['pw']):
                 return portal_local_login(h, key, name, acc)
             h.store.add_event('sign-ins', 'a wrong password for %s (an account here) on the '
@@ -384,6 +405,10 @@ def _portal_login(h):
     let_in = []
     if (CONFIG.get('portal_who') or 'anyone') == 'groups':
         wanted = [{'group': g} for g in dn_list(CONFIG.get('portal_groups'))]
+        if CONFIG.get('portal_enrolers', 1):
+            # The directory's group of the enrolment pages only (1.0.14) lets
+            # its members in too, whatever the groups above say.
+            wanted += [{'group': g} for g in dn_list(CONFIG.get('admin_group_portal'))]
         have = ad.groups_of(entry, True)
         for w in wanted:
             try:
@@ -433,8 +458,6 @@ def portal_local_login(h, key, name, acc):
         h.store.add_event('sign-ins', '%s, switched off, tried to sign in to the enrolment '
                           'pages from %s' % (acc['name'], h.client_ip()), 'warn')
         raise ApiError(401, 'the name or the password is not right')
-    if acc.get('must_change'):
-        raise ApiError(403, 'change the password first - in the administration (/admin/)')
     who = acc['name']
     stage = mfa_stage(h.store, who) if CONFIG.get('admin_2fa') else ''
     rec = mfa_get(h.store, who) or {}
@@ -445,6 +468,10 @@ def portal_local_login(h, key, name, acc):
             'about': {'local': True, 'role': acc.get('role') or 'readonly'}}
     if stage:
         data['mfa'] = stage
+    if acc.get('must_change'):
+        # Changed here (1.0.14): an account of the enrolment pages only has
+        # no other place to change it. Until it is, nothing else.
+        data['must_change'] = 1
     token = h.store.session_new('portal', who, 'portal', h.client_ip(),
                                 max(1, int(CONFIG.get('portal_session_min') or 15)) / 60.0 * 4,
                                 data)
@@ -463,6 +490,41 @@ def _portal_logout(h):
     return {}
 
 
+@route('POST', '/api/portal/password')
+def _portal_password(h):
+    """An account of acme's own changes its password on these pages (1.0.14):
+    the one it has now, and the new one - as in the administration."""
+    s = h.session('portal')
+    if not s or not CONFIG.get('portal'):
+        raise ApiError(401, 'not signed in, or the sign-in has run out')
+    if portal_mfa_pending(s):
+        raise ApiError(401, 'the second step of signing in is not done yet')
+    if not portal_local_ok(h, s):
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        raise ApiError(401, 'that account may no longer sign in here')
+    if (s.get('data') or {}).get('kind') != 'local':
+        raise ApiError(400, 'this account signs in with its directory password, which is '
+                            'changed in the directory')
+    acc = h.store.account(s['name'])
+    b = h.body()
+    key = h.throttle('password', split_limit('login_tries', 5), 5, name=acc['name'])
+    if not password_ok(str(b.get('old') or ''), acc.get('pw')):
+        h.failed(key)
+        raise ApiError(400, 'the password you have now is not right')
+    try:
+        h.store.set_account(acc['name'], password=str(b.get('new') or ''), must_change=0)
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    # Every other sign-in with the old password ends, here and in the administration.
+    mine = hashlib.sha256(str(h.headers.get('X-Acme-Session') or '').encode()).hexdigest()
+    h.store.db.run('DELETE FROM sessions WHERE kind IN (?, ?) AND LOWER(name) = ? AND '
+                   'token_hash <> ?', ('admin', 'portal', acc['name'].lower(), mine))
+    portal_data_set(h, s, must_change=None)
+    h.store.add_event('accounts', '%s changed their own password (on the enrolment pages)'
+                      % acc['name'], who=acc['name'])
+    return {}
+
+
 def portal_state(h, s):
     """What GET /api/portal/me says of the person signed in - and what each
     of PORTAL_ME adds (a module's own part of the page)."""
@@ -472,7 +534,7 @@ def portal_state(h, s):
                  mobile=data.get('mobile') or '')
     out = {'name': s['name'], 'display': data.get('display') or '', 'about': about,
            'kind': data.get('kind') or 'directory', 'role': data.get('role') or '',
-           'sees_all': portal_sees_all(s),
+           'sees_all': portal_sees_all(s), 'must_change': portal_must_change(s),
            'title': CONFIG.get('portal_title') or '', 'help': CONFIG.get('portal_help') or ''}
     for fn in PORTAL_ME:
         try:

@@ -193,7 +193,8 @@ class Daemon(object):
         # signed in from it is signed out, so their role is decided again by
         # the groups as they are now - not kept until their session ends.
         if any(k in checked for k in ('admin_directory', 'admin_group_full',
-                                      'admin_group_cert', 'admin_group_readonly')):
+                                      'admin_group_cert', 'admin_group_readonly',
+                                      'admin_group_portal')):
             try:
                 self.store.db.run(
                     "DELETE FROM sessions WHERE kind = 'admin' AND LOWER(name) IN "

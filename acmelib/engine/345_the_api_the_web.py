@@ -10,7 +10,7 @@ from __future__ import annotations
 # person signed in to the enrolment pages (`portal`), which reaches only what
 # a route of those pages gives it.
 
-ROLE_RANK = {'readonly': 1, 'certadmin': 2, 'fulladmin': 3}
+ROLE_RANK = {'portal': 0, 'readonly': 1, 'certadmin': 2, 'fulladmin': 3}
 
 
 class ApiError(Exception):
@@ -346,6 +346,11 @@ class ApiHandler(BaseHTTPRequestHandler):
         if acc.get('source') == 'directory':
             acc = self.directory_recheck(acc)
         s['role'] = acc['role']
+        if s['role'] not in ROLE_RANK or not ROLE_RANK[s['role']]:
+            # Given the role of the enrolment pages only (1.0.14) while signed
+            # in here: the sign-in ends.
+            self.store.session_end(self.headers.get('X-Acme-Session'))
+            raise ApiError(401, 'this account signs in on the enrolment pages only, not here')
         # The second step first (1.0.125): until it is given, the sign-in may
         # do that and nothing else.
         if mfa_pending(s) and getattr(self, 'route_path', '') not in MFA_ALLOWED:
@@ -395,7 +400,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             log('the directory could not be asked about %s: %s' % (name, e), 'warn')
             return acc
         self.DIR_CHECKED[name.lower()] = t
-        if not role:
+        if not role or role == 'portal':
             self.end_all(name, 'the directory no longer gives %s a role here' % name)
         if role != acc.get('role'):
             self.store.set_account(name, role=role)

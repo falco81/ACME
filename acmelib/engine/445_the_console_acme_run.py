@@ -1053,7 +1053,8 @@ class Console(object):
     # ---- 3 accounts -------------------------------------------------------------
     ROLES = [('fulladmin', 'fulladmin - everything'),
              ('certadmin', 'certadmin - the certificates, no settings'),
-             ('readonly', 'readonly - looks, changes nothing')]
+             ('readonly', 'readonly - looks, changes nothing'),
+             ('portal', 'portal - the enrolment pages only, rights from teams')]
 
     def _pw_fields(self):
         return [{'key': 'pw', 'label': 'password', 'kind': 'secret', 'need': True,

@@ -281,7 +281,9 @@ def _health(h):
 DUMMY_PW_HASH = password_hash(secrets.token_urlsafe(18))
 
 ROLE_GROUP_KEYS = (('admin_group_full', 'fulladmin'), ('admin_group_cert', 'certadmin'),
-                   ('admin_group_readonly', 'readonly'))
+                   ('admin_group_readonly', 'readonly'), ('admin_group_portal', 'portal'))
+
+PORTAL_ONLY_SAID = 'this account signs in on the enrolment pages only, not here'
 
 
 def admin_role_for(have, ad=None):
@@ -352,6 +354,12 @@ def admin_from_directory(h, name, password):
         h.store.add_event('sign-ins', 'the directory did not sign %s in from %s: %s'
                           % (name, h.client_ip(), said.get('said') or '?'), 'warn')
         raise ApiError(401, 'the name or the password is not right')
+    if said['role'] == 'portal':
+        # Enrolment pages only (1.0.14): no account made here, no way in.
+        h.store.add_event('sign-ins', 'the directory knows %s, a member of the group of '
+                          'enrolment-only accounts - refused here (from %s)'
+                          % (said['name'], h.client_ip()), 'warn')
+        raise ApiError(403, PORTAL_ONLY_SAID)
     if not said['role']:
         # Said as a wrong password is (1.0.101): a 403 told anybody trying
         # names and passwords that this one was right.
@@ -478,6 +486,14 @@ def _login(h):
         h.store.add_event('sign-ins', '%s, switched off, tried to sign in from %s'
                           % (ok['name'], h.client_ip()), 'warn')
         raise ApiError(401, 'the name or the password is not right')
+    if ok.get('role') == 'portal':
+        # An account of the enrolment pages only (1.0.14): its password is
+        # right, and it is said so - it is the wrong door, not a wrong
+        # password - counted as a wrong one all the same.
+        h.failed(key)
+        h.store.add_event('sign-ins', '%s (enrolment pages only) tried to sign in to the '
+                          'administration from %s' % (ok['name'], h.client_ip()), 'warn')
+        raise ApiError(403, PORTAL_ONLY_SAID)
     # The second step, when it is asked for (1.0.125): the sign-in is made,
     # and may do nothing but give it.
     stage = mfa_stage(h.store, ok['name']) if CONFIG.get('admin_2fa') else ''
