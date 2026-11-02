@@ -24,7 +24,7 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `route53` | Amazon Route 53 (SigV4 signed here) | access key with ListHostedZonesByName, ListResourceRecordSets, ChangeResourceRecordSets, GetChange |
 | `azure_dns` | Azure DNS (OAuth2 client credentials) | an app registration with DNS Zone Contributor |
 | `gcloud_dns` | Google Cloud DNS (service account JWT, RS256 by openssl) | a service account key (JSON) with dns.admin |
-| `hetzner` | Hetzner Console/Cloud API zones, or the old dns.hetzner.com | API token |
+| `hetzner` | Hetzner Console/Cloud API zones (`api.hetzner.cloud`, RRset actions `add_records` / `remove_records`), or the old dns.hetzner.com (selectable) | API token |
 | `digitalocean` | DigitalOcean Domains | personal access token |
 | `ovh` | OVHcloud API | application key/secret, consumer key on /domain/zone/* |
 | `desec` | [deSEC.io](https://desec.io) (dedyn.io names too); TTL raised to the domain's minimum (3600); waits 60 s more after both name servers have it (anycast) | an API token (a token policy limiting it to TXT at `_acme-challenge` is best) |
@@ -74,6 +74,15 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `dreamhost` | DreamHost DNS API | an API key with the dns-* functions |
 | `duckdns` | Duck DNS - **one TXT value per name** (proved one after another) | the account's token; your own names by CNAME to a duckdns.org name |
 | `webglobe` | Webglobe API (JWT sign-in; staging selectable); `txt-any` and `cname-any` for a commercial CA's DCV | login + an API key that allows acme's IP address |
+| `hostinger` | Hostinger API (DNS zone, RRsets written with overwrite false / true) | an API token (hPanel → Account → API) |
+| `constellix` | Constellix DNS API v1 (HMAC-SHA1 security token) | API key + secret key |
+| `ultradns` | UltraDNS (Vercara) REST API, OAuth2 password sign-in | an UltraDNS user allowed to change the zones' records |
+| `mailinabox` | a Mail-in-a-Box server's control panel API (`/admin/dns/custom`) | an administrator's e-mail + password (without two-factor sign-in) |
+| `efficientip` | EfficientIP SOLIDserver REST API v2.0 (`/dns/rr/*`) | a user allowed the DNS services; the DNS server (or SMART) name |
+| `openprovider` | Openprovider REST API (`/v1beta/dns/zones`) | an API user + password |
+| `easydns` | easyDNS REST API; zone by SOA (or set); TTL 300-86400 | API token + API key |
+| `plesk` | Plesk XML API (`dns` add_rec / get_rec / del_rec) | a login + password or an XML API secret key |
+| `rackspace` | Rackspace Cloud DNS v1.0 (asynchronous jobs followed); TTL ≥ 300 | user name + API key |
 | `acme_dns` | an [acme-dns](https://github.com/joohoi/acme-dns) server | account(s); `_acme-challenge.NAME CNAME <fulldomain>` once |
 | `ssh_dns` | commands on the DNS server itself over SSH, straight into its zones: BIND (`nsupdate -l`, `nsupdate -k`, or the zone file + `rndc reload`), PowerDNS (`pdnsutil` or its HTTP API there), Knot (`knotc` transaction), NSD (zone file + `nsd-control reload`), dnsmasq (`txt-record`), Unbound (`local_data`), Windows DNS (PowerShell via OpenSSH), or your own commands; **Find out what runs there** reads the server (read-only) and fills the form in | an SSH account there (sudo optional) |
 | `script` | a program on this machine (`present`/`cleanup`, dehydrated- or lego-style), `ACME_*` variables | the program |
@@ -364,9 +373,9 @@ What every one of them does the same way:
 
 * **The zone** is the one set (*Zone* / *Domain*), else the longest of the
   zones the credentials may see that the name is in (`www.dev.example.com`
-  goes to `dev.example.com` when the account has both). netcup and
-  dns.he.net cannot list zones: netcup is asked name by name, dns.he.net
-  goes by the SOA.
+  goes to `dev.example.com` when the account has both). netcup, dns.he.net
+  and easyDNS cannot list zones: netcup is asked name by name, dns.he.net
+  and easyDNS go by the SOA.
 * **Several values at one name**: our value is added next to the ones there,
   and cleanup removes only ours. Where the API keeps a whole RRset (deSEC,
   Gandi, GoDaddy, NS1, Namecheap) it is read, changed and written back, one
@@ -597,6 +606,14 @@ but the list of services (which id is which domain, `/v1/user/self/service`)
 is the part acme is least sure of - when the domain is not found, set its
 *Service ID* (the number in the address of the domain's page in the
 administration) and the list is not asked.
+
+Checked again in 1.0.22 against lego's `providers/dns/internal/active24`
+(the v2 client its `active24` and `websupport` providers share, written to
+https://rest.active24.cz/v2/docs): the same record calls, filters and
+service list - but its `Date` header is RFC 3339 (`2025-01-31T12:00:00Z`),
+which acme now sends for Active24 too (it sent the basic form
+`20250131T120000Z` of API v1 before). Websupport (`websupport`, API v1)
+keeps the basic form.
 
 ### Websupport (`websupport`)
 
@@ -863,6 +880,201 @@ proved through it by a CNAME: `_acme-challenge.www.example.com. CNAME
 myhome.duckdns.org.` (one Duck DNS name per name proved at a time). *Test*
 cannot try the token without changing the value. https://www.duckdns.org/spec.jsp
 
+### Modules added in acme 1.0.22: what was checked, and how
+
+The vendors' documentation sites could not be fetched from where these
+were written (only GitHub could be reached), so every call below was taken
+from the **vendor's own SDK, API description or official integration on
+GitHub** - named with the files read - and compared with lego's provider of
+the same name where there is one. The reference each vendor publishes is
+named too (not fetched). `test/test_dns_providers_new.py` puts each module
+through a fake of its API built from those sources. A dry run (Settings →
+Validations → *Dry run*) tries a module for real without asking a CA.
+
+### Hetzner (`hetzner`), checked again
+
+Hetzner DNS moved into the Hetzner Console / Cloud API in 2025; the module
+already speaks it (*API* = Hetzner Console / Cloud API, the default) and
+keeps the old DNS Console (`dns.hetzner.com`) selectable. Checked in 1.0.22
+against Hetzner's official Python SDK (https://github.com/hetznercloud/hcloud-python:
+`hcloud/zones/client.py` - `GET /zones?name=`, `POST
+/zones/{id_or_name}/rrsets/{name}/{type}/actions/add_records` and
+`.../remove_records` with `{records: [{value}], ttl}`; `hcloud/exp/zone.py` -
+TXT values in quotes), whose reference is
+https://docs.hetzner.cloud/reference/cloud#zone-rrset-actions-add-records-to-an-rrset:
+unchanged, nothing to fix.
+
+### Hostinger (`hostinger`)
+
+hPanel → *Account* → **API** → *New token* (best with an expiry). acme
+reads the domains (`GET /api/domains/v1/portfolio`), reads the zone (`GET
+/api/dns/v1/zones/{domain}`), adds its value (`PUT /api/dns/v1/zones/{domain}`
+with `overwrite: false` - added to the RRset), and on cleanup writes the
+RRset back without it (`overwrite: true`) or deletes it (`DELETE` with
+`filters: [{name, type}]`) when ours was its last value. A domain whose DNS
+is at Hostinger but not in the portfolio is asked for by name.
+
+Verified against: https://github.com/hostinger/api-python-sdk -
+`docs/DNSZoneApi.md` (get_dns_records_v1, update_dns_records_v1,
+delete_dns_records_v1), `docs/DomainsPortfolioApi.md` (get_domain_list_v1),
+`docs/DNSV1ZoneUpdateRequest.md`, `docs/DNSV1ZoneDestroyRequest.md`,
+`hostinger_api/configuration.py` (https://developers.hostinger.com); the
+reference https://developers.hostinger.com/#tag/dns-zone; lego
+`providers/dns/hostinger`.
+
+```
+token: (the API token)      domain: example.com (or empty)
+```
+
+### Constellix (`constellix`)
+
+The Constellix account's **API keys**: the API key and its secret key.
+Every request carries `x-cns-security-token: KEY:HMAC:TIME` (TIME in
+milliseconds, HMAC the base64 HMAC-SHA1 of it with the secret - this
+machine's clock must be right). A Constellix TXT record holds every value
+of its name (`roundRobin`, each in quotes): acme adds its value to it
+(`PUT .../records/txt/{id}`, or `POST .../records/txt` for a new name) and
+writes it back without its value on cleanup (or `DELETE`s it when ours was
+the last).
+
+Verified against: https://github.com/Constellix/constellix-go-client
+(`client/client.go` - `https://api.dns.constellix.com/`, `getToken()`;
+`models/model_txt.go`) and https://github.com/Constellix/terraform-provider-constellix
+(`constellix/resource_constellix_txt_record.go`,
+`datasource_constellix_domain.go`, `datasource_constellix_txt_record.go` -
+`v1/domains`, `v1/domains/{id}/records/txt` with POST, GET, PUT, DELETE);
+the reference https://api-docs.constellix.com; lego `providers/dns/constellix`.
+
+### UltraDNS (`ultradns`)
+
+An UltraDNS user (best one for acme alone) allowed to change the zones'
+records. acme signs in (`POST /v1/authorization/token`,
+`grant_type=password`), keeps the Bearer token for its lifetime (a 401 or
+error 60001 signs in again), lists the zones (`GET /v3/zones`, page by
+cursor), and reads, changes and writes back the TXT RRset
+(`/v1/zones/{zone}/rrsets/TXT/{owner.}` - POST to make it, PUT to write it,
+DELETE when ours was its last value). lego's provider writes and deletes
+the RRset whole; acme keeps other values.
+
+Verified against: https://github.com/ultradns/python_rest_api_client
+(`src/ultra_rest_client/connection.py` - auth(), _refresh(), errorCode
+60001; `ultra_rest_client.py` - get_zones_v3, get_rrsets_by_type_owner,
+create_rrset, edit_rrset, delete_rrset) and https://github.com/ultradns/ultradns-go-sdk
+(`pkg/zone`, `pkg/rrset`, `pkg/helper` - the JSON fields, cursorInfo); the
+reference https://ultra-portalstatic.ultradns.com/static/docs/REST-API_User_Guide.pdf;
+lego `providers/dns/ultradns`.
+
+### Mail-in-a-Box (`mailinabox`)
+
+The box's address (`box.example.com`), an administrator's e-mail and
+password (basic authentication). An administrator with two-factor sign-in
+cannot be used (the session key of `/admin/login` lives two days at most):
+make one for acme without it. `GET /admin/dns/zones`, `GET
+/admin/dns/custom/{qname}/TXT`, `POST` (adds a value next to the others) and
+`DELETE` (removes that one value) with the value as the body; the box then
+writes its zones and reloads nsd, and keeps the TTL itself.
+
+Verified against: https://github.com/mail-in-a-box/mailinabox
+(`api/mailinabox.yml` - /dns/zones, /dns/custom/{qname}/{rtype};
+`management/daemon.py` - dns_zones(), dns_get_records(), dns_set_record();
+`management/auth.py` - the session's two days), rendered at
+https://mailinabox.email/api-docs.html; lego `providers/dns/mailinabox`.
+
+### EfficientIP SOLIDserver (`efficientip`)
+
+The management appliance's address, a user whose group may use the DNS
+services on the zones, and *DNS server* - the server (or SMART architecture)
+the zones are on, as SOLIDserver names it (*DNS view* when the zones are in
+one). REST API v2.0, basic authentication: `GET /api/v2.0/dns/zone/list`
+and `/dns/rr/list` with a `where` clause (`rr_full_name='…' AND
+rr_type='TXT' AND server_name='…'`), `POST /dns/rr/add` (`rr_name`,
+`rr_type`, `rr_value1`, `rr_ttl`, `server_name`, `view_name`), `DELETE
+/dns/rr/delete?rr_id=`. Each value is a record of its own. A private CA:
+paste it under *CA certificate*.
+
+Verified against: https://github.com/EfficientIP-Labs/solidserver-go-client
+(`sdsclient/api/openapi.yaml` - the servers `https://{host}:{port}/api/v2.0`,
+BasicAuth, dns_rr_add_input, the where clause; `sdsclient/docs/DnsAPI.md`,
+`DataInnerDnsRrData.md`, `DataInnerDnsZoneData.md`,
+`DataInnerDnsRrAddSuccess.md`); lego `providers/dns/efficientip` (the older
+`/rest/dns_rr_*` names of the same services). **Less certain**: what the
+list answers when nothing matches (an empty list or 204 - both read as
+nothing).
+
+### Openprovider (`openprovider`)
+
+An Openprovider user with API access (best its own, limited to acme's
+address). acme signs in (`POST /v1beta/auth/login` → a Bearer token, kept
+six hours, a 401 signs in again), lists the zones (`GET /v1beta/dns/zones`),
+reads the TXT records (`GET /v1beta/dns/zones/{zone}/records?type=TXT`) and
+adds or removes its own (`PUT /v1beta/dns/zones/{zone}` with `records: {add:
+[…]}` / `{remove: […]}`, the name relative to the zone). *DNS*: Openprovider
+DNS or Premium DNS (Sectigo) - the zone's `provider`.
+
+Verified against: https://github.com/openprovider/rest-client-php
+(`src/Auth/Api/AuthApi.php`, `src/Dns/Api/ZoneServiceApi.php`,
+`src/Dns/Api/ZoneRecordServiceApi.php`, the models `ZoneUpdateZoneRequest`,
+`ZoneRecordUpdates`, `ZoneRecord`, `RecordRecordInfo`,
+`src/Base/Configuration.php` - https://api.openprovider.eu) and
+https://github.com/openprovider/Openprovider-WHMCS-domains
+(`OpenProvider/API/ApiHelper.php` - removeDnsRecord(), updateDnsRecords(),
+the zone's provider; `Controllers/System/DnsController.php` - names listed
+whole, written relative). No lego provider to compare. **Less certain**:
+the token's lifetime, the lowest TTL (600 is used), whether `type=TXT` is
+honoured by the list (filtered again here).
+
+### easyDNS (`easydns`)
+
+The API token and API key of the easyDNS control panel (basic
+authentication; `?format=json` on every call). `GET
+/zones/records/all/{domain}`, `PUT /zones/records/add/{domain}/TXT` (`{domain,
+host, ttl, prio, type, rdata}`), `DELETE /zones/records/{domain}/{id}`. The API
+lists domains only by user name, so the domain is the one set or found by
+its SOA; *User name* lets *Test* read the list (`GET /domains/list/{user}`).
+TTL 300 to 86400. *API*: the sandbox `sandbox.rest.easydns.net`.
+
+Verified against: https://github.com/easydns/easydns-mcp (easyDNS's own:
+`docs/API-REFERENCE.md`, `src/auth.ts`, `src/client.ts`,
+`src/tools/dns-records-list.ts`, `dns-record-add.ts`, `dns-record-delete.ts`,
+`domain-list.ts`); the reference https://docs.sandbox.rest.easydns.net; lego
+`providers/dns/easydns`.
+
+### Plesk (`plesk`)
+
+The Plesk server (port 8443 when none is given), signed in with a login and
+password (`HTTP_AUTH_LOGIN` / `HTTP_AUTH_PASSWD`) or an XML API secret key
+(`KEY`). `POST /enterprise/control/agent.php` with XML packets: `site get`
+(by name; with an empty filter, every site) for the domain's id, `dns
+get_rec` by `site-id`, `dns add_rec` (`site-id`, `type` TXT, `host`
+relative, `value`), `dns del_rec` by `id`. Each value is a record of its
+own.
+
+Verified against: https://github.com/plesk/api-php-lib (`src/Api/Client.php`
+- agent.php on 8443, the headers, the packet; `src/Api/Operator/Dns.php`,
+`Site.php`, `Operator.php`, `SecretKey.php`; `src/Api/Struct/Dns/Info.php`;
+`tests/DnsTest.php`); the reference
+https://docs.plesk.com/en-US/obsidian/api-rpc/about-xml-api/reference.28784/;
+lego `providers/dns/plesk`.
+
+### Rackspace Cloud DNS (`rackspace`)
+
+A Rackspace Cloud user allowed to change DNS and its API key. acme signs in
+at `https://identity.api.rackspacecloud.com/v2.0/tokens`
+(`RAX-KSKEY:apiKeyCredentials`), takes the `rax:dns` endpoint from the
+service catalog, lists the domains (`GET /domains`), reads the TXT records
+(`GET /domains/{id}/records?type=TXT&name=`), adds its value (`POST
+/domains/{id}/records`) and deletes only its own (`DELETE
+/domains/{id}/records/{id}`). Changes are asynchronous: acme follows the
+`callbackUrl` (`?showDetails=true`) until the job is COMPLETED, or says its
+ERROR. TTL at least 300.
+
+Verified against: https://github.com/pycontribs/pyrax (Rackspace's SDK,
+first published as rackspace/pyrax: `pyrax/identity/rax_identity.py`,
+`pyrax/base_identity.py`, `pyrax/clouddns.py` - list, search_records,
+add_records, delete_record, _async_call; `pyrax/fakes.py` - the rax:dns
+endpoint); the reference https://developer.rackspace.com/docs/cloud-dns/v1/;
+lego `providers/dns/rackspace`.
+
 ### Not added
 
 * Selectel, Reg.ru, Yandex, Timeweb and the other Russian providers: left
@@ -873,9 +1085,17 @@ cannot try the token without changing the value. https://www.duckdns.org/spec.js
   over OpenSSH by `ssh_dns` (its PowerShell flavour) or by RFC 2136.
 * PowerDNS-Admin: it fronts a PowerDNS server whose own API `powerdns`
   speaks; PowerDNS-Admin's own API keys were not added.
-* Joker, Variomedia, UltraDNS, Constellix, Rackspace, EasyDNS, Hostinger,
-  One.com: not this time (Joker's and One.com's APIs rewrite whole zones or
-  are not documented; the rest maybe later).
+* Joker, Variomedia, One.com: not this time (Joker's and One.com's APIs
+  rewrite whole zones or are not documented).
+* Looked at in 1.0.22 and left out because no vendor SDK, API description
+  or official integration with the DNS calls could be read where the
+  modules were written (only GitHub could be reached; lego or acme.sh alone
+  is not enough to confirm an endpoint): Dynadot, Netim, Nicmanager, Zonomi,
+  NameBright, ArvanCloud (its official Terraform provider covers only its
+  cloud servers), DirectAdmin, ISPConfig, cPanel, BlueCat Address Manager,
+  Forpsi (no public DNS API). Huawei Cloud DNS and Volcengine do have
+  official SDKs, but their request signing and project scoping were more
+  than this round could test against published examples - maybe later.
 * TLS-ALPN-01: acme's nginx answers port 443 for its own pages; answering
   `acme-tls/1` with a validation certificate for other names would need a
   TLS front acme does not have (and the name pointing at acme, as

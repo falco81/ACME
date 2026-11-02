@@ -44775,6 +44775,254 @@
   "svnd0149": {
    "source": "the zones",
    "text": "zóny"
+  },
+  "svm22_01": {
+   "source": "Hostinger",
+   "text": "Hostinger"
+  },
+  "svm22_02": {
+   "source": "TXT records in a domain's DNS zone at Hostinger, with an API token.",
+   "text": "TXT záznamy v DNS zóně domény u Hostingeru, s API tokenem."
+  },
+  "svm22_03": {
+   "source": "hPanel → Account → API → New token (best with an expiry and only the domains acme needs).",
+   "text": "hPanel → Account → API → New token (nejlépe s platností omezenou časem a jen na domény, které acme potřebuje)."
+  },
+  "svm22_04": {
+   "source": "Constellix",
+   "text": "Constellix"
+  },
+  "svm22_05": {
+   "source": "TXT records in a domain at Constellix DNS, with an API key and its secret.",
+   "text": "TXT záznamy v doméně u Constellix DNS, s API klíčem a jeho tajným klíčem."
+  },
+  "svm22_06": {
+   "source": "The API key of your Constellix account (its API keys, in the account's profile): the API key here, the secret key below.",
+   "text": "API klíč vašeho účtu Constellix (jeho API klíče najdete v profilu účtu): API klíč sem, tajný klíč (secret key) níže."
+  },
+  "svm22_07": {
+   "source": "UltraDNS",
+   "text": "UltraDNS"
+  },
+  "svm22_08": {
+   "source": "TXT records in a primary zone at UltraDNS (Vercara), with an API user.",
+   "text": "TXT záznamy v primární zóně u UltraDNS (Vercara), s API uživatelem."
+  },
+  "svm22_09": {
+   "source": "An UltraDNS user (best one of its own for acme) with the rights to change records of the zones.",
+   "text": "Uživatel UltraDNS (nejlépe vlastní pro acme) s právem měnit záznamy zón."
+  },
+  "svm22_10": {
+   "source": "Empty: the longest zone the user sees that the name is in.",
+   "text": "Prázdné: nejdelší zóna, kterou uživatel vidí a ve které jméno je."
+  },
+  "svm22_11": {
+   "source": "Mail-in-a-Box",
+   "text": "Mail-in-a-Box"
+  },
+  "svm22_12": {
+   "source": "TXT records in the DNS a Mail-in-a-Box server keeps, through its control panel API.",
+   "text": "TXT záznamy v DNS, které drží server Mail-in-a-Box, přes API jeho ovládacího panelu."
+  },
+  "svm22_13": {
+   "source": "Box address",
+   "text": "Adresa serveru (boxu)"
+  },
+  "svm22_14": {
+   "source": "The name (or https://name) of the Mail-in-a-Box server, as its control panel is reached: https://box.example.com/admin.",
+   "text": "Jméno (nebo https://jméno) serveru Mail-in-a-Box, jak se otevírá jeho ovládací panel: https://box.example.com/admin."
+  },
+  "svm22_15": {
+   "source": "Administrator e-mail",
+   "text": "E-mail administrátora"
+  },
+  "svm22_16": {
+   "source": "The administrator's password. An administrator with two-factor sign-in cannot be used: make one for acme without it.",
+   "text": "Heslo administrátora. Administrátora s dvoufázovým přihlášením použít nelze: vytvořte pro acme vlastního bez něj."
+  },
+  "svm22_17": {
+   "source": "Empty: the longest zone of the box the name is in.",
+   "text": "Prázdné: nejdelší zóna serveru, ve které jméno je."
+  },
+  "svm22_18": {
+   "source": "EfficientIP SOLIDserver",
+   "text": "EfficientIP SOLIDserver"
+  },
+  "svm22_19": {
+   "source": "TXT records in a zone of an EfficientIP SOLIDserver (DDI), through its REST API.",
+   "text": "TXT záznamy v zóně EfficientIP SOLIDserveru (DDI), přes jeho REST API."
+  },
+  "svm22_20": {
+   "source": "SOLIDserver address",
+   "text": "Adresa SOLIDserveru"
+  },
+  "svm22_21": {
+   "source": "The name or address of the SOLIDserver management appliance (a port as name:port).",
+   "text": "Jméno nebo adresa řídicí appliance SOLIDserveru (port jako jméno:port)."
+  },
+  "svm22_22": {
+   "source": "A SOLIDserver user whose group may list zones and add and delete resource records in them.",
+   "text": "Uživatel SOLIDserveru, jehož skupina smí vypisovat zóny a přidávat a mazat v nich záznamy."
+  },
+  "svm22_23": {
+   "source": "The DNS server (or SMART architecture) the zones are on, as SOLIDserver names it.",
+   "text": "DNS server (nebo SMART architektura), na kterém zóny jsou, jak ho SOLIDserver pojmenovává."
+  },
+  "svm22_24": {
+   "source": "The DNS view of the zones. Empty: no view.",
+   "text": "DNS pohled (view) zón. Prázdné: bez pohledu."
+  },
+  "svm22_25": {
+   "source": "Empty: the longest zone of that server the name is in.",
+   "text": "Prázdné: nejdelší zóna toho serveru, ve které jméno je."
+  },
+  "svm22_26": {
+   "source": "The CA that signed the appliance's certificate, when it is not a public one.",
+   "text": "CA, která podepsala certifikát appliance, když to není veřejná CA."
+  },
+  "svm22_27": {
+   "source": "Openprovider",
+   "text": "Openprovider"
+  },
+  "svm22_28": {
+   "source": "TXT records in a DNS zone at Openprovider, with an API user.",
+   "text": "TXT záznamy v DNS zóně u Openprovideru, s API uživatelem."
+  },
+  "svm22_29": {
+   "source": "An Openprovider user with API access (best one of its own for acme, its access limited to the address acme calls from).",
+   "text": "Uživatel Openprovideru s přístupem k API (nejlépe vlastní pro acme, s přístupem omezeným na adresu, ze které acme volá)."
+  },
+  "svm22_30": {
+   "source": "Openprovider DNS",
+   "text": "Openprovider DNS"
+  },
+  "svm22_31": {
+   "source": "Premium DNS (Sectigo)",
+   "text": "Premium DNS (Sectigo)"
+  },
+  "svm22_32": {
+   "source": "easyDNS",
+   "text": "easyDNS"
+  },
+  "svm22_33": {
+   "source": "TXT records in a domain at easyDNS, with an API token and key.",
+   "text": "TXT záznamy v doméně u easyDNS, s API tokenem a klíčem."
+  },
+  "svm22_34": {
+   "source": "The API token and API key from the easyDNS control panel: the token here, the key below.",
+   "text": "API token a API klíč z ovládacího panelu easyDNS: token sem, klíč níže."
+  },
+  "svm22_35": {
+   "source": "Empty: found by its SOA (the API lists domains only by user name).",
+   "text": "Prázdné: najde se podle SOA (API vypisuje domény jen podle uživatelského jména)."
+  },
+  "svm22_36": {
+   "source": "The easyDNS user name: Test then lists its domains. Empty: Test reads the domain set.",
+   "text": "Uživatelské jméno u easyDNS: Test pak vypíše jeho domény. Prázdné: Test načte nastavenou doménu."
+  },
+  "svm22_37": {
+   "source": "easyDNS (rest.easydns.net)",
+   "text": "easyDNS (rest.easydns.net)"
+  },
+  "svm22_38": {
+   "source": "the sandbox (sandbox.rest.easydns.net)",
+   "text": "sandbox (sandbox.rest.easydns.net)"
+  },
+  "svm22_39": {
+   "source": "easyDNS takes 300 to 86400.",
+   "text": "easyDNS bere 300 až 86400."
+  },
+  "svm22_40": {
+   "source": "Plesk",
+   "text": "Plesk"
+  },
+  "svm22_41": {
+   "source": "TXT records in the DNS of a Plesk server, through its XML API.",
+   "text": "TXT záznamy v DNS serveru Plesk, přes jeho XML API."
+  },
+  "svm22_42": {
+   "source": "Plesk address",
+   "text": "Adresa Plesku"
+  },
+  "svm22_43": {
+   "source": "The Plesk server as its panel is reached (name, name:port or https://…); the port is 8443 when not given.",
+   "text": "Server Plesk, jak se otevírá jeho panel (jméno, jméno:port nebo https://…); bez portu se použije 8443."
+  },
+  "svm22_44": {
+   "source": "login and password",
+   "text": "loginem a heslem"
+  },
+  "svm22_45": {
+   "source": "a secret key",
+   "text": "tajným klíčem"
+  },
+  "svm22_46": {
+   "source": "An administrator, or the customer the domains belong to.",
+   "text": "Administrátor, nebo zákazník, kterému domény patří."
+  },
+  "svm22_47": {
+   "source": "A secret key of the XML API made for acme (secret_key create, tied to acme's address).",
+   "text": "Tajný klíč XML API vytvořený pro acme (secret_key create, vázaný na adresu acme)."
+  },
+  "svm22_48": {
+   "source": "Empty: the longest domain of the server the name is in.",
+   "text": "Prázdné: nejdelší doména serveru, ve které jméno je."
+  },
+  "svm22_49": {
+   "source": "Rackspace Cloud DNS",
+   "text": "Rackspace Cloud DNS"
+  },
+  "svm22_50": {
+   "source": "TXT records in a domain at Rackspace Cloud DNS, with a user name and API key.",
+   "text": "TXT záznamy v doméně u Rackspace Cloud DNS, s uživatelským jménem a API klíčem."
+  },
+  "svm22_51": {
+   "source": "A Rackspace Cloud user allowed to change DNS (best one of its own for acme) and, below, its API key.",
+   "text": "Uživatel Rackspace Cloud, který smí měnit DNS (nejlépe vlastní pro acme), a níže jeho API klíč."
+  },
+  "svm22_52": {
+   "source": "Rackspace takes 300 or more.",
+   "text": "Rackspace bere 300 a víc."
+  },
+  "svm22_53": {
+   "source": "Identity address",
+   "text": "Adresa služby Identity"
+  },
+  "svm22_54": {
+   "source": "UltraDNS: signed in, but no token came back",
+   "text": "UltraDNS: přihlášeno, ale nevrátil se žádný token"
+  },
+  "svm22_55": {
+   "source": "the box address is not set",
+   "text": "adresa serveru (boxu) není nastavená"
+  },
+  "svm22_56": {
+   "source": "the SOLIDserver address is not set",
+   "text": "adresa SOLIDserveru není nastavená"
+  },
+  "svm22_57": {
+   "source": "easyDNS: set the domain (or the user name) for Test to have something to read",
+   "text": "easyDNS: nastavte doménu (nebo uživatelské jméno), aby měl Test co načíst"
+  },
+  "svm22_58": {
+   "source": "the Plesk address is not set",
+   "text": "adresa Plesku není nastavená"
+  },
+  "svm22_59": {
+   "source": "Plesk answered something that is not XML",
+   "text": "Plesk odpověděl něco, co není XML"
+  },
+  "svm22_60": {
+   "source": "Rackspace: signed in, but no token or no Cloud DNS service came back - does the user have the DNS role?",
+   "text": "Rackspace: přihlášeno, ale nevrátil se token nebo služba Cloud DNS – má uživatel roli pro DNS?"
+  },
+  "svm22_61": {
+   "source": "stopped while Rackspace was still at it",
+   "text": "zastaveno, zatímco na tom Rackspace ještě pracoval"
+  },
+  "svm22_62": {
+   "source": "Rackspace did not finish the change in a minute",
+   "text": "Rackspace změnu nedokončil do minuty"
   }
  },
  "patterns": {
@@ -62033,6 +62281,74 @@
   "pvnd047": {
    "source": "the Origin CA root could not be fetched ({0}) - the certificate comes without it",
    "text": "kořen Origin CA nešel stáhnout ({0}) – certifikát přijde bez něj"
+  },
+  "pvm22_01": {
+   "source": "Hostinger has no DNS zone for {0} that this token may see - set the domain",
+   "text": "Hostinger nemá pro {0} DNS zónu, kterou by tento token viděl – nastavte doménu"
+  },
+  "pvm22_02": {
+   "source": "Hostinger: signed in; the zone {0} has {1} record set(s)",
+   "text": "Hostinger: přihlášeno; zóna {0} má {1} {1:sadu záznamů|sady záznamů|sad záznamů}"
+  },
+  "pvm22_03": {
+   "source": "Constellix has no domain {0} that this key may see",
+   "text": "Constellix nemá doménu {0}, kterou by tento klíč viděl"
+  },
+  "pvm22_04": {
+   "source": "SOLIDserver said no: {0}",
+   "text": "SOLIDserver odmítl: {0}"
+  },
+  "pvm22_05": {
+   "source": "Openprovider: signed in, but no token came back: {0}",
+   "text": "Openprovider: přihlášeno, ale nevrátil se žádný token: {0}"
+  },
+  "pvm22_06": {
+   "source": "Openprovider said no ({0}): {1}",
+   "text": "Openprovider odmítl ({0}): {1}"
+  },
+  "pvm22_07": {
+   "source": "easyDNS said no: {0}",
+   "text": "easyDNS odmítl: {0}"
+  },
+  "pvm22_08": {
+   "source": "easyDNS: signed in; the domain {0} has {1} record(s)",
+   "text": "easyDNS: přihlášeno; doména {0} má {1} {1:záznam|záznamy|záznamů}"
+  },
+  "pvm22_09": {
+   "source": "easyDNS: signed in as {0}; the domain of each name is found by its SOA",
+   "text": "easyDNS: přihlášeno jako {0}; doména každého jména se najde podle SOA"
+  },
+  "pvm22_10": {
+   "source": "the Plesk address {0} has a port that is not a number",
+   "text": "adresa Plesku {0} má port, který není číslo"
+  },
+  "pvm22_11": {
+   "source": "Plesk said no: {0}",
+   "text": "Plesk odmítl: {0}"
+  },
+  "pvm22_12": {
+   "source": "Plesk could not find the domain {0}: {1}",
+   "text": "Plesk nenašel doménu {0}: {1}"
+  },
+  "pvm22_13": {
+   "source": "Plesk could not add the TXT record {0}: {1}",
+   "text": "Plesk nepřidal TXT záznam {0}: {1}"
+  },
+  "pvm22_14": {
+   "source": "Plesk could not delete the TXT record {0}: {1}",
+   "text": "Plesk nesmazal TXT záznam {0}: {1}"
+  },
+  "pvm22_15": {
+   "source": "Plesk has no domain {0} for this login",
+   "text": "Plesk nemá pro tento login doménu {0}"
+  },
+  "pvm22_16": {
+   "source": "Rackspace could not do it: {0}",
+   "text": "Rackspace to neudělal: {0}"
+  },
+  "pvm22_17": {
+   "source": "Rackspace has no domain {0} on this account",
+   "text": "Rackspace nemá na tomto účtu doménu {0}"
   }
  },
  "rich": {

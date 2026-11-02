@@ -1705,6 +1705,9 @@ class TestOtherModules(unittest.TestCase):
                 'akamai_edgedns', 'dnsmadeeasy', 'gcore', 'netlify', 'vercel', 'namecom',
                 'namesilo', 'dynu', 'njalla', 'dreamhost', 'duckdns', 'webglobe',
                 'http_ftp', 'http_s3', 'http_azure_blob', 'http_webdav',
+                # acme 1.0.22 (test/test_dns_providers_new.py)
+                'hostinger', 'constellix', 'ultradns', 'mailinabox', 'efficientip',
+                'openprovider', 'easydns', 'plesk', 'rackspace',
                 # dns-persist-01, a record set once (test/test_dns_persist.py)
                 'dns_persist'}
         self.assertEqual(set(found), want)

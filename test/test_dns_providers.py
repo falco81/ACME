@@ -35,8 +35,11 @@ from acmelib.plugins.challenges import _common as C  # noqa: E402
 
 ZONES = ['example.com', 'dev.example.com', 'other.org']
 NAME = '_acme-challenge.www.example.com'
-SLEPT = []
-C.SLEEP = SLEPT.append                       # a 429 is waited out without waiting
+# a 429 is waited out without waiting. One list however this file is imported: as
+# test.test_dns_providers by unittest and as test_dns_providers by the files that
+# build on it (test_dns_providers_more / _new) - two copies of the module, one _common
+SLEPT = C.__dict__.setdefault('_TEST_SLEPT', [])
+C.SLEEP = SLEPT.append
 
 
 def q(url):
@@ -713,7 +716,9 @@ class WebsupportFake(Fake):
         u = urllib.parse.urlsplit(url)
         self.t.assertEqual(u.netloc, self.host)
         key, sig = base64.b64decode(h['Authorization'][6:]).decode().split(':')
-        ts = int(datetime.datetime.strptime(h['Date'], '%Y%m%dT%H%M%SZ').replace(
+        # v2 (Active24): the Date in RFC 3339, as lego's v2 client sends it; v1 basic ISO 8601
+        ts = int(datetime.datetime.strptime(h['Date'], '%Y-%m-%dT%H:%M:%SZ' if self.v2 else
+                                            '%Y%m%dT%H%M%SZ').replace(
             tzinfo=datetime.timezone.utc).timestamp())
         want = hmac.new(b'wsec', ('%s %s %d' % (method, u.path, ts)).encode(),
                         hashlib.sha1).hexdigest()
@@ -721,9 +726,9 @@ class WebsupportFake(Fake):
         p = u.path.strip('/').split('/')
         if self.v2:
             if p == ['v1', 'user', 'self', 'service']:
-                return 200, [{'id': 500 + i, 'serviceName': 'domain', 'name': z}
-                             for i, z in enumerate(ZONES)] + [{'id': 9, 'serviceName': 'hosting',
-                                                               'name': 'x'}]
+                return 200, {'items': [{'id': 500 + i, 'serviceName': 'domain', 'name': z}
+                                       for i, z in enumerate(ZONES)] + [
+                    {'id': 9, 'serviceName': 'hosting', 'name': 'x'}]}
             zone = ZONES[int(p[2]) - 500]
             recs = 'data'
             rid_at = 5

@@ -10,7 +10,15 @@ REST API v2 (https://rest.active24.cz):
     DELETE /v2/service/{id}/dns/record/{record id}
 
 signed as Websupport signs (websupport.py: HMAC-SHA1 over "METHOD PATH
-UNIXTIME", basic authentication KEY:SIGNATURE, a Date header).
+UNIXTIME", basic authentication KEY:SIGNATURE), with a Date header of that
+time in RFC 3339 (2025-01-31T12:00:00Z; until 1.0.22 the basic ISO 8601 form
+of API v1 was sent).
+
+Checked again (1.0.22) against lego's providers/dns/internal/active24 (the
+client lego's active24 and websupport providers share, written to
+https://rest.active24.cz/v2/docs): the same paths, filters[name] and
+filters[type][], record fields and service list (/v1/user/self/service,
+{items: [{id, serviceName, name}]}).
 
 How sure this is: Active24 moved its customers to the Websupport platform
 in 2023-2024 and documents this v2 API at rest.active24.cz; the signature
@@ -30,6 +38,7 @@ from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, api,
 from acmelib.plugins.challenges.websupport import ws_headers
 
 API = 'https://rest.active24.cz'
+V2_DATE = '%Y-%m-%dT%H:%M:%SZ'      # the Date header, RFC 3339 (as lego's v2 client sends it)
 
 
 class Active24(ApiDns):
@@ -54,7 +63,7 @@ class Active24(ApiDns):
 
     def _call(self, method, path, body=None, missing_ok=False, now=None):
         h = ws_headers(str(self.c('api_key', '')), str(self.c('api_secret', '')), method, path,
-                       now)
+                       now, date_format=V2_DATE)
         st, got = api(self.ctx, method, str(self.c('api', API)).rstrip('/') + path, body, h,
                       who='Active24', missing_ok=missing_ok)
         return None if st == 404 and missing_ok else got
