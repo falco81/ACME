@@ -592,5 +592,55 @@ class PortalLocal(unittest.TestCase):
             self.must('POST', '/api/directories', {'action': 'delete', 'id': made['id']})
 
 
+    def test_36_directory_person_asked_again(self):
+        """A person of the directory out of the groups that let them in: the
+        sign-in ends at the next look (every ten minutes), not when it runs out."""
+        st, got = self.portal_in('falco', 'falco-password-1')
+        self.assertEqual(st, 200, got)
+        tok = got['token']
+        self.settings(portal_who='groups', portal_groups='CERT_SUPPLIER_X')
+        try:
+            st, _ = self.call('GET', '/api/portal/certs', None, tok)
+            self.assertEqual(st, 200)                       # asked again only after 10 min
+            self.py("""
+for r in st.db.rows("SELECT id, data FROM sessions WHERE kind = 'portal'"):
+    d = json.loads(r['data'] or '{}')
+    if d.get('dir_checked'):
+        d['dir_checked'] = time.time() - 3600
+        st.db.run('UPDATE sessions SET data = ? WHERE id = ?', (json.dumps(d), r['id']))
+print(1)""")
+            st, _ = self.call('GET', '/api/portal/certs', None, tok)
+            self.assertEqual(st, 401)
+        finally:
+            self.settings(portal_who='anyone', portal_groups='')
+
+    def test_37_key_only_for_its_owner_or_who_manages(self):
+        """A member who may only see a team's certificate gets no PFX with its key."""
+        self.settings(portal_cert_keys=1)
+        self.py('st.add_account("seer", "portal", %r); print(1)' % PW)
+        self.ok('POST', '/api/teams/save', {'name': 'Seers', 'members': ['local:seer=view']})
+        cid = self.ok('POST', '/api/certs/save', {'name': 'seen37', 'names': ['seen37.example.test'],
+                                                  'issuer': 'self', 'key_type': 'ec-256',
+                                                  'auto_renew': 0, 'owner': 'Seers'})['id']
+        self.wait_job(self.ok('POST', '/api/certs/renew', {'id': cid})['job_id'])
+        try:
+            st, got = self.portal_in('seer')
+            tok = got['token']
+            st, d = self.call('GET', '/api/portal/certs', None, tok)
+            one = [r for r in d['rows'] if r['id'] == cid][0]
+            self.assertNotIn('pfx', one['formats'])
+            st, got = self.call('POST', '/api/portal/cert_download',
+                                {'id': cid, 'format': 'pfx', 'password': 'Long-enough-1'}, tok)
+            self.assertIn(st, (400, 403), got)
+            self.ok('POST', '/api/teams/save', {'name': 'Seers', 'old_name': 'Seers',
+                                                'members': ['local:seer=manage']})
+            st, got = self.call('POST', '/api/portal/cert_download',
+                                {'id': cid, 'format': 'pfx', 'password': 'Long-enough-1'}, tok)
+            self.assertEqual(st, 200, got)
+        finally:
+            self.settings(portal_cert_keys=0)
+            self.py('st.db.run("DELETE FROM accounts WHERE name = \'seer\'"); print(1)')
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

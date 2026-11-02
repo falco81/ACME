@@ -41299,6 +41299,10 @@
   "srp159": {
    "source": "the same key - the CSR sent in is used again",
    "text": "stejný klíč – znovu se použije poslaný CSR"
+  },
+  "sb1x01": {
+   "source": "only its owner, or a member of its team who may manage it, may take its key",
+   "text": "jeho klíč smí získat jen jeho vlastník nebo člen jeho týmu s právem spravovat"
   }
  },
  "patterns": {
@@ -57285,6 +57289,14 @@
   "pb1r01": {
    "source": "{0} was issued for the CSR you sent: a new one needs a new CSR (a new key) - revoke it without one, then send it",
    "text": "{0} byl vydán pro CSR, který jste poslali: nový potřebuje nový CSR (nový klíč) – odvolejte ho bez náhrady a pak nový CSR pošlete"
+  },
+  "sb1x02": {
+   "source": "{0} was refused on the portal: the key of {1} (needs the right manage)",
+   "text": "{0} byl na portálu odmítnut: klíč {1} (potřebuje právo spravovat)"
+  },
+  "sb1x03": {
+   "source": "the directory no longer lets {0} use the enrolment pages: signed out",
+   "text": "adresář už {0} nepouští na stránky registrace: odhlášen"
   }
  },
  "rich": {

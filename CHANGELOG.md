@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.19 - 2026-11-02
 
+- The key of a certificate (a PFX) is given on the enrolment pages only to its
+  owner, a member of its team who may manage it, or an administrator who sees
+  all - no longer to a member who may only see it.
+- A person of the directory signed in on the enrolment pages is asked about
+  again every ten minutes: switched off there or no longer in the groups that
+  let them in, and the sign-in ends.
 - An account of the enrolment pages only could not give its second step there
   with *acme's own accounts* (portal_local) switched off - it was told it had
   none to give, and the sign-in page reloaded for good.

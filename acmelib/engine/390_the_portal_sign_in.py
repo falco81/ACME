@@ -38,9 +38,59 @@ def portal_me(h):
     if not portal_local_ok(h, s):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(401, 'that account may no longer sign in here')
+    if not portal_dir_still(h, s):
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        raise ApiError(401, 'that account may no longer sign in here')
     if portal_must_change(s):
         raise ApiError(403, 'change the password first')
     return s
+
+
+PORTAL_DIR_CHECK_S = 600
+
+
+def portal_dir_still(h, s):
+    """A person of the directory, asked about again every ten minutes (1.0.19),
+    as the administration asks about its own: switched off there, gone, or no
+    longer in the groups that let them in here, and the sign-in ends - not when
+    it runs out. A directory that cannot be reached leaves them as they are."""
+    data = s.get('data') if isinstance(s.get('data'), dict) else {}
+    if data.get('kind') == 'local' or not data.get('dn'):
+        return True
+    t = time.time()
+    if t - float(data.get('dir_checked') or 0) < PORTAL_DIR_CHECK_S:
+        return True
+    ad = portal_directory(h)
+    if not ad:
+        return False
+    try:
+        who, how = admin_name_parts(str(data.get('login') or s['name']))
+        entry = ad.find_user(who, how)
+        ok = bool(entry and not entry.get('many') and not entry_unusable(entry, locked=False)
+                  and str(entry.get('dn') or '').lower() == str(data['dn']).lower())
+        if ok and (CONFIG.get('portal_who') or 'anyone') == 'groups':
+            wanted = [{'group': g} for g in dn_list(CONFIG.get('portal_groups'))]
+            if CONFIG.get('portal_enrolers', 1):
+                wanted += [{'group': g} for g in dn_list(CONFIG.get('admin_group_portal'))]
+            have = ad.groups_of(entry, True)
+            ok = any(group_matches([w], have, ad) for w in wanted)
+    except Exception as e:                              # noqa: BLE001
+        log('the enrolment pages could not ask the directory about %s: %s' % (s['name'], e),
+            'warn')
+        try:
+            portal_data_set(h, s, dir_checked=t - PORTAL_DIR_CHECK_S + 60)
+        except Exception:                               # noqa: BLE001
+            pass
+        return True
+    if not ok:
+        h.store.add_event('portal', 'the directory no longer lets %s use the enrolment pages: '
+                          'signed out' % s['name'], 'warn', who=s['name'])
+        return False
+    try:
+        portal_data_set(h, s, dir_checked=t)
+    except Exception:                                   # noqa: BLE001
+        pass
+    return True
 
 
 def portal_mfa_pending(s):
@@ -438,7 +488,7 @@ def _portal_login(h):
     token = h.store.session_new('portal', who, 'portal', h.client_ip(),
                                 max(1, int(CONFIG.get('portal_session_min') or 15)) / 60.0 * 4,
                                 {'display': entry.get('display') or '', 'dn': entry['dn'],
-                                 'kind': 'directory', 'role': '',
+                                 'kind': 'directory', 'role': '', 'dir_checked': time.time(),
                                  'login': name, 'mail': entry.get('mail') or '',
                                  'mobile': entry.get('mobile') or '',
                                  # What the page shows under the name (1.0.113).

@@ -236,6 +236,8 @@ def mine(h, s, rows=None):
         one = public_row(st_, r, via)
         one['may'] = [w for w in ALL_RIGHTS if w in rights_of(s, r, names, groups, tms, defined)]
         one['team'] = str(r.get('owner') or '').strip().lower() in tms
+        if not key_may(s, via, one['may']):
+            one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one
     if E.portal_sees_all(s):
         out = [public(store, r, owner_of(r, names, groups, tms) or '*')
@@ -263,6 +265,14 @@ def used(store, who):
     and still kept, but those declined."""
     return int(store.db.value("SELECT COUNT(*) FROM certs WHERE created_by = ? AND "
                               "COALESCE(state, '') <> ?", ('portal:' + who, DECLINED), 0) or 0)
+
+
+def key_may(s, via, may):
+    """Whether this sign-in may take the key (a PFX) of a certificate it sees
+    (1.0.19): its own (owned by them), one of a team where they may manage, or
+    an administrator of acme's own who sees all - never a member who may only
+    see it, nor through a directory group."""
+    return bool(E.portal_sees_all(s) or via == 'me' or 'manage' in (may or ()))
 
 
 def need_mine(h, s, ref):
@@ -485,6 +495,15 @@ def _portal_download(h):
                                   'characters')
         if not row.get('key_sealed'):
             raise E.ApiError(400, 'acme does not hold the key of this certificate')
+        names, groups, tms = my_names(s), my_groups(h, s), my_teams(h, s)
+        defined = defined_teams(h.store)
+        via = owner_of(row, names, groups, tms, defined)
+        if not key_may(s, via, rights_of(s, row, names, groups, tms, defined)):
+            h.store.add_event('certificates', '%s was refused on the portal: the key of %s '
+                              '(needs the right manage)' % (s['name'], row['name']), 'warn',
+                              who=s['name'])
+            raise E.ApiError(403, 'only its owner, or a member of its team who may manage '
+                                  'it, may take its key')
         # The key, only through this route and only as a PFX with a password:
         # the setting portal_cert_keys says the people may have theirs.
         as_who = {'name': 'portal:%s' % s['name'], 'role': 'fulladmin'}
