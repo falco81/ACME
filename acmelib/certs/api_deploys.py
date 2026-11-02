@@ -136,6 +136,10 @@ def _deploys_dry_run(h, s):
             str(saved.get('script_body') or ''):
         raise E.ApiError(403, 'only a full administrator may test a script other than the one '
                               'saved')
+    if not A.may(s, 'fulladmin') and any(str(opts.get(k) or '') != str(saved.get(k) or '')
+                                         for k in A.DEPLOY_COMMANDS):
+        raise E.ApiError(403, 'only a full administrator may test commands other than the ones '
+                              'saved')
     by = A.who(s)
     run_script = A._flag(b.get('run_script'), 1)
     if opts.get('pfx_password_mode') == 'generate' and not opts.get('pfx_password'):

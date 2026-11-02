@@ -713,8 +713,8 @@ function fieldForm(fields, values, secrets, opts) {
       wide = true;
     } else if (type === 'secret') {
       var isSet = !!secrets[f.key];
-      input = secretBox(keptSecret(v), isSet ? 'set - leave empty to keep it' : (f.placeholder || 'not set'), 'mono');
-      noI18n(input);
+      input = secretBox(keptSecret(v), tr(isSet ? 'set - leave empty to keep it' : (f.placeholder || 'not set')), 'mono');
+      noI18n(input);   /* its hint in words all the same: tr() */
       get = function () { return input.value; };
     } else if (type === 'textarea' && f.ui === 'script' && window.ACME_DEPLOY_UI) {
       /* A script (the target's default one after the files): the code box. */
@@ -2046,7 +2046,7 @@ function modForm(key, row, p, fromPick) {
     if (p.missing) body.appendChild(el('p', 'ct-bad', 'The module of this kind is not installed (or would not load): its settings are shown as they are kept.'));
     var g = el('div', 'formgrid ct-basic');
     var others = arr(LISTS[key]).filter(function (x) { return !row || x.id !== row.id; }).map(function (x) { return x.name; });
-    name = textBox(row ? row.name : safeName(p.default_name || p.title || p.kind, others), 'a name of its own', '');
+    name = textBox(row ? row.name : safeName(p.default_name || p.title || p.kind, others), tr('a name of its own'), '');
     noI18n(name);
     if (FULL) guardName(name, true, others);
     g.appendChild(formField('Name', name, 'What it is called here, in the certificates and the jobs.'));
@@ -2320,6 +2320,9 @@ function deployEdit(o) {
       capi('deploys/save', {id: d.id, cert_id: isNaN(Number(cid)) ? cid : Number(cid), target: t.name,
                             options: form ? form.read() : {}, enabled: on._get()}).then(function (x) {
         var id = (x && (x.id || x.deploy_id)) || d.id;
+        /* Saved: pressed again (the deployment run after it refused - not issued
+           yet), it is this one saved again, not a second one made. (1.0.19) */
+        d.id = id;
         if (!run) { toast(said(x, 'saved'), 'good'); closeModal(); CT.refresh(); return; }
         return capi('deploys/run', {id: id}).then(function (y) { closeModal(); jobStarted(y, 'deploying'); });
       }).catch(fail).then(function () { busy(b, false); });
@@ -2343,7 +2346,7 @@ function deployEdit(o) {
       if (certId) {
         g.appendChild(formField('Certificate', data('div', 'ct-fixed', certName)));
       } else {
-        cSel = selectBox([['', 'choose one…']].concat(certs.map(function (c) { return [String(c.id), c.name + (c.cn && c.cn !== c.name ? ' (' + c.cn + ')' : '')]; })), '');
+        cSel = selectBox([['', tr('choose one…')]].concat(certs.map(function (c) { return [String(c.id), c.name + (c.cn && c.cn !== c.name ? ' (' + c.cn + ')' : '')]; })), '');
         noI18n(cSel);
         cSel.onchange = function () { drawFields(); };
         g.appendChild(formField('Certificate', cSel));
@@ -2357,7 +2360,7 @@ function deployEdit(o) {
       } else {
         /* The default target offered first (preselected). */
         var dtg = defaultOf(targets);
-        tSel = selectBox([['', 'choose one…']].concat(targets.map(function (t) { return [t.name, t.name + ' · ' + plugTitle('target', t.kind) + (t.is_default ? ' · ' + tr('default') : '')]; })), tName || (dtg ? dtg.name : ''));
+        tSel = selectBox([['', tr('choose one…')]].concat(targets.map(function (t) { return [t.name, t.name + ' · ' + plugTitle('target', t.kind) + (t.is_default ? ' · ' + tr('default') : '')]; })), tName || (dtg ? dtg.name : ''));
         noI18n(tSel);
         tSel.onchange = drawFields;
         g.appendChild(formField('Target', tSel, targets.length ? '' : 'No target yet - a full administrator adds them under Targets.'));
@@ -2651,8 +2654,11 @@ function certPeek(id) {
     var back = function () { certPeek(c.id); };
     var buttons = [];
     var waiting = c.state === 'pending' || c.csr_waiting;
-    if (MANAGE) buttons.push({words: 'Delete', cls: 'danger', icon: 'trash', left: true, go: function () {
-      capi('certs/delete', {id: c.id}).then(function (x) { toast(said(x, 'deleted'), 'good'); closeModal(); CT.refresh(); }).catch(fail);
+    if (MANAGE) buttons.push({words: 'Delete', cls: 'danger', icon: 'trash', left: true, go: function (b) {
+      /* Once (1.0.19): a second press while it went asked again (a 404). */
+      if (b) busy(b, true);
+      capi('certs/delete', {id: c.id}).then(function (x) { toast(said(x, 'deleted'), 'good'); closeModal(); CT.refresh(); })
+        .catch(function (e) { if (b) busy(b, false); fail(e); });
     }});
     buttons.push({words: 'Close', close: true});
     if (MANAGE && c.issuer && c.not_after && c.state !== 'revoked')
@@ -3742,7 +3748,7 @@ function certWizard(cert, detail) {
     rows.parentNode.appendChild(paste);
     var chips = el('div', 'ct-namecheck wide');
     g.appendChild(chips);
-    var name = textBox(W.d.name, 'the first name', '');
+    var name = textBox(W.d.name, tr('the first name'), '');
     noI18n(name);
     var autoName = !W.d.name || W.d.name === certName(names()[0] || '');
     guardName(name, false);
@@ -4037,7 +4043,7 @@ function certWizard(cert, detail) {
       tb.appendChild(listTable(['Name', 'Proved by', ''], list, function (n) {
         var tr = el('tr');
         tr.appendChild(td('', data('span', 'mono', n)));
-        var s = selectBox([['', 'as for every name']].concat(pairs), W.d.challenge_map[n] || '');
+        var s = selectBox([['', (typeof i18nText === 'function' && i18nText('as for every name')) || 'as for every name']].concat(pairs), W.d.challenge_map[n] || '');   /* tr() is the row here */
         noI18n(s);
         s.className = 'ct-valsel';
         mark(s, n);
@@ -4348,8 +4354,15 @@ function certWizard(cert, detail) {
     var reissue = editing && !issue && !!c.not_after && inCert(sent) !== inCert(c);
     capi('certs/save', sent).then(function (d) {
       var id = (d && d.id) || c.id;
+      /* Saved: pressed again after a deployment was refused, it is this certificate
+         and these deployments saved again - not a second of each. (1.0.19) */
+      c.id = id;
+      W.deployed = W.deployed || {};
       var jobs = Object.keys(W.deploys).map(function (t) {
-        return function () { return capi('deploys/save', {cert_id: id, target: t, options: W.deploys[t], enabled: true}); };
+        return function () {
+          return capi('deploys/save', {id: W.deployed[t], cert_id: id, target: t, options: W.deploys[t], enabled: true})
+            .then(function (x) { W.deployed[t] = (x && x.id) || W.deployed[t]; });
+        };
       });
       var chain = jobs.reduce(function (p, fn) { return p.then(fn); }, Promise.resolve());
       return chain.then(function () {
@@ -4513,7 +4526,7 @@ function importDialog(into) {
     keyRow.appendChild(formField('Password of the key', keyPass));
     body.appendChild(keyRow);
     var g = el('div', 'formgrid');
-    name = textBox(into ? into.name : '', 'from the certificate', '');
+    name = textBox(into ? into.name : '', tr('from the certificate'), '');
     noI18n(name);
     if (!into) guardName(name, false);
     tags = tagsBox([]);
@@ -4561,7 +4574,7 @@ function selfSigned() {
       var nf = formField('Names', f.names, 'One a line; IP addresses too. The first is its common name.');
       nf.classList.add('wide');
       g.appendChild(nf);
-      f.name = textBox('', 'the first name', '');
+      f.name = textBox('', tr('the first name'), '');
       noI18n(f.name);
       g.appendChild(formField('Name in acme', f.name));
       guardName(f.name, false);
@@ -4610,7 +4623,7 @@ function selfSigned() {
           function (e) { closeModal(); fail(e); certPeek(d.id); });
       }).catch(fail).then(function () { busy(b, false); });
     }}], 'medium');
-    f.names.addEventListener('input', function () { f.name.placeholder = splitNames(f.names.value)[0] || 'the first name'; });
+    f.names.addEventListener('input', function () { f.name.placeholder = splitNames(f.names.value)[0] || tr('the first name'); });
   });
 }
 
@@ -4624,7 +4637,7 @@ function csrDialog() {
     var nf = formField('Names', f.names, 'One a line. The first is the common name.');
     nf.classList.add('wide');
     g.appendChild(nf);
-    f.name = textBox('', 'the first name', '');
+    f.name = textBox('', tr('the first name'), '');
     noI18n(f.name);
     g.appendChild(formField('Name in acme', f.name));
     guardName(f.name, false);

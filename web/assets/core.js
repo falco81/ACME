@@ -374,7 +374,19 @@ function closeModal() {
     MODAL_FROM = under.from;
   }
   if (back && back.isConnected && back.focus) { try { back.focus(); } catch (e) { } }
-  if (under && under.back) setTimeout(under.back, 0);
+  if (under && under.back) {
+    /* Drawn afresh a moment later - unless something was opened in the
+       meantime (1.0.19): "Renew now" closes its question and opens the job's
+       log over the certificate at once; redrawn now, the certificate took the
+       log's place and the log was lost. Opened over it, it is redrawn once it
+       is on top again; drawn in its place, it is not drawn over that. */
+    var again = under.back, depth = MODAL_STACK.length, gen = MODAL_GEN;
+    setTimeout(function () {
+      if (MODAL_GEN === gen) { again(); return; }
+      var below = MODAL_STACK[depth];
+      if (MODAL_STACK.length > depth && below && below.el === under.el && !below.back) below.back = again;
+    }, 0);
+  }
 }
 /* Tab and Shift+Tab go round inside the popup while it is open. */
 document.addEventListener('keydown', function (e) {

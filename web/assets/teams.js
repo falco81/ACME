@@ -410,7 +410,7 @@
     var f = {};
     modal(isNew ? 'A new owner' : 'The owner ' + t.name, function (body) {
       var g = el('div', 'formgrid');
-      f.name = textBox(t.name, 'Web team', '');
+      f.name = textBox(t.name, tr('Web team'), '');
       f.name.id = 'tm-f-name';
       noI18n(f.name);
       g.appendChild(formField('Name', f.name, 'Letters, digits, spaces and . _ @ + - (as every name in acme). Renamed, its certificates follow.'));
@@ -615,7 +615,7 @@
       var cf = formField('Colour', f.colour);
       cf.appendChild(prev);
       g.appendChild(cf);
-      f.desc = textBox(t.description || '', 'what it means', '');
+      f.desc = textBox(t.description || '', tr('what it means'), '');
       noI18n(f.desc);
       var df = formField('What it means', f.desc);
       df.classList.add('wide');

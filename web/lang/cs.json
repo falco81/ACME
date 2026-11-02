@@ -41303,6 +41303,22 @@
   "sb1x01": {
    "source": "only its owner, or a member of its team who may manage it, may take its key",
    "text": "jeho klíč smí získat jen jeho vlastník nebo člen jeho týmu s právem spravovat"
+  },
+  "sdf0210": {
+   "source": "arguments: {name}",
+   "text": "argumenty: {name}"
+  },
+  "sz7804": {
+   "source": "the alias is one line of text",
+   "text": "alias je jeden řádek textu"
+  },
+  "sb2x03": {
+   "source": "only a full administrator may change the commands a deployment runs on the target",
+   "text": "příkazy, které nasazení spouští na cíli, smí měnit jen plný správce"
+  },
+  "sb2x04": {
+   "source": "only a full administrator may test commands other than the ones saved",
+   "text": "jiné než uložené příkazy smí vyzkoušet jen plný správce"
   }
  },
  "patterns": {

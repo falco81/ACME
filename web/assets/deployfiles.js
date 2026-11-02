@@ -35,6 +35,11 @@
                'script_mode', 'script_path', 'script_args', 'script_interp', 'script_body'];
   var AROUND = ['pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd', 'command', 'post_ps'];
   var MODES = ['0600', '0640', '0644', '0400', '0440', '0444'];
+  /* Words in the page's language where i18n.js does not reach: the hint of a
+     box marked as data (data-no-i18n) is never translated by it. (1.0.19) */
+  function tr(s) {
+    try { var got = typeof i18nText === 'function' ? i18nText(s) : null; return got || s; } catch (e) { return s; }
+  }
 
   function arr(v) {
     if (Array.isArray(v)) return v;
@@ -201,7 +206,7 @@
       if (withMode) {
         var mpairs = MODES.map(function (m) { return [m, m]; });
         if (r.mode && MODES.indexOf(r.mode) < 0) mpairs.push([r.mode, r.mode]);
-        mpairs.unshift(['', 'default']);
+        mpairs.unshift(['', tr('default')]);
         msel = selectBox(mpairs, r.mode || '');
         msel.className = 'df-mode';
         noI18n(msel);
@@ -369,13 +374,13 @@
                     mode, function () { paint(); changed(); });
     box.appendChild(seg);
     var line = el('div', 'df-pw-line');
-    var pw = secretBox(CT.keptSecret ? CT.keptSecret(values.pfx_password) : '', isSet ? 'set - leave empty to keep it' : 'not set', 'mono');
+    var pw = secretBox(CT.keptSecret ? CT.keptSecret(values.pfx_password) : '', tr(isSet ? 'set - leave empty to keep it' : 'not set'), 'mono');
     noI18n(pw);
     var made = el('div', 'df-pw-made');
     var again = cmdButton('Make a new one', 'refresh', 'small');
     again.onclick = function () { fresh = true; paint(); changed(); };
     var aliasF = fieldOf(fields, 'jks_alias');
-    var alias = aliasF ? textBox(values.jks_alias || '', 'the certificate\'s name', 'mono') : null;
+    var alias = aliasF ? textBox(values.jks_alias || '', tr('the certificate\'s name'), 'mono') : null;
     if (alias) noI18n(alias);
     line.appendChild(pw);
     line.appendChild(made);
@@ -476,9 +481,9 @@
       snipSel.className = 'df-snip';
       bar.appendChild(snipSel);
     }
-    var argsIn = textBox(values.script_args || '', 'arguments: {name}', 'mono df-args');
+    var argsIn = textBox(values.script_args || '', tr('arguments: {name}'), 'mono df-args');
     noI18n(argsIn);
-    argsIn.title = 'Its arguments - {name} {cn} {service} {date} are filled in';
+    argsIn.title = tr('Its arguments - {name} {cn} {service} {date} are filled in');
     bar.appendChild(argsIn);
     var size = el('span', 'muted small df-size');
     bar.appendChild(size);

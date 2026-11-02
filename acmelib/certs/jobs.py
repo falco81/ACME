@@ -315,8 +315,13 @@ def job_view(store, ident):
     return out
 
 
-def job_rows(store, cert_id=None, kind='', ok=None, page=1, per=50, since=None):
+def job_rows(store, cert_id=None, kind='', ok=None, page=1, per=50, since=None, where=None):
+    """A page of jobs. `where`: (' AND ...', args) on the certificate `c` (teams.where)."""
+    scoped = where if where and where[0] else None
     where, args = [], []
+    if scoped:
+        where.append(scoped[0][len(' AND '):])
+        args += list(scoped[1])
     if cert_id:
         where.append('j.cert_id = ?')
         args.append(int(cert_id))
@@ -330,7 +335,8 @@ def job_rows(store, cert_id=None, kind='', ok=None, page=1, per=50, since=None):
         where.append('j.ts >= ?')
         args.append(float(since))
     w = (' WHERE ' + ' AND '.join(where)) if where else ''
-    total = int(store.db.value('SELECT COUNT(*) FROM cert_jobs j' + w, tuple(args), 0) or 0)
+    total = int(store.db.value('SELECT COUNT(*) FROM cert_jobs j LEFT JOIN certs c ON '
+                               'c.id = j.cert_id' + w, tuple(args), 0) or 0)
     per = max(1, min(500, int(per or 50)))
     page = max(1, int(page or 1))
     rows = store.db.rows(

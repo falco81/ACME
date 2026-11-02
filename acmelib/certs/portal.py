@@ -236,7 +236,7 @@ def mine(h, s, rows=None):
         one = public_row(st_, r, via)
         one['may'] = [w for w in ALL_RIGHTS if w in rights_of(s, r, names, groups, tms, defined)]
         one['team'] = str(r.get('owner') or '').strip().lower() in tms
-        if not key_may(s, via, one['may']):
+        if not key_may(s, via, one['may'], asker(st_, r['id']).get('who')):
             one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one
     if E.portal_sees_all(s):
@@ -267,12 +267,13 @@ def used(store, who):
                               "COALESCE(state, '') <> ?", ('portal:' + who, DECLINED), 0) or 0)
 
 
-def key_may(s, via, may):
+def key_may(s, via, may, asked_by=''):
     """Whether this sign-in may take the key (a PFX) of a certificate it sees
-    (1.0.19): its own (owned by them), one of a team where they may manage, or
-    an administrator of acme's own who sees all - never a member who may only
-    see it, nor through a directory group."""
-    return bool(E.portal_sees_all(s) or via == 'me' or 'manage' in (may or ()))
+    (1.0.19): its own (owned by them, or asked for by them for a team), one of
+    a team where they may manage, or an administrator of acme's own who sees
+    all - never a member who may only see it, nor through a directory group."""
+    return bool(E.portal_sees_all(s) or via == 'me' or 'manage' in (may or ())
+                or (asked_by and str(asked_by).lower() == owner_word(s).lower()))
 
 
 def need_mine(h, s, ref):
@@ -498,7 +499,8 @@ def _portal_download(h):
         names, groups, tms = my_names(s), my_groups(h, s), my_teams(h, s)
         defined = defined_teams(h.store)
         via = owner_of(row, names, groups, tms, defined)
-        if not key_may(s, via, rights_of(s, row, names, groups, tms, defined)):
+        if not key_may(s, via, rights_of(s, row, names, groups, tms, defined),
+                       asker(h.store, row['id']).get('who')):
             h.store.add_event('certificates', '%s was refused on the portal: the key of %s '
                               '(needs the right manage)' % (s['name'], row['name']), 'warn',
                               who=s['name'])

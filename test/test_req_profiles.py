@@ -96,7 +96,8 @@ def status(fn, *a, **kw):
 def person(name, local=False, groups=(), mail=''):
     data = {'kind': 'local' if local else 'directory', 'mail': mail, 'about': {'upn': mail},
             'cert_groups': [list(g) for g in groups], 'cert_groups_at': time.time(),
-            'dn': 'CN=%s,%s' % (name, BASE)}
+            'dn': 'CN=%s,%s' % (name, BASE),
+            'dir_checked': time.time()}     # just signed in: the directory not asked again yet
     return {'name': name, 'data': data, 'kind': 'portal'}
 
 

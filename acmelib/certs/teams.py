@@ -215,8 +215,25 @@ def deny(store, s, what, right):
                           'the right "%s"' % right)
 
 
+def cert_of_ref(store, ref):
+    """The certificate a route will act on: by its id or name - and by the number
+    the route itself reads (api._id: int(' 5'), int(5.0)), which cert_get alone
+    took for a name, found none, and let the route act unchecked (1.0.19)."""
+    if ref in (None, '') or isinstance(ref, (dict, list)):
+        return None
+    row = S.cert_get(store, ref)
+    if row is None and not isinstance(ref, bool):
+        try:
+            n = int(ref)
+        except (TypeError, ValueError, OverflowError):
+            n = 0
+        if n > 0:
+            row = S.cert_get(store, n)
+    return row
+
+
 def need_cert(store, s, ref, right, what=''):
-    row = S.cert_get(store, ref) if ref not in (None, '') else None
+    row = cert_of_ref(store, ref)
     if row is None:
         return None
     if not cert_may(store, s, row, right):
@@ -275,6 +292,8 @@ def guard(h, s, method, path):
             need_cert(store, s, h.arg('id') or h.arg('name'), 'view', 'look at')
         elif path == '/api/certs/job':
             need_cert(store, s, _cert_of_job(store, h.arg('id')), 'view', 'look at a job of')
+        elif path == '/api/certs/dry_run_result':
+            need_cert(store, s, _cert_of_job(store, h.arg('job')), 'view', 'look at a test of')
         elif path == '/api/certs/jobs' and h.arg('cert_id'):
             need_cert(store, s, h.arg('cert_id'), 'view', 'look at the jobs of')
         return
@@ -299,9 +318,13 @@ def guard(h, s, method, path):
                                     or cert_may(store, s, row, 'manage')):
             deny(store, s, 'approve %s' % row['name'], 'approve')
     elif path in ('/api/deploys/save', '/api/deploys/dry_run', '/api/deploys/preview'):
-        cid = _ref(b, 'cert_id') or (_cert_of_deploy(store, b['id']) if b.get('id') else None)
         right = 'view' if path == '/api/deploys/preview' else 'manage'
-        need_cert(store, s, cid, right, 'deploy')
+        # Both: the certificate given, and the one of the deployment given - a
+        # deployment of another team's certificate was taken over by giving it
+        # a certificate of one's own (1.0.19).
+        if b.get('id') not in (None, '', 0):
+            need_cert(store, s, _cert_of_deploy(store, b['id']), right, 'deploy')
+        need_cert(store, s, _ref(b, 'cert_id'), right, 'deploy')
     elif path in ('/api/deploys/delete', '/api/deploys/run'):
         need_cert(store, s, _cert_of_deploy(store, b.get('id')), 'manage', 'deploy')
 

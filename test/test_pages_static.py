@@ -7,8 +7,11 @@
   popup (modal, confirmThen), in the look of the application - never in the
   browser's grey box.
 """
+import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import unittest
 
@@ -37,9 +40,6 @@ class NoNativeDialogs(unittest.TestCase):
                          + '\n'.join(found))
 
 
-if __name__ == '__main__':
-    sys.exit(unittest.main())
-
 
 class PagesVersion(unittest.TestCase):
     """The pages say the version acme is, and key their assets' cache by it:
@@ -63,3 +63,62 @@ class PagesVersion(unittest.TestCase):
                     if re.search(r'/assets/[\w.-]+\.(js|css)\?v=<\?= h\(ACME_VERSION\) \?>', line):
                         bare.append('%s:%d' % (os.path.relpath(path, ROOT), n))
         self.assertEqual(bare, [], 'assets keyed by the version alone: ' + ', '.join(bare))
+
+
+class HintsOfDataBoxes(unittest.TestCase):
+    """A box marked as data (noI18n) is skipped whole by i18n.js - its hint too:
+    "the first name", "set - leave empty to keep it", "choose one…" stayed English
+    on a Czech page (1.0.19). Such a hint in words goes through tr()."""
+
+    BOX = re.compile(r"(?:textBox|secretBox|areaBox|maskBox)\([^,]*,\s*'((?:[^'\\]|\\.)*)'")
+    SEL = re.compile(r"selectBox\(\[\['[^']*',\s*'((?:[^'\\]|\\.)*)'\]")
+
+    def test_hints_of_data_boxes_are_translated(self):
+        with open(os.path.join(ROOT, 'web', 'lang', 'cs.json'), encoding='utf-8') as f:
+            pack = json.load(f)
+        known = {x.get('source') for x in pack['strings'].values() if isinstance(x, dict)}
+        found = []
+        for name in ('certs.js', 'deployfiles.js', 'teams.js'):
+            path = os.path.join(ROOT, 'web', 'assets', name)
+            with open(path, encoding='utf-8') as f:
+                lines = f.read().split('\n')
+            for n, line in enumerate(lines):
+                m = re.search(r'noI18n\(([\w.]+)\)', line)
+                if not m:
+                    continue
+                var = re.escape(m.group(1))
+                for back in range(1, 4):
+                    made = lines[n - back] if n - back >= 0 else ''
+                    if not re.search(r'(?<![\w.])' + var + r'\s*=', made):
+                        continue
+                    for rx in (self.BOX, self.SEL):
+                        for hint in rx.findall(made):
+                            words = hint.replace("\\'", "'")
+                            if words in known and (' ' in words or words == 'default'):
+                                found.append('%s:%d: %s' % (name, n + 1 - back, words))
+                    break
+        self.assertEqual(found, [], 'English hints of boxes marked as data - tr() them:\n'
+                         + '\n'.join(found))
+
+
+class PopupStack(unittest.TestCase):
+    """The popup over a popup (core.js) in a browser: a question answered by
+    opening the job's log over the certificate keeps the log on top - the
+    certificate drawn afresh took its place, and the log was lost (1.0.19)."""
+
+    def test_opened_after_a_close_stays_on_top(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          timeout=60).returncode:
+            self.skipTest('no playwright for node here')
+        got = subprocess.run([node, os.path.join(ROOT, 'test', 'modal_stack_page.js'),
+                              os.path.join(ROOT, 'web', 'assets', 'core.js')],
+                             capture_output=True, text=True, timeout=120)
+        out = json.loads((got.stdout.strip().splitlines() or ['{}'])[-1])
+        self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
+
+
+if __name__ == '__main__':
+    sys.exit(unittest.main())

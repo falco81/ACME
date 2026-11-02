@@ -230,24 +230,44 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
 def _overview(h, s):
     store = h.store
     t = time.time()
-    by_state = renewer.counts(store)
-    soon = store.db.rows("SELECT id, name, not_after, state, auto_renew, issuer FROM certs "
-                         "WHERE not_after IS NOT NULL AND state NOT IN ('revoked', 'disabled') "
-                         "ORDER BY not_after LIMIT 10")
-    sc_ = _lib('teams').scope(store, s, 'view')
+    days = int(E.CONFIG.get('certs_notify_days') or 14)
+    T = _lib('teams')
+    sc_ = T.scope(store, s, 'view')
+    sw, sa = T.where(store, s, 'view')
+    by_state = renewer.counts(store) if sc_ is None else {}
     if sc_ is not None:
-        soon = [r for r in soon if _lib('teams').owner_in(sc_, (S.cert_get(store, r['id']) or {})
-                                                          .get('owner'))]
+        # Scoped (teams.py): the numbers and the alerts of its own certificates
+        # only - they said every team's, and the alerts named the others' (1.0.19).
+        for r in store.db.rows('SELECT state, COUNT(*) AS n FROM certs WHERE 1 = 1%s GROUP BY '
+                               'state' % sw, sa):
+            k = r['state'] or 'new'
+            by_state[k] = by_state.get(k, 0) + int(r['n'])
+    soon = store.db.rows("SELECT id, name, not_after, state, auto_renew, issuer FROM certs "
+                         "WHERE not_after IS NOT NULL AND state NOT IN ('revoked', 'disabled')%s "
+                         "ORDER BY not_after LIMIT 10" % sw, sa)
     for r in soon:
         r['days_left'] = S.days_left(r, t)
     weeks = []
     for i in range(12):
         a, b = t + i * 7 * 86400, t + (i + 1) * 7 * 86400
         weeks.append({'from': a, 'to': b, 'n': int(store.db.value(
-            'SELECT COUNT(*) FROM certs WHERE not_after >= ? AND not_after < ?', (a, b), 0) or 0)})
-    recent = _scoped_rows(store, s, jobs.job_rows(store, per=10))['rows']
+            'SELECT COUNT(*) FROM certs WHERE not_after >= ? AND not_after < ?' + sw,
+            (a, b) + tuple(sa), 0) or 0)})
+    recent = jobs.job_rows(store, per=10, where=T.where(store, s, 'view', 'c.owner'))['rows']
+    alerts = renewer.alerts(store)
+    if sc_ is not None:
+        mine = {r['id'] for r in store.db.rows('SELECT id FROM certs WHERE 1 = 1' + sw, sa)}
+        deps = {r['id']: r['cert_id'] for r in store.db.rows('SELECT id, cert_id FROM cert_deploys')}
+
+        def _mine(a):
+            kind, _, ident = str(a.get('key') or '').partition(':')
+            try:
+                ident = int(ident)
+            except ValueError:
+                return False
+            return (deps.get(ident) if kind == 'cert-deploy' else ident) in mine
+        alerts = [a for a in alerts if _mine(a)]
     lead = renewer.leader(store)
-    days = int(E.CONFIG.get('certs_notify_days') or 14)
     DF.ensure(store)
     di = DF.default_issuer(store)
     dc = DF.default_challenge(store, di) if di else None
@@ -258,14 +278,18 @@ def _overview(h, s):
             'contact_missing': DF.contact_missing(store),
             'by_state': by_state, 'total': sum(by_state.values()), 'soonest': soon,
             'expiring': int(store.db.value('SELECT COUNT(*) FROM certs WHERE not_after > ? AND '
-                                           'not_after < ?', (t, t + days * 86400), 0) or 0),
+                                           'not_after < ?' + sw, (t, t + days * 86400) + tuple(sa),
+                                           0) or 0),
             'expired': int(store.db.value("SELECT COUNT(*) FROM certs WHERE not_after < ? AND "
-                                          "state NOT IN ('revoked', 'disabled')", (t,), 0) or 0),
-            'deploys_failed': int(store.db.value("SELECT COUNT(*) FROM cert_deploys WHERE "
-                                                 "state = 'failed'", (), 0) or 0),
+                                          "state NOT IN ('revoked', 'disabled')" + sw,
+                                          (t,) + tuple(sa), 0) or 0),
+            'deploys_failed': int(store.db.value(
+                "SELECT COUNT(*) FROM cert_deploys d JOIN certs c ON c.id = d.cert_id WHERE "
+                "d.state = 'failed'" + T.where(store, s, 'view', 'c.owner')[0],
+                tuple(sa), 0) or 0),
             'weeks': weeks, 'jobs': recent, 'running': len(jobs.RUNNING),
             'leader': lead, 'last_scan': S.jload(store.get_meta('certs:last_scan'), None),
-            'alerts': renewer.alerts(store)[:50], 'notify_days': days,
+            'alerts': alerts[:50], 'notify_days': days,
             'states': schema.STATES, 'key_types': list(schema.KEY_TYPES)}
 
 
@@ -350,6 +374,9 @@ def key_type_alt_of(v, key_type):
 @api('GET', '/api/certs/one')
 def _cert_one(h, s):
     return cert_one(h.store, h.arg('id') or h.arg('name'), may(s, 'fulladmin'))
+
+
+KEEP_STATES = ('revoked', 'pending-approval', 'declined', 'pending')
 
 
 def cert_save(store, b, by):
@@ -476,7 +503,12 @@ def cert_save(store, b, by):
         fields['owner'] = _text(b, 'owner', 190).strip()
     if 'enabled' in b:
         fields['enabled'] = _flag(b.get('enabled'), 1)
-        if row and not fields['enabled']:
+        if row and row.get('state') in KEEP_STATES:
+            # Switched off and on again, a revoked certificate came back "valid", and a
+            # request not approved (or declined) "not issued yet" - issued by itself,
+            # past its approval (1.0.19). Their state stays; `enabled` says off.
+            pass
+        elif row and not fields['enabled']:
             fields['state'] = 'disabled'
         elif row and row.get('state') == 'disabled':
             fields['state'] = 'ok' if row.get('cert_pem') else 'new'
@@ -585,6 +617,9 @@ def _cert_delete(h, s):
     db = h.store.db
     db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (row['id'],))
     db.run('DELETE FROM cert_versions WHERE cert_id = ?', (row['id'],))
+    # Its jobs that are over go with it (1.0.19); one still at work stays until it ends.
+    db.run("DELETE FROM cert_jobs WHERE cert_id = ? AND state NOT IN ('queued', 'running')",
+           (row['id'],))
     db.run('DELETE FROM certs WHERE id = ?', (row['id'],))
     # Who asked for it on the portal (portal.META) goes with it (1.0.19): kept, a
     # certificate given the same id later (MariaDB counts from the highest one left
@@ -632,24 +667,34 @@ def start_deploy(store, ref, deploy_id, by):
         if not d:
             raise LookupError('that deployment is not one of %s' % row['name'])
         only = [d['id']]
-    try:
-        return jobs.submit(store, 'deploy', deployer.deploy_job(row['id'], only, force=True),
-                           cert_id=row['id'], deploy_id=only[0] if only else None, by=by,
-                           said='asked by %s' % by)
-    except ValueError as e:
-        # A job on it already (the look that deploys a deployment just saved, a
-        # renewal that deploys after it): that job is given to watch (1.0.18),
-        # as with Renew now - it puts the certificate in place too.
-        running = jobs.cert_job(store, row['id'])
-        if running is not None:
-            return running
-        raise E.ApiError(409, str(e))
+    end = time.time() + (20 if only else 0)
+    while True:
+        try:
+            return jobs.submit(store, 'deploy', deployer.deploy_job(row['id'], only, force=True),
+                               cert_id=row['id'], deploy_id=only[0] if only else None, by=by,
+                               said='asked by %s' % by)
+        except ValueError as e:
+            running = jobs.cert_job(store, row['id'])
+            # One deployment asked for while a job works on the certificate (the look
+            # that deploys a deployment just saved): it is run once that job is done -
+            # waited for a little (1.0.19); that job's result is not this one's.
+            if only and running is not None and time.time() < end:
+                time.sleep(0.25)
+                continue
+            # The whole certificate: the job at work puts it in place too (1.0.18).
+            if running is not None and not only:
+                return running
+            raise E.ApiError(409, str(e))
 
 
 @api('POST', '/api/certs/deploy', 'certadmin')
 def _cert_deploy(h, s):
     b = h.body()
     return {'job_id': start_deploy(h.store, _id(b.get('id')), b.get('deploy_id'), who(s))}
+
+
+DEPLOY_COMMANDS = ('pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd', 'script_path',
+                   'script_args', 'script_mode', 'script_interp')
 
 
 REVOKE_REASONS = ('unspecified', 'keyCompromise', 'cACompromise', 'affiliationChanged',
@@ -832,7 +877,12 @@ def cert_export(store, b, s, allowed=None):
                          % row['name'])
     if fmt in S.KEY_FORMATS and not getattr(bundle, 'key_pem', None):
         raise ValueError('acme does not have the key of %s' % row['name'])
-    data = bundle.as_format(fmt, _text(b, 'password', 1000) or None)
+    # The alias the page asks for (a Java keystore, PKCS#12's friendly name) - it was
+    # never handed on: every keystore held the default one (1.0.19).
+    alias = _text(b, 'alias', 100).strip() or None
+    if alias and any(ord(ch) < 32 for ch in alias):
+        raise ValueError('the alias is one line of text')
+    data = bundle.as_format(fmt, _text(b, 'password', 1000) or None, alias)
     if isinstance(data, str):
         data = data.encode('utf-8')
     ext, mime = FORMAT_FILES[fmt]
@@ -915,10 +965,12 @@ def _cert_csr_answer(h, s):
 @api('GET', '/api/certs/jobs')
 def _jobs(h, s):
     ok = h.arg('ok')
-    got = jobs.job_rows(h.store, cert_id=h.arg('cert_id') or None, kind=h.arg('kind'),
-                        ok=ok if ok in ('0', '1') else None, page=h.num('page', 1, 1),
-                        per=h.num('per', 50, 1, 500))
-    return _scoped_rows(h.store, s, got)
+    # Scoped in the query (1.0.19): a page of every job kept to its own had a few
+    # rows, or none, while its jobs were on the pages after it.
+    return jobs.job_rows(h.store, cert_id=h.arg('cert_id') or None, kind=h.arg('kind'),
+                         ok=ok if ok in ('0', '1') else None, page=h.num('page', 1, 1),
+                         per=h.num('per', 50, 1, 500),
+                         where=_lib('teams').where(h.store, s, 'view', 'c.owner'))
 
 
 def _scoped_rows(store, s, got, key='cert_id'):
@@ -1675,6 +1727,13 @@ def deploy_save(store, b, by, full=True):
             if not full and str(given.get('script_body') or '') != str(old.get('script_body') or ''):
                 raise E.ApiError(403, 'only a full administrator may change the script of a '
                                       'deployment (it runs on the target)')
+        # The commands run on the target around the files (1.0.19): as the script is,
+        # changed by a full administrator only - a certificate administrator keeps them.
+        if not full:
+            for k in DEPLOY_COMMANDS:
+                if k in given and str(given.get(k) or '') != str(old.get(k) or ''):
+                    raise E.ApiError(403, 'only a full administrator may change the commands '
+                                          'a deployment runs on the target')
         opts = S.config_seal(given, old,
                              'cert_deploys:%s' % row['id'], S.secret_fields(cls, 'deploy_fields'))
         if opts.get('pfx_password_mode') == 'generate' and (

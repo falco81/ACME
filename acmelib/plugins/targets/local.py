@@ -63,6 +63,12 @@ class LocalTarget(Base):
             raise PluginError('the folder of this target is not allowed: %s' % b, retry=False)
         return b
 
+    @staticmethod
+    def _where(base, rel):
+        """The file a path stands for, as _place() writes it - nothing made, nothing checked."""
+        rel = rel.lstrip('/') if not rel.startswith(base + '/') else rel[len(base) + 1:]
+        return os.path.normpath(os.path.join(base, rel))
+
     def _place(self, base, rel):
         rel = rel.lstrip('/') if not rel.startswith(base + '/') else rel[len(base) + 1:]
         full = os.path.normpath(os.path.join(base, rel))
@@ -140,8 +146,10 @@ class LocalTarget(Base):
             raise PluginError('the command "%s" is not one this target allows' % cmd,
                               retry=False)
         sc = self._script(options, vars)
+        # Where each file is written (1.0.19): a path already under the folder is
+        # the folder's, as _place() takes it - joined again it was never there.
         if self.unchanged(bundle, options, present=lambda: all(
-                os.path.exists(os.path.join(base, o['path'].lstrip('/'))) for o in outs)):
+                os.path.exists(self._where(base, o['path'])) for o in outs)):
             return self.same(bundle, 'in %s' % base)
         os.makedirs(base, mode=0o750, exist_ok=True)
         datas = self._render(pairs, options, vars)

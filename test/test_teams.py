@@ -323,6 +323,56 @@ class Matrix(unittest.TestCase):
                                   who='cweb', role='certadmin'), 403)
 
 
+    def test_ids_the_route_reads_are_checked_too(self):
+        # ' 5', 5.0, '5 ': the route reads them as the number (api._id); the check took
+        # them for a name, found nothing and let the route act (1.0.19).
+        E.CONFIG.update(certs_certadmin_all=0)
+        for ref in (self.mail, str(self.mail), ' %d' % self.mail, '%d ' % self.mail,
+                    float(self.mail)):
+            self.assertEqual(self.may('POST', '/api/certs/auto', {'id': ref, 'auto_renew': 0},
+                                      who='cweb', role='certadmin'), 403, repr(ref))
+            self.assertEqual(self.may('POST', '/api/certs/save', {'id': ref, 'note': 'x'},
+                                      who='cweb', role='certadmin'), 403, repr(ref))
+        self.assertEqual(self.may('POST', '/api/certs/auto', {'id': ' %d' % self.web,
+                                                              'auto_renew': 0},
+                                  who='cweb', role='certadmin'), 200)
+
+    def test_a_deployment_of_another_team_is_not_taken_over(self):
+        E.CONFIG.update(certs_certadmin_all=0)
+        STORE.db.insert('cert_targets', {'name': 't1', 'kind': 'local', 'config': '{}',
+                                         'enabled': 1})
+        dep = A.deploy_save(STORE, {'cert_id': self.mail, 'target': 't1'}, 'x')
+        for path in ('/api/deploys/save', '/api/deploys/preview'):
+            self.assertEqual(self.may('POST', path, {'id': dep, 'cert_id': self.web},
+                                      who='cweb', role='certadmin'), 403, path)
+        self.assertEqual(STORE.db.value('SELECT cert_id FROM cert_deploys WHERE id = ?', (dep,)),
+                         self.mail)
+        self.assertEqual(self.may('POST', '/api/deploys/save', {'cert_id': self.web,
+                                                                'target': 't1'},
+                                  who='cweb', role='certadmin'), 200)
+
+    def test_overview_and_jobs_are_its_own(self):
+        E.CONFIG.update(certs_certadmin_all=0)
+        issued(self.mail)
+        STORE.db.update('certs', self.mail, {'state': 'failed', 'last_error': 'secret words'})
+        for i in range(60):        # more than a page of the other team's jobs, newer
+            STORE.db.insert('cert_jobs', {'ts': time.time() + i, 'kind': 'renew', 'state': 'done',
+                                          'cert_id': self.mail, 'ok': 1})
+        STORE.db.insert('cert_jobs', {'ts': time.time() - 100, 'kind': 'renew', 'state': 'done',
+                                      'cert_id': self.web, 'ok': 1})
+        ov = call('GET', '/api/certs/overview', who='cweb', role='certadmin')
+        self.assertEqual(ov['total'], 1)
+        self.assertNotIn('failed', ov['by_state'])
+        self.assertEqual([a for a in ov['alerts'] if 'mail1' in a['words']], [])
+        self.assertEqual({r['cert_id'] for r in ov['jobs']}, {self.web})
+        got = call('GET', '/api/certs/jobs', who='cweb', role='certadmin')
+        self.assertEqual(([r['cert_id'] for r in got['rows']], got['total']), ([self.web], 1))
+        full = call('GET', '/api/certs/overview')
+        self.assertEqual(full['total'], 3)
+        self.assertTrue([a for a in full['alerts'] if 'mail1' in a['words']])
+        self.assertEqual(call('GET', '/api/certs/jobs')['total'], 61)
+
+
 class Portal(unittest.TestCase):
     def setUp(self):
         clean()
@@ -335,7 +385,8 @@ class Portal(unittest.TestCase):
     def person(self, name, local=False, groups=(), mail=''):
         data = {'kind': 'local' if local else 'directory', 'mail': mail,
                 'about': {'upn': mail}, 'cert_groups': [list(g) for g in groups],
-                'cert_groups_at': time.time(), 'dn': 'CN=%s,%s' % (name, BASE)}
+                'cert_groups_at': time.time(), 'dn': 'CN=%s,%s' % (name, BASE),
+                'dir_checked': time.time()}     # just signed in: not asked again yet
         return {'name': name, 'data': data, 'kind': 'portal'}
 
     def rows(self, s):
@@ -425,6 +476,27 @@ class Details(unittest.TestCase):
         after = STORE.db.row('SELECT * FROM certs WHERE id = ?', (cid,))
         self.assertEqual((after['version'], after['state'], after['cert_pem']), (3, 'ok', 'PEM'))
         self.assertEqual(renewer.main_due(after), '')     # not issued again by itself
+
+    def test_off_and_on_again_keeps_revoked_and_unapproved(self):
+        # "In use" off and on: revoked came back "ok", a request not approved "new" -
+        # and was issued by itself, past its approval (1.0.19).
+        cid = cert('d3', auto_renew=1)
+        issued(cid)
+        STORE.db.update('certs', cid, {'state': 'revoked'})
+        asked = cert('d4', auto_renew=1)
+        STORE.db.update('certs', asked, {'state': 'pending-approval'})
+        plain = cert('d5', auto_renew=1)
+        issued(plain)
+        for ident, want in ((cid, 'revoked'), (asked, 'pending-approval'), (plain, 'ok')):
+            A.cert_save(STORE, {'id': ident, 'enabled': 0}, 'x')
+            row = STORE.db.row('SELECT * FROM certs WHERE id = ?', (ident,))
+            self.assertEqual((row['enabled'], row['state']),
+                             (0, 'disabled' if ident == plain else want))
+            A.cert_save(STORE, {'id': ident, 'enabled': 1}, 'x')
+            row = STORE.db.row('SELECT * FROM certs WHERE id = ?', (ident,))
+            self.assertEqual((row['enabled'], row['state']), (1, want))
+        self.assertEqual(renewer.main_due(STORE.db.row('SELECT * FROM certs WHERE id = ?',
+                                                       (asked,))), '')
 
 
 if __name__ == '__main__':

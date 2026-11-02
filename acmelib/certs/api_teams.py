@@ -26,6 +26,13 @@ from acmelib.certs import teams as T
 def summary(store, s):
     sc = T.scope(store, s, 'request')
     teams = T.teams(store)
+    # A scoped account (its settings off) sees the members and the addresses of
+    # its own teams only (1.0.19) - of the others the name, which the owner lists need.
+    seen = T.scope(store, s, 'view')
+    if seen is not None:
+        teams = [t if T.owner_in(seen, t['name']) else
+                 dict(t, members=[], contact_mail='', contact_phone='', note='')
+                 for t in teams]
     return {'teams': teams, 'tags': T.tags(store), 'legacy': T.legacy(store),
             'rights': list(T.RIGHTS), 'kinds': list(T.KINDS), 'colours': list(T.COLOURS),
             'can_change': s.get('role') == 'fulladmin',

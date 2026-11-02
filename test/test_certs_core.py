@@ -364,6 +364,11 @@ class CertsCore(unittest.TestCase):
             self.assertTrue(data.startswith(head), '%s: %r' % (fmt, data[:40]))
             if fmt == 'pfx':
                 self.__class__.pfx = data
+        # The alias asked for is the keystore's (it was dropped: always the default, 1.0.19).
+        got = self.ok('POST', '/api/certs/export', {'id': cid, 'format': 'jks',
+                                                    'password': 'Export-pw1',
+                                                    'alias': 'tomcat-web'})
+        self.assertIn(b'\x00\x0atomcat-web', base64.b64decode(got['data_b64']))
         # readonly may look but not export, and nobody but a full admin takes a key.
         st, got = self.call('POST', '/api/certs/export', {'id': cid, 'format': 'cert-pem'},
                             self.ro)

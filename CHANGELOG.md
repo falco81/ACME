@@ -6,6 +6,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.19 - 2026-11-02
 
+- The key on the enrolment pages is also given to the person who asked for the
+  certificate in a request profile that offers it (for a team).
+- The commands a deployment runs on the target (before, test, reload, after,
+  the script on the machine) are changed only by a full administrator, as the
+  script written here already was; a certificate administrator keeps them.
+- Running one deployment while another job works on the certificate waits for
+  that job and then runs it (the other job's result was given before).
+- Delete in a certificate's dialog goes once; its finished jobs go with it.
+- A local folder target no longer writes its files again every time when the
+  paths name the folder.
+- A scoped account sees the members and addresses of its own teams only.
 - The key of a certificate (a PFX) is given on the enrolment pages only to its
   owner, a member of its team who may manage it, or an administrator who sees
   all - no longer to a member who may only see it.
@@ -35,6 +46,27 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - *Revoke* with *a new one at once* is refused, before anything is revoked, for
   a certificate issued for a CSR sent in (it needs a new CSR); the portal no
   longer shows what a CA said of a failed twin.
+- A certificate administrator or read-only account kept to its teams could act
+  on another team's certificate by giving its number written differently
+  (" 5", 5.0), and take over another team's deployment by saving it with a
+  certificate of its own; the Overview showed it every team's numbers and named
+  the others' certificates in its alerts, and the list of jobs left its own out
+  where they were past the first page of everybody's.
+- *Renew now* (and revoking, deploying a new deployment at once) opens the job's
+  log over the certificate again: the certificate drawn afresh took the log's
+  place, and the log was lost.
+- A revoked certificate switched off and on again (*In use*) no longer comes
+  back as valid, nor a request waiting for approval (or declined) as one to
+  issue - the renewer then issued it, past the approval.
+- *Save and deploy now* pressed again after the deployment was refused (not
+  issued yet) saves the same deployment again instead of adding a second one;
+  the same in the wizard when a deployment of a new certificate is refused.
+- The alias asked for in *Export* of a Java keystore is the alias in the file
+  (it was always the certificate's name).
+- Hints left in English on a Czech page: the name boxes of the wizard, the
+  import, a self-signed certificate and a CSR, the secret boxes of the modules
+  and the PKCS#12 password, *choose one…* of a new deployment, *default* of a
+  file's mode, a script's arguments, a tag's meaning.
 
 ## 1.0.18 - 2026-11-02
 
