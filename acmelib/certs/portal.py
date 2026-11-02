@@ -131,16 +131,27 @@ def my_teams(h, s):
     return teams.person_teams(h.store, my_names(s), my_groups(h, s))
 
 
-def owner_of(row, names, groups, teams=None):
+def defined_teams(store):
+    """The names (lower case) of every team of Settings → Owners and teams."""
+    from acmelib.certs import teams
+    return {str(t['name']).strip().lower() for t in teams.team_rows(store)}
+
+
+def owner_of(row, names, groups, teams=None, defined=()):
     """'' when the certificate is not theirs, 'me', the team's name (a team with
-    them as a member that may see it), or the group's name."""
+    them as a member that may see it), or the group's name. An owner that is a team
+    (`defined`) is the team's only (1.0.19): a group of the directory or a person of
+    the same name as the team saw its certificates - and got their keys - without
+    being one of its members."""
     owner = str(row.get('owner') or '').strip().lower()
     if not owner:
         return ''
-    if owner in names:
+    if owner in names and owner not in defined:
         return 'me'
     if teams and owner in teams and 'view' in teams[owner][1]:
         return teams[owner][0]
+    if owner in defined:
+        return ''
     bare = owner[6:].strip() if owner.startswith('group:') else owner
     for dn, cn in groups:
         if bare in (dn.lower(), cn.lower()):
@@ -164,8 +175,10 @@ def last_job(store, cid):
 def public_row(store, r, via):
     one = S.cert_public(r)
     why = one.get('last_error') if one.get('state') in (DECLINED, 'failed') else ''
+    # The twin's error too (1.0.19): what the CA or a module said, as last_error is.
     for k in ('last_error', 'challenge_map', 'profile', 'ari', 'updated_by', 'csr_waiting',
-              'challenge', 'renew_days', 'reuse_key', 'fails', 'next_try', 'enabled'):
+              'challenge', 'renew_days', 'reuse_key', 'fails', 'next_try', 'enabled',
+              'alt_error'):
         one.pop(k, None)
     one['why'] = str(why or '')[:500]
     one['via'] = via                    # 'me', or the group it is theirs through
@@ -194,7 +207,7 @@ def row_formats(store, row):
 ALL_RIGHTS = ('view', 'request', 'manage', 'approve')
 
 
-def rights_of(s, row, names, groups, tms):
+def rights_of(s, row, names, groups, tms, defined=()):
     """What this sign-in may do with one certificate (1.0.16): an administrator
     of acme's own who sees all (portal_admins_all) everything; otherwise the
     rights of the team that owns it (Settings → Owners and teams), and seeing
@@ -205,7 +218,7 @@ def rights_of(s, row, names, groups, tms):
     got = set()
     if owner and owner in tms:
         got |= set(tms[owner][1])
-    if owner_of(row, names, groups, None):
+    if owner_of(row, names, groups, None, defined):
         got.add('view')
     return got
 
@@ -217,10 +230,11 @@ def mine(h, s, rows=None):
     names = my_names(s)
     groups = my_groups(h, s)
     tms = my_teams(h, s)
+    defined = defined_teams(store)
 
     def public(st_, r, via):
         one = public_row(st_, r, via)
-        one['may'] = [w for w in ALL_RIGHTS if w in rights_of(s, r, names, groups, tms)]
+        one['may'] = [w for w in ALL_RIGHTS if w in rights_of(s, r, names, groups, tms, defined)]
         one['team'] = str(r.get('owner') or '').strip().lower() in tms
         return one
     if E.portal_sees_all(s):
@@ -237,7 +251,7 @@ def mine(h, s, rows=None):
         part = want[at:at + 100]
         for r in store.db.rows('SELECT * FROM certs WHERE LOWER(TRIM(owner)) IN (%s)' % ', '.join(
                 '?' * len(part)), tuple(part)):
-            via = owner_of(r, names, groups, tms)
+            via = owner_of(r, names, groups, tms, defined)
             if via and r['id'] not in {o['id'] for o in out}:
                 out.append(public(store, r, via))
     out.sort(key=lambda o: (o.get('via') != 'me', str(o.get('name') or '').lower()))
@@ -255,7 +269,8 @@ def need_mine(h, s, ref):
     row = S.cert_get(h.store, A._id(ref))
     if row and E.portal_sees_all(s):
         return row
-    if not row or not owner_of(row, my_names(s), my_groups(h, s), my_teams(h, s)):
+    if not row or not owner_of(row, my_names(s), my_groups(h, s), my_teams(h, s),
+                               defined_teams(h.store)):
         raise E.ApiError(404, 'there is no such certificate of yours')
     return row
 
@@ -264,7 +279,8 @@ def need_right(h, s, ref, right, doing):
     """One of their certificates, and the right asked for on it - or a 403 in
     words and an event saying who was refused what."""
     row = need_mine(h, s, ref)
-    have = rights_of(s, row, my_names(s), my_groups(h, s), my_teams(h, s))
+    have = rights_of(s, row, my_names(s), my_groups(h, s), my_teams(h, s),
+                     defined_teams(h.store))
     ok = right in have or (right == 'approve' and 'manage' in have)
     if not ok:
         h.store.add_event('certificates', '%s was refused on the portal: %s %s (needs the right '
@@ -615,6 +631,12 @@ def _portal_revoke(h):
         raise E.ApiError(400, 'the reason is one of %s' % ', '.join(A.REVOKE_REASONS))
     by = portal_by(s)
     again = A._flag(b.get('renew'), 0)
+    if again and row.get('csr_given'):
+        # Refused before anything is revoked (1.0.19): revoked, it then could not be issued
+        # again with the same CSR - and was left renewed by itself, revoked.
+        raise E.ApiError(400, '%s was issued for the CSR you sent: a new one needs a new CSR '
+                              '(a new key) - revoke it without one, then send it'
+                         % row['name'])
 
     def fn(job):
         got = renewer.revoke_cert(job.store, job, row['id'], reason, by)

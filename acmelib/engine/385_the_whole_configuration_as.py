@@ -368,6 +368,7 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                     # pages ends them: the old password's sessions went on.
                     store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                                  ('admin', name.lower()))
+                    account_portal_end(store, name)
             else:
                 if fields['source'] == 'local' and not (isinstance(pw, str) and pw):
                     # Without its password (an export without the secrets): made,

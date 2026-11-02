@@ -522,6 +522,10 @@ def cert_auto(store, ref, on, by):
                          'importing a new one' % row['name'])
     if on and row.get('state') == 'revoked':
         raise ValueError('%s is revoked - issue a new one first' % row['name'])
+    if on and row.get('state') in ('pending-approval', 'declined'):
+        # Asked for on the portal and not approved (1.0.19): renewed by itself, the
+        # renewer issued it as one "not issued yet" - past the approval, or a decline.
+        raise ValueError('%s has not been approved' % row['name'])
     if int(row.get('auto_renew') or 0) != on:
         store.db.update('certs', row['id'], {'auto_renew': on, 'updated': time.time(),
                                              'updated_by': str(by)[:190]})
@@ -582,6 +586,10 @@ def _cert_delete(h, s):
     db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (row['id'],))
     db.run('DELETE FROM cert_versions WHERE cert_id = ?', (row['id'],))
     db.run('DELETE FROM certs WHERE id = ?', (row['id'],))
+    # Who asked for it on the portal (portal.META) goes with it (1.0.19): kept, a
+    # certificate given the same id later (MariaDB counts from the highest one left
+    # after a restart) was that person's - their mail, their profile, its PFX.
+    db.run('DELETE FROM meta WHERE k = ?', ('certs:portal:%d' % int(row['id']),))
     h.store.add_event('certificates', 'certificate %s deleted by %s' % (row['name'], who(s)),
                       'warn', who=who(s))
     return {'message': '%s deleted' % row['name']}

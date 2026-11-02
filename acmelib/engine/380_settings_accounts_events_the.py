@@ -221,6 +221,7 @@ def _users_do(h):
         had = mfa_reset(h.store, acc['name'], who)
         h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                        ('admin', acc['name'].lower()))
+        account_portal_end(h.store, acc['name'])
         return {'message': ('the second step of %s is reset: they set it up again at the next '
                             'sign-in; their sign-ins are ended' if had else
                             '%s had no second step set up') % acc['name']}
@@ -235,6 +236,7 @@ def _users_do(h):
             b.get('must_change', 1))))
         h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                        ('admin', name.lower()))
+        account_portal_end(h.store, name)
         h.store.add_event('accounts', '%s set a new password for %s; their sign-ins are ended'
                           % (who, name), 'warn', who=who)
         return {'message': 'the password is set'}
@@ -247,6 +249,21 @@ def _users_do(h):
                                                             act == 'disable' else 'on'), who=who)
         return {'message': 'saved'}
     raise ApiError(400, 'no such thing to do to an account')
+
+
+def account_portal_end(store, name):
+    """The sign-ins of an account of acme's own on the enrolment pages ended too (1.0.19):
+    a new password set for it, or its second step reset, left them open - for an account
+    of the enrolment pages only, the only ones it has. A person of the directory of the
+    same name signed in there keeps theirs."""
+    for r in store.db.rows('SELECT id, data FROM sessions WHERE kind = ? AND LOWER(name) = ?',
+                           ('portal', str(name).lower())):
+        try:
+            data = json.loads(r.get('data') or '{}')
+        except ValueError:
+            data = {}
+        if isinstance(data, dict) and data.get('kind') == 'local':
+            store.session_drop(r['id'])
 
 
 @route('GET', '/api/sessions')

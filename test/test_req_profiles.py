@@ -252,6 +252,29 @@ class Portal(unittest.TestCase):
         self.assertIn('pfx', one['formats'])
         self.assertEqual(one['req_profile'], 'Web servers')
 
+    def test_renamed_profile_keeps_what_was_asked(self):
+        """A profile renamed: what was asked for from it says the new name, counts in
+        it, and a new CSR for it is checked against it still (1.0.19)."""
+        got = portal(EVA, 'POST', '/api/portal/cert_request', {
+            'profile': 'Web servers', 'names': ['ren.example.test'], 'team': 'Web'})
+        wait_cert(got['id'])
+        R.save_profile(STORE, base_profile(name='Web TLS', old_name='Web servers'), 'x')
+        self.assertEqual(P.asker(STORE, got['id']).get('profile'), 'Web TLS')
+        used = {p['name']: p['used'] for p in R.profiles(STORE)}
+        self.assertEqual(used.get('Web TLS'), 1)
+        one = [c for c in portal(EVA, 'GET', '/api/portal/certs')['rows']
+               if c['id'] == got['id']][0]
+        self.assertEqual(one['req_profile'], 'Web TLS')
+        self.assertIn('pfx', one['formats'])
+        # what a CA said of a twin that failed is not shown there, as last_error is not
+        STORE.db.update('certs', got['id'], {'alt_error': 'https://ca.internal:8443/ said no'})
+        one = P.public_row(STORE, S.cert_get(STORE, got['id']), 'me')
+        self.assertNotIn('alt_error', one)
+        self.assertNotIn('ca.internal', json.dumps(one))
+        # deleted, who asked for it goes too - not handed to a certificate of the same id
+        call('POST', '/api/certs/delete', {'id': got['id']})
+        self.assertIsNone(STORE.get_meta(P.META + str(got['id'])))
+
     def test_waits_for_approval(self):
         got = portal(EVA, 'POST', '/api/portal/cert_request', {
             'profile': 'Anybody', 'names': ['w.example.test']})
@@ -368,6 +391,12 @@ class Csr(unittest.TestCase):
                          pki.key_info(key2)['pub_sha256'])
         self.assertEqual((row3['key_type'], json.loads(row3['names'])),
                          ('ec-256', ['api.example.test']))
+        # revoked and "a new one at once": refused before anything is revoked - a new
+        # one needs a new CSR (1.0.19)
+        self.assertEqual(portal_status(mgr, 'POST', '/api/portal/cert_revoke', {
+            'id': row['id'], 'reason': 'superseded', 'renew': 1}), 400)
+        row4 = S.cert_get(STORE, row['id'])
+        self.assertEqual((row4['state'], row4['version']), (row3['state'], 3))
 
 
 if __name__ == '__main__':

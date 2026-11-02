@@ -216,7 +216,9 @@ def main_due(row, t=None):
     t = t or time.time()
     if not row.get('auto_renew') or row.get('enabled') == 0 or not row.get('issuer'):
         return ''
-    if row.get('state') in ('renewing', 'pending', 'revoked', 'disabled'):
+    # A request of the portal not approved (1.0.19) is never issued by itself.
+    if row.get('state') in ('renewing', 'pending', 'revoked', 'disabled', 'pending-approval',
+                            'declined'):
         return ''
     if row.get('state') == 'failed':
         return 'it failed last time; the wait is over' \

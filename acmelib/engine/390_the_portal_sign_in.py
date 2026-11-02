@@ -346,7 +346,9 @@ def _portal_login(h):
     if not CONFIG.get('portal'):
         raise ApiError(403, 'these pages are switched off')
     b = h.body()
-    name = str(b.get('name') or '').strip()
+    # No account has a longer name (1.0.19, as the administration's since 1.0.146):
+    # megabytes typed went into the log and to the directory.
+    name = str(b.get('name') or '').strip()[:190]
     password = str(b.get('password') or '')
     key = h.throttle('portal', split_limit('portal_tries', 5),
                      int(CONFIG.get('portal_wait_min') or 15), name=name)
@@ -359,6 +361,7 @@ def _portal_login(h):
     local = bool(CONFIG.get('portal_local')) or bool(
         CONFIG.get('portal_enrolers', 1) and h.store.db.row(
             "SELECT 1 FROM accounts WHERE role = 'portal' AND source <> 'directory'"))
+    local_wrong = False
     if local and name and password:
         # acme's own accounts first (portal_local; those of the enrolment pages
         # only with portal_enrolers): the name as it is written in Accounts,
@@ -367,6 +370,7 @@ def _portal_login(h):
         if acc and acc.get('source') != 'directory' and portal_local_may(acc):
             if acc.get('pw') and password_ok(password, acc['pw']):
                 return portal_local_login(h, key, name, acc)
+            local_wrong = True
             h.store.add_event('sign-ins', 'a wrong password for %s (an account here) on the '
                               'enrolment pages from %s' % (name, h.client_ip()), 'warn')
         else:
@@ -396,6 +400,10 @@ def _portal_login(h):
         ad.password_ok(entry, password)
     except LdapUnreachable as e:
         log('the enrolment pages could not reach the directory: %s' % e, 'warn')
+        if local_wrong:
+            # The password of an account here was wrong, and counts as one (1.0.19):
+            # with the directory down every guess was given back, without end.
+            h.failed(key)
         raise ApiError(503, 'the directory cannot be reached just now')
     except LdapError as e:
         h.failed(key)

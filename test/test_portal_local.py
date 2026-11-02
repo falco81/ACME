@@ -428,6 +428,169 @@ class PortalLocal(unittest.TestCase):
         finally:
             self.py('st.db.run("DELETE FROM accounts WHERE name = \'teamer\'"); print(1)')
 
+    # ---- round 1 of 1.0.19 ------------------------------------------------------------------
+    def test_30_enrolment_only_second_step_without_portal_local(self):
+        """An account of the enrolment pages only signs in with portal_local off - and
+        gives its second step there too (it was told it had none to give)."""
+        secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
+        self.py('st.add_account("enrol30", "portal", %r, must_change=0); '
+                'st.set_meta(E.mfa_key("enrol30"), json.dumps({"kind": "app", "at": time.time(), '
+                '"secret": E.seal_secret(%r, E.mfa_key("enrol30"))})); print(1)' % (PW, secret))
+        self.settings(portal_local=0, admin_2fa=1)
+        try:
+            st, got = self.portal_in('enrol30')
+            self.assertEqual((st, got.get('mfa')), (200, 'check'), got)
+            half = got['token']
+            st, view = self.call('GET', '/api/portal/mfa', None, half)
+            self.assertEqual((st, view.get('stage')), (200, 'check'), view)
+            st, done = self.call('POST', '/api/portal/mfa', {'action': 'check',
+                                                             'code': totp(secret)}, half)
+            self.assertEqual(st, 200, done)
+            st, me = self.call('GET', '/api/portal/me', None, done['token'])
+            self.assertEqual(me['me']['name'], 'enrol30')
+            # an account that may not sign in there gets no second step either
+            st, got = self.portal_in('viewer')
+            self.assertEqual(st, 401, got)
+        finally:
+            self.settings(portal_local=1, admin_2fa=0)
+            self.py('st.db.run("DELETE FROM accounts WHERE name = \'enrol30\'"); '
+                    'st.db.run("DELETE FROM meta WHERE k LIKE \'adm2fa:%\'"); print(1)')
+
+    def test_31_new_password_ends_portal_signins(self):
+        """A new password set for an account (Accounts), or its second step reset, ends
+        its sign-ins on the enrolment pages too - not those of the directory's person
+        of the same name."""
+        st, got = self.portal_in('marta', 'Local-Only-Pw-77!')
+        self.assertEqual(st, 200, got)
+        local = got['token']
+        st, got = self.portal_in('marta', 'marta-password-1')
+        self.assertEqual(st, 200, got)
+        directory = got['token']
+        self.ok('POST', '/api/users', {'action': 'password', 'name': 'marta',
+                                        'password': 'Local-Only-Pw-77!', 'must_change': 0})
+        st, me = self.call('GET', '/api/portal/me', None, local)
+        self.assertIsNone(me.get('me'), me)
+        st, _ = self.call('GET', '/api/portal/certs', None, local)
+        self.assertEqual(st, 401)
+        st, me = self.call('GET', '/api/portal/me', None, directory)
+        self.assertEqual((me['me'] or {}).get('kind'), 'directory', me)
+        st, got = self.portal_in('marta', 'Local-Only-Pw-77!')
+        local = got['token']
+        self.ok('POST', '/api/users', {'action': 'mfa_reset', 'name': 'marta'})
+        st, me = self.call('GET', '/api/portal/me', None, local)
+        self.assertIsNone(me.get('me'), me)
+
+    def test_32_not_approved_is_not_renewed_by_itself(self):
+        """A request waiting for approval, or declined, cannot be switched to renew by
+        itself (on the portal or in the administration) - the renewer issued it then."""
+        self.py('st.add_account("teamer32", "portal", %r); print(1)' % PW)
+        self.ok('POST', '/api/teams/save', {'name': 'Ops32', 'members': ['local:teamer32=manage']})
+        self.settings(portal_cert_suffixes='example.test', portal_cert_issuers='self',
+                      portal_cert_auto=0)
+        try:
+            st, got = self.portal_in('teamer32')
+            tok = got['token']
+            st, r = self.call('POST', '/api/portal/cert_request',
+                              {'names': ['ops32.example.test'], 'issuer': 'self', 'team': 'Ops32'},
+                              tok)
+            self.assertEqual(st, 200, r)
+            self.assertTrue(r['waits'])
+            for state in ('pending-approval', 'declined'):
+                self.py('st.db.update("certs", %d, {"state": %r}); print(1)' % (r['id'], state))
+                st, got = self.call('POST', '/api/portal/cert_auto',
+                                    {'id': r['id'], 'auto_renew': 1}, tok)
+                self.assertEqual(st, 400, got)
+                self.assertIn('has not been approved', got.get('error', ''))
+                st, got = self.call('POST', '/api/certs/auto', {'id': r['id'], 'auto_renew': 1},
+                                    self.admin)
+                self.assertNotEqual(st, 200, got)
+                # and set some other way, the renewer leaves it alone
+                why = self.py('from acmelib.certs import renewer, store as S; '
+                              'st.db.update("certs", %d, {"auto_renew": 1}); '
+                              'print(json.dumps(renewer.main_due(S.cert_get(st, %d))))'
+                              % (r['id'], r['id']))
+                self.assertEqual(why, '')
+            self.assertEqual(self.py('print(json.dumps(st.db.value("SELECT cert_pem FROM certs '
+                                     'WHERE id = ?", (%d,))))' % r['id']), None)
+        finally:
+            self.settings(portal_cert_suffixes='', portal_cert_issuers='')
+            self.py('st.db.run("DELETE FROM accounts WHERE name = \'teamer32\'"); print(1)')
+
+    def test_33_a_team_named_as_a_group(self):
+        """A certificate of a team is the team's members' only: a group of the directory
+        (or a person) of the same name as the team saw it - and could take its key."""
+        cid = self.ok('POST', '/api/certs/save', {
+            'name': 'of-team33', 'names': ['of-team33.example.test'], 'issuer': 'self',
+            'key_type': 'ec-256', 'auto_renew': 0, 'owner': 'CERT_USERS'})['id']
+        try:
+            # before there is such a team: the group's, as it always was
+            st, got = self.portal_in('falco', 'falco-password-1')
+            tok = got['token']
+            names, _ = self.certs_of(tok)
+            self.assertEqual(names.get('of-team33'), 'CERT_USERS')
+            # a team of that name, falco not in it: not theirs any more
+            self.ok('POST', '/api/teams/save', {'name': 'CERT_USERS',
+                                                'members': ['local:viewer=view']})
+            names, _ = self.certs_of(tok)
+            self.assertNotIn('of-team33', names)
+            st, _ = self.call('POST', '/api/portal/cert_download',
+                              {'id': cid, 'format': 'cert-pem'}, tok)
+            self.assertEqual(st, 404)
+            # a person of the name too
+            self.ok('POST', '/api/teams/save', {'name': 'falco', 'members': ['local:viewer=view']})
+            self.ok('POST', '/api/certs/save', {'id': cid, 'owner': 'falco'})
+            names, _ = self.certs_of(tok)
+            self.assertNotIn('of-team33', names)
+            # the team's member does
+            st, got = self.portal_in('viewer')
+            names, _ = self.certs_of(got['token'])
+            self.assertEqual(names.get('of-team33'), 'falco')
+            # falco a member: theirs again, through the team
+            self.ok('POST', '/api/teams/save', {'name': 'falco', 'old_name': 'falco',
+                                                'members': ['falco=view']})
+            names, _ = self.certs_of(tok)
+            self.assertEqual(names.get('of-team33'), 'falco')
+        finally:
+            self.ok('POST', '/api/certs/save', {'id': cid, 'owner': ''})
+            for t in ('CERT_USERS', 'falco'):
+                self.call('POST', '/api/teams/delete', {'name': t}, self.admin)
+            self.call('POST', '/api/certs/delete', {'id': cid}, self.admin)
+
+    def test_34_a_long_name_is_cut(self):
+        """A name of megabytes on the enrolment pages' sign-in went whole into the log and
+        to the directory; cut at 190 characters as the administration's is."""
+        st, got = self.portal_in('long34' + 'x' * 20000, 'nope')
+        self.assertEqual(st, 401, got)
+        words = [w for w in self.events('long34xxxx') if 'enrolment pages' in w]
+        self.assertTrue(words)
+        self.assertTrue(all(len(w) < 600 for w in words), [len(w) for w in words])
+
+    def test_35_wrong_password_counts_with_the_directory_down(self):
+        """A wrong password of an account here counts as one when the directory then
+        cannot be reached: every guess was given back with the 503, without end."""
+        import socket
+        sk = socket.socket()
+        sk.bind(('127.0.0.1', 0))
+        dead = sk.getsockname()[1]
+        sk.close()
+        made = self.must('POST', '/api/directories', {'action': 'save', 'directory': {
+            'name': 'dead35', 'hosts': '127.0.0.1', 'port': dead, 'tls': 'none', 'verify': 0,
+            'base': BASE, 'bind_dn': 'CN=isemon,OU=Service,' + BASE,
+            'bind_pw': 'the-service-password', 'enabled': 1}})
+        self.settings(portal_directory='dead35')
+        try:
+            for _ in range(3):
+                st, got = self.portal_in('viewer', 'not-the-password')
+                self.assertEqual(st, 503, got)
+            st, got = self.portal_in('viewer', 'not-the-password')
+            self.assertEqual(st, 429, got)
+            # the right password is still paused, as with the directory there
+            st, got = self.portal_in('viewer')
+            self.assertEqual(st, 429, got)
+        finally:
+            self.settings(portal_directory='corp')
+            self.must('POST', '/api/directories', {'action': 'delete', 'id': made['id']})
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

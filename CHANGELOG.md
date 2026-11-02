@@ -4,6 +4,32 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.19 - 2026-11-02
+
+- An account of the enrolment pages only could not give its second step there
+  with *acme's own accounts* (portal_local) switched off - it was told it had
+  none to give, and the sign-in page reloaded for good.
+- A new password set for an account (Accounts, `acme --passwd`, a configuration
+  read back), or its second step reset, now ends its sign-ins on the enrolment
+  pages too - not only in the administration.
+- A request waiting for approval, or declined, can no longer be switched to
+  *renewed by itself* (on the portal or in the administration): the renewer then
+  issued it, past the approval or the decline. The switch is not shown for a
+  declined one.
+- A certificate owned by a team is seen on the portal by the team's members
+  only: a directory group or a person with the same name as the team saw it
+  too - and could download its key where the PFX is offered.
+- Wrong passwords of acme's own accounts on the enrolment pages count while the
+  directory cannot be reached (they were given back with the 503, so guessing
+  had no limit); a name typed there is cut at 190 characters, as in the
+  administration.
+- A request profile renamed keeps what was asked for from it (its count, the
+  profile shown, a new CSR checked against it); a certificate deleted takes who
+  asked for it on the portal with it.
+- *Revoke* with *a new one at once* is refused, before anything is revoked, for
+  a certificate issued for a CSR sent in (it needs a new CSR); the portal no
+  longer shows what a CA said of a failed twin.
+
 ## 1.0.18 - 2026-11-02
 
 - *Renew now* asks first, in the administration and on the enrolment pages:

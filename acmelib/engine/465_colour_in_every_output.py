@@ -2854,6 +2854,7 @@ def cli_main(argv=None):
         # As the pages do (1.0.44): a new password ends the old sign-ins.
         store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                      ('admin', args.passwd.lower()))
+        account_portal_end(store, args.passwd)
         store.add_event('accounts', 'the password of %s was set on the command line'
                         % args.passwd, who=who)
         print(pal.ok_line('the password of %s is set' % args.passwd))
@@ -2866,6 +2867,7 @@ def cli_main(argv=None):
         had = mfa_reset(store, acc['name'], who)
         store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                      ('admin', acc['name'].lower()))
+        account_portal_end(store, acc['name'])
         print(pal.ok_line('the second step of %s is reset - set up again at the next sign-in'
                           % acc['name']) if had else
               pal.ok_line('%s had no second step set up' % acc['name']))

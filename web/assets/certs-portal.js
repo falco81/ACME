@@ -356,7 +356,7 @@ function certDialog(id, fresh) {
       ['Valid to', c.not_after ? stamp(c.not_after) : '–'],
       ['Serial', c.serial ? data('span', 'mono small', c.serial) : '–'],
       ['Issued by', c.issuer_dn ? data('span', 'mono small', c.issuer_dn) : '–'],
-      ['Renews', manage && c.issuer && c.state !== 'revoked' && !waiting ? autoSwitch(c)
+      ['Renews', manage && c.issuer && c.state !== 'revoked' && c.state !== 'declined' && !waiting ? autoSwitch(c)
         : (c.auto_renew ? 'by itself, before it runs out' : 'not by itself')],
       ['Owner', c.via === '*' ? (c.owner ? data('span', 'mono', c.owner) : 'nobody') : (c.via && c.via !== 'me' ? ownerWords(c) : 'you')],
       ['Asked for', c.created ? stamp(c.created) : '–'],

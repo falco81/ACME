@@ -261,6 +261,8 @@ def save_profile(store, b, by):
            'config': json.dumps(cfg), 'updated': time.time(), 'updated_by': str(by)[:190]}
     if old:
         store.db.update('cert_req_profiles', old['id'], row)
+        if old['name'] != name:
+            asked_follow(store, old['name'], name)
         store.add_event('certificates', 'the request profile %s changed by %s%s' % (
             name, by, (' (was %s)' % old['name']) if old['name'] != name else ''), who=by)
     else:
@@ -268,6 +270,19 @@ def save_profile(store, b, by):
         store.db.insert('cert_req_profiles', row)
         store.add_event('certificates', 'the request profile %s added by %s' % (name, by), who=by)
     return public(store, profile_get(store, name))
+
+
+def asked_follow(store, old, new):
+    """A profile renamed (1.0.19): what was asked for from it says its new name - it
+    counted no more, and a new CSR for one of them was no longer checked against it."""
+    for r in store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?', (META_PORTAL + '%',)):
+        try:
+            got = json.loads(r['v'] or '{}')
+        except ValueError:
+            continue
+        if isinstance(got, dict) and got.get('profile') and _low(got['profile']) == _low(old):
+            got['profile'] = new
+            store.set_meta(r['k'], json.dumps(got))
 
 
 def delete_profile(store, name, by):

@@ -57281,6 +57281,10 @@
   "prp048": {
    "source": "not under the domains of the profile: {0}",
    "text": "není pod doménami profilu: {0}"
+  },
+  "pb1r01": {
+   "source": "{0} was issued for the CSR you sent: a new one needs a new CSR (a new key) - revoke it without one, then send it",
+   "text": "{0} byl vydán pro CSR, který jste poslali: nový potřebuje nový CSR (nový klíč) – odvolejte ho bez náhrady a pak nový CSR pošlete"
   }
  },
  "rich": {

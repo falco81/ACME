@@ -223,12 +223,16 @@ def _mfa_session(h, kind='admin'):
     if kind == 'portal':
         # On the enrolment pages only an account of acme's own has a second
         # step (portal_local): a directory sign-in has none to give.
-        if (s.get('data') or {}).get('kind') != 'local' or not CONFIG.get('portal') or \
-                not CONFIG.get('portal_local'):
+        if (s.get('data') or {}).get('kind') != 'local' or not CONFIG.get('portal'):
             raise ApiError(401, 'this sign-in has no second step to give')
     acc = h.store.account(s['name'])
     if not acc or acc.get('disabled') or (kind == 'portal' and acc.get('source') == 'directory'):
         raise ApiError(401, 'that account may no longer sign in')
+    # Whether it may sign in there as the sign-in itself asks it (1.0.19): an account of
+    # the enrolment pages only (portal_enrolers) signs in with portal_local off too - and
+    # was then told it had no second step to give, so it never got past it.
+    if kind == 'portal' and not portal_local_may(acc):
+        raise ApiError(401, 'that account may no longer sign in here')
     return s, acc
 
 
