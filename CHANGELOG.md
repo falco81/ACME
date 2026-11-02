@@ -6,6 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.18 - 2026-11-02
 
+- *Renew now* asks first, in the administration and on the enrolment pages:
+  what it does (a new certificate now, the one in use stays valid), from
+  where, its key, and that it is put in place again.
+- Running a deployment while a job works on the certificate gives that job to
+  watch instead of an error.
 - **Request profiles** (Settings → Request profiles, docs/request-profiles.md):
   kinds of certificates people may ask for on the enrolment pages with the
   source, the validation, the domains (wildcards, how many names), the key or
@@ -20,7 +25,6 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   CSR that fits is asked for. Such a certificate holds no key: the CSR is kept
   and used again at every renewal (same key); *Send a new CSR* changes the key.
   A PFX or a deployment that needs the key is refused in words.
-- *Renew now* on the portal asks first, as in the administration.
 
 ## 1.0.17 - 2026-11-02
 
