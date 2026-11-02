@@ -410,6 +410,11 @@ class Issuer(Plugin):
     # setting in `dual_field` that allows it; dual_for() is what counts.
     dual = False
     dual_field = ''
+    # What each certificate of this source may set for itself, kept in its profile and
+    # asked in Add a certificate → Profile: [{'key' (the profile's key, e.g. 'template'),
+    # 'label', 'help', 'placeholder', 'field' + 'catalog' (the field of its form of the type
+    # catalog whose list it picks from - catalog() gives it; it can always be typed too)}].
+    per_cert = []
 
     @classmethod
     def dual_for(cls, config):
@@ -505,6 +510,7 @@ class Issuer(Plugin):
         d.setdefault('needs_challenge', bool(cls.needs_challenge))
         d.setdefault('challenge_types', list(cls.challenge_types or ()))
         d['lists_existing'] = bool(cls.lists_existing)
+        d['per_cert'] = [dict(x) for x in (cls.per_cert or [])]
         return d
 
     def issue(self, req):

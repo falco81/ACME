@@ -6,6 +6,19 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.24 - not released
 
+- **Microsoft AD CS: the templates loaded from the CA.** *Template* is picked
+  from the list the CA offers the user (its Web Enrollment page
+  *certrqxt.asp*, read only) - in the source's form, and for each certificate
+  in *Add a certificate → Profile*. One not listed (a schema 3 template) can
+  still be typed: *Type it yourself…*.
+- **Every list a module loads can also be typed** (*Type it yourself…*): a
+  product of SSLS.cz, a server type, a template.
+- **Add a certificate → Profile asks what the source lets each certificate set
+  itself**: the AD CS template, the template of AWS Private CA and Google CA
+  Service, the certificate profile of EJBCA and FreeIPA, the role of Vault -
+  before, only AD CS had it, and saving the wizard dropped a Vault role set by
+  the API.
+
 - **Import from a source: each certificate set up like a new one.** After the
   import the wizard of *Add a certificate* opens for it (for several: *Set it
   up* at each, or *Set up each one*): validation, key, renewal, profile,

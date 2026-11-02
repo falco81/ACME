@@ -58,6 +58,9 @@ class AwsPcaIssuer(Issuer):
     wildcards = True
     ip_names = True
     choose_days = True
+    per_cert = [{'key': 'template', 'label': 'Template (ARN)',
+                 'placeholder': 'arn:aws:acm-pca:::template/EndEntityServerAuthCertificate/V1',
+                 'help': 'The AWS Private CA template for this certificate. Empty: the source\'s own.'}]
     fields = [
         field('ca_arn', 'CA ARN', 'text', required=True,
               placeholder='arn:aws:acm-pca:eu-central-1:123456789012:certificate-authority/…',

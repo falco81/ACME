@@ -41,6 +41,7 @@ from acmelib.plugins.issuers import _ntlm                                     # 
 from acmelib.plugins.issuers import _scep_pkcs7 as p7                         # noqa: E402
 from acmelib.plugins.issuers.acme import AcmeIssuer                           # noqa: E402
 from acmelib.plugins.issuers.ms_adcs import MsAdcsIssuer                      # noqa: E402
+from acmelib.plugins.issuers import ms_adcs as ms_adcs_mod                    # noqa: E402
 from acmelib.plugins.issuers.scep import ScepIssuer                           # noqa: E402
 
 
@@ -880,6 +881,13 @@ class MockAdcs(object):
                                               'is "Denied by Policy Module". 0x80094012</html>', 'text/html')
                     return self.send(200, '<html>Certificate Pending. Your certificate request is still '
                                           'pending.</html>', 'text/html')
+                if u.path == '/certsrv/certrqxt.asp':
+                    # the Advanced Certificate Request page, as Web Enrollment draws it
+                    return self.send(200, '<html><Form><Select Name="lbCertTemplate" '
+                                          'ID="lbCertTemplateID">\r\n<Option Value="E;WebServer;1;2">'
+                                          'Web Server\r\n<Option Value="O;Approve;1;2">Approved by '
+                                          'hand &amp; kept\r\n<Option Value="E;WebServer;1;2">dup'
+                                          '</Select></Form></html>', 'text/html')
                 if u.path == '/certsrv/certnew.p7b':
                     certs = [p7.cert_der(app.ca.pem)]
                     r = app.reqs.get(q.get('ReqID'))
@@ -943,6 +951,24 @@ class TestMsAdcs(unittest.TestCase):
             with self.assertRaises(PluginError) as cm:
                 self.issuer(ca, password='wrong').test()
             self.assertIn('401', str(cm.exception))
+        finally:
+            ca.close()
+
+    def test_templates_listed(self):
+        ca = MockAdcs('ntlm')
+        try:
+            got = self.issuer(ca).catalog('templates')
+            self.assertEqual(got['options'], [['WebServer', 'Web Server'],
+                                              ['Approve', 'Approved by hand & kept']])
+            self.assertIn('2 templates', got['said'])
+            with self.assertRaises(PluginError):
+                self.issuer(ca).catalog('nothing')
+            self.assertIsNone(ms_adcs_mod.templates_of('<html>no list</html>'))
+            per = MsAdcsIssuer.describe()['per_cert']
+            self.assertEqual(per[0]['key'], 'template')
+            self.assertEqual(per[0]['catalog'], 'templates')
+            f = [x for x in MsAdcsIssuer.fields if x['key'] == 'template'][0]
+            self.assertEqual((f['type'], f['catalog']), ('catalog', 'templates'))
         finally:
             ca.close()
 

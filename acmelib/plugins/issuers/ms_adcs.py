@@ -222,6 +222,30 @@ class AdcsHttp(object):
         return status, hdrs, data
 
 
+def templates_of(page):
+    """[[name, display name]] of the template list on certrqxt.asp, or None when the page
+    has none. An option's value is "<flags>;<name>;..." (its second part the name the
+    CertificateTemplate attribute takes), its text the display name."""
+    m = re.search(r'<select[^>]*(?:id\s*=\s*["\']?lbCertTemplateID|name\s*=\s*["\']?'
+                  r'lbCertTemplate\b)[^>]*>(.*?)</select>', page, re.I | re.S)
+    if not m:
+        return None
+    out, seen = [], set()
+    for om in re.finditer(r'<option\b([^>]*)>([^<]*)', m.group(1), re.I):
+        vm = re.search(r'value\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))', om.group(1), re.I)
+        if not vm:
+            continue
+        value = html.unescape(next(g for g in vm.groups() if g is not None))
+        parts = value.split(';')
+        name = (parts[1] if len(parts) > 1 else '').strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        words = re.sub(r'\s+', ' ', html.unescape(om.group(2))).strip() or name
+        out.append([name, words])
+    return out
+
+
 class MsAdcsIssuer(Issuer):
     kind = 'ms_adcs'
     dual = True                     # where the template takes both kinds of key (its Cryptography tab)
@@ -238,8 +262,11 @@ class MsAdcsIssuer(Issuer):
         field('url', 'Web Enrollment address', 'text', required=True,
               placeholder='https://ca01.example.local/certsrv',
               help='The CA\'s IIS with Web Enrollment (/certsrv is added when missing).'),
-        field('template', 'Template', 'text', required=True, placeholder='WebServer',
-              help='The template\'s name (not its display name): WebServer, or a copy of it.'),
+        field('template', 'Template', 'catalog', catalog='templates', required=True,
+              placeholder='WebServer', depends=['url', 'user', 'password'],
+              help='The template\'s name (not its display name): WebServer, or a copy of it. '
+                   'Load the list: the templates this CA offers the user on its Web '
+                   'Enrollment page; one not listed there (e.g. of schema 3) can be typed.'),
         field('auth', 'Signing in', 'select', default='ntlm',
               options=[['ntlm', 'Windows (NTLM)'], ['basic', 'Basic (over HTTPS)'],
                        ['cert', 'Client certificate']]),
@@ -268,6 +295,14 @@ class MsAdcsIssuer(Issuer):
               help='How long to wait for a pending request within a try; it is fetched again '
                    'at later tries anyway.'),
     ]
+
+    # What each certificate may set for itself (Add a certificate → Profile), kept in
+    # its profile: the template, picked from the same list - empty: the one above.
+    per_cert = [{'key': 'template', 'label': 'Certificate template', 'field': 'template',
+                 'catalog': 'templates',
+                 'placeholder': 'WebServer',
+                 'help': 'The template on the Windows CA for this certificate. Empty: the '
+                         'source\'s own.'}]
 
     @classmethod
     def key_types_for(cls, config):
@@ -334,6 +369,31 @@ class MsAdcsIssuer(Issuer):
             return 'Web Enrollment answers, signed in; the CA is %s' % cn
         finally:
             h.close()
+
+    # -- the form's lists (base.py: a field of the type catalog) --------------------
+    def catalog(self, key):
+        """The templates the CA offers this user: the list of its Advanced Certificate
+        Request page (GET /certsrv/certrqxt.asp, <select id="lbCertTemplateID">, each
+        option's value "<flags>;<template name>;..." and its text the display name -
+        as Certipy reads it, github.com/ly4k/Certipy pull 143). Read-only."""
+        if key != 'templates':
+            raise PluginError('there is no list called %s here' % key, retry=False)
+        h = self._http()
+        try:
+            status, _hd, data = h.request('GET', '/certrqxt.asp')
+        finally:
+            h.close()
+        text = data.decode('utf-8', 'replace')
+        if status >= 400:
+            raise PluginError('the CA\'s Web Enrollment answered %d to the template list'
+                              % status, detail=text[:500])
+        opts = templates_of(text)
+        if opts is None:
+            raise PluginError('the Advanced Certificate Request page of %s has no list of '
+                              'templates - type the template\'s name' % self._base(),
+                              detail=re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', text))[:500])
+        return {'options': opts,
+                'said': '%d templates the CA offers %s' % (len(opts), self.c('user') or 'you')}
 
     def _ca_chain(self, h):
         status, _hd, data = h.request('GET', '/certnew.p7b?ReqID=CACert&Renewal=-1&Enc=b64')

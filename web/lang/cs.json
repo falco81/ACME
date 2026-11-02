@@ -44131,6 +44131,50 @@
   "sup008": {
    "source": "its source",
    "text": "jeho zdroje"
+  },
+  "sup009": {
+   "source": "Type it yourself…",
+   "text": "Zadat ručně…"
+  },
+  "sup010": {
+   "source": "Template (ARN)",
+   "text": "Šablona (ARN)"
+  },
+  "sup011": {
+   "source": "The template's name (not its display name): WebServer, or a copy of it. Load the list: the templates this CA offers the user on its Web Enrollment page; one not listed there (e.g. of schema 3) can be typed.",
+   "text": "Název šablony (ne její zobrazovaný název): WebServer nebo její kopie. Načíst seznam: šablony, které tato CA nabízí uživateli na své stránce Web Enrollment; šablonu, která tam není (např. schématu 3), lze zadat ručně."
+  },
+  "sup012": {
+   "source": "The template on the Windows CA for this certificate. Empty: the source's own.",
+   "text": "Šablona na Windows CA pro tento certifikát. Prázdné: šablona zdroje."
+  },
+  "sup013": {
+   "source": "The AWS Private CA template for this certificate. Empty: the source's own.",
+   "text": "Šablona AWS Private CA pro tento certifikát. Prázdné: šablona zdroje."
+  },
+  "sup014": {
+   "source": "The EJBCA certificate profile for this certificate. Empty: the source's own.",
+   "text": "Certifikační profil EJBCA pro tento certifikát. Prázdné: profil zdroje."
+  },
+  "sup015": {
+   "source": "The IPA certificate profile for this certificate. Empty: the source's own.",
+   "text": "Certifikační profil IPA pro tento certifikát. Prázdné: profil zdroje."
+  },
+  "sup016": {
+   "source": "The CA Service template (its full name) for this certificate. Empty: the source's own.",
+   "text": "Šablona CA Service (její celý název) pro tento certifikát. Prázdné: šablona zdroje."
+  },
+  "sup017": {
+   "source": "The Vault PKI role for this certificate. Empty: the source's own.",
+   "text": "Role Vault PKI pro tento certifikát. Prázdné: role zdroje."
+  },
+  "sup018": {
+   "source": "there is no list called templates here",
+   "text": "žádný seznam „templates“ tu není"
+  },
+  "sup019": {
+   "source": "the source’s own",
+   "text": "podle zdroje"
   }
  },
  "patterns": {
@@ -61189,6 +61233,18 @@
   "psup004": {
    "source": "Saved, the certificate imported stays as it is - valid, in use. Its deployments get it now (those that need its private key once the key is added); its next renewal asks {0} for it with what is set here.",
    "text": "Po uložení zůstává importovaný certifikát, jak je – platný a používaný. Jeho nasazení ho dostanou hned (ta, která potřebují soukromý klíč, až bude klíč přidán); jeho příští obnova si ho vyžádá od {0} s tím, co je nastaveno zde."
+  },
+  "psup005": {
+   "source": "{0} templates the CA offers {1}",
+   "text": "{0} šablon, které CA nabízí uživateli {1}"
+  },
+  "psup006": {
+   "source": "the CA's Web Enrollment answered {0} to the template list",
+   "text": "Web Enrollment certifikační autority odpověděl na seznam šablon {0}"
+  },
+  "psup007": {
+   "source": "the Advanced Certificate Request page of {0} has no list of templates - type the template's name",
+   "text": "stránka Advanced Certificate Request na {0} nemá seznam šablon – zadejte název šablony ručně"
   }
  },
  "rich": {

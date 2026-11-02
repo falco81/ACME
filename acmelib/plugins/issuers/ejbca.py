@@ -57,6 +57,8 @@ class EjbcaIssuer(Issuer):
     wildcards = True
     ip_names = True
     lists_existing = True           # certificate/search: Certificates → Import from a source
+    per_cert = [{'key': 'template', 'label': 'Certificate profile', 'placeholder': 'SERVER',
+                 'help': 'The EJBCA certificate profile for this certificate. Empty: the source\'s own.'}]
     fields = [
         field('url', 'EJBCA address', 'text', required=True, placeholder='https://ejbca.example.local',
               help='The server; /ejbca/ejbca-rest-api is added when the path does not have it.'),

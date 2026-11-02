@@ -40,6 +40,18 @@ the proxy of Settings → Proxy); Basic uses acme's HTTP like every module.
 
 ## The template
 
+* **Load the list** (1.0.24) beside *Template* - in the source's form and, for
+  each certificate, in *Add a certificate → Profile* - reads the templates the
+  CA offers the signed-in user from its *Advanced Certificate Request* page
+  (`GET /certsrv/certrqxt.asp`, the list `lbCertTemplateID`: each option's
+  value is `<flags>;<template name>;...`, its text the display name - the page
+  as [Certipy](https://github.com/ly4k/Certipy/pull/143) reads it). Only read:
+  nothing is requested. The page shows only the templates published on the CA
+  that the user may enroll for and Web Enrollment can use - a template missing
+  there (e.g. one of schema 3 with a Key Storage Provider) is still sent by
+  its name: choose *Type it yourself…* and type it.
+* A certificate's own template (its profile `template`) wins over the source's;
+  empty, the source's is used.
 * Give the template's **name**, not its display name (*Web Server* is
   `WebServer`; a copy is usually `WebServer2` or what you named it).
 * *Subject Name: Supply in the request* - acme's CSR carries the names; a

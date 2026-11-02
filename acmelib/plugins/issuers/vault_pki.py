@@ -59,6 +59,8 @@ class VaultPkiIssuer(Issuer):
     ip_names = True
     choose_days = True
     lists_existing = True           # LIST certs + read: Certificates → Import from a source
+    per_cert = [{'key': 'role', 'label': 'Role', 'placeholder': 'web-servers',
+                 'help': 'The Vault PKI role for this certificate. Empty: the source\'s own.'}]
     fields = [
         field('url', 'Vault address', 'text', required=True, placeholder='https://vault.example.local:8200'),
         field('mount', 'PKI mount', 'text', default='pki', placeholder='pki_int',

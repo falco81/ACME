@@ -62,7 +62,18 @@
     noI18n(sel);                      /* the names of products: data */
     var load = cmdButton('Load the list', 'refresh', 'small');
     var said = el('div', 'muted small ct-catalog-said');
+    /* Always settable by hand too (a value the list does not show, or no list to
+       load): "Type it yourself…" opens a box of its own. */
+    var OWN = '\u0001own';
+    var own = el('input', 'mono ct-catalog-own');
+    own.type = 'text';
+    own.placeholder = f.placeholder || '';
+    own.style.flex = '1 1 12em';
+    own.style.minWidth = '0';
+    own.hidden = true;
+    noI18n(own);
     line.appendChild(sel);
+    line.appendChild(own);
     line.appendChild(load);
     wrap.appendChild(line);
     wrap.appendChild(said);
@@ -77,6 +88,7 @@
         o.textContent = words;
         sel.appendChild(o);
       };
+      if (keep === OWN) keep = own.value.trim();
       if (!pairs) {
         add('', catTr(keep ? 'chosen before - Load the list to see the others' : 'not loaded yet - Load the list'));
         if (keep) add(keep, keep);
@@ -87,7 +99,13 @@
           add(keep, keep + ' - ' + catTr('not in the list'));
         }
       }
+      add(OWN, catTr('Type it yourself…'));
       sel.value = keep;
+      ownShown();
+    }
+    function ownShown() {
+      own.hidden = sel.value !== OWN;
+      if (!own.hidden && !own.value) own.focus();
     }
     fill(null);
 
@@ -113,13 +131,14 @@
     }
     load.onclick = ask;
     sel.addEventListener('change', function () {
+      ownShown();
       var want = sets[sel.value];
       if (!want || !ctx.form) return;
       Object.keys(want).forEach(function (k) { catSet(ctx.form, k, want[k]); });
     });
     /* A saved module: its list loaded by itself (its secrets are kept there). */
     if (opts.row && opts.row.id && (f.autoload !== false)) setTimeout(ask, 0);
-    return {input: wrap, get: function () { return sel.value; }};
+    return {input: wrap, get: function () { return sel.value === OWN ? own.value.trim() : sel.value; }};
   }
 
   function arr(x) { return Array.isArray(x) ? x : []; }

@@ -3727,8 +3727,12 @@ function certWizard(cert, detail, opts) {
     must_staple: truthy(prof.must_staple), acme_profile: prof.acme_profile || '', template: prof.template || '',
     subject: {O: subj.O || '', OU: subj.OU || '', C: subj.C || '', ST: subj.ST || '', L: subj.L || '', emailAddress: subj.emailAddress || ''},
     tags: arr(c.tags).join(' '), note: c.note || '', owner: c.owner || '',
-    sans: sansOf(c, prof), cn: subj.CN || '', cn_san: true
+    sans: sansOf(c, prof), cn: subj.CN || '', cn_san: true,
+    /* What the source lets each certificate set itself (its per_cert: an AD CS
+       template, a Vault role...), kept in the profile under the same keys. */
+    per: {}
   };
+  var PROF0 = prof;
   if (!W.d.sans.length) W.d.sans = [{type: 'dns', value: ''}];
   W.d.cn_san = !W.d.cn || arr(c.names).indexOf(String(W.d.cn).toLowerCase()) >= 0;
   var src = function () { return W.sources.filter(function (s) { return s.name === W.d.issuer; })[0] || null; };
@@ -4481,11 +4485,26 @@ function certWizard(cert, detail, opts) {
       staple = switchBox(W.d.must_staple);
       g.appendChild(formField('OCSP must-staple', staple, 'Only where the server staples OCSP answers.'));
     }
-    if (/adcs|ms_/i.test(kind)) {
-      tmpl = textBox(W.d.template, 'WebServer', 'mono');
-      noI18n(tmpl);
-      g.appendChild(formField('Certificate template', tmpl, 'The template on the Windows CA. Empty: the source’s own.'));
-    }
+    /* What the source lets each certificate set itself (Issuer.per_cert): picked from
+       the list the source gives (Load the list - its own settings, saved), or typed. */
+    var perGets = {};
+    arr((plugOf('issuer', kind) || {}).per_cert).forEach(function (pf) {
+      if (!pf || !pf.key) return;
+      var v = Object.prototype.hasOwnProperty.call(W.d.per, pf.key) ? W.d.per[pf.key]
+        : (pf.key === 'template' ? W.d.template : String(PROF0[pf.key] || ''));
+      var CF = window.ACME_FIELD_TYPES && window.ACME_FIELD_TYPES.catalog;
+      if (pf.catalog && pf.field && CF && s && s.id) {
+        var made = CF({key: pf.field, placeholder: pf.placeholder || ''}, v,
+                      {opts: {family: 'issuer', row: s, plug: {kind: kind}}, current: function () { return {}; }});
+        perGets[pf.key] = made.get;
+        g.appendChild(formField(pf.label || pf.key, made.input, pf.help || ''));
+      } else {
+        var tb = textBox(v, pf.placeholder || '', 'mono');
+        noI18n(tb);
+        perGets[pf.key] = function () { return tb.value.trim(); };
+        g.appendChild(formField(pf.label || pf.key, tb, pf.help || ''));
+      }
+    });
     host.appendChild(g);
     var ek = el('div', 'ct-ekus');
     var boxes = {};
@@ -4519,6 +4538,10 @@ function certWizard(cert, detail, opts) {
       if (prof) W.d.acme_profile = prof.value.trim();
       if (staple) W.d.must_staple = !!staple._get();
       if (tmpl) W.d.template = tmpl.value.trim();
+      Object.keys(perGets).forEach(function (k) {
+        W.d.per[k] = String(perGets[k]() || '').trim();
+        if (k === 'template') W.d.template = W.d.per[k];
+      });
       W.d.eku = Object.keys(boxes).filter(function (k) { return boxes[k].checked; });
       Object.keys(sb).forEach(function (k) { W.d.subject[k] = sb[k].value.trim(); });
     };
@@ -4601,6 +4624,11 @@ function certWizard(cert, detail, opts) {
     pairs.push(['Renews', W.d.auto_renew ? 'by itself, ' + W.d.renew_days + ' days before the end' : 'only when asked']);
     pairs.push(['Key on renewal', W.d.reuse_key ? 'kept' : 'a new one each time']);
     if (W.d.days) pairs.push(['Valid for', W.d.days + ' days']);
+    arr((plugOf('issuer', (src() || {}).kind) || {}).per_cert).forEach(function (pf) {
+      var pv = Object.prototype.hasOwnProperty.call(W.d.per, pf.key) ? W.d.per[pf.key]
+        : (pf.key === 'template' ? W.d.template : String(PROF0[pf.key] || ''));
+      pairs.push([pf.label || pf.key, pv ? data('span', 'mono', pv) : tr('the source’s own')]);
+    });
     pairs.push(['Used for', W.d.eku.join(', ') || '–']);
     var subj = Object.keys(W.d.subject).filter(function (k) { return W.d.subject[k]; }).map(function (k) { return k + '=' + W.d.subject[k]; });
     if (subj.length) pairs.push(['Subject', data('span', 'mono small', subj.join(', '))]);
@@ -4655,6 +4683,16 @@ function certWizard(cert, detail, opts) {
     if (d.must_staple) profile.must_staple = true;
     if (d.acme_profile) profile.acme_profile = d.acme_profile;
     if (d.template) profile.template = d.template;
+    /* the source's own keys (per_cert) - and the ones the wizard does not draw for
+       this source kept as they were */
+    var perKeys = arr((plugOf('issuer', (src() || {}).kind) || {}).per_cert).map(function (x) { return x.key; });
+    Object.keys(PROF0).forEach(function (k) {
+      if (perKeys.indexOf(k) >= 0 && !Object.prototype.hasOwnProperty.call(d.per, k) && profile[k] === undefined && PROF0[k]) profile[k] = PROF0[k];
+    });
+    Object.keys(d.per).forEach(function (k) {
+      if (perKeys.indexOf(k) < 0) return;
+      if (d.per[k]) profile[k] = d.per[k]; else delete profile[k];
+    });
     var subject = {};
     Object.keys(d.subject).forEach(function (k) { if (d.subject[k]) subject[k] = d.subject[k]; });
     if (String(d.cn || '').trim()) subject.CN = String(d.cn).trim();
