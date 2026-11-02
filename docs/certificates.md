@@ -17,7 +17,7 @@ plugs it into the engine. The modules (issuers, challenges, targets) are in
 |---|---|
 | **certificate** (`certs`) | its names, key type, issuer, challenge(s), renewal policy, the current certificate, its chain and its key (sealed), its state |
 | **version** (`cert_versions`) | every certificate a row has had: each issue, renewal, import or CSR answer. `certs_keep_versions` of them are kept |
-| **source / issuer** (`cert_issuers`) | where certificates come from: a module (`acme`, `internal_ca`, `selfsigned`, `ms_adcs`, `scep`, `sslmarket`, `sslmarket_acme`, ...) and its settings |
+| **source / issuer** (`cert_issuers`) | where certificates come from: a module (`acme`, `internal_ca`, `selfsigned`, `ms_adcs`, `scep`, `sslmarket`, `sslmarket_acme`, `ssls`, ...) and its settings |
 | **validation / challenge** (`cert_challenges`) | how a name is proved to an ACME CA: DNS-01 (acme's own DNS server, RFC 2136, Cloudflare, ...) or HTTP-01 (this server's port 80, web servers over SSH) |
 | **target** (`cert_targets`) | a place certificates go: a Linux server over SSH, F5, NetScaler, MikroTik, FortiGate, ... and how acme signs in |
 | **deployment** (`cert_deploys`) | one certificate on one target, with the options there (paths, formats, profile, commands after) |

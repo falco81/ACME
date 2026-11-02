@@ -6,6 +6,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.21 - 2026-11-02
 
+- A new deployment whose Save is refused (a field missing, a right missing) is
+  no longer left behind: every failed Save added another one to the certificate.
 - Saving a deployment (or a source, validation, target) no longer asks for a
   required field of a part switched off - "Folder of the store is needed" with
   the IIS Central Certificate Store role off on a Windows server.
@@ -14,6 +16,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   then deleted, in one job - a revocation that fails deletes nothing. Where it
   cannot be revoked (not issued, revoked already, self-signed, no source) the
   popup says so. *Revoke* alone stays its own button.
+- **SSLS.cz** (`ssls`, docs/ssls.md): a new source for the certificates SSLS.cz
+  sells (AlpiroSSL, Sectigo, PositiveSSL, Certum, GeoTrust, DigiCert…) through
+  its API SAPI v2. The product is picked from the list SSLS.cz gives (*Load the
+  list* in the form - nothing is ordered); DCV by DNS (a CNAME, Certum a TXT) or
+  FILE is put in place by the certificate's own validation and taken away
+  after, DCV by e-mail needs no validation (the approver address picked from
+  those SSLS.cz offers). Renewals are free reissues (`quickReissue`) while the
+  subscription runs; a new order is a purchase and is made only with *Allow new
+  orders (paid)* on (off by default). *Try it* checks the token and the allowed
+  IP address and shows the credit. A form field can now be a list the module
+  loads live (the type `catalog`).
 
 ## 1.0.20 - 2026-11-02
 

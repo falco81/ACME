@@ -242,8 +242,8 @@ def products_of(answer):
                 wild = _pick(low, 'isWildcard', 'wildcard')
                 out.append({'code': code, 'name': name, 'ca': ca, 'level': level,
                             'years': _years(low),
-                            'sans': int(_num(sans, 0)) if str(sans or '').strip().isdigit()
-                            else None,
+                            'sans': int(str(sans).strip()) if sans is not None and
+                            str(sans).strip().isdigit() else None,
                             'wildcard': _as_bool(wild) if wild is not None else
                             ('wildcard' in name.lower()),
                             'price': _pick(low, 'price1', 'price', 'cena')
@@ -364,7 +364,8 @@ class SslsApi(object):
                               '- add the public IPv4 address acme reaches the internet from to '
                               'the allowed addresses in the account\'s API settings' % msg,
                               detail=detail, retry=False)
-        if re.search(r'limit|too many|blok|block|zablokov', low):
+        if re.search(r'rate limit|limit (?:of|for) (?:requests|queries)|too many (?:requests|'
+                     r'queries|calls)|počet dotaz|blocked|zablokov|blokov', low):
             raise PluginError('SSLS.cz blocks the API for a while: too many requests (%s) - '
                               'tried again later' % msg, detail=detail, retry=True)
         if re.search(r'credit|kredit|insufficient|nedostate', low):

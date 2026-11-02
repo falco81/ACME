@@ -1842,7 +1842,22 @@ def _sources_contact(h, s):
 # ---------------------------------------------------------------------------
 def deploy_save(store, b, by, full=True):
     """A deployment saved. `full`: by a full administrator - only one may change
-    the script written in it (it runs on the target)."""
+    the script written in it (it runs on the target). A new one refused while its
+    options are checked is not left behind (1.0.21): every Save that failed made
+    another deployment."""
+    made = []
+    try:
+        return _deploy_save_in(store, b, by, full, made)
+    except BaseException:
+        for ident in made:
+            try:
+                store.db.run('DELETE FROM cert_deploys WHERE id = ?', (ident,))
+            except Exception:                           # noqa: BLE001
+                pass
+        raise
+
+
+def _deploy_save_in(store, b, by, full, made):
     t = time.time()
     row = None
     if b.get('id') not in (None, '', 0):
@@ -1866,6 +1881,7 @@ def deploy_save(store, b, by, full=True):
         fields.update({'options': '{}', 'state': 'new', 'fails': 0, 'created': t,
                        'created_by': str(by)[:190], 'position': fields.get('position', 0)})
         ident = store.db.insert('cert_deploys', fields)
+        made.append(ident)
         row = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (ident,))
         fields = {}
     if 'options' in b:

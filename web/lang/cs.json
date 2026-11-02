@@ -41955,6 +41955,566 @@
   "sl0002": {
    "source": " - Webglobe asks acme to slow down (too many attempts); acme waits and tries again later by itself",
    "text": " – Webglobe žádá acme o zpomalení (příliš mnoho pokusů); acme počká a zkusí to později samo"
+  },
+  "sl0003": {
+   "source": "Write the record through",
+   "text": "Záznam zapisovat přes"
+  },
+  "sl0004": {
+   "source": "A DNS validation acme already has (Active24, Webglobe, Cloudflare, SSH DNS...) that writes TXT records in the domains: acme writes the record through it (\"Write the records to DNS\") and takes away exactly what it wrote. Empty: you set the record by hand.",
+   "text": "DNS validace, kterou acme už má (Active24, Webglobe, Cloudflare, SSH DNS…) a která v doménách zapisuje TXT záznamy: acme přes ni záznam zapíše („Zapsat záznamy do DNS“) a odebere přesně to, co zapsalo. Prázdné: záznam nastavíte ručně."
+  },
+  "sl0005": {
+   "source": "Write it by itself when missing",
+   "text": "Zapsat sám, když chybí"
+  },
+  "sl0006": {
+   "source": "With a validation chosen above: at an order, a missing or wrong record is written first (only a value acme wrote itself is replaced; other records stay). Off: only \"Write the records to DNS\" writes it.",
+   "text": "S validací vybranou výše: při objednávce se chybějící nebo špatný záznam nejdřív zapíše (nahradí se jen hodnota, kterou zapsalo samo acme; ostatní záznamy zůstanou). Vypnuto: zapíše ho jen „Zapsat záznamy do DNS“."
+  },
+  "sl0007": {
+   "source": "Check the records",
+   "text": "Zkontrolovat záznamy"
+  },
+  "sl0008": {
+   "source": "For each domain: whether the record is there, missing, or holds another value - nothing is changed.",
+   "text": "Pro každou doménu: zda záznam existuje, chybí, nebo má jinou hodnotu – nic se nemění."
+  },
+  "sl0009": {
+   "source": "Write the records to DNS",
+   "text": "Zapsat záznamy do DNS"
+  },
+  "sl0010": {
+   "source": "Through the validation chosen in \"Write the record through\": only what is missing or not right; only a value acme wrote itself is replaced.",
+   "text": "Přes validaci vybranou v „Záznam zapisovat přes“: jen to, co chybí nebo není správně; nahradí se jen hodnota, kterou zapsalo samo acme."
+  },
+  "sl0011": {
+   "source": "Take the records away",
+   "text": "Odebrat záznamy"
+  },
+  "sl0012": {
+   "source": "Removes exactly the records acme wrote - records set by hand stay.",
+   "text": "Odebere přesně záznamy, které zapsalo acme – ručně nastavené záznamy zůstanou."
+  },
+  "sl0013": {
+   "source": "The dns-persist-01 records acme wrote are removed from DNS. Until they are written again, the names are proved by the fallback validation.",
+   "text": "Záznamy dns-persist-01, které zapsalo acme, se odeberou z DNS. Dokud se znovu nezapíšou, jména prokazuje záložní validace."
+  },
+  "sl0014": {
+   "source": "the record is there",
+   "text": "záznam existuje"
+  },
+  "sl0015": {
+   "source": "a record that names this account is there",
+   "text": "existuje záznam, který jmenuje tento účet"
+  },
+  "sl0016": {
+   "source": "it holds another value",
+   "text": "má jinou hodnotu"
+  },
+  "sl0017": {
+   "source": "choose the validation that writes the record (\"Write the record through\") and save it first",
+   "text": "nejdřív vyberte validaci, která záznam zapíše („Záznam zapisovat přes“), a uložte"
+  },
+  "sl0018": {
+   "source": "set \"Domains with the record\" (no certificate uses this validation yet)",
+   "text": "nastavte „Domény se záznamem“ (tuto validaci zatím nepoužívá žádný certifikát)"
+  },
+  "sl0019": {
+   "source": "acme wrote no record - nothing to take away",
+   "text": "acme nezapsalo žádný záznam – není co odebrat"
+  },
+  "sl0020": {
+   "source": "nothing to check: set \"Domains with the record\" and add an ACME source",
+   "text": "není co kontrolovat: nastavte „Domény se záznamem“ a přidejte zdroj ACME"
+  },
+  "sl0021": {
+   "source": "Nothing is put in place at an order: the CA reads the record set once (if it offers dns-persist-01 in the authorization)",
+   "text": "Při objednávce se nic nevytváří: CA čte jednou nastavený záznam (pokud v autorizaci nabízí dns-persist-01)"
+  },
+  "sl0022": {
+   "source": "Only when the record is missing or not right",
+   "text": "Jen když záznam chybí nebo není správně"
+  },
+  "sl0023": {
+   "source": "only a value acme wrote itself is replaced; other TXT records at the name stay",
+   "text": "nahradí se jen hodnota, kterou zapsalo samo acme; ostatní TXT záznamy u jména zůstanou"
+  },
+  "sl0024": {
+   "source": "Set by hand, once - acme writes nothing",
+   "text": "Nastaví se ručně, jednou – acme nic nezapisuje"
+  },
+  "sl0025": {
+   "source": "No fallback validation: until the CA offers dns-persist-01 nothing can be issued",
+   "text": "Žádná záložní validace: dokud CA nenabízí dns-persist-01, nelze nic vystavit"
+  },
+  "sl0026": {
+   "source": "‹the URL of the ACME account›",
+   "text": "‹URL účtu ACME›"
+  },
+  "sl0027": {
+   "source": "‹the CA's issuer domain name›",
+   "text": "‹doménové jméno vydavatele CA›"
+  },
+  "sl0028": {
+   "source": "1 domain",
+   "text": "1 doména"
+  },
+  "sl0029": {
+   "source": "1 needs attention",
+   "text": "1 potřebuje pozornost"
+  },
+  "sl0030": {
+   "source": "1 not known",
+   "text": "1 nezjištěn"
+  },
+  "sl0031": {
+   "source": "One TXT record for each ACME account, at _validation-persist.DOMAIN - acme writes it through the validation chosen in “Write the record through” when you press “Write the records to DNS”, and takes away exactly what it wrote. Records set by hand are never touched.",
+   "text": "Jeden TXT záznam pro každý účet ACME, u _validation-persist.DOMÉNA – acme ho zapíše přes validaci vybranou v „Záznam zapisovat přes“, když stisknete „Zapsat záznamy do DNS“, a odebere přesně to, co zapsalo. Ručně nastavených záznamů se nikdy nedotkne."
+  },
+  "sl0032": {
+   "source": "One TXT record for each ACME account, at _validation-persist.DOMAIN. Several may stand at the same name - Let’s Encrypt and its staging have different accounts. Nothing is changed in your DNS: set it by hand, or choose a validation in “Write the record through” and save.",
+   "text": "Jeden TXT záznam pro každý účet ACME, u _validation-persist.DOMÉNA. U stejného jména jich může být víc – Let’s Encrypt a jeho staging mají různé účty. Ve vašem DNS se nic nemění: nastavte ho ručně, nebo vyberte validaci v „Záznam zapisovat přes“ a uložte."
+  },
+  "sl0033": {
+   "source": "missing",
+   "text": "chybí"
+  },
+  "sl0034": {
+   "source": "another value",
+   "text": "jiná hodnota"
+  },
+  "sl0035": {
+   "source": "not known",
+   "text": "nevíme"
+  },
+  "sl0036": {
+   "source": "written by acme through",
+   "text": "zapsalo acme přes"
+  },
+  "sl0037": {
+   "source": "The domains of the certificates that use it (“Domains with the record” is empty).",
+   "text": "Domény certifikátů, které ji používají („Domény se záznamem“ jsou prázdné)."
+  },
+  "sl0038": {
+   "source": "Writing…",
+   "text": "Zapisuji…"
+  },
+  "sl0039": {
+   "source": "Taking away…",
+   "text": "Odebírám…"
+  },
+  "sl0040": {
+   "source": "Records set by hand stay.",
+   "text": "Ručně nastavené záznamy zůstanou."
+  },
+  "sl0041": {
+   "source": "Also remove its records from DNS",
+   "text": "Odebrat i její záznamy z DNS"
+  },
+  "sl0042": {
+   "source": "acme wrote 1 record for it: removed first, through the validation that wrote it. If that fails, nothing is deleted.",
+   "text": "acme pro ni zapsalo 1 záznam: nejdřív se odebere, přes validaci, která ho zapsala. Když se to nepovede, nic se nesmaže."
+  },
+  "sl0043": {
+   "source": "acme wrote no record for it. Records set by hand always stay.",
+   "text": "acme pro ni nezapsalo žádný záznam. Ručně nastavené záznamy zůstanou vždy."
+  },
+  "sssl0001": {
+   "source": " - the CA's e-mail to the approver address has to be confirmed",
+   "text": " – e-mail CA na schvalovací adresu musí někdo potvrdit"
+  },
+  "sssl0002": {
+   "source": " - the DCV record said in the job has to be put in place by hand",
+   "text": " – záznam DCV uvedený v úloze je třeba umístit ručně"
+  },
+  "sssl0003": {
+   "source": "A certificate bought already (e.g. at www.ssls.cz): it is reissued with acme's request. Empty: the certificate acme ordered last for this one. \"List the certificates\" shows the IDs.",
+   "text": "Certifikát už koupený (např. na www.ssls.cz): vydá se znovu s požadavkem acme. Prázdné: certifikát, který acme pro tento objednal naposledy. ID ukáže „Vypsat certifikáty“."
+  },
+  "sssl0004": {
+   "source": "A dual certificate: the SSLS ID of the second key type (its own order).",
+   "text": "Duální certifikát: SSLS ID druhého typu klíče (jeho vlastní objednávka)."
+  },
+  "sssl0005": {
+   "source": "A new order costs money; a reissue (quickReissue) inside a subscription that still runs does not. Certum is never reissued, and a reissue cannot change the names.",
+   "text": "Nová objednávka stojí peníze; znovuvydání (quickReissue) v rámci předplatného, které ještě běží, ne. Certum se znovu nevydává nikdy a znovuvydání nemůže změnit jména."
+  },
+  "sssl0006": {
+   "source": "A new order for a certificate that had one",
+   "text": "Nová objednávka pro certifikát, který už jednu měl"
+  },
+  "sssl0007": {
+   "source": "A renewal may carry the days left over into the new certificate.",
+   "text": "Prodloužení může převést zbývající dny do nového certifikátu."
+  },
+  "sssl0008": {
+   "source": "Approver mailbox",
+   "text": "Schvalovací schránka"
+  },
+  "sssl0009": {
+   "source": "As in the commercial register (admin.organization).",
+   "text": "Jako v obchodním rejstříku (admin.organization)."
+  },
+  "sssl0010": {
+   "source": "At least 30 s: SSLS.cz blocks the API for 15 minutes over 60 requests a minute or 2000 an hour.",
+   "text": "Nejméně 30 s: SSLS.cz při více než 60 dotazech za minutu nebo 2000 za hodinu zablokuje API na 15 minut."
+  },
+  "sssl0011": {
+   "source": "At www.ssls.cz: My account → API settings (API nastavení) - switch the API on, make the token, and add the public IPv4 address(es) acme reaches the internet from (several separated by spaces). Sent in every request as the parameter token, never in the address.",
+   "text": "Na www.ssls.cz: Můj účet → API nastavení – zapněte API, vygenerujte token a přidejte veřejné IPv4 adresy, ze kterých acme přistupuje do internetu (více oddělte mezerami). Posílá se v každém dotazu jako parametr token, nikdy v adrese."
+  },
+  "sssl0012": {
+   "source": "Authority of the product",
+   "text": "Autorita produktu"
+  },
+  "sssl0013": {
+   "source": "CNAME _LABEL.NAME to the target the CA says (Certum: TXT at NAME)",
+   "text": "CNAME _NÁVĚŠTÍ.JMÉNO na cíl, který určí CA (Certum: TXT u JMÉNA)"
+  },
+  "sssl0014": {
+   "source": "Certificate to reuse (SSLS ID)",
+   "text": "Certifikát k opětovnému použití (SSLS ID)"
+  },
+  "sssl0015": {
+   "source": "Certificate to reuse for the twin",
+   "text": "Certifikát k opětovnému použití pro dvojče"
+  },
+  "sssl0016": {
+   "source": "Certum certificates cannot be reissued through the API (quickReissue)",
+   "text": "Certifikáty Certum nelze přes API znovu vydat (quickReissue)"
+  },
+  "sssl0017": {
+   "source": "Certum only, and only where the request (CSR) holds no e-mail - acme's requests hold none: give it for Certum.",
+   "text": "Jen Certum, a jen pokud požadavek (CSR) neobsahuje e-mail – požadavky acme žádný neobsahují: pro Certum ho vyplňte."
+  },
+  "sssl0018": {
+   "source": "Commercial certificates (AlpiroSSL, Sectigo, PositiveSSL, Certum, GeoTrust, DigiCert…) ordered and reissued through the API of SSLS.cz; the DCV record or file put in place by the certificate's validation. New (paid) orders only when allowed; certificates waiting for validation are fetched later.",
+   "text": "Komerční certifikáty (AlpiroSSL, Sectigo, PositiveSSL, Certum, GeoTrust, DigiCert…) objednávané a znovu vydávané přes API SSLS.cz; záznam nebo soubor DCV umístí ověření certifikátu. Nové (placené) objednávky jen tam, kde jsou povoleny; certifikáty čekající na ověření se vyzvednou později."
+  },
+  "sssl0019": {
+   "source": "Contact: country (2 letters)",
+   "text": "Kontakt: stát (2 písmena)"
+  },
+  "sssl0020": {
+   "source": "DNS - a CNAME record (Certum: TXT) by the certificate's DNS validation",
+   "text": "DNS – záznam CNAME (Certum: TXT) přes DNS ověření certifikátu"
+  },
+  "sssl0021": {
+   "source": "DNS - a CNAME record (a TXT record for Certum)",
+   "text": "DNS – záznam CNAME (pro Certum záznam TXT)"
+  },
+  "sssl0022": {
+   "source": "DNS record the CA asks for",
+   "text": "Záznam DNS, který CA žádá"
+  },
+  "sssl0023": {
+   "source": "DV - the domain",
+   "text": "DV – doména"
+  },
+  "sssl0024": {
+   "source": "E-mail to an approver address of the domain",
+   "text": "E-mail na schvalovací adresu domény"
+  },
+  "sssl0025": {
+   "source": "EV - extended validation",
+   "text": "EV – rozšířené ověření"
+  },
+  "sssl0026": {
+   "source": "Empty: the contact's phone.",
+   "text": "Prázdné: telefon kontaktu."
+  },
+  "sssl0027": {
+   "source": "For each domain the address is picked from those SSLS.cz offers for the product and the domain (the method emails): this mailbox at the domain itself, else at the domain above it, else the first offered.",
+   "text": "Pro každou doménu se adresa vybere z těch, které SSLS.cz pro produkt a doménu nabízí (metoda emails): tato schránka přímo u domény, jinak u domény nad ní, jinak první nabídnutá."
+  },
+  "sssl0028": {
+   "source": "How long a try waits for the CA (DV: minutes). Longer: the certificate is asked for again at the next try (OV/EV: days).",
+   "text": "Jak dlouho pokus čeká na CA (DV: minuty). Déle: o certifikát se acme přihlásí znovu při dalším pokusu (OV/EV: dny)."
+  },
+  "sssl0029": {
+   "source": "How the CA checks the domain (dcv.method). DNS and FILE are put in place by the validation module of the certificate, as for ACME, and taken away after; e-mail needs a person to click. FILE and DNS: AlpiroSSL, Sectigo, PositiveSSL and Certum only.",
+   "text": "Jak CA ověří doménu (dcv.method). DNS a FILE umístí ověřovací modul certifikátu, jako u ACME, a potom je zase odstraní; e-mail potřebuje člověka, který klikne. FILE a DNS: jen AlpiroSSL, Sectigo, PositiveSSL a Certum."
+  },
+  "sssl0030": {
+   "source": "International, digits only: 00 instead of +, no spaces (00420123456789). For OV/EV best the organisation's number a public register shows.",
+   "text": "Mezinárodně, jen číslice: 00 místo +, bez mezer (00420123456789). Pro OV/EV nejlépe číslo organizace, které uvádí veřejný rejstřík."
+  },
+  "sssl0031": {
+   "source": "IČ or DIČ - Certum OV/EV needs it.",
+   "text": "IČ nebo DIČ – Certum OV/EV ho potřebuje."
+  },
+  "sssl0032": {
+   "source": "List the certificates",
+   "text": "Vypsat certifikáty"
+  },
+  "sssl0033": {
+   "source": "Lists the certificates the account can order through the API (code, authority, validation, years). Orders nothing.",
+   "text": "Vypíše certifikáty, které účet může přes API objednat (kód, autorita, ověření, roky). Nic neobjednává."
+  },
+  "sssl0034": {
+   "source": "Load the list (SSLS.cz is asked with the token above - nothing is ordered) and pick the certificate. Its validation and authority are filled in under More by themselves.",
+   "text": "Načtěte seznam (SSLS.cz se zeptá s tokenem výše – nic se neobjednává) a vyberte certifikát. Jeho ověření a autorita se v části Více vyplní samy."
+  },
+  "sssl0035": {
+   "source": "Not needed, but it makes the CA's check of the organisation much faster.",
+   "text": "Není povinné, ale ověření organizace u CA výrazně zrychlí."
+  },
+  "sssl0036": {
+   "source": "OV - the organisation",
+   "text": "OV – organizace"
+  },
+  "sssl0037": {
+   "source": "OV and EV certificates and every Certum one. Set by itself when a product is picked from the list.",
+   "text": "Certifikáty OV a EV a všechny certifikáty Certum. Nastaví se samo při výběru produktu ze seznamu."
+  },
+  "sssl0038": {
+   "source": "Off: acme never buys anything - it only reissues inside certificates paid already, and stops with words where a purchase would be needed. On: the first certificate and an ended subscription are ordered (and paid from the credit) by themselves.",
+   "text": "Vypnuto: acme nikdy nic nekupuje – jen znovu vydává v rámci už zaplacených certifikátů a tam, kde by byl potřeba nákup, se zastaví s vysvětlením. Zapnuto: první certifikát i skončené předplatné se objednají (a zaplatí z kreditu) samy."
+  },
+  "sssl0039": {
+   "source": "Only where the list cannot be loaded here: the productCode, used instead of Product.",
+   "text": "Jen pokud seznam zde nelze načíst: productCode, použije se místo Produktu."
+  },
+  "sssl0040": {
+   "source": "Organisation: D-U-N-S number",
+   "text": "Organizace: číslo D-U-N-S"
+  },
+  "sssl0041": {
+   "source": "Organisation: city",
+   "text": "Organizace: město"
+  },
+  "sssl0042": {
+   "source": "Organisation: company ID (IČO)",
+   "text": "Organizace: IČO"
+  },
+  "sssl0043": {
+   "source": "Organisation: e-mail",
+   "text": "Organizace: e-mail"
+  },
+  "sssl0044": {
+   "source": "Organisation: phone",
+   "text": "Organizace: telefon"
+  },
+  "sssl0045": {
+   "source": "Organisation: post code",
+   "text": "Organizace: PSČ"
+  },
+  "sssl0046": {
+   "source": "Organisation: street",
+   "text": "Organizace: ulice"
+  },
+  "sssl0047": {
+   "source": "Product code typed",
+   "text": "Kód produktu zadaný ručně"
+  },
+  "sssl0048": {
+   "source": "Reissue inside the subscription while it runs (free); a new order only when paid orders are allowed",
+   "text": "Znovu vydat v rámci předplatného, dokud běží (zdarma); nová objednávka jen tam, kde jsou placené objednávky povoleny"
+  },
+  "sssl0049": {
+   "source": "SSLS.cz (AlpiroSSL, Sectigo, Certum…)",
+   "text": "SSLS.cz (AlpiroSSL, Sectigo, Certum…)"
+  },
+  "sssl0050": {
+   "source": "Server type",
+   "text": "Typ serveru"
+  },
+  "sssl0051": {
+   "source": "Set by itself when a product is picked from the list.",
+   "text": "Nastaví se samo při výběru produktu ze seznamu."
+  },
+  "sssl0052": {
+   "source": "Set by itself when a product is picked from the list. Certum: a TXT record for DNS, never a reissue.",
+   "text": "Nastaví se samo při výběru produktu ze seznamu. Certum: pro DNS záznam TXT, nikdy znovuvydání."
+  },
+  "sssl0053": {
+   "source": "State of the waiting certificates",
+   "text": "Stav čekajících certifikátů"
+  },
+  "sssl0054": {
+   "source": "The certificates of the account (SSLS ID, state, end, subscription) - to find the one to reuse. Orders nothing.",
+   "text": "Certifikáty účtu (SSLS ID, stav, konec, předplatné) – k nalezení toho, který použít znovu. Nic neobjednává."
+  },
+  "sssl0055": {
+   "source": "The person who asks for the certificate (admin.*, also the technical contact) - every order needs them.",
+   "text": "Osoba, která o certifikát žádá (admin.*, zároveň technický kontakt) – každá objednávka ji potřebuje."
+  },
+  "sssl0056": {
+   "source": "The product needs the organisation's details",
+   "text": "Produkt potřebuje údaje organizace"
+  },
+  "sssl0057": {
+   "source": "Validation of the product",
+   "text": "Ověření produktu"
+  },
+  "sssl0058": {
+   "source": "What a new order buys (the parameter period; 2-5 years only where the product sells them). A certificate lives at most 200 days (CA/B Forum, since March 2026): a longer subscription is served by free reissues.",
+   "text": "Co nová objednávka koupí (parametr period; 2–5 let jen tam, kde je produkt prodává). Certifikát platí nejvýše 200 dní (CA/B Forum, od března 2026): delší předplatné pokrývají bezplatná znovuvydání."
+  },
+  "sssl0059": {
+   "source": "What the validation of the certificate must be able to put in place.",
+   "text": "Co musí ověření certifikátu umět umístit."
+  },
+  "sssl0060": {
+   "source": "Where a TXT code goes (Certum): @ is the name itself, else LABEL.NAME.",
+   "text": "Kam přijde kód TXT (Certum): @ je samotné jméno, jinak NÁVĚŠTÍ.JMÉNO."
+  },
+  "sssl0061": {
+   "source": "Where the certificate is installed (the parameter server). Not needed: the certificate comes as PEM all the same; empty is Apache+OpenSSL.",
+   "text": "Kam se certifikát instaluje (parametr server). Není potřeba: certifikát přijde stejně jako PEM; prázdné je Apache+OpenSSL."
+  },
+  "sssl0062": {
+   "source": "a renewal (orderType renew), Certum a new one",
+   "text": "prodloužení (orderType renew), Certum nová"
+  },
+  "sssl0063": {
+   "source": "always a new one (orderType new)",
+   "text": "vždy nová (orderType new)"
+  },
+  "sssl0064": {
+   "source": "an e-mail to an approver address of the domain (admin@, hostmaster@…)",
+   "text": "e-mail na schvalovací adresu domény (admin@, hostmaster@…)"
+  },
+  "sssl0065": {
+   "source": "being validated or issued",
+   "text": "probíhá ověření nebo vystavení"
+  },
+  "sssl0066": {
+   "source": "by the product: Certum TXT, the others CNAME",
+   "text": "podle produktu: Certum TXT, ostatní CNAME"
+  },
+  "sssl0067": {
+   "source": "certStatus of the certificate to reuse and of those waiting here. Orders nothing.",
+   "text": "certStatus certifikátu k opětovnému použití a těch, které zde čekají. Nic neobjednává."
+  },
+  "sssl0068": {
+   "source": "issued and active",
+   "text": "vystaven a aktivní"
+  },
+  "sssl0069": {
+   "source": "key=value lines added to every new order, for a parameter of newOrder this form does not fill (tech[...], org[fax]...).",
+   "text": "Řádky klíč=hodnota přidané ke každé nové objednávce, pro parametr newOrder, který tento formulář nevyplňuje (tech[...], org[fax]...)."
+  },
+  "sssl0070": {
+   "source": "no certificate is waiting here, and no certificate to reuse is set",
+   "text": "zde nečeká žádný certifikát a není nastaven certifikát k opětovnému použití"
+  },
+  "sssl0071": {
+   "source": "not activated yet or not paid",
+   "text": "dosud neaktivován nebo nezaplacen"
+  },
+  "sssl0072": {
+   "source": "not known yet (still in the queue)",
+   "text": "zatím nezjištěno (ještě ve frontě)"
+  },
+  "sssl0073": {
+   "source": "nothing ordered: a new order would be a purchase, and paid orders are not allowed for this source - switch on \"Allow new orders (paid)\", or buy the certificate at www.ssls.cz and set its SSLS ID as \"Certificate to reuse\"",
+   "text": "nic neobjednáno: nová objednávka by byla nákupem a placené objednávky nejsou pro tento zdroj povolené – zapněte „Povolit nové objednávky (placené)“, nebo certifikát kupte na www.ssls.cz a jeho SSLS ID nastavte jako „Certifikát k opětovnému použití“"
+  },
+  "sssl0074": {
+   "source": "pick the product (Product → Load the list)",
+   "text": "vyberte produkt (Produkt → Načíst seznam)"
+  },
+  "sssl0075": {
+   "source": "pki@example.com",
+   "text": "pki@example.com"
+  },
+  "sssl0076": {
+   "source": "reissued and active",
+   "text": "znovu vydán a aktivní"
+  },
+  "sssl0077": {
+   "source": "revoked, cancelled or refused",
+   "text": "zneplatněn, zrušen nebo zamítnut"
+  },
+  "sssl0078": {
+   "source": "set the API token of SSLS.cz",
+   "text": "nastavte API token SSLS.cz"
+  },
+  "sssl0079": {
+   "source": "tech[email]=hostmaster@example.cz",
+   "text": "tech[email]=hostmaster@example.cz"
+  },
+  "sssl0080": {
+   "source": "the API of SSLS.cz cannot revoke a certificate - revoke it at www.ssls.cz (My certificates) or ask its support",
+   "text": "API SSLS.cz certifikát zneplatnit neumí – zneplatněte ho na www.ssls.cz (Moje certifikáty) nebo požádejte jejich podporu"
+  },
+  "sssl0081": {
+   "source": "the certificate has no names",
+   "text": "certifikát nemá žádná jména"
+  },
+  "sssl0082": {
+   "source": "the certificates of the account",
+   "text": "certifikáty účtu"
+  },
+  "sssl0083": {
+   "source": "the first address SSLS.cz offers",
+   "text": "první adresa, kterou SSLS.cz nabídne"
+  },
+  "sssl0084": {
+   "source": "the server types",
+   "text": "typy serverů"
+  },
+  "sssl0085": {
+   "source": "there is no certificate to reissue (set \"Certificate to reuse\", or allow a paid order for the first certificate)",
+   "text": "není certifikát k opětovnému vydání (nastavte „Certifikát k opětovnému použití“, nebo povolte placenou objednávku pro první certifikát)"
+  },
+  "sssl0086": {
+   "source": "there is no request (CSR) to send to SSLS.cz",
+   "text": "není požadavek (CSR), který poslat SSLS.cz"
+  },
+  "sssl0087": {
+   "source": "Load the list",
+   "text": "Načíst seznam"
+  },
+  "sssl0088": {
+   "source": "not in the list",
+   "text": "není v seznamu"
+  },
+  "sssl0089": {
+   "source": "not loaded yet - Load the list",
+   "text": "zatím nenačteno – Načíst seznam"
+  },
+  "sssl0090": {
+   "source": "chosen before - Load the list to see the others",
+   "text": "vybráno dříve – ostatní ukáže Načíst seznam"
+  },
+  "sssl0091": {
+   "source": "ALLOWED",
+   "text": "POVOLENY"
+  },
+  "sssl0092": {
+   "source": "contact's phone",
+   "text": "telefon kontaktu"
+  },
+  "sssl0093": {
+   "source": "contact's country",
+   "text": "stát kontaktu"
+  },
+  "sssl0094": {
+   "source": "organisation",
+   "text": "organizace"
+  },
+  "sssl0095": {
+   "source": "organisation's city",
+   "text": "město organizace"
+  },
+  "sssl0096": {
+   "source": "organisation's street",
+   "text": "ulice organizace"
+  },
+  "sssl0097": {
+   "source": "organisation's post code",
+   "text": "PSČ organizace"
+  },
+  "sssl0098": {
+   "source": "organisation's company ID",
+   "text": "IČO organizace"
+  },
+  "sssl0099": {
+   "source": "organisation's e-mail",
+   "text": "e-mail organizace"
   }
  },
  "patterns": {
@@ -58193,6 +58753,374 @@
   "pl0010": {
    "source": "{0}: the device asks acme to slow down ({1}) - acme tries again later by itself",
    "text": "{0}: zařízení žádá acme o zpomalení ({1}) – acme to zkusí později samo"
+  },
+  "pl0011": {
+   "source": "the validation {0} that writes the record is not there or switched off",
+   "text": "validace {0}, která záznam zapisuje, neexistuje nebo je vypnutá"
+  },
+  "pl0012": {
+   "source": "the validation {0} ({1}) cannot write a TXT record that stays",
+   "text": "validace {0} ({1}) neumí zapsat TXT záznam, který zůstane"
+  },
+  "pl0013": {
+   "source": "what was written could not be kept: {0} - take the record away by hand when it is no longer wanted",
+   "text": "co bylo zapsáno, se nepodařilo uložit: {0} – až záznam nebude potřeba, odeberte ho ručně"
+  },
+  "pl0014": {
+   "source": "no ACME account at {0} yet",
+   "text": "u {0} zatím není účet ACME"
+  },
+  "pl0015": {
+   "source": "there is no record for this CA at {0}",
+   "text": "u {0} není záznam pro tuto CA"
+  },
+  "pl0016": {
+   "source": "it could not be looked up: {0}",
+   "text": "nepodařilo se ho dohledat: {0}"
+  },
+  "pl0017": {
+   "source": "{0}: written {1}, not seen in DNS yet - it takes a while",
+   "text": "{0}: zapsáno v {1}, v DNS zatím není vidět – chvíli to trvá"
+  },
+  "pl0018": {
+   "source": "{0}. TXT \"{1}\" written through {2}",
+   "text": "{0}. TXT „{1}“ zapsáno přes {2}"
+  },
+  "pl0019": {
+   "source": "{0}: acme's older value was not taken away: {1}",
+   "text": "{0}: starší hodnota acme nebyla odebrána: {1}"
+  },
+  "pl0020": {
+   "source": "{0}: acme's older value \"{1}\" taken away",
+   "text": "{0}: starší hodnota acme „{1}“ odebrána"
+  },
+  "pl0021": {
+   "source": "{0} written, {1} there already",
+   "text": "zapsáno {0}, už existovalo {1}"
+  },
+  "pl0022": {
+   "source": "{0} written, {1} there already; {2}",
+   "text": "zapsáno {0}, už existovalo {1}; {2}"
+  },
+  "pl0023": {
+   "source": "{0}. TXT \"{1}\" taken away through {2}",
+   "text": "{0}. TXT „{1}“ odebráno přes {2}"
+  },
+  "pl0024": {
+   "source": "{0} taken away, {1} not: {2}",
+   "text": "odebráno {0}, neodebráno {1}: {2}"
+  },
+  "pl0025": {
+   "source": "{0} record(s) taken away",
+   "text": "odebráno záznamů: {0}"
+  },
+  "pl0026": {
+   "source": "{0} could not be looked up ({1}): not written now",
+   "text": "{0} se nepodařilo dohledat ({1}): teď se nezapisuje"
+  },
+  "pl0027": {
+   "source": "the dns-persist-01 record {0} was not written: {1}",
+   "text": "záznam dns-persist-01 {0} nebyl zapsán: {1}"
+  },
+  "pl0028": {
+   "source": "{0} ({1}): there - {2}",
+   "text": "{0} ({1}): existuje – {2}"
+  },
+  "pl0029": {
+   "source": "{0} ({1}): missing - {2}",
+   "text": "{0} ({1}): chybí – {2}"
+  },
+  "pl0030": {
+   "source": "{0} ({1}): another value - {2}",
+   "text": "{0} ({1}): jiná hodnota – {2}"
+  },
+  "pl0031": {
+   "source": "{0} ({1}): not known - {2}",
+   "text": "{0} ({1}): nevíme – {2}"
+  },
+  "pl0032": {
+   "source": "{0} ({1}): there - {2} (written by acme through {3})",
+   "text": "{0} ({1}): existuje – {2} (zapsalo acme přes {3})"
+  },
+  "pl0033": {
+   "source": "{0} ({1}): missing - {2} (written by acme through {3})",
+   "text": "{0} ({1}): chybí – {2} (zapsalo acme přes {3})"
+  },
+  "pl0034": {
+   "source": "{0} ({1}): another value - {2} (written by acme through {3})",
+   "text": "{0} ({1}): jiná hodnota – {2} (zapsalo acme přes {3})"
+  },
+  "pl0035": {
+   "source": "{0} of {1} record(s) there",
+   "text": "existuje {0} z {1} záznamů"
+  },
+  "pl0036": {
+   "source": "Press \"Write the records to DNS\" at the validation: {0} writes {1}. TXT \"{2}\" (other TXT records at the name stay)",
+   "text": "Stiskněte u validace „Zapsat záznamy do DNS“: {0} zapíše {1}. TXT „{2}“ (ostatní TXT záznamy u jména zůstanou)"
+  },
+  "pl0037": {
+   "source": "its records were not all taken away from DNS ({0}) - nothing was deleted",
+   "text": "její záznamy se nepodařilo z DNS odebrat všechny ({0}) – nic nebylo smazáno"
+  },
+  "pl0038": {
+   "source": "Looks the record up at {0}",
+   "text": "Vyhledá záznam u {0}"
+  },
+  "pl0039": {
+   "source": "Writes it through {0} ({1}) when it is missing or not right",
+   "text": "Když chybí nebo není správně, zapíše ho přes {0} ({1})"
+  },
+  "pl0040": {
+   "source": "Not written at an order: \"Write the records to DNS\" at the validation writes it through {0}",
+   "text": "Při objednávce se nezapisuje: zapíše ho přes {0} tlačítko „Zapsat záznamy do DNS“ u validace"
+  },
+  "pl0041": {
+   "source": "Until the CA offers dns-persist-01: {0} proves the names",
+   "text": "Dokud CA nenabízí dns-persist-01: jména prokazuje {0}"
+  },
+  "pl0042": {
+   "source": "{0} domains",
+   "text": "{0} {0:doména|domény|domén}"
+  },
+  "pl0043": {
+   "source": "{0} ready",
+   "text": "{0} {0:připraven|připraveny|připraveno}"
+  },
+  "pl0044": {
+   "source": "{0} need attention",
+   "text": "{0} {0:potřebuje|potřebují|potřebuje} pozornost"
+  },
+  "pl0045": {
+   "source": "{0} not known",
+   "text": "{0} {0:nezjištěn|nezjištěny|nezjištěno}"
+  },
+  "pl0046": {
+   "source": "{0}: take the records away",
+   "text": "{0}: odebrat záznamy"
+  },
+  "pl0047": {
+   "source": "acme wrote {0} records for it: removed first, through the validation that wrote them. If that fails, nothing is deleted.",
+   "text": "acme pro ni zapsalo {0} {0:záznam|záznamy|záznamů}: nejdřív se odeberou, přes validaci, která je zapsala. Když se to nepovede, nic se nesmaže."
+  },
+  "pssl0001": {
+   "source": "DCV by e-mail: the CA writes to {0} - somebody has to confirm it",
+   "text": "DCV e-mailem: CA napíše na {0} – někdo to musí potvrdit"
+  },
+  "pssl0002": {
+   "source": "SSLS ID {0}: {1}{2}, {3}, {4}, state {5}, until {6}, subscription until {7}",
+   "text": "SSLS ID {0}: {1}{2}, {3}, {4}, stav {5}, do {6}, předplatné do {7}"
+  },
+  "pssl0003": {
+   "source": "SSLS.cz answered {0} with something that is not JSON",
+   "text": "SSLS.cz na {0} odpověděl něčím, co není JSON"
+  },
+  "pssl0004": {
+   "source": "SSLS.cz blocks the API for a while: too many requests ({0}) - tried again later",
+   "text": "SSLS.cz na čas blokuje API: příliš mnoho dotazů ({0}) – zkusí se znovu později"
+  },
+  "pssl0005": {
+   "source": "SSLS.cz did not take {0}: not enough credit in the account ({1})",
+   "text": "SSLS.cz nepřijal {0}: na účtu není dost kreditu ({1})"
+  },
+  "pssl0006": {
+   "source": "SSLS.cz does not allow the API from this server's address ({0}) - add the public IPv4 address acme reaches the internet from to the allowed addresses in the account's API settings",
+   "text": "SSLS.cz nepovoluje API z adresy tohoto serveru ({0}) – přidejte veřejnou IPv4 adresu, ze které acme přistupuje do internetu, mezi povolené adresy v API nastavení účtu"
+  },
+  "pssl0007": {
+   "source": "SSLS.cz does not offer the product {0} (any more) - pick one from the list",
+   "text": "SSLS.cz produkt {0} (už) nenabízí – vyberte některý ze seznamu"
+  },
+  "pssl0008": {
+   "source": "SSLS.cz gave no DCV record acme can put in place for certificate {0} - do it at www.ssls.cz (the certificate's detail), or by hand",
+   "text": "SSLS.cz nedal pro certifikát {0} žádný záznam DCV, který by acme umělo umístit – udělejte to na www.ssls.cz (detail certifikátu), nebo ručně"
+  },
+  "pssl0009": {
+   "source": "SSLS.cz offers no approver address for {0} (product {1}) - choose DNS or FILE validation",
+   "text": "SSLS.cz nenabízí pro {0} žádnou schvalovací adresu (produkt {1}) – zvolte ověření DNS nebo FILE"
+  },
+  "pssl0010": {
+   "source": "SSLS.cz refused {0} (HTTP {1})",
+   "text": "SSLS.cz odmítl {0} (HTTP {1})"
+  },
+  "pssl0011": {
+   "source": "SSLS.cz refused {0}: {1} (error {2})",
+   "text": "SSLS.cz odmítl {0}: {1} (chyba {2})"
+  },
+  "pssl0012": {
+   "source": "SSLS.cz refuses the API token ({0}) - check it in the account's API settings at www.ssls.cz, where the API must be switched on",
+   "text": "SSLS.cz odmítá API token ({0}) – zkontrolujte ho v API nastavení účtu na www.ssls.cz, kde musí být API zapnuté"
+  },
+  "pssl0013": {
+   "source": "SSLS.cz said no state of certificate {0}",
+   "text": "SSLS.cz neuvedl stav certifikátu {0}"
+  },
+  "pssl0014": {
+   "source": "SSLS.cz sent no certificate for {0}",
+   "text": "SSLS.cz neposlal žádný certifikát pro {0}"
+  },
+  "pssl0015": {
+   "source": "SSLS.cz took the order {0} but gave no certificate ID - find it at www.ssls.cz and set it as \"Certificate to reuse\" (a second order would be paid again)",
+   "text": "SSLS.cz přijal objednávku {0}, ale nedal ID certifikátu – najděte ho na www.ssls.cz a nastavte jako „Certifikát k opětovnému použití“ (druhá objednávka by se platila znovu)"
+  },
+  "pssl0016": {
+   "source": "SSLS.cz's DCV for certificate {0} ({1}): {2}",
+   "text": "DCV SSLS.cz pro certifikát {0} ({1}): {2}"
+  },
+  "pssl0017": {
+   "source": "SSLS.cz: the certificate {0} is {1} (state {2}){3}",
+   "text": "SSLS.cz: certifikát {0} je {1} (stav {2}){3}"
+  },
+  "pssl0018": {
+   "source": "a new order is made (orderType {0}, paid from the account's credit: allowed for this source)",
+   "text": "vytváří se nová objednávka (orderType {0}, placená z kreditu účtu: pro tento zdroj povoleno)"
+  },
+  "pssl0019": {
+   "source": "certificate {0} ({1}): {2} - {3}, until {4}",
+   "text": "certifikát {0} ({1}): {2} – {3}, do {4}"
+  },
+  "pssl0020": {
+   "source": "certificate {0}: {1} ({2}) - asked again in {3} s",
+   "text": "certifikát {0}: {1} ({2}) – znovu za {3} s"
+  },
+  "pssl0021": {
+   "source": "order {0} made at SSLS.cz: certificate {1}, {2} for {3}, {4} year(s)",
+   "text": "objednávka {0} vytvořena u SSLS.cz: certifikát {1}, {2} pro {3}, {4} {4:rok|roky|let}"
+  },
+  "pssl0022": {
+   "source": "reissue of certificate {0} asked for (validation: {1})",
+   "text": "vyžádáno znovuvydání certifikátu {0} (ověření: {1})"
+  },
+  "pssl0023": {
+   "source": "the API of SSLS.cz does not answer: {0}",
+   "text": "API SSLS.cz neodpovídá: {0}"
+  },
+  "pssl0024": {
+   "source": "the API of SSLS.cz is busy or broken (HTTP {0}) - tried again later",
+   "text": "API SSLS.cz je přetížené nebo nefunguje (HTTP {0}) – zkusí se znovu později"
+  },
+  "pssl0025": {
+   "source": "the approver addresses of {0}",
+   "text": "schvalovací adresy pro {0}"
+  },
+  "pssl0026": {
+   "source": "the certificate came: SSLS ID {0}, serial {1}, until {2}",
+   "text": "certifikát přišel: SSLS ID {0}, sériové číslo {1}, do {2}"
+  },
+  "pssl0027": {
+   "source": "the certificate to reuse, {0}, cannot be read: {1}",
+   "text": "certifikát k opětovnému použití, {0}, nelze přečíst: {1}"
+  },
+  "pssl0028": {
+   "source": "the certificate {0}",
+   "text": "certifikát {0}"
+  },
+  "pssl0029": {
+   "source": "the certificate {0} acme ordered is not known to SSLS.cz: {1}",
+   "text": "certifikát {0}, který acme objednalo, SSLS.cz nezná: {1}"
+  },
+  "pssl0030": {
+   "source": "the certificate {0} is for another key than this request (reissued meanwhile at www.ssls.cz?) - it is not used",
+   "text": "certifikát {0} je pro jiný klíč než tento požadavek (mezitím znovu vydán na www.ssls.cz?) – nepoužije se"
+  },
+  "pssl0031": {
+   "source": "the certificate {0} is reissued (its subscription runs until {1}) - free, nothing is bought",
+   "text": "certifikát {0} se vydá znovu (jeho předplatné běží do {1}) – zdarma, nic se nekupuje"
+  },
+  "pssl0032": {
+   "source": "the certificate {0} is still being validated or issued at SSLS.cz (state {1}) - nothing is ordered; acme asks again at the next try",
+   "text": "certifikát {0} se u SSLS.cz ještě ověřuje nebo vystavuje (stav {1}) – nic se neobjednává; acme se zeptá znovu při dalším pokusu"
+  },
+  "pssl0033": {
+   "source": "the certificate {0} is still the one before the reissue",
+   "text": "certifikát {0} je stále ten před znovuvydáním"
+  },
+  "pssl0034": {
+   "source": "the certificate {0} is validated by {1}, not {2} as set here - its own method is used",
+   "text": "certifikát {0} se ověřuje metodou {1}, ne {2}, jak je nastaveno zde – použije se jeho vlastní metoda"
+  },
+  "pssl0035": {
+   "source": "the certificate {0} is {1} (state {2}) - it cannot be reissued",
+   "text": "certifikát {0} je {1} (stav {2}) – nelze ho znovu vydat"
+  },
+  "pssl0036": {
+   "source": "the certificate {0} waiting at SSLS.cz was for other names ({1}) - it is left alone, and its DCV records taken away",
+   "text": "certifikát {0} čekající u SSLS.cz byl pro jiná jména ({1}) – nechává se být a jeho záznamy DCV se odstraní"
+  },
+  "pssl0037": {
+   "source": "the certificate {0} waits at SSLS.cz (state {1}: {2}){3}; acme asks for it again at the next try - nothing is ordered again",
+   "text": "certifikát {0} čeká u SSLS.cz (stav {1}: {2}){3}; acme se o něj přihlásí znovu při dalším pokusu – nic se znovu neobjednává"
+  },
+  "pssl0038": {
+   "source": "the certificate {0} waits at SSLS.cz since {1} - asked for again, nothing is ordered",
+   "text": "certifikát {0} čeká u SSLS.cz od {1} – znovu vyžádán, nic se neobjednává"
+  },
+  "pssl0039": {
+   "source": "the key of the waiting certificate {0} cannot be opened - it is let go; the next try starts again",
+   "text": "klíč čekajícího certifikátu {0} nelze otevřít – nechává se být; další pokus začne znovu"
+  },
+  "pssl0040": {
+   "source": "the phone \"{0}\" is not as SSLS.cz wants it: 00420123456789 (00 instead of +, digits only)",
+   "text": "telefon „{0}“ není ve tvaru, který SSLS.cz chce: 00420123456789 (00 místo +, jen číslice)"
+  },
+  "pssl0041": {
+   "source": "the product {0} is NOT among them",
+   "text": "produkt {0} mezi nimi NENÍ"
+  },
+  "pssl0042": {
+   "source": "the product {0} is offered ({1})",
+   "text": "produkt {0} je v nabídce ({1})"
+  },
+  "pssl0043": {
+   "source": "the reissue of certificate {0}",
+   "text": "znovuvydání certifikátu {0}"
+  },
+  "pssl0044": {
+   "source": "the state of certificate {0}",
+   "text": "stav certifikátu {0}"
+  },
+  "pssl0045": {
+   "source": "the subscription of certificate {0} ends {1} ({2} days)",
+   "text": "předplatné certifikátu {0} končí {1} ({2} {2:den|dny|dní})"
+  },
+  "pssl0046": {
+   "source": "there is no list called {0} here",
+   "text": "seznam {0} zde není"
+  },
+  "pssl0047": {
+   "source": "{0}@ is not among the approver addresses SSLS.cz offers for {1} - the first one is used",
+   "text": "{0}@ není mezi schvalovacími adresami, které SSLS.cz nabízí pro {1} – použije se první"
+  },
+  "pssl0048": {
+   "source": "{0} products",
+   "text": "{0} {0:produkt|produkty|produktů}"
+  },
+  "pssl0049": {
+   "source": "credit {0}",
+   "text": "kredit {0}"
+  },
+  "pssl0050": {
+   "source": "{0} products; credit {1}",
+   "text": "{0} {0:produkt|produkty|produktů}; kredit {1}"
+  },
+  "pssl0051": {
+   "source": "{0} products{1}",
+   "text": "{0} {0:produkt|produkty|produktů}{1}"
+  },
+  "pssl0052": {
+   "source": "; credit {0}",
+   "text": "; kredit {0}"
+  },
+  "pssl0053": {
+   "source": "{0} server types",
+   "text": "{0} {0:typ|typy|typů} serverů"
+  },
+  "pssl0054": {
+   "source": "the certificate {0} is still being validated or issued at SSLS.cz (state {1})",
+   "text": "certifikát {0} se u SSLS.cz ještě ověřuje nebo vystavuje (stav {1})"
+  },
+  "pssl0055": {
+   "source": "SSLS ID {0}",
+   "text": "SSLS ID {0}"
   }
  },
  "rich": {

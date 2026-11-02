@@ -967,9 +967,12 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         self.assertEqual(got['files'][0]['path'], 'shop.example.test/fullchain.pem')
         self.assertFalse(got['files'][0]['exact'])
         # a certificate administrator may not write the script
+        count = self.py('print(st.db.value("SELECT COUNT(*) FROM cert_deploys"))')
         st, refused = self.call('POST', '/api/deploys/save', {
             'cert_id': web['id'], 'target': 'files1', 'options': opts}, self.cert_admin)
         self.assertEqual(st, 403, refused)
+        # ...and the refused one is not left behind (1.0.21: every failed Save made one)
+        self.assertEqual(self.py('print(st.db.value("SELECT COUNT(*) FROM cert_deploys"))'), count)
         did = self.ok('POST', '/api/deploys/save', {'cert_id': web['id'], 'target': 'files1',
                                                     'options': opts})['id']
         d = [x for x in self.ok('GET', '/api/deploys', args={'target': 'files1'})['rows']

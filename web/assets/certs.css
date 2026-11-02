@@ -441,6 +441,26 @@ table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:
 .ct-rd-review{margin-top:12px}
 .ct-rd-review .ct-errbox .ct-rd-step{padding:6px 0}
 .ct-rd-where{padding:1px 7px;border-radius:6px;background:var(--panel2);border:1px solid var(--line)}
+/* A readiness list (1.0.21): the counts on top, what is ready folded to a row. */
+.ct-rd-counts{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;font-size:13px;padding:2px 2px 0}
+.ct-rd-counts .ct-rd-dot{color:var(--tx-mut)}
+.ct-rd-n{font-weight:600}
+.ct-rd-n.ok{color:var(--ok)} .ct-rd-n.bad{color:var(--crit)} .ct-rd-n.unk{color:var(--tx-mut)}
+.ct-rd-toggle{cursor:pointer;user-select:none}
+.ct-rd-toggle:hover{background:var(--panel)}
+.ct-rd-toggle:focus-visible{outline:2px solid var(--info);outline-offset:-2px}
+.ct-rd-chev{margin-left:auto;display:inline-flex;color:var(--tx-mut);transition:transform .15s}
+.ct-rd-val + .ct-rd-chev{margin-left:0}
+.ct-rd-fold.open > .ct-rd-head .ct-rd-chev{transform:rotate(180deg)}
+.ct-rd-fold:not(.open) > .ct-rd-head{border-bottom:0}
+.ct-rd-fold.ok:not(.open) > .ct-rd-head{padding-top:6px;padding-bottom:6px;background:transparent}
+.ct-rd-fold.ok:not(.open) > .ct-rd-head .ct-names{opacity:.75}
+.ct-rd-who{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1 1 120px}
+.ct-rd-inner{display:flex;flex-direction:column;gap:6px;padding:8px}
+.ct-rd-inner > .ct-rd-group{border-radius:9px}
+.ct-rd-setup .ct-rd-group + .ct-rd-group, .ct-rd-setup .ct-rd-counts + .ct-rd-group{margin-top:8px}
+.ct-persist-state{margin-left:auto}
+.ct-persist-bar{flex-wrap:wrap}
 
 /* A button that follows words on the same line - "deSEC: signed in…" then
    [every step] - keeps a gap from them, wherever it is put inline: in what a

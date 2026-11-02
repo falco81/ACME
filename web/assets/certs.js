@@ -1443,18 +1443,45 @@ function contactAsk(host, names) {
   box.appendChild(b);
   host.insertBefore(box, host.firstChild);
 }
-function modDelete(key, r) {
+function modDelete(key, r, fromDialog) {
   var m = MODS[key];
   var n = usedCount(r);
+  var done = function (d) {
+    toast(said(d, 'taken away'), 'good');
+    if (fromDialog) closeModal();
+    delete LISTS[key];
+    drawModTab(key);
+  };
+  if (r.kind === 'dns_persist') { persistDelete(key, r, n, done); return; }
   confirmThen(m.one + ' ' + r.name + ': take it away',
     (n ? htmlText('It is used by ' + num(n) + ' certificate(s) or deployment(s): change those first.') + ' ' : '')
     + 'Its settings and secrets go with it.', 'Take it away', function () {
-      capi(m.list + '/delete', {id: r.id, name: r.name}).then(function (d) {
-        toast(said(d, 'taken away'), 'good');
-        delete LISTS[key];
-        drawModTab(key);
-      }).catch(fail);
+      capi(m.list + '/delete', {id: r.id, name: r.name}).then(done).catch(fail);
     });
+}
+/* A dns-persist-01 validation taken away (1.0.21): "Also remove its records from
+   DNS" - what acme wrote through another validation, in a job first; ticked when
+   acme wrote any. Records set by hand always stay. */
+function persistDelete(key, r, n, done) {
+  var m = MODS[key];
+  var w = Number(r.persist_written || 0);
+  var also = null;
+  modal(m.one + ' ' + r.name + ': take it away', function (body) {
+    if (n) body.appendChild(el('p', 'note warn', 'It is used by ' + num(n) + ' certificate(s) or deployment(s): change those first.'));
+    body.appendChild(el('p', 'note', 'Its settings and secrets go with it.'));
+    also = switchBox(w > 0);
+    if (!w) also._input.disabled = true;
+    body.appendChild(formField('Also remove its records from DNS', also, w
+      ? (w === 1 ? 'acme wrote 1 record for it: removed first, through the validation that wrote it. If that fails, nothing is deleted.' : 'acme wrote ' + w + ' records for it: removed first, through the validation that wrote them. If that fails, nothing is deleted.')
+      : 'acme wrote no record for it. Records set by hand always stay.'));
+  }, [{words: 'No, leave it', close: true}, {words: 'Take it away', cls: 'danger', icon: 'trash', once: true, go: function (b) {
+    busy(b, true);
+    var clean = !!(also && also._get());
+    capi(m.list + '/delete', {id: r.id, name: r.name, cleanup: clean ? 1 : 0}, 300).then(function (d) {
+      closeModal();
+      done(d);
+    }).catch(function (e) { busy(b, false); fail(e); });
+  }}], 'narrow');
 }
 /* ---- HTTP-01 answered by acme itself: how it works here -------------------
    GET /api/validations/info: the URL the CA fetches, the nodes and the VIP
@@ -1612,35 +1639,38 @@ function setupHere(row) {
   var host = el('div');
   box.appendChild(host);
   var ticket = modalTicket();
-  var load = function () {
+  var load = function (force) {
     busy(again, true);
     clear(host);
     host.appendChild(el('p', 'muted', 'Asking…'));
-    capi('validations/setup' + qs({id: row.id})).then(function (d) {
+    rdAsk('setup:' + row.id + ':' + (row.updated || ''), function () { return capi('validations/setup' + qs({id: row.id})); }, force).then(function (d) {
       if (!modalStill(ticket)) return;
       clear(host);
       var certs = arr(d.certs);
       if (!certs.length) { host.appendChild(emptyNote('No certificate uses it yet.')); return; }
-      certs.forEach(function (c) {
+      var cards = certs.map(function (c) {
         var card = el('div', 'ct-rd-group ' + (c.ok ? 'ok' : 'bad'));
+        card._ok = !!c.ok;
+        card._title = c.name;
         var head = el('div', 'ct-rd-head');
         head.appendChild(okMark(!!c.ok));
         head.appendChild(data('b', 'ct-rd-domain', c.name));
         head.appendChild(namesChips(arr(c.names), 8));
         card.appendChild(head);
         var steps = arr(c.steps).filter(function (st) { return (st.record && String(st.record.value || '').charAt(0) !== '(') || st.done === false; });
-        var sb = el('div', 'ct-rd-steps');
+        var sb = el('div', 'ct-rd-steps ct-rd-body');
         if (!steps.length) sb.appendChild(el('p', 'muted small', 'Nothing to create for its names.'));
         rdSteps(sb, steps);
         card.appendChild(sb);
-        host.appendChild(card);
+        return rdFold(card, head, sb);
       });
+      rdList(host, cards, ['certificate', 'certificates']);
       if (d.more) host.appendChild(el('p', 'muted small', 'and ' + d.more + ' more'));
     }).catch(function (e) { if (modalStill(ticket)) { clear(host); host.appendChild(failedBox(e, 'what to set up')); } })
       .then(function () { busy(again, false); });
   };
-  again.onclick = load;
-  load();
+  again.onclick = function () { load(true); };
+  load(false);
   return box;
 }
 
@@ -1860,12 +1890,23 @@ function sshDnsHere(form, row, p, nameNow) {
 function persistHere(row, p) {
   var box = el('div', 'ct-http ct-rd-setup ct-persist');
   box.appendChild(el('h4', 'ct-formh', 'The record to set once'));
-  box.appendChild(el('p', 'note', 'One TXT record for each ACME account, at _validation-persist.DOMAIN. Several may stand at the same name - Let’s Encrypt and its staging have different accounts. Nothing is changed in your DNS.'));
-  var bar = el('div', 'btnrow');
-  var again = cmdButton('Check again', 'refresh', 'small');
+  var cfg = obj(row.config);
+  var via = String(cfg.writer || '').trim();
+  box.appendChild(el('p', 'note', via
+    ? 'One TXT record for each ACME account, at _validation-persist.DOMAIN - acme writes it through the validation chosen in “Write the record through” when you press “Write the records to DNS”, and takes away exactly what it wrote. Records set by hand are never touched.'
+    : 'One TXT record for each ACME account, at _validation-persist.DOMAIN. Several may stand at the same name - Let’s Encrypt and its staging have different accounts. Nothing is changed in your DNS: set it by hand, or choose a validation in “Write the record through” and save.'));
+  var bar = el('div', 'btnrow ct-persist-bar');
+  var again = cmdButton('Check the records', 'refresh', 'small');
   var make = cmdButton('Make the record', 'key', 'small');
+  var write = cmdButton('Write the records to DNS', 'upload', 'small');
+  var away = cmdButton('Take the records away', 'trash', 'small');
   bar.appendChild(again);
   if (MANAGE) bar.appendChild(make);
+  /* Writing in DNS changes something elsewhere: a full administrator's (action_role). */
+  write.hidden = !(FULL && via);
+  away.hidden = !(FULL && Number(row.persist_written || 0) > 0);
+  bar.appendChild(write);
+  bar.appendChild(away);
   var look = null;
   var lookAct = arr((p && p.actions) || []).filter(function (a) { return a.key === 'look'; })[0];
   if (MANAGE && lookAct) {
@@ -1875,10 +1916,15 @@ function persistHere(row, p) {
     look.onclick = function () { modAction('validation', row, lookAct, look); };
   }
   box.appendChild(bar);
+  var said = saidLine('', '');
+  said.hidden = true;
+  box.appendChild(said);
   var host = el('div');
   box.appendChild(host);
   var ticket = modalTicket();
+  var STATE = {present: ['there', 'ok'], missing: ['missing', 'crit'], different: ['another value', 'warn'], unknown: ['not known', 'dim']};
   var load = function (register, button) {
+    ticket = modalTicket();
     busy(button, true);
     clear(host);
     host.appendChild(el('p', 'muted', register ? 'Making the accounts where there are none…' : 'Asking…'));
@@ -1888,6 +1934,7 @@ function persistHere(row, p) {
       var got = obj(d.persist);
       var cas = arr(got.cas);
       if (look) look.hidden = !cas.some(function (c) { return c.staging; });
+      away.hidden = !(FULL && arr(got.written).length);
       cas.forEach(function (c) {
         var line = el('div', 'ct-rd-step ' + (c.offered ? 'ok' : 'unk'));
         line.appendChild(okMark(c.offered ? true : null));
@@ -1899,6 +1946,7 @@ function persistHere(row, p) {
       });
       if (!arr(got.records).length) { host.appendChild(emptyNote('There is no ACME source: the record names an ACME account.')); return; }
       if (!arr(got.domains).length) host.appendChild(el('p', 'note warn', 'Set “Domains with the record” to see the exact record for each and check it.'));
+      else if (got.derived) host.appendChild(el('p', 'muted small', 'The domains of the certificates that use it (“Domains with the record” is empty).'));
       arr(got.records).forEach(function (r) {
         var ok = r.ok === true ? true : (r.ok === false ? false : null);
         var one = el('div', 'ct-rd-step ' + (ok === true ? 'ok' : (ok === false ? (got.fallback ? 'warn' : 'bad') : 'unk')));
@@ -1907,9 +1955,16 @@ function persistHere(row, p) {
         var top = el('div', 'ct-rd-what');
         top.appendChild(data('b', '', r.title || r.source));
         top.appendChild(data('span', 'muted small ct-rd-where', r.source + (r.domain ? ' · ' + r.domain : '')));
+        if (r.state && STATE[r.state]) top.appendChild(el('span', 'tag small ct-persist-state ' + STATE[r.state][1], STATE[r.state][0]));
         w.appendChild(top);
         if (r.account) w.appendChild(data('div', 'mono small muted', r.account));
         if (r.error || r.said) w.appendChild(el('div', 'muted small ct-rd-said', r.error || r.said));
+        if (r.written) {
+          var wl = el('div', 'muted small');
+          wl.appendChild(el('span', '', 'written by acme through '));
+          wl.appendChild(data('b', '', r.via || '?'));
+          w.appendChild(wl);
+        }
         var rec = r.record;
         if (rec && rec.type && rec.value) w.appendChild(rdRecord(rec));
         one.appendChild(w);
@@ -1920,8 +1975,39 @@ function persistHere(row, p) {
     }).catch(function (e) { if (modalStill(ticket)) { clear(host); host.appendChild(failedBox(e, 'the record')); } })
       .then(function () { busy(button, false); });
   };
+  /* Write / Take away: an action of the module, in a job (its steps and an event). */
+  var act = function (key, button) {
+    busy(button, true);
+    said.hidden = false;
+    said.className = 'said';
+    said.textContent = key === 'write_records' ? 'Writing…' : 'Taking away…';
+    askRaw('validations/action', {id: row.id, name: row.name, action: key}, 600).then(function (d) {
+      var good = d.ok !== false && !d.error;
+      clear(said);
+      said.className = 'said ' + (good ? 'good' : 'bad');
+      said.appendChild(data('span', '', String(d.said || d.message || d.error || (good ? 'done' : 'it did not work')).split('\n')[0]));
+      if (d.job_id) {
+        var st = el('button', 'btn small ct-steps-btn', 'every step');
+        st.type = 'button';
+        st.onclick = function () { over(function () { jobPeek(d.job_id); }); };
+        said.appendChild(st);
+      }
+      delete LISTS.validation;
+      load(false, again);
+    }).catch(function (e) { said.className = 'said bad'; said.textContent = wordsOf(e); })
+      .then(function () { busy(button, false); });
+  };
   again.onclick = function () { load(false, again); };
   make.onclick = function () { load(true, make); };
+  write.onclick = function () { act('write_records', write); };
+  away.onclick = function () {
+    over(function () {
+      confirmThen(row.name + ': take the records away',
+        htmlText('The dns-persist-01 records acme wrote are removed from DNS. Until they are written again, the names are proved by the fallback validation.')
+        + '<br><span class="muted small">' + htmlText('Records set by hand stay.') + '</span>',
+        'Take the records away', function () { act('remove_records', away); });
+    });
+  };
   load(false, again);
   return box;
 }
@@ -2021,10 +2107,9 @@ function modForm(key, row, p, fromPick) {
   }});
   var df = row ? defaultFoot(key, row, function () { closeModal(); modEdit(key, row); }) : null;
   if (df) buttons.push(df);
-  if (row && FULL) buttons.push({words: 'Take it away', cls: 'danger', icon: 'trash', go: function () {
-    capi(m.list + '/delete', {id: row.id, name: row.name}).then(function (d) {
-      toast(said(d, 'taken away'), 'good'); closeModal(); delete LISTS[key]; drawModTab(key);
-    }).catch(fail);
+  /* Asked in a popup over the dialog (1.0.21): it went at once, without a word. */
+  if (row && FULL) buttons.push({words: 'Take it away', cls: 'danger', icon: 'trash', once: true, go: function () {
+    over(function () { modDelete(key, row, true); });
   }});
   if (FULL) buttons.push({words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
     var g = gather();
@@ -2862,7 +2947,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
     valSection.classList.add('ct-rd-sect');
     var cview = readinessView({
       auto: blocked || c.state === 'new' || c.state === 'failed',
-      ask: function () { return capi('certs/check', {id: c.id}).then(function (d) { return d.plan || d; }); },
+      ask: function (force) { return rdAsk('check:' + c.id + ':' + (c.updated || c.last_try || ''), function () { return capi('certs/check', {id: c.id}).then(function (d) { return d.plan || d; }); }, force); },
       dry: function () { return capi('certs/dry_run', {id: c.id}); }
     });
     valSection._body.appendChild(cview.node);
@@ -3244,6 +3329,7 @@ function rdSteps(host, steps) {
 function rdGroup(g, o) {
   var guide = obj(g.guide);
   var card = el('div', 'ct-rd-group ' + (guide.ok === true ? 'ok' : (guide.ok === false ? 'bad' : 'unk')));
+  card._ok = guide.ok === true ? true : (guide.ok === false ? false : null);
   var head = el('div', 'ct-rd-head');
   head.appendChild(okMark(guide.ok === true ? true : (guide.ok === false ? false : null)));
   head.appendChild(data('b', 'ct-rd-domain', g.domain || '–'));
@@ -3255,6 +3341,8 @@ function rdGroup(g, o) {
   } else vt.appendChild(el('span', 'tag crit', 'no validation'));
   head.appendChild(vt);
   card.appendChild(head);
+  var fold = el('div', 'ct-rd-body');
+  card.appendChild(fold);
   var sug = arr(g.suggested);
   if (sug.length) {
     var sbox = el('div', 'ct-rd-sugg');
@@ -3272,13 +3360,100 @@ function rdGroup(g, o) {
       one.appendChild(el('span', 'muted small', s.why || ''));
       sbox.appendChild(one);
     });
-    card.appendChild(sbox);
+    fold.appendChild(sbox);
   }
   var body = el('div', 'ct-rd-steps');
   rdSteps(body, guide.steps);
   if (!arr(guide.steps).length) body.appendChild(el('p', 'muted small', 'Nothing to check for these names.'));
-  card.appendChild(body);
+  fold.appendChild(body);
+  return rdFold(card, head, fold);
+}
+/* A check asked by itself (a popup opened) is asked once for the same settings:
+   opened again within RD_KEEP_MS, what was found is shown; "Check again" asks
+   anew (and the daemon keeps its sign-ins and lists of zones for a little while
+   too - acmelib/plugins/limits.py). */
+var RD_KEEP_MS = 30000;
+var RD_RECENT = {};
+function rdAsk(key, ask, force) {
+  var had = RD_RECENT[key];
+  if (!force && had && Date.now() - had.at < RD_KEEP_MS) return had.got;
+  var got = Promise.resolve().then(ask);
+  RD_RECENT[key] = {at: Date.now(), got: got};
+  got.catch(function () { if (RD_RECENT[key] && RD_RECENT[key].got === got) delete RD_RECENT[key]; });
+  return got;
+}
+/* ---- readiness lists (1.0.21): compact where all is well -------------------
+   One look says how it stands - "6 certificates · 4 ready · 2 need attention" -
+   what needs attention comes first and open, what is ready is one row each
+   (its name and a green tick; a click opens it), several of them folded into
+   one row "4 ready". The validation's dialog (per certificate), the check and
+   the dry run of a certificate and the wizard (per domain) all draw it so. */
+function rdFold(card, head, body, open) {
+  card.classList.add('ct-rd-fold');
+  var chev = el('span', 'ct-rd-chev');
+  chev.innerHTML = iconMarkup('unfold', 15);
+  head.appendChild(chev);
+  head.classList.add('ct-rd-toggle');
+  head.setAttribute('role', 'button');
+  head.tabIndex = 0;
+  var set = function (on) {
+    body.hidden = !on;
+    card.classList.toggle('open', !!on);
+    head.setAttribute('aria-expanded', on ? 'true' : 'false');
+  };
+  head.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('button, a, input, select, .ct-name.more')) return;
+    set(body.hidden);
+  });
+  head.addEventListener('keydown', function (e) {
+    if (e.target !== head || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    set(body.hidden);
+  });
+  set(!!open);
+  card._open = set;
   return card;
+}
+/** "6 certificates · 4 ready · 2 need attention", the counts coloured. noun: [one, many]. */
+function rdCounts(cards, noun) {
+  var n = cards.length;
+  var ready = cards.filter(function (c) { return c._ok === true; }).length;
+  var bad = cards.filter(function (c) { return c._ok === false; }).length;
+  var unk = n - ready - bad;
+  var line = el('div', 'ct-rd-counts');
+  line.appendChild(el('b', '', n === 1 ? '1 ' + noun[0] : n + ' ' + noun[1]));
+  var part = function (cls, words) {
+    line.appendChild(el('span', 'ct-rd-dot', '·'));
+    line.appendChild(el('span', 'ct-rd-n ' + cls, words));
+  };
+  if (ready) part('ok', ready + ' ready');
+  if (bad) part('bad', bad === 1 ? '1 needs attention' : bad + ' need attention');
+  if (unk) part('unk', unk === 1 ? '1 not known' : unk + ' not known');
+  return line;
+}
+/** The cards of a readiness list put in `host`: the summary, what needs
+    attention open and first, what is ready folded (several in a group). */
+function rdList(host, cards, noun) {
+  if (!cards.length) return;
+  host.appendChild(rdCounts(cards, noun));
+  var ready = cards.filter(function (c) { return c._ok === true; });
+  var rest = cards.filter(function (c) { return c._ok !== true; });
+  rest.sort(function (a, b) { return (a._ok === false ? 0 : 1) - (b._ok === false ? 0 : 1); });
+  rest.forEach(function (c) { c._open(true); host.appendChild(c); });
+  if (!ready.length) return;
+  ready.forEach(function (c) { c._open(false); });
+  if (ready.length < 4 || !rest.length) { ready.forEach(function (c) { host.appendChild(c); }); return; }
+  var grp = el('div', 'ct-rd-group ok ct-rd-ready');
+  var head = el('div', 'ct-rd-head');
+  head.appendChild(okMark(true));
+  head.appendChild(el('b', 'ct-rd-domain', ready.length + ' ready'));
+  var who = data('span', 'muted small ct-rd-who', ready.map(function (c) { return c._title || ''; }).filter(Boolean).join(', '));
+  head.appendChild(who);
+  grp.appendChild(head);
+  var body = el('div', 'ct-rd-body ct-rd-inner');
+  ready.forEach(function (c) { body.appendChild(c); });
+  grp.appendChild(body);
+  host.appendChild(rdFold(grp, head, body));
 }
 /** The plan (or what a dry run found), a card a domain. */
 function rdPlan(host, plan, o) {
@@ -3291,7 +3466,9 @@ function rdPlan(host, plan, o) {
     host.appendChild(hb);
   }
   if (plan.issuer_needs_validation === false) host.appendChild(el('p', 'note', 'This source needs no validation: nothing has to be set up for the names.'));
-  arr(plan.groups).forEach(function (g) { host.appendChild(rdGroup(g, o)); });
+  var cards = arr(plan.groups).map(function (g) { var c = rdGroup(g, o); c._title = g.domain || ''; return c; });
+  if (plan.issuer_needs_validation === false) cards.forEach(function (c) { c._open(false); host.appendChild(c); });
+  else rdList(host, cards, ['domain', 'domains']);
   if (plan.complete === false) host.appendChild(saidLine('', 'Not every check finished in time - a DNS server or an API answers slowly. Check again in a moment.'));
 }
 function rdSummary(plan) {
@@ -3319,12 +3496,12 @@ function readinessView(o) {
   node.appendChild(dryHost);
   var planHost = el('div', 'ct-rd-plan');
   node.appendChild(planHost);
-  var check = function () {
+  var check = function (force) {
     busy(again, true);
     clear(sumHost);
     sumHost.appendChild(saidLine('', 'Checking DNS, the addresses and the validations…'));
     var t = V.ticket = {};
-    return o.ask().then(function (plan) {
+    return o.ask(force !== false).then(function (plan) {
       if (V.ticket !== t) return plan;
       V.plan = plan;
       clear(sumHost);
@@ -3374,9 +3551,9 @@ function readinessView(o) {
       poll();
     }).catch(function (e) { clear(log); log.appendChild(failedBox(e, 'the dry run')); busy(dry, false); });
   };
-  again.onclick = check;
+  again.onclick = function () { check(true); };
   dry.onclick = runDry;
-  if (o.auto !== false) check();
+  if (o.auto !== false) check(false);
   else planHost.appendChild(el('p', 'muted small', 'Check asks DNS, the addresses and the validations now - nothing is changed.'));
   V.node = node;
   V.check = check;

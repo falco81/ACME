@@ -745,7 +745,7 @@ class TestEngine(unittest.TestCase):
             self.assertTrue(got.get('job_id'))
             self.assertEqual(dns[rr], ['ca.example; accounturi=https://elsewhere/acct/5'])
             self.assertIsNone(self.S.plugin_row(self.store, 'challenge', 'gone'))
-            ev = [e['text'] if isinstance(e, dict) else str(e) for e in self.store.db.rows(
+            ev = [str(e) for e in self.store.db.rows(
                 "SELECT * FROM events ORDER BY id DESC LIMIT 10")]
             self.assertTrue(any('Take the records away' in str(e) for e in ev), ev)
         finally:
