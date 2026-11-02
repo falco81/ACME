@@ -6,6 +6,23 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.24 - not released
 
+- **New sources**, each written from its vendor's own API client (the files
+  are named in docs/sources.md): ZeroSSL (REST API, not ACME - CNAME, file or
+  e-mail validation, revocation), CyberArk Certificate Manager Self-Hosted
+  (Venafi TPP - a policy folder, renewed in place), CyberArk Certificate
+  Manager SaaS (Venafi Cloud - an application and its issuing template),
+  Keyfactor Command (CSR enrollment with a template and CA, Basic or OAuth)
+  and Cloudflare Origin CA (for servers behind Cloudflare). All five can
+  *Import from a source*; their forms load the vendor's lists (folders,
+  templates, CAs, zones).
+- **New validations (DNS-01)**: Hostinger, Constellix, UltraDNS (Vercara),
+  Mail-in-a-Box, EfficientIP SOLIDserver, Openprovider, easyDNS, Plesk (XML
+  API) and Rackspace Cloud DNS - each from the vendor's own SDK or API
+  description, listed in docs/validation.md. acme adds its value beside any
+  others and removes only its own; Test changes nothing.
+- Active24: the signed requests of its REST API v2 carry the date as RFC 3339.
+  Hetzner was checked against the new Hetzner Cloud DNS API (already used).
+
 - **Microsoft AD CS: the templates loaded from the CA.** *Template* is picked
   from the list the CA offers the user (its Web Enrollment page
   *certrqxt.asp*, read only) - in the source's form, and for each certificate
