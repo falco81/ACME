@@ -1236,7 +1236,7 @@ function drawModTab(key, live) {
         /* What its module can do besides (Plugin.actions): one button each. */
         modActions(r, p).forEach(function (a) {
           if (a.changes !== false ? !FULL : !MANAGE) return;
-          var ab = iconButton('gear', a.label || a.key);
+          var ab = iconButton(actionIcon(a), a.label || a.key);
           ab.onclick = function (ev) { ev.stopPropagation(); modAction(key, r, a, ab); };
           tools.appendChild(ab);
         });
@@ -1305,6 +1305,19 @@ function modTest(key, r, button, form) {
     toast(wordsOf(e), 'bad');
     return {ok: false, words: wordsOf(e)};
   }).then(function (x) { busy(button, false); if (!form) { delete LISTS[key]; drawModTab(key, true); } return x; });
+}
+/* Each action of a module its own icon (1.0.22): all were the same gear. The
+   module may name one (an action's `icon`); else by its key, else by its words. */
+var ACTION_ICONS = {record: 'token', look: 'search', check_records: 'check',
+  write_records: 'upload', remove_records: 'forget', products: 'list', organizations: 'people',
+  discover: 'pulse', status: 'info', revoke_key: 'ban', resend: 'mail', prepare: 'play',
+  orders: 'history', nginx_files: 'download', make_key: 'key', domains: 'globe',
+  certs: 'archive', cancel_reissue: 'cancel', acme_keys: 'lock'};
+function actionIcon(a) {
+  if (a.icon && ICONS[a.icon]) return a.icon;
+  if (ACTION_ICONS[a.key]) return ACTION_ICONS[a.key];
+  var w = iconForWords(a.label || a.key);
+  return w === 'check' ? 'gear' : w;
 }
 function modActions(r, p) {
   return arr(r.actions && r.actions.length ? r.actions : (p && p.actions) || []);

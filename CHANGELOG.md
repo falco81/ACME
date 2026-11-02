@@ -4,6 +4,12 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.22 - 2026-11-02
+
+- Each action of a module (a validation's, a source's, a target's) has its own
+  icon in the lists - make the record, look, check, write, take away, products,
+  discover… - instead of the same gear for every one.
+
 ## 1.0.21 - 2026-11-02
 
 - WEDOS (WAPI) as its documentation says: the record's comment sent as
