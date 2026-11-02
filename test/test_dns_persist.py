@@ -330,6 +330,151 @@ class TestGuide(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # At an order
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# The record written through another validation (1.0.21)
+# ---------------------------------------------------------------------------
+from acmelib.plugins.challenges._common import DnsChallenge                   # noqa: E402
+
+WRITES = []
+
+
+class FakeWriter(DnsChallenge):
+    """A DNS validation that writes TXT records into the `dns` dict the module reads."""
+    kind = 'fakedns'
+    title = 'A DNS that writes'
+
+    def __init__(self, dns, config=None, ctx=None):
+        DnsChallenge.__init__(self, dict(config or {}), ctx or Ctx())
+        self.dns = dns
+
+    def add_txt(self, fqdn, value):
+        WRITES.append(('add', fqdn, value))
+        vals = self.dns.setdefault(fqdn, [])
+        if value not in vals:
+            vals.append(value)
+        return {'id': 'r%d' % len(WRITES)}
+
+    def del_txt(self, fqdn, value, handle):
+        WRITES.append(('del', fqdn, value, (handle or {}).get('id')))
+        vals = self.dns.get(fqdn, [])
+        if value in vals:
+            vals.remove(value)
+
+
+class TestWriteRecords(unittest.TestCase):
+    RR = '_validation-persist.example.com'
+
+    def setUp(self):
+        WRITES[:] = []
+
+    def make(self, dns, cfg=None, account=LE_PROD):
+        src = FakeSource('letsencrypt', account)
+        cfg = dict({'domains': 'example.com', 'writer': 'wr', 'fallback': 'web'}, **(cfg or {}))
+        m = module(dns, cfg, [('LE', src)], {'wr': FakeWriter(dns), 'web': FakeFallback()})
+        return m, src
+
+    def test_writer_options(self):
+        self.assertTrue(DP.can_write(FakeWriter))
+        reg = Registry(extra_dirs=[]).reload()
+        for kind in ('webglobe', 'active24', 'cloudflare', 'ssh_dns', 'route53'):
+            self.assertTrue(DP.can_write(reg.get('challenge', kind)), kind)
+        for kind in ('dns_builtin', 'manual', 'dns_persist', 'http_local', 'acme_dns',
+                     'duckdns'):
+            self.assertFalse(DP.can_write(reg.get('challenge', kind)), kind)
+
+    def test_write_check_and_again(self):
+        foreign = 'pki.goog; accounturi=https://pki.goog/acct/9'
+        dns = {self.RR: [foreign]}
+        m, _src = self.make(dns)
+        rows = m.check_records()
+        self.assertEqual([(r['domain'], r['state']) for r in rows], [('example.com', 'missing')])
+        self.assertEqual(WRITES, [], 'a check changes nothing')
+        words = m.action('write_records')
+        self.assertIn('1 written', words)
+        want = DP.make_value('letsencrypt.org', LE_PROD)
+        self.assertEqual(dns[self.RR], [foreign, want])
+        kept = m.written()
+        self.assertEqual([(k['name'], k['value'], k['via']) for k in kept],
+                         [(self.RR, want, 'wr')])
+        self.assertEqual(kept[0]['handle'], {'id': 'r1'})
+        self.assertEqual([(r['state'], r['written']) for r in m.check_records()],
+                         [('present', True)])
+        # again: nothing written twice
+        self.assertIn('0 written, 1 there already', m.action('write_records'))
+        self.assertEqual(len([w for w in WRITES if w[0] == 'add']), 1)
+
+    def test_different_value_and_the_account_changed(self):
+        old = DP.make_value('letsencrypt.org', 'https://acme-v02.api.letsencrypt.org/acme/acct/1')
+        by_hand = DP.make_value('letsencrypt.org', 'https://acme-v02.api.letsencrypt.org/acme/'
+                                                   'acct/77')
+        dns = {self.RR: [old, by_hand]}
+        m, _src = self.make(dns)
+        # acme wrote `old` before, with the account it had then
+        m.ctx.kv_set(DP.WRITTEN_KEY, [{'domain': 'example.com', 'name': self.RR, 'value': old,
+                                       'account': 'x', 'source': 'LE', 'via': 'wr',
+                                       'directory': 'https://acme-v02.api.letsencrypt.org/'
+                                                    'directory', 'handle': {'id': 'old'},
+                                       'at': 1}])
+        self.assertEqual(m.check_records()[0]['state'], 'different')
+        m.action('write_records')
+        want = DP.make_value('letsencrypt.org', LE_PROD)
+        self.assertEqual(sorted(dns[self.RR]), sorted([by_hand, want]),
+                         'acme\'s old value replaced, the one set by hand left alone')
+        self.assertIn(('del', self.RR, old, 'old'), WRITES)
+        self.assertEqual([k['value'] for k in m.written()], [want])
+
+    def test_take_away_only_what_acme_wrote(self):
+        by_hand = DP.make_value('letsencrypt.org', 'https://acme-v02.api.letsencrypt.org/acme/'
+                                                   'acct/77')
+        dns = {self.RR: [by_hand]}
+        m, _src = self.make(dns)
+        m.action('write_records')
+        self.assertEqual(len(dns[self.RR]), 2)
+        self.assertEqual(m.action('remove_records'), '1 record(s) taken away')
+        self.assertEqual(dns[self.RR], [by_hand])
+        self.assertEqual(m.written(), [])
+        self.assertIn('nothing to take away', m.action('remove_records'))
+
+    def test_no_writer(self):
+        m, _src = self.make({}, {'writer': ''})
+        with self.assertRaises(PluginError) as e:
+            m.action('write_records')
+        self.assertIn('Write the record through', str(e.exception))
+        m, _src = self.make({}, {'writer': 'nope'})
+        with self.assertRaises(PluginError) as e:
+            m.action('write_records')
+        self.assertIn('not there or switched off', str(e.exception))
+
+    def test_written_at_an_order_when_missing(self):
+        dns = {}
+        m, _src = self.make(dns)
+        m.wait_visible = lambda shown, issuers, acct, seconds=0: m.check_name(shown, issuers,
+                                                                              acct)
+        ch = {'type': 'dns-persist-01', 'url': 'https://x/chal/1',
+              'issuer-domain-names': ['letsencrypt.org']}
+        how, got = m.persist_choose('www.example.com', False, {'dns-persist-01': ch}, LE_PROD,
+                                    TestChoose.DIR, "Let's Encrypt")
+        self.assertEqual((how, got), ('persist', ch))
+        self.assertEqual(dns[self.RR], [DP.make_value('letsencrypt.org', LE_PROD)])
+        # the next name of the same order: not written again
+        m.persist_choose('example.com', True, {'dns-persist-01': ch}, LE_PROD, TestChoose.DIR,
+                         "Let's Encrypt")
+        self.assertEqual(len([w for w in WRITES if w[0] == 'add']), 1)
+
+    def test_not_written_at_an_order_when_switched_off(self):
+        dns = {}
+        m, _src = self.make(dns, {'write_missing': False})
+        how, _got = m.persist_choose('www.example.com', False, {'dns-01': {}}, LE_PROD,
+                                     TestChoose.DIR, "Let's Encrypt")
+        self.assertEqual(how, 'fallback')
+        self.assertEqual(WRITES, [])
+        # on: written while the CA does not offer it yet, ready for the day it does
+        m, _src = self.make(dns)
+        m.persist_choose('www.example.com', False, {'dns-01': {}}, LE_PROD, TestChoose.DIR,
+                         "Let's Encrypt")
+        self.assertEqual(dns[self.RR], [DP.make_value('letsencrypt.org', LE_PROD)])
+
+
 class TestChoose(unittest.TestCase):
     DIR = 'https://acme-v02.api.letsencrypt.org/directory'
 
@@ -565,6 +710,48 @@ class TestEngine(unittest.TestCase):
         self.assertIn('the record to set once (dns-persist-01)', got.stdout)
         self.assertIn('_validation-persist.example.com. TXT "ca.example; accounturi=', got.stdout)
         self.assertIn('not known yet whether', got.stdout)
+
+    def test_written_then_deleted_with_its_records(self):
+        from acmelib.plugins import base as B
+        dns = {}
+        B.REGISTRY.found['challenge']['fakedns'] = FakeWriter
+        FakeWriter.__init__.__defaults__ = (None, None)
+        real_init = FakeWriter.__init__
+
+        def init(self, config=None, ctx=None):
+            real_init(self, dns, config, ctx)
+        txt = DP.DnsPersist.txt
+        FakeWriter.__init__ = init
+        DP.DnsPersist.txt = lambda self, rr: list(dns.get(rr, []))
+        try:
+            self.add('cert_challenges', 'wr', 'fakedns', {})
+            self.add('cert_challenges', 'gone', 'dns_persist', {
+                'fallback': 'web', 'domains': ['example.org'], 'issuer_domain': 'ca.example',
+                'writer': 'wr'})
+            row = self.S.plugin_row(self.store, 'challenge', 'gone')
+            pub = self.S.plugin_public(self.store, 'challenge', row)
+            self.assertNotIn('remove_records', [a['key'] for a in pub['actions']])
+            self.assertIn('write_records', [a['key'] for a in pub['actions']])
+            got = self.call('POST', '/api/validations/action', {'name': 'gone',
+                                                                'action': 'write_records'})
+            self.assertTrue(got['ok'], got)
+            rr = '_validation-persist.example.org'
+            self.assertEqual(len(dns[rr]), 1)
+            dns[rr].append('ca.example; accounturi=https://elsewhere/acct/5')     # by hand
+            pub = self.S.plugin_public(self.store, 'challenge', row)
+            self.assertEqual(pub['persist_written'], 1)
+            self.assertIn('remove_records', [a['key'] for a in pub['actions']])
+            got = self.call('POST', '/api/validations/delete', {'id': row['id'], 'cleanup': 1})
+            self.assertTrue(got.get('job_id'))
+            self.assertEqual(dns[rr], ['ca.example; accounturi=https://elsewhere/acct/5'])
+            self.assertIsNone(self.S.plugin_row(self.store, 'challenge', 'gone'))
+            ev = [e['text'] if isinstance(e, dict) else str(e) for e in self.store.db.rows(
+                "SELECT * FROM events ORDER BY id DESC LIMIT 10")]
+            self.assertTrue(any('Take the records away' in str(e) for e in ev), ev)
+        finally:
+            FakeWriter.__init__ = real_init
+            DP.DnsPersist.txt = txt
+            B.REGISTRY.found['challenge'].pop('fakedns', None)
 
     def test_readiness_names_the_source(self):
         from acmelib.certs import readiness
