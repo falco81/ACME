@@ -46,6 +46,20 @@ na druhý uzel, stránky zůstávají.
 upozornění. Upgrade chování nemění; karta to říká („Přesně jako před 1.0.14: nic z toho
 neběží“).
 
+**Od 1.0.21** (jako otp 1.0.224-1.0.227): report po spojení se udělá, až z druhého uzlu
+replikací dorazí jeho stavový řádek zapsaný po tom, co tento uzel znovu našel (nejpozději za
+10 min); počítá se od prvního kódu či úkonu, na který se druhého uzlu nešlo zeptat (řádky
+dřívějšího krátkého výpadku se vynechají), každý jednou. Spojení z doby před výpadkem se
+zavřou. A v jakémkoli režimu, i „Jako dosud“: dokud je dotaz před puštěním kódu odložený
+(databáze druhého uzlu neodpověděla), ptá se hlídka každé 2 s a odklad zruší, jakmile
+odpoví. **Upřednostněnému uzlu spadla jen databáze**: odmítnutí od samotného PostgreSQL
+(„shutting down“, „starting up“) není přerušené spojení - druhý uzel pak v režimu priority
+neustoupí; holé „connection refused“ jen tehdy, když stroj upřednostněného uzlu přijme TCP
+spojení na 443, 22 nebo 80 (firewall s REJECT říká totéž). Stejně, když upřednostněný uzel
+naposledy hlásil údržbu, nebo že kvůli hodinám ustoupil stranou - to jen dokud je jeho řádek
+čerstvý (< 32 s podle změřeného rozdílu hodin). Uzel, který ustoupí, je zticha hned (VIP
+adresa i /healthz, bez „dobíhání“).
+
 Karta je stejná jako v otp 1.0.218-1.0.221: živý stav obou uzlů, tři volby jako dlaždice
 s plusy a mínusy, čtyři přepínače (vždy dva a dva), tabulka **„Co se stane“** spočítaná
 z voleb ještě před uložením (pevné šířky sloupců) a report posledního oddělení. Ukládá se
@@ -129,7 +143,15 @@ A thread of its own (`acme-split`), started by the daemon's loop, every **2 s**:
 3. **Ask the arbiter** - every step in `arbiter` mode, otherwise every 30 s (for the card).
 4. **apart = now - last answer > split_after_s**.
 5. Transitions are events (Events, kind *ha*) and log lines; a report is due 30 s after
-   together.
+   together - made only once the other node's state row written after it found this one
+   again has come over by replication (its earlier rows, the `split:took` ones among them,
+   come before it), at the latest 10 min later (1.0.21, as otp 1.0.224: after a long cut the
+   replication took 40 s, and what was done on both was not found). On together the pooled
+   connections to the other node's database from before the cut are closed
+   (`once_peer_forget`). And in any mode, "as until now" included: while the question
+   before a code of the second step is let in is held off (`ONCE_PEER.down_until` - the
+   other node's database did not answer), the watch asks every 2 s and lifts the hold the
+   moment it answers. With no hold, as until now asks nothing.
 6. **Decide** the role; on a change the maintenance cache is flushed and the renewer woken
    (it lets its lead go and stops its DNS server at once).
 7. Every 10 s (and on every change) this node's state goes into meta `split:state:<node>`.
@@ -157,6 +179,35 @@ off                      -> serve
 
 No tie-break in arbiter mode: "the link between us broke" and "the other node died" look the
 same from inside.
+
+### 6.1 The preferred node's database down, its machine there (1.0.21, as otp 1.0.226/1.0.227)
+
+"Apart" is "the other node's database does not answer". With `priority` that stepped the
+other node aside even when only the preferred node's database was down (stopped,
+restarting) - and the preferred node, without its database, answered nobody either. Now the
+other node (`split_preferred_unable`) takes the preferred node for unable, and goes on, when:
+
+- **PostgreSQL itself answered** that it does not take connections: "the database system is
+  shutting down", "starting up", "not yet accepting connections", "in recovery mode";
+- **a bare "connection refused"** - and the preferred node's machine takes a TCP connection
+  on 443, 22 or 80 (asked at most every 10 s). A firewall between the nodes that rejects
+  (nftables `reject`, iptables `REJECT`) gives the same words while the preferred node is up
+  and answering: refused alone is not enough;
+- its last word (its rows, as they came over) is that it is **in maintenance**
+  (`maint:<node>` on), or that it **stepped aside for its clock** (`clock:state:<node>` role
+  aside, Settings -> Time, docs/clock-guard.md) - that only while its row is younger than
+  32 s by the measured difference of the clocks: aside for its clock, it answers again once
+  the other node's row reads stale to it (25 s), and the other node gives way a few seconds
+  after.
+
+No answer at all is a cut link, as before: the other node steps aside. `split_decide(mode,
+apart, arbiter, preferred, unable)`.
+
+**Silent at once.** A node that steps aside (for the split or its clock) drops the
+maintenance cache and the second of `/healthz`'s cache at once, and the VIP check says
+"in maintenance" at its next look (acme has said maintenance at once since 1.0.186 - no
+"draining" for a node that steps aside; the 20 s of an upgrade's turn are for maintenance
+asked for).
 
 ## 7. What changes while apart
 
@@ -222,8 +273,13 @@ written down for the report either.
   | `signin` | a sign-in to the administration or the portal | `signin:admin|portal:<name>` |
   | `step` | an app code let in while the other database could not be asked (apart or not) | the code's `used_once` key |
 
-- **The report** (on the preferred node, 30 s after together): grouped by key; a key from
-  both nodes = **done on both** (a sign-in on each half is not a clash). Meta `split:report`
+- **The report** (on the preferred node, after together, the other node's rows having come
+  over - see 4.5): counted from the first thing the other node could not be asked about in
+  this time apart (the rows older than when it last answered, less 5 s and the measured
+  difference of the clocks, are an earlier short outage's: left out, and removed), each key
+  once per node: grouped by key; a key from both nodes = **done on both** (a sign-in on each
+  half is not a clash). A code is written down under its `used_once` key only - acme has no
+  second row of the same code (otp counted one again by its token's `#id`). Meta `split:report`
   = `{at, since, taken: {node: n}, kinds: {node: {kind: n}}, twice: [{name, kind, nodes,
   at}], twice_n}`; the rows deleted; an event; an alert `split:twice` (warn) for 24 h.
 
@@ -325,7 +381,12 @@ taken as before); one node / shared never apart; priority and arbiter stepping a
 `maintenance_now()`; the lease let go; renewals, revocations and signing refused by hand;
 acme's DNS server silent and back; half the tries (the routes ask the halved number); the
 real dispatcher refusing changes on the other node and letting through sign-ins, the card, a
-GET and maintenance; the report (done on both, a sign-in not a clash, rows gone, alert); an
+GET and maintenance; the report (done on both, a sign-in not a clash, rows gone, alert;
+made only once the other node's row has come over, at the latest after 10 min; an earlier
+short outage left out; the pooled connections closed); the hold on the question before a
+code lifted by the watch in every mode; the preferred node's database refusing (PostgreSQL's
+words, a bare refusal with and without its machine there, no answer, its maintenance, its
+clock aside fresh and stale); /healthz told at once; an
 app code let in unasked written down; the alert while apart; TCP / ping / the parser; the API
 (view, save, refused saves, per-node arbiters, try and poll answered by the node's loop); the
 settings not drawn as boxes; the card's pieces and the relay in the pages; the Czech texts.
@@ -347,7 +408,7 @@ settings not drawn as boxes; the card's pieces and the relay in the pages; the C
 **While apart** (the card says *apart now*, an alert came): look at the two tiles; mend the
 link (PostgreSQL's port both ways); the nodes find each other within two seconds of the other
 database answering, a node that stepped aside answers again by itself; read the report 30 s
-later.
+or more later (once the other node's rows have come over).
 
 **What it does not do**: tell "the link broke" from "the other node died" without an arbiter;
 hold the VIP address on one node when VRRP cannot pass and both serve; protect a shared

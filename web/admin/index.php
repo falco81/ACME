@@ -331,7 +331,7 @@ if (isset($_GET['api'])) {
         'sshkeys' => '/api/sshkeys', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'isemon' => '/api/isemon', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
-        'split' => '/api/split',
+        'split' => '/api/split', 'clock' => '/api/clock',
     ];
     $writes = [
         'directories' => '/api/directories',
@@ -347,7 +347,7 @@ if (isset($_GET['api'])) {
         'sshkeys' => '/api/sshkeys', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
-        'split' => '/api/split',
+        'split' => '/api/split', 'clock' => '/api/clock',
     ];
     /* The certificate manager's API (docs/architecture.md), relayed under its
        own name - certs, certs-one (or certs/one), cas-create, targets-test...
@@ -1121,6 +1121,14 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         time and refuses codes that are right. Each node keeps its clock with chrony; here
         is how far off each one is, which servers it follows, and the time servers set for the whole cluster.</p></div>
     <div id="ntp-host"></div>
+    <div class="card full" id="clock-card" hidden>
+      <h2>The clocks of the nodes <span class="right" id="clock-state"></span></h2>
+      <p class="note">A node whose clock is off refuses codes that are right - and answers, so nobody is sent
+        to the other node. Its heartbeat, its lease, its pauses and lockouts are off with it; a node that cannot
+        reach the directory refuses every password the same way. Here each node measures itself against the time
+        servers and the other node, and what is done about it is chosen.</p>
+      <div id="clock-guard"></div>
+    </div>
   </div>
   <div class="ctl-pane" id="pane-power" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Restart and power off</h2>

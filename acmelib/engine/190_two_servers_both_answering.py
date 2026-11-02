@@ -219,7 +219,8 @@ def ha_nodes(store):
         except ValueError:
             continue
         name = r['k'][5:]
-        age = now - float(beat.get('at') or 0)
+        # With clock_beat (1.0.21) judged by the measured difference of the clocks.
+        age = clock_beat_age(store, name, float(beat.get('at') or 0), now)
         beat.update(name=name, age=age, me=name == node_name(),
                     alive=age < HEARTBEAT_S * 3)
         out.append(beat)

@@ -391,8 +391,9 @@ def _mfa_act(h, kind):
         rec = {'kind': new['kind'], 'at': time.time(), 'by': name}
         if new['kind'] == 'app':
             secret = unseal_secret(new.get('secret'), 'adm2fa-new:' + name.lower())
-            step = totp_match(secret, code, digits=6, window=mfa_window()) \
-                if secret else None
+            # By the corrected time with clock_codes (1.0.21): right codes on a clock off.
+            step = totp_match(secret, code, when=clock_now('codes'), digits=6,
+                              window=mfa_window()) if secret else None
             if step is None:
                 h.failed(key)
                 raise ApiError(400, 'that code is not right - the one the app shows now')
@@ -438,7 +439,7 @@ def _mfa_act(h, kind):
             with MFA_LOCK:
                 rec = mfa_get(h.store, name) or {}
                 secret = unseal_secret(rec.get('secret'), mfa_key(name))
-                step = totp_match(secret, code, digits=6,
+                step = totp_match(secret, code, when=clock_now('codes'), digits=6,
                                   window=mfa_window()) if secret else None
                 # A code is good once, and on either node (1.0.205): the step
                 # taken in used_once - the other node's own lock did not keep a
