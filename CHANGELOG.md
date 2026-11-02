@@ -6,6 +6,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.19 - 2026-11-02
 
+- SSH DNS: the server nsupdate sends to is checked (one host and a port);
+  Microsoft AD CS: more attributes saved as text are read line by line.
 - Route 53, PowerDNS, Azure DNS and Google Cloud DNS validations write the TXT
   values at a name as a whole: two jobs at once (two certificates, or a
   certificate and a dry run) could each write over the other's value, and one

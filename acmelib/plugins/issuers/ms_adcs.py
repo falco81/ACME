@@ -381,7 +381,10 @@ class MsAdcsIssuer(Issuer):
 
     def _submit(self, h, req, template):
         attrs = ['CertificateTemplate:%s' % template]
-        attrs += [str(a).strip() for a in (self.c('attributes') or []) if str(a).strip()]
+        more = self.c('attributes') or []
+        if isinstance(more, str):                   # saved as text by the API (1.0.19)
+            more = more.splitlines()
+        attrs += [str(a).strip() for a in more if str(a).strip()]
         form = urllib.parse.urlencode({
             'Mode': 'newreq', 'CertRequest': req.csr_pem.strip(),
             'CertAttrib': '\r\n'.join(attrs), 'FriendlyType': 'Saved-Request Certificate',

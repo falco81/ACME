@@ -276,7 +276,12 @@ class SshDns(DnsChallenge):
         zone, _rel = self._words(fqdn, value)
         script = ''
         if self._how() == 'nsupdate_key':
-            script += 'server %s\n' % self.c('nsupdate_server', '127.0.0.1')
+            server = str(self.c('nsupdate_server', '127.0.0.1') or '127.0.0.1').strip()
+            # One host (and a port): a line break would be more lines of the script (1.0.19).
+            if not re.fullmatch(r'[A-Za-z0-9.:_\[\]-]{1,255}( [0-9]{1,5})?', server):
+                raise PluginError('the server nsupdate sends to is a name or an address (and a '
+                                  'port after a space), not %r' % server[:80], retry=False)
+            script += 'server %s\n' % server
             cmd = 'nsupdate -k %s' % shq(self.c('keyfile', ''))
         else:
             cmd = 'nsupdate -l'

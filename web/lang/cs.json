@@ -57353,6 +57353,10 @@
   "pr4v0002": {
    "source": "{0} resolves to {1} - a public address; the web servers are on {2} (NAT): right when it forwards port 80 to them. Put it under \"Public addresses (NAT, load balancer)\" to say so. (As the internet sees it; here it resolves to {3}.)",
    "text": "{0} míří na {1} – veřejnou adresu; webové servery jsou na {2} (NAT): správně, pokud ta přesměrovává port 80 na ně. Zapište ji do „Veřejné adresy (NAT, load balancer)“. (Tak, jak to vidí internet; zde míří na {3}.)"
+  },
+  "sb4x01": {
+   "source": "the server nsupdate sends to is a name or an address (and a port after a space), not {0}",
+   "text": "server, kam nsupdate posílá, je jméno nebo adresa (a port za mezerou), ne {0}"
   }
  },
  "rich": {

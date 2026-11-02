@@ -428,7 +428,7 @@ class Webglobe(ApiDns):
             'name': rel, 'type': rtype, 'data': data, 'ttl': self.ttl()},
             what='a %s record at %s' % (rtype, D.norm(fqdn))) or {}
         rid = got.get('new_id') if isinstance(got, dict) else None
-        if rid in (None, '') and isinstance(got.get('data'), dict):
+        if rid in (None, '') and isinstance(got, dict) and isinstance(got.get('data'), dict):
             rid = got['data'].get('id')
         if rid in (None, ''):
             found = self._ours(self._records(did, zone), zone, rel, rtype, value)
