@@ -24,7 +24,7 @@ SCHEMA = [
         csr_pending {B}, enabled {I}, key_type_alt {K}, alt_cert_pem {B}, alt_chain_pem {B},
         alt_key_sealed {B}, alt_serial {K}, alt_fingerprint {K}, alt_not_before {N},
         alt_not_after {N}, alt_issuer_dn {T}, alt_ari {T}, alt_version {I}, alt_state {K},
-        alt_error {T}, alt_fails {I}, alt_next_try {N}, csr_given {B})'''),
+        alt_error {T}, alt_fails {I}, alt_next_try {N}, csr_given {B}, issuer_ref {T})'''),
     # Every certificate one of them has had, the current one too. A dual
     # certificate's twin (key_type_alt) has rows of its own, variant 'alt',
     # numbered in the same sequence as the main ones (variant '').
@@ -41,11 +41,12 @@ SCHEMA = [
         days_default {I}, path_len {I}, name_constraints {T}, profile {T},
         not_before {N}, not_after {N}, fingerprint {K}, external {I}, disabled {I},
         note {T}, created {N}, created_by {K})'''),
-    # What one of acme's authorities signed - for its CRL and its list.
+    # What one of acme's authorities signed - for its CRL and its list; the certificate
+    # itself (cert_pem) since 1.0.21, for Import from a source.
     ('cert_ca_issued', '''CREATE TABLE IF NOT EXISTS cert_ca_issued (
         id {ID}, ca_id {I} NOT NULL, serial {K} NOT NULL, subject_dn {T}, names {T},
         not_before {N}, not_after {N}, fingerprint {K}, cert_id {I}, revoked {N},
-        reason {K}, created {N}, by_who {K}, UNIQUE (ca_id, serial))'''),
+        reason {K}, created {N}, by_who {K}, cert_pem {B}, UNIQUE (ca_id, serial))'''),
     # Every certificate one of acme's authorities has had (its renewals with
     # the same key: same subject, same key identifier) - the current one too,
     # once it was renewed. No key here: the key is the authority's, in cert_cas.
@@ -133,6 +134,11 @@ INDEXES = [
 # 'failed' with alt_error, alt_fails and alt_next_try for its own retries;
 # its key is sealed under 'certs:<id>:alt_key_sealed:<alt_version>'.
 VARIANTS = ('main', 'alt')
+
+# issuer_ref: the source's own id of a certificate imported from it (Certificates →
+# Import from a source, acmelib/certs/onlineimport.py) - its order, its certificate ID
+# - handed to the source at every renewal (CertRequest.ref), so that very order is
+# reissued; kept up to date from what the source says it used (Issued.info['ref']).
 
 # The states of a certificate.
 STATES = {

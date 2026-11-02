@@ -436,6 +436,9 @@ def cert_save(store, b, by):
         if iss:
             iss = S.plugin_row(store, 'issuer', iss)['name']
         fields['issuer'] = iss
+        if row and row.get('issuer_ref') and iss != (row.get('issuer') or ''):
+            # The source's own id of it means nothing to another source.
+            fields['issuer_ref'] = None
     if 'challenge' in b or not row:
         ch = str(b.get('challenge') or '').strip()
         if ch and not S.plugin_row(store, 'challenge', ch):
@@ -2133,3 +2136,4 @@ from acmelib.certs import api_deploys  # noqa: E402,F401  (a deployment's files:
 from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edit, renew, versions)
 from acmelib.certs import api_runplan  # noqa: E402,F401  (what happens: a certificate's run plan)
 from acmelib.certs import api_catalog  # noqa: E402,F401  (a form's lists: a CA's products)
+from acmelib.certs import api_onlineimport  # noqa: E402,F401  (Import from a source; a key added later)

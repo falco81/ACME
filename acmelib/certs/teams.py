@@ -278,7 +278,8 @@ def _cert_of_job(store, ident):
 
 MANAGE_ROUTES = {'/api/certs/auto', '/api/certs/delete', '/api/certs/renew', '/api/certs/deploy',
                  '/api/certs/revoke', '/api/certs/export', '/api/certs/csr_answer',
-                 '/api/certs/plan', '/api/certs/check', '/api/certs/dry_run', '/api/certs/keep'}
+                 '/api/certs/plan', '/api/certs/check', '/api/certs/dry_run', '/api/certs/keep',
+                 '/api/certs/add_key'}
 
 
 def guard(h, s, method, path):
@@ -319,6 +320,11 @@ def guard(h, s, method, path):
             row = need_cert(store, s, ref, 'manage', 'change')
             if row is not None and 'owner' in b and _low(b.get('owner')) != _low(row.get('owner')):
                 need_owner(store, s, b.get('owner'), 'the owner of %s' % row['name'])
+    elif path == '/api/certs/online_import':
+        # Import from a source: each certificate is a new one, for a team they may ask for.
+        for it in (b.get('items') if isinstance(b.get('items'), list) else []):
+            if isinstance(it, dict):
+                need_owner(store, s, it.get('owner'), 'a certificate imported from a source')
     elif path == '/api/certs/approve':
         row = S.cert_get(store, b.get('id')) if b.get('id') not in (None, '') else None
         if row is not None and not (cert_may(store, s, row, 'approve')

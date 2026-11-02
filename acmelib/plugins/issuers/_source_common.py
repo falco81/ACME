@@ -281,6 +281,29 @@ def finish(ctx, req, certs, chain=(), info=None, key_pem=None, who='the CA'):
     return Issued(p7.pem(leaf.der), [p7.pem(c) for c in ordered], key_pem=key_pem, info=info)
 
 
+def existing(certs, chain=(), who='the CA', ref=None):
+    """What fetch_existing() gives (Import from a source): the certificate among
+    `certs` (DER, the newest one that is not an authority) and the chain above it in
+    order - no key, no request to match."""
+    certs = [c for c in certs or [] if c]
+    if not certs:
+        raise PluginError('%s sent no certificate' % who, retry=False)
+    parsed = [p7.Cert(c) for c in certs]
+    leafs = [c for c in parsed if not c.is_ca]
+    if not leafs:
+        raise PluginError('%s sent only certificates of authorities' % who, retry=False)
+    leaf = max(leafs, key=lambda c: c.not_before or 0)
+    others = []
+    for c in [c.der for c in parsed if c.der != leaf.der] + [c for c in chain or [] if c]:
+        if c not in others and c != leaf.der:
+            others.append(c)
+    out = {'cert_pem': p7.pem(leaf.der),
+           'chain_pems': [p7.pem(c) for c in p7.order_chain(leaf.der, others)]}
+    if ref is not None:
+        out['ref'] = str(ref)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # A request the CA holds: kept for the next try, its key sealed with it
 # ---------------------------------------------------------------------------

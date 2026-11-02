@@ -679,3 +679,44 @@ textarea.df-code-t:focus{border:0}
 .ct-wsteps .ct-wstep-cert{display:inline-flex;margin-left:6px;color:var(--warn);opacity:.85;vertical-align:middle}
 .note.tm-acme-only{border-left-color:var(--ok)}
 .tm-details h4 .ct-d-edit{margin-left:12px;vertical-align:middle;text-transform:none;letter-spacing:0}
+
+/* Import from a source: what the account has there, one row each, ticked to import. */
+.ct-oi-top{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:6px}
+.ct-oi-top > .set-item{flex:1 1 280px;min-width:0;margin-bottom:0}
+.ct-oi-top > .btn{margin-top:27px}
+.ct-oi-sum:not(:empty){margin:8px 0 4px}
+.ct-oi-bar{align-items:center;margin:10px 0 8px}
+.ct-oi-bar input[type=search]{flex:1 1 220px;min-width:0}
+.ct-oi-all{margin:0;align-items:center;white-space:nowrap}
+.ct-oi-n{margin-left:2px}
+.ct-oi-host{margin-bottom:16px}
+.ct-oi-list{border:1px solid var(--line);border-radius:12px;background:var(--panel2);max-height:min(52vh,560px);overflow:auto}
+.ct-oi-row{display:flex;gap:12px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .12s}
+.ct-oi-row:last-child{border-bottom:0}
+.ct-oi-row:hover{background:rgba(88,166,255,.06)}
+.ct-oi-row.on{box-shadow:inset 3px 0 0 var(--info)}
+.ct-oi-row.off{cursor:default}
+.ct-oi-row.off .ct-oi-t b{color:var(--tx-dim)}
+.ct-oi-row > input{margin-top:3px;flex:none}
+.ct-oi-w{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.ct-oi-t{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ct-oi-t b{font-weight:650;overflow-wrap:anywhere}
+.ct-oi-m{line-height:1.6;overflow-wrap:anywhere}
+.ct-oi-id .mono{font-size:11.5px}
+.ct-oi-note{color:var(--warn);font-size:12.5px}
+.ct-oi-reshost:not(:empty){margin-top:14px}
+.ct-oi-res .ct-oi-resline{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)}
+.ct-oi-res .ct-oi-resline:last-of-type{border-bottom:0}
+.ct-oi-res .btnrow{margin-top:10px}
+.ct-oi-ref{font-size:11.5px;overflow-wrap:anywhere;min-width:0}
+@media (max-width:640px){
+  .ct-oi-row{padding:10px 11px;gap:10px}
+  .ct-oi-top > .btn{width:100%;margin-top:0}
+  .ct-oi-list{max-height:none}
+}
+
+/* A certificate whose private key acme does not hold. */
+.ct-keynote{border:1px solid rgba(210,153,34,.4);background:var(--warn-bg);border-radius:12px;padding:11px 14px;margin:12px 0}
+.ct-keynote-h{display:flex;gap:8px;align-items:center;color:var(--warn)}
+.ct-keynote-h b{font-size:13px}
+.ct-keynote p{margin:6px 0 8px;color:var(--tx)}

@@ -37,6 +37,8 @@ CONTRACT = {
     'path_order': ('POST', r'^/order/certificate/[a-z0-9_]+$'),
     'path_reissue': ('POST', r'^/order/certificate/\d+/reissue$'),
     'path_detail': ('GET', r'^/order/certificate/\d+$'),
+    # "List orders" (dev.digicert.com, services-api/orders/list-orders): Import from a source
+    'path_orders': ('GET', r'^/order/certificate$'),
     'path_random': ('PUT', r'^/order/certificate/\d+/dcv-random-value$'),
     'path_check': ('PUT', r'^/order/certificate/\d+/check-dcv$'),
     'path_domains': ('GET', r'^/domain$'),

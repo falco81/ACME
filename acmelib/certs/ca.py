@@ -363,7 +363,7 @@ def _record(store, ca_id, cert_pem, cert_id=None, by=''):
         'names': json.dumps(i['names']), 'not_before': i['not_before'],
         'not_after': i['not_after'], 'fingerprint': i['sha256'],
         'cert_id': int(cert_id) if cert_id not in (None, '') else None, 'revoked': None,
-        'reason': '', 'created': _now(), 'by_who': str(by or '')})
+        'reason': '', 'created': _now(), 'by_who': str(by or ''), 'cert_pem': cert_pem})
     store.db.run('UPDATE cert_cas SET serial_next = COALESCE(serial_next, 0) + 1 WHERE id = ?',
                  (int(ca_id),))
     E = _E()

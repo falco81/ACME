@@ -26,6 +26,7 @@ class InternalCaIssuer(Issuer):
     choose_days = True
     ip_names = True
     wildcards = True
+    lists_existing = True           # what the authority signed: Certificates → Import from a source
     fields = [
         field('ca', 'Certificate authority', 'select', required=True, options=[],
               options_from='cas', help='The authority that signs; its chain goes with the '
@@ -93,6 +94,78 @@ class InternalCaIssuer(Issuer):
                 pass
         return Issued(cert, chain, info={'ca': self.c('ca'), 'serial': info['serial'],
                                          'ari_id': info['ari_id']})
+
+    # -- what the authority signed (Certificates → Import from a source) -----------------
+    def list_existing(self):
+        """Every certificate the chosen authority signed (cert_ca_issued) - read only."""
+        import json
+        from acmelib.certs import ca as CA
+        store = self._store()
+        got = CA.ca_get(store, self._ca())
+        now = time.time()
+        known = {}
+        for v in store.db.rows('SELECT fingerprint FROM cert_versions'):
+            if v.get('fingerprint'):
+                known[str(v['fingerprint']).upper()] = True
+        out = []
+        for r in store.db.rows('SELECT * FROM cert_ca_issued WHERE ca_id = ? ORDER BY created '
+                               'DESC, id DESC', (int(got['id']),)):
+            try:
+                names = json.loads(r.get('names') or '[]') or []
+            except ValueError:
+                names = []
+            has = bool(r.get('cert_pem')) or str(r.get('fingerprint') or '').upper() in known
+            if r.get('revoked'):
+                status = 'revoked'
+            elif (r.get('not_after') or 0) < now:
+                status = 'expired'
+            else:
+                status = 'valid'
+            cn = ''
+            for part in str(r.get('subject_dn') or '').split(','):
+                k, _sep, v = part.strip().partition('=')
+                if k.strip().upper() == 'CN':
+                    cn = v.strip()
+            out.append({'ref': r['serial'], 'cn': cn or (names[0] if names else ''),
+                        'names': names, 'product': got['name'], 'status': status,
+                        'not_before': r.get('not_before'), 'not_after': r.get('not_after'),
+                        'serial': r['serial'], 'fingerprint': r.get('fingerprint') or '',
+                        'downloadable': has and not r.get('revoked'),
+                        'renewable': 'issue' if not r.get('revoked') else 'none',
+                        'note': '' if has else 'acme did not keep this certificate (signed '
+                                               'before 1.0.21) - import its file instead',
+                        'acme_cert_id': r.get('cert_id')})
+        return out
+
+    def fetch_existing(self, ref):
+        """The certificate of serial `ref` and the authority's chain - read only."""
+        from acmelib.certs import ca as CA
+        from acmelib.certs import pki
+        store = self._store()
+        got = CA.ca_get(store, self._ca())
+        row = CA._row(store, got['id'])
+        try:
+            serial = pki.norm_serial(ref)
+        except Exception:                               # noqa: BLE001
+            raise PluginError('%s is not a serial number' % (ref or '?'), retry=False)
+        r = store.db.row('SELECT * FROM cert_ca_issued WHERE ca_id = ? AND serial = ?',
+                         (int(got['id']), serial))
+        if not r:
+            raise PluginError('the authority "%s" signed no certificate %s' % (got['name'],
+                                                                                 serial),
+                              retry=False)
+        if r.get('revoked'):
+            raise PluginError('the certificate %s is revoked' % serial, retry=False)
+        pem = r.get('cert_pem')
+        if not pem and r.get('fingerprint'):
+            v = store.db.row('SELECT cert_pem FROM cert_versions WHERE UPPER(fingerprint) = ?',
+                             (str(r['fingerprint']).upper(),))
+            pem = (v or {}).get('cert_pem')
+        if not pem:
+            raise PluginError('acme did not keep the certificate %s (signed before 1.0.21) - '
+                              'import its file instead' % serial, retry=False)
+        return {'cert_pem': pem, 'chain_pems': [row['cert_pem']] + CA._chain(row),
+                'ref': serial, 'acme_cert_id': r.get('cert_id')}
 
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):
         from acmelib.certs import ca as CA

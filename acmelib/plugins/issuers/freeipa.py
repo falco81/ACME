@@ -19,6 +19,10 @@ https://freeipa.readthedocs.io/en/latest/api/basic_usage.html :
   serial_number, request_id}.
 * cert_revoke/1 [[serial], {"revocation_reason": n, "cacn": ...}].
 * ping/1 for "Try it".
+* cert_find/1 [[], {"cacn", "status": "VALID", "sizelimit", "all": true}] -> the
+  certificates of the CA (with "all", each its certificate) and cert_show/1
+  [[serial], {"cacn", "chain": true}] -> certificate, certificate_chain
+  (ipaserver/plugins/cert.py: cert_find, cert_show): Import from a source.
 
 The principal's realm, the service ("HTTP") and whether a missing service is
 added are settings; the user needs the "Certificate Administrators" role
@@ -27,6 +31,7 @@ added are settings; the user needs the "Certificate Administrators" role
 from __future__ import annotations
 
 import re
+import time
 import urllib.parse
 
 from acmelib.plugins.base import Issuer, PluginError, field
@@ -45,6 +50,7 @@ class FreeIpaIssuer(Issuer):
     needs_challenge = False
     wildcards = False
     ip_names = True
+    lists_existing = True           # cert_find + cert_show: Certificates → Import from a source
     fields = [
         field('url', 'IPA server', 'text', required=True, placeholder='https://ipa.example.local'),
         field('user', 'User', 'text', required=True, placeholder='svc-acme',
@@ -146,6 +152,59 @@ class FreeIpaIssuer(Issuer):
         return sc.finish(self.ctx, req, certs, chain, who='IPA',
                          info={'ipa_request_id': res.get('request_id'),
                                'ipa_principal': principal})
+
+    # -- the certificates of the CA (Certificates → Import from a source) -----------------
+    FIND_MOST = 2000
+
+    def list_existing(self):
+        """The valid certificates of the CA (cert_find, with all) - read only."""
+        from acmelib.certs import pki
+        got = self.rpc('cert_find/1', [], {'cacn': str(self.c('cacn') or 'ipa'),
+                                           'status': 'VALID', 'sizelimit': self.FIND_MOST,
+                                           'all': True}, 'the list of certificates')
+        rows = got.get('result') if isinstance(got.get('result'), list) else []
+        if got.get('truncated'):
+            sc.say(self.ctx, 'IPA listed only the first %d certificates' % len(rows), 'warn')
+        out, now = [], time.time()
+        for r in rows:
+            if not isinstance(r, dict) or r.get('serial_number') in (None, ''):
+                continue
+            serial = str(r['serial_number'])
+            one = {'ref': serial, 'downloadable': True, 'renewable': 'issue',
+                   'status': 'revoked' if r.get('revoked') else str(r.get('status') or 'valid'),
+                   'cn': '', 'names': [str(n) for n in (r.get('san_dnsname') or [])]}
+            certs = sc.certs_of(r.get('certificate'))
+            if certs:
+                try:
+                    info = pki.cert_info(sc.p7.pem(certs[0]))
+                except Exception:                       # noqa: BLE001
+                    info = {}
+                if info.get('is_ca'):
+                    continue
+                na = info.get('not_after')
+                one.update(cn=info.get('cn') or '', names=info.get('names') or one['names'],
+                           not_before=info.get('not_before'), not_after=na,
+                           serial=info.get('serial'), fingerprint=info.get('sha256'))
+                if na and na < now:
+                    one['status'] = 'expired'
+            if r.get('revoked'):
+                one.update(downloadable=False, renewable='none')
+            out.append(one)
+        return out
+
+    def fetch_existing(self, ref):
+        """The certificate of serial `ref` (decimal, as IPA says it) and its chain -
+        read only."""
+        serial = str(ref or '').strip()
+        if not re.match(r'^\d{1,60}\Z', serial):
+            raise PluginError('%s is not a serial number of IPA' % (serial or '?'), retry=False)
+        got = self.rpc('cert_show/1', [serial], {'cacn': str(self.c('cacn') or 'ipa'),
+                                                 'chain': True}, 'the certificate')
+        res = got.get('result') if isinstance(got.get('result'), dict) else got
+        if res.get('revoked'):
+            raise PluginError('the certificate %s is revoked' % serial, retry=False)
+        return sc.existing(sc.certs_of(res.get('certificate')),
+                           sc.certs_of(res.get('certificate_chain') or []), who='IPA', ref=serial)
 
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):
         serial = sc.cert_of_pem(cert_pem).serial

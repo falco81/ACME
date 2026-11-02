@@ -144,6 +144,16 @@ DV product.
   Premium certificates can be revoked - a TLS certificate is revoked in the
   customer administration.
 
+### Orders bought already: Import from a source
+
+*Certificates → Import from a source* with an `sslmarket` source lists the
+account's orders (`GET /order/list` - nothing is ordered) and brings in the
+certificates of those picked (`…/format/pem_server` and `pem_intermediate`):
+each keeps its order number, and its renewals reissue that order - no "Order to
+reuse" needed. Its key is added in the certificate's window, or the first
+renewal makes a new one (docs/certificates.md "Import from a source").
+`sslmarket_acme` cannot list: ACME has no list of what it issued.
+
 ## SSLmarket ACME (`sslmarket_acme`)
 
 1. The first certificate (or *Make an ACME key*) makes an ACME key at SSLmarket:

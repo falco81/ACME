@@ -919,7 +919,8 @@ def plan(store, cert, deploys, full=False):
                     'key_type_alt': cert.get('key_type_alt') or '',
                     'serial': cert.get('serial'), 'not_before': cert.get('not_before'),
                     'not_after': cert.get('not_after'), 'version': cert.get('version'),
-                    'chain': chain, 'id': cert.get('id')},
+                    'chain': chain, 'id': cert.get('id'),
+                    'ref': cert.get('issuer_ref') or None},
            'runs': runs}
     got, rec_err = record(job) if runs else ({}, '')
     try:

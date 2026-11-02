@@ -15,6 +15,11 @@ https://docs.keyfactor.com/ejbca/latest/ejbca-rest-interface):
   certificates base64 (DER; seen base64 twice over as well, both are read).
 * PUT .../v1/certificate/{issuer_dn}/{serial (hex)}/revoke?reason=SUPERSEDED.
 * GET .../v1/certificate/status and .../v1/ca for "Try it".
+* POST .../v1/certificate/search {max_number_of_results, criteria [{property (CA,
+  STATUS, SERIAL_NUMBER...), value, operation (EQUAL...)}]} -> {certificates [...],
+  more_results}; GET .../v1/ca/{subject_dn}/certificate/download - the CA's chain
+  (PEM): Import from a source (the same openapi.json; STATUS CERT_ACTIVE as
+  Keyfactor's own ejbca-go-client searches).
 
 The REST interface must be switched on (System Configuration → Protocol
 Configuration → REST Certificate Management) and the administrator's role
@@ -28,6 +33,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 import urllib.parse
 
 from acmelib.plugins.base import Issuer, PluginError, field
@@ -50,6 +56,7 @@ class EjbcaIssuer(Issuer):
     needs_challenge = False
     wildcards = True
     ip_names = True
+    lists_existing = True           # certificate/search: Certificates → Import from a source
     fields = [
         field('url', 'EJBCA address', 'text', required=True, placeholder='https://ejbca.example.local',
               help='The server; /ejbca/ejbca-rest-api is added when the path does not have it.'),
@@ -136,6 +143,79 @@ class EjbcaIssuer(Issuer):
         chain = sc.certs_of(got.get('certificate_chain') or [])
         return sc.finish(self.ctx, req, certs, chain, who='EJBCA',
                          info={'ejbca_serial': got.get('serial_number')})
+
+    # -- the certificates of the CA (Certificates → Import from a source) -----------------
+    SEARCH_MOST = 1000
+
+    def _search(self, criteria, most=None):
+        if not self.c('ca_name'):
+            raise PluginError('set the CA', retry=False)
+        body = {'max_number_of_results': int(most or self.SEARCH_MOST),
+                'criteria': [{'property': 'CA', 'value': str(self.c('ca_name')),
+                              'operation': 'EQUAL'}] + list(criteria)}
+        got = self._call('POST', '/v1/certificate/search', body, what='EJBCA (search)')
+        return [c for c in (got.get('certificates') or []) if isinstance(c, dict)], \
+            bool(got.get('more_results'))
+
+    def list_existing(self):
+        """The active certificates of the CA (certificate/search) - read only."""
+        from acmelib.certs import pki
+        found, more = self._search([{'property': 'STATUS', 'value': 'CERT_ACTIVE',
+                                     'operation': 'EQUAL'}])
+        if more:
+            sc.say(self.ctx, 'EJBCA has more than %d active certificates of the CA: the first '
+                             '%d are listed' % (self.SEARCH_MOST, self.SEARCH_MOST), 'warn')
+        out, now = [], time.time()
+        for c in found:
+            certs = sc.certs_of(c.get('certificate'))
+            if not certs:
+                continue
+            try:
+                info = pki.cert_info(sc.p7.pem(certs[0]))
+            except Exception:                           # noqa: BLE001
+                continue
+            if info.get('is_ca'):
+                continue
+            na = info.get('not_after')
+            out.append({'ref': info.get('serial'), 'cn': info.get('cn') or '',
+                        'names': info.get('names') or [],
+                        'product': str(c.get('certificate_profile') or ''),
+                        'status': 'expired' if na and na < now else 'active',
+                        'not_before': info.get('not_before'), 'not_after': na,
+                        'serial': info.get('serial'), 'fingerprint': info.get('sha256'),
+                        'downloadable': True, 'renewable': 'issue'})
+        return out
+
+    def fetch_existing(self, ref):
+        """The certificate of serial `ref` (a search by its serial) and the CA's chain -
+        read only."""
+        serial = str(ref or '').strip().upper()
+        if not re.match(r'^[0-9A-F]{1,64}\Z', serial):
+            raise PluginError('%s is not a serial number' % (ref or '?'), retry=False)
+        found, _more = self._search([{'property': 'SERIAL_NUMBER', 'value': serial,
+                                      'operation': 'EQUAL'}], 10)
+        certs = []
+        for c in found:
+            certs += sc.certs_of(c.get('certificate'))
+        if not certs:
+            raise PluginError('EJBCA has no certificate %s of the CA %s' % (
+                serial, self.c('ca_name')), retry=False)
+        chain = []
+        for c in found:
+            chain += sc.certs_of(c.get('certificate_chain') or [])
+        if not chain:
+            try:
+                dn = sc.dn_rfc2253(self.ctx, sc.p7.pem(certs[0]), 'issuer')
+                status, _h, data = sc.http(
+                    self.ctx, 'GET', self._base() + '/v1/ca/%s/certificate/download' %
+                    urllib.parse.quote(dn, safe=''), None, {}, who='EJBCA',
+                    verify=sc.as_bool(self.c('verify'), True), ca_pem=self.c('ca_pem') or None,
+                    client_cert=(self.c('client_cert'), self.c('client_key')))
+                if status == 200:
+                    chain = sc.certs_of(data)
+            except PluginError as e:
+                sc.say(self.ctx, 'the chain of the CA could not be read: %s' % e, 'warn')
+        return sc.existing(certs, chain, who='EJBCA', ref=serial)
 
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):
         issuer_dn = sc.dn_rfc2253(self.ctx, cert_pem, 'issuer')

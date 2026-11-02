@@ -43,7 +43,7 @@ function capi(path, body, wait) {
    that changes something, so the next tab, popup or form asks again: a
    thing made in one tab is in every other at once, without F5. POSTs that
    only read (a file looked into, an export, a test, a check) keep them. */
-var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|run_plan|dry_run|compat|preview)$/;
+var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|run_plan|dry_run|compat|preview|online_list)$/;
 var FRESH = {n: 0};
 function forgetAll() {
   FRESH.n++;
@@ -267,7 +267,7 @@ function stateTag(st) {
 }
 var JOB_KIND = {issue: 'issue', renew: 'renewal', deploy: 'deployment', revoke: 'revocation',
                 'import': 'import', test: 'test', csr: 'CSR', crl: 'CRL', verify: 'check', export: 'export',
-                'dry-run': 'dry run'};
+                'dry-run': 'dry run', 'online-import': 'import from a source'};
 function jobState(j) {
   var st = j.state || (j.finished ? (j.ok ? 'ok' : 'failed') : 'running');
   if (st === 'done') st = j.ok ? 'ok' : 'failed';
@@ -2640,8 +2640,11 @@ function certsBlank() {
     a.onclick = function () { certWizard(); };
     var i = cmdButton('Import', 'upload', '');
     i.onclick = function () { importDialog(); };
+    var oi = cmdButton('Import from a source', 'download', '');
+    oi.onclick = function () { onlineImport(); };
     row.appendChild(a);
     row.appendChild(i);
+    row.appendChild(oi);
     b.appendChild(row);
   }
   return b;
@@ -2903,6 +2906,7 @@ function detailsSection(c, back) {
       ['Renews', autoCan(c) ? (truthy(c.auto_renew) ? 'by itself' : 'only when asked') : 'by importing a new one'],
       ['Days before the end', c.renew_days ? String(c.renew_days) : 'as Renewal and notices says'],
       ['Key on renewal', truthy(c.reuse_key) ? 'kept' : 'a new one each time'],
+      c.issuer_ref ? ['Its id at the source', explain(copyable(String(c.issuer_ref), 'copied'), 'Imported from its source: each renewal reissues this order (or certificate) there.')] : null,
       ['Name in acme', data('span', 'mono', c.name)],
       ['In use', c.enabled === undefined || c.enabled === null || truthy(c.enabled) ? 'yes' : 'switched off']
     ]));
@@ -3012,6 +3016,8 @@ function certBody(body, c, versions, deploys, jobs, back) {
     lw.appendChild(el('span', 'muted small', dayOnly(c.not_after)));
     body.appendChild(lw);
   }
+  var nk = noKeyBox(c, back);
+  if (nk) body.appendChild(nk);
   if (c.state === 'revoke-failed') {
     var rf = el('div', 'ct-errbox');
     var rh = el('div', 'ct-errbox-h');
@@ -4873,6 +4879,357 @@ function importDialog(into) {
   }}], 'medium');
 }
 
+/* ==========================================================================
+   Import from a source: the certificates an account already has at SSLS.cz,
+   SSLmarket, DigiCert, an authority of acme's own, Vault... listed (read only),
+   the ones picked brought in bound to that source - each renewed through its
+   own order there. acme gets no key from a source: "Add its private key" in
+   the certificate's window, or the first renewal makes a new one.
+   POST certs/online_list {source}, certs/online_import {source, items} -> job,
+   GET certs/online_import_result?job= (acmelib/certs/onlineimport.py).
+   ========================================================================== */
+var OI_RENEW = {
+  reissue: ['ok', 'renewed by a free reissue', 'Each renewal reissues this very order at the source while it runs - nothing is bought.'],
+  order: ['warn', 'a renewal is a new order', 'It cannot be reissued (its order ended, or the product never is): a renewal is a new, paid order - only with "Allow new orders (paid)" on the source.'],
+  issue: ['ok', 'renewed by the source', 'A renewal is a new certificate from the same source - there is no order to buy.'],
+  none: ['dim', 'not renewable', 'The source cannot renew it.']
+};
+var OI_BY = {'the source\'s id': 'by its id at the source', 'ordered by acme': 'acme ordered it', 'its serial': 'by its serial', 'its fingerprint': 'by its fingerprint'};
+function onlineImport() {
+  popup('Import from a source', function () {
+    return Promise.all([capi('certs/online_sources'), rowsSafe('validation')]);
+  }, function (got) {
+    var srcs = rowsOf(got[0], 'sources');
+    var vals = arr(got[1]);
+    var S = {items: [], picks: {}, source: '', running: false};
+    var pick = null, again = null, listHost = null, sumHost = null, q = null, all = null;
+    var owner = null, tags = null, val = null, auto = null, resHost = null, goBtn = null;
+    var picked = function () { return S.items.filter(function (x) { return x.importable && S.picks[x.ref]; }); };
+    var count = function () {
+      var n = picked().length, can = S.items.filter(function (x) { return x.importable; }).length;
+      if (all) {
+        all._input.checked = !!can && n === can;
+        all._input.indeterminate = n > 0 && n < can;
+        all._input.disabled = !can;
+        clear(all._n);
+        all._n.appendChild(document.createTextNode(n + ' / ' + can));
+      }
+      if (goBtn) goBtn.disabled = !n || S.running;
+    };
+    var matches = function (it) {
+      var w = String(q && q.value || '').trim().toLowerCase();
+      if (!w) return true;
+      return [it.cn, it.ref, it.product, it.status].concat(arr(it.names)).join(' ').toLowerCase().indexOf(w) >= 0;
+    };
+    var row = function (it) {
+      var r = el('label', 'ct-oi-row' + (it.importable ? '' : ' off') + (S.picks[it.ref] && it.importable ? ' on' : ''));
+      var cb = el('input');
+      cb.type = 'checkbox';
+      cb.disabled = !it.importable;
+      cb.checked = !!(it.importable && S.picks[it.ref]);
+      cb.onchange = function () {
+        if (cb.checked) S.picks[it.ref] = true; else delete S.picks[it.ref];
+        r.classList.toggle('on', cb.checked);
+        count();
+      };
+      r.appendChild(cb);
+      var w = el('div', 'ct-oi-w');
+      var t = el('div', 'ct-oi-t');
+      t.appendChild(data('b', '', it.cn || arr(it.names)[0] || it.ref));
+      if (it.in_acme) t.appendChild(explain(el('span', 'tag info', 'already in acme'), OI_BY[it.in_acme.by] || 'acme has it already'));
+      else if (!it.downloadable) t.appendChild(el('span', 'tag dim', 'cannot be fetched'));
+      if (it.expired) t.appendChild(el('span', 'tag crit', 'expired'));
+      else if (it.not_after) t.appendChild(daysTag(it.not_after));
+      var rw = OI_RENEW[it.renewable] || OI_RENEW.none;
+      if (!it.in_acme && it.downloadable) t.appendChild(explain(el('span', 'tag ' + rw[0], rw[1]), rw[2]));
+      w.appendChild(t);
+      if (arr(it.names).length) w.appendChild(namesChips(it.names, 6));
+      var m = el('div', 'ct-oi-m muted small');
+      var bits = [];
+      if (it.product) bits.push(data('span', '', it.product));
+      if (it.status) bits.push(el('span', '', it.status));
+      if (it.not_before || it.not_after) bits.push(el('span', '', dayOnly(it.not_before) + ' – ' + dayOnly(it.not_after)));
+      if (it.paid_until) {
+        var pu = el('span');
+        pu.appendChild(el('span', '', 'paid until'));
+        pu.appendChild(document.createTextNode(' ' + dayOnly(it.paid_until)));
+        bits.push(pu);
+      }
+      var id = el('span', 'ct-oi-id');
+      id.appendChild(el('span', '', 'its id there'));
+      id.appendChild(document.createTextNode(' '));
+      id.appendChild(mono(it.ref));
+      bits.push(id);
+      bits.forEach(function (b, i) { if (i) m.appendChild(document.createTextNode(' · ')); m.appendChild(b); });
+      w.appendChild(m);
+      if (it.in_acme && it.in_acme.name) {
+        var mine = el('div', 'small ct-oi-mine');
+        mine.appendChild(el('span', 'muted', 'In acme as'));
+        mine.appendChild(document.createTextNode(' '));
+        var a = data('button', 'linkish', it.in_acme.name);
+        a.type = 'button';
+        a.onclick = function (e) { e.preventDefault(); e.stopPropagation(); over(function () { certPeek(it.in_acme.id); }); };
+        mine.appendChild(a);
+        w.appendChild(mine);
+      }
+      if (it.note) w.appendChild(el('div', 'ct-oi-note', it.note));
+      r.appendChild(w);
+      return r;
+    };
+    var paint = function () {
+      clear(listHost);
+      var shown = S.items.filter(matches);
+      if (!S.items.length) { listHost.appendChild(emptyNote('The account has no certificates at this source.')); count(); return; }
+      if (!shown.length) { listHost.appendChild(emptyNote('Nothing matches')); count(); return; }
+      var box = el('div', 'ct-oi-list');
+      shown.forEach(function (it) { box.appendChild(row(it)); });
+      listHost.appendChild(box);
+      explainWhatWasDrawn(listHost);
+      count();
+    };
+    var load = function (keepResults) {
+      S.source = pick ? pick.value : '';
+      S.items = [];
+      S.picks = {};
+      clear(sumHost);
+      clear(listHost);
+      if (keepResults !== true) clear(resHost);
+      count();
+      if (!S.source) return;
+      listHost.appendChild(el('p', 'muted', 'Asking the source… nothing is ordered or changed there.'));
+      busy(again, true);
+      var ticket = modalTicket();
+      capi('certs/online_list', {source: S.source}).then(function (d) {
+        if (!modalStill(ticket) || (pick && pick.value !== S.source)) return;
+        S.items = rowsOf(d, 'items');
+        S.items.forEach(function (x) { if (x.importable) S.picks[x.ref] = true; });
+        clear(sumHost);
+        sumHost.appendChild(saidLine(S.items.length ? 'good' : '', said(d, '')));
+        paint();
+      }).catch(function (e) {
+        if (!modalStill(ticket)) return;
+        clear(listHost);
+        listHost.appendChild(failedBox(e, 'the list of the source'));
+        count();
+      }).then(function () { busy(again, false); });
+    };
+    var results = function (r, jobId) {
+      clear(resHost);
+      var list = arr(r && r.results);
+      var box = el('div', 'ct-oi-res');
+      box.appendChild(el('h4', 'ct-formh', 'What was done'));
+      list.forEach(function (x) {
+        var line = el('div', 'ct-oi-resline');
+        var kind = x.state === 'imported' ? ['ok', 'imported'] : (x.state === 'failed' ? ['crit', 'failed'] : ['dim', 'skipped']);
+        line.appendChild(el('span', 'tag ' + kind[0], kind[1]));
+        if (!(x.state === 'imported' && x.id)) line.appendChild(mono(x.ref, 'ct-oi-ref'));
+        if (x.state === 'imported' && x.id) {
+          var a = data('button', 'linkish', x.name || ('#' + x.id));
+          a.type = 'button';
+          a.onclick = function () { over(function () { certPeek(x.id); }); };
+          line.appendChild(a);
+          line.appendChild(el('span', 'muted small', 'without its private key - add it in its window'));
+          line.appendChild(mono(x.ref, 'ct-oi-ref muted'));
+        }
+        if (x.why) line.appendChild(el('span', x.state === 'failed' ? 'ct-bad small' : 'muted small', x.why));
+        box.appendChild(line);
+      });
+      if (!list.length) box.appendChild(emptyNote('Nothing was done.'));
+      var more = el('div', 'btnrow');
+      var lg = cmdButton('Its job', 'list', 'small');
+      lg.onclick = function () { over(function () { jobPeek(jobId); }); };
+      more.appendChild(lg);
+      box.appendChild(more);
+      resHost.appendChild(box);
+    };
+    var run = function () {
+      var items = picked();
+      if (!items.length) { toast('pick at least one certificate to import', 'bad'); return; }
+      var o = owner.value, tg = splitNames(tags.value), ch = val.value, ar = auto._get();
+      S.running = true;
+      count();
+      busy(goBtn, true);
+      clear(resHost);
+      var log = el('div', 'ct-loghost');
+      resHost.appendChild(log);
+      log.appendChild(el('p', 'muted small', 'Starting…'));
+      var ticket = modalTicket();
+      capi('certs/online_import', {source: S.source, items: items.map(function (x) {
+        return {ref: x.ref, owner: o, tags: tg, challenge: ch, auto_renew: ar && x.renewable !== 'none' ? 1 : 0};
+      })}).then(function (d) {
+        var id = d && d.job_id;
+        var poll = function () {
+          if (!modalStill(ticket)) return;
+          capi('certs/job' + qs({id: id})).then(function (x) {
+            if (!modalStill(ticket)) return;
+            var j = x.job || x;
+            clear(log);
+            log.appendChild(jobLog(j.steps, j.ts));
+            var lb = log.querySelector('.ct-log');
+            if (lb) lb.scrollTop = lb.scrollHeight;
+            if (jobRunning(j)) { setTimeout(poll, 1000); return; }
+            S.running = false;
+            busy(goBtn, false);
+            if (j.said) toast(String(j.said), jobState(j) === 'ok' ? 'good' : 'bad');
+            CT.refresh();
+            capi('certs/online_import_result' + qs({job: id})).then(function (r) {
+              if (!modalStill(ticket)) return;
+              results(r && r.result, id);
+              load(true);
+            }).catch(fail);
+          }).catch(function () { setTimeout(poll, 2000); });
+        };
+        poll();
+      }).catch(function (e) {
+        S.running = false;
+        busy(goBtn, false);
+        clear(log);
+        log.appendChild(failedBox(e, 'the import'));
+        count();
+      });
+    };
+    return {
+      title: 'Import from a source',
+      size: 'large',
+      build: function (body) {
+        body.appendChild(el('p', 'note', 'The certificates your account already has at a source that can list them - SSLS.cz, SSLmarket, DigiCert, Vault, an authority of acme’s own… The source is only asked: nothing is ordered or changed there. Each one imported stays bound to the source with its own id there, so its renewals go through that very order. Its private key is not at the source: add it later in the certificate’s window - until then it goes only where the certificate alone is needed (its first renewal makes a new key).'));
+        if (!srcs.length) {
+          var none = el('div', 'ct-blank');
+          none.appendChild(el('h3', '', 'No source can list its certificates'));
+          none.appendChild(el('p', 'muted', 'Add a source of SSLS.cz, SSLmarket, DigiCert CertCentral, GlobalSign Atlas, Google CA Service, Vault, EJBCA, FreeIPA or an authority of acme’s own under Sources first. ACME sources (Let’s Encrypt…) cannot list what they issued.'));
+          body.appendChild(none);
+          return;
+        }
+        var top = el('div', 'ct-oi-top');
+        pick = selectBox(srcs.map(function (x) { return [x.name, x.name + ' · ' + tr(x.title)]; }), (srcs.filter(function (x) { return x.enabled; })[0] || srcs[0]).name);
+        noI18n(pick);
+        pick.onchange = function () { load(); };
+        top.appendChild(formField('Source', pick, 'Only the sources whose API can list the certificates of the account.'));
+        again = cmdButton('Load the list again', 'refresh', '');
+        again.onclick = function () { load(); };
+        top.appendChild(again);
+        body.appendChild(top);
+        sumHost = el('div', 'ct-oi-sum');
+        body.appendChild(sumHost);
+        var bar = el('div', 'btnrow filters ct-oi-bar');
+        q = el('input');
+        q.type = 'search';
+        q.placeholder = tr('a name, a product, its id there…');
+        q.oninput = paint;
+        bar.appendChild(q);
+        all = el('label', 'set-check ct-oi-all');
+        var ai = el('input');
+        ai.type = 'checkbox';
+        ai.onchange = function () {
+          S.items.forEach(function (x) { if (x.importable && matches(x)) { if (ai.checked) S.picks[x.ref] = true; else delete S.picks[x.ref]; } });
+          paint();
+        };
+        all.appendChild(ai);
+        all.appendChild(el('span', '', 'All that can be imported'));
+        all._input = ai;
+        all._n = el('span', 'muted small ct-oi-n');
+        all.appendChild(all._n);
+        bar.appendChild(all);
+        body.appendChild(bar);
+        listHost = el('div', 'ct-oi-host');
+        body.appendChild(listHost);
+        var sec = section('The certificates imported', 'Given to each one picked. Owner, tags and renewal can be changed later in its Details, its validation with Change.');
+        var g = el('div', 'formgrid');
+        owner = ownerBox('');
+        tags = tagsBox([]);
+        val = selectBox([['', tr('none for now')]].concat(vals.map(function (v) { return [v.name, v.name]; })), '');
+        auto = switchBox(true);
+        g.appendChild(formField('Owner', owner, 'Who they belong to (Settings → Owners and teams).'));
+        g.appendChild(formField('Tags', tags));
+        g.appendChild(formField('Validation', val, 'How their names are proved at a renewal - for a CA that checks the domains by DNS or a file (SSLS.cz, SSLmarket, DigiCert). Not needed for e-mail validation or a private CA.'));
+        g.appendChild(formField('Renew by itself', auto, 'On: renewed before they run out, through their own order at the source - where the source can renew them.'));
+        sec._body.appendChild(g);
+        body.appendChild(sec);
+        resHost = el('div', 'ct-oi-reshost');
+        body.appendChild(resHost);
+        setTimeout(function () { goBtn = $('modal-foot') && $('modal-foot').querySelector('.btn.primary'); load(); }, 0);
+      },
+      buttons: srcs.length ? [{words: 'Close', close: true}, {words: 'Import', cls: 'primary', icon: 'download', go: function (b) { goBtn = b; run(); }}] : [{words: 'Close', close: true}]
+    };
+  }, 'large', 'importing from a source');
+}
+
+/* ---- the private key of a certificate acme holds none of -------------------
+   Imported without it (a file, or from a source): pasted or read from a file
+   (PEM, PKCS#8, PFX/P12 with its password), checked by the daemon to belong to
+   the certificate, then sealed and kept as an import with its key keeps it. */
+function addKeyDialog(c) {
+  var twin = !!(c.dual && c.alt_not_after && c.has_alt_key === false);
+  var main = c.has_key === false;
+  var f = {};
+  modal('Add its private key', function (body) {
+    body.appendChild(el('p', 'note', 'The private key that belongs to this certificate - PEM (PKCS#8 or the older RSA/EC form) pasted, or a .key, .pem, .pfx or .p12 file read in. It is checked to belong to the certificate before anything is kept, then kept sealed like the key of any certificate. Deployments that need the key work from then on.'));
+    var g = el('div', 'formgrid');
+    if (main) {
+      f.key = pemBox('', '-----BEGIN PRIVATE KEY-----', 6);
+      noI18n(f.key._input);
+      g.appendChild(wideField(twin ? 'The private key of the first certificate' : 'The private key of the certificate', f.key, 'A PFX/P12 file is read in as it is; give its password below.'));
+      f.pass = secretBox('', 'only for a locked key or a PFX', 'mono');
+      g.appendChild(formField('Password', f.pass));
+    }
+    if (twin) {
+      f.alt = pemBox('', '-----BEGIN PRIVATE KEY-----', 6);
+      noI18n(f.alt._input);
+      g.appendChild(wideField('The key of its twin', f.alt, 'A dual certificate: the twin has its own key. Leave a box empty to add only the other key.'));
+      f.altPass = secretBox('', 'only for a locked key or a PFX', 'mono');
+      g.appendChild(formField('Password of the twin’s key', f.altPass));
+    }
+    body.appendChild(g);
+    f.said = saidLine('', '');
+    body.appendChild(f.said);
+  }, [{words: 'Close', close: true}, {words: 'Add the key', cls: 'primary', icon: 'key', go: function (b) {
+    var one = function (box, pass, prefix, out) {
+      if (!box) return;
+      var v = box._get();
+      if (!v) return;
+      if (/-----BEGIN/.test(v)) out[prefix + 'key_pem'] = v;
+      else { out[prefix + 'key_b64'] = v.replace(/\s+/g, ''); out[prefix + 'key_filename'] = 'key.pfx'; }
+      if (pass && pass.value) out[prefix + 'key_password'] = pass.value;
+    };
+    var body = {id: c.id};
+    one(f.key, f.pass, '', body);
+    one(f.alt, f.altPass, 'alt_', body);
+    if (!body.key_pem && !body.key_b64 && !body.alt_key_pem && !body.alt_key_b64) {
+      f.said.className = 'said bad';
+      f.said.textContent = tr('give the private key: paste it, or read its file');
+      return;
+    }
+    busy(b, true);
+    capi('certs/add_key', body).then(function (d) {
+      toast(said(d, 'the private key was added'), 'good');
+      CT.refresh();
+      closeModal();
+    }).catch(function (e) { f.said.className = 'said bad'; f.said.textContent = wordsOf(e); }).then(function () { busy(b, false); });
+  }}], 'medium');
+  nameInTitle('Add its private key', c.cn || c.name);
+}
+/** A certificate whose key acme does not hold: said in its window, with the way to add it. */
+function noKeyBox(c, back) {
+  var main = c.not_after && c.has_key === false && !c.from_csr && c.state !== 'pending';
+  var twin = c.dual && c.alt_not_after && c.has_alt_key === false && !c.from_csr;
+  if (!main && !twin) return null;
+  var box = el('div', 'ct-keynote');
+  var h = el('div', 'ct-keynote-h');
+  h.innerHTML = iconMarkup('key', 18);
+  h.appendChild(el('b', '', main ? 'acme does not hold its private key' : 'acme does not hold the private key of its twin'));
+  box.appendChild(h);
+  box.appendChild(el('p', 'small', c.issuer
+    ? 'It goes only where the certificate alone is needed: a deployment that needs the key is refused until the key is added. Its next renewal makes a new key, and acme holds that one.'
+    : 'It goes only where the certificate alone is needed: a deployment that needs the key is refused until the key is added.'));
+  if (MANAGE) {
+    var go = cmdButton('Add its private key', 'key', 'small');
+    explain(go, 'The key of this certificate, which acme does not hold (imported without it): checked to belong to it, then kept sealed.');
+    go.onclick = function () { over(function () { addKeyDialog(c); }, back); };
+    box.appendChild(go);
+  }
+  return box;
+}
+
 function selfSigned() {
   var f = {};
   modal('A self-signed certificate', function (b) { b.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], 'medium');
@@ -6463,6 +6820,7 @@ if (!PAGE_KNOWS) setInterval(function () {
 function on(id, ev, fn) { var n = $(id); if (n) n.addEventListener(ev, fn); }
 on('ct-add', 'click', function () { certWizard(); });
 on('ct-import', 'click', function () { importDialog(); });
+on('ct-onlineimport', 'click', function () { onlineImport(); });
 on('ct-self', 'click', function () { selfSigned(); });
 on('ct-csr', 'click', function () { csrDialog(); });
 var certsAgain = debounce(function () { CL.page = 0; loadCerts(); }, 250);

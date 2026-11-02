@@ -754,7 +754,8 @@ def run_one(job, r, bundle_holder):
             req = base.CertRequest(names=names, sans=names, key_type=cert.get('key_type'),
                                    key_pem=key, csr_pem=csr_pem, csr_der=csr_der,
                                    subject={}, days=cert.get('days'), profile={},
-                                   challenges={}, previous=None, cert_id=cert.get('id'))
+                                   challenges={}, previous=None, cert_id=cert.get('id'),
+                                   ref=cert.get('ref') or None)
             got = inst.issue(req)
             said = 'issued' if got else None
     except Alarm:
