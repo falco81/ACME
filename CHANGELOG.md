@@ -20,6 +20,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   API) and Rackspace Cloud DNS - each from the vendor's own SDK or API
   description, listed in docs/validation.md. acme adds its value beside any
   others and removes only its own; Test changes nothing.
+- **New targets**, each checked against the vendor's own code, SDK, Ansible
+  collection, Terraform provider or REST specification (docs/targets.md):
+  Kong Gateway (SNIs repointed, dual certificates), Nginx Proxy Manager
+  (proxy, redirection and 404 hosts), VMware Avi / NSX ALB (virtual services
+  or the portal, dual certificates), A10 Thunder (client-SSL templates, write
+  memory), Hetzner Cloud and DigitalOcean load balancers (with *List the load
+  balancers*), Azure App Service (SNI bindings), bunny.net pull-zone
+  hostnames, Fastly TLS (replaced in place, its activations kept) and Nutanix
+  (the cluster certificate through Prism Central v4, the cluster picked from
+  a list).
+- A header an API sends twice (two Set-Cookie) is kept whole.
 - Active24: the signed requests of its REST API v2 carry the date as RFC 3339.
   Hetzner was checked against the new Hetzner Cloud DNS API (already used).
 
