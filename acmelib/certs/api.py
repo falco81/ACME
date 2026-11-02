@@ -629,6 +629,12 @@ def start_deploy(store, ref, deploy_id, by):
                            cert_id=row['id'], deploy_id=only[0] if only else None, by=by,
                            said='asked by %s' % by)
     except ValueError as e:
+        # A job on it already (the look that deploys a deployment just saved, a
+        # renewal that deploys after it): that job is given to watch (1.0.18),
+        # as with Renew now - it puts the certificate in place too.
+        running = jobs.cert_job(store, row['id'])
+        if running is not None:
+            return running
         raise E.ApiError(409, str(e))
 
 
