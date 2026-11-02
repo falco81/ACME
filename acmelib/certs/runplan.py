@@ -765,6 +765,62 @@ def _hostish(cfg):
     return ''
 
 
+def persist_steps(store, crow, cfg, names, irow):
+    """dns-persist-01 (challenges/dns_persist.py): nothing is put in place at an order;
+    the record set once is looked up and - with "Write the record through" and "Write it
+    by itself when missing" - written through that validation first."""
+    from acmelib.plugins.challenges import dns_persist as DP
+    from acmelib.plugins.challenges import _dns as D
+    wild = str(cfg.get('wildcard', True)).strip().lower() not in ('0', 'false', 'no', 'off')
+    doms = []
+    own = [D.norm(x).lstrip('*.') for x in re.split(r'[\s,]+', str(cfg.get('domains') or ''))
+           if x.strip()]
+    for n in names:
+        b = D.norm(n)
+        b = b[2:] if b.startswith('*.') else b
+        if re.match(r'^[\d.:]+\Z', b):
+            continue
+        hits = [d for d in own if b == d or b.endswith('.' + d)]
+        d = (max(hits, key=len) if hits else D.registrable(b)) if wild else b
+        if d not in doms:
+            doms.append(d)
+    writer = str(cfg.get('writer') or '').strip()
+    auto = str(cfg.get('write_missing', True)).strip().lower() not in ('0', 'false', 'no',
+                                                                       'off', '')
+    acct = '‹the URL of the ACME account›'
+    preset = str(S.plugin_config('issuer', irow).get('directory') or '') if irow else ''
+    idn = D.norm(cfg.get('issuer_domain') or '') or (DP.ISSUER_DOMAINS.get(preset) or [''])[0] \
+        or '‹the CA\'s issuer domain name›'
+    value = '%s; accounturi=%s%s' % (idn, acct, '; policy=wildcard' if wild else '')
+    steps = [{'kind': 'info', 'words': 'Nothing is put in place at an order: the CA reads the '
+              'record set once (if it offers dns-persist-01 in the authorization)'}]
+    wrow = S.plugin_row(store, 'challenge', writer) if writer else None
+    for d in doms:
+        rec = {'name': DP.PREFIX + d, 'type': 'TXT', 'value': value, 'ttl': None}
+        steps.append({'kind': 'read', 'words': 'Looks the record up at {0}'.replace(
+            '{0}', DP.PREFIX + d), 'detail': {'record': rec}})
+        if writer and auto:
+            steps.append({'kind': 'dns', 'words': 'Writes it through {0} ({1}) when it is '
+                          'missing or not right'.replace('{0}', writer).replace(
+                              '{1}', (wrow or {}).get('kind') or '?'),
+                          'branch': 'Only when the record is missing or not right',
+                          'detail': {'record': rec},
+                          'note': 'only a value acme wrote itself is replaced; other TXT '
+                                  'records at the name stay'})
+        elif writer:
+            steps.append({'kind': 'info', 'words': 'Not written at an order: "Write the records '
+                          'to DNS" at the validation writes it through {0}'.replace('{0}',
+                                                                                    writer)})
+        else:
+            steps.append({'kind': 'info', 'words': 'Set by hand, once - acme writes nothing'})
+    fb = str(cfg.get('fallback') or '').strip()
+    steps.append({'kind': 'info', 'words': ('Until the CA offers dns-persist-01: {0} proves the '
+                                            'names').replace('{0}', fb) if fb else
+                  'No fallback validation: until the CA offers dns-persist-01 nothing can be '
+                  'issued'})
+    return steps
+
+
 def plan(store, cert, deploys, full=False):
     """The plan of `cert` (a row of certs, or a draft of one) with `deploys` (rows
     of cert_deploys, or [{target, options}])."""
@@ -805,6 +861,8 @@ def plan(store, cert, deploys, full=False):
         ccfg = S.plugin_config('challenge', crow)
         scfg, marks = secrets_.stand_ins(_fields_of(ccls), ccfg)
         vinfo[which] = {'row': crow, 'cls': ccls, 'cfg': ccfg, 'runs': []}
+        if crow.get('kind') == 'dns_persist':
+            continue                    # nothing put in place per order: persist_steps()
         for n in ns[:NAMES_MOST]:
             vinfo[which]['runs'].append((n, run(family='challenge', kind=crow['kind'],
                                                 name=crow['name'], op='challenge', names=[n],
@@ -921,6 +979,10 @@ def plan(store, cert, deploys, full=False):
         g['module'] = {'name': vi['row']['name'], 'kind': vi['row']['kind'],
                        'title': cls.title or cls.kind}
         g['facts'] = facts_of(cls, vi['cfg'])
+        if vi['row'].get('kind') == 'dns_persist':
+            g['steps'] = persist_steps(store, vi['row'], vi['cfg'], ns, irow)
+            val['groups'].append(g)
+            continue
         g['per_name'] = []
         for n, i in vi['runs']:
             r = result(i)

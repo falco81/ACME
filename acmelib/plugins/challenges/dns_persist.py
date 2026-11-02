@@ -26,6 +26,16 @@ in production yet), the names are proved by the validation chosen as the
 fallback, and the job says so. The first time a CA is seen offering it is
 kept (the module's state, per CA) and shown. The orders themselves are the
 probe: none is made only to look, except by "Look now" at a staging CA.
+
+The record can be written by acme itself (1.0.21): "Write the record through"
+names another DNS validation that writes TXT records (Active24, Webglobe,
+Cloudflare, SSH DNS...). "Write the records to DNS" writes what is missing or
+not right through its add_txt, replaces only a value acme wrote itself, never
+touches anybody else's record, and keeps what it wrote (the module's state,
+WRITTEN_KEY) so that "Take the records away" - and deleting the validation
+with its records - removes exactly that. With "Write it by itself when
+missing" an order writes a missing record first. Written or not, it is
+looked up first: nothing is written twice.
 See docs/validation.md.
 """
 from __future__ import annotations
@@ -51,6 +61,13 @@ SOON_S = 30 * 86400             # a persistUntil this close is said
 TAG_RE = re.compile(r'^[A-Za-z0-9](?:-*[A-Za-z0-9])*\Z')
 VALUE_RE = re.compile(r'^[\x21-\x3a\x3c-\x7e]*\Z')
 DOMAIN_RE = re.compile(r'^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}\Z')
+# The DNS validations that cannot hold a record that stays: acme's own DNS server
+# (its records go at the end of the job), Duck DNS (one value a name), the ones
+# a person or another server answers.
+NOT_WRITERS = frozenset(('dns_builtin', 'duckdns', 'manual', 'dns_persist', 'acme_dns'))
+WRITTEN_KEY = 'written'         # the module's state: what acme wrote, to take away exactly that
+SEEN_SOON_S = 3600              # a value written this recently is not written again
+VISIBLE_S = 90                  # at an order: how long a record just written is waited for
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +190,16 @@ def until_ts(v):
         raise PluginError('"%s" is neither a day (2027-12-31) nor a Unix time' % v, retry=False)
 
 
+def can_write(cls):
+    """Whether a validation module can write the record (a TXT record that stays)."""
+    from acmelib.plugins.challenges._common import DnsChallenge
+    try:
+        return bool(cls) and issubclass(cls, DnsChallenge) and cls.writes_txt() and \
+            getattr(cls, 'kind', '') not in NOT_WRITERS
+    except TypeError:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # The module
 # ---------------------------------------------------------------------------
@@ -206,6 +233,16 @@ class DnsPersist(Challenge):
               help='Proves the names while the CA does not offer dns-persist-01 (Let\'s '
                    'Encrypt has not in production yet), and when the record is not right. acme '
                    'switches to the record by itself once the CA offers it.'),
+        field('writer', 'Write the record through', 'select', default='',
+              options=[['', 'by hand']], options_from='dns_writers',
+              help='A DNS validation acme already has (Active24, Webglobe, Cloudflare, SSH DNS'
+                   '...) that writes TXT records in the domains: acme writes the record through '
+                   'it ("Write the records to DNS") and takes away exactly what it wrote. '
+                   'Empty: you set the record by hand.'),
+        field('write_missing', 'Write it by itself when missing', 'bool', default=True,
+              help='With a validation chosen above: at an order, a missing or wrong record is '
+                   'written first (only a value acme wrote itself is replaced; other records '
+                   'stay). Off: only "Write the records to DNS" writes it.'),
         field('sources', 'Sources the record is for', 'list', default='', advanced=True,
               help='The ACME sources whose accounts the record names (one record each). '
                    'Empty: every ACME source.'),
@@ -224,6 +261,18 @@ class DnsPersist(Challenge):
         {'key': 'look', 'label': 'Look now (staging)',
          'help': 'An order made only to see whether the CA offers dns-persist-01 - at a staging '
                  'CA only; nothing is issued.', 'changes': False},
+        {'key': 'check_records', 'label': 'Check the records',
+         'help': 'For each domain: whether the record is there, missing, or holds another '
+                 'value - nothing is changed.', 'changes': False},
+        {'key': 'write_records', 'label': 'Write the records to DNS',
+         'help': 'Through the validation chosen in "Write the record through": only what is '
+                 'missing or not right; only a value acme wrote itself is replaced.',
+         'changes': True, 'needs': 'writer'},
+        {'key': 'remove_records', 'label': 'Take the records away',
+         'help': 'Removes exactly the records acme wrote - records set by hand stay.',
+         'confirm': 'The dns-persist-01 records acme wrote are removed from DNS. Until they are '
+                    'written again, the names are proved by the fallback validation.',
+         'changes': True, 'needs': 'written'},
     ]
     guide_timeout = 2.0
     persist_source = None           # the source a certificate uses (readiness sets it)
@@ -232,6 +281,8 @@ class DnsPersist(Challenge):
         Challenge.__init__(self, config, ctx)
         self._fb = None
         self._said = set()
+        self._writers = {}
+        self._ensured = set()
 
     # -- what it can prove (acmelib/certs/compat.py) ------------------------------------
     @classmethod
@@ -376,6 +427,260 @@ class DnsPersist(Challenge):
             self._fb = inst
         return self._fb
 
+    # -- the record written through another validation (1.0.21) ----------------------------
+    def writer_name(self):
+        return str(self.c('writer', '') or '').strip()
+
+    def write_missing_on(self):
+        v = self.config.get('write_missing')
+        return True if v in (None, '') else as_bool(v)
+
+    def writer_module(self, name=None):
+        """The validation that writes the record (None when none is chosen)."""
+        name = str(name or self.writer_name() or '').strip()
+        if not name:
+            return None
+        if name not in self._writers:
+            inst = self.ctx.validation(name)
+            if inst is None:
+                raise PluginError('the validation %s that writes the record is not there or '
+                                  'switched off' % name, retry=False)
+            if not can_write(type(inst)):
+                raise PluginError('the validation %s (%s) cannot write a TXT record that stays'
+                                  % (name, getattr(inst, 'kind', '?')), retry=False)
+            self._writers[name] = inst
+        return self._writers[name]
+
+    def written(self):
+        """What acme wrote: [{domain, name, value, account, directory, source, via, kind,
+        handle, at}]."""
+        got = self.ctx.kv_get(WRITTEN_KEY)
+        return [dict(x) for x in got if isinstance(x, dict)] if isinstance(got, list) else []
+
+    def _keep_written(self, rows):
+        try:
+            self.ctx.kv_set(WRITTEN_KEY, list(rows) if rows else None)
+        except Exception as e:                          # noqa: BLE001
+            raise PluginError('what was written could not be kept: %s - take the record away '
+                              'by hand when it is no longer wanted' % e)
+
+    def record_domains(self):
+        """The domains whose record is written and checked: the ones set, else those of
+        the certificates this validation proves."""
+        doms = self.domains()
+        if doms:
+            return doms, False
+        out = []
+        for n in self.ctx.names_using() or []:
+            n = D.norm(n)
+            bare = n[2:] if n.startswith('*.') else n
+            if not bare or re.match(r'^[\d.:]+\Z', bare):
+                continue
+            try:
+                d = self.base_of(bare)
+            except Exception:                           # noqa: BLE001
+                continue
+            if d and d not in out:
+                out.append(d)
+        return out, True
+
+    def wanted(self, register=False):
+        """[{domain, name, value, source, title, account, directory, issuers, error}] - the
+        record each source needs at each domain."""
+        doms, _derived = self.record_domains()
+        out = []
+        for src in self.sources(register=register):
+            title = src.get('title') or src['source']
+            for dom in doms:
+                one = {'domain': dom, 'source': src['source'], 'title': title,
+                       'account': src.get('account'), 'directory': src.get('directory') or '',
+                       'issuers': src.get('issuer_domains') or [], 'name': PREFIX + dom,
+                       'value': None, 'error': src.get('error') or ''}
+                if not one['error']:
+                    rec = self.record_for(('*.' + dom) if self.wildcard_on() else dom, src)
+                    one['name'], one['value'] = rec['name'], rec['value']
+                    if not src.get('account'):
+                        one['error'] = 'no ACME account at %s yet' % title
+                    elif not rec['value']:
+                        one['error'] = 'the issuer domain name of %s is not known yet' % title
+                out.append(one)
+        return out
+
+    def state_of(self, want, values):
+        """('present' | 'missing' | 'different', words) of one wanted record among the
+        TXT values at its name."""
+        if want['value'] in values:
+            return 'present', 'the record is there'
+        ok, probs, _w = judge(values, want['issuers'], want['account'], self.wildcard_on())
+        if ok:
+            return 'present', 'a record that names this account is there'
+        if any(parse_value(v)['issuer'] in [D.norm(i) for i in want['issuers']]
+               for v in values):
+            return 'different', '; '.join(w for _k, w in probs) or 'it holds another value'
+        return 'missing', 'there is no record for this CA at %s' % want['name']
+
+    def check_records(self):
+        """For each domain and source: the record wanted, what is there - read-only."""
+        mine = self.written()
+        rows = []
+        for w in self.wanted(register=False):
+            row = dict(w, state='unknown', said=w['error'], written=False, via='')
+            hit = [m for m in mine if m.get('name') == w['name'] and m.get('value') == w['value']]
+            if hit:
+                row['written'], row['via'] = True, hit[0].get('via') or ''
+            if not w['error']:
+                try:
+                    values = self.txt(w['name'])
+                except (D.DnsError, D.FormErr, OSError) as e:
+                    row['said'] = 'it could not be looked up: %s' % e
+                else:
+                    row['state'], row['said'] = self.state_of(w, values)
+            rows.append(row)
+        return rows
+
+    def _write_one(self, wr, via, want, values, mine, say):
+        """want written through wr when it is not there; acme's own older value at the
+        name (the same CA) replaced. Returns 'written' | 'present' | 'soon'."""
+        state, _words = self.state_of(want, values)
+        old = [m for m in mine if m.get('name') == want['name'] and
+               m.get('value') != want['value'] and
+               (m.get('directory') == want['directory'] or m.get('source') == want['source'])]
+        did = 'present'
+        if state != 'present':
+            soon = [m for m in mine if m.get('name') == want['name'] and
+                    m.get('value') == want['value'] and
+                    time.time() - float(m.get('at') or 0) < SEEN_SOON_S]
+            if soon:
+                say('%s: written %s, not seen in DNS yet - it takes a while' % (
+                    want['name'], time.strftime('%H:%M', time.localtime(soon[0]['at']))), 'info')
+                did = 'soon'
+            else:
+                handle = wr.add_txt(want['name'], want['value'])
+                mine[:] = [m for m in mine if not (m.get('name') == want['name'] and
+                                                   m.get('value') == want['value'])]
+                mine.append({'domain': want['domain'], 'name': want['name'],
+                             'value': want['value'], 'account': want['account'],
+                             'directory': want['directory'], 'source': want['source'],
+                             'via': via, 'kind': getattr(wr, 'kind', ''),
+                             'handle': handle, 'at': time.time()})
+                self._keep_written(mine)
+                say('%s. TXT "%s" written through %s' % (want['name'], want['value'], via), 'ok')
+                did = 'written'
+        for o in old:
+            try:
+                self.writer_module(o.get('via')).del_txt(o['name'], o['value'], o.get('handle'))
+            except PluginError as e:
+                say('%s: acme\'s older value was not taken away: %s' % (o['name'], e), 'warn')
+                continue
+            mine[:] = [m for m in mine if m is not o]
+            self._keep_written(mine)
+            say('%s: acme\'s older value "%s" taken away' % (o['name'], o['value']), 'ok')
+        return did
+
+    def write_records(self):
+        """What is missing or not right written through the chosen validation."""
+        via = self.writer_name()
+        if not via:
+            raise PluginError('choose the validation that writes the record ("Write the '
+                              'record through") and save it first', retry=False)
+        wr = self.writer_module()
+        doms, _derived = self.record_domains()
+        if not doms:
+            raise PluginError('set "Domains with the record" (no certificate uses this '
+                              'validation yet)', retry=False)
+        mine = self.written()
+        done = {'written': 0, 'present': 0, 'soon': 0}
+        bad = []
+        for w in self.wanted(register=True):
+            if w['error']:
+                bad.append('%s (%s): %s' % (w['domain'], w['title'], w['error']))
+                self.ctx.step(bad[-1], 'warn')
+                continue
+            try:
+                values = self.txt(w['name'])
+            except (D.DnsError, D.FormErr, OSError) as e:
+                bad.append('%s could not be looked up: %s' % (w['name'], e))
+                self.ctx.step(bad[-1], 'warn')
+                continue
+            try:
+                done[self._write_one(wr, via, w, values, mine, self.ctx.step)] += 1
+            except PluginError as e:
+                bad.append('%s: %s' % (w['name'], e))
+                self.ctx.step(bad[-1], 'bad')
+        words = '%d written, %d there already%s' % (
+            done['written'], done['present'] + done['soon'],
+            ('; ' + '; '.join(bad)) if bad else '')
+        if bad and not done['written'] and not done['present'] + done['soon']:
+            raise PluginError(words)
+        return words
+
+    def remove_records(self):
+        """Exactly what acme wrote taken away; a record set by hand stays."""
+        mine = self.written()
+        if not mine:
+            return 'acme wrote no record - nothing to take away'
+        gone, bad = 0, []
+        for m in list(mine):
+            try:
+                self.writer_module(m.get('via')).del_txt(m['name'], m['value'], m.get('handle'))
+            except PluginError as e:
+                bad.append('%s: %s' % (m['name'], e))
+                self.ctx.step(bad[-1], 'bad')
+                continue
+            mine = [x for x in mine if x is not m]
+            self._keep_written(mine)
+            gone += 1
+            self.ctx.step('%s. TXT "%s" taken away through %s' % (m['name'], m['value'],
+                                                                 m.get('via')), 'ok')
+        if bad:
+            raise PluginError('%d taken away, %d not: %s' % (gone, len(bad), '; '.join(bad)))
+        return '%d record(s) taken away' % gone
+
+    def ensure_record(self, name, account_url, issuers, directory):
+        """At an order: the record of `name` written first when it is missing or not
+        right (Write it by itself when missing). True when it was written now."""
+        if not self.writer_name() or not self.write_missing_on() or not account_url or \
+                not issuers:
+            return False
+        n = D.norm(name)
+        bare = n[2:] if n.startswith('*.') else n
+        dom = self.base_of(bare)
+        want = {'domain': dom, 'name': PREFIX + dom, 'account': account_url,
+                'directory': directory or '', 'source': '', 'issuers': list(issuers),
+                'value': make_value(issuers[0], account_url, self.wildcard_on(), self.until())}
+        key = (want['name'], want['value'])
+        if key in self._ensured:
+            return False
+        self._ensured.add(key)
+        mine = self.written()
+        if any(m.get('name') == want['name'] and m.get('value') == want['value'] for m in mine):
+            return False                        # written by acme already
+        try:
+            values = self.txt(want['name'])
+        except (D.DnsError, D.FormErr, OSError) as e:
+            self.ctx.step('%s could not be looked up (%s): not written now' % (want['name'], e),
+                          'warn')
+            return False
+        if self.state_of(want, values)[0] == 'present':
+            return False
+        try:
+            wr = self.writer_module()
+            return self._write_one(wr, self.writer_name(), want, values, mine,
+                                   self.ctx.step) == 'written'
+        except PluginError as e:
+            self.ctx.step('the dns-persist-01 record %s was not written: %s' % (want['name'], e),
+                          'warn')
+            return False
+
+    def wait_visible(self, shown, issuers, account_url, seconds=VISIBLE_S):
+        """A record just written looked for until it is seen (at most `seconds`)."""
+        end = time.time() + seconds
+        while True:
+            ok, words, rr = self.check_name(shown, issuers, account_url)
+            if ok or time.time() >= end or self.ctx.cancelled():
+                return ok, words, rr
+            time.sleep(5)
+
     # -- where the record is looked for, and what is there ------------------------------
     def places(self, name):
         """(bare name, wildcard, [(record name, needs policy wildcard)]): the name itself
@@ -448,6 +753,9 @@ class DnsPersist(Challenge):
         ch = offered.get(CHALLENGE)
         if not ch:
             self.seen_not_offered(directory, title)
+            # written now, it is ready the day the CA offers dns-persist-01
+            self.ensure_record(shown, account_url, self.issuer_domains_for('', directory),
+                               directory)
             fb = self.fallback_module()
             if fb is None:
                 raise PluginError('%s does not offer dns-persist-01 yet (it offers %s) and the '
@@ -461,6 +769,8 @@ class DnsPersist(Challenge):
         self.seen_offered(directory, title, idn)
         issuers = idn or self.issuer_domains_for('', directory)
         ok, words, rr = self.check_name(shown, issuers, account_url)
+        if not ok and self.ensure_record(shown, account_url, issuers, directory):
+            ok, words, rr = self.wait_visible(shown, issuers, account_url)
         if ok:
             self.ctx.step('%s: dns-persist-01 - %s' % (shown, words), 'ok')
             return 'persist', ch
@@ -535,8 +845,11 @@ class DnsPersist(Challenge):
             steps.append(guide_step(
                 'persist-record', 'The dns-persist-01 record names the account at %s' % title,
                 where=home, record=rec, done=ok, said=words, blocking=not fb_name,
-                fix='Set this TXT record once in your DNS (other TXT records at the name '
-                    'stay - one for each account): %s. TXT "%s"' % (rec['name'], rec['value'])))
+                fix=('Press "Write the records to DNS" at the validation: %s writes %s. TXT '
+                     '"%s" (other TXT records at the name stay)' % (
+                         self.writer_name(), rec['name'], rec['value'])) if self.writer_name()
+                else 'Set this TXT record once in your DNS (other TXT records at the name '
+                     'stay - one for each account): %s. TXT "%s"' % (rec['name'], rec['value'])))
             steps.append(guide_step('persist-ca', 'The CA offers dns-persist-01', where=title,
                                     done=True if offered else None, blocking=False,
                                     said=self.offer_words(self.ca_state(s.get('directory')),
@@ -603,9 +916,8 @@ class DnsPersist(Challenge):
     def overview(self, register=False, check=True):
         """For the page and the command line: each source's record, whether it is
         there, and whether its CA offers dns-persist-01."""
-        names = self.domains()
-        if not names:
-            names = []
+        names, derived = self.record_domains()
+        mine = self.written()
         recs, cas = [], {}
         for s in self.sources(register=register):
             title = s.get('title') or s['source']
@@ -636,10 +948,23 @@ class DnsPersist(Challenge):
                                                          else dom, s['issuer_domains'],
                                                          s['account'])
                         one['ok'], one['said'] = ok, words
+                        try:
+                            want = {'name': rec['name'], 'value': rec['value'],
+                                    'issuers': s['issuer_domains'], 'account': s['account']}
+                            one['state'] = self.state_of(want, self.txt(rec['name']))[0]
+                        except (D.DnsError, D.FormErr, OSError):
+                            one['state'] = 'unknown'
+                    hit = [m for m in mine if m.get('name') == rec['name'] and
+                           m.get('value') == rec['value']]
+                    one['written'] = bool(hit)
+                    one['via'] = hit[0].get('via') if hit else ''
                 recs.append(one)
         return {'records': recs, 'cas': list(cas.values()), 'domains': names,
-                'fallback': self.fallback_name(), 'wildcard': self.wildcard_on(),
-                'persist_until': self.until()}
+                'derived': derived, 'fallback': self.fallback_name(),
+                'wildcard': self.wildcard_on(), 'persist_until': self.until(),
+                'writer': self.writer_name(), 'write_missing': self.write_missing_on(),
+                'written': [{k: m.get(k) for k in ('domain', 'name', 'value', 'via', 'at',
+                                                   'source')} for m in mine]}
 
     def overview_lines(self, got):
         out = []
@@ -676,6 +1001,24 @@ class DnsPersist(Challenge):
         return 'the record is right: %s' % '; '.join(lines)
 
     def action(self, key):
+        if key == 'check_records':
+            rows = self.check_records()
+            if not rows:
+                raise PluginError('nothing to check: set "Domains with the record" and add an '
+                                  'ACME source', retry=False)
+            for r in rows:
+                lvl = {'present': 'ok', 'missing': 'warn', 'different': 'warn'}.get(
+                    r['state'], 'info')
+                self.ctx.step('%s (%s): %s - %s%s' % (r['name'], r['title'], {
+                    'present': 'there', 'missing': 'missing', 'different': 'another value',
+                    'unknown': 'not known'}[r['state']], r['said'],
+                    (' (written by acme through %s)' % r['via']) if r['written'] else ''), lvl)
+            n = sum(1 for r in rows if r['state'] == 'present')
+            return '%d of %d record(s) there' % (n, len(rows))
+        if key == 'write_records':
+            return self.write_records()
+        if key == 'remove_records':
+            return self.remove_records()
         if key == 'record':
             got = self.overview(register=True, check=bool(self.domains()))
             if not got['records']:

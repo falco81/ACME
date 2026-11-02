@@ -206,8 +206,7 @@ class RunContext(base.Context):
                 L.note_slow(url, pause)
                 if not idempotent or attempt >= tries or pause > L.WAIT_MAX or \
                         self.cancelled():
-                    self.step('%s asked acme to slow down (HTTP %s) - not asked again now' % (
-                        L.host_of(url).rsplit(':', 1)[0], got[0]), 'warn')
+                    self.step(L.slow_words(url, got[0]), 'warn')
                     return got
                 self.step(L.waiting_words(url, pause, got[0]), 'warn')
                 L._sleep(pause, self.cancelled)
@@ -519,6 +518,20 @@ class RunContext(base.Context):
         ctx = RunContext(self.store, self.job, scope='challenge:%s' % row['name'])
         self.children.append(ctx)
         return S.plugin_instance(self.store, 'challenge', row, ctx)
+
+    def names_using(self):
+        """The names of the certificates proved by this Context's validation (scope
+        challenge:NAME), as the renewer chooses (store.challenge_for)."""
+        if not str(self.scope).startswith('challenge:'):
+            return []
+        mine = self.scope.split(':', 1)[1]
+        out = []
+        for c in self.store.db.rows('SELECT names, challenge, challenge_map FROM certs '
+                                    'ORDER BY name'):
+            for n in S.jload(c.get('names'), []) or []:
+                if S.challenge_for(c, n) == mine and n not in out:
+                    out.append(n)
+        return out
 
     def tidy(self):
         """Whatever the job left in the DNS server or on port 80 taken away."""

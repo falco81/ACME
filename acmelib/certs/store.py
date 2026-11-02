@@ -294,6 +294,13 @@ def plugin_public(store, family, row, full=False):
     out['title'] = (cls.title or cls.kind) if cls else row.get('kind')
     out['module_missing'] = cls is None
     out['actions'] = [dict(a) for a in (getattr(cls, 'actions', None) or [])] if cls else []
+    if family == 'challenge' and row.get('kind') == 'dns_persist':
+        # what acme wrote in DNS for it (dns_persist.py) - its actions as they apply
+        got = jload(store.get_meta('certs:kv:challenge:%s:written' % row['name']), {}) or {}
+        out['persist_written'] = len(got.get('v') or []) if isinstance(got, dict) else 0
+        has = {'writer': bool(str(cfg.get('writer') or '').strip()),
+               'written': out['persist_written'] > 0}
+        out['actions'] = [a for a in out['actions'] if not a.get('needs') or has.get(a['needs'])]
     from acmelib.certs import defaults as DF
     dflt = DF.default_name(store, family)
     out['is_default'] = bool(dflt) and dflt == row.get('name')

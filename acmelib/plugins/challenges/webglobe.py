@@ -37,6 +37,7 @@ import threading
 import time
 import urllib.parse
 
+from acmelib.plugins import limits as L
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, http_call,
@@ -145,7 +146,11 @@ def domain_pairs(got):
 
 class WebglobeClient(object):
     """The Webglobe API for one module: signed in once a run (the JWT kept
-    until it runs out), signed in once more on a 401."""
+    until it runs out), signed in once more on a 401. Under acme's own ctx the
+    JWT is shared by every run with the same settings (acmelib/plugins/
+    limits.py): a readiness check of many certificates signs in once, and a
+    refused sign-in is not tried again for a minute - Webglobe locks a login
+    out after too many attempts."""
 
     def __init__(self, plugin):
         self.p = plugin
@@ -163,7 +168,7 @@ class WebglobeClient(object):
         return APIS.get(str(self.p.c('endpoint', 'production')), APIS['production'])
 
     # -- one request -----------------------------------------------------------------
-    def _raw(self, method, path, body=None, jwt=None):
+    def _raw(self, method, path, body=None, jwt=None, idempotent=None):
         h = {'Accept': 'application/json', 'User-Agent': 'acme-challenge'}
         data = None
         if body is not None:
@@ -171,7 +176,8 @@ class WebglobeClient(object):
             h['Content-Type'] = 'application/json'
         if jwt:
             h['Authorization'] = 'Bearer ' + jwt
-        st, _rh, got = http_call(self.ctx, method, self.base() + path, data, h, who=WHO)
+        st, _rh, got = http_call(self.ctx, method, self.base() + path, data, h, who=WHO,
+                                 idempotent=idempotent)
         parsed = None
         if got:
             try:
@@ -199,13 +205,31 @@ class WebglobeClient(object):
             code = None
         said = '%s (%s)' % (msg, code) if code is not None else msg
         words = 'Webglobe refused %s (HTTP %s): %s' % (what, st, said)
+        slow = st == 429 or L.is_slow_words(msg)
         if code in DENIED:
             words += ' - this login may not use that part of the API'
+        elif slow:
+            words += ' - Webglobe asks acme to slow down (too many attempts); acme waits ' \
+                     'and tries again later by itself'
         return WebglobeError(words, code=code, status=st, detail=parsed or got,
-                             retry=st >= 500 or st == 429)
+                             retry=st >= 500 or slow)
 
     # -- signing in ----------------------------------------------------------------------
+    def key(self):
+        return L.key_of(self.p, 'webglobe-session')
+
     def login(self):
+        """Signed in (the JWT kept in self.jwt): shared under acme's own ctx."""
+        if L.sharing(self.ctx):
+            self.jwt = L.session(self.key(), self._login_once)
+            self.until = time.time() + 60.0
+            return self.jwt
+        jwt, life = self._login_once()
+        self.jwt = jwt
+        self.until = time.time() + max(min(life, 86400.0) - 30.0, 30.0)
+        return jwt
+
+    def _login_once(self):
         login = str(self.p.c('login', '') or '').strip()
         how = str(self.p.c('auth', 'token') or 'token')
         secret = str(self.p.c('api_token' if how == 'token' else 'password', '') or '')
@@ -219,15 +243,13 @@ class WebglobeClient(object):
         ok = isinstance(parsed, dict) and parsed.get('success') is not False
         data = (parsed or {}).get('data') if isinstance(parsed, dict) else None
         if st == 200 and ok and isinstance(data, dict) and data.get('token'):
-            self.jwt = str(data['token'])
             life = data.get('expires_in')
             try:
                 life = float(life)
             except (TypeError, ValueError):
                 life = 600.0
-            self.until = time.time() + max(min(life, 86400.0) - 30.0, 30.0)
             self.me = data
-            return self.jwt
+            return str(data['token']), life
         e = self.refusal(st, parsed, got, 'the sign-in')
         if e.code in TWO_FACTOR:
             if how == 'token':
@@ -259,6 +281,8 @@ class WebglobeClient(object):
 
     def token(self):
         with self.lock:
+            if L.sharing(self.ctx):
+                return self.login()             # the shared one, signed in when there is none
             if not self.jwt or time.time() >= self.until:
                 self.login()
             return self.jwt
@@ -272,6 +296,8 @@ class WebglobeClient(object):
             with self.lock:
                 if self.jwt == jwt:
                     self.jwt = None
+            if L.sharing(self.ctx):
+                L.session_drop(self.key(), jwt)
             st, parsed, got = self._raw(method, path, body, self.token())
             if st == 401:
                 raise WebglobeError('Webglobe signed acme in, but then did not take its token '
@@ -286,9 +312,14 @@ class WebglobeClient(object):
 
     # -- domains ------------------------------------------------------------------------------
     def domains(self):
-        """{name: ID} of every domain the login sees."""
-        got = self.call('GET', '/domains?per_page=1000', what='the list of domains')
-        return domain_pairs(got)
+        """{name: ID} of every domain the login sees - asked once for a little
+        while under acme's own ctx (the same settings share it)."""
+        def ask():
+            got = self.call('GET', '/domains?per_page=1000', what='the list of domains')
+            return domain_pairs(got)
+        if L.sharing(self.ctx):
+            return dict(L.shared(L.key_of(self.p, 'webglobe-domains'), ask))
+        return ask()
 
     def domain(self, name):
         """(name, ID) of one domain asked for by its name, or None when the

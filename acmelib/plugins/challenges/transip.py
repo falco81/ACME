@@ -23,6 +23,7 @@ import json
 import os
 import time
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, api, openssl_sign,
                                                 relative, unquote_txt)
@@ -66,9 +67,17 @@ class TransIp(ApiDns):
         return next((t for t in EXPIRES if t >= want), EXPIRES[-1])
 
     def token(self, now=None):
+        if now is None and limits.sharing(self.ctx):
+            # one token for every run with these settings, for its lifetime
+            return limits.session(limits.key_of(self, 'token'),
+                                  lambda: (self._sign_in(time.time()), 1800.0))
         now = time.time() if now is None else now
         if self._token and now < self._token_until - 60:
             return self._token
+        self._token, self._token_until = self._sign_in(now), now + 1800
+        return self._token
+
+    def _sign_in(self, now):
         body = json.dumps({'login': str(self.c('login', '')),
                            'nonce': binascii.hexlify(os.urandom(16)).decode(),
                            'read_only': False, 'expiration_time': '30 minutes',
@@ -79,8 +88,7 @@ class TransIp(ApiDns):
                        headers={'Content-Type': 'application/json', 'Signature': sig})
         if not isinstance(got, dict) or not got.get('token'):
             raise PluginError('TransIP gave no token', retry=False)
-        self._token, self._token_until = got['token'], now + 1800
-        return self._token
+        return got['token']
 
     def _call(self, method, path, body=None, missing_ok=False):
         st, got = api(self.ctx, method, API + path, body,

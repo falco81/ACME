@@ -21,6 +21,7 @@ from __future__ import annotations
 import time
 import urllib.parse
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, api
 from acmelib.plugins.challenges._records import RecordApiDns, basic, form_call, rel_name
@@ -49,8 +50,16 @@ class MythicBeasts(RecordApiDns):
     ] + PROPAGATION_FIELDS
 
     def _token(self):
+        if limits.sharing(self.ctx):
+            # one token for every run with these settings, for its lifetime
+            return limits.session(limits.key_of(self, 'token'), self._sign_in)
         if getattr(self, '_tok', None) and self._tok[1] > time.time() + 30:
             return self._tok[0]
+        tok, life = self._sign_in()
+        self._tok = (tok, time.time() + life)
+        return tok
+
+    def _sign_in(self):
         _st, got, _raw = form_call(self.ctx, 'POST', str(self.c('auth', AUTH)),
                                    {'grant_type': 'client_credentials'},
                                    {'Authorization': basic(self.c('key_id', ''),
@@ -59,8 +68,7 @@ class MythicBeasts(RecordApiDns):
         tok = (got or {}).get('access_token')
         if not tok:
             raise PluginError('Mythic Beasts: signed in, but no token came back', retry=False)
-        self._tok = (tok, time.time() + float((got or {}).get('expires_in') or 300))
-        return tok
+        return tok, float((got or {}).get('expires_in') or 300)
 
     def _call(self, method, path, body=None):
         _st, got = api(self.ctx, method, str(self.c('api', API)).rstrip('/') + path, body,

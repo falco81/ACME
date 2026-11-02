@@ -733,7 +733,9 @@ class Base(Target):
 
 
 class HttpTarget(Base):
-    """A device spoken to over HTTPS through ctx.http."""
+    """A device spoken to over HTTPS through ctx.http - which is kind to it
+    (acmelib/plugins/limits.py): two requests at once and a few a second at
+    most, a 429 / 503 waited out for a call that may be repeated."""
     kind = ''
     scheme = 'https'
 
@@ -803,7 +805,11 @@ class HttpTarget(Base):
         if not msg:
             msg = re.sub(r'<[^>]+>', ' ', text(raw))
             msg = re.sub(r'\s+', ' ', msg).strip()[:200]
-        if status in (401, 403):
+        from acmelib.plugins import limits
+        if status == 429 or (status in (400, 401, 403, 503) and limits.is_slow_words(msg)):
+            head = 'the device asks acme to slow down (%d) - acme tries again later by itself' \
+                % status
+        elif status in (401, 403):
             head = 'the device does not let acme in (%d)' % status
         elif status == 404:
             head = 'not found on the device (404)'

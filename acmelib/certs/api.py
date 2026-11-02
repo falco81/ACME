@@ -610,6 +610,33 @@ def _cert_compat(h, s):
     return out
 
 
+def _truthy(v):
+    return str(v).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def field_shown(f, values, fields=None):
+    """Whether a field is in use with these values - its show_if met, as the page
+    draws it (1.0.21): a required field of a part switched off (a Windows role
+    not chosen) is not asked for."""
+    cond = f.get('show_if')
+    if not isinstance(cond, dict):
+        return True
+    for k, want in cond.items():
+        want = want if isinstance(want, (list, tuple)) else [want]
+        have = values.get(k)
+        ok = False
+        for w in want:
+            if isinstance(w, bool) or isinstance(have, bool):
+                ok = _truthy(w) == _truthy(have) if have is not None else (w is False)
+            else:
+                ok = str(w) == str('' if have is None else have)
+            if ok:
+                break
+        if not ok:
+            return False
+    return True
+
+
 def cert_drop(store, row, by):
     """A certificate gone from acme: its deployments, versions, finished jobs and
     what the portal kept of who asked for it (nothing on the targets, nothing at the CA)."""
@@ -1386,6 +1413,12 @@ def options_for(store, source):
     if table:
         return [[r['name'], '%s (%s)' % (r['name'], r['kind'])]
                 for r in store.db.rows('SELECT name, kind FROM %s ORDER BY name' % table)]
+    if source == 'dns_writers':
+        # the DNS validations that can write a TXT record that stays (dns_persist.py)
+        from acmelib.plugins.challenges import dns_persist
+        return [[r['name'], '%s (%s)' % (r['name'], r['kind'])]
+                for r in store.db.rows('SELECT name, kind FROM cert_challenges ORDER BY name')
+                if dns_persist.can_write(S.plugin_class('challenge', r['kind']))]
     if source == 'certs':
         return [[r['name'], r['name']] for r in store.db.rows('SELECT name FROM certs ORDER BY name')]
     if source == 'key_types':
@@ -1401,7 +1434,10 @@ def _resolve(store, fields):
     for f in fields or []:
         f = dict(f)
         if f.get('options_from'):
-            f['options'] = options_for(store, f['options_from'])
+            # an empty choice the field offers itself ('none', 'by hand') stays first
+            empty = [o for o in (f.get('options') or []) if isinstance(o, (list, tuple)) and
+                     o and o[0] == '']
+            f['options'] = empty[:1] + options_for(store, f['options_from'])
             if f['options_from'] == 'cas':
                 if dca is None:
                     row = DF.default_ca(store)
@@ -1483,8 +1519,8 @@ def family_save(store, family, b, by):
         cfg = S.config_seal(given, old_cfg, '%s:%s' % (table, row['id']), secrets_)
         if cls is not None:
             for f in cls.fields or []:
-                if f.get('required') and cfg.get(f['key']) in (None, '') and \
-                        f.get('default') in (None, ''):
+                if f.get('required') and field_shown(f, cfg) and \
+                        cfg.get(f['key']) in (None, '') and f.get('default') in (None, ''):
                     raise ValueError('%s: %s is needed' % (name, f.get('label') or f['key']))
         if len(json.dumps(cfg)) > 200000:
             raise ValueError('those settings are too big')
@@ -1535,6 +1571,24 @@ def family_delete(store, family, b, by):
     store.add_event('certificates', '%s %s deleted by %s' % (family, row['name'], by), 'warn',
                     who=by)
     return row['name']
+
+
+def persist_cleanup(store, b, by):
+    """Before a dns-persist-01 validation is deleted (its "Also remove its records from
+    DNS"): what acme wrote taken away, in a job - nothing is deleted when that fails."""
+    row = S.plugin_row(store, 'challenge', _id(b.get('id')))
+    if not row:
+        raise LookupError('there is no such validation')
+    if row.get('kind') != 'dns_persist':
+        return {}
+    used = S.plugin_public(store, 'challenge', row)['used_by']
+    if used:
+        raise ValueError('%s is in use (%d): change those first' % (row['name'], used))
+    got = family_action(store, 'challenge', {'id': row['id'], 'action': 'remove_records'}, by)
+    if not got['ok']:
+        raise ValueError('its records were not all taken away from DNS (%s) - nothing was '
+                         'deleted' % got['said'])
+    return {'job_id': got['job_id'], 'cleanup': got['said']}
 
 
 def _same_value(f, a, b):
@@ -1697,7 +1751,12 @@ def _family_routes(family, path):
 
     @api('POST', '/api/%s/delete' % path, 'fulladmin')
     def _delete(h, s):
-        return {'message': '%s deleted' % family_delete(h.store, family, h.body(), who(s))}
+        b = h.body()
+        out = {}
+        if family == 'challenge' and b.get('cleanup') not in (None, '', 0, '0', False, 'false'):
+            out.update(persist_cleanup(h.store, b, who(s)))
+        out['message'] = '%s deleted' % family_delete(h.store, family, b, who(s))
+        return out
 
     @api('POST', '/api/%s/test' % path, 'certadmin')
     def _test(h, s):
@@ -1838,8 +1897,8 @@ def deploy_save(store, b, by, full=True):
                 row['id'], 'pfx_password'))
         if cls is not None:
             for f in cls.deploy_fields or []:
-                if f.get('required') and opts.get(f['key']) in (None, '') and \
-                        f.get('default') in (None, ''):
+                if f.get('required') and field_shown(f, opts) and \
+                        opts.get(f['key']) in (None, '') and f.get('default') in (None, ''):
                     raise ValueError('%s is needed' % (f.get('label') or f['key']))
         fields['options'] = json.dumps(opts)
         fields['state'] = 'new' if row.get('state') != 'ok' else 'changed'
@@ -2021,3 +2080,4 @@ from acmelib.certs import api_reqprofiles  # noqa: E402,F401  (Settings → Requ
 from acmelib.certs import api_deploys  # noqa: E402,F401  (a deployment's files: preview, test)
 from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edit, renew, versions)
 from acmelib.certs import api_runplan  # noqa: E402,F401  (what happens: a certificate's run plan)
+from acmelib.certs import api_catalog  # noqa: E402,F401  (a form's lists: a CA's products)

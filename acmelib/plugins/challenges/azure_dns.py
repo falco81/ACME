@@ -6,6 +6,7 @@ from __future__ import annotations
 import time
 import urllib.parse
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, DnsChallenge, api,
@@ -47,8 +48,16 @@ class AzureDns(DnsChallenge):
         return CLOUDS.get(self.c('cloud', 'public'), CLOUDS['public'])
 
     def token(self):
+        if limits.sharing(self.ctx):
+            # one token for every run with these settings, for its lifetime
+            return limits.session(limits.key_of(self, 'token'), self._sign_in)
         if self._token and time.time() < self._token_until - 60:
             return self._token
+        self._token, life = self._sign_in()
+        self._token_until = time.time() + life
+        return self._token
+
+    def _sign_in(self):
         login, mgmt = self._urls()
         body = urllib.parse.urlencode({
             'grant_type': 'client_credentials', 'client_id': self.c('client_id', ''),
@@ -58,9 +67,7 @@ class AzureDns(DnsChallenge):
             headers={'Content-Type': 'application/x-www-form-urlencoded'}, who='Microsoft Entra')
         if not got or not got.get('access_token'):
             raise PluginError('Microsoft Entra gave no token', retry=False)
-        self._token = got['access_token']
-        self._token_until = time.time() + float(got.get('expires_in') or 3000)
-        return self._token
+        return got['access_token'], float(got.get('expires_in') or 3000)
 
     def _arm(self, method, path, body=None, missing_ok=False):
         _login, mgmt = self._urls()

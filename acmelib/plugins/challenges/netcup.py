@@ -17,6 +17,7 @@ waits for them; the TTL is the zone's, not a record's.
 """
 from __future__ import annotations
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, api, no_zone,
@@ -49,15 +50,25 @@ class Netcup(ApiDns):
         return got
 
     def _login(self):
-        if not self._session:
-            got = self._raw('login', {'customernumber': str(self.c('customer', '')),
-                                      'apikey': str(self.c('api_key', '')),
-                                      'apipassword': str(self.c('api_password', ''))})
-            if got.get('status') != 'success':
-                raise PluginError('netcup did not sign in: %s' % (
-                    got.get('longmessage') or got.get('shortmessage') or got.get('statuscode')),
-                    detail=got, retry=False)
-            self._session = (got.get('responsedata') or {}).get('apisessionid')
+        if self._session:
+            return
+        if limits.sharing(self.ctx):
+            # one API session for every run with these settings (netcup ends one
+            # after 15 minutes without use)
+            self._session = limits.session(limits.key_of(self, 'session'),
+                                           lambda: (self._sign_in(), 600.0))
+            return
+        self._session = self._sign_in()
+
+    def _sign_in(self):
+        got = self._raw('login', {'customernumber': str(self.c('customer', '')),
+                                  'apikey': str(self.c('api_key', '')),
+                                  'apipassword': str(self.c('api_password', ''))})
+        if got.get('status') != 'success':
+            raise PluginError('netcup did not sign in: %s' % (
+                got.get('longmessage') or got.get('shortmessage') or got.get('statuscode')),
+                detail=got, retry=False)
+        return (got.get('responsedata') or {}).get('apisessionid')
 
     def _call(self, action, param=None, quiet=()):
         self._login()
@@ -70,6 +81,8 @@ class Netcup(ApiDns):
             if code in quiet:
                 return None
             if code == 4001:                    # the session ran out
+                if limits.sharing(self.ctx):
+                    limits.session_drop(limits.key_of(self, 'session'), self._session)
                 self._session = None
             raise PluginError('netcup said %s: %s' % (code, got.get('longmessage') or
                               got.get('shortmessage')), detail=got, retry=code == 4001)
@@ -129,6 +142,8 @@ class Netcup(ApiDns):
         else:
             self._login()
             words = 'netcup: signed in (netcup lists no zones: set the domain to check one)'
+        if limits.sharing(self.ctx):
+            return words                # the session is shared: it runs out by itself
         try:
             self._call('logout')
         except PluginError:

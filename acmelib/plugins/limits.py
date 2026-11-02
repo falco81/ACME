@@ -56,6 +56,7 @@ HOST_BURST = 6.0            # ... and at once after a quiet while
 IDEMPOTENT = ('GET', 'HEAD', 'OPTIONS', 'PUT', 'DELETE')
 RETRIES = 2                 # an idempotent call asked again at most this often
 WAIT_MAX = 60.0             # the longest wait acme sits out in a request
+HOLD_WAIT = 15.0            # a held host is waited for this long; longer: refused in words
 HOLD_CAP = 300.0            # a host is held at most this long (a longer wait is the caller's)
 LOCKOUT_S = 60.0            # a "too many attempts" refusal without a Retry-After
 BASE_S = 2.0                # the first wait when the service says nothing
@@ -171,7 +172,7 @@ class throttle(object):
         with h.lock:
             left = h.hold_until - NOW()
         if left > 0:
-            if left > WAIT_MAX:
+            if left > HOLD_WAIT:
                 raise PluginError(
                     '%s asked acme to slow down: it is not asked again before %s' % (
                         name, _clock(h.hold_until)), retry=True)
@@ -313,6 +314,11 @@ def most_at_once(url):
     with _LOCK:
         h = _HOSTS.get(host_of(url))
     return h.most if h else 0
+
+
+def slow_words(url, status):
+    name = host_of(url).rsplit(':', 1)[0] or url
+    return '%s asked acme to slow down (HTTP %s)' % (name, status)
 
 
 def waiting_words(url, wait, status):

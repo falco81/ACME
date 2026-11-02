@@ -27,6 +27,7 @@ import tempfile
 import threading
 import time
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import Challenge, PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
 
@@ -131,6 +132,7 @@ def settings(ctx):
 # ---------------------------------------------------------------------------
 # A JSON API through ctx.http
 # ---------------------------------------------------------------------------
+ACCESS_S = 30.0             # a module's test() for the readiness checks, kept so long
 RETRIES_429 = 3             # how often a "429 Too Many Requests" is waited out
 WAIT_429_MAX = 60.0         # the longest wait a Retry-After is believed for
 SLEEP = time.sleep          # a test puts its own here
@@ -153,13 +155,26 @@ def retry_after(headers, default=5.0, now=None):
 
 
 def http_call(ctx, method, url, body=None, headers=None, who='the API', timeout=30,
-              verify=True, ca_pem=None, retries=None):
+              verify=True, ca_pem=None, retries=None, idempotent=None):
     """(status, headers, bytes) through ctx.http (so through the proxy of
-    Settings → Proxy). A 429 is waited out as long as it says (Retry-After, at
-    most WAIT_429_MAX), up to RETRIES_429 times, the job told so; a server that
+    Settings → Proxy). acme's own ctx (RunContext) is kind to the server
+    itself (acmelib/plugins/limits.py: a few requests a second per host, a 429
+    / 503 / "too many attempts" waited out for an idempotent call, the job told
+    so). A stand-in ctx without that: a 429 is waited out as long as it says
+    (Retry-After, at most WAIT_429_MAX), up to RETRIES_429 times; a server that
     cannot be reached is a PluginError in words."""
     retries = RETRIES_429 if retries is None else retries
     kw = {'ca_pem': ca_pem} if ca_pem else {}
+    if getattr(ctx, 'shares_limits', False):
+        if idempotent is not None:
+            kw['idempotent'] = idempotent
+        try:
+            return ctx.http(method, url, body=body, headers=headers, timeout=timeout,
+                            verify=verify, retries=min(retries, 2), **kw)
+        except PluginError:
+            raise
+        except Exception as e:                          # noqa: BLE001
+            raise PluginError('%s did not answer: %s' % (who, e))
     for attempt in range(retries + 1):
         try:
             status, rh, got = ctx.http(method, url, body=body, headers=headers,
@@ -212,9 +227,14 @@ def said_error(who, status, parsed, got):
     words = '%s said %s: %s' % (who, status, said.strip() or 'nothing more')
     if status in (401, 403):
         words += ' - the credentials are wrong or may not do this'
-    elif status == 429:
-        words += ' - it kept asking to wait; try again later'
+    elif status == 429 or (status in (400, 403) and _slow(said)):
+        words += ' - it asks acme to slow down; acme tries again later by itself'
     return PluginError(words, detail=said, retry=status >= 500 or status == 429)
+
+
+def _slow(text):
+    from acmelib.plugins import limits
+    return limits.is_slow_words(text)
 
 
 def _said(p):
@@ -703,11 +723,18 @@ class DnsChallenge(Challenge):
                 fix='Run a dry run: a test record is put in, looked for and taken away'))
         return guide_of(steps)
 
+    def _tested(self):
+        """test() - under acme's own ctx asked once for a little while for the same
+        settings (a readiness check of many names signs in once)."""
+        if not limits.sharing(self.ctx):
+            return self.test()
+        return limits.shared(limits.key_of(self, 'access'), self.test, ttl=ACCESS_S)
+
     def guide_access(self):
         """The module's own test(), which changes nothing: credentials, the server."""
         where = self.who_words()
         try:
-            said = self.test()
+            said = self._tested()
         except PluginError as e:
             return [guide_step('access', 'acme can reach and sign in to %s' % where, where=where,
                                done=False, said=str(e),
@@ -1236,7 +1263,13 @@ class ApiDns(DnsChallenge):
 
     def _zone_names(self):
         if getattr(self, '_zone_list', None) is None:
-            self._zone_list = [D.norm(z) for z in (self.zone_names() or []) if z]
+            def ask():
+                return [D.norm(z) for z in (self.zone_names() or []) if z]
+            if limits.sharing(self.ctx):
+                # one list for every run with the same settings, for a little while
+                self._zone_list = list(limits.shared(limits.key_of(self, 'zones'), ask))
+            else:
+                self._zone_list = ask()
         return self._zone_list
 
     def zone_hint(self, fqdn):

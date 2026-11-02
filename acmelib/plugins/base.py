@@ -57,8 +57,15 @@ import traceback
 #             auth_key='auth' (the select saying key or password), ssh_prefix='ssh_',
 #             try_command='id -un; uname -n', howto='linux' | 'windows' | 'mikrotik' |
 #             'pfsense' | 'opnsense' | 'generic' (the module's sshkey_howto otherwise)
+#   catalog   a choice from a list the module fetches live (a CA's products): the page's
+#             "Load the list" asks the module's catalog(<catalog>) with the form as it
+#             is (saved or not, a kept secret used) and gets {'options': [[value, words]],
+#             'sets': {value: {other_key: value}} (picked: those fields filled in), 'said'};
+#             read-only (acmelib/certs/api_catalog.py, web/assets/catalog.js). Options:
+#             catalog='products', depends=['token'] (what the list needs set first).
+#             Elsewhere (command line, console) it is a text field holding the value.
 FIELD_TYPES = ('text', 'secret', 'number', 'bool', 'select', 'textarea', 'pem', 'list',
-               'hostport', 'sshkey')
+               'hostport', 'sshkey', 'catalog')
 
 
 def field(key, label, type='text', **more):
@@ -127,6 +134,8 @@ class Context(object):
                                             unless asked (AcmeIssuer.persist_info)
         ctx.validation(name) -> Challenge instance or None
                                             another validation, as the renewer makes it
+        ctx.names_using() -> [names]        the names of the certificates this validation
+                                            proves (its own scope 'challenge:NAME')
 
     For a target that is acme itself (targets/appliance.py) - the certificate
     of its own pages, as Settings → Certificates and TLS keeps it:
@@ -173,6 +182,9 @@ class Context(object):
 
     def validation(self, name):
         return None
+
+    def names_using(self):
+        return []
 
 
 class SshSession(object):

@@ -25,6 +25,7 @@ import json
 import struct
 import time
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, _header, http_call,
@@ -99,6 +100,13 @@ class Inwx(ApiDns):
     def _login(self):
         if self._cookie:
             return
+        if limits.sharing(self.ctx):
+            # one signed-in session for every run with these settings
+            self._cookie = limits.session(limits.key_of(self, 'session'), self._sign_in)
+            return
+        self._sign_in()
+
+    def _sign_in(self):
         got = self._rpc('account.login', {'user': str(self.c('username', '')),
                                           'pass': str(self.c('password', ''))})
         tfa = str(got.get('tfa') or '0')
@@ -114,6 +122,7 @@ class Inwx(ApiDns):
             except (ValueError, TypeError, base64.binascii.Error):
                 raise PluginError('the two-factor secret is not a base32 key', retry=False)
             self._rpc('account.unlock', {'tan': code})
+        return self._cookie, 600.0
 
     def _call(self, method, params=None, ok=(1000,)):
         self._login()
@@ -155,6 +164,8 @@ class Inwx(ApiDns):
 
     def test(self):
         words = ApiDns.test(self)
+        if limits.sharing(self.ctx):
+            return words                # the session is shared: it runs out by itself
         try:
             self._rpc('account.logout', ok=(1000, 1500))
         except PluginError:

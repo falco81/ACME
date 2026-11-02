@@ -41947,6 +41947,14 @@
   "sdel15": {
    "source": "revoked - now deleted from acme",
    "text": "odvoláno – teď se maže z acme"
+  },
+  "sl0001": {
+   "source": " - it asks acme to slow down; acme tries again later by itself",
+   "text": " – žádá acme o zpomalení; acme to zkusí později samo"
+  },
+  "sl0002": {
+   "source": " - Webglobe asks acme to slow down (too many attempts); acme waits and tries again later by itself",
+   "text": " – Webglobe žádá acme o zpomalení (příliš mnoho pokusů); acme počká a zkusí to později samo"
   }
  },
  "patterns": {
@@ -58145,6 +58153,46 @@
   "sdel16": {
    "source": "reason: {0}, then deleted",
    "text": "důvod: {0}, pak smazán"
+  },
+  "pl0001": {
+   "source": "{0} asked acme to slow down: it is not asked again before {1}",
+   "text": "{0} požádal acme o zpomalení: znovu se ho nezeptá dřív než v {1}"
+  },
+  "pl0002": {
+   "source": "{0} asked acme to slow down: waiting {1} s",
+   "text": "{0} požádal acme o zpomalení: čeká se {1} s"
+  },
+  "pl0003": {
+   "source": "{0} asked acme to slow down (HTTP {1})",
+   "text": "{0} požádal acme o zpomalení (HTTP {1})"
+  },
+  "pl0004": {
+   "source": "{0} asked acme to slow down (HTTP {1}): waiting {2} s, then asking once more",
+   "text": "{0} požádal acme o zpomalení (HTTP {1}): čeká se {2} s, pak se zeptá ještě jednou"
+  },
+  "pl0005": {
+   "source": "Let's Encrypt allows {0} new accounts in {1} hours: acme holds this one back until {2}",
+   "text": "Let's Encrypt dovoluje {0} nových účtů za {1} hodiny: acme tento pozdrží do {2}"
+  },
+  "pl0006": {
+   "source": "Let's Encrypt allows {0} new orders in {1} hours: acme holds this one back until {2}",
+   "text": "Let's Encrypt dovoluje {0} nových objednávek za {1} hodiny: acme tuto pozdrží do {2}"
+  },
+  "pl0007": {
+   "source": "{0} said {1}: {2} - it asks acme to slow down; acme tries again later by itself",
+   "text": "{0} odpověděl {1}: {2} – žádá acme o zpomalení; acme to zkusí později samo"
+  },
+  "pl0008": {
+   "source": "Webglobe refused {0} (HTTP {1}): {2} - Webglobe asks acme to slow down (too many attempts); acme waits and tries again later by itself",
+   "text": "Webglobe odmítl {0} (HTTP {1}): {2} – Webglobe žádá acme o zpomalení (příliš mnoho pokusů); acme počká a zkusí to později samo"
+  },
+  "pl0009": {
+   "source": "the device asks acme to slow down ({0}) - acme tries again later by itself",
+   "text": "zařízení žádá acme o zpomalení ({0}) – acme to zkusí později samo"
+  },
+  "pl0010": {
+   "source": "{0}: the device asks acme to slow down ({1}) - acme tries again later by itself",
+   "text": "{0}: zařízení žádá acme o zpomalení ({1}) – acme to zkusí později samo"
   }
  },
  "rich": {

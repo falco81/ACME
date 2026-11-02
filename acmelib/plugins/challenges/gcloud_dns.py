@@ -11,6 +11,7 @@ import tempfile
 import time
 import urllib.parse
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, api, rmw_lock
@@ -82,8 +83,16 @@ class GoogleCloudDns(DnsChallenge):
         return self.c('project', '') or self._sa().get('project_id') or ''
 
     def token(self):
+        if limits.sharing(self.ctx):
+            # one token for every run with these settings, for its lifetime
+            return limits.session(limits.key_of(self, 'token'), self._sign_in)
         if self._token and time.time() < self._token_until - 60:
             return self._token
+        self._token, life = self._sign_in()
+        self._token_until = time.time() + life
+        return self._token
+
+    def _sign_in(self):
         sa = self._sa()
         body = urllib.parse.urlencode({
             'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -93,9 +102,7 @@ class GoogleCloudDns(DnsChallenge):
                        who='Google')
         if not got or not got.get('access_token'):
             raise PluginError('Google gave no token', retry=False)
-        self._token = got['access_token']
-        self._token_until = time.time() + float(got.get('expires_in') or 3000)
-        return self._token
+        return got['access_token'], float(got.get('expires_in') or 3000)
 
     def _call(self, method, path, body=None):
         return api(self.ctx, method, '%s/projects/%s%s' % (

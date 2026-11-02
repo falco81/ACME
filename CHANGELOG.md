@@ -6,6 +6,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.21 - 2026-11-02
 
+- Saving a deployment (or a source, validation, target) no longer asks for a
+  required field of a part switched off - "Folder of the store is needed" with
+  the IIS Central Certificate Store role off on a Windows server.
 - **Delete asks in a popup and revokes first**: *Revoke it first* is ticked
   (with the reason, "no longer used"); the certificate is revoked at its CA and
   then deleted, in one job - a revocation that fails deletes nothing. Where it

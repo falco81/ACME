@@ -515,5 +515,22 @@ class TestAndPreviewTest(unittest.TestCase):
         self.assertIn('the test passed', t.dry_run(FakeBundle(), {'role_sql': True}))
 
 
+class RequiredOnlyWhenOn(unittest.TestCase):
+    """A required field of a role switched off is not asked for when the deployment is
+    saved (1.0.21: "Folder of the store is needed" with IIS CCS off)."""
+
+    def test_roles_off_ask_nothing(self):
+        from acmelib.certs import api as A
+        from acmelib.plugins.targets import windows_ssh as W
+        req = [f for f in W.WindowsSshTarget.deploy_fields if f.get('required') and
+               f.get('show_if')]
+        self.assertTrue(any(f['key'] == 'ccs_path' for f in req))
+        for f in req:
+            self.assertFalse(A.field_shown(f, {}), f['key'])
+            self.assertFalse(A.field_shown(f, {'role_ccs': False}), f['key'])
+        ccs = [f for f in req if f['key'] == 'ccs_path'][0]
+        self.assertTrue(A.field_shown(ccs, {'role_ccs': True}))
+
+
 if __name__ == '__main__':
     unittest.main()
