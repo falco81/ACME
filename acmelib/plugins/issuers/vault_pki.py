@@ -59,15 +59,18 @@ class VaultPkiIssuer(Issuer):
     ip_names = True
     choose_days = True
     lists_existing = True           # LIST certs + read: Certificates → Import from a source
-    per_cert = [{'key': 'role', 'field': 'role', 'label': 'Role', 'placeholder': 'web-servers',
+    per_cert = [{'key': 'role', 'field': 'role', 'catalog': 'roles', 'label': 'Role',
+                 'placeholder': 'web-servers',
                  'help': 'The Vault PKI role for this certificate. Empty: the source\'s own.'}]
     fields = [
         field('url', 'Vault address', 'text', required=True, placeholder='https://vault.example.local:8200'),
         field('mount', 'PKI mount', 'text', default='pki', placeholder='pki_int',
               help='The path the PKI engine is mounted at.'),
-        field('role', 'Role', 'text', required=True, placeholder='web-servers',
+        field('role', 'Role', 'catalog', catalog='roles', required=True, placeholder='web-servers',
+              depends=['url', 'mount', 'token'],
               help='The role whose rules the certificate follows (allowed domains, TTL, key '
-                   'types). A certificate\'s own profile "role" wins.'),
+                   'types). Load the list: the roles of the mount (LIST roles); one can be '
+                   'typed too. A certificate\'s own role (Add a certificate → Settings) wins.'),
         field('issuer_ref', 'Issuer', 'text', advanced=True, placeholder='default',
               help='An issuer of the mount by its name or id (/issuer/REF/sign/ROLE). Empty: '
                    'the role\'s.'),
@@ -201,6 +204,19 @@ class VaultPkiIssuer(Issuer):
         got = self._call('GET', '%s/cert/%s' % (self._mount(), serial), token=False,
                          what='Vault (the certificate %s)' % serial)
         return (got.get('data') or {}).get('certificate') or ''
+
+    # -- the form's lists (base.py: a field of the type catalog) ------------------------
+    def catalog(self, key):
+        """The roles of the mount: LIST /v1/<mount>/roles -> data.keys (sent as GET
+        ...?list=true; developer.hashicorp.com/vault/api-docs/secret/pki "List roles",
+        hashicorp/web-unified-docs). Read-only."""
+        if key != 'roles':
+            raise PluginError('there is no list called %s here' % key, retry=False)
+        got = self._call('GET', '%s/roles?list=true' % self._mount(), ok=(200, 204, 404),
+                         what='Vault (the list of roles)')
+        keys = sorted(str(k) for k in ((got or {}).get('data') or {}).get('keys') or [])
+        return {'options': [[k, k] for k in keys],
+                'said': '%d role(s) of the mount %s' % (len(keys), self._mount())}
 
     def list_existing(self):
         """The current certificates of the mount (LIST certs, each read) - read only."""

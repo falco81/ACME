@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.25 - not released
 
+- **Vault PKI: the roles loaded from the mount** (LIST roles) - in the source's
+  form and, for each certificate, in *Add a certificate → Settings*; one can
+  still be typed.
+
 - The directory's groups (Settings → Administrators and the teams' members):
   *narrow this list* reads `name:`, `dn~`, `about:` with its funnel too, and the
   box stays as it is while the list under it is drawn again.

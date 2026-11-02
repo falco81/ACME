@@ -125,6 +125,12 @@ What acme does: `POST /v1/<mount>/sign/<role>` (or
 and `<mount>/cert/ca_chain`. Source:
 https://developer.hashicorp.com/vault/api-docs/secret/pki and
 https://developer.hashicorp.com/vault/api-docs/auth/approle.
+*Role* (in the form, and for each certificate in *Add a certificate →
+Settings*) loads the mount's roles: `LIST /v1/<mount>/roles` (sent as
+`GET ...?list=true`) → `data.keys` - "List roles" of the same API reference
+(checked in 1.0.25 in hashicorp/web-unified-docs,
+`content/vault/v1.20.x/content/api-docs/secret/pki/index.mdx`); the token needs
+`list` on that path, and a role can always be typed.
 
 Where to get credentials: a token whose policy allows
 

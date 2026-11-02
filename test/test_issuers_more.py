@@ -440,6 +440,19 @@ class TestVault(Base):
         self.assertTrue(any('short ttl' in w for _l, w in ctx.steps))
         self.assertIn('revoked', v.revoke(out.cert_pem))
 
+    def test_roles_listed(self):
+        def handler(method, url, body, headers, cc):
+            u = urllib.parse.urlsplit(url)
+            self.assertEqual((method, u.path, u.query), ('GET', '/v1/pki_int/roles', 'list=true'))
+            return 200, {}, {'data': {'keys': ['web', 'internal', 'api']}}
+        v = VaultPkiIssuer({'url': 'https://vault:8200', 'mount': 'pki_int', 'role': 'web',
+                            'token': 't'}, CannedContext(handler))
+        got = v.catalog('roles')
+        self.assertEqual(got['options'], [['api', 'api'], ['internal', 'internal'], ['web', 'web']])
+        self.assertIn('3 role(s)', got['said'])
+        f = [x for x in VaultPkiIssuer.fields if x['key'] == 'role'][0]
+        self.assertEqual((f['type'], f['catalog']), ('catalog', 'roles'))
+
     def test_refused(self):
         ctx = CannedContext(lambda *a: (403, {}, {'errors': ['permission denied']}))
         v = VaultPkiIssuer({'url': 'https://vault:8200', 'role': 'web', 'token': 't'}, ctx)
