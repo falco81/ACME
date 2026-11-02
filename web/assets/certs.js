@@ -43,7 +43,7 @@ function capi(path, body, wait) {
    that changes something, so the next tab, popup or form asks again: a
    thing made in one tab is in every other at once, without F5. POSTs that
    only read (a file looked into, an export, a test, a check) keep them. */
-var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|dry_run|compat|preview)$/;
+var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|run_plan|dry_run|compat|preview)$/;
 var FRESH = {n: 0};
 function forgetAll() {
   FRESH.n++;
@@ -2661,6 +2661,9 @@ function certPeek(id) {
         .catch(function (e) { if (b) busy(b, false); fail(e); });
     }});
     buttons.push({words: 'Close', close: true});
+    if (window.ACME_RUNPLAN) buttons.push({words: 'What happens', icon: 'list',
+      says: 'Everything a renewal of it does, step by step: the key, every call to its source, how each name is proved, and on each target every call, file and command - worked out without doing any of it.',
+      go: function () { ACME_RUNPLAN.open({id: c.id, name: c.name, back: back}); }});
     if (MANAGE && c.issuer && c.not_after && c.state !== 'revoked')
       buttons.push({words: 'Revoke', icon: 'ban', go: function () { over(function () { revokeDialog(c); }, back); }});
     if (MANAGE && c.issuer) buttons.push({words: c.not_after ? 'Change names, key, source…' : 'Edit', icon: 'edit',
@@ -3521,10 +3524,14 @@ function certWizard(cert, detail) {
       if (at >= 0 && at !== W.step) buttons.push({words: 'Back to ' + tr(list[at].title), cls: 'primary', icon: 'prev', go: function () { go(at); }});
       buttons.push({words: editing ? 'Save' : 'Create', icon: 'save', cls: 'ct-blocked', go: function () { toast(tr('This does not fit yet - it cannot be created so') + ': ' + unfit[0].what, 'bad'); }});
     } else if (st.key === 'review' && !editing && planBlocks()) {
+      if (window.ACME_RUNPLAN) buttons.push({words: 'What happens', icon: 'list', go: function () { planOpen(); }});
       var vstep = list.map(function (x) { return x.key; }).indexOf('validation');
       if (vstep >= 0) buttons.push({words: 'Back to the validation', icon: 'prev', go: function () { go(vstep); }});
       buttons.push({words: 'Create anyway (it will wait until this is in place)', cls: 'primary', icon: 'save', go: function (b) { finish(b, false); }});
     } else if (st.key === 'review') {
+      if (window.ACME_RUNPLAN) buttons.push({words: 'What happens', icon: 'list',
+        says: 'Everything it will do, step by step - the key, the source, how each name is proved, every call, file and command on its targets - from what is set here now; nothing is saved or contacted.',
+        go: function () { planOpen(); }});
       if (!editing) buttons.push({words: 'Add only', icon: 'save', go: function (b) { finish(b, false); }});
       buttons.push({words: editing ? 'Save' : 'Add and issue now', cls: 'primary', icon: editing ? 'save' : 'play', go: function (b) { finish(b, !editing); }});
     } else {
@@ -4337,6 +4344,13 @@ function certWizard(cert, detail) {
             challenge: useChallenge ? d.challenge : '', challenge_map: useChallenge ? d.challenge_map : {},
             auto_renew: !!d.auto_renew, renew_days: Number(d.renew_days || 30), reuse_key: !!d.reuse_key,
             profile: profile, tags: splitNames(d.tags), note: d.note, owner: d.owner};
+  }
+  /* What happens (runplan.js): the plan of what is set here now, over the wizard. */
+  function planOpen() {
+    if (read) read();
+    var sent = body();
+    sent.deploys = W.deploys;
+    ACME_RUNPLAN.open({id: c.id || undefined, draft: sent, name: sent.name});
   }
   function finish(b, issue) {
     var bad = checkNames() || (!W.d.issuer ? 'choose where it comes from' : '') ||

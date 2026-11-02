@@ -1975,3 +1975,4 @@ from acmelib.certs import api_teams  # noqa: E402,F401  (Settings → Owners and
 from acmelib.certs import api_reqprofiles  # noqa: E402,F401  (Settings → Request profiles)
 from acmelib.certs import api_deploys  # noqa: E402,F401  (a deployment's files: preview, test)
 from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edit, renew, versions)
+from acmelib.certs import api_runplan  # noqa: E402,F401  (what happens: a certificate's run plan)

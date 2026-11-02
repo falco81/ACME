@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+"""What happens - the run plan of a certificate (acmelib/certs/runplan.py), through
+a real daemon (the helpers of test_certs_core).
+
+    python3 test/test_plan.py
+
+A certificate from an authority of acme's own and one from an ACME source proved
+by Webglobe and Cloudflare (secrets set), deployed to this machine's files, a
+server over SSH and a NetScaler - every host the fake one 127.0.0.1:<a port a
+listening server holds>. The plan lists the calls, commands and paths expected,
+holds none of the secrets and no private key - and the listening server sees no
+connection at all, the folder of the files stays empty.
+"""
+import json
+import os
+import socket
+import sys
+import threading
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import test_certs_core as core  # noqa: E402
+
+SECRETS = {'ns': 'Ns-Pass-Very-Secret-0001', 'ssh': 'Ssh-Pass-Very-Secret-0002',
+           'sudo': 'Sudo-Pass-Very-Secret-0003', 'wg': 'WgApiKeyVerySecret0004',
+           'cf': 'CfTokenVerySecret0005xyz', 'pfx': 'Pfx-Pass-Very-Secret-0006'}
+
+
+class Listener(object):
+    """A server that must see nobody: every connection it accepts is counted."""
+    def __init__(self):
+        self.s = socket.socket()
+        self.s.bind(('127.0.0.1', 0))
+        self.s.listen(16)
+        self.port = self.s.getsockname()[1]
+        self.seen = 0
+        self.stop = False
+        threading.Thread(target=self.run, daemon=True).start()
+
+    def run(self):
+        self.s.settimeout(0.3)
+        while not self.stop:
+            try:
+                c, _a = self.s.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                return
+            self.seen += 1
+            c.close()
+        self.s.close()
+
+
+class Plan(core.CertsCore):
+    @classmethod
+    def setUpClass(cls):
+        core.CertsCore.setUpClass()
+        cls.listener = Listener()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.listener.stop = True
+        core.CertsCore.tearDownClass()
+
+    def setup_world(self):
+        if getattr(type(self), 'made', None):
+            return type(self).made
+        port = self.listener.port
+        out = os.path.join(self.tmp, 'plan-out')
+        self.ok('POST', '/api/cas/create', {'name': 'Plan Root', 'subject': {'CN': 'Plan Root'},
+                                            'key_type': 'ec-256', 'days': 3650})
+        self.ok('POST', '/api/sources/save', {'name': 'own', 'kind': 'internal_ca',
+                                              'config': {'ca': 'Plan Root', 'days': 90}})
+        self.ok('POST', '/api/validations/save', {'name': 'wg', 'kind': 'webglobe', 'config': {
+            'login': 'me@example.cz', 'auth': 'token', 'api_token': SECRETS['wg'],
+            'api': 'http://127.0.0.1:%d' % port, 'zone': 'example.cz'}})
+        self.ok('POST', '/api/validations/save', {'name': 'cf', 'kind': 'cloudflare', 'config': {
+            'token': SECRETS['cf'], 'api': 'http://127.0.0.1:%d/client/v4' % port,
+            'zone_id': 'zone123'}})
+        self.ok('POST', '/api/targets/save', {'name': 'files', 'kind': 'local', 'config': {
+            'base': out}})
+        self.ok('POST', '/api/targets/save', {'name': 'web', 'kind': 'ssh', 'config': {
+            'host': '127.0.0.1', 'port': port, 'user': 'deploy', 'auth': 'password',
+            'password': SECRETS['ssh'], 'sudo': True, 'sudo_password': SECRETS['sudo']}})
+        self.ok('POST', '/api/targets/save', {'name': 'adc', 'kind': 'netscaler', 'config': {
+            'host': '127.0.0.1', 'port': port, 'user': 'nsroot', 'password': SECRETS['ns'],
+            'verify_tls': False}})
+        ids = {}
+        for name, issuer, extra in (('plan-own', 'own', {}),
+                                    ('plan-acme', 'LetsEncrypt staging',
+                                     {'challenge': 'wg',
+                                      'challenge_map': {'shop.example.com': 'cf'}})):
+            ids[name] = self.ok('POST', '/api/certs/save', dict({
+                'name': name, 'names': ['www.example.cz', 'shop.example.com'], 'issuer': issuer,
+                'auto_renew': 0, 'key_type': 'ec-256'}, **extra))['id']
+            for t, opts in (('files', {'outputs': ['fullchain-pem {name}/fullchain.pem',
+                                                   'key-pem {name}/privkey.pem 0600',
+                                                   'pfx {name}/site.pfx'],
+                                       'pfx_password_mode': 'fixed',
+                                       'pfx_password': SECRETS['pfx']}),
+                            ('web', {'outputs': ['fullchain-pem /etc/nginx/ssl/site.pem',
+                                                 'key-pem /etc/nginx/ssl/site.key 0600'],
+                                     'reload_cmd': ['systemctl reload nginx'],
+                                     'verify': ['127.0.0.1:%d' % port]}),
+                            ('adc', {'certkey': 'www_cert', 'vservers': ['vs_www', 'vs_mail sni'],
+                                     'verify': ['127.0.0.1:%d' % port]})):
+                self.ok('POST', '/api/deploys/save', {'cert_id': ids[name], 'target': t,
+                                                      'options': opts, 'enabled': True})
+        type(self).made = (ids, out)
+        return type(self).made
+
+    def plan_of(self, cid, session=None):
+        return self.ok('GET', '/api/certs/run_plan', args={'id': cid}, session=session)['plan']
+
+    def no_secrets(self, plan):
+        text = json.dumps(plan, ensure_ascii=False)
+        for k, v in SECRETS.items():
+            self.assertNotIn(v, text, 'the secret of %s is in the plan' % k)
+        self.assertNotIn('PRIVATE KEY', text)
+        self.assertNotIn('plansecret', text)
+        self.assertNotIn('cGxhbnNlY3JldD', text)
+
+    def all_steps(self, phase):
+        out = list(phase.get('steps') or [])
+        for g in phase.get('groups') or []:
+            out += g.get('steps') or []
+            for p in g.get('per_name') or []:
+                out += p.get('steps') or []
+        return out
+
+    def test_50_own_ca_plan(self):
+        ids, out = self.setup_world()
+        plan = self.plan_of(ids['plan-own'])
+        self.no_secrets(plan)
+        ph = {p['key']: p for p in plan['phases']}
+        self.assertEqual(list(ph), ['key', 'source', 'validation', 'deploy', 'after'])
+        self.assertIn('A new ec-256 key is made here, on this machine',
+                      [s['words'] for s in ph['key']['steps']])
+        src = json.dumps(ph['source'], ensure_ascii=False)
+        self.assertIn('Plan Root', src)
+        groups = {g['title']: g for g in ph['deploy']['groups']}
+        self.assertEqual(set(groups), {'files', 'web', 'adc'})
+        # NetScaler: NITRO, in order
+        ns = groups['adc']['steps']
+        urls = [(s['detail'].get('method'), s['detail'].get('url')) for s in ns
+                if (s.get('detail') or {}).get('url')]
+        base = 'https://127.0.0.1:%d/nitro/v1/config/' % self.listener.port
+        want = [('POST', base + 'login'), ('POST', base + 'systemfile'),
+                ('POST', base + 'sslcertkey'), ('POST', base + 'sslcertkey?action=update'),
+                ('PUT', base + 'sslvserver_sslcertkey_binding'),
+                ('POST', base + 'nsconfig?action=save'), ('POST', base + 'logout')]
+        for w in want:
+            self.assertIn(w, urls)
+        login = [s for s in ns if (s.get('detail') or {}).get('url') == base + 'login'][0]
+        self.assertEqual(login['detail']['body']['login']['username'], 'nsroot')
+        self.assertTrue(login['detail']['body']['login']['password'].startswith('•'))
+        branches = {s['detail']['url']: s.get('branch') for s in ns
+                    if (s.get('detail') or {}).get('url', '').endswith(('sslcertkey',
+                                                                        'action=update'))}
+        self.assertIn('first', branches[base + 'sslcertkey'])
+        self.assertIn('later', branches[base + 'sslcertkey?action=update'])
+        up = [s for s in ns if (s.get('detail') or {}).get('url') == base + 'systemfile']
+        self.assertTrue(any('private key' in json.dumps(s['detail']['body']) for s in up))
+        checks = [s for s in ns if s['kind'] == 'check']
+        self.assertTrue(checks and '127.0.0.1:%d' % self.listener.port in checks[0]['words'])
+        # SSH: the connection, the files, the reload
+        ssh = groups['web']['steps']
+        cmds = '\n'.join((s.get('detail') or {}).get('command') or '' for s in ssh)
+        self.assertIn('systemctl reload nginx', cmds)
+        self.assertIn('/etc/nginx/ssl/site.key', cmds)
+        conn = [s for s in ssh if s['kind'] == 'connect'][0]
+        self.assertIn('deploy@127.0.0.1', conn['words'])
+        files = [s for s in ssh if s['words'] == 'The files it writes'][0]['detail']['files']
+        self.assertEqual([f['path'] for f in files], ['/etc/nginx/ssl/site.pem',
+                                                      '/etc/nginx/ssl/site.key'])
+        self.assertTrue(any('sudo' in (s.get('note') or '') for s in ssh))
+        # this machine: the paths under its folder, nothing written
+        loc = groups['files']['steps']
+        paths = [(s.get('detail') or {}).get('path') for s in loc if s['kind'] == 'file']
+        self.assertIn(os.path.join(out, 'plan-own/privkey.pem'), paths)
+        self.assertIn(os.path.join(out, 'plan-own/site.pfx'), paths)
+        self.assertFalse(os.path.exists(out), 'the plan made the folder of the files')
+        self.assertEqual(self.listener.seen, 0)
+
+    def test_51_acme_plan_with_validations(self):
+        ids, out = self.setup_world()
+        plan = self.plan_of(ids['plan-acme'])
+        self.no_secrets(plan)
+        ph = {p['key']: p for p in plan['phases']}
+        src = json.dumps(ph['source'], ensure_ascii=False)
+        self.assertIn('https://acme-staging-v02.api.letsencrypt.org/directory', src)
+        self.assertIn('newOrder', src.replace('new-order', 'newOrder'))
+        self.assertIn('"identifiers"', src)
+        groups = {g['title']: g for g in ph['validation']['groups']}
+        self.assertEqual(set(groups), {'wg', 'cf'})
+        self.assertEqual(groups['wg']['names'], ['www.example.cz'])
+        wg = json.dumps(groups['wg']['per_name'], ensure_ascii=False)
+        self.assertIn('http://127.0.0.1:%d/auth/login' % self.listener.port, wg)
+        self.assertIn('_acme-challenge', wg)
+        self.assertIn('computed at the time from the token', wg)
+        cf = json.dumps(groups['cf']['per_name'], ensure_ascii=False)
+        self.assertIn('/zones/zone123/dns_records', cf)
+        self.assertNotIn(SECRETS['cf'], cf)
+        self.assertEqual(self.listener.seen, 0)
+        self.assertFalse(os.path.exists(out))
+
+    def test_52_readonly_and_draft(self):
+        ids, out = self.setup_world()
+        plan = self.plan_of(ids['plan-own'], session=self.ro)
+        self.no_secrets(plan)
+        got = self.ok('POST', '/api/certs/run_plan', {'draft': {
+            'names': ['draft.example.cz'], 'issuer': 'own', 'key_type': 'rsa-2048',
+            'deploys': {'adc': {'certkey': 'draft_ck', 'password': 'x'}}}})['plan']
+        self.no_secrets(got)
+        self.assertTrue(got['cert']['draft'])
+        self.assertIn('draft_ck', json.dumps(got))
+        self.assertIn('A new rsa-2048 key is made here, on this machine',
+                      [s['words'] for s in got['phases'][0]['steps']])
+        n = self.call('GET', '/api/certs', session=self.admin)[1]
+        self.assertNotIn('draft.example.cz', json.dumps(n))     # nothing saved
+        self.assertEqual(self.listener.seen, 0)
+
+
+class Lockdown(unittest.TestCase):
+    """The recording's process (plansandbox.lockdown) fails closed: what no
+    recording catches - a socket, a program, a file outside its folder - raises."""
+
+    def test_nothing_gets_out(self):
+        import subprocess
+        import tempfile
+        folder = tempfile.mkdtemp(prefix='acme-plan-test-')
+        outside = tempfile.mkdtemp(prefix='acme-plan-outside-')
+        lst = Listener()
+        code = r"""
+import sys, os, socket, subprocess, json
+sys.path.insert(0, %r)
+from acmelib.certs import plansandbox as m
+m.lockdown(%r)
+got = {}
+def tryit(k, fn):
+    try:
+        fn(); got[k] = 'done'
+    except Exception as e:
+        got[k] = type(e).__name__
+tryit('connect', lambda: socket.create_connection(('127.0.0.1', %d), 2))
+tryit('socket', lambda: socket.socket().connect(('127.0.0.1', %d)))
+tryit('dns', lambda: socket.getaddrinfo('example.com', 443))
+tryit('program', lambda: subprocess.run(['true']))
+tryit('s_client', lambda: subprocess.run(['openssl', 's_client', '-connect', '127.0.0.1:%d']))
+tryit('write', lambda: open(os.path.join(%r, 'x'), 'w').write('x'))
+tryit('mkdir', lambda: os.mkdir(os.path.join(%r, 'd')))
+tryit('inside', lambda: open(os.path.join(%r, 'ok'), 'w').write('x'))
+print(json.dumps(got))
+""" % (core.ROOT, folder, lst.port, lst.port, lst.port, outside, outside, folder)
+        r = subprocess.run([sys.executable, '-I', '-c', code], capture_output=True, text=True,
+                           timeout=60, env={'PATH': os.environ.get('PATH', ''),
+                                            'TMPDIR': folder})
+        got = json.loads(r.stdout.strip().splitlines()[-1])
+        for k in ('connect', 'socket', 'dns', 'program', 's_client', 'write', 'mkdir'):
+            self.assertEqual(got[k], 'Blocked', '%s: %s' % (k, got))
+        self.assertEqual(got['inside'], 'done')
+        self.assertEqual(os.listdir(outside), [])
+        lst.stop = True
+        self.assertEqual(lst.seen, 0)
+
+
+for _n in dir(core.CertsCore):
+    if _n.startswith('test_'):
+        setattr(Plan, _n, None)
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

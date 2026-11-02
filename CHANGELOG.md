@@ -4,6 +4,24 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.20 - 2026-11-02
+
+- *What happens*: a certificate says, step by step, everything a renewal of it
+  does - the key and the request (made new or kept, the CSR sent in), every
+  call to its source (the ACME protocol in order with its signed payloads, an
+  authority of acme's own with the extensions it signs, any other source as
+  its module calls it), how each name is proved (the record or file, the
+  provider's API calls, the DNS questions, the wait, the cleanup), and for
+  each deployment how acme connects (host, port, user, key or password, the
+  host key pinned or not, TLS checked or not) and every call with its method,
+  address and body, every file with its path, mode and size, every command,
+  the check after it - what only the first time does marked, and who is told.
+  A button in an opened certificate, and on the last step of Add a
+  certificate - from what is set there, nothing saved. It is worked
+  out by running each module's own code in a process that can reach nothing
+  and change nothing: no device, DNS server or CA is contacted, no file is
+  written; passwords, keys and tokens are never shown.
+
 ## 1.0.19 - 2026-11-02
 
 - *Wrong codes before it has to be sent again* (Settings → Codes by e-mail and

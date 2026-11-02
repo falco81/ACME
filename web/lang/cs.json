@@ -41371,6 +41371,538 @@
   "sb5_008": {
    "source": "The nodes not begun stay as they are; a node being updated finishes.",
    "text": "Uzly, které ještě nezačaly, zůstanou, jak jsou; právě aktualizovaný uzel dokončí."
+  },
+  "rp20s000": {
+   "source": "a call to a device or an API",
+   "text": "volání zařízení nebo API"
+  },
+  "rp20s001": {
+   "source": "a question asked (nothing changes)",
+   "text": "dotaz (nic se nemění)"
+  },
+  "rp20s002": {
+   "source": "signing in, connecting",
+   "text": "přihlášení, připojení"
+  },
+  "rp20s003": {
+   "source": "a file written or uploaded",
+   "text": "zapsaný nebo nahraný soubor"
+  },
+  "rp20s004": {
+   "source": "a command run",
+   "text": "spuštěný příkaz"
+  },
+  "rp20s005": {
+   "source": "a DNS record or question",
+   "text": "záznam nebo dotaz DNS"
+  },
+  "rp20s007": {
+   "source": "a check",
+   "text": "kontrola"
+  },
+  "rp20s009": {
+   "source": "something signed",
+   "text": "podpis"
+  },
+  "rp20s010": {
+   "source": "a message",
+   "text": "zpráva"
+  },
+  "rp20s011": {
+   "source": "something deleted",
+   "text": "mazání"
+  },
+  "rp20s012": {
+   "source": "saved, kept",
+   "text": "uložení"
+  },
+  "rp20s013": {
+   "source": "what is so",
+   "text": "jak to je"
+  },
+  "rp20s014": {
+   "source": "cannot be told from here",
+   "text": "odsud nelze říci"
+  },
+  "rp20s015": {
+   "source": "Made here, on this machine, before anything is asked.",
+   "text": "Vytvoří se zde, na tomto stroji, dřív než se na cokoli ptá."
+  },
+  "rp20s016": {
+   "source": "Where the certificate comes from, and every question asked of it.",
+   "text": "Odkud certifikát pochází a každý dotaz, který se mu položí."
+  },
+  "rp20s017": {
+   "source": "How each name is proved: what is put where, waited for, and taken away again.",
+   "text": "Jak se prokazuje každé jméno: co se kam vloží, na co se čeká a co se zase odebere."
+  },
+  "rp20s018": {
+   "source": "Where it goes, in the order of its deployments: how acme connects, and everything it does there.",
+   "text": "Kam jde, v pořadí nasazení: jak se acme připojí a vše, co tam udělá."
+  },
+  "rp20s019": {
+   "source": "Who is told, and what happens next time.",
+   "text": "Kdo dostane zprávu a co se stane příště."
+  },
+  "rp20s021": {
+   "source": "Show less",
+   "text": "Zobrazit méně"
+  },
+  "rp20s025": {
+   "source": "the answer decides",
+   "text": "rozhodne odpověď"
+  },
+  "rp20s026": {
+   "source": "Worked out without asking: what the device, the CA or DNS answers at the time decides what follows. Here it was taken as the first time - nothing there yet.",
+   "text": "Zjištěno bez ptaní: co bude dál, rozhodne to, co v tu chvíli odpoví zařízení, CA nebo DNS. Zde se počítá s prvním během – zatím tam nic není."
+  },
+  "rp20s027": {
+   "source": "holds the private key",
+   "text": "obsahuje privátní klíč"
+  },
+  "rp20s029": {
+   "source": "the target is switched off",
+   "text": "cíl je vypnutý"
+  },
+  "rp20s030": {
+   "source": "switched off: skipped",
+   "text": "vypnuto: přeskočí se"
+  },
+  "rp20s031": {
+   "source": "The target's settings",
+   "text": "Nastavení cíle"
+  },
+  "rp20s032": {
+   "source": "The validation's settings",
+   "text": "Nastavení validace"
+  },
+  "rp20s033": {
+   "source": "This deployment's options",
+   "text": "Volby tohoto nasazení"
+  },
+  "rp20s034": {
+   "source": "The source's settings",
+   "text": "Nastavení zdroje"
+  },
+  "rp20s037": {
+   "source": "Deployed to",
+   "text": "Nasazuje se na"
+  },
+  "rp20s038": {
+   "source": "none needed",
+   "text": "není potřeba"
+  },
+  "rp20s039": {
+   "source": " deployment(s)",
+   "text": " nasazení"
+  },
+  "rp20s040": {
+   "source": "Worked out without doing anything: no device, DNS server or CA was contacted and nothing was changed. Passwords, keys and tokens are never shown.",
+   "text": "Zjištěno, aniž by se cokoli provedlo: nekontaktovalo se žádné zařízení, DNS server ani CA a nic se nezměnilo. Hesla, klíče a tokeny se nikdy nezobrazují."
+  },
+  "rp20s041": {
+   "source": "only the first time",
+   "text": "jen poprvé"
+  },
+  "rp20s042": {
+   "source": "Phases",
+   "text": "Fáze"
+  },
+  "rp20s043": {
+   "source": "Worked out in",
+   "text": "Zjištěno za"
+  },
+  "rp20s046": {
+   "source": "Working out what would happen - each module is run against a stand-in that answers and does nothing…",
+   "text": "Zjišťuje se, co by se stalo – každý modul běží proti náhradě, která odpovídá a nic nedělá…"
+  },
+  "rp20s047": {
+   "source": "Everything a renewal of it does, step by step: the key, every call to its source, how each name is proved, and on each target every call, file and command - worked out without doing any of it.",
+   "text": "Vše, co udělá jeho obnova, krok za krokem: klíč, každé volání zdroje, jak se prokáže každé jméno a na každém cíli každé volání, soubor a příkaz – zjištěno, aniž by se cokoli z toho provedlo."
+  },
+  "rp20s049": {
+   "source": "Everything it will do, step by step - the key, the source, how each name is proved, every call, file and command on its targets - from what is set here now; nothing is saved or contacted.",
+   "text": "Vše, co bude dělat, krok za krokem – klíč, zdroj, jak se prokáže každé jméno, každé volání, soubor a příkaz na cílech – podle toho, co je tu nastaveno teď; nic se neuloží ani nekontaktuje."
+  },
+  "rp20s050": {
+   "source": "Key and request",
+   "text": "Klíč a žádost"
+  },
+  "rp20s052": {
+   "source": "Validation, per name",
+   "text": "Validace, po jménech"
+  },
+  "rp20s054": {
+   "source": "After",
+   "text": "Potom"
+  },
+  "rp20s055": {
+   "source": "After it is put in place",
+   "text": "Po vložení na místo"
+  },
+  "rp20s056": {
+   "source": "Until it can be seen",
+   "text": "Dokud není vidět"
+  },
+  "rp20s057": {
+   "source": "After the CA has looked: taken away again",
+   "text": "Až se CA podívá: zase odebráno"
+  },
+  "rp20s058": {
+   "source": "the device's TLS certificate is not checked",
+   "text": "certifikát TLS zařízení se nekontroluje"
+  },
+  "rp20s059": {
+   "source": "signed in with a client certificate",
+   "text": "přihlášení klientským certifikátem"
+  },
+  "rp20s060": {
+   "source": "through the proxy of Settings → Proxy",
+   "text": "přes proxy z Nastavení → Proxy"
+  },
+  "rp20s064": {
+   "source": "an SSH key (not shown)",
+   "text": "klíčem SSH (nezobrazuje se)"
+  },
+  "rp20s065": {
+   "source": "a password (not shown)",
+   "text": "heslem (nezobrazuje se)"
+  },
+  "rp20s066": {
+   "source": "nothing set",
+   "text": "nic nenastaveno"
+  },
+  "rp20s067": {
+   "source": "none pinned: the first one seen is trusted and kept",
+   "text": "žádný připnutý: první viděný se přijme a uloží"
+  },
+  "rp20s068": {
+   "source": "none pinned: refused until it is",
+   "text": "žádný připnutý: odmítne se, dokud nebude"
+  },
+  "rp20s069": {
+   "source": "through sudo - its password goes on the command's input, not shown",
+   "text": "přes sudo – heslo jde na vstup příkazu, nezobrazuje se"
+  },
+  "rp20s070": {
+   "source": "through sudo (it must not ask for a password)",
+   "text": "přes sudo (nesmí se ptát na heslo)"
+  },
+  "rp20s071": {
+   "source": "Writes a file on this machine",
+   "text": "Zapíše soubor na tomto stroji"
+  },
+  "rp20s072": {
+   "source": "Makes the folder where it is not there yet",
+   "text": "Vytvoří složku, pokud ještě není"
+  },
+  "rp20s073": {
+   "source": "Sets who may read it",
+   "text": "Nastaví, kdo jej smí číst"
+  },
+  "rp20s074": {
+   "source": "Deletes on this machine",
+   "text": "Smaže na tomto stroji"
+  },
+  "rp20s075": {
+   "source": "Moves a file on this machine",
+   "text": "Přesune soubor na tomto stroji"
+  },
+  "rp20s076": {
+   "source": "Runs on this machine",
+   "text": "Spustí na tomto stroji"
+  },
+  "rp20s077": {
+   "source": "signed with its TSIG key (not shown)",
+   "text": "podepsáno jeho klíčem TSIG (nezobrazuje se)"
+  },
+  "rp20s078": {
+   "source": "Puts the record into acme's own DNS server",
+   "text": "Vloží záznam do vlastního DNS serveru acme"
+  },
+  "rp20s079": {
+   "source": "Takes the record out of acme's own DNS server",
+   "text": "Odebere záznam z vlastního DNS serveru acme"
+  },
+  "rp20s080": {
+   "source": "Answers the file on this server's port 80",
+   "text": "Odpovídá souborem na portu 80 tohoto serveru"
+  },
+  "rp20s081": {
+   "source": "Stops answering the file on port 80",
+   "text": "Přestane odpovídat souborem na portu 80"
+  },
+  "rp20s082": {
+   "source": "The files it writes",
+   "text": "Soubory, které zapíše"
+  },
+  "rp20s083": {
+   "source": "The script after the files",
+   "text": "Skript po souborech"
+  },
+  "rp20s084": {
+   "source": "Script",
+   "text": "Skript"
+  },
+  "rp20s085": {
+   "source": "Arguments",
+   "text": "Argumenty"
+  },
+  "rp20s086": {
+   "source": "Variables",
+   "text": "Proměnné"
+  },
+  "rp20s087": {
+   "source": "Only the first time - when it is not there yet",
+   "text": "Jen poprvé – když tam ještě není"
+  },
+  "rp20s088": {
+   "source": "Only at later renewals - when it is there already",
+   "text": "Jen při dalších obnovách – když už tam je"
+  },
+  "rp20s089": {
+   "source": "From here on, what it does depends on what it is answered",
+   "text": "Odsud dál záleží na tom, co mu kdo odpoví"
+  },
+  "rp20s090": {
+   "source": "The CSR that was sent in is used - its key stays with whoever made it, acme does not hold it",
+   "text": "Použije se zaslaný CSR – jeho klíč zůstává u toho, kdo jej vytvořil, acme ho nemá"
+  },
+  "rp20s091": {
+   "source": "The twin of a dual certificate: the same names, another key",
+   "text": "Dvojče duálního certifikátu: stejná jména, jiný klíč"
+  },
+  "rp20s092": {
+   "source": "it keeps this key at the renewals after",
+   "text": "tento klíč si ponechá i při dalších obnovách"
+  },
+  "rp20s093": {
+   "source": "subjectAltName",
+   "text": "subjectAltName"
+  },
+  "rp20s096": {
+   "source": "Validity asked for",
+   "text": "Požadovaná platnost"
+  },
+  "rp20s098": {
+   "source": "The request (CSR) is made and signed with that key",
+   "text": "Vytvoří se žádost (CSR) a podepíše tím klíčem"
+  },
+  "rp20s099": {
+   "source": "This source makes the key itself and sends it with the certificate",
+   "text": "Tento zdroj si klíč vytvoří sám a pošle jej s certifikátem"
+  },
+  "rp20s100": {
+   "source": "Reads the CA's directory",
+   "text": "Přečte adresář (directory) CA"
+  },
+  "rp20s101": {
+   "source": "Asks for a nonce (each signed request uses one)",
+   "text": "Vyžádá si nonce (každý podepsaný požadavek jednu spotřebuje)"
+  },
+  "rp20s102": {
+   "source": "Uses its ACME account (made before, its key sealed in acme's database)",
+   "text": "Použije svůj účet ACME (vytvořený dříve, jeho klíč zapečetěný v databázi acme)"
+  },
+  "rp20s104": {
+   "source": "Contacts",
+   "text": "Kontakty"
+  },
+  "rp20s105": {
+   "source": "made at the first order",
+   "text": "vytvoří se při první objednávce"
+  },
+  "rp20s106": {
+   "source": "Makes an ACME account at the CA (the first time only; its key is made here and kept sealed)",
+   "text": "Založí účet ACME u CA (jen poprvé; jeho klíč se vytvoří zde a uchová zapečetěný)"
+  },
+  "rp20s107": {
+   "source": "Orders the certificate for its names",
+   "text": "Objedná certifikát pro jeho jména"
+  },
+  "rp20s108": {
+   "source": "POST-as-GET (an empty payload); if the CA still holds the name as proved, nothing below is done for it",
+   "text": "POST-as-GET (prázdný payload); pokud CA jméno stále považuje za prokázané, nic z níže uvedeného se pro něj nedělá"
+  },
+  "rp20s109": {
+   "source": "the validation phase below says how",
+   "text": "jak, říká fáze validace níže"
+  },
+  "rp20s110": {
+   "source": "Tells the CA to check each name",
+   "text": "Požádá CA, aby ověřila každé jméno"
+  },
+  "rp20s111": {
+   "source": "Finalizes the order with the request (CSR)",
+   "text": "Dokončí objednávku žádostí (CSR)"
+  },
+  "rp20s112": {
+   "source": "Downloads the certificate and its chain",
+   "text": "Stáhne certifikát a jeho řetězec"
+  },
+  "rp20s113": {
+   "source": "the chain the CA sends first",
+   "text": "řetězec, který CA pošle jako první"
+  },
+  "rp20s114": {
+   "source": "Afterwards, every 6 hours: asks the CA when to renew (ARI, RFC 9773)",
+   "text": "Potom každých 6 hodin: zeptá se CA, kdy obnovit (ARI, RFC 9773)"
+  },
+  "rp20s115": {
+   "source": "shown as it is signed (JWS): protected header and payload; the signature is made with the account key",
+   "text": "zobrazeno tak, jak se podepisuje (JWS): chráněná hlavička a payload; podpis se dělá klíčem účtu"
+  },
+  "rp20s118": {
+   "source": "The authority cannot be read",
+   "text": "Autoritu nelze přečíst"
+  },
+  "rp20s119": {
+   "source": "Authority",
+   "text": "Autorita"
+  },
+  "rp20s120": {
+   "source": "Its subject",
+   "text": "Její subjekt"
+  },
+  "rp20s121": {
+   "source": "Validity",
+   "text": "Platnost"
+  },
+  "rp20s122": {
+   "source": "CRL distribution point",
+   "text": "Distribuční bod CRL"
+  },
+  "rp20s123": {
+   "source": "Authority information (AIA)",
+   "text": "Informace o autoritě (AIA)"
+  },
+  "rp20s124": {
+   "source": "What it signed is written into the authority's list (for its revocation list)",
+   "text": "Co podepsala, se zapíše do seznamu autority (kvůli seznamu odvolaných)"
+  },
+  "rp20s125": {
+   "source": "It signs itself with its own key, here - nothing is asked of anybody",
+   "text": "Podepíše se sám vlastním klíčem, zde – nikoho se na nic neptá"
+  },
+  "rp20s126": {
+   "source": "It has no source acme asks: it is imported, or answered by an outside CA - nothing is ordered",
+   "text": "Nemá zdroj, kterého by se acme ptala: je importovaný nebo jej vyřizuje externí CA – nic se neobjednává"
+  },
+  "rp20s127": {
+   "source": "The module of this source is missing",
+   "text": "Modul tohoto zdroje chybí"
+  },
+  "rp20s128": {
+   "source": "The detailed steps could not be worked out",
+   "text": "Podrobné kroky se nepodařilo zjistit"
+  },
+  "rp20s129": {
+   "source": "This source needs no validation: the names are not proved to anybody",
+   "text": "Tento zdroj validaci nepotřebuje: jména se nikomu neprokazují"
+  },
+  "rp20s130": {
+   "source": "There is no validation for these names",
+   "text": "Pro tato jména není žádná validace"
+  },
+  "rp20s131": {
+   "source": "It is deployed nowhere: it is only kept here",
+   "text": "Nikam se nenasazuje: jen se zde uchovává"
+  },
+  "rp20s132": {
+   "source": "There is no such target (or its module is missing)",
+   "text": "Takový cíl není (nebo chybí jeho modul)"
+  },
+  "rp20s133": {
+   "source": "and when it went well too",
+   "text": "a i když se zdaří"
+  },
+  "rp20s134": {
+   "source": "nothing is sent when it goes well (Settings → Renewal and notices)",
+   "text": "když se zdaří, nic se neposílá (Nastavení → Obnova a upozornění)"
+  },
+  "rp20s135": {
+   "source": "Nobody is mailed: no address is set for notices (Settings → Renewal and notices)",
+   "text": "Nikomu se nepíše: pro upozornění není nastavena adresa (Nastavení → Obnova a upozornění)"
+  },
+  "rp20s136": {
+   "source": "Every step is written into the job's log, and an event (syslog, SIEM) says what was done",
+   "text": "Každý krok se zapíše do záznamu úlohy a událost (syslog, SIEM) řekne, co se udělalo"
+  },
+  "rp20s137": {
+   "source": "It is renewed only when somebody asks - nothing repeats by itself",
+   "text": "Obnoví se, jen když o to někdo požádá – nic se neopakuje samo"
+  },
+  "rp20s138": {
+   "source": "Issued at the next look (within minutes), or at once with Issue now",
+   "text": "Vydá se při příští kontrole (do několika minut), nebo hned tlačítkem Vydat nyní"
+  },
+  "rp20s139": {
+   "source": "At each renewal all of the above repeats - the steps marked \"only the first time\" are not done again",
+   "text": "Při každé obnově se vše výše opakuje – kroky označené „jen poprvé“ se znovu nedělají"
+  },
+  "rp20s140": {
+   "source": "A deployment that fails is tried again by itself: after 5 minutes, then twice as long each time",
+   "text": "Nasazení, které selže, se zkusí znovu samo: po 5 minutách, pak pokaždé za dvojnásobek"
+  },
+  "rp20s141": {
+   "source": "•••• (set, not shown)",
+   "text": "•••• (nastaveno, nezobrazuje se)"
+  },
+  "rp20s142": {
+   "source": "(a certificate is set)",
+   "text": "(certifikát je nastaven)"
+  },
+  "rp20s143": {
+   "source": "certificate (PEM)",
+   "text": "certifikát (PEM)"
+  },
+  "rp20s144": {
+   "source": "private key (PEM)",
+   "text": "privátní klíč (PEM)"
+  },
+  "rp20s145": {
+   "source": "binary (DER, PKCS#12 or a keystore)",
+   "text": "binární (DER, PKCS#12 nebo úložiště klíčů)"
+  },
+  "rp20s147": {
+   "source": "format",
+   "text": "formát"
+  },
+  "rp20s149": {
+   "source": "two plans are being worked out already - try again in a moment",
+   "text": "už se zjišťují dva plány – zkuste to za chvíli znovu"
+  },
+  "rp20s150": {
+   "source": "draft is the certificate as the wizard has it",
+   "text": "draft je certifikát tak, jak ho má průvodce"
+  },
+  "rp20s151": {
+   "source": "deploys is {target: options}",
+   "text": "deploys je {cíl: volby}"
+  },
+  "rp20s900": {
+   "source": "mode",
+   "text": "práva"
+  },
+  "rp20s901": {
+   "source": "size",
+   "text": "velikost"
+  },
+  "srpph01": {
+   "source": "value computed at the time from the token",
+   "text": "hodnota spočítaná v tu chvíli z tokenu"
+  },
+  "srpph02": {
+   "source": "key authorization: token.thumbprint",
+   "text": "key authorization: token.otisk"
+  },
+  "srpph03": {
+   "source": "token from the CA",
+   "text": "token od CA"
+  },
+  "srpph04": {
+   "source": "session",
+   "text": "relace"
   }
  },
  "patterns": {
@@ -57389,6 +57921,166 @@
   "sb4x01": {
    "source": "the server nsupdate sends to is a name or an address (and a port after a space), not {0}",
    "text": "server, kam nsupdate posílá, je jméno nebo adresa (a port za mezerou), ne {0}"
+  },
+  "rp20p000": {
+   "source": "and {0} more name(s) the same way",
+   "text": "a {0:další jméno|další jména|dalších jmen} stejně"
+  },
+  "rp20p001": {
+   "source": "Signs in to {0}",
+   "text": "Přihlásí se k {0}"
+  },
+  "rp20p002": {
+   "source": "Signs out of {0}",
+   "text": "Odhlásí se od {0}"
+  },
+  "rp20p003": {
+   "source": "Reads from {0}",
+   "text": "Čte z {0}"
+  },
+  "rp20p004": {
+   "source": "Deletes on {0}",
+   "text": "Maže na {0}"
+  },
+  "rp20p005": {
+   "source": "Changes on {0}",
+   "text": "Mění na {0}"
+  },
+  "rp20p006": {
+   "source": "Sends a request to {0}",
+   "text": "Pošle požadavek na {0}"
+  },
+  "rp20p007": {
+   "source": "Connects over SSH to {0}",
+   "text": "Připojí se přes SSH k {0}"
+  },
+  "rp20p008": {
+   "source": "Runs a command on {0}",
+   "text": "Spustí příkaz na {0}"
+  },
+  "rp20p009": {
+   "source": "Uploads a file to {0}",
+   "text": "Nahraje soubor na {0}"
+  },
+  "rp20p010": {
+   "source": "Reads a file from {0}",
+   "text": "Přečte soubor z {0}"
+  },
+  "rp20p011": {
+   "source": "with the variables {0}",
+   "text": "s proměnnými {0}"
+  },
+  "rp20p012": {
+   "source": "Asks DNS for the {0} record of {1}",
+   "text": "Zeptá se DNS na záznam {0} jména {1}"
+  },
+  "rp20p013": {
+   "source": "Sends a DNS UPDATE to {0}",
+   "text": "Pošle DNS UPDATE na {0}"
+  },
+  "rp20p014": {
+   "source": "Waits {0} s",
+   "text": "Čeká {0} s"
+  },
+  "rp20p015": {
+   "source": "Waits up to {0} s, asking again every {1} s",
+   "text": "Čeká až {0} s, znovu se ptá každých {1} s"
+  },
+  "rp20p016": {
+   "source": "Checks with a TLS handshake that {0} serves the new certificate",
+   "text": "Ověří spojením TLS, že {0} nabízí nový certifikát"
+  },
+  "rp20p017": {
+   "source": "Checks with a TLS handshake that {0} serves the new {1} certificate",
+   "text": "Ověří spojením TLS, že {0} nabízí nový certifikát {1}"
+  },
+  "rp20p018": {
+   "source": "tried up to {0} times, a few seconds apart, until it is so",
+   "text": "až {0}× s odstupem několika sekund, dokud to tak není"
+  },
+  "rp20p019": {
+   "source": "Puts it into acme's own pages ({0})",
+   "text": "Vloží jej do vlastních stránek acme ({0})"
+  },
+  "rp20p020": {
+   "source": "written in the deployment ({0})",
+   "text": "napsaný v nasazení ({0})"
+  },
+  "rp20p021": {
+   "source": "The {0} key it has is kept (sealed in acme's database)",
+   "text": "Ponechá se jeho stávající klíč {0} (zapečetěný v databázi acme)"
+  },
+  "rp20p022": {
+   "source": "A new {0} key is made here, on this machine",
+   "text": "Zde, na tomto stroji, se vytvoří nový klíč {0}"
+  },
+  "rp20p023": {
+   "source": "Reads the authorization of {0}",
+   "text": "Přečte autorizaci jména {0}"
+  },
+  "rp20p024": {
+   "source": "Chooses the {0} challenge, put in place by {1}",
+   "text": "Zvolí výzvu {0}, kterou zajistí {1}"
+  },
+  "rp20p025": {
+   "source": "Waits until every proof can be seen (at most {0} s)",
+   "text": "Čeká, dokud nejsou všechny důkazy vidět (nejvýše {0} s)"
+  },
+  "rp20p026": {
+   "source": "Asks again every {0} s until each name is valid (at most {1} s)",
+   "text": "Ptá se znovu každých {0} s, dokud není každé jméno platné (nejvýše {1} s)"
+  },
+  "rp20p027": {
+   "source": "the chain that ends at \"{0}\" is taken where the CA offers several (Link: rel=\"alternate\")",
+   "text": "kde CA nabízí více řetězců, vezme se ten, který končí u „{0}“ (Link: rel=\"alternate\")"
+  },
+  "rp20p028": {
+   "source": "The authority {0} signs it here, at once - no network, no validation",
+   "text": "Autorita {0} jej podepíše zde, hned – bez sítě, bez validace"
+  },
+  "rp20p029": {
+   "source": "When something fails, a mail goes to {0}",
+   "text": "Když něco selže, jde e-mail na {0}"
+  },
+  "rp20p030": {
+   "source": "Next renewal: {0}",
+   "text": "Příští obnova: {0}"
+  },
+  "rp20p031": {
+   "source": "{0} days before the end, or sooner in the window its CA suggests (ARI)",
+   "text": "{0} dní před koncem, nebo dříve v okně, které navrhne jeho CA (ARI)"
+  },
+  "rp20p032": {
+   "source": "{0} certificates (PEM)",
+   "text": "{0} certifikáty (PEM)"
+  },
+  "rp20p033": {
+   "source": "private key and {0} certificate(s) (PEM)",
+   "text": "privátní klíč a {0:certifikát|certifikáty|certifikátů} (PEM)"
+  },
+  "rp20p034": {
+   "source": "Worked out in {0}",
+   "text": "Zjištěno za {0}"
+  },
+  "rp20p900": {
+   "source": "{0} days (never past the end of the authority)",
+   "text": "{0} dní (nikdy přes konec platnosti autority)"
+  },
+  "srpph05": {
+   "source": "{0} from the directory",
+   "text": "{0} z adresáře (directory)"
+  },
+  "srpph06": {
+   "source": "certificate PEM, base64, {0}",
+   "text": "certifikát PEM, base64, {0}"
+  },
+  "srpph07": {
+   "source": "private key, PEM, {0}",
+   "text": "soukromý klíč, PEM, {0}"
+  },
+  "srpph10": {
+   "source": "certificate, PEM, {0}",
+   "text": "certifikát, PEM, {0}"
   }
  },
  "rich": {

@@ -296,10 +296,17 @@ def guard(h, s, method, path):
             need_cert(store, s, _cert_of_job(store, h.arg('job')), 'view', 'look at a test of')
         elif path == '/api/certs/jobs' and h.arg('cert_id'):
             need_cert(store, s, h.arg('cert_id'), 'view', 'look at the jobs of')
+        elif path == '/api/certs/run_plan':
+            need_cert(store, s, h.arg('id') or h.arg('name'), 'view', 'look at the plan of')
         return
     if not path.startswith('/api/certs') and not path.startswith('/api/deploys'):
         return
     b = h.body()
+    if path == '/api/certs/run_plan':
+        # The plan of a draft: of a certificate saved, only where it may be looked at.
+        if b.get('id') not in (None, '', 0):
+            need_cert(store, s, b.get('id'), 'view', 'look at the plan of')
+        return
     if path in MANAGE_ROUTES:
         need_cert(store, s, _ref(b, 'id', 'cert_id', 'name'), 'manage', path.rsplit('/', 1)[-1])
     elif path == '/api/certs/job_stop':
