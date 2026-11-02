@@ -4490,6 +4490,9 @@ function certWizard(cert, detail, opts) {
         tr.appendChild(td('', warn));
         return tr;
       }, 'plain ct-cmaptable'));
+      /* As wide as the step, never wider: no scrollbar of its own under one name. */
+      var wrapT = tb.querySelector('table.ct-cmaptable');
+      if (wrapT && wrapT.parentNode && wrapT.parentNode.classList) wrapT.parentNode.classList.add('ct-cmapwrap');
     };
     def.addEventListener('change', function () { mark(def, null); });
     drawMap();

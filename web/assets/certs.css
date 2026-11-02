@@ -157,7 +157,21 @@ table.ct-cmap td{padding-top:3px;padding-bottom:3px}
 .ct-namecheck{display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:22px;grid-column:1/-1}
 .ct-warnmark{color:var(--warn);font-size:12px;font-weight:600}
 table.ct-cmaptable td{vertical-align:middle}
-table.ct-cmaptable select{min-width:220px}
+table.ct-cmaptable{width:100%;min-width:0;table-layout:auto}
+table.ct-cmaptable select{min-width:0;width:100%;max-width:460px}
+table.ct-cmaptable td:first-child{white-space:nowrap;width:1%}
+table.ct-cmaptable td:last-child{width:30%}
+.scroll.ct-cmapwrap,.scroll.lt-held.ct-cmapwrap{overflow:visible;max-height:none}
+@media (max-width:700px){
+  table.ct-cmaptable thead{display:none}
+  table.ct-cmaptable, table.ct-cmaptable tbody, table.ct-cmaptable tr, table.ct-cmaptable td{display:block;width:100%}
+  table.ct-cmaptable tr{padding:8px 0;border-bottom:1px solid var(--line)}
+  table.ct-cmaptable td{padding:2px 0;border:0}
+  table.ct-cmaptable td:first-child{white-space:normal;overflow-wrap:anywhere;width:100%;font-weight:600}
+  table.ct-cmaptable td:last-child{width:100%}
+  table.ct-cmaptable td:last-child:empty{display:none}
+  table.ct-cmaptable select{max-width:none}
+}
 .ct-ekus{display:flex;flex-wrap:wrap;gap:4px 18px}
 .ct-ekus .set-check{margin:2px 0}
 .ct-deps{display:flex;flex-direction:column;gap:8px}
