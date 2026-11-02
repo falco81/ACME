@@ -45739,6 +45739,18 @@
   "sup095": {
    "source": "Active24 did not take the API key and secret (/v2/check: not verified)",
    "text": "Active24 nepřijal API klíč a tajemství (/v2/check: neověřeno)"
+  },
+  "sup096": {
+   "source": "The CZECHIA.COM administration → your account → REST API token: an \"ACME\" token (only the TXT records of DNS, from any address) is enough.",
+   "text": "Administrace CZECHIA.COM → váš účet → REST API token: stačí token „ACME“ (jen TXT záznamy DNS, z libovolné adresy)."
+  },
+  "sup097": {
+   "source": "120 to 172800 seconds.",
+   "text": "120 až 172800 sekund."
+  },
+  "sup098": {
+   "source": "CZECHIA.COM: the token may not list the domains (an ACME token only writes TXT records) - set the domain and Test reads its zone",
+   "text": "CZECHIA.COM: token nesmí vypsat domény (token ACME jen zapisuje TXT záznamy) – nastavte doménu a Test přečte její zónu"
   }
  },
  "patterns": {
@@ -63105,6 +63117,26 @@
   "psup017": {
    "source": "the own settings of {0} are an object",
    "text": "vlastní nastavení {0} je objekt"
+  },
+  "psup018": {
+   "source": "CZECHIA.COM: the token reads the zone {0} ({1} TXT record(s))",
+   "text": "CZECHIA.COM: token čte zónu {0} ({1} TXT záznamů)"
+  },
+  "psup019": {
+   "source": "CZECHIA.COM: the token sees {0} domain(s){1}",
+   "text": "CZECHIA.COM: token vidí {0} domén{1}"
+  },
+  "psup020": {
+   "source": "CZECHIA.COM has no DNS zone {0} for this token",
+   "text": "CZECHIA.COM nemá pro tento token DNS zónu {0}"
+  },
+  "psup021": {
+   "source": "CZECHIA.COM: {0} holds this value already",
+   "text": "CZECHIA.COM: {0} tuto hodnotu už obsahuje"
+  },
+  "psup022": {
+   "source": "CZECHIA.COM: the records of {0} could not be read ({1}) - changed as asked",
+   "text": "CZECHIA.COM: záznamy {0} nešly přečíst ({1}) – změněno, jak bylo požadováno"
   }
  },
  "rich": {

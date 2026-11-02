@@ -683,9 +683,24 @@ class TestMoreProviders(Base):
 # Modules that cannot go through the common run
 # ---------------------------------------------------------------------------
 class CzechiaFake(Fake):
+    """api.czechia.com as its swagger.json says (1.0.24): the zone read by GET
+    /api/DNS/{domain}; a TXT value added and taken away by its value."""
+    readable = True
+
     def handle(self, method, url, body, h):
         self.t.assertEqual(h['AuthorizationToken'], 'cz')
-        zone = urllib.parse.urlsplit(url).path.split('/')[3]
+        path = urllib.parse.urlsplit(url).path.split('/')
+        if path[2] == 'Domains':
+            return (200, [{'seviceId': 1, 'name': z} for z in ZONES]) if self.readable else \
+                (401, 'Unauthorized')
+        zone = path[3]
+        if method == 'GET' and len(path) == 4:
+            if not self.readable:
+                return 401, 'Unauthorized'
+            return 200, {'txtRecords': [{'hostName': self.rel(zone, r['name']) or '@',
+                                         'text': r['value'], 'ttl': r['ttl']}
+                                        for r in self.recs if r['zone'] == zone],
+                         'aRecords': []}
         self.t.assertTrue(url.endswith('/TXT'))
         b = j(body)
         self.t.assertEqual(b['publishZone'], 1)
@@ -725,9 +740,23 @@ class TestOwnWays(unittest.TestCase):
         m.cleanup('www.example.com', h1)
         m.cleanup('www.example.com', h1)                            # gone: quiet
         self.assertEqual(f.values(), ['someone-elses', 'two'])
-        n = len(f.calls)
-        self.assertIn('dry run', m.test())
-        self.assertEqual(len(f.calls), n, 'test() asks nothing that could change a record')
+        before = f.changes
+        self.assertIn('reads the zone example.com', m.test())
+        self.assertEqual(f.changes, before, 'test() changes nothing')
+        posts = [c for c in f.calls if c[0] == 'POST']
+        self.assertTrue(all(j(c[2])['ttl'] >= 120 for c in posts), 'the API takes 120 s at least')
+        # a token that may not read (ACME token, records only written): as before, by value
+        f.readable = False
+        m3, _ = module('czechia', f, token='cz', zone='example.com')
+        h3 = m3.present('www.example.com', 't', 'k', 'three')
+        m3.present('www.example.com', 't', 'k', 'three')           # "already exists": fine
+        m3.cleanup('www.example.com', h3)
+        m3.cleanup('www.example.com', h3)                           # gone: quiet
+        self.assertEqual(f.values(), ['someone-elses', 'two'])
+        m4, _ = module('czechia', f, token='cz')
+        self.assertIn('may not list the domains', m4.test())
+        f.readable = True
+        self.assertIn('3 domain(s)', m4.test())
 
     def test_duckdns_one_value_at_a_time(self):
         f = DuckFake(self)

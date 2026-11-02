@@ -6,6 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.24 - not released
 
+- **CZECHIA.COM (ZONER)** checked against its own swagger.json: the zone is read
+  (GET /api/DNS/{zone}) before a value is added or taken away, *Test* reads it
+  (or lists the domains) instead of saying only a dry run can tell, and the
+  TTL is at least 120 s, as the API takes (60 was sent).
+
 - **Active24: both of its APIs**, checked against Active24's own descriptions -
   the REST API v2 (rest.active24.cz: *Test* asks /v2/check, a Service ID alone
   gives its domain by /v2/service/{id}/dns/zone, a domain missing from the

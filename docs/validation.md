@@ -51,7 +51,7 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `active24` | Active24 REST API v2 (Websupport-group signing), or the Active24 API (api.active24.com) | API key + secret, or a token |
 | `websupport` | Websupport.sk / .cz REST API v1 (HMAC-SHA1 signed) | API key + secret |
 | `subreg` | Subreg.cz / Gransy SOAP API (envelope written by hand) | API login + password, acme's IP allowed |
-| `czechia` | CZECHIA.COM (ZONER) REST API; zone by SOA - no read call, so a dry run is the test | the account's API token |
+| `czechia` | CZECHIA.COM (ZONER) REST API; zone by SOA (or set), read by GET /api/DNS/{zone} | the account's API token (an ACME token is enough) |
 | `loopia` | LoopiaAPI (XML-RPC); slow name servers | API user + password with the zone functions |
 | `simply` | Simply.com (UnoEuro) API v2 | account number + API key (or a bearer key) |
 | `hostingde` | hosting.de / http.net JSON API (zoneUpdate) | an API key with DNS rights |
@@ -679,12 +679,28 @@ login: (API login)      password: (API password)      zone: example.cz (or empty
 
 ### CZECHIA.COM / ZONER (`czechia`)
 
-The CZECHIA.COM administration → **API**: the authorization token.
-`POST`/`DELETE https://api.czechia.com/api/DNS/{zone}/TXT` with
-`{hostName, text, ttl, publishZone: 1}` (header `AuthorizationToken`) - a value
-is added and removed by itself (https://api.czechia.com/swagger/). The API
-has no call acme knows that only reads: the zone is found by its SOA (or
-set), *Test* cannot try the token, and **a dry run is the real test**.
+The CZECHIA.COM administration → your account → **REST API token**. Of its two
+kinds (napoveda.czechia.com, *Aktivace REST API*) an **ACME** token - only the
+TXT records of DNS, usable from any address - is enough; a full-access one
+works only from the addresses allowed there.
+
+Checked in 1.0.24 against the API's own description,
+`https://api.czechia.com/swagger/v1/swagger.json` ("Zoner REST API
+Documentation" v1, OpenAPI 3.0.1), header `authorizationToken`:
+
+* `GET /api/DNS/{zone}` - the zone, its `txtRecords` (`hostName`, `text`,
+  `ttl`): read before a value is added (one already there is not added again)
+  and before one is taken away; *Test* reads it when the domain is set.
+* `POST` / `DELETE /api/DNS/{zone}/TXT` with `{hostName, text, ttl,
+  publishZone: 1}` - a value added and removed by itself; `publishZone: 1`
+  puts the change on the DNS servers at once. A TTL is **120 to 172800** s
+  (acme sent 60 and up before).
+* `GET /api/Domains` - the domains of the account: *Test* lists them when no
+  domain is set. An ACME token may not list them: the zone is then found by
+  its SOA, as always, and *Test* says to set the domain.
+
+A token that may not read the zone either: each value is added and removed as
+asked, as before (an "already exists" taken for done).
 
 ### Webglobe (`webglobe`)
 
