@@ -6,6 +6,34 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.21 - 2026-11-02
 
+- **acme never runs into the limits of the services it talks to**: a
+  validation signs in **once** for all the certificates it covers - "What to
+  set up" of a Webglobe validation with six certificates signed in six times
+  and Webglobe answered *Too Many Attempts*. Sign-in tokens (Webglobe, Azure,
+  Google, TransIP, Mythic Beasts, netcup, INWX) are kept for their lifetime per
+  validation and settings, a refused sign-in is not tried again for a minute,
+  lists of zones and a validation's test are shared for a little while (*Check
+  again* right after asks nothing again). Every remote host gets at most two
+  requests at once and four a second, from every job together; a `429`, `503`
+  or *Too Many Attempts* is waited out (Retry-After, else a growing wait) and
+  asked again only where that is safe, the host left alone meanwhile - and the
+  job says so. Let's Encrypt's limits for new accounts and orders are kept.
+- **Readiness lists are compact**: "6 certificates · 4 ready · 2 need
+  attention" on top, what needs attention open and first, what is ready one row
+  each (a click opens it), several ready ones folded into one row - in a
+  validation's "What to set up", a certificate's *Check* and *Dry run* and the
+  wizard. A check opened again within half a minute is not asked again.
+- **dns-persist-01 writes its record itself**: *Write the record through*
+  picks one of your DNS validations (Active24, Webglobe, Cloudflare, SSH
+  DNS…); *Check the records* says per domain whether it is there, missing or
+  another value, *Write the records to DNS* writes only what is missing (only
+  acme's own older value is replaced, other records are left alone), *Take the
+  records away* removes exactly what acme wrote. With *Write it by itself when
+  missing* an order writes a missing record first; *What happens* shows it.
+  Taking the validation away asks in a popup, with *Also remove its records
+  from DNS*.
+- *Take it away* in a validation's (source's, target's) own popup asks first -
+  it deleted at once.
 - A new deployment whose Save is refused (a field missing, a right missing) is
   no longer left behind: every failed Save added another one to the certificate.
 - Saving a deployment (or a source, validation, target) no longer asks for a

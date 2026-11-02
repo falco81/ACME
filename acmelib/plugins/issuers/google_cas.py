@@ -29,6 +29,7 @@ import re
 import time
 import urllib.parse
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import Issuer, PluginError, field
 from acmelib.plugins.challenges.gcloud_dns import make_jwt
 from acmelib.plugins.issuers import _source_common as sc
@@ -95,8 +96,16 @@ class GoogleCasIssuer(Issuer):
         return 'projects/%s/locations/%s/caPools/%s' % (project, loc, pool)
 
     def token(self):
+        if limits.sharing(self.ctx):
+            # one token for every run with these settings, for its lifetime (limits.py)
+            return limits.session(limits.key_of(self, 'token'), self._sign_in)
         if self._token and time.time() < self._token_until - 60:
             return self._token
+        self._token, life = self._sign_in()
+        self._token_until = time.time() + life
+        return self._token
+
+    def _sign_in(self):
         sa = self._sa()
         body = urllib.parse.urlencode({'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
                                        'assertion': make_jwt(self.ctx, sa, scope=SCOPE)})
@@ -108,9 +117,7 @@ class GoogleCasIssuer(Issuer):
         if status != 200 or not got.get('access_token'):
             raise sc.refusal('Google (token)', status, got, data,
                              'the service account key is wrong or disabled')
-        self._token = got['access_token']
-        self._token_until = time.time() + float(got.get('expires_in') or 3000)
-        return self._token
+        return got['access_token'], float(got.get('expires_in') or 3000)
 
     def _call(self, method, path, body=None, what='CA Service'):
         status, _h, data = sc.http(self.ctx, method, BASE + '/' + path, body,

@@ -17,6 +17,7 @@ import json
 import time
 import urllib.parse
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges.route53 import sigv4          # noqa: F401  (re-exported)
 from acmelib.plugins.challenges.gcloud_dns import make_jwt
@@ -87,6 +88,18 @@ def entra_token(t, scope):
     """A token of Microsoft Entra for an app registration with a client secret."""
     if t._token and time.time() < t._token_until - 60:
         return t._token
+    if limits.sharing(t.ctx):
+        # one token for every run with these settings, for its lifetime (limits.py)
+        t._token = limits.session(limits.key_of(t, 'entra_token|' + str(scope)),
+                                  lambda: _entra_once(t, scope))
+        t._token_until = time.time() + 120
+        return t._token
+    tok, life = _entra_once(t, scope)
+    t._token, t._token_until = tok, time.time() + life
+    return tok
+
+
+def _entra_once(t, scope):
     login = ENTRA_CLOUDS.get(t.c('cloud', 'public'), ENTRA_CLOUDS['public'])[0]
     body = urllib.parse.urlencode({
         'grant_type': 'client_credentials', 'client_id': t.c('client_id', ''),
@@ -100,9 +113,7 @@ def entra_token(t, scope):
         raise PluginError(str(e), detail=e.detail, retry=False)
     if not isinstance(d, dict) or not d.get('access_token'):
         raise PluginError('Microsoft Entra gave no token', retry=False)
-    t._token = d['access_token']
-    t._token_until = time.time() + float(d.get('expires_in') or 3000)
-    return t._token
+    return d['access_token'], float(d.get('expires_in') or 3000)
 
 
 def service_account(t, key='service_account'):
@@ -121,6 +132,18 @@ def service_account(t, key='service_account'):
 def google_token(t, scope='https://www.googleapis.com/auth/cloud-platform'):
     if t._token and time.time() < t._token_until - 60:
         return t._token
+    if limits.sharing(t.ctx):
+        # one token for every run with these settings, for its lifetime (limits.py)
+        t._token = limits.session(limits.key_of(t, 'google_token|' + str(scope)),
+                                  lambda: _google_once(t, scope))
+        t._token_until = time.time() + 120
+        return t._token
+    tok, life = _google_once(t, scope)
+    t._token, t._token_until = tok, time.time() + life
+    return tok
+
+
+def _google_once(t, scope):
     sa = service_account(t)
     body = urllib.parse.urlencode({
         'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -133,7 +156,5 @@ def google_token(t, scope='https://www.googleapis.com/auth/cloud-platform'):
         raise PluginError(str(e), detail=e.detail, retry=False)
     if not isinstance(d, dict) or not d.get('access_token'):
         raise PluginError('Google gave no token', retry=False)
-    t._token = d['access_token']
-    t._token_until = time.time() + float(d.get('expires_in') or 3000)
-    return t._token
+    return d['access_token'], float(d.get('expires_in') or 3000)
 

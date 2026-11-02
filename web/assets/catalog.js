@@ -16,7 +16,12 @@
 (function () {
   var PATHS = {issuer: 'sources', challenge: 'validations', target: 'targets'};
 
-  function catTr(words) { return typeof tr === 'function' ? tr(words) : words; }
+  /* Words in the page's language for where they go into data (an option of the
+     list, marked as data): i18n.js's own, English where there is none. */
+  function catTr(words) {
+    try { var got = typeof i18nText === 'function' ? i18nText(words) : null; return got || words; }
+    catch (e) { return words; }
+  }
 
   /* A field of the form given a value from here: as if typed (show_if repaints). */
   function catSet(form, key, v) {

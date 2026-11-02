@@ -42515,6 +42515,10 @@
   "sssl0099": {
    "source": "organisation's e-mail",
    "text": "e-mail organizace"
+  },
+  "sl0044": {
+   "source": "written - not seen in DNS yet",
+   "text": "zapsáno – v DNS zatím není vidět"
   }
  },
  "patterns": {
@@ -59121,6 +59125,14 @@
   "pssl0055": {
    "source": "SSLS ID {0}",
    "text": "SSLS ID {0}"
+  },
+  "pl0048": {
+   "source": "{0} written, {1} there already, {2} not - see every step",
+   "text": "zapsáno {0}, už existovalo {1}, nezapsáno {2} – viz každý krok"
+  },
+  "pl0049": {
+   "source": "nothing written: {0}",
+   "text": "nic nezapsáno: {0}"
   }
  },
  "rich": {

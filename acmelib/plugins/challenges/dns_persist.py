@@ -607,11 +607,11 @@ class DnsPersist(Challenge):
             except PluginError as e:
                 bad.append('%s: %s' % (w['name'], e))
                 self.ctx.step(bad[-1], 'bad')
-        words = '%d written, %d there already%s' % (
-            done['written'], done['present'] + done['soon'],
-            ('; ' + '; '.join(bad)) if bad else '')
+        words = '%d written, %d there already' % (done['written'], done['present'] + done['soon'])
         if bad and not done['written'] and not done['present'] + done['soon']:
-            raise PluginError(words)
+            raise PluginError('nothing written: %s' % '; '.join(bad))
+        if bad:
+            words += ', %d not - see every step' % len(bad)
         return words
 
     def remove_records(self):

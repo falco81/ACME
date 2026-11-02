@@ -114,6 +114,15 @@ combined-pem p7b pfx p12 p12-legacy jks`.
 - **Steps**: one `ctx.step()` per thing done on the device; the job is what
   someone reads at 3 a.m.
 - **No secrets in words**: never put a password or key into a step or an error.
+- **Kind to the service** (1.0.21): go through `ctx.http` - it keeps two requests
+  at once and four a second per host, waits out a 429 / 503 / "too many attempts"
+  and asks an idempotent call again (`idempotent=True` for a POST that may be
+  repeated). Sign in through `acmelib.plugins.limits.session(limits.key_of(self,
+  'token'), login)` where `login()` returns `(token, seconds it lives)`: the token is
+  shared by every run with the same settings, a refused sign-in is not repeated for
+  a minute; after a 401 call `limits.session_drop(key, token)` and sign in once more.
+  A list of zones or domains: `limits.shared(limits.key_of(self, 'zones'), fn)`.
+  Under a test's stand-in ctx (`limits.sharing(ctx)` false) nothing is shared.
 
 ## The helpers: `acmelib.plugins.targets._common`
 

@@ -195,6 +195,42 @@ It works only with an ACME source that takes it (the `acme` module): any other
 source - a commercial CA's DCV, AD CS - is told so when the validation is
 chosen (it does not fit). An IP address cannot be proved by it.
 
+### acme writes the record itself (1.0.21)
+
+*Write the record through* picks one of the DNS validations acme already has
+that writes TXT records which stay - Active24, Webglobe, Cloudflare, Route 53,
+SSH DNS, RFC 2136… (a list of the validations, never typed; acme's own DNS
+server, Duck DNS, acme-dns and the manual ones are not offered: their records
+do not stay or are not in your zone). Empty: the record is set by hand, as
+before. Its credentials stay in that validation and are never shown here.
+
+| On the validation's page | What it does |
+|---|---|
+| *Check the records* | for each domain and ACME source: the record is **there**, **missing**, or holds **another value** (a record of this CA naming another account - the account changed, `policy` or `persistUntil` differ); *written by acme through …* where acme wrote it. Read-only. |
+| *Write the records to DNS* | through that validation's `add_txt`: only what is missing or not right. A value acme wrote before (the account changed) is replaced - the new one written first, the old one taken away; **a record acme did not write is never touched**. A value written within the last hour and not seen in DNS yet is not written again. What was written - domain, name, value, the validation it went through, its handle - is kept in the validation's state. |
+| *Take the records away* | asks first (in the page); removes exactly what acme wrote, through the validation that wrote it. |
+
+*Domains with the record* empty: the domains of the certificates that use the
+validation. Writing and taking away run as jobs (Certificates → Jobs, step by
+step) and are said in the events; they need a full administrator (they change
+your DNS) - checking is for a certificate administrator too. Both are
+idempotent (looked up first), so on a replicated pair either node may run
+them; what acme wrote is in the replicated database.
+
+*Write it by itself when missing* (on by default, used only with a validation
+chosen above): at an order, before a name's authorization is answered, a
+missing or wrong record of this CA and account is written first (once per
+order and domain); while the CA offers dns-persist-01 acme then waits up to
+90 s for it to be seen, else the fallback proves the name this time. While the
+CA does not offer it yet, the record is written all the same - ready for the
+day it does. *What happens* (the run plan) shows the look-up and the write
+through that validation.
+
+**Deleting the validation** (*Take it away*) asks in a popup with *Also remove
+its records from DNS* - ticked when acme wrote some: they are taken away
+first, in a job, and if that fails nothing is deleted. On the command line:
+`acme --validation-action NAME check_records | write_records | remove_records`.
+
 ## Before the first certificate: what acme checks and tells you
 
 Every validation says, for one name, **what must be in place, where** - and
@@ -336,9 +372,26 @@ What every one of them does the same way:
   Gandi, GoDaddy, NS1, Namecheap) it is read, changed and written back, one
   change at a time on this node. Removing a value that is gone already is
   not an error.
-* **Throttling**: a `429 Too Many Requests` is waited out as long as its
-  `Retry-After` says (at most 60 s, three times) and the job says so; then
-  it fails with "try again later".
+* **Kind to the provider** (1.0.21, for every module, source and target -
+  `acmelib/plugins/limits.py`): **one sign-in per validation and its
+  settings** - the token (Webglobe's JWT, an OAuth token of Azure / Google /
+  Mythic Beasts, a TransIP token, a netcup or INWX session) is kept for its
+  lifetime and shared by every job and check with the same settings, one
+  sign-in at a time; a 401 signs in once more. A refused sign-in is not tried
+  again for a minute (a wrong key is not hammered into a lock-out). The list
+  of zones / domains and the Test of a validation are **asked once** for a
+  little while (45 s / 30 s) - a readiness check of six certificates on one
+  Webglobe validation signs in once, and *Check again* right after asks
+  nothing again. **Every host** gets two requests at once and four a second
+  at most, whatever runs in parallel (renewals, `certs_parallel`, readiness);
+  loopback is not limited. A `429`, a `503` or a refusal saying *Too Many
+  Attempts* / *rate limit* is **waited out** - as long as its `Retry-After`
+  says (seconds or a date), else 2, 4, 8 s with a little jitter - and an
+  idempotent call (GET, PUT, DELETE) is asked again at most twice; the host
+  is then left alone for that long by every job (a longer wait: *not asked
+  again before HH:MM*), and the job says so in words. Let's Encrypt's
+  documented limits - 10 new accounts and 300 new orders in 3 hours - are
+  kept before asking.
 * **Test** signs in and lists the zones (or reads the zone set) - it never
   changes a record.
 * **Seen**: as every DNS-01 module, by the zone's own name servers (above).

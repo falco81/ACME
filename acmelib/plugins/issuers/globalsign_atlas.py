@@ -32,6 +32,7 @@ import ipaddress
 import re
 import time
 
+from acmelib.plugins import limits
 from acmelib.plugins.base import Issuer, PluginError, field, dual_order_field
 from acmelib.plugins.issuers import _source_common as sc
 
@@ -114,15 +115,21 @@ class GlobalSignAtlasIssuer(Issuer):
         return status, h, parsed
 
     def token(self):
+        if limits.sharing(self.ctx):
+            # one token for every run with these settings, for its 10 minutes (limits.py)
+            return limits.session(limits.key_of(self, 'token'), lambda: (self._sign_in(), 570.0))
         if self._token and time.time() - self._token_at < 540:
             return self._token
+        self._token, self._token_at = self._sign_in(), time.time()
+        return self._token
+
+    def _sign_in(self):
         _s, _h, got = self._call('POST', '/login', {'api_key': str(self.c('api_key') or ''),
                                                     'api_secret': str(self.c('api_secret') or '')},
                                  'login', auth=False)
         if not (got or {}).get('access_token'):
             raise PluginError('GlobalSign Atlas gave no access token', retry=False)
-        self._token, self._token_at = got['access_token'], time.time()
-        return self._token
+        return got['access_token']
 
     def test(self):
         _s, _h, pol = self._call('GET', '/validationpolicy', what='policy')

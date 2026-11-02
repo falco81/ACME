@@ -492,7 +492,10 @@ SPLIT_READS = {'/api/certs/compat': None,
                '/api/db': ('job', 'download_ticket', 'check', 'tune_plan'),
                '/api/rbackup': ('job', 'list', 'verified', 'restore_md'),
                '/api/texts': ('preview',), '/api/metrics': ('preview',),
-               '/api/firewall': ('rule_check',), '/api/directories': ('lookup',)}
+               '/api/firewall': ('rule_check',), '/api/directories': ('lookup',),
+               # a module's list read live for its form (1.0.21: SSLS.cz products)
+               '/api/sources/catalog': None, '/api/validations/catalog': None,
+               '/api/targets/catalog': None}
 
 
 def split_free_path(path, action=''):

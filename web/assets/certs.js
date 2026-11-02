@@ -1934,7 +1934,8 @@ function persistHere(row, p) {
       var got = obj(d.persist);
       var cas = arr(got.cas);
       if (look) look.hidden = !cas.some(function (c) { return c.staging; });
-      away.hidden = !(FULL && arr(got.written).length);
+      row.persist_written = arr(got.written).length;      /* "Take it away" asks with it */
+      away.hidden = !(FULL && row.persist_written);
       cas.forEach(function (c) {
         var line = el('div', 'ct-rd-step ' + (c.offered ? 'ok' : 'unk'));
         line.appendChild(okMark(c.offered ? true : null));
@@ -1955,7 +1956,8 @@ function persistHere(row, p) {
         var top = el('div', 'ct-rd-what');
         top.appendChild(data('b', '', r.title || r.source));
         top.appendChild(data('span', 'muted small ct-rd-where', r.source + (r.domain ? ' · ' + r.domain : '')));
-        if (r.state && STATE[r.state]) top.appendChild(el('span', 'tag small ct-persist-state ' + STATE[r.state][1], STATE[r.state][0]));
+        var tagOf = r.written && r.state === 'missing' ? ['written - not seen in DNS yet', 'info'] : STATE[r.state];
+        if (tagOf) top.appendChild(el('span', 'tag small ct-persist-state ' + tagOf[1], tagOf[0]));
         w.appendChild(top);
         if (r.account) w.appendChild(data('div', 'mono small muted', r.account));
         if (r.error || r.said) w.appendChild(el('div', 'muted small ct-rd-said', r.error || r.said));
@@ -1985,7 +1987,7 @@ function persistHere(row, p) {
       var good = d.ok !== false && !d.error;
       clear(said);
       said.className = 'said ' + (good ? 'good' : 'bad');
-      said.appendChild(data('span', '', String(d.said || d.message || d.error || (good ? 'done' : 'it did not work')).split('\n')[0]));
+      said.appendChild(el('span', '', String(d.said || d.message || d.error || (good ? 'done' : 'it did not work')).split('\n')[0]));
       if (d.job_id) {
         var st = el('button', 'btn small ct-steps-btn', 'every step');
         st.type = 'button';
