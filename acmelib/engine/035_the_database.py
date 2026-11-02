@@ -955,7 +955,11 @@ END $f$""")
                 if not col or col in have or col == 'id':
                     continue
                 kind = piece.split(' ', 2)[1] if ' ' in piece else 'TEXT'
-                kind = re.sub(r'\s*(NOT NULL|UNIQUE|PRIMARY KEY).*$', '', piece.split(' ', 1)[1])
+                # The column's type only (1.0.23): a table constraint after the last
+                # column (", UNIQUE (ca_id, serial)") left "BLOB," - a column added
+                # last before it was never added.
+                kind = re.sub(r',?\s*(NOT NULL|UNIQUE|PRIMARY KEY).*$', '', piece.split(' ', 1)[1],
+                              flags=re.S).strip().rstrip(',').strip()
                 try:
                     self.run('ALTER TABLE %s ADD COLUMN %s %s' % (name, col, kind))
                 except Exception as e:

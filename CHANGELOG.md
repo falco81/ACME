@@ -6,6 +6,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.23 - 2026-11-02
 
+- An upgrade added no column declared last before a table's own rule (UNIQUE):
+  the certificate an own authority signs (cert_ca_issued) was not kept.
 - **Import from a source** (Certificates, beside *Import*): the certificates
   your account already has at SSLS.cz, SSLmarket, DigiCert CertCentral, Vault,
   EJBCA, FreeIPA, Google CA Service, GlobalSign Atlas or an authority of acme's
