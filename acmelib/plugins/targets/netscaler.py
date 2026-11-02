@@ -6,6 +6,7 @@ SSL virtual servers, the configuration saved.
 """
 from __future__ import annotations
 
+import re
 import urllib.parse
 
 from acmelib.plugins.targets._common import (
@@ -63,10 +64,9 @@ class NetScalerTarget(HttpTarget):
             auth=False, what='signing in')
         sid = (d or {}).get('sessionid') if isinstance(d, dict) else None
         if not sid:
-            cookie = hd.get('set-cookie', '')
-            for part in cookie.split(';'):
-                if 'NITRO_AUTH_TOKEN=' in part:
-                    sid = part.split('NITRO_AUTH_TOKEN=', 1)[1]
+            m = re.search(r'NITRO_AUTH_TOKEN=([^;,\s]+)', str(hd.get('set-cookie') or ''))
+            if m:                   # (several cookies come joined by ", ")
+                sid = m.group(1)
         if not sid:
             raise PluginError('the NetScaler gave no session on signing in')
         self.session = sid

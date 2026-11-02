@@ -22,6 +22,7 @@ import base64
 import hashlib
 import hmac
 import json
+import re
 import struct
 import time
 
@@ -88,8 +89,9 @@ class Inwx(ApiDns):
         except (ValueError, UnicodeDecodeError, AttributeError):
             raise PluginError('INWX answered something that is not JSON', detail=got)
         cookie = _header(rh, 'set-cookie')
-        if cookie and 'domrobot=' in cookie:
-            self._cookie = cookie.split(';', 1)[0].strip()
+        m = re.search(r'(?:^|[,;]\s*)(domrobot=[^;,\s]+)', cookie or '')
+        if m:                       # (several cookies come joined by ", ")
+            self._cookie = m.group(1)
         if int(ans.get('code') or 0) not in ok:
             raise PluginError('INWX said %s: %s%s' % (
                 ans.get('code'), ans.get('msg'), (' (%s)' % ans.get('reason')) if
