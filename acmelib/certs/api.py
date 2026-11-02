@@ -227,6 +227,10 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
         one['deploys_target_off'] = int(store.db.value(
             'SELECT COUNT(*) FROM cert_deploys d JOIN cert_targets t ON t.name = d.target '
             'WHERE d.cert_id = ? AND t.enabled = 0', (r['id'],), 0) or 0)
+        # Its latest job (1.0.26): the list's "Last job" opens it - a job's window
+        # closed while it ran can be opened again from there.
+        from acmelib.certs import portal as _portal
+        one['last_job'] = _portal.last_job(store, r['id'])
         out.append(one)
     return {'rows': out, 'total': total, 'page': page, 'per': per}
 
@@ -382,7 +386,8 @@ def _cert_one(h, s):
     return cert_one(h.store, h.arg('id') or h.arg('name'), may(s, 'fulladmin'))
 
 
-KEEP_STATES = ('revoked', 'pending-approval', 'declined', 'pending', 'deleting', 'revoke-failed')
+KEEP_STATES = ('revoked', 'pending-approval', 'declined', 'pending', 'deleting', 'revoke-failed',
+               'held')
 
 
 def cert_save(store, b, by, full=False):
@@ -556,7 +561,9 @@ def cert_save(store, b, by, full=False):
         store.add_event('certificates', 'certificate %s changed by %s' % (name, by), who=by)
         ident = row['id']
     else:
-        fields.update({'state': 'new', 'state_at': t, 'version': 0, 'fails': 0, 'source':
+        # "Add only" (1.0.26): kept, not issued by itself - Issue now issues it.
+        fields.update({'state': 'held' if _flag(b.get('hold'), 0) and fields.get('issuer')
+                       else 'new', 'state_at': t, 'version': 0, 'fails': 0, 'source':
                        'issuer' if fields.get('issuer') else 'manual', 'created': t,
                        'created_by': str(by)[:190], 'enabled': fields.get('enabled', 1),
                        'ari': '{}'})

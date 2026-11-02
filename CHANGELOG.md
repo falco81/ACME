@@ -6,6 +6,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.26 - not released
 
+- **Add only adds, and issues nothing**: the certificate waits as *added, not
+  issued* until *Issue now* is pressed in its window (the look right after the
+  save issued it at once before).
+- **A job's window, opened again**: the certificate's window has *Its running
+  job* / *Its last job*, and *Last job* in the list of certificates opens it - a
+  job closed while it ran was nowhere to be found.
+
 - **Escape closes a popup at the first press**, everywhere: a help shown by the
   pointer resting on a card or a button took the first Escape, and the popup
   needed a second.

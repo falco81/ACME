@@ -222,8 +222,8 @@ def main_due(row, t=None):
     # A request of the portal not approved (1.0.19) is never issued by itself.
     # Being revoked to be deleted, or its revocation failed (1.0.23): asked to go away.
     if row.get('state') in ('renewing', 'pending', 'revoked', 'disabled', 'pending-approval',
-                            'declined', 'deleting', 'revoke-failed'):
-        return ''
+                            'declined', 'deleting', 'revoke-failed', 'held'):
+        return ''                       # held: added only, issued when asked (1.0.26)
     if row.get('state') == 'failed':
         return 'it failed last time; the wait is over' \
             if float(row.get('next_try') or 0) <= t else ''

@@ -146,6 +146,7 @@ VARIANTS = ('main', 'alt')
 # The states of a certificate.
 STATES = {
     'new': 'not issued yet',
+    'held': 'added, not issued - Issue now issues it',
     'ok': 'valid',
     'due': 'due for renewal',
     'renewing': 'being renewed',

@@ -246,7 +246,9 @@ var STATE = {
   /* asked for on the portal (acmelib/certs/portal.py) */
   'pending-approval': ['waiting for approval', 'warn'], declined: ['declined', 'crit'],
   /* Delete with revoke (1.0.23): seen as it goes, kept when the CA refused */
-  deleting: ['being revoked, then deleted', 'info'], 'revoke-failed': ['revocation failed', 'crit']
+  deleting: ['being revoked, then deleted', 'info'], 'revoke-failed': ['revocation failed', 'crit'],
+  /* Add only (1.0.26): kept, issued when Issue now is pressed */
+  held: ['added, not issued', 'dim']
 };
 /** A popup's title of words and a name: the name is data, the words are
     translated as they stand ("Revoke " + a name the pattern cannot tell
@@ -2951,6 +2953,13 @@ function certPeek(id) {
       }});
     }
     buttons.push({words: 'Close', close: true});
+    /* Its job - running now, or the latest (1.0.26): a job's window closed while it
+       ran opened again from here. */
+    var lastJob = jobs.filter(function (j) { return jobRunning(j); })[0] || jobs[0];
+    if (lastJob && lastJob.id) buttons.push({words: jobRunning(lastJob) ? 'Its running job' : 'Its last job',
+      icon: 'list', cls: jobRunning(lastJob) ? 'ct-pulse-btn' : '',
+      says: 'Every step of it, as it goes.',
+      go: function () { over(function () { jobPeek(lastJob.id); }, back); }});
     if (window.ACME_RUNPLAN) buttons.push({words: 'What happens', icon: 'list',
       says: 'Everything a renewal of it does, step by step: the key, every call to its source, how each name is proved, and on each target every call, file and command - worked out without doing any of it.',
       go: function () { ACME_RUNPLAN.open({id: c.id, name: c.name, back: back}); }});
@@ -3945,7 +3954,9 @@ function certWizard(cert, detail, opts) {
       if (window.ACME_RUNPLAN) buttons.push({words: 'What happens', icon: 'list',
         says: 'Everything it will do, step by step - the key, the source, how each name is proved, every call, file and command on its targets - from what is set here now; nothing is saved or contacted.',
         go: function () { planOpen(); }});
-      if (!editing) buttons.push({words: 'Add only', icon: 'save', go: function (b) { finish(b, false); }});
+      if (!editing) buttons.push({words: 'Add only', icon: 'save',
+        says: 'Kept, not issued: it waits until Issue now is pressed in its window.',
+        go: function (b) { finish(b, false, true); }});
       buttons.push({words: SETUP ? 'Save the set-up' : (editing ? 'Save' : 'Add and issue now'), cls: 'primary', icon: editing ? 'save' : 'play', go: function (b) { finish(b, !editing); }});
     } else {
       buttons.push({words: 'Next', cls: 'primary', icon: 'next', go: function () {
@@ -4954,7 +4965,7 @@ function certWizard(cert, detail, opts) {
     if (W.d.tags) pairs.push(['Tags', tagChips(splitNames(W.d.tags))]);
     if (SETUP) host.appendChild(el('p', 'note', 'Saved, the certificate imported stays as it is - valid, in use. Its deployments get it now (those that need its private key once the key is added); its next renewal asks ' + (W.d.issuer || 'the source') + ' for it with what is set here.'));
     else host.appendChild(el('p', 'note', editing ? 'What it will be. Saved, it takes effect at its next renewal - press Renew now in it to have it at once.'
-      : 'What it will be. "Add and issue now" asks the source at once, in a job you can watch; "Add only" waits for the next look.'));
+      : 'What it will be. "Add and issue now" asks the source at once, in a job you can watch; "Add only" keeps it unissued until Issue now is pressed in its window.'));
     host.appendChild(kvTable(pairs));
     var bad = checkNames();
     if (bad) host.appendChild(el('p', 'ct-bad', bad));
@@ -5036,12 +5047,13 @@ function certWizard(cert, detail, opts) {
     sent.deploys = W.deploys;
     ACME_RUNPLAN.open({id: c.id || undefined, draft: sent, name: sent.name});
   }
-  function finish(b, issue) {
+  function finish(b, issue, hold) {
     var bad = checkNames() || (!W.d.issuer ? 'choose where it comes from' : '') ||
       ((compatProblems()[0] || {}).what || '');
     if (bad) { toast(bad, 'bad'); return; }
     busy(b, true);
     var sent = body();
+    if (hold && !editing) sent.hold = true;     /* "Add only": not issued by itself (1.0.26) */
     /* What would make another certificate: changed on one already issued, the
        question after the save - now, or at the next renewal. */
     var inCert = function (x) {

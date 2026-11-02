@@ -45783,6 +45783,34 @@
   "sup106": {
    "source": "A certificate profile of IPA. Load the list: IPA's profiles (certprofile_find); one can be typed too. A certificate's own profile (Add a certificate → Settings) wins.",
    "text": "Certifikační profil IPA. Načíst seznam: profily IPA (certprofile_find); lze ho i zadat ručně. Vlastní profil certifikátu (Přidat certifikát → Nastavení) má přednost."
+  },
+  "sup107": {
+   "source": "added, not issued",
+   "text": "přidán, nevystaven"
+  },
+  "sup108": {
+   "source": "added, not issued - Issue now issues it",
+   "text": "přidán, nevystaven – vystaví ho Vystavit teď"
+  },
+  "sup109": {
+   "source": "Its running job",
+   "text": "Jeho běžící úloha"
+  },
+  "sup110": {
+   "source": "Its last job",
+   "text": "Jeho poslední úloha"
+  },
+  "sup111": {
+   "source": "Every step of it, as it goes.",
+   "text": "Každý její krok, jak probíhá."
+  },
+  "sup112": {
+   "source": "Kept, not issued: it waits until Issue now is pressed in its window.",
+   "text": "Uloží se, ale nevystaví: čeká, až v jeho okně stisknete Vystavit teď."
+  },
+  "sup113": {
+   "source": "What it will be. \"Add and issue now\" asks the source at once, in a job you can watch; \"Add only\" keeps it unissued until Issue now is pressed in its window.",
+   "text": "Jak bude vypadat. „Přidat a hned vystavit“ požádá zdroj okamžitě, v úloze, kterou můžete sledovat; „Jen přidat“ ho nechá nevystavený, dokud v jeho okně nestisknete Vystavit teď."
   }
  },
  "patterns": {
