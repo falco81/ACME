@@ -764,5 +764,27 @@ class TestEngine(unittest.TestCase):
         self.assertTrue(any(k in keys for k in ('persist-record', 'persist-account')))
 
 
+class AskedAtTheSource(unittest.TestCase):
+    """1.0.22: a record just written is read from the zone's own name servers - a
+    resolver's "no such record", kept from a look before it was written, is not it."""
+
+    def test_authoritative_first(self):
+        from acmelib.plugins.challenges import _dns as DD
+        m = DP.DnsPersist({'domains': ['example.com']}, None)
+        m.resolvers = lambda: ['192.0.2.1']
+        saved = (DD.find_zone, DD.zone_servers, DD.txt_at, DD.ask_any)
+        try:
+            DD.find_zone = lambda rr, res, timeout=3.0, rd=True: 'example.com'
+            DD.zone_servers = lambda z, res, timeout=3.0: [('ns1.example.com', ['192.0.2.53'])]
+            DD.txt_at = lambda a, rr, port=53, timeout=3.0, rd=False: ['fresh']
+
+            def cached_nothing(*a, **k):
+                raise AssertionError('the resolvers are not asked while a name server answers')
+            DD.ask_any = cached_nothing
+            self.assertEqual(m.txt('_validation-persist.example.com'), ['fresh'])
+        finally:
+            DD.find_zone, DD.zone_servers, DD.txt_at, DD.ask_any = saved
+
+
 if __name__ == '__main__':
     unittest.main()

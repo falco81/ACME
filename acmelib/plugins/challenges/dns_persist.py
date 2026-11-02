@@ -699,8 +699,25 @@ class DnsPersist(Challenge):
             cur = cur.split('.', 1)[1]
         return bare, wild, out
 
+    auth_port = 53
+
     def txt(self, rr):
-        """The TXT values at a name, as the validation checks' resolvers see them."""
+        """The TXT values at a name: from the zone's own name servers first (1.0.22) - a
+        resolver keeps "no such record" from a look made before the record was written
+        (its negative cache, often an hour), so a record just written read as missing -
+        else as the validation checks' resolvers see them."""
+        try:
+            zone = D.find_zone(rr, self.resolvers(), timeout=self.guide_timeout)
+            servers = D.zone_servers(zone, self.resolvers(), timeout=self.guide_timeout) \
+                if zone else []
+        except (D.DnsError, D.FormErr, OSError):
+            servers = []
+        for _ns, addrs in servers[:4]:
+            for a in addrs[:2]:
+                try:
+                    return list(D.txt_at(a, rr, port=self.auth_port, timeout=self.guide_timeout))
+                except (D.DnsError, D.FormErr, OSError):
+                    continue
         m = D.ask_any(self.resolvers(), rr, 16, self.guide_timeout)
         if m.rcode == D.NXDOMAIN:
             return []
@@ -982,6 +999,8 @@ class DnsPersist(Challenge):
         return out
 
     def test(self):
+        """What is ready and, in words, what is still to do (1.0.22) - as a list of
+        steps, not one line of everything: failed only when a certificate would fail."""
         got = self.overview(register=False, check=True)
         if not got['records']:
             raise PluginError('there is no ACME source: the record names an ACME account',
@@ -991,14 +1010,56 @@ class DnsPersist(Challenge):
             return '; '.join(['set "Domains with the record" to check them'] + lines)
         for line in lines:
             self.ctx.step(line)
-        bad = [r for r in got['records'] if r.get('ok') is False or r.get('error') or
-               not (r.get('record') or {}).get('value')]
-        if bad and not self.fallback_name():
-            raise PluginError('; '.join(lines))
-        if bad:
-            return 'the record is not right yet (the fallback %s proves the names meanwhile): ' \
-                   '%s' % (self.fallback_name(), '; '.join(lines))
-        return 'the record is right: %s' % '; '.join(lines)
+        fb, writer = self.fallback_name(), self.writer_name()
+        auto = bool(writer) and self.write_missing_on()
+        todo, blocking = [], False
+        for r in got['records']:
+            rec = r.get('record') or {}
+            if r.get('error'):
+                todo.append('%s: %s' % (r['title'], r['error']))
+                blocking = True
+            elif not r.get('account'):
+                todo.append('%s: no ACME account there yet - it is made at the first order, '
+                            'or now with "Make the record"' % r['title'])
+            elif r.get('ok') is False:
+                if writer:
+                    todo.append('%s: the record is not in DNS yet - "Write the records to DNS" '
+                                'writes it through %s%s' % (
+                                    r['title'], writer,
+                                    ' (or it is written by itself at the next order)'
+                                    if auto else ''))
+                    blocking = blocking or not auto
+                else:
+                    todo.append('%s: put this record in DNS: %s. TXT "%s" (or choose a '
+                                'validation in "Write the record through")' % (
+                                    r['title'], rec.get('name'), rec.get('value')))
+                    blocking = True
+        for c in got['cas']:
+            if c.get('offered'):
+                continue
+            if fb:
+                self.ctx.step('%s does not offer dns-persist-01 (yet): %s proves the names '
+                              'meanwhile' % (c['title'], fb), 'info')
+            elif c.get('looked'):
+                todo.append('%s: does not offer dns-persist-01 yet - choose a "Fallback '
+                            'validation" (such as %s) to prove the names meanwhile'
+                            % (c['title'], writer or 'a DNS validation'))
+                blocking = True
+            else:
+                # not looked yet: the first order shows it - said, not a failure
+                todo.append('%s: whether it offers dns-persist-01 is not known yet ("Look now" '
+                            'at a staging CA, or the first order shows it) - a "Fallback '
+                            'validation" makes the order safe either way' % c['title'])
+        if not todo:
+            return 'the record is right: %s' % '; '.join(lines)
+        for i, t in enumerate(todo, 1):
+            self.ctx.step('to do %d: %s' % (i, t), 'bad' if blocking else 'warn')
+        words = ' · '.join('%d) %s' % (i, t) for i, t in enumerate(todo, 1))
+        if blocking:
+            raise PluginError('not ready yet - %s' % words, retry=False)
+        records_ok = all(r.get('ok') for r in got['records'])
+        return ('the record is right; still - %s' if records_ok else
+                'works now; still to do - %s') % words
 
     def action(self, key):
         if key == 'check_records':

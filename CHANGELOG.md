@@ -6,6 +6,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.22 - 2026-11-02
 
+- DNS-PERSIST-01: *Test* says what is still to do as numbered steps (make the
+  account, write the record through the chosen validation, choose a fallback)
+  and fails only when a certificate would fail - not for an account to be made
+  at the first order or a CA not looked at yet.
+- DNS-PERSIST-01: a record is read from the zone's own name servers first - a
+  record just written read as "not in DNS yet" for up to an hour while the
+  resolvers kept the "no such record" of the look before it.
 - Each action of a module (a validation's, a source's, a target's) has its own
   icon in the lists - make the record, look, check, write, take away, products,
   discover… - instead of the same gear for every one.

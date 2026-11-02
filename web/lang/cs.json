@@ -42519,6 +42519,10 @@
   "sl0044": {
    "source": "written - not seen in DNS yet",
    "text": "zapsáno – v DNS zatím není vidět"
+  },
+  "sdp22_12": {
+   "source": "a DNS validation",
+   "text": "DNS validace"
   }
  },
  "patterns": {
@@ -59137,6 +59141,50 @@
   "swedos01": {
    "source": "WEDOS refused the sign-in a moment ago: WAPI is not asked again for {0} s (more wrong requests would block this address) - check the login, the WAPI password, this machine's clock and the IP addresses allowed for WAPI",
    "text": "WEDOS před chvílí odmítl přihlášení: WAPI se znovu nezeptá dřív než za {0} s (další chybné požadavky by tuto adresu zablokovaly) – zkontrolujte login, heslo k WAPI, hodiny tohoto stroje a IP adresy povolené pro WAPI"
+  },
+  "sdp22_01": {
+   "source": "{0}: no ACME account there yet - it is made at the first order, or now with \"Make the record\"",
+   "text": "{0}: ACME účet tam zatím není – vytvoří se při první objednávce, nebo hned tlačítkem „Vytvořit záznam“"
+  },
+  "sdp22_02": {
+   "source": "{0}: the record is not in DNS yet - \"Write the records to DNS\" writes it through {1} (or it is written by itself at the next order)",
+   "text": "{0}: záznam zatím v DNS není – „Zapsat záznamy do DNS“ ho zapíše přes {1} (nebo se zapíše sám při další objednávce)"
+  },
+  "sdp22_03": {
+   "source": "{0}: the record is not in DNS yet - \"Write the records to DNS\" writes it through {1}",
+   "text": "{0}: záznam zatím v DNS není – „Zapsat záznamy do DNS“ ho zapíše přes {1}"
+  },
+  "sdp22_04": {
+   "source": "{0}: put this record in DNS: {1}. TXT \"{2}\" (or choose a validation in \"Write the record through\")",
+   "text": "{0}: dejte do DNS tento záznam: {1}. TXT \"{2}\" (nebo vyberte validaci v „Zapsat záznam přes“)"
+  },
+  "sdp22_05": {
+   "source": "{0}: does not offer dns-persist-01 yet - choose a \"Fallback validation\" (such as {1}) to prove the names meanwhile",
+   "text": "{0}: dns-persist-01 zatím nenabízí – vyberte „Záložní validaci“ (např. {1}), která jména mezitím prokáže"
+  },
+  "sdp22_06": {
+   "source": "{0}: whether it offers dns-persist-01 is not known yet (\"Look now\" at a staging CA, or the first order shows it) - a \"Fallback validation\" makes the order safe either way",
+   "text": "{0}: zatím není známo, jestli dns-persist-01 nabízí („Podívat se teď“ u staging CA, nebo to ukáže první objednávka) – „Záložní validace“ objednávku v každém případě zajistí"
+  },
+  "sdp22_07": {
+   "source": "{0} does not offer dns-persist-01 (yet): {1} proves the names meanwhile",
+   "text": "{0} dns-persist-01 (zatím) nenabízí: jména mezitím prokazuje {1}"
+  },
+  "sdp22_08": {
+   "source": "to do {0}: {1}",
+   "text": "udělat {0}: {1}"
+  },
+  "sdp22_09": {
+   "source": "not ready yet - {0}",
+   "text": "zatím není připraveno – {0}"
+  },
+  "sdp22_10": {
+   "source": "works now; still to do - {0}",
+   "text": "funguje; ještě udělat – {0}"
+  },
+  "sdp22_11": {
+   "source": "the record is right; still - {0}",
+   "text": "záznam je v pořádku; ještě – {0}"
   }
  },
  "rich": {
