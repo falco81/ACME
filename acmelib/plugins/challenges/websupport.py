@@ -30,15 +30,16 @@ from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, api,
 API = 'https://rest.websupport.sk'
 
 
-def ws_headers(key, secret, method, path, now=None):
+def ws_headers(key, secret, method, path, now=None, date_format='%Y%m%dT%H%M%SZ'):
     """The Authorization and Date headers of one signed request (Websupport and
-    Active24 alike)."""
+    Active24 alike). The Date of REST API v2 is RFC 3339 (2025-01-31T12:00:00Z,
+    date_format='%Y-%m-%dT%H:%M:%SZ'); v1 takes the basic ISO 8601 form."""
     ts = int(time.time() if now is None else now)
     canonical = '%s %s %d' % (method.upper(), urllib.parse.urlsplit(path).path, ts)
     sig = hmac.new(secret.encode(), canonical.encode(), hashlib.sha1).hexdigest()
     return {'Authorization': 'Basic ' + base64.b64encode(('%s:%s' % (key, sig)).encode()).decode(),
             'Date': datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime(
-                '%Y%m%dT%H%M%SZ')}
+                date_format)}
 
 
 class Websupport(ApiDns):
