@@ -164,6 +164,8 @@ def _suggest(h):
     since = time.time() - (hours or 24 * 90) * 3600 if name in LIST_TABLES \
         else (time.time() - hours * 3600 if hours else 0)
     typed = h.arg('typed')[:120]
+    if name in LIST_VALUES:
+        return {'values': LIST_VALUES[name](h, field, typed)}
     if name == 'mailq':
         # Its rows are in no table: what the field holds, counted here.
         col = (LIST_FIELDS['mailq'].get(field) or ('', ''))[0]

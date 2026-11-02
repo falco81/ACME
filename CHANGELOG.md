@@ -6,6 +6,18 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.24 - not released
 
+- **Every search box reads `field:value` and offers as one types**, as Events
+  and the outgoing mail did (and otp does): Certificates (`state:failed`,
+  `dns:*.example.cz`, `-tag:test`, `source:"Let's Encrypt"`, `renew:no` -
+  read by the daemon, the values offered counted over the certificates one may
+  see), Sources, Validation and Targets (name, kind, state, use, and every
+  setting of their modules as a field: `zone:example.cz`, `product:alpiro*`),
+  the records of acme's DNS server, the modules to pick from, Import from a
+  source and what an authority signed. `field:a,b`, `-field:x`, `field~part`,
+  `*`, `>`/`<`, ranges, `(a OR b)` and NOT as everywhere; what does not read is
+  said under the box. Sources and Validation have the search box beside *Add*,
+  as Targets.
+
 - **Each certificate its own settings of its source and validations** - no
   second source for each template, product or zone. *Add a certificate* has
   the step *Settings*: every setting of the chosen source and of the

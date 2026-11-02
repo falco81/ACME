@@ -12,8 +12,8 @@ from __future__ import annotations
 # and LIST_WORD_COLUMNS (and LIST_TABLES, for the values offered as one types).
 #
 # kind: text (folded; `*` a wildcard), num (a number, a range, > <), ip (an
-# address or the start of one; `/24` a range), ok (yes/no as 1/0), none (not
-# in this list: no row).
+# address or the start of one; `/24` a range), ok (yes/no as 1/0), list (a JSON
+# list of words - one of them matches; 1.0.24), none (not in this list: no row).
 LIST_FIELDS = {
     'events': {
         'kind': ('kind', 'text'), 'who': ('who', 'text'), 'by': ('who', 'text'),
@@ -54,6 +54,10 @@ LIST_WORD_COLUMNS = {
 # The table each list reads, for the values offered as one types (list_values);
 # a list with none here offers none. 'ts' in it: only the last 30 days grouped.
 LIST_TABLES = {'events': 'events'}
+# What a list offers as one types where it is not a table's column grouped
+# (1.0.24): {list: fn(handler, field, typed) -> [{'val', 'n'}]} - a list whose
+# rows are read for the person asking (the certificates of their teams).
+LIST_VALUES = {}
 LIST_TOKEN = re.compile(r'\s*(\(|\)|[-!]?(?:[A-Za-z_][\w.]*(?:!=|>=|<=|[:~=<>]))?'
                         r'(?:"[^"]*"?|[^\s()"]+)|"[^"]*"?)')
 LIST_TERM = re.compile(r'^([-!]?)([A-Za-z_][\w]*)(!=|>=|<=|[:~=<>])(.*)\Z', re.S)
@@ -265,7 +269,7 @@ class ListQuery(object):
                  'rejected': 0, 'wrong': 0, 'no': 0, 'refused': 0}.get(low)
             if v is None:
                 return ('1=0', [])
-            return ('ok = ?', [v])
+            return ('%s = ?' % ('ok' if col in ('', None) else col), [v])
         if kind == 'node':
             return ("LOWER(%s) LIKE ? ESCAPE '!'" % col, ['% on ' + like_pattern(low) + '%'])
         if kind == 'ip' and '/' in low and op != '~':
@@ -279,6 +283,11 @@ class ListQuery(object):
                         [like_pattern(keep) + ('.%' if keep else '%')])
             raise ListQueryError('a range is /8, /16 or /24 here')
         c = "LOWER(COALESCE(%s, ''))" % col
+        if kind == 'list':
+            # One word of a JSON list: ["www.example.cz", ...] - `*` within it.
+            if op == '~':
+                return ("%s LIKE ? ESCAPE '!'" % c, ['%' + like_pattern(low) + '%'])
+            return ("%s LIKE ? ESCAPE '!'" % c, ['%"' + like_pattern(low) + '"%'])
         if op == '~':
             return ("%s LIKE ? ESCAPE '!'" % c, ['%' + like_pattern(low) + '%'])
         if kind == 'ip' and '*' not in low:

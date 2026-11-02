@@ -1056,16 +1056,29 @@ function kindPicker(family, go, filter) {
       t.appendChild(w);
       t.onclick = function () { go(p); };
       t._words = ((p.title || '') + ' ' + p.kind + ' ' + v + ' ' + (p.description || '')).toLowerCase();
-      tiles.push({t: t, g: g});
+      tiles.push({t: t, g: g, p: p});
       grid.appendChild(t);
     });
     g.appendChild(grid);
     box.appendChild(g);
   });
   if (find) {
+    /* As every search box (core.js qLocal): name:, vendor:, kind:... offered. */
+    var kspec = {
+      fields: [['name', 'what the module is called', 'name~DNS'], ['vendor', 'who makes it', 'vendor:Microsoft'],
+               ['kind', 'its kind in acme', 'kind:acme'], ['about', 'what it says it does', 'about~load balancer'],
+               ['import', 'can import what an account has: yes or no', 'import:yes', 'ok']],
+      rows: function () { return tiles.map(function (x) { return x.p; }); },
+      value: function (p, f) {
+        return {name: p.title || p.kind, vendor: p.vendor || '', kind: p.kind, about: p.description || '',
+                'import': p.lists_existing ? 1 : 0}[f];
+      },
+      words: function (p) { return (p.title || '') + ' ' + p.kind + ' ' + (p.vendor || '') + ' ' + (p.description || ''); }
+    };
+    setTimeout(function () { if (find.isConnected) qLocal(find, kspec); }, 0);
     find.oninput = function () {
-      var q = find.value.trim().toLowerCase();
-      tiles.forEach(function (x) { x.t.hidden = q && x.t._words.indexOf(q) < 0; });
+      var keep = qFilter(find, kspec, tiles.map(function (x) { return x.p; }));
+      tiles.forEach(function (x) { x.t.hidden = keep.indexOf(x.p) < 0; });
       Array.prototype.forEach.call(box.querySelectorAll('.ct-kind-group'), function (g) {
         g.hidden = !g.querySelector('.ct-kind-tile:not([hidden])');
       });
@@ -1214,6 +1227,63 @@ function usedCount(r) {
                 Array.isArray(r.deploys) ? r.deploys.length : undefined);
   return n === undefined ? null : Number(n);
 }
+/* The search box over Sources, Validation and Targets (1.0.24): as every list's
+   (core.js qLocal) - its name, kind, module, state, use, and each setting of the
+   modules shown as a field of its own (zone:example.cz, product:alpiro*). */
+var MOD_Q_BOX = {targets: 'tg-q', sources: 'src-q', validation: 'val-q'};
+function modQuerySpec(key) {
+  var m = MODS[key];
+  var base = [['name', 'its name', 'name:web*'], ['kind', 'the kind of its module', 'kind:acme'],
+              ['module', 'what its module is called', 'module~Encrypt'],
+              ['on', 'switched on: yes or no', 'on:no', 'ok'], ['default', 'the default one: yes or no', 'default:yes', 'ok'],
+              ['used', key === 'targets' ? 'how many certificates are deployed on it' : 'how many certificates use it', 'used:0', 'num'],
+              ['note', 'its note', 'note~test'], ['tag', 'one of its tags', 'tag:prod', 'list'],
+              ['state', 'ok, failing or never tried', 'state:failing']];
+  var seen = {};
+  base.forEach(function (f) { seen[f[0]] = true; });
+  var cfgFields = [];
+  arr(LISTS[key]).forEach(function (r) {
+    var p = plugOf(m.family, r.kind);
+    arr(p && p.fields).forEach(function (f) {
+      if (!f.key || f.type === 'secret' || f.secret || f.type === 'pem' || seen[f.key]) return;
+      if (!/^[a-z_][\w]*$/i.test(f.key)) return;
+      seen[f.key] = true;
+      cfgFields.push([f.key, tr(f.label || f.key) + ' · ' + tr('a setting'), '', f.type === 'bool' ? 'ok' : (f.type === 'number' ? 'num' : 'text')]);
+    });
+  });
+  var stateOf = function (r) {
+    if (r.enabled !== undefined && !truthy(r.enabled)) return 'off';
+    if (r.last_error && (!r.last_ok || Number(r.last_error_at || 0) >= Number(r.last_ok || 0))) return 'failing';
+    return r.last_ok ? 'ok' : 'never tried';
+  };
+  return {
+    fields: base.concat(cfgFields),
+    rows: function () { return arr(LISTS[key]); },
+    value: function (r, f) {
+      var p = plugOf(m.family, r.kind);
+      switch (f) {
+        case 'name': return r.name;
+        case 'kind': return r.kind;
+        case 'module': return p ? p.title : (r.title || r.kind);
+        case 'on': return r.enabled === undefined ? 1 : r.enabled;
+        case 'default': return r.is_default ? 1 : 0;
+        case 'used': return usedCount(r);
+        case 'note': return r.note || '';
+        case 'tag': return arr(r.tags);
+        case 'state': return stateOf(r);
+      }
+      var v = (r.config || {})[f];
+      if (v === undefined) return '';
+      if (Array.isArray(v)) return v.map(String);
+      if (v && typeof v === 'object') return JSON.stringify(v);
+      return v;
+    },
+    words: function (r) {
+      return r.name + ' ' + r.kind + ' ' + plugTitle(m.family, r.kind) + ' ' + JSON.stringify(r.config || {}) + ' '
+        + arr(r.tags).join(' ') + ' ' + (r.note || '');
+    }
+  };
+}
 function drawModTab(key, live) {
   var m = MODS[key];
   var host = $(m.host);
@@ -1225,12 +1295,15 @@ function drawModTab(key, live) {
     var b = $(m.broken);
     if (b) { clear(b); b.appendChild(brokenBox(m.family)); }
     var rows = got[1];
-    var qbox = $({targets: 'tg-q', sources: 'src-q', validation: 'val-q'}[key] || '');
-    var q = qbox ? qbox.value.trim().toLowerCase() : '';
-    if (q) rows = rows.filter(function (r) {
-      return (r.name + ' ' + r.kind + ' ' + plugTitle(m.family, r.kind) + ' ' + JSON.stringify(r.config || {}) + ' '
-              + arr(r.tags).join(' ') + ' ' + (r.note || '')).toLowerCase().indexOf(q) >= 0;
-    });
+    var qbox = $(MOD_Q_BOX[key] || '');
+    if (qbox) {
+      var spec = modQuerySpec(key);
+      qbox._qspec = spec;
+      /* the box offers what the list holds now: the spec read anew each time */
+      qLocal(qbox, {fields: function () { return qbox._qspec.fields; }, rows: function () { return qbox._qspec.rows(); },
+                    value: function (r, f) { return qbox._qspec.value(r, f); }});
+      rows = qFilter(qbox, spec, rows);
+    }
     var s = $(m.said);
     if (s) s.textContent = LISTS[key].length ? num(LISTS[key].length) + ' in all' : '';
     if (key === 'sources' && b) {
@@ -2573,6 +2646,7 @@ function loadCerts(live) {
                                                     page: CL.page + 1, per: f.per}).slice(1)).then(function (d) {
     var rows = rowsOf(d, 'certs');
     CL.rows = rows;
+    if ($('ct-q') && $('ct-q')._qs) $('ct-q')._qs.said('');
     CL.total = Number(first(d.total, rows.length));
     $('ct-said').textContent = num(CL.total) + ' certificate(s)';
     liveFill(host, function (box) {
@@ -2585,6 +2659,12 @@ function loadCerts(live) {
     approvalsBadge();
   }).catch(function (e) {
     if (e && e.stopped) return;
+    /* What was typed does not read (a bracket never closed...): said under the box,
+       the list as it was. */
+    if (f.search && e && Number(e.status) === 400 && $('ct-q') && $('ct-q')._qs) {
+      $('ct-q')._qs.said(wordsOf(e));
+      return;
+    }
     $('ct-said').textContent = '';
     clear($('ct-pager'));
     failInto(host, 'the certificates')(e);
@@ -5209,10 +5289,27 @@ function onlineImport() {
       }
       if (goBtn) goBtn.disabled = !n || S.running;
     };
+    var oiSpec = {
+      fields: [['name', 'its common name', 'name:www*'], ['dns', 'one of its names', 'dns:*.example.cz', 'list'],
+               ['product', 'its product at the source', 'product~Alpha'], ['status', 'its state there', 'status:active'],
+               ['id', 'its id at the source', 'id:123*'], ['importable', 'can be imported: yes or no', 'importable:yes', 'ok'],
+               ['inacme', 'acme has it already: yes or no', 'inacme:no', 'ok'], ['expired', 'past its end: yes or no', 'expired:no', 'ok'],
+               ['renewal', 'reissue, order, issue or none', 'renewal:reissue']],
+      rows: function () { return S.items; },
+      value: function (it, f) {
+        return {name: it.cn, dns: arr(it.names), product: it.product, status: it.status, id: it.ref,
+                importable: it.importable ? 1 : 0, inacme: it.in_acme ? 1 : 0, expired: it.expired ? 1 : 0,
+                renewal: it.renewable}[f];
+      },
+      words: function (it) { return [it.cn, it.ref, it.product, it.status].concat(arr(it.names)).join(' '); }
+    };
+    var matchedNow = null;
     var matches = function (it) {
-      var w = String(q && q.value || '').trim().toLowerCase();
-      if (!w) return true;
-      return [it.cn, it.ref, it.product, it.status].concat(arr(it.names)).join(' ').toLowerCase().indexOf(w) >= 0;
+      if (!q || !String(q.value || '').trim()) return true;
+      if (!matchedNow || matchedNow.text !== q.value || matchedNow.n !== S.items.length) {
+        matchedNow = {text: q.value, n: S.items.length, keep: qFilter(q, oiSpec, S.items)};
+      }
+      return matchedNow.keep.indexOf(it) >= 0;
     };
     var row = function (it) {
       var r = el('label', 'ct-oi-row' + (it.importable ? '' : ' off') + (S.picks[it.ref] && it.importable ? ' on' : ''));
@@ -5446,6 +5543,7 @@ function onlineImport() {
         q.placeholder = tr('a name, a product, its id there…');
         q.oninput = paint;
         bar.appendChild(q);
+        setTimeout(function () { if (q.isConnected) qLocal(q, oiSpec); }, 0);
         all = el('label', 'set-check ct-oi-all');
         var ai = el('input');
         ai.type = 'checkbox';
@@ -5934,11 +6032,20 @@ function caPeek(id) {
         find.type = 'search';
         find.placeholder = 'a name, a serial…';
         var tableHost = el('div');
+        var isSpec = {
+          fields: [['serial', 'its serial number', 'serial:5DD2*'], ['subject', 'its subject', 'subject~Example'],
+                   ['dns', 'one of its names', 'dns:*.example.cz', 'list'], ['revoked', 'revoked: yes or no', 'revoked:yes', 'ok'],
+                   ['by', 'who had it signed', 'by:admin']],
+          rows: function () { return issued; },
+          value: function (r, f) {
+            return {serial: r.serial, subject: r.subject_dn || '', dns: arr(r.names), revoked: r.revoked ? 1 : 0,
+                    by: r.by_who || r.by || ''}[f];
+          },
+          words: function (r) { return String(r.serial) + ' ' + (r.subject_dn || '') + ' ' + arr(r.names).join(' '); }
+        };
+        setTimeout(function () { if (find.isConnected) qLocal(find, isSpec); }, 0);
         var drawIssued = function () {
-          var q = find.value.trim().toLowerCase();
-          var rows = issued.filter(function (r) {
-            return !q || (String(r.serial) + ' ' + (r.subject_dn || '') + ' ' + arr(r.names).join(' ')).toLowerCase().indexOf(q) >= 0;
-          });
+          var rows = qFilter(find, isSpec, issued);
           clear(tableHost);
           tableHost.appendChild(listTable(['Serial', 'Subject', 'Names', 'Valid', 'State', 'By', ''], rows, function (r) {
             var tr = el('tr');
@@ -7076,10 +7183,17 @@ function drawDnsState(box, d) {
 function drawDnsRecords(live) {
   var host = $('dns-table');
   var all = rowsOf(DNS.d && (DNS.d.records || DNS.d.rows));
-  var q = $('dns-q') ? $('dns-q').value.trim().toLowerCase() : '';
-  var rows = all.filter(function (r) {
-    return !q || (r.name + ' ' + r.rtype + ' ' + r.value + ' ' + (r.note || '') + ' ' + (r.owner || '')).toLowerCase().indexOf(q) >= 0;
-  });
+  var qb = $('dns-q');
+  var dspec = {
+    fields: [['name', 'the name of the record', 'name:_acme-challenge*'], ['type', 'TXT, A, CNAME…', 'type:TXT'],
+             ['value', 'what it holds', 'value~abc'], ['ttl', 'its time to live (s)', 'ttl:<300', 'num'],
+             ['by', 'who or what put it there', 'by:acme'], ['note', 'its note', 'note~test']],
+    rows: function () { return rowsOf(DNS.d && (DNS.d.records || DNS.d.rows)); },
+    value: function (r, f) { return {name: r.name, type: r.rtype || r.type, value: r.value, ttl: r.ttl, by: r.owner || '', note: r.note || ''}[f]; },
+    words: function (r) { return r.name + ' ' + r.rtype + ' ' + r.value + ' ' + (r.note || '') + ' ' + (r.owner || ''); }
+  };
+  if (qb) qLocal(qb, dspec);
+  var rows = qb ? qFilter(qb, dspec, all) : all;
   $('dns-said').textContent = all.length ? num(all.length) + ' record(s)' : '';
   liveFill(host, function (box) {
     box.appendChild(listTable(['Name', 'Type', 'Value', {words: 'TTL', cls: 'num'}, 'Goes', 'Put there by', ''], rows, function (r) {
@@ -7293,6 +7407,7 @@ on('ct-self', 'click', function () { selfSigned(); });
 on('ct-csr', 'click', function () { csrDialog(); });
 var certsAgain = debounce(function () { CL.page = 0; loadCerts(); }, 250);
 on('ct-q', 'input', certsAgain);
+if ($('ct-q')) qSuggest($('ct-q'), 'certs');
 ['ct-state', 'ct-issuer', 'ct-per', 'ct-owner', 'ct-tag'].forEach(function (id) { on(id, 'change', function () { CL.page = 0; loadCerts(); }); });
 ['jb-kind', 'jb-ok', 'jb-cert', 'jb-per'].forEach(function (id) { on(id, 'change', function () { JL.page = 0; loadJobs(); }); });
 on('ca-root', 'click', function () { caCreate(null); });

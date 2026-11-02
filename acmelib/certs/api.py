@@ -186,11 +186,12 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
             where.append(sw[len(' AND '):])
             args += list(sa)
     if search:
-        q = '%' + search.lower() + '%'
-        where.append('(LOWER(name) LIKE ? OR LOWER(COALESCE(cn, \'\')) LIKE ? OR '
-                     'LOWER(COALESCE(names, \'\')) LIKE ? OR LOWER(COALESCE(note, \'\')) LIKE ? '
-                     'OR LOWER(COALESCE(serial, \'\')) LIKE ?)')
-        args += [q, q, q, q, q]
+        # `field:value` as every list reads it (listsearch.py); words alone as before.
+        from acmelib.certs import listsearch
+        sq, sa = listsearch.where(search)
+        if sq:
+            where.append(sq)
+            args += list(sa)
     if state:
         if state == 'expiring':
             t = time.time()
@@ -2157,3 +2158,4 @@ from acmelib.certs import api_runplan  # noqa: E402,F401  (what happens: a certi
 from acmelib.certs import api_catalog  # noqa: E402,F401  (a form's lists: a CA's products)
 from acmelib.certs import api_onlineimport  # noqa: E402,F401  (Import from a source; a key added later)
 from acmelib.certs import api_certview  # noqa: E402,F401  (show a certificate: any file read and described)
+from acmelib.certs import listsearch  # noqa: E402,F401  (the search box over the certificates)

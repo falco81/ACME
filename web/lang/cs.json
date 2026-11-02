@@ -45507,6 +45507,170 @@
   "sup037": {
    "source": "a name, a kind, a domain…",
    "text": "název, druh, doména…"
+  },
+  "sup038": {
+   "source": "its name",
+   "text": "jeho název"
+  },
+  "sup039": {
+   "source": "the kind of its module",
+   "text": "druh jeho modulu"
+  },
+  "sup040": {
+   "source": "what its module is called",
+   "text": "jak se jmenuje jeho modul"
+  },
+  "sup041": {
+   "source": "switched on: yes or no",
+   "text": "zapnutý: yes nebo no"
+  },
+  "sup042": {
+   "source": "the default one: yes or no",
+   "text": "výchozí: yes nebo no"
+  },
+  "sup043": {
+   "source": "how many certificates are deployed on it",
+   "text": "kolik certifikátů je na něm nasazeno"
+  },
+  "sup044": {
+   "source": "how many certificates use it",
+   "text": "kolik certifikátů ho používá"
+  },
+  "sup045": {
+   "source": "its note",
+   "text": "jeho poznámka"
+  },
+  "sup046": {
+   "source": "one of its tags",
+   "text": "jeden z jeho štítků"
+  },
+  "sup047": {
+   "source": "ok, failing or never tried",
+   "text": "ok, failing nebo never tried"
+  },
+  "sup048": {
+   "source": "a setting",
+   "text": "nastavení"
+  },
+  "sup049": {
+   "source": "what the module is called",
+   "text": "jak se modul jmenuje"
+  },
+  "sup050": {
+   "source": "who makes it",
+   "text": "kdo ho vyrábí"
+  },
+  "sup051": {
+   "source": "its kind in acme",
+   "text": "jeho druh v acme"
+  },
+  "sup052": {
+   "source": "what it says it does",
+   "text": "co o sobě říká, že dělá"
+  },
+  "sup053": {
+   "source": "can import what an account has: yes or no",
+   "text": "umí importovat, co účet má: yes nebo no"
+  },
+  "sup054": {
+   "source": "its common name",
+   "text": "jeho běžné jméno (CN)"
+  },
+  "sup055": {
+   "source": "one of its names",
+   "text": "jedno z jeho jmen"
+  },
+  "sup056": {
+   "source": "its product at the source",
+   "text": "jeho produkt u zdroje"
+  },
+  "sup057": {
+   "source": "its state there",
+   "text": "jeho stav tam"
+  },
+  "sup058": {
+   "source": "its id at the source",
+   "text": "jeho ID u zdroje"
+  },
+  "sup059": {
+   "source": "can be imported: yes or no",
+   "text": "lze importovat: yes nebo no"
+  },
+  "sup060": {
+   "source": "acme has it already: yes or no",
+   "text": "acme ho už má: yes nebo no"
+  },
+  "sup061": {
+   "source": "past its end: yes or no",
+   "text": "po konci platnosti: yes nebo no"
+  },
+  "sup062": {
+   "source": "reissue, order, issue or none",
+   "text": "reissue, order, issue nebo none"
+  },
+  "sup063": {
+   "source": "revoked: yes or no",
+   "text": "odvolaný: yes nebo no"
+  },
+  "sup064": {
+   "source": "who had it signed",
+   "text": "kdo ho nechal podepsat"
+  },
+  "sup065": {
+   "source": "the name of the record",
+   "text": "název záznamu"
+  },
+  "sup066": {
+   "source": "TXT, A, CNAME…",
+   "text": "TXT, A, CNAME…"
+  },
+  "sup067": {
+   "source": "what it holds",
+   "text": "co obsahuje"
+  },
+  "sup068": {
+   "source": "its time to live (s)",
+   "text": "jeho TTL (s)"
+  },
+  "sup069": {
+   "source": "who or what put it there",
+   "text": "kdo nebo co ho tam dal"
+  },
+  "sup070": {
+   "source": "its name in acme",
+   "text": "jeho název v acme"
+  },
+  "sup071": {
+   "source": "ok, new, failed, pending, revoked, disabled…",
+   "text": "ok, new, failed, pending, revoked, disabled…"
+  },
+  "sup072": {
+   "source": "the source it comes from",
+   "text": "zdroj, ze kterého pochází"
+  },
+  "sup073": {
+   "source": "how its names are proved",
+   "text": "jak se prokazují jeho jména"
+  },
+  "sup074": {
+   "source": "its key type",
+   "text": "typ jeho klíče"
+  },
+  "sup075": {
+   "source": "who it belongs to",
+   "text": "komu patří"
+  },
+  "sup076": {
+   "source": "renewed by itself: yes or no",
+   "text": "obnovuje se samo: yes nebo no"
+  },
+  "sup077": {
+   "source": "renewed that many days before the end",
+   "text": "obnovuje se tolik dní před koncem"
+  },
+  "sup078": {
+   "source": "who added it",
+   "text": "kdo ho přidal"
   }
  },
  "patterns": {

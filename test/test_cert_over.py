@@ -144,6 +144,66 @@ class Saved(unittest.TestCase):
         self.assertEqual(S.cert_over({'profile': 'not json'}, 'challenge', 'x'), {})
 
 
+class Search(unittest.TestCase):
+    """The search box over the certificates reads `field:value` as every list does
+    (listsearch.py), and the page's own lists the same words (core.js qMatcher)."""
+
+    @classmethod
+    def setUpClass(cls):
+        A.family_save(STORE, 'issuer', {'name': 'Own CA S', 'kind': 'selfsigned', 'config': {}},
+                      'tester')
+        for name, tags, auto in (('www.shop.cz', ['prod', 'web'], 1), ('mail.shop.cz', ['prod'], 0),
+                                 ('test.lab.cz', ['test'], 1)):
+            A.cert_save(STORE, {'name': name, 'names': [name], 'issuer': 'Own CA S',
+                                'tags': tags, 'auto_renew': auto}, 'tester')
+
+    def names(self, q):
+        return sorted(c['name'] for c in A.cert_list(STORE, search=q, per=100)['rows']
+                      if c['name'].endswith('.cz'))
+
+    def test_fields(self):
+        self.assertEqual(self.names('shop'), ['mail.shop.cz', 'www.shop.cz'])
+        self.assertEqual(self.names('tag:prod'), ['mail.shop.cz', 'www.shop.cz'])
+        self.assertEqual(self.names('-tag:prod source:"Own CA S"'), ['test.lab.cz'])
+        self.assertEqual(self.names('renew:no'), ['mail.shop.cz'])
+        self.assertEqual(self.names('dns:*.shop.cz'), ['mail.shop.cz', 'www.shop.cz'])
+        self.assertEqual(self.names('(tag:test OR name:www*)'), ['test.lab.cz', 'www.shop.cz'])
+        with self.assertRaises(ValueError):
+            A.cert_list(STORE, search='(tag:test')
+
+    def test_the_pages_matcher(self):
+        import shutil
+        import subprocess
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node')
+        js = r"""
+const fs = require('fs');
+const src = fs.readFileSync(process.argv[1], 'utf8');
+const a = src.indexOf('var Q_TOKEN'), b = src.indexOf('/** `rows` narrowed');
+eval(src.slice(a, b).replace(/^var /gm, 'global.').replace(/^function (\w+)/gm, 'global.$1 = function'));
+const rows = [{name: 'LetsEncrypt', kind: 'acme', on: 1, n: 3, tags: ['prod']},
+              {name: 'Interni CA', kind: 'internal_ca', on: 0, n: 0, tags: []},
+              {name: 'SSLS.cz', kind: 'ssls', on: 1, n: 12, tags: ['paid']}];
+const spec = {fields: [['name'], ['kind'], ['on', '', '', 'ok'], ['used', '', '', 'num'], ['tag', '', '', 'list']],
+  value: (r, f) => ({name: r.name, kind: r.kind, on: r.on, used: r.n, tag: r.tags})[f],
+  words: r => r.name + ' ' + r.kind};
+const out = {};
+for (const q of ['letsen', '-kind:acme', 'kind:acme,ssls', 'on:no', 'used:>2', 'tag:prod', 'name:*CA',
+                 '(kind:ssls OR kind:acme) on:yes', '(kind:x'])
+  try { out[q] = rows.filter(qMatcher(q, spec)).map(r => r.name).join(','); } catch (e) { out[q] = 'ERR'; }
+console.log(JSON.stringify(out));
+"""
+        got = json.loads(subprocess.run([node, '-e', js, os.path.join(ROOT, 'web', 'assets', 'core.js')],
+                                        capture_output=True, text=True, timeout=60).stdout)
+        self.assertEqual(got, {'letsen': 'LetsEncrypt', '-kind:acme': 'Interni CA,SSLS.cz',
+                               'kind:acme,ssls': 'LetsEncrypt,SSLS.cz', 'on:no': 'Interni CA',
+                               'used:>2': 'LetsEncrypt,SSLS.cz', 'tag:prod': 'LetsEncrypt',
+                               'name:*CA': 'Interni CA',
+                               '(kind:ssls OR kind:acme) on:yes': 'LetsEncrypt,SSLS.cz',
+                               '(kind:x': 'ERR'})
+
+
 if __name__ == '__main__':
     try:
         unittest.main(verbosity=1)

@@ -1921,6 +1921,222 @@ function qSuggest(input, list, extra) {
   return me;
 }
 
+/* --------------------------------------------------------------------------
+   The same words over a list the page holds itself (1.0.24): Sources,
+   Validation, Targets, the records of the DNS server, a module to pick... -
+   read exactly as the daemon reads a list's search box (engine ListQuery):
+   words alone are found anywhere; besides them `field:value`, `field:a,b`,
+   `-field:value`, `field~part`, `*`, `field:>2`, `field:1-5`, (a OR b), NOT.
+   spec: {fields: [[name, says, example, kind]] (kind text | num | ok | list),
+          value(row, field) -> a value or a list of them, words(row) -> text}
+   -------------------------------------------------------------------------- */
+var Q_TOKEN = /\s*(\(|\)|[-!]?(?:[A-Za-z_][\w.]*(?:!=|>=|<=|[:~=<>]))?(?:"[^"]*"?|[^\s()"]+)|"[^"]*"?)/g;
+var Q_TERM = /^([-!]?)([A-Za-z_][\w]*)(!=|>=|<=|[:~=<>])([\s\S]*)$/;
+function qWild(low) {
+  return new RegExp('^' + low.split('*').map(function (p) { return p.replace(/[.+?^${}()|[\]\\]/g, '\\$&'); }).join('.*') + '$', 'i');
+}
+function qOneMatch(kind, op, item, have, name) {
+  var low = String(item).toLowerCase();
+  var cmp = (op === ':' || op === '=') && low.match(/^(>=|<=|>|<)\s*([\s\S]+)$/);
+  if (cmp) { op = cmp[1]; low = cmp[2]; }
+  var vals = Array.isArray(have) ? have : [have];
+  if (kind === 'num') {
+    var rng = low.match(/^(-?[\d.]+)\s*-\s*(-?[\d.]+)$/);
+    var n = Number(low);
+    if (!rng && !/^-?[\d.]+$/.test(low)) throw new Error(name + ' is a number - "' + item + '" is not one');
+    return vals.some(function (v) {
+      if (v === null || v === undefined || v === '') return false;
+      var x = Number(v);
+      if (rng) return x >= Number(rng[1]) && x <= Number(rng[2]);
+      return {'>': x > n, '<': x < n, '>=': x >= n, '<=': x <= n}[op] !== undefined ? {'>': x > n, '<': x < n, '>=': x >= n, '<=': x <= n}[op] : x === n;
+    });
+  }
+  if (/^[<>]/.test(op)) throw new Error('only a number can be more or less than something');
+  if (kind === 'ok') {
+    var want = {accept: 1, accepted: 1, right: 1, yes: 1, ok: 1, on: 1, reject: 0, rejected: 0, wrong: 0, no: 0, refused: 0, off: 0}[low];
+    if (want === undefined) return false;
+    return vals.some(function (v) { return (v === true || v === 1 || v === '1' || v === 'true' || v === 'on' || v === 'yes' ? 1 : 0) === want; });
+  }
+  return vals.some(function (v) {
+    var t = String(v === null || v === undefined ? '' : v).toLowerCase();
+    if (op === '~') return t.indexOf(low) >= 0;
+    if (low.indexOf('*') >= 0) return qWild(low).test(t);
+    return t === low;
+  });
+}
+/** The matcher of `text` over `spec`: function (row) -> true/false; throws an
+    Error in words where the text does not read (as the daemon's ListQuery). */
+function qMatcher(text, spec) {
+  text = String(text || '').trim();
+  var kinds = {};
+  ((typeof spec.fields === 'function' ? spec.fields() : spec.fields) || []).forEach(function (f) { kinds[String(f[0]).toLowerCase()] = f[3] || 'text'; });
+  var words = function (row) { return String(spec.words ? spec.words(row) : '').toLowerCase(); };
+  if (!text) return function () { return true; };
+  if (text.length > 2000) throw new Error('that search is too long - 2000 characters at most');
+  var tokens = [], m;
+  Q_TOKEN.lastIndex = 0;
+  while ((m = Q_TOKEN.exec(text)) !== null) {
+    if (m[0] === '') { Q_TOKEN.lastIndex += 1; continue; }
+    if (m[1]) tokens.push(m[1]);
+  }
+  var field = function (t) { var x = Q_TERM.exec(t || ''); return x && kinds[x[2].toLowerCase()] ? x : null; };
+  var word = function (w) { var lw = w.toLowerCase(); return function (row) { return words(row).indexOf(lw) >= 0; }; };
+  if (!tokens.some(field)) {
+    var all = word(text);
+    return all;
+  }
+  var at = 0, topWords = [];
+  var peek = function () { return tokens[at]; };
+  var and = function (fs) { fs = fs.filter(Boolean); return fs.length ? function (r) { return fs.every(function (f) { return f(r); }); } : null; };
+  var or = function (fs) { fs = fs.filter(Boolean); return fs.length ? function (r) { return fs.some(function (f) { return f(r); }); } : null; };
+  var leaf = function (t, top) {
+    var x = field(t);
+    if (!x) {
+      var lead = /^[-!]/.test(t) && t.length > 1 ? t[0] : '';
+      var w = t.slice(lead.length).replace(/^"|"$/g, '');
+      if (!w) return null;
+      if (top && !lead) { topWords.push(t); return null; }
+      var f = word(w);
+      return lead ? function (r) { return !f(r); } : f;
+    }
+    var name = x[2].toLowerCase(), op = x[3], value = x[4];
+    var quoted = value.charAt(0) === '"';
+    value = value.replace(/^"|"$/g, '');
+    if (value === '') return null;
+    var neg = !!x[1] !== (op === '!=');
+    var items = quoted ? [value] : value.split(',').filter(function (v) { return v.trim(); });
+    if (!items.length) return null;
+    var kind = kinds[name];
+    var one = function (r) {
+      var have = spec.value(r, name);
+      return items.some(function (it) { return qOneMatch(kind, op, it.trim(), have, name); });
+    };
+    /* each item is read once now, so a bad number is said at once */
+    if (kind === 'num') items.forEach(function (it) { qOneMatch(kind, op, it.trim(), [], name); });
+    return neg ? function (r) { return !one(r); } : one;
+  };
+  var orP, andP, notP;
+  notP = function (top) {
+    var t = peek();
+    if (t === 'NOT' || t === '!') { at += 1; var inner = notP(false); return inner ? function (r) { return !inner(r); } : null; }
+    if (t === '(') {
+      at += 1;
+      var inn = orP(false);
+      if (peek() !== ')') throw new Error('a bracket opened and never closed');
+      at += 1;
+      return inn;
+    }
+    if (t === ')') throw new Error('a closing bracket with nothing open before it');
+    if (t === undefined) throw new Error('NOT, ! or a bracket with nothing after it');
+    at += 1;
+    return leaf(t, top);
+  };
+  andP = function (top) {
+    var parts = [notP(top)];
+    while ([undefined, ')', 'OR', '|', '||'].indexOf(peek()) < 0) {
+      if (['AND', '&', '&&'].indexOf(peek()) >= 0) { at += 1; continue; }
+      parts.push(notP(top));
+    }
+    return and(parts);
+  };
+  orP = function (top) {
+    var parts = [andP(top)], alone = true;
+    while (['OR', '|', '||'].indexOf(peek()) >= 0) {
+      alone = false;
+      at += 1;
+      if (peek() === undefined || peek() === ')') throw new Error('OR with nothing after it');
+      parts.push(andP(false));
+    }
+    if (!alone && top && topWords.length) throw new Error('a word on its own beside OR - write it as a field, or put the OR in brackets');
+    return or(parts);
+  };
+  var node = orP(true);
+  if (at < tokens.length) throw new Error('a closing bracket with nothing open before it');
+  var ws = topWords.map(function (w) { return w.replace(/^"|"$/g, ''); }).filter(Boolean).map(word);
+  return and([node].concat(ws)) || function () { return true; };
+}
+/** `rows` narrowed by what is typed in `input` over `spec`; what does not read is
+    said under the box (and every row stays). */
+function qFilter(input, spec, rows) {
+  var qs = input && input._qs;
+  try {
+    var f = qMatcher(input ? input.value : '', spec);
+    if (qs) qs.said('');
+    return rows.filter(function (r) { try { return f(r); } catch (e) { return false; } });
+  } catch (e) {
+    if (qs) qs.said(e.message || String(e));
+    return rows;
+  }
+}
+/** A search box over a list the page holds, offering as isemon's (qSuggest):
+    the fields as `field:` and, once a field is typed, what the rows hold of it,
+    busiest first. spec as qMatcher, plus rows() -> the rows to count. */
+function qLocal(input, spec) {
+  if (!input || input._qs) return input && input._qs;
+  var box = suggestBox(input);
+  var me = {said: function (words) {
+    box.said.textContent = words || '';
+    box.said.hidden = !words;
+    input.classList.toggle('qs-bad', !!words);
+  }};
+  input._qs = me;
+  var foot = function () {
+    var f = el('div', 't-sug-foot');
+    [['field:a,b', 'any of them'], ['-field:value', 'not'], ['*', 'anything'], ['field~part', 'contains'],
+     ['(a OR b)', 'either']].forEach(function (p) {
+      f.appendChild(noI18n(el('code', 'qs-syn', p[0])));
+      f.appendChild(el('span', 'qs-syn-says', p[1]));
+    });
+    f.appendChild(el('span', '', '↑ ↓ and Tab or Enter take one · Esc closes'));
+    return f;
+  };
+  suggestEngine(input, box, function (st) {
+    var all = (typeof spec.fields === 'function' ? spec.fields() : spec.fields) || [];
+    var known = {};
+    all.forEach(function (f) { known[String(f[0]).toLowerCase()] = f; });
+    var where = qCaret(input, known);
+    if (where.field) {
+      st.typed = true;
+      var kind = (known[where.field] || [])[3] || 'text';
+      if (kind === 'num' || /^[<>]/.test(where.op) || /^[<>]/.test(where.typed || '')) return Promise.resolve(null);
+      var got = {};
+      var want = String(where.typed || '').replace(/\*/g, '').toLowerCase();
+      if (kind === 'ok') ['yes', 'no'].forEach(function (v) { if (!want || v.indexOf(want) === 0) got[v] = 0; });
+      else (spec.rows ? spec.rows() : []).forEach(function (r) {
+        var v = spec.value(r, where.field);
+        (Array.isArray(v) ? v : [v]).forEach(function (one) {
+          if (one === null || one === undefined || one === '') return;
+          one = String(one);
+          if (!want || one.toLowerCase().indexOf(want) >= 0) got[one] = (got[one] || 0) + 1;
+        });
+      });
+      var vals = Object.keys(got).sort(function (a, b) {
+        var pa = a.toLowerCase().indexOf(want) === 0 ? 0 : 1, pb = b.toLowerCase().indexOf(want) === 0 ? 0 : 1;
+        return pa - pb || got[b] - got[a] || (a.toLowerCase() < b.toLowerCase() ? -1 : 1);
+      });
+      var items = vals.slice(0, 30).map(function (v) {
+        var quoted = /[\s(),"]/.test(v) || where.quoted;
+        return {show: v, n: got[v], data: true, put: quoted ? '"' + v.replace(/"/g, '') + '"' : v,
+                from: where.valueAt - (where.quoted ? 1 : 0), to: where.end, done: true};
+      });
+      return Promise.resolve({title: 'What ' + where.field + ' holds, most first', items: items,
+                              about: (known[where.field] || [])[1]});
+    }
+    var typed = where.body.toLowerCase();
+    st.typed = !!typed;
+    if (/["]/.test(typed) || /[^a-z_-]/.test(typed)) return Promise.resolve(null);
+    var items2 = [];
+    var one2 = function (f) {
+      items2.push({show: f[0] + ':', note: f[1], ex: f[2] || '', put: where.lead + f[0] + ':',
+                   from: where.start, to: where.end, done: false});
+    };
+    all.forEach(function (f) { if (!typed || f[0].indexOf(typed) === 0) one2(f); });
+    all.forEach(function (f) { if (typed && f[0].indexOf(typed) > 0) one2(f); });
+    return Promise.resolve({title: typed ? 'Fields' : 'Fields - or type a word to find it anywhere', items: items2});
+  }, foot);
+  return me;
+}
+
 /** A box for a person's name: while a name is typed, the people in the
     directory (`opts.directory`, else the one administrators sign in
     against). `opts.picked(person)` hears what was taken. */
