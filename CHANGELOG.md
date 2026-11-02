@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.23 - 2026-11-02
+
 ## 1.0.22 - 2026-11-02
 
 - Settings → SSH server: an error of one read ("the root helper of this node
