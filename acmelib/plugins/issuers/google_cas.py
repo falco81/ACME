@@ -61,7 +61,7 @@ class GoogleCasIssuer(Issuer):
     ip_names = True
     choose_days = True
     lists_existing = True           # certificates.list: Certificates → Import from a source
-    per_cert = [{'key': 'template', 'field': 'template', 'label': 'Certificate template',
+    per_cert = [{'key': 'template', 'field': 'template', 'catalog': 'templates', 'label': 'Certificate template',
                  'placeholder': 'projects/P/locations/L/certificateTemplates/T',
                  'help': 'The CA Service template (its full name) for this certificate. Empty: the '
                          'source\'s own.'}]
@@ -77,9 +77,12 @@ class GoogleCasIssuer(Issuer):
         field('ca_id', 'CA in the pool', 'text', advanced=True,
               help='A CA of the pool to issue (issuingCertificateAuthorityId). Empty: Google '
                    'chooses one.'),
-        field('template', 'Certificate template', 'text', advanced=True,
+        field('template', 'Certificate template', 'catalog', catalog='templates', advanced=True,
               placeholder='projects/P/locations/L/certificateTemplates/T',
-              help='A certificate template\'s full name. A certificate\'s profile "template" wins.'),
+              depends=['service_account', 'project', 'location', 'pool'],
+              help='A certificate template\'s full name. Load the list: the templates of the '
+                   'location; one can be typed too. Empty: none. A certificate\'s own template '
+                   '(Add a certificate → Settings) wins.'),
         field('days', 'Validity (days)', 'number', default=90,
               help='A certificate\'s own days win; the pool\'s policy may cap it.'),
     ]
@@ -192,6 +195,32 @@ class GoogleCasIssuer(Issuer):
                 'serial': info.get('serial'), 'fingerprint': info.get('sha256'),
                 'downloadable': not revoked, 'renewable': 'none' if revoked else 'issue',
                 'note': 'revoked at CA Service' if revoked else ''}
+
+    # -- the form's lists (base.py: a field of the type catalog) ------------------------
+    def catalog(self, key):
+        """The certificate templates of the location: GET v1/projects/<p>/locations/<l>/
+        certificateTemplates (pageToken) -> {certificateTemplates: [{name, description}],
+        nextPageToken} - the API's discovery document (googleapis/google-api-go-client
+        privateca/v1/privateca-api.json). Read-only."""
+        if key != 'templates':
+            raise PluginError('there is no list called %s here' % key, retry=False)
+        parent = self._pool_path().split('/caPools/')[0]
+        opts, token = [], ''
+        for _page in range(20):
+            q = {'pageSize': 200}
+            if token:
+                q['pageToken'] = token
+            got = self._call('GET', '%s/certificateTemplates?%s' % (parent, urllib.parse.urlencode(q)),
+                             what='CA Service (the templates)')
+            for t in got.get('certificateTemplates') or []:
+                if isinstance(t, dict) and t.get('name'):
+                    short = str(t['name']).rsplit('/', 1)[-1]
+                    words = str(t.get('description') or '')
+                    opts.append([str(t['name']), '%s - %s' % (short, words) if words else short])
+            token = str(got.get('nextPageToken') or '')
+            if not token:
+                break
+        return {'options': opts, 'said': '%d template(s) in %s' % (len(opts), parent)}
 
     def list_existing(self):
         """Every certificate of the pool (certificates.list, page by page) - read only."""

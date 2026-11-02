@@ -676,6 +676,14 @@ class TestGoogleCas(Base):
                 return 200, {}, {}
             if u.path == pool:
                 return 200, {}, {'name': pool[4:], 'tier': 'DEVOPS'}
+            if u.path == '/v1/projects/p1/locations/europe-west3/certificateTemplates':
+                q = dict(urllib.parse.parse_qsl(u.query))
+                if not q.get('pageToken'):
+                    return 200, {}, {'certificateTemplates': [
+                        {'name': 'projects/p1/locations/europe-west3/certificateTemplates/web',
+                         'description': 'TLS servers'}], 'nextPageToken': 'n2'}
+                return 200, {}, {'certificateTemplates': [
+                    {'name': 'projects/p1/locations/europe-west3/certificateTemplates/mtls'}]}
             if u.path == pool + ':fetchCaCerts':
                 return 200, {}, {'caCerts': [{'certificates': [self.ca.pem]}]}
             return 404, {}, {'error': {'message': 'not found %s' % u.path}}
@@ -683,6 +691,10 @@ class TestGoogleCas(Base):
         g = GoogleCasIssuer({'service_account': json.dumps(sa), 'location': 'europe-west3',
                              'pool': 'tls', 'ca_id': 'ca-1'}, ctx)
         self.assertIn('DEVOPS', g.test())
+        got = g.catalog('templates')
+        self.assertEqual(got['options'], [
+            ['projects/p1/locations/europe-west3/certificateTemplates/web', 'web - TLS servers'],
+            ['projects/p1/locations/europe-west3/certificateTemplates/mtls', 'mtls']])
         req = req_for(['www.example.test'])
         out = g.issue(req)
         self.check_issued(out, req)
@@ -722,6 +734,10 @@ class TestFreeIpa(Base):
                     'certificate_chain': [{'__base64__': d},
                                           {'__base64__': base64.b64encode(
                                               p7.cert_der(self.ca.pem)).decode()}]}}}
+            if b['method'] == 'certprofile_find/1':
+                return 200, {}, {'error': None, 'result': {'count': 2, 'truncated': False, 'result': [
+                    {'cn': ['caIPAserviceCert'], 'description': ['Standard profile for network services']},
+                    {'cn': ['acmeIPAServerCert'], 'description': ['ACME service certificate profile']}]}}
             if b['method'] == 'cert_revoke/1':
                 self.assertEqual(b['params'][1]['revocation_reason'], 4)
                 return 200, {}, {'error': None, 'result': {'result': {'revoked': True}}}
@@ -730,6 +746,9 @@ class TestFreeIpa(Base):
         ipa = FreeIpaIssuer({'url': 'https://ipa.example.test/ipa', 'user': 'admin',
                              'password': 'pw', 'realm': 'example.test'}, ctx)
         self.assertIn('4.12', ipa.test())
+        got = ipa.catalog('profiles')
+        self.assertEqual([o[0] for o in got['options']], ['acmeIPAServerCert', 'caIPAserviceCert'])
+        self.assertIn('Standard profile', got['options'][1][1])
         req = req_for(['www.example.test'])
         out = ipa.issue(req)
         self.assertEqual(p7.Cert(out.cert_pem).spki_der, p7.csr_spki(req.csr_der))

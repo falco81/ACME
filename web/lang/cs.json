@@ -45775,6 +45775,14 @@
   "sup104": {
    "source": "The role whose rules the certificate follows (allowed domains, TTL, key types). Load the list: the roles of the mount (LIST roles); one can be typed too. A certificate's own role (Add a certificate → Settings) wins.",
    "text": "Role, jejímiž pravidly se certifikát řídí (povolené domény, TTL, typy klíčů). Načíst seznam: role tohoto mountu (LIST roles); lze ji i zadat ručně. Vlastní role certifikátu (Přidat certifikát → Nastavení) má přednost."
+  },
+  "sup105": {
+   "source": "A certificate template's full name. Load the list: the templates of the location; one can be typed too. Empty: none. A certificate's own template (Add a certificate → Settings) wins.",
+   "text": "Celý název certifikační šablony. Načíst seznam: šablony v dané lokalitě; lze ji i zadat ručně. Prázdné: žádná. Vlastní šablona certifikátu (Přidat certifikát → Nastavení) má přednost."
+  },
+  "sup106": {
+   "source": "A certificate profile of IPA. Load the list: IPA's profiles (certprofile_find); one can be typed too. A certificate's own profile (Add a certificate → Settings) wins.",
+   "text": "Certifikační profil IPA. Načíst seznam: profily IPA (certprofile_find); lze ho i zadat ručně. Vlastní profil certifikátu (Přidat certifikát → Nastavení) má přednost."
   }
  },
  "patterns": {
@@ -63165,6 +63173,14 @@
   "psup023": {
    "source": "{0} role(s) of the mount {1}",
    "text": "{0} rolí mountu {1}"
+  },
+  "psup024": {
+   "source": "{0} profile(s) of IPA",
+   "text": "{0} profilů IPA"
+  },
+  "psup025": {
+   "source": "{0} template(s) in {1}",
+   "text": "{0} šablon v {1}"
   }
  },
  "rich": {

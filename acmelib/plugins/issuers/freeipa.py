@@ -51,7 +51,7 @@ class FreeIpaIssuer(Issuer):
     wildcards = False
     ip_names = True
     lists_existing = True           # cert_find + cert_show: Certificates → Import from a source
-    per_cert = [{'key': 'template', 'field': 'profile', 'label': 'Certificate profile', 'placeholder': 'caIPAserviceCert',
+    per_cert = [{'key': 'template', 'field': 'profile', 'catalog': 'profiles', 'label': 'Certificate profile', 'placeholder': 'caIPAserviceCert',
                  'help': 'The IPA certificate profile for this certificate. Empty: the source\'s own.'}]
     fields = [
         field('url', 'IPA server', 'text', required=True, placeholder='https://ipa.example.local'),
@@ -63,8 +63,11 @@ class FreeIpaIssuer(Issuer):
         field('service', 'Service', 'text', default='HTTP',
               help='The principal is SERVICE/first-name@REALM.'),
         field('add_service', 'Add the service when missing', 'bool', default=True),
-        field('profile', 'Profile', 'text', default='caIPAserviceCert',
-              help='A certificate profile of IPA. A certificate\'s profile "template" wins.'),
+        field('profile', 'Profile', 'catalog', catalog='profiles', default='caIPAserviceCert',
+              depends=['url', 'user', 'password'],
+              help='A certificate profile of IPA. Load the list: IPA\'s profiles '
+                   '(certprofile_find); one can be typed too. A certificate\'s own profile '
+                   '(Add a certificate → Settings) wins.'),
         field('cacn', 'CA', 'text', default='ipa', advanced=True,
               help='A sub-CA of IPA by its name; ipa is the main one.'),
         field('ca_pem', 'IPA\'s CA certificate', 'pem',
@@ -123,6 +126,24 @@ class FreeIpaIssuer(Issuer):
             raise PluginError('IPA refused %s: %s' % (what or method, words), retry=False,
                               detail=str(err)[:2000])
         return got.get('result') or {}
+
+    # -- the form's lists (base.py: a field of the type catalog) ------------------------
+    def catalog(self, key):
+        """IPA's certificate profiles: certprofile_find/1 [[], {}] -> result: [{cn: [id],
+        description: [words]}] (freeipa ipaserver/plugins/certprofile.py). Read-only."""
+        if key != 'profiles':
+            raise PluginError('there is no list called %s here' % key, retry=False)
+        got = self.rpc('certprofile_find/1', [], {'sizelimit': 0}, what='the profiles')
+        opts = []
+        for p in got.get('result') or []:
+            if not isinstance(p, dict):
+                continue
+            one = lambda v: (v[0] if isinstance(v, list) and v else v) or ''   # noqa: E731
+            pid, words = str(one(p.get('cn'))), str(one(p.get('description')))
+            if pid:
+                opts.append([pid, '%s - %s' % (pid, words) if words else pid])
+        opts.sort(key=lambda o: o[0].lower())
+        return {'options': opts, 'said': '%d profile(s) of IPA' % len(opts)}
 
     def test(self):
         got = self.rpc('ping/1', [], {}, 'ping')

@@ -6,9 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.25 - not released
 
-- **Vault PKI: the roles loaded from the mount** (LIST roles) - in the source's
-  form and, for each certificate, in *Add a certificate → Settings*; one can
-  still be typed.
+- **Lists loaded from the CA, in the source's form and for each certificate in
+  *Add a certificate → Settings*** (one can always be typed): the roles of a
+  Vault PKI mount (LIST roles), the certificate profiles of FreeIPA
+  (certprofile_find) and the certificate templates of Google CA Service
+  (certificateTemplates.list).
 
 - The directory's groups (Settings → Administrators and the teams' members):
   *narrow this list* reads `name:`, `dn~`, `about:` with its funnel too, and the

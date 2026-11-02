@@ -235,6 +235,14 @@ as JSON (IAM → Service accounts → Keys → Add key).
 
 Example: project `p1`, location `europe-west3`, pool `tls-pool`.
 
+*Certificate template* (in the form, and for each certificate in *Add a
+certificate → Settings*) loads the templates of the location: `GET
+v1/projects/<p>/locations/<l>/certificateTemplates` page by page
+(`pageToken`) → `certificateTemplates[].name` / `description` - the API's
+discovery document (googleapis/google-api-go-client,
+`privateca/v1/privateca-api.json`, checked in 1.0.25). A template can always be
+typed.
+
 ## FreeIPA / Red Hat IdM
 
 What it is: the CA (Dogtag) of FreeIPA / Red Hat Identity Management.
@@ -253,6 +261,12 @@ managed by that service (IPA's rules). The CA certificate is `/etc/ipa/ca.crt`.
 
 Example: server `https://ipa.example.local`, realm `EXAMPLE.LOCAL`, service
 `HTTP`. No wildcards (IPA issues for principals).
+
+*Profile* (in the form, and for each certificate in *Add a certificate →
+Settings*) loads IPA's certificate profiles: `certprofile_find/1` → `result[]`
+with `cn` (the profile id) and `description` (freeipa,
+`ipaserver/plugins/certprofile.py`, checked in 1.0.25). A profile can always be
+typed.
 
 ## GlobalSign Atlas (HVCA)
 
