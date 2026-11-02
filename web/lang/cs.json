@@ -40631,6 +40631,38 @@
   "sptm04": {
    "source": "Yours through your team (Settings → Owners and teams).",
    "text": "Váš přes váš tým (Nastavení → Vlastníci a týmy)."
+  },
+  "srnw01": {
+   "source": "Renew",
+   "text": "Obnovit"
+  },
+  "srnw02": {
+   "source": "the same key is kept",
+   "text": "ponechá se stejný klíč"
+  },
+  "srnw03": {
+   "source": "a new key",
+   "text": "nový klíč"
+  },
+  "srnw04": {
+   "source": "Dual",
+   "text": "Duální"
+  },
+  "srnw05": {
+   "source": "Then",
+   "text": "Potom"
+  },
+  "srnw06": {
+   "source": "put in place again on its targets",
+   "text": "znovu se nasadí na své cíle"
+  },
+  "srnw07": {
+   "source": "A new certificate is asked for at once, whether it is due or not - the one in use now stays valid until it runs out (it is not revoked).",
+   "text": "Nový certifikát se vyžádá hned, ať už je obnova na řadě, nebo ne – ten, který se teď používá, zůstává platný až do konce platnosti (neodvolává se)."
+  },
+  "srnw08": {
+   "source": "A public CA counts every certificate it issues: renewing again and again can hit its limits.",
+   "text": "Veřejná CA počítá každý vydaný certifikát: opakované obnovování může narazit na její limity."
   }
  },
  "patterns": {
@@ -56413,6 +56445,14 @@
   "pptr09": {
    "source": "{0} was refused on the portal: approving {1} (needs the right {2})",
    "text": "{0} byl na portálu odmítnut: schválení {1} (potřebuje právo {2})"
+  },
+  "prnw01": {
+   "source": "both certificates - {0} and {1}",
+   "text": "oba certifikáty – {0} a {1}"
+  },
+  "prnw02": {
+   "source": "Renew {0} now?",
+   "text": "Obnovit {0} teď?"
   }
  },
  "rich": {

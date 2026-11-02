@@ -75,6 +75,9 @@ class InternalCaIssuer(Issuer):
                    'must_staple': bool(prof.get('must_staple'))}
         if prof.get('key_usage'):
             profile['key_usage'] = prof['key_usage']
+        if prof.get('csr_given') and req.subject:
+            # A CSR sent in: the subject its request profile says, not whatever the CSR says.
+            profile['subject'] = dict(req.subject)
         if req.sans or req.names:
             profile['names'] = list(req.sans or req.names)     # e-mail and URI ones too
         days = req.days or self.c('days') or 397

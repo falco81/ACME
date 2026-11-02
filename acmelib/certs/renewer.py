@@ -298,20 +298,32 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
     issue(), the chain put in order, the key checked. -> (cert_pem, chain, key, info,
     issued_info)."""
     pki = S.pki()
-    key_pem = kept_key
-    if key_pem:
-        job.step('%sthe key it has is kept (reuse_key)' % what)
-    else:
-        key_pem = pki.make_key(key_type)
-        job.step('%sa new %s key made' % (what, key_type))
-    job.check()
+    given = str(cert.get('csr_given') or '').strip()
     subject = profile.get('subject') or {}
     # Every subjectAltName: the names (proved) and the e-mail and URI ones of the profile;
     # the common name its own where the profile says one (compat.py: where allowed).
     sans = S.sans_of(names, profile)
-    csr = pki.make_csr(key_pem, sans, subject=subject or None,
-                       must_staple=bool(profile.get('must_staple')), eku=profile.get('eku'))
-    csr_pem, csr_der = (csr if isinstance(csr, (tuple, list)) else (csr, b''))
+    if given:
+        # A CSR sent in (a request profile, 1.0.17): its key stays with whoever made it -
+        # the same CSR at every renewal; the subject the profile says, the names checked.
+        key_pem = ''
+        job.step('%sthe CSR sent in is used - its own key, which acme does not hold' % what)
+        ci = pki.csr_info(given)
+        csr_pem, csr_der = ci['pem'], ci['der']
+        subject = dict(subject)
+        subject.setdefault('CN', cert.get('cn') or names[0])
+        profile = dict(profile, csr_given=True)
+    else:
+        key_pem = kept_key
+        if key_pem:
+            job.step('%sthe key it has is kept (reuse_key)' % what)
+        else:
+            key_pem = pki.make_key(key_type)
+            job.step('%sa new %s key made' % (what, key_type))
+        job.check()
+        csr = pki.make_csr(key_pem, sans, subject=subject or None,
+                           must_staple=bool(profile.get('must_staple')), eku=profile.get('eku'))
+        csr_pem, csr_der = (csr if isinstance(csr, (tuple, list)) else (csr, b''))
     req = base.CertRequest(names=names, sans=sans, key_type=key_type, key_pem=key_pem,
                            csr_pem=csr_pem,
                            csr_der=csr_der, subject=subject, days=profile.get('days'),
@@ -322,7 +334,7 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
     job.check()
     if not issued or not getattr(issued, 'cert_pem', None):
         raise base.PluginError('%s gave no certificate' % irow['name'])
-    key_out = issued.key_pem or key_pem
+    key_out = None if given else (issued.key_pem or key_pem)
     chain = list(issued.chain_pems or [])
     try:
         ordered = pki.order_chain(issued.cert_pem, chain)
@@ -330,6 +342,11 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
             chain = [p for p in ordered if p.strip() != issued.cert_pem.strip()]
     except Exception as e:                              # noqa: BLE001
         job.step('the chain could not be put in order: %s' % e, 'warn')
+    if given:
+        if pki.cert_info(issued.cert_pem).get('pub_sha256') != ci.get('sha256'):
+            raise base.PluginError('the certificate %s gave is not for the key of the CSR sent in'
+                                   % irow['name'])
+        return issued.cert_pem, chain, None, S.info_of(issued.cert_pem), dict(issued.info or {})
     try:
         if pki.key_matches(issued.cert_pem, key_out) is False:
             raise base.PluginError('the certificate %s gave does not belong to the key'
@@ -410,6 +427,11 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         only = None
     contexts = []
     was = cert.get('state')
+    if was == 'revoked' and cert.get('csr_given'):
+        # Its key is the CSR's, and acme cannot make another: a new CSR is needed.
+        raise base.PluginError('%s was revoked and is issued for a CSR sent in: send a new CSR '
+                               '(a new key) - the same one is not used again' % cert['name'],
+                               retry=False)
     if was == 'revoked':
         # The one revoked may have gone because its key got out: never that key again.
         cert = dict(cert, reuse_key=0)
@@ -429,7 +451,7 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         ctx = runtime.RunContext(store, job, scope='issuer:%s' % irow['name'])
         contexts.append(ctx)
         issuer = S.plugin_instance(store, 'issuer', irow, ctx)
-        twin = bool(cert.get('key_type_alt'))
+        twin = bool(cert.get('key_type_alt')) and not cert.get('csr_given')
         if twin and not issuer.can_dual():
             job.step('%s gives no twin (a second certificate with a %s key)%s - only the %s one '
                      'is issued' % (irow['name'], cert['key_type_alt'],

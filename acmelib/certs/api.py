@@ -812,6 +812,10 @@ def cert_export(store, b, s, allowed=None):
     else:
         bundle = S.bundle_of(row, vrow, 'main' if vrow is None else None)
     variant = getattr(bundle, 'variant_name', 'main')
+    if fmt in S.KEY_FORMATS and row.get('csr_given'):
+        raise ValueError('%s was issued for a CSR that was sent in: acme never had its key - it '
+                         'stays where the CSR was made, so no file with the key can be made here'
+                         % row['name'])
     if fmt in S.KEY_FORMATS and not getattr(bundle, 'key_pem', None):
         raise ValueError('acme does not have the key of %s' % row['name'])
     data = bundle.as_format(fmt, _text(b, 'password', 1000) or None)
@@ -1846,5 +1850,6 @@ from acmelib.certs import api_readiness  # noqa: E402,F401  (plan, check, dry ru
 from acmelib.certs import api_push  # noqa: E402,F401  (acme push: Discover, and what it makes)
 from acmelib.certs import api_dnssets  # noqa: E402,F401  (Settings → DNS: the sets of DNS servers)
 from acmelib.certs import api_teams  # noqa: E402,F401  (Settings → Owners and teams, the tags)
+from acmelib.certs import api_reqprofiles  # noqa: E402,F401  (Settings → Request profiles)
 from acmelib.certs import api_deploys  # noqa: E402,F401  (a deployment's files: preview, test)
 from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edit, renew, versions)

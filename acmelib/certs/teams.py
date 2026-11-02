@@ -362,6 +362,12 @@ def clean_mails(v):
     return ', '.join(got)
 
 
+def _profiles_follow(store, kind, old, new):
+    """The request profiles that name an owner or a tag renamed (or a tag deleted)."""
+    from acmelib.certs import reqprofiles
+    reqprofiles.rename_ref(store, kind, old, new)
+
+
 def save_team(store, b, by):
     old = team_get(store, b.get('old_name')) if b.get('old_name') else None
     if b.get('old_name') and not old:
@@ -396,6 +402,7 @@ def save_team(store, b, by):
         if old['name'] != name:
             store.db.run('UPDATE certs SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
                          (name, _low(old['name'])))
+            _profiles_follow(store, 'team', old['name'], name)
         store.add_event('certificates', 'the owner %s changed by %s%s' % (
             name, by, (' (was %s)' % old['name']) if old['name'] != name else ''), who=by)
     else:
@@ -514,6 +521,7 @@ def save_tag(store, b, by):
         store.db.update('cert_tags', old['id'], row)
         if old['name'] != name:
             _retag(store, old['name'], name)
+            _profiles_follow(store, 'tag', old['name'], name)
         store.add_event('certificates', 'the tag %s changed by %s' % (name, by), who=by)
     else:
         row.update(created=_now(), created_by=str(by)[:190])
@@ -533,6 +541,7 @@ def delete_tag(store, name, by, strip=False):
                          'take it off them' % (t['name'], u.get('certs', 0), u.get('targets', 0)))
     if n:
         _retag(store, t['name'], None)
+    _profiles_follow(store, 'tag', t['name'], None)
     store.db.run('DELETE FROM cert_tags WHERE id = ?', (t['id'],))
     store.add_event('certificates', 'the tag %s deleted by %s%s' % (
         t['name'], by, (' - taken off %d' % n) if n else ''), 'warn' if n else 'info', who=by)

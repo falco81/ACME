@@ -119,6 +119,10 @@ def deploy_one(store, job, cert, dep, force=False):
         raise
     except Exception as e:                              # noqa: BLE001
         why = str(e) if isinstance(e, base.PluginError) else '%s: %s' % (type(e).__name__, e)
+        if cert.get('csr_given') and 'key' in why.lower():
+            why = ('%s was issued for a CSR that was sent in, so acme holds no key, and %s needs '
+                   'one (%s) - deploy it where only the certificate is needed, or put it in place '
+                   'by hand beside its key' % (cert['name'], trow['name'], why))
         if isinstance(e, base.PluginError) and e.detail:
             step(str(e.detail)[:4000], 'debug')
         fails = _failed(store, dep, why)

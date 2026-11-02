@@ -39,6 +39,7 @@ from acmelib import engine as E
 from acmelib.certs import store as S
 from acmelib.certs import jobs, renewer, schema
 from acmelib.certs import api as A
+from acmelib.certs import reqprofiles
 
 PORTAL_FORMATS = ('cert-pem', 'cert-der', 'chain-pem', 'fullchain-pem', 'p7b')
 KEY_FORMAT = 'pfx'
@@ -170,7 +171,24 @@ def public_row(store, r, via):
     one['via'] = via                    # 'me', or the group it is theirs through
     one['mine'] = str(r.get('created_by') or '') == 'portal:' + str(one.get('owner') or '')
     one['job'] = last_job(store, r['id'])
+    # What it may be downloaded as, and the request profile it was asked for from (1.0.18).
+    one['formats'] = row_formats(store, r)
+    one['req_profile'] = asker(store, r['id']).get('profile') or ''
     return one
+
+
+def row_formats(store, row):
+    """The formats of one certificate: those of the portal, and the PFX with its key where
+    its request profile gives it (or, asked for without one, portal_cert_keys) - never for one
+    issued for a CSR sent in, whose key acme does not hold."""
+    a = asker(store, row['id'])
+    if a.get('profile'):
+        out = list(PORTAL_FORMATS) + ([KEY_FORMAT] if a.get('pfx') else [])
+    else:
+        out = formats()
+    if row.get('csr_given'):
+        out = [f for f in out if f != KEY_FORMAT]
+    return out
 
 
 ALL_RIGHTS = ('view', 'request', 'manage', 'approve')
@@ -406,7 +424,10 @@ def _portal_certs(h):
             # The teams they may ask for a certificate for (Settings → Owners and teams).
             'teams': sorted(n for n, r in my_teams(h, s).values() if 'request' in r),
             'sees_all': E.portal_sees_all(s), 'kind': 'local' if is_local(s) else 'directory',
-            'may_request': bool(sufs and iss) and n < most()}
+            'may_request': bool(sufs and iss) and n < most(),
+            # The request profiles they may ask from (Settings → Request profiles, 1.0.18).
+            'profiles': reqprofiles.usable(h, s), 'free_form': bool(sufs and iss),
+            'may_ask': n < most()}
 
 
 @E.route('GET', '/api/portal/cert_job')
@@ -435,8 +456,11 @@ def _portal_download(h):
     b = h.body()
     row = need_mine(h, s, b.get('id'))
     fmt = str(b.get('format') or 'fullchain-pem')
-    if fmt not in formats():
-        raise E.ApiError(400, 'the format is one of %s' % ', '.join(formats()))
+    if fmt == KEY_FORMAT and row.get('csr_given'):
+        raise E.ApiError(400, '%s was issued for the CSR you sent: acme never had its key - it '
+                              'is where you made the CSR' % row['name'])
+    if fmt not in row_formats(h.store, row):
+        raise E.ApiError(400, 'the format is one of %s' % ', '.join(row_formats(h.store, row)))
     as_who = {'name': s['name'], 'role': 'readonly'}
     if fmt == KEY_FORMAT:
         pw = str(b.get('password') or '')
@@ -451,7 +475,7 @@ def _portal_download(h):
     try:
         got = A.cert_export(h.store, {'id': row['id'], 'format': fmt,
                                       'password': b.get('password') if fmt == KEY_FORMAT else None},
-                            as_who, allowed=formats())
+                            as_who, allowed=row_formats(h.store, row))
     except (ValueError, LookupError) as e:
         raise E.ApiError(400, str(e))
     h.store.add_event('certificates', '%s took %s (%s) from the portal' % (
@@ -463,6 +487,9 @@ def _portal_download(h):
 def _portal_request(h):
     s = portal_session(h)
     b = h.body()
+    if str(b.get('profile') or '').strip():
+        # From a request profile (1.0.18): everything but the names given beforehand.
+        return reqprofiles.request(h, s, b)
     store = h.store
     who = owner_word(s)
     sufs = words_list('portal_cert_suffixes')
@@ -632,7 +659,9 @@ def approve_request(store, row, by, ok, why):
         raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
     t = time.time()
     if ok:
-        store.db.update('certs', row['id'], {'state': 'new', 'state_at': t, 'auto_renew': 1,
+        # Renewed by itself after it is approved - unless its request profile says not.
+        auto = 0 if asker(store, row['id']).get('auto') is False else 1
+        store.db.update('certs', row['id'], {'state': 'new', 'state_at': t, 'auto_renew': auto,
                                              'last_error': '', 'updated': t,
                                              'updated_by': str(by)[:190]})
         store.add_event('certificates', '%s approved %s, asked for on the portal by %s%s' % (

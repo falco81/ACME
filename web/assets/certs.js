@@ -2597,10 +2597,36 @@ function deployCell(c) {
   if (bad) cell.appendChild(el('span', 'tag crit', num(bad) + ' failed'));
   return cell;
 }
-function certRenew(c, button, back) {
+function certRenewGo(c, button, back) {
   busy(button, true);
-  capi('certs/renew', {id: c.id, force: true}).then(function (d) { jobStarted(d, 'renewing', back); })
+  return capi('certs/renew', {id: c.id, force: true}).then(function (d) { jobStarted(d, 'renewing', back); })
     .catch(fail).then(function () { busy(button, false); });
+}
+/* A certificate that is there and valid is renewed only once it is said
+   what that does (1.0.18): a new one from its source now, asked of the CA. A
+   first issue, a revoked one or a failed job tried again go at once. */
+function certRenew(c, button, back) {
+  if (!c.not_after || c.state === 'revoked' || c.state === 'failed') return certRenewGo(c, button, back);
+  over(function () {
+    modal('Renew ' + (c.cn || c.name) + ' now?', function (body) {
+      body.appendChild(el('p', 'note', 'A new certificate is asked for at once, whether it is due or not - the one in use now stays valid until it runs out (it is not revoked).'));
+      var facts = [];
+      if (c.issuer) facts.push(['From', data('span', '', c.issuer)]);
+      facts.push(['Its key', c.reuse_key ? 'the same key is kept' : 'a new key']);
+      if (c.key_type_alt) facts.push(['Dual', 'both certificates - ' + (c.key_type || '') + ' and ' + c.key_type_alt]);
+      var n = Array.isArray(c.deploys) ? c.deploys.length : (Number(c.deploy_count || c.deploys_total || 0) || 0);
+      facts.push(['Then', n ? 'put in place again on its targets' : 'nothing to deploy']);
+      body.appendChild(kvTable(facts));
+      var lim = el('p', 'note small muted', 'A public CA counts every certificate it issues: renewing again and again can hit its limits.');
+      lim.style.marginTop = '12px';
+      body.appendChild(lim);
+    }, [{words: 'No, leave it', close: true}, {words: 'Renew now', cls: 'primary', icon: 'refresh', go: function (b) {
+      busy(b, true);
+      capi('certs/renew', {id: c.id, force: true}).then(function (d) { closeModal(); jobStarted(d, 'renewing'); })
+        .catch(fail).then(function () { busy(b, false); });
+    }}], 'narrow');
+    nameInTitle('Renew', c.cn || c.name);
+  }, back);
 }
 function certDeploy(c, button, back) {
   busy(button, true);
