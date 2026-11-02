@@ -41327,6 +41327,14 @@
   "sr3e0001": {
    "source": "the preferred node left out: not a node here",
    "text": "preferovaný uzel vynechán: zde takový uzel není"
+  },
+  "sb3x01": {
+   "source": "the backup put back was made while it was renewed",
+   "text": "obnovená záloha vznikla během jeho obnovy"
+  },
+  "sb3x02": {
+   "source": "the backup put back was made while it ran",
+   "text": "obnovená záloha vznikla, když úloha běžela"
   }
  },
  "patterns": {
@@ -57325,6 +57333,10 @@
   "pr3e0000": {
    "source": "split_prefer: there is no node called {0}",
    "text": "split_prefer: žádný uzel se nejmenuje {0}"
+  },
+  "sb3x03": {
+   "source": "{0} job(s) running when the backup was made are marked failed",
+   "text": "{0} úloh, které běžely při vzniku zálohy, je označeno jako selhané"
   }
  },
  "rich": {

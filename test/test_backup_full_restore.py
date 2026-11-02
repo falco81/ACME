@@ -137,6 +137,15 @@ class FullRestore(unittest.TestCase):
         with open(os.path.join(A['ACME_PLUGINS'], 'targets', 'mine.py'), 'w') as f:
             f.write('# a module of my own\n')
 
+        # a job at work when the copy is made (1.0.19): it comes back failed, not running
+        self.py(A, '''
+import acmelib.engine as E, time
+E.load_config()
+st = E.Storage(E.open_db())
+st.db.insert('cert_jobs', {'ts': time.time() - 5, 'kind': 'renew', 'cert_id': 1, 'node': 'acme7',
+                           'state': 'running', 'ok': 0, 'steps': '[]', 'by_who': 'x', 'said': ''})
+''')
+
         # the backup, as the daemon makes it
         out = os.path.join(self.tmp, 'bk')
         os.makedirs(out)
@@ -153,8 +162,12 @@ class FullRestore(unittest.TestCase):
         old = json.loads(self.py(A, DUMP))
         new = json.loads(self.py(b, DUMP))
         self.assertEqual(new['node'], 'acme7')
+        self.assertFalse([j for j in new['tables']['cert_jobs']
+                          if j['state'] in ('queued', 'running')])
+        self.assertTrue([j for j in new['tables']['cert_jobs'] if j['state'] == 'failed'
+                         and 'backup put back' in (j['said'] or '')])
         for t, rows in old['tables'].items():
-            if t in MOMENT:
+            if t in MOMENT or t == 'cert_jobs':
                 continue
             ka = {json.dumps(r, sort_keys=True, default=str) for r in rows
                   if not (t == 'meta' and str(r.get('k', '')).startswith(META_MOMENT))}

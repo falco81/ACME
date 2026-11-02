@@ -91,6 +91,21 @@ def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True)
                               key_file=os.path.join(top, 'secrets.key'),
                               from_name=os.path.basename(str(path)), need_admin=need_admin)
         said = [got.get('key') or '']
+        # A copy made while a job ran (1.0.19): its rows came back as running, and
+        # kept their certificate busy for hours - nothing runs them here now.
+        try:
+            began = time.time()
+            store.db.run("UPDATE certs SET state = 'failed', last_error = ? WHERE state = "
+                         "'renewing' AND id IN (SELECT cert_id FROM cert_jobs WHERE state IN "
+                         "('queued', 'running') AND ts < ?)",
+                         ('the backup put back was made while it was renewed', began))
+            n = store.db.run("UPDATE cert_jobs SET state = 'failed', ok = 0, finished = ?, "
+                             "said = ? WHERE state IN ('queued', 'running') AND ts < ?",
+                             (began, 'the backup put back was made while it ran', began))
+            if n:
+                said.append('%s job(s) running when the backup was made are marked failed' % n)
+        except Exception as e:                          # noqa: BLE001
+            log('the jobs of the backup put back could not be tidied: %s' % e, 'warn')
         # Modules of your own, as they were (a file of the same name is replaced).
         pin = os.path.join(top, 'plugins')
         if os.path.isdir(pin):

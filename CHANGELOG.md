@@ -6,6 +6,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.19 - 2026-11-02
 
+- A backup put back that was made while a job ran no longer leaves its
+  certificate busy for hours: those jobs come back marked failed.
 - The key on the enrolment pages is also given to the person who asked for the
   certificate in a request profile that offers it (for a team).
 - The commands a deployment runs on the target (before, test, reload, after,
