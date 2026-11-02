@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.23 - 2026-11-02
 
+- What happens with several deployments: a junction - the plan's line branches
+  into a track to each deployment's station (its target, module, host, how
+  many steps, whether it holds the key); the one picked is shown below over the
+  whole width, "All of them" lays them out side by side. On a phone nothing of
+  the plan runs wider than the screen any more.
+
 - What happens: a PowerShell command sent as `-EncodedCommand` is shown as the
   script it runs, readable (a password written into it as dots); the encoded
   command as sent stays below, folded.

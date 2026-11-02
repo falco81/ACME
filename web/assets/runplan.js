@@ -414,6 +414,75 @@
     box.appendChild(b2);
     return box;
   }
+  /* Several deployments (1.0.23): a junction - the line of the plan branches into a
+     track for each, a station at its end; the one picked is drawn below over the whole
+     width, the others wait on their tracks. "All of them" lays every one out. */
+  function countSteps(g) {
+    var all = [];
+    (g.per_name || [{steps: g.steps}]).forEach(function (p) { all = all.concat(p.steps || []); });
+    return all;
+  }
+  function junction(groups, n, kind) {
+    var wrap = el('div', 'rp-junction-wrap');
+    var yard = el('div', 'rp-junction');
+    yard.setAttribute('role', 'tablist');
+    var shown = el('div', 'rp-junction-shown');
+    var stations = [];
+    var pick = function (i) {
+      stations.forEach(function (st, j) {
+        st.classList.toggle('on', i === j);
+        st.setAttribute('aria-selected', i === j ? 'true' : 'false');
+      });
+      clear(shown);
+      if (i < 0) {
+        var grid = el('div', 'rp-groups many');
+        groups.forEach(function (g, j) { grid.appendChild(groupCard(g, n + '.' + (j + 1), kind)); });
+        shown.appendChild(grid);
+      } else shown.appendChild(groupCard(groups[i], n + '.' + (i + 1), kind));
+      explainWhatWasDrawn(shown);
+    };
+    groups.forEach(function (g, i) {
+      var st = el('button', 'rp-station' + (g.off || g.enabled === false ? ' off' : ''));
+      st.type = 'button';
+      st.setAttribute('role', 'tab');
+      var top = el('span', 'rp-station-t');
+      top.appendChild(icon('target', 15, 'rp-station-ic'));
+      top.appendChild(data('b', '', g.title));
+      st.appendChild(top);
+      var sub = el('span', 'rp-station-s');
+      if (g.module) sub.appendChild(el('span', 'tag info rp-tag', g.module.title || g.module.kind));
+      if (g.host) sub.appendChild(data('span', 'mono small muted', g.host));
+      st.appendChild(sub);
+      var steps = countSteps(g);
+      var meta = el('span', 'rp-station-m');
+      meta.appendChild(el('span', 'small muted', steps.length + ' step(s)'));
+      if (steps.some(function (x) { return x.secret; })) meta.appendChild(el('span', 'tag crit rp-tag', 'holds the private key'));
+      if (g.off) meta.appendChild(el('span', 'tag warn rp-tag', 'the target is switched off'));
+      else if (g.enabled === false) meta.appendChild(el('span', 'tag warn rp-tag', 'switched off: skipped'));
+      st.appendChild(meta);
+      st.onclick = function () { pick(i); };
+      stations.push(st);
+      yard.appendChild(st);
+    });
+    var allBtn = el('button', 'rp-station rp-station-all');
+    allBtn.type = 'button';
+    allBtn.setAttribute('role', 'tab');
+    var at = el('span', 'rp-station-t');
+    at.appendChild(icon('list', 15, 'rp-station-ic'));
+    at.appendChild(el('b', '', 'All of them'));
+    allBtn.appendChild(at);
+    allBtn.appendChild(el('span', 'rp-station-s small muted', groups.length + ' deployment(s) side by side'));
+    allBtn.onclick = function () { pick(-1); };
+    stations.push(allBtn);
+    yard.appendChild(allBtn);
+    var lead = el('p', 'muted small rp-junction-h', 'Pick a deployment: only it is shown below, over the whole width.');
+    wrap.appendChild(lead);
+    wrap.appendChild(yard);
+    wrap.appendChild(shown);
+    pick(0);
+    return wrap;
+  }
+
   function phaseBlock(ph, n) {
     var sec = el('section', 'rp-phase p-' + ph.key);
     sec.id = 'rp-phase-' + ph.key;
@@ -438,7 +507,9 @@
     var f = factsFold(ph.key === 'source' ? 'The source\'s settings' : 'Settings', ph.facts, false);
     if (f) body.appendChild(f);
     if (ph.steps && ph.steps.length) body.appendChild(stepList(ph.steps, String(n)));
-    if (ph.groups && ph.groups.length) {
+    if (ph.groups && ph.groups.length > 1 && ph.key === 'deploy') {
+      body.appendChild(junction(ph.groups, n, ph.key));
+    } else if (ph.groups && ph.groups.length) {
       var grid = el('div', 'rp-groups' + (ph.groups.length > 1 ? ' many' : ''));
       ph.groups.forEach(function (g, i) { grid.appendChild(groupCard(g, n + '.' + (i + 1), ph.key)); });
       body.appendChild(grid);

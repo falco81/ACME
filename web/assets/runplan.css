@@ -215,3 +215,55 @@
 }
 .rp-page .rp-val{overflow-wrap:anywhere;word-break:break-word}
 .rp-raw{margin-top:6px}.rp-raw summary{cursor:pointer;padding:2px 0}
+
+/* The junction of several deployments (1.0.23): the plan's line runs on as a rail
+   across the top; a curved track branches off it to each station. */
+.rp-junction-h{margin:0 0 2px}
+.rp-junction{position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:14px 14px;padding-top:26px;margin-bottom:4px}
+.rp-junction::before{content:"";position:absolute;left:-37px;right:12px;top:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--line) 70%,var(--accent)));
+  border-radius:2px}
+.rp-station{position:relative;display:flex;flex-direction:column;gap:6px;text-align:left;
+  padding:11px 13px 10px;border:1px solid var(--line);border-radius:12px;background:var(--panel);
+  color:var(--tx);cursor:pointer;font:inherit;min-width:0;transition:border-color .15s,box-shadow .15s,transform .15s}
+.rp-station::before{content:"";position:absolute;left:22px;top:-26px;width:16px;height:26px;
+  border-left:2px dashed var(--line);border-bottom:2px dashed transparent;border-top-left-radius:14px;
+  transition:border-color .15s}
+.rp-station::after{content:"";position:absolute;left:16px;top:-6px;width:12px;height:12px;border-radius:50%;
+  background:var(--panel);border:2px solid var(--line);transition:all .15s}
+.rp-station:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+.rp-station:hover::before{border-left-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+.rp-station.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 24px rgba(0,0,0,.35);
+  background:color-mix(in srgb,var(--accent) 7%,var(--panel))}
+.rp-station.on::before{border-left:3px solid var(--accent)}
+.rp-station.on::after{background:var(--accent);border-color:var(--accent);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 25%,transparent)}
+.rp-station.off{opacity:.6}
+.rp-station-t{display:flex;gap:8px;align-items:center;min-width:0}
+.rp-station-t b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.rp-station-ic{color:var(--accent);display:inline-flex}
+.rp-station-s{display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0}
+.rp-station-s .mono{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.rp-station-m{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.rp-station-all .rp-station-ic{color:var(--tx-dim)}
+.rp-junction-shown{min-width:0}
+@media (max-width:720px){
+  /* on a phone the rail runs down the side, a short track to each station */
+  .rp-junction{grid-template-columns:minmax(0,1fr);padding-top:0;padding-left:26px}
+  .rp-junction::before{left:6px;right:auto;top:-8px;bottom:22px;width:2px;height:auto}
+  .rp-station::before{left:-20px;top:50%;width:20px;height:2px;border-left:0;border-top:2px dashed var(--line);
+    border-radius:0}
+  .rp-station.on::before{border-left:0;border-top:3px solid var(--accent)}
+  .rp-station::after{left:-26px;top:calc(50% - 6px)}
+}
+@media (max-width:720px){
+  /* the tables of facts break their values rather than the page's width (1.0.23) */
+  .rp-page table.plain,.rp-page table.plain tbody,.rp-page table.plain tr,
+  .rp-page table.plain td{display:block;width:auto;min-width:0;max-width:100%}
+  .rp-page table.plain tr{padding:6px 0;border-bottom:1px solid var(--line)}
+  .rp-page table.plain td{padding:0 4px;border:0;white-space:normal;overflow-wrap:anywhere}
+  .rp-page table.plain td:first-child{font-size:12px;color:var(--tx-mut)}
+}
+@media (max-width:720px){.rp-page .rp-val{display:inline-block;max-width:100%;word-break:break-all;white-space:normal}}
+@media (max-width:720px){.rp-code pre{overflow-wrap:anywhere;word-break:break-all;overflow-x:auto}}

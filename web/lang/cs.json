@@ -42559,6 +42559,14 @@
   "srpps2": {
    "source": "The command as it is sent (encoded)",
    "text": "Příkaz, jak se posílá (zakódovaný)"
+  },
+  "srpj01": {
+   "source": "All of them",
+   "text": "Všechna"
+  },
+  "srpj04": {
+   "source": "Pick a deployment: only it is shown below, over the whole width.",
+   "text": "Vyberte nasazení: níže se ukáže jen ono, přes celou šířku."
   }
  },
  "patterns": {
@@ -59241,6 +59249,14 @@
   "srvf12": {
    "source": "{0} is kept",
    "text": "{0} je ponechán"
+  },
+  "srpj02": {
+   "source": "{0} step(s)",
+   "text": "{0} kroků"
+  },
+  "srpj03": {
+   "source": "{0} deployment(s) side by side",
+   "text": "{0} nasazení vedle sebe"
   }
  },
  "rich": {
