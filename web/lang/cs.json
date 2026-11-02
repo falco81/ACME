@@ -42551,6 +42551,14 @@
   "srvf07": {
    "source": "it is being revoked now",
    "text": "právě se odvolává"
+  },
+  "srpps1": {
+   "source": "PowerShell, as it runs",
+   "text": "PowerShell, jak se spustí"
+  },
+  "srpps2": {
+   "source": "The command as it is sent (encoded)",
+   "text": "Příkaz, jak se posílá (zakódovaný)"
   }
  },
  "patterns": {

@@ -214,3 +214,4 @@
   .rp-top .rp-tags{flex:1 1 100%;align-self:flex-start}
 }
 .rp-page .rp-val{overflow-wrap:anywhere;word-break:break-word}
+.rp-raw{margin-top:6px}.rp-raw summary{cursor:pointer;padding:2px 0}

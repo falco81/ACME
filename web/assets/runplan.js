@@ -217,7 +217,15 @@
     if (d.files) return filesTable(d.files);
     if (d.command) {
       var b = el('div', 'rp-cmd');
-      b.appendChild(codeBlock(d.command, 'rp-shell'));
+      /* The script of -EncodedCommand, readable (1.0.23); the command as it is sent stays
+         above, folded - it is base64 nobody reads. */
+      if (d.script) {
+        b.appendChild(codeBlock(d.script, 'rp-ps', tr('PowerShell, as it runs')));
+        var raw = el('details', 'rp-raw');
+        raw.appendChild(el('summary', 'small muted', 'The command as it is sent (encoded)'));
+        raw.appendChild(codeBlock(d.command, 'rp-shell'));
+        b.appendChild(raw);
+      } else b.appendChild(codeBlock(d.command, 'rp-shell'));
       if (d.input) b.appendChild(data('div', 'mono small muted rp-input', '< ' + d.input));
       return b;
     }

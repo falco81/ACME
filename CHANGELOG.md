@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.23 - 2026-11-02
 
+- What happens: a PowerShell command sent as `-EncodedCommand` is shown as the
+  script it runs, readable (a password written into it as dots); the encoded
+  command as sent stays below, folded.
+
 - The root helper (acme-web.service) writes in the journal each of its parts
   that takes 3 s or more (`journalctl -u acme-web.service`) - a page that waits
   on one of them shows which one held it up.

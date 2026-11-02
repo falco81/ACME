@@ -357,6 +357,8 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             kind = 'delete' if re.match(r"^(sudo -[nS] (-p '' )?sh -c ')?rm ", cmd) else 'command'
             st = {'kind': kind, 'words': 'Runs a command on {0}'.replace('{0}', ev.get('host') or ''),
                   'detail': {'command': cmd}}
+            if ev.get('script'):
+                st['detail']['script'] = ev['script']
             if ev.get('input'):
                 inp = ev['input']
                 st['detail']['input'] = '%s (%s, %d B)' % (

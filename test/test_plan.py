@@ -269,5 +269,24 @@ for _n in dir(core.CertsCore):
         setattr(Plan, _n, None)
 
 
+class EncodedPowerShell(unittest.TestCase):
+    """1.0.23: powershell -EncodedCommand shown readable, its stand-ins masked."""
+
+    def test_decoded(self):
+        import base64
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from acmelib.certs import plansandbox as PS
+        script = ("$pw = 'STANDIN-SECRET'\r\nImport-PfxCertificate -FilePath C:\\x.pfx\r\n"
+                  "$s = ConvertTo-SecureString -String 'made-for-the-run' -AsPlainText -Force")
+        cmd = 'powershell.exe -NoProfile -EncodedCommand ' + base64.b64encode(
+            script.encode('utf-16-le')).decode()
+        self.assertIn('Import-PfxCertificate', PS.encoded_script(cmd))
+        self.assertNotIn('\r', PS.encoded_script(cmd))
+        self.assertEqual(PS.encoded_script('nginx -t'), '')
+        masked = PS.mask_text(PS.encoded_script(cmd), {'STANDIN-SECRET': 'the password'})
+        self.assertNotIn('STANDIN-SECRET', masked)
+        self.assertNotIn('made-for-the-run', PS.encoded_script(cmd))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -314,6 +314,24 @@ def size_words(n):
     return '%.1f kB' % (n / 1024.0)
 
 
+def encoded_script(command):
+    """The script of `powershell ... -EncodedCommand <base64 of UTF-16LE>`, readable -
+    or '' when the command has none."""
+    import base64
+    m = re.search(r'-(?:EncodedCommand|enc|e|ec)\s+([A-Za-z0-9+/=]{8,})', str(command or ''),
+                  re.I)
+    if not m:
+        return ''
+    try:
+        text = base64.b64decode(m.group(1)).decode('utf-16-le').replace('\r\n', '\n')
+    except (ValueError, UnicodeDecodeError):
+        return ''
+    # A password written into the script (a PFX's, made for the one run) shown as dots too.
+    text = re.sub(r"(ConvertTo-SecureString\s+(?:-String\s+)?)'[^']*'", r"\1'••••'", text,
+                  flags=re.I)
+    return re.sub(r"(-(?:Password|PlainPassword|Pin)\s+)'[^']*'", r"\1'••••'", text, flags=re.I)
+
+
 def mask_text(t, marks):
     """Secrets out of a piece of text: the stand-ins, PEM keys, long base64."""
     t = str(t)
@@ -767,6 +785,10 @@ def clean(ev, marks):
         ev['body'] = body
         ev['body_facts'] = facts
     elif k in ('ssh-run',):
+        # PowerShell's -EncodedCommand read too (1.0.23): the script as it runs, for people
+        script = encoded_script(ev['command'])
+        if script:
+            ev['script'] = mask_text(script, marks)
         ev['command'] = mask_text(ev['command'], marks)
     elif k in ('ssh-put', 'file'):
         if ev.get('body') is not None:
