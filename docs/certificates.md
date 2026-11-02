@@ -409,8 +409,9 @@ up* for every certificate that uses it.
 
 *Certificates → Import from a source* brings in the certificates an account
 already has at a source whose API can list them - bought at www.ssls.cz, in
-SSLmarket's or DigiCert's administration, issued by Vault, EJBCA, FreeIPA,
-Google CA Service, GlobalSign Atlas, or signed by an authority of acme's own
+SSLmarket's or DigiCert's administration, at ZeroSSL, issued by Vault, EJBCA,
+FreeIPA, Google CA Service, GlobalSign Atlas, Keyfactor Command, CyberArk
+Certificate Manager (Venafi), Cloudflare's Origin CA, or signed by an authority of acme's own
 outside acme (a CSR signed by hand). Pick the source: it is asked for the
 list (only asked - nothing is ordered or changed there) and every certificate
 is shown with its names, product, state, validity, the end of what was paid
@@ -449,9 +450,12 @@ A renewal goes through the source's API with that id: SSLS.cz reissues that
 SSLS ID (`quickReissue`), SSLmarket and DigiCert reissue that order - free
 while the subscription or order runs; a new order is bought only with *Allow
 new orders (paid)*, as always - and the certificate's own id wins over the
-source's *Certificate/Order to reuse*. When the source answers with another
+source's *Certificate/Order to reuse*. CyberArk Certificate Manager renews that
+very object (Self-Hosted: `certificates/renew` of its DN; SaaS: a request with
+`existingCertificateId`). When the source answers with another
 order (a new one), that one is kept as the certificate's id. A private CA
-(Vault, EJBCA, FreeIPA, CA Service, Atlas, acme's own) simply issues a new one.
+(Vault, EJBCA, FreeIPA, CA Service, Atlas, Keyfactor Command, acme's own) and
+ZeroSSL and Cloudflare's Origin CA simply issue a new one.
 The key is made by acme at the first renewal (*keep the key* is off), so acme
 holds the key from then on. Changing the certificate's source forgets the id.
 
@@ -460,7 +464,11 @@ Which sources can (`lists_existing`, docs/writing-a-module.md): `ssls`
 (List orders + the download), `internal_ca` (what the authority signed - the
 certificate itself is kept since 1.0.21), `vault_pki` (LIST certs + read),
 `google_cas` (certificates.list), `globalsign_atlas` (/stats/issued + read),
-`ejbca` (certificate/search), `freeipa` (cert_find + cert_show). Not: `acme`
+`ejbca` (certificate/search), `freeipa` (cert_find + cert_show), `zerossl`
+(GET /certificates + download/return), `venafi_tpp` (vedsdk/certificates/ +
+retrieve), `venafi_cloud` (certificatesearch + contents), `keyfactor_command`
+(GET Certificates + Certificates/Download), `cloudflare_origin_ca` (a zone's
+GET /certificates). Not: `acme`
 and `sslmarket_acme` (ACME has no list of an account's certificates), `est`,
 `cmp`, `scep` (the protocols have none), `ms_adcs` (Web Enrollment has none),
 `step_ca` (its API has none), `aws_pca` (AWS Private CA lists issued
