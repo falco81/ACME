@@ -41903,6 +41903,50 @@
   "srpph04": {
    "source": "session",
    "text": "relace"
+  },
+  "sdel01": {
+   "source": "It is deleted from acme with its versions and deployments - this cannot be taken back. Nothing is removed from the targets: what is in place there stays.",
+   "text": "Smaže se z acme i s verzemi a nasazeními – nelze to vrátit. Z cílů se nic neodstraní: co je tam nasazené, zůstane."
+  },
+  "sdel02": {
+   "source": "Revoke it first",
+   "text": "Nejdřív ho odvolat (revoke)"
+  },
+  "sdel03": {
+   "source": "Its CA is told it must not be trusted any more, then it is deleted. If the revocation fails, nothing is deleted and you are told why.",
+   "text": "CA, která ho vydala, dostane zprávu, že mu už nelze věřit, a pak se smaže. Když odvolání selže, nic se nesmaže a dozvíte se proč."
+  },
+  "sdel05": {
+   "source": "it has not been issued",
+   "text": "ještě nebyl vydán"
+  },
+  "sdel06": {
+   "source": "it is revoked already",
+   "text": "už je odvolaný"
+  },
+  "sdel07": {
+   "source": "it has no source acme speaks to",
+   "text": "nemá zdroj, se kterým acme mluví"
+  },
+  "sdel08": {
+   "source": "a self-signed certificate has no CA to revoke it at",
+   "text": "self-signed certifikát nemá CA, u které by šel odvolat"
+  },
+  "sdel09": {
+   "source": "Said to the CA.",
+   "text": "Sdělí se CA."
+  },
+  "sdel10": {
+   "source": "A dual certificate: both of its keys are revoked.",
+   "text": "Duální certifikát: odvolají se oba jeho klíče."
+  },
+  "sdel11": {
+   "source": "revoking, then deleting",
+   "text": "odvolává se, pak se smaže"
+  },
+  "sdel15": {
+   "source": "revoked - now deleted from acme",
+   "text": "odvoláno – teď se maže z acme"
   }
  },
  "patterns": {
@@ -58081,6 +58125,26 @@
   "srpph10": {
    "source": "certificate, PEM, {0}",
    "text": "certifikát, PEM, {0}"
+  },
+  "sdel04": {
+   "source": "Not possible: {0}.",
+   "text": "Nejde: {0}."
+  },
+  "sdel12": {
+   "source": "{0} cannot be revoked: {1} - delete it without revoking",
+   "text": "{0} nejde odvolat: {1} – smažte ho bez odvolání"
+  },
+  "sdel13": {
+   "source": "{0} is being revoked, then deleted",
+   "text": "{0} se odvolává, pak se smaže"
+  },
+  "sdel14": {
+   "source": "{0} revoked and deleted",
+   "text": "{0} odvolán a smazán"
+  },
+  "sdel16": {
+   "source": "reason: {0}, then deleted",
+   "text": "důvod: {0}, pak smazán"
   }
  },
  "rich": {

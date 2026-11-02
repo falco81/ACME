@@ -322,6 +322,7 @@ def cert_one(store, ref, full=False):
     out['dual_source'] = dual_ok
     out['due'] = renewer.due_why(row, dual=dual_ok)
     out['busy'] = jobs.cert_busy(store, row['id'])
+    out['revoke_no'] = revocable(store, row)
     return {'cert': out, 'versions': versions, 'deploys': deps, 'jobs': js}
 
 
@@ -609,12 +610,10 @@ def _cert_compat(h, s):
     return out
 
 
-@api('POST', '/api/certs/delete', 'certadmin')
-def _cert_delete(h, s):
-    row = S.cert_need(h.store, _id(h.body().get('id')))
-    if jobs.cert_busy(h.store, row['id']):
-        raise E.ApiError(409, 'a job is working on %s: stop it first' % row['name'])
-    db = h.store.db
+def cert_drop(store, row, by):
+    """A certificate gone from acme: its deployments, versions, finished jobs and
+    what the portal kept of who asked for it (nothing on the targets, nothing at the CA)."""
+    db = store.db
     db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (row['id'],))
     db.run('DELETE FROM cert_versions WHERE cert_id = ?', (row['id'],))
     # Its jobs that are over go with it (1.0.19); one still at work stays until it ends.
@@ -625,9 +624,55 @@ def _cert_delete(h, s):
     # certificate given the same id later (MariaDB counts from the highest one left
     # after a restart) was that person's - their mail, their profile, its PFX.
     db.run('DELETE FROM meta WHERE k = ?', ('certs:portal:%d' % int(row['id']),))
-    h.store.add_event('certificates', 'certificate %s deleted by %s' % (row['name'], who(s)),
-                      'warn', who=who(s))
-    return {'message': '%s deleted' % row['name']}
+    store.add_event('certificates', 'certificate %s deleted by %s' % (row['name'], by),
+                    'warn', who=by)
+
+
+def revocable(store, row):
+    """'' when acme can revoke the certificate at its CA, else why not (1.0.21)."""
+    if not row.get('cert_pem'):
+        return 'it has not been issued'
+    if row.get('state') == 'revoked':
+        return 'it is revoked already'
+    irow = S.plugin_row(store, 'issuer', row.get('issuer')) if row.get('issuer') else None
+    if not irow:
+        return 'it has no source acme speaks to'
+    if str(irow.get('kind') or '') == 'selfsigned':
+        return 'a self-signed certificate has no CA to revoke it at'
+    return ''
+
+
+@api('POST', '/api/certs/delete', 'certadmin')
+def _cert_delete(h, s):
+    b = h.body()
+    row = S.cert_need(h.store, _id(b.get('id')))
+    if jobs.cert_busy(h.store, row['id']):
+        raise E.ApiError(409, 'a job is working on %s: stop it first' % row['name'])
+    by = who(s)
+    if not _flag(b.get('revoke'), 0):
+        cert_drop(h.store, row, by)
+        return {'message': '%s deleted' % row['name']}
+    # Revoked first, at its CA, then deleted (1.0.21) - in one job: a revocation
+    # that fails leaves the certificate here, as it was, and says why.
+    why_not = revocable(h.store, row)
+    if why_not:
+        raise E.ApiError(400, '%s cannot be revoked: %s - delete it without revoking'
+                         % (row['name'], why_not))
+    reason = str(b.get('reason') or 'cessationOfOperation')
+    if reason not in REVOKE_REASONS:
+        raise ValueError('the reason is one of %s' % ', '.join(REVOKE_REASONS))
+
+    def fn(job):
+        renewer.revoke_cert(job.store, job, row['id'], reason, by)
+        job.step('revoked - now deleted from acme', 'ok')
+        cert_drop(job.store, row, by)
+        return True, '%s revoked and deleted' % row['name']
+    try:
+        job_id = jobs.submit(h.store, 'revoke', fn, cert_id=row['id'], by=by,
+                             said='reason: %s, then deleted' % reason)
+    except ValueError as e:
+        raise E.ApiError(409, str(e))
+    return {'job_id': job_id, 'message': '%s is being revoked, then deleted' % row['name']}
 
 
 def start_renew(store, ref, force, by):

@@ -4,6 +4,14 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.21 - 2026-11-02
+
+- **Delete asks in a popup and revokes first**: *Revoke it first* is ticked
+  (with the reason, "no longer used"); the certificate is revoked at its CA and
+  then deleted, in one job - a revocation that fails deletes nothing. Where it
+  cannot be revoked (not issued, revoked already, self-signed, no source) the
+  popup says so. *Revoke* alone stays its own button.
+
 ## 1.0.20 - 2026-11-02
 
 - *What happens*: a certificate says, step by step, everything a renewal of it

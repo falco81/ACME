@@ -1003,6 +1003,33 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         self.assertNotEqual(last_dry[1], pw)
 
 
+    def test_19_delete_revokes_first(self):
+        """Delete with revoke (1.0.21): revoked at its CA in a job, then gone; without,
+        gone at once; one that cannot be revoked is said so and kept."""
+        cid = self.ok('POST', '/api/certs/save', {'name': 'delrev', 'names': ['delrev.example.test'],
+                                                  'issuer': 'own', 'auto_renew': 0})['id']
+        self.wait_job(self.ok('POST', '/api/certs/renew', {'id': cid})['job_id'])
+        one = self.ok('GET', '/api/certs/one', args={'id': cid})['cert']
+        self.assertEqual(one['revoke_no'], '')
+        serial = one.get('serial') or (one.get('info') or {}).get('serial')
+        got = self.ok('POST', '/api/certs/delete', {'id': cid, 'revoke': 1,
+                                                    'reason': 'cessationOfOperation'})
+        job = self.wait_job(got['job_id'])
+        self.assertEqual(job['state'], 'ok', job)
+        st, _ = self.call('GET', '/api/certs/one', None, self.admin, {'id': cid})
+        self.assertEqual(st, 404)
+        issued = self.py('print(json.dumps([r["revoked"] for r in st.db.rows("SELECT revoked FROM '
+                         'cert_ca_issued WHERE names LIKE ?", ("%%delrev.example.test%%",))]))')
+        self.assertTrue(issued and all(issued), (serial, issued))
+        # never issued: cannot be revoked - refused with revoke, deleted without
+        cid2 = self.ok('POST', '/api/certs/save', {'name': 'delnew', 'names': ['delnew.example.test'],
+                                                   'issuer': 'own', 'auto_renew': 0})['id']
+        self.assertTrue(self.ok('GET', '/api/certs/one', args={'id': cid2})['cert']['revoke_no'])
+        st, got = self.call('POST', '/api/certs/delete', {'id': cid2, 'revoke': 1}, self.admin)
+        self.assertEqual(st, 400, got)
+        self.ok('POST', '/api/certs/delete', {'id': cid2})
+
+
 if __name__ == '__main__':
     import urllib.parse  # noqa: F401
     unittest.main(verbosity=2)

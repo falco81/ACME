@@ -2600,6 +2600,37 @@ function deployCell(c) {
   if (bad) cell.appendChild(el('span', 'tag crit', num(bad) + ' failed'));
   return cell;
 }
+/* Delete (1.0.21): asked in a popup, and revoked at its CA first unless the box
+   is cleared - a certificate deleted here stayed valid out there. Revoke alone
+   stays its own button. */
+function deleteDialog(c) {
+  var also = null, reason = null;
+  var no = c.revoke_no || '';
+  modal('Delete ' + c.name, function (body) {
+    body.appendChild(el('p', 'note', 'It is deleted from acme with its versions and deployments - this cannot be taken back. Nothing is removed from the targets: what is in place there stays.'));
+    also = switchBox(!no);
+    if (no) also._input.disabled = true;
+    var f = formField('Revoke it first', also, no ? 'Not possible: ' + no + '.'
+      : 'Its CA is told it must not be trusted any more, then it is deleted. If the revocation fails, nothing is deleted and you are told why.');
+    body.appendChild(f);
+    reason = selectBox(REVOKE_REASONS.filter(function (x) { return x[0] !== 'cACompromise'; }), 'cessationOfOperation');
+    var rf = formField('Why', reason, 'Said to the CA.');
+    body.appendChild(rf);
+    var sync = function () { rf.hidden = !also._get(); };
+    also._input.addEventListener('change', sync);
+    sync();
+    if (c.key_type_alt && !no) body.appendChild(el('p', 'note small muted', 'A dual certificate: both of its keys are revoked.'));
+  }, [{words: 'No, leave it', close: true}, {words: 'Delete it', cls: 'danger', icon: 'trash', once: true, go: function (b) {
+    busy(b, true);
+    var rev = !!also._get();
+    capi('certs/delete', {id: c.id, revoke: rev ? 1 : 0, reason: reason.value}).then(function (x) {
+      closeModal();
+      closeModal();
+      if (rev && x && x.job_id) jobStarted(x, 'revoking, then deleting'); else { toast(said(x, 'deleted'), 'good'); CT.refresh(); }
+    }).catch(function (e) { busy(b, false); fail(e); });
+  }}], 'narrow');
+  nameInTitle('Delete', c.name);
+}
 function certRenewGo(c, button, back) {
   busy(button, true);
   return capi('certs/renew', {id: c.id, force: true}).then(function (d) { jobStarted(d, 'renewing', back); })
@@ -2654,11 +2685,8 @@ function certPeek(id) {
     var back = function () { certPeek(c.id); };
     var buttons = [];
     var waiting = c.state === 'pending' || c.csr_waiting;
-    if (MANAGE) buttons.push({words: 'Delete', cls: 'danger', icon: 'trash', left: true, go: function (b) {
-      /* Once (1.0.19): a second press while it went asked again (a 404). */
-      if (b) busy(b, true);
-      capi('certs/delete', {id: c.id}).then(function (x) { toast(said(x, 'deleted'), 'good'); closeModal(); CT.refresh(); })
-        .catch(function (e) { if (b) busy(b, false); fail(e); });
+    if (MANAGE) buttons.push({words: 'Delete', cls: 'danger', icon: 'trash', left: true, once: true, go: function () {
+      over(function () { deleteDialog(c); }, back);
     }});
     buttons.push({words: 'Close', close: true});
     if (window.ACME_RUNPLAN) buttons.push({words: 'What happens', icon: 'list',
