@@ -3409,3 +3409,10 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .modal .box.medium{width:min(max(900px,66vw),1480px,100%)}
 .modal .box.large{width:min(max(1120px,74vw),1640px,100%)}
 .modal .box.tune{width:min(max(1240px,76vw),1700px,100%)}
+
+/* A search box's funnel (1.0.25): at its right, beside the browser's clearing
+   cross, in the same colour; it opens the fields to search by. */
+.qs-wrap.qs-has-funnel > input{padding-right:36px}
+.qs-funnel{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--info);cursor:pointer;opacity:.85}
+.qs-funnel:hover,.qs-funnel:focus-visible{opacity:1;background:var(--info-bg);outline:0}
+.qs-wrap.qs-open > .qs-funnel{opacity:1;background:var(--info-bg)}

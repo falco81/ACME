@@ -45751,6 +45751,14 @@
   "sup098": {
    "source": "CZECHIA.COM: the token may not list the domains (an ACME token only writes TXT records) - set the domain and Test reads its zone",
    "text": "CZECHIA.COM: token nesmí vypsat domény (token ACME jen zapisuje TXT záznamy) – nastavte doménu a Test přečte její zónu"
+  },
+  "sup099": {
+   "source": "The fields to search by (Ctrl+Space)",
+   "text": "Pole, podle kterých lze hledat (Ctrl+mezerník)"
+  },
+  "sup100": {
+   "source": "Ctrl+Space opens · ↑ ↓ and Tab or Enter take one · Esc closes",
+   "text": "Ctrl+mezerník otevře · ↑ ↓ a Tab nebo Enter vybere · Esc zavře"
   }
  },
  "patterns": {

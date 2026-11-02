@@ -495,6 +495,8 @@ var ICONS = {
   in: '<path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/>'
     + '<path d="M14 12h7"/><path d="M18 9l3 3-3 3"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  /* A funnel: the fields a search box can narrow by (1.0.25). */
+  funnel: '<path d="M3.5 5h17l-6.5 7.6V19l-4 1.5v-7.9z"/>',
   refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v5h-5"/>',
   save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>'
     + '<path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
@@ -1737,7 +1739,11 @@ function suggestBox(input) {
   return {wrap: wrap, drop: drop, said: said, place: place};
 }
 document.addEventListener('keydown', function (e) { if (e.key === 'Tab') window.SUGGEST_TAB_AT = Date.now(); }, true);
-function suggestEngine(input, box, offer, foot) {
+/* opts.button (1.0.25): a search box's fields - opened only by its funnel at the
+   right of the box (or Ctrl+Space), never by itself; once open, it follows what is typed.
+   Without it (a person's name) it opens as one types, as before. */
+function suggestEngine(input, box, offer, foot, opts) {
+  opts = opts || {};
   var st = {items: [], at: -1, moved: false, asked: 0, hold: false, typed: false,
             /* a box that comes already filled in is as good as picked */
             taken: input.value ? input.value : null};
@@ -1811,19 +1817,49 @@ function suggestEngine(input, box, offer, foot) {
   var soon = debounce(ask, 140);
   input.addEventListener('input', function () {
     if (st.taken !== null && st.taken !== undefined && input.value !== st.taken) st.taken = null;
+    if (opts.button && box.drop.hidden) return;         /* closed: stays closed */
+    st.forced = false;
     st.hold = false; soon();
   });
-  /* Opened by a person (1.0.25): clicked into, reached by Tab, or typed in - not
-     by a popup that puts the caret in its first box as it opens. */
-  input.addEventListener('focus', function () {
-    if (Date.now() - (window.SUGGEST_TAB_AT || 0) < 700) { st.hold = false; soon(); }
-  });
-  input.addEventListener('click', function () { st.hold = false; soon(); });
+  if (opts.button) {
+    var fb = document.createElement('button');
+    fb.type = 'button';
+    fb.className = 'qs-funnel';
+    fb.innerHTML = iconMarkup('funnel', 15);
+    var fbWords = 'The fields to search by (Ctrl+Space)';
+    fbWords = typeof i18nText === 'function' ? (i18nText(fbWords) || fbWords) : fbWords;
+    fb.title = fbWords;
+    fb.setAttribute('aria-label', fbWords);
+    /* the box keeps the caret: pressed, the list opens (or closes) under it */
+    fb.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    fb.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (!box.drop.hidden) { close(); return; }
+      if (document.activeElement !== input) input.focus();
+      st.hold = false;
+      st.taken = null;
+      st.forced = true;
+      ask();
+    });
+    box.wrap.appendChild(fb);
+    box.wrap.classList.add('qs-has-funnel');
+  } else {
+    /* Opened by a person (1.0.25): clicked into, reached by Tab, or typed in - not
+       by a popup that puts the caret in its first box as it opens. */
+    input.addEventListener('focus', function () {
+      if (Date.now() - (window.SUGGEST_TAB_AT || 0) < 700) { st.hold = false; soon(); }
+    });
+    input.addEventListener('click', function () { st.hold = false; soon(); });
+  }
   input.addEventListener('blur', function () { setTimeout(close, 150); });
   input.addEventListener('keydown', function (e) {
     var open = !box.drop.hidden && st.items.length;
-    /* closed (not opened when the popup put the caret here): ↓ opens it */
-    if (!open && e.key === 'ArrowDown' && box.drop.hidden) { e.preventDefault(); st.hold = false; soon(); return; }
+    /* Ctrl+Space opens it (and closes it again), as the funnel does (1.0.25) */
+    if (e.ctrlKey && (e.key === ' ' || e.code === 'Space')) {
+      e.preventDefault();
+      if (!box.drop.hidden) { close(); return; }
+      st.hold = false; st.taken = null; st.forced = true; ask(); return;
+    }
     if (!open) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); st.moved = true; mark(Math.min(st.items.length - 1, st.at + 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); st.moved = true; mark(Math.max(0, st.at - 1)); }
@@ -1888,7 +1924,7 @@ function qSuggest(input, list, extra) {
       f.appendChild(noI18n(el('code', 'qs-syn', p[0])));
       f.appendChild(el('span', 'qs-syn-says', p[1]));
     });
-    f.appendChild(el('span', '', '↑ ↓ and Tab or Enter take one · Esc closes'));
+    f.appendChild(el('span', '', 'Ctrl+Space opens · ↑ ↓ and Tab or Enter take one · Esc closes'));
     return f;
   };
   suggestEngine(input, box, function (st) {
@@ -1914,6 +1950,15 @@ function qSuggest(input, list, extra) {
       }
       var typed = where.body.toLowerCase();
       st.typed = !!typed;
+      /* opened by the funnel over a word that is no field: every field */
+      if (st.forced && typed && (/["]/.test(typed) || /[^a-z_-]/.test(typed) ||
+                                 !all.some(function (f) { return f[0].indexOf(typed) >= 0; }))) {
+        /* the word stays: a field is put after it */
+        var endAt = input.selectionEnd || input.value.length;
+        where = {start: endAt, end: endAt, body: '',
+                 lead: /\S$/.test(input.value.slice(0, endAt)) ? ' ' : ''};
+        typed = '';
+      }
       if (/["]/.test(typed) || /[^a-z_-]/.test(typed)) return null;
       var items = [];
       var one = function (f) {
@@ -1924,7 +1969,7 @@ function qSuggest(input, list, extra) {
       all.forEach(function (f) { if (typed && f[0].indexOf(typed) > 0) one(f); });
       return {title: typed ? 'Fields' : 'Fields - or type a word to find it anywhere', items: items};
     });
-  }, foot);
+  }, foot, {button: true});
   return me;
 }
 
@@ -2094,7 +2139,7 @@ function qLocal(input, spec) {
       f.appendChild(noI18n(el('code', 'qs-syn', p[0])));
       f.appendChild(el('span', 'qs-syn-says', p[1]));
     });
-    f.appendChild(el('span', '', '↑ ↓ and Tab or Enter take one · Esc closes'));
+    f.appendChild(el('span', '', 'Ctrl+Space opens · ↑ ↓ and Tab or Enter take one · Esc closes'));
     return f;
   };
   suggestEngine(input, box, function (st) {
@@ -2131,6 +2176,13 @@ function qLocal(input, spec) {
     }
     var typed = where.body.toLowerCase();
     st.typed = !!typed;
+    if (st.forced && typed && (/["]/.test(typed) || /[^a-z_-]/.test(typed) ||
+                               !all.some(function (f) { return f[0].indexOf(typed) >= 0; }))) {
+      var endAt2 = input.selectionEnd || input.value.length;
+      where = {start: endAt2, end: endAt2, body: '',
+               lead: /\S$/.test(input.value.slice(0, endAt2)) ? ' ' : ''};
+      typed = '';
+    }
     if (/["]/.test(typed) || /[^a-z_-]/.test(typed)) return Promise.resolve(null);
     var items2 = [];
     var one2 = function (f) {
@@ -2140,7 +2192,7 @@ function qLocal(input, spec) {
     all.forEach(function (f) { if (!typed || f[0].indexOf(typed) === 0) one2(f); });
     all.forEach(function (f) { if (typed && f[0].indexOf(typed) > 0) one2(f); });
     return Promise.resolve({title: typed ? 'Fields' : 'Fields - or type a word to find it anywhere', items: items2});
-  }, foot);
+  }, foot, {button: true});
   return me;
 }
 

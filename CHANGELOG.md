@@ -6,9 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.25 - not released
 
-- A search box no longer opens its list of fields by itself when a popup puts
-  the caret in it as it opens: only when it is clicked into, reached by Tab,
-  typed in, or ↓ is pressed.
+- **A search box's fields open only when asked**: by the funnel at the right
+  of the box (beside the clearing cross, in its colour) or Ctrl+Space - never by
+  themselves, when a popup opens or something is typed; once open they follow
+  what is typed. Over a word already typed, a field picked is put after it.
 
 ## 1.0.24 - 2026-11-02
 
