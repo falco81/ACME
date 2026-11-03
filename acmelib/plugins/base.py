@@ -63,6 +63,9 @@ import traceback
 #             'sets': {value: {other_key: value}} (picked: those fields filled in), 'said'};
 #             read-only (acmelib/certs/api_catalog.py, web/assets/catalog.js). Options:
 #             catalog='products', depends=['token'] (what the list needs set first).
+#             In a target's deploy_fields too: the target's catalog() is asked with its
+#             settings and the deployment's options over them (the virtual servers to
+#             bind); autoload=False there keeps the form from asking by itself.
 #             Elsewhere (command line, console) it is a text field holding the value.
 FIELD_TYPES = ('text', 'secret', 'number', 'bool', 'select', 'textarea', 'pem', 'list',
                'hostport', 'sshkey', 'catalog')

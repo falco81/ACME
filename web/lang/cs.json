@@ -46039,6 +46039,570 @@
   "sup125": {
    "source": "took {0} ms",
    "text": "trvalo {0} ms"
+  },
+  "stv001": {
+   "source": "Check Point (Management API)",
+   "text": "Check Point (Management API)"
+  },
+  "stv002": {
+   "source": "Imports the certificate as a server certificate through the Check Point Management API, points HTTPS Inspection rules and gateway portals at it, publishes and installs the policy.",
+   "text": "Importuje certifikát jako serverový certifikát přes Check Point Management API, nasměruje na něj pravidla HTTPS Inspection a portály brány, publikuje a nainstaluje politiku."
+  },
+  "stv003": {
+   "source": "SmartConsole → the administrator → Authentication method: API key",
+   "text": "SmartConsole → administrátor → Authentication method: API key"
+  },
+  "stv004": {
+   "source": "Multi-Domain Server: the domain (name or UID) to sign in to; empty: the default one",
+   "text": "Multi-Domain Server: doména (jméno nebo UID), do které se přihlásit; prázdné: výchozí"
+  },
+  "stv005": {
+   "source": "empty: the newest the server has; v1.6 (R80.40) or later is needed",
+   "text": "prázdné: nejnovější, kterou server má; je potřeba v1.6 (R80.40) nebo novější"
+  },
+  "stv006": {
+   "source": "Server certificate object",
+   "text": "Objekt serverového certifikátu"
+  },
+  "stv007": {
+   "source": "empty: a new object of a dated name each time, the rules pointed at it and the older one deleted; a name: that one object, its certificate replaced in place (set-server-certificate), made when it is not there",
+   "text": "prázdné: pokaždé nový objekt s datem ve jménu, pravidla se nasměrují na něj a starší se smaže; jméno: ten jeden objekt, jeho certifikát se vymění na místě (set-server-certificate), a když neexistuje, vytvoří se"
+  },
+  "stv008": {
+   "source": "HTTPS Inspection rule",
+   "text": "Pravidlo HTTPS Inspection"
+  },
+  "stv009": {
+   "source": "the inbound rule to use the certificate (its Certificate column); picked from the list, the layer below is filled in",
+   "text": "příchozí pravidlo, které má certifikát použít (jeho sloupec Certificate); při výběru ze seznamu se vrstva níže vyplní sama"
+  },
+  "stv010": {
+   "source": "More HTTPS Inspection rules",
+   "text": "Další pravidla HTTPS Inspection"
+  },
+  "stv011": {
+   "source": "one a line: the name, UID or number of each rule, in the layer below",
+   "text": "jedno na řádek: jméno, UID nebo číslo pravidla ve vrstvě níže"
+  },
+  "stv012": {
+   "source": "HTTPS Inspection layer",
+   "text": "Vrstva HTTPS Inspection"
+  },
+  "stv013": {
+   "source": "the layer that holds the rules (show-https-layers lists them)",
+   "text": "vrstva, ve které pravidla jsou (vypíše je show-https-layers)"
+  },
+  "stv014": {
+   "source": "Gateway or cluster (portals)",
+   "text": "Brána nebo cluster (portály)"
+  },
+  "stv015": {
+   "source": "the gateway object whose portals get the certificate; empty: none",
+   "text": "objekt brány, jejíž portály certifikát dostanou; prázdné: žádná"
+  },
+  "stv016": {
+   "source": "a gateway",
+   "text": "brána"
+  },
+  "stv017": {
+   "source": "Gaia platform portal",
+   "text": "Portál platformy Gaia"
+  },
+  "stv018": {
+   "source": "UserCheck portal",
+   "text": "Portál UserCheck"
+  },
+  "stv019": {
+   "source": "Identity Awareness captive portal",
+   "text": "Captive portál Identity Awareness"
+  },
+  "stv020": {
+   "source": "SAML portal of the VPN",
+   "text": "SAML portál VPN"
+  },
+  "stv021": {
+   "source": "API v2.1 (R82.10) or later",
+   "text": "API v2.1 (R82.10) nebo novější"
+  },
+  "stv022": {
+   "source": "Install the policy package",
+   "text": "Nainstalovat balíček politik"
+  },
+  "stv023": {
+   "source": "after publishing, the Access Control policy of this package is installed; empty: only published (install it yourself)",
+   "text": "po publikování se nainstaluje politika Access Control tohoto balíčku; prázdné: jen se publikuje (nainstalujete sami)"
+  },
+  "stv024": {
+   "source": "Install on",
+   "text": "Nainstalovat na"
+  },
+  "stv025": {
+   "source": "one a line: the gateways to install on; empty: the package's targets",
+   "text": "jedna na řádek: brány, na které instalovat; prázdné: cíle balíčku"
+  },
+  "stv026": {
+   "source": "PKCS#12 encryption",
+   "text": "Šifrování PKCS#12"
+  },
+  "stv027": {
+   "source": "3DES (works with every version)",
+   "text": "3DES (funguje se všemi verzemi)"
+  },
+  "stv028": {
+   "source": "AES-256 (newer versions)",
+   "text": "AES-256 (novější verze)"
+  },
+  "stv029": {
+   "source": "Wait for publish and install (s)",
+   "text": "Čekat na publikování a instalaci (s)"
+  },
+  "stv030": {
+   "source": "List the server certificates",
+   "text": "Vypsat serverové certifikáty"
+  },
+  "stv031": {
+   "source": "Signs in read-only and lists the server certificates, the HTTPS Inspection layers and the gateways - it changes nothing.",
+   "text": "Přihlásí se jen pro čtení a vypíše serverové certifikáty, vrstvy HTTPS Inspection a brány – nic nemění."
+  },
+  "stv032": {
+   "source": "VMware NSX load balancer (Policy API)",
+   "text": "Load balancer VMware NSX (Policy API)"
+  },
+  "stv033": {
+   "source": "Imports the certificate into NSX under a new id, switches the client SSL binding of the load balancer's virtual servers to it and deletes the older one.",
+   "text": "Importuje certifikát do NSX pod novým id, přepne na něj klientskou SSL vazbu virtuálních serverů load balanceru a starší smaže."
+  },
+  "stv034": {
+   "source": "Virtual server",
+   "text": "Virtuální server"
+  },
+  "stv035": {
+   "source": "the id of the LB virtual server to use the certificate; picked from the list or typed",
+   "text": "id virtuálního serveru LB, který má certifikát použít; vybrané ze seznamu nebo napsané"
+  },
+  "stv036": {
+   "source": "More virtual servers",
+   "text": "Další virtuální servery"
+  },
+  "stv037": {
+   "source": "one a line: the ids of more virtual servers",
+   "text": "jedno na řádek: id dalších virtuálních serverů"
+  },
+  "stv038": {
+   "source": "the default certificate of the virtual server",
+   "text": "výchozí certifikát virtuálního serveru"
+  },
+  "stv039": {
+   "source": "an SNI certificate (the older acme one replaced)",
+   "text": "certifikát SNI (starší od acme se nahradí)"
+  },
+  "stv040": {
+   "source": "both",
+   "text": "obojí"
+  },
+  "stv041": {
+   "source": "List the virtual servers",
+   "text": "Vypsat virtuální servery"
+  },
+  "stv042": {
+   "source": "Lists the load balancer's virtual servers and the certificates of their client SSL binding - it changes nothing.",
+   "text": "Vypíše virtuální servery load balanceru a certifikáty jejich klientské SSL vazby – nic nemění."
+  },
+  "stv043": {
+   "source": "Barracuda Web Application Firewall",
+   "text": "Barracuda Web Application Firewall"
+  },
+  "stv044": {
+   "source": "Uploads the certificate to a Barracuda WAF under a new name, points the services' SSL security at it and deletes the older one.",
+   "text": "Nahraje certifikát do Barracuda WAF pod novým jménem, nasměruje na něj SSL zabezpečení služeb a starší smaže."
+  },
+  "stv045": {
+   "source": "v3.2",
+   "text": "v3.2"
+  },
+  "stv046": {
+   "source": "v3.1",
+   "text": "v3.1"
+  },
+  "stv047": {
+   "source": "v3",
+   "text": "v3"
+  },
+  "stv048": {
+   "source": "the service (web application) to use the certificate; picked from the list or typed",
+   "text": "služba (webová aplikace), která má certifikát použít; vybraná ze seznamu nebo napsaná"
+  },
+  "stv049": {
+   "source": "More services",
+   "text": "Další služby"
+  },
+  "stv050": {
+   "source": "one a line: more services",
+   "text": "jedna na řádek: další služby"
+  },
+  "stv051": {
+   "source": "the certificate of the service",
+   "text": "certifikát služby"
+  },
+  "stv052": {
+   "source": "the ECDSA certificate of the service",
+   "text": "certifikát ECDSA služby"
+  },
+  "stv053": {
+   "source": "an SNI domain certificate only (the older acme one replaced)",
+   "text": "jen doménový certifikát SNI (starší od acme se nahradí)"
+  },
+  "stv054": {
+   "source": "List the services",
+   "text": "Vypsat služby"
+  },
+  "stv055": {
+   "source": "Lists the services and the certificates their SSL security uses - it changes nothing.",
+   "text": "Vypíše služby a certifikáty, které používá jejich SSL zabezpečení – nic nemění."
+  },
+  "stv056": {
+   "source": "FortiWeb",
+   "text": "FortiWeb"
+  },
+  "stv057": {
+   "source": "Imports the certificate into FortiWeb as a local certificate, with its intermediates as a group, and points server policies at it; deletes older ones acme put there.",
+   "text": "Importuje certifikát do FortiWebu jako lokální certifikát, mezilehlé certifikáty jako skupinu, a nasměruje na něj serverové politiky; starší, které tam dalo acme, smaže."
+  },
+  "stv058": {
+   "source": "an administrator: FortiWeb has no API tokens of its own",
+   "text": "administrátor: FortiWeb nemá vlastní API tokeny"
+  },
+  "stv059": {
+   "source": "VDOM",
+   "text": "VDOM"
+  },
+  "stv060": {
+   "source": "empty on a FortiWeb without administrative domains",
+   "text": "prázdné u FortiWebu bez administrativních domén"
+  },
+  "stv061": {
+   "source": "Server policy",
+   "text": "Serverová politika"
+  },
+  "stv062": {
+   "source": "the server policy (HTTPS) to use the certificate; picked from the list or typed",
+   "text": "serverová politika (HTTPS), která má certifikát použít; vybraná ze seznamu nebo napsaná"
+  },
+  "stv063": {
+   "source": "More server policies",
+   "text": "Další serverové politiky"
+  },
+  "stv064": {
+   "source": "one a line: more server policies",
+   "text": "jedna na řádek: další serverové politiky"
+  },
+  "stv065": {
+   "source": "Intermediates",
+   "text": "Mezilehlé certifikáty"
+  },
+  "stv066": {
+   "source": "uploaded by acme as a group acme-chain-…",
+   "text": "nahraje acme jako skupinu acme-chain-…"
+  },
+  "stv067": {
+   "source": "a group of mine (below)",
+   "text": "moje skupina (níže)"
+  },
+  "stv068": {
+   "source": "none: the policy keeps its own",
+   "text": "žádné: politika si ponechá svoje"
+  },
+  "stv069": {
+   "source": "Intermediate CA group",
+   "text": "Skupina mezilehlých CA"
+  },
+  "stv070": {
+   "source": "the intermediate certificate group the policies are to use",
+   "text": "skupina mezilehlých certifikátů, kterou mají politiky použít"
+  },
+  "stv071": {
+   "source": "List the server policies",
+   "text": "Vypsat serverové politiky"
+  },
+  "stv072": {
+   "source": "Lists the server policies and the certificates they use - it changes nothing.",
+   "text": "Vypíše serverové politiky a certifikáty, které používají – nic nemění."
+  },
+  "stv073": {
+   "source": "FortiADC",
+   "text": "FortiADC"
+  },
+  "stv074": {
+   "source": "Uploads the certificate to FortiADC as a local certificate, puts it into a local certificate group in place of the older one and points client SSL profiles and virtual servers at the group.",
+   "text": "Nahraje certifikát do FortiADC jako lokální certifikát, vloží ho do skupiny lokálních certifikátů místo staršího a nasměruje na skupinu klientské SSL profily a virtuální servery."
+  },
+  "stv075": {
+   "source": "the key of a REST API admin",
+   "text": "klíč REST API administrátora"
+  },
+  "stv076": {
+   "source": "System → Administrator → Create New → REST API Admin",
+   "text": "System → Administrator → Create New → REST API Admin"
+  },
+  "stv077": {
+   "source": "empty on a FortiADC without VDOMs",
+   "text": "prázdné u FortiADC bez VDOM"
+  },
+  "stv078": {
+   "source": "Local certificate group",
+   "text": "Skupina lokálních certifikátů"
+  },
+  "stv079": {
+   "source": "the group the client SSL profile presents; the older acme member of it is replaced by the new certificate",
+   "text": "skupina, kterou předkládá klientský SSL profil; její starší člen od acme se nahradí novým certifikátem"
+  },
+  "stv080": {
+   "source": "the intermediate CA group (made in FortiADC) of the new member; empty: none",
+   "text": "skupina mezilehlých CA (vytvořená ve FortiADC) pro nového člena; prázdné: žádná"
+  },
+  "stv081": {
+   "source": "Client SSL profiles to point at the group",
+   "text": "Klientské SSL profily, které nasměrovat na skupinu"
+  },
+  "stv082": {
+   "source": "one a line; empty: the profiles are left as they are (they use the group already)",
+   "text": "jeden na řádek; prázdné: profily zůstanou, jak jsou (skupinu už používají)"
+  },
+  "stv083": {
+   "source": "Virtual servers to point at the profile",
+   "text": "Virtuální servery, které nasměrovat na profil"
+  },
+  "stv084": {
+   "source": "one a line: their client SSL profile is set to the first profile above",
+   "text": "jeden na řádek: jejich klientský SSL profil se nastaví na první profil výše"
+  },
+  "stv085": {
+   "source": "List the certificate groups",
+   "text": "Vypsat skupiny certifikátů"
+  },
+  "stv086": {
+   "source": "Lists the local certificate groups and their members - it changes nothing.",
+   "text": "Vypíše skupiny lokálních certifikátů a jejich členy – nic nemění."
+  },
+  "stv087": {
+   "source": "Cisco Secure Firewall Management Center (FMC)",
+   "text": "Cisco Secure Firewall Management Center (FMC)"
+  },
+  "stv088": {
+   "source": "Imports the certificate into FMC as a new Internal Certificate, switches the decryption rules from the older one to it, deploys the change and deletes the older object.",
+   "text": "Importuje certifikát do FMC jako nový Internal Certificate, přepne na něj dešifrovací pravidla ze staršího, nasadí změnu a starší objekt smaže."
+  },
+  "stv089": {
+   "source": "an account for the API only: the same account signed in to the web interface is signed out",
+   "text": "účet jen pro API: stejný účet přihlášený do webového rozhraní se odhlásí"
+  },
+  "stv090": {
+   "source": "Domain UUID",
+   "text": "UUID domény"
+  },
+  "stv091": {
+   "source": "empty: the domain the sign-in answers with (DOMAIN_UUID)",
+   "text": "prázdné: doména, kterou vrátí přihlášení (DOMAIN_UUID)"
+  },
+  "stv092": {
+   "source": "Decryption policy",
+   "text": "Dešifrovací politika"
+  },
+  "stv093": {
+   "source": "the policy whose rules (Decrypt - Known Key) use the older acme object; their references are switched to the new one",
+   "text": "politika, jejíž pravidla (Decrypt - Known Key) používají starší objekt od acme; jejich odkazy se přepnou na nový"
+  },
+  "stv094": {
+   "source": "More decryption policies",
+   "text": "Další dešifrovací politiky"
+  },
+  "stv095": {
+   "source": "one a line: names or IDs",
+   "text": "jedna na řádek: jména nebo ID"
+  },
+  "stv096": {
+   "source": "Deploy to the devices",
+   "text": "Nasadit na zařízení"
+  },
+  "stv097": {
+   "source": "after the change, a deployment request for the devices with changes",
+   "text": "po změně požadavek na nasazení pro zařízení se změnami"
+  },
+  "stv098": {
+   "source": "Only these devices",
+   "text": "Jen tato zařízení"
+  },
+  "stv099": {
+   "source": "one a line: device names; empty: every device with changes to deploy",
+   "text": "jedno na řádek: jména zařízení; prázdné: všechna zařízení se změnami k nasazení"
+  },
+  "stv100": {
+   "source": "List the internal certificates",
+   "text": "Vypsat interní certifikáty"
+  },
+  "stv101": {
+   "source": "Lists the Internal Certificate objects and the decryption policies - it changes nothing.",
+   "text": "Vypíše objekty Internal Certificate a dešifrovací politiky – nic nemění."
+  },
+  "stv102": {
+   "source": "cPanel / WHM (SSL install)",
+   "text": "cPanel / WHM (instalace SSL)"
+  },
+  "stv103": {
+   "source": "Installs the certificate, key and CA bundle on the websites of a cPanel account (UAPI SSL::install_ssl) or, through WHM, on any account's domain (installssl).",
+   "text": "Nainstaluje certifikát, klíč a CA bundle na weby účtu cPanel (UAPI SSL::install_ssl), nebo přes WHM na doménu kteréhokoli účtu (installssl)."
+  },
+  "stv104": {
+   "source": "the cPanel or WHM server",
+   "text": "server s cPanelem nebo WHM"
+  },
+  "stv105": {
+   "source": "Through",
+   "text": "Přes"
+  },
+  "stv106": {
+   "source": "cPanel (UAPI) - the account's own sites",
+   "text": "cPanel (UAPI) – vlastní weby účtu"
+  },
+  "stv107": {
+   "source": "WHM API 1 - root or a reseller, any account",
+   "text": "WHM API 1 – root nebo reseller, kterýkoli účet"
+  },
+  "stv108": {
+   "source": "empty: 2083 for cPanel, 2087 for WHM",
+   "text": "prázdné: 2083 pro cPanel, 2087 pro WHM"
+  },
+  "stv109": {
+   "source": "the cPanel account (UAPI), or root / the reseller (WHM)",
+   "text": "účet cPanelu (UAPI), nebo root / reseller (WHM)"
+  },
+  "stv110": {
+   "source": "cPanel → Security → Manage API Tokens (WHM: Development → Manage API Tokens)",
+   "text": "cPanel → Security → Manage API Tokens (WHM: Development → Manage API Tokens)"
+  },
+  "stv111": {
+   "source": "the website (its main domain) to install on; empty (UAPI): every site of the account the certificate covers",
+   "text": "web (jeho hlavní doména), na který instalovat; prázdné (UAPI): všechny weby účtu, které certifikát pokrývá"
+  },
+  "stv112": {
+   "source": "More domains",
+   "text": "Další domény"
+  },
+  "stv113": {
+   "source": "one a line: more websites",
+   "text": "jeden na řádek: další weby"
+  },
+  "stv114": {
+   "source": "Send the CA bundle",
+   "text": "Poslat CA bundle"
+  },
+  "stv115": {
+   "source": "off: cPanel works the bundle out itself",
+   "text": "vypnuto: cPanel si bundle určí sám"
+  },
+  "stv116": {
+   "source": "List the websites",
+   "text": "Vypsat weby"
+  },
+  "stv117": {
+   "source": "Lists the websites (virtual hosts) and the certificate each has - it changes nothing.",
+   "text": "Vypíše weby (virtuální hosty) a certifikát, který každý má – nic nemění."
+  },
+  "stv118": {
+   "source": "DirectAdmin (domain certificate)",
+   "text": "DirectAdmin (certifikát domény)"
+  },
+  "stv119": {
+   "source": "Replaces the TLS certificate of a DirectAdmin domain through the new API (or the legacy CMD_API_SSL); DirectAdmin reloads the web server itself.",
+   "text": "Vymění TLS certifikát domény v DirectAdminu přes nové API (nebo starší CMD_API_SSL); webový server DirectAdmin načte znovu sám."
+  },
+  "stv120": {
+   "source": "the user the domain belongs to, or an admin / reseller acting for them (below)",
+   "text": "uživatel, kterému doména patří, nebo admin / reseller jednající za něj (níže)"
+  },
+  "stv121": {
+   "source": "Login key",
+   "text": "Login key"
+  },
+  "stv122": {
+   "source": "a login key made for acme (or the password)",
+   "text": "login key vytvořený pro acme (nebo heslo)"
+  },
+  "stv123": {
+   "source": "Act as the user",
+   "text": "Jednat jako uživatel"
+  },
+  "stv124": {
+   "source": "an admin or reseller signs in as \"admin|user\": the user here",
+   "text": "admin nebo reseller se přihlásí jako „admin|uživatel“: tady ten uživatel"
+  },
+  "stv125": {
+   "source": "the new API (/api/domain-tls)",
+   "text": "nové API (/api/domain-tls)"
+  },
+  "stv126": {
+   "source": "the new API as an administrator (/api/admin-domain-tls)",
+   "text": "nové API jako administrátor (/api/admin-domain-tls)"
+  },
+  "stv127": {
+   "source": "the legacy CMD_API_SSL (older DirectAdmin)",
+   "text": "starší CMD_API_SSL (starší DirectAdmin)"
+  },
+  "stv128": {
+   "source": "the DirectAdmin domain whose certificate this is",
+   "text": "doména v DirectAdminu, jejíž je to certifikát"
+  },
+  "stv129": {
+   "source": "Certificate slot",
+   "text": "Pozice certifikátu"
+  },
+  "stv130": {
+   "source": "the id of the domain's certificate to replace (new API); empty: the only one, or the one whose names cover this certificate",
+   "text": "id certifikátu domény, který se vymění (nové API); prázdné: jediný, nebo ten, jehož jména pokrývají tento certifikát"
+  },
+  "stv131": {
+   "source": "Keep DirectAdmin's ACME off it",
+   "text": "Nepouštět k němu ACME DirectAdminu"
+  },
+  "stv132": {
+   "source": "update-acme-skiplist: DirectAdmin's own ACME does not replace it",
+   "text": "update-acme-skiplist: vlastní ACME DirectAdminu ho nenahradí"
+  },
+  "stv133": {
+   "source": "Plesk (certificate repository)",
+   "text": "Plesk (úložiště certifikátů)"
+  },
+  "stv134": {
+   "source": "Installs the certificate into a Plesk certificate repository (of a subscription or the server) through the XML API; it is assigned to the website in Plesk by hand.",
+   "text": "Nainstaluje certifikát do úložiště certifikátů Plesku (předplatného nebo serveru) přes XML API; webu se v Plesku přiřadí ručně."
+  },
+  "stv135": {
+   "source": "the administrator or a reseller (the certificate operator is theirs)",
+   "text": "administrátor nebo reseller (operátor certifikátů je jejich)"
+  },
+  "stv136": {
+   "source": "a secret key of the XML API made for acme",
+   "text": "tajný klíč XML API vytvořený pro acme"
+  },
+  "stv137": {
+   "source": "Repository",
+   "text": "Úložiště"
+  },
+  "stv138": {
+   "source": "the subscription's (below)",
+   "text": "předplatného (níže)"
+  },
+  "stv139": {
+   "source": "the server's (Tools & Settings)",
+   "text": "serveru (Tools & Settings)"
+  },
+  "stv140": {
+   "source": "Subscription",
+   "text": "Předplatné"
+  },
+  "stv141": {
+   "source": "the subscription (its domain) whose repository gets the certificate",
+   "text": "předplatné (jeho doména), jehož úložiště certifikát dostane"
   }
  },
  "patterns": {
