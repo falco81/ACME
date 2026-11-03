@@ -386,3 +386,23 @@ class KeyfactorCommandIssuer(Issuer):
         self.ctx.kv_set('keyfactor-cert:%s' % sc.fingerprint(out['cert_pem'])[:40], kid,
                         ttl_s=5 * 366 * 86400)
         return out
+
+    # -- discovery (1.0.29): the form filled in from Command --------------------------------
+    discover_keys = ['url', 'auth', 'domain', 'user', 'password', 'token_url', 'client_id',
+                     'client_secret', 'scope', 'audience', 'api_path', 'ca_pem', 'verify']
+
+    def discover_setup(self):
+        """Read-only: the templates the user may enroll with (Enrollment/CSR/Context/My) -
+        each with its CA where it has one - and, with no template yet, every CA of them."""
+        out = sc.discover_lists(self)               # either way of signing in
+        if 'ca' not in out['choices'] and not self.c('template_typed') and \
+                not self.c('template') and 'template' in out['choices']:
+            got = self.context()
+            cas = [c.get('Name') for t in got.get('Templates') or [] if isinstance(t, dict)
+                   for c in t.get('CAs') or [] if isinstance(c, dict)]
+            cas += [c.get('Name') for c in got.get('StandaloneCAs') or [] if isinstance(c, dict)]
+            cas = [c for i, c in enumerate(cas) if c and c not in cas[:i]]
+            self.offer(out, 'ca', [[c, c] for c in cas])
+            out['notes'] = [n for n in out['notes'] if not n.startswith(
+                'Certificate authority: set ')]
+        return out

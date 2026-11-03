@@ -72,7 +72,7 @@ import re
 import time
 import urllib.parse
 
-from acmelib.plugins.base import Issuer, PluginError, field, dual_order_field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field, dual_order_field
 from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers import _source_common as sc
 
@@ -711,3 +711,37 @@ class DigicertIssuer(Issuer):
         words += '; new paid orders %s' % ('ALLOWED' if sc.as_bool(self.c('allow_paid'))
                                            else 'not allowed')
         return words
+
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['region', 'api_url', 'api_key']
+
+    def discover_setup(self):
+        """Read-only: the organizations (GET /organization), the products the account may
+        order (GET /product - one of the brands' list as Product, another as its name_id),
+        the domains whose DCV still holds, and the issued orders (List orders) - one to
+        reissue in, never picked by itself."""
+        out = Plugin.discover_setup(self)
+        got = self.call('GET', 'path_orgs', what='the organizations')
+        orgs = [o for o in got.get('organizations') or [] if isinstance(o, dict) and o.get('id')]
+        self.offer(out, 'organization_id', [[str(o['id']), '%s (%s)' % (
+            o.get('name') or o['id'], o.get('status') or '?')] for o in orgs])
+        got = self.call('GET', 'path_products', what='the products')
+        known = {n for n, _b, _t, _lv, _w in BRANDS}
+        ours, others = [], []
+        for p in got.get('products') or []:
+            nid = str((p or {}).get('name_id') or '').strip() if isinstance(p, dict) else ''
+            if re.match(r'^[a-z0-9_]+\Z', nid):
+                (ours if nid in known else others).append([nid, str(p.get('name') or nid)])
+        out['facts'].append(['Products', str(len(ours) + len(others))])
+        self.offer(out, 'product', ours)
+        if others:
+            self.offer(out, 'product_code', [['', 'Empty: the product chosen above']] + others,
+                       {o[0]: {'product': 'other'} for o in others}, pick='')
+        done = self.validated_domains()
+        out['facts'].append(['Domains validated', ', '.join(sorted(done)[:20]) + (
+            ' …' if len(done) > 20 else '') if done else '0'])
+        rows = self.list_existing()
+        out['facts'].append(['Orders', str(len(rows))])
+        sc.reuse_choice(self, out, 'order_id', rows,
+                        'Empty: the order acme made last for the certificate')
+        return out

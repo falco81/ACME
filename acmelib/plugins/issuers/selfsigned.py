@@ -7,6 +7,7 @@ from acmelib.plugins.base import Issued, Issuer, PluginError, field
 
 class SelfSignedIssuer(Issuer):
     kind = 'selfsigned'
+    discovery = False               # nothing to ask
     dual = True
     title = 'Self-signed'
     description = ('A certificate signed by its own key: nothing trusts it but what is told '

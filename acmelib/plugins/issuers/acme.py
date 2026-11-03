@@ -56,6 +56,9 @@ def _unseal(ctx, value, bind):
 
 class AcmeIssuer(Issuer):
     kind = 'acme'
+    # Discovery: no - Try it (run after it) makes an ACME account at the CA; the directory
+    # offers no account data to fill the form with.
+    discovery = False
     dual = True                     # the second order reuses the names proved for the first
     title = "ACME (Let's Encrypt and others)"
     description = ("Certificates from Let's Encrypt or any other ACME CA (ZeroSSL, Google "

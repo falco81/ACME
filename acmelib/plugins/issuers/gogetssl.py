@@ -56,7 +56,7 @@ import time
 import urllib.parse
 
 from acmelib.plugins import limits
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers import _source_common as sc
 
@@ -572,4 +572,46 @@ class GoGetSslIssuer(Issuer):
         out = sc.existing(sc.certs_of(st.get('crt_code')), sc.certs_of(st.get('ca_code') or ''),
                           who='GoGetSSL', ref=oid)
         out['acme_cert_id'] = self._acme_ids().get(oid)
+        return out
+
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['user', 'api_password', 'api_url']
+    DISCOVER_READ = 10              # active orders read one by one for the choice
+
+    def discover_setup(self):
+        """Read-only: the products (the form's list), the contact of the account (GET
+        /account - getAccountDetails) and its active orders (orders/ssl/all, the newest
+        read by orders/status) - an order to reuse is never picked by itself."""
+        out = Plugin.discover_setup(self)
+        acc = self.call('GET', '/account', what='the account details')
+        for mine, theirs in (('contact_firstname', 'first_name'),
+                             ('contact_lastname', 'last_name'), ('contact_email', 'email'),
+                             ('contact_phone', 'phone'), ('contact_phone', 'company_phone')):
+            v = str(acc.get(theirs) or '').strip()
+            if v and mine not in out['sets']:
+                out['sets'][mine] = v
+        if str(acc.get('company_name') or '').strip():
+            out['facts'].append(['Company', str(acc['company_name']).strip()])
+        got = self.call('GET', '/orders/ssl/all', what='the list of orders',
+                        query={'limit': 100, 'offset': 0})
+        live = [str(o.get('order_id') or '').strip() for o in got.get('orders') or []
+                if isinstance(o, dict) and str(o.get('status') or '').lower() in ISSUED]
+        live = sorted({o for o in live if o.isdigit()}, key=int, reverse=True)
+        out['facts'].append(['Active orders', str(len(live))])
+        words = {o[0]: o[1] for o in (out['choices'].get('product') or {}).get('options') or []}
+        rows = []
+        for oid in live[:self.DISCOVER_READ]:
+            try:
+                st = self.status(oid)
+            except PluginError as e:
+                out['notes'].append('the order %s could not be read: %s' % (oid, e))
+                continue
+            end = _day(st.get('end_date'))
+            pid = str(st.get('product_id') or '')
+            rows.append({'ref': oid, 'cn': str(st.get('domain') or '').strip(),
+                         'product': words.get(pid, pid), 'paid_until': end,
+                         'not_after': _day(st.get('valid_till')),
+                         'renewable': 'reissue' if end is None or end > time.time() else 'order'})
+        sc.reuse_choice(self, out, 'order_id', rows,
+                        'Empty: the order acme made last for the certificate')
         return out

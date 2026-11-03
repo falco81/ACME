@@ -47,7 +47,7 @@ import re
 import time
 import urllib.parse
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _source_common as sc
 
 REVOKE = {0: 'UNSPECIFIED', 1: 'KEY_COMPROMISE', 2: 'CA_COMPROMISE', 3: 'AFFILIATION_CHANGED',
@@ -295,3 +295,46 @@ class EjbcaIssuer(Issuer):
         got = self._call('PUT', '/v1/certificate/%s/%s/revoke?reason=%s' % (
             urllib.parse.quote(issuer_dn, safe=''), serial, why), what='EJBCA (revoke)')
         return 'EJBCA: %s' % (got.get('message') or 'revoked serial %s' % serial)
+
+    # -- discovery (1.0.29): the form filled in from EJBCA ------------------------------------
+    # Signing in is the administrator's client certificate: username, enrollment code and
+    # account binding are the end entity's, not asked.
+    discover_keys = ['url', 'client_cert', 'client_key', 'ca_pem', 'verify']
+    DISCOVER_PROFILES = 20          # end entity profiles read one by one
+
+    def discover_setup(self):
+        """Read-only: the CAs (GET /v1/ca), the end entity profiles (GET /v2/endentity/
+        profiles/authorized), each read (GET /v2/endentity/profile/{name}) for its
+        certificate profiles and CAs - the only one of each set with it -, and the
+        certificate profiles of the end entity profile set or found."""
+        out = Plugin.discover_setup(self)
+        ee = out['choices'].get('ee_profile')
+        ofs = {}
+        for name in [o[0] for o in (ee or {}).get('options') or []][:self.DISCOVER_PROFILES]:
+            try:
+                got = self._listed('/v2/endentity/profile/%s' % urllib.parse.quote(name, safe=''),
+                                   'the end entity profile %s' % name)
+            except PluginError as e:
+                out['notes'].append('%s: %s' % (name, e))
+                continue
+            profs = [str(n) for n in got.get('available_certificate_profiles') or [] if n]
+            cas = [str(n) for n in got.get('available_cas') or [] if n]
+            ofs[name] = profs
+            more = {}
+            if len(profs) == 1:
+                more['cert_profile'] = profs[0]
+            if len(cas) == 1:
+                more['ca_name'] = cas[0]
+            if more:
+                ee['sets'][name] = more
+        pick = str(self.c('ee_profile') or '').strip() or (ee or {}).get('pick') or ''
+        if 'cert_profile' not in out['choices'] and ofs.get(pick):
+            self.offer(out, 'cert_profile', ofs[pick])
+            out['notes'] = [n for n in out['notes'] if not n.startswith('Certificate profile:')]
+        try:
+            st = self._call('GET', '/v1/certificate/status', what='EJBCA (status)')
+            if st.get('revision'):
+                out['facts'].append(['Version', str(st['revision'])])
+        except PluginError as e:
+            out['notes'].append(str(e))
+        return out

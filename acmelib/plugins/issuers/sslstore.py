@@ -71,7 +71,7 @@ import re
 import time
 import urllib.parse
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers import _source_common as sc
 
@@ -608,4 +608,39 @@ class SslStoreIssuer(Issuer):
         self.ctx.kv_set('sslstore-cert:%s' % sc.fingerprint(out['cert_pem'])[:40], oid,
                         ttl_s=5 * 366 * 86400)
         out['acme_cert_id'] = self._acme_ids().get(oid)
+        return out
+
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['partner_code', 'auth_token', 'environment', 'api_url']
+
+    def discover_setup(self):
+        """Read-only: the products (the form's list), the orders of the account (order/query:
+        one to reuse - never picked by itself) and, from the newest complete one (order/info),
+        its contact and web server type."""
+        out = Plugin.discover_setup(self)
+        rows = self.list_existing()
+        out['facts'].append(['Orders', str(len(rows))])
+        sc.reuse_choice(self, out, 'order_id', rows,
+                        'Empty: the order acme made last for the certificate')
+        done = sorted((r for r in rows if r.get('downloadable')),
+                      key=lambda r: r.get('not_after') or 0, reverse=True)
+        for r in done[:3]:
+            try:
+                o = self.info(r['ref'])
+            except PluginError as e:
+                out['notes'].append('the order %s could not be read: %s' % (r['ref'], e))
+                continue
+            c = o.get('TechnicalContact') if isinstance(o.get('TechnicalContact'), dict) else {}
+            if not c.get('Email'):
+                c = o.get('AdminContact') if isinstance(o.get('AdminContact'), dict) else {}
+            for mine, theirs in (('contact_firstname', 'FirstName'),
+                                 ('contact_lastname', 'LastName'), ('contact_phone', 'Phone'),
+                                 ('contact_email', 'Email'), ('contact_title', 'Title')):
+                if str(c.get(theirs) or '').strip():
+                    out['sets'][mine] = str(c[theirs]).strip()
+            if str(o.get('WebServerType') or '').strip():
+                out['sets']['web_server'] = str(o['WebServerType']).strip()
+            if out['sets']:
+                out['facts'].append(['Contacts taken from the order', r['ref']])
+                break
         return out

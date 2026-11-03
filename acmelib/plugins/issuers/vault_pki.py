@@ -270,3 +270,45 @@ class VaultPkiIssuer(Issuer):
         when = (got.get('data') or {}).get('revocation_time')
         return 'Vault revoked serial %s%s (Vault records no reason)' % (
             serial, (' at %s' % when) if when else '')
+
+    # -- discovery (1.0.29): the form filled in from Vault -----------------------------------
+    discover_keys = ['url', 'auth', 'token', 'role_id', 'secret_id', 'approle_mount',
+                     'namespace', 'ca_pem', 'verify']
+
+    def discover_setup(self):
+        """Read-only: the PKI mounts the token sees (GET sys/internal/ui/mounts, type pki),
+        the roles of the mount set or found (LIST roles) and its issuers (LIST issuers) -
+        an issuer never picked by itself (empty: the role's)."""
+        out = {'sets': {}, 'choices': {}, 'facts': [], 'notes': []}
+        mounts = []
+        try:
+            got = self._call('GET', 'sys/internal/ui/mounts', what='Vault (the mounts)')
+            for path, m in ((got.get('data') or {}).get('secret') or {}).items():
+                if isinstance(m, dict) and str(m.get('type') or '') == 'pki':
+                    mounts.append(str(path).strip('/'))
+        except PluginError as e:
+            out['notes'].append('PKI mount: %s' % e)
+        mounts.sort()
+        self.offer(out, 'mount', mounts)
+        mount = str(self.config.get('mount') or '').strip().strip('/') or \
+            (out['choices'].get('mount') or {}).get('pick') or ''
+        if not mount and mounts:
+            out['notes'].append('Role: pick the PKI mount, then ask again')
+            return out
+        with sc.assumed(self, {'mount': mount}):
+            sc.merge_found(out, sc.discover_lists(self))     # the roles, either way of signing in
+            try:
+                got = self._call('GET', '%s/issuers?list=true' % self._mount(), ok=(200, 204, 404),
+                                 what='Vault (the list of issuers)')
+                data = (got or {}).get('data') or {}
+                info = data.get('key_info') if isinstance(data.get('key_info'), dict) else {}
+                opts = [[str(k), '%s (%s)' % ((info.get(k) or {}).get('issuer_name'), k)
+                         if (info.get(k) or {}).get('issuer_name') else str(k)]
+                        for k in data.get('keys') or []]
+                if len(opts) > 1:
+                    self.offer(out, 'issuer_ref', [['', 'Empty: the issuer of the role']] + opts,
+                               pick='')
+                out['facts'].append(['Issuers', str(len(opts))])
+            except PluginError as e:
+                out['notes'].append('Issuer: %s' % e)
+        return out

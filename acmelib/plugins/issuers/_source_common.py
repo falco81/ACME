@@ -499,3 +499,112 @@ def dn_rfc2253(ctx, cert_pem, which='issuer'):
         out = run_openssl(ctx, ['x509', '-in', cf, '-noout', '-' + which, '-nameopt', 'RFC2253'])
     text = out.decode('utf-8', 'replace').strip()
     return re.sub(r'^(issuer|subject)\s*=\s*', '', text)
+
+
+# -- discovery (1.0.29): what the sources' discover_setup() share -------------------------
+def day(epoch):
+    """An epoch as YYYY-MM-DD, or ''."""
+    try:
+        return time.strftime('%Y-%m-%d', time.gmtime(float(epoch))) if epoch else ''
+    except (TypeError, ValueError, OverflowError):
+        return ''
+
+
+def reuse_choice(plugin, out, key, rows, empty, limit=300):
+    """Offer the orders (list_existing() rows) a certificate can be reissued in as the
+    choice `key` of discover_setup()'s answer - never picked by itself: the option ''
+    (`empty`: what an empty field means) is picked. Returns how many were offered."""
+    now = time.time()
+    keep = []
+    for r in rows or []:
+        if not isinstance(r, dict) or not str(r.get('ref') or '').strip():
+            continue
+        if r.get('renewable') != 'reissue':
+            continue
+        end = r.get('paid_until') or r.get('not_after')
+        if end and end < now:
+            continue
+        keep.append((end or 0, r))
+    keep.sort(key=lambda x: x[0], reverse=True)
+    opts, sets = [], {}
+    for end, r in keep[:limit]:
+        bits = [str(r.get('cn') or (r.get('names') or ['?'])[0] or '?')]
+        if r.get('product'):
+            bits.append(str(r['product']))
+        if end:
+            bits.append(day(end))
+        ref = str(r['ref']).strip()
+        opts.append([ref, ' · '.join(bits)])
+        if isinstance(r.get('sets'), dict) and r['sets']:
+            sets[ref] = dict(r['sets'])     # what picking it sets too (its product)
+    if opts:
+        plugin.offer(out, key, [['', empty]] + opts, sets, pick='')
+    return len(opts)
+
+
+def _shown(plugin, key):
+    """Whether the field `key` is shown by the settings now (its show_if)."""
+    f = next((x for x in plugin.fields or [] if x.get('key') == key), None) or {}
+    for k, vals in (f.get('show_if') or {}).items():
+        if str(plugin.c(k)) not in [str(v) for v in vals]:
+            return False
+    return True
+
+
+def discover_lists(plugin):
+    """Plugin.discover_setup() - each list of the form (a catalog field) whose fields it
+    needs are set - where a field it needs that the settings hide (the other way of
+    signing in, its show_if) is not needed."""
+    out = {'sets': {}, 'choices': {}, 'facts': [], 'notes': []}
+    for f in plugin.fields or []:
+        if f.get('type') != 'catalog' or not f.get('key'):
+            continue
+        key = f['key']
+        need = [d for d in f.get('depends') or [] if _shown(plugin, d) and
+                plugin.c(d) in (None, '')]
+        if need:
+            labels = [str(next((x.get('label') for x in plugin.fields
+                                if x.get('key') == d), d)) for d in need]
+            out['notes'].append('%s: set %s first, then ask again' % (
+                f.get('label') or key, ', '.join(labels)))
+            continue
+        try:
+            got = plugin.catalog(f.get('catalog') or key) or {}
+        except PluginError as e:
+            out['notes'].append('%s: %s' % (f.get('label') or key, e))
+            continue
+        except NotImplementedError:
+            continue
+        plugin.offer(out, key, got.get('options') or [], got.get('sets') or {})
+    return out
+
+
+def merge_found(out, more):
+    """discover_setup()'s answer `more` added to `out`: what out has already stays."""
+    for k, v in ((more or {}).get('sets') or {}).items():
+        out['sets'].setdefault(k, v)
+    for k, v in ((more or {}).get('choices') or {}).items():
+        out['choices'].setdefault(k, v)
+    out['facts'] += [f for f in (more or {}).get('facts') or [] if f not in out['facts']]
+    out['notes'] += [n for n in (more or {}).get('notes') or [] if n not in out['notes']]
+    return out
+
+
+class assumed(object):
+    """with assumed(plugin, {key: value}): the values found used as settings while the
+    module asks for more (a list that needs them) - only where the field is empty, the
+    settings as they were afterwards (discovery saves nothing)."""
+    def __init__(self, plugin, values):
+        self.plugin, self.values, self.saved = plugin, dict(values or {}), None
+
+    def __enter__(self):
+        self.saved = dict(self.plugin.config)
+        for k, v in self.values.items():
+            if v not in (None, '') and self.plugin.config.get(k) in (None, ''):
+                self.plugin.config[k] = v
+        return self.plugin
+
+    def __exit__(self, *_exc):
+        self.plugin.config.clear()
+        self.plugin.config.update(self.saved)
+        return False

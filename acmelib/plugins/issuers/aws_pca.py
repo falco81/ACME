@@ -42,7 +42,7 @@ import json
 import re
 import time
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.challenges.route53 import sigv4
 from acmelib.plugins.issuers import _source_common as sc
 
@@ -130,17 +130,18 @@ class AwsPcaIssuer(Issuer):
                               'authority/ID)', retry=False)
         return arn, m.group(2)
 
-    def _endpoint(self):
-        _arn, region = self._arn()
+    def _endpoint(self, region=None):
+        if region is None:
+            _arn, region = self._arn()
         ep = str(self.c('endpoint') or '').strip().rstrip('/')
         if ep and not re.match(r'^https://[^\s/]+\Z', ep):
             raise PluginError('the API endpoint is https://HOST', retry=False)
         return (ep or 'https://acm-pca.%s.amazonaws.com' % region) + '/', region
 
-    def call(self, action, body):
+    def call(self, action, body, region=None):
         if not self.c('access_key') or not self.c('secret_key'):
             raise PluginError('set the access key ID and the secret access key', retry=False)
-        url, region = self._endpoint()
+        url, region = self._endpoint(region)
         data = json.dumps(body).encode('utf-8')
         headers = sigv4('POST', url, {'Content-Type': 'application/x-amz-json-1.1',
                                       'X-Amz-Target': 'ACMPrivateCA.' + action}, data,
@@ -248,3 +249,45 @@ class AwsPcaIssuer(Issuer):
                                        'RevocationReason': REASONS.get(sc.reason_code(reason),
                                                                        'UNSPECIFIED')})
         return 'AWS Private CA revoked serial %s' % serial
+
+    # -- discovery (1.0.29): the form filled in from the account ------------------------------
+    discover_keys = ['access_key', 'secret_key', 'session_token', 'endpoint']
+
+    def discover_setup(self):
+        """Read-only: the private CAs of the account in the region of the CA ARN set, or of
+        the API endpoint given (ListCertificateAuthorities, ResourceOwner SELF) - an ACTIVE
+        one offered as the CA ARN, the only one picked."""
+        out = Plugin.discover_setup(self)
+        m = ARN_RE.match(str(self.c('ca_arn') or '').strip())
+        region = m.group(2) if m else ''
+        if not region:
+            e = re.match(r'^https://acm-pca(?:-fips)?\.([a-z0-9-]+)\.(?:amazonaws\.com|api\.aws)'
+                         r'/?\Z', str(self.c('endpoint') or '').strip())
+            region = e.group(1) if e else ''
+        if not region:
+            out['notes'].append('CA ARN: give the API endpoint of the region of the CAs '
+                                '(https://acm-pca.REGION.amazonaws.com), then ask again')
+            return out
+        cas, token = [], ''
+        for _page in range(20):
+            body = {'MaxResults': 100, 'ResourceOwner': 'SELF'}
+            if token:
+                body['NextToken'] = token
+            status, kind, got = self.call('ListCertificateAuthorities', body, region=region)
+            if status != 200:
+                raise self._error('ListCertificateAuthorities', status, kind, got)
+            cas += [c for c in got.get('CertificateAuthorities') or [] if isinstance(c, dict)]
+            token = str(got.get('NextToken') or '')
+            if not token:
+                break
+        out['facts'].append(['Private CAs (%s)' % region, str(len(cas))])
+        opts = []
+        for c in cas:
+            if c.get('Status') != 'ACTIVE' or not ARN_RE.match(str(c.get('Arn') or '')):
+                continue
+            conf = c.get('CertificateAuthorityConfiguration') or {}
+            opts.append([str(c['Arn']), '%s (%s, %s)' % (
+                (conf.get('Subject') or {}).get('CommonName') or '?', c.get('Type') or '?',
+                conf.get('SigningAlgorithm') or '?')])
+        self.offer(out, 'ca_arn', opts)
+        return out

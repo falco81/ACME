@@ -57,7 +57,7 @@ import re
 import time
 import urllib.parse
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers import _source_common as sc
 
@@ -439,4 +439,35 @@ class ZeroSslIssuer(Issuer):
         self.ctx.kv_set('zerossl-cert:%s' % sc.fingerprint(out['cert_pem'])[:40], cid,
                         ttl_s=2 * 366 * 86400)
         out['acme_cert_id'] = self._acme_ids().get(cid)
+        return out
+
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['api_key', 'api_url']
+
+    def discover_setup(self):
+        """Read-only: how the account takes its API key (the header, else the legacy
+        access_key parameter - GET /certificates asked both ways) and the validity of its
+        newest issued certificate."""
+        out = Plugin.discover_setup(self)
+        first = 'query' if self.c('key_in') == 'query' else 'header'
+        got, err, how = None, None, first
+        for how in (first, 'header' if first == 'query' else 'query'):
+            with sc.assumed(self, {}):              # the settings as they were afterwards
+                self.config['key_in'] = how
+                try:
+                    got = self.call('GET', '/certificates', query={
+                        'certificate_status': 'issued', 'page': 1, 'limit': 100},
+                        what='the list of certificates')
+                    break
+                except PluginError as e:
+                    err = err or e
+        if got is None:
+            raise err
+        out['sets']['key_in'] = how
+        items = [x for x in got.get('results') or [] if isinstance(x, dict)]
+        out['facts'].append(['Issued certificates', str(got.get('total_count', len(items)))])
+        items.sort(key=lambda c: str(c.get('created') or ''), reverse=True)
+        days = next((str(c['validity_days']) for c in items if c.get('validity_days')), '')
+        if days in ('90', '200', '365'):
+            out['sets']['validity'] = days
         return out
