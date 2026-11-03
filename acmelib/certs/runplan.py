@@ -293,8 +293,11 @@ def _conn_of(url, ev, proxy_on=False):
                     'info' if ev.get('client_cert') else 'dim'])
     else:
         out.append(['TLS', 'no - plain HTTP', 'warn'])
-    out.append(['Proxy', 'Settings → Proxy' if (ev.get('proxy') and proxy_on) else 'none - straight',
-                'info' if (ev.get('proxy') and proxy_on) else 'dim'])
+    if ev.get('proxy_own'):
+        out.append(['Proxy', 'one of its own (https_proxy of its environment)', 'info'])
+    else:
+        out.append(['Proxy', 'Settings → Proxy' if (ev.get('proxy') and proxy_on) else 'none - straight',
+                    'info' if (ev.get('proxy') and proxy_on) else 'dim'])
     if ev.get('timeout'):
         out.append(['Time limit', '%s s' % ev['timeout'], 'dim'])
     return out
@@ -406,7 +409,10 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             try:
                 from acmelib.certs import runtime as _rt
                 st['detail']['wire'] = _rt.wire_request(m, url, ev.get('headers') or {},
-                                                        ev.get('body'))
+                                                        ev.get('body'), own=bool(ev.get('own')))
+                if ev.get('own'):
+                    st['note'] = ((st.get('note') + '; ') if st.get('note') else '') + \
+                        'a connection the module makes itself (http.client), not through acme'
                 # recorded with stand-ins (the certificate, the secrets): the real length differs
                 for h in st['detail']['wire']['headers']:
                     if h[0] == 'Content-Length':
@@ -424,6 +430,54 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                 st['note'] = '; '.join(notes)
             if m == 'GET' and invented_note and later is None:
                 st['invented'] = True
+        elif k == 'ftp-open':
+            st = {'kind': 'connect', 'words': 'Connects over {0} to {1}:{2}'.replace(
+                '{0}', 'FTPS (AUTH TLS)' if ev.get('tls') else 'FTP').replace(
+                '{1}', ev.get('host') or '?').replace('{2}', str(ev.get('port') or 21)),
+                'detail': {'conn': [['Address', ev.get('host') or '', ''],
+                                    ['Port', str(ev.get('port') or 21), ''],
+                                    ['TLS', 'yes - AUTH TLS, then PROT P' if ev.get('tls')
+                                     else 'no - plain FTP: the password goes in the clear',
+                                     'ok' if ev.get('tls') else 'warn'],
+                                    ['Server certificate', ('checked against this machine\'s CAs'
+                                                            if ev.get('verify') else 'not checked')
+                                     if ev.get('tls') else '-', 'ok' if ev.get('verify') else 'warn'],
+                                    ['Data', 'passive mode', 'dim']]}}
+            if not ev.get('tls'):
+                st['note'] = 'plain FTP: the password goes in the clear'
+            cmds = []
+            j = i + 1
+            while j < len(merged) and merged[j][0].get('kind') == 'ftp-cmd':
+                cmds.append(merged[j][0].get('cmd'))
+                j += 1
+            if cmds:
+                st['detail']['text'] = '\n'.join('→ ' + str(c) for c in cmds)
+                i = j - 1
+        elif k == 'ftp-cmd':
+            cmds = [ev.get('cmd')]
+            j = i + 1
+            while j < len(merged) and merged[j][0].get('kind') == 'ftp-cmd':
+                cmds.append(merged[j][0].get('cmd'))
+                j += 1
+            i = j - 1
+            st = {'kind': 'call', 'words': 'Speaks FTP to {0}'.replace('{0}', ev.get('host') or ''),
+                  'detail': {'text': '\n'.join('→ ' + str(c) for c in cmds)}}
+        elif k == 'ftp-put':
+            st = {'kind': 'file', 'words': 'Uploads over FTP to {0}'.replace('{0}', ev.get('host') or ''),
+                  'detail': {'text': '→ %s   (%d bytes, binary)' % (ev.get('cmd'), ev.get('bytes') or 0)}}
+        elif k == 'socket':
+            hp = '%s:%s' % (ev.get('host'), ev.get('port'))
+            if ev.get('hex'):
+                hx = ev['hex']
+                st = {'kind': 'call', 'words': 'Sends {0} bytes over UDP to {1}'.replace(
+                    '{0}', str(ev.get('bytes') or len(hx) // 2)).replace('{1}', hp),
+                    'detail': {'text': ' '.join(hx[n:n + 2] for n in range(0, len(hx), 2))},
+                    'note': 'a connection the module makes itself, not through acme'}
+            else:
+                st = {'kind': 'stop', 'words': 'Opens a connection of its own to {0} ({1})'.replace(
+                    '{0}', hp).replace('{1}', (ev.get('how') or 'tcp').upper()),
+                    'note': 'the module speaks to it itself, not through acme: where to can be '
+                            'told from here, what it sends there cannot'}
         elif k == 'ssh-open':
             st = {'kind': 'connect', 'words': 'Connects over SSH to {0}'.replace(
                 '{0}', '%s@%s:%s' % (ev.get('user'), ev.get('host'), ev.get('port'))),

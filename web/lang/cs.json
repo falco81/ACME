@@ -50963,6 +50963,42 @@
   "rp37_47": {
    "source": "TLS 1.2 (to ask for the key type)",
    "text": "TLS 1.2 (aby šlo požádat o typ klíče)"
+  },
+  "rp37_48": {
+   "source": "a connection the module makes itself (http.client), not through acme",
+   "text": "spojení, které si modul otevírá sám (http.client), ne přes acme"
+  },
+  "rp37_49": {
+   "source": "a connection the module makes itself, not through acme",
+   "text": "spojení, které si modul otevírá sám, ne přes acme"
+  },
+  "rp37_50": {
+   "source": "the module speaks to it itself, not through acme: where to can be told from here, what it sends there cannot",
+   "text": "modul s ním mluví sám, ne přes acme: kam, to se odsud říct dá, co tam posílá, ne"
+  },
+  "rp37_51": {
+   "source": "Server certificate",
+   "text": "Certifikát serveru"
+  },
+  "rp37_52": {
+   "source": "yes - AUTH TLS, then PROT P",
+   "text": "ano – AUTH TLS, pak PROT P"
+  },
+  "rp37_53": {
+   "source": "no - plain FTP: the password goes in the clear",
+   "text": "ne – čisté FTP: heslo jde nešifrovaně"
+  },
+  "rp37_54": {
+   "source": "plain FTP: the password goes in the clear",
+   "text": "čisté FTP: heslo jde nešifrovaně"
+  },
+  "rp37_55": {
+   "source": "passive mode",
+   "text": "pasivní režim"
+  },
+  "rp37_56": {
+   "source": "one of its own (https_proxy of its environment)",
+   "text": "vlastní (https_proxy z jeho prostředí)"
   }
  },
  "patterns": {
@@ -69797,6 +69833,26 @@
   "prp37_2": {
    "source": "≈ {0} (with the real certificate and secrets: other)",
    "text": "≈ {0} (se skutečným certifikátem a tajnými údaji jiná)"
+  },
+  "prp37_3": {
+   "source": "Connects over {0} to {1}:{2}",
+   "text": "Připojí se přes {0} k {1}:{2}"
+  },
+  "prp37_4": {
+   "source": "Speaks FTP to {0}",
+   "text": "Mluví FTP s {0}"
+  },
+  "prp37_5": {
+   "source": "Uploads over FTP to {0}",
+   "text": "Nahraje přes FTP na {0}"
+  },
+  "prp37_6": {
+   "source": "Sends {0} bytes over UDP to {1}",
+   "text": "Pošle {0} bajtů přes UDP na {1}"
+  },
+  "prp37_7": {
+   "source": "Opens a connection of its own to {0} ({1})",
+   "text": "Otevře vlastní spojení k {0} ({1})"
   }
  },
  "rich": {

@@ -354,6 +354,14 @@ the server said. `_tls.fields(port, more)` gives the settings every test has;
 put your own in `more`. A test only reads: never log in, never send mail.
 
 
+**What happens** runs a source, validation or target in a sandbox that reaches
+nothing and writes down what it does: through the Context (`ctx.http`,
+`ctx.ssh`, `ctx.run_local`, files) every call whole; and what a module does on
+its own - `http.client` / `urllib` requests whole, `ftplib` commands and
+uploads, UDP datagrams to the byte, a TCP connection's address (what is said
+on it cannot be told). Secrets are stand-ins there and left out of what is
+shown. Use the Context where you can: its calls are what the plan shows best.
+
 **What happens** shows a test from its settings - it only reads, nothing is
 recorded. A test that speaks a protocol before TLS says what it sends in
 `talk(self, host, sni)`: a list of `{'send': 'EHLO …'}` (a line of text),

@@ -6,6 +6,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.37 - not released
 
+- What happens records what a module does on its own too, not through acme's
+  Context: HTTP over http.client or urllib (MS AD CS, a module of your own) -
+  each request whole, its proxy said; FTP and FTPS over ftplib (the HTTP-01 over
+  FTP validation) - the connection, whether the server's certificate is checked,
+  every command (PASS ••••), each upload with its size; a socket of its own - UDP
+  with every byte it sends (SNMP, say), TCP with where it connects (what it says
+  there cannot be told). Still nothing is reached.
 - What happens: *Show debug details* (off by default, kept in the browser). Off,
   the page is as it was - the headers a module sets, the steps of a test in
   short; on, everything below: each request as it goes on the wire, how each

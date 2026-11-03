@@ -288,5 +288,57 @@ class EncodedPowerShell(unittest.TestCase):
         self.assertNotIn('made-for-the-run', PS.encoded_script(cmd))
 
 
+class TestOwnConnections(unittest.TestCase):
+    """What happens (1.0.37): a module that opens its connections itself - http.client
+    or urllib, ftplib, a socket of its own - is recorded too, its secrets left out."""
+    def test_recorded(self):
+        import subprocess
+        code = r"""
+import io, json, socket, ssl, sys, urllib.request, ftplib
+sys.path.insert(0, %r)
+from acmelib.certs import plansandbox as P
+import tempfile
+d = tempfile.mkdtemp()
+P.lockdown(d)
+P.RECORDING[0] = []
+r = urllib.request.Request('https://10.9.9.9/api', data=b'{"k":"STANDIN"}', method='POST',
+                           headers={'X-Api-Key': 'STANDIN'})
+urllib.request.urlopen(r, timeout=5).read()
+f = ftplib.FTP_TLS(timeout=5); f.connect('10.9.9.8', 21); f.login('u', 'pw'); f.prot_p()
+f.storbinary('STOR /x.pem', io.BytesIO(b'abc')); f.quit()
+u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+try:
+    u.sendto(b'\x30\x29', ('10.9.9.10', 161))
+except Exception:
+    pass
+try:
+    socket.create_connection(('10.9.9.11', 445), timeout=1)
+except Exception:
+    pass
+print(json.dumps(P.RECORDING[0]))
+""" % os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        got = subprocess.run([sys.executable, '-I', '-c', code], capture_output=True, timeout=60)
+        self.assertEqual(got.returncode, 0, got.stderr.decode()[-500:])
+        evs = json.loads(got.stdout.decode().strip().splitlines()[-1])
+        kinds = [e['kind'] for e in evs]
+        self.assertIn('http', kinds)
+        h = [e for e in evs if e['kind'] == 'http'][0]
+        self.assertEqual((h['method'], h['url'], h['own']), ('POST', 'https://10.9.9.9/api', True))
+        self.assertEqual(h['headers'].get('X-api-key') or h['headers'].get('X-Api-Key'), 'STANDIN')
+        cmds = [e['cmd'] for e in evs if e['kind'] == 'ftp-cmd']
+        self.assertEqual(cmds[:5], ['AUTH TLS', 'USER u', 'PASS ••••', 'PBSZ 0', 'PROT P'])
+        self.assertEqual([e['cmd'] for e in evs if e['kind'] == 'ftp-put'], ['STOR /x.pem'])
+        socks = [e for e in evs if e['kind'] == 'socket']
+        self.assertEqual([(e['how'], e['host'], e['port']) for e in socks],
+                         [('udp', '10.9.9.10', 161), ('tcp', '10.9.9.11', 445)])
+        self.assertEqual(socks[0]['hex'], '3029')
+        from acmelib.certs import runplan as R
+        steps = R.steps_of(evs)
+        words = [st['words'] for st in steps]
+        self.assertTrue(any('FTPS' in w for w in words), words)
+        self.assertTrue(any('UDP' in w for w in words), words)
+        self.assertTrue(any('445' in w for w in words), words)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

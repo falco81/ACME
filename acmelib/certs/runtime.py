@@ -892,7 +892,7 @@ class SshSession(base.SshSession):
             self.d = None
 
 
-def wire_request(method, url, headers=None, body=None):
+def wire_request(method, url, headers=None, body=None, own=False):
     """What RunContext.http() sends, as it goes on the wire (1.0.37): the request line,
     every header in the order urllib writes them - the module's own and the ones
     added (`auto`): Accept-Encoding, Content-Length, Host, Content-Type, User-Agent,
@@ -925,8 +925,23 @@ def wire_request(method, url, headers=None, body=None):
         out.append(['Content-Type', 'application/x-www-form-urlencoded', True])
     if 'user-agent' in low:
         out.append([low['user-agent'], str(mine[low['user-agent']]), False])
-    else:
+    elif not own:
         out.append(['User-Agent', 'acme/%s' % E.__version__, True])
+    if own:
+        # http.client as a module uses it itself: Host, Accept-Encoding, Content-Length of
+        # its own first, then the headers as the module (or urllib) gave them, in their
+        # order - nothing else added
+        given = dict(headers or {})
+        gl = {k.lower() for k in given}
+        lines = []
+        if 'host' not in gl:
+            lines.append(['Host', u.netloc, True])
+        if 'accept-encoding' not in gl:
+            lines.append(['Accept-Encoding', 'identity', True])
+        if data is not None and 'content-length' not in gl:
+            lines.append(['Content-Length', str(len(str(data).encode('utf-8'))), True])
+        lines += [[k, str(v), False] for k, v in given.items()]
+        return {'line': '%s %s HTTP/1.1' % (verb, path), 'headers': lines, 'body': data}
     out.append(['Connection', 'close', True])
     return {'line': '%s %s HTTP/1.1' % (verb, path), 'headers': out, 'body': data}
 

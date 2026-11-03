@@ -82,6 +82,188 @@ def _no_net(*_a, **_k):
     raise Blocked('the run plan contacts nothing')
 
 
+def _net_said(how):
+    """A connection a module opens itself (1.0.37) - not through the Context: where to is
+    written down (and what it sends to an address, UDP: SNMP, syslog, its own DNS),
+    then refused as any other."""
+    def fn(*a, **k):
+        addr = next((x for x in a if isinstance(x, tuple) and len(x) >= 2), None)
+        data = next((x for x in a if isinstance(x, (bytes, bytearray))), None)
+        if addr is not None:
+            ev = {'kind': 'socket', 'how': how, 'host': str(addr[0]), 'port': int(addr[1] or 0)}
+            if data is not None:
+                ev['bytes'] = len(data)
+                ev['hex'] = bytes(data[:512]).hex()
+            rec(ev)
+        raise Blocked('the run plan contacts nothing')
+    return fn
+
+
+# ---- HTTP a module makes itself (http.client, urllib): written down as ctx.http is -----
+class _FakeResponse(object):
+    def __init__(self, status=200, body=b'{}', ctype='application/json'):
+        import email.message
+        self.status = self.code = status
+        self.reason = 'OK'
+        self.msg = self.headers = email.message.Message()
+        self.headers['Content-Type'] = ctype
+        self.headers['Content-Length'] = str(len(body))
+        self._buf = io.BytesIO(body)
+        self.will_close = True
+        self.length = len(body)
+        self.fp = self._buf
+        self.url = ''
+        self.closed = False
+
+    def read(self, n=-1):
+        return self._buf.read() if n is None or n < 0 else self._buf.read(n)
+
+    def readline(self, *a):
+        return self._buf.readline(*a)
+
+    def readinto(self, b):
+        return self._buf.readinto(b)
+
+    def getheader(self, name, default=None):
+        return self.headers.get(name, default)
+
+    def getheaders(self):
+        return list(self.headers.items())
+
+    def info(self):
+        return self.headers
+
+    def geturl(self):
+        return self.url
+
+    def getcode(self):
+        return self.status
+
+    def close(self):
+        self.closed = True
+
+    def isclosed(self):
+        return self.closed
+
+    def __iter__(self):
+        return iter(self._buf)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *e):
+        self.close()
+
+
+def _patch_http_client():
+    import http.client as HC
+    import ssl as _ssl
+
+    def request(self, method, url, body=None, headers=None, *, encode_chunked=False):
+        tls = isinstance(self, HC.HTTPSConnection)
+        dflt = 443 if tls else 80
+        # through a proxy (CONNECT): the host it tunnels to is the one asked
+        host, port = self.host, self.port
+        proxied = bool(getattr(self, '_tunnel_host', None))
+        if proxied:
+            host, port = self._tunnel_host, self._tunnel_port or dflt
+        full = url if re.match(r'^https?://', str(url)) else '%s://%s%s%s' % (
+            'https' if tls else 'http', host, '' if port in (None, dflt) else
+            ':%s' % port, url)
+        ctx = getattr(self, '_context', None)
+        verify = True
+        if tls and ctx is not None:
+            verify = ctx.verify_mode != _ssl.CERT_NONE
+        b = body
+        if isinstance(b, (bytes, bytearray)):
+            b = bytes(b).decode('utf-8', 'replace')
+        elif b is not None and not isinstance(b, str):
+            b = '‹a stream›'
+        rec({'kind': 'http', 'method': str(method).upper(), 'url': full,
+             'headers': {str(k): str(v) for k, v in dict(headers or {}).items()},
+             'body': b, 'verify': verify, 'ca': False, 'client_cert': False,
+             'proxy': proxied, 'proxy_own': proxied, 'own': True, 'timeout': getattr(self, 'timeout', None)
+             if isinstance(getattr(self, 'timeout', None), (int, float)) else None})
+        self._acme_answer = _FakeResponse()
+
+    def getresponse(self):
+        r = getattr(self, '_acme_answer', None) or _FakeResponse()
+        self._acme_answer = None
+        return r
+
+    def connect(self):
+        raise Blocked('the run plan contacts nothing')
+    HC.HTTPConnection.request = request
+    HC.HTTPConnection.getresponse = getresponse
+    HC.HTTPConnection.connect = connect
+
+
+# ---- FTP / FTPS a module speaks itself (ftplib): every command written down ----------
+def _patch_ftplib():
+    import ftplib as F
+
+    def connect(self, host='', port=0, timeout=-999, source_address=None):
+        self.host = host or getattr(self, 'host', '')
+        self.port = port or 21
+        rec({'kind': 'ftp-open', 'host': str(self.host), 'port': int(self.port),
+             'tls': isinstance(self, F.FTP_TLS),
+             'verify': (getattr(self, 'context', None) is None or
+                        getattr(self.context, 'verify_mode', 2) != 0)})
+        self.welcome = '220 ‹the server\'s greeting›'
+        self.sock = None
+        return self.welcome
+
+    def sendcmd(self, cmd):
+        shown = 'PASS ••••' if str(cmd).upper().startswith('PASS ') else str(cmd)
+        rec({'kind': 'ftp-cmd', 'host': str(getattr(self, 'host', '')), 'cmd': shown})
+        up = str(cmd).upper()
+        if up.startswith('USER'):
+            return '331 ‹password required›'
+        if up.startswith('PASS'):
+            return '230 ‹logged in›'
+        if up.startswith('MKD'):
+            return '257 "%s"' % str(cmd)[4:]
+        if up.startswith('AUTH'):
+            return '234 ‹AUTH TLS ok›'
+        if up.startswith('QUIT'):
+            return '221 ‹bye›'
+        if up.startswith('PWD'):
+            return '257 "/"'
+        return '200 ‹ok›'
+
+    def voidcmd(self, cmd):
+        return sendcmd(self, cmd)
+
+    def auth(self):
+        resp = sendcmd(self, 'AUTH TLS')
+        return resp
+
+    def storbinary(self, cmd, fp, blocksize=8192, callback=None, rest=None):
+        data = fp.read() if hasattr(fp, 'read') else b''
+        rec({'kind': 'ftp-put', 'host': str(getattr(self, 'host', '')), 'cmd': str(cmd),
+             'bytes': len(data or b'')})
+        return '226 ‹transfer complete›'
+
+    def storlines(self, cmd, fp, callback=None):
+        return storbinary(self, cmd, fp)
+
+    def retrbinary(self, cmd, callback, blocksize=8192, rest=None):
+        rec({'kind': 'ftp-cmd', 'host': str(getattr(self, 'host', '')), 'cmd': str(cmd)})
+        return '226 ‹transfer complete›'
+
+    def close(self):
+        self.sock = None
+    F.FTP.connect = connect
+    F.FTP.sendcmd = sendcmd
+    F.FTP.voidcmd = voidcmd
+    F.FTP.storbinary = storbinary
+    F.FTP.storlines = storlines
+    F.FTP.retrbinary = retrbinary
+    F.FTP.close = close
+    F.FTP_TLS.auth = auth
+    F.FTP_TLS.prot_p = lambda self: (sendcmd(self, 'PBSZ 0'), sendcmd(self, 'PROT P'))[1]
+
+
 class _Recorded(io.BytesIO):
     """A file a module writes outside the folder: kept in memory, written down on close."""
     def __init__(self, path, text, mode_bits=None):
@@ -209,11 +391,18 @@ def lockdown(folder):
     import subprocess
     import tempfile
     SANDBOX[0] = os.path.realpath(folder)
-    for n in ('connect', 'connect_ex', 'sendto', 'sendmsg', 'bind', 'listen'):
+    for n in ('bind', 'listen'):
         setattr(socket.socket, n, _no_net)
-    for n in ('create_connection', 'getaddrinfo', 'gethostbyname', 'gethostbyname_ex',
+    socket.socket.connect = _net_said('tcp')
+    socket.socket.connect_ex = _net_said('tcp')
+    socket.socket.sendto = _net_said('udp')
+    socket.socket.sendmsg = _net_said('udp')
+    for n in ('getaddrinfo', 'gethostbyname', 'gethostbyname_ex',
               'gethostbyaddr', 'create_server', 'socketpair', 'fromfd'):
         setattr(socket, n, _no_net)
+    socket.create_connection = _net_said('tcp')
+    _patch_http_client()
+    _patch_ftplib()
     _real['open'] = builtins.open
     builtins.open = _open
     io.open = _open
