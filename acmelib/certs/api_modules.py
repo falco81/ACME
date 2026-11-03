@@ -7,6 +7,8 @@ an upload checked before it is kept, an uploaded one taken away.
 
     GET  /api/modules                      the list (plugins_view + uploads + usage)
     GET  /api/modules/source?family=&kind=&version=   {file, text} of a loaded module
+         &copy=1&as_version=&as_label=[&override=1]  its whole source as a file of your own
+         &original=1   the shipped code an override of yours replaces
     GET  /api/modules/uploaded?path=        {file, text} of an uploaded file
     POST /api/modules/analyse  {family, filename, text}   what it would add or replace
     POST /api/modules/install  {family, filename, text, note}
@@ -77,8 +79,14 @@ def _source(h, s):
     if fam not in FAMILY_WORDS:
         raise ValueError('family is issuer, challenge, target or check')
     ver = h.arg('version')
-    name, text = CM.source_of(fam, h.arg('kind').strip(), ver if ver is not None and
-                              h.arg('has_version') == '1' else None)
+    ver = ver if ver is not None and h.arg('has_version') == '1' else None
+    if h.arg('copy') == '1':
+        # the whole of it, made into a version (or an override) of your own (1.0.34)
+        name, text = CM.copy_as(fam, h.arg('kind').strip(), ver, h.arg('as_version'),
+                                h.arg('as_label'), h.arg('override') == '1',
+                                h.arg('original') == '1')
+    else:
+        name, text = CM.source_of(fam, h.arg('kind').strip(), ver, h.arg('original') == '1')
     return {'file': name, 'text': text}
 
 

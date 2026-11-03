@@ -285,7 +285,23 @@ function modal(title, build, buttons, narrow) {
        press it. In a popup asking "erase all this?" it is the way out. */
     || foot.querySelector('.btn.primary:not(.danger)')
     || foot.querySelector('.btn:not(.danger)');
-  if (first) setTimeout(function () { try { first.focus(); } catch (e) { } }, 0);
+  /* A box far down a long popup is not focused (1.0.34): the popup opened
+     scrolled to it, its top - what it is about - out of sight. Its buttons
+     are, without moving anything. */
+  if (first) setTimeout(function () {
+    try {
+      var b = $('modal-body');
+      if (b && b.contains(first)) {
+        var r = first.getBoundingClientRect(), br = b.getBoundingClientRect();
+        if (r.bottom > br.bottom) {
+          var alt = foot.querySelector('.btn.primary:not(.danger)') || foot.querySelector('.btn:not(.danger)');
+          if (alt) alt.focus({preventScroll: true});
+          return;
+        }
+      }
+      first.focus();
+    } catch (e) { }
+  }, 0);
   return {body: $('modal-body'), foot: foot};
 }
 var MODAL_FROM = null;

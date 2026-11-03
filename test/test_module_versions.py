@@ -264,6 +264,70 @@ class TestUpload(unittest.TestCase):
             'family': 'target', 'kind': 'netscaler', 'version': '', 'has_version': '1'})
         self.assertIn('NetScaler (mine)', got['text'], 'the version asked: the override')
 
+    def test_a_whole_copy_made_a_version_of_its_own(self):
+        """Download a start → the whole code (1.0.34): the source of a version, its
+        class saying the version asked for - loads as that version alone."""
+        got = self.call('GET', '/api/modules/source', args={
+            'family': 'target', 'kind': 'f5', 'copy': '1', 'as_version': '18.0',
+            'as_label': 'my F5'})
+        self.assertEqual(got['file'], 'f5_18_0.py')
+        self.assertIn("module_version = '18.0'", got['text'])
+        self.assertIn("version_label = 'my F5'", got['text'])
+        self.assertIn('def deploy', got['text'], 'the whole code, not a start')
+        a = self.call('POST', '/api/modules/analyse', body={
+            'family': 'target', 'filename': got['file'], 'text': got['text']})
+        self.assertTrue(a['ok'], a)
+        self.assertEqual([(c['does'], c['kind'], c['version']) for c in a['classes']],
+                         [('version', 'f5', '18.0')])
+        # a file of two modules (tls.py: tls and https): only the one asked for
+        got = self.call('GET', '/api/modules/source', args={
+            'family': 'check', 'kind': 'https', 'copy': '1', 'as_version': '2'})
+        a = self.call('POST', '/api/modules/analyse', body={
+            'family': 'check', 'filename': got['file'], 'text': got['text']})
+        self.assertEqual([(c['does'], c['kind']) for c in a['classes']], [('version', 'https')])
+        # an override: the shipped version, which it replaces
+        got = self.call('GET', '/api/modules/source', args={
+            'family': 'target', 'kind': 'f5', 'copy': '1', 'override': '1'})
+        self.assertEqual(got['file'], 'f5_override.py')
+        self.assertIn("module_version = ''", got['text'])
+        with self.assertRaises(Exception):
+            self.call('GET', '/api/modules/source', args={
+                'family': 'target', 'kind': 'f5', 'copy': '1', 'as_version': 'bad name'})
+
+    def test_the_original_under_an_override(self):
+        """Replaced: the shipped code can still be had, and copied (1.0.34)."""
+        mine = self.call('GET', '/api/modules/source', args={
+            'family': 'target', 'kind': 'netscaler', 'version': '', 'has_version': '1'})
+        self.assertIn('NetScaler (mine)', mine['text'])
+        orig = self.call('GET', '/api/modules/source', args={
+            'family': 'target', 'kind': 'netscaler', 'version': '', 'has_version': '1',
+            'original': '1'})
+        self.assertEqual(orig['file'], 'netscaler.py')
+        self.assertNotIn('NetScaler (mine)', orig['text'])
+        self.assertIn('class NetScalerTarget', orig['text'])
+        cp = self.call('GET', '/api/modules/source', args={
+            'family': 'target', 'kind': 'netscaler', 'version': '', 'has_version': '1',
+            'original': '1', 'copy': '1', 'as_version': '15.0'})
+        self.assertIn("module_version = '15.0'", cp['text'])
+        self.assertIn('def deploy', cp['text'])
+
+    def test_a_copy_of_a_class_with_a_docstring(self):
+        """The version goes under the docstring, the old one is taken out."""
+        from unittest import mock
+        src = ('from acmelib.plugins.targets.f5 import F5Target\n\n\n'
+               'class Mine(F5Target):\n    """Mine."""\n    module_version = "1"\n'
+               '    version_label = "old"\n    title = "x"\n')
+        cls = type('Mine', (), {'module_version': '1', '__module__': 'x'})
+        with mock.patch.object(CM, 'source_of', return_value=('m.py', src)), \
+                mock.patch.object(S, 'plugin_class', return_value=cls):
+            _n, text = CM.copy_as('target', 'f5', '1', '3', 'new')
+        body = text.split('class Mine(F5Target):\n', 1)[1].splitlines()
+        self.assertEqual(body[0].strip(), '"""Mine."""')
+        self.assertEqual(text.count('module_version'), 1)
+        self.assertIn("module_version = '3'", text)
+        self.assertNotIn('"old"', text)
+        compile(text, 'm.py', 'exec')
+
     def test_bad_uploads_said(self):
         bad = self.call('POST', '/api/modules/analyse', body={
             'family': 'target', 'filename': 'x.py', 'text': 'def (:'})

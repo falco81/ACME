@@ -7836,9 +7836,10 @@ function shortModulePath(path) {
   return p;
 }
 /** A file to keep: the source of a module as loaded (shipped or your own). */
-function moduleSource(fam, p, version, hasVersions) {
+function moduleSource(fam, p, version, hasVersions, original) {
   var a = {family: fam, kind: p.kind};
   if (hasVersions) { a.version = version || ''; a.has_version = '1'; }
+  if (original) a.original = '1';
   capi('modules/source' + qs(a)).then(function (d) {
     saveText(d.file, d.text, 'text/x-python');
     toast('Downloaded: ' + d.file, 'good');
@@ -7883,7 +7884,7 @@ function moduleDetail(fam, kind) {
     body.appendChild(head);
     var grid = el('div', 'msects');
     body.appendChild(grid);
-    var sec = section('Versions', vers.length > 1 ? 'Each source, validation or target chooses the version it uses in its form; one that says none takes the default.' : 'One version: every one of them uses it. A version of your own is added with “Upload a version of your own”.', true);
+    var sec = section('Versions', vers.length > 1 ? 'Each source, validation or target chooses the version it uses in its form; one that says none takes the default.' : 'One version: everything uses it. Another one is made below, in “Make one of your own”.', true);
     vers.forEach(function (v) {
       var card = el('div', 'md-vrow' + (v.origin === 'custom' ? (v.overrides ? ' over' : ' own') : ''));
       var left = el('div', 'md-vrow-l');
@@ -7903,7 +7904,8 @@ function moduleDetail(fam, kind) {
       card.appendChild(left);
       var right = el('div', 'md-vrow-r btnrow');
       if (d.may_upload) {
-        var dl = cmdButton('Download', 'download', 'small');
+        var dl = cmdButton('Download this code', 'download', 'small');
+        explain(dl, v.overrides ? 'The code of your replacement - the one used now.' : (v.origin === 'custom' ? 'The code of this version of yours.' : 'The code as it comes with acme.'));
         dl.onclick = function () { moduleSource(fam, p, v.version || '', vers.length > 1 || !!v.version); };
         right.appendChild(dl);
         var mk = cmdButton('Mark it', 'check', 'small');
@@ -7912,8 +7914,9 @@ function moduleDetail(fam, kind) {
         var rel = v.source === 'uploaded' ? Object.keys(obj(d.uploaded)).filter(function (k) { return v.module && v.module.slice(-k.length - 1) === '/' + k; })[0] : null;
         if (rel) {
           /* replaced: a new file under the same name takes its place */
-          var re = cmdButton('Upload a new file', 'upload', 'small');
-          explain(re, 'A new file of this version under the same name: it takes the place of this one. Checked first; nothing changes until you press Install.');
+          var re = cmdButton(v.overrides ? 'Upload a new replacement' : 'Upload a new file', 'upload', 'small');
+          explain(re, v.overrides ? 'A new file in the place of your replacement (the same name): the shipped one stays replaced. Checked first; nothing changes until you press Install.'
+                                  : 'A new file of this version under the same name: it takes the place of this one. Checked first; nothing changes until you press Install.');
           re.onclick = function () { over(function () { moduleUpload({family: fam, base: p, filename: rel.split('/').pop(), mode: v.overrides ? 'override' : 'version', version: v.version || ''}); }, again); };
           right.appendChild(re);
           var rm = cmdButton('Take it away', 'trash', 'small danger');
@@ -7923,6 +7926,32 @@ function moduleDetail(fam, kind) {
       }
       card.appendChild(right);
       sec._body.appendChild(card);
+      /* replaced: the shipped one is still there, under it - not used, its code to be had (1.0.34) */
+      if (v.overrides) {
+        var oc = el('div', 'md-vrow md-orig');
+        var ol = el('div', 'md-vrow-l');
+        var ot = el('div', 'md-vrow-t');
+        ot.appendChild(data('b', '', versionName(v.version || '')));
+        var otags = el('span', 'md-tags');
+        otags.appendChild(el('span', 'tag dim md-origin', 'shipped original'));
+        otags.appendChild(el('span', 'tag warn md-origin', 'replaced - not used'));
+        ot.appendChild(otags);
+        ol.appendChild(ot);
+        var of = el('div', 'small muted');
+        of.appendChild(mono(shortModulePath(v.overrides)));
+        ol.appendChild(of);
+        ol.appendChild(el('div', 'small muted', 'Used again once your replacement above is taken away.'));
+        oc.appendChild(ol);
+        var orr = el('div', 'md-vrow-r btnrow');
+        if (d.may_upload) {
+          var odl = cmdButton('Download this code', 'download', 'small');
+          explain(odl, 'The shipped code, as it comes with acme - not the replacement.');
+          odl.onclick = function () { moduleSource(fam, p, v.version || '', vers.length > 1 || !!v.version, true); };
+          orr.appendChild(odl);
+        }
+        oc.appendChild(orr);
+        sec._body.appendChild(oc);
+      }
     });
     grid.appendChild(sec);
     if (d.may_upload) {
@@ -7934,7 +7963,7 @@ function moduleDetail(fam, kind) {
       var over_ = vers.filter(function (v) { return v.overrides; })[0];
       var overRel = over_ && over_.source === 'uploaded' ? Object.keys(obj(d.uploaded)).filter(function (k) { return over_.module && over_.module.slice(-k.length - 1) === '/' + k; })[0] : null;
       var ways = el('div', 'md-ways');
-      var way = function (icon, title, says, start, upload, note) {
+      var way = function (icon, title, says, start, upload, note, upWords) {
         var c = el('div', 'md-way');
         var h = el('div', 'md-way-h');
         var ic = el('span', 'md-way-ic');
@@ -7947,7 +7976,7 @@ function moduleDetail(fam, kind) {
         var r = el('div', 'btnrow');
         var s1 = cmdButton('Download a start', 'download', 'small');
         s1.onclick = start;
-        var s2 = cmdButton('Upload it', 'upload', 'small primary');
+        var s2 = cmdButton(upWords || 'Upload it', 'upload', 'small primary');
         s2.onclick = upload;
         r.appendChild(s1);
         r.appendChild(s2);
@@ -7984,7 +8013,7 @@ function moduleDetail(fam, kind) {
         function () {
           var v = verOk();
           if (!v) { verIn.focus(); return; }
-          saveText(fileOf(v), moduleTemplate(fam, shippedOf(p), v, labIn.value.trim(), false), 'text/x-python');
+          over(function () { moduleStartPick({fam: fam, p: p, vers: vers, version: v, label: labIn.value.trim()}); }, again);
         },
         function () {
           var v = verOk();
@@ -7993,21 +8022,99 @@ function moduleDetail(fam, kind) {
         }, vg));
       var on = null;
       if (over_) {
-        on = el('p', 'small');
-        on.appendChild(el('span', 'tag warn', 'replaced now'));
-        on.appendChild(document.createTextNode(' '));
-        on.appendChild(mono(shortModulePath(over_.module || '')));
-        on.appendChild(document.createTextNode(' - '));
-        on.appendChild(el('span', '', overRel ? 'upload another file to change it, or take it away above to have the shipped one back.' : 'a file on the disk (/etc/acme/plugins): changed there.'));
+        on = el('div', 'md-replaced small');
+        var l1 = el('div');
+        l1.appendChild(el('span', 'tag warn', 'replaced now'));
+        l1.appendChild(document.createTextNode(' '));
+        l1.appendChild(el('span', '', 'In use:'));
+        l1.appendChild(document.createTextNode(' '));
+        l1.appendChild(mono(shortModulePath(over_.module || '')));
+        on.appendChild(l1);
+        var l2 = el('div', 'muted');
+        l2.appendChild(el('span', '', 'instead of the shipped'));
+        l2.appendChild(document.createTextNode(' '));
+        l2.appendChild(mono(shortModulePath(over_.overrides || '')));
+        on.appendChild(l2);
+        on.appendChild(el('div', 'muted', overRel ? 'Upload a new replacement below - it takes the place of yours; to have the shipped one back, take yours away in Versions above.' : 'A file on the disk (/etc/acme/plugins): changed there.'));
       }
-      ways.appendChild(way('flag', 'Replace the shipped one',
+      ways.appendChild(way('flag', over_ ? 'The shipped one is replaced' : 'Replace the shipped one',
         tr('Everything that uses the shipped version ({0}) uses yours from then on. The other versions stay as they are. Taken away, the shipped one is used again - it is never deleted.').replace('{0}', versionName(def.version || '')),
-        function () { saveText(kind + '_override.py', moduleTemplate(fam, shippedOf(p), '', '', true), 'text/x-python'); },
-        function () { over(function () { moduleUpload({family: fam, base: p, mode: 'override', filename: overRel || (kind + '_override.py')}); }, again); }, on));
+        function () { over(function () { moduleStartPick({fam: fam, p: p, vers: vers, override: true}); }, again); },
+        function () { over(function () { moduleUpload({family: fam, base: p, mode: 'override', filename: overRel || (kind + '_override.py')}); }, again); }, on,
+        over_ ? 'Upload a new replacement' : null));
       mine._body.appendChild(ways);
       grid.appendChild(mine);
     }
   }, [{words: 'Close', close: true}], 'large');
+}
+/* "Download a start" (1.0.34): asked first - a start that takes the module as it
+   is (a few lines, the rest inherited), or the whole code of one of its versions,
+   made into yours (its version and label, or for an override the shipped one's)
+   to change a line and upload. o: {fam, p, vers, version, label, override}. */
+function moduleStartPick(o) {
+  var pick = 'whole', from = null;
+  var vers = arr(o.vers);
+  var shipped = vers.filter(function (v) { return v.origin !== 'custom'; })[0] || vers[0] || {};
+  modal(tr('Download a start') + ' · ' + (o.p.title || o.p.kind), function (body) {
+    var grid = el('div', 'md-startpick');
+    var card = function (key, icon, title, says) {
+      var b = el('button', 'md-markcard md-start' + (pick === key ? ' on' : ''));
+      b.type = 'button';
+      var ic = el('span', 'md-markcard-ic');
+      ic.innerHTML = iconMarkup(icon, 18);
+      b.appendChild(ic);
+      b.appendChild(el('b', '', title));
+      b.appendChild(el('span', 'small', says));
+      b.onclick = function () {
+        pick = key;
+        Array.prototype.forEach.call(grid.children, function (c) { c.classList.toggle('on', c === b); });
+        if (from) from.disabled = key !== 'whole';
+      };
+      grid.appendChild(b);
+      return b;
+    };
+    card('whole', 'copy', 'The whole code of a version', 'Every line of the version chosen below, its class already saying your version - change what you need and upload it.');
+    card('start', 'edit', 'Only a start', 'A few lines that take the module as it is; you write only what is different. It follows the module when acme is updated.');
+    body.appendChild(grid);
+    var opts = [];
+    vers.forEach(function (v) {
+      var nm = versionName(v.version || '') + (v.version_label ? ' · ' + v.version_label : '');
+      if (v.overrides) {
+        opts.push(['orig:' + (v.version || ''), nm + ' · ' + tr('shipped original (replaced now)')]);
+        opts.push(['v:' + (v.version || ''), nm + ' · ' + tr('your replacement (in use)')]);
+      } else opts.push(['v:' + (v.version || ''), nm + ' · ' + tr(v.origin !== 'custom' ? 'shipped' : 'yours')]);
+    });
+    var firstShipped = opts.filter(function (x) { return /^orig:/.test(x[0]); })[0] ||
+                       opts.filter(function (x) { return x[0] === 'v:' + String(shipped.version || '') && shipped.origin !== 'custom'; })[0] || opts[0];
+    from = selectBox(opts, firstShipped ? firstShipped[0] : '');
+    body.appendChild(formField('The code of', from, 'Shipped: as it comes with acme. Another version: one of your own, to start from it.'));
+    var what = el('p', 'small muted');
+    what.appendChild(el('span', '', o.override ? 'It will replace the shipped version, for everything that uses it.' : 'It will be the version'));
+    if (!o.override) { what.appendChild(document.createTextNode(' ')); what.appendChild(mono(o.version)); if (o.label) what.appendChild(document.createTextNode(' · ' + o.label)); }
+    body.appendChild(what);
+  }, [{words: 'Cancel', close: true}, {words: 'Download', cls: 'primary', icon: 'download', go: function (b) {
+    if (pick === 'start') {
+      saveText(o.override ? o.p.kind + '_override.py' : o.p.kind + '_' + String(o.version).toLowerCase().replace(/[^a-z0-9]+/g, '_') + '.py',
+               moduleTemplate(o.fam, shippedOf(o.p), o.override ? '' : o.version, o.override ? '' : (o.label || ''), !!o.override), 'text/x-python');
+      closeModal();
+      return;
+    }
+    busy(b, true);
+    var fv = String(from.value || 'v:');
+    moduleCopy(o.fam, o.p, fv.replace(/^(orig|v):/, ''), {override: o.override, version: o.version, label: o.label, original: /^orig:/.test(fv)}).then(function (d) {
+      saveText(d.file, d.text, 'text/x-python');
+      toast(tr('Downloaded') + ': ' + d.file, 'good');
+      closeModal();
+    }).catch(fail).then(function () { busy(b, false); });
+  }}], 'medium');
+}
+/** The whole source of a version, made into yours by the daemon (modules/source copy=1). */
+function moduleCopy(fam, p, fromVersion, o) {
+  var a = {family: fam, kind: p.kind, copy: '1', as_version: o.override ? '' : (o.version || ''), as_label: o.label || ''};
+  if (arr(p.versions).length) { a.version = fromVersion || ''; a.has_version = '1'; }
+  if (o.override) a.override = '1';
+  if (o.original) a.original = '1';
+  return capi('modules/source' + qs(a));
 }
 function moduleMark(fam, p, v) {
   var cur = markOf(fam, p.kind, v.version || '');
@@ -8136,8 +8243,37 @@ function moduleUpload(o) {
     codeHost.appendChild(code);
     if (o.base) {
       var tpl = cmdButton('Start from a template', 'edit', 'small');
-      tpl.onclick = function () { code.value = tplOf(); st.text = code.value; codeHost.open = true; };
-      codeHost.appendChild(el('div', 'btnrow')).appendChild(tpl);
+      tpl.onclick = function () { code.value = tplOf(); st.text = code.value; st.checked = null; if (go) go.disabled = true; codeHost.open = true; };
+      var trow = el('div', 'btnrow md-startrow');
+      trow.appendChild(tpl);
+      /* ...or from the whole code of a version, made yours (1.0.34) */
+      var bvers = arr(o.base.versions).length ? arr(o.base.versions) : [o.base];
+      var bship = bvers.filter(function (v) { return v.origin !== 'custom'; })[0] || bvers[0] || {};
+      var wopts = [];
+      bvers.forEach(function (v) {
+        var nm = versionName(v.version || '') + (v.version_label ? ' · ' + v.version_label : '');
+        if (v.overrides) {
+          wopts.push(['orig:' + (v.version || ''), nm + ' · ' + tr('shipped original (replaced now)')]);
+          wopts.push(['v:' + (v.version || ''), nm + ' · ' + tr('your replacement (in use)')]);
+        } else wopts.push(['v:' + (v.version || ''), nm + ' · ' + tr(v.origin !== 'custom' ? 'shipped' : 'yours')]);
+      });
+      var wfrom = selectBox(wopts, (wopts.filter(function (x) { return /^orig:/.test(x[0]); })[0] || wopts.filter(function (x) { return x[0] === 'v:' + String(bship.version || ''); })[0] || wopts[0] || [''])[0]);
+      wfrom.classList.add('md-startfrom');
+      var whole = cmdButton('Start from the whole code of', 'copy', 'small');
+      whole.onclick = function () {
+        if (o.mode !== 'override' && !o.version) { toast(tr('Name the version first, in the module’s window.'), 'bad'); return; }
+        busy(whole, true);
+        var wv = String(wfrom.value || 'v:');
+        moduleCopy(o.family, o.base, wv.replace(/^(orig|v):/, ''), {override: o.mode === 'override', version: o.version, label: o.label, original: /^orig:/.test(wv)}).then(function (d) {
+          code.value = d.text; st.text = d.text; st.checked = null; if (go) go.disabled = true;
+          if (!fileName.value.trim() || fileName._auto !== false) fileName.value = d.file;
+          codeHost.open = true;
+          check();
+        }).catch(fail).then(function () { busy(whole, false); });
+      };
+      trow.appendChild(whole);
+      trow.appendChild(wfrom);
+      codeHost.appendChild(trow);
     }
     body.appendChild(codeHost);
     out = el('div', 'md-check');

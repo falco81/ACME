@@ -50467,6 +50467,122 @@
   "imp33_6": {
    "source": "that password does not open the key",
    "text": "toto heslo klíč neotevře"
+  },
+  "md34_1": {
+   "source": "The whole code of a version",
+   "text": "Celý kód verze"
+  },
+  "md34_2": {
+   "source": "Every line of the version chosen below, its class already saying your version - change what you need and upload it.",
+   "text": "Každý řádek verze vybrané níže, třída už nese vaši verzi – upravte, co potřebujete, a nahrajte."
+  },
+  "md34_3": {
+   "source": "Only a start",
+   "text": "Jen základ"
+  },
+  "md34_4": {
+   "source": "A few lines that take the module as it is; you write only what is different. It follows the module when acme is updated.",
+   "text": "Pár řádků, které převezmou modul, jak je; dopíšete jen to, co je jinak. Při aktualizaci acme jde s modulem."
+  },
+  "md34_5": {
+   "source": "The code of",
+   "text": "Kód verze"
+  },
+  "md34_6": {
+   "source": "Shipped: as it comes with acme. Another version: one of your own, to start from it.",
+   "text": "Dodaná: jak přichází s acme. Jiná verze: některá vaše, abyste z ní vyšli."
+  },
+  "md34_7": {
+   "source": "It will replace the shipped version, for everything that uses it.",
+   "text": "Nahradí dodanou verzi pro všechno, co ji používá."
+  },
+  "md34_8": {
+   "source": "It will be the version",
+   "text": "Bude to verze"
+  },
+  "md34_9": {
+   "source": "Downloaded",
+   "text": "Staženo"
+  },
+  "md34_10": {
+   "source": "Start from the whole code of",
+   "text": "Začít z celého kódu verze"
+  },
+  "md34_11": {
+   "source": "Name the version first, in the module’s window.",
+   "text": "Nejdřív verzi pojmenujte v okně modulu."
+  },
+  "md34_12": {
+   "source": "Download this code",
+   "text": "Stáhnout tento kód"
+  },
+  "md34_13": {
+   "source": "The code of your replacement - the one used now.",
+   "text": "Kód vaší náhrady – ten, který se teď používá."
+  },
+  "md34_14": {
+   "source": "The code of this version of yours.",
+   "text": "Kód této vaší verze."
+  },
+  "md34_15": {
+   "source": "The code as it comes with acme.",
+   "text": "Kód tak, jak přichází s acme."
+  },
+  "md34_16": {
+   "source": "Upload a new replacement",
+   "text": "Nahrát novou náhradu"
+  },
+  "md34_17": {
+   "source": "A new file in the place of your replacement (the same name): the shipped one stays replaced. Checked first; nothing changes until you press Install.",
+   "text": "Nový soubor místo vaší náhrady (stejný název): dodaný zůstane nahrazený. Nejdřív se ověří; nic se nezmění, dokud nestisknete Nainstalovat."
+  },
+  "md34_18": {
+   "source": "shipped original",
+   "text": "dodaný originál"
+  },
+  "md34_19": {
+   "source": "replaced - not used",
+   "text": "nahrazený – nepoužívá se"
+  },
+  "md34_20": {
+   "source": "Used again once your replacement above is taken away.",
+   "text": "Znovu se použije, jakmile vaši náhradu výše odeberete."
+  },
+  "md34_21": {
+   "source": "The shipped code, as it comes with acme - not the replacement.",
+   "text": "Dodaný kód, jak přichází s acme – ne náhrada."
+  },
+  "md34_22": {
+   "source": "In use:",
+   "text": "Používá se:"
+  },
+  "md34_23": {
+   "source": "instead of the shipped",
+   "text": "místo dodaného"
+  },
+  "md34_24": {
+   "source": "Upload a new replacement below - it takes the place of yours; to have the shipped one back, take yours away in Versions above.",
+   "text": "Novou náhradu nahrajete níže – nahradí tu vaši; dodaný vrátíte tím, že vaši odeberete ve Verzích výše."
+  },
+  "md34_25": {
+   "source": "The shipped one is replaced",
+   "text": "Dodaný je nahrazený"
+  },
+  "md34_26": {
+   "source": "shipped original (replaced now)",
+   "text": "dodaný originál (teď nahrazený)"
+  },
+  "md34_27": {
+   "source": "your replacement (in use)",
+   "text": "vaše náhrada (používá se)"
+  },
+  "md34_28": {
+   "source": "yours",
+   "text": "vaše"
+  },
+  "md34_29": {
+   "source": "One version: everything uses it. Another one is made below, in “Make one of your own”.",
+   "text": "Jedna verze: používá ji všechno. Další vytvoříte níže, v části „Vytvořit vlastní“."
   }
  },
  "patterns": {

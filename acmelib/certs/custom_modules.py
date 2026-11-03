@@ -23,6 +23,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import time
 
 from acmelib.certs import store as S
@@ -376,14 +377,87 @@ def remove(store, rel, by):
     return rel
 
 
-def source_of(family, kind, version=None):
-    """(file name, text) of a module as it is loaded - shipped or your own."""
+def class_of(family, kind, version=None, original=False):
+    """The class of a version as loaded - or with `original`, the shipped one an
+    override of yours replaces (1.0.34: its code can still be had)."""
     cls = S.plugin_class(family, kind, version)
     if cls is None:
         raise LookupError('there is no %s module "%s"' % (family, kind))
+    if original:
+        cls = getattr(cls, '_replaced', None) or cls
+    return cls
+
+
+def source_of(family, kind, version=None, original=False):
+    """(file name, text) of a module as it is loaded - shipped or your own; with
+    `original`, the shipped one your override replaces."""
+    cls = class_of(family, kind, version, original)
     path = getattr(cls, '_module_file', '')
     with open(path, 'rb') as f:
         return os.path.basename(path), f.read().decode('utf-8', 'replace')
+
+
+def copy_as(family, kind, from_version=None, version='', label='', override=False, original=False):
+    """(file name, text): the whole source of a module's version, made into a file
+    of your own to change and upload (1.0.34) - its class says the version asked
+    for (module_version, version_label, default_version False), or for an override
+    the version of the shipped one, which it then replaces. Nothing else is touched."""
+    import ast
+    cls = class_of(family, kind, from_version, original)
+    _name, text = source_of(family, kind, from_version, original)
+    if override:
+        shipped = [getattr(c, '_replaced', None) or c
+                   for c in (S.registry().versions.get(family, {}).get(kind) or {}).values()
+                   if getattr(c, '_origin', 'builtin') == 'builtin' or getattr(c, '_replaced', None)]
+        version = (shipped[0].module_version or '') if shipped else (cls.module_version or '')
+    version = str(version or '')
+    if not override and not re.match(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$', version):
+        raise ValueError('a version: letters, digits and . _ - (up to 40)')
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as e:
+        raise ValueError('the source cannot be read: %s' % e)
+    node = next((n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == cls.__name__), None)
+    if node is None:
+        raise ValueError('the class %s is not in its file' % cls.__name__)
+    lines = text.splitlines(True)
+    edits = []                               # (first line, last line, new lines), 1-based
+    for st in node.body:
+        targets = st.targets if isinstance(st, ast.Assign) else ([st.target] if isinstance(st, ast.AnnAssign) else [])
+        if any(isinstance(t, ast.Name) and t.id in ('module_version', 'version_label', 'default_version')
+               for t in targets):
+            edits.append((st.lineno, st.end_lineno, []))
+    first = node.body[0]
+    doc = isinstance(first, ast.Expr) and isinstance(getattr(first, 'value', None), ast.Constant) \
+        and isinstance(first.value.value, str)
+    at = first.end_lineno if doc else first.lineno - 1          # insert after this line (1-based)
+    ind = ' ' * first.col_offset
+    edits.append((at + 1, at, [
+        ind + '# made from %s %s %s by acme - your own from here (docs/writing-a-module.md)\n' % (
+            family, kind, cls.module_version or 'plain'),
+        ind + 'module_version = %r\n' % version,
+        ind + 'version_label = %r\n' % str(label or ''),
+        ind + 'default_version = False      # True: a new one, and one that says none, take this one\n']))
+    # Another module of the same file (tls.py holds tls and https) is taken as it is
+    # from where it comes - defined here again, the upload would replace it too.
+    for other in tree.body:
+        if other is node or not isinstance(other, ast.ClassDef):
+            continue
+        is_mod = any(isinstance(st, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'kind'
+                                                         for t in st.targets)
+                     for st in other.body)
+        if is_mod:
+            start = min([other.lineno] + [d.lineno for d in other.decorator_list])
+            edits.append((start, other.end_lineno, [
+                'from %s import %s  # another module of this file, as it is there\n' % (
+                    cls.__module__, other.name)]))
+    for a, b, add in sorted(edits, key=lambda e: (e[0], e[1]), reverse=True):
+        lines[a - 1:b] = add
+    out = ''.join(lines)
+    if not out.endswith('\n'):
+        out += '\n'
+    fname = '%s_%s.py' % (kind, 'override' if override else re.sub(r'[^a-z0-9]+', '_', version.lower()))
+    return fname, out
 
 
 # ---------------------------------------------------------------------------

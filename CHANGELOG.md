@@ -6,6 +6,21 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.34 - not released
 
+- Modules → a module → *Download a start* asks first: only a start (a few
+  lines that take the module as it is) or the whole code of a version - the
+  shipped one, any of yours, or the shipped original under a replacement - its
+  class already saying the version and label you named (or, for a replacement,
+  the shipped version): change a line and upload it. A file of two modules
+  (tls.py: tls and https) copies only the one asked for. The upload window has
+  *Start from the whole code of* too.
+- A shipped module replaced: its original stays listed under your replacement
+  - "shipped original - replaced, not used", its own *Download this code* (the
+  shipped code, not yours). Every row says *Download this code*; the
+  replacement's upload button is *Upload a new replacement*; the card says what
+  is in use instead of what.
+- A long popup opens at its top: a box far down (the version of a module of
+  your own) is not focused, so the window does not open scrolled to it.
+
 - A name box just opened is not red yet ("it needs a name" said before anything
   was typed - a new authority, say): said once something is typed or the box is
   left; the main button is off meanwhile, as before.

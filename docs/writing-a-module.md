@@ -381,9 +381,22 @@ own: they sit beside the plain one, and `default_version` chooses.
 
 **Settings → Modules** (certificate administrators read it, full administrators
 act): every module with where it comes from, its versions and how many use
-each; *Download* gives the source of any of them (a shipped one to start an
-override from), *Make one of your own* a file that subclasses it, *Upload a
-module* takes a `.py` file - checked first in a process of its own (it must
+each; *Download this code* gives the source of any of them. A shipped module
+you replaced is still listed, under your replacement, as *shipped original -
+replaced, not used* - its own *Download this code* gives the shipped code, not
+yours; it is used again once your replacement is taken away. *Make one of your
+own* has two ways: *another version beside it* (named - its version and label;
+as many as you need) and *replace the shipped one*. Each *Download a start*
+asks first: *only a start* (a few lines that subclass the module and change
+what you write - it follows the module when acme is updated) or *the whole code
+of a version* - any of them, the shipped original too - its class already
+saying the version you named (`module_version`, `version_label`,
+`default_version = False`; for a replacement the shipped version). Another
+module of the same file (`tls.py` holds `tls` and `https`) is imported from
+where it is, not defined again, so the copy adds or replaces only the one
+asked for. `GET /api/modules/source?family=&kind=&version=&has_version=1
+&copy=1&as_version=&as_label=[&override=1][&original=1]` does the same from a
+script. *Upload a module* takes a `.py` file - checked first in a process of its own (it must
 load and hold a module of that family; what it would add or replace is shown)
 and only then kept. An uploaded module is in every copy of the database and on
 both nodes of a cluster by itself; files of your own on the disk are kept in

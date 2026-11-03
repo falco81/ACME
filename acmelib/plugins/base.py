@@ -368,6 +368,7 @@ class Plugin(object):
     default_version = False
     _origin = 'builtin'             # 'builtin' | 'custom' (set by the Registry)
     _overrides = ''                 # the file of the shipped module it replaces
+    _replaced = None                # ...and its class: its code can still be had
     _source = 'builtin'             # 'builtin' | 'disk' (ACME_PLUGINS) | 'uploaded' (the page)
 
     def __init__(self, config, ctx):
@@ -1106,9 +1107,12 @@ class Registry(object):
                                 'uploaded' if os.path.abspath(root) == os.path.abspath(
                                     UPLOADED_DIR) else 'disk')
                             obj._overrides = ''
+                            obj._replaced = None    # the shipped class it replaces (1.0.34)
                             if own and before is not None:
                                 obj._overrides = getattr(before, '_overrides', '') or \
                                     (before._module_file if before._origin == 'builtin' else '')
+                                obj._replaced = getattr(before, '_replaced', None) or \
+                                    (before if before._origin == 'builtin' else None)
                             have[ver] = obj             # a later folder wins: yours
         found = {f: {} for f in FAMILIES}
         for family, kinds in versions.items():

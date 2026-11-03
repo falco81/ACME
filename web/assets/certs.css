@@ -996,3 +996,12 @@ body.app-shell #pane-modules #md-list .scroll.lt-held{max-height:none;flex:1 1 a
 /* Settings → Accounts: the role changed in its own column, the row inside its card */
 td.acc-role{white-space:nowrap}
 .acc-rolebox{min-width:130px;max-width:190px;height:32px}
+/* Download a start (1.0.34): the two ways as cards, the version below them */
+.md-startpick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.md-startrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.md-startrow .md-startfrom{width:auto;min-width:180px;max-width:320px;height:30px}
+@media (max-width:600px){.md-startpick{grid-template-columns:1fr}}
+/* A shipped module replaced: its original under your replacement, not used */
+.md-vrow.md-orig{opacity:.85;border-style:dashed}
+.md-vrow.md-orig .md-vrow-t b{color:var(--tx-dim)}
+.md-replaced{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
