@@ -46,6 +46,7 @@ def _when(ts):
 
 class AcmePushTarget(HttpTarget):
     kind = 'acme_push'
+    discovery = False       # nothing to find: its fields are the pairing itself
     title = 'An application of ours (acme push: otp, isemon, zigmon, acme)'
     vendor = 'acme'
     default_name = 'app'

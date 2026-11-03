@@ -44,6 +44,7 @@ def colons(fp):
 
 class ProxmoxBackupTarget(HttpTarget):
     kind = 'proxmox_backup'
+    discovery = False       # nothing to find: the sign-in only (node: per deployment)
     title = 'Proxmox Backup Server (API)'
     vendor = 'Proxmox'
     description = ('Uploads the certificate as the custom certificate of a Proxmox Backup '

@@ -69,6 +69,7 @@ def b64_lines(data):
 
 class CiscoAsaTarget(HttpTarget):
     kind = 'cisco_asa'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Cisco Secure Firewall ASA (HTTP interface)'
     vendor = 'Cisco'
     description = ('Imports the certificate into the ASA as PKCS#12 in a new trustpoint through '

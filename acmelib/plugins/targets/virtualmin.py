@@ -58,6 +58,7 @@ def fp_text(out):
 
 class VirtualminTarget(HttpTarget):
     kind = 'virtualmin'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Virtualmin (Remote API)'
     vendor = 'Virtualmin'
     description = ('Installs the certificate into Virtualmin virtual servers through the Remote '

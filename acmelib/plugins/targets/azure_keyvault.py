@@ -51,6 +51,7 @@ def kv_name(bundle, options):
 
 class AzureKeyVaultTarget(CloudTarget):
     kind = 'azure_keyvault'
+    discovery = False       # nothing to find: no call of acme lists the vaults
     title = 'Azure Key Vault'
     vendor = 'Microsoft'
     description = ('Imports the certificate as a new version in Azure Key Vault, where '

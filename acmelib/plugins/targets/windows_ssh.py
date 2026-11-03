@@ -31,6 +31,7 @@ def encoded(script):
 
 class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
     kind = 'windows_ssh'
+    discovery = False       # nothing to find: a server over SSH
     title = 'Windows server (OpenSSH + PowerShell)'
     vendor = 'Microsoft'
     description = ('Imports the certificate into the machine store, binds it to IIS sites, '

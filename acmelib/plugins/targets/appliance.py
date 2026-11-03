@@ -29,6 +29,7 @@ def _fp(v):
 
 class ApplianceTarget(Target):
     kind = 'appliance'
+    discovery = False       # nothing to find: this server: nothing to sign in to
     title = 'This acme server (its pages)'
     vendor = 'acme'
     description = ('The certificate becomes the one of acme\'s own pages - each node\'s and/or '

@@ -33,6 +33,7 @@ WORK = '/opt/zimbra/ssl/acme'
 
 class ZimbraTarget(SshMixin, Base):
     kind = 'zimbra'
+    discovery = False       # nothing to find: a server over SSH
     title = 'Zimbra Collaboration'
     vendor = 'Zimbra'
     description = ('Deploys the certificate as Zimbra\'s commercial certificate with zmcertmgr '

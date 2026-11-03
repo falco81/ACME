@@ -38,6 +38,7 @@ API = 'https://api.hetzner.cloud/v1'
 
 class HetznerLbTarget(CloudTarget):
     kind = 'hetzner_lb'
+    discovery = False       # nothing to find: its only field is the sign-in
     title = 'Hetzner Cloud Load Balancer'
     vendor = 'Hetzner'
     description = ('Uploads the certificate to a Hetzner Cloud project and puts it on the '

@@ -31,6 +31,7 @@ from acmelib.plugins.targets._common import (
 
 class NginxUnitTarget(SshMixin, Base):
     kind = 'nginx_unit'
+    discovery = False       # nothing to find: a server over SSH
     title = 'NGINX Unit'
     vendor = 'NGINX'
     description = ('Uploads the certificate bundle to NGINX Unit\'s control API over SSH, points '

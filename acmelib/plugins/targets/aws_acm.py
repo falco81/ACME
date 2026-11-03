@@ -49,6 +49,7 @@ def acm_key_type(bundle):
 
 class AwsAcmTarget(CloudTarget):
     kind = 'aws_acm'
+    discovery = False       # nothing to find: its fields are the sign-in and the region
     title = 'AWS Certificate Manager (ACM)'
     vendor = 'Amazon'
     description = ('Imports the certificate into ACM and re-imports each renewal into the same '

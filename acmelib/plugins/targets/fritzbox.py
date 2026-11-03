@@ -52,6 +52,7 @@ def md5_response(challenge, password):
 
 class FritzBoxTarget(HttpTarget):
     kind = 'fritzbox'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'AVM FRITZ!Box'
     vendor = 'AVM'
     description = ('Uploads the certificate of the FRITZ!Box\'s pages (also used for MyFRITZ! '

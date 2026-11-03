@@ -32,6 +32,7 @@ _SVC_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]*$')
 
 class DockerSwarmTarget(SshMixin, Base):
     kind = 'docker_swarm'
+    discovery = False       # nothing to find: a server over SSH
     title = 'Docker Swarm secrets'
     vendor = 'Docker'
     description = ('Makes the certificate and key Docker Swarm secrets under new names over SSH, '

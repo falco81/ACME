@@ -35,6 +35,7 @@ def b64(data):
 
 class BunnyTarget(CloudTarget):
     kind = 'bunny'
+    discovery = False       # nothing to find: its only field is the sign-in
     title = 'bunny.net CDN (pull zone hostnames)'
     vendor = 'bunny.net'
     description = ('Puts the certificate on the custom hostnames of a bunny.net pull zone '

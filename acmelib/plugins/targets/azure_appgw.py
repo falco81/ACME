@@ -56,7 +56,9 @@ import urllib.parse
 from acmelib.plugins.targets._common import (
     PluginError, field, lines, as_bool, as_int, label_of, object_name, name_prefix, ours, prune, text,
     verify_fields, keep_field, random_password, fp_of)
-from acmelib.plugins.targets._cloud import CloudTarget, cloud_fields, entra_token
+from acmelib.plugins.base import Plugin
+from acmelib.plugins.targets._cloud import (
+    CloudTarget, cloud_fields, entra_token, arm_list, arm_groups)
 
 API = '2026-03-01'
 ARM = {'public': 'https://management.azure.com',
@@ -169,6 +171,32 @@ class AzureAppGwTarget(CloudTarget):
                 opts.append([text(li.get('name')), '%s (%s, %s)' % (li.get('name'), host,
                                                                      cert or 'no certificate')])
         return {'options': opts, 'sets': {}, 'said': '%d listeners' % len(opts)}
+
+    # -- discovery (1.0.29): the form filled in from the subscription ------------------------
+    discover_keys = ['subscription_id', 'tenant_id', 'client_id', 'client_secret', 'cloud']
+
+    def discover_setup(self):
+        """Read-only: the application gateways of the subscription (GET /subscriptions/<s>/
+        providers/Microsoft.Network/applicationGateways) - the resource groups holding them
+        offered as the resource group."""
+        out = Plugin.discover_setup(self)
+        sub = text(self.c('subscription_id')).strip()
+        if not sub:
+            raise PluginError('set the Subscription ID first', retry=False)
+        gws = arm_list(self, '%s/subscriptions/%s/providers/Microsoft.Network/'
+                       'applicationGateways?api-version=%s' % (
+                           self.arm(), urllib.parse.quote(sub, safe=''), API),
+                       'listing the application gateways')
+        out['facts'].append(['Application gateways in the subscription', str(len(gws))])
+        groups = arm_groups(gws)
+        if groups:
+            self.offer(out, 'resource_group', [
+                [g, '%s (%s)' % (g, ', '.join(sorted(n for n in groups[g] if n)[:5]))]
+                for g in sorted(groups, key=str.lower)])
+        else:
+            out['notes'].append('the subscription has no application gateway this app '
+                                'registration can see')
+        return out
 
     # -- the work ---------------------------------------------------------------------------
     def deploy(self, bundle, options):

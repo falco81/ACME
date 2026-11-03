@@ -32,6 +32,7 @@ from acmelib.plugins.targets._common import (
 
 class KongTarget(HttpTarget):
     kind = 'kong'
+    discovery = False       # nothing to find: Kong lists no workspaces through the calls acme makes
     title = 'Kong Gateway'
     vendor = 'Kong'
     description = ('Adds the certificate through the Kong Admin API, points its SNIs at it '

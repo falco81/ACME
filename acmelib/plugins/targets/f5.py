@@ -14,10 +14,11 @@ from __future__ import annotations
 import re
 import urllib.parse
 
+from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
     http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, alt_of,
-    family_of, label_of)
+    family_of, label_of, text)
 
 CHUNK = 512 * 1024
 DOWNLOADS = '/var/config/rest/downloads'
@@ -94,6 +95,39 @@ class F5Target(HttpTarget):
             return 'signed in to %s, %s' % (self.c('host'), ver)
         finally:
             self.logout()
+
+    # -- discovery (1.0.29): the form filled in from the BIG-IP ----------------------------
+    discover_keys = ['host', 'port', 'user', 'password', 'login_provider', 'verify_tls']
+
+    def discover_setup(self):
+        """Read-only, signed in as test() is (the token deleted after): the version, and the
+        partitions that hold SSL certificates (GET sys/crypto/cert, each item's partition)
+        offered as the partition. The device group is not looked up - typed by hand."""
+        out = Plugin.discover_setup(self)
+        self.login()
+        try:
+            st, hd, d = self.req('GET', '/mgmt/tm/sys/version', what='reading the version')
+            try:
+                entry = list(d['entries'].values())[0]['nestedStats']['entries']
+                out['facts'].append(['BIG-IP', '%s %s' % (entry['Product']['description'],
+                                                          entry['Version']['description'])])
+            except (KeyError, IndexError, TypeError, AttributeError):
+                pass
+            st, hd, d = self.req('GET', '/mgmt/tm/sys/crypto/cert',
+                                 what='listing the certificates')
+            count = {}
+            for i in (d.get('items') if isinstance(d, dict) else None) or []:
+                part = text((i or {}).get('partition') if isinstance(i, dict) else '').strip()
+                if part:
+                    count[part] = count.get(part, 0) + 1
+            if count:
+                out['facts'].append(['Partitions with certificates', str(len(count))])
+                order = sorted(count, key=lambda p: (p != 'Common', p.lower()))
+                self.offer(out, 'partition', [[p, '%s (%d)' % (p, count[p])] for p in order],
+                           pick='Common' if 'Common' in count else None)
+        finally:
+            self.logout()
+        return out
 
     # -- pieces ---------------------------------------------------------------
     def upload(self, name, data):

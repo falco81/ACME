@@ -28,6 +28,7 @@ SSL = '/etc/vmware/ssl'
 
 class EsxiTarget(SshMixin, Base):
     kind = 'esxi'
+    discovery = False       # nothing to find: a server over SSH
     title = 'VMware ESXi host (SSH)'
     vendor = 'VMware'
     description = ('Writes the host certificate to /etc/vmware/ssl/rui.crt and rui.key over SSH '

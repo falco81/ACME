@@ -34,6 +34,7 @@ from acmelib.plugins.targets import _files as F
 
 class HaproxyTarget(SshMixin, Base):
     kind = 'haproxy'
+    discovery = False       # nothing to find: a server over SSH
     title = 'HAProxy (Runtime API, no reload)'
     vendor = 'HAProxy'
     description = ('Writes the PEM over SSH and swaps the certificate in the running HAProxy '

@@ -47,6 +47,7 @@ import copy
 import json
 import urllib.parse
 
+from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, as_int, text, object_name, name_prefix,
     ours, prune, http_fields, tls_fields, verify_fields, keep_field)
@@ -116,6 +117,7 @@ class CiscoFmcTarget(HttpTarget):
 
     token = None
     domain = None
+    signin_domain = ''
 
     # -- the session ------------------------------------------------------------------------
     def auth_headers(self):
@@ -136,9 +138,26 @@ class CiscoFmcTarget(HttpTarget):
         if not tok:
             raise PluginError('the FMC gave no token (X-auth-access-token)', retry=False)
         self.token = text(tok)
-        self.domain = text(self.c('domain_uuid')).strip() or text(hd.get('domain_uuid')).strip()
+        self.signin_domain = text(hd.get('domain_uuid')).strip()
+        self.domain = text(self.c('domain_uuid')).strip() or self.signin_domain
         if not self.domain:
             raise PluginError('the FMC gave no DOMAIN_UUID: set the Domain UUID', retry=False)
+
+    # -- discovery (1.0.29): the form filled in from the FMC --------------------------------
+    discover_keys = ['host', 'port', 'user', 'password', 'verify_tls']
+
+    def discover_setup(self):
+        """Read-only: the sign-in (generatetoken, as test()) answers with the DOMAIN_UUID of
+        the user - offered for the Domain UUID, empty (the same: the one of the sign-in)
+        first. The FMC's other domains are not listed here - another one is typed."""
+        out = Plugin.discover_setup(self)
+        self.login()
+        dom = self.signin_domain
+        if dom:
+            out['facts'].append(['Domain of the sign-in', dom])
+            self.offer(out, 'domain_uuid', [['', 'Empty: the domain the sign-in answers with'],
+                                            [dom, dom]], pick='')
+        return out
 
     def api(self, method, path, body=None, ok=None, what=None):
         self.login()

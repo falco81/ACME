@@ -71,6 +71,9 @@ class NutanixTarget(HttpTarget):
 
     _sleep = staticmethod(time.sleep)
 
+    # discovery (1.0.29): the clusters of Prism Central (the list of the form, cluster_pick)
+    discover_keys = ['host', 'port', 'user', 'password', 'api_version', 'verify_tls']
+
     def auth_headers(self):
         raw = '%s:%s' % (self.c('user') or '', self.c('password') or '')
         return {'Authorization': 'Basic ' + b64(raw)}

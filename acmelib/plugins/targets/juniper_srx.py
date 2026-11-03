@@ -112,6 +112,7 @@ def errors_of(raw):
 
 class JuniperSrxTarget(HttpTarget):
     kind = 'juniper_srx'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Juniper SRX (Junos REST API)'
     vendor = 'Juniper Networks'
     description = ('Loads the certificate into the Junos PKI of an SRX under a new id through the '

@@ -35,6 +35,7 @@ _PATH_RE = re.compile(r'^/[A-Za-z0-9._/-]*$')
 
 class TraefikTarget(SshMixin, Base):
     kind = 'traefik'
+    discovery = False       # nothing to find: a server over SSH
     title = 'Traefik Proxy (file provider)'
     vendor = 'Traefik Labs'
     description = ('Writes the certificate and a dynamic configuration file for Traefik\'s file '

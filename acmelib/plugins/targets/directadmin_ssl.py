@@ -72,6 +72,7 @@ def legacy_answer(raw):
 
 class DirectAdminSslTarget(HttpTarget):
     kind = 'directadmin_ssl'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'DirectAdmin (domain certificate)'
     vendor = 'DirectAdmin'
     description = ('Replaces the TLS certificate of a DirectAdmin domain through the new API '

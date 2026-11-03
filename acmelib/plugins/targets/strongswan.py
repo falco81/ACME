@@ -28,6 +28,7 @@ from acmelib.plugins.targets import _files as F
 
 class StrongswanTarget(SshMixin, Base):
     kind = 'strongswan'
+    discovery = False       # nothing to find: a server over SSH
     title = 'strongSwan (IPsec VPN)'
     vendor = 'strongSwan'
     description = ('Writes the certificate, intermediates and key where strongSwan reads them '

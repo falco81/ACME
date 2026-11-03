@@ -64,6 +64,7 @@ def packet(op, cmd, items):
 
 class PleskTarget(HttpTarget):
     kind = 'plesk'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Plesk (certificate repository)'
     vendor = 'Plesk'
     description = ('Installs the certificate into a Plesk certificate repository (of a '

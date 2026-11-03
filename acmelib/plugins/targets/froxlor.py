@@ -52,6 +52,7 @@ def fp_text(pem):
 
 class FroxlorTarget(HttpTarget):
     kind = 'froxlor'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'froxlor (API)'
     vendor = 'froxlor'
     description = ('Sets the certificate of froxlor domains through its API (Certificates.add / '

@@ -54,6 +54,7 @@ OK_CODES = ('200', '202', '216')
 
 class SophosTarget(HttpTarget):
     kind = 'sophos'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Sophos Firewall (SFOS / XG)'
     vendor = 'Sophos'
     description = ('Uploads the certificate through the Sophos Firewall XML API under a new '

@@ -53,6 +53,7 @@ from acmelib.plugins.targets._common import (
 
 class A10Target(HttpTarget):
     kind = 'a10'
+    discovery = False       # nothing to find: ACOS lists no partitions through the calls acme makes
     title = 'A10 Thunder (ACOS aXAPI)'
     vendor = 'A10 Networks'
     description = ('Imports the certificate, key and chain through aXAPI v3 under new names, '

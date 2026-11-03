@@ -35,6 +35,7 @@ from acmelib.plugins.targets._common import (
 
 class UnifiOsTarget(HttpTarget):
     kind = 'unifi_os'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'UniFi OS console (UDM, UCG, Cloud Key)'
     vendor = 'Ubiquiti'
     description = ('Adds the certificate through the UniFi OS console\'s certificate API, makes '

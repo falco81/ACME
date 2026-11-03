@@ -30,6 +30,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     PluginError, field, label_of, text, verify_fields)
+from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._cloud import CloudTarget, cloud_fields
 
 BASE = 'https://api.cloudflare.com/client/v4'
@@ -85,6 +86,32 @@ class CloudflareSslTarget(CloudTarget):
             raise PluginError('Cloudflare has no zone %s for this token' % z, retry=False)
         self._zone_id = res[0]['id']
         return self._zone_id
+
+    # -- discovery (1.0.29): the form filled in from the account -----------------------------
+    discover_keys = ['token']
+
+    def discover_setup(self):
+        """Read-only: the zones the token sees (GET /zones, page by page, 50 a page) offered
+        as the zone, by name, with their plan."""
+        out = Plugin.discover_setup(self)
+        zones = []
+        for page in range(1, 41):
+            st, hd, d = self.req('GET', '%s/zones?per_page=50&page=%d' % (BASE, page),
+                                 what='listing the zones')
+            d = d if isinstance(d, dict) else {}
+            zones += [z for z in d.get('result') or [] if isinstance(z, dict)]
+            pages = text((d.get('result_info') or {}).get('total_pages'))
+            if page >= (int(pages) if pages.isdigit() else 1) or not d.get('result'):
+                break
+        out['facts'].append(['Zones the token sees', str(len(zones))])
+        opts = []
+        for z in zones:
+            n = text(z.get('name')).strip()
+            if n:
+                plan = text((z.get('plan') or {}).get('name')).strip()
+                opts.append([n, '%s (%s)' % (n, plan) if plan else n])
+        self.offer(out, 'zone', sorted(opts))
+        return out
 
     def kv_key(self, bundle, options):
         return 'cloudflare-ssl:%s:%s' % (self.c('zone'), label_of(bundle, options))

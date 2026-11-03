@@ -76,6 +76,7 @@ def errcode(d):
 
 class FortiWebTarget(HttpTarget):
     kind = 'fortiweb'
+    discovery = False       # nothing to find: FortiWeb lists no VDOMs through the calls acme makes
     title = 'FortiWeb'
     vendor = 'Fortinet'
     description = ('Imports the certificate into FortiWeb as a local certificate, with its '

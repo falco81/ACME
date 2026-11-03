@@ -14,6 +14,7 @@ from acmelib.plugins.targets._common import (
 
 class ProxmoxTarget(HttpTarget):
     kind = 'proxmox'
+    discovery = False       # nothing to find: the sign-in only (nodes: per deployment)
     title = 'Proxmox VE (API)'
     vendor = 'Proxmox'
     description = ('Uploads the certificate as the custom certificate of the nodes\' web '
