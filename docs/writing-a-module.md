@@ -48,6 +48,11 @@ and set:
   `pem` field with `secret=True` (a private key) is kept the same way. Options:
   `required`, `default`, `placeholder`, `help`, `options` (select),
   `show_if` (`{'auth': ['password']}`), `advanced` (folded under *More*).
+  A `list` with `options_from` (`'tests'`, `'targets'`, `'cas'`…) is chosen from
+  what is defined: drawn as a table of the chosen ones (each taken off or moved
+  up by its own button) with an *Add* button under it offering the rest -
+  `add_words` names that button (`'Add a test'`); the module gets the names
+  chosen, in that order. Not `required`, it can be saved empty and filled later.
   `sshkey` is the SSH key acme signs in with, drawn as isemon's key card (Make a
   key, Use my own, Download it, Forget it, Try reaching it, How to set it up):
   give it `secret=True`; the module reads the private key from it as from any
