@@ -1,5 +1,13 @@
 [
   {
+    "name": "acme-1.0.34.tar.gz",
+    "version": "1.0.34",
+    "size": 4089797,
+    "sha256": "14f43ee415b22e9e3230d8a4288331c9477c464277401ae5b2c8d278ba12e66c",
+    "date": "2026-11-03T19:02:13Z",
+    "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-1.0.34.tar.gz"
+  },
+  {
     "name": "acme-1.0.33.tar.gz",
     "version": "1.0.33",
     "size": 4061890,
@@ -70,13 +78,5 @@
     "sha256": "5e2b11c5700ed49f9ee7259eedd285083203c383ad86ad08c4973054a5447a1e",
     "date": "2026-11-02T21:00:25Z",
     "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-1.0.25.tar.gz"
-  },
-  {
-    "name": "acme-1.0.24.tar.gz",
-    "version": "1.0.24",
-    "size": 3569615,
-    "sha256": "cee6140d6d4b864cdfb5cdc9c3e3544163d970f74bc6417670fd3423b990d0d5",
-    "date": "2026-11-02T20:11:03Z",
-    "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-1.0.24.tar.gz"
   }
 ]

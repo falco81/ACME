@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.34 - not released
+## 1.0.34 - 2026-11-03
 
 - /etc/acme/plugins: install.sh makes `checks/` too (tests of your own had no
   folder), and writes `README` (where modules come from, which one wins, how
