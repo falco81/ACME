@@ -753,7 +753,7 @@ class TestApi(unittest.TestCase):
                 'kind': 'gogetssl', 'config': {'user': 'reseller', 'api_password': 'APIPW'}}))
         finally:
             runtime.RunContext.http = old
-        self.assertTrue(got['ok'], got)
+        self.assertTrue(got['worked'], got)
         self.assertEqual(got['found']['sets']['contact_email'], 'admin@domain.tld')
         self.assertEqual(got['found']['choices']['order_id']['pick'], '')
         self.assertNotIn('APIPW', json.dumps(got))

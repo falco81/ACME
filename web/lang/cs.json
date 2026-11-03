@@ -67189,6 +67189,10 @@
   "pdsc29s_10": {
    "source": "CA: {0}",
    "text": "CA: {0}"
+  },
+  "pdsc29x_1": {
+   "source": "the orders could not be read: {0}",
+   "text": "objednávky se nepodařilo načíst: {0}"
   }
  },
  "rich": {

@@ -10,7 +10,7 @@ takes what was ticked, Save keeps it - and every field stays settable by hand.
     POST /api/sources/discover       {id | (kind), name, config}
     POST /api/validations/discover   the same for a validation
     POST /api/targets/discover       the same for a target
-    -> {ok, said, job_id, found: {sets, choices, facts, notes}}
+    -> {ok, worked, said, job_id, found: {sets, choices, facts, notes}}
 
 Read-only, as Try it and the lists (api_catalog): the module only reads, the
 settings given are used over the saved ones, a secret left empty or as its dots is
@@ -132,7 +132,10 @@ def _route(family, path):
     def _discover(h, s):
         b = h.body()
         A.kept_secrets_guard(h.store, family, b, s)
-        return discover(h.store, family, b, A.who(s))
+        got = discover(h.store, family, b, A.who(s))
+        # The request was answered either way: `worked` says whether the account told
+        # anything; `ok: false` would make the page show "HTTP 200" instead of the words.
+        return dict(got, ok=True, worked=bool(got.get('ok')))
     return _discover
 
 

@@ -340,7 +340,7 @@ class CloudflareTest(unittest.TestCase):
             got = E.ROUTES[('POST', '/api/targets/discover')](h)
         finally:
             runtime.RunContext.http = orig
-        self.assertTrue(got['ok'], got)
+        self.assertTrue(got['worked'], got)
         self.assertEqual([o[0] for o in got['found']['choices']['zone']['options']],
                          ['another.test', 'example.test'])
         self.assertNotIn('cf-token-x9', json.dumps(got))

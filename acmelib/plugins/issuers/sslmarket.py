@@ -1082,8 +1082,12 @@ class SslmarketIssuer(_Common, Issuer):
                                                   ', up to %s years' % p['max_years']
                                                   if p.get('max_years') else '')])
         self.offer(out, 'product', opts)
-        orders = api.orders()
-        out['facts'].append(['Orders', str(len(orders))])
+        try:
+            orders = api.orders()
+            out['facts'].append(['Orders', str(len(orders))])
+        except PluginError as e:
+            orders = []
+            out['notes'].append('the orders could not be read: %s' % e)
         live = []
         for o in orders:
             oid = str(o.get('order_id') or '').strip()

@@ -233,7 +233,7 @@ class TestApi(unittest.TestCase):
     def test_kept_token_used_nothing_saved(self):
         before = S.plugin_config('issuer', S.plugin_row(STORE, 'issuer', self.id))
         got = self.call('certadmin', {'id': self.id, 'config': {'token': DOTS}})
-        self.assertTrue(got['ok'], got)
+        self.assertTrue(got['worked'], got)
         self.assertEqual(got['found']['sets']['owner_city'], 'Brno')
         self.assertIn('product', got['found']['choices'])
         self.assertTrue(got['job_id'])
@@ -258,7 +258,8 @@ class TestApi(unittest.TestCase):
 
     def test_failure_said_in_words(self):
         got = self.call('fulladmin', {'kind': 'sslmarket', 'config': {'token': 'bad'}})
-        self.assertFalse(got['ok'])
+        self.assertTrue(got['ok'], 'answered')
+        self.assertFalse(got['worked'])
         self.assertIn('set by hand', got['said'])
 
 

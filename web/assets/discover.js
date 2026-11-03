@@ -111,7 +111,8 @@
     function draw(d) {
       var f = obj(d.found);
       clear(out);
-      said.className = 'said ' + (d.ok ? 'good' : 'bad');
+      var worked = d.worked !== undefined ? !!d.worked : !!d.ok;
+      said.className = 'said ' + (worked ? 'good' : 'bad');
       said.textContent = '';
       said.appendChild(el('span', '', String(d.said || '')));
       if (d.job_id) {
@@ -120,7 +121,7 @@
         st.onclick = function () { over(function () { jobPeek(d.job_id); }); };
         said.appendChild(st);
       }
-      if (!d.ok) {
+      if (!worked) {
         out.appendChild(el('p', 'muted small', 'Every field of the form can still be set by hand.'));
         return;
       }
