@@ -6,6 +6,19 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.27 - not released
 
+- **Five new DNS-01 validations**, each written only from the vendor's own
+  documentation (docs/validation.md names the files): cPanel (UAPI
+  DNS::parse_zone / DNS::mass_edit_zone with the zone's serial, only our record
+  removed by its line), Joker.com (DMAPI: the zone read, our line added or taken
+  away, every other line untouched), Netim (REST 1.0: the exact record deleted
+  by subdomain, type and value; asynchronous operations followed until done),
+  Huawei Cloud DNS (record sets, AK/SK signing) and DirectAdmin
+  (CMD_API_DNS_CONTROL, deleted by name and value, every change read back).
+  Their zone can be loaded as a list or typed; when the list cannot be read, it
+  is found by its SOA. What the documentation leaves open is listed as "Less
+  certain". BlueCat and Dynadot are left out for now (their deploy call / REST
+  DNS calls are not in their public documentation).
+
 ## 1.0.26 - 2026-11-02
 
 - **Check again checks again**, and says so: in *Add a certificate* it gave back
