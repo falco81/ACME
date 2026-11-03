@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.33 - not released
 
+- Settings → Modules: its icon in the rail; the pane as tall as the window, only
+  its list scrolls (there were two scroll bars); no lede said twice. A
+  module's window: its sections apart as in every other window.
+
 ## 1.0.32 - 2026-11-03
 
 - **Tests of what the servers serve**: Certificates → **Tests** defines

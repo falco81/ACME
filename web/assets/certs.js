@@ -7797,6 +7797,8 @@ function moduleDetail(fam, kind) {
   modal(FAM_WORDS[fam] + ' · ' + (p.title || kind), function (body) {
     var head = plugHead(p, fam);
     body.appendChild(head);
+    var grid = el('div', 'msects');
+    body.appendChild(grid);
     var sec = section('Versions', vers.length > 1 ? 'Each source, validation or target chooses the version it uses in its form; one that says none takes the default.' : 'One version: every one of them uses it. A version of your own is added with “Upload a version of your own”.', true);
     vers.forEach(function (v) {
       var card = el('div', 'md-vrow' + (v.origin === 'custom' ? (v.overrides ? ' over' : ' own') : ''));
@@ -7833,9 +7835,9 @@ function moduleDetail(fam, kind) {
       card.appendChild(right);
       sec._body.appendChild(card);
     });
-    body.appendChild(sec);
+    grid.appendChild(sec);
     if (d.may_upload) {
-      var mine = section('Make one of your own', 'A file that takes this module as it is - change what you need, then upload it. Download the source above to see how it works.');
+      var mine = section('Make one of your own', 'A file that takes this module as it is - change what you need, then upload it. Download the source above to see how it works.', true);
       var bar = el('div', 'btnrow');
       var t1 = cmdButton('A version of your own', 'add', 'small');
       t1.onclick = function () { saveText(kind + '_mine.py', moduleTemplate(fam, plugVersion(p), 'mine', 'My version', false), 'text/x-python'); };
@@ -7847,7 +7849,7 @@ function moduleDetail(fam, kind) {
       bar.appendChild(t2);
       bar.appendChild(t3);
       mine._body.appendChild(bar);
-      body.appendChild(mine);
+      grid.appendChild(mine);
     }
   }, [{words: 'Close', close: true}], 'large');
 }

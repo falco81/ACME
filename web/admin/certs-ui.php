@@ -237,7 +237,7 @@ function acme_certs_settings_nav(): void
     <div class="ctl-group">Certificates</div>
     <button type="button" data-pane="certs" data-icon="lock" title="When certificates are renewed, how often a failed one is tried again, and who is told when something goes wrong.">Renewal and notices</button>
     <button type="button" data-pane="dnssrv" data-icon="globe" title="acme's own DNS server for DNS-01: the zone it answers for, its NS names, where it listens, and the records in it.">DNS server</button>
-    <button type="button" data-pane="modules" data-icon="grid" class="ct-manage" title="The modules sources, validations, targets and tests are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.">Modules</button>
+    <button type="button" data-pane="modules" data-icon="list" data-cicon="module" class="ct-manage" title="The modules sources, validations, targets and tests are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.">Modules</button>
     <button type="button" data-pane="teams" data-icon="people" title="Who certificates belong to - teams and persons, their members from acme's accounts and the directory, what each may do - and the tags certificates and targets pick from.">Owners and teams</button>
 <?php
 }
@@ -279,19 +279,13 @@ function acme_certs_settings_panes(): void
       <p class="ctl-lede">What sources, validations, targets and tests are made of: the modules
         shipped with acme, your own, their versions and what is marked as tested - download one,
         upload one of your own.</p></div>
-  <div class="card full">
-    <h2><span class="right" id="md-said"></span></h2>
-    <p class="note">What sources, validations and targets are made of. Each comes shipped with acme,
-      or is one of your own - a file in the folder of modules on a node, or uploaded here; one of
-      your own with the kind of a shipped module overrides it, one with a version of its own adds
-      that version (an API version of a device, say), which each source, validation or target then
-      chooses in its form. Marks say what is tested and works - set here, or shipped with the
-      release. Uploaded modules are kept in the database: every backup and both nodes have them.</p>
+  <div class="card full md-card">
     <div class="md-sum" id="md-sum"></div>
     <div id="md-nodes"></div>
     <div class="btnrow filters">
       <div class="md-chips" id="md-fams"></div>
       <input type="search" id="md-q" placeholder="a name, a kind, a vendor…" style="flex:1;min-width:200px">
+      <span class="muted small" id="md-said"></span>
       <span class="spacer"></span>
       <button class="btn cmd primary ct-fulladmin" id="md-upload" data-icon="upload">Upload a module</button>
     </div>
