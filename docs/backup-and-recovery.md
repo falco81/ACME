@@ -41,6 +41,8 @@ the machine.
 | The link between the two databases: the cluster's authority (key sealed) and what each node wants | database | yes | with the copy; each node gives its PostgreSQL a certificate again by itself within ten minutes (1.0.104) |
 | PostgreSQL's certificate of each node, `/etc/pki/acme/ha-ca.pem`, `hostssl` lines in pg_hba.conf | the operating system | no - made from the database | by each node itself, through its root helper (1.0.104) |
 | Events | database | yes | with the copy |
+| Modules of your own: uploaded on the page Modules | database (`meta`, `module-file:…`); each node writes them into `/var/lib/acme/plugins-uploaded/` | yes | with the copy - every node writes them back by itself |
+| Modules of your own: files in `/etc/acme/plugins` | the disk of each node; their text kept in the database too (`custom-modules:<node>`) | yes (1.0.32), and in `plugins/` of a full backup | a full backup puts them back; from a copy: `acme --plugins-sync NODE` (root) |
 | **The key of the sealed secrets** | `/var/lib/acme/secrets.key` | beside each kept copy (`acme-….key`); **inside** every copy downloaded from the pages | with the copy, or by hand |
 | The machine's own file: which database it opens, its node name, its place in a cluster | `/etc/acme/config.json` | **to read only** (from 1.0.63; the database password left out) | written by `install.sh`, `acme --set`, `--ha-setup`, `--ha-join` |
 | nginx, php-fpm, keepalived, iptables files | `/etc/nginx/conf.d/acme.conf`, `/etc/sysconfig/iptables`, ... | no - made from the database | by `install.sh` and by acme itself |
