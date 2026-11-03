@@ -501,6 +501,10 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                   'detail': {'command': _cmd(ev.get('argv') or [])}}
             if ev.get('env'):
                 st['note'] = 'with the variables %s' % ', '.join(ev['env'])
+            st['detail']['conn'] = [['As', 'the acme account', ''],
+                                    ['In', ev.get('cwd') or 'a folder of its own, made for it', '' if ev.get('cwd') else 'dim'],
+                                    ['Its variables', ', '.join(ev.get('env') or []) or 'none of acme\'s', 'dim'],
+                                    ['A shell', 'none - the program and its words as they are', 'dim']]
         elif k == 'dns-ask':
             servers = [ev.get('server')]
             j = i + 1
@@ -518,6 +522,9 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                     '-p %s ' % port if int(port) != 53 else '', s, ev.get('name'),
                     ev.get('qtype')) for s in servers)},
                 'invented': True}
+            st['detail']['conn'] = [['Servers', ', '.join(str(x) for x in servers), ''],
+                                    ['Port', str(port), ''], ['Asks', '%s %s' % (ev.get('qtype'), ev.get('name')), ''],
+                                    ['Over', 'UDP, TCP when the answer is cut', 'dim']]
         elif k == 'dns-update':
             lines = ['server %s' % ev.get('server'), 'zone %s' % ev.get('zone')]
             for r in ev.get('records') or []:
@@ -589,6 +596,13 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                                                    else 'RSA') if ev.get('only') else '')}}
             if tries > 1:
                 st['note'] = 'tried up to %d times, a few seconds apart, until it is so' % tries
+            hh, _, pp = hp.rpartition(':')
+            st['detail']['conn'] = [['Address', hh, ''], ['Port', pp, ''],
+                                    ['SNI', ev.get('sni') or 'none', '' if ev.get('sni') else 'dim'],
+                                    ['Key asked for', fam or 'whichever the server picks', ''],
+                                    ['TLS at most', 'TLS 1.2 (to ask for the key type)' if fam else
+                                     'as the server and this machine agree', 'dim'],
+                                    ['Compared by', 'the SHA-256 fingerprint of the certificate sent', 'dim']]
         elif k == 'pages':
             st = {'kind': 'save', 'words': 'Puts it into acme\'s own pages ({0})'.replace(
                 '{0}', ev.get('where') or '')}
@@ -1162,12 +1176,12 @@ def _test_steps(cls, cfg, names, via=None):
     if via:
         steps.append({'kind': 'connect', 'words': 'From {0}, a connection to {1}:{2} (ssh -W)'
                       .replace('{0}', via).replace('{1}', host).replace('{2}', str(port)),
-                      'detail': {'pairs': pairs}})
+                      'detail': {'pairs': pairs}, 'debug': True})
     else:
         steps.append({'kind': 'connect', 'words': 'Connects to {0}:{1}'.replace(
             '{0}', host).replace('{1}', str(port)), 'note': 'the address set in the test' if
             cfg.get('host') else 'the certificate\'s first name: "Connect to" is empty',
-            'detail': {'pairs': pairs}})
+            'detail': {'pairs': pairs}, 'debug': True})
     try:
         mod = cls(cfg, None)
     except Exception:                                   # noqa: BLE001
@@ -1190,7 +1204,7 @@ def _test_steps(cls, cfg, names, via=None):
                 text.append('← waits for ' + str(t['wait']))
         st = {'kind': 'call', 'words': 'Speaks {0} first, then asks for TLS'.replace(
             '{0}', cls.protocol or cls.kind), 'note': cls.description or '',
-            'detail': {'text': '\n'.join(text)} if text else None}
+            'detail': {'text': '\n'.join(text)} if text else None, 'debug': True}
         if not text:
             # a module of your own that does not say it (1.0.37): said, not left blank
             st['note'] = ('this module does not say what it sends before TLS - a talk() of '
@@ -1220,9 +1234,15 @@ def _test_steps(cls, cfg, names, via=None):
         ['Key asked for', kw, 'words'],
         ['The chain', 'checked against this machine\'s CAs, and read whole without that when it '
          'is not trusted here', 'words']]
+    tls_bits = [x for x in (
+        ('at least ' + str(cfg['tls_min'])) if cfg.get('tls_min') else '',
+        ('at most ' + tmax) if tmax else '', ('ciphers ' + ciphers) if ciphers else '',
+        ('ALPN ' + str(cfg['alpn'])) if cfg.get('alpn') else '',
+        {'rsa': 'the RSA certificate asked for', 'ecdsa': 'the ECDSA certificate asked for',
+         'both': 'twice: once asking for RSA, once for ECDSA'}.get(want_key, '')) if x]
     steps.append({'kind': 'read', 'words': 'TLS handshake, the name {0} sent as SNI'.replace(
-        '{0}', '(none)' if sni == '-' else sni), 'detail': {'pairs': tls_pairs},
-        'note': 'twice: once asking for RSA, once for ECDSA' if want_key == 'both' else None})
+        '{0}', '(none)' if sni == '-' else sni), 'detail': {'pairs': tls_pairs}, 'debug': True,
+        'note': ', '.join(tls_bits) or 'TLS as the server and this machine agree; the chain read whole'})
     if str(cfg.get('http', '')).lower() in ('1', 'true', 'yes', 'on') and hasattr(mod, 'http_lines'):
         try:
             lines, method, path, hosth = mod.http_lines(sni if sni not in ('', '-') else host, port)
@@ -1245,6 +1265,7 @@ def _test_steps(cls, cfg, names, via=None):
                 'note': 'the status expected: %s%s' % (cfg.get('expect_status') or 'any', (
                     '; the answer holds "%s"' % cfg['body_contains']) if cfg.get('body_contains')
                     else ''),
+                'debug': True,
                 'detail': {'method': method, 'url': 'https://%s%s%s' % (
                     host, '' if port == 443 else ':%d' % port, path),
                     'headers': {h[0]: h[1] for h in hdrs},
@@ -1266,7 +1287,10 @@ def _test_steps(cls, cfg, names, via=None):
         if cfg.get('body_contains'):
             judge.append(['The answer holds', str(cfg['body_contains'])])
     steps.append({'kind': 'check', 'words': 'The certificate served compared with this one: '
-                  '{0}'.replace('{0}', want), 'detail': {'pairs': judge}})
+                  '{0}'.replace('{0}', want), 'detail': {'pairs': judge}, 'debug': True,
+                  'note': 'its fingerprint, the name %s among its names, the chain sent with it, '
+                  'how long it runs%s' % (cfg.get('check_name') or sni, '; it must be trusted here'
+                                          if trusted else '')})
     return steps
 
 

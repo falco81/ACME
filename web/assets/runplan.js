@@ -140,10 +140,10 @@
     /* the request as it goes on the wire (1.0.37): every header - the ones acme and
        Python add dimmed - and the body exactly as sent */
     /* how it is connected (1.0.37): address, TLS, SNI, the device's certificate, proxy */
-    if (d.conn && d.conn.length) box.appendChild(connRow(d.conn));
+    if (d.conn && d.conn.length) { var cr = connRow(d.conn); cr.classList.add('rp-dbg'); box.appendChild(cr); }
     var wire = d.wire && d.wire.headers ? d.wire : null;
     if (wire) {
-      var ws = el('div', 'rp-hdrs rp-wire');
+      var ws = el('div', 'rp-hdrs rp-wire rp-dbg');
       ws.appendChild(data('span', 'rp-hdr mono rp-wire-line', wire.line || ''));
       wire.headers.forEach(function (h) {
         var row = data('span', 'rp-hdr mono' + (h[2] ? ' auto' : ''));
@@ -155,7 +155,21 @@
       box.appendChild(ws);
       var raw = [wire.line].concat(wire.headers.map(function (h) { return h[0] + ': ' + h[1]; })).join('\n') +
                 '\n\n' + (wire.body === null || wire.body === undefined ? '' : String(wire.body));
-      line.appendChild(copyBtn(raw, tr('Copy the whole request')));
+      var cw = copyBtn(raw, tr('Copy the whole request'));
+      cw.classList.add('rp-dbg');
+      line.appendChild(cw);
+      /* debug off: the headers the module set, as before */
+      var mine = Object.keys(d.headers || {});
+      if (mine.length) {
+        var hp = el('div', 'rp-hdrs rp-nodbg');
+        mine.forEach(function (k) {
+          var h = data('span', 'rp-hdr mono');
+          h.appendChild(el('b', '', k + ':'));
+          h.appendChild(document.createTextNode(' ' + d.headers[k]));
+          hp.appendChild(h);
+        });
+        box.appendChild(hp);
+      }
       if (wire.body !== null && wire.body !== undefined && wire.body !== '') box.appendChild(codeBlock(pretty(d.body !== undefined && d.body !== null ? d.body : wire.body), 'rp-body', 'Body'));
       return box;
     }
@@ -251,7 +265,7 @@
     if (d.pairs && d.command) {
       var sw = el('div', 'rp-pairs');
       sw.appendChild(pairsTable(d.pairs));
-      var how = el('details', 'rp-raw');
+      var how = el('details', 'rp-raw rp-dbg');
       how.appendChild(el('summary', 'small muted', 'The ssh command, as it runs'));
       how.appendChild(codeBlock(d.command, 'rp-shell'));
       sw.appendChild(how);
@@ -259,7 +273,9 @@
     }
     if (d.conn && d.conn.length) {
       var wrapc = el('div', 'rp-withconn');
-      wrapc.appendChild(connRow(d.conn));
+      var crw = connRow(d.conn);
+      crw.classList.add('rp-dbg');
+      wrapc.appendChild(crw);
       var inner = detailOf({detail: Object.assign({}, d, {conn: null})});
       if (inner) wrapc.appendChild(inner);
       return wrapc;
@@ -323,7 +339,10 @@
     if (tags.firstChild) top.appendChild(tags);
     if (st.note) w.appendChild(el('div', 'rp-note', st.note));
     var det = detailOf(st);
-    if (det) w.appendChild(det);
+    if (det) {
+      if (st.debug) det.classList.add('rp-dbg');      /* a test's facts: debug details only */
+      w.appendChild(det);
+    }
     row.appendChild(w);
     return row;
   }
@@ -598,8 +617,27 @@
     clear(body);
     body.classList.add('rp-body');
     var page = el('div', 'rp-page');
+    /* Debug details (1.0.37): off - as it was; on - everything sent, as it is sent */
+    var dbgOn = false;
+    try { dbgOn = window.localStorage.getItem('acme.rp.debug') === '1'; } catch (e) { }
+    page.classList.toggle('rp-debug-off', !dbgOn);
     page.appendChild(hero(p));
-    page.appendChild(safeLine());
+    var sl = safeLine();
+    var sw = el('label', 'rp-dbgsw');
+    var cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = dbgOn;
+    var knob = el('span', 'rp-dbgsw-k');
+    sw.appendChild(cb);
+    sw.appendChild(knob);
+    sw.appendChild(el('span', '', 'Show debug details'));
+    explain(sw, 'Every request as it goes on the wire - all its headers, the body as sent - how each connection is made (TLS, SNI, the device\'s certificate, the proxy, time limits), the ssh command with its options, and what a test says before TLS. Secrets stay hidden.');
+    cb.onchange = function () {
+      page.classList.toggle('rp-debug-off', !cb.checked);
+      try { window.localStorage.setItem('acme.rp.debug', cb.checked ? '1' : '0'); } catch (e) { }
+    };
+    sl.appendChild(sw);
+    page.appendChild(sl);
     page.appendChild(legend());
     var cols = el('div', 'rp-cols');
     cols.appendChild(nav(p, body));

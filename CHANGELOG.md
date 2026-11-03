@@ -6,6 +6,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.37 - not released
 
+- What happens: *Show debug details* (off by default, kept in the browser). Off,
+  the page is as it was - the headers a module sets, the steps of a test in
+  short; on, everything below: each request as it goes on the wire, how each
+  connection is made, the ssh command with its options, a test's every fact.
+  The other steps' facts too: the TLS handshake after a deployment (its
+  address, SNI, the key asked for, how it is compared), a DNS question (its
+  servers, port, transport), a command run here (as whom, in which folder, its
+  variables, no shell).
+
 - What happens shows each HTTP request as it goes on the wire: the request line,
   every header in the order sent - the ones acme and Python add (Accept-Encoding,
   Content-Length, Host, Content-Type, User-Agent, Connection) dimmed - and the

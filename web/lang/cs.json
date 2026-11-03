@@ -50923,6 +50923,46 @@
   "rp37_37": {
    "source": "Worked out from a recording with stand-ins for the certificate and the secrets: the real length differs.",
    "text": "Spočteno z nahrávky se zástupnými hodnotami certifikátu a tajných údajů: skutečná délka se liší."
+  },
+  "rp37_38": {
+   "source": "Show debug details",
+   "text": "Ladicí podrobnosti"
+  },
+  "rp37_39": {
+   "source": "Every request as it goes on the wire - all its headers, the body as sent - how each connection is made (TLS, SNI, the device's certificate, the proxy, time limits), the ssh command with its options, and what a test says before TLS. Secrets stay hidden.",
+   "text": "Každý požadavek tak, jak jde po drátě – všechny hlavičky, tělo, jak se posílá – jak se každé spojení naváže (TLS, SNI, certifikát zařízení, proxy, časové limity), příkaz ssh se všemi volbami a co test řekne před TLS. Tajné údaje zůstávají skryté."
+  },
+  "rp37_40": {
+   "source": "the acme account",
+   "text": "účet acme"
+  },
+  "rp37_41": {
+   "source": "In",
+   "text": "Ve složce"
+  },
+  "rp37_42": {
+   "source": "a folder of its own, made for it",
+   "text": "vlastní složka, vytvořená pro něj"
+  },
+  "rp37_43": {
+   "source": "Its variables",
+   "text": "Jeho proměnné"
+  },
+  "rp37_44": {
+   "source": "none of acme's",
+   "text": "žádné od acme"
+  },
+  "rp37_45": {
+   "source": "A shell",
+   "text": "Shell"
+  },
+  "rp37_46": {
+   "source": "none - the program and its words as they are",
+   "text": "žádný – program a jeho argumenty tak, jak jsou"
+  },
+  "rp37_47": {
+   "source": "TLS 1.2 (to ask for the key type)",
+   "text": "TLS 1.2 (aby šlo požádat o typ klíče)"
   }
  },
  "patterns": {

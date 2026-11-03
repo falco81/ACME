@@ -282,3 +282,14 @@
 /* the wire: auto headers dimmed */
 .rp-wire .rp-hdr.auto{opacity:.55}
 .rp-wire .rp-wire-line{color:var(--tx);font-weight:600}
+/* Show debug details (1.0.37): off - the page as it was */
+.rp-debug-off .rp-dbg{display:none !important}
+.rp-page:not(.rp-debug-off) .rp-nodbg{display:none !important}
+.rp-safe{flex-wrap:wrap}
+.rp-dbgsw{margin-left:auto;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--tx);white-space:nowrap;user-select:none}
+.rp-dbgsw input{position:absolute;opacity:0;width:0;height:0}
+.rp-dbgsw-k{position:relative;width:34px;height:19px;border-radius:999px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);transition:background .15s}
+.rp-dbgsw-k::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:var(--tx-mut);transition:transform .15s,background .15s}
+.rp-dbgsw input:checked + .rp-dbgsw-k{background:rgba(88,166,255,.25);box-shadow:inset 0 0 0 1px rgba(88,166,255,.6)}
+.rp-dbgsw input:checked + .rp-dbgsw-k::after{transform:translateX(15px);background:var(--info)}
+.rp-dbgsw input:focus-visible + .rp-dbgsw-k{outline:2px solid var(--info);outline-offset:2px}
