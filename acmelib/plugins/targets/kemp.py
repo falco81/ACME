@@ -22,16 +22,30 @@ Sources:
     https://docs.progress.com/bundle/loadmaster-technical-note-restful-api-programmer-guide-ga/page/Introduction.html
     https://docs.progress.com/bundle/loadmaster-interface-description-restful-api-ga/page/Certificates-and-Security.html
     https://github.com/acmesh-official/acme.sh/blob/master/deploy/kemplm.sh
+Checked against api-docs/kemp/notes.md and its two Postman collections
+(loadmaster_restful_apiv1/apiv2.postman_collection.json): "modvs ... CertFile"
+takes "the entire list of certificates required for the VS", so the list the
+virtual service has ("showvs") is kept and only acme's older one in it is
+swapped; "the connection drops if more than 30 calls are performed in less
+than 3 seconds", so acme makes at most 25 in any 3 seconds.
 Uncertain: "addintermediate" and the answer of "listcert" ("cert": [{"name"}])
-are taken from the APIv1 descriptions written as JSON.
+are taken from the APIv1 descriptions written as JSON; the collection's
+examples show the "CertFile" of showvs as a hash-like value - when the list
+holds anything that is not a certificate's name, acme cannot keep it and sets
+its own alone (as before), saying so.
 """
 from __future__ import annotations
 
 import base64
+import time
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
-    http_fields, tls_fields, verify_fields, keep_field, text, chain_list, chain_id)
+    http_fields, tls_fields, verify_fields, keep_field, text, chain_list, chain_id, ours)
+
+# "The connection drops if more than 30 calls are performed in less than 3
+# seconds over all API interfaces." - acme stays below it.
+RATE_CALLS, RATE_WINDOW = 25, 3.0
 
 
 class KempTarget(HttpTarget):
@@ -55,7 +69,22 @@ class KempTarget(HttpTarget):
         keep_field(1),
     ] + verify_fields()
 
+    _clock = staticmethod(time.monotonic)
+    _sleep = staticmethod(time.sleep)
+
+    def throttle(self):
+        """At most RATE_CALLS calls in any RATE_WINDOW seconds."""
+        calls = self.__dict__.setdefault('_recent', [])
+        now = self._clock()
+        calls[:] = [t for t in calls if now - t < RATE_WINDOW]
+        if len(calls) >= RATE_CALLS:
+            self._sleep(max(0.0, RATE_WINDOW - (now - calls[0])) + 0.05)
+            now = self._clock()
+            calls[:] = [t for t in calls if now - t < RATE_WINDOW]
+        calls.append(now)
+
     def cmd(self, cmd, what=None, ok_fail=False, **params):
+        self.throttle()
         body = {'cmd': cmd}
         if (self.c('auth') or 'apikey') == 'apikey':
             body['apikey'] = self.c('apikey') or ''
@@ -122,13 +151,47 @@ class KempTarget(HttpTarget):
                 else vs.rsplit(':', 1) + ['tcp']
             if len(parts) != 3 or not parts[1].isdigit():
                 raise PluginError('"%s" is not address:port[:tcp]' % vs, retry=False)
-            self.cmd('modvs', what='pointing %s at %s' % (vs, name), vs=parts[0].strip('[]'),
-                     port=parts[1], prot=parts[2] or 'tcp', CertFile=name)
-            self.ctx.step('%s uses %s' % (vs, name), 'ok')
+            addr, port, prot = parts[0].strip('[]'), parts[1], parts[2] or 'tcp'
+            now = self.vs_certs(addr, port, prot)
+            want = self.cert_list(now, name, prefix, set(have) | {name}, vs)
+            if now == want:
+                self.ctx.step('%s uses %s already' % (vs, name))
+                continue
+            self.cmd('modvs', what='pointing %s at %s' % (vs, name), vs=addr,
+                     port=port, prot=prot, CertFile=' '.join(want))
+            self.ctx.step('%s uses %s' % (vs, ' '.join(want)), 'ok')
             did.append(vs)
         self.cleanup(prefix, name, self.keep(options))
         self.remember(bundle, options)
         return ', '.join(did) or 'already %s' % name
+
+    def vs_certs(self, addr, port, prot):
+        """The certificates a virtual service has now (showvs CertFile); [] when unknown."""
+        d = self.cmd('showvs', ok_fail=True, vs=addr, port=port, prot=prot)
+        raw = (d or {}).get('CertFile')
+        if isinstance(raw, list):
+            return [text(x) for x in raw if text(x).strip()]
+        return text(raw or '').split()
+
+    def cert_list(self, now, name, prefix, known, vs):
+        """The whole CertFile list to send: the virtual service's own, acme's older one
+        swapped for `name` in its place (first when it had none of acme's)."""
+        others = [c for c in now if c != name and not ours(c, prefix)]
+        unknown = [c for c in others if c not in known]
+        if unknown:
+            self.ctx.step('%s lists certificates acme cannot name (%s): it gets %s alone - '
+                          'add the others to it again by hand' % (vs, ' '.join(unknown), name),
+                          'warn')
+            return [name]
+        out, placed = [], False
+        for c in now:
+            if c == name or ours(c, prefix):
+                if not placed:
+                    out.append(name)
+                    placed = True
+            else:
+                out.append(c)
+        return out if placed else [name] + out
 
     def cleanup(self, prefix, current, keep):
         if keep < 0:

@@ -3,15 +3,23 @@
 FortiGate (FortiOS REST API with an API token): the certificate imported
 under a dated name, then used for the admin GUI, SSL VPN, SSL/SSH inspection
 profiles and virtual IPs as asked; older acme ones deleted.
+
+Checked against api-docs/fortigate/notes.md (Fortinet's Ansible modules and
+admin guide): a virtual IP's ssl-certificate is a string up to FortiOS 7.4.1
+and a list of {"name"} from 7.4.2, an SSL/SSH profile's server-cert a list
+from 7.0.0 - the form is taken from the version the FortiGate says
+(monitor/system/status), the other one tried when the version is not known
+or the first is refused.
 """
 from __future__ import annotations
 
 import base64
+import re
 import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
-    http_fields, tls_fields, verify_fields, keep_field, chain_list, random_password)
+    http_fields, tls_fields, verify_fields, keep_field, chain_list, random_password, text)
 
 
 def b64(data):
@@ -77,6 +85,25 @@ class FortiGateTarget(HttpTarget):
         return 'signed in to %s (%s), FortiOS %s' % (
             r.get('hostname', self.c('host')), r.get('model_name', d.get('serial', '?')),
             d.get('version', '?'))
+
+    def fos_version(self, vdom):
+        """(major, minor, patch) of FortiOS, None when it cannot be read."""
+        if '_fos' not in self.__dict__:
+            ver = None
+            try:
+                st, d = self.api('GET', '/api/v2/monitor/system/status', vdom=vdom)
+                m = re.match(r'^v?(\d+)\.(\d+)\.(\d+)', text(d.get('version')))
+                if m:
+                    ver = tuple(int(x) for x in m.groups())
+            except PluginError as e:
+                self.ctx.debug('the FortiOS version cannot be read: %s' % e)
+            self._fos = ver
+        return self._fos
+
+    def list_first(self, since, vdom, default):
+        """Whether a reference field is a [{name}] list on this FortiOS (since `since`)."""
+        ver = self.fos_version(vdom)
+        return default if ver is None else ver >= since
 
     def exists(self, name, vdom):
         st, d = self.api('GET', '/api/v2/cmdb/vpn.certificate/local/%s'
@@ -145,12 +172,14 @@ class FortiGateTarget(HttpTarget):
             did.append('SSL VPN')
         for p in lines(options.get('ssl_ssh_profiles')):
             self.set_ref('/api/v2/cmdb/firewall/ssl-ssh-profile/%s' % urllib.parse.quote(p, safe=''),
-                         'server-cert', name, vdom, True, 'setting profile %s' % p)
+                         'server-cert', name, vdom, self.list_first((7, 0, 0), vdom, True),
+                         'setting profile %s' % p)
             self.ctx.step('profile %s uses %s' % (p, name), 'ok')
             did.append('profile %s' % p)
         for v in lines(options.get('vips')):
             self.set_ref('/api/v2/cmdb/firewall/vip/%s' % urllib.parse.quote(v, safe=''),
-                         'ssl-certificate', name, vdom, False, 'setting VIP %s' % v)
+                         'ssl-certificate', name, vdom, self.list_first((7, 4, 2), vdom, False),
+                         'setting VIP %s' % v)
             self.ctx.step('VIP %s uses %s' % (v, name), 'ok')
             did.append('VIP %s' % v)
         self.cleanup(prefix, name, vdom, self.keep(options))

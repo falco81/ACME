@@ -3,6 +3,17 @@
 pfSense over SSH: a PHP script run with pfSense's own functions imports the
 certificate into the certificate manager, points the web GUI at it and
 deletes older acme ones.
+
+Checked against api-docs/pfsense/notes.md: pfSense CE has no official REST API
+(the pfSense-pkg-RESTAPI package is not Netgate's), so SSH and pfSense's own
+PHP functions stay. The documents' GUI steps: a certificate is edited in place
+("The Certificate Data, which may need to be replaced if the certificate was
+renewed") - Force on a name there already now does that, its refid kept,
+instead of removing it and importing it anew; "To remove a certificate, first
+it must be removed from active use" - older ones are kept when pfSense's
+cert_in_use() says something still uses them (OpenVPN, IPsec, the captive
+portal, packages), not only the web GUI. Less certain: cert_import() and
+cert_in_use() are pfSense's code, not documented functions.
 """
 from __future__ import annotations
 
@@ -34,10 +45,19 @@ $set = function ($p, $v) { global $config;
 $certs = $get('cert', array());
 if (!is_array($certs)) { $certs = array(); }
 $ref = null;
-foreach ($certs as $i => $c) {
-    if (($c['descr'] ?? '') === $descr) { if ($force) { unset($certs[$i]); } else { $ref = $c['refid']; } }
-}
 $changed = false;
+foreach ($certs as $i => $c) {
+    if (($c['descr'] ?? '') === $descr && $ref === null) {
+        $ref = $c['refid'];
+        if ($force) {
+            /* edited in place, as System > Certificates > Edit does: its refid (and every
+               service pointing at it) stays */
+            cert_import($certs[$i], $crt, $key); $changed = true;
+            echo "REPLACED $ref\n";
+            if ($get('system/webgui/ssl-certref', '') === $ref) { echo "GUIUSES\n"; }
+        }
+    }
+}
 if ($ref === null) {
     $new = array('refid' => uniqid(), 'descr' => $descr);
     cert_import($new, $crt, $key);
@@ -57,6 +77,9 @@ if ($keep >= 0) {
     krsort($mine);
     foreach (array_slice($mine, $keep, null, true) as $d => $i) {
         if ($certs[$i]['refid'] === $guiref) { echo "INUSE $d\n"; continue; }
+        /* "To remove a certificate, first it must be removed from active use" - OpenVPN,
+           IPsec, the captive portal, packages: pfSense's own check, where it has one */
+        if (function_exists('cert_in_use') && cert_in_use($certs[$i]['refid'])) { echo "INUSE $d\n"; continue; }
         unset($certs[$i]); $changed = true; echo "REMOVED $d\n";
     }
 }
@@ -113,7 +136,10 @@ class PfSenseTarget(SshMixin, Base):
                 if line.startswith('IMPORTED'):
                     did.append('imported %s' % name)
                     self.ctx.step('imported %s' % name, 'ok')
-                elif line == 'GUI':
+                elif line.startswith('REPLACED'):
+                    did.append('replaced %s in place' % name)
+                    self.ctx.step('replaced %s in place' % name, 'ok')
+                elif line in ('GUI', 'GUIUSES'):
                     did.append('web GUI')
                 elif line.startswith('REMOVED '):
                     self.ctx.step('deleted the old %s' % line[8:])

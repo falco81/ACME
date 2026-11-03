@@ -28,6 +28,17 @@ Sources (A10's official Ansible collection, made from the aXAPI schema):
     https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/modules/a10_slb_template_client_ssl_certificate.py
     https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/modules/a10_write_memory.py
     https://github.com/a10networks/a10-acos-axapi/blob/master/plugins/modules/a10_pki_delete.py
+
+Checked against api-docs/a10/notes.md and the aXAPI schemas of ACOS 5.2.1 and
+7.0.3 there (slb-template-client-ssl, slb-template-client-ssl-certificate,
+file-ssl-cert, file-ssl-key, pki-delete, write-memory): a template's
+certificate-list is a list keyed by "cert", so a POST of the new entry adds
+it beside the older one - which acme then takes out (DELETE
+.../client-ssl/<t>/certificate/<older>, only acme's own; a refusal is said,
+not an error), so the older files can be deleted.
+Less certain: the DELETE of one entry follows the schema's element URI and
+the general Delete Object of aXAPI - no example of it was found; A10's forum
+says an entry still in use cannot be removed from a template.
 """
 from __future__ import annotations
 
@@ -36,7 +47,8 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
-    http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, text, multipart)
+    http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, text, multipart,
+    ours)
 
 
 class A10Target(HttpTarget):
@@ -157,6 +169,7 @@ class A10Target(HttpTarget):
                           % urllib.parse.quote(t, safe=''), {'certificate': cert},
                           what='pointing the template %s at %s' % (t, name))
                 self.ctx.step('the client-SSL template %s uses %s' % (t, name), 'ok')
+                self.drop_older(t, prefix, name)
                 did.append(t)
             if as_bool(self.opt(options, 'write_memory', True), True):
                 self.call('POST', '/axapi/v3/write/memory', {'memory': {}},
@@ -167,6 +180,32 @@ class A10Target(HttpTarget):
             return ', '.join(did) or 'already %s' % name
         finally:
             self.logout()
+
+    def drop_older(self, tpl, prefix, current):
+        """The template's certificate-list is a list keyed by "cert" (the schema's
+        /slb/template/client-ssl/{name}/certificate/{cert}): the POST above adds the
+        new entry beside the older one, which is taken out here (DELETE of that entry)
+        - only entries acme made for this certificate; a refusal is only said."""
+        q = urllib.parse.quote(tpl, safe='')
+        try:
+            st, d = self.call('GET', '/axapi/v3/slb/template/client-ssl/%s' % q,
+                              what='reading the template %s' % tpl)
+        except PluginError as e:
+            self.ctx.step('the template %s cannot be read: %s' % (tpl, e), 'warn')
+            return
+        entries = ((d.get('client-ssl') or {}).get('certificate-list') or [])
+        for e in entries:
+            old = text((e or {}).get('cert')) if isinstance(e, dict) else ''
+            if not old or old == current or not ours(old, prefix):
+                continue
+            try:
+                self.call('DELETE', '/axapi/v3/slb/template/client-ssl/%s/certificate/%s'
+                          % (q, urllib.parse.quote(old, safe='')),
+                          what='taking %s out of the template %s' % (old, tpl))
+                self.ctx.step('took the older %s out of the template %s' % (old, tpl))
+            except PluginError as err:
+                self.ctx.step('the older %s stays in the template %s: %s' % (old, tpl, err),
+                              'warn')
 
     def cleanup(self, prefix, current, keep):
         if keep < 0:

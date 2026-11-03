@@ -3,6 +3,17 @@
 MikroTik RouterOS: the files put on the router over SSH (SCP/SFTP), imported
 and bound to services through the REST API (RouterOS 7) or the CLI over SSH
 (RouterOS 6, or no REST); the old certificates removed.
+
+Checked against api-docs/mikrotik/notes.md (RouterOS manual, CLI reference
+7.24-7.26, changelogs): a file + /certificate/import (the certificate, then
+its key), services by the certificate's name under a new name each renewal;
+/ip/service's certificate "applies to www-ssl, api-ssl and reverse-proxy"
+(reverse-proxy from 7.22, so it may be named here too); the OpenVPN server is
+a menu of records in 7.26 - its set command first, each record changed when
+that is refused. Less certain: the REST shapes are the manual's general
+mapping (POST runs a command, PATCH changes a record), not examples of these
+menus; whether import takes a certificate under a name already there is not
+documented, so the names stay dated.
 """
 from __future__ import annotations
 
@@ -13,7 +24,7 @@ from acmelib.plugins.targets._common import (
     name_prefix, prune, tls_fields, verify_fields, keep_field,
     norm_fp, fp_of, text, put_scp)
 
-IP_SERVICES = ('www-ssl', 'api-ssl')
+IP_SERVICES = ('www-ssl', 'api-ssl', 'reverse-proxy')     # reverse-proxy: RouterOS 7.22+
 SINGLETONS = {'sstp': '/interface/sstp-server/server', 'ovpn': '/interface/ovpn-server/server'}
 
 
@@ -49,7 +60,7 @@ class MikroTikTarget(SshMixin, HttpTarget):
     ] + tls_fields()
     deploy_fields = [
         field('services', 'Use it for', 'list', default='www-ssl\napi-ssl',
-              help='one a line: www-ssl, api-ssl, sstp, ovpn'),
+              help='one a line: www-ssl, api-ssl, reverse-proxy (RouterOS 7.22+), sstp, ovpn'),
         keep_field(1),
     ] + verify_fields()
 
@@ -170,8 +181,7 @@ class MikroTikTarget(SshMixin, HttpTarget):
                         self.rest('PATCH', '/ip/service/%s' % cur['.id'],
                                   {'certificate': name}, what='binding %s' % svc)
                 else:
-                    self.rest('POST', SINGLETONS[svc] + '/set', {'certificate': name},
-                              what='binding %s' % svc)
+                    self.bind_server(svc, name)
             except PluginError as e:
                 if svc != 'www-ssl' or 'cannot be reached' not in str(e):
                     raise
@@ -195,6 +205,26 @@ class MikroTikTarget(SshMixin, HttpTarget):
                 self.ctx.step('removed the old %s' % old)
         self.remember(bundle, options)
         return ', '.join(did)
+
+    def bind_server(self, svc, name):
+        """SSTP / OpenVPN server: its settings' set command (POST .../set); on a
+        RouterOS where the OpenVPN server is a menu of records (7.26 lists it as a
+        Directory), each record is changed (PATCH) when set is refused."""
+        try:
+            self.rest('POST', SINGLETONS[svc] + '/set', {'certificate': name},
+                      what='binding %s' % svc)
+            return
+        except PluginError as e:
+            first = e
+        recs = self.rest('GET', SINGLETONS[svc], ok=range(200, 300), what='reading %s' % svc)
+        recs = [r for r in (recs if isinstance(recs, list) else []) if isinstance(r, dict)
+                and r.get('.id')]
+        if not recs:
+            raise first
+        for r in recs:
+            if r.get('certificate') != name:
+                self.rest('PATCH', '%s/%s' % (SINGLETONS[svc], r['.id']), {'certificate': name},
+                          what='binding %s %s' % (svc, r.get('name') or r['.id']))
 
     # -- RouterOS 6, CLI over SSH -------------------------------------------------
     def _names(self, s, prefix):

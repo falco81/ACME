@@ -2,6 +2,17 @@
 """
 OPNsense: the certificate imported through its API (System → Trust), the
 intermediates as CAs; the web GUI pointed at it over SSH when asked.
+
+Checked against api-docs/opnsense/notes.md and the models trust-Cert.xml /
+trust-Ca.xml: /api/trust/cert/add with "action": "import" (one certificate
+in crt_payload, the intermediates as CAs first); /api/trust/cert/set/<uuid>
+replaces one in place, its refid kept - with "action": "import" sent, or
+OPNsense "reissues" it with its own CA; a certificate in use cannot be
+deleted ("Item in use by"). So Force on a name there already replaces it in
+place (it deleted and added it before, which fails for one in use), and
+"Replace in place" puts each renewal into the older acme certificate, for
+services pointed at it by hand (the web GUI's certificate is not in the API:
+set over SSH, as before).
 """
 from __future__ import annotations
 
@@ -11,7 +22,7 @@ import urllib.parse
 from acmelib.plugins.targets._common import (
     HttpTarget, SshMixin, PluginError, field, as_bool, object_name, name_prefix, prune,
     http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, ssh_fields,
-    ssh_conn, text)
+    ssh_conn, text, ours)
 
 GUI_PHP = r'''<?php
 require_once("config.inc");
@@ -43,6 +54,10 @@ class OPNsenseTarget(SshMixin, HttpTarget):
     deploy_fields = [
         field('webgui', 'Web GUI certificate', 'bool', default=False,
               help='needs the SSH sign-in of the target (root)'),
+        field('in_place', 'Replace in place', 'bool', default=False, advanced=True,
+              help='the older certificate acme put there gets the new one (trust/cert/set), '
+                   'so the services you pointed at it in OPNsense keep it; they read it '
+                   'again when restarted'),
         keep_field(2),
     ] + verify_fields()
 
@@ -81,26 +96,39 @@ class OPNsenseTarget(SshMixin, HttpTarget):
                     'action': 'existing', 'descr': ca, 'crt_payload': pem}},
                     what='adding the CA %s' % ca)
                 self.ctx.step('added the intermediate %s' % ca)
+        replaced = False
         if name not in have or as_bool(options.get('force')):
-            if name in have:
-                self.req('POST', '/api/trust/cert/del/%s' % have[name]['uuid'], {},
-                         what='replacing %s' % name)
-            st, hd, d = self.req('POST', '/api/trust/cert/add', {'cert': {
-                'action': 'import', 'descr': name,
-                'crt_payload': text(bundle.as_format('cert-pem')),
-                'prv_payload': text(bundle.as_format('key-pem'))}}, what='importing %s' % name)
+            cert = {'action': 'import', 'descr': name,
+                    'crt_payload': text(bundle.as_format('cert-pem')),
+                    'prv_payload': text(bundle.as_format('key-pem'))}
+            # set/<uuid> with "action": "import" replaces it in place (its refid, and so
+            # every service pointing at it, stays) - the one of this name (Force), or
+            # with "Replace in place" the newest older one acme put there
+            older = sorted((n for n in have if ours(n, prefix) and n != name), reverse=True)
+            row = have.get(name) or (have[older[0]] if older and as_bool(
+                options.get('in_place')) else None)
+            if row:
+                st, hd, d = self.req('POST', '/api/trust/cert/set/%s' % row['uuid'],
+                                     {'cert': cert}, what='replacing %s' % row.get('descr'))
+                how = 'replaced %s in place' % name if row.get('descr') == name else \
+                    'replaced %s in place, now %s' % (row.get('descr'), name)
+                replaced = True
+            else:
+                st, hd, d = self.req('POST', '/api/trust/cert/add', {'cert': cert},
+                                     what='importing %s' % name)
+                how = 'imported %s' % name
             if isinstance(d, dict) and d.get('result') not in (None, 'saved'):
                 raise PluginError('OPNsense did not take the certificate: %s'
                                   % (d.get('validations') or d), detail=str(d), retry=False)
-            self.ctx.step('imported %s' % name, 'ok')
-            did.append('imported %s' % name)
+            self.ctx.step(how, 'ok')
+            did.append(how)
         if as_bool(options.get('webgui')):
-            did.append(self.webgui(name))
+            did.append(self.webgui(name, restart=replaced))
         self.cleanup(prefix, name, self.keep(options))
         self.remember(bundle, options)
         return ', '.join(did) or 'already %s' % name
 
-    def webgui(self, name):
+    def webgui(self, name, restart=False):
         if not self.c('ssh_user'):
             raise PluginError('the web GUI is set over SSH: fill in the SSH sign-in of the '
                               'target', retry=False)
@@ -111,7 +139,8 @@ class OPNsenseTarget(SshMixin, HttpTarget):
             if rc != 0 or not (out.startswith('CHANGED') or out.startswith('SAME')):
                 raise PluginError('setting the web GUI certificate failed: %s'
                                   % (out.strip() or text(err).strip())[-200:])
-            if out.startswith('CHANGED'):
+            if out.startswith('CHANGED') or restart:
+                # a certificate replaced in place is read again only on a restart
                 s.run('configctl webgui restart', timeout=120, check=False)
         self.ctx.step('the web GUI uses %s' % name, 'ok')
         return 'web GUI'

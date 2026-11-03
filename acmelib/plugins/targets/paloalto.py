@@ -3,6 +3,13 @@
 Palo Alto Networks PAN-OS over the XML API: the key pair imported (PKCS#12)
 under a dated name, the intermediates as certificates, SSL/TLS service
 profiles pointed at it, older ones deleted, committed and the job waited for.
+
+Checked against api-docs/paloalto/notes.md (PAN-OS XML API pages, Ansible
+panos_import, pango): import type=import category=keypair format=pkcs12 with a
+passphrase; a commit is a job (show jobs until FIN); a partial commit of one
+administrator's changes is sent with action=partial, as the Commit page
+shows. Panorama (import into a template with target-tpl, commit-all to the
+firewalls) is not done here: point acme at each firewall.
 """
 from __future__ import annotations
 
@@ -178,12 +185,15 @@ class PaloAltoTarget(HttpTarget):
                 self.ctx.step('the old %s stays (still used?): %s' % (old, e), 'warn')
 
     def commit(self, how, wait):
+        params = {'type': 'commit'}
         if how == 'admin' and (self.c('auth') == 'password') and self.c('user'):
-            cmd = ('<commit><partial><admin><member>%s</member></admin></partial></commit>'
-                   % escape(self.c('user')))
+            # "type=commit&action=partial&cmd=<commit><partial><admin><member>..."
+            params['action'] = 'partial'
+            params['cmd'] = ('<commit><partial><admin><member>%s</member></admin></partial>'
+                             '</commit>' % escape(self.c('user')))
         else:
-            cmd = '<commit></commit>'
-        root = self.call({'type': 'commit', 'cmd': cmd}, what='committing')
+            params['cmd'] = '<commit></commit>'
+        root = self.call(params, what='committing')
         job = root.findtext('.//job')
         if not job:
             self.ctx.step('nothing to commit')

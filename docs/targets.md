@@ -566,6 +566,20 @@ the entry of acme's (or `default`), the twin in one of its own (`acme-rsa` /
 one certificate of each kind: take away an entry of the twin's kind that is
 not acme's.
 
+**Checked** against `api-docs/f5/notes.md` (F5's Ansible collections, SDK,
+clouddocs labs, bug pages): confirmed - token sign-in, the chunked upload,
+`sys/crypto` `install` with `from-local-file` *outside* any transaction (bug
+468505: "tmsh crypto commands will fail when executed in tmsh batch mode",
+seen on v13 inside REST transactions), a new dated object pointed at in
+`certKeyChain` (the document's "option 2"), `sys config save`. Not changed:
+the in-place swap of the notes (PATCH of `sys/file/ssl-key` and `ssl-cert`
+in one transaction) - the dated objects work on every version and need no
+transaction. **Less certain**: bug 535122 (14.0+) says objects are named
+exactly as given and "you must always specify the correct extension"; acme's
+names have none (cert and key share one name in their own collections),
+which BIG-IP 14+ takes as given - whether 13.x adds `.crt`/`.key` by itself
+to such a name is not said.
+
 
 ## `netscaler` - NetScaler / Citrix ADC
 
@@ -592,6 +606,16 @@ RSA keys; EC keys always go as PKCS#8 (NetScaler 12.1 and later).
 
 **Example**: certkey `www`, vservers `vs_www_ssl` and `vs_portal sni`.
 
+**Checked** against `api-docs/netscaler/notes.md` (NITRO 14.1 reference,
+NetScaler's Ansible collection): confirmed, nothing changed - `sslcertkey?
+action=update` with `nodomaincheck` keeps the certkey and its bindings;
+`systemfile` has no update, so the files go under new dated names (an old
+file of the same name is deleted first); `link` for the intermediates;
+`sslvserver_sslcertkey_binding` with `PUT` (the reference's method; the
+general guide shows `POST`); `nsconfig?action=save`. **Less certain**: the
+error a domain mismatch gives without `nodomaincheck`, and whether
+`systemfile` reaches the HA secondary by itself.
+
 ## `mikrotik` - MikroTik RouterOS
 
 - **REST (RouterOS 7)**: the fullchain and key are put on the router over
@@ -611,6 +635,18 @@ certificate* or turn *Check the device's certificate* off for that first run.
 
 **Example**: services `www-ssl`, `api-ssl`, `sstp`; verify `router.example.com:443`.
 
+**Checked** against `api-docs/mikrotik/notes.md` (RouterOS manual, CLI
+reference 7.24-7.26, changelogs): confirmed - a file, `/certificate/import`
+of the certificate and then its key, a new name each renewal and the
+services switched (the manual's own steps). Changed: `reverse-proxy` may be
+listed (its certificate is in `/ip/service` - "Applies to www-ssl, api-ssl
+and reverse-proxy", RouterOS 7.22+); the OpenVPN server is a menu of records
+in 7.26, so when its `set` is refused each record gets the certificate
+(`PATCH`). **Less certain**: the REST shapes are the manual's general mapping,
+not examples of these menus; whether `import` replaces a certificate of the
+same name (7.15 "allow replacing certificate with internal import") is not
+explained - acme keeps new names.
+
 ## `fortigate` - FortiGate
 
 FortiOS REST API with an API token (`Authorization: Bearer`):
@@ -622,7 +658,10 @@ FortiOS REST API with an API token (`Authorization: Bearer`):
 2. imports the intermediates as CA certificates (an existing one is skipped);
 3. as asked: `system global admin-server-cert`, `vpn ssl settings servercert`,
    `firewall ssl-ssh-profile <name> server-cert` and `firewall vip <name>
-   ssl-certificate` (both shapes FortiOS versions use are tried);
+   ssl-certificate` (the shape by the version the FortiGate says: a VIP's is a
+   string up to 7.4.1 and a list of `{"name"}` from 7.4.2, a profile's a list
+   from 7.0; the other shape is tried when the version is unknown or the first
+   is refused);
 4. deletes older acme certificates beyond *keep* (one still referenced stays).
 
 `vdom` (target, or per deployment) is sent as `?vdom=`.
@@ -635,6 +674,16 @@ acme servers' addresses. For `admin-server-cert` the profile needs
 
 **Example**: admin GUI on, SSL VPN on, VIPs `web-https`, verify
 `vpn.example.com:443` and `fw.example.com:8443`.
+
+**Checked** against `api-docs/fortigate/notes.md` (admin guide 7.4.1,
+Fortinet's Ansible and Terraform docs, KB articles): confirmed - the import
+body, CA import apart, a new name + switch + delete (an existing name is not
+overwritten). Changed: the VIP / profile shape is picked by version
+(`monitor/system/status`) - VIPs are lists from 7.4.2. Not done: `user
+setting auth-cert` (captive portal) and `server-cert-mode replace` of an
+inspection profile (set it once yourself). **Less certain**: base64 of the
+whole PEM (Terraform) or of DER (KB 134662) - acme sends PKCS#12, or the
+whole PEM; whether a REST change needs a save under `cfg-save manual`.
 
 ## `paloalto` - Palo Alto Networks (PAN-OS)
 
@@ -658,6 +707,17 @@ and *Operational requests*; on the web side *Device → Certificate Management*.
 **Example**: profiles `gp-portal-profile`, `mgmt-ssl`; commit acme's own;
 verify `gp.example.com:443`.
 
+**Checked** against `api-docs/paloalto/notes.md` (PAN-OS XML API pages,
+Ansible `panos_import`, pango, Terraform): confirmed - `category=keypair`
+`format=pkcs12` with a passphrase, intermediates as certificates, the
+profile's `certificate`, delete, the commit **job** polled until `FIN`.
+Changed: the partial commit is sent with `action=partial`, as the Commit
+page shows it. Not done: **Panorama** (import into a template with
+`target-tpl`, commit on Panorama, then `commit-all` to the firewalls) - point
+a target at each firewall. **Less certain**: re-importing under the same
+name replaces in place (Terraform does it) - acme keeps dated names; the
+`FIN`/`OK` values (the page's example shows only `ACT`/`PEND`).
+
 ## `opnsense` - OPNsense
 
 Through the API (key + secret, Basic auth): the intermediates are added as
@@ -671,6 +731,22 @@ of the target, as root) and runs `configctl webgui restart`.
 Manager* (and *System: Trust* on newer releases); root over SSH for the web
 GUI. OPNsense 24.7 or later (the trust API).
 
+**Checked** against `api-docs/opnsense/notes.md` and the models
+`trust-Cert.xml` / `trust-Ca.xml` (OPNsense's code): confirmed - `cert/add`
+with `action: import`, one certificate in `crt_payload` (a full chain is
+refused), the intermediates as CAs first, a certificate in use cannot be
+deleted ("Item in use by"), the web GUI's certificate is not in the API.
+Changed: `cert/set/<uuid>` replaces a certificate **in place** (its refid,
+and so every service pointing at it, stays) - always with `"action":
+"import"`, or OPNsense reissues it with its own CA. *Force* on a name that
+is there now replaces it so (before: deleted and added again, which fails
+for one in use). New *Replace in place* (off by default, as before): each
+renewal goes into the older acme certificate, for services you pointed at it
+in OPNsense (HAProxy, captive portal, OpenVPN...); they read it again when
+they are restarted, and with *Web GUI certificate* the web GUI is restarted.
+**Less certain**: the bodies are built from OPNsense's code, not quoted
+examples.
+
 ## `pfsense` - pfSense
 
 Over SSH as root (or `admin`): a PHP script using pfSense's own
@@ -681,6 +757,19 @@ uses, and `write_config()` - one configuration revision per renewal.
 
 **Rights**: SSH enabled (*System → Advanced → Secure Shell*), key sign-in
 for root/admin.
+
+**Checked** against `api-docs/pfsense/notes.md`: pfSense CE has **no
+official REST API** (pfSense-pkg-RESTAPI is a community package; Netgate
+Nexus on Plus 25.07+ publishes no endpoints), so SSH + PHP stays. Changed,
+after the documented GUI steps: *Force* on a name there already edits it in
+place ("The Certificate Data, which may need to be replaced if the
+certificate was renewed") - its refid stays, the web GUI is restarted when
+it uses it - instead of removing it and importing a new one; older ones are
+kept while pfSense's `cert_in_use()` says anything uses them (OpenVPN,
+IPsec, the captive portal, packages - "To remove a certificate, first it
+must be removed from active use"), not only the web GUI. **Less certain**:
+`cert_import()` / `cert_in_use()` are pfSense's code, not documented
+functions (`cert_in_use` is used only where it exists).
 
 ## `proxmox` - Proxmox VE
 
@@ -695,6 +784,17 @@ fingerprint. The API token: `Authorization: PVEAPIToken=user@realm!id=secret`.
 **Example**: token `acme@pve!deploy`, nodes empty, verify `pve1:8006`, `pve2:8006`.
 (The `ssh` preset *Proxmox VE* does the same over SSH.)
 
+**Checked** against `api-docs/proxmox/notes.md` and
+`pve_apidoc_certificates.json`: confirmed, nothing changed - `certificates/
+custom` with `certificates`, `key`, `force=1` ("Overwrite existing custom or
+ACME certificate files"), `restart=1`, one call per node (no cluster-wide
+call), `certificates/info` → `pveproxy-ssl.pem` and its fingerprint for
+"unchanged". **Mind**: the same files hold Proxmox's **own ACME**
+certificate - a node with ACME domains set (`pvenode config set --acme`)
+renews over acme's; switch one of them off. **Less certain**: that clash is
+the notes' reading of the shared files, not a sentence of the documents.
+Proxmox Backup Server (`PBSAPIToken`, port 8007) is not this target.
+
 ## `synology` - Synology DSM
 
 Signs in through `SYNO.API.Auth` (session `Certificate`), imports with
@@ -705,6 +805,15 @@ stays the default.
 
 **Rights**: a user in the *administrators* group without 2-step verification
 (make one only for acme).
+
+**Checked** against `api-docs/synology/notes.md`: only the sign-in is
+documented by Synology (DSM Login Web API Guide: `SYNO.API.Auth` version 6,
+`format=sid`, `enable_syno_token`) - confirmed. The certificate calls
+(`SYNO.Core.Certificate.CRT list`, `SYNO.Core.Certificate import` with `id`,
+`desc`, `as_default`) are known only from acme.sh's hook (**unofficial**) -
+nothing changed, as they work. **Less certain**: acme.sh also sends the
+SynoToken as a `SynoToken=` parameter (acme sends the `X-SYNO-TOKEN` header
+only); 2-step verification (`device_id`) is not supported.
 
 ## `kubernetes` - Kubernetes TLS secret
 
@@ -804,6 +913,17 @@ them on a re-import).
 `Owner=it`. Source: <https://docs.aws.amazon.com/acm/latest/APIReference/API_ImportCertificate.html>,
 <https://docs.aws.amazon.com/acm/latest/userguide/import-reimport.html>.
 
+**Checked** against `api-docs/aws_acm/notes.md` and `service-2.json`:
+confirmed - re-import into the same ARN keeps the services' associations,
+tags only on the first import, the blobs base64 of the PEM, the chain
+without the leaf. Changed: "**The key type and size cannot be changed**" on
+a re-import - a certificate of another key type than the ARN's
+(`KeyAlgorithm` of `DescribeCertificate`, read with *Force* too) is refused
+before `ImportCertificate`, saying what uses the old one (`InUseBy`): keep
+the key type, or import it as a new one (another ARN, or delete the old one
+in ACM first) and point the listeners at it. **Less certain**: whether tags
+survive a re-import (not said); how soon ELB/CloudFront take it.
+
 ## `azure_keyvault` - Azure Key Vault
 
 Imports the key and full chain (PEM, `application/x-pem-file`) as a **new
@@ -823,6 +943,16 @@ Get, List, Import*. Azure China and US Government are under *Cloud*.
 **Example**: vault `kv-firma`, name `www-example-com`. Source:
 <https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/import-certificate/import-certificate>.
 
+**Checked** against `api-docs/azure_keyvault/notes.md` and `certificates.json`
+(2026-04-01): confirmed - import as a new version under one name, a PKCS#8
+key in the PEM, `exportable: true`, `x5t` for "unchanged". Changed:
+Application Gateway "only supports certificates in Personal Information
+Exchange (PFX) format", so *Kept in the vault as* **PKCS#12** imports a PFX
+(base64 `value`, `pwd`, `application/x-pkcs12`, 3DES) - for Application
+Gateway; PEM stays the default (as before). **Less certain**: which PKCS#12
+encryptions the vault takes (3DES is sent); API version 7.4 is kept (the
+newest spec is 2026-04-01).
+
 ## `gcp_certmanager` - Google Cloud Certificate Manager
 
 Makes a **self-managed certificate** (`POST
@@ -841,20 +971,39 @@ Source: <https://cloud.google.com/certificate-manager/docs/reference/certificate
 **Uncertain**: the vendor page says an update is taken by every load
 balancer using the certificate; acme does not check each one.
 
+**Checked** against `api-docs/gcp_certmanager/notes.md` and
+`certificatemanager-v1-discovery.json`: confirmed - create with
+`certificateId`, `PATCH ?updateMask=selfManaged` in place, the operation
+waited for, a PKCS#8 key. Changed: Google asks to "make sure that the SANs
+in the new certificate exactly match the SANs in the existing certificate" -
+when `sanDnsnames` differ, acme still updates it and warns (what the API does
+then is not said). Not done: classic Compute `sslCertificates` (immutable: a
+new one + `setSslCertificates`). **Less certain**: the behaviour of a PATCH
+with other names.
+
 ## `cloudflare_ssl` - Cloudflare custom certificate
 
 Uploads the certificate as a **custom certificate** of a zone (`POST
 /zones/<id>/custom_certificates`, `bundle_method` force / ubiquitous /
-optimal, `sni_custom` or `legacy_custom`) and on each renewal replaces it in
-place (`PATCH .../custom_certificates/<id>`: same id, swapped on Cloudflare's
-edge without a gap). The id is remembered; a certificate acme does not know
-yet is found by its names (exactly the same hosts).
+optimal, `sni_custom` or `legacy_custom`) and on each renewal replaces it
+(`PATCH .../custom_certificates/<id>`, swapped on Cloudflare's edge without a
+gap). For `sni_custom` the PATCH "will result in a **new resource id** being
+returned, and the previous one being deleted": acme keeps the id of the
+answer for the next renewal. A certificate acme does not know yet is found
+by its names (exactly the same hosts).
 
 **Rights**: an API token with *Zone → SSL and Certificates → Edit* (and *Zone
 → Zone → Read* to find the zone by name). Custom certificates need a
 Business or Enterprise zone, or Advanced Certificate Manager.
 
 Source: <https://developers.cloudflare.com/api/resources/custom_certificates/methods/create/>.
+
+**Checked** against `api-docs/cloudflare_ssl/notes.md` and
+`cloudflare-ssl-extract.json` (Cloudflare's OpenAPI): confirmed - the new id
+of a PATCH was already kept (a test now shows it); `sni_custom` is the
+default (the API's own default is `legacy_custom`); PATCH has no `type`.
+Changed: only this text (it said "same id"). **Less certain**: whether a
+`legacy_custom` PATCH keeps its id (only `sni_custom` is said).
 
 ## `vcenter` - VMware vCenter Server
 
@@ -875,6 +1024,16 @@ Source: <https://developer.broadcom.com/xapis/vsphere-automation-api/latest/vcen
 **Uncertain**: whether `cert` should hold the leaf alone (sent so, as the
 SDK sample does) or the leaf with its intermediates.
 
+**Checked** against `api-docs/vcenter/notes.md` (vSphere Automation API 9.1.1,
+the SDK sample): confirmed - session, trusted root chains, `PUT .../tls`
+with `cert`, `key`, `root_cert`, services restarted by vCenter. Changed: the
+PUT answers **400 AlreadyExists** "if the specified certificate thumbprint is
+the same as the existing TLS certificate thumbprint" - taken as "served
+already" (with *Force* too), not as a failure. **Less certain**: whether
+`root_cert` may hold the intermediates (the reference says "Root CA", the
+SDK "the root certificate and the intermediate root certificates"); the
+"base64" of `cert_chain` (PEM text is sent).
+
 ## `esxi` - VMware ESXi host
 
 Over SSH: `/etc/vmware/ssl/rui.crt` (full chain) and `rui.key` written
@@ -889,6 +1048,12 @@ by vCenter: set `vpxd.certmgmt.mode` to `custom` first. Choose an RSA key for
 ESXi before 8.0.
 
 Source: <https://knowledge.broadcom.com/external/article?legacyId=2113926>.
+
+**Checked** against `api-docs/vcenter/notes.md` (its ESXi part): the
+documents have only the SOAP `HostCertificateManager` (an own key only from
+8.0.3: `ProvisionServerPrivateKey`, `InstallServerCertificate`,
+`NotifyAffectedServices`); the SSH way here is not in them - nothing
+changed.
 
 ## `redfish` - server management controllers (iDRAC, iLO, XCC, BMC)
 
@@ -910,6 +1075,24 @@ AMI MegaRAC (ASUS, Lenovo, Supermicro), "should" for iDRAC9 5.x+ and iLO 5
 2.42+; HPE iLO mostly wants its own CSR and older iDRACs `racadm
 sslkeyupload`. Use an RSA 2048 key.
 
+**Checked** against `api-docs/redfish/notes.md` and the DMTF schemas there
+(`CertificateService.v1_2_2`, `CertificateCollection`, `Certificate.v1_11_0`,
+DMTF Tacklebox): confirmed - the key put before the certificate in
+`CertificateString` ("the client shall provide the private key as part of
+the string"), `PEMchain`/`PEM`. Changed: the action goes to the `target` the
+CertificateService gives for `#CertificateService.ReplaceCertificate` (the
+usual path when it says none); an **empty** HTTPS certificate collection
+("insertable") gets a `POST` of the certificate (before: a replace of a
+made-up `.../Certificates/1`); a service listing its actions without
+ReplaceCertificate - **HPE iLO 6** has only GenerateCSR and its OEM
+`HpeHttpsCert` imports a certificate only for its own CSR - is said in
+words. Not done: Dell's own way for iDRAC (OEM `UploadSSLKey` +
+`ImportSSLCertificate`, FW 6.00.02+), which Dell documents with a reset
+("Until the iDRAC is reset, the old certificate will remain active" - set
+*Restart the controller* for iDRAC). Lenovo XCC2 takes `PEM` only.
+**Less certain**: whether a controller takes the key inside the string (each
+vendor's own; XCC documents no key import).
+
 ## `sophos` - Sophos Firewall (SFOS / XG)
 
 XML API (`https://<fw>:4444/webconsole/APIController`, multipart `reqxml` +
@@ -928,13 +1111,33 @@ Source: <https://docs.sophos.com/nsg/sophos-firewall/21.0/api/index.html>.
 examples) and that the WAF rule's certificate is found as `<Certificate>`
 anywhere in the rule (SFOS 18-21).
 
+**Checked** against `api-docs/sophos/notes.md` (XML API reference SFOS 22.0,
+admin help 21.5) and `sophos-firewall-config-api-certificates.subset.openapi.json`
+(the REST API, rebuilt from Sophos's pages): confirmed - `UploadCertificate`
+in a multipart request, the file matched by its file name, no update of an
+uploaded certificate (a new name, the references switched, the old removed;
+504-510 "referred by another entity"). Changed: `<Get><Certificate/>`
+answers "in a **.tar file**" (the certificates, their keys and
+`Entities.xml`) - acme reads the names from its `Entities.xml` (an XML
+answer is still read as before); a WAF rule's certificate is
+`HTTPBasedPolicy > HTTPSCertificate`, taken first (`<Certificate>` as before
+when the rule has none). Not done: the admin/user portal
+(`WebAdminSettings`), SSL VPN and hotspot certificates, the new REST API.
+**Less certain**: where `Entities.xml` lies in the tar and that it lists
+`<Certificate><Name>`.
+
 ## `kemp` - Kemp / Progress LoadMaster
 
 REST API in its JSON form (`POST /accessv2`, LoadMaster 7.2.50+; API key, or
 `apiuser`/`apipass`): `addcert` (full chain + key, base64) under a dated
 name, `addintermediate` for the chain (one already there is fine), `modvs
 … CertFile=` for each listed virtual service (`address:port[:tcp]`),
-`delcert` for older acme ones beyond *keep*.
+`delcert` for older acme ones beyond *keep*. `CertFile` "must be the entire
+list of certificates required for the VS": acme reads the virtual service
+(`showvs`) and sends its list with acme's older certificate swapped for the
+new one (the new one first when it had none of acme's). At most 25 calls go
+in any 3 seconds ("The connection drops if more than 30 calls are performed
+in less than 3 seconds").
 
 **Rights**: *System Configuration → Remote Access → Enable API Interface*; an
 API key or a user with *Certificate Creation* and *Virtual Services*.
@@ -942,6 +1145,19 @@ API key or a user with *Certificate Creation* and *Virtual Services*.
 Source: <https://docs.progress.com/bundle/loadmaster-technical-note-restful-api-programmer-guide-ga/page/Introduction.html>.
 **Uncertain**: `addintermediate` and the shape of `listcert`'s answer are
 taken from the APIv1 descriptions.
+
+**Checked** against `api-docs/kemp/notes.md` and the two Postman collections
+(`loadmaster_restful_apiv1/apiv2.postman_collection.json`): confirmed - APIv2
+JSON, `addcert` with certificate + key in one PEM (`replace=1` on *Force* of
+a name there), `delcert` refused while a VS uses it. Changed: the `CertFile`
+list of each VS is kept (before: acme's certificate alone, which dropped the
+VS's other certificates), and the 30-calls-in-3-seconds limit. Not done:
+replacing in place under one name (`addcert replace=1` - "The certificate is
+replaced and updated on the LoadMaster and Virtual Services"); dated names
+stay. **Less certain**: the collection's examples show `CertFile` of `showvs`
+as a hash-like value - when the list holds anything that is not a
+certificate's name, acme cannot keep it, sets its own alone (as before) and
+says so; no "save" command exists (changes apply at once).
 
 ## `cisco_ise` - Cisco ISE
 
@@ -961,6 +1177,21 @@ Source: <https://developer.cisco.com/docs/identity-services-engine/latest/certif
 **Uncertain**: the import goes to the node acme speaks to - set *Address*
 and *Node hostname* to the same node, one target per node.
 
+**Checked** against `api-docs/cisco_ise/notes.md` and
+`ise-openapi-certificates.yaml`: confirmed - the body of `SystemCert`, the
+chain first into Trusted Certificates ("Trusted certificates are managed on
+the primary PAN, and are automatically replicated"), EAP and RADIUS DTLS
+exclusive, the Admin role restarting services. Now documented: the import
+**goes to the node the request is sent to** ("To import a certificate on a
+secondary node, execute this RESTApi directly on a secondary node") - so
+*Address* is that node and *Node hostname* its name; one target per node.
+ISE "cannot import more than one certificate with the same private key"
+(it replaces the one there) and wants a new key each time - do not renew
+such a certificate with its old key. Nothing changed in the calls. **Less
+certain**: whether `password` is needed for an unencrypted key (acme
+encrypts it); an API to schedule the restarts after an Admin certificate
+on the primary PAN (not found).
+
 ## `haproxy` - HAProxy (Runtime API, no reload)
 
 Over SSH: the PEM (key + full chain) written to *Certificate file*, then
@@ -977,6 +1208,16 @@ its serial.
 HAProxy 2.2+.
 
 Source: <https://docs.haproxy.org/2.8/management.html#9.3-set%20ssl%20cert>.
+
+**Checked** against `api-docs/haproxy/notes.md` (management.txt, haproxy.com
+Runtime API reference) and `dataplane_spec-v3.4.6.yaml`: confirmed, nothing
+changed - `set ssl cert` + `commit ssl cert` (`new ssl cert` and `add ssl
+crt-list` for one HAProxy does not know), the file written to disk first
+(the Runtime API "changes take effect in the memory ... not stored on
+disk"), the PEM without empty lines (acme's PEMs have none). Not used: the
+**Data Plane API** (`PUT /v3/services/haproxy/storage/ssl_certificates/
+<name>` replaces the file and tries the same runtime swap, else a reload) -
+a different way in, for a later target.
 
 ## `traefik` - Traefik Proxy (file provider)
 
@@ -1044,6 +1285,20 @@ for older acme ones beyond *keep* (one in use stays).
 Source: <https://api.truenas.com/v25.04/api_methods_certificate.create.html>.
 **Uncertain**: TrueNAS 26 changes some of `midclt`'s output; acme reads the
 last line as JSON.
+
+**Checked** against `api-docs/truenas/notes.md` (API docs v25.10.5,
+truenas/api_client): the REST API "was deprecated in TrueNAS 25.04 and is
+removed in TrueNAS 27"; acme does not use it - `midclt` calls the same
+JSON-RPC methods through the middleware on the machine. Confirmed, nothing
+changed: `certificate.create` (`CERTIFICATE_CREATE_IMPORTED`, a job),
+`certificate.update` changes only the name/metadata (so a new certificate
+each renewal), `system.general.update ui_certificate` + `ui_restart` ("UI
+configuration is not applied automatically"), `ftp.update
+ssltls_certificate`, `certificate.delete` only after the switch ("Certificate
+is being used by following service(s)"). Not done: the WebSocket API from
+outside (`wss://<host>/api/current`, `auth.login_ex` with an API key) - SSH
+stays. **Less certain**: the chain after the leaf in `certificate` (not said
+outright).
 
 ## `docker_swarm` - Docker Swarm secrets
 
@@ -1319,6 +1574,22 @@ Sources (A10's official Ansible collection, generated from the aXAPI schema):
 `file-list[].file`) is taken from the module's `oper` description; ACOS 4.1
 and later (the `certificate` object of a client-SSL template).
 
+**Checked** against `api-docs/a10/notes.md` and the aXAPI JSON schemas of
+ACOS 5.2.1 and 7.0.3 there (`slb-template-client-ssl`,
+`slb-template-client-ssl-certificate`, `file-ssl-cert`, `file-ssl-key`,
+`pki-delete`, `write-memory`): confirmed - sign-in, the multipart `json` +
+`file` upload (`file-handle` = the name), `pki/delete`, `write/memory`,
+dated names (re-uploading a name is not taken by a running template,
+A10's forum says). Changed: a template's `certificate-list` is a list
+**keyed by `cert`** (`/slb/template/client-ssl/{name}/certificate/{cert}`),
+so the POST adds the new entry *beside* the older one; acme now reads the
+template and takes its older acme entry out (`DELETE
+.../client-ssl/<t>/certificate/<older>`, only acme's own, before `write
+memory`; a refusal is a warning) - so the template uses the new one and the
+older files can go. **Less certain**: the DELETE of one entry follows the
+schema's element URI and aXAPI's general *Delete Object* - no example was
+found; whether the chain belongs in `file/ssl-cert` or `file/ca-cert`.
+
 ## `nutanix` - Nutanix cluster (Prism Central v4 API)
 
 Replaces the **SSL certificate of a cluster** - its Prism web console and API
@@ -1386,6 +1657,18 @@ from a list (**Load the list**: a field of the type `catalog` in a
 deployment's form, asked of the target with the deployment's options as they
 are; read-only, `acmelib/certs/api_catalog.py`). A value can always be typed
 instead ("Type it yourself…"), and more go one a line in the field after it.
+
+**Re-checked** (2026-11-03) against the same collection: `checkpoint`
+(`add/set-server-certificate`, `set` in place, `set-https-rule`, portals via
+`set-simple-gateway`, publish + install-policy), `nsx` (no overwrite: a new
+certificate, `client_ssl_profile_binding` switched, the old deleted),
+`barracuda_waf` (a new name, `PUT services/{svc}/ssl-security`, the old
+deleted), `fortiweb`, `fortiadc` (paths from Fortinet's Ansible collections,
+`fortinet/fortiweb.md`, `fortinet/fortiadc.md`), `cisco_fmc` (a new
+`internalcertificates` object + the rules switched, as the notes advise
+against PUT), `cpanel_ssl` (`SSL::install_ssl`, WHM `installssl`),
+`directadmin_ssl` and `plesk` - no difference found, nothing changed; what
+each leaves open stays under its **Less certain**.
 
 ## `checkpoint` - Check Point (Management API)
 

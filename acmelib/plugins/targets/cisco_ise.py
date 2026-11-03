@@ -20,9 +20,15 @@ Sources:
     https://developer.cisco.com/docs/identity-services-engine/latest/certificates-openapi/
     https://docs.ansible.com/ansible/latest/collections/cisco/ise/system_certificate_import_module.html
     https://www.cisco.com/c/en/us/td/docs/security/ise/3-2/admin_guide/b_ise_admin_3_2/b_ISE_admin_32_basic_setup.html  (certificate roles)
-Uncertain: whether the import goes to the node acme speaks to (the API
-has no node in it; acme speaks to the node given as Address) - set the
-node's own hostname for the listing. The private key goes encrypted (PKCS#8,
+Checked against api-docs/cisco_ise/notes.md and ise-openapi-certificates.yaml:
+the import goes to the node the request is sent to ("To import a certificate
+on a secondary node, execute this RESTApi directly on a secondary node") -
+so Address must be that node itself and Node hostname its name as ISE lists
+it (for the listing and deleting); one deployment per node. The chain goes
+to Trusted Certificates first, as here. ISE "cannot import more than one
+certificate with the same private key" (a renewal with the same key replaces
+the one there) and wants a new key each time - do not renew such a
+certificate with its old key. The private key goes encrypted (PKCS#8,
 AES-256, by the openssl program) with a random password, as the ISE pages
 want one; without openssl it goes unencrypted with no password.
 """

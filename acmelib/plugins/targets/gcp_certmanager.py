@@ -19,6 +19,10 @@ Sources:
     https://cloud.google.com/certificate-manager/docs/reference/certificate-manager/rest/v1/projects.locations.operations/get
 Uncertain: whether the PATCH of a certificate attached to a map is taken
 by every load balancer at once - Google's page says it is.
+Checked against api-docs/gcp_certmanager/notes.md and
+certificatemanager-v1-discovery.json: PATCH in place is for the same SANs
+("make sure that the SANs in the new certificate exactly match"); with other
+names acme still updates it (what the API does then is not said) and warns.
 """
 from __future__ import annotations
 
@@ -120,6 +124,16 @@ class GcpCertManagerTarget(CloudTarget):
         body = {'selfManaged': {'pemCertificate': text(bundle.as_format('fullchain-pem')),
                                 'pemPrivateKey': text(bundle.as_format('key-pem'))}}
         if exists:
+            had = sorted(text(n).lower() for n in
+                         ((d if isinstance(d, dict) else {}).get('sanDnsnames') or []))
+            now = sorted(text(n).lower() for n in (bundle.names or []))
+            if had and had != now:
+                # "make sure that the SANs in the new certificate exactly match the SANs
+                # in the existing certificate" (Google's page on updating one)
+                self.ctx.step('the names differ from those of %s (%s, now %s): Google asks '
+                              'for the same names when a certificate is updated in place - '
+                              'check the certificate map entries' % (cid, ', '.join(had),
+                                                                     ', '.join(now)), 'warn')
             st, hd, op = self.req('PATCH', url + '?updateMask=selfManaged', body,
                                   what='updating %s' % cid)
             how = 'updated'

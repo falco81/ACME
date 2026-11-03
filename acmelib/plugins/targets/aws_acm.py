@@ -17,6 +17,9 @@ Sources:
     https://docs.aws.amazon.com/acm/latest/userguide/import-reimport.html
     https://docs.aws.amazon.com/acm/latest/APIReference/API_DescribeCertificate.html
 CloudFront takes only certificates in us-east-1.
+Checked against api-docs/aws_acm/notes.md and service-2.json: on a re-import
+"the key type and size cannot be changed", so a certificate of another key
+type than the one in the ARN is refused before ImportCertificate, in words.
 """
 from __future__ import annotations
 
@@ -31,6 +34,17 @@ from acmelib.plugins.targets._cloud import CloudTarget, cloud_fields, sigv4
 
 def b64(data):
     return base64.b64encode(data if isinstance(data, bytes) else data.encode()).decode()
+
+
+ACM_CURVES = {'ec-256': 'EC_prime256v1', 'ec-384': 'EC_secp384r1', 'ec-521': 'EC_secp521r1'}
+
+
+def acm_key_type(bundle):
+    """ACM's KeyAlgorithm of the bundle's key (RSA_2048, EC_prime256v1, ...); '' unknown."""
+    kt = text(getattr(bundle, 'key_type', '')).lower()
+    if kt.startswith('rsa-') and kt[4:].isdigit():
+        return 'RSA_' + kt[4:]
+    return ACM_CURVES.get(kt, '')
 
 
 class AwsAcmTarget(CloudTarget):
@@ -110,14 +124,26 @@ class AwsAcmTarget(CloudTarget):
                 arn = text(self.ctx.kv_get(self.kv_arn(bundle, options)) or '')
             except Exception:                           # noqa: BLE001
                 arn = ''
-        if arn and not as_bool(options.get('force')):
+        if arn:
             try:
                 d = self.call('DescribeCertificate', {'CertificateArn': arn},
                               what='reading %s' % arn)
-                serial = norm_fp((d.get('Certificate') or {}).get('Serial'))
-                if serial and serial.lstrip('0') == norm_fp(bundle.serial).lstrip('0'):
+                info = d.get('Certificate') or {}
+                serial = norm_fp(info.get('Serial'))
+                if serial and serial.lstrip('0') == norm_fp(bundle.serial).lstrip('0') and \
+                        not as_bool(options.get('force')):
                     self.remember(bundle, options, arn=arn)
                     return self.same(bundle, 'in %s' % arn)
+                have, want = text(info.get('KeyAlgorithm')), acm_key_type(bundle)
+                if have and want and have != want:
+                    raise PluginError(
+                        'ACM cannot change the key type on a re-import (%s has %s, this '
+                        'certificate %s): keep the key type, or import it as a new '
+                        'certificate (another Certificate ARN, or delete %s first) and '
+                        'point the services using it at the new one%s'
+                        % (arn, have, want, arn, (' - used by %s' % ', '.join(
+                            info.get('InUseBy') or [])) if info.get('InUseBy') else ''),
+                        retry=False)
             except PluginError as e:
                 if 'ResourceNotFound' not in str(e):
                     raise

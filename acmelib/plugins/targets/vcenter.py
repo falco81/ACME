@@ -25,10 +25,15 @@ Uncertain: whether "cert" should hold the leaf alone or the leaf and its
 intermediates (the SDK sample sends one certificate; the intermediates go
 into the trusted roots here, which vCenter needs either way); the name of
 the TLS info's thumbprint (taken as SHA-1 or SHA-256, either compared).
+Checked against api-docs/vcenter/notes.md: PUT .../vcenter/tls answers 400
+AlreadyExists "if the specified certificate thumbprint is the same as the
+existing TLS certificate thumbprint" - taken as "served already" (with
+Force too), not as a failure.
 """
 from __future__ import annotations
 
 import base64
+import re
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, fp_of, norm_fp, sha1_thumb,
@@ -127,8 +132,18 @@ class VCenterTarget(HttpTarget):
                     'key': text(bundle.as_format('key-pem'))}
             if root:
                 body['root_cert'] = root
-            self.req('PUT', TLS, body, what='replacing the machine SSL certificate',
-                     timeout=300)
+            try:
+                self.req('PUT', TLS, body, what='replacing the machine SSL certificate',
+                         timeout=300)
+            except PluginError as e:
+                # 400 AlreadyExists: "If the specified certificate thumbprint is the same
+                # as the existing TLS certificate thumbprint."
+                if 'said 400' not in str(e) or not re.search(
+                        r'already[_ ]?exists', '%s %s' % (e, e.detail or ''), re.I):
+                    raise
+                self.ctx.step('vCenter serves this certificate already (AlreadyExists)')
+                self.remember(bundle, options)
+                return self.same(bundle, 'served by vCenter')
             self.ctx.step('vCenter took the certificate and restarts its services (minutes)',
                           'ok')
         finally:

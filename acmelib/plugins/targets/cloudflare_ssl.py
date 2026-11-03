@@ -2,8 +2,10 @@
 """
 Cloudflare custom certificates (Business and Enterprise zones, or the
 Advanced Certificate Manager add-on): the certificate uploaded once, then
-replaced in place on each renewal (PATCH keeps its id, Cloudflare swaps it on
-its edge without a gap).
+replaced on each renewal with PATCH, which Cloudflare swaps on its edge
+without a gap. For sni_custom the PATCH "will result in a new resource id
+being returned, and the previous one being deleted": acme keeps the id the
+answer gives for the next renewal.
 
     GET   https://api.cloudflare.com/client/v4/zones?name=<zone>
     GET   /zones/<zone_id>/custom_certificates
@@ -19,6 +21,7 @@ Sources:
     https://developers.cloudflare.com/api/resources/custom_certificates/methods/create/
     https://developers.cloudflare.com/api/resources/custom_certificates/methods/edit/
     https://developers.cloudflare.com/ssl/edge-certificates/custom-certificates/uploading/
+Checked against api-docs/cloudflare_ssl/notes.md and cloudflare-ssl-extract.json.
 """
 from __future__ import annotations
 

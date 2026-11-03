@@ -610,6 +610,8 @@ class FortiGateTest(unittest.TestCase):
                 {'name': prefix + '20250101-000001'}, {'name': prefix + '20250201-000002'},
                 {'name': 'Fortinet_Factory'}, {'name': name}]})),
             ('DELETE', r'/cmdb/vpn.certificate/local/', (200, {'status': 'success'})),
+            ('GET', r'/monitor/system/status', (200, {'status': 'success',
+                                                      'version': 'v7.2.8'})),
         ])
         t = make('fortigate', {'host': 'fw', 'token': 'TKN', 'vdom': 'root'}, ctx)
         t.deploy(b, {'admin': True, 'sslvpn': True, 'ssl_ssh_profiles': 'inbound',
@@ -775,6 +777,7 @@ class PaloAltoTest(unittest.TestCase):
                                             "20250101-00000001']" % prefix])
         commit = [x for x in bodies if x.get('type') == ['commit']][0]
         self.assertIn('<member>acme</member>', commit['cmd'][0])
+        self.assertEqual(commit['action'], ['partial'])     # as the Commit page shows it
         self.assertEqual(len(polls), 2)
         self.assertIn('committed', words)
 
