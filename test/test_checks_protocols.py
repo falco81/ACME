@@ -34,30 +34,19 @@ from acmelib.plugins.base import PluginError, Registry  # noqa: E402
 from acmelib.plugins.checks import (ftp, imap, implicit, ldap, mssql, mysql,  # noqa: E402
                                     pop3, postgres, rdp, smtp, tls, xmpp)
 
-from cryptography import x509  # noqa: E402
-from cryptography.hazmat.primitives import hashes, serialization  # noqa: E402
-from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
-from cryptography.x509.oid import NameOID  # noqa: E402
 
 
 def self_signed():
-    key = ec.generate_private_key(ec.SECP256R1())
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'localhost')])
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name)
-            .public_key(key.public_key()).serial_number(x509.random_serial_number())
-            .not_valid_before(now - datetime.timedelta(minutes=5))
-            .not_valid_after(now + datetime.timedelta(days=30))
-            .add_extension(x509.SubjectAlternativeName([x509.DNSName('localhost')]), False)
-            .sign(key, hashes.SHA256()))
+    """A self-signed certificate for localhost, made with openssl (as the other tests)."""
+    import subprocess
     cp, kp = os.path.join(TMP, 'cert.pem'), os.path.join(TMP, 'key.pem')
-    with open(cp, 'wb') as f:
-        f.write(cert.public_bytes(serialization.Encoding.PEM))
-    with open(kp, 'wb') as f:
-        f.write(key.private_bytes(serialization.Encoding.PEM,
-                                  serialization.PrivateFormat.PKCS8,
-                                  serialization.NoEncryption()))
-    return cert.public_bytes(serialization.Encoding.DER), cp, kp
+    subprocess.run(['openssl', 'req', '-x509', '-newkey', 'ec', '-pkeyopt',
+                    'ec_paramgen_curve:P-256', '-nodes', '-keyout', kp, '-out', cp, '-days', '30',
+                    '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost'],
+                   check=True, capture_output=True)
+    der = subprocess.run(['openssl', 'x509', '-in', cp, '-outform', 'DER'], check=True,
+                         capture_output=True).stdout
+    return der, cp, kp
 
 
 CERT_DER, CERT_PEM, KEY_PEM = self_signed()

@@ -133,7 +133,7 @@ class Plan(core.CertsCore):
         plan = self.plan_of(ids['plan-own'])
         self.no_secrets(plan)
         ph = {p['key']: p for p in plan['phases']}
-        self.assertEqual(list(ph), ['key', 'source', 'validation', 'deploy', 'after'])
+        self.assertEqual(list(ph), ['key', 'source', 'validation', 'deploy', 'checks', 'after'])
         self.assertIn('A new ec-256 key is made here, on this machine',
                       [s['words'] for s in ph['key']['steps']])
         src = json.dumps(ph['source'], ensure_ascii=False)
