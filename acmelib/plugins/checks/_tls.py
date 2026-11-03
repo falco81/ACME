@@ -6,6 +6,8 @@ time limit.
 
     fields(port)          host, port, SNI, time limit - the fields of a test
     connect(host, port, timeout)          a TCP socket, or PluginError in words
+    context(sni, verify) / result(s)      the client context; the chain of a finished
+                                          handshake (an SSLObject too: TDS)
     tls(sock, sni, verify, timeout)       {'chain': [DER...], 'tls', 'cipher'};
                                           verify=True: this machine's CAs and the
                                           name checked (ssl.SSLCertVerificationError
@@ -135,15 +137,12 @@ def connect(host, port, timeout):
         raise PluginError('%s:%s cannot be reached: %s' % (host, port, e.strerror or e))
 
 
-def tls(sock, sni, verify, timeout, keep=False):
-    """TLS over `sock` (already through the protocol's own start). `keep`: the TLS
-    socket stays open, in out['sock'] (HTTPS asks over it)."""
-    if sni == '-':
-        sni = ''
+def context(sni, verify):
+    """The client context of every test, with the test's settings (versions, ciphers,
+    ALPN): verify=True this machine's CAs (the name is judged by checks.py, which may
+    look for another one than the SNI); False: nothing checked, old servers still read."""
     if verify:
         ctx = ssl.create_default_context()
-        # the name is judged by checks.py (check_name may differ from the SNI): only the
-        # chain's trust here, the name looked at below
         ctx.check_hostname = False
     else:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -166,6 +165,42 @@ def tls(sock, sni, verify, timeout, keep=False):
     alpn = [x.strip() for x in str(opt('alpn', '') or '').split(',') if x.strip()]
     if alpn:
         ctx.set_alpn_protocols(alpn)
+    return ctx
+
+
+def result(s):
+    """{'chain', 'tls', 'cipher', 'whole_chain', 'alpn'} of a finished handshake - an
+    SSLSocket or an SSLObject (a protocol that carries TLS in its own packets: TDS)."""
+    chain = []
+    getter = getattr(s, 'get_unverified_chain', None)
+    if callable(getter):
+        for c in getter() or []:
+            chain.append(c if isinstance(c, (bytes, bytearray)) else
+                         c.public_bytes(ssl._ssl.ENCODING_DER) if hasattr(c, 'public_bytes')
+                         else bytes(c))
+    if not chain:
+        leaf = s.getpeercert(binary_form=True)
+        if leaf:
+            chain = [leaf]
+    c = s.cipher() or ('', '', 0)
+    try:
+        alpn = s.selected_alpn_protocol() or ''
+    except (AttributeError, ValueError):
+        alpn = ''
+    return {'chain': [bytes(x) for x in chain], 'tls': s.version() or '', 'cipher': c[0],
+            'whole_chain': callable(getter), 'alpn': alpn}
+
+
+def server_name(sni):
+    """The SNI sent: "-" sends none."""
+    return '' if sni == '-' else (sni or '')
+
+
+def tls(sock, sni, verify, timeout, keep=False):
+    """TLS over `sock` (already through the protocol's own start). `keep`: the TLS
+    socket stays open, in out['sock'] (HTTPS asks over it)."""
+    sni = server_name(sni)
+    ctx = context(sni, verify)
     sock.settimeout(float(timeout))
     try:
         s = ctx.wrap_socket(sock, server_hostname=sni or None)
@@ -174,20 +209,7 @@ def tls(sock, sni, verify, timeout, keep=False):
     except (ssl.SSLError, OSError) as e:
         raise PluginError('the TLS handshake failed: %s' % (getattr(e, 'reason', None) or e))
     try:
-        chain = []
-        getter = getattr(s, 'get_unverified_chain', None)
-        if callable(getter):
-            for c in getter() or []:
-                chain.append(c if isinstance(c, (bytes, bytearray)) else
-                             c.public_bytes(ssl._ssl.ENCODING_DER) if hasattr(c, 'public_bytes')
-                             else bytes(c))
-        if not chain:
-            leaf = s.getpeercert(binary_form=True)
-            if leaf:
-                chain = [leaf]
-        c = s.cipher() or ('', '', 0)
-        out = {'chain': [bytes(x) for x in chain], 'tls': s.version() or '', 'cipher': c[0],
-               'whole_chain': callable(getter), 'alpn': s.selected_alpn_protocol() or ''}
+        out = result(s)
         if keep:
             out['sock'] = s
     finally:
