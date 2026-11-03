@@ -43,6 +43,24 @@ def _ps(s):
     return "'" + str(s).replace("'", "''") + "'"
 
 
+def ps_txt(op, zone, rel, value, ttl, computer=''):
+    """The PowerShell (DnsServer cmdlets) that adds our TXT record or takes exactly it
+    away: Remove-DnsServerResourceRecord always with -RecordData ("If you do not specify
+    RecordData, the cmdlet deletes all records that match RRtype and Name") and -Force
+    (no prompt), and only when Get-DnsServerResourceRecord -Node (that name, not the
+    names below it) has our value; Add only when it has not."""
+    comp = (' -ComputerName ' + _ps(computer)) if computer else ''
+    have = ('(Get-DnsServerResourceRecord%s -ZoneName %s -Name %s -RRType Txt -Node '
+            '-ErrorAction SilentlyContinue | Where-Object { $_.RecordData.DescriptiveText '
+            '-eq %s })' % (comp, _ps(zone), _ps(rel), _ps(value)))
+    if op == 'add':
+        return ('if (-not %s) { Add-DnsServerResourceRecord%s -ZoneName %s -Name %s -Txt '
+                '-DescriptiveText %s -TimeToLive (New-TimeSpan -Seconds %d) }'
+                % (have, comp, _ps(zone), _ps(rel), _ps(value), int(ttl)))
+    return ('if (%s) { Remove-DnsServerResourceRecord%s -ZoneName %s -RRType Txt -Name %s '
+            '-RecordData %s -Force }' % (have, comp, _ps(zone), _ps(rel), _ps(value)))
+
+
 def _curl_q(s):
     """A value of a curl config file, in double quotes."""
     return '"' + str(s).replace('\\', '\\\\').replace('"', '\\"') + '"'
@@ -582,16 +600,7 @@ class SshDns(DnsChallenge):
     # -- Windows DNS, your own commands --------------------------------------------------------
     def _powershell(self, op, fqdn, value):
         zone, rel = self._words(fqdn, value)
-        comp = (' -ComputerName ' + _ps(self.c('computer'))) if self.c('computer') else ''
-        if op == 'add':
-            ps = ('Add-DnsServerResourceRecord%s -ZoneName %s -Name %s -Txt -DescriptiveText %s '
-                  '-TimeToLive (New-TimeSpan -Seconds %d)' % (comp, _ps(zone), _ps(rel),
-                                                             _ps(value), self.ttl()))
-        else:
-            ps = ('Get-DnsServerResourceRecord%s -ZoneName %s -Name %s -RRType Txt '
-                  '-ErrorAction SilentlyContinue | Where-Object { $_.RecordData.DescriptiveText '
-                  '-eq %s } | Remove-DnsServerResourceRecord%s -ZoneName %s -Force'
-                  % (comp, _ps(zone), _ps(rel), _ps(value), comp, _ps(zone)))
+        ps = ps_txt(op, zone, rel, value, self.ttl(), self.c('computer') or '')
         self._run('powershell -NoProfile -NonInteractive -Command "%s"' % ps.replace('"', '\\"'))
 
     def _custom(self, op, fqdn, value):

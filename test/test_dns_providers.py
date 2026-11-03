@@ -175,9 +175,30 @@ class GandiFake(Fake):
         _, zone, _r, rel, typ = url[len(base):].split('/')
         self.t.assertEqual(typ, 'TXT')
         name = self.full(zone, urllib.parse.unquote(rel))
+        vals = ['"%s"' % r['value'] for r in self.recs if r['name'] == name]
         if method == 'GET':
-            vals = ['"%s"' % r['value'] for r in self.recs if r['name'] == name]
             return (200, {'rrset_values': vals, 'rrset_ttl': 300}) if vals else (404, {})
+        if method == 'POST':
+            # "Will raise a 409 conflict if the record already exists"
+            if vals:
+                return 409, {'message': 'A record with that name / type pair already exists'}
+            b = json.loads(body)
+            self.t.assertGreaterEqual(b['rrset_ttl'], 300)
+            for v in b['rrset_values']:
+                self.add(zone, name, v.strip('"'))
+            return 201, {}
+        if method == 'PATCH':
+            # adds or removes only the values given - other values stay
+            b = json.loads(body)
+            self.t.assertTrue(set(b) <= {'add_rrset_values', 'remove_rrset_values', 'rrset_ttl'})
+            for v in b.get('add_rrset_values') or []:
+                self.t.assertTrue(v.startswith('"'), 'quoted as in the TXT examples')
+                if v not in vals:
+                    self.add(zone, name, v.strip('"'))
+            gone = set(b.get('remove_rrset_values') or [])
+            self.drop(lambda r: r['name'] == name and '"%s"' % r['value'] in gone)
+            left = [r for r in self.recs if r['name'] == name]
+            return (200, {'rrset_values': left}) if left else (204, b'')
         self.drop(lambda r: r['name'] == name)
         if method == 'PUT':
             b = json.loads(body)

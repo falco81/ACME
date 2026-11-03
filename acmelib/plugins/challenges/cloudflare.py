@@ -1,12 +1,31 @@
 # -*- coding: utf-8 -*-
-"""DNS-01 through Cloudflare's API (an API token that may edit the zone's DNS)."""
+"""DNS-01 through Cloudflare's API (an API token that may edit the zone's DNS).
+
+    GET    https://api.cloudflare.com/client/v4/zones?name={zone}
+    GET    .../zones/{zone_id}/dns_records?type=TXT&name={fqdn}        (name = name.exact)
+    POST   .../zones/{zone_id}/dns_records  {type: TXT, name: fqdn, content, ttl, comment}
+    DELETE .../zones/{zone_id}/dns_records/{id}
+
+Each value is a record of its own with its id: cleanup deletes only ours.
+Cloudflare keeps a TXT content in double quotes ("if you save your TXT content
+without any quotes, Cloudflare will automatically add double quotes"), so a
+listed content is compared with its quotes taken away. TTL 60 to 86400, or 1
+for "automatic" (30 for Enterprise zones).
+
+Checked against the user's collection (api-docs/cloudflare/): openapi-dns-zones.json
+(an extract of https://github.com/cloudflare/api-schemas openapi.json) and
+notes.md (https://developers.cloudflare.com/api/resources/dns/subresources/records/,
+https://developers.cloudflare.com/dns/manage-dns-records/reference/dns-record-types/).
+Less certain: the code 81058 for an identical record is known only from
+Cloudflare's community forum (the record is then looked up and adopted).
+"""
 from __future__ import annotations
 
 import urllib.parse
 
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, api
+from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, api, unquote_txt
 
 
 class Cloudflare(DnsChallenge):
@@ -66,16 +85,19 @@ class Cloudflare(DnsChallenge):
         except PluginError as e:
             if '81058' not in str(e) and 'already exists' not in str(e):
                 raise
-            rec = (self._api('GET', '/zones/%s/dns_records?type=TXT&name=%s&content=%s' % (
-                zid, urllib.parse.quote(D.norm(fqdn)), urllib.parse.quote(value))) or [{}])[0]
-        return {'zone_id': zid, 'id': rec.get('id')}
+            rec = ([r for r in self._txt(zid, fqdn) if unquote_txt(r.get('content')) == value]
+                   or [{}])[0]
+        return {'zone_id': zid, 'id': (rec or {}).get('id')}
+
+    def _txt(self, zid, fqdn):
+        return [r for r in self._api('GET', '/zones/%s/dns_records?type=TXT&name=%s' % (
+            zid, urllib.parse.quote(D.norm(fqdn)))) or [] if isinstance(r, dict)]
 
     def del_txt(self, fqdn, value, handle):
         h = handle or {}
         zid = h.get('zone_id') or self._zone_id(fqdn)[0]
         ids = [h['id']] if h.get('id') else [
-            r['id'] for r in self._api('GET', '/zones/%s/dns_records?type=TXT&name=%s' % (
-                zid, urllib.parse.quote(D.norm(fqdn)))) or [] if r.get('content') == value]
+            r['id'] for r in self._txt(zid, fqdn) if unquote_txt(r.get('content')) == value]
         for rid in ids:
             self._api('DELETE', '/zones/%s/dns_records/%s' % (zid, rid), missing_ok=True)
 

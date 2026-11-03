@@ -1,6 +1,27 @@
 # -*- coding: utf-8 -*-
 """DNS-01 through the OVHcloud API (application key, secret and consumer key,
-each call signed with $1$ SHA-1 as OVH asks)."""
+each call signed with $1$ SHA-1 as OVH asks):
+
+    GET    /1.0/domain/zone                                        [zone names]
+    POST   /1.0/domain/zone/{zone}/record  {fieldType: TXT, subDomain, target, ttl}
+    GET    /1.0/domain/zone/{zone}/record?fieldType=TXT&subDomain=  [ids]
+    GET    /1.0/domain/zone/{zone}/record/{id}                     {target, ...}
+    DELETE /1.0/domain/zone/{zone}/record/{id}
+    POST   /1.0/domain/zone/{zone}/refresh                         after every change
+
+The value is sent without quotes (OVH quotes a TXT target itself); a listed
+target is compared with its quotes taken away. A TTL is 0 (the zone's) or at
+least 60, as OVH's own Terraform provider checks. A record id 0 in the answer
+(a known OVH bug) is not kept: cleanup then finds ours by its target.
+
+Checked against the user's collection (api-docs/ovh/): domain-zone-dns.json
+(from https://eu.api.ovh.com/1.0/domain.json), auth.json and notes.md
+(https://docs.ovhcloud.com/en/guides/manage-and-operate/api/first-steps.md,
+https://github.com/ovh/python-ovh ovh/client.py,
+https://github.com/ovh/terraform-provider-ovh resource_domain_zone_record.go).
+Less certain: that the refresh is needed (only OVH's Terraform provider says
+so by calling it after every change); the rate limit of /domain (not found).
+"""
 from __future__ import annotations
 
 import hashlib
@@ -78,6 +99,10 @@ class Ovh(DnsChallenge):
             raise PluginError('OVH has no zone for %s that these keys may see' % fqdn,
                               retry=False)
         return best
+
+    def ttl(self):
+        t = DnsChallenge.ttl(self)
+        return 60 if 0 < t < 60 else t           # 0 (the zone's) or 60 and more
 
     def add_txt(self, fqdn, value):
         zone = self.zone_for(fqdn)

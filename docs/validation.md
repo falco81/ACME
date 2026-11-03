@@ -24,7 +24,7 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `route53` | Amazon Route 53 (SigV4 signed here) | access key with ListHostedZonesByName, ListResourceRecordSets, ChangeResourceRecordSets, GetChange |
 | `azure_dns` | Azure DNS (OAuth2 client credentials) | an app registration with DNS Zone Contributor |
 | `gcloud_dns` | Google Cloud DNS (service account JWT, RS256 by openssl) | a service account key (JSON) with dns.admin |
-| `hetzner` | Hetzner Console/Cloud API zones (`api.hetzner.cloud`, RRset actions `add_records` / `remove_records`), or the old dns.hetzner.com (selectable) | API token |
+| `hetzner` | Hetzner Console/Cloud API zones (`api.hetzner.cloud`, RRset actions `add_records` / `remove_records`, each action waited for); the old dns.hetzner.com was switched off in May 2026 | a project's API token |
 | `digitalocean` | DigitalOcean Domains | personal access token |
 | `ovh` | OVHcloud API | application key/secret, consumer key on /domain/zone/* |
 | `desec` | [deSEC.io](https://desec.io) (dedyn.io names too); TTL raised to the domain's minimum (3600); waits 60 s more after both name servers have it (anycast) | an API token (a token policy limiting it to TXT at `_acme-challenge` is best) |
@@ -33,7 +33,7 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `vultr` | Vultr DNS (API v2) | an API key, acme's address under Access Control |
 | `porkbun` | Porkbun (API v3) | API key + secret, *API Access* on for each domain |
 | `namecheap` | Namecheap XML API - **setHosts rewrites every record of the domain** (read-modify-write, see below) | API user + key, acme's public IP whitelisted |
-| `godaddy` | GoDaddy Domains API v1 | API key + secret (production API only for qualifying accounts) |
+| `godaddy` | GoDaddy Domains API v3 (one record a value, deleted by its `recordId`); v1 with the older key + secret selectable | a personal access token (domains.domain:read, domains.dns:update); the account must be eligible |
 | `dnsimple` | DNSimple API v2 | an account access token (a user token: the account ID too) |
 | `ns1` | NS1 / IBM NS1 Connect | an API key with View and Manage zones |
 | `bunny` | bunny.net DNS | the account's API key |
@@ -88,6 +88,12 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `netim` | Netim REST API 1.0 (asynchronous operations followed; deleted by subdomain + type + value) | reseller ID + API (DAS) password |
 | `huawei_dns` | Huawei Cloud DNS v2 (one record set a name; AK/SK SDK-HMAC-SHA256 signed here); the region's endpoint | an IAM access key (AK/SK) + region |
 | `directadmin` | DirectAdmin legacy API `CMD_API_DNS_CONTROL` (deleted by name + value, read back) | the user + a login key |
+| `forpsi` | Forpsi **F-DNS** (the paid DNS-as-a-service) REST API, one record a value; **ordinary Forpsi DNS has no API** | an F-DNS API token (admin.forpsi.com) |
+| `ispconfig` | ISPConfig 3 Remote API (JSON): `dns_txt_add` / `dns_txt_delete` by id, the serial raised; applied by the panel's cron | a remote user with the DNS zone and DNS txt functions |
+| `hestiacp` | HestiaCP API: `v-add-dns-record`, `v-delete-dns-record` by ID (found by its value) | an access key + secret of the user (or an admin's), acme's IP allowed |
+| `virtualmin` | Virtualmin Remote API (`remote.cgi`): `modify-dns` add / `--remove-record` **always with the value**, read back | the master administrator's password |
+| `froxlor` | froxlor API: `DomainZones.add` / `DomainZones.delete` by entry id (found by its value); applied by froxlor's cron | an API key + secret, the external API enabled |
+| `windows_dns` | Windows Server DNS: PowerShell `Add-DnsServerResourceRecord` / `Remove-DnsServerResourceRecord -RecordData` over OpenSSH for Windows | an account allowed to change the zone (DnsAdmins), OpenSSH Server |
 | `acme_dns` | an [acme-dns](https://github.com/joohoi/acme-dns) server | account(s); `_acme-challenge.NAME CNAME <fulldomain>` once |
 | `ssh_dns` | commands on the DNS server itself over SSH, straight into its zones: BIND (`nsupdate -l`, `nsupdate -k`, or the zone file + `rndc reload`), PowerDNS (`pdnsutil` or its HTTP API there), Knot (`knotc` transaction), NSD (zone file + `nsd-control reload`), dnsmasq (`txt-record`), Unbound (`local_data`), Windows DNS (PowerShell via OpenSSH), or your own commands; **Find out what runs there** reads the server (read-only) and fills the form in | an SSH account there (sudo optional) |
 | `script` | a program on this machine (`present`/`cleanup`, dehydrated- or lego-style), `ACME_*` variables | the program |
@@ -383,10 +389,13 @@ What every one of them does the same way:
   and easyDNS go by the SOA.
 * **Several values at one name**: our value is added next to the ones there,
   and cleanup removes only ours. Where the API keeps a whole RRset (deSEC,
-  Gandi, GoDaddy, NS1, Namecheap, Huawei Cloud DNS - Joker.com even the
+  GoDaddy's older v1, NS1, Namecheap, Huawei Cloud DNS - Joker.com even the
   whole zone) it is read, changed and written back, one
-  change at a time on this node. Removing a value that is gone already is
-  not an error.
+  change at a time on this node (Azure DNS with the etag read, so a change
+  made elsewhere meanwhile is not lost); where the API adds or takes away
+  single values of an RRset (Gandi's PATCH, Hetzner's actions, PowerDNS's
+  EXTEND / PRUNE from 4.9.12 / 5.0.2) only ours is sent. Removing a value
+  that is gone already is not an error.
 * **Kind to the provider** (1.0.21, for every module, source and target -
   `acmelib/plugins/limits.py`): **one sign-in per validation and its
   settings** - the token (Webglobe's JWT, an OAuth token of Azure / Google /
@@ -436,7 +445,9 @@ token: (the token)      zone: example.dedyn.io (or empty)
 admin.gandi.net → *Organizations* → yours → *Sharing* → *Personal Access
 Tokens* → *Create a token*: the domains acme may change, permission **Manage
 domain name technical configurations**. An older API key works too (*Signs in
-with: an API key*). LiveDNS v5; TTL at least 300.
+with: an API key*). LiveDNS v5; TTL at least 300. Since 1.0.27 our value is
+added and taken away with `PATCH` (`add_rrset_values` / `remove_rrset_values`),
+so the RRset is never written whole; a new RRset is made with `POST`.
 
 ### Linode (`linode`)
 
@@ -475,10 +486,16 @@ the same address as *Client IP*. The domain has to use Namecheap's own DNS
 
 ### GoDaddy (`godaddy`)
 
-developer.godaddy.com → *API Keys* → *Create New API Key*, environment
-**Production** (OTE is GoDaddy's test copy, *Endpoint*). Since 2024 GoDaddy
-answers its production API only for accounts with enough domains (or a
-Discount Domain Club plan): others get `403 ACCESS_DENIED`. TTL at least 600.
+developer.godaddy.com → *Personal Access Token*: the scopes
+`domains.domain:read` and `domains.dns:update` (since 1.0.27 acme speaks the
+Domains API **v3**: one record a value, deleted by its `recordId` - the other
+values at the name are never written). The older *API Keys* (`sso-key`) do not
+work with v3; *API: Domains API v1* keeps them (the values at the name read,
+ours added or taken away, written back), and a validation saved with a key and
+no token goes on using v1. OTE is GoDaddy's test copy (*Endpoint*). GoDaddy
+answers its domain management only for eligible accounts ("Account holds at
+least one domain, OR is on a plan that grants management access"): others get
+`403` with a `code` saying why. TTL at least 600.
 
 ### DNSimple (`dnsimple`)
 
@@ -948,6 +965,15 @@ TXT values in quotes), whose reference is
 https://docs.hetzner.cloud/reference/cloud#zone-rrset-actions-add-records-to-an-rrset:
 unchanged, nothing to fix.
 
+Checked again in 1.0.27 against the collection of 2026-11-03
+(`api-docs/hetzner/`): Hetzner switched the old DNS Console and its API off on
+2026-05-27 ("The DNS console and API was removed"), so the choice of it is gone
+- a validation still set to it is refused in words. An `add_records` sends a
+TTL only for a new RRset ("If set, and the RRSet being updated already has a
+TTL, the values must be the same"); every write's action is waited for until
+`success` (or its error said); a `423 locked` is tried again; cleanup reads the
+RRset and removes only our value, and nothing when it is gone.
+
 ### Hostinger (`hostinger`)
 
 hPanel → *Account* → **API** → *New token* (best with an expiry). acme
@@ -1317,6 +1343,290 @@ other legacy calls).
 host: server.example.com      user: alice      password: (the login key)      zone: (empty, or picked)
 ```
 
+### Modules added in acme 1.0.27: from the vendors' own documentation
+
+Six more, written the same way as those of 1.0.26: only from the official
+documentation the user collected (`api-docs/<vendor>/notes.md`, verbatim
+quotes each with its URL, and the files beside it), nothing else; what it
+leaves open is **Less certain** in the module's docstring and here, and notes
+marked "odvozeno" (derived) or "neoficiální" (unofficial) were taken only with
+such a mark. `test/test_dns_providers_panels.py` puts each through a fake of
+its API built from those files. The five with an API find the zone as the
+1.0.26 ones do (`_records.SoftZones`: the zone set - a list to load and pick
+from, or typed - else the longest listed, else its SOA).
+
+### Forpsi F-DNS (`forpsi`)
+
+Only **F-DNS**, Forpsi's paid DNS-as-a-service (DNSaaS, from 500 domains), has
+an API; **ordinary Forpsi DNS** - the free DNS hosting with a domain or a web
+hosting - has none (its web administration and a CSV import only). For a
+domain there, point `_acme-challenge.NAME` by a CNAME to a zone acme can write
+(acme's own DNS, acme-dns, a provider with an API) and use that validation.
+
+The F-DNS token (admin.forpsi.com, with DNSaaS active) goes in the header
+`token:`. `GET https://api.forpsi.com/dnsaas/v1/domains` (page by `skip` /
+`limit`, up to 1000) for the domains, `GET .../domains/{domain}/records` for
+the records (no filter by name or type: read page by page and ours picked
+out), `POST` the same `{name, type: TXT, data, ttl}` - the record with its
+`id` comes back - and `DELETE .../records/{id}`: only ours goes. TTL 60 to
+86400, no publish step. *Test* reads `GET /` (domains used / allowed) and the
+domains.
+
+Checked against `api-docs/forpsi/openapi.json` (OpenAPI 3.1.0 from
+https://api.forpsi.com/dnsaas/v1/docs/) and `api-docs/forpsi/notes.md`:
+https://www.forpsi.com/ForpsiCZ/media/Forpsi/Documents/tc-files/ICZ_podminky_DNS.pdf
+(art. IV - the API only for the business service), https://www.forpsi.com/f-dns/,
+https://support.forpsi.com/kb/a4408/importing-dns-records.aspx (TTL range).
+**Less certain**: whether `name` is relative (the specification's example is
+`subdomain`: written relative, read relative or whole); the apex (`@` written);
+whether TXT `data` goes with quotes (sent as it is, compared without them);
+error answers beyond `{"msg": "Invalid token"}`; how soon the name servers
+have a change.
+
+```
+token: (the F-DNS token)      zone: (empty, or picked)
+```
+
+### ISPConfig (`ispconfig`)
+
+A remote user of the panel (*System → Remote Users*) with the function groups
+**DNS zone functions** and **DNS txt functions**, acme's address among its
+allowed ones, and the Remote API allowed in the security settings. acme
+speaks the JSON transport: `POST https://PANEL:8080/remote/json.php?FUNCTION`
+with the PHP function's parameters by name, the answer `{code: "ok", message,
+response}`. `login` gives the session (closed with `logout` at the end of each
+piece of work), `dns_zone_get` with `{origin: "example.com."}` the zone's `id`
+and `server_id` (with `-1` every zone - the form's list),
+`dns_rr_get_all_by_zone` the records, `dns_txt_add` (`update_serial: true`, so
+the SOA serial is raised and the secondaries take it) adds ours and answers
+its id, `dns_txt_delete` deletes exactly that id - other values at the name
+stay. The name is relative (the BIND template appends the origin), the value
+without quotes (the template adds them), TTL at least 60. ISPConfig applies a
+change through its server cron (about a minute): acme waits until the zone's
+name servers have it.
+
+Checked against `api-docs/ispconfig/notes.md` - the official ISPConfig 3.3.2p1
+package (https://www.ispconfig.org/downloads/ISPConfig-3-stable.tar.gz):
+`remoting_client/API-docs` (login, dns_txt_add, dns_txt_delete,
+dns_rr_get_all_by_zone, dns_zone_get_by_user), `remoting_client/examples`
+(rest_example.php, dns_txt_add.php, dns_txt_delete.php),
+`interface/lib/classes/json_handler.inc.php`, `remoting.inc.php`,
+`remoting_lib.inc.php`, `remote.d/dns.inc.php`, `dns_txt.tform.php`,
+`server/conf/bind_pri.domain.master`. **Less certain**: which `client_id`
+`dns_txt_add` wants (the example has 1, its meaning is not documented - 0 is
+sent unless *Client ID* is set); `dns_zone_get` by an origin filter or `-1` is
+documented for `getDataRecord` as a whole; whether an origin is stored with
+the final dot (both are asked); the example's `stamp` / `serial` params (sent
+as it sends them); the highest TTL.
+
+```
+url: panel.example.com:8080      user: acme      password: (the remote user's)      zone: (empty, or picked)
+```
+
+### HestiaCP (`hestiacp`)
+
+An access key of the user who owns the DNS domains (or an administrator's;
+`v-add-access-key` or the panel) allowed `v-list-dns-domains`,
+`v-list-dns-records`, `v-add-dns-record` and `v-delete-dns-record`, and acme's
+address in the API's allowed addresses. Each call is a form POSTed to
+`https://SERVER:8083/api/` (`hash=ACCESS:SECRET`, `cmd`, `arg1`...):
+`v-list-dns-domains USER json`, `v-list-dns-records USER DOMAIN json`,
+`v-add-dns-record USER DOMAIN RECORD TXT VALUE` (with `'' '' yes TTL` after it
+when a TTL is set) and `v-delete-dns-record USER DOMAIN ID` - with
+`returncode=yes`, the answer is the exit code, said in words when it is not 0
+(`E_NOTEXIST`, `E_FORBIDEN`, ...). `v-add-dns-record` gives no ID back, so the
+records at the name are listed and ours found by its value; cleanup deletes
+only those IDs (`E_NOTEXIST` there is a record gone already). The name is
+relative, the value without quotes ("will be striped of quotes"); each
+command raises the serial, rewrites the zone and reloads the DNS server
+itself.
+
+Checked against `api-docs/hestiacp/notes.md`:
+https://hestiacp.com/docs/server-administration/rest-api.html,
+https://hestiacp.com/docs/reference/api.html,
+https://hestiacp.com/docs/reference/cli.html,
+https://github.com/hestiacp/hestiacp-api-examples and the source of
+`web/api/index.php`, `bin/v-add-dns-record`, `bin/v-delete-dns-record`,
+`bin/v-list-dns-records`. **Less certain**: the JSON of `v-list-dns-domains`
+(its keys taken for the domains); how empty arguments 6 and 7 are taken when a
+TTL is sent; no TTL limits are documented (empty: the zone's); the HTTP status
+of a failed command with `returncode=no` (any other than 200/204 is said).
+
+```
+host: server.example.com      user: alice      access_key: (the key ID)      secret_key: (its secret)
+```
+
+### Virtualmin (`virtualmin`)
+
+The master administrator (the Remote API is open to it only), by HTTP basic
+authentication, `POST https://SERVER:10000/virtual-server/remote.cgi` with
+`program=` and the program's options as parameters (`name=value` is
+`--name value`, an empty value the bare option); the answer ends with `Exit
+status: N`, and anything but 0 (or `ERROR:`) is said. `list-domains
+--with-feature dns --name-only` for the zones (the virtual servers with DNS),
+`modify-dns --domain Z --add-record-with-ttl "NAME. TXT TTL VALUE"` to add, and
+`modify-dns --domain Z --remove-record "NAME. TXT VALUE"` - **always with the
+value**: without it Virtualmin deletes every record of that name and type.
+The name is written whole with its final dot. `modify-dns` does not refuse a
+record that clashes or lies outside the domain (it only prints a line), so
+the zone's TXT records are read again after each change (`get-dns --type TXT
+--multiline`) and a change that did not happen is said. modify-dns raises the
+serial and reloads BIND itself. A sub-server may keep its records in its
+parent's zone: set *Virtual server* then.
+
+Checked against `api-docs/virtualmin/notes.md`:
+https://www.virtualmin.com/docs/development/remote-api/,
+https://www.virtualmin.com/docs/development/api-programs/modify-dns/,
+.../get-dns/, .../list-domains/ and the source of virtualmin-gpl (`remote.cgi`,
+`modify-dns.pl`, `feature-dns.pl`). **Less certain**: get-dns's output is not
+documented beyond its options (acme only looks for our value in it, as a word
+of its own); the JSON form (`json=1`) is not documented and not used; whether a
+TXT value is stored with quotes (sent without); no lowest TTL (60 is sent);
+the Remote API has no token or address limit of its own.
+
+```
+host: server.example.com      user: root      password: (the master administrator's)      zone: (empty, or picked)
+```
+
+### froxlor (`froxlor`)
+
+An API key and its secret (froxlor → your name → *API keys*; *Settings → System
+settings → Enable external API usage* on), by HTTP basic authentication; every
+call is `POST https://FROXLOR/api.php` with `{"command": ..., "params": ...}`.
+`Domains.listing` (an admin's key) or `SubDomains.listing` (a customer's) for
+the domains - a zone is a main domain (`parentdomainid` 0) with DNS on;
+`DomainZones.listing {domainname}` for its entries, `DomainZones.add
+{domainname, record, type: TXT, content, ttl}` to add, `DomainZones.delete
+{domainname, entry_id}` to delete exactly ours (a `304` there is an entry gone
+already). `add` answers the zone file, not the new id, so ours is found by its
+record + type + content. The record is relative (at most 63 characters), the
+value without quotes. froxlor writes the zone through its cron (`REBUILD_DNS`),
+so acme waits until every name server has the record.
+
+froxlor's documentation and code differ, and the code is taken: an error's
+words are in `message` (the guide says `status_message` - both are read), and
+`Certificates.add` takes `domainid` where the guide says `id` (DomainZones
+take `domainname`, used here).
+
+Checked against `api-docs/froxlor/notes.md`: https://docs.froxlor.org/latest/api-guide/,
+https://docs.froxlor.org/latest/api-guide/commands/domainzones.html and froxlor
+2.3.16's source (`FroxlorRPC.php`, `Response.php`, `Commands/DomainZones.php`,
+`Dns.php`, `doc/example/list_functions.php`). **Less certain**: the fields of
+a Domains / SubDomains listing entry (`parentdomainid`, `isbinddomain` read
+where present); no lowest TTL (0 or less becomes 18000 - 60 is sent); how long
+until the cron writes the zone.
+
+```
+url: froxlor.example.com      api_key: (the key)      api_secret: (its secret)      zone: (empty, or picked)
+```
+
+### Windows DNS (`windows_dns`)
+
+Windows Server DNS has no REST API; acme signs in over **OpenSSH for Windows**
+(the DNS server itself, or a machine with the DNS Server Tools and *DNS server
+for the cmdlets* set) and runs the DnsServer cmdlets in PowerShell - the
+PowerShell flavour of `ssh_dns` as a validation of its own:
+`Add-DnsServerResourceRecord -ZoneName Z -Name N -Txt -DescriptiveText VALUE
+-TimeToLive ...` only when `Get-DnsServerResourceRecord -ZoneName Z -Name N
+-RRType Txt -Node` does not hold the value, and `Remove-DnsServerResourceRecord
+-ZoneName Z -RRType Txt -Name N -RecordData VALUE -Force` only when it does -
+**never without `-RecordData`** ("If you do not specify RecordData, the cmdlet
+deletes all records that match RRtype and Name") and with `-Force` (else it
+waits for a confirmation). `-Node` keeps the names below `N` out. The name is
+relative to the zone. Windows raises the serial itself; an AD-integrated zone
+reaches the other domain controllers by replication - acme waits for every
+name server. *Test* runs `Get-DnsServerZone`. The account must be allowed to
+change the zone (DnsAdmins); the SSH key card says where its public half goes.
+
+Checked against `api-docs/windows_dns/notes.md`:
+https://learn.microsoft.com/en-us/powershell/module/dnsserver/add-dnsserverresourcerecord,
+.../remove-dnsserverresourcerecord, .../get-dnsserverresourcerecord,
+.../get-dnsserverzone, https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dnsp/37eea101-00b8-4958-99eb-de8cda4b8417,
+https://learn.microsoft.com/en-us/windows-server/networking/dns/dynamic-update.
+**Less certain**: `-RecordData` for a TXT record is documented only by an A
+record's example (the text is given as written); the property
+`RecordData.DescriptiveText` of a listed record is the WMI class's, not in the
+cmdlet's page; no lowest TTL (60 is used); how long AD replication takes.
+
+```
+host: dc1.example.com:22      user: acme      key: (made here)      zone: example.com
+```
+
+### Re-checked in 1.0.27: checked against the collection of 2026-11-03
+
+The modules below were compared with the same collection, call by call. What
+the documentation showed differently was changed; the rest is confirmed as it
+was.
+
+* **Cloudflare** (`api-docs/cloudflare/`, openapi-dns-zones.json): confirmed -
+  each value its own record, deleted by `id`; `name` is the whole name; TTL 60
+  to 86400 or 1. *Changed*: a listed TXT `content` comes back in quotes
+  ("Cloudflare will automatically add double quotes"), so a cleanup without
+  the record's id (and the lookup after an identical-record refusal) compares
+  it unquoted - before, such a record was left behind.
+* **Route 53** (`service-2.json`): confirmed - the RRset written whole (UPSERT,
+  DELETE with exactly the values read), values in quotes, a public zone chosen
+  over a private one, `GetChange` until `INSYNC`, `PriorRequestNotComplete` /
+  `Throttling` tried again.
+* **Azure DNS** (`dns-2018-05-01.json`): *changed* - the record set is written
+  back with `If-Match: <etag>` (`If-None-Match: *` for a new one), keeping its
+  TTL and metadata, and read again when the etag no longer matches; confirmed:
+  relative names, one unquoted string an item.
+* **Google Cloud DNS** (`dns-v1-discovery.json`): confirmed - `changes.create`
+  with the RRset as read in `deletions`, FQDN with the dot, quoted values,
+  public zones only. *Changed*: `managedZones.list` is followed by
+  `nextPageToken`; the RRset keeps its TTL when ours is added or taken away.
+* **DigitalOcean** (`openapi-domains/`): confirmed - relative name on create,
+  the FQDN as the list's filter, deleted by id, TTL at least 30.
+* **OVHcloud** (`domain-zone-dns.json`): confirmed - `$1$` signature, the
+  target unquoted, `POST .../refresh` after each change, the id-0 bug (the
+  record then found by its target). *Changed*: a TTL is 0 or at least 60 (as
+  OVH's Terraform provider checks).
+* **Hetzner** (`cloud-dns-zones-rrsets.json`): see *Hetzner, checked again*
+  above - the old API removed (2026-05), the TTL only for a new RRset, actions
+  waited for, `423` tried again.
+* **Gandi** (`livedns-reference-extract.txt`): *changed* to `PATCH`
+  `add_rrset_values` / `remove_rrset_values` (POST for a new RRset); confirmed:
+  quoted values, TTL at least 300. The new `verification` endpoint only adds,
+  so it is not used.
+* **GoDaddy** (`domains-v3.json`): *changed* to v3 with a personal access token
+  (one record a value, deleted by `recordId`, TTL 600 to 86400, pages followed);
+  v1 with the key and secret kept selectable, and used by validations saved
+  with them.
+* **Porkbun** (`openapi-dns.json`): confirmed - all POST with the keys in the
+  body, *API Access* per domain, TTL at least 600, deleted by id. *Changed*: a
+  `DUPLICATE_RECORD` refusal's `existingId` is taken as ours.
+* **Infoblox** (WAPI, `notes.md`): confirmed - one `record:txt` a value with
+  its `_ref`, FQDN without the dot, unquoted text, `_max_results` given.
+  `restartservices` is not called: the documentation does not say a TXT
+  record needs it, and it would also apply other administrators' pending
+  changes.
+* **PowerDNS** (`authoritative-api-openapi.yaml`): *changed* - `EXTEND` /
+  `PRUNE` (only our record added / taken away) from 4.9.12 and 5.0.2 (the
+  version read from `/servers/{id}`), REPLACE with the rest, its TTL kept, on
+  older ones; the zone addressed by the `id` the server lists. Confirmed:
+  quoted content, `Accept: application/json`.
+* **NS1** (`notes.md`, the reference behind a bot check): confirmed - PUT
+  creates, POST changes, FQDN `domain`, unquoted answers. *Changed*: the other
+  answers are written back exactly as read (their `id` and `meta` kept), the
+  zone list follows its `Link` header.
+* **Akamai Edge DNS** (`edge-dns-v2-openapi.json`): confirmed - EdgeGrid
+  (body hashed for POST only), FQDN names, quoted rdata, the record set read
+  and written whole. *Changed*: the zone list asks `types=PRIMARY` in
+  capitals, as the specification's enum.
+* **RFC 2136** (RFC 2136, 8945, 1035): confirmed - "Delete An RR From An RRset"
+  (CLASS NONE, TTL 0, exactly our RDATA), never CLASS ANY; TSIG last in the
+  additional section, fudge 300; the trial update of *Test* has only a
+  prerequisite.
+* **cPanel, DirectAdmin, Joker.com, Netim, Huawei Cloud DNS** (1.0.26): the
+  collection is the same for them - confirmed as described above, their
+  Less certain points still open.
+* **`ssh_dns`'s PowerShell flavour** now runs the same commands as
+  `windows_dns` (`-Node`, `-RecordData`, `-Force`); before, a record was
+  removed by piping `Get-DnsServerResourceRecord` without `-Node` into
+  `Remove-DnsServerResourceRecord`.
+
+
 ### Not added
 
 * Selectel, Reg.ru, Yandex, Timeweb and the other Russian providers: left
@@ -1324,7 +1634,9 @@ host: server.example.com      user: alice      password: (the login key)      zo
 * Microsoft DNS over WinRM: WS-Management needs NTLM (or Kerberos) on one
   kept-open connection and, by default, the SOAP body sealed by NTLM -
   ctx.http keeps no connection between requests. Windows DNS is reached
-  over OpenSSH by `ssh_dns` (its PowerShell flavour) or by RFC 2136.
+  over OpenSSH by `windows_dns` (1.0.27) or `ssh_dns` (its PowerShell
+  flavour) - RFC 2136 only to a zone that takes unsigned updates, as Windows
+  signs updates with GSS-TSIG (Kerberos) only.
 * PowerDNS-Admin: it fronts a PowerDNS server whose own API `powerdns`
   speaks; PowerDNS-Admin's own API keys were not added.
 * Variomedia, One.com: not this time (One.com's API is not documented).
@@ -1346,7 +1658,9 @@ host: server.example.com      user: alice      password: (the login key)      zo
   modules were written (only GitHub could be reached; lego or acme.sh alone
   is not enough to confirm an endpoint): Nicmanager, Zonomi, NameBright,
   ArvanCloud (its official Terraform provider covers only its cloud
-  servers), ISPConfig, Forpsi (no public DNS API). Volcengine does have an
+  servers), ISPConfig, Forpsi (no public DNS API - both came in 1.0.27, from
+  the vendors' own documentation: ISPConfig's Remote API, Forpsi's F-DNS).
+  Volcengine does have an
   official SDK, but its request signing was more than that round could test
   against published examples - maybe later. (Netim, DirectAdmin, cPanel,
   Joker.com and Huawei Cloud DNS came in 1.0.26, from the vendors' own
@@ -1573,7 +1887,7 @@ reads what the server is and fills them in.
 | `nsd` | NSD | the zone file edited, `nsd-checkzone`, `nsd-control reload ZONE` | *Zone files*; `nsd-control` set up (`nsd-control-setup` or a unix socket) |
 | `dnsmasq` | dnsmasq | `txt-record=NAME,"VALUE"` lines in a file of acme's own (`/etc/dnsmasq.d/acme-challenge.conf`), `dnsmasq --test`, then *Restart command* | dnsmasq reading that directory (`conf-dir=/etc/dnsmasq.d/,*.conf`) |
 | `unbound` | Unbound | `unbound-control local_data 'NAME TTL IN TXT "VALUE"'`; taken away by `local_data_remove NAME` and the other records at that name put back - in memory, no restart | remote-control enabled; only useful where Unbound is the server asked (an internal CA) |
-| `powershell` | Windows DNS | `Add-DnsServerResourceRecord` / `Remove-DnsServerResourceRecord` (OpenSSH for Windows) | the account in DnsAdmins; *Zone* as DNS Manager shows it |
+| `powershell` | Windows DNS | `Add-DnsServerResourceRecord` when the name (`Get-DnsServerResourceRecord -Node`) lacks the value / `Remove-DnsServerResourceRecord -RecordData VALUE -Force` - never without `-RecordData`, which would take every TXT record of the name (OpenSSH for Windows; also the validation `windows_dns` of its own) | the account in DnsAdmins; *Zone* as DNS Manager shows it |
 | `custom` | anything | your *Command to add* / *to take away* / *to try* | |
 
 Every name and value is checked (letters, digits, `_ . - *`) and every word is

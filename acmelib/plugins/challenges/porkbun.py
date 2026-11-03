@@ -10,7 +10,14 @@ the keys:
 
 Each answer says {"status": "SUCCESS"} or {"status": "ERROR", "message": ...}.
 API access has to be switched on for each domain (Domain Management → the
-domain → Details → API Access). Porkbun takes no TTL under 600.
+domain → Details → API Access). Porkbun takes no TTL under 600 ("Minimum is
+determined by account settings (typically 600)"). A DUPLICATE_RECORD refusal
+carries the record's existingId, which is taken as ours.
+
+Checked against the user's collection (api-docs/porkbun/): openapi-dns.json
+(an extract of https://porkbun.com/api/json/v3/spec, version 3.72) and
+notes.md (https://porkbun.com/api/json/v3/documentation). Less certain: how
+a TXT value is quoted (nothing is said - it is sent as it is).
 """
 from __future__ import annotations
 
@@ -51,6 +58,8 @@ class Porkbun(ApiDns):
             return None
         got = got if isinstance(got, dict) else {}
         if got.get('status') != 'SUCCESS':
+            if got.get('code') == 'DUPLICATE_RECORD' and got.get('existingId'):
+                return {'id': got.get('existingId')}    # "adopt it rather than creating another"
             words = str(got.get('message') or 'status %s' % st)
             if missing_ok and ('not found' in words.lower() or 'invalid record id' in words.lower()):
                 return None

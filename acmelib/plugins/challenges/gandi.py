@@ -3,18 +3,31 @@
 
     GET    https://api.gandi.net/v5/livedns/domains                       the domains
     GET    .../domains/{fqdn}/records/{name}/TXT     {rrset_ttl, rrset_values}   (404: none)
-    PUT    .../domains/{fqdn}/records/{name}/TXT     {rrset_ttl, rrset_values}   written whole
-    DELETE .../domains/{fqdn}/records/{name}/TXT
+    POST   .../domains/{fqdn}/records/{name}/TXT     {rrset_ttl, rrset_values}   a new RRset
+    PATCH  .../domains/{fqdn}/records/{name}/TXT     {add_rrset_values: [..]}    ours added
+    PATCH  .../domains/{fqdn}/records/{name}/TXT     {remove_rrset_values: [..]} ours away
 
 A personal access token is sent as "Authorization: Bearer", the older API key
-as "Authorization: Apikey" (Gandi has retired new API keys; both still work).
-The RRset is read, our value added or taken away, and written back.
+as "Authorization: Apikey" (Gandi has retired new API keys). PATCH "adds or
+removes some values of a Resource Record set", so another order's value at
+the same name is never written over; a 204 after the removal means the RRset
+is gone with our value, its last. A new RRset is made with POST (409 when it
+appeared meanwhile: then PATCH). Values in double quotes, as in Gandi's TXT
+examples; TTL 300 to 2592000.
+
+Checked against the user's collection (api-docs/gandi/): livedns-reference-extract.txt
+(https://api.gandi.net/docs/livedns/ - Records, the PATCH of 2025-03-20) and
+notes.md (https://api.gandi.net/docs/reference/, .../authentication/,
+.../changelog/). Less certain: whether PATCH makes an RRset that is not there
+(acme reads first and POSTs a new one); the new verification endpoint
+(POST .../verification/{name}/TXT, scope dns:domainverify) can only add, not
+remove, so it is not used.
 """
 from __future__ import annotations
 
 import urllib.parse
 
-from acmelib.plugins.base import field
+from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, api, relative,
                                                 rmw_lock, unquote_txt)
 
@@ -64,10 +77,20 @@ class Gandi(ApiDns):
         zone = self.zone_for(fqdn)
         rel = relative(fqdn, zone)
         with rmw_lock('gandi'):
-            have, ttl = self._values(zone, rel)
-            if value not in [unquote_txt(v) for v in have]:
-                self._call('PUT', self._path(zone, rel), {
-                    'rrset_ttl': int(ttl or self.ttl()), 'rrset_values': have + ['"%s"' % value]})
+            got = self._call('GET', self._path(zone, rel), missing_ok=True)
+            have = list((got or {}).get('rrset_values') or [])
+            if value in [unquote_txt(v) for v in have]:
+                return {'zone': zone, 'rel': rel}
+            one = '"%s"' % value
+            if got is None:
+                try:
+                    self._call('POST', self._path(zone, rel),
+                               {'rrset_ttl': self.ttl(), 'rrset_values': [one]})
+                    return {'zone': zone, 'rel': rel}
+                except PluginError as e:
+                    if 'said 409' not in str(e):
+                        raise
+            self._call('PATCH', self._path(zone, rel), {'add_rrset_values': [one]})
         return {'zone': zone, 'rel': rel}
 
     def del_txt(self, fqdn, value, handle):
@@ -75,12 +98,8 @@ class Gandi(ApiDns):
         zone = h.get('zone') or self.zone_for(fqdn)
         rel = h.get('rel') or relative(fqdn, zone)
         with rmw_lock('gandi'):
-            have, ttl = self._values(zone, rel)
-            left = [v for v in have if unquote_txt(v) != value]
-            if len(left) == len(have):
-                return
-            if left:
-                self._call('PUT', self._path(zone, rel), {'rrset_ttl': int(ttl or self.ttl()),
-                                                          'rrset_values': left})
-            else:
-                self._call('DELETE', self._path(zone, rel), missing_ok=True)
+            have, _ttl = self._values(zone, rel)
+            mine = [v for v in have if unquote_txt(v) == value]
+            if mine:
+                self._call('PATCH', self._path(zone, rel), {'remove_rrset_values': mine},
+                           missing_ok=True)

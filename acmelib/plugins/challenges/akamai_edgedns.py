@@ -2,7 +2,7 @@
 """DNS-01 at Akamai Edge DNS (Fast DNS), through its Zone Management API v2,
 signed with EdgeGrid (EG1-HMAC-SHA256) written here:
 
-    GET    https://{host}/config-dns/v2/zones?showAll=true&types=primary   {zones: [{zone}]}
+    GET    https://{host}/config-dns/v2/zones?showAll=true&types=PRIMARY   {zones: [{zone}]}
     GET    .../config-dns/v2/zones/{zone}/names/{fqdn}/types/TXT          {name, type, ttl, rdata: ['"v"']}  (404: none)
     POST   ... the same, {name, type: "TXT", ttl, rdata}                  the RRset made
     PUT    ... the same                                                   the RRset written whole
@@ -22,6 +22,15 @@ this was written; EdgeGrid is checked against Akamai's own test cases
 (AkamaiOPEN-edgegrid-python, test/testcases.json), the DNS calls as
 Posh-ACME's Akamai plugin and lego's providers/dns/edgedns make them. The
 API client needs "DNS—Zone Record Management" READ-WRITE.
+
+Checked again (1.0.27) against the user's collection (api-docs/akamai_edgedns/):
+edge-dns-v2-openapi.json (https://github.com/akamai/akamai-apis apis/config-dns/v2)
+and notes.md (https://techdocs.akamai.com/edge-dns/reference/get-started,
+.../use-change-lists, https://techdocs.akamai.com/developer/docs/edgegrid, the
+TXT form of https://techdocs.akamai.com/terraform/docs/set-up-edgedns): the
+calls, the quoted rdata and the signing as above; the zone list's types are
+PRIMARY / SECONDARY / ALIAS in capitals. Less certain: what POST answers when
+the record set appeared meanwhile (not documented); no lowest TTL is given.
 """
 from __future__ import annotations
 
@@ -96,7 +105,7 @@ class AkamaiEdgeDns(ApiDns):
         return None if st == 404 and missing_ok else got
 
     def zone_names(self):
-        got = self._call('GET', '/config-dns/v2/zones?showAll=true&types=primary') or {}
+        got = self._call('GET', '/config-dns/v2/zones?showAll=true&types=PRIMARY') or {}
         return [z.get('zone') for z in got.get('zones') or [] if isinstance(z, dict)]
 
     def _path(self, zone, fqdn):
