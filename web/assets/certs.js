@@ -2931,7 +2931,7 @@ function certRenew(c, button, back) {
       /* Only for a source of a public CA (ACME and the commercial ones): an own
          authority or self-signed has no such limits. */
       var src = ((typeof LISTS === 'object' && LISTS && LISTS.sources) || []).filter(function (x) { return x.name === c.issuer; })[0];
-      if (src && /acme|letsencrypt|zerossl|buypass|google|digicert|sectigo|sslmarket|globalsign|entrust/i.test(String(src.kind || ''))) {
+      if (src && /acme|letsencrypt|zerossl|buypass|google|digicert|sectigo|sslmarket|globalsign|entrust|certum|gogetssl|namecheap/i.test(String(src.kind || ''))) {
         var lim = el('p', 'note small muted', 'A public CA counts every certificate it issues: renewing again and again can hit its limits.');
         lim.style.marginTop = '12px';
         body.appendChild(lim);

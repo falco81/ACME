@@ -26,8 +26,19 @@ Configuration → REST Certificate Management) and the administrator's role
 allowed the profiles and the CA. The end entity is made (or updated) by the
 enrollment with the username and the enrollment code given here.
 
-UNCERTAIN: a request that needs approval answers with an error in the
-versions read; it is said as it is and asked again at the next try.
+* The form's lists: GET .../v1/ca -> {certificate_authorities [{name, subject_dn}]};
+  GET .../v2/endentity/profiles/authorized -> {end_entitie_profiles [{name, id,
+  description}]} (the field's name as the OpenAPI spells it); GET
+  .../v2/endentity/profile/{name} -> {available_certificate_profiles, available_cas}
+  (openapi.json above; added in EJBCA 7.10.0.1 - its release notes). Both are under
+  the /endentity/ resource, which Keyfactor's REST documentation marks "Enterprise":
+  EJBCA Community probably does not answer them - the profile is typed then.
+
+UNCERTAIN: a request that needs approval is answered 202 ("Most likely waiting for
+administrator approval", the REST documentation's status codes); how it says the
+request's id is not documented, so it is said in words and asked again (a new
+request) at the next try. Whether the /v2/endentity/ lists answer in EJBCA
+Community.
 """
 from __future__ import annotations
 
@@ -57,7 +68,8 @@ class EjbcaIssuer(Issuer):
     wildcards = True
     ip_names = True
     lists_existing = True           # certificate/search: Certificates → Import from a source
-    per_cert = [{'key': 'template', 'field': 'cert_profile', 'label': 'Certificate profile', 'placeholder': 'SERVER',
+    per_cert = [{'key': 'template', 'field': 'cert_profile', 'catalog': 'cert_profiles',
+                 'label': 'Certificate profile', 'placeholder': 'SERVER',
                  'help': 'The EJBCA certificate profile for this certificate. Empty: the source\'s own.'}]
     fields = [
         field('url', 'EJBCA address', 'text', required=True, placeholder='https://ejbca.example.local',
@@ -66,11 +78,23 @@ class EjbcaIssuer(Issuer):
               help='A certificate EJBCA knows as an administrator (a role with "/ra_functionality" '
                    'rights on the profiles and the CA). PEM, its chain after it.'),
         field('client_key', 'Client certificate\'s key', 'pem', secret=True, required=True),
-        field('ca_name', 'CA', 'text', required=True, placeholder='IssuingCA',
-              help='The name of the CA in EJBCA ("Try it" lists them).'),
-        field('cert_profile', 'Certificate profile', 'text', required=True, default='SERVER',
-              help='A certificate\'s own profile "template" wins.'),
-        field('ee_profile', 'End entity profile', 'text', required=True, placeholder='TLS_SERVERS'),
+        field('ca_name', 'CA', 'catalog', catalog='cas', required=True, placeholder='IssuingCA',
+              depends=['url', 'client_cert', 'client_key'],
+              help='The name of the CA in EJBCA. Load the list: the CAs (GET /v1/ca); a name can '
+                   'be typed too.'),
+        field('cert_profile', 'Certificate profile', 'catalog', catalog='cert_profiles',
+              required=True, default='SERVER', depends=['url', 'client_cert', 'client_key',
+                                                        'ee_profile'],
+              help='Load the list: the certificate profiles of the end entity profile (GET '
+                   '/v2/endentity/profile/NAME - likely EJBCA Enterprise only); a typed name '
+                   'always works. A certificate\'s own profile (Add a certificate → Settings) '
+                   'wins.'),
+        field('ee_profile', 'End entity profile', 'catalog', catalog='ee_profiles',
+              required=True, placeholder='TLS_SERVERS',
+              depends=['url', 'client_cert', 'client_key'],
+              help='Load the list: the end entity profiles the administrator may use (GET '
+                   '/v2/endentity/profiles/authorized - likely EJBCA Enterprise only); a typed '
+                   'name always works.'),
         field('username', 'End entity name', 'text', default='{cn}',
               help='The end entity the certificate is enrolled for: {cn} is the first name of '
                    'the certificate, {id} acme\'s id of it.'),
@@ -91,7 +115,7 @@ class EjbcaIssuer(Issuer):
             url += '/ejbca/ejbca-rest-api'
         return url
 
-    def _call(self, method, path, body=None, what='EJBCA'):
+    def _call(self, method, path, body=None, what='EJBCA', ok=(200, 201)):
         if not self.c('client_cert') or not self.c('client_key'):
             raise PluginError('set the administrator\'s client certificate and its key',
                               retry=False)
@@ -100,11 +124,56 @@ class EjbcaIssuer(Issuer):
                                    ca_pem=self.c('ca_pem') or None,
                                    client_cert=(self.c('client_cert'), self.c('client_key')))
         parsed = sc.parse_json(data)
-        if status not in (200, 201):
+        if status == 202 and 202 not in ok:
+            raise PluginError('EJBCA holds the request for an administrator\'s approval (%s) - '
+                              'approve it in EJBCA; acme asks again at the next try' % what,
+                              detail=(data or b'').decode('utf-8', 'replace')[:3000])
+        if status not in ok:
             raise sc.refusal(what, status, parsed, data,
                              'the administrator (client certificate) may not do this: its role '
                              'in EJBCA, or the REST interface is off')
         return parsed or {}
+
+    # -- the form's lists (base.py: a field of the type catalog) ------------------------
+    def _listed(self, path, what):
+        try:
+            return self._call('GET', path, what='EJBCA (%s)' % what)
+        except PluginError as e:
+            if re.search(r'answered (403|404|405|501)\b', str(e)):
+                raise PluginError('this EJBCA does not list %s (%s is likely EJBCA Enterprise '
+                                  'only, or the administrator may not read it) - type the name'
+                                  % (what, path), detail=getattr(e, 'detail', None), retry=False)
+            raise
+
+    def catalog(self, key):
+        """The CAs (GET /v1/ca), the end entity profiles the administrator may use (GET
+        /v2/endentity/profiles/authorized) and the certificate profiles of the end entity
+        profile (GET /v2/endentity/profile/{name}) - openapi.json of Keyfactor/ejbca-ce.
+        Read-only; the /v2/endentity/ ones are likely EJBCA Enterprise only."""
+        if key == 'cas':
+            cas = self._call('GET', '/v1/ca', what='the CAs').get('certificate_authorities') or []
+            opts = [[str(c['name']), '%s (%s)' % (c['name'], c.get('subject_dn') or '?')]
+                    for c in cas if isinstance(c, dict) and c.get('name')]
+            return {'options': opts, 'said': '%d CA(s)' % len(opts)}
+        if key == 'ee_profiles':
+            got = self._listed('/v2/endentity/profiles/authorized', 'the end entity profiles')
+            ps = [p for p in got.get('end_entitie_profiles') or got.get('end_entity_profiles')
+                  or [] if isinstance(p, dict) and p.get('name')]
+            opts = [[str(p['name']), '%s - %s' % (p['name'], p['description'])
+                     if p.get('description') else str(p['name'])] for p in ps]
+            return {'options': opts, 'said': '%d end entity profile(s)' % len(opts)}
+        if key == 'cert_profiles':
+            ee = str(self.c('ee_profile') or '').strip()
+            if not ee:
+                raise PluginError('set the end entity profile first - its certificate profiles '
+                                  'are listed', retry=False)
+            got = self._listed('/v2/endentity/profile/%s' % urllib.parse.quote(ee, safe=''),
+                               'the certificate profiles')
+            names = [str(n) for n in got.get('available_certificate_profiles') or [] if n]
+            return {'options': [[n, n] for n in names],
+                    'said': '%d certificate profile(s) of the end entity profile %s' % (
+                        len(names), ee)}
+        raise PluginError('there is no list called %s here' % key, retry=False)
 
     def test(self):
         st = self._call('GET', '/v1/certificate/status', what='EJBCA (status)')

@@ -46603,6 +46603,826 @@
   "stv141": {
    "source": "the subscription (its domain) whose repository gets the certificate",
    "text": "předplatné (jeho doména), jehož úložiště certifikát dostane"
+  },
+  "sres0001": {
+   "source": "An SCM certificate ID renewed (or replaced) for this certificate. Empty: the one acme made last for it (or the one it was imported from).",
+   "text": "ID certifikátu v SCM, který se pro tento certifikát obnoví (nebo nahradí). Prázdné: ten, který pro něj acme vytvořilo naposledy (nebo ze kterého byl importován)."
+  },
+  "sres0002": {
+   "source": "CNAME at the host SCM says (start CName validation) to its point",
+   "text": "CNAME na hostu, který SCM řekne (start CName validation), na jeho point"
+  },
+  "sres0003": {
+   "source": "Certificate to reuse",
+   "text": "Certifikát k opětovnému použití"
+  },
+  "sres0004": {
+   "source": "Certificates from Sectigo Certificate Manager through its Admin API: the domains validated (the record or file put in place by the certificate's validation, or an e-mail), the request enrolled with a certificate profile, the certificate collected and renewed. Lists the account's certificates for importing.",
+   "text": "Certifikáty ze Sectigo Certificate Manager přes jeho Admin API: domény ověřené (záznam nebo soubor vloží validace certifikátu, nebo e-mail), žádost podaná s profilem certifikátu, certifikát vyzvednutý a obnovovaný. Vypíše certifikáty účtu k importu."
+  },
+  "sres0005": {
+   "source": "Cost center=1234",
+   "text": "Cost center=1234"
+  },
+  "sres0006": {
+   "source": "Custom fields",
+   "text": "Vlastní pole"
+  },
+  "sres0007": {
+   "source": "Customer URI",
+   "text": "URI zákazníka"
+  },
+  "sres0008": {
+   "source": "DNS CNAME record (CNAME)",
+   "text": "Záznam DNS CNAME (CNAME)"
+  },
+  "sres0009": {
+   "source": "DNS TXT record (TXT)",
+   "text": "Záznam DNS TXT (TXT)"
+  },
+  "sres0010": {
+   "source": "E-mail to an address SCM offers for the domain",
+   "text": "E-mail na adresu, kterou SCM pro doménu nabídne"
+  },
+  "sres0011": {
+   "source": "Empty: as Signing in and the instance say.",
+   "text": "Prázdné: podle Přihlašování a instance."
+  },
+  "sres0012": {
+   "source": "External requester",
+   "text": "Externí žadatel"
+  },
+  "sres0013": {
+   "source": "For each domain the address is picked from those SCM offers: this mailbox, else the first offered.",
+   "text": "Pro každou doménu se adresa vybere z těch, které SCM nabídne: tato schránka, jinak první nabídnutá."
+  },
+  "sres0014": {
+   "source": "HTTP file (HTTP)",
+   "text": "Soubor HTTP (HTTP)"
+  },
+  "sres0015": {
+   "source": "How SCM checks the domains. Domains validated in the account already are not validated again. The certificate's validation must be able to put the record or file in place - the wizard offers only those that can.",
+   "text": "Jak SCM ověřuje domény. Domény v účtu už ověřené se znovu neověřují. Validace certifikátu musí umět záznam nebo soubor vložit – průvodce nabízí jen ty, které to umějí."
+  },
+  "sres0016": {
+   "source": "Load the list: the SSL certificate profiles of the account (GET /api/ssl/v2/types) - an ID can be typed too. A certificate's own profile (Add a certificate → Settings) wins.",
+   "text": "Načíst seznam: profily SSL certifikátů účtu (GET /api/ssl/v2/types) – ID lze i napsat. Vlastní profil certifikátu (Přidat certifikát → Nastavení) má přednost."
+  },
+  "sres0017": {
+   "source": "Login and password (cert-manager.com)",
+   "text": "Přihlašovací jméno a heslo (cert-manager.com)"
+  },
+  "sres0018": {
+   "source": "Longer: it is asked for again at the next try - nothing is enrolled twice.",
+   "text": "Déle: požádá se znovu při dalším pokusu – nic se nepodává dvakrát."
+  },
+  "sres0019": {
+   "source": "OAuth 2.0 client (admin.INSTANCE.sectigo.com)",
+   "text": "Klient OAuth 2.0 (admin.INSTANCE.sectigo.com)"
+  },
+  "sres0020": {
+   "source": "SCM instance",
+   "text": "Instance SCM"
+  },
+  "sres0021": {
+   "source": "SCM proves a wildcard name by DNS or e-mail, not by an HTTP file - choose a DNS record",
+   "text": "SCM ověřuje wildcard přes DNS nebo e-mail, ne souborem HTTP – zvolte záznam DNS"
+  },
+  "sres0022": {
+   "source": "Sectigo Certificate Manager (Admin API)",
+   "text": "Sectigo Certificate Manager (Admin API)"
+  },
+  "sres0023": {
+   "source": "Sectigo recommends OAuth 2.0: an API client made in SCM (its client ID and secret). The login and password of an API administrator go to cert-manager.com in headers.",
+   "text": "Sectigo doporučuje OAuth 2.0: klienta API založeného v SCM (jeho ID a tajný klíč). Přihlašovací jméno a heslo API administrátora jdou na cert-manager.com v hlavičkách."
+  },
+  "sres0024": {
+   "source": "Sectigo says the authentication server may differ for a customer: a 401 answer names it (authorization_uri).",
+   "text": "Sectigo uvádí, že ověřovací server se může pro zákazníka lišit: odpověď 401 ho jmenuje (authorization_uri)."
+  },
+  "sres0025": {
+   "source": "TXT at the host SCM says (submit DNS TXT validation) holding its point",
+   "text": "TXT na hostu, který SCM řekne (submit DNS TXT validation), s hodnotou jeho point"
+  },
+  "sres0026": {
+   "source": "Term (days)",
+   "text": "Doba (dny)"
+  },
+  "sres0027": {
+   "source": "The SCM certificate profile (its ID) for this certificate. Empty: the source's own.",
+   "text": "Profil certifikátu v SCM (jeho ID) pro tento certifikát. Prázdné: ten ze zdroje."
+  },
+  "sres0028": {
+   "source": "The SCM organization (or department) the certificates are enrolled for (orgId).",
+   "text": "Organizace (nebo oddělení) v SCM, pro kterou se o certifikáty žádá (orgId)."
+  },
+  "sres0029": {
+   "source": "The customer identifier of the account (customerUri).",
+   "text": "Identifikátor zákazníka účtu (customerUri)."
+  },
+  "sres0030": {
+   "source": "The production instance given at onboarding: the API is https://admin.INSTANCE.sectigo.com.",
+   "text": "Produkční instance sdělená při zřízení: API je https://admin.INSTANCE.sectigo.com."
+  },
+  "sres0031": {
+   "source": "The validity asked for (term). Empty: the shortest term the profile offers.",
+   "text": "Požadovaná platnost (term). Prázdné: nejkratší doba, kterou profil nabízí."
+  },
+  "sres0032": {
+   "source": "What acme does with the certificate acme made (or imported) when it is renewed. Names that differ from that certificate's are always a new enrollment.",
+   "text": "Co acme udělá s certifikátem, který vytvořilo (nebo importovalo), když se obnovuje. Jiná jména než u toho certifikátu znamenají vždy novou žádost."
+  },
+  "sres0033": {
+   "source": "an e-mail to an address SCM offers for the domain",
+   "text": "e-mail na adresu, kterou SCM pro doménu nabídne"
+  },
+  "sres0034": {
+   "source": "applied (at the CA)",
+   "text": "podáno (u CA)"
+  },
+  "sres0035": {
+   "source": "being made",
+   "text": "vytváří se"
+  },
+  "sres0036": {
+   "source": "http://NAME/.well-known/pki-validation/FILE holding the two lines SCM gives",
+   "text": "http://JMÉNO/.well-known/pki-validation/SOUBOR se dvěma řádky, které SCM dá"
+  },
+  "sres0037": {
+   "source": "https://admin.enterprise.sectigo.com",
+   "text": "https://admin.enterprise.sectigo.com"
+  },
+  "sres0038": {
+   "source": "is a new enrollment",
+   "text": "je nová žádost"
+  },
+  "sres0039": {
+   "source": "it@example.com",
+   "text": "it@example.com"
+  },
+  "sres0040": {
+   "source": "name=value, one a line: the account's mandatory custom fields (customFields).",
+   "text": "jméno=hodnota, jedno na řádek: povinná vlastní pole účtu (customFields)."
+  },
+  "sres0041": {
+   "source": "renews it (renewById: a new certificate ID)",
+   "text": "ho obnoví (renewById: nové ID certifikátu)"
+  },
+  "sres0042": {
+   "source": "replaces it (the same certificate ID)",
+   "text": "ho nahradí (stejné ID certifikátu)"
+  },
+  "sres0043": {
+   "source": "requested (waiting for approval)",
+   "text": "vyžádáno (čeká na schválení)"
+  },
+  "sres0044": {
+   "source": "set the certificate profile (its ID - Load the list)",
+   "text": "nastavte profil certifikátu (jeho ID – Načíst seznam)"
+  },
+  "sres0045": {
+   "source": "set the client ID and the client secret of the SCM API client",
+   "text": "nastavte ID klienta a tajný klíč klienta API v SCM"
+  },
+  "sres0046": {
+   "source": "set the login, the password and the customer URI",
+   "text": "nastavte přihlašovací jméno, heslo a URI zákazníka"
+  },
+  "sres0047": {
+   "source": "set the organization ID (a number)",
+   "text": "nastavte ID organizace (číslo)"
+  },
+  "sres0048": {
+   "source": "the SCM API address is https://HOST",
+   "text": "adresa API SCM je https://HOST"
+  },
+  "sres0049": {
+   "source": "the SCM instance is enterprise, hard or eu",
+   "text": "instance SCM je enterprise, hard nebo eu"
+  },
+  "sres0050": {
+   "source": "the certificate profiles",
+   "text": "profily certifikátů"
+  },
+  "sres0051": {
+   "source": "the first address SCM offers",
+   "text": "první adresa, kterou SCM nabídne"
+  },
+  "sres0052": {
+   "source": "the term is a number of days",
+   "text": "doba je počet dní"
+  },
+  "sres0053": {
+   "source": "the token address is an https address",
+   "text": "adresa pro tokeny je adresa https"
+  },
+  "sres0054": {
+   "source": "/.well-known/pki-validation/",
+   "text": "/.well-known/pki-validation/"
+  },
+  "sres0055": {
+   "source": "An order bought already: its certificate is reissued (free, within the product's validity). Empty: the order acme made last for the certificate.",
+   "text": "Již koupená objednávka: její certifikát se vydá znovu (zdarma, v rámci platnosti produktu). Prázdné: objednávka, kterou acme pro certifikát vytvořilo naposledy."
+  },
+  "sres0056": {
+   "source": "CNAME _certum.DOMAIN to CODE.certum.pl",
+   "text": "CNAME _certum.DOMÉNA na KÓD.certum.pl"
+  },
+  "sres0057": {
+   "source": "CNAME at the domain to CODE.certum.pl",
+   "text": "CNAME na doméně na KÓD.certum.pl"
+  },
+  "sres0058": {
+   "source": "Certificates from Certum through its SOAP partner API: ordered with acme's request, the domain validation record or file put in place by the certificate's validation, reissued inside the order. Lists the account's orders for importing.",
+   "text": "Certifikáty od Certum přes jeho partnerské SOAP API: objednané s žádostí acme, záznam nebo soubor ověření domény vloží validace certifikátu, znovu vydávané v rámci objednávky. Vypíše objednávky účtu k importu."
+  },
+  "sres0059": {
+   "source": "Certum (partner API)",
+   "text": "Certum (partnerské API)"
+  },
+  "sres0060": {
+   "source": "Certum proves a wildcard name by DNS, not by the FILE method - choose a DNS record",
+   "text": "Certum ověřuje wildcard přes DNS, ne metodou FILE – zvolte záznam DNS"
+  },
+  "sres0061": {
+   "source": "Certum took the order but said no order ID - look in the partner panel before trying again (a second order would be paid again)",
+   "text": "Certum objednávku přijal, ale neřekl její ID – před dalším pokusem se podívejte do partnerského panelu (druhá objednávka by se platila znovu)"
+  },
+  "sres0062": {
+   "source": "Certum was asked to verify the domains",
+   "text": "Certum byl požádán o ověření domén"
+  },
+  "sres0063": {
+   "source": "DNS CNAME at _certum. (DNS_CNAME_PREFIX)",
+   "text": "DNS CNAME na _certum. (DNS_CNAME_PREFIX)"
+  },
+  "sres0064": {
+   "source": "DNS CNAME at the domain (DNS_CNAME)",
+   "text": "DNS CNAME na doméně (DNS_CNAME)"
+  },
+  "sres0065": {
+   "source": "DNS CNAME record at _certum.DOMAIN",
+   "text": "Záznam DNS CNAME na _certum.DOMÉNA"
+  },
+  "sres0066": {
+   "source": "DNS CNAME record at the domain itself",
+   "text": "Záznam DNS CNAME přímo na doméně"
+  },
+  "sres0067": {
+   "source": "DNS TXT at _certum. (DNS_TXT_PREFIX)",
+   "text": "DNS TXT na _certum. (DNS_TXT_PREFIX)"
+  },
+  "sres0068": {
+   "source": "DNS TXT at the domain (DNS_TXT)",
+   "text": "DNS TXT na doméně (DNS_TXT)"
+  },
+  "sres0069": {
+   "source": "DNS TXT record at _certum.DOMAIN",
+   "text": "Záznam DNS TXT na _certum.DOMÉNA"
+  },
+  "sres0070": {
+   "source": "DNS TXT record at the domain itself",
+   "text": "Záznam DNS TXT přímo na doméně"
+  },
+  "sres0071": {
+   "source": "ECC-SHA256",
+   "text": "ECC-SHA256"
+  },
+  "sres0072": {
+   "source": "Empty: as \"Certum\" says.",
+   "text": "Prázdné: podle „Certum“."
+  },
+  "sres0073": {
+   "source": "For an OV or EV product: email=, firstName=, lastName=, phone= one a line (requestorInfo).",
+   "text": "Pro produkt OV nebo EV: email=, firstName=, lastName=, phone= po jednom na řádek (requestorInfo)."
+  },
+  "sres0074": {
+   "source": "HTTP file (FILE)",
+   "text": "Soubor HTTP (FILE)"
+  },
+  "sres0075": {
+   "source": "HTTP file /.well-known/pki-validation/certum.txt (no wildcards)",
+   "text": "Soubor HTTP /.well-known/pki-validation/certum.txt (ne pro wildcardy)"
+  },
+  "sres0076": {
+   "source": "How Certum checks the domains (one method for the whole order). The certificate's validation must be able to put that record or file in place.",
+   "text": "Jak Certum ověřuje domény (jedna metoda pro celou objednávku). Validace certifikátu musí umět ten záznam nebo soubor vložit."
+  },
+  "sres0077": {
+   "source": "Import from a source: the orders placed in so many days back (getOrdersByDateRange).",
+   "text": "Import ze zdroje: objednávky zadané za tolik dní zpět (getOrdersByDateRange)."
+  },
+  "sres0078": {
+   "source": "Load the list: the products of the account (getProductList, type ISSUE) - a code can be typed too.",
+   "text": "Načíst seznam: produkty účtu (getProductList, typ ISSUE) – kód lze i napsat."
+  },
+  "sres0079": {
+   "source": "Longer: it is asked for again at the next try - nothing is ordered twice.",
+   "text": "Déle: požádá se znovu při dalším pokusu – nic se neobjednává dvakrát."
+  },
+  "sres0080": {
+   "source": "Off: acme never buys anything - it only reissues inside orders bought already, and stops with words where a purchase would be needed.",
+   "text": "Vypnuto: acme nikdy nic nekupuje – jen znovu vydává v již koupených objednávkách a tam, kde by byl potřeba nákup, se zastaví a řekne proč."
+  },
+  "sres0081": {
+   "source": "Orders listed (days back)",
+   "text": "Vypsané objednávky (dní zpět)"
+  },
+  "sres0082": {
+   "source": "Partner login",
+   "text": "Partnerské přihlašovací jméno"
+  },
+  "sres0083": {
+   "source": "Production (gs.certum.pl)",
+   "text": "Produkce (gs.certum.pl)"
+  },
+  "sres0084": {
+   "source": "RSA-SHA256",
+   "text": "RSA-SHA256"
+  },
+  "sres0085": {
+   "source": "Requestor (OV/EV)",
+   "text": "Žadatel (OV/EV)"
+  },
+  "sres0086": {
+   "source": "TXT at _certum.DOMAIN holding Certum's code",
+   "text": "TXT na _certum.DOMÉNA s kódem od Certum"
+  },
+  "sres0087": {
+   "source": "TXT at the domain holding Certum's code",
+   "text": "TXT na doméně s kódem od Certum"
+  },
+  "sres0088": {
+   "source": "Tax identification number (OV/EV)",
+   "text": "DIČ / identifikační číslo (OV/EV)"
+  },
+  "sres0089": {
+   "source": "Test (gs.test.certum.pl)",
+   "text": "Test (gs.test.certum.pl)"
+  },
+  "sres0090": {
+   "source": "The customer the certificates are for (its ID or SimplySign login) - not the partner login.",
+   "text": "Zákazník, pro kterého certifikáty jsou (jeho ID nebo přihlášení SimplySign) – ne partnerské přihlašovací jméno."
+  },
+  "sres0091": {
+   "source": "The partner API answers only the IP addresses registered for the account.",
+   "text": "Partnerské API odpovídá jen IP adresám registrovaným pro účet."
+  },
+  "sres0092": {
+   "source": "The partner's identifier agreed with Certum (its SSO account).",
+   "text": "Identifikátor partnera dohodnutý s Certum (jeho účet SSO)."
+  },
+  "sres0093": {
+   "source": "a Certum order ID",
+   "text": "ID objednávky u Certum"
+  },
+  "sres0094": {
+   "source": "being verified",
+   "text": "ověřuje se"
+  },
+  "sres0095": {
+   "source": "cancelled or rejected",
+   "text": "zrušeno nebo zamítnuto"
+  },
+  "sres0096": {
+   "source": "email=it@example.com",
+   "text": "email=it@example.com"
+  },
+  "sres0097": {
+   "source": "http://NAME/.well-known/pki-validation/certum.txt holding CODE-certum.pl",
+   "text": "http://JMÉNO/.well-known/pki-validation/certum.txt s obsahem KÓD-certum.pl"
+  },
+  "sres0098": {
+   "source": "https://gs.certum.pl/service/PartnerApi",
+   "text": "https://gs.certum.pl/service/PartnerApi"
+  },
+  "sres0099": {
+   "source": "organizationInfo/taxIdentificationNumber of an OV or EV order.",
+   "text": "organizationInfo/taxIdentificationNumber objednávky OV nebo EV."
+  },
+  "sres0100": {
+   "source": "set the customer",
+   "text": "nastavte zákazníka"
+  },
+  "sres0101": {
+   "source": "set the partner login and the password",
+   "text": "nastavte partnerské přihlašovací jméno a heslo"
+  },
+  "sres0102": {
+   "source": "set the product of a new order (its 3-digit code)",
+   "text": "nastavte produkt nové objednávky (jeho trojmístný kód)"
+  },
+  "sres0103": {
+   "source": "the Certum API address is an https address",
+   "text": "adresa API Certum je adresa https"
+  },
+  "sres0104": {
+   "source": "the domain verification",
+   "text": "ověření domén"
+  },
+  "sres0105": {
+   "source": "verified, being issued",
+   "text": "ověřeno, vydává se"
+  },
+  "sres0106": {
+   "source": "waiting for the verification",
+   "text": "čeká na ověření"
+  },
+  "sres0107": {
+   "source": "An order bought already: its certificate is reissued (free). Empty: the order acme made last for the certificate.",
+   "text": "Již koupená objednávka: její certifikát se vydá znovu (zdarma). Prázdné: objednávka, kterou acme pro certifikát vytvořilo naposledy."
+  },
+  "sres0108": {
+   "source": "Ask GoGetSSL to cancel the order in \"Order to reuse\"?",
+   "text": "Požádat GoGetSSL o zrušení objednávky v „Objednávka k opětovnému použití“?"
+  },
+  "sres0109": {
+   "source": "Asks GoGetSSL to cancel (and refund) the order in \"Order to reuse\" - its API has no revocation. GoGetSSL reviews it in 2 to 48 hours.",
+   "text": "Požádá GoGetSSL o zrušení (a vrácení peněz) objednávky v „Objednávka k opětovnému použití“ – jeho API odvolání nemá. GoGetSSL žádost posoudí do 2 až 48 hodin."
+  },
+  "sres0110": {
+   "source": "CNAME at the name GoGetSSL says (_HASH.NAME) to its target",
+   "text": "CNAME na jménu, které GoGetSSL řekne (_HASH.JMÉNO), na jeho cíl"
+  },
+  "sres0111": {
+   "source": "Cancel the order to reuse",
+   "text": "Zrušit objednávku k opětovnému použití"
+  },
+  "sres0112": {
+   "source": "Certificates bought through GoGetSSL's reseller API: ordered (only when paid orders are allowed) or reissued inside an order bought already, the domain validation record or file put in place by the certificate's validation. Lists the account's orders for importing.",
+   "text": "Certifikáty kupované přes resellerské API GoGetSSL: objednané (jen když jsou placené objednávky povolené) nebo znovu vydané v již koupené objednávce, záznam nebo soubor ověření domény vloží validace certifikátu. Vypíše objednávky účtu k importu."
+  },
+  "sres0113": {
+   "source": "Client area → Reseller Modules → API settings: the API password (not the account's password).",
+   "text": "Klientská zóna → Reseller Modules → API settings: heslo pro API (ne heslo účtu)."
+  },
+  "sres0114": {
+   "source": "DNS CNAME record (dns)",
+   "text": "Záznam DNS CNAME (dns)"
+  },
+  "sres0115": {
+   "source": "GoGetSSL (reseller API)",
+   "text": "GoGetSSL (resellerské API)"
+  },
+  "sres0116": {
+   "source": "GoGetSSL gave no key for the user",
+   "text": "GoGetSSL pro uživatele nedal žádný klíč"
+  },
+  "sres0117": {
+   "source": "GoGetSSL took the order but said no order ID - look in the client area before trying again (a second order would be paid again)",
+   "text": "GoGetSSL objednávku přijal, ale neřekl její ID – před dalším pokusem se podívejte do klientské zóny (druhá objednávka by se platila znovu)"
+  },
+  "sres0118": {
+   "source": "GoGetSSL was asked to look at the domain validation again",
+   "text": "GoGetSSL byl požádán, aby se na ověření domény podíval znovu"
+  },
+  "sres0119": {
+   "source": "GoGetSSL's API cannot revoke a certificate - revoke it in the GoGetSSL client area, or cancel its order (the action \"Cancel the order to reuse\")",
+   "text": "API GoGetSSL neumí certifikát odvolat – odvolejte ho v klientské zóně GoGetSSL, nebo zrušte jeho objednávku (akce „Zrušit objednávku k opětovnému použití“)"
+  },
+  "sres0120": {
+   "source": "HTTP file (http)",
+   "text": "Soubor HTTP (http)"
+  },
+  "sres0121": {
+   "source": "How the CA checks the domains. The certificate's validation must be able to put that record or file in place - the wizard offers only those that can.",
+   "text": "Jak CA ověřuje domény. Validace certifikátu musí umět ten záznam nebo soubor vložit – průvodce nabízí jen ty, které to umějí."
+  },
+  "sres0122": {
+   "source": "Load the list: the SSL products of the account (GET /products/ssl) - an ID can be typed too.",
+   "text": "Načíst seznam: SSL produkty účtu (GET /products/ssl) – ID lze i napsat."
+  },
+  "sres0123": {
+   "source": "More fields of a new order",
+   "text": "Další pole nové objednávky"
+  },
+  "sres0124": {
+   "source": "Period of a new order (months)",
+   "text": "Období nové objednávky (měsíce)"
+  },
+  "sres0125": {
+   "source": "Server licences",
+   "text": "Serverové licence"
+  },
+  "sres0126": {
+   "source": "The address of each domain the CA writes to.",
+   "text": "Adresa každé domény, na kterou CA napíše."
+  },
+  "sres0127": {
+   "source": "The login of the GoGetSSL client area.",
+   "text": "Přihlašovací jméno do klientské zóny GoGetSSL."
+  },
+  "sres0128": {
+   "source": "a new order",
+   "text": "nová objednávka"
+  },
+  "sres0129": {
+   "source": "a wildcard name is proved by DNS or e-mail, not by an HTTP file - choose the DNS CNAME record",
+   "text": "wildcard se ověřuje přes DNS nebo e-mail, ne souborem HTTP – zvolte záznam DNS CNAME"
+  },
+  "sres0130": {
+   "source": "an e-mail to admin@, administrator@, hostmaster@, postmaster@ or webmaster@ the domain",
+   "text": "e-mail na admin@, administrator@, hostmaster@, postmaster@ nebo webmaster@ domény"
+  },
+  "sres0131": {
+   "source": "being reissued",
+   "text": "vydává se znovu"
+  },
+  "sres0132": {
+   "source": "being validated",
+   "text": "ověřuje se"
+  },
+  "sres0133": {
+   "source": "http://NAME/.well-known/pki-validation/HASH.txt holding GoGetSSL's lines",
+   "text": "http://JMÉNO/.well-known/pki-validation/HASH.txt s řádky od GoGetSSL"
+  },
+  "sres0134": {
+   "source": "name=value, one a line, sent as they are (an OV/EV order's org_*, admin_organization, webserver_type...).",
+   "text": "jméno=hodnota, jedno na řádek, poslané tak, jak jsou (org_*, admin_organization, webserver_type… objednávky OV/EV)."
+  },
+  "sres0135": {
+   "source": "not paid",
+   "text": "nezaplaceno"
+  },
+  "sres0136": {
+   "source": "org_name=Firma s.r.o.",
+   "text": "org_name=Firma s.r.o."
+  },
+  "sres0137": {
+   "source": "server_count of a new order (-1: unlimited).",
+   "text": "server_count nové objednávky (-1: neomezeně)."
+  },
+  "sres0138": {
+   "source": "set the contact (first and last name, phone, e-mail)",
+   "text": "nastavte kontakt (jméno a příjmení, telefon, e-mail)"
+  },
+  "sres0139": {
+   "source": "set the product of a new order (its ID - Load the list)",
+   "text": "nastavte produkt nové objednávky (jeho ID – Načíst seznam)"
+  },
+  "sres0140": {
+   "source": "set the user and the API password",
+   "text": "nastavte uživatele a heslo pro API"
+  },
+  "sres0141": {
+   "source": "the GoGetSSL API address is not an https address",
+   "text": "adresa API GoGetSSL není adresa https"
+  },
+  "sres0142": {
+   "source": "the balance",
+   "text": "zůstatek"
+  },
+  "sres0143": {
+   "source": "the new order",
+   "text": "nová objednávka"
+  },
+  "sres0144": {
+   "source": "the revalidation",
+   "text": "nové ověření"
+  },
+  "sres0145": {
+   "source": "A CertificateID bought already: one not activated yet is activated, an active one is reissued (free). Empty: the one acme had last for the certificate.",
+   "text": "Již koupené CertificateID: dosud neaktivované se aktivuje, aktivní se vydá znovu (zdarma). Prázdné: to, které acme pro certifikát mělo naposledy."
+  },
+  "sres0146": {
+   "source": "AdminEmailAddress of the activation: where Namecheap sends the certificate.",
+   "text": "AdminEmailAddress aktivace: kam Namecheap certifikát pošle."
+  },
+  "sres0147": {
+   "source": "AdminOrganizationName=Firma s.r.o.",
+   "text": "AdminOrganizationName=Firma s.r.o."
+  },
+  "sres0148": {
+   "source": "CNAME HostName to Target, as the activation answers",
+   "text": "CNAME HostName na Target, jak aktivace odpoví"
+  },
+  "sres0149": {
+   "source": "Certificate type",
+   "text": "Typ certifikátu"
+  },
+  "sres0150": {
+   "source": "Certificates bought at Namecheap through its API: bought (only when paid orders are allowed), activated with acme's request or reissued inside a certificate bought already, the CNAME or file put in place by the certificate's validation. Lists the account's certificates for importing.",
+   "text": "Certifikáty kupované u Namecheap přes jeho API: koupené (jen když jsou placené objednávky povolené), aktivované žádostí acme nebo znovu vydané v již koupeném certifikátu, CNAME nebo soubor vloží validace certifikátu. Vypíše certifikáty účtu k importu."
+  },
+  "sres0151": {
+   "source": "DNS CNAME record (CNAMECSRHASH)",
+   "text": "Záznam DNS CNAME (CNAMECSRHASH)"
+  },
+  "sres0152": {
+   "source": "Empty: as \"Namecheap\" says.",
+   "text": "Prázdné: podle „Namecheap“."
+  },
+  "sres0153": {
+   "source": "HTTP file (HTTPCSRHASH)",
+   "text": "Soubor HTTP (HTTPCSRHASH)"
+  },
+  "sres0154": {
+   "source": "How the CA checks the domains (Namecheap offers no TXT record). The certificate's validation must be able to put that record or file in place.",
+   "text": "Jak CA ověřuje domény (Namecheap záznam TXT nenabízí). Validace certifikátu musí umět ten záznam nebo soubor vložit."
+  },
+  "sres0155": {
+   "source": "Longer: it is asked for again at the next try - nothing is bought twice.",
+   "text": "Déle: požádá se znovu při dalším pokusu – nic se nekupuje dvakrát."
+  },
+  "sres0156": {
+   "source": "More fields of the activation",
+   "text": "Další pole aktivace"
+  },
+  "sres0157": {
+   "source": "Name=value, one a line, sent as they are (what an OV/EV activation wants).",
+   "text": "Jméno=hodnota, jedno na řádek, poslané tak, jak jsou (co chce aktivace OV/EV)."
+  },
+  "sres0158": {
+   "source": "Namecheap SSL (API)",
+   "text": "Namecheap SSL (API)"
+  },
+  "sres0159": {
+   "source": "Namecheap sold the certificate but said no CertificateID - look in the account before trying again (a second one would be paid again)",
+   "text": "Namecheap certifikát prodal, ale neřekl jeho CertificateID – před dalším pokusem se podívejte do účtu (druhý by se platil znovu)"
+  },
+  "sres0160": {
+   "source": "Namecheap was asked to check the domain validation again",
+   "text": "Namecheap byl požádán, aby ověření domény zkontroloval znovu"
+  },
+  "sres0161": {
+   "source": "Off: acme never buys anything (namecheap.ssl.create) - it only activates or reissues certificates bought already.",
+   "text": "Vypnuto: acme nikdy nic nekupuje (namecheap.ssl.create) – jen aktivuje nebo znovu vydává již koupené certifikáty."
+  },
+  "sres0162": {
+   "source": "Production (api.namecheap.com)",
+   "text": "Produkce (api.namecheap.com)"
+  },
+  "sres0163": {
+   "source": "Profile → Tools → Namecheap API Access: the account's user name.",
+   "text": "Profile → Tools → Namecheap API Access: uživatelské jméno účtu."
+  },
+  "sres0164": {
+   "source": "Sandbox (api.sandbox.namecheap.com)",
+   "text": "Sandbox (api.sandbox.namecheap.com)"
+  },
+  "sres0165": {
+   "source": "The IPv4 address acme calls from - it must be on the API access allow list.",
+   "text": "Adresa IPv4, ze které acme volá – musí být na seznamu povolených adres přístupu k API."
+  },
+  "sres0166": {
+   "source": "The Namecheap SSL type of a new certificate bought for this one. Empty: the source's own.",
+   "text": "Typ SSL u Namecheap pro nový certifikát koupený pro tento. Prázdné: ten ze zdroje."
+  },
+  "sres0167": {
+   "source": "The SSL product Namecheap sells (namecheap.ssl.create Type). Load the list; a type can be typed too.",
+   "text": "SSL produkt, který Namecheap prodává (Type u namecheap.ssl.create). Načtěte seznam; typ lze i napsat."
+  },
+  "sres0168": {
+   "source": "The user the commands are for. Empty: the API user.",
+   "text": "Uživatel, pro kterého příkazy jsou. Prázdné: uživatel API."
+  },
+  "sres0169": {
+   "source": "Type of a new certificate",
+   "text": "Typ nového certifikátu"
+  },
+  "sres0170": {
+   "source": "Web server type",
+   "text": "Typ webového serveru"
+  },
+  "sres0171": {
+   "source": "WebServerType of the activation (empty: not sent).",
+   "text": "WebServerType aktivace (prázdné: neposílá se)."
+  },
+  "sres0172": {
+   "source": "Years of a new certificate",
+   "text": "Roky nového certifikátu"
+  },
+  "sres0173": {
+   "source": "a renewal bought, not activated",
+   "text": "koupena obnova, neaktivováno"
+  },
+  "sres0174": {
+   "source": "a wildcard name is proved by a CNAME or e-mail, not by an HTTP file - choose the DNS CNAME record",
+   "text": "wildcard se ověřuje záznamem CNAME nebo e-mailem, ne souborem HTTP – zvolte záznam DNS CNAME"
+  },
+  "sres0175": {
+   "source": "acme does not know the certificate's ID at Namecheap - revoke it in the Namecheap account",
+   "text": "acme nezná ID certifikátu u Namecheap – odvolejte ho v účtu Namecheap"
+  },
+  "sres0176": {
+   "source": "activated, waiting for issuance",
+   "text": "aktivováno, čeká na vydání"
+  },
+  "sres0177": {
+   "source": "an error at the certificate provider",
+   "text": "chyba u poskytovatele certifikátu"
+  },
+  "sres0178": {
+   "source": "bought, not activated",
+   "text": "koupeno, neaktivováno"
+  },
+  "sres0179": {
+   "source": "http://NAME/.well-known/pki-validation/FileName holding FileContent",
+   "text": "http://JMÉNO/.well-known/pki-validation/FileName s obsahem FileContent"
+  },
+  "sres0180": {
+   "source": "https://api.namecheap.com/xml.response",
+   "text": "https://api.namecheap.com/xml.response"
+  },
+  "sres0181": {
+   "source": "replaced by a reissue",
+   "text": "nahrazeno novým vydáním"
+  },
+  "sres0182": {
+   "source": "set the API user and the API key",
+   "text": "nastavte uživatele API a API klíč"
+  },
+  "sres0183": {
+   "source": "set the administrator e-mail",
+   "text": "nastavte e-mail administrátora"
+  },
+  "sres0184": {
+   "source": "the CA mails the approver address of each domain - someone there approves the certificate",
+   "text": "CA posílá e-mail na schvalovací adresu každé domény – někdo tam certifikát schválí"
+  },
+  "sres0185": {
+   "source": "the DCV retry",
+   "text": "opakování DCV"
+  },
+  "sres0186": {
+   "source": "the Namecheap API address is an https address",
+   "text": "adresa API Namecheap je adresa https"
+  },
+  "sres0187": {
+   "source": "the client IP is the IPv4 address acme calls from",
+   "text": "IP klienta je adresa IPv4, ze které acme volá"
+  },
+  "sres0188": {
+   "source": "the purchase",
+   "text": "nákup"
+  },
+  "sres0189": {
+   "source": "Load the list: the end-entity templates AWS documents (AWS has no call that lists them); another ARN can be typed. Empty: AWS's default (EndEntityCertificate/V1). A certificate's own template (Add a certificate → Settings) wins.",
+   "text": "Načíst seznam: šablony pro koncové certifikáty, které AWS dokumentuje (AWS nemá volání, které by je vypsalo); jiné ARN lze napsat. Prázdné: výchozí AWS (EndEntityCertificate/V1). Vlastní šablona certifikátu (Přidat certifikát → Nastavení) má přednost."
+  },
+  "sres0190": {
+   "source": "arn:aws:acm-pca:::template/EndEntityServerAuthCertificate/V1",
+   "text": "arn:aws:acm-pca:::template/EndEntityServerAuthCertificate/V1"
+  },
+  "sres0191": {
+   "source": "arn:aws:acm-pca:eu-central-1:123456789012:certificate-authority/…",
+   "text": "arn:aws:acm-pca:eu-central-1:123456789012:certificate-authority/…"
+  },
+  "sres0192": {
+   "source": "https://acm-pca.eu-central-1.amazonaws.com",
+   "text": "https://acm-pca.eu-central-1.amazonaws.com"
+  },
+  "sres0193": {
+   "source": "EJBCA (CAs)",
+   "text": "EJBCA (CA)"
+  },
+  "sres0194": {
+   "source": "EJBCA (enroll)",
+   "text": "EJBCA (vystavení)"
+  },
+  "sres0195": {
+   "source": "EJBCA (revoke)",
+   "text": "EJBCA (odvolání)"
+  },
+  "sres0196": {
+   "source": "EJBCA (status)",
+   "text": "EJBCA (stav)"
+  },
+  "sres0197": {
+   "source": "Load the list: the certificate profiles of the end entity profile (GET /v2/endentity/profile/NAME - likely EJBCA Enterprise only); a typed name always works. A certificate's own profile (Add a certificate → Settings) wins.",
+   "text": "Načíst seznam: profily certifikátů profilu koncové entity (GET /v2/endentity/profile/JMÉNO – nejspíš jen EJBCA Enterprise); napsané jméno funguje vždy. Vlastní profil certifikátu (Přidat certifikát → Nastavení) má přednost."
+  },
+  "sres0198": {
+   "source": "Load the list: the end entity profiles the administrator may use (GET /v2/endentity/profiles/authorized - likely EJBCA Enterprise only); a typed name always works.",
+   "text": "Načíst seznam: profily koncových entit, které administrátor smí použít (GET /v2/endentity/profiles/authorized – nejspíš jen EJBCA Enterprise); napsané jméno funguje vždy."
+  },
+  "sres0199": {
+   "source": "TLS_SERVERS",
+   "text": "TLS_SERVERS"
+  },
+  "sres0200": {
+   "source": "The name of the CA in EJBCA. Load the list: the CAs (GET /v1/ca); a name can be typed too.",
+   "text": "Jméno CA v EJBCA. Načíst seznam: CA (GET /v1/ca); jméno lze i napsat."
+  },
+  "sres0201": {
+   "source": "https://ejbca.example.local",
+   "text": "https://ejbca.example.local"
+  },
+  "sres0202": {
+   "source": "set the end entity profile first - its certificate profiles are listed",
+   "text": "nejdřív nastavte profil koncové entity – vypíšou se jeho profily certifikátů"
+  },
+  "sres0203": {
+   "source": "the CAs",
+   "text": "CA"
+  },
+  "sres0204": {
+   "source": "Path: Download by certificate ID",
+   "text": "Cesta: Stažení podle ID certifikátu"
+  },
+  "sres0205": {
+   "source": "Download by certificate ID",
+   "text": "Stažení podle ID certifikátu"
   }
  },
  "patterns": {
@@ -64117,6 +64937,378 @@
   "psup026": {
    "source": "{0}: only a full administrator sets {1} of a certificate (where a file is written)",
    "text": "{0}: {1} certifikátu nastavuje jen plný administrátor (kam se zapisuje soubor)"
+  },
+  "pres0001": {
+   "source": "\"{0}\" is not an SCM certificate ID",
+   "text": "„{0}“ není ID certifikátu v SCM"
+  },
+  "pres0002": {
+   "source": "SCM did not issue: the certificate {0} is {1}",
+   "text": "SCM nevydal: certifikát {0} je {1}"
+  },
+  "pres0003": {
+   "source": "SCM has not issued yet (certificate {0}: {1}) - acme asks again at the next try",
+   "text": "SCM zatím nevydal (certifikát {0}: {1}) – acme se zeptá znovu při dalším pokusu"
+  },
+  "pres0004": {
+   "source": "SCM has not validated {0} yet - the DCV records stay in place; acme asks again at the next try",
+   "text": "SCM zatím neověřil {0} – záznamy DCV zůstávají na místě; acme se zeptá znovu při dalším pokusu"
+  },
+  "pres0005": {
+   "source": "SCM mails {0} - someone there approves the domains",
+   "text": "SCM posílá e-mail na {0} – někdo tam domény schválí"
+  },
+  "pres0006": {
+   "source": "SCM offered no address for the e-mail validation of {0}",
+   "text": "SCM nenabídl žádnou adresu pro ověření {0} e-mailem"
+  },
+  "pres0007": {
+   "source": "SCM renews certificate {0}: the new one is {1}",
+   "text": "SCM obnovuje certifikát {0}: nový je {1}"
+  },
+  "pres0008": {
+   "source": "SCM replaces certificate {0} (the same ID)",
+   "text": "SCM nahrazuje certifikát {0} (stejné ID)"
+  },
+  "pres0009": {
+   "source": "SCM revoked certificate {0} (reason {1})",
+   "text": "SCM odvolal certifikát {0} (důvod {1})"
+  },
+  "pres0010": {
+   "source": "SCM revoked the certificate of serial {0} (reason {1})",
+   "text": "SCM odvolal certifikát se sériovým číslem {0} (důvod {1})"
+  },
+  "pres0011": {
+   "source": "SCM said no CNAME record for {0}",
+   "text": "SCM neřekl žádný záznam CNAME pro {0}"
+  },
+  "pres0012": {
+   "source": "SCM said no TXT record for {0}",
+   "text": "SCM neřekl žádný záznam TXT pro {0}"
+  },
+  "pres0013": {
+   "source": "SCM said no validation file for {0}",
+   "text": "SCM neřekl žádný ověřovací soubor pro {0}"
+  },
+  "pres0014": {
+   "source": "SCM took the request for {0}: certificate {1} (profile {2})",
+   "text": "SCM přijal žádost pro {0}: certifikát {1} (profil {2})"
+  },
+  "pres0015": {
+   "source": "SCM was asked to check {0} ({1})",
+   "text": "SCM byl požádán o kontrolu {0} ({1})"
+  },
+  "pres0016": {
+   "source": "a custom field is name=value: {0}",
+   "text": "vlastní pole je jméno=hodnota: {0}"
+  },
+  "pres0017": {
+   "source": "the CNAME validation of {0}",
+   "text": "ověření {0} záznamem CNAME"
+  },
+  "pres0018": {
+   "source": "the HTTP validation of {0}",
+   "text": "ověření {0} přes HTTP"
+  },
+  "pres0019": {
+   "source": "the TXT validation of {0}",
+   "text": "ověření {0} záznamem TXT"
+  },
+  "pres0020": {
+   "source": "the certificate {0} is {1}{2} - a new one is enrolled",
+   "text": "certifikát {0} je {1}{2} – podává se žádost o nový"
+  },
+  "pres0021": {
+   "source": "the collection of {0}",
+   "text": "vyzvednutí {0}"
+  },
+  "pres0022": {
+   "source": "the e-mail validation of {0}",
+   "text": "ověření {0} e-mailem"
+  },
+  "pres0023": {
+   "source": "the profiles could not be read ({0}) - no term is sent",
+   "text": "profily nešly přečíst ({0}) – doba se neposílá"
+  },
+  "pres0024": {
+   "source": "the replacement of {0}",
+   "text": "nahrazení {0}"
+  },
+  "pres0025": {
+   "source": "the request for {0} waits at SCM since {1} ({2}) - asked for again, nothing new is enrolled",
+   "text": "žádost pro {0} čeká v SCM od {1} ({2}) – žádá se o ni znovu, nová se nepodává"
+  },
+  "pres0026": {
+   "source": "the validation of {0}",
+   "text": "ověření {0}"
+  },
+  "pres0027": {
+   "source": "the {0} validation of {1}",
+   "text": "ověření {1} ({0})"
+  },
+  "pres0028": {
+   "source": "{0} - there is no profile {1}",
+   "text": "{0} – profil {1} neexistuje"
+  },
+  "pres0029": {
+   "source": "{0} is validated in the account already - no DCV",
+   "text": "{0} je v účtu už ověřena – bez DCV"
+  },
+  "pres0030": {
+   "source": "Certum answered {0} to {1}, and not in SOAP",
+   "text": "Certum odpověděl {0} na {1}, a ne v SOAP"
+  },
+  "pres0031": {
+   "source": "Certum answers: signed in; {0} product(s) on the account; new paid orders {1}",
+   "text": "Certum odpovídá: přihlášeno; produktů na účtu: {0}; nové placené objednávky {1}"
+  },
+  "pres0032": {
+   "source": "Certum did not issue: the order {0} is {1}",
+   "text": "Certum nevydal: objednávka {0} je {1}"
+  },
+  "pres0033": {
+   "source": "Certum has not issued yet (order {0}: {1}{2}) - the DCV records stay in place; acme asks again at the next try",
+   "text": "Certum zatím nevydal (objednávka {0}: {1}{2}) – záznamy DCV zůstávají na místě; acme se zeptá znovu při dalším pokusu"
+  },
+  "pres0034": {
+   "source": "Certum refused {0}: error {1}",
+   "text": "Certum odmítl {0}: chyba {1}"
+  },
+  "pres0035": {
+   "source": "Certum refused {0}: {1}",
+   "text": "Certum odmítl {0}: {1}"
+  },
+  "pres0036": {
+   "source": "Certum revoked serial {0} ({1})",
+   "text": "Certum odvolal sériové číslo {0} ({1})"
+  },
+  "pres0037": {
+   "source": "Certum was not asked to verify the domains: {0}",
+   "text": "Certum nebyl požádán o ověření domén: {0}"
+  },
+  "pres0038": {
+   "source": "order {0} made at Certum: product {1} for {2}",
+   "text": "objednávka {0} vytvořena u Certum: produkt {1} pro {2}"
+  },
+  "pres0039": {
+   "source": "the DCV method is one of {0}",
+   "text": "metoda DCV je jedna z {0}"
+  },
+  "pres0040": {
+   "source": "the certificate of {0}",
+   "text": "certifikát {0}"
+  },
+  "pres0041": {
+   "source": "the order {0} waits at Certum since {1} - asked for again, nothing is ordered",
+   "text": "objednávka {0} čeká u Certum od {1} – žádá se o ni znovu, nic se neobjednává"
+  },
+  "pres0042": {
+   "source": "the reissue in {0}",
+   "text": "opětovné vydání v {0}"
+  },
+  "pres0043": {
+   "source": "{0} - a new order is made (paid: allowed for this source)",
+   "text": "{0} – vytváří se nová objednávka (placená: pro tento zdroj povoleno)"
+  },
+  "pres0044": {
+   "source": "{0} is not a Certum order ID",
+   "text": "{0} není ID objednávky u Certum"
+  },
+  "pres0045": {
+   "source": "\"{0}\" is not a GoGetSSL order ID",
+   "text": "„{0}“ není ID objednávky u GoGetSSL"
+  },
+  "pres0046": {
+   "source": "GoGetSSL answers: signed in; the balance is {0} {1}; new paid orders {2}",
+   "text": "GoGetSSL odpovídá: přihlášeno; zůstatek je {0} {1}; nové placené objednávky {2}"
+  },
+  "pres0047": {
+   "source": "GoGetSSL did not issue: the order {0} is {1}",
+   "text": "GoGetSSL nevydal: objednávka {0} je {1}"
+  },
+  "pres0048": {
+   "source": "GoGetSSL has not issued yet (order {0}: {1}) - the DCV records stay in place; acme asks again at the next try",
+   "text": "GoGetSSL zatím nevydal (objednávka {0}: {1}) – záznamy DCV zůstávají na místě; acme se zeptá znovu při dalším pokusu"
+  },
+  "pres0049": {
+   "source": "GoGetSSL looks at the validation by itself ({0})",
+   "text": "GoGetSSL se na ověření podívá sám ({0})"
+  },
+  "pres0050": {
+   "source": "GoGetSSL refused {0}: {1}{2}",
+   "text": "GoGetSSL odmítl {0}: {1}{2}"
+  },
+  "pres0051": {
+   "source": "GoGetSSL: {0} (order {1})",
+   "text": "GoGetSSL: {0} (objednávka {1})"
+  },
+  "pres0052": {
+   "source": "a field of a new order is name=value: {0}",
+   "text": "pole nové objednávky je jméno=hodnota: {0}"
+  },
+  "pres0053": {
+   "source": "order {0} made at GoGetSSL: product {1} for {2}",
+   "text": "objednávka {0} vytvořena u GoGetSSL: produkt {1} pro {2}"
+  },
+  "pres0054": {
+   "source": "the CA mails {0} - someone there approves the certificate",
+   "text": "CA posílá e-mail na {0} – někdo tam certifikát schválí"
+  },
+  "pres0055": {
+   "source": "the cancellation of {0}",
+   "text": "zrušení {0}"
+  },
+  "pres0056": {
+   "source": "the order {0} has no certificate (it is {1})",
+   "text": "objednávka {0} nemá certifikát (je {1})"
+  },
+  "pres0057": {
+   "source": "the order {0} is not paid at GoGetSSL - top up the balance; acme asks again at the next try",
+   "text": "objednávka {0} není u GoGetSSL zaplacena – dobijte zůstatek; acme se zeptá znovu při dalším pokusu"
+  },
+  "pres0058": {
+   "source": "the order {0} waits at GoGetSSL since {1} - asked for again, nothing is ordered",
+   "text": "objednávka {0} čeká u GoGetSSL od {1} – žádá se o ni znovu, nic se neobjednává"
+  },
+  "pres0059": {
+   "source": "\"{0}\" is not a Namecheap CertificateID",
+   "text": "„{0}“ není CertificateID u Namecheap"
+  },
+  "pres0060": {
+   "source": "\"{0}\" is not one of the types Namecheap lists - sent as it is",
+   "text": "„{0}“ není mezi typy, které Namecheap uvádí – posílá se tak, jak je"
+  },
+  "pres0061": {
+   "source": "Namecheap answered {0} to {1}, and not in XML",
+   "text": "Namecheap odpověděl {0} na {1}, a ne v XML"
+  },
+  "pres0062": {
+   "source": "Namecheap answers: the API key and client IP are let in; {0} certificate(s); new paid certificates {1}",
+   "text": "Namecheap odpovídá: API klíč a IP klienta jsou vpuštěny; certifikátů: {0}; nové placené certifikáty {1}"
+  },
+  "pres0063": {
+   "source": "Namecheap did not issue: the certificate {0} is {1}",
+   "text": "Namecheap nevydal: certifikát {0} je {1}"
+  },
+  "pres0064": {
+   "source": "Namecheap has not issued yet (certificate {0}: {1}) - the DCV records stay in place; acme asks again at the next try",
+   "text": "Namecheap zatím nevydal (certifikát {0}: {1}) – záznamy DCV zůstávají na místě; acme se zeptá znovu při dalším pokusu"
+  },
+  "pres0065": {
+   "source": "Namecheap refused {0}: {1}{2}",
+   "text": "Namecheap odmítl {0}: {1}{2}"
+  },
+  "pres0066": {
+   "source": "Namecheap revoked certificate {0} (Namecheap revokes certificates replaced by a reissue)",
+   "text": "Namecheap odvolal certifikát {0} (Namecheap odvolává certifikáty nahrazené novým vydáním)"
+  },
+  "pres0067": {
+   "source": "Namecheap said no DCV record for the certificate {0} - look in the account",
+   "text": "Namecheap neřekl žádný záznam DCV pro certifikát {0} – podívejte se do účtu"
+  },
+  "pres0068": {
+   "source": "Namecheap said nothing of the certificate {0}",
+   "text": "Namecheap o certifikátu {0} nic neřekl"
+  },
+  "pres0069": {
+   "source": "a field of the activation is Name=value: {0}",
+   "text": "pole aktivace je Jméno=hodnota: {0}"
+  },
+  "pres0070": {
+   "source": "certificate {0} activated with the request",
+   "text": "certifikát {0} aktivován žádostí"
+  },
+  "pres0071": {
+   "source": "certificate {0} bought at Namecheap: {1} for {2} year(s)",
+   "text": "certifikát {0} koupen u Namecheap: {1} na {2} r."
+  },
+  "pres0072": {
+   "source": "nothing bought: {0}, and paid certificates are not allowed for this source - set \"Certificate to reuse\" to one you bought, or switch on \"Allow new orders (paid)\"",
+   "text": "nic nekoupeno: {0}, a placené certifikáty nejsou pro tento zdroj povolené – nastavte „Certifikát k opětovnému použití“ na ten, který jste koupili, nebo zapněte „Povolit nové objednávky (placené)“"
+  },
+  "pres0073": {
+   "source": "reissue of certificate {0} asked for (free)",
+   "text": "vyžádáno opětovné vydání certifikátu {0} (zdarma)"
+  },
+  "pres0074": {
+   "source": "the CA checks the domain validation by itself ({0})",
+   "text": "CA ověření domény zkontroluje sama ({0})"
+  },
+  "pres0075": {
+   "source": "the activation of {0}",
+   "text": "aktivace {0}"
+  },
+  "pres0076": {
+   "source": "the certificate {0} waits at Namecheap since {1} - asked for again, nothing is bought",
+   "text": "certifikát {0} čeká u Namecheap od {1} – žádá se o něj znovu, nic se nekupuje"
+  },
+  "pres0077": {
+   "source": "the reissue of {0}",
+   "text": "opětovné vydání {0}"
+  },
+  "pres0078": {
+   "source": "the type {0} takes no wildcard name",
+   "text": "typ {0} wildcard nebere"
+  },
+  "pres0079": {
+   "source": "the type {0} takes one name - choose a multi-domain type",
+   "text": "typ {0} bere jedno jméno – zvolte typ pro více domén"
+  },
+  "pres0080": {
+   "source": "{0} - a new certificate is bought (paid: allowed for this source)",
+   "text": "{0} – kupuje se nový certifikát (placený: pro tento zdroj povoleno)"
+  },
+  "pres0081": {
+   "source": "EJBCA holds the request for an administrator's approval ({0}) - approve it in EJBCA; acme asks again at the next try",
+   "text": "EJBCA drží žádost ke schválení administrátorem ({0}) – schvalte ji v EJBCA; acme se zeptá znovu při dalším pokusu"
+  },
+  "pres0082": {
+   "source": "this EJBCA does not list {0} ({1} is likely EJBCA Enterprise only, or the administrator may not read it) - type the name",
+   "text": "toto EJBCA nevypisuje {0} ({1} je nejspíš jen v EJBCA Enterprise, nebo ho administrátor nesmí číst) – napište jméno"
+  },
+  "pres0083": {
+   "source": "{0} certificate profile(s)",
+   "text": "profilů certifikátů: {0}"
+  },
+  "pres0084": {
+   "source": "{0} product(s) to order",
+   "text": "produktů k objednání: {0}"
+  },
+  "pres0085": {
+   "source": "{0} SSL product(s)",
+   "text": "SSL produktů: {0}"
+  },
+  "pres0086": {
+   "source": "{0} CA(s)",
+   "text": "CA: {0}"
+  },
+  "pres0087": {
+   "source": "{0} end entity profile(s)",
+   "text": "profilů koncových entit: {0}"
+  },
+  "pres0088": {
+   "source": "{0} certificate profile(s) of the end entity profile {1}",
+   "text": "profilů certifikátů profilu koncové entity {1}: {0}"
+  },
+  "pres0089": {
+   "source": "{0} types Namecheap sells (namecheap.ssl.create)",
+   "text": "typů, které Namecheap prodává (namecheap.ssl.create): {0}"
+  },
+  "pres0090": {
+   "source": "{0} end-entity templates AWS documents (another ARN can be typed)",
+   "text": "šablon pro koncové certifikáty, které AWS dokumentuje: {0} (jiné ARN lze napsat)"
+  },
+  "pres0091": {
+   "source": "SCM answers: signed in; the account has {0} SSL certificate profile(s)",
+   "text": "SCM odpovídá: přihlášeno; profilů SSL certifikátů na účtu: {0}"
+  },
+  "pres0092": {
+   "source": "the certificate {0} was not found by its ID - downloaded by the order",
+   "text": "certifikát {0} se podle svého ID nenašel – stažen podle objednávky"
+  },
+  "pres0093": {
+   "source": "the order {0} could not be read ({1}) - downloaded by its number",
+   "text": "objednávka {0} nešla přečíst ({1}) – stažena podle svého čísla"
   }
  },
  "rich": {

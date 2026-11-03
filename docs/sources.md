@@ -24,26 +24,31 @@ certificate with its chain, ordered and checked against the key. *Try it*
 | [CyberArk Certificate Manager SaaS (Venafi Cloud)](#cyberark-certificate-manager-saas-venafi-cloud) | `venafi_cloud` | API key | yes (kept for the next try) | - (GraphQL only) |
 | [Keyfactor Command](#keyfactor-command) | `keyfactor_command` | HTTP Basic or OAuth client | - (an approval is said) | yes |
 | [Cloudflare Origin CA](#cloudflare-origin-ca) | `cloudflare_origin_ca` | API token or Origin CA Key | - | yes |
+| [Sectigo Certificate Manager](#sectigo-certificate-manager-admin-api) | `sectigo_scm` | OAuth 2.0 client, or login and password | yes (DCV, approval: kept) | yes |
+| [Certum (partner API)](#certum-partner-api) | `certum` | partner login and password (SOAP) | yes (DCV: kept) | yes |
+| [GoGetSSL (reseller API)](#gogetssl-reseller-api) | `gogetssl` | user and API password | yes (DCV: kept) | - (cancel only) |
+| [Namecheap SSL (API)](#namecheap-ssl-api) | `namecheap_ssl` | API user, API key, client IP | yes (DCV: kept) | replaced ones only |
 
 A request a CA keeps waiting is remembered in the module's state together
 with its key (sealed): the next try asks for it again instead of making a new
 one, and the certificate comes with the key it was asked for.
 
-Not here, and why: **Sectigo Certificate Manager** and **HARICA**, **Actalis**,
-**Certum**, **SwissSign** speak ACME with EAB - they are presets (or *Another
-ACME server*) of the `acme` source. **Azure Key Vault** makes the key itself
-and is a store more than a CA (its CSR-and-merge flow is the other way round).
-**Keyfactor Command** and **CyberArk Certificate Manager (Venafi)** are here
-since 1.0.23, from their vendors' own clients (below). Still not here, because
-no API description by the vendor itself could be read where these modules were
-written (the vendors' sites were out of reach, and no client of theirs is
-public): **Sectigo Certificate Manager's REST API** (its SDK and Terraform
-provider are not public; SCM's ACME with EAB is the `acme` source),
-**GoGetSSL** (its PHP SDK on Packagist is a third party's), **Entrust
-Certificate Services** (only Ansible's community modules speak it; Entrust's
-public certificates moved to Sectigo), **Certum's** partner API and
-**Namecheap's** SSL API (no client of theirs). Without a source we can check,
-no endpoint is guessed.
+Not here, and why: **HARICA**, **Actalis**, **SwissSign** speak ACME with EAB -
+they are presets (or *Another ACME server*) of the `acme` source (so do Sectigo
+Certificate Manager and Certum, which have modules of their own here too, since
+1.0.27, for what their APIs do beyond ACME). **Azure Key Vault** makes the key
+itself and is a store more than a CA (its CSR-and-merge flow is the other way
+round). **Entrust Certificate Services** (ECS): Entrust's public certificates are
+no longer issued through it - "ECS for public trust certificate issuance and
+management is scheduled for end-of-life on September 8, 2025", "As of September 8,
+2025, all former Entrust customers now receive support through Sectigo's
+specialized teams" (https://www.sectigo.com/entrust-migration); the former
+Entrust customers are in Sectigo Certificate Manager (`sectigo_scm` below), and
+whether ECS still serves anything else could not be found - so no module is
+written for an API on its way out. The four modules of 1.0.27 (`sectigo_scm`,
+`certum`, `gogetssl`, `namecheap_ssl`) were written from the vendors' own API
+descriptions, collected from their sites (the files named in each section);
+what those leave open is said there as *Less certain* - nothing is guessed.
 
 ---
 
@@ -132,6 +137,16 @@ Settings*) loads the mount's roles: `LIST /v1/<mount>/roles` (sent as
 `content/vault/v1.20.x/content/api-docs/secret/pki/index.mdx`); the token needs
 `list` on that path, and a role can always be typed.
 
+Checked again in 1.0.27 against api-docs `vault/notes.md` (the PKI page's v2.x
+source, `last_modified: 2026-10-12`) and `vault/vault-client-go-openapi.json`
+(Vault 1.15): `sign` and `issuer/<ref>/sign` with `csr`, `common_name`,
+`alt_names` and `ip_sans` comma-separated, `ttl`, `format`,
+`exclude_cn_from_sans`, `remove_roots_from_chain`; `revoke` by `serial_number`
+(colon hex); `LIST` sent as `GET ?list=true`, an empty list answered `404
+{"errors":[]}` (taken as empty); `cert/<serial>` and `cert/ca_chain` read without
+a token ("unauthenticated endpoints"); `X-Vault-Token`, `X-Vault-Namespace`; 200
+and 204 both success. Nothing differed - nothing changed.
+
 Where to get credentials: a token whose policy allows
 
 ```hcl
@@ -166,8 +181,23 @@ give it here with its key.
 
 Example: address `https://ejbca.example.local`, CA `IssuingCA`, certificate
 profile `SERVER`, end entity profile `TLS_SERVERS`, end entity name `{cn}`.
-Uncertain: an enrollment that needs approval is answered with an error in the
-versions read; it is said as it comes.
+
+*CA*, *End entity profile* and *Certificate profile* are lists (1.0.27), each
+also typeable: `GET /v1/ca` (the CAs), `GET /v2/endentity/profiles/authorized`
+(`end_entitie_profiles[].name` - spelt so in the OpenAPI: the end entity
+profiles the administrator may use) and `GET /v2/endentity/profile/{name}`
+(`available_certificate_profiles` of the end entity profile set) - EJBCA's
+`openapi.json` (api-docs `ejbca/openapi.json`, from Keyfactor/ejbca-ce) and the
+7.10.0.1 release notes. **The two `/v2/endentity/` calls are likely EJBCA
+Enterprise only** (Keyfactor's REST documentation marks the `/endentity/`
+resource "Enterprise", and EJBCA Community's source has no such resource): on
+Community *Load the list* says so and **a typed name always works**. There is no
+call that lists every certificate profile without an end entity profile. A
+certificate's own profile (*Add a certificate → Settings*) picks from the same
+list. An enrollment that waits for an administrator's approval is answered `202`
+(the REST documentation's status codes): since 1.0.27 it is said as that, and
+asked again at the next try (how the answer names the request is not
+documented).
 
 ## step-ca (JWK provisioner)
 
@@ -218,6 +248,25 @@ Example: CA ARN as the console shows it, validity 90 days. AWS charges per
 certificate issued by a private CA - that is the CA owner's agreement with
 AWS, there is no order to buy here.
 
+*Template* (in the form, and for each certificate in *Add a certificate →
+Settings*) is a list (1.0.27): the 18 end-entity templates AWS documents -
+`EndEntityCertificate/V1` (AWS's default), `EndEntityClientAuthCertificate/V1`,
+`EndEntityServerAuthCertificate/V1` and their `_CSRPassthrough`,
+`_APIPassthrough`, `_APICSRPassthrough` and `Blank…` variants,
+`arn:aws:acm-pca:::template/NAME/V1` - quoted from
+https://docs.aws.amazon.com/privateca/latest/userguide/template-varieties.html
+(api-docs `aws_pca/notes.md`). AWS has no call that lists templates (none in
+`service-2.json`), so *Load the list* asks nothing; another ARN (GovCloud's) can
+always be typed. An APIPassthrough template takes `ApiPassthrough` values, which
+acme does not send. Checked again in 1.0.27 against `aws_pca/service-2.json`
+(botocore 2017-08-22), `paginators-1.json`, `waiters-2.json` and the notes'
+quotes of API_IssueCertificate / API_GetCertificate / API_RevokeCertificate:
+`Csr` base64 of the PEM, `Validity {Value, Type: DAYS}`, `IdempotencyToken` at
+most 36 characters, `RequestInProgressException` while the certificate is made
+(the waiter `CertificateIssued`), the serial colon-separated hex as AWS's example
+- all as the module did. Import from a source is not offered: the API cannot list
+the certificates a CA issued (only an audit report into S3).
+
 ## Google Cloud CA Service
 
 What it is: Google Cloud Certificate Authority Service (`privateca`).
@@ -242,6 +291,14 @@ v1/projects/<p>/locations/<l>/certificateTemplates` page by page
 discovery document (googleapis/google-api-go-client,
 `privateca/v1/privateca-api.json`, checked in 1.0.25). A template can always be
 typed.
+
+Checked again in 1.0.27 against api-docs `google_cas/privateca-v1-discovery.json`
+(revision 20261021) and `google_cas/notes.md`: `certificates.create` (`POST
+v1/{parent}/certificates`, `certificateId`, `issuingCertificateAuthorityId`),
+`certificates.revoke` (`{reason}` of its enum), `certificates.get`,
+`certificates.list` (`pageSize`, `pageToken`; always newest first),
+`caPools.get` / `:fetchCaCerts`, `certificateTemplates.list` (per location), the
+scope `cloud-platform` - as the module did; nothing changed.
 
 ## FreeIPA / Red Hat IdM
 
@@ -364,6 +421,7 @@ Endpoints (each a setting under More): `POST /order/certificate/{name_id}`,
 `PUT …/dcv-random-value`, `PUT …/check-dcv`, `GET /domain`,
 `GET /organization`, `GET /product`,
 `GET /certificate/download/order/{order}/format/pem_all`,
+`GET /certificate/{certificate}/download/format/pem_all`,
 `PUT /certificate/{id}/revoke`, `GET /user/me`; header `X-DC-DEVKEY`.
 Sources: DigiCert's developer pages (https://dev.digicert.com - not readable
 from where this was written), cross-checked against code that speaks the API:
@@ -372,6 +430,20 @@ github.com/sapcc/go-certcentral (paths), github.com/lexiconn-internet-services/d
 `integrations/digicert/docs/API_RESEARCH.md` (bodies, answers, DCV endpoints),
 github.com/grindsa/acme2certifier `docs/digicert.md`. `test/test_digicert.py`
 lists every path the module may call (a contract test).
+
+Checked again in 1.0.27 against api-docs `digicert/notes.md` (dev.digicert.com,
+read by the user: authentication, List orders, Download certificate by format,
+Reissue certificate, glossary, rate limits, errors): the base URLs (US and
+Europe), `X-DC-DEVKEY`, `GET /order/certificate` with `offset` / `limit` (1000;
+at most 5000) and `page.total`, the order states, the reissue body
+(`common_name`, `dns_names`, `csr`, `signature_hash`, `server_platform`) and its
+answer without `certificate_id`, 429 waited out. One difference fixed: the
+certificate is now downloaded by **its certificate ID** - `GET
+/certificate/{certificate_id}/download/format/pem_all` ("Download certificate by
+format", the order's `certificate.id`) - as the documentation has it; the order's
+path (`/certificate/download/order/{order}/format/pem_all`) stays only where the
+certificate ID is not known. The order of `pem_all` is not documented: acme puts
+the chain in order itself.
 
 Where to get credentials: CertCentral → Automation → API Keys. Check a
 product's `name_id` (Settings → Product settings, or *List the products*) and
@@ -560,6 +632,249 @@ https://raw.githubusercontent.com/cloudflare/cloudflare-go/main/shared/shared.go
 Where to get credentials: My Profile → API Tokens → Create Token (Zone → SSL
 and Certificates → Edit; Zone → Zone → Read for the list of zones), or My
 Profile → API Tokens → Origin CA Key. The names must be in zones of the account.
+
+## Sectigo Certificate Manager (Admin API)
+
+What it is: Sectigo Certificate Manager (SCM, formerly cert-manager.com) - the
+enterprise account of Sectigo (and, since September 2025, of the former Entrust
+public-certificate customers) - through its **Admin API** (`/api/ssl/v2`,
+`/api/dcv/v2`). SCM's ACME with EAB stays the `acme` source's preset; take this
+module for the account's certificate profiles, terms and custom fields, DCV by
+e-mail, and the account's certificates seen and imported.
+
+What acme does: for each domain of the certificate `POST
+/api/dcv/v2/validation/status {domain}` - a domain `Validated` already gets no
+record; the others are validated by the chosen method, the record or file put in
+place by the certificate's validation (as for DigiCert); then `POST
+/api/ssl/v2/enroll {orgId, certType, term, csr, subjAltNames, dcvMode,
+customFields, comments, externalRequester}` → `sslId`, `GET /api/ssl/v2/{sslId}`
+until `Issued`, `GET /api/ssl/v2/collect/{sslId}?format=x509` (the certificate
+with its chain, PEM). A renewal of a certificate acme made (or imported, or the
+one in *Certificate to reuse*) is `POST /api/ssl/v2/renewById/{sslId} {csr,
+dcvMode}` (a new ID) or - *A renewal: replaces it* - `POST
+/api/ssl/v2/replace/{sslId} {csr, reason, commonName, subjectAlternativeNames}`
+(the same ID); other names than that certificate's are a new enrollment.
+Revocation: `POST /api/ssl/v2/revoke/{id} {reasonCode, reason}` (by
+`revoke/serial/{serialNumber}` where the ID is not known). *Try it* and the list
+*Certificate profile*: `GET /api/ssl/v2/types?organizationId=` (`id`, `name`,
+`terms`). Import from a source: `GET /api/ssl/v2?size=200&position=N`
+(`X-Total-Count`). Signing in: OAuth 2.0 client credentials at
+`https://auth.sso.sectigo.com/auth/realms/apiclients/protocol/openid-connect/token`
+(a setting), the API at `https://admin.{enterprise|hard|eu}.sectigo.com`; or the
+headers `login`, `password`, `customerUri` at `https://cert-manager.com`.
+
+| *Domain validation (DCV)* | SCM's call | What is put in place | Validations that can |
+|---|---|---|---|
+| DNS CNAME record | `start/domain/cname` → `submit/domain/cname` | CNAME `host` → `point` | the DNS validations that write CNAMEs (`desec`, `cloudflare`, `rfc2136`, `manual`, acme's own DNS server inside its zones) |
+| DNS TXT record | `submit/domain/txt` (no start) | TXT at `host` holding `point` | every DNS validation that writes TXT records |
+| HTTP file | `start/domain/http` → `submit/domain/http` | `url` (under `/.well-known/pki-validation/`) holding `firstLine` and `secondLine` | the HTTP validations. Not for wildcards |
+| E-mail | `start/domain/email` → `submit/domain/email {domain, email}` | nothing: SCM mails the address picked from those it offers (*Approver mailbox*) | no validation needed |
+
+Verified against Sectigo's own API reference - the OpenAPI definitions embedded
+in https://scm.devx.sectigo.com/reference/*.md and
+https://enroll.scm.devx.sectigo.com/reference/*.md, collected as api-docs
+`sectigo/scm-admin-api.openapi.json`, `sectigo/scm-rest-enrollment-api.openapi.json`
+and `sectigo/openapi-admin-fragments/*.json` (`enroll-ssl-certificate.json`,
+`collect-ssl-certificate.json`, `get-ssl-certificate-details.json`,
+`get-ssl-certificates-list.json`, `get-ssl-cert-types.json`,
+`renew-ssl-certificate-by-id.json`, `replace-ssl-certificate-by-id.json`,
+`revokessl-certificate-by-id.json`, `revoke-ssl-certificate-by-serial-number.json`,
+`get-dcv-status.json`, `start-cname-dcv.json`, `submit-cname-dcv.json`,
+`submit-txt-dcv.json`, `start-http-dcv.json`, `submit-http-dcv.json`,
+`start-email-dcv.json`, `submit-email-dcv.json`, `createaccesstoken.json`), and
+https://scm.devx.sectigo.com/docs/authentication.md,
+https://scm.devx.sectigo.com/docs/base-url-explanation.md (api-docs
+`sectigo/notes.md`). The REST Enrollment API (`/api/v1/certificates`) is not
+used: it cannot list certificates or profiles.
+
+Where to get credentials: SCM → an API client (OAuth 2.0 client ID and secret),
+or an administrator allowed the API and the account's customer URI; the
+organization's ID; domains delegated to that organization.
+
+*Less certain* (the reference does not say): the exact shape of `host` and `point`
+(a host ending in the domain is used as it is, a bare label gets the domain
+added); whether `subjAltNames` should hold the common name too (the other names
+are sent); whether `collect` answers 404 while the certificate is not issued (the
+status is read first); the serial's format for `revoke/serial` (hex); whether a
+replaced certificate's ID reads `Replaced` (after a replace the certificate is
+collected until it is the one of the new key); the term when none is set (the
+shortest of the profile's `terms`). No sandbox of SCM was found.
+
+## Certum (partner API)
+
+What it is: Certum (Asseco Data Systems) through its **SOAP partner API**
+(PartnerApi) - the one that takes a CSR. Certum's ACME with EAB is the `acme`
+source's preset; Certum's REST CertManager API (`api.certmanager.certum.pl`, v0_2)
+only orders *ACME products* (it hands out EAB keys) and is not used.
+
+What acme does: a certificate is **reissued inside an order bought already**
+(free, within the product's validity) - the one in *Order to reuse*, the one it
+was imported from, or the one acme made last: `getOrderByOrderID` (its serial),
+`reissueCertificate {serialNumber, hashAlgorithm, CSR, SANApprover, SANEntries
+(only when the names changed)}`. A **new order is a purchase** (`quickOrder
+{SANApprover, orderParameters {CSR, customer, language, productCode, userAgent,
+hashAlgorithm}, organizationInfo, requestorInfo, SANEntries}`) and is made only
+when *Allow new orders (paid)* is on. The answer's `SANVerification` (one `code`
+for every domain) becomes the records below, put in place by the certificate's
+validation; `performSanVerification {code}`, then `getOrderState` until
+`ENROLLED` and `getCertificate` (`certificateDetails/X509Cert`,
+`caBundle/X509Cert`). A request still waiting is kept for the next try (and
+`getSanVerificationState` says which domain is not verified yet, and why).
+`revokeCertificate {revocationReason, serialNumber}`. *Try it* and the list
+*Product of a new order*: `getProductList` (type `ISSUE`). Import from a source:
+`getOrdersByDateRange` (the orders of *Orders listed (days back)*, 100 a page).
+SOAP 1.1 document/literal, namespace `http://webservice.api.muc.unizeto.pl/`,
+`requestHeader/authToken {userName, password}`, `responseHeader/successCode` 0.
+
+| *Domain validation (DCV)* | `approverMethod` | What is put in place | Validations that can |
+|---|---|---|---|
+| DNS TXT at `_certum.` | `DNS_TXT_PREFIX` (the default) | TXT `_certum.DOMAIN` holding the code | every DNS validation that writes TXT records |
+| DNS TXT at the domain | `DNS_TXT` | TXT at the domain holding the code | the same |
+| DNS CNAME at `_certum.` | `DNS_CNAME_PREFIX` | CNAME `_certum.DOMAIN` → `CODE.certum.pl` | the DNS validations that write CNAMEs |
+| DNS CNAME at the domain | `DNS_CNAME` | CNAME DOMAIN → `CODE.certum.pl` | the same |
+| HTTP file | `FILE` | `http://NAME/.well-known/pki-validation/certum.txt` holding `CODE-certum.pl` | the HTTP validations. Not for wildcards |
+
+Verified against Certum's own documents: the WSDL
+https://gs.test.certum.pl/service/PartnerApi.wsdl (api-docs
+`certum/PartnerApi-test.wsdl`: every element, its order and type), the *API -
+User Guide EN 5.19* (https://repository.certum.pl/API/EN/API%20-%20User%20Guide%20EN%205.19.pdf,
+api-docs `certum/API-User-Guide-EN-5.19.pdf`: 4.2.3 the DCV records, 5.1 - 5.6 the
+calls, the error codes) and https://support.certum.eu/en/domain-verification-methods/
+(the file's name), quoted in api-docs `certum/notes.md`; the REST API's
+`certum/certum-certmanager-rest-openapi-v0_2.json` was read to rule it out.
+
+Where to get credentials: a Certum partner account (https://partnerregistration.certum.pl/)
+with the API on, its login and password, the product codes it may order and the
+**IP addresses acme calls from** (at most three, static). *Customer* is the end
+customer's ID - not the partner login (error 1023).
+
+*Less certain*: the production endpoint `https://gs.certum.pl/service/PartnerApi`
+(from the address of its WSDL, which is behind the IP allow list - a setting);
+whether the TXT record holds the code without a suffix (the guide: "place the code
+in the TXT record"); the file's name `certum.txt` (from the support page - the API
+does not answer it); the date-time format of `getOrdersByDateRange` (the WSDL says
+`xs:dateTime`, the guide `YYYY-MM-DD`); whether a reissue keeps the order ID (the
+one answered is used). A renewal order (`renewCertificate`, a product of type
+`RENEWAL`) is not made: when an order cannot be reissued any more, a new order is
+(only with *Allow new orders (paid)*).
+
+## GoGetSSL (reseller API)
+
+What it is: GoGetSSL, the reseller (Sectigo, DigiCert, GoGetSSL brands), through
+its **API v1** (`https://my.gogetssl.com/api/`).
+
+What acme does: signs in (`POST /auth {user, pass}` → `key`, sent as `auth_key`;
+it lives 365 days, kept for 30). A certificate is **reissued inside an order
+bought already** (free) - *Order to reuse*, the one it was imported from, or the
+one acme made last: `POST /orders/ssl/reissue/{order_id} {csr, dcv_method,
+dns_names, approver_email(s)}`. A **new order is a purchase** (`POST
+/orders/add_ssl_order {product_id, period, csr, server_count, dcv_method,
+dns_names, admin_*, tech_*, ...}`), made only when *Allow new orders (paid)* is on;
+*More fields of a new order* adds what an OV/EV order wants (`org_*`,
+`webserver_type`...). The DCV data of the answer (`approver_method` and each
+`san[].validation`) is put in place by the certificate's validation, GoGetSSL is
+asked to look again once (`POST /orders/ssl/revalidate/{order_id} {domain}` - at
+most once in 300 s), then `GET /orders/status/{order_id}` until `active`: the
+certificate is `crt_code`, its CA's `ca_code`. *Try it*: `GET /account/balance`.
+The list *Product of a new order*: `GET /products/ssl`. Import from a source: `GET
+/orders/ssl/all?limit=100&offset=N`, each active order read (`orders/status`).
+**No revocation** - the API has none; the action *Cancel the order to reuse*
+asks for `POST /orders/cancel_ssl_order {order_id, reason}` (reviewed by GoGetSSL
+in 2 - 48 hours, refunded within 30 days). Errors come as HTTP 200 with `{"error":
+true, "message", "description"}`, said in words without the password or key.
+
+| *Domain validation (DCV)* | `dcv_method` | What is put in place | Validations that can |
+|---|---|---|---|
+| DNS CNAME record | `dns` | the `record` "NAME CNAME TARGET" (`_HASH.NAME` → `...comodoca.com`) | the DNS validations that write CNAMEs |
+| HTTP file | `http` | `link` (`/.well-known/pki-validation/HASH.txt`) holding `content` | the HTTP validations. Not for wildcards |
+| E-mail | `email` | nothing: the CA mails `approver_email` (*Approver mailbox*@ the domain) | no validation needed |
+
+Verified against GoGetSSL's own documentation, published as Postman collections:
+https://doc-v1.gogetssl.com (https://documenter.getpostman.com/view/5593375/T1LHFp7m,
+api-docs `gogetssl/gogetssl-api-v1.postman_collection.json`: auth,
+getSslProducts, addSSLOrder, reissueSSLOrder, getOrderStatus, revalidate,
+getAllSSLOrders, cancelOrder, getAccountBalance) and https://doc-v2.gogetssl.com
+(`gogetssl/gogetssl-api-v2.postman_collection.json`), quoted in api-docs
+`gogetssl/notes.md`. The PHP SDK on Packagist is a third party's and was not
+used.
+
+Where to get credentials: the GoGetSSL client area → Reseller Modules → API
+settings: the API password (not the account's); the login is the client area's.
+
+*Less certain*: whether `ca_code` holds the whole chain (what it holds is put in
+order); the largest `limit` of `orders/ssl/all` (100 a page is asked); `test=Y`,
+seen in examples without a description, is not sent. API v2 (`Authorization: GGS
+CODE:PASSWORD`, `dns-txt`) is not used: the name of its TXT (and CNAME) record is
+not documented. HTTPS file validation (`https`) is not offered: the validations
+put files for `http://`. No sandbox was found (real orders can be cancelled within
+30 days for a refund).
+
+## Namecheap SSL (API)
+
+What it is: the SSL certificates sold by Namecheap (Sectigo's), through the
+Namecheap API (`namecheap.ssl.*`, XML).
+
+What acme does: a certificate bought already (*Certificate to reuse*, the one it
+was imported from, or the one acme had last) is **activated** when it is new
+(`namecheap.ssl.activate`) or **reissued** when it is active
+(`namecheap.ssl.reissue`, free) - with the CSR, `AdminEmailAddress` and the DCV
+method. A **new certificate is a purchase** (`namecheap.ssl.create {Years, Type,
+SANStoADD}`) and is bought only when *Allow new orders (paid)* is on. The CNAME or
+file of the activation's answer (`DNSDCValidation/DNS {HostName, Target}`,
+`HttpDCValidation/DNS {FileName, FileContent}`) is put in place by the
+certificate's validation, `namecheap.ssl.resendApproverEmail` asks the CA to look
+again ("retries HTTP/DNS validation"), then `namecheap.ssl.getInfo
+{Returncertificate, Returntype Individual}` until `active`: the certificate and
+its `CaCertificates`. A reissue makes a child certificate - acme follows the
+parent's `ReplacedBy` until it gets the one of its key. `namecheap.ssl.getList`
+(100 a page) for *Try it* and Import from a source; `namecheap.ssl.revokecertificate
+{CertificateID, CertificateType}` revokes - Namecheap documents it for
+certificates **replaced by a reissue**. Every call carries `ApiUser`, `ApiKey`,
+`UserName`, `ClientIp` (POST, URL-encoded), production or sandbox. The list *Type
+of a new certificate* is the fixed list of `create`'s Type values (PositiveSSL,
+EssentialSSL, InstantSSL, InstantSSL Pro, PremiumSSL, EV SSL, the Wildcard and
+Multi Domain ones, Unified Communications) - no call lists them.
+
+| *Domain validation (DCV)* | Sent | What is put in place | Validations that can |
+|---|---|---|---|
+| DNS CNAME record | `DNSDCValidation=true`; multi-domain: `CNAMECSRHASH` for each name | CNAME `HostName` → `Target` (`_HASH.NAME` → `...comodoca.com`) | the DNS validations that write CNAMEs |
+| HTTP file | `HTTPDCValidation=true`; multi-domain: `HTTPCSRHASH` | `http://NAME/.well-known/pki-validation/FileName` holding `FileContent` | the HTTP validations. Not for wildcards |
+| E-mail | `ApproverEmail` (*Approver mailbox*@ the domain) | nothing: the CA mails it | no validation needed |
+
+Note the spelling: `activate` and `reissue` take `CNAMECSRHASH` / `HTTPCSRHASH`;
+`editDCVMethod` would take `CNAME_CSR_HASH` / `HTTP_CSR_HASH` - acme does not call
+`editDCVMethod` (the retry is `resendApproverEmail`). Namecheap's DNS DCV is a
+CNAME only - there is no TXT.
+
+Verified against Namecheap's own pages (namecheap.com refuses scripts; read from
+their 2025 copies in the Wayback Machine, quoted in api-docs `namecheap/notes.md`):
+https://www.namecheap.com/support/api/intro/,
+https://www.namecheap.com/support/api/global-parameters/,
+https://www.namecheap.com/support/api/error-codes/,
+https://www.namecheap.com/support/api/methods/ssl/create/,
+https://www.namecheap.com/support/api/methods/ssl/activate/,
+https://www.namecheap.com/support/api/methods/ssl/get-info/,
+https://www.namecheap.com/support/api/methods/ssl/reissue/,
+https://www.namecheap.com/support/api/methods/ssl/get-list/,
+https://www.namecheap.com/support/api/methods/ssl/revokecertificate/,
+https://www.namecheap.com/support/api/methods/ssl/resend-approver-email/,
+https://www.namecheap.com/support/api/methods/ssl/editdcvmethod/.
+
+Where to get credentials: Profile → Tools → Namecheap API Access: switch it on
+(the account must meet Namecheap's requirements), the API key, and **whitelist
+the IPv4 address acme calls from** (*Client IP*).
+
+*Less certain*: whether the ID a reissue answers is the child's (acme follows
+`ReplacedBy`); whether a multi-domain activation wants `ApproverEmail=CNAMECSRHASH`
+beside `DNSApproverEmails` (sent so); whether `FileContent`'s words belong on one
+line in the file (written as answered); revoking a certificate that was not
+replaced (said as Namecheap answers); whether the live pages changed since the 2025
+copies. A renewal purchase (`namecheap.ssl.renew`) is not made - a new certificate
+is (only with *Allow new orders (paid)*).
+
+`test/test_sources_resellers.py` lists, for each of these four, every call the
+module may make as its vendor documents it (a contract test), and checks the
+lists of AWS Private CA and EJBCA.
 
 `test/test_sources_vendors.py` lists, for each of these five, every path the
 module may call as the vendor's client has it (a contract test).

@@ -40,7 +40,11 @@ answers, DCV endpoints), github.com/grindsa/acme2certifier docs/digicert.md):
 * GET /domain?include_validation=true - the account's domains, their
   validations and dcv_expiration (pre-validated domains need no DCV).
 * GET /organization - the organizations (OV/EV); GET /product - the products.
-* GET /certificate/download/order/{order_id}/format/pem_all - the chain.
+* GET /certificate/{certificate_id}/download/format/pem_all - the certificate with
+  root and intermediate ("Download certificate by format", the order's certificate.id;
+  checked in 1.0.27 against https://dev.digicert.com/certcentral-apis/services-api/
+  certificates/download-certificate-by-format.html); where the certificate's id is not
+  known, GET /certificate/download/order/{order_id}/format/pem_all.
 * PUT /certificate/{certificate_id}/revoke {reason, comments}; GET /user/me.
 * GET /order/certificate?offset=&limit= - every order of the account ("List orders",
   https://dev.digicert.com/en/certcentral-apis/services-api/orders/list-orders.html):
@@ -115,6 +119,8 @@ PATHS = [
     ('path_orgs', 'Organizations', '/organization'),
     ('path_products', 'Products', '/product'),
     ('path_download', 'Download', '/certificate/download/order/{order}/format/pem_all'),
+    ('path_download_cert', 'Download by certificate ID',
+     '/certificate/{certificate}/download/format/pem_all'),
     ('path_revoke', 'Revocation', '/certificate/{certificate}/revoke'),
     ('path_me', 'Who the key is', '/user/me'),
 ]
@@ -537,8 +543,7 @@ class DigicertIssuer(Issuer):
             det = self.call('GET', 'path_detail', what='the order %s' % oid, order=oid)
             st = str(det.get('status') or '').lower()
             if st in ISSUED:
-                data = self.call('GET', 'path_download', what='the download', raw=True, order=oid)
-                certs = sc.certs_of(data)
+                certs = sc.certs_of(self.download(oid, (det.get('certificate') or {}).get('id')))
                 try:
                     out = sc.finish(self.ctx, r, certs, who='DigiCert',
                                     key_pem=r.key_pem if r is not req else None,
@@ -563,6 +568,20 @@ class DigicertIssuer(Issuer):
                 raise PluginError('DigiCert has not issued yet (order %s: %s) - the DCV records '
                                   'stay in place; acme asks again at the next try' % (oid, st or '?'))
             self._sleep(every)
+
+    def download(self, oid, cid=None):
+        """pem_all of the order's certificate: by its certificate ID where it is known (the
+        documented "Download certificate by format"), else by the order."""
+        if cid and re.match(r'^\d{1,20}\Z', str(cid)):
+            try:
+                return self.call('GET', 'path_download_cert', what='the download', raw=True,
+                                 certificate=cid)
+            except PluginError as e:
+                if 'answered 404' not in str(e):
+                    raise
+                self._say('the certificate %s was not found by its ID - downloaded by the order'
+                          % cid, 'info')
+        return self.call('GET', 'path_download', what='the download', raw=True, order=oid)
 
     # -- the orders of the account (Certificates → Import from a source) -----------------------
     def _acme_ids(self):
@@ -632,8 +651,15 @@ class DigicertIssuer(Issuer):
         oid = str(ref or '').strip()
         if not re.match(r'^\d{1,20}\Z', oid):
             raise PluginError('%s is not an order number' % (oid or '?'), retry=False)
-        data = self.call('GET', 'path_download', what='the download', raw=True, order=oid)
-        out = sc.existing(sc.certs_of(data), who='DigiCert', ref=oid)
+        try:
+            det = self.call('GET', 'path_detail', what='the order %s' % oid, order=oid)
+        except PluginError as e:
+            self._say('the order %s could not be read (%s) - downloaded by its number' % (oid, e),
+                      'warn')
+            det = {}
+        cert = det.get('certificate') if isinstance(det.get('certificate'), dict) else {}
+        out = sc.existing(sc.certs_of(self.download(oid, cert.get('id'))), who='DigiCert',
+                          ref=oid)
         out['acme_cert_id'] = self._acme_ids().get(oid)
         return out
 
