@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.34 - not released
+
 ## 1.0.33 - 2026-11-03
 
 - Settings → Accounts: an account's role is changed in its own column - beside
