@@ -6,6 +6,21 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.28 - not released
 
+- **Targets re-checked against the vendors' own API documents** (16 changed,
+  15 confirmed): Kemp keeps a virtual service's other certificates (CertFile is
+  the whole list) and stays under 30 calls in 3 s; AWS ACM refuses a renewal of
+  another key type in words; Azure Key Vault can keep the certificate as
+  PKCS#12 (for Application Gateway); Sophos reads its certificate list from the
+  tar the XML API answers with and sets a WAF rule's HTTPSCertificate;
+  OPNsense and pfSense replace in place on Force (OPNsense optionally at every
+  renewal), pfSense keeps old ones still used by OpenVPN, IPsec or the captive
+  portal; A10 takes its older certificate out of a client-SSL template;
+  FortiGate picks a VIP's certificate field by FortiOS version (a list from
+  7.4.2); Redfish posts to the action target the controller gives and says
+  when a controller (HPE iLO 6) cannot take a key; vCenter takes AlreadyExists
+  as served already; PAN-OS partial commits as documented; Google Certificate
+  Manager warns when an in-place update changes the names.
+
 - **Nine more targets**, written from the vendors' own API documents
   (docs/targets.md names the files and what stays less certain): Cisco FTD
   managed by its Device Manager, Cisco ASA (HTTP Interface for Automation -
