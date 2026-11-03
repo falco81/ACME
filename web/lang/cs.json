@@ -48219,6 +48219,258 @@
   "smr0104": {
    "source": "trust chain",
    "text": "řetěz důvěry"
+  },
+  "svm27_1": {
+   "source": "0: the zone's own TTL.",
+   "text": "0: TTL zóny."
+  },
+  "svm27_2": {
+   "source": "60 or more; used for a new RRset only (one there keeps its own).",
+   "text": "60 a víc; jen pro novou sadu záznamů (existující si nechá svoje)."
+  },
+  "svm27_3": {
+   "source": "Access key",
+   "text": "Přístupový klíč"
+  },
+  "svm27_4": {
+   "source": "Azure: the record set changed meanwhile - read again",
+   "text": "Azure: sada záznamů se mezitím změnila – čte se znovu"
+  },
+  "svm27_5": {
+   "source": "Check the panel's certificate",
+   "text": "Kontrolovat certifikát panelu"
+  },
+  "svm27_6": {
+   "source": "Cloudflare",
+   "text": "Cloudflare"
+  },
+  "svm27_7": {
+   "source": "Domains API v1 with an API key and secret (older)",
+   "text": "Domains API v1 s API klíčem a tajemstvím (starší)"
+  },
+  "svm27_8": {
+   "source": "Domains API v3 with a personal access token",
+   "text": "Domains API v3 s osobním přístupovým tokenem"
+  },
+  "svm27_9": {
+   "source": "F-DNS takes 60 to 86400.",
+   "text": "F-DNS bere 60 až 86400."
+  },
+  "svm27_10": {
+   "source": "Forpsi F-DNS (DNSaaS)",
+   "text": "Forpsi F-DNS (DNSaaS)"
+  },
+  "svm27_11": {
+   "source": "Forpsi F-DNS answered something that is not its API",
+   "text": "Forpsi F-DNS odpověděl něčím, co není jeho API"
+  },
+  "svm27_12": {
+   "source": "GoDaddy",
+   "text": "GoDaddy"
+  },
+  "svm27_13": {
+   "source": "GoDaddy: the personal access token is not set",
+   "text": "GoDaddy: osobní přístupový token není zadaný"
+  },
+  "svm27_14": {
+   "source": "HestiaCP",
+   "text": "HestiaCP"
+  },
+  "svm27_15": {
+   "source": "HestiaCP address",
+   "text": "Adresa HestiaCP"
+  },
+  "svm27_16": {
+   "source": "Hetzner Console → the project of the zone → Security → API tokens: a token with Read & Write. Tokens of the old DNS Console (dns.hetzner.com, switched off in May 2026) do not work.",
+   "text": "Hetzner Console → projekt zóny → Security → API tokens: token s právem Read & Write. Tokeny starého DNS Console (dns.hetzner.com, vypnutého v květnu 2026) nefungují."
+  },
+  "svm27_17": {
+   "source": "Hetzner switched the old DNS Console API (dns.hetzner.com) off in May 2026 - set this validation to a Hetzner Console project's API token (its zones moved there) and save it again",
+   "text": "Hetzner staré API DNS Console (dns.hetzner.com) v květnu 2026 vypnul – zadejte do této validace API token projektu v Hetzner Console (zóny se přesunuly tam) a uložte ji znovu"
+  },
+  "svm27_18": {
+   "source": "Hetzner: the zone is busy with another change (423) - tried again in a moment",
+   "text": "Hetzner: na zóně právě běží jiná změna (423) – za chvíli se zkusí znovu"
+  },
+  "svm27_19": {
+   "source": "ISPConfig",
+   "text": "ISPConfig"
+  },
+  "svm27_20": {
+   "source": "ISPConfig takes 60 or more.",
+   "text": "ISPConfig bere 60 a víc."
+  },
+  "svm27_21": {
+   "source": "ISPConfig: signed in, but no session came back",
+   "text": "ISPConfig: přihlášení prošlo, ale nevrátila se žádná session"
+  },
+  "svm27_22": {
+   "source": "Made here (ed25519) or your own; its public half in the account's authorized_keys on the Windows server (for an administrator: C:\\ProgramData\\ssh\\administrators_authorized_keys).",
+   "text": "Vytvořený tady (ed25519) nebo vlastní; jeho veřejná část do authorized_keys účtu na Windows serveru (pro administrátora: C:\\ProgramData\\ssh\\administrators_authorized_keys)."
+  },
+  "svm27_23": {
+   "source": "Master administrator",
+   "text": "Hlavní administrátor"
+  },
+  "svm27_24": {
+   "source": "OVHcloud",
+   "text": "OVHcloud"
+  },
+  "svm27_26": {
+   "source": "Porkbun",
+   "text": "Porkbun"
+  },
+  "svm27_28": {
+   "source": "System → Remote Users: a user of its own for acme with \"DNS zone functions\" and \"DNS txt functions\", and acme's address in its allowed addresses.",
+   "text": "System → Remote Users: samostatný uživatel pro acme s „DNS zone functions“ a „DNS txt functions“ a s adresou acme mezi povolenými adresami."
+  },
+  "svm27_29": {
+   "source": "TXT records in Forpsi F-DNS, the paid DNS-as-a-service, through its API. Ordinary Forpsi DNS (with a domain or web hosting) has no API.",
+   "text": "TXT záznamy ve Forpsi F-DNS, placené službě DNS as a service, přes její API. Běžné DNS Forpsi (k doméně nebo webhostingu) API nemá."
+  },
+  "svm27_30": {
+   "source": "TXT records in a domain at GoDaddy, with a personal access token (API v3).",
+   "text": "TXT záznamy v doméně u GoDaddy, s osobním přístupovým tokenem (API v3)."
+  },
+  "svm27_31": {
+   "source": "TXT records in a zone of a Windows Server DNS server: its PowerShell DnsServer cmdlets run over OpenSSH for Windows.",
+   "text": "TXT záznamy v zóně DNS serveru Windows Server: jeho PowerShell cmdlety DnsServer spouštěné přes OpenSSH pro Windows."
+  },
+  "svm27_32": {
+   "source": "TXT records in the DNS of a Virtualmin server, through its Remote API.",
+   "text": "TXT záznamy v DNS serveru Virtualmin, přes jeho Remote API."
+  },
+  "svm27_33": {
+   "source": "TXT records in the DNS zones of a HestiaCP server, through its API.",
+   "text": "TXT záznamy v DNS zónách serveru HestiaCP, přes jeho API."
+  },
+  "svm27_34": {
+   "source": "TXT records in the DNS zones of a froxlor server, through the froxlor API.",
+   "text": "TXT záznamy v DNS zónách serveru froxlor, přes froxlor API."
+  },
+  "svm27_35": {
+   "source": "TXT records in the DNS zones of an ISPConfig 3 panel, through its Remote API.",
+   "text": "TXT záznamy v DNS zónách panelu ISPConfig 3, přes jeho Remote API."
+  },
+  "svm27_36": {
+   "source": "The HestiaCP server (name, name:port or https://…); the port is 8083 when not given.",
+   "text": "Server HestiaCP (jméno, jméno:port nebo https://…); bez portu se použije 8083."
+  },
+  "svm27_37": {
+   "source": "The HestiaCP user the DNS domains belong to.",
+   "text": "Uživatel HestiaCP, kterému DNS domény patří."
+  },
+  "svm27_38": {
+   "source": "The ISPConfig client the records are added for (dns_txt_add's client_id); 0: the remote user's own.",
+   "text": "Klient ISPConfigu, pro kterého se záznamy přidávají (client_id u dns_txt_add); 0: vlastní vzdáleného uživatele."
+  },
+  "svm27_39": {
+   "source": "The ISPConfig panel (name, name:port or https://…); the port is 8080 when not given. acme calls /remote/json.php there.",
+   "text": "Panel ISPConfig (jméno, jméno:port nebo https://…); bez portu se použije 8080. acme volá /remote/json.php."
+  },
+  "svm27_40": {
+   "source": "The Webmin/Virtualmin server (name, name:port or https://…); the port is 10000 when not given.",
+   "text": "Server Webmin/Virtualmin (jméno, jméno:port nebo https://…); bez portu se použije 10000."
+  },
+  "svm27_41": {
+   "source": "The domain whose DNS zone holds the name. Load the list and pick it, or type it. Empty: the longest of the servers with DNS the name is in - else the zone by its SOA.",
+   "text": "Doména, v jejíž DNS zóně jméno je. Načtěte seznam a vyberte, nebo napište. Prázdné: nejdelší ze serverů s DNS, ve kterém jméno je – jinak zóna podle SOA."
+  },
+  "svm27_42": {
+   "source": "The froxlor panel (name or https://…/); acme calls api.php there.",
+   "text": "Panel froxlor (jméno nebo https://…/); acme volá api.php."
+  },
+  "svm27_43": {
+   "source": "The machine acme signs in to over SSH (OpenSSH for Windows): the DNS server itself, or one with the DNS Server Tools that reaches it (below).",
+   "text": "Stroj, na který se acme přihlašuje přes SSH (OpenSSH pro Windows): sám DNS server, nebo stroj s nástroji DNS Server Tools, který na něj dosáhne (níže)."
+  },
+  "svm27_44": {
+   "source": "The zone as DNS Manager shows it. Empty: the longest of \"Zones there\" the name is in, else found by its SOA.",
+   "text": "Zóna, jak ji ukazuje DNS Manager. Prázdné: nejdelší ze „Zón tam“, ve které jméno je, jinak podle SOA."
+  },
+  "svm27_45": {
+   "source": "The zones this server holds (Test lists them): a record goes in the longest of them its name is in.",
+   "text": "Zóny, které server drží (Test je vypíše): záznam jde do nejdelší z nich, ve které jeho jméno je."
+  },
+  "svm27_46": {
+   "source": "Virtualmin",
+   "text": "Virtualmin"
+  },
+  "svm27_47": {
+   "source": "Virtualmin address",
+   "text": "Adresa Virtualminu"
+  },
+  "svm27_48": {
+   "source": "Virtualmin opens its Remote API to the master administrator only.",
+   "text": "Virtualmin otevírá své Remote API jen hlavnímu administrátorovi."
+  },
+  "svm27_49": {
+   "source": "Windows DNS Server (PowerShell over SSH)",
+   "text": "Windows DNS Server (PowerShell přes SSH)"
+  },
+  "svm27_50": {
+   "source": "Windows DNS server",
+   "text": "DNS server Windows"
+  },
+  "svm27_51": {
+   "source": "admin.forpsi.com, with the F-DNS (DNSaaS) service active. Ordinary Forpsi DNS hosting has no API: for such a domain point _acme-challenge by a CNAME to a zone acme can write instead.",
+   "text": "admin.forpsi.com, s aktivní službou F-DNS (DNSaaS). Běžný DNS hosting Forpsi API nemá: u takové domény místo toho nasměrujte _acme-challenge záznamem CNAME do zóny, kam acme zapisovat umí."
+  },
+  "svm27_52": {
+   "source": "api.godaddy.com",
+   "text": "api.godaddy.com"
+  },
+  "svm27_53": {
+   "source": "developer.godaddy.com → API Keys (the older \"sso-key\", not taken by v3).",
+   "text": "developer.godaddy.com → API Keys (starší „sso-key“, které v3 nebere)."
+  },
+  "svm27_54": {
+   "source": "developer.godaddy.com → Personal Access Token: the scopes domains.domain:read and domains.dns:update, an expiry you will remember.",
+   "text": "developer.godaddy.com → Personal Access Token: oprávnění domains.domain:read a domains.dns:update, platnost, na kterou nezapomenete."
+  },
+  "svm27_55": {
+   "source": "froxlor",
+   "text": "froxlor"
+  },
+  "svm27_56": {
+   "source": "froxlor address",
+   "text": "Adresa froxloru"
+  },
+  "svm27_57": {
+   "source": "froxlor → (your name) → API keys → Create: the key here, its secret below. Settings → System settings → \"Enable external API usage\" must be on; limit the key to acme's address where offered.",
+   "text": "froxlor → (vaše jméno) → API keys → Create: klíč sem, jeho tajemství níže. Settings → System settings → „Enable external API usage“ musí být zapnuté; kde to jde, omezte klíč na adresu acme."
+  },
+  "svm27_58": {
+   "source": "the HestiaCP address is not set",
+   "text": "adresa HestiaCP není zadaná"
+  },
+  "svm27_59": {
+   "source": "the ISPConfig address is not set",
+   "text": "adresa ISPConfigu není zadaná"
+  },
+  "svm27_60": {
+   "source": "the Virtualmin address is not set",
+   "text": "adresa Virtualminu není zadaná"
+  },
+  "svm27_61": {
+   "source": "the froxlor address is not set",
+   "text": "adresa froxloru není zadaná"
+  },
+  "svm27_62": {
+   "source": "v-add-access-key (or the panel: the user → Access keys): the key's ID. Allowed: v-list-dns-domains, v-list-dns-records, v-add-dns-record and v-delete-dns-record; acme's address in the API's allowed addresses.",
+   "text": "v-add-access-key (nebo v panelu: uživatel → Access keys): ID klíče. Povolené: v-list-dns-domains, v-list-dns-records, v-add-dns-record a v-delete-dns-record; adresa acme mezi povolenými adresami API."
+  },
+  "svm27_63": {
+   "source": "web1.example.com ssh-ed25519 AAAAC3Nza...",
+   "text": "web1.example.com ssh-ed25519 AAAAC3Nza..."
+  },
+  "svm27_64": {
+   "source": "Hetzner DNS",
+   "text": "Hetzner DNS"
+  },
+  "svm27_65": {
+   "source": "GoDaddy: no personal access token is set - the older Domains API v1 is used with the API key and secret",
+   "text": "GoDaddy: osobní přístupový token není zadaný – použije se starší Domains API v1 s API klíčem a tajemstvím"
   }
  },
  "patterns": {
@@ -66317,6 +66569,110 @@
   "pmr0053": {
    "source": "SSL.com says it is {0}",
    "text": "SSL.com říká, že je {0}"
+  },
+  "pvm27_1": {
+   "source": "Forpsi F-DNS: signed in; the domain {0} has {1} record(s)",
+   "text": "Forpsi F-DNS: přihlášeno; doména {0} má {1} záznam(ů)"
+  },
+  "pvm27_2": {
+   "source": "HestiaCP answered {0} with something that is not JSON",
+   "text": "HestiaCP odpověděl na {0} něčím, co není JSON"
+  },
+  "pvm27_3": {
+   "source": "HestiaCP answered {0} with something that is not an exit code",
+   "text": "HestiaCP odpověděl na {0} něčím, co není návratový kód"
+  },
+  "pvm27_4": {
+   "source": "HestiaCP refused {0}: {1}",
+   "text": "HestiaCP odmítl {0}: {1}"
+  },
+  "pvm27_5": {
+   "source": "HestiaCP: signed in as {0}; the zone {1} has {2} record(s)",
+   "text": "HestiaCP: přihlášeno jako {0}; zóna {1} má {2} záznam(ů)"
+  },
+  "pvm27_6": {
+   "source": "HestiaCP: {0} ended with {1} - {2}",
+   "text": "HestiaCP: {0} skončil s {1} – {2}"
+  },
+  "pvm27_7": {
+   "source": "Hetzner could not {0}: {1}",
+   "text": "Hetzner nezvládl {0}: {1}"
+  },
+  "pvm27_8": {
+   "source": "Hetzner: {0} is still running after {1} s - the name servers are asked anyway",
+   "text": "Hetzner: {0} po {1} s pořád běží – name servery se ptají i tak"
+  },
+  "pvm27_9": {
+   "source": "ISPConfig answered something that is not its Remote API ({0}) - is this the panel's address, and the Remote API allowed?",
+   "text": "ISPConfig odpověděl něčím, co není jeho Remote API ({0}) – je to adresa panelu a je Remote API povolené?"
+  },
+  "pvm27_10": {
+   "source": "ISPConfig did not add the TXT record {0} (no id came back)",
+   "text": "ISPConfig nepřidal TXT záznam {0} (nevrátilo se žádné id)"
+  },
+  "pvm27_11": {
+   "source": "ISPConfig has no DNS zone {0} that this remote user may see",
+   "text": "ISPConfig nemá DNS zónu {0}, kterou by tento vzdálený uživatel viděl"
+  },
+  "pvm27_12": {
+   "source": "ISPConfig said no to {0}: {1}",
+   "text": "ISPConfig odmítl {0}: {1}"
+  },
+  "pvm27_13": {
+   "source": "ISPConfig: signed in as {0}; the zone {1} has {2} record(s)",
+   "text": "ISPConfig: přihlášeno jako {0}; zóna {1} má {2} záznam(ů)"
+  },
+  "pvm27_14": {
+   "source": "Virtualmin answered {0} without an exit status - is this the Virtualmin address?",
+   "text": "Virtualmin odpověděl na {0} bez návratového kódu – je to adresa Virtualminu?"
+  },
+  "pvm27_15": {
+   "source": "Virtualmin did not add the TXT record {0} to {1} (a clash, or the name is not in that domain's zone - set the virtual server)",
+   "text": "Virtualmin nepřidal TXT záznam {0} do {1} (kolize, nebo jméno není v zóně té domény – zadejte virtuální server)"
+  },
+  "pvm27_16": {
+   "source": "Virtualmin refused {0}: {1}",
+   "text": "Virtualmin odmítl {0}: {1}"
+  },
+  "pvm27_17": {
+   "source": "Virtualmin still lists {0} TXT \"{1}\" - take it away by hand",
+   "text": "Virtualmin pořád vypisuje {0} TXT „{1}“ – odeberte ho ručně"
+  },
+  "pvm27_18": {
+   "source": "Virtualmin: signed in; get-dns reads the zone {0} ({1} line(s) of TXT records)",
+   "text": "Virtualmin: přihlášeno; get-dns čte zónu {0} ({1} řádek/řádků TXT záznamů)"
+  },
+  "pvm27_19": {
+   "source": "Virtualmin: {0} ended with {1}: {2}",
+   "text": "Virtualmin: {0} skončil s {1}: {2}"
+  },
+  "pvm27_20": {
+   "source": "froxlor said {0} to {1}: {2}{3}",
+   "text": "froxlor odpověděl {0} na {1}: {2}{3}"
+  },
+  "pvm27_21": {
+   "source": "froxlor takes a record of at most 63 characters - {0} is longer (set a deeper zone, or point it by a CNAME)",
+   "text": "froxlor bere záznam nejvýš 63 znaků – {0} je delší (zadejte hlubší zónu, nebo ho nasměrujte záznamem CNAME)"
+  },
+  "pvm27_22": {
+   "source": "froxlor: signed in; the zone {0} has {1} entries of its own",
+   "text": "froxlor: přihlášeno; zóna {0} má {1} vlastních záznamů"
+  },
+  "pvm27_23": {
+   "source": "the HestiaCP address {0} has a port that is not a number",
+   "text": "adresa HestiaCP {0} má port, který není číslo"
+  },
+  "pvm27_24": {
+   "source": "the ISPConfig address {0} has a port that is not a number",
+   "text": "adresa ISPConfigu {0} má port, který není číslo"
+  },
+  "pvm27_25": {
+   "source": "the Virtualmin address {0} has a port that is not a number",
+   "text": "adresa Virtualminu {0} má port, který není číslo"
+  },
+  "pvm27_26": {
+   "source": "{0} (F-DNS: {1} of {2} domains used)",
+   "text": "{0} (F-DNS: využito {1} z {2} domén)"
   }
  },
  "rich": {

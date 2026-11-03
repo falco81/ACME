@@ -1096,14 +1096,27 @@ class TestApiModules(unittest.TestCase):
         r.on('GET', 'https://api.hetzner.cloud/v1/zones?name=example.com',
              lambda u, b, h: {'zones': [{'id': 42, 'name': 'example.com'}]})
         r.on('GET', 'https://api.hetzner.cloud/v1/zones?name=', lambda u, b, h: {'zones': []})
-        r.on('POST', 'https://api.hetzner.cloud/v1/zones/42/rrsets/',
-             lambda u, b, h: calls.append((u, json.loads(b))) or (201, {'action': {}}))
+        held = []
+
+        def act(u, b, h):
+            calls.append((u, json.loads(b)))
+            vals = [x['value'] for x in json.loads(b)['records']]
+            if u.endswith('/add_records'):
+                held.extend(vals)
+            else:
+                held[:] = [v for v in held if v not in vals]
+            return 201, {'action': {}}
+        r.on('POST', 'https://api.hetzner.cloud/v1/zones/42/rrsets/', act)
+        r.on('GET', 'https://api.hetzner.cloud/v1/zones/42/rrsets/', lambda u, b, h: (
+            {'rrset': {'ttl': 60, 'records': [{'value': v} for v in held]}} if held
+            else (404, {'error': {'code': 'not_found'}})))
         m = plugin('hetzner')({'token': 'T', 'propagation': 'none'}, FakeCtx(http=r))
         h = m.present('www.example.com', 't', 'k', 'hz')
         m.cleanup('www.example.com', h)
         self.assertTrue(calls[0][0].endswith('/rrsets/_acme-challenge.www/TXT/actions/add_records'))
         self.assertEqual(calls[0][1]['records'], [{'value': '"hz"'}])
         self.assertTrue(calls[1][0].endswith('/actions/remove_records'))
+        self.assertEqual(held, [])
         do = []
         r = Router()
         r.on('GET', 'https://api.digitalocean.com/v2/domains/example.com', lambda u, b, h: {})
@@ -1710,6 +1723,8 @@ class TestOtherModules(unittest.TestCase):
                 'openprovider', 'easydns', 'plesk', 'rackspace',
                 # acme 1.0.26, from the vendors' own documentation (test/test_dns_providers_docs.py)
                 'cpanel', 'joker', 'netim', 'huawei_dns', 'directadmin',
+                # acme 1.0.27, from the vendors' own documentation (test/test_dns_providers_panels.py)
+                'forpsi', 'ispconfig', 'hestiacp', 'virtualmin', 'froxlor', 'windows_dns',
                 # dns-persist-01, a record set once (test/test_dns_persist.py)
                 'dns_persist'}
         self.assertEqual(set(found), want)

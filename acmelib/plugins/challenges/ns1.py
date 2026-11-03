@@ -9,7 +9,16 @@
 
 (NS1 makes a record with PUT and changes it with POST.) Header X-NSONE-Key.
 The answers are read, ours added or taken away, and written back (DELETE when
-none is left).
+none is left) - the other answers exactly as read (their id and meta kept).
+
+Checked against the user's collection (api-docs/ns1/notes.md): IBM's "Using
+the NS1 Connect API" (https://www.ibm.com/docs/en/SSSYGZ/getting_started/using_the_ns1_connect_api.html
+- PUT creates, POST updates), the TXT example of the record type guide, and
+the official SDKs ns1-go (rest/record.go, rest/zone.go - the Link header of
+the zone list) and ns1-python (records.py addAnswers: the whole answers list
+sent back). Less certain: the API reference itself (behind a bot check, not
+read); no call takes away a single answer, so a concurrent change of the same
+record elsewhere can be lost; the lowest TTL (not documented).
 """
 from __future__ import annotations
 
@@ -20,6 +29,22 @@ from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, ApiDns, api, rmw_lock
 
 API = 'https://api.nsone.net/v1'
+
+
+def next_link(headers):
+    """The rel="next" address of a Link header, or None."""
+    link = ''
+    for k, v in (headers or {}).items():
+        if str(k).lower() == 'link':
+            link = str(v)
+    for part in link.split(','):
+        bits = part.split(';')
+        if len(bits) > 1 and any(b.strip().replace(' ', '') in ('rel="next"', 'rel=next')
+                                 for b in bits[1:]):
+            url = bits[0].strip()
+            if url.startswith('<') and url.endswith('>'):
+                return url[1:-1]
+    return None
 
 
 class Ns1(ApiDns):
@@ -46,16 +71,31 @@ class Ns1(ApiDns):
         return None if st == 404 and missing_ok else got
 
     def zone_names(self):
-        return [z.get('zone') for z in self._call('GET', '/zones') or []]
+        out, url = [], str(self.c('api', API)).rstrip('/') + '/zones'
+        for _page in range(50):
+            _st, got, rh = api(self.ctx, 'GET', url, None,
+                               {'X-NSONE-Key': str(self.c('api_key', ''))}, who='NS1',
+                               with_headers=True)
+            out += [z.get('zone') for z in got or [] if isinstance(z, dict)]
+            nxt = next_link(rh)
+            if not nxt:
+                break
+            url = nxt
+        return out
 
     def _path(self, zone, fqdn):
         return '/zones/%s/%s/TXT' % (urllib.parse.quote(zone), urllib.parse.quote(D.norm(fqdn)))
 
     def _answers(self, zone, fqdn):
+        """([answer objects as read], ttl) - (None, None) when there is no record."""
         got = self._call('GET', self._path(zone, fqdn), missing_ok=True)
         if got is None:
             return None, None
-        return [list(a.get('answer') or []) for a in got.get('answers') or []], got.get('ttl')
+        return [a for a in got.get('answers') or [] if isinstance(a, dict)], got.get('ttl')
+
+    @staticmethod
+    def _is(a, value):
+        return list(a.get('answer') or []) == [value]
 
     def add_txt(self, fqdn, value):
         zone = self.zone_for(fqdn)
@@ -65,21 +105,20 @@ class Ns1(ApiDns):
                 self._call('PUT', self._path(zone, fqdn), {
                     'zone': zone, 'domain': D.norm(fqdn), 'type': 'TXT', 'ttl': self.ttl(),
                     'answers': [{'answer': [value]}]})
-            elif [value] not in have:
+            elif not any(self._is(a, value) for a in have):
                 self._call('POST', self._path(zone, fqdn), {
-                    'answers': [{'answer': a} for a in have + [[value]]],
-                    'ttl': int(ttl or self.ttl())})
+                    'answers': have + [{'answer': [value]}], 'ttl': int(ttl or self.ttl())})
         return {'zone': zone}
 
     def del_txt(self, fqdn, value, handle):
         zone = (handle or {}).get('zone') or self.zone_for(fqdn)
         with rmw_lock('ns1'):
             have, ttl = self._answers(zone, fqdn)
-            if not have or [value] not in have:
+            if not have or not any(self._is(a, value) for a in have):
                 return
-            left = [a for a in have if a != [value]]
+            left = [a for a in have if not self._is(a, value)]
             if left:
                 self._call('POST', self._path(zone, fqdn), {
-                    'answers': [{'answer': a} for a in left], 'ttl': int(ttl or self.ttl())})
+                    'answers': left, 'ttl': int(ttl or self.ttl())})
             else:
                 self._call('DELETE', self._path(zone, fqdn), missing_ok=True)

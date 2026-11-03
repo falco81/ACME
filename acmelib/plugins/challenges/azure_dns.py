@@ -1,6 +1,30 @@
 # -*- coding: utf-8 -*-
 """DNS-01 through Azure DNS - an app registration (service principal) signing
-in with a client secret (OAuth2 client credentials), the ARM REST API."""
+in with a client secret (OAuth2 client credentials), the ARM REST API
+(api-version 2018-05-01):
+
+    GET    .../providers/Microsoft.Network/dnsZones                      the zones (nextLink)
+    GET    .../dnsZones/{zone}/TXT/{relative name}       {etag, properties: {TTL, metadata,
+                                                          TXTRecords: [{value: [..]}]}}
+    PUT    the same, If-Match: <etag> (If-None-Match: * for a new one)   written whole
+    DELETE the same, If-Match: <etag>                                    when ours was last
+
+The record set is written whole, so it is read, ours added or taken away and
+written back with the etag just read - "Specify the last-seen etag value to
+prevent accidentally overwriting any concurrent changes" - keeping its TTL and
+metadata; a write refused because the set changed meanwhile is read again and
+tried again (three times at most). One value is one TXTRecords item of one
+string, without quotes.
+
+Checked against the user's collection (api-docs/azure_dns/): dns-2018-05-01.json
+(azure-rest-api-specs, RecordSets_Get / CreateOrUpdate / Delete, the If-Match
+and If-None-Match headers) and notes.md (https://learn.microsoft.com/en-us/rest/api/dns/record-sets/create-or-update,
+https://learn.microsoft.com/en-us/azure/dns/dns-zones-records - relative names,
+TTL 1 to 2147483647, the Etag table). Less certain: the status of an etag that
+does not match (not documented - 412 and 409 are read as "changed meanwhile");
+the token's scope https://management.azure.com/.default (only the <resource>/.default
+form is documented).
+"""
 from __future__ import annotations
 
 import time
@@ -117,35 +141,65 @@ class AzureDns(DnsChallenge):
                               retry=False)
         return '%s/TXT/%s' % (zid, urllib.parse.quote(relative(fqdn, zone), safe='@'))
 
-    def _values(self, path):
+    def _read(self, path):
+        """The record set as it is: {etag, ttl, metadata, records: [[strings], ..]} or None."""
         st, got = self._arm('GET', path, missing_ok=True)
         if st == 404 or not got:
-            return []
-        return [''.join(r.get('value') or []) for r in
-                (got.get('properties') or {}).get('TXTRecords') or []]
+            return None
+        props = got.get('properties') or {}
+        return {'etag': got.get('etag'), 'ttl': props.get('TTL'),
+                'metadata': props.get('metadata'),
+                'records': [list(r.get('value') or []) for r in props.get('TXTRecords') or []]}
 
-    def _put(self, path, values):
-        if values:
-            self._arm('PUT', path, {'properties': {'TTL': self.ttl(), 'TXTRecords': [
-                {'value': [v]} for v in values]}})
+    def _write(self, path, rs, records):
+        """The set written back with the etag read (If-None-Match: * when it was not there)."""
+        h = {}
+        if rs is not None and rs.get('etag'):
+            h['If-Match'] = rs['etag']
+        elif rs is None:
+            h['If-None-Match'] = '*'
+        _login, mgmt = self._urls()
+        url = '%s%s?api-version=%s' % (mgmt, path, API_VERSION)
+        h['Authorization'] = 'Bearer ' + self.token()
+        if records:
+            props = {'TTL': int((rs or {}).get('ttl') or self.ttl()),
+                     'TXTRecords': [{'value': r} for r in records]}
+            if (rs or {}).get('metadata'):
+                props['metadata'] = rs['metadata']
+            api(self.ctx, 'PUT', url, {'properties': props}, h, who='Azure')
         else:
-            self._arm('DELETE', path, missing_ok=True)
+            api(self.ctx, 'DELETE', url, None, h, who='Azure', missing_ok=True)
+
+    def _change(self, path, value, adding):
+        last = None
+        for attempt in range(3):
+            rs = self._read(path)
+            have = (rs or {}).get('records') or []
+            joined = [''.join(r) for r in have]
+            if adding == (value in joined):
+                return                                  # as it should be already
+            records = have + [[value]] if adding else [r for r in have if ''.join(r) != value]
+            try:
+                self._write(path, rs, records)
+                return
+            except PluginError as e:
+                last = e
+                if not any('said %d' % c in str(e) for c in (409, 412)):
+                    raise
+                self.ctx.step('Azure: the record set changed meanwhile - read again', 'warn')
+        raise last
 
     def add_txt(self, fqdn, value):
         path = self._rs(fqdn)
-        # the record set is written whole (PUT): one writer at a time
+        # the record set is written whole (PUT): one writer at a time here, the etag elsewhere
         with rmw_lock(('azure', path)):
-            have = self._values(path)
-            if value not in have:
-                self._put(path, have + [value])
+            self._change(path, value, True)
         return {'path': path}
 
     def del_txt(self, fqdn, value, handle):
         path = (handle or {}).get('path') or self._rs(fqdn)
         with rmw_lock(('azure', path)):
-            have = self._values(path)
-            if value in have:
-                self._put(path, [v for v in have if v != value])
+            self._change(path, value, False)
 
     def test(self):
         zones = self._zone_list()

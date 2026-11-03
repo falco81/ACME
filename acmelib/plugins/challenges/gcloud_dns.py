@@ -1,6 +1,25 @@
 # -*- coding: utf-8 -*-
 """DNS-01 through Google Cloud DNS - a service account's key (JSON), the
-access token got with a JWT signed RS256 by the openssl program."""
+access token got with a JWT signed RS256 by the openssl program:
+
+    GET  https://dns.googleapis.com/dns/v1/projects/{p}/managedZones     (pageToken)
+    GET  .../managedZones/{zone}/rrsets?name={fqdn.}&type=TXT
+    POST .../managedZones/{zone}/changes  {deletions: [the RRset as read], additions: [..]}
+
+A change "atomically updates the ResourceRecordSet collection" and its
+deletions "must match existing data exactly": the RRset as read is deleted
+and written again with our value added (or taken away), its TTL kept - so a
+set changed meanwhile by someone else makes the change fail rather than lose
+their value. Names are absolute with the final dot, values in double quotes.
+Only public zones are taken.
+
+Checked against the user's collection (api-docs/gcloud_dns/): dns-v1-discovery.json
+and notes.md (https://cloud.google.com/dns/docs/reference/rest/v1/changes,
+https://cloud.google.com/dns/docs/records, .../records-overview). Less certain:
+the status and words of a change whose deletions no longer match (not
+documented); the change is not followed to "done" - the zone's name servers
+are asked instead, as for every module.
+"""
 from __future__ import annotations
 
 import base64
@@ -113,8 +132,7 @@ class GoogleCloudDns(DnsChallenge):
         if self.c('managed_zone'):
             return self.c('managed_zone')
         best = None
-        got = self._call('GET', '/managedZones') or {}
-        for z in got.get('managedZones') or []:
+        for z in self._managed_zones():
             dom = D.norm(z.get('dnsName'))
             if D.in_zone(fqdn, dom) and (best is None or len(dom) > len(best[0])) and \
                     z.get('visibility', 'public') == 'public':
@@ -123,6 +141,18 @@ class GoogleCloudDns(DnsChallenge):
             raise PluginError('Cloud DNS has no public zone for %s in %s' % (
                 fqdn, self._project()), retry=False)
         return best[1]
+
+    def _managed_zones(self):
+        """Every managed zone of the project (nextPageToken followed)."""
+        out, token = [], None
+        for _page in range(50):
+            got = self._call('GET', '/managedZones' + (
+                '?pageToken=' + urllib.parse.quote(token) if token else '')) or {}
+            out += [z for z in got.get('managedZones') or [] if isinstance(z, dict)]
+            token = got.get('nextPageToken')
+            if not token:
+                break
+        return out
 
     def _rrset(self, mz, fqdn):
         got = self._call('GET', '/managedZones/%s/rrsets?name=%s.&type=TXT' % (
@@ -138,7 +168,8 @@ class GoogleCloudDns(DnsChallenge):
             change['deletions'].append(old)
         if values:
             change['additions'].append({'name': D.norm(fqdn) + '.', 'type': 'TXT',
-                                        'ttl': self.ttl(), 'rrdatas': values})
+                                        'ttl': int((old or {}).get('ttl') or self.ttl()),
+                                        'rrdatas': values})
         self._call('POST', '/managedZones/%s/changes' % urllib.parse.quote(mz), change)
 
     def add_txt(self, fqdn, value):
@@ -162,7 +193,6 @@ class GoogleCloudDns(DnsChallenge):
                 self._replace(mz, fqdn, old, [v for v in have if v != one])
 
     def test(self):
-        got = self._call('GET', '/managedZones') or {}
-        zs = ['%s (%s)' % (z.get('dnsName'), z.get('name')) for z in got.get('managedZones') or []]
+        zs = ['%s (%s)' % (z.get('dnsName'), z.get('name')) for z in self._managed_zones()]
         return 'signed in as %s; %d zone(s) in %s: %s' % (
             self._sa()['client_email'], len(zs), self._project(), ', '.join(zs[:20]))
