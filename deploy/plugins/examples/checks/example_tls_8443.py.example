@@ -1,0 +1,30 @@
+# -*- coding: utf-8 -*-
+"""A new test of your own: TLS on port 8443 - an admin page, say.
+
+Copy it to /etc/acme/plugins/checks/example_tls_8443.py and restart acme. It is
+offered under Tests → Add a test as "Example: TLS on 8443", with every setting
+of the shipped TLS test (SNI, the name checked, TLS versions, ciphers, the key
+asked for, "Connect to"...).
+
+A test connects as a client of its protocol would and gives back the chain the
+server sent: served(host, port, sni, verify) -> {'chain': [DER, leaf first],
+'tls': ..., 'cipher': ...}. acme compares it with the certificate it keeps.
+checks/_tls.py does the connection and the handshake, with the test's settings.
+"""
+from acmelib.plugins.base import Check
+from acmelib.plugins.checks import _tls
+
+
+class ExampleTls8443(Check):
+    kind = 'example_tls_8443'
+    title = 'Example: TLS on 8443'
+    protocol = 'TLS'
+    vendor = 'Example'
+    default_port = 8443
+    description = 'TLS at once on port 8443: the certificate an admin page serves.'
+    fields = _tls.fields(8443)
+
+    def served(self, host, port, sni, verify=True):
+        t = float(self.c('timeout', 15) or 15)
+        sock = _tls.connect(host, port, t)
+        return _tls.tls(sock, sni, verify, t)

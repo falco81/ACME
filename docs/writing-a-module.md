@@ -11,9 +11,16 @@ pages; the form for it is drawn from what it declares.
 /etc/acme/plugins/targets/<something>.py
 ```
 
-Files there are kept across upgrades. A module with the same `kind` as a
-built-in one replaces it. Files starting with `_` are not modules (use them
-for your own helpers). After adding or changing one, restart the daemon
+The folders are `issuers/` (sources), `challenges/` (validations),
+`targets/` and `checks/` (tests). Files there are kept across upgrades. A
+module with the same `kind` (and version) as a built-in one replaces it - see
+*Where modules come from, and which one wins* below. Files starting with `_`
+are not modules (use them for your own helpers). `/etc/acme/plugins/README`
+says the same in short, and `/etc/acme/plugins/examples/` holds working
+examples (`*.py.example`, not loaded): a new target, another version of a
+shipped target, an override, a new test, a version of a validation and of a
+source - each says the name to copy it to. install.sh writes both again at
+every install; your own files are never touched. After adding or changing one, restart the daemon
 (`systemctl restart acme`) so the registry looks again; *Settings → About*
 lists the modules found, and a file that does not load is listed there with
 its error while the rest keep working.
@@ -348,11 +355,55 @@ put your own in `more`. A test only reads: never log in, never send mail.
 
 ## Versions, overrides and the page Modules
 
-**Where modules come from**, in this order - a later one wins: shipped with acme
-(`acmelib/plugins/`), your own on the disk of a node (`ACME_PLUGINS`,
-`/etc/acme/plugins/<issuers|challenges|targets>/`), and uploaded on Settings →
-**Modules** (kept in the database; each node writes them into
-`/var/lib/acme/plugins-uploaded/` itself and loads them).
+### Where modules come from, and which one wins
+
+acme loads modules from three places, in this order - **a later one wins**:
+
+| | where | kept |
+|---|---|---|
+| 1. shipped | `acmelib/plugins/` of the installation | the package |
+| 2. your own on the disk | `/etc/acme/plugins/<issuers\|challenges\|targets\|checks>/` (`ACME_PLUGINS`) | the disk of each node; listed (with their text) in the database |
+| 3. uploaded | Settings → **Modules** → *Upload* | the database (`meta` `module-file:<folder>/<file>`); each node writes them into `/var/lib/acme/plugins-uploaded/` itself (`ACME_STATE`) and loads them |
+
+Within one folder the files are read by name. A module is its **kind and its
+version** (`kind`, `module_version`):
+
+* **another version** - a `module_version` its kind does not have yet - is
+  added beside the others; each source, validation, target or test chooses in
+  its form which one it uses, nothing changes until one does;
+* **the same kind and version** as one loaded before **replaces it** - an
+  override: a file in `/etc/acme/plugins` replaces the shipped one, an upload
+  replaces both. The page tags it *override* and still lists the shipped
+  original under it (*replaced - not used*, its code to download); taken away,
+  the shipped one is used again - it is never deleted;
+* a kind no module has is a module of its own.
+
+A form that names no version takes the one with `default_version = True`
+(yours before the shipped ones), else the plain one (`''`), else the first by
+name.
+
+**Kept, in a cluster and in backups.** An uploaded module is in the database:
+on both nodes of a cluster by itself (each writes it within ~20 s), in every
+copy and backup of the database, back with it after a restore - nothing to do
+by hand. A file in `/etc/acme/plugins` is on the disk of the node it was put
+on, and only there: it is **never run from the database**. acme keeps a list
+of these files with their text in the database (`meta` `custom-modules:<node>`,
+written by each node when its page Modules is opened, at every copy of the
+database and every backup it makes), and the page warns when the nodes do
+not have the same files. Root writes one node's files into this node's folder
+with
+
+```bash
+acme --plugins-sync NODE
+```
+
+(`--plugins-sync NODE --remove`: files here that NODE does not have go too),
+then `systemctl restart acme`. That is how a second node gets them - after it
+joins a cluster, after either node is set up again. A full backup (Settings →
+Backups) has the `.py` files of `/etc/acme/plugins` in `plugins/` and puts them
+back there on the machine it is restored on; the README and `examples/` are not
+in it (install.sh writes them). In a cluster, prefer uploading: one place, both
+nodes, every backup.
 
 **Versions** - one kind, several implementations (the API generations of a
 device): give each class a `module_version`; the plain one is `''`.

@@ -1,0 +1,89 @@
+Your own modules for acme - files in this folder
+=================================================
+
+Written again by install.sh at every install and upgrade: do not edit it (nor
+examples/); your own files beside it are never touched.
+
+  issuers/*.py      sources: where certificates come from   (class ...(Issuer))
+  challenges/*.py   validations: how names are proved       (class ...(Challenge))
+  targets/*.py      targets: where certificates are put      (class ...(Target))
+  checks/*.py       tests: what the servers really serve     (class ...(Check))
+  examples/         working examples (*.py.example - not loaded): copy one to the
+                    folder of its family as the name it says, then
+                    systemctl restart acme
+
+A file here is loaded when acme starts (systemctl restart acme after a change).
+Files whose name begins with _ or . are not loaded - helpers for your own files.
+These folders and files must stay root's (0755 / 0644): root's own `acme`
+command loads them too, so the acme account must not be able to write here.
+
+
+Where modules come from - and which one wins
+--------------------------------------------
+
+acme loads modules from three places, in this order; a later one wins:
+
+  1. shipped with acme      /usr/local/lib/acme/current/acmelib/plugins/
+  2. your own, on the disk   this folder (/etc/acme/plugins, or ACME_PLUGINS)
+  3. uploaded on the page    Settings → Modules - kept in the database, written
+                             by every node into /var/lib/acme/plugins-uploaded/
+
+Within one folder the files are read by name, in order.
+
+A module is its kind and its version (`kind`, `module_version`):
+
+  * another version (a module_version the kind does not have yet) is added
+    beside the others; every source, validation, target or test chooses in its
+    form which version it uses - nothing changes until one does.
+  * the same kind and version as one loaded before replaces it - an override:
+    a file here replaces the shipped one, an upload replaces both. The page
+    tags it "override" and still lists the shipped original under it
+    ("replaced - not used"); take the file away (and restart acme) and the
+    shipped one is used again - it is never deleted.
+  * a kind no module has is a module of its own.
+
+Which version a form that names none takes: the one with default_version =
+True (yours before the shipped ones), else the plain one (no module_version),
+else the first by name.
+
+
+How they are kept
+-----------------
+
+Files here are on the disk of this node only, and are never run from the
+database. acme keeps a list of them with their text in it (meta
+custom-modules:<node>, written when the page Modules is opened, at every copy
+of the database and every backup): the page says when the nodes of a cluster
+do not have the same files, and root writes a node's files into this folder
+with
+
+    acme --plugins-sync NODE            (--remove: files NODE has not go too)
+    systemctl restart acme
+
+- on the second node of a cluster after it joins, or after either node is set
+up again. In a cluster, uploading on the page is simpler: one place, both
+nodes, every backup. A full backup (Settings → Backups) has the .py files of
+this folder in plugins/ and puts them back here; README and examples/ are not
+in it - install.sh writes them.
+
+Uploaded modules live in the database itself (meta module-file:<folder>/<file>):
+in every backup and copy, on both nodes of a cluster by themselves.
+
+
+Writing one
+-----------
+
+docs/writing-a-module.md (/usr/local/lib/acme/current/docs/), the contract
+acmelib/plugins/base.py, the shipped modules beside it. Settings → Modules →
+a module → Download a start gives a file to begin from: only a start (a few
+lines that take the module as it is) or the whole code of a version, already
+named as yours. GET /api/plugins lists what was found, and what broke.
+
+The examples (each says where it goes):
+
+  examples/targets/example_folder.py.example             a new target
+  examples/targets/example_netscaler_version.py.example  another version of a shipped target
+  examples/targets/example_ssh_override.py.example       an override of a shipped target
+  examples/checks/example_tls_8443.py.example            a new test
+  examples/challenges/example_desec_version.py.example   another version of a validation
+  examples/issuers/example_selfsigned_version.py.example another version of a source

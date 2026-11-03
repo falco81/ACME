@@ -1,0 +1,32 @@
+# -*- coding: utf-8 -*-
+"""Another version of a module shipped: NetScaler, beside the plain one.
+
+Copy it to /etc/acme/plugins/targets/netscaler_14_1.py and restart acme. The
+target NetScaler then has two versions: the shipped one (plain) and "14.1".
+Each NetScaler target chooses its version in its own form; nothing changes for
+a target until you choose it there. The shipped one stays as it is.
+
+It takes the shipped module as it is (it subclasses it) and changes only what
+is written below - so it follows the shipped one when acme is updated. To start
+from the whole code instead: Settings → Modules → NetScaler → Download a start →
+The whole code of a version.
+"""
+from acmelib.plugins.base import field
+from acmelib.plugins.targets.netscaler import NetScalerTarget
+
+
+class NetScaler141(NetScalerTarget):
+    module_version = '14.1'                 # its name - what a form chooses
+    version_label = 'NITRO of ADC 14.1'     # what it is for
+    default_version = False                 # True: a new target, and one that says no
+                                            # version, takes this one
+    # the shipped form, and one setting more
+    fields = NetScalerTarget.fields + [
+        field('note_on_device', 'A word in the log', 'text', advanced=True,
+              placeholder='ADC 14.1-25'),
+    ]
+
+    def deploy(self, bundle, options):
+        said = NetScalerTarget.deploy(self, bundle, options)       # the shipped work
+        word = str(self.c('note_on_device') or '').strip()
+        return '%s (%s)' % (said, word) if word else said

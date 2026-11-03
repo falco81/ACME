@@ -58,6 +58,26 @@ cid = st.db.insert('certs', {'name': 'csr.example.test', 'cn': 'csr.example.test
 jobs.run_now(st, 'issue', renewer.renew_job(cid, True, 'test'), cert_id=cid)
 assert st.db.row('SELECT cert_pem FROM certs WHERE id = ?', (cid,))['cert_pem']
 '''
+UPLOAD = '''
+import acmelib.engine as E
+E.load_config()
+st = E.Storage(E.open_db())
+from acmelib.certs import custom_modules as CM
+CM.install(st, 'target', 'f5_v17.py', "from acmelib.plugins.targets.f5 import F5Target\\n\\n\\n"
+           "class F5v17(F5Target):\\n    module_version = '17.9'\\n", 'test')
+CM.set_mark(st, 'target', 'f5', '17.9', 'works', 'tried', 'test')
+'''
+LOADED = '''
+import json
+import acmelib.engine as E
+E.load_config()
+st = E.Storage(E.open_db())
+from acmelib.certs import custom_modules as CM, store as S
+CM.materialize(st, force=True)
+S.registry().reload()
+print(json.dumps({'versions': sorted(S.registry().versions_of('target', 'f5')),
+                  'mark': (CM.marks(st).get('target/f5@17.9') or {}).get('state')}))
+'''
 MOMENT = ('sessions', 'events')                 # not carried / written by the restore
 META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial')
 
@@ -136,6 +156,18 @@ class FullRestore(unittest.TestCase):
         self.run_ok(a_env_pw, '--add-user', 'keeper', '--role', 'certadmin')
         with open(os.path.join(A['ACME_PLUGINS'], 'targets', 'mine.py'), 'w') as f:
             f.write('# a module of my own\n')
+        # every kind of module of your own (1.0.34): a test on the disk too, one
+        # uploaded on the page (in the database), a mark - and the examples and the
+        # README install.sh writes, which are not taken (written again by it)
+        os.makedirs(os.path.join(A['ACME_PLUGINS'], 'checks'), exist_ok=True)
+        with open(os.path.join(A['ACME_PLUGINS'], 'checks', 'my_check.py'), 'w') as f:
+            f.write('# a test of my own\n')
+        os.makedirs(os.path.join(A['ACME_PLUGINS'], 'examples', 'targets'), exist_ok=True)
+        with open(os.path.join(A['ACME_PLUGINS'], 'examples', 'targets', 'x.py.example'), 'w') as f:
+            f.write('# an example\n')
+        with open(os.path.join(A['ACME_PLUGINS'], 'README'), 'w') as f:
+            f.write('words\n')
+        self.py(A, UPLOAD)
 
         # a job at work when the copy is made (1.0.19): it comes back failed, not running
         self.py(A, '''
@@ -183,6 +215,13 @@ st.db.insert('cert_jobs', {'ts': time.time() - 5, 'kind': 'renew', 'cert_id': 1,
                 open(os.path.join(b['ACME_STATE'], 'secrets.key')) as f2:
             self.assertEqual(f1.read(), f2.read())
         self.assertTrue(os.path.isfile(os.path.join(b['ACME_PLUGINS'], 'targets', 'mine.py')))
+        self.assertTrue(os.path.isfile(os.path.join(b['ACME_PLUGINS'], 'checks', 'my_check.py')))
+        self.assertFalse(os.path.exists(os.path.join(b['ACME_PLUGINS'], 'examples')))
+        self.assertFalse(os.path.exists(os.path.join(b['ACME_PLUGINS'], 'README')))
+        # the uploaded module and its mark came back with the database - and it loads
+        got = json.loads(self.py(b, LOADED))
+        self.assertEqual(got['versions'], ['', '17.9'], got)
+        self.assertEqual(got['mark'], 'works', got)
 
         # and it works: the sealed keys open - its authority signs a renewal, the
         # certificate is deployed with its key

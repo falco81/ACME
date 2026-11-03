@@ -1,0 +1,16 @@
+# -*- coding: utf-8 -*-
+"""Another version of a validation shipped: deSEC, waiting longer.
+
+Copy it to /etc/acme/plugins/challenges/desec_slow.py and restart acme. The
+validation deSEC then has the version "slow" beside the plain one; a validation
+chooses it in its form. Only a default is changed here - the rest is the
+shipped module.
+"""
+from acmelib.plugins.challenges.desec import Desec
+
+
+class DesecSlow(Desec):
+    module_version = 'slow'
+    version_label = 'waits 3 minutes after the record is seen'
+    # the shipped form, one default changed
+    fields = [dict(f, default=180) if f.get('key') == 'settle' else f for f in Desec.fields]

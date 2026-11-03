@@ -1,0 +1,15 @@
+# -*- coding: utf-8 -*-
+"""Another version of a source shipped: self-signed for ten years.
+
+Copy it to /etc/acme/plugins/issuers/selfsigned_10y.py and restart acme. The
+source Self-signed then has the version "10y" beside the plain one; a source
+chooses it in its form.
+"""
+from acmelib.plugins.issuers.selfsigned import SelfSignedIssuer
+
+
+class SelfSigned10y(SelfSignedIssuer):
+    module_version = '10y'
+    version_label = 'valid ten years'
+    fields = [dict(f, default=3650) if f.get('key') == 'days' else f
+              for f in SelfSignedIssuer.fields]

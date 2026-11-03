@@ -1315,36 +1315,37 @@ EOB
     fi
 }
 
-# Your own modules: /etc/acme/plugins/{issuers,challenges,targets}/*.py, kept
-# across upgrades (one with the same `kind` wins over the built-in). Root's
-# alone: root's own acme command loads them too, so the acme account must not
-# be able to put code there.
+# Your own modules: /etc/acme/plugins/{issuers,challenges,targets,checks}/*.py, kept
+# across upgrades (one with the same kind and version as a shipped one takes its
+# place). Root's alone: root's own acme command loads them too, so the acme
+# account must not be able to put code there. README and examples/ are acme's:
+# written again at every install (1.0.34), your own files are never touched.
 install_plugin_dirs() {
-    local d
-    not_a_link "$PLUGINS_DIR" "$PLUGINS_DIR/issuers" "$PLUGINS_DIR/challenges" "$PLUGINS_DIR/targets"
-    for d in "$PLUGINS_DIR" "$PLUGINS_DIR/issuers" "$PLUGINS_DIR/challenges" "$PLUGINS_DIR/targets"; do
+    local d f rel
+    not_a_link "$PLUGINS_DIR" "$PLUGINS_DIR/issuers" "$PLUGINS_DIR/challenges" "$PLUGINS_DIR/targets" \
+        "$PLUGINS_DIR/checks" "$PLUGINS_DIR/examples"
+    for d in "$PLUGINS_DIR" "$PLUGINS_DIR/issuers" "$PLUGINS_DIR/challenges" "$PLUGINS_DIR/targets" \
+            "$PLUGINS_DIR/checks"; do
         if [[ -d "$d" ]]; then
             run chown root:root "$d"; run chmod 0755 "$d"
         else
             run install -d -m 0755 -o root -g root "$d"
         fi
     done
-    if [[ ! -e "$PLUGINS_DIR/README" ]]; then
-        write_file "$PLUGINS_DIR/README" 0644 <<'EOR'
-Your own modules for acme, kept across upgrades.
-
-  issuers/*.py      where certificates come from      (class ...(Issuer))
-  challenges/*.py   how names are proved (DNS / HTTP)  (class ...(Challenge))
-  targets/*.py      where certificates are put         (class ...(Target))
-
-The contract is acmelib/plugins/base.py (/usr/local/lib/acme/current/acmelib/
-plugins/base.py); the built-in modules beside it are examples. A module here
-with the same `kind` as a built-in one takes its place. These folders and files
-must stay root's (0755 / 0644): root's own `acme` command loads them too.
-GET /api/plugins (Settings, the modules) lists what was found, and what broke.
-EOR
+    if [[ -f "$SOURCE_DIR/deploy/plugins/README" ]]; then
+        run install -m 0644 -o root -g root "$SOURCE_DIR/deploy/plugins/README" "$PLUGINS_DIR/README"
     fi
-    good "$PLUGINS_DIR/{issuers,challenges,targets} - your own modules (root's)"
+    if [[ -d "$SOURCE_DIR/deploy/plugins/examples" ]]; then
+        # the examples as this release has them: the folder made anew
+        [[ -d "$PLUGINS_DIR/examples" ]] && run rm -rf -- "$PLUGINS_DIR/examples"
+        run install -d -m 0755 -o root -g root "$PLUGINS_DIR/examples"
+        while IFS= read -r -d '' f; do
+            rel="${f#"$SOURCE_DIR/deploy/plugins/examples/"}"
+            run install -d -m 0755 -o root -g root "$PLUGINS_DIR/examples/$(dirname "$rel")"
+            run install -m 0644 -o root -g root "$f" "$PLUGINS_DIR/examples/$rel"
+        done < <(find "$SOURCE_DIR/deploy/plugins/examples" -type f -name '*.py.example' -print0)
+    fi
+    good "$PLUGINS_DIR/{issuers,challenges,targets,checks} - your own modules (root's); README, examples/"
 }
 
 # Upgrades from the pages: root's helper, the keys it trusts, and the systemd

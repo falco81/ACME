@@ -1,0 +1,23 @@
+# -*- coding: utf-8 -*-
+"""An override: a file of your own in the place of a module shipped.
+
+Copy it to /etc/acme/plugins/targets/ssh.py and restart acme. Its kind and
+version (none: the plain one) are those of the shipped "Linux / Unix server
+(SSH)", so this one is used instead of it - by every SSH target there is. The
+page says so: the module is tagged "override", and the shipped original is
+still listed under it ("replaced - not used"). Take the file away (and restart):
+the shipped one is used again - it is never deleted.
+
+Prefer another version (example_netscaler_version) where you can: an override
+changes every target of the kind at once.
+"""
+from acmelib.plugins.targets.ssh import SshTarget
+
+
+class SshMine(SshTarget):
+    # no module_version: the plain one - the version of the shipped module
+    title = 'Linux / Unix server (SSH, mine)'
+
+    def deploy(self, bundle, options):
+        said = SshTarget.deploy(self, bundle, options)
+        return said + ' - by my own SSH module'

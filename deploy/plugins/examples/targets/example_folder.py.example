@@ -1,0 +1,58 @@
+# -*- coding: utf-8 -*-
+"""A new target of your own: the certificate written as two files into a folder.
+
+Copy it to /etc/acme/plugins/targets/example_folder.py and restart acme
+(systemctl restart acme). It is then offered under Targets → Add a target as
+"Example: a folder". See docs/writing-a-module.md.
+
+A target is a class with a `kind` no other module has. `fields` is its form
+(how acme reaches the device), `deploy_fields` the options of one certificate
+on it; deploy() puts the certificate in place and returns words for the job's
+log, PluginError says what went wrong.
+"""
+import os
+
+from acmelib.plugins.base import PluginError, Target, field
+
+
+class ExampleFolderTarget(Target):
+    kind = 'example_folder'             # unique, lower case: kept in the database
+    title = 'Example: a folder'
+    vendor = 'Example'
+    description = 'Writes fullchain.pem and privkey.pem into a folder of this machine.'
+    fields = [
+        field('folder', 'Folder', 'text', default='/etc/acme/out/example', required=True,
+              help='An absolute path; made when it is not there.'),
+    ]
+    deploy_fields = [
+        field('subfolder', 'Subfolder', 'text', placeholder='empty: the certificate\'s name',
+              help='Under the folder above.'),
+    ]
+
+    def _folder(self, options):
+        base = os.path.realpath(str(self.c('folder') or ''))
+        if not os.path.isabs(base) or base == '/':
+            raise PluginError('the folder must be an absolute path, not /', retry=False)
+        sub = str((options or {}).get('subfolder') or '').strip().strip('/')
+        return base, os.path.join(base, sub) if sub else base
+
+    def test(self):
+        base, _d = self._folder({})
+        os.makedirs(base, mode=0o750, exist_ok=True)
+        if not os.access(base, os.W_OK):
+            raise PluginError('acme may not write into %s' % base, retry=False)
+        return '%s can be written' % base
+
+    def deploy(self, bundle, options):
+        _base, d = self._folder(options)
+        if not (options or {}).get('subfolder'):
+            d = os.path.join(d, bundle.name)
+        os.makedirs(d, mode=0o750, exist_ok=True)
+        for name, text, mode in (('fullchain.pem', bundle.fullchain_pem, 0o644),
+                                 ('privkey.pem', bundle.key_pem, 0o600)):
+            path = os.path.join(d, name)
+            fd = os.open(path + '.new', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+            with os.fdopen(fd, 'w') as f:
+                f.write(text)
+            os.replace(path + '.new', path)         # whole, or not at all
+        return 'written into %s' % d

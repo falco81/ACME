@@ -6,6 +6,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.34 - not released
 
+- /etc/acme/plugins: install.sh makes `checks/` too (tests of your own had no
+  folder), and writes `README` (where modules come from, which one wins, how
+  they are kept on both nodes and in backups) and `examples/` again at every
+  install - working examples as `*.py.example`, not loaded: a new target,
+  another version of a shipped target, an override, a new test, a version of a
+  validation and of a source (each loaded by test/test_plugin_examples.py).
+  docs/writing-a-module.md: *Where modules come from, and which one wins*, in a
+  cluster and in backups. A full backup and its restore are tested with a test
+  of your own on the disk, an uploaded module and a mark.
+
 - A test's result drawn side by side: what acme keeps (both halves of a dual
   certificate) beside what the server sent - a card each, the lines that agree
   ticked, the ones that do not red (names, issuer, validity, key, SHA-256), and
