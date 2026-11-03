@@ -391,7 +391,10 @@ class Plugin(object):
             if f.get('type') != 'catalog' or not f.get('key'):
                 continue
             key = f['key']
-            need = [d for d in f.get('depends') or [] if self.c(d) in (None, '')]
+            # what it needs and is shown now (a field hidden by show_if - the other way
+            # of signing in - is not needed)
+            need = [d for d in f.get('depends') or [] if self.c(d) in (None, '') and
+                    self._shown(d)]
             if need:
                 labels = [str(next((x.get('label') for x in self.fields
                                     if x.get('key') == d), d)) for d in need]
@@ -407,6 +410,18 @@ class Plugin(object):
                 continue
             self.offer(out, key, got.get('options') or [], got.get('sets') or {})
         return out
+
+    def _shown(self, key):
+        """Whether a field is shown with the settings as they are (its show_if)."""
+        f = next((x for x in self.fields or [] if x.get('key') == key), None)
+        cond = (f or {}).get('show_if') or {}
+        for k, want in cond.items():
+            want = want if isinstance(want, (list, tuple)) else [want]
+            have = self.c(k)
+            if not any(str(w).lower() == str('' if have is None else have).lower() or
+                       (isinstance(w, bool) and bool(have) == w) for w in want):
+                return False
+        return True
 
     def offer(self, out, key, options, sets=None, pick=None):
         """A choice put into discover_setup()'s answer: the value set now stays picked,

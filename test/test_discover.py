@@ -158,6 +158,26 @@ class TestDnsZones(unittest.TestCase):
         self.assertIn('refused', ' '.join(got['notes']))
 
 
+class TwoWays(Plugin):
+    kind = 'two_ways'
+    fields = [field('auth', 'Auth', 'select', default='token', options=[['token', 'T'], ['pw', 'P']]),
+              field('token', 'Token', 'secret', show_if={'auth': ['token']}),
+              field('password', 'Password', 'secret', show_if={'auth': ['pw']}),
+              field('pick', 'Pick', 'catalog', catalog='pick', depends=['token', 'password'])]
+
+    def catalog(self, which):
+        return {'options': [['a', 'A']]}
+
+
+class TestDepends(unittest.TestCase):
+    def test_a_hidden_depend_is_not_needed(self):
+        got = TwoWays({'auth': 'token', 'token': 't'}, None).discover_setup()
+        self.assertIn('pick', got['choices'])
+        got = TwoWays({'auth': 'pw'}, None).discover_setup()
+        self.assertNotIn('pick', got['choices'])
+        self.assertTrue(got['notes'])
+
+
 class TestApi(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

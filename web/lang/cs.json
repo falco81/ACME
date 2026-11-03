@@ -48731,6 +48731,134 @@
   "dsc29t_28": {
    "source": "listing the secrets engines",
    "text": "vypisuji úložiště tajemství"
+  },
+  "dsc29s_1": {
+   "source": "the account details",
+   "text": "údaje účtu"
+  },
+  "dsc29s_2": {
+   "source": "Company",
+   "text": "Firma"
+  },
+  "dsc29s_3": {
+   "source": "Active orders",
+   "text": "Aktivní objednávky"
+  },
+  "dsc29s_4": {
+   "source": "Certificates to reuse",
+   "text": "Certifikáty k opětovnému použití"
+  },
+  "dsc29s_5": {
+   "source": "Empty: the one acme had last for the certificate",
+   "text": "Prázdné: ten, který acme pro certifikát mělo naposledy"
+  },
+  "dsc29s_6": {
+   "source": "Taken from the order",
+   "text": "Převzato z objednávky"
+  },
+  "dsc29s_7": {
+   "source": "Approved domains",
+   "text": "Schválené domény"
+  },
+  "dsc29s_8": {
+   "source": "Longest validity (days)",
+   "text": "Nejdelší platnost (dny)"
+  },
+  "dsc29s_9": {
+   "source": "Key format",
+   "text": "Formát klíče"
+  },
+  "dsc29s_10": {
+   "source": "Domains validated",
+   "text": "Ověřené domény"
+  },
+  "dsc29s_11": {
+   "source": "Issued certificates",
+   "text": "Vydané certifikáty"
+  },
+  "dsc29s_12": {
+   "source": "the applications",
+   "text": "aplikace"
+  },
+  "dsc29s_13": {
+   "source": "Applications",
+   "text": "Aplikace"
+  },
+  "dsc29s_14": {
+   "source": "Issuing template: pick the application, then ask again",
+   "text": "Šablona vydávání: vyberte aplikaci a pak se zeptejte znovu"
+  },
+  "dsc29s_15": {
+   "source": "Vault (the mounts)",
+   "text": "Vault (seznam mountů)"
+  },
+  "dsc29s_16": {
+   "source": "Role: pick the PKI mount, then ask again",
+   "text": "Role: vyberte mount PKI a pak se zeptejte znovu"
+  },
+  "dsc29s_17": {
+   "source": "Vault (the list of issuers)",
+   "text": "Vault (seznam vydavatelů)"
+  },
+  "dsc29s_18": {
+   "source": "Empty: the issuer of the role",
+   "text": "Prázdné: vydavatel podle role"
+  },
+  "dsc29s_19": {
+   "source": "Issuers",
+   "text": "Vydavatelé"
+  },
+  "dsc29s_20": {
+   "source": "set the project",
+   "text": "nastavte projekt"
+  },
+  "dsc29s_21": {
+   "source": "CA Service (the locations)",
+   "text": "CA Service (umístění)"
+  },
+  "dsc29s_22": {
+   "source": "CA Service (the CA pools)",
+   "text": "CA Service (pooly CA)"
+  },
+  "dsc29s_23": {
+   "source": "CA Service (the CAs)",
+   "text": "CA Service (certifikační autority)"
+  },
+  "dsc29s_24": {
+   "source": "CA pools",
+   "text": "Pooly CA"
+  },
+  "dsc29s_25": {
+   "source": "Empty: Google chooses one",
+   "text": "Prázdné: Google některou vybere"
+  },
+  "dsc29s_26": {
+   "source": "Certificate template: pick the location and the CA pool, then ask again",
+   "text": "Šablona certifikátu: vyberte umístění a pool CA a pak se zeptejte znovu"
+  },
+  "dsc29s_27": {
+   "source": "CA ARN: give the API endpoint of the region of the CAs (https://acm-pca.REGION.amazonaws.com), then ask again",
+   "text": "ARN CA: zadejte koncový bod API regionu, kde CA jsou (https://acm-pca.REGION.amazonaws.com), a pak se zeptejte znovu"
+  },
+  "dsc29s_28": {
+   "source": "JWK provisioners",
+   "text": "JWK provisionery"
+  },
+  "dsc29s_29": {
+   "source": "step-ca (version)",
+   "text": "step-ca (verze)"
+  },
+  "dsc29s_30": {
+   "source": "the realm",
+   "text": "realm"
+  },
+  "dsc29s_31": {
+   "source": "Origin CA certificates",
+   "text": "Certifikáty Origin CA"
+  },
+  "dsc29s_32": {
+   "source": "Empty: the product chosen above",
+   "text": "Prázdné: produkt zvolený výše"
   }
  },
  "patterns": {
@@ -67021,6 +67149,46 @@
   "pdsc29t_3": {
    "source": "{0} KV engine(s) of version 1 left out - acme writes KV version 2",
    "text": "Vynechaná úložiště KV verze 1: {0} – acme zapisuje do KV verze 2"
+  },
+  "pdsc29s_1": {
+   "source": "the certificate {0} could not be read: {1}",
+   "text": "certifikát {0} se nepodařilo načíst: {1}"
+  },
+  "pdsc29s_2": {
+   "source": "the domains of the profile {0} could not be read: {1}",
+   "text": "domény profilu {0} se nepodařilo načíst: {1}"
+  },
+  "pdsc29s_3": {
+   "source": "the validation policy requires {0} in the subject - put them in \"More of the subject\" (key=value)",
+   "text": "validační politika vyžaduje v subjektu {0} – zadejte je do „Další části subjektu“ (klíč=hodnota)"
+  },
+  "pdsc29s_4": {
+   "source": "{0} ({1} template(s))",
+   "text": "{0} (šablon: {1})"
+  },
+  "pdsc29s_5": {
+   "source": "PKI mount: {0}",
+   "text": "Mount PKI: {0}"
+  },
+  "pdsc29s_6": {
+   "source": "Issuer: {0}",
+   "text": "Vydavatel: {0}"
+  },
+  "pdsc29s_7": {
+   "source": "CA in the pool: {0}",
+   "text": "CA v poolu: {0}"
+  },
+  "pdsc29s_8": {
+   "source": "Private CAs ({0})",
+   "text": "Soukromé CA ({0})"
+  },
+  "pdsc29s_9": {
+   "source": "Provisioner key: {0}",
+   "text": "Klíč provisioneru: {0}"
+  },
+  "pdsc29s_10": {
+   "source": "CA: {0}",
+   "text": "CA: {0}"
   }
  },
  "rich": {

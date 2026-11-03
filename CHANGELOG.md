@@ -6,6 +6,27 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.28 - not released
 
+- **Find the settings from the account** (discovery): over the form of a
+  source, a validation or a target, a button opens a popup that asks only the
+  sign-in (an API key, a user and password, the address). acme asks the
+  account's API - read-only: nothing is ordered, changed or saved - and offers
+  what it found beside what the form says: values the form has none of are
+  ticked, values it has otherwise are not, lists are a choice. "Fill in the
+  ticked ones" puts them into the form; Save keeps them. Every field stays
+  settable by hand. SSLmarket takes the product list, the orders and - from
+  the last order (or the account's organisation) - the owner, contact, invoice
+  data and DCV method; SSLmarket ACME its ACME keys, products and
+  organisations. Other sources: their organisations, profiles, products,
+  templates, CAs, mounts and roles, the account's contacts, orders to reuse
+  (never picked by themselves). DNS validations: the zones the account sees,
+  and zone ids, resource groups, servers and views where a module has them
+  (Cloudflare, Route 53, Azure, Google Cloud, OVH, PowerDNS, Hetzner,
+  DigitalOcean, Infoblox, EfficientIP...). Targets: FortiGate VDOM, F5
+  partitions, PAN-OS vsys, Check Point API version and domain, FMC domain,
+  Avi version, Azure resource groups, Google Cloud locations, Cloudflare
+  zones, Vault KV mounts, Nutanix clusters. Modules with nothing to find show
+  no button.
+
 - **Six new DNS-01 validations**, written from the vendors' own documentation:
   Forpsi F-DNS (the paid DNS-as-a-service only - ordinary Forpsi DNS has no
   API), ISPConfig, HestiaCP, Virtualmin, froxlor and Windows DNS (PowerShell
