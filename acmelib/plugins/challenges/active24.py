@@ -60,10 +60,12 @@ class Active24(ApiDns):
     fields = [
         field('platform', 'API', 'select', default='rest',
               options=[['rest', 'REST API v2 - rest.active24.cz (an API key and secret)'],
-                       ['com', 'Active24 API - api.active24.com (a token)']],
-              help='Which one your account has: the Czech and Slovak administration (on the '
-                   'Websupport platform) gives a key and a secret; the older Active24 '
-                   'administration a token.'),
+                       ['com', 'Active24 API - api.active24.com (a token) - the old platform, '
+                               'no longer working']],
+              help='REST API v2 (a key and a secret from the administration on the Websupport '
+                   'platform) is the one that works. Active24 says the old platform\'s API '
+                   '(api.active24.com, a token) no longer works since the move to the new '
+                   'platform - kept only for settings made with it.'),
         field('api_key', 'API key', 'text', required=True, show_if={'platform': ['rest']},
               help='The Active24 administration → (your name) → Security and login → API '
                    'access → Generate new access: the identifier here, the secret below.'),

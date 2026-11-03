@@ -704,6 +704,9 @@ class WedosFake(Fake):
             return ok({'domain': every[(page - 1) * per:page * per], 'total': len(every),
                        'page': page, 'page_limit': per})
         if cmd == 'dns-rows-list':
+            self.listed = getattr(self, 'listed', []) + [dict(d)]
+            if getattr(self, 'no_filters', False) and 'row_name' in d:
+                return 200, {'response': {'code': 2200, 'result': 'Unknown parameter'}}
             rows = [{'ID': str(x['id']), 'name': self.rel(d['domain'], x['name']),
                      'ttl': '300', 'rdtype': 'TXT', 'rdata': x['value']}
                     for x in self.recs if x['zone'] == d['domain']]
@@ -714,6 +717,7 @@ class WedosFake(Fake):
             self.t.assertGreaterEqual(d['ttl'], 300)
             self.t.assertNotIn('auth_comment', d)       # the parameter is author_comment
             self.t.assertIn('author_comment', d)
+            self.ttls = getattr(self, 'ttls', []) + [d['ttl']]
             self.add(d['domain'], self.full(d['domain'], d['name']), d['rdata'])
             self.commits = getattr(self, 'commits', 0) - 1
             return ok()
@@ -737,6 +741,7 @@ class WebsupportFake(Fake):
         u = urllib.parse.urlsplit(url)
         self.t.assertEqual(u.netloc, self.host)
         key, sig = base64.b64decode(h['Authorization'][6:]).decode().split(':')
+        self.t.assertEqual(h.get('X-Date'), h['Date'], 'X-Date beside Date (1.0.28)')
         # v2 (Active24): the Date in RFC 3339, as lego's v2 client sends it; v1 basic ISO 8601
         ts = int(datetime.datetime.strptime(h['Date'], '%Y-%m-%dT%H:%M:%SZ' if self.v2 else
                                             '%Y%m%dT%H%M%SZ').replace(
@@ -978,6 +983,58 @@ class TestProviders(Base):
                 m._call('ping')
             self.assertEqual(len(calls), 1, 'not asked again while held')
             self.assertIn('not asked again', str(e.exception))
+        finally:
+            limits.forget()
+
+    def test_wedos_rows_filtered_and_ttl_shared(self):
+        """1.0.28: dns-rows-list asked with row_name and rdtype; a TXT of that name there
+        already gives its TTL (records of one name and type share one at WEDOS)."""
+        f = WedosFake(self)
+        orig = f.handle
+
+        def ttl900(method, url, body, h):
+            st, ans = orig(method, url, body, h)
+            for r in ((ans.get('response') or {}).get('data') or {}).get('row') or []:
+                r['ttl'] = '900'
+            return st, ans
+        f.handle = ttl900
+        m, _ = module('wedos', f, login='me@example.cz', wapi_password='wp')
+        m.add_txt('_acme-challenge.www.example.com', 'v1')
+        self.assertEqual(f.listed[0], {'domain': 'example.com',
+                                       'row_name': '_acme-challenge.www', 'rdtype': 'TXT'})
+        self.assertEqual(f.ttls, [300], 'no TXT there yet: our own TTL')
+        m.add_txt('_acme-challenge.www.example.com', 'v2')
+        self.assertEqual(f.ttls, [300, 900], 'the TTL of the TXT already there')
+        m.add_txt('example.com', 'apex')
+        self.assertEqual(f.listed[-1]['row_name'], '@')
+
+    def test_wedos_rows_without_filters_and_never_after_sign_in(self):
+        """An older WAPI refusing the filters (2xxx): the whole zone, filtered here. A
+        refused sign-in is never asked again."""
+        from acmelib.plugins import limits
+        from acmelib.plugins.base import PluginError
+        f = WedosFake(self)
+        f.no_filters = True
+        m, _ = module('wedos', f, login='me@example.cz', wapi_password='wp')
+        m.add_txt('_acme-challenge.www.example.com', 'v1')
+        self.assertEqual(f.listed[1], {'domain': 'example.com'})
+        self.assertEqual(m._ours('example.com', '_acme-challenge.www', 'v1') != [], True)
+        g = WedosFake(self)
+        orig = g.handle
+        calls = []
+
+        def refuse(method, url, body, h):
+            r = json.loads(form(body)['request'])['request']
+            calls.append(r['command'])
+            if r['command'] == 'dns-rows-list':
+                return 200, {'response': {'code': 2051, 'result': 'Access not allowed'}}
+            return orig(method, url, body, h)
+        g.handle = refuse
+        m, _ = module('wedos', g, login='me@example.cz', wapi_password='wp', zone='example.com')
+        try:
+            with self.assertRaises(PluginError):
+                m._txt_rows('example.com', '_acme-challenge')
+            self.assertEqual(calls.count('dns-rows-list'), 1)
         finally:
             limits.forget()
 

@@ -158,20 +158,50 @@ class Wedos(ApiDns):
             rows = list(rows.values()) if not ('ID' in rows or 'name' in rows) else [rows]
         return [r for r in rows or [] if isinstance(r, dict)]
 
-    def _ours(self, zone, rel, value):
+    def _txt_rows(self, zone, rel):
+        """The TXT records of one name. Asked with the filters WAPI documents (1.0.28:
+        row_name - "@" for the domain itself - and rdtype), so the answer is data.row[];
+        refused (an older WAPI), asked for the whole zone as before. Filtered here too."""
         name = '' if rel == '@' else rel
-        rows = self._rows(self._call('dns-rows-list', {'domain': zone}))
-        return [r.get('ID') for r in rows if
-                str(r.get('rdtype')).upper() == 'TXT' and (r.get('name') or '') == name and
-                unquote_txt(r.get('rdata')) == value]
+        try:
+            got = self._call('dns-rows-list', {'domain': zone, 'row_name': name or '@',
+                                               'rdtype': 'TXT'})
+        except PluginError as e:
+            # Only a refusal of the request's data (2xxx) is asked again without the filters:
+            # never a sign-in or anything else - wrong requests block the address at WEDOS.
+            code = (e.detail or {}).get('code') if isinstance(e.detail, dict) else None
+            try:
+                code = int(code)
+            except (TypeError, ValueError):
+                raise e
+            if not 2000 <= code < 3000 or code in AUTH_CODES or limits.held(API) > 0:
+                raise
+            got = self._call('dns-rows-list', {'domain': zone})
+        return [r for r in self._rows(got) if
+                str(r.get('rdtype')).upper() == 'TXT' and (r.get('name') or '') == name]
+
+    def _ours(self, zone, rel, value):
+        return [r.get('ID') for r in self._txt_rows(zone, rel)
+                if unquote_txt(r.get('rdata')) == value]
 
     def add_txt(self, fqdn, value):
         zone = self.zone_for(fqdn)
         rel = relative(fqdn, zone)
-        if not self._ours(zone, rel, value):
+        rows = self._txt_rows(zone, rel)
+        if not any(unquote_txt(r.get('rdata')) == value for r in rows):
+            # Records of one name and type share one TTL at WEDOS (kb.vedos.cz/dns-zaznamy,
+            # 1.0.28): a TXT already there (the wildcard's beside the domain's) gives ours.
+            ttl = self.ttl()
+            for r in rows:
+                try:
+                    if int(r.get('ttl') or 0) > 0:
+                        ttl = int(r['ttl'])
+                        break
+                except (TypeError, ValueError):
+                    pass
             # 2316: the record is there already (put in a moment ago by another job)
             self._call('dns-row-add', {'domain': zone, 'name': '' if rel == '@' else rel,
-                                       'ttl': self.ttl(), 'type': 'TXT', 'rdata': value,
+                                       'ttl': ttl, 'type': 'TXT', 'rdata': value,
                                        'author_comment': 'acme DNS-01'}, ok=(1000, 2316))
             self._call('dns-domain-commit', {'name': zone})
         return {'zone': zone, 'rel': rel}

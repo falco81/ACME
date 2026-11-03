@@ -19,6 +19,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   with the record set's etag; Cloudflare compares TXT values unquoted (a value
   could be left behind); OVH, NS1, Porkbun, Google Cloud DNS and Akamai got
   smaller fixes.
+- Active24 and Websupport send the signature's time as X-Date as well (REST API
+  v2 asks for it; Date stays); Active24's old API (api.active24.com) is marked
+  as the old platform, no longer working. WEDOS lists only the TXT records of
+  the name (row_name, rdtype - the whole zone again on an older WAPI, never
+  after a refused sign-in) and gives our TXT the TTL a TXT of that name has
+  already, as records of one name and type share one there.
 
 - **New sources**, written from the vendors' own API documents: SSL.com (SWS
   API), The SSL Store (REST API) and GlobalSign MSSL (GCC SOAP API). Each

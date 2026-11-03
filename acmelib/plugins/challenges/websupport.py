@@ -37,9 +37,11 @@ def ws_headers(key, secret, method, path, now=None, date_format='%Y%m%dT%H%M%SZ'
     ts = int(time.time() if now is None else now)
     canonical = '%s %s %d' % (method.upper(), urllib.parse.urlsplit(path).path, ts)
     sig = hmac.new(secret.encode(), canonical.encode(), hashlib.sha1).hexdigest()
+    when = datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime(date_format)
+    # X-Date as well (1.0.28): REST API v2 asks for it ("all request must contain a valid
+    # X-Date header", rest.active24.cz/v2/docs/intro); Date stays, as v1 reads it.
     return {'Authorization': 'Basic ' + base64.b64encode(('%s:%s' % (key, sig)).encode()).decode(),
-            'Date': datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).strftime(
-                date_format)}
+            'Date': when, 'X-Date': when}
 
 
 class Websupport(ApiDns):

@@ -48471,6 +48471,14 @@
   "svm27_65": {
    "source": "GoDaddy: no personal access token is set - the older Domains API v1 is used with the API key and secret",
    "text": "GoDaddy: osobní přístupový token není zadaný – použije se starší Domains API v1 s API klíčem a tajemstvím"
+  },
+  "a24x28_1": {
+   "source": "Active24 API - api.active24.com (a token) - the old platform, no longer working",
+   "text": "Active24 API – api.active24.com (token) – stará platforma, už nefunguje"
+  },
+  "a24x28_2": {
+   "source": "REST API v2 (a key and a secret from the administration on the Websupport platform) is the one that works. Active24 says the old platform's API (api.active24.com, a token) no longer works since the move to the new platform - kept only for settings made with it.",
+   "text": "Funguje REST API v2 (klíč a tajemství z administrace na platformě Websupport). API staré platformy (api.active24.com, token) podle Active24 od přechodu na novou platformu nefunguje – zůstává jen kvůli nastavením, která s ním byla vytvořena."
   }
  },
  "patterns": {
