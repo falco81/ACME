@@ -112,9 +112,19 @@ SCHEMA = [
     ('cert_req_profiles', '''CREATE TABLE IF NOT EXISTS cert_req_profiles (
         id {ID}, name {K} NOT NULL UNIQUE, description {T}, enabled {I}, config {B},
         created {N}, created_by {K}, updated {N}, updated_by {K})'''),
+    # Tests of what a server really serves (acmelib/certs/checks.py, 1.0.32): one of a
+    # deployment - a module of acmelib/plugins/checks (kind) with its settings
+    # (config: JSON) - and how it went last (last_state ok | old | other | unreachable
+    # | warn, last_detail: JSON of what was served).
+    ('cert_checks', '''CREATE TABLE IF NOT EXISTS cert_checks (
+        id {ID}, deploy_id {I} NOT NULL, kind {K} NOT NULL, config {B}, enabled {I},
+        position {I}, note {T}, last_at {N}, last_ok {N}, last_state {K}, last_said {T},
+        last_detail {B}, fails {I}, created {N}, created_by {K}, updated {N},
+        updated_by {K})'''),
 ]
 
 INDEXES = [
+    'CREATE INDEX IF NOT EXISTS cert_checks_deploy ON cert_checks (deploy_id)',
     'CREATE INDEX IF NOT EXISTS certs_not_after ON certs (not_after)',
     'CREATE INDEX IF NOT EXISTS certs_state ON certs (state, next_try)',
     'CREATE INDEX IF NOT EXISTS cert_versions_cert ON cert_versions (cert_id, version)',

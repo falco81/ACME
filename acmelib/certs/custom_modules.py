@@ -29,7 +29,7 @@ from acmelib.certs import store as S
 
 KEY = 'custom-modules:'
 MOST = 1 << 20                   # a file bigger than this is listed, its text not kept
-FOLDERS = ('issuers', 'challenges', 'targets')
+FOLDERS = ('issuers', 'challenges', 'targets', 'checks')
 
 
 def plugins_dir():
@@ -171,7 +171,8 @@ def sync(store, node, folder=None, remove=False, say=print):
 # ---------------------------------------------------------------------------
 FILE_KEY = 'module-file:'           # meta: module-file:<folder>/<file.py> -> {text, sha256...}
 SIG_KEY = 'module-files:sig'        # meta: what the uploaded files are, all of them
-FOLDER_OF = {'issuer': 'issuers', 'challenge': 'challenges', 'target': 'targets'}
+FOLDER_OF = {'issuer': 'issuers', 'challenge': 'challenges', 'target': 'targets',
+             'check': 'checks'}
 FAMILY_OF = {v: k for k, v in FOLDER_OF.items()}
 NAME_RE = __import__('re').compile(r'^[a-z][a-z0-9_]{0,60}\.py\Z')
 MOST_UPLOAD = 512 * 1024
@@ -296,7 +297,7 @@ def analyse(family, filename, text):
     import sys
     import tempfile
     if family not in FOLDER_OF:
-        raise ValueError('a module is a source, a validation or a target')
+        raise ValueError('a module is a source, a validation, a target or a test')
     if not NAME_RE.match(filename or ''):
         raise ValueError('the file name: lowercase letters, digits and _, ending .py '
                          '(netscaler_v14.py)')
@@ -330,7 +331,7 @@ def analyse(family, filename, text):
     if not classes:
         return {'ok': False, 'classes': [], 'error': 'it has no %s module (a class with a '
                 'kind)' % {'issuer': 'source', 'challenge': 'validation',
-                           'target': 'target'}[family]}
+                           'target': 'target', 'check': 'test'}[family]}
     reg = S.registry()
     for c in classes:
         have = reg.versions_of(family, c['kind'])

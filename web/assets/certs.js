@@ -7408,8 +7408,8 @@ function loadCertSettings() {
    GET modules, modules/source, modules/uploaded; POST modules/analyse,
    modules/install, modules/remove, modules/mark (acmelib/certs/api_modules.py)
    ========================================================================== */
-var FAM_WORDS = {issuer: 'Source', challenge: 'Validation', target: 'Target'};
-var FAM_TAB = {issuer: 'sources', challenge: 'validation', target: 'targets'};
+var FAM_WORDS = {issuer: 'Source', challenge: 'Validation', target: 'Target', check: 'Test'};
+var FAM_TAB = {issuer: 'sources', challenge: 'validation', target: 'targets', check: 'checks'};
 var MARKS = {tested: ['tested', 'md-tested', 'play', 'Tried on a device or an account - it does what it says.'],
              works: ['works', 'md-works', 'check', 'In use, and working.'],
              problem: ['problem', 'md-problem', 'flag', 'Known not to work, or to work only partly.']};
@@ -7530,7 +7530,7 @@ function loadModules(live) {
 function mdRows() {
   var d = MD.data || {};
   var out = [];
-  ['issuer', 'challenge', 'target'].forEach(function (fam) {
+  ['issuer', 'challenge', 'target', 'check'].forEach(function (fam) {
     arr(d[fam]).forEach(function (p) {
       var used = obj(obj(d.usage)[fam])[p.kind] || {};
       var n = 0;
@@ -7596,13 +7596,13 @@ function drawModules(live) {
     }
   }
   var b = $('md-broken');
-  if (b) { clear(b); ['issuer', 'challenge', 'target'].forEach(function (f) { b.appendChild(brokenBox(f)); }); }
+  if (b) { clear(b); ['issuer', 'challenge', 'target', 'check'].forEach(function (f) { b.appendChild(brokenBox(f)); }); }
   var said = $('md-said');
   if (said) said.textContent = num(rows.length) + ' in all';
   /* the family chips */
   var fams = $('md-fams');
   if (fams && !fams.children.length) {
-    [['', 'All'], ['issuer', 'Sources'], ['challenge', 'Validation'], ['target', 'Targets']].forEach(function (x) {
+    [['', 'All'], ['issuer', 'Sources'], ['challenge', 'Validation'], ['target', 'Targets'], ['check', 'Tests']].forEach(function (x) {
       var c = el('button', 'md-chip', x[1]);
       c.type = 'button';
       c.dataset.fam = x[0];
@@ -7623,7 +7623,7 @@ function drawModules(live) {
     value: function (r, f) {
       var p = r.p;
       var m = markOf(r.fam, p.kind, p.version);
-      return {name: p.title || p.kind, kind: p.kind, vendor: p.vendor || '', family: {issuer: 'source', challenge: 'validation', target: 'target'}[r.fam],
+      return {name: p.title || p.kind, kind: p.kind, vendor: p.vendor || '', family: {issuer: 'source', challenge: 'validation', target: 'target', check: 'test'}[r.fam],
               origin: r.override ? 'override' : (r.custom ? (p.source === 'uploaded' ? 'uploaded' : 'own') : 'shipped'),
               version: arr(p.versions).map(function (v) { return v.version || 'plain'; }).join(' ') || p.version || '',
               mark: (m.here || m.release || {}).state || '', used: r.used}[f];
@@ -7640,7 +7640,8 @@ function drawModules(live) {
   if (q) list = qFilter(q, spec, list);
   /* your own first, then by family and name */
   list.sort(function (a, b) {
-    return (b.custom - a.custom) || ('icT'.indexOf(a.fam[0]) - 'icT'.indexOf(b.fam[0])) ||
+    var FO = {issuer: 0, challenge: 1, target: 2, check: 3};
+    return (b.custom - a.custom) || (FO[a.fam] - FO[b.fam]) ||
       String(a.p.title || a.p.kind).localeCompare(String(b.p.title || b.p.kind));
   });
   liveFill(host, function (box) {
@@ -7882,7 +7883,7 @@ function moduleUpload(o) {
   modal(tr('Upload a module'), function (body) {
     body.appendChild(el('p', 'note', 'A Python file with a source, a validation or a target: a module of its own kind, another version of one there is (module_version), or the same kind and version as one shipped - which it then replaces. It is checked first, in a process of its own; only then kept - in the database, so every copy and both nodes have it.'));
     famRow = el('div', 'md-chips');
-    [['issuer', 'Source'], ['challenge', 'Validation'], ['target', 'Target']].forEach(function (x) {
+    [['issuer', 'Source'], ['challenge', 'Validation'], ['target', 'Target'], ['check', 'Test']].forEach(function (x) {
       var c = el('button', 'md-chip', x[1]);
       c.type = 'button';
       c.dataset.fam = x[0];

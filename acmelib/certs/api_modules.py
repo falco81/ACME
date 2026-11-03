@@ -23,7 +23,8 @@ from acmelib.certs import api as A
 from acmelib.certs import custom_modules as CM
 from acmelib.certs import store as S
 
-FAMILY_WORDS = {'issuer': 'source', 'challenge': 'validation', 'target': 'target'}
+FAMILY_WORDS = {'issuer': 'source', 'challenge': 'validation', 'target': 'target',
+                'check': 'test'}
 
 
 def usage(store):
@@ -38,6 +39,13 @@ def usage(store):
             ver = (cls.module_version or '') if cls else (S.version_of(r) or '')
             k = got.setdefault(r['kind'], {})
             k[ver] = k.get(ver, 0) + 1
+    got = out.setdefault('check', {})
+    for r in store.db.rows('SELECT kind, config FROM cert_checks'):
+        ver = str((S.jload(r.get('config'), {}) or {}).get(S.VERSION_KEY) or '')
+        cls = S.plugin_class('check', r['kind'], ver or None)
+        ver = (cls.module_version or '') if cls else ver
+        k = got.setdefault(r['kind'], {})
+        k[ver] = k.get(ver, 0) + 1
     return out
 
 
@@ -59,7 +67,7 @@ def _mark(h, s):
     b = h.body()
     fam = str(b.get('family') or '').strip()
     if fam not in FAMILY_WORDS:
-        raise ValueError('family is issuer, challenge or target')
+        raise ValueError('family is issuer, challenge, target or check')
     kind = str(b.get('kind') or '').strip()
     ver = str(b.get('version') or '')
     state = str(b.get('state') or '').strip()
@@ -74,7 +82,7 @@ def _mark(h, s):
 def _source(h, s):
     fam = h.arg('family').strip()
     if fam not in FAMILY_WORDS:
-        raise ValueError('family is issuer, challenge or target')
+        raise ValueError('family is issuer, challenge, target or check')
     ver = h.arg('version')
     name, text = CM.source_of(fam, h.arg('kind').strip(), ver if ver is not None and
                               h.arg('has_version') == '1' else None)

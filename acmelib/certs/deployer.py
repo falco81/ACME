@@ -155,6 +155,18 @@ def deploy_one(store, job, cert, dep, force=False):
     if _notices().ok_wanted():
         _tell(store, 'cert_deployed', 'deployed:%s:%s' % (dep['id'], cert.get('version')), cert,
               trow)
+    # Its tests (1.0.32): what the server really serves now - a failed one is a warning
+    # of the job, the deployment itself went well.
+    try:
+        from acmelib.certs import checks
+        tested = checks.after_deploy(store, job, dep['id'])
+    except JobStopped:
+        raise
+    except Exception as e:                              # noqa: BLE001
+        tested = None
+        step('the tests of the deployment could not run: %s' % e, 'warn')
+    if tested is False:
+        return True, 'deployed to %s - but a test of what it serves failed' % trow['name']
     return True, 'deployed to %s' % trow['name']
 
 

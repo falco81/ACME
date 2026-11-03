@@ -674,6 +674,8 @@ def cert_drop(store, row, by):
     """A certificate gone from acme: its deployments, versions, finished jobs and
     what the portal kept of who asked for it (nothing on the targets, nothing at the CA)."""
     db = store.db
+    db.run('DELETE FROM cert_checks WHERE deploy_id IN (SELECT id FROM cert_deploys WHERE '
+           'cert_id = ?)', (row['id'],))
     db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (row['id'],))
     db.run('DELETE FROM cert_versions WHERE cert_id = ?', (row['id'],))
     # Its jobs that are over go with it (1.0.19); one still at work stays until it ends.
@@ -1486,6 +1488,12 @@ def options_for(store, source):
                 if dns_persist.can_write(S.row_class('challenge', r))]
     if source == 'certs':
         return [[r['name'], r['name']] for r in store.db.rows('SELECT name FROM certs ORDER BY name')]
+    if source == 'ssh_targets':
+        # targets a test can go through over SSH (checks/ssh_relay.py): their sign-in
+        from acmelib.plugins.targets._common import SshMixin
+        return [[r['name'], '%s (%s)' % (r['name'], r['kind'])]
+                for r in store.db.rows('SELECT name, kind, config FROM cert_targets ORDER BY name')
+                if issubclass(S.row_class('target', r) or object, SshMixin)]
     if source == 'key_types':
         return [[k, k] for k in schema.KEY_TYPES]
     return []
@@ -1948,6 +1956,7 @@ def deploy_save(store, b, by, full=True):
     except BaseException:
         for ident in made:
             try:
+                store.db.run('DELETE FROM cert_checks WHERE deploy_id = ?', (ident,))
                 store.db.run('DELETE FROM cert_deploys WHERE id = ?', (ident,))
             except Exception:                           # noqa: BLE001
                 pass
@@ -2078,6 +2087,7 @@ def _deploy_delete(h, s):
     row = h.store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (_id(h.body().get('id')),))
     if not row:
         raise LookupError('there is no such deployment')
+    h.store.db.run('DELETE FROM cert_checks WHERE deploy_id = ?', (row['id'],))
     h.store.db.run('DELETE FROM cert_deploys WHERE id = ?', (row['id'],))
     h.store.add_event('certificates', 'a deployment to %s deleted by %s' % (row['target'], who(s)),
                       who=who(s))
@@ -2196,6 +2206,7 @@ from acmelib.certs import api_runplan  # noqa: E402,F401  (what happens: a certi
 from acmelib.certs import api_catalog  # noqa: E402,F401  (a form's lists: a CA's products)
 from acmelib.certs import api_discover  # noqa: E402,F401  (a form filled in from the account)
 from acmelib.certs import api_modules  # noqa: E402,F401  (the page Modules: versions, uploads)
+from acmelib.certs import api_checks  # noqa: E402,F401  (tests of what the servers serve)
 from acmelib.certs import api_onlineimport  # noqa: E402,F401  (Import from a source; a key added later)
 from acmelib.certs import api_certview  # noqa: E402,F401  (show a certificate: any file read and described)
 from acmelib.certs import listsearch  # noqa: E402,F401  (the search box over the certificates)

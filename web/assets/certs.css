@@ -890,3 +890,4 @@ textarea.df-code-t:focus{border:0}
 .ct-kind-foot{flex-wrap:wrap;row-gap:4px}
 .ct-kind-w{min-width:0}
 .set-item:has(> .md-vpick){margin-bottom:12px}
+.md-fam-check{border-color:rgba(57,197,207,.4)}

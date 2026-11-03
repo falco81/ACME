@@ -753,6 +753,46 @@ class SshSession(base.SshSession):
         except OSError as e:
             raise base.PluginError('%s could not be run: %s' % (argv[0], e), retry=False)
 
+    def tunnel(self, host, port, timeout=20):
+        """A socket to host:port opened from the server (ssh -W, 1.0.32): what a test
+        of a server only that network reaches goes through (checks/ssh_relay.py)."""
+        import socket as _socket
+        host = str(host or '').strip().strip('[]')
+        if not host or not re.match(r'^[A-Za-z0-9_.:%-]{1,253}\Z', host) or host.startswith('-'):
+            raise base.PluginError('%r is not a host name or an address' % host, retry=False)
+        a, b = _socket.socketpair()
+        argv = ['ssh'] + self.opts + ['-p', str(self.port), '-W',
+                                      '[%s]:%d' % (host, int(port)) if ':' in host else
+                                      '%s:%d' % (host, int(port)), self.dest]
+        try:
+            p = subprocess.Popen(argv, stdin=b, stdout=b, stderr=subprocess.PIPE, env=self.env,
+                                 start_new_session=True)
+        except OSError as e:
+            a.close()
+            b.close()
+            raise base.PluginError('ssh could not be run: %s' % e, retry=False)
+        b.close()
+        a.settimeout(float(timeout))
+        self._tunnels = getattr(self, '_tunnels', []) + [p]
+        self.last_tunnel = p
+        return a
+
+    def tunnel_said(self, wait=2.0):
+        """What ssh said about the last tunnel (a refused sign-in, a refused channel)."""
+        p = getattr(self, 'last_tunnel', None)
+        if p is None:
+            return ''
+        try:
+            p.wait(wait)
+        except subprocess.TimeoutExpired:
+            return ''
+        try:
+            err = p.stderr.read() or b''
+        except (OSError, ValueError):
+            err = b''
+        said = [x for x in err.decode('utf-8', 'replace').strip().splitlines() if x.strip()]
+        return ' / '.join(said[-3:])[:400]
+
     def _why(self, err, rc):
         said = [x for x in err.decode('utf-8', 'replace').strip().splitlines()
                 if x.strip() and not x.startswith('Warning: Permanently')]
@@ -821,6 +861,14 @@ class SshSession(base.SshSession):
         return got.stdout
 
     def close(self):
+        for p in getattr(self, '_tunnels', None) or []:
+            if p.poll() is None:
+                try:
+                    p.terminate()
+                    p.wait(3)
+                except Exception:                       # noqa: BLE001
+                    pass
+        self._tunnels = []
         if self.d:
             try:
                 subprocess.run(['ssh'] + self.opts + ['-O', 'exit', self.dest],

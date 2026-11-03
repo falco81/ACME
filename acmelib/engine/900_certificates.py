@@ -36,6 +36,12 @@ CERT_DEFAULTS = {
     'certs_keep_jobs_days': 90,
     'certs_precheck': 1,
     'certs_dry_run_s': 120,
+    # --- tests of what the servers really serve (acmelib/certs/checks.py) ---------------
+    'certs_checks_after_deploy': 1,
+    'certs_checks_auto': 0,
+    'certs_checks_every_min': 360,
+    'certs_checks_alert': 1,
+    'certs_checks_warn_days': 14,
     # --- the CRLs and certificates of acme's own authorities, on acme (port 80) --------
     'pki_publish': 1,
     'pki_base_url': '',
@@ -83,6 +89,11 @@ NAMES.update({
     'certs_keep_jobs_days': 'Jobs kept (days)',
     'certs_precheck': 'Check the validation before the CA is asked',
     'certs_dry_run_s': 'A dry run waits at most (s)',
+    'certs_checks_after_deploy': 'Test the servers after each deployment',
+    'certs_checks_auto': 'Test the servers by themselves',
+    'certs_checks_every_min': 'Test them every (min)',
+    'certs_checks_alert': 'Alert when a test fails',
+    'certs_checks_warn_days': 'A served certificate ending sooner is a warning (days)',
     'pki_publish': 'Publish CRLs on acme',
     'pki_base_url': 'Their address',
     'portal_cert': 'Certificates on the portal',
@@ -132,6 +143,19 @@ SAYS.update({
                       'the zone, the address the name points at) - and while something is '
                       'missing it does not ask the CA but says what to set up where. Let’s '
                       'Encrypt counts failed validations and stops a domain for an hour.',
+    'certs_checks_after_deploy': 'After a certificate is put on a target, the tests of that '
+                                 'deployment connect to the server as a client would (HTTPS, '
+                                 'SMTP, RDP…) and look whether it serves the new certificate. '
+                                 'A failed test makes the deployment a warning, not a failure.',
+    'certs_checks_auto': 'Every test is run again on its own, on the node that leads - a '
+                         'server that went back to an old certificate, or serves another '
+                         'one, is found without anybody looking.',
+    'certs_checks_every_min': 'How often each test is run by itself.',
+    'certs_checks_alert': 'A test that starts failing is an event, a mail and an SMS (Settings '
+                          '→ Certificates says to whom; the words are on Settings → Message '
+                          'texts) - and one that works again is said too.',
+    'certs_checks_warn_days': 'A server serving the right certificate that ends within this '
+                              'many days is a warning. 0: never.',
     'certs_dry_run_s': 'How long a dry run of a validation waits for its test record or file '
                        'to be seen before it says it is not.',
     'pki_publish': 'Every node and the VIP address serve the CRL and the certificate of each of '
@@ -191,6 +215,9 @@ TUNABLE.update({
     'certs_retry_max_h': (1, 168), 'certs_notify_days': (0, 365), 'certs_notify_ok': (0, 1),
     'certs_keep_versions': (1, 1000), 'certs_keep_jobs_days': (1, 3650),
     'certs_precheck': (0, 1), 'certs_dry_run_s': (10, 1800),
+    'certs_checks_after_deploy': (0, 1), 'certs_checks_auto': (0, 1),
+    'certs_checks_every_min': (5, 10080), 'certs_checks_alert': (0, 1),
+    'certs_checks_warn_days': (0, 365),
     'pki_publish': (0, 1),
     'portal_cert': (0, 1), 'portal_cert_max': (1, 1000), 'portal_cert_auto': (0, 1),
     'portal_cert_keys': (0, 1),
@@ -201,9 +228,12 @@ TUNABLE.update({
 })
 PANES['certs'] = ['certs_renew_days', 'certs_check_min', 'certs_parallel', 'certs_retry_max_h',
                   'certs_notify_days', 'certs_notify_mail', 'certs_notify_sms',
-                  'certs_notify_ok', 'certs_precheck', 'certs_dry_run_s', 'pki_publish',
+                  'certs_notify_ok', 'certs_precheck', 'certs_dry_run_s',
+                  'certs_checks_after_deploy', 'certs_checks_auto', 'certs_checks_every_min',
+                  'certs_checks_alert', 'certs_checks_warn_days', 'pki_publish',
                   'pki_base_url']
-ONLY_WHEN.update({'pki_base_url': ['pki_publish', '1']})
+ONLY_WHEN.update({'pki_base_url': ['pki_publish', '1'],
+                  'certs_checks_every_min': ['certs_checks_auto', '1']})
 # How long the certificate manager keeps things, on The database pane beside
 # how long the events are kept - where otp kept its own retention.
 PANES['db'] = list(PANES['db']) + ['certs_keep_jobs_days', 'certs_keep_versions']

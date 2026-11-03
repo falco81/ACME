@@ -712,6 +712,12 @@ def scan(store, by='the renewer'):
         publish.refresh(store)
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('certs-crl', 'making the CRLs again: %s' % e, 'warn', every=3600)
+    # The tests of what the servers serve, by themselves (certs_checks_auto, 1.0.32).
+    try:
+        from acmelib.certs import checks
+        started += checks.scan(store, by)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-checks', 'the tests of the servers: %s' % e, 'warn', every=3600)
     rows = store.db.rows("SELECT * FROM certs WHERE COALESCE(enabled, 1) <> 0 AND "
                          "COALESCE(auto_renew, 0) <> 0 AND COALESCE(issuer, '') <> ''")
     for r in rows:

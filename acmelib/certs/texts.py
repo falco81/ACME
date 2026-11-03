@@ -29,6 +29,7 @@ PLACEHOLDERS = {
     'version': 'its version in acme', 'error': 'what went wrong',
     'retry': 'when it is tried again', 'target': 'where it was deployed',
     'node': 'the node that did it', 'reason': 'why',
+    'check': 'the test (its kind and address)',
 }
 SAMPLES = {
     'cert': 'www', 'names': 'www.example.cz, example.cz', 'left': '9 days',
@@ -36,6 +37,7 @@ SAMPLES = {
     'serial': '04:A1:9C:55:2E:0B', 'version': 7,
     'error': 'the CA refused the order: rateLimited', 'retry': '20 min',
     'target': 'f5-prague', 'node': 'acme1', 'reason': 'the names are not ours',
+    'check': 'HTTPS www.example.cz:443',
 }
 
 # (id, the words of its kind, what it is said for, the placeholders it can
@@ -64,6 +66,13 @@ EVENTS = [
      'Sent when putting a certificate on a target fails (at most every 6 hours for one '
      'deployment).',
      ('cert', 'names', 'target', 'error', 'retry', 'version', 'node', 'site'), 'bad', True),
+    ('cert_check_failed', 'A test of a server failed',
+     'Sent when a test of a deployment starts failing - the server serves an old or another '
+     'certificate, or cannot be reached (at most every 6 hours for one test).',
+     ('cert', 'names', 'target', 'check', 'error', 'version', 'node', 'site'), 'bad', True),
+    ('cert_check_ok', 'A test of a server works again',
+     'Sent when a test that failed works again.',
+     ('cert', 'names', 'target', 'check', 'version', 'node', 'site'), 'ok', True),
     ('cert_portal_issued', 'The enrolment pages: a certificate issued',
      'Sent to the person who asked for a certificate on the enrolment pages, once it is '
      'issued.',
@@ -191,6 +200,38 @@ _put('cert_deploy_failed', 'cs', 'Nasazení {cert} na {target} selhalo',
      'Nasazení certifikátu {cert} (verze {version}) na {target} selhalo:\n{error}\n\nacme to '
      'zkusí znovu za {retry}.\n\n-- acme na {node}',
      'acme: nasazení {cert} na {target} selhalo: {error}')
+_put('cert_check_failed', 'en', 'A test of {cert} on {target} failed',
+     '{site}: a test of a server failed',
+     'The test <b>{check}</b> of the certificate <b>{cert}</b> (version {version}) on '
+     '<b>{target}</b> failed:<br><b>{error}</b>',
+     'The server does not serve what acme deployed. Certificates → Targets → the target → '
+     'Tests has what it served.', FOOT_EN,
+     'The test {check} of the certificate {cert} (version {version}) on {target} failed:\n'
+     '{error}\n\n-- acme on {node}',
+     'acme: test {check} of {cert} on {target} failed: {error}')
+_put('cert_check_failed', 'cs', 'Test {cert} na {target} selhal',
+     '{site}: test serveru selhal',
+     'Test <b>{check}</b> certifikátu <b>{cert}</b> (verze {version}) na <b>{target}</b> '
+     'selhal:<br><b>{error}</b>',
+     'Server neposílá to, co acme nasadilo. Certifikáty → Cíle → cíl → Testy ukáže, co '
+     'server poslal.', FOOT_CS,
+     'Test {check} certifikátu {cert} (verze {version}) na {target} selhal:\n{error}\n\n'
+     '-- acme na {node}',
+     'acme: test {check} certifikátu {cert} na {target} selhal: {error}')
+_put('cert_check_ok', 'en', 'A test of {cert} on {target} works again',
+     '{site}: a test works again',
+     'The test <b>{check}</b> of <b>{cert}</b> (version {version}) on <b>{target}</b> works '
+     'again: the server serves the certificate acme deployed.', 'Nothing to do.', FOOT_EN,
+     'The test {check} of {cert} (version {version}) on {target} works again.\n\n-- acme on '
+     '{node}',
+     'acme: test {check} of {cert} on {target} works again.')
+_put('cert_check_ok', 'cs', 'Test {cert} na {target} zase funguje',
+     '{site}: test zase funguje',
+     'Test <b>{check}</b> certifikátu <b>{cert}</b> (verze {version}) na <b>{target}</b> zase '
+     'funguje: server posílá certifikát, který acme nasadilo.', 'Není co dělat.', FOOT_CS,
+     'Test {check} certifikátu {cert} (verze {version}) na {target} zase funguje.\n\n-- acme '
+     'na {node}',
+     'acme: test {check} certifikátu {cert} na {target} zase funguje.')
 _put('cert_portal_issued', 'en', 'Your certificate {cert} is ready', '{site}: your certificate',
      'Hello {name}, the certificate you asked for, <b>{cert}</b> ({names}), is issued by '
      '{issuer} and valid until {not_after}.',
