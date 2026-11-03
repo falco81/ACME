@@ -740,21 +740,51 @@ function fieldForm(fields, values, secrets, opts) {
       var picks = arr(Array.isArray(v) ? v : (typeof v === 'string' ? v.split(/\n/) : [])).map(String).filter(Boolean);
       var opts = optionPairs(f).filter(function (o) { return o[0] !== ''; });
       picks.forEach(function (x) { if (!opts.some(function (o) { return o[0] === x; })) opts.push([x, x + ' - ' + tr('not there any more')]); });
-      input = el('div', 'ck-multi');
-      var boxes = [];
-      opts.forEach(function (o) {
-        var lab = el('label', 'ck-multi-o');
-        var cb = el('input');
-        cb.type = 'checkbox';
-        cb.checked = picks.indexOf(o[0]) >= 0;
-        lab.classList.toggle('on', cb.checked);
-        cb.onchange = function () { lab.classList.toggle('on', cb.checked); };
-        lab.appendChild(cb);
-        lab.appendChild(data('span', '', o[1]));
-        boxes.push([o[0], cb]);
-        input.appendChild(lab);
-      });
-      get = function () { return boxes.filter(function (x) { return x[1].checked; }).map(function (x) { return x[0]; }); };
+      /* Drawn as a certificate's deployments are: a table of the chosen ones, each
+         taken off by its own button, and "Add" under it offering what is not chosen. */
+      input = el('div', 'ck-chosen');
+      var tbl = el('div');
+      var addRow = el('div', 'btnrow');
+      var addB = cmdButton(f.add_words || 'Add', 'add', 'small');
+      var menu = el('div', 'ck-pickmenu');
+      menu.hidden = true;
+      var wordOf = function (x) { var o = opts.filter(function (q) { return q[0] === x; })[0]; return o ? o[1] : x; };
+      var drawChosen = function () {
+        clear(tbl);
+        tbl.appendChild(listTable([f.options_from === 'tests' ? 'Test' : 'Name', ''], picks, function (x, i) {
+          var r = el('tr');
+          r.appendChild(td('', wordOf(x)));
+          var tools = el('td', 'rowtools');
+          if (i > 0) {
+            var up = iconButton('up', 'Run it sooner');
+            up.onclick = function (ev) { ev.stopPropagation(); picks.splice(i - 1, 0, picks.splice(i, 1)[0]); drawChosen(); };
+            tools.appendChild(up);
+          }
+          var rm = iconButton('trash', 'Take it off');
+          rm.onclick = function (ev) { ev.stopPropagation(); picks.splice(i, 1); drawChosen(); };
+          tools.appendChild(rm);
+          r.appendChild(tools);
+          return r;
+        }, 'plain ct-deptable|' + tr('Nothing chosen yet')));
+        var free = opts.filter(function (o) { return picks.indexOf(o[0]) < 0; });
+        addB.disabled = !free.length;
+        clear(menu);
+        free.forEach(function (o) {
+          var it = el('button', 'ck-pickmenu-o');
+          it.type = 'button';
+          it.appendChild(data('span', '', o[1]));
+          it.onclick = function () { picks.push(o[0]); menu.hidden = true; drawChosen(); };
+          menu.appendChild(it);
+        });
+        if (!free.length) menu.hidden = true;
+      };
+      addB.onclick = function () { menu.hidden = !menu.hidden; };
+      addRow.appendChild(addB);
+      input.appendChild(tbl);
+      input.appendChild(addRow);
+      input.appendChild(menu);
+      drawChosen();
+      get = function () { return picks.slice(); };
       wide = true;
     } else if (type === 'list' && f.options_from) {
       input = el('p', 'muted small', 'Nothing to choose yet - define some first.');
@@ -1217,18 +1247,21 @@ function modStateCell(r, key) {
   var on = r.enabled === undefined || truthy(r.enabled);
   /* A target switched on and off right in the list (1.0.23): a switch for a full
      administrator - off asks first when certificates are deployed there. */
-  if (key === 'targets' && FULL) {
+  /* A test too (1.0.33): off, it is run nowhere - its attachments are kept. */
+  var isTest = key === 'tests';
+  if ((key === 'targets' || isTest) && FULL) {
     var sw = switchBox(on);
     sw.classList.add('ct-modsw');
     sw.onclick = function (ev) { ev.stopPropagation(); };
-    explain(sw, on ? 'On: certificates are put there. Switch it off to stop that without removing anything.' : 'Off: nothing is put there; its deployments are kept.');
+    if (isTest) explain(sw, on ? 'On: it is run on the certificates it is attached to. Switch it off to stop that without removing anything.' : 'Off: it is run nowhere; it stays attached.');
+    else explain(sw, on ? 'On: certificates are put there. Switch it off to stop that without removing anything.' : 'Off: nothing is put there; its deployments are kept.');
     sw._input.onchange = function () {
       var want = sw._get();
       /* Never an edit the page keeps over a redraw (liveCarry): it is saved, or put back. */
       sw._input.defaultChecked = sw._input.checked;
       var go = function () {
         sw._input.disabled = true;
-        capi('targets/save', {id: r.id, name: r.name, enabled: want}).then(function () {
+        capi(key + '/save', {id: r.id, name: r.name, enabled: want}).then(function () {
           r.enabled = want;
           sw._input.checked = sw._input.defaultChecked = !!want;
           /* not "worked in" any more: the row is drawn anew with what was saved */
@@ -1236,13 +1269,13 @@ function modStateCell(r, key) {
           if (typeof LIVE_PRESS !== 'undefined') LIVE_PRESS = null;
           if (typeof SELECTED_AT !== 'undefined') SELECTED_AT = 0;
           toast(want ? r.name + ': switched on' : r.name + ': switched off', 'good');
-          delete LISTS.targets;
-          drawModTab('targets', true);
+          delete LISTS[key];
+          drawModTab(key, true);
         }).catch(function (e) { sw._input.checked = sw._input.defaultChecked = !want; fail(e); })
           .then(function () { sw._input.disabled = false; });
       };
       var n = usedCount(r) || 0;
-      if (want || !n) return go();
+      if (want || !n || isTest) return go();
       sw._input.checked = sw._input.defaultChecked = true;   /* on until it is said yes */
       modal('Switch the target off', function (body) {
         body.appendChild(el('p', 'note', 'While it is off, no certificate is put on ' + r.name + ' - not at a renewal, not by Deploy now. Its deployments are kept and say "target switched off" on the certificates; switched on again, they go on as before.'));
@@ -5263,7 +5296,7 @@ var KEY_EXT = /\.(key)$/i;
 function importDialog(into) {
   into = into && into.id ? into : null;
   var held = {main: null, key: null, mainB64: '', keyB64: '', parsed: null};
-  var pass = null, keyPass = null, name = null, tags = null, note = null, found = null, drop = null, keyRow = null;
+  var pass = null, keyPass = null, name = null, tags = null, note = null, found = null, drop = null, keyRow = null, ownerI = null;
   var parse = function () {
     if (!held.main) return;
     clear(found);
@@ -5385,7 +5418,7 @@ function importDialog(into) {
     noI18n(name);
     if (!into) guardName(name, false);
     tags = tagsBox([]);
-    var ownerI = ownerBox('');
+    ownerI = ownerBox('');
     note = textBox('', '', '');
     if (!into) {
       g.appendChild(formField('Name in acme', name));
@@ -8059,7 +8092,7 @@ function ckBadge(state) {
 }
 function ckWhere(c, host) {
   var cfg = obj(c.config);
-  if (c.kind === 'ssh_relay') return tr('through') + ' ' + (cfg.relay || '?') + ' · ' + arr(Array.isArray(cfg.checks) ? cfg.checks : String(cfg.checks || '').split('\n')).filter(Boolean).length + ' ' + tr('tests');
+  if (c.kind === 'ssh_relay') return tr('through') + ' ' + (cfg.host || '?') + ' · ' + arr(Array.isArray(cfg.tests) ? cfg.tests : String(cfg.tests || '').split('\n')).filter(Boolean).length + ' ' + tr('tests');
   var p = (plugOf('check', c.kind) || {});
   var h = cfg.host || host || '?';
   return h + ':' + (cfg.port || p.default_port || '') + (cfg.sni && cfg.sni !== h ? ' · SNI ' + cfg.sni : '');
@@ -8105,23 +8138,28 @@ function ckDetail(res) {
 /** The tests attached to a certificate - drawn as its deployments are, each with how it
     went last; "Attach a test" offers the tests defined on Certificates → Tests. */
 function certTests(c, back) {
+  /* Drawn as its deployments are (1.0.33): a table, the buttons under it on the left. */
   var box = el('div', 'ck-card');
-  var top = el('div', 'ck-top');
   var sum = el('div', 'ck-sum');
-  top.appendChild(sum);
-  var bar = el('div', 'btnrow');
-  var runAll = cmdButton('Run them now', 'play', 'small');
-  var add = cmdButton('Attach a test', 'add', 'small');
-  if (MANAGE) { bar.appendChild(runAll); bar.appendChild(add); }
-  top.appendChild(bar);
-  box.appendChild(top);
+  box.appendChild(sum);
   var host = el('div', 'ck-list');
   host.appendChild(el('p', 'muted small', 'Asking…'));
   box.appendChild(host);
+  var bar = el('div', 'btnrow');
+  var add = cmdButton('Attach a test', 'add', 'small');
+  var runAll = cmdButton('Run them now', 'play', 'small');
+  if (MANAGE) { bar.appendChild(add); bar.appendChild(runAll); box.appendChild(bar); }
   var D = {};
   var load = function () {
     return capi('checks' + qs({cert_id: c.id})).then(function (d) { D = d || {}; draw(); })
       .catch(function (e) { clear(host); host.appendChild(failedBox(e, 'the tests')); });
+  };
+  var served = function (x) {
+    over(function () {
+      popup(tr('What the server served') + ' · ' + x.test, function () { return Promise.resolve(x); }, function () {
+        return {build: function (body) { body.appendChild(ckDetail({detail: x.last_detail})); }};
+      }, 'medium');
+    }, back);
   };
   var draw = function () {
     clear(host);
@@ -8132,6 +8170,7 @@ function certTests(c, back) {
       var st = x.last_state || '';
       if (st === 'ok') n.ok++; else if (st === 'warn') n.warn++; else if (!st) n.none++; else n.bad++;
     });
+    sum.hidden = !rows.length;
     if (rows.length) {
       [['ok', n.ok, 'pass'], ['warn', n.warn, 'with a warning'], ['crit', n.bad, 'failing'], ['dim', n.none, 'not run yet']].forEach(function (x) {
         if (!x[1] && x[0] !== 'ok') return;
@@ -8144,28 +8183,33 @@ function certTests(c, back) {
       sum.appendChild(el('span', 'ck-auto small muted', st.certs_checks_auto ? 'run by themselves every ' + st.certs_checks_every_min + ' min' : 'run after each deployment only'));
     }
     runAll.hidden = !rows.length;
-    if (!rows.length) {
-      host.appendChild(emptyNote('No test attached. Attach one: it connects to the server as a client would and says whether it serves this certificate.'));
-      return;
-    }
-    rows.forEach(function (x) {
-      var card = el('div', 'ck-row ck-r-' + (x.last_state || 'none') + (x.enabled === 0 || !x.test_enabled ? ' off' : ''));
-      var head = el('div', 'ck-row-h');
-      head.appendChild(ckBadge(x.last_state));
-      var w = el('div', 'ck-row-w');
-      var t1 = el('div', 'ck-row-t');
-      t1.appendChild(data('b', '', x.test));
-      t1.appendChild(data('span', 'mono small muted', x.where || ''));
-      if (x.test_missing) t1.appendChild(el('span', 'tag crit', 'test missing'));
-      else if (!x.test_enabled) t1.appendChild(el('span', 'tag dim', 'test off'));
-      if (x.enabled === 0) t1.appendChild(el('span', 'tag dim', 'off here'));
-      w.appendChild(t1);
-      var t2 = el('div', 'small ' + ((CK_STATE[x.last_state] || ['', 'dim'])[1] === 'crit' ? 'ct-badtext' : 'muted'));
-      t2.appendChild(data('span', '', x.last_said || tr('not run yet')));
-      if (x.last_at) { t2.appendChild(document.createTextNode(' · ')); t2.appendChild(el('span', '', ago(x.last_at))); }
-      w.appendChild(t2);
-      head.appendChild(w);
-      var tools = el('div', 'rowtools');
+    host.appendChild(listTable(['Test', 'State', 'Where', 'Last run', ''], rows, function (x) {
+      var r = el('tr');
+      if (x.enabled === 0 || !x.test_enabled) r.classList.add('ct-depoff');
+      var nc = el('td');
+      nc.appendChild(data('b', '', x.test));
+      var tg = (LISTS.tests || []).filter(function (t) { return t.name === x.test; })[0];
+      if (tg) nc.appendChild(el('div', 'muted small', plugTitle('check', tg.kind)));
+      if (x.last_state && x.last_state !== 'ok' && x.last_said) {
+        var why = el('div', 'ct-rowerr');
+        why.textContent = String(x.last_said);
+        nc.appendChild(why);
+      }
+      r.appendChild(nc);
+      var sc = el('td');
+      sc.appendChild(ckBadge(x.last_state));
+      if (x.test_missing) sc.appendChild(el('span', 'tag crit', 'test missing'));
+      else if (!x.test_enabled) sc.appendChild(el('span', 'tag dim', 'test off'));
+      if (x.enabled === 0) sc.appendChild(el('span', 'tag dim', 'off here'));
+      r.appendChild(sc);
+      r.appendChild(td('mono small', x.where || '–'));
+      r.appendChild(x.last_at ? stampCell(x.last_at) : td('muted', 'never'));
+      var tools = el('td', 'rowtools');
+      if (x.last_at) {
+        var see = iconButton('eye', 'What the server served');
+        see.onclick = function (ev) { ev.stopPropagation(); served(x); };
+        tools.appendChild(see);
+      }
       if (MANAGE) {
         var run = iconButton('play', 'Run it now');
         run.onclick = function (ev) {
@@ -8199,18 +8243,9 @@ function certTests(c, back) {
         };
         tools.appendChild(rm);
       }
-      head.appendChild(tools);
-      card.appendChild(head);
-      if (x.last_at) {
-        var det = el('details', 'ck-more');
-        det.appendChild(el('summary', '', 'What the server served'));
-        det.addEventListener('toggle', function () {
-          if (det.open && det.children.length < 2) det.appendChild(ckDetail({detail: x.last_detail}));
-        });
-        card.appendChild(det);
-      }
-      host.appendChild(card);
-    });
+      r.appendChild(tools);
+      return x.last_at ? rowOpens(r, function () { served(x); }) : r;
+    }, 'plain ct-deptable|No test attached yet'));
   };
   add.onclick = function () { over(function () { attachTests(c, arr(D.checks), back); }, back); };
   runAll.onclick = function () {

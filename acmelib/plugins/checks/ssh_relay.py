@@ -29,11 +29,12 @@ class SshRelayCheck(SshMixin, Check):
                    'Rocky…) and runs the tests chosen for it from there - for servers only that '
                    'network reaches.')
     fields = ssh_fields(sudo=False, try_command='id -un; uname -n; command -v ssh || true') + [
-        field('tests', 'Tests run from there', 'list', required=True, options=[],
-              options_from='tests',
+        field('tests', 'Tests run from there', 'list', options=[],
+              options_from='tests', add_words='Add a test',
               help='Tests defined on Certificates → Tests (HTTPS of an internal site, SMTP of a '
                    'relay, RDP…): each is run from this server as it is set, through "ssh -W". '
-                   'Its OpenSSH must allow it (AllowTcpForwarding, on by default).'),
+                   'Its OpenSSH must allow it (AllowTcpForwarding, on by default). It can be saved '
+                   'with none and given them later.'),
         field('timeout', 'Time limit (s)', 'number', default=20, min=1, max=120, advanced=True),
     ]
 

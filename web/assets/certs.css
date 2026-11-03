@@ -950,3 +950,14 @@ body.app-shell #pane-modules #md-list .lt-paged{flex:1 1 auto;min-height:0;displ
 body.app-shell #pane-modules #md-list .scroll.lt-held{max-height:none;flex:1 1 auto;min-height:120px}
 .md-card > h2:empty,.md-card > h2:has(> .right:only-child){margin-bottom:6px}
 .md-vrow:last-child{margin-bottom:0}
+/* A list chosen from what there is (a connector's tests): a table, "Add" under it. */
+.ck-chosen .btnrow{margin-top:8px}
+.ck-pickmenu{margin-top:6px;display:flex;flex-direction:column;max-width:420px;max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel2,var(--panel));padding:4px}
+.ck-pickmenu[hidden]{display:none}
+.ck-pickmenu-o{all:unset;cursor:pointer;padding:7px 10px;border-radius:6px;font-size:13px}
+.ck-pickmenu-o:hover,.ck-pickmenu-o:focus-visible{background:var(--hover,rgba(127,127,127,.12))}
+.ck-card > .ck-sum{margin-bottom:8px}
+.ck-card > .btnrow{margin-top:10px}
+.ck-chosen{display:block;width:100%;border:0;background:none;padding:0;box-shadow:none}
+.ck-chosen .btnrow{justify-content:flex-start}
+.ct-modstate .ct-modsw{margin-right:8px}

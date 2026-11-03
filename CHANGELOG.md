@@ -6,6 +6,18 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.33 - not released
 
+- Import of a certificate did nothing: the Import button broke on a box of
+  its window (the owner) it could not see. It imports again.
+- Tests on a server over SSH: can be saved with no test chosen yet; the tests
+  it runs are a table with "Add a test" under it, as a certificate's
+  deployments are, not ticks.
+- A certificate's Tests: a table as its Deployments - test, state, where, last
+  run - its buttons under it on the left; what the server served opens from
+  the row.
+- Tests: switched on and off right in the list, as targets are.
+- HTTPS test: "Ask over HTTP too" says that it brings the method, path, Host
+  header and other headers.
+
 - Settings → Modules: its icon in the rail; the pane as tall as the window, only
   its list scrolls (there were two scroll bars); no lede said twice. A
   module's window: its sections apart as in every other window.

@@ -50323,6 +50323,42 @@
   "ck32b_62": {
    "source": "offered first when a test is attached",
    "text": "nabízí se jako první při připojení testu"
+  },
+  "ck33_1": {
+   "source": "After TLS, an HTTP request: the answer is checked as set below - the site answers, not only its certificate. On: the method, path, Host header and other headers, the status and words expected.",
+   "text": "Po TLS ještě HTTP požadavek: odpověď se zkontroluje podle nastavení níže - odpovídá i web, ne jen jeho certifikát. Zapnuto: metoda, cesta, hlavička Host a další hlavičky, očekávaný stav a slova."
+  },
+  "ck33_2": {
+   "source": "Tests defined on Certificates → Tests (HTTPS of an internal site, SMTP of a relay, RDP…): each is run from this server as it is set, through \"ssh -W\". Its OpenSSH must allow it (AllowTcpForwarding, on by default). It can be saved with none and given them later.",
+   "text": "Testy definované v Certifikáty → Testy (HTTPS interního webu, SMTP relaye, RDP…): každý se spustí z tohoto serveru tak, jak je nastaven, přes „ssh -W“. Jeho OpenSSH to musí povolit (AllowTcpForwarding, ve výchozím stavu zapnuto). Lze uložit i bez nich a přidat je později."
+  },
+  "ck33_3": {
+   "source": "Add",
+   "text": "Přidat"
+  },
+  "ck33_4": {
+   "source": "Nothing chosen yet",
+   "text": "Zatím nic nevybráno"
+  },
+  "ck33_5": {
+   "source": "Run it sooner",
+   "text": "Spustit dřív"
+  },
+  "ck33_6": {
+   "source": "No test attached yet",
+   "text": "Zatím není připojen žádný test"
+  },
+  "ck33_7": {
+   "source": "Last run",
+   "text": "Naposledy spuštěn"
+  },
+  "ck33_8": {
+   "source": "On: it is run on the certificates it is attached to. Switch it off to stop that without removing anything.",
+   "text": "Zapnuto: spouští se na certifikátech, ke kterým je připojen. Vypněte ho, chcete-li to zastavit, aniž by se cokoli odebralo."
+  },
+  "ck33_9": {
+   "source": "Off: it is run nowhere; it stays attached.",
+   "text": "Vypnuto: nikde se nespouští; zůstává připojen."
   }
  },
  "patterns": {

@@ -27,7 +27,8 @@ class TlsCheck(Check):
 HTTP_FIELDS = [
     field('http', 'Ask over HTTP too', 'bool', default=False,
           help='After TLS, an HTTP request: the answer is checked as set below - the site '
-               'answers, not only its certificate.'),
+               'answers, not only its certificate. On: the method, path, Host header and other '
+               'headers, the status and words expected.'),
     field('method', 'Method', 'select', default='HEAD', show_if={'http': [True]},
           options=[['HEAD', 'HEAD'], ['GET', 'GET'], ['OPTIONS', 'OPTIONS']]),
     field('path', 'Path', 'text', default='/', show_if={'http': [True]}, placeholder='/health'),
