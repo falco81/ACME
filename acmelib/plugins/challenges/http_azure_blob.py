@@ -72,6 +72,7 @@ def shared_key(method, url, headers, account, key_b64):
 
 class HttpAzureBlob(UploadHttp):
     kind = 'http_azure_blob'
+    discovery = False               # discovery: nothing to read from an account
     title = 'HTTP-01 uploaded to Azure Blob Storage'
     vendor = 'HTTP'
     description = ('The token file is uploaded to an Azure Storage container that serves the '

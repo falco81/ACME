@@ -33,6 +33,7 @@ from acmelib.plugins.challenges.route53 import sigv4
 
 class HttpS3(UploadHttp):
     kind = 'http_s3'
+    discovery = False               # discovery: nothing to read from an account
     title = 'HTTP-01 uploaded to an S3 bucket'
     vendor = 'HTTP'
     description = ('The token file is uploaded to an S3 (or S3-compatible) bucket that serves '

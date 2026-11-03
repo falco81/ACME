@@ -28,6 +28,7 @@ INCLUDE = 'include %s;  ' + NG.MARK
 
 class HttpSsh(HttpChallenge):
     kind = 'http_ssh'
+    discovery = False               # discovery: nothing to read from an account
     title = 'HTTP-01 on web servers over SSH'
     vendor = 'HTTP'
     description = ('The token file is written over SSH into the webroot of every web server the '

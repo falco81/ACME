@@ -946,6 +946,18 @@ _PUBLIC_DOWN = {}                   # the public view's servers -> not asked aga
 GENERIC_DISCOVERY.add(DnsChallenge.discover_setup)
 
 
+def discover_read(out, fn, words='the zones could not be listed: %s'):
+    """For a module's own discover_setup(): fn() read, or None with what went wrong put
+    into out['notes'] (a PluginError in words; NotImplementedError quietly)."""
+    try:
+        return fn()
+    except NotImplementedError:
+        return None
+    except PluginError as e:
+        out['notes'].append(words % e)
+        return None
+
+
 class HttpChallenge(Challenge):
     types = ('http-01',)
     vendor = 'HTTP'

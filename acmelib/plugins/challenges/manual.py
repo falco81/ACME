@@ -12,6 +12,7 @@ from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge,
 
 class Manual(DnsChallenge):
     kind = 'manual'
+    discovery = False               # discovery: nothing to read from an account
     title = 'By hand'
     vendor = 'DNS'
     description = ('acme shows the TXT record to put in your DNS and waits until the zone\'s '

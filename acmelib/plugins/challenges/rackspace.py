@@ -58,6 +58,7 @@ def _until(expires):
 
 class Rackspace(RecordApiDns):
     kind = 'rackspace'
+    discover_keys = ['user', 'api_key', 'identity']                # how one signs in
     title = 'Rackspace Cloud DNS'
     vendor = 'Rackspace'
     who = 'Rackspace'

@@ -71,6 +71,7 @@ def sign_headers(ctx, method, url, body, key_id, key_pem, date=None):
 
 class OciDns(RecordApiDns):
     kind = 'oci_dns'
+    discover_keys = ['tenancy', 'user', 'fingerprint', 'key', 'region', 'api']   # the signing
     title = 'Oracle Cloud (OCI) DNS'
     vendor = 'Oracle Cloud'
     who = 'OCI DNS'

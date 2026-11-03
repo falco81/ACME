@@ -35,6 +35,7 @@ SANDBOX = 'https://sandbox.rest.easydns.net'
 
 class EasyDns(RecordApiDns):
     kind = 'easydns'
+    discovery = False               # discovery: nothing to read from an account
     title = 'easyDNS'
     vendor = 'easyDNS'
     who = 'easyDNS'

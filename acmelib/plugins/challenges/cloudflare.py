@@ -25,7 +25,8 @@ import urllib.parse
 
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, api, unquote_txt
+from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, DnsChallenge, api,
+                                                discover_read, unquote_txt)
 
 
 class Cloudflare(DnsChallenge):
@@ -118,6 +119,37 @@ class Cloudflare(DnsChallenge):
             if D.norm(r.get('content') or '') == D.norm(target)]
         for rid in ids:
             self._api('DELETE', '/zones/%s/dns_records/%s' % (zid, rid), missing_ok=True)
+
+    # -- discovery: the zones the token sees, offered for the Zone ID --------------
+    def _account_zones(self):
+        """Every zone the token sees (GET /zones, 50 a page - Cloudflare's most)."""
+        out = []
+        for page in range(1, 41):
+            got = self._api('GET', '/zones?per_page=50&page=%d' % page) or []
+            out += [z for z in got if isinstance(z, dict) and z.get('id')]
+            if len(got) < 50:
+                break
+        return out
+
+    def discover_setup(self):
+        out = DnsChallenge.discover_setup(self)
+        zones = discover_read(out, self._account_zones)
+        if zones is None:
+            return out
+        zones.sort(key=lambda z: D.norm(z.get('name') or ''))
+        out['facts'].append(['Zones the account sees', str(len(zones))])
+        accts = {}
+        for z in zones:
+            a = z.get('account') or {}
+            if a.get('id'):
+                accts[str(a['id'])] = a.get('name') or a['id']
+        for aid, aname in sorted(accts.items())[:5]:
+            out['facts'].append(['Account', '%s (%s)' % (aname, aid)])
+        opts = [['', 'Empty: found by the name.']] + [
+            [str(z['id']), '%s (%s)' % (D.norm(z.get('name') or ''), z.get('status') or '?')]
+            for z in zones[:500]]
+        self.offer(out, 'zone_id', opts, pick='')
+        return out
 
     def test(self):
         if self.c('zone_id'):

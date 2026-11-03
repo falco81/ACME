@@ -15,8 +15,8 @@ from __future__ import annotations
 import urllib.parse
 
 from acmelib.plugins.base import PluginError, field
-from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, api, relative,
-                                                unquote_txt)
+from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, DnsChallenge, api,
+                                                discover_read, relative, unquote_txt)
 
 APIS = {'production': 'https://api.dnsimple.com/v2',
         'sandbox': 'https://api.sandbox.dnsimple.com/v2'}
@@ -60,6 +60,18 @@ class Dnsimple(ApiDns):
                                   retry=False)
             self._acct = str(acct['id'])
         return self._acct
+
+    def discover_setup(self):
+        """The zones (the Zone field); the account of the token said (whoami)."""
+        out = DnsChallenge.discover_setup(self)
+        if not self.c('account_id'):
+            who = discover_read(out, lambda: (self._call('GET', '/whoami') or {}).get('data'),
+                                'the account could not be read: %s') or {}
+            acct = who.get('account') or {}
+            if acct.get('id'):
+                out['facts'].append(['Account', '%s (%s)' % (acct.get('email') or '?',
+                                                             acct['id'])])
+        return out
 
     def zone_names(self):
         out = []

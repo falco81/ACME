@@ -27,6 +27,7 @@ WHY = {
 
 class Rfc2136(DnsChallenge):
     kind = 'rfc2136'
+    discovery = False               # discovery: nothing to read from an account
     title = 'RFC 2136 dynamic update (BIND, Knot, PowerDNS, Windows DNS)'
     vendor = 'DNS'
     description = ('Dynamic DNS UPDATE, signed with a TSIG key, sent to the zone\'s primary '

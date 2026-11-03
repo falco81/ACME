@@ -36,6 +36,7 @@ IN_USE_S = 3600
 
 class HeNet(ApiDns):
     kind = 'he_net'
+    discovery = False               # discovery: nothing to read from an account
     title = 'Hurricane Electric (dns.he.net)'
     vendor = 'Hurricane Electric'
     who = 'dns.he.net'

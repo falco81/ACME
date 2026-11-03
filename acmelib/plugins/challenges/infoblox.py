@@ -17,8 +17,8 @@ import urllib.parse
 
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, api, as_bool,
-                                                unquote_txt)
+from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, DnsChallenge, api,
+                                                as_bool, discover_read, unquote_txt)
 
 
 class Infoblox(ApiDns):
@@ -46,6 +46,9 @@ class Infoblox(ApiDns):
               help='The CA (PEM) that signed the Grid Master\'s certificate, where it is not one '
                    'this machine trusts already. Empty: the system\'s CAs.'),
     ] + PROPAGATION_FIELDS
+    # discovery signs in to the Grid Master (its WAPI version and CA are how it is
+    # reached); the view and the zone are read
+    discover_keys = ['url', 'wapi_version', 'username', 'password', 'verify_tls', 'ca_pem']
 
     def _base(self):
         u = str(self.c('url', '')).rstrip('/')
@@ -71,6 +74,22 @@ class Infoblox(ApiDns):
     def zone_names(self):
         return [z.get('fqdn') for z in self._call(
             'GET', '/zone_auth?view=%s&_return_fields=fqdn&_max_results=10000' % self._view()) or []]
+
+    # -- discovery: the DNS views of the grid, the zones of the view ---------------
+    def discover_setup(self):
+        """The zones of the view set (the Zone field) and the grid's DNS views (GET
+        /view - the DNS view field)."""
+        out = DnsChallenge.discover_setup(self)
+        views = discover_read(out, lambda: self._call('GET', '/view?_return_fields=name'),
+                              'the DNS views could not be listed: %s') or []
+        names = sorted({str(v['name']) for v in views if isinstance(v, dict) and v.get('name')})
+        self.offer(out, 'view', [[v, v] for v in names],
+                   pick=str(self.c('view', 'default') or 'default'))
+        if 'view' in out['choices'] and len(names) > 1:
+            out['notes'].append('the zones offered are those of the view %s - choose another '
+                                'view and ask again for its zones' % (
+                                    self.c('view', 'default') or 'default'))
+        return out
 
     def _ours(self, fqdn, value):
         got = self._call('GET', '/record:txt?name=%s&view=%s&_return_fields=name,text' % (

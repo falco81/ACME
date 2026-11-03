@@ -30,7 +30,8 @@ import urllib.parse
 
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, ApiDns, api, as_bool
+from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, ApiDns, DnsChallenge, api,
+                                                as_bool, discover_read)
 from acmelib.plugins.challenges._records import RecordApiDns, basic
 
 
@@ -70,6 +71,9 @@ class EfficientIp(RecordApiDns):
               help='The CA that signed the appliance\'s certificate, when it is not a public '
                    'one.'),
     ] + PROPAGATION_FIELDS
+    # discovery signs in to the appliance; the DNS server and the view are read from
+    # the zones it lists
+    discover_keys = ['host', 'user', 'password', 'verify_tls', 'ca_pem']
 
     def _base(self):
         h = str(self.c('host', '') or '').strip().rstrip('/')
@@ -124,6 +128,44 @@ class EfficientIp(RecordApiDns):
 
     def delete_txt(self, zone, fqdn, record_id, value):
         self._call('DELETE', '/dns/rr/delete', {'rr_id': record_id})
+
+    # -- discovery: every zone of the appliance, with its server and view ----------
+    def discover_setup(self):
+        """The DNS servers and views the zones are on (the DNS server and DNS view
+        fields) and the zones of the server picked (choosing one sets its view)."""
+        out = DnsChallenge.discover_setup(self) if str(self.c('server', '') or '').strip() \
+            else {'sets': {}, 'choices': {}, 'facts': [], 'notes': []}
+        rows = discover_read(out, lambda: self._rows(self._call('GET', '/dns/zone/list')))
+        if rows is None:
+            out['notes'] = list(dict.fromkeys(out['notes']))
+            return out
+        rows = [r for r in rows if r.get('zone_name') and
+                str(r.get('zone_is_reverse', '0')) in ('0', '', 'None', 'False', 'false')]
+        servers = sorted({str(r['server_name']) for r in rows if r.get('server_name')})
+        now = str(self.c('server', '') or '').strip()
+        pick = now if now in servers else (servers[0] if len(servers) == 1 else '')
+        self.offer(out, 'server', [[x, x] for x in servers], pick=pick)
+        mine = [r for r in rows if not pick or str(r.get('server_name') or '') == pick]
+        views = sorted({str(r['view_name']) for r in mine
+                        if r.get('view_name') not in (None, '', '#')})
+        if views:
+            self.offer(out, 'view', [['', 'Empty: no view']] + [[v, v] for v in views],
+                       pick=str(self.c('view', '') or ''))
+        if pick:
+            # the zones of that server, each with its view (choosing one sets the view)
+            zones = {}
+            for r in mine:
+                zones.setdefault(D.norm(r['zone_name']), set()).add(
+                    '' if r.get('view_name') in (None, '#') else str(r['view_name']))
+            out['facts'] = [f for f in out['facts'] if f[0] != 'Zones the account sees']
+            out['facts'].append(['Zones the account sees', str(len(zones))])
+            sets = {z: {'view': list(v)[0]} for z, v in zones.items() if len(v) == 1}
+            znow = D.norm(self.config.get('zone') or '')
+            self.offer(out, 'zone', [['', 'Empty: each name in the longest zone of the '
+                                          'account it is in']] +
+                       [[z, z] for z in sorted(zones)[:500]], sets,
+                       pick=znow if znow in zones else '')
+        return out
 
     def test(self):
         if not str(self.c('server', '') or '').strip():

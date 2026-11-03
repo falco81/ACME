@@ -65,6 +65,17 @@ class DigitalOcean(DnsChallenge):
             self._call('DELETE', '/domains/%s/records/%s' % (urllib.parse.quote(zone), rid),
                        missing_ok=True)
 
+    def zone_names(self):
+        """Every domain of the token (discovery offers them for the Domain field)."""
+        out = []
+        for page in range(1, 51):
+            _st, got = self._call('GET', '/domains?per_page=200&page=%d' % page)
+            got = got or {}
+            out += [d.get('name') for d in got.get('domains') or [] if isinstance(d, dict)]
+            if not ((got.get('links') or {}).get('pages') or {}).get('next'):
+                break
+        return out
+
     def test(self):
         _st, got = self._call('GET', '/domains?per_page=50')
         names = [d.get('name') for d in (got or {}).get('domains') or []]

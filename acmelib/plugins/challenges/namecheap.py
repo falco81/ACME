@@ -43,6 +43,7 @@ def _find(x, name):
 
 class Namecheap(ApiDns):
     kind = 'namecheap'
+    discover_keys = ['api_user', 'api_key', 'client_ip', 'user_name', 'endpoint']
     title = 'Namecheap'
     vendor = 'Namecheap'
     who = 'Namecheap'

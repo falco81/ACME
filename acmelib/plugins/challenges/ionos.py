@@ -25,6 +25,7 @@ API = 'https://api.hosting.ionos.com/dns/v1'
 
 class Ionos(ApiDns):
     kind = 'ionos'
+    discover_keys = ['prefix', 'secret']                           # the API key's two halves
     title = 'IONOS (Hosting API)'
     vendor = 'IONOS'
     who = 'IONOS'

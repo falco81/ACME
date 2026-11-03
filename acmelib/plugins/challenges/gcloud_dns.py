@@ -33,7 +33,8 @@ import urllib.parse
 from acmelib.plugins import limits
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, api, rmw_lock
+from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, DnsChallenge, api,
+                                                discover_read, rmw_lock)
 
 SCOPE = 'https://www.googleapis.com/auth/ndev.clouddns.readwrite'
 BASE = 'https://dns.googleapis.com/dns/v1'
@@ -191,6 +192,33 @@ class GoogleCloudDns(DnsChallenge):
             have = list((old or {}).get('rrdatas') or [])
             if one in have:
                 self._replace(mz, fqdn, old, [v for v in have if v != one])
+
+    # -- discovery: the project of the key, its public managed zones ---------------
+    def discover_setup(self):
+        """The managed zones of the project (public ones, for the Managed zone field);
+        the service account and the project said."""
+        out = DnsChallenge.discover_setup(self)
+        sa = discover_read(out, self._sa, 'the service account key: %s')
+        if sa is None:
+            return out
+        out['facts'].append(['Service account', str(sa.get('client_email'))])
+        out['facts'].append(['Project', self._project() or '?'])
+        if not self._project():
+            out['notes'].append('%s: set %s first, then ask again' % ('Managed zone',
+                                                                     'Project ID'))
+            return out
+        zones = discover_read(out, self._managed_zones)
+        if zones is None:
+            return out
+        public = sorted((D.norm(z.get('dnsName') or ''), str(z['name'])) for z in zones
+                        if z.get('name') and z.get('visibility', 'public') == 'public')
+        out['facts'].append(['Zones the account sees', str(len(zones))])
+        if len(public) < len(zones):
+            out['notes'].append('%d private zone(s) left out - the CA cannot see them' % (
+                len(zones) - len(public)))
+        self.offer(out, 'managed_zone', [['', 'Empty: found by the domain']] + [
+            [name, '%s (%s)' % (dom, name)] for dom, name in public[:500]], pick='')
+        return out
 
     def test(self):
         zs = ['%s (%s)' % (z.get('dnsName'), z.get('name')) for z in self._managed_zones()]

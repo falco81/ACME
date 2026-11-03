@@ -28,6 +28,7 @@ API = 'https://ccp.netcup.net/run/webservice/servers/endpoint.php?JSON'
 
 class Netcup(ApiDns):
     kind = 'netcup'
+    discovery = False               # discovery: nothing to read from an account
     title = 'netcup'
     vendor = 'netcup'
     who = 'netcup'

@@ -21,6 +21,7 @@ from acmelib.plugins.challenges._upload import CHECK_FIELDS, UploadHttp, prefix_
 
 class HttpWebdav(UploadHttp):
     kind = 'http_webdav'
+    discovery = False               # discovery: nothing to read from an account
     title = 'HTTP-01 uploaded over WebDAV'
     vendor = 'HTTP'
     description = ('The token file is uploaded over WebDAV into the folder the site of the '

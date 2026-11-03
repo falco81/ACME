@@ -21,6 +21,7 @@ from acmelib.plugins.challenges._common import (DnsChallenge, as_list, base_name
 
 class BuiltinDns(DnsChallenge):
     kind = 'dns_builtin'
+    discovery = False               # discovery: nothing to read from an account
     title = 'acme\'s own DNS server'
     vendor = 'acme'
     description = ('The TXT records are answered by acme\'s own DNS server. Your DNS points '

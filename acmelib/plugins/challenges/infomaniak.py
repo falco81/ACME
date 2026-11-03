@@ -30,6 +30,7 @@ API = 'https://api.infomaniak.com'
 
 class Infomaniak(RecordApiDns):
     kind = 'infomaniak'
+    discovery = False               # discovery: nothing to read from an account
     title = 'Infomaniak'
     vendor = 'Infomaniak'
     who = 'Infomaniak'

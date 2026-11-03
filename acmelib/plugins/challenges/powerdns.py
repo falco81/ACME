@@ -33,7 +33,7 @@ import urllib.parse
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, api, as_bool, \
-    rmw_lock
+    discover_read, rmw_lock
 
 
 def extend_prune(version):
@@ -63,16 +63,20 @@ class PowerDns(DnsChallenge):
         field('verify_tls', 'Check the API\'s certificate', 'bool', default=True, advanced=True),
     ] + PROPAGATION_FIELDS
 
-    def _base(self):
+    def _root(self):
         u = str(self.c('url', '')).rstrip('/')
         if not u:
             raise PluginError('the API address is not set', retry=False)
         if not u.endswith('/api/v1'):
             u += '/api/v1'
-        return '%s/servers/%s' % (u, urllib.parse.quote(self.c('server_id', 'localhost')))
+        return u
 
-    def _api(self, method, path, body=None, missing_ok=False):
-        return api(self.ctx, method, self._base() + path, body,
+    def _base(self):
+        return '%s/servers/%s' % (self._root(),
+                                  urllib.parse.quote(self.c('server_id', 'localhost')))
+
+    def _api(self, method, path, body=None, missing_ok=False, root=False):
+        return api(self.ctx, method, (self._root() if root else self._base()) + path, body,
                    {'X-API-Key': str(self.c('api_key', ''))}, who='PowerDNS',
                    verify=as_bool(self.c('verify_tls', True)), missing_ok=missing_ok)[1]
 
@@ -171,6 +175,34 @@ class PowerDns(DnsChallenge):
                                    'changetype': 'PRUNE', 'records': [{'content': one}]})
             else:
                 self._put(zone, fqdn, [x for x in have if x != one], ttl)
+
+    # -- discovery: the servers of the API, the zones of the one picked -----------
+    def zone_names(self):
+        return list(self._zone_list())
+
+    def discover_setup(self):
+        """The servers the API serves (GET /api/v1/servers - an authoritative one for the
+        Server id field) and the zones of the one picked (the Zone field)."""
+        out0 = {'notes': []}
+        servers = discover_read(out0, lambda: self._api('GET', '/servers', root=True),
+                                'the servers could not be listed: %s') or []
+        servers = [x for x in servers if isinstance(x, dict) and x.get('id') and
+                   x.get('daemon_type', 'authoritative') == 'authoritative']
+        now = str(self.c('server_id', 'localhost') or 'localhost')
+        ids = [str(x['id']) for x in servers]
+        pick = now if now in ids or not ids else ids[0]
+        mod = self if pick == now else type(self)(dict(self.config, server_id=pick), self.ctx)
+        out = DnsChallenge.discover_setup(mod)
+        out['notes'] = out0['notes'] + out['notes']
+        self.offer(out, 'server_id', [[str(x['id']), '%s (PowerDNS %s)' % (
+            x['id'], x.get('version') or '?')] for x in servers], pick=pick)
+        for x in servers:
+            if str(x['id']) == pick:
+                out['facts'].append(['Version', 'PowerDNS %s' % (x.get('version') or '?')])
+                if not extend_prune(x.get('version')):
+                    out['notes'].append('this PowerDNS is older than 4.9.12 / 5.0.2: each TXT '
+                                        'RRset is read and written whole')
+        return out
 
     def test(self):
         info = self._api('GET', '') or {}

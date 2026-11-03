@@ -27,6 +27,7 @@ form is documented).
 """
 from __future__ import annotations
 
+import re
 import time
 import urllib.parse
 
@@ -34,7 +35,7 @@ from acmelib.plugins import limits
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, DnsChallenge, api,
-                                                relative, rmw_lock)
+                                                discover_read, relative, rmw_lock)
 
 CLOUDS = {'public': ('https://login.microsoftonline.com', 'https://management.azure.com'),
           'china': ('https://login.chinacloudapi.cn', 'https://management.chinacloudapi.cn'),
@@ -63,6 +64,9 @@ class AzureDns(DnsChallenge):
               options=[['public', 'Azure'], ['china', 'Azure China (21Vianet)'],
                        ['usgov', 'Azure US Government']]),
     ] + PROPAGATION_FIELDS
+    # discovery asks the app's sign-in and the subscription (the API lists no
+    # subscriptions); the resource group and the zone are read from the zones
+    discover_keys = ['tenant_id', 'client_id', 'client_secret', 'subscription_id', 'cloud']
 
     _token = None
     _token_until = 0.0
@@ -200,6 +204,53 @@ class AzureDns(DnsChallenge):
         path = (handle or {}).get('path') or self._rs(fqdn)
         with rmw_lock(('azure', path)):
             self._change(path, value, False)
+
+    # -- discovery: the zones of the subscription, each with its resource group ----
+    def _zones_of_subscription(self):
+        """[(zone, resource group)] of every DNS zone of the subscription (Zones_List)."""
+        sub = urllib.parse.quote(str(self.c('subscription_id', '')))
+        out = []
+        _st, got = self._arm('GET', '/subscriptions/%s/providers/Microsoft.Network/dnsZones' % sub)
+        for _page in range(50):
+            for z in (got or {}).get('value') or []:
+                m = re.search(r'/resourceGroups/([^/]+)/', str(z.get('id') or ''), re.I)
+                if z.get('name'):
+                    out.append((D.norm(z['name']), urllib.parse.unquote(m.group(1)) if m else ''))
+            nxt = (got or {}).get('nextLink')
+            if not nxt:
+                break
+            _st, got = api(self.ctx, 'GET', nxt, None,
+                           {'Authorization': 'Bearer ' + self.token()}, who='Azure')
+        return out
+
+    def discover_setup(self):
+        """The zones of the subscription (the Zone field, choosing one sets its resource
+        group) and the resource groups they are in (the Resource group field)."""
+        out = DnsChallenge.discover_setup(self)
+        if not self.c('subscription_id'):
+            out['notes'].append('%s: set %s first, then ask again' % ('Zone', 'Subscription ID'))
+            return out
+        zones = discover_read(out, self._zones_of_subscription)
+        if zones is None:
+            return out
+        out['facts'].append(['Zones the account sees', str(len(zones))])
+        groups = sorted({g for _z, g in zones if g}, key=str.lower)
+        rgs = {}
+        for z, g in zones:
+            rgs.setdefault(z, set()).add(g)
+        # choosing a zone sets its resource group (a name in two groups: set by hand)
+        sets = {z: {'resource_group': list(g)[0]} for z, g in rgs.items()
+                if len(g) == 1 and list(g)[0]}
+        opts = [['', 'Empty: each name in the longest zone of the account it is in']] + [
+            [z, '%s (%s)' % (z, ', '.join(sorted(g))) if any(g) else z]
+            for z, g in sorted(rgs.items())[:500]]
+        now = D.norm(self.config.get('zone') or '')
+        self.offer(out, 'zone', opts, sets, pick=now if now in rgs else '')
+        now_rg = str(self.config.get('resource_group') or '')
+        match = [g for g in groups if g.lower() == now_rg.lower()]
+        self.offer(out, 'resource_group', [['', 'Empty: every zone of the subscription']] +
+                   [[g, g] for g in groups], pick=match[0] if match else '')
+        return out
 
     def test(self):
         zones = self._zone_list()

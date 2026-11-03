@@ -13,6 +13,7 @@ from acmelib.plugins.challenges._common import HttpChallenge, as_list
 
 class HttpLocal(HttpChallenge):
     kind = 'http_local'
+    discovery = False               # discovery: nothing to read from an account
     title = 'HTTP-01 on this server'
     vendor = 'HTTP'
     description = ('The CA fetches http://NAME/.well-known/acme-challenge/… from acme itself, on '

@@ -12,6 +12,7 @@ from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge,
 
 class Script(DnsChallenge):
     kind = 'script'
+    discovery = False               # discovery: nothing to read from an account
     guide_needs_dry_run = True
     title = 'A script of your own'
     vendor = 'DNS'

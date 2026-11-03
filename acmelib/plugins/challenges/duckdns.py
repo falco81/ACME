@@ -37,6 +37,7 @@ IN_USE_S = 3600
 
 class DuckDns(ApiDns):
     kind = 'duckdns'
+    discovery = False               # discovery: nothing to read from an account
     title = 'Duck DNS'
     vendor = 'Duck DNS'
     who = 'Duck DNS'

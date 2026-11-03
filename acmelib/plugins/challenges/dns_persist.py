@@ -205,6 +205,7 @@ def can_write(cls):
 # ---------------------------------------------------------------------------
 class DnsPersist(Challenge):
     kind = 'dns_persist'
+    discovery = False               # discovery: nothing to read from an account
     title = 'DNS record set once (dns-persist-01)'
     default_name = 'dns-persist'
     vendor = 'DNS'

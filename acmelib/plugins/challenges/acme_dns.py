@@ -14,6 +14,7 @@ from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, DnsChallenge
 
 class AcmeDns(DnsChallenge):
     kind = 'acme_dns'
+    discovery = False               # discovery: nothing to read from an account
     title = 'acme-dns'
     vendor = 'DNS'
     description = ('An acme-dns server answers the TXT records; your DNS has _acme-challenge.NAME '

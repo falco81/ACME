@@ -128,6 +128,37 @@ class Ovh(DnsChallenge):
             self._call('DELETE', '/domain/zone/%s/record/%s' % (zone, rid), missing_ok=True)
         self._call('POST', '/domain/zone/%s/refresh' % zone)
 
+    # -- discovery: the zones of the keys; the endpoint they belong to ------------
+    def zone_names(self):
+        return [z for z in self._call('GET', '/domain/zone') or [] if isinstance(z, str)]
+
+    def discover_setup(self):
+        """The zones (the Zone field). Keys refused at the endpoint set are tried at the
+        other OVHcloud endpoints (keys are made for one of them): one that answers is
+        offered for the Endpoint field, with its zones."""
+        out = DnsChallenge.discover_setup(self)
+        if 'zone' in out['choices'] or not out['notes']:
+            return out
+        now = self.c('endpoint', 'ovh-eu')
+        works = []
+        for ep in ENDPOINTS:
+            if ep == now:
+                continue
+            other = type(self)(dict(self.config, endpoint=ep), self.ctx)
+            try:
+                other.zone_names()
+            except PluginError:
+                continue
+            works.append(other)
+        if not works:
+            return out
+        found = DnsChallenge.discover_setup(works[0])
+        words = dict(next(f for f in self.fields if f['key'] == 'endpoint')['options'])
+        self.offer(found, 'endpoint', [[o.c('endpoint'), words.get(o.c('endpoint'))]
+                                       for o in works], pick=works[0].c('endpoint'))
+        found['notes'] = out['notes'] + found['notes']
+        return found
+
     def test(self):
         zones = self._call('GET', '/domain/zone') or []
         return 'the keys see %d zone(s): %s' % (len(zones), ', '.join(zones[:20]))

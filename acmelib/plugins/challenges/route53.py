@@ -12,7 +12,8 @@ from xml.sax.saxutils import escape
 
 from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import PROPAGATION_FIELDS, DnsChallenge, rmw_lock
+from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, DnsChallenge, discover_read,
+                                                rmw_lock)
 
 NS = '{https://route53.amazonaws.com/doc/2013-04-01/}'
 VERSION = '2013-04-01'
@@ -101,6 +102,8 @@ class Route53(DnsChallenge):
               help='Wait until Route 53 says the change is on all its servers before '
                    'looking at DNS.'),
     ] + PROPAGATION_FIELDS
+    # discovery asks the key and where it signs in (the partition); the zone is found
+    discover_keys = ['access_key_id', 'secret_access_key', 'session_token', 'partition']
 
     ENDPOINTS = {'aws': ('https://route53.amazonaws.com', 'us-east-1'),
                  'aws-cn': ('https://route53.amazonaws.com.cn', 'cn-northwest-1'),
@@ -216,6 +219,40 @@ class Route53(DnsChallenge):
                 self._change(zid, 'UPSERT', fqdn, ttl, left)
             else:
                 self._change(zid, 'DELETE', fqdn, ttl, have)
+
+    # -- discovery: the hosted zones the key sees, offered for the Hosted zone ID ----
+    def _hosted_zones(self):
+        """[(id, name, private)] of every hosted zone (ListHostedZones, NextMarker)."""
+        out, marker = [], None
+        for _page in range(50):
+            x = self._call('GET', '/%s/hostedzone?maxitems=100%s' % (
+                VERSION, '&marker=' + urllib.parse.quote(marker) if marker else ''))
+            if x is None:
+                break
+            for hz in x.iter(NS + 'HostedZone'):
+                out.append((str(hz.findtext(NS + 'Id') or '').split('/')[-1],
+                            D.norm(hz.findtext(NS + 'Name') or ''),
+                            (hz.findtext('%sConfig/%sPrivateZone' % (NS, NS)) or '') == 'true'))
+            marker = x.findtext(NS + 'NextMarker')
+            if (x.findtext(NS + 'IsTruncated') or '') != 'true' or not marker:
+                break
+        return out
+
+    def discover_setup(self):
+        out = DnsChallenge.discover_setup(self)
+        zones = discover_read(out, self._hosted_zones)
+        if zones is None:
+            return out
+        public = sorted((n, i) for i, n, private in zones if i and not private)
+        out['facts'].append(['Zones the account sees', str(len(zones))])
+        if len(public) < len(zones):
+            out['notes'].append('%d private zone(s) left out - the CA cannot see them' % (
+                len(zones) - len(public)))
+        opts = [['', 'Empty: found by the name (a public zone first).']] + [
+            [i, '%s (%s)' % (n, i)] for n, i in public[:500]]
+        now = str(self.config.get('hosted_zone_id') or '').split('/')[-1]
+        self.offer(out, 'hosted_zone_id', opts, pick=now if now else '')
+        return out
 
     def test(self):
         if self.c('hosted_zone_id'):

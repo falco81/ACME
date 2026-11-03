@@ -31,6 +31,7 @@ from acmelib.plugins.challenges._upload import CHECK_FIELDS, UploadHttp
 
 class HttpFtp(UploadHttp):
     kind = 'http_ftp'
+    discovery = False               # discovery: nothing to read from an account
     title = 'HTTP-01 uploaded over FTP, FTPS or SFTP'
     vendor = 'HTTP'
     description = ('The token file is uploaded over FTP, FTPS or SFTP into the web space of a '

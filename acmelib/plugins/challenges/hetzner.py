@@ -164,6 +164,38 @@ class Hetzner(DnsChallenge):
                          missing_ok=True)
         self._wait(got, 'remove the TXT record %s' % fqdn)
 
+    # -- discovery: the zones of the token's project ------------------------------
+    _listed = None
+
+    def _account_zones(self):
+        """Every zone of the project (GET /zones, 50 a page, meta.pagination.next_page)."""
+        if self._listed is not None:
+            return self._listed
+        out = []
+        page = 1
+        for _n in range(50):
+            got = self._call('GET', '/zones?page=%d&per_page=50' % page) or {}
+            out += [z for z in got.get('zones') or [] if isinstance(z, dict)]
+            nxt = ((got.get('meta') or {}).get('pagination') or {}).get('next_page')
+            if not nxt:
+                break
+            page = int(nxt)
+        self._listed = out
+        return out
+
+    def zone_names(self):
+        """The primary zones (a secondary one takes no records through the API)."""
+        return [z.get('name') for z in self._account_zones()
+                if z.get('mode', 'primary') != 'secondary']
+
+    def discover_setup(self):
+        out = DnsChallenge.discover_setup(self)
+        second = len([z for z in self._listed or [] if z.get('mode') == 'secondary'])
+        if second:
+            out['notes'].append('%d secondary zone(s) left out - their records come from '
+                                'their primary server' % second)
+        return out
+
     def test(self):
         got = self._call('GET', '/zones') or {}
         names = [z.get('name') for z in got.get('zones') or []]

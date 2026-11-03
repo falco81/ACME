@@ -28,6 +28,7 @@ TTLS = (60, 300, 900, 1800, 3600, 21600, 43200, 86400, 172800, 259200, 604800, 1
 
 class Cloudns(ApiDns):
     kind = 'cloudns'
+    discover_keys = ['user_kind', 'auth_id', 'auth_password']     # how one signs in
     title = 'ClouDNS'
     vendor = 'ClouDNS'
     who = 'ClouDNS'
