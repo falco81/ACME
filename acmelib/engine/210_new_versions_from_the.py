@@ -88,8 +88,23 @@ def online_list(url):
         add(m1.group(1), link)
     elif gh:
         owner, repo, ref, folder = gh.group(1), gh.group(2), gh.group(3), gh.group(4) or ''
-        raw_base = 'https://raw.githubusercontent.com/%s/%s/%s/%s' % (
-            owner, repo, ref or 'HEAD', (folder.strip('/') + '/') if folder.strip('/') else '')
+        sub = (folder.strip('/') + '/') if folder.strip('/') else ''
+        raw_base = 'https://raw.githubusercontent.com/%s/%s/%s/%s' % (owner, repo, ref or 'HEAD', sub)
+        # raw.githubusercontent.com keeps a file of a branch 5 minutes (max-age=300),
+        # and an address with ?anything does not get past it: just after a release
+        # "Look now" read the index before it (1.0.36). The branch's newest commit,
+        # asked of GitHub's API (one question), names an address that never goes
+        # stale; the branch's own address stays where the API does not answer.
+        if not re.match(r'^[0-9a-f]{40}\Z', ref or ''):
+            try:
+                sha, _ct, _f = _online_get('https://api.github.com/repos/%s/%s/commits/%s' % (
+                    owner, repo, urllib.parse.quote(ref or 'HEAD')), limit=4096,
+                    accept='application/vnd.github.sha', timeout=15)
+                sha = sha.decode('ascii', 'replace').strip()
+                if re.match(r'^[0-9a-f]{40}\Z', sha):
+                    raw_base = 'https://raw.githubusercontent.com/%s/%s/%s/%s' % (owner, repo, sha, sub)
+            except Exception:                           # noqa: BLE001
+                pass
         try:
             # The folder's own index.json first: what tools/release.py wrote,
             # with each package's sha256 - and no API, nor its 60 an hour.

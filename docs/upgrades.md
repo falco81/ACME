@@ -115,7 +115,7 @@ is pressed) at `upgrade_url` for `acme-X.Y.Z.tar.gz` packages:
 
 | `upgrade_url` | how it is read |
 |---|---|
-| `https://github.com/OWNER/REPO/tree/BRANCH/FOLDER` (the default: `https://github.com/falco81/ACME/tree/main/release`, which keeps the last ten versions) | the folder's `index.json` (written by `tools/release.py`: name, version, size, sha256, date, download address of each) from `raw.githubusercontent.com`; where there is none, GitHub's API lists the folder, and when that refuses (60 questions an hour without an account), the folder's own page is read for the names. The packages come from `raw.githubusercontent.com`. |
+| `https://github.com/OWNER/REPO/tree/BRANCH/FOLDER` (the default: `https://github.com/falco81/ACME/tree/main/release`, which keeps the last ten versions) | the folder's `index.json` (written by `tools/release.py`: name, version, size, sha256, date, download address of each) from `raw.githubusercontent.com` - of the branch's newest commit, asked of GitHub's API first (`/repos/OWNER/REPO/commits/BRANCH`): the branch's own address is kept 5 minutes by GitHub, and just after a release said the version before it; without the API, the branch's address; where there is none, GitHub's API lists the folder, and when that refuses (60 questions an hour without an account), the folder's own page is read for the names. The packages come from `raw.githubusercontent.com`. |
 | an `index.json` (or any JSON list of `{name, download_url, size, sha256}`) | its entries |
 | a web page or a folder listing (nginx, Apache autoindex) | every link to an `acme-X.Y.Z.tar.gz` |
 | one package's address | that package |
@@ -123,7 +123,7 @@ is pressed) at `upgrade_url` for `acme-X.Y.Z.tar.gz` packages:
 HTTPS only. A proxy, if the server needs one, comes from `https_proxy` in the
 service's environment (`systemctl edit acme`: `Environment=https_proxy=…`).
 The node needs to reach the address (and `api.github.com`,
-`raw.githubusercontent.com` for GitHub) - Settings → Firewall and access lets
+`raw.githubusercontent.com` and `api.github.com` for GitHub) - Settings → Firewall and access lets
 everything out. A package whose index gave its `sha256` must have that one,
 before anything else is looked at. How a release gets there:
 [releasing.md](releasing.md).

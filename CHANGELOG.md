@@ -6,6 +6,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.36 - not released
 
+- Settings → Upgrades → *Look now* just after a release found nothing new:
+  raw.githubusercontent.com keeps a branch's index.json 5 minutes (and an
+  address with ?anything does not get past it). The look asks GitHub's API for
+  the branch's newest commit (one question) and reads the index of that commit,
+  an address that never goes stale; where the API does not answer, the branch's
+  index as before.
+
 ## 1.0.35 - 2026-11-03
 
 - Two files of your own saying the same kind and version (an upload of
