@@ -91,6 +91,15 @@ Every module here works the same way:
 | `cpanel_ssl` | cPanel / WHM (SSL install) | cPanel |
 | `directadmin_ssl` | DirectAdmin (domain certificate) | DirectAdmin |
 | `plesk` | Plesk (certificate repository) | Plesk |
+| `cisco_ftd_fdm` | Cisco Secure Firewall Threat Defense (FDM) | Cisco |
+| `cisco_asa` | Cisco Secure Firewall ASA (HTTP interface) | Cisco |
+| `juniper_srx` | Juniper SRX (Junos REST API) | Juniper Networks |
+| `azure_appgw` | Azure Application Gateway | Microsoft |
+| `ispconfig` | ISPConfig (Remote API) | ISPConfig |
+| `hestiacp` | HestiaCP (SSH) | HestiaCP |
+| `virtualmin` | Virtualmin (Remote API) | Virtualmin |
+| `froxlor` | froxlor (API) | froxlor |
+| `proxmox_backup` | Proxmox Backup Server (API) | Proxmox |
 
 **A dual certificate** (ECDSA and RSA of the same names, see
 [certificates.md](certificates.md#dual-certificates-ecdsa--rsa)): the targets
@@ -1716,3 +1725,346 @@ FMG 7.2.6-7.2.12 and 7.4.3+) and a `password` "as a PEM file" whose form is
 unclear. The way to bind it (a VIP's `ssl-certificate` through an ADOM's
 dynamic mapping, then installing a package) is derived, not documented. The
 `fortigate` target puts the certificate on a FortiGate directly.
+
+---
+
+## More targets from the vendors' documents
+
+The nine targets below come from a second part of the same collection
+(`api-docs/<vendor>/notes.md` and the specifications beside them), checked
+the same way: each section names the files and the pages they quote, and
+what the documents leave open is under **Less certain**, here and in the
+module's docstring. Notes marked "derived" in the collection are used only
+where said so.
+
+## `cisco_ftd_fdm` - Cisco Secure Firewall Threat Defense (FDM)
+
+For an FTD managed **locally by its Device Manager** (one managed by an FMC
+is `cisco_fmc`). `POST /api/fdm/latest/fdm/token` with `grant_type:
+password` and the admin account gives a bearer token. Each renewal is a **new
+Internal Certificate** of a dated name (`POST …/object/internalcertificates`
+`{"type": "internalcertificate", "name", "certType": "UPLOAD", "cert",
+"privateKey"}` - FDM takes only an unencrypted key). The intermediates become
+External CA Certificates `acme-ca-<id>` (`POST …/object/externalcacertificates`,
+added once). Then:
+
+- **The management web interface** (on by default): `GET
+  …/devicesettings/default/webuicertificates`, and the object PUT back whole
+  with `certificate` = the new object and `trustChain` = the CA objects.
+- **Remote access VPN** (when asked): each `GET …/ravpns` object PUT back with
+  `vpnGatewaySettings.serverCertificate` = the new one.
+- **Deploy** (on by default): `POST …/operational/deploy`, then `GET
+  …/operational/deploy/<id>` until `DEPLOYED` (*Wait for the deployment*).
+  Nothing is active on the device before that.
+- Older acme objects beyond *keep* that neither names are deleted, and
+  deployed again.
+
+Lists are read ten at a time (FDM's largest page). After the switch, FDM's
+own HTTPS shows the new certificate: paste its CA in *CA certificate*.
+
+Checked against `api-docs/cisco_ftd_fdm/notes.md` (quoting
+<https://developer.cisco.com/docs/ftd-api-reference/latest/>, the reference
+pages under
+<https://pubhub.devnetcloud.com/media/ftd-api-reference-v6-ftd-v7-2-/docs/>,
+<https://www.cisco.com/c/en/us/td/docs/security/firepower/ftd-api/guide/ftd-rest-api/ftd-rest-api-intro.html>,
+<https://www.cisco.com/c/en/us/td/docs/security/firepower/ftd-api/guide/ftd-rest-api/ftd-api-deployment.html>,
+<https://www.cisco.com/c/en/us/td/docs/security/firepower/ftd-api/guide/ftd-rest-api/auth-ftd-rest-api.html>).
+**Less certain** (the OpenAPI specification is only on the device,
+`/apispec/ngfw.json`; the public reference is v6 for FTD 7.2): the shape of a
+list answer (`items`); what `trustChain` entries must hold (the CA objects
+are sent whole, as FDM gave them); whether `cert` may hold the chain (only the
+certificate is sent); the RA VPN change is derived from the model; deployment
+states other than `QUEUED` and `DEPLOYED` are not listed (one with FAIL or
+ERROR in it fails the job); what deleting an object in use answers; no
+log-out call is documented.
+
+## `cisco_asa` - Cisco Secure Firewall ASA (HTTP interface)
+
+Through the **ASA HTTP Interface for Automation** - the CLI over HTTPS that
+Cisco recommends instead of the ASA REST API (no longer developed, not on
+newer models or after 9.16). HTTP basic with a privilege 15 user and
+`User-Agent: ASDM` (the ASA takes basic authentication only from allowed
+strings, `http server basic-auth-client`). Commands go as `GET
+/admin/exec/<command>` (spaces as `+`) or one a line in `POST /admin/config`.
+**A 200 comes with a failed command too**, so every answer is read: `ERROR:`,
+`% Invalid` or *failed* fail the job, and the import must say `Import PKCS12
+operation completed successfully`.
+
+A trustpoint enrolled from PKCS#12 cannot be renewed, so each renewal is a
+**new trustpoint** of a dated name:
+
+```
+crypto ca trustpoint <tp>
+exit
+crypto ca import <tp> pkcs12 <random passphrase> nointeractive
+<the PKCS#12 with its chain, base64, 64 a line>
+quit
+```
+
+Then `ssl trust-point <tp> <interface>` for each line of *ssl trust-point*
+(an interface name, `outside vpnlb-ip`, `domain vpn.example.com`, or `-` for
+the fallback of all interfaces), and wherever an older acme trustpoint of
+this certificate was named (its line taken away with `no ssl trust-point`).
+Older acme trustpoints beyond *keep* that no `ssl trust-point` names are
+removed (`no crypto ca trustpoint <old> noconfirm`), and `write memory`
+saves it.
+
+Checked against `api-docs/cisco_asa/notes.md` (quoting
+<https://www.cisco.com/c/en/us/td/docs/security/asa/misc/http-interface/asa-http-interface.html>,
+<https://www.cisco.com/c/en/us/td/docs/security/asa/api/qsg-asa-api.html>,
+<https://www.cisco.com/c/en/us/td/docs/security/asa/compatibility/asamatrx.html>,
+<https://www.cisco.com/c/en/us/td/docs/security/asa/asa-cli-reference/A-H/asa-command-ref-A-H/crypto-a-to-crypto-ir-commands.html>,
+<https://www.cisco.com/c/en/us/td/docs/security/asa/asa-cli-reference/S/asa-command-ref-S/so-st-commands.html>,
+<https://www.cisco.com/c/en/us/td/docs/security/asa/asa-cli-reference/T-Z/asa-command-ref-T-Z/w-z-commands.html>,
+<https://www.cisco.com/c/en/us/support/docs/security/vpn-client-tools/220282-install-and-renew-certificates-on-asa-ma.html>).
+**Less certain**: whether the import needs the trustpoint made first (acme
+makes it, as the TechNote does); the PKCS#12 encryption each version takes
+(3DES by default); `write memory` and `show running-config …` over
+`/admin/exec` are derived from the URL format; answers are text only;
+trustpoints used for IPsec / IKEv2 are not looked at (keep -1 if they are);
+whether removing a trustpoint removes its key pair; failover is not checked.
+
+## `juniper_srx` - Juniper SRX (Junos REST API)
+
+The Junos REST API (`https://<srx>:3443`, HTTP basic on every request) runs
+the same XML RPCs as the CLI. Each renewal gets a **new certificate id** (32
+characters at most, no `.`, so the name is `acme-<label>-<date>-<serial>`
+with a short hash when the label is cut). All in `POST /rpc?stop-on-error=1`:
+
+1. `<file-put>` writes `/var/tmp/<id>.crt` (the certificate and its chain, or
+   only the certificate) and `/var/tmp/<id>.key` (0600, base64);
+2. `<load-pki-local-certificate>` `certificate-id`, `filename`, `key`;
+3. both files are written again **empty** (there is no file-delete in the
+   documents), also when the load failed;
+4. one change: `<lock-configuration/>`, `<load-configuration action="set"
+   format="text">` with `set system services web-management https
+   pki-local-certificate <id>` (*J-Web*, on by default), `set system services
+   rest https server-certificate <id>` (*the REST API itself*), `set services
+   ssl termination profile <p> server-certificate <id>`, `set services ssl
+   proxy profile <p> server-certificate <id>`, `set security ike policy <p>
+   certificate local-certificate <id>` (and the older acme id deleted from
+   that list), `<commit-configuration>`, `<unlock-configuration/>`;
+5. older acme ids beyond *keep*: `<clear-pki-local-certificate>` and
+   `<clear-pki-key-pair>`.
+
+The ids on the device are read with `GET /rpc/get-pki-local-certificate`.
+
+Checked against `api-docs/juniper_srx/notes.md` (quoting
+<https://www.juniper.net/documentation/us/en/software/junos/rest-api/topics/task/rest-api-submitting-post-request.html>,
+<https://www.juniper.net/documentation/us/en/software/junos/rest-api/topics/task/rest-api-configuring.html>,
+<https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/request-security-pki-ca-certificate-load-high-end.html>,
+<https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/clear-security-pki-local-certificate-id.html>,
+<https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/statement/https-edit-system.html>,
+<https://juniper.net/documentation/us/en/software/junos/application-identification/authentication-firewall/topics/ref/statement/server-certificate-edit-services-ssl-termination-profile.html>,
+<https://www.juniper.net/documentation/en_US/junos/topics/reference/configuration-statement/security-edit-certificate.html>,
+<https://www.juniper.net/documentation/us/en/software/junos/automation-scripting/topics/example/junos-script-automation-op-script-exporting-files.html>,
+<https://www.juniper.net/documentation/us/en/software/junos/junos-xml-protocol/topics/ref/tag/junos-xml-protocol-commit-configuration.html>)
+and the Junos 23.4R1 YANG RPC models `junos-es-rpc-request`, `-clear`,
+`-security`, `-file-mgd` (<https://github.com/Juniper/yang>).
+**Less certain**: that the REST API runs `file-put` (documented for op scripts
+and NETCONF; the REST page says "any Junos OS rpc command"); whether J-Web
+sends the chain from the certificate file; loading over an existing id; the
+error words of the PKI RPCs (an `<xnm:error>` / `<error-message>` fails the
+step); after a failed commit the candidate may hold acme's lines (`rollback
+0`); removing an id still named elsewhere in the configuration; chassis
+cluster and multinode HA are not handled.
+
+## `azure_appgw` - Azure Application Gateway
+
+Azure Resource Manager (api-version 2026-03-01) with an app registration's
+token (as `azure_appservice`). The gateway's certificates and listeners have
+no calls of their own: acme **GETs the whole gateway**, changes it and **PUTs
+it back**, then reads it until `provisioningState` is `Succeeded` (*Wait for
+the gateway*).
+
+- **Uploaded** (the default): the PKCS#12 with its chain, base64, goes into
+  `properties.sslCertificates[]` as `{"name", "properties": {"data",
+  "password"}}` under a dated name - or, with *Name on the gateway*, into that
+  one certificate, replaced in place (as Microsoft's renewal does).
+- **From Key Vault**: an entry `{"name": "acme-<name>", "properties":
+  {"keyVaultSecretId": "https://<vault>/secrets/<name>/"}}` - without a version,
+  so the gateway takes each new version itself. The certificate gets into the
+  vault with an `azure_keyvault` deployment (put it first); the gateway needs
+  a managed identity allowed to read secrets. After that, acme only changes
+  the gateway's tags (`PATCH {"tags"}`: `acme-certificate`, `acme-deployed`),
+  which makes it look in Key Vault at once instead of within four hours.
+
+The listener picked (*Load the list* shows the HTTPS and TLS listeners) and
+those under *More listeners* - and every listener that used an older acme
+certificate of this one - get `sslCertificate.id` of the new one, in
+`httpListeners` and `listeners` (TLS) alike. Older dated acme certificates
+beyond *keep* that no listener uses are taken out in the same PUT.
+
+Checked against `api-docs/azure_appgw/notes.md` (quoting
+<https://learn.microsoft.com/en-us/azure/application-gateway/key-vault-certs>,
+<https://learn.microsoft.com/en-us/azure/application-gateway/renew-certificates>,
+<https://learn.microsoft.com/en-us/azure/application-gateway/ssl-overview>,
+<https://learn.microsoft.com/en-us/rest/api/azure/>,
+<https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow>),
+`api-docs/azure_appgw/applicationGateway.json`
+(<https://github.com/Azure/azure-rest-api-specs/blob/main/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/applicationGateway.json>:
+ApplicationGateways_Get / _CreateOrUpdate / _UpdateTags,
+ApplicationGatewaySslCertificatePropertiesFormat, the listeners'
+`sslCertificate`) and `example-ApplicationGatewayCreate.json`.
+**Less certain**: the gateway read is PUT back whole, read-only properties and
+all (what Get-/Set-AzApplicationGateway do); what PUT answers when a
+certificate a listener still names is taken out (acme never does that); the
+values of `provisioningState` (`common.json` is not in the collection); the
+format of `publicCertData` (so "the same one is there" means the dated name is
+there); EC keys; that a tag change makes the gateway look in Key Vault at once
+("Any change … Resource Tags").
+
+## `ispconfig` - ISPConfig (Remote API)
+
+The Remote API's JSON transport (`POST
+https://<panel>:8080/remote/json.php?<function>`, the PHP parameter names as
+the keys) with a **remote user** (System → Remote Users, *Sites Domain
+functions*): `login` → session, `sites_web_domain_get` `{"primary_id":
+{"domain": <site>}}` for each website (picked from *Load the list* or typed),
+then `sites_web_domain_update` `{"client_id": 0, "primary_id": <domain_id>,
+"params": {"ssl": "y", "ssl_letsencrypt": "n", "ssl_cert", "ssl_key",
+"ssl_bundle", "ssl_action": "save"}}` and `logout`. `ssl_action` is a one-time
+order the server clears, so it is sent at every renewal; the panel's own
+Let's Encrypt is turned off for the site (said in the job). "The same one is
+there" means the site's `ssl_cert` has the same fingerprint. The server's
+ISPConfig cron writes the files and reloads the web server about a minute
+later - *Check what is served* tells.
+
+Checked against `api-docs/ispconfig/notes.md` (from the official package
+<https://www.ispconfig.org/downloads/ISPConfig-3-stable.tar.gz>, 3.3.2p1:
+`remoting_client/API-docs`, `remoting_client/examples`,
+`interface/web/remote/json.php`, `json_handler.inc.php`, `remoting.inc.php`,
+`remoting_lib.inc.php`, `web_vhost_domain.tform.php`, `apache2_plugin.inc.php`;
+<https://www.ispconfig.org/documentation/>).
+**Less certain**: `ssl_key` is not in the API reference of
+`sites_web_domain_update` (it is in the form and the server plugin); the
+meaning of `client_id` (the example sends 0); the outcome of the cron's work
+is not given back; the nginx plugin was not read in detail.
+
+## `hestiacp` - HestiaCP (SSH)
+
+Hestia's REST API runs its `v-*` commands, but the SSL ones take **a folder
+on the server**, and the only way to write one through the API is an
+undocumented pseudo-command that leaves the key in `/tmp`. So acme signs in
+over SSH (root, or a user with sudo) and uses the documented commands: for
+each web domain of the *Hestia user*, the certificate, key and chain go into
+a fresh `mktemp -d` folder as `<domain>.crt`, `<domain>.key`, `<domain>.ca`
+(the issuer first, as Hestia checks), then
+
+- `v-change-web-domain-sslcert <user> <domain> <folder> yes` when SSL is on;
+- `v-add-web-domain-ssl <user> <domain> <folder> <ssl_home> yes` when it is off;
+- when Hestia's own Let's Encrypt is on for the domain, first
+  `v-delete-web-domain-ssl <user> <domain> no` (else its cron puts its own
+  certificate back; it also turns *force SSL* off - the job says so),
+
+and the folder is removed. "The same one is there" means `v-list-web-domain-ssl
+<user> <domain> json` shows a `CRT` of the same fingerprint. *Restart the web
+server* is the commands' RESTART argument.
+
+Checked against `api-docs/hestiacp/notes.md` (quoting
+<https://hestiacp.com/docs/reference/cli.html>,
+<https://hestiacp.com/docs/server-administration/rest-api.html>,
+<https://github.com/hestiacp/hestiacp/blob/main/docs/docs/reference/cli.md>,
+<https://github.com/hestiacp/hestiacp/blob/main/web/api/index.php> and the
+scripts `bin/v-add-web-domain-ssl`, `v-change-web-domain-sslcert`,
+`v-delete-web-domain-ssl`, `v-list-web-domain-ssl`, `v-update-letsencrypt-ssl`,
+`func/domain.sh`).
+**Less certain**: the commands' folder `/usr/local/hestia/bin` (from
+`$HESTIA` and `$BIN`; *Hestia's commands* changes it); the keys `SSL`,
+`LETSENCRYPT`, `SSL_HOME` of `v-list-web-domain … json` are the domain's
+settings in the scripts, the JSON is not quoted; each change keeps a copy of
+the previous certificate and key in the domain's `private/` folder.
+
+## `virtualmin` - Virtualmin (Remote API)
+
+`POST https://<host>:10000/virtual-server/remote.cgi` (HTTP basic, the
+master administrator) with `program=install-cert&domain=<d>&cert=…&key=…&ca=…`
+for each virtual server (picked from *Load the list* - `list-domains
+--name-only` - or typed). remote.cgi splits a value at new lines into several
+arguments, so **each PEM goes with TABs instead of new lines**; install-cert
+turns them back. The answer is text ending in `Exit status: <n>` (0 = done).
+Virtualmin replaces the domain's files in place, updates the web server and
+the other services using that certificate, and turns its own Let's Encrypt
+renewal off for it. "The same one is there" means `list-certs --domain <d>
+--cert` shows the same certificate. *Turn SSL on where it is off* runs
+`enable-feature --ssl` first.
+
+Checked against `api-docs/virtualmin/notes.md` (quoting
+<https://www.virtualmin.com/docs/development/remote-api/>,
+<https://www.virtualmin.com/docs/development/api-programs/install-cert/>,
+<https://www.virtualmin.com/docs/development/api-programs/list-domains/>,
+<https://www.virtualmin.com/docs/development/api-programs/enable-feature/>,
+<https://github.com/virtualmin/virtualmin-gpl/blob/master/install-cert.pl>,
+`remote.cgi`, `list-certs.pl`).
+**Less certain**: the JSON answer of remote.cgi is not described (the text
+answer is read); what `list-certs --cert` prints (the first PEM certificate
+in it is compared, else acme remembers); the order of `enable-feature --ssl`
+and `install-cert`; a server sharing another's certificate is refused.
+
+## `froxlor` - froxlor (API)
+
+`POST https://<panel>/api.php` (`application/json`, HTTP basic with an API
+key and secret made in froxlor; the external API is to be turned on in
+froxlor's settings): for each domain, `Certificates.get {"domainname"}` (412:
+none yet), then `Certificates.add` the first time or `Certificates.update`
+after, with `domainname`, `ssl_cert_file`, `ssl_key_file`,
+`ssl_cert_chainfile` - **PEM text**, despite the names. "The same one is
+there" means `ssl_cert_file` has the same fingerprint. froxlor's cron writes
+the web server's configuration afterwards. A domain with froxlor's own Let's
+Encrypt is refused (`sslcertificateisletsencryptmanaged`): turn that off for
+it in froxlor. The test calls `Froxlor.listFunctions`.
+
+Checked against `api-docs/froxlor/notes.md` (quoting
+<https://docs.froxlor.org/latest/api-guide/>,
+<https://docs.froxlor.org/latest/api-guide/commands/certificates.html>, and
+froxlor 2.3.16's `api.php`, `FroxlorRPC.php`, `Response.php`,
+`Commands/Certificates.php`, <https://github.com/Froxlor/Froxlor/releases/tag/2.3.16>).
+**Less certain**: the guide names the domain of `Certificates.add` `id`, the
+code reads `domainid` (acme sends only `domainname`); errors come in
+`message`, not `status_message` as the guide says; the difference of
+`ssl_ca_file` and `ssl_cert_chainfile` in the web server's configuration was
+not read (the intermediates go in the chain file); when the cron runs cannot
+be asked.
+
+## `proxmox_backup` - Proxmox Backup Server (API)
+
+`POST https://<pbs>:8007/api2/json/nodes/<node>/certificates/custom` (form:
+`certificates` = the certificate and chain, `key`, `force=1`; *Node*:
+`localhost`) with an API token, `Authorization: PBSAPIToken=<user@realm!id>:<secret>`
+(a colon - not the `=` of Proxmox VE), Sys.Modify on `/system/certificates`.
+PBS reloads its proxy itself. "The same one is there" means `GET
+…/certificates/info` shows the same fingerprint. **Proxmox VE storages and
+remotes pinning PBS's fingerprint** stop trusting it after the change: the
+job says the new fingerprint (put it there, or make them trust the CA).
+
+Checked against `api-docs/proxmox/notes.md` and
+`api-docs/proxmox/pbs_apidoc_certificates.json` (from
+<https://pbs.proxmox.com/docs/api-viewer/index.html>; quoting
+<https://pbs.proxmox.com/docs/sysadmin.html>,
+<https://pbs.proxmox.com/docs/user-management.html>,
+<https://git.proxmox.com/?p=proxmox-backup.git;a=blob_plain;f=src/api2/node/certificates.rs;hb=HEAD>).
+**Less certain**: the `/api2/json` path and form bodies are Proxmox VE's (the
+notes derive them for PBS); `force` is in the schema but unused by PBS's
+code; PBS's own ACME client writes the same files (do not use both).
+
+### Not here
+
+- **Cisco Catalyst 9800 (WLC)**: the documented flow imports a PKCS#12 only
+  from a URL the controller fetches (TFTP, FTP, HTTP) or from bootflash, and
+  putting a file on bootflash through RESTCONF is not documented; the RESTCONF
+  bodies are derived from YANG, deleting a trustpoint is assumed, and
+  restarting the HTTPS server for the new trustpoint cuts the API session
+  acme would be using. It cannot be driven safely from what is documented.
+- **WatchGuard** (WatchGuard Cloud's Firebox Management API): certificates
+  can be uploaded and installed on cloud-managed Fireboxes, but there is no
+  call to make one the web server certificate (only the WatchGuard Cloud
+  page) and none to change one in place, so each renewal would need a person.
+  A locally managed Firebox has no API (its CLI fetches the file from FTP/TFTP).
+- **SonicWall**: the only certificate import call known is from a community
+  script; SonicWall's own reference (sonicos-api.sonicwall.com) was not
+  available, so nothing official to build on yet.
+- **Cisco Meraki**: the Dashboard API takes no server certificate with its key
+  for any service (only the HTTPS Inspection CA of an MX).
+- **pfSense**: pfSense CE has no official REST API (the pfSense-pkg-RESTAPI
+  package is not Netgate's), and Netgate Nexus publishes no reference for
+  certificates; the `pfsense` target above works over SSH.
