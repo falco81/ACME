@@ -6,4 +6,4 @@
                        renewing, deploying
     acmelib.plugins    the modules: issuers, challenges (DNS / HTTP), targets
 """
-__version__ = '1.0.32'
+__version__ = '1.0.33'
