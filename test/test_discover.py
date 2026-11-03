@@ -19,8 +19,32 @@ ROOT = os.path.dirname(HERE)
 TMP = tempfile.mkdtemp(prefix='acme-discover-')
 with open(os.path.join(TMP, 'config.json'), 'w') as f:
     f.write('{}')
+# a DNS module of the test's own (the command line asks it in a process of its own)
+os.makedirs(os.path.join(TMP, 'plugins', 'challenges'))
+with open(os.path.join(TMP, 'plugins', 'challenges', 'discotest.py'), 'w') as f:
+    f.write('''from acmelib.plugins.base import field
+from acmelib.plugins.challenges._common import ApiDns
+
+
+class DiscoTest(ApiDns):
+    kind = 'discotest'
+    title = 'Disco test'
+    fields = [field('token', 'Token', 'secret', required=True), field('zone', 'Zone'),
+              field('ttl', 'TTL', 'number', default=300)]
+
+    def zone_names(self):
+        return ['only.example.com']
+
+    def discover_setup(self):
+        out = ApiDns.discover_setup(self)
+        out['sets']['ttl'] = 600
+        return out
+
+    def test(self):
+        return 'the token works'
+''')
 os.environ.update(ACME_CONFIG=os.path.join(TMP, 'config.json'), ACME_STATE=TMP,
-                  ACME_RUN=TMP, ACME_LOGDIR=TMP)
+                  ACME_RUN=TMP, ACME_LOGDIR=TMP, ACME_PLUGINS=os.path.join(TMP, 'plugins'))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 import acme as E  # noqa: E402
@@ -236,6 +260,33 @@ class TestApi(unittest.TestCase):
         got = self.call('fulladmin', {'kind': 'sslmarket', 'config': {'token': 'bad'}})
         self.assertFalse(got['ok'])
         self.assertIn('set by hand', got['said'])
+
+
+class TestCli(unittest.TestCase):
+    def cli(self, *args):
+        import subprocess
+        got = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py')] + list(args),
+                             env=dict(os.environ), capture_output=True, text=True, timeout=120)
+        self.assertEqual(got.returncode, 0, got.stdout[-1500:] + got.stderr[-1500:])
+        return got
+
+    def test_shown_then_filled(self):
+        A.family_save(STORE, 'challenge', {'name': 'disco', 'kind': 'discotest',
+                                           'config': {'token': 'tok-kept'}}, 'tester')
+        got = json.loads(self.cli('--validation-discover', 'disco', '--json').stdout)
+        self.assertEqual(got['would_fill'], {'ttl': 600}, 'a zone is never picked by itself')
+        out = self.cli('--validation-discover', 'disco').stdout
+        self.assertIn('only.example.com', out)
+        self.assertIn('--fill', out)
+        row = S.plugin_row(STORE, 'challenge', 'disco')
+        self.assertNotIn('zone', S.plugin_config('challenge', row), 'nothing saved without --fill')
+        self.cli('--validation-discover', 'disco', '--fill')
+        cfg = S.plugin_config('challenge', S.plugin_row(STORE, 'challenge', 'disco'))
+        self.assertEqual(cfg['ttl'], 600)
+        self.assertNotIn('zone', cfg)
+        self.assertEqual(cfg['token'], 'tok-kept', 'the secret kept')
+        out = self.cli('--validation-discover', 'disco', '--fill').stdout
+        self.assertIn('nothing to fill in', out)
 
 
 class TestPage(unittest.TestCase):

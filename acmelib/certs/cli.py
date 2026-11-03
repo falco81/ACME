@@ -46,6 +46,7 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'plugins', 'plugin', 'dns_records', 'dns_add', 'dns_del', 'deploys', 'deploy_add',
         'deploy_edit', 'deploy_del', 'deploy_run', 'acme_contact',
         'source_show', 'source_add', 'source_edit', 'source_del', 'source_test', 'source_action',
+        'source_discover', 'validation_discover', 'target_discover',
         'validation_show', 'validation_add', 'validation_edit', 'validation_del',
         'validation_test', 'validation_action',
         'target_show', 'target_add', 'target_edit', 'target_del', 'target_action',
@@ -165,11 +166,18 @@ def add_args(p):
         g.add_argument('--%s-action' % word, dest='%s_action' % word, nargs=2,
                        metavar=('NAME', 'ACTION'), help='one of its module\'s actions (acme '
                        '--plugin KIND says which), e.g. --validation-action web prepare')
+        g.add_argument('--%s-discover' % word, dest='%s_discover' % word, metavar='NAME',
+                       help='find its settings from the account (read-only): what the module '
+                            'reads there, shown; --fill puts it into the settings left empty '
+                            '(--set: sign-in over its own; NAME - with --kind: one not saved)')
         g.add_argument('--%s-default' % word, dest='%s_default' % word, metavar='NAME',
                        help='make it the default %s (%s); none: no default' % (
                            word, {'issuer': 'a new certificate comes from it',
                                   'challenge': 'a new ACME certificate is proved by it',
                                   'target': 'offered first for a new deployment'}[fam]))
+    g.add_argument('--fill', action='store_true',
+                   help='with --*-discover: save what was found into the settings left empty '
+                        '(a choice: the one picked); nothing set is replaced')
     g.add_argument('--validation-check', nargs=2, metavar=('NAME', 'HOST'),
                    help='HTTP-01 answered by acme: a probe token put in place and fetched at '
                         'http://HOST/.well-known/acme-challenge/ from here, step by step')
@@ -578,6 +586,8 @@ class Cli(object):
                 return self.fam_del(fam, getattr(a, '%s_del' % word))
             if getattr(a, '%s_action' % word, None):
                 return self.fam_action(fam, *getattr(a, '%s_action' % word))
+            if getattr(a, '%s_discover' % word, None):
+                return self.fam_discover(fam, getattr(a, '%s_discover' % word))
             if fam != 'target' and getattr(a, '%s_test' % word, None):
                 return self.fam_test(fam, getattr(a, '%s_test' % word))
             if getattr(a, '%s_default' % word, None) is not None:
@@ -1440,6 +1450,96 @@ class Cli(object):
             print(self.pal.ok_line(got['said']) if got['ok'] else self.pal.bad_line(got['said']))
         return 0 if got['ok'] else 1
 
+    def fam_discover(self, fam, name):
+        """--source-discover NAME (--validation-, --target-): what discovery finds
+        (api_discover.py, read-only), shown; --fill saves it into the empty settings."""
+        from acmelib.certs import api_discover
+        from acmelib.certs import store as S
+        a = self.args
+        word, path, _o = FAMILIES[fam]
+        row = None if name == '-' else self.fam_row(fam, name)
+        kind = (row or {}).get('kind') or a.kind
+        if not kind:
+            raise SystemExit('acme: --%s-discover - needs --kind' % word)
+        cls, fields = self.fam_fields(fam, kind)
+        if not cls.discover_offered():
+            raise SystemExit('acme: %s finds no settings by itself - set them with --set'
+                             % (cls.title or kind))
+        body = {'kind': kind, 'name': (row or {}).get('name') or 'unsaved'}
+        if row:
+            body['id'] = row['id']
+        if self.sets() or not row:
+            body['config'] = self.module_config(fields, {}, what=kind, need=False)
+        got = api_discover.discover(self.store, fam, body, self.WHO)
+        found = got.get('found') or {}
+        saved = S.plugin_config(fam, row) if row else dict(body.get('config') or {})
+        label = {f['key']: f.get('label') or f['key'] for f in fields}
+
+        def empty(k):
+            v = saved.get(k)
+            f = next((x for x in fields if x['key'] == k), {})
+            return v in (None, '', []) or ('default' in f and v == f['default'])
+        fill = {}
+        for k, v in (found.get('sets') or {}).items():
+            if empty(k) and v not in (None, ''):
+                fill[k] = v
+        for k, c in (found.get('choices') or {}).items():
+            if empty(k) and c.get('pick') not in (None, ''):
+                fill[k] = c['pick']
+                fill.update({mk: mv for mk, mv in ((c.get('sets') or {}).get(c['pick']) or {})
+                             .items() if empty(mk)})
+        if self.json and not a.fill:
+            got['would_fill'] = fill
+            self.out(got)
+            return 0 if got.get('ok') else 1
+        p = self.pal
+        print(p.ok_line(got.get('said') or '') if got.get('ok') else
+              p.bad_line(got.get('said') or ''))
+        if not got.get('ok'):
+            return 1
+        for f in found.get('facts') or []:
+            print('  %s %s' % (p.info('%-28s' % f[0]), f[1]))
+        for n in found.get('notes') or []:
+            print('  ' + p.warn('! ' + n))
+        rows = []
+        for k, v in (found.get('sets') or {}).items():
+            rows.append([label.get(k, k), _short(saved.get(k, ''), 40), _short(v, 60),
+                         'fill' if k in fill else ('same' if str(saved.get(k)) == str(v)
+                                                   else 'set otherwise - kept')])
+        for k, c in (found.get('choices') or {}).items():
+            opts = c.get('options') or []
+            rows.append([label.get(k, k), _short(saved.get(k, ''), 40), '%d to choose%s' % (
+                len(opts), (': ' + c['pick']) if c.get('pick') else ''),
+                'fill' if k in fill else 'choose with --set %s=...' % k])
+        if rows:
+            self.table(rows, ['setting', 'now', 'from the account', ''])
+        for k, c in (found.get('choices') or {}).items():
+            print(p.head('\n%s (--set %s=VALUE)' % (label.get(k, k), k)))
+            for o in (c.get('options') or [])[:60]:
+                print('  %s  %s' % (p.info('%-30s' % (o[0] or "''")), o[1]))
+        if not a.fill:
+            if fill:
+                print(p.dim('\n  acme --%s-discover %s --fill   saves the ones marked "fill"%s'
+                            % (word, name, ' (with --kind and --set into a new one: '
+                               '--%s-add NAME)' % word if not row else '')))
+            return 0
+        if not row:
+            raise SystemExit('acme: --fill saves into a saved %s - add it first (--%s-add)'
+                             % (word, word))
+        if not fill:
+            return self.done('nothing to fill in - the settings say it already', got)
+        pub = S.plugin_public(self.store, fam, row, True)
+        cur = dict(pub.get('config') or {})
+        cur['__secret_set__'] = list(pub.get('secret_set') or [])
+        sets = [(k, '=', '\n'.join(map(str, v)) if isinstance(v, list) else
+                 ('on' if v is True else 'off' if v is False else str(v)))
+                for k, v in fill.items()]
+        body = {'id': row['id'], 'kind': kind,
+                'config': self.module_config(fields, cur, what=row['name'], sets=sets)}
+        saved_now = self.api('POST', '/api/%s/save' % path, body=body)
+        return self.done('%s %s: filled in %s' % (word, row['name'], ', '.join(
+            label.get(k, k) for k in fill)), saved_now)
+
     def target_test(self):
         return self.fam_test('target', self.args.target_test)
 
@@ -1547,6 +1647,10 @@ class Cli(object):
                     self._fields_table(d['deploy_fields'])
                 else:
                     print('  (none)')
+            if d.get('discover'):
+                print(p.head('\nfound from the account') + p.dim(
+                    '   acme --%s-discover NAME (--fill)' % word))
+                print('  asks only: %s' % ', '.join((d['discover'].get('keys') or [])))
             if d.get('actions'):
                 print(p.head('\nwhat it can do besides') + p.dim('   acme --%s-action NAME '
                                                                  'ACTION' % word))

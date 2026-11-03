@@ -6,6 +6,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.29 - not released
 
+- Finding the settings from the account on the command line and in the
+  console too: `acme --source-discover NAME` (`--validation-discover`,
+  `--target-discover`; `-` with `--kind` and `--set` for one not saved) shows
+  what the account says beside what is set; `--fill` saves it into the
+  settings left empty - nothing set is replaced, a list is chosen with
+  `--set`. The console offers it in the menu of each module that has it, and
+  `acme --plugin KIND` says what it asks.
+
 ## 1.0.28 - 2026-11-03
 
 - **Find the settings from the account** (discovery): over the form of a

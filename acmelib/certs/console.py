@@ -286,6 +286,8 @@ def fam_do(con, fam, r):
              'Make it the default %s' % word)]
     if fam == 'challenge' and r.get('kind') == 'http_local':
         opts.append(('check', 'Check a name (HTTP-01 from here)'))
+    if (_plugin(con, fam, r.get('kind')) or {}).get('discover'):
+        opts.append(('discover', 'Find the settings from the account'))
     for a in r.get('actions') or []:
         opts.append(('act:' + a['key'], a.get('label') or a['key']))
     if fam == 'target':
@@ -309,6 +311,13 @@ def fam_do(con, fam, r):
             con.note('Nothing changed', 'Nothing was changed.')
             return
         con.act('--%s-edit' % word, name, *argv, env=env)
+    elif what == 'discover':
+        # what the account says (read-only), shown; then, if asked, saved into the empty ones
+        con.live(lambda: (con.cmd('--%s-discover' % word, name), con.pause()))
+        if con.confirm('Fill it in', 'Save what was found into the settings of %s that are '
+                       'empty? Nothing set is replaced; a list is chosen by its settings '
+                       '(Change its settings).' % name, 'Fill it in'):
+            con.act('--%s-discover' % word, name, '--fill')
     elif what == 'rename':
         new = con.ask_one('Rename %s' % name, 'its new name', name)
         if new and new != name:
