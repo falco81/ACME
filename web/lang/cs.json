@@ -48599,6 +48599,26 @@
   "dsc29_30": {
    "source": "the account told nothing to fill in",
    "text": "účet nic k doplnění neuvedl"
+  },
+  "dsc29d_1": {
+   "source": "Empty: found by the domain",
+   "text": "Prázdné: najde se podle domény"
+  },
+  "dsc29d_2": {
+   "source": "Empty: every zone of the subscription",
+   "text": "Prázdné: každá zóna předplatného"
+  },
+  "dsc29d_3": {
+   "source": "Empty: no view",
+   "text": "Prázdné: bez pohledu"
+  },
+  "dsc29d_4": {
+   "source": "Service account",
+   "text": "Servisní účet"
+  },
+  "dsc29d_5": {
+   "source": "this PowerDNS is older than 4.9.12 / 5.0.2: each TXT RRset is read and written whole",
+   "text": "tento PowerDNS je starší než 4.9.12 / 5.0.2: každá sada záznamů TXT se načte a zapíše celá"
   }
  },
  "patterns": {
@@ -66849,6 +66869,34 @@
   "pdsc29_12": {
    "source": "{0} finds no settings by itself - set them by hand",
    "text": "{0} samo nastavení nezjistí – vyplňte je ručně"
+  },
+  "pdsc29d_1": {
+   "source": "{0} secondary zone(s) left out - their records come from their primary server",
+   "text": "vynechané sekundární zóny: {0} – jejich záznamy přicházejí z primárního serveru"
+  },
+  "pdsc29d_2": {
+   "source": "{0} private zone(s) left out - the CA cannot see them",
+   "text": "vynechané privátní zóny: {0} – certifikační autorita je nevidí"
+  },
+  "pdsc29d_3": {
+   "source": "the servers could not be listed: {0}",
+   "text": "servery se nepodařilo vypsat: {0}"
+  },
+  "pdsc29d_4": {
+   "source": "the service account key: {0}",
+   "text": "klíč servisního účtu: {0}"
+  },
+  "pdsc29d_5": {
+   "source": "the DNS views could not be listed: {0}",
+   "text": "DNS pohledy (views) se nepodařilo vypsat: {0}"
+  },
+  "pdsc29d_6": {
+   "source": "the zones offered are those of the view {0} - choose another view and ask again for its zones",
+   "text": "nabízené zóny jsou z pohledu {0} – pro zóny jiného pohledu ho vyberte a zeptejte se znovu"
+  },
+  "pdsc29d_7": {
+   "source": "the account could not be read: {0}",
+   "text": "účet se nepodařilo načíst: {0}"
   }
  },
  "rich": {
