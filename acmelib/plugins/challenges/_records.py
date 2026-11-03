@@ -11,6 +11,11 @@ with "_": the registry does not take it for a module).
     form_call()     a form or query API through ctx.http, its JSON parsed
     basic()         an Authorization: Basic header
     xml_text()      the text of an XML element, its namespace ignored
+    SoftZones       a mixin (1.0.26): the zone set, else the longest of the zones
+                    listed - and when the list cannot be read or has none for the
+                    name, the zone by its SOA (a step says so) instead of an error;
+                    catalog('zones') for a Zone field of the type catalog
+    zone_field()    that Zone field: a list to load and pick from, or typed
 
 Nothing here changes what _common.py does; it is only built on it.
 """
@@ -20,10 +25,10 @@ import base64
 import json
 import urllib.parse
 
-from acmelib.plugins.base import PluginError
+from acmelib.plugins.base import PluginError, field
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import (ApiDns, http_call, relative, said_error,
-                                                unquote_txt)
+from acmelib.plugins.challenges._common import (ApiDns, DnsChallenge, http_call, longest_zone,
+                                                relative, said_error, unquote_txt)
 
 
 def rel_name(fqdn, zone, apex='@'):
@@ -111,3 +116,45 @@ class RecordApiDns(ApiDns):
             except PluginError as e:
                 if '404' not in str(e):
                     raise
+
+
+ZONE_HELP = ('Load the list and pick it, or type it. Empty: the longest zone of the account '
+             'the name is in - and when the list cannot be read, the zone by its SOA.')
+
+
+def zone_field(depends, label='Zone', placeholder='example.com', help=ZONE_HELP):
+    """The Zone field of a module with SoftZones: the provider's list, or typed."""
+    return field('zone', label, 'catalog', catalog='zones', default='', depends=list(depends),
+                 placeholder=placeholder, help=help)
+
+
+class SoftZones(object):
+    """A mixin before ApiDns: zone discovery that never stops a run. The zone set
+    (when the name is in it) wins; else the longest of zone_names() the name is
+    in; when the list cannot be read, or has none for the name, None - so
+    zone_for() finds the zone by its SOA - and the job says so once."""
+
+    def zone_hint(self, fqdn):
+        z = DnsChallenge.zone_hint(self, fqdn)
+        if z:
+            return z
+        who = self.who or self.title
+        try:
+            names = self._zone_names()
+        except PluginError as e:
+            self.say_once('zones', '%s: the zones could not be listed (%s) - the zone of %s is '
+                          'found by its SOA (or set it)' % (who, e, D.norm(fqdn)), 'warn')
+            return None
+        best = longest_zone(fqdn, names)
+        if not best:
+            self.say_once('zones:' + D.norm(fqdn), '%s: none of the %d zone(s) listed holds %s - '
+                          'the zone is found by its SOA (or set it)' % (who, len(names or []),
+                                                                       D.norm(fqdn)))
+        return best
+
+    def catalog(self, key):
+        """The form's list of zones (read-only)."""
+        if key != 'zones':
+            raise PluginError('there is no list called %s here' % key, retry=False)
+        names = sorted(set(D.norm(z) for z in (self.zone_names() or []) if z))
+        return {'options': [[n, n] for n in names], 'said': '%d zone(s)' % len(names)}

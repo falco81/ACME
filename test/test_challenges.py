@@ -1708,6 +1708,8 @@ class TestOtherModules(unittest.TestCase):
                 # acme 1.0.22 (test/test_dns_providers_new.py)
                 'hostinger', 'constellix', 'ultradns', 'mailinabox', 'efficientip',
                 'openprovider', 'easydns', 'plesk', 'rackspace',
+                # acme 1.0.26, from the vendors' own documentation (test/test_dns_providers_docs.py)
+                'cpanel', 'joker', 'netim', 'huawei_dns', 'directadmin',
                 # dns-persist-01, a record set once (test/test_dns_persist.py)
                 'dns_persist'}
         self.assertEqual(set(found), want)
