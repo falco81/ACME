@@ -35,6 +35,7 @@ from __future__ import annotations
 import re
 import urllib.parse
 
+from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     ours,
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
@@ -130,6 +131,24 @@ class AviTarget(HttpTarget):
                 self.c('tenant') or 'admin', n)
         finally:
             self.logout()
+
+    # -- discovery (1.0.29): the form filled in from the Controller -------------------------
+    discover_keys = ['host', 'port', 'user', 'password', 'verify_tls']
+
+    def discover_setup(self):
+        """Read-only: signed in and out as test() is; the version the Controller says on
+        signing in offered as the API version (X-Avi-Version), empty - the same, the
+        Controller's own - first."""
+        out = Plugin.discover_setup(self)
+        self.login()
+        try:
+            if self.version:
+                out['facts'].append(['Controller version', self.version])
+                self.offer(out, 'api_version', [['', 'Empty: the Controller\'s own version'],
+                                                [self.version, self.version]], pick='')
+        finally:
+            self.logout()
+        return out
 
     # -- objects ----------------------------------------------------------------------------
     def find(self, kind, name):

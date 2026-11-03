@@ -50,6 +50,7 @@ RATE_CALLS, RATE_WINDOW = 25, 3.0
 
 class KempTarget(HttpTarget):
     kind = 'kemp'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Kemp / Progress LoadMaster'
     vendor = 'Progress Kemp'
     description = ('Adds the certificate through the LoadMaster REST API under a new name, '

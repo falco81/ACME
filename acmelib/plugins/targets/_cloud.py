@@ -14,6 +14,7 @@ written once already for the DNS-01 modules and reused from there.
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.parse
 
@@ -24,7 +25,7 @@ from acmelib.plugins.challenges.gcloud_dns import make_jwt
 from acmelib.plugins.targets._common import HttpTarget, text
 
 __all__ = ['sigv4', 'CloudTarget', 'cloud_fields', 'entra_token', 'google_token',
-           'ENTRA_CLOUDS', 'service_account']
+           'ENTRA_CLOUDS', 'service_account', 'arm_list', 'arm_groups']
 
 ENTRA_CLOUDS = {
     # login host, Key Vault's DNS suffix
@@ -82,6 +83,31 @@ class CloudTarget(HttpTarget):
             head = 'said %d' % status
         return '%s: %s%s' % (what or '%s %s' % (method, urllib.parse.urlsplit(path).path),
                              head, (' - ' + msg) if msg else '')
+
+
+def arm_list(t, url, what, pages=20):
+    """The "value" of an Azure Resource Manager list, page by page ("nextLink") - GETs only
+    (discovery)."""
+    out = []
+    for _ in range(pages):
+        st, hd, d = t.req('GET', url, what=what)
+        d = d if isinstance(d, dict) else {}
+        out += [x for x in d.get('value') or [] if isinstance(x, dict)]
+        url = text(d.get('nextLink'))
+        if not url.startswith('https://'):
+            break
+    return out
+
+
+def arm_groups(items):
+    """{resource group: [names]} of ARM resources, from their ids
+    (/subscriptions/<s>/resourceGroups/<group>/providers/...)."""
+    out = {}
+    for x in items:
+        m = re.search(r'/resourceGroups/([^/]+)/', text(x.get('id')), re.I)
+        if m:
+            out.setdefault(urllib.parse.unquote(m.group(1)), []).append(text(x.get('name')))
+    return out
 
 
 def entra_token(t, scope):

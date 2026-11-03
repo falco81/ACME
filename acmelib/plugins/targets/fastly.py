@@ -38,6 +38,7 @@ JSONAPI = 'application/vnd.api+json'
 
 class FastlyTarget(CloudTarget):
     kind = 'fastly'
+    discovery = False       # nothing to find: its only field is the sign-in
     title = 'Fastly TLS (your own certificate)'
     vendor = 'Fastly'
     description = ('Uploads the key and replaces the certificate acme put on Fastly before, '

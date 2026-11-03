@@ -53,6 +53,7 @@ def as_request(lb):
 
 class DigitalOceanLbTarget(CloudTarget):
     kind = 'digitalocean_lb'
+    discovery = False       # nothing to find: its only field is the sign-in
     title = 'DigitalOcean Load Balancer'
     vendor = 'DigitalOcean'
     description = ('Uploads the certificate to DigitalOcean and puts it on the HTTPS '

@@ -14,6 +14,7 @@ from acmelib.plugins.targets._common import (
 
 class SynologyTarget(HttpTarget):
     kind = 'synology'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Synology DSM'
     vendor = 'Synology'
     description = ('Imports the certificate through the DSM web API, replacing the one acme '

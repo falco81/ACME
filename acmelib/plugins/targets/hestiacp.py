@@ -72,6 +72,7 @@ def parse_json(out):
 
 class HestiaCpTarget(SshMixin, Base):
     kind = 'hestiacp'
+    discovery = False       # nothing to find: a server over SSH
     title = 'HestiaCP (SSH)'
     vendor = 'HestiaCP'
     description = ('Installs the certificate on HestiaCP web domains over SSH with Hestia\'s own '

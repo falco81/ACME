@@ -34,6 +34,7 @@ def ros_str(s):
 
 class MikroTikTarget(SshMixin, HttpTarget):
     kind = 'mikrotik'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'MikroTik RouterOS'
     vendor = 'MikroTik'
     description = ('Puts the certificate on the router over SSH, imports it and binds it to '

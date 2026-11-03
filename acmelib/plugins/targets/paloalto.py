@@ -18,6 +18,7 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
+from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, as_int, object_name, name_prefix, prune,
     http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, random_password,
@@ -116,6 +117,40 @@ class PaloAltoTarget(HttpTarget):
         return 'signed in to %s, %s PAN-OS %s' % (
             root.findtext('.//hostname') or self.c('host'), root.findtext('.//model') or '',
             root.findtext('.//sw-version') or '?')
+
+    # -- discovery (1.0.29): the form filled in from the firewall ------------------------------
+    discover_keys = ['host', 'port', 'auth', 'api_key', 'user', 'password', 'verify_tls']
+
+    def discover_setup(self):
+        """Read-only: the version (type=version, as test()), and the virtual systems of the
+        firewall (type=config action=get of .../vsys) offered as the virtual system -
+        empty, shared, stays the first. Nothing is set, nothing committed."""
+        out = Plugin.discover_setup(self)
+        self.login()
+        root = self.call({'type': 'version'}, what='reading the version')
+        for label, tag in (('PAN-OS', 'sw-version'), ('Model', 'model'),
+                           ('Host name', 'hostname')):
+            v = (root.findtext('.//' + tag) or '').strip()
+            if v:
+                out['facts'].append([label, v])
+        try:
+            got = self.call({'type': 'config', 'action': 'get', 'xpath':
+                             "/config/devices/entry[@name='localhost.localdomain']/vsys"},
+                            what='listing the virtual systems')
+        except PluginError as e:
+            out['notes'].append('the virtual systems could not be read: %s' % e)
+            return out
+        opts = []
+        for e in got.findall('.//vsys/entry'):
+            n = text(e.get('name')).strip()
+            if n and n not in [o[0] for o in opts]:
+                shown = (e.findtext('display-name') or '').strip()
+                opts.append([n, '%s (%s)' % (shown, n) if shown and shown != n else n])
+        if opts:
+            out['facts'].append(['Virtual systems', str(len(opts))])
+            self.offer(out, 'vsys', [['', 'Empty: shared (Device → Certificates, shared)']] +
+                       opts, pick='')
+        return out
 
     def exists(self, name):
         root = self.call({'type': 'config', 'action': 'get', 'xpath': '%s/certificate/entry'

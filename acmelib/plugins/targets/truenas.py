@@ -45,6 +45,7 @@ def tn_name(n):
 
 class TrueNasTarget(SshMixin, Base):
     kind = 'truenas'
+    discovery = False       # nothing to find: a server over SSH
     title = 'TrueNAS (midclt over SSH)'
     vendor = 'iXsystems'
     description = ('Imports the certificate into TrueNAS with midclt over SSH, makes it the web '

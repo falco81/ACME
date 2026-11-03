@@ -57,6 +57,7 @@ import base64
 import re
 import time
 
+from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, as_int, text, object_name, name_prefix,
     ours, prune, http_fields, tls_fields, verify_fields, keep_field, random_password, fp_of)
@@ -300,6 +301,46 @@ class CheckPointTarget(HttpTarget):
             return {'options': opts, 'sets': sets, 'said': '%d' % len(opts)}
         finally:
             self.logout()
+
+    # -- discovery (1.0.29): the form filled in from the Management server ---------------------
+    discover_keys = ['host', 'port', 'auth', 'user', 'password', 'api_key', 'verify_tls']
+
+    def discover_setup(self):
+        """Read-only (a read-only session, signed out after, as test()): show-api-versions -
+        the API versions offered, empty (the newest) first - and, on a Multi-Domain Server,
+        show-domains - the domains offered, empty (the default one) first."""
+        out = Plugin.discover_setup(self)
+        self.login(read_only=True)
+        try:
+            st, d = self.call('show-api-versions', what='reading the API version')
+            cur = text(d.get('current-version')).strip()
+            if cur:
+                out['facts'].append(['Management API', cur])
+
+            def num(v):
+                return tuple(as_int(x, 0) for x in re.findall(r'\d+', v))
+            sup = sorted({text(v).strip().lstrip('v') for v in d.get('supported-versions') or []
+                          if text(v).strip()}, key=num, reverse=True)
+            if sup:
+                self.offer(out, 'api_version', [['', 'Empty: the newest the server has']] +
+                           [['v' + v, 'v' + v] for v in sup], pick='')
+            try:
+                doms = self.paged('show-domains')
+            except PluginError as e:
+                doms = []
+                out['notes'].append('no domains listed (only a Multi-Domain Server has '
+                                    'them): %s' % e)
+            opts = []
+            for o in doms:
+                n = text(o.get('name')).strip()
+                if n:
+                    opts.append([n, n])
+            if opts:
+                out['facts'].append(['Domains', str(len(opts))])
+                self.offer(out, 'domain', [['', 'Empty: the default domain']] + opts, pick='')
+        finally:
+            self.logout()
+        return out
 
     def test(self):
         self.login(read_only=True)

@@ -23,6 +23,7 @@ INTERPS = ('bash', 'sh', 'python3')
 
 class LocalTarget(Base):
     kind = 'local'
+    discovery = False       # nothing to find: this server's own folders
     title = 'This machine (files)'
     vendor = 'acme'
     description = ('Writes the certificate as files under one folder of this machine, for '

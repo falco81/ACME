@@ -65,6 +65,7 @@ def items(d):
 
 class FortiAdcTarget(HttpTarget):
     kind = 'fortiadc'
+    discovery = False       # nothing to find: FortiADC lists no VDOMs through the calls acme makes
     title = 'FortiADC'
     vendor = 'Fortinet'
     description = ('Uploads the certificate to FortiADC as a local certificate, puts it into a '

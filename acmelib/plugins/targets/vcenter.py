@@ -46,6 +46,7 @@ ROOTS = '/api/vcenter/certificate-management/vcenter/trusted-root-chains'
 
 class VCenterTarget(HttpTarget):
     kind = 'vcenter'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'VMware vCenter Server'
     vendor = 'VMware'
     description = ('Replaces the machine SSL certificate of vCenter 7/8 through its REST API '

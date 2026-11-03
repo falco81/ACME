@@ -190,6 +190,7 @@ SAMPLE = ('fullchain-pem /etc/nginx/ssl/{name}.crt 0644 root:root\n'
 
 class SshTarget(SshMixin, Base):
     kind = 'ssh'
+    discovery = False       # nothing to find: a server over SSH
     title = 'Linux / Unix server (SSH)'
     vendor = 'Linux / Unix'
     description = ('Writes the certificate as files in the formats and places asked '

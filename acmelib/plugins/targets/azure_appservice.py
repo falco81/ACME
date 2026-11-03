@@ -29,7 +29,9 @@ import urllib.parse
 from acmelib.plugins.targets._common import (
     PluginError, field, lines, object_name, name_prefix, prune, text, verify_fields,
     keep_field, random_password, sha1_thumb, covers)
-from acmelib.plugins.targets._cloud import CloudTarget, cloud_fields, entra_token
+from acmelib.plugins.base import Plugin
+from acmelib.plugins.targets._cloud import (
+    CloudTarget, cloud_fields, entra_token, arm_list, arm_groups)
 
 API = '2023-12-01'
 ARM = {'public': 'https://management.azure.com',
@@ -109,6 +111,29 @@ class AzureAppServiceTarget(CloudTarget):
         n = len(d.get('value') or [])
         return 'signed in to Azure; %d App Service certificate%s in %s' % (
             n, '' if n == 1 else 's', self.c('resource_group'))
+
+    # -- discovery (1.0.29): the form filled in from the subscription ------------------------
+    discover_keys = ['subscription_id', 'tenant_id', 'client_id', 'client_secret', 'cloud']
+
+    def discover_setup(self):
+        """Read-only: the App Service certificates of the subscription (GET /subscriptions/<s>/
+        providers/Microsoft.Web/certificates) - the resource groups holding them offered as
+        the resource group. A group with no certificate yet is typed by hand."""
+        out = Plugin.discover_setup(self)
+        sub = text(self.c('subscription_id')).strip()
+        if not sub:
+            raise PluginError('set the Subscription ID first', retry=False)
+        certs = arm_list(self, '%s/subscriptions/%s/providers/Microsoft.Web/certificates'
+                         '?api-version=%s' % (self.arm(), urllib.parse.quote(sub, safe=''), API),
+                         'listing the App Service certificates')
+        out['facts'].append(['App Service certificates in the subscription', str(len(certs))])
+        groups = arm_groups(certs)
+        if groups:
+            self.offer(out, 'resource_group', [[g, '%s (%d)' % (g, len(groups[g]))]
+                                               for g in sorted(groups, key=str.lower)])
+        out['notes'].append('only the resource groups that hold App Service certificates are '
+                            'listed - another one is typed by hand')
+        return out
 
     def deploy(self, bundle, options):
         options = options or {}

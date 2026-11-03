@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import urllib.parse
 
+from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, fp_of, label_of, subst, stamp, tls_fields,
     verify_fields, text, alt_of, dual_fp)
@@ -75,6 +76,44 @@ class VaultTarget(HttpTarget):
         data = (d or {}).get('data') or {}
         return 'signed in to Vault as %s (policies %s)' % (
             data.get('display_name', '?'), ', '.join(data.get('policies') or []))
+
+    # -- discovery (1.0.29): the form filled in from Vault -----------------------------------
+    discover_keys = ['host', 'auth', 'token', 'role_id', 'secret_id', 'approle_mount',
+                     'namespace', 'verify_tls']
+
+    def discover_setup(self):
+        """Read-only: signed in as test() is, the token read (auth/token/lookup-self) and the
+        secrets engines it may see (GET sys/internal/ui/mounts) - those of KV version 2
+        offered as the KV mount."""
+        out = Plugin.discover_setup(self)
+        self.login()
+        st, hd, d = self.req('GET', '/v1/auth/token/lookup-self', what='reading the token')
+        data = (d or {}).get('data') or {} if isinstance(d, dict) else {}
+        if data.get('display_name'):
+            out['facts'].append(['Signed in as', text(data['display_name'])])
+        st, hd, d = self.req('GET', '/v1/sys/internal/ui/mounts',
+                             what='listing the secrets engines')
+        mounts = (((d or {}).get('data') or {}).get('secret') or {}) if isinstance(d, dict) \
+            else {}
+        opts, other = [], 0
+        for path, m in sorted(mounts.items() if isinstance(mounts, dict) else []):
+            m = m if isinstance(m, dict) else {}
+            if text(m.get('type')) != 'kv':
+                continue
+            if text((m.get('options') or {}).get('version')) != '2':
+                other += 1
+                continue
+            name = text(path).strip('/')
+            if name:
+                desc = text(m.get('description')).strip()
+                opts.append([name, '%s (%s)' % (name, desc) if desc else name])
+        out['facts'].append(['KV version 2 engines', str(len(opts))])
+        if other:
+            out['notes'].append('%d KV engine(s) of version 1 left out - acme writes KV '
+                                'version 2' % other)
+        self.offer(out, 'mount', opts, pick='secret' if any(o[0] == 'secret' for o in opts)
+                   else None)
+        return out
 
     def deploy(self, bundle, options):
         options = options or {}

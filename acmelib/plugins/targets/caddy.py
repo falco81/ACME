@@ -38,6 +38,7 @@ from acmelib.plugins.targets import _files as F
 
 class CaddyTarget(SshMixin, Base):
     kind = 'caddy'
+    discovery = False       # nothing to find: a server over SSH
     title = 'Caddy'
     vendor = 'Caddy'
     description = ('Loads the certificate into a running Caddy through its admin API, or writes '

@@ -59,6 +59,7 @@ def fp_pem(pem):
 
 class CpanelSslTarget(HttpTarget):
     kind = 'cpanel_ssl'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'cPanel / WHM (SSL install)'
     vendor = 'cPanel'
     description = ('Installs the certificate, key and CA bundle on the websites of a cPanel '

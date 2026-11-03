@@ -46,6 +46,7 @@ from acmelib.plugins.targets._common import (
 
 class RedfishTarget(HttpTarget):
     kind = 'redfish'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Server management (Redfish: iDRAC, iLO, XCC, BMC)'
     vendor = 'Redfish (Dell, HPE, Lenovo, Supermicro)'
     description = ('Replaces the HTTPS certificate of a server\'s management controller through '

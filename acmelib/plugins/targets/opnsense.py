@@ -42,6 +42,7 @@ if (($config['system']['webgui']['ssl-certref'] ?? '') !== $ref) {
 
 class OPNsenseTarget(SshMixin, HttpTarget):
     kind = 'opnsense'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'OPNsense'
     vendor = 'Deciso'
     description = ('Imports the certificate through the OPNsense API (System → Trust); '

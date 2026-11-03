@@ -57,6 +57,7 @@ def q(s):
 
 class NsxTarget(HttpTarget):
     kind = 'nsx'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'VMware NSX load balancer (Policy API)'
     vendor = 'VMware'
     description = ('Imports the certificate into NSX under a new id, switches the client SSL '

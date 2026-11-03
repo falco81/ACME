@@ -38,6 +38,7 @@ KINDS = (('proxy_hosts', 'proxy-hosts', 'proxy host'),
 
 class NginxProxyManagerTarget(HttpTarget):
     kind = 'nginx_proxy_manager'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Nginx Proxy Manager'
     vendor = 'Nginx Proxy Manager'
     description = ('Adds the certificate as a custom certificate through the Nginx Proxy '

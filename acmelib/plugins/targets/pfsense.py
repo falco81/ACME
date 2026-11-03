@@ -90,6 +90,7 @@ echo "DONE\n";
 
 class PfSenseTarget(SshMixin, Base):
     kind = 'pfsense'
+    discovery = False       # nothing to find: a server over SSH
     title = 'pfSense'
     vendor = 'Netgate'
     description = ('Imports the certificate into the pfSense certificate manager over SSH '

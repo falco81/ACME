@@ -23,6 +23,7 @@ def b64(data):
 
 class NetScalerTarget(HttpTarget):
     kind = 'netscaler'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'NetScaler / Citrix ADC'
     vendor = 'Citrix'
     description = ('Uploads the certificate and key over NITRO, updates the certkey in place '

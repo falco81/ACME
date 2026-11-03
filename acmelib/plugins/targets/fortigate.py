@@ -17,6 +17,7 @@ import base64
 import re
 import urllib.parse
 
+from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
     http_fields, tls_fields, verify_fields, keep_field, chain_list, random_password, text)
@@ -85,6 +86,27 @@ class FortiGateTarget(HttpTarget):
         return 'signed in to %s (%s), FortiOS %s' % (
             r.get('hostname', self.c('host')), r.get('model_name', d.get('serial', '?')),
             d.get('version', '?'))
+
+    # -- discovery (1.0.29): the form filled in from the FortiGate --------------------------
+    discover_keys = ['host', 'port', 'token', 'verify_tls']
+
+    def discover_setup(self):
+        """Read-only: monitor/system/status asked without a VDOM - the VDOM FortiOS answers
+        in (the "vdom" of its answer) offered, its version, model and name shown. FortiOS
+        lists its VDOMs only through calls acme does not make: another one is typed."""
+        out = Plugin.discover_setup(self)
+        st, d = self.api('GET', '/api/v2/monitor/system/status', what='signing in')
+        r = d.get('results') or {}
+        for label, v in (('FortiOS', d.get('version')), ('Model', r.get('model_name')),
+                         ('Host name', r.get('hostname')), ('Serial number', d.get('serial'))):
+            if text(v).strip():
+                out['facts'].append([label, text(v).strip()])
+        v = text(d.get('vdom')).strip()
+        if v:
+            self.offer(out, 'vdom', [['', 'Empty: a FortiGate without VDOMs'], [v, v]], pick=v)
+            out['notes'].append('FortiOS says only the VDOM the token answers in - another '
+                                'VDOM is typed by hand')
+        return out
 
     def fos_version(self, vdom):
         """(major, minor, patch) of FortiOS, None when it cannot be read."""

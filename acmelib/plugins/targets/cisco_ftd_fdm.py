@@ -82,6 +82,7 @@ def bare(obj):
 
 class CiscoFtdFdmTarget(HttpTarget):
     kind = 'cisco_ftd_fdm'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Cisco Secure Firewall Threat Defense (FDM)'
     vendor = 'Cisco'
     description = ('Uploads the certificate to an FTD managed by its Device Manager as a new '

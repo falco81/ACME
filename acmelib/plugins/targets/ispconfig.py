@@ -56,6 +56,7 @@ def fp_text(pem):
 
 class IspConfigTarget(HttpTarget):
     kind = 'ispconfig'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'ISPConfig (Remote API)'
     vendor = 'ISPConfig'
     description = ('Writes the certificate into the SSL settings of ISPConfig websites through '

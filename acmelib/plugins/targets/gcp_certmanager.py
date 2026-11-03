@@ -32,6 +32,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     PluginError, field, label_of, pem_blocks, text, verify_fields, as_bool)
+from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._cloud import (
     CloudTarget, cloud_fields, google_token, service_account)
 
@@ -95,6 +96,42 @@ class GcpCertManagerTarget(CloudTarget):
         n = len((d or {}).get('certificates') or []) if isinstance(d, dict) else 0
         return 'signed in to Certificate Manager (%s), %d certificate%s' % (
             self.parent().split('/projects/')[1], n, '' if n == 1 else 's')
+
+    # -- discovery (1.0.29): the form filled in from the project ------------------------------
+    discover_keys = ['service_account', 'project']
+
+    def discover_setup(self):
+        """Read-only: the locations of Certificate Manager the project sees
+        (projects.locations.list, GET v1/projects/<p>/locations) offered as the location,
+        global first; the project of the service account shown."""
+        out = Plugin.discover_setup(self)
+        sa = service_account(self)
+        proj = text(self.c('project')).strip() or text(sa.get('project_id')).strip()
+        if not proj:
+            raise PluginError('no project: set the Project ID', retry=False)
+        out['facts'].append(['Project', proj])
+        if sa.get('client_email'):
+            out['facts'].append(['Service account', text(sa['client_email'])])
+        locs, tok = [], ''
+        for _ in range(20):
+            st, hd, d = self.req('GET', '%s/projects/%s/locations?pageSize=500%s' % (
+                BASE, urllib.parse.quote(proj, safe=''),
+                '&pageToken=' + urllib.parse.quote(tok, safe='') if tok else ''),
+                what='listing the locations')
+            d = d if isinstance(d, dict) else {}
+            locs += [x for x in d.get('locations') or [] if isinstance(x, dict)]
+            tok = text(d.get('nextPageToken'))
+            if not tok:
+                break
+        opts = []
+        for x in locs:
+            lid = text(x.get('locationId') or text(x.get('name')).rsplit('/', 1)[-1]).strip()
+            if lid and lid not in [o[0] for o in opts]:
+                shown = text(x.get('displayName')).strip()
+                opts.append([lid, '%s (%s)' % (lid, shown) if shown and shown != lid else lid])
+        opts.sort(key=lambda o: (o[0] != 'global', o[0]))
+        self.offer(out, 'location', opts, pick='global')
+        return out
 
     def wait(self, op, what):
         """An operation waited for (two minutes at most)."""

@@ -77,6 +77,7 @@ def names_in(d):
 
 class BarracudaWafTarget(HttpTarget):
     kind = 'barracuda_waf'
+    discovery = False       # nothing to find: the WAF does not say its API version
     title = 'Barracuda Web Application Firewall'
     vendor = 'Barracuda'
     description = ('Uploads the certificate to a Barracuda WAF under a new name, points the '

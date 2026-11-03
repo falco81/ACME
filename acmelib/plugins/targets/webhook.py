@@ -25,6 +25,7 @@ def sign(secret, ts, body):
 
 class WebhookTarget(HttpTarget):
     kind = 'webhook'
+    discovery = False       # nothing to find: a call out: nothing to ask
     title = 'Webhook'
     vendor = 'Generic'
     description = ('POSTs the certificate to a URL - JSON or multipart - with an HMAC '

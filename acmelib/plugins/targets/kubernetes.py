@@ -22,6 +22,7 @@ def b64(data):
 
 class KubernetesTarget(HttpTarget):
     kind = 'kubernetes'
+    discovery = False       # nothing to find: no call of acme lists namespaces
     title = 'Kubernetes TLS secret'
     vendor = 'Kubernetes'
     description = ('Makes or replaces a kubernetes.io/tls secret through the API server, '

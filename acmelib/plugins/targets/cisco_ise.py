@@ -48,6 +48,7 @@ ROLES = (('admin', 'Admin (its pages - restarts the node\'s services)'), ('eap',
 
 class CiscoIseTarget(HttpTarget):
     kind = 'cisco_ise'
+    discovery = False       # nothing to find: no call of acme lists the nodes
     title = 'Cisco ISE'
     vendor = 'Cisco'
     description = ('Imports the certificate as a system certificate of a Cisco ISE node for '
