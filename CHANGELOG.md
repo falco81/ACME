@@ -6,17 +6,21 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.30 - not released
 
-- **dns-persist-01: a record at each name.** The CA looks the record up at
-  the name it validates only: Let's Encrypt (staging) refused
-  pokus.example.com - *NXDOMAIN looking up TXT for
+- **dns-persist-01: a record at each name - a switch.** Let's Encrypt looks the
+  record up only at the name it validates (Boulder, va/dns_persist.go:
+  `_validation-persist.<the name>`, no look at the domains above): staging
+  refused pokus.example.com - *NXDOMAIN looking up TXT for
   _validation-persist.pokus.example.com* - although
-  _validation-persist.example.com with policy=wildcard was there. acme took the
-  domain's record as covering every name under it (as the draft was read); now
-  each name of a certificate gets, and is checked for, its own
-  `_validation-persist.NAME` (`policy=wildcard` covers that name and `*.NAME`).
-  *Write the records to DNS* writes the missing ones through the chosen
-  validation; the readiness check says a name without its record is not ready.
-  "Domains with the record" is now *More names with the record*.
+  _validation-persist.example.com with policy=wildcard was there, which the
+  draft says covers every name under the domain. The new switch **A record at
+  each name (Let's Encrypt today)**, on by default: each name of a certificate
+  gets, and is checked for, its own `_validation-persist.NAME`
+  (`policy=wildcard` covers that name and `*.NAME`); *Write the records to DNS*
+  and an order write the missing ones through the chosen validation; the
+  readiness check says a name without its record is not ready. Off: the
+  draft's way - one record of the domain covers the names under it, as before
+  - for when the CA does that. "Domains with the record" is *Names with the
+  record*.
 
 ## 1.0.29 - 2026-11-03
 

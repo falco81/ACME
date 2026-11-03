@@ -9,10 +9,11 @@ The record names the CA and the ACME account that may issue:
     issuer-domain-name   one of the CA's names (the challenge object's
                          "issuer-domain-names"; Let's Encrypt: letsencrypt.org)
     accounturi=          the URL of the ACME account (required)
-    policy=wildcard      the record also covers the wildcard (*.example.com) -
-                         optional. Not the names under it: the CA looks each name's
-                         record up at that name (_validation-persist.www.example.com);
-                         Let's Encrypt staging refused www with only example.com's (1.0.30)
+    policy=wildcard      the record also covers the wildcard (*.example.com) and, as the
+                         draft says, the names under the domain - optional. Let's
+                         Encrypt looks each name's record up at that name only
+                         (Boulder va/dns_persist.go): "A record at each name" (on by
+                         default, 1.0.30) writes one at each name until it does
     persistUntil=        a Unix time after which the CA does not use the record -
                          optional
 
@@ -218,17 +219,24 @@ class DnsPersist(Challenge):
                    'validation proves the names.')
     types = (CHALLENGE,)
     fields = [
-        field('domains', 'More names with the record', 'list', default='',
+        field('domains', 'Names with the record', 'list', default='',
               placeholder='example.com\nexample.org',
-              help='Names that get the record besides those of the certificates using this '
-                   'validation: _validation-persist.NAME. The CA looks the record up at each '
-                   'name itself - a record at example.com does not prove www.example.com, so '
-                   'every name gets its own. Empty: the names of the certificates.'),
+              help='Where the record stands: _validation-persist.NAME. With "A record at '
+                   'each name" on: names that get it besides those of the certificates. Off: '
+                   'the domains whose record covers the names under them. Empty: the names of '
+                   'the certificates (off: each name\'s registered domain).'),
         field('wildcard', 'Cover subdomains and wildcards (policy=wildcard)', 'bool',
               default=True,
-              help='On: the record of a name covers the name and *.NAME (a wildcard '
-                   'certificate). Off: the name only. Names under it need records of their '
-                   'own either way.'),
+              help='On: the record covers *.NAME too (a wildcard certificate) - and, with "A '
+                   'record at each name" off, every name under it. Off: the name only.'),
+        field('each_name', 'A record at each name (Let\'s Encrypt today)', 'bool',
+              default=True,
+              help='On: each name of a certificate gets its own record, as Let\'s Encrypt '
+                   'looks it up only at the name it validates (_validation-persist.www.'
+                   'example.com for www.example.com). Off: one record of the domain with '
+                   'policy=wildcard covers every name under it, as the draft says - turn it '
+                   'off once the CA does that; the records of each name can then be taken '
+                   'away.'),
         field('persist_until', 'Valid until (persistUntil)', 'text', default='',
               placeholder='2028-12-31',
               help='Optional: a day (or a Unix time) after which the CA no longer takes the '
@@ -317,13 +325,23 @@ class DnsPersist(Challenge):
     def domains(self):
         return [D.norm(d).lstrip('*.') for d in as_list(self.c('domains', '')) if D.norm(d)]
 
+    def each_name_on(self):
+        v = self.config.get('each_name')
+        return True if v in (None, '') else as_bool(v)
+
     def base_of(self, bare):
-        """Where the record of `bare` stands: at the name itself (1.0.30). The CA looks
-        it up only there - Let's Encrypt (staging, November 2026) asked
-        _validation-persist.pokus.example.com for pokus.example.com and took no record of
-        example.com: policy=wildcard at a domain covers the domain and *.domain, not
-        the names under it."""
-        return bare
+        """Where the record of `bare` stands. "A record at each name" on (the default,
+        1.0.30): at the name itself - Let's Encrypt's Boulder looks up only
+        _validation-persist.<the name> (va/dns_persist.go, November 2026), so a record
+        of example.com does not prove pokus.example.com. Off - the draft (a record with
+        policy=wildcard covers every name under its domain): the longest domain set that
+        holds it, else its registered domain; with policy wildcard off, the name itself."""
+        if self.each_name_on() or not self.wildcard_on():
+            return bare
+        hits = [d for d in self.domains() if bare == d or bare.endswith('.' + d)]
+        if hits:
+            return max(hits, key=len)
+        return D.registrable(bare)
 
     def say_once(self, words, level='info'):
         if words not in self._said:
@@ -471,6 +489,8 @@ class DnsPersist(Challenge):
         """The domains whose record is written and checked: the ones set, else those of
         the certificates this validation proves."""
         doms = self.domains()
+        if doms and not self.each_name_on():
+            return doms, False                  # the draft: the domains set cover the names
         out = list(doms)
         derived = not doms
         for n in self.ctx.names_using() or []:

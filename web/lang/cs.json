@@ -48887,6 +48887,26 @@
   "dp30_7": {
    "source": "the persistent ACME TXT record at _validation-persist.NAME, set once (dns-persist-01, draft-ietf-acme-dns-persist)",
    "text": "trvalý záznam ACME TXT na _validation-persist.JMÉNO, nastavený jednou (dns-persist-01, draft-ietf-acme-dns-persist)"
+  },
+  "dp30_8": {
+   "source": "A record at each name (Let's Encrypt today)",
+   "text": "Záznam u každého jména (dnešní Let's Encrypt)"
+  },
+  "dp30_9": {
+   "source": "On: each name of a certificate gets its own record, as Let's Encrypt looks it up only at the name it validates (_validation-persist.www.example.com for www.example.com). Off: one record of the domain with policy=wildcard covers every name under it, as the draft says - turn it off once the CA does that; the records of each name can then be taken away.",
+   "text": "Zapnuto: každé jméno certifikátu dostane vlastní záznam, protože Let's Encrypt ho hledá jen u jména, které ověřuje (_validation-persist.www.example.com pro www.example.com). Vypnuto: jeden záznam domény s policy=wildcard pokryje všechna jména pod ní, jak říká návrh standardu – vypněte, až to CA bude dělat; záznamy jednotlivých jmen pak lze odebrat."
+  },
+  "dp30_10": {
+   "source": "On: the record covers *.NAME too (a wildcard certificate) - and, with \"A record at each name\" off, every name under it. Off: the name only.",
+   "text": "Zapnuto: záznam pokryje i *.JMÉNO (wildcard certifikát) – a s vypnutým „Záznam u každého jména“ i všechna jména pod ním. Vypnuto: jen jméno."
+  },
+  "dp30_11": {
+   "source": "Where the record stands: _validation-persist.NAME. With \"A record at each name\" on: names that get it besides those of the certificates. Off: the domains whose record covers the names under them. Empty: the names of the certificates (off: each name's registered domain).",
+   "text": "Kde záznam stojí: _validation-persist.JMÉNO. Se zapnutým „Záznam u každého jména“: jména, která ho dostanou navíc k jménům certifikátů. Vypnuto: domény, jejichž záznam pokryje jména pod nimi. Prázdné: jména certifikátů (vypnuto: registrovaná doména každého jména)."
+  },
+  "dp30_12": {
+   "source": "Names with the record",
+   "text": "Jména se záznamem"
   }
  },
  "patterns": {

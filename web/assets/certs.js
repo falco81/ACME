@@ -2022,9 +2022,13 @@ function persistHere(row, p) {
   box.appendChild(el('h4', 'ct-formh', 'The record to set once'));
   var cfg = obj(row.config);
   var via = String(cfg.writer || '').trim();
-  box.appendChild(el('p', 'note', via
+  var each = cfg.each_name === undefined || cfg.each_name === '' || truthy(cfg.each_name);
+  box.appendChild(el('p', 'note', each ? (via
     ? 'One TXT record for each ACME account at each name, at _validation-persist.NAME (the CA looks it up at the name itself) - acme writes it through the validation chosen in “Write the record through” when you press “Write the records to DNS”, and takes away exactly what it wrote. Records set by hand are never touched.'
-    : 'One TXT record for each ACME account at each name, at _validation-persist.NAME (the CA looks it up at the name itself). Several may stand at the same name - Let’s Encrypt and its staging have different accounts. Nothing is changed in your DNS: set it by hand, or choose a validation in “Write the record through” and save.'));
+    : 'One TXT record for each ACME account at each name, at _validation-persist.NAME (the CA looks it up at the name itself). Several may stand at the same name - Let’s Encrypt and its staging have different accounts. Nothing is changed in your DNS: set it by hand, or choose a validation in “Write the record through” and save.')
+    : (via
+    ? 'One TXT record for each ACME account, at _validation-persist.DOMAIN - acme writes it through the validation chosen in “Write the record through” when you press “Write the records to DNS”, and takes away exactly what it wrote. Records set by hand are never touched.'
+    : 'One TXT record for each ACME account, at _validation-persist.DOMAIN. Several may stand at the same name - Let’s Encrypt and its staging have different accounts. Nothing is changed in your DNS: set it by hand, or choose a validation in “Write the record through” and save.')));
   var bar = el('div', 'btnrow ct-persist-bar');
   var again = cmdButton('Check the records', 'refresh', 'small');
   var make = cmdButton('Make the record', 'key', 'small');

@@ -189,6 +189,26 @@ class TestPlaces(unittest.TestCase):
         self.assertEqual(m.places('www.example.com')[2],
                          [('_validation-persist.www.example.com', False)])
 
+    def test_each_name_off_the_draft(self):
+        """"A record at each name" off: the draft - the domain's record (policy=wildcard)
+        covers the names under it, looked for from the name up to the domain."""
+        m = module({}, {'each_name': False})
+        self.assertEqual(m.places('*.shop.example.co.uk')[2],
+                         [('_validation-persist.shop.example.co.uk', True),
+                          ('_validation-persist.example.co.uk', True)])
+        self.assertEqual(m.places('www.example.com')[2],
+                         [('_validation-persist.www.example.com', False),
+                          ('_validation-persist.example.com', True)])
+        d = module({}, {'each_name': False, 'domains': ['dept.example.com', 'example.com']})
+        self.assertEqual(d.base_of('a.dept.example.com'), 'dept.example.com')
+        self.assertEqual(d.base_of('www.example.com'), 'example.com')
+        dns = {'_validation-persist.example.com': [DP.make_value('letsencrypt.org', LE_PROD)]}
+        off = module(dns, {'each_name': False})
+        for n in ('www.example.com', 'a.b.example.com', '*.example.com'):
+            self.assertTrue(off.check_name(n, ['letsencrypt.org'], LE_PROD)[0], n)
+        self.assertFalse(module(dns).check_name('www.example.com', ['letsencrypt.org'],
+                                                LE_PROD)[0], 'on (the default): its own')
+
     def test_domain_set_and_policy_off(self):
         m = module({}, {'domains': ['dept.example.com', 'example.com']})
         self.assertEqual(m.base_of('a.dept.example.com'), 'a.dept.example.com')

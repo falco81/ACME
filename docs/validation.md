@@ -157,7 +157,7 @@ _validation-persist.example.com.  TXT  "letsencrypt.org; accounturi=https://acme
 |---|---|
 | `letsencrypt.org` | the CA's issuer domain name - one of the challenge's `issuer-domain-names` (Let's Encrypt and its staging: `letsencrypt.org`) |
 | `accounturi=` | the URL of the ACME account (required) - acme shows it, the account made where there is none yet |
-| `policy=wildcard` | optional: the record also covers `*.example.com`. **Not the names under the domain**: the CA looks each name's record up at that name - `www.example.com` needs `_validation-persist.www.example.com` (Let's Encrypt staging refused a name under the domain with only the domain's record: *NXDOMAIN looking up TXT for _validation-persist.www.example.com*; acme writes and checks a record at each name since 1.0.30) |
+| `policy=wildcard` | optional: the record also covers `*.example.com`. **Not the names under the domain**: the CA looks each name's record up at that name - `www.example.com` needs `_validation-persist.www.example.com` (the draft says they are covered; Let's Encrypt's Boulder looks up only `_validation-persist.<the name>` - staging refused a name under the domain with only the domain's record: *NXDOMAIN looking up TXT for _validation-persist.www.example.com*). The switch *A record at each name (Let's Encrypt today)*, on by default, writes and checks a record at each name; off, the domain's record covers the names under it, as the draft says |
 | `persistUntil=` | optional: a Unix time after which the CA no longer takes the record |
 
 The syntax is that of a CAA issuer value (RFC 8659): the domain name first,
@@ -167,10 +167,14 @@ name** - one for each account: Let's Encrypt and its staging have different
 account URLs, so a source of each needs its own record, and other TXT records
 there stay.
 
-**Settings** of the validation: *More names with the record* (names that get
-the record besides those of the certificates using the validation), *Cover
-subdomains and wildcards* (`policy=wildcard`, on by default: the name and
-`*.NAME`; off: the name only), *Valid until* (`persistUntil`, a day or a Unix
+**Settings** of the validation: *Names with the record* (on: names that get
+the record besides those of the certificates; off: the domains whose record
+covers the names under them), *Cover subdomains and wildcards*
+(`policy=wildcard`, on by default), *A record at each name (Let's Encrypt
+today)* (on by default: every name its own record, as Let's Encrypt looks it
+up only at the name; turn it off once the CA covers the names under a domain
+with the domain's record - *Take the records away* then removes what acme
+wrote, *Write the records to DNS* writes the domain's again), *Valid until* (`persistUntil`, a day or a Unix
 time), *Fallback validation*, and under More the sources the record is for
 (empty: every ACME source) and the CA's issuer domain name (empty:
 `letsencrypt.org` for Let's Encrypt; for another CA what its challenge says).
