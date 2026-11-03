@@ -233,6 +233,7 @@ function modal(title, build, buttons, narrow) {
   var body = $('modal-body');
   clear(body);
   if (typeof build === 'function') build(body); else if (build) body.appendChild(build);
+  var keep = modalKeepOn(body);
   var foot = $('modal-foot');
   clear(foot);
   (buttons || [{words: 'Close', close: true}]).forEach(function (b) {
@@ -279,6 +280,9 @@ function modal(title, build, buttons, narrow) {
   var opened = !$('modal').hidden;
   if (!opened) MODAL_FROM = document.activeElement;
   $('modal').hidden = false;
+  /* A popup opened afresh opens at its top: the hidden one it is drawn in
+     kept where the last one was scrolled to. */
+  if (!opened && !keep) body.scrollTop = 0;
   var first = body.querySelector('input:not([type=hidden]):not([disabled]), select:not([disabled]), '
                                  + 'textarea:not([disabled])')
     /* ...never a button that destroys something: a second Enter would
@@ -299,10 +303,44 @@ function modal(title, build, buttons, narrow) {
           return;
         }
       }
-      first.focus();
+      if (keep) first.focus({preventScroll: true}); else first.focus();
     } catch (e) { }
   }, 0);
   return {body: $('modal-body'), foot: foot};
+}
+/* Where the popup underneath was scrolled to (1.0.38). Closing a popup
+   over another one draws the one underneath afresh, and that opened it at
+   its top again - a test's "what the server served" looked at far down a
+   certificate, and closing it threw the certificate back up. Kept while it
+   is drawn again - its parts that come a moment later too - until it can
+   be scrolled there, or whoever reads it scrolls himself. */
+var MODAL_KEEP = null;
+function modalKeepPending() { return !!(MODAL_KEEP && Date.now() - MODAL_KEEP.at < 15000); }
+function modalKeepOn(body) {
+  if (!modalKeepPending()) { MODAL_KEEP = null; return null; }
+  var keep = MODAL_KEEP, gen = MODAL_GEN, done = false;
+  if (!keep.top) { MODAL_KEEP = null; return keep; }
+  var stop = function () {
+    if (done) return;
+    done = true;
+    ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(function (k) { body.removeEventListener(k, mine, true); });
+    if (MODAL_KEEP === keep) MODAL_KEEP = null;
+  };
+  var mine = function () { stop(); };
+  ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(function (k) { body.addEventListener(k, mine, true); });
+  var tries = 0;
+  var step = function () {
+    if (done) return;
+    /* Drawn again in the meantime - "Asking…" and then the real thing:
+       the next drawing takes over. */
+    if (MODAL_GEN !== gen || !body.isConnected) { done = true; return; }
+    body.scrollTop = keep.top;
+    if (Math.abs(body.scrollTop - keep.top) < 2 && tries > 75) { stop(); return; }
+    if (++tries > 150) { stop(); return; }
+    setTimeout(step, 20);
+  };
+  step();
+  return keep;
 }
 var MODAL_FROM = null;
 /* A popup over a popup (1.0.22): what `open` puts up goes on top of the one
@@ -327,6 +365,7 @@ function modalOver(open, back) {
 function modalOverNow() {
   var want = MODAL_OVER_WANTED;
   MODAL_OVER_WANTED = null;
+  MODAL_KEEP = null;
   var cur = $('modal');
   if (!want || !cur || cur.hidden || Date.now() - want.at > 20000) return;
   var back = want.back;
@@ -350,6 +389,7 @@ function modalOverNow() {
 }
 function closeModal() {
   MODAL_OVER_WANTED = null;
+  MODAL_KEEP = null;
   /* A time picker's list goes with the popup it was in (1.0.57). */
   Array.prototype.forEach.call(document.querySelectorAll('#modal .tp'), function (t) { if (t._close) t._close(); });
   MODAL_GEN += 1;
@@ -397,8 +437,14 @@ function closeModal() {
        log's place and the log was lost. Opened over it, it is redrawn once it
        is on top again; drawn in its place, it is not drawn over that. */
     var again = under.back, depth = MODAL_STACK.length, gen = MODAL_GEN;
+    var underBody = under.el.querySelector('#modal-body');
+    var top = underBody ? underBody.scrollTop : 0;
     setTimeout(function () {
-      if (MODAL_GEN === gen) { again(); return; }
+      if (MODAL_GEN === gen) {
+        MODAL_KEEP = {top: top, at: Date.now()};
+        again();
+        return;
+      }
       var below = MODAL_STACK[depth];
       if (MODAL_STACK.length > depth && below && below.el === under.el && !below.back) below.back = again;
     }, 0);

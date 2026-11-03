@@ -8,6 +8,9 @@
 //    and the certificate is drawn afresh once the log is closed.
 // 2. A question closed with nothing opened after it: the one under it is drawn
 //    afresh as before.
+// 3. A long popup scrolled far down, something looked at over it and closed:
+//    drawn afresh, it is where it was - not at its top (1.0.38); also when it
+//    is drawn first as "Asking…" and then whole a moment later.
 // Prints one line of JSON: {ok, checks: {name: true|false}, error?}.
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -56,6 +59,34 @@ const fs = require('fs');
     await wait();
     t = await top();
     out.checks.drawn_afresh_when_nothing_opened = t.title === 'the certificate' && t.stack === 0 && t.drawn === 2;
+    await page.evaluate(() => closeModal());
+    // 3. where it was scrolled to stays
+    await page.evaluate(() => {
+      document.head.insertAdjacentHTML('beforeend', '<style>#modal-body{height:200px;overflow:auto}</style>');
+      window.longOne = function (b) { for (var i = 0; i < 80; i++) { var p = document.createElement('p'); p.textContent = 'line ' + i; b.appendChild(p); } };
+      window.big = function () { modal('the certificate', longOne, [{words: 'Close', close: true}]); };
+      window.slow = function () {
+        modal('the certificate', function (b) { b.textContent = 'Asking…'; }, [{words: 'Close', close: true}]);
+        setTimeout(big, 60);
+      };
+    });
+    for (const [name, redraw] of [['kept_where_it_was', 'big'], ['kept_after_asking', 'slow']]) {
+      await page.evaluate((redraw) => {
+        big();
+        $('modal-body').scrollTop = 900;
+        modalOver(function () { modal('what the server served', function (b) { b.textContent = 'it'; }, [{words: 'Close', close: true}]); }, window[redraw]);
+      }, redraw);
+      await wait();
+      await page.evaluate(() => closeModal());
+      await page.waitForTimeout(400);
+      out.checks[name] = await page.evaluate(() => $('modal-title').textContent === 'the certificate'
+                                                  && Math.abs($('modal-body').scrollTop - 900) < 3);
+      await page.evaluate(() => closeModal());
+    }
+    // ...and a popup opened afresh later opens at its top
+    await page.evaluate(() => big());
+    await wait();
+    out.checks.a_new_one_at_its_top = await page.evaluate(() => $('modal-body').scrollTop === 0);
   } catch (e) {
     out.error = String(e);
   }

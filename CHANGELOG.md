@@ -6,6 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.38 - not released
 
+- A popup over another one - what the server served, What happens, Export,
+  Import and the rest - no longer throws the one underneath back to its top
+  when it is closed: it stays scrolled where it was, also while its parts are
+  asked for again. A popup opened afresh still opens at its top.
+
 ## 1.0.37 - 2026-11-03
 
 - What happens records what a module does on its own too, not through acme's

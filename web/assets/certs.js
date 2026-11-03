@@ -613,7 +613,9 @@ function saidLine(kind, words) {
 /* ---- popups that ask first ----------------------------------------------- */
 /** Asks, then draws: `draw(d)` gives {build(body), buttons, title}. */
 function popup(title, ask, draw, size, what) {
-  modal(title, function (b) { b.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], size);
+  /* Drawn again under a popup just closed: what it showed stays until the
+     answer comes, instead of "Asking…" and a jump to its top (1.0.38). */
+  if (!(modalKeepPending() && $('modal') && !$('modal').hidden)) modal(title, function (b) { b.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], size);
   var ticket = modalTicket();
   return Promise.resolve().then(ask).then(function (d) {
     if (!modalStill(ticket)) return;
@@ -632,7 +634,7 @@ function popup(title, ask, draw, size, what) {
        its first box, which here is a search far down. */
     setTimeout(function () {
       var a = document.activeElement, b = $('modal-body');
-      if (a && a.type === 'search' && b && b.contains(a)) {
+      if (a && a.type === 'search' && b && b.contains(a) && !modalKeepPending()) {
         a.blur();
         var go = $('modal-foot') && $('modal-foot').querySelector('.btn.primary:not(.danger)');
         if (go) { try { go.focus({preventScroll: true}); } catch (e) { } }
