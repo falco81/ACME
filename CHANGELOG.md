@@ -6,6 +6,19 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.27 - not released
 
+- **Nine new targets**, written from the vendors' own API documents
+  (docs/targets.md names the files and what stays less certain): Check Point
+  (Management API: a server certificate as PKCS#12, HTTPS Inspection rules and
+  gateway portals, publish and install-policy), VMware NSX load balancer (a new
+  certificate, the virtual servers' client SSL binding switched, the old one
+  deleted), Barracuda WAF (a new certificate, the services' SSL security),
+  FortiWeb, FortiADC, Cisco Secure Firewall Management Center (a new Internal
+  Certificate, decryption rules switched, deployed), cPanel / WHM
+  (SSL::install_ssl / installssl), DirectAdmin and Plesk (into its certificate
+  repository; assigned to the site by hand).
+- **A deployment's form picks from a list the target fetches** (virtual
+  servers, services, rules, policies) - and a value can always be typed.
+
 - **Five new DNS-01 validations**, each written only from the vendor's own
   documentation (docs/validation.md names the files): cPanel (UAPI
   DNS::parse_zone / DNS::mass_edit_zone with the zone's serial, only our record
