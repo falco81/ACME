@@ -4,8 +4,11 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.29 - not released
+## 1.0.29 - 2026-11-03
 
+- Find the settings from the account: a failure is said in its own words
+  (it showed "HTTP 200"), with every step of the job; SSLmarket orders that
+  cannot be read are a note, the rest is still found.
 - Finding the settings from the account on the command line and in the
   console too: `acme --source-discover NAME` (`--validation-discover`,
   `--target-discover`; `-` with `--kind` and `--set` for one not saved) shows
