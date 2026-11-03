@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.37 - not released
+## 1.0.37 - 2026-11-03
 
 - What happens records what a module does on its own too, not through acme's
   Context: HTTP over http.client or urllib (MS AD CS, a module of your own) -
