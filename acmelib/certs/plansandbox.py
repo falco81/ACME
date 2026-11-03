@@ -482,7 +482,10 @@ class FakeSsh(object):
                 prints = []
         rec({'kind': 'ssh-open', 'host': self.host, 'port': self.port, 'user': self.user,
              'auth': auth, 'hostkey': prints,
-             'trust_first': bool(self.conn.get('trust_first'))})
+             'trust_first': bool(self.conn.get('trust_first')),
+             'timeout': int(self.conn.get('timeout') or 15),
+             'key': bool(self.conn.get('key')), 'password': bool(self.conn.get('password')),
+             'key_pass': bool(self.conn.get('key_pass'))})
 
     def __enter__(self):
         return self
@@ -823,7 +826,9 @@ def _patch_modules(job):
                                   'value': x.text if x.rclass != D.CLASS_ANY else None,
                                   'delete': x.rclass in (D.CLASS_ANY, D.CLASS_NONE),
                                   'ttl': x.ttl} for x in q.authority],
-                     'tsig': bool(q.additional and q.additional[-1].rtype == 250)})
+                     'tsig': bool(q.additional and q.additional[-1].rtype == 250),
+                     'tsig_name': D.norm(q.additional[-1].name) if (
+                         q.additional and q.additional[-1].rtype == 250) else ''})
             else:
                 for n, t, _c in q.question:
                     rec({'kind': 'dns-ask', 'server': str(server), 'port': port,

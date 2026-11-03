@@ -15,6 +15,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   all), a client certificate, the proxy, the time limit. Secrets left out as
   before (a password, a token, a header that signs in: ••••). A module of your
   own, never seen here, is shown the same: what it really sends, recorded.
+- What happens over SSH: the ssh command as it runs, every option (the host key
+  checked against the one kept, its time limits, how it signs in, BatchMode)
+  - its temporary files said, a password never in it - folded under the
+  connection's facts; the options made in one place for the connection and the
+  plan (runtime.ssh_options). A DNS UPDATE: its server, port, transport and
+  TSIG key's name (not the key).
 - What happens for a test: the connection (address, port, address family, from
   the address, time limit), what it says before TLS line by line (SMTP's EHLO and
   STARTTLS, IMAP, POP3, FTP, XMPP; the bytes of LDAP, PostgreSQL, MySQL, TDS and

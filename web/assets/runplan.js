@@ -119,6 +119,17 @@
     }
     return box;
   }
+  function connRow(conn) {
+    var cn = el('div', 'rp-conn');
+    conn.forEach(function (c) {
+      var chip = el('span', 'rp-conn-c' + (c[2] ? ' t-' + c[2] : ''));
+      chip.appendChild(el('span', 'rp-conn-k', c[0]));
+      var words = /^(yes|no|none|not |checked|Settings|UDP|TSIG|signed)/.test(String(c[1]));
+      chip.appendChild(words ? el('span', 'rp-conn-v', c[1]) : data('span', 'rp-conn-v mono', c[1]));
+      cn.appendChild(chip);
+    });
+    return cn;
+  }
   function httpBlock(d) {
     var box = el('div', 'rp-http');
     var line = el('div', 'rp-http-line');
@@ -129,17 +140,7 @@
     /* the request as it goes on the wire (1.0.37): every header - the ones acme and
        Python add dimmed - and the body exactly as sent */
     /* how it is connected (1.0.37): address, TLS, SNI, the device's certificate, proxy */
-    if (d.conn && d.conn.length) {
-      var cn = el('div', 'rp-conn');
-      d.conn.forEach(function (c) {
-        var chip = el('span', 'rp-conn-c' + (c[2] ? ' t-' + c[2] : ''));
-        chip.appendChild(el('span', 'rp-conn-k', c[0]));
-        var val = /^(yes|no|none|not checked|checked|Settings)/.test(String(c[1])) ? el('span', 'rp-conn-v', c[1]) : data('span', 'rp-conn-v mono', c[1]);
-        chip.appendChild(val);
-        cn.appendChild(chip);
-      });
-      box.appendChild(cn);
-    }
+    if (d.conn && d.conn.length) box.appendChild(connRow(d.conn));
     var wire = d.wire && d.wire.headers ? d.wire : null;
     if (wire) {
       var ws = el('div', 'rp-hdrs rp-wire');
@@ -148,7 +149,7 @@
         var row = data('span', 'rp-hdr mono' + (h[2] ? ' auto' : ''));
         row.appendChild(el('b', '', h[0] + ':'));
         row.appendChild(document.createTextNode(' ' + h[1]));
-        if (h[2]) explain(row, tr('Added by acme for every request'));
+        if (h[2]) explain(row, tr('Added by acme for every request') + (/^≈/.test(String(h[1])) ? '. ' + tr('Worked out from a recording with stand-ins for the certificate and the secrets: the real length differs.') : ''));
         ws.appendChild(row);
       });
       box.appendChild(ws);
@@ -246,6 +247,23 @@
     var d = st.detail;
     if (!d) return null;
     if (d.url) return httpBlock(d);
+    /* an SSH connection (1.0.37): its facts, then the ssh command as it runs, folded */
+    if (d.pairs && d.command) {
+      var sw = el('div', 'rp-pairs');
+      sw.appendChild(pairsTable(d.pairs));
+      var how = el('details', 'rp-raw');
+      how.appendChild(el('summary', 'small muted', 'The ssh command, as it runs'));
+      how.appendChild(codeBlock(d.command, 'rp-shell'));
+      sw.appendChild(how);
+      return sw;
+    }
+    if (d.conn && d.conn.length) {
+      var wrapc = el('div', 'rp-withconn');
+      wrapc.appendChild(connRow(d.conn));
+      var inner = detailOf({detail: Object.assign({}, d, {conn: null})});
+      if (inner) wrapc.appendChild(inner);
+      return wrapc;
+    }
     if (d.files) return filesTable(d.files);
     if (d.command) {
       var b = el('div', 'rp-cmd');

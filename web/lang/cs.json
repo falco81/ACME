@@ -50903,6 +50903,26 @@
   "rp37_32": {
    "source": "any answer",
    "text": "jakákoli odpověď"
+  },
+  "rp37_33": {
+   "source": "The ssh command, as it runs",
+   "text": "Příkaz ssh, jak se spouští"
+  },
+  "rp37_34": {
+   "source": "Over",
+   "text": "Přes"
+  },
+  "rp37_35": {
+   "source": "UDP, TCP when the answer is cut",
+   "text": "UDP, TCP když je odpověď zkrácená"
+  },
+  "rp37_36": {
+   "source": "not signed",
+   "text": "nepodepsáno"
+  },
+  "rp37_37": {
+   "source": "Worked out from a recording with stand-ins for the certificate and the secrets: the real length differs.",
+   "text": "Spočteno z nahrávky se zástupnými hodnotami certifikátu a tajných údajů: skutečná délka se liší."
   }
  },
  "patterns": {

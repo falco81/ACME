@@ -300,6 +300,38 @@ def _conn_of(url, ev, proxy_on=False):
     return out
 
 
+def _ssh_shown(ev):
+    """The ssh command acme runs to a target (1.0.37), its options as SshSession makes
+    them (runtime.ssh_options) - its own temporary files said, no secret in it."""
+    try:
+        from acmelib.certs import runtime as _rt
+        key = bool(ev.get('key')) or ev.get('auth') == 'key'
+        pw = bool(ev.get('password')) or ev.get('auth') == 'password'
+        auths = (['publickey'] if key else []) + (['password', 'keyboard-interactive'] if pw else [])
+        opts = _rt.ssh_options(ev.get('host') or '?', int(ev.get('timeout') or 15),
+                               '‹the host key kept, in a file of its own›',
+                               '‹a socket of its own›', '‹the key, in a file of its own (0600)›'
+                               if key else None)
+        opts += _rt.ssh_auth_options(auths or ['publickey'], pw or bool(ev.get('key_pass')))
+        lines = ['ssh']
+        k = 0
+        while k < len(opts):
+            if opts[k] in ('-o', '-i', '-F') and k + 1 < len(opts):
+                lines.append('  %s %s' % (opts[k], opts[k + 1]))
+                k += 2
+            else:
+                lines.append('  ' + opts[k])
+                k += 1
+        lines.append('  -p %s %s@%s' % (ev.get('port') or 22, ev.get('user') or '?', ev.get('host') or '?'))
+        if pw or ev.get('key_pass'):
+            lines.append('# the password%s handed to ssh through SSH_ASKPASS - never on its command line'
+                         % (' of the key' if ev.get('key_pass') and not pw else ''))
+        return ' \\\n'.join(lines[:1] + [x for x in lines[1:] if not x.startswith('#')]) + \
+            ''.join('\n' + x for x in lines if x.startswith('#'))
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
 def _cmd(argv):
     return ' '.join(shlex.quote(str(a)) for a in argv)
 
@@ -378,7 +410,7 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                 # recorded with stand-ins (the certificate, the secrets): the real length differs
                 for h in st['detail']['wire']['headers']:
                     if h[0] == 'Content-Length':
-                        h[1] = '≈ %s (with the real certificate and secrets: other)' % h[1]
+                        h[1] = '≈ %s' % h[1]
             except Exception:                           # noqa: BLE001
                 pass
             notes = []
@@ -403,7 +435,8 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                                            ev.get('auth'), 'nothing set'), 'words'],
                     ['Host key', ', '.join(ev.get('hostkey') or [])] if ev.get('hostkey') else
                     ['Host key', 'none pinned: the first one seen is trusted and kept'
-                     if ev.get('trust_first') else 'none pinned: refused until it is', 'words']]}}
+                     if ev.get('trust_first') else 'none pinned: refused until it is', 'words']],
+                    'command': _ssh_shown(ev)}}
         elif k == 'ssh-run':
             cmd = ev.get('command') or ''
             kind = 'delete' if re.match(r"^(sudo -[nS] (-p '' )?sh -c ')?rm ", cmd) else 'command'
@@ -497,6 +530,11 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             lines.append('send')
             st = {'kind': 'dns', 'words': 'Sends a DNS UPDATE to {0}'.replace(
                 '{0}', ev.get('server') or ''), 'detail': {'command': '\n'.join(lines)}}
+            srv, _, prt = str(ev.get('server') or '').rpartition(':')
+            st['detail']['conn'] = [['Server', srv or ev.get('server') or '', ''], ['Port', prt or '53', ''],
+                                    ['Over', 'UDP, TCP when the answer is cut', 'dim'],
+                                    ['Signed', ('TSIG %s' % (ev.get('tsig_name') or '')).strip()
+                                     if ev.get('tsig') else 'not signed', 'ok' if ev.get('tsig') else 'warn']]
             if ev.get('tsig'):
                 st['note'] = 'signed with its TSIG key (not shown)'
         elif k == 'own-dns':

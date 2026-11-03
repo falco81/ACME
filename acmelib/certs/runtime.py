@@ -643,6 +643,30 @@ def keyscan(host, port, timeout=10):
     return '\n'.join(lines) + '\n'
 
 
+def ssh_options(addr, timeout, known_hosts, control, key_file=None):
+    """The options every ssh of acme runs with (1.0.37: one place - SshSession and What
+    happens, which shows them): this file only, the host key checked against the one
+    kept, its time limits, one connection held for the commands that follow."""
+    opts = ['-F', '/dev/null', '-o', 'StrictHostKeyChecking=yes',
+            '-o', 'UserKnownHostsFile=' + known_hosts, '-o', 'GlobalKnownHostsFile=/dev/null',
+            '-o', 'HostKeyAlias=' + HOSTKEY_ALIAS, '-o', 'CheckHostIP=no',
+            '-o', 'HostName=' + addr,
+            '-o', 'ConnectTimeout=%d' % timeout,
+            '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4',
+            '-o', 'LogLevel=ERROR', '-o', 'IdentitiesOnly=yes',
+            '-o', 'ControlMaster=auto', '-o', 'ControlPath=' + control,
+            '-o', 'ControlPersist=120']
+    opts += ['-i', key_file] if key_file else ['-o', 'IdentityFile=/dev/null']
+    return opts
+
+
+def ssh_auth_options(auths, asks):
+    """How it signs in: the methods, in order; a secret asked for through SSH_ASKPASS."""
+    return ['-o', 'PreferredAuthentications=' + ','.join(auths),
+            '-o', 'NumberOfPasswordPrompts=1',
+            '-o', 'BatchMode=%s' % ('no' if asks else 'yes')]
+
+
 class SshSession(base.SshSession):
     """ctx.ssh(conn), conn = {'host', 'port', 'user', 'password', 'key', 'key_pass',
     'hostkey', 'timeout', 'trust_first', 'scp_legacy'}.
@@ -702,24 +726,14 @@ class SshSession(base.SshSession):
         kh = os.path.join(self.d, 'known_hosts')
         with open(kh, 'w') as f:
             f.write('\n'.join(lines) + '\n')
-        self.opts = ['-F', '/dev/null', '-o', 'StrictHostKeyChecking=yes',
-                     '-o', 'UserKnownHostsFile=' + kh, '-o', 'GlobalKnownHostsFile=/dev/null',
-                     '-o', 'HostKeyAlias=' + HOSTKEY_ALIAS, '-o', 'CheckHostIP=no',
-                     '-o', 'HostName=' + self.addr,
-                     '-o', 'ConnectTimeout=%d' % self.timeout,
-                     '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4',
-                     '-o', 'LogLevel=ERROR', '-o', 'IdentitiesOnly=yes',
-                     '-o', 'ControlMaster=auto', '-o', 'ControlPath=' + os.path.join(self.d, 'cm'),
-                     '-o', 'ControlPersist=120']
         key = str(c.get('key') or '').strip()
+        kf = None
         if key:
             kf = os.path.join(self.d, 'id')
             fd = os.open(kf, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(fd, 'w') as f:
                 f.write(key + '\n')
-            self.opts += ['-i', kf]
-        else:
-            self.opts += ['-o', 'IdentityFile=/dev/null']
+        self.opts = ssh_options(self.addr, self.timeout, kh, os.path.join(self.d, 'cm'), kf)
         pw = str(c.get('password') or '')
         kp = str(c.get('key_pass') or '')
         ask = os.path.join(self.d, 'ask')
@@ -736,9 +750,7 @@ class SshSession(base.SshSession):
             self.close()
             raise base.PluginError('neither a key nor a password is set for %s' % self.host,
                                    retry=False)
-        self.opts += ['-o', 'PreferredAuthentications=' + ','.join(auths),
-                      '-o', 'NumberOfPasswordPrompts=1',
-                      '-o', 'BatchMode=%s' % ('no' if (pw or kp) else 'yes')]
+        self.opts += ssh_auth_options(auths, bool(pw or kp))
         self.dest = '%s@%s' % (self.user, self.host)
         self.rdest = '%s@[%s]' % (self.user, self.host) if ':' in self.host else self.dest
 
