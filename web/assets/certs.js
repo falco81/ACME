@@ -1056,6 +1056,7 @@ function kindPicker(family, go, filter) {
       var foot = el('span', 'ct-kind-foot');
       if (flat && p.vendor) foot.appendChild(data('span', 'ct-kind-v', p.vendor));
       foot.appendChild(mono(p.kind, 'ct-kind-k'));
+      tagsInto(foot, modTags(family, p, null, {count: true}));
       w.appendChild(foot);
       t.appendChild(w);
       t.onclick = function () { go(p); };
@@ -1090,7 +1091,7 @@ function kindPicker(family, go, filter) {
   }
   return box;
 }
-function plugHead(p, family) {
+function plugHead(p, family, row) {
   var h = el('div', 'ct-plughead');
   var ic = el('span', 'ct-kind-ic big v-' + String(p.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
   ic.textContent = String(p.title || p.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
@@ -1101,6 +1102,7 @@ function plugHead(p, family) {
   t.appendChild(el('b', '', p.title || p.kind));
   if (p.vendor) t.appendChild(data('span', 'tag dim', p.vendor));
   t.appendChild(mono(p.kind, 'muted small'));
+  tagsInto(t, modTags(family, p, row || null));
   w.appendChild(t);
   if (p.description) w.appendChild(el('div', 'muted small', p.description));
   if (p.doc) {
@@ -1153,7 +1155,7 @@ function loadRows(key, again) {
 function defaultOf(rows) { return arr(rows).filter(function (r) { return r.is_default; })[0] || null; }
 function rowsSafe(key) { return loadRows(key).catch(function () { return []; }); }
 function modSummary(m, r) {
-  var p = plugOf(m.family, r.kind);
+  var p = plugVersion(plugOf(m.family, r.kind), r.version);
   var cfg = r.config || {};
   var bits = [];
   ((p && p.fields) || []).forEach(function (f) {
@@ -1247,7 +1249,7 @@ function modQuerySpec(key) {
   base.forEach(function (f) { seen[f[0]] = true; });
   var cfgFields = [];
   arr(LISTS[key]).forEach(function (r) {
-    var p = plugOf(m.family, r.kind);
+    var p = plugVersion(plugOf(m.family, r.kind), r.version);
     arr(p && p.fields).forEach(function (f) {
       if (!f.key || f.type === 'secret' || f.secret || f.type === 'pem' || seen[f.key]) return;
       if (!/^[a-z_][\w]*$/i.test(f.key)) return;
@@ -1264,7 +1266,7 @@ function modQuerySpec(key) {
     fields: base.concat(cfgFields),
     rows: function () { return arr(LISTS[key]); },
     value: function (r, f) {
-      var p = plugOf(m.family, r.kind);
+      var p = plugVersion(plugOf(m.family, r.kind), r.version);
       switch (f) {
         case 'name': return r.name;
         case 'kind': return r.kind;
@@ -1335,8 +1337,13 @@ function drawModTab(key, live) {
         var kc = el('td');
         var p = plugOf(m.family, r.kind);
         var missingMod = r.module_missing || (PLUG && !p);
+        var pv = p ? plugVersion(p, r.version) : null;
         kc.appendChild(el('div', '', p ? p.title : (r.title || r.kind)));
         kc.appendChild(data('div', missingMod ? 'small ct-badtext' : 'muted small', missingMod ? 'module missing: ' + r.kind : (p ? (p.vendor || r.kind) : r.kind)));
+        if (pv) {
+          var kt = modTags(m.family, pv, r);
+          if (kt.length) kc.appendChild(tagsInto(el('div', 'md-rowtags'), kt));
+        }
         tr.appendChild(kc);
         var sumCell = td('', modSummary(m, r));
         if (HTTP_HERE[r.kind]) sumCell.appendChild(httpRowLine(r));
@@ -2202,7 +2209,7 @@ function modEdit(key, row, p, fromPick) {
   /* A form offers choices (an authority, a source, a validation): asked anew. */
   plugins(true).then(function () {
     if (!row && !p) { modPick(key); return; }
-    p = p || plugOf(m.family, row.kind) || {kind: row.kind, title: row.kind, fields: [], missing: true};
+    p = p || plugVersion(plugOf(m.family, row.kind), row.version) || {kind: row.kind, title: row.kind, fields: [], missing: true};
     modForm(key, row, p, fromPick);
   }).catch(fail);
 }
@@ -2210,16 +2217,20 @@ function modPick(key) {
   var m = MODS[key];
   modal(m.pickTitle, function (body) {
     body.appendChild(el('p', 'note', m.pick));
-    body.appendChild(kindPicker(m.family, function (p) { modForm(key, null, p, true); }));
+    body.appendChild(kindPicker(m.family, function (p) { modForm(key, null, plugVersion(p), true); }));
   }, [{words: 'Close', close: true}], 'large');
 }
-function modForm(key, row, p, fromPick) {
+function modForm(key, row, p, fromPick, keep) {
   var m = MODS[key];
-  var cfg = (row && row.config) || {};
+  var cfg = (keep && keep.config) || (row && row.config) || {};
   var form = null, name = null, note = null, on = null, tags = null, testSaid = null;
   var title = row ? m.one + ' ' + row.name : m.newTitle + ' · ' + (p.title || p.kind);
+  /* a module with versions (1.0.32): the one this uses, kept in its config */
+  var versioned = arr((p._base || p).versions).length > 1;
   var gather = function () {
-    return {id: row && row.id, name: name.value.trim(), kind: p.kind, config: form.read(),
+    var c = form.read();
+    if (versioned) c._version = String(p.version || '');
+    return {id: row && row.id, name: name.value.trim(), kind: p.kind, config: c,
             enabled: on._get(), note: note.value, tags: tags ? splitNames(tags.value) : undefined};
   };
   var buttons = [];
@@ -2261,19 +2272,19 @@ function modForm(key, row, p, fromPick) {
     }).catch(fail).then(function () { busy(b, false); });
   }});
   modal(title, function (body) {
-    body.appendChild(plugHead(p, m.family));
+    body.appendChild(plugHead(p, m.family, row));
     var dn = defaultNote(key, row);
     if (dn) body.appendChild(dn);
     if (p.missing) body.appendChild(el('p', 'ct-bad', 'The module of this kind is not installed (or would not load): its settings are shown as they are kept.'));
     var g = el('div', 'formgrid ct-basic');
     var others = arr(LISTS[key]).filter(function (x) { return !row || x.id !== row.id; }).map(function (x) { return x.name; });
-    name = textBox(row ? row.name : safeName(p.default_name || p.title || p.kind, others), tr('a name of its own'), '');
+    name = textBox(keep && keep.name !== undefined ? keep.name : (row ? row.name : safeName(p.default_name || p.title || p.kind, others)), tr('a name of its own'), '');
     noI18n(name);
     if (FULL) guardName(name, true, others);
     g.appendChild(formField('Name', name, 'What it is called here, in the certificates and the jobs.'));
-    on = switchBox(row ? (row.enabled === undefined || truthy(row.enabled)) : true);
+    on = switchBox(keep && keep.enabled !== undefined ? !!keep.enabled : (row ? (row.enabled === undefined || truthy(row.enabled)) : true));
     g.appendChild(formField('In use', on, 'Off: kept, but not used for anything.'));
-    note = textBox(row ? row.note : '', '', '');
+    note = textBox(keep && keep.note !== undefined ? keep.note : (row ? row.note : ''), '', '');
     var nf = formField('Note', note);
     if (key === 'targets') {
       tags = tagsBox(row ? arr(row.tags) : []);
@@ -2283,6 +2294,22 @@ function modForm(key, row, p, fromPick) {
     g.appendChild(nf);
     body.appendChild(g);
     body.appendChild(el('h4', 'ct-formh', 'Settings of the module'));
+    if (versioned) {
+      /* the versions as cards; another one draws its own form, what is typed kept */
+      var vp = versionPicker(p, function (v) {
+        var now = form.read();
+        var c2 = {};
+        Object.keys(cfg).forEach(function (k) { c2[k] = cfg[k]; });
+        Object.keys(now).forEach(function (k) { c2[k] = now[k]; });
+        modForm(key, row, plugVersion(p._base || p, v), fromPick, {config: c2, name: name.value, note: note.value, enabled: on._get()});
+      });
+      if (vp) {
+        var vf = formField('Version of the module', vp, 'Which version this one uses - an API version of the device, say. Each has its own settings; what is typed stays.');
+        vf.classList.add('wide');
+        body.appendChild(vf);
+      }
+      if (row && row.version_missing) body.appendChild(el('p', 'ct-bad', 'The version it kept is not there any more - the one marked here is used. Save to keep it.'));
+    }
     form = fieldForm(p.fields || [], cfg, secretsOf(row), {noneWords: 'This module needs nothing set.', family: m.family, row: row, plug: p});
     /* "Find the settings from the account" (discover.js, 1.0.29): the sign-in only,
        the rest read from the account and offered - filled in, never saved by itself. */
@@ -2351,12 +2378,12 @@ function deploysOfTarget(r) {
 function targetPeek(r) {
   var m = MODS.targets;
   var draw = function (got) {
-    var p = plugOf('target', r.kind) || {kind: r.kind, title: r.kind, fields: [], deploy_fields: []};
+    var p = plugVersion(plugOf('target', r.kind), r.version) || {kind: r.kind, title: r.kind, fields: [], deploy_fields: []};
     var deps = got.deps, depsErr = got.err;
     return {
       size: 'large',
       build: function (body) {
-        body.appendChild(plugHead(p, 'target'));
+        body.appendChild(plugHead(p, 'target', r));
         var dn = defaultNote('targets', r);
         if (dn) body.appendChild(dn);
         var cfg = r.config || {};
@@ -2535,7 +2562,7 @@ function deployEdit(o) {
     var drawFields = function () {
       clear(formHost);
       var t = target();
-      var p = plugOf('target', t.kind);
+      var p = plugVersion(plugOf('target', t.kind), t.version);
       if (!t.name) { formHost.appendChild(el('p', 'muted', 'Choose a target first.')); form = null; return; }
       if (!p) {
         formHost.appendChild(el('p', 'ct-bad', 'The module of this target (' + (t.kind || '?') + ') is not installed: its options cannot be drawn.'));
@@ -2647,7 +2674,7 @@ function deployEdit(o) {
       if (!MANAGE) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { x.disabled = true; });
     }, buttons, 'medium');
     testBtn = $('modal-foot').querySelector('.df-testbtn');
-    var tp = target(), pl = plugOf('target', tp.kind);
+    var tp = target(), pl = plugVersion(plugOf('target', tp.kind), tp.version);
     if (testBtn) testBtn.hidden = !(pl && pl.files_ui && pl.files_ui.dry_run);
     if (pl && pl.files_ui) { $('modal-box').classList.remove('medium'); $('modal-box').classList.add('large'); }
     explainWhatWasDrawn($('modal-body'));
@@ -4955,7 +4982,7 @@ function certWizard(cert, detail, opts) {
     var list = el('div', 'ct-deps');
     var forms = {};
     W.targets.forEach(function (t) {
-      var p = plugOf('target', t.kind);
+      var p = plugVersion(plugOf('target', t.kind), t.version);
       var row = el('div', 'ct-dep' + (W.deploys[t.name] ? ' on' : ''));
       var top = el('label', 'ct-dep-top');
       var cb = el('input');
@@ -7375,19 +7402,618 @@ function loadCertSettings() {
 }
 
 /* ==========================================================================
+   Modules (1.0.32): shipped ones, your own (the disk of a node, uploaded on the
+   page), their versions, overrides, marks (tested / works) - the page Modules,
+   and the tags beside a module wherever one is drawn
+   GET modules, modules/source, modules/uploaded; POST modules/analyse,
+   modules/install, modules/remove, modules/mark (acmelib/certs/api_modules.py)
+   ========================================================================== */
+var FAM_WORDS = {issuer: 'Source', challenge: 'Validation', target: 'Target'};
+var FAM_TAB = {issuer: 'sources', challenge: 'validation', target: 'targets'};
+var MARKS = {tested: ['tested', 'md-tested', 'play', 'Tried on a device or an account - it does what it says.'],
+             works: ['works', 'md-works', 'check', 'In use, and working.'],
+             problem: ['problem', 'md-problem', 'flag', 'Known not to work, or to work only partly.']};
+/** One version of a module as the page draws it: the module's own entry, or the entry of
+    that version (`v`; undefined: the default one). */
+function plugVersion(p, v) {
+  if (!p || !arr(p.versions).length) return p;
+  var want = v === undefined || v === null ? String(p.default_version || '') : String(v);
+  var got = arr(p.versions).filter(function (x) { return String(x.version || '') === want; })[0] ||
+            arr(p.versions).filter(function (x) { return x.default; })[0] || p;
+  var out = {};
+  Object.keys(got).forEach(function (k) { out[k] = got[k]; });
+  out.versions = p.versions;
+  out.default_version = p.default_version;
+  out._base = p;
+  return out;
+}
+function versionName(v) { return v ? String(v) : tr('plain'); }
+function markOf(family, kind, version) {
+  var id = family + '/' + kind + '@' + (version || '');
+  var src = (MD.data && MD.data.marks) ? MD.data : (PLUG || {});
+  var here = src.marks ? src.marks[id] : null;
+  var rel = src.released ? src.released[id] : null;
+  return {here: here || null, release: rel || null, id: id};
+}
+/** A mark as a tag: its colour, its word; `release`: shipped as checked with this version. */
+function markTag(m, release) {
+  var d = MARKS[m.state];
+  if (!d) return null;
+  var t = el('span', 'tag md-mark ' + d[1] + (release ? ' md-rel' : '') + (m.changed ? ' md-stale' : ''));
+  t.innerHTML = iconMarkup(release ? 'shield' : d[2], 11);
+  t.appendChild(el('span', '', d[0]));
+  var said = [d[3]];
+  if (release) said.push(tr('Shipped as checked with the release') + (m.since ? ' ' + m.since : '') + '.');
+  else if (m.by) said.push(tr('Marked by') + ' ' + m.by + (m.at ? ', ' + stamp(m.at) : '') + '.');
+  if (m.note) said.push(m.note);
+  if (m.changed) said.push(tr('The module’s file changed since it was marked.'));
+  explain(t, said.join(' '));
+  return t;
+}
+/** The tags of a module (and of a row using it): where it comes from, its version, its marks. */
+function modTags(family, p, row, opts) {
+  opts = opts || {};
+  var out = [];
+  if (!p) return out;
+  if (p.origin === 'custom') {
+    var ov = !!p.overrides;
+    var t = el('span', 'tag md-origin ' + (ov ? 'md-override' : 'md-own'));
+    t.innerHTML = iconMarkup(ov ? 'flag' : 'edit', 11);
+    t.appendChild(el('span', '', ov ? 'override' : (p.source === 'uploaded' ? 'uploaded' : 'own module')));
+    explain(t, ov ? tr('A module of your own replaces the one shipped') + ': ' + (p.module || '') + ' (' + tr('instead of') + ' ' + p.overrides + ')'
+                  : tr(p.source === 'uploaded' ? 'Uploaded on the page Modules, kept in the database' : 'A file of your own on this node') + ': ' + (p.module || ''));
+    out.push(t);
+  } else if (opts.shipped) {
+    out.push(el('span', 'tag dim md-origin', 'shipped'));
+  }
+  var vers = arr(p.versions);
+  if (vers.length || p.version) {
+    var vt = el('span', 'tag md-ver');
+    vt.innerHTML = iconMarkup('history', 11);
+    vt.appendChild(data('span', '', versionName(p.version || '')));
+    if (opts.count && vers.length > 1) vt.appendChild(el('span', 'md-ver-n', '+' + (vers.length - 1)));
+    explain(vt, (p.version_label ? p.version_label + ' · ' : '') + tr('version of the module') + (vers.length > 1 ? ' - ' + vers.length + ' ' + tr('versions there are') : ''));
+    out.push(vt);
+  }
+  if (row && row.version_missing) {
+    var mt = el('span', 'tag crit md-ver');
+    mt.appendChild(el('span', '', 'version missing'));
+    explain(mt, tr('It keeps the version') + ' ' + versionName(row.version_kept) + ', ' + tr('which is not there any more - the version used is') + ' ' + versionName(row.version) + '.');
+    out.push(mt);
+  }
+  if (opts.marks !== false) {
+    var m = markOf(family, p.kind, p.version || '');
+    if (m.here) out.push(markTag(m.here, false));
+    if (m.release && !(m.here && m.here.state === m.release.state)) out.push(markTag(m.release, true));
+  }
+  return out.filter(Boolean);
+}
+function tagsInto(node, list) {
+  list.forEach(function (t) { node.appendChild(document.createTextNode(' ')); node.appendChild(t); });
+  return node;
+}
+/** The version picker of a module's form: shown when it has more than one. */
+function versionPicker(p, onPick) {
+  var base = p._base || p;
+  var vers = arr(base.versions);
+  if (vers.length < 2) return null;
+  var box = el('div', 'md-vpick');
+  vers.forEach(function (v) {
+    var b = el('button', 'md-vcard' + (String(v.version || '') === String(p.version || '') ? ' on' : ''));
+    b.type = 'button';
+    var top = el('span', 'md-vcard-t');
+    top.appendChild(data('b', '', versionName(v.version)));
+    if (v.default) top.appendChild(el('span', 'tag ok', 'default'));
+    b.appendChild(top);
+    b.appendChild(data('span', 'md-vcard-l', v.version_label || v.title || ''));
+    var foot = el('span', 'md-vcard-f');
+    tagsInto(foot, modTags(base.family, v, null, {shipped: true, marks: true}).filter(function (t) { return !t.classList.contains('md-ver'); }));
+    b.appendChild(foot);
+    b.onclick = function () { if (!b.classList.contains('on')) onPick(String(v.version || '')); };
+    box.appendChild(b);
+  });
+  return box;
+}
+
+/* ---- the page ----------------------------------------------------------- */
+var MD = {data: null, fam: '', origin: ''};
+function loadModules(live) {
+  var host = $('md-list');
+  if (!host) return;
+  if (!live && !host.children.length) host.appendChild(el('p', 'muted', 'Asking…'));
+  capi('modules').then(function (d) {
+    MD.data = d;
+    if (PLUG) { PLUG.marks = d.marks || {}; PLUG.released = d.released || {}; }
+    drawModules(live);
+  }).catch(failInto(host, 'the modules'));
+}
+function mdRows() {
+  var d = MD.data || {};
+  var out = [];
+  ['issuer', 'challenge', 'target'].forEach(function (fam) {
+    arr(d[fam]).forEach(function (p) {
+      var used = obj(obj(d.usage)[fam])[p.kind] || {};
+      var n = 0;
+      Object.keys(used).forEach(function (k) { n += used[k]; });
+      out.push({fam: fam, p: p, used: n, usedBy: used,
+                custom: p.origin === 'custom' || arr(p.versions).some(function (v) { return v.origin === 'custom'; }),
+                override: !!p.overrides || arr(p.versions).some(function (v) { return v.overrides; })});
+    });
+  });
+  return out;
+}
+function drawModules(live) {
+  var d = MD.data || {};
+  var host = $('md-list'), sum = $('md-sum'), nodes = $('md-nodes');
+  var rows = mdRows();
+  /* the tiles at the top: what there is, at a glance; a tile filters the list */
+  if (sum) {
+    clear(sum);
+    var count = function (f) { return rows.filter(f).length; };
+    var mk = function (n, words, cls, origin) {
+      var t = el('button', 'md-tile ' + cls + (MD.origin === origin ? ' on' : ''));
+      t.type = 'button';
+      t.appendChild(el('b', '', num(n)));
+      t.appendChild(el('span', '', words));
+      t.onclick = function () { MD.origin = MD.origin === origin ? '' : origin; drawModules(); };
+      return t;
+    };
+    sum.appendChild(mk(rows.length, 'modules', 'md-t-all', ''));
+    sum.appendChild(mk(count(function (r) { return !r.custom; }), 'shipped', 'md-t-ship', 'shipped'));
+    sum.appendChild(mk(count(function (r) { return r.custom && !r.override; }), 'of your own', 'md-t-own', 'own'));
+    sum.appendChild(mk(count(function (r) { return r.override; }), 'overridden', 'md-t-over', 'override'));
+    sum.appendChild(mk(count(function (r) { return arr(r.p.versions).length > 1; }), 'with versions', 'md-t-ver', 'versions'));
+    sum.appendChild(mk(count(function (r) { var m = markOf(r.fam, r.p.kind, r.p.version); return !!(m.here || m.release); }), 'marked', 'md-t-mark', 'marked'));
+  }
+  if (nodes) {
+    clear(nodes);
+    var cm = obj(d.custom);
+    var bad = arr(cm.others).filter(function (o) { return arr(o.missing_here).length || arr(o.only_here).length || arr(o.different).length; });
+    if (bad.length) {
+      var w = el('div', 'md-nodes warn');
+      w.innerHTML = iconMarkup('flag', 16);
+      var tx = el('div');
+      tx.appendChild(el('b', '', 'The nodes do not have the same modules of your own on their disks'));
+      bad.forEach(function (o) {
+        var line = el('div', 'small');
+        line.appendChild(data('b', '', o.node));
+        line.appendChild(document.createTextNode(': '));
+        var bits = [];
+        if (arr(o.missing_here).length) bits.push(tr('not here') + ' ' + o.missing_here.join(', '));
+        if (arr(o.only_here).length) bits.push(tr('only here') + ' ' + o.only_here.join(', '));
+        if (arr(o.different).length) bits.push(tr('different') + ' ' + o.different.join(', '));
+        line.appendChild(data('span', 'mono', bits.join(' · ')));
+        tx.appendChild(line);
+      });
+      var how = el('div', 'small muted');
+      how.appendChild(el('span', '', 'Make this node the same as another (as root):'));
+      how.appendChild(document.createTextNode(' '));
+      how.appendChild(mono('acme --plugins-sync ' + bad[0].node));
+      how.appendChild(el('span', '', ' - uploaded modules need nothing: every node writes them itself.'));
+      tx.appendChild(how);
+      w.appendChild(tx);
+      nodes.appendChild(w);
+    }
+  }
+  var b = $('md-broken');
+  if (b) { clear(b); ['issuer', 'challenge', 'target'].forEach(function (f) { b.appendChild(brokenBox(f)); }); }
+  var said = $('md-said');
+  if (said) said.textContent = num(rows.length) + ' in all';
+  /* the family chips */
+  var fams = $('md-fams');
+  if (fams && !fams.children.length) {
+    [['', 'All'], ['issuer', 'Sources'], ['challenge', 'Validation'], ['target', 'Targets']].forEach(function (x) {
+      var c = el('button', 'md-chip', x[1]);
+      c.type = 'button';
+      c.dataset.fam = x[0];
+      c.onclick = function () { MD.fam = x[0]; drawModules(); };
+      fams.appendChild(c);
+    });
+  }
+  if (fams) Array.prototype.forEach.call(fams.children, function (c) { c.classList.toggle('on', c.dataset.fam === MD.fam); });
+  var up = $('md-upload');
+  if (up) { up.hidden = !d.may_upload; up.onclick = function () { moduleUpload({}); }; }
+  var q = $('md-q');
+  var spec = {
+    fields: [['name', 'what the module is called', 'name~NetScaler'], ['kind', 'its kind in acme', 'kind:netscaler'],
+             ['vendor', 'who makes it', 'vendor:Citrix'], ['family', 'source, validation or target', 'family:target'],
+             ['origin', 'shipped, own, uploaded or override', 'origin:override'], ['version', 'one of its versions', 'version:14.1'],
+             ['mark', 'tested, works or problem', 'mark:works'], ['used', 'how many use it', 'used>0', 'num']],
+    rows: function () { return mdRows(); },
+    value: function (r, f) {
+      var p = r.p;
+      var m = markOf(r.fam, p.kind, p.version);
+      return {name: p.title || p.kind, kind: p.kind, vendor: p.vendor || '', family: {issuer: 'source', challenge: 'validation', target: 'target'}[r.fam],
+              origin: r.override ? 'override' : (r.custom ? (p.source === 'uploaded' ? 'uploaded' : 'own') : 'shipped'),
+              version: arr(p.versions).map(function (v) { return v.version || 'plain'; }).join(' ') || p.version || '',
+              mark: (m.here || m.release || {}).state || '', used: r.used}[f];
+    },
+    words: function (r) { return [r.p.title, r.p.kind, r.p.vendor, r.p.description].join(' '); }
+  };
+  if (q && !q._md) { q._md = 1; setTimeout(function () { if (q.isConnected) qLocal(q, spec); }, 0); q.oninput = function () { drawModules(); }; }
+  var list = rows.filter(function (r) {
+    if (MD.fam && r.fam !== MD.fam) return false;
+    var m = markOf(r.fam, r.p.kind, r.p.version);
+    return {'': true, shipped: !r.custom, own: r.custom && !r.override, override: r.override,
+            versions: arr(r.p.versions).length > 1, marked: !!(m.here || m.release)}[MD.origin];
+  });
+  if (q) list = qFilter(q, spec, list);
+  /* your own first, then by family and name */
+  list.sort(function (a, b) {
+    return (b.custom - a.custom) || ('icT'.indexOf(a.fam[0]) - 'icT'.indexOf(b.fam[0])) ||
+      String(a.p.title || a.p.kind).localeCompare(String(b.p.title || b.p.kind));
+  });
+  liveFill(host, function (box) {
+    box.appendChild(listTable(['Module', 'Family', 'Where from', 'Versions', 'Used by', ''], list, function (r) {
+      var p = r.p, tr_ = el('tr', r.custom ? 'md-row-own' : '');
+      var c = el('td', 'md-name');
+      var ic = el('span', 'ct-kind-ic v-' + String(p.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+      ic.textContent = String(p.title || p.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+      noI18n(ic);
+      c.appendChild(ic);
+      var w = el('div');
+      w.appendChild(el('b', '', p.title || p.kind));
+      var sub = el('div', 'muted small');
+      sub.appendChild(mono(p.kind));
+      if (p.vendor) { sub.appendChild(document.createTextNode(' · ')); sub.appendChild(data('span', '', p.vendor)); }
+      w.appendChild(sub);
+      c.appendChild(w);
+      tr_.appendChild(c);
+      tr_.appendChild(td('', el('span', 'md-fam md-fam-' + r.fam, FAM_WORDS[r.fam])));
+      var o = el('td');
+      var vers = arr(p.versions);
+      var origins = vers.length ? vers : [p];
+      var seen = {};
+      origins.forEach(function (v) {
+        modTags(r.fam, v, null, {marks: false}).forEach(function (t) {
+          if (t.classList.contains('md-ver') || seen[t.textContent]) return;
+          seen[t.textContent] = 1;
+          o.appendChild(t);
+          o.appendChild(document.createTextNode(' '));
+        });
+      });
+      if (!o.children.length) o.appendChild(el('span', 'tag dim', 'shipped'));
+      tr_.appendChild(o);
+      var vc = el('td', 'md-vers');
+      (vers.length ? vers : [p]).forEach(function (v) {
+        var chip = el('span', 'md-vchip' + (v.default || !vers.length ? ' def' : '') + (v.origin === 'custom' ? (v.overrides ? ' over' : ' own') : ''));
+        chip.appendChild(data('span', '', versionName(v.version || '')));
+        var n = r.usedBy[String(v.version || '')] || 0;
+        if (n) chip.appendChild(el('span', 'md-vchip-n', num(n)));
+        var m = markOf(r.fam, p.kind, v.version || '');
+        var mm = m.here || m.release;
+        if (mm && MARKS[mm.state]) chip.classList.add('m-' + mm.state);
+        explain(chip, (v.version_label || v.title || '') + (v.default ? ' · ' + tr('default') : '') + (n ? ' · ' + tr('used by') + ' ' + n : '') + (mm ? ' · ' + tr(MARKS[mm.state][0]) : ''));
+        vc.appendChild(chip);
+      });
+      tr_.appendChild(vc);
+      tr_.appendChild(td('num', r.used ? num(r.used) : '–'));
+      var tools = el('td', 'rowtools');
+      if (d.may_upload) {
+        var dl = iconButton('download', 'Download its source');
+        dl.onclick = function (ev) { ev.stopPropagation(); moduleSource(r.fam, p, p.version || '', !!vers.length); };
+        tools.appendChild(dl);
+        var upv = iconButton('upload', 'Upload a version of your own');
+        upv.onclick = function (ev) { ev.stopPropagation(); moduleUpload({family: r.fam, base: p}); };
+        tools.appendChild(upv);
+      }
+      tr_.appendChild(tools);
+      return rowOpens(tr_, function () { moduleDetail(r.fam, p.kind); });
+    }, 'plain md-table|Nothing matches'));
+  }, live);
+  explainWhatWasDrawn(host);
+}
+/** Where a module's file is, said short: shipped (acmelib/…), uploaded (…), on the disk. */
+function shortModulePath(path) {
+  var p = String(path || '');
+  var i = p.indexOf('/plugins-uploaded/');
+  if (i >= 0) return tr('uploaded') + ': ' + p.slice(i + 18);
+  i = p.indexOf('/acmelib/plugins/');
+  if (i >= 0) return p.slice(i + 1);
+  return p;
+}
+/** A file to keep: the source of a module as loaded (shipped or your own). */
+function moduleSource(fam, p, version, hasVersions) {
+  var a = {family: fam, kind: p.kind};
+  if (hasVersions) { a.version = version || ''; a.has_version = '1'; }
+  capi('modules/source' + qs(a)).then(function (d) {
+    saveText(d.file, d.text, 'text/x-python');
+    toast('Downloaded: ' + d.file, 'good');
+  }).catch(fail);
+}
+/** A start for a version (or an override) of your own: a file that takes the module as it is. */
+function moduleTemplate(fam, p, version, label, override) {
+  var cls = (p.class_name || 'Module');
+  var mine = cls.replace(/[^A-Za-z0-9_]/g, '') + (override ? 'Mine' : 'V' + String(version || 'x').replace(/[^A-Za-z0-9]/g, '_'));
+  var lines = [
+    '# -*- coding: utf-8 -*-',
+    '"""' + (override ? 'An override of ' : 'A version of ') + (p.title || p.kind) + ' (' + p.kind + ').',
+    '',
+    'Upload it on the page Modules, or put it into /etc/acme/plugins/' + FAM_TAB[fam].replace('validation', 'challenges').replace('sources', 'issuers') + '/ and restart acme.',
+    'It takes the module as it is and changes what you write below - see docs/writing-a-module.md.',
+    '"""',
+    'from ' + p.py_module + ' import ' + cls,
+    '',
+    '',
+    'class ' + mine + '(' + cls + '):',
+    override ? '    """The same kind and version as the one shipped: it replaces it."""' : '    module_version = ' + JSON.stringify(String(version || '')),
+    override ? '' : '    version_label = ' + JSON.stringify(String(label || '')),
+    override ? '' : '    default_version = False      # True: a new one, and one that says none, takes this one',
+    '',
+    '    # fields = ' + cls + '.fields + [field(\'my_setting\', \'My setting\', \'text\')]',
+    '',
+    '    # def deploy(self, bundle, options):',
+    '    #     ...',
+    '    #     return ' + cls + '.deploy(self, bundle, options)',
+    ''];
+  return lines.filter(function (l, i) { return l !== '' || lines[i - 1] !== ''; }).join('\n');
+}
+function moduleDetail(fam, kind) {
+  var d = MD.data || {};
+  var p = arr(d[fam]).filter(function (x) { return x.kind === kind; })[0];
+  if (!p) return;
+  var vers = arr(p.versions).length ? arr(p.versions) : [p];
+  var used = obj(obj(d.usage)[fam])[kind] || {};
+  modal(FAM_WORDS[fam] + ' · ' + (p.title || kind), function (body) {
+    var head = plugHead(p, fam);
+    body.appendChild(head);
+    var sec = section('Versions', vers.length > 1 ? 'Each source, validation or target chooses the version it uses in its form; one that says none takes the default.' : 'One version: every one of them uses it. A version of your own is added with “Upload a version of your own”.', true);
+    vers.forEach(function (v) {
+      var card = el('div', 'md-vrow' + (v.origin === 'custom' ? (v.overrides ? ' over' : ' own') : ''));
+      var left = el('div', 'md-vrow-l');
+      var t = el('div', 'md-vrow-t');
+      t.appendChild(data('b', '', versionName(v.version || '')));
+      if (v.version_label) t.appendChild(data('span', 'muted', ' · ' + v.version_label));
+      if (vers.length > 1 && v.default) t.appendChild(el('span', 'tag ok', 'default'));
+      tagsInto(t, modTags(fam, v, null, {shipped: true}).filter(function (x) { return !x.classList.contains('md-ver'); }));
+      left.appendChild(t);
+      var f = el('div', 'small muted');
+      f.appendChild(mono(shortModulePath(v.module || '')));
+      explain(f, v.module || '');
+      if (v.overrides) { f.appendChild(document.createTextNode(' ')); f.appendChild(el('span', '', 'instead of')); f.appendChild(document.createTextNode(' ')); f.appendChild(mono(shortModulePath(v.overrides))); }
+      left.appendChild(f);
+      var n = used[String(v.version || '')] || 0;
+      left.appendChild(el('div', 'small', n ? 'used by ' + n : 'nothing uses it'));
+      card.appendChild(left);
+      var right = el('div', 'md-vrow-r btnrow');
+      if (d.may_upload) {
+        var dl = cmdButton('Download', 'download', 'small');
+        dl.onclick = function () { moduleSource(fam, p, v.version || '', vers.length > 1 || !!v.version); };
+        right.appendChild(dl);
+        var mk = cmdButton('Mark it', 'check', 'small');
+        mk.onclick = function () { over(function () { moduleMark(fam, p, v); }, function () { moduleDetail(fam, kind); }); };
+        right.appendChild(mk);
+        var rel = v.source === 'uploaded' ? Object.keys(obj(d.uploaded)).filter(function (k) { return v.module && v.module.slice(-k.length - 1) === '/' + k; })[0] : null;
+        if (rel) {
+          var rm = cmdButton('Take it away', 'trash', 'small danger');
+          rm.onclick = function () { over(function () { moduleRemove(rel, v); }, function () { moduleDetail(fam, kind); }); };
+          right.appendChild(rm);
+        }
+      }
+      card.appendChild(right);
+      sec._body.appendChild(card);
+    });
+    body.appendChild(sec);
+    if (d.may_upload) {
+      var mine = section('Make one of your own', 'A file that takes this module as it is - change what you need, then upload it. Download the source above to see how it works.');
+      var bar = el('div', 'btnrow');
+      var t1 = cmdButton('A version of your own', 'add', 'small');
+      t1.onclick = function () { saveText(kind + '_mine.py', moduleTemplate(fam, plugVersion(p), 'mine', 'My version', false), 'text/x-python'); };
+      var t2 = cmdButton('An override of the default one', 'edit', 'small');
+      t2.onclick = function () { saveText(kind + '.py', moduleTemplate(fam, plugVersion(p), '', '', true), 'text/x-python'); };
+      var t3 = cmdButton('Upload a version of your own', 'upload', 'small primary');
+      t3.onclick = function () { over(function () { moduleUpload({family: fam, base: p}); }, function () { moduleDetail(fam, kind); }); };
+      bar.appendChild(t1);
+      bar.appendChild(t2);
+      bar.appendChild(t3);
+      mine._body.appendChild(bar);
+      body.appendChild(mine);
+    }
+  }, [{words: 'Close', close: true}], 'large');
+}
+function moduleMark(fam, p, v) {
+  var cur = markOf(fam, p.kind, v.version || '');
+  var pick = (cur.here || {}).state || '';
+  var note = null;
+  modal(tr('Mark it') + ' · ' + (p.title || p.kind) + ' · ' + versionName(v.version || ''), function (body) {
+    body.appendChild(el('p', 'note', 'How far this version of the module is checked - shown beside it everywhere. Kept in the database (every copy, both nodes) with the file it was set on: when the file changes, the mark says so.'));
+    if (cur.release) {
+      var r = el('p', 'small');
+      r.appendChild(el('span', 'muted', 'The release ships it as: '));
+      r.appendChild(markTag(cur.release, true));
+      body.appendChild(r);
+    }
+    var grid = el('div', 'md-marks');
+    [['tested'], ['works'], ['problem'], ['']].forEach(function (x) {
+      var s = x[0];
+      var b = el('button', 'md-markcard ' + (s ? MARKS[s][1] : 'md-none') + (pick === s ? ' on' : ''));
+      b.type = 'button';
+      var ic = el('span', 'md-markcard-ic');
+      ic.innerHTML = iconMarkup(s ? MARKS[s][2] : 'close', 18);
+      b.appendChild(ic);
+      b.appendChild(el('b', '', s ? MARKS[s][0] : 'no mark'));
+      b.appendChild(el('span', 'small', s ? MARKS[s][3] : 'Takes the mark set here away.'));
+      b.onclick = function () {
+        pick = s;
+        Array.prototype.forEach.call(grid.children, function (c) { c.classList.toggle('on', c === b); });
+      };
+      grid.appendChild(b);
+    });
+    body.appendChild(grid);
+    note = textBox((cur.here || {}).note || '', tr('e.g. NetScaler 14.1-25, both nodes'), '');
+    body.appendChild(formField('Note', note, 'What it was checked on.'));
+  }, [{words: 'Cancel', close: true}, {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
+    busy(b, true);
+    capi('modules/mark', {family: fam, kind: p.kind, version: v.version || '', state: pick, note: note.value}).then(function (d) {
+      toast(said(d, 'marked'), 'good');
+      closeModal();
+      loadModules();
+      plugins(true).catch(function () {});
+    }).catch(fail).then(function () { busy(b, false); });
+  }}], true);
+}
+function moduleRemove(rel, v) {
+  modal(tr('Take the uploaded module away'), function (body) {
+    body.appendChild(el('p', '', 'The file is taken out of the database and from every node. What uses its version goes on with the default version of the module.'));
+    body.appendChild(mono(rel));
+  }, [{words: 'Keep it', close: true}, {words: 'Take it away', cls: 'danger', icon: 'trash', once: true, go: function (b) {
+    busy(b, true);
+    capi('modules/remove', {path: rel}).then(function (d) {
+      toast(said(d, 'taken away'), 'good');
+      closeModal();
+      loadModules();
+      plugins(true).catch(function () {});
+    }).catch(fail).then(function () { busy(b, false); });
+  }}], true);
+}
+/** Upload a module: chosen or dropped, checked (it loads, and what it adds or replaces),
+    only then kept. `o`: {family, base} - from a module's row. */
+function moduleUpload(o) {
+  o = o || {};
+  var st = {family: o.family || 'target', file: '', text: '', checked: null};
+  var fileName = null, noteBox = null, out = null, codeHost = null, famRow = null, go = null;
+  var setFam = function (f) {
+    st.family = f;
+    st.checked = null;
+    Array.prototype.forEach.call(famRow.children, function (c) { c.classList.toggle('on', c.dataset.fam === f); });
+    if (go) go.disabled = true;
+    if (out) clear(out);
+  };
+  modal(tr('Upload a module'), function (body) {
+    body.appendChild(el('p', 'note', 'A Python file with a source, a validation or a target: a module of its own kind, another version of one there is (module_version), or the same kind and version as one shipped - which it then replaces. It is checked first, in a process of its own; only then kept - in the database, so every copy and both nodes have it.'));
+    famRow = el('div', 'md-chips');
+    [['issuer', 'Source'], ['challenge', 'Validation'], ['target', 'Target']].forEach(function (x) {
+      var c = el('button', 'md-chip', x[1]);
+      c.type = 'button';
+      c.dataset.fam = x[0];
+      c.onclick = function () { setFam(x[0]); };
+      famRow.appendChild(c);
+    });
+    body.appendChild(formField('It is a', famRow));
+    var drop = dropZone(tr('Drop the .py file here, or press to choose it'), function (files) {
+      var f = files[0];
+      fileText(f).then(function (t) {
+        st.text = String(t);
+        st.file = f.name;
+        fileName.value = f.name.toLowerCase().replace(/[^a-z0-9_.]/g, '_');
+        drop._words.textContent = f.name + ' · ' + num(Math.round(st.text.length / 102.4) / 10) + ' KB';
+        drop.classList.add('md-got');
+        codeHost.hidden = false;
+        code.value = st.text;
+        check();
+      }).catch(oops);
+    }, '.py,text/x-python');
+    body.appendChild(drop);
+    var g = el('div', 'formgrid');
+    fileName = textBox(o.base ? o.base.kind + '_mine.py' : '', 'netscaler_v14.py', 'mono');
+    noI18n(fileName);
+    g.appendChild(formField('File name', fileName, 'Lowercase letters, digits and _, ending .py. An uploaded file of the same name is replaced.'));
+    noteBox = textBox('', tr('what it is for'), '');
+    g.appendChild(formField('Note', noteBox));
+    body.appendChild(g);
+    codeHost = el('details', 'ct-more md-code');
+    codeHost.appendChild(el('summary', '', 'The file (or paste it here)'));
+    var code = el('textarea', 'mono md-codebox');
+    code.rows = 14;
+    code.spellcheck = false;
+    code.placeholder = o.base ? moduleTemplate(o.family, plugVersion(o.base), '14.1', 'My version', false) : '# -*- coding: utf-8 -*-';
+    noI18n(code);
+    code.oninput = function () { st.text = code.value; st.checked = null; if (go) go.disabled = true; };
+    codeHost.appendChild(code);
+    if (o.base) {
+      var tpl = cmdButton('Start from a template', 'edit', 'small');
+      tpl.onclick = function () { code.value = moduleTemplate(o.family, plugVersion(o.base), '14.1', 'My version', false); st.text = code.value; codeHost.open = true; };
+      codeHost.appendChild(el('div', 'btnrow')).appendChild(tpl);
+    }
+    body.appendChild(codeHost);
+    out = el('div', 'md-check');
+    body.appendChild(out);
+    setFam(st.family);
+  }, [{words: 'Cancel', close: true},
+      {words: 'Check it', icon: 'search', go: function () { check(); }},
+      {words: 'Install', cls: 'primary', icon: 'upload', go: function (b) { install(b); }}], 'large');
+  go = $('modal-foot').querySelector('.btn.primary');
+  if (go) go.disabled = true;
+  function body() { return {family: st.family, filename: fileName.value.trim(), text: st.text, note: noteBox.value}; }
+  function check() {
+    clear(out);
+    if (!st.text.trim()) { out.appendChild(el('p', 'warn', 'Choose the file first (or paste it).')); return; }
+    if (!fileName.value.trim()) fileName.value = 'module_mine.py';
+    out.appendChild(el('p', 'muted', 'Checking…'));
+    capi('modules/analyse', body(), 60).then(function (d) {
+      clear(out);
+      st.checked = d.ok ? d : null;
+      if (go) go.disabled = !d.ok;
+      if (!d.ok) {
+        var e = el('div', 'ct-errbox');
+        e.appendChild(el('b', '', 'It would not load'));
+        e.appendChild(saidBox(d.error || ''));
+        if (d.detail) {
+          var det = el('details', 'ct-more');
+          det.appendChild(el('summary', '', 'What Python said'));
+          det.appendChild(saidBox(d.detail));
+          e.appendChild(det);
+        }
+        out.appendChild(e);
+        return;
+      }
+      var ok = el('div', 'md-found');
+      ok.appendChild(el('b', 'good', 'It loads. It would:'));
+      arr(d.classes).forEach(function (c) {
+        var line = el('div', 'md-found-row md-does-' + c.does);
+        var ic = el('span', 'md-found-ic');
+        ic.innerHTML = iconMarkup({override: 'flag', version: 'history', 'new': 'add'}[c.does] || 'add', 15);
+        line.appendChild(ic);
+        var w = el('div');
+        var t = el('div');
+        t.appendChild(el('b', '', {override: 'replace', version: 'add the version', 'new': 'add the module'}[c.does]));
+        t.appendChild(document.createTextNode(' '));
+        t.appendChild(data('span', 'mono', c.kind + (c.version ? ' ' + c.version : '')));
+        if (c['default']) t.appendChild(el('span', 'tag ok', 'default'));
+        w.appendChild(t);
+        var s = el('div', 'small muted');
+        s.appendChild(data('span', '', c.title + (c.label ? ' · ' + c.label : '') + ' · ' + c.fields + ' '));
+        s.appendChild(el('span', '', 'settings'));
+        if (c.does === 'override') {
+          s.appendChild(document.createTextNode(' · '));
+          s.appendChild(el('span', 'warn', {builtin: 'the shipped one is no longer used (download it first to keep it)', disk: 'the file of your own on the disk is no longer used', uploaded: 'the one uploaded before is replaced'}[c.replaces] || ''));
+        }
+        w.appendChild(s);
+        line.appendChild(w);
+        ok.appendChild(line);
+      });
+      if (d.replaces_upload) ok.appendChild(el('p', 'small warn', 'An uploaded file of this name is there: it is replaced.'));
+      if (d.on_disk) ok.appendChild(el('p', 'small warn', 'A file of this name is in the folder on the disk too: the uploaded one wins.'));
+      out.appendChild(ok);
+    }).catch(function (e) { clear(out); out.appendChild(failedBox(e, 'the check')); });
+  }
+  function install(b) {
+    if (!st.checked) { check(); return; }
+    busy(b, true);
+    capi('modules/install', body(), 60).then(function (d) {
+      toast(said(d, 'installed'), 'good');
+      closeModal();
+      if (MD.data) loadModules();
+      plugins(true).catch(function () {});
+    }).catch(fail).then(function () { busy(b, false); });
+  }
+}
+
+/* ==========================================================================
    The tabs and the panes, put into the page
    ========================================================================== */
 var MY_TABS = {
   certs: loadCerts, cas: loadCas, jobs: loadJobs,
   sources: function (live) { drawModTab('sources', live); },
   validation: function (live) { drawModTab('validation', live); },
-  targets: function (live) { drawModTab('targets', live); }
+  targets: function (live) { drawModTab('targets', live); },
+  modules: loadModules
 };
 var MY_PANES = {dnssrv: loadDns, certs: loadCertSettings};
 var LAST = {};
 /* How often a tab is asked again on the live tick, unless the daemon's serial
    moved (something happened): then at the next tick. */
-var EVERY = {overview: 30000, certs: 30000, jobs: 10000, cas: 60000, sources: 60000, validation: 60000, targets: 60000};
+var EVERY = {overview: 30000, certs: 30000, jobs: 10000, cas: 60000, sources: 60000, validation: 60000, targets: 60000, modules: 60000};
 function drawTab(name, live, moved) {
   var fn = name === 'overview' ? loadOverviewCerts : MY_TABS[name];
   if (!fn) return;

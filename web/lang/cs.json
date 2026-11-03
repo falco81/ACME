@@ -48907,6 +48907,386 @@
   "dp30_12": {
    "source": "Names with the record",
    "text": "Jména se záznamem"
+  },
+  "md32_1": {
+   "source": "Modules",
+   "text": "Moduly"
+  },
+  "md32_2": {
+   "source": "The modules sources, validations and targets are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.",
+   "text": "Moduly, ze kterých se skládají zdroje, validace a cíle: dodané s acme, vlastní, jejich verze a co je označené jako otestované – stáhněte si modul, nahrajte vlastní."
+  },
+  "md32_3": {
+   "source": "What sources, validations and targets are made of. Each comes shipped with acme, or is one of your own - a file in the folder of modules on a node, or uploaded here; one of your own with the kind of a shipped module overrides it, one with a version of its own adds that version (an API version of a device, say), which each source, validation or target then chooses in its form. Marks say what is tested and works - set here, or shipped with the release. Uploaded modules are kept in the database: every backup and both nodes have them.",
+   "text": "Z čeho se skládají zdroje, validace a cíle. Každý modul je buď dodaný s acme, nebo vlastní – soubor ve složce modulů na uzlu, nebo nahraný zde. Vlastní modul se stejným druhem jako dodaný ho přepíše, vlastní modul s vlastní verzí tu verzi přidá (třeba verzi API zařízení) a každý zdroj, validace či cíl si ji pak vybere ve svém formuláři. Značky říkají, co je otestované a funguje – nastavené zde, nebo dodané s vydáním. Nahrané moduly se ukládají do databáze: mají je všechny zálohy i oba uzly."
+  },
+  "md32_4": {
+   "source": "a name, a kind, a vendor…",
+   "text": "název, druh, výrobce…"
+  },
+  "md32_5": {
+   "source": "Upload a module",
+   "text": "Nahrát modul"
+  },
+  "md32_6": {
+   "source": "modules",
+   "text": "modulů"
+  },
+  "md32_7": {
+   "source": "shipped",
+   "text": "dodané"
+  },
+  "md32_8": {
+   "source": "of your own",
+   "text": "vlastní"
+  },
+  "md32_9": {
+   "source": "overridden",
+   "text": "přepsané"
+  },
+  "md32_10": {
+   "source": "with versions",
+   "text": "s verzemi"
+  },
+  "md32_11": {
+   "source": "marked",
+   "text": "označeno"
+  },
+  "md32_12": {
+   "source": "Family",
+   "text": "Druh"
+  },
+  "md32_13": {
+   "source": "Where from",
+   "text": "Původ"
+  },
+  "md32_14": {
+   "source": "Download its source",
+   "text": "Stáhnout zdrojový kód"
+  },
+  "md32_15": {
+   "source": "Upload a version of your own",
+   "text": "Nahrát vlastní verzi"
+  },
+  "md32_16": {
+   "source": "override",
+   "text": "přepisuje dodaný"
+  },
+  "md32_17": {
+   "source": "uploaded",
+   "text": "nahraný"
+  },
+  "md32_18": {
+   "source": "own module",
+   "text": "vlastní modul"
+  },
+  "md32_19": {
+   "source": "plain",
+   "text": "základní"
+  },
+  "md32_20": {
+   "source": "version missing",
+   "text": "chybí verze"
+  },
+  "md32_21": {
+   "source": "tested",
+   "text": "otestováno"
+  },
+  "md32_22": {
+   "source": "problem",
+   "text": "problém"
+  },
+  "md32_23": {
+   "source": "no mark",
+   "text": "bez značky"
+  },
+  "md32_24": {
+   "source": "Tried on a device or an account - it does what it says.",
+   "text": "Vyzkoušeno na zařízení nebo účtu – dělá, co má."
+  },
+  "md32_25": {
+   "source": "In use, and working.",
+   "text": "Používá se a funguje."
+  },
+  "md32_26": {
+   "source": "Known not to work, or to work only partly.",
+   "text": "Známo, že nefunguje, nebo jen zčásti."
+  },
+  "md32_27": {
+   "source": "Takes the mark set here away.",
+   "text": "Odebere značku nastavenou zde."
+  },
+  "md32_28": {
+   "source": "Shipped as checked with the release",
+   "text": "Dodáno jako ověřené s vydáním"
+  },
+  "md32_29": {
+   "source": "Marked by",
+   "text": "Označil(a)"
+  },
+  "md32_30": {
+   "source": "The module’s file changed since it was marked.",
+   "text": "Soubor modulu se od označení změnil."
+  },
+  "md32_31": {
+   "source": "A module of your own replaces the one shipped",
+   "text": "Vlastní modul nahrazuje dodaný"
+  },
+  "md32_32": {
+   "source": "instead of",
+   "text": "místo"
+  },
+  "md32_33": {
+   "source": "Uploaded on the page Modules, kept in the database",
+   "text": "Nahráno na stránce Moduly, uloženo v databázi"
+  },
+  "md32_34": {
+   "source": "A file of your own on this node",
+   "text": "Vlastní soubor na tomto uzlu"
+  },
+  "md32_35": {
+   "source": "version of the module",
+   "text": "verze modulu"
+  },
+  "md32_36": {
+   "source": "versions there are",
+   "text": "verzí je k dispozici"
+  },
+  "md32_37": {
+   "source": "It keeps the version",
+   "text": "Má uloženou verzi"
+  },
+  "md32_38": {
+   "source": "which is not there any more - the version used is",
+   "text": "která už neexistuje – používá se verze"
+  },
+  "md32_39": {
+   "source": "Version of the module",
+   "text": "Verze modulu"
+  },
+  "md32_40": {
+   "source": "Which version this one uses - an API version of the device, say. Each has its own settings; what is typed stays.",
+   "text": "Kterou verzi používá – třeba verzi API zařízení. Každá má vlastní nastavení; co je vyplněné, zůstane."
+  },
+  "md32_41": {
+   "source": "The version it kept is not there any more - the one marked here is used. Save to keep it.",
+   "text": "Uložená verze už neexistuje – používá se ta označená zde. Uložením se zachová."
+  },
+  "md32_42": {
+   "source": "The nodes do not have the same modules of your own on their disks",
+   "text": "Uzly nemají na disku stejné vlastní moduly"
+  },
+  "md32_43": {
+   "source": "not here",
+   "text": "zde chybí"
+  },
+  "md32_44": {
+   "source": "only here",
+   "text": "jen zde"
+  },
+  "md32_45": {
+   "source": "different",
+   "text": "liší se"
+  },
+  "md32_46": {
+   "source": "Make this node the same as another (as root):",
+   "text": "Srovnat tento uzel s jiným (jako root):"
+  },
+  "md32_47": {
+   "source": " - uploaded modules need nothing: every node writes them itself.",
+   "text": " – nahrané moduly nic nepotřebují: každý uzel si je zapíše sám."
+  },
+  "md32_48": {
+   "source": "Each source, validation or target chooses the version it uses in its form; one that says none takes the default.",
+   "text": "Každý zdroj, validace či cíl si verzi vybere ve svém formuláři; kdo žádnou neuvádí, použije výchozí."
+  },
+  "md32_49": {
+   "source": "One version: every one of them uses it. A version of your own is added with “Upload a version of your own”.",
+   "text": "Jedna verze: používají ji všichni. Vlastní verzi přidáte tlačítkem „Nahrát vlastní verzi“."
+  },
+  "md32_50": {
+   "source": "nothing uses it",
+   "text": "nic ho nepoužívá"
+  },
+  "md32_51": {
+   "source": "Mark it",
+   "text": "Označit"
+  },
+  "md32_52": {
+   "source": "Make one of your own",
+   "text": "Vytvořit vlastní"
+  },
+  "md32_53": {
+   "source": "A file that takes this module as it is - change what you need, then upload it. Download the source above to see how it works.",
+   "text": "Soubor, který převezme tento modul tak, jak je – změňte, co potřebujete, a nahrajte ho. Zdrojový kód výše ukáže, jak modul funguje."
+  },
+  "md32_54": {
+   "source": "A version of your own",
+   "text": "Vlastní verze"
+  },
+  "md32_55": {
+   "source": "An override of the default one",
+   "text": "Přepsání výchozí verze"
+  },
+  "md32_56": {
+   "source": "How far this version of the module is checked - shown beside it everywhere. Kept in the database (every copy, both nodes) with the file it was set on: when the file changes, the mark says so.",
+   "text": "Jak je tato verze modulu ověřená – zobrazuje se u ní všude. Ukládá se do databáze (každá kopie, oba uzly) i s otiskem souboru: když se soubor změní, značka to ukáže."
+  },
+  "md32_57": {
+   "source": "The release ships it as: ",
+   "text": "Vydání ho dodává jako: "
+  },
+  "md32_58": {
+   "source": "What it was checked on.",
+   "text": "Na čem bylo ověřeno."
+  },
+  "md32_59": {
+   "source": "e.g. NetScaler 14.1-25, both nodes",
+   "text": "např. NetScaler 14.1-25, oba uzly"
+  },
+  "md32_60": {
+   "source": "Take the uploaded module away",
+   "text": "Odebrat nahraný modul"
+  },
+  "md32_61": {
+   "source": "The file is taken out of the database and from every node. What uses its version goes on with the default version of the module.",
+   "text": "Soubor se odebere z databáze i ze všech uzlů. Co používá jeho verzi, přejde na výchozí verzi modulu."
+  },
+  "md32_62": {
+   "source": "A Python file with a source, a validation or a target: a module of its own kind, another version of one there is (module_version), or the same kind and version as one shipped - which it then replaces. It is checked first, in a process of its own; only then kept - in the database, so every copy and both nodes have it.",
+   "text": "Soubor Pythonu se zdrojem, validací nebo cílem: modul nového druhu, další verze existujícího (module_version), nebo stejný druh a verze jako dodaný – ten pak nahradí. Nejdřív se ověří v samostatném procesu; teprve pak se uloží – do databáze, takže ho má každá kopie i oba uzly."
+  },
+  "md32_63": {
+   "source": "It is a",
+   "text": "Je to"
+  },
+  "md32_64": {
+   "source": "Drop the .py file here, or press to choose it",
+   "text": "Přetáhněte sem soubor .py, nebo klikněte a vyberte ho"
+  },
+  "md32_65": {
+   "source": "Lowercase letters, digits and _, ending .py. An uploaded file of the same name is replaced.",
+   "text": "Malá písmena, číslice a _, na konci .py. Nahraný soubor stejného názvu se nahradí."
+  },
+  "md32_66": {
+   "source": "what it is for",
+   "text": "k čemu je"
+  },
+  "md32_67": {
+   "source": "The file (or paste it here)",
+   "text": "Soubor (nebo ho sem vložte)"
+  },
+  "md32_68": {
+   "source": "Start from a template",
+   "text": "Začít ze šablony"
+  },
+  "md32_69": {
+   "source": "Choose the file first (or paste it).",
+   "text": "Nejdřív vyberte soubor (nebo ho vložte)."
+  },
+  "md32_70": {
+   "source": "It would not load",
+   "text": "Nedá se načíst"
+  },
+  "md32_71": {
+   "source": "It loads. It would:",
+   "text": "Načte se. Udělá toto:"
+  },
+  "md32_72": {
+   "source": "replace",
+   "text": "nahradí"
+  },
+  "md32_73": {
+   "source": "add the version",
+   "text": "přidá verzi"
+  },
+  "md32_74": {
+   "source": "add the module",
+   "text": "přidá modul"
+  },
+  "md32_75": {
+   "source": "the shipped one is no longer used (download it first to keep it)",
+   "text": "dodaný se už nebude používat (chcete-li si ho ponechat, nejdřív si ho stáhněte)"
+  },
+  "md32_76": {
+   "source": "the file of your own on the disk is no longer used",
+   "text": "vlastní soubor na disku se už nebude používat"
+  },
+  "md32_77": {
+   "source": "the one uploaded before is replaced",
+   "text": "dříve nahraný se nahradí"
+  },
+  "md32_78": {
+   "source": "An uploaded file of this name is there: it is replaced.",
+   "text": "Nahraný soubor stejného názvu už existuje: nahradí se."
+  },
+  "md32_79": {
+   "source": "A file of this name is in the folder on the disk too: the uploaded one wins.",
+   "text": "Soubor stejného názvu je i ve složce na disku: přednost má nahraný."
+  },
+  "md32_80": {
+   "source": "the check",
+   "text": "ověření"
+  },
+  "md32_81": {
+   "source": "the modules",
+   "text": "moduly"
+  },
+  "md32_82": {
+   "source": "source, validation or target",
+   "text": "zdroj, validace nebo cíl"
+  },
+  "md32_83": {
+   "source": "shipped, own, uploaded or override",
+   "text": "dodaný, vlastní, nahraný nebo přepisující"
+  },
+  "md32_84": {
+   "source": "one of its versions",
+   "text": "jedna z jeho verzí"
+  },
+  "md32_85": {
+   "source": "tested, works or problem",
+   "text": "otestováno, funguje nebo problém"
+  },
+  "md32_86": {
+   "source": "how many use it",
+   "text": "kolik ho používá"
+  },
+  "md32_87": {
+   "source": "the mark is taken away",
+   "text": "značka je odebraná"
+  },
+  "md32_88": {
+   "source": "a module is a source, a validation or a target",
+   "text": "modul je zdroj, validace nebo cíl"
+  },
+  "md32_89": {
+   "source": "the file name: lowercase letters, digits and _, ending .py (netscaler_v14.py)",
+   "text": "název souboru: malá písmena, číslice a _, na konci .py (netscaler_v14.py)"
+  },
+  "md32_90": {
+   "source": "loading it took more than 30 s",
+   "text": "načtení trvalo déle než 30 s"
+  },
+  "md32_91": {
+   "source": "it did not load",
+   "text": "nenačetl se"
+  },
+  "md32_92": {
+   "source": "it said nothing acme understands",
+   "text": "neřekl nic, čemu by acme rozumělo"
+  },
+  "md32_93": {
+   "source": "family is issuer, challenge or target",
+   "text": "druh je issuer, challenge nebo target"
+  },
+  "md32_94": {
+   "source": "text: the file's text",
+   "text": "text: obsah souboru"
+  },
+  "md32_95": {
+   "source": "target",
+   "text": "cíl"
   }
  },
  "patterns": {
@@ -67241,6 +67621,54 @@
   "pdsc29x_1": {
    "source": "the orders could not be read: {0}",
    "text": "objednávky se nepodařilo načíst: {0}"
+  },
+  "pmd32_1": {
+   "source": "used by {0}",
+   "text": "používá {0}"
+  },
+  "pmd32_2": {
+   "source": "Downloaded: {0}",
+   "text": "Staženo: {0}"
+  },
+  "pmd32_3": {
+   "source": "the module {0} is loaded",
+   "text": "modul {0} je načtený"
+  },
+  "pmd32_4": {
+   "source": "the module {0} is taken away",
+   "text": "modul {0} je odebraný"
+  },
+  "pmd32_5": {
+   "source": "there is no uploaded module {0}",
+   "text": "nahraný modul {0} neexistuje"
+  },
+  "pmd32_6": {
+   "source": "the module was not taken: {0}",
+   "text": "modul nebyl přijat: {0}"
+  },
+  "pmd32_7": {
+   "source": "the file is bigger than {0} KB",
+   "text": "soubor je větší než {0} KB"
+  },
+  "pmd32_8": {
+   "source": "line {0}: {1}",
+   "text": "řádek {0}: {1}"
+  },
+  "pmd32_9": {
+   "source": "it has no {0} module (a class with a kind)",
+   "text": "neobsahuje modul typu {0} (třídu s druhem)"
+  },
+  "pmd32_10": {
+   "source": "the module {0} has no version \"{1}\" - it has: {2}",
+   "text": "modul {0} nemá verzi „{1}“ – má: {2}"
+  },
+  "pmd32_11": {
+   "source": "the module {0} has no version \"{1}\"",
+   "text": "modul {0} nemá verzi „{1}“"
+  },
+  "pmd32_12": {
+   "source": "a mark is one of: {0}",
+   "text": "značka je jedna z: {0}"
   }
  },
  "rich": {

@@ -1551,6 +1551,11 @@ def plugins_view(store, again=False):
         d['custom'] = CM.status(store)
     except Exception as e:                              # noqa: BLE001
         d['custom'] = {'error': str(e)}
+    try:
+        d['marks'] = CM.marks(store)            # tested / works, here and by the release
+        d['released'] = CM.released()
+    except Exception:                                   # noqa: BLE001
+        d['marks'], d['released'] = {}, {}
     return d
 
 

@@ -510,6 +510,7 @@ class Plugin(object):
                 'version': cls.module_version or '', 'version_label': cls.version_label or '',
                 'origin': getattr(cls, '_origin', 'builtin') or 'builtin',
                 'source': getattr(cls, '_source', 'builtin') or 'builtin',
+                'class_name': cls.__name__, 'py_module': cls.__module__,
                 'overrides': getattr(cls, '_overrides', '') or ''}
 
 

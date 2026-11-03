@@ -383,3 +383,86 @@ def source_of(family, kind, version=None):
     path = getattr(cls, '_module_file', '')
     with open(path, 'rb') as f:
         return os.path.basename(path), f.read().decode('utf-8', 'replace')
+
+
+# ---------------------------------------------------------------------------
+# Marks: tested / works - a full administrator's, and the release's own
+# ---------------------------------------------------------------------------
+MARK_KEY = 'module-mark:'           # meta: module-mark:<family>/<kind>@<version>
+MARK_STATES = ('tested', 'works', 'problem')
+VERIFIED_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                             'plugins', 'verified.json')
+
+
+def mark_id(family, kind, version=''):
+    return '%s/%s@%s' % (family, kind, version or '')
+
+
+def _file_sha(family, kind, version):
+    cls = S.plugin_class(family, kind, version if version is not None else None)
+    path = getattr(cls, '_module_file', '') if cls else ''
+    try:
+        with open(path, 'rb') as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return ''
+
+
+def released():
+    """The marks this release ships (acmelib/plugins/verified.json):
+    {"target/netscaler@": {"state": "works", "note": "...", "since": "1.0.31"}}."""
+    try:
+        with open(VERIFIED_FILE, encoding='utf-8') as f:
+            got = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for k, v in (got.get('modules') or {}).items() if isinstance(got, dict) else []:
+        if isinstance(v, dict) and v.get('state') in MARK_STATES:
+            out[k if '@' in k else k + '@'] = v
+    return out
+
+
+def marks(store):
+    """{mark id: {state, note, by, at, sha256, changed, release?}}: the marks set here,
+    with whether the module's file changed since (its sha256 then and now)."""
+    out = {}
+    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE ?", (MARK_KEY + '%',)):
+        got = S.jload(r['v'], {}) or {}
+        if not isinstance(got, dict) or got.get('state') not in MARK_STATES:
+            continue
+        mid = r['k'][len(MARK_KEY):]
+        fam, _, rest = mid.partition('/')
+        kind, _, ver = rest.partition('@')
+        now = _file_sha(fam, kind, ver)
+        got['changed'] = bool(got.get('sha256') and now and now != got['sha256'])
+        out[mid] = got
+    return out
+
+
+def set_mark(store, family, kind, version, state, note, by):
+    """A full administrator's mark on one version of a module ('' state: taken away)."""
+    if S.plugin_class(family, kind) is None:
+        raise LookupError('there is no %s module "%s"' % (family, kind))
+    have = S.registry().versions_of(family, kind)
+    version = str(version or '')
+    if have and version not in have:
+        raise LookupError('the module %s has no version "%s"' % (kind, version))
+    mid = mark_id(family, kind, version)
+    if not state:
+        store.db.run('DELETE FROM meta WHERE k = ?', (MARK_KEY + mid,))
+        return None
+    if state not in MARK_STATES:
+        raise ValueError('a mark is one of: %s' % ', '.join(MARK_STATES))
+    one = {'state': state, 'note': str(note or '')[:500], 'by': str(by)[:190],
+           'at': time.time(), 'sha256': _file_sha(family, kind, version)}
+    store.set_meta(MARK_KEY + mid, json.dumps(one))
+    return one
+
+
+def export_marks(store, version):
+    """The marks set here as verified.json wants them (for the next release)."""
+    out = {}
+    for mid, m in sorted(marks(store).items()):
+        out[mid] = {'state': m['state'], 'note': m.get('note') or '', 'since': version}
+    return {'modules': out}

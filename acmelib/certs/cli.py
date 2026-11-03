@@ -43,7 +43,7 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'csr', 'csr_answer', 'import_file', 'export', 'selfsigned', 'cas', 'ca_show',
         'ca_create', 'ca_sub', 'ca_import', 'ca_revoke', 'ca_crl', 'ca_export', 'ca_sign',
         'ca_del', 'sources', 'validations', 'targets', 'target_test', 'jobs', 'job', 'job_stop',
-        'plugins', 'plugin', 'plugins_sync', 'dns_records', 'dns_add', 'dns_del', 'deploys', 'deploy_add',
+        'plugins', 'plugin', 'plugins_sync', 'module_mark', 'module_marks_export', 'dns_records', 'dns_add', 'dns_del', 'deploys', 'deploy_add',
         'deploy_edit', 'deploy_del', 'deploy_run', 'acme_contact',
         'source_show', 'source_add', 'source_edit', 'source_del', 'source_test', 'source_action',
         'source_discover', 'validation_discover', 'target_discover',
@@ -202,6 +202,12 @@ def add_args(p):
                         'after a copy was put back, or to make a second node the same; '
                         '--remove also takes away files here NODE does not have (root, --yes)')
     g.add_argument('--remove', action='store_true', help='with --plugins-sync')
+    g.add_argument('--module-mark', dest='module_mark', nargs=2, metavar=('MODULE', 'STATE'),
+                   help='mark a module: family/kind[@version] tested|works|problem|none '
+                        '(--note WORDS) - e.g. target/netscaler@14.1 works')
+    g.add_argument('--module-marks-export', dest='module_marks_export', action='store_true',
+                   help='the marks set here as acmelib/plugins/verified.json takes them - '
+                        'what a release ships as checked')
     g.add_argument('--plugin', metavar='KIND', help='one module: its fields (what --set takes), '
                    'those of a deployment, its actions and help (family/kind where two '
                    'families have the kind)')
@@ -627,7 +633,9 @@ class Cli(object):
                  ('target_test', self.target_test), ('job_stop', self.job_stop),
                  ('job', self.job), ('cert', self.cert), ('certs', self.certs),
                  ('cas', self.cas), ('jobs', self.jobs), ('plugin', self.plugin),
-                 ('plugins', self.plugins), ('plugins_sync', self.plugins_sync), ('dns_add', self.dns_add), ('dns_del', self.dns_del),
+                 ('plugins', self.plugins), ('plugins_sync', self.plugins_sync),
+                 ('module_mark', self.module_mark),
+                 ('module_marks_export', self.module_marks_export), ('dns_add', self.dns_add), ('dns_del', self.dns_del),
                  ('dns_records', self.dns), ('acme_contact', self.acme_contact),
                  ('check_names', self.check_names), ('cert_check', self.cert_check),
                  ('dry_run', self.dry_run)]
@@ -1625,6 +1633,26 @@ class Cli(object):
             if any(o['missing_here'] or o['different'] for o in cm.get('others') or []):
                 print(self.pal.dim('  acme --plugins-sync NODE   writes that node\'s files here'))
         print(self.pal.dim('  acme --plugin KIND: what one of them takes'))
+        return 0
+
+    def module_mark(self):
+        mod, state = self.args.module_mark
+        m = re.match(r'^(source|validation|target|issuer|challenge)s?/([a-z0-9_]+)(?:@(.*))?\Z',
+                     mod.strip())
+        if not m:
+            raise SystemExit('acme: the module as family/kind[@version], e.g. '
+                             'target/netscaler@14.1')
+        fam = {'source': 'issuer', 'validation': 'challenge'}.get(m.group(1), m.group(1))
+        state = '' if state in ('none', '-', '') else state
+        got = self.api('POST', '/api/modules/mark', body={
+            'family': fam, 'kind': m.group(2), 'version': m.group(3) or '', 'state': state,
+            'note': self.args.note or ''})
+        return self.done(got.get('message') or 'done', got)
+
+    def module_marks_export(self):
+        from acmelib.certs import custom_modules as CM
+        from acmelib import __version__
+        self.out(CM.export_marks(self.store, __version__))
         return 0
 
     def plugins_sync(self):

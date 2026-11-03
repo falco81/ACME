@@ -299,6 +299,61 @@ handed to `issue()` at every renewal as `req.ref`: renew *that* order (it wins
 over a setting like "Certificate to reuse"), and say in `Issued.info['ref']`
 the id actually used - a new order's - so acme keeps it for the next time.
 
+## Versions, overrides and the page Modules
+
+**Where modules come from**, in this order - a later one wins: shipped with acme
+(`acmelib/plugins/`), your own on the disk of a node (`ACME_PLUGINS`,
+`/etc/acme/plugins/<issuers|challenges|targets>/`), and uploaded on the page
+**Modules** (kept in the database; each node writes them into
+`/var/lib/acme/plugins-uploaded/` itself and loads them).
+
+**Versions** - one kind, several implementations (the API generations of a
+device): give each class a `module_version`; the plain one is `''`.
+
+```python
+from acmelib.plugins.targets.netscaler import NetScalerTarget
+
+class NetScaler14(NetScalerTarget):
+    module_version = '14.1'
+    version_label = 'NITRO of ADC 14.1'
+    default_version = True        # a new one, and one that says none, takes this
+```
+
+Each source, validation or target chooses its version in its form (the cards
+under *Settings of the module*); it is kept in its settings as `_version`. A
+version that is no longer there (its file taken away) is said on the page in
+red, and the default version is used meanwhile. Secrets of every version are
+sealed whichever is used.
+
+**Overrides** - a class of your own with the kind *and* version of one that is
+there replaces it: `class NetScalerMine(NetScalerTarget)` with no
+`module_version` replaces the plain shipped NetScaler. The page tags it
+*override*; one with a version of its own is tagged *uploaded* or *own module*
+and adds that version. A module shipped with no versions can get two of your
+own: they sit beside the plain one, and `default_version` chooses.
+
+**The page Modules** (certificate administrators read it, full administrators
+act): every module with where it comes from, its versions and how many use
+each; *Download* gives the source of any of them (a shipped one to start an
+override from), *Make one of your own* a file that subclasses it, *Upload a
+module* takes a `.py` file - checked first in a process of its own (it must
+load and hold a module of that family; what it would add or replace is shown)
+and only then kept. An uploaded module is in every copy of the database and on
+both nodes of a cluster by itself; files of your own on the disk are kept in
+the database too (`custom-modules:<node>` in `meta`), compared between the
+nodes (a warning when they differ) and written back with
+`acme --plugins-sync NODE` (root) - after a copy was put back on a new machine,
+say. A full backup (Settings → Backups) has them in `plugins/` as well.
+
+**Marks** - *tested*, *works*, *problem* - say how far a version of a module
+is checked. A full administrator sets them on the page (or
+`acme --module-mark target/netscaler@14.1 works --note "ADC 14.1-25"`); they
+are kept with the sha256 of the file, so a mark on a file changed since says
+so. A release ships its own in `acmelib/plugins/verified.json`
+(`"target/netscaler@": {"state": "works", "note": "...", "since": "1.0.32"}`);
+`acme --module-marks-export` prints the marks set on an installation in that
+shape, to put into the file before a release.
+
 ## Filled in from the account (discovery)
 
 *Find the settings from the account* (web/assets/discover.js, POST

@@ -48,7 +48,26 @@ def _modules(h, s):
     d['usage'] = usage(h.store)
     d['dirs'] = {'disk': CM.plugins_dir(), 'uploaded': CM.uploaded_dir()}
     d['may_upload'] = A.may(s, 'fulladmin')
+    d['marks'] = CM.marks(h.store)
+    d['released'] = CM.released()
     return d
+
+
+@A.api('POST', '/api/modules/mark', 'fulladmin')
+def _mark(h, s):
+    """{family, kind, version, state: tested | works | problem | '' (taken away), note}"""
+    b = h.body()
+    fam = str(b.get('family') or '').strip()
+    if fam not in FAMILY_WORDS:
+        raise ValueError('family is issuer, challenge or target')
+    kind = str(b.get('kind') or '').strip()
+    ver = str(b.get('version') or '')
+    state = str(b.get('state') or '').strip()
+    by = A.who(s)
+    got = CM.set_mark(h.store, fam, kind, ver, state, b.get('note') or '', by)
+    h.store.add_event('certificates', 'module %s%s marked %s by %s' % (
+        kind, (' ' + ver) if ver else '', state or 'with nothing', by), who=by)
+    return {'ok': True, 'mark': got, 'message': 'marked' if got else 'the mark is taken away'}
 
 
 @A.api('GET', '/api/modules/source', 'fulladmin')

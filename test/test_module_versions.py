@@ -304,5 +304,58 @@ class TestUpload(unittest.TestCase):
         self.call('POST', '/api/modules/remove', body={'path': 'targets/f5_v18.py'})
 
 
+class TestMarks(unittest.TestCase):
+    def call(self, body, role='fulladmin'):
+        return E.ROUTES[('POST', '/api/modules/mark')](FakeH(role, body))
+
+    def test_marked_changed_taken_away(self):
+        got = self.call({'family': 'target', 'kind': 'netscaler', 'version': '13.1',
+                         'state': 'works', 'note': 'ADC 13.1-52'})
+        self.assertEqual(got['mark']['state'], 'works')
+        m = CM.marks(STORE)['target/netscaler@13.1']
+        self.assertEqual((m['note'], m['changed']), ('ADC 13.1-52', False))
+        # the file changes: the mark says so
+        path = os.path.join(PLUG, 'targets', 'netscaler.py')
+        with open(path, 'a') as f:
+            f.write('\n# changed\n')
+        try:
+            self.assertTrue(CM.marks(STORE)['target/netscaler@13.1']['changed'])
+        finally:
+            with open(path, 'w') as f:
+                f.write(OWN_NETSCALER)
+        with self.assertRaises(E.ApiError):
+            self.call({'family': 'target', 'kind': 'netscaler', 'version': '9', 'state': 'works'})
+        with self.assertRaises((E.ApiError, ValueError)):
+            self.call({'family': 'target', 'kind': 'netscaler', 'version': '13.1',
+                       'state': 'great'})
+        self.call({'family': 'target', 'kind': 'netscaler', 'version': '13.1', 'state': ''})
+        self.assertNotIn('target/netscaler@13.1', CM.marks(STORE))
+
+    def test_released_and_exported(self):
+        import acmelib
+        old = CM.VERIFIED_FILE
+        CM.VERIFIED_FILE = os.path.join(TMP, 'verified.json')
+        try:
+            with open(CM.VERIFIED_FILE, 'w') as f:
+                json.dump({'modules': {'target/f5': {'state': 'works', 'since': '1.0.32'},
+                                       'target/x@1': {'state': 'nonsense'}}}, f)
+            self.assertEqual(CM.released(), {'target/f5@': {'state': 'works',
+                                                            'since': '1.0.32'}})
+            lst = E.ROUTES[('GET', '/api/modules')](FakeH('certadmin'))
+            self.assertIn('target/f5@', lst['released'])
+        finally:
+            CM.VERIFIED_FILE = old
+        self.call({'family': 'target', 'kind': 'f5', 'version': '', 'state': 'tested'})
+        out = CM.export_marks(STORE, acmelib.__version__)
+        self.assertEqual(out['modules']['target/f5@']['state'], 'tested')
+
+    def test_the_shipped_file_is_valid(self):
+        with open(os.path.join(ROOT, 'acmelib', 'plugins', 'verified.json')) as f:
+            got = json.load(f)
+        for k, v in got['modules'].items():
+            self.assertRegex(k, r'^(issuer|challenge|target)/[a-z0-9_]+@')
+            self.assertIn(v['state'], CM.MARK_STATES)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -36,6 +36,8 @@ function acme_certs_tab_buttons(): void
           title="How names are proved to an ACME CA: DNS-01 through acme's own DNS server or your DNS provider, HTTP-01 here or on your web servers over SSH.">Validation</button>
   <button role="tab" aria-selected="false" data-tab="targets" data-icon="net" data-cicon="target"
           title="Where certificates go: Linux servers over SSH, F5, NetScaler, MikroTik, FortiGate and the rest - and what is deployed on each.">Targets</button>
+  <button role="tab" aria-selected="false" data-tab="modules" data-icon="grid" data-cicon="module" class="ct-manage"
+          title="The modules sources, validations and targets are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.">Modules</button>
   <button role="tab" aria-selected="false" data-tab="jobs" data-icon="history" data-cicon="job"
           title="Every piece of work - an issue, a renewal, a deployment, a test - with each of its steps. Running ones update by themselves.">Jobs<span class="count" id="tabn-jobs"></span></button>
 <?php
@@ -170,6 +172,29 @@ function acme_certs_tab_panels(): void
     </div>
     <div id="tg-broken"></div>
     <div id="tg-list"></div>
+  </div>
+</section>
+
+<!-- ===================== Modules ===================== -->
+<section class="panel" id="tab-modules" hidden>
+  <div class="card full">
+    <h2>Modules <span class="right" id="md-said"></span></h2>
+    <p class="note">What sources, validations and targets are made of. Each comes shipped with acme,
+      or is one of your own - a file in the folder of modules on a node, or uploaded here; one of
+      your own with the kind of a shipped module overrides it, one with a version of its own adds
+      that version (an API version of a device, say), which each source, validation or target then
+      chooses in its form. Marks say what is tested and works - set here, or shipped with the
+      release. Uploaded modules are kept in the database: every backup and both nodes have them.</p>
+    <div class="md-sum" id="md-sum"></div>
+    <div id="md-nodes"></div>
+    <div class="btnrow filters">
+      <div class="md-chips" id="md-fams"></div>
+      <input type="search" id="md-q" placeholder="a name, a kind, a vendor…" style="flex:1;min-width:200px">
+      <span class="spacer"></span>
+      <button class="btn cmd primary ct-fulladmin" id="md-upload" data-icon="upload">Upload a module</button>
+    </div>
+    <div id="md-broken"></div>
+    <div id="md-list"></div>
   </div>
 </section>
 

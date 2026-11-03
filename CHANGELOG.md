@@ -6,6 +6,38 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.32 - not released
 
+- **The page Modules**: every module sources, validations and targets are
+  made of - shipped, your own on the disk of a node, uploaded on the page -
+  with where it comes from, its versions, how many use each and its marks;
+  tiles to filter by origin, the families as chips, a search box as every
+  other. *Download* gives the source of any module (a shipped one to start an
+  override from); *Make one of your own* a file that subclasses it; *Upload a
+  module* takes a `.py` file, checks it in a process of its own and shows
+  what it would add or replace before it is kept. Uploading, marking and
+  taking away are a full administrator's, written to the events.
+- **Versions of a module**: several classes of one kind, each with its
+  `module_version` (an API version of a device); each source, validation or
+  target chooses its version in its form (cards under *Settings of the
+  module*), kept as `_version`; the default by `default_version`. A version
+  that is gone is said in red and the default one used meanwhile. Works for
+  overrides too - a shipped module without versions can get two of your own.
+- **Overrides said**: a module of your own with the kind and version of a
+  shipped one replaces it - tagged *override* (orange) wherever the module is
+  drawn: its form, the lists, the module picker; one of your own *own module*
+  or *uploaded* (violet), a version in blue.
+- **Marks**: *tested* (cyan), *works* (green), *problem* (red) on a version of
+  a module - set by a full administrator (also `acme --module-mark`), kept
+  with the file's sha256 (a file changed since is said), and shipped with a
+  release in `acmelib/plugins/verified.json` (outlined, with a shield);
+  `acme --module-marks-export` writes the marks of an installation in that
+  shape.
+- **Modules of your own are backed up**: uploaded ones live in the database -
+  in every copy and on both nodes, each node writing them into its own folder;
+  the files on the disk (`/etc/acme/plugins`) are kept in the database too,
+  in every copy (they were only in a full backup), compared between the nodes
+  (the page warns when they differ) and written back by `acme --plugins-sync
+  NODE`.
+
 ## 1.0.31 - 2026-11-03
 
 - **NetScaler (Citrix ADC): a certkey not there yet is added.** NITRO says

@@ -1,0 +1,4 @@
+{
+ "about": "Modules this release ships as checked. Key: family/kind@version (no version: family/kind@). state: tested (tried on a device or an account), works (in use), problem (known not to work). Shown on the page Modules and beside each module; acme --module-marks-export writes the marks set on an installation in this shape.",
+ "modules": {}
+}
