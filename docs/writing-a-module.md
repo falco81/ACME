@@ -378,9 +378,18 @@ version** (`kind`, `module_version`):
   the shipped one is used again - it is never deleted;
 * a kind no module has is a module of its own.
 
-A form that names no version takes the one with `default_version = True`
+A form that names no version takes the **default version**: the one chosen
+on Settings → Modules → the module → *Make it the default* (kept in the
+database, `meta` `module-default:<family>/<kind>` - both nodes, every backup;
+*As the code says* takes it away), else the one with `default_version = True`
 (yours before the shipped ones), else the plain one (`''`), else the first by
-name.
+name. The page says first how many name no version - they follow it.
+`POST /api/modules/default {family, kind, version | null}` does the same.
+
+*Upload it* needs no version typed: a file says its own (`module_version`);
+the version typed is only for *Start from a template*. Once checked, the file is
+named by its kind and version (`netscaler_14_1.py`, `netscaler_override.py`) -
+the same version uploaded again replaces it - unless a name was typed.
 
 **Kept, in a cluster and in backups.** An uploaded module is in the database:
 on both nodes of a cluster by itself (each writes it within ~20 s), in every

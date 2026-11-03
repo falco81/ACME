@@ -6,6 +6,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.35 - not released
 
+- Modules → a module → *Make it the default* on any of its versions: what every
+  source, validation, target or test that names no version uses - kept in the
+  database (both nodes, every backup), over `default_version` in the code; the
+  window says first how many follow it; *As the code says* takes it away.
+  `POST /api/modules/default`.
+- *Upload it* for another version needs no version typed - the file says its
+  own; once checked, the file is named by its kind and version
+  (`netscaler_14_1.py`), not by the name of the file brought
+  (`netscaler_14_1 (1).py` became `netscaler_14_1__1_.py`).
+
 ## 1.0.34 - 2026-11-03
 
 - /etc/acme/plugins: install.sh makes `checks/` too (tests of your own had no

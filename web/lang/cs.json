@@ -50691,6 +50691,38 @@
   "imp34_12": {
    "source": "Any file a certificate comes in: PEM, CRT, CER, DER, P7B, PFX/P12, JKS or a ZIP of them - with its key in it, or the key in a file of its own (.key) dropped beside it. A dual certificate (RSA and ECDSA): both halves at once - one PEM or ZIP, or the two files dropped together - and the second is kept as its twin. It is read first and shown; nothing is kept until you press Import.",
    "text": "Jakýkoli soubor, ve kterém certifikát přichází: PEM, CRT, CER, DER, P7B, PFX/P12, JKS nebo jejich ZIP – s klíčem v něm, nebo s klíčem ve vlastním souboru (.key) přetaženým vedle. Duální certifikát (RSA a ECDSA): obě poloviny najednou – jeden PEM nebo ZIP, nebo oba soubory přetažené spolu – a druhá se uloží jako jeho dvojče. Nejdřív se přečte a zobrazí; nic se neuloží, dokud nestisknete Import."
+  },
+  "md35_1": {
+   "source": "As the code says",
+   "text": "Jak říká kód"
+  },
+  "md35_2": {
+   "source": "What every source, validation, target or test that names no version uses. Kept in the database - both nodes, every backup.",
+   "text": "Co používá každý zdroj, validace, cíl či test, který verzi neuvádí. Uloženo v databázi – oba uzly, každá záloha."
+  },
+  "md35_3": {
+   "source": "The default chosen here taken away: the code decides again (default_version, else the plain one).",
+   "text": "Výchozí zvolená zde se zruší: rozhoduje znovu kód (default_version, jinak základní)."
+  },
+  "md35_4": {
+   "source": "Made the default on this page - not by its code.",
+   "text": "Výchozí nastavená na této stránce – ne kódem."
+  },
+  "md35_5": {
+   "source": "The default version is what every one of this kind uses that names no version - in its form, \"Version of the module\" says which it chose. Kept in the database: both nodes, every backup. A new one takes it too.",
+   "text": "Výchozí verzi používá každý tohoto druhu, který verzi neuvádí – ve formuláři to říká „Verze modulu“. Uloženo v databázi: oba uzly, každá záloha. Vezme ji i každý nový."
+  },
+  "md35_6": {
+   "source": "The default chosen here is taken away: the code decides again - the version with default_version, else the plain one.",
+   "text": "Výchozí zvolená zde se zruší: rozhoduje znovu kód – verze s default_version, jinak základní."
+  },
+  "md35_7": {
+   "source": "None of them names no version: nothing changes for those there are.",
+   "text": "Žádný z nich není bez verze: pro ty, které existují, se nic nemění."
+  },
+  "md35_8": {
+   "source": "the default version is set",
+   "text": "výchozí verze je nastavená"
   }
  },
  "patterns": {
@@ -69509,6 +69541,14 @@
   "pck34_3": {
    "source": "serves the {0} twin of this certificate (the same names, issued by {1}) - acme keeps only its {2} one: import the {3} one into it as its twin, or set \"Key asked for\" to {4}",
    "text": "posílá {0} dvojče tohoto certifikátu (stejná jména, vydal {1}) – acme má jen jeho {2}: importujte {3} k němu jako dvojče, nebo nastavte „Klíč, o který se žádá“ na {4}"
+  },
+  "pmd35_1": {
+   "source": "{0} of them name no version: they use the new default from now on.",
+   "text": "{0} z nich verzi neuvádí: od teď použijí novou výchozí."
+  },
+  "pmd35_2": {
+   "source": "the default version of {0} is {1}",
+   "text": "výchozí verze {0} je {1}"
   }
  },
  "rich": {

@@ -42,9 +42,10 @@ A module is its kind and its version (`kind`, `module_version`):
     shipped one is used again - it is never deleted.
   * a kind no module has is a module of its own.
 
-Which version a form that names none takes: the one with default_version =
-True (yours before the shipped ones), else the plain one (no module_version),
-else the first by name.
+Which version a form that names none takes: the one chosen on the page
+(Settings → Modules → Make it the default - kept in the database), else the one
+with default_version = True (yours before the shipped ones), else the plain one
+(no module_version), else the first by name.
 
 
 How they are kept

@@ -13,6 +13,7 @@ an upload checked before it is kept, an uploaded one taken away.
     POST /api/modules/analyse  {family, filename, text}   what it would add or replace
     POST /api/modules/install  {family, filename, text, note}
     POST /api/modules/remove   {path}
+    POST /api/modules/default  {family, kind, version | null}  the default version chosen
 
 An upload is Python run by acme: a full administrator's alone, written to the
 events, checked in a process of its own first (it must load and hold a module of
@@ -44,11 +45,25 @@ def usage(store):
     return out
 
 
+def unversioned(store):
+    """{family: {kind: how many name no version}} - they follow the default one."""
+    out = {}
+    for fam, table in S.TABLE_OF.items():
+        if fam not in FAMILY_WORDS:
+            continue
+        got = out.setdefault(fam, {})
+        for r in store.db.rows('SELECT kind, config FROM %s' % table):
+            if S.version_of(r) is None:
+                got[r['kind']] = got.get(r['kind'], 0) + 1
+    return out
+
+
 @A.api('GET', '/api/modules', 'certadmin')
 def _modules(h, s):
     d = A.plugins_view(h.store)
     d['uploaded'] = CM.uploaded(h.store)
     d['usage'] = usage(h.store)
+    d['unversioned'] = unversioned(h.store)
     d['dirs'] = {'disk': CM.plugins_dir(), 'uploaded': CM.uploaded_dir()}
     d['may_upload'] = A.may(s, 'fulladmin')
     d['marks'] = CM.marks(h.store)
@@ -141,3 +156,17 @@ def _remove(h, s):
     CM.remove(h.store, rel, by)
     h.store.add_event('certificates', 'uploaded module %s taken away by %s' % (rel, by), who=by)
     return {'ok': True, 'message': 'the module %s is taken away' % rel}
+
+
+@A.api('POST', '/api/modules/default', 'fulladmin')
+def _default(h, s):
+    """The default version of a module (1.0.34): what a source, validation, target or
+    test that names none uses - kept in the database, over default_version in the code.
+    version null: as the code says again."""
+    b = h.body()
+    fam = str(b.get('family') or '')
+    kind = str(b.get('kind') or '').strip()
+    ver = b.get('version')
+    got = CM.set_default(h.store, fam, kind, None if ver is None else str(ver), A.who(s))
+    return {'ok': True, 'default': got, 'using_default': CM.using_default(h.store, fam, kind),
+            'message': 'the default version of %s is %s' % (kind, got or 'plain')}

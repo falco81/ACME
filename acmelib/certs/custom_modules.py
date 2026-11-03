@@ -255,18 +255,84 @@ def materialize(store, force=False):
 
 def keep_current(store, every=20.0):
     """Called where modules are used (the plugins list, a job): another node's upload
-    is written here and loaded, at most every `every` seconds asked."""
+    is written here and loaded, at most every `every` seconds asked - and the default
+    versions chosen on the page taken (1.0.34)."""
     now = time.time()
     if now - _SEEN['at'] < every:
         return False
     _SEEN['at'] = now
+    changed = False
     try:
         if materialize(store):
             S.registry(True)
-            return True
+            changed = True
     except Exception:                                   # noqa: BLE001
         pass
-    return False
+    try:
+        changed = apply_defaults(store) or changed
+    except Exception:                                   # noqa: BLE001
+        pass
+    return changed
+
+
+# ---------------------------------------------------------------------------
+# The default version of a module, chosen on the page (1.0.34): kept in the database
+# (both nodes, every copy), over default_version in the code
+# ---------------------------------------------------------------------------
+DEFAULT_KEY = 'module-default:'     # meta: module-default:<family>/<kind> -> {version, by, at}
+
+
+def defaults(store):
+    """{(family, kind): {version, by, at}} chosen on the page."""
+    out = {}
+    for r in store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?', (DEFAULT_KEY + '%',)):
+        fam, _, kind = r['k'][len(DEFAULT_KEY):].partition('/')
+        got = S.jload(r['v'], {}) or {}
+        if fam and kind and isinstance(got, dict) and 'version' in got:
+            out[(fam, kind)] = got
+    return out
+
+
+def apply_defaults(store):
+    """The chosen default versions handed to the registry; True when that changed."""
+    S.registry()
+    return S.registry().set_picked({k: str(v.get('version') or '') for k, v in defaults(store).items()})
+
+
+def using_default(store, family, kind):
+    """How many sources, validations, targets or tests of a kind name no version (they
+    take the default one)."""
+    table = S.TABLE_OF.get(family)
+    if not table:
+        return 0
+    n = 0
+    for r in store.db.rows('SELECT kind, config FROM %s WHERE kind = ?' % table, (kind,)):
+        if S.version_of(r) is None:
+            n += 1
+    return n
+
+
+def set_default(store, family, kind, version, by):
+    """The default version of a kind chosen (version None: as the code says again)."""
+    if family not in FOLDER_OF:
+        raise ValueError('family is issuer, challenge, target or check')
+    vers = S.registry().versions_of(family, kind)
+    if not vers:
+        raise LookupError('there is no %s module "%s"' % (family, kind))
+    key = DEFAULT_KEY + '%s/%s' % (family, kind)
+    if version is None:
+        store.db.run('DELETE FROM meta WHERE k = ?', (key,))
+    else:
+        version = str(version)
+        if version not in vers:
+            raise ValueError('%s has no version "%s" (it has: %s)' % (
+                kind, version, ', '.join(v or 'plain' for v in sorted(vers))))
+        store.set_meta(key, json.dumps({'version': version, 'by': str(by)[:190], 'at': time.time()}))
+    apply_defaults(store)
+    store.add_event('settings', 'module %s/%s: the default version %s by %s' % (
+        family, kind, ('is %s' % (version or 'plain')) if version is not None
+        else 'is as its code says again', by), who=by)
+    return S.registry().get(family, kind).module_version or ''
 
 
 ANALYSE = r'''

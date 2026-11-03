@@ -7941,7 +7941,10 @@ function moduleDetail(fam, kind) {
       var t = el('div', 'md-vrow-t');
       t.appendChild(data('b', '', versionName(v.version || '')));
       if (v.version_label) t.appendChild(data('span', 'muted', ' · ' + v.version_label));
-      if (vers.length > 1 && v.default) t.appendChild(el('span', 'tag ok', 'default'));
+      if (vers.length > 1 && v.default) {
+        t.appendChild(el('span', 'tag ok', 'default'));
+        if (p.default_picked) t.appendChild(explain(el('span', 'tag info', 'chosen here'), 'Made the default on this page - not by its code.'));
+      }
       tagsInto(t, modTags(fam, v, null, {shipped: true}).filter(function (x) { return !x.classList.contains('md-ver'); }));
       left.appendChild(t);
       var f = el('div', 'small muted');
@@ -7961,6 +7964,18 @@ function moduleDetail(fam, kind) {
         var mk = cmdButton('Mark it', 'check', 'small');
         mk.onclick = function () { over(function () { moduleMark(fam, p, v); }, again); };
         right.appendChild(mk);
+        /* the default chosen here (1.0.34), over what the code says */
+        if (vers.length > 1 && !v.default) {
+          var df = cmdButton('Make it the default', 'star', 'small');
+          explain(df, 'What every source, validation, target or test that names no version uses. Kept in the database - both nodes, every backup.');
+          df.onclick = function () { over(function () { moduleDefault(fam, p, v, again); }, again); };
+          right.appendChild(df);
+        } else if (vers.length > 1 && v.default && p.default_picked) {
+          var back = cmdButton('As the code says', 'undo', 'small');
+          explain(back, 'The default chosen here taken away: the code decides again (default_version, else the plain one).');
+          back.onclick = function () { over(function () { moduleDefault(fam, p, null, again); }, again); };
+          right.appendChild(back);
+        }
         var rel = v.source === 'uploaded' ? Object.keys(obj(d.uploaded)).filter(function (k) { return v.module && v.module.slice(-k.length - 1) === '/' + k; })[0] : null;
         if (rel) {
           /* replaced: a new file under the same name takes its place */
@@ -8066,9 +8081,12 @@ function moduleDetail(fam, kind) {
           over(function () { moduleStartPick({fam: fam, p: p, vers: vers, version: v, label: labIn.value.trim()}); }, again);
         },
         function () {
-          var v = verOk();
-          if (!v) { verIn.focus(); return; }
-          over(function () { moduleUpload({family: fam, base: p, mode: 'version', version: v, label: labIn.value.trim(), filename: fileOf(v), taken: names}); }, again);
+          /* a file brought says its own version (module_version): no name needed here
+             (1.0.34) - one typed is only for "Start from a template" */
+          var typed = verIn.value.trim();
+          var v = typed ? verOk() : '';
+          if (typed && !v) { verIn.focus(); return; }
+          over(function () { moduleUpload({family: fam, base: p, mode: 'version', version: v || '', label: labIn.value.trim(), filename: v ? fileOf(v) : '', taken: names}); }, again);
         }, vg));
       var on = null;
       if (over_) {
@@ -8165,6 +8183,29 @@ function moduleCopy(fam, p, fromVersion, o) {
   if (o.override) a.override = '1';
   if (o.original) a.original = '1';
   return capi('modules/source' + qs(a));
+}
+/* The default version chosen (1.0.34): said first what follows it - every one of the
+   kind that names no version. v null: as the code says again. */
+function moduleDefault(fam, p, v, again) {
+  var d = MD.data || {};
+  var n = obj(obj(d.unversioned)[fam])[p.kind] || 0;
+  var title = v ? tr('Make it the default') + ' · ' + versionName(v.version || '') : tr('As the code says');
+  modal(title, function (body) {
+    body.appendChild(el('p', 'note', v
+      ? 'The default version is what every one of this kind uses that names no version - in its form, "Version of the module" says which it chose. Kept in the database: both nodes, every backup. A new one takes it too.'
+      : 'The default chosen here is taken away: the code decides again - the version with default_version, else the plain one.'));
+    var c = el('p', n ? 'warn' : 'muted small');
+    c.textContent = n ? tr('{0} of them name no version: they use the new default from now on.').replace('{0}', num(n))
+                      : tr('None of them names no version: nothing changes for those there are.');
+    body.appendChild(c);
+  }, [{words: 'Cancel', close: true}, {words: v ? 'Make it the default' : 'As the code says', cls: 'primary', icon: v ? 'star' : 'undo', go: function (b) {
+    busy(b, true);
+    capi('modules/default', {family: fam, kind: p.kind, version: v ? String(v.version || '') : null}).then(function (x) {
+      toast(said(x, 'the default version is set'), 'good');
+      closeModal();
+      plugins(true).catch(function () {});
+    }).catch(fail).then(function () { busy(b, false); });
+  }}], 'medium');
 }
 function moduleMark(fam, p, v) {
   var cur = markOf(fam, p.kind, v.version || '');
@@ -8265,7 +8306,7 @@ function moduleUpload(o) {
       fileText(f).then(function (t) {
         st.text = String(t);
         st.file = f.name;
-        fileName.value = f.name.toLowerCase().replace(/[^a-z0-9_.]/g, '_');
+        if (!fileName._edited) fileName.value = f.name.toLowerCase().replace(/[^a-z0-9_.]/g, '_');
         drop._words.textContent = f.name + ' · ' + num(Math.round(st.text.length / 102.4) / 10) + ' KB';
         drop.classList.add('md-got');
         codeHost.hidden = false;
@@ -8277,6 +8318,10 @@ function moduleUpload(o) {
     var g = el('div', 'formgrid');
     fileName = textBox(o.filename || (o.base ? o.base.kind + (o.mode === 'override' ? '_override.py' : '_mine.py') : ''), 'netscaler_mine.py', 'mono');
     noI18n(fileName);
+    /* named by what the file is, once checked - its kind and version (1.0.34) - unless
+       typed here: "netscaler_14_1 (1).py" from a download became netscaler_14_1__1_.py */
+    fileName._edited = !!o.filename;
+    fileName.addEventListener('input', function () { fileName._edited = true; });
     g.appendChild(formField('File name', fileName, 'Lowercase letters, digits and _, ending .py. An uploaded file of the same name is replaced.'));
     noteBox = textBox('', tr('what it is for'), '');
     g.appendChild(formField('Note', noteBox));
@@ -8356,6 +8401,12 @@ function moduleUpload(o) {
         }
         out.appendChild(e);
         return;
+      }
+      var c0 = arr(d.classes)[0];
+      if (c0 && !fileName._edited && arr(d.classes).length === 1) {
+        var named = c0.does === 'override' && !c0.version ? c0.kind + '_override.py'
+          : c0.kind + (c0.version ? '_' + String(c0.version).toLowerCase().replace(/[^a-z0-9]+/g, '_') : '') + '.py';
+        if (named !== fileName.value) { fileName.value = named; return check(); }
       }
       var ok = el('div', 'md-found');
       ok.appendChild(el('b', 'good', 'It loads. It would:'));

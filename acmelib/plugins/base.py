@@ -1070,6 +1070,7 @@ class Registry(object):
         self.found = {f: {} for f in FAMILIES}
         self.versions = {f: {} for f in FAMILIES}
         self.broken = []                # [(file, words)] - shown on the page
+        self.picked = {}                # {(family, kind): version} chosen on the page
         here = os.path.dirname(os.path.abspath(__file__))
         self.dirs = [here] + list(extra_dirs or [])
 
@@ -1114,13 +1115,30 @@ class Registry(object):
                                 obj._replaced = getattr(before, '_replaced', None) or \
                                     (before if before._origin == 'builtin' else None)
                             have[ver] = obj             # a later folder wins: yours
-        found = {f: {} for f in FAMILIES}
-        for family, kinds in versions.items():
-            for kind, vers in kinds.items():
-                found[family][kind] = self._default_of(vers)
+        found = self._found_of(versions)
         with self.lock:
             self.found, self.versions, self.broken = found, versions, broken
         return self
+
+    def _found_of(self, versions):
+        found = {f: {} for f in FAMILIES}
+        for family, kinds in versions.items():
+            for kind, vers in kinds.items():
+                pick = self.picked.get((family, kind))
+                found[family][kind] = vers[pick] if pick is not None and pick in vers \
+                    else self._default_of(vers)
+        return found
+
+    def set_picked(self, picked):
+        """The default versions chosen on the page Modules (1.0.34: kept in the
+        database, {(family, kind): version}) - over what the code says."""
+        picked = dict(picked or {})
+        with self.lock:
+            if picked == self.picked:
+                return False
+            self.picked = picked
+            self.found = self._found_of(self.versions)
+        return True
 
     @staticmethod
     def _default_of(vers):
@@ -1177,8 +1195,11 @@ class Registry(object):
                 d = cls.describe()
                 vers = self.versions_of(f, kind)
                 d['default_version'] = cls.module_version or ''
+                d['default_picked'] = (f, kind) in self.picked and \
+                    self.picked[(f, kind)] in vers
                 d['versions'] = [] if len(vers) < 2 else [
-                    dict(c.describe(), default=(c is cls))
+                    dict(c.describe(), default=(c is cls),
+                         default_in_code=bool(c.__dict__.get('default_version')))
                     for _k, c in sorted(vers.items(), key=lambda x: (x[0] != '', x[0]))]
                 rows.append(d)
             out[f] = sorted(rows, key=lambda d: (d['vendor'], d['title']))

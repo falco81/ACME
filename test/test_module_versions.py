@@ -311,6 +311,32 @@ class TestUpload(unittest.TestCase):
         self.assertIn("module_version = '15.0'", cp['text'])
         self.assertIn('def deploy', cp['text'])
 
+    def test_the_default_chosen_on_the_page(self):
+        """Settings → Modules → Make it the default (1.0.34): kept in the database, over
+        default_version in the code; taken away, the code decides again."""
+        code = S.registry().get('target', 'netscaler').module_version
+        self.assertEqual(code, '14.1', 'Nitro14 says default_version = True')
+        got = self.call('POST', '/api/modules/default', body={'family': 'target', 'kind': 'netscaler',
+                                                               'version': '13.1'})
+        self.assertEqual(got['default'], '13.1')
+        self.assertEqual(S.registry().get('target', 'netscaler').module_version, '13.1')
+        self.assertEqual(S.registry().get('target', 'netscaler', '14.1').module_version, '14.1',
+                         'a row that names its version keeps it')
+        d = [x for x in S.registry().describe()['target'] if x['kind'] == 'netscaler'][0]
+        self.assertTrue(d['default_picked'])
+        self.assertEqual([v['version'] for v in d['versions'] if v['default']], ['13.1'])
+        # it lives in the database: a registry read again takes it again
+        S.registry(True)
+        from acmelib.certs import custom_modules as CM2
+        CM2.apply_defaults(STORE)
+        self.assertEqual(S.registry().get('target', 'netscaler').module_version, '13.1')
+        with self.assertRaises(Exception):
+            self.call('POST', '/api/modules/default', body={'family': 'target', 'kind': 'netscaler',
+                                                             'version': '99'})
+        self.call('POST', '/api/modules/default', body={'family': 'target', 'kind': 'netscaler',
+                                                         'version': None})
+        self.assertEqual(S.registry().get('target', 'netscaler').module_version, '14.1')
+
     def test_a_copy_of_a_class_with_a_docstring(self):
         """The version goes under the docstring, the old one is taken out."""
         from unittest import mock
