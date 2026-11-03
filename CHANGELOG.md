@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.27 - not released
+## 1.0.27 - 2026-11-03
 
 - **New sources**, written only from the vendors' own API documentation
   (docs/sources.md names the files): Sectigo Certificate Manager (Admin API:
