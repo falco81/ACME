@@ -45,6 +45,8 @@ CONTRACT = {
     'path_orgs': ('GET', r'^/organization$'),
     'path_products': ('GET', r'^/product$'),
     'path_download': ('GET', r'^/certificate/download/order/\d+/format/pem_all$'),
+    # "Download certificate by format" (dev.digicert.com, api-docs/digicert/notes.md)
+    'path_download_cert': ('GET', r'^/certificate/\d+/download/format/pem_all$'),
     'path_revoke': ('PUT', r'^/certificate/\d+/revoke$'),
     'path_me': ('GET', r'^/user/me$'),
 }
@@ -157,7 +159,8 @@ class TestCertCentral(Base):
             if p == '/product':
                 return 200, {}, {'products': [{'name_id': n, 'name': t}
                                               for n, _b, t, _l, _w in DC.BRANDS]}
-            if re.match(r'^/certificate/download/order/\d+/format/pem_all$', p):
+            if re.match(r'^/certificate/download/order/\d+/format/pem_all$', p) or \
+                    re.match(r'^/certificate/\d+/download/format/pem_all$', p):
                 return 200, {}, state['leaf'] + self.ca.pem + self.root.pem
             if re.match(r'^/certificate/\d+/revoke$', p):
                 return 201, {}, {'id': 1, 'status': 'pending'}

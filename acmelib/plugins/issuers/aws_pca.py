@@ -21,6 +21,14 @@ https://docs.aws.amazon.com/privateca/latest/APIReference/):
   RevocationReason}; DescribeCertificateAuthority for "Try it" and the CA's
   signing algorithm.
 
+* Templates (TemplateArn): AWS has no call that lists them; the 18 end-entity
+  templates (Base, CSRPassthrough, APIPassthrough, APICSRPassthrough) are a fixed
+  list here, as https://docs.aws.amazon.com/privateca/latest/userguide/
+  template-varieties.html names them ("If this parameter is not provided, AWS
+  Private CA defaults to the EndEntityCertificate/V1 template"). Any other ARN can
+  be typed (GovCloud's ARNs differ). An APIPassthrough template takes ApiPassthrough
+  values, which acme does not send.
+
 The IAM policy needs acm-pca:IssueCertificate, acm-pca:GetCertificate,
 acm-pca:DescribeCertificateAuthority (and acm-pca:RevokeCertificate). A
 certificate of a private CA costs per certificate issued (AWS pricing) -
@@ -42,6 +50,21 @@ ARN_RE = re.compile(r'^arn:(aws[a-z-]*):acm-pca:([a-z0-9-]+):(\d{12}):certificat
 REASONS = {0: 'UNSPECIFIED', 1: 'KEY_COMPROMISE', 2: 'CERTIFICATE_AUTHORITY_COMPROMISE',
            3: 'AFFILIATION_CHANGED', 4: 'SUPERSEDED', 5: 'CESSATION_OF_OPERATION',
            9: 'PRIVILEGE_WITHDRAWN', 10: 'A_A_COMPROMISE'}
+# The end-entity templates of template-varieties.html, in its order (catalog()).
+TEMPLATES = ['arn:aws:acm-pca:::template/%s/V1' % t for t in (
+    'EndEntityCertificate', 'EndEntityClientAuthCertificate', 'EndEntityServerAuthCertificate',
+    'BlankEndEntityCertificate_CSRPassthrough',
+    'BlankEndEntityCertificate_CriticalBasicConstraints_CSRPassthrough',
+    'EndEntityCertificate_CSRPassthrough', 'EndEntityClientAuthCertificate_CSRPassthrough',
+    'EndEntityServerAuthCertificate_CSRPassthrough',
+    'BlankEndEntityCertificate_APIPassthrough',
+    'BlankEndEntityCertificate_CriticalBasicConstraints_APIPassthrough',
+    'EndEntityCertificate_APIPassthrough', 'EndEntityClientAuthCertificate_APIPassthrough',
+    'EndEntityServerAuthCertificate_APIPassthrough',
+    'BlankEndEntityCertificate_APICSRPassthrough',
+    'BlankEndEntityCertificate_CriticalBasicConstraints_APICSRPassthrough',
+    'EndEntityCertificate_APICSRPassthrough', 'EndEntityClientAuthCertificate_APICSRPassthrough',
+    'EndEntityServerAuthCertificate_APICSRPassthrough')]
 ALGOS = ['SHA256WITHECDSA', 'SHA384WITHECDSA', 'SHA512WITHECDSA', 'SHA256WITHRSA',
          'SHA384WITHRSA', 'SHA512WITHRSA']
 
@@ -58,7 +81,8 @@ class AwsPcaIssuer(Issuer):
     wildcards = True
     ip_names = True
     choose_days = True
-    per_cert = [{'key': 'template', 'field': 'template_arn', 'label': 'Template (ARN)',
+    per_cert = [{'key': 'template', 'field': 'template_arn', 'catalog': 'templates',
+                 'label': 'Template (ARN)',
                  'placeholder': 'arn:aws:acm-pca:::template/EndEntityServerAuthCertificate/V1',
                  'help': 'The AWS Private CA template for this certificate. Empty: the source\'s own.'}]
     fields = [
@@ -73,10 +97,12 @@ class AwsPcaIssuer(Issuer):
               help='For temporary credentials only.'),
         field('days', 'Validity (days)', 'number', default=90,
               help='A certificate\'s own days win; at most what the CA\'s own validity allows.'),
-        field('template_arn', 'Template', 'text', advanced=True,
+        field('template_arn', 'Template', 'catalog', catalog='templates', advanced=True,
               placeholder='arn:aws:acm-pca:::template/EndEntityServerAuthCertificate/V1',
-              help='Empty: AWS\'s default (EndEntityCertificate/V1). A certificate\'s profile '
-                   '"template" wins.'),
+              help='Load the list: the end-entity templates AWS documents (AWS has no call that '
+                   'lists them); another ARN can be typed. Empty: AWS\'s default '
+                   '(EndEntityCertificate/V1). A certificate\'s own template (Add a certificate '
+                   '→ Settings) wins.'),
         field('signing_algorithm', 'Signing algorithm', 'select', default='auto', advanced=True,
               options=[['auto', 'As the CA signs (from the CA)']] + [[a, a] for a in ALGOS]),
         field('endpoint', 'API endpoint', 'text', advanced=True,
@@ -84,6 +110,17 @@ class AwsPcaIssuer(Issuer):
               help='Empty: the region\'s (a VPC endpoint or FIPS endpoint otherwise).'),
         field('wait', 'Wait for the certificate (s)', 'number', default=60, advanced=True),
     ]
+
+    # -- the form's lists (base.py: a field of the type catalog) ------------------------
+    def catalog(self, key):
+        """The end-entity templates of AWS Private CA - a fixed list from AWS's user guide
+        (template-varieties.html): the API has no call that lists them. Asks nothing."""
+        if key != 'templates':
+            raise PluginError('there is no list called %s here' % key, retry=False)
+        opts = [[t, t.split('/')[1] + (' (AWS\'s default)' if t == TEMPLATES[0] else '')]
+                for t in TEMPLATES]
+        return {'options': opts, 'said': '%d end-entity templates AWS documents (another ARN '
+                                         'can be typed)' % len(opts)}
 
     def _arn(self):
         arn = str(self.c('ca_arn') or '').strip()

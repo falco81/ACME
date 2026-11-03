@@ -505,7 +505,9 @@ certificate itself is kept since 1.0.21), `vault_pki` (LIST certs + read),
 (GET /certificates + download/return), `venafi_tpp` (vedsdk/certificates/ +
 retrieve), `venafi_cloud` (certificatesearch + contents), `keyfactor_command`
 (GET Certificates + Certificates/Download), `cloudflare_origin_ca` (a zone's
-GET /certificates). Not: `acme`
+GET /certificates), `sectigo_scm` (GET /api/ssl/v2 + collect), `certum`
+(getOrdersByDateRange + getCertificate), `gogetssl` (orders/ssl/all +
+orders/status), `namecheap_ssl` (namecheap.ssl.getList + getInfo). Not: `acme`
 and `sslmarket_acme` (ACME has no list of an account's certificates), `est`,
 `cmp`, `scep` (the protocols have none), `ms_adcs` (Web Enrollment has none),
 `step_ca` (its API has none), `aws_pca` (AWS Private CA lists issued
