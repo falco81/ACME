@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.31 - not released
+## 1.0.31 - 2026-11-03
 
 - **NetScaler (Citrix ADC): a certkey not there yet is added.** NITRO says
   "not there" as HTTP 599 with an errorcode - `1540 Certificate does not
