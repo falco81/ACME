@@ -122,8 +122,8 @@ is pressed) at `upgrade_url` for `acme-X.Y.Z.tar.gz` packages:
 
 HTTPS only. A proxy, if the server needs one, comes from `https_proxy` in the
 service's environment (`systemctl edit acme`: `Environment=https_proxy=…`).
-The node needs to reach the address (and `api.github.com`,
-`raw.githubusercontent.com` and `api.github.com` for GitHub) - Settings → Firewall and access lets
+The node needs to reach the address (and, for GitHub,
+`api.github.com` and `raw.githubusercontent.com`) - Settings → Firewall and access lets
 everything out. A package whose index gave its `sha256` must have that one,
 before anything else is looked at. How a release gets there:
 [releasing.md](releasing.md).
