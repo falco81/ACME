@@ -14,6 +14,11 @@ from acmelib.plugins.targets._common import (
     label_of, http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id)
 
 SSL_DIR = '/nsconfig/ssl'
+# NITRO says an object is not there as HTTP 599 (NetScaler's own status) with an
+# errorcode, or as 404 on some builds: 258 "No such resource", 1540 "Certificate
+# does not exist" (a certkey, as a NetScaler answered acme's GET sslcertkey/NAME,
+# 1.0.31). Read as "not there"; any other 599 stays an error.
+NOT_THERE = (258, 1540)
 
 
 def b64(data):
@@ -50,10 +55,23 @@ class NetScalerTarget(HttpTarget):
     def auth_headers(self):
         return {'Cookie': 'NITRO_AUTH_TOKEN=%s' % self.session} if self.session else {}
 
-    def nitro(self, method, path, body=None, ok=None, what=None):
+    def nitro(self, method, path, body=None, ok=None, what=None, missing_ok=False):
+        """(status, answer). missing_ok: an object that is not there - 404, or 599 with
+        one of NOT_THERE - comes back as (404, answer) instead of an error."""
+        if missing_ok:
+            ok = tuple(ok or (200,)) + (404, 599)
         st, hd, d = self.req(method, '/nitro/v1/config/' + path, body, ok=ok, what=what)
         if not isinstance(d, dict):
             d = {}
+        if missing_ok and st == 599:
+            try:
+                code = int(d.get('errorcode') or 0)
+            except (TypeError, ValueError):
+                code = 0
+            if code not in NOT_THERE:
+                raise PluginError('%s: the device said 599 - %s' % (
+                    what or path, d.get('message') or 'error %s' % (code or '?')), detail=str(d))
+            return 404, d
         if st < 300 and d.get('errorcode') not in (None, 0):
             raise PluginError('%s: %s' % (what or path, d.get('message') or
                                           'error %s' % d.get('errorcode')), detail=str(d))
@@ -100,8 +118,8 @@ class NetScalerTarget(HttpTarget):
             'fileencoding': 'BASE64'}}, what='uploading %s' % filename)
 
     def certkey(self, name):
-        st, d = self.nitro('GET', 'sslcertkey/%s' % urllib.parse.quote(name), ok=(200, 404),
-                           what='reading %s' % name)
+        st, d = self.nitro('GET', 'sslcertkey/%s' % urllib.parse.quote(name), ok=(200,),
+                           what='reading %s' % name, missing_ok=True)
         if st != 200:
             return None
         items = d.get('sslcertkey') or []
@@ -161,8 +179,8 @@ class NetScalerTarget(HttpTarget):
                 parts = line.split()
                 vs, sni = parts[0], len(parts) > 1 and parts[1].lower() == 'sni'
                 st, d = self.nitro('GET', 'sslvserver_sslcertkey_binding/%s'
-                                   % urllib.parse.quote(vs), ok=(200, 404),
-                                   what='reading %s' % vs)
+                                   % urllib.parse.quote(vs), ok=(200,),
+                                   what='reading %s' % vs, missing_ok=True)
                 if st == 404:
                     raise PluginError('there is no SSL virtual server %s' % vs, retry=False)
                 bound = [b.get('certkeyname') for b in

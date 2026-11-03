@@ -6,6 +6,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.31 - not released
 
+- **NetScaler (Citrix ADC): a certkey not there yet is added.** NITRO says
+  "not there" as HTTP 599 with an errorcode - `1540 Certificate does not
+  exist` for `GET sslcertkey/NAME`, `258 No such resource` - where acme looked
+  for 404 only, so the first deployment stopped at *reading acme-NAME: the
+  device said 599 - Certificate does not exist* before anything was
+  uploaded. Those two codes are read as "not there" for the certkey, its CA
+  certkeys and the SSL virtual servers; any other 599 is still an error. A
+  copy of the module put in /etc/acme/plugins/targets/ to get round it can be
+  deleted after the upgrade (it would go on overriding the one shipped).
+
 ## 1.0.30 - 2026-11-03
 
 - **dns-persist-01: a record at each name - a switch.** Let's Encrypt looks the

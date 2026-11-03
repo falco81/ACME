@@ -592,6 +592,63 @@ class NetScalerTest(unittest.TestCase):
         self.assertTrue(ctx.find('POST', 'action=unlink'))
 
 
+class NetScaler599Test(unittest.TestCase):
+    """NITRO says "not there" as HTTP 599 with an errorcode (1540 "Certificate does not
+    exist" for a certkey, as a NetScaler answered; 258 "No such resource"): the certkey
+    is added, a vserver not there is said; another 599 stays an error (1.0.31)."""
+    def ctx(self, ck_answer, vs_answer=(200, {'errorcode': 0, 'sslvserver_sslcertkey_binding': []})):
+        made = set()
+
+        def certkey_get(call):
+            n = call['path'].rsplit('/', 1)[1]
+            if n in made:
+                return 200, {'errorcode': 0, 'sslcertkey': [{'certkey': n, 'cert': 'x'}]}
+            return ck_answer
+
+        def certkey_add(call):
+            made.add(json.loads(call['body'])['sslcertkey']['certkey'])
+            return 201, {'errorcode': 0}
+        return FakeCtx([
+            ('POST', r'/nitro/v1/config/login$', (201, {'errorcode': 0, 'sessionid': 'SID'})),
+            ('POST', r'/nitro/v1/config/logout$', (201, {'errorcode': 0})),
+            ('DELETE', r'/systemfile/', (200, {'errorcode': 0})),
+            ('POST', r'/nitro/v1/config/systemfile$', (201, {'errorcode': 0})),
+            ('GET', r'/nitro/v1/config/sslcertkey/', certkey_get),
+            ('POST', r'/nitro/v1/config/sslcertkey$', certkey_add),
+            ('POST', r'/sslcertkey\?action=link', (200, {'errorcode': 0})),
+            ('GET', r'/sslvserver_sslcertkey_binding/', vs_answer),
+            ('PUT', r'/sslvserver_sslcertkey_binding$', (200, {'errorcode': 0})),
+            ('POST', r'/nsconfig\?action=save', (200, {'errorcode': 0})),
+            ('GET', r'/systemfile\?args=', (200, {'errorcode': 0, 'systemfile': []})),
+        ])
+
+    def test_certificate_does_not_exist_is_added(self):
+        ctx = self.ctx((599, {'errorcode': 1540, 'message': 'Certificate does not exist',
+                              'severity': 'ERROR'}))
+        t = make('netscaler', {'host': 'adc', 'user': 'u', 'password': 'p'}, ctx)
+        words = t.deploy(FakeBundle(), {'vservers': 'vs_www'})
+        self.assertIn('added acme-www.example.test', words)
+        added = [json.loads(c['body'])['sslcertkey']['certkey']
+                 for c in ctx.find('POST', 'sslcertkey$')]
+        self.assertEqual(len(added), 2, 'the certkey and its CA, both found missing by 599')
+
+    def test_no_such_vserver_said(self):
+        ctx = self.ctx((599, {'errorcode': 258, 'message': 'No such resource'}),
+                       (599, {'errorcode': 258, 'message': 'No such resource'}))
+        t = make('netscaler', {'host': 'adc', 'user': 'u', 'password': 'p'}, ctx)
+        with self.assertRaises(PluginError) as e:
+            t.deploy(FakeBundle(), {'vservers': 'vs_nope'})
+        self.assertIn('no SSL virtual server vs_nope', str(e.exception))
+
+    def test_another_599_stays_an_error(self):
+        ctx = self.ctx((599, {'errorcode': 354, 'message': 'Invalid username or password'}))
+        t = make('netscaler', {'host': 'adc', 'user': 'u', 'password': 'p'}, ctx)
+        with self.assertRaises(PluginError) as e:
+            t.deploy(FakeBundle(), {})
+        self.assertIn('Invalid username or password', str(e.exception))
+        self.assertFalse(ctx.find('POST', 'sslcertkey$'), 'nothing added')
+
+
 class FortiGateTest(unittest.TestCase):
     def test_deploy(self):
         b = FakeBundle()
