@@ -10,26 +10,32 @@ The ZeroSSL ACME server (with EAB) is the `acme` source's preset; this module is
 for what goes through the REST API: certificates of the account's plan seen in
 its dashboard, 1-year certificates where the plan sells them, DCV by e-mail.
 
-What the API is, and from where: ZeroSSL's documentation
-(https://zerossl.com/documentation/api/ - not readable from where this was
-written, 2026-11) and ZeroSSL's own Go client of it, github.com/caddyserver/zerossl
-(Caddy is ZeroSSL's project; endpoints.go, client.go, models.go, zerossl.go):
+What the API is, and from where: ZeroSSL's documentation (read 2026-11:
+https://zerossl.com/documentation/api/ and its pages create-certificate,
+verify-domains, get-certificate, download-certificate, list-certificates,
+cancel-certificate, revoke-certificate, error-codes), which ZeroSSL's own Go client
+(github.com/caddyserver/zerossl - Caddy is ZeroSSL's project) agrees with:
 
-* https://api.zerossl.com, JSON both ways. The API key: since August 2026 in the
-  header "Authorization: ApiKey KEY" (client.go); before, the query parameter
-  access_key (a setting, for an account that still wants it).
+* https://api.zerossl.com, JSON both ways. The API key in the header
+  "Authorization: ApiKey KEY" (recommended); the query parameter access_key is
+  "DEPRECATED ... for legacy purposes" (a setting, for an account that still wants it).
 * The HTTP status says nothing: an error is {"success": false, "error": {code,
-  type}} (client.go, models.go APIError).
+  type}}.
 * POST /certificates {certificate_domains (the names, joined by commas),
-  certificate_csr (PEM), certificate_validity_days (90 or 365), strict_domains 1}
+  certificate_csr (PEM), certificate_validity_days (90, the default; "For creating
+  annual certificates specify 200 (or legacy 365)"), strict_domains 1}
   -> the certificate object {id, status, validation {email_validation {domain:
   [addresses]}, other_methods {domain: {file_validation_url_http,
   file_validation_content [lines], cname_validation_p1, cname_validation_p2}}}}.
 * POST /certificates/{id}/challenges {validation_method EMAIL | CNAME_CSR_HASH |
-  HTTP_CSR_HASH | HTTPS_CSR_HASH, validation_email (EMAIL: addresses, commas)}.
+  HTTP_CSR_HASH | HTTPS_CSR_HASH, validation_email (EMAIL: addresses, commas)} - the
+  CNAME or file is checked then and there, and "you can use the API endpoint above to
+  re-initiate domain verification ... at any given time" (a failed check,
+  domain_control_validation_failed, is tried again at the next try).
 * GET /certificates/{id} - status draft, pending_validation, issued, cancelled,
-  revoked, expired (zerossl.go ListAllCertificates).
-* GET /certificates/{id}/download/return -> {"certificate.crt", "ca_bundle.crt"}.
+  revoked, expired.
+* GET /certificates/{id}/download/json -> {"certificate.crt", "ca_bundle.crt"}
+  ("return" is deprecated).
 * GET /certificates?certificate_status=..&page=N&limit=M -> {total_count,
   result_count, page, limit, results [the objects: common_name,
   additional_domains (commas), created, expires ("Y-m-d H:i:s"), status]}.
@@ -38,7 +44,10 @@ written, 2026-11) and ZeroSSL's own Go client of it, github.com/caddyserver/zero
 * POST /certificates/{id}/cancel - a draft or pending one given up.
 
 UNCERTAIN: what replacement_for_certificate does to the account (not sent);
-whether an account wants the key in the header or in access_key (a setting).
+whether 365 days is still taken ("legacy"); whether cname_validation_p1 comes with
+a leading underscore (used as answered); the case of "Unspecified" among the
+revocation reasons (the documentation's list writes it so; sent lower case, as
+ZeroSSL's Go client does).
 """
 from __future__ import annotations
 
@@ -115,8 +124,10 @@ class ZeroSslIssuer(Issuer):
               help='ZeroSSL moved the key into the Authorization header in August 2026; the '
                    'parameter in the address is for an account that still wants it.'),
         field('validity', 'Validity', 'select', default='90',
-              options=[['90', '90 days'], ['365', '1 year (only where the plan sells it)']],
-              help='certificate_validity_days of a new certificate.'),
+              options=[['90', '90 days'], ['200', 'Annual - 200 (only where the plan sells it)'],
+                       ['365', 'Annual - the legacy value 365']],
+              help='certificate_validity_days of a new certificate: ZeroSSL documents 90 and, '
+                   'for an annual certificate, 200 (or the legacy 365).'),
         field('dcv', 'Domain validation (DCV)', 'select', default='cname',
               options=[['cname', 'DNS CNAME record (by the certificate\'s DNS validation)'],
                        ['http', 'HTTP file in /.well-known/pki-validation/ (by the '
@@ -188,8 +199,10 @@ class ZeroSslIssuer(Issuer):
                 raise PluginError('ZeroSSL refused %s: %s (error %s) - the API key is wrong or '
                                   'not active' % (what or path, kind, code), detail=detail,
                                   retry=False)
+            # a CNAME or file not seen yet: verification "re-initiated ... at any given
+            # time" - so at the next try
             raise PluginError('ZeroSSL refused %s: %s (error %s)' % (what or path, kind, code),
-                              detail=detail, retry=False)
+                              detail=detail, retry=kind == 'domain_control_validation_failed')
         if status >= 400 or got is None:
             raise sc.refusal('ZeroSSL (%s)' % (what or path), status, got,
                              self._hide((data or b'').decode('utf-8', 'replace')).encode(),
@@ -208,7 +221,7 @@ class ZeroSslIssuer(Issuer):
                          what='the certificate %s' % cid)
 
     def download(self, cid):
-        got = self.call('GET', '/certificates/%s/download/return' % self._id(cid),
+        got = self.call('GET', '/certificates/%s/download/json' % self._id(cid),
                         what='the download of %s' % cid)
         return sc.certs_of(got.get('certificate.crt') or ''), \
             sc.certs_of(got.get('ca_bundle.crt') or '')

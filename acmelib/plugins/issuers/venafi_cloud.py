@@ -9,18 +9,22 @@ Import from a source.
 
 What the API is, and from where: Venafi's (now CyberArk's) own client of it,
 github.com/Venafi/vcert (pkg/venafi/cloud/connector.go, cloud.go, search.go,
-pkg/util/utils.go; README-CLI-CLOUD.md), read 2026-11:
+pkg/util/utils.go; README-CLI-CLOUD.md), read 2026-11, and the service's OpenAPI
+definitions on https://developer.venafi.com/tlsprotectcloud/reference/ (its
+"servers", certificaterequests_create, certificates_getcontentsbyid):
 
-* https://api.venafi.cloud (US), api.venafi.eu, api.au.venafi.cloud,
+* https://api.venafi.cloud (US), api.eu.venafi.cloud, api.au.venafi.cloud,
   api.uk.venafi.cloud, api.sg.venafi.cloud, api.ca.venafi.cloud; the API key in
   the header tppl-api-key.
 * GET v1/useraccounts -> {user {username...}, company {name...}} (Try it).
 * GET outagedetection/v1/applications/name/{APP} -> {id,
   certificateIssuingTemplateAliasIdMap {alias: template id}}.
 * POST outagedetection/v1/certificaterequests {certificateSigningRequest (PEM),
-  applicationId, certificateIssuingTemplateId, apiClientInformation {type,
-  identifier}, validityPeriod ("P<days>D"), existingCertificateId (a renewal)}
-  -> {certificateRequests [{id, status...}]}.
+  applicationId, certificateIssuingTemplateId, isVaaSGenerated false (the one
+  field the OpenAPI definition requires), apiClientInformation {type, identifier},
+  validityPeriod ("P<days>D"), existingCertificateId and renewType
+  USER_PROVIDED_CSR (a renewal: "Required when renewing a certificate i.e.
+  renewType is set to USER_PROVIDED_CSR")} -> {certificateRequests [{id, status...}]}.
 * GET outagedetection/v1/certificaterequests/{id} -> {status (ISSUED, FAILED,
   other: waiting), certificateIds [...], applicationId,
   certificateIssuingTemplateId, errorInformation {message}}.
@@ -47,7 +51,7 @@ import urllib.parse
 from acmelib.plugins.base import Issuer, PluginError, field
 from acmelib.plugins.issuers import _source_common as sc
 
-REGIONS = {'us': 'https://api.venafi.cloud', 'eu': 'https://api.venafi.eu',
+REGIONS = {'us': 'https://api.venafi.cloud', 'eu': 'https://api.eu.venafi.cloud',
            'au': 'https://api.au.venafi.cloud', 'uk': 'https://api.uk.venafi.cloud',
            'sg': 'https://api.sg.venafi.cloud', 'ca': 'https://api.ca.venafi.cloud'}
 BASE = 'outagedetection/v1/'
@@ -77,7 +81,7 @@ class VenafiCloudIssuer(Issuer):
     key_types = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
     fields = [
         field('region', 'Region', 'select', default='us',
-              options=[['us', 'US (api.venafi.cloud)'], ['eu', 'EU (api.venafi.eu)'],
+              options=[['us', 'US (api.venafi.cloud)'], ['eu', 'EU (api.eu.venafi.cloud)'],
                        ['au', 'AU (api.au.venafi.cloud)'], ['uk', 'UK (api.uk.venafi.cloud)'],
                        ['sg', 'SG (api.sg.venafi.cloud)'], ['ca', 'CA (api.ca.venafi.cloud)'],
                        ['custom', 'Another address']]),
@@ -182,7 +186,7 @@ class VenafiCloudIssuer(Issuer):
     def request_body(self, req):
         days = int(req.days or sc.num(self.c('days'), 0) or 0)
         prev = self._previous(req)
-        body = {'certificateSigningRequest': sc.csr_pem(req).strip(),
+        body = {'certificateSigningRequest': sc.csr_pem(req).strip(), 'isVaaSGenerated': False,
                 'apiClientInformation': {'type': 'acme', 'identifier': ''}}
         if prev:
             # vcert RenewCertificate: the application and template of the request that made it
@@ -194,8 +198,8 @@ class VenafiCloudIssuer(Issuer):
             app, tpl = old.get('applicationId'), old.get('certificateIssuingTemplateId')
             if not app or not tpl:
                 app, tpl = self.template_id()
-            body.update(existingCertificateId=prev, applicationId=app,
-                        certificateIssuingTemplateId=tpl)
+            body.update(existingCertificateId=prev, renewType='USER_PROVIDED_CSR',
+                        applicationId=app, certificateIssuingTemplateId=tpl)
         else:
             app, tpl = self.template_id()
             body.update(applicationId=app, certificateIssuingTemplateId=tpl)

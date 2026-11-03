@@ -8,7 +8,11 @@ Certificates → Import from a source.
 
 What the API is, and from where: Venafi's (now CyberArk's) own client of it,
 github.com/Venafi/vcert (pkg/venafi/tpp/tpp.go, connector.go, search.go;
-README-CLI-PLATFORM.md), read 2026-11. Every path is under https://HOST/:
+README-CLI-PLATFORM.md), read 2026-11, and the WebSDK reference
+(https://docs.venafi.com/Docs/current/TopNav/Content/SDK/WebSDK/r-SDK-POST-Certificates-request.php,
+...-retrieve.php, ...-renew.php, ...-revoke.php, r-SDK-GET-Certificates.php): the
+SANs as {"TypeName": "2", "Name": ...}, the Format "Base64" ("case sensitive
+values"). Every path is under https://HOST/:
 
 * POST vedauth/authorize/oauth {client_id, username, password, scope} ->
   {access_token, expires (epoch), refresh_token}; sent after as "Authorization:
@@ -16,10 +20,10 @@ README-CLI-PLATFORM.md), read 2026-11. Every path is under https://HOST/:
   "certificate:manage,revoke". Or a token made in the platform, used as given.
 * GET vedsdk/Identity/Self -> {Identities [{Name, FullName...}]} (Try it).
 * POST vedsdk/certificates/request {PolicyDN (\\VED\\Policy\\FOLDER), PKCS10,
-  SubjectAltNames [{Type 2 DNS | 7 IP, Name}], CADN, ObjectName,
+  SubjectAltNames [{TypeName 2 DNS | 7 IP, Name}], CADN, ObjectName,
   DisableAutomaticRenewal true, CertificateType "AUTO", Origin,
   CASpecificAttributes [{Name "Origin", Value}]} -> {CertificateDN}.
-* POST vedsdk/certificates/retrieve {CertificateDN, Format "base64",
+* POST vedsdk/certificates/retrieve {CertificateDN, Format "Base64",
   IncludeChain true, RootFirstOrder false} -> {CertificateData (base64 of PEM),
   Status, Stage}; while it is being made CertificateData is empty (200 or 202).
 * POST vedsdk/certificates/renew {CertificateDN, PKCS10} -> {Success, Error}.
@@ -218,7 +222,7 @@ class VenafiTppIssuer(Issuer):
     def request_body(self, req):
         sans = []
         for n in req.names or []:
-            sans.append({'Type': 7 if re.match(r'^[\d.]+\Z|:', n) else 2, 'Name': n})
+            sans.append({'TypeName': '7' if re.match(r'^[\d.]+\Z|:', n) else '2', 'Name': n})
         body = {'PolicyDN': self.zone(), 'PKCS10': sc.csr_pem(req).strip(),
                 'SubjectAltNames': sans, 'DisableAutomaticRenewal': True,
                 'CertificateType': 'AUTO', 'Origin': 'acme',
@@ -278,7 +282,7 @@ class VenafiTppIssuer(Issuer):
     def retrieve(self, dn):
         """The certificates (DER) of `dn`, [] while it is being made."""
         got = self.call('POST', 'vedsdk/certificates/retrieve', {
-            'CertificateDN': dn, 'Format': 'base64', 'IncludeChain': True,
+            'CertificateDN': dn, 'Format': 'Base64', 'IncludeChain': True,
             'RootFirstOrder': False}, what='the certificate %s' % dn)
         data = got.get('CertificateData') or ''
         if not data:

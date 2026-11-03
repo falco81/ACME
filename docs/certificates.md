@@ -502,12 +502,15 @@ Which sources can (`lists_existing`, docs/writing-a-module.md): `ssls`
 certificate itself is kept since 1.0.21), `vault_pki` (LIST certs + read),
 `google_cas` (certificates.list), `globalsign_atlas` (/stats/issued + read),
 `ejbca` (certificate/search), `freeipa` (cert_find + cert_show), `zerossl`
-(GET /certificates + download/return), `venafi_tpp` (vedsdk/certificates/ +
+(GET /certificates + download/json), `venafi_tpp` (vedsdk/certificates/ +
 retrieve), `venafi_cloud` (certificatesearch + contents), `keyfactor_command`
 (GET Certificates + Certificates/Download), `cloudflare_origin_ca` (a zone's
 GET /certificates), `sectigo_scm` (GET /api/ssl/v2 + collect), `certum`
 (getOrdersByDateRange + getCertificate), `gogetssl` (orders/ssl/all +
-orders/status), `namecheap_ssl` (namecheap.ssl.getList + getInfo). Not: `acme`
+orders/status), `namecheap_ssl` (namecheap.ssl.getList + getInfo), `sslcom`
+(GET /certificates + GET /certificate/{ref}), `sslstore` (order/query +
+order/certificate/download), `globalsign_mssl` (GetOrderByDateRange +
+GetOrderByOrderID). Not: `acme`
 and `sslmarket_acme` (ACME has no list of an account's certificates), `est`,
 `cmp`, `scep` (the protocols have none), `ms_adcs` (Web Enrollment has none),
 `step_ca` (its API has none), `aws_pca` (AWS Private CA lists issued
