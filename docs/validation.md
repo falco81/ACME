@@ -83,6 +83,11 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `easydns` | easyDNS REST API; zone by SOA (or set); TTL 300-86400 | API token + API key |
 | `plesk` | Plesk XML API (`dns` add_rec / get_rec / del_rec) | a login + password or an XML API secret key |
 | `rackspace` | Rackspace Cloud DNS v1.0 (asynchronous jobs followed); TTL ≥ 300 | user name + API key |
+| `cpanel` | cPanel UAPI (`DNS::parse_zone` / `DNS::mass_edit_zone` with the SOA serial, removed by `line_index`) | the cPanel user + an API token |
+| `joker` | Joker.com DMAPI - **`dns-zone-put` rewrites the whole zone** (read, our line added or taken away, written back); TTL ≥ 300 | a DMAPI API key (or user + password) |
+| `netim` | Netim REST API 1.0 (asynchronous operations followed; deleted by subdomain + type + value) | reseller ID + API (DAS) password |
+| `huawei_dns` | Huawei Cloud DNS v2 (one record set a name; AK/SK SDK-HMAC-SHA256 signed here); the region's endpoint | an IAM access key (AK/SK) + region |
+| `directadmin` | DirectAdmin legacy API `CMD_API_DNS_CONTROL` (deleted by name + value, read back) | the user + a login key |
 | `acme_dns` | an [acme-dns](https://github.com/joohoi/acme-dns) server | account(s); `_acme-challenge.NAME CNAME <fulldomain>` once |
 | `ssh_dns` | commands on the DNS server itself over SSH, straight into its zones: BIND (`nsupdate -l`, `nsupdate -k`, or the zone file + `rndc reload`), PowerDNS (`pdnsutil` or its HTTP API there), Knot (`knotc` transaction), NSD (zone file + `nsd-control reload`), dnsmasq (`txt-record`), Unbound (`local_data`), Windows DNS (PowerShell via OpenSSH), or your own commands; **Find out what runs there** reads the server (read-only) and fills the form in | an SSH account there (sudo optional) |
 | `script` | a program on this machine (`present`/`cleanup`, dehydrated- or lego-style), `ACME_*` variables | the program |
@@ -378,7 +383,8 @@ What every one of them does the same way:
   and easyDNS go by the SOA.
 * **Several values at one name**: our value is added next to the ones there,
   and cleanup removes only ours. Where the API keeps a whole RRset (deSEC,
-  Gandi, GoDaddy, NS1, Namecheap) it is read, changed and written back, one
+  Gandi, GoDaddy, NS1, Namecheap, Huawei Cloud DNS - Joker.com even the
+  whole zone) it is read, changed and written back, one
   change at a time on this node. Removing a value that is gone already is
   not an error.
 * **Kind to the provider** (1.0.21, for every module, source and target -
@@ -1113,6 +1119,204 @@ add_records, delete_record, _async_call; `pyrax/fakes.py` - the rax:dns
 endpoint); the reference https://developer.rackspace.com/docs/cloud-dns/v1/;
 lego `providers/dns/rackspace`.
 
+### Modules added in acme 1.0.26: from the vendors' own documentation
+
+These five were written from the official documentation the user collected
+from the vendors' sites (`api-docs/<vendor>/notes.md` - verbatim quotes, each
+with its URL - and the machine-readable files beside it), and from nothing
+else: no lego, no acme.sh. Where the documentation leaves something open,
+the module's docstring and the section below say **Less certain** and what
+acme does about it. `test/test_dns_providers_docs.py` puts each through a
+fake of its API built from those files.
+
+All five find the zone the same way (`_records.SoftZones`): the zone set
+(*Zone* is a list to load and pick from - *Load the list* reads the
+provider's zones - or typed by hand), else the longest of the zones listed;
+when the list cannot be read, or has none for the name, the zone comes from
+its SOA and the job says so - the list never stops a run.
+
+### cPanel (`cpanel`)
+
+The cPanel server (port 2083 when none is given), the cPanel user and an API
+token (cPanel → Security → Manage API Tokens; `Authorization: cpanel
+user:TOKEN`). `GET /execute/DomainInfo/list_domains` for the domains,
+`/execute/DNS/parse_zone?zone=` for the zone (owner and content base64, each
+line with its `line_index`), `/execute/DNS/mass_edit_zone?zone=&serial=` with
+`add={"dname","ttl","record_type":"TXT","data":[value]}` or
+`remove=<line_index>` - only the TXT lines at the name holding our value.
+The serial must be the zone's current one: acme reads, then writes with the
+serial just read, one change at a time on this node, and a refused change
+is read again and tried again (three times at most). The zone is the
+longest of the account's domains that `parse_zone` reads as a zone (a
+subdomain is mostly inside its parent's zone).
+
+Checked against: `api-docs/cpanel/cpanel-uapi-dns-domaininfo.openapi.json`
+(cPanel's UAPI OpenAPI 11.138.0.10 - `/DNS/parse_zone`, `/DNS/mass_edit_zone`,
+`/DomainInfo/list_domains`, `ResponseRR`, `ResponseBase`, the result envelope)
+and `api-docs/cpanel/notes.md`:
+https://api.docs.cpanel.net/specifications/cpanel.openapi/dns/dns-parse_zone,
+https://api.docs.cpanel.net/specifications/cpanel.openapi/dns/dns-mass_edit_zone,
+https://api.docs.cpanel.net/specifications/cpanel.openapi/domain-information/domaininfo-list_domains,
+https://api.docs.cpanel.net/cpanel/tokens, https://api.docs.cpanel.net/cpanel/introduction.
+**Less certain**: the serial is read from the SOA record of `parse_zone`
+(its third field - the documentation only says "the current serial number
+in the DNS zone's SOA record"); each item of a TXT record's `data_b64` is
+taken for one of its strings; the error words of a serial that moved on are
+not documented (any refusal is read again); `dname` is written relative, as
+in the documentation's examples; no lowest TTL is documented (300 is used).
+
+```
+host: cpanel.example.com      user: alice      token: (the API token)      zone: (empty, or picked)
+```
+
+### Joker.com (`joker`)
+
+A DMAPI API key (Joker.com → My Profile → Manage Joker.com API access keys;
+"modifications only" is enough) or the account's user name and password;
+OT&E (`dmapi.ote.joker.com`) selectable. `POST /request/login` gives the
+Auth-SID (kept and shared; a refused request signs in once more and is asked
+again, as DMAPI tells), `dns-zone-list` the zones, `dns-zone-get` the zone,
+`dns-zone-put` writes it - **replacing the whole zone**. So acme reads the
+zone, adds one line (`_acme-challenge.www TXT 0 "<value>" 300`) or takes
+away only the TXT lines at that label holding our value, and writes it back
+with every other line exactly as read, one change of a zone at a time on
+this node; then it reads the zone again to see the change. A zone read empty
+is never written. TTL at least 300.
+
+`svc.joker.com/nic/replace` (Joker's own Let's Encrypt helper, with the
+domain's Dynamic DNS credentials) is **not** used: it "will replace all TXT
+records for the specified label", so a second order's value at the same name
+(`example.com` and `*.example.com`) would be taken away.
+
+Checked against: `api-docs/joker/DMAPI-ext.txt`
+(https://dmapi.joker.com/docs/DMAPI-ext.txt - Basics and the reply format,
+login, dns-zone-list, dns-zone-get, dns-zone-put and its record format) and
+`api-docs/joker/notes.md`: https://joker.com/faq/books/reseller-documentation-en/page/basics,
+.../page/account-and-handling, .../page/modify-zonedata,
+.../page/what-is-an-ote-system,
+https://joker.com/faq/books/jokercom-faq-en/page/lets-encrypt-ssl-certificates.
+**Less certain**: no real `dns-zone-get` answer is published (it is read as
+header lines, an empty line, the zone in the `dns-zone-put` format); whether
+the default records left out without `include-defaults=1` stay when the zone
+is written back without them; which refusals are "authorization failures"
+(any refused request signs in once more); the session's life (an hour without
+requests by default - kept 30 minutes); the lowest TTL (300 in DMAPI-ext.txt,
+60 on the modify-zonedata page - 300 is used); whether DMAPI's zone calls are
+open to accounts that are not resellers.
+
+```
+auth: key      api_key: (the DMAPI key)      zone: (empty, or picked)
+```
+
+### Netim (`netim`)
+
+A Netim reseller account: its ID and the API password (the DAS password of
+*API – DAS – OTE*, not the account's own); OT&E selectable (plain HTTP, as
+Netim gives its address). `POST /1.0/session/` (basic authentication) gives
+the session, `GET /domains/*` the domains, `GET /domain/{domain}/zone/` the
+records; `POST` to the same path `{subdomain, type: TXT, value, options:
+{ttl}}` adds one, `DELETE` `{subdomain, type, value}` deletes exactly that
+record - other values at the name stay. A change answers an operation:
+*Pending* is followed at `GET /operation/{ID_OPE}` until *Done* (or its
+*Failed* / *Cancelled* message is said). Netim allows 10 sessions at once:
+acme opens one for each piece of work and closes it (`DELETE /session/`).
+
+Checked against: `api-docs/netim/api-secured.wsdl` (SOAP API 2.0 -
+`sessionOpen`, `queryDomainList`, `queryZoneList`, `domainZoneCreate`,
+`domainZoneDelete`, `queryOpe`, `StructQueryZoneList`) and
+`api-docs/netim/notes.md`: https://support.netim.com/en/docs/api-rest-1-0/get-started,
+.../sessions-management/open-session, .../close-session,
+.../domain-names/get-domains-list,
+.../domain-names/domain-services/get-dns-records-list, .../create-dns-zone,
+.../delete-domain-dns-zone, .../api-objects/structoptionszone,
+.../structoperationresponse, .../operation-management/get-operation-information,
+https://support.netim.com/en/docs/resellers/manage-my-reseller-account/sessions-management,
+and Netim's official client https://github.com/netim-com/netim-apirest-client-for-python
+(`APIRest.py` - the DELETE with its JSON body). **Less certain**: no real JSON
+answer is published - a listed record is read by `hostname` or `host` (the
+REST page and the WSDL differ), relative or whole; `subdomain` is written
+relative (as the example `www`); how a TXT value is quoted (written as it is;
+the value deleted is the one listed); the TTL's unit and limits (3600 is
+used); a status other than the four documented ones is taken as done, and the
+job says so.
+
+```
+reseller: NETIM1234      password: (the DAS password)      zone: (empty, or picked)
+```
+
+### Huawei Cloud DNS (`huawei_dns`)
+
+An IAM user's access key (AK/SK) allowed to read the zones and change their
+record sets, and the region (`https://dns.{region}.myhuaweicloud.com`);
+*Project ID* (`X-Project-Id`) and a temporary key's *Security token*
+(`X-Security-Token`) where needed. Every request is signed
+**SDK-HMAC-SHA256** as Huawei Cloud's signing algorithm says (the canonical
+request with the URI ending in `/`, sorted query and headers, `X-Sdk-Date`
+and `Host` signed; the signature the HMAC-SHA256 of the string to sign with
+the SK) - this machine's clock within 15 minutes. `GET /v2/zones?type=public`
+(page by `marker`), `GET /v2/zones/{id}/recordsets?type=TXT&name=<fqdn.>&search_mode=equal`,
+`POST` to make the TXT record set, `PUT .../recordsets/{id}` to write it with
+our value added (in double quotes) or taken away, `DELETE` when ours was its
+last value - one record set a name, read, changed and written back one change
+at a time on this node. A set still `PENDING_*` (`DNS.0314`) is tried again
+after 2, 4, 8, 16 s; `DNS.0312` on making it reads it and adds to it.
+
+Checked against `api-docs/huawei_dns/notes.md`:
+https://support.huaweicloud.com/intl/en-us/api-dns/dns_api_10000.html,
+https://support.huaweicloud.com/intl/en-us/api-dns/en-us_topic_0037134406.html,
+https://support.huaweicloud.com/intl/en-us/api-dns/dns_api_30003.html,
+https://support.huaweicloud.com/intl/en-us/devg-apisign/api-sign-algorithm-001.html
+(and its example api-sign-algorithm-002.html),
+https://support.huaweicloud.com/intl/en-us/api-dns/dns_api_62003.html,
+https://support.huaweicloud.com/intl/en-us/api-dns/CreateRecordSet.html,
+ListRecordSetsByZone.html, UpdateRecordSet.html, DeleteRecordSet.html,
+https://support.huaweicloud.com/intl/en-us/api-dns/ErrorCode.html,
+https://support.huaweicloud.com/intl/en-us/usermanual-dns/dns_usermanual_0601.html,
+and the official Go SDK https://github.com/huaweicloud/huaweicloud-sdk-go-v3
+(`services/dns/v2/dns_meta.go`, `services/dns/v2/region/region.go`).
+**Less certain**: the API reference has no TXT example (the quotes are the
+console's rule); taking one value away by `PUT` with the rest is read from
+the field's description; path and query escaping beyond the unreserved
+characters (acme's are only those); which set is taken when a v2.1 resolution
+line makes several at a name (the first); no rate limit and no lowest TTL
+beyond "1 to 2147483647" (300 is used).
+
+```
+access_key: (AK)      secret_key: (SK)      region: ap-southeast-1      zone: (empty, or picked)
+```
+
+### DirectAdmin (`directadmin`)
+
+The DirectAdmin server (port 2222 when none is given), the user and a login
+key made for acme (basic authentication; `admin|user` for an admin acting for
+a user). The new API (`/api/...`) has no DNS calls, so the legacy one is used:
+`CMD_API_SHOW_DOMAINS` (`list[]=`), `CMD_API_DNS_CONTROL?domain=&urlencoded=yes`
+(the TXT line, values in quotes), `action=add&type=TXT&name=&value=`, and
+`action=select&txtrecs0=<"name=..&value=..">` - that one record away by its
+name and value, as listed. Every change is read back: a record not there
+after the add, or still there after the delete, is said in the job and never
+taken for done. No TTL is sent (the zone's own).
+
+Checked against `api-docs/directadmin/notes.md`:
+https://docs.directadmin.com/developer/api/,
+https://docs.directadmin.com/developer/api/legacy-api.html,
+https://docs.directadmin.com/changelog/version-1.24.2.html,
+https://docs.directadmin.com/changelog/version-1.26.4.html,
+https://docs.directadmin.com/changelog/version-1.28.2.html,
+https://docs.directadmin.com/changelog/version-1.31.0.html,
+https://docs.directadmin.com/changelog/version-1.53.1.html, and
+`api-docs/directadmin_ssl/directadmin-swagger.json` (no DNS paths).
+**Less certain**: `CMD_API_DNS_CONTROL` is described only in the changelog,
+with no TXT example - `type=TXT` and `txtrecs0` follow the pattern
+documented for the other types (`arecs0`, `nsrecs0`, … and the "txtrecs"
+section); whether a TXT value goes with its quotes (added without, deleted
+as listed); the shape of an error answer (`error=1&text=&details=`, as the
+other legacy calls).
+
+```
+host: server.example.com      user: alice      password: (the login key)      zone: (empty, or picked)
+```
+
 ### Not added
 
 * Selectel, Reg.ru, Yandex, Timeweb and the other Russian providers: left
@@ -1123,17 +1327,30 @@ lego `providers/dns/rackspace`.
   over OpenSSH by `ssh_dns` (its PowerShell flavour) or by RFC 2136.
 * PowerDNS-Admin: it fronts a PowerDNS server whose own API `powerdns`
   speaks; PowerDNS-Admin's own API keys were not added.
-* Joker, Variomedia, One.com: not this time (Joker's and One.com's APIs
-  rewrite whole zones or are not documented).
+* Variomedia, One.com: not this time (One.com's API is not documented).
+* Dynadot (looked at again in 1.0.26): its API3 `set_dns2` rewrites every
+  record unless `add_dns_to_current_setting=1` and cannot remove a single
+  record; the DNS calls of its new REST API sit behind a script-only page and
+  are not in the collected documentation (`api-docs/dynadot/notes.md`) - left
+  out until they are copied from https://www.dynadot.com/domain/api-document.
+* BlueCat Address Manager (looked at again in 1.0.26): the RESTful v2 API's
+  sessions, zones and `resourceRecords` (a TXT record is a resource of its
+  own, deleted by its id) are documented, but the body of a quick deployment
+  (`POST /api/v2/zones/{id}/deployments`) and the `TXTRecord` schema (TTL,
+  quotes) are only in the OpenAPI document each Address Manager serves itself
+  (`/api/openapi.json`), not in the public guide (`api-docs/bluecat/notes.md`).
+  Without the deployment the record never reaches the DNS servers, so it is
+  left out until that document is at hand.
 * Looked at in 1.0.22 and left out because no vendor SDK, API description
   or official integration with the DNS calls could be read where the
   modules were written (only GitHub could be reached; lego or acme.sh alone
-  is not enough to confirm an endpoint): Dynadot, Netim, Nicmanager, Zonomi,
-  NameBright, ArvanCloud (its official Terraform provider covers only its
-  cloud servers), DirectAdmin, ISPConfig, cPanel, BlueCat Address Manager,
-  Forpsi (no public DNS API). Huawei Cloud DNS and Volcengine do have
-  official SDKs, but their request signing and project scoping were more
-  than this round could test against published examples - maybe later.
+  is not enough to confirm an endpoint): Nicmanager, Zonomi, NameBright,
+  ArvanCloud (its official Terraform provider covers only its cloud
+  servers), ISPConfig, Forpsi (no public DNS API). Volcengine does have an
+  official SDK, but its request signing was more than that round could test
+  against published examples - maybe later. (Netim, DirectAdmin, cPanel,
+  Joker.com and Huawei Cloud DNS came in 1.0.26, from the vendors' own
+  documentation - above.)
 * TLS-ALPN-01: acme's nginx answers port 443 for its own pages; answering
   `acme-tls/1` with a validation certificate for other names would need a
   TLS front acme does not have (and the name pointing at acme, as
