@@ -6,6 +6,25 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.27 - not released
 
+- **New sources**, written only from the vendors' own API documentation
+  (docs/sources.md names the files): Sectigo Certificate Manager (Admin API:
+  domains validated by CNAME, TXT, HTTP file or e-mail - the record put in place
+  by the certificate's validation, domains validated already skipped - a
+  certificate profile from a list, collected, renewed or replaced, revoked),
+  Certum (SOAP partner API: reissued inside an order, a new order only with
+  "Allow new orders (paid)", TXT/CNAME at the domain or `_certum.`, or the file
+  certum.txt), GoGetSSL (API v1: reissue, or a paid order when allowed; its API
+  cannot revoke - an action asks to cancel the order) and Namecheap SSL (a
+  bought certificate activated or reissued, a new one bought only when allowed,
+  CNAME or HTTP validation). All four can *Import from a source*.
+- AWS Private CA: the template is a list of the 18 end-entity templates AWS
+  documents (still typeable, per certificate too). EJBCA: the CA, end entity
+  profile and certificate profile are lists (the profile lists likely need
+  EJBCA Enterprise; a typed name always works), and an enrollment waiting for
+  approval is said as such. DigiCert downloads the certificate by its id, as
+  documented. Entrust Certificate Services is not added: its public
+  certificates ended on 8 September 2025.
+
 - **Nine new targets**, written from the vendors' own API documents
   (docs/targets.md names the files and what stays less certain): Check Point
   (Management API: a server certificate as PKCS#12, HTTPS Inspection rules and
