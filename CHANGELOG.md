@@ -25,8 +25,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   own starts from the shipped module, never from another uploaded one. An
   uploaded version: "Upload a new file" replaces it. The window is drawn again
   after an upload, a mark or a file taken away (it showed what was there
-  before). The upload window: its parts apart. Your own module in the list: its
-  stripe off its icon.
+  before). The upload window: its parts apart. The list: every module's icon
+  in one column under its heading, a stripe (your own, the row under the
+  pointer) beside it, not over it.
 
 - Import of a certificate did nothing: the Import button broke on a box of
   its window (the owner) it could not see. It imports again.
