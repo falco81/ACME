@@ -37,7 +37,13 @@ def catalog(store, family, b):
     if cls is None:
         raise ValueError('there is no %s module "%s"' % (family, kind))
     key = str(b.get('field') or '').strip()
-    f = next((x for x in cls.fields or [] if x.get('key') == key and
+    pool = list(cls.fields or [])
+    if family == 'target':
+        # a deployment's form may pick from a list too (the virtual servers, services or
+        # rules of the target): asked with the target's settings and the deployment's
+        # options as they are in the form
+        pool += list(getattr(cls, 'deploy_fields', None) or [])
+    f = next((x for x in pool if x.get('key') == key and
               x.get('type') == 'catalog'), None)
     if f is None or not callable(getattr(cls, 'catalog', None)):
         raise ValueError('%s has no list to load for %s' % (kind, key or '?'))

@@ -82,6 +82,15 @@ Every module here works the same way:
 | `bunny` | bunny.net CDN (pull zone hostnames) | bunny.net |
 | `fastly` | Fastly TLS (your own certificate) | Fastly |
 | `nutanix` | Nutanix cluster (Prism Central v4 API) | Nutanix |
+| `checkpoint` | Check Point (Management API) | Check Point |
+| `nsx` | VMware NSX load balancer (Policy API) | VMware |
+| `barracuda_waf` | Barracuda Web Application Firewall | Barracuda |
+| `fortiweb` | FortiWeb | Fortinet |
+| `fortiadc` | FortiADC | Fortinet |
+| `cisco_fmc` | Cisco Secure Firewall Management Center (FMC) | Cisco |
+| `cpanel_ssl` | cPanel / WHM (SSL install) | cPanel |
+| `directadmin_ssl` | DirectAdmin (domain certificate) | DirectAdmin |
+| `plesk` | Plesk (certificate repository) | Plesk |
 
 **A dual certificate** (ECDSA and RSA of the same names, see
 [certificates.md](certificates.md#dual-certificates-ecdsa--rsa)): the targets
@@ -1361,3 +1370,349 @@ Sources (Microsoft's official REST API specification):
 <https://github.com/Azure/azure-rest-api-specs/blob/main/specification/web/resource-manager/Microsoft.Web/AppService/stable/2023-12-01/WebApps.json>.
 **Uncertain**: deployment slots are not handled (only the production app);
 learn.microsoft.com was not reachable from here.
+
+## Checked against the vendors' documents
+
+The nine targets below were written from a collection of the vendors' own API
+documents: their notes quote each page with its address, and the
+machine-readable specifications beside them were searched for every call.
+Each section names the files of that collection (`api-docs/<vendor>/…`) and
+the pages they quote. What the documents leave open is listed under **Less
+certain**, in the section and in the module's docstring. acme then does it
+the cautious way, or not at all.
+
+Their deployment forms pick the virtual servers, services, rules or policies
+from a list (**Load the list**: a field of the type `catalog` in a
+deployment's form, asked of the target with the deployment's options as they
+are; read-only, `acmelib/certs/api_catalog.py`). A value can always be typed
+instead ("Type it yourself…"), and more go one a line in the field after it.
+
+## `checkpoint` - Check Point (Management API)
+
+acme signs in to the Management server (`POST /web_api/[<version>/]login`
+with a user and password, or an API key; *Domain* for a Multi-Domain Server;
+then `X-chkp-sid`). The certificate goes as **PKCS#12, base64, with a base64
+password** (3DES by default, AES as *PKCS#12 encryption*). It becomes a new
+server certificate of a dated name (`add-server-certificate`). With *Server
+certificate object* set, it goes into that one object instead, its content
+replaced in place (`set-server-certificate`; `add-server-certificate` the
+first time). Then:
+
+- **HTTPS Inspection rules** (inbound): the rule picked (*Load the list* reads
+  every HTTPS layer's rulebase and fills in the layer), and *More HTTPS
+  Inspection rules* (name, UID or number) in *HTTPS Inspection layer*. Each
+  gets `set-https-rule {"layer", "uid" | "name" | "rule-number", "certificate"}`.
+- **The portals of a gateway or cluster** (`set-simple-gateway` /
+  `set-simple-cluster`): `certificate-settings {"base64-certificate",
+  "base64-password"}` under `platform-portal-settings`,
+  `usercheck-portal-settings`, `identity-awareness-settings >
+  browser-based-authentication-settings >
+  browser-based-authentication-portal-settings` or `vpn-settings >
+  saml-portal-settings` (API v1.7.1 / v2.1 and later).
+- Older dated objects beyond *keep* that `where-used` finds unused are deleted
+  (`delete-server-certificate`), in the same session.
+- **publish**, and `show-task` until it has succeeded. When *Install the
+  policy package* is set, `install-policy {"policy-package", "access": true,
+  "threat-prevention": false, "targets"}` follows and its task is waited for.
+  Without a package, acme says the policy is to be installed from
+  SmartConsole.
+
+When anything fails before publishing, the session is **discarded**. acme
+always logs out. Test, the lists and *List the server certificates* sign in
+`read-only`.
+
+Checked against `api-docs/checkpoint/notes.md` (quoting
+<https://sc1.checkpoint.com/documents/latest/APIs/index.html>,
+<https://sc1.checkpoint.com/documents/latest/APIs/data/v2.2/introduction.html>,
+<https://sc1.checkpoint.com/documents/latest/APIs/data/v2.2/api_versions.html>,
+<https://sc1.checkpoint.com/documents/R81/WebAdminGuides/EN/CP_R81_ThreatPrevention_AdminGuide/Topics-SECMG/HTTPS-Inspection.htm>,
+<https://github.com/CheckPointSW/terraform-provider-checkpoint>) and
+`api-docs/checkpoint/mgmt-api-v2.2-apis.json`
+(<https://sc1.checkpoint.com/documents/latest/APIs/data/v2.2/dynamic/apis.json>:
+the request and required fields of each command, the task statuses, the
+where-used reply).
+**Less certain**: whether a portal's new certificate needs install-policy (not
+said; acme installs when a package is set); that HTTPS Inspection goes with
+the Access Control policy (the admin guide says only "After creating the
+rules, install the Access Control Policy"); what deleting a server certificate
+still in use answers (where-used is asked first); which PKCS#12 encryption
+every version takes; the nesting of sections in `show-https-rulebase` (read
+loosely, for the list only).
+
+## `nsx` - VMware NSX load balancer (Policy API)
+
+HTTP basic sign-in to the NSX Manager, `https://<manager>/policy/api/v1`. An
+NSX certificate **cannot be overwritten** ("This PUT method does not modify
+an existing certificate"), so each renewal is a new one: `PUT
+/infra/certificates/<dated id>` `{"display_name", "pem_encoded"` (the
+certificate and its chain), `"private_key", "tags"}`. Each **virtual server**
+(picked from the list or typed, more one a line) is read whole (`GET
+/infra/lb-virtual-servers/<id>`, with its `_revision`). It is written back
+(`PUT`, "a full replace") with `client_ssl_profile_binding` pointing at
+`/infra/certificates/<id>`: as the **default certificate**, as an **SNI
+certificate** (an older acme one of this certificate in
+`sni_certificate_paths` replaced, the others left), or both. A virtual server
+without a client SSL binding is refused: it does not serve HTTPS. Older acme
+certificates beyond *keep* that no virtual server refers to are deleted
+(`DELETE /infra/certificates/<id>`). The Policy API has no publish step.
+
+Checked against `api-docs/nsx/notes.md` (quoting
+<https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/>,
+<https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/all_errors.html>,
+<https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/networking_load_balancing_lb_virtual_servers.html>,
+<https://github.com/vmware/terraform-provider-nsxt>) and
+`api-docs/nsx/nsx_policy_api.json` (NSX Policy API 9.1.1.0: `AddTlsCertificate`,
+`TlsTrustData`, `ListTlsCertificates`, `DeleteTlsCertificate`,
+`ReadLBVirtualServer` / `UpdateLBVirtualServer`, `LBClientSslProfileBinding`).
+**Less certain**: that PUT takes the virtual server back as read (read-only
+properties are in it); what deleting a referenced certificate answers (409 is
+likely; acme does not try); the chain after the leaf in `pem_encoded`.
+
+## `barracuda_waf` - Barracuda Web Application Firewall
+
+REST API `v3.2` (or `v3.1`, `v3`) on port 8443: `POST /restapi/<v>/login`
+`{"username", "password"}` gives a token, sent as `Authorization: Basic
+base64(<token>:)`; `DELETE /restapi/<v>/logout` at the end. A certificate's
+content **cannot be changed in place**, so the new one is uploaded under a
+dated name: `POST certificates/signed-certificate` (v3.1 / v3.2, JSON, every
+PEM base64: `signed-certificate`, `certificate-key`,
+`intermediary-certificates`, `certificate-type` `PEM Certificate`, `key-type`
+`RSA` / `ECDSA`, private key export `No`), or `POST
+certificates?upload=signed` (v3, multipart). Each **service** (picked or
+typed) has its SSL security read (`GET services/<svc>/ssl-security`) and
+written back (`PUT`) with `certificate` (or `ecdsa-certificate`) set to the
+new name. An older acme name of this certificate among its SNI domain
+certificates is replaced too; *As: an SNI domain certificate only* changes
+only those. Older acme certificates beyond *keep* are deleted when no
+service's SSL security names them.
+
+Checked against `api-docs/barracuda/notes.md` (quoting
+<https://documentation.campus.barracuda.com/wiki/spaces/BWAFv76/pages/2721541>,
+<https://documentation.campus.barracuda.com/wiki/spaces/BWAFv76/pages/2720415>,
+<https://documentation.campus.barracuda.com/wiki/spaces/BWAFv76/pages/2720418>,
+<https://documentation.campus.barracuda.com/wiki/spaces/BWAFv76/pages/2720984>,
+<https://github.com/barracudanetworks/waf-automation> (`waf-api/python/LetsEncrypt`),
+<https://github.com/barracudanetworks/terraform-provider-barracudawaf>),
+`api-docs/barracuda/swagger-v3.1-12.2.0/` (`Login.json`, `Logout.json`,
+`Certificates.json`, `Signed_Certificate.json`, `Service.json`) and
+`api-docs/barracuda/openapi-github-v11.0.0-v3.2/` (`Service_ssl_security.json`,
+`Signed_Certificate.json`, `Service.json`).
+**Less certain**: `ssl-security` is only in the v3.2 specification of
+firmware 11.0 (the 12.x reference has no page for it; Barracuda's own script
+calls it on v3 too); the shape of the lists of certificates and services
+(`{"data": {<name>: …}}`); what deleting a certificate in use answers (acme
+does not try).
+
+## `fortiweb` - FortiWeb
+
+REST API v2.0. FortiWeb has no API tokens: every request carries
+`Authorization: base64({"username", "password"[, "vdom"]})`. The certificate
+is imported as a **local certificate** of a dated name (`POST
+/api/v2.0/system/certificate.local.json_cert` `{"name", "type":
+"certificate", "status": "ok", "flag": 0, "is-hsm": "no", "passwd": "",
+"private-key", "certificate"}`). *Intermediates* are either uploaded by acme
+once (`POST /api/v2.0/system/certificate.intermediateca`, multipart
+`type=localPC`, `uploadedFile` `acme-ca-<id>.crt`) and grouped as
+`acme-chain-<id>` (`POST …/cmdb/system/certificate.intermediate-certificate-group`,
+members `POST …/members?mkey=<group>`), or a group of yours, or none. Each
+**server policy** (picked or typed) is read (`GET
+/api/v2.0/cmdb/server-policy/policy?mkey=<policy>`) and written back (`PUT
+…?mkey=<policy>` `{"data": …}`) with `certificate` and
+`intermediate-certificate-group` set. Older acme local certificates beyond
+*keep* that no policy names are deleted (`DELETE
+/api/v2.0/cmdb/system/certificate.local?mkey=<name>`).
+
+Checked against `api-docs/fortinet/fortiweb.md` and `api-docs/fortinet/notes.md`
+(quoting Fortinet's official Ansible collection
+<https://github.com/fortinet-ansible-dev/ansible-galaxy-fortiweb-collection>:
+`plugins/httpapi/fwebos.py`, `fwebos_certificate_local_import_certificate.py`,
+`fwebos_server_policy.py`, `fwebos_certificate_intermediate_ca*.py`; and
+Fortinet's Technical Tips
+<https://community.fortinet.com/t5/FortiWeb/Technical-Tip-How-to-upload-the-local-certificate-to-FortiWeb/ta-p/342766>,
+<https://community.fortinet.com/fortiweb-40/technical-tip-how-to-update-server-policy-certificate-via-rest-api-226216>,
+<https://community.fortinet.com/fortiweb-40/technical-tip-how-to-generate-api-authorization-token-for-fortiweb-228191>).
+**Less certain** (the reference is on fndn.fortinet.net, behind a sign-in):
+the name an uploaded intermediate CA gets (from the file's name) and the body
+of a group member (`{"name"}`, the Ansible module's parameter); choose *a
+group of mine* or *none* to leave them out. Also the answers' shape
+(`results`; an `errcode` below 0 is an error, -3 "not there") and that cmdb
+changes apply at once.
+
+## `fortiadc` - FortiADC
+
+REST API: `POST /api/user/login` `{"username", "password"}` gives a `token`
+(`Authorization: Bearer <token>` and the cookie it sets; `GET
+/api/user/logout` at the end), or a REST API admin's key is used; `?vdom=`
+when VDOMs are on. The certificate is uploaded as a **local certificate** of a
+dated name (FortiADC 7.4.0 and later: `POST
+/api/upload/certificate_local?vdom=<vdom | false>`, multipart `type=CertKey`,
+`mkey`, `passwd`, `cert`, `key`, `upload=text`, `vdom`). It is added as a
+member of the **local certificate group** (picked or typed): `POST
+/api/system_certificate_local_cert_group_child_group_member?pkey=<group>`
+`{"OCSP_stapling", "default", "extra_local_cert", "intermediate_cag",
+"local_cert"}`. It is the default member when the older acme one was, or when
+the group was empty; *Intermediate CA group* is one made in FortiADC. A
+member cannot be changed in place, so the older acme member is taken out
+(`DELETE …?pkey=<group>&mkey=<id>`). *Client SSL profiles* listed get
+`local_certificate_group` set to the group; *Virtual servers* listed get
+`client_ssl_profile` set to the first profile (read with `GET …?mkey=`,
+written with `PUT …?mkey=`). Older acme certificates beyond *keep* that no
+group holds are deleted (`DELETE /api/system_certificate_local?mkey=<name>`).
+
+Checked against `api-docs/fortinet/fortiadc.md` and `api-docs/fortinet/notes.md`
+(quoting <https://github.com/fortinet-ansible-dev/ansible-galaxy-fortiadc-collection>:
+`plugins/httpapi/fadcos.py`, `fadcos_system_certificate_local_upload.py`,
+`fadcos_system_certificate_local.py`, `fadcos_local_cert_group.py`,
+`fadcos_client_ssl_profile.py`, `fadcos_virtual_server.py`;
+<https://ansible-galaxy-fortiadc-docs.readthedocs.io/en/latest/gen/fadcos_system_certificate_local_upload.html>;
+<https://docs.fortinet.com/document/fortiadc/7.2.0/handbook/286206>).
+**Less certain**: how a REST API admin's key is sent (as `Bearer`); the
+upload's `vdom` field without VDOMs (`false`, as the Ansible module puts it in
+the address); the values of `default` / `OCSP_stapling` (`enable` /
+`disable`) and the answers' shape (`payload`; a number below 0 is an error);
+uploading intermediates is not documented, so the intermediate CA group is
+one of yours.
+
+## `cisco_fmc` - Cisco Secure Firewall Management Center (FMC)
+
+`POST /api/fmc_platform/v1/auth/generatetoken` with HTTP basic gives the
+headers `X-auth-access-token` and `DOMAIN_UUID` (or set *Domain UUID*). Use an
+account for the API only: the same account in the web interface is signed
+out. Changing an Internal Certificate in place is not reliable, so each
+renewal is a **new Internal Certificate** of a dated name (`POST
+/api/fmc_config/v1/domain/<d>/object/internalcertificates` `{"name", "type":
+"InternalCertificate", "cert", "privateKey"}`, FMC 7.4 and later). In each
+**decryption policy** asked (picked or typed), every rule
+(`…/policy/decryptionpolicies/<p>/decryptionpolicyrules?expanded=true`) that
+refers to an older acme object of this certificate is written back (`PUT
+…/decryptionpolicyrules/<r>`) with the new object's id and name in that
+reference. The first time there is no older acme object yet: pick the new
+object in the rules (Decrypt - Known Key) once, as the job says. When rules
+were changed and *Deploy to the devices* is on, acme sends `POST
+…/deployment/deploymentrequests` `{"type": "DeploymentRequest",
+"ignoreWarning": true, "deviceList"}` for the devices that `GET
+…/deployment/deployabledevices` lists (or only those named). Older acme
+objects beyond *keep* that no decryption rule names are deleted.
+
+Checked against `api-docs/cisco_fmc/notes.md` (quoting
+<https://www.cisco.com/c/en/us/td/docs/security/firepower/760/api/REST/secure_firewall_management_center_rest_api_quick_start_guide_760.html>
+and its chapters
+<https://www.cisco.com/c/en/us/td/docs/security/firepower/760/api/REST/secure_firewall_management_center_rest_api_quick_start_guide_760/Connecting_With_A_Client.html>,
+<https://www.cisco.com/c/en/us/td/docs/security/firepower/760/api/REST/secure_firewall_management_center_rest_api_quick_start_guide_760/Objects_In_The_REST_API.html>,
+<https://www.cisco.com/c/en/us/td/docs/security/firepower/760/api/REST/secure_firewall_management_center_rest_api_quick_start_guide_760.pdf>,
+<https://www.cisco.com/c/en/us/support/docs/security/firepower-management-center/215918-how-to-generate-authentication-token-for.html>,
+<https://github.com/CiscoDevNet/terraform-provider-fmc>,
+<https://docs.manage.security.cisco.com/cdfmc/c_known_key_decryption.html>).
+**Less certain** (the OpenAPI specification is only on the FMC, under
+`/api/api-explorer`): the body of an Internal Certificate is from Cisco's
+Terraform provider, and whether `cert` may hold the chain is not said (only
+the certificate is sent); the field of a decryption rule that names the
+certificate is not documented, so acme finds the reference `{"id": …}` of an
+older acme object wherever it is in the rule; the shape of
+`deployabledevices`; no log-out call is documented (the token lives 30
+minutes). RA VPN identity certificates are another object (certenrollments)
+and are not handled.
+
+## `cpanel_ssl` - cPanel / WHM (SSL install)
+
+**cPanel (UAPI, port 2083)**, `Authorization: cpanel <user>:<API token>`:
+`POST /execute/SSL/install_ssl` (form: `domain`, `cert`, `key`, `cabundle`)
+for each **website**: the one picked or typed, more one a line, or (when
+empty) every site of the account whose name the certificate covers
+(`SSL::installed_hosts`). cPanel replaces the certificate of the virtual host
+and restarts Apache itself. "The same one is there" means the site's
+`certificate_text` has the same fingerprint. Older certificates **acme
+installed** (their `cert_id`, remembered) beyond *keep* that no site uses
+(`SSL::list_certs`, `domain_is_configured` 0) are deleted from SSL storage
+(`SSL::delete_cert`); no other certificate is touched. **WHM (API 1, port
+2087)**, `Authorization: whm <user>:<API token>`: `GET
+/json-api/installssl?api.version=1&domain=&crt=&key=&cab=`, the virtual hosts
+read with `fetch_ssl_vhosts`.
+
+Checked against `api-docs/cpanel_ssl/notes.md` (quoting
+<https://api.docs.cpanel.net/specifications/cpanel.openapi/ssl-certificate-management/ssl-install_ssl>,
+<https://api.docs.cpanel.net/specifications/cpanel.openapi/ssl-certificate-management/ssl-delete_cert>,
+<https://api.docs.cpanel.net/specifications/cpanel.openapi/cpanel-account-ssl-management/ssl-installed_hosts>,
+<https://api.docs.cpanel.net/specifications/cpanel.openapi/cpanel-account-ssl-management/ssl-list_certs>,
+<https://api.docs.cpanel.net/guides/quickstart-development-guide/tutorial-call-uapis-ssl-install-ssl-function-in-custom-code/>,
+<https://api.docs.cpanel.net/specifications/whm.openapi/cpanel-account-settings/ssl-installssl>),
+`api-docs/cpanel_ssl/cpanel-uapi-ssl.openapi.json`,
+`api-docs/cpanel_ssl/whm-api1-ssl-install.openapi.json` and, for the tokens,
+`api-docs/cpanel/notes.md` (<https://api.docs.cpanel.net/cpanel/tokens>,
+<https://api.docs.cpanel.net/whm/tokens>).
+**Less certain**: WHM installssl is documented as a GET with everything in the
+address, and a long chain may make the address too long (turn *Send the CA
+bundle* off and WHM picks the bundle itself); WHM shows no certificate text of
+a virtual host, so "the same one is there" is judged by its `not_after`; the
+keys of pruned certificates stay in SSL storage.
+
+## `directadmin_ssl` - DirectAdmin (domain certificate)
+
+HTTP basic sign-in with a **login key** (`admin|user` with *Act as the user*).
+**The new API** (`/api/domain-tls`, or `/api/admin-domain-tls` as an
+administrator) lists the domain's certificates (`GET
+…/domains/<domain>/certs`, `certIds`). The **slot** is the one set (picked
+from the list), or the only one, or the one whose names cover the
+certificate's. Its files are replaced in place, first as a dry run (`PUT
+…/certs/<id>/files?dry-run=true`: checked, not saved), then for real, with
+`{"cert", "chain": [one intermediate a string], "key"}` and
+`update-acme-skiplist=true` (*Keep DirectAdmin's ACME off it*). "The same one
+is there" means the slot's `cert` (`GET …/files`) has the same fingerprint.
+**The legacy API** (*API: the legacy CMD_API_SSL*): `POST /CMD_API_SSL`
+`domain, action=save, type=paste, certificate=<cert>\n<key>\n`, then
+`type=cacert, active=yes, cacert=<chain>`. DirectAdmin reloads the web server
+itself. There are no older copies to keep: the slot is replaced.
+
+Checked against `api-docs/directadmin_ssl/notes.md` (quoting
+<https://docs.directadmin.com/developer/api/>,
+<https://docs.directadmin.com/changelog/version-1.24.4.html>,
+<https://docs.directadmin.com/changelog/version-1.37.0.html>,
+<https://docs.directadmin.com/changelog/version-1.666.html>,
+<https://docs.directadmin.com/changelog/version-1.53.1.html>,
+<https://docs.directadmin.com/changelog/version-1.706.html>),
+`api-docs/directadmin_ssl/directadmin-swagger.json`
+(<https://demo.directadmin.com:2222/static/swagger.json>, tag TLS) and, for the
+sign-in, `api-docs/directadmin/notes.md`.
+**Less certain**: how a new certificate id comes about is not documented, so
+acme replaces a slot the domain lists and makes no new one (for a domain with
+none, make it in DirectAdmin, or use the legacy API); `chain` is taken as one
+intermediate a string; legacy `type=cacert` is documented for `CMD_SSL` only
+("the CMD_API_ commands take the same values"), and so is the shape of the
+legacy answers.
+
+## `plesk` - Plesk (certificate repository)
+
+XML API (`POST https://<host>:8443/enterprise/control/agent.php`,
+`text/xml`, `HTTP_AUTH_LOGIN` / `HTTP_AUTH_PASSWD` or `KEY`). The certificate,
+its key and CA certificate are **installed into a repository**, the
+subscription's (`<webspace>`) or the server's (`<admin/>`), under a dated name
+(`<certificate><install><name/><webspace/><content><csr/><pvt/><cert/><ca/>`);
+the repository is read with `<get-pool>`. **It is not assigned to the
+website**: Plesk's XML API documents no way to do that (only the command
+line's `plesk bin subscription -u <domain> -certificate-name <name>`). acme
+says in the job to choose the new certificate for the site in Plesk
+(*Websites & Domains → SSL/TLS Certificates*). Older acme certificates are
+removed (`<remove><filter><name/></filter><webspace/>`) only when *Previous
+versions to keep* is set: it is -1 (keep all) by default, as Plesk does not
+tell whether one is still assigned.
+
+Checked against `api-docs/plesk/notes.md` (quoting
+<https://docs.plesk.com/en-US/obsidian/api-rpc/about-xml-api/xml-api-packets/a-sample-packet.50169/>,
+<https://docs.plesk.com/en-US/obsidian/api-rpc/about-xml-api/reference/managing-ssltls-certificates.34871/>,
+<https://docs.plesk.com/en-US/obsidian/api-rpc/about-xml-api/reference/managing-ssltls-certificates/installing-certificates.34877/>,
+<https://docs.plesk.com/en-US/obsidian/api-rpc/about-xml-api/reference/managing-ssltls-certificates/deleting-certificates.34882/>,
+<https://docs.plesk.com/en-US/obsidian/api-rpc/about-xml-api/reference/managing-ssltls-certificates/retrieving-list-of-certificates.68395/>,
+<https://docs.plesk.com/en-US/obsidian/cli-linux/using-command-line-utilities/subscription-subscriptions.37768/>,
+<https://github.com/plesk/api-php-lib>) and
+`api-docs/plesk/xsd-1.6.9.1/certificate_input.xsd`, `certificate_output.xsd`.
+**Less certain**: assigning to a website is not documented in the XML API, so
+it is done by hand; `<csr>` is required by the schema and sent empty (acme has
+no CSR to give); whether removing an assigned certificate is refused.
+
+**Not added: FortiManager.** Its notes (`api-docs/fortinet/fortimanager.md`)
+quote no request that puts a certificate with its key into a device's
+database. There are only the fields of the fmgdevice Ansible collection (for
+FMG 7.2.6-7.2.12 and 7.4.3+) and a `password` "as a PEM file" whose form is
+unclear. The way to bind it (a VIP's `ssl-certificate` through an ADOM's
+dynamic mapping, then installing a package) is derived, not documented. The
+`fortigate` target puts the certificate on a FortiGate directly.

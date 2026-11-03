@@ -2552,7 +2552,10 @@ function deployEdit(o) {
       }
       if (testBtn) testBtn.hidden = true;
       if ($('modal-box').classList.contains('large')) { $('modal-box').classList.remove('large'); $('modal-box').classList.add('medium'); }
-      form = fieldForm(fields, opts, secretsOf(d), {noneWords: 'This target needs nothing more: the certificate goes where the module puts it.'});
+      /* family, row, plug: a field of the type catalog in a deployment's form asks its
+         target for the list (api_catalog.py) */
+      form = fieldForm(fields, opts, secretsOf(d), {noneWords: 'This target needs nothing more: the certificate goes where the module puts it.',
+                                                     family: 'target', row: t, plug: p});
       formHost.appendChild(form.node);
     };
     var deployDual = function () {
@@ -4968,7 +4971,7 @@ function certWizard(cert, detail, opts) {
         var f = p.files_ui && window.ACME_DEPLOY_UI
           ? window.ACME_DEPLOY_UI.form(p, dfs, W.deploys[t.name] || {}, {}, {target: t.name, targetRow: t, names: names(),
               key_type: W.d.key_type, key_type_alt: W.d.key_type_alt, dual: !!W.d.key_type_alt, sudo: truthy((t.config || {}).sudo)})
-          : fieldForm(dfs, W.deploys[t.name] || {}, {}, {noneWords: 'Nothing to set for this target.'});
+          : fieldForm(dfs, W.deploys[t.name] || {}, {}, {noneWords: 'Nothing to set for this target.', family: 'target', row: t, plug: p});
         forms[t.name] = f;
         fh.appendChild(f.node);
       };

@@ -62,7 +62,12 @@ and set:
   {file} {line}` filled in. `ssh_fields()` of `targets/_common.py` and
   `challenges/_common.py` give it already;
 - `deploy_fields` - **one deployment's form**: what to do with *this*
-  certificate there (profiles, listeners, paths, commands);
+  certificate there (profiles, listeners, paths, commands). A field of the
+  type `catalog` here (`catalog='virtual_servers', autoload=False`) is a list
+  picked from, with a value always typed instead: *Load the list* asks the
+  module's `catalog(key)` - read-only - with the target's settings and the
+  deployment's options over them (`self.c('a_deploy_key')`), so a
+  deployment's key must not be a target's too;
 
 and implement:
 
