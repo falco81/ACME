@@ -62,6 +62,12 @@ def make_backup(store, why='by hand'):
         os.fchmod(fd, 0o640)
         if owner:
             os.fchown(fd, owner[0], owner[1])
+        try:
+            # modules of your own go into the copy with what they are (1.0.32)
+            from acmelib.certs import custom_modules as _CM
+            _CM.record(store)
+        except Exception:                               # noqa: BLE001
+            pass
         with os.fdopen(fd, 'wb') as raw_f:
             dump_tables(store.db, raw_f)
         os.replace(str(part), str(out))

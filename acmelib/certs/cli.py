@@ -43,7 +43,7 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'csr', 'csr_answer', 'import_file', 'export', 'selfsigned', 'cas', 'ca_show',
         'ca_create', 'ca_sub', 'ca_import', 'ca_revoke', 'ca_crl', 'ca_export', 'ca_sign',
         'ca_del', 'sources', 'validations', 'targets', 'target_test', 'jobs', 'job', 'job_stop',
-        'plugins', 'plugin', 'dns_records', 'dns_add', 'dns_del', 'deploys', 'deploy_add',
+        'plugins', 'plugin', 'plugins_sync', 'dns_records', 'dns_add', 'dns_del', 'deploys', 'deploy_add',
         'deploy_edit', 'deploy_del', 'deploy_run', 'acme_contact',
         'source_show', 'source_add', 'source_edit', 'source_del', 'source_test', 'source_action',
         'source_discover', 'validation_discover', 'target_discover',
@@ -196,6 +196,12 @@ def add_args(p):
                    '--cert-edit: switched on or off')
     g.add_argument('--plugins', action='store_true', help='the modules: issuers, challenges, '
                    'targets (and those that did not load)')
+    g.add_argument('--plugins-sync', dest='plugins_sync', metavar='NODE',
+                   help='modules of your own: write the files NODE keeps in the database '
+                        '(every node keeps what it has) into this node\'s ACME_PLUGINS folder - '
+                        'after a copy was put back, or to make a second node the same; '
+                        '--remove also takes away files here NODE does not have (root, --yes)')
+    g.add_argument('--remove', action='store_true', help='with --plugins-sync')
     g.add_argument('--plugin', metavar='KIND', help='one module: its fields (what --set takes), '
                    'those of a deployment, its actions and help (family/kind where two '
                    'families have the kind)')
@@ -621,7 +627,7 @@ class Cli(object):
                  ('target_test', self.target_test), ('job_stop', self.job_stop),
                  ('job', self.job), ('cert', self.cert), ('certs', self.certs),
                  ('cas', self.cas), ('jobs', self.jobs), ('plugin', self.plugin),
-                 ('plugins', self.plugins), ('dns_add', self.dns_add), ('dns_del', self.dns_del),
+                 ('plugins', self.plugins), ('plugins_sync', self.plugins_sync), ('dns_add', self.dns_add), ('dns_del', self.dns_del),
                  ('dns_records', self.dns), ('acme_contact', self.acme_contact),
                  ('check_names', self.check_names), ('cert_check', self.cert_check),
                  ('dry_run', self.dry_run)]
@@ -1258,7 +1264,7 @@ class Cli(object):
         from acmelib.certs import store as S
         row = self.fam_row(fam, name)
         pub = S.plugin_public(self.store, fam, row, True)
-        cls = S.plugin_class(fam, row['kind'])
+        cls = S.row_class(fam, row)
         deps = []
         if fam == 'target':
             from acmelib.certs import api
@@ -1577,16 +1583,68 @@ class Cli(object):
             return 0
         for fam in ('issuer', 'challenge', 'target'):
             print(self.pal.head(fam + 's'))
-            self.table([[d['kind'], d['title'], d.get('vendor') or '', len(d.get('fields') or []),
-                         ', '.join(x['key'] for x in d.get('actions') or []) or '-',
-                         os.path.basename(d.get('module') or '')] for d in got.get(fam, [])],
-                       ['kind', 'title', 'vendor', 'fields', 'actions', 'file'])
+            rows = []
+            for d in got.get(fam, []):
+                origin = {'builtin': ''}.get(d.get('origin'), 'OVERRIDE' if d.get('overrides')
+                                             else 'own')
+                vers = d.get('versions') or []
+                if vers:
+                    words = ', '.join('%s%s%s' % (v.get('version') or '(plain)',
+                                                  '*' if v.get('default') else '',
+                                                  '' if v.get('origin') == 'builtin' else
+                                                  (' override' if v.get('overrides') else ' own'))
+                                      for v in vers)
+                else:
+                    words = d.get('version') or ''
+                rows.append([d['kind'], d['title'], d.get('vendor') or '', origin, words,
+                             ', '.join(x['key'] for x in d.get('actions') or []) or '-',
+                             d.get('module') if d.get('origin') == 'custom' else
+                             os.path.basename(d.get('module') or '')])
+            self.table(rows, ['kind', 'title', 'vendor', 'origin', 'versions (* default)',
+                              'actions', 'file'])
         if got.get('broken'):
             print(self.pal.bad('did not load'))
             for b in got['broken']:
                 print('  %s: %s' % (b['file'], b['words']))
+        cm = got.get('custom') or {}
+        if cm.get('files') or cm.get('others'):
+            print(self.pal.head('\nmodules of your own on %s (%s)' % (cm.get('node'),
+                                                                     cm.get('dir'))))
+            for f in cm.get('files') or []:
+                print('  %s  %s' % (f['path'], self.pal.dim(f['sha256'][:16])))
+            for o in cm.get('others') or []:
+                bad = o['missing_here'] or o['only_here'] or o['different']
+                print('  %s %s' % (self.pal.warn('!') if bad else self.pal.good('✔'),
+                                   'node %s: %s' % (o['node'], '; '.join(filter(None, [
+                                       'not here: ' + ', '.join(o['missing_here'])
+                                       if o['missing_here'] else '',
+                                       'only here: ' + ', '.join(o['only_here'])
+                                       if o['only_here'] else '',
+                                       'different: ' + ', '.join(o['different'])
+                                       if o['different'] else ''])) or 'the same')))
+            if any(o['missing_here'] or o['different'] for o in cm.get('others') or []):
+                print(self.pal.dim('  acme --plugins-sync NODE   writes that node\'s files here'))
         print(self.pal.dim('  acme --plugin KIND: what one of them takes'))
         return 0
+
+    def plugins_sync(self):
+        from acmelib.certs import custom_modules as CM
+        node = self.args.plugins_sync
+        a = self.args
+        self.sure('the modules of your own that %s keeps in the database are written into %s%s'
+                  % (node, CM.plugins_dir(), ' and the files it does not have taken away'
+                     if a.remove else ''))
+        try:
+            done = CM.sync(self.store, node, remove=bool(a.remove),
+                           say=lambda w: print('  ' + self.pal.warn(w)))
+        except (ValueError, OSError) as e:
+            raise SystemExit('acme: %s' % e)
+        for what, rel in done:
+            print('  %s %s' % (what, rel))
+        CM.record(self.store)
+        return self.done('%d file(s) changed - restart acme (systemctl restart acme) to load '
+                         'them' % len(done) if done else 'nothing to change: the files are the '
+                         'same', {'ok': True, 'changed': done})
 
     def _fields_table(self, fields):
         rows = []

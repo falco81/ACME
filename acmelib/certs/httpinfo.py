@@ -201,7 +201,7 @@ def info(store, row):
     if row.get('kind') not in KINDS:
         return {'applies': False, 'kind': row.get('kind')}
     m = machines(store)
-    cls = S.plugin_class('challenge', row['kind'])
+    cls = S.row_class('challenge', row)
     cfg = S.plugin_config('challenge', row) if cls else {}
     pairs = names_of(store, row)
     names = []
@@ -228,7 +228,7 @@ def check(store, row, name, by, echo=None):
     in a job: {ok, said, job_id, steps}."""
     if row.get('kind') not in KINDS:
         raise ValueError('%s is not HTTP-01 answered by acme' % row['name'])
-    cls = S.plugin_class('challenge', row['kind'])
+    cls = S.row_class('challenge', row)
     if cls is None:
         raise ValueError('the module http_local is not there')
     name = str(name or '').strip().lower().rstrip('.')

@@ -65,7 +65,7 @@ def dependents(store, ref):
     mine = (str(row['id']), row['name'])
     sources = []
     for r in store.db.rows('SELECT id, name, kind, config FROM cert_issuers ORDER BY name'):
-        cls = S.plugin_class('issuer', r.get('kind'))
+        cls = S.row_class('issuer', r)
         keys = [f['key'] for f in (getattr(cls, 'fields', None) or [])
                 if N.OPTIONS_OF.get(f.get('options_from')) == 'ca'] or \
             (['ca'] if r.get('kind') == 'internal_ca' else [])

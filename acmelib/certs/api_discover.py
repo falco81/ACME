@@ -73,7 +73,7 @@ def discover(store, family, b, by):
     if b.get('id') not in (None, '', 0) and not row:
         raise LookupError('there is no such %s' % WORDS[family])
     kind = str(b.get('kind') or (row or {}).get('kind') or '')
-    cls = S.plugin_class(family, kind)
+    cls = S.given_class(family, kind, b.get('config'), row)
     if cls is None:
         raise ValueError('there is no %s module "%s"' % (WORDS[family], kind))
     if not cls.discover_offered():

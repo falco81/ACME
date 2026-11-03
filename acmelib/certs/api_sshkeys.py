@@ -389,7 +389,7 @@ class Ref(object):
         if ident not in (None, '', 0) and not self.row:
             raise LookupError('there is no such %s' % FAMILY_WORDS[self.family])
         self.kind = str(b.get('kind') or (self.row or {}).get('kind') or '')
-        self.cls = S.plugin_class(self.family, self.kind)
+        self.cls = S.given_class(self.family, self.kind, b.get('config'), self.row)
         if self.cls is None:
             raise ValueError('there is no %s module "%s"' % (FAMILY_WORDS[self.family], self.kind))
         if self.row and self.row.get('kind') != self.kind:
@@ -508,7 +508,7 @@ def do_download(store, b, s):
 def _with_drafts(store, family, kind, config, by, plain_pass=True, pasted=False):
     """The form's config with each draft token replaced by its key (and its
     passphrase): (config, {field: (meta, passphrase, token)})."""
-    cls = S.plugin_class(family, kind)
+    cls = S.given_class(family, kind, config)
     fields = sshkey_fields(cls)
     if not fields or not isinstance(config, dict):
         return config, {}
@@ -546,7 +546,7 @@ def family_save(store, family, b, by):
     row = S.plugin_row(store, family, A._id(b['id'])) if b.get('id') not in (None, '', 0) \
         else None
     kind = str(b.get('kind') or (row or {}).get('kind') or '')
-    cls = S.plugin_class(family, kind)
+    cls = S.given_class(family, kind, b.get('config'), row)
     fields = sshkey_fields(cls)
     if not fields or not isinstance(b.get('config'), dict):
         return orig(store, family, b, by)
@@ -924,7 +924,7 @@ def cli(c, family, words):
         raise SystemExit('acme: --%s-key NAME %s' % (FAMILY_WORDS[family], '|'.join(CLI_WHAT)))
     name, what, more = words[0], words[1], words[2:]
     row = c.fam_row(family, name)
-    cls = S.plugin_class(family, row.get('kind'))
+    cls = S.row_class(family, row)
     if not sshkey_fields(cls):
         raise SystemExit('acme: %s (%s) signs in with no SSH key' % (name, row.get('kind')))
     b = {'family': family, 'id': row['id']}

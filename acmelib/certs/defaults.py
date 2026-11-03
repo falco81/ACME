@@ -247,7 +247,7 @@ def default_issuer(store):
 def default_challenge(store, issuer_row=None):
     """The validation of a new ACME certificate when none is said, or None."""
     if issuer_row is not None:
-        cls = S.plugin_class('issuer', issuer_row.get('kind'))
+        cls = S.row_class('issuer', issuer_row)
         if cls is None or not getattr(cls, 'needs_challenge', False):
             return None
     name = default_name(store, 'challenge')

@@ -356,6 +356,20 @@ class Plugin(object):
     discovery = None
     discover_keys = None
 
+    # Versions of one module (1.0.32) - e.g. for the API versions of a device: several
+    # classes of the same kind, each with a module_version of its own ('' - the plain
+    # one); a saved source, validation or target keeps the one chosen (its config's
+    # "_version"), a new one takes the version with default_version = True, else ''.
+    # A module of your own (ACME_PLUGINS, /etc/acme/plugins) with the kind and the
+    # version of a module shipped replaces it (an override); with another version, or
+    # a kind of its own, it adds one. Registry.reload() says which: _origin.
+    module_version = ''
+    version_label = ''
+    default_version = False
+    _origin = 'builtin'             # 'builtin' | 'custom' (set by the Registry)
+    _overrides = ''                 # the file of the shipped module it replaces
+    _source = 'builtin'             # 'builtin' | 'disk' (ACME_PLUGINS) | 'uploaded' (the page)
+
     def __init__(self, config, ctx):
         self.config = dict(config or {})
         self.ctx = ctx
@@ -492,7 +506,11 @@ class Plugin(object):
                 'discover': ({'keys': cls.discover_keys_of()} if cls.discover_offered()
                              else None),
                 'sshkey_howto': cls.sshkey_howto,
-                'module': getattr(cls, '_module_file', '')}
+                'module': getattr(cls, '_module_file', ''),
+                'version': cls.module_version or '', 'version_label': cls.version_label or '',
+                'origin': getattr(cls, '_origin', 'builtin') or 'builtin',
+                'source': getattr(cls, '_source', 'builtin') or 'builtin',
+                'overrides': getattr(cls, '_overrides', '') or ''}
 
 
 # discover_setup()s that find only what any module of a family would (lists, zones)
@@ -977,18 +995,26 @@ FOLDERS = {'issuer': 'issuers', 'challenge': 'challenges', 'target': 'targets'}
 # Finding them
 # ---------------------------------------------------------------------------
 class Registry(object):
-    """Every module there is, found once and found again on reload()."""
+    """Every module there is, found once and found again on reload().
+
+    found[family][kind]: the module of a kind - its default version;
+    versions[family][kind][module_version]: each version of it (1.0.32). The
+    folders are read in order (the shipped one first): a module of your own with
+    a kind and version already found replaces that one (an override, _overrides
+    its file); another version of a kind adds one."""
     def __init__(self, extra_dirs=None):
         self.lock = threading.Lock()
         self.found = {f: {} for f in FAMILIES}
+        self.versions = {f: {} for f in FAMILIES}
         self.broken = []                # [(file, words)] - shown on the page
         here = os.path.dirname(os.path.abspath(__file__))
         self.dirs = [here] + list(extra_dirs or [])
 
     def reload(self):
-        found = {f: {} for f in FAMILIES}
+        versions = {f: {} for f in FAMILIES}
         broken = []
         for root in self.dirs:
+            own = root != self.dirs[0]
             for family, folder in FOLDERS.items():
                 d = os.path.join(root, folder)
                 if not os.path.isdir(d):
@@ -1008,10 +1034,38 @@ class Registry(object):
                                 obj is not FAMILIES[family] and obj.kind and \
                                 obj.__module__ == mod.__name__:
                             obj._module_file = path
-                            found[family][obj.kind] = obj   # a later folder wins: yours
+                            ver = str(obj.__dict__.get('module_version', obj.module_version)
+                                      or '').strip()
+                            obj.module_version = ver
+                            have = versions[family].setdefault(obj.kind, {})
+                            before = have.get(ver)
+                            obj._origin = 'custom' if own else 'builtin'
+                            obj._source = 'builtin' if not own else (
+                                'uploaded' if os.path.abspath(root) == os.path.abspath(
+                                    UPLOADED_DIR) else 'disk')
+                            obj._overrides = ''
+                            if own and before is not None:
+                                obj._overrides = getattr(before, '_overrides', '') or \
+                                    (before._module_file if before._origin == 'builtin' else '')
+                            have[ver] = obj             # a later folder wins: yours
+        found = {f: {} for f in FAMILIES}
+        for family, kinds in versions.items():
+            for kind, vers in kinds.items():
+                found[family][kind] = self._default_of(vers)
         with self.lock:
-            self.found, self.broken = found, broken
+            self.found, self.versions, self.broken = found, versions, broken
         return self
+
+    @staticmethod
+    def _default_of(vers):
+        """The version a row that says none takes: one marked default_version (yours
+        first), else the plain one (''), else the first by name."""
+        marked = [c for c in vers.values() if c.__dict__.get('default_version')]
+        if marked:
+            return sorted(marked, key=lambda c: (c._origin != 'custom', c.module_version))[0]
+        if '' in vers:
+            return vers['']
+        return vers[sorted(vers)[0]]
 
     def _load(self, root, folder, fn, path):
         if root == self.dirs[0]:
@@ -1024,13 +1078,24 @@ class Registry(object):
         spec.loader.exec_module(mod)
         return mod
 
-    def get(self, family, kind):
+    def get(self, family, kind, version=None):
+        """The module of a kind; `version` (a row's "_version"): that version where it
+        is there, else the default one."""
         with self.lock:
             cls = self.found.get(family, {}).get(kind)
+            if cls is not None and version not in (None, ''):
+                cls = self.versions.get(family, {}).get(kind, {}).get(str(version), cls)
+            elif cls is not None and version == '':
+                cls = self.versions.get(family, {}).get(kind, {}).get('', cls)
         if not cls:
             raise PluginError('there is no %s module "%s" (Settings → About lists them)'
                               % (family, kind), retry=False)
         return cls
+
+    def versions_of(self, family, kind):
+        """{module_version: class} of a kind ({} when there is no such module)."""
+        with self.lock:
+            return dict(self.versions.get(family, {}).get(kind, {}))
 
     def all(self, family=None):
         with self.lock:
@@ -1039,12 +1104,27 @@ class Registry(object):
             return {f: dict(v) for f, v in self.found.items()}
 
     def describe(self):
-        return {f: sorted((c.describe() for c in v.values()),
-                          key=lambda d: (d['vendor'], d['title']))
-                for f, v in self.all().items()}
+        out = {}
+        for f, v in self.all().items():
+            rows = []
+            for kind, cls in v.items():
+                d = cls.describe()
+                vers = self.versions_of(f, kind)
+                d['default_version'] = cls.module_version or ''
+                d['versions'] = [] if len(vers) < 2 else [
+                    dict(c.describe(), default=(c is cls))
+                    for _k, c in sorted(vers.items(), key=lambda x: (x[0] != '', x[0]))]
+                rows.append(d)
+            out[f] = sorted(rows, key=lambda d: (d['vendor'], d['title']))
+        return out
 
 
-REGISTRY = Registry(extra_dirs=[os.environ.get('ACME_PLUGINS', '/etc/acme/plugins')])
+# Where modules come from, in order - a later one wins: shipped; your own on the disk
+# of the node (ACME_PLUGINS, /etc/acme/plugins); uploaded on the page (1.0.32: kept in
+# the database, written here by each node - acmelib/certs/custom_modules.py).
+UPLOADED_DIR = os.path.join(os.environ.get('ACME_STATE', '/var/lib/acme'), 'plugins-uploaded')
+REGISTRY = Registry(extra_dirs=[os.environ.get('ACME_PLUGINS', '/etc/acme/plugins'),
+                                UPLOADED_DIR])
 
 
 def b64(data):

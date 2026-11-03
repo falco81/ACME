@@ -531,7 +531,7 @@ class RunContext(base.Context):
         for row in self.store.db.rows('SELECT * FROM cert_issuers ORDER BY name'):
             if want is not None and row['name'] not in want:
                 continue
-            cls = S.plugin_class('issuer', row.get('kind'))
+            cls = S.row_class('issuer', row)
             if cls is None or not callable(getattr(cls, 'persist_info', None)) or \
                     'dns-persist-01' not in (getattr(cls, 'challenge_types', None) or ()):
                 continue

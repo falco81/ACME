@@ -1,0 +1,115 @@
+# -*- coding: utf-8 -*-
+"""
+The page Modules (1.0.32): every module there is - shipped, your own on the disk
+of a node, uploaded on the page - with its versions, where it comes from and what
+uses it; the source of any of them to download (a start for one of your own),
+an upload checked before it is kept, an uploaded one taken away.
+
+    GET  /api/modules                      the list (plugins_view + uploads + usage)
+    GET  /api/modules/source?family=&kind=&version=   {file, text} of a loaded module
+    GET  /api/modules/uploaded?path=        {file, text} of an uploaded file
+    POST /api/modules/analyse  {family, filename, text}   what it would add or replace
+    POST /api/modules/install  {family, filename, text, note}
+    POST /api/modules/remove   {path}
+
+An upload is Python run by acme: a full administrator's alone, written to the
+events, checked in a process of its own first (it must load and hold a module of
+that family). It is kept in the database - every copy, the other node of a
+cluster - and each node writes it into its own folder (custom_modules.py).
+"""
+from __future__ import annotations
+
+from acmelib.certs import api as A
+from acmelib.certs import custom_modules as CM
+from acmelib.certs import store as S
+
+FAMILY_WORDS = {'issuer': 'source', 'challenge': 'validation', 'target': 'target'}
+
+
+def usage(store):
+    """{family: {kind: {version used: count}}} of the saved sources, validations, targets."""
+    out = {}
+    for fam, table in S.TABLE_OF.items():
+        if fam not in FAMILY_WORDS:
+            continue
+        got = out.setdefault(fam, {})
+        for r in store.db.rows('SELECT id, kind, config FROM %s' % table):
+            cls = S.row_class(fam, r)
+            ver = (cls.module_version or '') if cls else (S.version_of(r) or '')
+            k = got.setdefault(r['kind'], {})
+            k[ver] = k.get(ver, 0) + 1
+    return out
+
+
+@A.api('GET', '/api/modules', 'certadmin')
+def _modules(h, s):
+    d = A.plugins_view(h.store)
+    d['uploaded'] = CM.uploaded(h.store)
+    d['usage'] = usage(h.store)
+    d['dirs'] = {'disk': CM.plugins_dir(), 'uploaded': CM.uploaded_dir()}
+    d['may_upload'] = A.may(s, 'fulladmin')
+    return d
+
+
+@A.api('GET', '/api/modules/source', 'fulladmin')
+def _source(h, s):
+    fam = h.arg('family').strip()
+    if fam not in FAMILY_WORDS:
+        raise ValueError('family is issuer, challenge or target')
+    ver = h.arg('version')
+    name, text = CM.source_of(fam, h.arg('kind').strip(), ver if ver is not None and
+                              h.arg('has_version') == '1' else None)
+    return {'file': name, 'text': text}
+
+
+@A.api('GET', '/api/modules/uploaded', 'fulladmin')
+def _uploaded(h, s):
+    import base64
+    rel = h.arg('path').strip()
+    got = CM.uploaded(h.store, text=True).get(rel)
+    if not got:
+        raise LookupError('there is no uploaded module %s' % rel)
+    return {'file': rel.split('/')[-1],
+            'text': base64.b64decode(got['text']).decode('utf-8', 'replace')}
+
+
+def _body(b):
+    fam = str(b.get('family') or '').strip()
+    name = str(b.get('filename') or '').strip()
+    text = b.get('text')
+    if not isinstance(text, str):
+        raise ValueError('text: the file\'s text')
+    return fam, name, text
+
+
+@A.api('POST', '/api/modules/analyse', 'fulladmin')
+def _analyse(h, s):
+    fam, name, text = _body(h.body())
+    got = CM.analyse(fam, name, text)
+    rel = '%s/%s' % (CM.FOLDER_OF.get(fam, '?'), name)
+    got['replaces_upload'] = rel in CM.uploaded(h.store)
+    got['on_disk'] = rel in CM.inventory(text=False)
+    return got
+
+
+@A.api('POST', '/api/modules/install', 'fulladmin')
+def _install(h, s):
+    b = h.body()
+    fam, name, text = _body(b)
+    by = A.who(s)
+    got = CM.install(h.store, fam, name, text, by, b.get('note') or '')
+    words = ', '.join('%s %s%s' % (c['does'], c['kind'], (' ' + c['version'])
+                                   if c['version'] else '') for c in got['classes'])
+    h.store.add_event('certificates', 'module %s uploaded by %s (%s)' % (
+        got['path'], by, words), who=by)
+    return {'ok': True, 'path': got['path'], 'classes': got['classes'],
+            'message': 'the module %s is loaded' % got['path']}
+
+
+@A.api('POST', '/api/modules/remove', 'fulladmin')
+def _remove(h, s):
+    rel = str(h.body().get('path') or '').strip()
+    by = A.who(s)
+    CM.remove(h.store, rel, by)
+    h.store.add_event('certificates', 'uploaded module %s taken away by %s' % (rel, by), who=by)
+    return {'ok': True, 'message': 'the module %s is taken away' % rel}

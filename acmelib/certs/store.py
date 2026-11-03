@@ -94,12 +94,56 @@ def registry(again=False):
     return base.REGISTRY
 
 
-def plugin_class(family, kind):
-    """The module's class, or None when there is no such module."""
+VERSION_KEY = '_version'         # a row's config: the version of its module (1.0.32)
+
+
+def plugin_class(family, kind, version=None):
+    """The module's class, or None when there is no such module. `version`: that
+    version of it where it is there (else its default one)."""
     try:
-        return registry().get(family, kind)
+        return registry().get(family, kind, version)
     except base.PluginError:
         return None
+
+
+def version_of(row_or_cfg):
+    """The module version a row (or a config) keeps - None when it says none."""
+    if not isinstance(row_or_cfg, dict):
+        return None
+    cfg = row_or_cfg
+    if 'config' in row_or_cfg and 'kind' in row_or_cfg:
+        cfg = jload(row_or_cfg.get('config'), {}) if not isinstance(
+            row_or_cfg.get('config'), dict) else row_or_cfg.get('config')
+    v = (cfg or {}).get(VERSION_KEY) if isinstance(cfg, dict) else None
+    return None if v is None else str(v)
+
+
+def row_class(family, row, kind=None):
+    """The class of a saved source, validation or target - the version it keeps."""
+    if not row:
+        return plugin_class(family, kind) if kind else None
+    k = kind or row.get('kind')
+    return plugin_class(family, k, version_of(row) if k == row.get('kind') else None)
+
+
+def given_class(family, kind, cfg=None, row=None):
+    """The class for settings sent from a form (saved or not): the version the form
+    says (its config's "_version"), else the one the row keeps when it is that kind."""
+    if isinstance(cfg, dict) and VERSION_KEY in cfg:
+        return plugin_class(family, kind, str(cfg.get(VERSION_KEY) or ''))
+    if row and row.get('kind') == kind:
+        return row_class(family, row)
+    return plugin_class(family, kind)
+
+
+def version_state(family, row):
+    """(version kept, version used, missing): a row whose version is no longer there
+    (a module of your own taken away) runs the default one - said on the page."""
+    want = version_of(row)
+    cls = row_class(family, row)
+    used = (cls.module_version or '') if cls else ''
+    missing = bool(cls) and want not in (None, '') and want != used
+    return want, used, missing
 
 
 def secret_fields(cls, attr='fields'):
@@ -107,7 +151,14 @@ def secret_fields(cls, attr='fields'):
     secret=True - a private key pasted in (the SSH key of a validation)."""
     if cls is None:
         return set()
-    return {f['key'] for f in (getattr(cls, attr, None) or [])
+    # every version of the module (1.0.32): a secret of one is sealed whichever is used
+    try:
+        sibs = list(registry().versions_of(cls.family, cls.kind).values()) or [cls]
+    except Exception:                                   # noqa: BLE001
+        sibs = [cls]
+    if cls not in sibs:
+        sibs.append(cls)
+    return {f['key'] for c in sibs for f in (getattr(c, attr, None) or [])
             if f.get('type') == 'secret' or f.get('secret')}
 
 
@@ -237,7 +288,7 @@ def carry_in(store, table, ident, old):
         secrets = deploy_secrets(store, row)
     else:
         fam = FAMILY_OF.get(table)
-        secrets = secret_fields(plugin_class(fam, row.get('kind'))) if fam else set()
+        secrets = secret_fields(row_class(fam, row)) if fam else set()
     cfg = jload(row.get(col), {})
     if not isinstance(cfg, dict):
         return
@@ -273,7 +324,7 @@ def plugin_row(store, family, ref):
 
 def plugin_config(family, row):
     """The row's settings, secrets opened."""
-    cls = plugin_class(family, row.get('kind'))
+    cls = row_class(family, row)
     return config_open(jload(row.get('config'), {}), '%s:%s' % (TABLE_OF[family], row['id']),
                        secret_fields(cls))
 
@@ -281,7 +332,7 @@ def plugin_config(family, row):
 def plugin_public(store, family, row, full=False):
     """A row as it is shown; `full`: to a full administrator (its secrets as dots
     and their last two characters - dots alone otherwise)."""
-    cls = plugin_class(family, row.get('kind'))
+    cls = row_class(family, row)
     cfg, is_set = config_masked(jload(row.get('config'), {}), secret_fields(cls),
                                 '%s:%s' % (TABLE_OF[family], row['id']), full)
     out = {k: row.get(k) for k in ('id', 'name', 'kind', 'enabled', 'note', 'created',
@@ -293,6 +344,13 @@ def plugin_public(store, family, row, full=False):
         out['tags'] = jload(row.get('tags'), [])
     out['title'] = (cls.title or cls.kind) if cls else row.get('kind')
     out['module_missing'] = cls is None
+    # the version of its module, where it came from (1.0.32)
+    want, used, missing = version_state(family, row)
+    out['version'] = used
+    out['version_kept'] = want
+    out['version_missing'] = missing
+    out['origin'] = getattr(cls, '_origin', 'builtin') if cls else ''
+    out['overrides'] = bool(getattr(cls, '_overrides', '')) if cls else False
     out['actions'] = [dict(a) for a in (getattr(cls, 'actions', None) or [])] if cls else []
     if family == 'challenge' and row.get('kind') == 'dns_persist':
         # what acme wrote in DNS for it (dns_persist.py) - its actions as they apply
@@ -325,7 +383,7 @@ def plugin_public(store, family, row, full=False):
 def plugin_instance(store, family, row, ctx, over=None):
     """The module of a row, with its settings - and a certificate's own values of the
     settings it may set itself (`over`, cert_over) over them."""
-    cls = plugin_class(family, row.get('kind'))
+    cls = row_class(family, row)
     if cls is None:
         raise base.PluginError('there is no %s module "%s" (it was taken away, or did not load)'
                                % (family, row.get('kind')), retry=False)
@@ -497,7 +555,7 @@ def clean_over(store, over, issuer, challenges, full=False, old=None):
         if not irow and src:
             raise ValueError('own settings of a source, but the certificate has none')
         if irow:
-            got = one(plugin_class('issuer', irow.get('kind')), src or {}, irow['name'], old_src)
+            got = one(row_class('issuer', irow), src or {}, irow['name'], old_src)
             if got:
                 res['source'] = got
     vals = over.get('validation')
@@ -516,7 +574,7 @@ def clean_over(store, over, issuer, challenges, full=False, old=None):
             raise ValueError('there is no validation %s' % name)
         if crow['name'] not in challenges:
             continue                    # a validation it no longer uses: dropped
-        got = one(plugin_class('challenge', crow.get('kind')), given, crow['name'],
+        got = one(row_class('challenge', crow), given, crow['name'],
                   old_vals.get(name))
         if got:
             keep[crow['name']] = got
@@ -755,7 +813,7 @@ def issuer_dual(store, ref):
     irow = ref if isinstance(ref, dict) else plugin_row(store, 'issuer', ref)
     if not irow:
         return False
-    cls = plugin_class('issuer', irow.get('kind'))
+    cls = row_class('issuer', irow)
     if cls is None:
         return False
     try:
@@ -1038,7 +1096,7 @@ def bundle_of(row, version_row_=None, variant=None):
 # ---------------------------------------------------------------------------
 def deploy_secrets(store, row):
     t = plugin_row(store, 'target', row.get('target'))
-    cls = plugin_class('target', t.get('kind')) if t else None
+    cls = row_class('target', t) if t else None
     return secret_fields(cls, 'deploy_fields')
 
 

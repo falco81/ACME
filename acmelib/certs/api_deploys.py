@@ -64,7 +64,7 @@ def _setup(store, b, s):
     trow = S.plugin_row(store, 'target', tname)
     if not trow:
         raise LookupError('there is no target %s' % tname)
-    cls = S.plugin_class('target', trow['kind'])
+    cls = S.row_class('target', trow)
     if cls is None:
         raise ValueError('there is no target module "%s"' % trow['kind'])
     cref = b.get('cert_id') or (dep or {}).get('cert_id')

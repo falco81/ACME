@@ -195,6 +195,11 @@ def rb_build(store, work, progress=None):
     os.makedirs(inner, mode=0o700)
     say(1, 'the database is copied')
     copy = os.path.join(inner, 'acme-copy.json.gz')
+    try:
+        from acmelib.certs import custom_modules as _CM      # their files, kept (1.0.32)
+        _CM.record(store)
+    except Exception:                                   # noqa: BLE001
+        pass
     with open(copy, 'wb') as f:
         dump_tables(store.db, f)
     key = sealing_key()

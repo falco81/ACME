@@ -1483,7 +1483,7 @@ def options_for(store, source):
         from acmelib.plugins.challenges import dns_persist
         return [[r['name'], '%s (%s)' % (r['name'], r['kind'])]
                 for r in store.db.rows('SELECT name, kind FROM cert_challenges ORDER BY name')
-                if dns_persist.can_write(S.plugin_class('challenge', r['kind']))]
+                if dns_persist.can_write(S.row_class('challenge', r))]
     if source == 'certs':
         return [[r['name'], r['name']] for r in store.db.rows('SELECT name FROM certs ORDER BY name')]
     if source == 'key_types':
@@ -1522,6 +1522,8 @@ SUGGESTED = {('challenge', 'dns_builtin'): DF.DNS_OWN, ('challenge', 'http_local
 
 
 def plugins_view(store, again=False):
+    from acmelib.certs import custom_modules as CM
+    CM.keep_current(store, every=0 if again else 5.0)
     reg = S.registry(again)
     d = reg.describe()
     for fam in d:
@@ -1531,13 +1533,24 @@ def plugins_view(store, again=False):
             one['fields'] = _resolve(store, one.get('fields'))
             if fam in ('issuer', 'challenge'):
                 # what one certificate may set itself (store.over_fields)
-                pcls = S.plugin_class(fam, one.get('kind'))
+                pcls = S.row_class(fam, one)
                 one['cert_fields'] = [f['key'] for f in S.over_fields(pcls, full=True)]
                 # where a file is written: a full administrator's alone (1.0.26)
                 one['cert_fields_full'] = S.place_keys(pcls)
             if 'deploy_fields' in one:
                 one['deploy_fields'] = _resolve(store, one.get('deploy_fields'))
+            for v in one.get('versions') or []:
+                # each version's form, its choices resolved as the default one's
+                v['fields'] = _resolve(store, v.get('fields'))
+                if 'deploy_fields' in v:
+                    v['deploy_fields'] = _resolve(store, v.get('deploy_fields'))
     d['broken'] = [{'file': b[0], 'words': b[1]} for b in reg.broken]
+    # modules of your own: kept in the database, compared with the other nodes (1.0.32)
+    from acmelib.certs import custom_modules as CM
+    try:
+        d['custom'] = CM.status(store)
+    except Exception as e:                              # noqa: BLE001
+        d['custom'] = {'error': str(e)}
     return d
 
 
@@ -1566,9 +1579,17 @@ def family_save(store, family, b, by):
     if other and (not row or other['id'] != row['id']):
         raise ValueError('there is one called %s already' % name)
     kind = str(b.get('kind') or (row or {}).get('kind') or '')
-    cls = S.plugin_class(family, kind)
+    cls = S.given_class(family, kind, b.get('config'), row)
     if cls is None and (not row or kind != row.get('kind')):
         raise ValueError('there is no %s module "%s"' % (family, kind))
+    if isinstance(b.get('config'), dict) and S.VERSION_KEY in b['config']:
+        # the version of the module it uses (1.0.32): one that is there, or none
+        v = str(b['config'].get(S.VERSION_KEY) or '').strip()
+        have = S.registry().versions_of(family, kind)
+        if v and v not in have:
+            raise ValueError('the module %s has no version "%s" - it has: %s' % (
+                kind, v, ', '.join(sorted(k or '(plain)' for k in have)) or 'none'))
+        b['config'][S.VERSION_KEY] = v
     secrets_ = S.secret_fields(cls)
     given = _dict(b.get('config'), 'config') if 'config' in b else None
     fields = {'name': name, 'kind': kind, 'updated': t}
@@ -1690,7 +1711,7 @@ def kept_secrets_guard(store, family, b, s, kind=None):
     kind = kind or str(b.get('kind') or (row or {}).get('kind') or '')
     if not row or row.get('kind') != kind:
         return
-    cls = S.plugin_class(family, kind)
+    cls = S.given_class(family, kind, b.get('config'), row)
     if cls is None:
         return
     secrets_ = S.secret_fields(cls)
@@ -1715,7 +1736,7 @@ def family_test(store, family, b, by, echo=None):
     if b.get('id') not in (None, '', 0) and not row:
         raise LookupError('there is no such %s' % family)
     kind = str(b.get('kind') or (row or {}).get('kind') or '')
-    cls = S.plugin_class(family, kind)
+    cls = S.given_class(family, kind, b.get('config'), row)
     if cls is None:
         raise ValueError('there is no %s module "%s"' % (family, kind))
     cfg = S.plugin_config(family, row) if row and row.get('kind') == kind else {}
@@ -1752,7 +1773,7 @@ def family_action(store, family, b, by, echo=None):
                        else b.get('name'))
     if not row:
         raise LookupError('there is no such %s' % family)
-    cls = S.plugin_class(family, row.get('kind'))
+    cls = S.row_class(family, row)
     if cls is None:
         raise ValueError('there is no %s module "%s"' % (family, row.get('kind')))
     key = str(b.get('action') or '').strip()
@@ -1797,7 +1818,7 @@ def action_role(family, b, store):
     """An action that changes something elsewhere needs a full administrator."""
     row = S.plugin_row(store, family, b.get('id') if b.get('id') not in (None, '', 0)
                        else b.get('name'))
-    cls = S.plugin_class(family, row.get('kind')) if row else None
+    cls = S.row_class(family, row) if row else None
     act = next((a for a in (getattr(cls, 'actions', None) or [])
                 if a.get('key') == str(b.get('action') or '')), None)
     return 'fulladmin' if (act or {}).get('changes', True) else 'certadmin'
@@ -1940,7 +1961,7 @@ def _deploy_save_in(store, b, by, full, made):
     trow = S.plugin_row(store, 'target', target)
     if not trow:
         raise ValueError('there is no target %s' % target)
-    cls = S.plugin_class('target', trow['kind'])
+    cls = S.row_class('target', trow)
     fields = {'cert_id': cert['id'], 'target': trow['name']}
     if 'enabled' in b or not row:
         fields['enabled'] = _flag(b.get('enabled'), 1)
@@ -2169,6 +2190,7 @@ from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edi
 from acmelib.certs import api_runplan  # noqa: E402,F401  (what happens: a certificate's run plan)
 from acmelib.certs import api_catalog  # noqa: E402,F401  (a form's lists: a CA's products)
 from acmelib.certs import api_discover  # noqa: E402,F401  (a form filled in from the account)
+from acmelib.certs import api_modules  # noqa: E402,F401  (the page Modules: versions, uploads)
 from acmelib.certs import api_onlineimport  # noqa: E402,F401  (Import from a source; a key added later)
 from acmelib.certs import api_certview  # noqa: E402,F401  (show a certificate: any file read and described)
 from acmelib.certs import listsearch  # noqa: E402,F401  (the search box over the certificates)

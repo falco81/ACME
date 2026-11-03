@@ -681,9 +681,9 @@ def dummy_bundle(cert):
     return b
 
 
-def module(family, kind):
+def module(family, kind, version=None):
     from acmelib.plugins import base
-    return base.REGISTRY.get(family, kind)
+    return base.REGISTRY.get(family, kind, version)
 
 
 def run_one(job, r, bundle_holder):
@@ -694,7 +694,7 @@ def run_one(job, r, bundle_holder):
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(int(r.get('seconds') or 8))
     try:
-        cls = module(r['family'], r['kind'])
+        cls = module(r['family'], r['kind'], (r.get('config') or {}).get('_version'))
         ctx = PlanContext(dict(job, deploy_id=r.get('deploy_id'), target_name=r.get('name')),
                           '%s:%s' % (r['family'], r.get('name')), Answers(r.get('answers')))
         inst = cls(dict(r.get('config') or {}), ctx)

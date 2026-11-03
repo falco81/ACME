@@ -100,7 +100,7 @@ def issuer_info(store, name):
     irow = S.plugin_row(store, 'issuer', name) if name else None
     if not irow:
         return None, None, None
-    cls = S.plugin_class('issuer', irow.get('kind'))
+    cls = S.row_class('issuer', irow)
     if cls is None:
         return irow, None, None
     return irow, cls, compat.source_info(cls, S.jload(irow.get('config'), {}) or {},

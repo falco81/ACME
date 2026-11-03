@@ -142,6 +142,12 @@ def _pool():
 
 def new_job(store, kind, cert_id=None, deploy_id=None, target=None, by='', said='',
             echo=None):
+    try:
+        # a module uploaded on another node: written here and loaded first (1.0.32)
+        from acmelib.certs import custom_modules
+        custom_modules.keep_current(store)
+    except Exception:                                   # noqa: BLE001
+        pass
     t = time.time()
     ident = store.db.insert('cert_jobs', {
         'ts': t, 'kind': kind, 'cert_id': cert_id, 'deploy_id': deploy_id,

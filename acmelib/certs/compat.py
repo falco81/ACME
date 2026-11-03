@@ -193,7 +193,7 @@ def validation_fits(icls, iconfig, info, crow, name, settings, profile=None):
         return 'there is no such validation'
     if not crow.get('enabled', 1) or str(crow.get('enabled')) in ('0', 'False'):
         return 'the validation %s is switched off' % crow['name']
-    ccls = S.plugin_class('challenge', crow.get('kind'))
+    ccls = S.row_class('challenge', crow)
     if ccls is None:
         return 'the module %s of %s is missing' % (crow.get('kind'), crow['name'])
     cconf = S.jload(crow.get('config'), {}) or {}
@@ -294,7 +294,7 @@ def _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type
         P.append(_problem('issuer', 'source', 'there is no source %s' % issuer,
                           'Choose a source (Certificates → Sources)'))
     elif irow:
-        icls = S.plugin_class('issuer', irow.get('kind'))
+        icls = S.row_class('issuer', irow)
         if icls is None:
             P.append(_problem('issuer', 'source', 'the module %s of the source %s is missing'
                               % (irow.get('kind'), irow['name']), 'Choose another source'))
@@ -411,7 +411,7 @@ def _evaluate(store, names, issuer, challenge, challenge_map, key_type, key_type
             for crow in store.db.rows('SELECT * FROM cert_challenges ORDER BY name'):
                 each = {n: validation_fits(icls, iconf, info, crow, n, settings, profile)
                         for n in names if kind_of(n) != 'bad'}
-                ccls = S.plugin_class('challenge', crow.get('kind'))
+                ccls = S.row_class('challenge', crow)
                 cconf = S.jload(crow.get('config'), {}) or {}
                 whole = ''
                 if ccls is not None and not any(p in ccls.proofs_for(cconf)

@@ -169,7 +169,7 @@ def issuer_of(store, issuer=None):
         from acmelib.certs import defaults as DF
         issuer = DF.default_name(store, 'issuer')
     row = S.plugin_row(store, 'issuer', issuer) if issuer else None
-    cls = S.plugin_class('issuer', row.get('kind')) if row else None
+    cls = S.row_class('issuer', row) if row else None
     return row, cls, named
 
 
@@ -195,7 +195,7 @@ def suggest(store, domain, names):
     rows = validations(store)
     probe = '_acme-challenge.' + bare(names[0]) if names else '_acme-challenge.' + domain
     for row in rows:
-        cls = S.plugin_class('challenge', row.get('kind'))
+        cls = S.row_class('challenge', row)
         if cls is None or ips or not issubclass(cls, DnsChallenge) or \
                 not getattr(cls, 'api_provider', False):
             continue

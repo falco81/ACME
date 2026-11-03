@@ -157,8 +157,8 @@ class Secrets(object):
                     self.real.add(line.strip())
 
 
-def _cls(family, kind):
-    return S.plugin_class(family, kind)
+def _cls(family, kind, row=None):
+    return S.row_class(family, row, kind) if row else S.plugin_class(family, kind)
 
 
 def _fields_of(cls, attr='fields'):
@@ -832,7 +832,7 @@ def plan(store, cert, deploys, full=False):
     profile = cert.get('profile')
     profile = S.jload(profile, {}) if isinstance(profile, str) else dict(profile or {})
     irow = S.plugin_row(store, 'issuer', cert.get('issuer')) if cert.get('issuer') else None
-    icls = _cls('issuer', irow.get('kind')) if irow else None
+    icls = _cls('issuer', irow.get('kind'), irow) if irow else None
     icfg = S.plugin_config('issuer', irow) if irow else {}
     icfg = S.config_over(icls, icfg, S.cert_over({'profile': profile}, 'issuer'))
     runs = []
@@ -857,7 +857,7 @@ def plan(store, cert, deploys, full=False):
     vinfo = {}
     for which, ns in groups.items():
         crow = S.plugin_row(store, 'challenge', which) if which else None
-        ccls = _cls('challenge', crow.get('kind')) if crow else None
+        ccls = _cls('challenge', crow.get('kind'), crow) if crow else None
         if not crow or not ccls:
             vinfo[which] = {'row': crow, 'cls': ccls, 'runs': []}
             continue
@@ -884,7 +884,7 @@ def plan(store, cert, deploys, full=False):
     dinfo = []
     for dep in deploys or []:
         trow = S.plugin_row(store, 'target', dep.get('target'))
-        tcls = _cls('target', trow.get('kind')) if trow else None
+        tcls = _cls('target', trow.get('kind'), trow) if trow else None
         item = {'dep': dep, 'row': trow, 'cls': tcls}
         dinfo.append(item)
         if not trow or not tcls:

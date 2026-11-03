@@ -122,7 +122,7 @@ def _configs(store, fam, old, new):
     for table, family in (('cert_issuers', 'issuer'), ('cert_challenges', 'challenge'),
                           ('cert_targets', 'target')):
         for r in store.db.rows('SELECT id, kind, config FROM %s' % table):
-            cls = S.plugin_class(family, r.get('kind'))
+            cls = S.row_class(family, r)
             keys = [f['key'] for f in (getattr(cls, 'fields', None) or [])
                     if OPTIONS_OF.get(f.get('options_from')) == fam]
             if not keys:
