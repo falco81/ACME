@@ -1035,3 +1035,14 @@ td.acc-role{white-space:nowrap}
 .ck-cmp.differ .ck-cmp-vs{color:var(--crit,#f85149);border-color:rgba(248,81,73,.5)}
 .ck-how h5{margin:0 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-mut)}
 @media (max-width:760px){.ck-cmp{grid-template-columns:1fr}.ck-cmp-mid{flex-direction:row}}
+/* the cards of a test's result as tall as each other, built the same (1.0.34) */
+.ck-cmp{grid-auto-rows:auto;align-items:stretch;row-gap:10px}
+.ck-cmp > .ck-cmp-h{align-self:end}
+.ck-cmp-card{height:100%;box-sizing:border-box}
+.ck-cmp-tags{min-height:20px}
+.ck-cmp-ct{flex-wrap:nowrap}
+.ck-cmp-ct > b{min-width:0}
+/* Import a certificate: its parts apart (1.0.34) */
+#modal-body .ct-drop + .ct-foundhost:empty + .ct-keyrow,#modal-body .ct-drop + .ct-keyrow{margin-top:14px}
+#modal-body .ct-foundhost:not(:empty) + .ct-keyrow{margin-top:0}
+#modal-body .ct-keyrow + .formgrid{margin-top:4px}

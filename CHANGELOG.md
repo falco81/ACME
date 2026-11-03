@@ -11,12 +11,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   ticked, the ones that do not red (names, issuer, validity, key, SHA-256), and
   how it was reached under them. A test that fails says the same in the job's
   log (a line for each: `✗ key: acme RSA 4096 | sent EC 384`), in the event, and
-  in its mail (a table *In acme / The server sent*). A key said once (RSA 4096,
-  not ec-256 256).
+  in its mail (a table *In acme / The server sent*). The cards stand level, the
+  one sent in the row of the one it is set against. A key said once (RSA 4096,
+  not ec-256 256). The import window: a ZIP offered, its parts apart.
 
 - Import of a dual certificate (RSA and ECDSA of the same names): a file
-  holding both halves with their keys is imported as the certificate and its
-  twin at once; the other half imported into a certificate later is kept as its
+  holding both halves with their keys - a PEM, a ZIP (two PFX, .crt and .key,
+  folders), or the two files dropped together (rsa.pfx + ec.pfx: `more` on the
+  API) - is imported as the certificate and its twin at once, the twin shown
+  next to it; the other half imported into a certificate later is kept as its
   twin (the same names, the other key type - guessed, or *Kept as* in the
   window, `"as": "alt"` on the API), not as its next version, which put the
   first half away.

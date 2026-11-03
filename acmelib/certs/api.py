@@ -21,6 +21,7 @@ import base64
 import inspect
 import ipaddress
 import json
+import os
 import re
 import time
 
@@ -867,9 +868,37 @@ def _cert_revoke(h, s):
         raise E.ApiError(409, str(e))
 
 
-def parse_file(data, filename, password):
+def _with_more(data, filename, more):
+    """Several files brought at once (both halves of a dual certificate: rsa.pfx and
+    ec.pfx, say - 1.0.34): read together, as one ZIP holding them would be."""
+    if not more:
+        return data, filename
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    seen = set()
+    with zipfile.ZipFile(buf, 'w') as z:
+        for d, n in [(data, filename)] + list(more):
+            n = os.path.basename(str(n or 'file')) or 'file'
+            while n in seen:
+                n = '_' + n
+            seen.add(n)
+            z.writestr(n, d)
+    return buf.getvalue(), 'files.zip'
+
+
+def _more_of(b):
+    out = []
+    for m in (b.get('more') or [])[:8]:
+        if isinstance(m, dict) and m.get('data_b64'):
+            out.append((_b64(m.get('data_b64'), 'more'), str(m.get('filename') or 'file')[:200]))
+    return out
+
+
+def parse_file(data, filename, password, more=None):
     """What is in a file: the certificates (each described), a key or not."""
     formats = _lib('formats')
+    data, filename = _with_more(data, filename, more)
     got = formats.read_any(data, filename or '', password or None) or {}
     out = {'format': got.get('format'), 'needs_password': bool(got.get('needs_password')),
            'notes': list(got.get('notes') or []), 'has_key': bool(got.get('key')),
@@ -908,16 +937,17 @@ def parse_file(data, filename, password):
 def _cert_parse(h, s):
     b = h.body()
     out, _got = parse_file(_b64(b.get('data_b64')), _text(b, 'filename', 300),
-                           _text(b, 'password', 1000))
+                           _text(b, 'password', 1000), _more_of(b))
     return out
 
 
 def cert_import(store, b, by):
     data = _b64(b.get('data_b64'))
-    _out, got = parse_file(data, _text(b, 'filename', 300), _text(b, 'password', 1000))
+    more = _more_of(b)
+    _out, got = parse_file(data, _text(b, 'filename', 300), _text(b, 'password', 1000), more)
     if got.get('needs_password') and not _text(b, 'password', 1000) and _text(b, 'key_password', 1000):
         # the key's password given for a file that holds the key itself (1.0.33)
-        _out, got = parse_file(data, _text(b, 'filename', 300), _text(b, 'key_password', 1000))
+        _out, got = parse_file(data, _text(b, 'filename', 300), _text(b, 'key_password', 1000), more)
     if got.get('needs_password'):
         raise ValueError('that password does not open the file' if (_text(b, 'password', 1000) or _text(b, 'key_password', 1000))
                          else 'the file is locked: give its password')

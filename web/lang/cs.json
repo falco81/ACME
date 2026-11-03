@@ -50687,6 +50687,10 @@
   "ck34_13": {
    "source": "How it was reached",
    "text": "Jak se k němu test dostal"
+  },
+  "imp34_12": {
+   "source": "Any file a certificate comes in: PEM, CRT, CER, DER, P7B, PFX/P12, JKS or a ZIP of them - with its key in it, or the key in a file of its own (.key) dropped beside it. A dual certificate (RSA and ECDSA): both halves at once - one PEM or ZIP, or the two files dropped together - and the second is kept as its twin. It is read first and shown; nothing is kept until you press Import.",
+   "text": "Jakýkoli soubor, ve kterém certifikát přichází: PEM, CRT, CER, DER, P7B, PFX/P12, JKS nebo jejich ZIP – s klíčem v něm, nebo s klíčem ve vlastním souboru (.key) přetaženým vedle. Duální certifikát (RSA a ECDSA): obě poloviny najednou – jeden PEM nebo ZIP, nebo oba soubory přetažené spolu – a druhá se uloží jako jeho dvojče. Nejdřív se přečte a zobrazí; nic se neuloží, dokud nestisknete Import."
   }
  },
  "patterns": {

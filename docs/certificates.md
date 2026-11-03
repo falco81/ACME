@@ -297,7 +297,9 @@ source can give one), with `acme --cert-add NAME ... --key-type ec-256
 must be of another kind than the main key (ECDSA beside RSA).
 
 **Imported** (1.0.34): a file holding both halves - a PEM with the two
-certificates and the two keys - is imported as the certificate and its twin at
+certificates and the two keys, a ZIP (two PFX files, `.crt` and `.key` of each,
+folders), or the two files dropped together (`more: [{data_b64, filename}]` on
+the API) - is imported as the certificate and its twin at
 once (the window says *its twin*). The other half brought in later - *Import a
 new one* in the certificate's window, `POST /api/certs/import` with `id` - is
 kept as its twin when it has the same names and the other key type (*Kept as*:

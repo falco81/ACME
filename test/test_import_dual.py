@@ -108,6 +108,28 @@ class TestDual(unittest.TestCase):
         with self.assertRaises(ValueError):
             A.cert_export(STORE, {'id': cid, 'format': 'pfx', 'variant': 'both', 'password': 'x'}, admin)
 
+    def test_two_files_at_once_and_a_zip(self):
+        """rsa.pfx and ec.pfx dropped together (`more`), or a ZIP of them: the pair."""
+        import io
+        import zipfile
+        r = self.rsa[0] + self.root + self.rsa[1]
+        e = self.ec[0] + self.root + self.ec[1]
+        cid, _v = A.cert_import(STORE, {'data_b64': b64(r), 'filename': 'rsa.pem', 'name': 'dual-more',
+                                        'more': [{'data_b64': b64(e), 'filename': 'ec.pem'}]}, 'test')
+        self.assertTrue(self.row(cid).get('alt_cert_pem'))
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as z:
+            z.writestr('rsa/cert.pem', self.rsa[0])
+            z.writestr('rsa/privkey.pem', self.rsa[1])
+            z.writestr('ecdsa/cert.pem', self.ec[0])
+            z.writestr('ecdsa/privkey.pem', self.ec[1])
+            z.writestr('chain.pem', self.root)
+        data = base64.b64encode(buf.getvalue()).decode()
+        out, _got = A.parse_file(buf.getvalue(), 'dual.zip', None)
+        self.assertTrue(out.get('twin'))
+        cid, _v = A.cert_import(STORE, {'data_b64': data, 'filename': 'dual.zip', 'name': 'dual-zip'}, 'test')
+        self.assertTrue(self.row(cid).get('alt_cert_pem'))
+
     def test_a_bad_as_refused(self):
         with self.assertRaises(ValueError):
             A.cert_import(STORE, {'data_b64': b64(self.rsa[0]), 'filename': 'x.pem', 'as': 'x'},

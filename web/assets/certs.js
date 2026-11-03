@@ -5324,13 +5324,14 @@ function certWizard(cert, detail, opts) {
 var KEY_EXT = /\.(key)$/i;
 function importDialog(into) {
   into = into && into.id ? into : null;
-  var held = {main: null, key: null, mainB64: '', keyB64: '', parsed: null};
+  var held = {main: null, key: null, mainB64: '', keyB64: '', parsed: null, more: []};
   var pass = null, keyPass = null, name = null, tags = null, note = null, found = null, drop = null, keyRow = null, ownerI = null, asBox = null, asSaid = null;
   var parse = function () {
     if (!held.main) return;
     clear(found);
     found.appendChild(el('p', 'muted', 'Reading ' + held.main.name + '…'));
-    capi('certs/parse', {data_b64: held.mainB64, filename: held.main.name, password: pass.value || undefined}).then(function (d) {
+    capi('certs/parse', {data_b64: held.mainB64, filename: held.main.name, password: pass.value || undefined,
+                         more: moreOf()}).then(function (d) {
       held.parsed = d;
       drawFound(d);
     }).catch(function (e) {
@@ -5399,6 +5400,9 @@ function importDialog(into) {
     /* The certificate itself first, then the chain above it. */
     var leafAt = certs.map(function (x) { return !!x.leaf; }).indexOf(true);
     if (leafAt > 0) certs.unshift(certs.splice(leafAt, 1)[0]);
+    /* its twin next to it, then the chain (1.0.34) */
+    var twinAt = certs.map(function (x) { return !!x.twin; }).indexOf(true);
+    if (twinAt > 1) certs.splice(1, 0, certs.splice(twinAt, 1)[0]);
     certs.forEach(function (one, i) {
       var leaf = one.leaf || (leafAt < 0 && i === 0);
       var r = el('div', 'ct-found-one' + (leaf || one.twin ? ' leaf' : ''));
@@ -5415,7 +5419,10 @@ function importDialog(into) {
       sub.appendChild(document.createTextNode('issued by '));
       sub.appendChild(mono(first(one.issuer_dn, typeof one.issuer === 'string' ? one.issuer : '', '?')));
       if (one.not_before) sub.appendChild(document.createTextNode(' · ' + dayOnly(one.not_before) + ' – ' + dayOnly(one.not_after)));
-      if (one.key_type) sub.appendChild(document.createTextNode(' · ' + keyWords(one.key_type) + (one.key_bits ? ' ' + one.key_bits : '')));
+      if (one.key_type) {
+        var kw = keyWords(one.key_type);
+        sub.appendChild(document.createTextNode(' · ' + kw + (one.key_bits && String(kw).indexOf(String(one.key_bits)) < 0 ? ' ' + one.key_bits : '')));
+      }
       r.appendChild(sub);
       box.appendChild(r);
     });
@@ -5429,7 +5436,12 @@ function importDialog(into) {
     var lf = certs[0];
     if (!name.value && lf) name.value = lf.cn || arr(lf.names)[0] || '';
   };
+  /* More than one certificate file at once (1.0.34): rsa.pfx and ec.pfx, the two
+     halves of a dual certificate - read together, as a ZIP of them would be. */
+  var moreOf = function () { return held.more.length ? held.more.map(function (m) { return {data_b64: m.b64, filename: m.f.name}; }) : undefined; };
   var take = function (files) {
+    var mains = 0;
+    held.more = [];
     files.forEach(function (f) {
       var isKey = KEY_EXT.test(f.name);
       var p = fileB64(f).then(function (b64) {
@@ -5439,10 +5451,12 @@ function importDialog(into) {
           if (/PRIVATE KEY/.test(text) && !/CERTIFICATE/.test(text)) isKey = true;
         }
         if (isKey && (held.main || files.length > 1)) { held.key = f; held.keyB64 = b64; }
-        else { held.main = f; held.mainB64 = b64; }
+        else if (mains++ === 0) { held.main = f; held.mainB64 = b64; }
+        else held.more.push({f: f, b64: b64});
       });
       p.then(function () {
-        drop._words.textContent = (held.main ? held.main.name : '') + (held.key ? ' + ' + held.key.name : '');
+        drop._words.textContent = [held.main ? held.main.name : ''].concat(held.more.map(function (m) { return m.f.name; }))
+          .filter(Boolean).join(' + ') + (held.key ? ' + ' + held.key.name : '');
         drop.classList.add('has');
         if (held.key) keyRow.querySelector('.ct-keyname').textContent = held.key.name + ' · ' + bytes(held.key.size);
         if (held.main && (!isKey || files.length === 1)) parse();
@@ -5452,8 +5466,8 @@ function importDialog(into) {
   };
   modal(into ? 'A new certificate for ' + into.name : 'Import a certificate', function (body) {
     if (into) body.appendChild(el('p', 'note', 'It becomes the next version of ' + into.name + ' and is deployed where that one is. Without a key in the file, the key kept for it is used.'));
-    body.appendChild(el('p', 'note', 'Any file a certificate comes in: PEM, CRT, CER, DER, P7B, PFX/P12, JKS - with its key in it, or the key in a file of its own (.key) dropped beside it. It is read first and shown; nothing is kept until you press Import.'));
-    drop = dropZone('Drop the file here, or press to choose it', take, '.pem,.crt,.cer,.der,.p7b,.p7c,.pfx,.p12,.jks,.key,.txt', true);
+    body.appendChild(el('p', 'note', 'Any file a certificate comes in: PEM, CRT, CER, DER, P7B, PFX/P12, JKS or a ZIP of them - with its key in it, or the key in a file of its own (.key) dropped beside it. A dual certificate (RSA and ECDSA): both halves at once - one PEM or ZIP, or the two files dropped together - and the second is kept as its twin. It is read first and shown; nothing is kept until you press Import.'));
+    drop = dropZone('Drop the file here, or press to choose it', take, '.pem,.crt,.cer,.der,.p7b,.p7c,.pfx,.p12,.jks,.key,.txt,.zip', true);
     body.appendChild(drop);
     pass = secretBox('', 'only for a locked file', 'mono');
     /* typed here: the file is read again with it (1.0.33) */
@@ -5504,7 +5518,7 @@ function importDialog(into) {
     if (!held.main) { toast('drop a file first', 'bad'); return; }
     busy(b, true);
     capi('certs/import', {id: into ? into.id : undefined, name: into ? undefined : (name.value.trim() || undefined), data_b64: held.mainB64, filename: held.main.name,
-                          password: pass.value || undefined, key_b64: held.keyB64 || undefined, key_filename: held.key ? held.key.name : undefined,
+                          password: pass.value || undefined, key_b64: held.keyB64 || undefined, more: moreOf(), key_filename: held.key ? held.key.name : undefined,
                           key_password: keyPass.value || undefined, tags: splitNames(tags.value), note: note.value,
                           as: into && asBox ? asBox.value : undefined,
                           owner: into ? undefined : ownerI.value}).then(function (d) {
@@ -8425,14 +8439,6 @@ function ckCompare(d, sv, exps) {
   var fam = ckKeyFam(sv.key);
   var near = same || exps.filter(function (e) { return ckKeyFam(e.key) === fam; })[0] || exps[0];
   var wrap = el('div', 'ck-cmp' + (same ? ' same' : ' differ'));
-  var col = function (title, sub, cls) {
-    var c = el('div', 'ck-cmp-col ' + cls);
-    var h = el('div', 'ck-cmp-h');
-    h.appendChild(el('span', '', title));
-    if (sub) h.appendChild(data('span', 'muted small', sub));
-    c.appendChild(h);
-    return c;
-  };
   var names = function (list) { return arr(list).slice().sort().join(' '); };
   var lines = function (e, against) {
     var rows = [
@@ -8456,6 +8462,11 @@ function ckCompare(d, sv, exps) {
     });
     return t;
   };
+  var keyWords = function (k) {
+    /* RSA 4096, EC 384 - said once (an older result says ec-256 256) */
+    var m = /^\s*(rsa|ec|ecdsa)[-\s]?(\d+)?/i.exec(String(k || ''));
+    return m ? (m[1].toLowerCase() === 'rsa' ? 'RSA' : 'EC') + (m[2] ? ' ' + m[2] : '') : String(k || '–');
+  };
   var card = function (e, cls, tags, against) {
     var c = el('div', 'ck-cmp-card ' + (cls || ''));
     var top = el('div', 'ck-cmp-ct');
@@ -8464,36 +8475,48 @@ function ckCompare(d, sv, exps) {
     noI18n(kb);
     top.appendChild(kb);
     top.appendChild(data('b', '', ckCN(e.subject) || arr(e.names)[0] || '?'));
-    var tg = el('span', 'md-tags');
-    (tags || []).forEach(function (x) { if (x) tg.appendChild(x); });
-    top.appendChild(tg);
     c.appendChild(top);
-    c.appendChild(lines(e, against));
+    var tg = el('div', 'md-tags ck-cmp-tags');
+    (tags || []).forEach(function (x) { if (x) tg.appendChild(x); });
+    c.appendChild(tg);
+    c.appendChild(lines(Object.assign({}, e, {key: keyWords(e.key)}), against ? Object.assign({}, against, {key: keyWords(against.key)}) : null));
     return c;
   };
-  var left = col(tr('In acme'), d.cert || '', 'ck-cmp-exp');
+  /* a grid: the headings, then a row for each certificate acme keeps - what the
+     server sent stands in the row of the one it is set against, as tall as it */
+  var h = function (title, sub) {
+    var x = el('div', 'ck-cmp-h');
+    x.appendChild(el('span', '', title));
+    if (sub) x.appendChild(data('span', 'muted small', sub));
+    return x;
+  };
+  wrap.appendChild(h(tr('In acme'), d.cert || ''));
+  wrap.appendChild(el('div'));
+  wrap.appendChild(h(tr('The server sent'), (d.host || '') + (d.port ? ':' + d.port : '')));
+  var gtags = [];
+  if (d.twin_missing) gtags.push(el('span', 'tag warn', 'its twin - not in acme'));
+  else if (!same) gtags.push(el('span', 'tag crit', 'not this certificate'));
+  else gtags.push(el('span', 'tag ok', 'as expected'));
   exps.forEach(function (e) {
     var tags = [el('span', 'tag dim', e.variant === 'alt' ? 'the twin' : 'the certificate')];
     if (e.version) tags.push(data('span', 'tag info', 'v' + e.version));
     if (e === same) tags.push(el('span', 'tag ok', 'this one is sent'));
     else if (e === near && !same && exps.length > 1) tags.push(el('span', 'tag dim', 'set against'));
-    left.appendChild(card(e, (e === near ? 'near' : 'far') + (e === same ? ' hit' : ''), tags, null));
+    wrap.appendChild(card(e, (e === near ? 'near' : 'far') + (e === same ? ' hit' : ''), tags, null));
+    if (e === near) {
+      var mid = el('div', 'ck-cmp-mid');
+      var mi = el('span', 'ck-cmp-vs');
+      mi.innerHTML = iconMarkup(same ? 'check' : 'close', 18);
+      mid.appendChild(mi);
+      mid.appendChild(el('span', 'small', same ? 'the same' : 'not the same'));
+      wrap.appendChild(mid);
+      wrap.appendChild(card({subject: sv.subject, issuer: sv.issuer, not_after: sv.not_after, names: sv.names,
+                             key: sv.key, fingerprint: fp}, same ? 'hit' : 'miss', gtags, near));
+    } else {
+      wrap.appendChild(el('div'));
+      wrap.appendChild(el('div'));
+    }
   });
-  wrap.appendChild(left);
-  var mid = el('div', 'ck-cmp-mid');
-  var mi = el('span', 'ck-cmp-vs');
-  mi.innerHTML = iconMarkup(same ? 'check' : 'close', 18);
-  mid.appendChild(mi);
-  mid.appendChild(el('span', 'small', same ? 'the same' : 'not the same'));
-  wrap.appendChild(mid);
-  var right = col(tr('The server sent'), (d.host || '') + (d.port ? ':' + d.port : ''), 'ck-cmp-got');
-  var gtags = [];
-  if (d.twin_missing) gtags.push(el('span', 'tag warn', 'its twin - not in acme'));
-  else if (!same) gtags.push(el('span', 'tag crit', 'not this certificate'));
-  else gtags.push(el('span', 'tag ok', 'as expected'));
-  right.appendChild(card({subject: sv.subject, issuer: sv.issuer, not_after: sv.not_after, names: sv.names,
-                          key: sv.key, fingerprint: fp}, same ? 'hit' : 'miss', gtags, near));
-  wrap.appendChild(right);
   return wrap;
 }
 function ckDetail(res) {
