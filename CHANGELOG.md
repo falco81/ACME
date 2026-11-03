@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.28 - not released
+## 1.0.28 - 2026-11-03
 
 - **Find the settings from the account** (discovery): over the form of a
   source, a validation or a target, a button opens a popup that asks only the
