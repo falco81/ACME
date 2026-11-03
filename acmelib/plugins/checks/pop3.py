@@ -17,6 +17,9 @@ class Pop3Check(Check):
                    'program would get.')
     fields = _tls.fields(110)
 
+    def talk(self, host, sni):
+        return [{'wait': 'the greeting +OK'}, {'send': 'STLS'}, {'wait': '+OK - then TLS'}]
+
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
         sock = _tls.connect(host, port, t)

@@ -22,6 +22,10 @@ class PostgresCheck(Check):
                    'the certificate psql or a driver would get.')
     fields = _tls.fields(5432)
 
+    def talk(self, host, sni):
+        return [{'send_hex': SSL_REQUEST.hex(), 'what': 'SSLRequest (length 8, code 80877103)'},
+                {'wait': "the byte 'S' - then TLS"}]
+
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
         sock = _tls.connect(host, port, t)

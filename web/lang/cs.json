@@ -50775,6 +50775,62 @@
   "ck36_7": {
    "source": "any version",
    "text": "jakákoli verze"
+  },
+  "rp37_1": {
+   "source": "Added by acme for every request",
+   "text": "Přidává acme ke každému požadavku"
+  },
+  "rp37_2": {
+   "source": "Copy the whole request",
+   "text": "Zkopírovat celý požadavek"
+  },
+  "rp37_3": {
+   "source": "as the system chooses",
+   "text": "jak vybere systém"
+  },
+  "rp37_4": {
+   "source": "Time limit",
+   "text": "Časový limit"
+  },
+  "rp37_5": {
+   "source": "Name sent (SNI)",
+   "text": "Posílané jméno (SNI)"
+  },
+  "rp37_6": {
+   "source": "Ciphers",
+   "text": "Šifry"
+  },
+  "rp37_7": {
+   "source": "what this machine offers",
+   "text": "co nabízí tento stroj"
+  },
+  "rp37_8": {
+   "source": "none offered",
+   "text": "žádný nenabízí"
+  },
+  "rp37_9": {
+   "source": "checked against this machine's CAs, and read whole without that when it is not trusted here",
+   "text": "ověřen proti autoritám tohoto stroje, a když tu důvěryhodný není, přečten celý i bez toho"
+  },
+  "rp37_10": {
+   "source": "twice: once asking for RSA, once for ECDSA",
+   "text": "dvakrát: jednou žádá RSA, jednou ECDSA"
+  },
+  "rp37_11": {
+   "source": "both: once RSA, once ECDSA - two connections",
+   "text": "oba: jednou RSA, jednou ECDSA – dvě spojení"
+  },
+  "rp37_12": {
+   "source": "aRSA (RSA ones only)",
+   "text": "aRSA (jen RSA)"
+  },
+  "rp37_13": {
+   "source": "aECDSA (ECDSA ones only)",
+   "text": "aECDSA (jen ECDSA)"
+  },
+  "rp37_14": {
+   "source": "aRSA, then aECDSA",
+   "text": "aRSA, pak aECDSA"
   }
  },
  "patterns": {

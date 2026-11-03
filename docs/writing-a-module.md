@@ -353,6 +353,14 @@ see the chain all the same; say every failure in words (`PluginError`) with what
 the server said. `_tls.fields(port, more)` gives the settings every test has;
 put your own in `more`. A test only reads: never log in, never send mail.
 
+
+**What happens** shows a test from its settings - it only reads, nothing is
+recorded. A test that speaks a protocol before TLS says what it sends in
+`talk(self, host, sni)`: a list of `{'send': 'EHLO …'}` (a line of text),
+`{'send_hex': bytes.hex(), 'what': 'SSLRequest'}` (bytes) and `{'wait': 'the
+greeting 220'}`, in order; built from the same functions `served()` sends with,
+so the two cannot part (test/test_checks_protocols.py holds each shipped one to
+it). A test that starts with TLS returns `[]` (the default).
 ## Versions, overrides and the page Modules
 
 ### Where modules come from, and which one wins

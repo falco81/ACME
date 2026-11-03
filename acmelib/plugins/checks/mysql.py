@@ -73,6 +73,12 @@ class MysqlCheck(Check):
                    'would get.')
     fields = _tls.fields(3306)
 
+    def talk(self, host, sni):
+        return [{'wait': 'the server\'s handshake packet, CLIENT_SSL among its capabilities'},
+                {'send_hex': ssl_request(0xffffffff).hex(), 'what': 'SSLRequest (sequence 1: the '
+                 'capabilities it shares with CLIENT_SSL, utf8mb4) - no user, no password'},
+                {'wait': 'then TLS'}]
+
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
         sock = _tls.connect(host, port, t)

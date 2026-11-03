@@ -32,6 +32,11 @@ class ImapCheck(Check):
                    'certificate a mail program would get.')
     fields = _tls.fields(143)
 
+    def talk(self, host, sni):
+        return [{'wait': 'the greeting * OK'}, {'send': 'a1 CAPABILITY'},
+                {'wait': 'a1 OK, STARTTLS among the capabilities'}, {'send': 'a2 STARTTLS'},
+                {'wait': 'a2 OK - then TLS'}]
+
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
         sock = _tls.connect(host, port, t)

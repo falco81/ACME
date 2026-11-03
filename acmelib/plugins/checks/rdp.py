@@ -87,6 +87,11 @@ class RdpCheck(Check):
                    'Desktop Connection would get.')
     fields = _tls.fields(3389)
 
+    def talk(self, host, sni):
+        return [{'send_hex': connection_request().hex(), 'what': 'X.224 Connection Request '
+                 'asking for TLS (RDP_NEG_REQ: PROTOCOL_SSL | PROTOCOL_HYBRID | PROTOCOL_HYBRID_EX)'},
+                {'wait': 'the Connection Confirm - then TLS'}]
+
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
         sock = _tls.connect(host, port, t)

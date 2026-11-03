@@ -36,6 +36,11 @@ class SmtpCheck(Check):
     fields[1] = dict(fields[1], help='25: mail between servers; 587: submission (mail '
                                      'programs sending with a password).')
 
+    def talk(self, host, sni):
+        return [{'wait': 'the greeting 220'}, {'send': 'EHLO acme-check.%s' % (sni or 'localhost')},
+                {'wait': '250, STARTTLS among what it offers'}, {'send': 'STARTTLS'},
+                {'wait': '220 - then TLS'}]
+
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
         sock = _tls.connect(host, port, t)

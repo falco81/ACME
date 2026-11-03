@@ -155,6 +155,7 @@ class RunContext(base.Context):
 
     def http(self, method, url, body=None, headers=None, timeout=30, verify=True,
              ca_pem=None, client_cert=None, proxy=True, idempotent=None, retries=None):
+        # (What goes on the wire is said by wire_request() below - What happens shows it.)
         """(status, {header: value}, bytes). An answer of 4xx/5xx is an answer,
         not an exception; a server that cannot be reached is a PluginError.
 
@@ -877,3 +878,43 @@ class SshSession(base.SshSession):
                 pass
             shutil.rmtree(self.d, ignore_errors=True)
             self.d = None
+
+
+def wire_request(method, url, headers=None, body=None):
+    """What RunContext.http() sends, as it goes on the wire (1.0.37): the request line,
+    every header in the order urllib writes them - the module's own and the ones
+    added (`auto`): Accept-Encoding, Content-Length, Host, Content-Type, User-Agent,
+    Connection - and the body as bytes are sent. For What happens (runplan.py).
+    -> {'line', 'headers': [[name, value, auto]], 'body'}"""
+    verb = str(method or 'GET').upper()
+    u = urllib.parse.urlsplit(str(url))
+    path = (u.path or '/') + ('?' + u.query if u.query else '')
+    mine = dict(headers or {})
+    if isinstance(body, (dict, list)):
+        data = json.dumps(body)
+        mine.setdefault('Content-Type', 'application/json')
+    elif isinstance(body, bytes):
+        data = body.decode('utf-8', 'replace')
+    else:
+        data = body
+    low = {k.lower(): k for k in mine}
+    out = [['Accept-Encoding', 'identity', True]]
+    if data is not None:
+        out.append(['Content-Length', str(len(str(data).encode('utf-8'))), True])
+    out.append(['Host', u.netloc, True])
+    for k, v in mine.items():
+        if k.lower() not in ('content-type', 'user-agent', 'host', 'connection'):
+            out.append([k, str(v), False])
+    if 'content-type' in low:
+        out.append([low['content-type'], str(mine[low['content-type']]),
+                    isinstance(body, (dict, list)) and 'content-type' not in
+                    {k.lower() for k in (headers or {})}])
+    elif data is not None:
+        out.append(['Content-Type', 'application/x-www-form-urlencoded', True])
+    if 'user-agent' in low:
+        out.append([low['user-agent'], str(mine[low['user-agent']]), False])
+    else:
+        out.append(['User-Agent', 'acme/%s' % E.__version__, True])
+    out.append(['Connection', 'close', True])
+    return {'line': '%s %s HTTP/1.1' % (verb, path), 'headers': out, 'body': data}
+

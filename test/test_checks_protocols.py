@@ -637,5 +637,59 @@ class TestMssql(Base):
                   'does not do encryption')
 
 
+class TestTalkSaysWhatIsSent(Base):
+    """What happens shows what a test says before TLS (talk(), 1.0.37): that is what
+    served() really sends - each module against its server here, every send recorded."""
+    def recorded(self, cls, start, **config):
+        from acmelib.plugins.checks import _tls as T, _wire as W
+        sent = []
+        was_line, was_send = T.Lines.send, W.send
+
+        def line_send(lines, text):
+            sent.append(('line', text))
+            return was_line(lines, text)
+
+        def raw_send(sock, data, what='the server'):
+            sent.append(('raw', bytes(data).hex()))
+            return was_send(sock, data, what)
+        T.Lines.send, W.send = line_send, raw_send
+        try:
+            f = self.serve(start)
+            m = self.module(cls, **config)
+            m.served('127.0.0.1', f.port, 'localhost', verify=False)
+        finally:
+            T.Lines.send, W.send = was_line, was_send
+        said = []
+        for t in m.talk('127.0.0.1', 'localhost'):
+            if t.get('send') is not None:
+                said.append(t['send'])
+            elif t.get('send_hex'):
+                said.append(t['send_hex'])
+        return [x[1] for x in sent], said
+
+    def test_each(self):
+        cases = [(smtp.SmtpCheck, smtp_server(), {}), (imap.ImapCheck, imap_server(), {}),
+                 (pop3.Pop3Check, pop3_server(), {}), (ftp.FtpCheck, ftp_server(), {}),
+                 (ldap.LdapCheck, ldap_server(), {}),
+                 (rdp.RdpCheck, rdp_server(struct.pack('<BBHI', 2, 0, 8, 1), True), {}),
+                 (postgres.PostgresCheck, pg_server(b'S'), {}),
+                 (xmpp.XmppCheck, xmpp_server(), {'domain': 'chat.example.test'}),
+                 (mssql.MssqlCheck, tds_server(), {})]
+        for cls, start, config in cases:
+            with self.subTest(cls.kind):
+                sent, said = self.recorded(cls, start, **config)
+                if cls.kind == 'mssql':
+                    sent = sent[:1]         # then the TLS handshake carried inside TDS
+                if cls.kind == 'xmpp':
+                    sent = [bytes.fromhex(x).decode() for x in sent]
+                self.assertEqual(sent, said)
+
+    def test_mysql_said_as_sent(self):
+        """MySQL's SSLRequest carries what the server offers: the words say so, the
+        bytes are those for a server that offers everything."""
+        sent, said = self.recorded(mysql.MysqlCheck, mysql_server(0xFFFFFFFF))
+        self.assertEqual(sent, said)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

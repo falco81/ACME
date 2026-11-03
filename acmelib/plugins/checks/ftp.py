@@ -39,6 +39,9 @@ class FtpCheck(Check):
                    'certificate an FTP program would get.')
     fields = _tls.fields(21)
 
+    def talk(self, host, sni):
+        return [{'wait': 'the greeting 220'}, {'send': 'AUTH TLS'}, {'wait': '234 - then TLS'}]
+
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
         sock = _tls.connect(host, port, t)

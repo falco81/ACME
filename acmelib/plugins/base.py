@@ -1011,6 +1011,12 @@ class Check(Plugin):
     def served(self, host, port, sni, verify=True):
         raise NotImplementedError
 
+    def talk(self, host, sni):
+        """What served() says to the server before TLS, for What happens (1.0.37):
+        [{'send': text} | {'send_hex': hex, 'what': words} | {'wait': words}], in order.
+        A test that starts with TLS says nothing first: []."""
+        return []
+
     def test(self):
         """Try it (Certificates → Tests → Test): connected as set, what is served said -
         compared with a certificate only once attached to one."""

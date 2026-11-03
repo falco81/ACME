@@ -90,6 +90,11 @@ class MssqlCheck(Check):
                    'driver would get.')
     fields = _tls.fields(1433)
 
+    def talk(self, host, sni):
+        msg, _pid = packets(PRELOGIN, prelogin_body(ENCRYPT_ON))
+        return [{'send_hex': msg.hex(), 'what': 'TDS PRELOGIN, ENCRYPTION on'},
+                {'wait': 'its PRELOGIN answer - then the TLS handshake carried inside TDS'}]
+
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
         sock = _tls.connect(host, port, t)

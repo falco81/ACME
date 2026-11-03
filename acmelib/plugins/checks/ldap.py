@@ -114,6 +114,11 @@ class LdapCheck(Check):
                    'operation - the certificate a directory client would get.')
     fields = _tls.fields(389)
 
+    def talk(self, host, sni):
+        return [{'send_hex': request(1).hex(), 'what': 'the StartTLS extended request '
+                 '(1.3.6.1.4.1.1466.20037), message 1'},
+                {'wait': 'its answer, result 0 (success) - then TLS'}]
+
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
         sock = _tls.connect(host, port, t)

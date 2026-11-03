@@ -75,6 +75,15 @@ class XmppCheck(Check):
                    'addresses. Empty: the name asked for (SNI), else the address.'),
     ])
 
+    def talk(self, host, sni):
+        domain = (self.c('domain') or sni or host or '').strip()
+        return [{'send': ("<?xml version='1.0'?><stream:stream to='%s' xmlns='jabber:client' "
+                          "xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>"
+                          % quote(domain))},
+                {'wait': 'its stream and <stream:features> with <starttls>'},
+                {'send': "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>"},
+                {'wait': '<proceed/> - then TLS'}]
+
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
         domain = (self.c('domain') or sni or host or '').strip()

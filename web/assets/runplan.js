@@ -87,8 +87,8 @@
     };
     return go(v, '');
   }
-  function copyBtn(text) {
-    var b = iconButton('copy', 'Copy');
+  function copyBtn(text, title) {
+    var b = iconButton('copy', title || 'Copy');
     b.classList.add('rp-copy');
     b.onclick = function (ev) { ev.stopPropagation(); copyText(text, b); };
     return b;
@@ -126,6 +126,26 @@
     line.appendChild(data('span', 'mono rp-url', d.url || ''));
     line.appendChild(copyBtn((d.method || 'GET') + ' ' + (d.url || '')));
     box.appendChild(line);
+    /* the request as it goes on the wire (1.0.37): every header - the ones acme and
+       Python add dimmed - and the body exactly as sent */
+    var wire = d.wire && d.wire.headers ? d.wire : null;
+    if (wire) {
+      var ws = el('div', 'rp-hdrs rp-wire');
+      ws.appendChild(data('span', 'rp-hdr mono rp-wire-line', wire.line || ''));
+      wire.headers.forEach(function (h) {
+        var row = data('span', 'rp-hdr mono' + (h[2] ? ' auto' : ''));
+        row.appendChild(el('b', '', h[0] + ':'));
+        row.appendChild(document.createTextNode(' ' + h[1]));
+        if (h[2]) explain(row, tr('Added by acme for every request'));
+        ws.appendChild(row);
+      });
+      box.appendChild(ws);
+      var raw = [wire.line].concat(wire.headers.map(function (h) { return h[0] + ': ' + h[1]; })).join('\n') +
+                '\n\n' + (wire.body === null || wire.body === undefined ? '' : String(wire.body));
+      line.appendChild(copyBtn(raw, tr('Copy the whole request')));
+      if (wire.body !== null && wire.body !== undefined && wire.body !== '') box.appendChild(codeBlock(pretty(d.body !== undefined && d.body !== null ? d.body : wire.body), 'rp-body', 'Body'));
+      return box;
+    }
     var hk = Object.keys(d.headers || {});
     if (hk.length) {
       var hs = el('div', 'rp-hdrs');

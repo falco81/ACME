@@ -329,6 +329,14 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             st = {'kind': kind, 'words': words.replace('{0}', host),
                   'detail': {'method': m, 'url': url, 'headers': ev.get('headers') or {},
                              'body': ev.get('body')}}
+            # the request as it goes on the wire (1.0.37): every header, the ones acme
+            # and Python add too, and the body as sent - secrets left out by scrub()
+            try:
+                from acmelib.certs import runtime as _rt
+                st['detail']['wire'] = _rt.wire_request(m, url, ev.get('headers') or {},
+                                                        ev.get('body'))
+            except Exception:                           # noqa: BLE001
+                pass
             notes = []
             if not ev.get('verify', True):
                 notes.append('the device\'s TLS certificate is not checked')
@@ -1047,9 +1055,15 @@ def plan(store, cert, deploys, full=False):
     return scrub(out, secrets_.real)
 
 
+SECRET_HEADERS = re.compile(r'^(authorization|proxy-authorization|cookie|x-api-key|x-auth-token|'
+                            r'api-key|x-api-token)$', re.I)
+
+
 def _test_steps(cls, cfg, names, via=None):
     """What one test does, from its settings - a test only reads, so nothing needs to be
-    recorded: the connection, the protocol's start, TLS, HTTP, the comparison."""
+    recorded: the connection, what it says first, TLS, HTTP, the comparison - each as
+    it goes on the wire (1.0.37): what is sent before TLS, the ClientHello's settings,
+    the HTTP request whole (a header that signs in left out)."""
     full = {f['key']: f.get('default') for f in cls.fields or [] if f.get('key')}
     full.update({k: v for k, v in (cfg or {}).items() if v not in (None, '')})
     cfg = full
@@ -1058,31 +1072,95 @@ def _test_steps(cls, cfg, names, via=None):
     port = int(cfg.get('port') or cls.default_port or 0)
     sni = str(cfg.get('sni') or '').strip() or first or host
     steps = []
+    fam = {'4': 'IPv4 only', '6': 'IPv6 only'}.get(str(cfg.get('family') or ''), 'whichever the name gives')
+    pairs = [['Address', host], ['Port', str(port)], ['Address family', fam, 'words'],
+             ['From the address', str(cfg.get('source') or '') or 'as the system chooses',
+              'words' if not cfg.get('source') else None],
+             ['Time limit', '%s s' % (cfg.get('timeout') or 15)]]
     if via:
         steps.append({'kind': 'connect', 'words': 'From {0}, a connection to {1}:{2} (ssh -W)'
-                      .replace('{0}', via).replace('{1}', host).replace('{2}', str(port))})
+                      .replace('{0}', via).replace('{1}', host).replace('{2}', str(port)),
+                      'detail': {'pairs': pairs}})
     else:
         steps.append({'kind': 'connect', 'words': 'Connects to {0}:{1}'.replace(
             '{0}', host).replace('{1}', str(port)), 'note': 'the address set in the test' if
-            cfg.get('host') else 'the certificate\'s first name: "Connect to" is empty'})
-    if getattr(cls, 'starttls', False):
+            cfg.get('host') else 'the certificate\'s first name: "Connect to" is empty',
+            'detail': {'pairs': pairs}})
+    try:
+        mod = cls(cfg, None)
+    except Exception:                                   # noqa: BLE001
+        mod = None
+    talk = []
+    try:
+        talk = mod.talk(host, sni) if mod is not None and hasattr(mod, 'talk') else []
+    except Exception:                                   # noqa: BLE001
+        talk = []
+    if talk or getattr(cls, 'starttls', False):
+        text = []
+        for t in talk:
+            if t.get('send') is not None:
+                text.append('→ ' + str(t['send']))
+            elif t.get('send_hex'):
+                hx = str(t['send_hex'])
+                text.append('→ %s (%d bytes)' % (t.get('what') or 'bytes', len(hx) // 2))
+                text.append('  ' + ' '.join(hx[i:i + 2] for i in range(0, len(hx), 2)))
+            elif t.get('wait'):
+                text.append('← waits for ' + str(t['wait']))
         steps.append({'kind': 'call', 'words': 'Speaks {0} first, then asks for TLS'.replace(
-            '{0}', cls.protocol or cls.kind), 'note': cls.description or ''})
-    tls_bits = [x for x in (
-        ('at least ' + str(cfg['tls_min'])) if cfg.get('tls_min') else '',
-        ('at most ' + str(cfg['tls_max'])) if cfg.get('tls_max') else '',
-        ('ciphers ' + str(cfg['ciphers'])) if cfg.get('ciphers') else '',
-        ('ALPN ' + str(cfg['alpn'])) if cfg.get('alpn') else '') if x]
+            '{0}', cls.protocol or cls.kind), 'note': cls.description or '',
+            'detail': {'text': '\n'.join(text)} if text else None})
+    want_key = str(cfg.get('key_want') or '').lower()
+    tmax = str(cfg.get('tls_max') or '')
+    ciphers = str(cfg.get('ciphers') or '')
+    if want_key in ('rsa', 'ecdsa', 'both'):
+        tmax = tmax if tmax in ('TLSv1', 'TLSv1_1', 'TLSv1_2') else 'TLSv1_2'
+    TLSW = {'TLSv1': 'TLS 1.0', 'TLSv1_1': 'TLS 1.1', 'TLSv1_2': 'TLS 1.2', 'TLSv1_3': 'TLS 1.3'}
+    tmax = TLSW.get(tmax, tmax)
+    cfg = dict(cfg, tls_min=TLSW.get(str(cfg.get('tls_min') or ''), cfg.get('tls_min')))
+    kw = {'rsa': 'RSA', 'ecdsa': 'ECDSA', 'both': 'both: once RSA, once ECDSA - two connections'}.get(
+        want_key, 'whichever the server picks')
+    tls_pairs = [
+        ['Name sent (SNI)', '(none)' if sni == '-' else sni],
+        ['TLS at least', str(cfg.get('tls_min') or '') or 'as the server and this machine agree',
+         None if cfg.get('tls_min') else 'words'],
+        ['TLS at most', tmax or 'as the server and this machine agree', None if tmax else 'words'],
+        ['Ciphers', ciphers or ({'rsa': 'aRSA (RSA ones only)', 'ecdsa': 'aECDSA (ECDSA ones only)',
+                                 'both': 'aRSA, then aECDSA'}.get(want_key) or
+                                'what this machine offers'),
+         None if ciphers else 'words'],
+        ['ALPN', str(cfg.get('alpn') or '') or 'none offered', None if cfg.get('alpn') else 'words'],
+        ['Key asked for', kw, 'words'],
+        ['The chain', 'checked against this machine\'s CAs, and read whole without that when it '
+         'is not trusted here', 'words']]
     steps.append({'kind': 'read', 'words': 'TLS handshake, the name {0} sent as SNI'.replace(
-        '{0}', '(none)' if sni == '-' else sni), 'note': ', '.join(tls_bits) or
-        'TLS as the server and this machine agree; the chain read whole'})
-    if str(cfg.get('http', '')).lower() in ('1', 'true', 'yes', 'on'):
-        steps.append({'kind': 'call', 'words': 'Asks {0} {1} with Host: {2}'.replace(
-            '{0}', str(cfg.get('method') or 'HEAD')).replace('{1}', str(cfg.get('path') or '/'))
-            .replace('{2}', str(cfg.get('host_header') or sni)),
-            'note': 'the status expected: %s%s' % (cfg.get('expect_status') or 'any', (
-                '; the answer holds "%s"' % cfg['body_contains']) if cfg.get('body_contains')
-                else '')})
+        '{0}', '(none)' if sni == '-' else sni), 'detail': {'pairs': tls_pairs},
+        'note': 'twice: once asking for RSA, once for ECDSA' if want_key == 'both' else None})
+    if str(cfg.get('http', '')).lower() in ('1', 'true', 'yes', 'on') and hasattr(mod, 'http_lines'):
+        try:
+            lines, method, path, hosth = mod.http_lines(sni if sni not in ('', '-') else host, port)
+        except Exception as e:                          # noqa: BLE001
+            lines, method, path, hosth = None, str(cfg.get('method') or 'HEAD'), str(
+                cfg.get('path') or '/'), str(cfg.get('host_header') or sni)
+            steps.append({'kind': 'stop', 'words': str(e)})
+        if lines:
+            hdrs = []
+            for ln in lines[1:]:
+                k, _, v = ln.partition(':')
+                v = v.strip()
+                if SECRET_HEADERS.match(k.strip()):
+                    v = DOTS
+                hdrs.append([k.strip(), v, k.strip().lower() in ('user-agent', 'accept', 'connection')
+                             and not any(str(h).lower().startswith(k.strip().lower() + ':')
+                                         for h in (cfg.get('headers') or []))])
+            steps.append({'kind': 'call', 'words': 'Asks {0} {1} with Host: {2}'.replace(
+                '{0}', method).replace('{1}', path).replace('{2}', hosth),
+                'note': 'the status expected: %s%s' % (cfg.get('expect_status') or 'any', (
+                    '; the answer holds "%s"' % cfg['body_contains']) if cfg.get('body_contains')
+                    else ''),
+                'detail': {'method': method, 'url': 'https://%s%s%s' % (
+                    host, '' if port == 443 else ':%d' % port, path),
+                    'headers': {h[0]: h[1] for h in hdrs},
+                    'wire': {'line': lines[0], 'headers': hdrs, 'body': None}}})
     want = {'current': 'the version deployed now (or its twin)', 'main': 'the main one only',
             'alt': 'the twin only', 'any': 'any version of it'}.get(
         str(cfg.get('expect') or 'current'), 'the version deployed now')

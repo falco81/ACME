@@ -85,7 +85,10 @@ class HttpsCheck(TlsCheck):
                 pass
         return out
 
-    def request(self, s, name, port, timeout):
+    def http_lines(self, name, port):
+        """The HTTP request as it is sent, line by line (method, path, Host, the headers
+        set, User-Agent, Accept, Connection) -> (lines, method, path, Host) - what
+        request() sends and What happens shows (1.0.37)."""
         method = str(self.c('method') or 'HEAD').upper()
         path = str(self.c('path') or '/')
         if not path.startswith('/'):
@@ -107,7 +110,12 @@ class HttpsCheck(TlsCheck):
             lines.append(h)
         if 'user-agent' not in have:
             lines.append('User-Agent: acme-check')
-        lines += ['Accept: */*', 'Connection: close', '', '']
+        lines += ['Accept: */*', 'Connection: close']
+        return lines, method, path, hosth
+
+    def request(self, s, name, port, timeout):
+        lines, method, path, hosth = self.http_lines(name, port)
+        lines = lines + ['', '']
         s.settimeout(timeout)
         try:
             s.sendall('\r\n'.join(lines).encode('utf-8'))
