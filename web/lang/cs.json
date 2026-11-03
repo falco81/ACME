@@ -50723,6 +50723,30 @@
   "md35_8": {
    "source": "the default version is set",
    "text": "výchozí verze je nastavená"
+  },
+  "md35_9": {
+   "source": "Two files say the version",
+   "text": "Dva soubory uvádějí verzi"
+  },
+  "md35_10": {
+   "source": "used:",
+   "text": "používá se:"
+  },
+  "md35_11": {
+   "source": "not used:",
+   "text": "nepoužívá se:"
+  },
+  "md35_12": {
+   "source": "Of two files of the same kind and version the later by name is used. Take away the one you do not want.",
+   "text": "Ze dvou souborů stejného druhu a verze se použije ten pozdější podle názvu. Ten, který nechcete, odeberte."
+  },
+  "md35_13": {
+   "source": "Take the unused one away",
+   "text": "Odebrat nepoužívaný"
+  },
+  "md35_14": {
+   "source": "a file on the disk: take it out of /etc/acme/plugins",
+   "text": "soubor na disku: vyjměte ho z /etc/acme/plugins"
   }
  },
  "patterns": {

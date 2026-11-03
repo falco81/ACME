@@ -1071,12 +1071,14 @@ class Registry(object):
         self.versions = {f: {} for f in FAMILIES}
         self.broken = []                # [(file, words)] - shown on the page
         self.picked = {}                # {(family, kind): version} chosen on the page
+        self.shadowed = []              # files of your own another one of the same version hides
         here = os.path.dirname(os.path.abspath(__file__))
         self.dirs = [here] + list(extra_dirs or [])
 
     def reload(self):
         versions = {f: {} for f in FAMILIES}
         broken = []
+        shadowed = []
         for root in self.dirs:
             own = root != self.dirs[0]
             for family, folder in FOLDERS.items():
@@ -1109,6 +1111,12 @@ class Registry(object):
                                     UPLOADED_DIR) else 'disk')
                             obj._overrides = ''
                             obj._replaced = None    # the shipped class it replaces (1.0.34)
+                            if own and before is not None and before._origin == 'custom':
+                                # two files of your own saying the same kind and version
+                                # (1.0.35): the later one is used, the other said, not silent
+                                shadowed.append({'family': family, 'kind': obj.kind, 'version': ver,
+                                                 'unused': before._module_file,
+                                                 'used': path})
                             if own and before is not None:
                                 obj._overrides = getattr(before, '_overrides', '') or \
                                     (before._module_file if before._origin == 'builtin' else '')
@@ -1118,6 +1126,7 @@ class Registry(object):
         found = self._found_of(versions)
         with self.lock:
             self.found, self.versions, self.broken = found, versions, broken
+            self.shadowed = shadowed
         return self
 
     def _found_of(self, versions):

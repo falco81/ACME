@@ -1046,3 +1046,6 @@ td.acc-role{white-space:nowrap}
 #modal-body .ct-drop + .ct-foundhost:empty + .ct-keyrow,#modal-body .ct-drop + .ct-keyrow{margin-top:14px}
 #modal-body .ct-foundhost:not(:empty) + .ct-keyrow{margin-top:0}
 #modal-body .ct-keyrow + .formgrid{margin-top:4px}
+/* two files of the same version (1.0.35) */
+.md-shadow{display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:10px;border:1px solid rgba(210,153,34,.5);border-radius:10px;background:rgba(210,153,34,.08);color:var(--warn,#d29922)}
+.md-shadow > div{flex:1 1 auto;min-width:0;color:var(--tx)}

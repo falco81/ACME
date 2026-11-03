@@ -337,6 +337,26 @@ class TestUpload(unittest.TestCase):
                                                          'version': None})
         self.assertEqual(S.registry().get('target', 'netscaler').module_version, '14.1')
 
+    def test_two_files_of_one_version_said(self):
+        """Two uploads saying the same kind and version (1.0.35): the later by name is
+        used, the other said on the page - not silent."""
+        src = ("from acmelib.plugins.targets.f5 import F5Target\n\n\nclass F5x(F5Target):\n"
+               "    module_version = '21.0'\n")
+        for fn in ('f5_v21.py', 'f5_v21__1_.py'):
+            self.call('POST', '/api/modules/install', body={'family': 'target', 'filename': fn,
+                                                             'text': src})
+        try:
+            d = self.call('GET', '/api/modules')
+            hid = [x for x in d['shadowed'] if x['kind'] == 'f5']
+            self.assertEqual(len(hid), 1, d['shadowed'])
+            self.assertTrue(hid[0]['used'].endswith('f5_v21__1_.py') or hid[0]['used'].endswith('f5_v21.py'))
+            self.assertNotEqual(hid[0]['used'], hid[0]['unused'])
+            self.assertEqual(hid[0]['version'], '21.0')
+        finally:
+            for fn in ('f5_v21.py', 'f5_v21__1_.py'):
+                self.call('POST', '/api/modules/remove', body={'path': 'targets/' + fn})
+        self.assertFalse([x for x in self.call('GET', '/api/modules')['shadowed'] if x['kind'] == 'f5'])
+
     def test_a_copy_of_a_class_with_a_docstring(self):
         """The version goes under the docstring, the old one is taken out."""
         from unittest import mock

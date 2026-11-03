@@ -1705,6 +1705,7 @@ def plugins_view(store, again=False):
                 if 'deploy_fields' in v:
                     v['deploy_fields'] = _resolve(store, v.get('deploy_fields'))
     d['broken'] = [{'file': b[0], 'words': b[1]} for b in reg.broken]
+    d['shadowed'] = [dict(x) for x in getattr(reg, 'shadowed', [])]      # 1.0.35
     # modules of your own: kept in the database, compared with the other nodes (1.0.32)
     from acmelib.certs import custom_modules as CM
     try:

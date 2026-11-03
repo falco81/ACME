@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.35 - not released
 
+- Two files of your own saying the same kind and version (an upload of
+  `netscaler_14_1 (1).py` beside `netscaler_14_1.py`, say): the module's window
+  says which is used (the later by name) and which not, with *Take the unused
+  one away* - it was silent. `shadowed` in `GET /api/plugins` and
+  `/api/modules`.
+
 - Modules → a module → *Make it the default* on any of its versions: what every
   source, validation, target or test that names no version uses - kept in the
   database (both nodes, every backup), over `default_version` in the code; the

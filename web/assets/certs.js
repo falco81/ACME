@@ -7934,7 +7934,37 @@ function moduleDetail(fam, kind) {
     body.appendChild(head);
     var grid = el('div', 'msects');
     body.appendChild(grid);
+    /* two files of your own saying the same version (1.0.35): one is used, the
+       other not - said, with the unused one to take away */
+    var hid = arr(d.shadowed).filter(function (x) { return x.family === fam && x.kind === kind; });
     var sec = section('Versions', vers.length > 1 ? 'Each source, validation or target chooses the version it uses in its form; one that says none takes the default.' : 'One version: everything uses it. Another one is made below, in “Make one of your own”.', true);
+    hid.forEach(function (x) {
+      var w = el('div', 'md-shadow');
+      w.innerHTML = iconMarkup('flag', 16);
+      var tx = el('div');
+      var t1 = el('div');
+      t1.appendChild(el('b', '', tr('Two files say the version') + ' '));
+      t1.appendChild(mono(versionName(x.version || '')));
+      tx.appendChild(t1);
+      var t2 = el('div', 'small');
+      t2.appendChild(el('span', 'muted', 'used:'));
+      t2.appendChild(document.createTextNode(' '));
+      t2.appendChild(mono(shortModulePath(x.used)));
+      t2.appendChild(document.createTextNode(' · '));
+      t2.appendChild(el('span', 'muted', 'not used:'));
+      t2.appendChild(document.createTextNode(' '));
+      t2.appendChild(mono(shortModulePath(x.unused)));
+      tx.appendChild(t2);
+      tx.appendChild(el('div', 'small muted', 'Of two files of the same kind and version the later by name is used. Take away the one you do not want.'));
+      w.appendChild(tx);
+      var rel = Object.keys(obj(d.uploaded)).filter(function (k) { return String(x.unused).slice(-k.length - 1) === '/' + k; })[0];
+      if (rel && d.may_upload) {
+        var rm = cmdButton('Take the unused one away', 'trash', 'small danger');
+        rm.onclick = function () { over(function () { moduleRemove(rel, {}); }, again); };
+        w.appendChild(rm);
+      } else w.appendChild(el('span', 'small muted', 'a file on the disk: take it out of /etc/acme/plugins'));
+      sec._body.appendChild(w);
+    });
     vers.forEach(function (v) {
       var card = el('div', 'md-vrow' + (v.origin === 'custom' ? (v.overrides ? ' over' : ' own') : ''));
       var left = el('div', 'md-vrow-l');
