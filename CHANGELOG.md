@@ -6,6 +6,18 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.28 - not released
 
+- **New sources**, written from the vendors' own API documents: SSL.com (SWS
+  API), The SSL Store (REST API) and GlobalSign MSSL (GCC SOAP API). Each
+  rekeys or reissues inside an order already bought, places a new paid order
+  only with "Allow new orders (paid)", has the certificate's validation put the
+  documented record or file in place, downloads with the chain, revokes and
+  lists the account's orders for *Import from a source*.
+- Sources re-checked against the same documents: ZeroSSL orders annual
+  certificates as 200 days and downloads as JSON; Venafi Cloud's EU region is
+  api.eu.venafi.cloud and renewals say USER_PROVIDED_CSR; Venafi TPP sends
+  Base64 and TypeName as documented; Keyfactor sends IP SANs as "ip" and its
+  own revocation codes; GlobalSign Atlas lists certificates 30 days at a time.
+
 - **Targets re-checked against the vendors' own API documents** (16 changed,
   15 confirmed): Kemp keeps a virtual service's other certificates (CertFile is
   the whole list) and stays under 30 calls in 3 s; AWS ACM refuses a renewal of
