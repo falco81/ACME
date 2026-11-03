@@ -28,9 +28,20 @@ Uncertain: the multipart part's name for the file ("file" - what the
 community's working examples use; SFOS matches it by CertificateFile); the
 place of the certificate in a WAF rule is found by its element name
 <Certificate> anywhere in the rule, as in SFOS 18-21.
+
+Checked against api-docs/sophos/notes.md (XML API reference of SFOS 22.0,
+admin help 21.5): <Get><Certificate/> answers "in a .tar file" with the
+certificates, their keys and Entities.xml - the names are read from its
+Entities.xml (an XML answer is still read as before); a WAF rule's
+certificate is HTTPBasedPolicy > HTTPSCertificate (taken first); an
+uploaded certificate cannot be updated in place, so the dated names stay.
+Less certain: where Entities.xml lies in the tar and that it lists
+<Certificate><Name> (the help says only that the file is in it).
 """
 from __future__ import annotations
 
+import io
+import tarfile
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
@@ -63,14 +74,20 @@ class SophosTarget(HttpTarget):
         return '<Login><Username>%s</Username><Password>%s</Password></Login>' % (
             escape(text(self.c('user'))), escape(text(self.c('password'))))
 
-    def api(self, inner, files=None, what='the XML API'):
-        """One request -> the <Response> element. A refused sign-in or a status
-        that is not a success is a PluginError."""
+    def post(self, inner, files=None, what='the XML API'):
+        """One request -> the raw answer."""
         xml = '<Request>%s%s</Request>' % (self.login_xml(), inner)
         parts = [('reqxml', xml)] + list(files or [])
         body, ctype = multipart(parts)
         st, hd, raw = self.req('POST', '/webconsole/APIController', body,
                                {'Content-Type': ctype, 'Accept': 'application/xml'}, what=what)
+        return raw if isinstance(raw, bytes) else text(raw).encode()
+
+    def api(self, inner, files=None, what='the XML API', raw=None):
+        """One request -> the <Response> element. A refused sign-in or a status
+        that is not a success is a PluginError."""
+        if raw is None:
+            raw = self.post(inner, files, what)
         try:
             root = ET.fromstring(raw if isinstance(raw, bytes) else text(raw).encode())
         except ET.ParseError:
@@ -90,8 +107,33 @@ class SophosTarget(HttpTarget):
         return root
 
     def certificates(self):
-        root = self.api('<Get><Certificate></Certificate></Get>', what='listing the certificates')
+        what = 'listing the certificates'
+        raw = self.post('<Get><Certificate></Certificate></Get>', what=what)
+        root = self.entities_of_tar(raw, what)
+        if root is None:
+            root = self.api('', what=what, raw=raw)
         return [text(c.findtext('Name')) for c in root.iter('Certificate') if c.findtext('Name')]
+
+    @staticmethod
+    def entities_of_tar(raw, what):
+        """<Get><Certificate/> answers "in a .tar file" (the certificates, their keys
+        and Entities.xml) - its Entities.xml as an element; None when not a tar."""
+        if raw.lstrip(b'\xef\xbb\xbf \t\r\n')[:1] == b'<' or not raw:
+            return None
+        try:
+            tf = tarfile.open(fileobj=io.BytesIO(raw))
+        except (tarfile.TarError, OSError, EOFError):
+            return None
+        with tf:
+            for m in tf.getmembers():
+                if m.isfile() and m.name.rsplit('/', 1)[-1].lower() == 'entities.xml':
+                    try:
+                        return ET.fromstring(tf.extractfile(m).read())
+                    except ET.ParseError:
+                        raise PluginError('%s: the Entities.xml of the answer is not XML' % what)
+            raise PluginError('%s: the firewall answered with a tar file without '
+                              'Entities.xml' % what,
+                              detail=', '.join(m.name for m in tf.getmembers())[:2000])
 
     def test(self):
         names = self.certificates()
@@ -109,7 +151,9 @@ class SophosTarget(HttpTarget):
                 break
         if el is None:
             raise PluginError('there is no firewall rule "%s"' % rule, retry=False)
-        certs = [c for c in el.iter('Certificate')]
+        # HTTPBasedPolicy > HTTPSCertificate (the Firewall rule page); <Certificate>
+        # anywhere in the rule as before when the rule has none of that name
+        certs = list(el.iter('HTTPSCertificate')) or list(el.iter('Certificate'))
         if not certs:
             raise PluginError('the rule "%s" has no certificate (not a WAF rule with HTTPS?)'
                               % rule, retry=False)

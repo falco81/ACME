@@ -1145,6 +1145,384 @@ class WebglobeTargetTest(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Re-checked against the vendors' API documents (api-docs/<vendor>/notes.md)
+# ---------------------------------------------------------------------------
+def warned(ctx, words):
+    return any(lv == 'warn' and words in w for lv, w in ctx.steps)
+
+
+class KempDocsTest(unittest.TestCase):
+    """modvs CertFile is the whole list; 30 calls in 3 s drop the connection."""
+    def test_list_kept_and_unknown_said(self):
+        a = FakeBundle()
+        prefix = C.name_prefix(a, {}, maxlen=60)
+        old = prefix + '20260601-aaaa0002'
+        certs = [old, 'Other']
+        vs = {'192.0.2.10': 'Other %s' % old, '192.0.2.11': '545ba83aa2c6d65373d53194080a16f5',
+              '192.0.2.12': None}
+        seen = []
+
+        def access(call):
+            d = json.loads(call['body'])
+            seen.append(d)
+            if d['cmd'] == 'listcert':
+                return 200, {'code': 200, 'status': 'ok', 'cert': [{'name': n} for n in certs]}
+            if d['cmd'] == 'addcert':
+                certs.append(d['cert'])
+            if d['cmd'] == 'showvs':
+                return 200, {'code': 200, 'status': 'ok', 'CertFile': vs[d['vs']]}
+            if d['cmd'] == 'modvs':
+                vs[d['vs']] = d['CertFile']
+            return 200, {'code': 200, 'status': 'ok'}
+        ctx = FakeCtx([('POST', r'/accessv2$', access)])
+        t = make('kemp', {'host': 'lm.test', 'apikey': 'K'}, ctx)
+        name = C.object_name(a, {}, maxlen=60)
+        t.deploy(a, {'virtual_services': '192.0.2.10:443\n192.0.2.11:443\n192.0.2.12:443',
+                     'intermediates': False, 'keep': -1})
+        show = [d for d in seen if d['cmd'] == 'showvs'][0]
+        self.assertEqual((show['vs'], show['port'], show['prot']), ('192.0.2.10', '443', 'tcp'))
+        mods = {d['vs']: d['CertFile'] for d in seen if d['cmd'] == 'modvs'}
+        # the other certificate stays, acme's older one is swapped in its place
+        self.assertEqual(mods['192.0.2.10'], 'Other %s' % name)
+        # a list acme cannot read: its own alone, as before, said
+        self.assertEqual(mods['192.0.2.11'], name)
+        self.assertTrue(warned(ctx, 'cannot name (545ba83a'))
+        self.assertEqual(mods['192.0.2.12'], name)
+        # pointed already: no modvs
+        n = len([d for d in seen if d['cmd'] == 'modvs'])
+        t.deploy(a, {'virtual_services': '192.0.2.10:443', 'intermediates': False,
+                     'force': True, 'keep': -1})
+        self.assertEqual(len([d for d in seen if d['cmd'] == 'modvs']), n)
+
+    def test_rate(self):
+        t = make('kemp', {'host': 'lm', 'apikey': 'K'}, FakeCtx())
+        clock, sleeps = [100.0], []
+        t._clock = lambda: clock[0]
+
+        def sleep(s):
+            sleeps.append(s)
+            clock[0] += s
+        t._sleep = sleep
+        for _ in range(25):
+            t.throttle()
+        self.assertEqual(sleeps, [])
+        t.throttle()                                    # the 26th within 3 seconds waits
+        self.assertEqual(len(sleeps), 1)
+        self.assertAlmostEqual(sleeps[0], 3.05)
+        clock[0] += 3.1
+        t.throttle()
+        self.assertEqual(len(sleeps), 1)
+
+
+class AwsAcmKeyTypeTest(unittest.TestCase):
+    """"The key type and size cannot be changed" on a re-import."""
+    ARN = 'arn:aws:acm:eu-central-1:123456789012:certificate/abc'
+
+    def ctx(self, algo):
+        def acm(call):
+            target = call['headers']['X-Amz-Target'].split('.')[1]
+            if target == 'DescribeCertificate':
+                return 200, {'Certificate': {'Serial': '01', 'KeyAlgorithm': algo,
+                                             'InUseBy': ['arn:aws:elasticloadbalancing:x']}}
+            if target == 'ImportCertificate':
+                return 200, {'CertificateArn': self.ARN}
+            return 400, {'__type': 'x#Nope'}
+        return FakeCtx([('POST', r'amazonaws\.com/$', acm)])
+
+    def test_other_key_type_refused_same_imported(self):
+        a = FakeBundle()
+        a.key_type = 'rsa-2048'
+        cfg = {'access_key_id': 'AK', 'secret_access_key': 'SK', 'region': 'eu-central-1'}
+        ctx = self.ctx('EC_prime256v1')
+        t = make('aws_acm', cfg, ctx)
+        with self.assertRaises(PluginError) as e:
+            t.deploy(a, {'certificate_arn': self.ARN, 'force': True})
+        self.assertIn('cannot change the key type', str(e.exception))
+        self.assertIn('EC_prime256v1', str(e.exception))
+        self.assertIn('elasticloadbalancing', str(e.exception))
+        self.assertFalse(e.exception.retry)
+        self.assertFalse([c for c in ctx.calls if c['headers']['X-Amz-Target'].endswith('Import'
+                                                                                        'Certificate')])
+        ctx = self.ctx('RSA_2048')
+        t = make('aws_acm', cfg, ctx)
+        self.assertIn('re-imported into', t.deploy(a, {'certificate_arn': self.ARN}))
+        from acmelib.plugins.targets.aws_acm import acm_key_type
+        a.key_type = 'ec-384'
+        self.assertEqual(acm_key_type(a), 'EC_secp384r1')
+
+
+class GcpSansTest(unittest.TestCase):
+    """PATCH in place: "make sure that the SANs ... exactly match"."""
+    setUp = GcpCertManagerTest.setUp
+
+    def test_other_names_warned(self):
+        self.ctx.routes.insert(0, ('GET', r'/certificates/acme-www-example-test$', (200, {
+            'pemCertificate': FakeBundle('a').fullchain_pem, 'sanDnsnames': ['old.example.test']})))
+        self.assertIn('updated', self.t.deploy(FakeBundle('b'), {}))
+        self.assertTrue(warned(self.ctx, 'Google asks for the same names'))
+        self.assertTrue(self.ctx.find('PATCH', r'updateMask=selfManaged'))
+
+
+class CloudflareNewIdTest(unittest.TestCase):
+    """PATCH of an sni_custom certificate returns a new id."""
+    def test_new_id_kept(self):
+        ids = iter(['cc2', 'cc3'])
+        B = r'^https://api\.cloudflare\.com/client/v4'
+        listed = [{'id': 'cc1', 'hosts': ['www.example.test', 'example.test']}]
+
+        def patch(call):
+            new = next(ids)
+            listed[:] = [{'id': new, 'hosts': ['www.example.test', 'example.test']}]
+            return 200, {'success': True, 'result': {'id': new}}
+        ctx = FakeCtx([
+            ('GET', B + r'/zones/a{32}/custom_certificates\?per_page=50$',
+             lambda c: (200, {'success': True, 'result': listed})),
+            ('PATCH', B + r'/zones/a{32}/custom_certificates/cc[0-9]$', patch),
+        ])
+        t = make('cloudflare_ssl', {'token': 'T', 'zone': 'a' * 32}, ctx)
+        self.assertIn('cc2', t.deploy(FakeBundle('a'), {}))
+        self.assertIn('cc3', t.deploy(FakeBundle('b'), {}))
+        self.assertEqual([c['path'].rsplit('/', 1)[1] for c in ctx.find('PATCH', '.')],
+                         ['cc1', 'cc2'])                  # the second renewal: the new id
+
+
+class VCenterAlreadyTest(unittest.TestCase):
+    """PUT tls: 400 AlreadyExists for the certificate there now."""
+    setUp = VCenterTest.setUp
+
+    def test_already_exists_is_served(self):
+        self.ctx.routes.insert(0, ('PUT', r'/certificate-management/vcenter/tls$', (400, {
+            'error_type': 'ALREADY_EXISTS', 'messages': [{
+                'id': 'com.vmware.vcenter.certificate_management.tls.already_exists',
+                'default_message': 'The certificate already exists.'}]})))
+        words = self.t.deploy(FakeBundle(), {'force': True})
+        self.assertTrue(words.startswith('unchanged'), words)
+        self.assertEqual(self.ctx.calls[-1]['method'], 'DELETE')        # signed out
+        self.ctx.routes.insert(0, ('PUT', r'/vcenter/tls$', (400, {
+            'error_type': 'INVALID_ARGUMENT', 'messages': [{'default_message': 'bad key'}]})))
+        with self.assertRaises(PluginError):
+            self.t.deploy(FakeBundle(), {'force': True})
+
+
+class RedfishDocsTest(unittest.TestCase):
+    """The action's target from the service; an empty collection takes a POST."""
+    routes = RedfishTest.routes
+
+    def run_it(self, extra, opts=None):
+        ctx = FakeCtx(extra + self.routes())
+        t = make('redfish', {'host': 'bmc.test', 'user': 'u', 'password': 'p'}, ctx)
+        t.served_now = lambda b: False
+        return ctx, t, t.deploy(FakeBundle(), opts or {})
+
+    def test_target_from_the_service(self):
+        ctx, t, words = self.run_it([
+            ('GET', r'/redfish/v1/CertificateService$', (200, {'Actions': {
+                '#CertificateService.ReplaceCertificate': {
+                    'target': '/redfish/v1/CertificateService/Actions/Oem/Replace'}}})),
+            ('POST', r'/Actions/Oem/Replace$', (200, {}))])
+        self.assertTrue(ctx.find('POST', r'/Actions/Oem/Replace$'))
+        self.assertFalse(ctx.find('POST', r'CertificateService\.ReplaceCertificate$'))
+
+    def test_no_replace_said(self):
+        with self.assertRaises(PluginError) as e:
+            self.run_it([('GET', r'/redfish/v1/CertificateService$', (200, {'Actions': {
+                '#CertificateService.GenerateCSR': {'target': '/x'}}}))])
+        self.assertIn('no CertificateService.ReplaceCertificate', str(e.exception))
+        self.assertFalse(e.exception.retry)
+
+    def test_empty_collection_posted(self):
+        ctx, t, words = self.run_it([
+            ('GET', r'/NetworkProtocol/HTTPS/Certificates$', (200, {'Members': []})),
+            ('POST', r'/NetworkProtocol/HTTPS/Certificates$', (201, {}))])
+        post = ctx.find('POST', r'/HTTPS/Certificates$')[0]
+        body = json.loads(post['body'])
+        self.assertEqual(sorted(body), ['CertificateString', 'CertificateType'])
+        self.assertFalse(ctx.find('POST', r'ReplaceCertificate'))
+        self.assertIn('added', words)
+
+
+class AzureKeyVaultPfxTest(unittest.TestCase):
+    """Application Gateway takes only PFX from a vault."""
+    setUp = AzureKeyVaultTest.setUp
+
+    def test_pfx(self):
+        a = FakeBundle()
+        self.t.deploy(a, {'cert_name': 'www-cert', 'secret_format': 'pfx'})
+        body = json.loads(self.ctx.find('POST', r'/import')[0]['body'])
+        self.assertEqual(body['policy']['secret_props']['contentType'], 'application/x-pkcs12')
+        self.assertTrue(body['pwd'])
+        out = subprocess.run(['openssl', 'pkcs12', '-nokeys', '-passin', 'pass:' + body['pwd']],
+                             input=b64d(body['value']), capture_output=True).stdout
+        self.assertIn(b'BEGIN CERTIFICATE', out)
+
+
+class SophosDocsTest(unittest.TestCase):
+    """<Get><Certificate/> answers with a tar; a WAF rule's HTTPSCertificate."""
+    setUp = SophosTest.setUp
+
+    def tar_of(self, names):
+        import io
+        import tarfile
+        buf = io.BytesIO()
+        ent = ('<Configuration>%s</Configuration>' % ''.join(
+            '<Certificate><Name>%s</Name></Certificate>' % n for n in names)).encode()
+        with tarfile.open(fileobj=buf, mode='w') as tf:
+            for fn, data in (('certificate/%s.pem' % names[0], b'x'), ('Entities.xml', ent)):
+                info = tarfile.TarInfo(fn)
+                info.size = len(data)
+                tf.addfile(info, io.BytesIO(data))
+        return buf.getvalue()
+
+    def test_tar_listing_and_https_certificate(self):
+        a = FakeBundle()
+        name = C.object_name(a, {}, maxlen=50, serial_len=6)
+        old = self.certs[1]
+
+        def api(call):
+            xml = parts_of(call)['reqxml'][1].decode()
+            self.reqs.append((xml, None))
+            ok = '<Login><status>Authentication Successful</status></Login>'
+            if '<Get><Certificate>' in xml:
+                return 200, self.tar_of(self.certs)
+            if '<Get><FirewallRule>' in xml:
+                return 200, ('<Response>%s<FirewallRule><Name>WAF www</Name><HTTPBasedPolicy>'
+                             '<HTTPSCertificate>%s</HTTPSCertificate><Certificate>keep</Certificate>'
+                             '</HTTPBasedPolicy></FirewallRule></Response>' % (ok, old))
+            if 'UploadCertificate' in xml:
+                self.certs.append(name)
+            return 200, '<Response>%s<X><Status code="200">ok</Status></X></Response>' % ok
+        self.ctx.routes.insert(0, ('POST', r'APIController$', api))
+        self.assertEqual(self.t.certificates(), self.certs)
+        self.t.deploy(a, {'rules': 'WAF www', 'keep': 1})
+        self.assertTrue([r for r, _ in self.reqs if 'UploadCertificate' in r])
+        upd = [r for r, _ in self.reqs if '<Set operation="update">' in r][0]
+        self.assertIn('<HTTPSCertificate>%s</HTTPSCertificate>' % name, upd)
+        self.assertIn('<Certificate>keep</Certificate>', upd)
+        self.assertEqual([re.search(r'<Remove><Certificate><Name>([^<]+)', r).group(1)
+                          for r, _ in self.reqs if '<Remove>' in r], [self.certs[0]])
+
+
+class FortiGateVipListTest(unittest.TestCase):
+    """A VIP's ssl-certificate is a list of {name} from FortiOS 7.4.2."""
+    def test_by_version(self):
+        for ver, want in (('v7.4.2', None), ('v7.4.1', 'string')):
+            b = FakeBundle()
+            name = C.object_name(b, {}, maxlen=35, serial_len=6)
+            ctx = FakeCtx([('GET', r'/local/', (404, {})),
+                           ('POST', r'/local/import', (200, {'status': 'success'})),
+                           ('GET', r'/monitor/system/status', (200, {'version': ver})),
+                           ('PUT', r'/firewall/vip/web', (200, {'status': 'success'})),
+                           ('GET', r'/local\?', (200, {'results': []}))])
+            t = make('fortigate', {'host': 'fw', 'token': 'T', 'vdom': 'root'}, ctx)
+            t.deploy(b, {'vips': 'web', 'import_chain': False})
+            puts = [ctx.json(c) for c in ctx.find('PUT', 'firewall/vip')]
+            self.assertEqual(puts, [{'ssl-certificate': [{'name': name}] if want is None
+                                     else name}], ver)
+
+
+class MikroTikDocsTest(unittest.TestCase):
+    """OpenVPN server records; reverse-proxy in /ip/service."""
+    def test_ovpn_records_and_reverse_proxy(self):
+        ctx = FakeCtx([
+            ('POST', r'/rest/interface/ovpn-server/server/set$', (400, {
+                'error': 400, 'message': 'Bad Request',
+                'detail': 'missing or invalid resource identifier'})),
+            ('GET', r'/rest/interface/ovpn-server/server$', (200, [
+                {'.id': '*1', 'name': 'ovpn1', 'certificate': 'old'},
+                {'.id': '*2', 'name': 'ovpn2', 'certificate': 'NEW'}])),
+            ('PATCH', r'/rest/interface/ovpn-server/server/\*1$', (200, {})),
+        ])
+        t = make('mikrotik', {'host': 'rtr', 'user': 'a', 'password': 'p'}, ctx)
+        t.bind_server('ovpn', 'NEW')
+        self.assertEqual([(c['path'], ctx.json(c)) for c in ctx.find('PATCH', '.')],
+                         [('/rest/interface/ovpn-server/server/*1', {'certificate': 'NEW'})])
+        self.assertIn('reverse-proxy', t.services({'services': 'reverse-proxy\nwww-ssl'}))
+        ctx2 = FakeCtx([('POST', r'/server/set$', (400, {'detail': 'no such command'})),
+                        ('GET', r'/server$', (200, []))])
+        t2 = make('mikrotik', {'host': 'rtr', 'user': 'a', 'password': 'p'}, ctx2)
+        with self.assertRaises(PluginError) as e:
+            t2.bind_server('sstp', 'NEW')
+        self.assertIn('binding sstp', str(e.exception))
+
+
+class OPNsenseInPlaceTest(unittest.TestCase):
+    """trust/cert/set with "action": "import" replaces in place (refid kept)."""
+    def run_it(self, rows, opts):
+        ctx = FakeCtx([
+            ('GET', r'/api/trust/cert/search', (200, {'rows': rows})),
+            ('GET', r'/api/trust/ca/search', (200, {'rows': [{'descr': x} for x in ()]})),
+            ('POST', r'/api/trust/ca/add', (200, {'result': 'saved'})),
+            ('POST', r'/api/trust/cert/set/', (200, {'result': 'saved'})),
+            ('POST', r'/api/trust/cert/add', (200, {'result': 'saved', 'uuid': 'u9'})),
+            ('POST', r'/api/trust/cert/del/', (200, {'result': 'deleted'})),
+        ])
+        t = make('opnsense', {'host': 'fw', 'api_key': 'k', 'api_secret': 's'}, ctx)
+        return ctx, t.deploy(FakeBundle(), dict(opts, keep=-1))
+
+    def test_force_and_in_place(self):
+        b = FakeBundle()
+        name, prefix = C.object_name(b, {}), C.name_prefix(b, {})
+        ctx, words = self.run_it([{'descr': name, 'uuid': 'u1'}], {'force': True})
+        sets = ctx.find('POST', r'/cert/set/u1$')
+        self.assertEqual(len(sets), 1)
+        cert = ctx.json(sets[0])['cert']
+        self.assertEqual((cert['action'], cert['descr'], cert['prv_payload']),
+                         ('import', name, b.key_pem))
+        self.assertFalse(ctx.find('POST', r'/cert/(add|del)'))
+        rows = [{'descr': prefix + '20260101-aaaa0001', 'uuid': 'u1'},
+                {'descr': prefix + '20260601-aaaa0002', 'uuid': 'u2'}]
+        ctx, words = self.run_it(rows, {'in_place': True})
+        self.assertEqual(ctx.json(ctx.find('POST', r'/cert/set/u2$')[0])['cert']['descr'], name)
+        self.assertFalse(ctx.find('POST', r'/cert/add'))
+        self.assertIn('in place', words)
+        ctx, words = self.run_it(rows, {})                  # as before: a new one
+        self.assertTrue(ctx.find('POST', r'/cert/add'))
+        self.assertFalse(ctx.find('POST', r'/cert/set/'))
+
+
+class PfSenseInPlaceTest(unittest.TestCase):
+    def test_script_and_restart(self):
+        ssh = FakeSsh([(r'php', (0, 'REPLACED 5f1\nGUIUSES\nINUSE old\nDONE\n', ''))])
+        t = make('pfsense', {'host': 'pf', 'user': 'admin', 'password': 'p'}, FakeCtx(ssh=ssh))
+        words = t.deploy(FakeBundle(), {'force': True})
+        script = ssh.runs[0][1]
+        self.assertIn('cert_import($certs[$i], $crt, $key)', script)
+        self.assertIn("function_exists('cert_in_use') && cert_in_use(", script)
+        self.assertNotIn('unset($certs[$i]); } else', script)
+        self.assertIn('in place', words)
+        self.assertTrue(any(c == '/etc/rc.restart_webgui' for c, _ in ssh.runs))
+
+
+class A10TemplateTest(unittest.TestCase):
+    """certificate-list is keyed by cert: the older acme entry is taken out."""
+    def test_older_entry_deleted(self):
+        a = FakeBundle()
+        prefix = C.name_prefix(a, {})
+        old = prefix + '20260101-aaaa0001'
+        ctx = FakeCtx([
+            ('POST', r'/axapi/v3/auth$', (200, {'authresponse': {'signature': 'S'}})),
+            ('GET', r'/axapi/v3/file/ssl-cert/oper$', (200, {'ssl-cert': {'oper': {
+                'file-list': [{'file': old}]}}})),
+            ('POST', r'/axapi/v3/file/ssl-(cert|key)$', (200, {})),
+            ('POST', r'/client-ssl/tpl-www/certificate$', (200, {})),
+            ('GET', r'/axapi/v3/slb/template/client-ssl/tpl-www$', (200, {'client-ssl': {
+                'name': 'tpl-www', 'certificate-list': [
+                    {'cert': old, 'key': old}, {'cert': 'theirs', 'key': 'theirs'},
+                    {'cert': C.object_name(a, {}), 'key': 'x'}]}})),
+            ('DELETE', r'/client-ssl/tpl-www/certificate/', (200, {})),
+            ('POST', r'/axapi/v3/write/memory$', (200, {})),
+            ('POST', r'/axapi/v3/logoff$', (200, {})),
+        ])
+        t = make('a10', {'host': 'thunder', 'user': 'admin', 'password': 'pw'}, ctx)
+        t.deploy(a, {'templates': 'tpl-www', 'keep': -1})
+        self.assertEqual([urllib.parse.unquote(c['path'].rsplit('/', 1)[1])
+                          for c in ctx.find('DELETE', '.')], [old])
+        dels = [i for i, c in enumerate(ctx.calls) if c['method'] == 'DELETE']
+        wm = [i for i, c in enumerate(ctx.calls) if c['url'].endswith('/write/memory')]
+        self.assertLess(dels[0], wm[0])                 # taken out before it is written
+
+
+# ---------------------------------------------------------------------------
 class DescribeTest(unittest.TestCase):
     def test_every_new_module(self):
         reg = Registry(extra_dirs=[]).reload()

@@ -25,6 +25,15 @@ Uncertain: which controllers take a private key this way. acme.sh's hook
 reports it for AMI MegaRAC (ASUS, Lenovo, Supermicro) and says iDRAC9 5.x and
 iLO 5 2.42+ "should" work; HPE iLO generally wants its own CSR, older iDRACs
 want racadm sslkeyupload. Choose an RSA 2048 key type for these.
+Checked against api-docs/redfish/notes.md and the DMTF schemas there
+(CertificateService.v1_2_2, CertificateCollection, Certificate.v1_11_0): the
+action is posted to the target the CertificateService gives for it; an empty
+HTTPS certificate collection ("insertable") gets a POST of the certificate
+instead of a replace of a made-up member; a service that lists its actions
+without ReplaceCertificate (HPE iLO 6) is said in words. Dell's own way for
+iDRAC (OEM UploadSSLKey + ImportSSLCertificate, then a reset - "Until the
+iDRAC is reset, the old certificate will remain active") is not used; Lenovo
+XCC2 takes "PEM" only.
 """
 from __future__ import annotations
 
@@ -128,7 +137,24 @@ class RedfishTarget(HttpTarget):
         mem = coll.get('Members') or []
         if mem:
             return mem[0]['@odata.id']
-        return np + '/HTTPS/Certificates/1'
+        return None, np + '/HTTPS/Certificates'     # none yet: a POST to the collection
+
+    def replace_target(self, cs):
+        """The ReplaceCertificate action's target the CertificateService gives
+        (Actions."#CertificateService.ReplaceCertificate".target), the usual path
+        when it does not say; None when it lists actions without that one."""
+        default = cs + '/Actions/CertificateService.ReplaceCertificate'
+        try:
+            svc = self.get(cs, what='reading the certificate service')
+        except PluginError:
+            return default
+        acts = svc.get('Actions')
+        if not isinstance(acts, dict) or not acts:
+            return default
+        act = acts.get('#CertificateService.ReplaceCertificate')
+        if not isinstance(act, dict):
+            return None
+        return text(act.get('target')) or default
 
     def served_now(self, bundle):
         try:
@@ -161,11 +187,26 @@ class RedfishTarget(HttpTarget):
             cs = (root.get('CertificateService') or {}).get('@odata.id') or \
                 '/redfish/v1/CertificateService'
             uri = self.cert_uri(options)
-            self.req('POST', cs + '/Actions/CertificateService.ReplaceCertificate', {
-                'CertificateString': pem, 'CertificateType': typ,
-                'CertificateUri': {'@odata.id': uri}}, what='replacing %s' % uri, timeout=120)
-            self.ctx.step('replaced %s' % uri, 'ok')
-            did = 'replaced the HTTPS certificate (%s)' % uri
+            if isinstance(uri, tuple):
+                # an empty collection: "insertable", a POST of the certificate to it
+                coll = uri[1]
+                self.req('POST', coll, {'CertificateString': pem, 'CertificateType': typ},
+                         what='adding the certificate to %s' % coll, timeout=120)
+                self.ctx.step('added the HTTPS certificate to %s' % coll, 'ok')
+                did = 'added the HTTPS certificate (%s)' % coll
+            else:
+                target = self.replace_target(cs)
+                if not target:
+                    raise PluginError(
+                        'the controller offers no CertificateService.ReplaceCertificate '
+                        '(HPE iLO 6 has only GenerateCSR: it takes a certificate only for '
+                        'a request it made itself)', retry=False)
+                self.req('POST', target, {
+                    'CertificateString': pem, 'CertificateType': typ,
+                    'CertificateUri': {'@odata.id': uri}}, what='replacing %s' % uri,
+                    timeout=120)
+                self.ctx.step('replaced %s' % uri, 'ok')
+                did = 'replaced the HTTPS certificate (%s)' % uri
             if as_bool(options.get('reset')):
                 mgr = self.manager()
                 self.req('POST', mgr + '/Actions/Manager.Reset', {'ResetType': 'GracefulRestart'},

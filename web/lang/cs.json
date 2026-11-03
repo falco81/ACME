@@ -47775,6 +47775,34 @@
   "svd2_088": {
    "source": "the node name, or localhost",
    "text": "název uzlu, nebo localhost"
+  },
+  "svr001": {
+   "source": "Kept in the vault as",
+   "text": "Uložit v trezoru jako"
+  },
+  "svr002": {
+   "source": "PEM (application/x-pem-file)",
+   "text": "PEM (application/x-pem-file)"
+  },
+  "svr003": {
+   "source": "PKCS#12 (application/x-pkcs12) - for Application Gateway",
+   "text": "PKCS#12 (application/x-pkcs12) – pro Application Gateway"
+  },
+  "svr004": {
+   "source": "Application Gateway takes only PKCS#12 (PFX) certificates from a vault",
+   "text": "Application Gateway bere z trezoru jen certifikáty PKCS#12 (PFX)"
+  },
+  "svr005": {
+   "source": "one a line: www-ssl, api-ssl, reverse-proxy (RouterOS 7.22+), sstp, ovpn",
+   "text": "jedna na řádek: www-ssl, api-ssl, reverse-proxy (RouterOS 7.22+), sstp, ovpn"
+  },
+  "svr006": {
+   "source": "Replace in place",
+   "text": "Nahradit na místě"
+  },
+  "svr007": {
+   "source": "the older certificate acme put there gets the new one (trust/cert/set), so the services you pointed at it in OPNsense keep it; they read it again when restarted",
+   "text": "starší certifikát, který tam acme dalo, dostane nový (trust/cert/set), takže ho služby, které jste na něj v OPNsense nasměrovali, mají dál; znovu ho načtou po restartu"
   }
  },
  "patterns": {

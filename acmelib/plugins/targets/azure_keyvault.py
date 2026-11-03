@@ -18,6 +18,11 @@ Sources:
     https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/import-certificate/import-certificate
     https://learn.microsoft.com/en-us/rest/api/keyvault/certificates/get-certificate/get-certificate
     https://learn.microsoft.com/en-us/azure/key-vault/certificates/tutorial-import-certificate
+Checked against api-docs/azure_keyvault/notes.md and certificates.json: the
+import takes PEM (a PKCS#8 key and the certificates) or PFX ("value" base64,
+"pwd"); "For TLS termination, Application Gateway only supports certificates
+in Personal Information Exchange (PFX) format" - so "Kept in the vault as"
+PKCS#12 is there for Application Gateway (PEM stays the default, as before).
 """
 from __future__ import annotations
 
@@ -26,7 +31,7 @@ import re
 import urllib.parse
 
 from acmelib.plugins.targets._common import (
-    PluginError, field, label_of, sha1_thumb, text, verify_fields, as_bool)
+    PluginError, field, label_of, sha1_thumb, text, verify_fields, as_bool, random_password)
 from acmelib.plugins.targets._cloud import (
     CloudTarget, cloud_fields, entra_token, ENTRA_CLOUDS)
 
@@ -67,6 +72,10 @@ class AzureKeyVaultTarget(CloudTarget):
         field('cert_name', 'Certificate name in the vault', 'text',
               placeholder='www-example-com',
               help='letters, digits and -; empty: acme-<the certificate\'s name>'),
+        field('secret_format', 'Kept in the vault as', 'select', default='pem',
+              options=[['pem', 'PEM (application/x-pem-file)'],
+                       ['pfx', 'PKCS#12 (application/x-pkcs12) - for Application Gateway']],
+              help='Application Gateway takes only PKCS#12 (PFX) certificates from a vault'),
     ] + verify_fields()
 
     def vault_url(self):
@@ -112,12 +121,23 @@ class AzureKeyVaultTarget(CloudTarget):
             if have and have.rstrip('=') == want:
                 self.remember(bundle, options)
                 return self.same(bundle, 'the current version of %s' % name)
-        pem = text(bundle.as_format('key-pem')) + text(bundle.as_format('fullchain-pem'))
-        st, hd, d = self.req('POST', self.url('/certificates/%s/import' % name), {
-            'value': pem,
-            'policy': {'key_props': {'exportable': True},
-                       'secret_props': {'contentType': 'application/x-pem-file'}},
-            'tags': {'managed-by': 'acme'}}, what='importing %s' % name)
+        if self.opt(options, 'secret_format', 'pem') == 'pfx':
+            pw = random_password(24)
+            # 3DES, which every Windows-based reader opens (which encryptions the vault
+            # takes is not in the documents)
+            value = base64.b64encode(bundle.as_format('p12-legacy', password=pw,
+                                                      alias=name)).decode()
+            body = {'value': value, 'pwd': pw,
+                    'policy': {'key_props': {'exportable': True},
+                               'secret_props': {'contentType': 'application/x-pkcs12'}}}
+        else:
+            body = {'value': text(bundle.as_format('key-pem')) +
+                    text(bundle.as_format('fullchain-pem')),
+                    'policy': {'key_props': {'exportable': True},
+                               'secret_props': {'contentType': 'application/x-pem-file'}}}
+        body['tags'] = {'managed-by': 'acme'}
+        st, hd, d = self.req('POST', self.url('/certificates/%s/import' % name), body,
+                             what='importing %s' % name)
         ver = text((d or {}).get('id') if isinstance(d, dict) else '').rsplit('/', 1)[-1]
         self.ctx.step('imported into %s as version %s' % (name, ver or '?'), 'ok')
         self.remember(bundle, options)
