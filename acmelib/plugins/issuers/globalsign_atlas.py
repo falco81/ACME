@@ -19,16 +19,20 @@ apis/api-documentation/globalsign_atlas_certificate_management_api.html):
 * GET /certificates/<serial> -> {certificate (PEM), status ISSUED|REVOKED,
   updated_at}; 202 or 404 while it is being made (asked again).
 * GET /trustchain -> the chain (PEM, a list); GET /validationpolicy for "Try it".
-* PATCH /certificates/<serial> {revocation_reason, revocation_time}.
+* PATCH /certificates/<serial> {revocation_reason: unspecified | keyCompromise |
+  affiliationChanged | cessationOfOperation | superseded}.
 * GET /stats/issued?page=N&per_page=M&from=EPOCH&to=EPOCH -> [{serial_number (hex),
   not_before, not_after (epoch)}], the header Total-Count (hvclient client_api.go
-  StatsIssued, api_helpers.go paginationString, cert_meta.go): Import from a source -
-  each one then read with GET /certificates/<serial>.
+  StatsIssued, api_helpers.go paginationString, cert_meta.go; the API's
+  documentation: "Max time window supported is 30 days" - asked 30 days at a time):
+  Import from a source - each one then read with GET /certificates/<serial>.
 
 The names must be verified domains of the account (Atlas: Domains → verify,
 or the /claims/domains API) - Atlas refuses others.
 
-UNCERTAIN: what Atlas answers for an unverified domain (said as it comes).
+UNCERTAIN: what Atlas answers for an unverified domain (said as it comes); the form of
+serial_number in /stats (the documentation's example is all digits - it is used as
+hex, as hvclient does).
 """
 from __future__ import annotations
 
@@ -40,8 +44,10 @@ from acmelib.plugins import limits
 from acmelib.plugins.base import Issuer, PluginError, field, dual_order_field
 from acmelib.plugins.issuers import _source_common as sc
 
+# PATCH /certificates/{certificate}: "revocation_reason: required(one of unspecified,
+# keyCompromise, affiliationChanged, cessationOfOperation, superseded)"; others: unspecified.
 REASONS = {0: 'unspecified', 1: 'keyCompromise', 3: 'affiliationChanged', 4: 'superseded',
-           5: 'cessationOfOperation', 9: 'privilegeWithdrawn'}
+           5: 'cessationOfOperation'}
 SUBJECT = {'CN': 'common_name', 'O': 'organization', 'C': 'country', 'ST': 'state',
            'L': 'locality', 'emailAddress': 'email'}
 
@@ -215,6 +221,8 @@ class GlobalSignAtlasIssuer(Issuer):
     # -- the certificates of the account (Certificates → Import from a source) -------------
     READ_MOST = 150                 # certificates read one by one in a listing
     PER_PAGE = 100
+    LIST_DAYS = 400
+    WINDOW = 30 * 86400             # /stats/issued: "Max time window supported is 30 days"
 
     def _one(self, serial):
         if not re.match(r'^[0-9A-Fa-f]{1,64}\Z', str(serial or '')):
@@ -224,22 +232,34 @@ class GlobalSignAtlasIssuer(Issuer):
         return got or {}
 
     def list_existing(self):
-        """The certificates issued in the last 400 days (/stats/issued, page by page),
-        the newest read - read only."""
+        """The certificates issued in the last 400 days (/stats/issued, 30 days at a time -
+        "Max time window supported is 30 days" - page by page), the newest read - read
+        only."""
         from acmelib.certs import pki
         now = int(time.time())
-        metas, page = [], 1
-        while page <= 100:
-            _s, h, got = self._call('GET', '/stats/issued?page=%d&per_page=%d&from=%d&to=%d' % (
-                page, self.PER_PAGE, now - 400 * 86400, now), what='the issued certificates')
-            items = [x for x in (got or []) if isinstance(x, dict)] if isinstance(got, list) \
-                else []
-            metas.extend(items)
-            total = int(sc.num({k.lower(): v for k, v in (h or {}).items()}.get('total-count'),
-                               0))
-            if len(items) < self.PER_PAGE or (total and len(metas) >= total):
-                break
-            page += 1
+        metas, seen = [], set()
+        to = now
+        while to > now - self.LIST_DAYS * 86400 and not self.ctx.cancelled():
+            frm = max(now - self.LIST_DAYS * 86400, to - self.WINDOW)
+            got_n, page = 0, 1
+            while page <= 100:
+                _s, h, got = self._call('GET', '/stats/issued?page=%d&per_page=%d&from=%d&to=%d'
+                                        % (page, self.PER_PAGE, frm, to),
+                                        what='the issued certificates')
+                items = [x for x in (got or []) if isinstance(x, dict)] \
+                    if isinstance(got, list) else []
+                for x in items:
+                    key = str(x.get('serial_number') or '').upper()
+                    if key and key not in seen:
+                        seen.add(key)
+                        metas.append(x)
+                got_n += len(items)
+                total = int(sc.num({k.lower(): v for k, v in (h or {}).items()}
+                                   .get('total-count'), 0))
+                if len(items) < self.PER_PAGE or (total and got_n >= total):
+                    break
+                page += 1
+            to = frm
         metas.sort(key=lambda m: -sc.num(m.get('not_before'), 0))
         out = []
         for i, m in enumerate(metas):

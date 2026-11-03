@@ -44,9 +44,10 @@ KINDS = ('zerossl', 'venafi_tpp', 'venafi_cloud', 'keyfactor_command', 'cloudfla
 
 # Every call each module may make, as the vendor's own client makes it.
 CONTRACT = {
-    # github.com/caddyserver/zerossl endpoints.go
+    # github.com/caddyserver/zerossl endpoints.go; zerossl.com/documentation/api/ (the
+    # download as json: "return" is deprecated)
     'zerossl': [('POST', r'^/certificates$'), ('POST', r'^/certificates/\w+/challenges$'),
-                ('GET', r'^/certificates/\w+$'), ('GET', r'^/certificates/\w+/download/return$'),
+                ('GET', r'^/certificates/\w+$'), ('GET', r'^/certificates/\w+/download/json$'),
                 ('GET', r'^/certificates$'), ('POST', r'^/certificates/\w+/revoke$')],
     # github.com/Venafi/vcert pkg/venafi/tpp/tpp.go (urlResource...)
     'venafi_tpp': [('POST', r'^/vedauth/authorize/oauth$'), ('GET', r'^/vedsdk/Identity/Self$'),
@@ -167,7 +168,7 @@ class TestZeroSsl(Contract, Base):
                 if st['status'] == 'pending_validation' and st['polls'] >= st['issue_after']:
                     st['status'] = 'issued'
                 return 200, {}, {'id': cid, 'status': st['status']}
-            if p == '/certificates/%s/download/return' % cid:
+            if p == '/certificates/%s/download/json' % cid:
                 return 200, {}, {'certificate.crt': st['leaf'],
                                  'ca_bundle.crt': self.ca.pem + self.root.pem}
             if p == '/certificates/%s/revoke' % cid:
@@ -315,7 +316,7 @@ class TestVenafiTpp(Contract, Base):
                 return 200, {}, {'Success': True}
             if p == '/vedsdk/certificates/retrieve':
                 st['retrieves'] += 1
-                self.assertEqual(b['Format'], 'base64')
+                self.assertEqual(b['Format'], 'Base64')     # "case sensitive values"
                 self.assertTrue(b['IncludeChain'])
                 if st['retrieves'] <= pending:
                     return 202, {}, {'Status': 'Post CSR', 'Stage': 500}
@@ -360,8 +361,8 @@ class TestVenafiTpp(Contract, Base):
         out = v.issue(req)
         self.check_issued(out, req)
         body = st['bodies']['/vedsdk/certificates/request']
-        self.assertEqual(body['SubjectAltNames'], [{'Type': 2, 'Name': 'www.firma.cz'},
-                                                   {'Type': 7, 'Name': '10.0.0.5'}])
+        self.assertEqual(body['SubjectAltNames'], [{'TypeName': '2', 'Name': 'www.firma.cz'},
+                                                   {'TypeName': '7', 'Name': '10.0.0.5'}])
         self.assertTrue(body['DisableAutomaticRenewal'])
         self.assertEqual(st['retrieves'], 2)
         dn = '\\VED\\Policy\\DevOps\\Web\\www.firma.cz'
@@ -424,7 +425,7 @@ class TestVenafiCloud(Contract, Base):
 
         def handler(method, url, body, headers, cc):
             u = urllib.parse.urlsplit(url)
-            self.assertEqual(u.netloc, 'api.venafi.eu')
+            self.assertEqual(u.netloc, 'api.eu.venafi.cloud')
             self.assertEqual(hdr(headers, 'tppl-api-key'), 'VKEY')
             p = u.path
             b = json.loads(body) if body else {}
@@ -480,9 +481,11 @@ class TestVenafiCloud(Contract, Base):
         self.assertEqual(st['bodies'][0]['certificateIssuingTemplateId'], 'cit-1')
         self.assertEqual(st['bodies'][0]['validityPeriod'], 'P30D')
         self.assertNotIn('existingCertificateId', st['bodies'][0])
+        self.assertIs(st['bodies'][0]['isVaaSGenerated'], False)
         self.assertEqual(out.info['ref'], 'cert-1')
         v.issue(req_for(['www.firma.cz']))
         self.assertEqual(st['bodies'][1]['existingCertificateId'], 'cert-1')
+        self.assertEqual(st['bodies'][1]['renewType'], 'USER_PROVIDED_CSR')
         self.assertIn('ann@firma.cz', v.test())
         self.assertEqual(v.catalog('templates')['options'], [['Default', 'Default'],
                                                              ['Public Trust', 'Public Trust']])
@@ -591,13 +594,15 @@ class TestKeyfactor(Contract, Base):
         body = st['bodies']['/KeyfactorAPI/Enrollment/CSR']
         self.assertEqual(body['Template'], 'WebServer')
         self.assertEqual(body['CertificateAuthority'], 'ca01.example.test\\Issuing CA')
-        self.assertEqual(body['SANs'], {'dns': ['www.firma.cz', 'firma.cz'], 'ip4': ['10.1.2.3']})
+        self.assertEqual(body['SANs'], {'dns': ['www.firma.cz', 'firma.cz'], 'ip': ['10.1.2.3']})
         self.assertEqual(st['auth'][0], 'Basic ' + base64.b64encode(
             b'EXAMPLE\\acme:pw').decode())
         self.assertEqual(out.info['ref'], '321')
         self.assertIn('revoked certificate 321', k.revoke(out.cert_pem, 'keyCompromise'))
         self.assertEqual(st['revoked'][0]['CertificateIds'], [321])
         self.assertEqual(st['revoked'][0]['Reason'], 1)
+        k.revoke(out.cert_pem, 'removeFromCRL')                  # Command's 7, RFC 5280's 8
+        self.assertEqual(st['revoked'][1]['Reason'], 7)
         items = k.list_existing()
         self.assertEqual(items[0]['names'], ['www.firma.cz', 'firma.cz'])
         self.assertEqual(items[0]['acme_cert_id'], 7)

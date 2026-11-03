@@ -47423,6 +47423,422 @@
   "sres0205": {
    "source": "Download by certificate ID",
    "text": "Stažení podle ID certifikátu"
+  },
+  "smr0001": {
+   "source": "30 days (Free SSL)",
+   "text": "30 dní (Free SSL)"
+  },
+  "smr0002": {
+   "source": "90 days (Free SSL)",
+   "text": "90 dní (Free SSL)"
+  },
+  "smr0003": {
+   "source": "An order (or voucher) bought already: its certificate is rekeyed with acme's request. Empty: the order acme made last for the certificate.",
+   "text": "Už koupená objednávka (nebo voucher): její certifikát se vystaví znovu s novým klíčem z žádosti acme (rekey). Prázdné: objednávka, kterou acme pro certifikát udělalo naposledy."
+  },
+  "smr0004": {
+   "source": "Certificates bought through SSL.com's SWS API: ordered (only when paid orders are allowed) or rekeyed inside an order bought already, the domain validation file put in place by the certificate's validation (or an e-mail). Lists the account's orders for importing.",
+   "text": "Certifikáty koupené přes SWS API SSL.com: objednané (jen když jsou placené objednávky povolené) nebo vystavené znovu s novým klíčem v už koupené objednávce, soubor ověření domény připraví validace certifikátu (nebo e-mail). Vypíše objednávky účtu k importu."
+  },
+  "smr0005": {
+   "source": "Contact: country",
+   "text": "Kontakt: země"
+  },
+  "smr0006": {
+   "source": "Empty: the one of the environment.",
+   "text": "Prázdné: adresa zvoleného prostředí."
+  },
+  "smr0007": {
+   "source": "How SSL.com checks the domains. A DNS method is not offered: its value is not documented.",
+   "text": "Jak SSL.com ověřuje domény. Metoda přes DNS nabízená není: její hodnota není zdokumentovaná."
+  },
+  "smr0008": {
+   "source": "Load the list: the SSL products SSL.com documents - a code can be typed too. Only 100, 102 and 107 take more than one name.",
+   "text": "Načtěte seznam: SSL produkty, které SSL.com dokumentuje – kód lze i napsat. Víc než jedno jméno berou jen 100, 102 a 107."
+  },
+  "smr0009": {
+   "source": "Off: acme never buys anything - it only rekeys inside orders bought already, and stops with words where a purchase would be needed.",
+   "text": "Vypnuto: acme nikdy nic nekupuje – jen vystavuje znovu (rekey) v už koupených objednávkách, a kde by byl potřeba nákup, zastaví se a řekne proč."
+  },
+  "smr0010": {
+   "source": "Period of a new order (days)",
+   "text": "Doba nové objednávky (dny)"
+  },
+  "smr0011": {
+   "source": "Production (sws.sslpki.com)",
+   "text": "Produkce (sws.sslpki.com)"
+  },
+  "smr0012": {
+   "source": "SSL.com (SWS API)",
+   "text": "SSL.com (SWS API)"
+  },
+  "smr0013": {
+   "source": "SSL.com dashboard → API credentials: the account_key.",
+   "text": "Nástěnka SSL.com → API credentials: account_key."
+  },
+  "smr0014": {
+   "source": "SSL.com took the order but said no reference - look in the SSL.com dashboard before trying again (a second order would be paid again)",
+   "text": "SSL.com objednávku přijalo, ale neřeklo její referenci – podívejte se do nástěnky SSL.com, než to zkusíte znovu (druhá objednávka by se platila znovu)"
+  },
+  "smr0015": {
+   "source": "Sandbox (sws-test.sslpki.com - an account of its own)",
+   "text": "Sandbox (sws-test.sslpki.com – vlastní účet)"
+  },
+  "smr0016": {
+   "source": "Server software (code)",
+   "text": "Serverový software (kód)"
+  },
+  "smr0017": {
+   "source": "The address of each domain SSL.com writes to.",
+   "text": "Adresa každé domény, na kterou SSL.com napíše."
+  },
+  "smr0018": {
+   "source": "The secret_key beside it. Neither is written into a job's steps.",
+   "text": "secret_key vedle něj. Ani jeden se nezapisuje do kroků úlohy."
+  },
+  "smr0019": {
+   "source": "a wildcard name is proved by e-mail here, not by an HTTP file - choose the e-mail validation",
+   "text": "jméno s hvězdičkou se tu prokazuje e-mailem, ne souborem HTTP – zvolte ověření e-mailem"
+  },
+  "smr0020": {
+   "source": "acme does not know the certificate's order at SSL.com - revoke it in the SSL.com dashboard",
+   "text": "acme nezná objednávku certifikátu u SSL.com – zneplatněte ho v nástěnce SSL.com"
+  },
+  "smr0021": {
+   "source": "co-ac1ecm200",
+   "text": "co-ac1ecm200"
+  },
+  "smr0022": {
+   "source": "http://NAME/.well-known/pki-validation/MD5.txt holding SSL.com's lines",
+   "text": "http://JMÉNO/.well-known/pki-validation/MD5.txt s řádky od SSL.com"
+  },
+  "smr0023": {
+   "source": "https://sws.sslpki.com",
+   "text": "https://sws.sslpki.com"
+  },
+  "smr0024": {
+   "source": "server_software of SSL.com's list (1: OTHER).",
+   "text": "server_software ze seznamu SSL.com (1: OTHER)."
+  },
+  "smr0025": {
+   "source": "set the account key and the secret key",
+   "text": "nastavte account key a secret key"
+  },
+  "smr0026": {
+   "source": "set the contact (first and last name, e-mail, phone)",
+   "text": "nastavte kontakt (jméno a příjmení, e-mail, telefon)"
+  },
+  "smr0027": {
+   "source": "set the product of a new order (its code - Load the list)",
+   "text": "nastavte produkt nové objednávky (jeho kód – Načíst seznam)"
+  },
+  "smr0028": {
+   "source": "the SSL.com API address is not an https address",
+   "text": "adresa API SSL.com není adresa https"
+  },
+  "smr0029": {
+   "source": "the validation files are in place - SSL.com looks at them by itself",
+   "text": "soubory ověření jsou na místě – SSL.com se na ně podívá samo"
+  },
+  "smr0030": {
+   "source": "Auth token",
+   "text": "Auth token"
+  },
+  "smr0031": {
+   "source": "CNAME at the name the order says (DNSName) to its target (DNSEntry)",
+   "text": "CNAME na jménu, které řekne objednávka (DNSName), na jeho cíl (DNSEntry)"
+  },
+  "smr0032": {
+   "source": "Certificates bought through The SSL Store's REST API: reissued inside an order bought already, or ordered (only when paid orders are allowed), the domain validation record or file put in place by the certificate's validation. Lists the account's orders for importing.",
+   "text": "Certifikáty koupené přes REST API The SSL Store: vystavené znovu v už koupené objednávce, nebo objednané (jen když jsou placené objednávky povolené), záznam nebo soubor ověření domény připraví validace certifikátu. Vypíše objednávky účtu k importu."
+  },
+  "smr0033": {
+   "source": "DNS CNAME record (CNAMEAuthDVIndicator)",
+   "text": "Záznam DNS CNAME (CNAMEAuthDVIndicator)"
+  },
+  "smr0034": {
+   "source": "HTTP file (FileAuthDVIndicator)",
+   "text": "Soubor HTTP (FileAuthDVIndicator)"
+  },
+  "smr0035": {
+   "source": "Live (api.thesslstore.com)",
+   "text": "Ostrý provoz (api.thesslstore.com)"
+  },
+  "smr0036": {
+   "source": "Live, Europe (api.thesslstore.eu)",
+   "text": "Ostrý provoz, Evropa (api.thesslstore.eu)"
+  },
+  "smr0037": {
+   "source": "Load the list: the products of the account (product/query) - a product code can be typed too.",
+   "text": "Načtěte seznam: produkty účtu (product/query) – kód produktu lze i napsat."
+  },
+  "smr0038": {
+   "source": "Longer: it is asked for again at the next try - nothing is ordered twice. The order's details are refreshed every 5 minutes.",
+   "text": "Déle: zeptá se znovu při dalším pokusu – nic se neobjedná dvakrát. Údaje objednávky se obnovují každých 5 minut."
+  },
+  "smr0039": {
+   "source": "Numbers only, as The SSL Store asks.",
+   "text": "Jen číslice, jak The SSL Store chce."
+  },
+  "smr0040": {
+   "source": "Partner code",
+   "text": "Partner code"
+  },
+  "smr0041": {
+   "source": "Picked from the addresses the order offers (order/approverlist).",
+   "text": "Vybraná z adres, které objednávka nabídne (order/approverlist)."
+  },
+  "smr0042": {
+   "source": "Sandbox (sandbox-wbapi.thesslstore.com - dummy products)",
+   "text": "Sandbox (sandbox-wbapi.thesslstore.com – zkušební produkty)"
+  },
+  "smr0043": {
+   "source": "The API auth token made in API Settings. Never written into a job's steps.",
+   "text": "API auth token vytvořený v API Settings. Nikdy se nezapisuje do kroků úlohy."
+  },
+  "smr0044": {
+   "source": "The SSL Store (REST API)",
+   "text": "The SSL Store (REST API)"
+  },
+  "smr0045": {
+   "source": "The SSL Store API address is not an https address",
+   "text": "adresa API The SSL Store není adresa https"
+  },
+  "smr0046": {
+   "source": "The SSL Store account → API Settings: the partner code.",
+   "text": "Účet The SSL Store → API Settings: partner code."
+  },
+  "smr0047": {
+   "source": "TheSSLStoreOrderID of an order bought already: its certificate is reissued (free). Empty: the order acme made last for the certificate.",
+   "text": "TheSSLStoreOrderID už koupené objednávky: její certifikát se vystaví znovu (zdarma). Prázdné: objednávka, kterou acme pro certifikát udělalo naposledy."
+  },
+  "smr0048": {
+   "source": "Validity of a new order (months)",
+   "text": "Platnost nové objednávky (měsíce)"
+  },
+  "smr0049": {
+   "source": "ValidityPeriod: one of the product's NumberOfMonths.",
+   "text": "ValidityPeriod: jedna z hodnot NumberOfMonths produktu."
+  },
+  "smr0050": {
+   "source": "WebServerType of the order and the reissue.",
+   "text": "WebServerType objednávky a nového vystavení."
+  },
+  "smr0051": {
+   "source": "acme does not know the certificate's order at The SSL Store - revoke it in the account",
+   "text": "acme nezná objednávku certifikátu u The SSL Store – zneplatněte ho v účtu"
+  },
+  "smr0052": {
+   "source": "http://NAME/.well-known/pki-validation/FILE holding the order's lines",
+   "text": "http://JMÉNO/.well-known/pki-validation/SOUBOR s řádky z objednávky"
+  },
+  "smr0053": {
+   "source": "https://api.thesslstore.com/rest",
+   "text": "https://api.thesslstore.com/rest"
+  },
+  "smr0054": {
+   "source": "set the partner code and the auth token",
+   "text": "nastavte partner code a auth token"
+  },
+  "smr0055": {
+   "source": "the CA mails the approver address - someone there approves the certificate",
+   "text": "CA napíše na schvalovací adresu – někdo tam certifikát schválí"
+  },
+  "smr0056": {
+   "source": "the DCV records are in place - the CA looks at them by itself",
+   "text": "záznamy DCV jsou na místě – CA se na ně podívá sama"
+  },
+  "smr0057": {
+   "source": "the approver addresses",
+   "text": "schvalovací adresy"
+  },
+  "smr0058": {
+   "source": "the first address offered",
+   "text": "první nabídnutá adresa"
+  },
+  "smr0059": {
+   "source": "the partner code and token",
+   "text": "partner code a token"
+  },
+  "smr0060": {
+   "source": "13 months (IntranetSSL)",
+   "text": "13 měsíců (IntranetSSL)"
+  },
+  "smr0061": {
+   "source": "24 months (IntranetSSL)",
+   "text": "24 měsíců (IntranetSSL)"
+  },
+  "smr0062": {
+   "source": "3 months (90 days; CloudSSL)",
+   "text": "3 měsíce (90 dní; CloudSSL)"
+  },
+  "smr0063": {
+   "source": "36 months (IntranetSSL)",
+   "text": "36 měsíců (IntranetSSL)"
+  },
+  "smr0064": {
+   "source": "6 months (199 days; OrganizationSSL, ExtendedSSL)",
+   "text": "6 měsíců (199 dní; OrganizationSSL, ExtendedSSL)"
+  },
+  "smr0065": {
+   "source": "60 months (IntranetSSL)",
+   "text": "60 měsíců (IntranetSSL)"
+  },
+  "smr0066": {
+   "source": "An order bought already: its certificate is reissued with acme's request (ReIssue). Empty: the order acme made last for the certificate.",
+   "text": "Už koupená objednávka: její certifikát se vystaví znovu se žádostí acme (ReIssue). Prázdné: objednávka, kterou acme pro certifikát udělalo naposledy."
+  },
+  "smr0067": {
+   "source": "Approved in the MSSL profile already",
+   "text": "Už schválená v profilu MSSL"
+  },
+  "smr0068": {
+   "source": "Certificates of a GlobalSign Managed SSL account through its SOAP API: the domains approved in the MSSL profile (or added and verified by a DNS TXT record put in place by the certificate's validation), reissued inside an order or ordered (only when paid orders are allowed). Lists the account's orders for importing.",
+   "text": "Certifikáty účtu GlobalSign Managed SSL přes jeho SOAP API: domény schválené v profilu MSSL (nebo přidané a ověřené záznamem DNS TXT, který připraví validace certifikátu), vystavené znovu v objednávce nebo objednané (jen když jsou placené objednávky povolené). Vypíše objednávky účtu k importu."
+  },
+  "smr0069": {
+   "source": "DNS TXT record (AddDomainToProfile, DNS)",
+   "text": "Záznam DNS TXT (AddDomainToProfile, DNS)"
+  },
+  "smr0070": {
+   "source": "DNS TXT record (a domain not approved is added and verified by the certificate's DNS validation)",
+   "text": "Záznam DNS TXT (neschválená doména se přidá a ověří validací DNS certifikátu)"
+  },
+  "smr0071": {
+   "source": "Domain to add",
+   "text": "Doména k přidání"
+  },
+  "smr0072": {
+   "source": "GlobalSign MSSL (GCC API)",
+   "text": "GlobalSign MSSL (GCC API)"
+  },
+  "smr0073": {
+   "source": "GlobalSign took the order but said no order ID - look in GCC before trying again (a second order would be paid again)",
+   "text": "GlobalSign objednávku přijal, ale neřekl její ID – podívejte se do GCC, než to zkusíte znovu (druhá objednávka by se platila znovu)"
+  },
+  "smr0074": {
+   "source": "Import from a source reads the orders of this many days, 30 at a time.",
+   "text": "Import ze zdroje čte objednávky za tolik dní, po 30 dnech."
+  },
+  "smr0075": {
+   "source": "Load the list: the MSSL products of GlobalSign's guide - a code can be typed too.",
+   "text": "Načtěte seznam: produkty MSSL z příručky GlobalSign – kód lze i napsat."
+  },
+  "smr0076": {
+   "source": "Load the list: the MSSL profiles of the account (GetMSSLProfiles) - an ID can be typed too (GCC → MSSL → Manage Domains & Profiles).",
+   "text": "Načtěte seznam: profily MSSL účtu (GetMSSLProfiles) – ID lze i napsat (GCC → MSSL → Manage Domains & Profiles)."
+  },
+  "smr0077": {
+   "source": "MSSL profile",
+   "text": "Profil MSSL"
+  },
+  "smr0078": {
+   "source": "MSSL validates domains, not certificates: an approved domain covers its names for 199 days.",
+   "text": "MSSL ověřuje domény, ne certifikáty: schválená doména pokryje svá jména na 199 dní."
+  },
+  "smr0079": {
+   "source": "PV_SHA2",
+   "text": "PV_SHA2"
+  },
+  "smr0080": {
+   "source": "Production (system.globalsign.com)",
+   "text": "Produkce (system.globalsign.com)"
+  },
+  "smr0081": {
+   "source": "TXT at the domain holding GlobalSign's value (DnsTXT)",
+   "text": "TXT na doméně s hodnotou od GlobalSign (DnsTXT)"
+  },
+  "smr0082": {
+   "source": "Test (test-gcc.globalsign.com - an account on request)",
+   "text": "Test (test-gcc.globalsign.com – účet na požádání)"
+  },
+  "smr0083": {
+   "source": "The GCC user GlobalSign set up for API access.",
+   "text": "Uživatel GCC, kterému GlobalSign zřídil přístup k API."
+  },
+  "smr0084": {
+   "source": "The domain added to the profile for names not covered (its TXT record is put in place). Empty: each name itself, without \"*.\" and \"www.\".",
+   "text": "Doména, která se přidá do profilu pro nepokrytá jména (připraví se její záznam TXT). Prázdné: každé jméno samo, bez „*.“ a „www.“."
+  },
+  "smr0085": {
+   "source": "The domains are approved in the profile already",
+   "text": "Domény jsou v profilu už schválené"
+  },
+  "smr0086": {
+   "source": "Validity of a new order",
+   "text": "Platnost nové objednávky"
+  },
+  "smr0087": {
+   "source": "acme does not know the certificate's order at GlobalSign - revoke it in GCC",
+   "text": "acme nezná objednávku certifikátu u GlobalSign – zneplatněte ho v GCC"
+  },
+  "smr0088": {
+   "source": "cancelled - issued",
+   "text": "zrušená – vystavená"
+  },
+  "smr0089": {
+   "source": "cancelled - not issued",
+   "text": "zrušená – nevystavená"
+  },
+  "smr0090": {
+   "source": "example.com",
+   "text": "example.com"
+  },
+  "smr0091": {
+   "source": "nothing: the domain is approved in the profile (GCC → MSSL → Manage Domains)",
+   "text": "nic: doména je schválená v profilu (GCC → MSSL → Manage Domains)"
+  },
+  "smr0092": {
+   "source": "set the API user and the password",
+   "text": "nastavte uživatele API a heslo"
+  },
+  "smr0093": {
+   "source": "set the MSSL profile (its ID - Load the list)",
+   "text": "nastavte profil MSSL (jeho ID – Načíst seznam)"
+  },
+  "smr0094": {
+   "source": "the MSSL profiles",
+   "text": "profily MSSL"
+  },
+  "smr0095": {
+   "source": "the domains of the profile",
+   "text": "domény profilu"
+  },
+  "smr0096": {
+   "source": "the orders",
+   "text": "objednávky"
+  },
+  "smr0097": {
+   "source": "waiting for revocation",
+   "text": "čeká na zneplatnění"
+  },
+  "smr0098": {
+   "source": "waiting for the phishing check",
+   "text": "čeká na kontrolu phishingu"
+  },
+  "smr0099": {
+   "source": "Annual - 200 (only where the plan sells it)",
+   "text": "Roční – 200 (jen kde to tarif prodává)"
+  },
+  "smr0100": {
+   "source": "Annual - the legacy value 365",
+   "text": "Roční – starší hodnota 365"
+  },
+  "smr0101": {
+   "source": "certificate_validity_days of a new certificate: ZeroSSL documents 90 and, for an annual certificate, 200 (or the legacy 365).",
+   "text": "certificate_validity_days nového certifikátu: ZeroSSL dokumentuje 90 a pro roční certifikát 200 (nebo starší 365)."
+  },
+  "smr0102": {
+   "source": "EU (api.eu.venafi.cloud)",
+   "text": "EU (api.eu.venafi.cloud)"
+  },
+  "smr0103": {
+   "source": "organization=Example s.r.o.",
+   "text": "organization=Example s.r.o."
+  },
+  "smr0104": {
+   "source": "trust chain",
+   "text": "řetěz důvěry"
   }
  },
  "patterns": {
@@ -65309,6 +65725,218 @@
   "pres0093": {
    "source": "the order {0} could not be read ({1}) - downloaded by its number",
    "text": "objednávka {0} nešla přečíst ({1}) – stažena podle svého čísla"
+  },
+  "pmr0001": {
+   "source": "\"{0}\" is not an SSL.com order reference",
+   "text": "„{0}“ není reference objednávky SSL.com"
+  },
+  "pmr0002": {
+   "source": "SSL.com answered {0} to {1}, and not in JSON",
+   "text": "SSL.com odpovědělo {0} na {1}, a ne v JSON"
+  },
+  "pmr0003": {
+   "source": "SSL.com answers: the keys are let in ({0}); new paid orders {1}",
+   "text": "SSL.com odpovídá: klíče pustí dál ({0}); nové placené objednávky {1}"
+  },
+  "pmr0004": {
+   "source": "SSL.com did not issue: the order {0} is {1}",
+   "text": "SSL.com nevystavilo: objednávka {0} je {1}"
+  },
+  "pmr0005": {
+   "source": "SSL.com has not issued yet (order {0}: {1}) - the validation files stay in place; acme asks again at the next try",
+   "text": "SSL.com zatím nevystavilo (objednávka {0}: {1}) – soubory ověření zůstávají na místě; acme se zeptá znovu při dalším pokusu"
+  },
+  "pmr0006": {
+   "source": "SSL.com mails {0} - someone there approves the certificate",
+   "text": "SSL.com napíše na {0} – někdo tam certifikát schválí"
+  },
+  "pmr0007": {
+   "source": "SSL.com refused {0}: {1}{2}",
+   "text": "SSL.com odmítlo {0}: {1}{2}"
+  },
+  "pmr0008": {
+   "source": "SSL.com revoked serial {0} of order {1} ({2})",
+   "text": "SSL.com zneplatnilo sériové číslo {0} objednávky {1} ({2})"
+  },
+  "pmr0009": {
+   "source": "SSL.com said no validation file for order {0}",
+   "text": "SSL.com neřeklo pro objednávku {0} žádný soubor ověření"
+  },
+  "pmr0010": {
+   "source": "order {0} made at SSL.com: product {1} for {2} ({3})",
+   "text": "objednávka {0} u SSL.com: produkt {1} pro {2} ({3})"
+  },
+  "pmr0011": {
+   "source": "the chain could not be read ({0})",
+   "text": "řetěz nešlo přečíst ({0})"
+  },
+  "pmr0012": {
+   "source": "the order {0} is rekeyed with acme's request (no new purchase)",
+   "text": "objednávka {0} se vystaví znovu s žádostí acme (rekey, bez nového nákupu)"
+  },
+  "pmr0013": {
+   "source": "the order {0} waits at SSL.com since {1} - asked for again, nothing is ordered",
+   "text": "objednávka {0} čeká u SSL.com od {1} – zeptáno znovu, nic se neobjednává"
+  },
+  "pmr0014": {
+   "source": "the product {0} takes one name only - SSL.com lists more than one only for 100, 102 and 107",
+   "text": "produkt {0} bere jen jedno jméno – víc jmen SSL.com vypíše jen u 100, 102 a 107"
+  },
+  "pmr0015": {
+   "source": "the rekey of order {0}",
+   "text": "rekey objednávky {0}"
+  },
+  "pmr0016": {
+   "source": "the validation of order {0}",
+   "text": "ověření objednávky {0}"
+  },
+  "pmr0017": {
+   "source": "\"{0}\" is not a TheSSLStoreOrderID",
+   "text": "„{0}“ není TheSSLStoreOrderID"
+  },
+  "pmr0018": {
+   "source": "The SSL Store answers: the partner code and auth token are let in; new paid orders {0}",
+   "text": "The SSL Store odpovídá: partner code a auth token pustí dál; nové placené objednávky {0}"
+  },
+  "pmr0019": {
+   "source": "The SSL Store did not issue: the order {0} is {1}",
+   "text": "The SSL Store nevystavil: objednávka {0} je {1}"
+  },
+  "pmr0020": {
+   "source": "The SSL Store has not issued yet (order {0}: {1}) - the DCV records stay in place; acme asks again at the next try",
+   "text": "The SSL Store zatím nevystavil (objednávka {0}: {1}) – záznamy DCV zůstávají na místě; acme se zeptá znovu při dalším pokusu"
+  },
+  "pmr0021": {
+   "source": "The SSL Store offered no approver address for {0}",
+   "text": "The SSL Store nenabídl pro {0} žádnou schvalovací adresu"
+  },
+  "pmr0022": {
+   "source": "The SSL Store refused {0}: {1}{2}",
+   "text": "The SSL Store odmítl {0}: {1}{2}"
+  },
+  "pmr0023": {
+   "source": "The SSL Store said no DCV record or file for order {0} - acme asks again at the next try",
+   "text": "The SSL Store neřekl pro objednávku {0} žádný záznam ani soubor DCV – acme se zeptá znovu při dalším pokusu"
+  },
+  "pmr0024": {
+   "source": "The SSL Store took the order but said no order ID - look in the account (custom order ID {0}) before trying again (a second order would be paid again)",
+   "text": "The SSL Store objednávku přijal, ale neřekl její ID – podívejte se do účtu (custom order ID {0}), než to zkusíte znovu (druhá objednávka by se platila znovu)"
+  },
+  "pmr0025": {
+   "source": "The SSL Store took the revocation of order {0} ({1})",
+   "text": "The SSL Store přijal zneplatnění objednávky {0} ({1})"
+  },
+  "pmr0026": {
+   "source": "order {0} made at The SSL Store: product {1} for {2}",
+   "text": "objednávka {0} u The SSL Store: produkt {1} pro {2}"
+  },
+  "pmr0027": {
+   "source": "the order {0} is for {1}, the certificate for {2} - a reissue keeps the common name; set another \"Order to reuse\"",
+   "text": "objednávka {0} je pro {1}, certifikát pro {2} – nové vystavení zachová common name; nastavte jinou „Objednávku k použití“"
+  },
+  "pmr0028": {
+   "source": "the order {0} waits at The SSL Store since {1} - asked for again, nothing is ordered",
+   "text": "objednávka {0} čeká u The SSL Store od {1} – zeptáno znovu, nic se neobjednává"
+  },
+  "pmr0029": {
+   "source": "\"{0}\" is not a GlobalSign order ID",
+   "text": "„{0}“ není ID objednávky GlobalSign"
+  },
+  "pmr0030": {
+   "source": "\"{0}\" is not a GlobalSign product code",
+   "text": "„{0}“ není kód produktu GlobalSign"
+  },
+  "pmr0031": {
+   "source": "GlobalSign added {0} but said no domain ID or TXT value",
+   "text": "GlobalSign přidal {0}, ale neřekl ID domény ani hodnotu TXT"
+  },
+  "pmr0032": {
+   "source": "GlobalSign answered {0} to {1}, and not in SOAP",
+   "text": "GlobalSign odpověděl {0} na {1}, a ne v SOAP"
+  },
+  "pmr0033": {
+   "source": "GlobalSign did not issue: the order {0} is {1}",
+   "text": "GlobalSign nevystavil: objednávka {0} je {1}"
+  },
+  "pmr0034": {
+   "source": "GlobalSign has not issued yet (order {0}: {1}) - acme asks again at the next try",
+   "text": "GlobalSign zatím nevystavil (objednávka {0}: {1}) – acme se zeptá znovu při dalším pokusu"
+  },
+  "pmr0035": {
+   "source": "GlobalSign refused {0}: {1}",
+   "text": "GlobalSign odmítl {0}: {1}"
+  },
+  "pmr0036": {
+   "source": "GlobalSign refused {0}: {1}{2}",
+   "text": "GlobalSign odmítl {0}: {1}{2}"
+  },
+  "pmr0037": {
+   "source": "GlobalSign revoked order {0} (reason {1})",
+   "text": "GlobalSign zneplatnil objednávku {0} (důvod {1})"
+  },
+  "pmr0038": {
+   "source": "GlobalSign verified the domain {0}",
+   "text": "GlobalSign ověřil doménu {0}"
+  },
+  "pmr0039": {
+   "source": "GlobalSign warns about {0}: {1}",
+   "text": "GlobalSign varuje u {0}: {1}"
+  },
+  "pmr0040": {
+   "source": "adding {0} to the profile",
+   "text": "přidání {0} do profilu"
+  },
+  "pmr0041": {
+   "source": "no approved domain of profile {0} covers {1} - approve the domain in GCC (MSSL → Manage Domains) or choose the DNS TXT method",
+   "text": "žádná schválená doména profilu {0} nepokrývá {1} – schvalte doménu v GCC (MSSL → Manage Domains) nebo zvolte metodu DNS TXT"
+  },
+  "pmr0042": {
+   "source": "order {0} made at GlobalSign: {1} for {2}",
+   "text": "objednávka {0} u GlobalSign: {1} pro {2}"
+  },
+  "pmr0043": {
+   "source": "reissue of order {0} asked for: order {1} (no new purchase)",
+   "text": "o nové vystavení objednávky {0} požádáno: objednávka {1} (bez nového nákupu)"
+  },
+  "pmr0044": {
+   "source": "the domain {0} was added to profile {1} ({2})",
+   "text": "doména {0} byla přidána do profilu {1} ({2})"
+  },
+  "pmr0045": {
+   "source": "the order {0} waits at GlobalSign since {1} - asked for again, nothing is ordered",
+   "text": "objednávka {0} čeká u GlobalSign od {1} – zeptáno znovu, nic se neobjednává"
+  },
+  "pmr0046": {
+   "source": "the profile's domains do not cover {0} yet - acme asks again at the next try",
+   "text": "domény profilu zatím nepokrývají {0} – acme se zeptá znovu při dalším pokusu"
+  },
+  "pmr0047": {
+   "source": "the verification of {0}",
+   "text": "ověření {0}"
+  },
+  "pmr0048": {
+   "source": "{0} SSL products (SSL.com's documented list)",
+   "text": "{0} SSL produktů (zdokumentovaný seznam SSL.com)"
+  },
+  "pmr0049": {
+   "source": "{0} MSSL profile(s)",
+   "text": "profilů MSSL: {0}"
+  },
+  "pmr0050": {
+   "source": "{0} MSSL products (GlobalSign's guide)",
+   "text": "{0} produktů MSSL (příručka GlobalSign)"
+  },
+  "pmr0051": {
+   "source": "GlobalSign answers: signed in; {0} MSSL profile(s)",
+   "text": "GlobalSign odpovídá: přihlášeno; profilů MSSL: {0}"
+  },
+  "pmr0052": {
+   "source": "; profile {0} has {1} approved domain(s)",
+   "text": "; profil {0} má schválených domén: {1}"
+  },
+  "pmr0053": {
+   "source": "SSL.com says it is {0}",
+   "text": "SSL.com říká, že je {0}"
   }
  },
  "rich": {

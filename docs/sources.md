@@ -28,6 +28,9 @@ certificate with its chain, ordered and checked against the key. *Try it*
 | [Certum (partner API)](#certum-partner-api) | `certum` | partner login and password (SOAP) | yes (DCV: kept) | yes |
 | [GoGetSSL (reseller API)](#gogetssl-reseller-api) | `gogetssl` | user and API password | yes (DCV: kept) | - (cancel only) |
 | [Namecheap SSL (API)](#namecheap-ssl-api) | `namecheap_ssl` | API user, API key, client IP | yes (DCV: kept) | replaced ones only |
+| [SSL.com (SWS API)](#sslcom-sws-api) | `sslcom` | account key and secret key | yes (DCV: kept) | yes (by serial) |
+| [The SSL Store (REST API)](#the-ssl-store-rest-api) | `sslstore` | partner code and auth token | yes (DCV: kept) | yes |
+| [GlobalSign MSSL (GCC API)](#globalsign-mssl-gcc-api) | `globalsign_mssl` | API user and password (SOAP) | yes (kept) | yes (the order) |
 
 A request a CA keeps waiting is remembered in the module's state together
 with its key (sealed): the next try asks for it again instead of making a new
@@ -48,7 +51,13 @@ whether ECS still serves anything else could not be found - so no module is
 written for an API on its way out. The four modules of 1.0.27 (`sectigo_scm`,
 `certum`, `gogetssl`, `namecheap_ssl`) were written from the vendors' own API
 descriptions, collected from their sites (the files named in each section);
-what those leave open is said there as *Less certain* - nothing is guessed.
+what those leave open is said there as *Less certain* - nothing is guessed. So
+were the three of 1.0.28 (`sslcom`, `sslstore`, `globalsign_mssl`), from the
+second collection of the vendors' API documents (api-docs, 2026-11-03: each
+vendor's folder, its `notes.md` with the quotes and their addresses, and the
+machine descriptions named below); the modules written before were checked
+against the same collection - see [Checked against the vendors' documents
+(1.0.28)](#checked-against-the-vendors-documents-1028).
 
 ---
 
@@ -333,16 +342,24 @@ What acme does: `POST /login` (API key and secret, over the account's mTLS
 certificate), `POST /certificates` with the subject, SANs and the CSR as
 `public_key` (answer: the serial in `Location`), `GET /certificates/<serial>`
 until it is there, `GET /trustchain`; `PATCH /certificates/<serial>` to
-revoke. Source: GlobalSign's own client (github.com/globalsign/hvclient) and
-GlobalSign's API documentation
-(https://www.globalsign.com/en/resources/apis/api-documentation/globalsign_atlas_certificate_management_api.html).
+revoke (`revocation_reason` one of `unspecified`, `keyCompromise`,
+`affiliationChanged`, `cessationOfOperation`, `superseded` - others are sent as
+`unspecified`). Import from a source: `GET /stats/issued`, 30 days at a time ("Max
+time window supported is 30 days"; until 1.0.27 one window of 400 days was asked
+for) over the last 400 days. Source: GlobalSign's own client
+(github.com/globalsign/hvclient) and GlobalSign's API documentation
+(https://www.globalsign.com/en/resources/apis/api-documentation/globalsign_atlas_certificate_management_api.html,
+quoted in api-docs `globalsign/notes.md`, part A).
 
 Where to get credentials: the Atlas portal → API credentials: an API key and
 secret and the mTLS certificate (with its key). The names must be verified
 domains of the account (Atlas → Domains). *More of the subject* adds what the
 account's validation policy wants (`organization=…`, `country=CZ`).
 
-Uncertain: Atlas's answer for an unverified domain (it is said as it comes).
+Uncertain: Atlas's answer for an unverified domain (it is said as it comes); the
+form of `serial_number` in `/stats` (the documentation's example is all digits; it is
+used as hex, as hvclient does). GlobalSign's other API, MSSL of GCC, is the
+`globalsign_mssl` source below.
 
 ## DigiCert CertCentral (API)
 
@@ -462,16 +479,19 @@ the certificates in the account's dashboard (and Import from a source), 1-year
 certificates where the plan sells them, DCV by e-mail.
 
 What acme does: `POST /certificates` with the names (`certificate_domains`),
-the CSR, `certificate_validity_days` (90 or 365) and `strict_domains=1`; the
+the CSR, `certificate_validity_days` (90; an annual one 200, or the legacy 365) and
+`strict_domains=1`; the
 DCV record or file ZeroSSL answers with (`validation.other_methods`) is put in
 place by the certificate's validation, as for DigiCert; then
 `POST /certificates/{id}/challenges` (`CNAME_CSR_HASH`, `HTTP_CSR_HASH` or
-`EMAIL` with the approver addresses), `GET /certificates/{id}` until `issued`,
-`GET /certificates/{id}/download/return` (the certificate and `ca_bundle.crt`).
+`EMAIL` with the approver addresses - a CNAME or file not seen yet is asked for
+again at the next try), `GET /certificates/{id}` until `issued`,
+`GET /certificates/{id}/download/json` (the certificate and `ca_bundle.crt`;
+`return` is deprecated).
 A certificate still waiting is kept for the next try - nothing asked for twice.
 `POST /certificates/{id}/revoke?reason=…` revokes it. *Try it*:
 `GET /certificates?limit=1`. Import from a source: `GET /certificates` page by
-page, each one's `download/return`.
+page, each one's `download/json`.
 
 | *Domain validation (DCV)* | Method | What is put in place | Validations that can |
 |---|---|---|---|
@@ -484,9 +504,11 @@ older account that still wants the parameter `access_key` chooses *How the API
 key is sent*. ZeroSSL answers 200 even to an error - `{"success": false,
 "error": {code, type}}` is said in words; the key never goes into a step.
 
-Verified against (ZeroSSL's documentation, https://zerossl.com/documentation/api/,
-could not be read from where this was written): ZeroSSL's own Go client - Caddy
-is ZeroSSL's project -
+Verified against ZeroSSL's documentation (since 1.0.28: api-docs `zerossl/notes.md`,
+quoting https://zerossl.com/documentation/api/ and its pages create-certificate,
+verify-domains, get-certificate, download-certificate, list-certificates,
+cancel-certificate, revoke-certificate, error-codes) and ZeroSSL's own Go client -
+Caddy is ZeroSSL's project -
 https://raw.githubusercontent.com/caddyserver/zerossl/master/endpoints.go,
 https://raw.githubusercontent.com/caddyserver/zerossl/master/client.go,
 https://raw.githubusercontent.com/caddyserver/zerossl/master/models.go,
@@ -495,7 +517,10 @@ https://raw.githubusercontent.com/caddyserver/zerossl/master/zerossl.go
 
 Where to get credentials: the ZeroSSL dashboard → Developer → the API access
 key. Uncertain: what `replacement_for_certificate` does to an account (not
-sent); `HTTPS_CSR_HASH` is not offered.
+sent); whether 365 days is still taken ("legacy"); whether `cname_validation_p1`
+comes with a leading underscore (used as answered); the case of `Unspecified`
+among the revocation reasons (sent lower case, as the Go client does);
+`HTTPS_CSR_HASH` is not offered.
 
 ## CyberArk Certificate Manager Self-Hosted (Venafi TPP)
 
@@ -505,9 +530,10 @@ Manager, Self-Hosted*, through its WebSDK.
 What acme does: signs in with `POST /vedauth/authorize/oauth` (`client_id`
 `vcert-sdk`, scope `certificate:manage,revoke` - both settings) or uses an
 access token made in the platform; `POST /vedsdk/certificates/request` with the
-CSR into the policy folder (`PolicyDN` `\VED\Policy\…`, the SANs, an optional
-`CADN`), then `POST /vedsdk/certificates/retrieve` until the certificate is
-there (with its chain). A renewal - and a certificate imported from the platform
+CSR into the policy folder (`PolicyDN` `\VED\Policy\…`, the SANs as
+`{"TypeName": "2", "Name": …}`, an optional `CADN`), then `POST
+/vedsdk/certificates/retrieve` (`Format` `Base64` - the reference's "case
+sensitive values") until the certificate is there (with its chain). A renewal - and a certificate imported from the platform
 (its DN is its id) - goes to `POST /vedsdk/certificates/renew` of that object
 (*Renew the same certificate object*). `POST /vedsdk/certificates/revoke` by the
 SHA-1 thumbprint. *Try it*: `GET /vedsdk/Identity/Self`. The form's list of
@@ -522,7 +548,11 @@ https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/tpp/connector.g
 https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/tpp/search.go,
 https://raw.githubusercontent.com/Venafi/vcert/master/pkg/certificate/certificate.go,
 https://raw.githubusercontent.com/Venafi/vcert/master/README-CLI-PLATFORM.md
-(github.com/Venafi/vcert).
+(github.com/Venafi/vcert), and (1.0.28) the WebSDK reference quoted in api-docs
+`venafi/notes.md` (https://docs.venafi.com/Docs/current/TopNav/Content/SDK/WebSDK/r-SDK-POST-Certificates-request.php,
+`…-retrieve.php`, `…-renew.php`, `…-revoke.php`, `r-SDK-GET-Certificates.php`).
+*Less certain*: whether `PKCS10` wants the PEM's line breaks (the reference says both
+"Omit escape characters such as \n" and shows `\n` in CheckPolicy - sent as PEM).
 
 Where to get credentials: a user with *WebSDK access* and the right to request
 certificates in the folder; the API integration *VCert* (`vcert-sdk`) with the
@@ -536,15 +566,17 @@ Manager, SaaS*.
 What acme does: `GET /outagedetection/v1/applications/name/{application}` (its
 id and its issuing templates by API alias), `POST
 /outagedetection/v1/certificaterequests` with the CSR, the application, the
-template and `validityPeriod` (`P<days>D`, when set), `GET
+template, `isVaaSGenerated: false` (the one field the OpenAPI definition requires)
+and `validityPeriod` (`P<days>D`, when set), `GET
 /outagedetection/v1/certificaterequests/{id}` until `ISSUED`, then `GET
 /outagedetection/v1/certificates/{id}/contents?chainOrder=EE_FIRST&format=PEM`.
 A renewal - and an imported certificate - is a request with
-`existingCertificateId` and the application and template of the request that
-made it (`GET /outagedetection/v1/certificates/{id}`). *Try it*: `GET
+`existingCertificateId`, `renewType: USER_PROVIDED_CSR` and the application and
+template of the request that made it (`GET /outagedetection/v1/certificates/{id}`). *Try it*: `GET
 /v1/useraccounts`. Import from a source: `POST
 /outagedetection/v1/certificatesearch` (the application, `validityEnd` ≥ now,
-50 a page). Regions: `api.venafi.cloud` (US), `api.venafi.eu`,
+50 a page). Regions: `api.venafi.cloud` (US), `api.eu.venafi.cloud` (until 1.0.27
+`api.venafi.eu` was used - the definition's `servers` say `api.eu.venafi.cloud`),
 `api.au.venafi.cloud`, `api.uk.venafi.cloud`, `api.sg.venafi.cloud`,
 `api.ca.venafi.cloud`; the key in the header `tppl-api-key`. Revocation goes
 through the service's GraphQL API in vcert, so it is not offered here.
@@ -554,7 +586,10 @@ https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/cloud/connector
 https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/cloud/cloud.go,
 https://raw.githubusercontent.com/Venafi/vcert/master/pkg/venafi/cloud/search.go,
 https://raw.githubusercontent.com/Venafi/vcert/master/pkg/util/utils.go,
-https://raw.githubusercontent.com/Venafi/vcert/master/README-CLI-CLOUD.md.
+https://raw.githubusercontent.com/Venafi/vcert/master/README-CLI-CLOUD.md, and
+(1.0.28) the service's OpenAPI definitions (api-docs `venafi/cloud-openapi.json`,
+merged from https://developer.venafi.com/tlsprotectcloud/reference/certificaterequests_create
+and the other pages named in its `x-merged-from`).
 
 Where to get credentials: the web interface → your name → Preferences → API
 Keys; an application you own with an issuing template assigned (its API alias).
@@ -565,10 +600,13 @@ What it is: Keyfactor Command (its REST API, `/KeyfactorAPI`). Keyfactor's
 EJBCA is the `ejbca` source.
 
 What acme does: `POST /KeyfactorAPI/Enrollment/CSR` (header
-`x-certificateformat: PEM`) with the CSR, the template, the CA, the SANs and
+`x-certificateformat: PEM`) with the CSR, the template, the CA, the SANs
+(`{"dns": […], "ip": […]}`, the keys of Command's reference; until 1.0.27 `ip4`/`ip6`) and
 `IncludeChain` - the certificate and its chain come in the answer; a template
 that needs an approval leaves the request waiting in Command, and acme says so.
-`POST /KeyfactorAPI/Certificates/Revoke` by the certificate's Keyfactor id
+`POST /KeyfactorAPI/Certificates/Revoke` (its `Reason` is Command's own list - 7 is
+*Remove from CRL*, RFC 5280's 8; reasons Command does not list are sent as 0) by the
+certificate's Keyfactor id
 (kept, or found by its thumbprint with `GET /KeyfactorAPI/Certificates?
 pq.queryString=Thumbprint -eq "…"`). The form's lists and *Try it*: `GET
 /KeyfactorAPI/Enrollment/CSR/Context/My` (the templates and their CAs the user
@@ -593,7 +631,13 @@ https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client-sdk/main/docs/Mo
 OpenAPI), https://raw.githubusercontent.com/Keyfactor/keyfactor-go-client/main/v3/api/certificate.go
 and `certificate_models.go` (the headers, the download, the revocation), and
 https://raw.githubusercontent.com/Keyfactor/keyfactor-auth-client-go/main/auth_providers/auth_core.go,
-`auth_basic.go`, `auth_oauth.go` (the API path, Basic and OAuth).
+`auth_basic.go`, `auth_oauth.go` (the API path, Basic and OAuth); and (1.0.28)
+Command's reference quoted in api-docs `keyfactor/notes.md`
+(https://software.keyfactor.com/Core-OnPrem/Current/Content/WebAPI/KeyfactorAPI/EnrollmentPOSTCSR.htm,
+`CertificatesPOSTRevoke.htm`, `CertificatesGET.htm`, `CertificatesPOSTDownload.htm`,
+`Web%20API%20Common%20Features.htm`). *Less certain*: whether `GET Certificates` takes
+the SDK's `pq.` prefix (sent) or the reference's bare `QueryString`/`PageReturned`;
+the `RequestDisposition` of a request waiting for approval (none is documented).
 
 Where to get credentials: a Command user (or an OAuth client of the identity
 provider Command trusts) with *Certificate Enrollment: Enroll CSR* and, to
@@ -878,3 +922,235 @@ lists of AWS Private CA and EJBCA.
 
 `test/test_sources_vendors.py` lists, for each of these five, every path the
 module may call as the vendor's client has it (a contract test).
+
+## SSL.com (SWS API)
+
+What it is: SSL.com, through its **SSL Web Services (SWS) API** (JSON,
+`https://sws.sslpki.com`; the sandbox `https://sws-test.sslpki.com` is an account
+of its own). SSL.com's newer CLM API (Bearer token, `/teams/{team_id}/…`) is not
+used: the collected documents describe SWS.
+
+What acme does: a certificate is **rekeyed inside an order bought already** -
+*Order to reuse*, the one it was imported from, or the one acme made last: `GET
+/certificate/{ref}` (not revoked, expired, cancelled; its `expiration_date` ahead),
+then `PUT /certificate/{ref} {csr, server_software, domains}` - the call SSL.com
+documents to "process a voucher, rekey an existing certificate order, or change the
+validation method(s)" (an unused voucher is processed the same way). A **new order
+is a purchase** (`POST /certificates {product, period, csr, server_software,
+domains, contacts {all {first_name, last_name, email, phone, country}}}` - "the
+price ... will be deducted from the account") and is made only when *Allow new
+orders (paid)* is on. The DCV file of `GET /certificate/{ref}/validations/methods`
+(`dcv_methods.NAME.http_csr_hash {http, contents}`) is put in place by the
+certificate's validation; SSL.com looks at it by itself, and `GET
+/certificate/{ref}?response_type=individually&response_encoding=base64` is read
+until `order_status` is `issued` (the chain from the `pkcs7` form when
+`certificates` holds the certificate alone). A request still waiting is kept for the
+next try. `DELETE /certificate/{ref} {reason, serials}` revokes - **always with the
+serial** (colon hex, as SSL.com's example), since without `serials` "all issued
+certificates will be revoked for the certificate order". *Try it*: `GET
+/certificates?per_page=1`. The list *Product of a new order* is the fixed list of
+the API description's `product` field (100 EV UCC, 101 UCC, 102 EV, 103 High
+Assurance, 104 Free, 105 Wildcard, 106 Basic, 107 Premium - more than one name only
+for 100, 102 and 107); no call lists products. Import from a source: `GET
+/certificates?per_page=100&page=N`, each issued order read (`GET
+/certificate/{ref}`). `account_key` and `secret_key` go in the query of a GET and
+in the JSON body of a POST, PUT and DELETE (as the guide's examples send them);
+neither ever goes into a step.
+
+| *Domain validation (DCV)* | `domains.NAME.dcv` | What is put in place | Validations that can |
+|---|---|---|---|
+| HTTP file | `HTTP_CSR_HASH` | `http://NAME/.well-known/pki-validation/MD5.txt` holding `contents` | the HTTP validations. Not for wildcards |
+| E-mail | the address (*Approver mailbox*@ the name) | nothing: SSL.com mails it | no validation needed |
+
+Verified against SSL.com's own documents: the OpenAPI 3.0.1 description "SSL Web
+Services (SWS) API" (https://api.swaggerhub.com/apis/SSL.com/ssl_certificate_api/1.0.0,
+embedded in https://www.ssl.com/ssl-web-services-sws-api/; api-docs
+`sslcom/openapi.json`) and https://www.ssl.com/guide/ssl-coms-sws-api-introduction/
+(quoted in api-docs `sslcom/notes.md`).
+
+Where to get credentials: the SSL.com dashboard → *api credentials*: the
+`account_key` and `secret_key` (the sandbox's in the sandbox account).
+
+*Less certain*: **DNS validation is not offered** - the CNAME is answered
+(`cname_csr_hash {name, value}`), but the value that asks for it in `domains.NAME.dcv`
+is not documented (only `HTTP_CSR_HASH` and e-mail addresses are); no call asks
+SSL.com to look at the validation now (it looks by itself; the order is read again);
+the full list of `order_status` values (those of the examples are used; one with
+"revoked", "expired", "cancel" or "reject" is the end); whether `certificates`
+holds the chain, and with PEM headers (both read); the organization fields' names
+(the description's `organization`, `state_or_providence` against the guide's
+`organization_name`, `state_or_province_name` - not sent: an OV/EV order takes them
+from the CSR); a renewal call (none documented - a renewal is a rekey inside the
+order, or a new order).
+
+## The SSL Store (REST API)
+
+What it is: The SSL Store (TheSSLStore.com, the reseller - Sectigo, DigiCert and
+other brands) through its **REST API** (`https://api.thesslstore.com/rest`, the
+European `https://api.thesslstore.eu/rest`, the sandbox
+`https://sandbox-wbapi.thesslstore.com/rest` with dummy products).
+
+What acme does: every call is a `POST` of JSON with `AuthRequest {PartnerCode,
+AuthToken}` in the body; an error is HTTP 200 with `AuthResponse.isError` (said in
+words without the token). A certificate is **reissued inside an order bought
+already** (*Order to reuse*, the one it was imported from, or the one acme made
+last): `POST /order/info` (its `MajorStatus` `Active`/`Complete`, its end ahead),
+then `POST /order/reissue {TheSSLStoreOrderID, CSR, WebServerType, isWildCard,
+ReissueEmail, AddSAN, DeleteSAN, FileAuthDVIndicator | CNAMEAuthDVIndicator,
+ApproverEmails, PreferEnrollmentLink: false}` (a reissue keeps the common name). A
+**new order is a purchase** (`POST /order/neworder {CustomOrderID, ProductCode,
+ValidityPeriod (months), ServerCount, CSR, DomainName, DNSNames, WebServerType,
+isCUOrder, isRenewalOrder, isTrialOrder (false), AdminContact, TechnicalContact,
+ApproverEmail, FileAuthDVIndicator, CNAMEAuthDVIndicator}`), made only when *Allow
+new orders (paid)* is on; for the e-mail validation `POST /order/approverlist` is
+asked first ("You must have to call /order/approverlist/ API method before passing
+the value in ApproverEmail field for COMODO Products"). The order's
+`OrderStatus.DomainAuthVettingStatus[]` (`DNSName` → `DNSEntry`, or `FileName` +
+`FileContents`; else the order's `CNAMEAuthName`/`CNAMEAuthValue`,
+`AuthFileName`/`AuthFileContent`) is put in place by the certificate's validation,
+then `POST /order/info` is read (it is refreshed every 5 minutes - *Ask again every*
+is 60 s; the "live" status is not polled, as the API asks) until the order is done,
+and `POST /order/certificate/download` gives the certificate and its chain
+(`Certificates[].FileContent` - which one is the certificate is read from the
+certificates, not their file names). `POST /order/certificaterevokerequest
+{TheSSLStoreOrderID, RevokeReason}` revokes. *Try it*: `POST /health/validate`. The
+list *Product of a new order*: `POST /product/query` (code-signing, S/MIME and scan
+products left out). Import from a source: `POST /order/query {StartDate, EndDate
+("/Date(ms)/"), PageNumber, PageSize 100}`.
+
+| *Domain validation (DCV)* | Sent | What is put in place | Validations that can |
+|---|---|---|---|
+| DNS CNAME record | `CNAMEAuthDVIndicator: true` | CNAME `DNSName` → `DNSEntry` | the DNS validations that write CNAMEs |
+| HTTP file | `FileAuthDVIndicator: true` | `http://NAME/.well-known/pki-validation/FileName` holding `FileContents` | the HTTP validations. Not for wildcards |
+| E-mail | `ApproverEmail` (from `order/approverlist`) | nothing: the CA mails it | no validation needed |
+
+Verified against The SSL Store's own documents: its OpenAPI 3.0.4 description served
+by the API (https://api.thesslstore.com/swagger/v1/swagger.json; api-docs
+`sslstore/swagger.json`) and the REST API Guide (https://www.thesslstore.com/api/ -
+the live site refuses scripts; read from its copies in the Wayback Machine:
+`new-order`, `re-issue`, `query-order`, `download-certificate`,
+`certificate-revoke-request`, `error-codes`, `order-status-defination`, quoted in
+api-docs `sslstore/notes.md`). Where the two differ, swagger.json is followed.
+
+Where to get credentials: the account → *API Settings*: the partner code and an API
+auth token (a sandbox partner code and token are given on request).
+
+*Less certain* (to be checked on the sandbox, as the collected notes say): the
+download's path - swagger.json's `/order/certificate/download` is used, and the
+`/order/download` of its own text and the guide when the first answers 404; the word
+for done - `ACTIVE` (the guide, the examples) or `COMPLETE` (swagger.json's text):
+both are taken; the shape of `DNSName` and `FileName` (a name ending in the domain is
+used as it is, a bare label gets the domain; a bare file name goes under
+`/.well-known/pki-validation/`); whether the CSR must be URL-encoded inside JSON
+("both base64 and URI encoded") - it is sent as PEM, as swagger.json's example shows;
+what `ApproverEmail` holds for a CNAME or file validation (not sent); the values of
+`WebServerType` (*Web server type*, `Other`); the meaning of the `AddSAN`/`DeleteSAN`
+pairs (an added name `{OldValue "", NewValue NAME}`, a removed one `{OldValue NAME,
+NewValue ""}`). No call asks the CA to look at the validation now except for DigiCert
+products (`/digicert/checkdcv`, not used). A renewal order (`isRenewalOrder`,
+`RelatedTheSSLStoreOrderID`) is not made - a new order is (only with *Allow new orders
+(paid)*).
+
+## GlobalSign MSSL (GCC API)
+
+What it is: a **Managed SSL** account of GlobalSign Certificate Center (GCC),
+through its SOAP API (`ManagedSSLService` and `GASService`,
+`https://system.globalsign.com/kb/ws/v1/…`, the test system
+`https://test-gcc.globalsign.com/kb/ws/v1/…`). Atlas (HVCA) is the
+`globalsign_atlas` source.
+
+What acme does: MSSL validates **domains of the profile, not certificates**: "the
+Domain Names for the CommonName and all Subject Alternative Names (SANs) must be
+registered and approved for the account prior to placing the order". `GetDomains
+{ProfileID}` says which domains of *MSSL profile* are approved (status 3; 7, 9, 10
+while being renewed); each name of the certificate must end in one. With *Domain
+validation* `The domains are approved in the profile already` a name not covered
+stops the certificate with words; with `DNS TXT record`, acme adds the domain
+(`AddDomainToProfile {MSSLProfileID, DomainName, VettingLevel OV, VettingType DNS,
+ContactInfo}` → `MSSLDomainID`, `DnsTXT`), the certificate's DNS validation puts
+the TXT record at the domain, and `VerifyMsslDomain {DomainID, TagLocation (the
+domain), VettingType DNS}` approves it (for 199 days). Then a certificate is
+**reissued inside an order bought already** (*Order to reuse*, the one it was
+imported from, the one acme made last - when it is issued and for the same names):
+`ReIssue {OrderParameter {CSR}, TargetOrderID}` ("A reissued certificate replaces the
+first certificate with an identical one, except for a new key pair") gives a new
+OrderID. A **new order is a purchase** (`PVOrder {OrderRequestParameter {ProductCode,
+BaseOption (wildcard), OrderKind new, Licenses 1, Options (SAN), ValidityPeriod
+Months, CSR}, MSSLProfileID, MSSLDomainID (the common name's domain), ContactInfo,
+SANEntries}`), made only when *Allow new orders (paid)* is on. `GetOrderByOrderID
+{OrderID, OrderQueryOption {ReturnCertificateInfo, ReturnFulfillment, ReturnCACerts,
+...}}` is read until `OrderStatus` 4 (*Issue completed*) and its `Fulfillment` gives
+`ServerCertificate/X509Cert` and the `CACertificates` (put in order). An order still
+waiting is kept for the next try. `RevokeMSSLOrder {OrderID, RevokeReason 0 | 1 | 3 |
+4 | 5}` revokes. *Try it* and the list *MSSL profile*: `GetMSSLProfiles`; the list
+*Product of a new order* is the guide's (PV_SHA2 OrganizationSSL, PEV_SHA2 ExtendedSSL,
+PV_CLOUD, PV_CLOUD_ECC2, PV_INTRA_SHA2, PV_INTRA_ECCP256). Import from a source:
+`GetOrderByDateRange` 30 days at a time over *Orders listed (days back)* ("Most API
+query responses are currently limited to 500 items per response"). Every request
+carries `AuthToken {UserName, Password}` in its `OrderRequestHeader` or
+`QueryRequestHeader`; `SuccessCode` -1 is said with its `ErrorCode`s (-4001: the user
+or password), 1 (a phishing warning) is said and the order goes on.
+
+| *Domain validation (DCV)* | MSSL's calls | What is put in place | Validations that can |
+|---|---|---|---|
+| Approved in the profile already | `GetDomains` | nothing | no validation needed |
+| DNS TXT record | `AddDomainToProfile` (DNS) → `VerifyMsslDomain` | TXT at the domain holding `DnsTXT` | every DNS validation that writes TXT records |
+
+Verified against GlobalSign's own documents: the *MSSL API User Guide v2.19*
+(https://www.globalsign.com/en/repository/globalsign-mssl-api-user-guide.pdf, api-docs
+`globalsign/globalsign-mssl-api-user-guide.pdf`: 2.2, 2.4, 2.5, 3.1, 3.5, 4.2, 4.4, 4.7,
+5.1, 6.1, 6.2, 6.8, 8.2, 8.8 - 8.11, 10.1, 10.3, 10.5, 11) and the services' WSDLs
+(https://system.globalsign.com/kb/ws/v1/ManagedSSLService?wsdl,
+https://system.globalsign.com/kb/ws/v1/GASService?wsdl - api-docs
+`globalsign/ManagedSSLService-v1.wsdl`, `globalsign/GASService-v1.wsdl`: every element
+and its order), quoted in api-docs `globalsign/notes.md` (part B).
+
+Where to get credentials: an API user GlobalSign set up for the MSSL account; the
+profile's ID (GCC → MSSL → Manage Domains & Profiles); test accounts "are available to
+API customers upon request".
+
+*Less certain*: whether `DnsTXT` comes with the prefix
+`globalsign-domain-verification=` (the TXT holds `DnsTXT` as answered); which domain a
+name needs (the shortest approved domain of the profile it ends in; a domain acme adds
+is the name without `*.` and `www.`, or *Domain to add*); the `SANOptionType` of a name
+(7 *FQDN SAN*, 13 *Wildcard SAN*); whether a SAN may be of another approved domain than
+the common name's (the common name's `MSSLDomainID` is sent); the date-time format of
+the queries (`YYYY-MM-DDTHH:MM:SS.000Z`, the guide's "XML Simple Type"); whether
+`DomainID` and `ApproverEmail` of `AddDomainToProfile` may be left out for the DNS
+method (the WSDL marks them required, the guide "Only when VettingType=Email" - left
+out). The HTTP method of the domain validation is not offered: what `gsdv.txt` holds is
+not said (the answer's `MetaTag` is a meta tag). A renewal order (`OrderKind renewal`,
+`RenewalTargetOrderID`) is not made. The SSL API (`ServerSSLService`: DomainSSL,
+AlphaSSL with `DVDNSOrder`) is not used.
+
+## Checked against the vendors' documents (1.0.28)
+
+The modules written before were read again against the second collection of the
+vendors' API documents (api-docs, 2026-11-03). Changed, where a document says
+otherwise than the module did:
+
+| Module | What changed | The document |
+|---|---|---|
+| `zerossl` | an annual certificate is 200 days (365 kept as "legacy"); the download is `download/json` (`return` is deprecated); a CNAME or file not seen yet (`domain_control_validation_failed`) is tried again | `zerossl/notes.md`: create-certificate, download-certificate, verify-domains |
+| `venafi_cloud` | the EU region is `api.eu.venafi.cloud` (was `api.venafi.eu`); `isVaaSGenerated: false` is sent; a renewal sends `renewType: USER_PROVIDED_CSR` | `venafi/cloud-openapi.json` (`servers`, `CertificateRequestRequest`) |
+| `venafi_tpp` | `Format` is `Base64` (case sensitive); the SANs are `{"TypeName": "2", "Name"}` | `venafi/notes.md`: Certificates/Retrieve, Certificates/Request |
+| `keyfactor_command` | the SANs' IP key is `ip` (was `ip4`/`ip6`); `Reason` is Command's own list (RFC 5280's removeFromCRL 8 is Command's 7; others 0) | `keyfactor/notes.md`: EnrollmentPOSTCSR, CertificatesPOSTRevoke |
+| `globalsign_atlas` | `/stats/issued` is asked 30 days at a time ("Max time window supported is 30 days"); `privilegeWithdrawn` is not a documented `revocation_reason` (sent as `unspecified`) | `globalsign/notes.md`, part A |
+
+Confirmed, unchanged: `step_ca` (`/1.0/sign`, the one-time token's claims, `/1.0/revoke`
+with `passive: true` - `step_ca/notes.md`); `freeipa` (`login_password`, the Referer,
+`cert_request`, `cert_find`, `cert_revoke` without reason 7 - `freeipa/API.txt`);
+`aws_pca` (IssueCertificate, GetCertificate, RevokeCertificate, the 18 end-entity
+templates - `aws_pca/service-2.json`); `ejbca` (`pkcs10enroll`, `/v1/certificate/search`,
+the revocation, the profile lists - `ejbca/openapi.json`); `sectigo_scm`, `certum`,
+`gogetssl`, `namecheap_ssl` (written in 1.0.27 from these same files); `digicert`,
+`google_cas`, `vault_pki` (checked in 1.0.27 against `digicert/notes.md`,
+`google_cas/privateca-v1-discovery.json`, `vault/vault-client-go-openapi.json`);
+`ms_adcs` (`CertificateTemplate:NAME` in the request's attributes as [MS-WCCE]
+describes them; the collection confirms that Web Enrollment does not show version 3
+(CNG) templates - KB 2015796 - and that certrqxt.asp's list is not documented, so the
+form's list of templates stays typeable).
+
+`test/test_sources_more_resellers.py` lists, for each of the three new modules, every
+call it may make as its vendor documents it (a contract test), and checks the 30-day
+windows of Atlas.

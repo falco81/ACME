@@ -20,8 +20,9 @@ certificate_models.go, client.go) and github.com/Keyfactor/keyfactor-auth-client
   [{Name}], RequiresApproval...}], StandaloneCAs [{Name}]} - the templates and
   CAs the user may enroll with (the form's lists, Try it).
 * POST Enrollment/CSR (header x-certificateformat: PEM) {CSR, Template,
-  CertificateAuthority, IncludeChain, Timestamp, SANs {dns [..], ip4 [..]},
-  Metadata} -> {CertificateInformation {SerialNumber, IssuerDN, Thumbprint,
+  CertificateAuthority, IncludeChain, Timestamp, SANs {dns [..], ip [..]} (the
+  keys of Command's reference, EnrollmentPOSTCSR.htm: "dns", "ip", "email",
+  "upn", "uri"), Metadata} -> {CertificateInformation {SerialNumber, IssuerDN, Thumbprint,
   KeyfactorID, KeyfactorRequestId, Certificates [PEM..], RequestDisposition,
   DispositionMessage}}.
 * GET Certificates?pq.queryString=..&pq.pageReturned=N&pq.returnLimit=M
@@ -31,7 +32,14 @@ certificate_models.go, client.go) and github.com/Keyfactor/keyfactor-auth-client
 * POST Certificates/Download (x-certificateformat: P7B) {CertID, IncludeChain}
   -> {Content: base64 PKCS#7}.
 * POST Certificates/Revoke {CertificateIds [id], Reason, Comment, EffectiveDate}
-  -> 200/204.
+  -> 200/204. Reason is Command's own list (CertificatesPOSTRevoke.htm): 0
+  Unspecified, 1 Key Compromised, 2 CA Compromised, 3 Affiliation Changed, 4
+  Superseded, 5 Cessation of Operation, 6 Certificate Hold, 7 Remove from CRL - not
+  RFC 5280's (where removeFromCRL is 8); other reasons are sent as 0.
+
+LESS CERTAIN: whether the query parameters of GET Certificates take the "pq."
+prefix (the Go SDK's names) or not (Command's reference lists QueryString,
+PageReturned, ReturnLimit) - the SDK's are sent.
 
 A template that needs an approval in Command (RequiresApproval) leaves the
 request waiting there: acme says so and does not ask again by itself.
@@ -52,6 +60,8 @@ from acmelib.plugins.issuers import _source_common as sc
 from acmelib.plugins.issuers import _scep_pkcs7 as p7
 
 HEADERS = {'x-keyfactor-api-version': '1', 'x-keyfactor-requested-with': 'APIClient'}
+# RFC 5280 reason -> Command's Reason (CertificatesPOSTRevoke.htm: 7 is Remove from CRL).
+REASONS = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 8: 7}
 
 
 def _epoch(v):
@@ -256,10 +266,8 @@ class KeyfactorCommandIssuer(Issuer):
         ips = [n for n in req.names if _is_ip(n)]
         if dns:
             sans['dns'] = dns
-        if [i for i in ips if ':' not in i]:
-            sans['ip4'] = [i for i in ips if ':' not in i]
-        if [i for i in ips if ':' in i]:
-            sans['ip6'] = [i for i in ips if ':' in i]
+        if ips:
+            sans['ip'] = ips
         body = {'CSR': sc.csr_pem(req).strip(), 'Template': self.template(),
                 'CertificateAuthority': self.ca(), 'IncludeChain': True,
                 'Timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
@@ -306,7 +314,7 @@ class KeyfactorCommandIssuer(Issuer):
     def revoke(self, cert_pem, reason='unspecified', key_pem=None):
         kid = self._id_of(cert_pem)
         self.call('POST', 'Certificates/Revoke', {
-            'CertificateIds': [kid], 'Reason': sc.reason_code(reason),
+            'CertificateIds': [kid], 'Reason': REASONS.get(sc.reason_code(reason), 0),
             'Comment': 'revoked by acme',
             'EffectiveDate': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())},
             what='the revocation')
