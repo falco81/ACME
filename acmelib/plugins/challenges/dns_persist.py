@@ -12,8 +12,8 @@ The record names the CA and the ACME account that may issue:
     policy=wildcard      the record also covers the wildcard (*.example.com) and, as the
                          draft says, the names under the domain - optional. Let's
                          Encrypt looks each name's record up at that name only
-                         (Boulder va/dns_persist.go): "A record at each name" (on by
-                         default, 1.0.30) writes one at each name until it does
+                         (Boulder va/dns_persist.go): "A record at each name" (1.0.30,
+                         off by default) writes one at each name until it does
     persistUntil=        a Unix time after which the CA does not use the record -
                          optional
 
@@ -230,7 +230,7 @@ class DnsPersist(Challenge):
               help='On: the record covers *.NAME too (a wildcard certificate) - and, with "A '
                    'record at each name" off, every name under it. Off: the name only.'),
         field('each_name', 'A record at each name (Let\'s Encrypt today)', 'bool',
-              default=True,
+              default=False,
               help='On: each name of a certificate gets its own record, as Let\'s Encrypt '
                    'looks it up only at the name it validates (_validation-persist.www.'
                    'example.com for www.example.com). Off: one record of the domain with '
@@ -327,11 +327,11 @@ class DnsPersist(Challenge):
 
     def each_name_on(self):
         v = self.config.get('each_name')
-        return True if v in (None, '') else as_bool(v)
+        return False if v in (None, '') else as_bool(v)
 
     def base_of(self, bare):
-        """Where the record of `bare` stands. "A record at each name" on (the default,
-        1.0.30): at the name itself - Let's Encrypt's Boulder looks up only
+        """Where the record of `bare` stands. "A record at each name" on (1.0.30; off by
+        default): at the name itself - Let's Encrypt's Boulder looks up only
         _validation-persist.<the name> (va/dns_persist.go, November 2026), so a record
         of example.com does not prove pokus.example.com. Off - the draft (a record with
         policy=wildcard covers every name under its domain): the longest domain set that

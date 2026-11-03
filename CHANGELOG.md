@@ -13,13 +13,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   _validation-persist.pokus.example.com* - although
   _validation-persist.example.com with policy=wildcard was there, which the
   draft says covers every name under the domain. The new switch **A record at
-  each name (Let's Encrypt today)**, on by default: each name of a certificate
-  gets, and is checked for, its own `_validation-persist.NAME`
+  each name (Let's Encrypt today)**, off by default - turn it on for Let's
+  Encrypt as it is now: each name of a certificate gets, and is checked for,
+  its own `_validation-persist.NAME`
   (`policy=wildcard` covers that name and `*.NAME`); *Write the records to DNS*
   and an order write the missing ones through the chosen validation; the
-  readiness check says a name without its record is not ready. Off: the
-  draft's way - one record of the domain covers the names under it, as before
-  - for when the CA does that. "Domains with the record" is *Names with the
+  readiness check says a name without its record is not ready. Off (the
+  default): the draft's way - one record of the domain covers the names under
+  it, as before. "Domains with the record" is *Names with the
   record*.
 
 ## 1.0.29 - 2026-11-03

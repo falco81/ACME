@@ -182,7 +182,7 @@ class TestPlaces(unittest.TestCase):
     def test_the_name_itself_only(self):
         """The CA looks the record up at the name itself (Let's Encrypt staging refused
         pokus.example.com with only example.com's record, 1.0.30)."""
-        m = module({})
+        m = module({}, {'each_name': True})
         bare, wild, places = m.places('*.shop.example.co.uk')
         self.assertEqual((bare, wild), ('shop.example.co.uk', True))
         self.assertEqual(places, [('_validation-persist.shop.example.co.uk', True)])
@@ -206,11 +206,13 @@ class TestPlaces(unittest.TestCase):
         off = module(dns, {'each_name': False})
         for n in ('www.example.com', 'a.b.example.com', '*.example.com'):
             self.assertTrue(off.check_name(n, ['letsencrypt.org'], LE_PROD)[0], n)
-        self.assertFalse(module(dns).check_name('www.example.com', ['letsencrypt.org'],
-                                                LE_PROD)[0], 'on (the default): its own')
+        self.assertFalse(module(dns, {'each_name': True}).check_name('www.example.com', ['letsencrypt.org'],
+                                                LE_PROD)[0], 'on: its own')
+        self.assertTrue(module(dns).check_name('www.example.com', ['letsencrypt.org'],
+                                               LE_PROD)[0], 'off by default: the draft')
 
     def test_domain_set_and_policy_off(self):
-        m = module({}, {'domains': ['dept.example.com', 'example.com']})
+        m = module({}, {'each_name': True, 'domains': ['dept.example.com', 'example.com']})
         self.assertEqual(m.base_of('a.dept.example.com'), 'a.dept.example.com')
         self.assertEqual(m.base_of('www.example.com'), 'www.example.com')
         off = module({}, {'wildcard': False})
@@ -223,7 +225,7 @@ class TestPlaces(unittest.TestCase):
     def test_check_name(self):
         dns = {'_validation-persist.example.com': [
             DP.make_value('letsencrypt.org', LE_PROD)]}
-        m = module(dns)
+        m = module(dns, {'each_name': True})
         for n in ('example.com', '*.example.com'):
             self.assertTrue(m.check_name(n, ['letsencrypt.org'], LE_PROD)[0], n)
         for n in ('www.example.com', 'a.b.example.com'):
@@ -239,12 +241,12 @@ class TestPlaces(unittest.TestCase):
             DP.make_value('letsencrypt.org', LE_PROD, wildcard=False)],
             '_validation-persist.example.com': [
             DP.make_value('letsencrypt.org', LE_PROD, wildcard=False)]}
-        m2 = module(dns2)
+        m2 = module(dns2, {'each_name': True})
         self.assertTrue(m2.check_name('www.example.com', ['letsencrypt.org'], LE_PROD)[0])
         ok, words, _rr = m2.check_name('*.example.com', ['letsencrypt.org'], LE_PROD)
         self.assertFalse(ok)
         self.assertIn('policy=wildcard', words)
-        ok, words, _rr = module({}).check_name('x.example.org', ['letsencrypt.org'], LE_PROD)
+        ok, words, _rr = module({}, {'each_name': True}).check_name('x.example.org', ['letsencrypt.org'], LE_PROD)
         self.assertIn('_validation-persist.x.example.org: there is no TXT record', words)
 
 
@@ -471,7 +473,7 @@ class TestWriteRecords(unittest.TestCase):
 
     def test_written_at_an_order_when_missing(self):
         dns = {}
-        m, _src = self.make(dns)
+        m, _src = self.make(dns, {'each_name': True})
         m.wait_visible = lambda shown, issuers, acct, seconds=0: m.check_name(shown, issuers,
                                                                               acct)
         ch = {'type': 'dns-persist-01', 'url': 'https://x/chal/1',
@@ -499,7 +501,7 @@ class TestWriteRecords(unittest.TestCase):
         self.assertEqual(how, 'fallback')
         self.assertEqual(WRITES, [])
         # on: written while the CA does not offer it yet, ready for the day it does
-        m, _src = self.make(dns)
+        m, _src = self.make(dns, {'each_name': True})
         m.persist_choose('www.example.com', False, {'dns-01': {}}, LE_PROD, TestChoose.DIR,
                          "Let's Encrypt")
         self.assertEqual(dns['_validation-persist.www.example.com'],
@@ -547,13 +549,13 @@ class TestChoose(unittest.TestCase):
         dns = {'_validation-persist.example.com': ['other.example; accounturi=x']}
         ch = {'type': 'dns-persist-01', 'url': 'u', 'issuer-domain-names': ['letsencrypt.org']}
         fb = FakeFallback()
-        m = module(dns, {'fallback': 'web'}, [], {'web': fb})
+        m = module(dns, {'fallback': 'web', 'each_name': True}, [], {'web': fb})
         how, got = m.persist_choose('www.example.com', False, {'dns-persist-01': ch,
                                                                'dns-01': {}}, LE_PROD,
                                     self.DIR, 'LE')
         self.assertEqual(how, 'fallback')
         self.assertTrue(any('the record to set' in w and LE_PROD in w for _l, w in m.ctx.steps))
-        m2 = module(dns, {})
+        m2 = module(dns, {'each_name': True})
         with self.assertRaises(PluginError) as cm:
             m2.persist_choose('www.example.com', False, {'dns-persist-01': ch}, LE_PROD,
                               self.DIR, 'LE')
