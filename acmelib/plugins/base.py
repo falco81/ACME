@@ -988,8 +988,40 @@ class Target(Plugin):
         return d
 
 
-FAMILIES = {'issuer': Issuer, 'challenge': Challenge, 'target': Target}
-FOLDERS = {'issuer': 'issuers', 'challenge': 'challenges', 'target': 'targets'}
+class Check(Plugin):
+    """A test of what a server really serves (1.0.32): it connects as a client of its
+    protocol would - HTTPS, SMTP with STARTTLS, RDP... - and gives back the certificate
+    chain the server sent; acmelib/certs/checks.py compares it with the certificate
+    acme keeps (the version deployed, its names, its chain, how long it runs).
+
+    A module writes served(host, port, sni, verify) -> {'chain': [DER, leaf first],
+    'tls': 'TLSv1.3', 'cipher': '...', 'said': 'what the server said first'}. With
+    verify=True it checks the chain against this machine's CAs and the name, and lets
+    ssl.SSLCertVerificationError out - asked again with verify=False then, to see the
+    chain all the same (checks/_tls.py does both). Raise PluginError in words when the
+    server cannot be reached or does not speak TLS there."""
+    family = 'check'
+    vendor = 'Protocol'
+    doc = 'docs/checks.md'
+    protocol = ''                   # in words: 'HTTPS', 'SMTP (STARTTLS)'
+    default_port = 443
+    starttls = False                # TLS after a plain start (STARTTLS, AUTH TLS, X.224…)
+
+    def served(self, host, port, sni, verify=True):
+        raise NotImplementedError
+
+    @classmethod
+    def describe(cls):
+        d = Plugin.describe.__func__(cls)
+        d['protocol'] = cls.protocol or cls.title or cls.kind
+        d['default_port'] = cls.default_port
+        d['starttls'] = bool(cls.starttls)
+        return d
+
+
+FAMILIES = {'issuer': Issuer, 'challenge': Challenge, 'target': Target, 'check': Check}
+FOLDERS = {'issuer': 'issuers', 'challenge': 'challenges', 'target': 'targets',
+           'check': 'checks'}
 
 
 # ---------------------------------------------------------------------------
