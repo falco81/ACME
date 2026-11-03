@@ -97,7 +97,7 @@ Wildcards (`*.example.com`) can only be proved by DNS-01.
 | `acme_dns` | an [acme-dns](https://github.com/joohoi/acme-dns) server | account(s); `_acme-challenge.NAME CNAME <fulldomain>` once |
 | `ssh_dns` | commands on the DNS server itself over SSH, straight into its zones: BIND (`nsupdate -l`, `nsupdate -k`, or the zone file + `rndc reload`), PowerDNS (`pdnsutil` or its HTTP API there), Knot (`knotc` transaction), NSD (zone file + `nsd-control reload`), dnsmasq (`txt-record`), Unbound (`local_data`), Windows DNS (PowerShell via OpenSSH), or your own commands; **Find out what runs there** reads the server (read-only) and fills the form in | an SSH account there (sudo optional) |
 | `script` | a program on this machine (`present`/`cleanup`, dehydrated- or lego-style), `ACME_*` variables | the program |
-| `dns_persist` | **dns-persist-01**: one TXT record at `_validation-persist.DOMAIN`, set once, names the ACME account - no record per order, wildcards and subdomains with `policy=wildcard`; a fallback validation while the CA does not offer it ([below](#a-record-set-once-dns-persist-01-dns_persist)) | an ACME source; the record put in your DNS once |
+| `dns_persist` | **dns-persist-01**: one TXT record at `_validation-persist.NAME` of each name, set once, names the ACME account - no record per order, the wildcard `*.NAME` with `policy=wildcard`; a fallback validation while the CA does not offer it ([below](#a-record-set-once-dns-persist-01-dns_persist)) | an ACME source; the record put in your DNS once |
 | `manual` | shows the record to put in by hand; waits until the zone's name servers have it (or until it is confirmed) | someone there |
 | `http_local` | HTTP-01 answered by acme's own nginx on port 80 | the name pointing at acme, port 80 open |
 | `http_ssh` | HTTP-01: the token file written over SSH on **every** web server the name points at | an SSH account on each, the nginx block below |
@@ -157,7 +157,7 @@ _validation-persist.example.com.  TXT  "letsencrypt.org; accounturi=https://acme
 |---|---|
 | `letsencrypt.org` | the CA's issuer domain name - one of the challenge's `issuer-domain-names` (Let's Encrypt and its staging: `letsencrypt.org`) |
 | `accounturi=` | the URL of the ACME account (required) - acme shows it, the account made where there is none yet |
-| `policy=wildcard` | optional: the record also covers `*.example.com` and every name under the domain (`www.example.com`, `a.b.example.com`) |
+| `policy=wildcard` | optional: the record also covers `*.example.com`. **Not the names under the domain**: the CA looks each name's record up at that name - `www.example.com` needs `_validation-persist.www.example.com` (Let's Encrypt staging refused a name under the domain with only the domain's record: *NXDOMAIN looking up TXT for _validation-persist.www.example.com*; acme writes and checks a record at each name since 1.0.30) |
 | `persistUntil=` | optional: a Unix time after which the CA no longer takes the record |
 
 The syntax is that of a CAA issuer value (RFC 8659): the domain name first,
@@ -167,10 +167,10 @@ name** - one for each account: Let's Encrypt and its staging have different
 account URLs, so a source of each needs its own record, and other TXT records
 there stay.
 
-**Settings** of the validation: *Domains with the record* (where the record
-stands; empty: each name's registered domain), *Cover subdomains and
-wildcards* (`policy=wildcard`, on by default; off: a record at each name
-itself and no wildcard), *Valid until* (`persistUntil`, a day or a Unix
+**Settings** of the validation: *More names with the record* (names that get
+the record besides those of the certificates using the validation), *Cover
+subdomains and wildcards* (`policy=wildcard`, on by default: the name and
+`*.NAME`; off: the name only), *Valid until* (`persistUntil`, a day or a Unix
 time), *Fallback validation*, and under More the sources the record is for
 (empty: every ACME source) and the CA's issuer domain name (empty:
 `letsencrypt.org` for Let's Encrypt; for another CA what its challenge says).

@@ -296,7 +296,7 @@ class Bundle(object):
 PROOFS = {
     'acme-dns-01': 'the ACME TXT record at _acme-challenge.NAME',
     'acme-http-01': 'the ACME file http://NAME/.well-known/acme-challenge/TOKEN',
-    'acme-dns-persist-01': 'the persistent ACME TXT record at _validation-persist.DOMAIN, set '
+    'acme-dns-persist-01': 'the persistent ACME TXT record at _validation-persist.NAME, set '
                            'once (dns-persist-01, draft-ietf-acme-dns-persist)',
     'txt-any': 'a TXT record at any name with any value (a commercial CA\'s DCV)',
     'cname-any': 'a CNAME record at any name pointing anywhere (a commercial CA\'s DCV)',

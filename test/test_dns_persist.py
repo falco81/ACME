@@ -179,20 +179,20 @@ class TestRecord(unittest.TestCase):
 # Where it is looked for
 # ---------------------------------------------------------------------------
 class TestPlaces(unittest.TestCase):
-    def test_registered_domain_and_parents(self):
+    def test_the_name_itself_only(self):
+        """The CA looks the record up at the name itself (Let's Encrypt staging refused
+        pokus.example.com with only example.com's record, 1.0.30)."""
         m = module({})
         bare, wild, places = m.places('*.shop.example.co.uk')
         self.assertEqual((bare, wild), ('shop.example.co.uk', True))
-        self.assertEqual(places, [('_validation-persist.shop.example.co.uk', True),
-                                  ('_validation-persist.example.co.uk', True)])
+        self.assertEqual(places, [('_validation-persist.shop.example.co.uk', True)])
         self.assertEqual(m.places('www.example.com')[2],
-                         [('_validation-persist.www.example.com', False),
-                          ('_validation-persist.example.com', True)])
+                         [('_validation-persist.www.example.com', False)])
 
     def test_domain_set_and_policy_off(self):
         m = module({}, {'domains': ['dept.example.com', 'example.com']})
-        self.assertEqual(m.base_of('a.dept.example.com'), 'dept.example.com')
-        self.assertEqual(m.base_of('www.example.com'), 'example.com')
+        self.assertEqual(m.base_of('a.dept.example.com'), 'a.dept.example.com')
+        self.assertEqual(m.base_of('www.example.com'), 'www.example.com')
         off = module({}, {'wildcard': False})
         self.assertEqual(off.places('www.example.com')[2],
                          [('_validation-persist.www.example.com', False)])
@@ -204,9 +204,13 @@ class TestPlaces(unittest.TestCase):
         dns = {'_validation-persist.example.com': [
             DP.make_value('letsencrypt.org', LE_PROD)]}
         m = module(dns)
-        for n in ('example.com', '*.example.com', 'www.example.com', 'a.b.example.com'):
+        for n in ('example.com', '*.example.com'):
             self.assertTrue(m.check_name(n, ['letsencrypt.org'], LE_PROD)[0], n)
-        ok, words, rr = m.check_name('www.example.com', ['letsencrypt.org'], LE_STAGE)
+        for n in ('www.example.com', 'a.b.example.com'):
+            ok, words, rr = m.check_name(n, ['letsencrypt.org'], LE_PROD)
+            self.assertFalse(ok, 'a record of the domain does not prove %s' % n)
+            self.assertEqual(rr, '_validation-persist.' + n)
+        ok, words, rr = m.check_name('example.com', ['letsencrypt.org'], LE_STAGE)
         self.assertFalse(ok)
         self.assertEqual(rr, '_validation-persist.example.com')
         self.assertIn('not this one', words)
@@ -217,11 +221,11 @@ class TestPlaces(unittest.TestCase):
             DP.make_value('letsencrypt.org', LE_PROD, wildcard=False)]}
         m2 = module(dns2)
         self.assertTrue(m2.check_name('www.example.com', ['letsencrypt.org'], LE_PROD)[0])
-        ok, words, _rr = m2.check_name('api.example.com', ['letsencrypt.org'], LE_PROD)
+        ok, words, _rr = m2.check_name('*.example.com', ['letsencrypt.org'], LE_PROD)
         self.assertFalse(ok)
-        self.assertIn('policy=wildcard is missing', words)
+        self.assertIn('policy=wildcard', words)
         ok, words, _rr = module({}).check_name('x.example.org', ['letsencrypt.org'], LE_PROD)
-        self.assertIn('_validation-persist.example.org: there is no TXT record', words)
+        self.assertIn('_validation-persist.x.example.org: there is no TXT record', words)
 
 
 # ---------------------------------------------------------------------------
@@ -455,11 +459,17 @@ class TestWriteRecords(unittest.TestCase):
         how, got = m.persist_choose('www.example.com', False, {'dns-persist-01': ch}, LE_PROD,
                                     TestChoose.DIR, "Let's Encrypt")
         self.assertEqual((how, got), ('persist', ch))
-        self.assertEqual(dns[self.RR], [DP.make_value('letsencrypt.org', LE_PROD)])
-        # the next name of the same order: not written again
+        www = '_validation-persist.www.example.com'
+        self.assertEqual(dns[www], [DP.make_value('letsencrypt.org', LE_PROD)],
+                         'at the name itself (1.0.30)')
+        # the same name again in the order: not written again; another name: its own
+        m.persist_choose('www.example.com', False, {'dns-persist-01': ch}, LE_PROD,
+                         TestChoose.DIR, "Let's Encrypt")
+        self.assertEqual(len([w for w in WRITES if w[0] == 'add']), 1)
         m.persist_choose('example.com', True, {'dns-persist-01': ch}, LE_PROD, TestChoose.DIR,
                          "Let's Encrypt")
-        self.assertEqual(len([w for w in WRITES if w[0] == 'add']), 1)
+        self.assertEqual(len([w for w in WRITES if w[0] == 'add']), 2)
+        self.assertIn(self.RR, dns)
 
     def test_not_written_at_an_order_when_switched_off(self):
         dns = {}
@@ -472,7 +482,8 @@ class TestWriteRecords(unittest.TestCase):
         m, _src = self.make(dns)
         m.persist_choose('www.example.com', False, {'dns-01': {}}, LE_PROD, TestChoose.DIR,
                          "Let's Encrypt")
-        self.assertEqual(dns[self.RR], [DP.make_value('letsencrypt.org', LE_PROD)])
+        self.assertEqual(dns['_validation-persist.www.example.com'],
+                         [DP.make_value('letsencrypt.org', LE_PROD)])
 
 
 class TestChoose(unittest.TestCase):
@@ -526,7 +537,7 @@ class TestChoose(unittest.TestCase):
         with self.assertRaises(PluginError) as cm:
             m2.persist_choose('www.example.com', False, {'dns-persist-01': ch}, LE_PROD,
                               self.DIR, 'LE')
-        self.assertIn('_validation-persist.example.com. TXT "letsencrypt.org; accounturi=%s'
+        self.assertIn('_validation-persist.www.example.com. TXT "letsencrypt.org; accounturi=%s'
                       % LE_PROD, str(cm.exception))
 
 
@@ -561,9 +572,10 @@ class PersistAcme(TI.MockAcme):
                 kid = [k for k, a in app.accounts.items() if a['jwk'] == jwk][0]
                 az = app.authz[ch['authz']]
                 name = az['identifier']['value']
-                rr = DP.PREFIX + '.'.join(name.split('.')[-2:])
+                # as Let's Encrypt (staging, 1.0.30): the record at the name itself only
+                rr = DP.PREFIX + name
                 ok = DP.judge(app.persist_dns.get(rr, []), ch['issuer-domain-names'], kid,
-                              True)[0]
+                              bool(az.get('wildcard')))[0]
                 app.seen.append(('persist-answer', name))
                 ch['status'] = az['status'] = 'valid' if ok else 'invalid'
                 for o in app.orders.values():
@@ -590,8 +602,9 @@ class TestAcmeOrder(unittest.TestCase):
             # the account first (as "Make the record" does), then the record set once
             info = iss.persist_info(register=True)
             self.assertTrue(info['account'].startswith(ca.base + '/acct/'))
-            ca.persist_dns['_validation-persist.example.com'] = [
-                DP.make_value('ca.example', info['account'])]
+            for n in ('example.com', 'www.example.com'):
+                ca.persist_dns['_validation-persist.' + n] = [
+                    DP.make_value('ca.example', info['account'])]
         names = ['www.example.com', '*.example.com']
         key, csr_pem, csr_der = TI.make_key_csr(names)
         got = iss.issue(CertRequest(names=names, key_pem=key, csr_pem=csr_pem, csr_der=csr_der,

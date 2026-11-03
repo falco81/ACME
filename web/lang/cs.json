@@ -48859,6 +48859,34 @@
   "dsc29s_32": {
    "source": "Empty: the product chosen above",
    "text": "Prázdné: produkt zvolený výše"
+  },
+  "dp30_1": {
+   "source": "One TXT record at _validation-persist.NAME, set once, lets acme's ACME account issue for that name (and *.name) - nothing to put in DNS at an order. Until the CA offers dns-persist-01, the fallback validation proves the names.",
+   "text": "Jeden TXT záznam na _validation-persist.JMÉNO, nastavený jednou, dovolí účtu ACME v acme vydávat pro to jméno (a *.jméno) – při objednávce se do DNS nic nedává. Dokud CA dns-persist-01 nenabízí, jména prokazuje záložní validace."
+  },
+  "dp30_2": {
+   "source": "Names that get the record besides those of the certificates using this validation: _validation-persist.NAME. The CA looks the record up at each name itself - a record at example.com does not prove www.example.com, so every name gets its own. Empty: the names of the certificates.",
+   "text": "Jména, která dostanou záznam navíc k jménům certifikátů s touto validací: _validation-persist.JMÉNO. CA hledá záznam u každého jména zvlášť – záznam u example.com neprokazuje www.example.com, takže každé jméno má svůj vlastní. Prázdné: jména certifikátů."
+  },
+  "dp30_3": {
+   "source": "On: the record of a name covers the name and *.NAME (a wildcard certificate). Off: the name only. Names under it need records of their own either way.",
+   "text": "Zapnuto: záznam jména pokryje jméno i *.JMÉNO (wildcard certifikát). Vypnuto: jen jméno. Jména pod ním potřebují vlastní záznamy v obou případech."
+  },
+  "dp30_4": {
+   "source": "More names with the record",
+   "text": "Další jména se záznamem"
+  },
+  "dp30_5": {
+   "source": "One TXT record for each ACME account at each name, at _validation-persist.NAME (the CA looks it up at the name itself) - acme writes it through the validation chosen in “Write the record through” when you press “Write the records to DNS”, and takes away exactly what it wrote. Records set by hand are never touched.",
+   "text": "Jeden TXT záznam pro každý účet ACME u každého jména, na _validation-persist.JMÉNO (CA ho hledá přímo u jména) – acme ho zapíše přes validaci zvolenou v „Záznam zapisovat přes“, když stisknete „Zapsat záznamy do DNS“, a odebere přesně to, co zapsalo. Záznamů nastavených ručně se nikdy nedotkne."
+  },
+  "dp30_6": {
+   "source": "One TXT record for each ACME account at each name, at _validation-persist.NAME (the CA looks it up at the name itself). Several may stand at the same name - Let’s Encrypt and its staging have different accounts. Nothing is changed in your DNS: set it by hand, or choose a validation in “Write the record through” and save.",
+   "text": "Jeden TXT záznam pro každý účet ACME u každého jména, na _validation-persist.JMÉNO (CA ho hledá přímo u jména). U jednoho jména jich může být víc – Let’s Encrypt a jeho staging mají různé účty. Ve vašem DNS se nic nemění: nastavte ho ručně, nebo zvolte validaci v „Záznam zapisovat přes“ a uložte."
+  },
+  "dp30_7": {
+   "source": "the persistent ACME TXT record at _validation-persist.NAME, set once (dns-persist-01, draft-ietf-acme-dns-persist)",
+   "text": "trvalý záznam ACME TXT na _validation-persist.JMÉNO, nastavený jednou (dns-persist-01, draft-ietf-acme-dns-persist)"
   }
  },
  "patterns": {

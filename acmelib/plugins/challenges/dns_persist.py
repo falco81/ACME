@@ -9,8 +9,10 @@ The record names the CA and the ACME account that may issue:
     issuer-domain-name   one of the CA's names (the challenge object's
                          "issuer-domain-names"; Let's Encrypt: letsencrypt.org)
     accounturi=          the URL of the ACME account (required)
-    policy=wildcard      the record also covers wildcards (*.example.com) and the
-                         names under the domain (www.example.com) - optional
+    policy=wildcard      the record also covers the wildcard (*.example.com) -
+                         optional. Not the names under it: the CA looks each name's
+                         record up at that name (_validation-persist.www.example.com);
+                         Let's Encrypt staging refused www with only example.com's (1.0.30)
     persistUntil=        a Unix time after which the CA does not use the record -
                          optional
 
@@ -210,21 +212,23 @@ class DnsPersist(Challenge):
     default_name = 'dns-persist'
     vendor = 'DNS'
     doc = 'docs/validation.md'
-    description = ('One TXT record at _validation-persist.DOMAIN, set once, lets acme\'s ACME '
-                   'account issue for the domain, its subdomains and wildcards - nothing to put '
-                   'in DNS at an order. Until the CA offers dns-persist-01, the fallback '
+    description = ('One TXT record at _validation-persist.NAME, set once, lets acme\'s ACME '
+                   'account issue for that name (and *.name) - nothing to put in DNS at an '
+                   'order. Until the CA offers dns-persist-01, the fallback '
                    'validation proves the names.')
     types = (CHALLENGE,)
     fields = [
-        field('domains', 'Domains with the record', 'list', default='',
+        field('domains', 'More names with the record', 'list', default='',
               placeholder='example.com\nexample.org',
-              help='Where the record stands: _validation-persist.DOMAIN. With "subdomains and '
-                   'wildcards" on, it covers every name under the domain. Empty: each name\'s '
-                   'registered domain (www.shop.example.co.uk: example.co.uk).'),
+              help='Names that get the record besides those of the certificates using this '
+                   'validation: _validation-persist.NAME. The CA looks the record up at each '
+                   'name itself - a record at example.com does not prove www.example.com, so '
+                   'every name gets its own. Empty: the names of the certificates.'),
         field('wildcard', 'Cover subdomains and wildcards (policy=wildcard)', 'bool',
               default=True,
-              help='On: one record at the domain covers *.DOMAIN and every name under it. Off: '
-                   'a record at each name itself, and no wildcard.'),
+              help='On: the record of a name covers the name and *.NAME (a wildcard '
+                   'certificate). Off: the name only. Names under it need records of their '
+                   'own either way.'),
         field('persist_until', 'Valid until (persistUntil)', 'text', default='',
               placeholder='2028-12-31',
               help='Optional: a day (or a Unix time) after which the CA no longer takes the '
@@ -314,14 +318,12 @@ class DnsPersist(Challenge):
         return [D.norm(d).lstrip('*.') for d in as_list(self.c('domains', '')) if D.norm(d)]
 
     def base_of(self, bare):
-        """The domain whose record covers `bare`: the longest one set that holds it,
-        else its registered domain - with policy wildcard off, the name itself."""
-        if not self.wildcard_on():
-            return bare
-        hits = [d for d in self.domains() if bare == d or bare.endswith('.' + d)]
-        if hits:
-            return max(hits, key=len)
-        return D.registrable(bare)
+        """Where the record of `bare` stands: at the name itself (1.0.30). The CA looks
+        it up only there - Let's Encrypt (staging, November 2026) asked
+        _validation-persist.pokus.example.com for pokus.example.com and took no record of
+        example.com: policy=wildcard at a domain covers the domain and *.domain, not
+        the names under it."""
+        return bare
 
     def say_once(self, words, level='info'):
         if words not in self._said:
@@ -469,9 +471,8 @@ class DnsPersist(Challenge):
         """The domains whose record is written and checked: the ones set, else those of
         the certificates this validation proves."""
         doms = self.domains()
-        if doms:
-            return doms, False
-        out = []
+        out = list(doms)
+        derived = not doms
         for n in self.ctx.names_using() or []:
             n = D.norm(n)
             bare = n[2:] if n.startswith('*.') else n
@@ -483,7 +484,8 @@ class DnsPersist(Challenge):
                 continue
             if d and d not in out:
                 out.append(d)
-        return out, True
+                derived = True
+        return out, derived
 
     def wanted(self, register=False):
         """[{domain, name, value, source, title, account, directory, issuers, error}] - the
