@@ -50639,6 +50639,14 @@
   "imp34_11": {
    "source": "both (PEM)",
    "text": "oba (PEM)"
+  },
+  "exp34_1": {
+   "source": "both - one PEM file (as acme imports it)",
+   "text": "oba – jeden soubor PEM (jak ho acme importuje)"
+  },
+  "exp34_2": {
+   "source": "It is dual: the same names with two kinds of key. Both: the two one after the other in one PEM (with their keys in \"PEM with the key\"); a PFX holds one key only.",
+   "text": "Je duální: stejná jména se dvěma druhy klíče. Oba: jeden za druhým v jednom PEM (s klíči ve formátu s klíčem); PFX unese jen jeden klíč."
   }
  },
  "patterns": {

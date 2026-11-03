@@ -90,6 +90,24 @@ class TestDual(unittest.TestCase):
                               'filename': 'ec.pem', 'as': 'main'}, 'test')
         self.assertNotEqual(self.row(cid)['fingerprint'], fp_main)
 
+    def test_exported_both_and_imported_again(self):
+        """Export → both (one PEM, the two with their keys) → import: the same pair."""
+        both = self.rsa[0] + self.ec[0] + self.root + self.rsa[1] + self.ec[1]
+        cid, _v = A.cert_import(STORE, {'data_b64': b64(both), 'filename': 'both.pem',
+                                        'name': 'dual-round-trip'}, 'test')
+        admin = {'name': 'admin', 'role': 'fulladmin'}
+        out = A.cert_export(STORE, {'id': cid, 'format': 'combined-pem', 'variant': 'both'}, admin)
+        self.assertTrue(out['filename'].endswith('.both.pem'), out['filename'])
+        text = base64.b64decode(out['data_b64']).decode()
+        self.assertEqual(text.count('PRIVATE KEY-----') // 2, 2, 'both keys')
+        cid2, _v = A.cert_import(STORE, {'data_b64': out['data_b64'], 'filename': out['filename'],
+                                         'name': 'dual-round-trip-2'}, 'test')
+        r1, r2 = self.row(cid), self.row(cid2)
+        self.assertEqual((r1['fingerprint'], r1['alt_fingerprint']),
+                         (r2['fingerprint'], r2['alt_fingerprint']))
+        with self.assertRaises(ValueError):
+            A.cert_export(STORE, {'id': cid, 'format': 'pfx', 'variant': 'both', 'password': 'x'}, admin)
+
     def test_a_bad_as_refused(self):
         with self.assertRaises(ValueError):
             A.cert_import(STORE, {'data_b64': b64(self.rsa[0]), 'filename': 'x.pem', 'as': 'x'},

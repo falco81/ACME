@@ -12,6 +12,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   twin (the same names, the other key type - guessed, or *Kept as* in the
   window, `"as": "alt"` on the API), not as its next version, which put the
   first half away.
+- A certificate's *Export* of a dual one: *both* besides the main one and its
+  twin - one PEM file holding the two (with both keys in *Key and full
+  chain*), which acme imports again as the pair. A PFX holds one key only.
 - Settings → Certificates and TLS → *Download* of a dual certificate asks which:
   the main one, the second one beside it, or both in one PEM - it gave the main
   one only, so the second could not be had.

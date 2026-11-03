@@ -1095,8 +1095,23 @@ def cert_export(store, b, s, allowed=None):
         raise E.ApiError(403, 'only a full administrator may take a private key out')
     vrow = None
     variant = str(b.get('variant') or 'main').strip().lower()
+    if variant == 'both':
+        # a dual certificate's two halves in one PEM file, each with its chain (and
+        # its key) - as acme imports it again (1.0.34)
+        if not row.get('alt_cert_pem'):
+            raise ValueError('%s has no twin' % row['name'])
+        if fmt not in ('cert-pem', 'fullchain-pem', 'combined-pem'):
+            raise ValueError('both go into a PEM file only: cert-pem, fullchain-pem or combined-pem')
+        one = cert_export(store, dict(b, variant='main', version=None), s, allowed)
+        two = cert_export(store, dict(b, variant='alt', version=None), s, allowed)
+        data = base64.b64decode(one['data_b64']) + base64.b64decode(two['data_b64'])
+        ext, mime = FORMAT_FILES[fmt]
+        return {'filename': re.sub(r'[^A-Za-z0-9._-]+', '_', row['name']) + '.both' + ext,
+                'mime': mime, 'data_b64': base64.b64encode(data).decode('ascii'),
+                'format': fmt, 'variant': 'both', 'key_type': '%s + %s' % (
+                    one.get('key_type') or '', two.get('key_type') or '')}
     if variant not in ('main', 'alt', 'ec', 'rsa', 'ed', 'ecdsa'):
-        raise ValueError('the variant is main or alt (or ec, rsa)')
+        raise ValueError('the variant is main, alt or both (or ec, rsa)')
     if b.get('version') not in (None, '', 0):
         vrow = S.version_row(store, row['id'], int(b['version']))
         if not vrow:

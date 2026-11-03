@@ -3509,6 +3509,7 @@ var FORMATS = [
   ['p12-legacy', 'P12, legacy', 'PKCS#12', 'The same with 3DES/RC2, for old devices and Windows Server 2016 and earlier.', true, true],
   ['jks', 'Java keystore', 'JKS', 'For Tomcat and other Java servers, locked with a password.', true, true]
 ];
+var BOTH_FMTS = {'cert-pem': 1, 'fullchain-pem': 1, 'combined-pem': 1};
 function exportDialog(c, versions, version) {
   var pick = null, pass = null, alias = null, vSel = null, passItem = null, varSel = null;
   var twin = arr(c.variants).filter(function (v) { return v.variant === 'alt' && v.issued; })[0];
@@ -3556,17 +3557,30 @@ function exportDialog(c, versions, version) {
     if (twin && !version) {
       /* a dual certificate: which of its two */
       varSel = selectBox([['main', keyWords(c.key_type) + ' · ' + tr('the main one')],
-                          ['alt', keyWords(twin.key_type || c.key_type_alt) + ' · ' + tr('the twin')]], 'main');
-      g.appendChild(formField('Which certificate', varSel, 'It is dual: the same names with two kinds of key.'));
+                          ['alt', keyWords(twin.key_type || c.key_type_alt) + ' · ' + tr('the twin')],
+                          ['both', tr('both - one PEM file (as acme imports it)')]], 'main');
+      varSel.onchange = function () { paint(); };
+      g.appendChild(formField('Which certificate', varSel, 'It is dual: the same names with two kinds of key. Both: the two one after the other in one PEM (with their keys in "PEM with the key"); a PFX holds one key only.'));
     }
     body.appendChild(g);
     var paint = function () {
       var needs = !!(pick && pick[5]);
       passItem.hidden = !needs;
       aliasItem.hidden = !(pick && pick[0] === 'jks');
+      var both = varSel && varSel.value === 'both';
       Array.prototype.forEach.call(grid.querySelectorAll('.ct-fmt'), function (l) {
-        l.classList.toggle('on', !!(l.querySelector('input').checked));
+        var inp = l.querySelector('input');
+        var f = FORMATS.filter(function (x) { return x[0] === inp.value; })[0] || [];
+        var off = (both && !BOTH_FMTS[inp.value]) || (f[4] && !FULL);
+        inp.disabled = !!off;
+        l.classList.toggle('off', !!off);
+        if (off && inp.checked) { inp.checked = false; pick = null; }
+        l.classList.toggle('on', !!inp.checked);
       });
+      if (!pick) {
+        var ok = grid.querySelector('input:not([disabled])');
+        if (ok) { ok.checked = true; pick = FORMATS.filter(function (x) { return x[0] === ok.value; })[0]; ok.parentNode.classList.add('on'); }
+      }
     };
     var firstOk = grid.querySelector('input:not([disabled])');
     if (firstOk) { firstOk.checked = true; pick = FORMATS[0]; }
@@ -3577,10 +3591,11 @@ function exportDialog(c, versions, version) {
     busy(b, true);
     var vWant = vSel ? Number(vSel.value) : (version || undefined);
     var other = varSel && varSel.value === 'alt';
-    if (other && vWant && Number(vWant) === Number(c.version)) vWant = undefined;     /* the twin in use */
+    var bothV = varSel && varSel.value === 'both';
+    if ((other || bothV) && vWant && Number(vWant) === Number(c.version)) vWant = undefined;     /* the twin in use */
     capi('certs/export', {id: c.id, format: pick[0], password: pick[5] ? pass.value : undefined,
                           alias: pick[0] === 'jks' ? alias.value : undefined,
-                          variant: other ? 'alt' : 'main',
+                          variant: bothV ? 'both' : (other ? 'alt' : 'main'),
                           version: vWant}).then(function (d) {
       download(d);
       toast((d.filename || 'the file') + ' was downloaded', 'good');
