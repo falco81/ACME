@@ -50647,6 +50647,46 @@
   "exp34_2": {
    "source": "It is dual: the same names with two kinds of key. Both: the two one after the other in one PEM (with their keys in \"PEM with the key\"); a PFX holds one key only.",
    "text": "Je duální: stejná jména se dvěma druhy klíče. Oba: jeden za druhým v jednom PEM (s klíči ve formátu s klíčem); PFX unese jen jeden klíč."
+  },
+  "ck34_4": {
+   "source": "In acme",
+   "text": "V acme"
+  },
+  "ck34_5": {
+   "source": "The server sent",
+   "text": "Server poslal"
+  },
+  "ck34_6": {
+   "source": "this one is sent",
+   "text": "tento posílá"
+  },
+  "ck34_7": {
+   "source": "set against",
+   "text": "porovnáno s ním"
+  },
+  "ck34_8": {
+   "source": "the same",
+   "text": "stejný"
+  },
+  "ck34_9": {
+   "source": "not the same",
+   "text": "jiný"
+  },
+  "ck34_10": {
+   "source": "its twin - not in acme",
+   "text": "jeho dvojče – v acme není"
+  },
+  "ck34_11": {
+   "source": "not this certificate",
+   "text": "jiný certifikát"
+  },
+  "ck34_12": {
+   "source": "as expected",
+   "text": "jak má být"
+  },
+  "ck34_13": {
+   "source": "How it was reached",
+   "text": "Jak se k němu test dostal"
   }
  },
  "patterns": {

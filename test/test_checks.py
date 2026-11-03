@@ -175,6 +175,28 @@ class TestJudged(Base):
         self.assertIn('Key asked for', got['said'])
         self.assertEqual(got['detail'].get('twin_missing'), 'RSA')
 
+    def test_what_differs_said(self):
+        """Not the certificate: the job's log, the event and the mail say what differs."""
+        i = self.add()
+        self.serve(self.other)
+        steps = []
+        got = C.record(STORE, STORE.db.row('SELECT * FROM cert_checks WHERE id = ?', (i,)),
+                       C.probe(STORE, STORE.db.row('SELECT * FROM cert_checks WHERE id = ?', (i,))),
+                       lambda text, level=None: steps.append(text))
+        self.assertEqual(got['state'], 'other')
+        lines = [x for x in steps if x.startswith('  ')]
+        self.assertTrue(any('✗ names: acme' in x and 'other.example.test' in x for x in lines), lines)
+        self.assertTrue(any(x.startswith('  = issued by') for x in lines), lines)
+        rows = C.compare(got['detail'])
+        from acmelib.certs import texts as T
+        for lang in ('en', 'cs'):
+            m = T.draw_with('cert_check_failed', T.texts_for('cert_check_failed', lang) if hasattr(
+                T, 'texts_for') else {}, {'cert': 'x', 'target': 't', 'check': 'c', 'error': 'e',
+                                          '_compare': rows}, lang)
+            self.assertIn('other.example.test', m['html'])
+            self.assertIn('&#10007;', m['html'])
+            self.assertIn('other.example.test', m['text'])
+
     def test_key_asked_for(self):
         """RSA or ECDSA asked for: TLS 1.2 at most, ciphers of that key only."""
         from acmelib.plugins.checks import _tls

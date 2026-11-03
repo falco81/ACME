@@ -317,6 +317,31 @@ def mail_html(mid, w, values, lang):
     if lede.strip():
         rows.append('<p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#111827">'
                     '%s</p>' % lede)
+    cmp_rows = values.get('_compare') or []
+    if cmp_rows:
+        # a test that failed (1.0.34): what acme keeps beside what the server sent
+        W = CMP_WORDS.get(lang, CMP_WORDS['en'])
+        cells = []
+        for what, mine, sent, same in cmp_rows:
+            if what == 'set against':
+                continue
+            bg = '' if same else 'background:#fef2f2;'
+            col = '#374151' if same else '#b91c1c'
+            cells.append('<tr><td style="padding:5px 10px;color:#6b7280;white-space:nowrap;%s">%s</td>'
+                         '<td style="padding:5px 10px;color:%s;font-family:Consolas,Menlo,monospace;'
+                         'font-size:12px;%s">%s</td><td style="padding:5px 10px;color:%s;font-family:'
+                         'Consolas,Menlo,monospace;font-size:12px;%s">%s</td><td style="padding:5px 10px;'
+                         'text-align:center;font-weight:700;color:%s;%s">%s</td></tr>' % (
+                             bg, h(W.get(what, what)), col if not same else '#111827', bg, h(mine),
+                             col, bg, h(sent), '#15803d' if same else '#b91c1c', bg,
+                             '&#10003;' if same else '&#10007;'))
+        rows.append('<table role="presentation" width="100%%" cellspacing="0" cellpadding="0" '
+                    'border="0" style="margin:0 0 16px;font-size:13px;border:1px solid #e5e7eb;'
+                    'border-radius:8px;border-collapse:separate;%s"><tr style="background:#f9fafb">'
+                    '<th style="padding:6px 10px;text-align:left;color:#6b7280;font-weight:600"></th>'
+                    '<th style="padding:6px 10px;text-align:left;color:#6b7280;font-weight:600">%s</th>'
+                    '<th style="padding:6px 10px;text-align:left;color:#6b7280;font-weight:600">%s</th>'
+                    '<th></th></tr>%s</table>' % (font, h(W['acme']), h(W['sent']), ''.join(cells)))
     facts = [(lab, values.get(k)) for k, lab in FACTS.get(lang, FACTS['en'])
              if k in (ev[3] if ev else ()) and values.get(k) not in (None, '')]
     if facts:
@@ -355,9 +380,27 @@ def draw_with(mid, w, values, lang):
         base = mid[:-4]
         return {'sms': fill(w.get('c_' + _p(base) + '_sms', ''), values)}
     p = 'c_' + _p(mid)
+    text = fill(w.get(p + '_body', ''), values)
+    if values.get('_compare'):
+        W = CMP_WORDS.get(lang, CMP_WORDS['en'])
+        lines = ['', '', '%s / %s:' % (W['acme'], W['sent'])]
+        for what, mine, sent, same in values['_compare']:
+            if what == 'set against':
+                continue
+            lines.append('  %s %s: %s%s' % ('=' if same else 'X', W.get(what, what), mine,
+                                            '' if same else '  |  ' + sent))
+        cut = text.find('\n\n-- ')
+        text = (text[:cut] + '\n'.join(lines) + text[cut:]) if cut >= 0 else text + '\n'.join(lines)
     return {'subject': fill(w.get(p + '_subject', ''), values),
             'html': mail_html(mid, w, values, lang),
-            'text': fill(w.get(p + '_body', ''), values)}
+            'text': text}
+
+
+CMP_WORDS = {
+    'en': {'acme': 'In acme', 'sent': 'The server sent', 'names': 'Names', 'issued by': 'Issued by',
+           'valid until': 'Valid until', 'key': 'Key', 'SHA-256': 'SHA-256'},
+    'cs': {'acme': 'V acme', 'sent': 'Server poslal', 'names': 'Jména', 'issued by': 'Vydal',
+           'valid until': 'Platí do', 'key': 'Klíč', 'SHA-256': 'SHA-256'}}
 
 
 def _renderer(mid):

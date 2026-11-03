@@ -6,6 +6,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.34 - not released
 
+- A test's result drawn side by side: what acme keeps (both halves of a dual
+  certificate) beside what the server sent - a card each, the lines that agree
+  ticked, the ones that do not red (names, issuer, validity, key, SHA-256), and
+  how it was reached under them. A test that fails says the same in the job's
+  log (a line for each: `✗ key: acme RSA 4096 | sent EC 384`), in the event, and
+  in its mail (a table *In acme / The server sent*). A key said once (RSA 4096,
+  not ec-256 256).
+
 - Import of a dual certificate (RSA and ECDSA of the same names): a file
   holding both halves with their keys is imported as the certificate and its
   twin at once; the other half imported into a certificate later is kept as its

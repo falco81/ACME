@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import ssl
+import re
 import time
 import urllib.parse
 
@@ -137,10 +138,89 @@ def expected(store, cert):
     names = S.jload(cert.get('names'), []) or []
     if isinstance(names, str):
         names = [n for n in names.replace(',', ' ').split() if n]
+    # what acme keeps, described - drawn beside what the server sends (1.0.34)
+    infos = []
+    for variant, pem_col, ver_col in (('main', 'cert_pem', 'version'), ('alt', 'alt_cert_pem', 'alt_version')):
+        if not cert.get(pem_col):
+            continue
+        try:
+            i = pki.cert_info(cert[pem_col])
+        except Exception:                               # noqa: BLE001
+            continue
+        infos.append({'variant': variant, 'version': cert.get(ver_col),
+                      'fingerprint': str(i.get('sha256') or '').upper(),
+                      'subject': i.get('subject_dn'), 'issuer': i.get('issuer_dn'),
+                      'not_before': i.get('not_before'), 'not_after': i.get('not_after'),
+                      'names': [str(n).lower() for n in (i.get('names') or [])][:50],
+                      'key': _key_words(i)})
     return {'current': cur, 'old': old, 'names': [str(n).lower() for n in names],
             'chain': chain, 'not_after': cert.get('not_after'), 'cert': cert.get('name'),
+            'infos': infos,
             'key_type': _key_type_of(cert),
             'twin': bool(cert.get('alt_fingerprint'))}
+
+
+def _key_words(info):
+    """RSA 4096, EC 384 - a key said once (cert_info gives ec-256 and 256)."""
+    kt, bits = str(info.get('key_type') or ''), str(info.get('key_bits') or '')
+    fam = 'EC' if kt.lower().startswith('ec') else ('RSA' if 'rsa' in kt.lower() else kt.upper())
+    return ('%s %s' % (fam, bits)).strip() if bits else (fam or kt)
+
+
+def _cn(dn):
+    m = re.search(r'CN=([^,/]+)', str(dn or ''))
+    return m.group(1) if m else str(dn or '')
+
+
+def compare(detail):
+    """What acme keeps against what the server sent, line by line (1.0.34) - for the
+    job's log, the event and the mail: [(what, in acme, sent, the same)]. The half of
+    a dual certificate nearest to what was sent is the one set against."""
+    d = detail or {}
+    sv = d.get('served') or {}
+    exps = d.get('expected') or []
+    if not sv.get('fingerprint') or not exps:
+        return []
+    fp = str(sv['fingerprint']).upper()
+    fam = _key_family(sv.get('key'))
+    near = next((e for e in exps if e.get('fingerprint') == fp), None) or \
+        next((e for e in exps if _key_family(e.get('key')) == fam), None) or exps[0]
+    day = lambda t: time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(float(t))) if t else '-'  # noqa: E731
+    rows = [
+        ('names', ', '.join(near.get('names') or []) or '-', ', '.join(sv.get('names') or []) or '-',
+         sorted(near.get('names') or []) == sorted(sv.get('names') or [])),
+        ('issued by', _cn(near.get('issuer')) or '-', _cn(sv.get('issuer')) or '-',
+         _cn(near.get('issuer')) == _cn(sv.get('issuer'))),
+        ('valid until', day(near.get('not_after')), day(sv.get('not_after')),
+         int(float(near.get('not_after') or 0)) == int(float(sv.get('not_after') or 0))),
+        ('key', near.get('key') or '-', sv.get('key') or '-',
+         str(near.get('key') or '').strip() == str(sv.get('key') or '').strip()),
+        ('SHA-256', _short_fp(near.get('fingerprint')), _short_fp(fp), near.get('fingerprint') == fp)]
+    if len(exps) > 1:
+        rows.insert(0, ('set against', 'the %s (%s)' % ('twin' if near.get('variant') == 'alt'
+                                                        else 'certificate', near.get('key')),
+                        '', True))
+    return rows
+
+
+def _short_fp(fp):
+    f = re.sub(r'[^0-9A-F]', '', str(fp or '').upper())
+    f = ':'.join(f[i:i + 2] for i in range(0, len(f), 2))
+    return f[:23] + '…' + f[-8:] if len(f) > 32 else f
+
+
+def compare_lines(detail):
+    """compare() as lines of text: the ones that differ first, marked."""
+    rows = compare(detail)
+    out = []
+    for what, mine, sent, same in sorted(rows, key=lambda r: r[3]):
+        if what == 'set against':
+            out.append('  set against: %s' % mine)
+        elif same:
+            out.append('  = %s: %s' % (what, mine))
+        else:
+            out.append('  ✗ %s: acme %s | sent %s' % (what, mine, sent))
+    return out
 
 
 def _key_type_of(cert):
@@ -215,12 +295,12 @@ def judge(exp, served, host, sni, require_trusted=False, trusted=None, why_untru
     detail = {'served': {'fingerprint': fp, 'subject': leaf.get('subject_dn'),
                          'issuer': leaf.get('issuer_dn'), 'serial': leaf.get('serial'),
                          'not_before': leaf.get('not_before'), 'not_after': leaf.get('not_after'),
-                         'names': said_names[:50], 'key': '%s %s' % (leaf.get('key_type') or '',
-                                                                   leaf.get('key_bits') or '')},
+                         'names': said_names[:50], 'key': _key_words(leaf)},
               'chain_len': len(chain), 'whole_chain': bool(served.get('whole_chain')),
               'tls': served.get('tls') or '', 'cipher': served.get('cipher') or '',
               'said': str(served.get('said') or '')[:300], 'host': host, 'sni': sni,
-              'trusted': trusted, 'why_untrusted': why_untrusted[:300]}
+              'trusted': trusted, 'why_untrusted': why_untrusted[:300],
+              'expected': exp.get('infos') or [], 'cert': exp.get('cert') or ''}
     warns = []
     if fp in cur:
         variant, version = cur[fp]
@@ -228,6 +308,7 @@ def judge(exp, served, host, sni, require_trusted=False, trusted=None, why_untru
         words = 'serves the current certificate (version %s%s)' % (
             version, ', its twin' if variant == 'alt' else '')
         detail['version'] = version
+        detail['variant'] = variant
     elif fp in old:
         state = 'old'
         words = 'serves %s (%s) of %s - not the one expected' % (
@@ -457,19 +538,25 @@ def record(store, chk, got, step=None):
     if trow:
         store.db.update('cert_tests', trow['id'], {'last_ok': t, 'last_error': ''} if got['ok']
                         else {'last_error': got['said'][:2000]})
+    diff = compare_lines(got.get('detail')) if got['state'] not in ('ok', 'warn') else []
     if step:
         step('test %s: %s' % (what, got['said']), {'ok': 'ok', 'warn': 'warn'}.get(
             got['state'], 'bad'))
+        for line in diff:
+            step(line)
     went_bad = not got['ok'] and (before in ('', 'ok', 'warn') or fails == 0)
     came_back = got['ok'] and before in BAD
     if went_bad or came_back:
-        store.add_event('certificates', 'test %s of %s: %s' % (
-            what, (cert or {}).get('name', '?'), got['said']), 'bad' if went_bad else 'info')
+        store.add_event('certificates', 'test %s of %s: %s%s' % (
+            what, (cert or {}).get('name', '?'), got['said'],
+            ('\n' + '\n'.join(diff)) if diff else ''), 'bad' if went_bad else 'info')
         if E.CONFIG.get('certs_checks_alert', 1) and cert:
             try:
                 from acmelib.certs import notices
                 vals = notices.cert_values(store, cert, target=chk['test'], check=what,
                                            error=got['said'][:500])
+                if went_bad and diff:
+                    vals['_compare'] = compare(got.get('detail'))     # drawn as a table
                 notices.send(store, 'cert_check_failed' if went_bad else 'cert_check_ok',
                              'check:%s:%s' % (chk['id'], 'bad' if went_bad else 'ok'), vals,
                              mail_to=notices.recipients(store, cert))

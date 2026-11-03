@@ -1008,3 +1008,30 @@ td.acc-role{white-space:nowrap}
 /* Download the certificate of the pages: which of a dual one (1.0.34) */
 .set-item > .seg.cx-which{align-self:flex-start}
 .fmt-list .fmt:disabled{opacity:.4;cursor:not-allowed}
+/* A test's result (1.0.34): what acme keeps beside what the server sent */
+.ck-cmp{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr);gap:10px;align-items:stretch;margin:4px 0 14px}
+.ck-cmp-col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.ck-cmp-h{display:flex;align-items:baseline;gap:8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-mut)}
+.ck-cmp-h .muted{text-transform:none;letter-spacing:0;font-weight:500}
+.ck-cmp-card{border:1px solid var(--line);border-radius:10px;background:var(--panel2);padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.ck-cmp-card.far{opacity:.62}
+.ck-cmp-card.hit{border-color:rgba(63,185,80,.55);box-shadow:inset 3px 0 0 var(--ok,#3fb950)}
+.ck-cmp-card.miss{border-color:rgba(248,81,73,.5);box-shadow:inset 3px 0 0 var(--crit,#f85149)}
+.ck-cmp-ct{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.ck-cmp-ct > b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.ck-cmp-key{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;font-size:10px;font-weight:800;letter-spacing:.5px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line)}
+.ck-cmp-key.k-rsa{color:#58a6ff;box-shadow:inset 0 0 0 1px rgba(88,166,255,.5)}
+.ck-cmp-key.k-ecdsa{color:#d2a8ff;box-shadow:inset 0 0 0 1px rgba(210,168,255,.5)}
+.ck-cmp-rows{display:flex;flex-direction:column;gap:2px}
+.ck-cmp-row{display:grid;grid-template-columns:16px 92px minmax(0,1fr);gap:6px;align-items:baseline;font-size:12.5px;padding:3px 4px;border-radius:5px}
+.ck-cmp-row .ck-cmp-k{color:var(--tx-mut)}
+.ck-cmp-row .ck-cmp-v{min-width:0;overflow-wrap:anywhere}
+.ck-cmp-row.ok .ck-cmp-mark{color:var(--ok,#3fb950)}
+.ck-cmp-row.no{background:rgba(248,81,73,.09)}
+.ck-cmp-row.no .ck-cmp-mark,.ck-cmp-row.no .ck-cmp-v{color:var(--crit,#f85149)}
+.ck-cmp-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;color:var(--tx-mut)}
+.ck-cmp-vs{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--panel2);border:1px solid var(--line)}
+.ck-cmp.same .ck-cmp-vs{color:var(--ok,#3fb950);border-color:rgba(63,185,80,.55)}
+.ck-cmp.differ .ck-cmp-vs{color:var(--crit,#f85149);border-color:rgba(248,81,73,.5)}
+.ck-how h5{margin:0 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-mut)}
+@media (max-width:760px){.ck-cmp{grid-template-columns:1fr}.ck-cmp-mid{flex-direction:row}}

@@ -8409,25 +8409,120 @@ function ckWhere(c, host) {
   return h + ':' + (cfg.port || p.default_port || '') + (cfg.sni && cfg.sni !== h ? ' · SNI ' + cfg.sni : '');
 }
 /** What a run said: the served certificate, TLS, HTTP, and each test of a set. */
+/* A fingerprint said short: its first and last bytes, the whole of it on pointing. */
+function ckFp(fp) {
+  var f = String(fp || '').toUpperCase().replace(/[^0-9A-F]/g, '').replace(/(..)(?!$)/g, '$1:');
+  return f.length > 30 ? f.slice(0, 23) + ' … ' + f.slice(-8) : f;
+}
+function ckKeyFam(k) { k = String(k || '').trim().toLowerCase(); return k.indexOf('ec') === 0 ? 'ECDSA' : (k.indexOf('rsa') === 0 ? 'RSA' : (k ? k.split(' ')[0].toUpperCase() : '')); }
+function ckCN(dn) { var m = /CN=([^,\/]+)/.exec(String(dn || '')); return m ? m[1] : String(dn || ''); }
+/** What acme keeps beside what the server sent (1.0.34): a card each, the lines that
+    agree ticked, the ones that do not said red - the half of a dual certificate
+    nearest to what was sent is the one it is set against. */
+function ckCompare(d, sv, exps) {
+  var fp = String(sv.fingerprint || '').toUpperCase();
+  var same = exps.filter(function (e) { return e.fingerprint === fp; })[0];
+  var fam = ckKeyFam(sv.key);
+  var near = same || exps.filter(function (e) { return ckKeyFam(e.key) === fam; })[0] || exps[0];
+  var wrap = el('div', 'ck-cmp' + (same ? ' same' : ' differ'));
+  var col = function (title, sub, cls) {
+    var c = el('div', 'ck-cmp-col ' + cls);
+    var h = el('div', 'ck-cmp-h');
+    h.appendChild(el('span', '', title));
+    if (sub) h.appendChild(data('span', 'muted small', sub));
+    c.appendChild(h);
+    return c;
+  };
+  var names = function (list) { return arr(list).slice().sort().join(' '); };
+  var lines = function (e, against) {
+    var rows = [
+      ['Names', data('span', 'mono', arr(e.names).slice(0, 6).join(', ') || '–'), against ? names(e.names) === names(against.names) : null],
+      ['Issued by', data('span', '', ckCN(e.issuer) || '?'), against ? ckCN(e.issuer) === ckCN(against.issuer) : null],
+      ['Valid until', e.not_after ? stamp(e.not_after) : '–', against ? Number(e.not_after) === Number(against.not_after) : null],
+      ['Key', data('span', '', e.key || '–'), against ? String(e.key).trim() === String(against.key).trim() : null],
+      ['SHA-256', explain(data('span', 'mono small', ckFp(e.fingerprint)), String(e.fingerprint || '')), against ? e.fingerprint === against.fingerprint : null]
+    ];
+    var t = el('div', 'ck-cmp-rows');
+    rows.forEach(function (r) {
+      var line = el('div', 'ck-cmp-row' + (r[2] === true ? ' ok' : (r[2] === false ? ' no' : '')));
+      var mark = el('span', 'ck-cmp-mark');
+      if (r[2] !== null) mark.innerHTML = iconMarkup(r[2] ? 'check' : 'close', 12);
+      line.appendChild(mark);
+      line.appendChild(el('span', 'ck-cmp-k', r[0]));
+      var v = el('span', 'ck-cmp-v');
+      v.appendChild(typeof r[1] === 'string' ? document.createTextNode(r[1]) : r[1]);
+      line.appendChild(v);
+      t.appendChild(line);
+    });
+    return t;
+  };
+  var card = function (e, cls, tags, against) {
+    var c = el('div', 'ck-cmp-card ' + (cls || ''));
+    var top = el('div', 'ck-cmp-ct');
+    var kb = el('span', 'ck-cmp-key k-' + ckKeyFam(e.key).toLowerCase());
+    kb.textContent = ckKeyFam(e.key) || '?';
+    noI18n(kb);
+    top.appendChild(kb);
+    top.appendChild(data('b', '', ckCN(e.subject) || arr(e.names)[0] || '?'));
+    var tg = el('span', 'md-tags');
+    (tags || []).forEach(function (x) { if (x) tg.appendChild(x); });
+    top.appendChild(tg);
+    c.appendChild(top);
+    c.appendChild(lines(e, against));
+    return c;
+  };
+  var left = col(tr('In acme'), d.cert || '', 'ck-cmp-exp');
+  exps.forEach(function (e) {
+    var tags = [el('span', 'tag dim', e.variant === 'alt' ? 'the twin' : 'the certificate')];
+    if (e.version) tags.push(data('span', 'tag info', 'v' + e.version));
+    if (e === same) tags.push(el('span', 'tag ok', 'this one is sent'));
+    else if (e === near && !same && exps.length > 1) tags.push(el('span', 'tag dim', 'set against'));
+    left.appendChild(card(e, (e === near ? 'near' : 'far') + (e === same ? ' hit' : ''), tags, null));
+  });
+  wrap.appendChild(left);
+  var mid = el('div', 'ck-cmp-mid');
+  var mi = el('span', 'ck-cmp-vs');
+  mi.innerHTML = iconMarkup(same ? 'check' : 'close', 18);
+  mid.appendChild(mi);
+  mid.appendChild(el('span', 'small', same ? 'the same' : 'not the same'));
+  wrap.appendChild(mid);
+  var right = col(tr('The server sent'), (d.host || '') + (d.port ? ':' + d.port : ''), 'ck-cmp-got');
+  var gtags = [];
+  if (d.twin_missing) gtags.push(el('span', 'tag warn', 'its twin - not in acme'));
+  else if (!same) gtags.push(el('span', 'tag crit', 'not this certificate'));
+  else gtags.push(el('span', 'tag ok', 'as expected'));
+  right.appendChild(card({subject: sv.subject, issuer: sv.issuer, not_after: sv.not_after, names: sv.names,
+                          key: sv.key, fingerprint: fp}, same ? 'hit' : 'miss', gtags, near));
+  wrap.appendChild(right);
+  return wrap;
+}
 function ckDetail(res) {
   var d = obj(res.detail);
   var box = el('div', 'ck-detail');
   var sv = obj(d.served);
-  if (sv.fingerprint) {
-    var pairs = [
+  var exps = arr(d.expected);
+  if (sv.fingerprint && exps.length) box.appendChild(ckCompare(d, sv, exps));
+  else if (sv.fingerprint) {
+    box.appendChild(kvTable([
       ['Served', data('span', 'mono', sv.subject || '?')],
       ['Issued by', data('span', '', sv.issuer || '?')],
       ['Valid until', sv.not_after ? stamp(sv.not_after) : '–'],
-      ['Version in acme', d.version ? num(d.version) : '–'],
       ['Names', data('span', 'mono', arr(sv.names).slice(0, 8).join(', ') || '–')],
-      ['SHA-256', data('span', 'mono small', String(sv.fingerprint).replace(/(..)(?!$)/g, '$1:').slice(0, 47) + '…')],
+      ['SHA-256', data('span', 'mono small', ckFp(sv.fingerprint))]]));
+  }
+  if (sv.fingerprint) {
+    /* how it was reached, under the two certificates */
+    var pairs = [
       ['TLS', data('span', 'mono', [d.tls, d.cipher, d.alpn].filter(Boolean).join(' · ') || '–')],
       ['Chain sent', num(d.chain_len || 0) + (d.whole_chain === false ? ' (?)' : '')],
       ['Trusted here', d.trusted === true ? 'yes' : (d.trusted === false ? data('span', 'muted', tr('no') + (d.why_untrusted ? ' - ' + d.why_untrusted : '')) : '–')],
       ['Connected to', data('span', 'mono', (d.host || '?') + ':' + (d.port || '?') + (d.sni ? ' · SNI ' + d.sni : ''))]
     ];
     if (d.http) pairs.push(['HTTP', data('span', 'mono', d.http.method + ' ' + d.http.path + ' → ' + d.http.status + ' ' + (d.http.reason || '') + (d.http.location ? ' → ' + d.http.location : '') + ' (Host: ' + d.http.host_header + ')')]);
-    box.appendChild(kvTable(pairs));
+    var how = el('div', 'ck-how');
+    how.appendChild(el('h5', '', 'How it was reached'));
+    how.appendChild(kvTable(pairs));
+    box.appendChild(how);
   }
   if (arr(d.subs).length) {
     var list = el('div', 'ck-subs');

@@ -29,6 +29,14 @@ is attached to - one HTTPS test serves every web certificate.
 | **wrong answer** | HTTPS asked over HTTP: the status or the words are not as set |
 | **not reached** | no connection, no STARTTLS, no TLS |
 
+**Side by side** (1.0.34): a test's result - *Try it*, the eye in a
+certificate's Tests - draws what acme keeps (both halves of a dual
+certificate) beside what the server sent, each line ticked where they agree and
+red where not: names, issuer, validity, key, SHA-256. A test that fails says
+the same in the job's log (`✗ key: acme RSA 4096 | sent EC 384`, `= names:
+...`), in the event, and in the mail it sends (a table *In acme / The server
+sent*).
+
 *What the server served* shows the subject, issuer, validity, names, SHA-256,
 the TLS version and cipher, the chain length, whether it is trusted here,
 where it connected and the HTTP answer.
