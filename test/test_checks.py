@@ -162,6 +162,34 @@ class TestJudged(Base):
         row = STORE.db.row('SELECT * FROM cert_checks WHERE id = ?', (i,))
         self.assertEqual((row['last_state'], row['fails']), ('other', 2))
 
+    def test_the_twin_acme_does_not_keep_said(self):
+        """A dual certificate with only one half in acme (1.0.34): the other half
+        served is said as its twin, with what to do - not a stranger's certificate."""
+        key, _csr, der = make_key_csr(NAMES, kind='rsa')
+        rsa = (pem_of(self.ca.sign_csr(der, NAMES, serial=150)), key)
+        i = self.add()
+        self.serve(rsa)
+        got = self.run_it(i)
+        self.assertEqual(got['state'], 'other')
+        self.assertIn('RSA twin of this certificate', got['said'])
+        self.assertIn('Key asked for', got['said'])
+        self.assertEqual(got['detail'].get('twin_missing'), 'RSA')
+
+    def test_key_asked_for(self):
+        """RSA or ECDSA asked for: TLS 1.2 at most, ciphers of that key only."""
+        from acmelib.plugins.checks import _tls
+        import ssl
+        for want, has, hasnt in (('rsa', 'RSA', 'ECDSA'), ('ecdsa', 'ECDSA', 'RSA')):
+            _tls.CURRENT.cfg = {'key_want': want}
+            try:
+                ctx = _tls.context('x', False)
+            finally:
+                _tls.CURRENT.cfg = {}
+            self.assertEqual(ctx.maximum_version, ssl.TLSVersion.TLSv1_2)
+            names = [c['name'] for c in ctx.get_ciphers() if c.get('protocol') != 'TLSv1.3']
+            self.assertTrue(names and all(hasnt not in n.split('-')[1:2] for n in names), names)
+            self.assertTrue(any(has in n for n in names), names)
+
     def test_expect_any_version(self):
         i = self.add(expect='any')
         self.serve(self.v1)

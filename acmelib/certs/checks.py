@@ -138,7 +138,27 @@ def expected(store, cert):
     if isinstance(names, str):
         names = [n for n in names.replace(',', ' ').split() if n]
     return {'current': cur, 'old': old, 'names': [str(n).lower() for n in names],
-            'chain': chain, 'not_after': cert.get('not_after'), 'cert': cert.get('name')}
+            'chain': chain, 'not_after': cert.get('not_after'), 'cert': cert.get('name'),
+            'key_type': _key_type_of(cert),
+            'twin': bool(cert.get('alt_fingerprint'))}
+
+
+def _key_type_of(cert):
+    """The key type of the certificate in use: read from it, else as the row says."""
+    try:
+        if cert.get('cert_pem'):
+            return str(pki.cert_info(cert['cert_pem']).get('key_type') or '')
+    except Exception:                                   # noqa: BLE001
+        pass
+    return str(cert.get('key_type') or '')
+
+
+def _key_family(words):
+    """RSA, ECDSA or '' of a key type as acme writes it (RSA 4096, EC P-256, ec-256)."""
+    w = str(words or '').strip().lower()
+    if w.startswith('ec') or 'ecdsa' in w:
+        return 'ECDSA'
+    return 'RSA' if 'rsa' in w else ''
 
 
 def target_host(trow):
@@ -222,6 +242,16 @@ def judge(exp, served, host, sni, require_trusted=False, trusted=None, why_untru
             leaf.get('cn') or leaf.get('subject_dn') or '?', (leaf.get('issuer') or {}).get(
                 'CN') or leaf.get('issuer_dn') or '?',
             time.strftime('%Y-%m-%d', time.gmtime(leaf.get('not_after') or 0)))
+        # the other half of a dual certificate acme does not keep (1.0.34): said as that
+        mine, theirs = _key_family(exp.get('key_type')), _key_family(leaf.get('key_type'))
+        names = set(exp.get('names') or [])
+        if mine and theirs and mine != theirs and names and set(said_names) == names \
+                and not exp.get('twin'):
+            detail['twin_missing'] = theirs
+            words = ('serves the %s twin of this certificate (the same names, issued by %s) - '
+                     'acme keeps only its %s one: import the %s one into it as its twin, or '
+                     'set "Key asked for" to %s' % (
+                         theirs, (leaf.get('issuer') or {}).get('CN') or '?', mine, theirs, mine))
     if state == 'ok':
         name = check_name or (sni if sni != '-' else '') or host
         if name and not _covers(said_names, name):

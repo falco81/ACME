@@ -50583,6 +50583,18 @@
   "md34_29": {
    "source": "One version: everything uses it. Another one is made below, in “Make one of your own”.",
    "text": "Jedna verze: používá ji všechno. Další vytvoříte níže, v části „Vytvořit vlastní“."
+  },
+  "ck34_1": {
+   "source": "Key asked for",
+   "text": "Klíč, o který se žádá"
+  },
+  "ck34_2": {
+   "source": "whichever the server picks",
+   "text": "jakýkoli, který server vybere"
+  },
+  "ck34_3": {
+   "source": "A server with a dual certificate sends the one the client asks for. RSA or ECDSA: TLS 1.2 with ciphers of that key only (TLS 1.3 cannot ask for a key type here) - the server must still speak TLS 1.2.",
+   "text": "Server s duálním certifikátem pošle ten, o který klient požádá. RSA nebo ECDSA: TLS 1.2 jen se šiframi daného klíče (v TLS 1.3 o typ klíče požádat odsud nejde) – server musí TLS 1.2 ještě umět."
   }
  },
  "patterns": {
@@ -69397,6 +69409,10 @@
   "pck34_2": {
    "source": "The test {0}: take it away",
    "text": "Test {0}: odebrat"
+  },
+  "pck34_3": {
+   "source": "serves the {0} twin of this certificate (the same names, issued by {1}) - acme keeps only its {2} one: import the {3} one into it as its twin, or set \"Key asked for\" to {4}",
+   "text": "posílá {0} dvojče tohoto certifikátu (stejná jména, vydal {1}) – acme má jen jeho {2}: importujte {3} k němu jako dvojče, nebo nastavte „Klíč, o který se žádá“ na {4}"
   }
  },
  "rich": {

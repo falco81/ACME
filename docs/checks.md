@@ -25,7 +25,7 @@ is attached to - one HTTPS test serves every web certificate.
 | **serves it** | the current version (or the twin of a dual certificate) |
 | **serves it - but** | the right one, but: it ends within `certs_checks_warn_days`, the name checked is not one of its names, the server sends no intermediate, or it is not trusted by this machine's CAs (failing only with *Fail when not trusted here*) |
 | **an old version** | an earlier version of the same certificate: the renewal did not reach the server - a service not restarted, another node behind the balancer |
-| **another certificate** | one acme did not deploy there |
+| **another certificate** | one acme did not deploy there. The other half of a dual certificate acme does not keep (the same names, the other key type - ECDSA where acme has only the RSA one) is said as that: import it into the certificate as its twin, or set *Key asked for* |
 | **wrong answer** | HTTPS asked over HTTP: the status or the words are not as set |
 | **not reached** | no connection, no STARTTLS, no TLS |
 
@@ -77,6 +77,7 @@ once, not at every run.
 | *Name asked for (SNI)* | sent in TLS, whatever address was connected to. Empty: the certificate's first name; `-`: none |
 | *Name the certificate must hold* | looked for among the names served. Empty: the SNI |
 | *The certificate expected* | the version deployed now (or its twin), the main one only, the twin only, any version |
+| *Key asked for* | whichever the server picks, RSA or ECDSA - a server with a dual certificate sends the one asked for. RSA or ECDSA is TLS 1.2 with ciphers of that key only (Python cannot ask for a key type in TLS 1.3), so the server must still speak TLS 1.2 |
 | *TLS at least / at most* | TLS 1.0 - 1.3 - at most 1.2 to see what an older client gets |
 | *Ciphers* | OpenSSL's list (TLS 1.2 and older): RSA ones only to get the RSA one of a dual certificate |
 | *ALPN* | `h2, http/1.1` |

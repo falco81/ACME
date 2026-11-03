@@ -6,6 +6,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.34 - not released
 
+- Tests: a server sending the other half of a dual certificate acme keeps only
+  one half of (the same names, ECDSA where acme has the RSA one) is said as
+  that - "serves the ECDSA twin of this certificate ... import it as its twin,
+  or set Key asked for" - not as a stranger's certificate. A test's new *Key
+  asked for* (whichever, RSA, ECDSA): TLS 1.2 with ciphers of that key only, so
+  a dual server sends that one.
+
 - Modules → a module → *Download a start* asks first: only a start (a few
   lines that take the module as it is) or the whole code of a version - the
   shipped one, any of yours, or the shipped original under a replacement - its

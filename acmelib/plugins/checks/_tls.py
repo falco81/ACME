@@ -69,6 +69,11 @@ def fields(port, more=None):
                        ['any', 'any version of this certificate - an old one is not a fault']],
               help='What counts as right. A dual certificate (ECDSA beside RSA): the server '
                    'picks one by what the client offers.'),
+        field('key_want', 'Key asked for', 'select', default='',
+              options=[['', 'whichever the server picks'], ['rsa', 'RSA'], ['ecdsa', 'ECDSA']],
+              help='A server with a dual certificate sends the one the client asks for. RSA or '
+                   'ECDSA: TLS 1.2 with ciphers of that key only (TLS 1.3 cannot ask for a key '
+                   'type here) - the server must still speak TLS 1.2.'),
     ] + list(more or []) + [
         field('tls_min', 'TLS at least', 'select', default='', options=TLS_VERSIONS,
               advanced=True),
@@ -152,13 +157,24 @@ def context(sni, verify):
         ctx.minimum_version = getattr(ssl.TLSVersion, str(opt('tls_min', '') or 'TLSv1'))
     except (ValueError, AttributeError):
         pass
+    want = str(opt('key_want', '') or '').lower()
     if opt('tls_max'):
         try:
             ctx.maximum_version = getattr(ssl.TLSVersion, str(opt('tls_max')))
         except (ValueError, AttributeError):
             pass
+    if want in ('rsa', 'ecdsa'):
+        # the key type asked for (1.0.34): only TLS 1.2 lets a client say it, by its ciphers
+        try:
+            if ctx.maximum_version in (ssl.TLSVersion.MAXIMUM_SUPPORTED, ssl.TLSVersion.TLSv1_3):
+                ctx.maximum_version = ssl.TLSVersion.TLSv1_2
+        except (ValueError, AttributeError):
+            pass
+    ciphers = str(opt('ciphers', '') or '')
+    if not ciphers and want in ('rsa', 'ecdsa'):
+        ciphers = ('aRSA' if want == 'rsa' else 'aECDSA') + ':!aNULL:@SECLEVEL=0'
     try:
-        ctx.set_ciphers(str(opt('ciphers', '') or 'DEFAULT:@SECLEVEL=0'))
+        ctx.set_ciphers(ciphers or 'DEFAULT:@SECLEVEL=0')
     except ssl.SSLError as e:
         raise PluginError('the ciphers set are not ones this machine knows: %s' % e,
                           retry=False)
