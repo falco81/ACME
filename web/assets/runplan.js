@@ -257,9 +257,58 @@
     var text = [r.name, r.ttl ? String(r.ttl) : '', 'IN', r.type, r.value ? '"' + r.value + '"' : ''].filter(Boolean).join(' ');
     return codeBlock(text);
   }
+  /* Bytes taken apart, as Wireshark shows a packet (1.0.37): its fields as a tree, its
+     bytes under it - a field pointed at lights its bytes up. */
+  function packetView(pk) {
+    var box = el('div', 'rp-pkt');
+    var h = el('div', 'rp-pkt-h');
+    h.appendChild(data('span', 'rp-pkt-proto', (pk.proto || 'bytes').toUpperCase()));
+    h.appendChild(data('span', 'rp-pkt-sum', pk.title || pk.summary || ''));
+    h.appendChild(data('span', 'rp-pkt-n muted', pk.bytes + ' B'));
+    box.appendChild(h);
+    var cells = [];
+    var bytesBox = el('div', 'rp-pkt-bytes mono');
+    (pk.cells || []).forEach(function (c, i) {
+      if (i % 16 === 0) {
+        if (i) bytesBox.appendChild(el('br'));
+        bytesBox.appendChild(data('span', 'rp-pkt-off', ('000' + i.toString(16)).slice(-4) + '  '));
+      }
+      var sp = data('span', 'rp-pkt-b' + (c === '••' ? ' hid' : ''), c);
+      cells.push(sp);
+      bytesBox.appendChild(sp);
+      bytesBox.appendChild(document.createTextNode(i % 16 === 7 ? '  ' : ' '));
+    });
+    var light = function (off, ln, on) {
+      for (var i = off; i < off + ln && i < cells.length; i++) cells[i].classList.toggle('lit', on);
+    };
+    if ((pk.fields || []).length) {
+      var tree = el('div', 'rp-pkt-tree');
+      pk.fields.forEach(function (f) {
+        var row = el('div', 'rp-pkt-f' + (f[4] !== '' && f[4] !== undefined ? ' has-v' : '') + (/^\[Malformed/.test(f[3]) ? ' bad' : ''));
+        row.style.paddingLeft = (8 + f[0] * 16) + 'px';
+        row.appendChild(data('span', 'rp-pkt-k', f[3]));
+        if (f[4] !== '' && f[4] !== undefined) {
+          row.appendChild(data('span', 'rp-pkt-v mono', f[4]));
+        }
+        row.appendChild(data('span', 'rp-pkt-at muted mono', '[' + f[1] + (f[2] > 1 ? '..' + (f[1] + f[2] - 1) : '') + ']'));
+        row.onmouseenter = function () { light(f[1], f[2], true); };
+        row.onmouseleave = function () { light(f[1], f[2], false); };
+        tree.appendChild(row);
+      });
+      box.appendChild(tree);
+    }
+    box.appendChild(bytesBox);
+    return box;
+  }
   function detailOf(st) {
     var d = st.detail;
     if (!d) return null;
+    if (d.packets && d.packets.length) {
+      var pw = el('div', 'rp-pkts');
+      if (d.text) pw.appendChild(codeBlock(d.text));
+      d.packets.forEach(function (pk) { pw.appendChild(packetView(pk)); });
+      return pw;
+    }
     if (d.url) return httpBlock(d);
     /* an SSH connection (1.0.37): its facts, then the ssh command as it runs, folded */
     if (d.pairs && d.command) {

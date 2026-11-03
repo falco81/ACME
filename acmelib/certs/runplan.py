@@ -469,10 +469,17 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             hp = '%s:%s' % (ev.get('host'), ev.get('port'))
             if ev.get('hex'):
                 hx = ev['hex']
+                try:
+                    from acmelib.certs import dissect as _dx
+                    pk = _dx.dissect(bytes.fromhex(hx), port=ev.get('port'))
+                except Exception:                       # noqa: BLE001
+                    pk = None
                 st = {'kind': 'call', 'words': 'Sends {0} bytes over UDP to {1}'.replace(
                     '{0}', str(ev.get('bytes') or len(hx) // 2)).replace('{1}', hp),
-                    'detail': {'text': ' '.join(hx[n:n + 2] for n in range(0, len(hx), 2))},
-                    'note': 'a connection the module makes itself, not through acme'}
+                    'detail': {'packets': [pk]} if pk else {'text': ' '.join(
+                        hx[n:n + 2] for n in range(0, len(hx), 2))},
+                    'note': 'a connection the module makes itself, not through acme' + (
+                        ' - %s' % pk['summary'] if pk and pk.get('fields') else '')}
             else:
                 st = {'kind': 'stop', 'words': 'Opens a connection of its own to {0} ({1})'.replace(
                     '{0}', hp).replace('{1}', (ev.get('how') or 'tcp').upper()),
@@ -1256,9 +1263,20 @@ def _test_steps(cls, cfg, names, via=None):
                 text.append('  ' + ' '.join(hx[i:i + 2] for i in range(0, len(hx), 2)))
             elif t.get('wait'):
                 text.append('← waits for ' + str(t['wait']))
+        packets = []
+        for t in talk:
+            if t.get('send_hex'):
+                try:
+                    from acmelib.certs import dissect as _dx
+                    pk = _dx.dissect(bytes.fromhex(str(t['send_hex'])), proto=cls.kind)
+                    pk['title'] = t.get('what') or pk['summary']
+                    packets.append(pk)
+                except Exception:                       # noqa: BLE001
+                    pass
         st = {'kind': 'call', 'words': 'Speaks {0} first, then asks for TLS'.replace(
             '{0}', cls.protocol or cls.kind), 'note': cls.description or '',
-            'detail': {'text': '\n'.join(text)} if text else None, 'debug': True}
+            'detail': ({'text': '\n'.join(text), 'packets': packets} if text else None),
+            'debug': True}
         if not text:
             # a module of your own that does not say it (1.0.37): said, not left blank
             st['note'] = ('this module does not say what it sends before TLS - a talk() of '

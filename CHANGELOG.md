@@ -13,6 +13,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   every command (PASS ••••), each upload with its size; a socket of its own - UDP
   with every byte it sends (SNMP, say), TCP with where it connects (what it says
   there cannot be told). Still nothing is reached.
+- What happens, with its debug details: bytes taken apart as Wireshark shows a
+  packet (acmelib/certs/dissect.py) - each field named, its value read and said
+  (flags one by one), the bytes it comes from; the bytes under it, the ones of
+  the field pointed at lit up. What the tests send before TLS: LDAP's StartTLS
+  (BER), PostgreSQL's and MySQL's SSLRequest (its capability flags), TDS
+  PRELOGIN (its options), RDP's TPKT / X.224 / RDP_NEG_REQ (the protocols asked
+  for); what a module sends over UDP: SNMP (BER: version, PDU, varbinds - the
+  community, a password in effect, never shown), DNS (header flags, questions),
+  syslog (priority). A packet cut short: what could be read, then said so.
 - What happens: *Show debug details* (off by default, kept in the browser). Off,
   the page is as it was - the headers a module sets, the steps of a test in
   short; on, everything below: each request as it goes on the wire, how each
