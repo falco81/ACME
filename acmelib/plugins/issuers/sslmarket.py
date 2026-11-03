@@ -50,7 +50,7 @@ import re
 import time
 import urllib.parse
 
-from acmelib.plugins.base import Issuer, Issued, PluginError, field, dual_order_field
+from acmelib.plugins.base import Issuer, Issued, Plugin, PluginError, field, dual_order_field
 from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers.acme import AcmeIssuer, _seal, _unseal
 
@@ -1061,6 +1061,99 @@ class SslmarketIssuer(_Common, Issuer):
                                             else 'not allowed (reissues only)'))
         return '; '.join(bits)
 
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['api', 'api_url', 'token']
+
+    def discover_setup(self):
+        """Read-only: the products of the account (the product to order), its orders (one
+        to reuse - never picked by itself) and, from the last order's detail, its owner,
+        contact and invoice data and its DCV method; with no order, the organisation of
+        the account (/acme/organization/list)."""
+        out = Plugin.discover_setup(self)
+        api = self.api()
+        prods = api.products()
+        out['facts'].append(['Products', str(len(prods))])
+        opts = []
+        for p in prods:
+            code = str(p.get('product_code') or '').strip()
+            if code:
+                opts.append([code, '%s (%s%s)' % (p.get('title') or code, p.get('validate_type')
+                                                  or p.get('type') or '?',
+                                                  ', up to %s years' % p['max_years']
+                                                  if p.get('max_years') else '')])
+        self.offer(out, 'product', opts)
+        orders = api.orders()
+        out['facts'].append(['Orders', str(len(orders))])
+        live = []
+        for o in orders:
+            oid = str(o.get('order_id') or '').strip()
+            if oid and not self.failed(o):
+                end = _when(o.get('expired'))
+                live.append((oid, o, end))
+        live.sort(key=lambda x: int(x[0]) if x[0].isdigit() else 0, reverse=True)
+        runs = [x for x in live if not x[2] or x[2] > _now()]
+        if runs:
+            self.offer(out, 'order_id', [['', 'Empty: the order acme made last for the '
+                                               'certificate']] + [
+                [oid, '%s · %s%s' % (o.get('domain') or '?', o.get('product_code') or '?',
+                                     ' · until %s' % _day(end) if end else '')]
+                for oid, o, end in runs[:300]], pick='')
+        det = None
+        for oid, _o, _end in live[:3]:
+            try:
+                det = self.detail(oid)
+                out['facts'].append(['Contacts taken from the order', oid])
+                break
+            except PluginError as e:
+                out['notes'].append('the order %s could not be read: %s' % (oid, e))
+        sets = out['sets']
+        if det:
+            for k in ('owner_name', 'owner_street', 'owner_city', 'owner_zip', 'owner_country',
+                      'owner_tel', 'invoice_name', 'invoice_street', 'invoice_city',
+                      'invoice_zip', 'invoice_country', 'invoice_email', 'invoice_ic',
+                      'invoice_dic'):
+                if str(det.get(k) or '').strip():
+                    sets[k] = str(det[k]).strip()
+            for mine, theirs in (('contact_title', 'title'), ('contact_first', 'firstname'),
+                                 ('contact_last', 'lastname'), ('contact_email', 'email'),
+                                 ('contact_tel', 'tel')):
+                v = det.get('tech_' + theirs) or det.get('auth_' + theirs)
+                if str(v or '').strip():
+                    sets[mine] = str(v).strip()
+            if str(det.get('dv_auth_method') or '') in DV_METHODS:
+                sets['dcv'] = str(det['dv_auth_method'])
+        else:
+            try:
+                orgs = [o for o in api.organizations() if str(o.get('status') or 'active') ==
+                        'active']
+            except PluginError as e:
+                orgs = []
+                out['notes'].append('the organisations could not be read: %s' % e)
+            if orgs:
+                o = orgs[0]
+                out['facts'].append(['Contacts taken from the organisation',
+                                     str(o.get('name') or o.get('organization_id') or '?')])
+                for mine, theirs in (('owner_name', 'name'), ('owner_street', 'street'),
+                                     ('owner_city', 'city'), ('owner_zip', 'zip'),
+                                     ('owner_country', 'country'), ('owner_tel', 'tel')):
+                    if str(o.get(theirs) or '').strip():
+                        sets[mine] = str(o[theirs]).strip()
+                cs = o.get('contacts')
+                cs = cs if isinstance(cs, list) else [cs] if isinstance(cs, dict) else []
+                c = next((x for x in cs if isinstance(x, dict) and x.get('email')), None)
+                if c:
+                    for mine, theirs in (('contact_first', 'first_name'),
+                                         ('contact_last', 'last_name'),
+                                         ('contact_email', 'email'), ('contact_tel', 'tel')):
+                        if str(c.get(theirs) or '').strip():
+                            sets[mine] = str(c[theirs]).strip()
+            elif not orders:
+                out['notes'].append('the account has no order and no organisation yet: the '
+                                    'owner and the contact are set by hand')
+        if sets.get('owner_country'):
+            sets['owner_country'] = sets['owner_country'].upper()[:2]
+        return out
+
     # -- the orders of the account (Certificates → Import from a source) ---------------------
     def _acme_ids(self):
         """{order id: acme's certificate id} of the orders acme made or reissued here."""
@@ -1332,6 +1425,48 @@ class SslmarketAcmeIssuer(_Common, AcmeIssuer):
         return self._cred
 
     # -- trying it, the actions --------------------------------------------------------------
+    # -- discovery (1.0.29) -------------------------------------------------------------------
+    discover_keys = ['api', 'api_url', 'token']
+
+    def discover_setup(self):
+        """Read-only: the ACME keys of the account (one found again by its name - its
+        product, validity and organisation with it), the products, the organisations."""
+        out = Plugin.discover_setup(self)
+        api = self.api()
+        keys = [k for k in api.acme_keys() if str(k.get('status') or 'active') == 'active']
+        out['facts'].append(['ACME keys', str(len(keys))])
+        if keys:
+            sets = {}
+            for k in keys:
+                more = {}
+                if k.get('product_code'):
+                    more['acme_product'] = str(k['product_code'])
+                if k.get('certificate_validity_days'):
+                    more['validity_days'] = int(k['certificate_validity_days'])
+                if k.get('organization_id'):
+                    more['organization_id'] = str(k['organization_id'])
+                if k.get('name'):
+                    sets[str(k['name'])] = more
+            self.offer(out, 'acme_name', [[str(k['name']), '%s · %s' % (
+                k['name'], k.get('product_code') or '?')] for k in keys if k.get('name')],
+                sets)
+        prods = api.products()
+        self.offer(out, 'acme_product', [[str(p['product_code']), '%s (%s)' % (
+            p.get('title') or p['product_code'], p.get('validate_type') or p.get('type') or '?')]
+            for p in prods if p.get('product_code')])
+        try:
+            orgs = api.organizations()
+        except PluginError as e:
+            orgs = []
+            out['notes'].append('the organisations could not be read: %s' % e)
+        if orgs:
+            self.offer(out, 'organization_id', [['', 'None (a DV product)']] + [
+                [str(o['organization_id']), '%s%s' % (o.get('name') or o['organization_id'],
+                                                      '' if str(o.get('status') or 'active') ==
+                                                      'active' else ' (inactive)')]
+                for o in orgs if o.get('organization_id')])
+        return out
+
     def test(self):
         product, name, days, org = self._settings()
         bits = ['signed in to %s' % self.base_url()]

@@ -43,7 +43,7 @@ function capi(path, body, wait) {
    that changes something, so the next tab, popup or form asks again: a
    thing made in one tab is in every other at once, without F5. POSTs that
    only read (a file looked into, an export, a test, a check) keep them. */
-var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|run_plan|dry_run|compat|preview|online_list)$/;
+var READS = /(^|\/)(parse|export|test|pki_check|check|csr|plan|run_plan|dry_run|compat|preview|online_list|discover|catalog)$/;
 var FRESH = {n: 0};
 function forgetAll() {
   FRESH.n++;
@@ -758,7 +758,7 @@ function fieldForm(fields, values, secrets, opts) {
       if (box && box.tagName === 'INPUT' && /^[\w.@:/-]+$/.test(String(f.placeholder))) noI18n(box);
     }
     (f.advanced ? moreGrid : main).appendChild(item);
-    items.push({f: f, item: item, input: input, get: get});
+    items.push({f: f, item: item, input: input, get: get, own: own});
   });
   node.appendChild(main);
   if (moreGrid.children.length) node.appendChild(more);
@@ -772,7 +772,9 @@ function fieldForm(fields, values, secrets, opts) {
   };
   /* A choice that fills others in (`fills`: {option: {key: value}}) - a
      preset of a service, say: chosen, the fields below take its values. */
-  var put = function (it, v) {
+  var put = function (it, v, extra) {
+    /* a type of its own takes a value itself (catalog.js: the list's choice) */
+    if (it.own && typeof it.own.set === 'function') { it.own.set(v, extra); return; }
     var box = it.input._input || it.input;
     if (it.f.type === 'bool') { box.checked = truthy(v); return; }
     if (it.f.type === 'pem' || it.input._input) { it.input._input.value = v || ''; return; }
@@ -815,11 +817,11 @@ function fieldForm(fields, values, secrets, opts) {
   return {
     node: node,
     /* A field given a value from outside (a helper of the form): as if typed. */
-    set: function (key, v) {
+    set: function (key, v, extra) {
       var it = items.filter(function (x) { return x.f.key === key; })[0];
       if (!it) return false;
-      put(it, v);
-      var box = it.input._input || it.input;
+      put(it, v, extra);
+      var box = (it.own && it.own.box) || it.input._input || it.input;
       box.dispatchEvent(new Event('input', {bubbles: true}));
       box.dispatchEvent(new Event('change', {bubbles: true}));
       if (it.f.advanced && more.parentNode) more.open = true;
@@ -2278,6 +2280,14 @@ function modForm(key, row, p, fromPick) {
     body.appendChild(g);
     body.appendChild(el('h4', 'ct-formh', 'Settings of the module'));
     form = fieldForm(p.fields || [], cfg, secretsOf(row), {noneWords: 'This module needs nothing set.', family: m.family, row: row, plug: p});
+    /* "Find the settings from the account" (discover.js, 1.0.29): the sign-in only,
+       the rest read from the account and offered - filled in, never saved by itself. */
+    if (FULL && p.discover && window.ACME_DISCOVER) {
+      body.appendChild(window.ACME_DISCOVER({form: form, row: row && row.kind === p.kind ? row : null, p: p, family: m.family,
+                                             secrets: secretsOf(row), nameNow: function () { return name.value.trim(); },
+                                             h: {fieldForm: fieldForm, over: over, capi: capi, failedBox: failedBox, factsRow: factsRow,
+                                                 td: td, data: data, saidLine: saidLine, jobPeek: jobPeek, truthy: truthy}}));
+    }
     body.appendChild(form.node);
     /* Where the files, the script and the roles of Windows are set: each certificate's
        deployment, not here (this is how acme reaches the machine). */

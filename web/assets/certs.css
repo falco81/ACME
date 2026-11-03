@@ -543,6 +543,16 @@ select.ct-valsel option.ct-unfit{color:var(--tx-mut)}
 .ct-sshdns-how .btn{margin-top:6px}
 .ct-sshdns-problems{margin:0;padding-left:18px}
 .ct-sshdns-ask{padding:8px 10px;border:1px dashed var(--line);border-radius:8px}
+/* discovery - "Find the settings from the account" (discover.js, 1.0.29) */
+.ct-discover{align-items:center;margin:2px 0 10px}
+.ct-discover .muted{flex:1 1 18em}
+.ct-discover-table{width:100%;table-layout:fixed;margin-top:8px}
+.ct-discover-table th:first-child,.ct-discover-table td:first-child{width:34px}
+.ct-discover-table th:nth-child(2){width:28%}.ct-discover-table th:nth-child(3){width:24%}
+.ct-discover-table td{vertical-align:top;overflow-wrap:anywhere}
+.ct-discover-table select{width:100%;max-width:100%;min-width:0}
+.ct-discover-other td{opacity:.85}
+.ct-discover-notes{margin:8px 0;padding-left:18px}
 .ct-sshdns-out .ct-steps-btn{align-self:flex-start}
 @media (max-width:560px){.ct-sshdns-zone{grid-template-columns:minmax(0,1fr)}}
 

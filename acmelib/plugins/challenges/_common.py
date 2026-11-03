@@ -28,7 +28,8 @@ import threading
 import time
 
 from acmelib.plugins import limits
-from acmelib.plugins.base import Challenge, PluginError, field, guide_of, guide_step
+from acmelib.plugins.base import (GENERIC_DISCOVERY, Challenge, Plugin, PluginError, field,
+                                 guide_of, guide_step)
 from acmelib.plugins.challenges import _dns as D
 
 # A name connected to at an address of its own, in this thread only (a check of
@@ -382,6 +383,46 @@ class DnsChallenge(Challenge):
         if self._said.get(key) != words:
             self._said[key] = words
             self.ctx.step(words, level)
+
+    # -- discovery (1.0.29) ------------------------------------------------------
+    def discover_setup(self):
+        """The lists of the form, and the zones the credentials see: the Zone field
+        offered them (empty - each name in the longest zone it is in - stays a choice)."""
+        out = Plugin.discover_setup(self)
+        names = getattr(self, 'zone_names', None)
+        if not callable(names) or not any(f.get('key') == 'zone' and f.get('type') != 'catalog'
+                                          for f in self.fields or []):
+            return out
+        try:
+            zones = names()
+        except NotImplementedError:
+            return out
+        except PluginError as e:
+            out['notes'].append('the zones could not be listed: %s' % e)
+            return out
+        if zones is None:
+            out['notes'].append('%s does not list the zones of the account - set the zone '
+                                'by hand, or leave it empty (found by its SOA)' % (
+                                    self.who or self.title or self.kind))
+            return out
+        zones = sorted({D.norm(z) for z in zones if z})
+        out['facts'].append(['Zones the account sees', str(len(zones))])
+        opts = [['', 'Empty: each name in the longest zone of the account it is in']] + \
+            [[z, z] for z in zones[:500]]
+        now = D.norm(self.config.get('zone') or '')
+        self.offer(out, 'zone', opts, pick=now if now in zones else '')
+        return out
+
+    @classmethod
+    def discover_offered(cls):
+        if cls.discovery is not None or cls.discover_setup not in GENERIC_DISCOVERY:
+            return Plugin.discover_offered.__func__(cls)
+        lists = getattr(cls, 'zone_names', None)
+        own_zones = callable(lists) and getattr(lists, '__qualname__', '') not in (
+            'ApiDns.zone_names', 'DnsChallenge.zone_names')
+        has_zone = any(f.get('key') == 'zone' for f in cls.fields or [])
+        return (own_zones and has_zone and bool(cls.discover_keys_of())) or \
+            Plugin.discover_offered.__func__(cls)
 
     # -- where it goes ----------------------------------------------------------
     def record_name(self, name):
@@ -900,6 +941,9 @@ class DnsChallenge(Challenge):
 # HTTP-01
 # ---------------------------------------------------------------------------
 _PUBLIC_DOWN = {}                   # the public view's servers -> not asked again until
+
+
+GENERIC_DISCOVERY.add(DnsChallenge.discover_setup)
 
 
 class HttpChallenge(Challenge):

@@ -207,6 +207,7 @@ class FakeApi(object):
              'has_child': o['has_child'], 'dv_auth_method': o['method'] or 'Email'}
         if o['has_child']:
             v['child_id'] = o['child_id']
+        v.update(o.get('contacts') or {})            # the owner, contacts, invoice (discovery)
         if o['method'] in ('DNS', 'FILE') and o['polls'] > 1:
             v['dv_auth_content'] = self.dv_content(oid, o)      # not at once: asked again
         return self.ok(tmpl, 'GET', v)

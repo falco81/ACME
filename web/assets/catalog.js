@@ -138,7 +138,25 @@
     });
     /* A saved module: its list loaded by itself (its secrets are kept there). */
     if (opts.row && opts.row.id && (f.autoload !== false)) setTimeout(ask, 0);
-    return {input: wrap, get: function () { return sel.value === OWN ? own.value.trim() : sel.value; }};
+    /* Given from outside (discovery, 1.0.29): the value chosen - the list it came
+       with put in, when there is one - or typed in "Type it yourself…". */
+    function put(v, extra) {
+      v = v === undefined || v === null ? '' : String(v);
+      extra = extra || {};
+      if (Array.isArray(extra.options) && extra.options.length) {
+        sets = extra.sets || sets;
+        fill(extra.options.filter(function (p) { return p[0] !== ''; }));
+      }
+      if (v === '' || Array.prototype.some.call(sel.options, function (o) { return o.value === v; })) {
+        sel.value = v;
+      } else {
+        sel.value = OWN;
+        own.value = v;
+      }
+      ownShown();
+    }
+    return {input: wrap, box: sel, set: put,
+            get: function () { return sel.value === OWN ? own.value.trim() : sel.value; }};
   }
 
   function arr(x) { return Array.isArray(x) ? x : []; }

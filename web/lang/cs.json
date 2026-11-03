@@ -48479,6 +48479,126 @@
   "a24x28_2": {
    "source": "REST API v2 (a key and a secret from the administration on the Websupport platform) is the one that works. Active24 says the old platform's API (api.active24.com, a token) no longer works since the move to the new platform - kept only for settings made with it.",
    "text": "Funguje REST API v2 (klíč a tajemství z administrace na platformě Websupport). API staré platformy (api.active24.com, token) podle Active24 od přechodu na novou platformu nefunguje – zůstává jen kvůli nastavením, která s ním byla vytvořena."
+  },
+  "dsc29_1": {
+   "source": "Find the settings from the account",
+   "text": "Zjistit nastavení z účtu"
+  },
+  "dsc29_2": {
+   "source": "Only the sign-in is needed - the rest is read from the account and offered. Everything can still be set by hand.",
+   "text": "Stačí přihlašovací údaje – zbytek se načte z účtu a nabídne. Vše lze dál vyplnit i ručně."
+  },
+  "dsc29_3": {
+   "source": "Give only what signing in to the account takes. acme asks its API and only reads - nothing is ordered, changed or saved - then offers what it found: what you tick is filled into the form, and Save keeps it. A value the form has already is never replaced unless you tick it.",
+   "text": "Zadejte jen to, co je potřeba k přihlášení do účtu. acme se zeptá jeho API a jen čte – nic neobjedná, nezmění ani neuloží – a nabídne, co zjistí: zaškrtnuté se doplní do formuláře a uloží se tlačítkem Uložit. Hodnota, kterou už formulář má, se nikdy nepřepíše, pokud ji sami nezaškrtnete."
+  },
+  "dsc29_4": {
+   "source": "Sign-in",
+   "text": "Přihlášení"
+  },
+  "dsc29_5": {
+   "source": "Find out",
+   "text": "Zjistit"
+  },
+  "dsc29_6": {
+   "source": "Asking the account…",
+   "text": "Ptám se účtu…"
+  },
+  "dsc29_7": {
+   "source": "the settings from the account",
+   "text": "nastavení z účtu"
+  },
+  "dsc29_8": {
+   "source": "Every field of the form can still be set by hand.",
+   "text": "Každé pole formuláře lze dál vyplnit ručně."
+  },
+  "dsc29_9": {
+   "source": "The form already says everything that was found.",
+   "text": "Formulář už obsahuje vše, co bylo zjištěno."
+  },
+  "dsc29_10": {
+   "source": "The account told nothing to fill in - set the fields by hand.",
+   "text": "Účet nic k doplnění neuvedl – vyplňte pole ručně."
+  },
+  "dsc29_11": {
+   "source": "Now in the form",
+   "text": "Teď ve formuláři"
+  },
+  "dsc29_12": {
+   "source": "From the account",
+   "text": "Z účtu"
+  },
+  "dsc29_13": {
+   "source": "– choose –",
+   "text": "– vyberte –"
+  },
+  "dsc29_14": {
+   "source": "in the account",
+   "text": "v účtu"
+  },
+  "dsc29_15": {
+   "source": "Unticked: the form has another value there - tick it to replace it.",
+   "text": "Nezaškrtnuté: formulář tam má jinou hodnotu – zaškrtněte, chcete-li ji nahradit."
+  },
+  "dsc29_16": {
+   "source": "Fill in the ticked ones",
+   "text": "Doplnit zaškrtnuté"
+  },
+  "dsc29_17": {
+   "source": "Nothing filled in",
+   "text": "Nic nebylo doplněno"
+  },
+  "dsc29_18": {
+   "source": "Save to keep it.",
+   "text": "Uložte, aby se to zachovalo."
+  },
+  "dsc29_19": {
+   "source": "Products",
+   "text": "Produkty"
+  },
+  "dsc29_20": {
+   "source": "Orders",
+   "text": "Objednávky"
+  },
+  "dsc29_21": {
+   "source": "Contacts taken from the order",
+   "text": "Kontakty převzaté z objednávky"
+  },
+  "dsc29_22": {
+   "source": "Contacts taken from the organisation",
+   "text": "Kontakty převzaté z organizace"
+  },
+  "dsc29_23": {
+   "source": "ACME keys",
+   "text": "Klíče ACME"
+  },
+  "dsc29_24": {
+   "source": "Zones the account sees",
+   "text": "Zóny, které účet vidí"
+  },
+  "dsc29_25": {
+   "source": "Empty: the order acme made last for the certificate",
+   "text": "Prázdné: objednávka, kterou acme pro certifikát vytvořilo naposledy"
+  },
+  "dsc29_26": {
+   "source": "Empty: each name in the longest zone of the account it is in",
+   "text": "Prázdné: každé jméno v nejdelší zóně účtu, do které patří"
+  },
+  "dsc29_27": {
+   "source": "None (a DV product)",
+   "text": "Žádná (produkt DV)"
+  },
+  "dsc29_28": {
+   "source": "the account has no order and no organisation yet: the owner and the contact are set by hand",
+   "text": "účet zatím nemá žádnou objednávku ani organizaci: vlastník a kontakt se vyplní ručně"
+  },
+  "dsc29_29": {
+   "source": "what the account says of the settings - read-only, nothing is saved",
+   "text": "co účet říká o nastavení – jen čtení, nic se neukládá"
+  },
+  "dsc29_30": {
+   "source": "the account told nothing to fill in",
+   "text": "účet nic k doplnění neuvedl"
   }
  },
  "patterns": {
@@ -66681,6 +66801,54 @@
   "pvm27_26": {
    "source": "{0} (F-DNS: {1} of {2} domains used)",
    "text": "{0} (F-DNS: využito {1} z {2} domén)"
+  },
+  "pdsc29_1": {
+   "source": "{0}: set {1} first, then ask again",
+   "text": "{0}: nejdřív nastavte {1}, pak se zeptejte znovu"
+  },
+  "pdsc29_2": {
+   "source": "the zones could not be listed: {0}",
+   "text": "zóny se nepodařilo vypsat: {0}"
+  },
+  "pdsc29_3": {
+   "source": "{0} does not list the zones of the account - set the zone by hand, or leave it empty (found by its SOA)",
+   "text": "{0} nevypisuje zóny účtu – nastavte zónu ručně, nebo ji nechte prázdnou (najde se podle SOA)"
+  },
+  "pdsc29_4": {
+   "source": "the order {0} could not be read: {1}",
+   "text": "objednávku {0} se nepodařilo načíst: {1}"
+  },
+  "pdsc29_5": {
+   "source": "the organisations could not be read: {0}",
+   "text": "organizace se nepodařilo načíst: {0}"
+  },
+  "pdsc29_6": {
+   "source": "Try it: {0}",
+   "text": "Vyzkoušet: {0}"
+  },
+  "pdsc29_7": {
+   "source": "the account told nothing to fill in - {0}",
+   "text": "účet nic k doplnění neuvedl – {0}"
+  },
+  "pdsc29_8": {
+   "source": "{0} setting(s) found",
+   "text": "zjištěno nastavení: {0}"
+  },
+  "pdsc29_9": {
+   "source": "{0} setting(s) found - {1}",
+   "text": "zjištěno nastavení: {0} – {1}"
+  },
+  "pdsc29_10": {
+   "source": "{0} - every field can be set by hand",
+   "text": "{0} – každé pole lze vyplnit ručně"
+  },
+  "pdsc29_11": {
+   "source": "{0} {1}: find the settings from the account",
+   "text": "{0} {1}: zjistit nastavení z účtu"
+  },
+  "pdsc29_12": {
+   "source": "{0} finds no settings by itself - set them by hand",
+   "text": "{0} samo nastavení nezjistí – vyplňte je ručně"
   }
  },
  "rich": {

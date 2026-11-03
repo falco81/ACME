@@ -75,6 +75,7 @@ class SshDns(DnsChallenge):
                    'into its zones: BIND (nsupdate or the zone file), PowerDNS, Knot DNS, NSD, '
                    'dnsmasq, Unbound, Windows DNS, or commands of your own. "Find out what runs '
                    'there" reads what the server is and fills the form in.')
+    discovery = False               # its own: "Find out what runs there" (discover() below)
     actions = [{'key': 'discover', 'label': 'Find out what runs there',
                 'help': 'Signs in over SSH and runs read-only commands only: which DNS server '
                         'runs there, its zones, their files and keys, whether sudo works. '

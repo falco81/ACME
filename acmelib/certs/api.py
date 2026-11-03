@@ -2168,6 +2168,7 @@ from acmelib.certs import api_deploys  # noqa: E402,F401  (a deployment's files:
 from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edit, renew, versions)
 from acmelib.certs import api_runplan  # noqa: E402,F401  (what happens: a certificate's run plan)
 from acmelib.certs import api_catalog  # noqa: E402,F401  (a form's lists: a CA's products)
+from acmelib.certs import api_discover  # noqa: E402,F401  (a form filled in from the account)
 from acmelib.certs import api_onlineimport  # noqa: E402,F401  (Import from a source; a key added later)
 from acmelib.certs import api_certview  # noqa: E402,F401  (show a certificate: any file read and described)
 from acmelib.certs import listsearch  # noqa: E402,F401  (the search box over the certificates)

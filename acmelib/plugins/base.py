@@ -22,6 +22,7 @@ from __future__ import annotations
 import base64
 import importlib.util
 import os
+import re
 import sys
 import threading
 import time
@@ -311,6 +312,16 @@ PLACE_KINDS = {'txt': 'txt-any', 'cname': 'cname-any', 'file': 'http-file-any'}
 # ---------------------------------------------------------------------------
 # The three kinds of module
 # ---------------------------------------------------------------------------
+# The fields discovery asks by themselves (Plugin.discover_keys_of): how one signs in.
+_SIGN_IN = re.compile(r'^(api|api_url|url|base_url|endpoint|host|hostport|server|address|port|'
+                      r'region|tenant|tenant_id|client|client_id|user|username|login|account|'
+                      r'account_id|customer|customer_id|reseller|realm|subscription|project|'
+                      r'project_id|platform|auth|token|key|key_id|secret|password|keys|'
+                      r'environment|sandbox|test_mode|insecure|verify_tls|service_account)$|'
+                      r'^(api|ssh|auth|client|access|secret|account|tenant)_|'
+                      r'_(key|secret|token|password|pass|user|login|url|endpoint)$')
+
+
 class Plugin(object):
     family = ''             # 'issuer' | 'challenge' | 'target'
     kind = ''               # unique within the family: 'acme', 'f5', 'cloudflare'
@@ -334,6 +345,17 @@ class Plugin(object):
     # Each is run by action(key) in a job of its own, its steps written down.
     actions = []
 
+    # Discovery (1.0.29) - "Find the settings from the account": a popup asks only what
+    # signing in takes (discover_keys - None: found by discover_keys_of(), the secrets,
+    # the addresses and the names to sign in with, and what shows them), the module asks
+    # its server for the rest - read-only, nothing ordered, nothing saved - and the form
+    # is offered what it found; every field stays settable by hand. discovery: True / False
+    # to say so; None: offered where discover_setup() can find something (a module of
+    # its own one, a list to choose from - a catalog field -, a DNS module's zones).
+    # (Not `discover`: SSH DNS has a discover() of its own - what runs on the server.)
+    discovery = None
+    discover_keys = None
+
     def __init__(self, config, ctx):
         self.config = dict(config or {})
         self.ctx = ctx
@@ -353,6 +375,92 @@ class Plugin(object):
         Returns words to show; raises PluginError when it does not work."""
         return 'nothing to try for %s' % self.title
 
+    # -- discovery ----------------------------------------------------------------------
+    def discover_setup(self):
+        """What the account says of the settings, for the form (read-only, as test()):
+        {'sets': {key: value} (found: offered ticked), 'choices': {key: {'options':
+        [[value, words]], 'sets': {value: {key: value}} (picked, those fields too),
+        'pick': value}}, 'facts': [[words, value]] (shown only), 'notes': [words]}.
+        Here: each list of the form (a catalog field) whose fields it needs are set.
+        A module that knows more starts from Plugin.discover_setup(self) and adds."""
+        out = {'sets': {}, 'choices': {}, 'facts': [], 'notes': []}
+        cat = getattr(self, 'catalog', None)
+        if not callable(cat):
+            return out
+        for f in self.fields or []:
+            if f.get('type') != 'catalog' or not f.get('key'):
+                continue
+            key = f['key']
+            need = [d for d in f.get('depends') or [] if self.c(d) in (None, '')]
+            if need:
+                labels = [str(next((x.get('label') for x in self.fields
+                                    if x.get('key') == d), d)) for d in need]
+                out['notes'].append('%s: set %s first, then ask again' % (
+                    f.get('label') or key, ', '.join(labels)))
+                continue
+            try:
+                got = cat(f.get('catalog') or key) or {}
+            except PluginError as e:
+                out['notes'].append('%s: %s' % (f.get('label') or key, e))
+                continue
+            except NotImplementedError:
+                continue
+            self.offer(out, key, got.get('options') or [], got.get('sets') or {})
+        return out
+
+    def offer(self, out, key, options, sets=None, pick=None):
+        """A choice put into discover_setup()'s answer: the value set now stays picked,
+        else `pick`, else the only one there is."""
+        opts = []
+        for o in options or []:
+            if isinstance(o, (list, tuple)) and o:
+                opts.append([str(o[0]), str(o[1] if len(o) > 1 else o[0])])
+            elif isinstance(o, str) and o:
+                opts.append([o, o])
+        if not opts:
+            return
+        now = self.config.get(key)
+        vals = [o[0] for o in opts]
+        if now not in (None, '') and str(now) in vals:
+            pick = str(now)
+        elif pick is None or str(pick) not in vals:
+            pick = vals[0] if len(vals) == 1 else ''
+        out['choices'][key] = {'options': opts, 'pick': str(pick),
+                               'sets': {str(k): dict(v) for k, v in (sets or {}).items()
+                                        if isinstance(v, dict)}}
+
+    @classmethod
+    def discover_keys_of(cls):
+        """The fields the discovery popup asks: discover_keys, else the module's
+        secrets, addresses and names to sign in with, with what shows them."""
+        fields = [f for f in cls.fields or [] if f.get('key')]
+        by = {f['key']: f for f in fields}
+        if cls.discover_keys is not None:
+            want = [k for k in cls.discover_keys if k in by]
+        else:
+            want = [f['key'] for f in fields if f.get('type') != 'catalog' and (
+                f.get('type') in ('secret', 'sshkey') or f.get('secret') or
+                _SIGN_IN.search(f['key']))]
+        seen, i = list(want), 0
+        while i < len(seen):                # what shows them, and what that needs
+            for d in (by.get(seen[i], {}).get('show_if') or {}):
+                if d in by and d not in seen:
+                    seen.append(d)
+            i += 1
+        return [f['key'] for f in fields if f['key'] in seen]
+
+    @classmethod
+    def discover_offered(cls):
+        """Whether the form offers discovery (describe()'s 'discover')."""
+        if cls.discovery is not None:
+            return bool(cls.discovery) and bool(cls.discover_keys_of())
+        if not cls.discover_keys_of():
+            return False
+        if cls.discover_setup not in GENERIC_DISCOVERY:
+            return True                     # a module that finds things of its own
+        return callable(getattr(cls, 'catalog', None)) and \
+            any(f.get('type') == 'catalog' for f in cls.fields or [])
+
     def action(self, key):
         """Do one of `actions` (by its key). Returns words to show; raises
         PluginError when it does not work. ctx.step() tells how it goes."""
@@ -366,8 +474,14 @@ class Plugin(object):
                 'description': cls.description, 'vendor': cls.vendor,
                 'fields': list(cls.fields), 'doc': cls.doc,
                 'actions': [dict(a) for a in (cls.actions or [])],
+                'discover': ({'keys': cls.discover_keys_of()} if cls.discover_offered()
+                             else None),
                 'sshkey_howto': cls.sshkey_howto,
                 'module': getattr(cls, '_module_file', '')}
+
+
+# discover_setup()s that find only what any module of a family would (lists, zones)
+GENERIC_DISCOVERY = {Plugin.discover_setup}
 
 
 class Issuer(Plugin):
