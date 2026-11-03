@@ -70,10 +70,12 @@ def fields(port, more=None):
               help='What counts as right. A dual certificate (ECDSA beside RSA): the server '
                    'picks one by what the client offers.'),
         field('key_want', 'Key asked for', 'select', default='',
-              options=[['', 'whichever the server picks'], ['rsa', 'RSA'], ['ecdsa', 'ECDSA']],
+              options=[['', 'whichever the server picks'], ['rsa', 'RSA'], ['ecdsa', 'ECDSA'],
+                       ['both', 'both - RSA and ECDSA, each connected for']],
               help='A server with a dual certificate sends the one the client asks for. RSA or '
                    'ECDSA: TLS 1.2 with ciphers of that key only (TLS 1.3 cannot ask for a key '
-                   'type here) - the server must still speak TLS 1.2.'),
+                   'type here) - the server must still speak TLS 1.2. Both: connected twice, '
+                   'once for each - it passes when each half is the right one.'),
     ] + list(more or []) + [
         field('tls_min', 'TLS at least', 'select', default='', options=TLS_VERSIONS,
               advanced=True),

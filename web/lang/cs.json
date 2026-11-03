@@ -50747,6 +50747,34 @@
   "md35_14": {
    "source": "a file on the disk: take it out of /etc/acme/plugins",
    "text": "soubor na disku: vyjměte ho z /etc/acme/plugins"
+  },
+  "ck36_1": {
+   "source": "both - RSA and ECDSA, each connected for",
+   "text": "oba – RSA i ECDSA, každý zvlášť"
+  },
+  "ck36_2": {
+   "source": "A server with a dual certificate sends the one the client asks for. RSA or ECDSA: TLS 1.2 with ciphers of that key only (TLS 1.3 cannot ask for a key type here) - the server must still speak TLS 1.2. Both: connected twice, once for each - it passes when each half is the right one.",
+   "text": "Server s duálním certifikátem pošle ten, o který klient požádá. RSA nebo ECDSA: TLS 1.2 jen se šiframi daného klíče (v TLS 1.3 o typ klíče požádat odsud nejde) – server musí TLS 1.2 ještě umět. Oba: připojí se dvakrát, pro každý zvlášť – projde, když je správně každá polovina."
+  },
+  "ck36_3": {
+   "source": "Expected",
+   "text": "Očekáváno"
+  },
+  "ck36_4": {
+   "source": "the version deployed now, or its twin",
+   "text": "verze nasazená teď, nebo její dvojče"
+  },
+  "ck36_5": {
+   "source": "the main one only",
+   "text": "jen hlavní"
+  },
+  "ck36_6": {
+   "source": "the twin only",
+   "text": "jen dvojče"
+  },
+  "ck36_7": {
+   "source": "any version",
+   "text": "jakákoli verze"
   }
  },
  "patterns": {

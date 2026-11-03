@@ -6,6 +6,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.36 - not released
 
+- Tests: *Key asked for: both* - connected twice, once for RSA and once for
+  ECDSA, each judged and drawn side by side (the half of acme's certificate it is
+  set against only); the worse of the two is the result, the job's log and the
+  mail say each. A result says what counted as right (*Expected*), and the half
+  of acme's certificate set against what was sent is drawn first - the card of
+  what was sent beside it, not below the other half.
+
 - Settings → Upgrades → *Look now* just after a release found nothing new:
   raw.githubusercontent.com keeps a branch's index.json 5 minutes (and an
   address with ?anything does not get past it). The look asks GitHub's API for

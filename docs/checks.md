@@ -85,7 +85,7 @@ once, not at every run.
 | *Name asked for (SNI)* | sent in TLS, whatever address was connected to. Empty: the certificate's first name; `-`: none |
 | *Name the certificate must hold* | looked for among the names served. Empty: the SNI |
 | *The certificate expected* | the version deployed now (or its twin), the main one only, the twin only, any version |
-| *Key asked for* | whichever the server picks, RSA or ECDSA - a server with a dual certificate sends the one asked for. RSA or ECDSA is TLS 1.2 with ciphers of that key only (Python cannot ask for a key type in TLS 1.3), so the server must still speak TLS 1.2 |
+| *Key asked for* | whichever the server picks, RSA, ECDSA, or both - a server with a dual certificate sends the one asked for. RSA or ECDSA is TLS 1.2 with ciphers of that key only (Python cannot ask for a key type in TLS 1.3), so the server must still speak TLS 1.2. Both: connected twice, once for each; it passes when each half is the right one (with *The certificate expected* as set), and the worse of the two is the result |
 | *TLS at least / at most* | TLS 1.0 - 1.3 - at most 1.2 to see what an older client gets |
 | *Ciphers* | OpenSSL's list (TLS 1.2 and older): RSA ones only to get the RSA one of a dual certificate |
 | *ALPN* | `h2, http/1.1` |

@@ -8514,12 +8514,14 @@ function ckCN(dn) { var m = /CN=([^,\/]+)/.exec(String(dn || '')); return m ? m[
 /** What acme keeps beside what the server sent (1.0.34): a card each, the lines that
     agree ticked, the ones that do not said red - the half of a dual certificate
     nearest to what was sent is the one it is set against. */
-function ckCompare(d, sv, exps) {
+function ckCompare(d, sv, exps, onlyNear) {
   var fp = String(sv.fingerprint || '').toUpperCase();
   var same = exps.filter(function (e) { return e.fingerprint === fp; })[0];
   var fam = ckKeyFam(sv.key);
   var near = same || exps.filter(function (e) { return ckKeyFam(e.key) === fam; })[0] || exps[0];
   var wrap = el('div', 'ck-cmp' + (same ? ' same' : ' differ'));
+  /* the half set against first: the card of what was sent beside it, at the top (1.0.36) */
+  exps = onlyNear ? [near] : [near].concat(exps.filter(function (e) { return e !== near; }));
   var names = function (list) { return arr(list).slice().sort().join(' '); };
   var lines = function (e, against) {
     var rows = [
@@ -8605,7 +8607,19 @@ function ckDetail(res) {
   var box = el('div', 'ck-detail');
   var sv = obj(d.served);
   var exps = arr(d.expected);
-  if (sv.fingerprint && exps.length) box.appendChild(ckCompare(d, sv, exps));
+  if (arr(d.halves).length) {
+    /* "Key asked for: both" (1.0.36): each connection, drawn as one */
+    arr(d.halves).forEach(function (h) {
+      var hd = obj(h.detail);
+      var head = el('div', 'ck-half-h');
+      head.appendChild(el('span', 'ck-cmp-key k-' + String(h.half).toLowerCase(), h.half));
+      head.appendChild(ckBadge(h.state));
+      head.appendChild(data('span', 'small', h.said || ''));
+      box.appendChild(head);
+      if (obj(hd.served).fingerprint && arr(hd.expected).length) box.appendChild(ckCompare(hd, obj(hd.served), arr(hd.expected), true));
+    });
+    sv = {};
+  } else if (sv.fingerprint && exps.length) box.appendChild(ckCompare(d, sv, exps));
   else if (sv.fingerprint) {
     box.appendChild(kvTable([
       ['Served', data('span', 'mono', sv.subject || '?')],
@@ -8616,7 +8630,9 @@ function ckDetail(res) {
   }
   if (sv.fingerprint) {
     /* how it was reached, under the two certificates */
+    var EXPECT_WORDS = {current: 'the version deployed now, or its twin', main: 'the main one only', alt: 'the twin only', any: 'any version'};
     var pairs = [
+      ['Expected', EXPECT_WORDS[d.expect || 'current'] || d.expect],
       ['TLS', data('span', 'mono', [d.tls, d.cipher, d.alpn].filter(Boolean).join(' · ') || '–')],
       ['Chain sent', num(d.chain_len || 0) + (d.whole_chain === false ? ' (?)' : '')],
       ['Trusted here', d.trusted === true ? 'yes' : (d.trusted === false ? data('span', 'muted', tr('no') + (d.why_untrusted ? ' - ' + d.why_untrusted : '')) : '–')],

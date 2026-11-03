@@ -210,7 +210,22 @@ def _short_fp(fp):
 
 
 def compare_lines(detail):
-    """compare() as lines of text: the ones that differ first, marked."""
+    """compare() as lines of text: the ones that differ first, marked - for each half of a
+    test asked for both keys, the one that failed."""
+    halves = (detail or {}).get('halves')
+    if halves:
+        out = []
+        for h in halves:
+            if h.get('ok'):
+                out.append('  %s: %s' % (h.get('half'), h.get('said')))
+                continue
+            out.append('  %s: %s' % (h.get('half'), h.get('said')))
+            out += ['  ' + x for x in _compare_lines(h.get('detail'))]
+        return out
+    return _compare_lines(detail)
+
+
+def _compare_lines(detail):
     rows = compare(detail)
     out = []
     for what, mine, sent, same in sorted(rows, key=lambda r: r[3]):
@@ -412,7 +427,35 @@ def probe(store, chk, cert=None):
     return got
 
 
+ORDER = {'ok': 0, 'warn': 1, 'old': 2, 'other': 3, 'answer': 3, 'unreachable': 4}
+
+
 def _one_served(mod, host, port, sni, exp):
+    """The test once - or, with "Key asked for: both" (1.0.36), once for RSA and once
+    for ECDSA: the worse of the two is the result, each said in detail['halves']."""
+    if str(mod.config.get('key_want') or '').lower() != 'both':
+        return _served_judged(mod, host, port, sni, exp)
+    halves = []
+    for want, words in (('rsa', 'RSA'), ('ecdsa', 'ECDSA')):
+        half = type(mod)(dict(mod.config, key_want=want), mod.ctx)
+        try:
+            got = _served_judged(half, host, port, sni, exp)
+        except PluginError as e:
+            got = {'state': 'unreachable', 'ok': False, 'said': str(e), 'detail': {}}
+        got['half'] = words
+        halves.append(got)
+    worst = max(halves, key=lambda g: ORDER.get(g['state'], 4))
+    said = '; '.join('%s: %s' % (g['half'], g['said']) for g in halves)
+    detail = dict(worst.get('detail') or {})
+    detail['expect'] = str(mod.config.get('expect') or 'current')
+    detail['key_want'] = 'both'
+    detail['halves'] = [{'half': g['half'], 'state': g['state'], 'ok': g['ok'], 'said': g['said'],
+                         'detail': g.get('detail') or {}} for g in halves]
+    return {'state': worst['state'], 'ok': all(g['ok'] for g in halves), 'said': said,
+            'detail': detail}
+
+
+def _served_judged(mod, host, port, sni, exp):
     from acmelib.plugins.checks import _tls
     trusted, why = None, ''
     _tls.CURRENT.cfg = dict(mod.config)
@@ -426,10 +469,12 @@ def _one_served(mod, host, port, sni, exp):
     finally:
         _tls.CURRENT.cfg = None
     req = str(mod.config.get('require_trusted', '')).lower() in ('1', 'true', 'yes', 'on')
+    expect = str(mod.config.get('expect') or 'current')
     got = judge(exp, served, host, sni, req, trusted, why,
-                str(mod.config.get('check_name') or '').strip(),
-                str(mod.config.get('expect') or 'current'))
+                str(mod.config.get('check_name') or '').strip(), expect)
     got['detail']['port'] = port
+    got['detail']['expect'] = expect            # what counted as right - said under it
+    got['detail']['key_want'] = str(mod.config.get('key_want') or '')
     return got
 
 
@@ -483,8 +528,7 @@ def probe_relay(store, name, cls, cfg, cert, exp):
             session.close()
     finally:
         ctx.tidy()
-    order = {'ok': 0, 'warn': 1, 'old': 2, 'other': 3, 'answer': 3, 'unreachable': 4}
-    worst = max(subs, key=lambda g: order.get(g['state'], 4))
+    worst = max(subs, key=lambda g: ORDER.get(g['state'], 4))
     bad = [g for g in subs if not g['ok']]
     via = cfg.get('host') or name
     if bad:

@@ -212,6 +212,21 @@ class TestJudged(Base):
             self.assertTrue(names and all(hasnt not in n.split('-')[1:2] for n in names), names)
             self.assertTrue(any(has in n for n in names), names)
 
+    def test_both_keys_asked_for(self):
+        """Key asked for: both (1.0.36) - once for RSA, once for ECDSA; the test server
+        has an ECDSA certificate only: the RSA half fails, so the test does."""
+        i = self.add(key_want='both')
+        self.serve(self.v2)
+        got = self.run_it(i)
+        halves = got['detail']['halves']
+        self.assertEqual([h['half'] for h in halves], ['RSA', 'ECDSA'])
+        self.assertEqual(halves[1]['state'], 'ok', halves[1])
+        self.assertNotEqual(halves[0]['state'], 'ok', halves[0])
+        self.assertFalse(got['ok'])
+        self.assertIn('RSA:', got['said'])
+        self.assertIn('ECDSA:', got['said'])
+        self.assertEqual(got['detail']['expect'], 'current')
+
     def test_expect_any_version(self):
         i = self.add(expect='any')
         self.serve(self.v1)

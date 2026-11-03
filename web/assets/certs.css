@@ -1049,3 +1049,6 @@ td.acc-role{white-space:nowrap}
 /* two files of the same version (1.0.35) */
 .md-shadow{display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:10px;border:1px solid rgba(210,153,34,.5);border-radius:10px;background:rgba(210,153,34,.08);color:var(--warn,#d29922)}
 .md-shadow > div{flex:1 1 auto;min-width:0;color:var(--tx)}
+/* Key asked for: both (1.0.36) - each connection with its heading */
+.ck-half-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 6px}
+.ck-half-h:first-child{margin-top:4px}
