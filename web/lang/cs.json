@@ -48619,6 +48619,118 @@
   "dsc29d_5": {
    "source": "this PowerDNS is older than 4.9.12 / 5.0.2: each TXT RRset is read and written whole",
    "text": "tento PowerDNS je starší než 4.9.12 / 5.0.2: každá sada záznamů TXT se načte a zapíše celá"
+  },
+  "dsc29t_1": {
+   "source": "FortiOS",
+   "text": "FortiOS"
+  },
+  "dsc29t_2": {
+   "source": "BIG-IP",
+   "text": "BIG-IP"
+  },
+  "dsc29t_3": {
+   "source": "PAN-OS",
+   "text": "PAN-OS"
+  },
+  "dsc29t_4": {
+   "source": "Partitions with certificates",
+   "text": "Oddíly s certifikáty"
+  },
+  "dsc29t_5": {
+   "source": "Virtual systems",
+   "text": "Virtuální systémy"
+  },
+  "dsc29t_6": {
+   "source": "Management API",
+   "text": "Management API"
+  },
+  "dsc29t_7": {
+   "source": "Domain of the sign-in",
+   "text": "Doména přihlášení"
+  },
+  "dsc29t_8": {
+   "source": "Controller version",
+   "text": "Verze Controlleru"
+  },
+  "dsc29t_9": {
+   "source": "Application gateways in the subscription",
+   "text": "Aplikační brány v předplatném"
+  },
+  "dsc29t_10": {
+   "source": "App Service certificates in the subscription",
+   "text": "Certifikáty App Service v předplatném"
+  },
+  "dsc29t_11": {
+   "source": "Zones the token sees",
+   "text": "Zóny, které token vidí"
+  },
+  "dsc29t_12": {
+   "source": "KV version 2 engines",
+   "text": "Úložiště KV verze 2"
+  },
+  "dsc29t_13": {
+   "source": "Empty: a FortiGate without VDOMs",
+   "text": "Prázdné: FortiGate bez VDOM"
+  },
+  "dsc29t_14": {
+   "source": "Empty: shared (Device → Certificates, shared)",
+   "text": "Prázdné: sdílené (Device → Certificates, shared)"
+  },
+  "dsc29t_15": {
+   "source": "Empty: the newest the server has",
+   "text": "Prázdné: nejnovější, kterou server má"
+  },
+  "dsc29t_16": {
+   "source": "Empty: the default domain",
+   "text": "Prázdné: výchozí doména"
+  },
+  "dsc29t_17": {
+   "source": "Empty: the domain the sign-in answers with",
+   "text": "Prázdné: doména, kterou vrátí přihlášení"
+  },
+  "dsc29t_18": {
+   "source": "Empty: the Controller's own version",
+   "text": "Prázdné: vlastní verze Controlleru"
+  },
+  "dsc29t_19": {
+   "source": "FortiOS says only the VDOM the token answers in - another VDOM is typed by hand",
+   "text": "FortiOS sdělí jen VDOM, ve kterém token odpovídá – jiný VDOM je potřeba zadat ručně"
+  },
+  "dsc29t_20": {
+   "source": "the subscription has no application gateway this app registration can see",
+   "text": "v předplatném není žádná aplikační brána, kterou by tato registrace aplikace viděla"
+  },
+  "dsc29t_21": {
+   "source": "only the resource groups that hold App Service certificates are listed - another one is typed by hand",
+   "text": "uvedeny jsou jen skupiny prostředků, které obsahují certifikáty App Service – jinou je potřeba zadat ručně"
+  },
+  "dsc29t_22": {
+   "source": "set the Subscription ID first",
+   "text": "nejdřív vyplňte ID předplatného"
+  },
+  "dsc29t_23": {
+   "source": "listing the virtual systems",
+   "text": "vypisuji virtuální systémy"
+  },
+  "dsc29t_24": {
+   "source": "listing the application gateways",
+   "text": "vypisuji aplikační brány"
+  },
+  "dsc29t_25": {
+   "source": "listing the App Service certificates",
+   "text": "vypisuji certifikáty App Service"
+  },
+  "dsc29t_26": {
+   "source": "listing the locations",
+   "text": "vypisuji umístění"
+  },
+  "dsc29t_27": {
+   "source": "listing the zones",
+   "text": "vypisuji zóny"
+  },
+  "dsc29t_28": {
+   "source": "listing the secrets engines",
+   "text": "vypisuji úložiště tajemství"
   }
  },
  "patterns": {
@@ -66897,6 +67009,18 @@
   "pdsc29d_7": {
    "source": "the account could not be read: {0}",
    "text": "účet se nepodařilo načíst: {0}"
+  },
+  "pdsc29t_1": {
+   "source": "the virtual systems could not be read: {0}",
+   "text": "virtuální systémy se nepodařilo načíst: {0}"
+  },
+  "pdsc29t_2": {
+   "source": "no domains listed (only a Multi-Domain Server has them): {0}",
+   "text": "žádné domény (má je jen Multi-Domain Server): {0}"
+  },
+  "pdsc29t_3": {
+   "source": "{0} KV engine(s) of version 1 left out - acme writes KV version 2",
+   "text": "Vynechaná úložiště KV verze 1: {0} – acme zapisuje do KV verze 2"
   }
  },
  "rich": {
