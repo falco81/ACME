@@ -6,6 +6,8 @@ time limit.
 
     fields(port)          host, port, SNI, time limit - the fields of a test
     connect(host, port, timeout)          a TCP socket, or PluginError in words
+    context(sni, verify) / result(s)      the client context; the chain of a finished
+                                          handshake (an SSLObject too: TDS)
     tls(sock, sni, verify, timeout)       {'chain': [DER...], 'tls', 'cipher'};
                                           verify=True: this machine's CAs and the
                                           name checked (ssl.SSLCertVerificationError
@@ -59,8 +61,9 @@ def connect(host, port, timeout):
         raise PluginError('%s:%s cannot be reached: %s' % (host, port, e.strerror or e))
 
 
-def tls(sock, sni, verify, timeout):
-    """TLS over `sock` (already through the protocol's own start)."""
+def context(sni, verify):
+    """The client context of every test: verify=True this machine's CAs (and the name
+    when there is one); False: nothing checked, old servers still read."""
     if verify:
         ctx = ssl.create_default_context()
         ctx.check_hostname = bool(sni)
@@ -76,6 +79,31 @@ def tls(sock, sni, verify, timeout):
         ctx.set_ciphers('DEFAULT:@SECLEVEL=0')    # an old server is still read, said below
     except ssl.SSLError:
         pass
+    return ctx
+
+
+def result(s):
+    """{'chain', 'tls', 'cipher', 'whole_chain'} of a finished handshake - an SSLSocket
+    or an SSLObject (a protocol that carries TLS in its own packets: TDS)."""
+    chain = []
+    getter = getattr(s, 'get_unverified_chain', None)
+    if callable(getter):
+        for c in getter() or []:
+            chain.append(c if isinstance(c, (bytes, bytearray)) else
+                         c.public_bytes(ssl._ssl.ENCODING_DER) if hasattr(c, 'public_bytes')
+                         else bytes(c))
+    if not chain:
+        leaf = s.getpeercert(binary_form=True)
+        if leaf:
+            chain = [leaf]
+    c = s.cipher() or ('', '', 0)
+    return {'chain': [bytes(x) for x in chain], 'tls': s.version() or '', 'cipher': c[0],
+            'whole_chain': callable(getter)}
+
+
+def tls(sock, sni, verify, timeout):
+    """TLS over `sock` (already through the protocol's own start)."""
+    ctx = context(sni, verify)
     sock.settimeout(float(timeout))
     try:
         s = ctx.wrap_socket(sock, server_hostname=sni or None)
@@ -84,20 +112,7 @@ def tls(sock, sni, verify, timeout):
     except (ssl.SSLError, OSError) as e:
         raise PluginError('the TLS handshake failed: %s' % (getattr(e, 'reason', None) or e))
     try:
-        chain = []
-        getter = getattr(s, 'get_unverified_chain', None)
-        if callable(getter):
-            for c in getter() or []:
-                chain.append(c if isinstance(c, (bytes, bytearray)) else
-                             c.public_bytes(ssl._ssl.ENCODING_DER) if hasattr(c, 'public_bytes')
-                             else bytes(c))
-        if not chain:
-            leaf = s.getpeercert(binary_form=True)
-            if leaf:
-                chain = [leaf]
-        c = s.cipher() or ('', '', 0)
-        out = {'chain': [bytes(x) for x in chain], 'tls': s.version() or '', 'cipher': c[0],
-               'whole_chain': callable(getter)}
+        out = result(s)
     finally:
         try:
             s.close()
