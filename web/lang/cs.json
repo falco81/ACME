@@ -49287,6 +49287,1042 @@
   "md32_95": {
    "source": "target",
    "text": "cíl"
+  },
+  "chk32_1": {
+   "source": "25: mail between servers; 587: submission (mail programs sending with a password).",
+   "text": "25: pošta mezi servery; 587: odesílání (poštovní programy posílající s heslem)."
+  },
+  "chk32_2": {
+   "source": "A DNS resolver over TLS on port 853 (RFC 7858) - the certificate a system resolver or a phone would get.",
+   "text": "DNS resolver přes TLS na portu 853 (RFC 7858) – certifikát, který by dostal systémový resolver nebo telefon."
+  },
+  "chk32_3": {
+   "source": "A Microsoft SQL Server on port 1433: PRELOGIN with encryption, then TLS inside TDS - the certificate SQL Server Management Studio or a driver would get.",
+   "text": "Microsoft SQL Server na portu 1433: PRELOGIN se šifrováním, pak TLS uvnitř TDS – certifikát, který by dostal SQL Server Management Studio nebo ovladač."
+  },
+  "chk32_4": {
+   "source": "A MySQL or MariaDB database server on port 3306: its greeting, the SSLRequest, then TLS - the certificate the mysql client or a driver would get.",
+   "text": "Databázový server MySQL nebo MariaDB na portu 3306: jeho úvodní paket, SSLRequest, pak TLS – certifikát, který by dostal klient mysql nebo ovladač."
+  },
+  "chk32_5": {
+   "source": "A PostgreSQL database server on port 5432: the SSLRequest, then TLS - the certificate psql or a driver would get.",
+   "text": "Databázový server PostgreSQL na portu 5432: SSLRequest, pak TLS – certifikát, který by dostal psql nebo ovladač."
+  },
+  "chk32_6": {
+   "source": "A Windows remote desktop (or another RDP server) on port 3389: the negotiation of the connection, then TLS - the certificate Remote Desktop Connection would get.",
+   "text": "Vzdálená plocha Windows (nebo jiný server RDP) na portu 3389: vyjednání spojení, pak TLS – certifikát, který by dostalo Připojení ke vzdálené ploše."
+  },
+  "chk32_7": {
+   "source": "A chat server (Jabber): XMPP on port 5222, the stream opened and STARTTLS - the certificate a chat client would get.",
+   "text": "Chatovací server (Jabber): XMPP na portu 5222, otevření streamu a STARTTLS – certifikát, který by dostal chatovací klient."
+  },
+  "chk32_8": {
+   "source": "A directory server: LDAP on port 389 and the StartTLS extended operation - the certificate a directory client would get.",
+   "text": "Adresářový server: LDAP na portu 389 a rozšířená operace StartTLS – certifikát, který by dostal adresářový klient."
+  },
+  "chk32_9": {
+   "source": "A directory server: LDAP over TLS at once (port 636, or 3269 for the Active Directory global catalog) - the certificate a directory client would get.",
+   "text": "Adresářový server: LDAP rovnou přes TLS (port 636, nebo 3269 pro globální katalog Active Directory) – certifikát, který by dostal adresářový klient."
+  },
+  "chk32_10": {
+   "source": "A file server: FTP on port 21 and AUTH TLS (explicit FTPS) - the certificate an FTP program would get.",
+   "text": "Souborový server: FTP na portu 21 a AUTH TLS (explicitní FTPS) – certifikát, který by dostal FTP klient."
+  },
+  "chk32_11": {
+   "source": "A file server: FTP over TLS at once (implicit FTPS, port 990) - the certificate an FTP program would get.",
+   "text": "Souborový server: FTP rovnou přes TLS (implicitní FTPS, port 990) – certifikát, který by dostal FTP klient."
+  },
+  "chk32_12": {
+   "source": "A mail server for submission over TLS at once (port 465, RFC 8314) - the certificate a mail program would get.",
+   "text": "Poštovní server pro odesílání rovnou přes TLS (port 465, RFC 8314) – certifikát, který by dostal poštovní program."
+  },
+  "chk32_13": {
+   "source": "A mail server: SMTP on port 25 (or 587 for submission), EHLO and STARTTLS - the certificate another mail server would get.",
+   "text": "Poštovní server: SMTP na portu 25 (nebo 587 pro odesílání), EHLO a STARTTLS – certifikát, který by dostal jiný poštovní server."
+  },
+  "chk32_14": {
+   "source": "A mailbox server over TLS at once (port 993) - the certificate a mail program would get.",
+   "text": "Server poštovních schránek rovnou přes TLS (port 993) – certifikát, který by dostal poštovní program."
+  },
+  "chk32_15": {
+   "source": "A mailbox server: IMAP on port 143, CAPABILITY and STARTTLS - the certificate a mail program would get.",
+   "text": "Server poštovních schránek: IMAP na portu 143, CAPABILITY a STARTTLS – certifikát, který by dostal poštovní program."
+  },
+  "chk32_16": {
+   "source": "A mailbox server: POP3 on port 110 and STLS - the certificate a mail program would get.",
+   "text": "Server poštovních schránek: POP3 na portu 110 a STLS – certifikát, který by dostal poštovní program."
+  },
+  "chk32_17": {
+   "source": "A mailbox server: POP3 over TLS at once (port 995) - the certificate a mail program would get.",
+   "text": "Server poštovních schránek: POP3 rovnou přes TLS (port 995) – certifikát, který by dostal poštovní program."
+  },
+  "chk32_18": {
+   "source": "A message broker (MQTT - Mosquitto, EMQX, HiveMQ...) over TLS on port 8883 - the certificate a device or client would get.",
+   "text": "Zprávový broker (MQTT – Mosquitto, EMQX, HiveMQ…) přes TLS na portu 8883 – certifikát, který by dostalo zařízení nebo klient."
+  },
+  "chk32_19": {
+   "source": "A telephone exchange or SIP proxy over TLS on port 5061 - the certificate a phone or another exchange would get.",
+   "text": "Telefonní ústředna nebo SIP proxy přes TLS na portu 5061 – certifikát, který by dostal telefon nebo jiná ústředna."
+  },
+  "chk32_20": {
+   "source": "CredSSP with Early User Authorization",
+   "text": "CredSSP s časnou autorizací uživatele"
+  },
+  "chk32_21": {
+   "source": "FTP (AUTH TLS)",
+   "text": "FTP (AUTH TLS)"
+  },
+  "chk32_22": {
+   "source": "FTP over TLS",
+   "text": "FTP přes TLS"
+  },
+  "chk32_23": {
+   "source": "FTPS (TLS at once)",
+   "text": "FTPS (rovnou TLS)"
+  },
+  "chk32_24": {
+   "source": "IMAP (STARTTLS)",
+   "text": "IMAP (STARTTLS)"
+  },
+  "chk32_25": {
+   "source": "IMAP over TLS",
+   "text": "IMAP přes TLS"
+  },
+  "chk32_26": {
+   "source": "IMAPS (TLS at once)",
+   "text": "IMAPS (rovnou TLS)"
+  },
+  "chk32_27": {
+   "source": "LDAP (StartTLS)",
+   "text": "LDAP (StartTLS)"
+  },
+  "chk32_28": {
+   "source": "LDAP over TLS",
+   "text": "LDAP přes TLS"
+  },
+  "chk32_29": {
+   "source": "LDAPS (TLS at once)",
+   "text": "LDAPS (rovnou TLS)"
+  },
+  "chk32_30": {
+   "source": "MQTT over TLS",
+   "text": "MQTT přes TLS"
+  },
+  "chk32_31": {
+   "source": "Microsoft SQL Server",
+   "text": "Microsoft SQL Server"
+  },
+  "chk32_32": {
+   "source": "MySQL (SSLRequest)",
+   "text": "MySQL (SSLRequest)"
+  },
+  "chk32_33": {
+   "source": "MySQL / MariaDB",
+   "text": "MySQL / MariaDB"
+  },
+  "chk32_34": {
+   "source": "POP3 (STLS)",
+   "text": "POP3 (STLS)"
+  },
+  "chk32_35": {
+   "source": "POP3 over TLS",
+   "text": "POP3 přes TLS"
+  },
+  "chk32_36": {
+   "source": "POP3S (TLS at once)",
+   "text": "POP3S (rovnou TLS)"
+  },
+  "chk32_37": {
+   "source": "PostgreSQL",
+   "text": "PostgreSQL"
+  },
+  "chk32_38": {
+   "source": "PostgreSQL (SSLRequest)",
+   "text": "PostgreSQL (SSLRequest)"
+  },
+  "chk32_39": {
+   "source": "RDP (Remote Desktop)",
+   "text": "RDP (Vzdálená plocha)"
+  },
+  "chk32_40": {
+   "source": "RDP (X.224, TLS)",
+   "text": "RDP (X.224, TLS)"
+  },
+  "chk32_41": {
+   "source": "SIP over TLS",
+   "text": "SIP přes TLS"
+  },
+  "chk32_42": {
+   "source": "SMTP (STARTTLS)",
+   "text": "SMTP (STARTTLS)"
+  },
+  "chk32_43": {
+   "source": "SMTP over TLS",
+   "text": "SMTP přes TLS"
+  },
+  "chk32_44": {
+   "source": "SMTPS (TLS at once)",
+   "text": "SMTPS (rovnou TLS)"
+  },
+  "chk32_45": {
+   "source": "SSL is off on the PostgreSQL server (it answered N to the SSLRequest: ssl = off in postgresql.conf)",
+   "text": "na serveru PostgreSQL je SSL vypnuté (na SSLRequest odpověděl N: ssl = off v postgresql.conf)"
+  },
+  "chk32_46": {
+   "source": "TDS (PRELOGIN, TLS)",
+   "text": "TDS (PRELOGIN, TLS)"
+  },
+  "chk32_47": {
+   "source": "The domain the stream is opened to - the part after the @ of the addresses. Empty: the name asked for (SNI), else the address.",
+   "text": "Doména, ke které se stream otevírá – část adres za @. Prázdné: požadované jméno (SNI), jinak adresa."
+  },
+  "chk32_48": {
+   "source": "XMPP (STARTTLS)",
+   "text": "XMPP (STARTTLS)"
+  },
+  "chk32_49": {
+   "source": "XMPP domain",
+   "text": "Doména XMPP"
+  },
+  "chk32_50": {
+   "source": "a failure of its own",
+   "text": "vlastní chyba serveru"
+  },
+  "chk32_51": {
+   "source": "empty: the SNI",
+   "text": "prázdné: SNI"
+  },
+  "chk32_52": {
+   "source": "the FTP server",
+   "text": "server FTP"
+  },
+  "chk32_53": {
+   "source": "the IMAP server",
+   "text": "server IMAP"
+  },
+  "chk32_54": {
+   "source": "the LDAP server",
+   "text": "server LDAP"
+  },
+  "chk32_55": {
+   "source": "the MySQL server",
+   "text": "server MySQL"
+  },
+  "chk32_56": {
+   "source": "the MySQL server is too old (protocol 9) - it has no TLS",
+   "text": "server MySQL je příliš starý (protokol 9) – nemá TLS"
+  },
+  "chk32_57": {
+   "source": "the MySQL server's greeting is cut short",
+   "text": "úvodní paket serveru MySQL je useknutý"
+  },
+  "chk32_58": {
+   "source": "the POP3 server",
+   "text": "server POP3"
+  },
+  "chk32_59": {
+   "source": "the PostgreSQL server",
+   "text": "server PostgreSQL"
+  },
+  "chk32_60": {
+   "source": "the PostgreSQL server refused the SSLRequest (an error message - a server too old for SSL)",
+   "text": "server PostgreSQL odmítl SSLRequest (chybová zpráva – server je pro SSL příliš starý)"
+  },
+  "chk32_61": {
+   "source": "the RDP server",
+   "text": "server RDP"
+  },
+  "chk32_62": {
+   "source": "the RDP server refused the connection (X.224 Disconnect Request)",
+   "text": "server RDP odmítl spojení (X.224 Disconnect Request)"
+  },
+  "chk32_63": {
+   "source": "the RDP server uses standard RDP security - no TLS, so no certificate to test",
+   "text": "server RDP používá standardní zabezpečení RDP – žádné TLS, a tedy žádný certifikát k otestování"
+  },
+  "chk32_64": {
+   "source": "the SMTP server",
+   "text": "server SMTP"
+  },
+  "chk32_65": {
+   "source": "the SQL Server",
+   "text": "SQL Server"
+  },
+  "chk32_66": {
+   "source": "the SQL Server did not say whether it encrypts",
+   "text": "SQL Server neřekl, zda šifruje"
+  },
+  "chk32_67": {
+   "source": "the SQL Server does not do encryption (ENCRYPT_NOT_SUP: no certificate for TLS)",
+   "text": "SQL Server nešifruje (ENCRYPT_NOT_SUP: nemá certifikát pro TLS)"
+  },
+  "chk32_68": {
+   "source": "the SQL Server sent a message of too many packets",
+   "text": "SQL Server poslal zprávu o příliš mnoha paketech"
+  },
+  "chk32_69": {
+   "source": "the SQL Server's PRELOGIN answer is cut short",
+   "text": "odpověď PRELOGIN od SQL Serveru je useknutá"
+  },
+  "chk32_70": {
+   "source": "the TLS handshake inside TDS did not end",
+   "text": "navázání TLS uvnitř TDS neskončilo"
+  },
+  "chk32_71": {
+   "source": "the XMPP server",
+   "text": "server XMPP"
+  },
+  "chk32_72": {
+   "source": "the server does not allow TLS - it uses standard RDP security, without a certificate of TLS",
+   "text": "server nepovoluje TLS – používá standardní zabezpečení RDP, bez certifikátu TLS"
+  },
+  "chk32_73": {
+   "source": "the server does not speak MySQL (an empty packet)",
+   "text": "server nemluví MySQL (prázdný paket)"
+  },
+  "chk32_74": {
+   "source": "the server does not speak TDS (a PRELOGIN answer without its end)",
+   "text": "server nemluví TDS (odpověď PRELOGIN bez zakončení)"
+  },
+  "chk32_75": {
+   "source": "the server found the request inconsistent",
+   "text": "server shledal požadavek nekonzistentním"
+  },
+  "chk32_76": {
+   "source": "the server has no certificate for TLS",
+   "text": "server nemá certifikát pro TLS"
+  },
+  "chk32_77": {
+   "source": "the server sent no certificate",
+   "text": "server neposlal žádný certifikát"
+  },
+  "chk32_78": {
+   "source": "the server wants CredSSP (NLA)",
+   "text": "server chce CredSSP (NLA)"
+  },
+  "chk32_79": {
+   "source": "the server wants TLS",
+   "text": "server chce TLS"
+  },
+  "chk32_80": {
+   "source": "the server wants TLS with a user certificate",
+   "text": "server chce TLS s certifikátem uživatele"
+  },
+  "ck32_1": {
+   "source": "Tests",
+   "text": "Testy"
+  },
+  "ck32_2": {
+   "source": "acme connects as a client would - HTTPS, SMTP, RDP… - and compares the certificate the server sends with the one it deployed. After each deployment, by themselves when Settings → Certificates says so, or now.",
+   "text": "acme se připojí tak, jako by to udělal klient – HTTPS, SMTP, RDP… – a porovná certifikát, který server pošle, s tím, který nasadilo. Po každém nasazení, samo podle Nastavení → Certifikáty, nebo hned."
+  },
+  "ck32_3": {
+   "source": "serves it",
+   "text": "posílá ho"
+  },
+  "ck32_4": {
+   "source": "serves it - but",
+   "text": "posílá ho – ale"
+  },
+  "ck32_5": {
+   "source": "an old version",
+   "text": "stará verze"
+  },
+  "ck32_6": {
+   "source": "another certificate",
+   "text": "jiný certifikát"
+  },
+  "ck32_7": {
+   "source": "wrong answer",
+   "text": "špatná odpověď"
+  },
+  "ck32_8": {
+   "source": "not run yet",
+   "text": "zatím nespuštěno"
+  },
+  "ck32_9": {
+   "source": "through",
+   "text": "přes"
+  },
+  "ck32_10": {
+   "source": "tests",
+   "text": "testů"
+  },
+  "ck32_11": {
+   "source": "Served",
+   "text": "Posláno"
+  },
+  "ck32_12": {
+   "source": "Version in acme",
+   "text": "Verze v acme"
+  },
+  "ck32_13": {
+   "source": "Chain sent",
+   "text": "Poslaný řetězec"
+  },
+  "ck32_14": {
+   "source": "Trusted here",
+   "text": "Důvěryhodný zde"
+  },
+  "ck32_15": {
+   "source": "Connected to",
+   "text": "Připojeno k"
+  },
+  "ck32_16": {
+   "source": "HTTP",
+   "text": "HTTP"
+  },
+  "ck32_17": {
+   "source": "The server said",
+   "text": "Server řekl"
+  },
+  "ck32_18": {
+   "source": "Run them now",
+   "text": "Spustit je teď"
+  },
+  "ck32_19": {
+   "source": "Add a test",
+   "text": "Přidat test"
+  },
+  "ck32_20": {
+   "source": "pass",
+   "text": "prochází"
+  },
+  "ck32_21": {
+   "source": "with a warning",
+   "text": "s upozorněním"
+  },
+  "ck32_22": {
+   "source": "run after each deployment only",
+   "text": "spouští se jen po každém nasazení"
+  },
+  "ck32_23": {
+   "source": "No test yet",
+   "text": "Zatím žádný test"
+  },
+  "ck32_24": {
+   "source": "Add one: HTTPS for a web server, SMTP for a mail server, RDP for a Windows server… It connects as a client would and says whether the server serves what acme deployed.",
+   "text": "Přidejte jeden: HTTPS pro webový server, SMTP pro poštovní, RDP pro Windows server… Připojí se jako klient a řekne, jestli server posílá to, co acme nasadilo."
+  },
+  "ck32_25": {
+   "source": "Deploy a certificate here first - a test checks what a deployment put on the server.",
+   "text": "Nejdřív sem nasaďte certifikát – test kontroluje, co nasazení dalo na server."
+  },
+  "ck32_26": {
+   "source": "Deploy a certificate here first",
+   "text": "Nejdřív sem nasaďte certifikát"
+  },
+  "ck32_27": {
+   "source": "Run it now",
+   "text": "Spustit teď"
+  },
+  "ck32_28": {
+   "source": "Take the test away",
+   "text": "Odebrat test"
+  },
+  "ck32_29": {
+   "source": "What the server served",
+   "text": "Co server poslal"
+  },
+  "ck32_30": {
+   "source": "the tests started",
+   "text": "testy spuštěny"
+  },
+  "ck32_31": {
+   "source": "Choose the kind of test above.",
+   "text": "Vyberte druh testu výše."
+  },
+  "ck32_32": {
+   "source": "Empty \"Connect to\": the target’s address",
+   "text": "Prázdné „Připojit k“: adresa cíle"
+  },
+  "ck32_33": {
+   "source": "A new test on",
+   "text": "Nový test na"
+  },
+  "ck32_34": {
+   "source": "A test connects to the server as a client of its protocol would, and compares the certificate it is sent with the one acme deployed here: the version, its names, its chain, how long it runs. Every setting can be changed - the address connected to (an IP), the name sent as SNI, the name looked for, TLS versions, ciphers, ALPN; for HTTPS a request with its own Host header.",
+   "text": "Test se připojí k serveru jako klient jeho protokolu a porovná certifikát, který dostane, s tím, který sem acme nasadilo: verzi, jména, řetězec a jak dlouho platí. Nastavit se dá všechno – adresa připojení (IP), jméno posílané jako SNI, hledané jméno, verze TLS, šifry, ALPN; u HTTPS požadavek s vlastní hlavičkou Host."
+  },
+  "ck32_35": {
+   "source": "The certificate tested",
+   "text": "Testovaný certifikát"
+  },
+  "ck32_36": {
+   "source": "The deployment of a certificate on this target that the test checks.",
+   "text": "Nasazení certifikátu na tomto cíli, které test kontroluje."
+  },
+  "ck32_37": {
+   "source": "The kind of test",
+   "text": "Druh testu"
+  },
+  "ck32_38": {
+   "source": "Chosen:",
+   "text": "Vybráno:"
+  },
+  "ck32_39": {
+   "source": "Connecting…",
+   "text": "Připojuji…"
+  },
+  "ck32_40": {
+   "source": "the test",
+   "text": "test"
+  },
+  "ck32_41": {
+   "source": "the tests",
+   "text": "testy"
+  },
+  "ck32_42": {
+   "source": "Choose the kind of test",
+   "text": "Vyberte druh testu"
+  },
+  "ck32_43": {
+   "source": "test of the servers",
+   "text": "test serverů"
+  },
+  "ck32_44": {
+   "source": "Test the servers after each deployment",
+   "text": "Testovat servery po každém nasazení"
+  },
+  "ck32_45": {
+   "source": "Test the servers by themselves",
+   "text": "Testovat servery automaticky"
+  },
+  "ck32_46": {
+   "source": "Test them every (min)",
+   "text": "Testovat každých (min)"
+  },
+  "ck32_47": {
+   "source": "Alert when a test fails",
+   "text": "Upozornit, když test selže"
+  },
+  "ck32_48": {
+   "source": "A served certificate ending sooner is a warning (days)",
+   "text": "Posílaný certifikát končící dříve je upozornění (dny)"
+  },
+  "ck32_49": {
+   "source": "After a certificate is put on a target, the tests of that deployment connect to the server as a client would (HTTPS, SMTP, RDP…) and look whether it serves the new certificate. A failed test makes the deployment a warning, not a failure.",
+   "text": "Po nasazení certifikátu na cíl se testy toho nasazení připojí k serveru jako klient (HTTPS, SMTP, RDP…) a podívají se, jestli posílá nový certifikát. Neúspěšný test z nasazení udělá upozornění, ne selhání."
+  },
+  "ck32_50": {
+   "source": "Every test is run again on its own, on the node that leads - a server that went back to an old certificate, or serves another one, is found without anybody looking.",
+   "text": "Každý test se spouští znovu sám, na vedoucím uzlu – server, který se vrátil ke starému certifikátu nebo posílá jiný, se najde, aniž by se někdo díval."
+  },
+  "ck32_51": {
+   "source": "How often each test is run by itself.",
+   "text": "Jak často se každý test spouští sám."
+  },
+  "ck32_52": {
+   "source": "A test that starts failing is an event, a mail and an SMS (Settings → Certificates says to whom; the words are on Settings → Message texts) - and one that works again is said too.",
+   "text": "Test, který začne selhávat, je událost, e-mail a SMS (komu, říká Nastavení → Certifikáty; texty jsou v Nastavení → Texty zpráv) – a test, který zase funguje, se ohlásí taky."
+  },
+  "ck32_53": {
+   "source": "A server serving the right certificate that ends within this many days is a warning. 0: never.",
+   "text": "Server posílající správný certifikát, který končí do tolika dní, je upozornění. 0: nikdy."
+  },
+  "ck32_54": {
+   "source": "A test of a server failed",
+   "text": "Test serveru selhal"
+  },
+  "ck32_55": {
+   "source": "Sent when a test of a deployment starts failing - the server serves an old or another certificate, or cannot be reached (at most every 6 hours for one test).",
+   "text": "Posílá se, když test nasazení začne selhávat – server posílá starý nebo jiný certifikát, nebo není dosažitelný (u jednoho testu nejvýš jednou za 6 hodin)."
+  },
+  "ck32_56": {
+   "source": "A test of a server works again",
+   "text": "Test serveru zase funguje"
+  },
+  "ck32_57": {
+   "source": "Sent when a test that failed works again.",
+   "text": "Posílá se, když test, který selhával, zase funguje."
+  },
+  "ck32_58": {
+   "source": "the test (its kind and address)",
+   "text": "test (jeho druh a adresa)"
+  },
+  "ck32_59": {
+   "source": "Connect to",
+   "text": "Připojit k"
+  },
+  "ck32_60": {
+   "source": "The name or IP address connected to - an IP of one node behind a load balancer, say. Empty: the target's own address.",
+   "text": "Jméno nebo IP adresa, ke které se připojí – třeba IP jednoho uzlu za load balancerem. Prázdné: vlastní adresa cíle."
+  },
+  "ck32_61": {
+   "source": "empty: the target's address",
+   "text": "prázdné: adresa cíle"
+  },
+  "ck32_62": {
+   "source": "Name asked for (SNI)",
+   "text": "Žádané jméno (SNI)"
+  },
+  "ck32_63": {
+   "source": "empty: the certificate's first name",
+   "text": "prázdné: první jméno certifikátu"
+  },
+  "ck32_64": {
+   "source": "The server name sent in TLS - a server with several certificates picks one by it, whatever address was connected to. Empty: the first name of the certificate tested; \"-\": none sent.",
+   "text": "Jméno serveru posílané v TLS – server s více certifikáty podle něj vybírá, ať je připojená adresa jakákoli. Prázdné: první jméno testovaného certifikátu; „-“: neposílá se žádné."
+  },
+  "ck32_65": {
+   "source": "Name the certificate must hold",
+   "text": "Jméno, které certifikát musí obsahovat"
+  },
+  "ck32_66": {
+   "source": "The name looked for among the names of the certificate served (and for trust). Empty: the name sent as SNI.",
+   "text": "Jméno hledané mezi jmény posílaného certifikátu. Prázdné: jméno poslané jako SNI."
+  },
+  "ck32_67": {
+   "source": "The certificate expected",
+   "text": "Očekávaný certifikát"
+  },
+  "ck32_68": {
+   "source": "the version deployed now (or its twin)",
+   "text": "verze nasazená teď (nebo její dvojče)"
+  },
+  "ck32_69": {
+   "source": "the main one only (not the twin of another key type)",
+   "text": "jen hlavní (ne dvojče s jiným typem klíče)"
+  },
+  "ck32_70": {
+   "source": "the twin only (the other key type)",
+   "text": "jen dvojče (druhý typ klíče)"
+  },
+  "ck32_71": {
+   "source": "any version of this certificate - an old one is not a fault",
+   "text": "jakákoli verze tohoto certifikátu – stará není chyba"
+  },
+  "ck32_72": {
+   "source": "What counts as right. A dual certificate (ECDSA beside RSA): the server picks one by what the client offers.",
+   "text": "Co se počítá za správné. Duální certifikát (ECDSA vedle RSA): server vybírá podle toho, co nabídne klient."
+  },
+  "ck32_73": {
+   "source": "TLS at least",
+   "text": "TLS alespoň"
+  },
+  "ck32_74": {
+   "source": "TLS at most",
+   "text": "TLS nejvýš"
+  },
+  "ck32_75": {
+   "source": "as the server and this machine agree",
+   "text": "jak se server a tento stroj dohodnou"
+  },
+  "ck32_76": {
+   "source": "TLS 1.2 at most: the server's certificate for older clients - an RSA twin, say.",
+   "text": "Nejvýš TLS 1.2: certifikát serveru pro starší klienty – třeba RSA dvojče."
+  },
+  "ck32_77": {
+   "source": "Ciphers (OpenSSL)",
+   "text": "Šifry (OpenSSL)"
+  },
+  "ck32_78": {
+   "source": "Offer only these (TLS 1.2 and older) - e.g. RSA ones only, to get the RSA certificate of a dual one. Empty: what this machine offers.",
+   "text": "Nabízet jen tyto (TLS 1.2 a starší) – třeba jen RSA, kvůli RSA certifikátu duálního páru. Prázdné: co nabízí tento stroj."
+  },
+  "ck32_79": {
+   "source": "ALPN",
+   "text": "ALPN"
+  },
+  "ck32_80": {
+   "source": "The protocols offered in ALPN, comma between them. Empty: none.",
+   "text": "Protokoly nabízené v ALPN, oddělené čárkou. Prázdné: žádné."
+  },
+  "ck32_81": {
+   "source": "Address family",
+   "text": "Rodina adres"
+  },
+  "ck32_82": {
+   "source": "whichever the name gives",
+   "text": "jakoukoli dá jméno"
+  },
+  "ck32_83": {
+   "source": "IPv4 only",
+   "text": "jen IPv4"
+  },
+  "ck32_84": {
+   "source": "IPv6 only",
+   "text": "jen IPv6"
+  },
+  "ck32_85": {
+   "source": "From the address",
+   "text": "Z adresy"
+  },
+  "ck32_86": {
+   "source": "empty: as the system chooses",
+   "text": "prázdné: podle systému"
+  },
+  "ck32_87": {
+   "source": "The local address connected from (a node with several).",
+   "text": "Místní adresa, ze které se připojí (uzel s více adresami)."
+  },
+  "ck32_88": {
+   "source": "Time limit (s)",
+   "text": "Časový limit (s)"
+  },
+  "ck32_89": {
+   "source": "Fail when not trusted here",
+   "text": "Selhat, když tu není důvěryhodný"
+  },
+  "ck32_90": {
+   "source": "On: the chain must be trusted by this machine's CAs and hold the name checked - off, that is only said (a CA of acme's own is not trusted by the system).",
+   "text": "Zapnuto: řetězec musí být důvěryhodný pro CA tohoto stroje a obsahovat kontrolované jméno – vypnuto: jen se to oznámí (vlastní CA acme systém nezná)."
+  },
+  "ck32_91": {
+   "source": "TLS (any port)",
+   "text": "TLS (libovolný port)"
+  },
+  "ck32_92": {
+   "source": "TLS at once on any port - a web server, LDAPS, a reverse proxy, MQTT over TLS, an API: the certificate it serves compared with the one acme keeps.",
+   "text": "TLS rovnou na libovolném portu – webový server, LDAPS, reverzní proxy, MQTT přes TLS, API: posílaný certifikát se porovná s tím, který má acme."
+  },
+  "ck32_93": {
+   "source": "HTTPS",
+   "text": "HTTPS"
+  },
+  "ck32_94": {
+   "source": "A web server: TLS on port 443 (or another), the name sent as SNI - the certificate a browser would get, and an HTTP request with its own Host header when asked.",
+   "text": "Webový server: TLS na portu 443 (nebo jiném), jméno poslané jako SNI – certifikát, který by dostal prohlížeč, a na přání HTTP požadavek s vlastní hlavičkou Host."
+  },
+  "ck32_95": {
+   "source": "Ask over HTTP too",
+   "text": "Zeptat se i přes HTTP"
+  },
+  "ck32_96": {
+   "source": "After TLS, an HTTP request: the answer is checked as set below - the site answers, not only its certificate.",
+   "text": "Po TLS HTTP požadavek: odpověď se zkontroluje podle nastavení níže – odpovídá web, ne jen jeho certifikát."
+  },
+  "ck32_97": {
+   "source": "Method",
+   "text": "Metoda"
+  },
+  "ck32_98": {
+   "source": "The Host the request names - a virtual host other than the SNI, say.",
+   "text": "Host, který požadavek uvádí – třeba virtuální host jiný než SNI."
+  },
+  "ck32_99": {
+   "source": "One a line, \"Name: value\".",
+   "text": "Jedna na řádek, „Název: hodnota“."
+  },
+  "ck32_100": {
+   "source": "Status expected",
+   "text": "Očekávaný stav"
+  },
+  "ck32_101": {
+   "source": "Codes and ranges, comma between them. Empty: any answer.",
+   "text": "Kódy a rozsahy oddělené čárkou. Prázdné: jakákoli odpověď."
+  },
+  "ck32_102": {
+   "source": "The answer holds",
+   "text": "Odpověď obsahuje"
+  },
+  "ck32_103": {
+   "source": "Words the answer must hold (GET only; the first 64 KB read).",
+   "text": "Slova, která odpověď musí obsahovat (jen GET; čte se prvních 64 KB)."
+  },
+  "ck32_104": {
+   "source": "Through an SSH server",
+   "text": "Přes SSH server"
+  },
+  "ck32_105": {
+   "source": "Signs in over SSH to a Linux server of yours (AlmaLinux, RHEL, Rocky…) and runs a set of tests from there - for servers only that network reaches.",
+   "text": "Přihlásí se přes SSH na váš linuxový server (AlmaLinux, RHEL, Rocky…) a spustí z něj sadu testů – pro servery, na které dosáhne jen tamní síť."
+  },
+  "ck32_106": {
+   "source": "Through the server",
+   "text": "Přes server"
+  },
+  "ck32_107": {
+   "source": "A Linux / Unix (SSH) target of acme: its address, user and key are used. Nothing is installed there; only \"ssh -W\" is asked of its OpenSSH (on by default; AllowTcpForwarding must not be \"no\").",
+   "text": "Cíl acme typu Linux / Unix (SSH): použije se jeho adresa, uživatel a klíč. Nic se tam neinstaluje; po jeho OpenSSH se chce jen „ssh -W“ (ve výchozím stavu zapnuté; AllowTcpForwarding nesmí být „no“)."
+  },
+  "ck32_108": {
+   "source": "Tests run from there",
+   "text": "Testy spouštěné odtud"
+  },
+  "ck32_109": {
+   "source": "One a line: the kind of test, the address (with :port when not its usual), the name sent as SNI when not the certificate's first, then any setting of that kind of test as SETTING=VALUE (http=1 host_header=… path=/health check_name=… tls_max=TLSv1_2 expect=any).",
+   "text": "Jeden na řádek: druh testu, adresa (s :port, není-li obvyklý), jméno posílané jako SNI, není-li první jméno certifikátu, pak libovolné nastavení toho druhu testu jako NASTAVENÍ=HODNOTA (http=1 host_header=… path=/health check_name=… tls_max=TLSv1_2 expect=any)."
+  },
+  "ck32_110": {
+   "source": "the server sends no intermediate certificate",
+   "text": "server neposílá mezilehlý certifikát"
+  },
+  "ck32_111": {
+   "source": "its deployment is gone",
+   "text": "jeho nasazení už neexistuje"
+  },
+  "ck32_112": {
+   "source": "the certificate has not been issued yet",
+   "text": "certifikát ještě nebyl vydán"
+  },
+  "ck32_113": {
+   "source": "no address to connect to - set it in the test, or the target has none",
+   "text": "není adresa k připojení – nastavte ji v testu; cíl žádnou nemá"
+  },
+  "ck32_114": {
+   "source": "no test is set to run from there",
+   "text": "odtud není nastavený žádný test"
+  },
+  "ck32_115": {
+   "source": "a test belongs to a deployment (a certificate on a target) - choose one",
+   "text": "test patří k nasazení (certifikát na cíli) – vyberte ho"
+  },
+  "ck32_116": {
+   "source": "there is no such test",
+   "text": "takový test neexistuje"
+  },
+  "ck32_117": {
+   "source": "there is no test to run",
+   "text": "není co spustit"
+  },
+  "ck32b_1": {
+   "source": "Tests of what the servers really serve: HTTPS, SMTP, RDP, LDAP… - defined here, attached to certificates, run after each deployment and by themselves.",
+   "text": "Testy toho, co servery skutečně posílají: HTTPS, SMTP, RDP, LDAP… – definované zde, připojené k certifikátům, spouštěné po každém nasazení i samy."
+  },
+  "ck32b_2": {
+   "source": "What the servers really serve. A test connects as a client of its protocol would - a browser, a mail client, Remote Desktop - and compares the certificate it is sent with the certificate it is attached to: the version deployed, its names, its chain, how long it runs. Defined here, attached to certificates (the certificate → Tests → Attach a test); run after each deployment, by themselves when Settings → Certificates says so, or now. A connector signs in to a Linux server over SSH and runs the tests it carries from there.",
+   "text": "Co servery skutečně posílají. Test se připojí jako klient svého protokolu – prohlížeč, poštovní klient, Vzdálená plocha – a porovná certifikát, který dostane, s certifikátem, ke kterému je připojený: nasazenou verzi, jména, řetězec a jak dlouho platí. Definují se zde, připojují k certifikátům (certifikát → Testy → Připojit test); spouštějí se po každém nasazení, samy podle Nastavení → Certifikáty, nebo hned. Konektor se přihlásí přes SSH na linuxový server a spustí z něj testy, které nese."
+  },
+  "ck32b_3": {
+   "source": "a name, a kind, an address…",
+   "text": "název, druh, adresa…"
+  },
+  "ck32b_4": {
+   "source": "A new test",
+   "text": "Nový test"
+  },
+  "ck32b_5": {
+   "source": "No test yet. Add one - HTTPS of a web server, SMTP of a mail server, RDP of a Windows server, or a connector that runs tests from a server over SSH - then attach it to certificates.",
+   "text": "Zatím žádný test. Přidejte jeden – HTTPS webového serveru, SMTP poštovního, RDP Windows serveru, nebo konektor, který spouští testy ze serveru přes SSH – a pak ho připojte k certifikátům."
+  },
+  "ck32b_6": {
+   "source": "What should be tested? A test connects as a client of its protocol would and compares the certificate it is sent with the certificate it is attached to.",
+   "text": "Co se má testovat? Test se připojí jako klient svého protokolu a porovná certifikát, který dostane, s certifikátem, ke kterému je připojený."
+  },
+  "ck32b_7": {
+   "source": "What the servers really serve, compared with this certificate - after its deployments, by themselves when Settings → Certificates says so, or now.",
+   "text": "Co servery skutečně posílají, porovnané s tímto certifikátem – po jeho nasazeních, samy podle Nastavení → Certifikáty, nebo hned."
+  },
+  "ck32b_8": {
+   "source": "Attach a test",
+   "text": "Připojit test"
+  },
+  "ck32b_9": {
+   "source": "No test attached. Attach one: it connects to the server as a client would and says whether it serves this certificate.",
+   "text": "Není připojený žádný test. Připojte jeden: připojí se k serveru jako klient a řekne, jestli posílá tento certifikát."
+  },
+  "ck32b_10": {
+   "source": "test missing",
+   "text": "test chybí"
+  },
+  "ck32b_11": {
+   "source": "test off",
+   "text": "test vypnutý"
+  },
+  "ck32b_12": {
+   "source": "off here",
+   "text": "zde vypnutý"
+  },
+  "ck32b_13": {
+   "source": "Switch it on here",
+   "text": "Zapnout zde"
+  },
+  "ck32b_14": {
+   "source": "Switch it off here",
+   "text": "Vypnout zde"
+  },
+  "ck32b_15": {
+   "source": "Edit the test",
+   "text": "Upravit test"
+  },
+  "ck32b_16": {
+   "source": "Take it off this certificate",
+   "text": "Odpojit od tohoto certifikátu"
+  },
+  "ck32b_17": {
+   "source": "Attach a test to",
+   "text": "Připojit test k"
+  },
+  "ck32b_18": {
+   "source": "Tick the tests to run against this certificate. A connector (tests on a server over SSH) brings every test it carries. Empty \"Connect to\" in a test: it connects to the certificate’s first name.",
+   "text": "Zaškrtněte testy, které se mají proti tomuto certifikátu spouštět. Konektor (testy na serveru přes SSH) přinese všechny testy, které nese. Prázdné „Připojit k“ v testu: připojí se k prvnímu jménu certifikátu."
+  },
+  "ck32b_19": {
+   "source": "No test is defined yet.",
+   "text": "Zatím není definovaný žádný test."
+  },
+  "ck32b_20": {
+   "source": "attached",
+   "text": "připojený"
+  },
+  "ck32b_21": {
+   "source": "the certificate’s first name",
+   "text": "první jméno certifikátu"
+  },
+  "ck32b_22": {
+   "source": "Define a new test",
+   "text": "Definovat nový test"
+  },
+  "ck32b_23": {
+   "source": "Attach",
+   "text": "Připojit"
+  },
+  "ck32b_24": {
+   "source": "Tick a test first",
+   "text": "Nejdřív zaškrtněte test"
+  },
+  "ck32b_25": {
+   "source": "the test's name",
+   "text": "název testu"
+  },
+  "ck32b_26": {
+   "source": "its kind",
+   "text": "jeho druh"
+  },
+  "ck32b_27": {
+   "source": "where it connects",
+   "text": "kam se připojuje"
+  },
+  "ck32b_28": {
+   "source": "attached or not",
+   "text": "připojený nebo ne"
+  },
+  "ck32b_29": {
+   "source": "how it went last: ok, warn, old, other, unreachable",
+   "text": "jak dopadl naposledy: ok, warn, old, other, unreachable"
+  },
+  "ck32b_30": {
+   "source": "Try it on a certificate",
+   "text": "Vyzkoušet na certifikátu"
+  },
+  "ck32b_31": {
+   "source": "Connects as set above and compares what is served with a certificate acme keeps - nothing is saved. Empty \"Connect to\": the certificate’s first name.",
+   "text": "Připojí se podle nastavení výše a porovná, co server pošle, s certifikátem v acme – nic se neukládá. Prázdné „Připojit k“: první jméno certifikátu."
+  },
+  "ck32b_32": {
+   "source": "a certificate…",
+   "text": "certifikát…"
+  },
+  "ck32b_33": {
+   "source": "Choose a certificate",
+   "text": "Vyberte certifikát"
+  },
+  "ck32b_34": {
+   "source": "not there any more",
+   "text": "už neexistuje"
+  },
+  "ck32b_35": {
+   "source": "Nothing to choose yet - define some first.",
+   "text": "Zatím není z čeho vybírat – nejdřív nějaké definujte."
+  },
+  "ck32b_36": {
+   "source": "Tests on a server over SSH",
+   "text": "Testy na serveru přes SSH"
+  },
+  "ck32b_37": {
+   "source": "Connector",
+   "text": "Konektor"
+  },
+  "ck32b_38": {
+   "source": "SSH connector",
+   "text": "SSH konektor"
+  },
+  "ck32b_39": {
+   "source": "A connector: signs in over SSH to a Linux server of yours (AlmaLinux, RHEL, Rocky…) and runs the tests chosen for it from there - for servers only that network reaches.",
+   "text": "Konektor: přihlásí se přes SSH na váš linuxový server (AlmaLinux, RHEL, Rocky…) a spustí z něj testy, které mu vyberete – pro servery, na které dosáhne jen tamní síť."
+  },
+  "ck32b_40": {
+   "source": "Tests defined on Certificates → Tests (HTTPS of an internal site, SMTP of a relay, RDP…): each is run from this server as it is set, through \"ssh -W\". Its OpenSSH must allow it (AllowTcpForwarding, on by default).",
+   "text": "Testy definované v Certifikáty → Testy (HTTPS interního webu, SMTP relaye, RDP…): každý se spustí z tohoto serveru tak, jak je nastavený, přes „ssh -W“. Jeho OpenSSH to musí dovolit (AllowTcpForwarding, ve výchozím stavu zapnuté)."
+  },
+  "ck32b_41": {
+   "source": "no test is chosen to run from there",
+   "text": "odtud není vybraný žádný test"
+  },
+  "ck32b_42": {
+   "source": "nothing to connect to yet: \"Connect to\" is empty - attached to a certificate, the test connects to its first name",
+   "text": "zatím není kam se připojit: „Připojit k“ je prázdné – připojený k certifikátu se test připojí k jeho prvnímu jménu"
+  },
+  "ck32b_43": {
+   "source": "trusted here",
+   "text": "zde důvěryhodný"
+  },
+  "ck32b_44": {
+   "source": "there is no such test of a certificate",
+   "text": "takový test certifikátu neexistuje"
+  },
+  "ck32b_45": {
+   "source": "Tested by",
+   "text": "Testuje"
+  },
+  "ck32b_46": {
+   "source": "test(s)",
+   "text": "testů"
+  },
+  "ck32b_47": {
+   "source": "The test's settings",
+   "text": "Nastavení testu"
+  },
+  "ck32b_48": {
+   "source": "the test is switched off",
+   "text": "test je vypnutý"
+  },
+  "ck32b_49": {
+   "source": "Pick a test: only it is shown below, over the whole width.",
+   "text": "Vyberte test: níže se ukáže jen on, přes celou šířku."
+  },
+  "ck32b_50": {
+   "source": " test(s) side by side",
+   "text": " testů vedle sebe"
+  },
+  "ck32b_51": {
+   "source": "the address set in the test",
+   "text": "adresa nastavená v testu"
+  },
+  "ck32b_52": {
+   "source": "the certificate's first name: \"Connect to\" is empty",
+   "text": "první jméno certifikátu: „Připojit k“ je prázdné"
+  },
+  "ck32b_53": {
+   "source": "TLS as the server and this machine agree; the chain read whole",
+   "text": "TLS podle dohody serveru a tohoto stroje; čte se celý řetězec"
+  },
+  "ck32b_54": {
+   "source": "with its key or password, as a Linux / Unix (SSH) target does - nothing is installed there",
+   "text": "svým klíčem nebo heslem, stejně jako cíl Linux / Unix (SSH) – nic se tam neinstaluje"
+  },
+  "ck32b_55": {
+   "source": "When: after the deployments",
+   "text": "Kdy: po nasazeních"
+  },
+  "ck32b_56": {
+   "source": "a test that starts failing is an event and a notice (Settings → Renewal and notices)",
+   "text": "test, který začne selhávat, je událost a upozornění (Nastavení → Obnovování a upozornění)"
+  },
+  "ck32b_57": {
+   "source": "No test is attached: what the servers serve is not looked at (the certificate → Tests → Attach a test)",
+   "text": "Není připojený žádný test: co servery posílají, se nekontroluje (certifikát → Testy → Připojit test)"
+  },
+  "ck32b_58": {
+   "source": "There is no such test (or its module is missing)",
+   "text": "Takový test neexistuje (nebo chybí jeho modul)"
+  },
+  "ck32b_59": {
+   "source": "The modules sources, validations, targets and tests are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.",
+   "text": "Moduly, ze kterých se skládají zdroje, validace, cíle a testy: dodané, vlastní, jejich verze a co je označené jako otestované – stáhněte si modul, nahrajte vlastní."
+  },
+  "ck32b_60": {
+   "source": "What sources, validations, targets and tests are made of: the modules shipped with acme, your own, their versions and what is marked as tested - download one, upload one of your own.",
+   "text": "Z čeho se skládají zdroje, validace, cíle a testy: moduly dodané s acme, vlastní, jejich verze a co je označené jako otestované – stáhněte si modul, nahrajte vlastní."
+  },
+  "ck32b_61": {
+   "source": "a module is a source, a validation, a target or a test",
+   "text": "modul je zdroj, validace, cíl nebo test"
+  },
+  "ck32b_62": {
+   "source": "offered first when a test is attached",
+   "text": "nabízí se jako první při připojení testu"
   }
  },
  "patterns": {
@@ -67669,6 +68705,418 @@
   "pmd32_12": {
    "source": "a mark is one of: {0}",
    "text": "značka je jedna z: {0}"
+  },
+  "pchk32_1": {
+   "source": "the FTP server refused the connection (it said: {0})",
+   "text": "server FTP odmítl spojení (řekl: {0})"
+  },
+  "pchk32_2": {
+   "source": "the IMAP server closed the session (it said: {0})",
+   "text": "server IMAP ukončil relaci (řekl: {0})"
+  },
+  "pchk32_3": {
+   "source": "the IMAP server refused CAPABILITY (it said: {0})",
+   "text": "server IMAP odmítl CAPABILITY (řekl: {0})"
+  },
+  "pchk32_4": {
+   "source": "the IMAP server refused STARTTLS (it said: {0})",
+   "text": "server IMAP odmítl STARTTLS (řekl: {0})"
+  },
+  "pchk32_5": {
+   "source": "the IMAP server signed in at once (PREAUTH) - STARTTLS cannot follow (it said: {0})",
+   "text": "server IMAP přihlásil rovnou (PREAUTH) – STARTTLS už nemůže následovat (řekl: {0})"
+  },
+  "pchk32_6": {
+   "source": "the LDAP server answered StartTLS with something else (an operation of tag 0x{0})",
+   "text": "server LDAP odpověděl na StartTLS něčím jiným (operací se značkou 0x{0})"
+  },
+  "pchk32_7": {
+   "source": "the LDAP server closed the session (Notice of Disconnection: {0}{1})",
+   "text": "server LDAP ukončil relaci (Notice of Disconnection: {0}{1})"
+  },
+  "pchk32_8": {
+   "source": "the LDAP server refused StartTLS (it said: {0}{1})",
+   "text": "server LDAP odmítl StartTLS (řekl: {0}{1})"
+  },
+  "pchk32_9": {
+   "source": "the LDAP server sent an answer of {0} bytes - not LDAP",
+   "text": "server LDAP poslal odpověď o {0} bajtech – to není LDAP"
+  },
+  "pchk32_10": {
+   "source": "the LDAP server's answer cannot be read ({0})",
+   "text": "odpověď serveru LDAP nelze přečíst ({0})"
+  },
+  "pchk32_11": {
+   "source": "the MySQL server does not offer TLS ({0}, without CLIENT_SSL: no certificate set, or have_ssl off)",
+   "text": "server MySQL nenabízí TLS ({0}, bez CLIENT_SSL: nemá nastavený certifikát, nebo je have_ssl vypnuté)"
+  },
+  "pchk32_12": {
+   "source": "the MySQL server refused the connection (error {0}: {1})",
+   "text": "server MySQL odmítl spojení (chyba {0}: {1})"
+  },
+  "pchk32_13": {
+   "source": "the RDP server answered the negotiation with something else (type 0x{0})",
+   "text": "server RDP odpověděl na vyjednání něčím jiným (typ 0x{0})"
+  },
+  "pchk32_14": {
+   "source": "the RDP server chose a protocol not asked for (0x{0})",
+   "text": "server RDP zvolil protokol, o který se nežádalo (0x{0})"
+  },
+  "pchk32_15": {
+   "source": "the RDP server refused TLS: {0} ({1})",
+   "text": "server RDP odmítl TLS: {0} ({1})"
+  },
+  "pchk32_16": {
+   "source": "the RDP server's answer is cut short ({0})",
+   "text": "odpověď serveru RDP je useknutá ({0})"
+  },
+  "pchk32_17": {
+   "source": "the SMTP server does not take mail now (it said: {0})",
+   "text": "server SMTP teď poštu nepřijímá (řekl: {0})"
+  },
+  "pchk32_18": {
+   "source": "the SMTP server refused EHLO (it said: {0})",
+   "text": "server SMTP odmítl EHLO (řekl: {0})"
+  },
+  "pchk32_19": {
+   "source": "the SMTP server refused STARTTLS (it said: {0})",
+   "text": "server SMTP odmítl STARTTLS (řekl: {0})"
+  },
+  "pchk32_20": {
+   "source": "the TLS handshake failed: {0}",
+   "text": "navázání TLS selhalo: {0}"
+  },
+  "pchk32_21": {
+   "source": "the XMPP server closed the connection (after: {0})",
+   "text": "server XMPP zavřel spojení (po: {0})"
+  },
+  "pchk32_22": {
+   "source": "the XMPP server closed the connection: {0}",
+   "text": "server XMPP zavřel spojení: {0}"
+  },
+  "pchk32_23": {
+   "source": "the XMPP server closed the stream (it said: {0})",
+   "text": "server XMPP zavřel stream (řekl: {0})"
+  },
+  "pchk32_24": {
+   "source": "the XMPP server ended the stream: {0}",
+   "text": "server XMPP ukončil stream: {0}"
+  },
+  "pchk32_25": {
+   "source": "the XMPP server refused STARTTLS (it said: {0})",
+   "text": "server XMPP odmítl STARTTLS (řekl: {0})"
+  },
+  "pchk32_26": {
+   "source": "the XMPP server said nothing more in time (after: {0})",
+   "text": "server XMPP včas nic dalšího neposlal (po: {0})"
+  },
+  "pchk32_27": {
+   "source": "the XMPP server sent more than {0} bytes before its features",
+   "text": "server XMPP poslal před svými features víc než {0} bajtů"
+  },
+  "pchk32_28": {
+   "source": "the server does not offer AUTH TLS (it said: {0})",
+   "text": "server nenabízí AUTH TLS (řekl: {0})"
+  },
+  "pchk32_29": {
+   "source": "the server does not offer STARTTLS (it said: {0})",
+   "text": "server nenabízí STARTTLS (řekl: {0})"
+  },
+  "pchk32_30": {
+   "source": "the server does not offer STLS (it said: {0})",
+   "text": "server nenabízí STLS (řekl: {0})"
+  },
+  "pchk32_31": {
+   "source": "the server does not speak FTP (it said: {0})",
+   "text": "server nemluví FTP (řekl: {0})"
+  },
+  "pchk32_32": {
+   "source": "the server does not speak IMAP or refused the connection (it said: {0})",
+   "text": "server nemluví IMAP nebo spojení odmítl (řekl: {0})"
+  },
+  "pchk32_33": {
+   "source": "the server does not speak LDAP (it sent: {0})",
+   "text": "server nemluví LDAP (poslal: {0})"
+  },
+  "pchk32_34": {
+   "source": "the server does not speak MySQL (it sent: {0})",
+   "text": "server nemluví MySQL (poslal: {0})"
+  },
+  "pchk32_35": {
+   "source": "the server does not speak POP3 or refused the connection (it said: {0})",
+   "text": "server nemluví POP3 nebo spojení odmítl (řekl: {0})"
+  },
+  "pchk32_36": {
+   "source": "the server does not speak PostgreSQL (it answered: {0})",
+   "text": "server nemluví PostgreSQL (odpověděl: {0})"
+  },
+  "pchk32_37": {
+   "source": "the server does not speak RDP (a TPKT of {0} bytes)",
+   "text": "server nemluví RDP (TPKT o {0} bajtech)"
+  },
+  "pchk32_38": {
+   "source": "the server does not speak RDP (an X.224 answer of type 0x{0})",
+   "text": "server nemluví RDP (odpověď X.224 typu 0x{0})"
+  },
+  "pchk32_39": {
+   "source": "the server does not speak RDP (it sent: {0})",
+   "text": "server nemluví RDP (poslal: {0})"
+  },
+  "pchk32_40": {
+   "source": "the server does not speak SMTP (it said: {0})",
+   "text": "server nemluví SMTP (řekl: {0})"
+  },
+  "pchk32_41": {
+   "source": "the server does not speak TDS (it sent: {0})",
+   "text": "server nemluví TDS (poslal: {0})"
+  },
+  "pchk32_42": {
+   "source": "the server sent more before TLS than it may ({0}) - not taken",
+   "text": "server poslal před TLS víc, než smí ({0}) – nepřijato"
+  },
+  "pchk32_43": {
+   "source": "{0} closed the connection ({1} of {2} bytes)",
+   "text": "{0} zavřel spojení ({1} z {2} bajtů)"
+  },
+  "pchk32_44": {
+   "source": "{0} closed the connection without an answer",
+   "text": "{0} zavřel spojení bez odpovědi"
+  },
+  "pchk32_45": {
+   "source": "{0} closed the connection: {1}",
+   "text": "{0} zavřel spojení: {1}"
+  },
+  "pchk32_46": {
+   "source": "{0} said nothing more in time ({1} of {2} bytes)",
+   "text": "{0} včas nic dalšího neposlal ({1} z {2} bajtů)"
+  },
+  "pck32_1": {
+   "source": "run by themselves every {0} min",
+   "text": "spouští se samy každých {0} min"
+  },
+  "pck32_2": {
+   "source": "serves the current certificate (version {0})",
+   "text": "posílá aktuální certifikát (verze {0})"
+  },
+  "pck32_3": {
+   "source": "serves the current certificate (version {0}, its twin)",
+   "text": "posílá aktuální certifikát (verze {0}, dvojče)"
+  },
+  "pck32_4": {
+   "source": "serves an old version ({0}) of {1} - the new one did not reach the server",
+   "text": "posílá starou verzi ({0}) certifikátu {1} – nová se na server nedostala"
+  },
+  "pck32_5": {
+   "source": "serves another certificate: {0}, issued by {1}, until {2}",
+   "text": "posílá jiný certifikát: {0}, vydal {1}, platný do {2}"
+  },
+  "pck32_6": {
+   "source": "{0} is not one of its names",
+   "text": "{0} není mezi jeho jmény"
+  },
+  "pck32_7": {
+   "source": "serves the current certificate, but it is not trusted here: {0}",
+   "text": "posílá aktuální certifikát, ale zde není důvěryhodný: {0}"
+  },
+  "pck32_8": {
+   "source": "{0} - but {1}",
+   "text": "{0} – ale {1}"
+  },
+  "pck32_9": {
+   "source": "{0} - HTTP {1}",
+   "text": "{0} – HTTP {1}"
+  },
+  "pck32_10": {
+   "source": "{0} - but over HTTP {1}",
+   "text": "{0} – ale přes HTTP {1}"
+  },
+  "pck32_11": {
+   "source": "it answered {0} {1}, not {2}",
+   "text": "odpověděl {0} {1}, ne {2}"
+  },
+  "pck32_12": {
+   "source": "the answer does not hold \"{0}\"",
+   "text": "odpověď neobsahuje „{0}“"
+  },
+  "pck32_13": {
+   "source": "the answer is not HTTP: {0}",
+   "text": "odpověď není HTTP: {0}"
+  },
+  "pck32_14": {
+   "source": "the HTTP request got no answer: {0}",
+   "text": "HTTP požadavek nedostal odpověď: {0}"
+  },
+  "pck32_15": {
+   "source": "\"{0}\" is not a header (Name: value)",
+   "text": "„{0}“ není hlavička (Název: hodnota)"
+  },
+  "pck32_16": {
+   "source": "there is no test module \"{0}\"",
+   "text": "testovací modul „{0}“ neexistuje"
+  },
+  "pck32_17": {
+   "source": "{0}:{1} does not answer (no connection in {2} s)",
+   "text": "{0}:{1} neodpovídá (žádné spojení za {2} s)"
+  },
+  "pck32_18": {
+   "source": "{0}:{1} cannot be reached: {2}",
+   "text": "{0}:{1} není dosažitelný: {2}"
+  },
+  "pck32_19": {
+   "source": "{0} cannot be looked up: {1}",
+   "text": "{0} nelze najít v DNS: {1}"
+  },
+  "pck32_20": {
+   "source": "{0} has no IPv{1} address",
+   "text": "{0} nemá adresu IPv{1}"
+  },
+  "pck32_21": {
+   "source": "the ciphers set are not ones this machine knows: {0}",
+   "text": "nastavené šifry tento stroj nezná: {0}"
+  },
+  "pck32_22": {
+   "source": "the server to go through ({0}) is not a target of acme",
+   "text": "server, přes který se jde ({0}), není cíl acme"
+  },
+  "pck32_23": {
+   "source": "{0} does not sign in over SSH",
+   "text": "{0} se nepřihlašuje přes SSH"
+  },
+  "pck32_24": {
+   "source": "signing in to {0} over SSH: {1}",
+   "text": "přihlášení k {0} přes SSH: {1}"
+  },
+  "pck32_25": {
+   "source": "{0} has no setting {1}",
+   "text": "{0} nemá nastavení {1}"
+  },
+  "pck32_26": {
+   "source": "{0} of {1} from {2} failed - {3}",
+   "text": "{0} z {1} přes {2} selhalo – {3}"
+  },
+  "pck32_27": {
+   "source": "all {0} from {1} serve the current certificate",
+   "text": "všech {0} přes {1} posílá aktuální certifikát"
+  },
+  "pck32_28": {
+   "source": "all {0} from {1} serve the current certificate (with warnings)",
+   "text": "všech {0} přes {1} posílá aktuální certifikát (s upozorněním)"
+  },
+  "pck32_29": {
+   "source": "\"{0}\" is not KIND HOST[:PORT] [SNI] [SETTING=VALUE...]",
+   "text": "„{0}“ není DRUH ADRESA[:PORT] [SNI] [NASTAVENÍ=HODNOTA...]"
+  },
+  "pck32_30": {
+   "source": "\"{0}\": a test through SSH cannot run another one",
+   "text": "„{0}“: test přes SSH nemůže spustit další takový"
+  },
+  "pck32_31": {
+   "source": "\"{0}\": \"{1}\" is neither the SNI nor SETTING=VALUE",
+   "text": "„{0}“: „{1}“ není ani SNI, ani NASTAVENÍ=HODNOTA"
+  },
+  "pck32_32": {
+   "source": "{0} test(s) started",
+   "text": "spuštěno testů: {0}"
+  },
+  "pck32_33": {
+   "source": "{0} test(s) passed",
+   "text": "prošlo testů: {0}"
+  },
+  "pck32_34": {
+   "source": "{0} of {1} test(s) failed",
+   "text": "selhalo {0} z {1} testů"
+  },
+  "pck32_35": {
+   "source": "test {0}: {1}",
+   "text": "test {0}: {1}"
+  },
+  "pck32_36": {
+   "source": "test {0}: {1} - asked again in {2} s",
+   "text": "test {0}: {1} – znovu za {2} s"
+  },
+  "pck32_37": {
+   "source": "the tests of the deployment could not run: {0}",
+   "text": "testy nasazení nemohly běžet: {0}"
+  },
+  "pck32_38": {
+   "source": "deployed to {0} - but a test of what it serves failed",
+   "text": "nasazeno na {0} – ale test toho, co posílá, selhal"
+  },
+  "pck32_39": {
+   "source": "{0} test(s) of the servers",
+   "text": "testů serverů: {0}"
+  },
+  "pck32b_1": {
+   "source": "signed in to {0} as {1} - {2} test(s) run from there: {3}",
+   "text": "přihlášeno k {0} jako {1} – odtud se spouští testů: {2}: {3}"
+  },
+  "pck32b_2": {
+   "source": "signed in, but a command failed: {0}",
+   "text": "přihlášeno, ale příkaz selhal: {0}"
+  },
+  "pck32b_3": {
+   "source": "{0}:{1} serves {2} (issued by {3}, until {4}, {5} in the chain, {6}) over {7}",
+   "text": "{0}:{1} posílá {2} (vydal {3}, do {4}, v řetězci {5}, {6}) přes {7}"
+  },
+  "pck32b_4": {
+   "source": "not trusted here ({0})",
+   "text": "zde nedůvěryhodný ({0})"
+  },
+  "pck32b_5": {
+   "source": "there is no test {0} any more",
+   "text": "test {0} už neexistuje"
+  },
+  "pck32b_6": {
+   "source": "there is no test {0} (or it is a connector too)",
+   "text": "test {0} neexistuje (nebo je to taky konektor)"
+  },
+  "pck32b_7": {
+   "source": "there is no test {0} (Certificates → Tests)",
+   "text": "test {0} neexistuje (Certifikáty → Testy)"
+  },
+  "pck32b_8": {
+   "source": "{0} test(s) attached",
+   "text": "připojeno testů: {0}"
+  },
+  "pck32b_9": {
+   "source": "the tests of the certificate could not run: {0}",
+   "text": "testy certifikátu nemohly běžet: {0}"
+  },
+  "pck32b_10": {
+   "source": "{0} deployment(s) done - but a test of what is served failed",
+   "text": "hotovo nasazení: {0} – ale test toho, co se posílá, selhal"
+  },
+  "pck32b_11": {
+   "source": "Connects to {0}:{1}",
+   "text": "Připojí se k {0}:{1}"
+  },
+  "pck32b_12": {
+   "source": "From {0}, a connection to {1}:{2} (ssh -W)",
+   "text": "Z {0} spojení k {1}:{2} (ssh -W)"
+  },
+  "pck32b_13": {
+   "source": "Speaks {0} first, then asks for TLS",
+   "text": "Nejdřív mluví {0}, pak požádá o TLS"
+  },
+  "pck32b_14": {
+   "source": "TLS handshake, the name {0} sent as SNI",
+   "text": "Navázání TLS, jméno {0} poslané jako SNI"
+  },
+  "pck32b_15": {
+   "source": "Asks {0} {1} with Host: {2}",
+   "text": "Pošle {0} {1} s hlavičkou Host: {2}"
+  },
+  "pck32b_16": {
+   "source": "The certificate served compared with this one: {0}",
+   "text": "Posílaný certifikát se porovná s tímto: {0}"
+  },
+  "pck32b_17": {
+   "source": "Signs in over SSH to {0}",
+   "text": "Přihlásí se přes SSH k {0}"
+  },
+  "pck32b_18": {
+   "source": "Last time: {0}",
+   "text": "Naposledy: {0}"
   }
  },
  "rich": {

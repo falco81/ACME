@@ -43,7 +43,10 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'csr', 'csr_answer', 'import_file', 'export', 'selfsigned', 'cas', 'ca_show',
         'ca_create', 'ca_sub', 'ca_import', 'ca_revoke', 'ca_crl', 'ca_export', 'ca_sign',
         'ca_del', 'sources', 'validations', 'targets', 'target_test', 'jobs', 'job', 'job_stop',
-        'plugins', 'plugin', 'plugins_sync', 'module_mark', 'module_marks_export', 'dns_records', 'dns_add', 'dns_del', 'deploys', 'deploy_add',
+        'plugins', 'plugin', 'plugins_sync', 'module_mark', 'module_marks_export', 'checks',
+        'check_run', 'check_attach', 'check_detach', 'tests', 'check_show', 'check_add',
+        'check_edit', 'check_del', 'check_test', 'check_action', 'check_discover',
+        'check_default', 'check_key', 'dns_records', 'dns_add', 'dns_del', 'deploys', 'deploy_add',
         'deploy_edit', 'deploy_del', 'deploy_run', 'acme_contact',
         'source_show', 'source_add', 'source_edit', 'source_del', 'source_test', 'source_action',
         'source_discover', 'validation_discover', 'target_discover',
@@ -60,7 +63,8 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
 # family: (the word of the options, the API's path, the words of one)
 FAMILIES = {'issuer': ('source', 'sources', 'source'),
             'challenge': ('validation', 'validations', 'validation'),
-            'target': ('target', 'targets', 'target')}
+            'target': ('target', 'targets', 'target'),
+            'check': ('check', 'tests', 'test')}
 CA_FORMATS = ('cert', 'cert-der', 'chain', 'crl', 'crl-der', 'p7b', 'bundle', 'csr', 'key',
               'p12', 'pfx')
 CERT_SETS = ('names', 'issuer', 'challenge', 'key_type', 'key_type_alt', 'auto_renew',
@@ -149,6 +153,8 @@ def add_args(p):
     g.add_argument('--sources', action='store_true', help='where certificates come from')
     g.add_argument('--validations', action='store_true', help='how names are proved')
     g.add_argument('--targets', action='store_true', help='where certificates go')
+    g.add_argument('--tests', action='store_true', help='the tests of what the servers serve '
+                   '(defined as targets are; --check-add NAME --kind https --set ...)')
     for fam, (word, _path, _one) in FAMILIES.items():
         g.add_argument('--%s-show' % word, dest='%s_show' % word, metavar='NAME',
                        help='one %s: its settings (secrets: eight dots and their last two)%s' % (
@@ -174,7 +180,8 @@ def add_args(p):
                        help='make it the default %s (%s); none: no default' % (
                            word, {'issuer': 'a new certificate comes from it',
                                   'challenge': 'a new ACME certificate is proved by it',
-                                  'target': 'offered first for a new deployment'}[fam]))
+                                  'target': 'offered first for a new deployment',
+                                  'check': 'offered first when a test is attached'}[fam]))
     g.add_argument('--fill', action='store_true',
                    help='with --*-discover: save what was found into the settings left empty '
                         '(a choice: the one picked); nothing set is replaced')
@@ -183,7 +190,7 @@ def add_args(p):
                         'http://HOST/.well-known/acme-challenge/ from here, step by step')
     g.add_argument('--target-test', metavar='NAME', help='try a target: reach it, sign in, '
                    'change nothing')
-    for word in ('target', 'validation'):
+    for word in ('target', 'validation', 'check'):
         g.add_argument('--%s-key' % word, dest='%s_key' % word, nargs='+', metavar='ARG',
                        help='NAME WHAT - the SSH key of a %s, as the key card of the page: '
                             'make [ed25519|rsa4096], show, public (its public half; --out), '
@@ -202,6 +209,15 @@ def add_args(p):
                         'after a copy was put back, or to make a second node the same; '
                         '--remove also takes away files here NODE does not have (root, --yes)')
     g.add_argument('--remove', action='store_true', help='with --plugins-sync')
+    g.add_argument('--checks', nargs='?', const='*', metavar='CERT',
+                   help='the tests attached to the certificates (to one): how each went last')
+    g.add_argument('--check-run', dest='check_run', metavar='WHAT',
+                   help='run attached tests now: an ID, cert:NAME, test:NAME or all - each '
+                        'result said')
+    g.add_argument('--check-attach', dest='check_attach', nargs='+', metavar=('CERT', 'TEST'),
+                   help='attach tests (Certificates → Tests) to a certificate')
+    g.add_argument('--check-detach', dest='check_detach', metavar='ID',
+                   help='take an attached test off its certificate (acme --checks says the ID)')
     g.add_argument('--module-mark', dest='module_mark', nargs=2, metavar=('MODULE', 'STATE'),
                    help='mark a module: family/kind[@version] tested|works|problem|none '
                         '(--note WORDS) - e.g. target/netscaler@14.1 works')
@@ -585,7 +601,7 @@ class Cli(object):
                 'teams_adopt')):
             from acmelib.certs import api_teams
             return api_teams.cli(self)
-        for fam, word in (('target', 'target'), ('challenge', 'validation')):
+        for fam, word in (('target', 'target'), ('challenge', 'validation'), ('check', 'check')):
             if getattr(a, '%s_key' % word, None):
                 from acmelib.certs import api_sshkeys
                 return api_sshkeys.cli(self, fam, getattr(a, '%s_key' % word))
@@ -606,6 +622,8 @@ class Cli(object):
                 return self.fam_default(fam, getattr(a, '%s_default' % word))
             if getattr(a, '%s_show' % word, None):
                 return self.fam_show(fam, getattr(a, '%s_show' % word))
+        if getattr(a, 'checks', None):
+            return self.checks_list()
         if getattr(a, 'validation_check', None):
             return self.validation_check(*a.validation_check)
         if getattr(a, 'ca_default', None) is not None:
@@ -634,7 +652,8 @@ class Cli(object):
                  ('job', self.job), ('cert', self.cert), ('certs', self.certs),
                  ('cas', self.cas), ('jobs', self.jobs), ('plugin', self.plugin),
                  ('plugins', self.plugins), ('plugins_sync', self.plugins_sync),
-                 ('module_mark', self.module_mark),
+                 ('module_mark', self.module_mark), ('check_run', self.check_run),
+                 ('check_attach', self.check_attach), ('check_detach', self.check_detach),
                  ('module_marks_export', self.module_marks_export), ('dns_add', self.dns_add), ('dns_del', self.dns_del),
                  ('dns_records', self.dns), ('acme_contact', self.acme_contact),
                  ('check_names', self.check_names), ('cert_check', self.cert_check),
@@ -642,9 +661,9 @@ class Cli(object):
         for key, fn in steps:
             if getattr(a, key, None) not in (None, False, ''):
                 return fn()
-        if a.sources or a.validations or a.targets:
+        if a.sources or a.validations or a.targets or getattr(a, 'tests', False):
             return self.family('issuer' if a.sources else 'challenge' if a.validations
-                               else 'target')
+                               else 'check' if getattr(a, 'tests', False) else 'target')
         return None
 
     # ---- certificates ----------------------------------------------------------------------
@@ -1634,6 +1653,67 @@ class Cli(object):
                 print(self.pal.dim('  acme --plugins-sync NODE   writes that node\'s files here'))
         print(self.pal.dim('  acme --plugin KIND: what one of them takes'))
         return 0
+
+    def checks_list(self):
+        from acmelib.certs import checks as C
+        want = None if self.args.checks in (None, '', '*') else self.args.checks
+        rows = C.rows(self.store, cert_id=self.cert_ref(want)['id'] if want else None)
+        if self.json:
+            self.out({'checks': rows})
+            return 0
+        if not rows:
+            print('  no test attached%s - acme --check-attach CERT TEST' % (
+                ' to ' + want if want else ''))
+            return 0
+        p = self.pal
+        tone = {'ok': p.good, 'warn': p.warn}
+        self.table([[r['id'], r.get('cert') or '', r.get('test') or '', r.get('where') or '',
+                     tone.get(r.get('last_state'), p.bad)(r.get('last_state') or '-')
+                     if r.get('last_state') else '-', _short(r.get('last_said') or '', 70)]
+                    for r in rows], ['ID', 'CERTIFICATE', 'TEST', 'WHAT', 'LAST', 'SAID'])
+        return 0
+
+    def check_run(self):
+        from acmelib.certs import checks as C
+        what = str(self.args.check_run or '').strip()
+        if what.isdigit():
+            ids = [int(what)]
+        elif what.startswith('test:'):
+            ids = [r['id'] for r in C.rows(self.store, test=what[5:])]
+        elif what.startswith('cert:'):
+            cert = self.cert_ref(what[5:])
+            ids = [r['id'] for r in C.rows(self.store, cert_id=cert['id'])]
+        elif what == 'all':
+            ids = [r['id'] for r in C.rows(self.store)]
+        else:
+            raise SystemExit('acme: --check-run ID, cert:NAME, test:NAME or all')
+        if not ids:
+            raise SystemExit('acme: there is no test to run')
+        bad, out = 0, []
+        for i in ids:
+            got = C.run(self.store, i)
+            out.append(dict(got, id=i))
+            if not got['ok']:
+                bad += 1
+            if not self.json:
+                line = '%s  %s' % (i, got['said'])
+                print(self.pal.ok_line(line) if got['ok'] else self.pal.bad_line(line))
+        if self.json:
+            self.out({'results': out})
+        return 1 if bad else 0
+
+    def check_attach(self):
+        args = self.args.check_attach
+        if len(args) < 2:
+            raise SystemExit('acme: --check-attach CERT TEST [TEST...]')
+        cert = self.cert_ref(args[0])
+        got = self.api('POST', '/api/checks/attach', body={'cert_id': cert['id'],
+                                                           'tests': args[1:]})
+        return self.done(got.get('message') or 'attached', got)
+
+    def check_detach(self):
+        got = self.api('POST', '/api/checks/detach', body={'id': self.args.check_detach})
+        return self.done(got.get('message') or 'taken off', got)
 
     def module_mark(self):
         mod, state = self.args.module_mark

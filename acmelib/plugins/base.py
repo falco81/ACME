@@ -1010,6 +1010,35 @@ class Check(Plugin):
     def served(self, host, port, sni, verify=True):
         raise NotImplementedError
 
+    def test(self):
+        """Try it (Certificates → Tests → Test): connected as set, what is served said -
+        compared with a certificate only once attached to one."""
+        host = str(self.c('host') or '').strip()
+        if not host:
+            return ('nothing to connect to yet: "Connect to" is empty - attached to a '
+                    'certificate, the test connects to its first name')
+        port = int(self.c('port') or self.default_port)
+        sni = str(self.c('sni') or '').strip() or host
+        import ssl as _ssl
+        from acmelib.plugins.checks import _tls
+        _tls.CURRENT.cfg = dict(self.config)
+        try:
+            try:
+                got = self.served(host, port, sni, verify=True)
+                trusted = 'trusted here'
+            except _ssl.SSLCertVerificationError as e:
+                got = self.served(host, port, sni, verify=False)
+                trusted = 'not trusted here (%s)' % (getattr(e, 'verify_message', '') or e)
+        finally:
+            _tls.CURRENT.cfg = None
+        from acmelib.certs import pki
+        leaf = pki.cert_info(got['chain'][0])
+        return '%s:%s serves %s (issued by %s, until %s, %d in the chain, %s) over %s' % (
+            host, port, leaf.get('cn') or leaf.get('subject_dn'),
+            (leaf.get('issuer') or {}).get('CN') or leaf.get('issuer_dn'),
+            time.strftime('%Y-%m-%d', time.gmtime(leaf.get('not_after') or 0)),
+            len(got['chain']), trusted, got.get('tls') or 'TLS')
+
     @classmethod
     def describe(cls):
         d = Plugin.describe.__func__(cls)

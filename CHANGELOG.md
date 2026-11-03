@@ -6,6 +6,31 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.32 - not released
 
+- **Tests of what the servers serve**: Certificates → **Tests** defines
+  them as targets are defined - a module, its settings, *Test* - and the
+  certificate's window attaches them as it deploys (*Attach a test*). A test
+  connects as a client of its protocol would and compares the chain it is sent
+  with the certificate: the version deployed (or an old one - the renewal did
+  not reach the server - or another certificate), the names, the chain, how
+  long it runs, trust here; HTTPS also asks over HTTP with its own Host header,
+  path and status expected. Modules: HTTPS, TLS on any port, SMTP (STARTTLS) and
+  SMTPS, IMAP / IMAPS, POP3 / POP3S, FTP (AUTH TLS) / FTPS, LDAP (StartTLS) /
+  LDAPS, RDP, PostgreSQL, MySQL / MariaDB, Microsoft SQL Server (TLS in TDS),
+  XMPP, MQTT, SIP and DNS over TLS - and a **connector** that signs in over SSH
+  to a Linux server (the key card of an SSH target) and runs the tests chosen
+  for it from there (`ssh -W`). Every setting can be set: the address connected
+  to (an IP), the SNI, the name looked for, the certificate expected, TLS
+  versions, ciphers, ALPN, the address family and source. Run after the
+  certificate's deployments, by themselves (Settings → Renewal and notices:
+  *Test the servers by themselves*, every 360 min), or now; a test that starts
+  failing is an event, a mail and an SMS (Settings → Message texts: *A test of
+  a server failed* / *works again*). *What happens* shows them as a phase of
+  their own, one test at a time or side by side. Command line: `--tests`,
+  `--check-add` … `--check-attach CERT TEST`, `--checks`, `--check-run`.
+  Tests are modules as any: overridden, versioned, uploaded (docs/checks.md,
+  docs/writing-a-module.md).
+- **Settings → Modules** (was a tab of its own).
+
 - **The page Modules**: every module sources, validations and targets are
   made of - shipped, your own on the disk of a node, uploaded on the page -
   with where it comes from, its versions, how many use each and its marks;

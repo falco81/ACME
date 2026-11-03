@@ -733,6 +733,33 @@ function fieldForm(fields, values, secrets, opts) {
       input = pemBox(v, f.placeholder, 5);
       get = function () { return input._get(); };
       wide = true;
+    } else if (type === 'list' && optionPairs(f).filter(function (o) { return o[0] !== ''; }).length) {
+      /* A list chosen from what there is (options_from: the tests a connector carries,
+         1.0.32): ticked, in the order of the options; what was set but is gone stays
+         ticked and said. */
+      var picks = arr(Array.isArray(v) ? v : (typeof v === 'string' ? v.split(/\n/) : [])).map(String).filter(Boolean);
+      var opts = optionPairs(f).filter(function (o) { return o[0] !== ''; });
+      picks.forEach(function (x) { if (!opts.some(function (o) { return o[0] === x; })) opts.push([x, x + ' - ' + tr('not there any more')]); });
+      input = el('div', 'ck-multi');
+      var boxes = [];
+      opts.forEach(function (o) {
+        var lab = el('label', 'ck-multi-o');
+        var cb = el('input');
+        cb.type = 'checkbox';
+        cb.checked = picks.indexOf(o[0]) >= 0;
+        lab.classList.toggle('on', cb.checked);
+        cb.onchange = function () { lab.classList.toggle('on', cb.checked); };
+        lab.appendChild(cb);
+        lab.appendChild(data('span', '', o[1]));
+        boxes.push([o[0], cb]);
+        input.appendChild(lab);
+      });
+      get = function () { return boxes.filter(function (x) { return x[1].checked; }).map(function (x) { return x[0]; }); };
+      wide = true;
+    } else if (type === 'list' && f.options_from) {
+      input = el('p', 'muted small', 'Nothing to choose yet - define some first.');
+      get = function () { return arr(Array.isArray(v) ? v : []); };
+      wide = true;
     } else if (type === 'list') {
       input = areaBox(arr(Array.isArray(v) ? v : (typeof v === 'string' ? v.split(/\n/) : v)).join('\n'),
                       f.placeholder ? String(f.placeholder) : 'one a line', f.rows || 4, 'mono');
@@ -926,7 +953,7 @@ function plugins(again) {
     var gen = FRESH.n;
     var ask = capi('plugins').then(function (d) {
       d = d || {};
-      var got = {issuer: rowsOf(d.issuer || d.issuers), challenge: rowsOf(d.challenge || d.challenges),
+      var got = {check: rowsOf(d.check), issuer: rowsOf(d.issuer || d.issuers), challenge: rowsOf(d.challenge || d.challenges),
                  target: rowsOf(d.target || d.targets), broken: rowsOf(d.broken), _gen: gen};
       if (!PLUG || gen >= (PLUG._gen || 0)) PLUG = got;
       return got;
@@ -1136,7 +1163,14 @@ var MODS = {
             newTitle: 'A new target', pickTitle: 'Add a target', one: 'The target',
             none: 'No target yet. Add the servers and devices certificates should go to.',
             pick: 'What kind of machine is it? The module knows how to put a certificate on it and make the service take it.',
-            what: 'the targets'}
+            what: 'the targets'},
+  /* Tests of what the servers serve (1.0.32): defined here, attached to certificates */
+  tests: {tab: 'tests', family: 'check', list: 'tests', keys: ['tests'],
+          host: 'ts-list', broken: 'ts-broken', said: 'ts-said',
+          newTitle: 'A new test', pickTitle: 'Add a test', one: 'The test',
+          none: 'No test yet. Add one - HTTPS of a web server, SMTP of a mail server, RDP of a Windows server, or a connector that runs tests from a server over SSH - then attach it to certificates.',
+          pick: 'What should be tested? A test connects as a client of its protocol would and compares the certificate it is sent with the certificate it is attached to.',
+          what: 'the tests'}
 };
 var LISTS = {};
 function loadRows(key, again) {
@@ -1236,7 +1270,7 @@ function usedCount(r) {
 /* The search box over Sources, Validation and Targets (1.0.24): as every list's
    (core.js qLocal) - its name, kind, module, state, use, and each setting of the
    modules shown as a field of its own (zone:example.cz, product:alpiro*). */
-var MOD_Q_BOX = {targets: 'tg-q', sources: 'src-q', validation: 'val-q'};
+var MOD_Q_BOX = {targets: 'tg-q', sources: 'src-q', validation: 'val-q', tests: 'ts-q'};
 function modQuerySpec(key) {
   var m = MODS[key];
   var base = [['name', 'its name', 'name:web*'], ['kind', 'the kind of its module', 'kind:acme'],
@@ -1365,7 +1399,7 @@ function drawModTab(key, live) {
           tools.appendChild(ab);
         });
         if (FULL) {
-          tools.appendChild(defaultButton(key, r));
+          if (key !== 'tests') tools.appendChild(defaultButton(key, r));
           var e = iconButton('edit', 'Edit');
           e.onclick = function (ev) { ev.stopPropagation(); modEdit(key, r); };
           tools.appendChild(e);
@@ -2252,7 +2286,7 @@ function modForm(key, row, p, fromPick, keep) {
       }
     });
   }});
-  var df = row ? defaultFoot(key, row, function () { closeModal(); modEdit(key, row); }) : null;
+  var df = row && key !== 'tests' ? defaultFoot(key, row, function () { closeModal(); modEdit(key, row); }) : null;
   if (df) buttons.push(df);
   /* Asked in a popup over the dialog (1.0.21): it went at once, without a word. */
   if (row && FULL) buttons.push({words: 'Take it away', cls: 'danger', icon: 'trash', once: true, go: function () {
@@ -2334,6 +2368,7 @@ function modForm(key, row, p, fromPick, keep) {
     if (row && row.id && MANAGE && p.kind === 'dns_persist') body.appendChild(persistHere(row, p));
     if (FULL && p.kind === 'acme_dns') body.appendChild(acmeDnsHere(form));
     if (MANAGE && p.kind === 'ssh_dns') body.appendChild(sshDnsHere(form, row, p, function () { return name.value.trim(); }));
+    if (MANAGE && key === 'tests') body.appendChild(testTryHere(form, row, p));
     if (row && row.id && MANAGE && m.family === 'challenge') body.appendChild(setupHere(row));
     if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { if (!x.closest('.ct-http')) x.disabled = true; });
   }, buttons, 'medium');
@@ -3333,6 +3368,10 @@ function certBody(body, c, versions, deploys, jobs, back) {
     ds._body.appendChild(dr);
   }
   grid.appendChild(ds);
+  /* tests of what the servers serve (1.0.32): attached here as targets are */
+  var tsec = section('Tests', 'What the servers really serve, compared with this certificate - after its deployments, by themselves when Settings → Certificates says so, or now.', true);
+  tsec._body.appendChild(certTests(c, back));
+  grid.appendChild(tsec);
   /* versions */
   var vs = section('Versions', 'Every certificate it has had - renewals, imports. The newest is the one in use.', true);
   vs._body.appendChild(listTable(['Version', 'Serial', 'Valid', 'Why', 'By', ''], versions, function (v) {
@@ -8001,6 +8040,319 @@ function moduleUpload(o) {
 }
 
 /* ==========================================================================
+   Tests of what the servers serve (1.0.32) - the card Tests of a target
+   GET checks?target=, POST checks/save, checks/delete, checks/run, checks/try
+   (acmelib/certs/api_checks.py, checks.py; modules in acmelib/plugins/checks)
+   ========================================================================== */
+var CK_STATE = {ok: ['serves it', 'ok', 'check'], warn: ['serves it - but', 'warn', 'flag'],
+  old: ['an old version', 'crit', 'history'], other: ['another certificate', 'crit', 'ban'],
+  answer: ['wrong answer', 'crit', 'flag'], unreachable: ['not reached', 'crit', 'close'],
+  '': ['not run yet', 'dim', 'clock']};
+function ckBadge(state) {
+  var d = CK_STATE[state || ''] || CK_STATE[''];
+  var t = el('span', 'ck-badge ck-' + (state || 'none'));
+  t.innerHTML = iconMarkup(d[2], 13);
+  t.appendChild(el('span', '', d[0]));
+  return t;
+}
+function ckWhere(c, host) {
+  var cfg = obj(c.config);
+  if (c.kind === 'ssh_relay') return tr('through') + ' ' + (cfg.relay || '?') + ' · ' + arr(Array.isArray(cfg.checks) ? cfg.checks : String(cfg.checks || '').split('\n')).filter(Boolean).length + ' ' + tr('tests');
+  var p = (plugOf('check', c.kind) || {});
+  var h = cfg.host || host || '?';
+  return h + ':' + (cfg.port || p.default_port || '') + (cfg.sni && cfg.sni !== h ? ' · SNI ' + cfg.sni : '');
+}
+/** What a run said: the served certificate, TLS, HTTP, and each test of a set. */
+function ckDetail(res) {
+  var d = obj(res.detail);
+  var box = el('div', 'ck-detail');
+  var sv = obj(d.served);
+  if (sv.fingerprint) {
+    var pairs = [
+      ['Served', data('span', 'mono', sv.subject || '?')],
+      ['Issued by', data('span', '', sv.issuer || '?')],
+      ['Valid until', sv.not_after ? stamp(sv.not_after) : '–'],
+      ['Version in acme', d.version ? num(d.version) : '–'],
+      ['Names', data('span', 'mono', arr(sv.names).slice(0, 8).join(', ') || '–')],
+      ['SHA-256', data('span', 'mono small', String(sv.fingerprint).replace(/(..)(?!$)/g, '$1:').slice(0, 47) + '…')],
+      ['TLS', data('span', 'mono', [d.tls, d.cipher, d.alpn].filter(Boolean).join(' · ') || '–')],
+      ['Chain sent', num(d.chain_len || 0) + (d.whole_chain === false ? ' (?)' : '')],
+      ['Trusted here', d.trusted === true ? 'yes' : (d.trusted === false ? data('span', 'muted', tr('no') + (d.why_untrusted ? ' - ' + d.why_untrusted : '')) : '–')],
+      ['Connected to', data('span', 'mono', (d.host || '?') + ':' + (d.port || '?') + (d.sni ? ' · SNI ' + d.sni : ''))]
+    ];
+    if (d.http) pairs.push(['HTTP', data('span', 'mono', d.http.method + ' ' + d.http.path + ' → ' + d.http.status + ' ' + (d.http.reason || '') + (d.http.location ? ' → ' + d.http.location : '') + ' (Host: ' + d.http.host_header + ')')]);
+    box.appendChild(kvTable(pairs));
+  }
+  if (arr(d.subs).length) {
+    var list = el('div', 'ck-subs');
+    arr(d.subs).forEach(function (sb) {
+      var row = el('div', 'ck-sub');
+      row.appendChild(ckBadge(sb.state));
+      var w = el('div');
+      w.appendChild(data('div', 'mono small', sb.line));
+      w.appendChild(data('div', 'small muted', sb.said));
+      row.appendChild(w);
+      list.appendChild(row);
+    });
+    box.appendChild(list);
+  }
+  if (d.said) box.appendChild(data('p', 'small muted mono', tr('The server said') + ': ' + d.said));
+  if (res.ms !== undefined || d.ms !== undefined) box.appendChild(el('p', 'small muted', num(res.ms || d.ms) + ' ms'));
+  return box;
+}
+/** The tests attached to a certificate - drawn as its deployments are, each with how it
+    went last; "Attach a test" offers the tests defined on Certificates → Tests. */
+function certTests(c, back) {
+  var box = el('div', 'ck-card');
+  var top = el('div', 'ck-top');
+  var sum = el('div', 'ck-sum');
+  top.appendChild(sum);
+  var bar = el('div', 'btnrow');
+  var runAll = cmdButton('Run them now', 'play', 'small');
+  var add = cmdButton('Attach a test', 'add', 'small');
+  if (MANAGE) { bar.appendChild(runAll); bar.appendChild(add); }
+  top.appendChild(bar);
+  box.appendChild(top);
+  var host = el('div', 'ck-list');
+  host.appendChild(el('p', 'muted small', 'Asking…'));
+  box.appendChild(host);
+  var D = {};
+  var load = function () {
+    return capi('checks' + qs({cert_id: c.id})).then(function (d) { D = d || {}; draw(); })
+      .catch(function (e) { clear(host); host.appendChild(failedBox(e, 'the tests')); });
+  };
+  var draw = function () {
+    clear(host);
+    clear(sum);
+    var rows = arr(D.checks);
+    var n = {ok: 0, warn: 0, bad: 0, none: 0};
+    rows.forEach(function (x) {
+      var st = x.last_state || '';
+      if (st === 'ok') n.ok++; else if (st === 'warn') n.warn++; else if (!st) n.none++; else n.bad++;
+    });
+    if (rows.length) {
+      [['ok', n.ok, 'pass'], ['warn', n.warn, 'with a warning'], ['crit', n.bad, 'failing'], ['dim', n.none, 'not run yet']].forEach(function (x) {
+        if (!x[1] && x[0] !== 'ok') return;
+        var ct = el('span', 'ck-count ck-c-' + x[0]);
+        ct.appendChild(el('b', '', num(x[1])));
+        ct.appendChild(el('span', '', x[2]));
+        sum.appendChild(ct);
+      });
+      var st = obj(D.settings);
+      sum.appendChild(el('span', 'ck-auto small muted', st.certs_checks_auto ? 'run by themselves every ' + st.certs_checks_every_min + ' min' : 'run after each deployment only'));
+    }
+    runAll.hidden = !rows.length;
+    if (!rows.length) {
+      host.appendChild(emptyNote('No test attached. Attach one: it connects to the server as a client would and says whether it serves this certificate.'));
+      return;
+    }
+    rows.forEach(function (x) {
+      var card = el('div', 'ck-row ck-r-' + (x.last_state || 'none') + (x.enabled === 0 || !x.test_enabled ? ' off' : ''));
+      var head = el('div', 'ck-row-h');
+      head.appendChild(ckBadge(x.last_state));
+      var w = el('div', 'ck-row-w');
+      var t1 = el('div', 'ck-row-t');
+      t1.appendChild(data('b', '', x.test));
+      t1.appendChild(data('span', 'mono small muted', x.where || ''));
+      if (x.test_missing) t1.appendChild(el('span', 'tag crit', 'test missing'));
+      else if (!x.test_enabled) t1.appendChild(el('span', 'tag dim', 'test off'));
+      if (x.enabled === 0) t1.appendChild(el('span', 'tag dim', 'off here'));
+      w.appendChild(t1);
+      var t2 = el('div', 'small ' + ((CK_STATE[x.last_state] || ['', 'dim'])[1] === 'crit' ? 'ct-badtext' : 'muted'));
+      t2.appendChild(data('span', '', x.last_said || tr('not run yet')));
+      if (x.last_at) { t2.appendChild(document.createTextNode(' · ')); t2.appendChild(el('span', '', ago(x.last_at))); }
+      w.appendChild(t2);
+      head.appendChild(w);
+      var tools = el('div', 'rowtools');
+      if (MANAGE) {
+        var run = iconButton('play', 'Run it now');
+        run.onclick = function (ev) {
+          ev.stopPropagation();
+          busy(run, true);
+          capi('checks/run', {id: x.id}, 180).then(function (d) {
+            toast(d.result.said, d.result.ok ? 'good' : 'bad');
+            return load();
+          }).catch(fail).then(function () { busy(run, false); });
+        };
+        tools.appendChild(run);
+        var sw = iconButton('power', x.enabled === 0 ? 'Switch it on here' : 'Switch it off here');
+        sw.onclick = function (ev) {
+          ev.stopPropagation();
+          capi('checks/switch', {id: x.id, enabled: x.enabled === 0}).then(load).catch(fail);
+        };
+        tools.appendChild(sw);
+        var ed = iconButton('edit', 'Edit the test');
+        ed.onclick = function (ev) {
+          ev.stopPropagation();
+          loadRows('tests', true).then(function (rws) {
+            var row = arr(rws).filter(function (q) { return q.name === x.test; })[0];
+            if (row) over(function () { modEdit('tests', row); }, back);
+          }).catch(fail);
+        };
+        tools.appendChild(ed);
+        var rm = iconButton('trash', 'Take it off this certificate');
+        rm.onclick = function (ev) {
+          ev.stopPropagation();
+          capi('checks/detach', {id: x.id}).then(function () { toast(tr('Taken off') + ': ' + x.test, 'good'); load(); }).catch(fail);
+        };
+        tools.appendChild(rm);
+      }
+      head.appendChild(tools);
+      card.appendChild(head);
+      if (x.last_at) {
+        var det = el('details', 'ck-more');
+        det.appendChild(el('summary', '', 'What the server served'));
+        det.addEventListener('toggle', function () {
+          if (det.open && det.children.length < 2) det.appendChild(ckDetail({detail: x.last_detail}));
+        });
+        card.appendChild(det);
+      }
+      host.appendChild(card);
+    });
+  };
+  add.onclick = function () { over(function () { attachTests(c, arr(D.checks), back); }, back); };
+  runAll.onclick = function () {
+    busy(runAll, true);
+    capi('checks/run', {cert_id: c.id}).then(function (d) { jobStarted(d, 'the tests started', back); })
+      .catch(fail).then(function () { busy(runAll, false); });
+  };
+  load();
+  return box;
+}
+/** "Attach a test": the tests defined (Certificates → Tests), ticked to attach - as
+    "Deploy it on a target" offers the targets. */
+function attachTests(c, have, back) {
+  var had = {};
+  arr(have).forEach(function (x) { had[x.test] = 1; });
+  var picks = {};
+  popup(tr('Attach a test to') + ' ' + c.name, function () {
+    return Promise.all([loadRows('tests', true), plugins().catch(function () { return null; })]).then(function (x) { return x[0]; });
+  }, function (rows) {
+    rows = arr(rows);
+    return {
+      build: function (body) {
+        body.appendChild(el('p', 'note', 'Tick the tests to run against this certificate. A connector (tests on a server over SSH) brings every test it carries. Empty "Connect to" in a test: it connects to the certificate’s first name.'));
+        if (!rows.length) {
+          body.appendChild(emptyNote('No test is defined yet.'));
+        }
+        /* the search box as every other (core.js qLocal): name:, kind:, address:... */
+        var find = el('input');
+        find.type = 'search';
+        find.placeholder = tr('a name, a kind, an address…');
+        find.className = 'ct-kind-find';
+        body.appendChild(find);
+        var list = el('div', 'ck-attach');
+        var items = [];
+        rows.forEach(function (r) {
+          var p = plugVersion(plugOf('check', r.kind), r.version) || {};
+          var lab = el('label', 'ck-attach-row' + (had[r.name] ? ' had' : ''));
+          var cb = el('input');
+          cb.type = 'checkbox';
+          cb.checked = !!had[r.name];
+          cb.disabled = !!had[r.name];
+          cb.onchange = function () { if (cb.checked) picks[r.name] = 1; else delete picks[r.name]; lab.classList.toggle('on', cb.checked); };
+          lab.appendChild(cb);
+          var ic = el('span', 'ct-kind-ic v-' + String(p.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+          ic.textContent = String(p.title || r.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+          noI18n(ic);
+          lab.appendChild(ic);
+          var w = el('span', 'ck-attach-w');
+          var t = el('span', 'ck-attach-t');
+          t.appendChild(data('b', '', r.name));
+          t.appendChild(el('span', 'tag dim', p.protocol || p.title || r.kind));
+          if (had[r.name]) t.appendChild(el('span', 'tag info', 'attached'));
+          if (r.enabled === 0 || r.enabled === false) t.appendChild(el('span', 'tag dim', 'off'));
+          w.appendChild(t);
+          var cfg = obj(r.config);
+          var where = r.kind === 'ssh_relay' ? tr('from') + ' ' + (cfg.host || '?') + ': ' + arr(cfg.tests).join(', ')
+            : (cfg.host || tr('the certificate’s first name')) + ':' + (cfg.port || p.default_port || '');
+          w.appendChild(data('span', 'mono small muted', where));
+          lab.appendChild(w);
+          lab._words = (r.name + ' ' + r.kind + ' ' + where).toLowerCase();
+          items.push(lab);
+          list.appendChild(lab);
+        });
+        var aspec = {
+          fields: [['name', 'the test\'s name', 'name~web'], ['kind', 'its kind', 'kind:https'],
+                   ['address', 'where it connects', 'address~10.0.'], ['state', 'attached or not', 'state:attached'],
+                   ['last', 'how it went last: ok, warn, old, other, unreachable', 'last:ok']],
+          rows: function () { return rows; },
+          value: function (r, f) {
+            var cfg = obj(r.config);
+            return {name: r.name, kind: r.kind, address: r.kind === 'ssh_relay' ? (cfg.host || '') : (cfg.host || ''),
+                    state: had[r.name] ? 'attached' : 'free', last: r.last_error ? 'failing' : (r.last_ok ? 'ok' : '')}[f];
+          },
+          words: function (r) { return r.name + ' ' + r.kind + ' ' + JSON.stringify(obj(r.config)); }
+        };
+        setTimeout(function () { if (find.isConnected) qLocal(find, aspec); }, 0);
+        find.oninput = function () {
+          var keep = qFilter(find, aspec, rows);
+          items.forEach(function (x, i) { x.hidden = keep.indexOf(rows[i]) < 0; });
+        };
+        body.appendChild(list);
+        if (FULL) {
+          var mk = cmdButton('Define a new test', 'add', 'small');
+          mk.onclick = function () { closeModal(); showTab('tests'); setTimeout(function () { modPick('tests'); }, 300); };
+          var r2 = el('div', 'btnrow');
+          r2.appendChild(mk);
+          body.appendChild(r2);
+        }
+      },
+      buttons: [{words: 'Cancel', close: true}, {words: 'Attach', cls: 'primary', icon: 'add', go: function (b) {
+        var names = Object.keys(picks);
+        if (!names.length) { toast('Tick a test first', 'bad'); return; }
+        busy(b, true);
+        capi('checks/attach', {cert_id: c.id, tests: names}).then(function (d) {
+          toast(said(d, 'attached'), 'good');
+          closeModal();
+        }).catch(fail).then(function () { busy(b, false); });
+      }}]
+    };
+  }, 'medium');
+}
+/** In a test's form: tried against a certificate before it is kept (POST checks/try). */
+function testTryHere(form, row, p) {
+  var box = el('div', 'ct-setup ck-tryhere');
+  box.appendChild(el('h4', 'ct-formh', 'Try it on a certificate'));
+  box.appendChild(el('p', 'note', 'Connects as set above and compares what is served with a certificate acme keeps - nothing is saved. Empty "Connect to": the certificate’s first name.'));
+  var line = el('div', 'btnrow');
+  var sel = selectBox([['', tr('a certificate…')]], '');
+  noI18n(sel);
+  var go = cmdButton('Try it', 'play', 'small');
+  line.appendChild(sel);
+  line.appendChild(go);
+  box.appendChild(line);
+  var out = el('div', 'ck-try');
+  box.appendChild(out);
+  capi('certs' + qs({per: 1000})).then(function (d) {
+    rowsOf(d, 'certs').forEach(function (cr) {
+      var o = document.createElement('option');
+      o.value = String(cr.id);
+      o.textContent = cr.name;
+      sel.appendChild(o);
+    });
+  }).catch(function () { });
+  go.onclick = function () {
+    if (!sel.value) { toast('Choose a certificate', 'bad'); return; }
+    busy(go, true);
+    clear(out);
+    out.appendChild(el('p', 'muted', 'Connecting…'));
+    var body = {cert_id: Number(sel.value), kind: p.kind, config: form.read()};
+    if (row && row.id && row.kind === p.kind) body.id = row.id;
+    if (arr((p._base || p).versions).length > 1) body.config._version = String(p.version || '');
+    capi('checks/try', body, 180).then(function (d) {
+      clear(out);
+      var r = d.result || {};
+      var l = el('div', 'ck-tryline');
+      l.appendChild(ckBadge(r.state));
+      l.appendChild(data('span', '', r.said || ''));
+      out.appendChild(l);
+      out.appendChild(ckDetail(r));
+    }).catch(function (e) { clear(out); out.appendChild(failedBox(e, 'the test')); }).then(function () { busy(go, false); });
+  };
+  return box;
+}
+/* ==========================================================================
    The tabs and the panes, put into the page
    ========================================================================== */
 var MY_TABS = {
@@ -8008,13 +8360,13 @@ var MY_TABS = {
   sources: function (live) { drawModTab('sources', live); },
   validation: function (live) { drawModTab('validation', live); },
   targets: function (live) { drawModTab('targets', live); },
-  modules: loadModules
+  tests: function (live) { drawModTab('tests', live); }
 };
-var MY_PANES = {dnssrv: loadDns, certs: loadCertSettings};
+var MY_PANES = {dnssrv: loadDns, certs: loadCertSettings, modules: loadModules};
 var LAST = {};
 /* How often a tab is asked again on the live tick, unless the daemon's serial
    moved (something happened): then at the next tick. */
-var EVERY = {overview: 30000, certs: 30000, jobs: 10000, cas: 60000, sources: 60000, validation: 60000, targets: 60000, modules: 60000};
+var EVERY = {overview: 30000, certs: 30000, jobs: 10000, cas: 60000, sources: 60000, validation: 60000, targets: 60000, tests: 60000};
 function drawTab(name, live, moved) {
   var fn = name === 'overview' ? loadOverviewCerts : MY_TABS[name];
   if (!fn) return;
@@ -8140,7 +8492,9 @@ on('ca-sign', 'click', function () { signCsr(null); });
 on('src-add', 'click', function () { modEdit('sources'); });
 on('val-add', 'click', function () { modEdit('validation'); });
 on('tg-add', 'click', function () { modEdit('targets'); });
+on('ts-add', 'click', function () { modEdit('tests'); });
 on('tg-q', 'input', debounce(function () { drawModTab('targets', true); }, 200));
+on('ts-q', 'input', debounce(function () { drawModTab('tests', true); }, 200));
 on('src-q', 'input', debounce(function () { drawModTab('sources', true); }, 200));
 on('val-q', 'input', debounce(function () { drawModTab('validation', true); }, 200));
 on('dns-add', 'click', function () { dnsAdd(); });

@@ -42,7 +42,7 @@
     stop: {icon: 'rpstop', words: 'cannot be told from here', cls: 'stop'}
   };
   var LEGEND = ['call', 'read', 'connect', 'file', 'command', 'dns', 'wait', 'check', 'key', 'sign', 'delete', 'save'];
-  var PHASE_ICON = {key: 'key', source: 'source', validation: 'proof', deploy: 'deploy', after: 'history'};
+  var PHASE_ICON = {key: 'key', source: 'source', validation: 'proof', deploy: 'deploy', checks: 'check', after: 'history'};
   var PHASE_LEDE = {
     key: 'Made here, on this machine, before anything is asked.',
     source: 'Where the certificate comes from, and every question asked of it.',
@@ -309,12 +309,12 @@
   function groupCard(g, prefix, kind) {
     var card = el('section', 'rp-group' + (g.off || g.enabled === false ? ' off' : ''));
     var head = el('div', 'rp-group-h');
-    head.appendChild(icon(kind === 'deploy' ? 'target' : 'proof', 18, 'rp-gic'));
+    head.appendChild(icon(kind === 'deploy' ? 'target' : kind === 'checks' ? 'check' : 'proof', 18, 'rp-gic'));
     var t = el('div', 'rp-group-t');
     var line = el('div', 'rp-group-name');
     line.appendChild(data('b', '', g.title));
     if (g.module) line.appendChild(el('span', 'tag info rp-tag', g.module.title || g.module.kind));
-    if (g.off) line.appendChild(el('span', 'tag warn rp-tag', 'the target is switched off'));
+    if (g.off) line.appendChild(el('span', 'tag warn rp-tag', kind === 'checks' ? 'the test is switched off' : 'the target is switched off'));
     else if (g.enabled === false) line.appendChild(el('span', 'tag warn rp-tag', 'switched off: skipped'));
     t.appendChild(line);
     if (g.host) t.appendChild(data('div', 'mono small muted', g.host));
@@ -326,7 +326,7 @@
     head.appendChild(t);
     card.appendChild(head);
     var facts = el('div', 'rp-group-facts');
-    var f1 = factsFold(kind === 'deploy' ? 'The target\'s settings' : 'The validation\'s settings', g.facts);
+    var f1 = factsFold(kind === 'deploy' ? 'The target\'s settings' : kind === 'checks' ? 'The test\'s settings' : 'The validation\'s settings', g.facts);
     if (f1) facts.appendChild(f1);
     var f2 = factsFold('This deployment\'s options', g.options);
     if (f2) facts.appendChild(f2);
@@ -386,6 +386,10 @@
     dn.appendChild(data('b', 'rp-big', String(h.deploys || 0)));
     dn.appendChild(el('span', 'muted', ' deployment(s)'));
     fact('deploy', 'Deployed to', dn);
+    var tn = el('span', '');
+    tn.appendChild(data('b', 'rp-big', String(h.tests || 0)));
+    tn.appendChild(el('span', 'muted', ' test(s)'));
+    fact('check', 'Tested by', tn);
     box.appendChild(facts);
     return box;
   }
@@ -446,7 +450,7 @@
       st.type = 'button';
       st.setAttribute('role', 'tab');
       var top = el('span', 'rp-station-t');
-      top.appendChild(icon('target', 15, 'rp-station-ic'));
+      top.appendChild(icon(kind === 'checks' ? 'check' : 'target', 15, 'rp-station-ic'));
       top.appendChild(data('b', '', g.title));
       st.appendChild(top);
       var sub = el('span', 'rp-station-s');
@@ -457,7 +461,7 @@
       var meta = el('span', 'rp-station-m');
       meta.appendChild(el('span', 'small muted', steps.length + ' step(s)'));
       if (steps.some(function (x) { return x.secret; })) meta.appendChild(el('span', 'tag crit rp-tag', 'holds the private key'));
-      if (g.off) meta.appendChild(el('span', 'tag warn rp-tag', 'the target is switched off'));
+      if (g.off) meta.appendChild(el('span', 'tag warn rp-tag', kind === 'checks' ? 'the test is switched off' : 'the target is switched off'));
       else if (g.enabled === false) meta.appendChild(el('span', 'tag warn rp-tag', 'switched off: skipped'));
       st.appendChild(meta);
       st.onclick = function () { pick(i); };
@@ -471,11 +475,11 @@
     at.appendChild(icon('list', 15, 'rp-station-ic'));
     at.appendChild(el('b', '', 'All of them'));
     allBtn.appendChild(at);
-    allBtn.appendChild(el('span', 'rp-station-s small muted', groups.length + ' deployment(s) side by side'));
+    allBtn.appendChild(el('span', 'rp-station-s small muted', groups.length + (kind === 'checks' ? ' test(s) side by side' : ' deployment(s) side by side')));
     allBtn.onclick = function () { pick(-1); };
     stations.push(allBtn);
     yard.appendChild(allBtn);
-    var lead = el('p', 'muted small rp-junction-h', 'Pick a deployment: only it is shown below, over the whole width.');
+    var lead = el('p', 'muted small rp-junction-h', kind === 'checks' ? 'Pick a test: only it is shown below, over the whole width.' : 'Pick a deployment: only it is shown below, over the whole width.');
     wrap.appendChild(lead);
     wrap.appendChild(yard);
     wrap.appendChild(shown);
@@ -507,7 +511,7 @@
     var f = factsFold(ph.key === 'source' ? 'The source\'s settings' : 'Settings', ph.facts, false);
     if (f) body.appendChild(f);
     if (ph.steps && ph.steps.length) body.appendChild(stepList(ph.steps, String(n)));
-    if (ph.groups && ph.groups.length > 1 && ph.key === 'deploy') {
+    if (ph.groups && ph.groups.length > 1 && (ph.key === 'deploy' || ph.key === 'checks')) {
       body.appendChild(junction(ph.groups, n, ph.key));
     } else if (ph.groups && ph.groups.length) {
       var grid = el('div', 'rp-groups' + (ph.groups.length > 1 ? ' many' : ''));

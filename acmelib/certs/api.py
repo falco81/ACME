@@ -674,8 +674,7 @@ def cert_drop(store, row, by):
     """A certificate gone from acme: its deployments, versions, finished jobs and
     what the portal kept of who asked for it (nothing on the targets, nothing at the CA)."""
     db = store.db
-    db.run('DELETE FROM cert_checks WHERE deploy_id IN (SELECT id FROM cert_deploys WHERE '
-           'cert_id = ?)', (row['id'],))
+    db.run('DELETE FROM cert_checks WHERE cert_id = ?', (row['id'],))
     db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (row['id'],))
     db.run('DELETE FROM cert_versions WHERE cert_id = ?', (row['id'],))
     # Its jobs that are over go with it (1.0.19); one still at work stays until it ends.
@@ -1474,6 +1473,11 @@ def options_for(store, source):
         return [[r['name'], r['name'] + ('' if r.get('key_sealed') else ' (no key)')]
                 for r in store.db.rows('SELECT name, key_sealed FROM cert_cas WHERE '
                                        'COALESCE(disabled, 0) = 0 ORDER BY name')]
+    if source == 'tests':
+        # the tests a set run through SSH may hold (checks/ssh_relay.py): not another set
+        return [[r['name'], '%s (%s)' % (r['name'], r['kind'])]
+                for r in store.db.rows('SELECT name, kind FROM cert_tests ORDER BY name')
+                if r['kind'] != 'ssh_relay']
     table = {'challenges': 'cert_challenges', 'issuers': 'cert_issuers',
              'targets': 'cert_targets', 'sources': 'cert_issuers',
              'validations': 'cert_challenges'}.get(source)
@@ -1638,7 +1642,7 @@ def family_save(store, family, b, by):
     if row['name'] != name:
         _renamed(store, family, row['name'], name)
     store.add_event('certificates', '%s %s %s by %s' % (
-        {'issuer': 'issuer', 'challenge': 'challenge', 'target': 'target'}[family], name,
+        {'issuer': 'issuer', 'challenge': 'challenge', 'target': 'target', 'check': 'test'}[family], name,
         'saved', by), who=by)
     return row['id']
 
@@ -1649,6 +1653,13 @@ def _renamed(store, family, old, new):
     DF.renamed(store, family, old, new)
     if family == 'issuer':
         db.run('UPDATE certs SET issuer = ? WHERE issuer = ?', (new, old))
+    elif family == 'check':
+        db.run('UPDATE cert_checks SET test = ? WHERE test = ?', (new, old))
+        for r in db.rows("SELECT id, config FROM cert_tests WHERE kind = 'ssh_relay'"):
+            cfg = S.jload(r['config'], {}) or {}
+            if old in (cfg.get('tests') or []):
+                cfg['tests'] = [new if x == old else x for x in cfg['tests']]
+                db.update('cert_tests', r['id'], {'config': json.dumps(cfg)})
     elif family == 'target':
         db.run('UPDATE cert_deploys SET target = ? WHERE target = ?', (new, old))
     else:
@@ -1909,6 +1920,7 @@ def _validation_check(h, s):
 _family_routes('issuer', 'sources')
 _family_routes('challenge', 'validations')
 _family_routes('target', 'targets')
+_family_routes('check', 'tests')
 
 
 def acme_contact(store, email, by, every=False):
@@ -1956,7 +1968,6 @@ def deploy_save(store, b, by, full=True):
     except BaseException:
         for ident in made:
             try:
-                store.db.run('DELETE FROM cert_checks WHERE deploy_id = ?', (ident,))
                 store.db.run('DELETE FROM cert_deploys WHERE id = ?', (ident,))
             except Exception:                           # noqa: BLE001
                 pass
@@ -2087,7 +2098,6 @@ def _deploy_delete(h, s):
     row = h.store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (_id(h.body().get('id')),))
     if not row:
         raise LookupError('there is no such deployment')
-    h.store.db.run('DELETE FROM cert_checks WHERE deploy_id = ?', (row['id'],))
     h.store.db.run('DELETE FROM cert_deploys WHERE id = ?', (row['id'],))
     h.store.add_event('certificates', 'a deployment to %s deleted by %s' % (row['target'], who(s)),
                       who=who(s))

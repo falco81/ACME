@@ -39,13 +39,6 @@ def usage(store):
             ver = (cls.module_version or '') if cls else (S.version_of(r) or '')
             k = got.setdefault(r['kind'], {})
             k[ver] = k.get(ver, 0) + 1
-    got = out.setdefault('check', {})
-    for r in store.db.rows('SELECT kind, config FROM cert_checks'):
-        ver = str((S.jload(r.get('config'), {}) or {}).get(S.VERSION_KEY) or '')
-        cls = S.plugin_class('check', r['kind'], ver or None)
-        ver = (cls.module_version or '') if cls else ver
-        k = got.setdefault(r['kind'], {})
-        k[ver] = k.get(ver, 0) + 1
     return out
 
 

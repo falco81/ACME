@@ -58,10 +58,12 @@ KEY_TYPES = {'ed25519': ['-t', 'ed25519'], 'rsa4096': ['-t', 'rsa', '-b', '4096'
 META = '.sshkey'
 DRAFT = 'sshkey:draft:'
 DRAFT_TTL = 86400
-FAMILY_WORDS = {'target': 'target', 'challenge': 'validation', 'issuer': 'source'}
+FAMILY_WORDS = {'target': 'target', 'challenge': 'validation', 'issuer': 'source',
+                'check': 'test'}
 FAMILY_NAMES = {'target': 'target', 'targets': 'target', 'challenge': 'challenge',
                 'challenges': 'challenge', 'validation': 'challenge', 'validations': 'challenge',
-                'issuer': 'issuer', 'issuers': 'issuer', 'source': 'issuer', 'sources': 'issuer'}
+                'issuer': 'issuer', 'issuers': 'issuer', 'source': 'issuer', 'sources': 'issuer',
+                'check': 'check', 'checks': 'check', 'test': 'check', 'tests': 'check'}
 # What "Try reaching it" runs once signed in, where the field says nothing: it
 # reads, and changes nothing.
 TRY_COMMAND = 'id -un; uname -n'

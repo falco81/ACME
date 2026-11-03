@@ -128,10 +128,11 @@ def ensure(store):
 # "LetsEncrypt" and the validation to "This server HTTP-01" where they are there.
 # Set to '' by a person: there is none, and nothing is taken in its place.
 META = {'issuer': 'certs:default_issuer', 'challenge': 'certs:default_challenge',
-        'target': 'certs:default_target', 'ca': 'certs:default_ca'}
+        'target': 'certs:default_target', 'ca': 'certs:default_ca',
+        'check': 'certs:default_test'}
 FALLBACK = {'issuer': LE, 'challenge': HTTP_LOCAL}
 WORDS = {'issuer': 'source', 'challenge': 'validation', 'target': 'target',
-         'ca': 'authority'}
+         'ca': 'authority', 'check': 'test'}
 
 
 def default_name(store, what):

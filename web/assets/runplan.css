@@ -17,7 +17,7 @@
 .rp-hero-t{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .rp-hero-ic{color:var(--accent)}
 .rp-hero-name{font-size:21px;font-weight:700;overflow-wrap:anywhere}
-.rp-hero-facts{flex:2 1 640px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.rp-hero-facts{flex:2 1 640px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
 .rp-hf{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;
   background:rgba(13,17,23,.55);border:1px solid var(--line);min-width:0}
 .rp-hf > .rp-ic{color:var(--accent);margin-top:2px}

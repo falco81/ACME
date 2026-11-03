@@ -299,11 +299,53 @@ handed to `issue()` at every renewal as `req.ref`: renew *that* order (it wins
 over a setting like "Certificate to reuse"), and say in `Issued.info['ref']`
 the id actually used - a new order's - so acme keeps it for the next time.
 
+## A test of a server
+
+A test (`acmelib/plugins/checks/`, base class `Check`; your own in
+`/etc/acme/plugins/checks/` or uploaded on Settings → Modules) knows one protocol:
+it connects, does the protocol's own start (STARTTLS, a negotiation), does TLS
+and gives back the chain the server sent. Comparing it with the certificate is
+not its job - `acmelib/certs/checks.py` does that the same way for every test.
+
+```python
+from acmelib.plugins.base import Check, PluginError, field
+from acmelib.plugins.checks import _tls
+
+
+class SieveCheck(Check):
+    kind = 'sieve'
+    title = 'ManageSieve (STARTTLS)'
+    protocol = 'ManageSieve'
+    default_port = 4190
+    starttls = True
+    description = 'A ManageSieve server: STARTTLS on port 4190.'
+    fields = _tls.fields(4190)        # + [field(...)] of its own, before TLS's settings
+
+    def served(self, host, port, sni, verify=True):
+        t = float(self.c('timeout', 15) or 15)
+        sock = _tls.connect(host, port, t)          # through an SSH server too, by itself
+        lines = _tls.Lines(sock, 'the ManageSieve server')
+        while not lines.line().startswith('OK'):
+            pass
+        lines.send('STARTTLS')
+        if not lines.line().startswith('OK'):
+            raise PluginError('the server refused STARTTLS')
+        return _tls.tls(sock, sni, verify, t)       # {'chain': [DER...], 'tls', 'cipher'}
+```
+
+Rules: use `_tls.connect()` (it honours the address family, the source address
+and an SSH relay) and `_tls.tls()` or `_tls.context()` / `_tls.result()` (they
+honour the TLS versions, ciphers and ALPN set in the test); with `verify=True`
+let `ssl.SSLCertVerificationError` out - acme asks again with `verify=False` to
+see the chain all the same; say every failure in words (`PluginError`) with what
+the server said. `_tls.fields(port, more)` gives the settings every test has;
+put your own in `more`. A test only reads: never log in, never send mail.
+
 ## Versions, overrides and the page Modules
 
 **Where modules come from**, in this order - a later one wins: shipped with acme
 (`acmelib/plugins/`), your own on the disk of a node (`ACME_PLUGINS`,
-`/etc/acme/plugins/<issuers|challenges|targets>/`), and uploaded on the page
+`/etc/acme/plugins/<issuers|challenges|targets>/`), and uploaded on Settings →
 **Modules** (kept in the database; each node writes them into
 `/var/lib/acme/plugins-uploaded/` itself and loads them).
 
@@ -332,7 +374,7 @@ there replaces it: `class NetScalerMine(NetScalerTarget)` with no
 and adds that version. A module shipped with no versions can get two of your
 own: they sit beside the plain one, and `default_version` chooses.
 
-**The page Modules** (certificate administrators read it, full administrators
+**Settings → Modules** (certificate administrators read it, full administrators
 act): every module with where it comes from, its versions and how many use
 each; *Download* gives the source of any of them (a shipped one to start an
 override from), *Make one of your own* a file that subclasses it, *Upload a

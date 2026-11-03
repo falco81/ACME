@@ -1,95 +1,65 @@
 # -*- coding: utf-8 -*-
 """
-Tests run from another server (1.0.32): acme signs in over SSH to a Linux server
-of yours (AlmaLinux, RHEL, Rocky... - any with OpenSSH) as one of its SSH
-targets does, and each test of the set goes from there - `ssh -W host:port`,
-nothing installed there, nothing left behind. For servers only that network
-reaches: an internal web server, a mail relay, RDP behind a firewall.
+Tests run from another server (1.0.32): a connector. acme signs in over SSH to a
+Linux server of yours (AlmaLinux, RHEL, Rocky... - any with OpenSSH) - its
+address, user and key, as a Linux / Unix (SSH) target signs in - and runs the
+tests chosen for it from there, each through `ssh -W host:port`: nothing
+installed there, nothing left behind. For servers only that network reaches.
 
-The set, one test a line:    KIND HOST[:PORT] [SNI] [SETTING=VALUE ...]
-
-    https intranet.example.local
-    https 10.0.5.10 www.example.local http=1 host_header=www.example.local path=/health
-    smtp  mail.example.local:25
-    rdp   10.0.5.20:3389  rdp.example.local tls_max=TLSv1_2
-
-The settings are those of that kind of test (check_name, expect, tls_min,
-ciphers, alpn, http, method, path, host_header, expect_status...).
-
-Each is run as the test of that kind would run it (the TLS, STARTTLS...),
-only connected through the server, and compared with the certificate as any
-test is (acmelib/certs/checks.py); the worst of them is the result.
+Defined as any test (Certificates → Tests), with the tests it carries chosen
+from those already defined - HTTPS of the intranet, SMTP of the relay, RDP of a
+Windows server...; attached to a certificate, every one of them is run through
+it and compared with that certificate. The worst of them is the result.
 """
 from __future__ import annotations
 
-import re
-
 from acmelib.plugins.base import Check, PluginError, field
-
-HEAD_RE = re.compile(r'^([a-z0-9_]+)\s+(\[[^\]]+\]|[^\s:\[\]]+)(?::(\d{1,5}))?(?:\s+(.*))?$')
-OPT_RE = re.compile(r'^([a-z_][a-z0-9_]{0,40})=(.*)$')
+from acmelib.plugins.targets._common import SshMixin, ssh_fields
 
 
-class SshRelayCheck(Check):
+class SshRelayCheck(SshMixin, Check):
     kind = 'ssh_relay'
-    title = 'Through an SSH server'
-    protocol = 'SSH relay'
+    title = 'Tests on a server over SSH'
+    vendor = 'Connector'
+    protocol = 'SSH connector'
     default_port = 22
     composite = True                # a set of other tests (checks.py runs each)
-    description = ('Signs in over SSH to a Linux server of yours (AlmaLinux, RHEL, Rocky…) and '
-                   'runs a set of tests from there - for servers only that network reaches.')
-    fields = [
-        field('relay', 'Through the server', 'select', required=True, options=[['', '–']],
-              options_from='ssh_targets',
-              help='A Linux / Unix (SSH) target of acme: its address, user and key are used. '
-                   'Nothing is installed there; only "ssh -W" is asked of its OpenSSH (on by '
-                   'default; AllowTcpForwarding must not be "no").'),
-        field('checks', 'Tests run from there', 'list', required=True,
-              placeholder='https intranet.example.local\nsmtp mail.example.local:25\n'
-                          'rdp 10.0.5.20:3389 rdp.example.local',
-              help='One a line: the kind of test, the address (with :port when not its '
-                   'usual), the name sent as SNI when not the certificate\'s first, then any '
-                   'setting of that kind of test as SETTING=VALUE (http=1 host_header=… '
-                   'path=/health check_name=… tls_max=TLSv1_2 expect=any).'),
-        field('timeout', 'Time limit (s)', 'number', default=15, min=1, max=120,
-              advanced=True),
-        field('require_trusted', 'Fail when not trusted here', 'bool', default=False,
-              advanced=True),
+    sshkey_howto = 'linux'
+    description = ('A connector: signs in over SSH to a Linux server of yours (AlmaLinux, RHEL, '
+                   'Rocky…) and runs the tests chosen for it from there - for servers only that '
+                   'network reaches.')
+    fields = ssh_fields(sudo=False, try_command='id -un; uname -n; command -v ssh || true') + [
+        field('tests', 'Tests run from there', 'list', required=True, options=[],
+              options_from='tests',
+              help='Tests defined on Certificates → Tests (HTTPS of an internal site, SMTP of a '
+                   'relay, RDP…): each is run from this server as it is set, through "ssh -W". '
+                   'Its OpenSSH must allow it (AllowTcpForwarding, on by default).'),
+        field('timeout', 'Time limit (s)', 'number', default=20, min=1, max=120, advanced=True),
     ]
 
     def plan(self):
-        """[{kind, host, port, sni, line}] of the set, or PluginError in words."""
-        lines = self.c('checks') or []
-        if isinstance(lines, str):
-            lines = lines.splitlines()
-        out = []
-        for raw in lines:
-            line = str(raw).strip()
-            if not line or line.startswith('#'):
-                continue
-            m = HEAD_RE.match(line)
-            if not m:
-                raise PluginError('"%s" is not KIND HOST[:PORT] [SNI] [SETTING=VALUE...]' % line,
-                                  retry=False)
-            if m.group(1) == self.kind:
-                raise PluginError('"%s": a test through SSH cannot run another one' % line,
-                                  retry=False)
-            sni, opts = '', {}
-            for tok in (m.group(4) or '').split():
-                o = OPT_RE.match(tok)
-                if o:
-                    opts[o.group(1)] = o.group(2)
-                elif not sni:
-                    sni = tok
-                else:
-                    raise PluginError('"%s": "%s" is neither the SNI nor SETTING=VALUE' % (
-                        line, tok), retry=False)
-            out.append({'kind': m.group(1), 'host': m.group(2).strip('[]'),
-                        'port': int(m.group(3)) if m.group(3) else None, 'sni': sni,
-                        'options': opts, 'line': line})
-        if not out:
-            raise PluginError('no test is set to run from there', retry=False)
-        return out
+        names = self.c('tests') or []
+        if isinstance(names, str):
+            names = [x.strip() for x in names.splitlines()]
+        names = [str(n).strip() for n in names if str(n).strip()]
+        if not names:
+            raise PluginError('no test is chosen to run from there', retry=False)
+        return names
 
     def served(self, host, port, sni, verify=True):
-        raise PluginError('this test is a set of others - checks.py runs each', retry=False)
+        raise PluginError('a connector runs other tests - checks.py runs each', retry=False)
+
+    def test(self):
+        """Try it: signed in, and whether this server may open connections (ssh -W)."""
+        s = self.ssh()
+        try:
+            rc, out, err = s.run('id -un; uname -n', timeout=30, check=False)
+            if rc != 0:
+                raise PluginError('signed in, but a command failed: %s' % (
+                    (err or out).strip()[-200:]))
+            who = [x.strip() for x in str(out).splitlines() if x.strip()]
+            return 'signed in to %s as %s - %d test(s) run from there: %s' % (
+                who[1] if len(who) > 1 else self.c('host'), who[0] if who else '?',
+                len(self.plan()), ', '.join(self.plan()))
+        finally:
+            s.close()

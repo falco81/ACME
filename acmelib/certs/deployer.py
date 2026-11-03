@@ -155,18 +155,6 @@ def deploy_one(store, job, cert, dep, force=False):
     if _notices().ok_wanted():
         _tell(store, 'cert_deployed', 'deployed:%s:%s' % (dep['id'], cert.get('version')), cert,
               trow)
-    # Its tests (1.0.32): what the server really serves now - a failed one is a warning
-    # of the job, the deployment itself went well.
-    try:
-        from acmelib.certs import checks
-        tested = checks.after_deploy(store, job, dep['id'])
-    except JobStopped:
-        raise
-    except Exception as e:                              # noqa: BLE001
-        tested = None
-        step('the tests of the deployment could not run: %s' % e, 'warn')
-    if tested is False:
-        return True, 'deployed to %s - but a test of what it serves failed' % trow['name']
     return True, 'deployed to %s' % trow['name']
 
 
@@ -257,8 +245,21 @@ def run_deploys(store, job, cert_id, only=None, force=False):
             good += 1
         else:
             bad.append('%s: %s' % (dep['target'], said))
+    # Its tests (1.0.32): what the servers really serve now - a failed one is a warning of
+    # the job; the deployments themselves went as said.
+    tested = None
+    if good:
+        try:
+            from acmelib.certs import checks
+            tested = checks.after_deploy(store, job, cert_id)
+        except JobStopped:
+            raise
+        except Exception as e:                          # noqa: BLE001
+            job.step('the tests of the certificate could not run: %s' % e, 'warn')
     if bad:
         return False, '%d of %d deployment(s) failed - %s' % (len(bad), len(rows), '; '.join(bad))
+    if tested is False:
+        return True, '%d deployment(s) done - but a test of what is served failed' % good
     return True, '%d deployment(s) done' % good
 
 

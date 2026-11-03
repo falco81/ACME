@@ -26,7 +26,8 @@ import time
 from acmelib import engine as E
 from acmelib.plugins import base
 
-TABLE_OF = {'issuer': 'cert_issuers', 'challenge': 'cert_challenges', 'target': 'cert_targets'}
+TABLE_OF = {'issuer': 'cert_issuers', 'challenge': 'cert_challenges', 'target': 'cert_targets',
+            'check': 'cert_tests'}
 FAMILY_OF = {v: k for k, v in TABLE_OF.items()}
 NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9 ._@+-]{0,119}\Z')
 DNS_RE = re.compile(r'^(\*\.)?([A-Za-z0-9_]([A-Za-z0-9_-]{0,61}[A-Za-z0-9])?\.)*'
@@ -374,6 +375,14 @@ def plugin_public(store, family, row, full=False):
         out['used_by'] = int(store.db.value(
             "SELECT COUNT(*) FROM certs WHERE challenge = ? OR challenge_map LIKE ?",
             (row['name'], '%' + json.dumps(row['name']) + '%'), 0) or 0)
+    elif family == 'check':
+        # attached to certificates, and in the sets of the tests through SSH (1.0.32)
+        n = int(store.db.value('SELECT COUNT(*) FROM cert_checks WHERE test = ?',
+                               (row['name'],), 0) or 0)
+        for r in store.db.rows("SELECT config FROM cert_tests WHERE kind = 'ssh_relay'"):
+            if row['name'] in (jload(r.get('config'), {}) or {}).get('tests') or []:
+                n += 1
+        out['used_by'] = n
     else:
         out['used_by'] = int(store.db.value('SELECT COUNT(*) FROM cert_deploys WHERE target = ?',
                                             (row['name'],), 0) or 0)

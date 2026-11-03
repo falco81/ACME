@@ -36,8 +36,8 @@ function acme_certs_tab_buttons(): void
           title="How names are proved to an ACME CA: DNS-01 through acme's own DNS server or your DNS provider, HTTP-01 here or on your web servers over SSH.">Validation</button>
   <button role="tab" aria-selected="false" data-tab="targets" data-icon="net" data-cicon="target"
           title="Where certificates go: Linux servers over SSH, F5, NetScaler, MikroTik, FortiGate and the rest - and what is deployed on each.">Targets</button>
-  <button role="tab" aria-selected="false" data-tab="modules" data-icon="grid" data-cicon="module" class="ct-manage"
-          title="The modules sources, validations and targets are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.">Modules</button>
+  <button role="tab" aria-selected="false" data-tab="tests" data-icon="check" data-cicon="proof"
+          title="Tests of what the servers really serve: HTTPS, SMTP, RDP, LDAP… - defined here, attached to certificates, run after each deployment and by themselves.">Tests</button>
   <button role="tab" aria-selected="false" data-tab="jobs" data-icon="history" data-cicon="job"
           title="Every piece of work - an issue, a renewal, a deployment, a test - with each of its steps. Running ones update by themselves.">Jobs<span class="count" id="tabn-jobs"></span></button>
 <?php
@@ -175,28 +175,26 @@ function acme_certs_tab_panels(): void
   </div>
 </section>
 
-<!-- ===================== Modules ===================== -->
-<section class="panel" id="tab-modules" hidden>
+<!-- ===================== Tests ===================== -->
+<section class="panel" id="tab-tests" hidden>
   <div class="card full">
-    <h2>Modules <span class="right" id="md-said"></span></h2>
-    <p class="note">What sources, validations and targets are made of. Each comes shipped with acme,
-      or is one of your own - a file in the folder of modules on a node, or uploaded here; one of
-      your own with the kind of a shipped module overrides it, one with a version of its own adds
-      that version (an API version of a device, say), which each source, validation or target then
-      chooses in its form. Marks say what is tested and works - set here, or shipped with the
-      release. Uploaded modules are kept in the database: every backup and both nodes have them.</p>
-    <div class="md-sum" id="md-sum"></div>
-    <div id="md-nodes"></div>
+    <h2>Tests <span class="right" id="ts-said"></span></h2>
+    <p class="note">What the servers really serve. A test connects as a client of its protocol
+      would - a browser, a mail client, Remote Desktop - and compares the certificate it is sent
+      with the certificate it is attached to: the version deployed, its names, its chain, how long
+      it runs. Defined here, attached to certificates (the certificate → Tests → Attach a test);
+      run after each deployment, by themselves when Settings → Certificates says so, or now. A
+      connector signs in to a Linux server over SSH and runs the tests it carries from there.</p>
     <div class="btnrow filters">
-      <div class="md-chips" id="md-fams"></div>
-      <input type="search" id="md-q" placeholder="a name, a kind, a vendor…" style="flex:1;min-width:200px">
+      <input type="search" id="ts-q" placeholder="a name, a kind, an address…" style="flex:1;min-width:200px">
       <span class="spacer"></span>
-      <button class="btn cmd primary ct-fulladmin" id="md-upload" data-icon="upload">Upload a module</button>
+      <button class="btn cmd primary ct-fulladmin" id="ts-add" data-icon="add">Add a test</button>
     </div>
-    <div id="md-broken"></div>
-    <div id="md-list"></div>
+    <div id="ts-broken"></div>
+    <div id="ts-list"></div>
   </div>
 </section>
+
 
 <!-- ===================== Jobs ===================== -->
 <section class="panel" id="tab-jobs" hidden>
@@ -214,6 +212,7 @@ function acme_certs_tab_panels(): void
         <option value="revoke">revocation</option>
         <option value="import">import</option>
         <option value="test">test</option>
+        <option value="check">test of the servers</option>
       </select>
       <select id="jb-ok" title="Only jobs that ended like this.">
         <option value="">however they ended</option>
@@ -238,6 +237,7 @@ function acme_certs_settings_nav(): void
     <div class="ctl-group">Certificates</div>
     <button type="button" data-pane="certs" data-icon="lock" title="When certificates are renewed, how often a failed one is tried again, and who is told when something goes wrong.">Renewal and notices</button>
     <button type="button" data-pane="dnssrv" data-icon="globe" title="acme's own DNS server for DNS-01: the zone it answers for, its NS names, where it listens, and the records in it.">DNS server</button>
+    <button type="button" data-pane="modules" data-icon="grid" class="ct-manage" title="The modules sources, validations, targets and tests are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.">Modules</button>
     <button type="button" data-pane="teams" data-icon="people" title="Who certificates belong to - teams and persons, their members from acme's accounts and the directory, what each may do - and the tags certificates and targets pick from.">Owners and teams</button>
 <?php
 }
@@ -271,6 +271,33 @@ function acme_certs_settings_panes(): void
         own CSR, the subject, renewal, approval and whose it is. They give only its names and what a
         profile leaves to them. With none defined, the portal asks as before.</p></div>
     <div id="rp-host"></div>
+  </div>
+
+
+  <div class="ctl-pane" id="pane-modules" hidden>
+    <div class="ctl-head"><h2 class="ctl-title">Modules</h2>
+      <p class="ctl-lede">What sources, validations, targets and tests are made of: the modules
+        shipped with acme, your own, their versions and what is marked as tested - download one,
+        upload one of your own.</p></div>
+  <div class="card full">
+    <h2><span class="right" id="md-said"></span></h2>
+    <p class="note">What sources, validations and targets are made of. Each comes shipped with acme,
+      or is one of your own - a file in the folder of modules on a node, or uploaded here; one of
+      your own with the kind of a shipped module overrides it, one with a version of its own adds
+      that version (an API version of a device, say), which each source, validation or target then
+      chooses in its form. Marks say what is tested and works - set here, or shipped with the
+      release. Uploaded modules are kept in the database: every backup and both nodes have them.</p>
+    <div class="md-sum" id="md-sum"></div>
+    <div id="md-nodes"></div>
+    <div class="btnrow filters">
+      <div class="md-chips" id="md-fams"></div>
+      <input type="search" id="md-q" placeholder="a name, a kind, a vendor…" style="flex:1;min-width:200px">
+      <span class="spacer"></span>
+      <button class="btn cmd primary ct-fulladmin" id="md-upload" data-icon="upload">Upload a module</button>
+    </div>
+    <div id="md-broken"></div>
+    <div id="md-list"></div>
+  </div>
   </div>
 
   <div class="ctl-pane" id="pane-dnssrv" hidden>

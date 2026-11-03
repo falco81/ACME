@@ -87,7 +87,11 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 | `acme --source-action NAME ACTION` | one of the things its module can do besides its work (`acme --plugin KIND` lists them) - e.g. `acme --validation-action web prepare` writes the nginx server block for HTTP-01 on every web server of an `http_ssh` validation |
 | `acme --plugins` | the modules: issuers, challenges, targets, where each comes from (shipped, your own, an *OVERRIDE*), its versions (`*` the default), its actions, and those that did not load; then the modules of your own on this node and whether the other nodes have the same |
 | `acme --plugins-sync NODE [--remove] [--yes]` | write the modules of your own that NODE keeps in the database into this node's `ACME_PLUGINS` folder (root) - after a copy was put back, or to make a second node the same; `--remove` also takes away files NODE does not have. Uploaded modules need none of this |
-| `acme --module-mark family/kind[@version] tested\|works\|problem\|none [--note TEXT]` | mark how far a version of a module is checked (a full administrator's; shown on the page Modules and beside the module) |
+| `acme --module-mark family/kind[@version] tested\|works\|problem\|none [--note TEXT]` | mark how far a version of a module is checked (a full administrator's; shown on Settings → Modules and beside the module) |
+| `acme --tests` · `--check-add NAME --kind KIND --set ...` · `--check-edit` · `--check-show` · `--check-del` · `--check-test` | the tests of what the servers serve, defined as targets are ([checks.md](checks.md)); `--check-key` the SSH key of a connector |
+| `acme --check-attach CERT TEST...` · `--check-detach ID` | attach tests to a certificate, take one off |
+| `acme --checks [CERT]` | the tests attached to the certificates (to one): each with its last result |
+| `acme --check-run ID\|cert:NAME\|test:NAME\|all` | run attached tests now, each result said; exit code 1 when one fails |
 | `acme --module-marks-export` | the marks set here as `acmelib/plugins/verified.json` takes them - what a release ships as checked |
 | `acme --plugin KIND` | one module: its description, every field (`--set` takes), a target's deployment options, its actions. `source/KIND`, `validation/KIND` or `target/KIND` where two families have the kind |
 

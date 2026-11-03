@@ -1,26 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-Tests of what the servers really serve (1.0.32). A test belongs to a deployment
-(one certificate on one target, cert_checks.deploy_id): a module of
-acmelib/plugins/checks (kind) connects as a client of its protocol would -
-HTTPS, SMTP with STARTTLS, RDP... - and gives back the chain the server sent.
-Here it is compared with the certificate acme keeps:
+Tests of what the servers really serve (1.0.32). A test is defined as a target is
+(Certificates → Tests, table cert_tests: a module of acmelib/plugins/checks and its
+settings) and attached to certificates (cert_checks: certificate × test, with how it
+went last). Run, it connects as a client of its protocol would - HTTPS, SMTP with
+STARTTLS, RDP... - to the address set (empty: the certificate's first name) and gives
+back the chain the server sent; here it is compared with the certificate:
 
-    ok           the current version (main or its twin), its names cover the
-                 address asked, the chain sent with it
+    ok           the current version (main or its twin), its names hold the name
+                 checked, the chain sent with it
     old          an older version of the same certificate - the renewal did not
                  reach the server (a service not restarted, another node)
-    other        a certificate acme did not deploy there
-    unreachable  no connection, no TLS
+    other        a certificate acme did not issue for it
+    answer       HTTPS asked over HTTP: the status or the words not as set
+    unreachable  no connection, no STARTTLS, no TLS
     warn         the right one, but: it ends within certs_checks_warn_days, the
-                 name asked is not in it, the intermediates are missing, or it is
+                 name checked is not in it, the intermediates are missing, or it is
                  not trusted here (failing only with require_trusted)
 
-Run after each deployment (certs_checks_after_deploy - a few tries, the service
-may still be restarting), by themselves every certs_checks_every_min on the node
-that leads (certs_checks_auto), or asked (the target's card Tests, the command
-line). A test that starts failing is an event and a notification (cert_check_failed,
-certs_checks_alert); one that works again too (cert_check_ok).
+A connector (checks/ssh_relay.py) signs in over SSH to a Linux server and runs the
+tests it carries from there. Run after the certificate's deployments
+(certs_checks_after_deploy - a few tries, the services may still be restarting), by
+themselves every certs_checks_every_min on the node that leads (certs_checks_auto),
+or asked. A test that starts failing is an event and a notification
+(cert_check_failed, certs_checks_alert); one that works again too (cert_check_ok).
 """
 from __future__ import annotations
 
@@ -41,97 +44,71 @@ NOTIFY_EVERY = 6 * 3600
 
 
 # ---------------------------------------------------------------------------
-# The rows
+# The rows: a test attached to a certificate
 # ---------------------------------------------------------------------------
-def row_public(store, r, deps=None):
+def row_public(store, r):
     d = dict(r)
-    d['config'] = S.jload(r.get('config'), {}) or {}
     d['last_detail'] = S.jload(r.get('last_detail'), {}) or {}
-    dep = (deps or {}).get(r['deploy_id']) or store.db.row(
-        'SELECT id, cert_id, target FROM cert_deploys WHERE id = ?', (r['deploy_id'],))
-    if dep:
-        d['target'] = dep['target']
-        cert = store.db.row('SELECT id, name FROM certs WHERE id = ?', (dep['cert_id'],))
-        d['cert_id'] = dep['cert_id']
-        d['cert'] = cert['name'] if cert else '?'
-    cls = S.plugin_class('check', r['kind'])
-    d['title'] = (cls.title or cls.kind) if cls else r['kind']
+    cert = store.db.row('SELECT id, name FROM certs WHERE id = ?', (r['cert_id'],))
+    d['cert'] = cert['name'] if cert else '?'
+    trow = S.plugin_row(store, 'check', r['test'])
+    cls = S.row_class('check', trow) if trow else None
+    d['kind'] = trow['kind'] if trow else ''
+    d['title'] = (cls.title or cls.kind) if cls else (trow or {}).get('kind') or '?'
     d['protocol'] = getattr(cls, 'protocol', '') if cls else ''
-    d['module_missing'] = cls is None
+    d['test_missing'] = trow is None
+    d['test_enabled'] = bool(trow.get('enabled', 1)) if trow else False
+    d['where'] = label(trow, cert) if trow else r['test']
     return d
 
 
-def rows(store, target=None, cert_id=None, deploy_id=None):
+def rows(store, cert_id=None, test=None):
     where, args = [], []
-    if deploy_id is not None:
-        where.append('c.deploy_id = ?')
-        args.append(int(deploy_id))
-    if target:
-        where.append('d.target = ?')
-        args.append(str(target))
     if cert_id is not None:
-        where.append('d.cert_id = ?')
+        where.append('cert_id = ?')
         args.append(int(cert_id))
-    q = ('SELECT c.* FROM cert_checks c JOIN cert_deploys d ON d.id = c.deploy_id' +
-         (' WHERE ' + ' AND '.join(where) if where else '') + ' ORDER BY c.deploy_id, c.position, c.id')
+    if test:
+        where.append('test = ?')
+        args.append(str(test))
+    q = 'SELECT * FROM cert_checks' + (' WHERE ' + ' AND '.join(where) if where else '') + \
+        ' ORDER BY cert_id, position, id'
     return [row_public(store, r) for r in store.db.rows(q, tuple(args))]
 
 
-def save(store, b, by):
-    """{id?, deploy_id, kind, config, enabled, note} -> the id."""
+def attach(store, cert_id, names, by):
+    """Tests attached to a certificate (those attached already stay) -> the ids made."""
     t = time.time()
-    ident = b.get('id')
-    row = store.db.row('SELECT * FROM cert_checks WHERE id = ?', (int(ident),)) \
-        if ident not in (None, '', 0) else None
-    if ident not in (None, '', 0) and not row:
-        raise LookupError('there is no such test')
-    deploy_id = int(b.get('deploy_id') or (row or {}).get('deploy_id') or 0)
-    if not store.db.row('SELECT id FROM cert_deploys WHERE id = ?', (deploy_id,)):
-        raise ValueError('a test belongs to a deployment (a certificate on a target) - choose one')
-    kind = str(b.get('kind') or (row or {}).get('kind') or '').strip()
-    cls = S.plugin_class('check', kind)
-    if cls is None:
-        raise ValueError('there is no test module "%s"' % kind)
-    cfg = b.get('config') if isinstance(b.get('config'), dict) else \
-        (S.jload((row or {}).get('config'), {}) or {})
-    keys = {f['key']: f for f in cls.fields or []}
-    clean = {}
-    for k, v in cfg.items():
-        if k not in keys and k != S.VERSION_KEY:
+    if not store.db.row('SELECT id FROM certs WHERE id = ?', (int(cert_id),)):
+        raise LookupError('there is no such certificate')
+    have = {r['test'] for r in store.db.rows('SELECT test FROM cert_checks WHERE cert_id = ?',
+                                             (int(cert_id),))}
+    made = []
+    pos = len(have)
+    for n in names or []:
+        n = str(n).strip()
+        if not n or n in have:
             continue
-        clean[k] = v
-    if clean.get('port') not in (None, ''):
-        try:
-            p = int(clean['port'])
-        except (TypeError, ValueError):
-            raise ValueError('the port is a number')
-        if not 1 <= p <= 65535:
-            raise ValueError('the port is 1 to 65535')
-        clean['port'] = p
-    fields = {'deploy_id': deploy_id, 'kind': kind, 'config': json.dumps(clean),
-              'enabled': 0 if b.get('enabled') in (False, 0, '0') else 1,
-              'note': str(b.get('note') or '')[:500], 'updated': t, 'updated_by': str(by)[:190]}
-    if row:
-        store.db.update('cert_checks', row['id'], fields)
-        ident = row['id']
-    else:
-        fields.update({'created': t, 'created_by': str(by)[:190], 'fails': 0,
-                       'position': int(store.db.value(
-                           'SELECT COUNT(*) FROM cert_checks WHERE deploy_id = ?',
-                           (deploy_id,), 0) or 0)})
-        ident = store.db.insert('cert_checks', fields)
-    return ident
+        if not S.plugin_row(store, 'check', n):
+            raise LookupError('there is no test %s (Certificates → Tests)' % n)
+        made.append(store.db.insert('cert_checks', {
+            'cert_id': int(cert_id), 'test': n, 'enabled': 1, 'position': pos, 'fails': 0,
+            'created': t, 'created_by': str(by)[:190], 'updated': t,
+            'updated_by': str(by)[:190]}))
+        have.add(n)
+        pos += 1
+    return made
 
 
-def delete(store, ident):
+def detach(store, ident):
     if not store.db.row('SELECT id FROM cert_checks WHERE id = ?', (int(ident),)):
-        raise LookupError('there is no such test')
+        raise LookupError('there is no such test of a certificate')
     store.db.run('DELETE FROM cert_checks WHERE id = ?', (int(ident),))
 
 
-def forget_deploy(store, deploy_id):
-    """A deployment taken away takes its tests with it."""
-    store.db.run('DELETE FROM cert_checks WHERE deploy_id = ?', (int(deploy_id),))
+def switch(store, ident, on, by):
+    store.db.update('cert_checks', int(ident), {'enabled': 1 if on else 0,
+                                                 'updated': time.time(),
+                                                 'updated_by': str(by)[:190]})
 
 
 # ---------------------------------------------------------------------------
@@ -280,33 +257,41 @@ def judge(exp, served, host, sni, require_trusted=False, trusted=None, why_untru
     return {'state': state, 'ok': state in ('ok', 'warn'), 'said': words, 'detail': detail}
 
 
-def probe(store, chk, cert=None, trow=None):
-    """One test run -> {state, ok, said, detail, ms}. Never raises."""
+def _first_name(exp):
+    return next((n for n in exp['names'] if not n.startswith('*.')), '')
+
+
+def probe(store, chk, cert=None):
+    """One run of a test attached to a certificate (chk: {cert_id, test}, or a test's
+    settings tried before they are kept: {cert_id, kind, config}) -> {state, ok, said,
+    detail, ms}. Never raises."""
     t0 = time.time()
     try:
-        dep = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (chk['deploy_id'],))
-        if not dep:
-            raise PluginError('its deployment is gone')
-        cert = cert or S.cert_get(store, dep['cert_id'])
+        cert = cert or S.cert_get(store, chk['cert_id'])
         if not cert or not cert.get('cert_pem'):
             raise PluginError('the certificate has not been issued yet')
-        trow = trow or S.plugin_row(store, 'target', dep['target'])
-        cfg = chk['config'] if isinstance(chk.get('config'), dict) else \
-            (S.jload(chk.get('config'), {}) or {})
-        cls = S.plugin_class('check', chk['kind'], cfg.get(S.VERSION_KEY))
+        if chk.get('config') is not None:
+            cfg = dict(chk['config'])
+            cls = S.plugin_class('check', chk['kind'], cfg.get(S.VERSION_KEY))
+            name = 'unsaved'
+        else:
+            trow = S.plugin_row(store, 'check', chk['test'])
+            if not trow:
+                raise PluginError('there is no test %s any more' % chk['test'], retry=False)
+            cls = S.row_class('check', trow)
+            cfg = S.plugin_config('check', trow)
+            name = trow['name']
         if cls is None:
-            raise PluginError('there is no test module "%s"' % chk['kind'])
-        if getattr(cls, 'composite', False):
-            got = probe_relay(store, chk, cls, cfg, cert)
-            got['ms'] = int((time.time() - t0) * 1000)
-            return got
-        mod = cls(cfg, None)
-        host = str(cfg.get('host') or '').strip() or target_host(trow)
-        port = int(cfg.get('port') or cls.default_port)
+            raise PluginError('there is no test module "%s"' % (chk.get('kind') or '?'))
         exp = expected(store, cert)
-        sni = str(cfg.get('sni') or '').strip() or next(
-            (n for n in exp['names'] if not n.startswith('*.')), '') or host
-        got = _one_served(mod, host, port, sni, exp)
+        if getattr(cls, 'composite', False):
+            got = probe_relay(store, name, cls, cfg, cert, exp)
+        else:
+            mod = cls(cfg, None)
+            host = str(cfg.get('host') or '').strip() or _first_name(exp)
+            port = int(cfg.get('port') or cls.default_port)
+            sni = str(cfg.get('sni') or '').strip() or _first_name(exp) or host
+            got = _one_served(mod, host, port, sni, exp)
     except PluginError as e:
         got = {'state': 'unreachable', 'ok': False, 'said': str(e), 'detail': {}}
     except Exception as e:                              # noqa: BLE001
@@ -337,53 +322,38 @@ def _one_served(mod, host, port, sni, exp):
     return got
 
 
-def probe_relay(store, chk, cls, cfg, cert):
-    """A set of tests run from an SSH server (checks/ssh_relay.py): each through
-    `ssh -W`, each judged; the worst is the result, each said in detail['subs']."""
+def probe_relay(store, name, cls, cfg, cert, exp):
+    """A connector (checks/ssh_relay.py): signed in over SSH with its own settings, each
+    test it carries run from there through `ssh -W`, each judged; the worst is the
+    result, each said in detail['subs']."""
     from acmelib.certs import runtime
     from acmelib.plugins.checks import _tls
-    relay = S.plugin_row(store, 'target', str(cfg.get('relay') or ''))
-    if not relay:
-        raise PluginError('the server to go through (%s) is not a target of acme' % (
-            cfg.get('relay') or 'none chosen'), retry=False)
-    mod = cls(cfg, None)
-    plan = mod.plan()
-    exp = expected(store, cert)
-    first = next((n for n in exp['names'] if not n.startswith('*.')), '')
-    ctx = runtime.RunContext(store, None, scope='target:%s' % relay['name'])
+    ctx = runtime.RunContext(store, None, scope='check:%s' % name)
     subs = []
     try:
-        tgt = S.plugin_instance(store, 'target', relay, ctx)
-        if not hasattr(tgt, 'ssh'):
-            raise PluginError('%s does not sign in over SSH' % relay['name'], retry=False)
+        mod = cls(cfg, ctx)
+        plan = mod.plan()
         try:
-            session = tgt.ssh()
+            session = mod.ssh()
         except PluginError as e:
-            raise PluginError('signing in to %s over SSH: %s' % (relay['name'], e))
+            raise PluginError('signing in to %s over SSH: %s' % (cfg.get('host') or '?', e))
         try:
-            timeout = float(cfg.get('timeout') or 15)
-            for one in plan:
-                sub_cls = S.plugin_class('check', one['kind'])
+            for tname in plan:
+                trow = S.plugin_row(store, 'check', tname)
+                sub_cls = S.row_class('check', trow) if trow else None
                 if sub_cls is None or getattr(sub_cls, 'composite', False):
-                    subs.append({'line': one['line'], 'state': 'unreachable', 'ok': False,
-                                 'said': 'there is no test module "%s"' % one['kind'],
+                    subs.append({'line': tname, 'state': 'unreachable', 'ok': False,
+                                 'said': 'there is no test %s (or it is a connector too)' % tname,
                                  'detail': {}})
                     continue
-                known = {f['key'] for f in sub_cls.fields or []}
-                bad = [k for k in one.get('options') or {} if k not in known]
-                if bad:
-                    subs.append({'line': one['line'], 'state': 'unreachable', 'ok': False,
-                                 'said': '%s has no setting %s' % (one['kind'], ', '.join(bad)),
-                                 'detail': {}})
-                    continue
-                sc = {'timeout': timeout, 'require_trusted': cfg.get('require_trusted')}
-                sc.update(one.get('options') or {})
-                sub = sub_cls(sc, None)
-                port = int(one['port'] or sub_cls.default_port)
-                sni = one['sni'] or first or one['host']
+                scfg = S.plugin_config('check', trow)
+                sub = sub_cls(scfg, None)
+                host = str(scfg.get('host') or '').strip() or _first_name(exp)
+                port = int(scfg.get('port') or sub_cls.default_port)
+                sni = str(scfg.get('sni') or '').strip() or _first_name(exp) or host
                 _tls.RELAY.fn = lambda h, p, t: session.tunnel(h, p, t)
                 try:
-                    got = _one_served(sub, one['host'], port, sni, exp)
+                    got = _one_served(sub, host, port, sni, exp)
                 except PluginError as e:
                     why = session.tunnel_said() if hasattr(session, 'tunnel_said') else ''
                     got = {'state': 'unreachable', 'ok': False,
@@ -394,38 +364,45 @@ def probe_relay(store, chk, cls, cfg, cert):
                            'said': '%s: %s' % (type(e).__name__, e), 'detail': {}}
                 finally:
                     _tls.RELAY.fn = None
-                got['line'] = one['line']
-                got['label'] = '%s %s:%s' % (getattr(sub_cls, 'protocol', '') or one['kind'],
-                                             one['host'], port)
+                got['line'] = tname
+                got['label'] = '%s %s:%s' % (getattr(sub_cls, 'protocol', '') or sub_cls.kind,
+                                             host, port)
                 subs.append(got)
         finally:
             session.close()
     finally:
         ctx.tidy()
-    order = {'ok': 0, 'warn': 1, 'old': 2, 'other': 3, 'unreachable': 4}
+    order = {'ok': 0, 'warn': 1, 'old': 2, 'other': 3, 'answer': 3, 'unreachable': 4}
     worst = max(subs, key=lambda g: order.get(g['state'], 4))
     bad = [g for g in subs if not g['ok']]
+    via = cfg.get('host') or name
     if bad:
-        said = '%d of %d from %s failed - %s' % (len(bad), len(subs), relay['name'], '; '.join(
-            '%s: %s' % (g.get('label') or g['line'], g['said']) for g in bad[:4]))
+        said = '%d of %d from %s failed - %s' % (len(bad), len(subs), via, '; '.join(
+            '%s: %s' % (g['line'], g['said']) for g in bad[:4]))
     else:
         said = 'all %d from %s serve the current certificate%s' % (
-            len(subs), relay['name'], ' (with warnings)' if worst['state'] == 'warn' else '')
+            len(subs), via, ' (with warnings)' if worst['state'] == 'warn' else '')
     return {'state': worst['state'], 'ok': not bad, 'said': said,
-            'detail': {'relay': relay['name'], 'subs': [
+            'detail': {'relay': via, 'subs': [
                 {'line': g['line'], 'label': g.get('label'), 'state': g['state'],
                  'said': g['said'], 'served': (g.get('detail') or {}).get('served'),
                  'tls': (g.get('detail') or {}).get('tls')} for g in subs]}}
 
 
-def label(chk, trow=None):
-    cfg = chk['config'] if isinstance(chk.get('config'), dict) else \
-        (S.jload(chk.get('config'), {}) or {})
-    cls = S.plugin_class('check', chk['kind'])
-    proto = (getattr(cls, 'protocol', '') or chk['kind']) if cls else chk['kind']
+def label(trow, cert=None):
+    """A test in words: HTTPS www.example.cz:443, SSH connector backup1 (3 tests)."""
+    if not trow:
+        return '?'
+    cfg = S.jload(trow.get('config'), {}) if not isinstance(trow.get('config'), dict) \
+        else trow['config']
+    cfg = cfg or {}
+    cls = S.row_class('check', trow)
+    proto = (getattr(cls, 'protocol', '') or trow['kind']) if cls else trow['kind']
     if cls is not None and getattr(cls, 'composite', False):
-        return '%s %s' % (proto, cfg.get('relay') or '?')
-    host = str(cfg.get('host') or '').strip() or target_host(trow) or '?'
+        return '%s %s (%d)' % (proto, cfg.get('host') or '?', len(cfg.get('tests') or []))
+    names = S.jload((cert or {}).get('names'), []) if cert and 'names' in cert else []
+    host = str(cfg.get('host') or '').strip() or next(
+        (n for n in names or [] if not str(n).startswith('*.')), '') or 'its first name'
     port = cfg.get('port') or (cls.default_port if cls else '')
     return '%s %s:%s' % (proto, host, port)
 
@@ -444,24 +421,25 @@ def record(store, chk, got, step=None):
     else:
         fields['fails'] = fails + 1
     store.db.update('cert_checks', chk['id'], fields)
-    dep = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (chk['deploy_id'],)) or {}
-    cert = S.cert_get(store, dep.get('cert_id')) if dep else None
-    trow = S.plugin_row(store, 'target', dep.get('target')) if dep else None
-    what = label(chk, trow)
+    cert = S.cert_get(store, chk['cert_id'])
+    trow = S.plugin_row(store, 'check', chk['test'])
+    what = '%s (%s)' % (chk['test'], label(trow, cert)) if trow else chk['test']
+    if trow:
+        store.db.update('cert_tests', trow['id'], {'last_ok': t, 'last_error': ''} if got['ok']
+                        else {'last_error': got['said'][:2000]})
     if step:
         step('test %s: %s' % (what, got['said']), {'ok': 'ok', 'warn': 'warn'}.get(
             got['state'], 'bad'))
     went_bad = not got['ok'] and (before in ('', 'ok', 'warn') or fails == 0)
     came_back = got['ok'] and before in BAD
     if went_bad or came_back:
-        store.add_event('certificates', 'test %s of %s on %s: %s' % (
-            what, (cert or {}).get('name', '?'), dep.get('target', '?'), got['said']),
-            'bad' if went_bad else 'info')
+        store.add_event('certificates', 'test %s of %s: %s' % (
+            what, (cert or {}).get('name', '?'), got['said']), 'bad' if went_bad else 'info')
         if E.CONFIG.get('certs_checks_alert', 1) and cert:
             try:
                 from acmelib.certs import notices
-                vals = notices.cert_values(store, cert, target=dep.get('target') or '',
-                                           check=what, error=got['said'][:500])
+                vals = notices.cert_values(store, cert, target=chk['test'], check=what,
+                                           error=got['said'][:500])
                 notices.send(store, 'cert_check_failed' if went_bad else 'cert_check_ok',
                              'check:%s:%s' % (chk['id'], 'bad' if went_bad else 'ok'), vals,
                              mail_to=notices.recipients(store, cert))
@@ -471,20 +449,19 @@ def record(store, chk, got, step=None):
 
 
 def run(store, chk, step=None):
-    chk = chk if isinstance(chk, dict) and 'deploy_id' in chk else store.db.row(
+    chk = chk if isinstance(chk, dict) and 'cert_id' in chk else store.db.row(
         'SELECT * FROM cert_checks WHERE id = ?', (int(chk),))
     if not chk:
-        raise LookupError('there is no such test')
+        raise LookupError('there is no such test of a certificate')
     return record(store, chk, probe(store, chk), step)
 
 
-def after_deploy(store, job, dep_id):
-    """The tests of a deployment just made, a few times while the service restarts."""
+def after_deploy(store, job, cert_id):
+    """The tests of a certificate just deployed, a few times while the services restart."""
     if not E.CONFIG.get('certs_checks_after_deploy', 1):
         return None
-    tests = [r for r in store.db.rows(
-        'SELECT * FROM cert_checks WHERE deploy_id = ? AND COALESCE(enabled, 1) <> 0 '
-        'ORDER BY position, id', (int(dep_id),))]
+    tests = store.db.rows('SELECT * FROM cert_checks WHERE cert_id = ? AND '
+                          'COALESCE(enabled, 1) <> 0 ORDER BY position, id', (int(cert_id),))
     if not tests:
         return None
     worst = True
@@ -498,7 +475,7 @@ def after_deploy(store, job, dep_id):
                 break
             if i + 1 < len(AFTER_DEPLOY_TRIES):
                 job.step('test %s: %s - asked again in %d s' % (
-                    label(chk), got['said'], AFTER_DEPLOY_TRIES[i + 1]), 'debug')
+                    chk['test'], got['said'], AFTER_DEPLOY_TRIES[i + 1]), 'debug')
         record(store, chk, got, job.step)
         worst = worst and got['ok']
     return worst
@@ -512,8 +489,9 @@ def due(store, t=None):
     every = max(5, int(E.CONFIG.get('certs_checks_every_min') or 360)) * 60
     out = []
     for r in store.db.rows(
-            'SELECT c.* FROM cert_checks c JOIN cert_deploys d ON d.id = c.deploy_id '
-            'WHERE COALESCE(c.enabled, 1) <> 0 AND COALESCE(d.enabled, 1) <> 0'):
+            'SELECT c.* FROM cert_checks c JOIN cert_tests t ON t.name = c.test JOIN certs x '
+            'ON x.id = c.cert_id WHERE COALESCE(c.enabled, 1) <> 0 AND COALESCE(t.enabled, 1) '
+            '<> 0 AND COALESCE(x.enabled, 1) <> 0'):
         if not r.get('last_at') or t - float(r['last_at']) >= every:
             out.append(r)
     return out

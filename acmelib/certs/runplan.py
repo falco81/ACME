@@ -1029,7 +1029,10 @@ def plan(store, cert, deploys, full=False):
         g['steps'] = steps
         dp['groups'].append(g)
     phases.append(dp)
-    # 5. after
+    # 5. the tests of what the servers serve (1.0.32)
+    tp = checks_phase(store, cert, names)
+    phases.append(tp)
+    # 6. after
     phases.append(after_phase(store, cert, irow, dinfo))
     out = {'cert': {'id': cert.get('id'), 'name': cert.get('name'), 'names': names,
                     'key_type': cert.get('key_type') or 'ec-256',
@@ -1038,10 +1041,123 @@ def plan(store, cert, deploys, full=False):
                     'not_after': cert.get('not_after'), 'draft': not cert.get('id')},
            'head': {'source': src.get('module'),
                     'validations': [g.get('module') for g in val['groups'] if g.get('module')],
-                    'deploys': len(dinfo)},
+                    'deploys': len(dinfo), 'tests': len(tp.get('groups') or [])},
            'phases': phases, 'made': time.time(), 'took_ms': int((time.time() - t0) * 1000),
            'recording': rec_err or ''}
     return scrub(out, secrets_.real)
+
+
+def _test_steps(cls, cfg, names, via=None):
+    """What one test does, from its settings - a test only reads, so nothing needs to be
+    recorded: the connection, the protocol's start, TLS, HTTP, the comparison."""
+    full = {f['key']: f.get('default') for f in cls.fields or [] if f.get('key')}
+    full.update({k: v for k, v in (cfg or {}).items() if v not in (None, '')})
+    cfg = full
+    first = next((n for n in names or [] if not str(n).startswith('*.')), '')
+    host = str(cfg.get('host') or '').strip() or first or '?'
+    port = int(cfg.get('port') or cls.default_port or 0)
+    sni = str(cfg.get('sni') or '').strip() or first or host
+    steps = []
+    if via:
+        steps.append({'kind': 'connect', 'words': 'From {0}, a connection to {1}:{2} (ssh -W)'
+                      .replace('{0}', via).replace('{1}', host).replace('{2}', str(port))})
+    else:
+        steps.append({'kind': 'connect', 'words': 'Connects to {0}:{1}'.replace(
+            '{0}', host).replace('{1}', str(port)), 'note': 'the address set in the test' if
+            cfg.get('host') else 'the certificate\'s first name: "Connect to" is empty'})
+    if getattr(cls, 'starttls', False):
+        steps.append({'kind': 'call', 'words': 'Speaks {0} first, then asks for TLS'.replace(
+            '{0}', cls.protocol or cls.kind), 'note': cls.description or ''})
+    tls_bits = [x for x in (
+        ('at least ' + str(cfg['tls_min'])) if cfg.get('tls_min') else '',
+        ('at most ' + str(cfg['tls_max'])) if cfg.get('tls_max') else '',
+        ('ciphers ' + str(cfg['ciphers'])) if cfg.get('ciphers') else '',
+        ('ALPN ' + str(cfg['alpn'])) if cfg.get('alpn') else '') if x]
+    steps.append({'kind': 'read', 'words': 'TLS handshake, the name {0} sent as SNI'.replace(
+        '{0}', '(none)' if sni == '-' else sni), 'note': ', '.join(tls_bits) or
+        'TLS as the server and this machine agree; the chain read whole'})
+    if str(cfg.get('http', '')).lower() in ('1', 'true', 'yes', 'on'):
+        steps.append({'kind': 'call', 'words': 'Asks {0} {1} with Host: {2}'.replace(
+            '{0}', str(cfg.get('method') or 'HEAD')).replace('{1}', str(cfg.get('path') or '/'))
+            .replace('{2}', str(cfg.get('host_header') or sni)),
+            'note': 'the status expected: %s%s' % (cfg.get('expect_status') or 'any', (
+                '; the answer holds "%s"' % cfg['body_contains']) if cfg.get('body_contains')
+                else '')})
+    want = {'current': 'the version deployed now (or its twin)', 'main': 'the main one only',
+            'alt': 'the twin only', 'any': 'any version of it'}.get(
+        str(cfg.get('expect') or 'current'), 'the version deployed now')
+    steps.append({'kind': 'check', 'words': 'The certificate served compared with this one: '
+                  '{0}'.replace('{0}', want), 'note': 'its fingerprint, the name %s among its '
+                  'names, the chain sent with it, how long it runs%s' % (
+                      cfg.get('check_name') or sni, '; it must be trusted here' if str(
+                          cfg.get('require_trusted', '')).lower() in ('1', 'true', 'on', 'yes')
+                      else '')})
+    return steps
+
+
+def checks_phase(store, cert, names):
+    """The tests attached to the certificate: one group each (a connector: the tests it
+    carries, from its server), as the deployments are."""
+    ph = {'key': 'checks', 'title': 'Tests', 'groups': []}
+    rows = store.db.rows('SELECT * FROM cert_checks WHERE cert_id = ? ORDER BY position, id',
+                         (cert['id'],)) if cert.get('id') else []
+    if not rows:
+        ph['steps'] = [{'kind': 'info', 'words': 'No test is attached: what the servers serve '
+                        'is not looked at (the certificate → Tests → Attach a test)'}]
+        return ph
+    after = bool(E.CONFIG.get('certs_checks_after_deploy', 1))
+    auto = bool(E.CONFIG.get('certs_checks_auto'))
+    for r in rows:
+        trow = S.plugin_row(store, 'check', r['test'])
+        cls = S.row_class('check', trow) if trow else None
+        g = {'title': r['test'], 'enabled': bool(r.get('enabled', 1)) and
+             str(r.get('enabled')) not in ('0', 'False')}
+        if not trow or not cls:
+            g['steps'] = [{'kind': 'stop', 'words': 'There is no such test (or its module is '
+                           'missing)'}]
+            ph['groups'].append(g)
+            continue
+        cfg = S.plugin_config('check', trow)
+        g['module'] = {'name': trow['name'], 'kind': trow['kind'],
+                       'title': cls.title or cls.kind}
+        g['facts'] = facts_of(cls, cfg)
+        if not trow.get('enabled', 1):
+            g['off'] = True
+        steps = []
+        if getattr(cls, 'composite', False):
+            g['host'] = '%s@%s:%s' % (cfg.get('user') or 'root', cfg.get('host') or '?',
+                                      cfg.get('port') or 22)
+            steps.append({'kind': 'connect', 'words': 'Signs in over SSH to {0}'.replace(
+                '{0}', g['host']), 'note': 'with its key or password, as a Linux / Unix (SSH) '
+                'target does - nothing is installed there'})
+            for mname in cfg.get('tests') or []:
+                mrow = S.plugin_row(store, 'check', mname)
+                mcls = S.row_class('check', mrow) if mrow else None
+                steps.append({'kind': 'head', 'words': mname})
+                if not mcls:
+                    steps.append({'kind': 'stop', 'words': 'There is no test %s' % mname})
+                    continue
+                steps += _test_steps(mcls, S.plugin_config('check', mrow), names,
+                                     via=str(cfg.get('host') or '?'))
+        else:
+            mcfg = cfg
+            first = next((n for n in names or [] if not str(n).startswith('*.')), '')
+            g['host'] = '%s:%s' % (cfg.get('host') or first or '?',
+                                   cfg.get('port') or cls.default_port)
+            steps += _test_steps(cls, mcfg, names)
+        steps.append({'kind': 'wait', 'words': 'When: after the deployments%s' % (
+            ', and by themselves every %s min' % E.CONFIG.get('certs_checks_every_min')
+            if auto else '') if after else ('by themselves every %s min' % E.CONFIG.get(
+                'certs_checks_every_min') if auto else 'only when asked'),
+            'note': 'a test that starts failing is an event and a notice (Settings → '
+            'Renewal and notices)' if E.CONFIG.get('certs_checks_alert', 1) else
+            'no notice is sent when it fails'})
+        if r.get('last_at'):
+            steps.append({'kind': 'info', 'words': 'Last time: {0}'.replace(
+                '{0}', str(r.get('last_said') or r.get('last_state') or '?'))})
+        g['steps'] = steps
+        ph['groups'].append(g)
+    return ph
 
 
 def after_phase(store, cert, irow, dinfo):

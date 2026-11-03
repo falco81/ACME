@@ -116,13 +116,8 @@ class Base(unittest.TestCase):
                                             'state': 'ok', 'version': 0})
         S.save_version(STORE, cls.cid, cls.v1[0], [cls.root], cls.v1[1], 'issue', 'test')
         S.save_version(STORE, cls.cid, cls.v2[0], [cls.root], cls.v2[1], 'renew', 'test')
-        cls.tname = 'web-' + cls.__name__.lower()
-        cls.tid = A.family_save(STORE, 'target', {'name': cls.tname, 'kind': 'ssh', 'config': {
-            'host': '127.0.0.1', 'user': 'root', 'auth': 'password', 'password': 'x'}}, 'test')
-        cls.did = STORE.db.insert('cert_deploys', {'cert_id': cls.cid, 'target': cls.tname,
-                                                   'options': '{}', 'enabled': 1,
-                                                   'created': t})
         cls.srv = Served()
+        cls.n = 0
 
     @classmethod
     def tearDownClass(cls):
@@ -133,9 +128,18 @@ class Base(unittest.TestCase):
     def serve(self, which, chain=True):
         self.srv.cert = (which[0], which[1], [self.root] if chain else [])
 
+    def define(self, kind='https', **cfg):
+        type(self).n += 1
+        name = '%s-%s-%d' % (kind, type(self).__name__.lower(), self.n)
+        cfg.setdefault('host', '127.0.0.1')
+        A.family_save(STORE, 'check', {'name': name, 'kind': kind, 'config': cfg}, 'test')
+        return name
+
     def add(self, kind='https', **cfg):
+        """A test defined and attached to the certificate -> the attachment's id."""
         cfg.setdefault('port', self.srv.port)
-        return C.save(STORE, {'deploy_id': self.did, 'kind': kind, 'config': cfg}, 'test')
+        name = self.define(kind, **cfg)
+        return C.attach(STORE, self.cid, [name], 'test')[0]
 
     def run_it(self, ident):
         return C.run(STORE, ident)
@@ -208,6 +212,19 @@ class TestJudged(Base):
         self.assertIn('503', got['said'])
         self.srv.status = 200
 
+    def test_empty_address_is_the_first_name(self):
+        cls = __import__('acmelib.plugins.checks._tls', fromlist=['x'])
+        i = self.add(host='')
+        seen = []
+        orig = cls.connect
+        cls.connect = lambda h, p, t: seen.append(h) or orig('127.0.0.1', p, t)
+        try:
+            self.serve(self.v2)
+            self.assertEqual(self.run_it(i)['state'], 'ok')
+        finally:
+            cls.connect = orig
+        self.assertEqual(seen[0], 'www.example.test')
+
     def test_connect_to_an_ip_sni_given(self):
         i = self.add(host='127.0.0.1', sni='www.example.test', family='4')
         self.serve(self.v2)
@@ -252,7 +269,7 @@ class TestRuns(Base):
         self.assertEqual(n2 - n1, 1, 'working again is said')
 
     def test_after_deploy_and_by_itself(self):
-        STORE.db.run('DELETE FROM cert_checks')
+        STORE.db.run('DELETE FROM cert_checks WHERE cert_id = ?', (self.cid,))
         i = self.add()
         self.serve(self.v2)
         C.AFTER_DEPLOY_TRIES, old = (0, 0), C.AFTER_DEPLOY_TRIES
@@ -267,7 +284,7 @@ class TestRuns(Base):
                 pass
         try:
             job = Job()
-            self.assertTrue(C.after_deploy(STORE, job, self.did))
+            self.assertTrue(C.after_deploy(STORE, job, self.cid))
             self.assertTrue(any('current certificate' in w for _l, w in job.steps))
         finally:
             C.AFTER_DEPLOY_TRIES = old
@@ -275,9 +292,9 @@ class TestRuns(Base):
         self.assertEqual(C.due(STORE), [])
         EN.CONFIG['certs_checks_auto'] = 1
         EN.CONFIG['certs_checks_every_min'] = 5
-        self.assertEqual(C.due(STORE), [], 'just run')
+        self.assertNotIn(i, [r['id'] for r in C.due(STORE)], 'just run')
         STORE.db.run('UPDATE cert_checks SET last_at = ? WHERE id = ?', (time.time() - 600, i))
-        self.assertEqual([r['id'] for r in C.due(STORE)], [i])
+        self.assertIn(i, [r['id'] for r in C.due(STORE)])
         EN.CONFIG['certs_checks_auto'] = 0
 
 
@@ -297,44 +314,45 @@ class FakeSession(object):
 
 
 class TestRelay(Base):
-    def test_a_set_run_through_ssh(self):
+    def test_a_connector_runs_its_tests_through_ssh(self):
         fake = FakeSession()
-
-        class Relay(object):
-            def ssh(self):
-                return fake
-        orig = S.plugin_instance
-        S.plugin_instance = lambda store, fam, row, ctx, over=None: Relay() \
-            if fam == 'target' and row['name'] == self.tname else orig(store, fam, row, ctx, over)
+        cls = S.plugin_class('check', 'ssh_relay')
+        orig = cls.ssh
+        cls.ssh = lambda self_: fake
         try:
             self.serve(self.v2)
-            i = C.save(STORE, {'deploy_id': self.did, 'kind': 'ssh_relay', 'config': {
-                'relay': self.tname, 'checks': [
-                    'https 10.9.9.9:%d www.example.test' % self.srv.port,
-                    'tls internal.example.test:%d www.example.test expect=any tls_max=TLSv1_2'
-                    % self.srv.port,
-                    'https 10.9.9.9:%d www.example.test nonsense=1' % self.srv.port]}}, 'test')
+            m1 = self.define('https', host='10.9.9.9', port=self.srv.port,
+                             sni='www.example.test')
+            m2 = self.define('tls', host='internal.example.test', port=self.srv.port,
+                             sni='www.example.test', expect='any', tls_max='TLSv1_2')
+            relay = self.define('ssh_relay', host='jump.example.test', user='acme',
+                                auth='password', password='pw', tests=[m1, m2, 'gone'])
+            i = C.attach(STORE, self.cid, [relay], 'test')[0]
             got = self.run_it(i)
             subs = got['detail']['subs']
-            self.assertEqual([s['state'] for s in subs], ['ok', 'ok', 'unreachable'])
-            self.assertIn('has no setting nonsense', subs[2]['said'])
+            self.assertEqual([x['state'] for x in subs], ['ok', 'ok', 'unreachable'])
+            self.assertIn('there is no test gone', subs[2]['said'])
             self.assertEqual(fake.tunnels[0], ('10.9.9.9', self.srv.port))
             self.assertEqual(subs[1]['tls'], 'TLSv1.2')
             self.assertFalse(got['ok'])
-            self.assertIn('1 of 3 from %s failed' % self.tname, got['said'])
+            self.assertIn('1 of 3 from jump.example.test failed', got['said'])
+            row = S.plugin_row(STORE, 'check', relay)
+            self.assertNotIn('"pw"', row['config'], 'its password sealed')
         finally:
-            S.plugin_instance = orig
+            cls.ssh = orig
 
-    def test_bad_lines_said(self):
-        from acmelib.plugins.base import PluginError
-        cls = S.plugin_class('check', 'ssh_relay')
-        with self.assertRaises(PluginError):
-            cls({'relay': 'x', 'checks': ['https']}, None).plan()
-        with self.assertRaises(PluginError):
-            cls({'relay': 'x', 'checks': ['ssh_relay a.example']}, None).plan()
-        p = cls({'checks': ['https [::1]:8443 www.x path=/a http=1']}, None).plan()[0]
-        self.assertEqual((p['host'], p['port'], p['sni'], p['options']),
-                         ('::1', 8443, 'www.x', {'path': '/a', 'http': '1'}))
+    def test_used_by_and_renamed(self):
+        m = self.define('https', port=443)
+        relay = self.define('ssh_relay', host='j', user='u', auth='password', password='p',
+                            tests=[m])
+        pub = S.plugin_public(STORE, 'check', S.plugin_row(STORE, 'check', m))
+        self.assertEqual(pub['used_by'], 1, 'in the connector')
+        rid = S.plugin_row(STORE, 'check', m)['id']
+        A.family_save(STORE, 'check', {'id': rid, 'name': m + '-new'}, 'test')
+        cfg = S.jload(S.plugin_row(STORE, 'check', relay)['config'], {})
+        self.assertEqual(cfg['tests'], [m + '-new'])
+        with self.assertRaises(ValueError):
+            A.family_delete(STORE, 'check', {'id': rid}, 'test')
 
 
 class FakeH(object):
@@ -355,38 +373,35 @@ class TestApi(Base):
     def call(self, m, path, body=None, args=None, role='fulladmin'):
         return E.ROUTES[(m, path)](FakeH(role, body, args))
 
-    def test_save_list_try_run_delete(self):
+    def test_define_attach_list_try_run_detach(self):
         self.serve(self.v2)
-        got = self.call('POST', '/api/checks/save', {'deploy_id': self.did, 'kind': 'https',
-                                                     'config': {'port': self.srv.port}},
+        self.call('POST', '/api/tests/save', {'name': 'api-https', 'kind': 'https', 'config': {
+            'host': '127.0.0.1', 'port': self.srv.port}})
+        lst = self.call('GET', '/api/tests')
+        self.assertIn('api-https', [r['name'] for r in lst['rows']])
+        got = self.call('POST', '/api/checks/attach', {'cert_id': self.cid, 'tests': ['api-https']},
                         role='certadmin')
-        cid = got['id']
-        lst = self.call('GET', '/api/checks', args={'target': self.tname})
-        self.assertIn(cid, [c['id'] for c in lst['checks']])
-        self.assertEqual(lst['host'], '127.0.0.1')
-        self.assertIn('https', [m['kind'] for m in lst['modules']])
-        self.assertEqual(lst['deploys'][0]['cert'], 'www-testapi')
-        tried = self.call('POST', '/api/checks/try', {'deploy_id': self.did, 'kind': 'https',
-                                                      'config': {'port': self.srv.port}})
+        cid = got['ids'][0]
+        att = self.call('GET', '/api/checks', args={'cert_id': str(self.cid)})
+        self.assertIn('api-https', [c['test'] for c in att['checks']])
+        tried = self.call('POST', '/api/checks/try', {'cert_id': self.cid, 'kind': 'https',
+                                                      'config': {'host': '127.0.0.1',
+                                                                 'port': self.srv.port}})
         self.assertEqual(tried['result']['state'], 'ok')
         ran = self.call('POST', '/api/checks/run', {'id': cid})
         self.assertEqual(ran['check']['last_state'], 'ok')
-        with self.assertRaises((EN.ApiError, ValueError)):
-            self.call('POST', '/api/checks/save', {'deploy_id': self.did, 'kind': 'nope',
-                                                   'config': {}})
-        with self.assertRaises((EN.ApiError, ValueError)):
-            self.call('POST', '/api/checks/save', {'deploy_id': 999999, 'kind': 'https',
-                                                   'config': {}})
-        with self.assertRaises((EN.ApiError, ValueError)):
-            self.call('POST', '/api/checks/save', {'deploy_id': self.did, 'kind': 'https',
-                                                   'config': {'port': 70000}})
-        self.call('POST', '/api/checks/delete', {'id': cid})
-        self.assertNotIn(cid, [c['id'] for c in self.call(
-            'GET', '/api/checks', args={'target': self.tname})['checks']])
+        tested = self.call('POST', '/api/tests/test', {'name': 'api-https', 'id': S.plugin_row(
+            STORE, 'check', 'api-https')['id']})
+        self.assertIn('serves www.example.test', tested.get('said') or str(tested))
+        with self.assertRaises((EN.ApiError, LookupError, ValueError)):
+            self.call('POST', '/api/checks/attach', {'cert_id': self.cid, 'tests': ['nope']})
+        self.call('POST', '/api/checks/detach', {'id': cid})
+        self.assertNotIn('api-https', [c['test'] for c in self.call(
+            'GET', '/api/checks', args={'cert_id': str(self.cid)})['checks']])
 
-    def test_a_read_only_account_may_not_change(self):
+    def test_a_read_only_account_may_not_attach(self):
         with self.assertRaises(EN.ApiError):
-            self.call('POST', '/api/checks/save', {'deploy_id': self.did, 'kind': 'https'},
+            self.call('POST', '/api/checks/attach', {'cert_id': self.cid, 'tests': ['x']},
                       role='readonly')
 
 
