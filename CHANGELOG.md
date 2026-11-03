@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.33 - not released
 
+- A module's tags (own, uploaded, override, version, marks) look one way
+  everywhere - the same height, corners and letters, apart by a gap - and in the
+  "Add a …" tiles they sit in a row of their own at the bottom left.
+
 - Import of a PEM with its key locked: the password is asked for above what was
   read (it said "no private key in the file", and asked nothing); typed in the
   file's password box, the file is read again; the key's password works for a

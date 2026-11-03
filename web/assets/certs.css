@@ -978,3 +978,17 @@ body.app-shell #pane-modules #md-list .scroll.lt-held{max-height:none;flex:1 1 a
 .md-way-names{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:0}
 .md-way-names > p{grid-column:1/-1;margin:0}
 .ct-foundhost > .ct-askpass + .ct-found{margin-top:12px}
+/* A module's tags (1.0.33): one look - the same height, corners and letters -
+   in a row of their own with a gap, wherever they are shown */
+.md-tags{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;vertical-align:middle}
+.md-tags .tag,.tag.md-origin,.tag.md-ver,.tag.md-mark{display:inline-flex;align-items:center;gap:4px;height:18px;box-sizing:border-box;
+  padding:0 6px;border-radius:5px;font-size:10px;line-height:1;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin:0;white-space:nowrap}
+.tag.md-ver{text-transform:none;letter-spacing:0;font-family:var(--mono,ui-monospace,monospace);font-weight:600}
+.md-tags .tag svg{width:11px;height:11px}
+.ct-kind-tile{align-items:stretch}
+.ct-kind-tile > .ct-kind-ic{align-self:flex-start}
+.ct-kind-w{flex:1 1 auto}
+.ct-kind-tags{margin-top:auto;padding-top:6px}
+.md-vrow-t{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.md-vrow-t > .md-tags{margin-left:2px}
+.plug-head .md-tags,.ct-plughead .md-tags{margin-left:4px}

@@ -1110,11 +1110,18 @@ function kindPicker(family, go, filter) {
         w.appendChild(desc);
         if (String(p.description).length > 130) explain(t, p.description);
       }
+      /* its vendor and kind, then its tags in a row of their own, at the bottom left
+         of the tile, whatever the length of the words above (1.0.33) */
       var foot = el('span', 'ct-kind-foot');
       if (flat && p.vendor) foot.appendChild(data('span', 'ct-kind-v', p.vendor));
       foot.appendChild(mono(p.kind, 'ct-kind-k'));
-      tagsInto(foot, modTags(family, p, null, {count: true}));
       w.appendChild(foot);
+      var tl = modTags(family, p, null, {count: true});
+      if (tl.length) {
+        var tg = el('span', 'ct-kind-tags md-tags');
+        tl.forEach(function (x) { tg.appendChild(x); });
+        w.appendChild(tg);
+      }
       t.appendChild(w);
       t.onclick = function () { go(p); };
       t._words = ((p.title || '') + ' ' + p.kind + ' ' + v + ' ' + (p.description || '')).toLowerCase();
@@ -7586,7 +7593,10 @@ function modTags(family, p, row, opts) {
   return out.filter(Boolean);
 }
 function tagsInto(node, list) {
-  list.forEach(function (t) { node.appendChild(document.createTextNode(' ')); node.appendChild(t); });
+  if (!list.length) return node;
+  var box = el('span', 'md-tags');
+  list.forEach(function (t) { box.appendChild(t); });
+  node.appendChild(box);
   return node;
 }
 /** The version picker of a module's form: shown when it has more than one. */
