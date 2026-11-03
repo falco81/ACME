@@ -47423,6 +47423,358 @@
   "sres0205": {
    "source": "Download by certificate ID",
    "text": "Stažení podle ID certifikátu"
+  },
+  "svd2_001": {
+   "source": "Cisco Secure Firewall Threat Defense (FDM)",
+   "text": "Cisco Secure Firewall Threat Defense (FDM)"
+  },
+  "svd2_002": {
+   "source": "Uploads the certificate to an FTD managed by its Device Manager as a new internal certificate, switches the management web interface (and RA VPN) to it, deploys the change and deletes the older one.",
+   "text": "Nahraje certifikát do FTD spravovaného přes Device Manager jako nový interní certifikát, přepne na něj webové rozhraní správy (a RA VPN), nasadí změnu a smaže ten starší."
+  },
+  "svd2_003": {
+   "source": "the admin account of the device (FDM takes the API only from it)",
+   "text": "účet admin zařízení (FDM přijímá API jen od něj)"
+  },
+  "svd2_004": {
+   "source": "The management web interface",
+   "text": "Webové rozhraní správy"
+  },
+  "svd2_005": {
+   "source": "FDM's own HTTPS (web interface and API) uses the certificate",
+   "text": "certifikát používá vlastní HTTPS FDM (webové rozhraní a API)"
+  },
+  "svd2_006": {
+   "source": "Remote access VPN",
+   "text": "VPN pro vzdálený přístup"
+  },
+  "svd2_007": {
+   "source": "the server certificate of the RA VPN gateway settings",
+   "text": "serverový certifikát v nastavení brány RA VPN"
+  },
+  "svd2_008": {
+   "source": "Deploy the change",
+   "text": "Nasadit změnu"
+  },
+  "svd2_009": {
+   "source": "nothing is active on the device before a deployment",
+   "text": "před nasazením na zařízení nic neplatí"
+  },
+  "svd2_010": {
+   "source": "Wait for the deployment (s)",
+   "text": "Čekat na nasazení (s)"
+  },
+  "svd2_011": {
+   "source": "Cisco Secure Firewall ASA (HTTP interface)",
+   "text": "Cisco Secure Firewall ASA (HTTP rozhraní)"
+  },
+  "svd2_012": {
+   "source": "Imports the certificate into the ASA as PKCS#12 in a new trustpoint through its HTTP Interface for Automation, points ssl trust-point at it, removes the older one and saves the configuration.",
+   "text": "Importuje certifikát do ASA jako PKCS#12 do nového trustpointu přes HTTP Interface for Automation, nasměruje na něj ssl trust-point, odebere ten starší a uloží konfiguraci."
+  },
+  "svd2_013": {
+   "source": "a privilege 15 user (aaa authentication http console LOCAL)",
+   "text": "uživatel s privilege 15 (aaa authentication http console LOCAL)"
+  },
+  "svd2_014": {
+   "source": "User-Agent",
+   "text": "User-Agent"
+  },
+  "svd2_015": {
+   "source": "the ASA takes basic authentication only from allowed User-Agent strings (http server basic-auth-client); ASDM is allowed by default",
+   "text": "ASA přijímá základní ověření jen od povolených řetězců User-Agent (http server basic-auth-client); ASDM je povolený ve výchozím stavu"
+  },
+  "svd2_016": {
+   "source": "ssl trust-point",
+   "text": "ssl trust-point"
+  },
+  "svd2_017": {
+   "source": "one a line: an interface name (nameif), \"outside vpnlb-ip\", \"domain vpn.example.com\", or \"-\" for the fallback of every interface; empty: only where an older acme trustpoint of this certificate is named",
+   "text": "jeden na řádek: název rozhraní (nameif), „outside vpnlb-ip“, „domain vpn.example.com“ nebo „-“ pro výchozí trustpoint všech rozhraní; prázdné: jen tam, kde je uveden starší trustpoint acme tohoto certifikátu"
+  },
+  "svd2_018": {
+   "source": "3DES (older ASA)",
+   "text": "3DES (starší ASA)"
+  },
+  "svd2_019": {
+   "source": "Save the configuration (write memory)",
+   "text": "Uložit konfiguraci (write memory)"
+  },
+  "svd2_020": {
+   "source": "Juniper SRX (Junos REST API)",
+   "text": "Juniper SRX (Junos REST API)"
+  },
+  "svd2_021": {
+   "source": "Loads the certificate into the Junos PKI of an SRX under a new id through the REST API, switches web management, SSL profiles or IKE policies to it in one commit and removes the older one.",
+   "text": "Nahraje certifikát přes REST API do Junos PKI zařízení SRX pod novým id, jedním commitem na něj přepne webovou správu, SSL profily nebo IKE politiky a odebere ten starší."
+  },
+  "svd2_022": {
+   "source": "a login class with maintenance, security and configure rights",
+   "text": "přihlašovací třída s právy maintenance, security a configure"
+  },
+  "svd2_023": {
+   "source": "J-Web / web management (HTTPS)",
+   "text": "J-Web / webová správa (HTTPS)"
+  },
+  "svd2_024": {
+   "source": "set system services web-management https pki-local-certificate",
+   "text": "set system services web-management https pki-local-certificate"
+  },
+  "svd2_025": {
+   "source": "The REST API itself",
+   "text": "Samotné REST API"
+  },
+  "svd2_026": {
+   "source": "set system services rest https server-certificate - the API acme speaks to",
+   "text": "set system services rest https server-certificate – API, se kterým acme mluví"
+  },
+  "svd2_027": {
+   "source": "SSL termination profiles",
+   "text": "Profily SSL termination"
+  },
+  "svd2_028": {
+   "source": "one a line: services ssl termination profile <name> server-certificate",
+   "text": "jeden na řádek: services ssl termination profile <jméno> server-certificate"
+  },
+  "svd2_029": {
+   "source": "SSL proxy profiles",
+   "text": "Profily SSL proxy"
+  },
+  "svd2_030": {
+   "source": "one a line: services ssl proxy profile <name> server-certificate",
+   "text": "jeden na řádek: services ssl proxy profile <jméno> server-certificate"
+  },
+  "svd2_031": {
+   "source": "IKE policies",
+   "text": "IKE politiky"
+  },
+  "svd2_032": {
+   "source": "one a line: security ike policy <name> certificate local-certificate (the older acme id is deleted from it)",
+   "text": "jedna na řádek: security ike policy <jméno> certificate local-certificate (starší id acme se z ní smaže)"
+  },
+  "svd2_033": {
+   "source": "The certificate file holds",
+   "text": "Soubor certifikátu obsahuje"
+  },
+  "svd2_034": {
+   "source": "the certificate and its chain",
+   "text": "certifikát a jeho řetězec"
+  },
+  "svd2_035": {
+   "source": "only the certificate",
+   "text": "jen certifikát"
+  },
+  "svd2_036": {
+   "source": "Azure Application Gateway",
+   "text": "Azure Application Gateway"
+  },
+  "svd2_037": {
+   "source": "Puts the certificate on an Azure Application Gateway (a PKCS#12 upload or a Key Vault secret), switches its HTTPS listeners to it and takes the older one out.",
+   "text": "Dá certifikát na Azure Application Gateway (nahráním PKCS#12 nebo jako tajemství v Key Vault), přepne na něj její HTTPS listenery a ten starší odebere."
+  },
+  "svd2_038": {
+   "source": "the resource group of the application gateways",
+   "text": "skupina prostředků aplikačních bran"
+  },
+  "svd2_039": {
+   "source": "An app registration with the role \"Network Contributor\" on the gateway (and, with Key Vault, Managed Identity Operator on its identity).",
+   "text": "Registrace aplikace s rolí „Network Contributor“ na bráně (a při Key Vault Managed Identity Operator na její identitě)."
+  },
+  "svd2_040": {
+   "source": "Application gateway",
+   "text": "Aplikační brána"
+  },
+  "svd2_041": {
+   "source": "the name of the application gateway",
+   "text": "název aplikační brány"
+  },
+  "svd2_042": {
+   "source": "Listener",
+   "text": "Listener"
+  },
+  "svd2_043": {
+   "source": "an HTTPS (or TLS) listener of the gateway to use the certificate; picked from the list or typed",
+   "text": "HTTPS (nebo TLS) listener brány, který má certifikát používat; vybraný ze seznamu nebo napsaný"
+  },
+  "svd2_044": {
+   "source": "More listeners",
+   "text": "Další listenery"
+  },
+  "svd2_045": {
+   "source": "one a line; with none given, the listeners that use an older acme certificate of this one are switched",
+   "text": "jeden na řádek; když není uveden žádný, přepnou se listenery, které používají starší certifikát acme tohoto certifikátu"
+  },
+  "svd2_046": {
+   "source": "The certificate goes",
+   "text": "Certifikát se dává"
+  },
+  "svd2_047": {
+   "source": "uploaded (PKCS#12 with its chain)",
+   "text": "nahráním (PKCS#12 s řetězcem)"
+  },
+  "svd2_048": {
+   "source": "from Key Vault (a secret without a version)",
+   "text": "z Key Vault (tajemství bez verze)"
+  },
+  "svd2_049": {
+   "source": "Key Vault secret ID",
+   "text": "ID tajemství v Key Vault"
+  },
+  "svd2_050": {
+   "source": "without a version: the gateway takes each new version by itself",
+   "text": "bez verze: brána si každou novou verzi vezme sama"
+  },
+  "svd2_051": {
+   "source": "Name on the gateway",
+   "text": "Název na bráně"
+  },
+  "svd2_052": {
+   "source": "empty: a new dated name each time (acme-<name>-<date>-<serial>); set: that one certificate, its content replaced in place",
+   "text": "prázdné: pokaždé nový název s datem (acme-<jméno>-<datum>-<sériové číslo>); vyplněné: ten jeden certifikát, jeho obsah se vymění na místě"
+  },
+  "svd2_053": {
+   "source": "3DES",
+   "text": "3DES"
+  },
+  "svd2_054": {
+   "source": "Wait for the gateway (s)",
+   "text": "Čekat na bránu (s)"
+  },
+  "svd2_055": {
+   "source": "ISPConfig (Remote API)",
+   "text": "ISPConfig (Remote API)"
+  },
+  "svd2_056": {
+   "source": "Writes the certificate into the SSL settings of ISPConfig websites through the Remote API (ssl_action save); the server's cron puts it in place.",
+   "text": "Zapíše certifikát přes Remote API do nastavení SSL webů ISPConfig (ssl_action save); na místo ho dá cron serveru."
+  },
+  "svd2_057": {
+   "source": "Remote user",
+   "text": "Vzdálený uživatel"
+  },
+  "svd2_058": {
+   "source": "a remote user (System → Remote Users) with \"Sites Domain functions\"",
+   "text": "vzdálený uživatel (System → Remote Users) se skupinou „Sites Domain functions“"
+  },
+  "svd2_059": {
+   "source": "Website",
+   "text": "Web"
+  },
+  "svd2_060": {
+   "source": "the domain of the website (picked from the list or typed)",
+   "text": "doména webu (vybraná ze seznamu nebo napsaná)"
+  },
+  "svd2_061": {
+   "source": "More websites",
+   "text": "Další weby"
+  },
+  "svd2_062": {
+   "source": "one a line: their domains",
+   "text": "jeden na řádek: jejich domény"
+  },
+  "svd2_063": {
+   "source": "Client ID for the update",
+   "text": "ID klienta pro update"
+  },
+  "svd2_064": {
+   "source": "as in ISPConfig's example: 0",
+   "text": "jako v příkladu ISPConfigu: 0"
+  },
+  "svd2_065": {
+   "source": "HestiaCP (SSH)",
+   "text": "HestiaCP (SSH)"
+  },
+  "svd2_066": {
+   "source": "Installs the certificate on HestiaCP web domains over SSH with Hestia's own commands (v-add-web-domain-ssl / v-change-web-domain-sslcert).",
+   "text": "Nainstaluje certifikát na webové domény HestiaCP přes SSH vlastními příkazy Hestie (v-add-web-domain-ssl / v-change-web-domain-sslcert)."
+  },
+  "svd2_067": {
+   "source": "Hestia's commands",
+   "text": "Příkazy Hestie"
+  },
+  "svd2_068": {
+   "source": "Hestia user",
+   "text": "Uživatel Hestie"
+  },
+  "svd2_069": {
+   "source": "the user the web domains belong to",
+   "text": "uživatel, kterému webové domény patří"
+  },
+  "svd2_070": {
+   "source": "Web domains",
+   "text": "Webové domény"
+  },
+  "svd2_071": {
+   "source": "one a line: the web domains of that user",
+   "text": "jedna na řádek: webové domény toho uživatele"
+  },
+  "svd2_072": {
+   "source": "Restart the web server",
+   "text": "Restartovat webový server"
+  },
+  "svd2_073": {
+   "source": "Virtualmin (Remote API)",
+   "text": "Virtualmin (Remote API)"
+  },
+  "svd2_074": {
+   "source": "Installs the certificate into Virtualmin virtual servers through the Remote API (install-cert); Virtualmin updates the web server and other services.",
+   "text": "Nainstaluje certifikát do virtuálních serverů Virtualminu přes Remote API (install-cert); Virtualmin aktualizuje webový server i další služby."
+  },
+  "svd2_075": {
+   "source": "the master administrator of Webmin (the Remote API takes no other)",
+   "text": "hlavní administrátor Webminu (Remote API jiného nepřijme)"
+  },
+  "svd2_076": {
+   "source": "its domain name (picked from the list or typed)",
+   "text": "jeho doménové jméno (vybrané ze seznamu nebo napsané)"
+  },
+  "svd2_077": {
+   "source": "Turn SSL on where it is off",
+   "text": "Zapnout SSL, kde je vypnuté"
+  },
+  "svd2_078": {
+   "source": "enable-feature --ssl before installing, for a virtual server without SSL",
+   "text": "enable-feature --ssl před instalací, pro virtuální server bez SSL"
+  },
+  "svd2_079": {
+   "source": "froxlor (API)",
+   "text": "froxlor (API)"
+  },
+  "svd2_080": {
+   "source": "Sets the certificate of froxlor domains through its API (Certificates.add / update); froxlor's cron puts it in place.",
+   "text": "Nastaví certifikát doménám ve froxloru přes jeho API (Certificates.add / update); na místo ho dá cron froxloru."
+  },
+  "svd2_081": {
+   "source": "Panel address",
+   "text": "Adresa panelu"
+  },
+  "svd2_082": {
+   "source": "where froxlor is; api.php is called there",
+   "text": "kde froxlor běží; volá se tam api.php"
+  },
+  "svd2_083": {
+   "source": "Domains",
+   "text": "Domény"
+  },
+  "svd2_084": {
+   "source": "one a line: the froxlor domains (as named there) to get the certificate",
+   "text": "jedna na řádek: domény ve froxloru (jak se tam jmenují), které certifikát dostanou"
+  },
+  "svd2_085": {
+   "source": "Proxmox Backup Server (API)",
+   "text": "Proxmox Backup Server (API)"
+  },
+  "svd2_086": {
+   "source": "Uploads the certificate as the custom certificate of a Proxmox Backup Server through its API; PBS reloads its proxy by itself.",
+   "text": "Nahraje certifikát přes API jako vlastní certifikát Proxmox Backup Serveru; PBS si svou proxy znovu načte sám."
+  },
+  "svd2_087": {
+   "source": "a token with Sys.Modify on /system/certificates",
+   "text": "token s právem Sys.Modify na /system/certificates"
+  },
+  "svd2_088": {
+   "source": "the node name, or localhost",
+   "text": "název uzlu, nebo localhost"
   }
  },
  "patterns": {
