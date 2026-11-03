@@ -143,14 +143,21 @@ def _web_do(h):
         if not prof.get('cert'):
             raise ApiError(404, 'no certificate is kept for %s' % words)
         try:
-            blob, ending = tls_export(prof, kind, str(b.get('passphrase') or ''), bool(b.get('legacy')))
+            which = str(b.get('which') or 'main')
+            if which not in ('main', 'alt', 'both'):
+                raise ValueError('which: main, alt or both')
+            blob, ending = tls_export(prof, kind, str(b.get('passphrase') or ''), bool(b.get('legacy')),
+                                      which)
+            if which != 'main':
+                ending = ('.second' if which == 'alt' else '.both') + ending
         except ValueError as e:
             raise ApiError(400, str(e))
         name = (re.sub(r'[^A-Za-z0-9._-]', '_', (prof.get('info') or {}).get('cn') or '') or
                 ('web-address' if target == 'vip' else target)) + ending
         if TLS_EXPORT_KINDS[kind][2]:
-            store.add_event('settings', '%s downloaded the certificate of %s WITH ITS PRIVATE KEY (%s, '
-                            'locked with a passphrase)' % (who, words, TLS_EXPORT_KINDS[kind][0]),
+            store.add_event('settings', '%s downloaded the certificate%s of %s WITH ITS PRIVATE KEY (%s, '
+                            'locked with a passphrase)' % (who, {'alt': ' beside the main one', 'both': 's (both)'}.get(
+                                str(b.get('which') or ''), ''), words, TLS_EXPORT_KINDS[kind][0]),
                             'warn', who=who)
         else:
             store.add_event('settings', '%s downloaded the certificate of %s (%s)'

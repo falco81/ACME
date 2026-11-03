@@ -38,12 +38,27 @@ TLS_EXPORT_KINDS = {
 }
 
 
-def tls_export(prof, kind, passphrase='', legacy=False):
+def tls_export(prof, kind, passphrase='', legacy=False, which='main'):
     """One certificate as a file to download (1.0.191): (bytes, ending). A private
     key in it is always locked with the passphrase - given to openssl on its
-    stdin, never on a command line; its file only in a folder of 0700, gone after."""
+    stdin, never on a command line; its file only in a folder of 0700, gone after.
+    `which` (1.0.34): a dual one's main certificate, its second (alt: the ECDSA
+    one beside the RSA one), or both - PEM only, one after the other."""
     if kind not in TLS_EXPORT_KINDS:
         raise ValueError('pem, fullchain, der, p7b, pfx or pemkey')
+    which = str(which or 'main')
+    if which in ('alt', 'both'):
+        alt = (prof or {}).get('alt') or {}
+        if not alt.get('cert'):
+            raise ValueError('there is no second certificate beside it')
+        second = dict(prof, cert=alt['cert'], chain=alt.get('chain') or '', key=alt.get('key') or '')
+        if which == 'alt':
+            return tls_export(second, kind, passphrase, legacy)
+        if kind not in ('pem', 'fullchain', 'pemkey'):
+            raise ValueError('both certificates go into a PEM file only (one after the other)')
+        a, ending = tls_export(prof, kind, passphrase, legacy)
+        b2, _e = tls_export(second, kind, passphrase, legacy)
+        return a + b2, ending
     cert = str(prof.get('cert') or '').strip()
     if not cert:
         raise ValueError('no certificate is kept for it')

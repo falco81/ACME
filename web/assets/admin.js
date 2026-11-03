@@ -4353,13 +4353,38 @@ var CERT_FORMATS = [
 ];
 function certExport(target, prof) {
   var info = prof.info || {};
-  var st = {kind: 'pfx', legacy: false};
+  var st = {kind: 'pfx', legacy: false, which: 'main'};
+  /* A dual certificate (1.0.34): which of the two - each one alone, or both in
+     one PEM file. The download was the main one only, the second never with it. */
+  var alt = prof.alt && prof.alt.info ? prof.alt.info : null;
+  var BOTH_KINDS = {pem: 1, fullchain: 1, pemkey: 1};
   modal('Download the certificate of ' + webTargetWords(target), function (body) {
     if (info.subject) body.appendChild(el('p', 'muted small', info.subject + (info.not_after ? ' · until ' + stamp(info.not_after) : '')));
+    var whichRow = null;
+    if (alt) {
+      whichRow = el('div', 'seg cx-which');
+      [['main', (info.key || tr('the main one'))], ['alt', (alt.key || tr('the second one'))], ['both', tr('both (PEM)')]].forEach(function (x) {
+        var b = el('button', 'seg-b' + (x[0] === st.which ? ' on' : ''));
+        b.type = 'button';
+        b.dataset.which = x[0];
+        b.appendChild(noI18n(el('span', '', x[1])));
+        b.onclick = function () {
+          st.which = x[0];
+          if (st.which === 'both' && !BOTH_KINDS[st.kind]) st.kind = 'pemkey';
+          whichRow.querySelectorAll('.seg-b').forEach(function (c) { c.classList.toggle('on', c.dataset.which === st.which); });
+          draw();
+        };
+        whichRow.appendChild(b);
+      });
+      body.appendChild(formField('Which certificate', whichRow, 'It has two of the same names: ' + (info.key || '?') + ' and ' + (alt.key || '?') + ' beside it - each client is given the one it takes. Both: one PEM file holding the two, as acme imports it.'));
+    }
     var list = el('div', 'fmt-list');
     var keyBox = el('div', 'fmt-key');
     var draw = function () {
-      list.querySelectorAll('.fmt').forEach(function (b) { b.classList.toggle('on', b.dataset.kind === st.kind); b.setAttribute('aria-checked', b.dataset.kind === st.kind ? 'true' : 'false'); });
+      list.querySelectorAll('.fmt').forEach(function (b) {
+        b.classList.toggle('on', b.dataset.kind === st.kind); b.setAttribute('aria-checked', b.dataset.kind === st.kind ? 'true' : 'false');
+        b.disabled = st.which === 'both' && !BOTH_KINDS[b.dataset.kind];
+      });
       var f = CERT_FORMATS.filter(function (x) { return x[0] === st.kind; })[0];
       keyBox.hidden = !f[4];
       $('cx-legacy-row').hidden = st.kind !== 'pfx';
@@ -4399,7 +4424,7 @@ function certExport(target, prof) {
     {words: 'Cancel', close: true},
     {words: 'Download', cls: 'primary', icon: 'download', go: function (button) {
       var f = CERT_FORMATS.filter(function (x) { return x[0] === st.kind; })[0];
-      var req = {action: 'tls_export', target: target, kind: st.kind};
+      var req = {action: 'tls_export', target: target, kind: st.kind, which: st.which};
       if (f[4]) {
         var a = $('cx-p1').value, b2 = $('cx-p2').value;
         if (a.length < 10) { toast('a password of 10 characters at least', 'bad'); $('cx-p1').focus(); return; }

@@ -1005,3 +1005,6 @@ td.acc-role{white-space:nowrap}
 .md-vrow.md-orig{opacity:.85;border-style:dashed}
 .md-vrow.md-orig .md-vrow-t b{color:var(--tx-dim)}
 .md-replaced{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
+/* Download the certificate of the pages: which of a dual one (1.0.34) */
+.set-item > .seg.cx-which{align-self:flex-start}
+.fmt-list .fmt:disabled{opacity:.4;cursor:not-allowed}

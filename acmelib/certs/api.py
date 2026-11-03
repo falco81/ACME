@@ -882,6 +882,19 @@ def parse_file(data, filename, password):
             info = {'error': str(e)}
         info['leaf'] = bool(leaf) and pem.strip() == str(leaf).strip()
         out['certs'].append(info)
+    # the other half of a dual certificate in the same file (1.0.34): said, kept as the twin
+    if leaf:
+        try:
+            sec = _second_half(got, leaf, got.get('key'), S.info_of(leaf))
+        except Exception:                               # noqa: BLE001
+            sec = None
+        if sec:
+            for info in out['certs']:
+                if info.get('sha256') == sec[2].get('sha256'):
+                    info['twin'] = True
+            out['twin'] = _key_type_words(sec[2])
+            out['notes'] = [n for n in out['notes'] if 'could each be the certificate' not in n
+                            and 'not in the chain of the certificate' not in n]
     if leaf and got.get('key'):
         try:
             out['key_matches'] = bool(S.pki().key_matches(leaf, got['key']))
@@ -939,8 +952,27 @@ def cert_import(store, b, by):
         pass
     info = S.info_of(leaf)
     t = time.time()
+    # A dual certificate (1.0.34): the other half - the same names, the other key
+    # type - in the same file (a PEM holding both, with both keys) is kept as the
+    # twin; brought into a certificate that has the other half, it is its twin.
+    as_ = str(b.get('as') or 'auto').strip().lower()
+    if as_ not in ('auto', 'main', 'alt'):
+        raise ValueError('as: auto, main or alt (the twin)')
+    second = _second_half(got, leaf, key, info)
     if b.get('id') not in (None, '', 0):
         row = S.cert_need(store, _id(b.get('id')))
+        if as_ == 'auto':
+            as_ = 'alt' if _other_half_of(row, info) else 'main'
+        if as_ == 'alt':
+            if not key and row.get('alt_cert_pem'):
+                key = S.cert_key(row, 'alt')
+            if key and S.pki().key_matches(leaf, key) is False:
+                key = None
+            version = S.save_alt(store, row['id'], leaf, chain, key, 'import', by, info=info,
+                                 extra={'key_type_alt': _key_type_words(info)})
+            store.add_event('certificates', 'certificate %s: its twin (%s) imported by %s (version %d%s)' % (
+                row['name'], _key_type_words(info), by, version, '' if key else ', without its key'), who=by)
+            return row['id'], version
         if not key:
             key = S.cert_key(row)       # a new certificate for the key it has (a CSR's answer)
         cid = row['id']
@@ -963,7 +995,72 @@ def cert_import(store, b, by):
     version = S.save_version(store, cid, leaf, chain, key, 'import', by, info=info)
     store.add_event('certificates', 'certificate %s imported by %s (version %d%s)' % (
         S.cert_need(store, cid)['name'], by, version, '' if key else ', without its key'), who=by)
+    if second:
+        s_leaf, s_key, s_info = second
+        s_chain = [p for p in (got.get('certs') or []) if p.strip() not in (leaf.strip(), s_leaf.strip())
+                   and S.info_of(p).get('is_ca')]
+        try:
+            ordered = S.pki().order_chain(s_leaf, s_chain)
+            if isinstance(ordered, (list, tuple)) and ordered:
+                s_chain = [p for p in ordered if p.strip() != s_leaf.strip()]
+        except Exception:                               # noqa: BLE001
+            pass
+        v2 = S.save_alt(store, cid, s_leaf, s_chain, s_key, 'import', by, info=s_info,
+                        extra={'key_type_alt': _key_type_words(s_info)})
+        store.add_event('certificates', 'certificate %s: its twin (%s) imported with it by %s (version %d)' % (
+            S.cert_need(store, cid)['name'], _key_type_words(s_info), by, v2), who=by)
     return cid, version
+
+
+def _key_family(info):
+    w = str((info or {}).get('key_type') or '').strip().lower()
+    return 'ec' if w.startswith('ec') else ('rsa' if 'rsa' in w else w)
+
+
+def _key_type_words(info):
+    """rsa-4096, ec-384 - as a certificate's key type is said (key_type_alt)."""
+    fam = _key_family(info)
+    bits = (info or {}).get('key_bits')
+    return ('%s-%s' % (fam, bits)) if fam and bits else (fam or '')
+
+
+def _names_of(info):
+    return set(str(n).lower() for n in ((info or {}).get('names') or ([info['cn']] if (info or {}).get('cn') else [])))
+
+
+def _other_half_of(row, info):
+    """Is the certificate brought in the other half of this one - the same names, the
+    other key type - rather than its next version?"""
+    try:
+        main = S.info_of(row['cert_pem']) if row.get('cert_pem') else None
+    except Exception:                                   # noqa: BLE001
+        main = None
+    if not main:
+        return False
+    return _key_family(main) != _key_family(info) and _names_of(main) == _names_of(info)
+
+
+def _second_half(got, leaf, key, info):
+    """(cert, key, info) of the other half of a dual certificate in the same file:
+    an end entity of the same names and the other key type, with its own key."""
+    for pem in got.get('certs') or []:
+        if pem.strip() == leaf.strip():
+            continue
+        try:
+            i2 = S.info_of(pem)
+        except Exception:                               # noqa: BLE001
+            continue
+        if i2.get('is_ca') or _key_family(i2) == _key_family(info) or _names_of(i2) != _names_of(info):
+            continue
+        for k in got.get('keys') or []:
+            if k == key:
+                continue
+            try:
+                if S.pki().key_matches(pem, k):
+                    return pem, k, i2
+            except Exception:                           # noqa: BLE001
+                continue
+    return None
 
 
 @api('POST', '/api/certs/import', 'certadmin')

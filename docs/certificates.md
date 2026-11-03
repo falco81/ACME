@@ -296,6 +296,16 @@ source can give one), with `acme --cert-add NAME ... --key-type ec-256
 `key_type_alt` in `POST /api/certs/save` (`''` or `none`: no twin). The twin
 must be of another kind than the main key (ECDSA beside RSA).
 
+**Imported** (1.0.34): a file holding both halves - a PEM with the two
+certificates and the two keys - is imported as the certificate and its twin at
+once (the window says *its twin*). The other half brought in later - *Import a
+new one* in the certificate's window, `POST /api/certs/import` with `id` - is
+kept as its twin when it has the same names and the other key type (*Kept as*:
+*its twin*, guessed, or `"as": "alt"`); *its next version* (`"as": "main"`)
+replaces the main one instead. A PFX holds one key: export the two halves
+apart (Settings → Certificates and TLS → *Download* → *Which certificate*
+gives either, or both in one PEM) and import the second into the first.
+
 **Which sources** (`Issuer.dual`, shown as `dual` on each source):
 
 | Source | Twin |

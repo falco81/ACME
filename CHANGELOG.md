@@ -6,6 +6,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.34 - not released
 
+- Import of a dual certificate (RSA and ECDSA of the same names): a file
+  holding both halves with their keys is imported as the certificate and its
+  twin at once; the other half imported into a certificate later is kept as its
+  twin (the same names, the other key type - guessed, or *Kept as* in the
+  window, `"as": "alt"` on the API), not as its next version, which put the
+  first half away.
+- Settings → Certificates and TLS → *Download* of a dual certificate asks which:
+  the main one, the second one beside it, or both in one PEM - it gave the main
+  one only, so the second could not be had.
+
 - Tests: a server sending the other half of a dual certificate acme keeps only
   one half of (the same names, ECDSA where acme has the RSA one) is said as
   that - "serves the ECDSA twin of this certificate ... import it as its twin,

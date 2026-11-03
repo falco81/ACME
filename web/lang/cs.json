@@ -50595,6 +50595,50 @@
   "ck34_3": {
    "source": "A server with a dual certificate sends the one the client asks for. RSA or ECDSA: TLS 1.2 with ciphers of that key only (TLS 1.3 cannot ask for a key type here) - the server must still speak TLS 1.2.",
    "text": "Server s duálním certifikátem pošle ten, o který klient požádá. RSA nebo ECDSA: TLS 1.2 jen se šiframi daného klíče (v TLS 1.3 o typ klíče požádat odsud nejde) – server musí TLS 1.2 ještě umět."
+  },
+  "imp34_1": {
+   "source": "its twin",
+   "text": "jeho dvojče"
+  },
+  "imp34_2": {
+   "source": "The other half of a dual certificate - the same names, the other key type: kept beside it as its twin.",
+   "text": "Druhá polovina duálního certifikátu – stejná jména, jiný typ klíče: uloží se vedle jako jeho dvojče."
+  },
+  "imp34_3": {
+   "source": "dual: its twin too",
+   "text": "duální: i s dvojčetem"
+  },
+  "imp34_4": {
+   "source": "It has the other key type than this certificate (",
+   "text": "Má jiný typ klíče než tento certifikát ("
+  },
+  "imp34_5": {
+   "source": "): kept as its twin - the certificate itself stays.",
+   "text": "): uloží se jako jeho dvojče – certifikát sám zůstane."
+  },
+  "imp34_6": {
+   "source": "The same key type: it becomes the next version of this certificate.",
+   "text": "Stejný typ klíče: stane se další verzí tohoto certifikátu."
+  },
+  "imp34_7": {
+   "source": "its next version",
+   "text": "jeho další verze"
+  },
+  "imp34_8": {
+   "source": "its twin (the other key type)",
+   "text": "jeho dvojče (druhý typ klíče)"
+  },
+  "imp34_9": {
+   "source": "Kept as",
+   "text": "Uložit jako"
+  },
+  "imp34_10": {
+   "source": "the second one",
+   "text": "druhý"
+  },
+  "imp34_11": {
+   "source": "both (PEM)",
+   "text": "oba (PEM)"
   }
  },
  "patterns": {

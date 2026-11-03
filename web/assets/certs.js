@@ -5310,7 +5310,7 @@ var KEY_EXT = /\.(key)$/i;
 function importDialog(into) {
   into = into && into.id ? into : null;
   var held = {main: null, key: null, mainB64: '', keyB64: '', parsed: null};
-  var pass = null, keyPass = null, name = null, tags = null, note = null, found = null, drop = null, keyRow = null, ownerI = null;
+  var pass = null, keyPass = null, name = null, tags = null, note = null, found = null, drop = null, keyRow = null, ownerI = null, asBox = null, asSaid = null;
   var parse = function () {
     if (!held.main) return;
     clear(found);
@@ -5368,6 +5368,17 @@ function importDialog(into) {
     } else if (!hasKey && d.needs_password) sum.appendChild(el('span', 'tag warn', 'key locked'));
     else sum.appendChild(el('span', 'tag ' + (hasKey ? 'ok' : 'dim'), hasKey ? 'with its key' : 'no key'));
     if (d.key_matches === true) sum.appendChild(el('span', 'tag ok', 'the key fits'));
+    if (d.twin) sum.appendChild(el('span', 'tag info', tr('dual: its twin too') + ' (' + d.twin + ')'));
+    /* into a certificate (1.0.34): its next version, or its twin - said as guessed */
+    if (into && asBox) {
+      var lf = certs.filter(function (x) { return x.leaf; })[0] || certs[0] || {};
+      var fam = function (k) { k = String(k || '').toLowerCase(); return k.indexOf('ec') === 0 ? 'ec' : (k.indexOf('rsa') >= 0 ? 'rsa' : k); };
+      var guess = into.key_type && lf.key_type && fam(into.key_type) !== fam(lf.key_type) ? 'alt' : 'main';
+      if (!asBox._touched) asBox.value = guess;
+      asSaid.textContent = guess === 'alt'
+        ? tr('It has the other key type than this certificate (') + (lf.key_type || '?') + ' / ' + (into.key_type || '?') + tr('): kept as its twin - the certificate itself stays.')
+        : tr('The same key type: it becomes the next version of this certificate.');
+    }
     if (d.key_matches === false) sum.appendChild(el('span', 'tag crit', 'the key does not fit'));
     box.appendChild(sum);
     /* The certificate itself first, then the chain above it. */
@@ -5375,10 +5386,11 @@ function importDialog(into) {
     if (leafAt > 0) certs.unshift(certs.splice(leafAt, 1)[0]);
     certs.forEach(function (one, i) {
       var leaf = one.leaf || (leafAt < 0 && i === 0);
-      var r = el('div', 'ct-found-one' + (leaf ? ' leaf' : ''));
+      var r = el('div', 'ct-found-one' + (leaf || one.twin ? ' leaf' : ''));
       var t = el('div', 'ct-found-t');
       t.appendChild(data('b', '', first(one.cn, one.subject_dn, '?')));
       if (one.is_ca) t.appendChild(el('span', 'tag violet', one.self_signed ? 'root' : 'authority'));
+      else if (one.twin) t.appendChild(explain(el('span', 'tag info', 'its twin'), 'The other half of a dual certificate - the same names, the other key type: kept beside it as its twin.'));
       else if (leaf) t.appendChild(el('span', 'tag info', 'the certificate'));
       if (one.not_after) t.appendChild(daysTag(one.not_after));
       r.appendChild(t);
@@ -5459,6 +5471,14 @@ function importDialog(into) {
       g.appendChild(formField('Owner', ownerI, 'Who it belongs to (Settings → Owners and teams).'));
     }
     g.appendChild(formField('Password of the file', pass, 'For a PFX/P12 or JKS. It is asked for if needed.'));
+    if (into) {
+      asBox = selectBox([['main', tr('its next version')], ['alt', tr('its twin (the other key type)')]], 'main');
+      asBox.onchange = function () { asBox._touched = true; };
+      asSaid = el('span', '', '');
+      var af = formField('Kept as', asBox);
+      af.appendChild(el('div', 'says small muted')).appendChild(asSaid);
+      g.appendChild(af);
+    }
     if (!into) {
       var nf = formField('Note', note);
       nf.classList.add('wide');
@@ -5471,6 +5491,7 @@ function importDialog(into) {
     capi('certs/import', {id: into ? into.id : undefined, name: into ? undefined : (name.value.trim() || undefined), data_b64: held.mainB64, filename: held.main.name,
                           password: pass.value || undefined, key_b64: held.keyB64 || undefined, key_filename: held.key ? held.key.name : undefined,
                           key_password: keyPass.value || undefined, tags: splitNames(tags.value), note: note.value,
+                          as: into && asBox ? asBox.value : undefined,
                           owner: into ? undefined : ownerI.value}).then(function (d) {
       toast(said(d, 'imported'), 'good');
       closeModal();
