@@ -235,7 +235,7 @@
     wrap.appendChild(sel);
     var draw = function () {
       clear(chips);
-      if (!chosen.length) chips.appendChild(el('span', 'muted small', 'No tag.'));
+      if (!chosen.length) chips.appendChild(el('span', 'muted small', tr('No tag.')));
       chosen.forEach(function (n) {
         var c = el('span', 'tm-chip');
         c.appendChild(tagChip(n));

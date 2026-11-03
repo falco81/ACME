@@ -157,13 +157,17 @@ function nameProblem(v, required, taken) {
     keeps the popup's main button off meanwhile. `taken`: names already there. */
 function guardName(input, required, taken) {
   var said = el('div', 'ct-name-said small');
+  /* An empty box just opened is not yet a mistake (1.0.34): it is said red once
+     something was typed or the box was left - the main button is off meanwhile. */
+  var touched = !!String(input.value || '').trim();
   var paint = function () {
     var bad = nameProblem(input.value, required, taken);
-    said.textContent = bad;
-    said.hidden = !bad;
+    var show = bad && touched;
+    said.textContent = show ? bad : '';
+    said.hidden = !show;
     var item = input.closest ? input.closest('.set-item') : null;
-    if (item) item.classList.toggle('refused', !!bad);
-    input.setAttribute('aria-invalid', bad ? 'true' : 'false');
+    if (item) item.classList.toggle('refused', !!show);
+    input.setAttribute('aria-invalid', show ? 'true' : 'false');
     var foot = $('modal-foot');
     if (foot) Array.prototype.forEach.call(foot.querySelectorAll('button.primary'), function (b) {
       b.disabled = !!bad;
@@ -171,8 +175,9 @@ function guardName(input, required, taken) {
     });
     return bad;
   };
-  input.addEventListener('input', paint);
-  input._nameCheck = paint;
+  input.addEventListener('input', function () { touched = true; paint(); });
+  input.addEventListener('blur', function () { if (!touched) { touched = true; paint(); } });
+  input._nameCheck = function () { touched = true; return paint(); };
   setTimeout(function () {
     if (input.parentNode) input.parentNode.appendChild(said);
     paint();
@@ -2412,6 +2417,8 @@ function modForm(key, row, p, fromPick, keep) {
     if (row && row.id && MANAGE && m.family === 'challenge') body.appendChild(setupHere(row));
     if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { if (!x.closest('.ct-http')) x.disabled = true; });
   }, buttons, 'medium');
+  /* its words translated, its name as it is (1.0.34): "The test mail-smtp" stayed English */
+  if (row) nameInTitle(tr(m.one), row.name);
 }
 
 /* ---- a target and what is deployed on it --------------------------------- */

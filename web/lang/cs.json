@@ -69273,6 +69273,14 @@
   "pmd33_3": {
    "source": "A new version {0}.",
    "text": "Nová verze {0}."
+  },
+  "pck34_1": {
+   "source": "The test {0}",
+   "text": "Test {0}"
+  },
+  "pck34_2": {
+   "source": "The test {0}: take it away",
+   "text": "Test {0}: odebrat"
   }
  },
  "rich": {

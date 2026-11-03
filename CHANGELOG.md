@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.34 - not released
 
+- A name box just opened is not red yet ("it needs a name" said before anything
+  was typed - a new authority, say): said once something is typed or the box is
+  left; the main button is off meanwhile, as before.
+- A test's window is called "Test mail-smtp" in Czech (it stayed "The test
+  mail-smtp": a name with a hyphen in it). "No tag." in Czech in a form's tags.
+
 ## 1.0.33 - 2026-11-03
 
 - Settings → Accounts: an account's role is changed in its own column - beside
