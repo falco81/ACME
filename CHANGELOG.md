@@ -6,6 +6,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.28 - not released
 
+- **Nine more targets**, written from the vendors' own API documents
+  (docs/targets.md names the files and what stays less certain): Cisco FTD
+  managed by its Device Manager, Cisco ASA (HTTP Interface for Automation -
+  answers read for errors, as the ASA says 200 regardless), Juniper SRX (Junos
+  REST API, one commit), Azure Application Gateway (PKCS#12 or a Key Vault
+  secret without a version, listeners switched), ISPConfig, HestiaCP (its
+  documented commands over SSH), Virtualmin, froxlor and Proxmox Backup Server.
+  Not added, and why: Cisco Catalyst 9800, WatchGuard, SonicWall, Meraki,
+  pfSense's API.
+
 ## 1.0.27 - 2026-11-03
 
 - **New sources**, written only from the vendors' own API documentation
