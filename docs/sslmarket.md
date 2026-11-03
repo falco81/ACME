@@ -61,6 +61,19 @@ accounts). There is **no public sandbox**: *Another address* is for a test
 system SSLmarket gives you; otherwise test with *Try it*, the actions and a cheap
 DV product.
 
+## Filled in from the account
+
+With an account already there, **Find the settings from the account** (over
+the source's form; `acme --source-discover NAME`) asks only the API key and
+the shop. It reads - nothing is ordered - the products (*Product code*), the
+orders still running (*Order to reuse*, never picked by itself) and, from the
+detail of the last order, the owner, the contact, the invoice data and the DCV
+method; an account with no order gives the owner and contact of its
+organisation (`/acme/organization/list`). `sslmarket_acme` offers the ACME keys
+of the account (choosing one fills its product, validity and organisation), the
+products and the organisations. What the form has already is never replaced
+unless ticked; Save keeps it.
+
 ## Orders and reissues (`sslmarket`)
 
 ### What happens

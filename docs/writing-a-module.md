@@ -299,6 +299,36 @@ handed to `issue()` at every renewal as `req.ref`: renew *that* order (it wins
 over a setting like "Certificate to reuse"), and say in `Issued.info['ref']`
 the id actually used - a new order's - so acme keeps it for the next time.
 
+## Filled in from the account (discovery)
+
+*Find the settings from the account* (web/assets/discover.js, POST
+/api/<sources|validations|targets>/discover, `acme --source-discover`) asks
+only the sign-in and lets the module read the rest. `Plugin.discover_setup()`
+does it, read-only like `test()`:
+
+```python
+discover_keys = ['api', 'token']         # what the popup asks (None: the secrets,
+                                         # addresses and users, with what shows them)
+
+def discover_setup(self):
+    out = Plugin.discover_setup(self)    # the lists of its catalog fields (DNS: the zones)
+    prods = self._api_products()
+    self.offer(out, 'product', [[p['code'], p['title']] for p in prods])
+    out['sets']['contact_email'] = self._account()['email']    # offered ticked when empty
+    out['facts'].append(['Products', str(len(prods))])          # shown only
+    out['notes'].append('...')                                  # said in words
+    return out
+```
+
+Keys are the module's own fields, never secrets. A choice keeps the value set
+now picked; `pick=''` with an option `''` (said in words) where empty means
+something, and for anything that costs or binds (an order to reuse). Nothing
+is written, ordered or changed - only listing and reading calls the vendor
+documents. `discovery = False` takes the button away from a module that has
+nothing to find; it is offered by itself where `discover_setup()` is the
+module's own, where a field is of type `catalog`, or for a DNS module with a
+`zone` field and its own `zone_names()`.
+
 ## Trying it without a device
 
 `test/test_targets.py` has a fake `Context` (`FakeCtx`: canned answers per
