@@ -9,15 +9,21 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - What happens shows each HTTP request as it goes on the wire: the request line,
   every header in the order sent - the ones acme and Python add (Accept-Encoding,
   Content-Length, Host, Content-Type, User-Agent, Connection) dimmed - and the
-  body as sent; *Copy the whole request*. Secrets left out as before (a password,
-  a token, a header that signs in: ••••).
+  body as sent; *Copy the whole request*. Above it how it is connected: the
+  address and port, TLS, the name sent as SNI (none to an address), how the
+  device's certificate is checked (this machine's CAs, the CA set, or not at
+  all), a client certificate, the proxy, the time limit. Secrets left out as
+  before (a password, a token, a header that signs in: ••••). A module of your
+  own, never seen here, is shown the same: what it really sends, recorded.
 - What happens for a test: the connection (address, port, address family, from
   the address, time limit), what it says before TLS line by line (SMTP's EHLO and
   STARTTLS, IMAP, POP3, FTP, XMPP; the bytes of LDAP, PostgreSQL, MySQL, TDS and
   RDP's start), the ClientHello's settings (SNI, TLS versions, ciphers, ALPN, the
   key asked for - both: two connections), and an HTTPS test's request whole, its
-  headers too (Authorization, Cookie and API keys: ••••). A test's talk() is
-  held to what it really sends by test/test_checks_protocols.py.
+  headers too (Authorization, Cookie and API keys: ••••); what counts as right
+  (the version, the name it must hold, trust, the days before its end, the HTTP
+  status and words). A test's talk() is held to what it really sends by
+  test/test_checks_protocols.py; a test of your own without one is said so.
 
 ## 1.0.36 - 2026-11-03
 

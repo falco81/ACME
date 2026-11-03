@@ -50831,6 +50831,78 @@
   "rp37_14": {
    "source": "aRSA, then aECDSA",
    "text": "aRSA, pak aECDSA"
+  },
+  "rp37_15": {
+   "source": "Device certificate",
+   "text": "Certifikát zařízení"
+  },
+  "rp37_16": {
+   "source": "checked against the CA set in it",
+   "text": "ověřen proti CA nastavené v něm"
+  },
+  "rp37_17": {
+   "source": "checked against this machine's CAs",
+   "text": "ověřen proti autoritám tohoto stroje"
+  },
+  "rp37_18": {
+   "source": "no - plain HTTP",
+   "text": "ne – čisté HTTP"
+  },
+  "rp37_19": {
+   "source": "none - straight",
+   "text": "žádná – přímo"
+  },
+  "rp37_20": {
+   "source": "none (an address: no name is sent)",
+   "text": "žádné (adresa: jméno se neposílá)"
+  },
+  "rp37_21": {
+   "source": "this module does not say what it sends before TLS - a talk() of its own would (docs/writing-a-module.md)",
+   "text": "tento modul neříká, co posílá před TLS – řekla by to jeho vlastní talk() (docs/writing-a-module.md)"
+  },
+  "rp37_22": {
+   "source": "Counts as right",
+   "text": "Za správné se počítá"
+  },
+  "rp37_23": {
+   "source": "Compared by",
+   "text": "Porovnává se"
+  },
+  "rp37_24": {
+   "source": "the SHA-256 fingerprint of the certificate sent",
+   "text": "otisk SHA-256 poslaného certifikátu"
+  },
+  "rp37_25": {
+   "source": "Name it must hold",
+   "text": "Jméno, které musí obsahovat"
+  },
+  "rp37_26": {
+   "source": "must be - else it fails",
+   "text": "musí být – jinak selže"
+  },
+  "rp37_27": {
+   "source": "said, not a fault",
+   "text": "řekne se, není to chyba"
+  },
+  "rp37_28": {
+   "source": "Ends within",
+   "text": "Končí do"
+  },
+  "rp37_29": {
+   "source": "not looked at",
+   "text": "nesleduje se"
+  },
+  "rp37_30": {
+   "source": "an intermediate missing is a warning",
+   "text": "chybějící mezilehlý je varování"
+  },
+  "rp37_31": {
+   "source": "HTTP status",
+   "text": "Stav HTTP"
+  },
+  "rp37_32": {
+   "source": "any answer",
+   "text": "jakákoli odpověď"
   }
  },
  "patterns": {
@@ -69657,6 +69729,14 @@
   "pmd35_2": {
    "source": "the default version of {0} is {1}",
    "text": "výchozí verze {0} je {1}"
+  },
+  "prp37_1": {
+   "source": "{0} days: a warning",
+   "text": "{0} dní: varování"
+  },
+  "prp37_2": {
+   "source": "≈ {0} (with the real certificate and secrets: other)",
+   "text": "≈ {0} (se skutečným certifikátem a tajnými údaji jiná)"
   }
  },
  "rich": {

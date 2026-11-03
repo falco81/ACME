@@ -553,7 +553,7 @@ class PlanContext(object):
         st, hd, raw = self.answers(method, str(url))
         rec({'kind': 'http', 'method': method, 'url': str(url), 'headers': h, 'body': body,
              'verify': bool(verify), 'ca': bool(ca_pem), 'client_cert': bool(client_cert),
-             'proxy': bool(proxy), 'answer': st})
+             'proxy': bool(proxy), 'answer': st, 'timeout': timeout})
         return st, hd, raw
 
     def ssh(self, conn):

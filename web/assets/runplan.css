@@ -267,3 +267,18 @@
 }
 @media (max-width:720px){.rp-page .rp-val{display:inline-block;max-width:100%;word-break:break-all;white-space:normal}}
 @media (max-width:720px){.rp-code pre{overflow-wrap:anywhere;word-break:break-all;overflow-x:auto}}
+/* how a request is connected (1.0.37): a row of facts above it */
+.rp-conn{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
+.rp-conn-c{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;
+  background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);font-size:11.5px;white-space:nowrap}
+.rp-conn-k{color:var(--tx-mut);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:10px}
+.rp-conn-v{color:var(--tx)}
+.rp-conn-c.t-ok{box-shadow:inset 0 0 0 1px rgba(63,185,80,.45)}
+.rp-conn-c.t-ok .rp-conn-v{color:var(--ok,#3fb950)}
+.rp-conn-c.t-warn{box-shadow:inset 0 0 0 1px rgba(210,153,34,.55)}
+.rp-conn-c.t-warn .rp-conn-v{color:var(--warn,#d29922)}
+.rp-conn-c.t-info .rp-conn-v{color:var(--info)}
+.rp-conn-c.t-dim .rp-conn-v{color:var(--tx-dim)}
+/* the wire: auto headers dimmed */
+.rp-wire .rp-hdr.auto{opacity:.55}
+.rp-wire .rp-wire-line{color:var(--tx);font-weight:600}

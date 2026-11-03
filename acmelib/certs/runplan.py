@@ -261,6 +261,45 @@ LOGIN = re.compile(r'(/login|/logon|/signin|/sign-in|/auth\b|/authn|/token\b|/oa
 LOGOUT = re.compile(r'(logout|logoff|signout)', re.I)
 
 
+def _is_ip(h):
+    import ipaddress
+    try:
+        ipaddress.ip_address(str(h).strip('[]'))
+        return True
+    except ValueError:
+        return False
+
+
+def _conn_of(url, ev, proxy_on=False):
+    """How an HTTP request is connected, in facts (1.0.37): [[what, value, tone]] - the
+    address and port, TLS, the name sent as SNI, how the device's certificate is
+    checked, a client certificate, the proxy, the time limit."""
+    u = urllib.parse.urlsplit(str(url))
+    tls = u.scheme == 'https'
+    host = u.hostname or ''
+    port = u.port or (443 if tls else 80)
+    out = [['Address', host, ''], ['Port', str(port), '']]
+    if tls:
+        out.append(['TLS', 'yes', 'ok'])
+        out.append(['SNI', host if not _is_ip(host) else 'none (an address: no name is sent)',
+                    '' if not _is_ip(host) else 'dim'])
+        if not ev.get('verify', True):
+            out.append(['Device certificate', 'not checked', 'warn'])
+        elif ev.get('ca'):
+            out.append(['Device certificate', 'checked against the CA set in it', 'ok'])
+        else:
+            out.append(['Device certificate', 'checked against this machine\'s CAs', 'ok'])
+        out.append(['Client certificate', 'yes' if ev.get('client_cert') else 'none',
+                    'info' if ev.get('client_cert') else 'dim'])
+    else:
+        out.append(['TLS', 'no - plain HTTP', 'warn'])
+    out.append(['Proxy', 'Settings → Proxy' if (ev.get('proxy') and proxy_on) else 'none - straight',
+                'info' if (ev.get('proxy') and proxy_on) else 'dim'])
+    if ev.get('timeout'):
+        out.append(['Time limit', '%s s' % ev['timeout'], 'dim'])
+    return out
+
+
 def _cmd(argv):
     return ' '.join(shlex.quote(str(a)) for a in argv)
 
@@ -329,12 +368,17 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             st = {'kind': kind, 'words': words.replace('{0}', host),
                   'detail': {'method': m, 'url': url, 'headers': ev.get('headers') or {},
                              'body': ev.get('body')}}
+            st['detail']['conn'] = _conn_of(url, ev, proxy_on)
             # the request as it goes on the wire (1.0.37): every header, the ones acme
             # and Python add too, and the body as sent - secrets left out by scrub()
             try:
                 from acmelib.certs import runtime as _rt
                 st['detail']['wire'] = _rt.wire_request(m, url, ev.get('headers') or {},
                                                         ev.get('body'))
+                # recorded with stand-ins (the certificate, the secrets): the real length differs
+                for h in st['detail']['wire']['headers']:
+                    if h[0] == 'Content-Length':
+                        h[1] = '≈ %s (with the real certificate and secrets: other)' % h[1]
             except Exception:                           # noqa: BLE001
                 pass
             notes = []
@@ -1106,9 +1150,15 @@ def _test_steps(cls, cfg, names, via=None):
                 text.append('  ' + ' '.join(hx[i:i + 2] for i in range(0, len(hx), 2)))
             elif t.get('wait'):
                 text.append('← waits for ' + str(t['wait']))
-        steps.append({'kind': 'call', 'words': 'Speaks {0} first, then asks for TLS'.replace(
+        st = {'kind': 'call', 'words': 'Speaks {0} first, then asks for TLS'.replace(
             '{0}', cls.protocol or cls.kind), 'note': cls.description or '',
-            'detail': {'text': '\n'.join(text)} if text else None})
+            'detail': {'text': '\n'.join(text)} if text else None}
+        if not text:
+            # a module of your own that does not say it (1.0.37): said, not left blank
+            st['note'] = ('this module does not say what it sends before TLS - a talk() of '
+                          'its own would (docs/writing-a-module.md)')
+            st['kind'] = 'stop'
+        steps.append(st)
     want_key = str(cfg.get('key_want') or '').lower()
     tmax = str(cfg.get('tls_max') or '')
     ciphers = str(cfg.get('ciphers') or '')
@@ -1164,12 +1214,21 @@ def _test_steps(cls, cfg, names, via=None):
     want = {'current': 'the version deployed now (or its twin)', 'main': 'the main one only',
             'alt': 'the twin only', 'any': 'any version of it'}.get(
         str(cfg.get('expect') or 'current'), 'the version deployed now')
+    trusted = str(cfg.get('require_trusted', '')).lower() in ('1', 'true', 'on', 'yes')
+    days = int(E.CONFIG.get('certs_checks_warn_days') or 0)
+    judge = [['Counts as right', want, 'words'],
+             ['Compared by', 'the SHA-256 fingerprint of the certificate sent', 'words'],
+             ['Name it must hold', str(cfg.get('check_name') or '') or (sni if sni != '-' else host)],
+             ['Trusted here', 'must be - else it fails' if trusted else 'said, not a fault', 'words'],
+             ['Ends within', ('%d days: a warning' % days) if days else 'not looked at', 'words'],
+             ['The chain', 'an intermediate missing is a warning', 'words']]
+    if str(cfg.get('http', '')).lower() in ('1', 'true', 'yes', 'on'):
+        judge.append(['HTTP status', str(cfg.get('expect_status') or '') or 'any answer',
+                      None if cfg.get('expect_status') else 'words'])
+        if cfg.get('body_contains'):
+            judge.append(['The answer holds', str(cfg['body_contains'])])
     steps.append({'kind': 'check', 'words': 'The certificate served compared with this one: '
-                  '{0}'.replace('{0}', want), 'note': 'its fingerprint, the name %s among its '
-                  'names, the chain sent with it, how long it runs%s' % (
-                      cfg.get('check_name') or sni, '; it must be trusted here' if str(
-                          cfg.get('require_trusted', '')).lower() in ('1', 'true', 'on', 'yes')
-                      else '')})
+                  '{0}'.replace('{0}', want), 'detail': {'pairs': judge}})
     return steps
 
 

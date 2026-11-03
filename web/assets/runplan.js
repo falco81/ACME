@@ -128,6 +128,18 @@
     box.appendChild(line);
     /* the request as it goes on the wire (1.0.37): every header - the ones acme and
        Python add dimmed - and the body exactly as sent */
+    /* how it is connected (1.0.37): address, TLS, SNI, the device's certificate, proxy */
+    if (d.conn && d.conn.length) {
+      var cn = el('div', 'rp-conn');
+      d.conn.forEach(function (c) {
+        var chip = el('span', 'rp-conn-c' + (c[2] ? ' t-' + c[2] : ''));
+        chip.appendChild(el('span', 'rp-conn-k', c[0]));
+        var val = /^(yes|no|none|not checked|checked|Settings)/.test(String(c[1])) ? el('span', 'rp-conn-v', c[1]) : data('span', 'rp-conn-v mono', c[1]);
+        chip.appendChild(val);
+        cn.appendChild(chip);
+      });
+      box.appendChild(cn);
+    }
     var wire = d.wire && d.wire.headers ? d.wire : null;
     if (wire) {
       var ws = el('div', 'rp-hdrs rp-wire');
