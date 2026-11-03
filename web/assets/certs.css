@@ -992,3 +992,6 @@ body.app-shell #pane-modules #md-list .scroll.lt-held{max-height:none;flex:1 1 a
 .md-vrow-t{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .md-vrow-t > .md-tags{margin-left:2px}
 .plug-head .md-tags,.ct-plughead .md-tags{margin-left:4px}
+/* Settings → Accounts: the role changed in its own column, the row inside its card */
+td.acc-role{white-space:nowrap}
+.acc-rolebox{min-width:130px;max-width:190px;height:32px}

@@ -2445,7 +2445,11 @@ function loadUsers() {
       var n = el('td'); n.appendChild(noI18n(el('span', 'mono', u.name)));
       if (u.display) n.appendChild(noI18n(el('span', 'sub', u.display)));
       tr.appendChild(n);
-      var r = el('td'); r.appendChild(el('span', 'tag ' + roleTone(u.role), roleWords(u.role))); tr.appendChild(r);
+      /* the role in its own column (1.0.33): a tag, or for an administrator the
+         box it is changed with - beside the buttons it pushed the row past the card */
+      var r = el('td', 'acc-role');
+      if (!ADMIN) r.appendChild(el('span', 'tag ' + roleTone(u.role), roleWords(u.role)));
+      tr.appendChild(r);
       tr.appendChild(el('td', 'muted', u.source === 'directory' ? 'against the directory' : 'a password here'));
       var st = el('td'); st.appendChild(el('span', 'tag ' + (u.disabled ? 'crit' : 'ok'), u.disabled ? 'off' : 'on')); tr.appendChild(st);
       /* The second step of signing in (1.0.125): how it is given, or not yet. */
@@ -2489,8 +2493,8 @@ function loadUsers() {
             });
           }, reset: function () { loadUsers(); }});
         };
-        role.style.marginRight = '10px';
-        tools.appendChild(role);
+        role.classList.add('acc-rolebox', 'tone-' + roleTone(u.role));
+        r.appendChild(role);
       }
       tools.appendChild(info);
       if (ADMIN) {
@@ -4593,6 +4597,7 @@ function drawSoftware(host) {
     nodes.forEach(function (n) {
       var c = el('th', '');
       c.appendChild(noI18n(el('span', '', n.name)));
+      if (n.me || !n.alive) c.appendChild(document.createTextNode(' '));
       if (n.me) c.appendChild(el('span', 'tag info', 'this one'));
       else if (!n.alive) c.appendChild(el('span', 'tag warn', 'not heard from'));
       hr.appendChild(c);

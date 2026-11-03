@@ -6,6 +6,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.33 - not released
 
+- Settings → Accounts: an account's role is changed in its own column - beside
+  the buttons the row ran past its card. About: a node's name apart from its tag.
+
 - A module's tags (own, uploaded, override, version, marks) look one way
   everywhere - the same height, corners and letters, apart by a gap - and in the
   "Add a …" tiles they sit in a row of their own at the bottom left.
