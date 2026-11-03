@@ -73,7 +73,7 @@ import time
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers import _source_common as sc
 
@@ -655,4 +655,28 @@ class GlobalSignMsslIssuer(Issuer):
         self.ctx.kv_set('gsmssl-cert:%s' % sc.fingerprint(out['cert_pem'])[:40], oid,
                         ttl_s=5 * 366 * 86400)
         out['acme_cert_id'] = self._acme_ids().get(oid)
+        return out
+
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['user', 'password', 'environment']
+
+    def discover_setup(self):
+        """Read-only: the MSSL profiles and products (the form's lists), the approved domains
+        of the profile (GetDomains) and the issued orders of "Orders listed" days
+        (GetOrderByDateRange) - one to reissue in, never picked by itself."""
+        out = Plugin.discover_setup(self)
+        prof = self._s('profile_id') or (out['choices'].get('profile_id') or {}).get('pick')
+        if prof:
+            with sc.assumed(self, {'profile_id': prof}):
+                try:
+                    ok = sorted(d['name'] for d in self.domains() if d['status'] in APPROVED)
+                    out['facts'].append(['Approved domains', ', '.join(ok[:20]) + (
+                        ' …' if len(ok) > 20 else '') if ok else '0'])
+                except PluginError as e:
+                    out['notes'].append('the domains of the profile %s could not be read: %s'
+                                        % (prof, e))
+        rows = self.list_existing()
+        out['facts'].append(['Orders', str(len(rows))])
+        sc.reuse_choice(self, out, 'order_id', rows,
+                        'Empty: the order acme made last for the certificate')
         return out

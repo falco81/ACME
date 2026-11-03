@@ -96,6 +96,7 @@ class _Relay(object):
 
 class CmpIssuer(Issuer):
     kind = 'cmp'
+    discovery = False               # CMP (RFC 4210) has no reading of profiles or settings
     dual = True                     # where the CA's profile takes both kinds of key
     title = 'CMP (RFC 4210 / 9480)'
     description = ('Certificates by the Certificate Management Protocol (CMPv2, RFC 4210 and '

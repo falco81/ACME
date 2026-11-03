@@ -34,7 +34,7 @@ import re
 import time
 import urllib.parse
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _source_common as sc
 
 
@@ -235,3 +235,27 @@ class FreeIpaIssuer(Issuer):
         self.rpc('cert_revoke/1', [str(serial)], {'revocation_reason': code,
                                                   'cacn': str(self.c('cacn') or 'ipa')}, 'revoke')
         return 'IPA revoked serial %d' % serial
+
+    # -- discovery (1.0.29): the form filled in from IPA --------------------------------------
+    discover_keys = ['url', 'user', 'password', 'ca_pem', 'verify']
+
+    def discover_setup(self):
+        """Read-only: IPA's realm (env/1 realm), its profiles (the form's list) and its CAs
+        (ca_find/1 - ipa the main one, a sub-CA by its name)."""
+        out = Plugin.discover_setup(self)
+        got = self.rpc('env/1', ['realm'], {}, 'the realm')
+        realm = str((got.get('result') or {}).get('realm') or '').strip()
+        if realm:
+            out['sets']['realm'] = realm.upper()
+        try:
+            got = self.rpc('ca_find/1', [], {'sizelimit': 0}, 'the CAs')
+        except PluginError as e:
+            out['notes'].append('CA: %s' % e)
+            got = {}
+        one = lambda v: str((v[0] if isinstance(v, list) and v else v) or '')   # noqa: E731
+        cas = [[one(c.get('cn')), '%s - %s' % (one(c.get('cn')), one(c.get('ipacasubjectdn')))
+                if c.get('ipacasubjectdn') else one(c.get('cn'))]
+               for c in got.get('result') or [] if isinstance(c, dict) and one(c.get('cn'))]
+        if len(cas) > 1:
+            self.offer(out, 'cacn', cas, pick='ipa')
+        return out

@@ -64,7 +64,7 @@ import time
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers import _source_common as sc
 
@@ -629,4 +629,55 @@ class CertumIssuer(Issuer):
         leaf, chain = self.fetch(oid)
         out = sc.existing(leaf, chain, who='Certum', ref=oid)
         out['acme_cert_id'] = self._acme_ids().get(oid)
+        return out
+
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['env', 'user', 'password', 'api_url']
+
+    def discover_setup(self):
+        """Read-only: the products (the form's list) and the orders of "Orders listed" days
+        (getOrdersByDateRange with their order details, the first page): the customers they
+        were for, the requestor and tax ID of the newest, and an order to reissue in (never
+        picked by itself)."""
+        out = Plugin.discover_setup(self)
+        now = time.time()
+        days = max(1, int(sc.num(self.c('list_days'), 825)))
+        resp = self.call('getOrdersByDateRange', [
+            ('fromDate', time.strftime('%Y-%m-%dT00:00:00.000Z', time.gmtime(now - days * 86400))),
+            ('orderOption', [('certificateDetails', True), ('orderDetails', True),
+                             ('orderStatus', True)]),
+            ('pageNumber', 1),
+            ('toDate', time.strftime('%Y-%m-%dT23:59:59.000Z', time.gmtime(now)))],
+            what='the list of orders')
+        orders = [o for o in resp.iter() if _local(o.tag) == 'Order']
+        out['facts'].append(['Orders', str(len(orders))])
+        orders.sort(key=lambda o: text(kid(o, 'orderStatus'), 'orderDate'), reverse=True)
+        customers, rows, newest = [], [], None
+        for o in orders:
+            st, det, more = kid(o, 'orderStatus'), kid(o, 'certificateDetails'), \
+                kid(o, 'orderDetails')
+            cust = text(st, 'customer')
+            if cust and cust not in customers:
+                customers.append(cust)
+            if newest is None and kid(more, 'requestorInfo') is not None:
+                newest = more
+            oid, until = text(st, 'orderID'), _when(text(st, 'productValidityDate'))
+            if oid and text(st, 'orderStatus') == 'ENROLLED' and \
+                    text(det, 'certificateStatus') in ('', 'VALID'):
+                rows.append({'ref': oid, 'cn': text(det, 'commonName'),
+                             'product': text(st, 'productCode'), 'paid_until': until,
+                             'not_after': _when(text(det, 'endDate')),
+                             'renewable': 'reissue' if until is None or until > now else 'order'})
+        self.offer(out, 'customer', customers)
+        if newest is not None:
+            who = kid(newest, 'requestorInfo')
+            lines = ['%s=%s' % (k, text(who, k)) for k in ('email', 'firstName', 'lastName',
+                                                            'phone') if text(who, k)]
+            if lines:
+                out['sets']['requestor'] = lines
+            tax = text(kid(newest, 'organizationInfo'), 'taxIdentificationNumber')
+            if tax:
+                out['sets']['tax_id'] = tax
+        sc.reuse_choice(self, out, 'order_id', rows,
+                        'Empty: the order acme made last for the certificate')
         return out

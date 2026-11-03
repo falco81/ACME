@@ -30,6 +30,7 @@ import urllib.parse
 
 from acmelib.plugins.base import Issuer, Issued, PluginError, field
 from acmelib.plugins.issuers import _ntlm
+from acmelib.plugins.issuers import _source_common as sc
 from acmelib.plugins.issuers import _scep_pkcs7 as der
 
 # What the CA's error codes mean (certsrv's "The error code is 0x...").
@@ -369,6 +370,15 @@ class MsAdcsIssuer(Issuer):
             return 'Web Enrollment answers, signed in; the CA is %s' % cn
         finally:
             h.close()
+
+    # -- discovery (1.0.29): the templates, signed in either way ---------------------
+    discover_keys = ['url', 'auth', 'user', 'password', 'domain', 'client_cert', 'client_key',
+                     'ca_pem', 'verify']
+
+    def discover_setup(self):
+        """Read-only: the templates the CA offers (the form's list) - with a client
+        certificate too (the user and password it hides are not needed)."""
+        return sc.discover_lists(self)
 
     # -- the form's lists (base.py: a field of the type catalog) --------------------
     def catalog(self, key):

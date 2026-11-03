@@ -204,6 +204,15 @@ class VenafiTppIssuer(Issuer):
             raise PluginError('set the policy folder', retry=False)
         return policy_dn(z)
 
+    # -- discovery (1.0.29): the policy folders, signed in either way ----------------------
+    discover_keys = ['url', 'auth', 'user', 'password', 'access_token', 'client_id', 'scope',
+                     'ca_pem', 'verify']
+
+    def discover_setup(self):
+        """Read-only: the policy folders (the form's list) - with an access token too (the
+        user and password it hides are not needed)."""
+        return sc.discover_lists(self)
+
     # -- the form's list (base.py: a field of the type catalog) -------------------------------
     def catalog(self, key):
         if key != 'zones':

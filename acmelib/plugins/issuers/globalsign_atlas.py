@@ -41,7 +41,7 @@ import re
 import time
 
 from acmelib.plugins import limits
-from acmelib.plugins.base import Issuer, PluginError, field, dual_order_field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field, dual_order_field
 from acmelib.plugins.issuers import _source_common as sc
 
 # PATCH /certificates/{certificate}: "revocation_reason: required(one of unspecified,
@@ -305,4 +305,32 @@ class GlobalSignAtlasIssuer(Issuer):
         why = REASONS.get(sc.reason_code(reason), 'unspecified')
         self._call('PATCH', '/certificates/%s' % serial, {'revocation_reason': why}, 'revoke')
         return 'GlobalSign Atlas revoked serial %s (%s)' % (serial, why)
+
+    # -- discovery (1.0.29): what the account's validation policy says -------------------------
+    discover_keys = ['url', 'api_key', 'api_secret', 'client_cert', 'client_key', 'ca_pem',
+                     'verify']
+
+    def discover_setup(self):
+        """Read-only: the account's validation policy (GET /validationpolicy) - the longest
+        validity, the key format, and the subject fields it wants from the request (put in
+        "More of the subject" those it requires)."""
+        out = Plugin.discover_setup(self)
+        _s, _h, pol = self._call('GET', '/validationpolicy', what='policy')
+        pol = pol if isinstance(pol, dict) else {}
+        val = pol.get('validity') if isinstance(pol.get('validity'), dict) else {}
+        if int(sc.num(val.get('secondsmax'), 0)) // 86400:
+            out['facts'].append(['Longest validity (days)',
+                                 str(int(sc.num(val.get('secondsmax'), 0)) // 86400)])
+        key = pol.get('public_key') if isinstance(pol.get('public_key'), dict) else {}
+        if key.get('key_format'):
+            out['facts'].append(['Key format', str(key['key_format'])])
+        subj = pol.get('subject_dn') if isinstance(pol.get('subject_dn'), dict) else {}
+        have = {line.split('=', 1)[0].strip() for line in sc.lines(self.c('subject_extra'))
+                if '=' in line}
+        need = sorted(k for k, v in subj.items() if k != 'common_name' and isinstance(v, dict)
+                      and str(v.get('presence') or '').upper() == 'REQUIRED' and k not in have)
+        if need:
+            out['notes'].append('the validation policy requires %s in the subject - put them in '
+                                '"More of the subject" (key=value)' % ', '.join(need))
+        return out
 

@@ -32,7 +32,7 @@ import os
 import re
 import time
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _source_common as sc
 
 
@@ -165,3 +165,37 @@ class StepCaIssuer(Issuer):
                                            'reasonCode': code, 'reason': str(reason or ''),
                                            'passive': True}, what='step-ca (revoke)')
         return 'step-ca revoked serial %s' % serial
+
+    # -- discovery (1.0.29): the form filled in from the CA -----------------------------------
+    discover_keys = ['url', 'root_pem', 'provisioner_key', 'verify']
+
+    def discover_setup(self):
+        """Read-only: the JWK provisioners of the CA (GET /1.0/provisioners) - the one whose
+        key id is the given key's picked, a PEM key's provisioner gets its key ID with it -
+        and the CA's version (GET /version)."""
+        out = Plugin.discover_setup(self)
+        mine = None
+        if str(self.c('provisioner_key') or '').strip():
+            try:
+                mine = self._key()[1] or ''
+            except PluginError as e:
+                out['notes'].append('Provisioner key: %s' % e)
+        jwks = [p for p in self._provisioners() if isinstance(p, dict) and p.get('type') == 'JWK'
+                and p.get('name')]
+        opts, sets, pick = [], {}, None
+        for p in jwks:
+            kid = str((p.get('key') or {}).get('kid') or '')
+            opts.append([str(p['name']), '%s (%s)' % (p['name'], kid) if kid else str(p['name'])])
+            if mine and kid == mine:
+                pick = str(p['name'])
+            if mine == '' and kid:
+                sets[str(p['name'])] = {'kid': kid}
+        out['facts'].append(['JWK provisioners', str(len(opts))])
+        self.offer(out, 'provisioner', opts, sets, pick)
+        try:
+            v = self._call('GET', '/version', what='step-ca (version)')
+            if v.get('version'):
+                out['facts'].append(['Version', str(v['version'])])
+        except PluginError as e:
+            out['notes'].append(str(e))
+        return out

@@ -266,3 +266,74 @@ class GoogleCasIssuer(Issuer):
                                                                       REASONS[0])},
                    what='CA Service (revoke)')
         return 'CA Service revoked %s' % name.split('/')[-1]
+
+    # -- discovery (1.0.29): the form filled in from the project ------------------------------
+    discover_keys = ['service_account', 'project']
+    DISCOVER_LOCATIONS = 60         # locations asked for their CA pools
+
+    def _listed(self, path, key, what):
+        """Every item `key` of a list of the API (pageToken), at most 20 pages."""
+        out, token = [], ''
+        for _page in range(20):
+            q = {'pageSize': 100}
+            if token:
+                q['pageToken'] = token
+            got = self._call('GET', '%s?%s' % (path, urllib.parse.urlencode(q)), what=what)
+            out += [x for x in got.get(key) or [] if isinstance(x, dict)]
+            token = str(got.get('nextPageToken') or '')
+            if not token:
+                break
+        return out
+
+    def discover_setup(self):
+        """Read-only: the CA pools of the project (projects.locations.list, then
+        caPools.list in each location - or in the location set), the CAs of the pool
+        (certificateAuthorities.list: one to issue, never picked by itself) and the
+        certificate templates of the location (the form's list)."""
+        out = {'sets': {}, 'choices': {}, 'facts': [], 'notes': []}
+        project = str(self.c('project') or '').strip() or str(self._sa().get('project_id') or '')
+        if not re.match(r'^[a-z0-9][a-z0-9.:_-]{0,127}\Z', project, re.I):
+            raise PluginError('set the project', retry=False)
+        base = 'projects/%s/locations' % project
+        loc = str(self.c('location') or '').strip()
+        locs = [loc] if loc else [str(x.get('locationId') or '') for x in self._listed(
+            base, 'locations', 'CA Service (the locations)')]
+        pools, failed = {}, []
+        for lid in [x for x in locs if ID_RE.match(x)][:self.DISCOVER_LOCATIONS]:
+            try:
+                got = self._listed('%s/%s/caPools' % (base, lid), 'caPools',
+                                   'CA Service (the CA pools)')
+            except PluginError as e:
+                failed.append('%s: %s' % (lid, e))
+                continue
+            names = sorted(str(p.get('name') or '').rsplit('/', 1)[-1] for p in got)
+            if [n for n in names if n]:
+                pools[lid] = [n for n in names if n]
+        out['notes'] += failed[:3]
+        out['facts'].append(['CA pools', str(sum(len(v) for v in pools.values()))])
+        if not loc:
+            self.offer(out, 'location', [[k, '%s (%s)' % (k, ', '.join(v))]
+                                         for k, v in sorted(pools.items())],
+                       {k: {'pool': v[0]} for k, v in pools.items() if len(v) == 1})
+            loc = (out['choices'].get('location') or {}).get('pick') or ''
+        if loc in pools:
+            self.offer(out, 'pool', pools[loc])
+        pool = str(self.c('pool') or '').strip() or (out['choices'].get('pool') or {}).get(
+            'pick') or ''
+        if not (loc and pool):
+            out['notes'].append('Certificate template: pick the location and the CA pool, then '
+                                'ask again')
+            return out
+        with sc.assumed(self, {'project': project, 'location': loc, 'pool': pool}):
+            try:
+                cas = self._listed(self._pool_path() + '/certificateAuthorities',
+                                   'certificateAuthorities', 'CA Service (the CAs)')
+                ids = [[str(c.get('name') or '').rsplit('/', 1)[-1], '%s (%s)' % (
+                    str(c.get('name') or '').rsplit('/', 1)[-1], c.get('state') or '?')]
+                       for c in cas if c.get('name')]
+                if len(ids) > 1:
+                    self.offer(out, 'ca_id', [['', 'Empty: Google chooses one']] + ids, pick='')
+            except PluginError as e:
+                out['notes'].append('CA in the pool: %s' % e)
+            sc.merge_found(out, sc.discover_lists(self))
+        return out

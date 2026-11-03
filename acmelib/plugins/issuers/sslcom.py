@@ -60,7 +60,7 @@ import re
 import time
 import urllib.parse
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers import _source_common as sc
 
@@ -559,4 +559,49 @@ class SslComIssuer(Issuer):
         self.ctx.kv_set('sslcom-cert:%s' % sc.fingerprint(out['cert_pem'])[:40], ref,
                         ttl_s=5 * 366 * 86400)
         out['acme_cert_id'] = self._acme_ids().get(ref)
+        return out
+
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['account_key', 'secret_key', 'environment', 'api_url']
+    DISCOVER_READ = 5               # issued orders read one by one for the choice
+
+    def discover_setup(self):
+        """Read-only: the orders of the account (GET /certificates: one - or a voucher - to
+        rekey, never picked by itself; the newest issued ones read by GET /certificate/{ref})
+        and, from the newest, the registrant's country and the server software."""
+        out = Plugin.discover_setup(self)
+        got = self.call('GET', '/certificates', query={'per_page': 100, 'page': 1},
+                        what='the list of orders')
+        orders = self._rows(got)
+        out['facts'].append(['Orders', str(len(orders))])
+        rows, read, found = [], 0, False
+        for o in sorted(orders, key=lambda o: str(o.get('order_date') or ''), reverse=True):
+            ref = str(o.get('ref') or '').strip()
+            s = str(o.get('order_status') or '').lower()
+            if not ref or _dead(s):
+                continue
+            row = {'ref': ref, 'cn': s or '?', 'product': str(o.get('description') or ''),
+                   'renewable': 'reissue'}
+            if s in ISSUED and read < self.DISCOVER_READ:
+                read += 1
+                try:
+                    st = self.order(ref)
+                except PluginError as e:
+                    out['notes'].append('the order %s could not be read: %s' % (ref, e))
+                    st = {}
+                row['cn'] = str(st.get('common_name') or '').strip() or row['cn']
+                row['not_after'] = _when(st.get('expiration_date'))
+                if str(st.get('product') or '') in [c for c, _w in PRODUCTS]:
+                    row['sets'] = {'product': str(st['product'])}
+                reg = st.get('registrant') if isinstance(st.get('registrant'), dict) else {}
+                if not found and (reg.get('country') or st.get('server_software')):
+                    found = True
+                    if str(reg.get('country') or '').strip():
+                        out['sets']['contact_country'] = str(reg['country']).strip().upper()
+                    if str(st.get('server_software') or '').strip().isdigit():
+                        out['sets']['server_software'] = int(st['server_software'])
+                    out['facts'].append(['Taken from the order', ref])
+            rows.append(row)
+        sc.reuse_choice(self, out, 'order_ref', rows,
+                        'Empty: the order acme made last for the certificate')
         return out

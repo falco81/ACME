@@ -293,3 +293,27 @@ class CloudflareOriginCaIssuer(Issuer):
         self.ctx.kv_set('cf-origin-cert:%s' % sc.fingerprint(out['cert_pem'])[:40], cid,
                         ttl_s=16 * 366 * 86400)
         return out
+
+    # -- discovery (1.0.29): the form filled in from the account ------------------------------
+    discover_keys = ['auth', 'api_token', 'service_key', 'api_url']
+
+    def discover_setup(self):
+        """Read-only: the zones (the form's list, with the API token) and, of the zone set or
+        the only one, its Origin CA certificates (GET /certificates?zone_id=): the validity of
+        the newest one."""
+        out = sc.discover_lists(self)               # either way of signing in
+        zone = str(self.c('zone_id') or '').strip() or str(self.c('zone') or '').strip() or \
+            (out['choices'].get('zone') or {}).get('pick') or ''
+        if not re.match(r'^[0-9a-f]{32}\Z', zone):
+            return out
+        got = self.call('GET', '/certificates?' + urllib.parse.urlencode(
+            {'zone_id': zone, 'page': 1, 'per_page': 50}), what='the certificates')
+        live = [c for c in got.get('result') or [] if isinstance(c, dict) and
+                not c.get('revoked_at')]
+        out['facts'].append(['Origin CA certificates', str(len(live))])
+        live.sort(key=lambda c: str(c.get('expires_on') or ''), reverse=True)
+        days = next((str(c['requested_validity']) for c in live if c.get('requested_validity')),
+                    '')
+        if days in VALIDITY:
+            out['sets']['validity'] = days
+        return out

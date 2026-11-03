@@ -48,7 +48,7 @@ import re
 import time
 import urllib.parse
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _source_common as sc
 
 REGIONS = {'us': 'https://api.venafi.cloud', 'eu': 'https://api.eu.venafi.cloud',
@@ -342,3 +342,36 @@ class VenafiCloudIssuer(Issuer):
         if not certs:
             raise PluginError('the service has no certificate %s to give yet' % cid, retry=False)
         return sc.existing(certs, who='the service', ref=cid)
+
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['region', 'api_url', 'api_key']
+
+    def discover_setup(self):
+        """Read-only: the applications the API key may use that have issuing templates
+        (GET outagedetection/v1/applications?issuingTemplateAssigned=true), each with its
+        templates - one template set with the application - and the templates of the
+        application set or found."""
+        out = {'sets': {}, 'choices': {}, 'facts': [], 'notes': []}
+        got = self.call('GET', BASE + 'applications?issuingTemplateAssigned=true',
+                        what='the applications')
+        apps = [a for a in got.get('applications') or [] if isinstance(a, dict) and a.get('name')]
+        out['facts'].append(['Applications', str(len(apps))])
+        maps, sets = {}, {}
+        for a in apps:
+            cits = dict(a.get('certificateIssuingTemplateAliasIdMap') or {})
+            maps[str(a['name'])] = (str(a.get('id') or ''), cits)
+            if len(cits) == 1:
+                sets[str(a['name'])] = {'template': next(iter(cits))}
+        self.offer(out, 'application', [[n, '%s (%d template(s))' % (n, len(maps[n][1]))]
+                                        for n in sorted(maps, key=str.lower)], sets)
+        app = str(self.c('application') or '').strip() or \
+            (out['choices'].get('application') or {}).get('pick') or ''
+        if app in maps:
+            self._app = maps[app]
+        if app:
+            with sc.assumed(self, {'application': app}):
+                sc.merge_found(out, Plugin.discover_setup(self))
+        else:
+            out['notes'].append('Issuing template: pick the application, then ask again')
+        self._app = None
+        return out

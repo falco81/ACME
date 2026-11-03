@@ -66,7 +66,7 @@ import time
 import urllib.parse
 import xml.etree.ElementTree as ET
 
-from acmelib.plugins.base import Issuer, PluginError, field
+from acmelib.plugins.base import Issuer, Plugin, PluginError, field
 from acmelib.plugins.issuers import _dcv
 from acmelib.plugins.issuers import _source_common as sc
 
@@ -593,4 +593,26 @@ class NamecheapSslIssuer(Issuer):
                         json.dumps({'id': cid, 'type': res.get('Type') or ''}),
                         ttl_s=5 * 366 * 86400)
         out['acme_cert_id'] = self._acme_ids().get(cid)
+        return out
+
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['env', 'api_user', 'api_key', 'user_name', 'client_ip', 'api_url']
+
+    def discover_setup(self):
+        """Read-only: the types (the form's list) and the certificates of the account
+        (getList): one bought and not activated yet, or an active one to reissue, offered
+        as the certificate to reuse (never picked by itself), its type with it."""
+        out = Plugin.discover_setup(self)
+        rows = self.list_existing()
+        out['facts'].append(['Certificates', str(len(rows))])
+        unused = (STATUS_WORDS['newpurchase'], STATUS_WORDS['newrenewal'])
+        names = {t for t, _lv, _k in TYPES}
+        for r in rows:
+            if r.get('status') in unused:
+                r['renewable'] = 'reissue'          # activated with acme's request
+            if r.get('product') in names:
+                r['sets'] = {'ssl_type': r['product']}
+        n = sc.reuse_choice(self, out, 'cert_id', rows,
+                            'Empty: the one acme had last for the certificate')
+        out['facts'].append(['Certificates to reuse', str(n)])
         return out

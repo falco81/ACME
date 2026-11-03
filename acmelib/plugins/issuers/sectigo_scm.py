@@ -711,3 +711,57 @@ class SectigoScmIssuer(Issuer):
                         ttl_s=3 * 366 * 86400)
         out['acme_cert_id'] = self._acme_ids().get(sid)
         return out
+
+    # -- discovery (1.0.29): the form filled in from the account -------------------------------
+    discover_keys = ['auth', 'instance', 'client_id', 'client_secret', 'token_url', 'login',
+                     'password', 'customer_uri', 'api_url']
+
+    def discover_setup(self):
+        """Read-only: the organizations of the account's certificates (GET /api/ssl/v2 -
+        SSLIdentity orgId, orgName; else the newest one's details), the certificate profiles
+        of the organization (GET /api/ssl/v2/types) - the one its certificates use most
+        picked -, and an issued certificate to renew (never picked by itself)."""
+        out = {'sets': {}, 'choices': {}, 'facts': [], 'notes': []}
+        got = self.call('GET', '/api/ssl/v2', query={'size': 200, 'position': 0},
+                        what='the list of certificates')
+        items = [x for x in (got if isinstance(got, list) else []) if isinstance(x, dict)]
+        out['facts'].append(['Certificates', str(len(items))])
+        orgs = {}
+        for c in items:
+            if str(c.get('orgId') or '').strip():
+                orgs.setdefault(str(c['orgId']).strip(), str(c.get('orgName') or '').strip())
+        if not orgs and items and str(items[0].get('sslId') or '').strip().isdigit():
+            sid = str(items[0]['sslId']).strip()
+            try:
+                det = self.call('GET', '/api/ssl/v2/%s' % sid, what='the certificate %s' % sid)
+                if str(det.get('orgId') or '').strip():
+                    orgs[str(det['orgId']).strip()] = ''
+            except PluginError as e:
+                out['notes'].append('the certificate %s could not be read: %s' % (sid, e))
+        self.offer(out, 'org_id', [[k, '%s (%s)' % (v, k) if v else k]
+                                   for k, v in sorted(orgs.items())])
+        org = self._s('org_id') or (out['choices'].get('org_id') or {}).get('pick') or ''
+        mine = [c for c in items if not org or str(c.get('orgId') or '') in ('', org)]
+        used = {}
+        for c in mine:
+            if str(c.get('certTypeId') or '').strip():
+                used[str(c['certTypeId']).strip()] = used.get(str(c['certTypeId']).strip(), 0) + 1
+        with sc.assumed(self, {'org_id': org}):
+            self._types = None
+            sc.merge_found(out, sc.discover_lists(self))
+        self._types = None
+        ct = out['choices'].get('cert_type')
+        if ct and not ct['pick'] and used:
+            best = max(sorted(used), key=lambda k: used[k])
+            if best in [o[0] for o in ct['options']]:
+                ct['pick'] = best
+        rows = []
+        for c in mine:
+            sid = str(c.get('sslId') or '').strip()
+            if sid and str(c.get('status') or '').lower() in ISSUED:
+                rows.append({'ref': sid, 'cn': str(c.get('commonName') or '').strip(),
+                             'product': str(c.get('certTypeName') or ''),
+                             'not_after': _when(c.get('expires')), 'renewable': 'reissue'})
+        sc.reuse_choice(self, out, 'ssl_id', rows,
+                        'Empty: the one acme had last for the certificate')
+        return out
