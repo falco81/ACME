@@ -6,6 +6,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.28 - not released
 
+- **Six new DNS-01 validations**, written from the vendors' own documentation:
+  Forpsi F-DNS (the paid DNS-as-a-service only - ordinary Forpsi DNS has no
+  API), ISPConfig, HestiaCP, Virtualmin, froxlor and Windows DNS (PowerShell
+  over OpenSSH, Remove-DnsServerResourceRecord always with -RecordData; the
+  Windows flavour of the DNS server over SSH now does the same).
+- **Twenty validations re-checked** against the same documentation: Hetzner
+  drops the old DNS Console API (switched off in May 2026) and waits for its
+  actions; GoDaddy speaks Domains API v3 with a personal access token (v1 kept
+  for settings that have a key and secret); PowerDNS uses EXTEND/PRUNE from
+  4.9.12 / 5.0.2; Gandi adds and removes values with PATCH; Azure DNS writes
+  with the record set's etag; Cloudflare compares TXT values unquoted (a value
+  could be left behind); OVH, NS1, Porkbun, Google Cloud DNS and Akamai got
+  smaller fixes.
+
 - **New sources**, written from the vendors' own API documents: SSL.com (SWS
   API), The SSL Store (REST API) and GlobalSign MSSL (GCC SOAP API). Each
   rekeys or reissues inside an order already bought, places a new paid order
