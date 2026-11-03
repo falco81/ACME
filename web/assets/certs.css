@@ -812,7 +812,7 @@ textarea.df-code-t:focus{border:0}
 .md-chip:focus-visible{outline:2px solid var(--accent)}
 .md-name{display:flex;gap:10px;align-items:center;min-width:220px}
 .md-name .ct-kind-ic{width:30px;height:30px;border-radius:8px;font-size:11px}
-.md-row-own td:first-child{box-shadow:inset 3px 0 0 var(--violet)}
+.md-row-own td:first-child{box-shadow:inset 3px 0 0 var(--violet);padding-left:14px}
 .md-fam{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--tx-dim)}
 .md-fam-issuer{border-color:rgba(88,166,255,.35)} .md-fam-challenge{border-color:rgba(63,185,80,.35)}
 .md-fam-target{border-color:rgba(240,136,62,.35)}
@@ -961,3 +961,20 @@ body.app-shell #pane-modules #md-list .scroll.lt-held{max-height:none;flex:1 1 a
 .ck-chosen{display:block;width:100%;border:0;background:none;padding:0;box-shadow:none}
 .ck-chosen .btnrow{justify-content:flex-start}
 .ct-modstate .ct-modsw{margin-right:8px}
+/* Upload a module: its parts apart, the family chips as wide as they are (1.0.33) */
+.set-item > .md-chips{align-self:flex-start;width:auto}
+#modal-body .set-item + .ct-drop{margin-top:12px}
+#modal-body .ct-drop + .formgrid{margin-top:14px}
+#modal-body .formgrid + .md-code{margin-top:12px}
+.md-code > .btnrow{margin-top:8px}
+/* A module's window: the two ways to make one of your own */
+.md-ways{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.md-way{border:1px solid var(--line);border-radius:10px;background:var(--panel2);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.md-way p{margin:0}
+.md-way > .btnrow{margin-top:auto;padding-top:4px}
+.md-way-h{display:flex;align-items:center;gap:10px}
+.md-way-ic{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:var(--info-bg);color:var(--accent)}
+.md-way + .md-way .md-way-ic{background:var(--warn-bg,rgba(234,179,8,.14));color:var(--warn,#eab308)}
+.md-way-names{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:0}
+.md-way-names > p{grid-column:1/-1;margin:0}
+.ct-foundhost > .ct-askpass + .ct-found{margin-top:12px}

@@ -396,7 +396,7 @@ def _finish(got):
     others = [c for c in got.certs if c != leaf and c not in chain]
     if others:
         got.notes.append('%d certificate(s) not in the chain of the certificate' % len(others))
-    if leaf and not key and not got.keys:
+    if leaf and not key and not got.keys and not got.needs_password:
         got.notes.append('no private key in the file')
     fmt = got.formats[0] if got.formats else ('pem' if got.certs else 'unknown')
     if len(set(got.formats)) > 1 and fmt != 'zip':

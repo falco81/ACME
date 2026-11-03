@@ -455,7 +455,7 @@ def _read_key(b, prefix=''):
     except Exception as e:                              # noqa: BLE001
         raise ValueError('the key cannot be read: %s' % e)
     if got.get('needs_password'):
-        raise ValueError('the key is locked: give its password')
+        raise ValueError('that password does not open the key' if pw else 'the key is locked: give its password')
     key = got.get('key') or ((got.get('keys') or [None])[0])
     if not key:
         raise ValueError('there is no private key in what was given')

@@ -6,6 +6,21 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.33 - not released
 
+- Import of a PEM with its key locked: the password is asked for above what was
+  read (it said "no private key in the file", and asked nothing); typed in the
+  file's password box, the file is read again; the key's password works for a
+  key inside the file too. A key in a file of its own, dropped beside it, is
+  said as "its key: …", not "no key". A wrong password says so, not "give its
+  password". The read notes in Czech.
+- Modules → a module: making one of your own said as two ways - another version
+  beside it (named: as many as needed, each with its version and label) or the
+  shipped one replaced - each "Download a start" and "Upload it". A file of your
+  own starts from the shipped module, never from another uploaded one. An
+  uploaded version: "Upload a new file" replaces it. The window is drawn again
+  after an upload, a mark or a file taken away (it showed what was there
+  before). The upload window: its parts apart. Your own module in the list: its
+  stripe off its icon.
+
 - Import of a certificate did nothing: the Import button broke on a box of
   its window (the owner) it could not see. It imports again.
 - Tests on a server over SSH: can be saved with no test chosen yet; the tests

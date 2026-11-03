@@ -902,8 +902,12 @@ def _cert_parse(h, s):
 def cert_import(store, b, by):
     data = _b64(b.get('data_b64'))
     _out, got = parse_file(data, _text(b, 'filename', 300), _text(b, 'password', 1000))
+    if got.get('needs_password') and not _text(b, 'password', 1000) and _text(b, 'key_password', 1000):
+        # the key's password given for a file that holds the key itself (1.0.33)
+        _out, got = parse_file(data, _text(b, 'filename', 300), _text(b, 'key_password', 1000))
     if got.get('needs_password'):
-        raise ValueError('the file is locked: give its password')
+        raise ValueError('that password does not open the file' if (_text(b, 'password', 1000) or _text(b, 'key_password', 1000))
+                         else 'the file is locked: give its password')
     leaf = got.get('leaf') or ((got.get('certs') or [None])[0])
     if not leaf:
         raise ValueError('there is no certificate in that file')
@@ -913,7 +917,8 @@ def cert_import(store, b, by):
         kg = formats.read_any(_b64(b.get('key_b64'), 'key_b64'), _text(b, 'key_filename', 300) or
                               'key.pem', _text(b, 'key_password', 1000) or None) or {}
         if kg.get('needs_password'):
-            raise ValueError('the key is locked: give its password (key_password)')
+            raise ValueError('that password does not open the key' if _text(b, 'key_password', 1000)
+                             else 'the key is locked: give its password (key_password)')
         key = kg.get('key') or ((kg.get('keys') or [None])[0])
         if not key:
             raise ValueError('there is no private key in the key file')
@@ -1280,7 +1285,8 @@ def _ca_import(h, s):
         _out, got = parse_file(_b64(b.get('data_b64')), _text(b, 'filename', 300),
                                _text(b, 'password', 1000))
         if got.get('needs_password'):
-            raise ValueError('the file is locked: give its password')
+            raise ValueError('that password does not open the file' if _text(b, 'password', 1000)
+                             else 'the file is locked: give its password')
         cert_pem = got.get('leaf') or ((got.get('certs') or [''])[0])
         key_pem = key_pem or got.get('key') or ''
         chain = list(got.get('chain') or [])

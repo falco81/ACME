@@ -5336,12 +5336,23 @@ function importDialog(into) {
     clear(found);
     var certs = rowsOf(d.certs || d.certificates || (d.cert ? [d.cert] : []));
     if (d.needs_password && !certs.length) { found.appendChild(askPass('')); return; }
+    /* Its key locked (1.0.33): the certificates are shown, the password asked for
+       above them - without it the key is not read and the import would go without it. */
+    if (d.needs_password) found.appendChild(askPass(pass.value ? tr('That password does not open the key.') : tr('The private key in the file is locked: give its password to import it with its key.')));
     var hasKey = !!(d.has_key || d.key);
     var box = el('div', 'ct-found');
     var sum = el('div', 'ct-found-sum');
     sum.appendChild(data('span', 'tag info', String(d.format || (held.main.name.split('.').pop() || '')).toUpperCase()));
     sum.appendChild(el('span', '', certs.length === 1 ? '1 certificate' : certs.length + ' certificates'));
-    sum.appendChild(el('span', 'tag ' + (hasKey ? 'ok' : 'dim'), hasKey ? 'with its key' : 'no key'));
+    /* the key in a file of its own, dropped beside it (1.0.33): said so, not "no key" */
+    var keyApart = !hasKey && held.key;
+    if (keyApart) {
+      var kt = el('span', 'tag ok');
+      kt.appendChild(el('span', '', 'its key'));
+      kt.appendChild(document.createTextNode(': ' + held.key.name));
+      sum.appendChild(kt);
+    } else if (!hasKey && d.needs_password) sum.appendChild(el('span', 'tag warn', 'key locked'));
+    else sum.appendChild(el('span', 'tag ' + (hasKey ? 'ok' : 'dim'), hasKey ? 'with its key' : 'no key'));
     if (d.key_matches === true) sum.appendChild(el('span', 'tag ok', 'the key fits'));
     if (d.key_matches === false) sum.appendChild(el('span', 'tag crit', 'the key does not fit'));
     box.appendChild(sum);
@@ -5367,7 +5378,11 @@ function importDialog(into) {
       r.appendChild(sub);
       box.appendChild(r);
     });
-    rowsOf(d.notes || d.warnings).forEach(function (w) { box.appendChild(data('div', 'ct-warnline', String(w))); });
+    rowsOf(d.notes || d.warnings).filter(function (w) {
+      if (keyApart && /no private key in the file/.test(String(w))) return false;
+      return !(d.needs_password && /password|encrypted/i.test(String(w)));
+    })
+      .forEach(function (w) { box.appendChild(el('div', 'ct-warnline', String(w))); });
     found.appendChild(box);
     keyRow.hidden = hasKey;
     var lf = certs[0];
@@ -5390,6 +5405,7 @@ function importDialog(into) {
         drop.classList.add('has');
         if (held.key) keyRow.querySelector('.ct-keyname').textContent = held.key.name + ' · ' + bytes(held.key.size);
         if (held.main && (!isKey || files.length === 1)) parse();
+        else if (held.parsed) drawFound(held.parsed);
       }).catch(oops);
     });
   };
@@ -5399,13 +5415,16 @@ function importDialog(into) {
     drop = dropZone('Drop the file here, or press to choose it', take, '.pem,.crt,.cer,.der,.p7b,.p7c,.pfx,.p12,.jks,.key,.txt', true);
     body.appendChild(drop);
     pass = secretBox('', 'only for a locked file', 'mono');
+    /* typed here: the file is read again with it (1.0.33) */
+    var passT = null;
+    pass.addEventListener('input', function () { clearTimeout(passT); passT = setTimeout(parse, 700); });
     found = el('div', 'ct-foundhost');
     body.appendChild(found);
     keyRow = el('div', 'ct-keyrow');
     keyRow.appendChild(el('b', 'small', 'The key, if it is in a file of its own'));
     var kd = dropZone('Drop the key here', function (fs) {
       held.key = fs[0];
-      fileB64(fs[0]).then(function (b) { held.keyB64 = b; kd._words.textContent = fs[0].name; kd.classList.add('has'); });
+      fileB64(fs[0]).then(function (b) { held.keyB64 = b; kd._words.textContent = fs[0].name; kd.classList.add('has'); if (held.parsed) drawFound(held.parsed); });
     }, '.key,.pem,.txt', false);
     kd.classList.add('small');
     keyRow.appendChild(kd);
@@ -7499,6 +7518,12 @@ function plugVersion(p, v) {
   out._base = p;
   return out;
 }
+/* The shipped version of a module: what a file of your own starts from (1.0.33) -
+   never another file of your own, which may be taken away. */
+function shippedOf(p) {
+  var b = arr(p.versions).filter(function (x) { return x.origin !== 'custom'; })[0];
+  return b ? plugVersion(p, b.version || '') : plugVersion(p);
+}
 function versionName(v) { return v ? String(v) : tr('plain'); }
 function markOf(family, kind, version) {
   var id = family + '/' + kind + '@' + (version || '');
@@ -7593,11 +7618,19 @@ function loadModules(live) {
   var host = $('md-list');
   if (!host) return;
   if (!live && !host.children.length) host.appendChild(el('p', 'muted', 'Asking…'));
-  capi('modules').then(function (d) {
+  return capi('modules').then(function (d) {
     MD.data = d;
     if (PLUG) { PLUG.marks = d.marks || {}; PLUG.released = d.released || {}; }
     drawModules(live);
   }).catch(failInto(host, 'the modules'));
+}
+/* A module's window drawn again with what the daemon has now (1.0.33): after an
+   upload, a mark or a file taken away it showed what was there before. */
+function moduleDetailAgain(fam, kind) {
+  return function () {
+    var p = loadModules(true);
+    (p && p.then ? p : Promise.resolve()).then(function () { moduleDetail(fam, kind); });
+  };
 }
 function mdRows() {
   var d = MD.data || {};
@@ -7827,6 +7860,7 @@ function moduleDetail(fam, kind) {
   if (!p) return;
   var vers = arr(p.versions).length ? arr(p.versions) : [p];
   var used = obj(obj(d.usage)[fam])[kind] || {};
+  var again = moduleDetailAgain(fam, kind);
   modal(FAM_WORDS[fam] + ' · ' + (p.title || kind), function (body) {
     var head = plugHead(p, fam);
     body.appendChild(head);
@@ -7856,12 +7890,17 @@ function moduleDetail(fam, kind) {
         dl.onclick = function () { moduleSource(fam, p, v.version || '', vers.length > 1 || !!v.version); };
         right.appendChild(dl);
         var mk = cmdButton('Mark it', 'check', 'small');
-        mk.onclick = function () { over(function () { moduleMark(fam, p, v); }, function () { moduleDetail(fam, kind); }); };
+        mk.onclick = function () { over(function () { moduleMark(fam, p, v); }, again); };
         right.appendChild(mk);
         var rel = v.source === 'uploaded' ? Object.keys(obj(d.uploaded)).filter(function (k) { return v.module && v.module.slice(-k.length - 1) === '/' + k; })[0] : null;
         if (rel) {
+          /* replaced: a new file under the same name takes its place */
+          var re = cmdButton('Upload a new file', 'upload', 'small');
+          explain(re, 'A new file of this version under the same name: it takes the place of this one. Checked first; nothing changes until you press Install.');
+          re.onclick = function () { over(function () { moduleUpload({family: fam, base: p, filename: rel.split('/').pop(), mode: v.overrides ? 'override' : 'version', version: v.version || ''}); }, again); };
+          right.appendChild(re);
           var rm = cmdButton('Take it away', 'trash', 'small danger');
-          rm.onclick = function () { over(function () { moduleRemove(rel, v); }, function () { moduleDetail(fam, kind); }); };
+          rm.onclick = function () { over(function () { moduleRemove(rel, v); }, again); };
           right.appendChild(rm);
         }
       }
@@ -7870,18 +7909,85 @@ function moduleDetail(fam, kind) {
     });
     grid.appendChild(sec);
     if (d.may_upload) {
-      var mine = section('Make one of your own', 'A file that takes this module as it is - change what you need, then upload it. Download the source above to see how it works.', true);
-      var bar = el('div', 'btnrow');
-      var t1 = cmdButton('A version of your own', 'add', 'small');
-      t1.onclick = function () { saveText(kind + '_mine.py', moduleTemplate(fam, plugVersion(p), 'mine', 'My version', false), 'text/x-python'); };
-      var t2 = cmdButton('An override of the default one', 'edit', 'small');
-      t2.onclick = function () { saveText(kind + '.py', moduleTemplate(fam, plugVersion(p), '', '', true), 'text/x-python'); };
-      var t3 = cmdButton('Upload a version of your own', 'upload', 'small primary');
-      t3.onclick = function () { over(function () { moduleUpload({family: fam, base: p}); }, function () { moduleDetail(fam, kind); }); };
-      bar.appendChild(t1);
-      bar.appendChild(t2);
-      bar.appendChild(t3);
-      mine._body.appendChild(bar);
+      /* Two ways, said as two cards (1.0.33): a version beside the shipped one,
+         chosen in each form - or the shipped one replaced for everything. Each:
+         a file to start from, then Upload (checked first, kept only on Install). */
+      var mine = section('Make one of your own', 'Download a start, change it in your editor, upload it. It is checked first; nothing changes until you press Install.', true);
+      var def = vers.filter(function (v) { return v.origin !== 'custom'; })[0] || vers[0] || {};
+      var over_ = vers.filter(function (v) { return v.overrides; })[0];
+      var overRel = over_ && over_.source === 'uploaded' ? Object.keys(obj(d.uploaded)).filter(function (k) { return over_.module && over_.module.slice(-k.length - 1) === '/' + k; })[0] : null;
+      var ways = el('div', 'md-ways');
+      var way = function (icon, title, says, start, upload, note) {
+        var c = el('div', 'md-way');
+        var h = el('div', 'md-way-h');
+        var ic = el('span', 'md-way-ic');
+        ic.innerHTML = iconMarkup(icon, 18);
+        h.appendChild(ic);
+        h.appendChild(el('b', '', title));
+        c.appendChild(h);
+        c.appendChild(el('p', 'small muted', says));
+        if (note) c.appendChild(note);
+        var r = el('div', 'btnrow');
+        var s1 = cmdButton('Download a start', 'download', 'small');
+        s1.onclick = start;
+        var s2 = cmdButton('Upload it', 'upload', 'small primary');
+        s2.onclick = upload;
+        r.appendChild(s1);
+        r.appendChild(s2);
+        c.appendChild(r);
+        return c;
+      };
+      /* as many versions as wanted, each named (1.0.33): its name is what a form
+         chooses, its label what it is for */
+      var names = vers.map(function (v) { return String(v.version || ''); });
+      var vg = el('div', 'formgrid md-way-names');
+      var verIn = textBox('', '14.1', 'mono');
+      noI18n(verIn);
+      var labIn = textBox('', tr('e.g. NITRO of ADC 14.1'), '');
+      vg.appendChild(formField('Version', verIn, 'Letters, digits, . _ -'));
+      vg.appendChild(formField('Label', labIn, 'What it is for.'));
+      var verSaid = el('p', 'small');
+      vg.appendChild(verSaid);
+      var verOk = function () {
+        var v = verIn.value.trim();
+        clear(verSaid);
+        verSaid.className = 'small';
+        if (!v) { verSaid.classList.add('muted'); verSaid.textContent = tr('Name it first.'); return null; }
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(v)) { verSaid.classList.add('ct-badtext'); verSaid.textContent = tr('Letters, digits, . _ - only.'); return null; }
+        if (names.indexOf(v) >= 0) { verSaid.classList.add('warn'); verSaid.textContent = tr('There is a version {0} already - "Upload a new file" in its row replaces it.').replace('{0}', v); return null; }
+        verSaid.classList.add('good');
+        verSaid.textContent = tr('A new version {0}.').replace('{0}', v);
+        return v;
+      };
+      verIn.oninput = verOk;
+      verOk();
+      var fileOf = function (v) { return kind + '_' + v.toLowerCase().replace(/[^a-z0-9]+/g, '_') + '.py'; };
+      ways.appendChild(way('history', 'Another version beside it',
+        'The shipped one stays as it is. Each source, validation, target or test chooses in its form which version it uses - nothing changes until one does. As many as you need, each with a name of its own.',
+        function () {
+          var v = verOk();
+          if (!v) { verIn.focus(); return; }
+          saveText(fileOf(v), moduleTemplate(fam, shippedOf(p), v, labIn.value.trim(), false), 'text/x-python');
+        },
+        function () {
+          var v = verOk();
+          if (!v) { verIn.focus(); return; }
+          over(function () { moduleUpload({family: fam, base: p, mode: 'version', version: v, label: labIn.value.trim(), filename: fileOf(v), taken: names}); }, again);
+        }, vg));
+      var on = null;
+      if (over_) {
+        on = el('p', 'small');
+        on.appendChild(el('span', 'tag warn', 'replaced now'));
+        on.appendChild(document.createTextNode(' '));
+        on.appendChild(mono(shortModulePath(over_.module || '')));
+        on.appendChild(document.createTextNode(' - '));
+        on.appendChild(el('span', '', overRel ? 'upload another file to change it, or take it away above to have the shipped one back.' : 'a file on the disk (/etc/acme/plugins): changed there.'));
+      }
+      ways.appendChild(way('flag', 'Replace the shipped one',
+        tr('Everything that uses the shipped version ({0}) uses yours from then on. The other versions stay as they are. Taken away, the shipped one is used again - it is never deleted.').replace('{0}', versionName(def.version || '')),
+        function () { saveText(kind + '_override.py', moduleTemplate(fam, shippedOf(p), '', '', true), 'text/x-python'); },
+        function () { over(function () { moduleUpload({family: fam, base: p, mode: 'override', filename: overRel || (kind + '_override.py')}); }, again); }, on));
+      mine._body.appendChild(ways);
       grid.appendChild(mine);
     }
   }, [{words: 'Close', close: true}], 'large');
@@ -7954,8 +8060,23 @@ function moduleUpload(o) {
     if (go) go.disabled = true;
     if (out) clear(out);
   };
-  modal(tr('Upload a module'), function (body) {
-    body.appendChild(el('p', 'note', 'A Python file with a source, a validation or a target: a module of its own kind, another version of one there is (module_version), or the same kind and version as one shipped - which it then replaces. It is checked first, in a process of its own; only then kept - in the database, so every copy and both nodes have it.'));
+  modal(o.mode === 'override' ? tr('Replace the shipped one') + ' · ' + (o.base.title || o.base.kind)
+        : o.mode === 'version' ? tr('Another version beside it') + ' · ' + (o.base.title || o.base.kind) : tr('Upload a module'), function (body) {
+    if (o.mode === 'override') body.appendChild(el('p', 'note', 'A file of the same kind and version as the shipped one: it is used instead of it, for everything. The file name of one uploaded before replaces that one.'));
+    else if (o.mode === 'version') {
+      body.appendChild(el('p', 'note', 'A file with a module_version of its own: it is added beside the others, and chosen in a form. The same file name as one uploaded before replaces that one.'));
+      if (o.version) {
+        var vl = el('p', 'small');
+        vl.appendChild(el('span', 'muted', 'The version:'));
+        vl.appendChild(document.createTextNode(' '));
+        vl.appendChild(mono(o.version));
+        if (o.label) { vl.appendChild(document.createTextNode(' · ')); vl.appendChild(data('span', '', o.label)); }
+        vl.appendChild(document.createTextNode(' - '));
+        vl.appendChild(el('span', 'muted', 'the file you drop says its own (module_version); "Start from a template" writes this one.'));
+        body.appendChild(vl);
+      }
+    }
+    else body.appendChild(el('p', 'note', 'A Python file with a source, a validation or a target: a module of its own kind, another version of one there is (module_version), or the same kind and version as one shipped - which it then replaces. It is checked first, in a process of its own; only then kept - in the database, so every copy and both nodes have it.'));
     famRow = el('div', 'md-chips');
     [['issuer', 'Source'], ['challenge', 'Validation'], ['target', 'Target'], ['check', 'Test']].forEach(function (x) {
       var c = el('button', 'md-chip', x[1]);
@@ -7980,7 +8101,7 @@ function moduleUpload(o) {
     }, '.py,text/x-python');
     body.appendChild(drop);
     var g = el('div', 'formgrid');
-    fileName = textBox(o.base ? o.base.kind + '_mine.py' : '', 'netscaler_v14.py', 'mono');
+    fileName = textBox(o.filename || (o.base ? o.base.kind + (o.mode === 'override' ? '_override.py' : '_mine.py') : ''), 'netscaler_mine.py', 'mono');
     noI18n(fileName);
     g.appendChild(formField('File name', fileName, 'Lowercase letters, digits and _, ending .py. An uploaded file of the same name is replaced.'));
     noteBox = textBox('', tr('what it is for'), '');
@@ -7991,13 +8112,14 @@ function moduleUpload(o) {
     var code = el('textarea', 'mono md-codebox');
     code.rows = 14;
     code.spellcheck = false;
-    code.placeholder = o.base ? moduleTemplate(o.family, plugVersion(o.base), '14.1', 'My version', false) : '# -*- coding: utf-8 -*-';
+    var tplOf = function () { return moduleTemplate(o.family, shippedOf(o.base), o.mode === 'override' ? '' : (o.version || 'mine'), o.mode === 'override' ? '' : (o.label || ''), o.mode === 'override'); };
+    code.placeholder = o.base ? tplOf() : '# -*- coding: utf-8 -*-';
     noI18n(code);
     code.oninput = function () { st.text = code.value; st.checked = null; if (go) go.disabled = true; };
     codeHost.appendChild(code);
     if (o.base) {
       var tpl = cmdButton('Start from a template', 'edit', 'small');
-      tpl.onclick = function () { code.value = moduleTemplate(o.family, plugVersion(o.base), '14.1', 'My version', false); st.text = code.value; codeHost.open = true; };
+      tpl.onclick = function () { code.value = tplOf(); st.text = code.value; codeHost.open = true; };
       codeHost.appendChild(el('div', 'btnrow')).appendChild(tpl);
     }
     body.appendChild(codeHost);
