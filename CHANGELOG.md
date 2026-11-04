@@ -6,6 +6,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.39 - not released
 
+- The nightly dumps of the database were never seen: they are called
+  acme-ENGINE-..., and only the names of otp (otp-, opt-) were taken. So
+  the card The database on Overview counted only the copies made by hand
+  or before an upgrade and turned yellow ("last copy 3 days ago") beside a
+  dump of last night; Settings → The database did not list them, they could
+  not be downloaded, and they were never kept to "Copies kept" - they piled
+  up. Now they are counted, listed, downloadable, and the oldest go once
+  there are more than "Copies kept" (at the next night's dump).
+- The card The database says why it is not green, under its number and at
+  the top of its popup: no copy every day, the last one failed (and what it
+  said), made by the other node of a cluster on one database, the first one
+  still to come, or late - with when the last one was made and when the
+  next one is due. Its list of copies has the nightly dumps in it too.
+
 ## 1.0.38 - 2026-11-03
 
 - A popup over another one - what the server served, What happens, Export,

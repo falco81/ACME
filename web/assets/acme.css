@@ -3416,3 +3416,8 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .qs-funnel{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--info);cursor:pointer;opacity:.85}
 .qs-funnel:hover,.qs-funnel:focus-visible{opacity:1;background:var(--info-bg);outline:0}
 .qs-wrap.qs-open > .qs-funnel{opacity:1;background:var(--info-bg)}
+/* The state of the database's copies, at the top of its card's popup (1.0.39). */
+.dbstate{margin:0 0 16px}
+.dbstate > .note{margin:0 0 10px;max-width:none}
+.dbstate > .facts{margin:0 0 10px}
+.dbstate > .note.bad .mono{display:inline-block;margin-top:4px;word-break:break-word}

@@ -393,6 +393,13 @@ class Daemon(object):
             except Exception:                           # noqa: BLE001
                 pass
             got['key_there'] = bool(sealing_key())
+            # Why the card is not green (1.0.39), said under it as well.
+            try:
+                ns = nightly_state(self.store)
+                got['nightly_why'] = ns['why']
+                got['nightly_on'] = ns['on']
+            except Exception:                           # noqa: BLE001
+                pass
             self.DB_SUMMARY.update(at=time.time(), got=got)
         return self.DB_SUMMARY['got']
 

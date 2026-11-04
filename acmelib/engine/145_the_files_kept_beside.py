@@ -31,7 +31,10 @@ DUMP_INSTALL = {'mariadb': 'dnf install mariadb (it is the client, not the serve
                 'postgres': 'dnf install postgresql (it is the client, not the server)'}
 DRIVERS = {'mariadb': ('pymysql', 'python3-PyMySQL'),
            'postgres': ('psycopg2', 'python3-psycopg2')}
-NAME_RE = re.compile(r'^o(?:tp|pt)-(sqlite|mariadb|postgres|copy)?-?(\d{8}-\d{6})(?:-([a-z-]+))?'
+# The names acme gives them (1.0.39): acme-ENGINE-STAMP-WHY. Only otp's own
+# (otp-, opt-) were taken, so the nightly dumps were never listed, counted
+# on the card The database, kept to "Copies kept", or let downloaded.
+NAME_RE = re.compile(r'^(?:acme|otp|opt)-(sqlite|mariadb|postgres|copy)?-?(\d{8}-\d{6})(?:-([a-z-]+))?'
                      r'(\.db|\.sql\.gz|\.pgc|\.json\.gz)$')
 
 
@@ -251,6 +254,87 @@ def kept_dumps(engine):
     return out
 
 
+def nightly_state(store):
+    """How this node's nightly copy of the database stands (1.0.39) - what
+    the card The database on Overview is coloured by, and what its popup
+    says: on or off, when the last one was made, when the next one is
+    due, why it is late.
+
+    `why` is one of: '' (a copy of the last two days is here), 'off' (no
+    copy every day), 'failed' (the last night's one failed - `failed` says
+    how), 'other_node' (a cluster on one database: the other node made
+    today's), 'none' (none made yet, the first one comes at `next`) or
+    'late' (it is due, and none came)."""
+    import datetime as _dt
+    engine = store.db.engine
+    kept = []
+    try:
+        kept = [dict(x, where='copy') for x in backups()]
+    except Exception:                                   # noqa: BLE001
+        pass
+    try:
+        kept += [dict(x, where='dump') for x in kept_dumps(engine)]
+    except Exception:                                   # noqa: BLE001
+        pass
+    newest = max(kept, key=lambda x: float(x.get('at') or 0)) if kept else None
+    last = float(newest.get('at') or 0) if newest else 0.0
+    on = bool(CONFIG.get('backup_daily'))
+    at = str(CONFIG.get('backup_at') or '03:30').strip()
+    try:
+        hh, mm = (int(x) for x in at.split(':', 1))
+    except ValueError:
+        hh, mm = 3, 30
+    at = '%02d:%02d' % (hh, mm)
+    ha = str(CONFIG.get('ha_mode') or '')
+    key = 'backup_day' + (':' + node_name() if ha == 'replicated' else '')
+    now = _dt.datetime.now()
+    today = now.strftime('%Y-%m-%d')
+    try:
+        done = store.get_meta(key, '') or ''
+    except Exception:                                   # noqa: BLE001
+        done = ''
+    nxt = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if done == today or nxt <= now:
+        nxt += _dt.timedelta(days=1)
+    failed = None
+    try:
+        rows, _n = store.events(limit=20, kind='backups')
+        me = log_node()
+        for r in rows:
+            if str(r.get('level') or '') != 'bad' or float(r.get('ts') or 0) <= last:
+                continue
+            if r.get('node') and str(r.get('node')) != me:
+                continue
+            failed = {'at': float(r.get('ts') or 0), 'words': str(r.get('words') or '')}
+            break
+    except Exception:                                   # noqa: BLE001
+        pass
+    fresh = bool(last) and time.time() - last < 2 * 86400
+    why = ''
+    if not fresh:
+        if not on:
+            why = 'off'
+        elif failed:
+            why = 'failed'
+        elif ha and ha != 'replicated' and done and done >= (now - _dt.timedelta(days=1)).strftime('%Y-%m-%d'):
+            why = 'other_node'
+        elif not last:
+            why = 'none'
+        else:
+            why = 'late'
+    info = {}
+    try:
+        info = dump_info(engine)
+    except Exception:                                   # noqa: BLE001
+        pass
+    return {'on': on, 'at': at, 'next': nxt.timestamp() if on else None, 'last': last or None,
+            'last_name': newest.get('name') if newest else '', 'last_where': newest.get('where') if newest else '',
+            'day_done': done, 'failed': failed, 'fresh': fresh, 'why': why,
+            'shared': bool(ha and ha != 'replicated'), 'node': node_name(),
+            'tool_ready': bool(info.get('ready', True)), 'tool_why': info.get('why') or '',
+            'tool_words': info.get('words') or '', 'dump_dir': str(DUMP_DIR), 'copy_dir': str(BACKUP_DIR)}
+
+
 def make_dump(store, label='daily', folder=None):
     """A dump of the database in use by its own engine's program - or, where
     that program is not on this machine, a portable copy in its place."""
@@ -316,7 +400,7 @@ def make_dump(store, label='daily', folder=None):
                     pass
     _write_key_beside(target)
     if folder == DUMP_DIR:
-        _prune(DUMP_DIR, 'o[tp][tp]-*', int(CONFIG.get('backup_keep') or 14))
+        _prune(DUMP_DIR, '*-*', int(CONFIG.get('backup_keep') or 14))
     store.add_event('backups', 'made %s (%s): %s' % (
         DUMP_WORDS[kind], {'daily': 'every night', 'by-hand': 'by hand',
                            'download': 'to be downloaded'}.get(label, label), target.name))

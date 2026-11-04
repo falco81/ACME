@@ -50999,6 +50999,90 @@
   "rp37_56": {
    "source": "one of its own (https_proxy of its environment)",
    "text": "vlastní (https_proxy z jeho prostředí)"
+  },
+  "dbst_1": {
+   "source": "no copy every day",
+   "text": "denní kopie vypnutá"
+  },
+  "dbst_2": {
+   "source": "the last one failed",
+   "text": "poslední selhala"
+  },
+  "dbst_3": {
+   "source": "made by the other node",
+   "text": "dělá ji druhý uzel"
+  },
+  "dbst_4": {
+   "source": "the first one tonight",
+   "text": "první dnes v noci"
+  },
+  "dbst_5": {
+   "source": "a copy every day - late",
+   "text": "denní kopie – opožděná"
+  },
+  "dbst_6": {
+   "source": "Red: the key that opens the tokens in the database is not on this machine. Without it the copies cannot be opened either - put the key back from where it was kept (Settings → The database).",
+   "text": "Červená: klíč, kterým se otevírají tokeny v databázi, na tomto stroji není. Bez něj nejdou otevřít ani kopie – vraťte klíč z místa, kde byl uložen (Nastavení → Databáze)."
+  },
+  "dbst_7": {
+   "source": "Green: a copy of the last two days is here, and one is made every day.",
+   "text": "Zelená: je tu kopie z posledních dvou dnů a každý den se dělá nová."
+  },
+  "dbst_8": {
+   "source": "Green: a copy of the last two days is here. No copy is made every day, though - this one was made by hand.",
+   "text": "Zelená: je tu kopie z posledních dvou dnů. Denní kopie je ale vypnutá – tahle byla udělána ručně."
+  },
+  "dbst_9": {
+   "source": "Yellow: no copy of the last two days is here, and none is made every day - Settings → The database, \"A copy of the database every day\". Turn it on, or keep copies another way.",
+   "text": "Žlutá: není tu žádná kopie z posledních dvou dnů a denní kopie je vypnutá – Nastavení → Databáze, „Každý den kopie databáze“. Zapněte ji, nebo zálohujte jinak."
+  },
+  "dbst_10": {
+   "source": "Yellow: the last copy made every day failed - what it said is below. The one before it is older than two days.",
+   "text": "Žlutá: poslední denní kopie selhala – co hlásila, je níže. Ta předchozí je starší než dva dny."
+  },
+  "dbst_11": {
+   "source": "Yellow: both nodes work on one database, and the copy of each day is made by one of them - lately the other node, into its own folder. Here, the last one is older than two days.",
+   "text": "Žlutá: oba uzly pracují nad jednou databází a denní kopii dělá jen jeden z nich – naposledy druhý uzel, do své vlastní složky. Tady je poslední kopie starší než dva dny."
+  },
+  "dbst_12": {
+   "source": "Yellow: no copy has been made yet. The first one is made at the time below.",
+   "text": "Žlutá: zatím nevznikla žádná kopie. První se udělá v čase níže."
+  },
+  "dbst_13": {
+   "source": "Yellow: a copy is made every day, but the last one here is older than two days - the daemon did not make one at its time. Was it stopped then, or is the time set later than it runs? Events (backups) and the log say more.",
+   "text": "Žlutá: denní kopie je zapnutá, ale poslední je starší než dva dny – démon ji ve svůj čas neudělal. Neběžel tehdy? Víc řeknou Události (zálohy) a log."
+  },
+  "dbst_14": {
+   "source": "A copy every day",
+   "text": "Kopie každý den"
+  },
+  "dbst_15": {
+   "source": "The last one",
+   "text": "Poslední"
+  },
+  "dbst_16": {
+   "source": "The next one",
+   "text": "Příští"
+  },
+  "dbst_17": {
+   "source": "Its file",
+   "text": "Soubor"
+  },
+  "dbst_18": {
+   "source": "Made by",
+   "text": "Dělá ji"
+  },
+  "dbst_19": {
+   "source": "one node of the two, each day",
+   "text": "jeden ze dvou uzlů, každý den"
+  },
+  "dbst_20": {
+   "source": "It failed",
+   "text": "Selhala"
+  },
+  "dbst_21": {
+   "source": "A portable copy is made instead of a dump:",
+   "text": "Místo dumpu se dělá přenosná kopie:"
   }
  },
  "patterns": {
@@ -69853,6 +69937,14 @@
   "prp37_7": {
    "source": "Opens a connection of its own to {0} ({1})",
    "text": "Otevře vlastní spojení k {0} ({1})"
+  },
+  "pdbst_1": {
+   "source": "in {0} min",
+   "text": "za {0} min"
+  },
+  "pdbst_2": {
+   "source": "in {0} h",
+   "text": "za {0} h"
   }
  },
  "rich": {

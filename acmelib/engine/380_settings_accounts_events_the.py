@@ -495,7 +495,8 @@ def _db(h):
             'config_file': str(CONFIG_FILE), 'job': job_read(), 'node': node_name(),
             'tuned': bool(json.loads(h.store.get_meta('tune_before:' + node_name()) or '{}')),
             'move': db_move_state(), 'move_guard': db_move_guard(h.store),
-            'retain': {k: CONFIG.get(k) for k in ('retain_events_days',)}})
+            'retain': {k: CONFIG.get(k) for k in ('retain_events_days',)},
+            'nightly': nightly_state(h.store)})
 
 
 def _kept_path(name, kind):

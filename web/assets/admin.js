@@ -638,7 +638,12 @@ function paintCards2(s) {
   }
   var db = s.db || {};
   $('m-db').textContent = ({sqlite: 'SQLite', mariadb: 'MariaDB', postgres: 'PostgreSQL'})[db.engine] || db.engine || '–';
+  /* ...and why it is not green, there and then (1.0.39): yellow said
+     only "last copy 3 days ago", not that a copy is made every day. */
+  var whyWords = {off: 'no copy every day', failed: 'the last one failed', other_node: 'made by the other node',
+                  none: 'the first one tonight', late: 'a copy every day - late'}[db.nightly_why || ''];
   $('m-db-sub').textContent = (db.size ? bytes(db.size) : '') + (db.last_backup ? ' · last copy ' + ago(db.last_backup) : ' · no copy yet')
+    + (whyWords ? ' · ' + whyWords : '')
     + (db.key_there === false ? ' · KEY MISSING' : '');
   $('card-db').className = 'card metric ' + (db.key_there === false ? 'crit' : (db.last_backup && Date.now() / 1000 - db.last_backup < 2 * 86400 ? 'ok' : 'warn'))
     + ($('card-db').classList.contains('tappable') ? ' tappable' : '');
@@ -737,8 +742,69 @@ function peekClusterCard() {
     }
   }, {tab: 'settings', pane: 'ha', words: 'Open Settings', icon: 'gear'});
 }
+/** What the card The database is coloured by, said at the top of its popup
+    (1.0.39): green, yellow or red - and why, and what to do about it. */
+function dbStampSpan(ts) {
+  var sp = el('span', '');
+  var td = stampCell(ts);
+  while (td.firstChild) sp.appendChild(td.firstChild);
+  if (ts) {
+    var left = ts - Date.now() / 1000;
+    /* Time to come is said as such - ago() of it said "0 s ago". */
+    sp.appendChild(noI18n(el('span', 'muted', ' · ')));
+    sp.appendChild(el('span', 'muted', left > 60 ? (left < 5400 ? 'in ' + Math.round(left / 60) + ' min'
+      : 'in ' + Math.round(left / 3600) + ' h') : ago(ts)));
+  }
+  return sp;
+}
+function dbCardState(body, d) {
+  var n = d.nightly || {};
+  var box = el('div', 'dbstate');
+  var line = function (cls, words) { var p = el('p', 'note ' + cls, words); box.appendChild(p); return p; };
+  if (d.key_there === false) {
+    line('bad', 'Red: the key that opens the tokens in the database is not on this machine. Without it the copies cannot be opened either - put the key back from where it was kept (Settings → The database).');
+  }
+  if (n.fresh) {
+    line('good', n.on ? 'Green: a copy of the last two days is here, and one is made every day.'
+      : 'Green: a copy of the last two days is here. No copy is made every day, though - this one was made by hand.');
+  } else if (n.why === 'off') {
+    line('warn', 'Yellow: no copy of the last two days is here, and none is made every day - Settings → The database, "A copy of the database every day". Turn it on, or keep copies another way.');
+  } else if (n.why === 'failed') {
+    line('warn', 'Yellow: the last copy made every day failed - what it said is below. The one before it is older than two days.');
+  } else if (n.why === 'other_node') {
+    line('warn', 'Yellow: both nodes work on one database, and the copy of each day is made by one of them - lately the other node, into its own folder. Here, the last one is older than two days.');
+  } else if (n.why === 'none') {
+    line('warn', 'Yellow: no copy has been made yet. The first one is made at the time below.');
+  } else if (n.why === 'late') {
+    line('warn', 'Yellow: a copy is made every day, but the last one here is older than two days - the daemon did not make one at its time. Was it stopped then, or is the time set later than it runs? Events (backups) and the log say more.');
+  }
+  var facts = [['A copy every day', n.on ? noI18n(el('span', 'mono', n.at || '03:30')) : 'off']];
+  facts.push(['The last one', n.last ? dbStampSpan(n.last) : 'none yet']);
+  if (n.on && n.next) facts.push(['The next one', dbStampSpan(n.next)]);
+  if (n.last_name) facts.push(['Its file', noI18n(el('span', 'mono small', n.last_name))]);
+  if (n.shared) facts.push(['Made by', 'one node of the two, each day']);
+  box.appendChild(peekFacts(facts));
+  if (n.failed) {
+    var f = el('div', 'note bad');
+    f.appendChild(el('span', '', 'It failed'));
+    f.appendChild(document.createTextNode(' '));
+    f.appendChild(dbStampSpan(n.failed.at));
+    f.appendChild(el('br'));
+    f.appendChild(noI18n(el('span', 'mono small', n.failed.words)));
+    box.appendChild(f);
+  }
+  if (n.on && n.tool_ready === false && n.tool_why) {
+    var t = el('p', 'note small muted');
+    t.appendChild(el('span', '', 'A portable copy is made instead of a dump:'));
+    t.appendChild(document.createTextNode(' '));
+    t.appendChild(noI18n(el('span', 'mono', n.tool_why)));
+    box.appendChild(t);
+  }
+  body.appendChild(box);
+}
 function peekDbCard() {
   peek('The database', function () { return api('db'); }, function (body, d) {
+    dbCardState(body, d);
     body.appendChild(peekFacts([['Engine', d.words || d.engine], ['Where', d.where], ['Size', bytes(d.size || 0)],
       ['Version', d.version || '–'], ['The key', d.key_there ? 'there' : 'MISSING']]));
     /* What it holds (1.0.37): one row a table - what it is, its name, how
@@ -766,12 +832,17 @@ function peekDbCard() {
       tr.appendChild(bc);
       return tr;
     }, 'plain dbheld'));
-    var b = d.backups || [];
+    /* The copies and the nightly dumps (1.0.39): the card counts both,
+       and the popup said "No copy has been made yet" beside a card that
+       had one from last night - a dump. */
+    var b = (d.backups || []).map(function (x) { return {name: x.name, size: x.size, at: x.at, key: x.key}; })
+      .concat((d.dumps || []).map(function (x) { return {name: x.name, size: x.bytes || x.size || 0, at: x.at, key: x.key}; }))
+      .sort(function (p, q) { return (q.at || 0) - (p.at || 0); });
     body.appendChild(el('h3', 'peek-h', 'Copies'));
     if (!b.length) {
       body.appendChild(el('p', 'note bad', 'No copy has been made yet.'));
     } else {
-      body.appendChild(listTable(['Copy', {words: 'Size', cls: 'num'}, 'Made', 'Key beside it'], b.slice(0, 6), function (x) {
+      body.appendChild(listTable(['Its file', {words: 'Size', cls: 'num'}, 'Made', 'Key beside it'], b.slice(0, 6), function (x) {
         var tr = el('tr');
         tr.appendChild(noI18n(el('td', 'mono small', x.name)));
         tr.appendChild(el('td', 'num', bytes(x.size)));
