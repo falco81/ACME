@@ -3022,6 +3022,9 @@ body.app-shell #pane-mailq > .card.held{flex:1 1 auto;min-height:320px;max-heigh
 .lt-paged > .lt-pager{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 .lt-paged > .lt-pager:empty{display:none}
 .modal .scroll.lt-held > table > thead th, .pw-node .scroll.lt-held > table > thead th{background:var(--panel)}
+/* In a window, one scroll - the window's (1.0.42): a long list (The database, What it holds)
+   had a scroll bar of its own beside the window's. */
+.modal .scroll.lt-held{max-height:none;overflow-y:visible}
 .ctl-pane .scroll.lt-held{max-height:max(280px, calc(100vh - 440px))}
 
 /* Syslog and SIEM, Disks and logs (1.0.166) */

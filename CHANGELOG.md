@@ -22,6 +22,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - SELinux: MariaDB of the node on a port of its own (not 3306) - the port is given
   `mysqld_port_t` with the rest of what acme needs (*Put in what acme needs*), as
   PostgreSQL's was already; enforcing, MariaDB could not listen there.
+- A window with a long list (*The database* from the overview: *What it holds*) has one
+  scroll bar - the window's; the list had one of its own beside it.
 - acme.service starts after the database of the machine and stops before it: at a restart
   of the machine (a system update) its "acme stopped" could not be written any more -
   PostgreSQL was gone already.
