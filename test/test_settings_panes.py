@@ -32,6 +32,19 @@ class Panes(unittest.TestCase):
         loose = sorted(k for k in E.DEFAULTS if k not in placed and k not in WIRING)
         self.assertEqual(loose, [], 'settings in no pane (shown under every pane): %s' % loose)
 
+    def test_every_pane_has_its_place(self):
+        # A pane with no <div id="sect-PANE"> on the page draws its settings nowhere, so
+        # they fell into the card of everything else - under every pane (ssh_gate_port,
+        # 1.0.40). The settings a card of their own draws need no place.
+        page = ''
+        for p in ('web/admin/index.php', 'web/admin/certs-ui.php'):
+            with open(os.path.join(ROOT, p), encoding='utf-8') as f:
+                page += f.read()
+        homeless = sorted(p for p, keys in E.PANES.items()
+                          if 'id="sect-%s"' % p not in page
+                          and any(k not in E.CARD_DRAWN for k in keys))
+        self.assertEqual(homeless, [], 'panes with no sect- on the page: %s' % homeless)
+
     def test_no_pane_names_an_unknown_setting(self):
         unknown = sorted(k for keys in E.PANES.values() for k in keys if k not in E.DEFAULTS)
         self.assertEqual(unknown, [])

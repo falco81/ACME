@@ -1192,6 +1192,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         Put in by each node's root helper as a file of acme's own beside the system's, checked by sshd before it
         is used, and on trial: unless it is kept in time, each node puts back what it had by itself.</p></div>
     <div id="sd-host"></div>
+    <div class="card full"><h2>acme’s gate for SSH</h2><div id="sect-sshd"></div></div>
   </div>
   <div class="ctl-pane" id="pane-sshkeys" hidden>
     <div class="ctl-head"><h2 class="ctl-title">SSH keys</h2>

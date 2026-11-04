@@ -6,6 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.41 - not released
 
+- *acme's gate for SSH: the port tried first* was shown under every pane of Settings
+  (the page had no place for it): now only under *SSH server and notices*, in a card
+  of its own (*acme's gate for SSH*), as otp has it. A test now sees that every pane's
+  settings have their place on the page.
+
 ## 1.0.40 - 2026-11-04
 
 Taken over from otp 1.0.230-1.0.243: everything of those versions that is not about RADIUS, the
