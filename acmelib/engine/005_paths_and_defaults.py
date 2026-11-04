@@ -47,6 +47,8 @@ DEFAULTS = {
     'portal_hint': '',
     'portal_directory': '',
     'portal_who': 'anyone',
+    # A one-time code by mail or SMS at every sign-in to the portal (1.0.40): off - as until now.
+    'portal_code': 'off',
     'portal_groups': '',
     'portal_session_min': 15,
     'portal_help': '',
@@ -385,6 +387,7 @@ TUNABLE = {
     'names_czsk_letters': (0, 1),
     'names_any_letters': (0, 1),
     'portal': (0, 1), 'portal_who': ('anyone', 'groups'),
+    'portal_code': ('off', 'mail', 'sms', 'sms_mail', 'mail_sms'),
     'portal_session_min': (1, 240),
     'portal_tries': (1, 100), 'portal_wait_min': (1, 1440),
     'portal_local': (0, 1), 'portal_admins_all': (0, 1), 'portal_enrolers': (0, 1),
@@ -506,6 +509,11 @@ CHOICE_WORDS = {
     'sms_tel_api': {'rest': 'RutOS’s own API (/api, RutOS 7 - the default)',
                     'cgi': 'the older Post/Get SMS service (/cgi-bin/sms_send)'},
     'sms_method': {'POST': 'POST', 'GET': 'GET'},
+    'portal_code': {'off': 'no - the directory password is enough (as until now)',
+                    'mail': 'yes, by e-mail',
+                    'sms': 'yes, by SMS',
+                    'sms_mail': 'yes, by SMS - by e-mail when the directory has no mobile number',
+                    'mail_sms': 'yes, by e-mail - by SMS when the directory has no address'},
     'portal_who': {'anyone': 'anybody the directory lets sign in',
                    'groups': 'members of the groups named below'},
     'db_engine': {'sqlite': 'a file on this machine (SQLite)', 'mariadb': 'MariaDB / MySQL',
@@ -595,6 +603,7 @@ NAMES = {
     'portal_directory': 'People sign in against the directory',
     'portal_hint': 'What to type as the name (shown on the sign-in)',
     'portal_who': 'Who may sign in',
+    'portal_code': 'A one-time code at every sign-in',
     'portal_groups': 'Groups that may sign in',
     'portal_session_min': 'A sign-in to the enrolment pages lasts (min)',
     'portal_help': 'Help text on the enrolment pages',
@@ -982,6 +991,14 @@ SAYS = {
                         'against (Accounts).',
     'portal_hint': 'One line under the sign-in boxes saying what to type, such as '
                    '<code>login@example.cz</code>.',
+    'portal_code': 'Somebody signing in to the portal with their directory name and password - or '
+                   'signed in by the load balancer in front - then gets a one-time code to the '
+                   'e-mail address or the mobile number the directory has for them, read from it '
+                   'at the sign-in, nothing typed. Only with that code typed are they in: the '
+                   'directory password alone - guessed, or found out - no longer opens anybody\'s '
+                   'certificates, at every sign-in. An account the directory has no address or '
+                   'number for cannot sign in here then. Needs the mail (Settings → Mail) or the '
+                   'SMS gateway set up. The portal\'s own accounts keep their own second step.',
     'portal_who': 'Who may sign in: anybody the directory knows and lets in, or only the '
                   'members of the groups below.',
     'portal_groups': 'With <i>members of the groups named below</i>: the groups, by name '
@@ -1425,7 +1442,7 @@ PANES = {
     'network': ['net_confirm_min'],
     'fw': ['fw_confirm_min', 'web_proxy', 'web_proxy_from', 'web_proxy_header', 'web_proxy_recursive'],
     'portal': ['portal', 'portal_title', 'portal_directory', 'portal_hint', 'portal_who',
-               'portal_groups',
+               'portal_groups', 'portal_code',
                'portal_session_min', 'portal_tries', 'portal_wait_min',
                'portal_enrolers', 'portal_local', 'portal_admins_all',
                'portal_help'],
@@ -1511,7 +1528,7 @@ ONLY_WHEN = {
     'login_guard_block_min': ['login_guard', '1'],
     'login_guard_trusted': ['login_guard', '1'],
     'portal_title': ['portal', '1'], 'portal_directory': ['portal', '1'],
-    'portal_hint': ['portal', '1'], 'portal_who': ['portal', '1'],
+    'portal_hint': ['portal', '1'], 'portal_who': ['portal', '1'], 'portal_code': ['portal', '1'],
     'portal_groups': ['portal_who', 'groups'],
     'portal_session_min': ['portal', '1'],
     'portal_help': ['portal', '1'], 'portal_tries': ['portal', '1'],

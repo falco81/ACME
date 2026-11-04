@@ -20,6 +20,9 @@ CODE_PURPOSES = {
     'admin_verify': {'p': 'av_', 'subject': 'admin_verify_subject', 'body': 'admin_verify_body',
                      'sms': 'admin_sms_verify', 'warn': False, 'note': 'h_av_note',
                      'queue': 'verify'},
+    # The portal's own second step (1.0.40, as otp's code before the first token, 1.0.228).
+    'portal': {'p': 'p_', 'subject': 'portal_subject', 'body': 'portal_body', 'sms': 'portal_sms',
+               'warn': True, 'note': 'h_p_warn', 'queue': 'code'},
 }
 
 
@@ -54,6 +57,21 @@ CODE_TEXTS = {
         'admin_sms': '{code} je váš kód pro přihlášení do administrace ({site}). Platí {minutes} '
                      'min. Nikomu ho nesdělujte.',
         'admin_sms_verify': '{code} je kód pro ověření tohoto čísla pro administraci ({site}).',
+        # The portal's second step (1.0.40): its own words.
+        'portal_subject': 'Kód pro přihlášení na portál certifikátů: {code}',
+        'portal_body': ('Váš kód pro přihlášení na portál certifikátů {site} je\n\n    {code}\n\n'
+                        'Platí {minutes} min a jen jednou. Pokud jste se právě nepřihlašovali, '
+                        'kód nikomu nesdělujte a změňte si heslo - někdo ho zná.\n\n-- \n{site}'),
+        'portal_sms': '{code} je váš kód pro přihlášení na portál certifikátů ({site}). Platí '
+                      '{minutes} min. Nikomu ho nesdělujte.',
+        'h_p_title': 'Portál certifikátů · Přihlášení',
+        'h_p_hello': 'Dobrý den, {name},', 'h_p_hello_anon': 'Dobrý den,',
+        'h_p_lede': 'váš kód pro přihlášení na portál certifikátů k účtu <b>{account}</b>:',
+        'h_p_lede_anon': 'váš kód pro přihlášení na portál certifikátů:',
+        'h_p_facts': 'Zadejte ho na přihlašovací stránce. Platí {minutes} min a jen jednou.',
+        'h_p_warn': 'Pokud jste se právě nepřihlašovali, kód nikomu nesdělujte a změňte si heslo '
+                    '– někdo ho zná.',
+        'h_p_foot': 'Posláno automaticky z {site}. Na tento e-mail neodpovídejte.',
         'h_a_title': 'Administrace · Druhý krok přihlášení',
         'h_a_hello': 'Dobrý den, {name},', 'h_a_hello_anon': 'Dobrý den,',
         'h_a_lede': 'váš kód pro přihlášení do administrace k účtu <b>{account}</b>:',
@@ -101,6 +119,21 @@ CODE_TEXTS = {
                      'min. Tell nobody.',
         'admin_sms_verify': '{code} is the code to check this number for the administration '
                             '({site}).',
+        'portal_subject': 'Your code to sign in to the certificate portal: {code}',
+        'portal_body': ('Your code to sign in to the certificate portal of {site} is\n\n    {code}\n\n'
+                        'It is good for {minutes} min and once. If you are not signing in just '
+                        'now, tell nobody the code and change your password - somebody knows '
+                        'it.\n\n-- \n{site}'),
+        'portal_sms': '{code} is your code to sign in to the certificate portal ({site}). Good for '
+                      '{minutes} min. Tell nobody.',
+        'h_p_title': 'Certificate portal · Signing in',
+        'h_p_hello': 'Hello {name},', 'h_p_hello_anon': 'Hello,',
+        'h_p_lede': 'your code to sign in to the certificate portal as <b>{account}</b>:',
+        'h_p_lede_anon': 'your code to sign in to the certificate portal:',
+        'h_p_facts': 'Type it on the sign-in page. It is good for {minutes} min and once.',
+        'h_p_warn': 'If you are not signing in just now, tell nobody the code and change your '
+                    'password - somebody knows it.',
+        'h_p_foot': 'Sent automatically by {site}. Do not reply to this mail.',
         'h_a_title': 'Administration · Second step',
         'h_a_hello': 'Hello {name},', 'h_a_hello_anon': 'Hello,',
         'h_a_lede': 'your code to sign in to the administration as <b>{account}</b>:',
@@ -200,17 +233,44 @@ def code_hash(salt, code):
                     hashlib.sha256).hexdigest()
 
 
-def code_channels():
+def code_channels(conf=None):
     """Which ways of sending can be used at all - set up, not switched off."""
+    c = CONFIG if conf is None else conf
     out = []
-    if (CONFIG.get('mail_mode') or 'off') != 'off' and CONFIG.get('mail_from'):
+    if (c.get('mail_mode') or 'off') != 'off' and c.get('mail_from'):
         out.append('mail')
-    mode = CONFIG.get('sms_mode') or 'off'
-    if (mode == 'http' and CONFIG.get('sms_url')) or \
-            (mode == 'spool' and CONFIG.get('sms_spool_dir')) or \
-            (mode == 'teltonika' and CONFIG.get('sms_tel_host')):
+    mode = c.get('sms_mode') or 'off'
+    if (mode == 'http' and c.get('sms_url')) or \
+            (mode == 'spool' and c.get('sms_spool_dir')) or \
+            (mode == 'teltonika' and c.get('sms_tel_host')):
         out.append('sms')
     return out
+
+
+# A one-time code at every sign-in to the portal (1.0.40; otp's code before the first token,
+# 1.0.228, asked here at every sign-in): which ways, in order.
+PORTAL_CODE_WAYS = {'mail': ('mail',), 'sms': ('sms',), 'sms_mail': ('sms', 'mail'),
+                    'mail_sms': ('mail', 'sms')}
+PORTAL_CODE_KEYS = ('portal_code', 'mail_mode', 'mail_from', 'sms_mode', 'sms_url',
+                    'sms_spool_dir', 'sms_tel_host', 'portal')
+
+
+def portal_code_problem(conf=None):
+    """Why "a one-time code at every sign-in" cannot work with these settings, or ''."""
+    c = CONFIG if conf is None else conf
+    ways = PORTAL_CODE_WAYS.get(str(c.get('portal_code') or 'off'))
+    if not ways:
+        return ''
+    have = code_channels(c)
+    if not any(w in have for w in ways):
+        if len(ways) > 1:
+            return ('a one-time code at every sign-in needs the mail (Settings → Mail) or '
+                    'the SMS gateway (Settings → Codes by e-mail and SMS) set up first')
+        if ways[0] == 'mail':
+            return 'a one-time code at every sign-in by e-mail needs the mail (Settings → Mail) set up first'
+        return ('a one-time code at every sign-in by SMS needs the SMS gateway (Settings → Codes by '
+                'e-mail and SMS) set up first')
+    return ''
 
 
 

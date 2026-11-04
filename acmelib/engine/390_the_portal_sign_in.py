@@ -25,7 +25,7 @@ from __future__ import annotations
 PORTAL_ME = []          # fn(h, s) -> {key: value} added to GET /api/portal/me
 
 
-def portal_me(h):
+def portal_me(h, gate_ok=False):
     s = h.session('portal')
     if not s:
         raise ApiError(401, 'not signed in, or the sign-in has run out')
@@ -39,6 +39,17 @@ def portal_me(h):
         raise ApiError(401, 'sign in again')
     if portal_mfa_pending(s):
         raise ApiError(401, 'the second step of signing in is not done yet')
+    # The one-time code at every sign-in (1.0.40, as otp 1.0.228): until it is typed, the sign-in
+    # may do that and nothing else.
+    if portal_gated(s) and not gate_ok:
+        raise ApiError(401, 'type the code that was sent to you first')
+    # Asked again on every step (as otp 1.0.234): a sign-in kept open from before it was switched
+    # on goes no further without the code.
+    data = s.get('data') or {}
+    if not gate_ok and data.get('kind') != 'local' and not data.get('gate_ok') and \
+            portal_gate_needed():
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        raise ApiError(401, 'sign in again: a code is sent to you first')
     if not portal_local_ok(h, s):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(401, 'that account may no longer sign in here')
@@ -48,6 +59,77 @@ def portal_me(h):
     if portal_must_change(s):
         raise ApiError(403, 'change the password first')
     return s
+
+
+def portal_gated(s):
+    """Whether this sign-in to the portal still waits for its one-time code (as otp 1.0.228)."""
+    return bool((s.get('data') or {}).get('gate_wait'))
+
+
+def portal_gate_needed():
+    """Whether a sign-in of a person of the directory needs the one-time code (1.0.40): at
+    every sign-in while it is switched on - otp asks it before the first token only."""
+    return bool(PORTAL_CODE_WAYS.get(str(CONFIG.get('portal_code') or 'off')))
+
+
+def portal_gate_where(entry):
+    """Where the code goes, as the directory has it: (kind, address, ''), or (None, None, why)
+    with why 'nothing' (no way of sending set up) or what the directory lacks."""
+    ways = PORTAL_CODE_WAYS.get(str(CONFIG.get('portal_code') or 'off')) or ()
+    have = code_channels()
+    tried = []
+    for kind in ways:
+        if kind not in have:
+            continue
+        raw = str(entry.get('mail' if kind == 'mail' else 'mobile') or '').strip()
+        if not raw:
+            tried.append('no %s' % ('e-mail address' if kind == 'mail' else 'mobile number'))
+            continue
+        try:
+            return kind, dest_checked(kind, raw), ''
+        except ValueError as e:
+            tried.append('%s %s: %s' % ('the e-mail address' if kind == 'mail' else 'the mobile number',
+                                         raw, e))
+    if not any(k in have for k in ways):
+        return None, None, 'nothing'
+    return None, None, '; '.join(tried) or 'nothing to send it to'
+
+
+def portal_gate_send(h, name, kind, dest, display='', lang=''):
+    """A one-time code sent for the sign-in to the portal: the gate to keep in the session."""
+    key = h.throttle('portal-send', 10 * int(CONFIG.get('code_send_max') or 5),
+                     int(CONFIG.get('code_send_window_min') or 15), name=name, what='codes sent')
+    if not code_send_allowed(h.store, name) or \
+            not code_send_allowed(h.store, 'to:%s:%s' % (kind, dest.lower())):
+        raise ApiError(429, 'too many codes were sent - wait %d min and try again'
+                       % code_send_wait_min(h.store, 'to:%s:%s' % (kind, dest.lower())))
+    h.failed(key)       # a code that goes holds its place
+    code = code_new()
+    lang = lang if lang in ('cs', 'en') else None
+    try:
+        code_send(h.store, kind, dest, code, 'portal', name=name, lang=lang, display=display or '')
+    except (MailError, SmsError) as e:
+        h.store.add_event('portal', 'the one-time code for %s to sign in to the portal '
+                          'could not be sent to %s: %s' % (name, dest, e), 'warn', who=name)
+        # The mail or SMS server's own words in Events only (as otp 1.0.234), not on the portal.
+        raise ApiError(502, 'the code could not be sent - try again later, or ask the administrator')
+    h.store.add_event('portal', '%s signed in to the portal with the password: a one-time code went '
+                      'by %s to %s' % (name, 'mail' if kind == 'mail' else 'SMS', dest), who=name)
+    return {'kind': kind, 'dest': dest, 'code': code_hash(name, code),
+            'exp': time.time() + int(CONFIG.get('code_ttl_s') or 300), 'tries': 0,
+            'lang': lang or ''}
+
+
+def portal_gate_view(s):
+    data = s.get('data') or {}
+    g = data.get('gate') or {}
+    w = data.get('gate_wait') or {}
+    kind = g.get('kind') or w.get('kind')
+    return {'kind': kind, 'dest': dest_masked(kind, g.get('dest') or w.get('dest')),
+            'live': bool(g) and float(g.get('exp') or 0) > time.time(),
+            'digits': int(CONFIG.get('code_digits') or 6),
+            'minutes': max(1, int(CONFIG.get('code_ttl_s') or 300) // 60),
+            'sso': bool(data.get('sso'))}           # signed in by the balancer (as otp 1.0.239)
 
 
 PORTAL_DIR_CHECK_S = 600
@@ -511,6 +593,26 @@ def portal_open_dir(h, key, name, ad, entry, sso=False):
             h.failed(key)
             raise ApiError(403, 'this account may not use these pages - ask the administrator')
     who = str(entry.get('upn') or entry.get('sam') or name).strip().lower()
+    # A one-time code at every sign-in (1.0.40, as otp's before the first token, 1.0.228): to the
+    # address or the number the directory has - the password alone, or the balancer's word, no
+    # longer opens anybody's certificates.
+    gate = None
+    if portal_gate_needed():
+        kind, dest, why = portal_gate_where(entry)
+        if not kind:
+            if why == 'nothing':
+                h.store.add_event('portal', '%s cannot sign in: a one-time code is needed, and '
+                                  'neither the mail nor the SMS is set up' % who, 'bad', who=who)
+                raise ApiError(503, 'the code cannot be sent just now - ask the administrator')
+            h.store.add_event('portal', '%s cannot sign in here: a one-time code is needed, and the '
+                              'directory has %s' % (who, why), 'warn', who=who)
+            raise ApiError(403, 'the directory has no e-mail address or mobile number of yours to '
+                                'send the code to - ask the administrator')
+        try:
+            lang = str((h.body() or {}).get('lang') or '')
+        except Exception:                               # noqa: BLE001
+            lang = ''
+        gate = portal_gate_send(h, who, kind, dest, display=entry.get('display') or '', lang=lang)
     token = h.store.session_new('portal', who, 'portal', h.client_ip(),
                                 max(1, int(CONFIG.get('portal_session_min') or 15)) / 60.0 * 4,
                                 {'display': entry.get('display') or '', 'dn': entry['dn'],
@@ -527,7 +629,16 @@ def portal_open_dir(h, key, name, ad, entry, sso=False):
                                            'pw_set': entry.get('pw_set') or None,
                                            'groups': let_in[:20],
                                            'directory': ad.name},
+                                 'gate': gate,
+                                 'gate_wait': {'kind': gate['kind'], 'dest': gate['dest']}
+                                 if gate else None,
                                  'sso': 1 if sso else 0})
+    if gate:
+        return {'token': token, 'name': who,
+                'gate': {'kind': gate['kind'], 'dest': dest_masked(gate['kind'], gate['dest']),
+                         'live': True, 'digits': int(CONFIG.get('code_digits') or 6),
+                         'minutes': max(1, int(CONFIG.get('code_ttl_s') or 300) // 60),
+                         'sso': bool(sso)}}
     h.store.add_event('portal', '%s signed in to the enrolment pages from %s%s'
                       % (who, h.client_ip(), ' (signed in by the load balancer)' if sso else ''),
                       who=who)
@@ -822,6 +933,57 @@ def portal_state(h, s):
     return out
 
 
+@route('POST', '/api/portal/gate')
+def _portal_gate(h):
+    """The one-time code of the sign-in, typed back (as otp 1.0.228)."""
+    s = portal_me(h, gate_ok=True)
+    data = s.get('data') or {}
+    if not portal_gated(s):
+        return {'me': portal_state(h, s)}
+    g = data.get('gate') or {}
+    if not g or float(g.get('exp') or 0) < time.time():
+        portal_data_set(h, s, gate=None)
+        raise ApiError(410, 'the code ran out - ask for a new one')
+    key = h.throttle('portal-gate', int(CONFIG.get('code_tries') or 3) + 2,
+                     int(CONFIG.get('portal_wait_min') or 15), name=s['name'], ip_tries=50,
+                     name_tries=int(CONFIG.get('code_tries') or 3) * 3, what='wrong codes')
+    code = code_typed(h.body().get('code') or '')
+    if not hmac.compare_digest(code_hash(s['name'], code), str(g.get('code') or '')):
+        h.failed(key)
+        last = h.store.session_count_try(s['id'], 'gate', g.get('code'),
+                                         int(CONFIG.get('code_tries') or 3))
+        h.store.add_event('portal', '%s typed a wrong one-time code on the portal%s'
+                          % (s['name'], ' - the last try' if last else ''), 'warn', who=s['name'])
+        if last:
+            raise ApiError(403, 'that was not the code - and it was the last try: ask for a '
+                                'new one')
+        raise ApiError(403, 'that is not the code that was sent')
+    # Taken once: two requests with the right code at once both read it.
+    if not h.store.session_take(s['id'], 'gate'):
+        raise ApiError(409, 'that code was taken already')
+    portal_data_set(h, s, gate_wait=None, gate_ok=time.time())
+    h.store.add_event('portal', '%s signed in to the portal from %s, with the one-time '
+                      'code by %s' % (s['name'], h.client_ip(),
+                                      'mail' if g.get('kind') == 'mail' else 'SMS'), who=s['name'])
+    return {'me': portal_state(h, s)}
+
+
+@route('POST', '/api/portal/gate/again')
+def _portal_gate_again(h):
+    """The one-time code sent again, to where the first one went (as otp 1.0.228)."""
+    s = portal_me(h, gate_ok=True)
+    if not portal_gated(s):
+        return {'me': portal_state(h, s)}
+    w = (s.get('data') or {}).get('gate_wait') or {}
+    if w.get('kind') not in code_channels():
+        raise ApiError(503, 'the code cannot be sent just now - ask the administrator')
+    lang = str(h.body().get('lang') or '') or ((s.get('data') or {}).get('gate') or {}).get('lang') or ''
+    gate = portal_gate_send(h, s['name'], w['kind'], w['dest'],
+                            display=(s.get('data') or {}).get('display') or '', lang=lang)
+    portal_data_set(h, s, gate=gate)
+    return {'gate': portal_gate_view(s)}
+
+
 @route('GET', '/api/portal/me')
 def _portal_whoami(h):
     s = h.session('portal')
@@ -838,6 +1000,9 @@ def _portal_whoami(h):
     if portal_mfa_pending(s):
         # The password given, the second step not yet: the sign-in page asks it.
         return {'me': None, 'mfa': portal_mfa_pending(s)}
+    if portal_gated(s):
+        # Waiting for its one-time code (as otp 1.0.228): nothing of the person shown yet.
+        return {'me': {'name': s['name'], 'gate': portal_gate_view(s)}}
     if not portal_local_ok(h, s):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         return {'me': None}

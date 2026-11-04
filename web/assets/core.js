@@ -1518,6 +1518,25 @@ function formField(label, input, says) {
   if (says) item.appendChild(saysBlock(says));
   return item;
 }
+/* A code as somebody typed it, read as the digits meant (as otp 1.0.227) - as the server reads it:
+   spaces and dashes of every kind between the digits, the Czech row without Shift, full-width
+   digits. Checked here before sending, so "1234 5678" or "123-456" is not refused as
+   "digits only" while the server takes it. */
+var CODE_CZ = {'+': '1', 'ě': '2', 'š': '3', 'č': '4', 'ř': '5', 'ž': '6', 'ý': '7', 'á': '8', 'í': '9', 'é': '0',
+  'Ě': '2', 'Š': '3', 'Č': '4', 'Ř': '5', 'Ž': '6', 'Ý': '7', 'Á': '8', 'Í': '9', 'É': '0'};
+function codeTyped(s) {
+  s = String(s || '');
+  try { s = s.normalize('NFC'); } catch (e) { /* old browser: as typed */ }
+  var out = '';
+  for (var i = 0; i < s.length; i++) {
+    var ch = s.charAt(i), n = ch.charCodeAt(0);
+    if (/\s/.test(ch) || /[\u002d\u00ad\u058a\u05be\u1806\u2010-\u2015\u2212\u2e3a\u2e3b\u301c\u30a0\ufe58\ufe63\uff0d\u200b]/.test(ch)) continue;
+    if (CODE_CZ[ch]) { out += CODE_CZ[ch]; continue; }
+    if (n >= 0xff10 && n <= 0xff19) { out += String(n - 0xff10); continue; }
+    out += ch;
+  }
+  return out;
+}
 function textBox(value, placeholder, cls) {
   var i = el('input', cls || '');
   i.type = 'text';

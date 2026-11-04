@@ -54,9 +54,10 @@ function portalDoor() {
     go.disabled = true;
     var words = go.querySelector('span');
     words.textContent = 'Signing in…';
-    api('login', {name: $('in-name').value, password: $('in-pass').value}).then(function (d) {
+    api('login', {name: $('in-name').value, password: $('in-pass').value, lang: window.ACME_LANG || ''}).then(function (d) {
       /* An account of acme's own with a second step: asked as the administration asks it (core.js). */
       if (d && d.mfa) { form.hidden = true; mfaStep(); return; }
+      if (d && d.gate) { gateForm(d.gate); return; }
       said.className = 'said good';
       said.textContent = 'Welcome.';
       location.reload();
@@ -69,7 +70,127 @@ function portalDoor() {
       $('in-pass').focus();
     });
   });
+  if (window.PORTAL_GATE) { gateForm(window.PORTAL_GATE); return; }
   if ($('mfa-box') && $('mfa-box').dataset.stage) { form.hidden = true; mfaStep(); } else $('in-name').focus();
+}
+
+/* The one-time code at every sign-in (1.0.40, as otp's before the first token, 1.0.228):
+   somebody signed in with the directory password - or by the balancer in front - and a code
+   went to the address or the number the directory has for them. Typed (or pasted from the
+   message, "482 913" as it comes) here, the portal opens. */
+function gateForm(g) {
+  var form = $('signin-form');
+  var box = form.parentNode;
+  form.hidden = true;
+  var first = box.querySelector('p.lede');
+  if (first) first.hidden = true;
+  var old = $('gate-box');
+  if (old) old.parentNode.removeChild(old);
+  var sms = g.kind === 'sms';
+  var wrap = el('div', 'gate-box');
+  wrap.id = 'gate-box';
+  var mark = el('div', 'gate-mark');
+  mark.innerHTML = iconMarkup(sms ? 'phone' : 'mail', 26);
+  wrap.appendChild(mark);
+  wrap.appendChild(el('h2', 'gate-title', 'Confirm it is you'));
+  wrap.appendChild(el('p', 'gate-lede', sms
+    ? 'To finish signing in, type the code we have just sent by SMS to'
+    : 'To finish signing in, type the code we have just sent by e-mail to'));
+  var where = el('div', 'gate-dest mono', g.dest || '');
+  noI18n(where);
+  wrap.appendChild(where);
+  var f = el('form', 'gate-form');
+  f.autocomplete = 'off';
+  var code = textBox('', '000 000', 'codein gate-code');
+  code.inputMode = 'numeric';
+  code.autocomplete = 'one-time-code';
+  code.maxLength = 32;
+  code.setAttribute('aria-label', 'The code');
+  noI18n(code);
+  f.appendChild(code);
+  var go = cmdButton('Confirm', 'check', 'primary');
+  go.type = 'submit';
+  go.className += ' gate-go';
+  f.appendChild(go);
+  var said = el('div', 'said gate-said');
+  f.appendChild(said);
+  wrap.appendChild(f);
+  wrap.appendChild(el('p', 'gate-note', 'The code is good for ' + (g.minutes || 5) + ' min and only once. You can paste it as it came, with the space.'));
+  var row = el('div', 'gate-actions');
+  var again = cmdButton('Send it again', 'refresh', '');
+  again.type = 'button';
+  again.onclick = function () {
+    busy(again, true);
+    api('gate_again', {lang: window.ACME_LANG || ''}).then(function (d) {
+      said.className = 'said gate-said good';
+      said.textContent = 'A new code is on its way.';
+      if (d && d.gate && d.gate.dest) where.textContent = d.gate.dest;
+      code.value = '';
+      code.focus();
+    }).catch(function (e) {
+      said.className = 'said gate-said bad';
+      said.textContent = String(e.message || e);
+    }).then(function () { busy(again, false); });
+  };
+  row.appendChild(again);
+  var back = cmdButton('Back', 'undo', '');
+  back.type = 'button';
+  back.title = 'Sign in as somebody else';
+  back.onclick = function () {
+    portalSignOut(!!(g && g.sso));
+  };
+  row.appendChild(back);
+  wrap.appendChild(row);
+  box.insertBefore(wrap, form.nextSibling);
+  dressButtons(wrap);
+  if (g.live === false) {
+    said.className = 'said gate-said bad';
+    said.textContent = 'The code ran out - ask for a new one.';
+  }
+  var sending = false;
+  function send() {
+    if (sending) return;
+    var typed = codeTyped(code.value);
+    if (!/^[0-9]{4,10}$/.test(typed)) {
+      said.className = 'said gate-said bad';
+      said.textContent = 'Type the code from the message: its digits only.';
+      code.select();
+      return;
+    }
+    sending = true;
+    busy(go, true);
+    said.className = 'said gate-said';
+    said.textContent = '';
+    api('gate', {code: typed}).then(function () {
+      said.className = 'said gate-said good';
+      said.textContent = 'Welcome.';
+      location.reload();
+    }).catch(function (e) {
+      sending = false;
+      busy(go, false);
+      said.className = 'said gate-said bad';
+      said.textContent = String(e.message || e);
+      code.select();
+    });
+  }
+  f.addEventListener('submit', function (e) { e.preventDefault(); send(); });
+  /* Pasted from the mail or the SMS ("482 913", a word or two around it): the digits taken,
+     shown as they came in groups, and sent at once. */
+  code.addEventListener('paste', function (e) {
+    var t = (e.clipboardData || window.clipboardData);
+    t = t ? t.getData('text') : '';
+    var digits = codeTyped(t);
+    if (!/^[0-9]{4,10}$/.test(digits)) {
+      var m = String(t || '').match(/(?:\d[\s \-]?){4,10}/);
+      digits = m ? codeTyped(m[0]) : '';
+    }
+    if (/^[0-9]{4,10}$/.test(digits)) {
+      e.preventDefault();
+      code.value = digits.length === 6 ? digits.slice(0, 3) + ' ' + digits.slice(3) : digits;
+      send();
+    }
+  });
+  code.focus();
 }
 
 var ME = null;

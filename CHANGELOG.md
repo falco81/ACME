@@ -263,6 +263,18 @@ hunts. Every new switch is off - as until now - unless said otherwise.
   or not), with what the boxes would read, the attributes that can hold an e-mail address and
   those that can hold a phone number each with *Use*, and every attribute of the entry listed. A
   full administrator only; written into Events. `acme --dir-sample NAME USER`, and on the console.
+- **A one-time code at every sign-in to the certificate portal** (*Settings → The enrolment
+  pages → A one-time code at every sign-in*, `portal_code`; off by default - as until now): a
+  person of the directory signs in with their name and password - or is signed in by the load
+  balancer in front (SSO) - and a code goes to the e-mail address or the mobile number the
+  directory has for them (read where the directory's card says), at **every** sign-in, not only
+  the first as otp has it. Until it is typed nothing else can be done and nothing of the person
+  is shown. The page as otp's: where the code went (masked), the box, *Confirm*, *Send it again*
+  and *Back*; pasted as the mail or the SMS has it ("482 913"). By e-mail, by SMS, or one with
+  the other where the directory lacks it; saved only with the mail or the SMS gateway set up.
+  Its own words in *Settings → Message texts* (a mail and an SMS). Each code sent, each wrong one,
+  the sign-in with it in Events - never the code. The portal's own accounts keep their second
+  step as before.
 
 ## 1.0.39 - 2026-11-04
 

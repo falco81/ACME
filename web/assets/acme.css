@@ -3638,3 +3638,22 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .samp-all-lede{margin:4px 0 0}
 .samp-list .samp-tags .btn{padding:0 9px}
 
+
+/* The one-time code at every sign-in to the portal (as otp 1.0.228) */
+.gate-box{display:flex;flex-direction:column;align-items:center;text-align:center;padding:4px 0 2px}
+.gate-mark{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;
+  background:var(--info-bg);color:var(--info);border:1px solid rgba(88,166,255,.35);margin:2px 0 12px}
+.gate-title{margin:0 0 6px;font-size:18px;font-weight:650}
+.gate-lede{margin:0 0 8px;color:var(--tx-dim);font-size:14px;line-height:1.5;max-width:34em}
+.gate-dest{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:16px;font-weight:700;color:var(--tx);margin:0 0 18px}
+.gate-form{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
+.gate-form .gate-code{width:100%;max-width:260px;height:54px;box-sizing:border-box;font-size:26px;
+  letter-spacing:6px;text-align:center;font-family:Consolas,Menlo,'Courier New',monospace;font-weight:700}
+.gate-form .gate-go{width:100%;max-width:260px;justify-content:center}
+.gate-form .gate-said{min-height:0;margin:2px 0 0;max-width:30em}
+.gate-form .gate-said:empty{display:none}
+.gate-note{margin:12px 0 16px;color:var(--tx-mut);font-size:12.5px;line-height:1.45;max-width:30em}
+.gate-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:360px}
+.gate-actions .btn{width:100%;justify-content:center;white-space:nowrap;padding:0 10px}
+

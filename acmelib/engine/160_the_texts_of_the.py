@@ -80,6 +80,29 @@ TEXT_MESSAGES = [
      'title': 'The administration: checking a number',
      'says': 'Sent when an administrator sets up the second step by SMS, to check the number.',
      'fields': [('admin_sms_verify', 'text', 'The SMS', ('code', 'minutes', 'site'), 'sms')]},
+    # The portal's second step (1.0.40, as otp's code before the first token, 1.0.228).
+    {'id': 'portal_mail', 'short': 'The sign-in code by mail', 'kind': 'mail', 'group': 'code',
+     'purpose': 'portal',
+     'title': 'The certificate portal: a sign-in code by mail',
+     'says': 'Sent when somebody signs in to the certificate portal, with "A one-time code at every '
+             'sign-in" on.',
+     'fields': [
+         ('portal_subject', 'line', 'Subject', ('code', 'minutes', 'site'), 'subject'),
+         ('h_p_title', 'line', 'The band at the top', ('site',), 'layout'),
+         ('h_p_hello', 'rich', 'Greeting', ('name',), 'layout'),
+         ('h_p_lede', 'rich', 'What it is', ('account',), 'layout'),
+         ('h_p_facts', 'rich', 'Under the code', ('minutes',), 'layout'),
+         ('h_p_warn', 'rich', 'The warning', (), 'layout'),
+         ('h_p_foot', 'rich', 'The foot', ('site',), 'layout'),
+         ('h_p_hello_anon', 'rich', 'Greeting when the name is not known', (), 'other'),
+         ('h_p_lede_anon', 'rich', 'What it is when the account is not known', (), 'other'),
+         ('portal_body', 'text', 'The plain text version', ('code', 'minutes', 'site'), 'plain'),
+     ]},
+    {'id': 'portal_sms', 'short': 'The sign-in code by SMS', 'kind': 'sms', 'group': 'code',
+     'title': 'The certificate portal: a sign-in code by SMS',
+     'says': 'Sent when somebody signs in to the certificate portal, with "A one-time code at every '
+             'sign-in" on.',
+     'fields': [('portal_sms', 'text', 'The SMS', ('code', 'minutes', 'site'), 'sms')]},
 ]
 TEXT_LANGS = ('cs', 'en')
 TEXT_PLACEHOLDERS = {

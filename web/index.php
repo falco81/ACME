@@ -105,6 +105,7 @@ if (isset($_GET['api'])) {
         [$status, $body] = acme_call('/api/portal/login', 'POST', [
             'name'     => (string) ($sent['name'] ?? ''),
             'password' => (string) ($sent['password'] ?? ''),
+            'lang'     => (string) ($sent['lang'] ?? ''),
         ], 30.0);
         if ($status === 0) {
             http_response_code(503);
@@ -170,7 +171,9 @@ if (isset($_GET['api'])) {
                'password' => '/api/portal/password', 'cert-renew' => '/api/portal/cert_renew',
                'cert-auto' => '/api/portal/cert_auto', 'cert-revoke' => '/api/portal/cert_revoke',
                'cert-approve' => '/api/portal/cert_approve', 'csr-decode' => '/api/portal/csr_decode',
-               'cert-csr' => '/api/portal/cert_csr'];
+               'cert-csr' => '/api/portal/cert_csr',
+               // The one-time code at every sign-in (1.0.40, as otp 1.0.228).
+               'gate' => '/api/portal/gate', 'gate_again' => '/api/portal/gate/again'];
     if ($post && isset($writes[$what])) {
         acme_relay($writes[$what], 'POST', sent_json(), 120.0);
         exit;
@@ -207,6 +210,11 @@ if ($alive && acme_session() !== '') {
     $me = is_array($got) ? ($got['me'] ?? null) : null;
     /* The password given, its second step not yet (an account of acme's own). */
     $mfa = (is_array($got) && !$me && !empty($got['mfa'])) ? (string) $got['mfa'] : '';
+}
+// Signed in, the one-time code not typed yet (as otp 1.0.228): the sign-in page, asking for it.
+$gate = (is_array($me) && !empty($me['gate'])) ? $me['gate'] : null;
+if ($gate !== null) {
+    $me = null;
 }
 $lang = acme_lang_pick(null, (string) ($info['lang'] ?? 'cs'));
 $load = $lang !== 'en' && acme_lang_pack($lang) !== null;
@@ -278,6 +286,7 @@ if ($title_ours) {
 </div>
 <script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/core.js')) ?>"></script>
 <script nonce="<?= h($nonce) ?>" src="/assets/portal.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/portal.js')) ?>"></script>
+<script nonce="<?= h($nonce) ?>">var PORTAL_GATE = <?= json_encode($gate, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 <script nonce="<?= h($nonce) ?>">portalDoor();</script>
 <?php else: ?>
 <header>

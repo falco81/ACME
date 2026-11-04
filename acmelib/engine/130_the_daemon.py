@@ -194,6 +194,14 @@ class Daemon(object):
                                      'balancers first (The balancers that sign people in)')
                 if not unseal_secret(str(after.get('portal_sso_key') or '')):
                     raise BadSetting('signed in by the load balancer: make the key first (Make a key)')
+        if any(k in checked for k in PORTAL_CODE_KEYS):
+            # The code at every sign-in only with a way to send it (as otp 1.0.228): switched on
+            # without one, or the mail or the SMS switched off under it, nobody could sign in.
+            after = dict(CONFIG)
+            after.update(checked)
+            why = portal_code_problem(after)
+            if why:
+                raise BadSetting(why)
         if 'node_name' in checked:
             taken = node_name_taken(self.store, checked['node_name'])
             if taken:

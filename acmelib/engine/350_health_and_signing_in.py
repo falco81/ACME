@@ -12,6 +12,8 @@ HEALTH_SEEN = {}
 LOCKOUT_KINDS = {
     'admin': 'signing in to these pages',
     'portal': 'signing in to the enrolment pages',
+    'portal-send': 'codes sent from the portal\'s sign-in',
+    'portal-gate': 'a code typed at the portal\'s sign-in',
     # Kept in the database for the whole cluster (1.0.116), not in a node's
     # memory: codes sent to a person.
     'codes-sent': 'codes sent by e-mail or SMS',

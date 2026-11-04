@@ -52511,6 +52511,110 @@
   "samp_20": {
    "source": "Can hold an e-mail address",
    "text": "Může obsahovat e-mail"
+  },
+  "pgate_1": {
+   "source": "Confirm it is you",
+   "text": "Ověřte, že jste to vy"
+  },
+  "pgate_2": {
+   "source": "Sign in as somebody else",
+   "text": "Přihlásit se jako někdo jiný"
+  },
+  "pgate_3": {
+   "source": "A new code is on its way.",
+   "text": "Nový kód je na cestě."
+  },
+  "pgate_4": {
+   "source": "The code ran out - ask for a new one.",
+   "text": "Platnost kódu vypršela – požádejte o nový."
+  },
+  "pgate_5": {
+   "source": "type the code that was sent to you first",
+   "text": "nejdřív zadejte kód, který vám přišel"
+  },
+  "pgate_6": {
+   "source": "sign in again: a code is sent to you first",
+   "text": "přihlaste se znovu: nejdřív vám přijde kód"
+  },
+  "pgate_7": {
+   "source": "the code cannot be sent just now - ask the administrator",
+   "text": "kód teď nejde poslat – obraťte se na správce"
+  },
+  "pgate_8": {
+   "source": "the directory has no e-mail address or mobile number of yours to send the code to - ask the administrator",
+   "text": "adresář o vás nemá e-mail ani mobilní číslo, kam poslat kód – obraťte se na správce"
+  },
+  "pgate_9": {
+   "source": "the code could not be sent - try again later, or ask the administrator",
+   "text": "kód se nepodařilo odeslat – zkuste to později, nebo se obraťte na správce"
+  },
+  "pgate_10": {
+   "source": "no - the directory password is enough (as until now)",
+   "text": "ne – stačí heslo z adresáře (jako dosud)"
+  },
+  "pgate_11": {
+   "source": "yes, by e-mail",
+   "text": "ano, e-mailem"
+  },
+  "pgate_12": {
+   "source": "yes, by SMS",
+   "text": "ano, SMS"
+  },
+  "pgate_13": {
+   "source": "yes, by SMS - by e-mail when the directory has no mobile number",
+   "text": "ano, SMS – e-mailem, když adresář nemá mobilní číslo"
+  },
+  "pgate_14": {
+   "source": "yes, by e-mail - by SMS when the directory has no address",
+   "text": "ano, e-mailem – SMS, když adresář nemá adresu"
+  },
+  "pgate_15": {
+   "source": "To finish signing in, type the code we have just sent by SMS to",
+   "text": "Pro dokončení přihlášení zadejte kód, který jsme právě poslali SMS na"
+  },
+  "pgate_16": {
+   "source": "To finish signing in, type the code we have just sent by e-mail to",
+   "text": "Pro dokončení přihlášení zadejte kód, který jsme právě poslali e-mailem na"
+  },
+  "pgate_17": {
+   "source": "A one-time code at every sign-in",
+   "text": "Jednorázový kód při každém přihlášení"
+  },
+  "pgate_18": {
+   "source": "Somebody signing in to the portal with their directory name and password - or signed in by the load balancer in front - then gets a one-time code to the e-mail address or the mobile number the directory has for them, read from it at the sign-in, nothing typed. Only with that code typed are they in: the directory password alone - guessed, or found out - no longer opens anybody's certificates, at every sign-in. An account the directory has no address or number for cannot sign in here then. Needs the mail (Settings → Mail) or the SMS gateway set up. The portal's own accounts keep their own second step.",
+   "text": "Kdo se na portál přihlásí jménem a heslem z adresáře – nebo ho přihlásí load balancer před ním – dostane pak jednorázový kód na e-mailovou adresu nebo mobilní číslo, které pro něj adresář má, přečtené z něj při přihlášení, nic se nezadává. Teprve se zadaným kódem je přihlášený: samotné heslo z adresáře – uhodnuté nebo vyzrazené – už neotevře ničí certifikáty, a to při každém přihlášení. Účet, pro který adresář nemá adresu ani číslo, se tu pak nepřihlásí. Potřebuje nastavenou poštu (Nastavení → Pošta) nebo SMS bránu. Vlastní účty portálu mají dál svůj druhý krok."
+  },
+  "pgate_19": {
+   "source": "The certificate portal: a sign-in code by mail",
+   "text": "Portál certifikátů: kód pro přihlášení e-mailem"
+  },
+  "pgate_20": {
+   "source": "The certificate portal: a sign-in code by SMS",
+   "text": "Portál certifikátů: kód pro přihlášení SMS"
+  },
+  "pgate_21": {
+   "source": "Sent when somebody signs in to the certificate portal, with \"A one-time code at every sign-in\" on.",
+   "text": "Posílá se, když se někdo přihlásí na portál certifikátů a je zapnutý „Jednorázový kód při každém přihlášení“."
+  },
+  "pgate_22": {
+   "source": "a one-time code at every sign-in needs the mail (Settings → Mail) or the SMS gateway (Settings → Codes by e-mail and SMS) set up first",
+   "text": "jednorázový kód při každém přihlášení potřebuje nejdřív nastavit poštu (Nastavení → Pošta) nebo SMS bránu (Nastavení → Kódy e-mailem a SMS)"
+  },
+  "pgate_23": {
+   "source": "a one-time code at every sign-in by e-mail needs the mail (Settings → Mail) set up first",
+   "text": "jednorázový kód při každém přihlášení e-mailem potřebuje nejdřív nastavit poštu (Nastavení → Pošta)"
+  },
+  "pgate_24": {
+   "source": "a one-time code at every sign-in by SMS needs the SMS gateway (Settings → Codes by e-mail and SMS) set up first",
+   "text": "jednorázový kód při každém přihlášení přes SMS potřebuje nejdřív nastavit SMS bránu (Nastavení → Kódy e-mailem a SMS)"
+  },
+  "pgate_25": {
+   "source": "codes sent from the portal's sign-in",
+   "text": "kódy poslané při přihlašování na portál"
+  },
+  "pgate_26": {
+   "source": "a code typed at the portal's sign-in",
+   "text": "kód zadaný při přihlašování na portál"
   }
  },
  "patterns": {
@@ -71849,6 +71953,10 @@
   "samp_41": {
    "source": "the domain {0} did not answer for its own object",
    "text": "doména {0} neodpověděla na svůj vlastní objekt"
+  },
+  "ppgate_1": {
+   "source": "The code is good for {0} min and only once. You can paste it as it came, with the space.",
+   "text": "Kód platí {0} min a jen jednou. Můžete ho vložit tak, jak přišel, i s mezerou."
   }
  },
  "rich": {
