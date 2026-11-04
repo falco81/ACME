@@ -397,10 +397,19 @@ def osu_view(store):
                       'pending': pending})
     pol = osu_policy()
     sig = osu_policy_ask(pol)['sig']
+    try:
+        vers = {b.get('name'): b.get('version') or '' for b in ha_nodes(store)}
+    except Exception:                                   # noqa: BLE001
+        vers = {}
     for x in nodes:
         now = osu_now(store, x['name'])
         x['policy_ok'] = now.get('policy') == sig
         x['policy_said'] = now.get('policy_said') or ''
+        # Each node puts the policy on itself (its own tick, the settings being the cluster's):
+        # one of a version before it does not (1.0.42).
+        v = vers.get(x['name']) or ''
+        x['policy_old'] = bool(v) and _ver_tuple(v) < (1, 0, 42)
+        x['version'] = v
     return {'nodes': nodes, 'cluster': len(nodes) > 1, 'pw_min': pol['min'], 'policy': pol,
             'openssl': bool(shutil.which('openssl'))}
 

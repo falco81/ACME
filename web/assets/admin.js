@@ -1605,6 +1605,8 @@ function drawSettings() {
   }
   applyOnlyWhen();
   hsLights();
+  /* Saved a moment ago: what each node has now, read again (1.0.42). */
+  if (typeof PANE !== 'undefined' && PANE === 'osusers' && typeof OSU !== 'undefined') osuPolicyAgain(0);
   if (typeof AC !== 'undefined' && AC.d) acmeNamesInSettings(AC.d);
   explainWhatWasDrawn($('tab-settings'));
   if (typeof PANE !== 'undefined' && PANE === 'db') dbLinkNote();   /* drawn again (1.0.107) */
@@ -13945,6 +13947,45 @@ function osuRows() {
   return {by: by, order: order, shown: order.filter(function (n) { return OSU.all || rank(n) < 2; }), noShell: noShell};
 }
 function osuAny(on) { var k = Object.keys(on); return on[k[0]] || {}; }
+/* The password policy on every node (1.0.42): in a cluster, a line a node under its card -
+   put in, being put in, could not be, or a node of a version before it. */
+var OSU_POL = {again: null};
+function osuPolicyAgain(tries) {
+  clearTimeout(OSU_POL.again);
+  api('osusers').then(function (d) {
+    if (TAB !== 'settings' || PANE !== 'osusers') return;
+    OSU.d = d;
+    osuPolicyLights();
+    var wait = (d.nodes || []).some(function (n) { return n.alive && n.at && !n.policy_ok && !n.policy_old && !/^not put in/.test(n.policy_said || ''); });
+    if (wait && tries < 24) OSU_POL.again = setTimeout(function () { osuPolicyAgain(tries + 1); }, 5000);
+  }).catch(function () {});
+}
+function osuPolicyLights() {
+  var host = $('sect-osusers');
+  var nodes = (OSU.d && OSU.d.nodes) || [];
+  if (!host) return;
+  var old = host.querySelector('.hs-lights');
+  if (old) old.remove();
+  if (nodes.length < 2) return;
+  var row = el('div', 'hs-lights osu-pol-lights');
+  nodes.forEach(function (n) {
+    var l = !n.alive ? ['bad', 'not heard from', 'Nothing heard from ' + n.name + ' lately - it puts the policy in once it is back.']
+      : n.policy_old ? ['warn', 'an older version', n.name + ' runs acme ' + (n.version || '?') + ', which does not put the policy in - upgrade it.']
+      : n.policy_ok ? ['ok', 'in effect', 'The password policy is in place on ' + n.name + (n.policy_said ? ': ' + n.policy_said : '.')]
+      : /^not put in/.test(n.policy_said || '') ? ['bad', 'could not be put in', n.name + ': ' + n.policy_said]
+      : ['warn', 'being put in', n.name + ' puts the policy in within a minute.'];
+    var chip = el('span', 'hs-light ' + l[0]);
+    chip.appendChild(el('span', 'dot ' + l[0]));
+    chip.appendChild(noI18n(el('b', '', n.name)));
+    var me = el('span', 'hs-light-me');
+    if (n.me) me.appendChild(el('span', 'tag info', 'this node'));
+    chip.appendChild(me);
+    chip.appendChild(el('span', 'hs-light-w', l[1]));
+    explain(chip, l[2]);
+    row.appendChild(chip);
+  });
+  host.insertBefore(row, host.firstChild);
+}
 function osuToday(nodes) {
   var t = (nodes || []).map(function (n) { return n.today; }).filter(Boolean)[0];
   return t || Math.floor(Date.now() / 86400000);
@@ -13964,7 +14005,7 @@ function drawOsUsers(live) {
     nodes.forEach(function (n) {
       if (n.error) host.appendChild(el('p', 'note bad', n.name + ': ' + n.error));
       /* The password policy (1.0.42): a node that has not put it in yet, or could not. */
-      if (n.at && n.alive && !n.policy_ok) {
+      if (n.at && n.alive && !n.policy_ok && !n.policy_old) {
         host.appendChild(el('p', 'note ' + (/^not put in/.test(n.policy_said || '') ? 'bad' : 'info'),
           /^not put in/.test(n.policy_said || '') ? n.name + ': the password policy ' + n.policy_said
                                                     : n.name + ': putting the password policy in…'));
@@ -14074,6 +14115,7 @@ function drawOsUsers(live) {
       }));
       host.appendChild(lc);
     }
+    osuPolicyLights();
     var pend = nodes.filter(function (n) { return n.pending; });
     if (pend.length) host.appendChild(el('p', 'note info', 'Being done on ' + pend.map(function (n) { return n.name; }).join(', ') + '…'));
   }, live);

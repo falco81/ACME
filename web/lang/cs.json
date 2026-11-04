@@ -53127,6 +53127,26 @@
   "osupol_25": {
    "source": "Kinds of characters",
    "text": "Druhy znaků"
+  },
+  "osupol_26": {
+   "source": "could not be put in",
+   "text": "nešlo zavést"
+  },
+  "osupol_27": {
+   "source": "an older version",
+   "text": "starší verze"
+  },
+  "osupol_28": {
+   "source": "in effect",
+   "text": "platí"
+  },
+  "osupol_29": {
+   "source": "Only root is on the nodes - Add a user makes one, on every node at once.",
+   "text": "Na uzlech je jen root – Přidat uživatele ho založí na všech uzlech najednou."
+  },
+  "osupol_30": {
+   "source": "Only root is on this node - Add a user makes one, on this node.",
+   "text": "Na tomto uzlu je jen root – Přidat uživatele ho založí na tomto uzlu."
   }
  },
  "patterns": {
@@ -72561,6 +72581,26 @@
   "posupol_9": {
    "source": "the password has {0} of the four kinds of characters at least (small letters, capitals, digits, the others)",
    "text": "heslo musí mít nejméně {0} ze čtyř druhů znaků (malá písmena, velká písmena, číslice, ostatní)"
+  },
+  "posupol_10": {
+   "source": "Nothing heard from {0} lately - it puts the policy in once it is back.",
+   "text": "Od {0} se v poslední době nic neozvalo – politiku zavede, až bude zpět."
+  },
+  "posupol_11": {
+   "source": "{0} runs acme {1}, which does not put the policy in - upgrade it.",
+   "text": "{0} běží na acme {1}, která politiku nezavádí – aktualizujte ho."
+  },
+  "posupol_12": {
+   "source": "The password policy is in place on {0}.",
+   "text": "Na {0} je politika hesel zavedená."
+  },
+  "posupol_13": {
+   "source": "The password policy is in place on {0}: {1}",
+   "text": "Na {0} je politika hesel zavedená: {1}"
+  },
+  "posupol_14": {
+   "source": "{0} puts the policy in within a minute.",
+   "text": "{0} politiku zavede do minuty."
   }
  },
  "rich": {

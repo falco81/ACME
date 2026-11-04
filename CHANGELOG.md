@@ -19,6 +19,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   `/etc/security/pwquality.conf.d/90-acme.conf` and the `PASS_` lines of `/etc/login.defs`
   (taken away again when off). As until now unless changed: 8 characters, any, always good -
   nothing on the machines is touched until a rule is changed.
+  In a cluster the rules are the cluster's and every node puts them on itself; the card
+  says of each node whether they are in effect there, being put in, could not be (and
+  why), or that it runs a version before 1.0.42.
 - SELinux: MariaDB of the node on a port of its own (not 3306) - the port is given
   `mysqld_port_t` with the rest of what acme needs (*Put in what acme needs*), as
   PostgreSQL's was already; enforcing, MariaDB could not listen there.

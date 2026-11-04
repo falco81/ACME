@@ -71,6 +71,65 @@ class Daemon(unittest.TestCase):
         # The rules for passwd only when asked.
         self.assertIsNone(E.osu_policy_ask()['rules'])
 
+    def test_both_nodes_said(self):
+        # A cluster of two: each node puts the policy on itself and says so in its own row;
+        # the view says it of each - one of a version before it as such.
+        import json
+        import time
+        store = E.Storage(E.open_db())
+        me = E.node_name()
+        sig = E.osu_policy_ask()['sig']
+        store.set_meta('node:' + me, json.dumps({'at': time.time(), 'version': E.__version__}))
+        store.set_meta('node:peer-old', json.dumps({'at': time.time(), 'version': '1.0.41'}))
+        store.set_meta('node:peer-new', json.dumps({'at': time.time(), 'version': E.__version__}))
+        store.set_meta('host:users:now:' + me, json.dumps({'at': time.time(), 'policy': sig}))
+        store.set_meta('host:users:now:peer-new', json.dumps({'at': time.time(), 'policy': 'other'}))
+        store.set_meta('host:users:now:peer-old', json.dumps({'at': time.time()}))
+        with mock.patch.object(E, 'host_nodes', return_value=[me, 'peer-new', 'peer-old']):
+            v = {n['name']: n for n in E.osu_view(store)['nodes']}
+        self.assertTrue(v[me]['policy_ok'])
+        self.assertFalse(v['peer-new']['policy_ok'])
+        self.assertFalse(v['peer-new']['policy_old'])
+        self.assertTrue(v['peer-old']['policy_old'])
+
+    def _tick(self, conf, row):
+        import json
+        import time
+
+        class D:
+            pass
+        d = D()
+        d.store = E.Storage(E.open_db())
+        me = E.node_name()
+        d.store.set_meta('host:users:now:' + me, json.dumps(dict(row, at=time.time())))
+        asked = []
+
+        def fake(ask, ans, q, timeout):
+            asked.append(q)
+            return {'users': [], 'said': 'put on 0 user(s)', 'policy': q.get('sig') or ''}
+        E.OSU_WORK.update(busy=False, seen=time.time())
+        with mock.patch.dict(E.CONFIG, conf), mock.patch.object(E, 'root_ask', side_effect=fake), \
+                mock.patch.object(E, 'osu_asks', return_value=[]):
+            E.osu_tick(d)
+            for _ in range(50):
+                if not E.OSU_WORK['busy']:
+                    break
+                time.sleep(0.05)
+            sig = E.osu_policy_ask()['sig']
+        return asked, json.loads(d.store.get_meta('host:users:now:' + me)), sig
+
+    def test_the_node_puts_it_in(self):
+        asked, row, sig = self._tick({'osu_pw_max_days': 90, 'osu_pw_warn_days': 10}, {'policy': 'old'})
+        pol = [a for a in asked if a.get('do') == 'policy']
+        self.assertEqual(len(pol), 1)
+        self.assertEqual(pol[0]['aging'], {'max_days': 90, 'min_days': 0, 'warn_days': 10})
+        self.assertEqual(row['policy'], sig)
+
+    def test_as_until_now_nothing_touched(self):
+        asked, row, sig = self._tick({}, {})
+        self.assertFalse([a for a in asked if a.get('do') == 'policy'])
+        self.assertEqual(row['policy'], sig)
+
     def test_on_the_pages(self):
         for k in ('osu_pw_min', 'osu_pw_classes', 'osu_pw_not_name', 'osu_pw_max_days',
                   'osu_pw_min_days', 'osu_pw_warn_days', 'osu_pw_system'):
