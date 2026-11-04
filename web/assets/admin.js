@@ -15456,7 +15456,10 @@ function hsLights() {
       var chip = el('span', 'hs-light ' + l[0]);
       chip.appendChild(el('span', 'dot ' + (l[0] === 'off' ? '' : l[0])));
       chip.appendChild(noI18n(el('b', '', n.name)));
-      if (n.me) chip.appendChild(el('span', 'tag info', 'this node'));
+      /* A cell of its own, empty on the others: the words of every node in one column. */
+      var me = el('span', 'hs-light-me');
+      if (n.me) me.appendChild(el('span', 'tag info', 'this node'));
+      chip.appendChild(me);
       chip.appendChild(el('span', 'hs-light-w', l[1]));
       explain(chip, l[2]);
       row.appendChild(chip);

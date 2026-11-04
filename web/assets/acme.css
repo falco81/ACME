@@ -3691,16 +3691,17 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .sd-tokens td.acts{text-align:right;white-space:nowrap}
 .sd-tokens td.acts .btn + .btn{margin-left:8px}
 
-/* Settings -> High security: what is in effect on every node (1.0.41). */
-.hs-lights{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px}
-.hs-light{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--line);border-radius:999px;
-  font-size:12px;background:var(--bg);cursor:default;max-width:100%}
+/* Settings -> High security: what is in effect on every node (1.0.41) - a node a line, in
+   columns: the light, the name, this node or not, what is in effect. */
+.hs-lights{display:grid;grid-template-columns:8px max-content max-content minmax(0,1fr);column-gap:10px;row-gap:2px;
+  align-items:center;margin:4px 0 6px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;
+  background:var(--bg);font-size:12.5px;width:fit-content;max-width:100%;min-width:260px}
+.hs-light{display:contents;cursor:default}
+.hs-light > *{min-height:24px;display:flex;align-items:center}
+.hs-light > .dot{min-height:0;width:8px;height:8px}
 .hs-light b{font-weight:600}
-.hs-light .tag{font-size:10px;padding:0 5px}
-.hs-light-w{color:var(--tx-mut)}
-.hs-light.ok{border-color:color-mix(in srgb,var(--ok,#3fb950) 45%,var(--line))}
+.hs-light .tag{font-size:10px;padding:0 6px}
+.hs-light-w{color:var(--tx-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hs-light.ok .hs-light-w{color:var(--ok,#3fb950)}
-.hs-light.warn{border-color:color-mix(in srgb,var(--warn,#d29922) 50%,var(--line))}
 .hs-light.warn .hs-light-w{color:var(--warn,#d29922)}
-.hs-light.bad{border-color:color-mix(in srgb,var(--crit,#f85149) 50%,var(--line))}
 .hs-light.bad .hs-light-w{color:var(--crit,#f85149)}
