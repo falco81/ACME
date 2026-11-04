@@ -624,7 +624,11 @@ class Daemon(object):
                 except Exception as e:          # noqa: BLE001
                     log_sparing('sshkeys-tick', 'root\'s SSH keys: %s' % e, 'warn', every=600)
                 try:
-                    osup_sched_tick(self)       # updates and restarts on a schedule (1.0.164)
+                    osu_tick(self)              # the local users of the machines (1.0.243)
+                except Exception as e:          # noqa: BLE001
+                    log_sparing('osu-tick', 'the local users: %s' % e, 'warn', every=600)
+                try:
+                    osup_sched_tick(self)      # updates and restarts on a schedule (1.0.164)
                 except Exception as e:          # noqa: BLE001
                     log_sparing('osup-sched', 'the schedule of updates: %s' % e, 'warn', every=600)
                 try:

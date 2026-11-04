@@ -1159,6 +1159,7 @@ function showPane(name) {
   if (name === 'network') loadNet();
   if (name === 'power') loadPower();
   if (name === 'sshkeys') loadSshKeys(); else skPoll(false);
+  if (name === 'osusers') loadOsUsers(); else osuPoll(false);
   if (name === 'alerts') loadAlerts();
   if (name === 'siem') loadSiem();
   if (name === 'acme') loadAcme(); else acPoll(false);
@@ -4865,6 +4866,7 @@ function drawConsoleLogin(host) {
   host.appendChild(box);
   box.appendChild(el('h3', 'sw-h', 'The console at login'));
   box.appendChild(el('p', 'note', 'On: root signing in at the machine\'s console or over SSH lands in the acme console (acme --console); q leaves it for the shell. Off: the ordinary shell, and acme --console opens it. Commands run over SSH, scp and sftp never get it. On the server: acme --console-at-login on|off.'));
+  box.appendChild(el('p', 'note', 'For normal users too: they land in it through sudo, after their own password - only those who may become root with sudo (wheel); anybody else gets a line saying so and the ordinary shell. In Events their changes are marked with their name. On the server: acme --console-users "alice bob" (or * or none).'));
   var list = el('div', '');
   box.appendChild(list);
   var tries = 0;
@@ -4873,37 +4875,52 @@ function drawConsoleLogin(host) {
       clear(list);
       var waiting = false;
       (d.nodes || []).forEach(function (n) {
-        var row = el('div', 'kv-row');
-        row.style.cssText = 'display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap';
+        var row = el('div', 'kv-row con-row');
         var sw = switchBox(!!n.on);
         sw._input.disabled = n.on === null || n.on === undefined || n.pending;
         var name = noI18n(el('b', '', n.name));
         row.appendChild(sw);
-        row.appendChild(name);
-        if (n.me) row.appendChild(el('span', 'tag info', 'this one'));
+        /* The node in a column of its own (1.0.242): the pickers one under another. */
+        var whoC = el('div', 'con-who');
+        whoC.appendChild(name);
+        if (n.me) whoC.appendChild(el('span', 'tag info', 'this one'));
+        row.appendChild(whoC);
         /* The switch says on or off itself (1.0.148): words only when it cannot. */
         var said = n.pending ? 'being switched…' : (n.on === null || n.on === undefined) ? 'not said yet - the node says within a minute' : '';
-        if (said) row.appendChild(el('span', 'muted small', said));
-        if (n.error) row.appendChild(el('p', 'note bad', n.error));
+        if (said) whoC.appendChild(el('span', 'muted small', said));
+        if (n.error) row.appendChild(el('p', 'note bad con-err', n.error));
         if (n.pending) waiting = true;
         /* The switch only says what it will be; the save bar at the bottom
            does it (1.0.147), as with every other setting. */
         var key = 'console-login:' + n.name;
+        /* The normal users it opens for too (1.0.240; picked, not typed, since 1.0.242): nobody,
+           every normal user, or these. */
+        var hasU = n.users === '*' ? '*' : (n.users || []);
+        var want = PENDING[key] && !sw._input.disabled ? PENDING[key].users : hasU;
+        var same = function (a, b) { return JSON.stringify(a === '*' ? '*' : (a || [])) === JSON.stringify(b === '*' ? '*' : (b || [])); };
         if (PENDING[key] && !sw._input.disabled) {      /* drawn again, still not saved */
           sw._input.checked = PENDING[key].on;
           row.classList.add('changed');
         }
-        sw._input.onchange = function () {
-          var on = sw._input.checked;
-          row.classList.toggle('changed', on !== !!n.on);
-          if (on === !!n.on) { delete PENDING[key]; markDirtyCount(); return; }
-          pendingSet(key, {pane: 'about', on: on, save: function () {
-            return api('console-login', {node: n.name, on: on}).then(function (r) {
+        var usersNow = want;
+        var changed = function () {
+          var on = sw._input.checked, users = usersNow;
+          var diff = on !== !!n.on || !same(users, n.users);
+          row.classList.toggle('changed', diff);
+          if (!diff) { delete PENDING[key]; markDirtyCount(); return; }
+          pendingSet(key, {pane: 'about', on: on, users: users, save: function () {
+            return api('console-login', {node: n.name, on: on, users: users}).then(function (r) {
               toast(r.message, 'good'); tries = 0; setTimeout(load, 2000);
               return true;
             });
-          }, reset: function () { sw._input.checked = !!n.on; row.classList.remove('changed'); }});
+          }, reset: function () { load(); }});
         };
+        var uwrap = el('div', 'con-users');
+        uwrap.appendChild(el('span', 'muted small', 'normal users:'));
+        uwrap.appendChild(accountPicker(want, {none: 'Nobody', every: 'Every normal user', root: false,
+          disabled: sw._input.disabled, change: function (v) { usersNow = v; changed(); }}));
+        row.appendChild(uwrap);
+        sw._input.onchange = changed;
         list.appendChild(row);
       });
       if (waiting && tries++ < 30) setTimeout(load, 2000);
@@ -12912,7 +12929,23 @@ function ntpSave() {
    isemon draws a router's (1.0.159), made here - one for every node, or one for
    a node of its own. The key is then in the list below, a key of one's own
    added there too (1.0.161). */
-var SK = {d: null, poll: null, asked: 0, scope: 'all'};
+var SK = {d: null, poll: null, asked: 0, scope: 'all', user: 'root', askedU: {}};
+/* Whose keys are shown (1.0.240): root's, or a normal user's of the nodes. */
+function skUsers() {
+  var seen = {}, out = [];
+  ((SK.d && SK.d.nodes) || []).forEach(function (n) {
+    (n.users || []).forEach(function (u) { if (!seen[u.name]) { seen[u.name] = 1; out.push(u.name); } });
+  });
+  return out.sort();
+}
+function skKeysOf(n) {
+  if (SK.user === 'root') return n.keys || [];
+  return ((n.keys_of || {})[SK.user] || {}).keys || [];
+}
+function skAskUser(user) {
+  SK.askedU[user] = Date.now();
+  api('sshkeys', {action: 'refresh', nodes: skNodes(true), user: user}).then(function () { skPoll(true); }).catch(function () {});
+}
 function loadSshKeys() {
   api('sshkeys').then(function (d) {
     SK.d = d; drawSshKeys();
@@ -12951,16 +12984,40 @@ function drawSshKeys(live) {
     nodes.forEach(function (n) {
       var sd = n.sshd || {};
       if (n.error) host.appendChild(el('p', 'note bad', n.name + ': ' + n.error));
-      if (sd.there && sd.permit_root === 'no')
+      if (sd.there && sd.permit_root === 'no' && SK.user === 'root')
         host.appendChild(el('p', 'note warn', n.name + ': sshd does not let root sign in at all (PermitRootLogin no) - the keys below are not used there until it does.'));
       if (sd.there && sd.pubkey === 'no')
         host.appendChild(el('p', 'note warn', n.name + ': sshd takes no keys (PubkeyAuthentication no).'));
     });
     var kept = {};
     (d.kept || []).forEach(function (r) { if (r.fp) kept[r.fp] = r; });
-    host.appendChild(skKeptCard(d));
+    /* Whose keys (1.0.240): root, or a user who may sign in on the nodes. */
+    var users = skUsers();
+    if (SK.user !== 'root' && users.indexOf(SK.user) < 0 && nodes.some(function (n) { return n.at; })) SK.user = 'root';
+    var who = el('div', 'card full sk-who');
+    var wh = el('div', 'sk-who-row');
+    wh.appendChild(el('span', 'k', 'Whose keys'));
+    var sel = el('select', 'mono');
+    var o0 = el('option', '', 'root'); o0.value = 'root'; sel.appendChild(o0);
+    users.forEach(function (u) { var o = noI18n(el('option', '', u)); o.value = u; sel.appendChild(o); });
+    sel.value = SK.user;
+    sel.onchange = function () {
+      SK.user = sel.value;
+      if (SK.user !== 'root' && Date.now() - (SK.askedU[SK.user] || 0) > 20000) skAskUser(SK.user);
+      drawSshKeys();
+    };
+    wh.appendChild(sel);
+    wh.appendChild(el('span', 'muted small', users.length
+      ? 'root, or one of the ' + users.length + ' users who may sign in on the nodes (a login shell, UID 1000 and up) - their own ~/.ssh/authorized_keys, written as they are.'
+      : 'Only root: no other user who may sign in (a login shell, UID 1000 and up) is on the nodes.'));
+    who.appendChild(wh);
+    host.appendChild(who);
+    var me = SK.user;
+    if (me === 'root') host.appendChild(skKeptCard(d));
+    else host.appendChild(skUserCard(d, me));
     var card = el('div', 'card full');
-    var h = el('h2', '', 'Keys that may sign in as root');
+    var h = el('h2', '', me === 'root' ? 'Keys that may sign in as root' : 'Keys that may sign in as');
+    if (me !== 'root') h.appendChild(noI18n(el('span', 'mono', ' ' + me)));
     var tools = el('span', 'right');
     var add = cmdButton('Add a key', 'upload', 'small');
     explain(add, 'A key you have already - its public line or .pub file, or the private key, of which only the public half is used - put onto the nodes you choose.');
@@ -12970,21 +13027,23 @@ function drawSshKeys(live) {
     card.appendChild(h);
     add.onclick = skAdd;
     again.onclick = function () {
-      api('sshkeys', {action: 'refresh', nodes: skNodes(true)}).then(function () { skPoll(true); toast('asked again'); }).catch(oops);
+      api('sshkeys', {action: 'refresh', nodes: skNodes(true), user: SK.user}).then(function () { skPoll(true); toast('asked again'); }).catch(oops);
     };
     /* One row a key, by its fingerprint, a column a node. */
     var byFp = {}, order = [];
     nodes.forEach(function (n) {
-      (n.keys || []).forEach(function (k) {
+      skKeysOf(n).forEach(function (k) {
         var id = k.fp || ('?' + k.comment);
         if (!byFp[id]) { byFp[id] = {k: k, on: {}}; order.push(id); }
         byFp[id].on[n.name] = true;
       });
     });
+    var readU = me === 'root' ? nodes.some(function (n) { return n.at; })
+      : nodes.some(function (n) { return ((n.keys_of || {})[me] || {}).at; });
     if (!order.length) {
-      card.appendChild(el('p', 'note', nodes.some(function (n) { return n.at; })
+      card.appendChild(el('p', 'note', !readU ? 'Reading the keys of each node…' : me === 'root'
         ? 'No key lets root in over SSH on ' + nodes.map(function (n) { return n.name; }).join(' or ') + '.'
-        : 'Reading the keys of each node…'));
+        : 'No key lets ' + me + ' in over SSH on ' + nodes.map(function (n) { return n.name; }).join(' or ') + '.'));
     } else {
       var heads = ['Key', 'Fingerprint', 'Comment'].concat(nodes.length > 1 ? nodes.map(function (n) { return n.name; }) : []).concat(['']);
       card.appendChild(listTable(heads, order, function (id) {
@@ -12993,7 +13052,7 @@ function drawSshKeys(live) {
         var t = el('td');
         t.appendChild(el('span', 'tag ' + (String(k.type).toUpperCase() === 'ED25519' ? 'good' : 'info'), skKind(k)));
         if (k.options) t.appendChild(el('span', 'tag warn', 'with options'));
-        if (kept[k.fp]) t.appendChild(el('span', 'tag info', 'made here'));
+        if (me === 'root' && kept[k.fp]) t.appendChild(el('span', 'tag info', 'made here'));
         tr.appendChild(t);
         tr.appendChild(noI18n(el('td', 'mono small', k.fp || '–')));
         tr.appendChild(noI18n(el('td', 'small', k.comment || '–')));
@@ -13028,6 +13087,22 @@ function drawSshKeys(live) {
       if (n.me) hd.appendChild(el('span', 'tag info', 'this page'));
       c.appendChild(hd);
       var sd = n.sshd || {};
+      if (me !== 'root') {
+        /* A normal user's (1.0.240): there or not on this node, the file, when read. */
+        var of = (n.keys_of || {})[me] || {};
+        var here = (n.users || []).some(function (u) { return u.name === me; });
+        if (of.error) c.appendChild(el('p', 'note bad', of.error));
+        c.appendChild(netFacts([
+          ['Keys', here ? String((of.keys || []).length) : '–'],
+          ['The user', here ? 'may sign in here' : (n.at ? 'not on this node' : '?')],
+          ['With a password', sd.there ? (sd.password || '?') : ''],
+          ['SSH port', sd.port || '', true],
+          ['The file', of.file || (here ? '~' + me + '/.ssh/authorized_keys' : '–'), true],
+          ['Read', of.at ? ago(of.at) : 'not yet']
+        ]));
+        grid.appendChild(c);
+        return;
+      }
       c.appendChild(netFacts([
         ['Keys', String((n.keys || []).length)],
         ['Root may sign in', sd.there ? (sd.permit_root || '?') : 'sshd is not here'],
@@ -13049,8 +13124,10 @@ function skNodePicker(body) {
     box.appendChild(el('div', 'k small muted', 'Onto the nodes'));
     nodes.forEach(function (n) {
       var lab = el('label', 'chk');
-      var c = el('input'); c.type = 'checkbox'; c.checked = n.alive; c.disabled = !n.alive; c.value = n.name;
-      lab.appendChild(c); lab.appendChild(noI18n(el('span', '', ' ' + n.name + (n.alive ? '' : ' (not answering)'))));
+      /* A normal user's key only where the user is (1.0.240). */
+      var there = SK.user === 'root' || (n.users || []).some(function (u) { return u.name === SK.user; });
+      var c = el('input'); c.type = 'checkbox'; c.checked = n.alive && there; c.disabled = !n.alive || !there; c.value = n.name;
+      lab.appendChild(c); lab.appendChild(noI18n(el('span', '', ' ' + n.name + (!n.alive ? ' (not answering)' : !there ? ' (no such user)' : ''))));
       box.appendChild(lab);
       boxes.push(c);
     });
@@ -13126,10 +13203,46 @@ function skKeptCard(d) {
   card.appendChild(P.box);
   return card;
 }
-function skShowMade(x) {
+/* A key for a normal user (1.0.240): made here, its private half shown once - remembered nowhere. */
+function skUserCard(d, user) {
+  var card = el('div', 'card full');
+  var h = el('h2', '', 'A key for');
+  h.appendChild(noI18n(el('span', 'mono', ' ' + user)));
+  card.appendChild(h);
+  var where = ((d.nodes || []).filter(function (n) { return (n.users || []).some(function (u) { return u.name === user; }); })).map(function (n) { return n.name; });
+  var P = rbPanel('Its <b>public</b> half goes into <code>~' + htmlText(user) + '/.ssh/authorized_keys</code> of ' + htmlText(where.join(', ') || 'the nodes') + ' - written as ' + htmlText(user) + ', so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to hand over.');
+  var mk = cmdButton('Make a key', 'key', '');
+  mk.disabled = !d.keygen || !where.length;
+  mk.onclick = function () {
+    var kind = 'ed25519';
+    modal('Make a key for ' + user, function (body) {
+      body.appendChild(el('p', 'note', 'A fresh pair is made here. Its private half is shown to you once, to download or copy, and kept nowhere; its public half goes onto ' + where.join(', ') + '.'));
+      var sg = el('div', 'seg');
+      [['ed25519', 'Ed25519 (the strongest, and short)'], ['rsa4096', 'RSA 4096 (where something old needs RSA)']].forEach(function (o) {
+        var b = el('button', o[0] === kind ? 'on' : '', o[1]);
+        b.type = 'button';
+        b.onclick = function () { kind = o[0]; Array.prototype.forEach.call(sg.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); };
+        sg.appendChild(b);
+      });
+      body.appendChild(formField('The kind', sg));
+    }, [{words: 'Cancel', close: true}, {words: 'Make one', cls: 'primary', icon: 'key', go: function (b) {
+      busy(b, true);
+      api('sshkeys', {action: 'uk_make', user: user, kind: kind, nodes: where}).then(function (x) {
+        skShowMade(x, user);
+        return api('sshkeys');
+      }).then(function (d2) { SK.d = d2; drawSshKeys(); skPoll(true); })
+        .catch(function (e) { busy(b, false); oops(e); });
+    }}], 'medium');
+  };
+  P.row.appendChild(mk);
+  card.appendChild(P.box);
+  return card;
+}
+function skShowMade(x, user) {
+  user = user || 'root';
   modal('Keep the private key now', function (body) {
     var w = el('p', 'note warn');
-    w.textContent = 'This is the only time it is shown. Whoever holds it signs in to ' + x.nodes.join(', ') + ' as root.';
+    w.textContent = 'This is the only time it is shown. Whoever holds it signs in to ' + x.nodes.join(', ') + ' as ' + user + '.';
     body.appendChild(w);
     var area = noI18n(el('textarea', 'mono'));
     area.rows = 9; area.readOnly = true; area.value = x.private; area.spellcheck = false;
@@ -13145,7 +13258,7 @@ function skShowMade(x) {
     body.appendChild(el('p', 'btnhelp', 'Its public half, put onto the nodes - click it to copy:'));
     body.appendChild(rbCopyme(x.pub, 'the public key is on the clipboard'));
     body.appendChild(noI18n(el('p', 'muted small mono', x.fp)));
-    body.appendChild(el('p', 'btnhelp', 'Then, on your machine: ssh -i ' + x.file + ' root@…'));
+    body.appendChild(el('p', 'btnhelp', 'Then, on your machine: ssh -i ' + x.file + ' ' + user + '@…'));
   }, [{words: 'I have kept it', cls: 'primary', close: true}], 'medium');
 }
 function skKept(action, extra, b) {
@@ -13172,8 +13285,8 @@ function skExport(k) {
   toast('the key is exported as ' + name + '.pub', 'good');
 }
 function skAdd() {
-  var area, pick, pp, ppf;
-  modal('Add a key for root', function (body) {
+  var area, pick, pp, ppf, user = SK.user;
+  modal(user === 'root' ? 'Add a key for root' : 'Add a key for ' + user, function (body) {
     var p = el('p', 'note');
     p.innerHTML = 'One line of a <code>.pub</code> file: <code>ssh-ed25519 AAAA… you@laptop</code>. Ed25519, ECDSA or RSA of 3072 bits and more; options before the key are not taken here. A private key is taken too: its public half is worked out here and the private half is not kept.';
     body.appendChild(p);
@@ -13203,17 +13316,377 @@ function skAdd() {
     setTimeout(function () { area.focus(); }, 60);
   }, [{words: 'Cancel', close: true}, {words: 'Add it', cls: 'primary', icon: 'add', close: true, go: function () {
     var nodes = pick();
-    api('sshkeys', {action: 'add', line: area.value.trim(), passphrase: pp.value, nodes: nodes}).then(function (x) { toast(x.message, 'good'); skPoll(true); }).catch(oops);
+    api('sshkeys', {action: 'add', line: area.value.trim(), passphrase: pp.value, nodes: nodes, user: user}).then(function (x) { toast(x.message, 'good'); skPoll(true); }).catch(oops);
   }}], 'medium');
 }
 function skDrop(row) {
-  var nodes = Object.keys(row.on);
+  var nodes = Object.keys(row.on), user = SK.user;
+  if (user !== 'root') {
+    /* A normal user's (1.0.240): no "last key" - their password stays theirs. */
+    confirmThen('Take the key away', htmlText(user) + ' no longer signs in with <code>' + htmlText(row.k.fp || '') + '</code>' + (row.k.comment ? ' (' + htmlText(row.k.comment) + ')' : '') + ' on ' + htmlText(nodes.join(', ')) + '.',
+      'Take it away', function () {
+        api('sshkeys', {action: 'drop', fp: row.k.fp, nodes: nodes, user: user}).then(function (x) { toast(x.message, 'good'); skPoll(true); }).catch(oops);
+      }, true);
+    return;
+  }
   var last = ((SK.d && SK.d.nodes) || []).filter(function (n) { return row.on[n.name] && (n.keys || []).length <= 1; }).map(function (n) { return n.name; });
   confirmThen('Take the key away', 'Root no longer signs in with <code>' + htmlText(row.k.fp || '') + '</code>' + (row.k.comment ? ' (' + htmlText(row.k.comment) + ')' : '') + ' on ' + htmlText(nodes.join(', ')) + '.'
     + (last.length ? '<br><br><b>It is the last key root signs in with on ' + htmlText(last.join(', ')) + '.</b> Unless root may sign in with a password, nobody reaches it over SSH as root after this.' : ''),
     'Take it away', function () {
       api('sshkeys', {action: 'drop', fp: row.k.fp, nodes: nodes, last_ok: !!last.length}).then(function (x) { toast(x.message, 'good'); skPoll(true); }).catch(oops);
     }, true);
+}
+
+/* ---- Settings → Local users (1.0.243) -------------------------------------------
+   The users of each node's own system: root, shown and never changed, and the users of
+   the normal range (UID 1000 and up) - made, given a password, sudo, locked or taken away
+   on every node at once or on one, by each node's root helper. One row a user, a column
+   a node: a user on one node only, or locked on one and not the other, is seen at once. */
+var OSU = {d: null, poll: null, asked: 0, ask: 0, all: false};
+function loadOsUsers() {
+  api('osusers').then(function (d) {
+    OSU.d = d; drawOsUsers();
+    if (Date.now() - OSU.asked > 20000) {
+      OSU.asked = Date.now();
+      api('osusers', {action: 'refresh', nodes: osuNodes(true)}).then(function () { osuPoll(true); }).catch(function () {});
+    }
+    osuPoll(osuPending());
+  }).catch(oops);
+}
+function osuNodes(aliveOnly) {
+  return ((OSU.d && OSU.d.nodes) || []).filter(function (n) { return !aliveOnly || n.alive; }).map(function (n) { return n.name; });
+}
+function osuPending() { return ((OSU.d && OSU.d.nodes) || []).some(function (n) { return n.pending; }); }
+function osuPoll(on) {
+  if (on) OSU.ask = Date.now();
+  if (on && !OSU.poll) {
+    OSU.poll = setInterval(function () {
+      if (TAB !== 'settings' || PANE !== 'osusers') { osuPoll(false); return; }
+      api('osusers').then(function (d) {
+        /* Kept as it is only while something is being typed in it: a button or a box ticked
+           that still has the focus held the list as it was (a user added, not shown). */
+        var a = document.activeElement, host = $('osu-host');
+        var typing = a && host && host.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.type !== 'checkbox';
+        OSU.d = d; drawOsUsers(!!typing);
+        if (!osuPending() && Date.now() - OSU.ask > 6000) osuPoll(false);
+      }).catch(function () {});
+    }, 2000);
+  }
+  if (!on && OSU.poll) { clearInterval(OSU.poll); OSU.poll = null; }
+}
+/* {name: {node: user}} and the order: root first, then by name. */
+function osuRows() {
+  var by = {}, order = [];
+  ((OSU.d && OSU.d.nodes) || []).forEach(function (n) {
+    (n.users || []).forEach(function (u) {
+      if (!by[u.name]) { by[u.name] = {}; order.push(u.name); }
+      by[u.name][n.name] = u;
+    });
+  });
+  /* root, then who may sign in, then the accounts with no shell (often a package's). */
+  var rank = function (n) { var u = osuAny(by[n]); return n === 'root' ? 0 : u.login ? 1 : 2; };
+  order.sort(function (a, b) { return rank(a) - rank(b) || (a < b ? -1 : 1); });
+  var noShell = order.filter(function (n) { return rank(n) === 2; }).length;
+  return {by: by, order: order, shown: order.filter(function (n) { return OSU.all || rank(n) < 2; }), noShell: noShell};
+}
+function osuAny(on) { var k = Object.keys(on); return on[k[0]] || {}; }
+function osuDay(d) {
+  if (d === null || d === undefined) return '';
+  var t = new Date(d * 86400000);
+  return t.toISOString().slice(0, 10);
+}
+function osuShell(s) { return String(s || '').split('/').pop() || '–'; }
+function drawOsUsers(live) {
+  var real = $('osu-host');
+  if (!real || !OSU.d) return;
+  liveLetGo(real);
+  liveFill(real, function (host) {
+    var d = OSU.d, nodes = d.nodes || [];
+    nodes.forEach(function (n) {
+      if (n.error) host.appendChild(el('p', 'note bad', n.name + ': ' + n.error));
+      if (!n.alive && nodes.length > 1) host.appendChild(el('p', 'note warn', n.name + ' is not answering: what it shows is what it said last, and a change asked of it waits until it is back.'));
+    });
+    var rows = osuRows();
+    var card = el('div', 'card full osu-card');
+    var h = el('h2', '', 'Users of the nodes');
+    var tools = el('span', 'right');
+    var add = cmdButton('Add a user', 'add', 'small primary');
+    explain(add, 'A new user of the system, on every node or on the ones you choose - the same UID on each.');
+    var again = iconButton('refresh', 'Read the users again on every node');
+    tools.appendChild(add); tools.appendChild(again);
+    h.appendChild(tools);
+    card.appendChild(h);
+    add.onclick = function () { osuAdd(); };
+    again.onclick = function () {
+      api('osusers', {action: 'refresh', nodes: osuNodes(true)}).then(function () { osuPoll(true); toast('asked again'); }).catch(oops);
+    };
+    var read = nodes.some(function (n) { return n.at; });
+    if (!read) {
+      card.appendChild(el('p', 'note', 'Reading the users of each node…'));
+    } else {
+      var heads = ['User', 'UID', 'Shell', 'Password'].concat(nodes.length > 1 ? nodes.map(function (n) { return n.name; }) : ['Here']).concat(['']);
+      if (rows.noShell) {
+        var sa = osuCheck('Also the ' + rows.noShell + ' accounts with no shell (they may not sign in)', OSU.all);
+        sa.box.classList.add('osu-all');
+        sa.input.onchange = function () { OSU.all = sa.input.checked; drawOsUsers(); };
+        card.appendChild(sa.box);
+      }
+      card.appendChild(listTable(heads, rows.shown, function (name) {
+        var on = rows.by[name], u = osuAny(on), tr = el('tr', u.root ? 'osu-root' : '');
+        var who = el('td', 'osu-who');
+        who.appendChild(noI18n(el('span', 'acct-ava' + (u.root ? ' root' : ''), name.slice(0, 2).toUpperCase())));
+        var nm = el('span', 'osu-nm');
+        nm.appendChild(noI18n(el('span', 'mono osu-name', name)));
+        if (u.gecos) nm.appendChild(noI18n(el('span', 'muted small', u.gecos)));
+        who.appendChild(nm);
+        var tags = el('span', 'osu-tags');
+        if (u.root) tags.appendChild(el('span', 'tag dim', 'view only'));
+        if (!u.root && u.sudo) tags.appendChild(el('span', 'tag warn', 'sudo'));
+        if (!u.login) tags.appendChild(el('span', 'tag dim', 'no shell'));
+        who.appendChild(tags);
+        tr.appendChild(who);
+        tr.appendChild(noI18n(el('td', 'mono small', String(u.uid))));
+        tr.appendChild(noI18n(el('td', 'mono small', osuShell(u.shell))));
+        var pw = el('td', 'small');
+        if (!u.password) pw.appendChild(el('span', 'tag dim', 'none'));
+        else if (u.must_change) pw.appendChild(el('span', 'tag info', 'to change at sign-in'));
+        else pw.appendChild(noI18n(el('span', 'muted', u.changed ? osuDay(u.changed) : 'set')));
+        tr.appendChild(pw);
+        nodes.forEach(function (n) {
+          var c = el('td'), x = on[n.name];
+          if (!x) c.appendChild(el('span', 'tag dim', '–'));
+          else if (x.locked) c.appendChild(el('span', 'tag bad', 'locked'));
+          else if (!u.root && x.uid !== u.uid) c.appendChild(noI18n(el('span', 'tag warn', 'UID ' + x.uid)));
+          else c.appendChild(el('span', 'tag good', 'yes'));
+          tr.appendChild(c);
+        });
+        var act = el('td', 'right osu-act');
+        if (u.root) {
+          var see = iconButton('eye', 'root is shown only - it is changed on the machine itself, never from these pages');
+          see.onclick = function () { osuEdit(name); };
+          act.appendChild(see);
+        } else {
+          var ed = iconButton('edit', 'Change ' + name + ': the password, sudo, locked, the shell - or take the user away');
+          ed.onclick = function () { osuEdit(name); };
+          act.appendChild(ed);
+        }
+        tr.appendChild(act);
+        return tr;
+      }, 'osu-table'));
+      if (rows.order.filter(function (n) { return osuAny(rows.by[n]).login; }).length <= 1)
+        card.appendChild(el('p', 'note', 'Only root is on ' + (nodes.length > 1 ? 'the nodes' : 'this node') + ' - Add a user makes one, on ' + (nodes.length > 1 ? 'every node at once.' : 'this node.')));
+    }
+    host.appendChild(card);
+    /* What was done last, on each node, with what it said. */
+    var said = [];
+    nodes.forEach(function (n) { (n.said || []).forEach(function (s) { said.push({n: n.name, s: s}); }); });
+    said.sort(function (a, b) { return (b.s.at || 0) - (a.s.at || 0); });
+    if (said.length) {
+      var lc = el('div', 'card full');
+      lc.appendChild(el('h2', '', 'Done last'));
+      lc.appendChild(listTable(['When', 'Node', 'User', 'Who', 'What came of it'], said.slice(0, 8), function (r) {
+        var tr = el('tr');
+        tr.appendChild(noI18n(el('td', 'small mono', stamp(r.s.at))));
+        tr.appendChild(noI18n(el('td', 'small', r.n)));
+        tr.appendChild(noI18n(el('td', 'small mono', r.s.name || '–')));
+        tr.appendChild(noI18n(el('td', 'small', r.s.by || '–')));
+        var w = el('td', 'small');
+        w.appendChild(el('span', 'tag ' + (r.s.ok ? 'good' : 'bad'), r.s.ok ? 'done' : 'refused'));
+        if (r.s.said) w.appendChild(noI18n(el('span', 'muted', ' ' + r.s.said)));
+        tr.appendChild(w);
+        return tr;
+      }));
+      host.appendChild(lc);
+    }
+    var pend = nodes.filter(function (n) { return n.pending; });
+    if (pend.length) host.appendChild(el('p', 'note info', 'Being done on ' + pend.map(function (n) { return n.name; }).join(', ') + '…'));
+  }, live);
+}
+/* The nodes a change goes to: those the user is on (or every one, to make it), alive. */
+function osuNodePicker(body, name, making) {
+  var nodes = (OSU.d && OSU.d.nodes) || [];
+  var box = el('div', 'sk-nodes osu-nodes'), boxes = [];
+  if (nodes.length > 1) {
+    box.appendChild(el('div', 'k small muted', making ? 'Made on the nodes' : 'On the nodes'));
+    nodes.forEach(function (n) {
+      var there = making || (n.users || []).some(function (u) { return u.name === name; });
+      var lab = el('label', 'chk');
+      var c = el('input'); c.type = 'checkbox'; c.value = n.name;
+      c.checked = n.alive && there; c.disabled = !n.alive || !there;
+      lab.appendChild(c);
+      lab.appendChild(noI18n(el('span', '', ' ' + n.name + (!n.alive ? ' (not answering)' : !there ? ' (not there)' : ''))));
+      box.appendChild(lab);
+      boxes.push(c);
+    });
+    body.appendChild(box);
+  }
+  return function () {
+    if (!boxes.length) return [nodes.length ? nodes[0].name : ''];
+    return boxes.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+  };
+}
+function osuShellSelect(cur) {
+  var all = [];
+  ((OSU.d && OSU.d.nodes) || []).forEach(function (n) { (n.shells || []).forEach(function (s) { if (all.indexOf(s) < 0) all.push(s); }); });
+  if (!all.length) all = ['/bin/bash'];
+  if (cur && all.indexOf(cur) < 0) all.unshift(cur);
+  var sel = el('select', 'mono');
+  all.forEach(function (s) { var o = noI18n(el('option', '', s + (/nologin$/.test(s) ? '  (' + ((typeof i18nText === 'function' && i18nText('may not sign in')) || 'may not sign in') + ')' : ''))); o.value = s; sel.appendChild(o); });
+  sel.value = cur || (all.indexOf('/bin/bash') >= 0 ? '/bin/bash' : all[0]);
+  return sel;
+}
+function osuPwPair(body, need) {
+  var a = maskBox('', '', 'mono'), b = maskBox('', '', 'mono');
+  var min = (OSU.d && OSU.d.pw_min) || 8;
+  body.appendChild(formField(need ? 'The new password' : 'Password (empty: none - the user signs in with a key only)', a, min + ' characters at least. It goes to the nodes as its hash only and is kept nowhere.'));
+  body.appendChild(formField('The password again', b));
+  return function () {
+    if (!a.value && !need) return {ok: true, value: ''};
+    if (a.value.length < min) return {ok: false, said: 'the password is ' + min + ' characters at least'};
+    if (a.value !== b.value) return {ok: false, said: 'the two passwords are not the same'};
+    return {ok: true, value: a.value};
+  };
+}
+function osuCheck(words, on, says) {
+  var lab = el('label', 'chk osu-chk');
+  var c = el('input'); c.type = 'checkbox'; c.checked = !!on;
+  lab.appendChild(c); lab.appendChild(el('span', '', ' ' + words));
+  if (says) lab.appendChild(el('span', 'muted small osu-says', says));
+  return {box: lab, input: c};
+}
+function osuAdd(name) {
+  var nameI, gecos, shell, pw, sudo, must, pick;
+  var admin = ((OSU.d && OSU.d.nodes) || []).map(function (n) { return n.admin_group; }).filter(Boolean)[0] || 'wheel';
+  modal(name ? 'Make ' + name + ' on more nodes' : 'Add a user', function (body) {
+    body.appendChild(el('p', 'note', 'A user of the system - not of these pages. The same name and UID on each node chosen; a home folder of its own. SSH keys for it are put on in SSH keys, once it is there.'));
+    nameI = noI18n(textBox(name || '', 'e.g. jnovak', 'mono'));
+    nameI.autocomplete = 'off'; nameI.spellcheck = false;
+    if (name) nameI.disabled = true;
+    body.appendChild(formField('Name', nameI, 'Small letters, digits, _ . and -; 32 at most, starting with a letter.'));
+    gecos = textBox(name ? osuAny(osuRows().by[name] || {}).gecos || '' : '', 'e.g. Jan Novák');
+    body.appendChild(formField('Full name', gecos));
+    shell = osuShellSelect(name ? osuAny(osuRows().by[name] || {}).shell : '');
+    body.appendChild(formField('Shell', shell));
+    pw = osuPwPair(body, false);
+    must = osuCheck('To be changed at the first sign-in', true, 'The user chooses their own at once.');
+    body.appendChild(must.box);
+    sudo = osuCheck('May become root with sudo', name ? osuAny(osuRows().by[name] || {}).sudo : false, 'A member of ' + admin + ' - with their own password.');
+    body.appendChild(sudo.box);
+    pick = osuNodePicker(body, name || '', true);
+    if (name) {
+      /* Only where it is not yet. */
+      var there = osuRows().by[name] || {};
+      body.querySelectorAll('.osu-nodes input').forEach(function (c) { if (there[c.value]) { c.checked = false; c.disabled = true; } });
+    }
+  }, [{words: 'Cancel', close: true}, {words: name ? 'Make it there' : 'Add the user', cls: 'primary', icon: 'add', go: function () {
+    var n = nameI.value.trim(), p = pw(), nodes = pick();
+    if (!/^[a-z_][a-z0-9_.-]{0,31}$/.test(n)) { toast('a name is small letters, digits, _ . and -, starting with a letter', 'warn'); return; }
+    if (!p.ok) { toast(p.said, 'warn'); return; }
+    if (!nodes.length) { toast('pick a node', 'warn'); return; }
+    if (!name && osuRows().by[n]) { toast(n + ' is there already', 'warn'); return; }
+    api('osusers', {action: 'add', name: n, gecos: gecos.value.trim(), shell: shell.value, password: p.value,
+                    must_change: !!(p.value && must.input.checked), sudo: sudo.input.checked, nodes: nodes}).then(function (x) {
+      closeModal(); toast(x.message, 'good'); osuPoll(true);
+    }).catch(oops);
+  }}], 'medium');
+}
+function osuEdit(name) {
+  var rows = osuRows(), on = rows.by[name] || {}, u = osuAny(on);
+  var nodes = (OSU.d && OSU.d.nodes) || [];
+  var gecos, shell, pw, must, pick, home;
+  var missing = nodes.filter(function (n) { return !on[n.name]; });
+  modal(u.root ? 'root' : name, function (body) {
+    /* The facts, node by node. */
+    var facts = el('div', 'osu-facts');
+    nodes.forEach(function (n) {
+      var x = on[n.name], f = el('div', 'osu-fact');
+      f.appendChild(noI18n(el('div', 'osu-fact-h', n.name)));
+      if (!x) { f.appendChild(el('div', 'muted small', 'not on this node')); facts.appendChild(f); return; }
+      var kv = function (k, v, words) { var r = el('div', 'kv-mini'); r.appendChild(el('span', 'k', k)); var e = el('span', 'v' + (words ? '' : ' mono'), v); r.appendChild(words ? e : noI18n(e)); f.appendChild(r); };
+      kv('UID', String(x.uid));
+      kv('Home', x.home + (x.home_there ? '' : ' (not there)'));
+      kv('Shell', x.shell || '–');
+      kv('Groups', (x.groups || []).join(', ') || '–');
+      kv('Password', !x.password ? 'none' : x.must_change ? 'to change at sign-in' : x.changed ? 'set on ' + osuDay(x.changed) : 'set', true);
+      /* An end set by somebody (not the one locking puts in: day 0). */
+      if (x.expires) kv('Expires', osuDay(x.expires));
+      var st = el('div', 'osu-fact-tags');
+      st.appendChild(el('span', 'tag ' + (x.locked ? 'bad' : 'good'), x.locked ? 'locked' : 'may sign in'));
+      if (x.sudo && !x.root) st.appendChild(el('span', 'tag warn', 'sudo'));
+      f.appendChild(st);
+      facts.appendChild(f);
+    });
+    body.appendChild(facts);
+    if (u.root) {
+      body.appendChild(el('p', 'note', 'root is shown here only. Its password, its shell and whether it may sign in are changed on the machine itself - over SSH as root, or at its console - never from these pages. Its SSH keys are in SSH keys; whether it may sign in over SSH, in SSH server and notices.'));
+      return;
+    }
+    if (missing.length) {
+      var mk = cmdButton('Make it on ' + missing.map(function (n) { return n.name; }).join(', ') + ' too', 'add', 'small');
+      mk.onclick = function () { osuAdd(name); };
+      var mr = el('div', 'btnrow'); mr.appendChild(mk);
+      body.appendChild(el('p', 'note warn', name + ' is not on ' + missing.map(function (n) { return n.name; }).join(', ') + '.'));
+      body.appendChild(mr);
+    }
+    pick = osuNodePicker(body, name, false);
+    /* Who they are. */
+    var s1 = el('div', 'osu-sect');
+    s1.appendChild(el('h3', '', 'Name and shell'));
+    gecos = textBox(u.gecos || '', 'e.g. Jan Novák');
+    s1.appendChild(formField('Full name', gecos));
+    shell = osuShellSelect(u.shell);
+    s1.appendChild(formField('Shell', shell));
+    var sv = cmdButton('Save', 'save', 'small');
+    sv.onclick = function () {
+      api('osusers', {action: 'set', name: name, gecos: gecos.value.trim(), shell: shell.value, nodes: pick()}).then(function (x) { toast(x.message, 'good'); osuPoll(true); }).catch(oops);
+    };
+    var r1 = el('div', 'btnrow'); r1.appendChild(sv); s1.appendChild(r1);
+    body.appendChild(s1);
+    /* The password. */
+    var s2 = el('div', 'osu-sect');
+    s2.appendChild(el('h3', '', 'Password'));
+    pw = osuPwPair(s2, true);
+    must = osuCheck('To be changed at the next sign-in', false);
+    s2.appendChild(must.box);
+    var sp = cmdButton('Set the password', 'key', 'small');
+    sp.onclick = function () {
+      var p = pw();
+      if (!p.ok) { toast(p.said, 'warn'); return; }
+      api('osusers', {action: 'password', name: name, password: p.value, must_change: must.input.checked, nodes: pick()}).then(function (x) {
+        toast(x.message, 'good'); osuPoll(true);
+        s2.querySelectorAll('input.masked').forEach(function (i) { i.value = ''; });
+      }).catch(oops);
+    };
+    var r2 = el('div', 'btnrow'); r2.appendChild(sp); s2.appendChild(r2);
+    body.appendChild(s2);
+    /* sudo and sign-in. */
+    var s3 = el('div', 'osu-sect');
+    s3.appendChild(el('h3', '', 'What they may do'));
+    var anyLocked = Object.keys(on).some(function (k) { return on[k].locked; });
+    var anySudo = Object.keys(on).some(function (k) { return on[k].sudo; });
+    var r3 = el('div', 'btnrow');
+    var su = cmdButton(anySudo ? 'Take sudo away' : 'Give sudo', 'shield', 'small');
+    explain(su, 'sudo: may become root with their own password (a member of ' + (nodes.map(function (n) { return n.admin_group; }).filter(Boolean)[0] || 'wheel') + ').');
+    su.onclick = function () {
+      api('osusers', {action: 'sudo', name: name, on: !anySudo, nodes: pick()}).then(function (x) { closeModal(); toast(x.message, 'good'); osuPoll(true); }).catch(oops);
+    };
+    var lk = cmdButton(anyLocked ? 'Unlock' : 'Lock', 'lock', 'small');
+    explain(lk, anyLocked ? 'May sign in again - with the password, or a key.' : 'May not sign in at all - neither with the password nor with an SSH key - until unlocked. Nothing of theirs is taken away.');
+    lk.onclick = function () {
+      api('osusers', {action: anyLocked ? 'unlock' : 'lock', name: name, nodes: pick()}).then(function (x) { closeModal(); toast(x.message, 'good'); osuPoll(true); }).catch(oops);
+    };
+    r3.appendChild(su); r3.appendChild(lk);
+    s3.appendChild(r3);
+    body.appendChild(s3);
+    /* Taken away. */
+    var s4 = el('div', 'osu-sect');
+    s4.appendChild(el('h3', '', 'Take the user away'));
+    home = osuCheck('Its home folder too', false, (u.home || '') + ' - with everything in it, SSH keys among it.');
+    s4.appendChild(home.box);
+    body.appendChild(s4);
+  }, u.root ? [{words: 'Close', close: true}] : [{words: 'Take the user away', cls: 'danger', icon: 'trash', left: true, go: function () {
+    api('osusers', {action: 'drop', name: name, home: home.input.checked, nodes: pick()}).then(function (x) { closeModal(); toast(x.message, 'good'); osuPoll(true); }).catch(oops);
+  }}, {words: 'Close', close: true}], 'medium');
 }
 
 /* ---- Settings → System updates (1.0.158) ----------------------------------------
@@ -13660,6 +14133,149 @@ function sdAct(action, b) {
   api('sshd', {action: action}).then(function (r) { toast(r.message, 'good'); SD.d = r; drawSshd(); sdPoll(true); })
     .catch(function (e) { if (b) busy(b, false); oops(e); });
 }
+/* The accounts of the nodes (1.0.242): root and the users who may sign in there, as SSH keys
+   reads them - asked of the nodes when they have not said yet. */
+var SD_ACCTS = {at: 0, names: null, waiting: []};
+function sdAccounts(cb) {
+  if (SD_ACCTS.names && Date.now() - SD_ACCTS.at < 60000) { cb(SD_ACCTS.names); return; }
+  SD_ACCTS.waiting.push(cb);
+  if (SD_ACCTS.waiting.length > 1) return;
+  var tries = 0;
+  var done = function (names) {
+    SD_ACCTS.names = names; SD_ACCTS.at = Date.now();
+    var w = SD_ACCTS.waiting; SD_ACCTS.waiting = [];
+    w.forEach(function (f) { try { f(names); } catch (e) { /* one picker gone */ } });
+  };
+  var ask = function () {
+    api('sshkeys').then(function (d) {
+      var told = false, seen = {}, names = [];
+      ((d && d.nodes) || []).forEach(function (n) {
+        if (Array.isArray(n.users)) told = true;
+        (n.users || []).forEach(function (u) { if (!seen[u.name]) { seen[u.name] = true; names.push(u.name); } });
+      });
+      if (told || tries >= 15) { done(names.sort()); return; }
+      if (!tries) api('sshkeys', {action: 'refresh', nodes: ((d && d.nodes) || []).filter(function (n) { return n.alive; }).map(function (n) { return n.name; })}).catch(function () {});
+      tries++;
+      setTimeout(ask, 2000);
+    }).catch(function () { done([]); });
+  };
+  ask();
+}
+/* Several accounts picked from a list, or everybody - never typed (1.0.242). An account set
+   before that the nodes do not list (a pattern of sshd's, one of the directory) stays, said so. */
+function accountPicker(cur, o) {
+  /* o.none (the console at login, 1.0.242): nobody ([]), every normal user ('*') or these. */
+  var star = cur === '*';
+  cur = star ? [] : (cur || []).slice();
+  var value = function () { return star ? '*' : cur.slice(); };
+  var box = el('details', 'acct-pick');
+  var sum = el('summary', '');
+  box.appendChild(sum);
+  var panel = el('div', 'acct-panel');
+  box.appendChild(panel);
+  if (o.disabled) box.classList.add('off');
+  var redraw = null;
+  var said = function () {
+    clear(sum);
+    if (!cur.length) {
+      var ev0 = el('span', 'acct-every' + (o.none && !star ? ' nobody' : ''));
+      ev0.innerHTML = iconMarkup('people', 14);
+      ev0.appendChild(el('span', '', o.none && !star ? o.none : o.every));
+      sum.appendChild(ev0);
+      return;
+    }
+    cur.forEach(function (n) {
+      var chip = el('span', 'acct-chip');
+      chip.appendChild(noI18n(el('span', 'mono', n)));
+      if (!o.disabled) {
+        var x = el('button', 'acct-x', '×');
+        x.type = 'button';
+        x.title = 'Take it away';
+        x.onclick = function (e) {
+          e.preventDefault(); e.stopPropagation();
+          cur = cur.filter(function (m) { return m !== n; });
+          said(); if (redraw) redraw(); if (o.change) o.change(value());
+        };
+        chip.appendChild(x);
+      }
+      sum.appendChild(chip);
+    });
+  };
+  var lastNames = [];
+  var draw = function (names) {
+    lastNames = names;
+    clear(panel);
+    var all = (o.root ? ['root'] : []).concat(names.filter(function (n) { return n !== 'root'; }));
+    cur.forEach(function (n) { if (all.indexOf(n) < 0) all.push(n); });
+    var nob = null;
+    if (o.none) {
+      nob = el('label', 'acct-row acct-row-every');
+      var nbc = el('input'); nbc.type = 'checkbox'; nbc.checked = !star && !cur.length; nbc.disabled = !!o.disabled;
+      var nbi = el('span', 'acct-ava'); nbi.textContent = '–';
+      nob.appendChild(nbc); nob.appendChild(nbi); nob.appendChild(el('span', 'acct-name', o.none));
+      nob._c = nbc;
+    }
+    /* A search over the list when it is long - it narrows the list, it is never a name itself. */
+    var find = null;
+    if (all.length > 7) {
+      find = el('input', 'acct-find');
+      find.type = 'search'; find.placeholder = 'find an account'; find.spellcheck = false; find.autocomplete = 'off';
+      panel.appendChild(find);
+    }
+    if (nob) panel.appendChild(nob);
+    var ev = el('label', 'acct-row acct-row-every');
+    var evc = el('input'); evc.type = 'checkbox'; evc.checked = o.none ? star : !cur.length; evc.disabled = !!o.disabled;
+    var evi = el('span', 'acct-ava every'); evi.innerHTML = iconMarkup('people', 14);
+    ev.appendChild(evc); ev.appendChild(evi); ev.appendChild(el('span', 'acct-name', o.every));
+    panel.appendChild(ev);
+    var boxes = [], rows = [];
+    all.forEach(function (n) {
+      var r = el('label', 'acct-row');
+      var c = el('input'); c.type = 'checkbox'; c.value = n; c.checked = cur.indexOf(n) >= 0; c.disabled = !!o.disabled;
+      r.appendChild(c);
+      r.appendChild(noI18n(el('span', 'acct-ava' + (n === 'root' ? ' root' : ''), n.slice(0, 2).toUpperCase())));
+      r.appendChild(noI18n(el('span', 'acct-name mono', n)));
+      if (n !== 'root' && names.indexOf(n) < 0) r.appendChild(el('span', 'tag dim', 'not listed by the nodes'));
+      panel.appendChild(r);
+      boxes.push(c); rows.push([n, r]);
+    });
+    if (find) find.oninput = function () {
+      var q = find.value.trim().toLowerCase();
+      rows.forEach(function (x) { x[1].hidden = q && x[0].toLowerCase().indexOf(q) < 0; });
+    };
+    redraw = function () { boxes.forEach(function (c) { c.checked = cur.indexOf(c.value) >= 0; }); tops(); };
+    if (!all.length) panel.appendChild(el('p', 'muted small', 'The nodes list no user who may sign in.'));
+    var changed = function () { said(); if (o.change) o.change(value()); };
+    var tops = function () {
+      if (o.none) { nob._c.checked = !star && !cur.length; evc.checked = star; }
+      else evc.checked = !cur.length;
+    };
+    evc.onchange = function () {
+      if (o.none) {
+        star = evc.checked; if (star) { cur = []; boxes.forEach(function (c) { c.checked = false; }); }
+      } else if (evc.checked) { cur = []; boxes.forEach(function (c) { c.checked = false; }); }
+      else if (!cur.length) { evc.checked = true; return; }       /* nobody at all is not a choice */
+      tops(); changed();
+    };
+    if (nob) nob._c.onchange = function () {
+      star = false; cur = []; boxes.forEach(function (c) { c.checked = false; }); tops(); changed();
+    };
+    boxes.forEach(function (c) {
+      c.onchange = function () {
+        star = false;
+        cur = boxes.filter(function (x) { return x.checked; }).map(function (x) { return x.value; });
+        tops(); changed();
+      };
+    });
+  };
+  said();
+  panel.appendChild(el('p', 'muted small', 'reading the users of the nodes…'));
+  sdAccounts(draw);
+  /* Closed by a click elsewhere, as a dropdown is. */
+  document.addEventListener('click', function (e) { if (box.open && !box.contains(e.target)) box.open = false; });
+  if (o.disabled) sum.onclick = function (e) { e.preventDefault(); };
+  return box;
+}
 function drawSshd(live) {
   var real = $('sd-host');
   if (!real || !SD.d) return;
@@ -13738,10 +14354,10 @@ function drawSshd(live) {
     tries.disabled = !dr.manage;
     tries.oninput = function () { dr.tries = parseInt(tries.value, 10) || 4; sdDirty(); };
     g.appendChild(formField('Tries a connection', tries, 'Wrong passwords or keys before sshd closes it (MaxAuthTries).'));
-    var au = textBox((dr.allow_users || []).join(' '), 'root admin', 'mono');
-    au.disabled = !dr.manage;
-    au.oninput = function () { dr.allow_users = au.value.split(/[\s,]+/).filter(Boolean); sdDirty(); };
-    g.appendChild(formField('Who may sign in', au, 'The accounts, separated by spaces (AllowUsers). Empty: everybody.'));
+    /* Picked, not typed (1.0.242): the accounts of the nodes, several, or everybody. */
+    var au = accountPicker(dr.allow_users || [], {every: 'Everybody', root: true, disabled: !dr.manage,
+      change: function (v) { dr.allow_users = v; sdDirty(); }});
+    g.appendChild(formField('Who may sign in', au, 'The accounts that may sign in over SSH (AllowUsers) - or everybody.'));
     var tm = textBox(String(dr.trial_min === undefined ? 5 : dr.trial_min), '5', 'mono');
     tm.disabled = !dr.manage;
     tm.oninput = function () { dr.trial_min = Math.max(0, parseInt(tm.value, 10) || 0); sdDirty(); };
@@ -15103,13 +15719,18 @@ function drawMonitor() {
     confirmThen('Make a new token for Prometheus?', 'The token used now stops opening /metrics at once - put the new one into Prometheus.', 'Make it', function () {
       api('metrics', {action: 'token'}).then(function (x) {
         modal('The token for Prometheus', function (body) {
-          body.appendChild(el('p', 'note', 'Shown only now. Put it into a file Prometheus reads (bearer_token_file below), readable by it alone.'));
-          var pre = noI18n(el('pre', 'wrap mono', x.token));
-          body.appendChild(pre);
-          var cp = cmdButton('Copy', 'copy', 'small');
-          cp.onclick = function () { copyText(x.token, cp); };
-          body.appendChild(cp);
-        });
+          body.appendChild(el('p', 'note warn', 'Shown only now. Put it into a file Prometheus reads (bearer_token_file below), readable by it alone.'));
+          var row = el('div', 'key-big-row');
+          var kb = noI18n(el('div', 'key-big mono', x.token));
+          kb.tabIndex = 0;
+          kb.title = 'Click to select it all';
+          kb.onclick = function () { var r = document.createRange(); r.selectNodeContents(kb); var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r); };
+          row.appendChild(kb);
+          var cp = cmdButton('Copy', 'copy', 'primary');
+          cp.onclick = function () { copyText(x.token, cp, 'the token is on the clipboard'); };
+          row.appendChild(cp);
+          body.appendChild(row);
+        }, null, 'medium');
         loadSettings();
       }).catch(oops);
     }, false);

@@ -51679,6 +51679,354 @@
   "dpwal_75": {
    "source": "only the node that sends the alerts keeps what was sent - forget it on that node's pages",
    "text": "co bylo odesláno, si pamatuje jen uzel, který upozornění posílá – zapomeňte to na jeho stránkách"
+  },
+  "osu_1": {
+   "source": "(not there)",
+   "text": "(není tam)"
+  },
+  "osu_2": {
+   "source": "A key for",
+   "text": "Klíč pro"
+  },
+  "osu_3": {
+   "source": "A new user of the system, on every node or on the ones you choose - the same UID on each.",
+   "text": "Nový uživatel systému, na všech uzlech nebo na těch, které vyberete – na každém se stejným UID."
+  },
+  "osu_4": {
+   "source": "A user of the system - not of these pages. The same name and UID on each node chosen; a home folder of its own. SSH keys for it are put on in SSH keys, once it is there.",
+   "text": "Uživatel systému – ne těchto stránek. Na každém vybraném uzlu stejné jméno a UID; vlastní domovská složka. SSH klíče pro něj se přidávají v SSH klíčích, jakmile existuje."
+  },
+  "osu_5": {
+   "source": "Add a user",
+   "text": "Přidat uživatele"
+  },
+  "osu_6": {
+   "source": "Add the user",
+   "text": "Přidat uživatele"
+  },
+  "osu_7": {
+   "source": "Click to select it all",
+   "text": "Kliknutím označíte celý"
+  },
+  "osu_8": {
+   "source": "Done last",
+   "text": "Naposledy provedeno"
+  },
+  "osu_9": {
+   "source": "Every normal user",
+   "text": "Všichni běžní uživatelé"
+  },
+  "osu_10": {
+   "source": "For normal users too: they land in it through sudo, after their own password - only those who may become root with sudo (wheel); anybody else gets a line saying so and the ordinary shell. In Events their changes are marked with their name. On the server: acme --console-users \"alice bob\" (or * or none).",
+   "text": "I pro běžné uživatele: dostanou se do ní přes sudo, po zadání vlastního hesla – jen ti, kdo se smí přes sudo stát rootem (wheel); ostatní dostanou řádek s vysvětlením a obyčejný shell. V Událostech jsou jejich změny označené jejich jménem. Na serveru: acme --console-users \"alice bob\" (nebo * či none)."
+  },
+  "osu_11": {
+   "source": "Give sudo",
+   "text": "Dát sudo"
+  },
+  "osu_12": {
+   "source": "Header",
+   "text": "Hlavička"
+  },
+  "osu_13": {
+   "source": "Home",
+   "text": "Domovská složka"
+  },
+  "osu_14": {
+   "source": "Into",
+   "text": "Kam"
+  },
+  "osu_15": {
+   "source": "Its address",
+   "text": "Její adresa"
+  },
+  "osu_16": {
+   "source": "Its home folder too",
+   "text": "I jeho domovskou složku"
+  },
+  "osu_17": {
+   "source": "Keys that may sign in as",
+   "text": "Klíče, kterými se lze přihlásit jako"
+  },
+  "osu_18": {
+   "source": "Local users",
+   "text": "Místní uživatelé"
+  },
+  "osu_19": {
+   "source": "Lock",
+   "text": "Zamknout"
+  },
+  "osu_20": {
+   "source": "Made on the nodes",
+   "text": "Vytvořit na uzlech"
+  },
+  "osu_21": {
+   "source": "Make it there",
+   "text": "Vytvořit tam"
+  },
+  "osu_22": {
+   "source": "May become root with sudo",
+   "text": "Smí se stát rootem přes sudo"
+  },
+  "osu_23": {
+   "source": "May not sign in at all - neither with the password nor with an SSH key - until unlocked. Nothing of theirs is taken away.",
+   "text": "Nesmí se přihlásit vůbec – ani heslem, ani SSH klíčem – dokud nebude odemčen. Nic z jeho věcí se neodebere."
+  },
+  "osu_24": {
+   "source": "May sign in again - with the password, or a key.",
+   "text": "Smí se znovu přihlásit – heslem nebo klíčem."
+  },
+  "osu_25": {
+   "source": "Name and shell",
+   "text": "Jméno a shell"
+  },
+  "osu_26": {
+   "source": "No key yet",
+   "text": "Zatím bez klíče"
+  },
+  "osu_27": {
+   "source": "Nobody",
+   "text": "Nikdo"
+  },
+  "osu_28": {
+   "source": "On the nodes",
+   "text": "Na uzlech"
+  },
+  "osu_29": {
+   "source": "Only root: no other user who may sign in (a login shell, UID 1000 and up) is on the nodes.",
+   "text": "Jen root: na uzlech není jiný uživatel, který se smí přihlásit (přihlašovací shell, UID od 1000)."
+  },
+  "osu_30": {
+   "source": "Password (empty: none - the user signs in with a key only)",
+   "text": "Heslo (prázdné: žádné – uživatel se přihlašuje jen klíčem)"
+  },
+  "osu_31": {
+   "source": "Read the users again on every node",
+   "text": "Znovu načíst uživatele na všech uzlech"
+  },
+  "osu_32": {
+   "source": "Reading the users of each node…",
+   "text": "Načítám uživatele každého uzlu…"
+  },
+  "osu_33": {
+   "source": "SSH keys",
+   "text": "SSH klíče"
+  },
+  "osu_34": {
+   "source": "Set the password",
+   "text": "Nastavit heslo"
+  },
+  "osu_35": {
+   "source": "Shell",
+   "text": "Shell"
+  },
+  "osu_36": {
+   "source": "Small letters, digits, _ . and -; 32 at most, starting with a letter.",
+   "text": "Malá písmena, číslice, _ . a -; nejvýš 32 znaků, na začátku písmeno."
+  },
+  "osu_37": {
+   "source": "Take sudo away",
+   "text": "Odebrat sudo"
+  },
+  "osu_38": {
+   "source": "Take the user away",
+   "text": "Odebrat uživatele"
+  },
+  "osu_39": {
+   "source": "The accounts that may sign in over SSH (AllowUsers) - or everybody.",
+   "text": "Účty, které se smí přihlásit přes SSH (AllowUsers) – nebo všichni."
+  },
+  "osu_40": {
+   "source": "The code",
+   "text": "Kód"
+  },
+  "osu_41": {
+   "source": "The file on this machine",
+   "text": "Soubor na tomto stroji"
+  },
+  "osu_42": {
+   "source": "The keys that may sign in to each node over SSH - as root or as a user who may sign in there: made here, added or taken away.",
+   "text": "Klíče, kterými se lze přes SSH přihlásit na každý uzel – jako root nebo jako uživatel, který se tam smí přihlásit: vytvořené tady, přidané nebo odebrané."
+  },
+  "osu_43": {
+   "source": "The new password",
+   "text": "Nové heslo"
+  },
+  "osu_44": {
+   "source": "The nodes list no user who may sign in.",
+   "text": "Uzly neuvádí žádného uživatele, který se smí přihlásit."
+  },
+  "osu_45": {
+   "source": "The user",
+   "text": "Uživatel"
+  },
+  "osu_46": {
+   "source": "The user chooses their own at once.",
+   "text": "Uživatel si hned zvolí vlastní."
+  },
+  "osu_47": {
+   "source": "The users of each node's own system: root shown, the others made, given a password or sudo, locked or taken away - on every node or on one.",
+   "text": "Uživatelé vlastního systému každého uzlu: root jen k nahlédnutí, ostatní lze vytvořit, nastavit jim heslo či sudo, zamknout nebo odebrat – na všech uzlech, nebo na jednom."
+  },
+  "osu_48": {
+   "source": "To be changed at the first sign-in",
+   "text": "Změnit při prvním přihlášení"
+  },
+  "osu_49": {
+   "source": "To be changed at the next sign-in",
+   "text": "Změnit při příštím přihlášení"
+  },
+  "osu_50": {
+   "source": "UID",
+   "text": "UID"
+  },
+  "osu_51": {
+   "source": "Unlock",
+   "text": "Odemknout"
+  },
+  "osu_52": {
+   "source": "Users of the nodes",
+   "text": "Uživatelé uzlů"
+  },
+  "osu_53": {
+   "source": "What came of it",
+   "text": "Výsledek"
+  },
+  "osu_54": {
+   "source": "What they may do",
+   "text": "Co smí"
+  },
+  "osu_55": {
+   "source": "Which one",
+   "text": "Která"
+  },
+  "osu_56": {
+   "source": "Whose keys",
+   "text": "Čí klíče"
+  },
+  "osu_57": {
+   "source": "a name is small letters, digits, _ . and -, starting with a letter",
+   "text": "jméno jsou malá písmena, číslice, _ . a -, na začátku písmeno"
+  },
+  "osu_58": {
+   "source": "e.g. Jan Novák",
+   "text": "např. Jan Novák"
+  },
+  "osu_59": {
+   "source": "e.g. jnovak",
+   "text": "např. jnovak"
+  },
+  "osu_60": {
+   "source": "every one",
+   "text": "všichni"
+  },
+  "osu_61": {
+   "source": "find an account",
+   "text": "najít účet"
+  },
+  "osu_62": {
+   "source": "in use now",
+   "text": "používá se teď"
+  },
+  "osu_63": {
+   "source": "may sign in",
+   "text": "smí se přihlásit"
+  },
+  "osu_64": {
+   "source": "may sign in here",
+   "text": "se tu smí přihlásit"
+  },
+  "osu_65": {
+   "source": "no shell",
+   "text": "bez shellu"
+  },
+  "osu_66": {
+   "source": "normal users:",
+   "text": "běžní uživatelé:"
+  },
+  "osu_67": {
+   "source": "not listed by the nodes",
+   "text": "uzly ho neuvádí"
+  },
+  "osu_68": {
+   "source": "not on this node",
+   "text": "na tomto uzlu není"
+  },
+  "osu_69": {
+   "source": "phone",
+   "text": "telefon"
+  },
+  "osu_70": {
+   "source": "pick a node",
+   "text": "vyberte uzel"
+  },
+  "osu_71": {
+   "source": "read from",
+   "text": "čteno z"
+  },
+  "osu_72": {
+   "source": "reading the users of the nodes…",
+   "text": "načítám uživatele uzlů…"
+  },
+  "osu_73": {
+   "source": "root is shown here only. Its password, its shell and whether it may sign in are changed on the machine itself - over SSH as root, or at its console - never from these pages. Its SSH keys are in SSH keys; whether it may sign in over SSH, in SSH server and notices.",
+   "text": "root je tu jen k nahlédnutí. Jeho heslo, shell a to, zda se smí přihlásit, se mění na stroji samotném – přes SSH jako root nebo na jeho konzoli – nikdy z těchto stránek. Jeho SSH klíče jsou v SSH klíčích; zda se smí přihlásit přes SSH, v SSH serveru a oznámeních."
+  },
+  "osu_74": {
+   "source": "root is shown here, never changed - on the machine itself only",
+   "text": "root se tu jen zobrazuje, nikdy nemění – jen na stroji samotném"
+  },
+  "osu_75": {
+   "source": "root is shown only - it is changed on the machine itself, never from these pages",
+   "text": "root je jen k nahlédnutí – mění se na stroji samotném, nikdy z těchto stránek"
+  },
+  "osu_76": {
+   "source": "sign in again",
+   "text": "přihlaste se znovu"
+  },
+  "osu_77": {
+   "source": "sudo",
+   "text": "sudo"
+  },
+  "osu_78": {
+   "source": "the full name is 120 characters at most, without a colon",
+   "text": "celé jméno má nejvýš 120 znaků, bez dvojtečky"
+  },
+  "osu_79": {
+   "source": "the password is 256 characters at most, with no line breaks",
+   "text": "heslo má nejvýš 256 znaků, bez zalomení řádku"
+  },
+  "osu_80": {
+   "source": "the reference: ",
+   "text": "reference: "
+  },
+  "osu_81": {
+   "source": "the token is on the clipboard",
+   "text": "token je ve schránce"
+  },
+  "osu_82": {
+   "source": "these…",
+   "text": "tito…"
+  },
+  "osu_83": {
+   "source": "to change at sign-in",
+   "text": "změnit při přihlášení"
+  },
+  "osu_84": {
+   "source": "view only",
+   "text": "jen zobrazit"
+  },
+  "osu_85": {
+   "source": "may not sign in",
+   "text": "nesmí se přihlásit"
+  },
+  "osu_86": {
+   "source": "The keys that may sign in to each node over SSH - as root (the lines of /root/.ssh/authorized_keys) or as any user who may sign in there (their own ~/.ssh/authorized_keys, written as they are), read from every node. A key made here is shown once, to be kept by you, and kept nowhere on the server; one of your own is put on by its public half - on every node or on one. Every change is written into Events.",
+   "text": "Klíče, kterými se lze přes SSH přihlásit na každý uzel – jako root (řádky /root/.ssh/authorized_keys) nebo jako kterýkoli uživatel, který se tam smí přihlásit (jeho vlastní ~/.ssh/authorized_keys, zapsaný jako on), načtené z každého uzlu. Klíč vytvořený tady se ukáže jednou, uschováte si ho vy a na serveru se neuchovává nikde; vlastní klíč se přidá svou veřejnou polovinou – na všechny uzly nebo na jeden. Každá změna se zapíše do Událostí."
+  },
+  "osu_87": {
+   "source": "The users of each node's own system - who may sign in to the machine itself, over SSH or at its console; not the accounts of these pages. root is shown and never changed here; the others (UID 1000 and up) are made, given a password or sudo, locked or taken away on every node at once or on one, by each node's root helper. A password typed here goes to the nodes as its hash only and is kept nowhere. Every change is written into Events.",
+   "text": "Uživatelé vlastního systému každého uzlu – kdo se smí přihlásit přímo na stroj, přes SSH nebo na jeho konzoli; nejde o účty těchto stránek. root je tu jen k nahlédnutí a nikdy se tu nemění; ostatní (UID od 1000) se vytvářejí, dostávají heslo či sudo, zamykají nebo odebírají na všech uzlech najednou, nebo na jednom – dělá to root helper každého uzlu. Heslo zadané tady jde na uzly jen jako svůj hash a nikde se neuchovává. Každá změna se zapíše do Událostí."
   }
  },
  "patterns": {
@@ -70793,6 +71141,114 @@
   "pdpwal_21": {
    "source": "The policy {0} locks an account after {1} wrong passwords: {2} here leave the person {3} of their own before it locks.",
    "text": "Politika {0} zamkne účet po {1} špatných heslech: {2} tady nechá člověku {3} vlastních pokusů, než se účet zamkne."
+  },
+  "posu_1": {
+   "source": "+{0} more",
+   "text": "+{0} další"
+  },
+  "posu_2": {
+   "source": "A fresh pair is made here. Its private half is shown to you once, to download or copy, and kept nowhere; its public half goes onto {0}.",
+   "text": "Tady se vytvoří nový pár. Soukromá polovina se vám ukáže jednou, ke stažení nebo zkopírování, a nikde se neuchovává; veřejná polovina se dá na {0}."
+  },
+  "posu_3": {
+   "source": "A member of {0} - with their own password.",
+   "text": "Člen skupiny {0} – s vlastním heslem."
+  },
+  "posu_4": {
+   "source": "Add a key for {0}",
+   "text": "Přidat klíč pro {0}"
+  },
+  "posu_5": {
+   "source": "Also the {0} accounts with no shell (they may not sign in)",
+   "text": "Také {0} účtů bez shellu (nesmí se přihlásit)"
+  },
+  "posu_6": {
+   "source": "Being done on {0}…",
+   "text": "Provádí se na {0}…"
+  },
+  "posu_7": {
+   "source": "Change {0}: the password, sudo, locked, the shell - or take the user away",
+   "text": "Změnit {0}: heslo, sudo, zamčení, shell – nebo uživatele odebrat"
+  },
+  "posu_8": {
+   "source": "Make it on {0} too",
+   "text": "Vytvořit i na {0}"
+  },
+  "posu_9": {
+   "source": "Make {0} on more nodes",
+   "text": "Vytvořit {0} na dalších uzlech"
+  },
+  "posu_10": {
+   "source": "No key lets {0} in over SSH on {1}.",
+   "text": "Žádný klíč nepustí {0} přes SSH na {1}."
+  },
+  "posu_11": {
+   "source": "Then, on your machine: ssh -i {0} {1}@…",
+   "text": "Potom na svém počítači: ssh -i {0} {1}@…"
+  },
+  "posu_12": {
+   "source": "This is the only time it is shown. Whoever holds it signs in to {0} as {1}.",
+   "text": "Zobrazí se jen tentokrát. Kdokoli ho má, přihlásí se na {0} jako {1}."
+  },
+  "posu_13": {
+   "source": "done on {0} within a few seconds",
+   "text": "hotovo na {0} během několika sekund"
+  },
+  "posu_14": {
+   "source": "read {0}",
+   "text": "načteno {0}"
+  },
+  "posu_15": {
+   "source": "root, or one of the {0} users who may sign in on the nodes (a login shell, UID 1000 and up) - their own ~/.ssh/authorized_keys, written as they are.",
+   "text": "root, nebo jeden z {0} uživatelů, kteří se smí přihlásit na uzly (přihlašovací shell, UID od 1000) – jejich vlastní ~/.ssh/authorized_keys, zapsaný jako oni."
+  },
+  "posu_16": {
+   "source": "sudo: may become root with their own password (a member of {0}).",
+   "text": "sudo: smí se stát rootem s vlastním heslem (člen skupiny {0})."
+  },
+  "posu_17": {
+   "source": "the password is {0} characters at least",
+   "text": "heslo má nejméně {0} znaků"
+  },
+  "posu_18": {
+   "source": "what is in {0} is thrown away",
+   "text": "co je v {0}, se zahodí"
+  },
+  "posu_19": {
+   "source": "{0} (not there)",
+   "text": "{0} (není tam)"
+  },
+  "posu_20": {
+   "source": "{0} - wait for it to end",
+   "text": "{0} - počkejte, až skončí"
+  },
+  "posu_21": {
+   "source": "{0} characters at least. It goes to the nodes as its hash only and is kept nowhere.",
+   "text": "Nejméně {0} znaků. Na uzly jde jen jako svůj hash a nikde se neuchovává."
+  },
+  "posu_22": {
+   "source": "{0} has no user {1}",
+   "text": "{0} nemá uživatele {1}"
+  },
+  "posu_23": {
+   "source": "{0} has not said who its users are yet - wait a few seconds",
+   "text": "{0} zatím neřekl, jaké má uživatele – počkejte pár sekund"
+  },
+  "posu_24": {
+   "source": "{0} is not answering: what it shows is what it said last, and a change asked of it waits until it is back.",
+   "text": "{0} neodpovídá: ukazuje se, co řekl naposledy, a změna po něm žádaná počká, až se vrátí."
+  },
+  "posu_25": {
+   "source": "{0} is not on {1}.",
+   "text": "{0} není na {1}."
+  },
+  "posu_26": {
+   "source": "{0} - with everything in it, SSH keys among it.",
+   "text": "{0} – se vším, co v ní je, včetně SSH klíčů."
+  },
+  "posu_27": {
+   "source": "{0} (may not sign in)",
+   "text": "{0} (nesmí se přihlásit)"
   }
  },
  "rich": {
@@ -71631,6 +72087,10 @@
   "rdpwal_1": {
    "source": "Each directory with a cap of its own, or as the setting above. <b>Read the domain's policy</b> asks the domain itself - through the directory's own connection - how it locks accounts and what it asks of passwords, and recommends a cap below its lockout. Nothing changes until <b>Save the changes</b> below.",
    "text": "Každý adresář s vlastním stropem, nebo podle nastavení výše. <b>Načíst politiku domény</b> se přímo domény – přes vlastní spojení adresáře – zeptá, jak zamyká účty a co vyžaduje od hesel, a doporučí strop pod jejím prahem zamčení. Nic se nezmění, dokud dole nedáte <b>Uložit změny</b>."
+  },
+  "rosu_1": {
+   "source": "Its <b>public</b> half goes into <code>~{0}/.ssh/authorized_keys</code> of {1} - written as {2}, so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to hand over.",
+   "text": "Jeho <b>veřejná</b> část se zapíše do <code>~{0}/.ssh/authorized_keys</code> na {1} – jako {2}, aby složka i soubor patřily jemu. <b>Soukromá</b> část se tu nikdy neuchovává: ukáže se vám jednou, abyste ji předali."
   }
  }
 }
