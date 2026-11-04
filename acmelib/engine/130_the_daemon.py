@@ -528,6 +528,10 @@ class Daemon(object):
         HA_STORE['store'] = self.store
         node_name_check(self.store)             # renamed since the last start? (1.0.48)
         try:
+            pwp_migrate(self.store)             # acme 1.0.42's password policy taken over (1.0.43)
+        except Exception as e:                  # noqa: BLE001
+            log('the password policy of acme 1.0.42 could not be taken over: %s' % e, 'warn')
+        try:
             machine_changed_check(self.store)   # another machine under this name? (1.0.43)
         except Exception as e:                  # noqa: BLE001
             log('the machine of this node could not be compared: %s' % e, 'warn')

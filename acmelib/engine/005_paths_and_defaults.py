@@ -79,15 +79,6 @@ DEFAULTS = {
     'login_guard_block_min': 30,
     'login_guard_trusted': '',
     'dir_pw_tries': 0,
-    # Settings -> Local users -> The password policy (1.0.42): what a password typed for a local
-    # user of the nodes must be, and how long it is good. As until now: 8 characters, any.
-    'osu_pw_min': 8,
-    'osu_pw_classes': '1',
-    'osu_pw_not_name': 1,
-    'osu_pw_max_days': 0,
-    'osu_pw_min_days': 0,
-    'osu_pw_warn_days': 7,
-    'osu_pw_system': 0,
     'dir_pw_window_min': 30,
     'admin_directory': '',
     'admin_group_full': '',
@@ -407,9 +398,6 @@ TUNABLE = {
     'login_guard': (0, 1), 'login_guard_tries': (2, 10000), 'login_guard_names': (0, 1000),
     'login_guard_window_min': (1, 1440), 'login_guard_block_min': (1, 10080),
     'dir_pw_tries': (0, 100), 'dir_pw_window_min': (1, 1440),
-    'osu_pw_min': (8, 128), 'osu_pw_classes': ('1', '2', '3', '4'), 'osu_pw_not_name': (0, 1),
-    'osu_pw_max_days': (0, 3650), 'osu_pw_min_days': (0, 365), 'osu_pw_warn_days': (0, 90),
-    'osu_pw_system': (0, 1),
     'admin_2fa': (0, 1), 'admin_2fa_app': (0, 1), 'admin_2fa_mail': (0, 1), 'admin_2fa_sms': (0, 1),
     'isemon': (0, 1), 'isemon_events': (0, 1),
     'isemon_verify': (0, 1), 'isemon_mtls': (0, 1), 'metrics': (0, 1),
@@ -542,8 +530,6 @@ CHOICE_WORDS = {
     'osup_auto_what': {'security': 'only the security updates', 'all': 'every update'},
     'osup_auto_every': {'daily': 'every day', 'weekly': 'every week, on the day below',
                         'monthly': 'on the first of every month'},
-    'osu_pw_classes': {'1': 'any - as until now', '2': 'two of the four kinds',
-                       '3': 'three of the four kinds', '4': 'all four: small letters, capitals, digits, the others'},
     'osup_auto_day': {'1': 'Monday', '2': 'Tuesday', '3': 'Wednesday', '4': 'Thursday', '5': 'Friday', '6': 'Saturday', '7': 'Sunday'},
     'osup_auto_reboot': {'auto': 'restarted by itself where an update needs it',
                          'ask': 'a restart offered on the page'},
@@ -645,13 +631,6 @@ NAMES = {
     'login_guard_block_min': 'Blocked for (min)',
     'login_guard_trusted': 'Never blocked',
     'dir_pw_tries': 'Wrong directory passwords per person, on these pages and the enrolment pages',
-    'osu_pw_min': 'Characters at least',
-    'osu_pw_classes': 'Kinds of characters at least',
-    'osu_pw_not_name': 'Not the user\'s name in it',
-    'osu_pw_max_days': 'Good for (days)',
-    'osu_pw_min_days': 'Changed again after (days) at the soonest',
-    'osu_pw_warn_days': 'Told before it runs out (days)',
-    'osu_pw_system': 'The same rules for passwd on the machines',
     'dir_pw_window_min': '...counted over (min)',
     'admin_directory': 'Sign administrators in against the directory',
     'admin_group_full': 'Group of full administrators',
@@ -1105,29 +1084,6 @@ SAYS = {
                            'spaces or commas: an office whose people all come from one '
                            'address, a monitor that signs in now and then. Example: '
                            '198.51.100.7 203.0.113.0/24',
-    'osu_pw_min': 'How long a password typed here for a local user must be - 8 at the least. '
-                  'Checked as it is typed, and again on the node.',
-    'osu_pw_classes': 'Of the four kinds - small letters, capitals, digits, everything else - how '
-                      'many a password must have: 1 any, 4 all of them.',
-    'osu_pw_not_name': 'On: a password with the user\'s name in it (or written backwards, in any '
-                       'case) is refused.',
-    'osu_pw_max_days': 'How many days a password of a local user is good for; then the user must '
-                       'choose a new one at the next sign-in (chage -M, put on every normal user of '
-                       'every node). 0: always - as until now. Left out - always good: a user '
-                       'with no password (a key only), and one SSH asks a code of (Settings → SSH '
-                       'server) who may not use sudo: with the password run out, sshd asks for the '
-                       'old one before anything else, even after a key or a code, and they may '
-                       'never have been told it. One asked a code who may use sudo keeps the days: '
-                       'sudo asks for that password, so they know it and can change it.',
-    'osu_pw_min_days': 'How many days after a change the user may change it again on the machine '
-                       '(chage -m) - so that a forced change cannot be undone at once. 0: at any time.',
-    'osu_pw_warn_days': 'How many days before the password runs out the user is told so when they '
-                        'sign in (chage -W). Only while it is good for a number of days.',
-    'osu_pw_system': 'On: each node\'s root helper writes the rules above into '
-                     '/etc/security/pwquality.conf.d/90-acme.conf, and into /etc/login.defs '
-                     '(PASS_MAX_DAYS, PASS_MIN_DAYS, PASS_WARN_AGE) - so a password the user changes '
-                     'themselves with passwd, and users made otherwise, keep them too. Off: only '
-                     'what is typed here is checked (and that file taken away again).',
     'dir_pw_tries': 'A directory password is tried against Active Directory at each sign-in to the '
                     'enrolment pages (the certificate portal) and at each sign-in to these pages '
                     'of an administrator from the directory. Each of them counts on its own and on '
@@ -1505,9 +1461,6 @@ PANES = {
                'isemon_events', 'isemon_max_bytes', 'isemon_verify', 'isemon_mtls',
                'isemon_ca', 'ship_files'],
     # Sign-in protection (as otp 1.0.230-1.0.241): its own pane, as otp has it.
-    # The password policy of the local users (1.0.42): a card on Local users.
-    'osusers': ['osu_pw_min', 'osu_pw_classes', 'osu_pw_not_name', 'osu_pw_max_days',
-                'osu_pw_min_days', 'osu_pw_warn_days', 'osu_pw_system'],
     'guard': ['login_guard', 'login_guard_tries', 'login_guard_names', 'login_guard_window_min',
               'login_guard_block_min', 'login_guard_trusted', 'dir_pw_tries', 'dir_pw_window_min'],
     'people': ['session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
@@ -1580,7 +1533,6 @@ CARD_DRAWN = ('split_mode', 'split_prefer', 'split_arbiter', 'split_after_s', 's
 ONLY_WHEN = {
     'login_guard_tries': ['login_guard', '1'], 'login_guard_names': ['login_guard', '1'],
     'dir_pw_tries': ['login_guard', '1'], 'dir_pw_window_min': ['login_guard', '1'],
-    'osu_pw_warn_days': ['osu_pw_max_days', '0-not'],
     'login_guard_window_min': ['login_guard', '1'],
     'login_guard_block_min': ['login_guard', '1'],
     'login_guard_trusted': ['login_guard', '1'],

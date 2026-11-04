@@ -350,7 +350,7 @@ def _sshd_do(h):
 OSU_WORK = {'busy': False, 'since': 0.0, 'seen': 0.0}
 OSU_KEEP = ('root', 'acme', 'acme-web', 'postgres', 'mysql', 'nginx', 'apache', 'nobody',
             'keepalived', 'chrony', 'sshd', 'polkitd', 'dbus', 'systemd-network', 'tss')
-OSU_DOS = ('list', 'add', 'password', 'lock', 'unlock', 'sudo', 'set', 'drop')
+OSU_DOS = ('list', 'add', 'password', 'aging', 'lock', 'unlock', 'sudo', 'set', 'drop')
 OSU_PW_MIN = 8
 
 
@@ -397,100 +397,157 @@ def osu_view(store):
                                                     'ago are not done - is acme-web.path running '
                                                     'there?' % late if late else ''),
                       'pending': pending})
-    pol = osu_policy()
-    sig = osu_policy_ask(pol, store)['sig']
-    try:
-        vers = {b.get('name'): b.get('version') or '' for b in ha_nodes(store)}
-    except Exception:                                   # noqa: BLE001
-        vers = {}
+    pol = pwp_conf(store)
+    want = pwp_hash(pol)
     for x in nodes:
         now = osu_now(store, x['name'])
-        x['policy_ok'] = now.get('policy') == sig
+        # What each node has in effect, read from its files - and whether it put in this one.
+        x['policy'] = now.get('policy') if isinstance(now.get('policy'), dict) else None
+        x['policy_applied'] = now.get('policy_hash') == want
         x['policy_said'] = now.get('policy_said') or ''
-        # Each node puts the policy on itself (its own tick, the settings being the cluster's):
-        # one of a version before it does not (1.0.42).
-        v = vers.get(x['name']) or ''
-        x['policy_old'] = bool(v) and _ver_tuple(v) < (1, 0, 42)
-        x['version'] = v
-    return {'nodes': nodes, 'cluster': len(nodes) > 1, 'pw_min': pol['min'],
-            'policy': dict(pol, spared=osu_spared(store)),
+        x['policy_error'] = now.get('policy_error') or ''
+    return {'nodes': nodes, 'cluster': len(nodes) > 1,
+            'pw_min': max(OSU_PW_MIN, pol['minlen'] if pol['managed'] else OSU_PW_MIN),
+            'policy': pol, 'policy_refused': pwp_refused(store),
             'openssl': bool(shutil.which('openssl'))}
 
 
-# ---- the password policy (1.0.42) ---------------------------------------------------------
-def osu_policy():
-    """What Settings -> Local users -> The password policy says."""
-    def g(v, d):
+# ---- the password policy of the local users (1.0.43, as otp 1.0.245) --------------------------
+PWP_DEFAULT = {'managed': False, 'minlen': 12, 'minclass': 3, 'maxrepeat': 3, 'dictcheck': 1,
+               'usercheck': 1, 'difok': 5, 'remember': 5, 'max_days': 99999, 'min_days': 0,
+               'warn_days': 7, 'deny': 0, 'unlock_time': 900, 'fail_interval': 900, 'existing': False}
+PWP_RANGES = {'minlen': (6, 128), 'minclass': (0, 4), 'maxrepeat': (0, 20), 'difok': (0, 20),
+              'remember': (0, 50), 'max_days': (0, 99999), 'min_days': (0, 365), 'warn_days': (0, 365),
+              'deny': (0, 100), 'unlock_time': (0, 86400), 'fail_interval': (60, 86400)}
+
+
+def pwp_conf(store):
+    """The password policy of the local users as set for the cluster; not managed - the system's
+    own, untouched - until set."""
+    c = dict(PWP_DEFAULT)
+    c.update({k: v for k, v in (_meta_json(store, 'host:pwpolicy:conf') or {}).items() if k in PWP_DEFAULT})
+    return c
+
+
+def pwp_refused(store):
+    """The policy's row there but not taken: the guard of root's actions refused it - not acme's
+    word. A node then keeps the policy it has put in, and changes nothing - a row written
+    straight into the database must not take the policy away either."""
+    try:
+        there = store.db.rows("SELECT k FROM meta WHERE k = 'host:pwpolicy:conf'")
+    except Exception:                                   # noqa: BLE001
+        return False
+    return bool(there) and _meta_json(store, 'host:pwpolicy:conf') is None
+
+
+def pwp_hash(c):
+    return hashlib.sha256(json.dumps({k: c.get(k) for k in sorted(PWP_DEFAULT)},
+                                     sort_keys=True).encode()).hexdigest()[:16]
+
+
+def pwp_checked_api(b):
+    c = dict(PWP_DEFAULT)
+    if not isinstance(b, dict):
+        raise ValueError('the policy is an object')
+    for k in PWP_DEFAULT:
+        if k not in b:
+            continue
+        if k in PWP_RANGES:
+            try:
+                v = int(b[k])
+            except (TypeError, ValueError):
+                raise ValueError('%s is a number' % k)
+            lo, hi = PWP_RANGES[k]
+            if not lo <= v <= hi:
+                raise ValueError('%s is %d to %d' % (k, lo, hi))
+            c[k] = v
+        else:
+            c[k] = bool(b[k]) if k in ('managed', 'existing') else (1 if b[k] else 0)
+    if c['min_days'] and c['max_days'] < 99999 and c['min_days'] > c['max_days']:
+        raise ValueError('the least days between two changes is more than the days a password is good')
+    return c
+
+
+def pwp_aging(c):
+    """The policy's aging for a user given a password (made with one, or a new one)."""
+    if not c.get('managed'):
+        return None
+    return {'max_days': c['max_days'], 'min_days': c['min_days'], 'warn_days': c['warn_days']}
+
+
+def pwp_password_check(store, password, name):
+    """A password set from these pages kept to the policy: by pwscore (the system's own rules and
+    its dictionary) where it is there, by the rules set here where it is not."""
+    c = pwp_conf(store)
+    if pwp_refused(store):
+        # Its row not acme's: checked by what this node has put in, as its files say.
+        q = ((osu_now(store, node_name()).get('policy') or {}).get('pwquality') or {})
+        c = dict(c, managed=True, minlen=int(q.get('minlen') or 8), minclass=int(q.get('minclass') or 0),
+                 maxrepeat=int(q.get('maxrepeat') or 0), usercheck=int(q.get('usercheck') or 0))
+    if not c['managed']:
+        return
+    exe = shutil.which('pwscore')
+    if exe:
+        got = subprocess.run([exe, name], input=password + '\n', capture_output=True, text=True,
+                             timeout=30)
+        if got.returncode != 0:
+            why = ((got.stderr or got.stdout or '').strip().splitlines() or ['refused'])[-1]
+            why = re.sub(r'^Password quality check failed:\s*', '', why)
+            raise ValueError('the password policy does not take it: %s' % why[:200])
+        return
+    if len(password) < c['minlen']:
+        raise ValueError('the password policy wants %d characters at least' % c['minlen'])
+    kinds = sum(1 for rx in (r'[a-z]', r'[A-Z]', r'[0-9]', r'[^A-Za-z0-9]') if re.search(rx, password))
+    if kinds < c['minclass']:
+        raise ValueError('the password policy wants %d kinds of characters at least (small '
+                         'letters, capitals, digits, others) - it has %d' % (c['minclass'], kinds))
+    if c['maxrepeat'] and re.search(r'(.)\1{%d,}' % c['maxrepeat'], password):
+        raise ValueError('the password policy takes no character more than %d times in a row'
+                         % c['maxrepeat'])
+    if c['usercheck'] and name and len(name) >= 3 and name.lower() in password.lower():
+        raise ValueError('the password policy takes no password with the user\'s name in it')
+
+
+def pwp_migrate(store):
+    """acme 1.0.42's own password policy (settings osu_pw_*) taken into the policy of otp's shape
+    once (1.0.43): set there, it is managed with the same rules."""
+    if store.get_meta('host:pwpolicy:conf') is not None or store.get_meta('pwpolicy:migrated'):
+        return False
+    try:
+        saved = store.settings_saved()
+    except Exception:                                   # noqa: BLE001
+        return False
+
+    def g(k, d):
         try:
-            return int(v if v not in (None, '') else d)
+            return int(saved.get(k)) if saved.get(k) not in (None, '') else d
         except (TypeError, ValueError):
             return d
-    return {'min': max(OSU_PW_MIN, g(CONFIG.get('osu_pw_min'), 8)),
-            'classes': min(4, max(1, g(CONFIG.get('osu_pw_classes'), 1))),
-            'not_name': bool(g(CONFIG.get('osu_pw_not_name'), 1)),
-            'max_days': g(CONFIG.get('osu_pw_max_days'), 0),
-            'min_days': g(CONFIG.get('osu_pw_min_days'), 0),
-            'warn_days': g(CONFIG.get('osu_pw_warn_days'), 7),
-            'system': bool(g(CONFIG.get('osu_pw_system'), 0))}
+    mx, mn, cl = g('osu_pw_max_days', 0), g('osu_pw_min', 8), g('osu_pw_classes', 1)
+    system = g('osu_pw_system', 0)
+    store.set_meta('pwpolicy:migrated', '%.0f' % time.time())
+    if not (mx > 0 or mn > 8 or cl > 1 or system):
+        return False
+    c = dict(PWP_DEFAULT, managed=True, minlen=max(6, min(128, mn)), minclass=max(0, min(4, cl)),
+             usercheck=1 if g('osu_pw_not_name', 1) else 0, maxrepeat=0, difok=1, remember=0,
+             dictcheck=0, max_days=mx if mx > 0 else 99999, min_days=max(0, min(365, g('osu_pw_min_days', 0))),
+             warn_days=max(0, min(365, g('osu_pw_warn_days', 7))), existing=mx > 0)
+    store.set_meta('host:pwpolicy:conf', json.dumps(dict(c, at=time.time(), by='acme 1.0.43')))
+    store.add_event('settings', 'the password policy of the local users of acme 1.0.42 is set as '
+                    'the policy of Settings -> Local users -> Password policy: at least %d characters, '
+                    '%d kinds, %s' % (c['minlen'], c['minclass'], 'good for %d days' % c['max_days']
+                                      if c['max_days'] < 99999 else 'no end'), 'warn')
+    return True
 
 
-def osu_aging(pol=None):
-    pol = pol or osu_policy()
-    return {'max_days': pol['max_days'], 'min_days': pol['min_days'], 'warn_days': pol['warn_days']}
-
-
-def osu_spared(store):
-    """Who SSH asks a code of (1.0.42) - left out of the days a password is good for unless they
-    may use sudo (the root helper decides it, knowing who has sudo).
-    Their account phase in PAM still says "expired", and sshd then asks for the old password
-    before anything else - one who signs in with a code (and a key) has none to give, and is
-    locked out. {'all': True} while the code is asked of everybody but root."""
-    try:
-        c = sshd_conf(store) if store is not None else {}
-    except Exception:                                   # noqa: BLE001
-        c = {}
-    if not (c.get('manage') and c.get('radius')):
-        return {'all': False, 'names': []}
-    names = sorted(str(n) for n in (c.get('radius_users') or []) if n != 'root')
-    return {'all': not names, 'names': names}
-
-
-
-
-def osu_policy_ask(pol=None, store=None):
-    """What is asked of a node's root helper to put the policy on it, and its signature."""
-    pol = pol or osu_policy()
-    ask = {'do': 'policy', 'aging': osu_aging(pol), 'spare': osu_spared(store),
-           'rules': ({'min': pol['min'], 'classes': pol['classes'], 'not_name': pol['not_name']}
-                     if pol['system'] else None)}
-    ask['sig'] = hashlib.sha256(json.dumps(ask, sort_keys=True).encode()).hexdigest()[:16]
-    return ask
-
-
-def osu_pw_kinds(pw):
-    return sum(1 for rx in (r'[a-z]', r'[A-Z]', r'[0-9]', r'[^A-Za-z0-9]') if re.search(rx, pw))
-
-
-def osu_pw_problem(pw, name='', pol=None):
-    """What is wrong with a password by the policy - '' when nothing."""
-    pol = pol or osu_policy()
-    if len(pw) < pol['min']:
-        return 'the password is %d characters at least' % pol['min']
-    if osu_pw_kinds(pw) < pol['classes']:
-        return ('the password has %d of the four kinds of characters at least (small letters, '
-                'capitals, digits, the others)' % pol['classes'])
-    n = str(name or '').lower()
-    if pol['not_name'] and len(n) >= 3 and (n in pw.lower() or n[::-1] in pw.lower()):
-        return 'the password has the user\'s name in it'
-    return ''
-
-
-def osu_hash(password, name=''):
-    """The SHA-512 crypt hash of a password, by openssl from its standard input."""
+def osu_hash(password, name='', store=None):
+    """The SHA-512 crypt hash of a password, by openssl from its standard input - kept to the
+    password policy of the local users first (1.0.43)."""
     pw = str(password or '')
-    bad = osu_pw_problem(pw, name)
-    if bad:
-        raise ValueError(bad)
+    if len(pw) < OSU_PW_MIN:
+        raise ValueError('the password is %d characters at least' % OSU_PW_MIN)
+    if store is not None:
+        pwp_password_check(store, pw, name)
     if len(pw) > 256 or re.search(r'[\x00-\x1f\x7f]', pw):
         raise ValueError('the password is 256 characters at most, with no line breaks')
     exe = shutil.which('openssl')
@@ -565,20 +622,36 @@ def osu_ask(store, nodes, do, by, **f):
         ask['uid'] = osu_free_uid(store, nodes, name)
         ask['sudo'] = bool(f.get('sudo'))
         ask['must_change'] = bool(f.get('must_change'))
+        if ask['sudo'] and not f.get('password'):
+            # sudo asks for the user's own password (as otp 1.0.246).
+            raise ValueError('sudo asks for the user\'s own password - give them one, or they '
+                             'cannot use sudo')
         if f.get('password'):
-            ask['hash'] = seal_secret(osu_hash(f['password'], name), 'osuser:' + name)
-        ask['aging'] = osu_aging()
-        ask['spare'] = osu_spared(store)
+            ask['hash'] = seal_secret(osu_hash(f['password'], name, store), 'osuser:' + name)
+            pa = pwp_aging(pwp_conf(store))
+            if pa:
+                ask['policy_aging'] = pa
     elif do == 'password':
-        ask['hash'] = seal_secret(osu_hash(f.get('password'), name), 'osuser:' + name)
+        ask['hash'] = seal_secret(osu_hash(f.get('password'), name, store), 'osuser:' + name)
         ask['must_change'] = bool(f.get('must_change'))
-        ask['aging'] = osu_aging()
-        ask['spare'] = osu_spared(store)
+        pa = pwp_aging(pwp_conf(store))
+        if pa:
+            ask['policy_aging'] = pa
+    elif do == 'aging':
+        a = {}
+        for k, lo, hi in (('max_days', 0, 99999), ('min_days', 0, 365), ('warn_days', 0, 365)):
+            try:
+                v = int(f.get(k))
+            except (TypeError, ValueError):
+                raise ValueError('%s is a number' % k)
+            if not lo <= v <= hi:
+                raise ValueError('%s is %d to %d' % (k, lo, hi))
+            a[k] = v
+        if a['min_days'] and a['max_days'] < 99999 and a['min_days'] > a['max_days']:
+            raise ValueError('the least days between two changes is more than the days a password is good')
+        ask['aging'] = a
     elif do == 'sudo':
         ask['on'] = bool(f.get('on'))
-        # In or out of the days with it (1.0.42): one asked a code by SSH is left out without sudo.
-        ask['aging'] = osu_aging()
-        ask['spare'] = osu_spared(store)
     elif do == 'drop':
         ask['home'] = bool(f.get('home'))
     for n in nodes:
@@ -594,6 +667,10 @@ def osu_ask(store, nodes, do, by, **f):
     if do != 'list':
         words = {'add': 'made the local user %s' % name,
                  'password': 'set a new password for the local user %s' % name,
+                 'aging': 'set the password aging of the local user %s (%s days, %s before, %s '
+                          'between)' % (name, ask.get('aging', {}).get('max_days'),
+                                        ask.get('aging', {}).get('warn_days'),
+                                        ask.get('aging', {}).get('min_days')),
                  'lock': 'locked the local user %s' % name,
                  'unlock': 'unlocked the local user %s' % name,
                  'sudo': '%s the local user %s sudo' % ('gave' if ask.get('on') else 'took from', name),
@@ -621,15 +698,19 @@ def osu_remake(store, node, names, by, forget=False):
         return {'message': 'forgotten', 'made': []}
     want = set(names) if isinstance(names, list) and names else None
     there = {u.get('name') for u in osu_now(store, node).get('users') or []}
-    made, said = [], []
+    made, said, sudo_later = [], [], []
     for u in users:
         n = u.get('name')
         if not n or (want is not None and n not in want) or n in there:
             continue
         try:
+            # sudo asks for the user's own password, and none is kept (1.0.43): made without it,
+            # given once they have a password again.
             osu_ask(store, [node], 'add', by, name=n, gecos=u.get('gecos') or '',
-                    shell=u.get('shell') or '/bin/bash', sudo=bool(u.get('sudo')))
+                    shell=u.get('shell') or '/bin/bash', sudo=False)
             made.append(n)
+            if u.get('sudo'):
+                sudo_later.append(n)
         except ValueError as e:
             said.append('%s: %s' % (n, e))
     left = [u for u in users if u.get('name') not in set(made) | there]
@@ -639,6 +720,8 @@ def osu_remake(store, node, names, by, forget=False):
         store.db.run('DELETE FROM meta WHERE k = ?', (k,))
     msg = ('made again on %s: %s - each with no password' % (node, ', '.join(made))) if made \
         else 'nothing made'
+    if sudo_later:
+        msg += '; sudo again once they have a password: ' + ', '.join(sudo_later)
     if said:
         msg += '; not: ' + '; '.join(said)
     return {'message': msg, 'made': made}
@@ -669,15 +752,15 @@ def osu_forget_hashes(store):
 
 def osu_keep(row, got):
     row.update({k: got.get(k) for k in ('users', 'uid_min', 'uid_max', 'used', 'admin_group',
-                                        'shells', 'today')})
+                                        'shells', 'today', 'policy')})
     row['at'] = time.time()
 
 
 def osu_one(a):
     """One change done by the root helper: its answer, or what went wrong (words)."""
     q = {k: v for k, v in a.items() if k in ('do', 'name', 'uid', 'gecos', 'shell', 'sudo',
-                                              'must_change', 'on', 'home', 'aging', 'rules', 'sig',
-                                              'spare')}
+                                              'must_change', 'on', 'home', 'aging', 'policy_aging',
+                                              'conf')}
     if a.get('hash'):
         h = unseal_secret(a['hash'], 'osuser:' + str(a.get('name') or ''))
         if not str(a['hash']).startswith(SEALED2) or not h:
@@ -709,19 +792,24 @@ def osu_tick(daemon):
             time.time() - float(a.get('at') or 0) < 3600]
     todo.sort(key=lambda a: float(a.get('at') or 0))
     stale = time.time() - OSU_WORK['seen'] > 300 or not now
-    # The password policy (1.0.42): put on this node whenever what it has is not what is asked -
-    # once the users were read, and not again within ten minutes after it went wrong.
-    pol_ask = osu_policy_ask(store=store)
-    if (now.get('at') and not now.get('policy') and not now.get('policy_tried') and
-            pol_ask['sig'] == osu_policy_ask(dict(osu_policy(), max_days=0, min_days=0,
-                                                  warn_days=7, system=False), store)['sig']):
-        # Never asked for, and nothing asked now: what the machine has is left as it is.
-        now = dict(now, policy=pol_ask['sig'], policy_said='as the machine has it')
-        store.set_meta('host:users:now:' + me, json.dumps(now))
-    pol_due = (bool(now.get('at')) and now.get('policy') != pol_ask['sig'] and
-               (now.get('policy_tried') != pol_ask['sig'] or
-                time.time() - float(now.get('policy_tried_at') or 0) > 600))
-    if not todo and not stale and not pol_due:
+    # The password policy (1.0.43, as otp 1.0.245): put in when it is not what this node has done
+    # last - tried again in ten minutes when the helper refused it; never on a row the guard
+    # refused (pwp_refused). A row of this node forgotten (a new machine, MACHINE_ROWS) has no
+    # policy_hash: put in again there.
+    pol = pwp_conf(store)
+    want = pwp_hash(pol)
+    policy_due = bool(now.get('at')) and now.get('policy_hash') != want and (
+        now.get('policy_tried') != want or time.time() - float(now.get('policy_at') or 0) > 600) and \
+        not pwp_refused(store)
+    if not pol['managed'] and not now.get('policy_hash') and not now.get('policy_tried') and \
+            not (now.get('policy') or {}).get('managed'):
+        # Never set, and nothing of acme's on the machine: nothing to put in or take out - in
+        # effect as set (the system's own) without asking the helper.
+        policy_due = False
+        if now.get('at'):
+            now = dict(now, policy_hash=want, policy_said='the system\'s own', policy_error='')
+            store.set_meta('host:users:now:' + me, json.dumps(now))
+    if not todo and not stale and not policy_due:
         return
     changes = [a for a in todo if a.get('do') != 'list']
     lists = [a for a in todo if a.get('do') == 'list']
@@ -743,15 +831,16 @@ def osu_tick(daemon):
                     osu_keep(row, got)
                 row.update(done=done[-300:], said=said[-10:])
                 store.set_meta('host:users:now:' + me, json.dumps(row))
-            if pol_due:
-                row.update(policy_tried=pol_ask['sig'], policy_tried_at=time.time())
-                got = osu_one(pol_ask)
+            if policy_due:
+                row.update(policy_tried=want, policy_at=time.time())
+                got = osu_one({'do': 'policy', 'conf': pol})
                 if isinstance(got, dict):
                     osu_keep(row, got)
-                    row.update(policy=pol_ask['sig'], policy_said=got.get('said') or '')
-                    log('the password policy of the local users put in: %s' % (got.get('said') or ''))
+                    row.update(policy_hash=want, policy_said=got.get('said') or '', policy_error='')
+                    log('the password policy of the local users put in: %s' % (got.get('said') or 'done'))
                 else:
-                    row['policy_said'] = 'not put in: %s' % got
+                    row['policy_error'] = str(got)[:300]
+                    log('the password policy of the local users: %s' % row['policy_error'], 'warn')
                 store.set_meta('host:users:now:' + me, json.dumps(row))
             try:
                 osu_keep(row, root_ask('users.ask', 'users.json', {'do': 'list'}, 60))
@@ -792,9 +881,23 @@ def _osusers_do(h):
                               forget=act == 'remake-forget')
         except ValueError as e:
             raise ApiError(400, str(e))
+    if act == 'policy':
+        try:
+            c = pwp_checked_api(b.get('policy') or {})
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        h.store.set_meta('host:pwpolicy:conf', json.dumps(dict(c, at=time.time(), by=s['name'])))
+        h.store.add_event('settings', '%s %s the password policy of the local users%s' % (
+            s['name'], 'set' if c['managed'] else 'gave back to the system',
+            (': at least %d characters, %d kinds, %s, history %d, %s' % (
+                c['minlen'], c['minclass'], 'good for %d days' % c['max_days'] if c['max_days'] < 99999
+                else 'no end', c['remember'], 'locked after %d wrong' % c['deny'] if c['deny']
+                else 'no lockout')) if c['managed'] else ''), 'warn', who=s['name'])
+        return {'message': 'each node puts it in within a few seconds', 'policy': c}
     if act not in OSU_DOS:
         raise ApiError(400, 'no such thing to do with a user')
-    f = {k: b[k] for k in ('name', 'gecos', 'shell', 'sudo', 'must_change', 'password', 'on', 'home')
+    f = {k: b[k] for k in ('name', 'gecos', 'shell', 'sudo', 'must_change', 'password', 'on', 'home',
+                           'max_days', 'min_days', 'warn_days')
          if k in b}
     try:
         done = osu_ask(h.store, nodes, act, s['name'], **f)

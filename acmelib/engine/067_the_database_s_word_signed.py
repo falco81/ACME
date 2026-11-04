@@ -22,7 +22,7 @@
 # Not against the other node of a cluster: it holds the same key, and root on it is root of the
 # cluster's database anyway.
 
-DBGUARD_META_EXACT = frozenset((
+DBGUARD_META_EXACT = frozenset(('host:pwpolicy:conf',
     'web:vip', 'web:access', 'fw:conf', 'fw:trial', 'fw_trial_back', 'ntp:conf', 'power:plan',
     'readdress:ask', 'hatls:ca', 'hatls:want', 'host:osup:plan', 'host:sshd:conf',
     'host:sshd:keep', 'host:sshd:back', 'host:logs:again', 'upgrade:plan',
