@@ -574,6 +574,10 @@ def smtp_talk(store, host, port, security, auth, msg, to, steps, helo='', verify
             user = str(CONFIG.get('smtp_user') or '')
             pw = unseal_secret(CONFIG.get('smtp_password') or '') or ''
             offered = (conn.esmtp_features.get('auth') or '').upper().split()
+            # smtplib's debugging prints every line sent - AUTH's base64 is the password
+            # itself (1.0.44): quiet while signing in, whatever "codes" debugging says.
+            said_dl = getattr(conn, 'debuglevel', 0)
+            conn.set_debuglevel(0)
             try:
                 if auth == 'auto':
                     conn.login(user, pw)
@@ -596,6 +600,8 @@ def smtp_talk(store, host, port, security, auth, msg, to, steps, helo='', verify
                 step('sign in as %s (%s)' % (user, auth.upper()), False,
                      '%s · it offers: %s' % (e, ' '.join(offered) or 'nothing'))
                 raise MailError('signing in failed: %s' % e, steps)
+            finally:
+                conn.set_debuglevel(said_dl)
         if msg is not None:
             refused = conn.send_message(msg, to_addrs=list(to))
             if refused:

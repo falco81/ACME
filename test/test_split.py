@@ -633,9 +633,9 @@ class HoldLifted(unittest.TestCase):
 
     def test_as_until_now_lifted(self):
         reset()
-        E.ONCE_PEER.update(down_until=time.time() + 300, fails=3)
+        E.ONCE_PEER.update(down_until=time.monotonic() + 300, fails=3)
         E.split_step(STORE, now=time.time(), peer='no answer')
-        self.assertGreater(E.ONCE_PEER['down_until'], time.time())     # still held
+        self.assertGreater(E.ONCE_PEER['down_until'], time.monotonic())     # still held
         E.split_step(STORE, now=time.time(), peer=True)
         self.assertEqual((E.ONCE_PEER['down_until'], E.ONCE_PEER['fails']), (0.0, 0))
         self.assertEqual(STORE.db.value("SELECT COUNT(*) FROM meta WHERE k LIKE 'split:%'"), 0)
@@ -649,14 +649,14 @@ class HoldLifted(unittest.TestCase):
 
     def test_held_asked_by_the_watch(self):
         reset()
-        E.ONCE_PEER.update(down_until=time.time() + 300, fails=1)
+        E.ONCE_PEER.update(down_until=time.monotonic() + 300, fails=1)
         with Spy() as spy:
             E.split_step(STORE, now=time.time())
         self.assertEqual(spy.peer, 1)
 
     def test_not_a_pair_nothing_asked(self):
         reset(ha_mode='shared')
-        E.ONCE_PEER.update(down_until=time.time() + 300, fails=1)
+        E.ONCE_PEER.update(down_until=time.monotonic() + 300, fails=1)
         with Spy() as spy:
             E.split_step(STORE, now=time.time())
         self.assertEqual(spy.peer, 0)

@@ -300,7 +300,7 @@ class Db(object):
         if lane is None:
             with self._lanes_lock:
                 lane = self._lanes.setdefault(key, _Lane())
-        if lane.conn is None and time.time() < lane.failed_until:
+        if lane.conn is None and time.monotonic() < lane.failed_until:
             return main
         return lane
 
@@ -319,9 +319,9 @@ class Db(object):
         if lane is not main and lane.conn is None:
             with lane.lock:
                 if lane.conn is None:
-                    if time.time() < lane.failed_until:
+                    if time.monotonic() < lane.failed_until:
                         lane = main
-                    elif time.time() < lane.down_until:
+                    elif time.monotonic() < lane.down_until:
                         # Tried a moment ago and the database did not answer:
                         # said at once, and no minute on the main lane for it
                         # (a restart of the database is not a lane gone bad).
@@ -333,9 +333,9 @@ class Db(object):
                         except DbError:
                             # The database away altogether: said so, as the
                             # main lane would (no minute on the main lane).
-                            if main.conn is None or time.time() < main.down_until:
+                            if main.conn is None or time.monotonic() < main.down_until:
                                 raise
-                            lane.failed_until = time.time() + self.LANE_RETRY_S
+                            lane.failed_until = time.monotonic() + self.LANE_RETRY_S
                             log_sparing('db-lane', '%s shares the main database '
                                         'connection for a minute: its own could not be made'
                                         % threading.current_thread().name, 'warn')
@@ -385,13 +385,13 @@ class Db(object):
     def connect(self):
         lane = self._lane()
         with lane.lock:
-            if lane.conn is None and time.time() < lane.down_until:
+            if lane.conn is None and time.monotonic() < lane.down_until:
                 raise DbError(lane.down_said or 'the database is not answering')
             try:
                 self._connect()
                 lane.down_until = 0.0
             except DbError as e:
-                lane.down_until = time.time() + self.DOWN_RETRY_S
+                lane.down_until = time.monotonic() + self.DOWN_RETRY_S
                 lane.down_said = str(e)
                 raise
 

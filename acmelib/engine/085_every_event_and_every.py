@@ -90,7 +90,7 @@ class Siem(object):
         return str(CONFIG.get('siem_hostname') or '').strip() or node_name()
 
     # ---- what is said ---------------------------------------------------------------
-    def frame(self, kind, severity, fields, words):
+    def frame(self, kind, severity, fields, words, at=None):
         """One message, in the shape siem_format says."""
         fmt = CONFIG.get('siem_format') or 'json'
         fields = dict(fields, node=node_name())
@@ -110,7 +110,10 @@ class Siem(object):
                 '%s="%s"' % (re.sub(r'[^A-Za-z0-9_.-]', '_', k)[:32], _sd_val(v))
                 for k, v in fields.items() if v not in (None, '')))
             body = words
-        stamp = datetime.now(timezone.utc).astimezone().isoformat(timespec='milliseconds')
+        # When it happened, not when it was sent (1.0.44): behind a slow target the
+        # backlog went out stamped minutes late.
+        stamp = (datetime.fromtimestamp(at, timezone.utc) if at else datetime.now(timezone.utc)) \
+            .astimezone().isoformat(timespec='milliseconds')
         pri = int(CONFIG.get('siem_facility') or 13) * 8 + severity
         return '<%d>1 %s %s acme %d %s %s \ufeff%s' % (
             pri, stamp, self.host(), os.getpid(), kind, sd, body.replace('\n', ' '))
@@ -119,7 +122,7 @@ class Siem(object):
         if not CONFIG.get('siem') or not self.targets:
             return
         try:
-            self.q.put_nowait((kind, severity, fields, words))
+            self.q.put_nowait((kind, severity, fields, words, time.time()))
         except queue.Full:
             self.dropped += 1
 
@@ -157,11 +160,11 @@ class Siem(object):
     def run(self):
         while not self.stop_flag:
             try:
-                kind, severity, fields, words = self.q.get(timeout=1.0)
+                kind, severity, fields, words, at = self.q.get(timeout=1.0)
             except queue.Empty:
                 continue
             try:
-                line = self.frame(kind, severity, fields, words)
+                line = self.frame(kind, severity, fields, words, at)
             except Exception as e:                      # noqa: BLE001
                 self.trouble['frame'] = str(e)[:200]
                 continue
@@ -202,12 +205,12 @@ class Siem(object):
                 sock.sendto(raw[:8000], (host, port))
             else:
                 until = self.down.get(key, 0.0)
-                if time.time() < until:
+                if time.monotonic() < until:
                     # Counted (1.0.206): thrown away without a word, the metrics
                     # said nothing was lost while events and sign-ins were.
                     self.dropped += 1
                     return 'not reachable - tried again at %s' % time.strftime(
-                        '%H:%M:%S', time.localtime(until))
+                        '%H:%M:%S', time.localtime(time.time() + until - time.monotonic()))
                 # RFC 5425 / 6587: a length and a space before each message.
                 data = b'%d ' % len(raw) + raw
                 for attempt in (1, 2):
@@ -248,7 +251,7 @@ class Siem(object):
             said = str(e)[:200] or e.__class__.__name__
             self.trouble[key] = said
             if proto != 'udp':
-                self.down[key] = time.time() + 30
+                self.down[key] = time.monotonic() + 30
                 self.conns.pop(target, None)
             return said
 

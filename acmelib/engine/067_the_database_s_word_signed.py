@@ -22,7 +22,7 @@
 # Not against the other node of a cluster: it holds the same key, and root on it is root of the
 # cluster's database anyway.
 
-DBGUARD_META_EXACT = frozenset(('host:pwpolicy:conf',
+DBGUARD_META_EXACT = frozenset(('host:pwpolicy:conf', 'rbackup:targets',
     'web:vip', 'web:access', 'fw:conf', 'fw:trial', 'fw_trial_back', 'ntp:conf', 'power:plan',
     'readdress:ask', 'hatls:ca', 'hatls:want', 'host:osup:plan', 'host:sshd:conf',
     'host:sshd:keep', 'host:sshd:back', 'host:logs:again', 'upgrade:plan',
@@ -32,7 +32,7 @@ DBGUARD_META_PREFIXES = (
     'net:back:', 'readdress:dropold:', 'hatls:node:', 'dbtls:server:', 'ask:want:',
     'host:sshkeys:want:', 'host:rootkey:', 'host:osup:checkwant:',
     'console:want:', 'acme_push:key:', 'adm2fa:', 'host:selinux:want:',
-    'host:users:want:', 'sshotp:u:', 'sshotp:port:')
+    'host:users:want:', 'sshotp:u:', 'sshotp:port:', 'rbackup:now:')
 # Settings whose word reaches root, or who may sign in to these pages.
 DBGUARD_SETTINGS = frozenset((
     'acme', 'acme_challenge', 'acme_for', 'acme_node_name', 'pki_publish', 'snmp', 'snmp_from', 'snmp_port', 'net_confirm_min', 'fw_confirm_min',
@@ -49,7 +49,21 @@ DBGUARD_SETTINGS = frozenset((
     'mail_mode', 'mail_from', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_auth',
     'smtp_user', 'smtp_password', 'sms_mode', 'sms_url', 'sms_token', 'sms_spool_dir',
     'sms_tel_host', 'sms_tel_user', 'sms_tel_password', 'sms_tel_https', 'sms_tel_verify',
-    'ssh_gate_port'))
+    'ssh_gate_port',
+    # Where the backups go and with which password, and where the DNS API's key goes (1.0.44):
+    # unsigned, a row written there sent the backup - secrets.key in it - and its password, or
+    # the key, to a server of anybody's choosing.
+    'rbackup', 'rbackup_password', 'rbackup_verify', 'acme_dns', 'acme_dns_server',
+    'acme_dns_tsig_name', 'acme_dns_tsig_alg', 'acme_dns_tsig_secret', 'acme_dns_token',
+    'acme_dns_url', 'acme_dns_user', 'acme_dns_key', 'acme_desec_token', 'acme_ca', 'acme_url'))
+# Taken under the guard by a version after it was switched on (1.0.44): signed once as they are
+# at its first start - unsigned, they were refused, and the backups stopped.
+DBGUARD_ADOPT = {'m': ('rbackup:targets',),
+                 's': ('rbackup', 'rbackup_password', 'rbackup_verify', 'acme_dns',
+                       'acme_dns_server', 'acme_dns_tsig_name', 'acme_dns_tsig_alg',
+                       'acme_dns_tsig_secret', 'acme_dns_token', 'acme_dns_url', 'acme_dns_user',
+                       'acme_dns_key', 'acme_desec_token', 'acme_ca', 'acme_url')}
+DBGUARD_ADOPT_MARK = 'dbguard:adopted:1.0.44'
 DBGUARD_FILE = STATE_DIR / 'guard.json'
 DBGUARD = {'seen': None, 'good': None, 'seen_h': None, 'dirty': 0.0, 'refused': {}, 'nodes': {},
            'lock': threading.Lock()}
@@ -420,6 +434,29 @@ def dbguard_resign(store, why=''):
                             '(%d) - %s' % (n, why), 'warn')
         except Exception:                               # noqa: BLE001
             pass
+    return n
+
+
+def dbguard_adopt(store):
+    """Rows taken under the guard by this version, signed once as they are now - only those
+    with no signature at all, and only once (a mark of this node's own)."""
+    if not dbguard_on() or not dbguard_key():
+        return 0
+    mark = DBGUARD_ADOPT_MARK + ':' + node_name()
+    if store.get_meta(mark):
+        return 0
+    db, n = store.db, 0
+    for kind, keys in DBGUARD_ADOPT.items():
+        for k in keys:
+            if _dbguard_sigs(db, kind, k):
+                continue
+            table = 'meta' if kind == 'm' else 'settings'
+            row = db.row('SELECT v FROM %s WHERE k = ?' % table, (k,))
+            if row is not None:
+                n += bool(dbguard_sign(db, kind, k, row['v']))
+    store.set_meta(mark, '%.0f' % time.time())
+    if n:
+        log('the guard against writes now signs %d row(s) more, as they were (upgrade)' % n)
     return n
 
 

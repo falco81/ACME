@@ -1495,7 +1495,7 @@ def _ca_export(h, s):
     fmt = str(b.get('format') or 'cert').lower()
     if fmt in CA_KEY_EXPORTS and not may(s, 'fulladmin'):
         raise E.ApiError(403, 'only a full administrator may take an authority\'s key out')
-    if fmt in ('crl', 'crl-der', 'bundle') and not may(s, 'certadmin'):
+    if fmt in ('crl', 'crl-pem', 'crl-der', 'bundle') and not may(s, 'certadmin'):
         raise E.ApiError(403, ROLE_WORDS['certadmin'])      # it may make a new CRL
     got = _lib('ca').ca_export(h.store, r['id'], fmt, password=_text(b, 'password', 1000) or None)
     data = got.get('data') or b''
@@ -1828,8 +1828,12 @@ def family_delete(store, family, b, by):
     if used:
         raise ValueError('%s is in use (%d): change those first' % (row['name'], used))
     store.db.run('DELETE FROM %s WHERE id = ?' % S.TABLE_OF[family], (row['id'],))
-    store.db.run('DELETE FROM meta WHERE k LIKE ?', ('%s%s:%s:%%' % (
-        runtime.KV_PREFIX, family, row['name']),))
+    # Its own rows only (1.0.44): LIKE read "_" as any character, and SQLite's ignores
+    # case - deleting dc_1 took dc-1's (an aws-acm ARN) with it.
+    kv = '%s%s:%s:' % (runtime.KV_PREFIX, family, row['name'])
+    for r in store.db.rows('SELECT k FROM meta WHERE k LIKE ?', (kv + '%',)):
+        if r['k'].startswith(kv):
+            store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
     if DF.forget(store, family, row['name']):
         store.add_event('certificates', '%s was the default %s: there is none now' % (
             row['name'], DF.WORDS[family]), 'warn', who=by)

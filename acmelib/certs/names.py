@@ -146,6 +146,8 @@ def _configs(store, fam, old, new):
 def _kv(store, fam, old, new):
     for r in store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?',
                            ('%s%s:%s:%%' % (KV_PREFIX, fam, old),)):
+        if not r['k'].startswith('%s%s:%s:' % (KV_PREFIX, fam, old)):
+            continue                    # LIKE's "_" and case: another one's (1.0.44)
         tail = r['k'][len('%s%s:%s:' % (KV_PREFIX, fam, old)):]
         store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
         store.set_meta('%s%s:%s:%s' % (KV_PREFIX, fam, new, tail), r['v'])

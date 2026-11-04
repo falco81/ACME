@@ -116,6 +116,15 @@ def deploy_one(store, job, cert, dep, force=False):
                                    'in place' % trow['name'])
         step('%s: in place%s' % (trow['name'], ' and served' if seen else ''), 'ok')
     except JobStopped:
+        # Stopped half way (a restart, an upgrade, Stop pressed) - not left "deploying"
+        # (1.0.44), which the renewer passes over: the target kept the old certificate
+        # until the next renewal, a month after the old one ran out. Tried again soon.
+        try:
+            store.db.update('cert_deploys', dep['id'], {
+                'state': 'failed', 'last_error': 'stopped before it was done',
+                'next_try': time.time() + 300})
+        except Exception:                               # noqa: BLE001
+            pass
         raise
     except Exception as e:                              # noqa: BLE001
         why = str(e) if isinstance(e, base.PluginError) else '%s: %s' % (type(e).__name__, e)

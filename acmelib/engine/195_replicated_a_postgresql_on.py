@@ -596,7 +596,7 @@ def _once_peer_has(k, me, store=None):
     # node really gone costs one sign-in 1.5 s now and then: not asked again
     # for 20 s, then longer each time, up to 5 minutes (down_until below).
     with ONCE_PEER_LOCK:
-        if ONCE_PEER['down_until'] > time.time():
+        if ONCE_PEER['down_until'] > time.monotonic():
             return None
         if ONCE_PEER['pool']:
             db = ONCE_PEER['pool'].pop()
@@ -646,7 +646,7 @@ def _once_peer_has(k, me, store=None):
     with ONCE_PEER_LOCK:
         ONCE_PEER['made'] = max(0, ONCE_PEER['made'] - 1)
         ONCE_PEER['fails'] += 1
-        ONCE_PEER['down_until'] = time.time() + min(300, 20 * 2 ** (ONCE_PEER['fails'] - 1))
+        ONCE_PEER['down_until'] = time.monotonic() + min(300, 20 * 2 ** (ONCE_PEER['fails'] - 1))
         say = ONCE_PEER['said'] < time.time() - 300
         if say:
             ONCE_PEER['said'] = time.time()

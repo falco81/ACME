@@ -144,8 +144,8 @@ def rb_checked(data, old=None):
         # option of its own.
         if t['user'].startswith('-'):
             raise ValueError('the account does not begin with -')
-        if re.search(r'[;"]', t['path']) or t['path'].lstrip().startswith('-'):
-            raise ValueError('the folder has no ; or " in it, and does not begin with -')
+        if re.search(r'[;"!`$]', t['path']) or t['path'].lstrip().startswith('-'):
+            raise ValueError('the folder has no ; " ! ` or $ in it, and does not begin with -')
         if kind != 'smb' and re.search(r'(^|/)\.\.(/|$)', t['path']):
             raise ValueError('the folder has no .. in it')
         if kind == 'scp' and re.search(r'[^A-Za-z0-9._/~+@%=,-]', t['path']):

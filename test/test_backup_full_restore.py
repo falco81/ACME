@@ -86,6 +86,18 @@ META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial
                'host:rootkey:again:', 'host:users:before:', 'host:sshkeys:before:')
 
 
+def forgotten(r):
+    """What a machine put back on another forgets of its own, on purpose (1.0.44,
+    machine_changed_check): "host:...:now:<node>" holding only when it was forgotten - so
+    the new machine is given its settings again."""
+    try:
+        v = json.loads(r.get('v') or 'null')
+    except ValueError:
+        return False
+    return str(r.get('k', '')).startswith('host:') and isinstance(v, dict) and \
+        set(v) == {'kept_at'}
+
+
 class FullRestore(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -206,9 +218,11 @@ st.db.insert('cert_jobs', {'ts': time.time() - 5, 'kind': 'renew', 'cert_id': 1,
             if t in MOMENT or t == 'cert_jobs':
                 continue
             ka = {json.dumps(r, sort_keys=True, default=str) for r in rows
-                  if not (t == 'meta' and str(r.get('k', '')).startswith(META_MOMENT))}
+                  if not (t == 'meta' and (str(r.get('k', '')).startswith(META_MOMENT)
+                                           or forgotten(r)))}
             kb = {json.dumps(r, sort_keys=True, default=str) for r in new['tables'].get(t, [])
-                  if not (t == 'meta' and str(r.get('k', '')).startswith(META_MOMENT))}
+                  if not (t == 'meta' and (str(r.get('k', '')).startswith(META_MOMENT)
+                                           or forgotten(r)))}
             self.assertEqual(ka, kb, 'table %s differs after the putting back: %d only before, '
                              '%d only after' % (t, len(ka - kb), len(kb - ka)))
         for t in ('certs', 'cert_versions', 'cert_cas', 'cert_ca_versions', 'cert_ca_issued',

@@ -29,7 +29,7 @@ import time
 from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, lines, as_bool, label_of, stamp,
     parse_outputs, subst, quote, ssh_fields, verify_fields, PFX_FORMATS, alt_of, family_of,
-    variants_of, outputs_for)
+    variants_of, outputs_for, service_of)
 from acmelib.plugins.targets import _script as SC
 
 
@@ -275,7 +275,7 @@ class SshTarget(SshMixin, Base):
         cn = label_of(bundle, {'object_name': (list(bundle.names or [name]))[0]})
         alt = alt_of(bundle)
         vars = {'name': name, 'cn': cn, 'date': stamp(bundle),
-                'service': out['service'] or name, 'host': self.c('host'),
+                'service': service_of(out['service'], name), 'host': self.c('host'),
                 'alt': family_of(alt) if alt is not None else 'alt'}
         out['vars'] = vars
         files = parse_outputs(out['outputs'], vars)
@@ -414,7 +414,7 @@ class SshTarget(SshMixin, Base):
     def _vars(self, bundle, options):
         name = label_of(bundle, options)
         return {'name': name, 'cn': name, 'date': stamp(bundle),
-                'service': (options or {}).get('service') or name, 'alt': 'alt'}
+                'service': service_of((options or {}).get('service'), name), 'alt': 'alt'}
 
     def dry_run(self, bundle, options, run_script=True):
         """Signed in; the files made and written into a temporary folder (not

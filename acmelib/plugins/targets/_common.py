@@ -42,7 +42,7 @@ __all__ = [
     'ssh_fields', 'http_fields', 'verify_fields', 'keep_field', 'ssh_conn', 'text',
     'PFX_FORMATS', 'quote', 'chain_list', 'tls_fields', 'put_scp',
     'alt_of', 'variant_of', 'variants_of', 'family_of', 'dual_fp', 'VARIANT_WORDS',
-    'outputs_for', 'ours', 'covers',
+    'outputs_for', 'ours', 'covers', 'service_of',
 ]
 
 PFX_FORMATS = ('pfx', 'p12', 'p12-legacy', 'jks')
@@ -476,6 +476,21 @@ ALL_FORMATS = ('cert-pem', 'cert-der', 'key-pem', 'key-rsa', 'key-der', 'chain-p
 KEY_FORMATS = ('key-pem', 'key-rsa', 'key-der', 'combined-pem', 'pfx', 'p12', 'p12-legacy',
                'jks')
 _OWNER_RE = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9_.-]*(:[A-Za-z0-9_][A-Za-z0-9_.-]*)?$')
+
+
+SERVICE_RE = re.compile(r'^[A-Za-z0-9_@.:+=][A-Za-z0-9_@.:+=/-]{0,127}\Z')
+
+
+def service_of(value, fallback):
+    """The service / container / secret name a command is given as {service} (1.0.44): a
+    name, nothing a shell reads as more - "web; id>/tmp/x #" made the preset's
+    "docker restart {service}" run anything as root on the target, for whoever may only
+    choose a deployment's preset and not its commands."""
+    v = text(value or '').strip() or text(fallback or '')
+    if not SERVICE_RE.match(v):
+        raise PluginError('the service name is letters, digits and _ @ . : + = / - only, and '
+                          'does not begin with - or /', retry=False)
+    return v
 
 
 def subst(s, vars):

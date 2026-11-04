@@ -54,6 +54,42 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     elsewhere made the daemon build a whole backup); the previews of mails are sandboxed; names
     escaped in two windows; a target's user and host escaped in a module's guide, and only an
     account's name in the commands to copy.
+- **Round 2** (the certificates, the secrets and the network services). Shut:
+  - A certificate administrator could run any command as root on an SSH target: the service
+    name of a preset (`docker restart {service}`) was put into the command as typed
+    (`web; id #`). The service / container name is now a name - letters, digits and
+    `_ @ . : + = / -` - on SSH, Windows-over-SSH and local targets.
+  - The backups sent to another machine: their destinations, the password of the backups and
+    the DNS / ACME settings are now under the database guard (a row written past acme no longer
+    sends the backups, and their password, elsewhere); every destination is checked again when
+    it is used (an account `-o…`, `!` or `$` in a folder), and `--` ends ssh's, sftp's and scp's
+    options.
+  - A deployment stopped half way (a restart, an upgrade) stayed *deploying* and was never tried
+    again until the next renewal - a month after the old certificate ran out; Stop of a job no
+    process ran left its certificate *renewing* for good. Both are failed and tried again soon,
+    and a deployment *deploying* for two hours is tried again.
+  - A short-lived certificate (Let's Encrypt's 6-day profile, an own CA's few days) is renewed
+    a third of its life before its end - with 30 renew days it was issued again at every scan.
+  - The tests of the certificates keep to the teams: a scoped account sees, attaches, takes off,
+    switches and runs only its team's.
+  - The CRL as `crl-pem` needed a certificate administrator like the other names of it; a CRL
+    is never signed on both halves of a split cluster - the public CRL served the one there.
+  - The internal DNS server over TCP: eight connections at most from one address, a message
+    must arrive whole within 10 s, a connection lasts two minutes, and its questions are rate
+    limited as over UDP.
+  - The SSH gate: a name without a token is counted in memory only (every name a scanner tried
+    was a replicated row for good), the old counts are tidied, and the gate and the DNS server
+    go on when no thread can be started.
+  - The waits after a failure (the database, the logs to isemon and the SIEM, the ACME work, the
+    other node's codes) go by the machine's steady clock - a clock stepped back froze them.
+  - The alerts from the events read only the kinds they look at (a flood of refused sign-ins
+    left them hours behind) and also the other node's rows that came over late.
+  - The SIEM stamps an event with when it happened, not when it was sent.
+  - Deleting a module named `dc_1` deleted the stored values of `dc-1` too (SQL LIKE).
+  - Mail debugging no longer writes the password of the mail server's sign-in into the log; a
+    text in the SMS spool is readable by the spool folder's group only (0660).
+  - A backup put back cannot unpack itself into the whole disk, nor a single line of it into
+    memory.
 
 ## 1.0.43 - 2026-11-04
 

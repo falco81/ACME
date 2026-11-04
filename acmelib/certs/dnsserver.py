@@ -63,6 +63,9 @@ EDNS_SIZE = 1232
 TCP_MAX_CONN = 64
 TCP_IDLE = 10.0
 TCP_MAX_QUERIES = 100
+TCP_PER_PEER = 8           # connections at once from one address (1.0.44)
+TCP_MSG_S = 10.0           # one whole message, however slowly it trickles in
+TCP_WHOLE_S = 120.0        # one connection, all its questions
 SERVED_TYPES = (1, 2, 5, 6, 15, 16, 28, 33, 257)
 
 
@@ -377,6 +380,8 @@ class DnsServer(object):
         self._cfg_sig = None
         self.buckets = {}
         self.tcp_slots = threading.BoundedSemaphore(TCP_MAX_CONN)
+        self.tcp_peers = {}
+        self.tcp_peers_lock = threading.Lock()
         self._last_tidy = 0.0
         self._bound_cfg = None
 
@@ -822,22 +827,53 @@ class DnsServer(object):
                 self.stats['not_here'] = self.stats.get('not_here', 0) + 1
                 c.close()
                 continue
+            # One address holds only a few of the slots (1.0.44): 64 connections fed a
+            # byte every 9 s by one host held every slot, and no resolver that needed TCP
+            # (a truncated answer) got one - DNS-01 checks failed.
+            who = peer[0] if peer else ''
+            with self.tcp_peers_lock:
+                if self.tcp_peers.get(who, 0) >= TCP_PER_PEER:
+                    self.stats['dropped'] += 1
+                    c.close()
+                    continue
+                self.tcp_peers[who] = self.tcp_peers.get(who, 0) + 1
             if not self.tcp_slots.acquire(blocking=False):
+                self._tcp_peer_done(who)
                 self.stats['dropped'] += 1
                 c.close()
                 continue
-            threading.Thread(target=self._tcp_conn, args=(c, peer), daemon=True).start()
+            try:
+                threading.Thread(target=self._tcp_conn, args=(c, peer), daemon=True).start()
+            except RuntimeError:
+                # No thread to be had (a flood): this one refused, the listener lives on.
+                self.tcp_slots.release()
+                self._tcp_peer_done(who)
+                self.stats['dropped'] += 1
+                c.close()
+                time.sleep(0.05)
+
+    def _tcp_peer_done(self, who):
+        with self.tcp_peers_lock:
+            n = self.tcp_peers.get(who, 0) - 1
+            if n > 0:
+                self.tcp_peers[who] = n
+            else:
+                self.tcp_peers.pop(who, None)
 
     def _tcp_conn(self, c, peer):
+        whole = time.monotonic() + TCP_WHOLE_S
         try:
-            c.settimeout(TCP_IDLE)
             for _ in range(TCP_MAX_QUERIES):
-                head = self._read(c, 2)
+                c.settimeout(TCP_IDLE)
+                head = self._read(c, 2, min(whole, time.monotonic() + TCP_MSG_S))
                 if not head:
                     return
                 n = struct.unpack('>H', head)[0]
-                data = self._read(c, n)
+                data = self._read(c, n, min(whole, time.monotonic() + TCP_MSG_S))
                 if data is None or len(data) < n:
+                    return
+                if not self._allowed(peer[0]):
+                    self.stats['rate_limited'] += 1
                     return
                 self.stats['queries'] += 1
                 self.stats['tcp'] += 1
@@ -855,11 +891,17 @@ class DnsServer(object):
             except OSError:
                 pass
             self.tcp_slots.release()
+            self._tcp_peer_done(peer[0] if peer else '')
 
     @staticmethod
-    def _read(c, n):
+    def _read(c, n, deadline=None):
         buf = b''
         while len(buf) < n:
+            if deadline is not None:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    return None
+                c.settimeout(min(TCP_IDLE, left))
             chunk = c.recv(n - len(buf))
             if not chunk:
                 return buf or None

@@ -303,6 +303,36 @@ def _sshotp_fails(name, now, store=None):
     return _SshFails(store, name, seen if len(seen) >= len(mine) else mine)
 
 
+SSHOTP_FAILS_MOST = 5000
+
+
+def _sshotp_fail_mem(name, now):
+    if len(SSHOTP_FAILS) >= SSHOTP_FAILS_MOST and name.lower() not in SSHOTP_FAILS:
+        for k in [k for k, v in list(SSHOTP_FAILS.items())
+                  if not any(now - t < SSHOTP_WINDOW_S for t in v)]:
+            SSHOTP_FAILS.pop(k, None)
+        if len(SSHOTP_FAILS) >= SSHOTP_FAILS_MOST:
+            return                       # a flood of names: the names with tokens still count
+    SSHOTP_FAILS[name.lower()].append(now)
+
+
+def sshotp_fails_tidy(store):
+    """The rows of wrong SSH codes whose every time is past the window (1.0.44) - none was
+    ever taken away but by a good code - and memory's names likewise."""
+    now = time.time()
+    for k in [k for k, v in list(SSHOTP_FAILS.items())
+              if not any(now - t < SSHOTP_WINDOW_S for t in v)]:
+        SSHOTP_FAILS.pop(k, None)
+    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'sshfail:%'"):
+        try:
+            v = json.loads(r['v'] or 'null')
+        except ValueError:
+            v = None
+        if not isinstance(v, list) or not any(abs(now - float(x)) < SSHOTP_WINDOW_S
+                                              for x in v if isinstance(x, (int, float))):
+            store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (r['k'], r['v']))
+
+
 def _sshotp_fails_clear(store, name):
     SSHOTP_FAILS.pop(name.lower(), None)
     try:
@@ -335,7 +365,9 @@ def sshotp_check(store, name, code):
             return False, 'too many wrong codes - wait %d min' % (SSHOTP_WINDOW_S // 60)
         rec = sshotp_get(store, name)
         if not rec:
-            fails.append(now)
+            # A name with no token (1.0.44): counted in memory only, and only so many names -
+            # every name a scanner tried through sshd's PAM was a replicated row for good.
+            _sshotp_fail_mem(name, now)
             return False, 'no SSH token for this account'
         if rec.get('kind', 'app') != 'app':
             return False, 'this token gets its codes sent'
@@ -772,8 +804,16 @@ class SshGate(object):
                             'once - one left unanswered (asked again, it is answered)', 'warn',
                             every=300)
                 continue
-            threading.Thread(target=self.serve, args=(s, data, addr, key), name='acme-sshgate-req',
-                             daemon=True).start()
+            try:
+                threading.Thread(target=self.serve, args=(s, data, addr, key),
+                                 name='acme-sshgate-req', daemon=True).start()
+            except RuntimeError:
+                # No thread to be had (1.0.44): this request unanswered, the gate lives on -
+                # it ended for good, and its permit with it.
+                SSHGATE_AT_ONCE.release()
+                with self.lock:
+                    self.seen.pop(key, None)
+                time.sleep(0.05)
 
     def _daemon_stopping(self):
         flag = getattr(self.d, 'stop_flag', None)

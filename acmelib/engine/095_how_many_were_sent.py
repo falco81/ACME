@@ -792,9 +792,16 @@ def sms_send(to, text):
         name = 'acme-%d-%s' % (int(time.time()), secrets.token_hex(4))
         tmp = folder / ('.' + name)
         try:
-            with open(str(tmp), 'w', encoding='utf-8') as f:
+            # Not readable by everyone (1.0.44): the text is a sign-in code. smstools3 runs
+            # in the group of its spool folder - the group may read and take it, the rest not.
+            fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o660)
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 f.write(body)
-            os.chmod(str(tmp), 0o664)
+            try:
+                os.chown(str(tmp), -1, folder.stat().st_gid)    # the folder's group: smsd's
+            except OSError:
+                pass
+            os.chmod(str(tmp), 0o660)
             os.rename(str(tmp), str(folder / name))
         except OSError as e:
             try:

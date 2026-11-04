@@ -430,15 +430,15 @@ class RbSsh(object):
         return got.stdout
 
     def _ssh(self, command):
-        return self._run(['ssh'] + self.opts + ['-p', str(int(self.t['port'])), self.dest,
-                                                command], 'ssh')
+        return self._run(['ssh'] + self.opts + ['-p', str(int(self.t['port'])), '--',
+                                                self.dest, command], 'ssh')
 
     def _sftp(self, cmds, timeout=3600):
         batch = os.path.join(self.d, 'batch')
         with open(batch, 'w') as f:
             f.write('\n'.join(cmds) + '\n')
         return self._run(['sftp'] + self.opts + ['-P', str(int(self.t['port'])), '-b', batch,
-                                                 self.rdest], 'sftp', timeout=timeout)
+                                                 '--', self.rdest], 'sftp', timeout=timeout)
 
     def put(self, local, name):
         name = rb_safe_name(name)
@@ -446,7 +446,7 @@ class RbSsh(object):
             self._sftp(['cd "%s"' % self.dir, 'put "%s" ".%s.part"' % (local, name),
                         '-rm "%s"' % name, 'rename ".%s.part" "%s"' % (name, name)])
         else:
-            self._run(['scp'] + self.opts + ['-P', str(int(self.t['port'])), '-q', local,
+            self._run(['scp'] + self.opts + ['-P', str(int(self.t['port'])), '-q', '--', local,
                                              '%s:%s/.%s.part' % (self.rdest, self.dir, name)],
                       'scp')
             self._ssh('mv -f -- %s %s' % (shlex_quote('%s/.%s.part' % (self.dir, name)),
@@ -457,7 +457,7 @@ class RbSsh(object):
         if self.t['kind'] == 'sftp':
             self._sftp(['cd "%s"' % self.dir, 'get "%s" "%s"' % (name, local)])
         else:
-            self._run(['scp'] + self.opts + ['-P', str(int(self.t['port'])), '-q',
+            self._run(['scp'] + self.opts + ['-P', str(int(self.t['port'])), '-q', '--',
                                              '%s:%s/%s' % (self.rdest, self.dir, name), local],
                       'scp')
 
@@ -595,7 +595,28 @@ def rb_said(e):
     return scrub_secret(str(e) or e.__class__.__name__)[:400]
 
 
+def rb_runtime_checked(t):
+    """A destination as it is used, checked again (1.0.44) - not only when the page saved it: a
+    row written another way put an account "-oProxyCommand=..." on ssh's command line, or a
+    folder with "!" (a shell command of smbclient) into its -c."""
+    if t.get('kind') not in ('folder', 'ftp', 'ftps', 'sftp', 'scp', 'smb'):
+        raise RbError('a destination of an unknown kind')
+    for k in ('host', 'user', 'path', 'share', 'domain'):
+        v = str(t.get(k) or '')
+        if v.lstrip().startswith('-') or re.search(r'[\x00-\x1f\x7f]', v):
+            raise RbError('the destination\'s %s is not one this takes' % k)
+    if re.search(r'[;"!`$]', str(t.get('path') or '')):
+        raise RbError('the destination\'s folder has ; " ! ` or $ in it - not used')
+    host = str(t.get('host') or '')
+    if t['kind'] != 'folder' and host and not re.match(r'^[A-Za-z0-9.:\[\]_-]{1,253}\Z', host):
+        raise RbError('the destination\'s server is not a name or an address')
+    if re.search(r'[\s:@/\\]', str(t.get('user') or '')):
+        raise RbError('the destination\'s account is not one this takes')
+    return t
+
+
 def rb_transport(t):
+    rb_runtime_checked(t)
     return {'folder': RbFolder, 'ftp': RbFtp, 'ftps': RbFtp, 'sftp': RbSsh, 'scp': RbSsh,
             'smb': RbSmb}[t['kind']](t)
 

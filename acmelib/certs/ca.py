@@ -883,6 +883,10 @@ def _dn_index(dn):
 def ca_crl(store, ca_id):
     """A new CRL of the authority (openssl ca -gencrl, the index made from
     cert_ca_issued), its number one higher; kept in cert_cas -> crl_pem."""
+    # Never on both halves of a split cluster (1.0.44), from wherever it is asked - the
+    # public /api/pki/crl and an export signed a new one without asking: two CRLs of the
+    # same number. The one there is served meanwhile.
+    _split_held()
     row = _row(store, ca_id)
     if _pending(row):
         raise PkiError('the authority "%s" has no certificate yet' % row['name'], retry=False)
@@ -987,7 +991,11 @@ def ca_export(store, ca_id, what, password=None):
     if what in ('crl', 'crl-pem', 'crl-der'):
         crl = row.get('crl_pem') or ''
         if not crl or crl_due(store, row['id']):
-            crl = ca_crl(store, row['id'])
+            try:
+                crl = ca_crl(store, row['id'])
+            except PkiError:
+                if not crl:                 # split: the one there, while there is one
+                    raise
         if what == 'crl-der':
             return {'filename': base + '.crl', 'mime': 'application/pkix-crl',
                     'data': pki.pem_to_der(crl)}

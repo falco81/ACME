@@ -29,7 +29,9 @@ e-mail and SMS*; the words of each message under *Settings → Message texts*.
    - *a modem on this machine* - acme writes each message into the spool
      folder of **smstools3** (`/var/spool/sms/outgoing`): a file
      `To: 420603123456`, an empty line, the text. The service runs as
-     `acme`: give it write access to the folder (a group and `chmod g+w`).
+     `acme`: give it write access to the folder (a group and `chmod g+w`); each
+     file is written readable by the folder's group only (0660, 1.0.44) - smsd
+     reads it as root or as a member of that group.
      gammu-smsd can read the same files with its files backend.
    - *a Teltonika gateway* (TRB140, RUT… - the box zigmon sends its texts
      through): its address, HTTPS, a user that may use its API and its

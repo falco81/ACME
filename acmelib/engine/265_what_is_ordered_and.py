@@ -361,9 +361,9 @@ def acme_tick(daemon):
                 acme_ari_refresh(store)
         threading.Thread(target=ari, name='acme-acme-ari', daemon=True).start()
     if not CONFIG.get('acme') or ACME_WORK['busy'] or \
-            time.time() - ACME_WORK['at'] < ACME_EVERY:
+            time.monotonic() - ACME_WORK['at'] < ACME_EVERY:
         return
-    ACME_WORK['at'] = time.time()
+    ACME_WORK['at'] = time.monotonic()
     store = daemon.store
 
     def look():

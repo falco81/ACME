@@ -17,6 +17,7 @@ from acmelib import engine as E
 from acmelib.certs import api as A
 from acmelib.certs import checks as C
 from acmelib.certs import store as S
+from acmelib.certs import teams as T
 
 
 def _int(v, what):
@@ -26,6 +27,38 @@ def _int(v, what):
         raise ValueError('%s: a number' % what)
 
 
+def _scoped(s):
+    return not (T.unscoped(s, 'view') and T.unscoped(s, 'manage'))
+
+
+def _cert_need(h, s, cert_id, right, what):
+    """Teams (1.0.44): the tests of a certificate only of a team the session is in - a
+    scoped certificate administrator took another team's expiry tests off, and silenced
+    its alerts; a scoped reader listed every team's hosts."""
+    if _scoped(s):
+        T.need_cert(h.store, s, cert_id, right, what)
+
+
+def _check_need(h, s, ident, right, what):
+    r = h.store.db.row('SELECT cert_id FROM cert_checks WHERE id = ?', (ident,))
+    if r:
+        _cert_need(h, s, r['cert_id'], right, what)
+
+
+def _seen(h, s, rows, right='view'):
+    if not _scoped(s):
+        return rows
+    keep, owners = [], {}
+    for r in rows:
+        cid = r.get('cert_id')
+        if cid not in owners:
+            owners[cid] = T.cert_may(h.store, s, S.cert_get(h.store, cid) or {}, right) \
+                if cid is not None else False
+        if owners[cid]:
+            keep.append(r)
+    return keep
+
+
 SETTINGS = ('certs_checks_after_deploy', 'certs_checks_auto', 'certs_checks_every_min',
             'certs_checks_alert', 'certs_checks_warn_days')
 
@@ -33,8 +66,10 @@ SETTINGS = ('certs_checks_after_deploy', 'certs_checks_auto', 'certs_checks_ever
 @A.api('GET', '/api/checks')
 def _list(h, s):
     cert = h.arg('cert_id').strip()
-    rows = C.rows(h.store, cert_id=_int(cert, 'cert_id') if cert else None,
-                  test=h.arg('test').strip() or None)
+    if cert:
+        _cert_need(h, s, _int(cert, 'cert_id'), 'view', 'look at the tests of')
+    rows = _seen(h, s, C.rows(h.store, cert_id=_int(cert, 'cert_id') if cert else None,
+                  test=h.arg('test').strip() or None))
     return {'checks': rows, 'settings': {k: E.CONFIG.get(k) for k in SETTINGS}}
 
 
@@ -44,6 +79,7 @@ def _attach(h, s):
     by = A.who(s)
     names = b.get('tests') if isinstance(b.get('tests'), list) else [b.get('test')]
     cid = _int(b.get('cert_id'), 'cert_id')
+    _cert_need(h, s, cid, 'manage', 'attach tests to')
     made = C.attach(h.store, cid, [n for n in names if n], by)
     cert = S.cert_get(h.store, cid) or {}
     if made:
@@ -56,6 +92,7 @@ def _attach(h, s):
 def _detach(h, s):
     b = h.body()
     ident = _int(b.get('id'), 'id')
+    _check_need(h, s, ident, 'manage', 'take a test off')
     r = h.store.db.row('SELECT * FROM cert_checks WHERE id = ?', (ident,))
     C.detach(h.store, ident)
     by = A.who(s)
@@ -69,6 +106,7 @@ def _detach(h, s):
 @A.api('POST', '/api/checks/switch', 'certadmin')
 def _switch(h, s):
     b = h.body()
+    _check_need(h, s, _int(b.get('id'), 'id'), 'manage', 'switch a test of')
     C.switch(h.store, _int(b.get('id'), 'id'), b.get('enabled') not in (False, 0, '0'),
              A.who(s))
     return {'ok': True}
@@ -81,19 +119,22 @@ def _run(h, s):
     by = A.who(s)
     if b.get('id') not in (None, '', 0):
         ident = _int(b['id'], 'id')
+        _check_need(h, s, ident, 'manage', 'run a test of')
         got = C.run(h.store, ident)
         r = h.store.db.row('SELECT * FROM cert_checks WHERE id = ?', (ident,))
         return {'ok': True, 'result': got, 'check': C.row_public(h.store, r)}
     if b.get('cert_id') not in (None, '', 0):
+        _cert_need(h, s, _int(b['cert_id'], 'cert_id'), 'manage', 'run the tests of')
         ids = [r['id'] for r in C.rows(h.store, cert_id=_int(b['cert_id'], 'cert_id'))
                if r.get('enabled', 1)]
         cert = S.cert_get(h.store, _int(b['cert_id'], 'cert_id')) or {}
         what, cert_id = 'the tests of %s' % cert.get('name', '?'), cert.get('id')
     elif b.get('test'):
-        ids = [r['id'] for r in C.rows(h.store, test=str(b['test'])) if r.get('enabled', 1)]
+        ids = [r['id'] for r in _seen(h, s, C.rows(h.store, test=str(b['test'])), 'manage')
+               if r.get('enabled', 1)]
         what, cert_id = 'the test %s on its certificates' % b['test'], None
     else:
-        ids = [r['id'] for r in C.rows(h.store) if r.get('enabled', 1)]
+        ids = [r['id'] for r in _seen(h, s, C.rows(h.store), 'manage') if r.get('enabled', 1)]
         what, cert_id = 'every test', None
     if not ids:
         raise ValueError('there is no test to run')
@@ -113,6 +154,7 @@ def _try(h, s):
     cid = _int(b.get('cert_id'), 'cert_id')
     if not S.cert_get(h.store, cid):
         raise LookupError('there is no such certificate')
+    _cert_need(h, s, cid, 'manage', 'try a test on')
     kind = str(b.get('kind') or '')
     cls = S.plugin_class('check', kind)
     if cls is None:

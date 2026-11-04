@@ -416,7 +416,7 @@ def split_step(store, now=None, peer=None, arbiter=None):
         # the second step is let in is held off (the other node's database did not answer),
         # it is asked every 2 s and the hold lifted the moment it answers - not after its
         # back-off of up to five minutes. With no hold nothing is asked.
-        if split_active() and ONCE_PEER['down_until'] > time.time():
+        if split_active() and ONCE_PEER['down_until'] > time.monotonic():
             p = _split_peer_probe() if peer is None else peer
             if p is True:
                 with ONCE_PEER_LOCK:
@@ -434,7 +434,7 @@ def split_step(store, now=None, peer=None, arbiter=None):
         # The other node's database answers: the question before a code of the second step
         # is let in is asked again at once - not after its back-off of up to five minutes,
         # while codes would be written down as let in unasked.
-        if ONCE_PEER['down_until'] > time.time():
+        if ONCE_PEER['down_until'] > time.monotonic():
             with ONCE_PEER_LOCK:
                 ONCE_PEER['down_until'], ONCE_PEER['fails'] = 0.0, 0
     else:

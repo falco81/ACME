@@ -255,7 +255,7 @@ def stop(store, ident):
     if job is not None:
         job.stop.set()
         return 'job %d is told to stop' % ident
-    row = store.db.row('SELECT id, state, node FROM cert_jobs WHERE id = ?', (ident,))
+    row = store.db.row('SELECT id, state, node, cert_id FROM cert_jobs WHERE id = ?', (ident,))
     if not row:
         raise LookupError('there is no job %d' % ident)
     if row['state'] not in ('queued', 'running'):
@@ -268,6 +268,15 @@ def stop(store, ident):
         store.db.update('cert_jobs', ident, {'state': 'stopped', 'ok': 0,
                                              'finished': time.time(),
                                              'said': 'stopped (nothing was running it)'})
+        # ...and its certificate not left "renewing" (1.0.44): no renewal of its own
+        # ever came again, and recover() looks only at jobs still running.
+        if row.get('cert_id') is not None:
+            store.db.run("UPDATE certs SET state = 'failed', last_error = ?, next_try = ? "
+                         "WHERE id = ? AND state = 'renewing'",
+                         ('stopped before it was done', time.time() + 300, row['cert_id']))
+            store.db.run("UPDATE cert_deploys SET state = 'failed', last_error = ?, next_try = ? "
+                         "WHERE cert_id = ? AND state = 'deploying'",
+                         ('stopped before it was done', time.time() + 300, row['cert_id']))
         return 'job %d marked stopped' % ident
     return 'job %d on %s is asked to stop' % (ident, row['node'])
 
@@ -292,6 +301,11 @@ def recover(store):
                      "AND id IN (SELECT cert_id FROM cert_jobs WHERE node = ? AND "
                      "state IN ('queued', 'running'))",
                      ('acme stopped while it was renewed', E.node_name()))
+        # Its deployments half done too (1.0.44): "deploying" was passed over for good.
+        store.db.run("UPDATE cert_deploys SET state = 'failed', last_error = ?, next_try = ? "
+                     "WHERE state = 'deploying' AND cert_id IN (SELECT cert_id FROM cert_jobs "
+                     "WHERE node = ? AND state IN ('queued', 'running'))",
+                     ('acme stopped while it was deployed', time.time() + 60, E.node_name()))
         n = store.db.run("UPDATE cert_jobs SET state = 'failed', ok = 0, finished = ?, "
                          "said = ? WHERE node = ? AND state IN ('queued', 'running')",
                          (time.time(), 'acme stopped while it ran', E.node_name()))

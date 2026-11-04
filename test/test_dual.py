@@ -327,7 +327,7 @@ class DualDueAndFailing(unittest.TestCase):
         row = S.cert_get(STORE, cid)
         self.assertEqual(renewer.due_why(row), '')
         t = time.time()
-        STORE.db.update('certs', cid, {'alt_not_after': t + 86400})
+        STORE.db.update('certs', cid, {'alt_not_after': t + 86400, 'alt_not_before': t - 89 * 86400})
         row = S.cert_get(STORE, cid)
         self.assertEqual(renewer.main_due(row), '')
         self.assertIn('the twin (rsa-2048) ends in', renewer.alt_due(row))
@@ -351,7 +351,7 @@ class DualDueAndFailing(unittest.TestCase):
         self.assertGreater(row2['alt_version'], alt_v)
         self.assertGreater(row2['alt_not_after'], t + 86400 * 30)
         # the main one due: both renewed
-        STORE.db.update('certs', cid, {'not_after': t + 86400})
+        STORE.db.update('certs', cid, {'not_after': t + 86400, 'not_before': t - 89 * 86400})
         self.assertIn('ends in', renewer.main_due(S.cert_get(STORE, cid)))
         self.assertTrue(renew(cid).ok)
         row3 = S.cert_get(STORE, cid)

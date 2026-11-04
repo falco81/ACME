@@ -13,7 +13,7 @@ import secrets
 from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, lines, as_bool, as_int, object_name, name_prefix,
     ssh_fields, verify_fields, keep_field, sha1_thumb, random_password, text, put_scp,
-    label_of, stamp, parse_outputs, outputs_for, alt_of, family_of, PFX_FORMATS)
+    label_of, stamp, parse_outputs, outputs_for, alt_of, family_of, PFX_FORMATS, service_of)
 from acmelib.plugins.targets import _script as SC
 from acmelib.plugins.targets import _win_roles as WR
 
@@ -194,7 +194,7 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
         name = label_of(bundle, options)
         return {'name': name, 'date': stamp(bundle),
                 'cn': label_of(bundle, {'object_name': (list(bundle.names or [name]))[0]}),
-                'service': (options or {}).get('service') or name,
+                'service': service_of((options or {}).get('service'), name),
                 'alt': family_of(alt) if alt is not None else 'alt'}
 
     def _files(self, bundle, options, vars):

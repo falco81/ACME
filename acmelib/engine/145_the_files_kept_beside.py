@@ -413,14 +413,45 @@ def _magic(path):
         return f.read(16)
 
 
+PEEK_LINE_MOST = 64 << 20      # one row of a copy, unpacked (1.0.44)
+
+
+def _lines_capped(f, most=PEEK_LINE_MOST):
+    """The lines of an unpacked file, none longer than `most` - one line of a packed bomb
+    unpacked into memory whole."""
+    while True:
+        line = f.readline(most + 1)
+        if not line:
+            return
+        if len(line) > most and line[-1:] not in ('\n', b'\n'):
+            raise ValueError('a line of the file is longer than %d MB - not a copy acme made'
+                             % (most >> 20))
+        yield line
+
+
+def _copy_capped(src, dst, room):
+    """src into dst, refused once more than `room` bytes came out (1.0.44): a small packed
+    file that unpacks into the whole disk."""
+    done = 0
+    while True:
+        chunk = src.read(1 << 20)
+        if not chunk:
+            return done
+        done += len(chunk)
+        if done > room:
+            raise ValueError('unpacked, the file is larger than the room there is for it '
+                             '(%d MB) - not put back' % (room >> 20))
+        dst.write(chunk)
+
+
 def _peek_copy(path):
     import gzip
     counts, admins, tables, table = {}, 0, 0, None
     with gzip.open(str(path), 'rt', encoding='utf-8') as f:
-        head = json.loads(f.readline() or '{}')
+        head = json.loads(f.readline(PEEK_LINE_MOST) or '{}')
         if 'acme' not in head and 'opt' not in head:      # 'opt': before 1.0.37's new name
             return None, 'that is not a copy made by acme'
-        for line in f:
+        for line in _lines_capped(f):
             got = json.loads(line)
             if set(got.keys()) == {'table'}:
                 table = got['table']
@@ -729,7 +760,7 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
         import gzip
         tool = _tool(('mariadb', 'mysql'))
         with gzip.open(str(path), 'rb') as sent:
-            for n, line in enumerate(sent):
+            for n, line in enumerate(_lines_capped(sent, 1 << 30)):
                 if line[:1] == b'\\' or line[:7].lower() == b'system ':
                     raise ValueError('line %d of the dump is a client command, not SQL. '
                                      'A dump this program made has none.' % (n + 1))
@@ -740,8 +771,10 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
         os.close(fd)
         raw = Path(raw)
         try:
+            st = os.statvfs(str(STATE_DIR))
+            room = max(0, st.f_bavail * st.f_frsize - (512 << 20))   # half a GB kept free
             with gzip.open(str(path), 'rb') as src, open(str(raw), 'wb') as dst:
-                shutil.copyfileobj(src, dst, 1 << 20)
+                _copy_capped(src, dst, room)
             with open(str(raw), 'rb') as sent:
                 _run([tool] + _my_args(c, cnf) + ['--default-character-set=utf8mb4',
                                                   '--local-infile=0', '--binary-mode',

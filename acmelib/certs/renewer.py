@@ -182,6 +182,21 @@ def renew_days(row):
     return int(row.get('renew_days') or E.CONFIG.get('certs_renew_days') or 30)
 
 
+def renew_window(row, na, nb=None):
+    """How long before its end a certificate is renewed (1.0.44): its renew days - but no
+    more than a third of its whole life. A 6-day certificate (Let's Encrypt's shortlived,
+    an own CA's few days) was due the moment it was issued, and issued again every scan
+    until the CA's limits refused it."""
+    days = renew_days(row) * 86400
+    try:
+        life = float(na or 0) - float(nb or 0)
+    except (TypeError, ValueError):
+        life = 0
+    if nb and life > 0:
+        return min(days, life / 3.0)
+    return days
+
+
 def due_why(row, t=None, dual=True):
     """Why the certificate is due now, or '' when it is not - the main one, or
     (a dual certificate, `dual`: its source gives a twin) its twin."""
@@ -205,7 +220,7 @@ def alt_due(row, t=None):
     if not row.get('alt_cert_pem'):
         return '%s has not been issued yet' % what
     na = float(row.get('alt_not_after') or 0)
-    if na - renew_days(row) * 86400 <= t:
+    if na - renew_window(row, na, row.get('alt_not_before')) <= t:
         return '%s ends in %s' % (what, E.human_span(max(0, na - t))) if na > t else \
             '%s has expired' % what
     ari = S.jload(row.get('alt_ari'), {}) or {}
@@ -230,7 +245,7 @@ def main_due(row, t=None):
     if not row.get('cert_pem'):
         return 'it has not been issued yet'
     na = float(row.get('not_after') or 0)
-    if na - renew_days(row) * 86400 <= t:
+    if na - renew_window(row, na, row.get('not_before')) <= t:
         return 'it ends in %s' % E.human_span(max(0, na - t)) if na > t else 'it has expired'
     ari = S.jload(row.get('ari'), {}) or {}
     if ari.get('at') and float(ari['at']) <= t:
@@ -757,7 +772,10 @@ def scan(store, by='the renewer'):
                 'version': d.get('cur_version'), 'alt_version': d.get('cur_alt_version'),
                 'key_type_alt': d.get('cur_key_type_alt'),
                 'alt_cert_pem': 'x' if d.get('cur_has_alt') else None}) or \
-                d.get('state') == 'deploying':
+                (d.get('state') == 'deploying' and
+                 float(d.get('last_try') or 0) > t - 7200):
+            # "deploying" two hours on (1.0.44) is a deployment no job finished - a process
+            # killed, a node gone: tried again (the certificate busy is still passed over).
             continue
         todo.setdefault(d['cert_id'], []).append(d['id'])
     for cert_id, ids in todo.items():
@@ -829,16 +847,16 @@ class Renewer(object):
                     # the next look at the lease.
                     self.leading = False
                     lease_drop(self.store)
-                if time.time() - self.last_lease >= LEASE_EVERY:
-                    self.last_lease = time.time()
+                if time.monotonic() - self.last_lease >= LEASE_EVERY:
+                    self.last_lease = time.monotonic()
                     self.leading = False
                     self.leading = lease_tick(self.store)
                     if self.leading:
                         self.lead_until = self.last_lease + LEASE_S - LEASE_EVERY
                 every = max(1, int(E.CONFIG.get('certs_check_min') or 5)) * 60
-                if self.leading and time.time() < self.lead_until and \
-                        time.time() - self.last_scan >= every:
-                    self.last_scan = time.time()
+                if self.leading and time.monotonic() < self.lead_until and \
+                        time.monotonic() - self.last_scan >= every:
+                    self.last_scan = time.monotonic()
                     scan(self.store)
             except Exception as e:                      # noqa: BLE001
                 E.log_sparing('certs-renewer', 'the renewer: %s\n%s' % (

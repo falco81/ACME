@@ -964,11 +964,21 @@ def alerts_evaluate(store, force=False):
     rules = [r for r in ALERT_EVENTS if CONFIG.get(r[0], DEFAULTS.get(r[0]))]
     if rules:
         last = int(st.get('event_id') or 0)
+        # Only the kinds a rule looks at (1.0.44): 200 events of any kind a minute, and a
+        # flood of refused sign-ins left the scan hours behind. And the last 15 minutes
+        # again, those not seen yet: with two nodes writing the ids are odd and even, and
+        # a row that came over late from the other node was below the mark, never read.
+        kinds = sorted({r[1] for r in rules})
+        seen = {int(k): float(v) for k, v in (st.get('event_seen') or {}).items()
+                if float(v) > now - 1800}
         try:
-            rows = store.db.rows("SELECT id, ts, kind, words, node FROM events WHERE id > ? "
-                                 "ORDER BY id LIMIT 200", (last,))
+            rows = store.db.rows(
+                "SELECT id, ts, kind, words, node FROM events WHERE kind IN (%s) AND "
+                "(id > ? OR ts > ?) ORDER BY id LIMIT 1000" % ','.join('?' * len(kinds)),
+                tuple(kinds) + (last, now - 900))
         except Exception:                               # noqa: BLE001
             rows = []
+        rows = [r for r in rows if int(r['id']) not in seen]
         # Where they begin, once (as otp 1.0.242: by its being there - with no event yet it
         # stayed 0, and every turn began again, so nothing was ever said).
         if 'event_id' not in st:
@@ -976,9 +986,12 @@ def alerts_evaluate(store, force=False):
                 st['event_id'] = int(store.db.value('SELECT MAX(id) FROM events', (), 0) or 0)
             except Exception:                           # noqa: BLE001
                 st['event_id'] = 0
+            for r in rows:                              # those before: not said
+                seen[int(r['id'])] = float(r.get('ts') or now)
             rows = []
         for r in rows:
             st['event_id'] = max(int(st.get('event_id') or 0), int(r['id']))
+            seen[int(r['id'])] = float(r.get('ts') or now)
             words = str(r.get('words') or '')
             for _key, kind, bits, cs, en, pane, level in rules:
                 if r.get('kind') == kind and any(b in words for b in bits):
@@ -988,6 +1001,7 @@ def alerts_evaluate(store, force=False):
                     break
             if len(events) >= 20:
                 break
+        st['event_seen'] = {str(k): v for k, v in sorted(seen.items())[-3000:]}
     st['problems'] = known
     st['checked'] = now
     store.set_meta('alerts:state', json.dumps(st))

@@ -282,7 +282,7 @@ class Shipper(object):
                 # while (1.0.59): every line waited 5 s on it, the queue
                 # filled, and the files here lost lines with it.
                 until, wait = self.down.get(key, (0.0, 0.0))
-                if time.time() < until:
+                if time.monotonic() < until:
                     self.missed[key] += 1
                     return
                 sock = self.tcp.get(target)
@@ -327,7 +327,7 @@ class Shipper(object):
             if proto != 'udp':
                 _u, wait = self.down.get(key, (0.0, 0.0))
                 wait = min(300.0, max(15.0, wait * 2))
-                self.down[key] = (time.time() + wait, wait)
+                self.down[key] = (time.monotonic() + wait, wait)
                 self.missed[key] += 1
                 e = '%s - tried again in %d s, %d line(s) not sent to it' % (
                     e, int(wait), self.missed[key])

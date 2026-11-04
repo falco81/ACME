@@ -15,7 +15,7 @@ import tempfile
 
 from acmelib.plugins.targets._common import (
     Base, PluginError, field, lines, label_of, stamp, parse_outputs, subst, PFX_FORMATS,
-    verify_fields, as_int, as_bool, text, alt_of, family_of, outputs_for)
+    verify_fields, as_int, as_bool, text, alt_of, family_of, outputs_for, service_of)
 from acmelib.plugins.targets import _script as SC
 
 INTERPS = ('bash', 'sh', 'python3')
@@ -96,7 +96,7 @@ class LocalTarget(Base):
         name = label_of(bundle, options)
         return {'name': name, 'date': stamp(bundle),
                 'cn': label_of(bundle, {'object_name': (bundle.names or ['cert'])[0]}),
-                'service': (options or {}).get('service') or name,
+                'service': service_of((options or {}).get('service'), name),
                 'alt': family_of(alt) if alt is not None else 'alt'}
 
     def _pairs(self, bundle, options, vars):

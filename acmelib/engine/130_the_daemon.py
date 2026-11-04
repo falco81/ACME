@@ -532,6 +532,10 @@ class Daemon(object):
         except Exception as e:                  # noqa: BLE001
             log('the password policy of acme 1.0.42 could not be taken over: %s' % e, 'warn')
         try:
+            dbguard_adopt(self.store)           # rows newly under the guard (1.0.44)
+        except Exception as e:                  # noqa: BLE001
+            log('the guard could not take its new rows: %s' % e, 'warn')
+        try:
             machine_changed_check(self.store)   # another machine under this name? (1.0.43)
         except Exception as e:                  # noqa: BLE001
             log('the machine of this node could not be compared: %s' % e, 'warn')
@@ -885,6 +889,10 @@ class Daemon(object):
             adpw_tidy(self.store)                       # wrong directory passwords, over
         except Exception as e:                          # noqa: BLE001
             log('the counts of wrong directory passwords could not be tidied: %s' % e, 'warn')
+        try:
+            sshotp_fails_tidy(self.store)               # wrong SSH codes, over (1.0.44)
+        except Exception as e:                          # noqa: BLE001
+            log('the counts of wrong SSH codes could not be tidied: %s' % e, 'warn')
         try:
             # One node of two deletes the old rows; the deletes go over to the
             # other anyway (1.0.57).
