@@ -95,6 +95,16 @@ st.set_meta('node:' + me, json.dumps({'at': time.time() - 7200, 'mid': OLD, 'ver
 class RestoreThenCluster(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        try:
+            cls._setup()
+        except BaseException:
+            # A setup that failed leaves no daemon behind on the shared PostgreSQL (the other
+            # tests of the clusters found its node acme1 there, the leader).
+            cls.tearDownClass()
+            raise
+
+    @classmethod
+    def _setup(cls):
         need_pg(cls)
         if not (pg_admin_ok(PG_PORT) and pg_admin_ok(PG2_PORT)):
             raise unittest.SkipTest('the replicated wizard needs root and psql as postgres on '
