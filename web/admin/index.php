@@ -700,7 +700,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <p class="ctl-lede">The certificate portal: <span class="mono" id="portal-url">/</span>
         on this server, where people sign in with their directory password - who may, what they
         see there, and the picture above its sign-in.</p></div>
-    <template id="art-gallery"><?php foreach (ACME_ARTS as $a): ?><div data-art="<?= h($a) ?>" data-words="<?= h(ACME_ART_WORDS[$a]) ?>"><?= acme_art_svg($a) ?></div><?php endforeach; ?></template>
+    <template id="art-gallery"><?php foreach (ACME_ARTS as $a): ?><div data-art="<?= h($a) ?>" data-for="<?= h(ACME_ART_ONLY[$a] ?? '') ?>" data-words="<?= h(ACME_ART_WORDS[$a]) ?>"><?= acme_art_svg($a) ?></div><?php endforeach; ?></template>
     <div class="card full" id="art-card">
       <h2>The picture on the sign-in</h2>
       <div class="seg" id="art-slot" style="margin:4px 0 10px">

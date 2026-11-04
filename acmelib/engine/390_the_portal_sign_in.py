@@ -237,7 +237,18 @@ LOGO_MAX = 512 * 1024
 # The drawings the pages have; a name saved by an older version (phone,
 # and others no longer drawn) is shown as the slot's own drawing.
 ART_NAMES = ('cert', 'chain', 'renew', 'deploy', 'order', 'dns', 'keys', 'watch', 'revoke',
-             'cycle', 'none', 'custom')
+             'cycle', 'ask', 'get', 'mine', 'code', 'team', 'overview', 'cluster', 'sources',
+             'jobs', 'alerts', 'none', 'custom')
+# The pictures of one sign-in only (1.0.41), as web/acme-art.php's ACME_ART_ONLY: the
+# people who ask for certificates see their side of it, the administrators theirs.
+ART_ONLY = {'ask': 'portal', 'get': 'portal', 'mine': 'portal', 'code': 'portal',
+            'team': 'portal', 'overview': 'admin', 'cluster': 'admin', 'sources': 'admin',
+            'jobs': 'admin', 'alerts': 'admin'}
+
+
+def art_for_slot(slot, art):
+    """Whether a picture may be shown on that sign-in."""
+    return ART_ONLY.get(art, slot) == slot
 
 
 def art_slot(slot):
@@ -320,11 +331,17 @@ def art_read(store, slot='portal'):
         got = _art_meta(store, ART_SLOTS['portal'][0])
     got = got or {}
     art = got.get('art') if got.get('art') in ART_NAMES else default
+    if not art_for_slot(slot, art):
+        art = default
     return {'art': art, 'sha': str(got.get('sha') or '') if art == 'custom' else ''}
 
 
 def art_set(store, slot, art):
     ak, _, _ = art_slot(slot)
+    if not art_for_slot(slot, art):
+        raise ValueError('that picture is for the sign-in of the enrolment pages only'
+                         if ART_ONLY[art] == 'portal' else
+                         'that picture is for the sign-in of the administration only')
     one = {'art': art, 'sha': ''}
     if art == 'custom':
         logo = logo_read(store, slot)
@@ -376,7 +393,7 @@ def _portal_logo(h):
 @route('GET', '/api/portal/art')
 def _portal_art(h):
     h.me()
-    return {'names': list(ART_NAMES), 'portal': art_state(h.store, 'portal'),
+    return {'names': list(ART_NAMES), 'only': dict(ART_ONLY), 'portal': art_state(h.store, 'portal'),
             'admin': art_state(h.store, 'admin')}
 
 
@@ -457,7 +474,7 @@ def _portal_art_set(h):
             raise ApiError(400, 'save, pick, upload, forget or reset')
     except ValueError as e:
         raise ApiError(400, str(e))
-    return {'names': list(ART_NAMES), 'portal': art_state(h.store, 'portal'),
+    return {'names': list(ART_NAMES), 'only': dict(ART_ONLY), 'portal': art_state(h.store, 'portal'),
             'admin': art_state(h.store, 'admin'), 'message': 'saved - every node shows it'}
 
 

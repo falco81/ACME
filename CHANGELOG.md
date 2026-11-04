@@ -16,6 +16,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   server), *What the servers serve, looked at again and again* (the name, the chain,
   the days left), *Revoked and replaced* (a new key, put in place) and *The next one
   long before the last runs out* (never a gap). In Czech too.
+- **Pictures of their own for each sign-in**: five more for the enrolment pages only,
+  as the people who ask for certificates see it - *Asked for on the pages, approved,
+  issued to you*, *Your certificate, downloaded as your server takes it* (PEM, PFX, the
+  chain), *Your certificates, and how long each one has* (and a mail before one runs
+  out), *Your password, then a code by mail or SMS*, *Your team's certificates* - and
+  five for the administration only, as those who run acme see it - *Everything at a
+  glance*, *Two nodes, one address, one database*, *Every authority, into one place*,
+  *The jobs, by themselves and on time*, *Every change written down, every failure
+  told*. Each tab of the picker offers the fifteen drawings that may go on its sign-in
+  (the ten above for both, and its own five); the other sign-in's own are refused when
+  saved, and one in an imported configuration is put in as that sign-in's default.
 - *Settings → High security*: under *High security* and *Guard against writes to the
   database*, a light for every node saying what is in effect there - on (green), off,
   not there yet / still on after a change (amber, looked at again every few seconds),

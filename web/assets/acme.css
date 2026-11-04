@@ -2511,6 +2511,18 @@ table.ha-cli tr.ha-cli-group td{padding-top:20px;font:650 13px var(--face);lette
 .signart.art-dns .dot{offset-path:path("M232 96 H296")}
 .signart.art-watch .dot{offset-path:path("M146 84 H240")}
 .signart.art-revoke .dot{offset-path:path("M162 94 H244")}
+/* The pictures of one sign-in only (1.0.41). */
+.signart.art-ask .dot{offset-path:path("M168 94 H222")}
+.signart.art-code .dot{offset-path:path("M140 94 H196")}
+.signart.art-team .dot{offset-path:path("M192 96 H246")}
+.signart.art-cluster .dot{offset-path:path("M142 112 H278");animation-duration:4.8s}
+.signart.art-cluster .dot2{animation-delay:1.6s}
+.signart.art-cluster .dot3{animation-delay:3.2s}
+.signart.art-sources .dot{offset-path:path("M152 99 H248")}
+.signart.art-jobs .dot{offset-path:path("M82 94 H200");animation-duration:4.2s}
+.signart.art-jobs .dot2{animation-delay:1.4s}
+.signart.art-jobs .dot3{animation-delay:2.8s}
+.signart.art-alerts .dot{offset-path:path("M182 92 H214")}
 
 /* Settings drawn in sections (1.0.88): Codes by e-mail and SMS. Four even
    columns, a heading over each group, and what one way of sending SMS

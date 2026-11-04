@@ -9988,6 +9988,8 @@ function drawArt(all) {
   clear(grid);
   Array.prototype.forEach.call(tpl.content.children, function (src) {
     var name = src.dataset.art;
+    /* The pictures of the other sign-in only are not offered here (1.0.41). */
+    if (src.dataset['for'] && src.dataset['for'] !== slot) return;
     var picked = dr.art === name, isNow = saved.art === name;
     var tile = el('button', 'art-tile' + (picked ? ' on' : '') + (picked && !isNow ? ' unsaved' : ''));
     tile.type = 'button';

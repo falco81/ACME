@@ -52823,6 +52823,210 @@
   "art_34": {
    "source": "ALWAYS A GOOD ONE · NEVER A GAP",
    "text": "VŽDY PLATNÝ · NIKDY MEZERA"
+  },
+  "art2_1": {
+   "source": "Asked for on the pages, approved, issued to you",
+   "text": "Požádáno na stránkách, schváleno, vydáno vám"
+  },
+  "art2_2": {
+   "source": "YOUR REQUEST",
+   "text": "VAŠE ŽÁDOST"
+  },
+  "art2_3": {
+   "source": "APPROVED",
+   "text": "SCHVÁLENO"
+  },
+  "art2_4": {
+   "source": "YOURS",
+   "text": "VÁŠ"
+  },
+  "art2_5": {
+   "source": "ASKED · APPROVED · ISSUED TO YOU",
+   "text": "POŽÁDÁNO · SCHVÁLENO · VYDÁNO VÁM"
+  },
+  "art2_6": {
+   "source": "Your certificate, downloaded as your server takes it",
+   "text": "Váš certifikát, stažený tak, jak ho váš server bere"
+  },
+  "art2_7": {
+   "source": "YOUR CERTIFICATE",
+   "text": "VÁŠ CERTIFIKÁT"
+  },
+  "art2_8": {
+   "source": "AS YOU NEED IT",
+   "text": "JAK HO POTŘEBUJETE"
+  },
+  "art2_9": {
+   "source": "PEM · PFX · THE CHAIN - DOWNLOADED BY YOU",
+   "text": "PEM · PFX · ŘETĚZEC – STÁHNETE SI SAMI"
+  },
+  "art2_10": {
+   "source": "Your certificates, and how long each one has",
+   "text": "Vaše certifikáty a kolik má který ještě dní"
+  },
+  "art2_11": {
+   "source": "YOUR CERTIFICATES",
+   "text": "VAŠE CERTIFIKÁTY"
+  },
+  "art2_12": {
+   "source": "TOLD IN TIME",
+   "text": "ŘEKNE VČAS"
+  },
+  "art2_13": {
+   "source": "THE DAYS OF EACH · A MAIL BEFORE IT RUNS OUT",
+   "text": "DNY KAŽDÉHO · E-MAIL, NEŽ VYPRŠÍ"
+  },
+  "art2_14": {
+   "source": "Your password, then a code by mail or SMS",
+   "text": "Vaše heslo, potom kód e-mailem nebo SMS"
+  },
+  "art2_15": {
+   "source": "YOUR PASSWORD",
+   "text": "VAŠE HESLO"
+  },
+  "art2_16": {
+   "source": "A CODE TO YOU",
+   "text": "KÓD VÁM"
+  },
+  "art2_17": {
+   "source": "A CODE AT EVERY SIGN-IN · BY MAIL OR SMS",
+   "text": "KÓD PŘI KAŽDÉM PŘIHLÁŠENÍ · E-MAILEM NEBO SMS"
+  },
+  "art2_18": {
+   "source": "Your team's certificates, seen by the whole team",
+   "text": "Certifikáty vašeho týmu, vidí je celý tým"
+  },
+  "art2_19": {
+   "source": "YOUR TEAM",
+   "text": "VÁŠ TÝM"
+  },
+  "art2_20": {
+   "source": "ITS CERTIFICATES",
+   "text": "JEHO CERTIFIKÁTY"
+  },
+  "art2_21": {
+   "source": "SEEN AND ASKED FOR BY THE WHOLE TEAM",
+   "text": "VIDÍ JE A ŽÁDÁ O NĚ CELÝ TÝM"
+  },
+  "art2_22": {
+   "source": "Everything at a glance, all of it well",
+   "text": "Všechno na první pohled, všechno v pořádku"
+  },
+  "art2_23": {
+   "source": "CERTIFICATES",
+   "text": "CERTIFIKÁTY"
+  },
+  "art2_24": {
+   "source": "SOURCES",
+   "text": "ZDROJE"
+  },
+  "art2_25": {
+   "source": "TARGETS",
+   "text": "CÍLE"
+  },
+  "art2_26": {
+   "source": "TESTS",
+   "text": "TESTY"
+  },
+  "art2_27": {
+   "source": "EVERYTHING AT A GLANCE · ALL OF IT WELL",
+   "text": "VŠECHNO NA PRVNÍ POHLED · VŠECHNO V POŘÁDKU"
+  },
+  "art2_28": {
+   "source": "Two nodes, one address, one database",
+   "text": "Dva uzly, jedna adresa, jedna databáze"
+  },
+  "art2_29": {
+   "source": "ONE ADDRESS",
+   "text": "JEDNA ADRESA"
+  },
+  "art2_30": {
+   "source": "ready",
+   "text": "připraven"
+  },
+  "art2_31": {
+   "source": "THE DATABASE",
+   "text": "DATABÁZE"
+  },
+  "art2_32": {
+   "source": "TWO NODES · ONE ADDRESS · NOTHING LOST",
+   "text": "DVA UZLY · JEDNA ADRESA · NIC SE NEZTRATÍ"
+  },
+  "art2_33": {
+   "source": "Every authority, into one place",
+   "text": "Každá autorita, na jedno místo"
+  },
+  "art2_34": {
+   "source": "THE AUTHORITIES",
+   "text": "AUTORITY"
+  },
+  "art2_35": {
+   "source": "internal CA",
+   "text": "interní CA"
+  },
+  "art2_36": {
+   "source": "a reseller",
+   "text": "prodejce"
+  },
+  "art2_37": {
+   "source": "ONE PLACE",
+   "text": "JEDNO MÍSTO"
+  },
+  "art2_38": {
+   "source": "EVERY AUTHORITY · ONE STORE · ONE WAY",
+   "text": "KAŽDÁ AUTORITA · JEDNO ÚLOŽIŠTĚ · JEDEN POSTUP"
+  },
+  "art2_39": {
+   "source": "The jobs, by themselves and on time",
+   "text": "Úlohy, samy a včas"
+  },
+  "art2_40": {
+   "source": "THE JOBS",
+   "text": "ÚLOHY"
+  },
+  "art2_41": {
+   "source": "RENEWED",
+   "text": "OBNOVENO"
+  },
+  "art2_42": {
+   "source": "BEING PUT IN",
+   "text": "NASAZUJE SE"
+  },
+  "art2_43": {
+   "source": "AGAIN IN 10 MIN",
+   "text": "ZNOVU ZA 10 MIN"
+  },
+  "art2_44": {
+   "source": "ON TIME",
+   "text": "VČAS"
+  },
+  "art2_45": {
+   "source": "QUEUED · DONE · TRIED AGAIN - NOBODY WAITS",
+   "text": "VE FRONTĚ · HOTOVO · ZKUSÍ ZNOVU – NIKDO NEČEKÁ"
+  },
+  "art2_46": {
+   "source": "Every change written down, every failure told",
+   "text": "Každá změna zapsaná, každá chyba nahlášená"
+  },
+  "art2_47": {
+   "source": "THE EVENTS",
+   "text": "UDÁLOSTI"
+  },
+  "art2_48": {
+   "source": "TOLD AT ONCE",
+   "text": "HNED NAHLÁŠENO"
+  },
+  "art2_49": {
+   "source": "EVERY CHANGE WRITTEN · EVERY FAILURE TOLD",
+   "text": "KAŽDÁ ZMĚNA ZAPSANÁ · KAŽDÁ CHYBA NAHLÁŠENÁ"
+  },
+  "art2_50": {
+   "source": "that picture is for the sign-in of the enrolment pages only",
+   "text": "ten obrázek je jen pro přihlášení na stránky registrace"
+  },
+  "art2_51": {
+   "source": "that picture is for the sign-in of the administration only",
+   "text": "ten obrázek je jen pro přihlášení do administrace"
   }
  },
  "patterns": {
