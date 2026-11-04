@@ -123,6 +123,91 @@ def event_fields(kind, words, level):
     return out
 
 
+# ---- the certificates' work in detail (1.0.44) ------------------------------------------------
+# Every job (an order, a renewal, a deployment, the tests, an import from a source, a revocation,
+# a dry run) said step by step - its start, every step with the module that said it, every HTTPS
+# request of a module (the host, the path, the answer, how long), its end - and every test's
+# result, from the program `acme-jobs` (kind=job / kind=check), for isemon to build its analytics
+# on (isemon_detail). Never anything secret: detail_redact() takes out of every word what could be
+# - a PEM block, a password, a token or a key given as key=value or in a header, an address's
+# user and the secret parameters of its query, a long mixed-case blob (a JWS, a key, a token).
+
+DETAIL_SINK = [None]                    # the daemon's Shipper
+DETAIL_HIDDEN = '[hidden]'
+_DR_PEM = re.compile(r'-----BEGIN ([A-Z0-9 ]+)-----.*?(?:-----END \1-----|\Z)', re.S)
+_DR_JWT = re.compile(r'\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_.-]{6,}')
+_DR_HDR = re.compile(r'(?i)\b(Bearer|Basic|Digest|Token|Negotiate|NTLM)\s+[A-Za-z0-9._~+/=-]{6,}')
+_DR_KV = re.compile(
+    r'(?i)(\b[\w.-]*(?:password|passwd|passphrase|secret|token|api[_-]?key|apikey|access[_-]?key|'
+    r'private[_-]?key|privkey|client[_-]?key|credential|cookie|session|hmac|tsig|eab|signature|'
+    r'authorization|x-auth[\w-]*|x-api[\w-]*)[\w.-]*["\']?\s*[:=]\s*)'
+    r'(?!\[hidden\])("[^"]*"|\'[^\']*\'|[^\s,;&"\'}\]]+)')
+_DR_URL = re.compile(r'\b(https?|ldaps?|ftps?|sftp|smb)://[^\s"\'<>]+')
+_DR_BLOB = re.compile(r'(?<![A-Za-z0-9+_=-])(?=[A-Za-z0-9+_=-]{32,})(?=[^\s]*[a-z])(?=[^\s]*[A-Z])'
+                      r'(?=[^\s]*[0-9])[A-Za-z0-9+_=-]{32,}')
+_DR_SECRET_PARAM = re.compile(r'(key|token|pass|secret|sig|auth|credential|session|code)', re.I)
+
+
+def _dr_url(m):
+    url = m.group(0)
+    try:
+        u = urllib.parse.urlsplit(url)
+    except ValueError:
+        return DETAIL_HIDDEN
+    net = u.netloc
+    if '@' in net:
+        net = DETAIL_HIDDEN + '@' + net.rsplit('@', 1)[1]
+    q = '&'.join(
+        '%s=%s' % (k, DETAIL_HIDDEN if _DR_SECRET_PARAM.search(k) and v else v) if eq else k
+        for k, eq, v in (x.partition('=') for x in u.query.split('&') if x)) if u.query else ''
+    return urllib.parse.urlunsplit((u.scheme, net, u.path, q, ''))
+
+
+def detail_redact(text):
+    """Words with whatever could be secret taken out (see above) - for every line that leaves."""
+    s = str(text if text is not None else '')
+    if not s:
+        return s
+    s = _DR_PEM.sub(lambda m: '[%s left out]' % m.group(1).strip().lower(), s)
+    s = _DR_JWT.sub(DETAIL_HIDDEN, s)
+    s = _DR_HDR.sub(lambda m: '%s %s' % (m.group(1), DETAIL_HIDDEN), s)
+    s = _DR_URL.sub(_dr_url, s)
+    s = _DR_KV.sub(lambda m: m.group(1) + DETAIL_HIDDEN, s)
+    s = _DR_BLOB.sub(DETAIL_HIDDEN, s)
+    return s
+
+
+def detail_on():
+    return bool(CONFIG.get('isemon_detail', 1) and (CONFIG.get('isemon') or CONFIG.get('ship_files'))
+                and DETAIL_SINK[0] is not None)
+
+
+def ship_detail(kind, level, who, fields, words):
+    """One line of the certificates' work (kind job or check) to isemon and acme-jobs.log -
+    nothing when it is switched off. Never raises, never waits."""
+    try:
+        if not detail_on():
+            return
+        DETAIL_SINK[0].detail_line(kind, level, who, fields, words)
+    except Exception:                                   # noqa: BLE001
+        pass
+
+
+def detail_fields(fields):
+    out = {}
+    for k, v in (fields or {}).items():
+        if v is None or v == '' or not EVENT_KEY_RE.match(str(k)):
+            continue
+        if isinstance(v, bool):
+            v = 1 if v else 0
+        if isinstance(v, (list, tuple, set)):
+            v = ','.join(str(x) for x in v)
+        if isinstance(v, float):
+            v = ('%.3f' % v).rstrip('0').rstrip('.')
+        out[str(k)] = detail_redact(re.sub(r'[\r\n\t]+', ' ', str(v)))[:500]
+    return out
+
+
 def _conn_alive(sock):
     """Whether a connection the other side never writes into is still open:
     readable means closed (or, over TLS, a session ticket - read, and still
@@ -214,11 +299,19 @@ class Shipper(object):
         cert = kind in ISEMON_KINDS
         if not cert and not CONFIG.get('isemon_events'):
             return
-        line = event_kv(kind, words, level, who, log_node(), event_fields(kind, words, level))
+        # Nothing secret leaves in an event either (1.0.44).
+        line = event_kv(kind, detail_redact(words), level, who, log_node(),
+                        {k: detail_redact(v) for k, v in event_fields(kind, words, level).items()})
         if cert:
             self.put('acme-certs', 'daemon', line, file_name='acme-certs.log')
         else:
             self.put('acme', 'daemon', line, file_name=None)
+
+    def detail_line(self, kind, level, who, fields, words):
+        """The certificates' work in detail (isemon_detail, 1.0.44): acme-jobs lines."""
+        line = event_kv(kind, detail_redact(words), level, who or 'acme', log_node(),
+                        detail_fields(fields))
+        self.put('acme-jobs', 'daemon', line, file_name='acme-jobs.log')
 
     # ---- sending ---------------------------------------------------------------
     def run(self):

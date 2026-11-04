@@ -590,6 +590,8 @@ def record(store, chk, got, step=None):
             step(line)
     went_bad = not got['ok'] and (before in ('', 'ok', 'warn') or fails == 0)
     came_back = got['ok'] and before in BAD
+    ship_result(store, chk, got, cert, trow, fields['fails'], before,
+                'bad' if went_bad else ('back' if came_back else ''))
     if went_bad or came_back:
         store.add_event('certificates', 'test %s of %s: %s%s' % (
             what, (cert or {}).get('name', '?'), got['said'],
@@ -607,6 +609,30 @@ def record(store, chk, got, step=None):
             except Exception as e:                      # noqa: BLE001
                 E.log('telling about test %s: %s' % (what, e), 'warn')
     return got
+
+
+def ship_result(store, chk, got, cert, trow, fails, before, went):
+    """A test's result to isemon (isemon_detail, 1.0.44): every run, with what it found -
+    the values of its detail one by one (what was served, what was expected, days left...)."""
+    try:
+        if not E.detail_on():
+            return
+        f = {'event': 'result', 'check_id': chk.get('id'), 'test': chk.get('test'),
+             'test_kind': (trow or {}).get('kind'), 'cert': (cert or {}).get('name'),
+             'cert_id': chk.get('cert_id'), 'names': S.jload((cert or {}).get('names'), []) or None,
+             'state': got.get('state'), 'ok': bool(got.get('ok')), 'ms': got.get('ms'),
+             'fails': fails, 'before': before or None, 'went': went or None,
+             'endpoint': label(trow, cert) if trow else None}
+        for k, v in sorted((got.get('detail') or {}).items()):
+            if isinstance(v, (str, int, float, bool)) and v not in ('', None):
+                f['d_' + re.sub(r'[^a-z0-9_]', '_', str(k).lower())[:28]] = v
+            elif isinstance(v, (list, tuple)) and all(isinstance(x, (str, int, float)) for x in v):
+                f['d_' + re.sub(r'[^a-z0-9_]', '_', str(k).lower())[:28]] = ','.join(
+                    str(x) for x in v[:20])
+        E.ship_detail('check', {'ok': 'ok', 'warn': 'warn'}.get(got.get('state'), 'bad'),
+                      'acme', f, got.get('said') or got.get('state') or '')
+    except Exception:                                   # noqa: BLE001
+        pass
 
 
 def run(store, chk, step=None):

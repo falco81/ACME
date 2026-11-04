@@ -186,6 +186,20 @@ class AcmeIssuer(Issuer):
         except Exception:                           # noqa: BLE001
             pass
 
+    def _ship(self, event, level, words, **fields):
+        """A line of fields of its own for isemon (1.0.44: the validations) - where the
+        context sends them (acme's own jobs); never raises."""
+        sh = getattr(self.ctx, 'ship', None)
+        if sh is None:
+            return
+        try:
+            sh(event, level, words, **fields)
+        except Exception:                           # noqa: BLE001
+            pass
+
+    def _via(self, t):
+        return getattr(getattr(t.get('mod'), 'ctx', None), 'scope', None)
+
     def client(self):
         verify = self.c('verify')
         verify = True if verify in (None, '') else bool(verify) and str(verify).lower() not in ('0', 'false', 'no')
@@ -527,8 +541,12 @@ class AcmeIssuer(Issuer):
                     t['shown'], t['type'].upper(),
                     (' (TXT _acme-challenge.%s = %s)' % (t['name'], t['txt']))
                     if t['type'] == 'dns-01' else ' (/.well-known/acme-challenge/%s)' % t['token']))
+                t['began'] = time.time()
                 t['handle'] = t['mod'].present(t['name'], t['token'], t['keyauth'], t['txt'])
                 t['presented'] = True
+                self._ship('validation', 'info', '%s: %s put in place' % (t['shown'], t['type']),
+                           name=t['shown'], challenge_type=t['type'], via=self._via(t),
+                           state='presented', ms=int((time.time() - t['began']) * 1000))
             self._wait_ready([t for t in group if not t.get('persist')])
             for t in group:
                 self._say('%s: the CA is asked to check%s' % (
@@ -536,9 +554,22 @@ class AcmeIssuer(Issuer):
                     else ''))
                 cl.post_json(t['chal']['url'], {})
             for t in group:
-                cl.poll(t['url'], ('valid',), 'the CA did not accept %s' % t['shown'],
-                        self._num('wait_valid', 180), self._num('poll_every', 5), self.ctx.cancelled)
+                t.setdefault('began', time.time())
+                try:
+                    cl.poll(t['url'], ('valid',), 'the CA did not accept %s' % t['shown'],
+                            self._num('wait_valid', 180), self._num('poll_every', 5),
+                            self.ctx.cancelled)
+                except Exception as e:              # noqa: BLE001
+                    self._ship('validation', 'bad', '%s: not proved: %s' % (t['shown'], e),
+                               name=t['shown'], challenge_type=t['type'], via=self._via(t),
+                               state='invalid', persist=bool(t.get('persist')),
+                               ms=int((time.time() - t['began']) * 1000), error=str(e)[:300])
+                    raise
                 self._say('%s: proved' % t['shown'], 'ok')
+                self._ship('validation', 'ok', '%s: proved by %s' % (t['shown'], t['type']),
+                           name=t['shown'], challenge_type=t['type'], via=self._via(t),
+                           state='valid', persist=bool(t.get('persist')),
+                           ms=int((time.time() - t['began']) * 1000))
         finally:
             for t in group:
                 if not t['presented']:

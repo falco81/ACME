@@ -37,6 +37,7 @@ class Daemon(object):
         self.login_info = {}
         if serve:
             self.shipper = Shipper()
+            DETAIL_SINK[0] = self.shipper       # the certificates' work in detail (1.0.44)
             self.siem = Siem()
             # Both told of each event (1.0.166); each only queues it.
             store.on_event = lambda *a, _s=(self.shipper, self.siem): [x.event_line(*a) for x in _s]

@@ -134,13 +134,25 @@ class RunContext(base.Context):
     def step(self, words, level='info'):
         level = level if level in ('info', 'ok', 'warn', 'bad', 'debug') else 'info'
         if self.job is not None:
-            self.job.step(words, level)
+            if hasattr(self.job, 'ship'):               # a jobs.Job: the module named
+                self.job.step(words, level, scope=self.scope)
+            else:
+                self.job.step(words, level)
         else:
             self.steps.append([time.time(), level, str(words)[:4000]])
+
+    def ship(self, event, level, words, **fields):
+        """A line of a module's with fields of its own for isemon (isemon_detail, 1.0.44):
+        a validation, an order - in the job it works for, the module named."""
+        if self.job is not None and hasattr(self.job, 'ship'):
+            self.job.ship(event, level, words, scope=self.scope, **fields)
 
     def debug(self, words):
         if E.CONFIG.get('debug'):
             self.step(words, 'debug')
+        elif self.job is not None and hasattr(self.job, 'ship'):
+            # Not kept in the job's steps without debugging on - but isemon gets it (1.0.44).
+            self.job.ship('debug', 'debug', str(words)[:4000], scope=self.scope)
 
     def cancelled(self):
         if self._stop.is_set():
@@ -232,25 +244,50 @@ class RunContext(base.Context):
             if tmp:
                 shutil.rmtree(tmp, ignore_errors=True)
 
+    def _http_shipped(self, method, url, began, status=None, size=None, error=None):
+        """A module's HTTPS request, said to isemon (1.0.44): host, path - its query's names
+        only, no value -, the answer, how long, how big."""
+        job = self.job
+        if job is None or not hasattr(job, 'ship'):
+            return
+        try:
+            u = urllib.parse.urlsplit(str(url))
+            q = ','.join(sorted({p.partition('=')[0] for p in u.query.split('&') if p}))
+            job.ship('http', 'warn' if error or (status or 0) >= 400 else 'debug',
+                     '%s %s%s -> %s' % (method, u.hostname or '', u.path or '/',
+                                        error or status),
+                     scope=self.scope, method=method, host=u.hostname, port=u.port,
+                     path=u.path or '/', query_keys=q or None, status=status,
+                     ms=int((time.time() - began) * 1000), bytes=size,
+                     error=str(error)[:300] if error else None)
+        except Exception:                               # noqa: BLE001
+            pass
+
     def _http_once(self, req, url, timeout, ctx, proxy):
         self.debug('%s %s' % (req.get_method(), url_shown(url)))
+        began = time.time()
         try:
             from acmelib.certs import dnssets       # the name asked of Settings → DNS
             with dnssets.scope(dnssets.purpose_of(self.scope), self.store, say=self.debug):
                 got = E.url_open(req, timeout=timeout, context=ctx,
                                  purpose='acme' if proxy else '')
             with got:
-                return got.status, header_dict(got.headers), got.read()
+                data = got.read()
+                self._http_shipped(req.get_method(), url, began, got.status, len(data))
+                return got.status, header_dict(got.headers), data
         except urllib.error.HTTPError as e:
             try:
                 data = e.read()
             except Exception:                       # noqa: BLE001
                 data = b''
+            self._http_shipped(req.get_method(), url, began, e.code, len(data))
             return e.code, header_dict(e.headers), data
         except urllib.error.URLError as e:
+            self._http_shipped(req.get_method(), url, began, error=getattr(e, 'reason', e))
             raise base.PluginError('%s could not be reached: %s' % (
                 urllib.parse.urlsplit(url).netloc, getattr(e, 'reason', e)))
         except (OSError, ssl.SSLError) as e:
+            self._http_shipped(req.get_method(), url, began, error=e)
             raise base.PluginError('%s: %s' % (urllib.parse.urlsplit(url).netloc, e))
 
     # ---- SSH and openssl ---------------------------------------------------------------

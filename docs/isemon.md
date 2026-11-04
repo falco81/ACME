@@ -34,6 +34,33 @@ gone), the same way as program `acme` - with `isemon_events` on.
 The very same `acme-certs` lines are written to
 `/var/log/acme/acme-certs.log` whether or not they are sent (`ship_files`).
 
+### The certificates' work in detail (`isemon_detail`, 1.0.44)
+
+On by default: every job of the certificates step by step, program `acme-jobs`,
+for isemon's analytics - an order or a renewal (and its validations), a
+deployment, the tests, an import from a source, a revocation, a dry run:
+
+- `kind=job event=start|step|debug|http|validation|end` - every line carries
+  the job (`job`, `job_kind`), its certificate (`cert`, `cert_id`, `names`,
+  `issuer`, `issuer_kind`, `key_type`, `version`, `serial`, `fingerprint`,
+  `not_before`, `not_after`, `cert_state`, `challenge`, `owner`), its target
+  (`target`, `target_kind`, `deploy_id`) and `t_ms` since it began; a step
+  `seq` and, said by a module, `module_kind` / `module` (`issuer`,
+  `challenge`, `target`); a module's HTTPS request `method host port path
+  query_keys status ms bytes` (no query values); a validation `name
+  challenge_type via state ms`; the end `state ok took_ms steps
+  result_version`;
+- `kind=check event=result` - every test's result: `check_id test test_kind
+  cert names state ok ms fails before went endpoint` and what it found,
+  `d_<key>` a value.
+
+Nothing secret is ever sent: `detail_redact()` takes out of every line (and of
+the `acme-certs` and `acme` lines too) a PEM block, a password, token, key or
+secret given as key=value or in a header, a URL's user and the values of its
+secret query parameters, a JWS, and any long mixed-case blob. The same lines go
+to `/var/log/acme/acme-jobs.log` with `ship_files`. The rule on the isemon side
+(`deploy/isemon/11-acme.conf`) files them as `acme-jobs.log`.
+
 ## On the acme server
 
 Settings → isemon, or:

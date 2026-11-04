@@ -53491,6 +53491,10 @@
   "plc_19": {
    "source": "The portal sends acme’s own accounts a one-time code (Settings → The enrolment pages): without where to send it, this account cannot sign in there. Give it with the envelope button.",
    "text": "Portál posílá vlastním účtům acme jednorázový kód (Nastavení → Stránky registrace): bez místa, kam ho poslat, se tento účet na portál nepřihlásí. Doplňte ho tlačítkem s obálkou."
+  },
+  "idet_1": {
+   "source": "Send the certificates’ work in detail",
+   "text": "Posílat podrobně práci s certifikáty"
   }
  },
  "patterns": {
@@ -73911,6 +73915,10 @@
   "rplc8": {
    "source": "acme’s own accounts signing in on the portal (the role <i>enrolment pages only</i>, and the others with <i>acme’s own accounts may sign in too</i>): after the right password a one-time code goes to the e-mail address or the mobile number the account has in <i>Accounts</i>, and only with it typed are they in. Its own setting - not the second step of the administration, which the portal does not ask while this is on. <i>As for the people of the directory</i> follows <i>A one-time code at every sign-in</i> above. An account without what the way chosen needs (by e-mail and no address; by SMS and no number, with no e-mail to fall back to) cannot sign in here: give it in <i>Accounts</i>.",
    "text": "Vlastní účty acme přihlašující se na portál (role <i>jen enrolment stránky</i> a ostatní s <i>Přihlásit se mohou i vlastní účty acme</i>): po správném hesle přijde jednorázový kód na e-mailovou adresu nebo mobilní číslo, které účet má v <i>Účtech</i>, a teprve s ním zadaným jsou přihlášení. Samostatné nastavení - ne druhý krok administrace, na který se portál, dokud je toto zapnuté, neptá. <i>Stejně jako pro lidi z adresáře</i> se řídí nastavením <i>Jednorázový kód při každém přihlášení</i> výše. Účet bez toho, co zvolený způsob potřebuje (e-mailem a bez adresy; SMS a bez čísla, bez e-mailu jako náhrady), se tu nepřihlásí: doplňte to v <i>Účtech</i>."
+  },
+  "ridet_1": {
+   "source": "Every job of the certificates step by step - an order, a renewal and its validation, a deployment, the tests, an import from a source, a revocation, a dry run: its start, each step with the module that said it, each HTTPS request of a module (host, path, answer, time), its end - and the result of every test, as <code>acme-jobs</code> lines with fields of their own, for isemon's analytics. Nothing secret is ever sent: keys, passwords, tokens, a URL's user and its secret parameters are taken out of every line. Also into <code>/var/log/acme/acme-jobs.log</code> with the files on.",
+   "text": "Každá úloha certifikátů krok za krokem – objednávka, obnova a její validace, nasazení, testy, import ze zdroje, odvolání, zkušební běh: její začátek, každý krok s modulem, který ho ohlásil, každý HTTPS požadavek modulu (server, cesta, odpověď, čas), její konec – a výsledek každého testu, jako řádky <code>acme-jobs</code> s vlastními poli, pro analytiku isemonu. Nikdy se neposílá nic citlivého: klíče, hesla, tokeny, uživatel v URL a jeho tajné parametry se z každého řádku odstraní. Se zapnutými soubory také do <code>/var/log/acme/acme-jobs.log</code>."
   }
  }
 }

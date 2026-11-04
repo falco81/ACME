@@ -101,6 +101,8 @@ DEFAULTS = {
     'isemon_targets': '',
     'isemon_hostname': '',
     'isemon_events': 0,
+    # The certificates' work in detail - jobs step by step, the tests (1.0.44): acme-jobs lines.
+    'isemon_detail': 1,
     'isemon_max_bytes': 1800,
     'isemon_ca': '',
     # --- Prometheus (1.0.173) ----------------------------------------------------
@@ -402,7 +404,7 @@ TUNABLE = {
     'login_guard_window_min': (1, 1440), 'login_guard_block_min': (1, 10080),
     'dir_pw_tries': (0, 100), 'dir_pw_window_min': (1, 1440),
     'admin_2fa': (0, 1), 'admin_2fa_app': (0, 1), 'admin_2fa_mail': (0, 1), 'admin_2fa_sms': (0, 1),
-    'isemon': (0, 1), 'isemon_events': (0, 1),
+    'isemon': (0, 1), 'isemon_events': (0, 1), 'isemon_detail': (0, 1),
     'isemon_verify': (0, 1), 'isemon_mtls': (0, 1), 'metrics': (0, 1),
     'ssh_gate_port': (18129, 18199),
     'snmp': (0, 1), 'snmp_port': (1, 65535), 'snmp_auth': ('SHA-256', 'SHA-512', 'SHA-1'),
@@ -655,6 +657,7 @@ NAMES = {
     'isemon_targets': 'isemon’s syslog receivers',
     'isemon_hostname': 'The name this machine is written under',
     'isemon_events': 'Send this daemon’s own events as well',
+    'isemon_detail': 'Send the certificates’ work in detail',
     'isemon_max_bytes': 'Longest message (bytes)',
     'isemon_ca': 'isemon’s certificate authority (TLS)',
     'metrics': 'Prometheus metrics (/metrics)',
@@ -1197,6 +1200,14 @@ SAYS = {
                        'own short name.',
     'isemon_events': 'Every other event of acme as well (a setting changed, a sign-in, a '
                      'node gone), as <code>acme</code> lines.',
+    'isemon_detail': 'Every job of the certificates step by step - an order, a renewal and its '
+                     'validation, a deployment, the tests, an import from a source, a revocation, '
+                     'a dry run: its start, each step with the module that said it, each HTTPS '
+                     'request of a module (host, path, answer, time), its end - and the result '
+                     'of every test, as <code>acme-jobs</code> lines with fields of their own, '
+                     'for isemon\'s analytics. Nothing secret is ever sent: keys, passwords, '
+                     'tokens, a URL\'s user and its secret parameters are taken out of every '
+                     'line. Also into <code>/var/log/acme/acme-jobs.log</code> with the files on.',
     'isemon_max_bytes': 'A message longer than this is cut, with <code>...TRUNCATED</code> at '
                         'the end. rsyslog cuts at 2048 bytes over UDP unless '
                         '<code>$MaxMessageSize</code> says more on both machines.',
@@ -1479,7 +1490,7 @@ PANES = {
     'portalsso': ['portal_sso', 'portal_sso_from', 'portal_sso_header', 'portal_sso_key',
                   'portal_sso_logout'],
     'isemon': ['isemon', 'isemon_targets', 'isemon_hostname',
-               'isemon_events', 'isemon_max_bytes', 'isemon_verify', 'isemon_mtls',
+               'isemon_events', 'isemon_detail', 'isemon_max_bytes', 'isemon_verify', 'isemon_mtls',
                'isemon_ca', 'ship_files'],
     # Sign-in protection (as otp 1.0.230-1.0.241): its own pane, as otp has it.
     'guard': ['login_guard', 'login_guard_tries', 'login_guard_names', 'login_guard_window_min',
@@ -1570,7 +1581,7 @@ ONLY_WHEN = {
     'portal_local': ['portal', '1'], 'portal_admins_all': ['portal_local', '1'],
     'portal_enrolers': ['portal', '1'], 'portal_local_code': ['portal', '1'],
     'isemon_targets': ['isemon', '1'], 'isemon_hostname': ['isemon', '1'],
-    'isemon_events': ['isemon', '1'],
+    'isemon_events': ['isemon', '1'], 'isemon_detail': ['isemon', '1'],
     'isemon_max_bytes': ['isemon', '1'], 'isemon_ca': ['isemon', '1'],
     'metrics_token': ['metrics', '1'], 'metrics_from': ['metrics', '1'],
     'snmp_port': ['snmp', '1'], 'snmp_bind': ['snmp', '1'], 'snmp_from': ['snmp', '1'],

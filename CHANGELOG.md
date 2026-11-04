@@ -6,6 +6,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.44 - not released
 
+- **isemon gets the certificates' work in detail** (Settings → isemon → *Send the certificates'
+  work in detail*, on by default): every job - an order or a renewal with its validations, a
+  deployment, the tests, an import from a source, a revocation, a dry run - its start, every
+  step with the module that said it, every HTTPS request of a module (host, path, the answer,
+  how long), every validation (the name, the way, presented / valid / invalid, how long), its
+  end, and every test's result with what it found, as `acme-jobs` lines with fields of their
+  own for isemon's analytics (also `/var/log/acme/acme-jobs.log`). Nothing secret leaves: keys,
+  passwords, tokens, a URL's user and its secret parameters, JWS and long blobs are taken out
+  of every line - the `acme-certs` and `acme` lines too. The rule for isemon's rsyslog
+  (`deploy/isemon/11-acme.conf`) files `acme-jobs` too: copy it again.
+
 - **The portal's one-time code for acme's own accounts too.** With *A one-time code at every
   sign-in* on, the directory's people needed the code - and an account of acme's own (the role
   *enrolment pages only*, or with *acme's own accounts may sign in too*) got in with its password

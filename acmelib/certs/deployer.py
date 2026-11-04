@@ -23,6 +23,7 @@ from acmelib import engine as E
 from acmelib.plugins import base
 from acmelib.certs import store as S
 from acmelib.certs import runtime
+from acmelib.certs import jobs
 from acmelib.certs.jobs import JobStopped
 
 
@@ -67,7 +68,9 @@ def deploy_one(store, job, cert, dep, force=False):
     in place even where the fingerprint there is the same (options['force'])."""
     t = time.time()
     trow = S.plugin_row(store, 'target', dep['target'])
-    step = job.step
+
+    def step(words, level='info'):                      # isemon's line names the target
+        jobs.step_in(job, words, level, scope='target:%s' % dep['target'])
     if not trow:
         why = 'there is no target %s' % dep['target']
         _failed(store, dep, why)

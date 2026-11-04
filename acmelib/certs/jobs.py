@@ -58,15 +58,20 @@ class Job(object):
         self._lock = threading.Lock()
         self._flushed = 0.0
         self._looked = 0.0
+        self._base = None               # what isemon's lines of this job carry (1.0.44)
+        self.made = time.time()
+        self.why = ''
+        self._seq = 0
 
     # ---- the steps -------------------------------------------------------------------------
-    def step(self, words, level='info'):
+    def step(self, words, level='info', scope=None):
         one = [round(time.time(), 3), level, str(words)[:4000]]
         with self._lock:
             if len(self.steps) < STEPS_MOST:
                 self.steps.append(one)
             elif len(self.steps) == STEPS_MOST:
                 self.steps.append([one[0], 'warn', 'more steps than are kept: the rest is left out'])
+        self.ship('step', level, one[2], scope=scope)
         if self.echo:
             try:
                 self.echo(one)
@@ -74,6 +79,66 @@ class Job(object):
                 pass
         if level in ('ok', 'warn', 'bad') or time.time() - self._flushed > 1.0:
             self.flush()
+
+    # ---- isemon's lines of it (isemon_detail, 1.0.44) --------------------------------------
+    def base_fields(self):
+        """What every line of this job says of it: the job, its certificate (name, names, the
+        source it comes from and the source's kind, the key), its target - read once."""
+        if self._base is not None:
+            return self._base
+        b = {'job': self.id, 'job_kind': self.kind}
+        try:
+            cert = S.cert_get(self.store, self.cert_id) if self.cert_id is not None else None
+            if cert:
+                b.update(cert=cert.get('name'), cert_id=cert.get('id'),
+                         names=S.jload(cert.get('names'), []) or None,
+                         issuer=cert.get('issuer'), key_type=cert.get('key_type'),
+                         key_type_alt=cert.get('key_type_alt'), version=cert.get('version'),
+                         cert_state=cert.get('state'), serial=cert.get('serial'),
+                         fingerprint=cert.get('fingerprint'),
+                         not_after=_iso(cert.get('not_after')),
+                         not_before=_iso(cert.get('not_before')),
+                         challenge=cert.get('challenge'), owner=cert.get('owner'))
+                if cert.get('issuer'):
+                    irow = S.plugin_row(self.store, 'issuer', cert['issuer'])
+                    if irow:
+                        b['issuer_kind'] = irow.get('kind')
+            target = self.target
+            if self.deploy_id is not None:
+                dep = self.store.db.row('SELECT target FROM cert_deploys WHERE id = ?',
+                                        (self.deploy_id,))
+                target = (dep or {}).get('target') or target
+                b['deploy_id'] = self.deploy_id
+            if target:
+                b['target'] = target
+                trow = S.plugin_row(self.store, 'target', target)
+                if trow:
+                    b['target_kind'] = trow.get('kind')
+        except Exception:                               # noqa: BLE001
+            pass
+        self._base = b
+        return b
+
+    def ship(self, event, level, words, scope=None, **more):
+        """One line of this job to isemon (event start / step / http / end) - nothing when
+        isemon_detail is off; never raises."""
+        try:
+            if not E.detail_on():
+                return
+            f = dict(self.base_fields())
+            f['event'] = event
+            f['t_ms'] = int((time.time() - self.started) * 1000)
+            if event == 'step':
+                self._seq += 1
+                f['seq'] = self._seq
+            if scope and ':' in str(scope):
+                f['module_kind'], f['module'] = str(scope).split(':', 1)
+            elif scope:
+                f['module'] = scope
+            f.update(more)
+            E.ship_detail('job', level, self.by or 'acme', f, words)
+        except Exception:                               # noqa: BLE001
+            pass
 
     def flush(self, **more):
         with self._lock:
@@ -109,6 +174,11 @@ class Job(object):
         self.state = 'stopped' if self.stop.is_set() and not ok else ('ok' if ok else 'failed')
         self.said = str(said or '')[:2000]
         t = time.time()
+        self._base = None               # the certificate as it is now: its new version
+        self.ship('end', 'ok' if ok else ('warn' if self.state == 'stopped' else 'bad'),
+                  self.said or self.state, state=self.state, ok=bool(ok),
+                  took_ms=int((t - self.started) * 1000), steps=len(self.steps),
+                  result_version=self.version)
         self.flush(ok=1 if ok else 0, finished=t, took_ms=int((t - self.started) * 1000),
                    said=self.said, version=self.version)
         try:
@@ -122,6 +192,22 @@ class Job(object):
         return {'id': self.id, 'kind': self.kind, 'cert_id': self.cert_id,
                 'deploy_id': self.deploy_id, 'target': self.target, 'state': self.state,
                 'ok': self.ok, 'steps': steps, 'live': True}
+
+
+def _iso(t):
+    try:
+        return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(float(t))) if t else None
+    except (TypeError, ValueError):
+        return None
+
+
+def step_in(job, words, level='info', scope=None):
+    """A step said for a module (scope 'challenge:<name>', 'target:<name>'...): isemon's line
+    names it (1.0.44). Any other kind of job takes the step as it is."""
+    if scope and hasattr(job, 'ship'):
+        job.step(words, level, scope=scope)
+    else:
+        job.step(words, level)
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +241,7 @@ def new_job(store, kind, cert_id=None, deploy_id=None, target=None, by='', said=
         'finished': None, 'took_ms': None, 'steps': '[]', 'by_who': str(by or '')[:190],
         'said': str(said or '')[:2000], 'version': None})
     job = Job(store, ident, kind, cert_id, deploy_id, target, by, echo)
+    job.why = str(said or '')[:500]
     with _LOCK:
         RUNNING[ident] = job
     return job
@@ -169,6 +256,8 @@ def _work(job, fn):
         job.state = 'running'
         job.started = time.time()
         job.flush()
+        job.ship('start', 'info', job.why or '%s started' % job.kind, queued_ms=int(
+            (job.started - float(getattr(job, 'made', job.started))) * 1000))
         try:
             got = fn(job)
         except JobStopped as e:

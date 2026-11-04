@@ -328,7 +328,7 @@ def _challenges(store, job, cert, names, contexts):
             made[which] = S.plugin_instance(store, 'challenge', crow, cctx,
                                             S.cert_over(cert, 'challenge', crow['name']))
         out[n] = made[which]
-        job.step('%s is proved by %s' % (n, which))
+        jobs.step_in(job, '%s is proved by %s' % (n, which), scope='challenge:%s' % which)
     return out
 
 
