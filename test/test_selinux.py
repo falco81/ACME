@@ -24,6 +24,7 @@ import tarfile
 import tempfile
 import time
 import unittest
+from unittest import mock
 from types import SimpleNamespace
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -269,6 +270,16 @@ class TestDaemon(unittest.TestCase):
         self.assertEqual([b['name'] for b in w['booleans']], ['httpd_can_network_connect'])
         self.assertTrue(all(p['type'] in ('ssh_port_t', 'postgresql_port_t') for p in w['ports']))
         self.assertIn('acme', w['facts'])
+
+    def test_mariadb_on_a_port_of_its_own(self):
+        with mock.patch.dict(E.CONFIG, {'db_engine': 'mariadb', 'db_host': '127.0.0.1', 'db_port': 3307}):
+            w = E.selinux_want(STORE)
+        self.assertIn({'port': 3307, 'proto': 'tcp', 'type': 'mysqld_port_t',
+                       'why': 'MariaDB of this node listens on it'}, w['ports'])
+        with mock.patch.dict(E.CONFIG, {'db_engine': 'mariadb', 'db_host': 'db.example.cz', 'db_port': 3307}):
+            self.assertFalse(any(p['type'] == 'mysqld_port_t' for p in E.selinux_want(STORE)['ports']))
+        # And the root helper takes it.
+        self.assertIn('mysqld_port_t', W.SE_PORT_TYPES)
 
     def test_problems_security_check_and_alert(self):
         STORE.set_meta('host:selinux:now:' + E.node_name(), json.dumps({

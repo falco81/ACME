@@ -46,6 +46,10 @@ def selinux_want(store):
     if eng == 'postgres' and host in ('', '127.0.0.1', 'localhost', '::1') and dp not in (0, 5432):
         ports.append({'port': dp, 'proto': 'tcp', 'type': 'postgresql_port_t',
                       'why': 'PostgreSQL of this node listens on it'})
+    # MariaDB of this node on a port of its own (1.0.42): mysqld_t may bind only mysqld_port_t.
+    if eng == 'mariadb' and host in ('', '127.0.0.1', 'localhost', '::1') and dp not in (0, 3306):
+        ports.append({'port': dp, 'proto': 'tcp', 'type': 'mysqld_port_t',
+                      'why': 'MariaDB of this node listens on it'})
     return {'booleans': bools, 'ports': ports, 'node': node_name(), 'facts': selinux_facts(store)}
 
 

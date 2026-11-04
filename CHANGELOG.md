@@ -19,6 +19,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   `/etc/security/pwquality.conf.d/90-acme.conf` and the `PASS_` lines of `/etc/login.defs`
   (taken away again when off). As until now unless changed: 8 characters, any, always good -
   nothing on the machines is touched until a rule is changed.
+- SELinux: MariaDB of the node on a port of its own (not 3306) - the port is given
+  `mysqld_port_t` with the rest of what acme needs (*Put in what acme needs*), as
+  PostgreSQL's was already; enforcing, MariaDB could not listen there.
 - acme.service starts after the database of the machine and stops before it: at a restart
   of the machine (a system update) its "acme stopped" could not be written any more -
   PostgreSQL was gone already.

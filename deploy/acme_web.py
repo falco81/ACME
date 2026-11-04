@@ -5030,7 +5030,7 @@ SE_LABELS = (('/run/acme', 'httpd_var_run_t', 'the folder of the API token'),
              ('/usr/libexec/keepalived/acme-vip-check', 'keepalived_unconfined_script_exec_t',
               'keepalived\'s check of this node'))
 SE_BOOLEANS = ('httpd_can_network_connect', 'authlogin_radius')   # the second: SSH with a code
-SE_PORT_TYPES = ('postgresql_port_t', 'ssh_port_t', 'radius_port_t')
+SE_PORT_TYPES = ('postgresql_port_t', 'mysqld_port_t', 'ssh_port_t', 'radius_port_t')
 # The programs whose refusals are acme's business.
 SE_DOMAINS = ('httpd_t', 'keepalived_t', 'keepalived_unconfined_script_t', 'sshd_t',
               'chronyd_t', 'postgresql_t', 'syslogd_t', 'logrotate_t', 'unconfined_service_t',
