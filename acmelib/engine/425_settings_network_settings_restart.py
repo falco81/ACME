@@ -396,7 +396,7 @@ def osu_view(store):
                                                     'there?' % late if late else ''),
                       'pending': pending})
     pol = osu_policy()
-    sig = osu_policy_ask(pol)['sig']
+    sig = osu_policy_ask(pol, store)['sig']
     try:
         vers = {b.get('name'): b.get('version') or '' for b in ha_nodes(store)}
     except Exception:                                   # noqa: BLE001
@@ -410,7 +410,8 @@ def osu_view(store):
         v = vers.get(x['name']) or ''
         x['policy_old'] = bool(v) and _ver_tuple(v) < (1, 0, 42)
         x['version'] = v
-    return {'nodes': nodes, 'cluster': len(nodes) > 1, 'pw_min': pol['min'], 'policy': pol,
+    return {'nodes': nodes, 'cluster': len(nodes) > 1, 'pw_min': pol['min'],
+            'policy': dict(pol, spared=osu_spared(store)),
             'openssl': bool(shutil.which('openssl'))}
 
 
@@ -436,10 +437,33 @@ def osu_aging(pol=None):
     return {'max_days': pol['max_days'], 'min_days': pol['min_days'], 'warn_days': pol['warn_days']}
 
 
-def osu_policy_ask(pol=None):
+def osu_spared(store):
+    """Who is left out of the days a password is good for (1.0.42): those SSH asks a code of.
+    Their account phase in PAM still says "expired", and sshd then asks for the old password
+    before anything else - one who signs in with a code (and a key) has none to give, and is
+    locked out. {'all': True} while the code is asked of everybody but root."""
+    try:
+        c = sshd_conf(store) if store is not None else {}
+    except Exception:                                   # noqa: BLE001
+        c = {}
+    if not (c.get('manage') and c.get('radius')):
+        return {'all': False, 'names': []}
+    names = sorted(str(n) for n in (c.get('radius_users') or []) if n != 'root')
+    return {'all': not names, 'names': names}
+
+
+def osu_aging_for(store, name, has_password=True):
+    """The days for one user: none (always good) without a password or for one asked a code."""
+    sp = osu_spared(store)
+    if not has_password or sp['all'] or name in sp['names']:
+        return dict(osu_aging(), max_days=0, min_days=0)
+    return osu_aging()
+
+
+def osu_policy_ask(pol=None, store=None):
     """What is asked of a node's root helper to put the policy on it, and its signature."""
     pol = pol or osu_policy()
-    ask = {'do': 'policy', 'aging': osu_aging(pol),
+    ask = {'do': 'policy', 'aging': osu_aging(pol), 'spare': osu_spared(store),
            'rules': ({'min': pol['min'], 'classes': pol['classes'], 'not_name': pol['not_name']}
                      if pol['system'] else None)}
     ask['sig'] = hashlib.sha256(json.dumps(ask, sort_keys=True).encode()).hexdigest()[:16]
@@ -546,11 +570,11 @@ def osu_ask(store, nodes, do, by, **f):
         ask['must_change'] = bool(f.get('must_change'))
         if f.get('password'):
             ask['hash'] = seal_secret(osu_hash(f['password'], name), 'osuser:' + name)
-        ask['aging'] = osu_aging()
+        ask['aging'] = osu_aging_for(store, name, bool(f.get('password')))
     elif do == 'password':
         ask['hash'] = seal_secret(osu_hash(f.get('password'), name), 'osuser:' + name)
         ask['must_change'] = bool(f.get('must_change'))
-        ask['aging'] = osu_aging()
+        ask['aging'] = osu_aging_for(store, name)
     elif do == 'sudo':
         ask['on'] = bool(f.get('on'))
     elif do == 'drop':
@@ -613,7 +637,8 @@ def osu_keep(row, got):
 def osu_one(a):
     """One change done by the root helper: its answer, or what went wrong (words)."""
     q = {k: v for k, v in a.items() if k in ('do', 'name', 'uid', 'gecos', 'shell', 'sudo',
-                                              'must_change', 'on', 'home', 'aging', 'rules', 'sig')}
+                                              'must_change', 'on', 'home', 'aging', 'rules', 'sig',
+                                              'spare')}
     if a.get('hash'):
         h = unseal_secret(a['hash'], 'osuser:' + str(a.get('name') or ''))
         if not str(a['hash']).startswith(SEALED2) or not h:
@@ -647,10 +672,10 @@ def osu_tick(daemon):
     stale = time.time() - OSU_WORK['seen'] > 300 or not now
     # The password policy (1.0.42): put on this node whenever what it has is not what is asked -
     # once the users were read, and not again within ten minutes after it went wrong.
-    pol_ask = osu_policy_ask()
+    pol_ask = osu_policy_ask(store=store)
     if (now.get('at') and not now.get('policy') and not now.get('policy_tried') and
             pol_ask['sig'] == osu_policy_ask(dict(osu_policy(), max_days=0, min_days=0,
-                                                  warn_days=7, system=False))['sig']):
+                                                  warn_days=7, system=False), store)['sig']):
         # Never asked for, and nothing asked now: what the machine has is left as it is.
         now = dict(now, policy=pol_ask['sig'], policy_said='as the machine has it')
         store.set_meta('host:users:now:' + me, json.dumps(now))

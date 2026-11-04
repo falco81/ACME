@@ -14,6 +14,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   while a node is behind or just after a save - a node now says at once that it read a change
   in. Each node's heartbeat carries the mark of the settings it read and when
   (`GET /api/settings/nodes`). Standalone: nothing drawn.
+  The lights of their own under *High security* and *Guard against writes to the database*
+  (1.0.41) and on *The password policy* are gone: the pill of the card says it - a node's
+  dot amber or red when what the card is about is not as it should be there (high
+  security not in yet, rows refused, the guard with no key, the policy not put in), its
+  popup a node a line for each.
 
 - **The password policy of the local users** (*Settings → Local users → The password
   policy*): characters at least (8 and up), kinds of characters (small letters, capitals,
@@ -28,9 +33,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   `/etc/security/pwquality.conf.d/90-acme.conf` and the `PASS_` lines of `/etc/login.defs`
   (taken away again when off). As until now unless changed: 8 characters, any, always good -
   nothing on the machines is touched until a rule is changed.
-  In a cluster the rules are the cluster's and every node puts them on itself; the card
-  says of each node whether they are in effect there, being put in, could not be (and
-  why), or that it runs a version before 1.0.42.
+  In a cluster the rules are the cluster's and every node puts them on itself; the pill of
+  the card says of each node whether they are in effect there, being put in, could not be
+  (and why), or that it runs a version before 1.0.42.
+  Left out of the days - always good - are a user with no password (a key only) and those
+  SSH asks a code of (*Settings → SSH server*): with the password run out, PAM's account
+  step makes sshd ask for the old one first, even after a key or a code - and they have
+  none to give. The other rules (length, kinds, the name) hold for everybody.
 - SELinux: MariaDB of the node on a port of its own (not 3306) - the port is given
   `mysqld_port_t` with the rest of what acme needs (*Put in what acme needs*), as
   PostgreSQL's was already; enforcing, MariaDB could not listen there.

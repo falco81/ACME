@@ -130,6 +130,20 @@ class Daemon(unittest.TestCase):
         self.assertFalse([a for a in asked if a.get('do') == 'policy'])
         self.assertEqual(row['policy'], sig)
 
+    def test_spared_who_ssh_asks_a_code(self):
+        conf = {'manage': True, 'radius': True, 'radius_users': ['jan'], 'radius_root': False}
+        with mock.patch.dict(E.CONFIG, {'osu_pw_max_days': 90}), \
+                mock.patch.object(E, 'sshd_conf', return_value=conf):
+            self.assertEqual(E.osu_spared(object()), {'all': False, 'names': ['jan']})
+            self.assertEqual(E.osu_aging_for(object(), 'jan')['max_days'], 0)
+            self.assertEqual(E.osu_aging_for(object(), 'eva')['max_days'], 90)
+            self.assertEqual(E.osu_aging_for(object(), 'eva', has_password=False)['max_days'], 0)
+            self.assertEqual(E.osu_policy_ask(store=object())['spare'], {'all': False, 'names': ['jan']})
+        with mock.patch.object(E, 'sshd_conf', return_value=dict(conf, radius_users=[])):
+            self.assertTrue(E.osu_spared(object())['all'])
+        with mock.patch.object(E, 'sshd_conf', return_value=dict(conf, radius=False)):
+            self.assertFalse(E.osu_spared(object())['all'])
+
     def test_on_the_pages(self):
         for k in ('osu_pw_min', 'osu_pw_classes', 'osu_pw_not_name', 'osu_pw_max_days',
                   'osu_pw_min_days', 'osu_pw_warn_days', 'osu_pw_system'):
@@ -231,6 +245,12 @@ class Helper(unittest.TestCase):
                          ('60', '2', '9'))
         # The other lines of login.defs kept.
         self.assertIn('UID_MIN', got_defs)
+        # Asked a code by SSH: left out - always good, and said so.
+        got = self.W.lu_do({'do': 'policy', 'spare': {'all': False, 'names': [self.name]},
+                            'aging': {'max_days': 60, 'min_days': 2, 'warn_days': 9}})
+        self.assertIn('always good', got['said'])
+        p = shadow(self.name)
+        self.assertEqual((p[3], p[4]), ('0', '99999'))
         # Off again: always good, and pwquality's file of acme's taken away.
         got = self.W.lu_do({'do': 'policy', 'aging': {'max_days': 0, 'min_days': 0, 'warn_days': 7}})
         self.assertFalse(os.path.exists(self.pwq))

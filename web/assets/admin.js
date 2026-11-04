@@ -1590,13 +1590,49 @@ function snState(n) {
   if (n.seen) return ['ok', snTr('in effect') + ' · ' + snTr('read in') + ' ' + snTr(ago(n.seen_at))];
   return ['warn', snTr('not yet · it reads it within seconds')];
 }
-function snPopup(d) {
+/* What a card says of each node besides the settings being in (1.0.42): its own states, in the
+   pill's popup, the dot of a node as the worst of them. [title, {node: [cls, words]}] */
+var SN_EXTRA = {
+  'sect-hisec': function () {
+    var d = typeof HS_NODES !== 'undefined' && HS_NODES.d;
+    if (!d) return [];
+    return [['High security', 'high_security'], ['Guard against writes to the database', 'db_guard']].map(function (k) {
+      var by = {};
+      d.forEach(function (n) { var l = hsLightOf(k[1], n); by[n.name] = [l[0], l[1]]; });
+      return [k[0], by];
+    });
+  },
+  'sect-osusers': function () {
+    var d = typeof OSU !== 'undefined' && OSU.d && OSU.d.nodes;
+    if (!d) return [];
+    var by = {};
+    d.forEach(function (n) { var l = osuPolicyOf(n); by[n.name] = [l[0], l[1]]; });
+    return [['The password policy', by]];
+  }
+};
+var SN_RANK = {bad: 3, warn: 2, ok: 1, off: 0};
+function snDot(n, extra) {
+  var st = snState(n)[0];
+  extra.forEach(function (g) {
+    var x = g[1][n.name];
+    /* "off" of a switch is no fault: only what is wrong makes the dot amber or red. */
+    if (x && (x[0] === 'warn' || x[0] === 'bad') && SN_RANK[x[0]] > SN_RANK[st]) st = x[0];
+  });
+  return st;
+}
+function snPopup(d, extra) {
   var col = {ok: 'var(--ok,#3fb950)', warn: 'var(--warn,#d29922)', bad: 'var(--crit,#f85149)', off: 'var(--tx-mut)'};
   return '<table class="sn-pop">' + d.nodes.map(function (n) {
     var st = snState(n);
     return '<tr><td><span class="dot ' + st[0] + '"></span></td><td class="sn-n">' + richText(n.name) + '</td><td>' +
       (n.me ? '<span class="tag info">' + richText(snTr('this node')) + '</span>' : '') + '</td>' +
       '<td style="color:' + col[st[0]] + '">' + richText(st[1]) + '</td></tr>';
+  }).join('') + (extra || []).map(function (g) {
+    return '<tr><td colspan="4" class="sn-g">' + richText(snTr(g[0])) + '</td></tr>' + d.nodes.map(function (n) {
+      var x = g[1][n.name] || ['off', '–'];
+      return '<tr><td><span class="dot ' + x[0] + '"></span></td><td class="sn-n">' + richText(n.name) + '</td><td></td>' +
+        '<td style="color:' + col[x[0]] + '">' + richText(snTr(x[1])) + '</td></tr>';
+    }).join('');
   }).join('') + '</table>';
 }
 function snPills() {
@@ -1609,11 +1645,16 @@ function snPills() {
   var words = all ? 'What is saved on this card is in effect on both nodes.'
                   : 'Not every node has in what is saved yet.';
   pane.querySelectorAll('.card').forEach(function (card) {
-    if (!card.querySelector('[id^="sect-"]')) return;          /* the cards of the settings only */
-    var pill = el('span', 'sn-pill' + (all ? '' : ' diff'));
+    var sect = card.querySelector('[id^="sect-"]');
+    if (!sect) return;                                          /* the cards of the settings only */
+    var extra = SN_EXTRA[sect.id] ? SN_EXTRA[sect.id]() : [];
+    var worst = d.nodes.map(function (n) { return snDot(n, extra); });
+    var ok = worst.every(function (x) { return x === 'ok'; });
+    var pill = el('span', 'sn-pill' + (ok ? '' : ' diff'));
     var dots = el('span', 'sn-dots');
-    d.nodes.forEach(function (n) { dots.appendChild(el('span', 'dot ' + snState(n)[0])); });
-    explain(dots, words, snPopup(d));
+    worst.forEach(function (x) { dots.appendChild(el('span', 'dot ' + x)); });
+    explain(dots, all ? (ok ? words : 'What is saved is in effect on both nodes - but not all of this card is as it should be.') : words,
+            snPopup(d, extra));
     pill.appendChild(dots);
     pill.appendChild(el('span', 'sn-sep'));
     var re = el('button', 'sn-re' + (SN.busy ? ' spin' : ''));
@@ -14034,31 +14075,18 @@ function osuPolicyAgain(tries) {
     if (wait && tries < 24) OSU_POL.again = setTimeout(function () { osuPolicyAgain(tries + 1); }, 5000);
   }).catch(function () {});
 }
+function osuPolicyOf(n) {
+  return !n.alive ? ['bad', 'not heard from', 'Nothing heard from ' + n.name + ' lately - it puts the policy in once it is back.']
+    : n.policy_old ? ['warn', 'an older version', n.name + ' runs acme ' + (n.version || '?') + ', which does not put the policy in - upgrade it.']
+    : n.policy_ok ? ['ok', 'in effect', 'The password policy is in place on ' + n.name + (n.policy_said ? ': ' + n.policy_said : '.')]
+    : /^not put in/.test(n.policy_said || '') ? ['bad', 'could not be put in', n.name + ': ' + n.policy_said]
+    : ['warn', 'being put in', n.name + ' puts the policy in within a minute.'];
+}
 function osuPolicyLights() {
-  var host = $('sect-osusers');
-  var nodes = (OSU.d && OSU.d.nodes) || [];
-  if (!host) return;
-  var old = host.querySelector('.hs-lights');
+  /* Said by the pill of the card (1.0.42), not by lights of their own. */
+  var old = document.querySelector('#sect-osusers .hs-lights');
   if (old) old.remove();
-  if (nodes.length < 2) return;
-  var row = el('div', 'hs-lights osu-pol-lights');
-  nodes.forEach(function (n) {
-    var l = !n.alive ? ['bad', 'not heard from', 'Nothing heard from ' + n.name + ' lately - it puts the policy in once it is back.']
-      : n.policy_old ? ['warn', 'an older version', n.name + ' runs acme ' + (n.version || '?') + ', which does not put the policy in - upgrade it.']
-      : n.policy_ok ? ['ok', 'in effect', 'The password policy is in place on ' + n.name + (n.policy_said ? ': ' + n.policy_said : '.')]
-      : /^not put in/.test(n.policy_said || '') ? ['bad', 'could not be put in', n.name + ': ' + n.policy_said]
-      : ['warn', 'being put in', n.name + ' puts the policy in within a minute.'];
-    var chip = el('span', 'hs-light ' + l[0]);
-    chip.appendChild(el('span', 'dot ' + l[0]));
-    chip.appendChild(noI18n(el('b', '', n.name)));
-    var me = el('span', 'hs-light-me');
-    if (n.me) me.appendChild(el('span', 'tag info', 'this node'));
-    chip.appendChild(me);
-    chip.appendChild(el('span', 'hs-light-w', l[1]));
-    explain(chip, l[2]);
-    row.appendChild(chip);
-  });
-  host.insertBefore(row, host.firstChild);
+  if (typeof snPills === 'function') snPills();
 }
 function osuToday(nodes) {
   var t = (nodes || []).map(function (n) { return n.today; }).filter(Boolean)[0];
@@ -15627,37 +15655,12 @@ function hsLightOf(key, n) {
   return ['ok', 'on', n.name + ' acts as root only on rows acme signed.'];
 }
 function hsLights() {
+  /* What is in effect on each node is said by the pill of the card (1.0.42) - its dots and
+     its popup - not by lights of their own under each switch any more. */
   var d = HS_NODES.d;
-  var host = $('sect-hisec');
-  if (!host || !d) return;
-  var wait = false;
-  ['high_security', 'db_guard'].forEach(function (key) {
-    var item = host.querySelector('.set-item[data-key="' + key + '"]');
-    if (!item) return;
-    var old = item.querySelector('.hs-lights');
-    if (old) old.remove();
-    /* Standalone, the switch says it all: the lights only for the two nodes of a cluster. */
-    if (d.length < 2) return;
-    var row = el('div', 'hs-lights');
-    d.forEach(function (n) {
-      var l = hsLightOf(key, n);
-      if (l[0] === 'warn' && key === 'high_security') wait = true;
-      var chip = el('span', 'hs-light ' + l[0]);
-      chip.appendChild(el('span', 'dot ' + (l[0] === 'off' ? '' : l[0])));
-      chip.appendChild(noI18n(el('b', '', n.name)));
-      /* A cell of its own, empty on the others: the words of every node in one column. */
-      var me = el('span', 'hs-light-me');
-      if (n.me) me.appendChild(el('span', 'tag info', 'this node'));
-      chip.appendChild(me);
-      chip.appendChild(el('span', 'hs-light-w', l[1]));
-      explain(chip, l[2]);
-      row.appendChild(chip);
-    });
-    /* In the box's tail, above its words: the grid of the pane puts the tail in a row of
-       its own, and anything beside it lay over the words. */
-    var tail = item.querySelector('.set-tail');
-    if (tail) tail.insertBefore(row, tail.firstChild); else item.appendChild(row);
-  });
+  if (!d) return;
+  if (typeof snPills === 'function') snPills();
+  var wait = d.length > 1 && d.some(function (n) { return hsLightOf('high_security', n)[0] === 'warn'; });
   /* Not there yet: looked at again, a few times, while the pane is open. */
   clearTimeout(HS_NODES.again);
   if (wait && HS_NODES.tries < 12) {

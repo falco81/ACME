@@ -3712,12 +3712,20 @@ def lu_login_defs(aging):
 def lu_policy(r):
     """The policy put on this machine: the days on every normal user, the rules for passwd."""
     aging = lu_aging(r.get('aging'))
-    done, failed = 0, []
+    # Left out (1.0.42): a user with no password (a key only), and those SSH asks a code of -
+    # an expired password locks them out: sshd asks for the old one before anything else.
+    spare = r.get('spare') if isinstance(r.get('spare'), dict) else {}
+    spare_all = bool(spare.get('all'))
+    spare_names = {str(n) for n in (spare.get('names') or [])[:500]}
+    never = (0, 0, aging[2])
+    done, failed, spared = 0, [], 0
     for u in lu_list()['users']:
         if u.get('root'):
             continue
+        left_out = not u.get('password') or spare_all or u['name'] in spare_names
         try:
-            lu_age(u['name'], aging)
+            lu_age(u['name'], never if left_out else aging)
+            spared += left_out
             done += 1
         except Refused as e:
             failed.append('%s: %s' % (u['name'], e))
@@ -3735,10 +3743,13 @@ def lu_policy(r):
                              '# switched off there, it is taken away.\n'
                              'minlen = %d\nminclass = %d\nusercheck = %d\n' % (minlen, minclass, int(user)),
                    0o644)
-        lu_login_defs(aging)
+        # A code asked of everybody by SSH: users made otherwise are not given days either.
+        lu_login_defs(never if spare_all else aging)
     elif os.path.exists(PWQ_FILE):
         os.unlink(PWQ_FILE)
-    said = 'the password policy put on %d user(s)%s' % (done, ', the same rules for passwd' if rules else '')
+    said = 'the password policy put on %d user(s)%s%s' % (
+        done, ' (%d without a password or asked a code by SSH: always good)' % spared if spared else '',
+        ', the same rules for passwd' if rules else '')
     if failed:
         said += '; not on: ' + '; '.join(failed)[:300]
     return said

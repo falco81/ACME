@@ -53179,6 +53179,14 @@
   "sn_8": {
    "source": "by itself every 15 s",
    "text": "samo se kontroluje každých 15 s"
+  },
+  "osupol_31": {
+   "source": "How many days a password of a local user is good for; then the user must choose a new one at the next sign-in (chage -M, put on every normal user of every node). 0: always - as until now. Left out - always good: a user with no password (a key only), and those SSH asks a code of (Settings → SSH server): with the password run out, sshd asks for the old one before anything else, and one who signs in with a code has none to give.",
+   "text": "Kolik dní platí heslo lokálního uživatele; potom si uživatel musí při dalším přihlášení zvolit nové (chage -M, na každém běžném uživateli každého uzlu). 0: napořád – jako dosud. Vynecháni – platí napořád: uživatel bez hesla (jen klíč) a ti, po kterých SSH chce kód (Nastavení → SSH server): s vypršelým heslem se sshd nejdřív ptá na staré a kdo se přihlašuje kódem, žádné nemá."
+  },
+  "osupol_32": {
+   "source": "What is saved is in effect on both nodes - but not all of this card is as it should be.",
+   "text": "Uložené nastavení platí na obou uzlech – ale ne všechno na této kartě je, jak má být."
   }
  },
  "patterns": {
@@ -72633,6 +72641,14 @@
   "posupol_14": {
    "source": "{0} puts the policy in within a minute.",
    "text": "{0} politiku zavede do minuty."
+  },
+  "posupol_15": {
+   "source": "the password policy put on {0} user(s) ({1} without a password or asked a code by SSH: always good)",
+   "text": "politika hesel nasazena na uživatele: {0} ({1} bez hesla nebo s kódem přes SSH: platí napořád)"
+  },
+  "posupol_16": {
+   "source": "the password policy put on {0} user(s) ({1} without a password or asked a code by SSH: always good), the same rules for passwd",
+   "text": "politika hesel nasazena na uživatele: {0} ({1} bez hesla nebo s kódem přes SSH: platí napořád), stejná pravidla i pro passwd"
   }
  },
  "rich": {
