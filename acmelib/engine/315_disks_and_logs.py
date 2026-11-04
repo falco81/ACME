@@ -150,6 +150,8 @@ def sshkeys_view(store):
                     late += 1
         nodes.append({'name': n, 'me': n == node_name(), 'alive': alive.get(n, False),
                       'keys': now.get('keys') or [], 'sshd': now.get('sshd') or {},
+                      # The normal users who may sign in there, and the keys of those read (1.0.240).
+                      'users': now.get('users') or [], 'keys_of': now.get('keys_of') or {},
                       'file': now.get('file') or '', 'at': now.get('at'),
                       'error': now.get('error') or ('%d change(s) asked of it more than five minutes ago '
                                                     'are not written - is acme-web.path running there?' % late
@@ -160,7 +162,13 @@ def sshkeys_view(store):
             'kept': rootkey_view(store, {n['name']: n['keys'] for n in nodes})}
 
 
-def sshkeys_ask(store, nodes, do, by, line='', fp='', last_ok=False):
+SSH_USER_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_.-]{0,31}\Z')
+
+
+def sshkeys_ask(store, nodes, do, by, line='', fp='', last_ok=False, user='root'):
+    user = str(user or 'root')
+    if not SSH_USER_RE.match(user):
+        raise ValueError('that is not the name of a user')
     known = host_nodes(store)
     nodes = [n for n in known if n in (nodes or [])]
     if not nodes:
@@ -181,12 +189,12 @@ def sshkeys_ask(store, nodes, do, by, line='', fp='', last_ok=False):
             had = [had]
         had = [x for x in had if isinstance(x, dict) and time.time() - float(x.get('at') or 0) < 3600]
         had.append({'id': secrets.token_hex(6), 'do': do, 'line': line, 'fp': str(fp or '')[:80],
-                    'last_ok': bool(last_ok), 'by': by, 'at': time.time()})
+                    'last_ok': bool(last_ok), 'by': by, 'at': time.time(), 'user': user})
         store.set_meta(k, json.dumps(had[-10:]))
     if do != 'list':
         what = 'added the SSH key %s' % (line.split(' ', 2)[2] if line.count(' ') >= 2 else
                                          line[:40]) if do == 'add' else 'took away the SSH key %s' % fp
-        store.add_event('settings', '%s %s for root on %s' % (by, what, ', '.join(nodes)),
+        store.add_event('settings', '%s %s for %s on %s' % (by, what, user, ', '.join(nodes)),
                         'warn', who=by)
     return nodes
 
@@ -214,9 +222,13 @@ def sshkeys_tick(daemon):
         return
     HOST_WORK['ssh'] = True
     HOST_WORK['ssh_since'] = time.time()
-    # Reads asked again and again are one read (1.0.159).
+    # Reads asked again and again are one read (1.0.159) - one for each user (1.0.240).
     lists = [a for a in todo if a.get('do') == 'list']
-    todo = [a for a in todo if a.get('do') != 'list'] + lists[-1:]
+    last_list = {}
+    for a in lists:
+        last_list[str(a.get('user') or 'root')] = a
+    todo = [a for a in todo if a.get('do') != 'list'] + sorted(
+        last_list.values(), key=lambda a: float(a.get('at') or 0))
 
     def go():
         row = dict(now)
@@ -224,16 +236,33 @@ def sshkeys_tick(daemon):
         try:
             for a in todo or [{'id': '', 'do': 'list'}]:
                 err, got = '', None
+                user = str(a.get('user') or 'root')
                 try:
                     got = root_ask('sshkeys.ask', 'sshkeys.json', {
                         'do': a.get('do'), 'line': a.get('line') or '', 'fp': a.get('fp') or '',
-                        'last_ok': bool(a.get('last_ok'))}, 60)
+                        'last_ok': bool(a.get('last_ok')), 'user': user}, 60)
                 except Exception as e:                  # noqa: BLE001
                     err = str(e)[:300] or e.__class__.__name__
-                    log('root\'s SSH keys: %s' % err, 'warn')
+                    log('the SSH keys of %s: %s' % (user, err), 'warn')
                 if a.get('id'):
                     done.append(a['id'])
                 done.extend(x['id'] for x in lists if x.get('id') and x['id'] not in done)
+                if user != 'root':
+                    # A normal user's (1.0.240): kept apart, root's as they are; the last 30 read.
+                    of = dict(row.get('keys_of') or {})
+                    mine = dict(of.get(user) or {})
+                    mine.update(at=time.time(), error=err)
+                    if got:
+                        mine.update(keys=got.get('keys') or [], file=got.get('file') or '')
+                    of[user] = mine
+                    if len(of) > 30:
+                        for k in sorted(of, key=lambda k: float(of[k].get('at') or 0))[:len(of) - 30]:
+                            of.pop(k, None)
+                    row.update(keys_of=of, at=time.time(), done=done[-200:])
+                    if got:
+                        row.update(users=got.get('users') or [], sshd=got.get('sshd') or row.get('sshd') or {})
+                    store.set_meta('host:sshkeys:now:' + me, json.dumps(row))
+                    continue
                 # Written after each, so what is done shows as it is done.
                 # A change refused stays said over the read after it.
                 if err or a.get('do') != 'list' or not changed_err:
@@ -243,7 +272,7 @@ def sshkeys_tick(daemon):
                 row.update(at=time.time(), done=done[-200:])
                 if got:
                     row.update(keys=got.get('keys') or [], sshd=got.get('sshd') or {},
-                               file=got.get('file') or '')
+                               file=got.get('file') or '', users=got.get('users') or [])
                 store.set_meta('host:sshkeys:now:' + me, json.dumps(row))
             HOST_WORK['ssh_seen'] = time.time()
         except Exception as e:                          # noqa: BLE001

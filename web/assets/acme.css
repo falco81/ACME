@@ -3421,3 +3421,84 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .dbstate > .note{margin:0 0 10px;max-width:none}
 .dbstate > .facts{margin:0 0 10px}
 .dbstate > .note.bad .mono{display:inline-block;margin-top:4px;word-break:break-word}
+
+/* Whose SSH keys (1.0.240), the console at login for normal users. */
+.sk-who { padding: 12px 18px; }
+.sk-who-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sk-who-row .k { font-weight: 600; }
+.sk-who-row select { min-width: 160px; }
+.con-users { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: 8px; }
+.con-users input { width: 220px; max-width: 100%; }
+/* A secret shown once, big (1.0.240): Prometheus's token. */
+.key-big-row { display: flex; gap: 12px; align-items: stretch; margin: 14px 0 10px; flex-wrap: wrap; }
+.key-big { flex: 1 1 320px; min-width: 0; font-size: 17px; line-height: 1.5; letter-spacing: .02em; padding: 14px 16px;
+  background: var(--bg2, rgba(127,127,127,.08)); border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 10px;
+  word-break: break-all; user-select: all; cursor: text; color: var(--fg, inherit); }
+.key-big:focus { outline: 2px solid var(--accent, #4c8dff); outline-offset: 2px; }
+.key-big-row .btn { align-self: center; }
+/* Accounts picked from a list (1.0.242). */
+.acct-pick { position: relative; }
+.acct-pick > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  min-height: 38px; padding: 6px 34px 6px 10px; border: 1px solid var(--line, rgba(127,127,127,.3)); border-radius: 8px;
+  background: var(--bg2, rgba(127,127,127,.06)); position: relative; }
+.acct-pick > summary::-webkit-details-marker { display: none; }
+.acct-pick > summary::after { content: '▾'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); opacity: .7; }
+.acct-pick.off > summary { opacity: .5; cursor: default; }
+.acct-pick .acct-every { opacity: .85; }
+.acct-panel { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); max-height: 280px; overflow: auto;
+  background: var(--card, #1b1f27); border: 1px solid var(--line, rgba(127,127,127,.3)); border-radius: 10px; padding: 6px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.acct-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.acct-row:hover { background: rgba(127,127,127,.12); }
+.acct-row-every { border-bottom: 1px solid var(--line, rgba(127,127,127,.2)); margin-bottom: 4px; padding-bottom: 8px; }
+.acct-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 9px; border-radius: 999px;
+  background: rgba(76,141,255,.16); border: 1px solid rgba(76,141,255,.35); font-size: 12.5px; }
+.acct-x { border: 0; background: transparent; color: inherit; opacity: .7; cursor: pointer; font-size: 15px; line-height: 1;
+  padding: 0 4px; border-radius: 50%; }
+.acct-x:hover { opacity: 1; background: rgba(127,127,127,.25); }
+.acct-every { display: inline-flex; align-items: center; gap: 6px; }
+.acct-find { width: 100%; margin: 2px 0 6px; }
+.acct-row input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent, #4c8dff); }
+.acct-ava { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10.5px; font-weight: 700; background: rgba(127,127,127,.22); flex: none; }
+.acct-ava.root { background: rgba(255,170,0,.22); color: var(--warn, #f0b429); }
+.acct-ava.every { background: rgba(76,141,255,.2); }
+.acct-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.acct-pick[open] > summary { border-color: var(--accent, #4c8dff); }
+/* The console at login: a node a row, its parts in columns (1.0.242). */
+.con-row { display: grid; grid-template-columns: 52px minmax(140px, 220px) minmax(260px, 520px); gap: 14px; align-items: center; margin: 10px 0; }
+.con-row .con-who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.con-row .con-users { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; margin: 0; }
+.con-row .con-err { grid-column: 1 / -1; margin: 0; }
+.acct-every.nobody { opacity: .7; }
+@media (max-width: 640px) {
+  .con-row { grid-template-columns: 52px 1fr; }
+  .con-row .con-users { grid-column: 1 / -1; }
+}
+
+/* Settings → Local users (1.0.243) */
+.osu-table td { vertical-align: middle; }
+.osu-who { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+.osu-nm { display: flex; flex-direction: column; line-height: 1.25; }
+.osu-name { font-weight: 600; }
+.osu-tags { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-left: auto; }
+.osu-root .osu-name { color: var(--warn, #f0b429); }
+.osu-act { white-space: nowrap; }
+.osu-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.osu-fact { border: 1px solid var(--line, rgba(255,255,255,.1)); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.osu-fact-h { font-weight: 600; margin-bottom: 6px; }
+.osu-fact .kv-mini { display: flex; gap: 8px; font-size: 12px; line-height: 1.6; min-width: 0; }
+.osu-fact .kv-mini .k { color: var(--muted, #8a94a6); min-width: 70px; flex: none; }
+.osu-fact .kv-mini .v { overflow-wrap: anywhere; min-width: 0; }
+.osu-fact-tags { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+.osu-sect { border-top: 1px solid var(--line, rgba(255,255,255,.1)); padding-top: 12px; margin-top: 12px; }
+.osu-sect h3 { font-size: 13px; margin: 0 0 8px; }
+.osu-sect .btnrow { margin-top: 8px; }
+.osu-chk { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 8px 0; }
+.osu-says { flex-basis: 100%; margin-left: 22px; }
+.osu-nodes { margin-top: 10px; }
+@media (max-width: 640px) {
+  .osu-who { min-width: 0; flex-wrap: wrap; }
+  .osu-tags { margin-left: 0; }
+}
+.osu-all { margin: 0 0 10px; font-size: 13px; }

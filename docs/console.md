@@ -143,3 +143,26 @@ for each node of the cluster (full administrators). The node's own root helper
 writes `/etc/acme-console-login`; each node says within a minute how the file is,
 so a change made with `acme --console-at-login` shows there too. Every switch is
 in Events.
+
+### For normal users too (1.0.240)
+
+The console can open at login for normal users of the machine as well (UID 1000 and up,
+a login shell) - the ones named, or every one:
+
+```bash
+acme --console-users "alice bob"   # these two
+acme --console-users '*'           # every normal user
+acme --console-users none          # root only, as before
+```
+
+On the pages: **Settings → About → The console at login**, beside each node's switch:
+*normal users: nobody / every one / these…*.
+
+It runs **through sudo, with the user's own password** - the console does what only root may,
+so only who may become root with sudo gets it (the `wheel` group, or a sudoers rule of their
+own). Anybody else named is told so in one line and keeps the ordinary shell: nobody gets more
+than they already have. Changes made from such a console are in Events as
+`command line (sudo alice)`.
+
+The file gets a second line: `users: alice bob` (or `users: *`); root's own switch (`on` /
+`off`) is the first line, as before, and either is changed without the other.
