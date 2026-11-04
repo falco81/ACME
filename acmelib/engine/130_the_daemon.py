@@ -616,6 +616,10 @@ class Daemon(object):
                     log_sparing('console-tick', 'the console at login: %s' % e, 'warn',
                                 every=600)
                 try:
+                    selinux_tick(self)          # SELinux of this node (as otp 1.0.233)
+                except Exception as e:          # noqa: BLE001
+                    log_sparing('selinux-tick', 'SELinux: %s' % e, 'warn', every=600)
+                try:
                     sshkeys_tick(self)          # root's SSH keys (1.0.158)
                 except Exception as e:          # noqa: BLE001
                     log_sparing('sshkeys-tick', 'root\'s SSH keys: %s' % e, 'warn', every=600)

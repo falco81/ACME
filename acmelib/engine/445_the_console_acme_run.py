@@ -2543,6 +2543,24 @@ class Console(object):
                                 'Yes', danger=on):
                     self.act('--hisec-waive', r, 'on' if on else 'off')
 
+        def se_step():
+            st = self.choose('SELinux: a step on this machine', [
+                ('prepare', 'make it ready - permissive at the next start (from disabled)'),
+                ('apply', 'put in what acme needs (while permissive)'),
+                ('enforce', 'switch to enforcing'),
+                ('permissive', 'back to permissive')])
+            if st and self.confirm('SELinux on this machine', {
+                    'prepare': 'The configuration says permissive, and every file is labelled at '
+                               'the next start of the machine. The machine is not restarted now.',
+                    'apply': 'acme\'s module, the labels of its files, the booleans and the ports it '
+                             'needs are put in. Still permissive: nothing is refused.',
+                    'enforce': 'From now on SELinux refuses what its policy does not allow - and '
+                               'stays enforcing after a restart. Refused while anything is missing '
+                               'or was refused.',
+                    'permissive': 'SELinux no longer refuses anything, now and after a restart.'}[st],
+                    'Do it', danger=st in ('enforce', 'prepare')):
+                self.act('--selinux', st, '--yes')
+
         return self.sub('Encryption, sending out, time, network, high security', [
             ('1', 'Encryption to the database server: how it stands', lambda: self.act('--db-tls')),
             ('2', 'Encryption to the database server: try a mode', db_probe),
@@ -2559,7 +2577,10 @@ class Console(object):
             ('13', 'The network of each node', lambda: self.act('--net')),
             ('14', 'High security: every rule', lambda: self.act('--hisec')),
             ('15', 'High security: an exception, or not any more', waive),
-            ('16', 'The guard against writes to the database: rows not as acme wrote them',
+            ('16', 'SELinux: how it stands on this machine', lambda: self.act('--selinux-check')),
+            ('17', 'SELinux: a step on this machine', se_step),
+            ('18', 'SELinux: the report for acme\'s module (a file)', lambda: self.act('--selinux-report')),
+            ('19', 'The guard against writes to the database: rows not as acme wrote them',
              lambda: self.act('--guard-status')),
         ])
 
