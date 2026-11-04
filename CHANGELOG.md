@@ -6,6 +6,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.42 - not released
 
+- **Settings in a cluster: in effect on every node?** Every card of Settings has a thin pill
+  at the right of its heading: a dot a node - green, it has in what is saved; amber, not yet;
+  red, not heard from; grey, a version that does not say it - a thin line and a refresh icon.
+  Pointed at, the dots say it a node a line (*in effect · read in 9 s ago*, *not yet*…); the
+  icon asks both nodes again at once. Looked at every 15 s while Settings is open, every 3 s
+  while a node is behind or just after a save - a node now says at once that it read a change
+  in. Each node's heartbeat carries the mark of the settings it read and when
+  (`GET /api/settings/nodes`). Standalone: nothing drawn.
+
 - **The password policy of the local users** (*Settings → Local users → The password
   policy*): characters at least (8 and up), kinds of characters (small letters, capitals,
   digits, the others - any, two, three or all four), not the user's name in it (backwards

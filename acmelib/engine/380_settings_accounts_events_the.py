@@ -1,6 +1,42 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 # ---- settings, accounts, events, the database --------------------------------------------
+def settings_in_effect(store, ask=False, daemon=None):
+    """Whether every node has in what is saved (1.0.42): the mark of the last change of the
+    settings, and the one each node said it read. Asked again: this node says it at once,
+    the other within five seconds."""
+    if ask:
+        store.set_meta('beat_asked', '%.6f:%s' % (time.time(), node_name()))
+    serial = store.get_meta('conf_serial', '0')
+    out = []
+    for b in ha_nodes(store):
+        known = 'conf_seen' in b
+        if b.get('me') and daemon is not None:
+            # This node as it is, not as its last heartbeat said.
+            b = dict(b, conf_seen=daemon.conf_serial, conf_seen_at=daemon.conf_loaded_at)
+            known = True
+        out.append({'name': b['name'], 'me': bool(b.get('me')), 'alive': bool(b.get('alive')),
+                    'age': round(float(b.get('age') or 0), 1), 'version': b.get('version') or '',
+                    'known': known, 'seen': known and b.get('conf_seen') == serial,
+                    'seen_at': b.get('conf_seen_at')})
+    return {'serial': serial, 'cluster': bool(CONFIG.get('ha_mode')) and len(out) > 1,
+            'nodes': out, 'at': time.time()}
+
+
+@route('GET', '/api/settings/nodes')
+def _settings_nodes(h):
+    h.me()
+    return settings_in_effect(h.store, daemon=h.d)
+
+
+@route('POST', '/api/settings/nodes')
+def _settings_nodes_again(h):
+    h.me()
+    if CONFIG.get('ha_mode'):
+        heartbeat(h.store, h.d)                 # this node's, now
+    return settings_in_effect(h.store, ask=True, daemon=h.d)
+
+
 @route('GET', '/api/settings')
 def _settings(h):
     s = h.me()

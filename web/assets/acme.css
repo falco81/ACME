@@ -3737,3 +3737,29 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .osu-rules li.bad{color:var(--warn,#d29922)}
 .osu-until{margin-left:8px}
 .osu-pol-lights{margin:0 0 14px}
+
+/* Settings in a cluster: in effect on every node? (1.0.42) - a thin pill at the right of every
+   card's heading: a dot a node, a thin line, a refresh icon. */
+.sn-pill{display:inline-flex;align-items:center;gap:2px;margin-left:10px;vertical-align:middle;
+  border:1px solid var(--line);border-radius:999px;padding:1px 3px 1px 2px;font-size:12px;font-weight:500;
+  letter-spacing:0;text-transform:none;line-height:1}
+.sn-pill.diff{border-color:color-mix(in srgb,var(--warn,#d29922) 45%,var(--line))}
+.sn-dots{display:inline-flex;gap:5px;align-items:center;padding:3px 5px;border-radius:999px;cursor:default}
+.sn-dots:hover{background:var(--panel2)}
+.sn-dots .dot{width:7px;height:7px}
+.sn-sep{width:1px;height:12px;background:var(--line)}
+.sn-re{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;
+  color:var(--tx-mut);cursor:pointer;border:1px solid transparent;background:transparent;padding:0}
+.sn-re:hover{color:var(--tx);background:var(--panel2);border-color:var(--line)}
+.sn-re svg{width:12px;height:12px}
+.sn-re.spin{color:var(--info,#58a6ff)}
+.sn-re.spin svg{animation:sn-spin 1s linear infinite}
+@keyframes sn-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.sn-re.spin svg{animation:none}}
+.card.sn-has-corner{position:relative}
+.sn-pill.sn-corner{position:absolute;top:-11px;right:20px;margin:0;z-index:2;background:var(--panel)}
+.sn-pop{margin-top:8px;border-collapse:collapse;font-size:12.5px}
+.sn-pop td{padding:3px 10px 3px 0;vertical-align:middle}
+.sn-pop td:last-child{padding-right:0}
+.sn-pop .sn-n{font-weight:600}
+.sn-pop .dot{display:inline-block;width:8px;height:8px}

@@ -1153,6 +1153,7 @@ function showPane(name) {
   });
   document.querySelectorAll('.ctl-pane').forEach(function (p) { p.hidden = p.id !== 'pane-' + name; });
   writeHash();
+  if (SN.d) snPills(); else snLoad();
   if (name === 'people') { loadUsers(); loadDirs(); }
   if (name === 'guard') { loadLockouts(); loadDirCaps(); }
   if (name === 'db') { loadDb(); dbLinkNote(); }
@@ -1575,6 +1576,75 @@ function smsCaBlock() {
   return box;
 }
 
+/* ---- Settings in a cluster: in effect on every node? (1.0.42) -------------------
+   A thin pill at the right of every card's heading of Settings: a dot a node (green: it has in
+   what is saved; amber: not yet; red: not heard from; grey: a version that does not say), a
+   thin line, and a refresh icon - asked of both nodes again at once. Pointed at, the dots say
+   it a node a line. Only in a cluster; looked at again every 15 s while Settings is open,
+   every 3 s while a node has not caught up. */
+var SN = {d: null, poll: null, fast: 0, busy: false};
+function snTr(s) { return (typeof i18nText === 'function' && i18nText(s)) || s; }
+function snState(n) {
+  if (!n.alive) return ['bad', snTr('not heard from') + ' · ' + snTr(ago(Date.now() / 1000 - (n.age || 0)))];
+  if (!n.known) return ['off', snTr('does not say - an older version')];
+  if (n.seen) return ['ok', snTr('in effect') + ' · ' + snTr('read in') + ' ' + snTr(ago(n.seen_at))];
+  return ['warn', snTr('not yet · it reads it within seconds')];
+}
+function snPopup(d) {
+  var col = {ok: 'var(--ok,#3fb950)', warn: 'var(--warn,#d29922)', bad: 'var(--crit,#f85149)', off: 'var(--tx-mut)'};
+  return '<table class="sn-pop">' + d.nodes.map(function (n) {
+    var st = snState(n);
+    return '<tr><td><span class="dot ' + st[0] + '"></span></td><td class="sn-n">' + richText(n.name) + '</td><td>' +
+      (n.me ? '<span class="tag info">' + richText(snTr('this node')) + '</span>' : '') + '</td>' +
+      '<td style="color:' + col[st[0]] + '">' + richText(st[1]) + '</td></tr>';
+  }).join('') + '</table>';
+}
+function snPills() {
+  var d = SN.d;
+  document.querySelectorAll('.sn-pill').forEach(function (x) { x.remove(); });
+  if (!d || !d.cluster || TAB !== 'settings') return;
+  var pane = $('pane-' + PANE);
+  if (!pane) return;
+  var all = d.nodes.every(function (n) { return n.alive && n.known && n.seen; });
+  var words = all ? 'What is saved on this card is in effect on both nodes.'
+                  : 'Not every node has in what is saved yet.';
+  pane.querySelectorAll('.card').forEach(function (card) {
+    if (!card.querySelector('[id^="sect-"]')) return;          /* the cards of the settings only */
+    var pill = el('span', 'sn-pill' + (all ? '' : ' diff'));
+    var dots = el('span', 'sn-dots');
+    d.nodes.forEach(function (n) { dots.appendChild(el('span', 'dot ' + snState(n)[0])); });
+    explain(dots, words, snPopup(d));
+    pill.appendChild(dots);
+    pill.appendChild(el('span', 'sn-sep'));
+    var re = el('button', 'sn-re' + (SN.busy ? ' spin' : ''));
+    re.type = 'button';
+    re.innerHTML = iconMarkup('refresh', 12);
+    explain(re, 'Look again on both nodes', '<div class="muted small" style="margin-top:4px">' +
+      richText(snTr('Looked at') + ' ' + snTr(ago(d.at)) + ' · ' + snTr('by itself every 15 s')) + '</div>');
+    re.onclick = function (e) { e.stopPropagation(); snAgain(); };
+    pill.appendChild(re);
+    var h = card.querySelector(':scope > h2');
+    if (h) h.appendChild(pill);
+    else { pill.classList.add('sn-corner'); card.classList.add('sn-has-corner'); card.insertBefore(pill, card.firstChild); }
+  });
+}
+function snLoad() {
+  return api('settings-nodes').then(function (d) { SN.d = d; snPills(); snPace(); }).catch(function () {});
+}
+function snAgain() {
+  SN.busy = true; snPills();
+  api('settings-nodes', {action: 'again'}).then(function (d) {
+    SN.d = d; SN.fast = 6;
+    setTimeout(function () { SN.busy = false; snLoad(); }, 1500);
+  }).catch(function (e) { SN.busy = false; snPills(); oops(e); });
+}
+function snPace() {
+  clearTimeout(SN.poll);
+  if (TAB !== 'settings' || !SN.d || !SN.d.cluster) return;
+  var behind = SN.d.nodes.some(function (n) { return n.alive && n.known && !n.seen; });
+  if (behind || SN.fast > 0) SN.fast = Math.max(0, SN.fast - 1);
+  SN.poll = setTimeout(snLoad, behind || SN.fast > 0 ? 3000 : 15000);
+}
 function drawSettings() {
   DRAWN_NODE = SETTINGS.node || '';
   var shown = {};
@@ -1605,6 +1675,10 @@ function drawSettings() {
   }
   applyOnlyWhen();
   hsLights();
+  /* Saved a moment ago: the other node reads it in within seconds (1.0.42). */
+  SN.fast = 6;
+  if (SN.d) snPills();
+  snLoad();
   /* Saved a moment ago: what each node has now, read again (1.0.42). */
   if (typeof PANE !== 'undefined' && PANE === 'osusers' && typeof OSU !== 'undefined') osuPolicyAgain(0);
   if (typeof AC !== 'undefined' && AC.d) acmeNamesInSettings(AC.d);

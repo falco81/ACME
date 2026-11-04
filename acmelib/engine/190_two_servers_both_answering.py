@@ -106,7 +106,10 @@ def heartbeat(store, daemon=None):
             # refused while it is on on any node.
             'db_guard': bool(CONFIG.get('db_guard')),
             # What Settings -> High security shows of every node (1.0.41): in effect here.
-            'hisec_now': hisec_node_now()}
+            'hisec_now': hisec_node_now(),
+            # The settings it has in (1.0.42): the mark of the change it read, and when.
+            'conf_seen': getattr(daemon, 'conf_serial', '') if daemon else '',
+            'conf_seen_at': getattr(daemon, 'conf_loaded_at', None) if daemon else None}
     try:
         beat['software'] = software_info(store)  # for the other node's About (1.0.99)
     except Exception:                                   # noqa: BLE001

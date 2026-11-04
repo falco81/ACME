@@ -53147,6 +53147,38 @@
   "osupol_30": {
    "source": "Only root is on this node - Add a user makes one, on this node.",
    "text": "Na tomto uzlu je jen root – Přidat uživatele ho založí na tomto uzlu."
+  },
+  "sn_1": {
+   "source": "does not say - an older version",
+   "text": "neuvádí – starší verze"
+  },
+  "sn_2": {
+   "source": "read in",
+   "text": "načteno"
+  },
+  "sn_3": {
+   "source": "not yet · it reads it within seconds",
+   "text": "zatím ne · načte do pár sekund"
+  },
+  "sn_4": {
+   "source": "What is saved on this card is in effect on both nodes.",
+   "text": "Uložené nastavení této karty platí na obou uzlech."
+  },
+  "sn_5": {
+   "source": "Not every node has in what is saved yet.",
+   "text": "Ne každý uzel má zatím načtené to, co je uložené."
+  },
+  "sn_6": {
+   "source": "Look again on both nodes",
+   "text": "Zkontrolovat znovu na obou uzlech"
+  },
+  "sn_7": {
+   "source": "Looked at",
+   "text": "Zkontrolováno"
+  },
+  "sn_8": {
+   "source": "by itself every 15 s",
+   "text": "samo se kontroluje každých 15 s"
   }
  },
  "patterns": {

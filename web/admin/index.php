@@ -334,6 +334,7 @@ if (isset($_GET['api'])) {
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
         'split' => '/api/split', 'clock' => '/api/clock',
+        'settings-nodes' => '/api/settings/nodes',
     ];
     $writes = [
         'directories' => '/api/directories',
@@ -352,6 +353,7 @@ if (isset($_GET['api'])) {
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
         'split' => '/api/split', 'clock' => '/api/clock',
+        'settings-nodes' => '/api/settings/nodes',
     ];
     /* The certificate manager's API (docs/architecture.md), relayed under its
        own name - certs, certs-one (or certs/one), cas-create, targets-test...
