@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.42 - not released
+
 ## 1.0.41 - 2026-11-04
 
 - **Six more pictures for the sign-in** (*Settings → The enrolment pages → The picture
