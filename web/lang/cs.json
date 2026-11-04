@@ -52027,6 +52027,362 @@
   "osu_87": {
    "source": "The users of each node's own system - who may sign in to the machine itself, over SSH or at its console; not the accounts of these pages. root is shown and never changed here; the others (UID 1000 and up) are made, given a password or sudo, locked or taken away on every node at once or on one, by each node's root helper. A password typed here goes to the nodes as its hash only and is kept nowhere. Every change is written into Events.",
    "text": "Uživatelé vlastního systému každého uzlu – kdo se smí přihlásit přímo na stroj, přes SSH nebo na jeho konzoli; nejde o účty těchto stránek. root je tu jen k nahlédnutí a nikdy se tu nemění; ostatní (UID od 1000) se vytvářejí, dostávají heslo či sudo, zamykají nebo odebírají na všech uzlech najednou, nebo na jednom – dělá to root helper každého uzlu. Heslo zadané tady jde na uzly jen jako svůj hash a nikde se neuchovává. Každá změna se zapíše do Událostí."
+  },
+  "lbsso_1": {
+   "source": ", or with your name and password below.",
+   "text": ", nebo jménem a heslem níže."
+  },
+  "lbsso_2": {
+   "source": "1. Who signs in: an authentication virtual server against the directory (LDAPS)",
+   "text": "1. Kdo přihlašuje: autentizační virtuální server proti adresáři (LDAPS)"
+  },
+  "lbsso_3": {
+   "source": "2. The enrolment pages behind it - the service group of the nodes as on High availability → Load balancers",
+   "text": "2. Stránky registrace za ním – service group uzlů jako na Vysoká dostupnost → Load balancery"
+  },
+  "lbsso_4": {
+   "source": "2. The iRule - what the client sent taken away, then who signed in and the key, /admin refused",
+   "text": "2. iRule – pryč, co poslal klient, pak kdo se přihlásil a klíč, /admin odmítnut"
+  },
+  "lbsso_5": {
+   "source": "3. The headers: what the client sent taken away first, then who signed in, the key and the client's address",
+   "text": "3. Hlavičky: nejdřív pryč, co poslal klient, pak kdo se přihlásil, klíč a adresa klienta"
+  },
+  "lbsso_6": {
+   "source": "3. tmsh: the iRule and the access profile on the virtual server of the pages (the pool of the nodes as on High availability → Load balancers)",
+   "text": "3. tmsh: iRule a access profile na virtuálním serveru stránek (pool uzlů jako na Vysoká dostupnost → Load balancery)"
+  },
+  "lbsso_7": {
+   "source": "4. Not the administration: /admin never through here",
+   "text": "4. Ne administrace: /admin nikdy tudy"
+  },
+  "lbsso_8": {
+   "source": "5. The WAF (Web App Firewall) in front of the pages",
+   "text": "5. WAF (Web App Firewall) před stránkami"
+  },
+  "lbsso_9": {
+   "source": "A domain controller",
+   "text": "Řadič domény"
+  },
+  "lbsso_10": {
+   "source": "A key for the balancer to send in X-Acme-Sso-Key, shown once - the one before is no longer taken at once.",
+   "text": "Klíč, který bude balancer posílat v X-Acme-Sso-Key, ukáže se jednou – dosavadní se hned přestane přijímat."
+  },
+  "lbsso_11": {
+   "source": "A key is set",
+   "text": "Klíč je nastaven"
+  },
+  "lbsso_12": {
+   "source": "A reverse proxy that signs in by OIDC or SAML (oauth2-proxy here): the headers set by it, never passed on from the client",
+   "text": "Reverse proxy, která přihlašuje přes OIDC nebo SAML (zde oauth2-proxy): hlavičky nastavuje sama, od klienta se nikdy nepředávají"
+  },
+  "lbsso_13": {
+   "source": "Behind a load balancer or WAF",
+   "text": "Za load balancerem nebo WAF"
+  },
+  "lbsso_14": {
+   "source": "Both (.zip)",
+   "text": "Oba (.zip)"
+  },
+  "lbsso_15": {
+   "source": "Both: one .zip with the two files in the format below - each key locked with the same password.",
+   "text": "Oba: jeden .zip se dvěma soubory ve formátu níže – každý klíč zamčený stejným heslem."
+  },
+  "lbsso_16": {
+   "source": "From a machine that is not the balancer: the headers are not taken from anybody else - the page asks for the password",
+   "text": "Ze stroje, který není balancer: hlavičky se od nikoho jiného neberou – stránka chce heslo"
+  },
+  "lbsso_17": {
+   "source": "LDAPS, port 636",
+   "text": "LDAPS, port 636"
+  },
+  "lbsso_18": {
+   "source": "Make a key for the balancer?",
+   "text": "Vytvořit pro balancer klíč?"
+  },
+  "lbsso_19": {
+   "source": "Make a key…",
+   "text": "Vytvořit klíč…"
+  },
+  "lbsso_20": {
+   "source": "Make a new key for the balancer?",
+   "text": "Vytvořit pro balancer nový klíč?"
+  },
+  "lbsso_21": {
+   "source": "Make a new key…",
+   "text": "Vytvořit nový klíč…"
+  },
+  "lbsso_22": {
+   "source": "More, with the reasons: docs/portal-sso.md in the package.",
+   "text": "Víc i s důvody: docs/portal-sso.md v balíčku."
+  },
+  "lbsso_23": {
+   "source": "None - it is off.",
+   "text": "Žádné – je to vypnuté."
+  },
+  "lbsso_24": {
+   "source": "None yet. Open the enrolment pages through the balancer, then Look again.",
+   "text": "Zatím žádné. Otevřete stránky registrace přes balancer a pak Podívat se znovu."
+  },
+  "lbsso_25": {
+   "source": "On the balancer",
+   "text": "Na balanceru"
+  },
+  "lbsso_26": {
+   "source": "On: in a chain (a WAF in front of a balancer), the last address in the header that is not one of them is taken. Off: the last one, whoever put it there.",
+   "text": "Zapnuto: v řetězu (WAF před balancerem) se vezme poslední adresa v hlavičce, která není jedním z nich. Vypnuto: poslední adresa, ať ji tam dal kdokoli."
+  },
+  "lbsso_27": {
+   "source": "Published to the internet: who may reach the enrolment pages (Settings → Firewall and access → the allow lists) must take the clients' own addresses, as the balancer passes them on - the private networks alone keep everybody from outside out.",
+   "text": "Publikováno do internetu: kdo smí na stránky registrace (Nastavení → Firewall a přístup → seznamy povolených) musí zahrnout vlastní adresy klientů, jak je balancer předává – samotné privátní sítě nikoho zvenku nepustí."
+  },
+  "lbsso_28": {
+   "source": "Refused ones are in Events (portal) with the reason: not from the balancers named, the key wrong or missing, a name the directory does not know.",
+   "text": "Odmítnutá jsou v Událostech (registrace) s důvodem: ne z uvedených balancerů, klíč špatný nebo chybí, jméno, které adresář nezná."
+  },
+  "lbsso_29": {
+   "source": "Sent by the balancer in X-Acme-Sso-Key with every request, so that a header put in by anybody else is never taken. Made below (Make a key), shown once; kept sealed.",
+   "text": "Balancer ho posílá v X-Acme-Sso-Key s každým požadavkem, aby se nikdy nevzala hlavička, kterou vložil někdo jiný. Vytvoří se níže (Vytvořit klíč), ukáže se jednou; uložený zapečetěný."
+  },
+  "lbsso_30": {
+   "source": "Shown once: put it into the balancer's configuration below.",
+   "text": "Ukáže se jednou: vložte ho do konfigurace balanceru níže."
+  },
+  "lbsso_31": {
+   "source": "Shown only now - and put into the configuration below until this page is left. The balancer sends it in X-Acme-Sso-Key with every request.",
+   "text": "Ukazuje se jen teď – a do konfigurace níže se doplňuje, dokud stránku neopustíte. Balancer ho posílá v X-Acme-Sso-Key s každým požadavkem."
+  },
+  "lbsso_32": {
+   "source": "Sign in through the company sign-in again",
+   "text": "Přihlásit se znovu přes firemní přihlášení"
+  },
+  "lbsso_33": {
+   "source": "Signed in by a load balancer or WAF (SSO)",
+   "text": "Přihlášení přes load balancer nebo WAF (SSO)"
+  },
+  "lbsso_34": {
+   "source": "Signed in by the load balancer or WAF (SSO)",
+   "text": "Přihlášení přes load balancer nebo WAF (SSO)"
+  },
+  "lbsso_35": {
+   "source": "Signing out: set \"Where signing out goes\" above to /cgi/tmlogout - NetScaler's own sign-out. AAA.USER.NAME is the name as it was typed; with -ldapLoginName userPrincipalName it is novak@example.cz. Check the commands against your ADC's version.",
+   "text": "Odhlášení: nastavte výše „Kam vede odhlášení“ na /cgi/tmlogout – vlastní odhlášení NetScaleru. AAA.USER.NAME je jméno tak, jak bylo napsáno; s -ldapLoginName userPrincipalName je to novak@example.cz. Příkazy ověřte podle verze svého ADC."
+  },
+  "lbsso_36": {
+   "source": "Signing out: set \"Where signing out goes\" above to /vdesk/hangup.php3 - APM's own sign-out. session.logon.last.username is the name as typed; for the UPN use session.ad.last.attr.userPrincipalName.",
+   "text": "Odhlášení: nastavte výše „Kam vede odhlášení“ na /vdesk/hangup.php3 – vlastní odhlášení APM. session.logon.last.username je jméno tak, jak bylo napsáno; pro UPN použijte session.ad.last.attr.userPrincipalName."
+  },
+  "lbsso_37": {
+   "source": "Switch on Settings → Firewall and access → Behind a load balancer or WAF as well, with the balancer's address: otherwise every client is the balancer's address - the sign-in pause of one is everybody's, and the logs do not say who it was.",
+   "text": "Zapněte také Nastavení → Firewall a přístup → Za load balancerem nebo WAF, s adresou balanceru: jinak je každý klient adresou balanceru – pauza přihlášení jednoho je pauzou všech a logy neřeknou, kdo to byl."
+  },
+  "lbsso_38": {
+   "source": "Switched on, the configuration for NetScaler, F5 and others is shown here, filled in with this server's own values.",
+   "text": "Po zapnutí se tu ukáže konfigurace pro NetScaler, F5 a další, vyplněná vlastními hodnotami tohoto serveru."
+  },
+  "lbsso_39": {
+   "source": "The balancer's own account",
+   "text": "Vlastní účet balanceru"
+  },
+  "lbsso_40": {
+   "source": "The balancer's public address",
+   "text": "Veřejná adresa balanceru"
+  },
+  "lbsso_41": {
+   "source": "The balancers that sign people in",
+   "text": "Balancery, které přihlašují"
+  },
+  "lbsso_42": {
+   "source": "The balancers' own addresses or networks, as this node sees the connection come in (not the client's) - one or more, separated by spaces. Needed to switch it on.",
+   "text": "Vlastní adresy nebo sítě balancerů, jak tento uzel vidí přicházet spojení (ne adresa klienta) – jedna nebo víc, oddělené mezerou. Bez nich to zapnout nejde."
+  },
+  "lbsso_43": {
+   "source": "The certificate on the balancer",
+   "text": "Certifikát na balanceru"
+  },
+  "lbsso_44": {
+   "source": "The enrolment pages are switched off (above): nobody is signed in by the balancer either.",
+   "text": "Stránky registrace jsou vypnuté (výše): přes balancer se tedy nepřihlásí nikdo."
+  },
+  "lbsso_45": {
+   "source": "The header with the client's address",
+   "text": "Hlavička s adresou klienta"
+  },
+  "lbsso_46": {
+   "source": "The header with who signed in",
+   "text": "Hlavička se jménem přihlášeného"
+  },
+  "lbsso_47": {
+   "source": "The key and signing out",
+   "text": "Klíč a odhlášení"
+  },
+  "lbsso_48": {
+   "source": "The key for the balancer",
+   "text": "Klíč pro balancer"
+  },
+  "lbsso_49": {
+   "source": "The key the balancer sends",
+   "text": "Klíč, který balancer posílá"
+  },
+  "lbsso_50": {
+   "source": "The key used now is no longer taken at once - put the new one into the balancer.",
+   "text": "Dosavadní klíč se hned přestane přijímat – vložte do balanceru nový."
+  },
+  "lbsso_51": {
+   "source": "The last sign-in by the balancer",
+   "text": "Poslední přihlášení přes balancer"
+  },
+  "lbsso_52": {
+   "source": "The load balancers and WAFs",
+   "text": "Load balancery a WAF"
+  },
+  "lbsso_53": {
+   "source": "Their addresses or networks, as nginx sees them come in - one or more, separated by spaces. Needed to switch it on: the header of anybody else is never believed.",
+   "text": "Jejich adresy nebo sítě, jak je nginx vidí přicházet – jedna nebo víc, oddělené mezerou. Bez nich to zapnout nejde: hlavičce od kohokoli jiného se nikdy nevěří."
+  },
+  "lbsso_54": {
+   "source": "Through more than one of them",
+   "text": "Přes více z nich"
+  },
+  "lbsso_55": {
+   "source": "Where Sign out sends the browser afterwards - the balancer's own sign-out (NetScaler: /cgi/tmlogout, F5: /vdesk/hangup.php3), so that it does not sign the person in again at once. Empty: the sign-in of these pages, with a button to sign in through the balancer again.",
+   "text": "Kam Odhlásit potom pošle prohlížeč – vlastní odhlášení balanceru (NetScaler: /cgi/tmlogout, F5: /vdesk/hangup.php3), aby člověka hned znovu nepřihlásil. Prázdné: přihlášení těchto stránek, s odkazem pro nové přihlášení přes balancer."
+  },
+  "lbsso_56": {
+   "source": "Where signing out goes",
+   "text": "Kam vede odhlášení"
+  },
+  "lbsso_57": {
+   "source": "Where the accounts are",
+   "text": "Kde jsou účty"
+  },
+  "lbsso_58": {
+   "source": "Where the balancer puts the client's address: X-Forwarded-For (the usual), X-Real-IP, True-Client-IP, X-Client-IP, CF-Connecting-IP...",
+   "text": "Kam balancer dává adresu klienta: X-Forwarded-For (obvyklé), X-Real-IP, True-Client-IP, X-Client-IP, CF-Connecting-IP…"
+  },
+  "lbsso_59": {
+   "source": "Who is believed",
+   "text": "Komu se věří"
+  },
+  "lbsso_60": {
+   "source": "You signed out.",
+   "text": "Odhlásili jste se."
+  },
+  "lbsso_61": {
+   "source": "access policy + iRule",
+   "text": "access policy + iRule"
+  },
+  "lbsso_62": {
+   "source": "any IdP",
+   "text": "jakékoli IdP"
+  },
+  "lbsso_63": {
+   "source": "its name there",
+   "text": "jeho název tam"
+  },
+  "lbsso_64": {
+   "source": "its virtual server for the pages",
+   "text": "jeho virtuální server pro stránky"
+  },
+  "lbsso_65": {
+   "source": "nFactor / LDAP",
+   "text": "nFactor / LDAP"
+  },
+  "lbsso_66": {
+   "source": "portal_sso_header: the name of a header of its own, as X-Acme-User",
+   "text": "portal_sso_header: název vlastní hlavičky, např. X-Acme-User"
+  },
+  "lbsso_67": {
+   "source": "portal_sso_key: 24 to 200 letters, digits and -_.~+/=",
+   "text": "portal_sso_key: 24 až 200 písmen, číslic a -_.~+/="
+  },
+  "lbsso_68": {
+   "source": "portal_sso_logout: an https:// address or a path starting with /",
+   "text": "portal_sso_logout: adresa https:// nebo cesta začínající /"
+  },
+  "lbsso_69": {
+   "source": "reads the directory",
+   "text": "čte adresář"
+  },
+  "lbsso_70": {
+   "source": "the directory's base DN",
+   "text": "základní DN adresáře"
+  },
+  "lbsso_71": {
+   "source": "the key is on the clipboard",
+   "text": "klíč je ve schránce"
+  },
+  "lbsso_72": {
+   "source": "the pages' public name, in the balancer's certificate",
+   "text": "veřejné jméno stránek, v certifikátu balanceru"
+  },
+  "lbsso_73": {
+   "source": "the sign-in through the load balancer was not taken here",
+   "text": "přihlášení přes load balancer tu nebylo přijato"
+  },
+  "lbsso_74": {
+   "source": "two PFX / PKCS#12 files at most - an RSA and an ECDSA one",
+   "text": "nejvýš dva soubory PFX / PKCS#12 – jeden RSA a jeden ECDSA"
+  },
+  "lbsso_75": {
+   "source": "Where the balancer puts the name it signed in: X-Acme-User, or the one it already sends. The name as people type it - novak, novak@example.cz or EXAMPLE\\novak - as on the sign-in of these pages.",
+   "text": "Kam balancer dává jméno, které přihlásil: X-Acme-User, nebo ta, kterou už posílá. Jméno tak, jak ho lidé píšou – novak, novak@example.cz nebo EXAMPLE\\novak – jako při přihlášení na těchto stránkách."
+  },
+  "lbsso_76": {
+   "source": "The enrolment pages published through a NetScaler, an F5 or another balancer that signs people in against the directory first: they then come in signed in, without a second password. Off, the pages are as until now.",
+   "text": "Stránky registrace publikované přes NetScaler, F5 nebo jiný balancer, který lidi nejdřív sám přihlásí proti adresáři: na stránky pak přijdou už přihlášení, bez druhého hesla. Vypnuto jsou stránky jako dosud."
+  },
+  "lbsso_77": {
+   "source": "the sign-in through the load balancer was not taken here - sign in with your password, or ask the administrator",
+   "text": "přihlášení přes load balancer tu nebylo přijato – přihlaste se heslem, nebo se obraťte na správce"
+  },
+  "lbsso_78": {
+   "source": "No balancer named",
+   "text": "Žádný balancer neuveden"
+  },
+  "lbsso_79": {
+   "source": "behind a load balancer or WAF: say which addresses are the balancers first (The load balancers and WAFs)",
+   "text": "za load balancerem nebo WAF: nejdřív uveďte, které adresy jsou balancery (Load balancery a WAF)"
+  },
+  "lbsso_80": {
+   "source": "signed in by the load balancer: say which addresses are the balancers first (The balancers that sign people in)",
+   "text": "přihlášení přes load balancer: nejdřív uveďte, které adresy jsou balancery (Balancery, které přihlašují)"
+  },
+  "lbsso_81": {
+   "source": "signed in by the load balancer: make the key first (Make a key)",
+   "text": "přihlášení přes load balancer: nejdřív vytvořte klíč (Vytvořit klíč)"
+  },
+  "lbsso_82": {
+   "source": "The pages published through a load balancer or a WAF (NetScaler, F5, HAProxy...): nginx takes the client's own address from the header below - only when the request comes from one of the addresses below, never from anybody else - so that the sign-in pause, the caps, who may reach which page and every log see the client and not the balancer. For this node's address and the VIP address's alike, on every node. Off: nginx as until now (what acme --trusted-proxy put in stays as it is).",
+   "text": "Stránky publikované přes load balancer nebo WAF (NetScaler, F5, HAProxy…): nginx vezme skutečnou adresu klienta z hlavičky níže – jen když požadavek přijde z některé z adres níže, nikdy od nikoho jiného – aby pauza přihlášení, stropy, kdo smí na kterou stránku, i všechny logy viděly klienta, a ne balancer. Pro adresu tohoto uzlu i pro VIP, na každém uzlu. Vypnuto: nginx jako dosud (co zapsal acme --trusted-proxy, zůstane, jak je)."
+  },
+  "lbsso_83": {
+   "source": "The enrolment pages published through a NetScaler, an F5 or another balancer or WAF that signs people in against the directory first: who it signed in comes in a header, and the pages ask no password again. Only from the balancers' own addresses below, and only with the key below - nobody else's header is believed. The directory is still asked who it is, and who may sign in here still decides. The administration pages are not concerned. Off: the pages as until now.",
+   "text": "Stránky registrace publikované přes NetScaler, F5 nebo jiný balancer či WAF, který lidi nejdřív sám přihlásí proti adresáři: koho přihlásil, přijde v hlavičce, a stránky se na heslo už znovu neptají. Jen z vlastních adres balancerů níže a jen s klíčem níže – hlavičce od kohokoli jiného se nevěří. Adresář se i tak zeptá, kdo to je, a o tom, kdo se tu smí přihlásit, rozhoduje nastavení výše. Administrace se to netýká. Vypnuto: stránky jako dosud."
+  },
+  "lbsso_84": {
+   "source": "Tell the nodes the balancer's address, so that the allow lists, the sign-in pause and every log see the client and not the balancer: Settings → Firewall and access → Behind a load balancer or WAF (once, for every node) - or as root on each node:",
+   "text": "Řekněte uzlům adresu balanceru, aby seznamy povolených, pauza přihlášení i všechny logy viděly klienta, a ne balancer: Nastavení → Firewall a přístup → Za load balancerem nebo WAF (jednou, pro všechny uzly) – nebo jako root na každém uzlu:"
+  },
+  "lbsso_85": {
+   "source": "Put it into the balancer now: NetScaler - the rewrite action acme_key; F5 - the iRule; nginx - proxy_set_header. Lost, make a new one: the old one stops at once.",
+   "text": "Vložte ho do balanceru hned: NetScaler – rewrite action acme_key; F5 – iRule; nginx – proxy_set_header. Ztracený? Vytvořte nový: starý hned přestane platit."
+  },
+  "lbsso_86": {
+   "source": "1. An access profile (Access → Profiles): Logon Page → AD Auth (or LDAP Auth) against the domain controllers → Allow. Its name below: acme_access.",
+   "text": "1. Access profile (Access → Profiles): Logon Page → AD Auth (nebo LDAP Auth) proti řadičům domény → Allow. Níže pod názvem acme_access."
+  },
+  "lbsso_87": {
+   "source": "PEM files - the certificate, its key, the chain, the root, in any order or all in one - or one PFX / PKCS#12 file. An RSA and an ECDSA certificate of the same names together (both keys in the PEM, or two PFX files): both are put in, the ECDSA one beside - nginx gives each client the one it takes. A request waits here: the certificate the authority sent back is enough, its key is here.",
+   "text": "Soubory PEM – certifikát, jeho klíč, řetěz, kořen, v libovolném pořadí nebo vše v jednom – nebo jeden soubor PFX / PKCS#12. Certifikát RSA a ECDSA se stejnými jmény zároveň (oba klíče v PEM, nebo dva soubory PFX): vloží se oba, ECDSA vedle – nginx dá každému klientovi ten, který bere. Čeká tu žádost: stačí certifikát, který autorita poslala zpět, jeho klíč je tady."
+  },
+  "lbsso_88": {
+   "source": "PEM files - the certificate, its key, the chain, the root, in any order or all in one - or one PFX / PKCS#12 file. An RSA and an ECDSA certificate of the same names together (both keys in the PEM, or two PFX files): both are put in, the ECDSA one beside - nginx gives each client the one it takes. The key has to come with it.",
+   "text": "Soubory PEM – certifikát, jeho klíč, řetěz, kořen, v libovolném pořadí nebo vše v jednom – nebo jeden soubor PFX / PKCS#12. Certifikát RSA a ECDSA se stejnými jmény zároveň (oba klíče v PEM, nebo dva soubory PFX): vloží se oba, ECDSA vedle – nginx dá každému klientovi ten, který bere. Klíč musí přijít s ním."
+  },
+  "lbsso_89": {
+   "source": "A sign-in by the load balancer refused",
+   "text": "Přihlášení přes load balancer odmítnuto"
   }
  },
  "patterns": {
@@ -71249,6 +71605,10 @@
   "posu_27": {
    "source": "{0} (may not sign in)",
    "text": "{0} (nesmí se přihlásit)"
+  },
+  "plbsso_1": {
+   "source": "Pick yours: the configuration is filled in with what is set here, marked in colour, and follows what you type below. Whatever the balancer: it takes the client's own {0} and X-Acme-Sso-Key away first, puts in its own only after it signed the person in, and never passes /admin on.",
+   "text": "Vyberte svůj: konfigurace je vyplněná tím, co je tu nastaveno, barevně vyznačená, a řídí se tím, co napíšete níže. Ať je balancer jakýkoli: nejdřív odstraní {0} a X-Acme-Sso-Key, které poslal klient, vlastní vloží až poté, co člověka přihlásil, a /admin nikdy dál nepustí."
   }
  },
  "rich": {

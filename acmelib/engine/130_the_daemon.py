@@ -175,6 +175,25 @@ class Daemon(object):
             if key in SEALED_KEYS and checked[key]:
                 checked[key] = seal_secret(checked[key])
         hisec_guard_settings(self.store, checked)        # 1.0.168
+        if any(k in checked for k in ('web_proxy', 'web_proxy_from')):
+            # Never on without the balancers named (otp 1.0.237): the header of anybody would be
+            # the client's address - the sign-in pause and the allow lists fooled by one line.
+            after = dict(CONFIG)
+            after.update(checked)
+            if after.get('web_proxy') and not str(after.get('web_proxy_from') or '').split():
+                raise BadSetting('behind a load balancer or WAF: say which addresses are the '
+                                 'balancers first (The load balancers and WAFs)')
+        if any(k in checked for k in ('portal_sso', 'portal_sso_from', 'portal_sso_key')):
+            # Signed in by the balancer only from the balancers, with the key (otp 1.0.239): on
+            # without either, a header of anybody's would have been a sign-in.
+            after = dict(CONFIG)
+            after.update(checked)
+            if after.get('portal_sso'):
+                if not str(after.get('portal_sso_from') or '').split():
+                    raise BadSetting('signed in by the load balancer: say which addresses are the '
+                                     'balancers first (The balancers that sign people in)')
+                if not unseal_secret(str(after.get('portal_sso_key') or '')):
+                    raise BadSetting('signed in by the load balancer: make the key first (Make a key)')
         if 'node_name' in checked:
             taken = node_name_taken(self.store, checked['node_name'])
             if taken:
@@ -218,10 +237,14 @@ class Daemon(object):
                 else:
                     self.store.save_setting(k + '@' + node, v, by)
                 continue
-            if v == FILE_CONFIG.get(k, DEFAULTS[k]) and k not in ('proxy_update', 'proxy_os'):
+            # Kept as rows off too (otp 1.0.238): "switched off" is what takes acme's lines out
+            # of nginx again - a 0 equal to the default was dropped, and read as "never
+            # switched on", the balancer's lines stayed.
+            if v == FILE_CONFIG.get(k, DEFAULTS[k]) and k not in KEPT_OFF_KEYS:
                 self.store.drop_setting(k)
             else:
                 self.store.save_setting(k, v, by)
+        SAVED_KEYS['at'] = 0.0          # read again by the web state (otp 1.0.239)
         said = []
         if 'db_guard' in file_side:
             said += self.dbguard_switch(bool(file_side.pop('db_guard')), by)

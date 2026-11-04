@@ -64,7 +64,8 @@ def lb_facts(store):
         m = re.search(r'(?m)^\s*listen[^;]*443[^;]*;[\s\S]*?^\s*server_name\s+([^;\s]+)', text)
         if m:
             server_name = m.group(1)
-        b = re.search(r'# REALIP-BEGIN(.*?)# REALIP-END', text, re.S)
+        b = re.search(r'# ACME-REALIP-BEGIN(.*?)# ACME-REALIP-END', text, re.S) or \
+            re.search(r'# REALIP-BEGIN(.*?)# REALIP-END', text, re.S)
         if b:
             proxies = re.findall(r'set_real_ip_from\s+([^;\s]+);', b.group(1))
         break

@@ -58,6 +58,11 @@ with 3DES that Windows before 10 (1709) and Server 2016 open. Full administrator
 only; each download with the key is an event (*warn*). On the command line:
 `acme --tls-for NODE|vip --tls-export pfx FILE` (the password asked for; `--legacy`).
 
+Two certificates of the same names (an RSA one and an ECDSA one beside it - ACME's "both", or
+both uploaded together, below): *Download* asks which - *RSA*, *ECDSA*, or *Both (.zip)*: one
+.zip with the two files (`rsa.pfx`, `ecdsa.pfx`...) in the format chosen, each key locked with
+the same password (as otp 1.0.240). Events say which one went.
+
 ### Upload
 
 On the pages: *Upload…* on the node's (or the VIP address's) card. Drop the
@@ -75,12 +80,19 @@ the chain up from it in order, the root (self-signed). The chain is checked
 against the root when a root is given. The password is used once to open
 the file and is not kept.
 
+**An RSA and an ECDSA certificate of the same names together** (as otp 1.0.240): both keys in
+the PEM, two PFX files, or one of each - both are put in, the RSA one the main one and the
+ECDSA one beside it, as ACME's "both" keeps them: nginx gives each client the one it takes.
+One alone is as until now - and a second one there before is dropped. Two RSA, two ECDSA,
+certificates of other names, or a key without its certificate are refused.
+
 Command line:
 
 ```bash
 acme --tls-import /root/acme1.pfx --tls-for acme1                    # ACME_TLS_PASSWORD=... for its password
 acme --tls-import cert.pem key.pem chain.pem root.pem --tls-for acme1
 acme --tls-import acme.pfx --tls-for vip                            # the VIP address's own
+acme --tls-import rsa.pfx ecdsa.pfx --tls-for acme1                  # both, the ECDSA one beside
 ```
 
 ### Request (CSR)
@@ -201,6 +213,12 @@ acme --vip-set 192.0.2.10/24 --vip-iface acme1=ens192 --vip-iface acme2=ens192  
 acme --vip on
 acme --web-status
 ```
+
+A certificate of the VIP address's own needs its name (*FQDN*). Taken away afterwards (as
+otp 1.0.242), the node's certificate serves the address until a name is given again - said in
+the log every hour (`vip-noname`); given a name, its own certificate is back on it. (Before,
+each node's root helper refused the whole request for it, and no change of nginx, keepalived or
+the firewall reached the node again.)
 
 ### Moving it by hand, and back
 

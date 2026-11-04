@@ -153,6 +153,58 @@ def vip_last_keep(address, own, peer):
         pass
 
 
+SAVED_KEYS = {'at': 0.0, 'keys': frozenset()}
+
+
+def saved_keys(store):
+    """The names of the settings saved in the database - read at most every 30 s (otp 1.0.239):
+    the web state is worked out every few seconds, and "was it ever switched on" (behind a
+    balancer, signed in by it) asked the database each time, twice."""
+    t = time.time()
+    if t - SAVED_KEYS['at'] > 30 or t < SAVED_KEYS['at']:
+        SAVED_KEYS['keys'] = frozenset(store.settings_saved())
+        SAVED_KEYS['at'] = t
+    return SAVED_KEYS['keys']
+
+
+def realip_desired(store):
+    """{'from': [...], 'header', 'recursive'} for nginx - empty 'from' takes acme's own out
+    again; None where it was never switched on (nginx left as it is)."""
+    if CONFIG.get('web_proxy'):
+        nets = []
+        for w in re.split(r'[\s,;]+', str(CONFIG.get('web_proxy_from') or '')):
+            if w:
+                try:
+                    nets.append(str(ipaddress.ip_network(w, strict=False)))
+                except ValueError:
+                    continue
+        if nets:
+            return {'from': nets, 'header': str(CONFIG.get('web_proxy_header') or 'X-Forwarded-For'),
+                    'recursive': bool(CONFIG.get('web_proxy_recursive', 1))}
+    try:
+        # Switched off: the row kept off (otp 1.0.238) - or, switched off before that, the
+        # balancers named are still there.
+        if any(k.split('@', 1)[0].startswith('web_proxy') for k in saved_keys(store)):
+            return {'from': [], 'header': '', 'recursive': False}
+    except Exception:                                   # noqa: BLE001
+        pass
+    return None
+
+
+def sso_peer_desired(store):
+    """True: nginx tells the enrolment pages which machine a request came from (ACME_PEER);
+    False: no longer; None where the sign-in by the balancer was never switched on (nginx as
+    it is)."""
+    if CONFIG.get('portal_sso'):
+        return True
+    try:
+        if any(k.split('@', 1)[0].startswith('portal_sso') for k in saved_keys(store)):
+            return False
+    except Exception:                                   # noqa: BLE001
+        pass
+    return None
+
+
 def web_desired(store):
     me = node_name()
     v = vip_conf(store)
@@ -187,12 +239,30 @@ def web_desired(store):
                             'this node' if not vip['own'] else 'the other node'), 'warn',
                         every=3600)
             vip = {'on': False}
-    tls = {'node': tls_resolved(tls_profile(store, me)),
-           'vip': tls_resolved(tls_profile(store, 'vip')) if vip['on'] else None}
+    vip_tls = tls_profile(store, 'vip') if vip['on'] else None
+    if vip_tls and vip_tls.get('cert') and not vip['fqdn']:
+        # A certificate of the VIP address's own, its name taken away since (otp 1.0.242): root
+        # refused the whole request for it, and no change of nginx, keepalived or the
+        # firewall reached this node again - the VIP address stayed away. The node's
+        # certificate serves the address until a name is given again.
+        log_sparing('vip-noname', 'the VIP address has a certificate of its own but no name: '
+                    'the node\'s certificate serves it until the name is given again (Settings - '
+                    'TLS and the VIP address)', 'warn', every=3600)
+        vip_tls = None
+    tls = {'node': tls_resolved(tls_profile(store, me)), 'vip': tls_resolved(vip_tls)}
     out = {'node': me, 'vip': vip, 'tls': tls}
     # Asked only once set on the pages (1.0.52): a request from before had
     # neither, and its hash stays what it was.
     fw, access = fw_desired(store), access_desired(store)
+    # Behind a balancer (otp 1.0.237): asked only once switched on, or switched off again after -
+    # a request from before had none, and its hash stays what it was.
+    rp = realip_desired(store)
+    if rp is not None:
+        out['realip'] = rp
+    # Signed in by the balancer (otp 1.0.239): the same - asked once switched on, or off after.
+    sp = sso_peer_desired(store)
+    if sp is not None:
+        out['sso_peer'] = sp
     if fw is not None:
         out['fw'] = fw
     if access is not None:

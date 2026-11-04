@@ -3517,6 +3517,7 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .con-users { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: 8px; }
 .con-users input { width: 220px; max-width: 100%; }
 /* A secret shown once, big (1.0.240): Prometheus's token. */
+/* A secret shown once, big (otp 1.0.240): the balancer's key. */
 .key-big-row { display: flex; gap: 12px; align-items: stretch; margin: 14px 0 10px; flex-wrap: wrap; }
 .key-big { flex: 1 1 320px; min-width: 0; font-size: 17px; line-height: 1.5; letter-spacing: .02em; padding: 14px 16px;
   background: var(--bg2, rgba(127,127,127,.08)); border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 10px;
@@ -3589,3 +3590,10 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
   .osu-tags { margin-left: 0; }
 }
 .osu-all { margin: 0 0 10px; font-size: 13px; }
+/* The card of the sign-in by the balancer (otp 1.0.240): even gaps around its notes, a value apart from its word. */
+#sso-host .lb-facts { margin: 12px 0 10px; }
+#sso-host .sso-btns { margin: 0 0 14px; }
+#sso-host > p.note { margin: 0 0 12px; }
+#sso-host > p.note.warn { padding: 10px 12px; }
+#sso-host .peek-h { margin: 18px 0 8px; }
+.cchip-v { margin-left: 6px; }

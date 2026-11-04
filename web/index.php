@@ -17,6 +17,75 @@ require_once __DIR__ . '/acme-page.php';
 require_once __DIR__ . '/acme-api.php';
 require_once __DIR__ . '/acme-art.php';
 
+/* ---- signed in by the load balancer or WAF in front (otp 1.0.239) ----------
+   Off unless switched on in the administration: then /api/portal/info names the header the
+   balancer puts the name it signed in into. The name, the key it sends with it, and the
+   address of the machine the request really came from (nginx's $realip_remote_addr, as
+   ACME_PEER - never the client's address from X-Forwarded-For) go to the daemon, which decides. */
+define('ACME_SSO_HOLD', 'acme_sso_off');
+
+function acme_sso_hold(bool $on): void
+{
+    setcookie(ACME_SSO_HOLD, $on ? '1' : '', [
+        'expires'  => $on ? 0 : time() - 3600,
+        'path'     => ACME_COOKIE_PATH,
+        'secure'   => acme_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    if ($on) {
+        $_COOKIE[ACME_SSO_HOLD] = '1';
+    } else {
+        unset($_COOKIE[ACME_SSO_HOLD]);
+    }
+}
+
+/** Signed in by the balancer, when it sent who: '' when nothing was to be done or it went
+    well, the words of the refusal otherwise. */
+function acme_sso_sign_in(array $info): string
+{
+    $sso = $info['sso'] ?? null;
+    if (!is_array($sso) || empty($info['on']) || !empty($_COOKIE[ACME_SSO_HOLD])) {
+        return '';
+    }
+    $head = (string) ($sso['header'] ?? '');
+    if (!preg_match('/^[A-Za-z][A-Za-z0-9-]{0,63}$/', $head)) {
+        return '';
+    }
+    $who = (string) ($_SERVER['HTTP_' . strtoupper(str_replace('-', '_', $head))] ?? '');
+    if ($who === '') {
+        return '';
+    }
+    $extra = [];
+    $peer = preg_replace('/[^0-9a-fA-F:.]/', '', (string) ($_SERVER['ACME_PEER'] ?? ''));
+    if ($peer !== '') {
+        $extra[] = 'X-Acme-Peer: ' . substr($peer, 0, 64);
+    }
+    [$status, $body] = acme_call('/api/portal/sso', 'POST', [
+        'name' => substr($who, 0, 300),
+        'key'  => substr((string) ($_SERVER['HTTP_X_ACME_SSO_KEY'] ?? ''), 0, 300),
+        'lang' => preg_replace('/[^a-z]/', '', (string) ($_COOKIE['acme_lang'] ?? '')),
+    ], 60.0, $extra);
+    if ($status === 0) {
+        return 'the server is not answering - try again in a while';
+    }
+    $data = json_decode($body, true);
+    if ($status === 200 && is_array($data)) {
+        if (!empty($data['token'])) {
+            acme_set_session((string) $data['token']);
+            $_COOKIE[ACME_COOKIE] = (string) $data['token'];
+        }
+        return '';
+    }
+    if ($status === 401 || $status === 403) {
+        // Not this person's any more: whoever was signed in here before is not shown.
+        acme_clear_session();
+        unset($_COOKIE[ACME_COOKIE]);
+    }
+    return is_array($data) && !empty($data['error']) ? (string) $data['error']
+        : 'the sign-in through the load balancer was not taken here';
+}
+
 if (isset($_GET['api'])) {
     $what = (string) $_GET['api'];
     $post = $_SERVER['REQUEST_METHOD'] === 'POST';
@@ -78,10 +147,21 @@ if (isset($_GET['api'])) {
         exit;
     }
     if ($what === 'logout' && $post) {
+        $sent = sent_body();
         acme_call('/api/portal/logout', 'POST', [], 10.0);
         acme_clear_session();
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['ok' => true]);
+        /* Signed in by the balancer (otp 1.0.239): its own sign-out next, or - with none set - no
+           sign-in by it again until asked, or Sign out would sign the person straight back in. */
+        $go = '';
+        if (!empty($sent['sso'])) {
+            $inf = acme_get('/api/portal/info', 5.0);
+            $go = is_array($inf) && is_array($inf['sso'] ?? null) ? (string) ($inf['sso']['logout'] ?? '') : '';
+            if ($go === '') {
+                acme_sso_hold(true);
+            }
+        }
+        echo json_encode(['ok' => true, 'go' => $go]);
         exit;
     }
     $reads = ['me' => '/api/portal/me', 'info' => '/api/portal/info', 'certs' => '/api/portal/certs',
@@ -113,6 +193,13 @@ if (isset($_GET['api'])) {
 /* ---- the page ------------------------------------------------------------ */
 $info  = acme_get('/api/portal/info', 5.0);
 $alive = is_array($info);
+// Sign in through the balancer again, after Sign out held it (otp 1.0.239).
+if (isset($_GET['sso'])) {
+    acme_sso_hold(false);
+    header('Location: /', true, 303);
+    exit;
+}
+$sso_said = $alive ? acme_sso_sign_in($info) : '';
 $me    = null;
 $mfa   = '';
 if ($alive && acme_session() !== '') {
@@ -156,6 +243,12 @@ if ($title_ours) {
           the administrator.</div>
       <?php elseif (empty($info['on'])): ?>
         <div class="offline">The portal is switched off. Ask the administrator.</div>
+      <?php endif; ?>
+      <?php if ($sso_said !== ''): ?>
+        <div class="offline" id="sso-said"><?= h($sso_said) ?></div>
+      <?php endif; ?>
+      <?php if ($alive && is_array($info['sso'] ?? null) && !empty($_COOKIE[ACME_SSO_HOLD])): ?>
+        <p class="note small" id="sso-again">You signed out. <a href="/?sso=1">Sign in through the company sign-in again</a>, or with your name and password below.</p>
       <?php endif; ?>
       <div id="mfa-box" data-stage="<?= h($mfa) ?>" hidden></div>
       <form id="signin-form" autocomplete="on"<?= $mfa !== '' ? ' hidden' : '' ?>>

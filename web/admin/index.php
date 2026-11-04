@@ -330,6 +330,7 @@ if (isset($_GET['api'])) {
         'selinux' => '/api/selinux',
         'mfa' => '/api/auth/mfa',
         'sshkeys' => '/api/sshkeys', 'osusers' => '/api/osusers', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'isemon' => '/api/isemon', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
+        'portal-sso' => '/api/portal-sso',
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
         'split' => '/api/split', 'clock' => '/api/clock',
@@ -347,6 +348,7 @@ if (isset($_GET['api'])) {
         'selinux' => '/api/selinux',
         'mfa' => '/api/auth/mfa',
         'sshkeys' => '/api/sshkeys', 'osusers' => '/api/osusers', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
+        'portal-sso' => '/api/portal-sso',
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
         'split' => '/api/split', 'clock' => '/api/clock',
@@ -720,6 +722,14 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <p class="note small" id="art-said"></p>
     </div>
     <div class="card full"><div id="sect-portal"></div></div>
+    <div class="card full" id="sso-card">
+      <h2>Signed in by a load balancer or WAF (SSO)</h2>
+      <p class="note">The enrolment pages published through a NetScaler, an F5 or another
+        balancer that signs people in against the directory first: they then come in signed in,
+        without a second password. Off, the pages are as until now.</p>
+      <div id="sect-portalsso"></div>
+      <div id="sso-host"></div>
+    </div>
   </div>
 
   <div class="ctl-pane" id="pane-alerts" hidden>
@@ -1477,7 +1487,7 @@ acme --ha-join /root/acme-join-acme1.json --node-name acme2</pre>
       <div id="fw-nodes" class="fw-nodes"></div>
       <div id="fw-body"></div>
     </div>
-    <div class="card full fulladmin-only"><h2>Taken back unless kept</h2><div id="sect-fw"></div></div>
+    <div class="card full fulladmin-only"><h2>Settings</h2><div id="sect-fw"></div></div>
   </div>
   <div class="ctl-pane" id="pane-upgrade" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Upgrades and maintenance</h2>
