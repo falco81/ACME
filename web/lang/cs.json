@@ -71609,6 +71609,10 @@
   "plbsso_1": {
    "source": "Pick yours: the configuration is filled in with what is set here, marked in colour, and follows what you type below. Whatever the balancer: it takes the client's own {0} and X-Acme-Sso-Key away first, puts in its own only after it signed the person in, and never passes /admin on.",
    "text": "Vyberte svůj: konfigurace je vyplněná tím, co je tu nastaveno, barevně vyznačená, a řídí se tím, co napíšete níže. Ať je balancer jakýkoli: nejdřív odstraní {0} a X-Acme-Sso-Key, které poslal klient, vlastní vloží až poté, co člověka přihlásil, a /admin nikdy dál nepustí."
+  },
+  "pfix_1": {
+   "source": "its users could not be read: {0}",
+   "text": "jeho uživatele nešlo přečíst: {0}"
   }
  },
  "rich": {

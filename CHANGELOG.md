@@ -6,6 +6,243 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.40 - not released
 
+Taken over from otp 1.0.230-1.0.243: everything of those versions that is not about RADIUS, the
+tokens or the enrolment of otp - the local users of the machines, the SSH keys of every user,
+SELinux, the guard against writes to the database, behind a load balancer and signed in by it,
+wrong directory passwords per person, the alerts of everything the nodes see, and otp's two bug
+hunts. Every new switch is off - as until now - unless said otherwise.
+
+- **Local users of the machines** (*Settings → Local users*, full administrators; as otp 1.0.243).
+  The users of each node's own system, one row a user and a column a node: made, given a
+  password, sudo (wheel / sudo), locked (the password and the account - no SSH key lets them in
+  either) or unlocked, their full name and shell changed, taken away with or without the home
+  folder - on every node of a cluster at once or on the ones ticked, the same UID on each; a user
+  on one node only made on the others with a click. **root is shown only**, never changed from
+  the pages (the API refuses it); accounts of the system and of the services (acme, acme-web,
+  postgres, mysql, nginx, sshd…) are neither shown nor changed - by the daemon and by the root
+  helper both. A password typed on the page goes to the nodes as its sealed SHA-512 hash only,
+  to `chpasswd -e` on its standard input, and is taken out of the database once done (after 15
+  minutes in any case). Also `acme --local-users`, `acme --local-user
+  add|password|lock|unlock|sudo-on|sudo-off|drop|drop-home NAME` (a password asked at the
+  terminal, never on the command line) and four items in `acme --console`. See
+  docs/local-users.md.
+- **SSH keys of every user who may sign in** (*Settings → SSH keys*, was *SSH keys of root*; as
+  otp 1.0.240). *Whose keys*: root as until now, or any normal user of the nodes (UID 1000 and
+  up, a login shell) - their own `~/.ssh/authorized_keys` read from every node, a key added, made
+  here (the private half shown once, kept nowhere), exported or taken away, on the nodes where
+  the user is. Read and written **as that user** by a child of the root helper with their UID,
+  GID and groups: `~/.ssh` 0700 and the file 0600, theirs; a link in their home is refused and
+  never followed. Every change in Events with the user's name. docs/ssh-keys.md.
+- **The console at login for normal users too** (*Settings → About → The console at login*:
+  *normal users: nobody / every one / these…*; `acme --console-users "alice bob"`, `'*'` or
+  `none`; on the console under The service). Off by default - root only, as until now. Named
+  users land in the console **through sudo, with their own password**: only who may become root
+  with sudo gets it; anybody else named gets one line saying so and the ordinary shell. What is
+  done from such a console is in Events as `command line (sudo alice)`.
+  `/etc/acme-console-login` gets a second line (`users: …`); root's own switch is kept apart.
+  docs/console.md.
+- **Accounts picked, not typed** (*SSH server and notices → Who may sign in*, *About → the
+  console at login's normal users*; as otp 1.0.242): lists of the accounts of the nodes - root
+  and every user who may sign in there - several at once, or everybody (nobody / every normal
+  user for the console); chips to take one away, a search when the list is long. One set before
+  that the nodes do not list (a pattern of sshd's) stays, said so.
+- **A key shown once, shown big**: Prometheus's token, made on *Monitoring*, is in a large box
+  across the dialog, picked whole with one click, with Copy beside it (as otp 1.0.240).
+- **Behind a load balancer or WAF** (*Settings → Firewall and access*; off by default - nginx as
+  until now; as otp 1.0.237 and 1.0.238). Switched on, nginx takes the client's own address from
+  the header the balancer sends (`X-Forwarded-For`, or the one named: `X-Real-IP`,
+  `True-Client-IP`...) - only for requests from the balancers' addresses named, never anybody
+  else's - so that the sign-in pause, the caps, who may reach which page, nginx's limits and every
+  log see the client, not the balancer. In this node's server and the VIP address's, on every
+  node, through the root helper (`nginx -t`, put back when refused). It takes the place of what
+  `acme --trusted-proxy` wrote while on; off, only its own lines go - the 0 kept as a row of its
+  own, so that "switched off" is not read as "never switched on". Refused on without the
+  balancers named; `acme --trusted-proxy` refuses while it is set on the pages.
+  docs/load-balancers.md.
+- **Signed in by a load balancer or WAF (SSO)** on the certificate portal (*Settings → The
+  enrolment pages*; off by default - the portal as until now; as otp 1.0.239). The portal
+  published to the internet through a NetScaler, an F5 APM or another balancer that signs people
+  in against the directory first: who it signed in comes in a header (`X-Acme-User`, or one
+  named), and the portal asks no password again. Believed only on a connection from the
+  balancers named - the machine the request really came from (nginx's `$realip_remote_addr`,
+  passed to the page as `ACME_PEER`), never the client's address from `X-Forwarded-For` - and
+  only with the key in `X-Acme-Sso-Key` (made on the pages or with `acme --sso-key`, shown once
+  in a large box, kept sealed, compared in constant time). Everything after the password as it
+  was: the portal's directory asked who it is, *Who may sign in* decides. The same person on the
+  next page goes on in the same sign-in, another one on the same browser ends it; switched off,
+  a sign-in by the balancer ends. *Sign out* goes to the balancer's own sign-out when one is set,
+  or holds the sign-in by the balancer until asked again. Every refusal in *Events* with its
+  reason, and - for who wants it - mailed (*Alerts and reports → Sign-ins by the load balancer
+  refused*, off by default). The card shows the last sign-in by the balancer each node saw and -
+  switched on - the configuration of NetScaler (nFactor/LDAP, rewrite of the headers, `/admin`
+  dropped, the Web App Firewall), F5 APM (access profile, iRule) and nginx / oauth2-proxy,
+  filled in with this server's values, with Copy buttons. Each node's root helper adds one line
+  to the portal's `location = /` (checked with `nginx -t`); off, only that line goes. The
+  administration pages are not concerned. `acme --sso-status`, `acme --sso-key`; in the console
+  under *Encryption, sending out, time, network, high security*. docs/portal-sso.md.
+- **The VIP address no longer lost for good when its name was taken away** (as otp 1.0.242).
+  With a certificate of the VIP address's own kept and its name (*FQDN*) emptied afterwards,
+  each node's root helper refused the whole request ("a certificate of its own needs the name it
+  is for") - and no change of nginx, keepalived or the firewall reached the node again. The
+  node's certificate now serves the address until a name is given again (said in the log); given
+  a name, its own certificate is back on it. A part of nginx the helper cannot put in (the
+  balancer's lines above) is said and holds up nothing else of the request either.
+- **Dual certificates in and out of acme's own TLS** (*Settings → TLS and the VIP address*; as
+  otp 1.0.240): an RSA and an ECDSA certificate of the same names uploaded together - both keys
+  in the PEM, two PFX files, or one of each; on the command line `acme --tls-import rsa.pfx
+  ecdsa.pfx` - are both put in, the RSA one the main and the ECDSA one beside it, as ACME's
+  "both" keeps them (nginx gives each client the one it takes). One alone is as until now, and a
+  second one there before is dropped. Two RSA, other names or a key without its certificate are
+  refused. *Download* of such a certificate asks which: RSA, ECDSA, or both (a .zip of the two in
+  the format chosen - not only PEM as before - each key locked with the password); in Events
+  which and with what.
+- **SELinux** (*Settings → High security → SELinux*, a card for each node; `acme --selinux-check`),
+  as in otp 1.0.233-1.0.238. Nothing changes unless asked: a machine with SELinux disabled stays so,
+  and acme runs on it as before.
+  - acme's module `acme_server` (`deploy/acme_server.cil`): the labels of `/run/acme` **and**
+    `/var/run/acme` and the API token as the web server's own run files, so the pages (php-fpm,
+    `httpd_t`) can read the token under enforcing; and one narrow rule - systemd may change the
+    owner and mode of what is in `/run/acme` before every command of the unit (`systemctl reload
+    acme` too). Put in by install.sh and every upgrade where SELinux is on (only when it changed,
+    compared with the one last put in), taken out by `--uninstall`. The tools (`policycoreutils`,
+    `libselinux-utils`, `policycoreutils-python-utils`, `audit`, `selinux-policy-targeted`) put in
+    where missing on RHEL, Rocky and AlmaLinux - the mode is not touched - and auditd started
+    where SELinux is on.
+  - The card: the mode now and after a restart, the module, the labels of acme's files, the boolean
+    (`httpd_can_network_connect`) and ports (sshd's own, a local PostgreSQL's) acme needs, and what
+    SELinux refused since the machine started, grouped and counted - only since acme's needs were
+    last put in, and not what the policy loaded now allows (`audit2why`: *refused before, allowed
+    now*). auditd not running is said, and enforcing refused. Looked at two minutes after the
+    start and every half hour (at the lowest priority), and on *Look again*.
+  - The steps, each asked of one node and done by its root helper: *Make it ready (permissive)* -
+    the configuration, every file labelled at the next start, `selinux=0` off the kernel's command
+    line, the module; the machine is not restarted. *Put in what acme needs*. *Switch to
+    enforcing* - from permissive only, with nothing missing and nothing refused. *Back to
+    permissive*. Each in Events.
+  - *Download the report (all nodes)* (`acme --selinux-report`): every node gathers what SELinux
+    says there - what it refused (raw, readable, `audit2why`, `audit2allow`'s suggestion), the
+    labels and what the policy says they should be, domains, ports, booleans, versions, what acme
+    uses on the node (nothing secret) - in one file; nothing is changed to make it, kept sealed in
+    the database an hour. Sent on, it becomes rules of `acme_server`.
+  - The security check lists what keeps a node where SELinux is on from being protected; the
+    alert *SELinux refusing* (`alerts_selinux`, off by default) mails it.
+  - `acme --selinux check|prepare|apply|enforce|permissive` (asked first unless `--yes`), and the
+    console (*Encryption, sending out, time, network, high security*). docs/selinux.md.
+- **Root's actions only from rows acme signed - the guard against writes to the database**
+  (*Settings → High security → Guard against writes to the database*, `db_guard`; off by
+  default - as until now; from otp 1.0.231-1.0.236). What a node does as root - the firewall,
+  sshd and root's SSH keys, the network, a restart, the system's updates and their proxy, the
+  time servers, nginx's certificates, the VIP, the TLS of the database link - follows rows of
+  the database, and so do the accounts and sign-ins of these pages. Anybody who could write the
+  database (its server, a db_password found out, a copy put back) could have had the node do any
+  of it.
+  - Every such row is signed when acme writes it - an HMAC with a key from secrets.key, in no
+    database - in a row of its own beside it (`sig:<kind>:<hash>:<node>`; each node writes only
+    its own), in one transaction with the row.
+  - On: a sign-in, an account, the administrators' directory, a setting that reaches root, a row
+    of meta root acts on, another node's heartbeat - not written by acme, or an older one put
+    back - is not acted on; settings keep their last good value. Said in the log, in Events and
+    in the security check. The certificates, renewals and deployments are never held up by it.
+  - Kept in this node's config.json, not in the database; switched off only on the node itself,
+    taken by the running service at once (`acme --set db_guard=1`). A copy put back, an import,
+    the database moved and a node renamed are signed again afterwards; a node rebuilt from the
+    other only forgets what it had seen. Going back below 1.0.40 is refused while it is on on any
+    node. `acme --guard-status` (and on the console under high security) lists every row that
+    reaches root not as acme wrote it. docs/high-security.md.
+- **`systemctl reload acme` took the pages off the node** (as otp 1.0.232): systemd gives
+  `/run/acme` back to `acme:acme` before a reload; the pages could not read the API token,
+  `/healthz` said 503 and keepalived moved the VIP address away. The daemon gives `/run/acme` and
+  the token back to `acme-web` the moment the reload arrives, and checks it every 5 seconds.
+- A change of the settings made on the other node while this one was reading its own was missed
+  until the next change: the mark of the change is read before the settings now (otp 1.0.234).
+- **Bug hunts A and B of otp (1.0.234-1.0.235), carried over:**
+  - **The VIP address switched off by a name not answered**: with `ha_peer` (or `ha_address`) a
+    host name and DNS away for a moment, the node stopped keepalived and took its configuration
+    away. It goes on with the addresses last known now; a name not answered is asked again in
+    half a minute. Its database gone, the node says so to keepalived at once.
+  - **A change of sshd on trial** whose time ran out while the machine restarted was kept for
+    good: its timer does not outlive a restart. The root helper puts it back at its next run;
+    the timer is armed before the change goes in.
+  - **SSH on another service's port** (443, 5432, 53…) refused - sshd could not bind it and
+    stopped.
+  - **Moving into another database**: what was written while it was carried, or after - a
+    certificate added, a password changed - was left behind, and *Start using it* did not see it.
+    It compares the certificates, their versions, sources, validations, targets, deployments,
+    tests, DNS, teams, tags, profiles, accounts, settings and directories now, and refuses an older
+    copy. The codes of the administrators' app used meanwhile stay used, there and when a copy is
+    put back.
+  - **Backups to other machines**: room for them checked first (twice the database); an unlocked
+    archive refused even where no password is in play; the weekly check reads the newest
+    *nightly* copy (it read the hand-made ones, and passed with nothing read); locking or opening
+    a large one is not cut off after two minutes.
+  - **acme's own certificate by ACME**: two nodes with the manual DNS step take turns instead of
+    cancelling each other; any failure of an order is written down.
+  - **Mail**: a code being sent is not taken back for another try before one try can have ended
+    (it went out twice), nor tried in its last half minute; a redirect to another host does not
+    carry the gateway's credentials; the weekly or monthly report missed on its day goes on a
+    later day of the period.
+  - Smaller: the SNMPv3 count of starts written whole (cut short, it went back); a time zone or
+    interface name that reads as an option refused; a sign-in that counted twice in one request
+    gives both places back; a node stopped half way through a write no longer holds its rows on
+    a database server for hours.
+- **A code typed as the mail shows it** (as otp 1.0.224-1.0.227): the administrators' second
+  step takes "821 275", "821-275" or any dash, a no-break space, full-width digits and the top
+  row of a Czech keyboard without Shift; a 10-digit code is no longer cut short in its box.
+- **Wrong directory passwords per person capped** (*Settings → Accounts → Wrong
+  directory passwords per person*, `dir_pw_tries`; 0 by default - as until now), as
+  otp 1.0.230 - 1.0.234. A directory password is tried against Active Directory at
+  each sign-in to the enrolment pages (the certificate portal) and at each sign-in of
+  an administrator from the directory - each with a count of its own, on each node
+  alone: from many addresses, enough wrong ones for a name reached the directory to
+  lock the account there. Set below the directory's lockout threshold (3 for 5 to
+  10): after so many wrong passwords for one person within `dir_pw_window_min` (30
+  min), from anywhere, on any node, the directory is no longer asked for them - only
+  the pages wait, the account in Active Directory stays unlocked.
+  - Counted **by the account the directory resolves**, not by the name typed:
+    `novakj`, `jan.novak@corp.cz` and `CORP\novakj` are one count. A name the
+    directory lacks - or an account switched off, locked or answered twice - is held
+    back the same way, so the answer does not tell which names exist. A right
+    password does not count, nor one never asked of the directory (empty, with a
+    control character); the address's own count keeps its place too. One count for
+    the cluster, in the database.
+  - **Each directory** on a card of its own (*Wrong directory passwords - each
+    directory*): *As the setting above*, *Its own* (a cap and a window for it alone)
+    or *No cap*. A directory renamed keeps its cap, one taken away takes it with it.
+  - **Read the domain's policy** (full administrators) connects with the
+    directory's own account and shows the domain's *Account lockout*, *Password
+    policy* and every *Fine-grained password policy* it may read, and recommends a
+    cap below the lowest threshold over the longest window. *Use it* only fills it
+    in - nothing changes until *Save the changes*.
+  - Shown and cleared under *Locked out*. `acme --dir-caps`,
+    `acme --dir-cap NAME=3/30|setting|none`, `acme --dir-policy NAME`; on the
+    console under *Directories*. docs/sign-in-protection.md says all of it.
+  - The card of a directory: its two sections side by side, of the same width,
+    across the whole width - a third, empty column left them narrow.
+- **Alerts for what the nodes already see** (*Alerts and reports*), as otp
+  1.0.242 - mailed now, each with a switch of its own, on by default: the key that
+  opens the sealed secrets missing on a node and two nodes under one name (under *A
+  node down*); **logs not reaching isemon or the syslog servers** (with the lines
+  dropped); **the SNMP agent not listening** or its traps not going; **a certificate
+  of a node or of the VIP address the CA did not renew** - at once, not only once it
+  is about to run out (the certificates the certificate manager keeps are said by
+  it, as before); the certificates of **PostgreSQL's TLS and the link between the
+  nodes** running out (with *A certificate running out within*); **the update of
+  the system failed**, or a node that cannot look for updates; **an upgrade of acme
+  that failed**; **a change on trial that went back** (the network, the firewall,
+  the SSH server - the network's going back is in Events now too); **rows of the
+  database not written by acme** refused (the guard against writes); **mails with a
+  code or a notice of certificates that do not go**; a clock out of sync on a node
+  without chrony. Off by default, for who wants them: the replication behind by more
+  than N MB, SELinux, the security check, each sign-in by the load balancer
+  refused. *The nodes apart* and *the clock guard* have switches of their own too
+  (on, as they were). Fixed on the way: with no event at all when the alerts first
+  looked, what happened later was never mailed.
+- **The alerts in a cluster** (as otp 1.0.234): "quiet while a node is worked on"
+  was one row both nodes wrote - two first rows at once stop the replication; each
+  node writes its own now. A test alert or *Forget* on the node that does not send
+  no longer writes back an older copy of what was sent (the same alerts again).
+  The weekly or monthly report missed on its day goes on a later day of the period.
+
 ## 1.0.39 - 2026-11-04
 
 - The nightly dumps of the database were never seen: they are called
