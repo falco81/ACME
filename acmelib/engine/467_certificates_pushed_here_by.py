@@ -441,8 +441,15 @@ def push_conf_save(store, conf):
     store.set_meta('acme_push:conf', json.dumps(conf))
 
 
+ONCE_KEEP_S.setdefault('push', 2 * PUSH_NONCE_S)
+
+
 def push_nonce_take(store, key_id, nonce, ts):
-    """False when the nonce was seen already (a replay)."""
+    """False when the nonce was seen already (a replay) - here or on the other node (1.0.44):
+    one row of every nonce, written by both nodes, lost one node's when two pushes came at
+    once, and a push caught on the way could be sent again to the other node meanwhile."""
+    if not once_take(store, 'push', str(key_id), str(nonce)):
+        return False
     with PUSH_LOCK:
         seen = _meta_json(store, 'acme_push:nonces') or {}
         t = time.time()

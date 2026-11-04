@@ -872,9 +872,9 @@ class DnsServer(object):
                 data = self._read(c, n, min(whole, time.monotonic() + TCP_MSG_S))
                 if data is None or len(data) < n:
                     return
-                if not self._allowed(peer[0]):
-                    self.stats['rate_limited'] += 1
-                    return
+                # No token bucket here (1.0.44): UDP's sends a resolver over the limit to TCP,
+                # and the same bucket then closed it - the cap per address and the deadlines
+                # above are TCP's.
                 self.stats['queries'] += 1
                 self.stats['tcp'] += 1
                 out = self.answer(data, peer[0], tcp=True)

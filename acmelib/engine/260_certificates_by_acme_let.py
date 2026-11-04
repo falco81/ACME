@@ -13,6 +13,7 @@ from __future__ import annotations
 # done in a thread of its own, never on the way of a sign-in.
 ACME_CAS = {'letsencrypt': 'https://acme-v02.api.letsencrypt.org/directory',
             'letsencrypt-staging': 'https://acme-staging-v02.api.letsencrypt.org/directory'}
+ACME_TICK = {'at': float('-inf')}      # steady clock; float('-inf'): due at once
 ACME_WORK = {'busy': False, 'at': 0.0, 'says': '', 'target': '', 'n': 0, 'of': 0, 'done': 0, 'each': {}}
 # Several certificates at once (1.0.203): at most this many orders side by side.
 ACME_PARALLEL = max(1, int(os.environ.get('ACME_ACME_PARALLEL') or 3))

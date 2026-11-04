@@ -65,7 +65,8 @@ DBGUARD_ADOPT = {'m': ('rbackup:targets',),
                        'acme_dns_key', 'acme_desec_token', 'acme_ca', 'acme_url')}
 DBGUARD_ADOPT_MARK = 'dbguard:adopted:1.0.44'
 DBGUARD_FILE = STATE_DIR / 'guard.json'
-DBGUARD = {'seen': None, 'good': None, 'seen_h': None, 'dirty': 0.0, 'refused': {}, 'nodes': {},
+DBGUARD = {'seen': None, 'good': None, 'seen_h': None, 'adopted': None, 'dirty': 0.0,
+           'refused': {}, 'nodes': {},
            'lock': threading.Lock()}
 
 
@@ -146,6 +147,7 @@ def _dbguard_load():
             DBGUARD['seen'] = dict(got.get('seen') or {}) if isinstance(got, dict) else {}
             DBGUARD['good'] = dict(got.get('good') or {}) if isinstance(got, dict) else {}
             DBGUARD['seen_h'] = dict(got.get('seen_h') or {}) if isinstance(got, dict) else {}
+            DBGUARD['adopted'] = dict(got.get('adopted') or {}) if isinstance(got, dict) else {}
 
 
 def dbguard_flush(force=False):
@@ -156,7 +158,8 @@ def dbguard_flush(force=False):
         return
     with DBGUARD['lock']:
         data = json.dumps({'seen': DBGUARD['seen'], 'good': DBGUARD['good'],
-                           'seen_h': DBGUARD['seen_h'] or {}})
+                           'seen_h': DBGUARD['seen_h'] or {},
+                           'adopted': DBGUARD.get('adopted') or {}})
         DBGUARD['dirty'] = 0.0
     try:
         write_replacing(DBGUARD_FILE, data, 0o600)
@@ -207,6 +210,8 @@ def dbguard_ok(db, kind, ident, value, quiet=False):
     """Whether a row is as acme wrote it: True whenever the guard is off."""
     if not dbguard_on():
         return True
+    if not dbguard_adopted_ok(kind, ident):
+        return True                     # newly guarded, not taken under it yet (1.0.44)
     key = dbguard_key()
     sid = 'sig:%s:%s:*' % (kind, _dbguard_hash(ident))
     why = ''
@@ -437,24 +442,46 @@ def dbguard_resign(store, why=''):
     return n
 
 
+def dbguard_adopted_ok(kind, ident):
+    """Whether a row this version took under the guard is checked yet: only once this node
+    has signed it as it was (dbguard_adopt) - until then it is as unguarded as before."""
+    keys = DBGUARD_ADOPT.get(kind)
+    if not keys or str(ident).split('@', 1)[0] not in keys:
+        return True
+    _dbguard_load()
+    return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT_MARK))
+
+
 def dbguard_adopt(store):
-    """Rows taken under the guard by this version, signed once as they are now - only those
-    with no signature at all, and only once (a mark of this node's own)."""
+    """Rows taken under the guard by this version (1.0.44), signed once as they are now - and
+    from then on checked. Not before every node runs this version: a 1.0.43 node saving them
+    unsigned made them refused here, and later on both. The mark that it was done is in this
+    node's own file, never the database - a mark there, deleted with the signatures, had the
+    next start sign whatever was written in their place."""
     if not dbguard_on() or not dbguard_key():
         return 0
-    mark = DBGUARD_ADOPT_MARK + ':' + node_name()
-    if store.get_meta(mark):
+    _dbguard_load()
+    if (DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT_MARK):
         return 0
+    if CONFIG.get('ha_mode'):
+        try:
+            nodes = ha_nodes(store)
+        except Exception:                               # noqa: BLE001
+            return 0
+        if any(_ver_tuple(n.get('version')) < _ver_tuple('1.0.44') for n in nodes
+               if n.get('alive') or n.get('me')):
+            return 0                                    # tried again at the next tick
     db, n = store.db, 0
     for kind, keys in DBGUARD_ADOPT.items():
         for k in keys:
-            if _dbguard_sigs(db, kind, k):
-                continue
             table = 'meta' if kind == 'm' else 'settings'
             row = db.row('SELECT v FROM %s WHERE k = ?' % table, (k,))
             if row is not None:
                 n += bool(dbguard_sign(db, kind, k, row['v']))
-    store.set_meta(mark, '%.0f' % time.time())
+    with DBGUARD['lock']:
+        DBGUARD.setdefault('adopted', {})[DBGUARD_ADOPT_MARK] = time.time()
+        DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
+    dbguard_flush(force=True)
     if n:
         log('the guard against writes now signs %d row(s) more, as they were (upgrade)' % n)
     return n

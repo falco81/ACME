@@ -971,11 +971,18 @@ def alerts_evaluate(store, force=False):
         kinds = sorted({r[1] for r in rules})
         seen = {int(k): float(v) for k, v in (st.get('event_seen') or {}).items()
                 if float(v) > now - 1800}
+        inn = ','.join('?' * len(kinds))
         try:
+            # The new ones above the mark, and apart those below it of the last 15 minutes not
+            # seen yet - one query with one LIMIT stalled on rows seen already in a flood.
             rows = store.db.rows(
-                "SELECT id, ts, kind, words, node FROM events WHERE kind IN (%s) AND "
-                "(id > ? OR ts > ?) ORDER BY id LIMIT 1000" % ','.join('?' * len(kinds)),
-                tuple(kinds) + (last, now - 900))
+                "SELECT id, ts, kind, words, node FROM events WHERE kind IN (%s) AND id > ? "
+                "ORDER BY id LIMIT 1000" % inn, tuple(kinds) + (last,))
+            late = store.db.rows(
+                "SELECT id, ts, kind, words, node FROM events WHERE kind IN (%s) AND id <= ? "
+                "AND ts > ? ORDER BY id DESC LIMIT 5000" % inn, tuple(kinds) + (last, now - 900))
+            rows = sorted([r for r in late if int(r['id']) not in seen][:500] + list(rows),
+                          key=lambda r: int(r['id']))
         except Exception:                               # noqa: BLE001
             rows = []
         rows = [r for r in rows if int(r['id']) not in seen]
@@ -1001,7 +1008,7 @@ def alerts_evaluate(store, force=False):
                     break
             if len(events) >= 20:
                 break
-        st['event_seen'] = {str(k): v for k, v in sorted(seen.items())[-3000:]}
+        st['event_seen'] = {str(k): v for k, v in sorted(seen.items())[-6000:]}
     st['problems'] = known
     st['checked'] = now
     store.set_meta('alerts:state', json.dumps(st))

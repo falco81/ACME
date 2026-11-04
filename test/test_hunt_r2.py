@@ -38,8 +38,9 @@ class Backups(unittest.TestCase):
     def test_runtime_checked(self):
         E.rb_runtime_checked(self.good())
         E.rb_runtime_checked({'kind': 'folder', 'path': '/mnt/backup'})
+        E.rb_runtime_checked(self.good(path='/srv/$HOME!x'))     # saved before: still taken
         for bad in (dict(user='-oProxyCommand=id'), dict(host='-oProxyCommand=id'),
-                    dict(path='/srv/x!id'), dict(path='/srv/$(id)'), dict(kind='smb', path='a;b'),
+                    dict(kind='smb', path='x!id'), dict(path='/srv/x"y'), dict(kind='smb', path='a;b'),
                     dict(user='a b'), dict(host='a b'), dict(kind='nope'),
                     dict(path='/srv/x\nput y')):
             with self.assertRaises(E.RbError, msg=bad):
@@ -71,7 +72,8 @@ class Deployments(unittest.TestCase):
     def test_service_is_a_name(self):
         self.assertEqual(TC.service_of('', 'web'), 'web')
         self.assertEqual(TC.service_of('ns/web-tls', 'x'), 'ns/web-tls')
-        for bad in ('web; id>/tmp/pwn #', '-x', '$(id)', 'a b', '/etc', 'a`id`', 'a|b'):
+        self.assertEqual(TC.service_of('nginx  php-fpm', 'x'), 'nginx php-fpm')
+        for bad in ('web; id>/tmp/pwn #', '-x', '$(id)', 'a -x', '/etc', 'a`id`', 'a|b'):
             with self.assertRaises(TC.PluginError, msg=bad):
                 TC.service_of(bad, 'x')
 
@@ -228,7 +230,9 @@ class Mail(unittest.TestCase):
                 self.skipTest('no sms_send here: %s' % fn)
         names = os.listdir(d)
         self.assertEqual(len(names), 1)
-        self.assertEqual(os.stat(os.path.join(d, names[0])).st_mode & 0o777, 0o660)
+        mode = os.stat(os.path.join(d, names[0])).st_mode & 0o777
+        # The folder's group is the test's own: kept readable as before (smsd elsewhere).
+        self.assertEqual(mode, 0o664 if os.stat(d).st_gid == os.getgid() else 0o660)
 
 
 class Clocks(unittest.TestCase):
@@ -255,7 +259,8 @@ class Alerts(unittest.TestCase):
     def test_kinds_and_late_rows(self):
         import inspect
         src = inspect.getsource(E.alerts_evaluate)
-        self.assertIn('kind IN (%s)', src)
+        self.assertIn('kind IN (%s) AND id > ?', src)
+        self.assertIn('id <= ?', src)
         self.assertIn("event_seen", src)
 
 

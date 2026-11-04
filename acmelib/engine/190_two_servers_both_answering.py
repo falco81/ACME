@@ -283,8 +283,13 @@ def lead_of(store):
     other. A node that sorts before this one and only looks stale here is
     asked in its own database first."""
     me = node_name()
-    alive = sorted(n['name'] for n in ha_nodes(store)
-                   if n.get('alive') or n.get('me') or (n['name'] < me and _alive_far(n['name'])))
+    nodes = [n for n in ha_nodes(store)
+             if n.get('alive') or n.get('me') or (n['name'] < me and _alive_far(n['name']))]
+    # A node in maintenance leads not while another is in service (1.0.44): it does no
+    # certificates' work then (no_lead_now), and the first by name in maintenance left the
+    # pair with no one doing it.
+    serving = [n for n in nodes if not n.get('maintenance')]
+    alive = sorted(n['name'] for n in (serving or nodes))
     return not alive or alive[0] == me
 
 

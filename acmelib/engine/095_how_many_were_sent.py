@@ -797,11 +797,15 @@ def sms_send(to, text):
             fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o660)
             with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 f.write(body)
+            gid = folder.stat().st_gid
             try:
-                os.chown(str(tmp), -1, folder.stat().st_gid)    # the folder's group: smsd's
+                os.chown(str(tmp), -1, gid)                     # the folder's group: smsd's
             except OSError:
                 pass
-            os.chmod(str(tmp), 0o660)
+            # 0660 only where that group is the folder's own and not acme's: otherwise smsd,
+            # in another group, could no longer read it - and no code went out.
+            mine = os.stat(str(tmp)).st_gid == gid and gid != os.getgid()
+            os.chmod(str(tmp), 0o660 if mine else 0o664)
             os.rename(str(tmp), str(folder / name))
         except OSError as e:
             try:

@@ -860,9 +860,11 @@ class SshGate(object):
         if p.code != 1:
             return None
         secret = ssh_gate_secret(self.d.store).encode()
-        # A Message-Authenticator always (1.0.44): one without it was taken - any process of the
-        # machine could send for root, have codes sent, learn who has a token (BlastRADIUS).
-        if not secret or p.message_authenticator_ok(secret) is not True:
+        # A wrong Message-Authenticator is refused; none at all is taken (1.0.44, again as in
+        # 1.0.43): pam_radius before 3.0 sends none, and requiring it locked every account out
+        # of SSH (or, with localifdown, let the plain password in alone). Only processes of
+        # this machine reach the gate (loopback).
+        if not secret or p.message_authenticator_ok(secret) is False:
             return None
         user = p.text(1)
         try:

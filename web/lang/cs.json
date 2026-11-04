@@ -53403,6 +53403,26 @@
   "pwp_51": {
    "source": "root is never locked, and never given aging here.",
    "text": "root se nikdy nezamyká a platnost hesla mu tu nikdy nenastavíme."
+  },
+  "hunt3_1": {
+   "source": "this node has stepped aside: its clock is not right (Settings -> Time) - certificates are issued and signed by the other node",
+   "text": "tento uzel ustoupil stranou: jeho hodiny nejdou správně (Nastavení -> Čas) - certifikáty vydává a podepisuje druhý uzel"
+  },
+  "hunt3_2": {
+   "source": "the service name is letters, digits and _ @ . : + = / - only (several with a space between), and does not begin with - or /",
+   "text": "název služby smí obsahovat jen písmena, číslice a _ @ . : + = / - (více názvů oddělených mezerou) a nezačíná - ani /"
+  },
+  "hunt3_3": {
+   "source": "the folder has no ; or \" in it (nor ! for SMB), and does not begin with -",
+   "text": "složka nesmí obsahovat ; ani \" (u SMB ani !) a nesmí začínat -"
+  },
+  "hunt3_4": {
+   "source": "the renewal was left by a node that is gone",
+   "text": "obnovu nechal nedokončenou uzel, který zmizel"
+  },
+  "hunt3_5": {
+   "source": "stopped before it was done",
+   "text": "zastaveno před dokončením"
   }
  },
  "patterns": {
@@ -72937,6 +72957,22 @@
   "ppwp_10": {
    "source": "made again on {0}: {1} - each with no password; sudo again once they have a password: {2}",
    "text": "znovu založeni na {0}: {1} – každý bez hesla; sudo znovu, až budou mít heslo: {2}"
+  },
+  "phunt3_1": {
+   "source": "the destination's folder has {0} in it - not used: change it there",
+   "text": "složka cíle obsahuje {0} - nepoužije se: upravte ji v cíli"
+  },
+  "phunt3_2": {
+   "source": "the renewal of {0} was left by a node that is gone: it is tried again",
+   "text": "obnovu {0} nechal nedokončenou uzel, který zmizel: zkusí se znovu"
+  },
+  "phunt3_3": {
+   "source": "unpacked, the file is larger than the room there is for it ({0} MB) - not put back",
+   "text": "po rozbalení je soubor větší než volné místo ({0} MB) - neobnoveno"
+  },
+  "phunt3_4": {
+   "source": "a line of the file is longer than {0} MB - not a copy acme made",
+   "text": "řádek souboru je delší než {0} MB - to není kopie z acme"
   }
  },
  "rich": {

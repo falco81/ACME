@@ -852,6 +852,28 @@ END $f$""")
                 self.run('CREATE TRIGGER acme_newer_setting BEFORE UPDATE ON settings '
                          'FOR EACH ROW EXECUTE FUNCTION acme_newer_setting()')
             self.run('ALTER TABLE settings ENABLE ALWAYS TRIGGER acme_newer_setting')
+            # A certificate renewed on one node while apart, and its row changed on the other
+            # (a note, a tag, the portal) - the whole old row came over on reunion and the
+            # older certificate was back, and deployed everywhere (1.0.44). A row of an older
+            # version than the one here is not taken over it.
+            if self.value("SELECT 1 FROM pg_tables WHERE tablename = 'certs'"):
+                self.run("""CREATE OR REPLACE FUNCTION acme_newer_cert() RETURNS trigger
+LANGUAGE plpgsql SET search_path FROM CURRENT AS $f$
+BEGIN
+  IF current_setting('session_replication_role') <> 'replica' THEN
+    RETURN NEW;
+  END IF;
+  IF COALESCE(NEW.version, 0) < COALESCE(OLD.version, 0)
+     OR COALESCE(NEW.alt_version, 0) < COALESCE(OLD.alt_version, 0) THEN
+    RETURN NULL;
+  END IF;
+  RETURN NEW;
+END $f$""")
+                if not self.value("SELECT 1 FROM pg_trigger WHERE tgname = 'acme_newer_cert' AND "
+                                  "tgrelid = 'certs'::regclass"):
+                    self.run('CREATE TRIGGER acme_newer_cert BEFORE UPDATE ON certs '
+                             'FOR EACH ROW EXECUTE FUNCTION acme_newer_cert()')
+                self.run('ALTER TABLE certs ENABLE ALWAYS TRIGGER acme_newer_cert')
             for table, col in schema_named_columns():
                 trg = 'acme_same_%s' % table
                 if not self.value("SELECT 1 FROM pg_trigger WHERE tgname = ? AND "

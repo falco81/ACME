@@ -605,8 +605,12 @@ def rb_runtime_checked(t):
         v = str(t.get(k) or '')
         if v.lstrip().startswith('-') or re.search(r'[\x00-\x1f\x7f]', v):
             raise RbError('the destination\'s %s is not one this takes' % k)
-    if re.search(r'[;"!`$]', str(t.get('path') or '')):
-        raise RbError('the destination\'s folder has ; " ! ` or $ in it - not used')
+    path = str(t.get('path') or '')
+    if t['kind'] != 'folder' and re.search(r'[;"]', path) or \
+            t['kind'] == 'smb' and '!' in path:
+        # smbclient's -c: ";" the next command, "!" a shell command; sftp's batch: '"'.
+        raise RbError('the destination\'s folder has %s in it - not used: change it there'
+                      % ('; " or !' if t['kind'] == 'smb' else '; or "'))
     host = str(t.get('host') or '')
     if t['kind'] != 'folder' and host and not re.match(r'^[A-Za-z0-9.:\[\]_-]{1,253}\Z', host):
         raise RbError('the destination\'s server is not a name or an address')

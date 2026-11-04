@@ -198,6 +198,25 @@ def pg_path_checked(path, folder=False):
     except (KeyError, ImportError):
         pg_uid = None
     ok_uid = {0} | ({pg_uid} if pg_uid is not None else set())
+    # A data folder moved to another disk behind a link (main -> /srv/pg/main) is common:
+    # the link root's or postgres's own, then what it points at checked as the path (1.0.44).
+    try:
+        lst = os.lstat(path)
+    except OSError:
+        raise Refused('%s is not there' % path[:100])
+    if stat.S_ISLNK(lst.st_mode):
+        if lst.st_uid not in ok_uid:
+            raise Refused('%s is a link of another account - not touched' % path[:100])
+        real = os.path.realpath(path)
+        # postgres's own link only to what is postgres's own: not to a file of root's.
+        if lst.st_uid != 0:
+            try:
+                if pg_uid is None or os.lstat(real).st_uid != pg_uid:
+                    raise Refused('%s is a link of postgres to what is not its own - not '
+                                  'touched' % path[:100])
+            except OSError:
+                raise Refused('%s is not there' % real[:100])
+        path = real
     for p, want_dir in ((path, folder), (os.path.dirname(path), True)):
         try:
             st = os.lstat(p)
@@ -3929,9 +3948,28 @@ def pwp_defs_put(values):
         write_root(LOGIN_DEFS, text, stat.S_IMODE(st.st_mode))
 
 
+PWP_ORIG_OLD = os.path.join(STATE_DIR, 'pwpolicy-orig.json')    # 1.0.43's place
+
+
 def pwp_orig_read():
+    got = _pwp_orig_at(PWP_ORIG)
+    if got or os.environ.get('ACME_PWP_ORIG'):
+        return got
+    # Where 1.0.43 kept it (1.0.44): taken over once - root's file only, as written then - or
+    # the features it switched on were no longer known as acme's, and stayed on for good.
+    old = _pwp_orig_at(PWP_ORIG_OLD)
+    if old:
+        try:
+            pwp_orig_write(old)
+            os.unlink(PWP_ORIG_OLD)
+        except OSError:
+            pass
+    return old
+
+
+def _pwp_orig_at(path):
     try:
-        fd = os.open(PWP_ORIG, os.O_RDONLY | os.O_NOFOLLOW)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
         st = os.fstat(fd)
         with os.fdopen(fd) as f:
             if st.st_uid != 0 or st.st_mode & 0o022 or not stat.S_ISREG(st.st_mode):
@@ -4227,7 +4265,10 @@ def lu_do(r):
         if sh.startswith('!') and len(sh) > 2:
             lu_run(['usermod', '-U', name])
         was = lu_expiry_keep(name, None)
-        lu_run(['chage', '-E', was if was and was.isdigit() else '-1', name])
+        # The day kept only while it is still ahead: an account that had ended before the lock
+        # stayed shut after Unlock.
+        ahead = bool(was and was.isdigit() and int(was) > int(time.time() // 86400))
+        lu_run(['chage', '-E', was if ahead else '-1', name])
         said = '%s unlocked' % name
     elif do == 'sudo':
         lu_sudo(name, bool(r.get('on')))

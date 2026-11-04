@@ -487,10 +487,12 @@ def service_of(value, fallback):
     "docker restart {service}" run anything as root on the target, for whoever may only
     choose a deployment's preset and not its commands."""
     v = text(value or '').strip() or text(fallback or '')
-    if not SERVICE_RE.match(v):
-        raise PluginError('the service name is letters, digits and _ @ . : + = / - only, and '
-                          'does not begin with - or /', retry=False)
-    return v
+    parts = v.split()
+    # Several, a space between (two units: "nginx php-fpm"), each a name of its own.
+    if not parts or len(parts) > 8 or not all(SERVICE_RE.match(x) for x in parts):
+        raise PluginError('the service name is letters, digits and _ @ . : + = / - only (several '
+                          'with a space between), and does not begin with - or /', retry=False)
+    return ' '.join(parts)
 
 
 def subst(s, vars):

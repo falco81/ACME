@@ -317,21 +317,35 @@ def _peer_alive_there(name):
     heartbeat looked stale here, and the last node waited for it for good.
     Asked every 15 s at most."""
     was = PEER_THERE.get(name)
-    if was and time.time() - was[0] < 15:
+    if was and time.monotonic() - was[0] < 15:
         return was[1]
-    alive = False
+    alive, vip = False, False
     try:
         far = ha_peer_db()
         try:
             beat = json.loads(far.value('SELECT v FROM meta WHERE k = ?', ('node:' + name,))
                               or '{}')
-            alive = now_minus(beat.get('at')) < 120
+            # Its age by its own database's clock (1.0.44): by this machine's, two minutes of
+            # skew made a live node dead here - and both nodes led.
+            try:
+                there = float(far.value('SELECT EXTRACT(EPOCH FROM clock_timestamp())') or 0)
+            except Exception:                           # noqa: BLE001
+                there = 0.0
+            at = float(beat.get('at') or 0)
+            alive = (there - at < 120) if there else now_minus(at) < 120
+            vip = bool(alive and (beat.get('web') or {}).get('vip_here'))
         finally:
             far.close()
     except Exception:                                   # noqa: BLE001
         alive = False
-    PEER_THERE[name] = (time.time(), alive)
+    PEER_THERE[name] = (time.monotonic(), alive, vip)
     return alive
+
+
+def peer_vip_there(name):
+    """Whether the node said, in its own database when last asked, it holds the VIP."""
+    was = PEER_THERE.get(name)
+    return bool(was and len(was) > 2 and was[2])
 
 
 def _peer_still_at_it(turn):

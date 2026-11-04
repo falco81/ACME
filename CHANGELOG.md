@@ -30,8 +30,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     300 lines looked at. A list of ciphers starting with "-" is refused (an option of openssl).
     Unlocking a local user gives back the day the account ends, as it was before the lock.
   - Signing in over SSH with a code: the wrong codes are counted for the whole cluster (they
-    were counted in memory on each node - five tries a node, forgotten at a restart); a RADIUS
-    request without a Message-Authenticator is not answered.
+    were counted in memory on each node - five tries a node, forgotten at a restart).
   - The second step's codes while it is set up were sent without the cluster's cap: an SMS to
     any number, again and again with a new sign-in. The portal's cap now.
   - A one-time code sent for the portal counted as a refused sign-in for the sign-in guard
@@ -90,6 +89,40 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     text in the SMS spool is readable by the spool folder's group only (0660).
   - A backup put back cannot unpack itself into the whole disk, nor a single line of it into
     memory.
+- **Round 3** (upgrades, the cluster, the command line, and what rounds 1 and 2 broke). Shut:
+  - **Going back is not possible below 1.0.44** any more (the floor was 1.0.0): an older signed
+    package put in by the acme account brought back the root helper with the holes 1.0.44
+    shuts.
+  - An upgrade whose new version does not run (or that stops after the switch) goes back to
+    the version that ran, with its pages; the check after the restart waits 15 s of the same
+    run (it took a version restarted every 5 s for a running one). A failed tree is never made
+    *previous* (a second try deleted the last good one); one install.sh at a time;
+    `install.sh --upgrade` does not take out the last node in service. A running daemon no
+    longer loads code from the new tree before its restart.
+  - The cluster: the node holding the VIP is asked in its own database before the other one
+    leads (one way of the replication stopped, both renewed and deployed); a node in
+    maintenance or stepped aside by the clock guard leads, renews and signs no more (and
+    the other leads meanwhile), and the DNS server of a node aside by its clock is silent;
+    a renewal left by a node that is gone is tried again (the certificate stayed *renewing*
+    for good, ran out without a word); the age of the other node's heartbeat is judged by
+    its database's clock; a setting is never stamped earlier than the value it changes (a
+    node with its clock behind had its change thrown away by the other); after a split an
+    older certificate's row coming over does not replace a newer one; the nonces of pushed
+    certificates are kept for both nodes; notes of a split report that never came are tidied.
+  - The guard's new rows (round 2) are taken under it only once every node runs 1.0.44,
+    with the mark of it in the node's own file (a mark in the database, deleted with the
+    signatures, made the next start sign whatever was put there).
+  - Rounds 1 and 2 put right: SSH with a code works again with pam_radius before 3.0 (it sends
+    no Message-Authenticator - a wrong one is still refused); a service name may be several
+    (`nginx php-fpm`), and Windows' are not checked (no shell: `MSSQL$SQLEXPRESS`); the
+    password policy's record of 1.0.43 is taken over from its old place; the SMS spool files
+    stay readable where the folder's group is acme's; a PostgreSQL data folder behind root's
+    link is taken; Unlock gives back the day the account ends only if it is still ahead; the
+    alerts do not stall in a flood of events; DNS over TCP is not rate limited like UDP; the
+    renewal of the pages' certificate is not held for an hour after a boot; destinations of
+    the backups saved before keep working (only what is dangerous for their kind is
+    refused); the 1.0.42 policy of only the days between changes is taken over where 1.0.43
+    had run; the command line names whose sudo it was in the events again.
 
 ## 1.0.43 - 2026-11-04
 

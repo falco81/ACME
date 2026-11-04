@@ -1940,9 +1940,15 @@ def cli_who():
     """Who did it, for the events: the command line - and, run through sudo (the console of a
     normal user, 1.0.240), whose sudo it was."""
     by = os.environ.get('SUDO_USER') or ''
-    if os.geteuid() == 0 and by and by != 'root' and re.match(r'^[A-Za-z_][A-Za-z0-9_.-]{0,31}$', by):
+    # Root as it was started (1.0.44): asked after the switch to the service's account,
+    # geteuid() was never 0 any more, and "(sudo alice)" never came.
+    root = CLI_STARTED_ROOT[0] if CLI_STARTED_ROOT[0] is not None else os.geteuid() == 0
+    if root and by and by != 'root' and re.match(r'^[A-Za-z_][A-Za-z0-9_.-]{0,31}$', by):
         return 'command line (sudo %s)' % by
     return 'command line'
+
+
+CLI_STARTED_ROOT = [None]
 
 
 def cli_local_policy(args, pal):
@@ -2459,6 +2465,8 @@ def cli_sso(args, pal, store):
 
 def cli_main(argv=None):
     global _LOG_TO_STDERR
+    if CLI_STARTED_ROOT[0] is None:
+        CLI_STARTED_ROOT[0] = os.geteuid() == 0
     said = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
     pal = Palette(colour_wanted(any(x in ('--no-color', '--no-colour') for x in said))

@@ -361,9 +361,11 @@ def acme_tick(daemon):
                 acme_ari_refresh(store)
         threading.Thread(target=ari, name='acme-acme-ari', daemon=True).start()
     if not CONFIG.get('acme') or ACME_WORK['busy'] or \
-            time.monotonic() - ACME_WORK['at'] < ACME_EVERY:
+            time.monotonic() - ACME_TICK['at'] < ACME_EVERY:
         return
-    ACME_WORK['at'] = time.monotonic()
+    # The wait by the steady clock (1.0.44), the time shown by the wall's.
+    ACME_TICK['at'] = time.monotonic()
+    ACME_WORK['at'] = time.time()
     store = daemon.store
 
     def look():

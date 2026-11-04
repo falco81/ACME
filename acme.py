@@ -20,7 +20,9 @@ This file only starts it: the engine is in acmelib/.
 import os
 import sys
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
+# The tree itself, not .../current (1.0.44): an upgrade switches that link while this still
+# runs, and what it imported later came from the new version.
+_HERE = os.path.dirname(os.path.realpath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 

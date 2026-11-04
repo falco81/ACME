@@ -535,7 +535,9 @@ def pwp_password_check(store, password, name):
 def pwp_migrate(store):
     """acme 1.0.42's own password policy (settings osu_pw_*) taken into the policy of otp's shape
     once (1.0.43): set there, it is managed with the same rules."""
-    if store.get_meta('host:pwpolicy:conf') is not None or store.get_meta('pwpolicy:migrated'):
+    # A mark of its own (1.0.44): 1.0.43 set 'pwpolicy:migrated' before its narrower look, and
+    # a policy of only the days between changes was never taken over where it had run.
+    if store.get_meta('host:pwpolicy:conf') is not None or store.get_meta('pwpolicy:migrated:2'):
         return False
     try:
         saved = store.settings_saved()
@@ -549,7 +551,7 @@ def pwp_migrate(store):
             return d
     mx, mn, cl = g('osu_pw_max_days', 0), g('osu_pw_min', 8), g('osu_pw_classes', 1)
     system = g('osu_pw_system', 0)
-    store.set_meta('pwpolicy:migrated', '%.0f' % time.time())
+    store.set_meta('pwpolicy:migrated:2', '%.0f' % time.time())
     # Any rule of 1.0.42's set (1.0.44: the days between changes, or the warning, alone too).
     if not (mx > 0 or mn > 8 or cl > 1 or system or g('osu_pw_min_days', 0) > 0 or
             g('osu_pw_warn_days', 7) != 7 or not g('osu_pw_not_name', 1)):

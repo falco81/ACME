@@ -277,7 +277,7 @@ class Users(unittest.TestCase):
 class Daemon(unittest.TestCase):
     def setUp(self):
         self.store = E.Storage(E.open_db())
-        self.store.db.run("DELETE FROM meta WHERE k IN ('host:pwpolicy:conf', 'pwpolicy:migrated')")
+        self.store.db.run("DELETE FROM meta WHERE k IN ('host:pwpolicy:conf', 'pwpolicy:migrated', 'pwpolicy:migrated:2')")
 
     def test_1_as_asked(self):
         c = E.pwp_checked_api({'managed': True, 'minlen': 14, 'max_days': 90})

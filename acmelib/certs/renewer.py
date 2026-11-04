@@ -102,6 +102,22 @@ def vip_elsewhere(store):
         return False
 
 
+def vip_far(store):
+    """Another node holds the VIP by its own database's word (1.0.44), though its heartbeat
+    looks stale here - one way of the replication stopped, the network fine: this node led
+    by name, the VIP's holder led too, and both renewed and deployed."""
+    try:
+        if not E.vip_conf(store).get('on'):
+            return False
+        for n in E.ha_nodes(store):
+            if not n.get('me') and not n.get('alive') and E._alive_far(n['name']) and \
+                    E.peer_vip_there(n['name']):
+                return True
+    except Exception:                                   # noqa: BLE001
+        return False
+    return False
+
+
 def lease_swap(store, was_raw, new_raw):
     """The lease row from what was read to the new one, in one conditional
     statement: True when this write is the one that went in."""
@@ -119,7 +135,7 @@ def lease_tick(store):
     """Take or keep the lease where this node should. True: this node leads."""
     me = E.node_name()
     t = time.time()
-    if E.split_no_lead():
+    if E.no_lead_now(store):
         # The nodes cannot reach each other and this one stepped aside, or is not the
         # preferred one with split_renew on (1.0.14, docs/split-brain.md): it leads not.
         lease_drop(store)
@@ -133,7 +149,8 @@ def lease_tick(store):
     live = bool(cur) and E.clock_their_time(store, cur.get('node'),
                                             float(cur.get('until') or 0)) >= t
     if replicated():
-        want = vip or (not vip_elsewhere(store) and bool(E.ha_lead(store)))
+        want = vip or (not vip_elsewhere(store) and not vip_far(store) and
+                       bool(E.ha_lead(store)))
         if not want:
             if cur and cur.get('node') == me:
                 lease_drop(store)
@@ -711,6 +728,38 @@ def tidy(store):
     jobs.prune(store)
 
 
+def orphans(store, t=None):
+    """Certificates left "renewing" with no job that runs them (1.0.44): the node that ran
+    it died and never came back under its name, so its recover() never ran - and a
+    certificate renewing is never due again; it ran out without a word. Failed (tried again
+    after the usual wait) when no job of it is queued or running, or the node of the one
+    there is not alive and it began more than two hours ago."""
+    from acmelib.certs import jobs
+    t = t or time.time()
+    n = 0
+    for c in store.db.rows("SELECT id, name FROM certs WHERE state = 'renewing'"):
+        live = store.db.rows("SELECT id, node, ts FROM cert_jobs WHERE cert_id = ? AND "
+                             "state IN ('queued', 'running')", (c['id'],))
+        if c['id'] in jobs.BUSY_CERTS:                  # this process runs it
+            continue
+        recent = store.db.value("SELECT COUNT(*) FROM cert_jobs WHERE cert_id = ? AND ts > ?",
+                                (c['id'], t - 600), 0)
+        gone = [j for j in live if float(j.get('ts') or 0) < t - 7200 and
+                j['node'] != E.node_name() and not jobs._node_alive(store, j['node'])]
+        if (not live and not int(recent or 0)) or (live and len(gone) == len(live)):
+            for j in gone:
+                store.db.update('cert_jobs', j['id'], {'state': 'failed', 'ok': 0,
+                                                       'finished': t,
+                                                       'said': 'its node is gone'})
+            store.db.run("UPDATE certs SET state = 'failed', last_error = ?, next_try = ? "
+                         "WHERE id = ? AND state = 'renewing'",
+                         ('the renewal was left by a node that is gone', t + 300, c['id']))
+            store.add_event('certificates', 'the renewal of %s was left by a node that is gone: '
+                            'it is tried again' % c['name'], 'warn')
+            n += 1
+    return n
+
+
 def scan(store, by='the renewer'):
     """Start a job for each certificate due and each deployment to try again.
     Returns the number of jobs started."""
@@ -720,6 +769,10 @@ def scan(store, by='the renewer'):
         tidy(store)
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('certs-tidy', 'tidying the certificates: %s' % e, 'warn', every=3600)
+    try:
+        orphans(store, t)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-orphans', 'looking at renewals left: %s' % e, 'warn', every=3600)
     # The CRLs of acme's own authorities made again past half their life, so
     # one published on acme (publish.py) never runs out.
     try:
@@ -807,8 +860,8 @@ class Renewer(object):
         self.dns_said = ''
         self.leading = False
         self.lead_until = 0.0
-        self.last_scan = 0.0
-        self.last_lease = 0.0
+        self.last_scan = float('-inf')   # monotonic: 0 is the boot (1.0.44)
+        self.last_lease = float('-inf')
 
     def start(self):
         jobs.recover(self.store)
@@ -842,7 +895,7 @@ class Renewer(object):
             except Exception as e:                      # noqa: BLE001
                 E.log_sparing('certs-dns', 'acme\'s DNS server: %s' % e, 'warn', every=600)
             try:
-                if self.leading and E.split_no_lead():
+                if self.leading and E.no_lead_now(self.store):
                     # Stepped aside, or held back while apart (1.0.14): at once, not at
                     # the next look at the lease.
                     self.leading = False
@@ -865,7 +918,7 @@ class Renewer(object):
         self.dns_stop()
 
     def scan_soon(self):
-        self.last_scan = 0.0
+        self.last_scan = float('-inf')
         self.wake.set()
 
     # ---- acme's own DNS server ------------------------------------------------------------
@@ -881,7 +934,7 @@ class Renewer(object):
         on = bool(E.CONFIG.get('dns_server'))
         # Stepped aside while the nodes cannot reach each other (1.0.14): no DNS answers
         # here - the NS records name both nodes, resolvers ask the other.
-        aside = on and E.split_aside()
+        aside = on and (E.split_aside() or E.clock_aside())
         if aside:
             on = False
             if self.dns is not None:

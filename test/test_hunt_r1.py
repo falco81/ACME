@@ -77,6 +77,11 @@ class Helper(unittest.TestCase):
         self.assertEqual(W.pg_path_checked(f), f)
         link = os.path.join(d, 'link.conf')
         os.symlink('/etc/passwd', link)
+        try:
+            import pwd
+            os.lchown(link, pwd.getpwnam('postgres').pw_uid, -1)   # postgres's link to root's
+        except (KeyError, OSError):
+            os.lchown(link, 65534, -1) if os.geteuid() == 0 else None
         with self.assertRaises(W.Refused):
             W.pg_path_checked(link)
         with self.assertRaises(W.Refused):

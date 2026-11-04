@@ -696,6 +696,20 @@ def once_tidy(store):
     for kind, keep in ONCE_KEEP_S.items():
         store.db.run('DELETE FROM used_once WHERE substr(k, 1, ?) = ? AND ts < ?',
                      (len(kind) + 1, kind + ':', t - keep))
+    # What was noted for a split report that never came (1.0.44): a code used while the other
+    # node could not be asked is noted with no split at all, and only a report after a split
+    # on the preferred node took the rows away - a row a code, for good. A week on, gone.
+    try:
+        if not split_apart():
+            for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'split:took:%'"):
+                try:
+                    at = float((json.loads(r['v'] or '{}') or {}).get('at') or 0)
+                except (ValueError, TypeError, AttributeError):
+                    at = 0
+                if t - at > 7 * 86400:
+                    store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (r['k'], r['v']))
+    except Exception:                                   # noqa: BLE001
+        pass
 
 
 def ha_peer_db():

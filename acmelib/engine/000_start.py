@@ -91,7 +91,7 @@ from acmelib import __version__  # noqa: E402  (one place for the version)
 # older one would misread, or fixes a hole an older one has. install.sh keeps
 # the highest of these in a file of root's (downgrade-floor); each node keeps
 # its own in the database.
-DOWNGRADE_FLOOR = '1.0.0'
+DOWNGRADE_FLOOR = '1.0.44'          # 1.0.44: holes of the root helper shut (the hunt)
 
 # ---------------------------------------------------------------------------
 # Where the modules plug in

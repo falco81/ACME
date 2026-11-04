@@ -327,6 +327,16 @@ for v in ADMIN_ALLOW PORTAL_ALLOW; do
 done
 
 [[ $EUID -eq 0 ]] || fail "run this as root: sudo ./install.sh"
+# One of these at a time (1.0.44): a second run's tidying of versions/ took away the first
+# one's half-copied tree, or its finished one just before the switch.
+if [[ -z "$DRY_RUN" ]] && command -v flock >/dev/null 2>&1; then
+    exec 9>/run/acme-install.lock
+    flock -n 9 || fail "another install.sh is running (an upgrade from the pages, or one typed in): wait for it, then again"
+fi
+if [[ -n "$DO_UPGRADE" && -z "${ACME_UPGRADE_FROM_PAGES:-}" && -z "$DRY_RUN" ]] \
+        && systemctl is-active --quiet acme-upgrade.service 2>/dev/null; then
+    fail "an upgrade from the pages is running (acme-upgrade.service); wait for it, then again"
+fi
 for need in acme.py acmelib/__init__.py acmelib/engine/__init__.py web/index.php deploy/acme.service; do
     [[ -f "$SOURCE_DIR/$need" ]] || fail "$need is not beside this script; run it from inside the unpacked folder (acme-X.Y.Z/)"
 done
@@ -682,9 +692,19 @@ install_pages() {
     if [[ -n "$DRY_RUN" ]]; then
         note "[would copy] $SOURCE_DIR/web -> $WEB_DIR (made beside it, then put in its place)"
     else
-        local wnew wold=""
+        pages_from "$SOURCE_DIR/web"
+        PAGES_SWITCHED=yes
+    fi
+    good "$WEB_DIR"
+    install_pages_rest
+}
+
+# The pages of a tree put in place of those there (1.0.44: also the old tree's, an upgrade
+# that failed after the switch going back).
+pages_from() {
+        local from="$1" wnew wold=""
         wnew="$(mktemp -d "$(dirname "$WEB_DIR")/.acme-web-new.XXXXXX")"
-        tar -C "$SOURCE_DIR/web" --exclude='__pycache__' -cf - . | tar -C "$wnew" --no-same-owner -xf -
+        tar -C "$from" --exclude='__pycache__' -cf - . | tar -C "$wnew" --no-same-owner -xf -
         chown -R root:root "$wnew"
         find "$wnew" -type d -exec chmod 0755 {} +
         find "$wnew" -type f -exec chmod 0644 {} +
@@ -694,8 +714,10 @@ install_pages() {
         fi
         mv -T "$wnew" "$WEB_DIR"
         [[ -n "$wold" ]] && rm -rf "$wold"
-    fi
-    good "$WEB_DIR"
+        return 0
+}
+
+install_pages_rest() {
 
     # ---- the pool ------------------------------------------------------------
     local pool_dir sock owner
@@ -1302,8 +1324,15 @@ install_tree() {
     chmod -R go-w "$NEW_TREE"
     # The switch: one rename. What ran before is previous.
     cur="$(readlink -e "$LIB_DIR/current" 2>/dev/null || true)"
+    # What to go back to, should the new one not run (1.0.44).
+    ROLLBACK_TREE="$cur"
+    [[ "$cur" == "$NEW_TREE" ]] && ROLLBACK_TREE=""
+    rm -f -- "$NEW_TREE/.failed"
     swap_link "$LIB_DIR/current" "versions/$(basename "$NEW_TREE")"
-    if [[ -n "$cur" && -d "$cur" && "$cur" != "$NEW_TREE" ]]; then
+    TREE_SWITCHED=yes
+    # A tree that failed to run is never previous (1.0.44): a second try after a failed
+    # one made the failed tree previous, and deleted the last one that ran.
+    if [[ -n "$cur" && -d "$cur" && "$cur" != "$NEW_TREE" && ! -e "$cur/.failed" ]]; then
         swap_link "$LIB_DIR/previous" "versions/$(basename "$cur")"
     fi
     for one in acme.py acme_upgrade.py acme_web.py acme-vip-check deploy docs \
@@ -1473,10 +1502,27 @@ as_acme() {             # a command of acme's, as its own account
 
 restart_daemon() {
     run systemctl reenable acme.service >/dev/null 2>&1 || run systemctl enable acme.service >/dev/null
+    local before after up=0 i
+    before="$(systemctl show -p NRestarts --value acme.service 2>/dev/null || echo 0)"
     run systemctl restart acme.service
     [[ -n "$DRY_RUN" ]] && return 0
-    sleep 2
-    if systemctl is-active --quiet acme.service; then
+    # Running, and still the same run 15 s on (1.0.44): Restart=always brings a version that
+    # dies at 3 s back every 5 s - after 2 s it was "running", and stayed in a loop.
+    for i in $(seq 1 40); do
+        sleep 1
+        after="$(systemctl show -p NRestarts --value acme.service 2>/dev/null || echo 0)"
+        if systemctl is-active --quiet acme.service && [[ "$after" == "$before" ]]; then
+            up=$((up + 1))
+            [[ $up -ge 15 ]] && break
+        else
+            up=0
+            before="$after"
+        fi
+    done
+    if [[ $up -ge 15 ]]; then
+        local here
+        here="$(readlink -e "$LIB_DIR/current" 2>/dev/null || true)"
+        [[ -n "$here" ]] && touch "$here/.ran-ok" 2>/dev/null || true
         good "acme.service is running"
     else
         warn "it did not start - the last of its log:"
@@ -1829,6 +1875,23 @@ if [[ -n "$DO_UPGRADE" ]]; then
     MAINT_BY_US=""
     if [[ -z "${ACME_UPGRADE_FROM_PAGES:-}" && -z "$DRY_RUN" ]] && systemctl is-active --quiet acme.service; then
         if as_acme --maintenance status >/dev/null 2>&1; then
+            # Never both nodes out at once (1.0.44), as the pages' plan: the other node must be
+            # alive and in service, or this one, the last that serves, is not taken out.
+            others=""
+            others="$(as_acme --ha-status --json 2>/dev/null | python3 -c 'import json,sys
+try:
+    nodes = [n for n in json.load(sys.stdin).get("nodes", []) if not n.get("me")]
+except Exception:
+    nodes = []
+if not nodes:
+    print("alone")
+elif any(n.get("alive") and not n.get("maintenance") for n in nodes):
+    print("serving")
+else:
+    print("none")' 2>/dev/null || echo alone)"
+            if [[ "$others" == none && -z "${ACME_FORCE_UPGRADE:-}" ]]; then
+                fail "the other node is not in service (gone, or in maintenance): this one would be the last out. Bring it back first - or, knowing it: ACME_FORCE_UPGRADE=1 ./install.sh --upgrade"
+            fi
             if as_acme --maintenance on --why "install.sh --upgrade to $VERSION" >/dev/null 2>&1; then
                 MAINT_BY_US=yes
                 good "this node is in maintenance while it is upgraded"
@@ -1848,10 +1911,23 @@ except Exception:
     # of it done. The tree is switched in one step, so what runs is always one
     # whole version - the old one until the switch, the new one after it.
     UPGRADE_STAGE=started
+    TREE_SWITCHED="" PAGES_SWITCHED="" ROLLBACK_TREE=""
     upgrade_rescue() {
         local rc=$?
         [[ "${UPGRADE_STAGE:-}" == started && $rc -ne 0 && -z "$DRY_RUN" ]] || return 0
-        warn "the upgrade stopped half way (exit $rc); the daemon is started again as it is"
+        if [[ -n "${TREE_SWITCHED:-}" && -n "${ROLLBACK_TREE:-}" && -d "$ROLLBACK_TREE" ]]; then
+            # Back to the version that ran (1.0.44): the new one was switched in and then
+            # did not run - restarting it only restarted the same failure.
+            warn "the upgrade stopped after the switch (exit $rc): back to $(basename "$ROLLBACK_TREE")"
+            touch "$NEW_TREE/.failed" 2>/dev/null || true
+            swap_link "$LIB_DIR/current" "versions/$(basename "$ROLLBACK_TREE")" || true
+            if [[ -n "${PAGES_SWITCHED:-}" && -d "$ROLLBACK_TREE/web" ]]; then
+                pages_from "$ROLLBACK_TREE/web" || warn "the pages of $(basename "$ROLLBACK_TREE") could not be put back"
+            fi
+            systemctl daemon-reload >/dev/null 2>&1 || true
+        else
+            warn "the upgrade stopped half way (exit $rc); the daemon is started again as it is"
+        fi
         systemctl restart acme.service >/dev/null 2>&1 || true
         if [[ -n "$MAINT_BY_US" ]]; then
             sleep 3

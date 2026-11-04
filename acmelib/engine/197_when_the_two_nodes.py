@@ -601,9 +601,33 @@ def split_no_lead():
     return bool(CONFIG.get('split_renew')) and split_apart() and not split_me_preferred()
 
 
+def no_lead_now(store=None):
+    """Whether this node must not lead the certificates' work now (1.0.44): apart and held
+    back (split_no_lead), stepped aside by the clock guard (docs/clock-guard.md: its clock is
+    wrong - nothing renewed, deployed or signed by it), or in maintenance in a cluster (being
+    upgraded: the other node works meanwhile). Only the first was asked; the node out of
+    service, or with its clock off, kept renewing and deploying beside the other."""
+    if split_no_lead():
+        return True
+    try:
+        if clock_aside():
+            return True
+        if CONFIG.get('ha_mode') and store is not None and maintenance_now(store).get('on'):
+            return True
+    except Exception:                                   # noqa: BLE001
+        pass
+    return False
+
+
 def split_issue_refused():
     """The words why a certificate may not be issued, renewed, revoked or signed here now
     (a renewal by hand, a request on the portal, Sign a CSR) - '' when it may."""
+    try:
+        if clock_aside():
+            return ('this node has stepped aside: its clock is not right (Settings -> Time) - '
+                    'certificates are issued and signed by the other node')
+    except Exception:                                   # noqa: BLE001
+        pass
     if not split_no_lead():
         return ''
     other = split_preferred_name(HA_STORE.get('store')) or 'the preferred node'

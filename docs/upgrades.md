@@ -33,6 +33,18 @@ that ran before becomes `previous`; older ones are deleted. The pages
 (`/var/www/acme`) are copied whole beside the old ones and put in their place
 the same way.
 
+**When the new one does not run (1.0.44).** After the restart the service must
+stay up, the same run, for 15 s (systemd's `NRestarts` unchanged) - a version
+that dies at once and is started again every 5 s is no longer taken for one
+that runs. Should the upgrade stop after the switch (that check, the pages, PHP,
+nginx), `current` goes back to the tree that ran before, its pages are put back,
+and the service is started again on it; the new tree is marked `.failed` and is
+never made `previous` by a later try - which made the failed tree `previous`
+and deleted the last one that ran. Only one install.sh runs at a time (a lock
+in `/run`), and `install.sh --upgrade` refuses to take this node out while the
+other node of a cluster is not in service (`ACME_FORCE_UPGRADE=1` when that is
+meant).
+
 The database is brought up to date when the new version starts (columns and
 tables added, nothing taken away). In a cluster the nodes are upgraded one
 after the other; while one is new and the other old, what the new one writes
@@ -198,7 +210,8 @@ Going back is refused below the highest of these
   still counts after going back from it;
 - of any version installed on this machine - install.sh keeps it in
   `/usr/local/lib/acme/downgrade-floor` (beside `versions/`, not in a tree),
-  root's alone. The acme account cannot
+  root's alone (1.0.44 raised the floor to 1.0.44: its root helper shuts holes
+  the older ones have). The acme account cannot
   lower it, so nobody who has only the pages (or the acme account) can take the
   server back to a version with a hole a later one fixed. An older version's
   install.sh leaves it as it is.
