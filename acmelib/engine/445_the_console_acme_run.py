@@ -1197,9 +1197,24 @@ class Console(object):
                 ('hosts', lambda r: r.get('hosts'), 34, None),
                 ('tls', lambda r: '%s:%s' % (r.get('tls'), r.get('port')), 12, None),
                 ('base', lambda r: r.get('base'), 40, None)], self.directory_do)
+        def dir_cap():
+            got = self.form('A directory\'s own cap of wrong passwords', [
+                {'key': 'name', 'label': 'the directory', 'need': True},
+                {'key': 'spec', 'label': 'the cap', 'need': True,
+                 'help': '3/30: 3 wrong passwords in 30 min · setting: as the setting · none: no cap'}])
+            if got:
+                self.act('--dir-cap', '%s=%s' % (got['name'], got['spec']))
+
+        def dir_policy():
+            got = self.form('Read a domain\'s policy', [{'key': 'name', 'label': 'the directory', 'need': True}])
+            if got:
+                self.act('--dir-policy', got['name'])
         return self.sub('Directories (Active Directory, LDAP)', [
             ('1', 'Directories (Enter: try one, change it)', directories),
             ('2', 'Add a directory', lambda: self.directory_edit(None)),
+            ('3', 'Each directory\'s cap of wrong passwords', lambda: self.act('--dir-caps')),
+            ('4', 'A directory\'s own cap', dir_cap),
+            ('5', 'Read a domain\'s lockout and password policy', dir_policy),
         ])
 
     def directory_edit(self, r):

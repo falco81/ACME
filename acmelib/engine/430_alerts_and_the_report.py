@@ -52,6 +52,11 @@ def _alerts_do(h):
             return dict(alerts_view(h.store), message='the report went to %s' % ', '.join(entry['to'])
                         if entry['ok'] else 'it waits in the outgoing mail: %s' % entry.get('said'))
         if act == 'forget':
+            # On the node that sends only (as otp 1.0.234): written from another node's older
+            # copy, the whole row took back what the sending node had said - the same alerts again.
+            if not alerts_lead(h.store):
+                raise ValueError('only the node that sends the alerts keeps what was sent - '
+                                 'forget it on that node\'s pages')
             st = _alert_state(h.store)
             st['log'] = []
             h.store.set_meta('alerts:state', json.dumps(st))

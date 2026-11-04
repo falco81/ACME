@@ -18,6 +18,8 @@ LOCKOUT_KINDS = {
     'password': 'changing a password',
     'dirtry': 'trying a directory sign-in (Accounts)',
     'texts-test': 'a test message (Message texts)',
+    # Wrong directory passwords per person, for the whole cluster (as otp 1.0.230).
+    'dir-passwords': 'directory passwords tried on the pages',
 }
 LOCKOUTS_SENT = {'sig': None, 'at': 0.0}
 THROTTLE_GUARD = threading.Lock()
@@ -121,9 +123,161 @@ def lockouts_said(store, a, n):
     store.add_event('sign-ins', words, 'warn', who=by)
 
 
+# ---- the cap of wrong directory passwords per person (as otp 1.0.230) -------------------------------
+def dir_pw_caps_list(store):
+    """Each directory with its own cap of wrong passwords, and the setting's (otp 1.0.232)."""
+    caps = dir_pw_caps(store)
+    out = []
+    for d in store.directories():
+        own = caps.get(d['name'].lower()) or {}
+        out.append({'name': d['name'], 'hosts': d.get('hosts') or '', 'tls': d.get('tls') or '',
+                    'enabled': bool(d.get('enabled', 1)), 'base': d.get('base') or '',
+                    'tries': own.get('tries'), 'window_min': own.get('window_min'),
+                    'policy': own.get('policy')})
+    return {'directories': out, 'setting': {'tries': int(CONFIG.get('dir_pw_tries') or 0),
+                                            'window_min': int(CONFIG.get('dir_pw_window_min') or 30)},
+            # acme has no "Block a place that keeps guessing" (otp's RADIUS guard, 1.0.241):
+            # the cap is in use whenever it is set.
+            'in_use': True}
+
+
+def dir_pw_caps_set(store, want, by):
+    """Directories' own caps saved (the pages, acme --dir-cap): {name: {tries, window_min}} -
+    tries None as the setting, 0 no cap. ValueError with the words when it may not be."""
+    if not isinstance(want, dict):
+        raise ValueError('the caps are an object of directories')
+    names = {d['name'].lower(): d['name'] for d in store.directories()}
+    caps = dir_pw_caps(store)
+    said = []
+    for name, c in want.items():
+        key = str(name).lower()
+        if key not in names:
+            raise ValueError('there is no directory called %s' % name)
+        c = c if isinstance(c, dict) else {}
+        tries, window = c.get('tries'), c.get('window_min')
+        try:
+            tries = None if tries in (None, '') else int(tries)
+            window = None if window in (None, '') else int(window)
+        except (TypeError, ValueError):
+            raise ValueError('%s: the cap and its time are whole numbers' % names[key])
+        if tries is not None and not 0 <= tries <= 100:
+            raise ValueError('%s: the cap is 0 to 100 wrong passwords' % names[key])
+        if window is not None and not 1 <= window <= 1440:
+            raise ValueError('%s: the time is 1 to 1440 min' % names[key])
+        was = caps.get(key) or {}
+        now = dict(was, tries=tries, window_min=window)
+        if now != was:
+            caps[key] = now
+            said.append('%s: %s' % (names[key], 'as the setting' if tries is None else
+                                    ('no cap' if tries == 0 else '%d in %s min' % (
+                                        tries, window or CONFIG.get('dir_pw_window_min') or 30))))
+    for key in list(caps):
+        if key not in names:
+            caps.pop(key, None)
+    store.set_meta('dirpw:conf', json.dumps(caps))
+    if said:
+        store.add_event('settings', '%s set the cap of wrong directory passwords: %s'
+                        % (by, '; '.join(said)), who=by)
+    return said
+
+
+def dir_policy_read(store, ad):
+    """The domain's lockout and password policy read, its recommendation with it, and kept beside
+    the directory's cap for the card (not a setting). LdapError as the directory says it."""
+    pol = ad.policy()
+    caps = dir_pw_caps(store)
+    key = ad.name.lower()
+    caps[key] = dict(caps.get(key) or {}, policy={k: pol[k] for k in ('lockout', 'password', 'at', 'name')})
+    store.set_meta('dirpw:conf', json.dumps(caps))
+    return pol
+
+
+def dir_pw_who(name, entry=None):
+    """A person as the cap counts them: their account in the directory (otp 1.0.234) - the name
+    typed counted novakj (sAMAccountName) and jan.novak@corp.cz (UPN) apart, and both forms
+    together got twice the cap through to the directory. Its first part and a short hash of
+    the whole DN: readable among the counts, one per account. A name the directory does not
+    have: as typed - DOMAIN\\novak, novak@anything and Novak are one."""
+    dn = str((entry or {}).get('dn') or '').strip().lower()
+    if dn:
+        first = re.split(r'(?<!\\),', dn, maxsplit=1)[0].split('=', 1)[-1].strip()
+        return '%s#%s' % (first[:60], hashlib.sha256(dn.encode('utf-8')).hexdigest()[:8])
+    return str(name or '').strip().lower().split('\\', 1)[-1].rsplit('@', 1)[0].strip()[:190]
+
+
+def dir_pw_caps(store):
+    """Each directory's own cap (otp 1.0.232): {name in small letters: {'tries': n, 'window_min': m}}
+    - a directory not in it, or with tries None, follows the setting."""
+    try:
+        got = json.loads(store.get_meta('dirpw:conf') or '{}')
+    except (ValueError, TypeError):
+        got = {}
+    return got if isinstance(got, dict) else {}
+
+
+def dir_pw_cap_of(store, directory):
+    """(tries, window in seconds) for a directory: its own, else the setting's."""
+    own = dir_pw_caps(store).get(str(directory or '').lower()) or {}
+    tries = own.get('tries') if own.get('tries') is not None else CONFIG.get('dir_pw_tries')
+    window = own.get('window_min') if own.get('window_min') else CONFIG.get('dir_pw_window_min')
+    return int(tries or 0), 60 * int(window or 30)
+
+
+def dir_pw_take(h, name, directory='', entry=None):
+    """A place for one directory password of `name`, held before the directory is asked; ''
+    when there is no cap. Over it: 429 - the directory is not asked. Counted per directory
+    (otp 1.0.232): novak of one domain is not novak of another, and each has its own lockout."""
+    most, span = dir_pw_cap_of(h.store, directory)
+    who = dir_pw_who(name, entry)
+    if most <= 0 or not who:
+        return ''
+    if directory:
+        who = '%s|%s' % (who, str(directory).lower())
+    if not node_key_add(h.store, 'adpw', who, span, limit=most):
+        times = sorted(x for x in node_key_times(h.store, 'adpw', who) if time.time() - x < span)
+        wait = max(1, int(((times[-most] + span) - time.time()) // 60) + 1) if len(times) >= most else 1
+        log_sparing('adpw:' + who, 'wrong directory passwords for %s: the cap of %d in %d min is '
+                    'reached - the directory is not asked for that name meanwhile'
+                    % (who, most, span // 60), 'warn', every=300)
+        # The address's own count keeps its place too (otp 1.0.234): the tries spent on a capped
+        # name no longer came back to it.
+        h.failed(None)
+        raise ApiError(429, 'too many wrong passwords for this name: try again in %d min' % wait)
+    return who
+
+
+def dir_pw_done(h, held, wrong):
+    """The place given back when the password was right (or the directory not reached)."""
+    if held and not wrong:
+        try:
+            node_key_give_back(h.store, 'adpw', held)
+        except Exception:                               # noqa: BLE001
+            pass
+
+
+def adpw_tidy(store):
+    """The counts of wrong directory passwords whose every time is past its window (as otp
+    1.0.230 tidies them with the challenges): a row a person no longer has."""
+    span = 60 * int(CONFIG.get('dir_pw_window_min') or 30)
+    try:                                    # a directory's own window, the longest
+        caps = dir_pw_caps(store)
+        span = max([span] + [60 * int(c.get('window_min') or 0) for c in caps.values()
+                             if isinstance(c, dict)])
+    except (ValueError, TypeError, AttributeError):
+        pass
+    now = time.time()                       # the counts by the machine's clock
+    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'adpw:%'"):
+        try:
+            v = json.loads(r['v'] or 'null')
+        except ValueError:
+            v = None
+        if not isinstance(v, list) or not any(abs(now - float(x)) < span for x in v):
+            store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (r['k'], r['v']))
+
+
 def lockouts_shared(store):
     """What the database holds for every node (1.0.116): the codes sent to a
-    person within the window."""
+    person within the window, and the wrong directory passwords per person."""
     t = time.time()
     rows = []
     span = 60 * int(CONFIG.get('code_send_window_min') or 15)
@@ -147,11 +301,42 @@ def lockouts_shared(store):
                      'until': (times[len(times) - limit] + span) if locked else None,
                      'forgets': times[-1] + span, 'first': times[0], 'last': times[-1],
                      'others': []})
+    # Wrong directory passwords per person (otp 1.0.230), when there is a cap.
+    most = int(CONFIG.get('dir_pw_tries') or 0)
+    pspan = 60 * int(CONFIG.get('dir_pw_window_min') or 30)
+    per = {}
+    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'adpw:%'"):
+        try:
+            per.setdefault(node_key_name('adpw', r['k']), []).extend(
+                float(x) for x in json.loads(r['v'] or '[]'))
+        except (ValueError, TypeError):
+            continue
+    for who, times in per.items():
+        # Each directory's own cap (otp 1.0.232): the name counted is "novak|directory".
+        name_, _s, dname = who.partition('|')
+        most, pspan = dir_pw_cap_of(store, dname)
+        times = sorted(x for x in times if t - x < pspan)
+        if not times or most <= 0:
+            continue
+        locked = len(times) >= most
+        rows.append({'kind': 'dir-passwords', 'who': who, 'by': 'name',
+                     'what': LOCKOUT_KINDS['dir-passwords'] + (' (%s)' % dname if dname else ''),
+                     'base': 'dir-passwords',
+                     'words': 'wrong directory passwords', 'fails': len(times), 'limit': most,
+                     'locked': locked,
+                     'until': (times[len(times) - most] + pspan) if locked else None,
+                     'forgets': times[-1] + pspan, 'first': times[0], 'last': times[-1],
+                     'others': []})
     rows.sort(key=lambda r: (not r['locked'], -r['last']))
     return rows
 
 
 def lockouts_shared_clear(store, kind, who, by):
+    if kind == 'dir-passwords':
+        n = node_key_drop(store, 'adpw', str(who or '').strip().lower()[:190])
+        store.add_event('sign-ins', '%s cleared the count of wrong directory passwords for %s'
+                        % (by, who), 'warn', who=by)
+        return n
     if kind == 'codes-sent':
         n = node_key_drop(store, 'codesent', who)
         store.add_event('sign-ins', '%s cleared the count of codes sent to %s' % (by, who),
@@ -190,7 +375,7 @@ def _lockouts_do(h):
     b = h.body()
     act = b.get('action')
     nodes = [node_name()] + [n for n in h.d.cluster_nodes() if n != node_name()]
-    if act == 'clear' and str(b.get('kind') or '') == 'codes-sent':
+    if act == 'clear' and str(b.get('kind') or '') in ('codes-sent', 'dir-passwords'):
         n = lockouts_shared_clear(h.store, str(b.get('kind')), norm_name(b.get('who') or ''),
                                   s['name'])
         if not n:
@@ -317,6 +502,12 @@ def admin_ask_directory(h, name, password):
         entry = ad.find_user(who, how)
     except LdapUnreachable as e:
         raise ApiError(503, 'the directory cannot be reached', str(e))
+    if not entry or entry.get('many') or entry_unusable(entry):
+        # Counted as a wrong password of a name that exists is (as otp 1.0.234): only those
+        # were held back, so a name the directory lacks answered 401 for ever - which said
+        # who exists.
+        dir_pw_done(h, dir_pw_take(h, who, ad.name, entry if entry and not entry.get('many')
+                                   else None), True)
     if not entry:
         return {'ok': False, 'missing': True, 'said': 'the directory has nobody called %s' % who,
                 'directory': ad.name}
@@ -329,13 +520,18 @@ def admin_ask_directory(h, name, password):
     if entry_unusable(entry):
         return {'ok': False, 'said': 'the account may not sign in: %s' % entry_unusable(entry),
                 'dn': entry['dn'], 'directory': ad.name}
+    # The cap per account (as otp 1.0.230, 1.0.232, 1.0.234).
+    held = dir_pw_take(h, who, ad.name, entry)
     try:
         ad.password_ok(entry, password)
     except LdapUnreachable as e:
+        dir_pw_done(h, held, False)
         raise ApiError(503, 'the directory cannot be reached', str(e))
     except LdapError as e:
+        dir_pw_done(h, held, not isinstance(e, LdapNotAsked))   # never asked: not counted
         return {'ok': False, 'said': str(e) or 'the password is not right', 'dn': entry['dn'],
                 'directory': ad.name}
+    dir_pw_done(h, held, False)
     have = ad.groups_of(entry, True)
     return {'ok': True, 'name': who, 'role': admin_role_for(have, ad), 'dn': entry['dn'],
             'display': entry.get('display') or '', 'directory': ad.name, 'entry': entry,

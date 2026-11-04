@@ -141,6 +141,28 @@ def _dirs_do(h):
             who, user[:120], 'it would sign in' if said.get('ok') else 'refused'), who=who)
         return {'tried': said}
     h.me('certadmin')
+    if act == 'pw_caps':
+        # Each directory with its own cap of wrong passwords, and the setting's (otp 1.0.232).
+        h.me('fulladmin')
+        return dir_pw_caps_list(h.store)
+    if act == 'pw_caps_save':
+        s = h.me('fulladmin')
+        try:
+            said = dir_pw_caps_set(h.store, b.get('caps') or {}, s['name'])
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        return {'message': 'saved' if said else 'nothing changed', 'saved': said}
+    if act == 'policy':
+        h.me('fulladmin')
+        ad = h.d.dirs.get(str(b.get('name') or '').lower())
+        if not ad:
+            raise ApiError(404, 'there is no directory called %s (switched on)' % b.get('name'))
+        try:
+            return {'policy': dir_policy_read(h.store, ad)}
+        except LdapUnreachable as e:
+            raise ApiError(503, 'the directory cannot be reached: %s' % e)
+        except LdapError as e:
+            raise ApiError(400, 'the directory said: %s' % e)
     # The connection to a directory tried from every node (1.0.169): each node
     # reaches the domain controllers on its own.
     if act == 'check_all':

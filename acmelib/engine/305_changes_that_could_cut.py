@@ -77,6 +77,8 @@ def net_go_back(daemon, job, why):
     if not back:
         _job_put(store, job, 'not kept (%s), and it cannot go back by itself: %s' % (
             why, job.get('back_why') or '?'), job.get('pct'), ok=False, state='failed')
+        store.add_event('settings', 'the old network of %s could not be put back: not kept (%s), and '
+                        'it cannot go back by itself' % (me, why), 'bad')      # mailed (as otp 1.0.242)
         return
     # The network as it is now read first: going back is planned from what
     # the node has (the new address), so the other node is told the old one.
@@ -87,6 +89,9 @@ def net_go_back(daemon, job, why):
     _job_put(store, job, 'not kept: %s - the old network (%s) comes back' % (
         why, (back.get('ipv4') or {}).get('addr')), job.get('pct'), ok=False,
         state='going back')
+    # In the events too (as otp 1.0.242): mailed, as the firewall's and the SSH server's are.
+    store.add_event('settings', '%s went back to the network it had before (%s): %s'
+                    % (me, (back.get('ipv4') or {}).get('addr') or '?', why), 'warn')
     try:
         net_ask(store, me, back, 'acme (%s)' % why, rollback=True, maint=bool(job.get('maint')),
                 snap=job.get('snap') or '')

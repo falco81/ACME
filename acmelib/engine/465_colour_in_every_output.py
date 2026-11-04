@@ -466,6 +466,15 @@ def build_parser():
     g = p.add_argument_group('ACTIVE DIRECTORY', 'The directories administrators (and the '
                              'enrolment pages) sign people in against.')
     g.add_argument('--directories', action='store_true', help='the directories')
+    g.add_argument('--dir-caps', action='store_true',
+                   help='each directory\'s cap of wrong passwords on these pages, and its domain\'s '
+                        'policy as last read')
+    g.add_argument('--dir-cap', metavar='NAME=SPEC', action='append',
+                   help='a directory\'s own cap: NAME=3/30 (3 wrong passwords in 30 min), '
+                        'NAME=setting (as the setting), NAME=none (no cap)')
+    g.add_argument('--dir-policy', metavar='NAME',
+                   help='read the domain\'s lockout and password policy (and its fine-grained ones) '
+                        'and say the cap recommended')
     g.add_argument('--add-directory', metavar='NAME', help='add (or change) one: --hosts, '
                    '--base, --bind-dn, --bind-pw, --tls, --port, --no-verify')
     g.add_argument('--hosts', metavar='H1,H2', help='its servers, in order')
@@ -1966,6 +1975,75 @@ def cli_upgrade_follow(store, pal):
         return 0
 
 
+def cli_dir_caps(args, pal, store, who):
+    """acme --dir-caps, --dir-cap, --dir-policy (as otp 1.0.236)."""
+    by = who if who != 'command line' else 'root on %s' % node_name()
+    if args.dir_cap:
+        want = {}
+        for spec in args.dir_cap:
+            name, _, rule = spec.partition('=')
+            rule = rule.strip().lower()
+            if rule == 'setting':
+                want[name.strip()] = {'tries': None, 'window_min': None}
+            elif rule == 'none':
+                want[name.strip()] = {'tries': 0}
+            else:
+                m = re.match(r'^(\d+)(?:/(\d+))?$', rule)
+                if not m or int(m.group(1)) < 1:
+                    raise SystemExit('acme: --dir-cap NAME=3/30, NAME=setting or NAME=none')
+                want[name.strip()] = {'tries': int(m.group(1)),
+                                      'window_min': int(m.group(2)) if m.group(2) else None}
+        try:
+            said = dir_pw_caps_set(store, want, by)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        print(pal.ok_line('saved: %s' % '; '.join(said)) if said else 'nothing changed')
+        return 0
+    if args.dir_policy:
+        name = args.dir_policy
+        row = next((d for d in store.directories(with_secret=True)
+                    if d['name'].lower() == str(name).lower()), None)
+        if not row:
+            raise SystemExit('acme: there is no directory called %s' % name)
+        ad = Directory(row)
+        try:
+            pol = dir_policy_read(store, ad)
+        except LdapError as e:
+            raise SystemExit('acme: %s' % e)
+        if args.json:
+            print(json.dumps(pol))
+            return 0
+        lo, pw = pol.get('lockout') or {}, pol.get('password') or {}
+        print(pal.ok_line('%s - %s' % (ad.name, pol.get('name') or ad.base)))
+        print('  lockout: %s wrong passwords, counted over %s s, locked %s' % (
+            lo.get('threshold') or 'never', lo.get('window_s'), lo.get('duration_s')))
+        print('  passwords: at least %s characters, complex %s, %s remembered' % (
+            pw.get('min_length'), 'yes' if pw.get('complex') else 'no', pw.get('history')))
+        for p in pol.get('psos') or []:
+            print('  fine-grained %s: locks after %s' % (p.get('name'), p.get('threshold') or 'never'))
+        rec = pol.get('recommend') or {}
+        print(pal.ok_line('recommended: %s wrong passwords in %s min - %s' % (
+            rec.get('tries'), rec.get('window_min'), rec.get('why'))))
+        print('  acme --dir-cap %s=%s/%s   puts it in' % (ad.name, rec.get('tries'), rec.get('window_min')))
+        return 0
+    got = dir_pw_caps_list(store)
+    if args.json:
+        print(json.dumps(got))
+        return 0
+    st = got['setting']
+    print(pal.ok_line('the setting: %s' % ('no cap' if not st['tries'] else
+                                           '%d wrong passwords in %d min' % (st['tries'], st['window_min']))))
+    for d in got['directories']:
+        own = 'as the setting' if d['tries'] is None else ('no cap' if d['tries'] == 0 else
+                                                          '%d in %s min' % (d['tries'], d['window_min'] or st['window_min']))
+        pol = d.get('policy') or {}
+        lo = pol.get('lockout') or {}
+        print('  %-20s %-18s %s%s' % (d['name'], own, ('domain locks after %s' % (lo.get('threshold') or 'never'))
+                                      if pol else 'policy not read (acme --dir-policy %s)' % d['name'],
+                                      '' if d['enabled'] else '  (switched off)'))
+    return 0
+
+
 def cli_main(argv=None):
     global _LOG_TO_STDERR
     said = list(sys.argv[1:] if argv is None else argv)
@@ -2569,6 +2647,9 @@ def cli_main(argv=None):
         print(table([(stamp(r['ts']), r['kind'], r['who'] or '', r['words']) for r in rows],
                     ['when', 'kind', 'who', 'what'], [19, 22, 18, 90]))
         return 0
+
+    if args.dir_caps or args.dir_cap or args.dir_policy:
+        return cli_dir_caps(args, pal, store, who)
 
     if args.directories:
         rows = store.directories()

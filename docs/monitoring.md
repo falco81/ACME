@@ -183,3 +183,46 @@ the last of them, while the replication catches up and the VIP address settles.
 The same outside of them is mailed as any alert, after *Only once it has lasted*.
 One already mailed is not said to be over because maintenance started: it is
 kept as it was until it is looked at again.
+
+## Alerts for what the nodes already see (as otp 1.0.242)
+
+*Settings → Alerts and reports* mails, besides the nodes, the database, the VIP
+address, the backups, the certificates of the nodes, the disks, the clock, the
+updates, the directories and the SMS gateway, what each node sees and writes in
+its health row every minute - each with a switch of its own, **on by default**
+(they are failures):
+
+| Switch | Mailed when |
+|--------|-------------|
+| `alerts_nodes` (as before) | also: the key that opens the sealed secrets (secrets.key - the private keys, the passwords kept) missing on a node; two nodes under one name |
+| `alerts_shipping` | the logs of a node not reaching isemon or the syslog servers (SIEM) - not reached, refused, or lines dropped |
+| `alerts_snmp` | SNMPv3 switched on and its agent on a node not listening, or its traps not going out |
+| `alerts_acme` | ACME ordered the certificate of a node or of the VIP address (*Automatic certificates*) and none came - at once, not only once it is about to run out. The certificates the certificate manager keeps are said by it, as before (a renewal or a deployment that failed) |
+| `alerts_cert_days` (as before) | also: the certificates of PostgreSQL's TLS and of the link between the nodes running out |
+| `alerts_updates` (as before) | also: the update of the system that failed, a node that cannot look for updates |
+| `alerts_upgrade` | an upgrade of acme that failed on a node, or one left stuck |
+| `alerts_trial` | a change of the network, the firewall or the SSH server on trial that was not kept and went back by itself - whoever made it may have lost the way in (said as it happens, from Events) |
+| `alerts_dbguard` | with the guard against writes to the database on: rows that reach root not as acme wrote them, refused |
+| `alerts_mailq` | codes and notices of certificates by mail that failed or ran out in the outgoing queue |
+| `alerts_split` | the nodes apart (with *What the nodes do when they lose each other* set to report it) |
+| `alerts_clock` | what the clock guard sees (with the clocks of the nodes watched) |
+| `alerts_time` (as before) | also on a node without chrony: what timedatectl says |
+
+**Off by default**, for who wants them:
+
+| Switch | Mailed when |
+|--------|-------------|
+| `alerts_repl_behind_mb` | the replication running, but the other node more than this many MB behind (0: never) |
+| `alerts_selinux` | the SELinux card of a node finds something not as acme needs it |
+| `alerts_hisec` | Settings → High security finds something less safe than it could be |
+| `alerts_sso` | each sign-in by the load balancer or WAF the enrolment pages refuse, as it is refused |
+
+What is said as it happens (a change on trial gone back, a refused sign-in by
+the balancer) is read from the events since the last look. With no event at all
+at the very first look, nothing that happened later was ever mailed - it is now.
+
+**The quiet while a node is worked on** is each node's own row
+(`alerts:quiet:NODE`): both wrote one row - the metrics, SNMP and the pages ask it
+on every node - and two first rows at once stopped the replication. A test alert
+or *Forget* on the node that does not send no longer writes back an older copy of
+what was sent.

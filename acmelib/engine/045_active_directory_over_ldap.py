@@ -438,6 +438,12 @@ class LdapError(RuntimeError):
         return self.detail or str(self)
 
 
+class LdapNotAsked(LdapError):
+    """A password refused before the directory was asked - empty, holding a control
+    character, no account to bind as (otp 1.0.234): not one of the directory's wrong
+    passwords, so not counted against the person's cap."""
+
+
 class LdapUnreachable(LdapError):
     """The directory could not be asked at all.
 

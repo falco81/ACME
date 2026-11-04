@@ -978,6 +978,9 @@ class Storage(object):
                         if str(CONFIG.get(key) or '').lower() == old['name'].lower():
                             self.save_setting(key, name, by)
                             CONFIG[key] = name
+                    # Its own cap of wrong passwords too (as otp 1.0.234): left on the old
+                    # name, the directory fell back to the setting - or to no cap at all.
+                    self._dirpw_move(old['name'], name)
                 self.db.update('directories', old['id'], row)
                 ident = old['id']
             else:
@@ -997,6 +1000,22 @@ class Storage(object):
                                  'The enrolment pages); choose another directory for them first')
         self.db.run('DELETE FROM directories WHERE id = ?', (int(ident),))
         self._dirs = None
+        if one:
+            self._dirpw_move(one['name'], None)         # its own cap gone with it (otp 1.0.234)
+
+    def _dirpw_move(self, old, new):
+        """A directory's own cap of wrong passwords (meta 'dirpw:conf') under its new name,
+        or taken away with it."""
+        try:
+            caps = json.loads(self.get_meta('dirpw:conf') or '{}')
+        except (TypeError, ValueError):
+            return
+        if not isinstance(caps, dict) or str(old).lower() not in caps:
+            return
+        mine = caps.pop(str(old).lower())
+        if new:
+            caps[str(new).lower()] = mine
+        self.set_meta('dirpw:conf', json.dumps(caps))
 
     def log_forget(self, table, ids=None, where_sql='', args=()):
         """Lines of a log taken away - by id, or every line a filter matches."""
