@@ -14637,6 +14637,9 @@ function sdAct(action, b) {
   api('sshd', {action: action}).then(function (r) { toast(r.message, 'good'); SD.d = r; drawSshd(); sdPoll(true); })
     .catch(function (e) { if (b) busy(b, false); oops(e); });
 }
+function sdAct2(body) {
+  return api('sshd', body).then(function (r) { toast(r.message, 'good'); SD.d = r; drawSshd(); return r; }).catch(oops);
+}
 /* The accounts of the nodes (1.0.242): root and the users who may sign in there, as SSH keys
    reads them - asked of the nodes when they have not said yet. */
 var SD_ACCTS = {at: 0, names: null, waiting: []};
@@ -14780,6 +14783,119 @@ function accountPicker(cur, o) {
   if (o.disabled) sum.onclick = function (e) { e.preventDefault(); };
   return box;
 }
+function sdTokenAsk(was) {
+  var who, note, kind = (was && was.kind) || 'app', dest, destF, langS, langF;
+  var ch = (SD.d && SD.d.channels) || [];
+  modal(was ? 'A new SSH token for ' + was.name : 'Add an SSH token', function (body) {
+    body.appendChild(el('p', 'note', 'A token of its own for signing in over SSH. From an app (the QR code shown once, right after: have the app at hand), or codes sent by mail or SMS where sending is set up.'));
+    if (was) body.appendChild(el('p', 'note warn', 'The SSH token ' + was.name + ' has now stops working the moment this one is made - an app\'s secret is made anew.'));
+    var g = el('div', 'formgrid');
+    /* The account (1.0.242): a list of the accounts of the nodes - root and every user who may
+       sign in there, as SSH keys lists them - one without an SSH token only; never a name typed.
+       A new token in the place of one: that account, as it is. */
+    if (was) {
+      who = noI18n(textBox(was.name, '', 'mono'));
+      who.disabled = true;
+    } else {
+      /* Not .mono (it kept "pick an account…" in English): the names in it are, each. */
+      who = el('select', 'sd-who');
+      var wait = el('option', '', 'reading the users of the nodes…');
+      wait.value = '';
+      who.appendChild(wait);
+      who.disabled = true;
+    }
+    g.appendChild(formField('The account', who, was ? 'Its name on the nodes - the name typed at ssh.'
+      : 'root, or a user who may sign in on the nodes (a login shell, UID 1000 and up). One SSH token each - one that has it is not offered.'));
+    if (!was) {
+      var has = {};
+      ((SD.d && SD.d.sshotp) || []).forEach(function (x) { has[x.name] = true; });
+      var tries = 0;
+      var fill = function (d) {
+        var seen = {}, names = ['root'], told = false;
+        ((d && d.nodes) || []).forEach(function (n) {
+          if (Array.isArray(n.users)) told = true;
+          (n.users || []).forEach(function (u) { if (!seen[u.name]) { seen[u.name] = true; names.push(u.name); } });
+        });
+        if (!told && tries < 15) return false;
+        clear(who);
+        var free = names.filter(function (nm) { return !has[nm]; });
+        free.sort(function (a, b) { return a === 'root' ? -1 : b === 'root' ? 1 : a < b ? -1 : 1; });
+        var first = el('option', '', free.length ? 'pick an account…' : 'every account has an SSH token already');
+        first.value = '';
+        who.appendChild(first);
+        free.forEach(function (nm) { var o = noI18n(el('option', 'mono', nm)); o.value = nm; who.appendChild(o); });
+        who.disabled = !free.length;
+        if (!told) who.appendChild(el('option', '', '(the nodes did not say their users - only root)')).disabled = true;
+        return true;
+      };
+      var ask = function () {
+        api('sshkeys').then(function (d) {
+          if (fill(d)) return;
+          if (!tries) api('sshkeys', {action: 'refresh', nodes: ((d && d.nodes) || []).filter(function (n) { return n.alive; }).map(function (n) { return n.name; })}).catch(function () {});
+          tries++;
+          setTimeout(ask, 2000);
+        }).catch(function () { tries = 99; fill(null); });
+      };
+      ask();
+    }
+    note = textBox(was ? was.note || '' : '', 'Jan Novák, admin', '');
+    g.appendChild(formField('Note', note, 'Whose it is - for you, nothing else.'));
+    /* Where the codes come from (1.0.181): the app, or mail and SMS when set up. */
+    var seg = el('div', 'seg');
+    [['app', 'An app'], ['mail', 'By mail'], ['sms', 'By SMS']].forEach(function (o) {
+      var b = el('button', kind === o[0] ? 'on' : '', o[1]);
+      b.type = 'button';
+      if (o[0] !== 'app' && ch.indexOf(o[0]) < 0) { b.disabled = true; b.title = o[0] === 'mail' ? 'sending mail is not set up (Settings → Mail)' : 'sending SMS is not set up (Settings → Codes by e-mail and SMS)'; }
+      b.onclick = function () {
+        kind = o[0];
+        Array.prototype.forEach.call(seg.children, function (x) { x.className = x === b ? 'on' : ''; });
+        destF.hidden = langF.hidden = kind === 'app';
+        dest.placeholder = kind === 'sms' ? '+420 777 123 456' : 'jan@example.cz';
+      };
+      seg.appendChild(b);
+    });
+    g.appendChild(formField('The codes come', seg, 'By mail or SMS: Enter at the first prompt of ssh, then the code that was sent.'));
+    body.appendChild(g);
+    var g2 = el('div', 'formgrid');
+    dest = noI18n(textBox('', 'jan@example.cz', 'mono'));
+    destF = formField('Where to', dest, 'The address or the number the codes go to.');
+    g2.appendChild(destF);
+    /* Czech or English mails and SMS (1.0.183). */
+    langS = el('select');
+    [['cs', 'Czech'], ['en', 'English']].forEach(function (o) {
+      var op = el('option', '', o[1]); op.value = o[0];
+      if (o[0] === ((was && was.lang) || (SETTINGS && settingByKey('code_lang') ? settingByKey('code_lang').value : 'cs'))) op.selected = true;
+      langS.appendChild(op);
+    });
+    langF = formField('The language of its mails and SMS', langS, 'The words as Settings → Message texts has them, SSH, in this language.');
+    g2.appendChild(langF);
+    destF.hidden = langF.hidden = kind === 'app';
+    body.appendChild(g2);
+    setTimeout(function () { (was ? note : who).focus(); }, 60);
+  }, [{words: 'Close', close: true}, {words: was ? 'Make a new one' : 'Make it', cls: 'primary', icon: 'add', go: function (b) {
+    if (!was && !who.value) { toast('pick an account first', 'bad'); who.focus(); return; }
+    busy(b, true);
+    sdTokenMake(who.value.trim(), note.value.trim(), !!was, b, kind, dest.value.trim(), langS.value);
+  }}], 'medium');
+}
+function sdTokenMake(name, note, replace, b, kind, dest, lang) {
+  api('sshd', {action: 'sshotp_add', name: name, note: note || '', replace: !!replace, kind: kind || 'app', dest: dest || '', lang: lang || ''}).then(function (r) {
+    SD.d = r; drawSshd();
+    var m = r.made;
+    if (m.kind !== 'app') { closeModal(); toast(r.message, 'good'); return; }
+    modal('The SSH token of ' + m.name, function (body) {
+      var grid = el('div', 'enrol');
+      var qr = el('div', 'qrbox');
+      var img = el('img'); img.src = m.qr; img.alt = 'QR code';
+      qr.appendChild(img); grid.appendChild(qr);
+      var right = el('div');
+      right.appendChild(el('p', 'note', 'Scan it with the authenticator application now, or type the key in - it is not shown again. Then ssh ' + m.name + '@' + ((STATUS && STATUS.node) || 'acme1') + ' (any node): the code where the password is asked.'));
+      right.appendChild(kvTable([['Account', m.name], ['Key', copyOnClick(noI18n(el('span', 'keytext', m.secret)), m.secret.replace(/\s+/g, ''), 'the key was copied')]]));
+      grid.appendChild(right);
+      body.appendChild(grid);
+    }, [{words: 'Close', close: true}], 'medium');
+  }).catch(function (e) { if (b) busy(b, false); oops(e); });
+}
 function drawSshd(live) {
   var real = $('sd-host');
   if (!real || !SD.d) return;
@@ -14823,6 +14939,8 @@ function drawSshd(live) {
         ['Who may sign in', v.allowusers || 'everybody'],
         ['Keys of root', String(n.keys)],
         ['SELinux', (n.now || {}).selinux || '–', true],
+        ['A code from acme', !n.radius || n.radius.pam === undefined ? '–' : (n.radius.pam ? 'asked (pam_radius)' : (n.radius.module ? 'not asked' : 'pam_radius is not here'))],
+        ['acme\'s gate for SSH', !(n.now || {}).gate ? '–' : (n.now.gate.listening ? '127.0.0.1:' + n.now.gate.port : (n.now.gate.error || 'not listening')), true],
         ['Read', n.now.at ? ago(n.now.at) : 'not yet']
       ]));
       if (n.now.error) c.appendChild(el('p', 'note bad', n.now.error));
@@ -14873,6 +14991,82 @@ function drawSshd(live) {
     if (dr.manage && !dr.password && dr.permit_root === 'yes')
       fc.appendChild(el('p', 'note', 'Passwords off: root signs in with a key either way.'));
     host.appendChild(fc);
+    /* A code from acme (as otp 1.0.178): pam_radius asks this node's own gate. */
+    var rc = el('div', 'card full');
+    rc.appendChild(el('h2', '', 'Signing in with a code from acme'));
+    rc.appendChild(el('p', 'muted small', 'sshd asks for a code where it would ask for the account\'s password - from an SSH token of the account, below. pam_radius asks acme\'s own gate on 127.0.0.1 of each node, on a free port of 18129-18199 each node finds for itself.'));
+    var rs = switchBox(dr.radius);
+    rs._input.disabled = !dr.manage;
+    rs._input.onchange = function () { dr.radius = !!rs._get(); sdDirty(); drawSshd(); };
+    rc.appendChild(formField('Ask for a code from acme', rs, dr.manage ? (dr.radius_with_key ? 'A key and then the code - as set below.' : 'A key alone still lets in - sshd asks for the code only where it asks for a password. For a key and the code: below.') : 'Needs acme to set the SSH server, above.'));
+    var rg = el('div', 'formgrid sd-grid' + (dr.manage && dr.radius ? '' : ' off'));
+    var ru = accountPicker(dr.radius_users || [], {every: 'Everybody but root (unless Root too)', root: false,
+      disabled: !dr.manage || !dr.radius, change: function (v) { dr.radius_users = v; sdDirty(); }});
+    rg.appendChild(formField('Only these accounts', ru, 'The accounts asked for a code - or everybody but root (root: Root too).'));
+    var rr = switchBox(dr.radius_root);
+    rr._input.disabled = !dr.manage || !dr.radius;
+    rr._input.onchange = function () { dr.radius_root = !!rr._get(); sdDirty(); };
+    rg.appendChild(formField('Root too', rr, 'Off: root signs in as before - a way in if acme itself is in trouble.'));
+    var rf = switchBox(dr.radius_fallback && dr.password);
+    rf._input.disabled = !dr.manage || !dr.radius || !dr.password;
+    rf._input.onchange = function () { dr.radius_fallback = !!rf._get(); sdDirty(); };
+    /* A key, then the code (1.0.183). */
+    var rk = switchBox(dr.radius_with_key);
+    rk._input.disabled = !dr.manage || !dr.radius;
+    rk._input.onchange = function () { dr.radius_with_key = !!rk._get(); sdDirty(); drawSshd(); };
+    rg.appendChild(formField('A key, and then the code', rk, 'On: an SSH key alone no longer lets in - after the key sshd asks for the code too (AuthenticationMethods publickey,keyboard-interactive), for the accounts the code is asked of. Off: a key alone lets in, the code is asked only where a password would be.'));
+    rg.appendChild(formField('The system password when acme does not answer', rf, dr.password ? 'pam_radius steps aside (localifdown) and the account\'s own password is asked.' : 'Needs passwords on - with them off, nobody gets in without the code.'));
+    /* The code hidden as it is typed (1.0.191). */
+    var rh = switchBox(dr.radius_hide);
+    rh._input.disabled = !dr.manage || !dr.radius;
+    rh._input.onchange = function () { dr.radius_hide = !!rh._get(); sdDirty(); };
+    rg.appendChild(formField('Hide the code as it is typed', rh, 'On: the SSH client shows nothing as the code is typed, as for a password (PuTTY and ssh show no stars). Off: the code is seen as it is typed.'));
+    rc.appendChild(rg);
+    if (dr.manage && dr.radius) {
+      var miss = nodes.filter(function (n) { return n.radius && n.radius.module === false; }).map(function (n) { return n.name; });
+      if (miss.length) rc.appendChild(el('p', 'note warn', 'pam_radius is not on ' + miss.join(', ') + ' - acme installs it when this is saved (RHEL: from EPEL - dnf install epel-release first).'));
+      if (dr.radius_with_key) {
+        var nk = nodes.filter(function (n) { return !n.keys; }).map(function (n) { return n.name; });
+        rc.appendChild(el('p', 'note warn', 'A key and then the code: whoever the code is asked of needs an SSH key of their own in ~/.ssh/authorized_keys on every node - without one, nobody gets in that way.' + (dr.radius_root && nk.length ? ' Root has no key on ' + nk.join(', ') + '.' : '')));
+      }
+      rc.appendChild(el('p', 'note', 'Keep the session you have open and try a new one while it is on trial. A kernel booted with ipv6.disable=1 breaks pam_radius 2.0 - nobody gets the code asked.'));
+    }
+    /* The SSH tokens (1.0.181): of their own, as the administration's second step. */
+    var tl = el('div', 'sd-tokens');
+    tl.appendChild(el('h3', '', 'SSH tokens'));
+    var list = d.sshotp || [];
+    if (!list.length) tl.appendChild(el('p', 'muted small', 'None yet. Each account that is to sign in with a code needs one - its name as on the nodes (jan, root…).'));
+    else {
+      var tb = el('table', 'rows');
+      var thr = el('tr');
+      ['Account', 'Note', 'The codes', 'Made', 'Last used', ''].forEach(function (h) { thr.appendChild(el('th', '', h)); });
+      var th = el('thead'); th.appendChild(thr); tb.appendChild(th);
+      var bd = el('tbody');
+      list.forEach(function (x) {
+        var tr = el('tr');
+        tr.appendChild(noI18n(el('td', 'mono', x.name)));
+        tr.appendChild(noI18n(el('td', '', x.note || '')));
+        tr.appendChild(el('td', 'small', x.kind === 'mail' ? 'mail · ' + x.dest + (x.lang ? ' · ' + x.lang.toUpperCase() : '') : (x.kind === 'sms' ? 'SMS · ' + x.dest + (x.lang ? ' · ' + x.lang.toUpperCase() : '') : 'an app')));
+        tr.appendChild(el('td', 'muted small', (x.at ? ago(x.at) : '') + (x.by ? ' · ' + x.by : '')));
+        tr.appendChild(el('td', 'muted small', x.used_at ? ago(x.used_at) + (x.used_on ? ' · ' + x.used_on : '') : 'never'));
+        var td = el('td', 'acts');
+        var nw = cmdButton('A new one…', 'refresh', 'small');
+        nw.onclick = function () { sdTokenAsk(x); };
+        var rm = cmdButton('Remove', 'trash', 'small danger');
+        rm.onclick = function () { confirmThen('Remove the SSH token of ' + x.name, x.name + ' then gets no code over SSH - with the system password when acme does not answer off, not in at all but with a key.', 'Remove', function () { sdAct2({action: 'sshotp_remove', name: x.name}); }, true); };
+        td.appendChild(nw); td.appendChild(rm);
+        tr.appendChild(td);
+        bd.appendChild(tr);
+      });
+      tb.appendChild(bd);
+      tl.appendChild(tb);
+    }
+    var add = cmdButton('Add an SSH token…', 'add', 'primary');
+    add.onclick = function () { sdTokenAsk(); };
+    var ar = el('div', 'btnrow'); ar.appendChild(add);
+    tl.appendChild(ar);
+    rc.appendChild(tl);
+    host.appendChild(rc);
     /* The notice. */
     var nc = el('div', 'card full');
     nc.appendChild(el('h2', '', 'The notice'));

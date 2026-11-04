@@ -756,7 +756,11 @@ def _osup_end(store, plan, row, ok, said='', reboot=False):
 # own timer puts the one before back - until Keep it ('host:sshd:keep').
 SSHD_DEFAULT = {'manage': False, 'permit_root': 'prohibit-password', 'password': True,
                 'port': 22, 'allow_users': [], 'tries': 4, 'notice': '', 'notice_ssh': False,
-                'notice_console': False, 'notice_motd': False, 'trial_min': 5}
+                'notice_console': False, 'notice_motd': False, 'trial_min': 5,
+                # A code from acme at SSH sign-in (1.0.40, as otp 1.0.178): pam_radius
+                # asking this node's own gate (316).
+                'radius': False, 'radius_users': [], 'radius_root': False,
+                'radius_fallback': True, 'radius_with_key': False, 'radius_hide': False}
 HOST_WORK.update(sshd=False, sshd_read=0.0)
 SSHD_FMT = '191'           # how this version writes sshd's files (see sshd_tick)
 
@@ -803,6 +807,20 @@ def sshd_checked_conf(b):
     c['notice'] = text
     for k in ('notice_ssh', 'notice_console', 'notice_motd'):
         c[k] = bool(b.get(k)) and bool(text.strip())
+    c['radius'] = bool(b.get('radius')) and c['manage']
+    raw = b.get('radius_users') or ''
+    ru = [str(u) for u in raw if u] if isinstance(raw, list) else \
+        [u for u in re.split(r'[\s,]+', str(raw)) if u]
+    for u in ru:
+        if not re.match(r'^[A-Za-z0-9._@-]{1,64}\Z', u):
+            raise ValueError('%r is not a user name' % u)
+    c['radius_users'] = ru[:100]
+    c['radius_root'] = bool(b.get('radius_root'))
+    # Passwords off: a node acme cannot ask lets nobody in with one either.
+    c['radius_fallback'] = bool(b.get('radius_fallback', True)) and c['password']
+    c['radius_with_key'] = bool(b.get('radius_with_key')) and c['radius']
+    # The code not shown as it is typed (as otp 1.0.191): pam_radius asks with echo off.
+    c['radius_hide'] = bool(b.get('radius_hide')) and c['radius']
     return c
 
 
@@ -820,6 +838,8 @@ def sshd_save(store, b, by):
             not any(u in ('root', '*') for u in c['allow_users']) and not b.get('ok_no_root'):
         raise ValueError('AllowUsers without root lets nobody in as root - add root to it, or '
                          'let root not sign in at all')
+    if c['radius']:
+        ssh_gate_secret(store, make=True)
     at = time.time()
     c.update(hash=sshd_hash(c, at), at=at, by=by)
     store.set_meta('host:sshd:conf', json.dumps(c))
@@ -827,6 +847,15 @@ def sshd_save(store, b, by):
         c['permit_root'], 'on' if c['password'] else 'off', c['port'],
         ', AllowUsers ' + ' '.join(c['allow_users']) if c['allow_users'] else '')
         if c['manage'] else 'the SSH server as the system has it')
+    if c['radius']:
+        what += '; a code from acme at sign-in (%s%s)' % (
+            ', '.join(c['radius_users']) or 'everybody but root' if not c['radius_root']
+            else ', '.join(c['radius_users']) or 'everybody, root too',
+            ', the system password when acme does not answer' if c['radius_fallback'] else '')
+        if c['radius_with_key']:
+            what += ', a key first'
+        if c.get('radius_hide'):
+            what += ', the code hidden as typed'
     notes = [w for k, w in (('notice_ssh', 'SSH'), ('notice_console', 'console'),
                             ('notice_motd', 'after sign-in')) if c[k]]
     store.add_event('settings', '%s set the SSH server: %s%s%s' % (
@@ -847,14 +876,17 @@ def sshd_view(store):
     for n in host_nodes(store):
         now = sshd_now(store, n)
         keys = len((_meta_json(store, 'host:sshkeys:now:' + n) or {}).get('keys') or [])
+        # What pam_radius of the node is (asked, not asked, not there) - on the node's row too:
+        # the page reads it there (otp 1.0.243 left it in "now" only, and showed "-" always).
         nodes.append({'name': n, 'me': n == node_name(), 'alive': alive.get(n, False),
-                      'now': now, 'keys': keys,
+                      'now': now, 'keys': keys, 'radius': now.get('radius'),
                       'state': ('failed' if now.get('failed') == c.get('hash') and c.get('hash')
                                 else 'back' if now.get('back_hash') == c.get('hash') and c.get('hash')
                                 else 'trial' if (now.get('trial') or {}).get('until')
                                 else 'done' if now.get('hash') == c.get('hash') or not c.get('hash')
                                 else 'waiting')})
-    return {'conf': c, 'nodes': nodes, 'helper': WEB_DIR.is_dir()}
+    return {'conf': c, 'nodes': nodes, 'helper': WEB_DIR.is_dir(), 'sshotp': sshotp_all(store),
+            'channels': code_channels(), 'gate_port': ssh_gate_port(store)}
 
 
 def sshd_ports_open(store):
@@ -905,6 +937,14 @@ def sshd_tick(daemon):
             not (now.get('trial') or {}).get('until') and now.get('failed') != c.get('hash') and \
             store.get_meta('host:sshd:fmt:' + me) != SSHD_FMT:
         todo.append(('apply', {'refit': True}))
+    # pam_radius's file with another secret or port than the gate's (a port changed):
+    # only that file is put right - or its PAM block from before skip_passwd.
+    if c.get('manage') and c.get('radius') and (now.get('radius') or {}).get('pam') and \
+            now.get('hash') == c.get('hash') and not todo and \
+            ((now.get('radius') or {}).get('fp') != ssh_gate_fp(ssh_gate_secret(store, make=True),
+                                                                ssh_gate_port(store)) or
+             (now.get('radius') or {}).get('skip_passwd') is False):
+        todo.append(('pamconf', None))
     if not todo and time.time() - HOST_WORK['sshd_read'] < 300 and now:
         return
     HOST_WORK['sshd'] = True
@@ -925,6 +965,11 @@ def sshd_tick(daemon):
                         refit = bool((extra or {}).get('refit'))
                         ask = {'do': 'apply', 'conf': c, 'trial_min': 0 if refit else (c.get('trial_min') or 0),
                                'hash': c['hash'], 'id': secrets.token_hex(4)}
+                        if c.get('radius'):
+                            # The gate's secret for pam_radius's file of 0600 - in the
+                            # ask file, never on a command line.
+                            ask.update(radius_secret=ssh_gate_secret(store, make=True),
+                                       radius_port=ssh_gate_port(store))
                         got = root_ask('sshd.ask', 'sshd.json', ask, 120)
                         store.set_meta('host:sshd:fmt:' + me, SSHD_FMT)
                         if refit:
@@ -945,11 +990,16 @@ def sshd_tick(daemon):
                         row['back_id'] = extra['id']
                         got = root_ask('sshd.ask', 'sshd.json', {'do': 'back', 'why': 'asked'}, 60)
                         continue
+                    elif what == 'pamconf':
+                        got = root_ask('sshd.ask', 'sshd.json', {
+                            'do': 'pamconf', 'radius_secret': ssh_gate_secret(store),
+                            'radius_port': ssh_gate_port(store)}, 60)
                     else:
                         got = root_ask('sshd.ask', 'sshd.json', {'do': 'read'}, 60)
                     row.update(values=got.get('values') or {}, there=got.get('there'),
                                dropins=got.get('dropins'), keys=got.get('keys'),
                                trial=got.get('trial') or {}, selinux=got.get('selinux') or '')
+                    row.update(radius=got.get('radius') or {}, gate=dict(SSH_GATE_STATE))
                     if what != 'apply':
                         # A read that worked clears a read's own error (1.0.22: "did not
                         # answer in 60 s" from a moment the helper was being upgraded

@@ -4088,6 +4088,13 @@ def pam_selinux_radius():
 def pam_radius_conf_write(secret, port):
     if not re.match(r'^[\x21-\x7e]{8,128}\Z', str(secret or '')):
         raise Refused('the secret of acme\'s gate for SSH is missing')
+    # Only acme's own gate (316): 127.0.0.1 and a port of 18129-18199, nothing else.
+    try:
+        port = int(port or 18129)
+    except (TypeError, ValueError):
+        raise Refused('the port of acme\'s gate for SSH is not a number')
+    if not 18129 <= port <= 18199:
+        raise Refused('the port of acme\'s gate for SSH is one of 18129-18199, not %d' % port)
     os.makedirs(os.path.dirname(pam_radius_conf_path()), mode=0o755, exist_ok=True)
     _put_file(pam_radius_conf_path(), '# acme - Settings -> SSH server; the secret of acme\'s gate '
               'for SSH on 127.0.0.1\n'
@@ -4931,8 +4938,8 @@ SE_LABELS = (('/run/acme', 'httpd_var_run_t', 'the folder of the API token'),
              ('/var/www/acme', 'httpd_sys_content_t', 'the pages'),
              ('/usr/libexec/keepalived/acme-vip-check', 'keepalived_unconfined_script_exec_t',
               'keepalived\'s check of this node'))
-SE_BOOLEANS = ('httpd_can_network_connect',)
-SE_PORT_TYPES = ('postgresql_port_t', 'ssh_port_t')
+SE_BOOLEANS = ('httpd_can_network_connect', 'authlogin_radius')   # the second: SSH with a code
+SE_PORT_TYPES = ('postgresql_port_t', 'ssh_port_t', 'radius_port_t')
 # The programs whose refusals are acme's business.
 SE_DOMAINS = ('httpd_t', 'keepalived_t', 'keepalived_unconfined_script_t', 'sshd_t',
               'chronyd_t', 'postgresql_t', 'syslogd_t', 'logrotate_t', 'unconfined_service_t',
@@ -5165,6 +5172,10 @@ def se_want_checked(r):
             raise Refused('a port is a number')
         if not 1 <= n <= 65535:
             raise Refused('a port is 1 to 65535')
+        # The gate for SSH with a code (as otp 1.0.181): UDP of 18129-18199 only, never
+        # RADIUS's own ports or another service's.
+        if p['type'] == 'radius_port_t' and not (p['proto'] == 'udp' and 18129 <= n <= 18199):
+            raise Refused('radius_port_t is for the gate for SSH only: UDP 18129-18199')
         ports.append({'port': n, 'proto': p['proto'], 'type': p['type'],
                       'why': str(p.get('why') or '')[:120]})
     return bools, ports
@@ -5383,7 +5394,7 @@ SE_REPORT_COMMS = ('python', 'acme', 'nginx', 'php-fpm', 'keepalived', 'sshd', '
                    'postmaster', 'mariadbd', 'mysqld', 'rsyslogd', 'auditd', 'acme-vip-check')
 SE_REPORT_PORT_TYPES = ('dns_port_t', 'ssh_port_t', 'http_port_t', 'postgresql_port_t',
                         'mysqld_port_t', 'syslogd_port_t', 'snmp_port_t', 'ntp_port_t',
-                        'unreserved_port_t', 'vrrp_port_t')
+                        'unreserved_port_t', 'vrrp_port_t', 'radius_port_t')
 
 
 def _se_out(cmd, timeout=120, data=None, light=True):

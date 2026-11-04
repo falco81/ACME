@@ -2488,6 +2488,37 @@ class Console(object):
             if got:
                 self.act('--sms-test', got['to'])
 
+        def ssh_new():
+            got = self.form('An SSH token', [
+                {'key': 'name', 'label': 'the account', 'need': True,
+                 'help': 'The account on the nodes it signs in to over SSH (root, or a user who '
+                         'may sign in there).'},
+                {'key': 'by', 'label': 'its codes', 'kind': 'choice', 'value': 'app',
+                 'options': [('app', 'from an authenticator app'), ('mail', 'sent by e-mail'),
+                             ('sms', 'sent by SMS')]},
+                {'key': 'to', 'label': 'sent to', 'need': True, 'when': lambda v: v.get('by') != 'app'}])
+            if not got:
+                return
+            extra = ['--by', got['by']] + (['--to', got['to']] if got['by'] != 'app' else [])
+            had = [r for r in (self.out('--ssh-tokens') or []) if isinstance(r, dict) and
+                   r.get('name', '').lower() == got['name'].lower()]
+            if had:
+                if not self.confirm('Replace', 'The SSH token of %s in use stops working now.'
+                                    % got['name'], 'Replace it', danger=True):
+                    return
+                extra.append('--yes')
+            self.act('--ssh-token-add', got['name'], *extra)
+
+        def ssh_del():
+            rows = [r for r in (self.out('--ssh-tokens') or []) if isinstance(r, dict)]
+            if not rows:
+                self.note('SSH tokens', 'There is none.')
+                return
+            which = self.choose('Take an SSH token away', [(r['name'], r['name']) for r in rows])
+            if which is not None and self.confirm('Take it away', 'The SSH token of %s stops '
+                                                  'working now.' % which, 'Take it away', danger=True):
+                self.act('--ssh-token-del', which)
+
         def lockout_clear():
             rows = [r for r in (self.out('--lockouts') or []) if isinstance(r, dict)]
             if not rows:
@@ -2595,12 +2626,15 @@ class Console(object):
             ('8', 'Restart a machine (the service kept)', restart),
             ('9', 'Send a test mail', mail_test),
             ('10', 'Send a test SMS', sms_test),
-            ('11', 'Lockouts: who is locked out now', lambda: self.act('--lockouts')),
-            ('12', 'Forget a lockout', lockout_clear),
-            ('13', 'Local users of the nodes', lambda: self.act('--local-users')),
-            ('14', 'Add a local user', osu_add),
-            ('15', 'A new password for a local user', osu_pw),
-            ('16', 'Lock, unlock, sudo or take away a local user', osu_change),
+            ('11', 'SSH tokens', lambda: self.act('--ssh-tokens')),
+            ('12', 'Make an SSH token', ssh_new),
+            ('13', 'Take an SSH token away', ssh_del),
+            ('14', 'Lockouts: who is locked out now', lambda: self.act('--lockouts')),
+            ('15', 'Forget a lockout', lockout_clear),
+            ('16', 'Local users of the nodes', lambda: self.act('--local-users')),
+            ('17', 'Add a local user', osu_add),
+            ('18', 'A new password for a local user', osu_pw),
+            ('19', 'Lock, unlock, sudo or take away a local user', osu_change),
         ])
 
     def m_more(self):

@@ -20,6 +20,16 @@ def selinux_want(store):
               'why': 'the pages ask the daemon on 127.0.0.1:%s' % (CONFIG.get('api_port') or 9861)}]
     ports = []
     try:
+        if ssh_gate_wanted(store):
+            # Signing in over SSH with a code (316): sshd's pam_radius asks acme's gate.
+            bools.append({'name': 'authlogin_radius', 'why': 'SSH asks acme for the code'})
+            p = ssh_gate_port(store)
+            if p not in (1812, 1813, 1645, 1646):
+                ports.append({'port': p, 'proto': 'udp', 'type': 'radius_port_t',
+                              'why': 'SSH asks acme for the code on this port'})
+    except Exception:                                   # noqa: BLE001
+        pass
+    try:
         now = _meta_json(store, 'host:sshd:now:' + node_name()) or {}
         sp = int((now.get('values') or {}).get('port') or 22)
         if sp != 22:
@@ -55,7 +65,14 @@ def selinux_facts(store):
             'snmp': on('snmp'), 'tls_by_acme': on('acme'), 'acme_challenge': CONFIG.get('acme_challenge') or '',
             'mail_mode': CONFIG.get('mail_mode') or '', 'sms_mode': CONFIG.get('sms_mode') or '',
             'proxy': on('proxy'), 'remote_backups': kinds, 'db_guard': on('db_guard'),
-            'high_security': on('high_security')}
+            'high_security': on('high_security'), 'ssh_with_a_code': _se_gate(store)}
+
+
+def _se_gate(store):
+    try:
+        return bool(ssh_gate_wanted(store))
+    except Exception:                                   # noqa: BLE001
+        return False
 
 
 def selinux_view(store):

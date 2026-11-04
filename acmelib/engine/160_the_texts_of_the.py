@@ -80,6 +80,26 @@ TEXT_MESSAGES = [
      'title': 'The administration: checking a number',
      'says': 'Sent when an administrator sets up the second step by SMS, to check the number.',
      'fields': [('admin_sms_verify', 'text', 'The SMS', ('code', 'minutes', 'site'), 'sms')]},
+    # Signing in over SSH to the nodes (1.0.40, as otp 1.0.181): an SSH token by mail or SMS.
+    {'id': 'ssh_mail', 'short': 'The sign-in code by mail', 'kind': 'mail', 'group': 'code', 'purpose': 'ssh',
+     'title': 'SSH: a sign-in code by mail',
+     'says': 'Sent when somebody signs in over SSH to the nodes with an SSH token by mail.',
+     'fields': [
+         ('ssh_subject', 'line', 'Subject', ('code', 'minutes', 'site'), 'subject'),
+         ('h_s_title', 'line', 'The band at the top', ('site',), 'layout'),
+         ('h_s_hello', 'rich', 'Greeting', ('name',), 'layout'),
+         ('h_s_lede', 'rich', 'What it is', ('account',), 'layout'),
+         ('h_s_facts', 'rich', 'Under the code', ('minutes',), 'layout'),
+         ('h_s_warn', 'rich', 'The warning', (), 'layout'),
+         ('h_s_foot', 'rich', 'The foot', ('site',), 'layout'),
+         ('h_s_hello_anon', 'rich', 'Greeting when the name is not known', (), 'other'),
+         ('h_s_lede_anon', 'rich', 'What it is when the account is not known', (), 'other'),
+         ('ssh_body', 'text', 'The plain text version', ('code', 'minutes', 'site'), 'plain'),
+     ]},
+    {'id': 'ssh_sms', 'short': 'The sign-in code by SMS', 'kind': 'sms', 'group': 'code',
+     'title': 'SSH: a sign-in code by SMS',
+     'says': 'Sent when somebody signs in over SSH to the nodes with an SSH token by SMS.',
+     'fields': [('ssh_sms', 'text', 'The SMS', ('code', 'minutes', 'site'), 'sms')]},
 ]
 TEXT_LANGS = ('cs', 'en')
 TEXT_PLACEHOLDERS = {

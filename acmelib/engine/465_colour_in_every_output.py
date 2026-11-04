@@ -604,6 +604,18 @@ def build_parser():
     g.add_argument('--mail-test', metavar='ADDRESS', help='send a test mail now, every step said')
     g.add_argument('--sms-test', metavar='NUMBER', help='send a test SMS now (a code that opens '
                    'nothing)')
+    g.add_argument('--ssh-tokens', action='store_true', help='the SSH tokens (Settings - SSH '
+                   'server), each one\'s way and when last used')
+    g.add_argument('--ssh-token-add', metavar='NAME', help='an SSH token for the account NAME: '
+                   'from the app (its QR code shown once), or --by mail|sms --to')
+    g.add_argument('--ssh-token-del', metavar='NAME', help='take an SSH token away')
+    g.add_argument('--by', choices=('app', 'mail', 'sms'), help='with --ssh-token-add: the codes '
+                   'come from the app (the default), or are sent by mail or SMS')
+    g.add_argument('--to', metavar='ADDRESS|NUMBER', help='with --ssh-token-add --by mail|sms: '
+                   'where the codes go')
+    g.add_argument('--no-qr', action='store_true', help='with --ssh-token-add: no QR code, the '
+                   'key only')
+    g.add_argument('--invert', action='store_true', help='the QR code for a light terminal')
     g.add_argument('--lockouts', action='store_true', help='who and what is locked out now: '
                    'the pages\' sign-ins, the codes sent')
     g.add_argument('--lockouts-clear', metavar='all|KIND:WHO', help='forget a lockout (the KIND '
@@ -3612,6 +3624,51 @@ def cli_main(argv=None):
             return 1
         store.add_event('settings', '%s sent a test SMS to %s' % (who, to), who=who)
         print(pal.ok_line('sent to %s%s' % (to, (': %s' % said) if said else '')))
+        return 0
+
+    if args.ssh_tokens:
+        rows = sshotp_all(store)
+        if args.json:
+            out(rows)
+            return 0
+        print(table([(r['name'], {'app': 'the app'}.get(r['kind'], r['kind']) +
+                      ((' to %s' % r['dest']) if r.get('dest') else ''), stamp(r.get('at')),
+                      ('%s on %s' % (stamp(r['used_at']), r.get('used_on') or '?')) if r.get('used_at') else 'never',
+                      r.get('note') or '') for r in rows],
+                    ['account', 'codes from', 'made', 'last used', 'note'], [16, 30, 17, 28, 30]))
+        return 0
+
+    if args.ssh_token_add:
+        had = sshotp_get(store, args.ssh_token_add)
+        if had:
+            cli_sure(args, 'the SSH token of %s in use is replaced, and stops working now'
+                     % sshotp_name(args.ssh_token_add))
+        else:
+            known = sshotp_accounts(store)
+            if known is not None and args.ssh_token_add.strip() not in known:
+                raise SystemExit('acme: %s is not an account of the nodes (root, or a user who may '
+                                 'sign in there)' % args.ssh_token_add[:40])
+        try:
+            got = sshotp_make(store, args.ssh_token_add, who, args.note or '', replace=bool(had),
+                              kind=args.by or 'app', dest=args.to or '')
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        if got['kind'] != 'app':
+            print(pal.ok_line('the SSH token of %s is made - its codes go to %s' % (got['name'], got['dest'])))
+            return 0
+        print(pal.head('the SSH token of %s - scan it now, it is not shown again' % got['name']))
+        if not args.no_qr:
+            print(QrCode(got['uri']).terminal(invert=args.invert))
+        print('  key:      %s' % got['secret'])
+        return 0
+
+    if args.ssh_token_del:
+        cli_sure(args, 'the SSH token of %s is taken away' % args.ssh_token_del)
+        try:
+            sshotp_remove(store, args.ssh_token_del, who)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        print(pal.ok_line('removed'))
         return 0
 
     if args.lockouts or args.lockouts_clear:

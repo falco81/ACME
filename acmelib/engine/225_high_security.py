@@ -226,11 +226,21 @@ def hisec_rules(store, conf=None):
     a = (access_conf(store) or {}).get('admin') or {'any': True}
     if a.get('any', True):
         hit['fw:admin'].append('everybody')
+    # Signing in with a code from acme and no system password when acme does not answer
+    # (as otp 1.0.242): keyboard-interactive asks for the code, not a password - not a
+    # password sign-in, and root with it signs in with no password either.
+    try:
+        sc = sshd_conf(store) or {}
+    except Exception:                                   # noqa: BLE001
+        sc = {}
+    code_only = bool(sc.get('manage') and sc.get('radius') and not sc.get('radius_fallback'))
     for n in host_nodes(store):
         v = (sshd_now(store, n) or {}).get('values') or {}
-        if v.get('passwordauthentication') == 'yes' or v.get('kbdinteractiveauthentication') == 'yes':
+        pw = v.get('passwordauthentication') == 'yes' or \
+            (v.get('kbdinteractiveauthentication') == 'yes' and not code_only)
+        if pw:
             hit['sshd:password'].append(n)
-        if v.get('permitrootlogin') == 'yes':
+        if v.get('permitrootlogin') == 'yes' and pw:
             hit['sshd:root'].append(n)
         try:
             if v and int(v.get('maxauthtries') or 6) > 4:
