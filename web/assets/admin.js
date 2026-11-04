@@ -13945,6 +13945,10 @@ function osuRows() {
   return {by: by, order: order, shown: order.filter(function (n) { return OSU.all || rank(n) < 2; }), noShell: noShell};
 }
 function osuAny(on) { var k = Object.keys(on); return on[k[0]] || {}; }
+function osuToday(nodes) {
+  var t = (nodes || []).map(function (n) { return n.today; }).filter(Boolean)[0];
+  return t || Math.floor(Date.now() / 86400000);
+}
 function osuDay(d) {
   if (d === null || d === undefined) return '';
   var t = new Date(d * 86400000);
@@ -13959,6 +13963,12 @@ function drawOsUsers(live) {
     var d = OSU.d, nodes = d.nodes || [];
     nodes.forEach(function (n) {
       if (n.error) host.appendChild(el('p', 'note bad', n.name + ': ' + n.error));
+      /* The password policy (1.0.42): a node that has not put it in yet, or could not. */
+      if (n.at && n.alive && !n.policy_ok) {
+        host.appendChild(el('p', 'note ' + (/^not put in/.test(n.policy_said || '') ? 'bad' : 'info'),
+          /^not put in/.test(n.policy_said || '') ? n.name + ': the password policy ' + n.policy_said
+                                                    : n.name + ': putting the password policy in…'));
+      }
       if (!n.alive && nodes.length > 1) host.appendChild(el('p', 'note warn', n.name + ' is not answering: what it shows is what it said last, and a change asked of it waits until it is back.'));
     });
     var rows = osuRows();
@@ -14006,6 +14016,17 @@ function drawOsUsers(live) {
         if (!u.password) pw.appendChild(el('span', 'tag dim', 'none'));
         else if (u.must_change) pw.appendChild(el('span', 'tag info', 'to change at sign-in'));
         else pw.appendChild(noI18n(el('span', 'muted', u.changed ? osuDay(u.changed) : 'set')));
+        /* Good until (1.0.42): the day it runs out, by the days it is good for. */
+        if (!u.root && u.password && !u.must_change && u.changed && u.max_days) {
+          var left = u.changed + u.max_days - (osuToday(nodes) || 0);
+          var warnAt = Math.max(osuPolicy().warn_days || 0, 7);
+          var until = el('span', 'tag ' + (left < 0 ? 'bad' : left <= warnAt ? 'warn' : 'dim') + ' osu-until');
+          until.textContent = left < 0 ? 'ran out ' + osuDay(u.changed + u.max_days) : 'until ' + osuDay(u.changed + u.max_days);
+          noI18n(until);
+          explain(until, left < 0 ? 'The password ran out - the user must choose a new one at the next sign-in.'
+                                  : 'Good for ' + u.max_days + ' days from the last change - ' + left + ' day(s) left.');
+          pw.appendChild(until);
+        }
         tr.appendChild(pw);
         nodes.forEach(function (n) {
           var c = el('td'), x = on[n.name];
@@ -14092,17 +14113,64 @@ function osuShellSelect(cur) {
   sel.value = cur || (all.indexOf('/bin/bash') >= 0 ? '/bin/bash' : all[0]);
   return sel;
 }
-function osuPwPair(body, need) {
+/* The password policy (1.0.42): what a password must be, each rule ticked as it is typed. */
+function osuPolicy() {
+  var p = {}, from = (OSU.d && OSU.d.policy) || {};
+  Object.keys(from).forEach(function (k) { p[k] = from[k]; });
+  /* What was saved here a moment ago, before the nodes read it again. */
+  var sv = function (k) { var x = settingByKey('osu_pw_' + k); return x ? Number(x.value) : undefined; };
+  ['min', 'classes', 'max_days', 'warn_days'].forEach(function (k) { if (sv(k) !== undefined) p[k] = sv(k); });
+  if (sv('not_name') !== undefined) p.not_name = !!sv('not_name');
+  if (sv('system') !== undefined) p.system = !!sv('system');
+  p.min = Math.max(8, p.min || 8);
+  return {min: p.min || (OSU.d && OSU.d.pw_min) || 8, classes: p.classes || 1, not_name: p.not_name !== false,
+          max_days: p.max_days || 0, warn_days: p.warn_days || 0, system: !!p.system};
+}
+function osuPwKinds(v) {
+  return [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(function (rx) { return rx.test(v); }).length;
+}
+function osuPwRules(v, name) {
+  var p = osuPolicy(), n = String(name || '').toLowerCase(), lv = String(v || '').toLowerCase();
+  var out = [{ok: v.length >= p.min, w: p.min + ' characters at least'}];
+  if (p.classes > 1) out.push({ok: osuPwKinds(v) >= p.classes, w: p.classes + ' of the four kinds: small letters, capitals, digits, the others'});
+  if (p.not_name && n.length >= 3) out.push({ok: lv.indexOf(n) < 0 && lv.indexOf(n.split('').reverse().join('')) < 0, w: 'not the user’s name in it'});
+  return out;
+}
+function osuPwPair(body, need, nameOf) {
   var a = maskBox('', '', 'mono'), b = maskBox('', '', 'mono');
-  var min = (OSU.d && OSU.d.pw_min) || 8;
-  body.appendChild(formField(need ? 'The new password' : 'Password (empty: none - the user signs in with a key only)', a, min + ' characters at least. It goes to the nodes as its hash only and is kept nowhere.'));
+  var p = osuPolicy();
+  body.appendChild(formField(need ? 'The new password' : 'Password (empty: none - the user signs in with a key only)', a,
+    'It goes to the nodes as its hash only and is kept nowhere.' + (p.max_days ? ' Good for ' + p.max_days + ' days, then it is to be changed.' : '')));
+  var list = el('ul', 'osu-rules');
+  var name = function () { return typeof nameOf === 'function' ? nameOf() : (nameOf || ''); };
+  var draw = function () {
+    clear(list);
+    osuPwRules(a.value, name()).forEach(function (r) {
+      var li = el('li', r.ok ? 'ok' : (a.value ? 'bad' : ''));
+      li.innerHTML = iconMarkup(r.ok ? 'check' : 'close', 12);
+      li.appendChild(el('span', '', r.w));
+      list.appendChild(li);
+    });
+    var same = el('li', !b.value ? '' : (a.value === b.value ? 'ok' : 'bad'));
+    same.innerHTML = iconMarkup(b.value && a.value === b.value ? 'check' : 'close', 12);
+    same.appendChild(el('span', '', 'the same twice'));
+    list.appendChild(same);
+  };
+  a.addEventListener('input', draw);
+  b.addEventListener('input', draw);
   body.appendChild(formField('The password again', b));
-  return function () {
+  body.appendChild(list);
+  draw();
+  list._redraw = draw;
+  var check = function () {
     if (!a.value && !need) return {ok: true, value: ''};
-    if (a.value.length < min) return {ok: false, said: 'the password is ' + min + ' characters at least'};
+    var bad = osuPwRules(a.value, name()).filter(function (r) { return !r.ok; })[0];
+    if (bad) return {ok: false, said: 'the password: ' + bad.w};
     if (a.value !== b.value) return {ok: false, said: 'the two passwords are not the same'};
     return {ok: true, value: a.value};
   };
+  check._redraw = draw;
+  return check;
 }
 /* A yes or no of the windows of Local users: an on/off switch, as everywhere else (1.0.41). */
 function osuCheck(words, on, says) {
@@ -14128,7 +14196,8 @@ function osuAdd(name) {
     body.appendChild(formField('Full name', gecos));
     shell = osuShellSelect(name ? osuAny(osuRows().by[name] || {}).shell : '');
     body.appendChild(formField('Shell', shell));
-    pw = osuPwPair(body, false);
+    pw = osuPwPair(body, false, function () { return nameI.value.trim(); });
+    nameI.addEventListener('input', function () { pw._redraw(); });
     must = osuCheck('To be changed at the first sign-in', true, 'The user chooses their own at once.');
     body.appendChild(must.box);
     sudo = osuCheck('May become root with sudo', name ? osuAny(osuRows().by[name] || {}).sudo : false, 'A member of ' + admin + ' - with their own password.');
@@ -14206,7 +14275,7 @@ function osuEdit(name) {
     /* The password. */
     var s2 = el('div', 'osu-sect');
     s2.appendChild(el('h3', '', 'Password'));
-    pw = osuPwPair(s2, true);
+    pw = osuPwPair(s2, true, name);
     must = osuCheck('To be changed at the next sign-in', false);
     s2.appendChild(must.box);
     var sp = cmdButton('Set the password', 'key', 'small');

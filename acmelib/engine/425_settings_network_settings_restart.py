@@ -395,15 +395,72 @@ def osu_view(store):
                                                     'ago are not done - is acme-web.path running '
                                                     'there?' % late if late else ''),
                       'pending': pending})
-    return {'nodes': nodes, 'cluster': len(nodes) > 1, 'pw_min': OSU_PW_MIN,
+    pol = osu_policy()
+    sig = osu_policy_ask(pol)['sig']
+    for x in nodes:
+        now = osu_now(store, x['name'])
+        x['policy_ok'] = now.get('policy') == sig
+        x['policy_said'] = now.get('policy_said') or ''
+    return {'nodes': nodes, 'cluster': len(nodes) > 1, 'pw_min': pol['min'], 'policy': pol,
             'openssl': bool(shutil.which('openssl'))}
 
 
-def osu_hash(password):
+# ---- the password policy (1.0.42) ---------------------------------------------------------
+def osu_policy():
+    """What Settings -> Local users -> The password policy says."""
+    def g(v, d):
+        try:
+            return int(v if v not in (None, '') else d)
+        except (TypeError, ValueError):
+            return d
+    return {'min': max(OSU_PW_MIN, g(CONFIG.get('osu_pw_min'), 8)),
+            'classes': min(4, max(1, g(CONFIG.get('osu_pw_classes'), 1))),
+            'not_name': bool(g(CONFIG.get('osu_pw_not_name'), 1)),
+            'max_days': g(CONFIG.get('osu_pw_max_days'), 0),
+            'min_days': g(CONFIG.get('osu_pw_min_days'), 0),
+            'warn_days': g(CONFIG.get('osu_pw_warn_days'), 7),
+            'system': bool(g(CONFIG.get('osu_pw_system'), 0))}
+
+
+def osu_aging(pol=None):
+    pol = pol or osu_policy()
+    return {'max_days': pol['max_days'], 'min_days': pol['min_days'], 'warn_days': pol['warn_days']}
+
+
+def osu_policy_ask(pol=None):
+    """What is asked of a node's root helper to put the policy on it, and its signature."""
+    pol = pol or osu_policy()
+    ask = {'do': 'policy', 'aging': osu_aging(pol),
+           'rules': ({'min': pol['min'], 'classes': pol['classes'], 'not_name': pol['not_name']}
+                     if pol['system'] else None)}
+    ask['sig'] = hashlib.sha256(json.dumps(ask, sort_keys=True).encode()).hexdigest()[:16]
+    return ask
+
+
+def osu_pw_kinds(pw):
+    return sum(1 for rx in (r'[a-z]', r'[A-Z]', r'[0-9]', r'[^A-Za-z0-9]') if re.search(rx, pw))
+
+
+def osu_pw_problem(pw, name='', pol=None):
+    """What is wrong with a password by the policy - '' when nothing."""
+    pol = pol or osu_policy()
+    if len(pw) < pol['min']:
+        return 'the password is %d characters at least' % pol['min']
+    if osu_pw_kinds(pw) < pol['classes']:
+        return ('the password has %d of the four kinds of characters at least (small letters, '
+                'capitals, digits, the others)' % pol['classes'])
+    n = str(name or '').lower()
+    if pol['not_name'] and len(n) >= 3 and (n in pw.lower() or n[::-1] in pw.lower()):
+        return 'the password has the user\'s name in it'
+    return ''
+
+
+def osu_hash(password, name=''):
     """The SHA-512 crypt hash of a password, by openssl from its standard input."""
     pw = str(password or '')
-    if len(pw) < OSU_PW_MIN:
-        raise ValueError('the password is %d characters at least' % OSU_PW_MIN)
+    bad = osu_pw_problem(pw, name)
+    if bad:
+        raise ValueError(bad)
     if len(pw) > 256 or re.search(r'[\x00-\x1f\x7f]', pw):
         raise ValueError('the password is 256 characters at most, with no line breaks')
     exe = shutil.which('openssl')
@@ -479,10 +536,12 @@ def osu_ask(store, nodes, do, by, **f):
         ask['sudo'] = bool(f.get('sudo'))
         ask['must_change'] = bool(f.get('must_change'))
         if f.get('password'):
-            ask['hash'] = seal_secret(osu_hash(f['password']), 'osuser:' + name)
+            ask['hash'] = seal_secret(osu_hash(f['password'], name), 'osuser:' + name)
+        ask['aging'] = osu_aging()
     elif do == 'password':
-        ask['hash'] = seal_secret(osu_hash(f.get('password')), 'osuser:' + name)
+        ask['hash'] = seal_secret(osu_hash(f.get('password'), name), 'osuser:' + name)
         ask['must_change'] = bool(f.get('must_change'))
+        ask['aging'] = osu_aging()
     elif do == 'sudo':
         ask['on'] = bool(f.get('on'))
     elif do == 'drop':
@@ -545,7 +604,7 @@ def osu_keep(row, got):
 def osu_one(a):
     """One change done by the root helper: its answer, or what went wrong (words)."""
     q = {k: v for k, v in a.items() if k in ('do', 'name', 'uid', 'gecos', 'shell', 'sudo',
-                                              'must_change', 'on', 'home')}
+                                              'must_change', 'on', 'home', 'aging', 'rules', 'sig')}
     if a.get('hash'):
         h = unseal_secret(a['hash'], 'osuser:' + str(a.get('name') or ''))
         if not str(a['hash']).startswith(SEALED2) or not h:
@@ -577,7 +636,19 @@ def osu_tick(daemon):
             time.time() - float(a.get('at') or 0) < 3600]
     todo.sort(key=lambda a: float(a.get('at') or 0))
     stale = time.time() - OSU_WORK['seen'] > 300 or not now
-    if not todo and not stale:
+    # The password policy (1.0.42): put on this node whenever what it has is not what is asked -
+    # once the users were read, and not again within ten minutes after it went wrong.
+    pol_ask = osu_policy_ask()
+    if (now.get('at') and not now.get('policy') and not now.get('policy_tried') and
+            pol_ask['sig'] == osu_policy_ask(dict(osu_policy(), max_days=0, min_days=0,
+                                                  warn_days=7, system=False))['sig']):
+        # Never asked for, and nothing asked now: what the machine has is left as it is.
+        now = dict(now, policy=pol_ask['sig'], policy_said='as the machine has it')
+        store.set_meta('host:users:now:' + me, json.dumps(now))
+    pol_due = (bool(now.get('at')) and now.get('policy') != pol_ask['sig'] and
+               (now.get('policy_tried') != pol_ask['sig'] or
+                time.time() - float(now.get('policy_tried_at') or 0) > 600))
+    if not todo and not stale and not pol_due:
         return
     changes = [a for a in todo if a.get('do') != 'list']
     lists = [a for a in todo if a.get('do') == 'list']
@@ -598,6 +669,16 @@ def osu_tick(daemon):
                 if got:
                     osu_keep(row, got)
                 row.update(done=done[-300:], said=said[-10:])
+                store.set_meta('host:users:now:' + me, json.dumps(row))
+            if pol_due:
+                row.update(policy_tried=pol_ask['sig'], policy_tried_at=time.time())
+                got = osu_one(pol_ask)
+                if isinstance(got, dict):
+                    osu_keep(row, got)
+                    row.update(policy=pol_ask['sig'], policy_said=got.get('said') or '')
+                    log('the password policy of the local users put in: %s' % (got.get('said') or ''))
+                else:
+                    row['policy_said'] = 'not put in: %s' % got
                 store.set_meta('host:users:now:' + me, json.dumps(row))
             try:
                 osu_keep(row, root_ask('users.ask', 'users.json', {'do': 'list'}, 60))

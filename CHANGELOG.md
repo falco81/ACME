@@ -6,6 +6,23 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.42 - not released
 
+- **The password policy of the local users** (*Settings → Local users → The password
+  policy*): characters at least (8 and up), kinds of characters (small letters, capitals,
+  digits, the others - any, two, three or all four), not the user's name in it (backwards
+  too), good for so many days (then changed at the next sign-in), changed again after so
+  many days at the soonest, told so many days before it runs out. A password typed for a
+  local user is checked as it is typed - each rule ticked in the window - and again by
+  the daemon before its hash is made. The days are put by each node's root helper on every
+  normal user (`chage -M/-m/-W`), and on a user made or given a new password; the table says
+  until when each password is good (amber near the end, red once it ran out). *The same
+  rules for passwd on the machines* also writes them into
+  `/etc/security/pwquality.conf.d/90-acme.conf` and the `PASS_` lines of `/etc/login.defs`
+  (taken away again when off). As until now unless changed: 8 characters, any, always good -
+  nothing on the machines is touched until a rule is changed.
+- acme.service starts after the database of the machine and stops before it: at a restart
+  of the machine (a system update) its "acme stopped" could not be written any more -
+  PostgreSQL was gone already.
+
 ## 1.0.41 - 2026-11-04
 
 - **Six more pictures for the sign-in** (*Settings → The enrolment pages → The picture

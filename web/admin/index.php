@@ -1211,6 +1211,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         one, by each node's root helper. A password typed here goes to the nodes as its hash only and is kept
         nowhere. Every change is written into Events.</p></div>
     <div id="osu-host"></div>
+    <div class="card full fulladmin-only"><h2>The password policy</h2><div id="sect-osusers"></div></div>
   </div>
   <div class="ctl-pane" id="pane-backup" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Backups</h2>

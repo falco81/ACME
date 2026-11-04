@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""The password policy of the local users (Settings -> Local users -> The password policy, 1.0.42).
+
+    python3 test/test_osu_policy.py
+
+1. The daemon: a password is checked by the policy (its length, the kinds of characters, the
+   user's name in it - backwards too) before its hash is made; what the nodes are asked to put
+   in, and the policy as it comes (nothing asked of a node that never had one).
+2. The root helper alone, as root on this very machine (a user of the test's own, taken away
+   after): a user made and a password set get the days of the policy (chage -M/-m/-W); the
+   policy put on every normal user; with "the same rules for passwd" pwquality's file of acme's
+   own and the PASS_ lines of login.defs written (in a folder of the test's), and the file taken
+   away again when it is off.
+"""
+import importlib.util
+import os
+import pwd
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+TMP = tempfile.mkdtemp(prefix='acme-osupol-')
+with open(os.path.join(TMP, 'config.json'), 'w') as f:
+    f.write('{}')
+os.environ.update(ACME_CONFIG=os.path.join(TMP, 'config.json'), ACME_STATE=TMP,
+                  ACME_RUN=TMP, ACME_LOGDIR=TMP)
+sys.path.insert(0, ROOT)
+import acmelib.engine as E  # noqa: E402
+
+TOOLS = all(shutil.which(t) for t in ('useradd', 'userdel', 'chpasswd', 'chage', 'openssl'))
+AS_ROOT = os.geteuid() == 0
+TAG = 'acmep%d' % (os.getpid() % 10000)
+
+
+class Daemon(unittest.TestCase):
+    def test_the_rules(self):
+        pol = dict(E.osu_policy(), min=12, classes=3, not_name=True)
+        self.assertIn('12 characters', E.osu_pw_problem('Short-1', 'jan', pol))
+        self.assertIn('four kinds', E.osu_pw_problem('alllowercaseletters', 'jan', pol))
+        self.assertIn('name', E.osu_pw_problem('Xx-jannovak-2026', 'jannovak', pol))
+        self.assertIn('name', E.osu_pw_problem('Xx-kavonnaj-2026', 'jannovak', pol))
+        self.assertEqual(E.osu_pw_problem('Long-Enough-2026', 'jannovak', pol), '')
+        # The name not looked for when it is off.
+        self.assertEqual(E.osu_pw_problem('Xx-jannovak-2026', 'jannovak', dict(pol, not_name=False)), '')
+
+    def test_eight_at_the_least(self):
+        with mock.patch.dict(E.CONFIG, {'osu_pw_min': 3}):
+            self.assertEqual(E.osu_policy()['min'], 8)
+
+    def test_checked_before_the_hash(self):
+        with mock.patch.dict(E.CONFIG, {'osu_pw_min': 14, 'osu_pw_classes': 2}):
+            with self.assertRaises(ValueError) as c:
+                E.osu_hash('only-thirteen', 'x')
+            self.assertIn('14', str(c.exception))
+            if shutil.which('openssl'):
+                self.assertTrue(E.osu_hash('Fourteen-chars', 'x').startswith('$6$'))
+
+    def test_what_is_asked(self):
+        with mock.patch.dict(E.CONFIG, {'osu_pw_max_days': 90, 'osu_pw_min_days': 1,
+                                        'osu_pw_warn_days': 10, 'osu_pw_system': 1,
+                                        'osu_pw_min': 12, 'osu_pw_classes': 3}):
+            a = E.osu_policy_ask()
+        self.assertEqual(a['aging'], {'max_days': 90, 'min_days': 1, 'warn_days': 10})
+        self.assertEqual(a['rules'], {'min': 12, 'classes': 3, 'not_name': True})
+        self.assertNotEqual(a['sig'], E.osu_policy_ask()['sig'])
+        # The rules for passwd only when asked.
+        self.assertIsNone(E.osu_policy_ask()['rules'])
+
+    def test_on_the_pages(self):
+        for k in ('osu_pw_min', 'osu_pw_classes', 'osu_pw_not_name', 'osu_pw_max_days',
+                  'osu_pw_min_days', 'osu_pw_warn_days', 'osu_pw_system'):
+            self.assertIn(k, E.PANES['osusers'])
+            self.assertIn(k, E.NAMES)
+            self.assertIn(k, E.SAYS)
+        with open(os.path.join(ROOT, 'web', 'admin', 'index.php'), encoding='utf-8') as f:
+            self.assertIn('id="sect-osusers"', f.read())
+
+
+def sha512(pw):
+    return subprocess.run(['openssl', 'passwd', '-6', '-stdin'], input=pw + '\n',
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def shadow(name):
+    with open('/etc/shadow') as f:
+        for ln in f:
+            p = ln.rstrip('\n').split(':')
+            if p[0] == name:
+                return p
+    return None
+
+
+@unittest.skipUnless(TOOLS and AS_ROOT, 'needs root and shadow-utils (useradd, chage...)')
+class Helper(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix='acme-osupol-helper-')
+        os.makedirs(os.path.join(cls.tmp, 'web'))
+        cls.defs = os.path.join(cls.tmp, 'login.defs')
+        shutil.copy('/etc/login.defs', cls.defs)
+        cls.pwq = os.path.join(cls.tmp, 'pwquality.conf.d', '90-acme.conf')
+        os.environ.update(ACME_STATE=cls.tmp, ACME_LOGIN_DEFS=cls.defs, ACME_PWQUALITY=cls.pwq,
+                          ACME_CONSOLE_FLAG=os.path.join(cls.tmp, 'console-login'),
+                          ACME_VIP_NO_SERVICES='1')
+        spec = importlib.util.spec_from_file_location('acme_web_pol', os.path.join(ROOT, 'deploy', 'acme_web.py'))
+        cls.W = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.W)
+        cls.name = TAG + 'a'
+        cls.gone(cls.name)
+        # Every normal user of the machine as it was, put back after.
+        cls.was = {u['name']: shadow(u['name']) for u in cls.W.lu_list()['users'] if not u['root']}
+
+    @classmethod
+    def gone(cls, name):
+        try:
+            pwd.getpwnam(name)
+        except KeyError:
+            return
+        subprocess.run(['userdel', '-r', name], capture_output=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.gone(cls.name)
+        for n, p in cls.was.items():
+            if p:
+                subprocess.run(['chage', '-M', p[4] or '99999', '-m', p[3] or '0', '-W', p[5] or '7', n],
+                               capture_output=True)
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_1_made_with_the_days(self):
+        got = self.W.lu_do({'do': 'add', 'name': self.name, 'shell': '/bin/bash', 'gecos': 'Policy',
+                            'hash': sha512('Long-Enough-2026'), 'uid': None,
+                            'aging': {'max_days': 90, 'min_days': 1, 'warn_days': 10}})
+        u = next(x for x in got['users'] if x['name'] == self.name)
+        self.assertEqual(u['max_days'], 90)
+        p = shadow(self.name)
+        self.assertEqual((p[3], p[4], p[5]), ('1', '90', '10'))
+        # A new password: the days put on again.
+        self.W.lu_do({'do': 'password', 'name': self.name, 'hash': sha512('Another-One-2026'),
+                      'aging': {'max_days': 30, 'min_days': 0, 'warn_days': 5}})
+        p = shadow(self.name)
+        self.assertEqual((p[3], p[4], p[5]), ('0', '30', '5'))
+
+    def test_2_bad_days_refused(self):
+        with self.assertRaises(self.W.Refused):
+            self.W.lu_do({'do': 'policy', 'aging': {'max_days': 99999}})
+        with self.assertRaises(self.W.Refused):
+            self.W.lu_do({'do': 'policy', 'aging': {'max_days': 30}, 'rules': {'min': 3, 'classes': 1}})
+
+    def test_3_on_every_normal_user_and_for_passwd(self):
+        got = self.W.lu_do({'do': 'policy', 'sig': 'abc',
+                            'aging': {'max_days': 60, 'min_days': 2, 'warn_days': 9},
+                            'rules': {'min': 12, 'classes': 3, 'not_name': True}})
+        self.assertEqual(got['policy'], 'abc')
+        self.assertIn('the same rules for passwd', got['said'])
+        p = shadow(self.name)
+        self.assertEqual((p[3], p[4], p[5]), ('2', '60', '9'))
+        with open(self.pwq) as f:
+            conf = f.read()
+        self.assertIn('minlen = 12', conf)
+        self.assertIn('minclass = 3', conf)
+        self.assertIn('usercheck = 1', conf)
+        with open(self.defs) as f:
+            defs = [ln.split() for ln in f if ln.strip() and not ln.startswith('#')]
+        got_defs = {w[0]: w[1] for w in defs if len(w) >= 2}
+        self.assertEqual((got_defs['PASS_MAX_DAYS'], got_defs['PASS_MIN_DAYS'], got_defs['PASS_WARN_AGE']),
+                         ('60', '2', '9'))
+        # The other lines of login.defs kept.
+        self.assertIn('UID_MIN', got_defs)
+        # Off again: always good, and pwquality's file of acme's taken away.
+        got = self.W.lu_do({'do': 'policy', 'aging': {'max_days': 0, 'min_days': 0, 'warn_days': 7}})
+        self.assertFalse(os.path.exists(self.pwq))
+        p = shadow(self.name)
+        self.assertEqual((p[3], p[4], p[5]), ('0', '99999', '7'))
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -14,7 +14,13 @@
 [Unit]
 Description=acme - certificates kept, renewed and put in place (ACME, own CAs, DNS-01, deployments)
 Documentation=file:/usr/local/lib/acme/INSTALL.md
-After=network-online.target
+# Started after the database of this machine and stopped before it (1.0.42): at a restart of
+# the machine its last words - "acme stopped" - went nowhere, PostgreSQL already gone. Only
+# the order: none of them is needed (the database can be another machine's), a name not
+# installed here is no fault.
+After=network-online.target postgresql.service postgresql-13.service postgresql-14.service
+After=postgresql-15.service postgresql-16.service postgresql-17.service mariadb.service
+After=mysqld.service mysql.service
 Wants=network-online.target
 StartLimitIntervalSec=0
 

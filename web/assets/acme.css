@@ -3724,3 +3724,12 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .hs-light.ok .hs-light-w{color:var(--ok,#3fb950)}
 .hs-light.warn .hs-light-w{color:var(--warn,#d29922)}
 .hs-light.bad .hs-light-w{color:var(--crit,#f85149)}
+
+/* Local users -> the password policy, ticked as the password is typed (1.0.42). */
+.osu-rules{list-style:none;margin:-2px 0 10px;padding:0;display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--tx-mut)}
+.osu-rules li{display:inline-flex;align-items:center;gap:5px}
+.osu-rules li svg{opacity:.6}
+.osu-rules li.ok{color:var(--ok,#3fb950)}
+.osu-rules li.ok svg{opacity:1}
+.osu-rules li.bad{color:var(--warn,#d29922)}
+.osu-until{margin-left:8px}

@@ -53027,6 +53027,106 @@
   "art2_51": {
    "source": "that picture is for the sign-in of the administration only",
    "text": "ten obrázek je jen pro přihlášení do administrace"
+  },
+  "osupol_1": {
+   "source": "The password policy",
+   "text": "Politika hesel"
+  },
+  "osupol_2": {
+   "source": "Characters at least",
+   "text": "Znaků nejméně"
+  },
+  "osupol_3": {
+   "source": "Kinds of characters at least",
+   "text": "Druhů znaků nejméně"
+  },
+  "osupol_4": {
+   "source": "Not the user's name in it",
+   "text": "Bez jména uživatele"
+  },
+  "osupol_5": {
+   "source": "Good for (days)",
+   "text": "Platnost (dny)"
+  },
+  "osupol_6": {
+   "source": "Changed again after (days) at the soonest",
+   "text": "Znovu změnit nejdříve po (dnech)"
+  },
+  "osupol_7": {
+   "source": "Told before it runs out (days)",
+   "text": "Upozornit před vypršením (dny)"
+  },
+  "osupol_8": {
+   "source": "The same rules for passwd on the machines",
+   "text": "Stejná pravidla i pro passwd na strojích"
+  },
+  "osupol_9": {
+   "source": "How long a password typed here for a local user must be - 8 at the least. Checked as it is typed, and again on the node.",
+   "text": "Jak dlouhé musí být heslo zadané tu pro lokálního uživatele – nejméně 8. Kontroluje se už při psaní a znovu na uzlu."
+  },
+  "osupol_10": {
+   "source": "Of the four kinds - small letters, capitals, digits, everything else - how many a password must have: 1 any, 4 all of them.",
+   "text": "Kolik ze čtyř druhů znaků – malá písmena, velká písmena, číslice, ostatní – musí heslo mít: 1 jakékoli, 4 všechny."
+  },
+  "osupol_11": {
+   "source": "On: a password with the user's name in it (or written backwards, in any case) is refused.",
+   "text": "Zapnuto: heslo, které obsahuje jméno uživatele (i pozpátku, v jakékoli velikosti písmen), se odmítne."
+  },
+  "osupol_12": {
+   "source": "How many days a password of a local user is good for; then the user must choose a new one at the next sign-in (chage -M, put on every normal user of every node). 0: always - as until now.",
+   "text": "Kolik dní platí heslo lokálního uživatele; potom si uživatel musí při dalším přihlášení zvolit nové (chage -M, na každém běžném uživateli každého uzlu). 0: napořád – jako dosud."
+  },
+  "osupol_13": {
+   "source": "How many days after a change the user may change it again on the machine (chage -m) - so that a forced change cannot be undone at once. 0: at any time.",
+   "text": "Po kolika dnech od změny ho uživatel smí na stroji změnit znovu (chage -m) – aby vynucenou změnu nešlo hned vrátit. 0: kdykoli."
+  },
+  "osupol_14": {
+   "source": "How many days before the password runs out the user is told so when they sign in (chage -W). Only while it is good for a number of days.",
+   "text": "Kolik dní před vypršením hesla se to uživatel při přihlášení dozví (chage -W). Jen když má heslo omezenou platnost."
+  },
+  "osupol_15": {
+   "source": "On: each node's root helper writes the rules above into /etc/security/pwquality.conf.d/90-acme.conf, and into /etc/login.defs (PASS_MAX_DAYS, PASS_MIN_DAYS, PASS_WARN_AGE) - so a password the user changes themselves with passwd, and users made otherwise, keep them too. Off: only what is typed here is checked (and that file taken away again).",
+   "text": "Zapnuto: root helper každého uzlu zapíše pravidla výše do /etc/security/pwquality.conf.d/90-acme.conf a do /etc/login.defs (PASS_MAX_DAYS, PASS_MIN_DAYS, PASS_WARN_AGE) – takže platí i pro heslo, které si uživatel změní sám přes passwd, a pro uživatele založené jinak. Vypnuto: kontroluje se jen to, co se zadá tady (a ten soubor se zase odstraní)."
+  },
+  "osupol_16": {
+   "source": "not the user’s name in it",
+   "text": "bez jména uživatele"
+  },
+  "osupol_17": {
+   "source": "the same twice",
+   "text": "obě stejná"
+  },
+  "osupol_18": {
+   "source": "It goes to the nodes as its hash only and is kept nowhere.",
+   "text": "Na uzly jde jen jako svůj hash a nikde se neuchovává."
+  },
+  "osupol_19": {
+   "source": "The password ran out - the user must choose a new one at the next sign-in.",
+   "text": "Heslo vypršelo – uživatel si musí při dalším přihlášení zvolit nové."
+  },
+  "osupol_20": {
+   "source": "the password has the user's name in it",
+   "text": "heslo obsahuje jméno uživatele"
+  },
+  "osupol_21": {
+   "source": "any - as until now",
+   "text": "jakékoli – jako dosud"
+  },
+  "osupol_22": {
+   "source": "two of the four kinds",
+   "text": "dva ze čtyř druhů"
+  },
+  "osupol_23": {
+   "source": "three of the four kinds",
+   "text": "tři ze čtyř druhů"
+  },
+  "osupol_24": {
+   "source": "all four: small letters, capitals, digits, the others",
+   "text": "všechny čtyři: malá, velká písmena, číslice, ostatní"
+  },
+  "osupol_25": {
+   "source": "Kinds of characters",
+   "text": "Druhy znaků"
   }
  },
  "patterns": {
@@ -72425,6 +72525,42 @@
   "phsl_12": {
    "source": "{0} refused {1} row(s) acme did not sign - see the list above.",
    "text": "{0} odmítl řádky, které acme nepodepsal: {1} – viz seznam výše."
+  },
+  "posupol_1": {
+   "source": "{0} characters at least",
+   "text": "nejméně {0} znaků"
+  },
+  "posupol_2": {
+   "source": "{0} of the four kinds: small letters, capitals, digits, the others",
+   "text": "{0} ze čtyř druhů: malá, velká písmena, číslice, ostatní"
+  },
+  "posupol_3": {
+   "source": "the password: {0}",
+   "text": "heslo: {0}"
+  },
+  "posupol_4": {
+   "source": "It goes to the nodes as its hash only and is kept nowhere. Good for {0} days, then it is to be changed.",
+   "text": "Na uzly jde jen jako svůj hash a nikde se neuchovává. Platí {0} dní, pak se musí změnit."
+  },
+  "posupol_5": {
+   "source": "ran out {0}",
+   "text": "vypršelo {0}"
+  },
+  "posupol_6": {
+   "source": "Good for {0} days from the last change - {1} day(s) left.",
+   "text": "Platí {0} dní od poslední změny – zbývá dní: {1}."
+  },
+  "posupol_7": {
+   "source": "{0}: putting the password policy in…",
+   "text": "{0}: zavádí se politika hesel…"
+  },
+  "posupol_8": {
+   "source": "{0}: the password policy {1}",
+   "text": "{0}: politika hesel {1}"
+  },
+  "posupol_9": {
+   "source": "the password has {0} of the four kinds of characters at least (small letters, capitals, digits, the others)",
+   "text": "heslo musí mít nejméně {0} ze čtyř druhů znaků (malá písmena, velká písmena, číslice, ostatní)"
   }
  },
  "rich": {

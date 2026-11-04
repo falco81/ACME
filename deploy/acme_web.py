@@ -3660,12 +3660,99 @@ def lu_hash_checked(h):
     return h
 
 
+# The password policy (1.0.42): how long a password is good for, put on every normal user with
+# chage; and, asked, the same rules for passwd on the machine - pwquality's file of acme's own,
+# and the three PASS_ lines of login.defs for users made otherwise.
+PWQ_FILE = os.environ.get('ACME_PWQUALITY', '/etc/security/pwquality.conf.d/90-acme.conf')
+
+
+def lu_aging(a):
+    """(good for, again after at the soonest, told before) of an ask - each a whole number."""
+    if not isinstance(a, dict):
+        raise Refused('the policy does not come as an object')
+    try:
+        mx, mn, warn = int(a.get('max_days') or 0), int(a.get('min_days') or 0), int(a.get('warn_days') or 0)
+    except (TypeError, ValueError):
+        raise Refused('the days of the policy are whole numbers')
+    if not (0 <= mx <= 3650 and 0 <= mn <= 365 and 0 <= warn <= 90):
+        raise Refused('the days of the policy are out of range')
+    return mx, mn, warn
+
+
+def lu_age(name, aging):
+    mx, mn, warn = aging
+    lu_run(['chage', '-M', str(mx or 99999), '-m', str(mn), '-W', str(warn), name])
+
+
+def lu_login_defs(aging):
+    mx, mn, warn = aging
+    want = {'PASS_MAX_DAYS': str(mx or 99999), 'PASS_MIN_DAYS': str(mn), 'PASS_WARN_AGE': str(warn)}
+    try:
+        with open(LOGIN_DEFS, encoding='utf-8', errors='replace') as f:
+            lines = f.read().split('\n')
+        mode = os.stat(LOGIN_DEFS).st_mode & 0o777
+    except OSError:
+        lines, mode = [], 0o644
+    seen = set()
+    for i, ln in enumerate(lines):
+        w = ln.split()
+        if w and w[0] in want:
+            if w[0] in seen:
+                lines[i] = '#' + ln
+                continue
+            seen.add(w[0])
+            lines[i] = '%s\t%s' % (w[0], want[w[0]])
+    for k in ('PASS_MAX_DAYS', 'PASS_MIN_DAYS', 'PASS_WARN_AGE'):
+        if k not in seen:
+            lines.append('%s\t%s' % (k, want[k]))
+    text = '\n'.join(lines)
+    write_root(LOGIN_DEFS, text if text.endswith('\n') else text + '\n', mode or 0o644)
+
+
+def lu_policy(r):
+    """The policy put on this machine: the days on every normal user, the rules for passwd."""
+    aging = lu_aging(r.get('aging'))
+    done, failed = 0, []
+    for u in lu_list()['users']:
+        if u.get('root'):
+            continue
+        try:
+            lu_age(u['name'], aging)
+            done += 1
+        except Refused as e:
+            failed.append('%s: %s' % (u['name'], e))
+    rules = r.get('rules')
+    if rules:
+        if not isinstance(rules, dict):
+            raise Refused('the rules do not come as an object')
+        try:
+            minlen, minclass, user = int(rules.get('min')), int(rules.get('classes')), bool(rules.get('not_name'))
+        except (TypeError, ValueError):
+            raise Refused('the rules are whole numbers')
+        if not (8 <= minlen <= 128 and 1 <= minclass <= 4):
+            raise Refused('the rules are out of range')
+        write_root(PWQ_FILE, '# Written by acme (Settings -> Local users -> The password policy);\n'
+                             '# switched off there, it is taken away.\n'
+                             'minlen = %d\nminclass = %d\nusercheck = %d\n' % (minlen, minclass, int(user)),
+                   0o644)
+        lu_login_defs(aging)
+    elif os.path.exists(PWQ_FILE):
+        os.unlink(PWQ_FILE)
+    said = 'the password policy put on %d user(s)%s' % (done, ', the same rules for passwd' if rules else '')
+    if failed:
+        said += '; not on: ' + '; '.join(failed)[:300]
+    return said
+
+
 def lu_do(r):
     do = str(r.get('do') or 'list')
     name = str(r.get('name') or '')
     said = ''
     if do == 'list':
         return dict(lu_list(), said='')
+    if do == 'policy':
+        said = lu_policy(r)
+        return dict(lu_list(), said=said, policy=r.get('sig') or '')
     p = lu_target(name)
     if r.get('hash') or do == 'password':
         lu_hash_checked(r.get('hash'))          # before anything is done
@@ -3704,6 +3791,8 @@ def lu_do(r):
         p = pwd.getpwnam(name)
         if r.get('hash'):
             lu_run(['chpasswd', '-e'], '%s:%s\n' % (name, lu_hash_checked(r['hash'])))
+        if r.get('aging'):
+            lu_age(name, lu_aging(r['aging']))
         if r.get('must_change'):
             lu_run(['chage', '-d', '0', name])
         if r.get('sudo') is not None:
@@ -3716,6 +3805,8 @@ def lu_do(r):
     if do == 'password':
         lu_run(['chpasswd', '-e'], '%s:%s\n' % (name, lu_hash_checked(r.get('hash'))))
         lu_run(['chage', '-d', '0' if r.get('must_change') else str(int(time.time() // 86400)), name])
+        if r.get('aging'):
+            lu_age(name, lu_aging(r['aging']))
         said = 'the password of %s set' % name
     elif do == 'lock':
         # The password and the account: no key lets in either (sshd asks PAM if it has expired).
