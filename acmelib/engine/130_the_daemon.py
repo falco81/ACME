@@ -819,6 +819,10 @@ class Daemon(object):
         except Exception as e:                          # noqa: BLE001
             log('the codes used once could not be tidied: %s' % e, 'warn')
         try:
+            adpw_tidy(self.store)                       # wrong directory passwords, over
+        except Exception as e:                          # noqa: BLE001
+            log('the counts of wrong directory passwords could not be tidied: %s' % e, 'warn')
+        try:
             # One node of two deletes the old rows; the deletes go over to the
             # other anyway (1.0.57).
             if CONFIG.get('ha_mode') == 'replicated' and not claim_once(

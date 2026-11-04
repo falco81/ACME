@@ -437,8 +437,15 @@ def _portal_login(h):
         h.failed(key)
         raise ApiError(401, 'the name or the password is not right')
     bare, how = admin_name_parts(name)
+    held = ''
     try:
         entry = ad.find_user(bare, how)
+        if not entry or entry.get('many') or entry_unusable(entry):
+            # Counted as a wrong password of a name that exists is (as otp 1.0.234): the
+            # cap of wrong directory passwords per person holds back a name the directory
+            # lacks the same way, so the answer does not tell which names exist.
+            dir_pw_done(h, dir_pw_take(h, bare, ad.name, entry if entry and not entry.get('many')
+                                       else None), True)
         if not entry:
             raise LdapError('there is no such account')
         if entry.get('many'):
@@ -447,8 +454,10 @@ def _portal_login(h):
             raise LdapError('more than one account answers to that name')
         if entry_unusable(entry):
             raise LdapError('the account may not sign in: %s' % entry_unusable(entry))
+        held = dir_pw_take(h, bare, ad.name, entry)  # the cap per account (as otp 1.0.230)
         ad.password_ok(entry, password)
     except LdapUnreachable as e:
+        dir_pw_done(h, held, False)
         log('the enrolment pages could not reach the directory: %s' % e, 'warn')
         if local_wrong:
             # The password of an account here was wrong, and counts as one (1.0.19):
@@ -456,10 +465,12 @@ def _portal_login(h):
             h.failed(key)
         raise ApiError(503, 'the directory cannot be reached just now')
     except LdapError as e:
+        dir_pw_done(h, held, not isinstance(e, LdapNotAsked))   # never asked: not counted
         h.failed(key)
         h.store.add_event('portal', '%s could not sign in to the enrolment pages from %s: %s'
                           % (name, h.client_ip(), e), 'warn', who=name)
         raise ApiError(401, 'the name or the password is not right')
+    dir_pw_done(h, held, False)
     let_in = []
     if (CONFIG.get('portal_who') or 'anyone') == 'groups':
         wanted = [{'group': g} for g in dn_list(CONFIG.get('portal_groups'))]

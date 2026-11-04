@@ -51379,6 +51379,306 @@
   "selx_68": {
    "source": "acme's module installed",
    "text": "modul acme nainstalován"
+  },
+  "dpwal_1": {
+   "source": "A certificate the CA did not renew",
+   "text": "Certifikát, který CA neobnovila"
+  },
+  "dpwal_2": {
+   "source": "A change of the network, the firewall or the SSH server on trial that was not kept and went back by itself - whoever made it may have lost the way in.",
+   "text": "Změna sítě, firewallu nebo SSH serveru na zkoušku, která nebyla potvrzena a sama se vrátila – kdo ji dělal, mohl ztratit přístup."
+  },
+  "dpwal_3": {
+   "source": "A change on trial that went back",
+   "text": "Změna na zkoušku, která se vrátila"
+  },
+  "dpwal_4": {
+   "source": "Account lockout",
+   "text": "Zamykání účtů"
+  },
+  "dpwal_5": {
+   "source": "As the setting above",
+   "text": "Jako nastavení výše"
+  },
+  "dpwal_6": {
+   "source": "As the setting above: no cap of its own - the counts of each sign-in, as until now.",
+   "text": "Jako nastavení výše: bez vlastního stropu – počty jednotlivých přihlášení, jako dosud."
+  },
+  "dpwal_7": {
+   "source": "At least",
+   "text": "Nejméně"
+  },
+  "dpwal_8": {
+   "source": "Changed at least every",
+   "text": "Měnit nejméně každých"
+  },
+  "dpwal_9": {
+   "source": "Complexity",
+   "text": "Složitost"
+  },
+  "dpwal_10": {
+   "source": "Each sign-in by the load balancer or WAF the enrolment pages refuse, as it is refused - wrong key, not from a balancer, a name the directory does not know.",
+   "text": "Každé přihlášení přes load balancer nebo WAF, které stránky registrace odmítnou, hned když ho odmítnou – špatný klíč, ne z balanceru, jméno, které adresář nezná."
+  },
+  "dpwal_11": {
+   "source": "Fine-grained password policies",
+   "text": "Jemné politiky hesel"
+  },
+  "dpwal_12": {
+   "source": "Its own",
+   "text": "Vlastní"
+  },
+  "dpwal_13": {
+   "source": "Kept at least",
+   "text": "Ponechat nejméně"
+  },
+  "dpwal_14": {
+   "source": "Logs not reaching isemon or the syslog servers",
+   "text": "Logy nedochází do isemonu ani na syslog servery"
+  },
+  "dpwal_15": {
+   "source": "Mails that do not go",
+   "text": "Maily, které neodchází"
+  },
+  "dpwal_16": {
+   "source": "No cap for this directory.",
+   "text": "Pro tento adresář bez stropu."
+  },
+  "dpwal_17": {
+   "source": "Now: as the setting above - no cap",
+   "text": "Teď: jako nastavení výše – bez stropu"
+  },
+  "dpwal_18": {
+   "source": "Now: no cap",
+   "text": "Teď: bez stropu"
+  },
+  "dpwal_19": {
+   "source": "Password policy",
+   "text": "Politika hesel"
+  },
+  "dpwal_20": {
+   "source": "Read the domain’s policy",
+   "text": "Načíst politiku domény"
+  },
+  "dpwal_21": {
+   "source": "Remembered",
+   "text": "Pamatuje si"
+  },
+  "dpwal_22": {
+   "source": "Replication behind by more than (MB)",
+   "text": "Replikace pozadu o víc než (MB)"
+  },
+  "dpwal_23": {
+   "source": "Reversible encryption",
+   "text": "Reverzibilní šifrování"
+  },
+  "dpwal_24": {
+   "source": "SNMPv3 switched on and its agent on a node not listening (the port taken, refused), or its traps not going out.",
+   "text": "SNMPv3 je zapnuté a jeho agent na uzlu neposlouchá (port obsazený, odmítnutý), nebo neodchází jeho trapy."
+  },
+  "dpwal_25": {
+   "source": "Sending to isemon or to the syslog servers (SIEM) failing on a node - not reached, refused, or lines dropped.",
+   "text": "Posílání do isemonu nebo na syslog servery (SIEM) na uzlu selhává – nedosažitelné, odmítnuté, nebo se zahazují řádky."
+  },
+  "dpwal_26": {
+   "source": "Sign-ins by the load balancer refused",
+   "text": "Přihlášení přes load balancer odmítnutá"
+  },
+  "dpwal_27": {
+   "source": "StartTLS",
+   "text": "StartTLS"
+  },
+  "dpwal_28": {
+   "source": "Switch the directory on to read its policy",
+   "text": "Pro načtení politiky adresář zapněte"
+  },
+  "dpwal_29": {
+   "source": "The SNMP agent not listening",
+   "text": "SNMP agent neposlouchá"
+  },
+  "dpwal_30": {
+   "source": "The cap on these pages",
+   "text": "Strop na těchto stránkách"
+  },
+  "dpwal_31": {
+   "source": "The clock guard",
+   "text": "Hlídání hodin"
+  },
+  "dpwal_32": {
+   "source": "The domain never locks an account after wrong passwords.",
+   "text": "Doména účet po špatných heslech nikdy nezamyká."
+  },
+  "dpwal_33": {
+   "source": "The domain says",
+   "text": "Doména říká"
+  },
+  "dpwal_34": {
+   "source": "The domain’s policy is not read yet. Read it: how many wrong passwords lock an account there, for how long, and what a password has to be - and the cap recommended for these pages.",
+   "text": "Politika domény zatím není načtená. Načtěte ji: po kolika špatných heslech se tam účet zamkne, na jak dlouho a jaké musí být heslo – a doporučený strop pro tyto stránky."
+  },
+  "dpwal_35": {
+   "source": "The nodes apart",
+   "text": "Uzly rozpojené"
+  },
+  "dpwal_36": {
+   "source": "The security check finding something",
+   "text": "Kontrola zabezpečení něco našla"
+  },
+  "dpwal_37": {
+   "source": "What Settings → High security finds less safe than it could be - said once a day while it stays so.",
+   "text": "Co Nastavení → Vysoké zabezpečení najde méně bezpečné, než by mohlo být – řekne se jednou denně, dokud to tak zůstane."
+  },
+  "dpwal_38": {
+   "source": "What the clock guard (Settings → Time) sees: a node stepped aside, no reference time server, a clock off, two clocks apart, the directory out of reach.",
+   "text": "Co vidí hlídání hodin (Nastavení → Čas): uzel ustoupil stranou, žádný referenční časový server, hodiny mimo, dvoje hodiny od sebe, adresář nedosažitelný."
+  },
+  "dpwal_39": {
+   "source": "Wrong directory passwords - each directory",
+   "text": "Špatná hesla z adresáře – podle adresáře"
+  },
+  "dpwal_40": {
+   "source": "Wrong directory passwords per person, on these pages and the enrolment pages",
+   "text": "Špatná hesla z adresáře na osobu, na těchto stránkách a na stránkách registrace"
+  },
+  "dpwal_41": {
+   "source": "Wrong passwords",
+   "text": "Špatná hesla"
+  },
+  "dpwal_42": {
+   "source": "counted over",
+   "text": "počítáno za"
+  },
+  "dpwal_43": {
+   "source": "counted over (min)",
+   "text": "počítaná za (min)"
+  },
+  "dpwal_44": {
+   "source": "directory passwords tried on the pages",
+   "text": "hesla z adresáře zkoušená na stránkách"
+  },
+  "dpwal_45": {
+   "source": "filled in - Save the changes below to keep it",
+   "text": "vyplněno – uložte to tlačítkem Uložit změny dole"
+  },
+  "dpwal_46": {
+   "source": "locked for",
+   "text": "zamčeno na"
+  },
+  "dpwal_47": {
+   "source": "no lockout",
+   "text": "bez zamykání"
+  },
+  "dpwal_48": {
+   "source": "no minimum",
+   "text": "bez minima"
+  },
+  "dpwal_49": {
+   "source": "not required",
+   "text": "nevyžadována"
+  },
+  "dpwal_50": {
+   "source": "read now",
+   "text": "načteno teď"
+  },
+  "dpwal_51": {
+   "source": "the caps are an object of directories",
+   "text": "stropy jsou objekt adresářů"
+  },
+  "dpwal_52": {
+   "source": "the caps of the directories are saved",
+   "text": "stropy adresářů jsou uložené"
+  },
+  "dpwal_53": {
+   "source": "the caps of the directories: nothing changed",
+   "text": "stropy adresářů: nic se nezměnilo"
+  },
+  "dpwal_54": {
+   "source": "until an administrator unlocks it",
+   "text": "dokud ho správce neodemkne"
+  },
+  "dpwal_55": {
+   "source": "wrong passwords lock it",
+   "text": "špatných hesel ho zamkne"
+  },
+  "dpwal_56": {
+   "source": "The directory never locks an account after wrong passwords - a cap here still slows down guessing.",
+   "text": "Adresář účet po špatných heslech nikdy nezamyká – strop tady i tak zpomalí hádání."
+  },
+  "dpwal_57": {
+   "source": "The account is locked at its first wrong password - no cap here can keep that from happening; 1 at least keeps it to one wrong password from here.",
+   "text": "Účet se zamkne hned po prvním špatném hesle – tomu žádný strop tady nezabrání; 1 aspoň zajistí, že odtud projde nejvýš jedno špatné heslo."
+  },
+  "dpwal_58": {
+   "source": "1 day",
+   "text": "1 den"
+  },
+  "dpwal_59": {
+   "source": "How long a wrong directory password counts towards the cap above. As long as the directory's \"Reset account lockout counter after\", or longer.",
+   "text": "Jak dlouho se špatné heslo z adresáře počítá do stropu výše. Stejně dlouho jako „Vynulovat čítač uzamčení účtu po“ v adresáři, nebo déle."
+  },
+  "dpwal_60": {
+   "source": "LDAPS",
+   "text": "LDAPS"
+  },
+  "dpwal_61": {
+   "source": "A directory password is tried against Active Directory at each sign-in to the enrolment pages (the certificate portal) and at each sign-in to these pages of an administrator from the directory. Each of them counts on its own and on each node alone - together, with many addresses, enough wrong ones for a name reach the directory to lock the account there: e-mail, the VPN and the PC with it. Set below the directory's own lockout threshold (3 for a threshold of 5 to 10): after so many wrong passwords for one name within the time below, from anywhere, on any node, the directory is no longer asked for that name - only these pages wait, the account in the directory stays unlocked. Cleared under Locked out. 0: no cap of its own (as until now).",
+   "text": "Heslo z adresáře se ověřuje v Active Directory při každém přihlášení na stránky registrace (portál certifikátů) a při každém přihlášení správce z adresáře na tyto stránky. Každé z nich se počítá zvlášť a na každém uzlu zvlášť – dohromady, z mnoha adres, tak do adresáře dojde dost špatných hesel na zamčení účtu: a s ním e-mailu, VPN i počítače. Nastavte pod práh zamčení v adresáři (3 pro práh 5 až 10): po tolika špatných heslech pro jedno jméno v čase níže, odkudkoli a na kterémkoli uzlu, se adresáře na to jméno už neptá – čekají jen tyto stránky, účet v adresáři zůstane odemčený. Ruší se v části Zablokovaní. 0: bez vlastního stropu (jako dosud)."
+  },
+  "dpwal_62": {
+   "source": "A node down, or the key of the sealed secrets missing",
+   "text": "Uzel nedostupný, nebo chybí klíč k zapečetěným tajemstvím"
+  },
+  "dpwal_63": {
+   "source": "The other node not heard from, the key that opens the sealed secrets (the private keys, the passwords kept) missing on a node, two nodes under one name, the nodes on different versions. (The replication and the database: their own, below.)",
+   "text": "Druhý uzel se neozývá, na uzlu chybí klíč, který otevírá zapečetěná tajemství (privátní klíče, uložená hesla), dva uzly pod jedním jménem, uzly v různých verzích. (Replikace a databáze: vlastní volba níže.)"
+  },
+  "dpwal_64": {
+   "source": "An upgrade of acme that failed",
+   "text": "Upgrade acme, který se nepovedl"
+  },
+  "dpwal_65": {
+   "source": "An upgrade of acme (Settings → Upgrades) that failed on a node, or one left stuck.",
+   "text": "Upgrade acme (Nastavení → Upgrady), který se na uzlu nepovedl, nebo zůstal viset."
+  },
+  "dpwal_66": {
+   "source": "Rows of the database not written by acme",
+   "text": "Řádky databáze, které nezapsal acme"
+  },
+  "dpwal_67": {
+   "source": "With the guard against writes to the database on: rows that reach root not as acme wrote them, refused - somebody may be writing to the database.",
+   "text": "Se zapnutou ochranou proti zápisům do databáze: řádky, které vedou k akcím roota a nejsou tak, jak je zapsal acme, odmítnuté – někdo možná zapisuje do databáze."
+  },
+  "dpwal_68": {
+   "source": "ACME ordered the certificate of a node or of the VIP address (Settings → Automatic certificates) and none came - said at once, not only once it is about to run out. The certificates the certificate manager keeps are said by it, as before.",
+   "text": "ACME objednalo certifikát uzlu nebo VIP adresy (Nastavení → Automatické certifikáty) a žádný nepřišel – řekne se hned, ne až když má vypršet. Certifikáty, které spravuje správce certifikátů, hlásí on sám, jako dosud."
+  },
+  "dpwal_69": {
+   "source": "Codes and notices of certificates by mail that failed or ran out in the outgoing queue (Settings → Outgoing mail).",
+   "text": "Kódy a oznámení o certifikátech poslané mailem, které ve frontě odchozí pošty selhaly nebo vypršely (Nastavení → Odchozí pošta)."
+  },
+  "dpwal_70": {
+   "source": "A node that cannot reach the other one, or stepped aside, and what was done on both while they were apart - with What the nodes do when they lose each other set to report it.",
+   "text": "Uzel, který nedosáhne na druhý, nebo ustoupil stranou, a co se během rozpojení udělalo na obou – když je v části Co uzly dělají, když se ztratí, nastaveno to hlásit."
+  },
+  "dpwal_71": {
+   "source": "The replication running, but the other node this many MB behind. 0: never (only a replication that stopped is mailed).",
+   "text": "Replikace běží, ale druhý uzel je o tolik MB pozadu. 0: nikdy (mailem jde jen replikace, která se zastavila)."
+  },
+  "dpwal_72": {
+   "source": "No directory is set up yet (The directories administrators sign in against, below).",
+   "text": "Zatím není nastavený žádný adresář (Adresáře, proti kterým se přihlašují správci, níže)."
+  },
+  "dpwal_73": {
+   "source": "No cap",
+   "text": "Bez stropu"
+  },
+  "dpwal_74": {
+   "source": "Use it",
+   "text": "Použít"
+  },
+  "dpwal_75": {
+   "source": "only the node that sends the alerts keeps what was sent - forget it on that node's pages",
+   "text": "co bylo odesláno, si pamatuje jen uzel, který upozornění posílá – zapomeňte to na jeho stránkách"
   }
  },
  "patterns": {
@@ -70409,6 +70709,90 @@
   "pselx_31": {
    "source": "asked: {0} makes its report within a minute",
    "text": "vyžádáno: {0} vytvoří report do minuty"
+  },
+  "pdpwal_1": {
+   "source": "After {0} wrong passwords within {1} the account is locked for {2} - mail, the VPN and the PC with it.",
+   "text": "Po {0} špatných heslech během {1} se účet zamkne na {2} – a s ním e-mail, VPN i počítač."
+  },
+  "pdpwal_2": {
+   "source": "After {0} wrong passwords within {1} the account is locked until an administrator unlocks it - mail, the VPN and the PC with it.",
+   "text": "Po {0} špatných heslech během {1} se účet zamkne, dokud ho správce neodemkne – a s ním e-mail, VPN i počítač."
+  },
+  "pdpwal_3": {
+   "source": "Asking {0}…",
+   "text": "Ptám se {0}…"
+  },
+  "pdpwal_4": {
+   "source": "Now: as the setting above - {0} in {1} min",
+   "text": "Teď: jako nastavení výše – {0} za {1} min"
+  },
+  "pdpwal_5": {
+   "source": "Now: {0} in {1} min",
+   "text": "Teď: {0} za {1} min"
+  },
+  "pdpwal_6": {
+   "source": "Recommended: {0} wrong passwords in {1} min",
+   "text": "Doporučeno: {0} špatných hesel za {1} min"
+  },
+  "pdpwal_7": {
+   "source": "at least {0} characters",
+   "text": "nejméně {0} znaků"
+  },
+  "pdpwal_8": {
+   "source": "locks after {0}",
+   "text": "zamyká po {0}"
+  },
+  "pdpwal_9": {
+   "source": "precedence {0}",
+   "text": "priorita {0}"
+  },
+  "pdpwal_10": {
+   "source": "the directory cannot be reached: {0}",
+   "text": "adresář není dostupný: {0}"
+  },
+  "pdpwal_11": {
+   "source": "the directory said: {0}",
+   "text": "adresář odpověděl: {0}"
+  },
+  "pdpwal_12": {
+   "source": "too many wrong passwords for this name: try again in {0} min",
+   "text": "příliš mnoho špatných hesel pro toto jméno: zkuste to znovu za {0} min"
+  },
+  "pdpwal_13": {
+   "source": "wrong passwords in {0} min - then the directory is not asked for that name",
+   "text": "špatných hesel za {0} min – pak se adresáře na to jméno už neptá"
+  },
+  "pdpwal_14": {
+   "source": "wrong passwords in {0} min, as the setting above",
+   "text": "špatných hesel za {0} min, jako nastavení výše"
+  },
+  "pdpwal_15": {
+   "source": "{0} characters",
+   "text": "{0} znaků"
+  },
+  "pdpwal_16": {
+   "source": "{0} passwords",
+   "text": "{0} hesel"
+  },
+  "pdpwal_17": {
+   "source": "{0}: the cap and its time are whole numbers",
+   "text": "{0}: strop i jeho čas jsou celá čísla"
+  },
+  "pdpwal_18": {
+   "source": "{0}: the cap is 0 to 100 wrong passwords",
+   "text": "{0}: strop je 0 až 100 špatných hesel"
+  },
+  "pdpwal_19": {
+   "source": "{0}: the time is 1 to 1440 min",
+   "text": "{0}: čas je 1 až 1440 min"
+  },
+  "pdpwal_20": {
+   "source": "The domain locks an account after {0} wrong passwords: {1} here leave the person {2} of their own before it locks.",
+   "text": "Doména zamkne účet po {0} špatných heslech: {1} tady nechá člověku {2} vlastních pokusů, než se účet zamkne."
+  },
+  "pdpwal_21": {
+   "source": "The policy {0} locks an account after {1} wrong passwords: {2} here leave the person {3} of their own before it locks.",
+   "text": "Politika {0} zamkne účet po {1} špatných heslech: {2} tady nechá člověku {3} vlastních pokusů, než se účet zamkne."
   }
  },
  "rich": {
@@ -71243,6 +71627,10 @@
   "rrole02": {
    "source": "On: the accounts with the role <i>enrolment pages only</i> sign in here - acme’s own (<i>Accounts</i>, whether or not acme’s own accounts may sign in) and the members of <i>Group of enrolment-only accounts</i> in the directory (<i>Accounts</i>), even when they are in none of the groups above. They never get into the administration; what they see and may ask for is given by the teams they are in (<i>Owners and teams</i>). An account of acme’s own with a password to change changes it here, at its first sign-in.",
    "text": "Zapnuto: přihlásit se zde mohou účty s rolí <i>jen enrolment stránky</i> – vlastní účty acme (<i>Účty</i>, ať už se vlastní účty acme přihlásit smějí, nebo ne) i členové <i>Skupiny účtů jen pro enrolment stránky</i> v adresáři (<i>Účty</i>), i když nejsou v žádné ze skupin výše. Do administrace se nikdy nedostanou; co vidí a o co smějí žádat, určují týmy, jejichž jsou členy (<i>Vlastníci a týmy</i>). Vlastní účet acme, který si má změnit heslo, si ho změní zde při prvním přihlášení."
+  },
+  "rdpwal_1": {
+   "source": "Each directory with a cap of its own, or as the setting above. <b>Read the domain's policy</b> asks the domain itself - through the directory's own connection - how it locks accounts and what it asks of passwords, and recommends a cap below its lockout. Nothing changes until <b>Save the changes</b> below.",
+   "text": "Každý adresář s vlastním stropem, nebo podle nastavení výše. <b>Načíst politiku domény</b> se přímo domény – přes vlastní spojení adresáře – zeptá, jak zamyká účty a co vyžaduje od hesel, a doporučí strop pod jejím prahem zamčení. Nic se nezmění, dokud dole nedáte <b>Uložit změny</b>."
   }
  }
 }

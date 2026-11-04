@@ -1153,7 +1153,7 @@ function showPane(name) {
   });
   document.querySelectorAll('.ctl-pane').forEach(function (p) { p.hidden = p.id !== 'pane-' + name; });
   writeHash();
-  if (name === 'people') { loadUsers(); loadDirs(); }
+  if (name === 'people') { loadUsers(); loadDirs(); loadDirCaps(); }
   if (name === 'db') { loadDb(); dbLinkNote(); }
   if (name === 'backup') loadRbackup();
   if (name === 'network') loadNet();
@@ -2212,7 +2212,9 @@ function editDir(a) {
     var to = textBox(a.timeout_s || 10, '', 'mono');
     var on = switchBox(a.enabled);
     var ca = el('textarea'); ca.rows = 4; ca.placeholder = '-----BEGIN CERTIFICATE-----'; ca.value = a.ca || '';
-    var secs = el('div', 'msects');
+    /* Two columns of the same width, the whole width (as otp 1.0.230): auto-fit made a third,
+       empty column - the two cards stood narrow. */
+    var secs = el('div', 'msects two');
     var s1 = msect('How it is reached', 'The domain controllers, in the order they are asked, and how.');
     var g1 = el('div', 'formgrid');
     g1.appendChild(formField('Name', name, 'What Accounts calls it, in Sign administrators in against the directory.'));
@@ -2703,6 +2705,272 @@ function loClear(body, words) {
 function drawLockouts() {
   LO_VIEWS.forEach(function (v) { if ($(v.table)) drawLockoutsIn(v); });
 }
+/* Wrong directory passwords, each directory (as otp 1.0.232): a cap of its own or the setting's, and
+   the domain's own policy read through the directory's connection - lockout and passwords -
+   with a cap recommended below its lockout. Changes wait for the save bar, as every setting. */
+var DP = {data: null, draft: null, pol: {}};
+function dpSpan(s, zero) {
+  if (s === 'never') return 'never';
+  if (s === 'manual') return 'until an administrator unlocks it';
+  if (s === null || s === undefined) return zero || 'not set';
+  if (s === 0) return zero || '0';
+  if (s === 86400) return '1 day';
+  if (s >= 86400 && s % 86400 === 0) return (s / 86400) + ' days';
+  if (s >= 86400) return (Math.round(s / 8640) / 10) + ' days';
+  if (s >= 3600 && s % 3600 === 0) return (s / 3600) + ' h';
+  if (s >= 60) return Math.round(s / 60) + ' min';
+  return Math.round(s) + ' s';
+}
+function loadDirCaps() {
+  var host = $('dp-list');
+  if (!host || !ADMIN) return;
+  api('directories', {action: 'pw_caps'}).then(function (d) {
+    DP.data = d;
+    if (!PENDING.dirpw) DP.draft = null;
+    drawDirCaps();
+  }).catch(function (e) { clear(host); host.appendChild(el('p', 'note bad', String(e.message || e))); });
+}
+function dpDraft() {
+  if (!DP.draft) {
+    DP.draft = {};
+    ((DP.data || {}).directories || []).forEach(function (x) {
+      DP.draft[x.name] = {tries: x.tries === undefined ? null : x.tries, window_min: x.window_min || null};
+    });
+  }
+  return DP.draft;
+}
+function dpChanged() {
+  var saved = {};
+  ((DP.data || {}).directories || []).forEach(function (x) { saved[x.name] = {tries: x.tries === undefined ? null : x.tries, window_min: x.window_min || null}; });
+  var d = dpDraft();
+  var diff = Object.keys(d).some(function (k) {
+    return String(d[k].tries) !== String(saved[k].tries) || String(d[k].window_min || '') !== String(saved[k].window_min || '');
+  });
+  if (diff) {
+    pendingSet('dirpw', {save: function () {
+      return api('directories', {action: 'pw_caps_save', caps: dpDraft()}).then(function (r) {
+        toast(r.message === 'saved' ? 'the caps of the directories are saved' : 'the caps of the directories: nothing changed', 'good');
+        DP.draft = null; loadDirCaps(); loadLockouts(); return true;
+      });
+    }, reset: function () { DP.draft = null; drawDirCaps(); }});
+  } else if (PENDING.dirpw) { delete PENDING.dirpw; markDirtyCount(); }
+  document.querySelectorAll('#dp-list .dp-dir').forEach(function (n) {
+    var k = n.getAttribute('data-dir');
+    n.classList.toggle('changed', !!saved[k] && (String(d[k].tries) !== String(saved[k].tries) ||
+      String(d[k].window_min || '') !== String(saved[k].window_min || '')));
+  });
+}
+function drawDirCaps() {
+  var host = $('dp-list');
+  if (!host) return;
+  clear(host);
+  var d = DP.data || {};
+  var dirs = d.directories || [];
+  if (!dirs.length) {
+    host.appendChild(el('p', 'muted', 'No directory is set up yet (The directories administrators sign in against, below).'));
+    return;
+  }
+  var set = d.setting || {tries: 0, window_min: 30};
+  dirs.forEach(function (x) { host.appendChild(dpDirCard(x, set)); });
+  dpChanged();
+}
+function dpDirCard(x, set) {
+  var draft = dpDraft()[x.name];
+  var card = el('div', 'dp-dir');
+  card.setAttribute('data-dir', x.name);
+  /* the head: the directory, its servers, the button */
+  var head = el('div', 'dp-head');
+  var ic = el('span', 'dp-ic'); ic.innerHTML = iconMarkup('people', 20); head.appendChild(ic);
+  var who = el('div', 'dp-who');
+  var nm = el('b', 'dp-name', x.name); noI18n(nm); who.appendChild(nm);
+  var sub = el('div', 'dp-sub');
+  String(x.hosts || '').split(/\s*,\s*/).filter(Boolean).slice(0, 4).forEach(function (hn) { sub.appendChild(noI18n(el('span', 'chip mono', hn))); });
+  sub.appendChild(el('span', 'tag ' + (x.tls === 'none' ? 'warn' : 'ok'), x.tls === 'none' ? 'plain LDAP' : (x.tls === 'starttls' ? 'StartTLS' : 'LDAPS')));
+  if (!x.enabled) sub.appendChild(el('span', 'tag dim', 'off'));
+  who.appendChild(sub);
+  head.appendChild(who);
+  var read = cmdButton('Read the domain’s policy', 'shield', '');
+  read.type = 'button';
+  /* Only a directory switched on can be asked (1.0.234). */
+  if (!x.enabled) { read.disabled = true; read.title = 'Switch the directory on to read its policy'; }
+  head.appendChild(read);
+  card.appendChild(head);
+  var body = el('div', 'dp-body');
+  /* the cap here */
+  var cap = el('div', 'dp-cap');
+  cap.appendChild(el('h4', '', 'The cap on these pages'));
+  var modes = el('div', 'dp-seg');
+  var mode = draft.tries === null ? 'set' : (Number(draft.tries) === 0 ? 'none' : 'own');
+  var tries = textBox(draft.tries === null || Number(draft.tries) === 0 ? '' : draft.tries, String(set.tries || 3), 'mono');
+  var win = textBox(draft.window_min || '', String(set.window_min || 30), 'mono');
+  tries.inputMode = 'numeric'; win.inputMode = 'numeric';
+  tries.className += ' dp-num'; win.className += ' dp-num';
+  var eff = el('p', 'dp-eff');
+  function effText() {
+    var t = draft.tries === null ? set.tries : Number(draft.tries);
+    var m = draft.window_min || set.window_min || 30;
+    clear(eff);
+    if (!t) { eff.appendChild(el('span', '', draft.tries === null ? 'As the setting above: no cap of its own - the counts of each sign-in, as until now.' : 'No cap for this directory.')); return; }
+    eff.appendChild(el('span', 'dp-eff-n', String(t)));
+    eff.appendChild(el('span', 'dp-eff-t', draft.tries === null ? 'wrong passwords in ' + m + ' min, as the setting above' : 'wrong passwords in ' + m + ' min - then the directory is not asked for that name'));
+  }
+  var segs = {};
+  [['set', 'As the setting above'], ['own', 'Its own'], ['none', 'No cap']].forEach(function (m) {
+    var b = el('button', 'dp-seg-b' + (mode === m[0] ? ' on' : ''), m[1]);
+    b.type = 'button';
+    b.onclick = function () {
+      mode = m[0];
+      Object.keys(segs).forEach(function (k) { segs[k].classList.toggle('on', k === mode); });
+      if (mode === 'set') { draft.tries = null; draft.window_min = null; }
+      if (mode === 'none') { draft.tries = 0; draft.window_min = null; }
+      if (mode === 'own') { draft.tries = Number(tries.value) || set.tries || 3; draft.window_min = Number(win.value) || set.window_min || 30; tries.value = draft.tries; win.value = draft.window_min; }
+      nums.classList.toggle('dim', mode !== 'own');
+      tries.disabled = win.disabled = mode !== 'own';
+      effText(); dpChanged();
+    };
+    segs[m[0]] = b;
+    modes.appendChild(b);
+  });
+  cap.appendChild(modes);
+  var nums = el('div', 'dp-nums' + (mode === 'own' ? '' : ' dim'));
+  var f1 = el('label', 'dp-f'); f1.appendChild(el('span', '', 'Wrong passwords')); f1.appendChild(tries);
+  var f2 = el('label', 'dp-f'); f2.appendChild(el('span', '', 'counted over (min)')); f2.appendChild(win);
+  nums.appendChild(f1); nums.appendChild(f2);
+  tries.disabled = win.disabled = mode !== 'own';
+  [tries, win].forEach(function (b) {
+    b.addEventListener('input', function () {
+      /* Its own cap is one or more (1.0.234): a box emptied while typing was saved as 0 -
+         no cap at all, with "Its own" still shown. */
+      var t = Math.floor(Number(tries.value));
+      if (t >= 1) draft.tries = Math.min(100, t);
+      var w = Math.floor(Number(win.value));
+      if (w >= 1) draft.window_min = Math.min(1440, w);
+      effText(); dpChanged();
+    });
+    /* What is saved shown in the box once it is left (1.0.234): 0, an empty box or 999 typed
+       stayed there while the last good number was the one saved. */
+    b.addEventListener('change', function () {
+      if (mode !== 'own') return;
+      tries.value = draft.tries || set.tries || 3;
+      win.value = draft.window_min || set.window_min || 30;
+    });
+  });
+  cap.appendChild(nums);
+  cap.appendChild(eff);
+  effText();
+  body.appendChild(cap);
+  /* the domain's policy */
+  var pol = el('div', 'dp-pol');
+  body.appendChild(pol);
+  card.appendChild(body);
+  function drawPol(p, fresh) {
+    clear(pol);
+    if (!p) {
+      var empty = el('div', 'dp-empty');
+      var ei = el('span', 'dp-empty-ic'); ei.innerHTML = iconMarkup('shield', 28); empty.appendChild(ei);
+      empty.appendChild(el('p', '', 'The domain’s policy is not read yet. Read it: how many wrong passwords lock an account there, for how long, and what a password has to be - and the cap recommended for these pages.'));
+      pol.appendChild(empty);
+      return;
+    }
+    var top = el('div', 'dp-pol-head');
+    var dn = el('span', 'mono small muted', p.domain || p.name || ''); noI18n(dn);
+    top.appendChild(el('b', '', 'The domain says'));
+    top.appendChild(dn);
+    top.appendChild(el('span', 'small muted', fresh ? 'read now' : 'read ' + stamp(p.at)));
+    if (p.took_ms) top.appendChild(noI18n(el('span', 'small muted', p.took_ms + ' ms')));
+    pol.appendChild(top);
+    var lk = p.lockout || {}, pw = p.password || {};
+    var grid = el('div', 'dp-grid');
+    var lock = el('div', 'dp-box');
+    lock.appendChild(el('h5', '', 'Account lockout'));
+    var tiles = el('div', 'dp-tiles');
+    function tile(k, v, cls) { var t = el('div', 'dp-tile' + (cls ? ' ' + cls : '')); t.appendChild(el('span', 'dp-v', v)); t.appendChild(el('span', 'dp-k', k)); tiles.appendChild(t); return t; }
+    tile('wrong passwords lock it', lk.threshold ? String(lk.threshold) : 'never', lk.threshold ? '' : 'warn');
+    tile('counted over', dpSpan(lk.window_s));
+    tile('locked for', dpSpan(lk.duration_s));
+    lock.appendChild(tiles);
+    lock.appendChild(el('p', 'dp-say', !lk.threshold ? 'The domain never locks an account after wrong passwords.'
+      : lk.duration_s === 'manual' ? 'After ' + lk.threshold + ' wrong passwords within ' + dpSpan(lk.window_s) + ' the account is locked until an administrator unlocks it - mail, the VPN and the PC with it.'
+      : 'After ' + lk.threshold + ' wrong passwords within ' + dpSpan(lk.window_s) + ' the account is locked for ' + dpSpan(lk.duration_s) + ' - mail, the VPN and the PC with it.'));
+    grid.appendChild(lock);
+    var pwd = el('div', 'dp-box');
+    pwd.appendChild(el('h5', '', 'Password policy'));
+    var list = el('div', 'dp-facts');
+    function fact(k, v, cls) { var r = el('div', 'dp-fact'); r.appendChild(el('span', 'k', k)); var vv = el('span', 'v' + (cls ? ' ' + cls : ''), v); r.appendChild(vv); list.appendChild(r); }
+    fact('At least', (pw.min_length || 0) + ' characters', (pw.min_length || 0) < 8 ? 'warn' : '');
+    fact('Complexity', pw.complex ? 'required' : 'not required', pw.complex ? 'good' : 'warn');
+    fact('Remembered', (pw.history || 0) + ' passwords');
+    fact('Changed at least every', dpSpan(pw.max_age_s, 'never'));
+    fact('Kept at least', dpSpan(pw.min_age_s, 'no minimum'));
+    fact('Reversible encryption', pw.reversible ? 'on' : 'off', pw.reversible ? 'bad' : 'good');
+    pwd.appendChild(list);
+    grid.appendChild(pwd);
+    pol.appendChild(grid);
+    /* fine-grained policies */
+    var pso = el('div', 'dp-box dp-psos');
+    pso.appendChild(el('h5', '', 'Fine-grained password policies'));
+    if ((p.psos || []).length) {
+      p.psos.forEach(function (o) {
+        var r = el('div', 'dp-pso');
+        var n = el('b', '', o.name); noI18n(n); r.appendChild(n);
+        var meta = el('span', 'dp-pso-m');
+        meta.appendChild(el('span', 'tag', o.threshold ? 'locks after ' + o.threshold : 'no lockout'));
+        if (o.min_length) meta.appendChild(el('span', 'tag', 'at least ' + o.min_length + ' characters'));
+        if (o.precedence !== null && o.precedence !== undefined) meta.appendChild(el('span', 'tag dim', 'precedence ' + o.precedence));
+        r.appendChild(meta);
+        var ap = el('span', 'dp-pso-a');
+        (o.applies || []).forEach(function (a) { ap.appendChild(noI18n(el('span', 'chip', a))); });
+        r.appendChild(ap);
+        pso.appendChild(r);
+      });
+    } else {
+      pso.appendChild(el('p', 'small muted', p.psos_said || 'None.'));
+    }
+    pol.appendChild(pso);
+    /* the recommendation */
+    var rec = p.recommend;
+    if (rec) {
+      var rb = el('div', 'dp-rec');
+      var ri = el('span', 'dp-rec-ic'); ri.innerHTML = iconMarkup('check', 22); rb.appendChild(ri);
+      var rt = el('div', 'dp-rec-tx');
+      rt.appendChild(el('b', '', 'Recommended: ' + rec.tries + ' wrong passwords in ' + rec.window_min + ' min'));
+      rt.appendChild(el('span', '', rec.why));
+      var now = draft.tries === null ? (set.tries ? 'Now: as the setting above - ' + set.tries + ' in ' + (set.window_min || 30) + ' min' : 'Now: as the setting above - no cap')
+        : (Number(draft.tries) === 0 ? 'Now: no cap' : 'Now: ' + draft.tries + ' in ' + (draft.window_min || set.window_min || 30) + ' min');
+      rt.appendChild(el('span', 'small muted', now));
+      rb.appendChild(rt);
+      var use = cmdButton('Use it', 'check', 'primary');
+      use.type = 'button';
+      use.onclick = function () {
+        draft.tries = rec.tries; draft.window_min = rec.window_min;
+        segs.own.click();
+        tries.value = rec.tries; win.value = rec.window_min;
+        draft.tries = rec.tries; draft.window_min = rec.window_min;
+        effText(); dpChanged();
+        toast('filled in - Save the changes below to keep it', 'good');
+        drawPol(p, fresh);
+      };
+      if (Number(draft.tries) === rec.tries && Number(draft.window_min) === rec.window_min) { use.disabled = true; use.querySelector('span') && (use.querySelector('span').textContent = 'In use'); }
+      rb.appendChild(use);
+      pol.appendChild(rb);
+    }
+  }
+  drawPol(DP.pol[x.name] || x.policy || null, !!DP.pol[x.name]);
+  read.onclick = function () {
+    busy(read, true);
+    clear(pol);
+    pol.appendChild(el('p', 'muted small', 'Asking ' + x.name + '…'));
+    api('directories', {action: 'policy', name: x.name}).then(function (r) {
+      DP.pol[x.name] = r.policy;
+      drawPol(r.policy, true);
+    }).catch(function (e) {
+      clear(pol);
+      pol.appendChild(el('p', 'note bad', String(e.message || e)));
+    }).then(function () { busy(read, false); });
+  };
+  return card;
+}
+
 /* How far a count has got towards its limit (1.0.137): a bar that fills. */
 function loBar(n, limit, locked) {
   var bar = el('div', 'lo-bar' + (locked ? ' full' : ''));

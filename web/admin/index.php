@@ -875,6 +875,12 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       </div>
     </div>
     <div class="card full"><div id="sect-people"></div></div>
+    <div class="card full fulladmin-only" id="dp-card"><h2>Wrong directory passwords - each directory</h2>
+      <p class="note">Each directory with a cap of its own, or as the setting above. <b>Read the
+        domain's policy</b> asks the domain itself - through the directory's own connection - how it
+        locks accounts and what it asks of passwords, and recommends a cap below its lockout. Nothing
+        changes until <b>Save the changes</b> below.</p>
+      <div id="dp-list"></div></div>
     <div class="card full">
       <h2>The groups, and what each one may do</h2>
       <p class="note">Choose the directory in Sign administrators in against the directory above, then press Find the groups and pick them out of the directory rather than typing a distinguished name by hand — that is how a role ends up pointing at a group that does not exist, and nobody finds out until the first person cannot sign in.</p>

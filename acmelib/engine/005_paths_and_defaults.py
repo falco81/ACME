@@ -55,6 +55,10 @@ DEFAULTS = {
     'session_idle_min': 120,
     'login_tries': 5,
     'login_wait_min': 15,
+    # Wrong directory passwords per person on the pages, for the whole cluster (as otp
+    # 1.0.230): 0 - no cap of its own, as until now (the counts of each sign-in, on each node).
+    'dir_pw_tries': 0,
+    'dir_pw_window_min': 30,
     'admin_directory': '',
     'admin_group_full': '',
     'admin_group_cert': '',
@@ -173,7 +177,20 @@ DEFAULTS = {
     'alerts_updates': 1,
     'alerts_dir': 1,
     'alerts_sms': 1,
+    # Everything the nodes see, mailed (as otp 1.0.242).
+    'alerts_shipping': 1,
+    'alerts_snmp': 1,
+    'alerts_acme': 1,
+    'alerts_upgrade': 1,
+    'alerts_trial': 1,
+    'alerts_dbguard': 1,
+    'alerts_mailq': 1,
+    'alerts_split': 1,
+    'alerts_clock': 1,
+    'alerts_repl_behind_mb': 0,
     'alerts_selinux': 0,
+    'alerts_hisec': 0,
+    'alerts_sso': 0,
     'alerts_url': '',
     'alerts_lang': '',
     'report_lang': '',
@@ -348,6 +365,7 @@ TUNABLE = {
     'portal_local': (0, 1), 'portal_admins_all': (0, 1), 'portal_enrolers': (0, 1),
     'session_hours': (1, 168), 'session_idle_min': (5, 1440),
     'login_tries': (1, 100), 'login_wait_min': (1, 1440),
+    'dir_pw_tries': (0, 100), 'dir_pw_window_min': (1, 1440),
     'admin_2fa': (0, 1), 'admin_2fa_app': (0, 1), 'admin_2fa_mail': (0, 1), 'admin_2fa_sms': (0, 1),
     'isemon': (0, 1), 'isemon_events': (0, 1),
     'isemon_verify': (0, 1), 'isemon_mtls': (0, 1), 'metrics': (0, 1),
@@ -362,7 +380,12 @@ TUNABLE = {
     'alerts_resolved': (0, 1), 'alerts_nodes': (0, 1), 'alerts_backup': (0, 1),
     'alerts_db': (0, 1), 'alerts_vrrp': (0, 1),
     'alerts_cert_days': (0, 120), 'alerts_disk_pct': (0, 99), 'alerts_time': (0, 1),
-    'alerts_updates': (0, 1), 'alerts_dir': (0, 1), 'alerts_sms': (0, 1), 'alerts_selinux': (0, 1),
+    'alerts_updates': (0, 1), 'alerts_dir': (0, 1), 'alerts_sms': (0, 1),
+    'alerts_shipping': (0, 1), 'alerts_snmp': (0, 1), 'alerts_acme': (0, 1),
+    'alerts_upgrade': (0, 1), 'alerts_trial': (0, 1), 'alerts_dbguard': (0, 1),
+    'alerts_mailq': (0, 1), 'alerts_split': (0, 1), 'alerts_clock': (0, 1),
+    'alerts_repl_behind_mb': (0, 100000), 'alerts_selinux': (0, 1), 'alerts_hisec': (0, 1),
+    'alerts_sso': (0, 1),
     'report': (0, 1), 'report_every': ('daily', 'weekly', 'monthly'),
     'report_day': ('1', '2', '3', '4', '5', '6', '7'),
     'alerts_lang': ('', 'cs', 'en'), 'report_lang': ('', 'cs', 'en'),
@@ -553,6 +576,8 @@ NAMES = {
     'session_idle_min': '...and may sit untouched (min)',
     'login_tries': 'Wrong passwords before a pause',
     'login_wait_min': '...and the pause (min)',
+    'dir_pw_tries': 'Wrong directory passwords per person, on these pages and the enrolment pages',
+    'dir_pw_window_min': '...counted over (min)',
     'admin_directory': 'Sign administrators in against the directory',
     'admin_group_full': 'Group of full administrators',
     'admin_group_cert': 'Group of certificate administrators',
@@ -603,7 +628,7 @@ NAMES = {
     'alerts_delay_min': 'Only once it has lasted (min)',
     'alerts_repeat_h': 'Remind every (hours)',
     'alerts_resolved': 'Say when it is over',
-    'alerts_nodes': 'A node, the replication or the database down',
+    'alerts_nodes': 'A node down, or the key of the sealed secrets missing',
     'alerts_db': 'The database and its replication',
     'alerts_vrrp': 'The VIP address (VRRP)',
     'alerts_backup': 'A backup that failed or did not come',
@@ -613,7 +638,19 @@ NAMES = {
     'alerts_updates': 'Security updates and a restart waiting',
     'alerts_dir': 'Active Directory out of reach',
     'alerts_sms': 'The SMS gateway failing',
+    'alerts_shipping': 'Logs not reaching isemon or the syslog servers',
+    'alerts_snmp': 'The SNMP agent not listening',
+    'alerts_acme': 'A certificate the CA did not renew',
+    'alerts_upgrade': 'An upgrade of acme that failed',
+    'alerts_trial': 'A change on trial that went back',
+    'alerts_dbguard': 'Rows of the database not written by acme',
+    'alerts_mailq': 'Mails that do not go',
+    'alerts_split': 'The nodes apart',
+    'alerts_clock': 'The clock guard',
+    'alerts_repl_behind_mb': 'Replication behind by more than (MB)',
     'alerts_selinux': 'SELinux refusing',
+    'alerts_hisec': 'The security check finding something',
+    'alerts_sso': 'Sign-ins by the load balancer refused',
     'alerts_url': 'The administration’s address in the mails',
     'alerts_lang': 'Language of the alerts',
     'report_lang': 'Language of the report',
@@ -927,6 +964,18 @@ SAYS = {
                         'has to be done again.',
     'login_tries': 'Wrong passwords from one address before it has to wait.',
     'login_wait_min': 'How long it waits.',
+    'dir_pw_tries': 'A directory password is tried against Active Directory at each sign-in to the '
+                    'enrolment pages (the certificate portal) and at each sign-in to these pages '
+                    'of an administrator from the directory. Each of them counts on its own and on '
+                    'each node alone - together, with many addresses, enough wrong ones for a name '
+                    'reach the directory to lock the account there: e-mail, the VPN and the PC with '
+                    'it. Set below the directory\'s own lockout threshold (3 for a threshold of 5 '
+                    'to 10): after so many wrong passwords for one name within the time below, from '
+                    'anywhere, on any node, the directory is no longer asked for that name - only '
+                    'these pages wait, the account in the directory stays unlocked. Cleared under '
+                    'Locked out. 0: no cap of its own (as until now).',
+    'dir_pw_window_min': 'How long a wrong directory password counts towards the cap above. As '
+                         'long as the directory\'s "Reset account lockout counter after", or longer.',
     'admin_directory': 'The directory (by its name under <i>Active Directory</i>) the '
                        'administration pages sign people in against. Empty: only the '
                        'accounts made here. Whoever signs in from it gets the role of the '
@@ -1037,8 +1086,10 @@ SAYS = {
                         'update is back in a few minutes. 0: at once.',
     'alerts_repeat_h': 'While it lasts, said again this often. 0: once only.',
     'alerts_resolved': 'A mail when what was mailed is over.',
-    'alerts_nodes': 'The other node not heard from, the replication stopped, the database '
-                    'in trouble, the nodes on different versions.',
+    'alerts_nodes': 'The other node not heard from, the key that opens the sealed secrets '
+                    '(the private keys, the passwords kept) missing on a node, two nodes under '
+                    'one name, the nodes on different versions. (The replication and the '
+                    'database: their own, below.)',
     'alerts_db': 'The replication stopped, or the database of a node in trouble. Not while a node '
                  'is in maintenance, being upgraded, updated or restarted, nor 10 min after - '
                  'the same outside of them is mailed.',
@@ -1057,7 +1108,19 @@ SAYS = {
                       'updates last found them.',
     'alerts_dir': 'None of the servers of a directory answers a node.',
     'alerts_sms': 'Three SMS in a row that did not go.',
+    'alerts_shipping': 'Sending to isemon or to the syslog servers (SIEM) failing on a node - not reached, refused, or lines dropped.',
+    'alerts_snmp': 'SNMPv3 switched on and its agent on a node not listening (the port taken, refused), or its traps not going out.',
+    'alerts_acme': 'ACME ordered the certificate of a node or of the VIP address (Settings → Automatic certificates) and none came - said at once, not only once it is about to run out. The certificates the certificate manager keeps are said by it, as before.',
+    'alerts_upgrade': 'An upgrade of acme (Settings → Upgrades) that failed on a node, or one left stuck.',
+    'alerts_trial': 'A change of the network, the firewall or the SSH server on trial that was not kept and went back by itself - whoever made it may have lost the way in.',
+    'alerts_dbguard': 'With the guard against writes to the database on: rows that reach root not as acme wrote them, refused - somebody may be writing to the database.',
+    'alerts_mailq': 'Codes and notices of certificates by mail that failed or ran out in the outgoing queue (Settings → Outgoing mail).',
+    'alerts_split': 'A node that cannot reach the other one, or stepped aside, and what was done on both while they were apart - with What the nodes do when they lose each other set to report it.',
+    'alerts_clock': 'What the clock guard (Settings → Time) sees: a node stepped aside, no reference time server, a clock off, two clocks apart, the directory out of reach.',
+    'alerts_repl_behind_mb': 'The replication running, but the other node this many MB behind. 0: never (only a replication that stopped is mailed).',
     'alerts_selinux': 'A node where the SELinux card finds something not as acme needs it - a refusal, a label, a boolean, the module.',
+    'alerts_hisec': 'What Settings → High security finds less safe than it could be - said once a day while it stays so.',
+    'alerts_sso': 'Each sign-in by the load balancer or WAF the enrolment pages refuse, as it is refused - wrong key, not from a balancer, a name the directory does not know.',
     'alerts_url': 'Where the links in the mails lead, <code>https://acme.example.cz/admin/</code>. '
                   'Empty: this machine’s name.',
     'report': 'A report of the period by mail: the certificates (renewed, deployed, failed, '
@@ -1271,6 +1334,7 @@ PANES = {
                'isemon_events', 'isemon_max_bytes', 'isemon_verify', 'isemon_mtls',
                'isemon_ca', 'ship_files'],
     'people': ['session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
+               'dir_pw_tries', 'dir_pw_window_min',
                'admin_2fa', 'admin_2fa_app', 'admin_2fa_mail', 'admin_2fa_sms',
                'admin_directory', 'admin_group_full', 'admin_group_cert',
                'admin_group_readonly', 'admin_group_portal', 'totp_window', 'names_czsk_letters',
@@ -1306,7 +1370,10 @@ PANES = {
              'acme_dns_alias', 'acme_dns_wait', 'acme_resolvers'],
     'alerts': ['alerts', 'alerts_to', 'alerts_delay_min', 'alerts_repeat_h', 'alerts_resolved',
                'alerts_nodes', 'alerts_db', 'alerts_vrrp', 'alerts_backup', 'alerts_cert_days', 'alerts_disk_pct',
-               'alerts_time', 'alerts_updates', 'alerts_dir', 'alerts_sms', 'alerts_selinux',
+               'alerts_time', 'alerts_updates', 'alerts_dir', 'alerts_sms',
+               'alerts_shipping', 'alerts_snmp', 'alerts_acme', 'alerts_upgrade', 'alerts_trial',
+               'alerts_dbguard', 'alerts_mailq', 'alerts_split', 'alerts_clock',
+               'alerts_repl_behind_mb', 'alerts_selinux', 'alerts_hisec', 'alerts_sso',
                'alerts_lang', 'alerts_url', 'report', 'report_to', 'report_lang', 'report_every', 'report_day', 'report_at'],
     'codes': ['code_digits', 'code_ttl_s', 'code_tries', 'code_send_max',
               'code_send_window_min', 'code_lang', 'code_mail_fmt', 'sms_mode', 'sms_url', 'sms_method',
@@ -1369,7 +1436,12 @@ ONLY_WHEN = {
     'alerts_db': ['alerts', '1'], 'alerts_vrrp': ['alerts', '1'],
     'alerts_cert_days': ['alerts', '1'], 'alerts_disk_pct': ['alerts', '1'],
     'alerts_time': ['alerts', '1'], 'alerts_updates': ['alerts', '1'],
-    'alerts_dir': ['alerts', '1'], 'alerts_sms': ['alerts', '1'], 'alerts_selinux': ['alerts', '1'],
+    'alerts_dir': ['alerts', '1'], 'alerts_sms': ['alerts', '1'],
+    'alerts_shipping': ['alerts', '1'], 'alerts_snmp': ['alerts', '1'], 'alerts_acme': ['alerts', '1'],
+    'alerts_upgrade': ['alerts', '1'], 'alerts_trial': ['alerts', '1'],
+    'alerts_dbguard': ['alerts', '1'], 'alerts_mailq': ['alerts', '1'], 'alerts_split': ['alerts', '1'],
+    'alerts_clock': ['alerts', '1'], 'alerts_repl_behind_mb': ['alerts', '1'],
+    'alerts_selinux': ['alerts', '1'], 'alerts_hisec': ['alerts', '1'], 'alerts_sso': ['alerts', '1'],
     'report_to': ['report', '1'], 'report_every': ['report', '1'],
     'alerts_lang': ['alerts', '1'], 'report_lang': ['report', '1'],
     'osup_check_at': ['osup_check', '1'], 'osup_auto_what': ['osup_auto', '1'],

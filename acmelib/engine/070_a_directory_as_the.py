@@ -22,6 +22,59 @@ AD_UACC_LOCKED = 0x10
 AD_UACC_PW_EXPIRED = 0x800000
 
 
+def _ad_int(v):
+    try:
+        return int(str(v).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _ad_span(v, zero_is=None):
+    """An interval of Active Directory (negative hundreds of nanoseconds) as seconds; the
+    largest negative number is "never". `zero_is`: what 0 means for this one."""
+    n = _ad_int(v)
+    if n is None:
+        return None
+    if n == 0:
+        return zero_is
+    if n <= -0x7FFFFFFFFFFFFFFF or n >= 0x7FFFFFFFFFFFFFFF:
+        return 'never'
+    return abs(n) / 1e7
+
+
+def policy_recommend(pol):
+    """The cap of wrong directory passwords for these pages that keeps the account from being
+    locked by guesses made here: below the lowest lockout threshold that may apply."""
+    lock = pol.get('lockout') or {}
+    found = []
+    if (lock.get('threshold') or 0) > 0:
+        found.append((lock['threshold'], 'the domain', lock.get('window_s')))
+    for p in pol.get('psos') or []:
+        if (p.get('threshold') or 0) > 0:
+            found.append((p['threshold'], 'the policy %s' % p['name'], p.get('window_s')))
+    if not found:
+        return {'tries': 10, 'window_min': 30, 'threshold': 0, 'from': '',
+                'why': 'The directory never locks an account after wrong passwords - a cap here '
+                       'still slows down guessing.'}
+    t, src, _w = min(found, key=lambda x: x[0])
+    windows = [w for _t, _s, w in found if isinstance(w, (int, float))]
+    window = int(math.ceil(max(windows) / 60.0)) if windows else 30
+    tries = max(1, t - 2) if t > 3 else max(1, t - 1)
+    if t <= 1:
+        # Locked at the first wrong password (otp 1.0.234): no cap here keeps it from that.
+        return {'tries': 1, 'window_min': max(1, min(1440, window)), 'threshold': t, 'from': src,
+                'why': 'The account is locked at its first wrong password - no cap here can keep '
+                       'that from happening; 1 at least keeps it to one wrong password from here.'}
+    if src == 'the domain':
+        why = ('The domain locks an account after %d wrong passwords: %d here leave the person %d '
+               'of their own before it locks.' % (t, tries, t - tries))
+    else:
+        why = ('The policy %s locks an account after %d wrong passwords: %d here leave the person %d '
+               'of their own before it locks.' % (src[len('the policy '):], t, tries, t - tries))
+    return {'tries': tries, 'window_min': max(1, min(1440, window)), 'threshold': t, 'from': src,
+            'why': why}
+
+
 def ad_time(value):
     """A Windows time (hundreds of nanoseconds since 1601) as seconds since
     1970, or None for never."""
@@ -341,15 +394,15 @@ class Directory(object):
     def password_ok(self, entry, password):
         """True, or LdapError with the directory's reason in words."""
         if not str(password or ''):
-            raise LdapError('a password is needed')
+            raise LdapNotAsked('a password is needed')
         if not str((entry or {}).get('dn') or '').strip():
             # A bind with no name and a password is an anonymous one on many
             # servers (1.0.101): never asked.
-            raise LdapError('no account to check the password of')
+            raise LdapNotAsked('no account to check the password of')
         if any(ord(c) < 32 or ord(c) == 127 for c in str(password)):
             # Cut at a NUL somewhere on the way, a password is empty - and an
             # empty one binds anonymously (1.0.101).
-            raise LdapError('the password holds a control character')
+            raise LdapNotAsked('the password holds a control character')
         with self.held():
             return self._password_ok(entry, password)
 
@@ -388,6 +441,83 @@ class Directory(object):
                 one.close()
         raise LdapUnreachable('no server of %s could be reached (%s)'
                               % (self.name, '; '.join(tried)))
+
+    # ---- the domain's policy of passwords and lockouts (otp 1.0.232) ----------------------------
+    POLICY_ATTRS = ('name', 'lockoutThreshold', 'lockoutDuration', 'lockOutObservationWindow',
+                    'minPwdLength', 'pwdHistoryLength', 'maxPwdAge', 'minPwdAge', 'pwdProperties')
+    PSO_ATTRS = ('name', 'cn', 'msDS-PasswordSettingsPrecedence', 'msDS-LockoutThreshold',
+                 'msDS-LockoutObservationWindow', 'msDS-LockoutDuration', 'msDS-MinimumPasswordLength',
+                 'msDS-PasswordComplexityEnabled', 'msDS-PasswordHistoryLength',
+                 'msDS-MaximumPasswordAge', 'msDS-MinimumPasswordAge',
+                 'msDS-PasswordReversibleEncryptionEnabled', 'msDS-PSOAppliesTo')
+
+    def domain_dn(self):
+        dcs = [p.strip() for p in re.split(r'(?<!\\),', self.base or '') if p.strip().lower().startswith('dc=')]
+        return ','.join(dcs)
+
+    def policy(self):
+        """How the domain locks accounts and what it asks of passwords, as its root object and
+        the fine-grained policies (where this account may read them) say, with a cap of wrong
+        passwords to recommend for these pages."""
+        t = time.time()
+        dom = self.domain_dn()
+        if not dom:
+            def root(link):
+                return link.search('', ldap_present('objectClass'), ('defaultNamingContext',), scope=0, limit=1)
+            got = self.asked(root)
+            a = {k.lower(): v for k, v in (got[0]['attrs'] if got else {}).items()}
+            dom = (a.get('defaultnamingcontext') or [''])[0]
+        if not dom:
+            raise LdapError('the domain is not known: the base names no DC=')
+        rows = self.asked(lambda link: link.search(dom, ldap_present('objectClass'), self.POLICY_ATTRS,
+                                                   scope=0, limit=1))
+        if not rows:
+            raise LdapError('the domain %s did not answer for its own object' % dom)
+        a = {k.lower(): v for k, v in rows[0]['attrs'].items()}
+        one = lambda k: (a.get(k.lower()) or [None])[0]
+        props = _ad_int(one('pwdProperties')) or 0
+        out = {'domain': dom, 'name': one('name') or dom, 'directory': self.name,
+               'lockout': {'threshold': _ad_int(one('lockoutThreshold')) or 0,
+                           'window_s': _ad_span(one('lockOutObservationWindow')),
+                           'duration_s': _ad_span(one('lockoutDuration'), zero_is='manual')},
+               'password': {'min_length': _ad_int(one('minPwdLength')) or 0,
+                            'history': _ad_int(one('pwdHistoryLength')) or 0,
+                            'max_age_s': _ad_span(one('maxPwdAge'), zero_is='never'),
+                            'min_age_s': _ad_span(one('minPwdAge'), zero_is=0),
+                            'complex': bool(props & 1), 'reversible': bool(props & 16),
+                            'admin_lockout': bool(props & 8)},
+               'psos': [], 'psos_said': ''}
+        try:
+            box = 'CN=Password Settings Container,CN=System,' + dom
+            got = self.asked(lambda link: link.search(box, ldap_equal('objectClass', 'msDS-PasswordSettings'),
+                                                      self.PSO_ATTRS, scope=1, limit=200))
+            for r in got:
+                p = {k.lower(): v for k, v in r['attrs'].items()}
+                pv = lambda k: (p.get(k.lower()) or [None])[0]
+                out['psos'].append({
+                    'name': pv('name') or pv('cn') or r['dn'].split(',')[0][3:],
+                    'precedence': _ad_int(pv('msDS-PasswordSettingsPrecedence')),
+                    'threshold': _ad_int(pv('msDS-LockoutThreshold')),
+                    'window_s': _ad_span(pv('msDS-LockoutObservationWindow')),
+                    'duration_s': _ad_span(pv('msDS-LockoutDuration'), zero_is='manual'),
+                    'min_length': _ad_int(pv('msDS-MinimumPasswordLength')),
+                    'complex': str(pv('msDS-PasswordComplexityEnabled') or '').upper() == 'TRUE',
+                    'history': _ad_int(pv('msDS-PasswordHistoryLength')),
+                    'max_age_s': _ad_span(pv('msDS-MaximumPasswordAge'), zero_is='never'),
+                    'reversible': str(pv('msDS-PasswordReversibleEncryptionEnabled') or '').upper() == 'TRUE',
+                    'applies': [cn_of(x) or x for x in (p.get('msds-psoappliesto') or [])][:20]})
+            out['psos'].sort(key=lambda x: (x['precedence'] is None, x['precedence'] or 0))
+            if not got:
+                out['psos_said'] = 'none that this account may read - the account acme reads with ' \
+                                   'usually may not see them; the domain\'s own policy is used'
+        except LdapUnreachable:
+            raise
+        except LdapError as e:
+            out['psos_said'] = 'not readable with the account acme reads with (%s)' % str(e)[:120]
+        out['recommend'] = policy_recommend(out)
+        out['took_ms'] = int((time.time() - t) * 1000)
+        out['at'] = time.time()
+        return out
 
     def find_users(self, like, limit=25):
         """People whose name, account, principal name or mail holds what is
