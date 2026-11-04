@@ -6,6 +6,27 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.43 - not released
 
+- **A backup put back on a clean machine, and a cluster built from it - everything as it
+  was**, checked end to end now (`test/test_restore_ha.py`: an installation, its backup put
+  back on a clean PostgreSQL node, a replicated cluster built with a second clean node - every
+  row on both, the sealed secrets opened on the second). What it found, put right:
+  - The guard against writes to the database was off after the putting back (it is kept in
+    config.json): on again, as it was.
+  - The SNMP engine got a new ID (and its count of starts began again) on the new machine -
+    a trap receiver told the old ID took nothing: both kept in the database too.
+  - What the old machine said it had in place came back with the database, so the new one
+    was taken to have it: the SSH server, the time, the console at login and the password
+    policy were never put in there. Forgotten when a backup is put back (for every node of
+    it) and when a node starts on another machine than last time - each is read anew and
+    what is wanted put in.
+  - The keys of root made on the pages are put on the new machine again.
+  - The local users of the machine are not in any backup (no password is kept anywhere):
+    *Settings → Local users* lists the users each node's machine had - *Make them again*
+    (the same name, UID, full name, shell and sudo, no password) or *Forget them*; *SSH keys*
+    shows the fingerprints of root's keys the machine had that are not on it now.
+  - RESTORE.md in every backup and docs/backup-and-recovery.md (7.3) say what comes back by
+    itself and what does not.
+
 ## 1.0.42 - 2026-11-04
 
 - **Settings in a cluster: in effect on every node?** Every card of Settings has a thin pill

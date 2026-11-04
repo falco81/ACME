@@ -101,7 +101,15 @@ def rb_restore_md(m):
         'replaced with the one in the backup, `secrets.key` is put in place and the node keeps',
         'its name (`%s`). The new machine\'s own database connection in config.json stays as' % node,
         'it is - it belongs to the new machine. The other files config.json named are in `files/`.',
-        '',
+        'The guard against writes to the database is switched on again if it was on.', '',
+        'On the new machine, by itself: what the old one said it had in place is forgotten, so',
+        'the SSH server, the time, the console at login and the password policy saved are put in',
+        'there again (the web certificates, the VIP address and the firewall too); the SNMP',
+        'engine keeps its ID. The keys of root made on the pages are put on again.', '',
+        'Not in any backup - the machine\'s own, not acme\'s: the **local users** of the system',
+        'and their passwords, and SSH keys added to authorized_keys other than on the pages.',
+        '*Settings → Local users* lists the users the machine had (*Make them again* - the same',
+        'name, UID, shell and sudo, no password); *SSH keys* the fingerprints of the keys it had.', '',
     ]
     if ha:
         lines += [

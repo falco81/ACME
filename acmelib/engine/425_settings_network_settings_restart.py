@@ -388,6 +388,8 @@ def osu_view(store):
                 late += 1
         nodes.append({'name': n, 'me': n == node_name(), 'alive': alive.get(n, False),
                       'users': now.get('users') or [], 'at': now.get('at'),
+                      # Who its machine had before it was built again (1.0.43).
+                      'before': (_meta_json(store, 'host:users:before:' + n) or {}).get('users') or [],
                       'admin_group': now.get('admin_group') or '', 'shells': now.get('shells') or [],
                       'uid_min': now.get('uid_min'), 'uid_max': now.get('uid_max'),
                       'today': now.get('today'), 'said': now.get('said') or [],
@@ -605,6 +607,43 @@ def osu_ask(store, nodes, do, by, **f):
     return nodes
 
 
+def osu_remake(store, node, names, by, forget=False):
+    """The users a node's machine had before it was built again (1.0.43), made again on it -
+    the same name, UID, full name, shell and sudo, no password (none is kept anywhere: given
+    one on Local users, or a key on SSH keys). Or that list forgotten."""
+    if node not in host_nodes(store):
+        raise ValueError('which node?')
+    k = 'host:users:before:' + node
+    had = _meta_json(store, k) or {}
+    users = had.get('users') or []
+    if forget:
+        store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+        return {'message': 'forgotten', 'made': []}
+    want = set(names) if isinstance(names, list) and names else None
+    there = {u.get('name') for u in osu_now(store, node).get('users') or []}
+    made, said = [], []
+    for u in users:
+        n = u.get('name')
+        if not n or (want is not None and n not in want) or n in there:
+            continue
+        try:
+            osu_ask(store, [node], 'add', by, name=n, gecos=u.get('gecos') or '',
+                    shell=u.get('shell') or '/bin/bash', sudo=bool(u.get('sudo')))
+            made.append(n)
+        except ValueError as e:
+            said.append('%s: %s' % (n, e))
+    left = [u for u in users if u.get('name') not in set(made) | there]
+    if left:
+        store.set_meta(k, json.dumps(dict(had, users=left)))
+    else:
+        store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+    msg = ('made again on %s: %s - each with no password' % (node, ', '.join(made))) if made \
+        else 'nothing made'
+    if said:
+        msg += '; not: ' + '; '.join(said)
+    return {'message': msg, 'made': made}
+
+
 def osu_forget_hashes(store):
     """The hashes this node asked of the others, taken out of its own rows once done."""
     me = node_name()
@@ -747,6 +786,12 @@ def _osusers_do(h):
         raise ApiError(400, 'nodes is a list')
     if act == 'refresh':
         act = 'list'
+    if act in ('remake', 'remake-forget'):
+        try:
+            return osu_remake(h.store, str(b.get('node') or ''), b.get('names'), s['name'],
+                              forget=act == 'remake-forget')
+        except ValueError as e:
+            raise ApiError(400, str(e))
     if act not in OSU_DOS:
         raise ApiError(400, 'no such thing to do with a user')
     f = {k: b[k] for k in ('name', 'gecos', 'shell', 'sudo', 'must_change', 'password', 'on', 'home')

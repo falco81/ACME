@@ -204,31 +204,66 @@ def snmp_cfb(key, iv, data, decrypt):
 
 
 # -- the engine of this node -----------------------------------------------------------------
-def snmp_engine_id():
+def _snmp_meta(store, what):
+    try:
+        return str(store.get_meta('snmp:%s:%s' % (what, node_name()), '') or '') if store else ''
+    except Exception:                                   # noqa: BLE001
+        return ''
+
+
+def _snmp_meta_put(store, what, v):
+    try:
+        if store is not None:
+            store.set_meta('snmp:%s:%s' % (what, node_name()), str(v))
+    except Exception:                                   # noqa: BLE001
+        pass
+
+
+def snmp_engine_id(store=None):
     """0x80001F88 (net-snmp's number, RFC 3411's format 5) and 12 bytes of
-    this node's own, made once."""
+    this node's own, made once - and kept in the database too (1.0.43): a node made
+    again from a backup (or rebuilt into a cluster under its name) keeps the engine
+    its managers know, whose ID a trap receiver has to be told."""
     p = STATE_DIR / 'snmp-engine'
+    raw = None
     try:
         raw = bytes.fromhex(p.read_text().strip())
-        if 9 <= len(raw) <= 32:
-            return raw
+        if not 9 <= len(raw) <= 32:
+            raw = None
     except (OSError, ValueError):
-        pass
-    raw = bytes.fromhex('80001f8805') + secrets.token_bytes(12)
+        raw = None
+    if raw is None:
+        try:
+            kept = bytes.fromhex(_snmp_meta(store, 'engine'))
+            raw = kept if 9 <= len(kept) <= 32 else None
+        except ValueError:
+            raw = None
+    if raw is None:
+        raw = bytes.fromhex('80001f8805') + secrets.token_bytes(12)
     try:
-        p.write_text(raw.hex() + '\n')
+        if not p.exists():
+            p.write_text(raw.hex() + '\n')
     except OSError:
         pass
+    if _snmp_meta(store, 'engine') != raw.hex():
+        _snmp_meta_put(store, 'engine', raw.hex())
     return raw
 
 
-def snmp_boots_next():
+def snmp_boots_next(store=None):
     p = STATE_DIR / 'snmp-boots'
     try:
         n = int(p.read_text().strip() or 0)
     except (OSError, ValueError):
         n = 0
+    # The count kept in the database too (1.0.43): with the engine back from a backup, its
+    # count of starts must not go back either.
+    try:
+        n = max(n, int(_snmp_meta(store, 'boots') or 0))
+    except ValueError:
+        pass
     n = n + 1 if n < 2147483646 else 1
+    _snmp_meta_put(store, 'boots', n)
     try:
         # Written whole and put in its place (1.0.234): cut short by a crash or a full disk, it
         # read as 0 - the count went back, and answers seen before could be sent again.
@@ -370,8 +405,9 @@ class SnmpAgent(object):
         self.d = daemon
         self.sock = None
         self.bound = None
-        self.engine = snmp_engine_id()
-        self.boots = snmp_boots_next()
+        store = getattr(daemon, 'store', None)
+        self.engine = snmp_engine_id(store)
+        self.boots = snmp_boots_next(store)
         # Monotonic (1.0.206): RFC 3414's engine time never goes back - an NTP
         # step back put it below zero, and the agent answered nothing.
         self.started = time.monotonic()

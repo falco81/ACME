@@ -80,7 +80,10 @@ print(json.dumps({'versions': sorted(S.registry().versions_of('target', 'f5')),
 '''
 MOMENT = ('sessions', 'events')                 # not carried / written by the restore
 # sig: - the signatures of the guard against writes (1.0.40), made again when a copy is put back.
-META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial', 'sig:')
+# host:*:before / host:rootkey:again - what the machine of the backup had, kept to be made again
+# on the new one (1.0.43).
+META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial', 'sig:',
+               'host:rootkey:again:', 'host:users:before:', 'host:sshkeys:before:')
 
 
 class FullRestore(unittest.TestCase):

@@ -216,6 +216,72 @@ def node_carry(store, old, new, by='the daemon'):
     return said
 
 
+# What a node said of the machine it runs on - not what anybody wants of it (1.0.43). Carried
+# in every backup with the rest of the database; on another machine of the same name - a
+# clean installation the backup was put back on, a node built again into a cluster under its
+# old name - they said the old machine had it all: the SSH server, the time, the console at
+# login and the password policy were never put in there. Forgotten when the machine changed,
+# so that each is read anew and what is wanted put in.
+MACHINE_ROWS = ('host:sshd:now:', 'host:sshd:fmt:', 'ntp:applied:', 'console:now:',
+                'host:users:now:', 'host:sshkeys:now:', 'host:selinux:now:', 'net:now:',
+                'fw:now:', 'dbtls:server:', 'dbtls:node:')
+
+
+def machine_changed_check(store, put_back=False, name=None):
+    """At the start: was this node's name another machine's last time - one not heard from any
+    more? Then what that machine said it had is forgotten (MACHINE_ROWS). A backup put back
+    (put_back): the machine is another one whenever its id is, heard from lately or not -
+    under the name the backup was made with (name), before this node takes it."""
+    me = name or node_name()
+    try:
+        beat = json.loads(store.get_meta('node:' + me) or '{}')
+    except ValueError:
+        beat = {}
+    mid, mine = str(beat.get('mid') or ''), machine_id()
+    # Put back from a backup, always (its rows of the moment - the heartbeats - do not come with
+    # it): put back on the same machine, what is forgotten is only read again and put in as it is.
+    if not put_back and (not mid or not mine or mid == mine):
+        return []
+    if not put_back and time.time() - float(beat.get('at') or 0) < HEARTBEAT_S * 3:
+        return []                       # that machine answers still: a clash, said elsewhere
+    # What can be given back from what that machine said: who its users were (made again from
+    # Settings -> Local users, with no password - none is kept anywhere), the SSH keys of root
+    # (fingerprints - the lines are not kept; those made on these pages are put on again).
+    try:
+        users = json.loads(store.get_meta('host:users:now:' + me) or '{}').get('users') or []
+        keep = [{k: u.get(k) for k in ('name', 'uid', 'gecos', 'shell', 'sudo', 'login', 'locked')}
+                for u in users if not u.get('root') and u.get('name')]
+        if keep:
+            store.set_meta('host:users:before:' + me, json.dumps({'at': time.time(), 'users': keep[:500]}))
+        keys = json.loads(store.get_meta('host:sshkeys:now:' + me) or '{}').get('keys') or []
+        if keys:
+            store.set_meta('host:sshkeys:before:' + me, json.dumps(
+                {'at': time.time(), 'keys': [{k: x.get(k) for k in ('fp', 'type', 'bits', 'comment')}
+                                             for x in keys][:200]}))
+    except Exception as e:                              # noqa: BLE001
+        log('what the machine before had could not be kept: %s' % e, 'warn')
+    gone = []
+    for k in MACHINE_ROWS:
+        if store.get_meta(k + me) is not None:
+            store.db.run('DELETE FROM meta WHERE k = ?', (k + me,))
+            gone.append(k.rstrip(':'))
+    # The keys of root made on these pages for this node: on again (their public halves are
+    # kept) - by this node itself, once it runs there (sshkeys_tick).
+    try:
+        if store.db.rows("SELECT k FROM meta WHERE k LIKE 'host:rootkey:%' AND k NOT LIKE "
+                         "'host:rootkey:again:%'"):
+            store.set_meta('host:rootkey:again:' + me, '%.0f' % time.time())
+    except Exception:                                   # noqa: BLE001
+        pass
+    if gone:
+        log('this node (%s) runs on another machine than last time: what that one had is '
+            'forgotten, and what is wanted put in here (%s)' % (me, ', '.join(gone)), 'warn')
+        store.add_event('settings', 'the node %s runs on another machine than before: the SSH '
+                        'server, the time, the console at login, the password policy and the '
+                        'rest saved are put in there again' % me, 'warn')
+    return gone
+
+
 def node_name_check(store):
     """At the start: was this node called something else last time?"""
     me = node_name()

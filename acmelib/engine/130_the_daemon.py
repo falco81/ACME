@@ -527,6 +527,10 @@ class Daemon(object):
                                                          traceback.format_exc()), 'error')
         HA_STORE['store'] = self.store
         node_name_check(self.store)             # renamed since the last start? (1.0.48)
+        try:
+            machine_changed_check(self.store)   # another machine under this name? (1.0.43)
+        except Exception as e:                  # noqa: BLE001
+            log('the machine of this node could not be compared: %s' % e, 'warn')
         self.store.add_event('starting and stopping', 'acme %s started on %s'
                              % (__version__, node_name()))
         try:

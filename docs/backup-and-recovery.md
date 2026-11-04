@@ -633,6 +633,36 @@ and keep the key.
 
 Full walk-through: [operations.md section 5](operations.md#5-building-a-cluster-of-two).
 
+### 7.3 What comes back by itself, and what does not
+
+A backup put back on a clean machine (and a cluster built from it) is the installation it
+came from: every row of every table, the key of the sealed secrets, the node's name, the
+modules of your own - and, since 1.0.43:
+
+- **the guard against writes to the database** on again, if it was on (it is kept in
+  config.json, which is otherwise the new machine's);
+- **the SNMP engine** of each node keeps its ID and its count of starts (kept in the
+  database too) - a trap receiver told the engine ID needs nothing new;
+- **what the old machines said they had in place is forgotten** (for every node of the
+  backup): the SSH server, the time, the console at login and the password policy saved are
+  put in on the new machine, as for a new node; the web certificates, the VIP address and the
+  firewall were put in again already. A node built again into the cluster under its old
+  name does the same when it starts on another machine;
+- **the keys of root made on the pages** are put on the new machine again.
+
+Not in any backup - they are the machine's, not acme's:
+
+- **the local users of the system** and their passwords (no password is kept anywhere).
+  *Settings → Local users* lists the users each node's machine had - *Make them again* gives
+  each the same name, UID, full name, shell and sudo, with no password: give one there, or a
+  key in *SSH keys*;
+- **SSH keys added to authorized_keys other than on the pages** - *SSH keys* shows the
+  fingerprints the machine had that are not on it now, to be added again.
+
+The test `test/test_restore_ha.py` does all of it: an installation, its backup put back on
+a clean PostgreSQL node, that node started on its new machine, a cluster built from it with a
+second clean node - every row on both, the sealed secrets opened on the second.
+
 ---
 
 ## 8. After every recovery: the checks

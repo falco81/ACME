@@ -126,6 +126,24 @@ def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True)
             except OSError as e:
                 said.append('the modules of your own could not be put into %s: %s - they '
                             'are in plugins/ of the backup' % (pdir, e))
+        # Another machine than the one the backup was made on (1.0.43): what that one said it had
+        # (the SSH server, the time, the console...) is forgotten here, so that it is put in.
+        try:
+            if machine_changed_check(store, put_back=True, name=m.get('node') or None):
+                said.append('what the machine of the backup had in place is put in on this one')
+            # The other nodes of the cluster it came from too: built again into the cluster
+            # (a clean machine under the old name), each puts in what is wanted, and gets its
+            # users and keys back to make again; one that is the same machine reads it again.
+            others = set()
+            for pre in MACHINE_ROWS:
+                for r in store.db.rows('SELECT k FROM meta WHERE k LIKE ?', (pre + '%',)):
+                    n = r['k'][len(pre):]
+                    if n and n != (m.get('node') or node_name()) and '@@' not in n:
+                        others.add(n)
+            for n in sorted(others):
+                machine_changed_check(store, put_back=True, name=n)
+        except Exception as e:                          # noqa: BLE001
+            log('the machine of the backup could not be compared: %s' % e, 'warn')
         old_name = node_name()
         if m.get('node') and not keep_node_name and m['node'] != old_name and \
                 not CONFIG.get('ha_mode'):
@@ -136,6 +154,27 @@ def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True)
             except Exception:                           # noqa: BLE001
                 pass
             said.append('this machine is node %s again (it was %s)' % (m['node'], old_name))
+        # (After the name: its rows are signed as the node it is now.)
+        # The guard against writes to the database (1.0.43): kept in config.json, not in the
+        # database - a node made again from its backup had it off. On again, as it was, once
+        # the rows are signed as this node's word (db_file_restore did that).
+        try:
+            with open(os.path.join(top, 'config.json')) as f:
+                was = json.load(f)
+        except (OSError, ValueError):
+            was = {}
+        if isinstance(was, dict) and was.get('db_guard') and not CONFIG.get('db_guard'):
+            if dbguard_key():
+                n = dbguard_resign(store, 'the guard switched on again with the backup put back '
+                                          'by %s' % by)
+                write_file_settings({'db_guard': 1})
+                CONFIG['db_guard'] = 1
+                store.set_meta('conf_serial', '%.6f:%s' % (time.time(), node_name()))
+                said.append('the guard against writes to the database is on again, as it was '
+                            '(%d rows signed)' % n)
+            else:
+                said.append('the guard against writes to the database was on - it could not be '
+                            'switched on here: no secrets.key to sign with')
         store.add_event('backups', '%s put back the backup %s (made %s on %s, acme %s)' % (
             by, os.path.basename(str(path)), m.get('made_words'), m.get('node'), m.get('acme')),
             'warn', who=by)

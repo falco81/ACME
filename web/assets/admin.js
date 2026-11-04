@@ -13653,6 +13653,19 @@ function drawSshKeys(live) {
         host.appendChild(el('p', 'note warn', n.name + ': sshd does not let root sign in at all (PermitRootLogin no) - the keys below are not used there until it does.'));
       if (sd.there && sd.pubkey === 'no')
         host.appendChild(el('p', 'note warn', n.name + ': sshd takes no keys (PubkeyAuthentication no).'));
+      /* Built again (1.0.43): the keys of root its machine had that are not on it now - only
+         their fingerprints are kept; one made on these pages is put on again by itself. */
+      if (SK.user === 'root' && n.at) {
+        var fps = {};
+        (n.keys || []).forEach(function (k) { fps[k.fp] = 1; });
+        var gone = (n.before || []).filter(function (k) { return k.fp && !fps[k.fp]; });
+        if (gone.length) {
+          var p = el('p', 'note info');
+          p.appendChild(el('span', '', n.name + ' was built again: root had these keys there before, which are not on it now - add them again if they are still wanted: '));
+          p.appendChild(noI18n(el('span', 'mono small', gone.map(function (k) { return (k.comment ? k.comment + ' ' : '') + k.fp; }).join(' · '))));
+          host.appendChild(p);
+        }
+      }
     });
     var kept = {};
     (d.kept || []).forEach(function (r) { if (r.fp) kept[r.fp] = r; });
@@ -14196,6 +14209,49 @@ function drawOsUsers(live) {
         card.appendChild(el('p', 'note', 'Only root is on ' + (nodes.length > 1 ? 'the nodes' : 'this node') + ' - Add a user makes one, on ' + (nodes.length > 1 ? 'every node at once.' : 'this node.')));
     }
     host.appendChild(card);
+    /* The users a node's machine had before it was built again (1.0.43): made again from here,
+       with no password - none is kept anywhere. */
+    nodes.forEach(function (n) {
+      var here = {};
+      (n.users || []).forEach(function (u) { here[u.name] = 1; });
+      var miss = (n.before || []).filter(function (u) { return !here[u.name]; });
+      if (!miss.length) return;
+      var bc = el('div', 'card full osu-before');
+      var bh = el('h2', '', 'Users ' + n.name + ' had before it was built again');
+      bc.appendChild(bh);
+      bc.appendChild(el('p', 'note', 'Put back from a backup on another machine (or built again into the cluster), ' + n.name + ' has the settings of these pages - but not the users of the system that were on it. They can be made again as they were: the same name, UID, full name, shell and sudo - with no password, which is kept nowhere: give each one on this page, or a key in SSH keys.'));
+      bc.appendChild(listTable(['User', 'UID', 'Shell', 'Sudo'], miss, function (u) {
+        var tr = el('tr');
+        var who = el('td', 'osu-who');
+        var nm = el('span', 'osu-nm');
+        nm.appendChild(noI18n(el('span', 'mono osu-name', u.name)));
+        if (u.gecos) nm.appendChild(noI18n(el('span', 'muted small', u.gecos)));
+        who.appendChild(nm);
+        tr.appendChild(who);
+        tr.appendChild(noI18n(el('td', 'mono small', String(u.uid || ''))));
+        tr.appendChild(noI18n(el('td', 'mono small', osuShell(u.shell))));
+        var sc = el('td');
+        sc.appendChild(el('span', 'tag ' + (u.sudo ? 'warn' : 'dim'), u.sudo ? 'sudo' : 'no'));
+        tr.appendChild(sc);
+        return tr;
+      }));
+      var row = el('div', 'btnrow');
+      var mk = cmdButton('Make them again on ' + n.name, 'add', 'small primary');
+      mk.onclick = function () {
+        busy(mk, true);
+        api('osusers', {action: 'remake', node: n.name}).then(function (x) { busy(mk, false); toast(x.message, 'good'); osuChanged(); })
+          .catch(function (e) { busy(mk, false); oops(e); });
+      };
+      var fg = cmdButton('Forget them', 'close', 'small');
+      fg.onclick = function () {
+        confirmThen('Forget these users?', 'The list of the users ' + n.name + ' had is forgotten; nothing is made, nothing on the machine changes.', 'Forget them', function () {
+          api('osusers', {action: 'remake-forget', node: n.name}).then(function (x) { toast(x.message, 'good'); loadOsUsers(); }).catch(oops);
+        }, false);
+      };
+      row.appendChild(mk); row.appendChild(fg);
+      bc.appendChild(row);
+      host.appendChild(bc);
+    });
     /* What was done last, on each node, with what it said. */
     var said = [];
     nodes.forEach(function (n) { (n.said || []).forEach(function (s) { said.push({n: n.name, s: s}); }); });

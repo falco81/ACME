@@ -53191,6 +53191,14 @@
   "osupol_33": {
    "source": "How many days a password of a local user is good for; then the user must choose a new one at the next sign-in (chage -M, put on every normal user of every node). 0: always - as until now. Left out - always good: a user with no password (a key only), and one SSH asks a code of (Settings → SSH server) who may not use sudo: with the password run out, sshd asks for the old one before anything else, even after a key or a code, and they may never have been told it. One asked a code who may use sudo keeps the days: sudo asks for that password, so they know it and can change it.",
    "text": "Kolik dní platí heslo lokálního uživatele; potom si uživatel musí při dalším přihlášení zvolit nové (chage -M, na každém běžném uživateli každého uzlu). 0: napořád – jako dosud. Vynecháni – platí napořád: uživatel bez hesla (jen klíč) a ten, po kom SSH chce kód (Nastavení → SSH server) a nesmí sudo: s vypršelým heslem se sshd nejdřív ptá na staré, i po klíči nebo kódu, a to mu nikdo nemusel říct. Kdo se hlásí kódem a smí sudo, dobu platnosti má: sudo se na to heslo ptá, takže ho zná a může ho změnit."
+  },
+  "rebuild_1": {
+   "source": "Forget these users?",
+   "text": "Zapomenout tyto uživatele?"
+  },
+  "rebuild_2": {
+   "source": "nothing made",
+   "text": "nic nezaloženo"
   }
  },
  "patterns": {
@@ -72661,6 +72669,30 @@
   "posupol_18": {
    "source": "the password policy put on {0} user(s) ({1} without a password, or asked a code by SSH and without sudo: always good), the same rules for passwd",
    "text": "politika hesel nasazena na uživatele: {0} ({1} bez hesla nebo s kódem přes SSH a bez sudo: platí napořád), stejná pravidla i pro passwd"
+  },
+  "prebuild_1": {
+   "source": "Users {0} had before it was built again",
+   "text": "Uživatelé, které měl {0}, než byl postaven znovu"
+  },
+  "prebuild_2": {
+   "source": "Put back from a backup on another machine (or built again into the cluster), {0} has the settings of these pages - but not the users of the system that were on it. They can be made again as they were: the same name, UID, full name, shell and sudo - with no password, which is kept nowhere: give each one on this page, or a key in SSH keys.",
+   "text": "Po obnově ze zálohy na jiném stroji (nebo po novém zapojení do clusteru) má {0} nastavení těchto stránek – ale ne uživatele systému, kteří na něm byli. Lze je založit znovu tak, jak byli: stejné jméno, UID, celé jméno, shell i sudo – bez hesla, které se nikde neuchovává: dejte ho každému na této stránce, nebo klíč v SSH klíčích."
+  },
+  "prebuild_3": {
+   "source": "Make them again on {0}",
+   "text": "Založit znovu na {0}"
+  },
+  "prebuild_4": {
+   "source": "The list of the users {0} had is forgotten; nothing is made, nothing on the machine changes.",
+   "text": "Seznam uživatelů, které měl {0}, se zapomene; nic se nezaloží a na stroji se nic nezmění."
+  },
+  "prebuild_5": {
+   "source": "made again on {0}: {1} - each with no password",
+   "text": "znovu založeni na {0}: {1} – každý bez hesla"
+  },
+  "prebuild_6": {
+   "source": "{0} was built again: root had these keys there before, which are not on it now - add them again if they are still wanted:",
+   "text": "{0} byl postaven znovu: root tam dřív měl tyto klíče, které teď na něm nejsou – přidejte je znovu, pokud jsou pořád potřeba:"
   }
  },
  "rich": {

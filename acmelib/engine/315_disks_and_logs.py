@@ -153,6 +153,8 @@ def sshkeys_view(store):
                       # The normal users who may sign in there, and the keys of those read (1.0.240).
                       'users': now.get('users') or [], 'keys_of': now.get('keys_of') or {},
                       'file': now.get('file') or '', 'at': now.get('at'),
+                      # The keys of root its machine had before it was built again (1.0.43).
+                      'before': (_meta_json(store, 'host:sshkeys:before:' + n) or {}).get('keys') or [],
                       'error': now.get('error') or ('%d change(s) asked of it more than five minutes ago '
                                                     'are not written - is acme-web.path running there?' % late
                                                     if late else ''),
@@ -202,6 +204,17 @@ def sshkeys_ask(store, nodes, do, by, line='', fp='', last_ok=False, user='root'
 def sshkeys_tick(daemon):
     store = daemon.store
     me = node_name()
+    # Built again on another machine (1.0.43): the keys of root made on these pages put on again.
+    if store.get_meta('host:rootkey:again:' + me):
+        try:
+            for sc in rootkey_scopes(store):
+                r = rootkey_row(store, sc)
+                if r.get('pub') and me in rootkey_nodes(store, sc):
+                    sshkeys_ask(store, [me], 'add', 'acme (the machine built again)', line=r['pub'])
+            store.db.run('DELETE FROM meta WHERE k = ?', ('host:rootkey:again:' + me,))
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('rootkey-again', 'the keys of root could not be put on again: %s' % e,
+                        'warn', every=600)
     if HOST_WORK['ssh'] and time.time() - HOST_WORK.get('ssh_since', 0) < 900:
         return
     now = _meta_json(store, 'host:sshkeys:now:' + me) or {}
