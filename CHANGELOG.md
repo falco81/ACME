@@ -6,6 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.43 - not released
 
+- isemon: the rsyslog rule for the isemon machine (`deploy/isemon/11-acme.conf`) filed the
+  program `acme-certs` only - acme's other events (`isemon_events`, program `acme`) and the
+  test line of `acme --isemon-test` were filed nowhere. Both now, `acme.log` beside
+  `acme-certs.log`.
+
 - **A backup put back on a clean machine, and a cluster built from it - everything as it
   was**, checked end to end now (`test/test_restore_ha.py`: an installation, its backup put
   back on a clean PostgreSQL node, a replicated cluster built with a second clean node - every
