@@ -6,6 +6,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.45 - not released
 
+- **A hunt, round 1 (the pages):** a download that fails (a copy gone, a destination not
+  reached) is said on the page - it replaced the page with its JSON, and what was not saved was
+  lost; the downloads of copies and backups are started only by the page itself (a link or an
+  image on another page of the same site made the daemon build a whole backup); a translation
+  escaped where it went into the page as HTML; the Monitoring lede translated again; two
+  missing values no longer break a page or log a warning.
+
 ## 1.0.44 - 2026-11-04
 
 - **What was left of the hunt, shut too:**

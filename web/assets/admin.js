@@ -2857,6 +2857,36 @@ function drawIsemonGuide() {
   host.appendChild(el('p', 'note', 'isemon reads each node from the files its rsyslog writes under /var/log/remote/HOST/. Its rsyslog needs the rule for acme\'s program names - deploy/isemon/11-acme.conf in this package, copied to /etc/rsyslog.d/ there - and in isemon the folder of each node switched on.'));
 }
 
+/* A file from the daemon, downloaded without leaving the page (1.0.45): fetched, and saved
+   when it is a file - an answer that is not one (the copy gone, a destination not reached,
+   a 403) is said as a toast; before, it replaced the page with its JSON, and what was not
+   saved was lost. */
+function fileGet(url) {
+  toast('downloading…', '');
+  fetch(url, {credentials: 'same-origin', headers: {'X-Acme-Download': '1'}}).then(function (r) {
+    var cd = r.headers.get('Content-Disposition') || '';
+    if (r.redirected) { location.reload(); return; }       /* signed out meanwhile */
+    if (!r.ok || !/attachment/i.test(cd)) {
+      return r.text().then(function (t) {
+        var msg = t;
+        try { var j = JSON.parse(t); msg = j.error || j.message || t; } catch (e) { }
+        if (r.status === 401) { location.reload(); return; }
+        throw new Error(String(msg || ('HTTP ' + r.status)).slice(0, 300));
+      });
+    }
+    var m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+    var name = m ? decodeURIComponent(m[1]) : 'download';
+    return r.blob().then(function (b) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(b);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 30000);
+    });
+  }).catch(oops);
+}
+
 /* ---- accounts ------------------------------------------------------------- */
 function loadUsers() {
   colsCardSay();
@@ -4631,7 +4661,7 @@ function dbDownloadAsk(o) {
       if (!body._with) {
         closeModal();
         if (o.now) toast('it is being made; the download starts when it is ready', 'good');
-        window.location.href = '?api=db-download' + (o.name ? '&name=' + encodeURIComponent(o.name) : '') + (o.kind === 'dump' ? '&kind=dump' : '');
+        fileGet('?api=db-download' + (o.name ? '&name=' + encodeURIComponent(o.name) : '') + (o.kind === 'dump' ? '&kind=dump' : ''));
         return;
       }
       var a = $('dbk-p1').value, b2 = $('dbk-p2').value;
@@ -4641,7 +4671,7 @@ function dbDownloadAsk(o) {
       if (o.now) toast('it is being made; the download starts when it is ready', 'good');
       api('db', {action: 'download_ticket', name: o.name || '', kind: o.kind || '', passphrase: a}).then(function (t) {
         closeModal();
-        window.location.href = '?api=db-download&ticket=' + encodeURIComponent(t.ticket);
+        fileGet('?api=db-download&ticket=' + encodeURIComponent(t.ticket));
         toast(t.name + ' - keep the passphrase apart from the file', 'good');
       }).catch(oops).then(function () { busy(button, false); });
     }}]);
@@ -11510,11 +11540,11 @@ function drawRbTop() {
   explain(dl, 'A backup made now, saved on the computer you are sitting at - locked with the password as the others.');
   dl.onclick = function () {
     if (!d.locked) {
-      confirmThen('Download a backup that is not locked?', 'No password of the backups is set: the file will hold <b>every private key</b> readable. Set the password first unless you know where the file goes.', 'Download it', function () { window.location.href = '?api=rbackup-download'; }, false);
+      confirmThen('Download a backup that is not locked?', 'No password of the backups is set: the file will hold <b>every private key</b> readable. Set the password first unless you know where the file goes.', 'Download it', function () { fileGet('?api=rbackup-download'); }, false);
       return;
     }
     toast('the backup is being made - the download starts when it is ready', 'good');
-    window.location.href = '?api=rbackup-download';
+    fileGet('?api=rbackup-download');
   };
   acts.appendChild(dl);
   var back = cmdButton('Put one back…', 'undo', '');
@@ -12337,7 +12367,7 @@ function rbListThere(t) {
         tr.appendChild(sz);
         var a = el('td', 'rowtools');
         var dl = iconButton('download', 'Download it');
-        dl.onclick = function () { window.location.href = '?api=rbackup-download&id=' + encodeURIComponent(t.id) + '&name=' + encodeURIComponent(fl.name); };
+        dl.onclick = function () { fileGet('?api=rbackup-download&id=' + encodeURIComponent(t.id) + '&name=' + encodeURIComponent(fl.name)); };
         a.appendChild(dl);
         var pb = iconButton('undo', 'Put this back…');
         pb.onclick = function () { rbPutBackConfirm({id: t.id, name: fl.name, encrypted: fl.encrypted, when: fl.when, node: fl.node}); };

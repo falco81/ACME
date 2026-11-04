@@ -73385,8 +73385,8 @@
    "text": "Prometheus se ptá každého uzlu na jeho metriky na <code>https://UZEL/metrics</code>: RADIUS, tokeny, databáze, cluster a jeho replikace, certifikáty, pošta, isemon a syslog, právě otevřená upozornění. A SNMPv3: každý uzel na něj odpovídá sám a posílá trapy, když je něco špatně."
   },
   "r0079": {
-   "source": "Prometheus asks each node for its metrics at <span class=\"mono\">https://NODE/metrics</span>: RADIUS, the tokens, the database, the cluster and its replication, the certificates, the mail, isemon and syslog, the alerts open now.",
-   "text": "Prometheus se ptá každého uzlu na jeho metriky na <span class=\"mono\">https://UZEL/metrics</span>: RADIUS, tokeny, databáze, cluster a jeho replikace, certifikáty, pošta, isemon a syslog, právě otevřená upozornění."
+   "source": "Prometheus asks each node for its metrics at <code>https://NODE/metrics</code>: the certificates and the jobs, the database, the cluster and its replication, the mail, isemon and syslog, the alerts open now. And SNMPv3: each node answers it itself, and sends traps when something is wrong.",
+   "text": "Prometheus se ptá každého uzlu na jeho metriky na <code>https://UZEL/metrics</code>: certifikáty a úlohy, databáze, cluster a jeho replikace, pošta, isemon a syslog, právě otevřená upozornění. A SNMPv3: každý uzel na něj odpovídá sám a posílá trapy, když je něco špatně."
   },
   "r0080": {
    "source": "Put <b>this</b> one back, without downloading it and uploading it again: everything in the live database is replaced by what is in this file. You are shown what is in it and asked first, and a copy of what is being replaced is made before anything changes.",

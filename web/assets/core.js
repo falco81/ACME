@@ -1362,7 +1362,8 @@ function api(what, body, wait) {
         if (r.status === 413) throw new Error('that is more than the server takes');
         throw new Error('the page got something that is not an answer');
       }
-      if (!r.ok || data.ok === false) {
+      if (!r.ok || !data || data.ok === false) {
+        data = data || {};
         var err = new Error(data.error || ('HTTP ' + r.status));
         err.status = r.status;
         err.detail = data.detail || '';

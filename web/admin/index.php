@@ -274,6 +274,15 @@ if (isset($_GET['api'])) {
         exit;
     }
     if ($what === 'rbackup-download' && !$post) {
+        /* Only from this page's own fetch (1.0.45): a header of ours an <img> or a link on
+           another page of the same site cannot send - a GET made the daemon build a whole
+           backup with the administrator's cookie. */
+        if ((string) ($_SERVER['HTTP_X_ACME_DOWNLOAD'] ?? '') !== '1') {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'that download is started from the page']);
+            exit;
+        }
         /* A backup made now - or one fetched from a destination - a lump at a
            time to the browser. Only an id and a file name are passed on. */
         $id = preg_replace('/[^a-f0-9]/', '', (string) ($_GET['id'] ?? ''));
@@ -293,6 +302,15 @@ if (isset($_GET['api'])) {
         exit;
     }
     if ($what === 'db-download' && !$post) {
+        /* Only from this page's own fetch (1.0.45): a header of ours an <img> or a link on
+           another page of the same site cannot send - a GET made the daemon build a whole
+           backup with the administrator's cookie. */
+        if ((string) ($_SERVER['HTTP_X_ACME_DOWNLOAD'] ?? '') !== '1') {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'that download is started from the page']);
+            exit;
+        }
         /* A copy or a dump as a file to save, from the daemon to the browser a
            lump at a time. Only a name and which folder are passed on - never a
            path: the daemon holds both folders. */

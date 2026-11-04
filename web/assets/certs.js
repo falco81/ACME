@@ -2614,7 +2614,7 @@ function deployOff(d, back, twice) {
   modal('Take this deployment off?', function (body) {
     var p = el('p', 'note');
     p.innerHTML = htmlText((what ? what + ' ' : '') + '\u2192 ' + where) + '<br><br>' +
-      tr('acme no longer puts the certificate there, nor after its renewals. What is on the target now stays there.');
+      htmlText(tr('acme no longer puts the certificate there, nor after its renewals. What is on the target now stays there.'));
     body.appendChild(p);
   }, [{words: 'No, leave it', close: true},
       {words: 'Take it off', cls: 'danger', icon: 'trash', once: true, go: function (b) {

@@ -294,7 +294,7 @@ if ($title_ours) {
   <div class="spacer"></div>
   <div class="btnrow">
     <span class="langpick" id="langpick"></span>
-    <button type="button" class="btn small mebtn" id="mebtn" data-no-i18n><?= h($me['display'] ?: $me['name']) ?></button>
+    <button type="button" class="btn small mebtn" id="mebtn" data-no-i18n><?= h(($me['display'] ?? '') ?: ($me['name'] ?? '')) ?></button>
     <button class="btn small" id="signout" data-icon="out">Sign out</button>
   </div>
 </header>
