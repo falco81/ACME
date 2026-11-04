@@ -952,7 +952,8 @@ class Storage(object):
             self._dirs = None
 
     def directory_save(self, data, by=''):
-        for k in ('name', 'hosts', 'base', 'bind_dn', 'bind_pw', 'note', 'ca', 'user_attr', 'tls'):
+        for k in ('name', 'hosts', 'base', 'bind_dn', 'bind_pw', 'note', 'ca', 'user_attr', 'tls',
+                  'mail_attr', 'mobile_attr'):
             if data.get(k) is not None and not isinstance(data.get(k), str):
                 raise ValueError('%s is a piece of text' % k)
         name = str(data.get('name') or '').strip()
@@ -1001,6 +1002,15 @@ class Storage(object):
                'timeout_s': max(2, min(60, int(data.get('timeout_s') or 10))),
                'enabled': _yes(data, 'enabled', 1),
                'note': str(data.get('note') or '')[:400]}
+        # Where the e-mail address and the mobile number are read (as otp 1.0.229): kept as given
+        # when sent, as before when not - empty is the default (mail; mobile, telephoneNumber).
+        for k, what, default in (('mail_attr', 'the e-mail address', DIR_MAIL_DEFAULT),
+                                 ('mobile_attr', 'the mobile number', DIR_MOBILE_DEFAULT)):
+            if k in data and data.get(k) is not None:
+                v = dir_attr_checked(data.get(k), what)
+                row[k] = '' if dir_attr_list(v, default) == tuple(default) else v
+            elif not old:
+                row[k] = ''
         if 'ca' in data:
             row['ca'] = ca
         hisec_directory(row)                # 1.0.168

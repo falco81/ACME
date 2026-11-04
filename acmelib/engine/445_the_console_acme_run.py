@@ -1209,12 +1209,20 @@ class Console(object):
             got = self.form('Read a domain\'s policy', [{'key': 'name', 'label': 'the directory', 'need': True}])
             if got:
                 self.act('--dir-policy', got['name'])
+
+        def dir_sample():
+            got = self.form('Every attribute of one person', [
+                {'key': 'name', 'label': 'the directory', 'need': True},
+                {'key': 'user', 'label': 'the person', 'need': True, 'help': 'novak, novak@corp.cz'}])
+            if got:
+                self.act('--dir-sample', got['name'], got['user'])
         return self.sub('Directories (Active Directory, LDAP)', [
             ('1', 'Directories (Enter: try one, change it)', directories),
             ('2', 'Add a directory', lambda: self.directory_edit(None)),
             ('3', 'Each directory\'s cap of wrong passwords', lambda: self.act('--dir-caps')),
             ('4', 'A directory\'s own cap', dir_cap),
             ('5', 'Read a domain\'s lockout and password policy', dir_policy),
+            ('6', 'Every attribute of one person (where the e-mail and mobile are read)', dir_sample),
         ])
 
     def directory_edit(self, r):

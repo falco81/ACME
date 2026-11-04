@@ -472,6 +472,9 @@ def build_parser():
     g.add_argument('--dir-cap', metavar='NAME=SPEC', action='append',
                    help='a directory\'s own cap: NAME=3/30 (3 wrong passwords in 30 min), '
                         'NAME=setting (as the setting), NAME=none (no cap)')
+    g.add_argument('--dir-sample', nargs=2, metavar=('NAME', 'USER'),
+                   help='every attribute of one person in a directory - where the e-mail address '
+                        'and the mobile number can be read')
     g.add_argument('--dir-policy', metavar='NAME',
                    help='read the domain\'s lockout and password policy (and its fine-grained ones) '
                         'and say the cap recommended')
@@ -1516,7 +1519,8 @@ HA_CONTENT = {
     'settings': ('k', "concat_ws('/', k, v)"),
     'accounts': ('name', "concat_ws('/', name, role, pw, source, disabled, must_change, dn)"),
     'directories': ('name', "concat_ws('/', name, hosts, port, tls, verify, ca, base, bind_dn, "
-                            "bind_pw, user_attr, nested, timeout_s, enabled, weak)"),
+                            "bind_pw, user_attr, nested, timeout_s, enabled, weak, mail_attr, "
+                            "mobile_attr)"),
 }
 
 
@@ -2206,6 +2210,29 @@ def cli_dir_caps(args, pal, store, who):
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
         print(pal.ok_line('saved: %s' % '; '.join(said)) if said else 'nothing changed')
+        return 0
+    if args.dir_sample:
+        name = args.dir_sample[0]
+        row = next((d for d in store.directories(with_secret=True)
+                    if d['name'].lower() == str(name).lower()), None)
+        if not row:
+            raise SystemExit('acme: there is no directory called %s' % name)
+        ad = Directory(row)
+        try:
+            got = dir_sample_of(ad, args.dir_sample[1])
+        except (LdapError, LookupError) as e:
+            raise SystemExit('acme: %s' % e)
+        store.add_event('directories', '%s looked at every attribute of %s in %s' % (by, got['dn'], ad.name), who=by)
+        if args.json:
+            print(json.dumps(got))
+            return 0
+        print(pal.ok_line('%s%s' % (got['dn'], ' (more than one answers to that name)' if got.get('many') else '')))
+        for x in got['attrs']:
+            mark = 'mail ' if x['mail'] else ('phone' if x['phone'] else '     ')
+            print('  %s %-32s %s' % (mark, x['name'], '(binary)' if x['binary'] else
+                                     ' | '.join(x['values'])[:120]))
+        print('  used now: mail %s; mobile %s' % (row.get('mail_attr') or got['defaults']['mail'],
+                                                   row.get('mobile_attr') or got['defaults']['mobile']))
         return 0
     if args.dir_policy:
         name = args.dir_policy
@@ -2920,7 +2947,7 @@ def cli_main(argv=None):
                     ['when', 'kind', 'who', 'what'], [19, 22, 18, 90]))
         return 0
 
-    if args.dir_caps or args.dir_cap or args.dir_policy:
+    if args.dir_caps or args.dir_cap or args.dir_policy or args.dir_sample:
         return cli_dir_caps(args, pal, store, who)
 
     if args.directories:

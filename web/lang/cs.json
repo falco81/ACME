@@ -52427,6 +52427,90 @@
   "lgrd_8": {
    "source": "guessing passwords on these pages and the portal from one place is not held back",
    "text": "hádání hesel na těchto stránkách a portálu z jednoho místa se nebrzdí"
+  },
+  "samp_0": {
+   "source": "None in this entry looks like one. Any attribute can be chosen under Every attribute of the entry, or typed into the box by hand.",
+   "text": "V tomto záznamu žádný takový nevypadá. Jakýkoli atribut lze vybrat ve Všech atributech záznamu nebo napsat do pole ručně."
+  },
+  "samp_1": {
+   "source": "Can hold a phone number",
+   "text": "Může obsahovat telefonní číslo"
+  },
+  "samp_2": {
+   "source": "Show a person’s attributes",
+   "text": "Ukázat atributy osoby"
+  },
+  "samp_3": {
+   "source": "binary - not shown",
+   "text": "binární – nezobrazuje se"
+  },
+  "samp_4": {
+   "source": "For mobile",
+   "text": "Pro mobil"
+  },
+  "samp_5": {
+   "source": "The mobile number from",
+   "text": "Mobil z"
+  },
+  "samp_6": {
+   "source": "The e-mail address is read from",
+   "text": "E-mailová adresa se čte z"
+  },
+  "samp_7": {
+   "source": "Asking the directory…",
+   "text": "Ptám se adresáře…"
+  },
+  "samp_8": {
+   "source": "Where the codes by e-mail and SMS go, and what the enrolment pages fill in. Read from these attributes in the order given - the first that has a value is taken.",
+   "text": "Kam jdou kódy e-mailem a SMS a co předvyplní stránky registrace. Čte se z těchto atributů v uvedeném pořadí – vezme se první, který má hodnotu."
+  },
+  "samp_9": {
+   "source": "Every attribute the entry has a value in - those of a schema of your own too. Any of them can be chosen for either box.",
+   "text": "Všechny atributy, které mají v záznamu hodnotu – i ty z vlastního rozšíření schématu. Kterýkoli lze vybrat pro obě pole."
+  },
+  "samp_10": {
+   "source": "A person’s e-mail and mobile number",
+   "text": "E-mail a mobil osoby"
+  },
+  "samp_11": {
+   "source": "nothing - no attribute in the box has a value",
+   "text": "nic – žádný z uvedených atributů nemá hodnotu"
+  },
+  "samp_12": {
+   "source": "The mobile number is read from",
+   "text": "Mobilní číslo se čte z"
+  },
+  "samp_13": {
+   "source": "The e-mail address from",
+   "text": "E-mail z"
+  },
+  "samp_14": {
+   "source": "As until now: mail. Several, separated by commas; proxyAddresses is read as Exchange keeps it (the primary SMTP: address).",
+   "text": "Jako dosud: mail. Víc atributů oddělte čárkami; proxyAddresses se čte tak, jak ho vede Exchange (hlavní adresa SMTP:)."
+  },
+  "samp_15": {
+   "source": "As until now: mobile, and telephoneNumber when that is empty.",
+   "text": "Jako dosud: mobile, a když je prázdný, telephoneNumber."
+  },
+  "samp_16": {
+   "source": "A person in the directory",
+   "text": "Osoba v adresáři"
+  },
+  "samp_17": {
+   "source": "More than one account answers to that name: the first is shown.",
+   "text": "Tomuto jménu odpovídá víc účtů: zobrazen je první."
+  },
+  "samp_18": {
+   "source": "Find an attribute or a value",
+   "text": "Najít atribut nebo hodnotu"
+  },
+  "samp_19": {
+   "source": "Not sure which attribute holds it? Type the name of somebody whose e-mail and mobile number you know, and pick from their entry.",
+   "text": "Nevíte, ve kterém atributu to je? Zadejte jméno někoho, jehož e-mail a mobil znáte, a vyberte z jeho záznamu."
+  },
+  "samp_20": {
+   "source": "Can hold an e-mail address",
+   "text": "Může obsahovat e-mail"
   }
  },
  "patterns": {
@@ -71681,6 +71765,90 @@
   "plgrd_6": {
    "source": "{0} may try again at once. Events keeps a line saying who did it.",
    "text": "{0} může hned zkusit znovu. V Událostech zůstane řádek, kdo to udělal."
+  },
+  "samp_21": {
+   "source": "Every attribute of the entry ({0})",
+   "text": "Všechny atributy záznamu ({0})"
+  },
+  "samp_22": {
+   "source": "Read the e-mail address from {0}",
+   "text": "Číst e-mailovou adresu z {0}"
+  },
+  "samp_23": {
+   "source": "Read the mobile number from {0}",
+   "text": "Číst mobilní číslo z {0}"
+  },
+  "samp_24": {
+   "source": "Where {0} is, and the database and account this installation will use there. If they are not there yet, the next step makes them - with an administrator of that server, used once and kept nowhere.",
+   "text": "Kde je {0} a jakou databázi a účet tam tato instalace použije. Pokud tam ještě nejsou, další krok je vytvoří – se správcem toho serveru, použitým jednou a nikde neuloženým."
+  },
+  "samp_25": {
+   "source": "otp {0}",
+   "text": "otp {0}"
+  },
+  "samp_26": {
+   "source": "otp {0} - older: ready to go back to",
+   "text": "otp {0} – starší: připravená k návratu"
+  },
+  "samp_27": {
+   "source": "otp {0} cannot be gone back to: {1}",
+   "text": "na otp {0} se nelze vrátit: {1}"
+  },
+  "samp_28": {
+   "source": "otp {0} fetched and checked; going back to it has begun",
+   "text": "otp {0} stažená a zkontrolovaná; návrat na ni začal"
+  },
+  "samp_29": {
+   "source": "otp {0} fetched and checked; the upgrade has begun",
+   "text": "otp {0} staženo a ověřeno; aktualizace začala"
+  },
+  "samp_30": {
+   "source": "otp {0} is checked and ready",
+   "text": "otp {0} je zkontrolován a připraven"
+  },
+  "samp_31": {
+   "source": "otp {0} is fetched, checked and ready",
+   "text": "otp {0} je stažené, ověřené a připravené"
+  },
+  "samp_32": {
+   "source": "otp {0} is fetched, checked for this database and ready to go back to",
+   "text": "otp {0} je stažená, zkontrolovaná proti této databázi a připravená k návratu"
+  },
+  "samp_33": {
+   "source": "otp {0} is not at {1} any more",
+   "text": "otp {0} už na {1} není"
+  },
+  "samp_34": {
+   "source": "otp {0} is out ({1}) - Settings → Upgrades",
+   "text": "vyšlo otp {0} ({1}) – Nastavení → Aktualizace"
+  },
+  "samp_35": {
+   "source": "otp {0} is ready to be put in",
+   "text": "otp {0} je připraven k nasazení"
+  },
+  "samp_36": {
+   "source": "otp {0} is sent and checked.",
+   "text": "otp {0} je poslán a zkontrolován."
+  },
+  "samp_37": {
+   "source": "otp {0} is there - newer than {1}",
+   "text": "je k dispozici otp {0} – novější než {1}"
+  },
+  "samp_38": {
+   "source": "otp {0} is there - this server runs {1} (looked {2})",
+   "text": "Je k dispozici otp {0} – tento server běží na {1} (zkontrolováno {2})"
+  },
+  "samp_39": {
+   "source": "otp {0} started on {1}, RADIUS on {2}",
+   "text": "otp {0} spuštěn na {1}, RADIUS na {2}"
+  },
+  "samp_40": {
+   "source": "otp {0} started, RADIUS on {1}",
+   "text": "otp {0} spuštěn, RADIUS na {1}"
+  },
+  "samp_41": {
+   "source": "the domain {0} did not answer for its own object",
+   "text": "doména {0} neodpověděla na svůj vlastní objekt"
   }
  },
  "rich": {

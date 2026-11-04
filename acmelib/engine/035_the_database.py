@@ -59,7 +59,8 @@ SCHEMA = [
     ('directories', '''CREATE TABLE IF NOT EXISTS directories (
         id {ID}, name {K} NOT NULL UNIQUE, hosts {T}, port {I}, tls {K}, verify {I},
         ca {B}, base {T}, bind_dn {T}, bind_pw {T}, user_attr {K}, nested {I},
-        timeout_s {I}, enabled {I}, note {T}, created {N}, weak {I})'''),
+        timeout_s {I}, enabled {I}, note {T}, created {N}, weak {I}, mail_attr {K},
+        mobile_attr {K})'''),
     ('events', '''CREATE TABLE IF NOT EXISTS events (
         id {ID}, ts {N}, kind {K}, level {K}, who {K}, words {T}, node {K})'''),
     # What was used once and may never be again (1.0.101): the time step of

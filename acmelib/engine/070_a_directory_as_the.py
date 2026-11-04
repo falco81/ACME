@@ -20,6 +20,56 @@ USER_ATTRS = ('distinguishedName', 'sAMAccountName', 'userPrincipalName', 'displ
 # stays set after the lockout is over.
 AD_UACC_LOCKED = 0x10
 AD_UACC_PW_EXPIRED = 0x800000
+# Where a person's e-mail address and mobile number are read (as otp 1.0.229), in the order tried -
+# the first with a value is taken. As until now unless changed on the directory's card.
+DIR_MAIL_DEFAULT = ('mail',)
+# The name of an attribute (RFC 4512): a word of letters, digits and dashes - any of a schema of
+# one's own (extensionAttribute5, companyMobile) - or its OID, 1.2.840.113556.1.4.1234.
+DIR_ATTR_NAME = re.compile(r'^(?:[A-Za-z][A-Za-z0-9-]{0,99}|[0-9]+(?:\.[0-9]+){1,40})\Z')
+DIR_MOBILE_DEFAULT = ('mobile', 'telephoneNumber')
+
+
+def dir_attr_list(value, default):
+    """The attributes of a mapping as saved - "mobile, telephoneNumber" - or the default."""
+    out = []
+    for one in re.split(r'[,;\s]+', str(value or '')):
+        one = one.strip()
+        if one and DIR_ATTR_NAME.match(one) and one.lower() not in [x.lower() for x in out]:
+            out.append(one)
+    return tuple(out[:4]) or tuple(default)
+
+
+def dir_attr_checked(value, what):
+    """The mapping typed on the card, checked: '' for the default."""
+    words = [w for w in re.split(r'[,;\s]+', str(value or '').strip()) if w]
+    if len(words) > 4:
+        raise ValueError('%s: four attributes at most' % what)
+    for w in words:
+        if not DIR_ATTR_NAME.match(w):
+            raise ValueError('%s: %r is not the name of an attribute' % (what, w))
+    return ', '.join(words)
+
+
+def entry_mail(a, attrs):
+    """The e-mail address of an entry (its attributes, names in small letters) by the mapping:
+    proxyAddresses read as Exchange keeps it - the primary SMTP: one first, no prefix."""
+    for attr in attrs:
+        vals = [str(v).strip() for v in (a.get(attr.lower()) or []) if str(v).strip()]
+        if attr.lower() == 'proxyaddresses':
+            smtp = [v for v in vals if v.lower().startswith('smtp:')]
+            smtp.sort(key=lambda v: not v.startswith('SMTP:'))
+            vals = [v.split(':', 1)[1] for v in smtp]
+        if vals:
+            return vals[0]
+    return ''
+
+
+def entry_first(a, attrs):
+    for attr in attrs:
+        for v in a.get(attr.lower()) or []:
+            if str(v).strip():
+                return str(v).strip()
+    return ''
 
 
 def _ad_int(v):
@@ -107,6 +157,11 @@ class Directory(object):
         self.bind_dn = row.get('bind_dn') or ''
         self.bind_pw = row.get('bind_pw') or ''
         self.timeout = float(row.get('timeout_s') or 10)
+        self.mail_attrs = dir_attr_list(row.get('mail_attr'), DIR_MAIL_DEFAULT)
+        self.mobile_attrs = dir_attr_list(row.get('mobile_attr'), DIR_MOBILE_DEFAULT)
+        have = {x.lower() for x in USER_ATTRS}
+        self.user_attrs = USER_ATTRS + tuple(x for x in self.mail_attrs + self.mobile_attrs
+                                             if x.lower() not in have)
         self.cache = {}
         self.lock = threading.Lock()
         self.last_good = None
@@ -260,13 +315,16 @@ class Directory(object):
             said = said.split('@', 1)[0].split('\\')[-1]
             want = ldap_equal(self.row.get('user_attr') or 'sAMAccountName', said)
         elif how == 'mail':
-            want = ldap_equal('mail', said)
+            # By the attributes the address is read from (as otp 1.0.229): "mail" unless changed.
+            ors = [ldap_equal(x, ('smtp:' + said) if x.lower() == 'proxyaddresses' else said)
+                   for x in self.mail_attrs]
+            want = ors[0] if len(ors) == 1 else ldap_or(*ors)
         else:
             want = ldap_equal('userPrincipalName', said)
         flt = ldap_and(ldap_equal('objectClass', 'user'), want)
         # Three, not two (1.0.101): a computer's account among them is
         # dropped below, and must not hide a second person of the name.
-        rows = self.asked(lambda link: link.search(self.base, flt, USER_ATTRS, scope=2,
+        rows = self.asked(lambda link: link.search(self.base, flt, self.user_attrs, scope=2,
                                                    limit=3))
         entry = None
         # A computer's account is not a person's (1.0.101): objectClass=user
@@ -288,7 +346,7 @@ class Directory(object):
                 uacc = 0
             entry = {'dn': r['dn'], 'sam': first('sAMAccountName'),
                      'upn': first('userPrincipalName'), 'display': first('displayName'),
-                     'mail': first('mail'), 'uac': uac,
+                     'mail': entry_mail(a, self.mail_attrs), 'uac': uac,
                      'disabled': bool(uac & AD_UAC_DISABLED),
                      'expires': ad_time(first('accountExpires')),
                      'locked': bool(uacc & AD_UACC_LOCKED),
@@ -302,7 +360,8 @@ class Directory(object):
                                    for g in (v or [])],
                      'department': first('department'), 'title': first('title'),
                      # For a code by SMS (1.0.76): the number a page may offer.
-                     'mobile': first('mobile') or first('telephoneNumber'),
+                     # Read where the directory's card says (as otp 1.0.229).
+                     'mobile': entry_first(a, self.mobile_attrs),
                      'phone': first('telephoneNumber'),
                      'pw_set': ad_time(first('pwdLastSet')),
                      'many': len(rows) > 1}
@@ -531,10 +590,9 @@ class Directory(object):
                                 ldap_contains('displayName', like), ldap_contains('mail', like)))
         link = self.link()
         try:
-            rows = link.search(self.base, want, ('sAMAccountName', 'userPrincipalName',
-                                                 'displayName', 'mail', 'userAccountControl',
-                                                 'mobile', 'telephoneNumber', attr), scope=2,
-                                limit=limit + 10)
+            rows = link.search(self.base, want, tuple(dict.fromkeys(
+                ('sAMAccountName', 'userPrincipalName', 'displayName', 'userAccountControl', attr)
+                + self.mail_attrs + self.mobile_attrs)), scope=2, limit=limit + 10)
         finally:
             link.close()
         out = []
@@ -549,8 +607,9 @@ class Directory(object):
                 uac = 0
             out.append({'dn': r['dn'], 'sam': first(attr) or first('sAMAccountName'),
                         'upn': first('userPrincipalName'), 'display': first('displayName'),
-                        'mail': first('mail'), 'disabled': bool(uac & AD_UAC_DISABLED),
-                        'mobile': first('mobile') or first('telephoneNumber')})
+                        'mail': entry_mail(a, self.mail_attrs),
+                        'disabled': bool(uac & AD_UAC_DISABLED),
+                        'mobile': entry_first(a, self.mobile_attrs)})
         low = like.lower()
         out.sort(key=lambda u: (not (u['sam'] or '').lower().startswith(low),
                                 not (u['display'] or '').lower().startswith(low),

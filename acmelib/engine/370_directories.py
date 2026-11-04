@@ -141,6 +141,8 @@ def _dirs_do(h):
             who, user[:120], 'it would sign in' if said.get('ok') else 'refused'), who=who)
         return {'tried': said}
     h.me('certadmin')
+    if act == 'sample':
+        return dir_sample(h, b)
     if act == 'pw_caps':
         # Each directory with its own cap of wrong passwords, and the setting's (otp 1.0.232).
         h.me('fulladmin')
@@ -192,3 +194,130 @@ def _dirs_do(h):
     raise ApiError(400, 'no such thing to do with a directory')
 
 
+DIR_REACH_KEYS = ('hosts', 'port', 'tls', 'verify', 'weak', 'bind_dn')
+
+
+def dir_sample_directory(h, form):
+    """The directory as the card has it now, saved or not (as otp 1.0.229) - its password the one
+    typed, or the one kept, which goes only to the servers it was given for."""
+    ident = form.get('id')
+    saved = None
+    if ident:
+        saved = next((d for d in h.store.directories(with_secret=True)
+                      if str(d.get('id')) == str(ident)), None)
+        if not saved:
+            raise ApiError(404, 'that directory was taken away meanwhile - open it again')
+    row = dict(saved or {})
+    for k in DIR_REACH_KEYS + ('base', 'user_attr', 'timeout_s', 'name'):
+        if form.get(k) is not None:
+            row[k] = form.get(k)
+    if not ident and form.get('ca') is not None:
+        row['ca'] = form.get('ca')
+    hosts = [x.strip() for x in re.split(r'[,;\s]+', str(row.get('hosts') or '')) if x.strip()]
+    if not hosts:
+        raise ApiError(400, 'say which servers to ask first')
+    if not re.match(r'(?i)^(dc|ou|o|cn)=', str(row.get('base') or '').strip()):
+        raise ApiError(400, 'say where to look (the base) first: DC=example,DC=local')
+    row['hosts'] = ', '.join(re.sub(r'^ldaps?://', '', x, flags=re.I).rstrip('/') for x in hosts)
+    pw = form.get('bind_pw')
+    if pw is not None and not is_masked(pw):
+        row['bind_pw'] = str(pw)
+    elif saved:
+        def same(k):
+            a, z = form.get(k), saved.get(k)
+            if a is None:
+                return True
+            if k in ('port', 'verify', 'weak'):
+                try:
+                    return int(a) == int(z or 0)
+                except (TypeError, ValueError):
+                    return False
+            if k == 'hosts':
+                return ', '.join(re.split(r'[,;\s]+', str(a).strip())) == str(z or '')
+            return str(a).strip() == str(z or '').strip()
+        moved = [k for k in DIR_REACH_KEYS if not same(k)]
+        if moved and saved.get('bind_pw'):
+            raise ApiError(400, 'the servers or the account changed - type the password again: '
+                                'the one kept goes only to the servers it was given for')
+    else:
+        row['bind_pw'] = ''
+    row['name'] = str(row.get('name') or 'new')
+    # Numbers checked as a save checks them (as otp 1.0.234): a word typed into the port broke the
+    # request with a 500.
+    try:
+        if row.get('port') not in (None, ''):
+            row['port'] = int(row['port'])
+            if not 1 <= row['port'] <= 65535:
+                raise ValueError
+        if row.get('timeout_s') not in (None, ''):
+            row['timeout_s'] = max(2, min(60, int(row['timeout_s'])))
+    except (TypeError, ValueError):
+        raise ApiError(400, 'the port is 1 to 65535 and the time a number of seconds')
+    return Directory(row)
+
+
+def dir_attr_fits(name, values):
+    """Whether an attribute could hold an e-mail address or a phone number."""
+    mail = phone = False
+    for v in values:
+        t = str(v).strip()
+        if name.lower() == 'proxyaddresses' and t.lower().startswith('smtp:'):
+            t = t.split(':', 1)[1]
+        if re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+\Z', t):
+            mail = True
+        if re.match(r'^\+?[0-9]{6,15}\Z', re.sub(r'[\s().\-/]', '', t)):
+            phone = True
+    return mail, phone
+
+
+def dir_sample(h, b):
+    """Every attribute of one person's entry, for choosing where the e-mail address and the
+    mobile number are read (as otp 1.0.229)."""
+    s = h.me('fulladmin')
+    who = str(b.get('user') or '').strip()
+    if not who:
+        raise ApiError(400, 'type the name of somebody in the directory')
+    if len(who) > 256 or any(ord(c) < 32 for c in who):
+        raise ApiError(400, 'that is not a name')
+    ad = dir_sample_directory(h, b.get('directory') or {})
+    try:
+        got = dir_sample_of(ad, who)
+    except LdapUnreachable as e:
+        raise ApiError(503, 'the directory cannot be reached: %s' % e)
+    except LdapError as e:
+        raise ApiError(400, 'the directory said: %s' % e)
+    except LookupError as e:
+        raise ApiError(404, str(e))
+    h.store.add_event('directories', '%s looked at every attribute of %s in %s, to choose where '
+                      'the e-mail address and the mobile number are read'
+                      % (s['name'], got['dn'], ad.name), who=s['name'])
+    return got
+
+
+def dir_sample_of(ad, who):
+    """Every attribute of the first person called `who` in the directory (the pages, acme
+    --dir-sample). LookupError when nobody is."""
+    bare = who.split('\\')[-1]
+    short = bare.split('@', 1)[0]
+    attr = str(ad.row.get('user_attr') or 'sAMAccountName')
+    flt = ldap_and(ldap_equal('objectClass', 'user'),
+                   ldap_or(ldap_equal(attr, short), ldap_equal('userPrincipalName', bare),
+                           ldap_equal('mail', bare)))
+    t = time.time()
+    rows = ad.asked(lambda link: link.search(ad.base, flt, ('*',), scope=2, limit=4))
+    rows = [r for r in rows if not computer_account(r)]
+    if not rows:
+        raise LookupError('nobody called %s is in the directory under %s' % (who, ad.base))
+    r = rows[0]
+    out = []
+    for name, vals in sorted(r['attrs'].items(), key=lambda kv: kv[0].lower()):
+        vals = [str(v) for v in (vals or [])]
+        binary = any('\ufffd' in v or any(ord(c) < 32 and c not in '\t\r\n' for c in v) for v in vals)
+        mail, phone = (False, False) if binary else dir_attr_fits(name, vals)
+        out.append({'name': name, 'count': len(vals), 'binary': binary,
+                    'values': [] if binary else [v[:200] for v in vals[:4]],
+                    'mail': mail, 'phone': phone})
+    a = {k.lower(): v for k, v in r['attrs'].items()}
+    return {'dn': r['dn'], 'display': ((a.get('displayname') or [''])[0]),
+            'many': len(rows) > 1, 'attrs': out, 'took_ms': int((time.time() - t) * 1000),
+            'defaults': {'mail': ', '.join(DIR_MAIL_DEFAULT), 'mobile': ', '.join(DIR_MOBILE_DEFAULT)}}

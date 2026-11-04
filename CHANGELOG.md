@@ -253,6 +253,16 @@ hunts. Every new switch is off - as until now - unless said otherwise.
   *Counted and blocked now* - the sign-ins to these pages and the portal, the codes sent and the
   names held back, with a filter and *Clear*. For every directory set in *Accounts → The
   directories administrators sign in against*: the administrators' sign-ins and the portal's.
+- **Where a person's e-mail address and mobile number are read from the directory - on each
+  directory's card** (*Settings → Accounts → The directories administrators sign in against →
+  edit*, *A person's e-mail and mobile number*; as otp 1.0.229). As until now by default: `mail`,
+  and `mobile` with `telephoneNumber` when that is empty. Any attribute, or several in order (the
+  first with a value is taken); `proxyAddresses` read as Exchange keeps it (the primary SMTP:
+  address). Used for the codes by e-mail and SMS and for what the portal knows of a person.
+  *Show a person's attributes*: the whole entry of one person, from the card as it is now (saved
+  or not), with what the boxes would read, the attributes that can hold an e-mail address and
+  those that can hold a phone number each with *Use*, and every attribute of the entry listed. A
+  full administrator only; written into Events. `acme --dir-sample NAME USER`, and on the console.
 
 ## 1.0.39 - 2026-11-04
 

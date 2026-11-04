@@ -306,6 +306,19 @@ class TestSignIns(unittest.TestCase):
             self.assertIn(self.portal_in('outsider', ''), (400, 401))
         self.assertNotEqual(self.portal_in('outsider', 'outsider-password-1'), 429)
 
+    def test_06_a_persons_attributes(self):
+        # Every attribute of one person, for where the e-mail and the mobile are read (otp 1.0.229).
+        st, d = self.call('GET', '/api/directories', None, self.admin)
+        ident = d['directories'][0]['id']
+        st, got = self.call('POST', '/api/directories', {'action': 'sample', 'user': 'falco',
+                                                          'directory': {'id': ident}}, self.admin)
+        self.assertEqual(st, 200, got)
+        self.assertIn('falco', got['dn'].lower())
+        names = {a['name'].lower(): a for a in got['attrs']}
+        self.assertIn('userprincipalname', names)
+        self.assertTrue(names['userprincipalname']['mail'])        # can hold an address
+        self.assertFalse(names['samaccountname']['mail'])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -2213,6 +2213,8 @@ function loadDirs() {
       fact('Where to look (the base)', a.base || '–', true);
       fact('The account it reads with', a.bind_dn || 'nobody', true);
       fact('A short name is', a.user_attr || 'sAMAccountName', true);
+      fact('The e-mail address from', a.mail_attr || 'mail', true);
+      fact('The mobile number from', a.mobile_attr || 'mobile, telephoneNumber', true);
       card.appendChild(facts);
       if (ADMIN) card.onclick = function () { editDir(a); };
       list.appendChild(card);
@@ -2242,6 +2244,9 @@ function editDir(a) {
     var bind = textBox(a.bind_dn, 'acme@example.local', 'mono');
     var pw = secretBox(a.id ? a.bind_pw : '', a.id ? 'set - leave as it is to keep it' : '', 'mono');
     var attr = textBox(a.user_attr || 'sAMAccountName', '', 'mono');
+    /* Where a person's e-mail address and mobile number are read (as otp 1.0.229). */
+    var mailAttr = textBox(a.mail_attr || 'mail', 'mail', 'mono');
+    var mobAttr = textBox(a.mobile_attr || 'mobile, telephoneNumber', 'mobile, telephoneNumber', 'mono');
     var to = textBox(a.timeout_s || 10, '', 'mono');
     var on = switchBox(a.enabled);
     var ca = el('textarea'); ca.rows = 4; ca.placeholder = '-----BEGIN CERTIFICATE-----'; ca.value = a.ca || '';
@@ -2268,6 +2273,17 @@ function editDir(a) {
     s2._body.appendChild(formField('Where to look (the base)', base));
     s2._body.appendChild(formField('A short name is', attr, 'The attribute a name without its @domain is looked up by.'));
     secs.appendChild(s2);
+    var s3 = msect('A person’s e-mail and mobile number', 'Where the codes by e-mail and SMS go, and what the enrolment pages fill in. Read from these attributes in the order given - the first that has a value is taken.', true);
+    var g3 = el('div', 'formgrid');
+    g3.appendChild(formField('The e-mail address is read from', mailAttr, 'As until now: mail. Several, separated by commas; proxyAddresses is read as Exchange keeps it (the primary SMTP: address).'));
+    g3.appendChild(formField('The mobile number is read from', mobAttr, 'As until now: mobile, and telephoneNumber when that is empty.'));
+    s3._body.appendChild(g3);
+    s3._body.appendChild(dirSampler(a, mailAttr, mobAttr, function () {
+      return {id: a.id, name: name.value, hosts: hosts.value, tls: tls.value, port: Number(port.value), verify: verify._get(),
+              weak: weak._get(), base: base.value, bind_dn: bind.value, bind_pw: pw.value === a.bind_pw ? undefined : pw.value,
+              user_attr: attr.value, timeout_s: Number(to.value), ca: a.id ? undefined : ca.value};
+    }));
+    secs.appendChild(s3);
     body.appendChild(secs);
     if (!a.id) {
       var cf = formField('The certificate authority that signed its certificate (PEM)', ca,
@@ -2286,6 +2302,7 @@ function editDir(a) {
       api('directories', {action: 'save', directory: {id: a.id, name: name.value, hosts: hosts.value, tls: tls.value,
         port: Number(port.value), verify: verify._get(), weak: weak._get(), base: base.value, bind_dn: bind.value,
         bind_pw: pw.value === a.bind_pw ? undefined : pw.value, user_attr: attr.value, timeout_s: Number(to.value),
+        mail_attr: mailAttr.value, mobile_attr: mobAttr.value,
         enabled: on._get(), nested: 1, ca: a.id ? undefined : ca.value, note: a.note || ''}}).then(function (d) {
         toast(d.message, 'good'); closeModal(); loadDirs();
       }).catch(oops).then(function () { busy(b, false); });
@@ -2294,6 +2311,197 @@ function editDir(a) {
 }
 
 /* Tried from every node (1.0.169): each reaches the domain controllers on its own. */
+/* A person's entry, every attribute of it (as otp 1.0.229): the ones that can hold an e-mail
+   address or a phone number offered with Use, which puts the attribute into its box; the
+   rest listed, to be found and typed by hand. What the boxes would read is shown as they
+   change. */
+function dirAttrList(text) {
+  return String(text || '').split(/[\s,;]+/).filter(Boolean);
+}
+function dirPick(data, list, mail) {
+  var by = {};
+  (data.attrs || []).forEach(function (x) { by[x.name.toLowerCase()] = x; });
+  for (var i = 0; i < list.length; i++) {
+    var x = by[list[i].toLowerCase()];
+    if (!x || x.binary) continue;
+    var vals = (x.values || []).map(function (v) { return String(v).trim(); }).filter(Boolean);
+    if (mail && x.name.toLowerCase() === 'proxyaddresses') {
+      vals = vals.filter(function (v) { return /^smtp:/i.test(v); })
+        .sort(function (p, q) { return (/^SMTP:/.test(q) ? 1 : 0) - (/^SMTP:/.test(p) ? 1 : 0); })
+        .map(function (v) { return v.slice(5); });
+    }
+    if (vals.length) return {attr: x.name, value: vals[0]};
+  }
+  return null;
+}
+function dirSampler(a, mailAttr, mobAttr, form) {
+  var box = el('div', 'samp');
+  var row = el('div', 'samp-ask');
+  var who = textBox('', 'jan.novak', 'mono');
+  who.setAttribute('aria-label', 'A person in the directory');
+  noI18n(who);
+  var go = cmdButton('Show a person’s attributes', 'search', '');
+  go.type = 'button';
+  row.appendChild(who);
+  row.appendChild(go);
+  box.appendChild(el('p', 'msect-lede', 'Not sure which attribute holds it? Type the name of somebody whose e-mail and mobile number you know, and pick from their entry.'));
+  box.appendChild(row);
+  var out = el('div', 'samp-out');
+  box.appendChild(out);
+  var data = null;
+  function preview(host) {
+    clear(host);
+    var m = dirPick(data, dirAttrList(mailAttr.value || 'mail'), true);
+    var t = dirPick(data, dirAttrList(mobAttr.value || 'mobile, telephoneNumber'), false);
+    [['mail', 'E-mail', m], ['phone', 'Mobile', t]].forEach(function (it) {
+      var c = el('div', 'samp-now' + (it[2] ? ' ok' : ' none'));
+      var ic = el('span', 'samp-now-ic');
+      ic.innerHTML = iconMarkup(it[0], 18);
+      c.appendChild(ic);
+      var tx = el('div', 'samp-now-tx');
+      tx.appendChild(el('span', 'samp-now-k', it[1] + ' - with these boxes'));
+      var v = el('span', 'samp-now-v mono', it[2] ? it[2].value : 'nothing - no attribute in the box has a value');
+      if (it[2]) noI18n(v);
+      tx.appendChild(v);
+      if (it[2]) {
+        var f = el('span', 'samp-now-from');
+        f.appendChild(el('span', '', 'read from'));
+        f.appendChild(document.createTextNode(' '));
+        f.appendChild(noI18n(el('span', 'mono', it[2].attr)));
+        tx.appendChild(f);
+      }
+      c.appendChild(tx);
+      host.appendChild(c);
+    });
+  }
+  function attrRow(x, use) {
+    var r = el('div', 'samp-row' + (x.binary ? ' bin' : ''));
+    var n = el('div', 'samp-name mono', x.name);
+    noI18n(n);
+    r.appendChild(n);
+    var vs = el('div', 'samp-vals');
+    if (x.binary) vs.appendChild(el('span', 'muted small', 'binary - not shown'));
+    (x.values || []).forEach(function (v) { var s = el('span', 'samp-val mono', v); noI18n(s); vs.appendChild(s); });
+    if (x.count > (x.values || []).length && !x.binary) vs.appendChild(el('span', 'muted small', '+' + (x.count - x.values.length) + ' more'));
+    r.appendChild(vs);
+    var tags = el('div', 'samp-tags');
+    if (use) {
+      use.forEach(function (u) {
+        var b = cmdButton(u[0], 'check', 'small' + (u[2] ? ' primary' : ''));
+        b.type = 'button';
+        b.onclick = u[1];
+        tags.appendChild(b);
+      });
+    } else {
+      if (x.mail) tags.appendChild(el('span', 'tag info', 'e-mail'));
+      if (x.phone) tags.appendChild(el('span', 'tag info', 'phone'));
+      /* Any attribute of the entry (as otp 1.0.229) - a schema of one's own too - for either box. */
+      if (!x.binary && pickInto) {
+        [['For e-mail', 'mail'], ['For mobile', 'phone']].forEach(function (u) {
+          var b = cmdButton(u[0], 'check', 'small');
+          b.type = 'button';
+          b.title = u[1] === 'mail' ? 'Read the e-mail address from ' + x.name : 'Read the mobile number from ' + x.name;
+          b.onclick = function () { pickInto(u[1], x.name); };
+          tags.appendChild(b);
+        });
+      }
+    }
+    r.appendChild(tags);
+    return r;
+  }
+  function pickInto(which, name) {
+    var box = which === 'mail' ? mailAttr : mobAttr;
+    box.value = name;
+    box.dispatchEvent(new Event('input'));
+    var open = out.querySelector('.samp-all') && out.querySelector('.samp-all').open;
+    var q = out.querySelector('.samp-find') ? out.querySelector('.samp-find').value : '';
+    draw();
+    if (open) {
+      out.querySelector('.samp-all').open = true;
+      out.querySelector('.samp-find').value = q;
+      out.querySelector('.samp-find').dispatchEvent(new Event('input'));
+    }
+    toast((which === 'mail' ? 'The e-mail address' : 'The mobile number') + ' will be read from ' + name + ' - save to keep it', 'good');
+  }
+  function draw() {
+    clear(out);
+    var head = el('div', 'samp-head');
+    var hi = el('div', 'samp-head-tx');
+    var nm = el('b', '', data.display || '(no display name)');
+    noI18n(nm);
+    hi.appendChild(nm);
+    var dn = el('span', 'mono small muted', data.dn);
+    noI18n(dn);
+    hi.appendChild(dn);
+    head.appendChild(hi);
+    head.appendChild(el('span', 'tag', data.attrs.length + ' attributes · ' + data.took_ms + ' ms'));
+    out.appendChild(head);
+    if (data.many) out.appendChild(el('p', 'note warn', 'More than one account answers to that name: the first is shown.'));
+    var now = el('div', 'samp-nows');
+    out.appendChild(now);
+    preview(now);
+    var cols = el('div', 'samp-cols');
+    [['mail', 'Can hold an e-mail address', mailAttr], ['phone', 'Can hold a phone number', mobAttr]].forEach(function (k) {
+      var col = el('div', 'samp-col');
+      col.appendChild(el('h5', '', k[1]));
+      var fits = data.attrs.filter(function (x) { return x[k[0]]; });
+      /* One read from now that does not look like it (a schema of one's own): shown here too. */
+      var cur = (dirPick(data, dirAttrList(k[2].value), k[0] === 'mail') || {}).attr;
+      if (cur && !fits.some(function (x) { return x.name === cur; })) {
+        fits = fits.concat(data.attrs.filter(function (x) { return x.name === cur; }));
+      }
+      if (!fits.length) col.appendChild(el('p', 'muted small', 'None in this entry looks like one. Any attribute can be chosen under Every attribute of the entry, or typed into the box by hand.'));
+      fits.forEach(function (x) {
+        var inBox = dirAttrList(k[2].value).map(function (s) { return s.toLowerCase(); });
+        var used = inBox[0] === x.name.toLowerCase();
+        col.appendChild(attrRow(x, [[used ? 'In use' : 'Use', function () {
+          k[2].value = x.name;
+          k[2].dispatchEvent(new Event('input'));
+          draw();
+        }, used]]));
+      });
+      cols.appendChild(col);
+    });
+    out.appendChild(cols);
+    var all = el('details', 'samp-all');
+    all.appendChild(el('summary', '', 'Every attribute of the entry (' + data.attrs.length + ')'));
+    all.appendChild(el('p', 'muted small samp-all-lede', 'Every attribute the entry has a value in - those of a schema of your own too. Any of them can be chosen for either box.'));
+    var find = textBox('', 'Find an attribute or a value', '');
+    find.className += ' samp-find';
+    all.appendChild(find);
+    var list = el('div', 'samp-list');
+    all.appendChild(list);
+    function fill() {
+      clear(list);
+      var q = find.value.trim().toLowerCase();
+      data.attrs.forEach(function (x) {
+        if (q && x.name.toLowerCase().indexOf(q) < 0 && !(x.values || []).some(function (v) { return String(v).toLowerCase().indexOf(q) >= 0; })) return;
+        list.appendChild(attrRow(x, null));
+      });
+    }
+    find.oninput = fill;
+    fill();
+    out.appendChild(all);
+  }
+  [mailAttr, mobAttr].forEach(function (b) { b.addEventListener('input', function () { if (data) preview(out.querySelector('.samp-nows')); }); });
+  function ask() {
+    if (!who.value.trim()) { who.focus(); return; }
+    busy(go, true);
+    clear(out);
+    out.appendChild(el('p', 'muted small', 'Asking the directory…'));
+    api('directories', {action: 'sample', user: who.value.trim(), directory: form()}).then(function (d) {
+      data = d;
+      draw();
+    }).catch(function (e) {
+      clear(out);
+      out.appendChild(el('p', 'note bad', String(e.message || e)));
+    }).then(function () { busy(go, false); });
+  }
+  go.onclick = ask;
+  who.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ask(); } });
+  return box;
+}
+
 function checkDir(name) {
   modal('Checking ' + name, function (body) {
     var grid = nodeGrid();

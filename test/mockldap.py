@@ -581,7 +581,7 @@ def serve(port=0, tls=None, stop=None):
                 one = ROOTDSE if not base else PARTITIONS
                 pairs = b''
                 for name, values in one.items():
-                    if asked and name.lower() not in [a.lower() for a in asked]:
+                    if asked and '*' not in asked and name.lower() not in [a.lower() for a in asked]:  # "*": all (otp 1.0.229)
                         continue
                     pairs += isemon._ber(0x30, isemon._ber_str(name) + isemon._ber(
                         0x31, b''.join(isemon._ber_str(v) for v in values)))
@@ -641,7 +641,7 @@ def serve(port=0, tls=None, stop=None):
                 for name, values in attrs.items():
                     if name.startswith('_'):
                         continue
-                    if asked and name.lower() not in [a.lower() for a in asked]:
+                    if asked and '*' not in asked and name.lower() not in [a.lower() for a in asked]:  # "*": all (otp 1.0.229)
                         continue
                     pairs += isemon._ber(0x30, isemon._ber_str(name) + isemon._ber(
                         0x31, b''.join(isemon._ber_str(v) for v in values)))
