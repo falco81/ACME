@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.39 - not released
+## 1.0.39 - 2026-11-04
 
 - The nightly dumps of the database were never seen: they are called
   acme-ENGINE-..., and only the names of otp (otp-, opt-) were taken. So
