@@ -53495,6 +53495,10 @@
   "idet_1": {
    "source": "Send the certificates’ work in detail",
    "text": "Posílat podrobně práci s certifikáty"
+  },
+  "hunt4_1": {
+   "source": "the second step of this account is not there any more - an administrator resets it (Accounts), then it is set up again",
+   "text": "druhý krok tohoto účtu už neexistuje - správce ho resetuje (Účty), pak se nastaví znovu"
   }
  },
  "patterns": {

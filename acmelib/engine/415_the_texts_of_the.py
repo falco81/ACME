@@ -165,6 +165,7 @@ def mfa_all(store):
 def mfa_reset(store, name, by):
     had = mfa_get(store, name)
     store.db.run('DELETE FROM meta WHERE k = ?', (mfa_key(name),))
+    mfa_mark(store, name, False)
     store.add_event('accounts', '%s reset the second step of signing in of %s%s' % (
         by, name, ' (it was %s)' % MFA_KIND_WORDS.get(had.get('kind'), had.get('kind'))
         if had else ' (none was set up)'), 'warn', who=by)
@@ -206,7 +207,46 @@ def mfa_stage(store, name):
         # - by whoever had the password. Now that waits for a reset (the
         # accounts page, or acme --reset-2fa NAME as root).
         return 'check'
+    # Set up once, and its row gone without a reset (1.0.44): not set up anew with the
+    # password alone - the account (signed) says it has one. 'lost': refused until reset.
+    acc = store.account(name)
+    if acc and acc.get('mfa_on'):
+        return 'lost'
     return 'enrol'
+
+
+MFA_LOST_SAID = ('the second step of this account is not there any more - an administrator '
+                 'resets it (Accounts), then it is set up again')
+
+
+def mfa_mark(store, name, on):
+    """Whether the account has a second step set up, in its signed row (1.0.44)."""
+    try:
+        acc = store.account(name)
+        if acc and bool(acc.get('mfa_on')) != bool(on):
+            store.set_account(acc['name'], mfa_on=1 if on else 0)
+    except Exception as e:                              # noqa: BLE001
+        log('the second step of %s could not be noted on the account: %s' % (name, e), 'warn')
+
+
+def mfa_marks_adopt(store):
+    """The accounts with a second step set up before 1.0.44 noted as such - once every
+    node runs 1.0.44 (an older one checks the account's signature without it)."""
+    if CONFIG.get('ha_mode'):
+        try:
+            if any(_ver_tuple(n.get('version')) < _ver_tuple('1.0.44') for n in ha_nodes(store)
+                   if n.get('alive') or n.get('me')):
+                return 0
+        except Exception:                               # noqa: BLE001
+            return 0
+    n = 0
+    for name, rec in mfa_all(store).items():
+        if rec and rec.get('kind') in ('app', 'mail', 'sms'):
+            acc = store.account(name)
+            if acc and not acc.get('mfa_on'):
+                mfa_mark(store, name, True)
+                n += 1
+    return n
 
 
 def mfa_pending(s):
@@ -415,6 +455,7 @@ def _mfa_act(h, kind):
                 raise ApiError(409, 'this account has its second step set up already - sign '
                                     'in again')
             h.store.set_meta(mfa_key(name), json.dumps(rec))
+        mfa_mark(h.store, name, True)
         token = _mfa_done(h, s, 'set up now: %s' % MFA_KIND_WORDS.get(rec['kind']), kind)
         h.store.add_event('accounts', '%s set up the second step of signing in: %s%s' % (
             name, MFA_KIND_WORDS.get(rec['kind']),

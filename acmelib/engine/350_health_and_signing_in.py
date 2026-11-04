@@ -834,6 +834,12 @@ def _login(h):
     # The second step, when it is asked for (1.0.125): the sign-in is made,
     # and may do nothing but give it.
     stage = mfa_stage(h.store, ok['name']) if CONFIG.get('admin_2fa') else ''
+    if stage == 'lost':
+        h.failed(key)
+        h.store.add_event('sign-ins', '%s could not sign in from %s: the second step it had set '
+                          'up is gone without a reset - reset it in Accounts if that is right'
+                          % (ok['name'], h.client_ip()), 'bad')
+        raise ApiError(403, MFA_LOST_SAID)
     token = h.store.session_new('admin', ok['name'], ok['role'], h.client_ip(),
                                 CONFIG.get('session_hours') or 12,
                                 data={'mfa': stage} if stage else None)

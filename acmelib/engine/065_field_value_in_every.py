@@ -625,7 +625,7 @@ class Storage(object):
             fields['pw'] = password_hash(fields.pop('password'))
         if 'role' in fields and fields['role'] not in ROLES_ALL:
             raise ValueError('the role is one of %s' % ', '.join(ROLES_ALL))
-        if not set(fields) & (set(ACCOUNT_SIGNED) | {'mail', 'mobile'}):
+        if not set(fields) & (set(ACCOUNT_SIGNED) | {'mail', 'mobile', 'mfa_on'}):
             self.db.update('accounts', one['id'], fields)
             return
         with self.db.transaction():                 # with its signature (1.0.234)

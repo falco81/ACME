@@ -31,6 +31,12 @@ RFC 5424 structured data.
 Optionally every other event of acme (a setting changed, a sign-in, a node
 gone), the same way as program `acme` - with `isemon_events` on.
 
+A TCP/TLS receiver that cannot be reached is tried again after 15 s, then
+longer, up to 5 min; the lines meanwhile are held - the last 5 000 of each
+receiver (1.0.44) - and sent in their order, with their own time, once it
+answers (before, they were lost). Only beyond that are the oldest given up,
+counted as missed.
+
 The very same `acme-certs` lines are written to
 `/var/log/acme/acme-certs.log` whether or not they are sent (`ship_files`).
 

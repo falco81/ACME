@@ -6,6 +6,19 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.44 - not released
 
+- **What was left of the hunt, shut too:**
+  - isemon and the SIEM no longer lose the lines written while a TCP/TLS receiver cannot be
+    reached (a restart of isemon, a network cut): the last 5 000 of each are held and sent in
+    their order, with their own time, once it answers.
+  - The history of the backups sent away is each node's own row: two backups at once on the
+    two nodes wrote the one row over each other, and one was gone from the list and the alerts.
+  - An account whose second step was set up says so in its signed row: its second step deleted
+    in the database (past acme) no longer lets the next sign-in set up a new one with the
+    password alone - it is refused until an administrator resets it.
+  - install.sh takes `/etc/acme/plugins` only as root's own: a folder put there by another
+    account (the acme account may rename root's away - `/etc/acme` is its group's) is moved
+    aside, not made root's with what is in it; a link put there meanwhile stops it.
+
 - **isemon gets the certificates' work in detail** (Settings → isemon → *Send the certificates'
   work in detail*, on by default): every job - an order or a renewal with its validations, a
   deployment, the tests, an import from a source, a revocation, a dry run - its start, every

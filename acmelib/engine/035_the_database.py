@@ -52,7 +52,7 @@ SCHEMA = [
     ('accounts', '''CREATE TABLE IF NOT EXISTS accounts (
         id {ID}, name {K} NOT NULL UNIQUE, role {K}, pw {T}, source {K}, disabled {I},
         must_change {I}, note {T}, created {N}, last_in {N}, last_from {K}, prefs {T},
-        display {T}, dn {T}, group_list {T}, cols {B}, cols_at {N}, mail {T}, mobile {T})'''),
+        display {T}, dn {T}, group_list {T}, cols {B}, cols_at {N}, mail {T}, mobile {T}, mfa_on {I})'''),
     ('sessions', '''CREATE TABLE IF NOT EXISTS sessions (
         id {ID}, token_hash {K} NOT NULL UNIQUE, kind {K}, name {K}, role {K}, created {N},
         last {N}, expires {N}, ip {K}, data {B})'''),

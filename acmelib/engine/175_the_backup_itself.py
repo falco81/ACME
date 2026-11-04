@@ -435,32 +435,61 @@ def human_bytes(n):
     return '%d B' % n
 
 
+RB_RUNS_OLD = 'rbackup:runs'          # one row for both nodes, until 1.0.43
+
+
+def _rb_runs_rows(store):
+    """{key: [run...]}: each node's own row (1.0.44), and the one row of before."""
+    out = {}
+    rows = store.db.rows("SELECT k, v FROM meta WHERE k = ? OR k LIKE ?",
+                         (RB_RUNS_OLD, RB_RUNS_OLD + '@@%'))
+    for r in rows:
+        try:
+            got = json.loads(r.get('v') or '[]')
+        except ValueError:
+            got = []
+        out[r['k']] = [x for x in got if isinstance(x, dict)]
+    return out
+
+
 def rb_history(store):
-    try:
-        got = json.loads(store.get_meta('rbackup:runs') or '[]')
-    except ValueError:
-        got = []
-    return [x for x in got if isinstance(x, dict)]
+    """The backups sent away, newest first - every node's. Each node keeps its own row
+    (1.0.44): two backups made at once on the two nodes each wrote the one row over the
+    other's, and one of them was gone from the list (and from the alerts)."""
+    runs = []
+    for got in _rb_runs_rows(store).values():
+        runs += got
+    runs.sort(key=lambda r: float(r.get('at') or 0), reverse=True)
+    return runs[:120]
 
 
 def rb_history_forget(store, at=None, file=None):
     """One line off the list (at and file), or all of it (1.0.110). The
     backups themselves stay where they went."""
     with RB_LOCK:
-        runs = rb_history(store)
-        if at is None:
-            left = []
-        else:
-            left = [r for r in runs if not (abs(float(r.get('at') or 0) - float(at)) < 0.001 and
-                                           str(r.get('file') or '') == str(file or ''))]
-        store.set_meta('rbackup:runs', json.dumps(left, default=str))
-        return len(runs) - len(left)
+        rows = _rb_runs_rows(store)
+        gone = 0
+        for k, runs in rows.items():
+            if at is None:
+                left = []
+            else:
+                left = [r for r in runs if not (abs(float(r.get('at') or 0) - float(at)) < 0.001
+                                               and str(r.get('file') or '') == str(file or ''))]
+            if len(left) != len(runs):
+                gone += len(runs) - len(left)
+                store.set_meta(k, json.dumps(left, default=str))
+        return gone
 
 
 def rb_history_add(store, run):
     with RB_LOCK:
-        runs = [run] + rb_history(store)
-        store.set_meta('rbackup:runs', json.dumps(runs[:60], default=str))
+        k = node_key('rbackup', 'runs')
+        try:
+            mine = json.loads(store.get_meta(k) or '[]')
+        except ValueError:
+            mine = []
+        mine = [run] + [x for x in mine if isinstance(x, dict)]
+        store.set_meta(k, json.dumps(mine[:60], default=str))
 
 
 def rb_job_start(store, by, only=None):

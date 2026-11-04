@@ -683,6 +683,11 @@ def portal_local_login(h, key, name, acc):
     who = acc['name']
     ways = portal_local_ways()
     stage = mfa_stage(h.store, who) if CONFIG.get('admin_2fa') and not ways else ''
+    if stage == 'lost':
+        h.failed(key)
+        h.store.add_event('sign-ins', '%s could not sign in to the enrolment pages: the second '
+                          'step it had set up is gone without a reset' % who, 'bad')
+        raise ApiError(403, MFA_LOST_SAID)
     rec = mfa_get(h.store, who) or {}
     # The account's own address and number (Accounts, 1.0.44) - else the administration's
     # second step's, where it is one by mail or SMS.

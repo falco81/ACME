@@ -24,6 +24,9 @@ SYSLOG_FACILITY = {'auth': 4, 'authpriv': 10, 'local5': 21, 'daemon': 3, 'user':
 # only with isemon_events.
 ISEMON_KINDS = ['certificates']
 
+# Lines kept for a TCP/TLS target while it cannot be reached (1.0.44), sent once it answers.
+ISEMON_BACKLOG = 5000
+
 
 def syslog_targets(text, strict=False):
     """`host[:port][/udp|/tcp|/tls]` (or `tls://host:port`), comma separated,
@@ -249,6 +252,7 @@ class Shipper(object):
         self.trouble = {}
         self.down = {}              # a TCP target that failed: (until, wait) - 1.0.59
         self.missed = collections.Counter()
+        self.backlog = {}           # a TCP/TLS target's lines while it is down (1.0.44)
         self.dropped = 0
         self.last_sent = 0.0
         self.ctx = None
@@ -266,6 +270,10 @@ class Shipper(object):
         tls = (CONFIG.get('isemon_verify'), CONFIG.get('isemon_ca'), CONFIG.get('isemon_mtls'))
         again = tls != getattr(self, '_tls_was', tls)
         self._tls_was = tls
+        keys = {'%s:%d/%s' % t for t in self.targets}
+        for k in list(self.backlog):
+            if k not in keys:                   # a target no longer there: its lines with it
+                self.backlog.pop(k, None)
         for key, sock in list(self.tcp.items()):
             if again or key not in self.targets:
                 try:
@@ -374,9 +382,18 @@ class Shipper(object):
                 # A TCP target that cannot be reached is left alone for a
                 # while (1.0.59): every line waited 5 s on it, the queue
                 # filled, and the files here lost lines with it.
+                # Kept while it cannot be reached (1.0.44) - the last ISEMON_BACKLOG lines,
+                # sent in their order once it answers again: every line written while it
+                # restarted was lost for good. Each keeps the time it was written at.
+                q = self.backlog.get(key)
+                if q is None:
+                    q = self.backlog[key] = collections.deque()
+                if len(q) >= ISEMON_BACKLOG:
+                    q.popleft()
+                    self.missed[key] += 1               # the oldest held is given up
+                q.append(raw)
                 until, wait = self.down.get(key, (0.0, 0.0))
                 if time.monotonic() < until:
-                    self.missed[key] += 1
                     return
                 sock = self.tcp.get(target)
                 if sock is not None and not _conn_alive(sock):
@@ -388,7 +405,8 @@ class Shipper(object):
                         pass
                     sock = None
                     self.tcp.pop(target, None)
-                for attempt in (1, 2):
+                fresh = False
+                while q:
                     if sock is None:
                         sock = socket.create_connection((host, port), timeout=5)
                         if proto == 'tls':
@@ -398,9 +416,9 @@ class Shipper(object):
                             sock = self.ctx.wrap_socket(sock, server_hostname=host)
                         sock.settimeout(5)
                         self.tcp[target] = sock
+                        fresh = True
                     try:
-                        sock.sendall(raw + b'\n')
-                        break
+                        sock.sendall(q[0] + b'\n')
                     except OSError:
                         try:
                             sock.close()
@@ -408,8 +426,16 @@ class Shipper(object):
                             pass
                         sock = None
                         self.tcp.pop(target, None)
-                        if attempt == 2:
+                        if fresh:
                             raise
+                        fresh = True            # a connection made anew once, then given up
+                        continue
+                    q.popleft()
+                    self.sent[key] += 1
+                self.last_sent = time.time()
+                self.trouble.pop(key, None)
+                self.down.pop(key, None)
+                return
             self.sent[key] += 1
             self.last_sent = time.time()
             self.trouble.pop(key, None)
@@ -421,9 +447,9 @@ class Shipper(object):
                 _u, wait = self.down.get(key, (0.0, 0.0))
                 wait = min(300.0, max(15.0, wait * 2))
                 self.down[key] = (time.monotonic() + wait, wait)
-                self.missed[key] += 1
-                e = '%s - tried again in %d s, %d line(s) not sent to it' % (
-                    e, int(wait), self.missed[key])
+                e = '%s - tried again in %d s, %d line(s) held for it%s' % (
+                    e, int(wait), len(self.backlog.get(key) or ()),
+                    (', %d given up' % self.missed[key]) if self.missed[key] else '')
             self.trouble[key] = '%s (%s)' % (e, datetime.now().strftime('%H:%M:%S'))
 
     def state(self):
@@ -434,6 +460,8 @@ class Shipper(object):
                         'ca': 'given' if str(CONFIG.get('isemon_ca') or '').strip() else 'system'},
                 'sent': dict(self.sent), 'trouble': dict(self.trouble),
                 'queued': self.q.qsize(), 'dropped': self.dropped,
+                'held': {k: len(v) for k, v in self.backlog.items() if v},
+                'missed': dict(self.missed),
                 'last_sent': self.last_sent, 'files': bool(CONFIG.get('ship_files')),
                 'file_dir': str(LOG_DIR)}
 

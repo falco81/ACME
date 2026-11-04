@@ -895,6 +895,10 @@ class Daemon(object):
         except Exception as e:                          # noqa: BLE001
             log('the counts of wrong SSH codes could not be tidied: %s' % e, 'warn')
         try:
+            mfa_marks_adopt(self.store)                 # second steps noted (1.0.44)
+        except Exception as e:                          # noqa: BLE001
+            log('the second steps could not be noted on the accounts: %s' % e, 'warn')
+        try:
             dbguard_adopt(self.store)                   # once every node runs 1.0.44
         except Exception as e:                          # noqa: BLE001
             log('the guard could not take its new rows: %s' % e, 'warn')

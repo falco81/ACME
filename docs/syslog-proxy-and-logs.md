@@ -31,7 +31,9 @@ an error, 4 for a warning or a refused sign-in, 6 for the rest.
 
 Each node has a queue (20 000 lines) and a thread of its own. A sign-in only
 puts a line in the queue; a server that is down is tried again after 30 s,
-and a full queue drops lines and counts them. The page shows per node what
+its lines held meanwhile (the last 5 000 of a TCP/TLS server, 1.0.44) and sent in
+their order, stamped when they happened, once it answers; a full queue drops
+lines and counts them. The page shows per node what
 was sent to each server, what failed and why, what waits and what was dropped;
 *Send a test line* sends one from the node the page asks, at once.
 

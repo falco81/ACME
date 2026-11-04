@@ -322,9 +322,14 @@ def account_signed_cols(row):
     """What of an account is signed: its e-mail address and mobile number too once it has
     either (1.0.44) - the portal's code goes there, and an address written past acme would
     take it; an account without them is signed as before, so the signatures there hold."""
+    cols = ACCOUNT_SIGNED
     if row and (row.get('mail') or row.get('mobile')):
-        return ACCOUNT_SIGNED + ('mail', 'mobile')
-    return ACCOUNT_SIGNED
+        cols = cols + ('mail', 'mobile')
+    # ...and that it has a second step set up (1.0.44): its row in meta deleted, the next
+    # sign-in set a new one up with the password alone.
+    if row and row.get('mfa_on'):
+        cols = cols + ('mfa_on',)
+    return cols
 
 
 def dbguard_account_sign(db, name):

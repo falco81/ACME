@@ -51,6 +51,10 @@ def _sd_val(text):
     return str(text).replace('\\', '\\\\').replace('"', '\\"').replace(']', '\\]')
 
 
+# Lines kept for a TCP/TLS target while it cannot be reached (1.0.44), sent once it answers.
+SIEM_BACKLOG = 5000
+
+
 class Siem(object):
     def __init__(self):
         self.q = queue.Queue(maxsize=20000)
@@ -60,6 +64,7 @@ class Siem(object):
         self.sent = collections.Counter()
         self.trouble = {}
         self.down = {}
+        self.backlog = {}           # a TCP/TLS target's lines while it is down (1.0.44)
         self.dropped = 0
         self.last_sent = 0.0
         self.stop_flag = False
@@ -170,7 +175,7 @@ class Siem(object):
                 continue
             for t in list(self.targets):
                 try:
-                    self._send(t, line)
+                    self._send(t, line, hold=True)
                 except Exception as e:                  # noqa: BLE001
                     # Nothing ends this thread (1.0.186).
                     self.trouble[str(t)] = str(e)[:200]
@@ -187,10 +192,26 @@ class Siem(object):
             self.ctx = ctx
         return self.ctx
 
-    def _send(self, target, line):
-        """'' when it went, or what stopped it."""
+    def _send(self, target, line, hold=False):
+        """'' when it went, or what stopped it. `hold`: an event's line, kept for a TCP/TLS
+        target that cannot be reached and sent once it answers (1.0.44)."""
         with self.lock:
-            return self._send_one(target, line)
+            if not hold or target[2] == 'udp':
+                return self._send_one(target, line)
+            key = '%s:%d/%s' % target
+            q = self.backlog.setdefault(key, collections.deque())
+            if len(q) >= SIEM_BACKLOG:
+                q.popleft()
+                self.dropped += 1               # the oldest held is given up
+            q.append(line)
+            if time.monotonic() < self.down.get(key, 0.0):
+                return 'held'
+            while q:
+                said = self._send_one(target, q[0])
+                if said:
+                    return said
+                q.popleft()
+            return ''
 
     def _send_one(self, target, line):
         host, port, proto = target
@@ -260,6 +281,7 @@ class Siem(object):
                 'targets': ['%s:%d/%s' % t for t in self.targets], 'sent': dict(self.sent),
                 'trouble': dict(self.trouble), 'queued': self.q.qsize(),
                 'dropped': self.dropped, 'last_sent': self.last_sent,
+                'held': {k: len(v) for k, v in self.backlog.items() if v},
                 'format': CONFIG.get('siem_format') or 'json'}
 
     def flush(self, wait=3.0):

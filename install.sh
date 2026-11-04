@@ -1415,6 +1415,47 @@ EOB
     fi
 }
 
+# A folder of root's modules made root's again - through its descriptor, never by its name
+# (1.0.44): /etc/acme is the acme account's group's, and the acme account could rename root's
+# plugins folder away and put its own there (its modules then made root's by the chown), or
+# swap the folder for a link between the look and the chown. A folder that is not root's
+# already is not taken: it is moved aside, and a new empty one made.
+plugin_dir_take() {
+    local d="$1" said
+    [[ -n "$DRY_RUN" ]] && { note "[would make root's] $d"; return 0; }
+    said="$(python3 -I - "$d" <<'PY'
+import os, stat, sys, time
+d = sys.argv[1]
+try:
+    fd = os.open(d, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+except OSError as e:
+    print('gone %s' % e)
+    sys.exit(0)
+try:
+    st = os.fstat(fd)
+    if st.st_uid != 0:
+        aside = '%s.not-roots.%d' % (d, int(time.time()))
+        os.rename(d, aside)
+        print('aside %s' % aside)
+    else:
+        os.fchown(fd, 0, 0)
+        os.fchmod(fd, 0o755)
+        print('ok')
+finally:
+    os.close(fd)
+PY
+)"
+    case "$said" in
+        ok) ;;
+        aside*) warn "$d was not root's (made by another account): moved aside as ${said#aside }, and made anew - look at what is in it"
+                run install -d -m 0755 -o root -g root "$d" ;;
+        *) if [[ -e "$d" || -L "$d" ]]; then
+               fail "$d changed while it was looked at (a link put there?) - look at it, then run this again"
+           fi
+           run install -d -m 0755 -o root -g root "$d" ;;
+    esac
+}
+
 # Your own modules: /etc/acme/plugins/{issuers,challenges,targets,checks}/*.py, kept
 # across upgrades (one with the same kind and version as a shipped one takes its
 # place). Root's alone: root's own acme command loads them too, so the acme
@@ -1427,7 +1468,7 @@ install_plugin_dirs() {
     for d in "$PLUGINS_DIR" "$PLUGINS_DIR/issuers" "$PLUGINS_DIR/challenges" "$PLUGINS_DIR/targets" \
             "$PLUGINS_DIR/checks"; do
         if [[ -d "$d" ]]; then
-            run chown root:root "$d"; run chmod 0755 "$d"
+            plugin_dir_take "$d"
         else
             run install -d -m 0755 -o root -g root "$d"
         fi
