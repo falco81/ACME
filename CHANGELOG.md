@@ -6,6 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.41 - not released
 
+- **`acme --get KEY`**, the counterpart of `--set`: one setting's value alone (for a
+  script), again for more (`KEY=VALUE` a line, as `--set` takes them), `--json` as
+  `{key: value}`. A secret shown hidden, as `--settings` shows it; a key that is no
+  setting refused, nothing printed.
+
 - *acme's gate for SSH: the port tried first* was shown under every pane of Settings
   (the page had no place for it): now only under *SSH server and notices*, in a card
   of its own (*acme's gate for SSH*), as otp has it. A test now sees that every pane's

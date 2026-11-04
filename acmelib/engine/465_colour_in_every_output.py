@@ -501,6 +501,8 @@ def build_parser():
     g.add_argument('--set', action='append', metavar='KEY=VALUE', help='change one (again for '
                    'more); a secret (a password, a token) as KEY=-: asked for, or one line of '
                    'stdin, or ACME_VALUE_KEY - never written out here')
+    g.add_argument('--get', action='append', metavar='KEY', help='what one says, the value '
+                   'alone (again for more: KEY=VALUE a line); a secret shown hidden, as --settings')
     g.add_argument('--users', action='store_true', help='who may open the administration pages')
     g.add_argument('--add-user', metavar='NAME', help='make an account (--role)')
     g.add_argument('--role', choices=ROLES_ALL, default=None, help='its role (with --add-user read-only when not given)')
@@ -2096,6 +2098,47 @@ def upgrade_percent(st, plan):
     return 0
 
 
+def cli_get(store, args):
+    """--get KEY (again for more): the counterpart of --set. One key: its value alone, for
+    a script; more: KEY=VALUE a line, as --set takes them; --json: {key: value}. A secret
+    as --settings shows it (hidden); a key that is no setting refused, nothing printed."""
+    keys = [str(k).strip() for k in args.get]
+    unknown = [k for k in keys if k not in DEFAULTS]
+    if unknown:
+        raise SystemExit('acme: there is no setting %s (acme --settings lists them)'
+                         % ', '.join(unknown))
+    rows = {r['key']: r['value'] for r in Daemon(store, serve=False).settings_state(True)}
+    got = {}
+    for k in keys:
+        if k in rows:
+            got[k] = rows[k]
+        else:
+            # The cluster's wiring and what a card of its own draws: not listed, still read.
+            v = CONFIG.get(k)
+            if k in SECRET_KEYS:
+                plain = unseal_secret(v) if k in SEALED_KEYS else v
+                v = (secret_shown(plain or '', last=True) or secret_shown('x', last=False)) if v else ''
+            got[k] = v
+    if args.json:
+        print(json.dumps(got, indent=2, default=str, ensure_ascii=False))
+        return 0
+
+    def shown(v):
+        if isinstance(v, bool):
+            return '1' if v else '0'
+        if v is None:
+            return ''
+        if isinstance(v, (list, dict)):
+            return json.dumps(v, ensure_ascii=False)
+        return str(v)
+    if len(keys) == 1:
+        print(shown(got[keys[0]]))
+    else:
+        for k in keys:
+            print('%s=%s' % (k, shown(got[k])))
+    return 0
+
+
 def cli_guard_status(args, pal):
     """acme --guard-status (1.0.40, otp 1.0.236): the guard against writes to the database on
     this node, and every row that reaches root not as acme wrote it."""
@@ -3050,6 +3093,9 @@ def cli_main(argv=None):
             print('  %-10s %s' % (k, entry.get(k)))
         print('  groups:   %s' % ', '.join(sorted(cn for _, cn in groups)))
         return 0
+
+    if args.get:
+        return cli_get(store, args)
 
     if args.settings:
         d = Daemon(store, serve=False)
