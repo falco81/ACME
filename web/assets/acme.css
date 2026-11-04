@@ -2504,6 +2504,13 @@ table.ha-cli tr.ha-cli-group td{padding-top:20px;font:650 13px var(--face);lette
 @keyframes sa-now{from{transform:translateX(0)}to{transform:translateX(86px)}}
 .signart .nowline{animation:sa-now 30s linear infinite}
 @media (prefers-reduced-motion: reduce){.signart .drain,.signart .caret,.signart .nowline{animation:none}}
+/* The pictures of certificates and their automation (1.0.41): the dots on each one's own way. */
+.signart.art-order .dot{offset-path:path("M82 96 H338");animation-duration:5.4s}
+.signart.art-order .dot2{animation-delay:1.8s}
+.signart.art-order .dot3{animation-delay:3.6s}
+.signart.art-dns .dot{offset-path:path("M232 96 H296")}
+.signart.art-watch .dot{offset-path:path("M146 84 H240")}
+.signart.art-revoke .dot{offset-path:path("M162 94 H244")}
 
 /* Settings drawn in sections (1.0.88): Codes by e-mail and SMS. Four even
    columns, a heading over each group, and what one way of sending SMS

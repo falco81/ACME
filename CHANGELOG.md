@@ -6,6 +6,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.41 - not released
 
+- **Six more pictures for the sign-in** (*Settings → The enrolment pages → The picture
+  on the sign-in*, for the enrolment pages and the administration each), of
+  certificates and their automation, drawn as the four there were (in the page's own
+  colours, nothing fetched, the same size, still with reduced motion): *An ACME
+  order, step by step* (ordered, the challenge, proved, issued), *The name proved in
+  the DNS* (the `_acme-challenge` TXT record looked up by the authority, no port
+  opened), *The key, the request, the signature* (the private key never leaves the
+  server), *What the servers serve, looked at again and again* (the name, the chain,
+  the days left), *Revoked and replaced* (a new key, put in place) and *The next one
+  long before the last runs out* (never a gap). In Czech too.
 - *Settings → High security*: under *High security* and *Guard against writes to the
   database*, a light for every node saying what is in effect there - on (green), off,
   not there yet / still on after a change (amber, looked at again every few seconds),

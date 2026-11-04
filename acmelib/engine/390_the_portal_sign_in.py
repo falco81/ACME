@@ -236,7 +236,8 @@ LOGO_META = 'portal:logo'
 LOGO_MAX = 512 * 1024
 # The drawings the pages have; a name saved by an older version (phone,
 # and others no longer drawn) is shown as the slot's own drawing.
-ART_NAMES = ('cert', 'chain', 'renew', 'deploy', 'none', 'custom')
+ART_NAMES = ('cert', 'chain', 'renew', 'deploy', 'order', 'dns', 'keys', 'watch', 'revoke',
+             'cycle', 'none', 'custom')
 
 
 def art_slot(slot):
