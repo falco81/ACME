@@ -6,6 +6,30 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.43 - not released
 
+- **Settings → Local users → Password policy, and a user's own password aging - as otp
+  1.0.245 - 1.0.246.** One policy for every local user of the cluster, put in by each node into
+  the system's own files, so it holds however a password is changed (passwd, a password run out
+  at sign-in, these pages): pam_pwquality's drop-in `pwquality.conf.d/50-acme.conf`, acme's lines
+  between marks in `pwhistory.conf` and `faillock.conf` (root never locked), `login.defs`' aging
+  (what it had kept in it, put back when off), and with authselect the features `with-pwhistory`
+  / `with-faillock` (only those acme switched on are taken out again). Off by default - nothing
+  written. Three columns of rules (the password, how long it is good, wrong passwords), *Save
+  the policy*, a light of each node in the card's heading (*as set here*, *being put in…*,
+  *refused*, *not answering*), *In effect on the nodes* (read from each node's files and PAM).
+  A password from the pages is checked by `pwscore` where it is there, by the rules otherwise.
+  The policy's row is signed by the guard of root's actions; one it refuses changes nothing.
+  - A user's popup: *Password aging* (good for, warned before, the least days between two
+    changes, *Save the aging*), and when the password runs out. A user made with no password
+    gets no aging; adding one with sudo and no password is refused, and the popup says when a
+    user may use sudo but has no password.
+  - `acme --local-policy`, `acme --local-policy-set KEY=VALUE…`, `acme --local-user aging NAME
+    --local-max-days N --local-min-days N --local-warn-days N`; two items in `acme --console`.
+  - It replaces the password policy of 1.0.42 (its settings on the card *The password policy*
+    are gone): what was set there is taken over once as this policy (managed, the same length,
+    kinds, the name and days), and its file `pwquality.conf.d/90-acme.conf` is taken out.
+  - Users made again from the list of a machine built again get sudo back only once they have
+    a password (sudo asks for it).
+
 - **A backup put back on a clean machine, and a cluster built from it - everything as it
   was**, checked end to end now (`test/test_restore_ha.py`: an installation, its backup put
   back on a clean PostgreSQL node, a replicated cluster built with a second clean node - every

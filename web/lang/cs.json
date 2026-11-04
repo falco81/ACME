@@ -53199,6 +53199,210 @@
   "rebuild_2": {
    "source": "nothing made",
    "text": "nic nezaloženo"
+  },
+  "pwp_1": {
+   "source": "For every local user, however the password is changed - passwd, a password run out at sign-in, these pages. Put into each node's own files: pam_pwquality, pam_pwhistory, pam_faillock and login.defs (with authselect, the features that put the modules in). Not set here, each node keeps what its system has, and nothing is written.",
+   "text": "Pro všechny místní uživatele, ať se heslo mění jakkoli – passwd, heslo vypršelé při přihlášení, tyto stránky. Zapíše se do vlastních souborů každého uzlu: pam_pwquality, pam_pwhistory, pam_faillock a login.defs (s authselect i funkce, které moduly zařadí do PAM). Když se tu nenastaví, každý uzel si ponechá, co má jeho systém, a nic se nezapisuje."
+  },
+  "pwp_2": {
+   "source": "Set by acme on every node",
+   "text": "Nastavuje acme na všech uzlech"
+  },
+  "pwp_3": {
+   "source": "Off: as each node's system has it - what acme wrote before is taken out again.",
+   "text": "Vypnuto: jak to má systém každého uzlu – co acme dřív zapsalo, se zase odebere."
+  },
+  "pwp_4": {
+   "source": "The password",
+   "text": "Heslo"
+  },
+  "pwp_5": {
+   "source": "small letters, capitals, digits, the others",
+   "text": "malá písmena, velká písmena, číslice, ostatní"
+  },
+  "pwp_6": {
+   "source": "any",
+   "text": "libovolně"
+  },
+  "pwp_7": {
+   "source": "all 4",
+   "text": "všechny 4"
+  },
+  "pwp_8": {
+   "source": "The same character in a row at most",
+   "text": "Stejný znak za sebou nejvýš"
+  },
+  "pwp_9": {
+   "source": "0: as many as wanted",
+   "text": "0: kolikrát chce"
+  },
+  "pwp_10": {
+   "source": "Characters not in the old one",
+   "text": "Znaků, které nejsou ve starém"
+  },
+  "pwp_11": {
+   "source": "No word of the dictionary",
+   "text": "Žádné slovo ze slovníku"
+  },
+  "pwp_12": {
+   "source": "Not the user's name",
+   "text": "Ne jméno uživatele"
+  },
+  "pwp_13": {
+   "source": "How long it is good",
+   "text": "Jak dlouho platí"
+  },
+  "pwp_14": {
+   "source": "A password runs out",
+   "text": "Heslo vyprší"
+  },
+  "pwp_15": {
+   "source": "Warned so many days before",
+   "text": "Upozornit tolik dní předem"
+  },
+  "pwp_16": {
+   "source": "The least days between two changes",
+   "text": "Nejméně dní mezi dvěma změnami"
+  },
+  "pwp_17": {
+   "source": "0: changed again at once",
+   "text": "0: lze změnit hned znovu"
+  },
+  "pwp_18": {
+   "source": "The last passwords not taken again",
+   "text": "Posledních hesel, která nelze použít znovu"
+  },
+  "pwp_19": {
+   "source": "0: any; needs pam_pwhistory",
+   "text": "0: jakékoli; vyžaduje pam_pwhistory"
+  },
+  "pwp_20": {
+   "source": "Also for the users there now",
+   "text": "I pro stávající uživatele"
+  },
+  "pwp_21": {
+   "source": "Without it, the days are for users made from now on (login.defs); a user's own are in their popup.",
+   "text": "Bez toho platí dny jen pro nově vytvořené uživatele (login.defs); vlastní hodnoty uživatele jsou v jeho okně."
+  },
+  "pwp_22": {
+   "source": "Locked after so many wrong (faillock)",
+   "text": "Zamknout po tolika špatných (faillock)"
+  },
+  "pwp_23": {
+   "source": "0: never locked; root never",
+   "text": "0: nikdy nezamykat; root nikdy"
+  },
+  "pwp_24": {
+   "source": "...for (seconds)",
+   "text": "...na (sekund)"
+  },
+  "pwp_25": {
+   "source": "0: until unlocked by root (faillock --reset)",
+   "text": "0: dokud ho root neodemkne (faillock --reset)"
+  },
+  "pwp_26": {
+   "source": "...counted within (seconds)",
+   "text": "...počítáno během (sekund)"
+  },
+  "pwp_27": {
+   "source": "Save the policy",
+   "text": "Uložit politiku"
+  },
+  "pwp_28": {
+   "source": "As it is saved",
+   "text": "Jak je uloženo"
+  },
+  "pwp_29": {
+   "source": "In effect on the nodes",
+   "text": "Platí na uzlech"
+  },
+  "pwp_30": {
+   "source": "Rule",
+   "text": "Pravidlo"
+  },
+  "pwp_31": {
+   "source": "pam_pwquality in PAM",
+   "text": "pam_pwquality v PAM"
+  },
+  "pwp_32": {
+   "source": "authselect",
+   "text": "authselect"
+  },
+  "pwp_33": {
+   "source": "no end",
+   "text": "bez konce"
+  },
+  "pwp_34": {
+   "source": "no (pam_pwhistory not in PAM)",
+   "text": "ne (pam_pwhistory není v PAM)"
+  },
+  "pwp_35": {
+   "source": "no (pam_faillock not in PAM)",
+   "text": "ne (pam_faillock není v PAM)"
+  },
+  "pwp_36": {
+   "source": "as set here",
+   "text": "jak je nastaveno tady"
+  },
+  "pwp_37": {
+   "source": "the system's own",
+   "text": "systémové"
+  },
+  "pwp_38": {
+   "source": "Password aging",
+   "text": "Platnost hesla"
+  },
+  "pwp_39": {
+   "source": "99999: no end",
+   "text": "99999: bez konce"
+  },
+  "pwp_40": {
+   "source": "Save the aging",
+   "text": "Uložit platnost"
+  },
+  "pwp_41": {
+   "source": "each node puts it in within a few seconds",
+   "text": "každý uzel ji zapíše během několika sekund"
+  },
+  "pwp_42": {
+   "source": "the least days between two changes is more than the days a password is good",
+   "text": "nejméně dní mezi dvěma změnami je víc, než kolik dní heslo platí"
+  },
+  "pwp_43": {
+   "source": "the password policy takes no password with the user's name in it",
+   "text": "politika hesel nepřijme heslo, ve kterém je jméno uživatele"
+  },
+  "pwp_44": {
+   "source": "The row of the policy in the database is not as acme wrote it - the guard of root's actions refused it: every node keeps the policy it has put in, and changes nothing. Save the policy here again.",
+   "text": "Řádek politiky v databázi není takový, jak ho acme zapsalo – ochrana rootových akcí ho odmítla: každý uzel si ponechá politiku, kterou zapsal, a nic nemění. Uložte politiku tady znovu."
+  },
+  "pwp_45": {
+   "source": "sudo asks for the user's own password - give them one, or they cannot use sudo",
+   "text": "sudo se ptá na vlastní heslo uživatele – dejte mu ho, jinak sudo nepoužije"
+  },
+  "pwp_46": {
+   "source": "May use sudo, but has no password: sudo asks for their own password, so they cannot use it (nor acme --console through it) until they have one - set it above.",
+   "text": "Smí používat sudo, ale nemá heslo: sudo se ptá na jeho vlastní heslo, takže ho (ani acme --console přes něj) nepoužije, dokud heslo nedostane – nastavte ho výše."
+  },
+  "pwp_47": {
+   "source": "With SSH keys, acme's codes and sudo",
+   "text": "Se SSH klíči, kódy acme a sudo"
+  },
+  "pwp_48": {
+   "source": "A password that runs out is asked to be changed at the next sign-in - over SSH with a key or with acme's code too (sshd asks PAM's account step). A user with no password (a key only) is given no aging, so is never asked for one.",
+   "text": "Heslo, které vyprší, se musí změnit při příštím přihlášení – i přes SSH klíčem nebo kódem acme (sshd se ptá kroku account v PAM). Uživatel bez hesla (jen klíč) platnost hesla nedostane, takže se po něm heslo nikdy nechce."
+  },
+  "pwp_49": {
+   "source": "acme's code for SSH is no password: it never counts as a wrong password for the lockout, and the lockout does not keep a key or a code out - it keeps out the password (at the console, for sudo).",
+   "text": "Kód acme pro SSH není heslo: nikdy se nepočítá jako špatné heslo pro zamykání a zamčení nezastaví klíč ani kód – zastaví heslo (na konzoli, pro sudo)."
+  },
+  "pwp_50": {
+   "source": "sudo - acme --console of a normal user too - asks for the user's own password: the policy is the one for it; a user locked by wrong passwords cannot use sudo until the lock ends.",
+   "text": "sudo – i acme --console běžného uživatele – se ptá na vlastní heslo uživatele: platí pro něj tato politika; uživatel zamčený kvůli špatným heslům nepoužije sudo, dokud zámek nevyprší."
+  },
+  "pwp_51": {
+   "source": "root is never locked, and never given aging here.",
+   "text": "root se nikdy nezamyká a platnost hesla mu tu nikdy nenastavíme."
   }
  },
  "patterns": {
@@ -72693,6 +72897,46 @@
   "prebuild_6": {
    "source": "{0} was built again: root had these keys there before, which are not on it now - add them again if they are still wanted:",
    "text": "{0} byl postaven znovu: root tam dřív měl tyto klíče, které teď na něm nejsou – přidejte je znovu, pokud jsou pořád potřeba:"
+  },
+  "ppwp_1": {
+   "source": "The password runs out on {0}.",
+   "text": "Heslo vyprší {0}."
+  },
+  "ppwp_2": {
+   "source": "{0}: pam_pwquality is not in its PAM - the rules of the password are not kept there by passwd.",
+   "text": "{0}: pam_pwquality není v jeho PAM – passwd tam pravidla hesla nedodrží."
+  },
+  "ppwp_3": {
+   "source": "{0}: pam_faillock is not in its PAM, and authselect does not manage it - the lockout is not in use there.",
+   "text": "{0}: pam_faillock není v jeho PAM a authselect ho nespravuje – zamykání se tam nepoužívá."
+  },
+  "ppwp_4": {
+   "source": "the password policy wants {0} characters at least",
+   "text": "politika hesel chce nejméně {0} znaků"
+  },
+  "ppwp_5": {
+   "source": "the password policy wants {0} kinds of characters at least (small letters, capitals, digits, others) - it has {1}",
+   "text": "politika hesel chce nejméně {0} druhů znaků (malá a velká písmena, číslice, ostatní) – heslo má {1}"
+  },
+  "ppwp_6": {
+   "source": "the password policy takes no character more than {0} times in a row",
+   "text": "politika hesel nepřijme žádný znak víc než {0}× za sebou"
+  },
+  "ppwp_7": {
+   "source": "the password policy does not take it: {0}",
+   "text": "politika hesel ho nepřijme: {0}"
+  },
+  "ppwp_8": {
+   "source": "{0} / {1} s",
+   "text": "{0} / {1} s"
+  },
+  "ppwp_9": {
+   "source": "the password aging of {0} set",
+   "text": "platnost hesla uživatele {0} nastavena"
+  },
+  "ppwp_10": {
+   "source": "made again on {0}: {1} - each with no password; sudo again once they have a password: {2}",
+   "text": "znovu založeni na {0}: {1} – každý bez hesla; sudo znovu, až budou mít heslo: {2}"
   }
  },
  "rich": {

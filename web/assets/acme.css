@@ -3728,13 +3728,6 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .hs-light.warn .hs-light-w{color:var(--warn,#d29922)}
 .hs-light.bad .hs-light-w{color:var(--crit,#f85149)}
 
-/* Local users -> the password policy, ticked as the password is typed (1.0.42). */
-.osu-rules{list-style:none;margin:-2px 0 10px;padding:0;display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--tx-mut)}
-.osu-rules li{display:inline-flex;align-items:center;gap:5px}
-.osu-rules li svg{opacity:.6}
-.osu-rules li.ok{color:var(--ok,#3fb950)}
-.osu-rules li.ok svg{opacity:1}
-.osu-rules li.bad{color:var(--warn,#d29922)}
 .osu-until{margin-left:8px}
 .osu-pol-lights{margin:0 0 14px}
 
@@ -3764,3 +3757,25 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .sn-pop .sn-n{font-weight:600}
 .sn-pop .dot{display:inline-block;width:8px;height:8px}
 .sn-pop .sn-g{padding:10px 0 2px;color:var(--tx-mut);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+
+/* Local users: the password policy (1.0.43, as otp 1.0.245) */
+.pwp-card h2 .pwp-state { display: inline-flex; flex-wrap: wrap; gap: 6px; font-size: 12px; font-weight: 400; }
+.pwp-card h2 .pwp-state .hs-light { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--line, rgba(255,255,255,.12)); border-radius: 999px; }
+.pwp-card h2 .pwp-state .hs-light .dot { width: 8px; height: 8px; background: var(--tx-mut); }
+.pwp-card h2 .pwp-state .hs-light.on .dot { background: var(--ok, #3fb950); }
+.pwp-card h2 .pwp-state .hs-light.unknown .dot { background: var(--warn, #d29922); }
+.pwp-card h2 .pwp-state .hs-light.gone .dot { background: var(--crit, #f85149); }
+.pwp-card h2 .pwp-state .hs-light-n { font-weight: 600; color: var(--tx); }
+.pwp-card h2 .pwp-state .hs-light-v { color: var(--tx-mut); }
+.pwp-card h2 .pwp-state .hs-light.on .hs-light-v { color: var(--ok, #3fb950); }
+.pwp-card h2 .pwp-state .hs-light.gone .hs-light-v { color: var(--crit, #f85149); }
+.pwp-card h2 { display: flex; align-items: center; gap: 10px; }
+.pwp-card h2 .pwp-state { margin-left: auto; }
+.pwp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 28px; margin: 6px 0 4px; }
+.pwp-col h3 { font-size: 13px; margin: 6px 0 10px; color: var(--tx-dim, #8a94a6); text-transform: uppercase; letter-spacing: .05em; }
+.pwp-col .pwp-f { margin-bottom: 10px; }
+.pwp-num { max-width: 120px; }
+.pwp-now { margin-top: 14px; }
+.pwp-now > summary { cursor: pointer; font-size: 13px; margin-bottom: 8px; }
+.pwp-aging { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0 16px; }
+.pwp-how{margin:4px 0 10px}.pwp-how>summary{cursor:pointer;font-size:13px;color:var(--tx-dim)}.pwp-how p{margin:6px 0 0}

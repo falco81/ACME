@@ -2615,6 +2615,39 @@ class Console(object):
                 osu_do('drop', name, home=r == 'drop-home')
             else:
                 osu_do(r, name)
+
+        def osu_policy_set():
+            # The password policy of the local users (1.0.43, as otp 1.0.245): a form, the values
+            # as they are saved.
+            c = pwp_conf(cli_store())
+
+            def num(k, lab, hlp=''):
+                return {'key': k, 'label': lab, 'value': str(c[k]), 'help': hlp, 'range': PWP_RANGES[k]}
+
+            def yn(k, lab, hlp=''):
+                return {'key': k, 'label': lab, 'kind': 'choice', 'value': 'yes' if c[k] else 'no',
+                        'help': hlp, 'options': [('yes', 'yes'), ('no', 'no')]}
+            got = self.form('The password policy of local users', [
+                yn('managed', 'set by acme on every node', 'No: as each node\'s system has it - what '
+                   'acme wrote before is taken out again.'),
+                num('minlen', 'characters at least'),
+                num('minclass', 'kinds of characters at least', 'small letters, capitals, digits, the others'),
+                num('maxrepeat', 'the same character in a row at most', '0: as many as wanted'),
+                num('difok', 'characters not in the old one'),
+                yn('dictcheck', 'no word of the dictionary'),
+                yn('usercheck', 'not the user\'s name'),
+                num('max_days', 'good for (days)', '99999: no end'),
+                num('warn_days', 'warned so many days before'),
+                num('min_days', 'the least days between two changes', '0: changed again at once'),
+                num('remember', 'the last passwords not taken again', '0: any; needs pam_pwhistory'),
+                yn('existing', 'also for the users there now'),
+                num('deny', 'locked after so many wrong (faillock)', '0: never locked; root never'),
+                num('unlock_time', '...for (seconds)', '0: until unlocked by root (faillock --reset)'),
+                num('fail_interval', '...counted within (seconds)')])
+            if got:
+                args = ['%s=%s' % (k, (1 if v == 'yes' else 0) if v in ('yes', 'no') else v.strip())
+                        for k, v in got.items()]
+                self.act('--local-policy-set', *args)
         return self.sub('The pages\' certificates, updates, restarts, tests', [
             ('1', 'The pages\' certificates by ACME: how they stand', lambda: self.act('--acme')),
             ('2', 'Order a certificate for the pages by ACME now', acme_order),
@@ -2635,6 +2668,8 @@ class Console(object):
             ('17', 'Add a local user', osu_add),
             ('18', 'A new password for a local user', osu_pw),
             ('19', 'Lock, unlock, sudo or take away a local user', osu_change),
+            ('20', 'The password policy of local users: how it stands', lambda: self.act('--local-policy')),
+            ('21', 'Set the password policy of local users', osu_policy_set),
         ])
 
     def m_more(self):

@@ -3582,7 +3582,8 @@ def lu_shadow():
             for ln in f:
                 p = ln.rstrip('\n').split(':')
                 if len(p) >= 8:
-                    out[p[0]] = (p[1], p[2], p[4], p[7])
+                    # (hash, last change, max days, expire day, min days, warn days)
+                    out[p[0]] = (p[1], p[2], p[4], p[7], p[3], p[5])
     except OSError:
         pass
     return out
@@ -3590,7 +3591,7 @@ def lu_shadow():
 
 def lu_one(p, sh, admin, today):
     import grp
-    h, last, mx, exp = sh.get(p.pw_name, ('', '', '', ''))
+    h, last, mx, exp, mn, warn = (tuple(sh.get(p.pw_name, ())) + ('',) * 6)[:6]
     groups = sorted({g.gr_name for g in grp.getgrall() if p.pw_name in g.gr_mem} |
                     ({grp.getgrgid(p.pw_gid).gr_name} if _gid_ok(p.pw_gid) else set()))
     plain = h.lstrip('!')
@@ -3606,6 +3607,11 @@ def lu_one(p, sh, admin, today):
             'changed': int(last) if last.isdigit() and last != '0' else None,
             'expires': int(exp) if exp.isdigit() else None,
             'max_days': int(mx) if mx.isdigit() and int(mx) < 99999 else None,
+            # A user's own password aging (1.0.43, as otp 1.0.245): the day it runs out too.
+            'min_days': int(mn) if mn.isdigit() else None,
+            'warn_days': int(warn) if warn.isdigit() else None,
+            'pw_ends': (int(last) + int(mx)) if (last.isdigit() and last != '0' and mx.isdigit()
+                                                 and int(mx) < 99999) else None,
             'home_there': os.path.isdir(p.pw_dir)}
 
 
@@ -3634,7 +3640,9 @@ def lu_list():
     users.sort(key=lambda u: (not u['root'], u['name']))
     return {'users': users[:500], 'uid_min': lo, 'uid_max': hi, 'used': sorted(set(used))[:5000],
             'names': sorted(p.pw_name for p in pwd.getpwall())[:5000],
-            'admin_group': admin, 'shells': lu_shells(), 'today': today}
+            'admin_group': admin, 'shells': lu_shells(), 'today': today,
+            # The password policy as in effect here, read from the files (1.0.43, as otp 1.0.245).
+            'policy': pwp_read()}
 
 
 def lu_target(name):
@@ -3660,121 +3668,352 @@ def lu_hash_checked(h):
     return h
 
 
-# The password policy (1.0.42): how long a password is good for, put on every normal user with
-# chage; and, asked, the same rules for passwd on the machine - pwquality's file of acme's own,
-# and the three PASS_ lines of login.defs for users made otherwise.
-PWQ_FILE = os.environ.get('ACME_PWQUALITY', '/etc/security/pwquality.conf.d/90-acme.conf')
+# ---- the password policy of the local users (1.0.43, as otp 1.0.245) -------------------------
+# Settings -> Local users -> Password policy: one policy for the cluster, put in by each node's
+# root helper into the system's own files - so that it holds however a password is changed
+# (passwd, a password run out at sign-in, the pages): pam_pwquality's drop-in, pam_pwhistory's
+# and pam_faillock's files (acme's lines between marks), login.defs' aging (the values before
+# kept to be put back), and with authselect the features that put the modules in PAM. Not
+# managed (the default): nothing is written, and what was written is taken out again.
+SEC_DIR = os.environ.get('ACME_SECURITY_DIR', '/etc/security')
+PAM_DIR = os.environ.get('ACME_PAM_DIR', '/etc/pam.d')
+AUTHSELECT = os.environ.get('ACME_AUTHSELECT', shutil.which('authselect') or '')
+PWQ_DROPIN = 'pwquality.conf.d/50-acme.conf'
+PWQ_LEGACY = 'pwquality.conf.d/90-acme.conf'         # acme 1.0.42's own, taken out
+PWP_MARK_A = '# ---- acme: Settings -> Local users -> Password policy (from here) ----\n'
+PWP_MARK_B = '# ---- acme: (to here) ----\n'
+PWP_WAS = '# acme-was: '
+PWP_ORIG = os.environ.get('ACME_PWP_ORIG') or os.path.join(STATE_DIR, 'pwpolicy-orig.json')
+PWQ_KEYS = ('minlen', 'minclass', 'maxrepeat', 'dictcheck', 'usercheck', 'enforce_for_root',
+            'difok', 'retry', 'dcredit', 'ucredit', 'lcredit', 'ocredit', 'maxclassrepeat')
+PWQ_DEFAULT = {'minlen': 8, 'minclass': 0, 'maxrepeat': 0, 'dictcheck': 1, 'usercheck': 1,
+               'enforce_for_root': 0, 'difok': 1, 'retry': 1}
+DEFS_KEYS = ('PASS_MAX_DAYS', 'PASS_MIN_DAYS', 'PASS_WARN_AGE')
 
 
-def lu_aging(a):
-    """(good for, again after at the soonest, told before) of an ask - each a whole number."""
-    if not isinstance(a, dict):
-        raise Refused('the policy does not come as an object')
+def pwp_conf_read(path, flags=('enforce_for_root', 'even_deny_root')):
+    """key = value lines (and lone flags) of a pam module's file, comments left out."""
+    out = {}
     try:
-        mx, mn, warn = int(a.get('max_days') or 0), int(a.get('min_days') or 0), int(a.get('warn_days') or 0)
+        with open(path, encoding='utf-8', errors='replace') as f:
+            for ln in f:
+                ln = ln.split('#', 1)[0].strip()
+                if not ln:
+                    continue
+                if '=' in ln:
+                    k, v = [x.strip() for x in ln.split('=', 1)]
+                    out[k] = v
+                elif ln in flags:
+                    out[ln] = '1'
+    except OSError:
+        pass
+    return out
+
+
+def pwp_int(v, default=None):
+    try:
+        return int(str(v).strip())
     except (TypeError, ValueError):
-        raise Refused('the days of the policy are whole numbers')
-    if not (0 <= mx <= 3650 and 0 <= mn <= 365 and 0 <= warn <= 90):
-        raise Refused('the days of the policy are out of range')
-    return mx, mn, warn
+        return default
 
 
-def lu_age(name, aging):
-    mx, mn, warn = aging
-    lu_run(['chage', '-M', str(mx or 99999), '-m', str(mn), '-W', str(warn), name])
+def pwp_pam():
+    """Which of pwquality, pwhistory and faillock the PAM stack of the system uses."""
+    files = ['system-auth', 'password-auth', 'common-password', 'common-auth', 'common-account']
+    text = ''
+    for f in files:
+        try:
+            with open(os.path.join(PAM_DIR, f), encoding='utf-8', errors='replace') as fh:
+                text += fh.read() + '\n'
+        except OSError:
+            continue
+    lines = [ln for ln in text.splitlines() if not ln.strip().startswith('#')]
+
+    def has(m):
+        return any(m in ln for ln in lines)
+    return {'pwquality': has('pam_pwquality'), 'pwhistory': has('pam_pwhistory'),
+            'faillock': has('pam_faillock'), 'read': bool(text.strip())}
 
 
-def lu_login_defs(aging):
-    mx, mn, warn = aging
-    want = {'PASS_MAX_DAYS': str(mx or 99999), 'PASS_MIN_DAYS': str(mn), 'PASS_WARN_AGE': str(warn)}
+def pwp_authselect():
+    """{profile, features} of authselect, or None where it does not manage PAM."""
+    if not AUTHSELECT or not os.path.exists(AUTHSELECT):
+        return None
+    got = subprocess.run([AUTHSELECT, 'current', '--raw'], capture_output=True, text=True, timeout=30)
+    if got.returncode != 0 or not got.stdout.strip():
+        return None
+    words = got.stdout.split()
+    return {'profile': words[0], 'features': words[1:]}
+
+
+def pwp_read():
+    """The policy as in effect on this node, read from its files."""
+    pwq = dict(PWQ_DEFAULT)
+    raw = pwp_conf_read(os.path.join(SEC_DIR, 'pwquality.conf'))
+    d = os.path.join(SEC_DIR, 'pwquality.conf.d')
+    try:
+        for name in sorted(os.listdir(d)):
+            if name.endswith('.conf'):
+                raw.update(pwp_conf_read(os.path.join(d, name)))
+    except OSError:
+        pass
+    for k in PWQ_KEYS:
+        if k in raw:
+            pwq[k] = pwp_int(raw[k], raw[k])
+    hist = pwp_conf_read(os.path.join(SEC_DIR, 'pwhistory.conf'))
+    fl = pwp_conf_read(os.path.join(SEC_DIR, 'faillock.conf'), flags=('even_deny_root', 'silent', 'audit'))
+    defs = {}
     try:
         with open(LOGIN_DEFS, encoding='utf-8', errors='replace') as f:
-            lines = f.read().split('\n')
-        mode = os.stat(LOGIN_DEFS).st_mode & 0o777
+            for ln in f:
+                w = ln.split()
+                if len(w) >= 2 and w[0] in DEFS_KEYS:
+                    defs[w[0]] = pwp_int(w[1], w[1])
     except OSError:
-        lines, mode = [], 0o644
-    seen = set()
-    for i, ln in enumerate(lines):
+        pass
+    pam = pwp_pam()
+    return {'pwquality': pwq, 'remember': pwp_int(hist.get('remember'), 10 if pam['pwhistory'] else 0),
+            'faillock': {'deny': pwp_int(fl.get('deny'), 3), 'unlock_time': pwp_int(fl.get('unlock_time'), 600),
+                         'fail_interval': pwp_int(fl.get('fail_interval'), 900)},
+            'aging': {'max_days': defs.get('PASS_MAX_DAYS', 99999), 'min_days': defs.get('PASS_MIN_DAYS', 0),
+                      'warn_days': defs.get('PASS_WARN_AGE', 7)},
+            'pam': pam, 'authselect': pwp_authselect(),
+            'managed': os.path.exists(os.path.join(SEC_DIR, PWQ_DROPIN)),
+            'pwscore': bool(shutil.which('pwscore'))}
+
+
+def pwp_block_put(path, lines):
+    """acme's lines between the marks in a file of the system: put in, replaced, or (None) taken
+    out; the rest of the file as it is. A file that is not there is made only to put lines in."""
+    try:
+        st = os.lstat(path)
+        if not stat.S_ISREG(st.st_mode):
+            raise Refused('%s is not a plain file - not written' % path)
+        with open(path, encoding='utf-8', errors='replace') as f:
+            text = f.read()
+        mode = stat.S_IMODE(st.st_mode)
+    except FileNotFoundError:
+        if lines is None:
+            return
+        text, mode = '', 0o644
+    a, b = text.find(PWP_MARK_A), text.find(PWP_MARK_B)
+    if lines is None and not (a >= 0 and b > a):
+        return                          # none of acme's there: the file left as it is
+    was = text
+    if a >= 0 and b > a:
+        text = text[:a] + text[b + len(PWP_MARK_B):]
+    if lines is not None:
+        if text and not text.endswith('\n'):
+            text += '\n'
+        text += PWP_MARK_A + ''.join('%s\n' % ln for ln in lines) + PWP_MARK_B
+    if text != was:
+        write_root(path, text, mode)
+
+
+def pwp_defs_put(values):
+    """login.defs' aging lines set (values) or put back as they were (None). The lines as they
+    were are kept in login.defs itself, commented between acme's marks - so that whatever node
+    or copy of the state puts it back, it is what the machine had."""
+    st = os.lstat(LOGIN_DEFS)
+    if not stat.S_ISREG(st.st_mode):
+        raise Refused('%s is not a plain file - not written' % LOGIN_DEFS)
+    with open(LOGIN_DEFS, encoding='utf-8', errors='replace') as f:
+        text = f.read()
+    before = text
+    a, b = text.find(PWP_MARK_A), text.find(PWP_MARK_B)
+    was = {}
+    if a >= 0 and b > a:
+        for ln in text[a + len(PWP_MARK_A):b].split('\n'):
+            if ln.startswith(PWP_WAS):
+                k, _, line = ln[len(PWP_WAS):].partition(' ')
+                if k in DEFS_KEYS:
+                    was[k] = line                   # '' - there was no such line
+        text = text[:a] + text[b + len(PWP_MARK_B):]
+    lines = text.split('\n')
+    if values is not None and not was:
+        for k in DEFS_KEYS:
+            was[k] = next((ln for ln in lines if ln.split()[:1] == [k]), '')
+    out, seen = [], set()
+    for ln in lines:
         w = ln.split()
-        if w and w[0] in want:
-            if w[0] in seen:
-                lines[i] = '#' + ln
+        if w and w[0] in DEFS_KEYS:
+            if values is not None:
+                if w[0] not in seen:
+                    out.append('%s\t%s' % (w[0], values[w[0]]))
+                seen.add(w[0])
                 continue
-            seen.add(w[0])
-            lines[i] = '%s\t%s' % (w[0], want[w[0]])
-    for k in ('PASS_MAX_DAYS', 'PASS_MIN_DAYS', 'PASS_WARN_AGE'):
-        if k not in seen:
-            lines.append('%s\t%s' % (k, want[k]))
-    text = '\n'.join(lines)
-    write_root(LOGIN_DEFS, text if text.endswith('\n') else text + '\n', mode or 0o644)
+            if w[0] in was:
+                if w[0] not in seen and was[w[0]]:
+                    out.append(was[w[0]])
+                seen.add(w[0])
+                continue
+        out.append(ln)
+    if values is not None:
+        for k in DEFS_KEYS:
+            if k not in seen:
+                out.append('%s\t%s' % (k, values[k]))
+        text = '\n'.join(out)
+        if not text.endswith('\n'):
+            text += '\n'
+        text += PWP_MARK_A + ''.join('%s%s %s\n' % (PWP_WAS, k, was.get(k, '')) for k in DEFS_KEYS) \
+            + PWP_MARK_B
+    else:
+        for k in DEFS_KEYS:
+            if k in was and was[k] and k not in seen:
+                out.append(was[k])
+        text = '\n'.join(out)
+    if text != before:
+        write_root(LOGIN_DEFS, text, stat.S_IMODE(st.st_mode))
 
 
-def lu_left_out(u, spare):
-    """Left out of the days a password is good for (1.0.42) - always good: a user with no
-    password (a key only: nothing to change it with), and one SSH asks a code of who may not
-    use sudo - the code and a key let them in, their password they may never have been told.
-    One asked a code who may use sudo is not left out: sudo asks for that password, they know
-    it, and sshd's "change it now" at an expired one is a change they can make."""
-    spare = spare if isinstance(spare, dict) else {}
-    coded = bool(spare.get('all')) or u.get('name') in {str(n) for n in (spare.get('names') or [])[:500]}
-    return not u.get('password') or (coded and not u.get('sudo'))
+def pwp_orig_read():
+    try:
+        with open(PWP_ORIG) as f:
+            got = json.load(f)
+        return got if isinstance(got, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
-def lu_age_one(name, r):
-    """The days of the policy put on one user as they are now (made, a new password, sudo)."""
-    if not r.get('aging'):
-        return
-    aging = lu_aging(r['aging'])
-    u = next((x for x in lu_list()['users'] if x['name'] == name), None)
-    if u is None or u.get('root'):
-        return
-    lu_age(name, (0, 0, aging[2]) if lu_left_out(u, r.get('spare')) else aging)
-
-
-def lu_policy(r):
-    """The policy put on this machine: the days on every normal user, the rules for passwd."""
-    aging = lu_aging(r.get('aging'))
-    # Left out (1.0.42): a user with no password (a key only), and those SSH asks a code of -
-    # an expired password locks them out: sshd asks for the old one before anything else.
-    spare = r.get('spare') if isinstance(r.get('spare'), dict) else {}
-    spare_all = bool(spare.get('all'))
-    never = (0, 0, aging[2])
-    done, failed, spared = 0, [], 0
-    for u in lu_list()['users']:
-        if u.get('root'):
-            continue
-        left_out = lu_left_out(u, spare)
+def pwp_orig_write(orig):
+    if orig:
+        write_root(PWP_ORIG, json.dumps(orig), 0o600)
+    else:
         try:
-            lu_age(u['name'], never if left_out else aging)
-            spared += left_out
-            done += 1
-        except Refused as e:
-            failed.append('%s: %s' % (u['name'], e))
-    rules = r.get('rules')
-    if rules:
-        if not isinstance(rules, dict):
-            raise Refused('the rules do not come as an object')
+            os.unlink(PWP_ORIG)
+        except OSError:
+            pass
+
+
+def pwp_checked(c):
+    """The policy as asked, every value in its range - refused otherwise."""
+    if not isinstance(c, dict):
+        raise Refused('the policy is not an object')
+
+    def num(k, lo, hi, default):
+        v = c.get(k, default)
         try:
-            minlen, minclass, user = int(rules.get('min')), int(rules.get('classes')), bool(rules.get('not_name'))
+            v = int(v)
         except (TypeError, ValueError):
-            raise Refused('the rules are whole numbers')
-        if not (8 <= minlen <= 128 and 1 <= minclass <= 4):
-            raise Refused('the rules are out of range')
-        write_root(PWQ_FILE, '# Written by acme (Settings -> Local users -> The password policy);\n'
-                             '# switched off there, it is taken away.\n'
-                             'minlen = %d\nminclass = %d\nusercheck = %d\n' % (minlen, minclass, int(user)),
-                   0o644)
-        # A code asked of everybody by SSH: users made otherwise are not given days either.
-        lu_login_defs(never if spare_all else aging)
-    elif os.path.exists(PWQ_FILE):
-        os.unlink(PWQ_FILE)
-    said = 'the password policy put on %d user(s)%s%s' % (
-        done, ' (%d without a password, or asked a code by SSH and without sudo: always good)' % spared
-        if spared else '',
-        ', the same rules for passwd' if rules else '')
-    if failed:
-        said += '; not on: ' + '; '.join(failed)[:300]
+            raise Refused('%s is a number' % k)
+        if not lo <= v <= hi:
+            raise Refused('%s is %d to %d' % (k, lo, hi))
+        return v
+    return {'managed': bool(c.get('managed')),
+            'minlen': num('minlen', 6, 128, 12), 'minclass': num('minclass', 0, 4, 3),
+            'maxrepeat': num('maxrepeat', 0, 20, 3), 'dictcheck': 1 if c.get('dictcheck', 1) else 0,
+            'usercheck': 1 if c.get('usercheck', 1) else 0, 'difok': num('difok', 0, 20, 5),
+            'remember': num('remember', 0, 50, 5),
+            'max_days': num('max_days', 0, 99999, 99999), 'min_days': num('min_days', 0, 365, 0),
+            'warn_days': num('warn_days', 0, 365, 7),
+            'deny': num('deny', 0, 100, 0), 'unlock_time': num('unlock_time', 0, 86400, 900),
+            'fail_interval': num('fail_interval', 60, 86400, 900),
+            'existing': bool(c.get('existing'))}
+
+
+def pwp_apply(c):
+    """Put the policy in (managed) or take acme's out again (not managed)."""
+    import pwd
+    c = pwp_checked(c)
+    said = []
+    orig = pwp_orig_read()
+    sel = pwp_authselect()
+    added = list(orig.get('features') or [])
+    dropin = os.path.join(SEC_DIR, PWQ_DROPIN)
+    # acme 1.0.42's own file of pwquality: taken out, whatever is asked now.
+    legacy = os.path.join(SEC_DIR, PWQ_LEGACY)
+    if os.path.lexists(legacy):
+        os.unlink(legacy)
+        said.append('pwquality: acme 1.0.42\'s file taken out')
+    if not c['managed']:
+        try:
+            os.unlink(dropin)
+            said.append('pwquality: acme\'s drop-in taken out')
+        except FileNotFoundError:
+            pass
+        for f in ('pwhistory.conf', 'faillock.conf'):
+            pwp_block_put(os.path.join(SEC_DIR, f), None)
+        try:
+            with open(LOGIN_DEFS, encoding='utf-8', errors='replace') as fh:
+                marked = PWP_MARK_A in fh.read()
+        except OSError:
+            marked = False
+        if marked:
+            pwp_defs_put(None)
+            said.append('login.defs: the aging as it was')
+        if sel:
+            for feat in added:
+                if feat in sel['features']:
+                    lu_run([AUTHSELECT, 'disable-feature', feat])
+                    said.append('authselect: %s taken out again' % feat)
+        orig.pop('features', None)
+        pwp_orig_write(orig)
+        return said or ['nothing of acme\'s was there']
+    if os.path.islink(dropin) or (os.path.lexists(dropin) and not os.path.isfile(dropin)):
+        raise Refused('%s is not a plain file - not written' % dropin)
+    os.makedirs(os.path.dirname(dropin), exist_ok=True)
+    text = ('# written by acme - Settings -> Local users -> Password policy\n'
+            'minlen = %(minlen)d\nminclass = %(minclass)d\nmaxrepeat = %(maxrepeat)d\n'
+            'dictcheck = %(dictcheck)d\nusercheck = %(usercheck)d\ndifok = %(difok)d\n'
+            'retry = 3\n' % c)
+    try:
+        with open(dropin, encoding='utf-8') as fh:
+            same = fh.read() == text
+    except OSError:
+        same = False
+    if not same:
+        write_root(dropin, text, 0o644)
+    said.append('pwquality: at least %d characters, %d kinds' % (c['minlen'], c['minclass']))
+    pwp_block_put(os.path.join(SEC_DIR, 'pwhistory.conf'),
+                  ['remember = %d' % c['remember']] if c['remember'] else None)
+    pwp_block_put(os.path.join(SEC_DIR, 'faillock.conf'),
+                  ['deny = %d' % c['deny'], 'unlock_time = %d' % c['unlock_time'],
+                   'fail_interval = %d' % c['fail_interval']] if c['deny'] else None)
+    pwp_defs_put({'PASS_MAX_DAYS': c['max_days'], 'PASS_MIN_DAYS': c['min_days'],
+                  'PASS_WARN_AGE': c['warn_days']})
+    said.append('login.defs: a password good for %s days' % (c['max_days'] if c['max_days'] < 99999 else 'all'))
+    if sel:
+        want = (['with-pwhistory'] if c['remember'] else []) + (['with-faillock'] if c['deny'] else [])
+        for feat in want:
+            if feat not in sel['features']:
+                lu_run([AUTHSELECT, 'enable-feature', feat])
+                added.append(feat)
+                said.append('authselect: %s put in' % feat)
+        for feat in [f for f in added if f not in want]:
+            lu_run([AUTHSELECT, 'disable-feature', feat])
+            added = [f for f in added if f != feat]
+            said.append('authselect: %s taken out again' % feat)
+        orig['features'] = added
+        pwp_orig_write(orig)
+    if c['existing']:
+        lo, hi = uid_range()
+        n = skipped = 0
+        sh = lu_shadow()
+        for p in pwd.getpwall():
+            if lo <= p.pw_uid <= hi and p.pw_uid != 65534 and p.pw_name not in KEEP_NAMES and \
+                    USER_NAME_RE.match(p.pw_name):
+                if not sh.get(p.pw_name, ('',))[0].lstrip('!').startswith('$'):
+                    skipped += 1        # no password: a key only - never asked for a new one
+                    continue
+                lu_run(['chage', '-M', str(c['max_days']), '-m', str(c['min_days']),
+                        '-W', str(c['warn_days']), p.pw_name])
+                n += 1
+        said.append('the aging put on %d user(s) of this node too%s' % (
+            n, ' (%d with no password - a key only - left without)' % skipped if skipped else ''))
     return said
+
+
+def lu_aging_put(name, a):
+    """A user's own aging (chage -M -m -W), every value in its range."""
+    if not isinstance(a, dict):
+        raise Refused('the aging is not an object')
+    try:
+        mx, mn, warn = int(a.get('max_days')), int(a.get('min_days')), int(a.get('warn_days'))
+    except (TypeError, ValueError):
+        raise Refused('the days of the aging are whole numbers')
+    if not (0 <= mx <= 99999 and 0 <= mn <= 365 and 0 <= warn <= 365):
+        raise Refused('the days of the aging are out of range')
+    lu_run(['chage', '-M', str(mx), '-m', str(mn), '-W', str(warn), name])
 
 
 def lu_do(r):
@@ -3784,8 +4023,8 @@ def lu_do(r):
     if do == 'list':
         return dict(lu_list(), said='')
     if do == 'policy':
-        said = lu_policy(r)
-        return dict(lu_list(), said=said, policy=r.get('sig') or '')
+        said = '; '.join(pwp_apply(r.get('conf')))
+        return dict(lu_list(), said=said)
     p = lu_target(name)
     if r.get('hash') or do == 'password':
         lu_hash_checked(r.get('hash'))          # before anything is done
@@ -3824,9 +4063,14 @@ def lu_do(r):
         p = pwd.getpwnam(name)
         if r.get('hash'):
             lu_run(['chpasswd', '-e'], '%s:%s\n' % (name, lu_hash_checked(r['hash'])))
+            if r.get('policy_aging'):
+                lu_aging_put(name, r['policy_aging'])
+        elif said.endswith(' made'):
+            # No password (a key only): no aging - sshd's account step would ask a key's user
+            # for a new password they have no old one to give for (as otp 1.0.246).
+            lu_run(['chage', '-M', '-1', '-I', '-1', name])
         if r.get('sudo') is not None:
             lu_sudo(name, bool(r['sudo']))
-        lu_age_one(name, r)                     # once sudo is as asked: it decides (1.0.42)
         if r.get('must_change'):
             lu_run(['chage', '-d', '0', name])
         return dict(lu_list(), said=said)
@@ -3837,8 +4081,13 @@ def lu_do(r):
     if do == 'password':
         lu_run(['chpasswd', '-e'], '%s:%s\n' % (name, lu_hash_checked(r.get('hash'))))
         lu_run(['chage', '-d', '0' if r.get('must_change') else str(int(time.time() // 86400)), name])
-        lu_age_one(name, r)
+        if r.get('policy_aging'):
+            # Given a password: the policy's aging, as a user with one has it.
+            lu_aging_put(name, r['policy_aging'])
         said = 'the password of %s set' % name
+    elif do == 'aging':
+        lu_aging_put(name, r.get('aging'))
+        said = 'the password aging of %s set' % name
     elif do == 'lock':
         # The password and the account: no key lets in either (sshd asks PAM if it has expired).
         sh = lu_shadow().get(name, ('',))[0]
@@ -3854,7 +4103,6 @@ def lu_do(r):
         said = '%s unlocked' % name
     elif do == 'sudo':
         lu_sudo(name, bool(r.get('on')))
-        lu_age_one(name, r)                     # sudo given or taken: in or out of the days
         said = '%s %s' % (name, 'may use sudo' if r.get('on') else 'no longer uses sudo')
     elif do == 'set':
         argv = ['usermod']
@@ -3878,7 +4126,7 @@ def lu_do(r):
         lu_run(['userdel'] + (['-r'] if r.get('home') else []) + ['--', name])
         said = '%s taken away%s' % (name, ' with the home folder' if r.get('home') else '')
     else:
-        raise Refused('list, add, password, lock, unlock, sudo, set or drop')
+        raise Refused('list, add, password, aging, lock, unlock, sudo, set or drop')
     return dict(lu_list(), said=said)
 
 

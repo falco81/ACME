@@ -60,8 +60,9 @@ import acmelib.engine as E, time
 from acmelib.certs import api
 E.HA_STORE['store'] = st
 me = E.node_name()
-st.save_setting('osu_pw_max_days', 90, 'test')
-st.save_setting('osu_pw_min', 12, 'test')
+# The password policy of the local users (as otp 1.0.245): set for the cluster.
+st.set_meta('host:pwpolicy:conf', json.dumps(dict(E.PWP_DEFAULT, managed=True, minlen=14,
+            max_days=90, at=time.time(), by='test')))
 st.save_setting('session_hours', 7, 'test')
 st.save_setting('backup_at@' + me, '04:15', 'test')
 st.set_meta('host:sshd:conf', json.dumps({'manage': True, 'permit_root': 'prohibit-password',
