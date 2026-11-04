@@ -51083,6 +51083,278 @@
   "dbst_21": {
    "source": "A portable copy is made instead of a dump:",
    "text": "Místo dumpu se dělá přenosná kopie:"
+  },
+  "selx_1": {
+   "source": "A node where the SELinux card finds something not as acme needs it - a refusal, a label, a boolean, the module.",
+   "text": "Uzel, kde karta SELinux najde něco, co není, jak acme potřebuje – odmítnutí, štítek, přepínač, modul."
+  },
+  "selx_2": {
+   "source": "Answers alone with Only the preferred node; the only node where changes are made while apart; makes the report afterwards.",
+   "text": "Obsluhuje sám při volbě Jen upřednostněný uzel; jediný uzel, kde se během oddělení dělají změny; po spojení sestaví report."
+  },
+  "selx_3": {
+   "source": "Back to permissive",
+   "text": "Zpět na permissive"
+  },
+  "selx_4": {
+   "source": "Disabled - acme runs as always. Made ready, it comes up permissive at the next restart of the machine: nothing is refused yet, only written down, and acme's own needs are put in. Enforcing comes after, once nothing was refused.",
+   "text": "Vypnutý – acme běží jako vždy. Po přípravě naběhne při příštím restartu stroje v režimu permissive: zatím se nic neodepírá, jen zapisuje, a doplní se, co acme potřebuje. Enforcing přijde potom, až nebude nic odepřeno."
+  },
+  "selx_5": {
+   "source": "Download the report (all nodes)",
+   "text": "Stáhnout report (všechny uzly)"
+  },
+  "selx_6": {
+   "source": "Every file is labelled at the next start - it takes a few minutes before the machine answers.",
+   "text": "Při příštím startu se označí všechny soubory – potrvá pár minut, než stroj začne odpovídat."
+  },
+  "selx_7": {
+   "source": "Everything acme knows it needs is in place - what was refused is something its module does not cover yet. \"Put in what acme needs\" changes nothing for it: download the report (top right) and send it, so that the module learns it.",
+   "text": "Vše, o čem acme ví, že potřebuje, je na místě – odepřeno bylo něco, co jeho modul zatím nepokrývá. „Doplnit, co acme potřebuje“ s tím nic neudělá: stáhněte report (vpravo nahoře) a pošlete ho, ať se to modul naučí."
+  },
+  "selx_8": {
+   "source": "From now on SELinux refuses what its policy does not allow - and stays enforcing after a restart. Nothing acme needs is missing and nothing was refused since the machine started. If something stops working, \"Back to permissive\" here (or setenforce 0 on the machine) undoes it at once.",
+   "text": "Od teď SELinux odepře, co jeho politika nepovoluje – a po restartu zůstane v režimu enforcing. Nic, co acme potřebuje, nechybí a od startu stroje nebylo nic odepřeno. Kdyby něco přestalo fungovat, „Zpět na permissive“ tady (nebo setenforce 0 na stroji) to hned vrátí."
+  },
+  "selx_9": {
+   "source": "Make it ready",
+   "text": "Připravit"
+  },
+  "selx_10": {
+   "source": "Make it ready (permissive)",
+   "text": "Připravit (permissive)"
+  },
+  "selx_11": {
+   "source": "Not ready for enforcing yet",
+   "text": "Na enforcing zatím není připraveno"
+  },
+  "selx_12": {
+   "source": "Not said yet - the node looks within a minute.",
+   "text": "Zatím neřečeno – uzel se podívá do minuty."
+  },
+  "selx_13": {
+   "source": "Put in what acme needs",
+   "text": "Doplnit, co acme potřebuje"
+  },
+  "selx_14": {
+   "source": "Ready for enforcing",
+   "text": "Připraveno na enforcing"
+  },
+  "selx_15": {
+   "source": "Restart it when it suits (Settings → Restart and power off), one node at a time. It comes up permissive; then look here again.",
+   "text": "Restartujte ho, až se to hodí (Nastavení → Restart a vypnutí), jeden uzel po druhém. Naběhne v režimu permissive; pak se sem podívejte znovu."
+  },
+  "selx_16": {
+   "source": "SELinux",
+   "text": "SELinux"
+  },
+  "selx_17": {
+   "source": "SELinux is disabled - \"prepare\" makes it permissive",
+   "text": "SELinux je vypnutý – do režimu permissive ho převede „Připravit“"
+  },
+  "selx_18": {
+   "source": "SELinux is enforcing already",
+   "text": "SELinux už je v režimu enforcing"
+  },
+  "selx_19": {
+   "source": "SELinux is enforcing, and stays so after a restart",
+   "text": "SELinux je v režimu enforcing a zůstane tak i po restartu"
+  },
+  "selx_20": {
+   "source": "SELinux is permissive, and stays so after a restart",
+   "text": "SELinux je v režimu permissive a zůstane tak i po restartu"
+  },
+  "selx_21": {
+   "source": "SELinux is permissive: nothing is refused - acme is ready for enforcing",
+   "text": "SELinux je v režimu permissive: nic se neodepírá – acme je připravené na enforcing"
+  },
+  "selx_22": {
+   "source": "SELinux no longer refuses anything - it only writes down what it would refuse - now and after a restart.",
+   "text": "SELinux už nic neodepírá – jen zapisuje, co by odepřel – teď i po restartu."
+  },
+  "selx_23": {
+   "source": "SELinux refusing",
+   "text": "SELinux odmítá"
+  },
+  "selx_24": {
+   "source": "Switch to enforcing",
+   "text": "Přepnout na enforcing"
+  },
+  "selx_25": {
+   "source": "The configuration says permissive and every file is labelled at the next start of the machine; acme's module goes in. Nothing is refused while permissive - SELinux only writes down what it would refuse. The machine is not restarted now: restart it when it suits (Settings → Restart and power off), one node at a time.",
+   "text": "Konfigurace se přepne na permissive a při příštím startu stroje se označí všechny soubory; nainstaluje se modul acme. V režimu permissive se nic neodepírá – SELinux jen zapisuje, co by odepřel. Stroj se teď nerestartuje: restartujte ho, až se to hodí (Nastavení → Restart a vypnutí), jeden uzel po druhém."
+  },
+  "selx_26": {
+   "source": "The kernel's command line has selinux=0 - it stays off whatever the configuration says.",
+   "text": "Příkazová řádka jádra obsahuje selinux=0 – SELinux zůstane vypnutý, ať konfigurace říká cokoli."
+  },
+  "selx_27": {
+   "source": "There is no SELinux on this machine - nothing to do.",
+   "text": "Na tomto stroji SELinux není – není co dělat."
+  },
+  "selx_28": {
+   "source": "What SELinux refused cannot be read: ausearch is not on this machine (dnf install audit)",
+   "text": "Co SELinux odepřel, nejde přečíst: na stroji chybí ausearch (dnf install audit)"
+  },
+  "selx_29": {
+   "source": "What SELinux refuses to the web server, keepalived, sshd and the rest when it is enforcing - and what acme needs of it on each node. Nothing changes here unless asked: disabled stays disabled. In a cluster, one node at a time - the other answers meanwhile. On the server: acme --selinux-check.",
+   "text": "Co SELinux v režimu enforcing odepře webovému serveru, keepalived, sshd a dalším – a co od něj acme na každém uzlu potřebuje. Bez vyžádání se tu nic nemění: vypnutý zůstává vypnutý. V clusteru jeden uzel po druhém – ten druhý mezitím odpovídá. Na serveru: acme --selinux-check."
+  },
+  "selx_30": {
+   "source": "auditd does not run - what SELinux refuses is not written down (systemctl enable --now auditd)",
+   "text": "auditd neběží – co SELinux odepře, se nikam nezapisuje (systemctl enable --now auditd)"
+  },
+  "selx_31": {
+   "source": "ausearch is not on this machine - what SELinux refused cannot be read (dnf install audit)",
+   "text": "na stroji chybí ausearch – co SELinux odepřel, nejde přečíst (dnf install audit)"
+  },
+  "selx_32": {
+   "source": "enforcing",
+   "text": "enforcing"
+  },
+  "selx_33": {
+   "source": "making it ready…",
+   "text": "připravuji…"
+  },
+  "selx_34": {
+   "source": "making its report…",
+   "text": "vytváří report…"
+  },
+  "selx_35": {
+   "source": "acme does not know this one yet",
+   "text": "Tohle acme zatím nezná"
+  },
+  "selx_36": {
+   "source": "acme's files labelled again",
+   "text": "soubory acme znovu označeny"
+  },
+  "selx_37": {
+   "source": "acme's module (acme_server) installed",
+   "text": "modul acme (acme_server) nainstalovaný"
+  },
+  "selx_38": {
+   "source": "acme's module (acme_server) is not installed",
+   "text": "modul acme (acme_server) není nainstalovaný"
+  },
+  "selx_39": {
+   "source": "acme's module, the labels of its files, the booleans and the ports it needs are put in. Still permissive: nothing is refused.",
+   "text": "Doplní se modul acme, označení jeho souborů, booleany a porty, které potřebuje. Stále permissive: nic se neodepírá."
+  },
+  "selx_40": {
+   "source": "permissive",
+   "text": "permissive"
+  },
+  "selx_41": {
+   "source": "restart the machine - it comes up permissive: nothing is refused yet, what would be is written down",
+   "text": "restartujte stroj – naběhne v režimu permissive: zatím se nic neodepírá, co by se odepřelo, se zapíše"
+  },
+  "selx_42": {
+   "source": "selinux=0 taken off the kernel's command line",
+   "text": "selinux=0 odebráno z příkazové řádky jádra"
+  },
+  "selx_43": {
+   "source": "semanage is not on this machine - the ports cannot be checked (dnf install policycoreutils-python-utils)",
+   "text": "na stroji chybí semanage – porty nejde zkontrolovat (dnf install policycoreutils-python-utils)"
+  },
+  "selx_44": {
+   "source": "switching to enforcing…",
+   "text": "přepínám na enforcing…"
+  },
+  "selx_45": {
+   "source": "switching to permissive…",
+   "text": "přepínám na permissive…"
+  },
+  "selx_46": {
+   "source": "the files are labelled at the next start of the machine",
+   "text": "soubory se označí při příštím startu stroje"
+  },
+  "selx_47": {
+   "source": "the kernel's command line has selinux=0: take it away (grubby --update-kernel ALL --remove-args selinux)",
+   "text": "příkazová řádka jádra obsahuje selinux=0: odeberte ho (grubby --update-kernel ALL --remove-args selinux)"
+  },
+  "selx_48": {
+   "source": "there is no SELinux on this machine",
+   "text": "na tomto stroji SELinux není"
+  },
+  "selx_49": {
+   "source": "the API token the pages read",
+   "text": "API token, který čtou stránky"
+  },
+  "selx_50": {
+   "source": "the folder of the API token",
+   "text": "složka s API tokenem"
+  },
+  "selx_51": {
+   "source": "the pages",
+   "text": "stránky"
+  },
+  "selx_52": {
+   "source": "keepalived's check of this node",
+   "text": "kontrola tohoto uzlu pro keepalived"
+  },
+  "selx_53": {
+   "source": "the SSH server listens on it",
+   "text": "SSH server na něm poslouchá"
+  },
+  "selx_54": {
+   "source": "PostgreSQL of this node listens on it",
+   "text": "PostgreSQL tohoto uzlu na něm poslouchá"
+  },
+  "selx_55": {
+   "source": "asked…",
+   "text": "vyžádáno…"
+  },
+  "selx_56": {
+   "source": "not on this machine",
+   "text": "na tomto stroji není"
+  },
+  "selx_57": {
+   "source": "not said yet",
+   "text": "zatím neřečeno"
+  },
+  "selx_58": {
+   "source": "Made ready - waiting for a restart of the machine",
+   "text": "Připraveno – čeká se na restart stroje"
+  },
+  "selx_59": {
+   "source": "Let it run a day or two as it is used - sign-ins, the pages, a failover, an upgrade - then look again.",
+   "text": "Nechte ho den dva běžet v běžném provozu – přihlášení, stránky, failover, upgrade – a pak se podívejte znovu."
+  },
+  "selx_60": {
+   "source": "Enforcing - but something is not as acme needs it",
+   "text": "Enforcing – ale něco není tak, jak acme potřebuje"
+  },
+  "selx_61": {
+   "source": "Enforcing - and everything acme needs is there",
+   "text": "Enforcing – a vše, co acme potřebuje, je na místě"
+  },
+  "selx_62": {
+   "source": "Nothing refused since acme's needs were put in",
+   "text": "Od doplnění toho, co acme potřebuje, nic neodepřeno"
+  },
+  "selx_63": {
+   "source": "Nothing refused since the machine started",
+   "text": "Od startu stroje nic neodepřeno"
+  },
+  "selx_64": {
+   "source": "Downloaded: every node's report is in it.",
+   "text": "Staženo: jsou v něm reporty všech uzlů."
+  },
+  "selx_65": {
+   "source": "asking every node for its report…",
+   "text": "žádám všechny uzly o report…"
+  },
+  "selx_66": {
+   "source": "Once nothing is missing and nothing was refused",
+   "text": "Až nebude nic chybět a nic nebude odepřeno"
+  },
+  "selx_67": {
+   "source": "asked: every node makes its report within a minute",
+   "text": "vyžádáno: každý uzel vytvoří report do minuty"
+  },
+  "selx_68": {
+   "source": "acme's module installed",
+   "text": "modul acme nainstalován"
   }
  },
  "patterns": {
@@ -69945,6 +70217,130 @@
   "pdbst_2": {
    "source": "in {0} h",
    "text": "za {0} h"
+  },
+  "pselx_1": {
+   "source": "Looked at {0}",
+   "text": "Zjištěno {0}"
+  },
+  "pselx_2": {
+   "source": "Make SELinux ready on {0}?",
+   "text": "Připravit SELinux na {0}?"
+  },
+  "pselx_3": {
+   "source": "Put in what acme needs on {0}?",
+   "text": "Doplnit na {0}, co acme potřebuje?"
+  },
+  "pselx_4": {
+   "source": "SELinux is {0} - it goes to enforcing from permissive only",
+   "text": "SELinux je {0} – na enforcing se přechází jen z permissive"
+  },
+  "pselx_5": {
+   "source": "SELinux on {0}: {1}",
+   "text": "SELinux na {0}: {1}"
+  },
+  "pselx_6": {
+   "source": "SELinux refused {0} thing(s) since acme's needs were put in",
+   "text": "SELinux od doplnění toho, co acme potřebuje, odepřel {0}×"
+  },
+  "pselx_7": {
+   "source": "SELinux refused {0} thing(s) since the machine started",
+   "text": "SELinux od startu stroje odepřel {0}×"
+  },
+  "pselx_8": {
+   "source": "Switch {0} back to permissive?",
+   "text": "Přepnout {0} zpět na permissive?"
+  },
+  "pselx_9": {
+   "source": "Switch {0} to enforcing?",
+   "text": "Přepnout {0} na enforcing?"
+  },
+  "pselx_10": {
+   "source": "The configuration says {0}, but the kernel does not start SELinux - it is not switched on for it (the kernel's command line, or the distribution's own step such as selinux-activate).",
+   "text": "Konfigurace říká {0}, ale jádro SELinux nespouští – není pro něj zapnutý (příkazová řádka jádra, nebo vlastní krok distribuce jako selinux-activate)."
+  },
+  "pselx_11": {
+   "source": "What was refused ({0})",
+   "text": "Co bylo odepřeno ({0})"
+  },
+  "pselx_12": {
+   "source": "asked: {0} makes SELinux ready and permissive within seconds",
+   "text": "vyžádáno: {0} během pár sekund připraví SELinux v režimu permissive"
+  },
+  "pselx_13": {
+   "source": "asked: {0} switches SELinux to enforcing within seconds",
+   "text": "vyžádáno: {0} během pár sekund přepne SELinux na enforcing"
+  },
+  "pselx_14": {
+   "source": "asked: {0} switches SELinux to permissive within seconds",
+   "text": "vyžádáno: {0} během pár sekund přepne SELinux na permissive"
+  },
+  "pselx_15": {
+   "source": "port {0}/{1} is another service's in the SELinux policy - choose another port for it ({2})",
+   "text": "port {0}/{1} patří v politice SELinuxu jiné službě – zvolte pro to jiný port ({2})"
+  },
+  "pselx_16": {
+   "source": "port {0}/{1} is not labelled {2} ({3})",
+   "text": "port {0}/{1} není označen {2} ({3})"
+  },
+  "pselx_17": {
+   "source": "port {0}/{1} labelled {2}",
+   "text": "port {0}/{1} označen {2}"
+  },
+  "pselx_18": {
+   "source": "reports made: {0} of {1}",
+   "text": "hotové reporty: {0} z {1}"
+  },
+  "pselx_19": {
+   "source": "reports made: {0} of {1} - waiting for {2}",
+   "text": "hotové reporty: {0} z {1} – čekám na {2}"
+  },
+  "pselx_20": {
+   "source": "the boolean {0} is off ({1})",
+   "text": "boolean {0} je vypnutý ({1})"
+  },
+  "pselx_21": {
+   "source": "{0} asked SELinux on {1}: enforcing",
+   "text": "{0} požádal o SELinux na {1}: enforcing"
+  },
+  "pselx_22": {
+   "source": "{0} asked SELinux on {1}: made ready, permissive",
+   "text": "{0} požádal o SELinux na {1}: připravit, permissive"
+  },
+  "pselx_23": {
+   "source": "{0} asked SELinux on {1}: permissive again",
+   "text": "{0} požádal o SELinux na {1}: znovu permissive"
+  },
+  "pselx_24": {
+   "source": "{0} is labelled {1}, not {2} ({3})",
+   "text": "{0} je označen {1}, ne {2} ({3})"
+  },
+  "pselx_25": {
+   "source": "{0} refused before, allowed now - by a newer acme_server or a boolean put in since; not counted",
+   "text": "{0}× odepřeno dříve, teď už povoleno – novějším acme_server nebo přepínačem doplněným později; nepočítá se"
+  },
+  "pselx_26": {
+   "source": "{0}: SELINUX=permissive",
+   "text": "{0}: SELINUX=permissive"
+  },
+  "pselx_27": {
+   "source": "the pages ask the daemon on 127.0.0.1:{0}",
+   "text": "stránky se ptají démona na 127.0.0.1:{0}"
+  },
+  "pselx_28": {
+   "source": "After the next restart of the machine: {0}",
+   "text": "Po příštím restartu stroje: {0}"
+  },
+  "pselx_29": {
+   "source": "Downloaded - without: {0}",
+   "text": "Staženo – chybí: {0}"
+  },
+  "pselx_30": {
+   "source": "asked: {0} looks within seconds",
+   "text": "vyžádáno: {0} se během pár sekund podívá"
+  },
+  "pselx_31": {
+   "source": "asked: {0} makes its report within a minute",
+   "text": "vyžádáno: {0} vytvoří report do minuty"
   }
  },
  "rich": {

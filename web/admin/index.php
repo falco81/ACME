@@ -327,6 +327,7 @@ if (isset($_GET['api'])) {
         'art' => '/api/portal/art', 'mailq' => '/api/mailq', 'texts' => '/api/texts', 'mailq-one' => '/api/mailq/one', 'software' => '/api/software',
         'rbackup' => '/api/rbackup', 'lockouts' => '/api/lockouts', 'net' => '/api/net', 'power' => '/api/power', 'ntp' => '/api/ntp',
         'console-login' => '/api/console-login',
+        'selinux' => '/api/selinux',
         'mfa' => '/api/auth/mfa',
         'sshkeys' => '/api/sshkeys', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'isemon' => '/api/isemon', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
@@ -343,6 +344,7 @@ if (isset($_GET['api'])) {
         'art' => '/api/portal/art', 'mailq' => '/api/mailq', 'texts' => '/api/texts',
         'rbackup' => '/api/rbackup', 'lockouts' => '/api/lockouts', 'trial' => '/api/trial', 'net' => '/api/net', 'power' => '/api/power', 'ntp' => '/api/ntp',
         'console-login' => '/api/console-login',
+        'selinux' => '/api/selinux',
         'mfa' => '/api/auth/mfa',
         'sshkeys' => '/api/sshkeys', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
@@ -736,6 +738,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         administration open to everybody, exports not locked. It is switched on only once nothing below stands
         against it; while it is on, all of that is refused wherever it is changed and greyed out on the pages.</p></div>
     <div id="hs-host"></div>
+    <div id="se-host"></div>
     <div class="card full"><h2>Settings</h2><div id="sect-hisec"></div></div>
   </div>
   <div class="ctl-pane" id="pane-acme" hidden>

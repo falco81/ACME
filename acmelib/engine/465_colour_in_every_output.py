@@ -501,6 +501,19 @@ def build_parser():
     g.add_argument('--console', action='store_true',
                    help='the acme console: the whole of acme by its menus and the live log '
                         '(q leaves it)')
+    g.add_argument('--selinux-check', action='store_true',
+                   help='how SELinux stands for acme on this machine: the mode, acme\'s module, the '
+                        'labels, booleans and ports it needs, what was refused since the start '
+                        '(as root; nothing is changed)')
+    g.add_argument('--selinux-want', action='store_true', help=argparse.SUPPRESS)
+    g.add_argument('--selinux', choices=('check', 'prepare', 'apply', 'enforce', 'permissive'),
+                   metavar='STEP', help='SELinux on this machine, as on the pages: check, prepare '
+                   '(permissive at the next start, from disabled), apply (put in what acme needs, '
+                   'while permissive), enforce, permissive - asked first unless --yes (as root)')
+    g.add_argument('--selinux-report', nargs='?', const='', metavar='FILE',
+                   help='what SELinux says on this machine, for whoever writes acme\'s module: one '
+                        'file (/root/acme-selinux-report-NODE-DATE.tar.gz unless named); nothing '
+                        'is changed (as root)')
     g.add_argument('--console-at-login', choices=('on', 'off', 'status'), metavar='on|off|status',
                    help='open the console when root signs in at the console or over SSH')
     g.add_argument('--admin-2fa', choices=('on', 'off', 'status'), metavar='on|off|status',
@@ -2059,6 +2072,12 @@ def cli_main(argv=None):
             args.tls_files.append(Path(f).read_bytes())
         except OSError as e:
             raise SystemExit('acme: %s' % e)
+    if args.selinux_want:
+        # What acme needs of SELinux here, for --selinux-check: read as the service.
+        print(json.dumps(selinux_want(cli_store())))
+        return 0
+    if args.selinux_check or args.selinux or args.selinux_report is not None:
+        return cli_selinux(args, pal)
     if args.console_at_login:
         if args.console_at_login != 'status':
             print(pal.ok_line(console_at_login_set(args.console_at_login == 'on')))
@@ -3598,6 +3617,64 @@ def entry():
         sys.exit(1)
     except BrokenPipeError:
         sys.exit(0)
+
+
+def _selinux_helper(extra, want, timeout=600):
+    """The root helper of this machine run for SELinux, what acme needs given on stdin."""
+    helper = Path(__file__).resolve().parent / 'acme_web.py'
+    if not helper.exists():
+        helper = Path('/usr/local/lib/acme/acme_web.py')
+    if not helper.exists():
+        raise SystemExit('acme: the root helper (acme_web.py) is not installed')
+    return subprocess.run(['/usr/bin/python3', '-I', str(helper)] + extra, input=want or '{}',
+                          capture_output=True, text=True, timeout=timeout)
+
+
+def cli_selinux(args, pal):
+    """acme --selinux-check, --selinux STEP, --selinux-report (as otp 1.0.233, 1.0.236): as
+    root - the root helper does it, what acme needs read first as the service."""
+    if os.geteuid() != 0:
+        raise SystemExit('acme: SELinux is root\'s - run it as root')
+    try:
+        want = subprocess.run(acme_argv() + ['--selinux-want'],
+                              capture_output=True, text=True, timeout=120).stdout.strip()
+        json.loads(want or '{}')
+    except (OSError, subprocess.SubprocessError, ValueError):
+        want = '{}'
+    if args.selinux_report is not None:
+        node = re.sub(r'[^A-Za-z0-9._-]', '', node_name())[:60] or 'node'
+        out = args.selinux_report or '/root/acme-selinux-report-%s-%s.tar.gz' % (
+            node, time.strftime('%Y%m%d-%H%M'))
+        print(pal.dim('gathering what SELinux says here - a minute or two (ausearch, semanage)...'))
+        got = _selinux_helper(['--selinux-report', out], want, 1200)
+        sys.stderr.write(got.stderr)
+        if got.returncode != 0:
+            return got.returncode
+        print(pal.ok_line('the report is in %s (%d kB)' % (out, os.path.getsize(out) >> 10)))
+        print('  look through avc*.txt in it before sending it on: the audit log holds the command '
+              'lines of the programs SELinux refused something to')
+        return 0
+    step = args.selinux or 'check'
+    if step == 'check':
+        got = _selinux_helper(['--selinux-check', '--want-stdin'] + (['--json'] if args.json else []),
+                              want)
+    else:
+        words = {'prepare': 'SELinux permissive at the next start of this machine, every file '
+                            'labelled then (the machine is not restarted now)',
+                 'apply': 'acme\'s module, the labels of its files, the booleans and ports it needs '
+                          'put in (still permissive)',
+                 'enforce': 'SELinux ENFORCING on this machine, now and after a restart',
+                 'permissive': 'SELinux permissive on this machine, now and after a restart'}[step]
+        if not args.yes:
+            if not sys.stdin.isatty():
+                raise SystemExit('acme: %s - add --yes to do it without a terminal' % words)
+            if input('%s. Go on? [y/N] ' % words).strip().lower() not in ('y', 'yes'):
+                print('nothing done')
+                return 1
+        got = _selinux_helper(['--selinux-do', step] + (['--json'] if args.json else []), want)
+    sys.stdout.write(got.stdout)
+    sys.stderr.write(got.stderr)
+    return got.returncode
 
 
 def acme_argv(here=None):

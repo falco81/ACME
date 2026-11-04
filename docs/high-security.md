@@ -47,3 +47,11 @@ restart waiting, certificates running out - is listed apart, and never stops
 high security.
 
 Switching it off is always possible, and written down as every setting is.
+
+## SELinux
+
+Under the settings, a card for each node says how SELinux stands there - the mode, acme's
+module, the labels, booleans and ports acme needs, what was refused - with the steps to make it
+ready, enforcing, or permissive again. Where SELinux is on, the security check lists what keeps
+a node from being protected as it should; where it is disabled, it says nothing. See
+[selinux.md](selinux.md).

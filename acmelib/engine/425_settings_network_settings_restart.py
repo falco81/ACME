@@ -119,6 +119,43 @@ def _console_login_do(h):
             'asked: the console at login is switched off within seconds'}
 
 
+@route('GET', '/api/selinux')
+def _selinux(h):
+    h.me('fulladmin')
+    return selinux_view(h.store)
+
+
+@route('POST', '/api/selinux')
+def _selinux_do(h):
+    s = h.me('fulladmin')
+    b = h.body()
+    node = str(b.get('node') or node_name())
+    action = str(b.get('action') or '')
+    if action == 'download':
+        # Every node's report in one archive, from the database - whichever node answers.
+        data, missing = selinux_report_bundle(h.store)
+        h.store.add_event('settings', '%s took the SELinux report%s' % (
+            s['name'], (' - without %s' % ', '.join(m.split(':')[0] for m in missing)) if missing else ''),
+            'info', who=s['name'])
+        return {'name': 'acme-selinux-report-%s.tar.gz' % time.strftime('%Y%m%d-%H%M'),
+                'file': base64.b64encode(data).decode('ascii'), 'mime': 'application/gzip',
+                'missing': missing}
+    try:
+        if action == 'report' and node == '*':
+            for n in [node_name()] + [x['name'] for x in ha_nodes(h.store) if x['name'] != node_name()]:
+                selinux_ask(h.store, n, 'report', s['name'])
+            return {'message': 'asked: every node makes its report within a minute'}
+        selinux_ask(h.store, node, action, s['name'])
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    return {'message': {'check': 'asked: %s looks within seconds',
+                        'prepare': 'asked: %s makes SELinux ready and permissive within seconds',
+                        'enforce': 'asked: %s switches SELinux to enforcing within seconds',
+                        'permissive': 'asked: %s switches SELinux to permissive within seconds',
+                        'report': 'asked: %s makes its report within a minute'
+                        }[action] % node}
+
+
 # ---- root's SSH keys and the updates of the system on the pages (1.0.158) ------------
 @route('GET', '/api/sshkeys')
 def _sshkeys(h):

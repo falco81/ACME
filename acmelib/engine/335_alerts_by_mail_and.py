@@ -454,6 +454,18 @@ def alert_problems(store, lang='en'):
                     _al(lang, '%d SMS z %s za sebou se nepovedlo: %s',
                         '%d SMS from %s failed in a row: %s') % (int(s['fails']), n,
                                                               s.get('said') or '?'), 'codes')
+    # SELinux (as otp 1.0.242; off by default).
+    if CONFIG.get('alerts_selinux'):
+        for n in names:
+            try:
+                probs = [p for p in selinux_problems(store, n) if 'ready for enforcing' not in p]
+            except Exception:                           # noqa: BLE001
+                probs = []
+            if probs:
+                add('selinux:' + n, 'warn', n,
+                    _al(lang, 'SELinux na %s: něco není, jak acme potřebuje' % n,
+                        'SELinux on %s: something is not as acme needs it' % n),
+                    '; '.join(probs)[:300], 'hisec')
     # What a module sees wrong (HOOKS['alerts']): mailed like the engine's own.
     for fn in HOOKS['alerts']:
         try:

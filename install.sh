@@ -397,6 +397,11 @@ if [[ -n "$DO_UNINSTALL" ]]; then
     if [[ -f "$SOURCE_DIR/deploy/acme_web.py" ]]; then
         run python3 -I "$SOURCE_DIR/deploy/acme_web.py" --pam-off || warn "sshd's PAM could not be put back: take acme's block out of /etc/pam.d/sshd by hand"
     fi
+    # acme's SELinux module (as otp 1.0.233): only labels, gone with it. The mode SELinux is in,
+    # its booleans and the ports labelled are the machine's, left as they are.
+    if command -v semodule >/dev/null 2>&1 && semodule -l 2>/dev/null | awk '$1=="acme_server"{f=1} END{exit !f}'; then
+        run semodule -r acme_server 2>/dev/null || warn "SELinux: semodule -r acme_server did not go"
+    fi
     # Every tree, current and previous, and the links to them.
     [[ -e "$LIB_DIR" || -L "$LIB_DIR" ]] && run rm -rf "$LIB_DIR"
     [[ -d "$WEB_DIR" ]] && run rm -rf "$WEB_DIR"
@@ -945,12 +950,78 @@ PY
     nginx_upload_guard
 
     # ---- SELinux ---------------------------------------------------------------
+    selinux_module
     if command -v getenforce >/dev/null && [[ "$(getenforce)" != "Disabled" ]]; then
         say "SELinux is $(getenforce)"
         run setsebool -P httpd_can_network_connect 1 2>/dev/null || warn "could not set httpd_can_network_connect"
         command -v restorecon >/dev/null && run restorecon -R "$WEB_DIR" 2>/dev/null || true
         good "the pages may talk to the daemon on 127.0.0.1"
         note "If the pages cannot reach the daemon: ausearch -m avc -ts recent | audit2allow -M acme-local"
+    fi
+}
+
+# acme's SELinux module (as otp 1.0.233): only labels - /run/acme as the web server's own run
+# files, so the pages may read the API token under enforcing. Kept beside the program always;
+# put into the policy where SELinux is on, and only when it changed (semodule takes its time).
+# Where SELinux is disabled nothing is done: "Make it ready" on the pages puts it in.
+# The tools SELinux is looked after with (as otp 1.0.236), where the system has them in its own
+# repositories (RHEL, Rocky, AlmaLinux): put in when missing, at every install and upgrade, with
+# SELinux disabled too - "Make it ready" and acme --selinux-check need them; the mode is not
+# touched. auditd started where SELinux is on (without it nothing refused is written down).
+# Offline: said, not fatal.
+selinux_tools() {
+    [[ "${PKG:-}" == "dnf" ]] || return 0
+    [[ -d /etc/selinux || -x /usr/sbin/getenforce ]] || return 0
+    local want=() p
+    for p in policycoreutils libselinux-utils policycoreutils-python-utils audit selinux-policy-targeted; do
+        rpm -q "$p" >/dev/null 2>&1 || want+=("$p")
+    done
+    if (( ${#want[@]} )); then
+        if run dnf install -y "${want[@]}" >/dev/null 2>&1; then
+            good "SELinux: put in ${want[*]}"
+        else
+            warn "SELinux: ${want[*]} could not be put in (no repository reached?) - dnf install -y ${want[*]}"
+        fi
+    fi
+    if command -v getenforce >/dev/null 2>&1 && [[ "$(getenforce 2>/dev/null)" != "Disabled" ]] &&
+            command -v auditd >/dev/null 2>&1 && ! systemctl is-active --quiet auditd 2>/dev/null; then
+        # auditd refuses to be started by systemctl on some releases: service(8) then.
+        { run systemctl enable --now auditd >/dev/null 2>&1 || run service auditd start >/dev/null 2>&1; } &&
+            good "SELinux: auditd started - what SELinux refuses is written down" ||
+            warn "SELinux: auditd could not be started - systemctl enable --now auditd"
+    fi
+    return 0
+}
+
+selinux_module() {
+    selinux_tools
+    [[ -f "$SOURCE_DIR/deploy/acme_server.cil" ]] || return 0
+    local had=""
+    # Compared with the one last put into the policy (as otp 1.0.234), not with the copy beside
+    # the program: a semodule that failed once left the copy new and the policy old for good.
+    cmp -s "$SOURCE_DIR/deploy/acme_server.cil" "$LIB_DIR/acme_server.cil.in-policy" 2>/dev/null && had=1
+    run install -D -m 0644 "$SOURCE_DIR/deploy/acme_server.cil" "$LIB_DIR/acme_server.cil"
+    command -v getenforce >/dev/null 2>&1 || return 0
+    command -v semodule >/dev/null 2>&1 || return 0
+    [[ "$(getenforce)" == "Disabled" ]] && return 0
+    if [[ -z "$had" ]] || ! semodule -l 2>/dev/null | awk '$1=="acme_server"{f=1} END{exit !f}'; then
+        if run semodule -i "$LIB_DIR/acme_server.cil" 2>/dev/null; then
+            run install -m 0644 "$LIB_DIR/acme_server.cil" "$LIB_DIR/acme_server.cil.in-policy"
+            good "SELinux: acme's module (acme_server) is in the policy"
+        else
+            warn "SELinux: acme's module could not be put in: semodule -i $LIB_DIR/acme_server.cil"
+        fi
+    fi
+    [[ -d /run/acme ]] && command -v restorecon >/dev/null 2>&1 && run restorecon -R /run/acme 2>/dev/null || true
+    # Said when the policy does not label it (as otp 1.0.234): the pages could not read the API
+    # token under enforcing - Settings - High security - SELinux says what else is missing.
+    if command -v matchpathcon >/dev/null 2>&1 && [[ -z "$DRY_RUN" ]]; then
+        local want=""
+        want="$(matchpathcon /run/acme 2>/dev/null || true)"
+        case "$want" in
+            *httpd_var_run_t*|*httpd_runtime_t*) ;;
+            *) warn "SELinux: the policy does not label /run/acme for the pages (${want:-nothing}) - acme --selinux-check";;
+        esac
     fi
 }
 

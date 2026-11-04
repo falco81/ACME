@@ -1,5 +1,5 @@
 [Unit]
-Description=acme - TLS, the web address, the firewall, the network, the time, the console at login, the journal and the logs or PostgreSQL's log, asked for on the pages
+Description=acme - TLS, the web address, the firewall, the network, the time, the console at login, the journal and the logs or PostgreSQL's log, SELinux, asked for on the pages
 
 [Path]
 PathExists=/var/lib/acme/web/request.json
@@ -14,6 +14,7 @@ PathExists=/var/lib/acme/web/sshkeys.ask
 PathExists=/var/lib/acme/web/osup.ask
 PathExists=/var/lib/acme/web/sshd.ask
 PathExists=/var/lib/acme/web/logs.ask
+PathExists=/var/lib/acme/web/selinux.ask
 Unit=acme-web.service
 TriggerLimitIntervalSec=0
 

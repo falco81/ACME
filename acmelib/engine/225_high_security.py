@@ -258,6 +258,11 @@ def hisec_findings(store, conf=None):
         if not (sshd_now(store, n) or {}).get('values'):
             warn.append(_hs_item('check', 'the SSH server of %s has not said yet how it is set' % n,
                                  'look again', 'sshd'))
+    # SELinux (as otp 1.0.233): where it is on, what keeps it from protecting the node; where it
+    # is disabled, nothing - as until now.
+    for n in host_nodes(store):
+        for p in selinux_problems(store, n)[:6]:
+            warn.append(_hs_item('check', 'SELinux on %s: %s' % (n, p), 'SELinux', 'hisec'))
     # The security check (1.0.169): what is not as it should be now - as the
     # alerts see it, and the rest. It never stops high security.
     if not fw_conf(store).get('on'):
