@@ -3050,13 +3050,13 @@ body.app-shell #pane-mailq > .card.held{flex:1 1 auto;min-height:320px;max-heigh
 .px-ms{flex:none}
 @media (max-width:700px){.px-link{min-width:100%;padding:4px 0}.px-stop{min-width:100%}}
 .px-nodes{display:grid;grid-template-columns:1fr;gap:14px}
-.px-nodes.two{grid-template-columns:repeat(auto-fit,minmax(520px,1fr))}
+.px-nodes.two{grid-template-columns:repeat(auto-fit,minmax(min(520px,100%),1fr))}
 .px-node{display:flex;flex-direction:column;gap:10px}
 .px-node-h{display:flex;gap:8px;align-items:center}
 .px-nodes .px-stop{min-width:120px}
 
 /* Every node a card (1.0.169): the standard of Time */
-.node-grid{grid-template-columns:repeat(auto-fill,minmax(520px,1fr))}
+.node-grid{grid-template-columns:repeat(auto-fill,minmax(min(520px,100%),1fr))}
 .node-grid .ntp-node .btnrow{margin-top:12px}
 .node-said{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
 .node-said .dot{margin-top:6px;flex:none}

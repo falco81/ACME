@@ -45,6 +45,37 @@ def totp(key, when=None, digits=6, period=30, algorithm='SHA1'):
     return hotp(key, totp_step(when, period), digits, algorithm)
 
 
+# The top row of a Czech keyboard without Shift (otp 1.0.190, 1.0.226).
+CODE_CZ_ROW = dict(zip('+ěščřžýáíéĚŠČŘŽÝÁÍÉ', '1234567890' + '234567890'))
+
+
+def code_typed(code):
+    """A code as somebody typed it, read as the digits meant (otp 1.0.225-1.0.227): "821 275" as
+    the mail shows it, with a dash or a no-break space, on the Czech row of the keyboard without
+    Shift ("žřáčéá" for 495040), full-width digits, an "ě" sent as "e" and a caron."""
+    import unicodedata
+    out = []
+    for ch in unicodedata.normalize('NFC', str(code or '')).strip():
+        if ch in CODE_CZ_ROW:
+            out.append(CODE_CZ_ROW[ch])
+            continue
+        try:
+            out.append(str(unicodedata.digit(ch)))
+        except (TypeError, ValueError):
+            out.append(ch)
+    return code_sep_gone(''.join(out))
+
+
+def code_sep_gone(code):
+    """A code without what was typed between its digits (otp 1.0.227): a space of any kind, a
+    tab, and every dash - "123–456" with an en dash, the no-break hyphen, the full-width one an
+    IME gives, the minus sign."""
+    import unicodedata
+    return ''.join(c for c in str(code or '')
+                   if not (c.isspace() or c in '\u2212\u00ad\u200b'
+                           or unicodedata.category(c) == 'Pd'))
+
+
 def totp_match(key, code, when=None, digits=6, period=30, algorithm='SHA1', window=1):
     """Which period the code belongs to - its step number - or None.
 
@@ -52,7 +83,7 @@ def totp_match(key, code, when=None, digits=6, period=30, algorithm='SHA1', wind
     at a time, so that when two would do the nearest one is the answer.
     Compared in constant time, every one of them.
     """
-    code = re.sub(r'\s', '', str(code or ''))
+    code = code_sep_gone(code)     # "123-456" too, any dash (otp 1.0.224, 1.0.227)
     if not re.fullmatch(r'[0-9]+', code, re.ASCII) or len(code) != int(digits):
         return None
     if isinstance(key, str):

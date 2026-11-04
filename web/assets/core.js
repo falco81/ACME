@@ -2742,7 +2742,7 @@ function mfaCodeForm(box, d, action, words, after) {
   var code = textBox('', '123456', 'mono mfa-code');
   code.inputMode = 'numeric';
   code.autocomplete = 'one-time-code';
-  code.maxLength = 10;
+  code.maxLength = 32;      /* "12345 67890" fits (otp 1.0.227): 10 cut a 10-digit code short */
   row.appendChild(code);
   var go = cmdButton(words, 'check', 'primary');
   go.type = 'submit';

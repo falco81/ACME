@@ -126,6 +126,14 @@ class TestEngine(unittest.TestCase):
         self.assertTrue(any('waiting for other' in s for s in said))
         self.assertEqual(json.loads(STORE.get_meta('acme:manual'))['node'], 'other')
 
+    def test_a_code_as_typed(self):
+        for typed in ('821 275', '821-275', '821\u2013275', '\uff18\uff12\uff11\uff12\uff17\uff15', ' 821275 '):
+            self.assertEqual(E.code_typed(typed), '821275', typed)
+        self.assertEqual(E.code_typed('\u00e1\u011b+'), '821')        # the Czech row without Shift
+        key = E.b32_clean('JBSWY3DPEHPK3PXP')
+        code = E.totp(key)
+        self.assertIsNotNone(E.totp_match(key, code[:3] + '-' + code[3:]))
+
     def test_a_reload_gives_the_token_back(self):
         self.assertIn('run_dir_keep', dir(E))
         self.assertFalse(E.run_dir_keep() and False)

@@ -387,7 +387,7 @@ def _mfa_act(h, kind):
         if not new.get('kind'):
             raise ApiError(400, 'choose a way first')
         key = _mfa_throttle(h, kind, name)
-        code = re.sub(r'\s', '', str(b.get('code') or ''))
+        code = code_typed(b.get('code') or '')     # "821 275", the Czech row (otp 1.0.225)
         rec = {'kind': new['kind'], 'at': time.time(), 'by': name}
         if new['kind'] == 'app':
             secret = unseal_secret(new.get('secret'), 'adm2fa-new:' + name.lower())
@@ -432,7 +432,7 @@ def _mfa_act(h, kind):
             raise ApiError(409, 'set the second step up first')
         rec = mfa_get(h.store, name) or {}
         key = _mfa_throttle(h, kind, name)
-        code = re.sub(r'\s', '', str(b.get('code') or ''))
+        code = code_typed(b.get('code') or '')     # "821 275", the Czech row (otp 1.0.225)
         if rec.get('kind') == 'app':
             # Read, checked and written under one lock (1.0.136): two requests
             # with the same code at once both passed the check.
