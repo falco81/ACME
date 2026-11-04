@@ -172,7 +172,7 @@ hunts. Every new switch is off - as until now - unless said otherwise.
     copy. The codes of the administrators' app used meanwhile stay used, there and when a copy is
     put back.
   - **Backups to other machines**: room for them checked first (twice the database); an unlocked
-    archive refused even where no password is in play; the weekly check reads the newest
+    archive fetched from a destination refused even where no password is in play; the weekly check reads the newest
     *nightly* copy (it read the hand-made ones, and passed with nothing read); locking or opening
     a large one is not cut off after two minutes.
   - **acme's own certificate by ACME**: two nodes with the manual DNS step take turns instead of

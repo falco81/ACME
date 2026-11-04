@@ -25,11 +25,11 @@ def rb_open(path, password, work):
                     raise RbError('the password does not open it (or the file is damaged)')
     elif not head.startswith(b'\x1f\x8b'):
         raise RbError('that is not a backup of acme (neither locked nor a .tar.gz)')
-    else:
-        # Backups are always locked: an unlocked one was put there by somebody else - its
-        # database, its accounts, its key (1.0.139) - whether a password is in play or not
-        # (otp 1.0.234: on a machine with none set yet, one was put in; its checksums are only
-        # what its maker wrote).
+    elif password:
+        # Backups are always locked: an unlocked one where a password is in
+        # play was put there by somebody else - its database, its accounts,
+        # its key (1.0.139). One fetched from a destination is refused unlocked
+        # whether a password is in play or not (rb_fetch).
         raise RbError('the backup is not locked, and backups of acme always are - it was not '
                       'made by acme; not put in')
     out = os.path.join(work, 'x')
@@ -156,6 +156,21 @@ def rb_fetch(store, tid, name, dst):
         tr.get(name, dst)
     finally:
         tr.close()
+    # Sent away, a backup is always locked (rb_run refuses without a password): an unlocked one
+    # there was put by somebody else - on a machine with no password set yet it was put back
+    # (otp 1.0.234; its checksums are only what its maker wrote).
+    try:
+        with open(str(dst), 'rb') as f:
+            head = f.read(8)
+    except OSError:
+        head = b''
+    if not head.startswith(b'Salted__'):
+        try:
+            os.unlink(str(dst))
+        except OSError:
+            pass
+        raise RbError('the backup is not locked, and backups of acme sent away always are - it '
+                      'was not made by acme; not put in')
 
 
 def rb_remote_list(store, tid):

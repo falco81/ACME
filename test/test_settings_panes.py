@@ -42,6 +42,7 @@ READ_OTHERWISE = {
     'debug_ldap', 'debug_api', 'debug_codes',          # debug_on(): 'debug_' + what
     'portal_tries', 'login_tries',                     # split_limit('...')
     'certs_certadmin_all', 'certs_readonly_all',       # acmelib/certs/teams.py _setting()
+    'alerts_trial', 'alerts_sso',                      # ALERT_EVENTS: CONFIG.get(r[0]) (1.0.40)
 }
 
 

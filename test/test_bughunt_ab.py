@@ -79,15 +79,26 @@ class TestEngine(unittest.TestCase):
         self.assertTrue(E.report_due(tue))
         self.assertFalse(E.report_due(mon_early))
 
-    def test_an_unlocked_backup_refused_without_a_password_too(self):
+    def test_an_unlocked_backup_from_a_destination_refused(self):
         import gzip
         work = tempfile.mkdtemp(dir=TMP)
-        path = os.path.join(work, 'b.tar.gz')
-        with gzip.open(path, 'wb') as f:
+        src = os.path.join(work, 'b.tar.gz')
+        with gzip.open(src, 'wb') as f:
             f.write(b'x' * 100)
-        with self.assertRaises(E.RbError) as got:
-            E.rb_open(path, '', work)
+        dst = os.path.join(work, 'got')
+        tr = mock.Mock()
+        tr.get.side_effect = lambda name, d: __import__('shutil').copy(src, d)
+        with mock.patch.object(E, 'rb_target', return_value={'id': 1}), \
+                mock.patch.object(E, 'rb_transport', return_value=tr), \
+                mock.patch.object(E, 'RB_NAME_RE', mock.Mock(match=lambda n: True)):
+            import acmelib.engine as EN
+            with mock.patch.object(EN, 'rb_target', return_value={'id': 1}), \
+                    mock.patch.object(EN, 'rb_transport', return_value=tr), \
+                    mock.patch.object(EN, 'RB_NAME_RE', mock.Mock(match=lambda n: True)):
+                with self.assertRaises(E.RbError) as got:
+                    E.rb_fetch(STORE, 1, 'acme-backup-x.tar.gz', dst)
         self.assertIn('not locked', str(got.exception))
+        self.assertFalse(os.path.exists(dst))
 
     def test_no_room_said(self):
         with mock.patch('shutil.disk_usage', return_value=mock.Mock(free=1 << 20)):
