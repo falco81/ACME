@@ -228,7 +228,10 @@ def alt_due(row, t=None):
         return ''
     if not row.get('auto_renew') or row.get('enabled') == 0 or not row.get('issuer'):
         return ''
-    if row.get('state') in ('renewing', 'pending', 'revoked', 'disabled', 'new'):
+    # Every state the main one passes over too (1.0.45): a certificate waiting for approval,
+    # declined, being deleted, held - its twin was renewed and deployed all the same.
+    if row.get('state') in ('renewing', 'pending', 'revoked', 'disabled', 'new',
+                            'pending-approval', 'declined', 'deleting', 'revoke-failed', 'held'):
         return ''
     what = 'the twin (%s)' % row['key_type_alt']
     if row.get('alt_state') == 'failed':
@@ -583,7 +586,11 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         twin_said = ''
         if twin:
             try:
-                v2, _u2 = _twin(store, job, S.cert_need(store, cert_id), irow, issuer, names,
+                # The row read again - with this renewal's own reuse_key (1.0.45): revoked, the
+                # main one took a new key and the twin its compromised one again.
+                v2, _u2 = _twin(store, job, dict(S.cert_need(store, cert_id),
+                                                 reuse_key=cert.get('reuse_key')),
+                                irow, issuer, names,
                                 profile, challenges, by)
                 job.version = v2
             except jobs.JobStopped:
@@ -665,8 +672,11 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
         except base.PluginError as e:
             job.step('the twin was not revoked: %s' % e, 'warn')
     t = time.time()
-    store.db.update('certs', cert['id'], {'state': 'revoked', 'state_at': t, 'auto_renew': 0,
-                                          'updated': t, 'updated_by': str(by)[:190]})
+    revoked = {'state': 'revoked', 'state_at': t, 'auto_renew': 0, 'updated': t,
+               'updated_by': str(by)[:190]}
+    if cert.get('alt_cert_pem'):
+        revoked['alt_state'] = 'revoked'        # the twin too (1.0.45): it was shown as good
+    store.db.update('certs', cert['id'], revoked)
     store.db.run('UPDATE cert_versions SET revoked = ? WHERE cert_id = ? AND version = ?',
                  (t, cert['id'], cert.get('version') or 0))
     store.add_event('certificates', '%s revoked (%s) by %s' % (cert['name'], reason, by or '?'),
@@ -814,7 +824,10 @@ def scan(store, by='the renewer'):
         "SELECT d.*, c.version AS cur_version, c.alt_version AS cur_alt_version, "
         "c.key_type_alt AS cur_key_type_alt, c.alt_cert_pem IS NOT NULL AS cur_has_alt "
         "FROM cert_deploys d JOIN certs c ON c.id = d.cert_id "
+        # Not to a target switched off (1.0.45): a new job each scan, done nothing.
         "WHERE COALESCE(d.enabled, 1) <> 0 AND COALESCE(c.enabled, 1) <> 0 AND "
+        "NOT EXISTS (SELECT 1 FROM cert_targets t WHERE t.name = d.target AND "
+        "COALESCE(t.enabled, 1) = 0) AND "
         "c.cert_pem IS NOT NULL AND c.state IN ('ok', 'due', 'failed')")
     todo = {}
     for d in deps:

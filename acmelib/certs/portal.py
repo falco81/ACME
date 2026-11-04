@@ -589,7 +589,7 @@ def _portal_request(h):
         name = '%s-%d' % (base_name, n)
     t = time.time()
     note = str(b.get('note') or '').strip()[:500]
-    cid = store.db.insert('certs', {
+    row_new = {
         'name': name, 'cn': names[0], 'names': json.dumps(names), 'key_type': kt,
         'issuer': irow['name'], 'challenge': str(E.CONFIG.get('portal_cert_challenge') or '')[:190],
         'challenge_map': '{}', 'auto_renew': 1 if auto else 0, 'renew_days': None,
@@ -597,7 +597,25 @@ def _portal_request(h):
         'state': 'new' if auto else WAITING, 'state_at': t, 'version': 0,
         'fails': 0, 'tags': json.dumps(['portal']),
         'note': ('asked for on the portal by %s. %s' % (who, note)).strip(), 'owner': owner[:190],
-        'created': t, 'created_by': 'portal:' + who[:180], 'enabled': 1, 'ari': '{}'})
+        'created': t, 'created_by': 'portal:' + who[:180], 'enabled': 1, 'ari': '{}'}
+    # Two asks at once (1.0.45): the name another took meanwhile is taken next (it was a 500),
+    # and the person's limit counted again once the row is in (both had passed it).
+    cid = None
+    for _ in range(50):
+        try:
+            cid = store.db.insert('certs', dict(row_new, name=name))
+            break
+        except Exception as e:                          # noqa: BLE001
+            if not re.search(r'unique|duplicate', str(e), re.I):
+                raise
+            n += 1
+            name = '%s-%d' % (base_name, n)
+    if cid is None:
+        raise E.ApiError(409, 'no free name for the certificate - try again')
+    if used(store, who) > most():
+        store.db.run('DELETE FROM certs WHERE id = ?', (cid,))
+        raise E.ApiError(403, 'you have asked for as many certificates as one person may (%d)'
+                         % most())
     data = s.get('data') or {}
     store.set_meta(META + str(cid), json.dumps({
         'who': who, 'display': data.get('display') or '', 'mail': data.get('mail') or '',

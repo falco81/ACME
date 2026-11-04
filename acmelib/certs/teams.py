@@ -474,6 +474,8 @@ def delete_team(store, name, by, reassign=None):
         store.db.run('UPDATE certs SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
                      (moved, _low(t['name'])))
     store.db.run('DELETE FROM cert_teams WHERE id = ?', (t['id'],))
+    # The profiles naming it follow (1.0.45): they named an owner no longer there, unusable.
+    _profiles_follow(store, 'team', t['name'], moved or None)
     store.add_event('certificates', 'the owner %s deleted by %s%s' % (
         t['name'], by, (' - its %d certificate(s) now owned by %s' % (n, moved or 'nobody'))
         if n else ''), 'warn', who=by)

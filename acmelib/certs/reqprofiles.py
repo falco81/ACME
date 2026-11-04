@@ -306,11 +306,28 @@ def rename_ref(store, kind, old, new):
             if any(_low(x) == _low(old) for x in have):
                 cfg[k] = [x for x in ((new if _low(x) == _low(old) else x) for x in have) if x]
                 hit = True
-        if kind == 'team' and _low(cfg.get('owner_team')) == _low(old) and new:
-            cfg['owner_team'] = new
+        if kind == 'team' and _low(cfg.get('owner_team')) == _low(old):
+            cfg['owner_team'] = new or ''       # deleted (1.0.45): no longer one that is not
             hit = True
         if hit:
             store.db.update('cert_req_profiles', r['id'], {'config': json.dumps(cfg)})
+
+
+def rename_source(store, family, old, new):
+    """A source or a validation renamed (new) or deleted (None): the profiles naming it follow
+    (1.0.45) - renamed, a profile said "there is no source" and the portal no longer offered it."""
+    key = 'issuer' if family == 'issuer' else 'challenge'
+    for r in rows(store):
+        cfg = config_of(r)
+        if str(cfg.get(key) or '') == old and new:
+            cfg[key] = new
+            store.db.update('cert_req_profiles', r['id'], {'config': json.dumps(cfg)})
+
+
+def using_source(store, family, name):
+    """The profiles that ask for a certificate from this source / with this validation."""
+    key = 'issuer' if family == 'issuer' else 'challenge'
+    return [r['name'] for r in rows(store) if str(config_of(r).get(key) or '') == name]
 
 
 def fixed_subject(cfg):
@@ -550,8 +567,15 @@ def csr_review(store, r, info):
         checks.append({'what': 'count', 'ok': False,
                        'said': '%d names - the profile gives at most %d' % (len(names), most)})
     if other:
-        checks.append({'what': 'other', 'ok': None, 'said': 'not put in the certificate: %s'
-                       % ', '.join('%s:%s' % (t, v) for t, v in other)})
+        # Left out only by acme's own CA, which writes the names itself (1.0.45); any other
+        # source takes the CSR as it is - an e-mail, UPN or URI name went to the CA.
+        irow_k = (S.plugin_row(store, 'issuer', cfg.get('issuer')) or {}).get('kind') \
+            if cfg.get('issuer') else ''
+        own = irow_k == 'internal_ca'
+        checks.append({'what': 'other', 'ok': None if own else False,
+                       'said': ('not put in the certificate: %s' if own else
+                                'names the profile does not give (the source takes the CSR as '
+                                'it is): %s') % ', '.join('%s:%s' % (t, v) for t, v in other)})
     kt = info.get('key_type') or ''
     kok = kt in (cfg.get('key_types') or [])
     checks.append({'what': 'key', 'ok': kok, 'said': '%s%s' % (

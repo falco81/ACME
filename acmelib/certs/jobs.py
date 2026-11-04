@@ -293,25 +293,45 @@ def _work(job, fn):
 
 def submit(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', said=''):
     """A job queued in the pool: its id at once."""
-    if cert_id is not None and cert_busy(store, cert_id):
-        raise ValueError('a job is already working on that certificate')
-    job = new_job(store, kind, cert_id, deploy_id, target, by, said)
-    if cert_id is not None:
-        with _LOCK:
-            BUSY_CERTS.add(cert_id)
+    _claim(store, cert_id)
+    try:
+        job = new_job(store, kind, cert_id, deploy_id, target, by, said)
+    except BaseException:
+        _unclaim(cert_id)
+        raise
     _pool().submit(_work, job, fn)
     return job.id
+
+
+def _claim(store, cert_id):
+    """The certificate taken for a job before anything else (1.0.45): checked and taken
+    in one step - two asks at once (the scan and a person) both passed the check, and two
+    orders went to the CA."""
+    if cert_id is None:
+        return
+    if cert_busy(store, cert_id):
+        raise ValueError('a job is already working on that certificate')
+    with _LOCK:
+        if cert_id in BUSY_CERTS:
+            raise ValueError('a job is already working on that certificate')
+        BUSY_CERTS.add(cert_id)
+
+
+def _unclaim(cert_id):
+    if cert_id is not None:
+        with _LOCK:
+            BUSY_CERTS.discard(cert_id)
 
 
 def run_now(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', said='',
             echo=None):
     """A job run here and now (the command line): the Job when it is done."""
-    if cert_id is not None and cert_busy(store, cert_id):
-        raise ValueError('a job is already working on that certificate')
-    job = new_job(store, kind, cert_id, deploy_id, target, by, said, echo)
-    if cert_id is not None:
-        with _LOCK:
-            BUSY_CERTS.add(cert_id)
+    _claim(store, cert_id)
+    try:
+        job = new_job(store, kind, cert_id, deploy_id, target, by, said, echo)
+    except BaseException:
+        _unclaim(cert_id)
+        raise
     return _work(job, fn)
 
 

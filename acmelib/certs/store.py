@@ -600,11 +600,17 @@ def clean_names(names):
     and IP addresses, lower case, each once, in the order given."""
     if isinstance(names, str):
         names = [n for n in re.split(r'[\s,;]+', names) if n]
+    if names is not None and not isinstance(names, (list, tuple)):
+        raise ValueError('the names are a list of names')     # a number (1.0.45): a traceback
     out = []
     for n in names or []:
         n = str(n).strip().lower().rstrip('.')
         if not n:
             continue
+        if '%' in n:
+            # An IPv6 zone id takes any character after % (1.0.45): "fd00::5%x.example.com" was an
+            # address and passed the portal's domain checks.
+            raise ValueError('%r is not a DNS name or an address' % n)
         try:
             n = str(ipaddress.ip_address(n))
         except ValueError:

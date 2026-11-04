@@ -378,7 +378,16 @@ class PortalLocal(unittest.TestCase):
         a = self.ok('POST', '/api/certs/save', {'name': 'ops22-a', 'names': ['ops22-a.example.test'],
                                                 'issuer': 'self', 'key_type': 'ec-256',
                                                 'auto_renew': 1, 'owner': 'Ops22'})['id']
-        self.wait_job(self.ok('POST', '/api/certs/renew', {'id': a})['job_id'])
+        # The renewer may take it first (auto_renew): one job at a time on a certificate (1.0.45).
+        st, got = self.call('POST', '/api/certs/renew', {'id': a}, self.admin)
+        if st == 200:
+            self.wait_job(got['job_id'])
+        else:
+            self.assertEqual(st, 409, got)
+            end = time.time() + 60
+            while time.time() < end and self.ok('GET', '/api/certs/one',
+                                                args={'id': a})['cert']['state'] != 'ok':
+                time.sleep(0.3)
         try:
             st, got = self.portal_in('teamer')
             tok = got['token']

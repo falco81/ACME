@@ -81,6 +81,8 @@ def _settings(settings=None):
 def kind_of(name):
     """'ip' | 'wild' | 'dns' | 'bad' of a name as typed."""
     n = str(name or '').strip().lower().rstrip('.')
+    if '%' in n:
+        return 'bad'                    # an IPv6 zone id: anything after % (1.0.45)
     try:
         ipaddress.ip_address(n)
         return 'ip'

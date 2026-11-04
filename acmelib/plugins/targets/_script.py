@@ -482,7 +482,11 @@ def run_posix(t, s, sc, env, tmp_dir='/tmp', timeout=600):
 
 
 def ps_str(s):
-    return "'" + text(s).replace("'", "''") + "'"
+    # PowerShell ends a quoted string at the curly quotes too (1.0.45): each doubled.
+    t = text(s)
+    for q in ("'", '\u2018', '\u2019', '\u201a', '\u201b'):
+        t = t.replace(q, q + q)
+    return "'" + t + "'"
 
 
 def run_windows(t, s, sc, env, tmp_dir='C:/Windows/Temp', timeout=600):

@@ -88,6 +88,8 @@ def who(s):
 
 
 def _id(v, what='id'):
+    if isinstance(v, bool):
+        raise ValueError('%s is a number' % what)       # true is no id (1.0.45): it was 1
     try:
         got = int(v)
     except (TypeError, ValueError):
@@ -468,6 +470,9 @@ def cert_save(store, b, by, full=False):
         fields['challenge_map'] = '{}'
     if 'auto_renew' in b or not row:
         fields['auto_renew'] = _flag(b.get('auto_renew'), 1)
+        if fields['auto_renew'] and row and row.get('state') in ('revoked', 'pending-approval',
+                                                                 'declined'):
+            fields['auto_renew'] = 0            # as Renew by itself refuses it (1.0.45)
     if 'renew_days' in b or not row:
         rd = b.get('renew_days')
         if rd in (None, '', 0, '0'):
@@ -771,6 +776,12 @@ def _cert_keep(h, s):
 
 def start_renew(store, ref, force, by):
     row = S.cert_need(store, ref)
+    if row.get('state') in ('pending-approval', 'declined'):
+        # Not past the approval (1.0.45): Renew now issued a portal request that was waiting,
+        # or declined, with no one told - Approve is the way.
+        raise ValueError('%s %s - approve it first' % (
+            row['name'], 'waits for approval' if row['state'] == 'pending-approval'
+            else 'was declined'))
     if not row.get('issuer'):
         raise ValueError('%s has no issuer - it was imported or is answered by a CSR; import the '
                          'new certificate instead' % row['name'])
@@ -833,7 +844,8 @@ def _cert_deploy(h, s):
 
 
 DEPLOY_COMMANDS = ('pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd', 'script_path',
-                   'script_args', 'script_mode', 'script_interp')
+                   'script_args', 'script_mode', 'script_interp',
+                   'post_ps')       # Windows' PowerShell after (1.0.45): run as Administrator
 
 
 REVOKE_REASONS = ('unspecified', 'keyCompromise', 'cACompromise', 'affiliationChanged',
@@ -1155,7 +1167,13 @@ def cert_export(store, b, s, allowed=None):
             raise ValueError(str(e))
     else:
         bundle = S.bundle_of(row, vrow, 'main' if vrow is None else None)
+    asked = variant
     variant = getattr(bundle, 'variant_name', 'main')
+    if vrow is not None and asked != 'main' and asked not in (variant, getattr(bundle, 'family', None)):
+        # A version is one certificate - the twin's has a number of its own (1.0.45): asked
+        # for "alt of version 1", the main one came back without a word.
+        raise ValueError('version %s of %s is its %s certificate, not the %s one' % (
+            b['version'], row['name'], variant, asked))
     if fmt in S.KEY_FORMATS and row.get('csr_given'):
         raise ValueError('%s was issued for a CSR that was sent in: acme never had its key - it '
                          'stays where the CSR was made, so no file with the key can be made here'
@@ -1765,11 +1783,25 @@ def family_save(store, family, b, by):
         fields['note'] = _text(b, 'note', 4000)
     if family == 'target' and ('tags' in b or not row):
         fields['tags'] = json.dumps(_list(b.get('tags'), 'tags')[:50])
+    made = None
     if row is None:
         fields.update({'config': '{}', 'state': '{}', 'created': t, 'created_by': str(by)[:190]})
         ident = store.db.insert(table, fields)
         row = store.db.row('SELECT * FROM %s WHERE id = ?' % table, (ident,))
         fields = {}
+        made = ident
+    try:
+        return _family_fill(store, family, table, row, name, kind, cls, given, fields,
+                            secrets_, by)
+    except BaseException:
+        if made is not None:
+            # A new one refused (1.0.45): not left half made - "there is one called X already"
+            # at every try after.
+            store.db.run('DELETE FROM %s WHERE id = ?' % table, (made,))
+        raise
+
+
+def _family_fill(store, family, table, row, name, kind, cls, given, fields, secrets_, by):
     old_cfg = S.jload(row.get('config'), {}) or {}
     if given is not None:
         if row.get('kind') != kind:
@@ -1800,6 +1832,14 @@ def _renamed(store, family, old, new):
     """What referred to it by name, made to refer to the new name."""
     db = store.db
     DF.renamed(store, family, old, new)
+    # What else names it (1.0.45), as names.migrate() does: the request profiles, the
+    # portal's settings, the module's own kept values (an ACME source's account).
+    from acmelib.certs import names as NM, reqprofiles as RP
+    if family in ('issuer', 'challenge'):
+        RP.rename_source(store, family, old, new)
+        NM._list_setting(store, 'portal_cert_issuers' if family == 'issuer'
+                         else 'portal_cert_challenge', {old: new})
+    NM._kv(store, family, old, new)
     if family == 'issuer':
         db.run('UPDATE certs SET issuer = ? WHERE issuer = ?', (new, old))
     elif family == 'check':
@@ -1827,6 +1867,16 @@ def family_delete(store, family, b, by):
     used = S.plugin_public(store, family, row)['used_by']
     if used:
         raise ValueError('%s is in use (%d): change those first' % (row['name'], used))
+    if family in ('issuer', 'challenge'):
+        from acmelib.certs import reqprofiles as RP
+        prof = RP.using_source(store, family, row['name'])
+        if prof:
+            raise ValueError('%s is in use by request profile(s) %s: change those first' % (
+                row['name'], ', '.join(prof[:10])))
+    if family == 'target' and store.db.value(
+            "SELECT COUNT(*) FROM cert_jobs WHERE target = ? AND state IN ('queued', 'running')",
+            (row['name'],), 0):
+        raise ValueError('a job is working with %s - wait for it to end' % row['name'])
     store.db.run('DELETE FROM %s WHERE id = ?' % S.TABLE_OF[family], (row['id'],))
     # Its own rows only (1.0.44): LIKE read "_" as any character, and SQLite's ignores
     # case - deleting dc_1 took dc-1's (an aws-acm ARN) with it.
@@ -2186,6 +2236,26 @@ def _deploy_save_in(store, b, by, full, made):
                 if f.get('required') and field_shown(f, opts) and \
                         opts.get(f['key']) in (None, '') and f.get('default') in (None, ''):
                     raise ValueError('%s is needed' % (f.get('label') or f['key']))
+                # Of the field's own kind (1.0.45): a number for a file name broke the module
+                # inside the deployment ("join() argument must be str").
+                v = opts.get(f['key'])
+                what = f.get('label') or f['key']
+                if v is None or f.get('type') in ('bool', 'catalog'):
+                    continue
+                if f.get('type') == 'number':
+                    if isinstance(v, bool) or (not isinstance(v, (int, float)) and
+                                               not re.match(r'^-?\d+(\.\d+)?\Z', str(v).strip() or '0')):
+                        raise ValueError('%s is a number' % what)
+                elif f.get('type') == 'list':
+                    if not isinstance(v, (str, list)) or (isinstance(v, list) and
+                                                          not all(isinstance(x, str) for x in v)):
+                        raise ValueError('%s is lines of text' % what)
+                elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                    opts[f['key']] = v = str(v)
+                elif not isinstance(v, str):
+                    raise ValueError('%s is text' % what)
+                if len(json.dumps(v)) > 64000:
+                    raise ValueError('%s is too long' % what)
         fields['options'] = json.dumps(opts)
         fields['state'] = 'new' if row.get('state') != 'ok' else 'changed'
     if fields:
@@ -2251,6 +2321,9 @@ def _deploy_delete(h, s):
     row = h.store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (_id(h.body().get('id')),))
     if not row:
         raise LookupError('there is no such deployment')
+    if jobs.cert_busy(h.store, row['cert_id']):
+        # Not under a job deploying it (1.0.45): it ended "done" for a row no longer there.
+        raise ValueError('a job is working on %s - wait for it to end' % row['target'])
     h.store.db.run('DELETE FROM cert_deploys WHERE id = ?', (row['id'],))
     h.store.add_event('certificates', 'a deployment to %s deleted by %s' % (row['target'], who(s)),
                       who=who(s))

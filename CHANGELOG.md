@@ -6,6 +6,26 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.45 - not released
 
+- **Round 2 (the certificates, the modules, the flows end to end):**
+  - Revoked with a new one at once, a dual certificate's twin was issued again with the
+    revoked key; it was shown as still good after the revocation; and it was renewed and
+    deployed in states where nothing renews (waiting for approval, declined, being deleted).
+  - A CSR sent to a request profile carried e-mail, UPN and URI names to a source that takes
+    the CSR as it is (AD CS, Vault, EJBCA...) - refused now but for acme's own CA.
+  - A certificate administrator wrote PowerShell run as Administrator on Windows targets (its
+    *PowerShell after*); quoted values could end at PowerShell's curly quotes.
+  - Two renewals of one certificate could start at once (two orders); several portal requests
+    at once gave errors and went past the person's limit.
+  - *Renew now* issued a portal request waiting for approval, or declined, past the approval.
+  - A new source, validation, target or test refused when saved was left half made (and every
+    try after said "there is one called X already"). Renamed, a source or a validation is
+    followed by the request profiles, the portal's settings and the module's own kept values (an
+    ACME source's account); one used by a profile is not deleted; a deleted owner is taken out
+    of the profiles naming it.
+  - A deployment (or its target) is not deleted while a job deploys it; a target switched off
+    no longer starts a job at every scan; a deployment's options are checked for their kind.
+  - An export of a version and a variant that do not go together is refused (it gave the main
+    one); an IPv6 zone id is no name of a certificate; `true` is no id.
 - **A hunt, round 1 (the rights of the API, the root helper):**
   - A certificate administrator signed in on the portal took the private key (PFX) of any
     certificate - the administration refuses it that; and, scoped to its teams there, it saw and
