@@ -275,6 +275,12 @@ def _mfa_send(h, s, kind, dest, field):
     if n >= MFA_SEND_MOST:
         raise ApiError(429, 'that is %d codes for this sign-in: sign in again for more'
                        % MFA_SEND_MOST)
+    # The cap of the cluster on codes sent, per account and per address (1.0.44, as the
+    # portal's): five a sign-in only, a new sign-in each time sent SMS to any number unbounded.
+    to = 'to:%s:%s' % (kind, str(dest or '').lower())
+    if not code_send_allowed(h.store, s['name']) or not code_send_allowed(h.store, to):
+        raise ApiError(429, 'too many codes were sent - wait %d min and try again'
+                       % code_send_wait_min(h.store, to))
     code, salt = code_new(), secrets.token_hex(8)
     saved = {'hash': code_hash(salt, code), 'salt': salt,
              't': t, 'exp': t + int(CONFIG.get('code_ttl_s') or 300)}

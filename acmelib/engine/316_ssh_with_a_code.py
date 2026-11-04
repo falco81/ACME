@@ -270,10 +270,45 @@ def sshotp_remove(store, name, by):
     store.add_event('settings', '%s removed the SSH token of %s' % (by, name), 'warn', who=by)
 
 
-def _sshotp_fails(name, now):
-    fails = [t for t in SSHOTP_FAILS[name.lower()] if now - t < SSHOTP_WINDOW_S]
-    SSHOTP_FAILS[name.lower()] = fails
-    return fails
+class _SshFails(list):
+    """The wrong codes of a name in the window - of every node of the cluster (1.0.44): counted
+    in memory on each node, five tries a name on each node made the code easier to guess, and a
+    node restarted forgot them. Each one added goes into this node's own row too."""
+
+    def __init__(self, store, name, times):
+        list.__init__(self, times)
+        self.store, self.name = store, name
+
+    def append(self, t):
+        list.append(self, t)
+        SSHOTP_FAILS[self.name.lower()].append(t)
+        if self.store is not None:
+            try:
+                node_key_add(self.store, 'sshfail', self.name.lower(), SSHOTP_WINDOW_S)
+            except Exception:                           # noqa: BLE001
+                pass
+
+
+def _sshotp_fails(name, now, store=None):
+    mine = [t for t in SSHOTP_FAILS[name.lower()] if now - t < SSHOTP_WINDOW_S]
+    SSHOTP_FAILS[name.lower()] = mine
+    seen = []
+    if store is not None:
+        try:
+            seen = [t for t in node_key_times(store, 'sshfail', name.lower())
+                    if now - t < SSHOTP_WINDOW_S]
+        except Exception:                               # noqa: BLE001
+            seen = []
+    # This node's are in its row as well as in memory: the row's, else memory's.
+    return _SshFails(store, name, seen if len(seen) >= len(mine) else mine)
+
+
+def _sshotp_fails_clear(store, name):
+    SSHOTP_FAILS.pop(name.lower(), None)
+    try:
+        store.db.run('DELETE FROM meta WHERE k = ?', (node_key('sshfail', name.lower()),))
+    except Exception:                                   # noqa: BLE001
+        pass
 
 
 def _sshotp_used(store, name, ok):
@@ -295,7 +330,7 @@ def sshotp_check(store, name, code):
         return False, 'no such account'
     now = time.time()
     with SSHOTP_LOCK:
-        fails = _sshotp_fails(name, now)
+        fails = _sshotp_fails(name, now, store)
         if len(fails) >= SSHOTP_TRIES:
             return False, 'too many wrong codes - wait %d min' % (SSHOTP_WINDOW_S // 60)
         rec = sshotp_get(store, name)
@@ -324,7 +359,7 @@ def sshotp_check(store, name, code):
                            else 'the code was used already - wait for the next one')
         rec.update(step=step, used_at=now, used_on=node_name())
         store.set_meta(sshotp_key(name), json.dumps(rec))
-        SSHOTP_FAILS.pop(name.lower(), None)
+        _sshotp_fails_clear(store, name)
         return True, 'signed in'
 
 
@@ -439,7 +474,7 @@ def sshotp_answer(store, state, name, code):
             if not any(v.get('name') == name and v.get('hash') and now <= v['exp']
                        for v in SSHOTP_CHALLENGES.values()):
                 return False, 'the code is no longer good - sign in again', False
-        fails = _sshotp_fails(name, now)
+        fails = _sshotp_fails(name, now, store)
         if len(fails) >= SSHOTP_TRIES:
             SSHOTP_CHALLENGES.pop(state, None)
             return False, 'too many wrong codes - wait %d min' % (SSHOTP_WINDOW_S // 60), False
@@ -453,7 +488,7 @@ def sshotp_answer(store, state, name, code):
         if any(hmac.compare_digest(code_hash(v['salt'], typed), v['hash']) for _k, v in mine):
             for k, _v in mine:
                 SSHOTP_CHALLENGES.pop(k, None)
-            SSHOTP_FAILS.pop(name.lower(), None)
+            _sshotp_fails_clear(store, name)
             ok = True
         else:
             fails.append(now)
@@ -785,7 +820,9 @@ class SshGate(object):
         if p.code != 1:
             return None
         secret = ssh_gate_secret(self.d.store).encode()
-        if not secret or p.message_authenticator_ok(secret) is False:
+        # A Message-Authenticator always (1.0.44): one without it was taken - any process of the
+        # machine could send for root, have codes sent, learn who has a token (BlastRADIUS).
+        if not secret or p.message_authenticator_ok(secret) is not True:
             return None
         user = p.text(1)
         try:

@@ -6,6 +6,55 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.44 - not released
 
+- **A hunt for bugs and holes, round 1** (the root helper, the daemon's API and sign-ins, the
+  pages, the changes of 1.0.40-1.0.43). Shut:
+  - *Make the database and the account for me* could be asked for the database server's own
+    accounts and databases: `postgres` / `root` given a password the acme account knew (and
+    through PostgreSQL's superuser a shell as postgres), or ALL on `mysql`. Refused now - the
+    server's accounts and databases, and an account there with rights over the whole server.
+  - The password policy's list of authselect features acme switched on was in the acme
+    account's own folder: a list written there had root take out any feature
+    (`without-nullok`, `with-pamaccess`...). Root's own folder now, and only the two features
+    the policy uses are ever taken out. A feature that failed halfway is written down too.
+  - The PostgreSQL helpers took the data folder and pg_hba.conf where PostgreSQL said they were,
+    and read the old certificate through a link: only a path owned by root or postgres, no link,
+    written by nobody else.
+  - The SELinux report was written, and the time acme's needs went in was read, through the acme
+    account's folder (a link swapped in, a time in the future hiding every refusal): through the
+    helper's own descriptor, and root's own file for the time.
+  - pam_radius's secret file was in /etc/acme (the acme account's): another server and secret,
+    or a FIFO hanging every sign-in, could be put in its place. In /etc/security now (moved
+    on its own on the next look of each node, the PAM block with it).
+  - The SSH server: an AllowUsers naming no account of the machine is refused (nobody would
+    sign in). A user's own authorized_keys of 50 000 lines had root run ssh-keygen as often:
+    300 lines looked at. A list of ciphers starting with "-" is refused (an option of openssl).
+    Unlocking a local user gives back the day the account ends, as it was before the lock.
+  - Signing in over SSH with a code: the wrong codes are counted for the whole cluster (they
+    were counted in memory on each node - five tries a node, forgotten at a restart); a RADIUS
+    request without a Message-Authenticator is not answered.
+  - The second step's codes while it is set up were sent without the cluster's cap: an SMS to
+    any number, again and again with a new sign-in. The portal's cap now.
+  - A one-time code sent for the portal counted as a refused sign-in for the sign-in guard
+    (five people of one office blocked its address); the load balancer is not blocked by the
+    guard for its own SSO sign-ins.
+  - Changing your own password ends your sign-ins on the enrolment pages too.
+  - Users SSH asks a code of and who may not use sudo were given the policy's password aging
+    again (since 1.0.43): sshd's account step then asked them for a password they need not
+    know. Left out again; given or taken sudo, in or out.
+  - *Make them again* made each user with the lowest free UID, not the one it had: the UID it
+    had, or the one of its twin on the other node.
+  - A backup put back: the certificate of the node's PostgreSQL was no longer renewed
+    (`dbtls:server:` forgotten), a Keep from before kept the SSH server's trial on the new
+    machine at once, and a first start there wrote a new SNMP engine ID over the backup's.
+  - The 1.0.42 policy with only the days between changes (or the warning) set was not taken
+    over. A long name typed at a sign-in gave a 500 on MariaDB (the key of its row too long).
+    *Look again* of a settings card wrote one row on both nodes (the replication could stop on
+    it) and could be asked in a loop: a row each, once in five seconds.
+  - The pages: a read (`?api=`) asked from another page of the same site is refused (an image
+    elsewhere made the daemon build a whole backup); the previews of mails are sandboxed; names
+    escaped in two windows; a target's user and host escaped in a module's guide, and only an
+    account's name in the commands to copy.
+
 ## 1.0.43 - 2026-11-04
 
 - isemon: the rsyslog rule for the isemon machine (`deploy/isemon/11-acme.conf`) filed the

@@ -185,6 +185,31 @@ def pg_file_read(path):
         return f.read()
 
 
+def pg_path_checked(path, folder=False):
+    """A path PostgreSQL said (SHOW data_directory / hba_file) taken only where it is its own
+    (1.0.44): absolute, no link, it and its folder owned by root or postgres and written by no one
+    else - a server answering on postgres's socket could otherwise point root at any file."""
+    path = str(path or '')
+    if not path.startswith('/') or '\x00' in path:
+        raise Refused('PostgreSQL named no absolute path (%s)' % path[:100])
+    try:
+        import pwd
+        pg_uid = pwd.getpwnam('postgres').pw_uid
+    except (KeyError, ImportError):
+        pg_uid = None
+    ok_uid = {0} | ({pg_uid} if pg_uid is not None else set())
+    for p, want_dir in ((path, folder), (os.path.dirname(path), True)):
+        try:
+            st = os.lstat(p)
+        except OSError:
+            raise Refused('%s is not there' % p[:100])
+        if stat.S_ISLNK(st.st_mode) or (stat.S_ISDIR(st.st_mode) != want_dir) or \
+                st.st_uid not in ok_uid or st.st_mode & 0o002:
+            raise Refused('%s is not PostgreSQL\'s own (a link, or owned or written by another '
+                          'account) - not touched' % p[:100])
+    return path
+
+
 def pg_file_copy(src, dst):
     """src copied to dst the same way; its owner and mode kept."""
     st = os.lstat(src)
@@ -258,7 +283,7 @@ def tls_checked(t, name):
     out['protocols'] = [p for p in PROTOCOLS if p in prot]
     ciphers = str(t.get('ciphers') or '').strip()
     if ciphers:
-        if not re.match(r'^[A-Za-z0-9_+!@=:.-]{1,2000}\Z', ciphers):
+        if not re.match(r'^(?!-)[A-Za-z0-9_+!@=:.-]{1,2000}\Z', ciphers):
             raise Refused('the ciphers are an OpenSSL cipher list: letters, digits, : + ! - =')
         openssl(['ciphers', ciphers], 'OpenSSL does not know that cipher list')
     out['ciphers'] = ciphers
@@ -1829,9 +1854,7 @@ def pgtls_checked(r):
 
 
 def pgtls_server(r):
-    data = pg_sql(r['port'], 'SHOW data_directory')
-    if not data.startswith('/') or not os.path.isdir(data):
-        raise Refused('PostgreSQL\'s data folder was not found (%s)' % data[:100])
+    data = pg_path_checked(pg_sql(r['port'], 'SHOW data_directory'), folder=True)
     uid = pg_owner()
     gid = None
     try:
@@ -1849,9 +1872,8 @@ def pgtls_server(r):
     was_files = {}
     for name in ('acme-ha.key', 'acme-ha.crt'):
         try:
-            with open(os.path.join(data, name)) as f:
-                was_files[name] = f.read()
-        except OSError:
+            was_files[name] = pg_file_read(os.path.join(data, name))     # no link (1.0.44)
+        except (OSError, Refused):
             was_files[name] = None
     for name, text, mode in (('acme-ha.key', r['key'], 0o600), ('acme-ha.crt', r['cert'], 0o644)):
         path = os.path.join(data, name)
@@ -1911,8 +1933,8 @@ def pgtls_hba(r):
     if net.startswith('127.') or net == '::1/128':
         return {'said': 'the other node is on this machine (%s): its line in pg_hba.conf is '
                         'this node\'s own, left as it is' % r['peer']}
-    hba = pg_sql(r['port'], 'SHOW hba_file')
-    if not hba.startswith('/') or not os.path.isfile(hba):
+    hba = pg_path_checked(pg_sql(r['port'], 'SHOW hba_file'))
+    if not os.path.isfile(hba):
         raise Refused('pg_hba.conf was not found (%s)' % hba[:100])
     text = pg_file_read(hba)        # not through a link (1.0.149)
     lines, changed, have_ssl = text.split('\n'), 0, False
@@ -1951,8 +1973,8 @@ def pgtls_peer(r):
     host line put in front. The file as it was is kept beside it."""
     net = pg_peer_net(r['peer'])
     old = pg_peer_net(r['old_peer']) if r.get('old_peer') else ''
-    hba = pg_sql(r['port'], 'SHOW hba_file')
-    if not hba.startswith('/') or not os.path.isfile(hba):
+    hba = pg_path_checked(pg_sql(r['port'], 'SHOW hba_file'))
+    if not os.path.isfile(hba):
         raise Refused('pg_hba.conf was not found (%s)' % hba[:100])
     text = pg_file_read(hba)        # not through a link (1.0.149)
     lines, moved, there = text.split('\n'), 0, False
@@ -2016,8 +2038,8 @@ def pgtls_hba_off(r):
     net = pg_peer_net(r['peer'])
     if net.startswith('127.') or net == '::1/128':
         return {'said': 'the other node is on this machine: nothing changed'}
-    hba = pg_sql(r['port'], 'SHOW hba_file')
-    if not hba.startswith('/') or not os.path.isfile(hba):
+    hba = pg_path_checked(pg_sql(r['port'], 'SHOW hba_file'))
+    if not os.path.isfile(hba):
         raise Refused('pg_hba.conf was not found (%s)' % hba[:100])
     text = pg_file_read(hba)        # not through a link (1.0.149)
     lines, changed = text.split('\n'), 0
@@ -2047,7 +2069,11 @@ def pgtls_server_off(r):
     time.sleep(1)
     now = pg_sql(r['port'], 'SHOW ssl')
     gone = []
-    if data.startswith('/') and os.path.isdir(data):
+    try:
+        data = pg_path_checked(data, folder=True)
+    except Refused:
+        data = ''
+    if data:
         for name in ('acme-ha.key', 'acme-ha.crt'):
             try:
                 os.unlink(os.path.join(data, name))
@@ -2139,8 +2165,8 @@ def pgtls_ha_open(r):
         restart = True
         steps.append({'key': 'listen', 'ok': True, 'said': 'listen_addresses = %s (was %s)'
                       % (new, listen or "''")})
-    hba = pg_sql(r['port'], 'SHOW hba_file')
-    if not hba.startswith('/') or not os.path.isfile(hba):
+    hba = pg_path_checked(pg_sql(r['port'], 'SHOW hba_file'))
+    if not os.path.isfile(hba):
         raise Refused('pg_hba.conf was not found (%s)' % hba[:100])
     text = pg_file_read(hba)
     new_text, kind = pg_hba_ha_line(r, text)
@@ -2219,6 +2245,11 @@ def pgtls_part():
 DBMAKE_ASK = 'dbmake.ask'
 DBMAKE_FILE = 'dbmake.json'
 DBMAKE_PW_RE = re.compile(r'^[\x21-\x7e]{8,128}\Z')
+DBMAKE_USERS_PG = ('postgres', 'root', 'replication')
+DBMAKE_USERS_MY = ('root', 'mysql', 'mariadb.sys', 'debian-sys-maint', 'mysql.sys',
+                   'mysql.session', 'mysql.infoschema')
+DBMAKE_DBS_PG = ('postgres', 'template0', 'template1')
+DBMAKE_DBS_MY = ('mysql', 'sys', 'information_schema', 'performance_schema')
 
 
 def dbmake_checked(r):
@@ -2230,6 +2261,16 @@ def dbmake_checked(r):
     for k in ('name', 'user'):
         if not PG_NAME_RE.match(str(r.get(k) or '')):
             raise Refused('%s is letters, digits and _ only, starting with a letter' % k)
+    # Never an account or a database of the server's own (1.0.44): asked by the acme account,
+    # ALTER ROLE postgres / ALTER USER root would have given it the server's administrator -
+    # and through it (COPY ... TO PROGRAM) a shell as postgres.
+    reserved_users = DBMAKE_USERS_PG if eng == 'postgres' else DBMAKE_USERS_MY
+    reserved_dbs = DBMAKE_DBS_PG if eng == 'postgres' else DBMAKE_DBS_MY
+    if str(r['user']).lower() in reserved_users or str(r['user']).lower().startswith('pg_'):
+        raise Refused('%s is an account of the database server itself - not one made here'
+                      % r['user'])
+    if str(r['name']).lower() in reserved_dbs:
+        raise Refused('%s is a database of the server itself - not one made here' % r['name'])
     pw = str(r.get('password') or '')
     if not DBMAKE_PW_RE.match(pw) or "'" in pw or '\\' in pw:
         raise Refused('the password is 8 to 128 printable characters, without \' and \\')
@@ -2249,6 +2290,11 @@ def dbmake_pg(r):
     quiet = "SET log_statement = 'none';\nSET log_min_error_statement = 'panic';\n"
     have = pg_sql(r['port'], "SELECT 1 FROM pg_roles WHERE rolname = %s" % pg_lit(user))
     verb = 'ALTER' if have == '1' else 'CREATE'
+    if verb == 'ALTER' and pg_sql(r['port'], (
+            "SELECT 1 FROM pg_roles WHERE rolname = %s AND (rolsuper OR rolcreaterole OR "
+            "rolcreatedb OR rolreplication OR rolbypassrls)") % pg_lit(user)) == '1':
+        raise Refused('the account %s is there with rights over the whole server - its password '
+                      'is not changed from here; choose another name' % user)
     pg_sql(r['port'], quiet + '%s ROLE "%s" WITH LOGIN PASSWORD %s' % (verb, user, pg_lit(r['password'])))
     said.append('the account %s %s' % (user, 'was there: its password is new' if verb == 'ALTER'
                                        else 'is made'))
@@ -2272,6 +2318,15 @@ def dbmake_my(r):
     prog = shutil.which('mariadb') or shutil.which('mysql')
     if not prog:
         raise Refused('neither mariadb nor mysql (the client) is on this machine')
+    # An account that is there with rights over the whole server: not taken over (1.0.44).
+    got = subprocess.run([prog, '--protocol=socket', '-u', 'root', '--batch', '-N', '-e',
+                          "SELECT COUNT(*) FROM mysql.user WHERE User = '%s' AND (Super_priv = 'Y' "
+                          "OR Grant_priv = 'Y' OR Create_user_priv = 'Y' OR File_priv = 'Y' OR "
+                          "Shutdown_priv = 'Y' OR Process_priv = 'Y')" % user],
+                         capture_output=True, text=True, timeout=60)
+    if got.returncode == 0 and got.stdout.strip() not in ('', '0'):
+        raise Refused("the account '%s' is there with rights over the whole server - its "
+                      "password is not changed from here; choose another name" % user)
     sql = ['SET SESSION sql_log_off = 1;',
            'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;' % name]
     for at in ('localhost', '127.0.0.1', '::1'):
@@ -3175,13 +3230,17 @@ def auth_lines():
         return f.read(1 << 20).split('\n')
 
 
+AUTH_KEYS_MOST = 300     # lines looked at by ssh-keygen (1.0.44): a user's own file is theirs
+
+
 def auth_keys(lines):
     out = []
     for i, ln in enumerate(lines):
         t = ln.strip()
         if not t or t.startswith('#'):
             continue
-        facts = key_facts(t)
+        # A file of 50 000 lines made root run ssh-keygen 50 000 times, each other ask waiting.
+        facts = key_facts(t) if len(out) < AUTH_KEYS_MOST and len(t) <= 16500 else None
         m = KEY_LINE_RE.match(t)
         out.append({'line': i, 'fp': facts[1] if facts else '', 'bits': facts[0] if facts else 0,
                     'type': facts[2] if facts else '?',
@@ -3683,7 +3742,11 @@ PWQ_LEGACY = 'pwquality.conf.d/90-acme.conf'         # acme 1.0.42's own, taken 
 PWP_MARK_A = '# ---- acme: Settings -> Local users -> Password policy (from here) ----\n'
 PWP_MARK_B = '# ---- acme: (to here) ----\n'
 PWP_WAS = '# acme-was: '
-PWP_ORIG = os.environ.get('ACME_PWP_ORIG') or os.path.join(STATE_DIR, 'pwpolicy-orig.json')
+# Root's own (1.0.44): in /var/lib/acme, the acme account's, a list written there by it made root
+# take out any authselect feature (without-nullok, with-pamaccess...). Only the two features the
+# policy ever switches on are taken from it, too.
+PWP_ORIG = os.environ.get('ACME_PWP_ORIG') or os.path.join(NET_SNAP_DIR, 'pwpolicy-orig.json')
+PWP_FEATURES = ('with-pwhistory', 'with-faillock')
 PWQ_KEYS = ('minlen', 'minclass', 'maxrepeat', 'dictcheck', 'usercheck', 'enforce_for_root',
             'difok', 'retry', 'dcredit', 'ucredit', 'lcredit', 'ocredit', 'maxclassrepeat')
 PWQ_DEFAULT = {'minlen': 8, 'minclass': 0, 'maxrepeat': 0, 'dictcheck': 1, 'usercheck': 1,
@@ -3868,15 +3931,23 @@ def pwp_defs_put(values):
 
 def pwp_orig_read():
     try:
-        with open(PWP_ORIG) as f:
+        fd = os.open(PWP_ORIG, os.O_RDONLY | os.O_NOFOLLOW)
+        st = os.fstat(fd)
+        with os.fdopen(fd) as f:
+            if st.st_uid != 0 or st.st_mode & 0o022 or not stat.S_ISREG(st.st_mode):
+                return {}
             got = json.load(f)
-        return got if isinstance(got, dict) else {}
+        if not isinstance(got, dict):
+            return {}
+        got['features'] = [x for x in (got.get('features') or []) if x in PWP_FEATURES]
+        return got
     except (OSError, ValueError):
         return {}
 
 
 def pwp_orig_write(orig):
     if orig:
+        os.makedirs(os.path.dirname(PWP_ORIG), mode=0o700, exist_ok=True)
         write_root(PWP_ORIG, json.dumps(orig), 0o600)
     else:
         try:
@@ -3911,7 +3982,7 @@ def pwp_checked(c):
             'existing': bool(c.get('existing'))}
 
 
-def pwp_apply(c):
+def pwp_apply(c, spare=None):
     """Put the policy in (managed) or take acme's out again (not managed)."""
     import pwd
     c = pwp_checked(c)
@@ -3974,33 +4045,51 @@ def pwp_apply(c):
     said.append('login.defs: a password good for %s days' % (c['max_days'] if c['max_days'] < 99999 else 'all'))
     if sel:
         want = (['with-pwhistory'] if c['remember'] else []) + (['with-faillock'] if c['deny'] else [])
-        for feat in want:
-            if feat not in sel['features']:
-                lu_run([AUTHSELECT, 'enable-feature', feat])
-                added.append(feat)
-                said.append('authselect: %s put in' % feat)
-        for feat in [f for f in added if f not in want]:
-            lu_run([AUTHSELECT, 'disable-feature', feat])
-            added = [f for f in added if f != feat]
-            said.append('authselect: %s taken out again' % feat)
-        orig['features'] = added
-        pwp_orig_write(orig)
+        # Written down whatever happens (1.0.44): a second feature that failed left the first one
+        # switched on and never known as acme's - never taken out again.
+        try:
+            for feat in want:
+                if feat not in sel['features']:
+                    lu_run([AUTHSELECT, 'enable-feature', feat])
+                    added.append(feat)
+                    said.append('authselect: %s put in' % feat)
+            for feat in [f for f in added if f not in want]:
+                lu_run([AUTHSELECT, 'disable-feature', feat])
+                added = [f for f in added if f != feat]
+                said.append('authselect: %s taken out again' % feat)
+        finally:
+            orig['features'] = [f for f in added if f in PWP_FEATURES]
+            pwp_orig_write(orig)
     if c['existing']:
         lo, hi = uid_range()
-        n = skipped = 0
+        n = skipped = coded = 0
         sh = lu_shadow()
+        sudo = {u['name']: bool(u.get('sudo')) for u in lu_list()['users']}
         for p in pwd.getpwall():
             if lo <= p.pw_uid <= hi and p.pw_uid != 65534 and p.pw_name not in KEEP_NAMES and \
                     USER_NAME_RE.match(p.pw_name):
                 if not sh.get(p.pw_name, ('',))[0].lstrip('!').startswith('$'):
                     skipped += 1        # no password: a key only - never asked for a new one
                     continue
+                if lu_coded(p.pw_name, spare, sudo.get(p.pw_name)):
+                    coded += 1          # a code over SSH, no sudo: the password need not be known
+                    continue
                 lu_run(['chage', '-M', str(c['max_days']), '-m', str(c['min_days']),
                         '-W', str(c['warn_days']), p.pw_name])
                 n += 1
-        said.append('the aging put on %d user(s) of this node too%s' % (
-            n, ' (%d with no password - a key only - left without)' % skipped if skipped else ''))
+        said.append('the aging put on %d user(s) of this node too%s%s' % (
+            n, ' (%d with no password - a key only - left without)' % skipped if skipped else '',
+            ' (%d asked a code by SSH, without sudo - left without)' % coded if coded else ''))
     return said
+
+
+def lu_coded(name, spare, sudo):
+    """Left out of the policy's aging (1.0.44, as acme 1.0.42 had it): a user SSH asks a code of
+    who may not use sudo. sshd's account step asks for a password that ran out even after the
+    code - one they may never have been told; one with sudo knows it (sudo asks for it)."""
+    if sudo or not isinstance(spare, dict):
+        return False
+    return bool(spare.get('all')) or name in {str(n) for n in (spare.get('names') or [])[:500]}
 
 
 def lu_aging_put(name, a):
@@ -4016,6 +4105,34 @@ def lu_aging_put(name, a):
     lu_run(['chage', '-M', str(mx), '-m', str(mn), '-W', str(warn), name])
 
 
+LU_EXPIRY = os.path.join(NET_SNAP_DIR, 'users-expiry.json')
+
+
+def lu_expiry_keep(name, day):
+    """The day an account ended before it was locked: kept (day), or taken back (None)."""
+    try:
+        fd = os.open(LU_EXPIRY, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd) as f:
+            kept = json.load(f) if os.fstat(f.fileno()).st_uid == 0 else {}
+    except (OSError, ValueError):
+        kept = {}
+    if not isinstance(kept, dict):
+        kept = {}
+    if day is None:
+        if name not in kept:
+            return None
+        was = kept.pop(name, None)
+    else:
+        kept[name] = str(day)
+        was = None
+    try:
+        os.makedirs(NET_SNAP_DIR, mode=0o700, exist_ok=True)
+        write_root(LU_EXPIRY, json.dumps(kept), 0o600)
+    except OSError:
+        pass
+    return was
+
+
 def lu_do(r):
     do = str(r.get('do') or 'list')
     name = str(r.get('name') or '')
@@ -4023,7 +4140,7 @@ def lu_do(r):
     if do == 'list':
         return dict(lu_list(), said='')
     if do == 'policy':
-        said = '; '.join(pwp_apply(r.get('conf')))
+        said = '; '.join(pwp_apply(r.get('conf'), r.get('spare')))
         return dict(lu_list(), said=said)
     p = lu_target(name)
     if r.get('hash') or do == 'password':
@@ -4061,16 +4178,18 @@ def lu_do(r):
             said = '%s made' % name
         import pwd
         p = pwd.getpwnam(name)
+        if r.get('sudo') is not None:
+            lu_sudo(name, bool(r['sudo']))
         if r.get('hash'):
             lu_run(['chpasswd', '-e'], '%s:%s\n' % (name, lu_hash_checked(r['hash'])))
-            if r.get('policy_aging'):
+            if r.get('policy_aging') and not lu_coded(name, r.get('spare'), bool(r.get('sudo'))):
                 lu_aging_put(name, r['policy_aging'])
+            elif r.get('policy_aging'):
+                lu_run(['chage', '-M', '-1', '-I', '-1', name])
         elif said.endswith(' made'):
             # No password (a key only): no aging - sshd's account step would ask a key's user
             # for a new password they have no old one to give for (as otp 1.0.246).
             lu_run(['chage', '-M', '-1', '-I', '-1', name])
-        if r.get('sudo') is not None:
-            lu_sudo(name, bool(r['sudo']))
         if r.get('must_change'):
             lu_run(['chage', '-d', '0', name])
         return dict(lu_list(), said=said)
@@ -4082,24 +4201,33 @@ def lu_do(r):
         lu_run(['chpasswd', '-e'], '%s:%s\n' % (name, lu_hash_checked(r.get('hash'))))
         lu_run(['chage', '-d', '0' if r.get('must_change') else str(int(time.time() // 86400)), name])
         if r.get('policy_aging'):
-            # Given a password: the policy's aging, as a user with one has it.
-            lu_aging_put(name, r['policy_aging'])
+            # Given a password: the policy's aging, as a user with one has it - unless SSH asks
+            # them a code and they may not use sudo (1.0.44): they need not know that password.
+            u = next((x for x in lu_list()['users'] if x['name'] == name), {})
+            if not lu_coded(name, r.get('spare'), bool(u.get('sudo'))):
+                lu_aging_put(name, r['policy_aging'])
         said = 'the password of %s set' % name
     elif do == 'aging':
         lu_aging_put(name, r.get('aging'))
         said = 'the password aging of %s set' % name
     elif do == 'lock':
         # The password and the account: no key lets in either (sshd asks PAM if it has expired).
-        sh = lu_shadow().get(name, ('',))[0]
+        entry = lu_shadow().get(name, ('', '', '', ''))
+        sh = entry[0]
         if sh and not sh.startswith('!'):
             lu_run(['usermod', '-L', name])
+        # The day the account ends, as it was, kept to be put back by unlock (1.0.44): it set
+        # "never" there, and an account made to end on a day did not end any more.
+        if entry[3] and entry[3] != '0':
+            lu_expiry_keep(name, entry[3])
         lu_run(['chage', '-E', '0', name])
         said = '%s locked' % name
     elif do == 'unlock':
         sh = lu_shadow().get(name, ('',))[0]
         if sh.startswith('!') and len(sh) > 2:
             lu_run(['usermod', '-U', name])
-        lu_run(['chage', '-E', '-1', name])
+        was = lu_expiry_keep(name, None)
+        lu_run(['chage', '-E', was if was and was.isdigit() else '-1', name])
         said = '%s unlocked' % name
     elif do == 'sudo':
         lu_sudo(name, bool(r.get('on')))
@@ -4386,6 +4514,12 @@ def pam_sshd_path():
 
 
 def pam_radius_conf_path():
+    # In a folder only root writes (1.0.44): in /etc/acme - the acme account's - it could put its
+    # own file (another server, another secret) or a FIFO that hangs every sign-in in its place.
+    return os.path.join(ETC_DIR, 'security', 'acme-pam_radius.conf')
+
+
+def pam_radius_conf_legacy():
     return os.path.join(ETC_DIR, 'acme', 'pam_radius.conf')
 
 
@@ -4509,6 +4643,7 @@ def pam_set(c, secret, port):
         if clean != text:
             _put_file(path, clean, 0o644)
         _drop(pam_radius_conf_path())
+        _drop(pam_radius_conf_legacy())
         return 'SSH without a code from acme' if clean != text else ''
     pam_radius_install()
     pam_selinux_radius()
@@ -4520,6 +4655,7 @@ def pam_set(c, secret, port):
         raise Refused('%s has no auth lines - put the block in by hand' % path)
     lines[at:at] = pam_block(c).rstrip('\n').split('\n')
     _put_file(path, '\n'.join(lines), 0o644)
+    _drop(pam_radius_conf_legacy())
     return 'SSH asks for a code from acme (pam_radius)'
 
 
@@ -4761,6 +4897,22 @@ def sshd_do(r):
             if c['permit_root'] == 'prohibit-password' and not keys and not r.get('no_keys_ok'):
                 raise Refused('root may sign in only with a key and has none here - add a key '
                               'first')
+            # AllowUsers naming nobody who is here (1.0.44): sshd -t takes it, and nobody signs in.
+            if c['allow_users']:
+                import pwd
+
+                def there(u):
+                    u = u.split('@', 1)[0]
+                    if any(ch in u for ch in '*?'):
+                        return True
+                    try:
+                        pwd.getpwnam(u)
+                        return True
+                    except KeyError:
+                        return False
+                if not any(there(u) for u in c['allow_users']):
+                    raise Refused('none of AllowUsers (%s) is an account of this machine: nobody '
+                                  'would sign in over SSH' % ', '.join(c['allow_users'])[:200])
         old = sshd_trial_read()
         # A change on trial changed again: one timer, the first state - its timer
         # stopped only once the new change is in (1.0.205). Stopped before it,
@@ -4840,8 +4992,12 @@ def sshd_do(r):
             pam_radius_conf_write(r.get('radius_secret'), r.get('radius_port'))
             # A block from before 1.0.188: skip_passwd put in its pam_radius line.
             fixed = pam_skip_passwd(text)
+            # And one from before 1.0.44: the secret's file where root alone writes now.
+            fixed = fixed.replace('conf=%s ' % pam_radius_conf_legacy(),
+                                  'conf=%s ' % pam_radius_conf_path())
             if fixed != text:
                 _put_file(pam_sshd_path(), fixed, 0o644)
+            _drop(pam_radius_conf_legacy())     # once the block names the new one
     elif do != 'read':
         raise Refused('read, apply, keep, back or pamconf')
     v = sshd_values()
@@ -5337,10 +5493,20 @@ def _se_run(cmd, timeout=120, light=False, data=None):
         return None
 
 
+# When acme's needs were put in, kept where only root writes (1.0.44): in the acme account's folder,
+# a time in the future written there hid every refusal, and "enforce" passed its check.
+SE_APPLIED_ROOT = os.path.join(NET_SNAP_DIR, SE_APPLIED)
+
+
 def se_applied_at():
     try:
-        return float(json.loads(_read_or(os.path.join(WEB_DIR, SE_APPLIED)) or '{}').get('at') or 0)
-    except (TypeError, ValueError, AttributeError):
+        fd = os.open(SE_APPLIED_ROOT, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd) as f:
+            if os.fstat(f.fileno()).st_uid != 0:
+                return 0.0
+            at = float(json.loads(f.read() or '{}').get('at') or 0)
+        return min(at, time.time())
+    except (OSError, TypeError, ValueError, AttributeError):
         return 0.0
 
 
@@ -5674,6 +5840,8 @@ def se_apply(bools, ports, said, mark=True):
     # before that still counts there.
     if mark and changed:
         write_here(SE_APPLIED, json.dumps({'at': time.time()}))
+        os.makedirs(NET_SNAP_DIR, mode=0o700, exist_ok=True)
+        write_root(SE_APPLIED_ROOT, json.dumps({'at': time.time()}), 0o600)
 
 
 def se_do(r):
@@ -5691,7 +5859,7 @@ def se_do(r):
             gid = grp.getgrnam('acme').gr_gid
         except (KeyError, ImportError):
             gid = None
-        se_report_write(data, os.path.join(WEB_DIR, SE_REPORT_FILE), 0, gid)
+        se_report_here(data, SE_REPORT_FILE, gid)
         return {'report': SE_REPORT_FILE, 'bytes': len(data), 'at': time.time()}
     mode = se_mode()
     if mode == 'absent':
@@ -5874,6 +6042,32 @@ def se_report_bytes(r, top):
             info.mode = 0o600
             tf.addfile(info, io.BytesIO(data))
     return buf.getvalue()
+
+
+def se_report_here(data, name, gid=None):
+    """The report into the web folder through its descriptor (1.0.44) - never a path through
+    /var/lib/acme, whose web folder the acme account could swap for a link meanwhile."""
+    d = web_fd()
+    tmp = '.acme-selinux-%d' % os.getpid()
+    try:
+        os.unlink(tmp, dir_fd=d)
+    except OSError:
+        pass
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=d)
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            f.write(data)
+            f.flush()
+            if gid is not None:
+                os.fchown(f.fileno(), 0, gid)
+                os.fchmod(f.fileno(), 0o640)
+        os.replace(tmp, name, src_dir_fd=d, dst_dir_fd=d)
+    except BaseException:
+        try:
+            os.unlink(tmp, dir_fd=d)
+        except OSError:
+            pass
+        raise
 
 
 def se_report_write(data, path, uid=0, gid=None):

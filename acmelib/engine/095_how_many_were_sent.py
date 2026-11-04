@@ -8,13 +8,23 @@ from __future__ import annotations
 NODE_KEY_SEP = '@@'
 
 
+def nk_name(prefix, name):
+    """The name as a row's key holds it: a long one cut and told apart by a hash (1.0.44) - the
+    key of MariaDB's meta is 190 characters, and a long name typed at a sign-in gave a 500."""
+    n = norm_name(name)
+    full = str(name or '').strip().lower()
+    if len(prefix) + len(full) + len(NODE_KEY_SEP) + 66 > 185:
+        n = '%s#%s' % (n[:60], hashlib.sha256(full.encode('utf-8')).hexdigest()[:20])
+    return n
+
+
 def node_key(prefix, name):
-    return '%s:%s%s%s' % (prefix, norm_name(name), NODE_KEY_SEP, node_name())
+    return '%s:%s%s%s' % (prefix, nk_name(prefix, name), NODE_KEY_SEP, node_name()[:63])
 
 
 def node_key_rows(store, prefix, name):
     """Every node's row for `name` (and one written before 1.0.146)."""
-    n = norm_name(name)
+    n = nk_name(prefix, name)
     return dbguard_rows(store.db, store.db.rows("SELECT k, v FROM meta WHERE k = ? OR k LIKE ? ESCAPE '!'",
                                               ('%s:%s' % (prefix, n),
                                                '%s:%s%s%%' % (prefix, n.replace('!', '!!').replace('%', '!%')

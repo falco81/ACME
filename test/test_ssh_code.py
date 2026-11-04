@@ -256,8 +256,11 @@ class TestGate(unittest.TestCase):
         for _ in range(E.SSHOTP_TRIES):
             E.sshotp_check(STORE, 'nobody', '123456')
         self.assertIn('too many', E.sshotp_check(STORE, 'nobody', '123456')[1])
+        # Counted in the database too (1.0.44), for every node of the cluster to see.
+        self.assertTrue(STORE.db.rows("SELECT k FROM meta WHERE k LIKE 'sshfail:jan%'"))
         # Past the window it is asked again.
         E.SSHOTP_FAILS['jan'] = [time.time() - E.SSHOTP_WINDOW_S - 1] * 5
+        STORE.db.run("DELETE FROM meta WHERE k LIKE 'sshfail:%'")
         self.assertTrue(E.sshotp_check(STORE, 'jan', app_code('jan', E.clock_now('codes') + 30))[0])
 
     def test_mail_sends_at_most_five(self):

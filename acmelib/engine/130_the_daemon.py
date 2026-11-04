@@ -29,7 +29,7 @@ class Daemon(object):
         # mark it read, so that every card of Settings can say whether the other node has
         # what is saved.
         self.conf_loaded_at = time.time()
-        self.beat_asked_seen = store.get_meta('beat_asked', '')
+        self.beat_asked_seen = beat_asked_last(store)
         self.login_fails = collections.defaultdict(list)
         # What each count is (1.0.112): its limit, how long it lasts, and the
         # names tried from an address / the addresses a name was tried from -
@@ -610,7 +610,7 @@ class Daemon(object):
                     if self.store.get_meta('conf_serial', '0') != self.conf_serial:
                         self.reload_all('changed elsewhere')
                         beat_now = True     # said at once (1.0.42): the cards wait for it
-                    asked = self.store.get_meta('beat_asked', '')
+                    asked = beat_asked_last(self.store)
                     if asked != self.beat_asked_seen:
                         # Asked from a card of Settings (its refresh): what this node has, now.
                         self.beat_asked_seen = asked

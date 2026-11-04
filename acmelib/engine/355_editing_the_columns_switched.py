@@ -174,6 +174,11 @@ def _password(h):
     h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ? AND token_hash <> ?',
                    ('admin', acc['name'].lower(), hashlib.sha256(
                        str(h.headers.get('X-Acme-Session') or '').encode()).hexdigest()))
+    # And on the enrolment pages (1.0.44), as a password set by an administrator ends them.
+    try:
+        account_portal_end(h.store, acc['name'])
+    except Exception:                                   # noqa: BLE001
+        pass
     h.store.add_event('accounts', '%s changed their own password' % acc['name'],
                       who=acc['name'])
     # The first password, written down by the installer, is no use to anybody

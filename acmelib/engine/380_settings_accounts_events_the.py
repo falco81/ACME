@@ -1,12 +1,23 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 # ---- settings, accounts, events, the database --------------------------------------------
+def beat_asked_last(store):
+    """The newest "say what you have, now" of any node (1.0.44: a row each)."""
+    try:
+        rows = store.db.rows("SELECT v FROM meta WHERE k LIKE 'beat_asked:%'")
+    except Exception:                                   # noqa: BLE001
+        return ''
+    return max((str(r['v'] or '') for r in rows), default='')
+
+
 def settings_in_effect(store, ask=False, daemon=None):
     """Whether every node has in what is saved (1.0.42): the mark of the last change of the
     settings, and the one each node said it read. Asked again: this node says it at once,
     the other within five seconds."""
     if ask:
-        store.set_meta('beat_asked', '%.6f:%s' % (time.time(), node_name()))
+        # A row of the asking node's own (1.0.44): one row both nodes wrote, at the same moment,
+        # was the same key inserted twice - and the replication between them stopped on it.
+        store.set_meta('beat_asked:' + node_name(), '%.6f:%s' % (time.time(), node_name()))
     serial = store.get_meta('conf_serial', '0')
     out = []
     for b in ha_nodes(store):
@@ -29,9 +40,17 @@ def _settings_nodes(h):
     return settings_in_effect(h.store, daemon=h.d)
 
 
+SETTINGS_ASKED = {'at': 0.0}
+
+
 @route('POST', '/api/settings/nodes')
 def _settings_nodes_again(h):
     h.me()
+    # Once in five seconds at most (1.0.44): asked in a loop, every node wrote its heartbeat at
+    # once, again and again - by anybody signed in, read only too.
+    if time.time() - SETTINGS_ASKED['at'] < 5:
+        return settings_in_effect(h.store, daemon=h.d)
+    SETTINGS_ASKED['at'] = time.time()
     if CONFIG.get('ha_mode'):
         heartbeat(h.store, h.d)                 # this node's, now
     return settings_in_effect(h.store, ask=True, daemon=h.d)

@@ -938,6 +938,8 @@ def sshd_tick(daemon):
     if c.get('hash') and c['hash'] != now.get('hash') and c['hash'] != now.get('failed') and \
             c['hash'] != now.get('back_hash'):
         todo.append(('apply', None))
+    # (A machine built again starts with kept_at = when it was - machine_changed_check, 1.0.44 -
+    # so that a Keep from before, in the backup, does not keep its trial at once.)
     if (now.get('trial') or {}).get('until') and keep.get('hash') == now.get('hash') and \
             float(keep.get('at') or 0) > float(now.get('kept_at') or 0):
         todo.append(('keep', None))

@@ -74,7 +74,8 @@ class InEffect(unittest.TestCase):
     def test_asked_again(self):
         with mock.patch.dict(E.CONFIG, {'ha_mode': 'replicated'}):
             E.settings_in_effect(self.store, ask=True, daemon=self.d)
-        self.assertTrue(self.store.get_meta('beat_asked', ''))
+        self.assertTrue(self.store.get_meta('beat_asked:' + E.node_name(), ''))
+        self.assertTrue(E.beat_asked_last(self.store))
 
     def test_on_the_page(self):
         with open(os.path.join(ROOT, 'web', 'admin', 'index.php'), encoding='utf-8') as f:

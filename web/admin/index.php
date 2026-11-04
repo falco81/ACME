@@ -104,6 +104,17 @@ if (isset($_GET['api'])) {
     }
     if ($post) {
         acme_guard_post();
+    } else {
+        /* A read asked from another page (1.0.44): an <img> on a host of the same site made the
+           daemon build a whole backup (rbackup-download) or fetch one from away, again and
+           again, with the administrator's cookie. The pages' own reads are same-origin. */
+        $from = (string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '');
+        if ($from !== '' && $from !== 'same-origin' && $from !== 'none') {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'that request did not come from this page']);
+            exit;
+        }
     }
     if ($what === 'login' && $post) {
         header('Content-Type: application/json; charset=utf-8');

@@ -31,7 +31,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TMP = tempfile.mkdtemp(prefix='acme-selinux-')
 os.makedirs(os.path.join(TMP, 'web'), exist_ok=True)
 os.environ.update(ACME_CONFIG=os.path.join(TMP, 'config.json'), ACME_STATE=TMP,
-                  ACME_RUN=TMP, ACME_LOGDIR=TMP)
+                  ACME_RUN=TMP, ACME_LOGDIR=TMP, ACME_NET_SNAP_DIR=os.path.join(TMP, 'root-only'))
 sys.path.insert(0, ROOT)
 import acme as E  # noqa: E402
 
@@ -123,10 +123,11 @@ class TestHelper(unittest.TestCase):
             json.dump({p: want for p, want, _why in W.SE_LABELS}, f)
         os.environ['ACME_SELINUX_LABELS'] = labels
         W.WEB_DIR = os.path.join(TMP, 'web')
-        try:
-            os.unlink(os.path.join(TMP, 'web', W.SE_APPLIED))
-        except OSError:
-            pass
+        for p in (os.path.join(TMP, 'web', W.SE_APPLIED), W.SE_APPLIED_ROOT):
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
 
     def tearDown(self):
         W.shutil.which = self.had_which
@@ -168,7 +169,9 @@ class TestHelper(unittest.TestCase):
 
     def test_refused_before_the_needs_went_in_does_not_count(self):
         self.machine(avc=[AVC_OLD])
-        W.write_here(W.SE_APPLIED, json.dumps({'at': 2000}))
+        # Root's own copy is the one read (1.0.44); the acme account's beside it is not.
+        os.makedirs(os.path.dirname(W.SE_APPLIED_ROOT), exist_ok=True)
+        W.write_root(W.SE_APPLIED_ROOT, json.dumps({'at': 2000}), 0o600)
         c = W.se_check({})
         self.assertEqual(c['denials']['total'], 0)
         self.assertTrue(c['ready'])

@@ -398,7 +398,7 @@ def osu_view(store):
                                                     'there?' % late if late else ''),
                       'pending': pending})
     pol = pwp_conf(store)
-    want = pwp_hash(pol)
+    want = pwp_want(store, pol)
     for x in nodes:
         now = osu_now(store, x['name'])
         # What each node has in effect, read from its files - and whether it put in this one.
@@ -419,6 +419,30 @@ PWP_DEFAULT = {'managed': False, 'minlen': 12, 'minclass': 3, 'maxrepeat': 3, 'd
 PWP_RANGES = {'minlen': (6, 128), 'minclass': (0, 4), 'maxrepeat': (0, 20), 'difok': (0, 20),
               'remember': (0, 50), 'max_days': (0, 99999), 'min_days': (0, 365), 'warn_days': (0, 365),
               'deny': (0, 100), 'unlock_time': (0, 86400), 'fail_interval': (60, 86400)}
+
+
+def osu_coded(store):
+    """Who SSH asks a code of (1.0.44): left out of the policy's aging unless they may use sudo
+    (the root helper knows who has sudo). {'all': True} while it is everybody but root."""
+    try:
+        c = sshd_conf(store)
+    except Exception:                                   # noqa: BLE001
+        c = {}
+    if not (c.get('manage') and c.get('radius')):
+        return {'all': False, 'names': []}
+    names = sorted(str(n) for n in (c.get('radius_users') or []) if n != 'root')
+    return {'all': not names, 'names': names}
+
+
+def pwp_want(store, pol):
+    """What a node must have put in: the policy - and, with it put on the users there now, who
+    SSH asks a code of (1.0.44): a change there is put in again."""
+    h = pwp_hash(pol)
+    if pol.get('managed') and pol.get('existing'):
+        sp = osu_coded(store)
+        if sp['all'] or sp['names']:
+            h += ':' + hashlib.sha256(json.dumps(sp, sort_keys=True).encode()).hexdigest()[:8]
+    return h
 
 
 def pwp_conf(store):
@@ -526,7 +550,9 @@ def pwp_migrate(store):
     mx, mn, cl = g('osu_pw_max_days', 0), g('osu_pw_min', 8), g('osu_pw_classes', 1)
     system = g('osu_pw_system', 0)
     store.set_meta('pwpolicy:migrated', '%.0f' % time.time())
-    if not (mx > 0 or mn > 8 or cl > 1 or system):
+    # Any rule of 1.0.42's set (1.0.44: the days between changes, or the warning, alone too).
+    if not (mx > 0 or mn > 8 or cl > 1 or system or g('osu_pw_min_days', 0) > 0 or
+            g('osu_pw_warn_days', 7) != 7 or not g('osu_pw_not_name', 1)):
         return False
     c = dict(PWP_DEFAULT, managed=True, minlen=max(6, min(128, mn)), minclass=max(0, min(4, cl)),
              usercheck=1 if g('osu_pw_not_name', 1) else 0, maxrepeat=0, difok=1, remember=0,
@@ -562,7 +588,7 @@ def osu_hash(password, name='', store=None):
     return h
 
 
-def osu_free_uid(store, nodes, name):
+def osu_free_uid(store, nodes, name, want=None):
     """One UID for the new user on every node: the one it has where it is there already, or the
     lowest of the normal range none of the nodes uses."""
     lo, hi, used = 1000, 60000, set()
@@ -576,6 +602,26 @@ def osu_free_uid(store, nodes, name):
         for u in now.get('users') or []:
             if u.get('name') == name:
                 return int(u['uid'])
+    # The same UID as on the other nodes of the cluster, where the user is (1.0.44): made on one
+    # node only (Make them again), it got the lowest free one there - another than its twin's.
+    for n in host_nodes(store):
+        for u in osu_now(store, n).get('users') or []:
+            if u.get('name') == name and str(u.get('uid') or '').isdigit():
+                if int(u['uid']) in used:
+                    raise ValueError('%s has UID %s on %s, which is another user\'s on %s' % (
+                        name, u['uid'], n, ', '.join(nodes)))
+                return int(u['uid'])
+    # The one asked for (the UID it had before its machine was built again), if it is free.
+    if want not in (None, ''):
+        try:
+            want = int(want)
+        except (TypeError, ValueError):
+            raise ValueError('a UID is a number')
+        if not lo <= want <= hi:
+            raise ValueError('UID %d is not one of a normal user (%d to %d)' % (want, lo, hi))
+        if want in used:
+            raise ValueError('UID %d is another user\'s on %s' % (want, ', '.join(nodes)))
+        return want
     for uid in range(lo, hi + 1):
         if uid not in used:
             return uid
@@ -619,7 +665,7 @@ def osu_ask(store, nodes, do, by, **f):
                 raise ValueError('that is not a shell')
             ask['shell'] = s
     if do == 'add':
-        ask['uid'] = osu_free_uid(store, nodes, name)
+        ask['uid'] = osu_free_uid(store, nodes, name, want=f.get('uid'))
         ask['sudo'] = bool(f.get('sudo'))
         ask['must_change'] = bool(f.get('must_change'))
         if ask['sudo'] and not f.get('password'):
@@ -631,12 +677,14 @@ def osu_ask(store, nodes, do, by, **f):
             pa = pwp_aging(pwp_conf(store))
             if pa:
                 ask['policy_aging'] = pa
+                ask['spare'] = osu_coded(store)
     elif do == 'password':
         ask['hash'] = seal_secret(osu_hash(f.get('password'), name, store), 'osuser:' + name)
         ask['must_change'] = bool(f.get('must_change'))
         pa = pwp_aging(pwp_conf(store))
         if pa:
             ask['policy_aging'] = pa
+            ask['spare'] = osu_coded(store)
     elif do == 'aging':
         a = {}
         for k, lo, hi in (('max_days', 0, 99999), ('min_days', 0, 365), ('warn_days', 0, 365)):
@@ -707,7 +755,7 @@ def osu_remake(store, node, names, by, forget=False):
             # sudo asks for the user's own password, and none is kept (1.0.43): made without it,
             # given once they have a password again.
             osu_ask(store, [node], 'add', by, name=n, gecos=u.get('gecos') or '',
-                    shell=u.get('shell') or '/bin/bash', sudo=False)
+                    shell=u.get('shell') or '/bin/bash', sudo=False, uid=u.get('uid'))
             made.append(n)
             if u.get('sudo'):
                 sudo_later.append(n)
@@ -760,6 +808,7 @@ def osu_one(a):
     """One change done by the root helper: its answer, or what went wrong (words)."""
     q = {k: v for k, v in a.items() if k in ('do', 'name', 'uid', 'gecos', 'shell', 'sudo',
                                               'must_change', 'on', 'home', 'aging', 'policy_aging',
+                                              'spare',
                                               'conf')}
     if a.get('hash'):
         h = unseal_secret(a['hash'], 'osuser:' + str(a.get('name') or ''))
@@ -797,7 +846,7 @@ def osu_tick(daemon):
     # refused (pwp_refused). A row of this node forgotten (a new machine, MACHINE_ROWS) has no
     # policy_hash: put in again there.
     pol = pwp_conf(store)
-    want = pwp_hash(pol)
+    want = pwp_want(store, pol)
     policy_due = bool(now.get('at')) and now.get('policy_hash') != want and (
         now.get('policy_tried') != want or time.time() - float(now.get('policy_at') or 0) > 600) and \
         not pwp_refused(store)
@@ -833,7 +882,7 @@ def osu_tick(daemon):
                 store.set_meta('host:users:now:' + me, json.dumps(row))
             if policy_due:
                 row.update(policy_tried=want, policy_at=time.time())
-                got = osu_one({'do': 'policy', 'conf': pol})
+                got = osu_one({'do': 'policy', 'conf': pol, 'spare': osu_coded(store)})
                 if isinstance(got, dict):
                     osu_keep(row, got)
                     row.update(policy_hash=want, policy_said=got.get('said') or '', policy_error='')

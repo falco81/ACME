@@ -103,7 +103,9 @@ def portal_gate_send(h, name, kind, dest, display='', lang=''):
             not code_send_allowed(h.store, 'to:%s:%s' % (kind, dest.lower())):
         raise ApiError(429, 'too many codes were sent - wait %d min and try again'
                        % code_send_wait_min(h.store, 'to:%s:%s' % (kind, dest.lower())))
-    h.failed(key)       # a code that goes holds its place
+    # A code that goes holds its place - and is no refused sign-in for the guard (1.0.44): five
+    # people signing in rightly from one office blocked its address for everybody.
+    h.failed(key, guard=False)
     code = code_new()
     lang = lang if lang in ('cs', 'en') else None
     try:

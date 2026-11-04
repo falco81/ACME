@@ -10712,6 +10712,9 @@ function txDrawMail(host, m) {
       txFitFrame();
       setTimeout(txFitFrame, 300);
     };
+    /* Sandboxed (1.0.44): a mail's HTML - a module's drawing too - in the pages' own origin
+       could lay its own links and boxes over the page; the frame is read from here only. */
+    frame.setAttribute('sandbox', 'allow-same-origin');
     frame.srcdoc = page;
   }).catch(function (e) { loading.textContent = e.message; });
   /* What is not in the picture: a greeting without a name, the text version. */
@@ -11029,6 +11032,7 @@ function txPreview() {
           try { fr.style.height = Math.max(200, fr.contentDocument.documentElement.scrollHeight + 4) + 'px'; } catch (e) { }
           try { fr.contentDocument.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('a')) e.preventDefault(); }); } catch (e) { }
         };
+        fr.setAttribute('sandbox', 'allow-same-origin');
         fr.srcdoc = d.html;
         body.appendChild(fr);
         if (d.text) {
@@ -14336,7 +14340,7 @@ function drawOsUsers(live) {
       };
       var fg = cmdButton('Forget them', 'close', 'small');
       fg.onclick = function () {
-        confirmThen('Forget these users?', 'The list of the users ' + n.name + ' had is forgotten; nothing is made, nothing on the machine changes.', 'Forget them', function () {
+        confirmThen('Forget these users?', 'The list of the users ' + htmlText(n.name) + ' had is forgotten; nothing is made, nothing on the machine changes.', 'Forget them', function () {
           api('osusers', {action: 'remake-forget', node: n.name}).then(function (x) { toast(x.message, 'good'); loadOsUsers(); }).catch(oops);
         }, false);
       };
@@ -15445,7 +15449,7 @@ function drawSshd(live) {
         var nw = cmdButton('A new one…', 'refresh', 'small');
         nw.onclick = function () { sdTokenAsk(x); };
         var rm = cmdButton('Remove', 'trash', 'small danger');
-        rm.onclick = function () { confirmThen('Remove the SSH token of ' + x.name, x.name + ' then gets no code over SSH - with the system password when acme does not answer off, not in at all but with a key.', 'Remove', function () { sdAct2({action: 'sshotp_remove', name: x.name}); }, true); };
+        rm.onclick = function () { confirmThen('Remove the SSH token of ' + x.name, htmlText(x.name) + ' then gets no code over SSH - with the system password when acme does not answer off, not in at all but with a key.', 'Remove', function () { sdAct2({action: 'sshotp_remove', name: x.name}); }, true); };
         td.appendChild(nw); td.appendChild(rm);
         tr.appendChild(td);
         bd.appendChild(tr);

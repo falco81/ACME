@@ -30,7 +30,7 @@ other change there: keep the session you have open, open a new one, then
   (`/proc/sys/net/ipv4/ip_local_port_range`), never one something else has -
   remembers it, and tells its own pam_radius; *Settings → SSH server* shows each
   node's (*acme's gate for SSH*).
-- Writes `/etc/acme/pam_radius.conf` (mode 0600, root) with the gate's secret and
+- Writes `/etc/security/acme-pam_radius.conf` (mode 0600, root) with the gate's secret and
   the node's port; when the port or the secret changes, only this file is put
   right. The secret never goes on a command line. The root helper writes no
   other server into it than `127.0.0.1` and no port outside 18129-18199.
@@ -40,7 +40,7 @@ other change there: keep the session you have open, open a new one, then
 
   ```
   auth [success=1 default=ignore] pam_succeed_if.so quiet user = root
-  auth [success=done new_authtok_reqd=done ignore=ignore default=die] pam_radius_auth.so conf=/etc/acme/pam_radius.conf skip_passwd prompt_attribute localifdown
+  auth [success=done new_authtok_reqd=done ignore=ignore default=die] pam_radius_auth.so conf=/etc/security/acme-pam_radius.conf skip_passwd prompt_attribute localifdown
   ```
 
   With *Only these accounts* the first line is `user notin a:b` instead; with

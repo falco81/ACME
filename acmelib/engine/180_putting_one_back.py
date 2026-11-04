@@ -154,6 +154,18 @@ def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True)
             except Exception:                           # noqa: BLE001
                 pass
             said.append('this machine is node %s again (it was %s)' % (m['node'], old_name))
+        # The SNMP engine of the node as the backup has it (1.0.44): the file a first start here
+        # wrote (a new, random ID) came first, and wrote that over the database's at once.
+        try:
+            eng = str(store.get_meta('snmp:engine:' + node_name(), '') or '')
+            if re.match(r'^[0-9a-f]{18,64}\Z', eng):
+                (STATE_DIR / 'snmp-engine').write_text(eng + '\n')
+                try:
+                    (STATE_DIR / 'snmp-boots').unlink()
+                except OSError:
+                    pass
+        except Exception as e:                          # noqa: BLE001
+            log('the SNMP engine of the backup could not be put in place: %s' % e, 'warn')
         # (After the name: its rows are signed as the node it is now.)
         # The guard against writes to the database (1.0.43): kept in config.json, not in the
         # database - a node made again from its backup had it off. On again, as it was, once

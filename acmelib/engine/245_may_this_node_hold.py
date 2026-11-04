@@ -224,7 +224,9 @@ def node_carry(store, old, new, by='the daemon'):
 # so that each is read anew and what is wanted put in.
 MACHINE_ROWS = ('host:sshd:now:', 'host:sshd:fmt:', 'ntp:applied:', 'console:now:',
                 'host:users:now:', 'host:sshkeys:now:', 'host:selinux:now:', 'net:now:',
-                'fw:now:', 'dbtls:server:', 'dbtls:node:')
+                'fw:now:')
+# Not dbtls:server: / dbtls:node: (1.0.44): nothing reads them anew - forgotten, the certificate
+# of the node's PostgreSQL was never renewed again (a backup put back on the same machine).
 
 
 def machine_changed_check(store, put_back=False, name=None):
@@ -265,6 +267,9 @@ def machine_changed_check(store, put_back=False, name=None):
         if store.get_meta(k + me) is not None:
             store.db.run('DELETE FROM meta WHERE k = ?', (k + me,))
             gone.append(k.rstrip(':'))
+    # The SSH server put in again there is on trial, and a Keep from before (in the backup) is
+    # not this one's (1.0.44): kept at once, a lockout on the new machine was never put back.
+    store.set_meta('host:sshd:now:' + me, json.dumps({'kept_at': time.time()}))
     # The keys of root made on these pages for this node: on again (their public halves are
     # kept) - by this node itself, once it runs there (sshkeys_tick).
     try:

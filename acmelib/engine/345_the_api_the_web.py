@@ -438,7 +438,10 @@ class ApiHandler(BaseHTTPRequestHandler):
             pass
         # A place that keeps guessing blocked for a while (as otp 1.0.137): refused at once, its
         # password not looked at, no directory asked.
-        if kind in GUARD_KINDS and guard_on() and not guard_trusted(ip):
+        # Not the load balancer itself for its sign-ins (1.0.44): without web_proxy every SSO
+        # request has its address - twenty refusals and nobody signed in through it for 30 min.
+        sso_box = kind == 'portal-sso' and sso_peer_ok(self.client_ip())
+        if kind in GUARD_KINDS and guard_on() and not guard_trusted(ip) and not sso_box:
             self._guard = (ip, name)
             b = guard_blocked(self.d, ip)
             if b:
@@ -512,11 +515,12 @@ class ApiHandler(BaseHTTPRequestHandler):
         held.append([keys, t, False])
         return keys
 
-    def failed(self, key):
+    def failed(self, key, guard=True):
         """The attempt went wrong: the place it holds stays taken - that one only, when it is
-        said which; every place of the request otherwise."""
+        said which; every place of the request otherwise. guard=False (1.0.44): a place held on
+        purpose - a code that went - is no refusal for the sign-in guard."""
         g = getattr(self, '_guard', None)
-        if g and guard_on():
+        if g and guard and guard_on():
             # One refusal of the place (as otp 1.0.137), once per request.
             self._guard = None
             try:

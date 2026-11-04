@@ -40,7 +40,7 @@ def tls_policy_checked(b):
         out['protocols'] = [p for p in ('TLSv1.2', 'TLSv1.3') if p in prot]
         ciphers = str(b.get('ciphers') or '').strip()
         if ciphers:
-            if not re.match(r'^[A-Za-z0-9_+!@=:.-]{1,2000}\Z', ciphers):
+            if not re.match(r'^(?!-)[A-Za-z0-9_+!@=:.-]{1,2000}\Z', ciphers):
                 raise ValueError('the ciphers are an OpenSSL cipher list')
             _openssl(['ciphers', ciphers], what='OpenSSL does not know that cipher list')
         out['ciphers'] = ciphers

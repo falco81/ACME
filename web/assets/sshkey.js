@@ -209,9 +209,12 @@
                    pfsense: function (b, g) { skGuidePf(b, g, false); },
                    opnsense: function (b, g) { skGuidePf(b, g, true); },
                    generic: skGuideGeneric};
-  function skFill(text, g) {
+  /* asHtml (1.0.44): a value typed in a target's form (its user, its host) escaped where the
+     module's guide is HTML - it went in as it was. */
+  function skFill(text, g, asHtml) {
     return String(text || '').replace(/\{(pub|user|from|host|file|line)\}/g, function (all, k) {
-      return g[k === 'pub' ? 'pubText' : k];
+      var v = g[k === 'pub' ? 'pubText' : k];
+      return asHtml ? htmlText(v == null ? '' : String(v)) : v;
     });
   }
   function skGuide(c) {
@@ -224,9 +227,9 @@
         body.classList.add('guide');
         body.classList.add('sshk-guide');
         if (how && typeof how === 'object') {
-          if (how.note) skGuideNote(body, skFill(how.note, g));
+          if (how.note) skGuideNote(body, skFill(how.note, g, true));
           (how.steps || []).forEach(function (s, i) {
-            skGuideStep(body, i + 1, skFill(s.title, g), skFill(s.html, g), s.code ? skFill(s.code, g) : '');
+            skGuideStep(body, i + 1, skFill(s.title, g), skFill(s.html, g, true), s.code ? skFill(s.code, g) : '');
           });
         } else {
           (SK_GUIDES[how] || skGuideGeneric)(body, g);
@@ -269,7 +272,10 @@
     var prefix = String(f.ssh_prefix || '');
     var userOf = function () {
       var x = cur();
-      return String(x[f.user_key || prefix + 'user'] || x.user || 'root');
+      var u = String(x[f.user_key || prefix + 'user'] || x.user || 'root');
+      /* Only a name of an account goes into the commands to copy (1.0.44): "x; curl ...|sh"
+         typed as the user went into useradd and sudoers as it was. */
+      return /^[A-Za-z_][A-Za-z0-9_.-]{0,31}$/.test(u) ? u : 'USER';
     };
     c.guideFacts = function () {
       var x = cur();
