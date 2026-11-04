@@ -86,6 +86,27 @@ class _ProxyOnly(urllib.request.ProxyHandler):
         return None
 
 
+class _NoCredsRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect to another host, or from https to http, without the request's credentials
+    (1.0.234): urllib carried the SMS gateway's or a CA's credentials wherever the answer pointed."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = urllib.request.HTTPRedirectHandler.redirect_request(self, req, fp, code, msg,
+                                                                  headers, newurl)
+        if new is None:
+            return None
+        a, b = urllib.parse.urlsplit(req.full_url), urllib.parse.urlsplit(new.full_url)
+        if (a.hostname or '').lower() != (b.hostname or '').lower() or a.scheme != b.scheme or \
+                (a.port or 0) != (b.port or 0):
+            for k in list(new.headers):
+                if k.lower() in ('authorization', 'proxy-authorization', 'cookie'):
+                    del new.headers[k]
+            for k in list(getattr(new, 'unredirected_hdrs', {}) or {}):
+                if k.lower() in ('authorization', 'proxy-authorization', 'cookie'):
+                    del new.unredirected_hdrs[k]
+        return new
+
+
 def url_open(req, timeout=30, context=None, purpose=''):
     """urllib.request.urlopen - straight, unless asked for a purpose whose
     switch is on, a proxy set and the host not one reached straight; never
@@ -95,7 +116,8 @@ def url_open(req, timeout=30, context=None, purpose=''):
     proxy = proxy_full(purpose)
     host = urllib.parse.urlsplit(req.full_url).hostname or ''
     handlers = [_ProxyOnly(
-        {'http': proxy, 'https': proxy} if proxy and not proxy_skips(host) else {})]
+        {'http': proxy, 'https': proxy} if proxy and not proxy_skips(host) else {}),
+        _NoCredsRedirect()]
     if context is not None:
         handlers.append(urllib.request.HTTPSHandler(context=context))
     return urllib.request.build_opener(*handlers).open(req, timeout=timeout)

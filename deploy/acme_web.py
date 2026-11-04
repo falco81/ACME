@@ -188,7 +188,7 @@ def pg_file_copy(src, dst):
 # ---- what a request may hold ---------------------------------------------------------
 NAME_RE = re.compile(r'^(?=.{1,253}\Z)([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)'
                      r'(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\Z')
-IFACE_RE = re.compile(r'^[A-Za-z0-9_.:-]{1,15}\Z')
+IFACE_RE = re.compile(r'^(?!\.+\Z)[A-Za-z0-9_][A-Za-z0-9_.:-]{0,14}\Z')   # not . or .., not -x (otp 1.0.234)
 NODE_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,62}\Z')
 CERT_RE = re.compile(r'^(\s*-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\s]+-----END CERTIFICATE-----)+\s*\Z')
 KEY_RE = re.compile(r'^\s*-----BEGIN (RSA |EC )?PRIVATE KEY-----[A-Za-z0-9+/=\s:,-]+'
@@ -2679,7 +2679,7 @@ CHRONY_CONF = os.environ.get('ACME_CHRONY_CONF') or next(
 NTP_BEGIN = '# ---- acme: the time servers, set on its pages (Settings - Time) ----'
 NTP_END = '# ---- acme: end ----'
 NTP_KEYS = ('server', 'pool', 'peer', 'makestep', 'allow', 'minsources', 'maxdistance', 'sourcedir')
-TZ_RE = re.compile(r'^[A-Za-z0-9_+-]{1,40}(/[A-Za-z0-9_+-]{1,40}){0,3}\Z')
+TZ_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_+-]{0,39}(/[A-Za-z0-9_+-]{1,40}){0,3}\Z')   # no -option (otp 1.0.234)
 
 
 def ntp_read():
@@ -3306,6 +3306,13 @@ def sshd_checked(c):
         raise Refused('the port is a number')
     if not 1 <= port <= 65535:
         raise Refused('the port is 1 to 65535')
+    # Not a port another service of this machine listens on (otp 1.0.234): sshd could not bind it
+    # and stopped - and under SELinux the port was labelled for ssh, away from its own service.
+    taken = {80: 'the web server', 443: 'the web server', 5432: 'PostgreSQL', 3306: 'MariaDB',
+             25: 'mail', 53: 'DNS', 123: 'the time', 161: 'SNMP', 162: 'SNMP', 514: 'syslog',
+             6514: 'syslog', 9861: 'acme\'s API', 112: 'keepalived'}
+    if port in taken:
+        raise Refused('port %d is %s\'s - choose another for SSH' % (port, taken[port]))
     out['port'] = port
     raw = c.get('allow_users') or ''
     # A list from the daemon (1.0.164: read as the text "['root']" before).
@@ -3752,7 +3759,17 @@ def sshd_do(r):
         entry = {pth: _read_or(pth) for pth in (drop, paths['banner'], paths['issue'],
                                                 paths['motd'], pam_sshd_path(),
                                                 pam_radius_conf_path())}
+        ident = re.sub(r'[^A-Za-z0-9]', '', str(r.get('id') or ''))[:12] or 'x'
+        new_unit = ''
         try:
+            # The timer that puts it back armed first (otp 1.0.234): armed after the change, a
+            # timer that could not be made left the change in with nothing to undo it - and
+            # the one before already stopped.
+            if trial and c['manage']:
+                new_unit = sshd_arm(trial, ident)
+                _put_file(SSHD_STATE, json.dumps(dict(
+                    before, hash=str(r.get('hash') or '')[:64], until=time.time() + trial * 60,
+                    unit=new_unit)), 0o600)
             said = sshd_apply_files(c, r, drop, now_dropin, paths, before)
         except BaseException:
             for pth, was in entry.items():
@@ -3768,15 +3785,19 @@ def sshd_do(r):
                 sshd_reload()
             except Exception:                           # noqa: BLE001
                 pass
+            if new_unit:
+                sshd_disarm({'unit': new_unit})
+            try:
+                if old:
+                    _put_file(SSHD_STATE, json.dumps(old), 0o600)
+                else:
+                    _drop(SSHD_STATE)
+            except Exception:                           # noqa: BLE001
+                pass
             raise
-        if old:
+        if old and old.get('unit') != new_unit:
             sshd_disarm(old)
-        ident = re.sub(r'[^A-Za-z0-9]', '', str(r.get('id') or ''))[:12] or 'x'
-        if trial and c['manage']:
-            before.update(hash=str(r.get('hash') or '')[:64], until=time.time() + trial * 60,
-                          unit=sshd_arm(trial, ident))
-            _put_file(SSHD_STATE, json.dumps(before), 0o600)
-        else:
+        if not (trial and c['manage']):
             _drop(SSHD_STATE)
         said.append('sshd reloaded')
     elif do == 'keep':
@@ -4248,8 +4269,21 @@ def osup_job(ident, kind, security=False):
 SLOW_PART_S = 3.0
 
 
+def sshd_overdue():
+    """A change of sshd on trial whose time is up and that nobody kept, put back (1.0.234):
+    its timer, systemd's own, does not outlive a restart of the machine - and an admin locked
+    out by the change restarts it. The trial was kept for good."""
+    t = sshd_trial_read()
+    try:
+        until = float((t or {}).get('until') or 0)
+    except (TypeError, ValueError):
+        until = 0
+    if until and time.time() > until + 30:
+        sshd_put_back('not kept in time (its timer did not outlive a restart)')
+
+
 def _serve_parts():
-    return [(pglog_part, 'the PostgreSQL log'), (pgtls_part, 'the database link'),
+    return [(sshd_overdue, 'a change of sshd on trial'), (pglog_part, 'the PostgreSQL log'), (pgtls_part, 'the database link'),
             (dbmake_part, 'a database made'), (fw_read_part, 'the firewall as it is'),
             (net_part, 'the network'), (ntp_part, 'the time'),
             (console_part, 'the console at login'), (sshkeys_part, "root's SSH keys"),

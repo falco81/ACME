@@ -69985,6 +69985,34 @@
   "pguard_4": {
    "source": "this node acts as root only on rows acme signed ({0} signed now)",
    "text": "tento uzel jedná jako root jen podle řádků podepsaných acme (právě podepsáno {0})"
+  },
+  "pbugh_1": {
+   "source": "it holds an older copy: {0} changed here since it was carried. Carry everything across again, so nothing written since is left behind.",
+   "text": "obsahuje starší kopii: {0} se tu od přenesení změnily. Přeneste všechno znovu, ať nic zapsaného mezitím nezůstane pozadu."
+  },
+  "pbugh_2": {
+   "source": "port {0} is {1}'s - choose another for SSH",
+   "text": "port {0} patří službě {1} – zvolte pro SSH jiný"
+  },
+  "pbugh_3": {
+   "source": "there is no nightly copy in {0}",
+   "text": "v {0} není žádná noční kopie"
+  },
+  "pbugh_4": {
+   "source": "there is no room for it in {0}: {1} MB free, {2} MB needed so that the disk is not filled under the database - take old copies away, or give the disk more room",
+   "text": "v {0} na to není místo: volných {1} MB, potřeba {2} MB, aby se disk pod databází nezaplnil – odeberte staré kopie, nebo disku přidejte místo"
+  },
+  "pbugh_5": {
+   "source": "waiting for {0}: its own record is asked for on the page first",
+   "text": "čekám na {0}: na stránce se nejdřív žádá jeho záznam"
+  },
+  "pbugh_6": {
+   "source": "the manual DNS step of {0} held the page for an hour",
+   "text": "ruční krok DNS uzlu {0} držel stránku celou hodinu"
+  },
+  "pbugh_7": {
+   "source": "{0}, {1} MB read",
+   "text": "{0}, přečteno {1} MB"
   }
  },
  "rich": {

@@ -313,6 +313,27 @@ def rb_retain(tr, keep, days, now=None):
     return gone
 
 
+def rb_room(store, times=2):
+    """Room for a backup made, locked or opened beside the live database (otp 1.0.234): the copy
+    and its archive, then the archive and its locked one - twice the database at once. A nightly
+    backup filled the disk under a SQLite database, and every sign-in was refused."""
+    try:
+        free = shutil.disk_usage(str(STATE_DIR)).free
+    except OSError:
+        return
+    size = 0
+    if store.db.engine == 'sqlite':
+        try:
+            size = os.path.getsize(str(store.db.path))
+        except (OSError, TypeError):
+            size = 0
+    need = times * size + BACKUP_ROOM_MIN
+    if free < need:
+        raise RbError('there is no room for it in %s: %d MB free, %d MB needed so that the disk '
+                      'is not filled under the database - take old copies away, or give the disk '
+                      'more room' % (STATE_DIR, free >> 20, need >> 20))
+
+
 def rb_run(store, by, only=None, progress=None):
     """Made once, sent to every destination switched on (or the ones asked):
     the result of each, kept in the history."""
@@ -327,6 +348,7 @@ def rb_run(store, by, only=None, progress=None):
         raise RbError('the backups have no password: set one (Settings - Backups - '
                       'Backups to other machines) - unlocked, a copy would hand every private '
                       'key to whoever can read the destination')
+    rb_room(store)
     work = tempfile.mkdtemp(prefix='acme-rbackup-', dir=str(STATE_DIR))
     os.chmod(work, 0o700)
     began = time.time()

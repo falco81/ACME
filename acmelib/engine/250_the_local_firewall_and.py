@@ -310,7 +310,8 @@ def addresses_cached(name):
                    socket.getaddrinfo(name, None, 0, socket.SOCK_STREAM)[:4]]
         except (OSError, ValueError, UnicodeError):
             got = ADDR_CACHE.get(name, (0, [], False))[1]
-        ADDR_CACHE[name] = (time.monotonic(), got, False)
+        # Nothing known yet: asked again in half a minute, not in ten (otp 1.0.234).
+        ADDR_CACHE[name] = (time.monotonic() - (570 if not got else 0), got, False)
         return got
     was = ADDR_CACHE.get(name)
     if was is None:

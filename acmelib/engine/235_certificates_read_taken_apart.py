@@ -17,7 +17,7 @@ def _openssl(args, data=None, env=None, what='openssl', secret=None):
         os.close(wr)
     try:
         got = subprocess.run(['openssl'] + args, input=data, capture_output=True, env=e,
-                             timeout=120, pass_fds=fds)
+                             timeout=3600 if args[:1] == ['enc'] else 120, pass_fds=fds)
     finally:
         if rd is not None:
             os.close(rd)

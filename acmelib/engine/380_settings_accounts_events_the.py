@@ -483,6 +483,54 @@ def _db_files(h):
             'backup_dir': str(BACKUP_DIR), 'dump_dir': str(DUMP_DIR)}
 
 
+# The tables people change, as a move must not leave them behind - not the jobs, the events
+# and the sign-ins, which change as acme is used.
+FINGERPRINT_TABLES = ('certs', 'cert_versions', 'cert_cas', 'cert_ca_versions', 'cert_ca_issued',
+                      'cert_issuers', 'cert_challenges', 'cert_targets', 'cert_deploys',
+                      'dns_records', 'dns_sets', 'dns_set_uses', 'cert_teams', 'cert_tags',
+                      'cert_req_profiles', 'cert_tests', 'cert_checks')
+FINGERPRINT_WORDS = {'settings': 'the settings', 'accounts': 'the accounts',
+                     'directories': 'the directories', 'certs': 'the certificates',
+                     'cert_versions': 'the versions of the certificates',
+                     'cert_cas': 'the own authorities', 'cert_ca_versions': 'the authorities\' versions',
+                     'cert_ca_issued': 'what the own authorities signed', 'cert_issuers': 'the sources',
+                     'cert_challenges': 'the validations', 'cert_targets': 'the targets',
+                     'cert_deploys': 'the deployments', 'dns_records': 'the DNS records',
+                     'dns_sets': 'the DNS sets', 'dns_set_uses': 'the DNS sets in use',
+                     'cert_teams': 'the teams', 'cert_tags': 'the tags',
+                     'cert_req_profiles': 'the request profiles', 'cert_tests': 'the tests',
+                     'cert_checks': 'the tests attached'}
+
+
+def db_fingerprint(db):
+    """What a database holds that a move must not leave behind (otp 1.0.234): the number of rows
+    and the newest of each table people change - not what changes as acme is used."""
+    def one(sql):
+        try:
+            v = db.value(sql)
+            return round(float(v)) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+        except Exception:                               # noqa: BLE001 - a table not there yet
+            return None
+    out = {'settings': (one('SELECT COUNT(*) FROM settings'), one('SELECT MAX(at) FROM settings')),
+           'directories': (one('SELECT COUNT(*) FROM directories'),
+                           one('SELECT MAX(created) FROM directories'))}
+    for t in FINGERPRINT_TABLES:
+        out[t] = (one('SELECT COUNT(*) FROM %s' % t), one('SELECT MAX(id) FROM %s' % t))
+    acc = sorted('%s|%s|%s|%s' % (str(r['name']).lower(), r['role'] or '', r['pw'] or '',
+                                  int(r['disabled'] or 0))
+                 for r in db.rows('SELECT name, role, pw, disabled FROM accounts'))
+    out['accounts'] = (len(acc), hashlib.sha256('\n'.join(acc).encode('utf-8')).hexdigest())
+    return out
+
+
+def db_fingerprint_diff(here, far):
+    """The tables that differ between this database and the one carried into."""
+    a, b = db_fingerprint(here), db_fingerprint(far)
+    return [FINGERPRINT_WORDS.get(k, k) for k in a if a[k] != b.get(k)]
+
+
 @route('GET', '/api/db')
 def _db(h):
     h.me()
@@ -844,6 +892,21 @@ def _db_do(h):
                         here = newest(h.store.db)
                     except Exception:                   # noqa: BLE001
                         there = here = 0
+                    # What the rows hold, not only the events (otp 1.0.234): the events written
+                    # while it was carried were carried too, so a certificate added or a password
+                    # changed meanwhile was left behind - and the check below passed.
+                    try:
+                        far = db_open(c)
+                        try:
+                            moved = db_fingerprint_diff(h.store.db, far)
+                        finally:
+                            far.close()
+                    except Exception:                   # noqa: BLE001
+                        moved = []
+                    if moved:
+                        raise ApiError(409, 'it holds an older copy: %s changed here since it was '
+                                            'carried. Carry everything across again, so nothing '
+                                            'written since is left behind.' % ', '.join(moved))
                     if there and here and there < here - 60:
                         raise ApiError(409, 'it holds an older copy: its newest event is from '
                                             '%s, this one\'s from %s. Empty it and carry '
@@ -853,6 +916,23 @@ def _db_do(h):
                                                     '%d-%m-%Y %H:%M'),
                                                 datetime.fromtimestamp(here).strftime(
                                                     '%d-%m-%Y %H:%M')))
+                # The codes used up here since the carry, used up there too (otp 1.0.224): the
+                # minute allowed above for events let a code of the app used meanwhile be good
+                # again on the new database.
+                try:
+                    far = db_open(c)
+                    try:
+                        sql = {'mariadb': 'INSERT IGNORE INTO used_once (k, node, ts) VALUES (?, ?, ?)',
+                               'sqlite': 'INSERT OR IGNORE INTO used_once (k, node, ts) VALUES (?, ?, ?)'}.get(
+                            far.engine, 'INSERT INTO used_once (k, node, ts) VALUES (?, ?, ?) '
+                                        'ON CONFLICT DO NOTHING')
+                        for r in h.store.db.rows('SELECT k, node, ts FROM used_once WHERE ts > ?',
+                                                 (time.time() - 3 * 86400,)):
+                            far.run(sql, (r['k'], r['node'], r['ts']))
+                    finally:
+                        far.close()
+                except Exception as e:                  # noqa: BLE001
+                    log('the codes used lately could not be carried across: %s' % e, 'warn')
                 write_file_settings({k: c[k] for k in DB_KEYS})
                 h.store.add_event('settings', '%s switched the database to %s at %s; the '
                                   'daemon starts again on it' % (s['name'], words, db_where(c)),

@@ -156,14 +156,18 @@ def mailq_attempt(store, qid, msg=None, raise_err=False, claimed=False):
         rec['state'] = 'failed'
         store.add_event('mail', 'the mail to %s (%s) was refused for good: %s' % (
             who, MAILQ_KIND_WORDS.get(rec.get('kind'), 'a mail'), str(err)[:300]), 'bad')
-    elif now >= float(rec.get('expires') or 0):
+    elif now >= float(rec.get('expires') or 0) or (
+            rec.get('kind') in ('code', 'verify') and now >= float(rec.get('expires') or 0) - 30):
+        # A code's mail no longer tried in its last half minute (otp 1.0.225): delivered then, it
+        # brought a code that had run out.
         rec['state'] = 'expired'
         store.add_event('mail', 'the mail to %s (%s) was given up after %d tries: %s' % (
             who, MAILQ_KIND_WORDS.get(rec.get('kind'), 'a mail'), rec['tries'],
             str(err)[:300]), 'bad')
     else:
         rec['state'] = 'waiting'
-        rec['next_at'] = min(now + mailq_delay(rec), float(rec.get('expires') or now))
+        rec['next_at'] = min(now + mailq_delay(rec), float(rec.get('expires') or now) -
+                             (30 if rec.get('kind') in ('code', 'verify') else 0))
         if rec['tries'] == 1:
             store.add_event('mail', 'the mail to %s (%s) did not go yet - tried again from '
                             'the outgoing mail: %s' % (
@@ -264,7 +268,13 @@ def mailq_tick(store):
                 # the page says - and nothing but a code past its time given
                 # up for it either.
                 continue
-            if state == 'sending' and now - float(rec.get('last_try') or 0) > 600 and \
+            # Left half way: 10 min - or, a code's (otp 1.0.225), once its sending has had its time:
+            # 10 min was past the code's own five, and it was never sent.
+            # Longer than one try can take (otp 1.0.234): four times the timeout and the names
+            # looked up - taken back sooner, a code went out a second time while the first still did.
+            stuck = 600 if rec.get('kind') not in ('code', 'verify') else \
+                4 * int(CONFIG.get('smtp_timeout_s') or 20) + 90
+            if state == 'sending' and now - float(rec.get('last_try') or 0) > stuck and \
                     (mine or rec.get('node') not in alive):
                 # Left half way by a node that stopped: tried again.
                 _, raw = mailq_read(store, qid)

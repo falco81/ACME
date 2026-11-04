@@ -707,6 +707,12 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
         live_sessions = store.db.rows('SELECT * FROM sessions')
     except Exception:                                   # noqa: BLE001
         live_sessions = None
+    # The codes used up stay used up (otp 1.0.224): put back, the copy's used_once replaced the
+    # one of now - every code of the administrators' app used since the copy was good again.
+    try:
+        live_once = store.db.rows('SELECT k, node, ts FROM used_once')
+    except Exception:                                   # noqa: BLE001
+        live_once = None
     c = _db_conf()
     if kind == 'copy':
         load_tables(store.db, path)
@@ -770,6 +776,19 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
                 store.db.insert_many('sessions', keys, [[row[k] for k in keys]])
         except Exception as e:                          # noqa: BLE001
             log('the sign-ins could not be kept as they were: %s' % e, 'warn')
+    if live_once:
+        eng = store.db.engine
+        sql = ('INSERT IGNORE INTO used_once (k, node, ts) VALUES (?, ?, ?)' if eng == 'mariadb' else
+               'INSERT OR IGNORE INTO used_once (k, node, ts) VALUES (?, ?, ?)' if eng == 'sqlite' else
+               'INSERT INTO used_once (k, node, ts) VALUES (?, ?, ?) ON CONFLICT DO NOTHING')
+        kept = 0
+        for r in live_once:
+            try:
+                kept += 1 if store.db.run(sql, (r['k'], r['node'], r['ts'])) else 0
+            except Exception:                           # noqa: BLE001
+                pass
+        if kept:
+            log('put back: %d code(s) used since the copy kept used up' % kept, 'info')
     for r in live_tls:
         try:
             store.set_meta(r['k'], r['v'])

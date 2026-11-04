@@ -59,10 +59,14 @@ def vip_watch(daemon):
             # Maintenance asked for (1.0.186): said at once, not after two looks -
             # the node stops its work, and the VIP address went silent for
             # seconds before keepalived moved it.
-            planned = maintenance_now(store).get('on')
+            m = maintenance_now(store)
+            planned = m.get('on')
             if planned:
                 VIP_HEALTH['fails'] = max(VIP_HEALTH['fails'], VIP_FAILS_BEFORE)
-                VIP_HEALTH.setdefault('drain_since', time.time())
+                if m.get('split') or m.get('clock'):
+                    VIP_HEALTH.pop('drain_since', None)     # silent at once (otp 1.0.227)
+                else:
+                    VIP_HEALTH.setdefault('drain_since', time.time())
                 why = why or 'in maintenance'
             else:
                 VIP_HEALTH.pop('drain_since', None)
@@ -79,6 +83,20 @@ def vip_watch(daemon):
             os.replace(str(tmp), str(VIP_STATE))
         except Exception as e:                          # noqa: BLE001
             log_sparing('vip-watch:' + str(e)[:80], 'the VIP address: %s' % e, 'warn', 600)
+            if isinstance(e, DbError) and CONFIG.get('ha_mode') and VIP_STATE.exists():
+                # Its database gone (otp 1.0.227): the pages here cannot answer, and the file
+                # was left to go stale - the VIP address went unanswered 14 s before it moved.
+                # Said at once.
+                try:
+                    VIP_HEALTH.update(ok=False, why='the database cannot be reached', at=time.time())
+                    tmp = RUN_DIR / '.vip-state'
+                    tmp.write_text('fail the database cannot be reached\n')
+                    os.chmod(str(tmp), 0o640)
+                    os.replace(str(tmp), str(VIP_STATE))
+                except OSError:
+                    pass
+                daemon.stop_flag.wait(2)
+                continue
             daemon.stop_flag.wait(10)
 
 

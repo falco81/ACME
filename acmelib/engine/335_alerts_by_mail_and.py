@@ -759,11 +759,16 @@ def report_due(now=None):
     except ValueError:
         hh, mm = 7, 30
     every = CONFIG.get('report_every') or 'weekly'
-    if every == 'weekly' and n.isoweekday() != int(CONFIG.get('report_day') or 1):
-        return False
-    if every == 'monthly' and n.day != 1:
-        return False
-    return (n.hour, n.minute) >= (hh, mm)
+    # Its day or any later one of the same week or month (1.0.234): with the sending node down
+    # for the rest of that day, the period was never sent. Sent once a period all the same - the
+    # period's own mark (report:sent) says whether it was.
+    late = (n.hour, n.minute) >= (hh, mm)
+    if every == 'weekly':
+        day = int(CONFIG.get('report_day') or 1)
+        return n.isoweekday() > day or (n.isoweekday() == day and late)
+    if every == 'monthly':
+        return n.day > 1 or late
+    return late
 
 
 def _rep_table(head, rows, widths=None):

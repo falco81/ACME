@@ -494,23 +494,38 @@ class ApiHandler(BaseHTTPRequestHandler):
                         if k not in keys:
                             fl.pop(k, None)
                             self.d.login_info.pop(k, None)
-        self._held = (keys, t)
+        # Each place held on its own (otp 1.0.234): a second count in the same request took the
+        # place of the first, which was then never given back - every right sign-in counted as
+        # a wrong password.
+        held = getattr(self, '_held', None)
+        if not isinstance(held, list):
+            held = self._held = []
+        held.append([keys, t, False])
         return keys
 
     def failed(self, key):
-        """The attempt went wrong: the place it holds stays taken."""
-        self._failed = True
+        """The attempt went wrong: the place it holds stays taken - that one only, when it is
+        said which; every place of the request otherwise."""
+        held = getattr(self, '_held', None) or []
+        mine = [x for x in held if x[0] is key or x[0] == key]
+        for x in (mine or held):
+            x[2] = True
+        if not mine:
+            self._failed = True
 
     def _release(self):
         held = getattr(self, '_held', None)
         if not held or getattr(self, '_failed', False):
+            self._held = None
             return
-        keys, t = held
         with self.THROTTLE_LOCK:
-            for key in keys:
-                got = self.d.login_fails.get(key)
-                if got and t in got:
-                    got.remove(t)
+            for keys, t, bad in held:
+                if bad:
+                    continue
+                for key in keys:
+                    got = self.d.login_fails.get(key)
+                    if got and t in got:
+                        got.remove(t)
         self._held = None
 
 

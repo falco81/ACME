@@ -306,9 +306,22 @@ ACME_MANUAL_WAIT = float(os.environ.get('ACME_ACME_MANUAL_WAIT') or 3600)
 def _dns_manual(store, rr, txt, say):
     """Shown on the page; waited for until somebody says it is in DNS."""
     ident = secrets.token_hex(6)
-    store.set_meta('acme:manual', json.dumps({'id': ident, 'rr': rr, 'txt': txt, 'at': time.time()}))
-    say('waiting: put %s TXT "%s" in DNS, then say so on the page' % (rr, txt))
     end = time.time() + ACME_MANUAL_WAIT
+    # One at a time in the cluster (otp 1.0.234): the other node's order, waiting on its own
+    # record, was given up the moment this one wrote over the one row the page shows.
+    while True:
+        cur = _meta_json(store, 'acme:manual') or {}
+        mine = cur.get('node') in (None, node_name())
+        stale = time.time() - float(cur.get('at') or 0) > ACME_MANUAL_WAIT + 60
+        if not cur or mine or cur.get('done') or stale:
+            break
+        if time.time() > end:
+            raise AcmeError('the manual DNS step of %s held the page for an hour' % cur.get('node'))
+        say('waiting for %s: its own record is asked for on the page first' % cur.get('node'))
+        time.sleep(5)
+    store.set_meta('acme:manual', json.dumps({'id': ident, 'rr': rr, 'txt': txt, 'at': time.time(),
+                                              'node': node_name()}))
+    say('waiting: put %s TXT "%s" in DNS, then say so on the page' % (rr, txt))
     try:
         while time.time() < end:
             got = _meta_json(store, 'acme:manual') or {}

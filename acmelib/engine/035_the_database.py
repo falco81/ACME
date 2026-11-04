@@ -455,7 +455,9 @@ class Db(object):
                 except Exception as e:
                     raise DbError('MariaDB at %s could not be reached: %s' % (self.where(), e))
                 for sql in ('SET SESSION innodb_lock_wait_timeout = %d' % lock_s,
-                            'SET SESSION max_statement_time = %d' % stmt_s):
+                            'SET SESSION max_statement_time = %d' % stmt_s,
+                            # A node stopped half way through a sign-in (otp 1.0.226), as on PG.
+                            'SET SESSION idle_transaction_timeout = %d' % (10 if quick else 120)):
                     try:
                         with self.conn.cursor() as cur:
                             cur.execute(sql)
@@ -482,8 +484,15 @@ class Db(object):
                         # ...and a line that drops while a statement is out:
                         # given up after 30 s, not the kernel's 15 min.
                         tcp_user_timeout=10000 if quick else 30000,
-                        options='-c lock_timeout=%d -c statement_timeout=%d' % (
-                            lock_s * 1000, stmt_s * 1000),
+                        # ...and a node that stops half way through a sign-in (otp 1.0.226: a
+                        # VM paused, a node cut off) no longer holds that person's row for
+                        # the server's two hours: its open transaction ended after a while,
+                        # the server's own keepalives finding it gone.
+                        options='-c lock_timeout=%d -c statement_timeout=%d '
+                                '-c idle_in_transaction_session_timeout=%d '
+                                '-c tcp_keepalives_idle=10 -c tcp_keepalives_interval=3 '
+                                '-c tcp_keepalives_count=3' % (
+                                    lock_s * 1000, stmt_s * 1000, (10 if quick else 120) * 1000),
                         **db_tls_args('postgres', self.tls, self.tls_ca))
                     self.conn.autocommit = True
                     self.conn.set_client_encoding('UTF8')

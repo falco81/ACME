@@ -230,9 +230,12 @@ def snmp_boots_next():
         n = 0
     n = n + 1 if n < 2147483646 else 1
     try:
-        p.write_text('%d\n' % n)
-    except OSError:
-        pass
+        # Written whole and put in its place (1.0.234): cut short by a crash or a full disk, it
+        # read as 0 - the count went back, and answers seen before could be sent again.
+        write_replacing(p, '%d\n' % n, 0o600)
+    except OSError as e:
+        log_sparing('snmp-boots', 'SNMPv3: the count of starts could not be written (%s): %s'
+                    % (p, e), 'warn', every=3600)
     return n
 
 

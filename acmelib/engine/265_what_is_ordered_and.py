@@ -278,7 +278,11 @@ def acme_order(store, target, name, by, say=None):
                            stamp(info.get('not_after')) if info.get('not_after') else '?'),
                         'info', who=by)
         return st
-    except (AcmeError, ValueError, OSError) as e:
+    except Exception as e:                              # noqa: BLE001
+        # Every failure written down (otp 1.0.234): an odd answer of the CA (KeyError) or openssl
+        # timing out was only logged - the order was due again within the hour, every hour.
+        if not isinstance(e, (AcmeError, ValueError, OSError)):
+            e = AcmeError('%s: %s' % (type(e).__name__, e))
         if 'NXDOMAIN' in str(e) and (CONFIG.get('acme_challenge') or '') == 'dns-01':
             e = AcmeError('%s - the CA does not find the record: In your DNS → Check DNS, with '
                           'DNS servers for ACME set to public ones (1.1.1.1), shows where the way '

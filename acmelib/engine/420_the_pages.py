@@ -279,6 +279,7 @@ def _rb_restore_job(h, b, by):
                 tmp = Path(tempfile.mkdtemp(prefix='acme-fetch-', dir=str(STATE_DIR)))
                 os.chmod(str(tmp), 0o700)
                 path = tmp / name
+                rb_room(store)                  # otp 1.0.234
                 rb_fetch(store, t['id'], name, str(path))
             progress(2, 4, 'opened and checked')
             got = rb_restore(store, str(path), password, by)

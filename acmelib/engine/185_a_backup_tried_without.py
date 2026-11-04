@@ -184,6 +184,7 @@ def rb_verify(store, by, tid=None, name=None, progress=None):
         res.update(file=f['name'], made=f['when'], bytes=f['bytes'])
         say(2, 'fetched from %s' % t['name'])
         dst = os.path.join(work, 'b')
+        rb_room(store)                      # otp 1.0.234
         rb_fetch(store, t['id'], f['name'], dst)
         say(3, 'opened and read through')
         res['checks'], m = rb_verify_file(dst, rb_password(), work)
@@ -199,13 +200,37 @@ def rb_verify(store, by, tid=None, name=None, progress=None):
     # The newest nightly copy here, read through too.
     say(4, 'the newest nightly copy read through')
     try:
-        kept = kept_copies()
-        if kept:
-            got = copy_read_through(BACKUP_DIR / kept[0]['name'], sealing_key())
-            res['checks'].append({'what': 'the newest nightly copy here reads to its last line',
-                                  'ok': got['tried'] == got['opened'],
-                                  'said': '%s, %d rows' % (kept[0]['name'],
-                                                           sum(got['counts'].values()))})
+        # The nightly copies themselves (otp 1.0.234): read from where the hand-made ones are, the
+        # nightly ones were never looked at - and a check that tried nothing passed.
+        nightly = [d for d in kept_dumps(store.db.engine) if d['mine']]
+        what = 'the newest nightly copy here reads to its last line'
+        if nightly:
+            d = nightly[0]
+            path = DUMP_DIR / d['name']
+            if d['kind'] == 'copy':
+                got = copy_read_through(path, sealing_key())
+                ok = got['tried'] > 0 and got['tried'] == got['opened']
+                said = '%s, %d rows' % (d['name'], sum(got['counts'].values()))
+            elif d['kind'] == 'sqlite' and not str(d['name']).endswith('.gz'):
+                got, why = _peek_sqlite(str(path))
+                ok = bool(got)
+                said = '%s, %d rows' % (d['name'], sum(got['counts'].values())) if got else why
+            else:
+                import gzip
+                n = 0
+                opener = gzip.open if str(d['name']).endswith('.gz') else open
+                with opener(str(path), 'rb') as f:
+                    while True:
+                        chunk = f.read(1 << 20)
+                        if not chunk:
+                            break
+                        n += len(chunk)
+                ok = n > 0
+                said = '%s, %d MB read' % (d['name'], n >> 20)
+            res['checks'].append({'what': what, 'ok': ok, 'said': said})
+        elif CONFIG.get('backup_daily'):
+            res['checks'].append({'what': what, 'ok': False,
+                                  'said': 'there is no nightly copy in %s' % DUMP_DIR})
     except Exception as e:                              # noqa: BLE001
         res['checks'].append({'what': 'the newest nightly copy here reads to its last line',
                               'ok': False, 'said': str(e)[:200]})
