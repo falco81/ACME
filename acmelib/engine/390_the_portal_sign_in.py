@@ -57,7 +57,9 @@ def portal_me(h, gate_ok=False):
     if not portal_dir_still(h, s):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(401, 'that account may no longer sign in here')
-    if portal_must_change(s):
+    # The code first, the password after (1.0.45): an account to change its password could
+    # never type its code - asked before it, and refused for this.
+    if portal_must_change(s) and not gate_ok:
         raise ApiError(403, 'change the password first')
     return s
 
@@ -231,8 +233,12 @@ def portal_sees_all(s):
     account of acme's own with the role of a certificate or full
     administrator."""
     data = s.get('data') or {}
+    # A certificate administrator only where it sees every certificate in the administration
+    # too (1.0.45): scoped there (certs_certadmin_all off), the portal gave it every team's.
+    role = data.get('role')
     return bool(data.get('kind') == 'local' and CONFIG.get('portal_admins_all', 1)
-                and data.get('role') in ('certadmin', 'fulladmin'))
+                and (role == 'fulladmin' or (role == 'certadmin'
+                                             and CONFIG.get('certs_certadmin_all'))))
 
 
 # The pictures of the two sign-ins (1.0.71; each its own since 1.0.72):
@@ -946,6 +952,11 @@ def _portal_password(h):
         raise ApiError(401, 'not signed in, or the sign-in has run out')
     if portal_mfa_pending(s):
         raise ApiError(401, 'the second step of signing in is not done yet')
+    # Not before the one-time code (1.0.45): the password alone changed the password, ended
+    # the owner's other sign-ins, and locked them out.
+    if portal_gated(s) or (portal_local_ways() and not (s.get('data') or {}).get('gate_ok')
+                           and (s.get('data') or {}).get('kind') == 'local'):
+        raise ApiError(401, 'type the code that was sent to you first')
     if not portal_local_ok(h, s):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(401, 'that account may no longer sign in here')

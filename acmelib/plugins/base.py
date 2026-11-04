@@ -23,6 +23,7 @@ import base64
 import importlib.util
 import os
 import re
+import stat
 import sys
 import threading
 import time
@@ -1063,6 +1064,18 @@ FOLDERS = {'issuer': 'issuers', 'challenge': 'challenges', 'target': 'targets',
 # ---------------------------------------------------------------------------
 # Finding them
 # ---------------------------------------------------------------------------
+
+def _roots_own(*paths):
+    """Whether every one of these is root's and written by no one else (and no link)."""
+    for p in paths:
+        try:
+            st = os.lstat(p)
+        except OSError:
+            return False
+        if stat.S_ISLNK(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+            return False
+    return True
+
 class Registry(object):
     """Every module there is, found once and found again on reload().
 
@@ -1095,6 +1108,13 @@ class Registry(object):
                     if not fn.endswith('.py') or fn.startswith(('_', '.')):
                         continue
                     path = os.path.join(d, fn)
+                    if own and os.geteuid() == 0 and not _roots_own(root, d, path):
+                        # Run as root (1.0.45), only modules root alone could have put there:
+                        # /etc/acme is the acme account's group's, and a folder of its own put
+                        # in place of root's was loaded as root.
+                        broken.append((path, 'not loaded as root: it, or a folder above it, is '
+                                             'not root\'s alone', ''))
+                        continue
                     try:
                         mod = self._load(root, folder, fn, path)
                     except Exception as e:              # noqa: BLE001

@@ -577,7 +577,9 @@ def realip_checked(rp):
     nets = []
     for w in (rp.get('from') or [])[:64]:
         try:
-            nets.append(str(ipaddress.ip_network(str(w), strict=False)))
+            # plain() (1.0.45): ip_network keeps an IPv6 scope id with any character in it -
+            # a newline and nginx's own directives into acme.conf, as root.
+            nets.append(str(plain(str(w), 'network')))
         except ValueError:
             raise Refused('realip: %r is not an address or a network' % str(w)[:60])
     head = str(rp.get('header') or 'X-Forwarded-For')
@@ -1823,6 +1825,12 @@ def pgtls_checked(r):
         # database or account (1.0.209): "all all" let any role in from the peer.
         if str(r[k]).lower() in PG_HBA_WORDS:
             raise Refused('%s is a word of pg_hba.conf, not acme\'s database or account' % r[k])
+        # Nor the server's own (1.0.45): "host postgres postgres <peer>" opened the superuser
+        # to the network.
+        low = str(r[k]).lower()
+        if low.startswith('pg_') or low in (('postgres', 'template0', 'template1') if k == 'db'
+                                            else ('postgres', 'root', 'replication')):
+            raise Refused('%s is the database server\'s own, not acme\'s' % r[k])
         out[k] = str(r[k])
     peer = str(r.get('peer') or '').strip()
     try:
@@ -3484,8 +3492,11 @@ def user_auth_write(pw, lines):
             raise
         return True
     as_user(pw, go)
+    # The folder and the file by themselves, never -R (1.0.45): the user could put a link in
+    # place of ~/.ssh between the write and this, and root relabelled whatever it led to.
+    # restorecon takes a link as the link itself.
     if shutil.which('restorecon') and not NO_SERVICES:
-        subprocess.run(['restorecon', '-R', folder], capture_output=True)
+        subprocess.run(['restorecon', '--', folder, path], capture_output=True)
 
 
 def key_line_checked(line):
@@ -6040,7 +6051,7 @@ def se_report_parts(r):
                 lab.append(_se_out(['ls', '-Za', p], 20, light=False).rstrip())
             lab.append('  policy says: ' + _se_out(['matchpathcon', p], 20, light=False).strip())
     parts['labels.txt'] = '\n'.join(lab) + '\n'
-    ps = _se_out(['ps', '-eZo', 'label,user,pid,comm,args'], 60, light=False)
+    ps = _se_out(['ps', '-eZo', 'label,user,pid,comm'], 60, light=False)
     keep = [x for x in ps.splitlines() if x.startswith('LABEL') or
             any(c in x for c in SE_REPORT_COMMS)]
     # Arguments cut to 200: what runs, not every word it was given.

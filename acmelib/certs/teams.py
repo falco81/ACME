@@ -294,7 +294,12 @@ def guard(h, s, method, path):
         if path == '/api/certs/one':
             need_cert(store, s, h.arg('id') or h.arg('name'), 'view', 'look at')
         elif path == '/api/certs/job':
-            need_cert(store, s, _cert_of_job(store, h.arg('id')), 'view', 'look at a job of')
+            cid = _cert_of_job(store, h.arg('id'))
+            if cid is None:
+                # A job of no certificate (a target's test, a module's action) - its steps say
+                # what another team's target did (1.0.45): for those who see all only.
+                deny(store, s, 'look at a job of no certificate', 'view')
+            need_cert(store, s, cid, 'view', 'look at a job of')
         elif path == '/api/certs/dry_run_result':
             need_cert(store, s, _cert_of_job(store, h.arg('job')), 'view', 'look at a test of')
         elif path == '/api/certs/jobs' and h.arg('cert_id'):
@@ -328,7 +333,8 @@ def guard(h, s, method, path):
             if isinstance(it, dict):
                 need_owner(store, s, it.get('owner'), 'a certificate imported from a source')
     elif path == '/api/certs/approve':
-        row = S.cert_get(store, b.get('id')) if b.get('id') not in (None, '') else None
+        # As the route reads it (1.0.45): " 5" or 5.0 found nothing here, and went through.
+        row = cert_of_ref(store, b.get('id')) if b.get('id') not in (None, '') else None
         if row is not None and not (cert_may(store, s, row, 'approve')
                                     or cert_may(store, s, row, 'manage')):
             deny(store, s, 'approve %s' % row['name'], 'approve')

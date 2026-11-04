@@ -6,6 +6,23 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.45 - not released
 
+- **A hunt, round 1 (the rights of the API, the root helper):**
+  - A certificate administrator signed in on the portal took the private key (PFX) of any
+    certificate - the administration refuses it that; and, scoped to its teams there, it saw and
+    managed every team's on the portal. Now the portal follows the administration's rights.
+  - Approving a portal request: an id written as `" 5"` or `5.0` went past the check of the
+    teams. A job of no certificate (a target's test) was readable by a scoped account.
+  - A portal sign-in still waiting for its one-time code could change the password (and lock
+    the owner out); an account with a password to change could never type its code - the code
+    comes first now, the password after.
+  - A wildcard asked for on the portal waits for an administrator, whatever *issued without
+    approval* says. The owner names of a portal sign-in come from the directory, not from the
+    name as typed.
+  - The root helper: a balancer's address with an IPv6 scope id went into nginx's configuration
+    (a line of its own); the SELinux labels of a user's `~/.ssh` are put right without `-R`; the
+    database server's own accounts and databases are refused for the cluster's access; the
+    SELinux report keeps no command lines of other programs; root loads only modules of its
+    own from `/etc/acme/plugins`.
 - **A hunt, round 1 (the pages):** a download that fails (a copy gone, a destination not
   reached) is said on the page - it replaced the page with its JSON, and what was not saved was
   lost; the downloads of copies and backups are started only by the page itself (a link or an

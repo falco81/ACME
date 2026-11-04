@@ -91,7 +91,9 @@ def my_names(s):
     out = {str(s['name']).lower()}
     if is_local(s):
         return out | {'local:' + str(s['name']).lower()}
-    for v in (data.get('login'), about.get('sam'), about.get('upn'), data.get('mail')):
+    # What the directory said who it is (1.0.45) - never the name as typed: "B\\falco" typed by
+    # falco of domain A owned what was B\\falco's.
+    for v in (about.get('sam'), about.get('upn'), data.get('mail')):
         if v:
             out.add(str(v).strip().lower())
     return out
@@ -272,8 +274,13 @@ def key_may(s, via, may, asked_by=''):
     (1.0.19): its own (owned by them, or asked for by them for a team), one of
     a team where they may manage, or an administrator of acme's own who sees
     all - never a member who may only see it, nor through a directory group."""
-    return bool(E.portal_sees_all(s) or via == 'me' or 'manage' in (may or ())
-                or (asked_by and str(asked_by).lower() == owner_word(s).lower()))
+    # Seeing all gives the key only to a full administrator (1.0.45), as the administration's
+    # own export does: a certificate administrator took any certificate's key from here.
+    sees_all_key = E.portal_sees_all(s) and (s.get('data') or {}).get('role') == 'fulladmin'
+    if sees_all_key or via == 'me' or (asked_by and str(asked_by).lower() == owner_word(s).lower()):
+        return True
+    # 'manage' by a team's right - not the every-right a sees-all session gets.
+    return bool('manage' in (may or ()) and not E.portal_sees_all(s))
 
 
 def need_mine(h, s, ref):
@@ -571,7 +578,9 @@ def _portal_request(h):
                             who=who)
             raise E.ApiError(403, 'you may not ask for certificates of the team %s' % b['team'])
         owner = tm[0]
-    auto = bool(E.CONFIG.get('portal_cert_auto'))
+    # A wildcard waits for an administrator whatever portal_cert_auto says (1.0.45): issued at
+    # once, with its key to take, it covered every host under the name.
+    auto = bool(E.CONFIG.get('portal_cert_auto')) and not any(n.startswith('*.') for n in names)
     base_name = re.sub(r'[^A-Za-z0-9._@+-]+', '-', names[0].replace('*.', 'wildcard.'))[:80]
     name = base_name
     n = 1
