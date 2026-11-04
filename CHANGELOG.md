@@ -36,10 +36,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   In a cluster the rules are the cluster's and every node puts them on itself; the pill of
   the card says of each node whether they are in effect there, being put in, could not be
   (and why), or that it runs a version before 1.0.42.
-  Left out of the days - always good - are a user with no password (a key only) and those
-  SSH asks a code of (*Settings → SSH server*): with the password run out, PAM's account
-  step makes sshd ask for the old one first, even after a key or a code - and they have
-  none to give. The other rules (length, kinds, the name) hold for everybody.
+  Left out of the days - always good - are a user with no password (a key only) and one
+  SSH asks a code of (*Settings → SSH server*) who may not use sudo: with the password run
+  out, PAM's account step makes sshd ask for the old one first, even after a key or a code -
+  and they may never have been told it. One who signs in with a key and a code and may use
+  sudo (for `sudo acme --console`) keeps the days: sudo asks for that password, so they know
+  it and change it when sshd asks. Given or taken sudo, a user is put in or out of the days
+  at once. The other rules (length, kinds, the name) hold for everybody.
 - SELinux: MariaDB of the node on a port of its own (not 3306) - the port is given
   `mysqld_port_t` with the rest of what acme needs (*Put in what acme needs*), as
   PostgreSQL's was already; enforcing, MariaDB could not listen there.

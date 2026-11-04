@@ -1114,9 +1114,11 @@ SAYS = {
     'osu_pw_max_days': 'How many days a password of a local user is good for; then the user must '
                        'choose a new one at the next sign-in (chage -M, put on every normal user of '
                        'every node). 0: always - as until now. Left out - always good: a user '
-                       'with no password (a key only), and those SSH asks a code of (Settings → '
-                       'SSH server): with the password run out, sshd asks for the old one before '
-                       'anything else, and one who signs in with a code has none to give.',
+                       'with no password (a key only), and one SSH asks a code of (Settings → SSH '
+                       'server) who may not use sudo: with the password run out, sshd asks for the '
+                       'old one before anything else, even after a key or a code, and they may '
+                       'never have been told it. One asked a code who may use sudo keeps the days: '
+                       'sudo asks for that password, so they know it and can change it.',
     'osu_pw_min_days': 'How many days after a change the user may change it again on the machine '
                        '(chage -m) - so that a forced change cannot be undone at once. 0: at any time.',
     'osu_pw_warn_days': 'How many days before the password runs out the user is told so when they '

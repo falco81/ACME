@@ -438,7 +438,8 @@ def osu_aging(pol=None):
 
 
 def osu_spared(store):
-    """Who is left out of the days a password is good for (1.0.42): those SSH asks a code of.
+    """Who SSH asks a code of (1.0.42) - left out of the days a password is good for unless they
+    may use sudo (the root helper decides it, knowing who has sudo).
     Their account phase in PAM still says "expired", and sshd then asks for the old password
     before anything else - one who signs in with a code (and a key) has none to give, and is
     locked out. {'all': True} while the code is asked of everybody but root."""
@@ -452,12 +453,6 @@ def osu_spared(store):
     return {'all': not names, 'names': names}
 
 
-def osu_aging_for(store, name, has_password=True):
-    """The days for one user: none (always good) without a password or for one asked a code."""
-    sp = osu_spared(store)
-    if not has_password or sp['all'] or name in sp['names']:
-        return dict(osu_aging(), max_days=0, min_days=0)
-    return osu_aging()
 
 
 def osu_policy_ask(pol=None, store=None):
@@ -570,13 +565,18 @@ def osu_ask(store, nodes, do, by, **f):
         ask['must_change'] = bool(f.get('must_change'))
         if f.get('password'):
             ask['hash'] = seal_secret(osu_hash(f['password'], name), 'osuser:' + name)
-        ask['aging'] = osu_aging_for(store, name, bool(f.get('password')))
+        ask['aging'] = osu_aging()
+        ask['spare'] = osu_spared(store)
     elif do == 'password':
         ask['hash'] = seal_secret(osu_hash(f.get('password'), name), 'osuser:' + name)
         ask['must_change'] = bool(f.get('must_change'))
-        ask['aging'] = osu_aging_for(store, name)
+        ask['aging'] = osu_aging()
+        ask['spare'] = osu_spared(store)
     elif do == 'sudo':
         ask['on'] = bool(f.get('on'))
+        # In or out of the days with it (1.0.42): one asked a code by SSH is left out without sudo.
+        ask['aging'] = osu_aging()
+        ask['spare'] = osu_spared(store)
     elif do == 'drop':
         ask['home'] = bool(f.get('home'))
     for n in nodes:

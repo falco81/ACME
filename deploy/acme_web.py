@@ -3709,6 +3709,28 @@ def lu_login_defs(aging):
     write_root(LOGIN_DEFS, text if text.endswith('\n') else text + '\n', mode or 0o644)
 
 
+def lu_left_out(u, spare):
+    """Left out of the days a password is good for (1.0.42) - always good: a user with no
+    password (a key only: nothing to change it with), and one SSH asks a code of who may not
+    use sudo - the code and a key let them in, their password they may never have been told.
+    One asked a code who may use sudo is not left out: sudo asks for that password, they know
+    it, and sshd's "change it now" at an expired one is a change they can make."""
+    spare = spare if isinstance(spare, dict) else {}
+    coded = bool(spare.get('all')) or u.get('name') in {str(n) for n in (spare.get('names') or [])[:500]}
+    return not u.get('password') or (coded and not u.get('sudo'))
+
+
+def lu_age_one(name, r):
+    """The days of the policy put on one user as they are now (made, a new password, sudo)."""
+    if not r.get('aging'):
+        return
+    aging = lu_aging(r['aging'])
+    u = next((x for x in lu_list()['users'] if x['name'] == name), None)
+    if u is None or u.get('root'):
+        return
+    lu_age(name, (0, 0, aging[2]) if lu_left_out(u, r.get('spare')) else aging)
+
+
 def lu_policy(r):
     """The policy put on this machine: the days on every normal user, the rules for passwd."""
     aging = lu_aging(r.get('aging'))
@@ -3716,13 +3738,12 @@ def lu_policy(r):
     # an expired password locks them out: sshd asks for the old one before anything else.
     spare = r.get('spare') if isinstance(r.get('spare'), dict) else {}
     spare_all = bool(spare.get('all'))
-    spare_names = {str(n) for n in (spare.get('names') or [])[:500]}
     never = (0, 0, aging[2])
     done, failed, spared = 0, [], 0
     for u in lu_list()['users']:
         if u.get('root'):
             continue
-        left_out = not u.get('password') or spare_all or u['name'] in spare_names
+        left_out = lu_left_out(u, spare)
         try:
             lu_age(u['name'], never if left_out else aging)
             spared += left_out
@@ -3748,7 +3769,8 @@ def lu_policy(r):
     elif os.path.exists(PWQ_FILE):
         os.unlink(PWQ_FILE)
     said = 'the password policy put on %d user(s)%s%s' % (
-        done, ' (%d without a password or asked a code by SSH: always good)' % spared if spared else '',
+        done, ' (%d without a password, or asked a code by SSH and without sudo: always good)' % spared
+        if spared else '',
         ', the same rules for passwd' if rules else '')
     if failed:
         said += '; not on: ' + '; '.join(failed)[:300]
@@ -3802,12 +3824,11 @@ def lu_do(r):
         p = pwd.getpwnam(name)
         if r.get('hash'):
             lu_run(['chpasswd', '-e'], '%s:%s\n' % (name, lu_hash_checked(r['hash'])))
-        if r.get('aging'):
-            lu_age(name, lu_aging(r['aging']))
-        if r.get('must_change'):
-            lu_run(['chage', '-d', '0', name])
         if r.get('sudo') is not None:
             lu_sudo(name, bool(r['sudo']))
+        lu_age_one(name, r)                     # once sudo is as asked: it decides (1.0.42)
+        if r.get('must_change'):
+            lu_run(['chage', '-d', '0', name])
         return dict(lu_list(), said=said)
     if p is None:
         if do == 'drop':
@@ -3816,8 +3837,7 @@ def lu_do(r):
     if do == 'password':
         lu_run(['chpasswd', '-e'], '%s:%s\n' % (name, lu_hash_checked(r.get('hash'))))
         lu_run(['chage', '-d', '0' if r.get('must_change') else str(int(time.time() // 86400)), name])
-        if r.get('aging'):
-            lu_age(name, lu_aging(r['aging']))
+        lu_age_one(name, r)
         said = 'the password of %s set' % name
     elif do == 'lock':
         # The password and the account: no key lets in either (sshd asks PAM if it has expired).
@@ -3834,6 +3854,7 @@ def lu_do(r):
         said = '%s unlocked' % name
     elif do == 'sudo':
         lu_sudo(name, bool(r.get('on')))
+        lu_age_one(name, r)                     # sudo given or taken: in or out of the days
         said = '%s %s' % (name, 'may use sudo' if r.get('on') else 'no longer uses sudo')
     elif do == 'set':
         argv = ['usermod']

@@ -132,12 +132,8 @@ class Daemon(unittest.TestCase):
 
     def test_spared_who_ssh_asks_a_code(self):
         conf = {'manage': True, 'radius': True, 'radius_users': ['jan'], 'radius_root': False}
-        with mock.patch.dict(E.CONFIG, {'osu_pw_max_days': 90}), \
-                mock.patch.object(E, 'sshd_conf', return_value=conf):
+        with mock.patch.object(E, 'sshd_conf', return_value=conf):
             self.assertEqual(E.osu_spared(object()), {'all': False, 'names': ['jan']})
-            self.assertEqual(E.osu_aging_for(object(), 'jan')['max_days'], 0)
-            self.assertEqual(E.osu_aging_for(object(), 'eva')['max_days'], 90)
-            self.assertEqual(E.osu_aging_for(object(), 'eva', has_password=False)['max_days'], 0)
             self.assertEqual(E.osu_policy_ask(store=object())['spare'], {'all': False, 'names': ['jan']})
         with mock.patch.object(E, 'sshd_conf', return_value=dict(conf, radius_users=[])):
             self.assertTrue(E.osu_spared(object())['all'])
@@ -245,12 +241,25 @@ class Helper(unittest.TestCase):
                          ('60', '2', '9'))
         # The other lines of login.defs kept.
         self.assertIn('UID_MIN', got_defs)
-        # Asked a code by SSH: left out - always good, and said so.
-        got = self.W.lu_do({'do': 'policy', 'spare': {'all': False, 'names': [self.name]},
+        # Asked a code by SSH, no sudo: left out - always good, and said so.
+        spare = {'all': False, 'names': [self.name]}
+        got = self.W.lu_do({'do': 'policy', 'spare': spare,
                             'aging': {'max_days': 60, 'min_days': 2, 'warn_days': 9}})
         self.assertIn('always good', got['said'])
         p = shadow(self.name)
         self.assertEqual((p[3], p[4]), ('0', '99999'))
+        # Given sudo: it knows its password (sudo asks for it) - in the days again.
+        self.W.lu_do({'do': 'sudo', 'name': self.name, 'on': True, 'spare': spare,
+                      'aging': {'max_days': 60, 'min_days': 2, 'warn_days': 9}})
+        p = shadow(self.name)
+        self.assertEqual((p[3], p[4]), ('2', '60'))
+        got = self.W.lu_do({'do': 'policy', 'spare': spare,
+                            'aging': {'max_days': 60, 'min_days': 2, 'warn_days': 9}})
+        self.assertEqual(shadow(self.name)[4], '60')
+        # Sudo taken away: left out again.
+        self.W.lu_do({'do': 'sudo', 'name': self.name, 'on': False, 'spare': spare,
+                      'aging': {'max_days': 60, 'min_days': 2, 'warn_days': 9}})
+        self.assertEqual(shadow(self.name)[4], '99999')
         # Off again: always good, and pwquality's file of acme's taken away.
         got = self.W.lu_do({'do': 'policy', 'aging': {'max_days': 0, 'min_days': 0, 'warn_days': 7}})
         self.assertFalse(os.path.exists(self.pwq))

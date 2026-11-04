@@ -53187,6 +53187,10 @@
   "osupol_32": {
    "source": "What is saved is in effect on both nodes - but not all of this card is as it should be.",
    "text": "Uložené nastavení platí na obou uzlech – ale ne všechno na této kartě je, jak má být."
+  },
+  "osupol_33": {
+   "source": "How many days a password of a local user is good for; then the user must choose a new one at the next sign-in (chage -M, put on every normal user of every node). 0: always - as until now. Left out - always good: a user with no password (a key only), and one SSH asks a code of (Settings → SSH server) who may not use sudo: with the password run out, sshd asks for the old one before anything else, even after a key or a code, and they may never have been told it. One asked a code who may use sudo keeps the days: sudo asks for that password, so they know it and can change it.",
+   "text": "Kolik dní platí heslo lokálního uživatele; potom si uživatel musí při dalším přihlášení zvolit nové (chage -M, na každém běžném uživateli každého uzlu). 0: napořád – jako dosud. Vynecháni – platí napořád: uživatel bez hesla (jen klíč) a ten, po kom SSH chce kód (Nastavení → SSH server) a nesmí sudo: s vypršelým heslem se sshd nejdřív ptá na staré, i po klíči nebo kódu, a to mu nikdo nemusel říct. Kdo se hlásí kódem a smí sudo, dobu platnosti má: sudo se na to heslo ptá, takže ho zná a může ho změnit."
   }
  },
  "patterns": {
@@ -72649,6 +72653,14 @@
   "posupol_16": {
    "source": "the password policy put on {0} user(s) ({1} without a password or asked a code by SSH: always good), the same rules for passwd",
    "text": "politika hesel nasazena na uživatele: {0} ({1} bez hesla nebo s kódem přes SSH: platí napořád), stejná pravidla i pro passwd"
+  },
+  "posupol_17": {
+   "source": "the password policy put on {0} user(s) ({1} without a password, or asked a code by SSH and without sudo: always good)",
+   "text": "politika hesel nasazena na uživatele: {0} ({1} bez hesla nebo s kódem přes SSH a bez sudo: platí napořád)"
+  },
+  "posupol_18": {
+   "source": "the password policy put on {0} user(s) ({1} without a password, or asked a code by SSH and without sudo: always good), the same rules for passwd",
+   "text": "politika hesel nasazena na uživatele: {0} ({1} bez hesla nebo s kódem přes SSH a bez sudo: platí napořád), stejná pravidla i pro passwd"
   }
  },
  "rich": {
