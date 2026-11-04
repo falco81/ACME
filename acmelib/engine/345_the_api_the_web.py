@@ -211,6 +211,7 @@ class ApiHandler(BaseHTTPRequestHandler):
                 return self.send_json({'ok': False, 'error': frozen, 'split': True}, 409)
         self._held = None
         self._failed = False
+        self._guard = None
         try:
             got = fn(self)
             if got is not None:
@@ -435,6 +436,14 @@ class ApiHandler(BaseHTTPRequestHandler):
                 ip = str(ipaddress.ip_network('%s/64' % a, strict=False))
         except ValueError:
             pass
+        # A place that keeps guessing blocked for a while (as otp 1.0.137): refused at once, its
+        # password not looked at, no directory asked.
+        if kind in GUARD_KINDS and guard_on() and not guard_trusted(ip):
+            self._guard = (ip, name)
+            b = guard_blocked(self.d, ip)
+            if b:
+                raise ApiError(429, 'too many wrong sign-ins from %s: blocked for %s - %s'
+                               % (ip, guard_left(b[0]), b[1]))
         keys = [(kind, ip)]
         if name:
             # Counted per person, not per spelling (1.0.44): DOMAIN\\novak,
@@ -506,6 +515,14 @@ class ApiHandler(BaseHTTPRequestHandler):
     def failed(self, key):
         """The attempt went wrong: the place it holds stays taken - that one only, when it is
         said which; every place of the request otherwise."""
+        g = getattr(self, '_guard', None)
+        if g and guard_on():
+            # One refusal of the place (as otp 1.0.137), once per request.
+            self._guard = None
+            try:
+                guard_count(self.d, g[0], g[1])
+            except Exception:                           # noqa: BLE001
+                pass
         held = getattr(self, '_held', None) or []
         mine = [x for x in held if x[0] is key or x[0] == key]
         for x in (mine or held):

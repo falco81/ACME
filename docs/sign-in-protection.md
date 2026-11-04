@@ -11,7 +11,8 @@ Two counts hold back somebody guessing passwords on these pages:
   one person of the directory - so that the guesses made here never lock their
   account in Active Directory.
 
-Both are shown, and cleared, under *Settings → Accounts → Locked out*
+Both are shown, and cleared, under *Settings → Sign-in protection → Counted and
+blocked now* (with a filter) and *Settings → Accounts → Locked out* (every kind)
 (`acme --lockouts`, `acme --lockouts-clear`).
 
 ## 1. Wrong directory passwords per person
@@ -61,7 +62,7 @@ acme --set dir_pw_window_min=30
 
 ## 2. Per directory, and the domain's own policy
 
-Under *Settings → Accounts → Wrong directory passwords - each directory* every
+Under *Settings → Sign-in protection → Wrong directory passwords - each directory* every
 configured directory has a card of its own: its servers, whether the link is
 encrypted, and how it is capped.
 

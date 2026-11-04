@@ -47,6 +47,8 @@ class FakeH(object):
 
 class TestCountedBy(unittest.TestCase):
     def setUp(self):
+        # The cap goes with "Block a place that keeps guessing" (as otp 1.0.241).
+        E.CONFIG['login_guard'] = 1
         E.CONFIG['dir_pw_tries'] = 0
         E.CONFIG['dir_pw_window_min'] = 30
         STORE.db.run("DELETE FROM meta WHERE k LIKE 'adpw:%' OR k = 'dirpw:conf'")
@@ -227,7 +229,9 @@ class TestSignIns(unittest.TestCase):
         cls.must('POST', '/api/settings', {'settings': {
             'admin_directory': 'corp', 'admin_group_full': 'CERT_USERS',
             'portal': 1, 'portal_directory': 'corp', 'portal_tries': 50, 'login_tries': 50,
-            'dir_pw_tries': 2, 'dir_pw_window_min': 30}})
+            'dir_pw_tries': 2, 'dir_pw_window_min': 30,
+            # The cap goes with the guard of places (as otp 1.0.241); its own limits out of the way.
+            'login_guard': 1, 'login_guard_tries': 10000, 'login_guard_names': 0}})
 
     @classmethod
     def tearDownClass(cls):

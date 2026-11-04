@@ -68,6 +68,14 @@ DEFAULTS = {
     'login_wait_min': 15,
     # Wrong directory passwords per person on the pages, for the whole cluster (as otp
     # 1.0.230): 0 - no cap of its own, as until now (the counts of each sign-in, on each node).
+    # Block a place that keeps guessing (as otp 1.0.137, its radius_guard): the sign-ins to these
+    # pages and to the portal counted by the address they come from too. Off - as until now.
+    'login_guard': 0,
+    'login_guard_tries': 20,
+    'login_guard_names': 5,
+    'login_guard_window_min': 15,
+    'login_guard_block_min': 30,
+    'login_guard_trusted': '',
     'dir_pw_tries': 0,
     'dir_pw_window_min': 30,
     'admin_directory': '',
@@ -382,6 +390,8 @@ TUNABLE = {
     'portal_local': (0, 1), 'portal_admins_all': (0, 1), 'portal_enrolers': (0, 1),
     'session_hours': (1, 168), 'session_idle_min': (5, 1440),
     'login_tries': (1, 100), 'login_wait_min': (1, 1440),
+    'login_guard': (0, 1), 'login_guard_tries': (2, 10000), 'login_guard_names': (0, 1000),
+    'login_guard_window_min': (1, 1440), 'login_guard_block_min': (1, 10080),
     'dir_pw_tries': (0, 100), 'dir_pw_window_min': (1, 1440),
     'admin_2fa': (0, 1), 'admin_2fa_app': (0, 1), 'admin_2fa_mail': (0, 1), 'admin_2fa_sms': (0, 1),
     'isemon': (0, 1), 'isemon_events': (0, 1),
@@ -602,6 +612,12 @@ NAMES = {
     'session_idle_min': '...and may sit untouched (min)',
     'login_tries': 'Wrong passwords before a pause',
     'login_wait_min': '...and the pause (min)',
+    'login_guard': 'Block a place that keeps guessing',
+    'login_guard_tries': 'Wrong sign-ins from one place before it is blocked',
+    'login_guard_names': 'Different names refused from one place before it is blocked',
+    'login_guard_window_min': '...counted over (min)',
+    'login_guard_block_min': 'Blocked for (min)',
+    'login_guard_trusted': 'Never blocked',
     'dir_pw_tries': 'Wrong directory passwords per person, on these pages and the enrolment pages',
     'dir_pw_window_min': '...counted over (min)',
     'admin_directory': 'Sign administrators in against the directory',
@@ -1025,6 +1041,28 @@ SAYS = {
                         'has to be done again.',
     'login_tries': 'Wrong passwords from one address before it has to wait.',
     'login_wait_min': 'How long it waits.',
+    'login_guard': 'Off: only each address and each name count their own wrong passwords on each '
+                   'kind of sign-in - from one place somebody may still try every name a few '
+                   'times. On: the place each sign-in comes from - the address it connects from '
+                   '- is counted too, over these pages and the certificate portal together. Too '
+                   'many refusals from one place, or too many different names refused from it, '
+                   'and it is blocked for a while: its sign-ins are refused at once, nothing of '
+                   'them is checked, no directory is asked. Each node counts what reaches it; '
+                   'who is counted and who is blocked is below, each cleared by hand. Wrong '
+                   'directory passwords per person go with it: off, no cap is applied.',
+    'login_guard_tries': 'Refusals from one place within the time below after which it is '
+                         'blocked - wrong passwords, wrong codes, names nobody has. Not counted: '
+                         'refusals that are this server\'s trouble (a directory away).',
+    'login_guard_names': 'Different names refused from one place within the time below after '
+                         'which it is blocked - somebody trying many people\'s passwords. 0: not '
+                         'counted.',
+    'login_guard_window_min': 'The time over which the refusals of one place are counted.',
+    'login_guard_block_min': 'How long a place is blocked. Clear it by hand below to let it '
+                             'in at once.',
+    'login_guard_trusted': 'Addresses or networks never blocked, one or more, separated by '
+                           'spaces or commas: an office whose people all come from one '
+                           'address, a monitor that signs in now and then. Example: '
+                           '198.51.100.7 203.0.113.0/24',
     'dir_pw_tries': 'A directory password is tried against Active Directory at each sign-in to the '
                     'enrolment pages (the certificate portal) and at each sign-in to these pages '
                     'of an administrator from the directory. Each of them counts on its own and on '
@@ -1397,8 +1435,10 @@ PANES = {
     'isemon': ['isemon', 'isemon_targets', 'isemon_hostname',
                'isemon_events', 'isemon_max_bytes', 'isemon_verify', 'isemon_mtls',
                'isemon_ca', 'ship_files'],
+    # Sign-in protection (as otp 1.0.230-1.0.241): its own pane, as otp has it.
+    'guard': ['login_guard', 'login_guard_tries', 'login_guard_names', 'login_guard_window_min',
+              'login_guard_block_min', 'login_guard_trusted', 'dir_pw_tries', 'dir_pw_window_min'],
     'people': ['session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
-               'dir_pw_tries', 'dir_pw_window_min',
                'admin_2fa', 'admin_2fa_app', 'admin_2fa_mail', 'admin_2fa_sms',
                'admin_directory', 'admin_group_full', 'admin_group_cert',
                'admin_group_readonly', 'admin_group_portal', 'totp_window', 'names_czsk_letters',
@@ -1465,6 +1505,11 @@ CARD_DRAWN = ('split_mode', 'split_prefer', 'split_arbiter', 'split_after_s', 's
 # A setting that only means something while another one says so. Shown
 # greyed out with the reason beside it, as on isemon.
 ONLY_WHEN = {
+    'login_guard_tries': ['login_guard', '1'], 'login_guard_names': ['login_guard', '1'],
+    'dir_pw_tries': ['login_guard', '1'], 'dir_pw_window_min': ['login_guard', '1'],
+    'login_guard_window_min': ['login_guard', '1'],
+    'login_guard_block_min': ['login_guard', '1'],
+    'login_guard_trusted': ['login_guard', '1'],
     'portal_title': ['portal', '1'], 'portal_directory': ['portal', '1'],
     'portal_hint': ['portal', '1'], 'portal_who': ['portal', '1'],
     'portal_groups': ['portal_who', 'groups'],
@@ -1788,6 +1833,12 @@ def check_setting(key, value):
                 not (re.match(r'^https://[A-Za-z0-9.-]+(:\d{1,5})?(/|\Z)', u) or
                      re.match(r'^/(?!/)', u)):
             raise BadSetting('portal_sso_logout: an https:// address or a path starting with /')
+    if key == 'login_guard_trusted':
+        for one in [w for w in re.split(r'[\s,;]+', str(got)) if w]:
+            try:
+                ipaddress.ip_network(one, strict=False)
+            except ValueError:
+                raise BadSetting('login_guard_trusted: %r is not an address or a network' % one)
     if key == 'web_proxy_header':
         # A header's name only (otp 1.0.237) - it goes into nginx's configuration as it is.
         if not re.match(r'^[A-Za-z][A-Za-z0-9-]{0,63}\Z', str(got)) or \

@@ -1153,7 +1153,8 @@ function showPane(name) {
   });
   document.querySelectorAll('.ctl-pane').forEach(function (p) { p.hidden = p.id !== 'pane-' + name; });
   writeHash();
-  if (name === 'people') { loadUsers(); loadDirs(); loadDirCaps(); }
+  if (name === 'people') { loadUsers(); loadDirs(); }
+  if (name === 'guard') { loadLockouts(); loadDirCaps(); }
   if (name === 'db') { loadDb(); dbLinkNote(); }
   if (name === 'backup') loadRbackup();
   if (name === 'network') loadNet();
@@ -2062,6 +2063,21 @@ function applyOnlyWhen() {
            : 'Not in use while ' + other.name + ' is “' + ((other.choice_words || {})[now] || now) + '”.')));
     }
   });
+  /* Each directory's cap goes with "Block a place that keeps guessing" too (as otp 1.0.241). */
+  var dp = $('dp-list'), g = $('set-login_guard');
+  if (dp && g) {
+    var on = String(g._get ? g._get() : g.value);
+    var off = !(on === 'true' || on === '1');
+    dp.classList.toggle('asleep', off);
+    var why = $('dp-asleep');
+    if (off && !why) {
+      why = el('p', 'note warn', 'Not in use while ' + ((settingByKey('login_guard') || {}).name || 'Block a place that keeps guessing') + ' is off - no cap is applied to any directory. What is set here is kept for when it is on.');
+      why.id = 'dp-asleep';
+      dp.parentNode.insertBefore(why, dp);
+    } else if (!off && why) {
+      why.remove();
+    }
+  }
 }
 $('set-save').onclick = function () {
   var want = {};
@@ -2691,8 +2707,11 @@ function loadUsers() {
    down every second in between. */
 var LO = {data: null, skew: 0, fetched: 0, timer: null};
 /* Where the counts are shown (1.0.137): Accounts. */
+/* Two views of the same counts (as otp 1.0.137): Accounts - every kind; Sign-in
+   protection - the sign-ins, the codes sent and the directory passwords, with a filter. */
 var LO_VIEWS = [
-  {table: 'lo-table', tools: 'lo-tools', card: 'lo-card', kinds: null}
+  {table: 'lo-table', tools: 'lo-tools', card: 'lo-card', kinds: null},
+  {table: 'gd-table', tools: 'gd-tools', card: 'gd-card', kinds: ['guard-src', 'admin', 'portal', 'codes-sent', 'dir-passwords'], find: 'gd-find'}
 ];
 function loadLockouts() {
   if (!ADMIN || !LO_VIEWS.some(function (v) { return $(v.table); })) return;
@@ -2784,7 +2803,7 @@ function drawDirCaps() {
   var d = DP.data || {};
   var dirs = d.directories || [];
   if (!dirs.length) {
-    host.appendChild(el('p', 'muted', 'No directory is set up yet (The directories administrators sign in against, below).'));
+    host.appendChild(el('p', 'muted', 'No directory is set up yet (Settings → Accounts → The directories administrators sign in against).'));
     return;
   }
   var set = d.setting || {tries: 0, window_min: 30};
@@ -3020,20 +3039,34 @@ function drawLockoutsIn(v) {
   var locked = rows.filter(function (r) { return r.locked; }).length;
   if (rows.length) {
     if (locked) { var lc = el('span', 'small bad', num(locked) + ' locked out'); lc.style.marginRight = '12px'; tools.appendChild(lc); }
-    var all = cmdButton('Clear them all', 'broom', 'small');
-    all.onclick = function () {
-      confirmThen('Clear every lockout?', 'Every count of wrong attempts is forgotten' + (d.cluster ? ' on every node' : '')
-        + ' - the locked out may try again at once. Events keeps a line saying who did it.', 'Clear them all', function () {
-        loClear({action: 'clear_all'});
-      }, false);
-    };
-    tools.appendChild(all);
+    if (!v.kinds) {
+      var all = cmdButton('Clear them all', 'broom', 'small');
+      all.onclick = function () {
+        confirmThen('Clear every lockout?', 'Every count of wrong attempts is forgotten' + (d.cluster ? ' on every node' : '')
+          + ' - the locked out may try again at once. Events keeps a line saying who did it.', 'Clear them all', function () {
+          loClear({action: 'clear_all'});
+        }, false);
+      };
+      tools.appendChild(all);
+    } else {
+      var these = cmdButton(find ? 'Clear these (' + num(rows.length) + ')' : 'Clear them all', 'broom', 'small');
+      these.onclick = function () {
+        var list = rows.slice();
+        confirmThen(find ? 'Clear these?' : 'Clear them all?', (find ? 'The ' + num(list.length) + ' shown' : 'Every place and name shown')
+          + ' may try again at once. Events keeps a line saying who did it.', 'Clear them', function () {
+          Promise.all(list.map(function (r) {
+            return api('lockouts', {action: 'clear', node: r.node, kind: r.kind, who: r.who}).catch(function () { return null; });
+          })).then(function () { toast('cleared: ' + num(list.length), 'good'); loadLockouts(); setTimeout(loadLockouts, 7000); });
+        }, false);
+      };
+      tools.appendChild(these);
+    }
   }
   }, true);
   liveFill(host, function (host) {
   if (!rows.length) {
     host.appendChild(el('p', 'note good', find ? 'Nothing counted for "' + find + '".'
-      : 'Nobody is locked out, and no wrong attempt is being counted.'));
+      : (v.kinds ? 'No place is counted or blocked, and nobody is held back.' : 'Nobody is locked out, and no wrong attempt is being counted.')));
     return;
   }
   var heads = ['State', 'Who', 'Where', 'How many', 'Tried'].concat(d.cluster ? ['Node'] : []).concat(['Last', '']);
@@ -3041,7 +3074,7 @@ function drawLockoutsIn(v) {
     var tr = el('tr', r.locked ? 'lo-locked' : '');
     var st = el('td');
     if (r.locked) {
-      st.appendChild(el('span', 'tag crit', 'locked out'));
+      st.appendChild(el('span', 'tag crit', r.by === 'place' ? 'blocked' : 'locked out'));
       st.appendChild(el('div', 'small', span(r.until - now) + ' left'));
       if (r.why) st.appendChild(el('div', 'small muted', r.why));
     } else {
@@ -3051,7 +3084,8 @@ function drawLockoutsIn(v) {
     tr.appendChild(st);
     var who = el('td');
     who.appendChild(noI18n(el('div', 'mono', r.who)));
-    who.appendChild(el('div', 'small muted', r.by === 'address' ? 'an address' : 'a name'));
+    who.appendChild(el('div', 'small muted', r.by === 'address' ? 'an address' : (r.by === 'token' ? 'a token'
+      : (r.by === 'place' ? 'a place (the address it signs in from)' : 'a name'))));
     tr.appendChild(who);
     tr.appendChild(el('td', 'small', r.what));
     var w = el('td', 'num lo-count');
@@ -3060,10 +3094,16 @@ function drawLockoutsIn(v) {
     line.appendChild(document.createTextNode(' / ' + num(r.limit)));
     w.appendChild(line);
     w.appendChild(loBar(r.fails, r.limit, r.locked));
+    if (r.by === 'place' && r.names_limit) {
+      var nl = el('div', 'small muted');
+      nl.appendChild(document.createTextNode(num(r.names) + ' / ' + num(r.names_limit) + ' names'));
+      w.appendChild(nl);
+      w.appendChild(loBar(r.names, r.names_limit, false));
+    }
     tr.appendChild(w);
     var tried = el('td', 'small');
     if ((r.others || []).length) {
-      tried.appendChild(el('div', 'muted', r.by === 'address' ? 'names:' : 'from:'));
+      tried.appendChild(el('div', 'muted', r.by === 'address' || r.by === 'place' ? 'names:' : 'from:'));
       tried.appendChild(noI18n(el('div', 'mono', r.others.slice().reverse().join(', '))));
     } else tried.textContent = '–';
     tr.appendChild(tried);
@@ -3086,6 +3126,7 @@ function drawLockoutsIn(v) {
   }, 'plain'));
   }, true);
 }
+if ($('gd-find')) $('gd-find').addEventListener('input', function () { drawLockouts(); });
 function userDo(body) {
   /* Drawn again either way (1.0.44): a refused change stayed in its box. */
   api('users', body).then(function (d) { toast(d.message, 'good'); loadUsers(); })

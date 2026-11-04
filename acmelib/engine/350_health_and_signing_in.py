@@ -18,11 +18,116 @@ LOCKOUT_KINDS = {
     'password': 'changing a password',
     'dirtry': 'trying a directory sign-in (Accounts)',
     'texts-test': 'a test message (Message texts)',
+    'guard-src': 'signing in to these pages or the portal, from one place',
     # Wrong directory passwords per person, for the whole cluster (as otp 1.0.230).
     'dir-passwords': 'directory passwords tried on the pages',
 }
 LOCKOUTS_SENT = {'sig': None, 'at': 0.0}
 THROTTLE_GUARD = threading.Lock()
+
+
+# ---- Block a place that keeps guessing (as otp 1.0.137 - its RADIUS guard - for the sign-ins
+# to these pages and to the certificate portal) ------------------------------------------------
+GUARD_KIND = 'guard-src'
+# The sign-ins counted by the place they come from: these pages, the portal, the second step.
+GUARD_KINDS = ('admin', 'portal', 'mfa', 'portal-sso')
+
+
+def guard_on():
+    return bool(CONFIG.get('login_guard'))
+
+
+def guard_trusted(src):
+    """A place never blocked: login_guard_trusted (an office behind one
+    address, a monitor that signs in)."""
+    raw = str(CONFIG.get('login_guard_trusted') or '')
+    if not raw.strip() or not src:
+        return False
+    try:
+        a = ipaddress.ip_network(src, strict=False)
+    except ValueError:
+        return src in [x.strip().lower() for x in re.split(r'[\s,;]+', raw) if x.strip()]
+    for x in re.split(r'[\s,;]+', raw):
+        if not x.strip():
+            continue
+        try:
+            net = ipaddress.ip_network(x.strip(), strict=False)
+        except ValueError:
+            continue
+        if net.version != a.version:
+            continue
+        if a.prefixlen >= net.prefixlen and a.subnet_of(net):
+            return True
+        # One IPv6 address (1.0.146): requests are told apart by their /64
+        # only, so the /64 it is in is the one trusted.
+        if a.version == 6 and a.prefixlen == 64 and net.overlaps(a):
+            return True
+    return False
+
+
+def guard_blocked(daemon, src):
+    """(until, why) while the place is blocked, else None."""
+    if not src:
+        return None
+    info = daemon.login_info.get((GUARD_KIND, src))
+    if not info:
+        return None
+    until = float(info.get('blocked_until') or 0)
+    if until > time.time():
+        return until, info.get('blocked_why') or 'too many wrong sign-ins'
+    return None
+
+
+def guard_count(daemon, src, name):
+    """One refusal from `src` for `name`: counted; blocked at the limit."""
+    t = time.time()
+    tries = int(CONFIG.get('login_guard_tries') or 20)
+    nlimit = int(CONFIG.get('login_guard_names') or 0)
+    span = 60 * int(CONFIG.get('login_guard_window_min') or 15)
+    block = 60 * int(CONFIG.get('login_guard_block_min') or 30)
+    key = (GUARD_KIND, src)
+    name = str(name or '').strip().lower()[:120]
+    newly = None
+    with ApiHandler.THROTTLE_LOCK:
+        fails = [x for x in daemon.login_fails[key] if t - x < span] + [t]
+        # Kept to the limits set (1.0.139): tries up to 10000, names up to 1000.
+        daemon.login_fails[key] = fails[-max(1000, tries):]
+        info = daemon.login_info.setdefault(key, {'others': []})
+        names = {n: ts for n, ts in (info.get('names') or {}).items() if t - ts < span}
+        if name:
+            names[name] = t
+            cap = max(500, nlimit)
+            if len(names) > cap:
+                names = dict(sorted(names.items(), key=lambda kv: kv[1])[-cap:])
+            others = [x for x in info.get('others') or [] if x != name]
+            info['others'] = (others + [name])[-6:]
+        info.update(limit=tries, span=span, what='wrong sign-ins', at=t, names=names,
+                    names_limit=nlimit, guard=True)
+        if float(info.get('blocked_until') or 0) <= t:
+            why = None
+            if len(fails) >= tries:
+                why = '%d wrong sign-ins in %d min' % (len(fails), span // 60)
+            elif nlimit and len(names) >= nlimit:
+                why = '%d different names refused in %d min' % (len(names), span // 60)
+            if why:
+                info['blocked_until'] = t + block
+                info['blocked_why'] = why
+                info['blocked_at'] = t
+                newly = why
+    if newly:
+        try:
+            daemon.store.add_event('sign-ins', '%s is blocked for %d min - %s; the names: %s'
+                                   % (src, block // 60, newly, ', '.join(
+                                       (daemon.login_info.get(key) or {}).get('others') or [])),
+                                   'warn')
+        except Exception:                               # noqa: BLE001
+            pass
+        LOCKOUTS_SENT['sig'] = None
+
+
+def guard_left(until):
+    left = max(0, int(until - time.time()))
+    return '%d min' % ((left + 59) // 60) if left >= 60 else '%d s' % left
 
 
 def lockouts_view(d):
@@ -37,6 +142,30 @@ def lockouts_view(d):
             continue
         fails = [x for x in fails if t - x < span]
         kind, who = key
+        if info.get('guard'):
+            # A place counted by the sign-in protection (as otp 1.0.137): blocked for its own
+            # time, by its refusals or by its names.
+            until = float(info.get('blocked_until') or 0)
+            blocked = until > t
+            if not fails and not blocked:
+                # Forgotten once nothing of it counts (otp 1.0.149).
+                if t - float(info.get('at') or 0) > span and t - until > span:
+                    d.login_fails.pop(key, None)
+                    d.login_info.pop(key, None)
+                continue
+            names = [n for n, ts in (info.get('names') or {}).items() if t - ts < span]
+            last = max(fails[-1] if fails else 0, float(info.get('blocked_at') or 0))
+            rows.append({
+                'kind': kind, 'who': who, 'by': 'place', 'what': LOCKOUT_KINDS.get(kind, kind),
+                'base': kind, 'words': info.get('what') or 'wrong sign-ins',
+                'fails': len(fails), 'limit': int(info.get('limit') or 0),
+                'names': len(names), 'names_limit': int(info.get('names_limit') or 0),
+                'locked': blocked, 'until': until if blocked else None,
+                'why': info.get('blocked_why') if blocked else '',
+                'forgets': max(until, (fails[-1] + span) if fails else 0),
+                'first': fails[0] if fails else last, 'last': last,
+                'others': list(info.get('others') or [])})
+            continue
         if not fails:
             continue
         by_name = kind.endswith('-name')
@@ -136,9 +265,8 @@ def dir_pw_caps_list(store):
                     'policy': own.get('policy')})
     return {'directories': out, 'setting': {'tries': int(CONFIG.get('dir_pw_tries') or 0),
                                             'window_min': int(CONFIG.get('dir_pw_window_min') or 30)},
-            # acme has no "Block a place that keeps guessing" (otp's RADIUS guard, 1.0.241):
-            # the cap is in use whenever it is set.
-            'in_use': True}
+            # One switch for the guessing guards (as otp 1.0.241).
+            'in_use': guard_on()}
 
 
 def dir_pw_caps_set(store, want, by):
@@ -216,8 +344,11 @@ def dir_pw_caps(store):
 
 
 def dir_pw_cap_of(store, directory):
-    """(tries, window in seconds) for a directory: its own, else the setting's."""
+    """(tries, window in seconds) for a directory: its own, else the setting's. None at all while
+    "Block a place that keeps guessing" is off (as otp 1.0.241): one switch for the guessing guards."""
     own = dir_pw_caps(store).get(str(directory or '').lower()) or {}
+    if not guard_on():
+        return 0, 60 * int(own.get('window_min') or CONFIG.get('dir_pw_window_min') or 30)
     tries = own.get('tries') if own.get('tries') is not None else CONFIG.get('dir_pw_tries')
     window = own.get('window_min') if own.get('window_min') else CONFIG.get('dir_pw_window_min')
     return int(tries or 0), 60 * int(window or 30)

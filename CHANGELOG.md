@@ -188,7 +188,7 @@ hunts. Every new switch is off - as until now - unless said otherwise.
 - **A code typed as the mail shows it** (as otp 1.0.224-1.0.227): the administrators' second
   step takes "821 275", "821-275" or any dash, a no-break space, full-width digits and the top
   row of a Czech keyboard without Shift; a 10-digit code is no longer cut short in its box.
-- **Wrong directory passwords per person capped** (*Settings → Accounts → Wrong
+- **Wrong directory passwords per person capped** (*Settings → Sign-in protection → Wrong
   directory passwords per person*, `dir_pw_tries`; 0 by default - as until now), as
   otp 1.0.230 - 1.0.234. A directory password is tried against Active Directory at
   each sign-in to the enrolment pages (the certificate portal) and at each sign-in of
@@ -242,6 +242,17 @@ hunts. Every new switch is off - as until now - unless said otherwise.
   node writes its own now. A test alert or *Forget* on the node that does not send
   no longer writes back an older copy of what was sent (the same alerts again).
   The weekly or monthly report missed on its day goes on a later day of the period.
+
+- **Sign-in protection** (*Settings → Sign-in protection*, as otp's pane). **Block a place that
+  keeps guessing** (`login_guard`; off by default - as until now): the sign-ins to these pages and
+  to the certificate portal counted by the address they come from too; too many refusals from
+  one place, or too many different names refused from it, and it is blocked for a while
+  (`login_guard_tries`, `_names`, `_window_min`, `_block_min`; `login_guard_trusted` never
+  blocked) - its sign-ins refused at once, no directory asked. With it: the cap of wrong
+  directory passwords per person (one switch for the guessing guards, as otp 1.0.241), each directory's own cap with *Read the domain's policy*, and
+  *Counted and blocked now* - the sign-ins to these pages and the portal, the codes sent and the
+  names held back, with a filter and *Clear*. For every directory set in *Accounts → The
+  directories administrators sign in against*: the administrators' sign-ins and the portal's.
 
 ## 1.0.39 - 2026-11-04
 

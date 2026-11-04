@@ -657,6 +657,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <button type="button" data-pane="mailq" data-icon="list" title="Every mail sent - an alert, a report, a code to sign in with - and what became of it: sent, waiting for another try (greylisting, a server away), failed. Sent again or taken away by hand.">Outgoing mail <span class="nav-badge" id="mq-badge" hidden></span></button>
     <div class="ctl-group">Access</div>
     <button type="button" data-pane="people" data-icon="person" title="Who may open these pages, what each of them may do, and who is signed in right now.">Accounts</button>
+    <button type="button" data-pane="guard" data-icon="shield" title="Somebody guessing passwords, codes or names from one place: counted, and held back for a while; wrong directory passwords per person, so the directory never locks the account.">Sign-in protection</button>
     <button type="button" class="fulladmin-only" data-pane="hisec" data-icon="shield" title="Every way of doing something less safely switched off - and what stands against it now.">High security</button>
     <button type="button" data-pane="web" data-icon="lock" title="The certificates of the nodes and of the cluster's VIP address, and how TLS is spoken.">Certificates and TLS</button>
     <button type="button" class="fulladmin-only" data-pane="acme" data-icon="lock" title="The certificates ordered from Let's Encrypt (or another ACME CA) and renewed by themselves.">Automatic certificates</button>
@@ -823,6 +824,26 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="card full" id="isemon-guide"></div>
   </div>
 
+  <div class="ctl-pane" id="pane-guard" hidden>
+    <div class="ctl-head"><h2 class="ctl-title">Sign-in protection</h2>
+      <p class="ctl-lede">Guessing from one place held back - wrong passwords, wrong codes,
+        names nobody has.</p></div>
+    <div class="card full"><div id="sect-guard"></div></div>
+    <div class="card full fulladmin-only" id="dp-card"><h2>Wrong directory passwords - each directory</h2>
+      <p class="note">Each directory with a cap of its own, or as the setting above. <b>Read the
+        domain's policy</b> asks the domain itself - through the directory's own connection - how it
+        locks accounts and what it asks of passwords, and recommends a cap below its lockout. Nothing
+        changes until <b>Save the changes</b> below.</p>
+      <div id="dp-list"></div></div>
+    <div class="card full fulladmin-only" id="gd-card"><h2>Counted and blocked now <span class="right" id="gd-tools"></span></h2>
+      <p class="note">The places sign-ins to these pages and to the certificate portal come from with
+        wrong attempts still counted, the codes sent to a person, and the names held back by wrong
+        directory passwords - how close each is to its limit, and how long a pause still runs. Type
+        a name or an address to see only those; Clear lets them in again at once.</p>
+      <div class="btnrow" style="margin-bottom:10px"><input type="search" id="gd-find" class="mono" placeholder="a name or an address" autocomplete="off" style="max-width:320px"></div>
+      <div id="gd-table"></div></div>
+  </div>
+
   <div class="ctl-pane" id="pane-people" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Accounts</h2>
       <p class="ctl-lede">Who may open these pages. <b>full admin</b> may change everything;
@@ -886,12 +907,6 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       </div>
     </div>
     <div class="card full"><div id="sect-people"></div></div>
-    <div class="card full fulladmin-only" id="dp-card"><h2>Wrong directory passwords - each directory</h2>
-      <p class="note">Each directory with a cap of its own, or as the setting above. <b>Read the
-        domain's policy</b> asks the domain itself - through the directory's own connection - how it
-        locks accounts and what it asks of passwords, and recommends a cap below its lockout. Nothing
-        changes until <b>Save the changes</b> below.</p>
-      <div id="dp-list"></div></div>
     <div class="card full">
       <h2>The groups, and what each one may do</h2>
       <p class="note">Choose the directory in Sign administrators in against the directory above, then press Find the groups and pick them out of the directory rather than typing a distinguished name by hand — that is how a role ends up pointing at a group that does not exist, and nobody finds out until the first person cannot sign in.</p>

@@ -17,6 +17,8 @@ def _hs_on():
 
 
 HISEC_SETTINGS = {
+    'login_guard': {'forbid': [0], 'pane': 'guard',
+                    'why': 'guessing passwords on these pages and the portal from one place is not held back'},
     'smtp_security': {'forbid': ['none', 'starttls-if'], 'pane': 'mail',
                       'when': lambda c: c.get('mail_mode') == 'smtp',
                       'why': 'mail goes to the mail server unencrypted, or encrypted only if it '

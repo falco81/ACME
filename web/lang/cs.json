@@ -52383,6 +52383,50 @@
   "lbsso_89": {
    "source": "A sign-in by the load balancer refused",
    "text": "Přihlášení přes load balancer odmítnuto"
+  },
+  "gpane_1": {
+   "source": "Somebody guessing passwords, codes or names from one place: counted, and held back for a while; wrong directory passwords per person, so the directory never locks the account.",
+   "text": "Někdo hádá hesla, kódy nebo jména z jednoho místa: počítá se a na chvíli se zastaví; chybná hesla z adresáře na osobu, aby adresář účet nikdy nezamkl."
+  },
+  "gpane_2": {
+   "source": "The places sign-ins to these pages and to the certificate portal come from with wrong attempts still counted, the codes sent to a person, and the names held back by wrong directory passwords - how close each is to its limit, and how long a pause still runs. Type a name or an address to see only those; Clear lets them in again at once.",
+   "text": "Místa, odkud přicházejí přihlášení na tyto stránky a na portál certifikátů a u kterých se ještě počítají chybné pokusy, kódy poslané člověku a jména zastavená kvůli chybným heslům z adresáře – jak blízko je každé svému limitu a jak dlouho ještě pauza trvá. Napište jméno nebo adresu a uvidíte jen ty; Vymazat je hned zase pustí."
+  },
+  "gpane_3": {
+   "source": "No directory is set up yet (Settings → Accounts → The directories administrators sign in against).",
+   "text": "Zatím není nastavený žádný adresář (Nastavení → Účty → Adresáře, vůči kterým se přihlašují administrátoři)."
+  },
+  "lgrd_1": {
+   "source": "Off: only each address and each name count their own wrong passwords on each kind of sign-in - from one place somebody may still try every name a few times. On: the place each sign-in comes from - the address it connects from - is counted too, over these pages and the certificate portal together. Too many refusals from one place, or too many different names refused from it, and it is blocked for a while: its sign-ins are refused at once, nothing of them is checked, no directory is asked. Each node counts what reaches it; who is counted and who is blocked is below, each cleared by hand. Wrong directory passwords per person go with it: off, no cap is applied.",
+   "text": "Vypnuto: jen každá adresa a každé jméno počítají své vlastní chybné pokusy u každého druhu přihlášení – z jednoho místa může někdo pořád zkusit každé jméno několikrát. Zapnuto: počítá se i místo, odkud přihlášení přichází – adresa, ze které se připojuje – pro tyto stránky a portál certifikátů dohromady. Příliš mnoho odmítnutí z jednoho místa nebo příliš mnoho různých odmítnutých jmen a místo se na chvíli zablokuje: jeho přihlášení se hned odmítnou, nic z nich se nekontroluje, adresář se neptá. Každý uzel počítá, co k němu dorazí; kdo se počítá a kdo je zablokovaný, je níže, každé jde ručně vymazat. Chybná hesla z adresáře na osobu jdou s ním: vypnuto, žádný strop se nepoužije."
+  },
+  "lgrd_2": {
+   "source": "Refusals from one place within the time below after which it is blocked - wrong passwords, wrong codes, names nobody has. Not counted: refusals that are this server's trouble (a directory away).",
+   "text": "Odmítnutí z jednoho místa během doby níže, po kterých se zablokuje – chybná hesla, chybné kódy, jména, která nikdo nemá. Nepočítají se odmítnutí, za která může tento server (nedostupný adresář)."
+  },
+  "lgrd_3": {
+   "source": "Different names refused from one place within the time below after which it is blocked - somebody trying many people's passwords. 0: not counted.",
+   "text": "Různá jména odmítnutá z jednoho místa během doby níže, po kterých se zablokuje – někdo zkouší hesla mnoha lidí. 0: nepočítá se."
+  },
+  "lgrd_4": {
+   "source": "a place (the address it signs in from)",
+   "text": "místo (adresa, ze které se přihlašuje)"
+  },
+  "lgrd_5": {
+   "source": "No place is counted or blocked, and nobody is held back.",
+   "text": "Žádné místo se nepočítá ani není zablokované a nikdo není zastavený."
+  },
+  "lgrd_6": {
+   "source": "Every place and name shown",
+   "text": "Všechna zobrazená místa a jména"
+  },
+  "lgrd_7": {
+   "source": "signing in to these pages or the portal, from one place",
+   "text": "přihlašování na tyto stránky nebo portál z jednoho místa"
+  },
+  "lgrd_8": {
+   "source": "guessing passwords on these pages and the portal from one place is not held back",
+   "text": "hádání hesel na těchto stránkách a portálu z jednoho místa se nebrzdí"
   }
  },
  "patterns": {
@@ -71613,6 +71657,30 @@
   "pfix_1": {
    "source": "its users could not be read: {0}",
    "text": "jeho uživatele nešlo přečíst: {0}"
+  },
+  "plgrd_1": {
+   "source": "Not in use while {0} is off - no cap is applied to any directory. What is set here is kept for when it is on.",
+   "text": "Nepoužívá se, dokud je vypnuto {0} – na žádný adresář se nepoužije žádný strop. Co je tu nastaveno, zůstane pro chvíli, kdy se zapne."
+  },
+  "plgrd_2": {
+   "source": "too many wrong sign-ins from {0}: blocked for {1} - {2}",
+   "text": "příliš mnoho chybných přihlášení z {0}: zablokováno na {1} – {2}"
+  },
+  "plgrd_3": {
+   "source": "{0} wrong sign-ins in {1} min",
+   "text": "{0} chybných přihlášení za {1} min"
+  },
+  "plgrd_4": {
+   "source": "{0} different names refused in {1} min",
+   "text": "{0} různých odmítnutých jmen za {1} min"
+  },
+  "plgrd_5": {
+   "source": "login_guard_trusted: {0} is not an address or a network",
+   "text": "login_guard_trusted: {0} není adresa ani síť"
+  },
+  "plgrd_6": {
+   "source": "{0} may try again at once. Events keeps a line saying who did it.",
+   "text": "{0} může hned zkusit znovu. V Událostech zůstane řádek, kdo to udělal."
   }
  },
  "rich": {
