@@ -28,6 +28,11 @@ DEFAULTS = {
     # --- changes that could cut this machine off go back by themselves --------
     'net_confirm_min': 10,
     'fw_confirm_min': 5,
+    # Behind a load balancer or WAF (1.0.237 of otp): off - nginx as until now.
+    'web_proxy': 0,
+    'web_proxy_from': '',
+    'web_proxy_header': 'X-Forwarded-For',
+    'web_proxy_recursive': 1,
     'high_security': 0,
     # --- upgrades from the web (1.0.123) ----------------------------------
     'upgrade_check': 1,
@@ -47,6 +52,12 @@ DEFAULTS = {
     'portal_local': 0,
     'portal_enrolers': 1,
     'portal_admins_all': 1,
+    # Signed in by a load balancer or WAF in front (otp 1.0.239): NetScaler, F5 - off by default.
+    'portal_sso': 0,
+    'portal_sso_from': '',
+    'portal_sso_header': 'X-Acme-User',
+    'portal_sso_key': '',
+    'portal_sso_logout': '',
     # --- the administration pages -------------------------------------------
     'session_hours': 12,
     'session_idle_min': 120,
@@ -170,6 +181,7 @@ DEFAULTS = {
     'alerts_updates': 1,
     'alerts_dir': 1,
     'alerts_sms': 1,
+    'alerts_sso': 0,
     'alerts_url': '',
     'alerts_lang': '',
     'report_lang': '',
@@ -325,17 +337,23 @@ METRICS_TOKEN_RE_HEAD = re.compile(r'^[A-Za-z0-9_.~+/=-]{24,200}\Z')
 SECRET_KEYS = ('db_password', 'smtp_password', 'sms_token', 'sms_tel_password',
                'rbackup_password', 'proxy_password', 'acme_dns_tsig_secret', 'acme_dns_token',
                'acme_dns_key', 'acme_desec_token', 'metrics_token', 'snmp_auth_pass',
-               'snmp_priv_pass')
+               'snmp_priv_pass', 'portal_sso_key')
 # Secrets kept in the database, sealed with the key of this installation.
 SEALED_KEYS = ('smtp_password', 'sms_token', 'sms_tel_password', 'rbackup_password',
                'proxy_password', 'acme_dns_tsig_secret', 'acme_dns_token', 'acme_dns_key',
-               'acme_desec_token', 'metrics_token', 'snmp_auth_pass', 'snmp_priv_pass')
+               'acme_desec_token', 'metrics_token', 'snmp_auth_pass', 'snmp_priv_pass',
+               'portal_sso_key')
+
+# Saved as a row even when equal to the default (otp 1.0.238): what they were before tells
+# "switched off" from "never switched on".
+KEPT_OFF_KEYS = ('proxy_update', 'proxy_os', 'web_proxy', 'portal_sso')
 
 # What each setting may be: a list of words, or the lowest and highest number.
 TUNABLE = {
     'totp_window': (0, 10), 'high_security': (0, 1),
     'upgrade_check': (0, 1), 'upgrade_downgrade': (0, 1),
     'net_confirm_min': (0, 120), 'fw_confirm_min': (0, 120),
+    'web_proxy': (0, 1), 'web_proxy_recursive': (0, 1), 'portal_sso': (0, 1),
     'names_czsk_letters': (0, 1),
     'names_any_letters': (0, 1),
     'portal': (0, 1), 'portal_who': ('anyone', 'groups'),
@@ -358,7 +376,7 @@ TUNABLE = {
     'alerts_resolved': (0, 1), 'alerts_nodes': (0, 1), 'alerts_backup': (0, 1),
     'alerts_db': (0, 1), 'alerts_vrrp': (0, 1),
     'alerts_cert_days': (0, 120), 'alerts_disk_pct': (0, 99), 'alerts_time': (0, 1),
-    'alerts_updates': (0, 1), 'alerts_dir': (0, 1), 'alerts_sms': (0, 1),
+    'alerts_updates': (0, 1), 'alerts_dir': (0, 1), 'alerts_sms': (0, 1), 'alerts_sso': (0, 1),
     'report': (0, 1), 'report_every': ('daily', 'weekly', 'monthly'),
     'report_day': ('1', '2', '3', '4', '5', '6', '7'),
     'alerts_lang': ('', 'cs', 'en'), 'report_lang': ('', 'cs', 'en'),
@@ -529,6 +547,10 @@ NAMES = {
     'upgrade_url': 'Where new versions are looked for',
     'net_confirm_min': 'A new network goes back unless kept within (min)',
     'fw_confirm_min': 'A firewall change goes back unless kept within (min)',
+    'web_proxy': 'Behind a load balancer or WAF',
+    'web_proxy_from': 'The load balancers and WAFs',
+    'web_proxy_header': 'The header with the client\'s address',
+    'web_proxy_recursive': 'Through more than one of them',
     'names_czsk_letters': 'Czech and Slovak letters in names',
     'names_any_letters': 'Letters of other languages in names',
     'portal': 'The enrolment pages are open',
@@ -539,6 +561,11 @@ NAMES = {
     'portal_groups': 'Groups that may sign in',
     'portal_session_min': 'A sign-in to the enrolment pages lasts (min)',
     'portal_help': 'Help text on the enrolment pages',
+    'portal_sso': 'Signed in by the load balancer or WAF (SSO)',
+    'portal_sso_from': 'The balancers that sign people in',
+    'portal_sso_header': 'The header with who signed in',
+    'portal_sso_key': 'The key the balancer sends',
+    'portal_sso_logout': 'Where signing out goes',
     'portal_tries': 'Wrong passwords on the enrolment pages before a pause',
     'portal_wait_min': '...and the pause (min)',
     'portal_local': 'acme’s own accounts may sign in too',
@@ -608,6 +635,7 @@ NAMES = {
     'alerts_updates': 'Security updates and a restart waiting',
     'alerts_dir': 'Active Directory out of reach',
     'alerts_sms': 'The SMS gateway failing',
+    'alerts_sso': 'Sign-ins by the load balancer refused',
     'alerts_url': 'The administration’s address in the mails',
     'alerts_lang': 'Language of the alerts',
     'report_lang': 'Language of the report',
@@ -849,6 +877,21 @@ SAYS = {
                       'what was there before comes back by itself unless somebody presses Keep '
                       'it within these minutes: a rule that shuts SSH or the pages out '
                       'does not stay. 0: kept at once, as before.',
+    'web_proxy': 'The pages published through a load balancer or a WAF (NetScaler, F5, HAProxy...): '
+                 'nginx takes the client\'s own address from the header below - only when the '
+                 'request comes from one of the addresses below, never from anybody else - so '
+                 'that the sign-in pause, the caps, who may reach which page and every log see '
+                 'the client and not the balancer. For this node\'s address and the VIP '
+                 'address\'s alike, on every node. Off: nginx as until '
+                 'now (what acme --trusted-proxy put in stays as it is).',
+    'web_proxy_from': 'Their addresses or networks, as nginx sees them come in - one or more, '
+                      'separated by spaces. Needed to switch it on: the header of anybody else '
+                      'is never believed.',
+    'web_proxy_header': 'Where the balancer puts the client\'s address: X-Forwarded-For (the '
+                        'usual), X-Real-IP, True-Client-IP, X-Client-IP, CF-Connecting-IP...',
+    'web_proxy_recursive': 'On: in a chain (a WAF in front of a balancer), the last address in the '
+                           'header that is not one of them is taken. Off: the last one, whoever '
+                           'put it there.',
     'names_czsk_letters': 'The letters of Czech and Slovak with their accents (á č ď é ě í ľ ĺ ň ó ô '
                           'ŕ ř š ť ú ů ý ž ä) in the names of accounts. With both this and the '
                           'one beside it off, a name takes letters without accents, digits, '
@@ -887,6 +930,26 @@ SAYS = {
     'portal_tries': 'Wrong passwords from one address on the enrolment pages before it has '
                     'to wait.',
     'portal_wait_min': 'How long it waits.',
+    'portal_sso': 'The enrolment pages published through a NetScaler, an F5 or another balancer '
+                  'or WAF that signs people in against the directory first: who it signed in '
+                  'comes in a header, and the pages ask no password again. Only from the '
+                  'balancers\' own addresses below, and only with the key below - nobody else\'s '
+                  'header is believed. The directory is still asked who it is, and who may sign '
+                  'in here still decides. The administration pages are not concerned. '
+                  'Off: the pages as until now.',
+    'portal_sso_from': 'The balancers\' own addresses or networks, as this node sees the '
+                       'connection come in (not the client\'s) - one or more, separated by '
+                       'spaces. Needed to switch it on.',
+    'portal_sso_header': 'Where the balancer puts the name it signed in: X-Acme-User, or the '
+                         'one it already sends. The name as people type it - novak, '
+                         'novak@example.cz or EXAMPLE\\novak - as on the sign-in of these pages.',
+    'portal_sso_key': 'Sent by the balancer in X-Acme-Sso-Key with every request, so that a '
+                      'header put in by anybody else is never taken. Made below (Make a key), '
+                      'shown once; kept sealed.',
+    'portal_sso_logout': 'Where Sign out sends the browser afterwards - the balancer\'s own '
+                         'sign-out (NetScaler: /cgi/tmlogout, F5: /vdesk/hangup.php3), so that it '
+                         'does not sign the person in again at once. Empty: the sign-in of these '
+                         'pages, with a button to sign in through the balancer again.',
     'portal_local': 'On: the accounts of <i>Accounts</i> (acme’s own, with a password here) '
                     'sign in on these pages too - the name as it is written there, tried '
                     'before the directory. The same password, the same second step '
@@ -1043,6 +1106,8 @@ SAYS = {
                       'updates last found them.',
     'alerts_dir': 'None of the servers of a directory answers a node.',
     'alerts_sms': 'Three SMS in a row that did not go.',
+    'alerts_sso': 'Each sign-in by the load balancer or WAF the enrolment pages refuse, as it is '
+                  'refused - wrong key, not from a balancer, a name the directory does not know.',
     'alerts_url': 'Where the links in the mails lead, <code>https://acme.example.cz/admin/</code>. '
                   'Empty: this machine’s name.',
     'report': 'A report of the period by mail: the certificates (renewed, deployed, failed, '
@@ -1246,12 +1311,15 @@ SAYS_SHORT = {
 PANES = {
     # Where the change they take back is made (1.0.150), not under sign-ins.
     'network': ['net_confirm_min'],
-    'fw': ['fw_confirm_min'],
+    'fw': ['fw_confirm_min', 'web_proxy', 'web_proxy_from', 'web_proxy_header', 'web_proxy_recursive'],
     'portal': ['portal', 'portal_title', 'portal_directory', 'portal_hint', 'portal_who',
                'portal_groups',
                'portal_session_min', 'portal_tries', 'portal_wait_min',
                'portal_enrolers', 'portal_local', 'portal_admins_all',
                'portal_help'],
+    # Signed in by the balancer (otp 1.0.239): a card of its own on the enrolment pages' pane.
+    'portalsso': ['portal_sso', 'portal_sso_from', 'portal_sso_header', 'portal_sso_key',
+                  'portal_sso_logout'],
     'isemon': ['isemon', 'isemon_targets', 'isemon_hostname',
                'isemon_events', 'isemon_max_bytes', 'isemon_verify', 'isemon_mtls',
                'isemon_ca', 'ship_files'],
@@ -1291,7 +1359,7 @@ PANES = {
              'acme_dns_alias', 'acme_dns_wait', 'acme_resolvers'],
     'alerts': ['alerts', 'alerts_to', 'alerts_delay_min', 'alerts_repeat_h', 'alerts_resolved',
                'alerts_nodes', 'alerts_db', 'alerts_vrrp', 'alerts_backup', 'alerts_cert_days', 'alerts_disk_pct',
-               'alerts_time', 'alerts_updates', 'alerts_dir', 'alerts_sms',
+               'alerts_time', 'alerts_updates', 'alerts_dir', 'alerts_sms', 'alerts_sso',
                'alerts_lang', 'alerts_url', 'report', 'report_to', 'report_lang', 'report_every', 'report_day', 'report_at'],
     'codes': ['code_digits', 'code_ttl_s', 'code_tries', 'code_send_max',
               'code_send_window_min', 'code_lang', 'code_mail_fmt', 'sms_mode', 'sms_url', 'sms_method',
@@ -1325,6 +1393,10 @@ ONLY_WHEN = {
     'portal_session_min': ['portal', '1'],
     'portal_help': ['portal', '1'], 'portal_tries': ['portal', '1'],
     'portal_wait_min': ['portal', '1'],
+    'web_proxy_from': ['web_proxy', '1'], 'web_proxy_header': ['web_proxy', '1'],
+    'web_proxy_recursive': ['web_proxy', '1'],
+    'portal_sso_from': ['portal_sso', '1'], 'portal_sso_header': ['portal_sso', '1'],
+    'portal_sso_key': ['portal_sso', '1'], 'portal_sso_logout': ['portal_sso', '1'],
     'portal_local': ['portal', '1'], 'portal_admins_all': ['portal_local', '1'],
     'portal_enrolers': ['portal', '1'],
     'isemon_targets': ['isemon', '1'], 'isemon_hostname': ['isemon', '1'],
@@ -1354,7 +1426,7 @@ ONLY_WHEN = {
     'alerts_db': ['alerts', '1'], 'alerts_vrrp': ['alerts', '1'],
     'alerts_cert_days': ['alerts', '1'], 'alerts_disk_pct': ['alerts', '1'],
     'alerts_time': ['alerts', '1'], 'alerts_updates': ['alerts', '1'],
-    'alerts_dir': ['alerts', '1'], 'alerts_sms': ['alerts', '1'],
+    'alerts_dir': ['alerts', '1'], 'alerts_sms': ['alerts', '1'], 'alerts_sso': ['alerts', '1'],
     'report_to': ['report', '1'], 'report_every': ['report', '1'],
     'alerts_lang': ['alerts', '1'], 'report_lang': ['report', '1'],
     'osup_check_at': ['osup_check', '1'], 'osup_auto_what': ['osup_auto', '1'],
@@ -1604,6 +1676,41 @@ def check_setting(key, value):
         raise BadSetting('%s: letters, digits and dashes' % key)
     if key == 'acme_ca_pem' and str(got).strip() and '-----BEGIN CERTIFICATE-----' not in str(got):
         raise BadSetting('acme_ca_pem: a certificate in PEM, -----BEGIN CERTIFICATE-----')
+    if key == 'web_proxy_from':
+        for one in [w for w in re.split(r'[\s,;]+', str(got)) if w]:
+            try:
+                ipaddress.ip_network(one, strict=False)
+            except ValueError:
+                raise BadSetting('web_proxy_from: %r is not an address or a network' % one)
+    if key == 'portal_sso_from':
+        for one in [w for w in re.split(r'[\s,;]+', str(got)) if w]:
+            try:
+                ipaddress.ip_network(one, strict=False)
+            except ValueError:
+                raise BadSetting('portal_sso_from: %r is not an address or a network' % one)
+    if key == 'portal_sso_header':
+        # A header's name only (otp 1.0.239); never one a browser or nginx sets itself.
+        if not re.match(r'^[A-Za-z][A-Za-z0-9-]{0,63}\Z', str(got)) or \
+                str(got).lower() in ('host', 'cookie', 'authorization', 'content-length',
+                                     'content-type', 'transfer-encoding', 'connection',
+                                     'x-forwarded-for', 'x-real-ip', 'x-acme-sso-key',
+                                     'x-acme-peer', 'user-agent', 'referer', 'origin', 'accept'):
+            raise BadSetting('portal_sso_header: the name of a header of its own, as X-Acme-User')
+    if key == 'portal_sso_key' and str(got).strip() and not is_masked(got) and \
+            not METRICS_TOKEN_RE_HEAD.match(str(got).strip()):
+        raise BadSetting('portal_sso_key: 24 to 200 letters, digits and -_.~+/=')
+    if key == 'portal_sso_logout' and str(got).strip():
+        u = str(got).strip()
+        if len(u) > 400 or re.search(r'[\x00-\x20\x7f"<>\\]', u) or \
+                not (re.match(r'^https://[A-Za-z0-9.-]+(:\d{1,5})?(/|\Z)', u) or
+                     re.match(r'^/(?!/)', u)):
+            raise BadSetting('portal_sso_logout: an https:// address or a path starting with /')
+    if key == 'web_proxy_header':
+        # A header's name only (otp 1.0.237) - it goes into nginx's configuration as it is.
+        if not re.match(r'^[A-Za-z][A-Za-z0-9-]{0,63}\Z', str(got)) or \
+                str(got).lower() in ('host', 'cookie', 'authorization', 'content-length',
+                                     'content-type', 'transfer-encoding', 'connection'):
+            raise BadSetting('web_proxy_header: the name of a header, as X-Forwarded-For or X-Real-IP')
     if key == 'acme_node_name' and str(got).strip() and \
             not re.match(r'^[A-Za-z0-9][A-Za-z0-9.-]{0,252}\Z', str(got).strip()):
         raise BadSetting('acme_node_name: a DNS name')

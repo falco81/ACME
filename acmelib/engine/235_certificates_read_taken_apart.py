@@ -38,27 +38,34 @@ TLS_EXPORT_KINDS = {
 }
 
 
-def tls_export(prof, kind, passphrase='', legacy=False, which='main'):
+def tls_export(prof, kind, passphrase='', legacy=False, which='rsa'):
     """One certificate as a file to download (1.0.191): (bytes, ending). A private
     key in it is always locked with the passphrase - given to openssl on its
     stdin, never on a command line; its file only in a folder of 0700, gone after.
-    `which` (1.0.34): a dual one's main certificate, its second (alt: the ECDSA
-    one beside the RSA one), or both - PEM only, one after the other."""
+    `which` (otp 1.0.240): the main certificate ('rsa'), the second one beside it ('ec'), or
+    both ('both': a .zip of the two, each as asked). 'main' and 'alt' (acme 1.0.34) are the
+    same as 'rsa' and 'ec'."""
     if kind not in TLS_EXPORT_KINDS:
         raise ValueError('pem, fullchain, der, p7b, pfx or pemkey')
-    which = str(which or 'main')
-    if which in ('alt', 'both'):
-        alt = (prof or {}).get('alt') or {}
-        if not alt.get('cert'):
-            raise ValueError('there is no second certificate beside it')
-        second = dict(prof, cert=alt['cert'], chain=alt.get('chain') or '', key=alt.get('key') or '')
-        if which == 'alt':
+    which = {'main': 'rsa', 'alt': 'ec'}.get(str(which or 'rsa'), str(which or 'rsa'))
+    if which in ('ec', 'both'):
+        alt = tls_alt(prof) or ((prof or {}).get('alt') if ((prof or {}).get('alt') or {}).get('cert')
+                                else None)
+        if not alt:
+            raise ValueError('there is no second (ECDSA) certificate beside this one')
+        second = dict(alt, root=prof.get('root') or '')
+        if which == 'ec':
             return tls_export(second, kind, passphrase, legacy)
-        if kind not in ('pem', 'fullchain', 'pemkey'):
-            raise ValueError('both certificates go into a PEM file only (one after the other)')
+        import zipfile
         a, ending = tls_export(prof, kind, passphrase, legacy)
-        b2, _e = tls_export(second, kind, passphrase, legacy)
-        return a + b2, ending
+        b2, _ = tls_export(second, kind, passphrase, legacy)
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+            z.writestr('rsa' + ending, a)
+            z.writestr('ecdsa' + ending, b2)
+        return buf.getvalue(), '.zip'
+    if which != 'rsa':
+        raise ValueError('rsa, ec or both')
     cert = str(prof.get('cert') or '').strip()
     if not cert:
         raise ValueError('no certificate is kept for it')
@@ -247,6 +254,61 @@ def cert_bundle(cert='', key='', chain='', root='', pfx=b'', password='', pendin
             'chain_info': [cert_info(c) for c in chain_out],
             'root_info': [cert_info(c) for c in roots], 'verify': verify}
 
+
+def cert_bundles(cert='', key='', chain='', root='', pfx=b'', password='', pending_key='',
+                 pfx2=b'', password2=''):
+    """As cert_bundle - and, when two keys came (otp 1.0.240: an RSA and an ECDSA certificate of the
+    same names, in the PEM or as two PFX files), both: (the RSA one, the ECDSA one as a second
+    certificate beside it) - as ACME's "both" keeps them. One key: (the bundle, None), as until
+    now."""
+    texts = []
+    for blob, pw in ((pfx, password), (pfx2, password2 or password)):
+        if not blob:
+            continue
+        got = None
+        for extra in ([], ['-legacy']):
+            try:
+                got = _openssl(['pkcs12', '-nodes', '-passin', 'fd:@'] + extra, blob,
+                               secret=pw or '', what='the PFX / PKCS#12 file')
+                break
+            except ValueError as e:
+                last = e
+        if got is None:
+            raise ValueError('%s - is the password right?' % last)
+        texts.append(got.decode('utf-8', 'replace'))
+    keys = []
+    for part in texts + [str(cert or ''), str(chain or ''), str(root or ''), str(key or '')]:
+        keys += [m.group(0) for m in PEM_KEY.finditer(part)]
+    if len(keys) <= 1 and not pfx2:
+        return cert_bundle(cert, key, chain, root, pfx, password, pending_key), None
+    if len(keys) != 2:
+        raise ValueError('two certificates come with two keys - one RSA, one ECDSA (%d key(s) '
+                         'came)' % len(keys))
+    certs = []
+    for part in texts + [str(cert or ''), str(chain or ''), str(root or '')]:
+        certs += [m.group(0) for m in PEM_CERT.finditer(part) if m.group(0) not in certs]
+    plain = [key_plain(k, password) for k in keys]
+    leaves = []
+    for k in plain:
+        want = _pub_of_key(k)
+        leaf = next((c for c in certs if _pub_of_cert(c) == want), None)
+        if not leaf:
+            raise ValueError('one of the two keys has no certificate of its own among those sent')
+        leaves.append(leaf)
+    got = []
+    for i, k in enumerate(plain):
+        rest = [c for c in certs if c != leaves[1 - i]]
+        got.append(cert_bundle(cert='\n'.join(rest), key=k))
+    kinds = [str(g['info'].get('key') or '').split(' ')[0] for g in got]
+    if sorted(kinds) != ['EC', 'RSA']:
+        raise ValueError('two certificates: one with an RSA key and one with an ECDSA key '
+                         '(these are %s)' % ' and '.join(kinds))
+    main, alt = (got[0], got[1]) if kinds[0] == 'RSA' else (got[1], got[0])
+    names = lambda g: sorted(set([g['info'].get('cn') or ''] + list(g['info'].get('san') or [])) - {''})
+    if names(main) != names(alt):
+        raise ValueError('the two certificates are not of the same names (%s / %s)'
+                         % (', '.join(names(main)), ', '.join(names(alt))))
+    return main, alt
 
 def _san_ext(names):
     out = []

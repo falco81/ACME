@@ -3421,3 +3421,21 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .dbstate > .note{margin:0 0 10px;max-width:none}
 .dbstate > .facts{margin:0 0 10px}
 .dbstate > .note.bad .mono{display:inline-block;margin-top:4px;word-break:break-word}
+/* A secret shown once, big (otp 1.0.240): the balancer's key. */
+.key-big-row { display: flex; gap: 12px; align-items: stretch; margin: 14px 0 10px; flex-wrap: wrap; }
+.key-big { flex: 1 1 320px; min-width: 0; font-size: 17px; line-height: 1.5; letter-spacing: .02em; padding: 14px 16px;
+  background: var(--bg2, rgba(127,127,127,.08)); border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 10px;
+  word-break: break-all; user-select: all; cursor: text; color: var(--fg, inherit); }
+.key-big:focus { outline: 2px solid var(--accent, #4c8dff); outline-offset: 2px; }
+.key-big-row .btn { align-self: center; }
+/* The card of the sign-in by the balancer (otp 1.0.240): even gaps around its notes, a value apart from its word. */
+#sso-host .lb-facts { margin: 12px 0 10px; }
+#sso-host .sso-btns { margin: 0 0 14px; }
+#sso-host > p.note { margin: 0 0 12px; }
+#sso-host > p.note.warn { padding: 10px 12px; }
+#sso-host .peek-h { margin: 18px 0 8px; }
+.cchip-v { margin-left: 6px; }
+/* The last sign-ins by the balancer (otp 1.0.239; the table of SELinux's refusals). */
+.se-avc-t{width:100%;border-collapse:collapse;margin-top:6px}
+.se-avc-t td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+.se-avc-t td.num{white-space:nowrap;text-align:right;color:var(--crit)}

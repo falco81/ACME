@@ -2559,6 +2559,12 @@ class Console(object):
             ('13', 'The network of each node', lambda: self.act('--net')),
             ('14', 'High security: every rule', lambda: self.act('--hisec')),
             ('15', 'High security: an exception, or not any more', waive),
+            ('20', 'Signed in by a load balancer (SSO): how it stands, the last sign-ins',
+             lambda: self.act('--sso-status')),
+            ('21', 'Signed in by a load balancer (SSO): a new key, shown once',
+             lambda: self.act('--sso-key', '--yes') if self.confirm(
+                 'A new key for the balancer', 'The one the balancer sends now is no longer taken '
+                 '- put the new one into the balancer.', yes='Make it', no='Cancel') else None),
         ])
 
     def m_upgrades(self):

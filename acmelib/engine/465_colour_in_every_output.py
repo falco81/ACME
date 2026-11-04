@@ -608,6 +608,12 @@ def build_parser():
                    'and its exceptions')
     g.add_argument('--hisec-waive', nargs=2, metavar=('RULE', 'on|off'), help='make RULE an '
                    'exception of high security, or not any more')
+    g.add_argument('--sso-status', action='store_true',
+                   help='the sign-in by a load balancer or WAF on the enrolment pages: on or off, '
+                        'which balancers, which header, and the last sign-in each node saw')
+    g.add_argument('--sso-key', action='store_true',
+                   help='make a new key for the balancer to send in X-Acme-Sso-Key, shown once '
+                        '(the one before is no longer taken)')
     g.add_argument('--api', nargs='+', metavar=('METHOD PATH', 'BODY'), help='any page\'s question '
                    'as the pages ask it: GET /api/ntp, or POST /api/osup \'{"action": "check"}\' '
                    '(BODY - : read from stdin, for one holding a secret) - the answer as JSON')
@@ -724,7 +730,9 @@ def build_parser():
                    'address) [this node]')
     g.add_argument('--tls-import', nargs='+', metavar='FILE', help='a certificate in: PEM '
                    'files (certificate, key, chain, root - in any order, or all in one) or a '
-                   '.pfx / .p12; its password in ACME_TLS_PASSWORD')
+                   '.pfx / .p12; its password in ACME_TLS_PASSWORD. An RSA and an ECDSA '
+                   'certificate of the same names together (both keys in the PEM, or two .pfx): '
+                   'both put in, the ECDSA one beside')
     g.add_argument('--tls-preset', choices=['standard', 'intermediate', 'modern'],
                    help='the protocols and ciphers: standard (TLS 1.2+1.3, ECDHE), intermediate '
                    '(Mozilla, with DHE), modern (TLS 1.3 only)')
@@ -847,6 +855,12 @@ def nginx_trusted_proxies(cidrs, pal):
     for c in cidrs:
         address_net(c)
     text = Path(conf).read_text()
+    if '# ACME-REALIP-BEGIN' in text:
+        # Set on the pages (otp 1.0.237): one place for it, not two that undo each other.
+        print(pal.bad_line('it is set on the pages (Settings - Firewall and access - Behind a load '
+                           'balancer or WAF): change it there, or acme --set web_proxy_from=\'%s\''
+                           % ' '.join(cidrs)))
+        return False
     block = ('    # REALIP-BEGIN - the load balancer(s), written by acme --trusted-proxy\n'
              + ''.join('    set_real_ip_from %s;\n' % c for c in cidrs)
              + ('    real_ip_header X-Forwarded-For;\n    real_ip_recursive on;\n' if cidrs else '')
@@ -1537,18 +1551,22 @@ def cli_web(args, pal, store):
                          % target)
     said = []
     if args.tls_import:
-        pem, pfx = '', b''
+        pem, pfx, pfx2 = '', b'', b''
         for raw in args.tls_files:
             if b'-----BEGIN' in raw:
                 pem += raw.decode('utf-8', 'replace') + '\n'
             else:
+                # Two (otp 1.0.240): the RSA and the ECDSA certificate of the same names.
+                if pfx2:
+                    raise ValueError('two .pfx / .p12 at most (an RSA and an ECDSA one)')
                 if pfx:
-                    raise ValueError('one .pfx / .p12 at a time')
-                pfx = raw
+                    pfx2 = raw
+                else:
+                    pfx = raw
         prof = tls_profile(store, target) or {}
         pending = unseal_secret(prof['pending_key'], 'web:tls') if prof.get('pending_key') else ''
-        got = cert_bundle(cert=pem, pfx=pfx, password=os.environ.get('ACME_TLS_PASSWORD', ''),
-                          pending_key=pending)
+        got, got2 = cert_bundles(cert=pem, pfx=pfx, password=os.environ.get('ACME_TLS_PASSWORD', ''),
+                                 pending_key=pending, pfx2=pfx2)
         # As on the pages (1.0.187): one run out is not put in.
         if got['info'].get('not_after') and got['info']['not_after'] < time.time():
             raise ValueError('this certificate ran out on %s' % stamp(got['info']['not_after']))
@@ -1556,6 +1574,12 @@ def cli_web(args, pal, store):
                     key=seal_secret(got['key'], 'web:tls'), info=got['info'],
                     chain_info=got['chain_info'], root_info=got['root_info'],
                     verify=got['verify'], how='imported on the command line')
+        if got2:
+            prof['alt'] = {'cert': got2['cert'], 'chain': got2['chain'],
+                           'key': seal_secret(got2['key'], 'web:tls'), 'info': got2['info'],
+                           'for': tls_alt_for(got['cert'])}
+        else:
+            prof.pop('alt', None)
         prof.pop('pending_key', None)
         prof.pop('csr', None)
         prof.setdefault('preset', 'standard')
@@ -1569,9 +1593,12 @@ def cli_web(args, pal, store):
             target, i.get('subject'), stamp(i.get('not_after')), len(got['chain_info']),
             'given' if got['root'] else 'not given',
             ', chain checked' if got['verify'] == 'ok' else
-            (' - the chain does not check: %s' % got['verify'] if got['verify'] else '')))
-        store.add_event('settings', 'a certificate was put in for %s on the command line: %s'
-                        % (target, i.get('subject')), 'warn', who=who)
+            (' - the chain does not check: %s' % got['verify'] if got['verify'] else '')) +
+            (', with a second one beside it (%s)' % (got2['info'].get('key') or 'ECDSA') if got2 else ''))
+        store.add_event('settings', 'a certificate was put in for %s on the command line: %s%s'
+                        % (target, i.get('subject'),
+                           ' - with a second one beside it, %s' % (got2['info'].get('key') or 'ECDSA')
+                           if got2 else ''), 'warn', who=who)
     if args.tls_preset or args.tls_dh or args.tls_hsts is not None:
         prof = tls_profile(store, target) or {}
         pol = tls_policy_checked({'preset': args.tls_preset or prof.get('preset') or 'standard',
@@ -1966,6 +1993,52 @@ def cli_upgrade_follow(store, pal):
         return 0
 
 
+def cli_sso(args, pal, store):
+    """acme --sso-status, --sso-key (otp 1.0.239): the sign-in by a load balancer or WAF."""
+    if args.sso_key:
+        if not args.yes and sys.stdin.isatty():
+            got = input('a new key: the one the balancer sends now is no longer taken. Go on? [y/N] ')
+            if got.strip().lower() not in ('y', 'yes'):
+                print('nothing changed')
+                return 1
+        tok = secrets.token_urlsafe(32)
+        d = Daemon(store, serve=False)
+        try:
+            d.save_settings({'portal_sso_key': tok}, by='root on %s' % node_name())
+        except (BadSetting, OSError) as e:
+            raise SystemExit('acme: %s' % e)
+        store.add_event('settings', 'root on %s made a new key for the sign-in by the load '
+                        'balancer - the one before is no longer taken' % node_name(), 'warn')
+        if args.json:
+            print(json.dumps({'key': tok}))
+        else:
+            print(pal.ok_line('the new key - shown only now; the balancer sends it in %s:'
+                              % SSO_KEY_HEADER))
+            print(tok)
+        return 0
+    v = sso_view(store)
+    if args.json:
+        print(json.dumps(v))
+        return 0
+    print(pal.ok_line('signed in by the load balancer on the enrolment pages: %s'
+                      % ('ON' if v['on'] else 'off')))
+    print('  the balancers:   %s' % (', '.join(v['from']) or '(none named)'))
+    print('  the header:      %s   (with the key in %s: %s)'
+          % (v['header'], v['key_header'], 'set' if v['key_set'] else 'NOT SET - acme --sso-key'))
+    print('  signing out:     %s' % (v['logout'] or '(the sign-in of these pages)'))
+    if v['on'] and not v['web_proxy']:
+        print('  note: "Behind a load balancer or WAF" is off - every client is the balancer\'s '
+              'address (acme --set web_proxy_from=ADDR --set web_proxy=1)')
+    for x in v['last']:
+        print('  last on %-10s %s  %-9s %s <- %s%s' % (
+            x.get('node') or '?', time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(float(x.get('at') or 0))),
+            'signed in' if x.get('ok') else 'REFUSED', x.get('name') or '?', x.get('peer') or '?',
+            ('  (%s)' % x['why']) if x.get('why') else ''))
+    if not v['last']:
+        print('  no sign-in by the balancer seen yet')
+    return 0
+
+
 def cli_main(argv=None):
     global _LOG_TO_STDERR
     said = list(sys.argv[1:] if argv is None else argv)
@@ -2076,6 +2149,8 @@ def cli_main(argv=None):
     store = cli_store()
     if args.ha_compare:
         return cli_ha_compare(store, pal, args.json)
+    if args.sso_status or args.sso_key:
+        return cli_sso(args, pal, store)
     if args.web_status or args.tls_import or args.tls_preset or args.tls_dh or \
             args.tls_hsts is not None or args.vip_set or args.vip or args.vip_move or args.vip_return or \
             args.web_retry:

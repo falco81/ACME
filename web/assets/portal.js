@@ -74,15 +74,23 @@ function portalDoor() {
 
 var ME = null;
 
+/* Signed out - and, signed in by the balancer (otp 1.0.239), on to its own sign-out when one is
+   set: otherwise the next page would sign the person straight back in. */
+function portalSignOut(sso) {
+  var done = function (d) {
+    if (d && d.go) location.href = d.go;
+    else location.reload();
+  };
+  api('logout', {sso: !!sso}).then(done, function () { location.reload(); });
+}
+
 window.ACME_PORTAL_PARTS = window.ACME_PORTAL_PARTS || [];
 
 function portalApp(me) {
   ME = me;
   drawLangPick();
   dressButtons(document);
-  $('signout').onclick = function () {
-    api('logout', {}).then(function () { location.reload(); }, function () { location.reload(); });
-  };
+  $('signout').onclick = function () { portalSignOut(!!(ME && ME.sso)); };
   if ($('mebtn')) $('mebtn').onclick = aboutMe;
   /* After every script has run, so the parts plugged in are there. */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', drawPortal);

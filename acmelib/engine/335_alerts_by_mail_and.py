@@ -666,6 +666,14 @@ def report_lang():
     return CONFIG.get('report_lang') or alerts_lang()
 
 
+# Said as it happens, from the events (otp 1.0.242): (switch, kind, words in it, title cs, en,
+# pane, level).
+ALERT_EVENTS = [
+    ('alerts_sso', 'portal', ('a sign-in by the load balancer was refused',),
+     'Přihlášení přes load balancer odmítnuto', 'A sign-in by the load balancer refused', 'portal', 'info'),
+]
+
+
 def alerts_evaluate(store, force=False):
     """The alerts' turn: what is wrong compared with what was said, mailed."""
     lang = alerts_lang()
@@ -705,7 +713,35 @@ def alerts_evaluate(store, force=False):
             p = known.pop(k)
             if p.get('sent') and CONFIG.get('alerts_resolved', 1):
                 gone.append(p)
+    # What is said as it happens, from the events (otp 1.0.242: a table of them).
     events = []
+    rules = [r for r in ALERT_EVENTS if CONFIG.get(r[0], DEFAULTS.get(r[0]))]
+    if rules:
+        last = int(st.get('event_id') or 0)
+        try:
+            rows = store.db.rows("SELECT id, ts, kind, words, node FROM events WHERE id > ? "
+                                 "ORDER BY id LIMIT 200", (last,))
+        except Exception:                               # noqa: BLE001
+            rows = []
+        # Where they begin, once (otp 1.0.242: by its being there - with no event yet it stayed
+        # 0, and every turn began again, so nothing was ever said).
+        if 'event_id' not in st:
+            try:
+                st['event_id'] = int(store.db.value('SELECT MAX(id) FROM events', (), 0) or 0)
+            except Exception:                           # noqa: BLE001
+                st['event_id'] = 0
+            rows = []
+        for r in rows:
+            st['event_id'] = max(int(st.get('event_id') or 0), int(r['id']))
+            words = str(r.get('words') or '')
+            for _key, kind, bits, cs, en, pane, level in rules:
+                if r.get('kind') == kind and any(b in words for b in bits):
+                    events.append({'level': level, 'node': r.get('node') or '',
+                                   'title': _al(lang, cs, en), 'said': words[:300], 'pane': pane,
+                                   'since': r.get('ts')})
+                    break
+            if len(events) >= 20:
+                break
     st['problems'] = known
     st['checked'] = now
     store.set_meta('alerts:state', json.dumps(st))

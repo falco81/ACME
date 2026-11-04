@@ -55,7 +55,8 @@ wrong passwords from anybody would then lock out everybody. Either:
   the balancer's address (they trust the header only from there):
 
   ```bash
-  acme --trusted-proxy 192.0.2.5/32        # on each node; again for each balancer address
+  # Settings - Firewall and access - Behind a load balancer or WAF, once for every node;
+  # or as root on each node:  acme --set web_proxy_from=192.0.2.5/32 --set web_proxy=1
   ```
 
 - or **pass TLS through** with the **PROXY protocol**, and on both nodes in
@@ -259,3 +260,33 @@ acme --maintenance off
 
 Sign in through the balancer and look at *Settings → Accounts → signed in*:
 the address shown must be your own, not the balancer's.
+
+
+## The client's address behind a balancer or WAF
+
+As otp 1.0.237. *Settings → Firewall and access → Behind a load balancer or WAF*: switched on,
+nginx takes the client's own address from the header the balancer sends (`X-Forwarded-For`
+unless another is named - `X-Real-IP`, `True-Client-IP`, `CF-Connecting-IP`...) - **only** for
+requests that come from the addresses or networks named; anybody else's header is never
+believed. Then the sign-in pause, the caps of wrong passwords, who may reach which page, nginx's
+limits and every log see the client. It goes into this node's HTTPS server and the VIP
+address's alike, on every node, put in by each node's root helper (checked with `nginx -t`, put
+back when refused). *Through more than one of them* (on): in a chain - a WAF before a balancer -
+the last address that is not one of them is taken. Refused on without the balancers named.
+
+Off (the default) nginx is left as it was - what `acme --trusted-proxy` once wrote stays.
+Switched on, the setting takes its place; switched off again, only its own lines go (the 0 is
+kept as a row of its own, so that "switched off" is told from "never switched on"). While it is
+set on the pages, `acme --trusted-proxy` refuses and says to change it there.
+
+```bash
+acme --set web_proxy_from='192.0.2.5/32 10.20.0.0/24' --set web_proxy_header=X-Forwarded-For --set web_proxy=1
+```
+
+
+## Signed in by the balancer
+
+A NetScaler or an F5 APM that signs people in against the directory before the certificate
+portal can hand who it signed in to acme, so that the portal asks no password again - only
+from the balancers named, only with a key of acme's own. *Settings → The enrolment pages →
+Signed in by a load balancer or WAF*; the whole of it in docs/portal-sso.md.
