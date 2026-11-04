@@ -405,7 +405,46 @@ def hisec_sshd(c):
         hisec_refuse('more than 4 SSH tries a connection', 'sshd:tries')
 
 
+def hisec_node_now():
+    """High security and the guard against writes as they are in effect on this node
+    (1.0.41) - written into its heartbeat, for the lights of every node."""
+    out = {'high_security': bool(CONFIG.get('high_security')), 'db_guard': False,
+           'guard_key': False, 'refused': 0}
+    try:
+        g = dbguard_view()
+        out.update(db_guard=bool(g.get('on')), guard_key=bool(g.get('key')),
+                   refused=len(g.get('refused') or []))
+    except Exception:                                   # noqa: BLE001
+        out['db_guard'] = bool(CONFIG.get('db_guard'))
+    return out
+
+
+def hisec_nodes(store):
+    """Every node with what is in effect there (1.0.41): this one as it is now, the
+    others from their heartbeats - none heard from lately said so, one of a version
+    that does not say it said so too."""
+    out = [dict(hisec_node_now(), name=node_name(), me=True, alive=True, known=True, age=0)]
+    try:
+        beats = ha_nodes(store)
+    except Exception:                                   # noqa: BLE001
+        beats = []
+    for b in beats:
+        if b.get('name') == node_name():
+            continue
+        now = b.get('hisec_now') if isinstance(b.get('hisec_now'), dict) else None
+        one = {'name': b.get('name'), 'me': False, 'alive': bool(b.get('alive')),
+               'age': b.get('age'), 'version': b.get('version') or '', 'known': now is not None,
+               'high_security': None, 'db_guard': bool(b.get('db_guard')),
+               'guard_key': None, 'refused': 0}
+        if now is not None:
+            one.update(high_security=bool(now.get('high_security')),
+                       db_guard=bool(now.get('db_guard')), guard_key=bool(now.get('guard_key')),
+                       refused=int(now.get('refused') or 0))
+        out.append(one)
+    return out
+
+
 def hisec_view(store):
     got = hisec_findings(store)
-    return dict(got, on=_hs_on(), guard=dbguard_view())
+    return dict(got, on=_hs_on(), guard=dbguard_view(), nodes=hisec_nodes(store))
 

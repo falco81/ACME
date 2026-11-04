@@ -52671,6 +52671,22 @@
   "sshpr_2": {
    "source": "What ssh shows when it asks for the code - each at most 253 bytes, as RADIUS carries it.",
    "text": "Co ssh ukáže, když se ptá na kód - každý nejvýše 253 bajtů, kolik unese RADIUS."
+  },
+  "hsl_1": {
+   "source": "not on yet",
+   "text": "zatím nezapnuto"
+  },
+  "hsl_2": {
+   "source": "still on",
+   "text": "pořád zapnuto"
+  },
+  "hsl_3": {
+   "source": "on - no key",
+   "text": "zapnuto – chybí klíč"
+  },
+  "hsl_4": {
+   "source": "(not answering)",
+   "text": "(neodpovídá)"
   }
  },
  "patterns": {
@@ -72021,6 +72037,54 @@
   "psshpr_1": {
    "source": "{0}: at most 253 bytes, as RADIUS carries it",
    "text": "{0}: nejvýše 253 bajtů, kolik unese RADIUS"
+  },
+  "phsl_1": {
+   "source": "on - {0} refused",
+   "text": "zapnuto – odmítnuto: {0}"
+  },
+  "phsl_2": {
+   "source": "Nothing heard from {0} lately - what it has in effect is not known.",
+   "text": "Od {0} se v poslední době nic neozvalo – co na něm platí, není známo."
+  },
+  "phsl_3": {
+   "source": "{0} runs a version that does not say this yet - it says it once upgraded.",
+   "text": "{0} běží ve verzi, která to ještě neuvádí – po aktualizaci to řekne."
+  },
+  "phsl_4": {
+   "source": "{0} has not put high security in yet - it reads the settings again within seconds.",
+   "text": "{0} zatím vysokou bezpečnost nezavedl – nastavení si znovu načte během několika sekund."
+  },
+  "phsl_5": {
+   "source": "{0} still has high security on - it reads the settings again within seconds.",
+   "text": "{0} má vysokou bezpečnost pořád zapnutou – nastavení si znovu načte během několika sekund."
+  },
+  "phsl_6": {
+   "source": "High security is in effect on {0}.",
+   "text": "Na {0} platí vysoká bezpečnost."
+  },
+  "phsl_7": {
+   "source": "High security is off on {0}.",
+   "text": "Na {0} je vysoká bezpečnost vypnutá."
+  },
+  "phsl_8": {
+   "source": "The guard against writes is off on {0}.",
+   "text": "Ochrana před zápisem je na {0} vypnutá."
+  },
+  "phsl_9": {
+   "source": "The guard against writes is off on {0} - it is switched on on that node’s own page (or acme --set db_guard=1 there).",
+   "text": "Ochrana před zápisem je na {0} vypnutá – zapíná se na vlastní stránce toho uzlu (nebo tam acme --set db_guard=1)."
+  },
+  "phsl_10": {
+   "source": "{0} has the guard on, but no secrets.key to check the signatures with.",
+   "text": "{0} má ochranu zapnutou, ale nemá secrets.key, kterým by ověřil podpisy."
+  },
+  "phsl_11": {
+   "source": "{0} acts as root only on rows acme signed.",
+   "text": "{0} jedná jako root jen podle řádků, které acme podepsal."
+  },
+  "phsl_12": {
+   "source": "{0} refused {1} row(s) acme did not sign - see the list above.",
+   "text": "{0} odmítl řádky, které acme nepodepsal: {1} – viz seznam výše."
   }
  },
  "rich": {

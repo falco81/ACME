@@ -6,6 +6,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.41 - not released
 
+- *Settings → High security*: under *High security* and *Guard against writes to the
+  database*, a light for every node saying what is in effect there - on (green), off,
+  not there yet / still on after a change (amber, looked at again every few seconds),
+  the guard on with rows refused (amber) or with no key to check them (red), a node not
+  heard from (red). The guard is each node's own: the light says where it is still off.
+- *Local users*: a user made, changed or taken away is in *SSH keys → Whose keys* at once
+  - it was there only after reloading the page (F5).
+- *Local users*: the windows have on/off switches, as every other page, where they had
+  check boxes (to be changed at the first sign-in, sudo, the nodes, the home folder too).
+
 - **`acme --get KEY`**, the counterpart of `--set`: one setting's value alone (for a
   script), again for more (`KEY=VALUE` a line, as `--set` takes them), `--json` as
   `{key: value}`. A secret shown hidden, as `--settings` shows it; a key that is no

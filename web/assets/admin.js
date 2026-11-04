@@ -1604,6 +1604,7 @@ function drawSettings() {
     host.appendChild(g);
   }
   applyOnlyWhen();
+  hsLights();
   if (typeof AC !== 'undefined' && AC.d) acmeNamesInSettings(AC.d);
   explainWhatWasDrawn($('tab-settings'));
   if (typeof PANE !== 'undefined' && PANE === 'db') dbLinkNote();   /* drawn again (1.0.107) */
@@ -13475,6 +13476,12 @@ function skUsers() {
   ((SK.d && SK.d.nodes) || []).forEach(function (n) {
     (n.users || []).forEach(function (u) { if (!seen[u.name]) { seen[u.name] = 1; out.push(u.name); } });
   });
+  /* And who Local users has read since (1.0.41): one made there is in the list at once. */
+  ((typeof OSU !== 'undefined' && OSU.d && OSU.d.nodes) || []).forEach(function (n) {
+    (n.users || []).forEach(function (u) {
+      if (u.login && !u.root && u.name !== 'root' && Number(u.uid) >= 1000 && !seen[u.name]) { seen[u.name] = 1; out.push(u.name); }
+    });
+  });
   return out.sort();
 }
 function skKeysOf(n) {
@@ -13895,6 +13902,13 @@ function loadOsUsers() {
 function osuNodes(aliveOnly) {
   return ((OSU.d && OSU.d.nodes) || []).filter(function (n) { return !aliveOnly || n.alive; }).map(function (n) { return n.name; });
 }
+/* A user made, changed or taken away (1.0.41): SSH keys reads the nodes afresh when it is
+   opened next - its list of whose keys only had the new one after F5. */
+function osuChanged() {
+  SK.asked = 0;
+  SK.askedU = {};
+  osuPoll(true);
+}
 function osuPending() { return ((OSU.d && OSU.d.nodes) || []).some(function (n) { return n.pending; }); }
 function osuPoll(on) {
   if (on) OSU.ask = Date.now();
@@ -14049,11 +14063,13 @@ function osuNodePicker(body, name, making) {
     box.appendChild(el('div', 'k small muted', making ? 'Made on the nodes' : 'On the nodes'));
     nodes.forEach(function (n) {
       var there = making || (n.users || []).some(function (u) { return u.name === name; });
-      var lab = el('label', 'chk');
-      var c = el('input'); c.type = 'checkbox'; c.value = n.name;
-      c.checked = n.alive && there; c.disabled = !n.alive || !there;
-      lab.appendChild(c);
-      lab.appendChild(noI18n(el('span', '', ' ' + n.name + (!n.alive ? ' (not answering)' : !there ? ' (not there)' : ''))));
+      var lab = el('label', 'osu-node');
+      var sw = switchBox(n.alive && there);
+      var c = sw._input; c.value = n.name;
+      c.disabled = !n.alive || !there;
+      lab.appendChild(sw);
+      lab.appendChild(noI18n(el('span', '', n.name)));
+      if (!n.alive || !there) lab.appendChild(el('span', 'muted small', !n.alive ? '(not answering)' : '(not there)'));
       box.appendChild(lab);
       boxes.push(c);
     });
@@ -14086,12 +14102,16 @@ function osuPwPair(body, need) {
     return {ok: true, value: a.value};
   };
 }
+/* A yes or no of the windows of Local users: an on/off switch, as everywhere else (1.0.41). */
 function osuCheck(words, on, says) {
-  var lab = el('label', 'chk osu-chk');
-  var c = el('input'); c.type = 'checkbox'; c.checked = !!on;
-  lab.appendChild(c); lab.appendChild(el('span', '', ' ' + words));
-  if (says) lab.appendChild(el('span', 'muted small osu-says', says));
-  return {box: lab, input: c};
+  var box = el('div', 'osu-chk');
+  var sw = switchBox(!!on);
+  var lab = el('label', 'osu-chk-row');
+  lab.appendChild(sw);
+  lab.appendChild(el('span', 'osu-chk-w', words));
+  box.appendChild(lab);
+  if (says) box.appendChild(el('div', 'muted small osu-says', says));
+  return {box: box, input: sw._input};
 }
 function osuAdd(name) {
   var nameI, gecos, shell, pw, sudo, must, pick;
@@ -14125,7 +14145,7 @@ function osuAdd(name) {
     if (!name && osuRows().by[n]) { toast(n + ' is there already', 'warn'); return; }
     api('osusers', {action: 'add', name: n, gecos: gecos.value.trim(), shell: shell.value, password: p.value,
                     must_change: !!(p.value && must.input.checked), sudo: sudo.input.checked, nodes: nodes}).then(function (x) {
-      closeModal(); toast(x.message, 'good'); osuPoll(true);
+      closeModal(); toast(x.message, 'good'); osuChanged();
     }).catch(oops);
   }}], 'medium');
 }
@@ -14177,7 +14197,7 @@ function osuEdit(name) {
     s1.appendChild(formField('Shell', shell));
     var sv = cmdButton('Save', 'save', 'small');
     sv.onclick = function () {
-      api('osusers', {action: 'set', name: name, gecos: gecos.value.trim(), shell: shell.value, nodes: pick()}).then(function (x) { toast(x.message, 'good'); osuPoll(true); }).catch(oops);
+      api('osusers', {action: 'set', name: name, gecos: gecos.value.trim(), shell: shell.value, nodes: pick()}).then(function (x) { toast(x.message, 'good'); osuChanged(); }).catch(oops);
     };
     var r1 = el('div', 'btnrow'); r1.appendChild(sv); s1.appendChild(r1);
     body.appendChild(s1);
@@ -14192,7 +14212,7 @@ function osuEdit(name) {
       var p = pw();
       if (!p.ok) { toast(p.said, 'warn'); return; }
       api('osusers', {action: 'password', name: name, password: p.value, must_change: must.input.checked, nodes: pick()}).then(function (x) {
-        toast(x.message, 'good'); osuPoll(true);
+        toast(x.message, 'good'); osuChanged();
         s2.querySelectorAll('input.masked').forEach(function (i) { i.value = ''; });
       }).catch(oops);
     };
@@ -14207,12 +14227,12 @@ function osuEdit(name) {
     var su = cmdButton(anySudo ? 'Take sudo away' : 'Give sudo', 'shield', 'small');
     explain(su, 'sudo: may become root with their own password (a member of ' + (nodes.map(function (n) { return n.admin_group; }).filter(Boolean)[0] || 'wheel') + ').');
     su.onclick = function () {
-      api('osusers', {action: 'sudo', name: name, on: !anySudo, nodes: pick()}).then(function (x) { closeModal(); toast(x.message, 'good'); osuPoll(true); }).catch(oops);
+      api('osusers', {action: 'sudo', name: name, on: !anySudo, nodes: pick()}).then(function (x) { closeModal(); toast(x.message, 'good'); osuChanged(); }).catch(oops);
     };
     var lk = cmdButton(anyLocked ? 'Unlock' : 'Lock', 'lock', 'small');
     explain(lk, anyLocked ? 'May sign in again - with the password, or a key.' : 'May not sign in at all - neither with the password nor with an SSH key - until unlocked. Nothing of theirs is taken away.');
     lk.onclick = function () {
-      api('osusers', {action: anyLocked ? 'unlock' : 'lock', name: name, nodes: pick()}).then(function (x) { closeModal(); toast(x.message, 'good'); osuPoll(true); }).catch(oops);
+      api('osusers', {action: anyLocked ? 'unlock' : 'lock', name: name, nodes: pick()}).then(function (x) { closeModal(); toast(x.message, 'good'); osuChanged(); }).catch(oops);
     };
     r3.appendChild(su); r3.appendChild(lk);
     s3.appendChild(r3);
@@ -14224,7 +14244,7 @@ function osuEdit(name) {
     s4.appendChild(home.box);
     body.appendChild(s4);
   }, u.root ? [{words: 'Close', close: true}] : [{words: 'Take the user away', cls: 'danger', icon: 'trash', left: true, go: function () {
-    api('osusers', {action: 'drop', name: name, home: home.input.checked, nodes: pick()}).then(function (x) { closeModal(); toast(x.message, 'good'); osuPoll(true); }).catch(oops);
+    api('osusers', {action: 'drop', name: name, home: home.input.checked, nodes: pick()}).then(function (x) { closeModal(); toast(x.message, 'good'); osuChanged(); }).catch(oops);
   }}, {words: 'Close', close: true}], 'medium');
 }
 
@@ -15399,7 +15419,66 @@ function loadHisec() {
   api('hisec').then(function (d) { drawHisec(d); }).catch(oops);
   loadSelinux();
 }
+/* What is in effect on every node (1.0.41): a light under each of the two switches. High
+   security is the cluster's - a node not there yet says so (and is looked at again in a
+   few seconds); the guard against writes is each node's own, switched on that node's page. */
+var HS_NODES = {d: null, again: null, tries: 0};
+function hsLightOf(key, n) {
+  if (!n.alive) return ['bad', 'not heard from', 'Nothing heard from ' + n.name + ' lately - what it has in effect is not known.'];
+  if (!n.known) return ['off', 'not said', n.name + ' runs a version that does not say this yet - it says it once upgraded.'];
+  if (key === 'high_security') {
+    var hs = settingByKey('high_security');
+    var want = !!(hs && Number(hs.value));
+    if (n.high_security !== want) return ['warn', want ? 'not on yet' : 'still on',
+      n.name + (want ? ' has not put high security in yet' : ' still has high security on') + ' - it reads the settings again within seconds.'];
+    return n.high_security ? ['ok', 'on', 'High security is in effect on ' + n.name + '.']
+                           : ['off', 'off', 'High security is off on ' + n.name + '.'];
+  }
+  if (!n.db_guard) return ['off', 'off', 'The guard against writes is off on ' + n.name + (n.me ? '.' : ' - it is switched on on that node’s own page (or acme --set db_guard=1 there).')];
+  if (n.guard_key === false) return ['bad', 'on - no key', n.name + ' has the guard on, but no secrets.key to check the signatures with.'];
+  if (n.refused) return ['warn', 'on - ' + num(n.refused) + ' refused', n.name + ' refused ' + num(n.refused) + ' row(s) acme did not sign - see the list above.'];
+  return ['ok', 'on', n.name + ' acts as root only on rows acme signed.'];
+}
+function hsLights() {
+  var d = HS_NODES.d;
+  var host = $('sect-hisec');
+  if (!host || !d) return;
+  var wait = false;
+  ['high_security', 'db_guard'].forEach(function (key) {
+    var item = host.querySelector('.set-item[data-key="' + key + '"]');
+    if (!item) return;
+    var old = item.querySelector('.hs-lights');
+    if (old) old.remove();
+    var row = el('div', 'hs-lights');
+    d.forEach(function (n) {
+      var l = hsLightOf(key, n);
+      if (l[0] === 'warn' && key === 'high_security') wait = true;
+      var chip = el('span', 'hs-light ' + l[0]);
+      chip.appendChild(el('span', 'dot ' + (l[0] === 'off' ? '' : l[0])));
+      chip.appendChild(noI18n(el('b', '', n.name)));
+      if (n.me) chip.appendChild(el('span', 'tag info', 'this node'));
+      chip.appendChild(el('span', 'hs-light-w', l[1]));
+      explain(chip, l[2]);
+      row.appendChild(chip);
+    });
+    /* In the box's tail, above its words: the grid of the pane puts the tail in a row of
+       its own, and anything beside it lay over the words. */
+    var tail = item.querySelector('.set-tail');
+    if (tail) tail.insertBefore(row, tail.firstChild); else item.appendChild(row);
+  });
+  /* Not there yet: looked at again, a few times, while the pane is open. */
+  clearTimeout(HS_NODES.again);
+  if (wait && HS_NODES.tries < 12) {
+    HS_NODES.tries++;
+    HS_NODES.again = setTimeout(function () {
+      if (TAB !== 'settings' || PANE !== 'hisec') return;
+      api('hisec').then(function (x) { HS_NODES.d = x.nodes || null; hsLights(); }).catch(function () {});
+    }, 5000);
+  } else if (!wait) HS_NODES.tries = 0;
+}
 function drawHisec(d) {
+  HS_NODES.d = d.nodes || null;
+  hsLights();
   var host = $('hs-host');
   if (!host) return;
   clear(host);

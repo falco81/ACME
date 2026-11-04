@@ -104,7 +104,9 @@ def heartbeat(store, daemon=None):
             'own_file': sorted(k for k in NODE_KEYS if k in (FILE_KEYS or ())),
             # The guard against writes to the database (1.0.234): a going back below it
             # refused while it is on on any node.
-            'db_guard': bool(CONFIG.get('db_guard'))}
+            'db_guard': bool(CONFIG.get('db_guard')),
+            # What Settings -> High security shows of every node (1.0.41): in effect here.
+            'hisec_now': hisec_node_now()}
     try:
         beat['software'] = software_info(store)  # for the other node's About (1.0.99)
     except Exception:                                   # noqa: BLE001

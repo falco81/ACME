@@ -3602,8 +3602,13 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .osu-sect { border-top: 1px solid var(--line, rgba(255,255,255,.1)); padding-top: 12px; margin-top: 12px; }
 .osu-sect h3 { font-size: 13px; margin: 0 0 8px; }
 .osu-sect .btnrow { margin-top: 8px; }
-.osu-chk { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: 8px 0; }
-.osu-says { flex-basis: 100%; margin-left: 22px; }
+.osu-chk { margin: 12px 0; }
+.osu-chk-row { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+.osu-chk-row .sw { margin: 0; flex: none; }
+.osu-chk-w { font-size: 13.5px; }
+.osu-says { margin: 4px 0 0 54px; }
+.osu-nodes label.osu-node { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.osu-nodes label.osu-node .sw { margin: 0; flex: none; }
 .osu-nodes { margin-top: 10px; }
 @media (max-width: 640px) {
   .osu-who { min-width: 0; flex-wrap: wrap; }
@@ -3685,3 +3690,17 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .sd-tokens > .btnrow{margin-top:16px}
 .sd-tokens td.acts{text-align:right;white-space:nowrap}
 .sd-tokens td.acts .btn + .btn{margin-left:8px}
+
+/* Settings -> High security: what is in effect on every node (1.0.41). */
+.hs-lights{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px}
+.hs-light{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--line);border-radius:999px;
+  font-size:12px;background:var(--bg);cursor:default;max-width:100%}
+.hs-light b{font-weight:600}
+.hs-light .tag{font-size:10px;padding:0 5px}
+.hs-light-w{color:var(--tx-mut)}
+.hs-light.ok{border-color:color-mix(in srgb,var(--ok,#3fb950) 45%,var(--line))}
+.hs-light.ok .hs-light-w{color:var(--ok,#3fb950)}
+.hs-light.warn{border-color:color-mix(in srgb,var(--warn,#d29922) 50%,var(--line))}
+.hs-light.warn .hs-light-w{color:var(--warn,#d29922)}
+.hs-light.bad{border-color:color-mix(in srgb,var(--crit,#f85149) 50%,var(--line))}
+.hs-light.bad .hs-light-w{color:var(--crit,#f85149)}
