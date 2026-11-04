@@ -10,7 +10,8 @@
  */
 declare(strict_types=1);
 
-const ACME_ARTS = ['cert', 'chain', 'renew', 'deploy', 'none', 'custom'];
+const ACME_ARTS = ['cert', 'chain', 'renew', 'deploy', 'order', 'dns', 'keys', 'watch', 'revoke',
+                   'cycle', 'none', 'custom'];
 
 /** What each page shows until something else is picked. */
 const ACME_ART_DEFAULT = ['portal' => 'cert', 'admin' => 'deploy'];
@@ -21,6 +22,12 @@ const ACME_ART_WORDS = [
     'chain'  => 'The chain of trust: the root, the intermediate, your name',
     'renew'  => 'Renewed well before it runs out',
     'deploy' => 'One certificate, put in place everywhere (as the administration came)',
+    'order'  => 'An ACME order, step by step: ordered, proved, issued',
+    'dns'    => 'The name proved in the DNS, no port opened',
+    'keys'   => 'The key, the request, the signature: the key never leaves',
+    'watch'  => 'What the servers serve, looked at again and again',
+    'revoke' => 'Revoked and replaced: a new key, put in place',
+    'cycle'  => 'The next one long before the last runs out: never a gap',
     'none'   => 'No picture',
     'custom' => 'A picture of your own',
 ];
@@ -112,6 +119,158 @@ function acme_art_svg(string $name): string
             . '<text class="lbl" x="348" y="32" text-anchor="middle">THE TARGETS</text>'
             . $target(44, 'linux') . $target(85, 'F5') . $target(126, 'FortiGate')
             . '<text class="lbl" x="210" y="176" text-anchor="middle">RENEWED · PUT IN PLACE · CHECKED</text>'
+            . '</svg>';
+    case 'order':
+        // An ACME order, step by step: ordered, the challenge, proved, issued.
+        $step = function (int $x, string $top, string $under, string $inner, bool $last): string {
+            return sprintf('<text class="lbl" x="%d" y="56" text-anchor="middle">%s</text>', $x, $top)
+                . ($last ? sprintf('<path class="halo" d="M%d 72 a24 24 0 1 1 -0.1 0z" fill="var(--info)" opacity=".35"/>', $x) : '')
+                . sprintf('<circle cx="%d" cy="96" r="20" fill="%s" stroke="var(--%s)" stroke-width="1.8"/>', $x,
+                          $last ? 'url(#sa-glow)' : 'var(--panel2)', $last ? 'ok' : 'info')
+                . $inner
+                . sprintf('<text data-no-i18n x="%d" y="136" text-anchor="middle" font-size="10" font-weight="700" fill="var(--%s)" font-family="ui-monospace,Menlo,monospace">%s</text>', $x, $last ? 'ok' : 'info', $under);
+        };
+        $num = function (int $x, string $n): string {
+            return sprintf('<text x="%d" y="101" text-anchor="middle" font-size="14" font-weight="700" fill="var(--info)" font-family="ui-monospace,Menlo,monospace">%s</text>', $x, $n);
+        };
+        return '<svg class="signart art-order" viewBox="0 0 420 188" role="img" aria-labelledby="sa-title">'
+            . '<title id="sa-title">An ACME order, step by step: ordered, proved, issued</title>' . $glow
+            . '<path class="flow" d="M82 96 H338"/>'
+            . '<path class="through" d="M82 96 H138 M182 96 H238" stroke-linecap="round"/>'
+            . '<circle class="spark dot" r="2.6" cx="0" cy="0"/><circle class="spark dot dot2" r="2.6" cx="0" cy="0"/><circle class="spark dot dot3" r="2.6" cx="0" cy="0"/>'
+            . $step(60, 'ORDERED', 'new-order', $num(60, '1'), false)
+            . $step(160, 'THE CHALLENGE', 'dns-01', $num(160, '2'), false)
+            . $step(260, 'PROVED', 'valid', '<path d="M251 96 l6 6 11-12" fill="none" stroke="var(--ok)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>', false)
+            . $step(360, 'ISSUED', 'cert.pem', '<rect x="351" y="86" width="18" height="20" rx="2.5" fill="none" stroke="var(--ok)" stroke-width="1.8"/><path d="M355 92 h10 M355 97 h7" stroke="var(--ok)" stroke-width="1.6" stroke-linecap="round"/>', true)
+            . '<text class="lbl" x="210" y="172" text-anchor="middle">ORDERED · PROVED · ISSUED - BY ITSELF</text>'
+            . '</svg>';
+    case 'dns':
+        // The name proved in the DNS: the record put in, the authority looks it up.
+        return '<svg class="signart art-dns" viewBox="0 0 420 188" role="img" aria-labelledby="sa-title">'
+            . '<title id="sa-title">The name proved in the DNS, no port opened</title>' . $glow
+            . '<text class="lbl" x="122" y="40" text-anchor="middle">THE ZONE</text>'
+            . '<rect class="brick" x="24" y="50" width="196" height="92" rx="8"/>'
+            . '<rect class="logline" x="40" y="64" width="120" height="5" rx="2.5"/>'
+            . '<text data-no-i18n x="40" y="90" font-size="10.5" font-weight="700" fill="var(--info)" font-family="ui-monospace,Menlo,monospace">_acme-challenge</text>'
+            . '<text data-no-i18n x="40" y="108" font-size="10.5" font-weight="700" fill="var(--ok)" font-family="ui-monospace,Menlo,monospace">TXT "gT9q…4kQ"</text>'
+            . '<rect class="caret" x="146" y="99" width="6" height="11" fill="var(--ok)" opacity=".8"/>'
+            . '<rect class="logline" x="40" y="122" width="88" height="5" rx="2.5"/>'
+            . '<path class="flow" d="M232 96 H296"/>'
+            . '<circle class="spark dot" r="2.6" cx="0" cy="0"/><circle class="spark dot dot2" r="2.6" cx="0" cy="0"/><circle class="spark dot dot3" r="2.6" cx="0" cy="0"/>'
+            . '<text class="lbl" x="264" y="84" text-anchor="middle">LOOKED UP</text>'
+            . '<text class="lbl" x="340" y="40" text-anchor="middle">THE AUTHORITY</text>'
+            . '<path class="halo" d="M340 66 a30 30 0 1 1 -0.1 0z" fill="var(--info)" opacity=".35"/>'
+            . '<circle cx="340" cy="96" r="26" fill="url(#sa-glow)" stroke="var(--info)" stroke-width="1.8"/>'
+            . '<circle cx="335" cy="91" r="9" fill="none" stroke="var(--info)" stroke-width="2.2"/>'
+            . '<path d="M341.5 97.5 l8 8" stroke="var(--info)" stroke-width="2.6" stroke-linecap="round"/>'
+            . '<circle cx="360" cy="118" r="9" fill="var(--panel2)" stroke="var(--ok)" stroke-width="1.8"/>'
+            . '<path d="M356 118 l3 3 5-6" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '<text class="lbl" x="210" y="172" text-anchor="middle">THE NAME PROVED · NO PORT OPENED</text>'
+            . '</svg>';
+    case 'keys':
+        // The key made here, the request out of it, the signature back: the key stays.
+        $arrow = function (int $x): string {
+            return sprintf('<path class="through" d="M%d 96 h20 m-7-6 l7 6 -7 6" stroke-linecap="round" stroke-linejoin="round"/>', $x);
+        };
+        return '<svg class="signart art-keys" viewBox="0 0 420 188" role="img" aria-labelledby="sa-title">'
+            . '<title id="sa-title">The key, the request, the signature: the key never leaves</title>' . $glow
+            . '<text class="lbl" x="62" y="50" text-anchor="middle">THE KEY</text>'
+            . '<rect class="brick" x="26" y="62" width="72" height="68" rx="8"/>'
+            . '<circle cx="46" cy="96" r="10" fill="none" stroke="var(--warn)" stroke-width="2.4"/>'
+            . '<path d="M56 96 h28 M78 96 v7 M71 96 v5" stroke="var(--warn)" stroke-width="2.4" stroke-linecap="round"/>'
+            . $arrow(106)
+            . '<text class="lbl" x="166" y="50" text-anchor="middle">THE REQUEST</text>'
+            . '<rect class="brick" x="136" y="62" width="60" height="68" rx="7"/>'
+            . '<text x="166" y="84" text-anchor="middle" font-size="11" font-weight="700" fill="var(--info)" font-family="ui-monospace,Menlo,monospace">CSR</text>'
+            . '<rect class="logline" x="148" y="94" width="36" height="5" rx="2.5"/>'
+            . '<rect class="logline" x="148" y="104" width="28" height="5" rx="2.5"/>'
+            . '<rect class="logline" x="148" y="114" width="32" height="5" rx="2.5"/>'
+            . $arrow(204)
+            . '<text class="lbl" x="258" y="50" text-anchor="middle">SIGNED</text>'
+            . '<path class="halo" d="M258 72 a24 24 0 1 1 -0.1 0z" fill="var(--info)" opacity=".35"/>'
+            . '<circle cx="258" cy="96" r="20" fill="url(#sa-glow)" stroke="var(--info)" stroke-width="1.8"/>'
+            . '<path d="M249 96 l6 6 11-12" fill="none" stroke="var(--ok)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
+            . $arrow(286)
+            . '<text class="lbl" x="354" y="50" text-anchor="middle">THE CERTIFICATE</text>'
+            . '<rect class="brick" x="316" y="62" width="76" height="68" rx="7"/>'
+            . '<rect class="logline" x="328" y="74" width="44" height="5" rx="2.5"/>'
+            . '<rect class="logline good" x="328" y="86" width="32" height="5" rx="2.5"/>'
+            . '<rect class="logline" x="328" y="98" width="40" height="5" rx="2.5"/>'
+            . '<circle cx="374" cy="115" r="8" fill="url(#sa-glow)" stroke="var(--ok)" stroke-width="2"/>'
+            . '<text x="62" y="148" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--warn)" font-family="ui-monospace,Menlo,monospace">stays here</text>'
+            . '<text class="lbl" x="210" y="174" text-anchor="middle">THE PRIVATE KEY NEVER LEAVES THE SERVER</text>'
+            . '</svg>';
+    case 'watch':
+        // What the servers serve, asked over TLS and looked at: the name, the chain, the days.
+        $row = function (int $y, string $words, string $tone): string {
+            return sprintf('<circle cx="272" cy="%.1f" r="5.5" fill="none" stroke="var(--%s)" stroke-width="1.6"/>', $y - 3.5, $tone)
+                . sprintf('<path d="M269.5 %.1f l2 2 3.5-4" fill="none" stroke="var(--%s)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>', $y - 3.5, $tone)
+                . sprintf('<text x="284" y="%d" font-size="10.5" font-weight="700" fill="var(--%s)" font-family="ui-monospace,Menlo,monospace">%s</text>', $y, $tone, $words);
+        };
+        return '<svg class="signart art-watch" viewBox="0 0 420 188" role="img" aria-labelledby="sa-title">'
+            . '<title id="sa-title">What the servers serve, looked at again and again</title>' . $glow
+            . '<text class="lbl" x="84" y="40" text-anchor="middle">THE SERVER :443</text>'
+            . '<rect class="brick" x="30" y="50" width="108" height="92" rx="8"/>'
+            . '<rect class="logline" x="44" y="64" width="80" height="5" rx="2.5"/>'
+            . '<rect class="logline" x="44" y="76" width="60" height="5" rx="2.5"/>'
+            . '<rect x="72" y="106" width="24" height="20" rx="3.5" fill="url(#sa-glow)" stroke="var(--ok)" stroke-width="1.8"/>'
+            . '<path d="M77 106 v-6 a7 7 0 0 1 14 0 v6" fill="none" stroke="var(--ok)" stroke-width="1.8"/>'
+            . '<path class="flow" d="M146 84 H240"/>'
+            . '<circle class="spark dot" r="2.6" cx="0" cy="0"/><circle class="spark dot dot2" r="2.6" cx="0" cy="0"/><circle class="spark dot dot3" r="2.6" cx="0" cy="0"/>'
+            . '<path class="through" d="M240 110 H152 m7-6 l-7 6 7 6" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '<text class="lbl" x="193" y="74" text-anchor="middle">ASKED OVER TLS</text>'
+            . '<text class="lbl" x="196" y="130" text-anchor="middle">WHAT IT SERVES</text>'
+            . '<text class="lbl" x="324" y="40" text-anchor="middle">THE CHECK</text>'
+            . '<rect class="brick" x="254" y="50" width="140" height="92" rx="8"/>'
+            . $row(78, 'the name', 'ok') . $row(100, 'the chain', 'ok') . $row(122, '63 d left', 'ok')
+            . '<text class="lbl" x="210" y="172" text-anchor="middle">SERVED · LOOKED AT · TOLD WHEN WRONG</text>'
+            . '</svg>';
+    case 'revoke':
+        // A key gone astray: the certificate revoked, a new one with a new key put in its place.
+        return '<svg class="signart art-revoke" viewBox="0 0 420 188" role="img" aria-labelledby="sa-title">'
+            . '<title id="sa-title">Revoked and replaced: a new key, put in place</title>' . $glow
+            . '<text class="lbl" x="96" y="40" text-anchor="middle">THE OLD ONE</text>'
+            . '<rect class="brick" x="44" y="50" width="104" height="88" rx="8" opacity=".75"/>'
+            . '<rect class="logline" x="58" y="64" width="64" height="5" rx="2.5"/>'
+            . '<rect class="logline bad" x="58" y="76" width="48" height="5" rx="2.5"/>'
+            . '<rect class="logline" x="58" y="88" width="70" height="5" rx="2.5"/>'
+            . '<circle cx="124" cy="116" r="11" fill="var(--panel2)" stroke="var(--crit)" stroke-width="2"/>'
+            . '<path d="M119.5 111.5 l9 9 m0 -9 l-9 9" stroke="var(--crit)" stroke-width="2.2" stroke-linecap="round"/>'
+            . '<text x="96" y="156" text-anchor="middle" font-size="10" font-weight="700" fill="var(--crit)" font-family="ui-monospace,Menlo,monospace">revoked</text>'
+            . '<path class="flow" d="M162 94 H252"/>'
+            . '<circle class="spark dot" r="2.6" cx="0" cy="0"/><circle class="spark dot dot2" r="2.6" cx="0" cy="0"/><circle class="spark dot dot3" r="2.6" cx="0" cy="0"/>'
+            . '<path class="through" d="M246 88 l7 6 -7 6" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '<text class="lbl" x="207" y="82" text-anchor="middle">A NEW KEY</text>'
+            . '<text class="lbl" x="318" y="40" text-anchor="middle">THE NEW ONE</text>'
+            . '<rect class="brick" x="266" y="50" width="104" height="88" rx="8" stroke="var(--ok)" stroke-width="1.6"/>'
+            . '<rect class="logline" x="280" y="64" width="64" height="5" rx="2.5"/>'
+            . '<rect class="logline good" x="280" y="76" width="48" height="5" rx="2.5"/>'
+            . '<rect class="logline" x="280" y="88" width="70" height="5" rx="2.5"/>'
+            . '<path class="halo" d="M346 102 a14 14 0 1 1 -0.1 0z" fill="var(--info)" opacity=".35"/>'
+            . '<circle cx="346" cy="116" r="11" fill="url(#sa-glow)" stroke="var(--ok)" stroke-width="2"/>'
+            . '<path d="M341 116 l4 4 7-8" fill="none" stroke="var(--ok)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '<text x="318" y="156" text-anchor="middle" font-size="10" font-weight="700" fill="var(--ok)" font-family="ui-monospace,Menlo,monospace">in place</text>'
+            . '<text class="lbl" x="210" y="178" text-anchor="middle">REVOKED · REPLACED · PUT IN PLACE</text>'
+            . '</svg>';
+    case 'cycle':
+        // One after another: each new one there long before the last runs out.
+        $life = function (int $x, int $y, string $name): string {
+            return sprintf('<rect x="%d" y="%d" width="124" height="12" rx="6" fill="var(--ok)" opacity=".8"/>', $x, $y)
+                . sprintf('<rect x="%d" y="%d" width="30" height="12" rx="6" fill="var(--warn)" opacity=".7"/>', $x + 120, $y)
+                . sprintf('<rect x="%d" y="%d" width="8" height="12" fill="var(--ok)" opacity=".8"/>', $x + 116, $y)
+                . sprintf('<text class="lbl" x="%d" y="%d">%s</text>', $x + 10, $y - 6, $name);
+        };
+        $renew = function (int $x, int $y): string {
+            return sprintf('<path d="M%d %d v18" stroke="var(--info)" stroke-width="1.6" stroke-dasharray="2 3"/>', $x, $y + 12)
+                . sprintf('<circle cx="%d" cy="%d" r="3.5" fill="var(--info)"/>', $x, $y + 6);
+        };
+        return '<svg class="signart art-cycle" viewBox="0 0 420 188" role="img" aria-labelledby="sa-title">'
+            . '<title id="sa-title">The next one long before the last runs out: never a gap</title>' . $glow
+            . $life(30, 58, 'NO. 1') . $life(135, 88, 'NO. 2') . $life(240, 118, 'NO. 3')
+            . $renew(135, 58) . $renew(240, 88)
+            . '<text class="lbl" x="390" y="34" text-anchor="end">THE NEXT ONE BEFORE THE LAST RUNS OUT</text>'
+            . '<path class="flow" d="M30 150 H390"/>'
+            . '<text class="lbl" x="210" y="176" text-anchor="middle">ALWAYS A GOOD ONE · NEVER A GAP</text>'
             . '</svg>';
     }
     return '';

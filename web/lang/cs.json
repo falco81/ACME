@@ -52671,6 +52671,142 @@
   "sshpr_2": {
    "source": "What ssh shows when it asks for the code - each at most 253 bytes, as RADIUS carries it.",
    "text": "Co ssh ukáže, když se ptá na kód - každý nejvýše 253 bajtů, kolik unese RADIUS."
+  },
+  "art41_1": {
+   "source": "An ACME order, step by step: ordered, proved, issued",
+   "text": "Objednávka ACME krok za krokem: objednán, prokázán, vydán"
+  },
+  "art41_2": {
+   "source": "The name proved in the DNS, no port opened",
+   "text": "Název prokázaný v DNS, bez otevřeného portu"
+  },
+  "art41_3": {
+   "source": "The key, the request, the signature: the key never leaves",
+   "text": "Klíč, žádost, podpis: klíč nikam neodchází"
+  },
+  "art41_4": {
+   "source": "What the servers serve, looked at again and again",
+   "text": "Co servery nabízejí, kontrolováno znovu a znovu"
+  },
+  "art41_5": {
+   "source": "Revoked and replaced: a new key, put in place",
+   "text": "Odvolán a nahrazen: nový klíč, nasazený"
+  },
+  "art41_6": {
+   "source": "The next one long before the last runs out: never a gap",
+   "text": "Další dlouho před vypršením posledního: nikdy mezera"
+  },
+  "art41_7": {
+   "source": "ORDERED",
+   "text": "OBJEDNÁN"
+  },
+  "art41_8": {
+   "source": "THE CHALLENGE",
+   "text": "VÝZVA"
+  },
+  "art41_9": {
+   "source": "PROVED",
+   "text": "PROKÁZÁN"
+  },
+  "art41_10": {
+   "source": "ORDERED · PROVED · ISSUED - BY ITSELF",
+   "text": "OBJEDNÁN · PROKÁZÁN · VYDÁN - SÁM"
+  },
+  "art41_11": {
+   "source": "THE ZONE",
+   "text": "ZÓNA"
+  },
+  "art41_12": {
+   "source": "LOOKED UP",
+   "text": "OVĚŘENO"
+  },
+  "art41_13": {
+   "source": "THE AUTHORITY",
+   "text": "AUTORITA"
+  },
+  "art41_14": {
+   "source": "THE NAME PROVED · NO PORT OPENED",
+   "text": "NÁZEV PROKÁZÁN · ŽÁDNÝ PORT OTEVŘEN"
+  },
+  "art41_15": {
+   "source": "THE REQUEST",
+   "text": "ŽÁDOST"
+  },
+  "art41_16": {
+   "source": "SIGNED",
+   "text": "PODEPSÁN"
+  },
+  "art41_17": {
+   "source": "stays here",
+   "text": "zůstává zde"
+  },
+  "art41_18": {
+   "source": "THE PRIVATE KEY NEVER LEAVES THE SERVER",
+   "text": "SOUKROMÝ KLÍČ NIKDY NEOPUSTÍ SERVER"
+  },
+  "art41_19": {
+   "source": "THE SERVER :443",
+   "text": "SERVER :443"
+  },
+  "art41_20": {
+   "source": "ASKED OVER TLS",
+   "text": "DOTAZ PŘES TLS"
+  },
+  "art41_21": {
+   "source": "WHAT IT SERVES",
+   "text": "CO NABÍZÍ"
+  },
+  "art41_22": {
+   "source": "THE CHECK",
+   "text": "KONTROLA"
+  },
+  "art41_23": {
+   "source": "the chain",
+   "text": "řetěz"
+  },
+  "art41_24": {
+   "source": "63 d left",
+   "text": "zbývá 63 d"
+  },
+  "art41_25": {
+   "source": "SERVED · LOOKED AT · TOLD WHEN WRONG",
+   "text": "NABÍZENO · ZKONTROLOVÁNO · HLÁŠENO PŘI CHYBĚ"
+  },
+  "art41_26": {
+   "source": "THE OLD ONE",
+   "text": "STARÝ"
+  },
+  "art41_27": {
+   "source": "A NEW KEY",
+   "text": "NOVÝ KLÍČ"
+  },
+  "art41_28": {
+   "source": "THE NEW ONE",
+   "text": "NOVÝ"
+  },
+  "art41_29": {
+   "source": "REVOKED · REPLACED · PUT IN PLACE",
+   "text": "ODVOLÁN · NAHRAZEN · NASAZEN"
+  },
+  "art41_30": {
+   "source": "NO. 1",
+   "text": "Č. 1"
+  },
+  "art41_31": {
+   "source": "NO. 2",
+   "text": "Č. 2"
+  },
+  "art41_32": {
+   "source": "NO. 3",
+   "text": "Č. 3"
+  },
+  "art41_33": {
+   "source": "THE NEXT ONE BEFORE THE LAST RUNS OUT",
+   "text": "DALŠÍ DŘÍV, NEŽ POSLEDNÍ VYPRŠÍ"
+  },
+  "art41_34": {
+   "source": "ALWAYS A GOOD ONE · NEVER A GAP",
+   "text": "VŽDY PLATNÝ · NIKDY MEZERA"
   }
  },
  "patterns": {
