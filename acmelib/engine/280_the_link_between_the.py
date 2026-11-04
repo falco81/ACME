@@ -228,7 +228,7 @@ def hatls_view(store):
     mode, ca_file = ha_link_tls()
     ca = hatls_ca(store)
     nodes = []
-    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'hatls:node:%'"):
+    for r in dbguard_rows(store.db, store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'hatls:node:%'")):
         try:
             one = json.loads(r['v'] or '{}')
         except ValueError:
@@ -291,7 +291,10 @@ def hatls_start(store, by, here=True):
             # for good. A row new here goes over by replication.
             hits = 0
             for k, v in (('hatls:ca', store.get_meta('hatls:ca')), ('hatls:want', json.dumps(w))):
-                hits += far.run('UPDATE meta SET v = ? WHERE k = ?', (v, k)) or 0
+                hit = far.run('UPDATE meta SET v = ? WHERE k = ?', (v, k)) or 0
+                if hit:
+                    dbguard_sign(far, 'm', k, v, far=True)      # 1.0.231
+                hits += hit
             told = hits > 0
             break
         except Exception:                               # noqa: BLE001
@@ -331,6 +334,8 @@ def hatls_off(store, by, here=True):
         try:
             told = bool(far.run('UPDATE meta SET v = ? WHERE k = ?',
                                 ('hatls:want', json.dumps(w))))   # see hatls_start
+            if told:
+                dbguard_sign(far, 'm', 'hatls:want', json.dumps(w), far=True)
             break
         except Exception:                               # noqa: BLE001
             continue

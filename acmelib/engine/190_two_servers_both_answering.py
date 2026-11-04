@@ -101,7 +101,10 @@ def heartbeat(store, daemon=None):
             # among them, for the other node's pages to show as they are.
             'own': {k: (CONFIG.get(k) if not isinstance(CONFIG.get(k), bytes) else '')
                     for k in NODE_KEYS},
-            'own_file': sorted(k for k in NODE_KEYS if k in (FILE_KEYS or ()))}
+            'own_file': sorted(k for k in NODE_KEYS if k in (FILE_KEYS or ())),
+            # The guard against writes to the database (1.0.234): a going back below it
+            # refused while it is on on any node.
+            'db_guard': bool(CONFIG.get('db_guard'))}
     try:
         beat['software'] = software_info(store)  # for the other node's About (1.0.99)
     except Exception:                                   # noqa: BLE001

@@ -194,6 +194,7 @@ def node_carry(store, old, new, by='the daemon'):
         store.db.run('DELETE FROM meta WHERE k = ?', (k + old,))
     store.add_event('settings', 'the node %s is called %s now; carried over: %s' % (
         old, new, ', '.join(said) or 'nothing (it had nothing of its own)'), 'warn', who=by)
+    dbguard_resign(store, 'the node %s is called %s now' % (old, new))      # 1.0.231
     return said
 
 

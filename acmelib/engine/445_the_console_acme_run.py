@@ -2559,6 +2559,8 @@ class Console(object):
             ('13', 'The network of each node', lambda: self.act('--net')),
             ('14', 'High security: every rule', lambda: self.act('--hisec')),
             ('15', 'High security: an exception, or not any more', waive),
+            ('16', 'The guard against writes to the database: rows not as acme wrote them',
+             lambda: self.act('--guard-status')),
         ])
 
     def m_upgrades(self):

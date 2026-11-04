@@ -15,10 +15,10 @@ def node_key(prefix, name):
 def node_key_rows(store, prefix, name):
     """Every node's row for `name` (and one written before 1.0.146)."""
     n = norm_name(name)
-    return store.db.rows("SELECT k, v FROM meta WHERE k = ? OR k LIKE ? ESCAPE '!'",
-                         ('%s:%s' % (prefix, n),
-                          '%s:%s%s%%' % (prefix, n.replace('!', '!!').replace('%', '!%')
-                                         .replace('_', '!_'), NODE_KEY_SEP)))
+    return dbguard_rows(store.db, store.db.rows("SELECT k, v FROM meta WHERE k = ? OR k LIKE ? ESCAPE '!'",
+                                              ('%s:%s' % (prefix, n),
+                                               '%s:%s%s%%' % (prefix, n.replace('!', '!!').replace('%', '!%')
+                                                              .replace('_', '!_'), NODE_KEY_SEP))))
 
 
 def node_key_name(prefix, k):

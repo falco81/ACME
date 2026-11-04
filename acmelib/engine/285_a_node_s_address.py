@@ -163,6 +163,9 @@ def readdress_tell(peer, mine, by, keep_old=False):
         try:
             far.run('INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE '
                     'SET v = EXCLUDED.v', ('readdress:ask', json.dumps(ask)))
+            # Signed there as the row is written there (1.0.231): the row is this node's
+            # word, made only there.
+            dbguard_sign(far, 'm', 'readdress:ask', json.dumps(ask))
             told = True
             break
         except Exception:                               # noqa: BLE001

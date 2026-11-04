@@ -539,6 +539,8 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
         if said:
             try:
                 daemon.changed('all')
+                # Signed as this node's word first (1.0.231), then read in.
+                dbguard_resign(store, '%s imported a configuration' % by)
                 # Read in here too (1.0.62): a setting put back to its default
                 # stayed at the old value in this process until a restart.
                 daemon.reload_all('a configuration was imported')

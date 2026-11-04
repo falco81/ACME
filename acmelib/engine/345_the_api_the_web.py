@@ -339,7 +339,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         s = self.session('admin')
         if not s:
             raise ApiError(401, 'not signed in, or the sign-in has run out')
-        acc = self.store.account(s['name'])
+        acc = self.store.account(s['name'], checked=True)
         if not acc or acc.get('disabled'):
             self.store.session_end(self.headers.get('X-Acme-Session'))
             raise ApiError(401, 'that account may no longer sign in')

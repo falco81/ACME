@@ -258,6 +258,14 @@ def hisec_findings(store, conf=None):
         if not (sshd_now(store, n) or {}).get('values'):
             warn.append(_hs_item('check', 'the SSH server of %s has not said yet how it is set' % n,
                                  'look again', 'sshd'))
+    # Rows of the database refused as root's word (1.0.231): somebody else wrote them.
+    g = dbguard_view()
+    if g['on'] and g['refused']:
+        warn.append(_hs_item('check', '%d row(s) of the database that would reach root were not '
+                             'written by acme and are not acted on: %s' % (
+                                 len(g['refused']), '; '.join('%s (%s)' % (r['what'], r['why'])
+                                                            for r in g['refused'][:5])),
+                             'look who can write the database', 'hisec'))
     # The security check (1.0.169): what is not as it should be now - as the
     # alerts see it, and the rest. It never stops high security.
     if not fw_conf(store).get('on'):
@@ -382,5 +390,5 @@ def hisec_sshd(c):
 
 def hisec_view(store):
     got = hisec_findings(store)
-    return dict(got, on=_hs_on())
+    return dict(got, on=_hs_on(), guard=dbguard_view())
 

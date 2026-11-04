@@ -49,6 +49,37 @@ class Daemon(object):
 
     RELOAD_LOCK = threading.RLock()
 
+    def dbguard_switch(self, on, by):
+        """The guard of root's actions switched on or off on this node (1.0.231): written to
+        its config.json at once, in effect at once."""
+        if on == bool(CONFIG.get('db_guard')):
+            return []
+        if on:
+            if not dbguard_key():
+                raise BadSetting('db_guard: this node has no secrets.key to sign with')
+            old = [n['name'] for n in ha_nodes(self.store)
+                   if not n.get('me') and n.get('alive') and
+                   _ver_tuple(n.get('version') or '0') < (1, 0, 40)]
+            if old:
+                raise BadSetting('db_guard: %s run an older version that does not sign what it '
+                                 'writes - upgrade them first' % ', '.join(old))
+            n = dbguard_resign(self.store, 'switched on by %s: what the database holds now is '
+                                         'taken as acme\'s word' % by)
+            write_file_settings({'db_guard': 1})
+            CONFIG['db_guard'] = 1
+            # Read again by the running service too (1.0.232): from the command line it went on
+            # only at its next reload.
+            self.store.set_meta('conf_serial', '%.6f:%s' % (time.time(), node_name()))
+            log('root\'s actions only from rows acme signed: on (%d rows signed)' % n)
+            return ['this node acts as root only on rows acme signed (%d signed now)' % n]
+        write_file_settings({'db_guard': 0})
+        CONFIG['db_guard'] = 0
+        self.store.set_meta('conf_serial', '%.6f:%s' % (time.time(), node_name()))
+        self.store.add_event('security', '%s switched off the guard of root\'s actions on %s: '
+                             'rows of the database are acted on whoever wrote them'
+                             % (by, node_name()), 'bad', who=by)
+        return ['this node acts on rows of the database whoever wrote them, as before 1.0.40']
+
     def reload_all(self, why=''):
         """Everything read again from the database: the settings and the
         directories. One at a time (1.0.94): a save on the pages and the
@@ -57,13 +88,17 @@ class Daemon(object):
             return self._reload_all(why)
 
     def _reload_all(self, why=''):
-        load_config(saved=self.store.settings_saved())
+        # The mark of the change read before the settings (1.0.234): read after them, a change
+        # made on the other node meanwhile was taken as read - and never loaded.
+        serial = self.store.get_meta('conf_serial', '0')
+        # The settings that reach root as signed only, with the guard on (1.0.231).
+        load_config(saved=dbguard_settings(self.store.settings_saved(), self.store))
         self.reload_directories()
         if self.shipper:
             self.shipper.configure()
         if self.siem:
             self.siem.configure()
-        self.conf_serial = self.store.get_meta('conf_serial', '0')
+        self.conf_serial = serial
         if why:
             log('read the configuration again (%s)' % why)
 
@@ -188,6 +223,8 @@ class Daemon(object):
             else:
                 self.store.save_setting(k, v, by)
         said = []
+        if 'db_guard' in file_side:
+            said += self.dbguard_switch(bool(file_side.pop('db_guard')), by)
         if file_side:
             if any(k in DB_KEYS for k in file_side) and (
                     file_side.get('db_engine', CONFIG.get('db_engine')) != 'sqlite' or
@@ -488,10 +525,14 @@ class Daemon(object):
             self.conf_sig = hashlib.sha256(CONFIG_FILE.read_bytes()).hexdigest()
         except OSError:
             self.conf_sig = None
-        signal.signal(signal.SIGHUP, lambda *_: self.hup_asked.set())
+        signal.signal(signal.SIGHUP, self._hup_signal)
         last_tidy = time.monotonic() - 3601
         last_backup_day = self.store.get_meta('backup_day', '')
         while not self.stop_flag.wait(5):
+            dbguard_flush()                             # the counters seen (1.0.231)
+            if run_dir_keep():                          # 1.0.232
+                log('/run/acme was given back to acme:acme (systemctl reload?) - readable by the pages again',
+                    'warn')
             if self.hup_asked.is_set():
                 self.hup_asked.clear()
                 self._hup()
@@ -731,6 +772,16 @@ class Daemon(object):
                     return self.store
             return r
 
+    def _hup_signal(self, *_):
+        # The token readable by the pages again at once (1.0.232): systemd gave /run/acme to
+        # acme:acme just before it sent this (systemctl reload), and the loop below sees the
+        # signal only up to 5 s later - the VIP address had already gone.
+        try:
+            run_dir_keep()
+        except Exception:                               # noqa: BLE001
+            pass
+        self.hup_asked.set()
+
     def hourly(self):
         if CONFIG.get('ha_mode') == 'replicated' and self.store.db.engine == 'postgres':
             try:
@@ -755,6 +806,10 @@ class Daemon(object):
             except Exception as e:                      # noqa: BLE001
                 log('the tables taken from the other node could not be read again: %s'
                     % str(e).split('\n')[0][:200], 'info')
+        try:
+            dbguard_tidy(self.store)                    # signatures of sign-ins over (1.0.231)
+        except Exception:                               # noqa: BLE001
+            pass
         try:
             once_tidy(self.store)                       # used once, long ago (1.0.101)
         except Exception as e:                          # noqa: BLE001

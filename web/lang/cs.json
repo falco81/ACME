@@ -51083,6 +51083,30 @@
   "dbst_21": {
    "source": "A portable copy is made instead of a dump:",
    "text": "Místo dumpu se dělá přenosná kopie:"
+  },
+  "guard_1": {
+   "source": "Guard against writes to the database",
+   "text": "Ochrana před zápisem do databáze"
+  },
+  "guard_2": {
+   "source": "Protects this node against anybody who can write its database but not log in to it - the database server, a db_password found out, a copy put back. On: rows of the database that would make this node act as root (the firewall, SSH keys, sshd, updates, restarts, certificates, the VIP), or let somebody into these pages, are taken only when acme itself signed them. The certificates, their renewals and deployments are never affected. Worth it with a cluster or a database on another machine - switch it on on every node; with SQLite on this machine it adds little. Off: as until now.",
+   "text": "Chrání tento uzel před tím, kdo umí zapisovat do jeho databáze, ale nemůže se na něj přihlásit – databázový server, vyzrazené db_password, vrácená kopie. Zapnuto: řádky databáze, podle kterých by uzel jednal jako root (firewall, SSH klíče, sshd, aktualizace, restarty, certifikáty, VIP), nebo které by někoho pustily na tyto stránky, se berou jen podepsané samotným acme. Certifikáty, jejich obnovy a nasazení to nikdy neovlivní. Vyplatí se v clusteru nebo s databází na jiném stroji – zapněte na každém uzlu; se SQLite na tomto stroji přidá málo. Vypnuto: jako dosud."
+  },
+  "guard_3": {
+   "source": "look who can write the database",
+   "text": "zjistěte, kdo může zapisovat do databáze"
+  },
+  "guard_4": {
+   "source": "The guard against writes to the database: rows not as acme wrote them",
+   "text": "Ochrana před zápisem do databáze: řádky, které nezapsal acme"
+  },
+  "guard_5": {
+   "source": "db_guard: this node has no secrets.key to sign with",
+   "text": "db_guard: tento uzel nemá secrets.key, kterým by podepisoval"
+  },
+  "guard_6": {
+   "source": "this node acts on rows of the database whoever wrote them, as before 1.0.40",
+   "text": "tento uzel jedná podle řádků databáze, ať je zapsal kdokoli, jako před 1.0.40"
   }
  },
  "patterns": {
@@ -69945,6 +69969,22 @@
   "pdbst_2": {
    "source": "in {0} h",
    "text": "za {0} h"
+  },
+  "pguard_1": {
+   "source": "{0} row(s) of the database that would reach root were not written by acme and are not acted on: {1}",
+   "text": "{0} řádků databáze, které by vedly k root akcím, nezapsal acme a nejedná se podle nich: {1}"
+  },
+  "pguard_2": {
+   "source": "db_guard: {0} run an older version that does not sign what it writes - upgrade them first",
+   "text": "db_guard: {0} běží na starší verzi, která nepodepisuje, co zapisuje – nejdřív je aktualizujte"
+  },
+  "pguard_3": {
+   "source": "older than 1.0.40 while the guard against writes to the database is on ({0}): switch it off on every node first",
+   "text": "starší než 1.0.40, zatímco je zapnutá ochrana proti zápisu do databáze ({0}): nejdřív ji vypněte na všech uzlech"
+  },
+  "pguard_4": {
+   "source": "this node acts as root only on rows acme signed ({0} signed now)",
+   "text": "tento uzel jedná jako root jen podle řádků podepsaných acme (právě podepsáno {0})"
   }
  },
  "rich": {

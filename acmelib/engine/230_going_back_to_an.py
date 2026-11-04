@@ -68,6 +68,17 @@ def downgrade_why_not(store, version):
         why.append('%s is not older than %s, which runs here - that is an upgrade'
                    % (version, __version__))
         return why
+    # Not below the guard while it is on (1.0.234): what an older version writes there is not
+    # signed, and back on this one the accounts and settings changed meanwhile were refused.
+    if v < (1, 0, 40):
+        on = [node_name()] if CONFIG.get('db_guard') else []
+        try:
+            on += [n['name'] for n in ha_nodes(store) if n['name'] != node_name() and n.get('db_guard')]
+        except Exception:                               # noqa: BLE001
+            pass
+        if on:
+            why.append('older than 1.0.40 while the guard against writes to the database is on '
+                       '(%s): switch it off on every node first' % ', '.join(on))
     floor, by = downgrade_db_floor(store)
     if v < _ver_tuple(floor):
         why.append('older than %s: acme %s, which ran on this database, wrote what older '

@@ -79,7 +79,8 @@ print(json.dumps({'versions': sorted(S.registry().versions_of('target', 'f5')),
                   'mark': (CM.marks(st).get('target/f5@17.9') or {}).get('state')}))
 '''
 MOMENT = ('sessions', 'events')                 # not carried / written by the restore
-META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial')
+# sig: - the signatures of the guard against writes (1.0.40), made again when a copy is put back.
+META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial', 'sig:')
 
 
 class FullRestore(unittest.TestCase):

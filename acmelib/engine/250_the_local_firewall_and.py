@@ -270,7 +270,7 @@ def cluster_addresses(store, node):
     me = node_name()
     out = set(x['address'] for x in ha_pending(store, node))
     for n in ha_nodes(store):
-        if n['name'] != node and n.get('address'):
+        if n['name'] != node and n.get('address') and dbguard_node_ok(store, n['name']):
             out.add(n['address'])
     if CONFIG.get('ha_mode'):
         if node == me and CONFIG.get('ha_peer'):

@@ -93,7 +93,7 @@ def trials_view(store):
     """What waits to be kept, for the banner of every page and --status."""
     out = []
     t = time.time()
-    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'net:job:%'"):
+    for r in dbguard_rows(store.db, store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'net:job:%'")):
         try:
             job = json.loads(r['v'] or '{}')
         except ValueError:

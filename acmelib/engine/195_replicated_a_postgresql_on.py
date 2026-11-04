@@ -799,6 +799,11 @@ def ha_resync_job(store, by):
         finally:
             remote.close()
         store._dirs = None
+        # What this node had seen forgotten (1.0.234): the rows taken from the other node carry
+        # its signatures, older than the ones seen here, and were refused as put back. Never
+        # signed again here: that would make acme's word of whatever the other node's database
+        # holds - rows somebody wrote there included.
+        dbguard_forget_seen('%s rebuilt this node from the other' % by)
         store.set_meta('conf_serial', '%.6f:%s' % (time.time(), node_name()))
         store.add_event('settings', '%s rebuilt this node from the other: %d row(s); what it '
                         'held is in %s' % (by, got['rows'], copy.name), 'warn', who=by)

@@ -770,6 +770,10 @@ def db_move_work(store, c, by, overwrite=False, progress=None, restart=None):
             progress(MOVE['done'], whole, '%s: %s' % (table, done))
             _mv_save(force=False)
         loaded = load_tables(far, copy, say=along)
+        try:
+            dbguard_resign(SimpleStore(far))   # the rows carried signed there (1.0.231)
+        except Exception as e:                  # noqa: BLE001
+            log('the rows carried could not be signed there: %s' % e, 'warn')
         _mv_step('copy', 'ok', '%d row(s) in %d table(s)' % (sum(loaded.values()), len(loaded)))
         stop_if_asked()
         _mv_step('verify', 'run')

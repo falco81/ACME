@@ -225,7 +225,7 @@ def _mfa_session(h, kind='admin'):
         # step (portal_local): a directory sign-in has none to give.
         if (s.get('data') or {}).get('kind') != 'local' or not CONFIG.get('portal'):
             raise ApiError(401, 'this sign-in has no second step to give')
-    acc = h.store.account(s['name'])
+    acc = h.store.account(s['name'], checked=True)
     if not acc or acc.get('disabled') or (kind == 'portal' and acc.get('source') == 'directory'):
         raise ApiError(401, 'that account may no longer sign in')
     # Whether it may sign in there as the sign-in itself asks it (1.0.19): an account of

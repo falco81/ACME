@@ -606,6 +606,9 @@ def build_parser():
     g.add_argument('--net', action='store_true', help='each node\'s network as it read it')
     g.add_argument('--hisec', action='store_true', help='high security: every rule, kept or not, '
                    'and its exceptions')
+    g.add_argument('--guard-status', action='store_true',
+                   help='the guard against writes to the database on this node: on or off, and '
+                        'every row that reaches root not as acme wrote it')
     g.add_argument('--hisec-waive', nargs=2, metavar=('RULE', 'on|off'), help='make RULE an '
                    'exception of high security, or not any more')
     g.add_argument('--api', nargs='+', metavar=('METHOD PATH', 'BODY'), help='any page\'s question '
@@ -1892,6 +1895,38 @@ def upgrade_percent(st, plan):
                          + min(6, asked / 15)))
     if state == 'checking':
         return round(85 + min(10, since / 3))
+    return 0
+
+
+def cli_guard_status(args, pal):
+    """acme --guard-status (1.0.40, otp 1.0.236): the guard against writes to the database on
+    this node, and every row that reaches root not as acme wrote it."""
+    store = cli_store()
+    on = bool(CONFIG.get('db_guard'))
+    bad = []
+    if on:
+        for r in store.db.rows('SELECT k, v FROM meta'):
+            if dbguard_meta_kept(r['k']) and not dbguard_ok(store.db, 'm', r['k'], r['v'], quiet=True):
+                bad.append(('meta', r['k']))
+        for r in store.db.rows('SELECT k, v FROM settings'):
+            if dbguard_setting_kept(r['k']) and not dbguard_ok(store.db, 's', r['k'], r['v'], quiet=True):
+                bad.append(('setting', r['k']))
+        for r in store.db.rows('SELECT * FROM accounts'):
+            if not dbguard_account_ok(store.db, r):
+                bad.append(('account', r['name']))
+        for r in store.db.rows('SELECT * FROM directories'):
+            if not dbguard_directory_ok(store.db, r['name']):
+                bad.append(('directory', r['name']))
+    if args.json:
+        print(json.dumps({'on': on, 'not_acmes': [{'kind': k, 'what': w} for k, w in bad]}))
+        return 0
+    print(pal.ok_line('the guard against writes to the database is %s on %s' % (
+        'ON' if on else 'off', node_name())))
+    if on:
+        print(('  %d row(s) that reach root are not as acme wrote them - not acted on:' % len(bad))
+              if bad else '  every row that reaches root is as acme wrote it')
+        for k, w in bad[:200]:
+            print('    %-9s %s' % (k, w))
     return 0
 
 
@@ -3411,6 +3446,8 @@ def cli_main(argv=None):
         return shown(api('POST', '/api/ntp', {'action': 'sync', 'node': only or node_name()}))
     if args.net:
         return shown(api('GET', '/api/net'))
+    if args.guard_status:
+        return cli_guard_status(args, pal)
     if args.hisec:
         got = api('GET', '/api/hisec')
         if args.json:
@@ -3550,8 +3587,16 @@ def cli_dump_copy():
     return 0
 
 
+def _early_hup(*_):
+    try:
+        run_dir_keep()          # systemctl reload while it starts (1.0.232)
+    except Exception:           # noqa: BLE001
+        pass
+    HUP_ASKED.set()
+
+
 def run_daemon():
-    signal.signal(signal.SIGHUP, lambda *_: HUP_ASKED.set())
+    signal.signal(signal.SIGHUP, _early_hup)
     become_service_user()
     load_config()
     daemon_lock()

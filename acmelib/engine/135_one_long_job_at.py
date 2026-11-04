@@ -58,6 +58,7 @@ def db_move(store, c, by):
                 tally[table] = done
                 progress(sum(tally.values()), whole, '%s: %s' % (table, done))
             load_tables(far, copy, say=along)
+            dbguard_resign(SimpleStore(far))       # the rows carried signed there (1.0.231)
             after = {t: int(far.value('SELECT COUNT(*) FROM %s' % t) or 0)
                      for t in TABLES if t != 'meta'}
             words = 'everything was carried into %s (%s), by %s' % (

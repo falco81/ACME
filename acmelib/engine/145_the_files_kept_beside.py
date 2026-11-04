@@ -655,7 +655,14 @@ def db_file_restore(store, path, by, key_file=None, from_name='', need_admin=Tru
         RESTORE_WHY[0] = 'a backup is being put back'
         RESTORE_RUNNING.set()
         try:
-            return _db_file_restore(store, path, by, key_file, from_name, kind)
+            got = _db_file_restore(store, path, by, key_file, from_name, kind)
+            # What the copy holds signed as this node's word now (1.0.231): put back on
+            # purpose, its rows are newer than any seen before it.
+            try:
+                dbguard_resign(store, 'a copy put back by %s' % by)
+            except Exception as e:                      # noqa: BLE001
+                log('the rows put back could not be signed: %s' % e, 'warn')
+            return got
         finally:
             RESTORE_RUNNING.clear()
     finally:

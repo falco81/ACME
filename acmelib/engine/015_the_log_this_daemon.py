@@ -32,6 +32,36 @@ _LOG_WANTED = [False]           # this process writes acme.log (the daemon)
 HUP_ASKED = threading.Event()
 
 
+def run_dir_keep():
+    """/run/acme and the API token readable by the pages' group again (1.0.232). systemd
+    gives a unit's RuntimeDirectory back to User:Group (acme:acme) before every command of the
+    unit - ExecReload too: after `systemctl reload acme` the pages could not read the token,
+    /healthz said 503 and the VIP address left the node until acme was restarted."""
+    try:
+        import grp
+        import stat as _st
+        gid = grp.getgrnam(WEB_GROUP).gr_gid
+    except (KeyError, ImportError):
+        return False
+    fixed = False
+    for path, mode in ((RUN_DIR, 0o750), (TOKEN_FILE, 0o640)):
+        try:
+            st = os.lstat(str(path))
+            if not _st.S_ISDIR(st.st_mode) and not _st.S_ISREG(st.st_mode):
+                continue
+            if st.st_uid != os.geteuid() and os.geteuid() != 0:
+                continue
+            if st.st_gid != gid:
+                os.chown(str(path), -1, gid)
+                fixed = True
+            if _st.S_IMODE(st.st_mode) != mode:
+                os.chmod(str(path), mode)
+                fixed = True
+        except OSError:
+            pass
+    return fixed
+
+
 _LOG_SPARING = {}
 _LOG_CHECKED = [0.0]
 

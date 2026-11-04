@@ -51,7 +51,10 @@ def _peer_update(k, v):
     except Exception:                                   # noqa: BLE001
         return False
     try:
-        return bool(far.run('UPDATE meta SET v = ? WHERE k = ?', (v, k)))
+        done = bool(far.run('UPDATE meta SET v = ? WHERE k = ?', (v, k)))
+        if done and dbguard_meta_signed(k):
+            dbguard_sign(far, 'm', k, v, far=True)        # 1.0.231
+        return done
     except Exception:                                   # noqa: BLE001
         return False
     finally:
@@ -71,6 +74,8 @@ def _row_write(store, k, data, mine=True, mirror=True):
         store.db.run('INSERT INTO meta (k, v) VALUES (?, ?)', (k, v))
     else:
         store.db.run('UPDATE meta SET v = ? WHERE k = ?', (v, k))
+    if dbguard_meta_signed(k):
+        dbguard_sign(store.db, 'm', k, v)                 # 1.0.231
     if mirror:
         _peer_update(k, v)
 

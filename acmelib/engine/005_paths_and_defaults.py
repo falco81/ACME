@@ -29,6 +29,9 @@ DEFAULTS = {
     'net_confirm_min': 10,
     'fw_confirm_min': 5,
     'high_security': 0,
+    # Root's actions only from rows of the database acme signed (1.0.40, otp 1.0.231): a setting
+    # of this node's config.json, never of the database. 0 - as until now.
+    'db_guard': 0,
     # --- upgrades from the web (1.0.123) ----------------------------------
     'upgrade_check': 1,
     'upgrade_downgrade': 0,
@@ -302,7 +305,7 @@ DB_KEYS = ('db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password
 
 # ...and the name of this node of a cluster, which is this machine's own.
 FILE_ONLY_KEYS = DB_KEYS + ('node_name', 'ha_mode', 'ha_slot', 'ha_peer', 'ha_peer_port',
-                             'ha_address', 'ha_tls', 'ha_tls_ca')
+                             'ha_address', 'ha_tls', 'ha_tls_ca', 'db_guard')
 
 # Settings of one node of a cluster, not of the cluster (1.0.37): saved as
 # `key@node` and read only by that node; without one it takes the cluster's.
@@ -333,7 +336,7 @@ SEALED_KEYS = ('smtp_password', 'sms_token', 'sms_tel_password', 'rbackup_passwo
 
 # What each setting may be: a list of words, or the lowest and highest number.
 TUNABLE = {
-    'totp_window': (0, 10), 'high_security': (0, 1),
+    'totp_window': (0, 10), 'high_security': (0, 1), 'db_guard': (0, 1),
     'upgrade_check': (0, 1), 'upgrade_downgrade': (0, 1),
     'net_confirm_min': (0, 120), 'fw_confirm_min': (0, 120),
     'names_czsk_letters': (0, 1),
@@ -524,6 +527,7 @@ NAMES = {
     'sms_plain': 'Without accents (one SMS, not two)',
     'totp_window': 'Steps of clock drift allowed',
     'high_security': 'High security',
+    'db_guard': 'Guard against writes to the database',
     'upgrade_check': 'Look for a new version every day',
     'upgrade_downgrade': 'Offer going back to an older version',
     'upgrade_url': 'Where new versions are looked for',
@@ -833,6 +837,14 @@ SAYS = {
                    'a web page or folder listing that links to the packages, or one package\'s '
                    'own address. HTTPS only; a proxy is taken from https_proxy in the '
                    'service\'s environment.',
+    'db_guard': 'Protects this node against anybody who can write its database but not log in to it - '
+                'the database server, a db_password found out, a copy put back. On: rows of the '
+                'database that would make this node act as root (the firewall, SSH keys, sshd, '
+                'updates, restarts, certificates, the VIP), or let somebody into these pages, are '
+                'taken only when acme itself signed them. The certificates, their renewals and '
+                'deployments are never affected. Worth it with a cluster or a database on another '
+                'machine - switch it on on every node; with SQLite on this machine it adds little. '
+                'Off: as until now.',
     'high_security': 'Every way of doing something less safely switched off - plain LDAP, unencrypted '
                      'mail, syslog and backups, certificates not checked, weak TLS, SSH with '
                      'passwords, exports not locked and the rest listed above. Switched on only '
@@ -1274,7 +1286,7 @@ PANES = {
              'osup_auto_day', 'osup_auto_at', 'osup_auto_reboot'],
     'power': ['power_auto', 'power_auto_every', 'power_auto_day', 'power_auto_at',
               'power_auto_needed'],
-    'hisec': ['high_security'],
+    'hisec': ['high_security', 'db_guard'],
     'siem': ['siem', 'siem_targets', 'siem_format', 'siem_events', 'siem_signins',
              'siem_facility', 'siem_hostname', 'siem_verify', 'siem_ca'],
     'proxy': ['proxy', 'proxy_url', 'proxy_user', 'proxy_password', 'proxy_no', 'proxy_update',

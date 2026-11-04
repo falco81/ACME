@@ -329,6 +329,11 @@ def admin_ask_directory(h, name, password):
     if entry_unusable(entry):
         return {'ok': False, 'said': 'the account may not sign in: %s' % entry_unusable(entry),
                 'dn': entry['dn'], 'directory': ad.name}
+    if not dbguard_directory_ok(h.store.db, ad.name):
+        # The directory's row not as acme wrote it (1.0.231): another server put in - asked
+        # there, anybody would be an administrator here.
+        return {'ok': False, 'said': 'the directory %s is not as acme wrote it - not asked' % ad.name,
+                'directory': ad.name}
     try:
         ad.password_ok(entry, password)
     except LdapUnreachable as e:
@@ -408,7 +413,7 @@ def admin_from_directory(h, name, password):
         h.store.add_account(name, role, None, source='directory',
                             note='signed in from %s' % said['directory'],
                             display=entry.get('display') or '', dn=entry['dn'], groups=groups)
-    return h.store.account(name)
+    return h.store.account(name, checked=True)
 
 
 def dir_account_far(store, name, role, said, entry, groups):
@@ -428,6 +433,7 @@ def dir_account_far(store, name, role, said, entry, groups):
         try:
             if not far.row('SELECT id FROM accounts WHERE LOWER(name) = ?', (name.lower(),)):
                 far.insert('accounts', row)
+                dbguard_account_sign(far, name)               # signed there too (1.0.231)
             done = True
             break
         except Exception:                               # noqa: BLE001
@@ -436,7 +442,9 @@ def dir_account_far(store, name, role, said, entry, groups):
             far.close()
     if done:
         for _ in range(40):
-            if store.account(name):
+            # With its signature (1.0.234): the account came over before it, and the first
+            # sign-in through the other node was refused with the guard on.
+            if store.account(name, checked=True):
                 return
             time.sleep(0.25)
     raise ApiError(503, 'the first sign-in of %s is made on the other node of the cluster, '
@@ -452,8 +460,8 @@ def _login(h):
     password = str(b.get('password') or '')
     key = h.throttle('admin', split_limit('login_tries', 5),
                      int(CONFIG.get('login_wait_min') or 15), name=name)
-    acc = h.store.account(name) or (h.store.account(admin_name_parts(name)[0])
-                                    if CONFIG.get('admin_directory') else None)
+    acc = h.store.account(name, checked=True) or (h.store.account(admin_name_parts(name)[0], checked=True)
+                                                  if CONFIG.get('admin_directory') else None)
     ok = None
     if acc and acc.get('source') != 'directory':
         ok = acc if (acc.get('pw') and password_ok(password, acc['pw'])) else None

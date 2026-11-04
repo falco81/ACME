@@ -123,7 +123,7 @@ def vip_peer_seen(store):
     (a cluster of one shared database)."""
     me = node_name()
     for n in ha_nodes(store):
-        if n['name'] != me and n.get('address'):
+        if n['name'] != me and n.get('address') and dbguard_node_ok(store, n['name']):
             return n['address']
     return ''
 

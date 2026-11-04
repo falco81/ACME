@@ -136,7 +136,7 @@ def net_trial_answer(store, node, act, by):
 def readdress_dropold_tick(store):
     """The other node's new address kept: its old one no longer let in."""
     me = node_name()
-    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'readdress:dropold:%'"):
+    for r in dbguard_rows(store.db, store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'readdress:dropold:%'")):
         try:
             ask = json.loads(r['v'] or '{}')
         except ValueError:
