@@ -26,13 +26,13 @@ DBGUARD_META_EXACT = frozenset((
     'web:vip', 'web:access', 'fw:conf', 'fw:trial', 'fw_trial_back', 'ntp:conf', 'power:plan',
     'readdress:ask', 'hatls:ca', 'hatls:want', 'host:osup:plan', 'host:sshd:conf',
     'host:sshd:keep', 'host:sshd:back', 'host:logs:again', 'upgrade:plan',
-    'upgrade:pkg', 'acme_push:conf', 'acme_push:pairing', 'hisec:waive'))
+    'upgrade:pkg', 'acme_push:conf', 'acme_push:pairing', 'hisec:waive', 'sshotp:gate'))
 DBGUARD_META_PREFIXES = (
     'web:tls:', 'web:retry:', 'ntp:sync:', 'net:want:', 'net:job:', 'net:undo:', 'net:keep:',
     'net:back:', 'readdress:dropold:', 'hatls:node:', 'dbtls:server:', 'ask:want:',
     'host:sshkeys:want:', 'host:rootkey:', 'host:osup:checkwant:',
     'console:want:', 'acme_push:key:', 'adm2fa:', 'host:selinux:want:',
-    'host:users:want:')
+    'host:users:want:', 'sshotp:u:', 'sshotp:port:')
 # Settings whose word reaches root, or who may sign in to these pages.
 DBGUARD_SETTINGS = frozenset((
     'acme', 'acme_challenge', 'acme_for', 'acme_node_name', 'pki_publish', 'snmp', 'snmp_from', 'snmp_port', 'net_confirm_min', 'fw_confirm_min',
@@ -48,7 +48,8 @@ DBGUARD_SETTINGS = frozenset((
     'admin_2fa_sms', 'session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
     'mail_mode', 'mail_from', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_auth',
     'smtp_user', 'smtp_password', 'sms_mode', 'sms_url', 'sms_token', 'sms_spool_dir',
-    'sms_tel_host', 'sms_tel_user', 'sms_tel_password', 'sms_tel_https', 'sms_tel_verify'))
+    'sms_tel_host', 'sms_tel_user', 'sms_tel_password', 'sms_tel_https', 'sms_tel_verify',
+    'ssh_gate_port'))
 DBGUARD_FILE = STATE_DIR / 'guard.json'
 DBGUARD = {'seen': None, 'good': None, 'seen_h': None, 'dirty': 0.0, 'refused': {}, 'nodes': {},
            'lock': threading.Lock()}

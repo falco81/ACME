@@ -52615,6 +52615,54 @@
   "pgate_26": {
    "source": "a code typed at the portal's sign-in",
    "text": "kód zadaný při přihlašování na portál"
+  },
+  "sshc_1": {
+   "source": "the token changed since the code was sent - sign in again",
+   "text": "token se změnil od odeslání kódu – přihlaste se znovu"
+  },
+  "sshc_2": {
+   "source": "SSH asks acme for the code",
+   "text": "SSH se ptá acme na kód"
+  },
+  "sshc_3": {
+   "source": "SSH asks acme for the code on this port",
+   "text": "SSH se ptá acme na kód na tomto portu"
+  },
+  "sshc_4": {
+   "source": "root, or a user who may sign in on the nodes (a login shell, UID 1000 and up). One SSH token each - one that has it is not offered.",
+   "text": "root, nebo uživatel, který se smí přihlásit na uzly (přihlašovací shell, UID od 1000). Každý jen jeden SSH token – kdo ho už má, se nenabízí."
+  },
+  "sshc_5": {
+   "source": "pick an account…",
+   "text": "vyberte účet…"
+  },
+  "sshc_6": {
+   "source": "every account has an SSH token already",
+   "text": "každý účet už SSH token má"
+  },
+  "sshc_7": {
+   "source": "(the nodes did not say their users - only root)",
+   "text": "(uzly své uživatele neřekly – jen root)"
+  },
+  "sshc_8": {
+   "source": "pick an account first",
+   "text": "nejdřív vyberte účet"
+  },
+  "sshc_9": {
+   "source": "Everybody but root (unless Root too)",
+   "text": "Všichni kromě roota (pokud není zapnuto I root)"
+  },
+  "sshc_10": {
+   "source": "The accounts asked for a code - or everybody but root (root: Root too).",
+   "text": "Účty, po kterých se chce kód – nebo všichni kromě roota (root: I root)."
+  },
+  "sshc_11": {
+   "source": "A token of its own for signing in over SSH. From an app (the QR code shown once, right after: have the app at hand), or codes sent by mail or SMS where sending is set up.",
+   "text": "Samostatný token pro přihlášení přes SSH. Z aplikace (QR kód se ukáže jen jednou, hned potom: mějte aplikaci po ruce), nebo kódy posílané e-mailem či SMS, kde je odesílání nastavené."
+  },
+  "sshc_12": {
+   "source": "sshd asks for a code where it would ask for the account's password - from an SSH token of the account, below. pam_radius asks acme's own gate on 127.0.0.1 of each node, on a free port of 18129-18199 each node finds for itself.",
+   "text": "sshd chce kód tam, kde by chtěl heslo účtu – z SSH tokenu účtu níže. pam_radius se ptá vlastní brány acme na 127.0.0.1 každého uzlu, na volném portu z 18129–18199, který si každý uzel najde sám."
   }
  },
  "patterns": {
@@ -71957,6 +72005,10 @@
   "ppgate_1": {
    "source": "The code is good for {0} min and only once. You can paste it as it came, with the space.",
    "text": "Kód platí {0} min a jen jednou. Můžete ho vložit tak, jak přišel, i s mezerou."
+  },
+  "psshc_1": {
+   "source": "{0} is not an account of the nodes - pick one of the list (root, or a user who may sign in there)",
+   "text": "{0} není účet uzlů – vyberte ze seznamu (root, nebo uživatel, který se tam smí přihlásit)"
   }
  },
  "rich": {

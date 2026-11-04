@@ -23,6 +23,9 @@ CODE_PURPOSES = {
     # The portal's own second step (1.0.40, as otp's code before the first token, 1.0.228).
     'portal': {'p': 'p_', 'subject': 'portal_subject', 'body': 'portal_body', 'sms': 'portal_sms',
                'warn': True, 'note': 'h_p_warn', 'queue': 'code'},
+    # Signing in over SSH with a code (1.0.40, as otp 1.0.181): an SSH token by mail or SMS.
+    'ssh': {'p': 's_', 'subject': 'ssh_subject', 'body': 'ssh_body', 'sms': 'ssh_sms',
+            'warn': True, 'note': 'h_s_warn', 'queue': 'code'},
 }
 
 
@@ -89,6 +92,24 @@ CODE_TEXTS = {
         'h_av_facts': 'Zadejte ho na přihlašovací stránce administrace. Platí {minutes} min.',
         'h_av_note': 'Pokud jste o nic nežádali, e-mail smažte – bez kódu se nic nezmění.',
         'h_av_foot': 'Posláno automaticky z {site}. Na tento e-mail neodpovídejte.',
+        # Signing in over SSH with a code (1.0.40, as otp 1.0.181).
+        'ssh_ask_app': 'Kód z aplikace',
+        'ssh_subject': 'Kód pro přihlášení přes SSH: {code}',
+        'ssh_body': ('Váš kód pro přihlášení přes SSH na server {site} je\n\n    {code}\n\nPlatí '
+                     '{minutes} min a jen jednou. Pokud se právě nepřihlašujete, kód nikomu '
+                     'nesdělujte - někdo zkouší váš účet.\n\n-- \n{site}'),
+        'ssh_sms': '{code} je váš kód pro přihlášení přes SSH ({site}). Platí {minutes} min. '
+                   'Nikomu ho nesdělujte.',
+        'h_s_title': 'SSH · Přihlášení s kódem',
+        'h_s_hello': 'Dobrý den, {name},', 'h_s_hello_anon': 'Dobrý den,',
+        'h_s_lede': 'váš kód pro přihlášení přes SSH k účtu <b>{account}</b>:',
+        'h_s_lede_anon': 'váš kód pro přihlášení přes SSH:',
+        'h_s_facts': 'Zadejte ho tam, kde se SSH ptá na kód. Platí {minutes} min a jen jednou.',
+        'h_s_warn': 'Pokud se právě nepřihlašujete, kód nikomu nesdělujte – někdo zkouší váš účet.',
+        'h_s_foot': 'Posláno automaticky z {site}. Na tento e-mail neodpovídejte.',
+        'ask_mail': 'Zadejte kód, který přišel e-mailem na {dest}',
+        'ask_sms': 'Zadejte kód z SMS poslané na {dest}',
+        'again': 'Kód nebyl správný - zadejte ho znovu',
     },
     'en': {
         'verify_subject': 'Checking this address: {code}',
@@ -153,6 +174,24 @@ CODE_TEXTS = {
         'h_av_note': 'If you asked for nothing, delete this mail - without the code nothing '
                      'changes.',
         'h_av_foot': 'Sent automatically by {site}. Do not reply to this mail.',
+        # Signing in over SSH with a code (1.0.40, as otp 1.0.181).
+        'ssh_ask_app': 'Code from the app',
+        'ssh_subject': 'Your SSH sign-in code: {code}',
+        'ssh_body': ('Your code for signing in over SSH to {site} is\n\n    {code}\n\nIt is good '
+                     'for {minutes} min and once. If you are not signing in just now, tell '
+                     'nobody the code - somebody is trying your account.\n\n-- \n{site}'),
+        'ssh_sms': '{code} is your SSH sign-in code ({site}). Good for {minutes} min. Tell nobody.',
+        'h_s_title': 'SSH · Signing in with a code',
+        'h_s_hello': 'Hello {name},', 'h_s_hello_anon': 'Hello,',
+        'h_s_lede': 'your code for signing in over SSH as <b>{account}</b>:',
+        'h_s_lede_anon': 'your code for signing in over SSH:',
+        'h_s_facts': 'Type it where SSH asks for the code. It is good for {minutes} min and once.',
+        'h_s_warn': 'If you are not signing in just now, tell nobody the code - somebody is '
+                    'trying your account.',
+        'h_s_foot': 'Sent automatically by {site}. Do not reply to this mail.',
+        'ask_mail': 'Type the code mailed to {dest}',
+        'ask_sms': 'Type the code sent by SMS to {dest}',
+        'again': 'That code was not right - type it again',
     },
 }
 

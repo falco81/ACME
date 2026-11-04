@@ -1710,6 +1710,12 @@
   .portal .lede{color:var(--tx-dim);font-size:14px;margin:0 0 16px;max-width:70ch}
   .portal .help{color:var(--tx-dim);font-size:13.5px;line-height:1.6;margin:0 0 6px}
   .portal .help p{margin:0 0 10px}
+  /* The QR code of an SSH token, shown once (as otp 1.0.181). */
+  .enrol{display:grid;grid-template-columns:auto minmax(0,1fr);gap:26px;align-items:start}
+  @media (max-width:700px){.enrol{grid-template-columns:minmax(0,1fr)}}
+  .qrbox{background:#fff;border-radius:14px;padding:10px;display:inline-block;line-height:0;
+    box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .qrbox img{width:240px;height:240px;image-rendering:pixelated}
     .keytext{font:600 15px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     letter-spacing:.5px;padding:8px 12px;border-radius:10px;background:var(--panel2);
     border:1px dashed var(--line);display:inline-block;user-select:all;word-break:normal;overflow-wrap:break-word;max-width:100%}
@@ -1771,6 +1777,7 @@
        the key black on dark blue. */
     h1,h2,h3,h4,.note,.muted,.kv td,.kv th,table td,table th{color:#000 !important}
     .keytext{background:#fff !important;color:#000 !important;border:1px solid #999 !important}
+    .qrbox{background:#fff !important}
   }
   .wrap.portal{max-width:900px}
   .said.bad{color:var(--crit)} .said.good{color:var(--ok)}
@@ -2971,6 +2978,10 @@ textarea.sd-notice{width:100%}
 .modal .box.al-report{width:min(1640px,97vw)}
 .sd-grid > .set-item:first-child{grid-column:span 2}
 .sd-grid .seg button{white-space:nowrap}
+/* One column at a phone's width: the first item spans it, not a second column past the edge;
+   AuthenticationMethods publickey,keyboard-interactive breaks where it has to. */
+@media (max-width:640px){.sd-grid > .set-item:first-child{grid-column:auto}}
+.sd-grid .says{overflow-wrap:anywhere}
 #pane-osup > .card, #pane-power > .card{margin-top:16px}
 .card.held.mq-held > .mq-chips, .card.held.mq-held > #mq-said{flex:none}
 /* Outgoing mail (1.0.164): the pane as tall as the frame, its card taking what
@@ -3545,6 +3556,9 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
   padding: 0 4px; border-radius: 50%; }
 .acct-x:hover { opacity: 1; background: rgba(127,127,127,.25); }
 .acct-every { display: inline-flex; align-items: center; gap: 6px; }
+/* A long "everybody" (Czech, a phone's width) wraps in the box, not past it. */
+.acct-every { min-width: 0; max-width: 100%; }
+.acct-every > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .acct-find { width: 100%; margin: 2px 0 6px; }
 .acct-row input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent, #4c8dff); }
 .acct-ava { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
@@ -3657,3 +3671,11 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .gate-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:360px}
 .gate-actions .btn{width:100%;justify-content:center;white-space:nowrap;padding:0 10px}
 
+/* SSH tokens (as otp 1.0.181) */
+.sd-tokens{margin-top:22px;border-top:1px solid var(--line);padding-top:16px}
+/* A phone's width: the table scrolls in its card, the page does not. */
+.sd-tokens{overflow-x:auto}
+.sd-tokens h3{margin:0 0 10px}
+.sd-tokens > .btnrow{margin-top:16px}
+.sd-tokens td.acts{text-align:right;white-space:nowrap}
+.sd-tokens td.acts .btn + .btn{margin-left:8px}

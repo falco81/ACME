@@ -69,6 +69,7 @@ clone as it does from `acme-X.Y.Z.tar.gz` (only the release is signed).
 - [docs/high-availability.md](docs/high-availability.md) - two servers
 - [docs/firewall.md](docs/firewall.md) - the firewall (port 53 for the DNS server, 80 for HTTP-01)
 - [docs/local-users.md](docs/local-users.md), [docs/ssh-keys.md](docs/ssh-keys.md), [docs/console.md](docs/console.md) - the users of the machines, their SSH keys, the console at login
+- [docs/ssh-with-a-code.md](docs/ssh-with-a-code.md) - SSH to the nodes with a code from acme (pam_radius, SSH tokens by an app, mail or SMS)
 - [docs/dns-sets.md](docs/dns-sets.md) - Settings → DNS: named sets of DNS servers, and which one each function asks
 - [docs/teams.md](docs/teams.md) - Settings → Owners and teams: who certificates belong to, what each member may do, the tags; who sees what
 - [docs/tls-and-vip.md](docs/tls-and-vip.md) - the pages' own certificate, TLS, the VIP address

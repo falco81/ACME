@@ -276,6 +276,48 @@ hunts. Every new switch is off - as until now - unless said otherwise.
   the sign-in with it in Events - never the code. The portal's own accounts keep their second
   step as before.
 
+- **Signing in over SSH with a code from acme** (*Settings → SSH server and notices →
+  Signing in with a code from acme*; off by default - as until now), as otp 1.0.178 -
+  1.0.243. sshd of every node asks for a code where it would ask for the account's
+  password: `pam_radius` asks a small gate of the acme daemon on 127.0.0.1 of that
+  node (a port of 18129-18199 each node finds for itself, a long secret of its own,
+  sealed), so a node alone still lets you in. The gate understands only what
+  pam_radius sends (an Access-Request with User-Name, User-Password,
+  Message-Authenticator and State) and answers nothing from elsewhere or signed with
+  another secret. Needs *acme sets the SSH server*; put in on trial like every change
+  there, checked with `sshd -t` first, and put back by itself unless kept.
+  - *Only these accounts* (picked from the accounts of the nodes; none: *Everybody but
+    root (unless Root too)*), *Root too*, *A key, and then the code*
+    (`AuthenticationMethods publickey,keyboard-interactive` for those asked; root with
+    a key only gets a `Match User root` block of its own), *The system password when
+    acme does not answer* (`localifdown`, only with passwords on) and *Hide the code as
+    it is typed* (echo off).
+  - **SSH tokens**, a list of their own under the card (*Account, Note, The codes, Made,
+    Last used*; *A new one…*, *Remove*; *Add an SSH token…*): one for each account of
+    the nodes - root, or a user who may sign in there; one that has a token is not
+    offered, and the daemon checks the name again. Codes **from an app** (the QR code
+    and the key shown once), or **sent by mail or SMS** where sending is set up, in
+    Czech or English (*Settings → Message texts → SSH: a sign-in code by mail / by
+    SMS*). One prompt, no `Password:` first; a wrong code asked again three times; a
+    code good once on either node; five wrong ones for a name in five minutes and it
+    is refused for five minutes; a code by mail or SMS at most every 20 s and five in
+    15 minutes per account. Every sign-in and every wrong code is an event (*ssh*),
+    never with the code in it.
+  - The root helper writes only `127.0.0.1` and a port of 18129-18199 into
+    `/etc/acme/pam_radius.conf` (0600), its own block into `/etc/pam.d/sshd` between
+    two marker lines (taken out whole when switched off), installs `pam_radius` where
+    it is missing (RHEL: from EPEL) and turns SELinux's `authlogin_radius` on;
+    *Settings → SELinux* lists it and the gate's port (`radius_port_t`, UDP
+    18129-18199 only).
+  - High security: with the code asked and no system password when acme does not
+    answer, keyboard-interactive is no longer counted as a password sign-in, nor
+    root's own block as root signing in with a password (as otp 1.0.242).
+  - Each node's card says whether pam_radius asks for the code and where the gate
+    listens - otp read it from where it is not, and showed "–" always.
+  - Also `acme --ssh-tokens`, `acme --ssh-token-add NAME [--by mail|sms --to …]
+    [--no-qr] [--invert]`, `acme --ssh-token-del NAME` and three items in
+    `acme --console`. See docs/ssh-with-a-code.md.
+
 ## 1.0.39 - 2026-11-04
 
 - The nightly dumps of the database were never seen: they are called

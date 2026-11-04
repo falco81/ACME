@@ -208,9 +208,13 @@ class TestHelper(unittest.TestCase):
     def test_only_what_acme_sets(self):
         self.machine()
         with self.assertRaises(W.Refused):
-            W.se_check({'booleans': [{'name': 'authlogin_radius'}]})
-        with self.assertRaises(W.Refused):
-            W.se_check({'ports': [{'port': 1812, 'proto': 'udp', 'type': 'radius_port_t'}]})
+            W.se_check({'booleans': [{'name': 'nis_enabled'}]})
+        # authlogin_radius and the gate's port: for SSH with a code only (UDP 18129-18199).
+        W.se_check({'booleans': [{'name': 'authlogin_radius'}],
+                    'ports': [{'port': 18129, 'proto': 'udp', 'type': 'radius_port_t'}]})
+        for bad in ({'port': 1812, 'proto': 'udp'}, {'port': 18129, 'proto': 'tcp'}, {'port': 18200, 'proto': 'udp'}):
+            with self.assertRaises(W.Refused):
+                W.se_check({'ports': [dict(bad, type='radius_port_t')]})
         with self.assertRaises(W.Refused):
             W.se_check({'ports': [{'port': 99999, 'proto': 'tcp', 'type': 'ssh_port_t'}]})
 
