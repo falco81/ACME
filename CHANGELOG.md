@@ -6,6 +6,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.44 - not released
 
+- **The portal's one-time code for acme's own accounts too.** With *A one-time code at every
+  sign-in* on, the directory's people needed the code - and an account of acme's own (the role
+  *enrolment pages only*, or with *acme's own accounts may sign in too*) got in with its password
+  alone. A setting of its own now, Settings → The portal → *A one-time code for acme's own
+  accounts*: as for the people of the directory (the default), off, by e-mail, by SMS, or one
+  with the other to fall back to - not tied to the administration's second step, which the
+  portal no longer asks while it is on (High security keeps the app there). The code goes to
+  the e-mail address or the mobile number the account has: Accounts has both now (when it is
+  made, and the envelope button; `acme --user-contact NAME --mail … --mobile …`), signed with
+  the account by the database guard. An account without what the way needs cannot sign in on
+  the portal - the list of accounts marks it. **Before upgrading** with that code on: give the
+  portal's own accounts their address or number (an administration's second step by mail or
+  SMS counts), or set the new setting to *off* to keep things as they were.
+
 - **A hunt for bugs and holes, round 1** (the root helper, the daemon's API and sign-ins, the
   pages, the changes of 1.0.40-1.0.43). Shut:
   - *Make the database and the account for me* could be asked for the database server's own

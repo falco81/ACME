@@ -318,15 +318,26 @@ def dbguard_row_text(row, cols):
     return json.dumps([None if row.get(c) is None else str(row.get(c)) for c in cols])
 
 
+def account_signed_cols(row):
+    """What of an account is signed: its e-mail address and mobile number too once it has
+    either (1.0.44) - the portal's code goes there, and an address written past acme would
+    take it; an account without them is signed as before, so the signatures there hold."""
+    if row and (row.get('mail') or row.get('mobile')):
+        return ACCOUNT_SIGNED + ('mail', 'mobile')
+    return ACCOUNT_SIGNED
+
+
 def dbguard_account_sign(db, name):
     row = db.row('SELECT * FROM accounts WHERE LOWER(name) = ?', (str(name or '').strip().lower(),))
-    dbguard_sign(db, 'a', str(name or '').strip().lower(), dbguard_row_text(row, ACCOUNT_SIGNED) if row else None)
+    dbguard_sign(db, 'a', str(name or '').strip().lower(),
+                 dbguard_row_text(row, account_signed_cols(row)) if row else None)
 
 
 def dbguard_account_ok(db, row):
     if not row or not dbguard_on():
         return True
-    return dbguard_ok(db, 'a', str(row.get('name') or '').lower(), dbguard_row_text(row, ACCOUNT_SIGNED))
+    return dbguard_ok(db, 'a', str(row.get('name') or '').lower(),
+                      dbguard_row_text(row, account_signed_cols(row)))
 
 
 def dbguard_directory_sign(db, name):
@@ -421,7 +432,7 @@ def dbguard_resign(store, why=''):
         if dbguard_setting_kept(r['k']):
             n += bool(dbguard_sign(db, 's', r['k'], r['v']))
     for r in db.rows('SELECT * FROM accounts'):
-        n += bool(dbguard_sign(db, 'a', str(r['name']).lower(), dbguard_row_text(r, ACCOUNT_SIGNED)))
+        n += bool(dbguard_sign(db, 'a', str(r['name']).lower(), dbguard_row_text(r, account_signed_cols(r))))
     for r in db.rows('SELECT * FROM directories'):
         n += bool(dbguard_sign(db, 'd', str(r['name']).lower(), dbguard_row_text(r, DIRECTORY_SIGNED)))
     for r in db.rows("SELECT * FROM sessions WHERE kind = 'admin'"):

@@ -290,18 +290,37 @@ def code_channels(conf=None):
 # 1.0.228, asked here at every sign-in): which ways, in order.
 PORTAL_CODE_WAYS = {'mail': ('mail',), 'sms': ('sms',), 'sms_mail': ('sms', 'mail'),
                     'mail_sms': ('mail', 'sms')}
-PORTAL_CODE_KEYS = ('portal_code', 'mail_mode', 'mail_from', 'sms_mode', 'sms_url',
-                    'sms_spool_dir', 'sms_tel_host', 'portal')
+PORTAL_CODE_KEYS = ('portal_code', 'portal_local_code', 'mail_mode', 'mail_from', 'sms_mode',
+                    'sms_url', 'sms_spool_dir', 'sms_tel_host', 'portal')
+
+
+def portal_local_ways(conf=None):
+    """The ways of the one-time code for acme's own accounts on the portal (1.0.44): its own
+    setting, or (same) the directory people's."""
+    c = CONFIG if conf is None else conf
+    # High security keeps the administration's second step - the app only - for these sign-ins
+    # too: a code by mail or SMS is what it does not allow.
+    if conf is None:
+        try:
+            if hisec_enforced('admin_2fa'):
+                return ()
+        except Exception:                               # noqa: BLE001
+            pass
+    want = str(c.get('portal_local_code') or 'same')
+    if want == 'same':
+        want = str(c.get('portal_code') or 'off')
+    return PORTAL_CODE_WAYS.get(want) or ()
 
 
 def portal_code_problem(conf=None):
-    """Why "a one-time code at every sign-in" cannot work with these settings, or ''."""
+    """Why "a one-time code at every sign-in" cannot work with these settings, or '' - the
+    directory people's, and (1.0.44) acme's own accounts' on the portal."""
     c = CONFIG if conf is None else conf
-    ways = PORTAL_CODE_WAYS.get(str(c.get('portal_code') or 'off'))
-    if not ways:
-        return ''
     have = code_channels(c)
-    if not any(w in have for w in ways):
+    for ways in (PORTAL_CODE_WAYS.get(str(c.get('portal_code') or 'off')) or (),
+                 portal_local_ways(c)):
+        if not ways or any(w in have for w in ways):
+            continue
         if len(ways) > 1:
             return ('a one-time code at every sign-in needs the mail (Settings → Mail) or '
                     'the SMS gateway (Settings → Codes by e-mail and SMS) set up first')

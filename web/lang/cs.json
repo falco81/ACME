@@ -52580,10 +52580,6 @@
    "source": "A one-time code at every sign-in",
    "text": "Jednorázový kód při každém přihlášení"
   },
-  "pgate_18": {
-   "source": "Somebody signing in to the portal with their directory name and password - or signed in by the load balancer in front - then gets a one-time code to the e-mail address or the mobile number the directory has for them, read from it at the sign-in, nothing typed. Only with that code typed are they in: the directory password alone - guessed, or found out - no longer opens anybody's certificates, at every sign-in. An account the directory has no address or number for cannot sign in here then. Needs the mail (Settings → Mail) or the SMS gateway set up. The portal's own accounts keep their own second step.",
-   "text": "Kdo se na portál přihlásí jménem a heslem z adresáře – nebo ho přihlásí load balancer před ním – dostane pak jednorázový kód na e-mailovou adresu nebo mobilní číslo, které pro něj adresář má, přečtené z něj při přihlášení, nic se nezadává. Teprve se zadaným kódem je přihlášený: samotné heslo z adresáře – uhodnuté nebo vyzrazené – už neotevře ničí certifikáty, a to při každém přihlášení. Účet, pro který adresář nemá adresu ani číslo, se tu pak nepřihlásí. Potřebuje nastavenou poštu (Nastavení → Pošta) nebo SMS bránu. Vlastní účty portálu mají dál svůj druhý krok."
-  },
   "pgate_19": {
    "source": "The certificate portal: a sign-in code by mail",
    "text": "Portál certifikátů: kód pro přihlášení e-mailem"
@@ -53423,6 +53419,78 @@
   "hunt3_5": {
    "source": "stopped before it was done",
    "text": "zastaveno před dokončením"
+  },
+  "plc_1": {
+   "source": "as for the people of the directory (A one-time code at every sign-in)",
+   "text": "stejně jako pro lidi z adresáře (Jednorázový kód při každém přihlášení)"
+  },
+  "plc_2": {
+   "source": "no - the password here is enough",
+   "text": "ne - stačí heslo zde"
+  },
+  "plc_3": {
+   "source": "yes, by e-mail - to the address the account has",
+   "text": "ano, e-mailem - na adresu, kterou účet má"
+  },
+  "plc_4": {
+   "source": "yes, by SMS - to the mobile number the account has",
+   "text": "ano, SMS - na mobilní číslo, které účet má"
+  },
+  "plc_5": {
+   "source": "yes, by SMS - by e-mail when the account has no mobile number",
+   "text": "ano, SMS - e-mailem, když účet nemá mobilní číslo"
+  },
+  "plc_6": {
+   "source": "yes, by e-mail - by SMS when the account has no address",
+   "text": "ano, e-mailem - SMS, když účet nemá adresu"
+  },
+  "plc_7": {
+   "source": "A one-time code for acme’s own accounts",
+   "text": "Jednorázový kód pro vlastní účty acme"
+  },
+  "plc_9": {
+   "source": "this account has no e-mail address or mobile number to send the code to - ask the administrator",
+   "text": "tento účet nemá e-mailovou adresu ani mobilní číslo, kam poslat kód - obraťte se na správce"
+  },
+  "plc_10": {
+   "source": "E-mail and mobile number: where the portal’s one-time code goes",
+   "text": "E-mail a mobilní číslo: kam jde jednorázový kód portálu"
+  },
+  "plc_11": {
+   "source": "The e-mail address and the mobile number are the directory’s",
+   "text": "E-mailová adresa a mobilní číslo jsou z adresáře"
+  },
+  "plc_12": {
+   "source": "E-mail address",
+   "text": "E-mailová adresa"
+  },
+  "plc_13": {
+   "source": "Mobile number",
+   "text": "Mobilní číslo"
+  },
+  "plc_14": {
+   "source": "Where the portal’s one-time code goes (A one-time code for acme’s own accounts). Optional.",
+   "text": "Kam jde jednorázový kód portálu (Jednorázový kód pro vlastní účty acme). Nepovinné."
+  },
+  "plc_15": {
+   "source": "For the code by SMS. Optional.",
+   "text": "Pro kód přes SMS. Nepovinné."
+  },
+  "plc_16": {
+   "source": "no e-mail or mobile for the portal",
+   "text": "chybí e-mail i mobil pro portál"
+  },
+  "plc_17": {
+   "source": "no e-mail for the portal",
+   "text": "chybí e-mail pro portál"
+  },
+  "plc_18": {
+   "source": "no mobile for the portal",
+   "text": "chybí mobil pro portál"
+  },
+  "plc_19": {
+   "source": "The portal sends acme’s own accounts a one-time code (Settings → The enrolment pages): without where to send it, this account cannot sign in there. Give it with the envelope button.",
+   "text": "Portál posílá vlastním účtům acme jednorázový kód (Nastavení → Stránky registrace): bez místa, kam ho poslat, se tento účet na portál nepřihlásí. Doplňte ho tlačítkem s obálkou."
   }
  },
  "patterns": {
@@ -72973,6 +73041,26 @@
   "phunt3_4": {
    "source": "a line of the file is longer than {0} MB - not a copy acme made",
    "text": "řádek souboru je delší než {0} MB - to není kopie z acme"
+  },
+  "pplc_1": {
+   "source": "E-mail and mobile number of {0}",
+   "text": "E-mail a mobilní číslo účtu {0}"
+  },
+  "pplc_2": {
+   "source": "Where the one-time code goes when {0} signs in on the portal (Settings → The enrolment pages → A one-time code for acme’s own accounts). Empty: none.",
+   "text": "Kam jde jednorázový kód, když se {0} přihlásí na portál (Nastavení → Stránky registrace → Jednorázový kód pro vlastní účty acme). Prázdné: nikam."
+  },
+  "pplc_3": {
+   "source": "the e-mail address: {0}",
+   "text": "e-mailová adresa: {0}"
+  },
+  "pplc_4": {
+   "source": "the mobile number: {0}",
+   "text": "mobilní číslo: {0}"
+  },
+  "pplc_5": {
+   "source": "the e-mail address and the mobile number of {0} are the directory's",
+   "text": "e-mailová adresa a mobilní číslo účtu {0} jsou z adresáře"
   }
  },
  "rich": {
@@ -73815,6 +73903,14 @@
   "rosu_1": {
    "source": "Its <b>public</b> half goes into <code>~{0}/.ssh/authorized_keys</code> of {1} - written as {2}, so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to hand over.",
    "text": "Jeho <b>veřejná</b> část se zapíše do <code>~{0}/.ssh/authorized_keys</code> na {1} – jako {2}, aby složka i soubor patřily jemu. <b>Soukromá</b> část se tu nikdy neuchovává: ukáže se vám jednou, abyste ji předali."
+  },
+  "rpgate18": {
+   "source": "Somebody signing in to the portal with their directory name and password - or signed in by the load balancer in front - then gets a one-time code to the e-mail address or the mobile number the directory has for them, read from it at the sign-in, nothing typed. Only with that code typed are they in: the directory password alone - guessed, or found out - no longer opens anybody's certificates, at every sign-in. An account the directory has no address or number for cannot sign in here then. Needs the mail (Settings → Mail) or the SMS gateway set up. acme's own accounts: <i>A one-time code for acme’s own accounts</i>.",
+   "text": "Kdo se na portál přihlásí jménem a heslem z adresáře – nebo ho přihlásí load balancer před ním – dostane pak jednorázový kód na e-mailovou adresu nebo mobilní číslo, které pro něj adresář má, přečtené z něj při přihlášení, nic se nezadává. Teprve se zadaným kódem je přihlášený: samotné heslo z adresáře – uhodnuté nebo vyzrazené – už neotevře ničí certifikáty, a to při každém přihlášení. Účet, pro který adresář nemá adresu ani číslo, se tu pak nepřihlásí. Potřebuje nastavenou poštu (Nastavení → Pošta) nebo SMS bránu. Vlastní účty acme: <i>Jednorázový kód pro vlastní účty acme</i>."
+  },
+  "rplc8": {
+   "source": "acme’s own accounts signing in on the portal (the role <i>enrolment pages only</i>, and the others with <i>acme’s own accounts may sign in too</i>): after the right password a one-time code goes to the e-mail address or the mobile number the account has in <i>Accounts</i>, and only with it typed are they in. Its own setting - not the second step of the administration, which the portal does not ask while this is on. <i>As for the people of the directory</i> follows <i>A one-time code at every sign-in</i> above. An account without what the way chosen needs (by e-mail and no address; by SMS and no number, with no e-mail to fall back to) cannot sign in here: give it in <i>Accounts</i>.",
+   "text": "Vlastní účty acme přihlašující se na portál (role <i>jen enrolment stránky</i> a ostatní s <i>Přihlásit se mohou i vlastní účty acme</i>): po správném hesle přijde jednorázový kód na e-mailovou adresu nebo mobilní číslo, které účet má v <i>Účtech</i>, a teprve s ním zadaným jsou přihlášení. Samostatné nastavení - ne druhý krok administrace, na který se portál, dokud je toto zapnuté, neptá. <i>Stejně jako pro lidi z adresáře</i> se řídí nastavením <i>Jednorázový kód při každém přihlášení</i> výše. Účet bez toho, co zvolený způsob potřebuje (e-mailem a bez adresy; SMS a bez čísla, bez e-mailu jako náhrady), se tu nepřihlásí: doplňte to v <i>Účtech</i>."
   }
  }
 }

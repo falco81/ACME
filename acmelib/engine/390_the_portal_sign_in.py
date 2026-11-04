@@ -46,8 +46,9 @@ def portal_me(h, gate_ok=False):
     # Asked again on every step (as otp 1.0.234): a sign-in kept open from before it was switched
     # on goes no further without the code.
     data = s.get('data') or {}
-    if not gate_ok and data.get('kind') != 'local' and not data.get('gate_ok') and \
-            portal_gate_needed():
+    # ...acme's own accounts too (1.0.44), by their own setting.
+    needed = portal_local_ways() if data.get('kind') == 'local' else portal_gate_needed()
+    if not gate_ok and not data.get('gate_ok') and needed:
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(401, 'sign in again: a code is sent to you first')
     if not portal_local_ok(h, s):
@@ -72,10 +73,12 @@ def portal_gate_needed():
     return bool(PORTAL_CODE_WAYS.get(str(CONFIG.get('portal_code') or 'off')))
 
 
-def portal_gate_where(entry):
+def portal_gate_where(entry, ways=None):
     """Where the code goes, as the directory has it: (kind, address, ''), or (None, None, why)
-    with why 'nothing' (no way of sending set up) or what the directory lacks."""
-    ways = PORTAL_CODE_WAYS.get(str(CONFIG.get('portal_code') or 'off')) or ()
+    with why 'nothing' (no way of sending set up) or what the directory lacks. `ways`: those
+    of acme's own accounts (1.0.44), their address and number as Accounts has them."""
+    if ways is None:
+        ways = PORTAL_CODE_WAYS.get(str(CONFIG.get('portal_code') or 'off')) or ()
     have = code_channels()
     tried = []
     for kind in ways:
@@ -184,8 +187,10 @@ def portal_dir_still(h, s):
 def portal_mfa_pending(s):
     """The second step of an account of acme's own, still to be given."""
     data = s.get('data') or {}
+    # Not while the portal sends acme's own accounts its code (1.0.44): that is their second
+    # step here, not the administration's.
     return str(data.get('mfa') or '') if data.get('kind') == 'local' and \
-        CONFIG.get('admin_2fa') else ''
+        CONFIG.get('admin_2fa') and not portal_local_ways() else ''
 
 
 def portal_local_ok(h, s):
@@ -676,15 +681,41 @@ def portal_local_login(h, key, name, acc):
                           'pages from %s' % (acc['name'], h.client_ip()), 'warn')
         raise ApiError(401, 'the name or the password is not right')
     who = acc['name']
-    stage = mfa_stage(h.store, who) if CONFIG.get('admin_2fa') else ''
+    ways = portal_local_ways()
+    stage = mfa_stage(h.store, who) if CONFIG.get('admin_2fa') and not ways else ''
     rec = mfa_get(h.store, who) or {}
-    mail = rec.get('dest') if rec.get('kind') == 'mail' else ''
+    # The account's own address and number (Accounts, 1.0.44) - else the administration's
+    # second step's, where it is one by mail or SMS.
+    mail = acc.get('mail') or (rec.get('dest') if rec.get('kind') == 'mail' else '') or ''
+    mobile = acc.get('mobile') or (rec.get('dest') if rec.get('kind') == 'sms' else '') or ''
     data = {'kind': 'local', 'role': acc.get('role') or 'readonly',
-            'display': acc.get('display') or '', 'dn': '', 'login': name, 'mail': mail or '',
-            'mobile': (rec.get('dest') if rec.get('kind') == 'sms' else '') or '',
+            'display': acc.get('display') or '', 'dn': '', 'login': name, 'mail': mail,
+            'mobile': mobile,
             'about': {'local': True, 'role': acc.get('role') or 'readonly'}}
     if stage:
         data['mfa'] = stage
+    # The portal's one-time code for acme's own accounts (1.0.44): the password alone let an
+    # account of acme's own in where the directory's people needed the code.
+    gate = None
+    if ways:
+        kind, dest, why = portal_gate_where({'mail': mail, 'mobile': mobile}, ways)
+        if not kind:
+            if why == 'nothing':
+                h.store.add_event('portal', '%s cannot sign in: a one-time code is needed, and '
+                                  'neither the mail nor the SMS is set up' % who, 'bad', who=who)
+                raise ApiError(503, 'the code cannot be sent just now - ask the administrator')
+            h.store.add_event('portal', '%s (an account here) cannot sign in to the portal: a '
+                              'one-time code is needed, and the account has %s (Accounts)'
+                              % (who, why), 'warn', who=who)
+            raise ApiError(403, 'this account has no e-mail address or mobile number to send the '
+                                'code to - ask the administrator')
+        try:
+            lang = str((h.body() or {}).get('lang') or '')
+        except Exception:                               # noqa: BLE001
+            lang = ''
+        gate = portal_gate_send(h, who, kind, dest, display=acc.get('display') or '', lang=lang)
+        data['gate'] = gate
+        data['gate_wait'] = {'kind': gate['kind'], 'dest': gate['dest']}
     if acc.get('must_change'):
         # Changed here (1.0.14): an account of the enrolment pages only has
         # no other place to change it. Until it is, nothing else.
@@ -696,9 +727,16 @@ def portal_local_login(h, key, name, acc):
     h.store.add_event('sign-ins', '%s signed in to the enrolment pages from %s (an account '
                       'here, %s)%s' % (who, h.client_ip(), acc.get('role') or 'readonly', {
                           'check': ' - the second step to give',
-                          'enrol': ' - the second step to set up'}.get(stage, '')), who=who)
+                          'enrol': ' - the second step to set up'}.get(stage, '') or (
+                          ' - the one-time code to type' if gate else '')), who=who)
     split_note(h.store, 'signin', who, 'signin:portal:' + str(who).lower())
-    return {'token': token, 'name': who, 'kind': 'local', 'mfa': stage}
+    out = {'token': token, 'name': who, 'kind': 'local', 'mfa': stage}
+    if gate:
+        out['gate'] = {'kind': gate['kind'], 'dest': dest_masked(gate['kind'], gate['dest']),
+                       'live': True, 'digits': int(CONFIG.get('code_digits') or 6),
+                       'minutes': max(1, int(CONFIG.get('code_ttl_s') or 300) // 60),
+                       'sso': False}
+    return out
 
 
 # ---- signed in by the load balancer or WAF in front (otp 1.0.239) ------------------------------

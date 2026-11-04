@@ -55,6 +55,8 @@ DEFAULTS = {
     'portal_tries': 5,
     'portal_wait_min': 15,
     'portal_local': 0,
+    # The one-time code for acme's own accounts on the portal (1.0.44): as for the directory's.
+    'portal_local_code': 'same',
     'portal_enrolers': 1,
     'portal_admins_all': 1,
     # Signed in by a load balancer or WAF in front (otp 1.0.239): NetScaler, F5 - off by default.
@@ -393,6 +395,7 @@ TUNABLE = {
     'portal_session_min': (1, 240),
     'portal_tries': (1, 100), 'portal_wait_min': (1, 1440),
     'portal_local': (0, 1), 'portal_admins_all': (0, 1), 'portal_enrolers': (0, 1),
+    'portal_local_code': ('same', 'off', 'mail', 'sms', 'sms_mail', 'mail_sms'),
     'session_hours': (1, 168), 'session_idle_min': (5, 1440),
     'login_tries': (1, 100), 'login_wait_min': (1, 1440),
     'login_guard': (0, 1), 'login_guard_tries': (2, 10000), 'login_guard_names': (0, 1000),
@@ -517,6 +520,12 @@ CHOICE_WORDS = {
                     'sms': 'yes, by SMS',
                     'sms_mail': 'yes, by SMS - by e-mail when the directory has no mobile number',
                     'mail_sms': 'yes, by e-mail - by SMS when the directory has no address'},
+    'portal_local_code': {'same': 'as for the people of the directory (A one-time code at every sign-in)',
+                          'off': 'no - the password here is enough',
+                          'mail': 'yes, by e-mail - to the address the account has',
+                          'sms': 'yes, by SMS - to the mobile number the account has',
+                          'sms_mail': 'yes, by SMS - by e-mail when the account has no mobile number',
+                          'mail_sms': 'yes, by e-mail - by SMS when the account has no address'},
     'portal_who': {'anyone': 'anybody the directory lets sign in',
                    'groups': 'members of the groups named below'},
     'db_engine': {'sqlite': 'a file on this machine (SQLite)', 'mariadb': 'MariaDB / MySQL',
@@ -618,6 +627,7 @@ NAMES = {
     'portal_tries': 'Wrong passwords on the enrolment pages before a pause',
     'portal_wait_min': '...and the pause (min)',
     'portal_local': 'acme’s own accounts may sign in too',
+    'portal_local_code': 'A one-time code for acme’s own accounts',
     'portal_enrolers': 'Accounts of the role Enrolment pages only may sign in',
     'portal_admins_all': 'Certificate and full administrators see every certificate',
     'session_hours': 'A sign-in lasts (h)',
@@ -1002,7 +1012,8 @@ SAYS = {
                    'directory password alone - guessed, or found out - no longer opens anybody\'s '
                    'certificates, at every sign-in. An account the directory has no address or '
                    'number for cannot sign in here then. Needs the mail (Settings → Mail) or the '
-                   'SMS gateway set up. The portal\'s own accounts keep their own second step.',
+                   'SMS gateway set up. acme\'s own accounts: <i>A one-time code for acme’s own '
+                   'accounts</i>.',
     'portal_who': 'Who may sign in: anybody the directory knows and lets in, or only the '
                   'members of the groups below.',
     'portal_groups': 'With <i>members of the groups named below</i>: the groups, by name '
@@ -1041,6 +1052,16 @@ SAYS = {
                     'before the directory. The same password, the same second step '
                     '(<i>A second step when signing in</i>) and the same pause after wrong '
                     'passwords as above; an account switched off cannot sign in.',
+    'portal_local_code': 'acme’s own accounts signing in on the portal (the role <i>enrolment '
+                         'pages only</i>, and the others with <i>acme’s own accounts may sign in '
+                         'too</i>): after the right password a one-time code goes to the e-mail '
+                         'address or the mobile number the account has in <i>Accounts</i>, and '
+                         'only with it typed are they in. Its own setting - not the second step '
+                         'of the administration, which the portal does not ask while this is on. '
+                         '<i>As for the people of the directory</i> follows <i>A one-time code at '
+                         'every sign-in</i> above. An account without what the way chosen needs '
+                         '(by e-mail and no address; by SMS and no number, with no e-mail to fall '
+                         'back to) cannot sign in here: give it in <i>Accounts</i>.',
     'portal_enrolers': 'On: the accounts with the role <i>enrolment pages only</i> sign in '
                        'here - acme’s own (<i>Accounts</i>, whether or not acme’s own accounts '
                        'may sign in) and the members of <i>Group of enrolment-only accounts</i> '
@@ -1452,7 +1473,7 @@ PANES = {
     'portal': ['portal', 'portal_title', 'portal_directory', 'portal_hint', 'portal_who',
                'portal_groups', 'portal_code',
                'portal_session_min', 'portal_tries', 'portal_wait_min',
-               'portal_enrolers', 'portal_local', 'portal_admins_all',
+               'portal_enrolers', 'portal_local', 'portal_local_code', 'portal_admins_all',
                'portal_help'],
     # Signed in by the balancer (otp 1.0.239): a card of its own on the enrolment pages' pane.
     'portalsso': ['portal_sso', 'portal_sso_from', 'portal_sso_header', 'portal_sso_key',
@@ -1547,7 +1568,7 @@ ONLY_WHEN = {
     'portal_sso_from': ['portal_sso', '1'], 'portal_sso_header': ['portal_sso', '1'],
     'portal_sso_key': ['portal_sso', '1'], 'portal_sso_logout': ['portal_sso', '1'],
     'portal_local': ['portal', '1'], 'portal_admins_all': ['portal_local', '1'],
-    'portal_enrolers': ['portal', '1'],
+    'portal_enrolers': ['portal', '1'], 'portal_local_code': ['portal', '1'],
     'isemon_targets': ['isemon', '1'], 'isemon_hostname': ['isemon', '1'],
     'isemon_events': ['isemon', '1'],
     'isemon_max_bytes': ['isemon', '1'], 'isemon_ca': ['isemon', '1'],

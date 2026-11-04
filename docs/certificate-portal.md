@@ -20,6 +20,7 @@ Settings → The portal (`sect-portal`, `PANES['portal']`):
 | `portal_title`, `portal_hint`, `portal_help` | | the words on the pages |
 | `portal_local` | 0 | acme's own accounts (Settings → Accounts) may sign in too |
 | `portal_admins_all` | 1 | (with `portal_local`) their certificate and full administrators see every certificate |
+| `portal_local_code` | same | the one-time code for acme's own accounts: as `portal_code`, off, or `mail` / `sms` / `sms_mail` / `mail_sms` |
 | `portal_enrolers` | 1 | accounts of the role *enrolment pages only* sign in (acme's own, and the directory's group `admin_group_portal`) |
 
 The sign-in is the engine's (`acmelib/engine/390_the_portal_sign_in.py`):
@@ -39,14 +40,28 @@ written there - not `DOMAIN\name` or a UPN), then the directory:
   counted as one); one that must change its password changes it here, on the
   page after the password, before anything else (`POST /api/portal/password`,
   relayed as `?api=password`; also *Change the password* under the name);
-* **the second step** exactly as the administration's (`admin_2fa`): the code
+* **the portal's one-time code** (1.0.44, `portal_local_code`, Settings → The
+  portal → *A one-time code for acme's own accounts*): a setting of its own,
+  not the administration's second step - `same` (the default: as
+  `portal_code`, the directory people's), `off`, `mail`, `sms`, `sms_mail`,
+  `mail_sms`. The code goes to the e-mail address or the mobile number the
+  account has (Settings → Accounts → the envelope button, or
+  `acme --user-contact NAME --mail ADDRESS --mobile NUMBER`; else the
+  address or number of its administration's second step by mail or SMS).
+  An account without what the way chosen needs cannot sign in here (by
+  e-mail and no address; by SMS and no number - unless the way falls back to
+  the other); the list of accounts marks those. While it is on, the portal
+  does not ask the administration's second step. The address and the number
+  are signed with the account (`db_guard`) once given;
+* **the second step** (with the portal's code off) exactly as the administration's (`admin_2fa`): the code
   from the authenticator app, or a code sent by mail or SMS - the account's
   own way, the same one it uses at `/admin/`. With none set up yet the
   sign-in page sets one up, as the administration's does. Until it is given
   the sign-in can do nothing else (`GET/POST /api/portal/mfa`, relayed as
   `?api=mfa`; wrong codes count as wrong passwords);
 * High security: it keeps the second step on (`admin_2fa`) and allows only
-  the app, so it holds for these sign-ins too;
+  the app, so it holds for these sign-ins too - the portal's code by mail or
+  SMS is not used then, the app is asked;
 * the account's role is read again at every request: switched off, removed,
   or `portal_local` switched off, and the sign-in ends;
 * events of kind `sign-ins`, as the administration's.

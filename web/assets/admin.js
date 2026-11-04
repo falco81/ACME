@@ -2867,6 +2867,22 @@ function loadUsers() {
       var tr = el('tr');
       var n = el('td'); n.appendChild(noI18n(el('span', 'mono', u.name)));
       if (u.display) n.appendChild(noI18n(el('span', 'sub', u.display)));
+      /* Where the portal's one-time code goes (1.0.44): an account of acme's own's own. */
+      if (u.source !== 'directory' && (u.mail || u.mobile)) {
+        n.appendChild(noI18n(el('span', 'sub mono', [u.mail, u.mobile].filter(Boolean).join(' · '))));
+      }
+      var ways = d.portal_code_ways || [];
+      var onPortal = u.source !== 'directory' && !u.disabled &&
+        (u.role === 'portal' ? d.portal_enrolers : d.portal_local);
+      if (onPortal && ways.length && !ways.some(function (w) {
+        /* the administration's second step by mail or SMS counts too, as the portal takes it */
+        var mf = u.mfa && u.mfa.dest && u.mfa.kind === (w === 'mail' ? 'mail' : 'sms');
+        return (w === 'mail' ? u.mail : u.mobile) || mf; })) {
+        var miss = el('span', 'tag warn', ways.length > 1 ? 'no e-mail or mobile for the portal' : (ways[0] === 'mail' ? 'no e-mail for the portal' : 'no mobile for the portal'));
+        explain(miss, 'The portal sends acme’s own accounts a one-time code (Settings → The enrolment pages): without where to send it, this account cannot sign in there. Give it with the envelope button.');
+        n.appendChild(el('br'));
+        n.appendChild(miss);
+      }
       tr.appendChild(n);
       /* the role in its own column (1.0.33): a tag, or for an administrator the
          box it is changed with - beside the buttons it pushed the row past the card */
@@ -2934,10 +2950,16 @@ function loadUsers() {
               });
           };
           tools.appendChild(pw);
+          var ct = iconButton('mail', 'E-mail and mobile number: where the portal’s one-time code goes');
+          ct.onclick = function (ev) { ev.stopPropagation(); userContact(u); };
+          tools.appendChild(ct);
         } else {
           var gap = iconButton('lock', 'The password is the directory’s: it is changed there');
           gap.disabled = true;
           tools.appendChild(gap);
+          var cgap = iconButton('mail', 'The e-mail address and the mobile number are the directory’s');
+          cgap.disabled = true;
+          tools.appendChild(cgap);
         }
         var off = iconButton('power', u.disabled ? 'Let it sign in again' : 'Stop it signing in');
         off.onclick = function () { userDo({action: u.disabled ? 'enable' : 'disable', name: u.name}); };
@@ -3444,6 +3466,18 @@ function drawLockoutsIn(v) {
   }, true);
 }
 if ($('gd-find')) $('gd-find').addEventListener('input', function () { drawLockouts(); });
+/* An account of acme's own's e-mail address and mobile number (1.0.44): where the portal's
+   one-time code goes - without what the way chosen needs, it cannot sign in there. */
+function userContact(u) {
+  askInModal('E-mail and mobile number of ' + u.name,
+    'Where the one-time code goes when ' + u.name + ' signs in on the portal (Settings → The enrolment pages → A one-time code for acme’s own accounts). Empty: none.',
+    [{label: 'E-mail address', type: 'email', value: u.mail || '', mono: true, placeholder: 'novak@example.cz'},
+     {label: 'Mobile number', type: 'tel', value: u.mobile || '', mono: true, placeholder: '+420 603 123 456'}],
+    'Save', 'check', function (v) {
+      closeModal();
+      userDo({action: 'contact', name: u.name, mail: v[0].trim(), mobile: v[1].trim()});
+    });
+}
 function userDo(body) {
   /* Drawn again either way (1.0.44): a refused change stayed in its box. */
   api('users', body).then(function (d) { toast(d.message, 'good'); loadUsers(); })
@@ -3456,14 +3490,21 @@ $('us-add').onclick = function () {
     var role = selectBox([['portal', 'enrolment pages only'], ['readonly', 'read only'], ['certadmin', 'cert admin'], ['fulladmin', 'full admin']], 'certadmin');
     var pw = secretBox('', '8 characters at least', 'mono');
     var note = textBox('', '', '');
+    var mail = textBox('', 'novak@example.cz', 'mono');
+    mail.type = 'email';
+    var mobile = textBox('', '+420 603 123 456', 'mono');
+    mobile.type = 'tel';
     g.appendChild(formField('Name', name));
     g.appendChild(formField('Role', role, 'Enrolment pages only: never gets into the administration - signs in on the enrolment pages and sees and asks for what the teams it is in give it (Owners and teams).'));
     g.appendChild(formField('A first password', pw, 'They choose their own at the first sign-in.'));
+    g.appendChild(formField('E-mail address', mail, 'Where the portal’s one-time code goes (A one-time code for acme’s own accounts). Optional.'));
+    g.appendChild(formField('Mobile number', mobile, 'For the code by SMS. Optional.'));
     g.appendChild(formField('Note', note));
     body.appendChild(g);
     MODAL_GO = function (b) {
       if (b) busy(b, true);         // one account per press (1.0.61)
-      api('users', {action: 'add', name: name.value, role: role.value, password: pw.value, note: note.value, must_change: 1})
+      api('users', {action: 'add', name: name.value, role: role.value, password: pw.value, note: note.value, must_change: 1,
+                    mail: mail.value.trim(), mobile: mobile.value.trim()})
         .then(function (d) { toast(d.message, 'good'); closeModal(); loadUsers(); }).catch(oops)
         .then(function () { if (b) busy(b, false); });
     };

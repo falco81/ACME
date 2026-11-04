@@ -240,6 +240,11 @@ def _users(h):
         u['mfa'] = mfa.get(str(u.get('name') or '').lower())
     return {'users': users, 'may_change': s['role'] == 'fulladmin',
             'mfa_on': bool(CONFIG.get('admin_2fa')),
+            # The portal's code for acme's own accounts (1.0.44): which ways, so the list can say
+            # who would not get in for want of an address or a number.
+            'portal_code_ways': list(portal_local_ways()) if CONFIG.get('portal') else [],
+            'portal_local': bool(CONFIG.get('portal_local')),
+            'portal_enrolers': bool(CONFIG.get('portal_enrolers', 1)),
             'roles': [{'role': r, 'words': ROLE_WORDS[r]} for r in ROLES_ALL]}
 
 
@@ -250,8 +255,11 @@ def _users_do(h):
     act, name = b.get('action'), str(b.get('name') or '').strip()
     who = s['name']
     if act == 'add':
+        mail, mobile = account_contact_checked(b)
         h.store.add_account(name, b.get('role') or 'readonly', b.get('password'),
                             note=b.get('note') or '', must_change=b.get('must_change', 1))
+        if mail or mobile:
+            h.store.set_account(name, mail=mail, mobile=mobile)
         h.store.add_event('accounts', '%s made the account %s (%s)' % (who, name,
                                                                          b.get('role')), who=who)
         return {'message': 'the account %s is made' % name}
@@ -280,6 +288,17 @@ def _users_do(h):
         return {'message': ('the second step of %s is reset: they set it up again at the next '
                             'sign-in; their sign-ins are ended' if had else
                             '%s had no second step set up') % acc['name']}
+    if act == 'contact':
+        # Where the portal's one-time code goes (1.0.44): acme's own accounts only - the
+        # directory's people have theirs in the directory.
+        if acc.get('source') == 'directory':
+            raise ApiError(400, 'the e-mail address and the mobile number of %s are the '
+                                'directory\'s' % acc['name'])
+        mail, mobile = account_contact_checked(b)
+        h.store.set_account(acc['name'], mail=mail, mobile=mobile)
+        h.store.add_event('accounts', '%s set the e-mail address (%s) and the mobile number (%s) '
+                          'of %s' % (who, mail or 'none', mobile or 'none', acc['name']), who=who)
+        return {'message': 'saved'}
     if act == 'reset_cols':
         h.store.put_user_cols(acc['name'], {})
         h.store.add_event('accounts', '%s put the columns of every table back as they come '
@@ -304,6 +323,22 @@ def _users_do(h):
                                                             act == 'disable' else 'on'), who=who)
         return {'message': 'saved'}
     raise ApiError(400, 'no such thing to do to an account')
+
+
+def account_contact_checked(b):
+    """The e-mail address and the mobile number of an account of acme's own, as given (empty:
+    none) - checked as the codes check them."""
+    mail = str(b.get('mail') or '').strip()
+    mobile = str(b.get('mobile') or '').strip()
+    try:
+        mail = dest_checked('mail', mail) if mail else ''
+    except ValueError as e:
+        raise ApiError(400, 'the e-mail address: %s' % e)
+    try:
+        mobile = dest_checked('sms', mobile) if mobile else ''
+    except ValueError as e:
+        raise ApiError(400, 'the mobile number: %s' % e)
+    return mail, mobile
 
 
 def account_portal_end(store, name):

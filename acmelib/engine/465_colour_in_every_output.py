@@ -512,6 +512,11 @@ def build_parser():
     g.add_argument('--del-user', metavar='NAME', help='remove an account')
     g.add_argument('--disable-user', metavar='NAME', help='stop an account signing in')
     g.add_argument('--enable-user', metavar='NAME', help='let it sign in again')
+    g.add_argument('--user-contact', metavar='NAME',
+                   help='the e-mail address (--mail) and the mobile number (--mobile) of an account '
+                        'of acme\'s own: where the portal\'s one-time code goes (empty: none)')
+    g.add_argument('--mail', metavar='ADDRESS', default=None, help='with --user-contact or --add-user')
+    g.add_argument('--mobile', metavar='NUMBER', default=None, help='with --user-contact or --add-user')
     g.add_argument('--console', action='store_true',
                    help='the acme console: the whole of acme by its menus and the live log '
                         '(q leaves it)')
@@ -3356,17 +3361,51 @@ def cli_main(argv=None):
         print(table([(a['name'], ROLE_WORDS.get(a['role'], a['role']), a['source'] or 'local',
                       'off' if a['disabled'] else 'on',
                       ('%s %s' % (a['mfa']['kind'], a['mfa'].get('dest') or '')).strip()
-                      if a['mfa'] else '-', stamp(a['last_in']) if a['last_in']
+                      if a['mfa'] else '-',
+                      ' '.join(x for x in (a.get('mail'), a.get('mobile')) if x) or '-',
+                      stamp(a['last_in']) if a['last_in']
                       else 'never', a['note'] or '') for a in rows],
-                    ['name', 'role', 'from', 'state', 'second step', 'last signed in', 'note']))
+                    ['name', 'role', 'from', 'state', 'second step', 'e-mail / mobile',
+                     'last signed in', 'note']))
         if CONFIG.get('admin_2fa'):
             print('the second step is asked for (admin_2fa); acme --reset-2fa NAME takes one away')
         return 0
 
+    if args.user_contact:
+        acc = store.account(args.user_contact)
+        if not acc:
+            raise SystemExit('acme: there is no account called %s' % args.user_contact)
+        if acc.get('source') == 'directory':
+            raise SystemExit('acme: the e-mail address and the mobile number of %s are the '
+                             'directory\'s' % acc['name'])
+        if args.mail is None and args.mobile is None:
+            raise SystemExit('acme: --user-contact %s --mail ADDRESS --mobile NUMBER (empty: none)'
+                             % acc['name'])
+        try:
+            mail = dest_checked('mail', args.mail) if args.mail else ''
+            mobile = dest_checked('sms', args.mobile) if args.mobile else ''
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        mail = mail if args.mail is not None else (acc.get('mail') or '')
+        mobile = mobile if args.mobile is not None else (acc.get('mobile') or '')
+        store.set_account(acc['name'], mail=mail, mobile=mobile)
+        store.add_event('accounts', 'the e-mail address (%s) and the mobile number (%s) of %s set '
+                        'on the command line' % (mail or 'none', mobile or 'none', acc['name']),
+                        who=who)
+        print(pal.ok_line('saved: %s %s' % (mail or '-', mobile or '-')))
+        return 0
+
     if args.add_user:
+        try:
+            mail = dest_checked('mail', args.mail) if args.mail else ''
+            mobile = dest_checked('sms', args.mobile) if args.mobile else ''
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
         pw = ask_password('a password for %s' % args.add_user)
         try:
             store.add_account(args.add_user, args.role or 'readonly', pw, note=args.note)
+            if mail or mobile:
+                store.set_account(args.add_user, mail=mail, mobile=mobile)
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
         store.add_event('accounts', 'the account %s was made on the command line, as %s'
