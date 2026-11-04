@@ -15449,6 +15449,8 @@ function hsLights() {
     if (!item) return;
     var old = item.querySelector('.hs-lights');
     if (old) old.remove();
+    /* Standalone, the switch says it all: the lights only for the two nodes of a cluster. */
+    if (d.length < 2) return;
     var row = el('div', 'hs-lights');
     d.forEach(function (n) {
       var l = hsLightOf(key, n);

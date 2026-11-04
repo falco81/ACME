@@ -11,6 +11,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   not there yet / still on after a change (amber, looked at again every few seconds),
   the guard on with rows refused (amber) or with no key to check them (red), a node not
   heard from (red). The guard is each node's own: the light says where it is still off.
+  In a cluster only (both nodes, a line each); standalone the switch says it all.
 - *Local users*: a user made, changed or taken away is in *SSH keys → Whose keys* at once
   - it was there only after reloading the page (F5).
 - *Local users*: the windows have on/off switches, as every other page, where they had
