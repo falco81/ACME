@@ -123,6 +123,19 @@ TEXT_MESSAGES = [
      'title': 'SSH: a sign-in code by SMS',
      'says': 'Sent when somebody signs in over SSH to the nodes with an SSH token by SMS.',
      'fields': [('ssh_sms', 'text', 'The SMS', ('code', 'minutes', 'site'), 'sms')]},
+    # What sshd shows when it asks for the code (1.0.40, as otp's VPN prompts): each at most
+    # 253 bytes, as RADIUS carries it to pam_radius.
+    {'id': 'ssh_prompts', 'kind': 'prompt', 'group': 'code', 'title': 'SSH: what it asks for the code',
+     'says': 'What ssh shows when it asks for the code - each at most 253 bytes, as RADIUS '
+             'carries it.',
+     'fields': [
+         ('ask_mail', 'line', 'Asking for a code sent by mail', ('dest', 'site', 'minutes'),
+          'prompt'),
+         ('ask_sms', 'line', 'Asking for a code sent by SMS', ('dest', 'site', 'minutes'),
+          'prompt'),
+         ('ssh_ask_app', 'line', 'Asking for the code from the app', ('site', 'minutes'), 'prompt'),
+         ('again', 'line', 'A wrong code, asked again', ('site', 'minutes'), 'prompt'),
+     ]},
 ]
 TEXT_LANGS = ('cs', 'en')
 TEXT_PLACEHOLDERS = {
@@ -345,7 +358,9 @@ def text_check(field, value):
         value.format(**text_samples())
     except (ValueError, IndexError, KeyError) as e:
         raise ValueError('%s: a { or } on its own - write it twice, {{ or }} (%s)' % (label, e))
-    if field[4] in ('subject', 'sms') and not value.strip():
+    if field[4] == 'prompt' and len(value.format(**text_samples()).encode('utf-8')) > 253:
+        raise ValueError('%s: at most 253 bytes, as RADIUS carries it' % label)
+    if field[4] in ('subject', 'sms', 'prompt') and not value.strip():
         raise ValueError('%s cannot be empty' % label)
     return value
 

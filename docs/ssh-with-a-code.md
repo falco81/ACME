@@ -94,7 +94,9 @@ that ran out (when it went, when it stopped being good), none sent to the accoun
 in the last hour, or not digits at all - never the code itself. A code goes at
 most every 20 s and five in 15 minutes per account, so a name typed at `ssh` is no
 way to send SMS. The words are their own under *Settings → Message texts* (*SSH: a
-sign-in code by mail / by SMS*). pam_radius waits up to 30 s for the sending.
+sign-in code by mail / by SMS*), and so is what ssh shows when it asks (*SSH: what
+it asks for the code* - by mail, by SMS, from the app, a wrong code asked again; at
+most 253 bytes each, as RADIUS carries it). pam_radius waits up to 30 s for the sending.
 
 A code is good once (on either node); five wrong ones for a name in five minutes
 and that name is refused for five minutes. Every sign-in, let in or not, is an

@@ -52663,6 +52663,14 @@
   "sshc_12": {
    "source": "sshd asks for a code where it would ask for the account's password - from an SSH token of the account, below. pam_radius asks acme's own gate on 127.0.0.1 of each node, on a free port of 18129-18199 each node finds for itself.",
    "text": "sshd chce kód tam, kde by chtěl heslo účtu – z SSH tokenu účtu níže. pam_radius se ptá vlastní brány acme na 127.0.0.1 každého uzlu, na volném portu z 18129–18199, který si každý uzel najde sám."
+  },
+  "sshpr_1": {
+   "source": "SSH: what it asks for the code",
+   "text": "SSH: čím se ptá na kód"
+  },
+  "sshpr_2": {
+   "source": "What ssh shows when it asks for the code - each at most 253 bytes, as RADIUS carries it.",
+   "text": "Co ssh ukáže, když se ptá na kód - každý nejvýše 253 bajtů, kolik unese RADIUS."
   }
  },
  "patterns": {
@@ -72009,6 +72017,10 @@
   "psshc_1": {
    "source": "{0} is not an account of the nodes - pick one of the list (root, or a user who may sign in there)",
    "text": "{0} není účet uzlů – vyberte ze seznamu (root, nebo uživatel, který se tam smí přihlásit)"
+  },
+  "psshpr_1": {
+   "source": "{0}: at most 253 bytes, as RADIUS carries it",
+   "text": "{0}: nejvýše 253 bajtů, kolik unese RADIUS"
   }
  },
  "rich": {

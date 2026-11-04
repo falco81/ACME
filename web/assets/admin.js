@@ -10252,7 +10252,7 @@ if ($('mq-q')) {
    cluster send the same words.
    ========================================================================== */
 var TX = {data: null, id: null, lang: 'cs', dirty: {}, eds: {}, active: null, range: null, frame: null};
-var TX_KINDS = [['mail', 'E-mails', 'mail'], ['sms', 'SMS', 'phone']];
+var TX_KINDS = [['mail', 'E-mails', 'mail'], ['sms', 'SMS', 'phone'], ['prompt', 'SSH', 'key']];
 var TX_COLORS = ['#111827', '#1d4ed8', '#b91c1c', '#15803d', '#b45309', '#7c3aed', '#6b7280'];
 function txT(s) {
   var got = typeof i18nText === 'function' ? i18nText(String(s)) : null;
@@ -10266,7 +10266,7 @@ function txValue(f) { return Object.prototype.hasOwnProperty.call(TX.dirty, f.ke
 function loadTexts() {
   api('texts').then(function (d) {
     /* Only the mails and the SMS: what a VPN asked is gone with it. */
-    d.messages = (d.messages || []).filter(function (m) { return m.kind === 'mail' || m.kind === 'sms'; });
+    d.messages = (d.messages || []).filter(function (m) { return m.kind === 'mail' || m.kind === 'sms' || m.kind === 'prompt'; });
     TX.data = d;
     if (!d.messages.length) { clear($('tx-root')); $('tx-root').appendChild(el('p', 'note', 'No message to change.')); return; }
     if (!txMsg(TX.id)) TX.id = d.messages[0].id;
@@ -10503,8 +10503,8 @@ function txDrawEditor(host) {
   var may = TX.data.may_change;
   var prev = cmdButton('Preview', 'eye', '');
   prev.onclick = txPreview;
-  bar.appendChild(prev);
-  if (may) {
+  if (m.kind !== 'prompt') bar.appendChild(prev);
+  if (may && m.kind !== 'prompt') {
     var test = cmdButton('Send a sample…', 'mail', '');
     test.onclick = txTest;
     bar.appendChild(test);
@@ -10519,6 +10519,7 @@ function txDrawEditor(host) {
   host.appendChild(head);
   if (!may) host.appendChild(el('p', 'note', 'Only a full administrator changes these words.'));
   if (m.kind === 'sms') txDrawSms(host, m);
+  else if (m.kind === 'prompt') txDrawPrompts(host, m);
   else txDrawMail(host, m);
   txBarState();
 }
@@ -10789,6 +10790,40 @@ function txPlainSms(t) {
   if (!TX.data.sms_plain || !t.normalize) return t;
   return t.normalize('NFKD').replace(/[̀-ͯ]/g, '');
 }
+/* What ssh shows when it asks for the code, as the terminal shows it. */
+function txDrawPrompts(host, m) {
+  var card = el('div', 'card tx-card');
+  m.fields.forEach(function (f) {
+    var box = txFieldBox(f, 'tx-line');
+    var vpn = el('div', 'tx-vpn');
+    var bar = el('div', 'tx-vpn-bar');
+    bar.appendChild(el('span', '', 'SSH'));
+    vpn.appendChild(bar);
+    var said = noI18n(el('div', 'tx-vpn-said'));
+    vpn.appendChild(said);
+    var input = el('div', 'tx-vpn-input mono', '••••••');
+    vpn.appendChild(input);
+    var bytes = el('div', 'tx-count small');
+    var draw = function () {
+      var t = txFill(txValue(f), f.key);
+      said.textContent = t;
+      var n = new Blob([t]).size;
+      clear(bytes);
+      bytes.appendChild(el('span', n > 253 ? 'tag bad' : 'muted', num(n) + ' / 253 B'));
+    };
+    TX.eds[f.key]._onChange = draw;
+    draw();
+    var row = el('div', 'tx-prompt');
+    row.appendChild(box);
+    var side = el('div', '');
+    side.appendChild(vpn);
+    side.appendChild(bytes);
+    row.appendChild(side);
+    card.appendChild(row);
+  });
+  host.appendChild(card);
+}
+
 function txDrawSms(host, m) {
   var f = m.fields[0];
   var grid = el('div', 'tx-sms');

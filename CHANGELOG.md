@@ -317,6 +317,10 @@ hunts. Every new switch is off - as until now - unless said otherwise.
   - Also `acme --ssh-tokens`, `acme --ssh-token-add NAME [--by mail|sms --to …]
     [--no-qr] [--invert]`, `acme --ssh-token-del NAME` and three items in
     `acme --console`. See docs/ssh-with-a-code.md.
+  - *Settings → Message texts → SSH: what it asks for the code*: what ssh shows when it
+    asks for the code - by mail, by SMS, from the app, and a wrong code asked again - in
+    Czech and English, each shown in a terminal's window with its size (at most 253 bytes,
+    as RADIUS carries it; longer or empty is refused when saved).
 
 ## 1.0.39 - 2026-11-04
 
