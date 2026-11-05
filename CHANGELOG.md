@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.49 - not released
+## 1.0.49 - 2026-11-05
 
 - The performance meter sits on the row of the name and the state of the node, in a cluster too
   (each node's numbers one under the other there); only when it would push the account's buttons
