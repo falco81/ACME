@@ -146,10 +146,17 @@ class BackupRuns(unittest.TestCase):
         E.rb_history_add(store, {'at': 20, 'node': E.node_name(), 'file': 'b'})
         self.assertEqual([r['file'] for r in E.rb_history(store)], ['c', 'b', 'a'])
         self.assertIsNotNone(store.get_meta(E.node_key('rbackup', 'runs')))
-        # this node forgets its own lines (and those of before), never the other node's row
-        self.assertEqual(E.rb_history_forget(store, 30, 'c'), 0)
+        # this node forgets its own lines (and those of before); the other node's row is never
+        # rewritten here - its line is noted as forgotten in this node's own row (1.0.45)
         self.assertEqual(E.rb_history_forget(store, 20, 'b'), 1)
         self.assertEqual([r['file'] for r in E.rb_history(store)], ['c', 'a'])
+        self.assertEqual(E.rb_history_forget(store, 30, 'c'), 1)
+        self.assertEqual(json.loads(store.get_meta('rbackup:runs@@peer'))[0]['file'], 'c')
+        self.assertEqual([r['file'] for r in E.rb_history(store)], ['a'])
+        E.rb_history_add(store, {'at': time.time() + 5, 'node': 'x', 'file': 'd'})
+        E.rb_history_forget(store)
+        self.assertEqual(E.rb_history(store), [])
+        store.db.run("DELETE FROM meta WHERE k LIKE 'rbackup:forgot%'")
 
 
 class SecondStepGone(unittest.TestCase):

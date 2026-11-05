@@ -108,8 +108,9 @@ class Pages(unittest.TestCase):
     def test_downloads_from_the_page_only(self):
         php = read('web', 'admin', 'index.php')
         self.assertEqual(php.count("HTTP_X_ACME_DOWNLOAD"), 2)
+        self.assertEqual(php.count("!acme_dl_ok("), 2)
         js = read('web', 'assets', 'admin.js')
-        self.assertIn("'X-Acme-Download': '1'", js)
+        self.assertIn("api('dl-ticket'", js)
         self.assertNotIn("window.location.href = '?api=", js)
 
 

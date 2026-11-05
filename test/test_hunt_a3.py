@@ -100,6 +100,9 @@ class Backups(unittest.TestCase):
         src = open(os.path.join(ROOT, 'acmelib', 'engine', [n for n in os.listdir(
             os.path.join(ROOT, 'acmelib', 'engine')) if n.startswith('175_')][0])).read()
         self.assertIn("'acme (scheduled, again: the one before failed)'", src)
+        # only after a scheduled one, with backups on and a destination switched on (1.0.45)
+        self.assertIn("str(mine[0].get('by') or '').startswith('acme (scheduled')", src)
+        self.assertIn("any(t.get('enabled') for t in rb_targets(store))", src)
 
 
 class CommandLine(unittest.TestCase):

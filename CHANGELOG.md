@@ -85,6 +85,23 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   image on another page of the same site made the daemon build a whole backup); a translation
   escaped where it went into the page as HTML; the Monitoring lede translated again; two
   missing values no longer break a page or log a warning.
+- **Round 5 (what the rounds before changed, looked at again):**
+  - A download of a copy or a backup is the browser's own again - saved as it comes, not held
+    whole in the page's memory first: the page asks for a short ticket (two minutes, of this
+    session and this download) and the browser fetches the file with it; when no file comes,
+    the page says why.
+  - The one who started a renewal sees how it goes, as before round 1.
+  - A failed scheduled backup is tried again only after a scheduled one (a failed *Back up now*
+    of one destination is no reason), and only while backups are on, to a destination switched on.
+  - A line of the other node taken off the backups' list stays off - noted in this node's own
+    row, as the other node's row is never rewritten here.
+  - A request waiting for its approval, or declined, is not renewed - by the command line's
+    `renew --all` neither, which now goes on past a certificate that fails and says it in
+    `--json`. A renewal that hung over two hours no longer keeps a destination from being
+    deleted. *Renew automatically* is kept on a revoked certificate. An export asked with the
+    old name of a variant is no longer refused.
+  - A node's name before a sentence ("acme1: ...") no longer takes the place of a pattern that
+    says the whole of it.
 
 ## 1.0.44 - 2026-11-04
 

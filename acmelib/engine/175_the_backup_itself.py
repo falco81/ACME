@@ -452,6 +452,23 @@ def _rb_runs_rows(store):
     return out
 
 
+def rb_forgotten(store):
+    """The lines of the other node taken off the list here (1.0.45): {(at, file)} - each node
+    forgets in its own row, and every node's list leaves them out."""
+    out = set()
+    for r in store.db.rows("SELECT v FROM meta WHERE k LIKE 'rbackup:forgot%'"):
+        try:
+            got = json.loads(r['v'] or '{}')
+        except ValueError:
+            continue
+        for x in got.get('lines') or []:
+            if isinstance(x, list) and len(x) == 2:
+                out.add((round(float(x[0] or 0), 3), str(x[1] or '')))
+        if got.get('all_before'):
+            out.add(('all_before', float(got['all_before'])))
+    return out
+
+
 def rb_history(store):
     """The backups sent away, newest first - every node's. Each node keeps its own row
     (1.0.44): two backups made at once on the two nodes each wrote the one row over the
@@ -459,6 +476,10 @@ def rb_history(store):
     runs = []
     for got in _rb_runs_rows(store).values():
         runs += got
+    gone = rb_forgotten(store)
+    before = max([b for a, b in gone if a == 'all_before'] or [0])
+    runs = [r for r in runs if float(r.get('at') or 0) > before and
+            (round(float(r.get('at') or 0), 3), str(r.get('file') or '')) not in gone]
     runs.sort(key=lambda r: float(r.get('at') or 0), reverse=True)
     return runs[:120]
 
@@ -472,7 +493,25 @@ def rb_history_forget(store, at=None, file=None):
         # This node's own row and the one of before only (1.0.45): one writer a row - the
         # other node's rewritten here crossed its own write of a new run.
         mine = node_key('rbackup', 'runs')
+        others = [r for k, v in rows.items() if k not in (mine, RB_RUNS_OLD) for r in v]
         rows = {k: v for k, v in rows.items() if k in (mine, RB_RUNS_OLD)}
+        # ...and the other node's lines noted as forgotten in this node's own row, which every
+        # node's list leaves out.
+        fk = node_key('rbackup', 'forgot')
+        try:
+            fg = json.loads(store.get_meta(fk) or '{}')
+        except ValueError:
+            fg = {}
+        if at is None:
+            fg['all_before'] = time.time()
+            gone += len(others)
+        else:
+            hit = [r for r in others if abs(float(r.get('at') or 0) - float(at)) < 0.001 and
+                   str(r.get('file') or '') == str(file or '')]
+            if hit:
+                fg['lines'] = (fg.get('lines') or [])[-500:] + [[round(float(at), 3), str(file or '')]]
+                gone += len(hit)
+        store.set_meta(fk, json.dumps(fg))
         for k, runs in rows.items():
             if at is None:
                 left = []
@@ -634,7 +673,11 @@ def rb_tick(daemon):
             getattr(daemon, '_rb_again', 0) < 3 and \
             time.time() - float(getattr(daemon, '_rb_tried', 0) or 0) > 3600:
         mine = [r for r in rb_history(store) if r.get('node') == node_name()]
-        if mine and not mine[0].get('ok') and \
+        # Only after the scheduled one (a failed Back up now of one destination is no reason),
+        # and only while backups are on, to a destination switched on.
+        if CONFIG.get('rbackup') and any(t.get('enabled') for t in rb_targets(store)) and \
+                mine and not mine[0].get('ok') and \
+                str(mine[0].get('by') or '').startswith('acme (scheduled') and \
                 datetime.fromtimestamp(float(mine[0].get('at') or 0)).strftime('%Y-%m-%d') == today:
             daemon._rb_again = getattr(daemon, '_rb_again', 0) + 1
             daemon._rb_tried = time.time()

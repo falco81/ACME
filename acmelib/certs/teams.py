@@ -295,10 +295,17 @@ def guard(h, s, method, path):
             need_cert(store, s, h.arg('id') or h.arg('name'), 'view', 'look at')
         elif path == '/api/certs/job':
             cid = _cert_of_job(store, h.arg('id'))
-            if cid is None:
+            if cid is None and not unscoped(s, 'view'):
                 # A job of no certificate (a target's test, a module's action) - its steps say
-                # what another team's target did (1.0.45): for those who see all only.
-                deny(store, s, 'look at a job of no certificate', 'view')
+                # what another team's target did (1.0.45): for those who see all, and for the
+                # one who started it (an import from a source, polled by its own dialog).
+                try:
+                    by = store.db.value('SELECT by_who FROM cert_jobs WHERE id = ?',
+                                        (int(h.arg('id')),))
+                except (TypeError, ValueError):
+                    by = None
+                if str(by or '').lower() != str(s.get('name') or '').lower():
+                    deny(store, s, 'look at a job of no certificate', 'view')
             need_cert(store, s, cid, 'view', 'look at a job of')
         elif path == '/api/certs/dry_run_result':
             need_cert(store, s, _cert_of_job(store, h.arg('job')), 'view', 'look at a test of')

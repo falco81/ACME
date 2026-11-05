@@ -923,11 +923,22 @@ class Cli(object):
             bad = 0
             self._jobs_json = [] if self.json else None
             for r in todo:
+                if r.get('state') in ('pending-approval', 'declined'):
+                    continue                    # never past the approval (1.0.45)
                 only = 'alt' if not a.force and not renewer.main_due(r) else None
-                job = self._run_job('renew', renewer.renew_job(r['id'], a.force, self.WHO,
-                                                               only),
-                                    r['id'], '%s: %s' % (r['name'], renewer.due_why(r) or
-                                                         'forced'))
+                try:
+                    job = self._run_job('renew', renewer.renew_job(r['id'], a.force, self.WHO,
+                                                                   only),
+                                        r['id'], '%s: %s' % (r['name'], renewer.due_why(r) or
+                                                             'forced'))
+                except SystemExit as e:
+                    # One busy (a job on it already): said, and the others go on (1.0.45).
+                    bad += 1
+                    if self._jobs_json is not None:
+                        self._jobs_json.append({'cert': r['name'], 'ok': False, 'said': str(e)})
+                    else:
+                        print(str(e), file=sys.stderr)
+                    continue
                 bad += 0 if job.ok else 1
             if self._jobs_json is not None:
                 self.out({'jobs': self._jobs_json})

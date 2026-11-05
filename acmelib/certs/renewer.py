@@ -474,6 +474,11 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         only = None
     contexts = []
     was = cert.get('state')
+    if was in ('pending-approval', 'declined'):
+        # Never past the approval (1.0.45), whoever asks - the command line issued them too.
+        raise base.PluginError('%s %s - approve it first' % (
+            cert['name'], 'waits for approval' if was == 'pending-approval' else 'was declined'),
+            retry=False)
     if was == 'revoked' and cert.get('csr_given'):
         # Its key is the CSR's, and acme cannot make another: a new CSR is needed.
         raise base.PluginError('%s was revoked and is issued for a CSR sent in: send a new CSR '

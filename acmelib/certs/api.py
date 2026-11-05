@@ -470,8 +470,7 @@ def cert_save(store, b, by, full=False):
         fields['challenge_map'] = '{}'
     if 'auto_renew' in b or not row:
         fields['auto_renew'] = _flag(b.get('auto_renew'), 1)
-        if fields['auto_renew'] and row and row.get('state') in ('revoked', 'pending-approval',
-                                                                 'declined'):
+        if fields['auto_renew'] and row and row.get('state') in ('pending-approval', 'declined'):
             fields['auto_renew'] = 0            # as Renew by itself refuses it (1.0.45)
     if 'renew_days' in b or not row:
         rd = b.get('renew_days')
@@ -1167,7 +1166,8 @@ def cert_export(store, b, s, allowed=None):
             raise ValueError(str(e))
     else:
         bundle = S.bundle_of(row, vrow, 'main' if vrow is None else None)
-    asked = variant
+    from acmelib.certs.bundle import VARIANT_ALIASES
+    asked = VARIANT_ALIASES.get(variant, variant)
     variant = getattr(bundle, 'variant_name', 'main')
     if vrow is not None and asked != 'main' and asked not in (variant, getattr(bundle, 'family', None)):
         # A version is one certificate - the twin's has a number of its own (1.0.45): asked
@@ -1874,8 +1874,8 @@ def family_delete(store, family, b, by):
             raise ValueError('%s is in use by request profile(s) %s: change those first' % (
                 row['name'], ', '.join(prof[:10])))
     if family == 'target' and store.db.value(
-            "SELECT COUNT(*) FROM cert_jobs WHERE target = ? AND state IN ('queued', 'running')",
-            (row['name'],), 0):
+            "SELECT COUNT(*) FROM cert_jobs WHERE target = ? AND state IN ('queued', 'running') "
+            "AND ts > ?", (row['name'], time.time() - 7200), 0):
         raise ValueError('a job is working with %s - wait for it to end' % row['name'])
     store.db.run('DELETE FROM %s WHERE id = ?' % S.TABLE_OF[family], (row['id'],))
     # Its own rows only (1.0.44): LIKE read "_" as any character, and SQLite's ignores

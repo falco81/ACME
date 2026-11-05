@@ -211,16 +211,6 @@ function i18nWork(s, depth) {
     hit = I18N.exact.get(front[2]);
     if (hit !== undefined) return front[1] + ' ' + hit;
   }
-  /* A node's name, a colon and a sentence of its own, before the patterns (1.0.45): a weak
-     "{0} could not be read: {1}" took "acme1: its users could not be read: ..." whole, and the
-     sentence's own translation never came. */
-  if (depth < I18N_DEEP) {
-    var nm = /^([A-Za-z0-9][\w.-]{0,62}): (.*[A-Za-z]{2}.*)$/.exec(key);
-    if (nm && /[0-9.-]/.test(nm[1]) && !/^[A-Z][a-z]+$/.test(nm[1])) {
-      var nr = i18nText(nm[2], depth + 1);
-      if (nr !== null && nr !== nm[2]) return nm[1] + ': ' + nr;
-    }
-  }
   var tryPats = !I18N.anyLit || I18N.anyLit.test(key);
   /* Patterns that take the whole text first; one that keeps whatever
      stands before its dash only when none of them does. */
@@ -239,6 +229,18 @@ function i18nWork(s, depth) {
     /* ...and one that begins with words of its own before one that begins with a slot */
     var own = (p.lead ? 1000 : 0) + (p.own || 0);
     if (!best || own > bestLen) { best = [p, m]; bestLen = own; }
+  }
+  /* A node's name, a colon and a sentence of its own (1.0.45): a weak "{0} could not be read:
+     {1}" took "acme1: its users could not be read: ..." whole, and the sentence's own
+     translation never came. Not where a pattern begins with words of its own, nor where its
+     first slot is that very name ("{0}: the certificate expires in {1}"). */
+  if (depth < I18N_DEEP && (!best || (!best[0].lead && !best[0].pre && best[1][1] !== undefined
+                                      && best[1][1].indexOf(': ') >= 0))) {
+    var nm = /^([A-Za-z0-9][\w.-]{0,62}): (.*[A-Za-z]{2}.*)$/.exec(key);
+    if (nm && /[0-9.-]/.test(nm[1]) && !/^[A-Z][a-z]+$/.test(nm[1])) {
+      var nr = i18nText(nm[2], depth + 1);
+      if (nr !== null && nr !== nm[2]) return nm[1] + ': ' + nr;
+    }
   }
   if (best) {
     var p = best[0], m = best[1];

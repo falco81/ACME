@@ -31,6 +31,43 @@ if (($_SERVER['ACME_AUTH_ONLY'] ?? '') === '1') {
     exit;
 }
 
+/** The ticket of one download (1.0.45): when, and a MAC over the session, what and when, keyed
+    with the daemon's API token - which only this pool and the daemon read. */
+function acme_dl_ticket(string $for, int $at): string
+{
+    $key = (string) acme_token();
+    return $at . '.' . hash_hmac('sha256', acme_session() . '|' . $for . '|' . $at, $key);
+}
+
+/** A download started by the browser itself that failed (1.0.45): back to the page, which says
+    why - the words signed, so a link from elsewhere cannot make the page say anything. */
+function acme_dl_fail(string $body, int $status): void
+{
+    if (!isset($_GET['dl'])) {
+        return;
+    }
+    $j = json_decode($body, true);
+    $msg = is_array($j) ? (string) ($j['error'] ?? $j['message'] ?? '') : '';
+    if ($msg === '') {
+        $msg = $status ? 'the download failed (HTTP ' . $status . ')' : 'the daemon is not answering';
+    }
+    $msg = mb_substr($msg, 0, 300);
+    $mac = hash_hmac('sha256', acme_session() . '|dlerr|' . $msg, (string) acme_token());
+    header('Location: /admin/?dlerr=' . rawurlencode($msg) . '&dls=' . $mac);
+    exit;
+}
+
+function acme_dl_ok(string $for): bool
+{
+    $got = (string) ($_GET['dl'] ?? '');
+    if (acme_token() === null || acme_session() === ''
+            || !preg_match('/^(\d{1,12})\.[a-f0-9]{64}$/', $got, $m)) {
+        return false;
+    }
+    $at = (int) $m[1];
+    return abs(time() - $at) <= 120 && hash_equals(acme_dl_ticket($for, $at), $got);
+}
+
 if (isset($_GET['api'])) {
     $what = (string) $_GET['api'];
     $post = $_SERVER['REQUEST_METHOD'] === 'POST';
@@ -115,6 +152,34 @@ if (isset($_GET['api'])) {
             echo json_encode(['ok' => false, 'error' => 'that request did not come from this page']);
             exit;
         }
+    }
+    if ($what === 'dl-said' && $post) {
+        /* Whether the words a failed download came back with are this page's own (1.0.45). */
+        header('Content-Type: application/json; charset=utf-8');
+        $sent = sent_body();
+        $msg = (string) ($sent['said'] ?? '');
+        $mac = hash_hmac('sha256', acme_session() . '|dlerr|' . $msg, (string) acme_token());
+        echo json_encode(['ok' => acme_session() !== '' && acme_token() !== null
+                          && hash_equals($mac, (string) ($sent['mac'] ?? ''))]);
+        exit;
+    }
+    if ($what === 'dl-ticket' && $post) {
+        /* A short ticket for one download (1.0.45): asked by this page's own POST (same origin,
+           JSON), then the file is fetched by the browser itself - streamed to the disk, not
+           held whole in the page's memory as a fetch must. Bound to this session and to what is
+           fetched, two minutes long. */
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        $sent = sent_body();
+        $for = (string) ($sent['what'] ?? '');
+        if (!in_array($for, ['db-download', 'rbackup-download'], true) || acme_session() === ''
+                || acme_whoami() === null) {
+            http_response_code(acme_session() === '' ? 401 : 400);
+            echo json_encode(['ok' => false, 'error' => 'no such download']);
+            exit;
+        }
+        echo json_encode(['ok' => true, 'dl' => acme_dl_ticket($for, time())]);
+        exit;
     }
     if ($what === 'login' && $post) {
         header('Content-Type: application/json; charset=utf-8');
@@ -277,7 +342,8 @@ if (isset($_GET['api'])) {
         /* Only from this page's own fetch (1.0.45): a header of ours an <img> or a link on
            another page of the same site cannot send - a GET made the daemon build a whole
            backup with the administrator's cookie. */
-        if ((string) ($_SERVER['HTTP_X_ACME_DOWNLOAD'] ?? '') !== '1') {
+        if ((string) ($_SERVER['HTTP_X_ACME_DOWNLOAD'] ?? '') !== '1' && !acme_dl_ok('rbackup-download')) {
+            acme_dl_fail(json_encode(['error' => 'the download took too long to start - start it again']), 403);
             http_response_code(403);
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['ok' => false, 'error' => 'that download is started from the page']);
@@ -295,6 +361,7 @@ if (isset($_GET['api'])) {
             exit;
         }
         if ($status !== 200) {
+            acme_dl_fail((string) $body, (int) $status);
             http_response_code($status ?: 503);
             header('Content-Type: application/json');
             echo $body ?: json_encode(['ok' => false, 'error' => 'the daemon is not answering']);
@@ -305,7 +372,8 @@ if (isset($_GET['api'])) {
         /* Only from this page's own fetch (1.0.45): a header of ours an <img> or a link on
            another page of the same site cannot send - a GET made the daemon build a whole
            backup with the administrator's cookie. */
-        if ((string) ($_SERVER['HTTP_X_ACME_DOWNLOAD'] ?? '') !== '1') {
+        if ((string) ($_SERVER['HTTP_X_ACME_DOWNLOAD'] ?? '') !== '1' && !acme_dl_ok('db-download')) {
+            acme_dl_fail(json_encode(['error' => 'the download took too long to start - start it again']), 403);
             http_response_code(403);
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['ok' => false, 'error' => 'that download is started from the page']);
@@ -329,6 +397,7 @@ if (isset($_GET['api'])) {
             exit;
         }
         if ($status !== 200) {
+            acme_dl_fail((string) $body, (int) $status);
             http_response_code($status ?: 503);
             header('Content-Type: application/json');
             echo $body ?: json_encode(['ok' => false, 'error' => 'the daemon is not answering']);

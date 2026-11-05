@@ -2862,30 +2862,33 @@ function drawIsemonGuide() {
    a 403) is said as a toast; before, it replaced the page with its JSON, and what was not
    saved was lost. */
 function fileGet(url) {
-  toast('downloading…', '');
-  fetch(url, {credentials: 'same-origin', headers: {'X-Acme-Download': '1'}}).then(function (r) {
-    var cd = r.headers.get('Content-Disposition') || '';
-    if (r.redirected) { location.reload(); return; }       /* signed out meanwhile */
-    if (!r.ok || !/attachment/i.test(cd)) {
-      return r.text().then(function (t) {
-        var msg = t;
-        try { var j = JSON.parse(t); msg = j.error || j.message || t; } catch (e) { }
-        if (r.status === 401) { location.reload(); return; }
-        throw new Error(String(msg || ('HTTP ' + r.status)).slice(0, 300));
-      });
-    }
-    var m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
-    var name = m ? decodeURIComponent(m[1]) : 'download';
-    return r.blob().then(function (b) {
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(b);
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 30000);
-    });
+  /* Streamed by the browser itself (1.0.45): a short ticket asked by this page's own POST,
+     then the file fetched as a download of the browser's - a fetch held the whole backup in
+     the page's memory first. When no file comes, the server sends the page back here with
+     why (dlSaid). */
+  var what = /[?&]api=([a-z-]+)/.exec(url);
+  api('dl-ticket', {what: what ? what[1] : ''}).then(function (t) {
+    toast('downloading…', '');
+    var a = document.createElement('a');
+    a.href = url + (url.indexOf('?') < 0 ? '?' : '&') + 'dl=' + encodeURIComponent(t.dl);
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }).catch(oops);
 }
+
+/* A download that failed came back with its words, signed by the server (1.0.45). */
+(function dlSaid() {
+  var q;
+  try { q = new URLSearchParams(location.search); } catch (e) { return; }
+  var said = q.get('dlerr'), mac = q.get('dls');
+  if (said === null) return;
+  try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { }
+  api('dl-said', {said: said, mac: mac || ''}).then(function (r) {
+    if (r && r.ok) toast(said, 'bad');
+  }).catch(function () { });
+})();
 
 /* ---- accounts ------------------------------------------------------------- */
 function loadUsers() {
