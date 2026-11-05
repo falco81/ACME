@@ -747,6 +747,13 @@ class Storage(object):
             if str(prefs['lang']) not in ('cs', 'en'):
                 raise ValueError('no such language here: %s' % prefs['lang'])
             out['lang'] = str(prefs['lang'])
+        # The performance meter in the header (1.0.48): its look and the style of its details;
+        # off unless chosen.
+        for k, allowed in (('hload', HLOAD_LOOKS), ('hpanel', HLOAD_PANELS)):
+            if k in prefs:
+                if str(prefs[k]) not in allowed:
+                    raise ValueError('%s is one of %s' % (k, ', '.join(allowed)))
+                out[k] = str(prefs[k])
         return out
 
     def user_prefs(self, name):

@@ -6,6 +6,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.48 - not released
 
+- **The performance meter** (from ai 1.0.72-1.0.76, [docs/performance-meter.md](docs/performance-meter.md)):
+  how busy this node is - the processor, the memory, the disks, the network - in the header,
+  every 3 s while the page is shown, in four looks; pointing at a number opens its details in five
+  styles (each core with its MHz and temperature, the sensors, each disk, the filesystems, each
+  network card, the processes taking the most). **Off unless chosen**, by each full administrator
+  in Your account → Performance meter, each look shown there as it will look. A full
+  administrator's only (`GET /api/load`); `/proc` and `/sys` read when asked, nothing in the
+  background, the details only while a panel is open.
+
 - **A hunt, round 1 (security):**
   - A certificate administrator could run their own PowerShell as Administrator on a Windows
     target: a site, host or path of IIS, Exchange, the central certificate store or SharePoint

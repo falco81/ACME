@@ -53611,6 +53611,182 @@
   "b2_1": {
    "source": "revoke-failed",
    "text": "odvolání selhalo"
+  },
+  "hl_1": {
+   "source": "Swap",
+   "text": "Swap"
+  },
+  "hl_2": {
+   "source": "Net",
+   "text": "Síť"
+  },
+  "hl_3": {
+   "source": "pills with a bar",
+   "text": "štítky s pruhem"
+  },
+  "hl_4": {
+   "source": "with a graph of the last two minutes",
+   "text": "s grafem posledních dvou minut"
+  },
+  "hl_5": {
+   "source": "with rings",
+   "text": "s kroužky"
+  },
+  "hl_6": {
+   "source": "not shown",
+   "text": "nezobrazovat"
+  },
+  "hl_7": {
+   "source": "The load of the server in the header (CPU, RAM, the disks, the network)",
+   "text": "Vytížení serveru v záhlaví (CPU, RAM, disky, síť)"
+  },
+  "hl_8": {
+   "source": "Memory in use (without what the kernel keeps as cache and gives back)",
+   "text": "Použitá paměť (bez toho, co jádro drží jako cache a vrací zpět)"
+  },
+  "hl_9": {
+   "source": "The disks: read ↓ and written ↑, every disk together",
+   "text": "Disky: čtení ↓ a zápis ↑, všechny disky dohromady"
+  },
+  "hl_10": {
+   "source": "The network cards: down ↓ (in) and up ↑ (out), every card together - not the loopback nor the bridges of containers",
+   "text": "Síťové karty: příjem ↓ a odesílání ↑, všechny karty dohromady – bez loopbacku a mostů kontejnerů"
+  },
+  "hl_11": {
+   "source": "The processor",
+   "text": "Procesor"
+  },
+  "hl_12": {
+   "source": "The disks",
+   "text": "Disky"
+  },
+  "hl_13": {
+   "source": "The network",
+   "text": "Síť"
+  },
+  "hl_14": {
+   "source": "the last two minutes",
+   "text": "poslední dvě minuty"
+  },
+  "hl_15": {
+   "source": "load",
+   "text": "load"
+  },
+  "hl_16": {
+   "source": "Up for",
+   "text": "Běží"
+  },
+  "hl_17": {
+   "source": "processes",
+   "text": "procesů"
+  },
+  "hl_18": {
+   "source": "Each core",
+   "text": "Jednotlivá jádra"
+  },
+  "hl_19": {
+   "source": "No temperature: this machine has no sensors the kernel reads (a virtual machine has none).",
+   "text": "Bez teploty: tento stroj nemá čidla, která jádro čte (virtuální stroj je nemá)."
+  },
+  "hl_20": {
+   "source": "Taking most of the processor",
+   "text": "Nejvíc vytěžují procesor"
+  },
+  "hl_21": {
+   "source": "nothing busy just now",
+   "text": "teď nic nezatěžuje"
+  },
+  "hl_22": {
+   "source": "Free for programs",
+   "text": "Volné pro programy"
+  },
+  "hl_23": {
+   "source": "Cache (given back when needed)",
+   "text": "Cache (vrací se, když je potřeba)"
+  },
+  "hl_24": {
+   "source": "Shared",
+   "text": "Sdílená"
+  },
+  "hl_25": {
+   "source": "Altogether",
+   "text": "Celkem"
+  },
+  "hl_26": {
+   "source": "Taking most memory",
+   "text": "Nejvíc paměti zabírají"
+  },
+  "hl_27": {
+   "source": "Each disk",
+   "text": "Jednotlivé disky"
+  },
+  "hl_28": {
+   "source": "busy",
+   "text": "vytížení"
+  },
+  "hl_29": {
+   "source": "Filesystems",
+   "text": "Souborové systémy"
+  },
+  "hl_30": {
+   "source": "Each card",
+   "text": "Jednotlivé karty"
+  },
+  "hl_31": {
+   "source": "no card",
+   "text": "žádná karta"
+  },
+  "hl_32": {
+   "source": "Other sensors",
+   "text": "Další čidla"
+  },
+  "hl_33": {
+   "source": "tiles - a card for each core",
+   "text": "dlaždice – karta pro každé jádro"
+  },
+  "hl_34": {
+   "source": "a table - a row for each core (as htop)",
+   "text": "tabulka – řádek pro každé jádro (jako htop)"
+  },
+  "hl_35": {
+   "source": "a map of the cores with rings",
+   "text": "mapa jader s kroužky"
+  },
+  "hl_36": {
+   "source": "one wide panel with everything at once",
+   "text": "jeden široký panel se vším najednou"
+  },
+  "hl_37": {
+   "source": "no details - only a short tip",
+   "text": "bez podrobností – jen krátký popisek"
+  },
+  "hl_38": {
+   "source": "Its details, when a number is pointed at (or tapped)",
+   "text": "Jeho podrobnosti při najetí na číslo (nebo klepnutí)"
+  },
+  "hl_39": {
+   "source": "Map of the cores (colour = how busy, number = temperature)",
+   "text": "Mapa jader (barva = vytížení, číslo = teplota)"
+  },
+  "hl_40": {
+   "source": "disk",
+   "text": "disk"
+  },
+  "hl_41": {
+   "source": "written",
+   "text": "zápis"
+  },
+  "hl_42": {
+   "source": "nothing in the header",
+   "text": "v záhlaví nic"
+  },
+  "hl_43": {
+   "source": "Performance meter",
+   "text": "Měřič výkonu"
+  },
+  "hl_44": {
+   "source": "How busy this node is - the processor, the memory, the disks and the network - in the header, every 3 s while the page is shown. Off unless chosen here; nothing is read on the server while it is off.",
+   "text": "Jak je tento uzel vytížený – procesor, paměť, disky a síť – v záhlaví, každé 3 s, dokud je stránka vidět. Vypnuté, dokud ho tu nezapnete; když je vypnuté, server nic nečte."
   }
  },
  "patterns": {
@@ -73293,6 +73469,22 @@
   "pb2_6": {
    "source": "a new key: the one kept is {0}, {1} is asked for",
    "text": "nový klíč: ponechaný je {0}, požadován je {1}"
+  },
+  "phl_1": {
+   "source": "The processor, busy over the last {0} s, all {1} core(s) together · load {2}",
+   "text": "Procesor, vytížení za posledních {0} s, všech {1} jader dohromady · load {2}"
+  },
+  "phl_2": {
+   "source": "The processor, busy over the last {0} s, all {1} core(s) together",
+   "text": "Procesor, vytížení za posledních {0} s, všech {1} jader dohromady"
+  },
+  "phl_3": {
+   "source": "hload is one of {0}",
+   "text": "hload je jedno z: {0}"
+  },
+  "phl_4": {
+   "source": "hpanel is one of {0}",
+   "text": "hpanel je jedno z: {0}"
   }
  },
  "rich": {

@@ -340,6 +340,16 @@ function showMe() {
     };
     lsec.appendChild(formField('The language of these pages', lang));
 
+    /* The performance meter in the header (1.0.48): a full administrator's, off unless chosen -
+       its look and the style of its details, each card drawn from sample numbers. */
+    if (ME.role === 'fulladmin' && typeof hloadPickers === 'function' && $('hload')) {
+      var psec = el('div', 'me-sec');
+      psec.appendChild(el('h3', '', 'Performance meter'));
+      psec.appendChild(el('p', 'muted small', 'How busy this node is - the processor, the memory, the disks and the network - in the header, every 3 s while the page is shown. Off unless chosen here; nothing is read on the server while it is off.'));
+      hloadPickers(psec);
+      body.appendChild(psec);
+    }
+
     /* The columns of the tables - exactly isemon's. */
     var cols = el('div', 'me-sec');
     cols.appendChild(el('h3', '', 'Columns of the tables'));

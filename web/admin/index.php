@@ -446,6 +446,7 @@ if (isset($_GET['api'])) {
         'acme-push' => '/api/acme-push',
         'split' => '/api/split', 'clock' => '/api/clock',
         'settings-nodes' => '/api/settings/nodes',
+        'load' => '/api/load',                      /* the performance meter (1.0.48) */
     ];
     $writes = [
         'directories' => '/api/directories',
@@ -675,6 +676,10 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <header>
   <h1 data-no-i18n><?= h($site ?: 'acme') ?> <span class="host"><?= h($host) ?></span></h1>
   <span id="state-pill" class="pill unknown"><span class="dot"></span><span>…</span></span>
+<?php if (($me['role'] ?? '') === 'fulladmin'): ?>
+  <!-- the performance meter (1.0.48): a full administrator's, off unless chosen in Your account -->
+  <div class="hload" id="hload" hidden aria-live="off"></div>
+<?php endif; ?>
   <div class="spacer"></div>
   <div class="btnrow">
     <button type="button" class="btn small mebtn" id="me-btn" data-icon="person"
@@ -1736,6 +1741,10 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/core.js')) ?>"></script>
 <script nonce="<?= h($nonce) ?>" src="/assets/cols.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/cols.js')) ?>"></script>
 <script nonce="<?= h($nonce) ?>" src="/assets/admin.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/admin.js')) ?>"></script>
+<?php if (($me['role'] ?? '') === 'fulladmin'): ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/hload.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/hload.css')) ?>">
+<script nonce="<?= h($nonce) ?>" src="/assets/hload.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/hload.js')) ?>"></script>
+<?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/certs.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/certs.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/certs.js')) ?>"></script>
 <?php endif; ?>
