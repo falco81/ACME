@@ -13,6 +13,8 @@ A full administrator's only: what the server is doing, and its processes, are sa
 # counters. Pages asking within the same second share one reading.
 # What an account may choose (Your account): the look in the header, 'off' the default - and the
 # style of the details opened from it.
+LOAD_FS_KINDS = ('ext2', 'ext3', 'ext4', 'xfs', 'btrfs', 'zfs', 'f2fs', 'exfat', 'ntfs3', 'jfs',
+                 'reiserfs', 'nilfs2', 'bcachefs')
 HLOAD_LOOKS = ('off', 'graphs', 'pills', 'line', 'rings')
 HLOAD_PANELS = ('tiles', 'table', 'map', 'wide', 'off')
 LOAD_LOCK = threading.Lock()
@@ -99,9 +101,10 @@ def _read_first(path, default=''):
 
 
 def load_temps():
-    """What the sensors say: {'cpu': [(label, °C)], 'cores': {core n: °C}, 'disks': {name: °C}, 'other': [...]}.
-    hwmon first (coretemp, k10temp, zenpower, nvme, drivetemp, acpitz...), then the thermal zones."""
-    out = {'cpu': [], 'cores': {}, 'disks': {}, 'other': []}
+    """What the sensors say: {'cpu': [(label, °C)], 'cores': {core n: °C}, 'pkg_cores': {'P:n': °C},
+    'disks': {name: °C}, 'other': [...]}. hwmon first (coretemp, k10temp, zenpower, nvme, acpitz...),
+    then the thermal zones - never drivetemp."""
+    out = {'cpu': [], 'cores': {}, 'pkg_cores': {}, 'disks': {}, 'other': []}
     base = os.path.join(LOAD_SYS, 'class/hwmon')
     try:
         mons = sorted(os.listdir(base))
@@ -110,6 +113,11 @@ def load_temps():
     for m in mons:
         d = os.path.join(base, m)
         chip = _read_first(os.path.join(d, 'name'))
+        # Never drivetemp (1.0.48, as plexmon 2.7.1): its reading is an ATA command sent to the
+        # disk itself - through a USB bridge too - and it wakes a disk asleep, every 3 s while a
+        # panel is open. NVMe's is its controller's, read without the disk.
+        if chip == 'drivetemp':
+            continue
         try:
             files = sorted(f for f in os.listdir(d) if re.match(r'^temp\d+_input$', f))
         except OSError:
@@ -127,9 +135,15 @@ def load_temps():
             if chip in ('coretemp', 'k10temp', 'zenpower', 'cpu_thermal', 'soc_thermal', 'k8temp', 'via_cputemp'):
                 if core:
                     out['cores'][int(core.group(1))] = round(t, 1)
+                    # ...with its package (coretemp.P): each package has its own Core 0, 1...
+                    try:
+                        pkg = re.search(r'\.(\d+)$', os.path.realpath(os.path.join(d, 'device')))
+                    except OSError:
+                        pkg = None
+                    out['pkg_cores']['%s:%s' % (pkg.group(1) if pkg else '0', core.group(1))] = round(t, 1)
                 else:
                     out['cpu'].append([label, round(t, 1)])
-            elif chip in ('nvme', 'drivetemp'):
+            elif chip == 'nvme':
                 dev = ''
                 try:
                     dev = os.path.basename(os.path.realpath(os.path.join(d, 'device')))
@@ -139,12 +153,6 @@ def load_temps():
                     try:
                         nv = [x for x in os.listdir(os.path.join(d, 'device')) if re.match(r'^nvme\d+n\d+$', x)]
                         dev = nv[0] if nv else dev
-                    except OSError:
-                        pass
-                elif chip == 'drivetemp':
-                    try:
-                        blk = os.listdir(os.path.join(d, 'device', 'block'))
-                        dev = blk[0] if blk else dev
                     except OSError:
                         pass
                 if label.lower() in ('composite', chip, '') or dev not in out['disks']:
@@ -245,8 +253,21 @@ def load_detail():
                 if allc > pa:
                     busy = round(max(0.0, min(1.0, 1 - (idle - pi) / float(allc - pa))) * 100, 1)
             mhz = _read_first(os.path.join(LOAD_SYS, 'devices/system/cpu/cpu%d/cpufreq/scaling_cur_freq' % n))
+            # The temperature of its core, by the topology (1.0.48, as plexmon 2.7.3): "Core N" is
+            # the physical core - with hyperthreading cpu2 and cpu3 are the second threads of
+            # cores 0 and 1, and core numbers have gaps (0, 1, 4, 5 ...) on Xeons.
+            topo = os.path.join(LOAD_SYS, 'devices/system/cpu/cpu%d/topology' % n)
+            cid = _read_first(os.path.join(topo, 'core_id'))
+            pid = _read_first(os.path.join(topo, 'physical_package_id'), '0')
+            temp = None
+            if cid.isdigit():
+                temp = temps['pkg_cores'].get('%s:%s' % (pid if pid.isdigit() else '0', cid))
+                if temp is None:
+                    temp = temps['cores'].get(int(cid))
+            else:
+                temp = temps['cores'].get(n)
             cores.append({'n': n, 'busy': busy, 'mhz': round(int(mhz) / 1000) if mhz.isdigit() else None,
-                          'temp': temps['cores'].get(n)})
+                          'temp': temp})
         if cores and not any(c['mhz'] for c in cores):
             try:
                 with open('/proc/cpuinfo') as f:
@@ -286,7 +307,13 @@ def load_detail():
                                 'fusectl', 'configfs', 'hugetlbfs', 'binfmt_misc', 'efivarfs', 'nsfs', 'ramfs',
                                 'rpc_pipefs', 'selinuxfs', 'fuse.lxcfs', 'iso9660') or dev in seen:
                         continue
-                    if not dev.startswith('/') and kind not in ('nfs', 'nfs4', 'cifs', 'smb3', 'zfs', 'btrfs'):
+                    # Asked only of the kernel's own filesystems, which answer from memory (1.0.48,
+                    # as plexmon 2.7.1): never FUSE (a program that may reach the disks), a network
+                    # share (statvfs hangs on a server away - with LOAD_LOCK held, every page's
+                    # meter with it) nor FAT (it may count its free clusters off the disk).
+                    if kind not in LOAD_FS_KINDS:
+                        continue
+                    if not dev.startswith('/') and kind not in ('zfs', 'btrfs'):
                         continue
                     seen.add(dev)
                     try:

@@ -164,3 +164,5 @@ header .hload{order:5}
 header .hload:not([hidden]) ~ .spacer{order:4}
 header > .btnrow, header > .updated{order:6}
 @media (max-width:1680px){header .hload{order:9;flex:1 1 100%}}
+/* nothing at 0 % (1.0.48): a round cap drew a dot there */
+.hl-ring-fg[stroke-dasharray^="0.0 "],.hp-ring-fg[stroke-dasharray^="0.0 "]{stroke:transparent}
