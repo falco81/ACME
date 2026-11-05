@@ -59,15 +59,18 @@ function hloadRing(pct) {
   return '<svg class="hl-ring" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="' + r + '" class="hl-ring-bg"/>'
     + '<circle cx="9" cy="9" r="' + r + '" class="hl-ring-fg" stroke-dasharray="' + (c * p / 100).toFixed(1) + ' ' + c.toFixed(1) + '" transform="rotate(-90 9 9)"/></svg>';
 }
-function hloadDraw(d, into, asLook) {
+function hloadDraw(d, into, asLook, opt) {
   /* into/asLook: a preview of a look drawn elsewhere (My account), from the
-     sample numbers; it touches nothing of the real header (1.0.75) */
-  var preview = !!into;
+     sample numbers; it touches nothing of the real header (1.0.75).
+     opt {live, hist, node}: another node of the cluster, drawn live from what it wrote (1.0.48). */
+  opt = opt || {};
+  var preview = !!into && !opt.live;
   var host = into || $('hload');
   if (!host) return;
   var hist;
   var mp = d.mem_total ? 100 * d.mem_used / d.mem_total : null;
-  if (preview) hist = hpSample().hist;
+  if (opt.live) hist = opt.hist || {cpu: [], mem: [], disk: [], net: []};
+  else if (preview) hist = hpSample().hist;
   else {
     HLOAD.last = d;
     hist = HLOAD.hist || (HLOAD.hist = {cpu: [], mem: [], disk: [], net: []});
@@ -75,8 +78,15 @@ function hloadDraw(d, into, asLook) {
     if (d.cpu !== undefined) { push('cpu', d.cpu); push('mem', mp); push('disk', (d.disk_rd || 0) + (d.disk_wr || 0)); push('net', (d.net_rx || 0) + (d.net_tx || 0)); }
   }
   var look = asLook || HLOAD.look || 'off';
-  host.className = 'hload look-' + look + (preview ? ' hl-preview' : '');
+  host.className = 'hload look-' + look + (preview ? ' hl-preview' : '') + (opt.node ? ' hl-peer' : '')
+    + (opt.stale ? ' hl-stale' : '');
   clear(host);
+  /* In a cluster each node's numbers under its name (1.0.48) */
+  if (!preview && (opt.node || (HLOAD.peers && HLOAD.peers.length))) {
+    var nn = noI18n(el('span', 'hl-node', opt.node || d.node || ''));
+    if (opt.stale) nn.title = 'not read lately - the node may be away';
+    host.appendChild(nn);
+  }
   var tips = {
     cpu: 'The processor, busy over the last ' + (d.over_s || 3) + ' s, all ' + d.cores + ' core(s) together' + (d.load ? ' · load ' + d.load.join(' / ') : ''),
     mem: 'Memory in use (without what the kernel keeps as cache and gives back)' + (d.swap_used ? ' · swap in use ' + bytes(d.swap_used) : ''),
@@ -131,12 +141,36 @@ function hloadDraw(d, into, asLook) {
       c.tabIndex = 0;
       c.setAttribute('role', 'button');
       if (hpStyle() !== 'off') c.removeAttribute('title');
-      if (!preview) hloadPanelHooks(c, x[2]);
+      c.dataset.node = opt.node || '';
+      if (!preview) hloadPanelHooks(c, x[2], opt.node || '');
       host.appendChild(c);
     });
   }
   host.hidden = false;
-  if (!preview && HLOAD.open) hloadPanelDraw();
+  if (!into && HLOAD.open) hloadPanelDraw();
+}
+/* The other nodes of a cluster (1.0.48): a row of numbers each, beside this node's - from what
+   each wrote while this page watches; their graphs from their own last two minutes. */
+function hloadPeersDraw() {
+  var own = $('hload');
+  if (!own) return;
+  var peers = HLOAD.peers || [];
+  var have = {};
+  peers.forEach(function (pr) {
+    var id = 'hload-peer-' + String(pr.node).replace(/[^A-Za-z0-9_-]/g, '_');
+    have[id] = true;
+    var box = $(id);
+    if (!box) {
+      box = el('div', 'hload hl-peer');
+      box.id = id;
+      box.setAttribute('aria-live', 'off');
+      var after = own, sib = own.nextSibling;
+      while (sib && sib.classList && sib.classList.contains('hl-peer')) { after = sib; sib = sib.nextSibling; }
+      after.parentNode.insertBefore(box, after.nextSibling);
+    }
+    hloadDraw(pr, box, HLOAD.look, {live: true, hist: pr.hist, node: pr.node, stale: (pr.age || 0) > 20});
+  });
+  document.querySelectorAll('.hload.hl-peer').forEach(function (b) { if (!have[b.id]) b.remove(); });
 }
 /* Sample numbers for the previews in My account: a server with sensors, so
    every part shows (1.0.75). */
@@ -212,10 +246,14 @@ function hlPreviewPanel(sw, st) {
    behind the number - each core with its frequency and temperature, the
    disks and the filesystems, the cards, the processes taking most, and the
    last two minutes larger. Read from the daemon only while it is open. */
-function hloadPanelHooks(c, k) {
-  c.onmouseenter = function () { if (matchMedia('(hover: hover)').matches) hloadPanelOpen(k, c); };
+function hloadPanelHooks(c, k, node) {
+  c.onmouseenter = function () { if (matchMedia('(hover: hover)').matches) { HLOAD.pnode = node || ''; hloadPanelOpen(k, c); } };
   c.onmouseleave = function () { if (matchMedia('(hover: hover)').matches) hloadPanelSoon(); };
-  c.onclick = function (e) { e.stopPropagation(); if (HLOAD.open === k) hloadPanelClose(); else hloadPanelOpen(k, c); };
+  c.onclick = function (e) {
+    e.stopPropagation();
+    if (HLOAD.open === k && (HLOAD.pnode || '') === (node || '')) hloadPanelClose();
+    else { HLOAD.pnode = node || ''; hloadPanelOpen(k, c); }
+  };
   c.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); c.onclick(e); } if (e.key === 'Escape') hloadPanelClose(); };
 }
 function hloadPanelOpen(k, chip) {
@@ -237,7 +275,7 @@ function hloadPanelOpen(k, chip) {
   p.hidden = false;
   hloadPanelDraw();
   hloadPanelPlace(chip);
-  if (!HLOAD.detail || Date.now() - (HLOAD.detailAt || 0) > 2500) hloadTick(true);
+  if (HLOAD.pnode || !HLOAD.detail || Date.now() - (HLOAD.detailAt || 0) > 2500) hloadTick(true);
 }
 function hloadPanelSoon() { clearTimeout(HLOAD.shut); HLOAD.shut = setTimeout(hloadPanelClose, 350); }
 function hloadPanelClose() {
@@ -248,12 +286,13 @@ function hloadPanelClose() {
 }
 function hloadPanelPlace(chip) {
   var p = $('hload-panel');
-  chip = chip || document.querySelector('#hload [data-k="' + HLOAD.chip + '"]');
+  chip = chip || document.querySelector('.hload [data-k="' + HLOAD.chip + '"][data-node="' + (HLOAD.pnode || '') + '"]')
+    || document.querySelector('#hload [data-k="' + HLOAD.chip + '"]');
   if (!p || !chip) return;
   var r = chip.getBoundingClientRect(), st = hpStyle();
   var w = Math.min(st === 'wide' ? 1180 : (st === 'table' ? 420 : 470), window.innerWidth - 16);
   var left = r.left;
-  if (st === 'wide') { var hr = $('hload').getBoundingClientRect(); left = hr.left; r = {bottom: hr.bottom, left: hr.left}; }
+  if (st === 'wide') { var hr = (chip.closest('.hload') || $('hload')).getBoundingClientRect(); left = hr.left; r = {bottom: hr.bottom, left: hr.left}; }
   p.style.width = w + 'px';
   p.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, left)) + 'px';
   p.style.top = Math.round(r.bottom + 6) + 'px';
@@ -286,14 +325,31 @@ function hpStyle() { var v = prefs().hpanel; return HP_STYLES.some(function (x) 
 function hloadPanelDraw() {
   var p = $('hload-panel'), k = HLOAD.open;
   if (!p || !k) return;
-  var st = hpStyle();
+  var st = hpStyle(), node = HLOAD.pnode || '';
   clear(p);
   p.className = 'hl-panel hp-' + st;
-  document.querySelectorAll('#hload [data-k]').forEach(function (c) { c.classList.toggle('hl-open', st !== 'wide' ? c.dataset.k === k : true); });
-  if (st === 'table') hpTable(p, k);
-  else if (st === 'map') hpMap(p, k);
-  else if (st === 'wide') hpWide(p);
-  else hpTiles(p, k);
+  document.querySelectorAll('.hload [data-k]').forEach(function (c) {
+    c.classList.toggle('hl-open', (c.dataset.node || '') === node && (st !== 'wide' ? c.dataset.k === k : true));
+  });
+  /* Another node's: drawn from what it wrote, as this node's own is (1.0.48) */
+  var keep = null;
+  if (node) {
+    var pr = (HLOAD.peers || []).filter(function (x) { return x.node === node; })[0];
+    if (!pr) { HLOAD.pnode = ''; node = ''; }
+    else {
+      keep = [HLOAD.last, HLOAD.detail, HLOAD.hist];
+      HLOAD.last = pr; HLOAD.detail = pr.detail || null; HLOAD.hist = pr.hist || {cpu: [], mem: [], disk: [], net: []};
+    }
+  }
+  if (node || (HLOAD.peers && HLOAD.peers.length)) p.appendChild(noI18n(el('div', 'hl-pnode', node || (HLOAD.last && HLOAD.last.node) || '')));
+  try {
+    if (st === 'table') hpTable(p, k);
+    else if (st === 'map') hpMap(p, k);
+    else if (st === 'wide') hpWide(p);
+    else hpTiles(p, k);
+  } finally {
+    if (keep) { HLOAD.last = keep[0]; HLOAD.detail = keep[1]; HLOAD.hist = keep[2]; }
+  }
 }
 var HP_TITLE = {cpu: 'The processor', mem: 'Memory', disk: 'The disks', net: 'The network'};
 function hpMax(k) {
@@ -678,14 +734,26 @@ function hpTiles(p, k) {
 }
 function hloadTick(now) {
   if (!$('hload') || (HLOAD.busy && !now) || document.hidden || !hlLive()) return;
-  HLOAD.look = prefs().hload || 'off';           /* off unless chosen (1.0.48) */
-  if (HLOAD.look === 'off') { $('hload').hidden = true; return; }
+  HLOAD.look = prefs().hload || 'graphs';        /* switched on in Settings → About (1.0.48) */
+  if (HLOAD.look === 'off') {
+    $('hload').hidden = true;
+    document.querySelectorAll('.hload.hl-peer').forEach(function (b) { b.remove(); });
+    return;
+  }
   HLOAD.busy = true;
-  var withDetail = !!HLOAD.open;
+  var withDetail = !!HLOAD.open && !HLOAD.pnode;
   /* The first reading of a page asks the last two minutes too (1.0.48): loaded again (F5), the
-     graphs go on from where they were, not drawn from nothing. */
+     graphs go on from where they were, not drawn from nothing. And the other nodes of a cluster,
+     the details of the one whose panel is open. */
   var withHist = !HLOAD.hist;
-  api('load' + (withDetail ? '&detail=1' : '') + (withHist ? '&hist=1' : '')).then(function (d) {
+  api('load&nodes=1' + (withDetail ? '&detail=1' : '') + (withHist ? '&hist=1' : '')
+      + (HLOAD.open && HLOAD.pnode ? '&detail_of=' + encodeURIComponent(HLOAD.pnode) : '')).then(function (d) {
+    if (d.off) {                    /* switched off in Settings → About meanwhile */
+      HLOAD.look = 'off'; hloadPanelClose(); $('hload').hidden = true;
+      document.querySelectorAll('.hload.hl-peer').forEach(function (b) { b.remove(); });
+      return;
+    }
+    HLOAD.peers = Array.isArray(d.peers) ? d.peers : [];
     if (d.detail) { HLOAD.detail = d.detail; HLOAD.detailAt = Date.now(); }
     if (withHist && !HLOAD.hist && d.hist && Array.isArray(d.hist.cpu)) {
       var seed = {};
@@ -697,6 +765,7 @@ function hloadTick(now) {
       HLOAD.hist = seed;
     }
     hloadDraw(d);
+    hloadPeersDraw();
   }).catch(function () { }).then(function () { HLOAD.busy = false; });
 }
 function hloadLoop() {
@@ -711,11 +780,11 @@ document.addEventListener('visibilitychange', function () { if (!document.hidden
 /* The two pickers of My account (1.0.75): cards drawn by the same code from sample numbers. */
 function hloadPickers(lsec) {
   if (!$('hload')) return;
-  var HL_LOOKS = [['off', 'not shown'], ['graphs', 'with a graph of the last two minutes'], ['pills', 'pills with a bar'],
-                  ['line', 'one plain line'], ['rings', 'with rings']];
+  var HL_LOOKS = [['graphs', 'with a graph of the last two minutes'], ['pills', 'pills with a bar'],
+                  ['line', 'one plain line'], ['rings', 'with rings'], ['off', 'not shown']];
   var g3 = el('div', 'hl-pickers');
   g3.appendChild(el('div', 'hl-pick-h', 'The load of the server in the header (CPU, RAM, the disks, the network)'));
-  g3.appendChild(hlPicker(HL_LOOKS, prefs().hload || 'off', hlPreviewLook, function (v) {
+  g3.appendChild(hlPicker(HL_LOOKS, prefs().hload || 'graphs', hlPreviewLook, function (v) {
     savePrefs({hload: v}).then(function () {
       HLOAD.look = v;
       if (v === 'off') { hloadPanelClose(); $('hload').hidden = true; } else if (HLOAD.last) hloadDraw(HLOAD.last); else hloadTick();

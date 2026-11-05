@@ -1,10 +1,9 @@
-"""How busy this node is - the performance meter in the header of the pages (1.0.48, from ai
-1.0.72-1.0.76; docs/performance-meter.md). Off unless an account switches it on (Your account):
-the pages then ask GET /api/load every 3 s while they are shown, and the details (each core,
-the disks, the filesystems, the network cards, the processes) only while a panel is open.
-Only the standard library; /proc and /sys read when asked - nothing runs in the background.
-A full administrator's only: what the server is doing, and its processes, are said.
-"""
+# How busy this node is - the performance meter in the header of the pages (1.0.48, from ai
+# 1.0.72-1.0.76; docs/performance-meter.md). Off unless switched on (Settings → About,
+# perf_meter): the pages then ask GET /api/load every 3 s while they are shown, and the details
+# (each core, the disks, the filesystems, the network cards, the processes) only while a panel is
+# open. Only the standard library; /proc and /sys read when asked - nothing runs in the
+# background. A full administrator's only: what the server is doing, and its processes, are said.
 
 # ---- how busy the server is, for the header (otp/ai 1.0.72, here 1.0.48) -------------------------
 # CPU, memory, the disks read and written, the network in and out - worked
@@ -436,10 +435,102 @@ def api_load(detail=False, hist=False):
     return out
 
 
+
+# ---- the other nodes of a cluster (1.0.48) -------------------------------------------------
+# A page watching the meter on one node shows every node. Through the database, and only while a
+# page watches: the node it is on notes so in a row of its own ('load:watch:NODE', at most every
+# 15 s); the daemon of each other node sees it in the query its loop makes every 5 s anyway, and
+# writes what it reads of itself into its own row ('load:now:NODE') every 5 s while it is watched
+# - its details only while a panel of it is open. Nobody watching: nothing read, nothing written.
+LOAD_WATCH = {'rows': {}, 'noted': 0.0, 'noted_detail': (), 'wrote': 0.0}
+LOAD_WATCH_S = 45
+
+
+def load_watch_seen(rows):
+    """The watch rows, as beat_asked_last read them: {node: {until, detail: [nodes]}}."""
+    got = {}
+    for r in rows:
+        try:
+            v = json.loads(r['v'] or '{}')
+        except (ValueError, TypeError):
+            continue
+        if isinstance(v, dict):
+            got[str(r['k'])[len('load:watch:'):]] = v
+    LOAD_WATCH['rows'] = got
+
+
+def load_watch_note(store, detail_of=()):
+    """This node's pages watch every node's meter: said for the others, at most every 15 s (or
+    at once when the node whose details are asked changes)."""
+    if not CONFIG.get('ha_mode') or not CONFIG.get('perf_meter'):
+        return
+    t = time.time()
+    detail_of = tuple(sorted(set(str(x)[:63] for x in detail_of if x)))
+    if t - LOAD_WATCH['noted'] < 15 and detail_of == LOAD_WATCH['noted_detail']:
+        return
+    LOAD_WATCH.update(noted=t, noted_detail=detail_of)
+    try:
+        store.set_meta('load:watch:' + node_name(), json.dumps(
+            {'until': t + LOAD_WATCH_S, 'detail': list(detail_of)}))
+    except Exception as e:                              # noqa: BLE001
+        log_sparing('load-watch', 'the performance meter: %s' % e, 'warn', every=3600)
+
+
+def load_peer_tick(store):
+    """From the daemon's loop (every 5 s): while another node's pages watch, this node's reading
+    goes into its own row - nothing at all while nobody does."""
+    if not CONFIG.get('ha_mode') or not CONFIG.get('perf_meter'):
+        return
+    t = time.time()
+    me = node_name()
+    watching = [v for n, v in LOAD_WATCH['rows'].items()
+                if n != me and float(v.get('until') or 0) > t]
+    if not watching or t - LOAD_WATCH['wrote'] < 4:
+        return
+    LOAD_WATCH['wrote'] = t
+    out = dict(server_load())
+    if any(me[:63] in (v.get('detail') or []) for v in watching):
+        out['detail'] = load_detail()
+    out['hist'] = load_history()
+    store.set_meta('load:now:' + me, json.dumps(out, default=str))
+
+
+def load_peers(store):
+    """The other nodes' last readings (written while this node's pages watch): [{node, age, ...}]."""
+    me = node_name()
+    out = []
+    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'load:now:%'"):
+        name = str(r['k'])[len('load:now:'):]
+        if name == me:
+            continue
+        try:
+            v = json.loads(r['v'] or '{}')
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(v, dict):
+            continue
+        try:
+            age = clock_beat_age(store, name, float(v.get('at') or 0), time.time())
+        except Exception:                               # noqa: BLE001
+            age = time.time() - float(v.get('at') or 0)
+        if age > 120:
+            continue                    # not watched lately, or gone: not shown as now
+        v.update(node=name, age=round(age, 1))
+        out.append(v)
+    out.sort(key=lambda x: x['node'])
+    return out
+
+
 @route('GET', '/api/load')
 def _load(h):
     h.me('fulladmin')
+    if not CONFIG.get('perf_meter'):
+        # Switched off (Settings → About): nothing read, nothing said but that (1.0.48).
+        return {'off': True, 'node': node_name()}
     out = api_load(detail=h.arg('detail') in ('1', 'true', 'yes'),
                    hist=h.arg('hist') in ('1', 'true', 'yes'))
     out['node'] = node_name()
+    if CONFIG.get('ha_mode') and h.arg('nodes') in ('1', 'true', 'yes'):
+        load_watch_note(h.store, [x for x in str(h.arg('detail_of') or '').split(',') if x])
+        out['peers'] = load_peers(h.store)
     return out

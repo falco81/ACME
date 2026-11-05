@@ -338,6 +338,7 @@ DEFAULTS = {
     'ui_lang': 'cs',
     'api_port': 9861,
     'debug': False,
+    'perf_meter': False,             # the performance meter in the header (1.0.48): off unless switched on
     'debug_ldap': 1,
     'debug_api': 0,
     'debug_codes': 1,
@@ -823,6 +824,7 @@ NAMES = {
     'ui_lang': 'Language of the pages',
     'api_port': 'API port (localhost)',
     'debug': 'Debug log',
+    'perf_meter': 'The performance meter in the header',
     'debug_ldap': '...every question asked of the directory',
     'debug_api': '...every API call',
     'debug_codes': '...every code sent by e-mail and SMS',
@@ -1459,6 +1461,11 @@ SAYS = {
                'themselves.',
     'api_port': 'The port on 127.0.0.1 the web pages ask this daemon on. The pages read it '
                 'from <code>/run/acme/api-port</code>, written when the daemon starts.',
+    'perf_meter': 'How busy each node is - the processor, the memory, the disks and the network - '
+                  'beside the state at the top of these pages, every 3 s, with the cores, the '
+                  'temperatures, the disks and the processes when a number is pointed at; in a '
+                  'cluster every node. For full administrators, each choosing its look in Your '
+                  'account. Off: nothing is shown, and nothing is read or written for it.',
     'debug': 'Write everything into <code>/var/log/acme/acme.log</code>. Loud: for finding '
              'something out, not for leaving on.',
     'debug_ldap': 'Every question asked of a directory and how many answers came back. Never '
@@ -1547,7 +1554,7 @@ PANES = {
              'mail_from_name', 'mail_reply_to', 'mail_helo', 'mail_lang',
              'mail_retry_hours', 'mail_keep_days'],
     'upgrade': ['upgrade_check', 'upgrade_url', 'upgrade_downgrade'],
-    'about': ['site_name', 'ui_lang', 'api_port', 'debug', 'debug_ldap',
+    'about': ['site_name', 'ui_lang', 'perf_meter', 'api_port', 'debug', 'debug_ldap',
               'debug_api', 'debug_codes'],
 }
 

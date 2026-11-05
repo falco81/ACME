@@ -4,6 +4,7 @@
 
     python3 test/test_perfmeter.py
 """
+import json
 import os
 import sys
 import tempfile
@@ -150,6 +151,62 @@ class History(unittest.TestCase):
         self.assertIn("(withHist ? '&hist=1' : '')", js)
 
 
+class Cluster(unittest.TestCase):
+    """Every node of a cluster (1.0.48) - through the database, only while a page watches."""
+
+    def setUp(self):
+        self.store = E.Storage(E.open_db())
+        self.store.db.run("DELETE FROM meta WHERE k LIKE 'load:%'")
+        E.LOAD_WATCH.update(rows={}, noted=0.0, noted_detail=(), wrote=0.0)
+
+    def test_nothing_while_switched_off(self):
+        from unittest import mock
+        with mock.patch.dict(E.CONFIG, {'ha_mode': 'replicated', 'perf_meter': False}):
+            E.load_watch_note(self.store)
+            E.LOAD_WATCH['rows'] = {'peer': {'until': time.time() + 30}}
+            E.load_peer_tick(self.store)
+        self.assertEqual(self.store.db.rows("SELECT k FROM meta WHERE k LIKE 'load:%'"), [])
+
+    def test_nothing_while_nobody_watches(self):
+        from unittest import mock
+        with mock.patch.dict(E.CONFIG, {'ha_mode': 'replicated', 'perf_meter': True}):
+            E.beat_asked_last(self.store)
+            E.load_peer_tick(self.store)
+        self.assertEqual(self.store.db.rows("SELECT k FROM meta WHERE k LIKE 'load:%'"), [])
+
+    def test_watched_then_written_and_read_back(self):
+        from unittest import mock
+        me = E.node_name()
+        with mock.patch.dict(E.CONFIG, {'ha_mode': 'replicated', 'perf_meter': True}):
+            # the other node's pages watch, and want this node's details
+            self.store.set_meta('load:watch:peer', json.dumps({'until': time.time() + 40, 'detail': [me]}))
+            E.beat_asked_last(self.store)
+            E.load_peer_tick(self.store)
+            got = json.loads(self.store.get_meta('load:now:' + me))
+            self.assertIn('detail', got)
+            self.assertIn('hist', got)
+            E.load_peer_tick(self.store)            # within 4 s: not written again
+            # this node's own pages see the other node's row
+            self.store.set_meta('load:now:peer', json.dumps(dict(got, at=time.time())))
+            peers = E.load_peers(self.store)
+        self.assertEqual([p['node'] for p in peers], ['peer'])
+
+    def test_a_watch_noted_at_most_every_15_s(self):
+        from unittest import mock
+        with mock.patch.dict(E.CONFIG, {'ha_mode': 'replicated', 'perf_meter': True}), \
+                mock.patch.object(self.store, 'set_meta', wraps=self.store.set_meta) as sm:
+            E.load_watch_note(self.store)
+            E.load_watch_note(self.store)
+            E.load_watch_note(self.store)
+            self.assertEqual(sm.call_count, 1)
+            E.load_watch_note(self.store, ['peer'])  # the details of another asked: at once
+            self.assertEqual(sm.call_count, 2)
+
+    def test_the_loops_query_unchanged_while_off(self):
+        src = read('acmelib', 'engine', '380_settings_accounts_events_the.py')
+        self.assertIn('''"SELECT k, v FROM meta WHERE k LIKE 'beat_asked:%'")''', src)
+
+
 class Choices(unittest.TestCase):
     def test_the_choice_is_kept_with_the_account(self):
         self.assertIn("prefs.update(h.store.clean_prefs({k: b[k] for k in ('hload', 'hpanel') if k in b}))",
@@ -162,9 +219,8 @@ class Choices(unittest.TestCase):
         with self.assertRaises(ValueError):
             st.clean_prefs({'hload': '<script>'})
         self.assertEqual(E.HLOAD_LOOKS[0], 'off')
-        js = read('web', 'assets', 'hload.js')
-        self.assertIn("HLOAD.look = prefs().hload || 'off';", js)
-        self.assertNotIn("|| 'graphs'", js)
+        self.assertFalse(E.CONFIG_DEFAULTS.get('perf_meter') if hasattr(E, 'CONFIG_DEFAULTS') else
+                         E.DEFAULTS.get('perf_meter'))
 
 
 class Pages(unittest.TestCase):
@@ -172,7 +228,7 @@ class Pages(unittest.TestCase):
         self.assertIn("h.me('fulladmin')", read('acmelib', 'engine', '468_how_busy_the_server_is.py'))
         php = read('web', 'admin', 'index.php')
         i = php.index('id="hload"')
-        self.assertIn("(($me['role'] ?? '') === 'fulladmin')", php[i - 300:i])
+        self.assertIn("(($me['role'] ?? '') === 'fulladmin' && !empty($me['perf_meter']))", php[i - 300:i])
         self.assertIn("'load' => '/api/load'", php)
 
     def test_no_colours_of_its_own(self):

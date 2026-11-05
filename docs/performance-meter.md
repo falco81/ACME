@@ -4,9 +4,10 @@ How busy this node is - the processor, the memory, the disks and the network - i
 administration pages, every 3 seconds while the page is shown. From ai 1.0.72-1.0.76, here since
 acme 1.0.48.
 
-**Off unless chosen.** Each full administrator switches it on for their own account: **Your account →
-Performance meter** (the account button in the header). Nothing is read on the server while it is
-off, and the pages ask nothing.
+**Off unless switched on**: **Settings → About → The performance meter in the header** (`perf_meter`,
+`acme --set perf_meter=1`). Off, nothing is shown, the pages ask nothing, and nothing is read or
+written for it on any node. On, every full administrator sees it - each choosing its look, or not
+to see it, in **Your account → Performance meter**.
 
 ## What it shows
 
@@ -14,11 +15,11 @@ Four numbers in the header, in the look chosen:
 
 | Look (`hload`) | |
 |---|---|
-| `off` - **the default** | nothing in the header |
-| `graphs` | with a graph of the last two minutes |
+| `graphs` - the default | with a graph of the last two minutes |
 | `pills` | pills with a bar |
 | `line` | one plain line |
 | `rings` | with rings |
+| `off` | nothing in the header (for this account) |
 
 - **CPU** - busy over the last reading, every core together, and the load averages in its tip;
 - **RAM** - in use without what the kernel keeps as cache and gives back (and the swap);
@@ -63,8 +64,12 @@ What plexmon 2.7.1-2.7.4 found, here too:
 - It reads `/proc` and `/sys` when asked; **nothing runs in the background**. Asks within the same
   second share one reading (ten pages open are one reading).
 - The pages do not ask while they are hidden, nor while the live updates are paused.
-- In a cluster, it is the node that answers the pages - the one holding the VIP address (its name is
-  in the answer as `node`).
+- **In a cluster every node is shown**, a row of numbers each under its name, and each with its
+  panel. Through the database, and only while a page watches: the node the page is on notes so in a
+  row of its own (`load:watch:NODE`, at most every 15 s); every other node sees it in the query its
+  daemon makes every 5 s anyway, and while watched writes its reading into its own row
+  (`load:now:NODE`) every 5 s - its details only while a panel of it is open. A node not heard from
+  lately is shown dimmed. Nobody watching - or the meter off - nothing is read or written.
 - A page loaded again (F5), or opened beside another, goes on from the last two minutes read: the
   daemon keeps the readings it made because a page asked (`?hist=1` with the first one) - nothing
   is read for that.

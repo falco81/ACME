@@ -625,6 +625,12 @@ class Daemon(object):
                         self.reload_all('changed elsewhere')
                         beat_now = True     # said at once (1.0.42): the cards wait for it
                     asked = beat_asked_last(self.store)
+                    try:
+                        load_peer_tick(self.store)      # the meter of another node's pages (1.0.48)
+                    except DbError:
+                        raise
+                    except Exception as e:              # noqa: BLE001
+                        log_sparing('load-peer', 'the performance meter: %s' % e, 'warn', every=3600)
                     if asked != self.beat_asked_seen:
                         # Asked from a card of Settings (its refresh): what this node has, now.
                         self.beat_asked_seen = asked

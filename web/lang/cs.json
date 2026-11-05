@@ -53823,6 +53823,22 @@
   "b2u_9": {
    "source": "- the second step to set up",
    "text": "– zbývá nastavit druhý krok"
+  },
+  "pm_1": {
+   "source": "The performance meter in the header",
+   "text": "Měřič výkonu v záhlaví"
+  },
+  "pm_2": {
+   "source": "How busy each node is - the processor, the memory, the disks and the network - beside the state at the top of these pages, every 3 s, with the cores, the temperatures, the disks and the processes when a number is pointed at; in a cluster every node. For full administrators, each choosing its look in Your account. Off: nothing is shown, and nothing is read or written for it.",
+   "text": "Jak je každý uzel vytížený – procesor, paměť, disky a síť – vedle stavu nahoře na těchto stránkách, každé 3 s, s jádry, teplotami, disky a procesy po najetí na číslo; v clusteru všechny uzly. Pro plné administrátory, každý si vzhled volí ve Vašem účtu. Vypnuto: nic se nezobrazuje a nic se kvůli tomu nečte ani nezapisuje."
+  },
+  "pm_3": {
+   "source": "How busy each node is - the processor, the memory, the disks and the network - in the header, every 3 s while the page is shown. Switched on for everybody in Settings → About; here, how it looks for you - or not shown.",
+   "text": "Jak je každý uzel vytížený – procesor, paměť, disky a síť – v záhlaví, každé 3 s, dokud je stránka vidět. Pro všechny se zapíná v Nastavení → O aplikaci; tady, jak vypadá pro vás – nebo že se nezobrazuje."
+  },
+  "pm_4": {
+   "source": "not read lately - the node may be away",
+   "text": "dlouho nepřečteno – uzel možná není dostupný"
   }
  },
  "patterns": {

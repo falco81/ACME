@@ -6,6 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.48 - not released
 
+- **The performance meter: switched on in Settings → About, and every node of a cluster.** Off by
+  default for everybody (`perf_meter`); on, each full administrator chooses its look in Your
+  account. In a cluster every node has its row of numbers and its panels - through the database,
+  only while a page watches: no more queries than the daemon makes anyway, a node's reading written
+  every 5 s while watched, nothing at all while nobody watches or the meter is off.
 - **The performance meter, with what plexmon 2.7.1-2.7.4 found in it:** free space only of the kernel's own filesystems (a network share away hung the meter, FUSE and FAT
   could reach the disks); every thread shows its core's temperature (by the topology - with
   hyperthreading half of them had none); nothing of a bar at 0 %, and a process's bar is its real

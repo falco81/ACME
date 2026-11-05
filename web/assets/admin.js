@@ -345,7 +345,7 @@ function showMe() {
     if (ME.role === 'fulladmin' && typeof hloadPickers === 'function' && $('hload')) {
       var psec = el('div', 'me-sec');
       psec.appendChild(el('h3', '', 'Performance meter'));
-      psec.appendChild(el('p', 'muted small', 'How busy this node is - the processor, the memory, the disks and the network - in the header, every 3 s while the page is shown. Off unless chosen here; nothing is read on the server while it is off.'));
+      psec.appendChild(el('p', 'muted small', 'How busy each node is - the processor, the memory, the disks and the network - in the header, every 3 s while the page is shown. Switched on for everybody in Settings → About; here, how it looks for you - or not shown.'));
       hloadPickers(psec);
       body.appendChild(psec);
     }

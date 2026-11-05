@@ -166,3 +166,11 @@ header > .btnrow, header > .updated{order:6}
 @media (max-width:1680px){header .hload{order:9;flex:1 1 100%}}
 /* nothing at 0 % (1.0.48): a round cap drew a dot there */
 .hl-ring-fg[stroke-dasharray^="0.0 "],.hp-ring-fg[stroke-dasharray^="0.0 "]{stroke:transparent}
+/* A cluster's nodes (1.0.48): each row of numbers under its node's name */
+.hl-node{font-size:11px;font-weight:700;color:var(--tx-dim);min-width:6ch;letter-spacing:.02em}
+.hload.hl-stale .hl{opacity:.55}
+.hl-pnode{font-size:11px;font-weight:700;color:var(--tx-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+header .hload.hl-peer{order:5}
+@media (max-width:1680px){header .hload.hl-peer{order:9;flex:1 1 100%}}
+/* more than one node: every node's row under the header, one under the other */
+header:has(.hload.hl-peer) .hload{order:9;flex:1 1 100%}

@@ -151,6 +151,8 @@ def _whoami(h):
             'who': {'name': acc['name'], 'role': acc['role'], 'source': acc.get('source'),
                     'display': acc.get('display') or '', 'must_change': bool(
                         acc.get('must_change')), 'prefs': prefs,
+                    # the performance meter switched on (Settings → About, 1.0.48)
+                    'perf_meter': bool(CONFIG.get('perf_meter')),
                     'cols': h.store.user_cols(acc['name']),
                     'cols_edit': cols_editing(h.headers.get('X-Acme-Session') or '')}}
 

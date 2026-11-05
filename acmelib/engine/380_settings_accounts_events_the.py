@@ -4,10 +4,16 @@ from __future__ import annotations
 def beat_asked_last(store):
     """The newest "say what you have, now" of any node (1.0.44: a row each)."""
     try:
-        rows = store.db.rows("SELECT v FROM meta WHERE k LIKE 'beat_asked:%'")
+        # ...and in the same query, which node's pages watch the performance meter (1.0.48): the
+        # loop reads this every 5 s anyway - so nothing more is read for the meter, off or on.
+        rows = store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'beat_asked:%' OR "
+                             "k LIKE 'load:watch:%'" if CONFIG.get('perf_meter') else
+                             "SELECT k, v FROM meta WHERE k LIKE 'beat_asked:%'")
     except Exception:                                   # noqa: BLE001
         return ''
-    return max((str(r['v'] or '') for r in rows), default='')
+    load_watch_seen([r for r in rows if str(r['k']).startswith('load:watch:')])
+    return max((str(r['v'] or '') for r in rows if str(r['k']).startswith('beat_asked:')),
+               default='')
 
 
 def settings_in_effect(store, ask=False, daemon=None):
