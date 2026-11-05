@@ -131,8 +131,11 @@ def _setup(h, s):
     row = S.plugin_row(h.store, 'challenge', h.arg('id') or h.arg('name'))
     if not row:
         raise LookupError('there is no such validation')
+    from acmelib.certs import teams as T
+    # Only the certificates the session may look at (1.0.48): a scoped certificate
+    # administrator got every team's names and plans here.
     certs = [c for c in h.store.db.rows('SELECT * FROM certs ORDER BY name')
-             if row['name'] in set(R.resolve(h.store, S.jload(c.get('names'), []) or [],
+             if T.cert_may(h.store, s, c, 'view') and row['name'] in set(R.resolve(h.store, S.jload(c.get('names'), []) or [],
                                              cert=c).values())]
     out = []
     for c in certs[:SETUP_MOST]:

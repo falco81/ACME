@@ -70,5 +70,46 @@ class Cluster(unittest.TestCase):
         self.assertIn("'%' + NODE_KEY_SEP + old[:63]", src)
 
 
+class Security(unittest.TestCase):
+    def test_curly_quotes_doubled_in_every_powershell_string(self):
+        from acmelib.plugins.targets import windows_ssh, _win_roles
+        from acmelib.plugins.challenges import ssh_dns
+        for f in (windows_ssh.ps_str, _win_roles.ps_str, ssh_dns._ps):
+            self.assertEqual(f('a\u2019b'), "'a\u2019\u2019b'")
+            self.assertEqual(f("a'b"), "'a''b'")
+
+    def test_where_the_key_goes_is_a_full_administrators(self):
+        from acmelib.certs import api as A
+        self.assertIn('outputs', A.DEPLOY_KEY_OPTIONS)
+        self.assertIn('pfx_password', A.DEPLOY_KEY_OPTIONS)
+        src = read('acmelib', 'certs', 'api.py')
+        self.assertIn("only a full administrator may change where a ", src)
+
+    def test_the_encoded_script_not_in_the_steps(self):
+        from acmelib.certs import runtime
+
+        class J:
+            got = []
+
+            def ship(self, *a, **k):
+                self.got.append(a)
+        ctx = runtime.RunContext.__new__(runtime.RunContext)
+        ctx.job, ctx.scope, ctx.steps = J(), 't', []
+        with mock.patch.dict(E.CONFIG, {'debug': 0}):
+            ctx.debug('ssh h: powershell -EncodedCommand ' + 'QQB' * 20)
+        self.assertNotIn('QQBQQB', str(J.got))
+        self.assertIn('not shown', str(J.got))
+
+    def test_unsaved_tests_are_a_full_administrators(self):
+        src = read('acmelib', 'certs', 'api.py')
+        self.assertIn("only a full administrator may try settings that are not", src)
+        self.assertIn("only a full administrator may try a test that is not saved",
+                      read('acmelib', 'certs', 'api_checks.py'))
+
+    def test_other_teams_not_in_the_setup_nor_the_import(self):
+        self.assertIn("T.cert_may(h.store, s, c, 'view')", read('acmelib', 'certs', 'api_readiness.py'))
+        self.assertIn("T.need_job(h.store, s, h.arg('job')", read('acmelib', 'certs', 'api_onlineimport.py'))
+
+
 if __name__ == '__main__':
     unittest.main()

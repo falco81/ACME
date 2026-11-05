@@ -148,6 +148,10 @@ class RunContext(base.Context):
             self.job.ship(event, level, words, scope=self.scope, **fields)
 
     def debug(self, words):
+        # A script sent as -EncodedCommand is only base64 of it (1.0.48): the passwords in it
+        # (an import's, the central store's) were in the job's steps and in isemon.
+        words = re.sub(r'(?i)(-(?:EncodedCommand|enc|e|ec)\s+)[A-Za-z0-9+/=]{16,}',
+                       r'\1<the script, not shown>', str(words))
         if E.CONFIG.get('debug'):
             self.step(words, 'debug')
         elif self.job is not None and hasattr(self.job, 'ship'):

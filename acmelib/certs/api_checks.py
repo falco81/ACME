@@ -162,6 +162,14 @@ def _try(h, s):
     cfg = dict(b.get('config') if isinstance(b.get('config'), dict) else {})
     row = S.plugin_row(h.store, 'check', A._id(b['id'])) if b.get('id') not in (None, '', 0) \
         else None
+    # A test as nobody saved it is a full administrator's (1.0.48): any kind, any host - acme
+    # connected anywhere for a certificate administrator. Theirs: a saved one, as it is saved.
+    if str(s.get('role') or '') != 'fulladmin' and not s.get('cli'):
+        if row is None:
+            raise E.ApiError(403, 'only a full administrator may try a test that is not saved')
+        kind = str(row.get('kind') or kind)
+        cls = S.plugin_class('check', kind) or cls
+        cfg = dict(S.plugin_config('check', row))
     if row:
         A.kept_secrets_guard(h.store, 'check', b, s)
         kept = S.plugin_config('check', row)

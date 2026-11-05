@@ -6,6 +6,23 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.48 - not released
 
+- **A hunt, round 1 (security):**
+  - A certificate administrator could run their own PowerShell as Administrator on a Windows
+    target: a site, host or path of IIS, Exchange, the central certificate store or SharePoint
+    with a curly quote (’) ended its quoted string there. Every PowerShell string doubles the
+    curly quotes now, as the scripts' did since 1.0.45 (and the DNS over SSH's).
+  - Where a deployment writes the private key - its files, the PKCS#12's password and how it
+    is made, "send the private key", the key's file - is changed by a full administrator only,
+    as its commands are: a certificate administrator wrote any key to a path of their choosing
+    and took it, past the export that is a full administrator's. A service name with a path in
+    it likewise.
+  - The script of a Windows deployment (-EncodedCommand, only base64 of it, with the passwords
+    in it) is no longer in the job's debugging steps nor in what isemon gets.
+  - Trying a module's or a test's settings that nobody saved is a full administrator's, as
+    saving them is: it made acme connect anywhere for a certificate administrator. They try the
+    one saved, as it is saved.
+  - A certificate administrator of a team no longer sees other teams' certificates in a
+    validation's setup, nor the result of another's import from a source.
 - **A hunt, round 1 (the cluster):**
   - A rebuild from the other node that fails half way on the command line (`--ha-resync`,
     `--ha-join`) leaves the node in maintenance, as from the pages - it started again answering

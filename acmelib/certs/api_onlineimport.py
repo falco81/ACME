@@ -48,6 +48,10 @@ def _online_import(h, s):
 
 @A.api('GET', '/api/certs/online_import_result', 'certadmin')
 def _online_import_result(h, s):
+    # The import's result for the one who started it, or for those who see every certificate
+    # (1.0.48): any import job's names were read here by any certificate administrator.
+    from acmelib.certs import teams as T
+    T.need_job(h.store, s, h.arg('job'), 'view', 'look at an import of')
     return {'result': OI.import_result(h.store, A._id(h.arg('job'), 'job'))}
 
 

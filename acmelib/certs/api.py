@@ -847,6 +847,12 @@ DEPLOY_COMMANDS = ('pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd', 'script_path
                    'post_ps')       # Windows' PowerShell after (1.0.45): run as Administrator
 
 
+# Where the private key goes, and its password (1.0.48): a full administrator's, as the commands.
+DEPLOY_KEY_OPTIONS = ('outputs', 'pfx_password', 'pfx_password_mode', 'include_key', 'key_file',
+                      'key_target', 'key_format', 'pfx_format', 'p12_format', 'pfx_kind',
+                      'jks_alias')
+
+
 REVOKE_REASONS = ('unspecified', 'keyCompromise', 'cACompromise', 'affiliationChanged',
                   'superseded', 'cessationOfOperation', 'certificateHold', 'privilegeWithdrawn')
 
@@ -2081,6 +2087,14 @@ def _family_routes(family, path):
     def _test(h, s):
         b = h.body()
         kept_secrets_guard(h.store, family, b, s)
+        # Settings nobody saved, tried, are a full administrator's (1.0.48), as saving them is:
+        # any kind with any host made acme connect anywhere for a certificate administrator
+        # (a scan of the inside, what answered said back). Theirs: the module as it is saved.
+        if str(s.get('role') or '') != 'fulladmin' and not s.get('cli'):
+            if b.get('id') in (None, '', 0):
+                raise E.ApiError(403, 'only a full administrator may try settings that are not '
+                                      'saved - save them first, or try the one saved')
+            b = {'id': b.get('id')}
         return family_test(h.store, family, b, who(s))
 
     @api('POST', '/api/%s/default' % path, 'fulladmin')
@@ -2225,6 +2239,26 @@ def _deploy_save_in(store, b, by, full, made):
                                           'a deployment runs on the target')
         opts = S.config_seal(given, old,
                              'cert_deploys:%s' % row['id'], S.secret_fields(cls, 'deploy_fields'))
+        # Where the private key goes and with which password (1.0.48), as the commands are:
+        # changed by a full administrator only. A certificate administrator wrote any key to a
+        # path of their choosing ("key-pem /var/www/html/k.pem 0644") or as a PFX with a
+        # password they chose - and took it, past the export that is a full administrator's.
+        # The module's own defaults (its presets) stay theirs to pick.
+        if not full:
+            defaults = {f['key']: f.get('default') for f in (cls.deploy_fields or [])} if cls else {}
+
+            def _same(a, b):
+                return json.dumps(a if a not in (None, '', []) else '', sort_keys=True) == \
+                    json.dumps(b if b not in (None, '', []) else '', sort_keys=True)
+            for k in DEPLOY_KEY_OPTIONS:
+                nv, ov = opts.get(k), old.get(k, defaults.get(k))
+                if not _same(nv, ov) and not _same(nv, defaults.get(k)):
+                    raise E.ApiError(403, 'only a full administrator may change where a '
+                                          'deployment writes the private key, or its password')
+            sv = str(opts.get('service') or '')
+            if sv != str(old.get('service') or '') and re.search(r'[/\\]|\.\.', sv):
+                raise E.ApiError(403, 'a service name with a path in it is set by a full '
+                                      'administrator only (it goes into the paths of the files)')
         if opts.get('pfx_password_mode') == 'generate' and (
                 again or not opts.get('pfx_password') or
                 old.get('pfx_password_mode') != 'generate'):

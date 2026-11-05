@@ -22,7 +22,10 @@ INTERPS = ('powershell',)
 
 def ps_str(s):
     """A PowerShell single-quoted string."""
-    return "'" + text(s).replace("'", "''") + "'"
+    t = text(s)
+    for q in ("'", '\u2018', '\u2019', '\u201a', '\u201b'):    # the curly ones end it too (1.0.48)
+        t = t.replace(q, q + q)
+    return "'" + t + "'"
 
 
 def encoded(script):
