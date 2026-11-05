@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.45 - not released
+## 1.0.45 - 2026-11-05
 
 - **Seen on a cluster upgraded from 1.0.43 to 1.0.44:**
   - "the local users: 'str' object has no attribute 'get'" every few seconds: a row of the
