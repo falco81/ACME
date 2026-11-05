@@ -19,7 +19,7 @@ if (PHP_SAPI !== 'cli' && isset($_SERVER['SCRIPT_FILENAME'])
 
 // Kept equal to acmelib/__init__.py by tools/release.py (--bump writes it, a
 // build refuses a difference): the pages' version, and the assets' cache key.
-const ACME_VERSION = '1.0.46';
+const ACME_VERSION = '1.0.47';
 const ACME_LANG_CODE = '/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/';
 
 header('Cache-Control: no-cache, no-store, must-revalidate');
