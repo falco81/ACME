@@ -91,6 +91,7 @@ function i18nPattern(source, text, rich) {
   var c = i18nCompile(source, rich);
   if (!c) return null;
   c.text = String(text);
+  c.lead = !/^\{\d+\}/.test(String(source));      /* begins with words of its own (1.0.45) */
   /* The longest fixed piece of it, looked for before the expression is run:
      most texts on a page are names and numbers that match no pattern, and
      this turns them away for the cost of an indexOf. */
@@ -210,15 +211,37 @@ function i18nWork(s, depth) {
     hit = I18N.exact.get(front[2]);
     if (hit !== undefined) return front[1] + ' ' + hit;
   }
+  /* A node's name, a colon and a sentence of its own, before the patterns (1.0.45): a weak
+     "{0} could not be read: {1}" took "acme1: its users could not be read: ..." whole, and the
+     sentence's own translation never came. */
+  if (depth < I18N_DEEP) {
+    var nm = /^([A-Za-z0-9][\w.-]{0,62}): (.*[A-Za-z]{2}.*)$/.exec(key);
+    if (nm && /[0-9.-]/.test(nm[1]) && !/^[A-Z][a-z]+$/.test(nm[1])) {
+      var nr = i18nText(nm[2], depth + 1);
+      if (nr !== null && nr !== nm[2]) return nm[1] + ': ' + nr;
+    }
+  }
   var tryPats = !I18N.anyLit || I18N.anyLit.test(key);
   /* Patterns that take the whole text first; one that keeps whatever
      stands before its dash only when none of them does. */
+  /* Of the patterns that take it, the one with the most words of its own (1.0.45): "{0} could
+     not be reached: {1}" came first and took "deploying x to y failed: 192.0.2.20" for its
+     slot, where "deploying {0} to {1} failed: {2}" says the whole sentence. */
+  var best = null, bestLen = 0;
   for (var i = 0; tryPats && i < I18N.pats.length * 2; i++) {
     var p = I18N.pats[i % I18N.pats.length];
     if (!p.pre !== (i < I18N.pats.length)) continue;
+    if (best && i >= I18N.pats.length) break;      /* a whole-text one found: no pre ones */
     if (p.lit && key.indexOf(p.lit) < 0) continue;
     var m = p.re.exec(key);
     if (!m || (p.weak && i18nWordy(m, depth))) continue;
+    /* the most words of its own wins - the most of the sentence it says itself */
+    /* ...and one that begins with words of its own before one that begins with a slot */
+    var own = (p.lead ? 1000 : 0) + (p.own || 0);
+    if (!best || own > bestLen) { best = [p, m]; bestLen = own; }
+  }
+  if (best) {
+    var p = best[0], m = best[1];
     return (p.pre && m[1] ? i18nSlot(m[1], depth) + ' ' : '')
       + i18nPlural(p.text, p.slots, m).replace(/\{(\d+)\}/g, function (all, n) {
         var at = p.slots.indexOf(Number(n));

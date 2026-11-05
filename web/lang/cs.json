@@ -465,12 +465,12 @@
    "text": "ZIP odpovídajících tokenů, každý s klíčem a nepoužitými záložními kódy. Kdo má soubor, může se přihlásit za kohokoli z nich."
   },
   "s0115": {
-   "source": "A backup is everything: the whole database (tokens, clients, realms, accounts, every setting, the certificates, the VIP address, the firewall, the texts, the logs), the key that opens the tokens and this machine's config.json - with RESTORE.md, the exact steps to bring it all back on a machine installed from nothing, one server or a cluster. Locked with the password below; sent to every destination switched on - a folder, FTP, FTPS, SFTP, SCP or a Windows/Samba share. Each node of a cluster sends its own.",
-   "text": "Záloha je všechno: celá databáze (tokeny, klienti, realmy, účty, všechna nastavení, certifikáty, VIP adresa, firewall, texty, logy), klíč, který otevírá tokeny, a config.json tohoto stroje – s RESTORE.md, přesným postupem, jak vše vrátit na stroji nainstalovaném od nuly, ať jde o jeden server, nebo cluster. Zamčená heslem níže; posílá se do každého zapnutého úložiště – složka, FTP, FTPS, SFTP, SCP nebo sdílení Windows/Samba. Každý uzel clusteru posílá svou."
+   "source": "A backup is everything: the whole database (tokens, clients, realms, accounts, every setting, the certificates, the VIP address, the firewall, the texts, the logs), the key that opens the sealed keys and this machine's config.json - with RESTORE.md, the exact steps to bring it all back on a machine installed from nothing, one server or a cluster. Locked with the password below; sent to every destination switched on - a folder, FTP, FTPS, SFTP, SCP or a Windows/Samba share. Each node of a cluster sends its own.",
+   "text": "Záloha je všechno: celá databáze (tokeny, klienti, realmy, účty, všechna nastavení, certifikáty, VIP adresa, firewall, texty, logy), klíč, který otevírá zapečetěné klíče, a config.json tohoto stroje – s RESTORE.md, přesným postupem, jak vše vrátit na stroji nainstalovaném od nuly, ať jde o jeden server, nebo cluster. Zamčená heslem níže; posílá se do každého zapnutého úložiště – složka, FTP, FTPS, SFTP, SCP nebo sdílení Windows/Samba. Každý uzel clusteru posílá svou."
   },
   "s0116": {
-   "source": "A backup is everything: the whole database (tokens, clients, realms, accounts, every setting, the certificates, the web address, the firewall, the texts, the logs), the key that opens the tokens and this machine's config.json - with RESTORE.md, the exact steps to bring it all back on a machine installed from nothing, one server or a cluster. Locked with the password below; sent to every destination switched on - a folder, FTP, FTPS, SFTP, SCP or a Windows/Samba share. Each node of a cluster sends its own.",
-   "text": "Záloha je všechno: celá databáze (tokeny, klienti, realmy, účty, všechna nastavení, certifikáty, webová adresa, firewall, texty, logy), klíč, který otevírá tokeny, a config.json tohoto stroje – s RESTORE.md, přesným postupem, jak vše vrátit na stroji nainstalovaném od nuly, ať jde o jeden server, nebo cluster. Zamčená heslem níže; posílá se do každého zapnutého úložiště – složka, FTP, FTPS, SFTP, SCP nebo sdílení Windows/Samba. Každý uzel clusteru posílá svou."
+   "source": "A backup is everything: the whole database (tokens, clients, realms, accounts, every setting, the certificates, the web address, the firewall, the texts, the logs), the key that opens the sealed keys and this machine's config.json - with RESTORE.md, the exact steps to bring it all back on a machine installed from nothing, one server or a cluster. Locked with the password below; sent to every destination switched on - a folder, FTP, FTPS, SFTP, SCP or a Windows/Samba share. Each node of a cluster sends its own.",
+   "text": "Záloha je všechno: celá databáze (tokeny, klienti, realmy, účty, všechna nastavení, certifikáty, webová adresa, firewall, texty, logy), klíč, který otevírá zapečetěné klíče, a config.json tohoto stroje – s RESTORE.md, přesným postupem, jak vše vrátit na stroji nainstalovaném od nuly, ať jde o jeden server, nebo cluster. Zamčená heslem níže; posílá se do každého zapnutého úložiště – složka, FTP, FTPS, SFTP, SCP nebo sdílení Windows/Samba. Každý uzel clusteru posílá svou."
   },
   "s0117": {
    "source": "A backup made now and sent to every destination switched on - the same as the scheduled one.",
@@ -5513,8 +5513,8 @@
    "text": "Vytvořit kopii teď"
   },
   "s1377": {
-   "source": "Make a copy now and save it to the machine you are sitting at, with the key that opens the tokens inside it. Nothing is kept here.",
-   "text": "Vytvořit kopii teď a uložit ji do počítače, u kterého sedíte, i s klíčem k tokenům uvnitř. Tady se nic neuchová."
+   "source": "Make a copy now and save it to the machine you are sitting at, with the key that opens the sealed keys inside it. Nothing is kept here.",
+   "text": "Vytvořit kopii teď a uložit ji do počítače, u kterého sedíte, i s klíčem k zapečetěným klíčům uvnitř. Tady se nic neuchová."
   },
   "s1378": {
    "source": "Make a fresh ed25519 pair here. The private half stays on this machine, sealed; the public half is shown below for you to put on the server. Any key already kept is replaced.",
@@ -6653,12 +6653,12 @@
    "text": "Jedna databáze drží všechno: tokeny, RADIUS požadavky, kontroly kódů, nastavení a účty. Pokud neřeknete jinak, je to soubor na tomto stroji. Klíče tokenů jsou zapečetěné klíčem uloženým vedle ní ve stavové složce – a každá kopie i každý dump se ukládá s tímto klíčem vedle sebe."
   },
   "s1662": {
-   "source": "One file that is all of it: the copy and the key that opens its tokens, locked with the passphrase below. Put back here or on another machine (Put a copy back), the passphrase opens the key again. Lost, the key in the file is lost with it - it is not kept anywhere.",
-   "text": "Jeden soubor se vším: kopie a klíč, který otevírá její tokeny, zamčený heslem níže. Při obnově tady nebo na jiném stroji (Obnovit kopii) heslo klíč zase otevře. Když heslo ztratíte, je ztracený i klíč v souboru – nikde se neukládá."
+   "source": "One file that is all of it: the copy and the key that opens its sealed keys, locked with the passphrase below. Put back here or on another machine (Put a copy back), the passphrase opens the key again. Lost, the key in the file is lost with it - it is not kept anywhere.",
+   "text": "Jeden soubor se vším: kopie a klíč, který otevírá její zapečetěné klíče, zamčený heslem níže. Při obnově tady nebo na jiném stroji (Obnovit kopii) heslo klíč zase otevře. Když heslo ztratíte, je ztracený i klíč v souboru – nikde se neukládá."
   },
   "s1663": {
-   "source": "One file that is all of it: the dump and the key that opens its tokens, locked with the passphrase below. Put back here or on another machine (Put a dump back), the passphrase opens the key again. Lost, the key in the file is lost with it - it is not kept anywhere.",
-   "text": "Jeden soubor se vším: dump a klíč, který otevírá jeho tokeny, zamčený heslem níže. Při obnově tady nebo na jiném stroji (Obnovit dump) heslo klíč zase otevře. Když heslo ztratíte, je ztracený i klíč v souboru – nikde se neukládá."
+   "source": "One file that is all of it: the dump and the key that opens its sealed keys, locked with the passphrase below. Put back here or on another machine (Put a dump back), the passphrase opens the key again. Lost, the key in the file is lost with it - it is not kept anywhere.",
+   "text": "Jeden soubor se vším: dump a klíč, který otevírá jeho zapečetěné klíče, zamčený heslem níže. Při obnově tady nebo na jiném stroji (Obnovit dump) heslo klíč zase otevře. Když heslo ztratíte, je ztracený i klíč v souboru – nikde se neukládá."
   },
   "s1664": {
    "source": "One for each node's own name and one for the VIP address's. A certificate is sent as PEM files (the certificate, its key, the chain, the root - in any order, or all in one file) or as a PFX / PKCS#12 file, with its password or without; or the request is made here and only what the authority sends back is uploaded. Root puts it in nginx and asks nginx before reloading it.",
@@ -8273,8 +8273,8 @@
    "text": "Uložit poznámku"
   },
   "s2067": {
-   "source": "Save this copy to the machine you are sitting at - with the key that opens its tokens, locked with a passphrase you give, or without it.",
-   "text": "Uložit tuto kopii na počítač, u kterého sedíte – s klíčem, který otevírá její tokeny, zamčeným vámi zadaným heslem, nebo bez něj."
+   "source": "Save this copy to the machine you are sitting at - with the key that opens its sealed keys, locked with a passphrase you give, or without it.",
+   "text": "Uložit tuto kopii na počítač, u kterého sedíte – s klíčem, který otevírá její zapečetěné klíče, zamčeným vámi zadaným heslem, nebo bez něj."
   },
   "s2068": {
    "source": "Save this copy to the machine you are sitting at. It is the whole database as it was when the copy was made, and it can be put back here. The key that opens the tokens is not in it: it is the .key file beside it.",
@@ -8285,8 +8285,8 @@
    "text": "Uložit tuto kopii do počítače, u kterého sedíte. Je to celá databáze, jak byla v okamžiku kopie, a ve staženém souboru je i klíč, který otevírá tokeny: jeden soubor, ve kterém je všechno – uchovávejte ho stejně bezpečně jako klíč."
   },
   "s2070": {
-   "source": "Save this dump to the machine you are sitting at - with the key that opens its tokens, locked with a passphrase you give, or without it.",
-   "text": "Uložit tento dump na počítač, u kterého sedíte – s klíčem, který otevírá jeho tokeny, zamčeným vámi zadaným heslem, nebo bez něj."
+   "source": "Save this dump to the machine you are sitting at - with the key that opens its sealed keys, locked with a passphrase you give, or without it.",
+   "text": "Uložit tento dump na počítač, u kterého sedíte – s klíčem, který otevírá jeho zapečetěné klíče, zamčeným vámi zadaným heslem, nebo bez něj."
   },
   "s2071": {
    "source": "Save this dump to the machine you are sitting at. It is what the engine’s own program wrote, so its own tools read it: pg_restore, or the mariadb client. The key that opens the tokens is not in it: it is the .key file beside it.",
@@ -10473,12 +10473,12 @@
    "text": "Klíč tohoto tokenu nelze otevřít: klíčový soubor databáze není ten, kterým byl zapečetěn. Vytvořte nový."
   },
   "s2617": {
-   "source": "The key that opens the tokens is MISSING:",
-   "text": "Klíč, který otevírá tokeny, CHYBÍ:"
+   "source": "The key that opens the sealed keys is MISSING:",
+   "text": "Klíč, který otevírá zapečetěné klíče, CHYBÍ:"
   },
   "s2618": {
-   "source": "The key that opens the tokens:",
-   "text": "Klíč, který otevírá tokeny:"
+   "source": "The key that opens the sealed keys:",
+   "text": "Klíč, který otevírá zapečetěné klíče:"
   },
   "s2619": {
    "source": "The key the account with the CA signs with - never one of a certificate. RSA 2048, 3072, 4096 or ECDSA P-256, P-384. A change makes a new account at the next order.",
@@ -11565,8 +11565,8 @@
    "text": "Tímto se natrvalo vymaže:"
   },
   "s2890": {
-   "source": "This file holds the database and the key that opens its tokens, locked with a passphrase. Give it, and both are put back.",
-   "text": "Tento soubor obsahuje databázi a klíč, který otevírá její tokeny, zamčený heslem. Zadejte ho a obnoví se obojí."
+   "source": "This file holds the database and the key that opens its sealed keys, locked with a passphrase. Give it, and both are put back.",
+   "text": "Tento soubor obsahuje databázi a klíč, který otevírá její zapečetěné klíče, zamčený heslem. Zadejte ho a obnoví se obojí."
   },
   "s2891": {
    "source": "This file holds:",
@@ -13173,7 +13173,7 @@
    "text": "Smíte se dívat, ne měnit"
   },
   "s3292": {
-   "source": "You will probably be signed out: who is signed in came with the file like everything else. The key that opens the tokens is taken from beside the file, or from inside a downloaded copy; where there is none, the key in use stays.",
+   "source": "You will probably be signed out: who is signed in came with the file like everything else. The key that opens the sealed keys is taken from beside the file, or from inside a downloaded copy; where there is none, the key in use stays.",
    "text": "Pravděpodobně budete odhlášeni: kdo je přihlášen, přišlo se souborem jako všechno ostatní. Klíč k tokenům se vezme z místa vedle souboru nebo ze stažené kopie; kde žádný není, zůstane ten používaný."
   },
   "s3293": {
@@ -14221,12 +14221,12 @@
    "text": "nelze otevřít"
   },
   "s3554": {
-   "source": "carries what the second node needs and nothing else: the database's account and password, and the key that opens the tokens - locked with a passphrase shown once. Made again here whenever a node has to be rebuilt.",
-   "text": "nese, co druhý uzel potřebuje, a nic víc: účet a heslo databáze a klíč, který otevírá tokeny – zamčené heslovou frází, která se ukáže jen jednou. Vytvoří se tu znovu pokaždé, když je třeba uzel obnovit."
+   "source": "carries what the second node needs and nothing else: the database's account and password, and the key that opens the sealed keys - locked with a passphrase shown once. Made again here whenever a node has to be rebuilt.",
+   "text": "nese, co druhý uzel potřebuje, a nic víc: účet a heslo databáze a klíč, který otevírá zapečetěné klíče – zamčené heslovou frází, která se ukáže jen jednou. Vytvoří se tu znovu pokaždé, když je třeba uzel obnovit."
   },
   "s3555": {
-   "source": "carries what the second node needs and nothing else: the database's address and password, and the key that opens the tokens - locked with a passphrase shown once.",
-   "text": "nese, co druhý uzel potřebuje, a nic víc: adresu a heslo databáze a klíč, který otevírá tokeny – zamčené heslovou frází, která se ukáže jen jednou."
+   "source": "carries what the second node needs and nothing else: the database's address and password, and the key that opens the sealed keys - locked with a passphrase shown once.",
+   "text": "nese, co druhý uzel potřebuje, a nic víc: adresu a heslo databáze a klíč, který otevírá zapečetěné klíče – zamčené heslovou frází, která se ukáže jen jednou."
   },
   "s3556": {
    "source": "certificate",
@@ -19229,8 +19229,8 @@
    "text": "není klient pro 127.0.0.1, ze kterého poslat test: přidejte ho (installer vytváří „localhost“), nebo zadejte heslo"
   },
   "s4806": {
-   "source": "there is no directory to look in: Settings → Active Directory",
-   "text": "není v jakém adresáři hledat: Nastavení → Active Directory"
+   "source": "there is no directory to look in: Settings → Accounts, The directories",
+   "text": "není v jakém adresáři hledat: Nastavení → Účty, Adresáře"
   },
   "s4807": {
    "source": "there is no full administrator who can sign in in that file: putting it back would lock everybody out of these pages (on the command line it can be put back, and an account made after it)",
@@ -53499,6 +53499,14 @@
   "hunt4_1": {
    "source": "the second step of this account is not there any more - an administrator resets it (Accounts), then it is set up again",
    "text": "druhý krok tohoto účtu už neexistuje - správce ho resetuje (Účty), pak se nastaví znovu"
+  },
+  "sui3_1": {
+   "source": "this account has no mobile number to send the code to - ask the administrator",
+   "text": "tento účet nemá mobilní číslo, kam poslat kód - obraťte se na správce"
+  },
+  "sui3_2": {
+   "source": "this account has no e-mail address to send the code to - ask the administrator",
+   "text": "tento účet nemá e-mailovou adresu, kam poslat kód - obraťte se na správce"
   }
  },
  "patterns": {
@@ -54947,8 +54955,8 @@
    "text": "Na {0} není iptables."
   },
   "p0362": {
-   "source": "They are files on this machine, under {0}, each with the key that opens the tokens beside it. Copy them off it if they are to survive the machine.",
-   "text": "Jsou to soubory na tomto stroji ve složce {0}, každý s klíčem k tokenům vedle sebe. Zkopírujte je jinam, mají-li přežít tento stroj."
+   "source": "They are files on this machine, under {0}, each with the key that opens the sealed keys beside it. Copy them off it if they are to survive the machine.",
+   "text": "Jsou to soubory na tomto stroji ve složce {0}, každý s klíčem k zapečetěným klíčům vedle sebe. Zkopírujte je jinam, mají-li přežít tento stroj."
   },
   "p0363": {
    "source": "This is the only time it is shown. Whoever holds it signs in to {0} as root.",
@@ -73069,6 +73077,10 @@
   "pplc_5": {
    "source": "the e-mail address and the mobile number of {0} are the directory's",
    "text": "e-mailová adresa a mobilní číslo účtu {0} jsou z adresáře"
+  },
+  "pui3_1": {
+   "source": "kept in {0} - a database cannot hold its own address",
+   "text": "uloženo v {0} – databáze nemůže obsahovat vlastní adresu"
   }
  },
  "rich": {
@@ -73109,8 +73121,8 @@
    "text": "<b>Stiskněte níže Vytvořit můj token</b> – objeví se QR kód."
   },
   "r0010": {
-   "source": "<b>The bundle</b> carries what the second node needs and nothing else: the database's account and password, and the key that opens the tokens - locked with the passphrase. Carry the file over on its own (scp, a USB stick) and tell the passphrase some other way. A fresh one, for a node to be rebuilt later:",
-   "text": "<b>Balíček</b> nese, co druhý uzel potřebuje, a nic víc: účet a heslo databáze a klíč, který otevírá tokeny – zamčené heslovou frází. Soubor přeneste zvlášť (scp, USB) a frázi sdělte jinou cestou. Nový, pro uzel obnovovaný později:"
+   "source": "<b>The bundle</b> carries what the second node needs and nothing else: the database's account and password, and the key that opens the sealed keys - locked with the passphrase. Carry the file over on its own (scp, a USB stick) and tell the passphrase some other way. A fresh one, for a node to be rebuilt later:",
+   "text": "<b>Balíček</b> nese, co druhý uzel potřebuje, a nic víc: účet a heslo databáze a klíč, který otevírá zapečetěné klíče – zamčené heslovou frází. Soubor přeneste zvlášť (scp, USB) a frázi sdělte jinou cestou. Nový, pro uzel obnovovaný později:"
   },
   "r0011": {
    "source": "<b>The tokens, the accounts, the clients, the realms, the directories and every setting are never touched by this.</b> They are not options you could tick by mistake: they are not in the list at all.",
@@ -73333,8 +73345,8 @@
    "text": "Názvy a adresy dostupné bez ní, oddělené čárkami: <code>.example.cz</code> je každý název pod ní, <code>10.0.0.0/8</code> síť."
   },
   "r0066": {
-   "source": "No password of the backups is set: the file will hold <b>every token’s key</b> readable. Set the password first unless you know where the file goes.",
-   "text": "Heslo záloh není nastavené: soubor bude obsahovat <b>klíče všech tokenů</b> čitelně. Nejdřív nastavte heslo, pokud nevíte, kam soubor půjde."
+   "source": "No password of the backups is set: the file will hold <b>every private key</b> readable. Set the password first unless you know where the file goes.",
+   "text": "Heslo záloh není nastavené: soubor bude obsahovat <b>všechny privátní klíče</b> čitelně. Nejdřív nastavte heslo, pokud nevíte, kam soubor půjde."
   },
   "r0067": {
    "source": "Off: nothing on these pages offers going back to an older version. On: Settings → Upgrades shows <i>Going back to an older version</i> - only the versions it is safe to go back to, each with what changed in it. On the server, root can always: acme --downgrade.",

@@ -82,7 +82,7 @@ class PortalLocalCode(unittest.TestCase):
         self.settings(portal_code='sms', portal_local_code='same')
         st, got = self.sign_in()
         self.assertEqual(st, 403, got)
-        self.assertIn('no e-mail address or mobile number', got.get('error', ''))
+        self.assertIn('no mobile number', got.get('error', ''))
         users = self.must('GET', '/api/users')
         self.assertEqual(users['portal_code_ways'], ['sms'])
 

@@ -718,8 +718,16 @@ def portal_local_login(h, key, name, acc):
             h.store.add_event('portal', '%s (an account here) cannot sign in to the portal: a '
                               'one-time code is needed, and the account has %s (Accounts)'
                               % (who, why), 'warn', who=who)
-            raise ApiError(403, 'this account has no e-mail address or mobile number to send the '
-                                'code to - ask the administrator')
+            # What the way chosen needs, said as such (1.0.45): an account with an address
+            # where the code goes by SMS was told it had no address.
+            have = code_channels()
+            need = [w for w in ways if w in have] or list(ways)
+            raise ApiError(403, {('sms',): 'this account has no mobile number to send the code '
+                                           'to - ask the administrator',
+                                 ('mail',): 'this account has no e-mail address to send the '
+                                            'code to - ask the administrator'}.get(
+                tuple(need), 'this account has no e-mail address or mobile number to send the '
+                             'code to - ask the administrator'))
         try:
             lang = str((h.body() or {}).get('lang') or '')
         except Exception:                               # noqa: BLE001

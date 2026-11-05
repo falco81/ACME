@@ -14,6 +14,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     ten minutes: a *Back up now* asked by the node still on 1.0.43 (unsigned) was refused for
     good on the upgraded one. Such asks are checked only once every node runs 1.0.44 (as the
     other rows newly guarded), and a node takes its asks away once they are over.
+- **Round 3 (the pages, in Czech):** the alerts of the Overview are translated (they were
+  drawn as data); 17 texts reworded since (the sealed keys, every private key, Settings →
+  Accounts, The directories) translated again; of several patterns that fit a sentence the
+  one that says most of it is taken ("deploying x to y failed: ..." was half English); a node's
+  name before its own sentence no longer stops that sentence's translation; "used by" of a
+  module's version; "kept in ... - a database cannot hold its own address" for any config
+  path; durations with the language's decimal comma; the whole message of a job on hover where
+  the table cuts it; the sections of the certificate's window fit a phone's width; the portal
+  says which of the e-mail address or the mobile number the account lacks.
 - **The command line and the console:** `--selfsigned NAME` over a certificate there already
   (one of Let's Encrypt's) asks first - it made it self-signed without a word; `--days 825`
   was taken as not given (825 was the option's default), and `--days` takes 1 to 36500;

@@ -334,7 +334,7 @@ function tookWords(ms) {
   if (ms === undefined || ms === null || ms === '') return '–';
   ms = Number(ms);
   if (ms < 1000) return Math.round(ms) + ' ms';
-  if (ms < 60000) return (Math.round(ms / 100) / 10) + ' s';
+  if (ms < 60000) return (Math.round(ms / 100) / 10).toLocaleString(window.ACME_LANG || 'en') + ' s';
   return span(ms / 1000);
 }
 function cssVar(name, fallback) {
@@ -6871,6 +6871,7 @@ function jobTable(rows, o) {
     tr.appendChild(by);
     var s = td('ct-jsaid small', '');
     s.appendChild(el('span', '', j.said || ''));
+    if (j.said) s.title = j.said;          /* cut short in the cell: the whole on hover (1.0.45) */
     tr.appendChild(s);
     return rowOpens(tr, function () { over(function () { jobPeek(j.id); }); });
   }, 'plain ct-jobs|No job yet');
@@ -7212,7 +7213,8 @@ function drawOverviewCerts(box, d, counts, total) {
       var row = el('div', 'ct-ovrow tappable ' + (a.level === 'bad' ? 'bad' : 'warn'));
       row.tabIndex = 0;
       var w = el('div', 'ct-ovrow-w');
-      w.appendChild(data('span', 'ct-alert', String(a.words || a.said || key)));
+      /* words of the page's, translated (1.0.45): data, they stayed English */
+      w.appendChild(el('span', 'ct-alert', String(a.words || a.said || key)));
       row.appendChild(w);
       var rr = el('div', 'ct-ovrow-r');
       var kind = m ? m[1] : '';
@@ -7858,7 +7860,7 @@ function drawModules(live) {
         var m = markOf(r.fam, p.kind, v.version || '');
         var mm = m.here || m.release;
         if (mm && MARKS[mm.state]) chip.classList.add('m-' + mm.state);
-        explain(chip, (v.version_label || v.title || '') + (v.default ? ' · ' + tr('default') : '') + (n ? ' · ' + tr('used by') + ' ' + n : '') + (mm ? ' · ' + tr(MARKS[mm.state][0]) : ''));
+        explain(chip, (v.version_label || v.title || '') + (v.default ? ' · ' + tr('default') : '') + (n ? ' · ' + tr('used by {0}').replace('{0}', n) : '') + (mm ? ' · ' + tr(MARKS[mm.state][0]) : ''));
         vc.appendChild(chip);
       });
       tr_.appendChild(vc);
