@@ -431,8 +431,11 @@ class PortalLocal(unittest.TestCase):
                                                 'members': ['local:teamer=approve']})
             st, got = self.call('POST', '/api/portal/cert_approve', {'id': r['id'], 'ok': 0}, tok)
             self.assertEqual(st, 400, got)          # a decline says why
+            # never one's own (1.0.51): someone else approves it
             st, got = self.call('POST', '/api/portal/cert_approve', {'id': r['id'], 'ok': 1}, tok)
-            self.assertEqual(st, 200, got)
+            self.assertEqual(st, 403, got)
+            self.assertIn('yourself', got['error'])
+            got = self.ok('POST', '/api/certs/approve', {'id': r['id'], 'ok': 1})
             self.wait_job(got['job_id'])
         finally:
             self.py('st.db.run("DELETE FROM accounts WHERE name = \'teamer\'"); print(1)')

@@ -72,7 +72,7 @@ if ($keep >= 0) {
     $mine = array();
     foreach ($certs as $i => $c) {
         $d = $c['descr'] ?? '';
-        if ($c['refid'] !== $ref && strpos($d, $prefix) === 0 && preg_match('/\d{8}-[0-9a-f]+$/', $d)) { $mine[$d] = $i; }
+        if ($c['refid'] !== $ref && strpos($d, $prefix) === 0 && preg_match('/^\d{8}-[0-9a-f]+$/', substr($d, strlen($prefix)))) { $mine[$d] = $i; }
     }
     krsort($mine);
     foreach (array_slice($mine, $keep, null, true) as $d => $i) {

@@ -26,7 +26,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
-    ssh_fields, verify_fields, keep_field, quote, text)
+    ssh_fields, verify_fields, keep_field, quote, text, ours)
 
 
 class NginxUnitTarget(SshMixin, Base):
@@ -120,7 +120,12 @@ class NginxUnitTarget(SshMixin, Base):
                     raise PluginError('Unit has no listener "%s"' % li, retry=False)
                 cur = ((conf.get(li) or {}).get('tls') or {}).get('certificate')
                 if isinstance(cur, list):
-                    new = [name if text(c).startswith(prefix) else c for c in cur]
+                    # only this certificate's own replaced, once (1.0.51)
+                    new = []
+                    for c in cur:
+                        c = name if ours(text(c), prefix) else c
+                        if c not in new:
+                            new.append(c)
                     if name not in new:
                         new.append(name)
                 else:

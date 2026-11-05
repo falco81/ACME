@@ -118,15 +118,19 @@ def scope_hostkey_keeper(store, scope):
 
     def keep(text, field='hostkey'):
         field = str(field or 'hostkey')
-        if not re.match(r'^[a-z_]{1,40}hostkey$', field):
+        if not re.match(r'^(?:[a-z_]{0,39}_)?hostkey$', field):
             return
         row = store.db.row('SELECT id, config FROM %s WHERE name = ?' % table, (name,))
         if not row:
             return
         cfg = S.jload(row.get('config'), {}) or {}
-        if cfg.get(field):
+        # Added beside what is there (a list of hosts of a validation): the connection asked
+        # because none of it was for this host.
+        have = str(cfg.get(field) or '').strip()
+        new = str(text).strip()
+        if not new or new in have:
             return
-        cfg[field] = str(text).strip()
+        cfg[field] = (have + '\n' + new).strip()
         store.db.update(table, row['id'], {'config': json.dumps(cfg), 'updated': time.time()})
         store.add_event('certificates', 'the host key of %s %s was taken as the first one seen '
                         '(trust_first)' % (fam, name), 'warn')
@@ -791,8 +795,12 @@ class SshSession(base.SshSession):
                           % (self.host, prints), 'warn')
             if self.ctx.on_hostkey:
                 try:
+                    # the lines kept under the host's name as set (1.0.51), not the address
+                    # scanned: a validation's list of hosts finds them by that name
+                    named = '\n'.join('%s %s' % (self.host, ln.split(None, 1)[1])
+                                       for ln in lines if len(ln.split(None, 1)) == 2)
                     try:
-                        self.ctx.on_hostkey(scanned, c.get('hostkey_field') or 'hostkey')
+                        self.ctx.on_hostkey(named or scanned, c.get('hostkey_field') or 'hostkey')
                     except TypeError:
                         self.ctx.on_hostkey(scanned)
                 except Exception as e:                  # noqa: BLE001

@@ -20,7 +20,7 @@ import urllib.parse
 from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
-    http_fields, tls_fields, verify_fields, keep_field, chain_list, random_password, text)
+    http_fields, tls_fields, verify_fields, keep_field, chain_list, random_password, text, ours)
 
 
 def b64(data):
@@ -132,10 +132,26 @@ class FortiGateTarget(HttpTarget):
                          % urllib.parse.quote(name, safe=''), ok=(200, 404), vdom=vdom)
         return st == 200 and bool(d.get('results'))
 
-    def set_ref(self, p, key, name, vdom, list_first, what):
+    def set_ref(self, p, key, name, vdom, list_first, what, prefix=None):
         """Point an object at the certificate - as a string or a [{name}] list,
         whichever this FortiOS version takes."""
-        forms = [[{'name': name}], name]
+        listed = [{'name': name}]
+        if prefix:
+            # The list as it is, ours in it replaced (1.0.51): a profile's other server
+            # certificates, a VIP's ECDSA beside the RSA one, were dropped by the PUT.
+            try:
+                st, d = self.api('GET', p, vdom=vdom, what=what)
+                r = (d or {}).get('results') if isinstance(d, dict) else None
+                r = r[0] if isinstance(r, list) and r else (r if isinstance(r, dict) else {})
+                cur = r.get(key) if isinstance(r, dict) else None
+                if isinstance(cur, list):
+                    keep = [{'name': text(c.get('name'))} for c in cur if isinstance(c, dict)
+                            and c.get('name') and not ours(c.get('name'), prefix)
+                            and c.get('name') != name]
+                    listed = keep + [{'name': name}]
+            except PluginError:
+                pass
+        forms = [listed, name]
         if not list_first:
             forms.reverse()
         err = None
@@ -195,13 +211,13 @@ class FortiGateTarget(HttpTarget):
         for p in lines(options.get('ssl_ssh_profiles')):
             self.set_ref('/api/v2/cmdb/firewall/ssl-ssh-profile/%s' % urllib.parse.quote(p, safe=''),
                          'server-cert', name, vdom, self.list_first((7, 0, 0), vdom, True),
-                         'setting profile %s' % p)
+                         'setting profile %s' % p, prefix)
             self.ctx.step('profile %s uses %s' % (p, name), 'ok')
             did.append('profile %s' % p)
         for v in lines(options.get('vips')):
             self.set_ref('/api/v2/cmdb/firewall/vip/%s' % urllib.parse.quote(v, safe=''),
                          'ssl-certificate', name, vdom, self.list_first((7, 4, 2), vdom, False),
-                         'setting VIP %s' % v)
+                         'setting VIP %s' % v, prefix)
             self.ctx.step('VIP %s uses %s' % (v, name), 'ok')
             did.append('VIP %s' % v)
         self.cleanup(prefix, name, vdom, self.keep(options))

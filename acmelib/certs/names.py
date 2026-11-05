@@ -32,6 +32,7 @@ import json
 
 from acmelib import engine as E
 from acmelib.certs import store as S
+from acmelib.certs import defaults as DF
 
 PREFERRED = {"Let's Encrypt": 'LetsEncrypt',
              "Let's Encrypt (staging)": 'LetsEncrypt staging',
@@ -168,7 +169,8 @@ def _references(store, fam, old, new):
     elif fam == 'target':
         db.run('UPDATE cert_deploys SET target = ? WHERE target = ?', (new, old))
     meta = {'issuer': 'certs:default_issuer', 'challenge': 'certs:default_challenge',
-            'target': 'certs:default_target'}.get(fam)
+            'target': 'certs:default_target',
+            'ca': DF.META.get('ca', 'certs:default_ca')}.get(fam)   # the authority too (1.0.51)
     if meta and store.get_meta(meta) == old:
         store.set_meta(meta, new)
     if fam in ('issuer', 'challenge', 'target'):

@@ -1137,7 +1137,14 @@ class Cli(object):
 
     def _write(self, path, data, mode=0o600):
         try:
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+            # never through a link, and the mode set on a file that was there already (1.0.51):
+            # a key written over a 0644 file stayed readable by anyone
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC |
+                         getattr(os, 'O_NOFOLLOW', 0), mode)
+            try:
+                os.fchmod(fd, mode)
+            except OSError:
+                pass
             with os.fdopen(fd, 'wb') as f:
                 f.write(data)
         except OSError as e:

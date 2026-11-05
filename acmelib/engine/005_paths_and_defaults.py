@@ -1460,7 +1460,8 @@ SAYS = {
     'ui_lang': 'The language every page opens in until somebody chooses another for '
                'themselves.',
     'api_port': 'The port on 127.0.0.1 the web pages ask this daemon on. The pages read it '
-                'from <code>/run/acme/api-port</code>, written when the daemon starts.',
+                'from <code>/run/acme/api-port</code>, written when the daemon starts - a new one '
+                'takes effect after <code>systemctl restart acme</code>.',
     'perf_meter': 'How busy each node is - the processor, the memory, the disks and the network - '
                   'beside the state at the top of these pages, every 3 s, with the cores, the '
                   'temperatures, the disks and the processes when a number is pointed at; in a '
@@ -1764,6 +1765,26 @@ def check_setting(key, value):
                 raise BadSetting('%s: %r is not a mail address' % (key, one))
         if len([w for w in re.split(r'[\s,;]+', str(got)) if w]) > 20:
             raise BadSetting('%s: 20 addresses at most' % key)
+    if key == 'mail_helo' and str(got).strip():
+        # a host name or an address in brackets (1.0.51): "ACME server" was taken, and the mail
+        # server refused every greeting - no sign-in code, no alert went
+        hv = str(got).strip()
+        if not (re.match(r'^(?=.{1,253}\Z)[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
+                         r'(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\Z', hv) or
+                re.match(r'^\[(IPv6:)?[0-9A-Fa-f:.]{2,45}\]\Z', hv)):
+            raise BadSetting('mail_helo: a host name (mail.example.cz) or an address in brackets '
+                             '([192.0.2.5])')
+    if key == 'api_port':
+        # Not one another service of this machine holds (1.0.51): taken at the next start, the
+        # daemon could not listen and was down.
+        taken = {22, 25, 53, 80, 443, 3306, 5432, 6379, 8080}
+        for k2 in ('db_port', 'snmp_port', 'dns_port'):
+            try:
+                taken.add(int(CONFIG.get(k2) or 0))
+            except (TypeError, ValueError):
+                pass
+        if int(got) in taken:
+            raise BadSetting('api_port: %s is the port of another service here' % got)
     if key == 'alerts_url' and str(got).strip() and \
             not re.match(r'^https?://[^\s"<>]+\Z', str(got).strip()):
         raise BadSetting('alerts_url: an address starting https://')

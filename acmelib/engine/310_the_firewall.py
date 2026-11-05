@@ -132,7 +132,20 @@ NTP_DEFAULT = {'manage': False, 'servers': [], 'peers': True, 'allow': [],
                'makestep': [1.0, 3], 'minsources': 1, 'timezone': ''}
 
 
+ROOT_ASK_LOCKS = {}
+ROOT_ASK_LOCKS_LOCK = threading.Lock()
+
+
 def root_ask(ask_name, answer_name, data, wait=60):
+    """One ask of a file at a time (1.0.51, as net_root's): a second thread wrote over the
+    first one's ask, and the first waited for an answer that never came."""
+    with ROOT_ASK_LOCKS_LOCK:
+        lock = ROOT_ASK_LOCKS.setdefault(ask_name, threading.Lock())
+    with lock:
+        return _root_ask(ask_name, answer_name, data, wait)
+
+
+def _root_ask(ask_name, answer_name, data, wait=60):
     ask_id = secrets.token_hex(8)
     data = dict(data, id=ask_id)
     tmp = WEB_DIR / ('.%s.%d.%d' % (ask_name, os.getpid(), threading.get_ident() % 100000))
@@ -229,8 +242,13 @@ def ntp_checked(b):
     except (TypeError, ValueError):
         raise ValueError('how many sources have to agree is a number')
     tz = str(b.get('timezone') or '').strip()
-    if tz and not re.match(r'^[A-Za-z0-9_+-]{1,40}(/[A-Za-z0-9_+-]{1,40}){0,3}\Z', tz):
+    # as the root helper takes it (1.0.51): a letter first - "+1" passed here, was refused
+    # there after the time servers were applied, and was tried again every 10 minutes
+    if tz and not re.match(r'^[A-Za-z][A-Za-z0-9_+-]{0,39}(/[A-Za-z0-9_+-]{1,40}){0,3}\Z', tz):
         raise ValueError('%r is not a time zone' % tz)
+    if tz and os.path.isdir('/usr/share/zoneinfo') and \
+            not os.path.isfile(os.path.join('/usr/share/zoneinfo', tz)):
+        raise ValueError('%s is not a time zone this machine knows (Europe/Prague, UTC...)' % tz)
     out['timezone'] = tz
     return out
 

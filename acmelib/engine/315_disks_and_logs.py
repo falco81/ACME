@@ -913,8 +913,13 @@ def sshd_ports_open(store):
     ports = {int(c.get('port') or 22) if c.get('manage') else 22}
     for n in host_nodes(store):
         now = sshd_now(store, n)
+        # ...and always the one sshd listens on now (1.0.51): not managed by acme, its own
+        # sshd_config's Port 2222 was shut out by acme's firewall
+        want = [(now.get('values') or {}).get('port')]
         if (now.get('trial') or {}).get('until') or now.get('hash') != c.get('hash'):
-            for p in ((now.get('values') or {}).get('port'), now.get('before_port')):
+            want.append(now.get('before_port'))
+        if True:
+            for p in want:
                 try:
                     if p:
                         ports.add(int(p))

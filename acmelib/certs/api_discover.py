@@ -88,7 +88,7 @@ def discover(store, family, b, by):
     out = {}
 
     def fn(job):
-        ctx = runtime.RunContext(store, job, scope='%s:%s' % (family, name))
+        ctx = runtime.RunContext(store, job, scope='%s:%s' % (family, name), on_hostkey=False)
         try:
             job.step('what the account says of the settings - read-only, nothing is saved')
             mod = cls(cfg, ctx)

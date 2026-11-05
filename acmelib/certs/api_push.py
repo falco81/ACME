@@ -113,8 +113,15 @@ def adopt(store, b, by):
         if want and s['id'] not in want:
             continue
         why = _slot_free(s)
+        shown = (b.get('shown') or {}).get(s['id']) if isinstance(b.get('shown'), dict) else None
         if why:
             left.append({'slot': s['id'], 'why': why})
+        elif shown is not None and sorted(str(x).lower() for x in shown) != \
+                sorted(str(x).lower() for x in s['names']):
+            # the names asked again from the application (1.0.51): other names than those the
+            # administrator was shown are not ordered - and their key pushed to it
+            left.append({'slot': s['id'], 'why': 'the application now names %s, not the names '
+                                                 'shown - look again' % ', '.join(s['names'])})
         else:
             chosen.append(s)
     unknown = [x for x in want if x not in {s['id'] for s in got['slots']}]
@@ -156,7 +163,9 @@ def adopt(store, b, by):
             if made else 'nothing to make'}
 
 
-@A.api('POST', '/api/targets/discover', 'certadmin')
+# A path of its own (1.0.51): /api/targets/discover is the modules' own Discover (api_discover),
+# registered after this one - the push dialog asked it, and was told there was no module ''.
+@A.api('POST', '/api/targets/push_discover', 'certadmin')
 def _discover(h, s):
     try:
         return discover(h.store, h.body())

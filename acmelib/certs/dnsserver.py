@@ -226,7 +226,7 @@ class Zones(object):
     def zone_of(self, name):
         name = D.norm(name)
         for z in self.zones:                            # longest first
-            if name == z or name.endswith('.' + z):
+            if name == z or D.in_zone(name, z):         # by labels where escaped (1.0.51)
                 return z
         return None
 
@@ -398,8 +398,15 @@ class DnsServer(object):
                 out[k] = v
         if not str(out.get('dns_ns_addresses') or '').strip():
             # The name servers' addresses (glue) where none are set: where it
-            # answers - the VIP, the nodes, or both.
-            got = self.answering_addresses(out)
+            # answers - the VIP, the nodes, or both. Read again every 30 s, not for each
+            # packet (1.0.51): three looks into the database a packet, before the rate limit.
+            key = (out.get('dns_expose'), out.get('dns_listen'))
+            was = getattr(self, '_addr_cache', None)
+            if was and was[0] == key and time.time() - was[1] < 30:
+                got = was[2]
+            else:
+                got = self.answering_addresses(out)
+                self._addr_cache = (key, time.time(), got)
             if got:
                 out['dns_ns_addresses'] = ','.join(got)
         return out
@@ -739,6 +746,18 @@ class DnsServer(object):
         return bool(cur and cur.get('me'))
 
     # ---- the rate limit -----------------------------------------------------------
+    @staticmethod
+    def _net_key(addr):
+        """The /24 (IPv4) or /56 (IPv6) of an address - one source for the limits."""
+        try:
+            ip = ipaddress.ip_address(str(addr or '').split('%')[0])
+            if ip.version == 6 and ip.ipv4_mapped:
+                ip = ip.ipv4_mapped
+            return str(ipaddress.ip_network('%s/%d' % (ip, 24 if ip.version == 4 else 56),
+                                            strict=False))
+        except ValueError:
+            return str(addr or '')
+
     def _allowed(self, addr):
         """A token bucket per /24 (IPv4) or /56 (IPv6)."""
         cfg = self.cfg()
@@ -748,14 +767,7 @@ class DnsServer(object):
             rate = 100.0
         if rate <= 0:
             return True
-        try:
-            ip = ipaddress.ip_address(addr.split('%')[0])
-            if ip.version == 6 and ip.ipv4_mapped:
-                ip = ip.ipv4_mapped
-            key = str(ipaddress.ip_network('%s/%d' % (ip, 24 if ip.version == 4 else 56),
-                                           strict=False))
-        except ValueError:
-            key = addr
+        key = self._net_key(addr)
         now = time.monotonic()
         burst = rate * 2
         with self.lock:
@@ -830,7 +842,9 @@ class DnsServer(object):
             # One address holds only a few of the slots (1.0.44): 64 connections fed a
             # byte every 9 s by one host held every slot, and no resolver that needed TCP
             # (a truncated answer) got one - DNS-01 checks failed.
-            who = peer[0] if peer else ''
+            # ...counted by its /24 or /56 as the UDP limit is (1.0.51): eight addresses of
+            # one IPv6 /64 held every slot
+            who = self._net_key(peer[0]) if peer else ''
             with self.tcp_peers_lock:
                 if self.tcp_peers.get(who, 0) >= TCP_PER_PEER:
                     self.stats['dropped'] += 1
@@ -891,7 +905,7 @@ class DnsServer(object):
             except OSError:
                 pass
             self.tcp_slots.release()
-            self._tcp_peer_done(peer[0] if peer else '')
+            self._tcp_peer_done(self._net_key(peer[0]) if peer else '')
 
     @staticmethod
     def _read(c, n, deadline=None):
@@ -1000,6 +1014,10 @@ class DnsServer(object):
             rrsets = zones.data.get(name, {})
             if qtype == 255:
                 got = [(t, v) for t, v in sorted(rrsets.items())]
+                if not tcp and got:
+                    # one RRset over UDP (RFC 8482, 1.0.51): every one of them made a ~40 byte
+                    # question a ~1200 byte answer - a lever for floods from spoofed sources
+                    got = got[:1]
             else:
                 got = [(qtype, rrsets[qtype])] if qtype in rrsets else []
             if got:

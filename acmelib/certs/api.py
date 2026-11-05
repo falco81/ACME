@@ -879,6 +879,23 @@ DEPLOY_KEY_OPTIONS = ('outputs', 'pfx_password', 'pfx_password_mode', 'include_k
                       # haproxy's file (the key in it) and its crt-list
                       'ccs_path', 'ccs_password', 'key_read', 'exportable', 'cert_path', 'crt_list')
 KEY_SECRETS = ('pfx_password', 'ccs_password')
+# ...and of a module of its own, the options that say where its key goes (1.0.51): a file and its
+# owner, a secret of Kubernetes and its namespace, a path of Vault, a folder, the services a
+# Docker secret is given to, a certificate's name in an Azure key vault.
+KEY_OPTIONS_OF = {
+    'caddy': ('cert_file', 'owner'),
+    'kubernetes': ('namespace', 'secret'),
+    'vault': ('mount', 'path', 'namespace'),
+    'strongswan': ('dir', 'file_name'),
+    'traefik': ('cert_dir',),
+    'docker_swarm': ('services',),
+    'azure_keyvault': ('vault', 'cert_name'),
+    'azure_appgw': ('cert_name', 'key_vault_secret_id'),
+}
+
+
+def key_options(cls):
+    return DEPLOY_KEY_OPTIONS[1:] + KEY_OPTIONS_OF.get(str(getattr(cls, 'kind', '') or ''), ())
 KEY_FORMATS = ('key-pem', 'key-rsa', 'key-der', 'key-traditional', 'combined-pem', 'pfx', 'p12',
                'p12-legacy', 'jks', 'pkcs12')
 
@@ -910,7 +927,7 @@ def _deploy_key_check(cls, given, old):
                 allowed |= _key_lines(fill.get('outputs'))
         if not new_keys <= allowed:
             raise refused
-    for k in DEPLOY_KEY_OPTIONS[1:]:
+    for k in key_options(cls):
         if k not in given:
             continue
         nv, ov = given.get(k), old.get(k)
@@ -1697,7 +1714,7 @@ def _ca_pki_check(h, s):
 # ---- publishing on acme: what anybody may fetch (web/pki.php, no sign-in) --------------
 def _pki_public(h, what):
     pub = _lib('publish')
-    if not pub.allowed():
+    if not pub.allowed(h.client_ip() if hasattr(h, 'client_ip') else ''):
         raise E.ApiError(429, 'too many requests - try again in a moment')
     try:
         if what == 'index':
@@ -2067,7 +2084,14 @@ def family_test(store, family, b, by, echo=None):
         cfg[k] = v
     name = (row or {}).get('name') or str(b.get('name') or 'unsaved')
 
-    tried_other = bool(_dict(b.get('config'), 'config'))
+    # settings other than those saved (1.0.51): the form sends all of them, the same ones too
+    saved_cfg = S.plugin_config(family, row) if row and row.get('kind') == kind else {}
+    secrets_t = set(S.secret_fields(cls))
+    fdef = {f.get('key'): f for f in (cls.fields or []) if f.get('key')}
+    tried_other = not row or any(
+        not (k in secrets_t and (v in (None, '') or E.is_masked(v))) and
+        not _same_value(fdef.get(k) or {}, v, saved_cfg.get(k, (fdef.get(k) or {}).get('default')))
+        for k, v in (_dict(b.get('config'), 'config') or {}).items())
 
     def fn(job):
         # Settings tried before they are saved (1.0.51): the key of a host only tried is not
@@ -2209,16 +2233,14 @@ def _validation_info(h, s):
     row = S.plugin_row(h.store, 'challenge', h.arg('id') or h.arg('name'))
     if not row:
         raise LookupError('there is no such validation')
-    got = _lib('httpinfo').info(h.store, row)
     # Of the certificates using it only those this account sees (1.0.51), and no secret
     # setting of the validation in the open.
     T = _lib('teams')
     sc = T.scope(h.store, s, 'view')
-    if sc is not None and got.get('names'):
-        seen = {r['name'] for r in h.store.db.rows('SELECT name, owner FROM certs')
-                if T.owner_in(sc, r.get('owner'))}
-        got['names'] = [n for n in got['names'] if n.get('cert') in seen]
-        got['names_more'] = 0
+    seen = None if sc is None else {r['name'] for r in h.store.db.rows('SELECT name, owner FROM '
+                                                                       'certs')
+                                    if T.owner_in(sc, r.get('owner'))}
+    got = _lib('httpinfo').info(h.store, row, seen)
     cls = S.row_class('challenge', row)
     secret = set(S.secret_fields(cls)) if cls else set()
     for f in got.get('fields') or []:
@@ -2317,10 +2339,20 @@ def _deploy_save_in(store, b, by, full, made):
         # the key goes, written by a full administrator for one server, ran on the one a
         # certificate administrator picked.
         kept = S.jload(row.get('options'), {}) or {}
-        has = lambda k: kept.get(k) not in (None, '', False, 0, '0', [], 'false')  # noqa: E731
+        fdefs = {f['key']: f.get('default') for f in ((cls.deploy_fields if cls else None) or [])
+                 if f.get('key')}
+        nothing = (None, '', False, 0, '0', [], 'false')
+        # set, and not the module's own default (1.0.51)
+        has = lambda k: kept.get(k) not in nothing and str(kept.get(k)) != str(fdefs.get(k))  # noqa: E731
+        fills = (dict((cls.deploy_fields and {f['key']: f for f in cls.deploy_fields}.get('preset')
+                       or {}).get('fills') or {}) if cls else {})
+        preset_keys = set()
+        for fill in fills.values():
+            if isinstance(fill, dict):
+                preset_keys |= _key_lines(fill.get('outputs'))
         if any(has(k) for k in DEPLOY_COMMANDS + ('script_body',)) or \
-                _key_lines(kept.get('outputs')) or \
-                any(has(k) for k in DEPLOY_KEY_OPTIONS[1:] if k not in (
+                (_key_lines(kept.get('outputs')) - preset_keys) or \
+                any(has(k) for k in key_options(cls) if k not in (
                     'pfx_password_mode', 'include_key', 'pfx_password')):
             raise E.ApiError(403, 'this deployment runs commands or writes the key where a full '
                                   'administrator set: only one may move it to another target')

@@ -50,7 +50,7 @@ class ProxmoxTarget(HttpTarget):
 
     def served(self, node):
         st, hd, d = self.req('GET', '/api2/json/nodes/%s/certificates/info'
-                             % urllib.parse.quote(node), what='reading %s' % node)
+                             % urllib.parse.quote(node, safe=""), what='reading %s' % node)
         for c in (d or {}).get('data') or []:
             if c.get('filename') == 'pveproxy-ssl.pem':
                 return norm_fp(c.get('fingerprint'))
@@ -65,7 +65,7 @@ class ProxmoxTarget(HttpTarget):
             if not force and self.served(node) == fp:
                 same.append(node)
                 continue
-            self.req('POST', '/api2/json/nodes/%s/certificates/custom' % urllib.parse.quote(node),
+            self.req('POST', '/api2/json/nodes/%s/certificates/custom' % urllib.parse.quote(node, safe=""),
                      form({'certificates': text(bundle.as_format('fullchain-pem')),
                            'key': text(bundle.as_format('key-pem')), 'force': 1,
                            'restart': 1 if as_bool(self.opt(options, 'restart', True), True)

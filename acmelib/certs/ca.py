@@ -1280,6 +1280,17 @@ def ca_renew(store, ca_id, days=None, path_len=KEEP, name_constraints=None, by='
             raise PkiError('the path length is a number (empty: no limit)', retry=False)
         if not 0 <= pl <= 32:
             raise PkiError('the path length is 0 to 32 (empty: no limit)', retry=False)
+    if pl is not None and path_len is not KEEP:
+        # Not shorter than the authorities under it need (1.0.51): renewed with path length 0,
+        # every certificate under its intermediate failed to verify.
+        def depth(cid, seen=()):
+            kids = [int(r['id']) for r in store.db.rows('SELECT id FROM cert_cas WHERE parent_id = ?',
+                                                        (int(cid),)) if int(r['id']) not in seen]
+            return 0 if not kids else 1 + max(depth(k, seen + (int(cid),)) for k in kids)
+        need = depth(row['id'])
+        if need > pl:
+            raise PkiError('the authorities under it go %d deep - a path length of %d breaks them '
+                           '(%d at least, or empty)' % (need, pl, need), retry=False)
     if name_constraints is None:
         nc = _j(row.get('name_constraints'), [])
     else:

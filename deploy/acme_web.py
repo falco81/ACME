@@ -2572,6 +2572,9 @@ def net_checked(r):
     # Going back may ask for a short name again - the one the machine had.
     if host and (not NAME_RE.match(host) or ('.' not in host and not r.get('rollback'))):
         raise Refused('the host name is the whole name: acme1.example.cz')
+    if len(host) > 64:
+        # what hostnamectl takes (1.0.51): longer, it refused it half way through the change
+        raise Refused('a host name is 64 characters at most')
     out['hostname'] = host
     snap = str(r.get('snapshot') or '')
     out['snapshot'] = snap if re.match(r'^[0-9a-f]{8,40}\Z', snap) else ''
@@ -2671,6 +2674,25 @@ def net_apply(n):
         args += ['ipv6.method', 'manual', 'ipv6.addresses', n['addr6'],
                  'ipv6.gateway', n['gw6'], 'ipv6.dns', ','.join(n['dns6'])]
     run(args, 'nmcli connection modify')
+    try:
+        return _net_apply_rest(n, said, before)
+    except BaseException:
+        # Half way (1.0.51): the new address stayed in the profile - the next reboot brought the
+        # node up on it, the change marked failed. The profile as it was put back.
+        back = [NMCLI, 'connection', 'modify', n['con']]
+        for k in ('ipv4.method', 'ipv4.addresses', 'ipv4.gateway', 'ipv4.dns', 'ipv4.dns-search',
+                  'ipv6.method', 'ipv6.addresses', 'ipv6.gateway', 'ipv6.dns'):
+            if k in before:
+                v = before.get(k) or ''
+                back += [k, '' if v == '--' else v]
+        try:
+            run(back, 'nmcli connection modify (put back)')
+        except Exception:                               # noqa: BLE001
+            pass
+        raise
+
+
+def _net_apply_rest(n, said, before):
     said.append('NetworkManager: %s - %s via %s, DNS %s%s' % (
         n['con'], n['addr4'], n['gw4'] or 'no gateway', ', '.join(n['dns4']) or 'none',
         {'off': ', IPv6 off', 'auto': ', IPv6 automatic',
@@ -2993,13 +3015,14 @@ def ntp_conf_text(text, n):
         if inside:
             continue
         if l.startswith('#acme# '):
-            l = l[6:]                       # the file's own line, put back first
+            l = l[7:]                       # the file's own line, put back first (1.0.51: 7 -
+            #                                 a space more each time it was applied)
         out.append(l)
     if not n['manage']:
         return '\n'.join(out).rstrip('\n') + '\n'
     kept = []
     for l in out:
-        if l.strip().split(' ')[0] in NTP_KEYS:
+        if (l.split() or [''])[0] in NTP_KEYS:      # a tab after the word too (1.0.51)
             kept.append('#acme# ' + l)
         else:
             kept.append(l)
@@ -4800,12 +4823,42 @@ def sshd_selinux_port(port):
                       '(dnf install policycoreutils-python-utils)')
     got = subprocess.run(['semanage', 'port', '-a', '-t', 'ssh_port_t', '-p', 'tcp', str(port)],
                          capture_output=True, text=True)
-    if got.returncode != 0 and 'already defined' not in (got.stderr or ''):
+    if got.returncode != 0 and 'already defined' in (got.stderr or ''):
+        # Defined already - for sshd, or for another service (1.0.51): 8443 is http_port_t, and
+        # sshd, told it may, could not bind it after the reload and went away.
+        owner = sshd_port_type(port)
+        if owner and owner != 'ssh_port_t':
+            raise Refused('SELinux gives port %d to %s - sshd could not take it; choose another '
+                          'port' % (port, owner))
+    elif got.returncode != 0:
         got = subprocess.run(['semanage', 'port', '-m', '-t', 'ssh_port_t', '-p', 'tcp',
                               str(port)], capture_output=True, text=True)
         if got.returncode != 0:
             raise Refused('semanage: %s' % (got.stderr or got.stdout).strip()[-200:])
     return 'SELinux lets sshd use port %d' % port
+
+
+def sshd_port_type(port):
+    """The SELinux type that holds a TCP port (semanage port -l), '' when none or not known."""
+    got = subprocess.run(['semanage', 'port', '-l'], capture_output=True, text=True)
+    if got.returncode != 0:
+        return ''
+    found = ''
+    for line in (got.stdout or '').splitlines():
+        w = line.split(None, 2)
+        if len(w) < 3 or w[1] != 'tcp':
+            continue
+        for part in w[2].replace(' ', '').split(','):
+            try:
+                lo, _, hi = part.partition('-')
+                lo, hi = int(lo), int(hi or lo)
+            except ValueError:
+                continue
+            if lo <= port <= hi:
+                if w[0] == 'ssh_port_t':
+                    return 'ssh_port_t'
+                found = found or w[0]
+    return found
 
 
 def sshd_reload():

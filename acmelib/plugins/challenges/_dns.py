@@ -219,6 +219,14 @@ def _label_text(raw):
 
 def in_zone(name, zone):
     name, zone = norm(name), norm(zone)
+    if '\\' in name or '\\' in zone:
+        # by the labels (1.0.51): "evil\.acme.example.net" (labels evil.acme, example, net)
+        # ended with ".acme.example.net" as text
+        try:
+            nl, zl = [x.lower() for x in name_labels(name)], [x.lower() for x in name_labels(zone)]
+        except ValueError:
+            return False
+        return not zl or (len(nl) >= len(zl) and nl[len(nl) - len(zl):] == zl)
     return not zone or name == zone or name.endswith('.' + zone)
 
 
@@ -767,6 +775,10 @@ def send_update(server, msg, port=53, keyname=None, secret=None, alg='hmac-sha25
     data = exchange(server, wire, port=port, timeout=timeout, tcp=tcp)
     ans = parse(data)
     t = tsig_read(data) if ans.additional and ans.additional[-1].rtype == 250 else None
+    if keyname and t is None:
+        # signed, it must come back signed (1.0.51): an answer without a signature was taken
+        raise DnsError('the answer to the signed update is not signed (TSIG %s) - not taken'
+                       % keyname)
     if keyname and t is not None:
         if t['error']:
             raise DnsError('the server said %s: the TSIG key %s (or its algorithm %s) is not '

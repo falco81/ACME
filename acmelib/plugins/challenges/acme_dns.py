@@ -15,6 +15,9 @@ from acmelib.plugins.challenges._common import (PROPAGATION_FIELDS, DnsChallenge
 class AcmeDns(DnsChallenge):
     kind = 'acme_dns'
     discovery = False               # discovery: nothing to read from an account
+    # one name at a time (1.0.51): an account keeps the last two values only - a third name
+    # put at once (a, b, c - or *.x, x and www.x) pushed the first one's out
+    parallel = False
     title = 'acme-dns'
     vendor = 'DNS'
     description = ('An acme-dns server answers the TXT records; your DNS has _acme-challenge.NAME '

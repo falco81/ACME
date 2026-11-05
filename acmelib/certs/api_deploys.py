@@ -143,8 +143,8 @@ def _deploys_dry_run(h, s):
     if not A.may(s, 'fulladmin'):
         # where the key goes and how it is kept (1.0.51), as a save checks it: the script tried
         # was handed the key and the password of the certificate administrator's choosing
-        diff = {k: opts.get(k) for k in A.DEPLOY_KEY_OPTIONS
-                if k not in A.KEY_SECRETS and k in opts and opts.get(k) != saved.get(k)}
+        diff = {k: opts.get(k) for k in ('outputs',) + A.key_options(cls)
+                if k in opts and opts.get(k) != saved.get(k)}
         A._deploy_key_check(cls, diff, saved)
     by = A.who(s)
     run_script = A._flag(b.get('run_script'), 1)

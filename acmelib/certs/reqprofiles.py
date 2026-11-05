@@ -590,6 +590,27 @@ def csr_review(store, r, info):
         will, sub_err = {}, str(e)
     if sub_err:
         checks.append({'what': 'subject', 'ok': False, 'said': sub_err})
+    irow_kind = (S.plugin_row(store, 'issuer', cfg.get('issuer')) or {}).get('kind') \
+        if cfg.get('issuer') else ''
+    if irow_kind != 'internal_ca':
+        # A source that takes the CSR as it is (1.0.51): its subject is what the certificate
+        # says - a CN not among the names allowed, or a field other than the profile's, went
+        # to the CA unchecked.
+        if info.get('cn') and _low(info.get('cn')) not in names:
+            checks.append({'what': 'subject', 'ok': False,
+                           'said': 'the CN %s is not one of its names - the source takes the CSR '
+                                   'as it is' % info.get('cn')})
+        for k, _w in SUBJECT_FIELDS:
+            got_v = str(csr_subj.get(k) or '').strip()
+            if got_v and got_v != str(will.get(k) or '').strip():
+                checks.append({'what': 'subject', 'ok': False,
+                               'said': '%s=%s is not what the profile gives (%s) - the source '
+                                       'takes the CSR as it is' % (k, got_v, will.get(k) or 'none')})
+        extra = [k for k, _v in (info.get('subject_list') or [])
+                 if k not in ('CN',) and k not in dict(SUBJECT_FIELDS)]
+        if extra:
+            checks.append({'what': 'subject', 'ok': False,
+                           'said': 'fields the profile does not give: %s' % ', '.join(sorted(set(extra)))})
     cn = info.get('cn') if info.get('cn') and _low(info.get('cn')) in names else \
         (names[0] if names else '')
     subject = [{'field': 'CN', 'csr': info.get('cn') or '', 'cert': cn, 'how': 'names'}]
@@ -703,7 +724,7 @@ def request(h, s, b):
                                 who, r['name'], pick or '-'), 'warn', who=who)
             raise E.ApiError(403, 'choose one of your teams: %s' % (', '.join(mine) or 'none'))
         owner = got[0]
-    waits = bool(cfg.get('approval'))
+    waits = bool(cfg.get('approval')) or P.held_by_others(store, names, owner)   # (1.0.51)
     auto = bool(cfg.get('auto_renew', True))
     base_name = re.sub(r'[^A-Za-z0-9._@+-]+', '-', names[0].replace('*.', 'wildcard.'))[:80]
     name, n = base_name, 1

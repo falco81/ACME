@@ -146,7 +146,9 @@ class HestiaCpTarget(SshMixin, Base):
                     chain = ''.join(chain_list(bundle))
                     if chain:
                         s.put(chain.encode(), '%s/%s.ca' % (folder, dom), 0o600)
+                    dropped = False
                     if ssl_on and le_on:
+                        dropped = True
                         self.sh(s, self.cmd('v-delete-web-domain-ssl', user, dom, 'no'),
                                 what='turning Hestia\'s Let\'s Encrypt off for %s' % dom)
                         self.ctx.step('%s: Hestia\'s own Let\'s Encrypt is off for it (and so is '
@@ -158,8 +160,19 @@ class HestiaCpTarget(SshMixin, Base):
                                             restart), what='changing the certificate of %s' % dom)
                     else:
                         home = text(d.get('SSL_HOME')) or 'same'
-                        self.sh(s, self.cmd('v-add-web-domain-ssl', user, dom, folder, home,
-                                            restart), what='turning SSL on for %s' % dom)
+                        try:
+                            self.sh(s, self.cmd('v-add-web-domain-ssl', user, dom, folder, home,
+                                                restart), what='turning SSL on for %s' % dom)
+                        except PluginError as e:
+                            if dropped:
+                                # said plainly (1.0.51): Hestia's own certificate was taken off
+                                # first - the domain is left with no SSL at all
+                                raise PluginError('%s now has NO SSL: Hestia\'s own Let\'s '
+                                                  'Encrypt was turned off for it and the new '
+                                                  'certificate was refused (%s) - turn Let\'s '
+                                                  'Encrypt on again in Hestia, or deploy again'
+                                                  % (dom, e), retry=False)
+                            raise
                 finally:
                     s.run('rm -rf %s' % quote(folder), check=False)
                 self.ctx.step('%s: certificate installed%s' % (

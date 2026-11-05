@@ -148,24 +148,31 @@ class MikroTikTarget(SshMixin, HttpTarget):
             with self.ssh() as s:
                 crt, key = self._upload(s, name, bundle)
             self.ctx.step('put %s and %s on the router' % (crt, key))
-            for fn in (crt, key):
-                try:
-                    self.rest('POST', '/certificate/import',
-                              {'file-name': fn, 'passphrase': '', 'name': name},
-                              what='importing %s' % fn)
-                except PluginError:
-                    self.rest('POST', '/certificate/import', {'file-name': fn, 'passphrase': ''},
-                              what='importing %s' % fn)
-            found = self._find(fp)
-            if not found:
-                raise PluginError('the router did not take the certificate (its fingerprint '
-                                  'is not among its certificates)')
-            if found.get('private-key') not in ('true', True):
-                raise PluginError('the router took the certificate without its key')
-            for fn in (crt, key):
-                for f in self.rest('GET', '/file?name=%s' % fn, ok=(200, 404)) or []:
-                    if isinstance(f, dict) and f.get('.id'):
-                        self.rest('DELETE', '/file/%s' % f['.id'], ok=range(0, 600))
+            try:
+                for fn in (crt, key):
+                    try:
+                        self.rest('POST', '/certificate/import',
+                                  {'file-name': fn, 'passphrase': '', 'name': name},
+                                  what='importing %s' % fn)
+                    except PluginError:
+                        self.rest('POST', '/certificate/import', {'file-name': fn, 'passphrase': ''},
+                                  what='importing %s' % fn)
+                found = self._find(fp)
+                if not found:
+                    raise PluginError('the router did not take the certificate (its fingerprint '
+                                      'is not among its certificates)')
+                if found.get('private-key') not in ('true', True):
+                    raise PluginError('the router took the certificate without its key')
+            finally:
+                # the key's file taken away whatever came of it (1.0.51): left on the router's
+                # files after a failed import, for its other users to read
+                for fn in (crt, key):
+                    try:
+                        for f in self.rest('GET', '/file?name=%s' % fn, ok=(200, 404)) or []:
+                            if isinstance(f, dict) and f.get('.id'):
+                                self.rest('DELETE', '/file/%s' % f['.id'], ok=range(0, 600))
+                    except PluginError as e:
+                        self.ctx.step('%s could not be taken off the router: %s' % (fn, e), 'warn')
         if found.get('name') != name:
             self.rest('PATCH', '/certificate/%s' % found['.id'], {'name': name},
                       what='naming the certificate')
@@ -196,6 +203,16 @@ class MikroTikTarget(SshMixin, HttpTarget):
         if keep >= 0:
             certs = self.rest('GET', '/certificate') or []
             used = set(x.get('certificate') for x in self.rest('GET', '/ip/service') or [])
+            # ...and the VPN servers' (1.0.51): an old one still bound to SSTP or OpenVPN was
+            # taken away
+            for path in SINGLETONS.values():
+                try:
+                    got = self.rest('GET', path, ok=range(0, 600)) or []
+                except PluginError:
+                    continue
+                for r in (got if isinstance(got, list) else [got]):
+                    if isinstance(r, dict) and r.get('certificate'):
+                        used.add(r.get('certificate'))
             by = {c.get('name'): c for c in certs}
             for old in prune(by, prefix, keep, name):
                 if old in used:
@@ -243,14 +260,17 @@ class MikroTikTarget(SshMixin, HttpTarget):
                 crt, key = self._upload(s, name, bundle)
                 if name in have:
                     self.ros(s, '/certificate remove [find where name=%s]' % ros_str(name))
-                self.ros(s, '/certificate import file-name=%s passphrase=""' % ros_str(crt))
-                self.ros(s, '/certificate import file-name=%s passphrase=""' % ros_str(key))
-                # v6 names it after the file: <file>_0
-                self.ros(s, ':foreach c in=[/certificate find where name~%s] do={'
-                            '/certificate set $c name=%s}'
-                         % (ros_str('^' + re.escape(crt) + '_0$'), ros_str(name)), check=False)
-                self.ros(s, '/file remove [find where name=%s or name=%s]'
-                         % (ros_str(crt), ros_str(key)), check=False)
+                try:
+                    self.ros(s, '/certificate import file-name=%s passphrase=""' % ros_str(crt))
+                    self.ros(s, '/certificate import file-name=%s passphrase=""' % ros_str(key))
+                    # v6 names it after the file: <file>_0
+                    self.ros(s, ':foreach c in=[/certificate find where name~%s] do={'
+                                '/certificate set $c name=%s}'
+                             % (ros_str('^' + re.escape(crt) + '_0$'), ros_str(name)), check=False)
+                finally:
+                    # the key's file never left on the router (1.0.51)
+                    self.ros(s, '/file remove [find where name=%s or name=%s]'
+                             % (ros_str(crt), ros_str(key)), check=False)
                 if name not in self._names(s, prefix):
                     raise PluginError('the router did not take the certificate as %s' % name)
             self.ctx.step('imported as %s' % name, 'ok')

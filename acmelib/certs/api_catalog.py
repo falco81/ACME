@@ -53,7 +53,7 @@ def catalog(store, family, b):
             continue                # "" or the dots shown: the one kept
         cfg[k] = v
     name = (row or {}).get('name') or str(b.get('name') or 'unsaved')
-    ctx = runtime.RunContext(store, None, scope='%s:%s' % (family, name))
+    ctx = runtime.RunContext(store, None, scope='%s:%s' % (family, name), on_hostkey=False)
     try:
         got = cls(cfg, ctx).catalog(f.get('catalog') or key) or {}
     finally:

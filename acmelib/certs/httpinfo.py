@@ -195,15 +195,18 @@ def name_state(name, addrs, vip):
                          PATH)}
 
 
-def info(store, row):
+def info(store, row, seen=None):
     """Everything the popup, the row and --validation-show say of an
-    http_local validation. Other kinds: {'applies': False}."""
+    http_local validation. Other kinds: {'applies': False}. `seen`: the names of the
+    certificates the account may see (None: all) - left out before the list is cut."""
     if row.get('kind') not in KINDS:
         return {'applies': False, 'kind': row.get('kind')}
     m = machines(store)
     cls = S.row_class('challenge', row)
     cfg = S.plugin_config('challenge', row) if cls else {}
     pairs = names_of(store, row)
+    if seen is not None:
+        pairs = [(n, c) for n, c in pairs if c in seen]
     names = []
     for n, cert in pairs[:MOST_NAMES]:
         one = name_state(n, m['addresses'], m['vip'])

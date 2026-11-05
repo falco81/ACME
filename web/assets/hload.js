@@ -817,8 +817,17 @@ function hloadTick(now) {
       return;
     }
     /* the page's clock against the server's: the least late of the last answers (1.0.50) */
-    if (d.now) {
-      HL_OFF.push(d.now - Date.now() / 1000);
+    /* another node answers now (the VIP moved), or the server's clock was stepped (1.0.51):
+       the graphs start again from its own last two minutes, the clocks measured anew */
+    var est = d.now ? d.now - Date.now() / 1000 : null;
+    if ((HLOAD.lastNode && d.node && d.node !== HLOAD.lastNode) ||
+        (est !== null && HL_OFF.length && Math.abs(est - HLOAD.off) > 5)) {
+      HL_OFF.length = 0;
+      HLOAD.hist = null;
+    }
+    if (d.node) HLOAD.lastNode = d.node;
+    if (est !== null) {
+      HL_OFF.push(est);
       if (HL_OFF.length > 20) HL_OFF.shift();
       HLOAD.off = Math.max.apply(null, HL_OFF);
     }

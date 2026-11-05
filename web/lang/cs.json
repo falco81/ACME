@@ -53859,6 +53859,42 @@
   "huntc1_5": {
    "source": "the backup put back was made while it ran",
    "text": "obnovená kopie vznikla během běhu úlohy"
+  },
+  "huntc2_1": {
+   "source": "you asked for it yourself - someone else approves it",
+   "text": "požádali jste o něj sami – schválit ho musí někdo jiný"
+  },
+  "huntc2_2": {
+   "source": "the first pairing without a pairing code needs \"Check the application's certificate\" on: make a pairing code on the application and put it in \"Pairing code\" here",
+   "text": "první spárování bez párovacího kódu potřebuje zapnuté „Kontrolovat certifikát aplikace“: vytvořte v aplikaci párovací kód a zadejte ho sem do „Párovací kód“"
+  },
+  "huntc2_3": {
+   "source": "a host name is 64 characters at most",
+   "text": "jméno serveru má nejvýš 64 znaků"
+  },
+  "huntc2_4": {
+   "source": "a host name is 64 characters at most (hostnamectl takes no more)",
+   "text": "jméno serveru má nejvýš 64 znaků (víc hostnamectl nevezme)"
+  },
+  "huntc2_5": {
+   "source": "mail_helo: a host name (mail.example.cz) or an address in brackets ([192.0.2.5])",
+   "text": "mail_helo: jméno serveru (mail.example.cz) nebo adresa v hranatých závorkách ([192.0.2.5])"
+  },
+  "huntc2_6": {
+   "source": "the certificate file has a space or a line break in it",
+   "text": "soubor certifikátu obsahuje mezeru nebo zalomení řádku"
+  },
+  "huntc2_7": {
+   "source": "the key file has a space or a line break in it",
+   "text": "soubor klíče obsahuje mezeru nebo zalomení řádku"
+  },
+  "huntc2_8": {
+   "source": "the owner has a space or a line break in it",
+   "text": "vlastník obsahuje mezeru nebo zalomení řádku"
+  },
+  "huntc2_9": {
+   "source": "no client of the middleware for python here - imported with midclt",
+   "text": "klient middlewaru pro python tu není – importováno přes midclt"
   }
  },
  "patterns": {
@@ -73637,6 +73673,46 @@
   "phuntc1_4": {
    "source": "the host key of {0} {1} was taken as the first one seen (trust_first)",
    "text": "klíč serveru {0} {1} byl přijat jako první viděný (trust_first)"
+  },
+  "phuntc2_1": {
+   "source": "the CN {0} is not one of its names - the source takes the CSR as it is",
+   "text": "CN {0} není mezi jeho jmény – zdroj bere CSR tak, jak je"
+  },
+  "phuntc2_2": {
+   "source": "{0}={1} is not what the profile gives ({2}) - the source takes the CSR as it is",
+   "text": "{0}={1} není to, co dává profil ({2}) – zdroj bere CSR tak, jak je"
+  },
+  "phuntc2_3": {
+   "source": "fields the profile does not give: {0}",
+   "text": "pole, která profil nedává: {0}"
+  },
+  "phuntc2_4": {
+   "source": "the application now names {0}, not the names shown - look again",
+   "text": "aplikace teď uvádí {0}, ne jména, která byla zobrazena – podívejte se znovu"
+  },
+  "phuntc2_5": {
+   "source": "SELinux gives port {0} to {1} - sshd could not take it; choose another port",
+   "text": "SELinux dává port {0} službě {1} – sshd by ho nemohl použít; zvolte jiný port"
+  },
+  "phuntc2_6": {
+   "source": "{0} is not a time zone this machine knows (Europe/Prague, UTC...)",
+   "text": "{0} není časové pásmo, které tento stroj zná (Europe/Prague, UTC…)"
+  },
+  "phuntc2_7": {
+   "source": "api_port: {0} is the port of another service here",
+   "text": "api_port: {0} je port jiné služby na tomto stroji"
+  },
+  "phuntc2_8": {
+   "source": "the authorities under it go {0} deep - a path length of {1} breaks them ({2} at least, or empty)",
+   "text": "autority pod ní sahají do hloubky {0} – délka cesty {1} by je rozbila (aspoň {2}, nebo prázdné)"
+  },
+  "phuntc2_9": {
+   "source": "the answer to the signed update is not signed (TSIG {0}) - not taken",
+   "text": "odpověď na podepsanou změnu není podepsaná (TSIG {0}) – nepřijata"
+  },
+  "phuntc2_10": {
+   "source": "{0} could not be taken off the router: {1}",
+   "text": "{0} se nepodařilo z routeru odstranit: {1}"
   }
  },
  "rich": {

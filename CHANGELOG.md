@@ -5,6 +5,50 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.51 - not released
+- Deployments, for a certificate administrator (round 2): Caddy's files and owner, Kubernetes'
+  namespace and secret, Vault's mount, path and namespace, strongSwan's folder and file, Traefik's
+  folder, the Docker services given the key and the names in an Azure key vault are where the key
+  goes - a full administrator's. A haproxy deployment (its file required) or one with Windows'
+  store of shared certificates is now made by a full administrator. Caddy refuses a file name or
+  owner with a space or a line break in it.
+- pfSense, FortiGate and NGINX Unit no longer take another certificate's objects for this one's
+  (a name only starting the same, a label cut short - now with a mark of the whole); FortiGate
+  keeps a profile's or a VIP's other certificates when it sets its own.
+- TrueNAS: the private key is no longer on a command line while it is imported.
+- MikroTik: the key's file is taken off the router whatever the import came to; an old certificate
+  still bound to SSTP or OpenVPN is kept.
+- HestiaCP says plainly when a domain was left with no SSL; Proxmox node names cannot change the
+  API path; Synology's session id is masked in the debug log.
+- Fixes of round 1 put right: the first host key is kept for plain "hostkey" fields too (and under
+  the host's name), never from settings only tried, from Discover or from a catalogue; Test in the
+  editor of a saved target keeps it again; a dry run checks the key's password too; a certificate
+  of a CSR revoked and then failed once is not issued again for that key; a command-line job's
+  mark checks the process's start, not only its number; the certificates of a validation are
+  filtered before the list is cut.
+- acme's DNS server: its settings no longer read the database for every packet; names with an
+  escaped dot are matched by their labels; ANY over UDP answers one set of records (RFC 8482);
+  TCP connections are counted per /24 or /56.
+- The public CRL and certificates of acme's authorities: a limit for each source, not one for all.
+- acme-dns: one name at a time (an account keeps two values); RFC 2136: an answer to a signed
+  update must be signed.
+- An authority renewed with a path length shorter than the authorities under it need is refused;
+  renaming an authority keeps it the default one.
+- The portal: nobody approves their own request; an approve and a decline at once no longer both
+  go through; a name another owner's certificate holds waits for approval; a CSR for a source
+  that takes it as it is must have a CN among its names and only the subject the profile gives.
+- acme push: Discover works again (it had the modules' path); the names are ordered only as they
+  were shown; the first pairing without a code needs the application's certificate checked.
+- The command line writes a key file with its mode even over a file that was there, never through
+  a link; a notification's subject is one line, and a failure to draw one no longer holds the next
+  for six hours.
+- The server: SSH is not moved to a port SELinux gives another service; a network change failing
+  half way puts the profile back; a host name is 64 characters at most; the API port is not one of
+  another service (and the help says it takes a restart); the EHLO name must be a host name; the
+  SSH port sshd listens on is always let in; the time servers' file no longer gains a space each
+  time; a time zone is checked as the root helper checks it, and against the machine's zones;
+  asks of the root helper of one kind go one at a time.
+- The performance meter starts its graphs again when another node answers or the server's clock
+  was stepped.
 
 - Revoking a certificate the CA had revoked already (an answer lost on the way, or a twin's
   revoke tried again) is done, not a failure that never ends: its twin and its state follow.

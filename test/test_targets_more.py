@@ -849,12 +849,17 @@ class TrueNasTest(unittest.TestCase):
             if 'system.general.update' in cmd:
                 ui['id'] = 9
             return 0, 'null', ''
-        ssh = FakeSsh([(r'midclt', midclt)])
+        def client(cmd, inp):           # the middleware's own client reads the file (1.0.51)
+            certs.append({'id': 9, 'name': name})
+            return 0, '{"id": 9}', ''
+        ssh = FakeSsh([(r'python3 -c', client), (r'midclt', midclt)])
         t = make('truenas', {'host': 'nas'}, FakeCtx(ssh=ssh))
         self.assertIn('web interface', t.deploy(a, {'ftp': True}))
         cmds = [c for c, _ in ssh.runs]
-        self.assertTrue(any('midclt call -j certificate.create' in c and '$(cat /tmp/.acme-truenas-'
-                            in c for c in cmds))
+        self.assertTrue(any('python3 -c' in c and 'certificate.create' in c and
+                            '/tmp/.acme-truenas-' in c for c in cmds))
+        # the key never on a command line
+        self.assertFalse(any('$(cat' in c for c in cmds))
         body = json.loads(ssh.puts[0][1])
         self.assertEqual(body['create_type'], 'CERTIFICATE_CREATE_IMPORTED')
         self.assertEqual((body['certificate'], body['privatekey']), (a.fullchain_pem, a.key_pem))

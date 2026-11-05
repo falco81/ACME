@@ -353,6 +353,21 @@ MAIL_WORDS = {
 }
 
 
+def held_by_others(store, names, who):
+    """Whether a certificate of another owner names one of these (1.0.51): asked for on the
+    portal and issued at once, mail.corp.example of the IT team's - and its key taken. It waits
+    for approval then."""
+    me = str(who or '').lower()
+    for n in names or []:
+        for r in store.db.rows("SELECT owner, names FROM certs WHERE names LIKE ? AND "
+                               "state NOT IN ('revoked', 'declined')",
+                               ('%' + json.dumps(str(n).lower())[1:-1] + '%',)):
+            if str(n).lower() in [str(x).lower() for x in (S.jload(r.get('names'), []) or [])] \
+                    and str(r.get('owner') or '').lower() != me:
+                return True
+    return False
+
+
 def asker(store, cid):
     try:
         got = json.loads(store.get_meta(META + str(cid)) or 'null')
@@ -580,7 +595,8 @@ def _portal_request(h):
         owner = tm[0]
     # A wildcard waits for an administrator whatever portal_cert_auto says (1.0.45): issued at
     # once, with its key to take, it covered every host under the name.
-    auto = bool(E.CONFIG.get('portal_cert_auto')) and not any(n.startswith('*.') for n in names)
+    auto = bool(E.CONFIG.get('portal_cert_auto')) and not any(n.startswith('*.') for n in names) \
+        and not held_by_others(store, names, owner)
     base_name = re.sub(r'[^A-Za-z0-9._@+-]+', '-', names[0].replace('*.', 'wildcard.'))[:80]
     name = base_name
     n = 1
@@ -709,6 +725,11 @@ def _portal_approve(h):
     s = portal_session(h)
     b = h.body()
     row = need_right(h, s, b.get('id'), 'approve', 'approving')
+    # Never one's own (1.0.51): a member with "manage" asked for a wildcard (which always waits
+    # for approval) and approved it himself - and took its key. Declining one's own is fine.
+    if A._flag(b.get('ok')) and str(asker(h.store, row['id']).get('who') or '').lower() in \
+            my_names(s):
+        raise E.ApiError(403, 'you asked for it yourself - someone else approves it')
     return approve_request(h.store, row, portal_by(s), A._flag(b.get('ok')),
                            str(b.get('why') or '').strip()[:500])
 
@@ -731,9 +752,13 @@ def approve_request(store, row, by, ok, why):
     if ok:
         # Renewed by itself after it is approved - unless its request profile says not.
         auto = 0 if asker(store, row['id']).get('auto') is False else 1
-        store.db.update('certs', row['id'], {'state': 'new', 'state_at': t, 'auto_renew': auto,
-                                             'last_error': '', 'updated': t,
-                                             'updated_by': str(by)[:190]})
+        # taken from the waiting state in one step (1.0.51): an approve and a decline at once
+        # both passed the look above - issued while declined, both mails sent
+        n = store.db.run("UPDATE certs SET state = 'new', state_at = ?, auto_renew = ?, "
+                         "last_error = '', updated = ?, updated_by = ? WHERE id = ? AND state = ?",
+                         (t, auto, t, str(by)[:190], row['id'], WAITING))
+        if not n:
+            raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
         store.add_event('certificates', '%s approved %s, asked for on the portal by %s%s' % (
             by, row['name'], row.get('owner') or '?', (': ' + why) if why else ''), who=by)
         job_id = start_issue(store, row['id'], by, 'approved by %s' % by)
@@ -741,9 +766,11 @@ def approve_request(store, row, by, ok, why):
         return {'job_id': job_id, 'message': '%s approved - it is being issued' % row['name']}
     if not why:
         raise E.ApiError(400, 'say why it is declined - the person who asked is told')
-    store.db.update('certs', row['id'], {'state': DECLINED, 'state_at': t, 'auto_renew': 0,
-                                         'last_error': why, 'updated': t,
-                                         'updated_by': str(by)[:190]})
+    n = store.db.run("UPDATE certs SET state = ?, state_at = ?, auto_renew = 0, last_error = ?, "
+                     "updated = ?, updated_by = ? WHERE id = ? AND state = ?",
+                     (DECLINED, t, why, t, str(by)[:190], row['id'], WAITING))
+    if not n:
+        raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
     store.add_event('certificates', '%s declined %s, asked for on the portal by %s: %s' % (
         by, row['name'], row.get('owner') or '?', why), 'warn', who=by)
     tell(store, row['id'], 'declined', why)

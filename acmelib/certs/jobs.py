@@ -332,12 +332,28 @@ def _cli_mark(ident):
     return E.STATE_DIR / 'cli-jobs' / ('%d.pid' % int(ident))
 
 
+def _started(pid):
+    """When the process began (its start time in clock ticks since boot, and the boot): a pid
+    used again after a reboot or by another process is not taken for it (1.0.51)."""
+    try:
+        with open('/proc/%d/stat' % int(pid)) as f:
+            st = f.read().rsplit(')', 1)[1].split()
+        with open('/proc/sys/kernel/random/boot_id') as f:
+            boot = f.read().strip()
+        return '%s:%s' % (boot, st[19])
+    except (OSError, IndexError, ValueError):
+        return ''
+
+
 def cli_alive(ident):
     try:
-        pid = int(_cli_mark(ident).read_text().strip() or 0)
+        words = _cli_mark(ident).read_text().split()
+        pid = int(words[0]) if words else 0
     except (OSError, ValueError):
         return False
     if pid <= 0:
+        return False
+    if len(words) > 1 and _started(pid) != words[1]:
         return False
     try:
         os.kill(pid, 0)
@@ -372,7 +388,7 @@ def run_now(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', s
     mark = _cli_mark(job.id)
     try:
         mark.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        mark.write_text('%d\n' % os.getpid())
+        mark.write_text('%d %s\n' % (os.getpid(), _started(os.getpid())))
     except OSError:
         mark = None
     try:

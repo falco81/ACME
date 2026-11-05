@@ -111,8 +111,26 @@ class TrueNasTarget(SshMixin, Base):
                 tmp = '/tmp/.acme-truenas-%s' % secrets.token_hex(6)
                 s.put(body.encode(), tmp, 0o600)
                 try:
-                    self.midclt(s, 'certificate.create "$(cat %s)"' % quote(tmp),
-                                'importing %s' % name, job=True)
+                    # The key never on a command line (1.0.51): "$(cat tmp)" put it into midclt's
+                    # arguments, for any user of the NAS to read in ps. Its own client reads the
+                    # file; midclt as before only where that client is not there.
+                    code = ('import json, sys\n'
+                            'try:\n    from truenas_api_client import Client\n'
+                            'except ImportError:\n    from middlewared.client import Client\n'
+                            'with Client() as c:\n'
+                            '    print(json.dumps(c.call("certificate.create", '
+                            'json.load(open(sys.argv[1])), job=True)))\n')
+                    rc, out, err = self.sh(s, 'python3 -c %s %s' % (quote(code), quote(tmp)),
+                                           timeout=300, check=False)
+                    if rc != 0 and re.search(r'ImportError|ModuleNotFoundError|not found',
+                                             text(err) + text(out)):
+                        self.ctx.step('no client of the middleware for python here - imported '
+                                      'with midclt', 'warn')
+                        self.midclt(s, 'certificate.create "$(cat %s)"' % quote(tmp),
+                                    'importing %s' % name, job=True)
+                    elif rc != 0:
+                        raise PluginError('importing %s: %s' % (name, (text(err).strip() or
+                                                                      text(out).strip())[-300:]))
                 finally:
                     s.run('rm -f %s' % quote(tmp), check=False)
                 have = {c.get('name'): c.get('id') for c in self.certs(s)}

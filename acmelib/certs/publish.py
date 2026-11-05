@@ -360,13 +360,39 @@ RATE_PER_S = 50.0
 RATE_BURST = 200.0
 
 
-def allowed():
+_RATE_OF = {}                   # one source's own bucket (1.0.51)
+RATE_ONE_PER_S = 10.0
+RATE_ONE_BURST = 40.0
+RATE_ALL_PER_S = 400.0          # and all of them together, a ceiling
+
+
+def _net_of(client):
+    import ipaddress
+    try:
+        ip = ipaddress.ip_address(str(client or '').split('%')[0])
+        return str(ipaddress.ip_network('%s/%d' % (ip, 24 if ip.version == 4 else 56), strict=False))
+    except ValueError:
+        return str(client or '')
+
+
+def allowed(client=''):
+    """A bucket for each source (its /24 or /56), the whole one a ceiling above them (1.0.51):
+    one bucket for everybody let one client at 60 a second shut every relying party out."""
     with _RATE_LOCK:
         t = time.monotonic()
-        _RATE['tokens'] = min(RATE_BURST, _RATE['tokens'] + (t - _RATE['t']) * RATE_PER_S)
+        _RATE['tokens'] = min(RATE_ALL_PER_S * 2, _RATE['tokens'] + (t - _RATE['t']) * RATE_ALL_PER_S)
         _RATE['t'] = t
-        if _RATE['tokens'] < 1:
+        key = _net_of(client)
+        b = _RATE_OF.get(key) or {'t': t, 'tokens': RATE_ONE_BURST}
+        b['tokens'] = min(RATE_ONE_BURST, b['tokens'] + (t - b['t']) * RATE_ONE_PER_S)
+        b['t'] = t
+        _RATE_OF[key] = b
+        if len(_RATE_OF) > 5000:
+            for k in [k for k, v in _RATE_OF.items() if t - v['t'] > 60]:
+                _RATE_OF.pop(k, None)
+        if b['tokens'] < 1 or _RATE['tokens'] < 1:
             return False
+        b['tokens'] -= 1
         _RATE['tokens'] -= 1
         return True
 

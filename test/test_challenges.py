@@ -394,8 +394,10 @@ class TestDnsServer(unittest.TestCase):
         m = self.ask('host.' + ZONE, 'AAAA')
         self.assertEqual((m.texts('AAAA'), m.answer[0].ttl), (['2001:db8::80'], 120))
         self.assertEqual(self.ask(ZONE, 'CAA').texts('CAA'), ['0 issue "letsencrypt.org"'])
+        # ANY over UDP: one RRset only (RFC 8482, 1.0.51)
         m = self.ask('host.' + ZONE, 'ANY')
-        self.assertEqual({r.rtype for r in m.answer}, {1, 28})
+        self.assertEqual(len({r.rtype for r in m.answer}), 1)
+        self.assertTrue({r.rtype for r in m.answer} <= {1, 28})
 
     def test_refused(self):
         m = self.ask('www.google.com', 'A')

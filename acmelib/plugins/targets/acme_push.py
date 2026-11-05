@@ -184,6 +184,13 @@ class AcmePushTarget(HttpTarget):
         if code:
             return h, self.pair(h, code, me)
         # No code: maybe acme's key was pasted there - then a signed inventory answers.
+        if not as_bool(self.c('verify_tls', True), True):
+            # Not without TLS checked (1.0.51): nothing in the answer is signed by the
+            # application, and anyone in between would be pinned as it - the private keys
+            # sealed to them.
+            raise PluginError('the first pairing without a pairing code needs "Check the application'
+                              '\'s certificate" on: make a pairing code on the application and put it '
+                              'in "Pairing code" here', retry=False)
         try:
             self._call('inventory', {}, h['app_id'])
         except PluginError as e:

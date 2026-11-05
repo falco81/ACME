@@ -483,11 +483,6 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         raise base.PluginError('%s %s - approve it first' % (
             cert['name'], 'waits for approval' if was == 'pending-approval' else 'was declined'),
             retry=False)
-    if was == 'revoked' and cert.get('csr_given'):
-        # Its key is the CSR's, and acme cannot make another: a new CSR is needed.
-        raise base.PluginError('%s was revoked and is issued for a CSR sent in: send a new CSR '
-                               '(a new key) - the same one is not used again' % cert['name'],
-                               retry=False)
     try:
         # Its version revoked (1.0.51): a renewal after a revoke that failed once is 'failed',
         # not 'revoked' any more - the key it holds is the revoked one all the same.
@@ -495,6 +490,11 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
                                       'version = ?', (cert['id'], cert.get('version') or 0)))
     except Exception:                                   # noqa: BLE001
         key_out = False
+    if (was == 'revoked' or key_out) and cert.get('csr_given'):
+        # Its key is the CSR's, and acme cannot make another: a new CSR is needed.
+        raise base.PluginError('%s was revoked and is issued for a CSR sent in: send a new CSR '
+                               '(a new key) - the same one is not used again' % cert['name'],
+                               retry=False)
     if was == 'revoked' or key_out:
         # The one revoked may have gone because its key got out: never that key again.
         cert = dict(cert, reuse_key=0)

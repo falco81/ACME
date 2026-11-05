@@ -197,6 +197,8 @@ def net_check(store, node, want, rollback=False):
         except ValueError:
             raise ValueError('%r is not the address of a DNS server' % x)
     host = str(want.get('hostname') or '').strip().rstrip('.').lower()
+    if len(host) > 64:
+        raise ValueError('a host name is 64 characters at most (hostnamectl takes no more)')
     # The name the node has now, kept as it is, may be a short one - and going
     # back after a trial asks for the old one again: refused, the new network
     # stayed (1.0.139). Still a name, one part or more.

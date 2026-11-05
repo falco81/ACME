@@ -1551,7 +1551,7 @@ function modAction(key, r, a, button) {
     certificates and deployments made for those not covered yet. */
 function pushDiscover(r, button) {
   busy(button, true);
-  Promise.all([capi('targets/discover', {name: r.name}, 120), loadRows('sources'), loadRows('validation')]).then(function (got) {
+  Promise.all([capi('targets/push_discover', {name: r.name}, 120), loadRows('sources'), loadRows('validation')]).then(function (got) {
     var d = got[0], srcs = got[1] || [], vals = got[2] || [];
     var picks = {};
     var plan, src, val;
@@ -1615,7 +1615,10 @@ function pushDiscover(r, button) {
         var ids = Object.keys(picks).filter(function (k) { return picks[k].checked; });
         if (!ids.length) { toast('Choose a slot first', 'bad'); return; }
         busy(btn, true);
-        capi('targets/adopt', {name: r.name, slots: ids, plan: plan.value, issuer: src.value, challenge: val.value}, 180).then(function (x) {
+        /* the names shown, to be ordered only as they are (1.0.51) */
+        var shown = {};
+        arr(d.slots).forEach(function (sl) { if (ids.indexOf(String(sl.id)) >= 0) shown[sl.id] = arr(sl.names); });
+        capi('targets/adopt', {name: r.name, slots: ids, plan: plan.value, issuer: src.value, challenge: val.value, shown: shown}, 180).then(function (x) {
           closeModal();
           toast(said(x, 'made'), 'good');
           arr(x.left).forEach(function (l) { toast(l.slot + ': ' + l.why, 'warn'); });

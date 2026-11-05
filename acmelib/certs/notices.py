@@ -85,7 +85,10 @@ def _mail(to, drawn):
     site = str(E.CONFIG.get('site_name') or E.node_name())
     sender = E.mail_sender() or 'acme@%s' % E.node_name()
     msg = EmailMessage()
-    msg['Subject'] = '[acme %s] %s' % (E.node_name(), drawn.get('subject') or site)
+    # one line (1.0.51): a CA's error of several lines in {error} made the message fail -
+    # and the alert was lost for six hours
+    subj = ' '.join(str(drawn.get('subject') or site).split())[:300]
+    msg['Subject'] = '[acme %s] %s' % (E.node_name(), subj)
     msg['From'] = formataddr((str(E.CONFIG.get('mail_from_name') or site), sender))
     msg['To'] = ', '.join(to)
     msg['Date'] = formatdate(localtime=True)
@@ -115,9 +118,9 @@ def send(store, mid, key, values, force=False, mail_to=None, sms_to=None):
             last = float(store.get_meta(mk) or 0)
             if time.time() - last < NOTIFY_EVERY:
                 return went
-        if key:
-            store.set_meta(mk, str(time.time()))
         mail, sms = drawn(mid, values)
+        if key:
+            store.set_meta(mk, str(time.time()))     # once it is drawn (1.0.51)
         to = list(mail_to) if mail_to is not None else _split(E.CONFIG.get('certs_notify_mail'))
         if to:
             try:

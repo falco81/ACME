@@ -807,7 +807,9 @@ def do_try(store, b, by, keep_hostkey=False):
         if ref.family == 'target' and ref.row and keep_hostkey:
             ctx = deployer.target_context(store, job, ref.row)
         else:
-            ctx = runtime.RunContext(store, job, scope='%s:%s' % (ref.family, ref.name))
+            # kept only when asked (keep_hostkey), and never from settings only tried (1.0.51)
+            ctx = runtime.RunContext(store, job, scope='%s:%s' % (ref.family, ref.name),
+                                     on_hostkey=None if keep_hostkey else False)
         said = []
         try:
             obj = ref.cls(cfg, ctx)
