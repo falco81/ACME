@@ -1251,7 +1251,19 @@ $('ctl-find').addEventListener('input', function () {
     return (s.name + ' ' + s.key + ' ' + s.says + ' ' + tr(s.name) + ' ' + tr(s.says))
       .toLowerCase().indexOf(want) >= 0;
   }).slice(0, 12);
-  if (!hits.length) box.appendChild(el('div', 'ctl-none', 'Nothing by that name'));
+  /* the panes by their names as well (1.0.51): "Zálohy" found nothing, the pane being there */
+  var panes = Array.prototype.slice.call(document.querySelectorAll('.ctl-nav [data-pane]')).filter(function (n) {
+    return !n.hidden && n.textContent.trim().toLowerCase().indexOf(want) >= 0;
+  }).slice(0, 5);
+  panes.forEach(function (n) {
+    var b = el('button', 'ctl-hit ctl-hit-pane');
+    b.type = 'button';
+    b.appendChild(noI18n(el('span', 'ctl-hit-t', n.textContent.trim())));
+    b.appendChild(el('span', 'ctl-hit-w', 'the page'));
+    b.onclick = function () { showPane(n.dataset.pane); $('ctl-find').value = ''; box.hidden = true; };
+    box.appendChild(b);
+  });
+  if (!hits.length && !panes.length) box.appendChild(el('div', 'ctl-none', 'Nothing by that name'));
   hits.forEach(function (s) {
     var b = el('button', 'ctl-hit');
     b.type = 'button';
@@ -1276,7 +1288,23 @@ $('ctl-find').addEventListener('input', function () {
     };
     box.appendChild(b);
   });
-  box.hidden = !hits.length;
+  box.hidden = false;
+});
+/* the keys (1.0.51): ↓ into the list, ↑ ↓ along it, Enter the first one found */
+$('ctl-find').addEventListener('keydown', function (e) {
+  var hits = $('ctl-found').querySelectorAll('.ctl-hit');
+  if (e.key === 'ArrowDown' && hits.length) { e.preventDefault(); hits[0].focus(); }
+  else if (e.key === 'Enter' && hits.length) { e.preventDefault(); hits[0].click(); }
+  else if (e.key === 'Escape') { $('ctl-find').value = ''; $('ctl-found').hidden = true; }
+});
+$('ctl-found').addEventListener('keydown', function (e) {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  var hits = Array.prototype.slice.call($('ctl-found').querySelectorAll('.ctl-hit'));
+  var i = hits.indexOf(document.activeElement);
+  if (i < 0) return;
+  e.preventDefault();
+  if (e.key === 'ArrowDown' && i + 1 < hits.length) hits[i + 1].focus();
+  else if (e.key === 'ArrowUp') (i ? hits[i - 1] : $('ctl-find')).focus();
 });
 
 function loadSettings(redraw) {
@@ -9870,10 +9898,11 @@ function drawFwBody(d) {
      shows it, ACME-IN's lines marked - root reads it after every change,
      and again when asked. Where it has not been read yet, INPUT alone. */
   var full = fw.full || null, now = fw.now || {};
+  /* the words of ours in the pre (left as data) put in the page's language (1.0.51) */
   var paint = function () {
     var lines = full ? (full[FW.fam] || []) : (now[FW.fam] || []);
     clear(pre);
-    if (!lines.length) pre.textContent = '(nothing - or not known yet)';
+    if (!lines.length) pre.textContent = (typeof i18nText === 'function' && i18nText('(nothing - or not known yet)')) || '(nothing - or not known yet)';
     lines.forEach(function (line, i) {
       var ours = /ACME-IN/.test(line);
       var sp = el('span', ours ? 'fw-line fw-ours' : 'fw-line', line);

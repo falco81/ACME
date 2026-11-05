@@ -438,8 +438,10 @@ function td(cls, content) {
 /** Who did it and how long ago, each in a piece of its own (the time is
     translated, the name is not). */
 /** Who did something: a name is data, the daemon's own words are not. */
+var BY_WORDS = ['the renewer', 'command line', 'the command line', 'acme', 'the console', 'the portal', 'the scan', '–'];
 function byWho(who, cls) {
-  return who === 'the renewer' ? el('span', cls || '', who) : data('span', cls || '', who);
+  /* the daemon's own words translated (1.0.51: "command line" was left in English) */
+  return BY_WORDS.indexOf(who) >= 0 ? el('span', cls || '', who) : data('span', cls || '', who);
 }
 function whoWhen(by, ts) {
   var c = el('td', 'muted small ct-whowhen');
@@ -1101,7 +1103,7 @@ function kindPicker(family, go, filter) {
   var tiles = [];
   order.forEach(function (v) {
     var g = el('div', 'ct-kind-group');
-    if (v) g.appendChild(data('div', 'ct-vendor', v));
+    if (v) g.appendChild(el('div', 'ct-vendor', v));     /* a word (Public CA) translated, a name left as it is */
     var grid = el('div', 'ct-kind-grid');
     groups[v].forEach(function (p) {
       var t = el('button', 'ct-kind-tile');
@@ -1120,7 +1122,7 @@ function kindPicker(family, go, filter) {
       /* its vendor and kind, then its tags in a row of their own, at the bottom left
          of the tile, whatever the length of the words above (1.0.33) */
       var foot = el('span', 'ct-kind-foot');
-      if (flat && p.vendor) foot.appendChild(data('span', 'ct-kind-v', p.vendor));
+      if (flat && p.vendor) foot.appendChild(el('span', 'ct-kind-v', p.vendor));
       foot.appendChild(mono(p.kind, 'ct-kind-k'));
       w.appendChild(foot);
       var tl = modTags(family, p, null, {count: true});
@@ -1171,7 +1173,7 @@ function plugHead(p, family, row) {
   var w = el('div', 'ct-plughead-w');
   var t = el('div', 'ct-plughead-t');
   t.appendChild(el('b', '', p.title || p.kind));
-  if (p.vendor) t.appendChild(data('span', 'tag dim', p.vendor));
+  if (p.vendor) t.appendChild(el('span', 'tag dim', p.vendor));
   t.appendChild(mono(p.kind, 'muted small'));
   tagsInto(t, modTags(family, p, row || null));
   w.appendChild(t);
@@ -1242,7 +1244,8 @@ function modSummary(m, r) {
     if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) return;
     if (f.type === 'select') {
       var pr = optionPairs(f).filter(function (x) { return x[0] === String(v); })[0];
-      if (pr) v = pr[1];
+      /* the choice's words are the module's, translated (1.0.51) - not data as a value typed */
+      if (pr) { bits.push([f.label || f.key, String(pr[1]), true]); return; }
     }
     bits.push([f.label || f.key, Array.isArray(v) ? v.join(', ') : String(v)]);
   });
@@ -1250,7 +1253,7 @@ function modSummary(m, r) {
   bits.forEach(function (b) {
     var line = el('div', 'ct-sum-l');
     line.appendChild(el('span', 'muted', b[0] + ' '));
-    line.appendChild(mono(b[1]));
+    line.appendChild(b[2] ? el('b', '', b[1]) : mono(b[1]));
     box.appendChild(line);
   });
   if (!bits.length) box.appendChild(el('span', 'muted', '–'));
@@ -2306,7 +2309,7 @@ function modForm(key, row, p, fromPick, keep) {
   var m = MODS[key];
   var cfg = (keep && keep.config) || (row && row.config) || {};
   var form = null, name = null, note = null, on = null, tags = null, testSaid = null;
-  var title = row ? m.one + ' ' + row.name : m.newTitle + ' · ' + (p.title || p.kind);
+  var title = row ? m.one + ' ' + row.name : tr(m.newTitle) + ' · ' + tr(p.title || p.kind);   /* each part translated (1.0.51) */
   /* a module with versions (1.0.32): the one this uses, kept in its config */
   var versioned = arr((p._base || p).versions).length > 1;
   var gather = function () {
@@ -2917,7 +2920,8 @@ function certRow(c) {
   tr.appendChild(nc);
   tr.appendChild(td('', namesChips(c.names || c.cn, 2)));
   var ic = el('td', 'muted');
-  ic.appendChild(data('span', '', c.issuer || (c.source === 'import' ? 'imported' : (c.source === 'csr' ? 'outside CA' : '–'))));
+  ic.appendChild(c.issuer ? data('span', '', c.issuer)
+    : el('span', '', c.source === 'import' ? 'imported' : (c.source === 'csr' ? 'outside CA' : '–')));
   tr.appendChild(ic);
   var ec = el('td', 'ct-exp');
   if (c.not_after) {
@@ -3132,7 +3136,7 @@ function certPeek(id) {
     if (window.ACME_RUNPLAN) buttons.push({words: 'What happens', icon: 'list',
       says: 'Everything a renewal of it does, step by step: the key, every call to its source, how each name is proved, and on each target every call, file and command - worked out without doing any of it.',
       go: function () { ACME_RUNPLAN.open({id: c.id, name: c.name, back: back}); }});
-    if (MANAGE && c.issuer && c.not_after && c.state !== 'revoked')
+    if (MANAGE && c.issuer && c.not_after && c.state !== 'revoked' && !c.revoke_no)
       buttons.push({words: 'Revoke', icon: 'ban', go: function () { over(function () { revokeDialog(c); }, back); }});
     if (MANAGE && c.issuer && truthy(c.setup_due)) buttons.push({words: 'Set it up', cls: 'primary', icon: 'edit',
       says: 'Imported from its source: every step of Add a certificate - validation, key, renewal, profile, targets - read from the certificate, set as for a new one. The certificate in use stays as it is.',
@@ -7303,7 +7307,7 @@ function drawExpiryChart(host, d) {
   host.appendChild(tip);
   var weeks = rowsOf(d.weeks || d.expiry_by_week || d.by_week).map(function (w) {
     if (Array.isArray(w)) return {t: w[0], n: w[1] || 0};
-    return {t: Number(first(w.t, w.week, w.start, w.from, 0)), n: Number(first(w.n, w.count, w.total, 0)),
+    return {t: Number(first(w.t, w.week, w.start, w.from, 0)), end: Number(first(w.to, 0)), n: Number(first(w.n, w.count, w.total, 0)),
             manual: Number(first(w.manual, w.by_hand, 0)), certs: rowsOf(w.certs || w.names)};
   });
   if (!weeks.length) { host.appendChild(el('div', 'empty', 'Nothing runs out in the weeks ahead')); return; }
@@ -7342,8 +7346,8 @@ function drawExpiryChart(host, d) {
   weeks.forEach(function (p, i) {
     if (!p.n) return;
     var x = padL + step * i + (step - barW) / 2;
-    var days = (p.t - t0) / 86400;
-    var tone = days < 14 ? 'crit' : (days < 42 ? 'warn' : 'info');
+    var days = ((p.end || (p.t + 7 * 86400)) - t0) / 86400;   /* by the week's end (1.0.51) */
+    var tone = days <= 14 ? 'crit' : (days <= 42 ? 'warn' : 'info');
     var auto = Math.max(0, p.n - (p.manual || 0));
     var bh = auto ? Math.max(2, h * (auto / ceil)) : 0;
     if (auto) svg.appendChild(make('rect', {x: x, y: padT + h - bh, width: barW, height: bh, fill: col[tone], rx: 2, opacity: 0.88}));
@@ -7960,7 +7964,7 @@ function moduleDetail(fam, kind) {
   var vers = arr(p.versions).length ? arr(p.versions) : [p];
   var used = obj(obj(d.usage)[fam])[kind] || {};
   var again = moduleDetailAgain(fam, kind);
-  modal(FAM_WORDS[fam] + ' · ' + (p.title || kind), function (body) {
+  modal(tr(FAM_WORDS[fam]) + ' · ' + tr(p.title || kind), function (body) {
     var head = plugHead(p, fam);
     body.appendChild(head);
     var grid = el('div', 'msects');
@@ -8272,7 +8276,7 @@ function moduleMark(fam, p, v) {
   var cur = markOf(fam, p.kind, v.version || '');
   var pick = (cur.here || {}).state || '';
   var note = null;
-  modal(tr('Mark it') + ' · ' + (p.title || p.kind) + ' · ' + versionName(v.version || ''), function (body) {
+  modal(tr('Mark it') + ' · ' + tr(p.title || p.kind) + ' · ' + versionName(v.version || ''), function (body) {
     body.appendChild(el('p', 'note', 'How far this version of the module is checked - shown beside it everywhere. Kept in the database (every copy, both nodes) with the file it was set on: when the file changes, the mark says so.'));
     if (cur.release) {
       var r = el('p', 'small');

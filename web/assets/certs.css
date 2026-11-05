@@ -1052,3 +1052,8 @@ td.acc-role{white-space:nowrap}
 /* Key asked for: both (1.0.36) - each connection with its heading */
 .ck-half-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 6px}
 .ck-half-h:first-child{margin-top:4px}
+/* A phone (1.0.51): a certificate's names whole, not a letter a line */
+@media (max-width: 640px) {
+  .ct-name { white-space: nowrap; }
+  table td > .ct-names { min-width: 150px; }
+}

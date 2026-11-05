@@ -265,9 +265,12 @@ def _overview(h, s):
     weeks = []
     for i in range(12):
         a, b = t + i * 7 * 86400, t + (i + 1) * 7 * 86400
-        weeks.append({'from': a, 'to': b, 'n': int(store.db.value(
-            'SELECT COUNT(*) FROM certs WHERE not_after >= ? AND not_after < ?' + sw,
-            (a, b) + tuple(sa), 0) or 0)})
+        # Those renewed by hand apart, and the revoked and switched off not counted (1.0.51): the
+        # grey part of the bars was never drawn, the revoked ones counted as running out.
+        r = store.db.row("SELECT COUNT(*) AS n, SUM(CASE WHEN COALESCE(auto_renew, 0) = 0 THEN 1 "
+                         "ELSE 0 END) AS m FROM certs WHERE not_after >= ? AND not_after < ? AND "
+                         "state NOT IN ('revoked', 'disabled')" + sw, (a, b) + tuple(sa)) or {}
+        weeks.append({'from': a, 'to': b, 'n': int(r.get('n') or 0), 'manual': int(r.get('m') or 0)})
     recent = jobs.job_rows(store, per=10, where=T.where(store, s, 'view', 'c.owner'))['rows']
     alerts = renewer.alerts(store)
     if sc_ is not None:
@@ -710,6 +713,10 @@ def revocable(store, row):
         return 'it has no source acme speaks to'
     if str(irow.get('kind') or '') == 'selfsigned':
         return 'a self-signed certificate has no CA to revoke it at'
+    # a source that cannot revoke at all (1.0.51): Revoke was offered and its job failed
+    cls = S.row_class('issuer', irow)
+    if cls is not None and getattr(cls, 'revoke', None) is getattr(base.Issuer, 'revoke', None):
+        return '%s cannot revoke a certificate' % (getattr(cls, 'title', '') or irow.get('kind'))
     return ''
 
 

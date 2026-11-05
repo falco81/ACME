@@ -477,13 +477,13 @@ function stateNote(kind, title, words) {
 
 var LEVEL = {ok: 'ok', info: 'info', warn: 'warn', bad: 'bad', debug: 'debug'};
 function jobLog(steps) {
+  /* the words of each step translated as the admin pages' are (1.0.51) - only the time stays */
   var box = el('div', 'ct-log');
-  noI18n(box);
   if (!steps.length) { box.appendChild(el('div', 'muted', 'Waiting to begin…')); return box; }
   steps.forEach(function (s) {
     if (!Array.isArray(s)) s = [null, 'info', String(s)];
     var line = el('div', 'ct-log-l ' + (LEVEL[s[1]] || 'info'));
-    line.appendChild(el('b', '', s[0] ? clockWords(new Date(Number(s[0]) * 1000), true) : ''));
+    line.appendChild(noI18n(el('b', '', s[0] ? clockWords(new Date(Number(s[0]) * 1000), true) : '')));
     line.appendChild(el('i', '', {ok: '✓', bad: '✗', warn: '!'}[s[1]] || '·'));
     line.appendChild(el('span', '', String(s[2] || '')));
     box.appendChild(line);
@@ -960,7 +960,12 @@ function profileFacts(p) {
   var owner = p.owner === 'fixed' ? data('span', '', p.owner_team) : el('span', '', p.owner === 'team' ? 'a team of yours, chosen below' : 'you');
   var renew = el('span', '', p.auto_renew ? (p.renew_days ? 'by itself, ' + p.renew_days + ' days before the end' : 'by itself, before it runs out') : 'not by itself');
   return kvTable([
-    ['From', data('span', '', p.issuer + (p.issuer_title ? ' · ' + p.issuer_title : ''))],
+    ['From', (function () {        /* the module's title translated, the name as it is (1.0.51) */
+      var f = el('span', '');
+      f.appendChild(data('span', '', p.issuer));
+      if (p.issuer_title) { f.appendChild(document.createTextNode(' · ')); f.appendChild(el('span', '', p.issuer_title)); }
+      return f;
+    }())],
     p.challenge ? ['Names proved by', data('span', '', p.challenge)] : null,
     ['Names under', names],
     ['In the subject', subj],

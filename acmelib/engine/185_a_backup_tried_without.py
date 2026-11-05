@@ -300,9 +300,7 @@ def rb_verified_forget(store, at=None):
         if r['k'] == mine:
             store.set_meta(mine, json.dumps([x for x in rows if x not in hit]))
     fk = 'rbackup:vforgot:' + node_name()
-    fg = _meta_json(store, fk) or {}
-    if not isinstance(fg, dict):
-        fg = {}
+    fg = _meta_obj(store, fk)
     if at is None:
         fg['all_before'] = time.time()
     else:

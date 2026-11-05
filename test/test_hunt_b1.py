@@ -40,10 +40,14 @@ class Cluster(unittest.TestCase):
         self.assertIn("store = Storage(local)", src)
 
     def test_the_upgrade_waits_for_a_node_stepped_aside(self):
-        self.assertIn("beat_out = isinstance(n.get('maintenance'), dict)", engine('205'))
+        self.assertIn("beat_out = beat_aside(n)", engine('205'))
+        # the heartbeat's word is a bool (1.0.51): read as a dict it never was
+        self.assertTrue(E.beat_aside({'maintenance': True}))
+        self.assertFalse(E.beat_aside({'maintenance': False}))
+        self.assertTrue(E.beat_aside({'maintenance': {'on': True}}))
 
     def test_a_restart_waits_for_a_node_in_service(self):
-        self.assertIn("n['maintenance'].get('on')", engine('300'))
+        self.assertIn("not beat_aside(n)", engine('300'))
 
     def test_the_lease_read_again_before_a_scan(self):
         self.assertIn("now_lead = leader(self.store)", read('acmelib', 'certs', 'renewer.py'))

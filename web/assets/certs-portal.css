@@ -100,3 +100,6 @@ td.cp-changed{color:var(--warn);font-weight:600}
   .cp-csr-sec .cp-subj th:nth-child(4),.cp-csr-sec .cp-subj td:nth-child(4){display:none}
 }
 .cp-csr-sec table td > span.cp-sha,.cp-csr-sec table td > span.mono{white-space:normal}
+@media (max-width: 640px) {
+  .cp-table td .ct-names { min-width: 140px; }
+}
