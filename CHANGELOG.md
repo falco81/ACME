@@ -23,6 +23,37 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     one saved, as it is saved.
   - A certificate administrator of a team no longer sees other teams' certificates in a
     validation's setup, nor the result of another's import from a source.
+- **A hunt, round 2 (the certificates):**
+  - A renewal stopped after its new version was saved (in the twin, the deployments, a
+    restart) no longer puts the old state back over it: "failed" over a new version had it
+    ordered again, "new" left its deployments undone.
+  - A revoked twin is no longer deployed with the main certificate; a twin that could not be
+    revoked is said so ("revoke-failed") and not shown as revoked; revoked for a compromised
+    key, the versions before with the same key are revoked too.
+  - A failed deployment puts back only the files it had put in place - the ones after the
+    failure, never touched, were deleted (a live key among them).
+  - A deployment that stopped between its files and the reload is done again (the reload with
+    it), not taken as done because the files are the same.
+  - "Keep the key" keeps it only while it is of the key type asked - changed to RSA, it came out
+    EC again.
+  - A certificate alone imported into one there keeps its key only when it fits.
+  - The twin's end and its failures are in the alerts.
+  - A reason of revocation ACME's CAs do not take is said, not sent as "unspecified".
+  - The chain of a CSR's answer is kept nearest first, as an import's.
+- **A hunt, round 2 (backups, the command line, the databases):**
+  - The retention of a destination never takes away the backup just sent, nor counts one
+    stamped in the future (a wrong clock) as the newest.
+  - A MariaDB dump that fails half way puts back what was there (its DROP TABLEs cannot be
+    undone); the key that comes with a copy is checked writable before anything is replaced.
+  - The nightly dumps are pruned among themselves, of each engine - a dump made by hand or
+    before a move went first.
+  - "Try the newest" tries this installation's backup only, and wants the key whole.
+  - A move of the database no longer carries its events twice.
+  - `--local-user drop` asks (or wants `--yes`) without a terminal too - from a script it took
+    the account and its home away unasked.
+  - `--json` alone with `--rbackup-now`, `--restore`, `--ha-tls-off/--ha-tls-repair` and
+    `--split`; `--split-try` exits 1 when a node does not reach its arbiter.
+  - A tag of other letters ("účetní") is found by the search, and on MariaDB by the filter.
 - **A hunt, round 1 (the pages):**
   - Jobs at 100 a page showed 50, and the rest of the page was out of reach (paged twice).
   - "Save and deploy now" deployed twice - the look had started on the deployment just saved,

@@ -819,8 +819,10 @@ def generation(row):
 
 
 def is_dual(row):
-    """The certificate is dual and its twin has been issued."""
-    return bool(row.get('key_type_alt')) and bool(row.get('alt_cert_pem'))
+    """The certificate is dual and its twin has been issued - and not revoked (1.0.48: a revoked
+    twin was put on the servers with the new main one, after a revoke and a new one)."""
+    return bool(row.get('key_type_alt')) and bool(row.get('alt_cert_pem')) and \
+        str(row.get('alt_state') or '') != 'revoked'
 
 
 def issuer_dual(store, ref):

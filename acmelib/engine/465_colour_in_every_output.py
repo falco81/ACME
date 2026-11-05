@@ -257,18 +257,19 @@ def cli_split(args, pal, store, api, out):
     if args.split_try or (conf.get('split_mode') == 'arbiter' and
                           view['conf'].get('split_mode') != 'arbiter'):
         targets = {n['name']: arb.get(n['name'], n.get('arbiter') or '') for n in view['nodes']}
+        say = (lambda *a, **k: None) if getattr(args, 'json', False) else print
         asked = api('POST', '/api/split', {'action': 'try', 'targets': targets})
-        print(pal.dim('  each node asks its own arbiter: %s' % ', '.join(asked['nodes'])))
+        say(pal.dim('  each node asks its own arbiter: %s' % ', '.join(asked['nodes'])))
         got = cli_ask_wait(store, 'split_arbiter', asked, 25)
         for n, g in got.items():
             if not g:
-                print(pal.bad_line('%s: no answer - is acme running there?' % n))
+                say(pal.bad_line('%s: no answer - is acme running there?' % n))
                 continue
             line = ', '.join('%s %s' % (x['target'], {True: 'replies', False: 'no answer'}.get(
                 x['ok'], 'cannot be asked') + (' (%s)' % x['words'] if x.get('words') else ''))
                 for x in g.get('targets') or []) or g.get('error') or \
                 'no arbiter: no default gateway - give one'
-            print((pal.ok_line if g.get('verdict') is True else pal.bad_line)('%s: %s' % (n, line)))
+            say((pal.ok_line if g.get('verdict') is True else pal.bad_line)('%s: %s' % (n, line)))
         checked = bool(got) and all(g and g.get('verdict') is True for g in got.values())
         if conf.get('split_mode') == 'arbiter' and not checked:
             raise SystemExit('acme: not every node reaches its arbiter - nothing was saved: a '
@@ -277,10 +278,14 @@ def cli_split(args, pal, store, api, out):
     if conf or arb:
         got = api('POST', '/api/split', {'action': 'save', 'conf': conf, 'arbiter': arb,
                                          'checked': checked})
-        print(pal.ok_line(got['message']))
+        if not args.json:                   # JSON alone (1.0.48)
+            print(pal.ok_line(got['message']))
         view = got['view']
     elif args.split_try:
-        return 0
+        # Its exit says whether every node reached its arbiter (1.0.48: 0 whatever it said).
+        if args.json:
+            out({'checked': checked, 'nodes': got})
+        return 0 if checked else 1
     if args.json:
         out(view)
         return 0
@@ -2077,10 +2082,10 @@ def cli_osusers(args, pal):
             f['on'] = what == 'sudo-on'
         if do == 'drop':
             f['home'] = what == 'drop-home'
-            if sys.stdin.isatty() and input('take %s away on %s%s? type yes: ' % (
-                    name, ', '.join(nodes), ' with the home folder' if f['home'] else '')).strip() != 'yes':
-                print('nothing done')
-                return 1
+            # Asked as every destructive step is (1.0.48): from a script or cron, without a
+            # terminal, it took the account and its home away on every node unasked.
+            cli_sure(args, 'take %s away on %s%s' % (
+                name, ', '.join(nodes), ' with the home folder' if f['home'] else ''))
         try:
             osu_ask(store, nodes, 'list', who)
             settle(30)                      # what each node has, read first (the UID)
@@ -2628,15 +2633,17 @@ def cli_main(argv=None):
                 raise SystemExit('acme: --ha-tls-off switches off what stops somebody between the '
                                  'nodes from reading and writing the rows going over: add --yes')
             got = hatls_off(store, 'command line', here=False)
-            print(pal.warn_line(got['message']))
-            print('the daemons of both nodes go through the steps; follow them with  acme --ha-tls')
+            if not args.json:               # JSON alone (1.0.48)
+                print(pal.warn_line(got['message']))
+                print('the daemons of both nodes go through the steps; follow them with  acme --ha-tls')
         if args.ha_tls_repair:
             try:
                 got = hatls_start(store, 'command line', here=False)
             except ValueError as e:
                 raise SystemExit('acme: %s' % e)
-            print(pal.ok_line(got['message']))
-            print('the daemons of both nodes go through the steps; follow them with  acme --ha-tls')
+            if not args.json:
+                print(pal.ok_line(got['message']))
+                print('the daemons of both nodes go through the steps; follow them with  acme --ha-tls')
         v = hatls_view(store)
         if args.json:
             print(json.dumps(v, indent=2, default=str, ensure_ascii=False))
@@ -3562,6 +3569,9 @@ def cli_main(argv=None):
             raise SystemExit('acme: %s' % e)
         if run.get('error'):
             raise SystemExit('acme: %s' % run['error'])
+        if args.json:                       # JSON alone (1.0.48): it printed text with --json
+            out(run)
+            return 0 if run['ok'] else 2
         print(pal.ok_line('%s (%s, %s)' % (run.get('file'), human_bytes(run.get('bytes') or 0),
                                            'locked' if run.get('encrypted') else 'NOT locked')))
         for x in run['targets']:
@@ -3645,6 +3655,11 @@ def cli_main(argv=None):
                                   key_file=_key_beside(args.restore), need_admin=False)
         except (ValueError, OSError) as e:
             raise SystemExit('acme: %s' % e)
+        if args.json:                       # JSON alone (1.0.48)
+            out(dict(got, admins=int(store.db.value(
+                "SELECT COUNT(*) FROM accounts WHERE role = 'fulladmin' AND "
+                "COALESCE(disabled, 0) = 0") or 0)))
+            return 0
         print(pal.ok_line('put back (%s); what it replaced is kept as %s; %s'
                           % (DUMP_WORDS.get(got['kind'], got['kind']), got['safety'], got['key'])))
         if not store.db.value("SELECT COUNT(*) FROM accounts WHERE role = 'fulladmin' AND "

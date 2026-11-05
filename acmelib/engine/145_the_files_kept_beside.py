@@ -400,7 +400,10 @@ def make_dump(store, label='daily', folder=None):
                     pass
     _write_key_beside(target)
     if folder == DUMP_DIR:
-        _prune(DUMP_DIR, '*-*', int(CONFIG.get('backup_keep') or 14))
+        # The nightly ones only, of each engine apart (1.0.48): one made by hand, before a
+        # move or for a download counted too, and went first.
+        for eng in ('sqlite', 'postgres', 'mariadb'):
+            _prune(DUMP_DIR, 'acme-%s-*-daily.*' % eng, int(CONFIG.get('backup_keep') or 14))
     store.add_event('backups', 'made %s (%s): %s' % (
         DUMP_WORDS[kind], {'daily': 'every night', 'by-hand': 'by hand',
                            'download': 'to be downloaded'}.get(label, label), target.name))
@@ -729,6 +732,13 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
             raise ValueError('this copy was sealed with another key than the one both nodes '
                              'use; in a cluster it cannot be put back - the other node could '
                              'not open its secrets')
+    # The key that comes with it written in the end - checked first that it can be (1.0.48):
+    # the tables were put back and then the key not written, every secret unreadable.
+    if re.match(r'^[0-9a-f]{64}\Z', key_hex):
+        kp = Path(str(sealing_key_path()))
+        if not os.access(str(kp.parent), os.W_OK) or (kp.exists() and not os.access(str(kp), os.W_OK)):
+            raise ValueError('the key that came with it cannot be written to %s - nothing was '
+                             'put back' % kp)
     safety = make_backup(store, 'before putting %s back, by %s' % (from_name or 'a file', by))
     # The link between the databases describes the machines, not the data
     # (1.0.104): the authority and each node's steps as they are now stay;
@@ -782,10 +792,23 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
             with gzip.open(str(path), 'rb') as src, open(str(raw), 'wb') as dst:
                 _copy_capped(src, dst, room)
             with open(str(raw), 'rb') as sent:
-                _run([tool] + _my_args(c, cnf) + ['--default-character-set=utf8mb4',
-                                                  '--local-infile=0', '--binary-mode',
-                                                  safe_db_name(c)],
-                     'the MariaDB client', stdin=sent)
+                try:
+                    _run([tool] + _my_args(c, cnf) + ['--default-character-set=utf8mb4',
+                                                      '--local-infile=0', '--binary-mode',
+                                                      safe_db_name(c)],
+                         'the MariaDB client', stdin=sent)
+                except Exception as e:
+                    # MariaDB has no one transaction for a dump (1.0.48): its DROP TABLEs are
+                    # done whatever comes after - stopped half way, the tables were half there.
+                    # The copy made just before is put back, or at least named.
+                    try:
+                        store.db.make_tables()
+                        load_tables(store.db, str(safety))
+                        back = 'what was here before is back (%s)' % Path(str(safety)).name
+                    except Exception as e2:                  # noqa: BLE001
+                        back = ('putting back what was here failed too (%s) - put the copy %s '
+                                'back (Settings → The database)' % (e2, Path(str(safety)).name))
+                    raise ValueError('the dump could not be put back: %s; %s' % (e, back))
         finally:
             os.unlink(cnf)
             try:
@@ -850,7 +873,12 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
                             ca['key'] = unseal_secret(ca.get('key'), bind='hatls:ca')
                     except (ValueError, AttributeError, TypeError):
                         cas = None
-            write_replacing(sealing_key_path(), key_hex + '\n', 0o600)
+            try:
+                write_replacing(sealing_key_path(), key_hex + '\n', 0o600)
+            except OSError as e:
+                raise ValueError('the database is put back but its key could not be written (%s): '
+                                 'put the .key file that came with it in %s, or put back %s'
+                                 % (e, sealing_key_path(), safety.name))
             key_said = 'the key that opens the sealed secrets came with it and is in use now'
             if cas and all(ca.get('key') for ca in cas):
                 for ca in cas:

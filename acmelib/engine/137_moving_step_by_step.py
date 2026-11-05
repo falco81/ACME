@@ -798,6 +798,10 @@ def db_move_work(store, c, by, overwrite=False, progress=None, restart=None):
         try:
             for r in store.db.rows('SELECT ts, kind, node, level, who, words FROM events '
                                    'WHERE ts >= ? ORDER BY ts', (began,)):
+                # not those the copy had already (1.0.48): each was twice in the new database
+                if far.value('SELECT 1 FROM events WHERE ts = ? AND words = ?',
+                             (r['ts'], r['words'])) is not None:
+                    continue
                 far.insert('events', dict(r))
                 carried += 1
         except Exception as e:                          # noqa: BLE001

@@ -66,13 +66,18 @@ def write_files(t, s, files, tmp_dir='/tmp'):
             if f.get('owner'):
                 script.append('chown %s %s' % (quote(f['owner']), new))
             script.append('mv -f %s %s' % (new, p))
+            script.append('echo "PLACED %d"' % i)
         rc, out, err = t.sh(s, '\n'.join(script), check=False)
         existed = [False] * len(files)
+        placed = [False] * len(files)
         for line in text(out).splitlines():
             if line.startswith('EXISTED '):
                 existed[int(line.split()[1])] = True
+            elif line.startswith('PLACED '):
+                placed[int(line.split()[1])] = True
         if rc != 0:
-            put_back(t, s, files, existed)
+            # only what was put in place (1.0.48), as targets/ssh.py
+            put_back(t, s, files, existed, placed)
             raise PluginError('the files could not be written, the previous ones are back: %s'
                               % (text(err).strip() or text(out).strip())[-300:])
         return existed
@@ -84,10 +89,13 @@ def write_files(t, s, files, tmp_dir='/tmp'):
                 pass
 
 
-def put_back(t, s, files, existed):
+def put_back(t, s, files, existed, placed=None):
     script = []
-    for f, was in zip(files, existed):
+    for i, (f, was) in enumerate(zip(files, existed)):
         p = quote(f['path'])
+        if placed is not None and not placed[i]:
+            script.append('rm -f %s' % quote(f['path'] + '.acme-new'))
+            continue
         script.append(('cp -p %s %s' % (quote(f['path'] + PREV), p)) if was else 'rm -f %s' % p)
         script.append('rm -f %s' % quote(f['path'] + '.acme-new'))
     rc, out, err = t.sh(s, '\n'.join(script), check=False)

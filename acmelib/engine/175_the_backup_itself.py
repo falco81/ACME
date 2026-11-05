@@ -289,7 +289,7 @@ def rb_companions(name):
     return [name + '.sha256', base + '-RESTORE.md']
 
 
-def rb_retain(tr, keep, days, now=None):
+def rb_retain(tr, keep, days, now=None, sent=None):
     """This node's backups at a destination beyond what is kept, taken away -
     never the newest."""
     now = now or time.time()
@@ -305,12 +305,16 @@ def rb_retain(tr, keep, days, now=None):
                 when = datetime.strptime(m.group('stamp'), '%Y%m%d-%H%M%S').timestamp()
             except ValueError:
                 continue
+            # A time ahead of now (a clock that was wrong when it was made, 1.0.48): never the
+            # newest - it kept itself for good and had the one just sent taken away.
+            if when > now + 86400:
+                when = 0
             ours.append((when, x['name']))
     ours.sort(reverse=True)
     gone = []
     for i, (when, name) in enumerate(ours):
-        if i == 0:
-            continue
+        if i == 0 or (sent and name == sent):
+            continue                    # never the newest, never the one just sent
         if (keep and i >= keep) or (days and now - when > days * 86400):
             for n in [name] + [c for c in rb_companions(name) if c in names]:
                 try:
@@ -394,7 +398,8 @@ def rb_run(store, by, only=None, progress=None):
                 one['ok'] = True
                 try:
                     one['taken_away'] = rb_retain(tr, int(CONFIG.get('rbackup_keep') or 0),
-                                                  int(CONFIG.get('rbackup_keep_days') or 0))
+                                                  int(CONFIG.get('rbackup_keep_days') or 0),
+                                                  sent=m['file'])
                 except Exception as e:                  # noqa: BLE001
                     one['retain_error'] = str(e)[:200]
             except Exception as e:                      # noqa: BLE001

@@ -210,9 +210,11 @@ class ListQuery(object):
 
     def _word(self, word):
         cols = LIST_WORD_COLUMNS.get(self.list, ())
-        like = '%' + like_pattern(word.lower()) + '%'
-        sql = ["LOWER(COALESCE(%s, '')) LIKE ? ESCAPE '!'" % c for c in cols]
-        args = [like] * len(cols)
+        likes = ['%' + like_pattern(word.lower()) + '%']
+        if any(ord(ch) > 127 for ch in word):          # a JSON list's \u escapes too (1.0.48)
+            likes.append('%' + like_pattern(json.dumps(word.lower())[1:-1]) + '%')
+        sql = ["LOWER(COALESCE(%s, '')) LIKE ? ESCAPE '!'" % c for c in cols for _ in likes]
+        args = [lk for c in cols for lk in likes]
         return ('(' + ' OR '.join(sql) + ')', args)
 
     def _leaf(self, token, top):
@@ -285,9 +287,14 @@ class ListQuery(object):
         c = "LOWER(COALESCE(%s, ''))" % col
         if kind == 'list':
             # One word of a JSON list: ["www.example.cz", ...] - `*` within it.
+            # A JSON list holds a word of other letters as \\u escapes (json.dumps): looked for
+            # both ways (1.0.48 - a tag "účetní" was never found).
+            forms = [low] + ([json.dumps(low)[1:-1]] if any(ord(ch) > 127 for ch in low) else [])
             if op == '~':
-                return ("%s LIKE ? ESCAPE '!'" % c, ['%' + like_pattern(low) + '%'])
-            return ("%s LIKE ? ESCAPE '!'" % c, ['%"' + like_pattern(low) + '"%'])
+                pats = ['%' + like_pattern(f) + '%' for f in forms]
+            else:
+                pats = ['%"' + like_pattern(f) + '"%' for f in forms]
+            return ('(' + ' OR '.join(["%s LIKE ? ESCAPE '!'" % c] * len(pats)) + ')', pats)
         if op == '~':
             return ("%s LIKE ? ESCAPE '!'" % c, ['%' + like_pattern(low) + '%'])
         if kind == 'ip' and '*' not in low:

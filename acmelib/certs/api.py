@@ -207,8 +207,10 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
         where.append('issuer = ?')
         args.append(issuer)
     if tag:
-        where.append('tags LIKE ?')
-        args.append('%' + json.dumps(tag) + '%')
+        # Escaped as LIKE wants it on every engine (1.0.48): MariaDB took the \\ of a \\u escape
+        # for its own escape, and a tag of other letters was never found there.
+        where.append("tags LIKE ? ESCAPE '!'")
+        args.append('%' + E.like_pattern(json.dumps(tag)) + '%')
     if owner:
         where.append('LOWER(owner) = ?')
         args.append(owner.lower())
@@ -1030,6 +1032,10 @@ def cert_import(store, b, by):
             return row['id'], version
         if not key:
             key = S.cert_key(row)       # a new certificate for the key it has (a CSR's answer)
+            # ...only when it is that key's (1.0.48): renewed elsewhere with a new key, it was kept
+            # with the old one, and every server was given a certificate its key does not fit.
+            if key and S.pki().key_matches(leaf, key) is False:
+                key = None
         cid = row['id']
     else:
         name = S.clean_name(b.get('name'), 'the certificate\'s name') if b.get('name') else \
@@ -1266,6 +1272,13 @@ def _cert_csr_answer(h, s):
     if S.pki().key_matches(leaf, key) is False:
         raise ValueError('that certificate is not the answer to the CSR (another key)')
     chain = [p for p in (got.get('chain') or []) if p.strip() != leaf.strip()]
+    try:
+        # nearest first, as an import puts it (1.0.48): kept in the file's order before
+        ordered = S.pki().order_chain(leaf, chain)
+        if ordered:
+            chain = ordered
+    except Exception:                                   # noqa: BLE001
+        pass
     version = S.save_version(store, row['id'], leaf, chain, key, 'csr', who(s),
                              extra={'csr_pending': None})
     store.add_event('certificates', 'the answer to the CSR of %s taken (version %d) by %s' % (

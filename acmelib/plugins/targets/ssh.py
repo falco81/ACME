@@ -563,8 +563,9 @@ class SshTarget(SshMixin, Base):
                     have[parts[1].strip().lstrip('*')] = parts[0].lower()
             if any(have.get(p) != h for p, h in want):
                 return False
-        if len(want) == len(files):
-            return True
+        # ...and the deployment of this certificate here was done through to its reload (1.0.48):
+        # a drop between the files and the reload left the same files and an old service -
+        # taken as done, it was never reloaded until the next renewal.
         return self.unchanged(bundle, options)
 
     def _install(self, s, files, tmps, suffix):
@@ -585,22 +586,31 @@ class SshTarget(SshMixin, Base):
             if f['owner']:
                 script.append('chown %s %s' % (quote(f['owner']), new))
             script.append('mv -f %s %s' % (new, p))
+            script.append('echo "PLACED %d"' % i)
         rc, out, err = self.sh(s, '\n'.join(script), check=False)
         existed = [False] * len(files)
+        placed = [False] * len(files)
         for line in out.splitlines():
             if line.startswith('EXISTED '):
                 existed[int(line.split()[1])] = True
+            elif line.startswith('PLACED '):
+                placed[int(line.split()[1])] = True
         if rc != 0:
-            self._rollback(s, files, existed, suffix)
+            # Only the files put in place are put back (1.0.48): the ones after the failure
+            # were never touched - "not there before" had them deleted, live ones too.
+            self._rollback(s, files, existed, suffix, placed)
             raise PluginError('the files could not be written, the previous ones are back: %s'
                               % (err.strip() or out.strip())[-300:],
                               detail='\n'.join(script) + '\n' + out + err)
         return existed
 
-    def _rollback(self, s, files, existed, suffix):
+    def _rollback(self, s, files, existed, suffix, placed=None):
         script = []
-        for f, was in zip(files, existed):
+        for i, (f, was) in enumerate(zip(files, existed)):
             p = quote(f['path'])
+            if placed is not None and not placed[i]:
+                script.append('rm -f %s' % quote(f['path'] + '.acme-new'))
+                continue
             if was:
                 script.append('cp -p %s %s' % (quote(f['path'] + suffix), p))
             else:

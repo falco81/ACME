@@ -120,7 +120,7 @@ def rb_verify_file(path, password, work, made_here=True):
     key = None
     try:
         key = bytes.fromhex(open(os.path.join(top, 'secrets.key')).read().strip())
-        check('the key of the sealed secrets is in it', len(key) >= 32)
+        check('the key of the sealed secrets is in it', len(key) == 32)   # as a restore takes it: 64 hex (1.0.48)
     except (OSError, ValueError) as e:
         check('the key of the sealed secrets is in it', False, str(e)[:200])
     try:

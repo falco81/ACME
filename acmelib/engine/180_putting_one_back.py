@@ -253,7 +253,10 @@ def rb_remote_list(store, tid):
         out.append({'name': x['name'], 'bytes': x['size'], 'when': when,
                     'node': m.group('node'), 'site': m.group('site'),
                     'encrypted': bool(m.group('enc')),
-                    'mine': m.group('node') == rb_slug(node_name()),
+                    # this node's of this installation (1.0.48): a node of another site with the
+                    # same name, on a shared destination, had its backup tried as this one's
+                    'mine': m.group('node') == rb_slug(node_name()) and
+                    (m.group('site') or '') == rb_slug(CONFIG.get('site_name') or 'acme'),
                     'sha256': (x['name'] + '.sha256') in names})
     out.sort(key=lambda x: -x['when'])
     return out

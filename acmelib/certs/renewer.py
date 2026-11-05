@@ -565,6 +565,17 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             return ok, 'the twin: version %d, valid until %s; %s' % (version, until, said)
         key_type = cert.get('key_type') or 'ec-256'
         kept = S.cert_key(cert) if cert.get('reuse_key') and cert.get('key_sealed') else None
+        if kept:
+            # The key kept only while it is of the key type asked (1.0.48): changed to rsa-2048,
+            # the certificate came out ec-256 again - past a request profile's key types too.
+            try:
+                from acmelib.certs import pki as _pki
+                if _pki.key_info(kept)['key_type'] != key_type:
+                    job.step('a new key: the one kept is %s, %s is asked for'
+                             % (_pki.key_info(kept)['key_type'], key_type))
+                    kept = None
+            except Exception:                           # noqa: BLE001
+                kept = None
         pem, chain, key_out, info, iinfo = _issue_one(
             store, job, cert, irow, issuer, names, profile, challenges, key_type, kept,
             cert.get('cert_pem'), ref=cert.get('issuer_ref'))
@@ -614,8 +625,16 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         return ok, words
     except jobs.JobStopped:
         if only != 'alt':
-            store.db.update('certs', cert['id'], {
-                'state': was if was != 'renewing' else 'failed', 'state_at': time.time()})
+            now = S.cert_get(store, cert['id']) or {}
+            if str(now.get('version') or '') != str(cert.get('version') or '') and now.get('cert_pem'):
+                # Stopped after the new version was saved (1.0.48) - in the twin, the
+                # deployments, a restart: it is that version's, not the old state's. "failed"
+                # over a new version had it ordered again; "new" left its deployments undone.
+                if now.get('state') in ('renewing', 'deploying', None, ''):
+                    store.db.update('certs', cert['id'], {'state': 'ok', 'state_at': time.time()})
+            else:
+                store.db.update('certs', cert['id'], {
+                    'state': was if was != 'renewing' else 'failed', 'state_at': time.time()})
         raise
     except Exception as e:
         cert = S.cert_need(store, cert_id)
@@ -666,6 +685,7 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
     job.step('revoking %s (serial %s) at %s, reason %s' % (cert['name'], cert.get('serial'),
                                                           irow['name'], reason))
     said = issuer.revoke(cert['cert_pem'], reason, S.cert_key(cert))
+    twin_ok = True
     if cert.get('alt_cert_pem'):
         # The twin of a dual certificate: the same names, revoked with it.
         job.step('revoking its twin (%s, serial %s) too' % (cert.get('key_type_alt') or '?',
@@ -675,12 +695,39 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
             store.db.run('UPDATE cert_versions SET revoked = ? WHERE cert_id = ? AND version = ?',
                          (time.time(), cert['id'], cert.get('alt_version') or 0))
         except base.PluginError as e:
+            twin_ok = False
             job.step('the twin was not revoked: %s' % e, 'warn')
+    # A key compromised (1.0.48): every version still valid with the same key is revoked too -
+    # with "keep the key", the one before (a month left) went on with the key given away.
+    if reason == 'keyCompromise':
+        try:
+            from acmelib.certs import pki as _pki
+            mine = _pki.cert_info(cert['cert_pem']).get('pub_sha256')
+            for v in store.db.rows('SELECT version, cert_pem, not_after FROM cert_versions WHERE '
+                                   'cert_id = ? AND (revoked IS NULL OR revoked = 0) AND version <> ?',
+                                   (cert['id'], cert.get('version') or 0)):
+                if float(v.get('not_after') or 0) <= time.time() or not v.get('cert_pem'):
+                    continue
+                if v.get('version') == cert.get('alt_version'):
+                    continue
+                if _pki.cert_info(v['cert_pem']).get('pub_sha256') != mine:
+                    continue
+                try:
+                    issuer.revoke(v['cert_pem'], reason, S.cert_key(cert))
+                    store.db.run('UPDATE cert_versions SET revoked = ? WHERE cert_id = ? AND '
+                                 'version = ?', (time.time(), cert['id'], v['version']))
+                    job.step('version %s, with the same key, revoked too' % v['version'], 'ok')
+                except base.PluginError as e:
+                    job.step('version %s, with the same key, was not revoked: %s'
+                             % (v['version'], e), 'warn')
+        except Exception as e:                          # noqa: BLE001
+            job.step('the versions before with the same key could not be looked at: %s' % e, 'warn')
     t = time.time()
     revoked = {'state': 'revoked', 'state_at': t, 'auto_renew': 0, 'updated': t,
                'updated_by': str(by)[:190]}
     if cert.get('alt_cert_pem'):
-        revoked['alt_state'] = 'revoked'        # the twin too (1.0.45): it was shown as good
+        # the twin too (1.0.45): it was shown as good - as revoked only when it was (1.0.48)
+        revoked['alt_state'] = 'revoked' if twin_ok else 'revoke-failed'
     store.db.update('certs', cert['id'], revoked)
     store.db.run('UPDATE cert_versions SET revoked = ? WHERE cert_id = ? AND version = ?',
                  (t, cert['id'], cert.get('version') or 0))
@@ -688,6 +735,8 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
                     'warn')
     E.split_note(store, 'revoke', cert['name'], 'revoke:%s' % cert['id'])
     job.step('revoked', 'ok')
+    if not twin_ok:
+        return False, '%s; its twin was not revoked - revoke it again' % (said or 'revoked')
     return True, str(said or 'revoked')
 
 
@@ -1065,6 +1114,22 @@ def alerts(store):
             out.append({'key': 'cert-expiring:%s' % r['id'], 'level': 'warn',
                         'words': 'the certificate %s ends in %s and is not renewed by itself'
                                  % (r['name'], E.human_span(na - t))})
+    # The twin of a dual certificate (1.0.48): its end and its failures were said nowhere - a
+    # source that stopped giving one left it deployed until it ran out.
+    for r in store.db.rows("SELECT id, name, alt_state, alt_not_after, alt_error FROM certs "
+                           "WHERE COALESCE(enabled, 1) <> 0 AND COALESCE(alt_cert_pem, '') <> '' "
+                           "AND COALESCE(key_type_alt, '') <> '' AND state NOT IN ('revoked', "
+                           "'disabled')"):
+        na = float(r.get('alt_not_after') or 0)
+        if r.get('alt_state') == 'revoked':
+            continue
+        if na and na < t:
+            out.append({'key': 'cert-alt-expired:%s' % r['id'], 'level': 'bad',
+                        'words': 'the twin of the certificate %s has expired' % r['name']})
+        elif r.get('alt_state') in ('failed', 'revoke-failed'):
+            out.append({'key': 'cert-alt-failed:%s' % r['id'], 'level': 'bad',
+                        'words': 'the twin of the certificate %s: %s' % (
+                            r['name'], (r.get('alt_error') or r.get('alt_state'))[:200])})
     for d in store.db.rows("SELECT d.id, d.target, d.last_error, c.name FROM cert_deploys d "
                            "JOIN certs c ON c.id = d.cert_id WHERE d.state = 'failed' AND "
                            "COALESCE(d.enabled, 1) <> 0"):

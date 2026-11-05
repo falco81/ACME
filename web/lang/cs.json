@@ -53607,6 +53607,10 @@
   "b1_7": {
    "source": "By hand",
    "text": "Ručně"
+  },
+  "b2_1": {
+   "source": "revoke-failed",
+   "text": "odvolání selhalo"
   }
  },
  "patterns": {
@@ -73265,6 +73269,30 @@
   "pb1_13": {
    "source": "for an RSA key only - this one is {0}",
    "text": "jen pro klíč RSA – tento je {0}"
+  },
+  "pb2_1": {
+   "source": "the twin of the certificate {0} has expired",
+   "text": "dvojčeti certifikátu {0} skončila platnost"
+  },
+  "pb2_2": {
+   "source": "the twin of the certificate {0}: {1}",
+   "text": "dvojče certifikátu {0}: {1}"
+  },
+  "pb2_3": {
+   "source": "{0}; its twin was not revoked - revoke it again",
+   "text": "{0}; jeho dvojče nebylo odvoláno – odvolejte ho znovu"
+  },
+  "pb2_4": {
+   "source": "version {0}, with the same key, revoked too",
+   "text": "verze {0} se stejným klíčem odvolána také"
+  },
+  "pb2_5": {
+   "source": "version {0}, with the same key, was not revoked: {1}",
+   "text": "verze {0} se stejným klíčem nebyla odvolána: {1}"
+  },
+  "pb2_6": {
+   "source": "a new key: the one kept is {0}, {1} is asked for",
+   "text": "nový klíč: ponechaný je {0}, požadován je {1}"
   }
  },
  "rich": {

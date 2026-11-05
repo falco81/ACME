@@ -618,7 +618,12 @@ class AcmeIssuer(Issuer):
             try:
                 code = int(reason)
             except (TypeError, ValueError):
-                code = 0
+                # Said, not sent as "unspecified" without a word (1.0.48): cACompromise and
+                # certificateHold are not taken by ACME's CAs.
+                raise PluginError('an ACME source does not take the reason %s - choose another '
+                                  '(keyCompromise, superseded, cessationOfOperation, '
+                                  'affiliationChanged, privilegeWithdrawn, unspecified)' % reason,
+                                  retry=False)
         with self.client() as cl:
             cl.directory()
             try:
