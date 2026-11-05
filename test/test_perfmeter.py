@@ -51,7 +51,7 @@ def put(path, text):
 
 
 class Sensors(unittest.TestCase):
-    """plexmon's four (1.0.48): drivetemp never read, cores' temperatures by the topology."""
+    """As plexmon found (1.0.48): the cores' temperatures by the topology; drivetemp read as it is."""
 
     def fake_sys(self, ids, labels):
         root = tempfile.mkdtemp(dir=TMP)
@@ -64,11 +64,11 @@ class Sensors(unittest.TestCase):
         for i, (lab, t) in enumerate(labels, 2):
             put(os.path.join(h1, 'temp%d_label' % i), lab + '\n')
             put(os.path.join(h1, 'temp%d_input' % i), '%d\n' % (t * 1000))
-        # a drivetemp whose reading would block for good if it were opened
+        # a SATA disk's drivetemp: read as it is here (acme's disks are not put to sleep)
         h0 = os.path.join(hw, 'hwmon0')
-        os.makedirs(h0)
+        os.makedirs(os.path.join(h0, 'device', 'block', 'sda'))
         put(os.path.join(h0, 'name'), 'drivetemp\n')
-        os.mkfifo(os.path.join(h0, 'temp1_input'))
+        put(os.path.join(h0, 'temp1_input'), '37000\n')
         for n, cid in enumerate(ids):
             topo = os.path.join(root, 'devices/system/cpu/cpu%d/topology' % n)
             os.makedirs(topo)
@@ -87,12 +87,12 @@ class Sensors(unittest.TestCase):
         th = threading.Thread(target=go, daemon=True)
         th.start()
         th.join(5)
-        self.assertFalse(th.is_alive(), 'drivetemp was opened')
+        self.assertFalse(th.is_alive())
         return got['t']
 
-    def test_drivetemp_never_read(self):
+    def test_a_sata_disks_temperature(self):
         t = self.run_with(self.fake_sys([0, 1], [('Core 0', 48), ('Core 1', 44)]), 2)
-        self.assertEqual(t['disks'], {})
+        self.assertEqual(t['disks'], {'sda': 37.0})
         self.assertEqual(t['pkg_cores'], {'0:0': 48.0, '0:1': 44.0})
 
     def test_every_thread_its_cores_temperature(self):

@@ -6,9 +6,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.48 - not released
 
-- **The performance meter, with what plexmon 2.7.1-2.7.4 found in it:** it never reads `drivetemp`
-  (an ATA command to the disk, which woke a disk asleep every 3 s while a panel was open); free
-  space only of the kernel's own filesystems (a network share away hung the meter, FUSE and FAT
+- **The performance meter, with what plexmon 2.7.1-2.7.4 found in it:** free space only of the kernel's own filesystems (a network share away hung the meter, FUSE and FAT
   could reach the disks); every thread shows its core's temperature (by the topology - with
   hyperthreading half of them had none); nothing of a bar at 0 %, and a process's bar is its real
   share. The graphs go on after F5 (the last two minutes kept by the daemon), and the look chosen

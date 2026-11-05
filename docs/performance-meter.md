@@ -45,10 +45,10 @@ The details: each core (busy, MHz, temperature), the sensors, each disk (read, w
 temperature), the filesystems, each network card (state, speed, rates), and the processes taking the
 most processor and memory. A virtual machine has no temperature sensors, and says so.
 
-What it never touches (as plexmon 2.7.1-2.7.4 found):
+What plexmon 2.7.1-2.7.4 found, here too:
 
-- **no `drivetemp`**: its reading is an ATA command sent to the disk itself and wakes a disk asleep,
-  so SATA disks show no temperature here (NVMe's comes from its controller);
+- the temperatures of NVMe disks, and of SATA disks with the `drivetemp` module loaded, are read
+  as they are (acme's servers do not put their disks to sleep - plexmon, which does, skips drivetemp);
 - free space only of the kernel's own filesystems (ext4, xfs, btrfs, zfs, ...) - never FUSE, a
   network share (a server away would hang every page's meter) nor FAT;
 - each thread's temperature is its physical core's, by the CPU topology (hyperthreading, cores

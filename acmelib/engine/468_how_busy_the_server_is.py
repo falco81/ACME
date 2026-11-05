@@ -102,8 +102,8 @@ def _read_first(path, default=''):
 
 def load_temps():
     """What the sensors say: {'cpu': [(label, °C)], 'cores': {core n: °C}, 'pkg_cores': {'P:n': °C},
-    'disks': {name: °C}, 'other': [...]}. hwmon first (coretemp, k10temp, zenpower, nvme, acpitz...),
-    then the thermal zones - never drivetemp."""
+    'disks': {name: °C}, 'other': [...]}. hwmon first (coretemp, k10temp, zenpower, nvme, drivetemp,
+    acpitz...), then the thermal zones."""
     out = {'cpu': [], 'cores': {}, 'pkg_cores': {}, 'disks': {}, 'other': []}
     base = os.path.join(LOAD_SYS, 'class/hwmon')
     try:
@@ -113,11 +113,6 @@ def load_temps():
     for m in mons:
         d = os.path.join(base, m)
         chip = _read_first(os.path.join(d, 'name'))
-        # Never drivetemp (1.0.48, as plexmon 2.7.1): its reading is an ATA command sent to the
-        # disk itself - through a USB bridge too - and it wakes a disk asleep, every 3 s while a
-        # panel is open. NVMe's is its controller's, read without the disk.
-        if chip == 'drivetemp':
-            continue
         try:
             files = sorted(f for f in os.listdir(d) if re.match(r'^temp\d+_input$', f))
         except OSError:
@@ -143,7 +138,7 @@ def load_temps():
                     out['pkg_cores']['%s:%s' % (pkg.group(1) if pkg else '0', core.group(1))] = round(t, 1)
                 else:
                     out['cpu'].append([label, round(t, 1)])
-            elif chip == 'nvme':
+            elif chip in ('nvme', 'drivetemp'):     # read as they are: acme's disks never sleep
                 dev = ''
                 try:
                     dev = os.path.basename(os.path.realpath(os.path.join(d, 'device')))
@@ -153,6 +148,12 @@ def load_temps():
                     try:
                         nv = [x for x in os.listdir(os.path.join(d, 'device')) if re.match(r'^nvme\d+n\d+$', x)]
                         dev = nv[0] if nv else dev
+                    except OSError:
+                        pass
+                elif chip == 'drivetemp':
+                    try:
+                        blk = os.listdir(os.path.join(d, 'device', 'block'))
+                        dev = blk[0] if blk else dev
                     except OSError:
                         pass
                 if label.lower() in ('composite', chip, '') or dev not in out['disks']:
