@@ -45,7 +45,28 @@ class Reading(unittest.TestCase):
             self.assertIn(k, d)
 
 
+class History(unittest.TestCase):
+    def test_the_last_two_minutes_for_a_page_loaded_again(self):
+        E.LOAD_HIST.clear()
+        t = time.time()
+        for i in range(60):
+            E.LOAD_HIST.append((t - 200 + i * 3, float(i), 50.0, 1000, 2000))
+        got = E.load_history()
+        self.assertTrue(0 < len(got['cpu']) <= 40)
+        self.assertEqual(len(got['cpu']), len(got['mem']))
+        self.assertTrue(all(v >= 19 for v in got['cpu']))      # only the last 125 s
+        self.assertIn('hist', E.api_load(hist=True))
+
+    def test_the_page_asks_it_once(self):
+        js = read('web', 'assets', 'hload.js')
+        self.assertIn("(withHist ? '&hist=1' : '')", js)
+
+
 class Choices(unittest.TestCase):
+    def test_the_choice_is_kept_with_the_account(self):
+        self.assertIn("prefs.update(h.store.clean_prefs({k: b[k] for k in ('hload', 'hpanel') if k in b}))",
+                      read('acmelib', 'engine', '355_editing_the_columns_switched.py'))
+
     def test_off_unless_chosen_and_only_known_ones(self):
         st = E.Storage(E.open_db())
         self.assertEqual(st.clean_prefs({'hload': 'graphs', 'hpanel': 'map'}),

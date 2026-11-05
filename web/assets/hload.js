@@ -670,8 +670,20 @@ function hloadTick(now) {
   if (HLOAD.look === 'off') { $('hload').hidden = true; return; }
   HLOAD.busy = true;
   var withDetail = !!HLOAD.open;
-  api('load' + (withDetail ? '&detail=1' : '')).then(function (d) {
+  /* The first reading of a page asks the last two minutes too (1.0.48): loaded again (F5), the
+     graphs go on from where they were, not drawn from nothing. */
+  var withHist = !HLOAD.hist;
+  api('load' + (withDetail ? '&detail=1' : '') + (withHist ? '&hist=1' : '')).then(function (d) {
     if (d.detail) { HLOAD.detail = d.detail; HLOAD.detailAt = Date.now(); }
+    if (withHist && !HLOAD.hist && d.hist && Array.isArray(d.hist.cpu)) {
+      var seed = {};
+      ['cpu', 'mem', 'disk', 'net'].forEach(function (k) {
+        var v = (d.hist[k] || []).slice(-HLOAD_KEEP);
+        if (d.cpu !== undefined && v.length) v.pop();      /* this reading is drawn below */
+        seed[k] = v;
+      });
+      HLOAD.hist = seed;
+    }
     hloadDraw(d);
   }).catch(function () { }).then(function () { HLOAD.busy = false; });
 }

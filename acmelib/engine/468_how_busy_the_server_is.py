@@ -17,6 +17,7 @@ HLOAD_LOOKS = ('off', 'graphs', 'pills', 'line', 'rings')
 HLOAD_PANELS = ('tiles', 'table', 'map', 'wide', 'off')
 LOAD_LOCK = threading.Lock()
 LOAD_LAST = {'at': 0.0, 'raw': None, 'out': None}
+LOAD_HIST = collections.deque(maxlen=120)        # (at, cpu, mem %, disk B/s, net B/s)
 
 
 def _load_raw():
@@ -368,20 +369,49 @@ def server_load():
                 out[k] = rate(k)
             out['over_s'] = round(dt, 1)
         LOAD_LAST.update(at=now, raw=raw, out=out)
+        if out.get('cpu') is not None:
+            # The last two minutes of what was read (1.0.48), for a page loaded again (F5) or
+            # opened beside: its graphs go on from them, not drawn from nothing. Only readings
+            # made because a page asked - nothing is read for it.
+            mt = out.get('mem_total') or 0
+            LOAD_HIST.append((now, out['cpu'], 100.0 * (out.get('mem_used') or 0) / mt if mt else 0,
+                              (out.get('disk_rd') or 0) + (out.get('disk_wr') or 0),
+                              (out.get('net_rx') or 0) + (out.get('net_tx') or 0)))
         return out
 
 
-def api_load(detail=False):
-    """GET /api/load (full administrators only): the summary; with ?detail=1 also the details."""
+def load_history(span=125):
+    """{cpu, mem, disk, net: [...]} of the readings of the last `span` seconds, oldest first -
+    at most one each 2.5 s (as the pages ask every 3 s), 40 of each."""
+    t = time.time()
+    with LOAD_LOCK:
+        rows = [r for r in LOAD_HIST if t - r[0] <= span]
+    picked, last = [], 0.0
+    for r in rows:
+        if r[0] - last >= 2.5:
+            picked.append(r)
+            last = r[0]
+    picked = picked[-40:]
+    return {'cpu': [r[1] for r in picked], 'mem': [round(r[2], 1) for r in picked],
+            'disk': [r[3] for r in picked], 'net': [r[4] for r in picked],
+            'from': picked[0][0] if picked else None}
+
+
+def api_load(detail=False, hist=False):
+    """GET /api/load (full administrators only): the summary; with ?detail=1 also the details,
+    with ?hist=1 the last two minutes read (a page loaded anew)."""
     out = dict(server_load())
     if detail:
         out['detail'] = load_detail()
+    if hist:
+        out['hist'] = load_history()
     return out
 
 
 @route('GET', '/api/load')
 def _load(h):
     h.me('fulladmin')
-    out = api_load(detail=h.arg('detail') in ('1', 'true', 'yes'))
+    out = api_load(detail=h.arg('detail') in ('1', 'true', 'yes'),
+                   hist=h.arg('hist') in ('1', 'true', 'yes'))
     out['node'] = node_name()
     return out

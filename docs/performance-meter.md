@@ -54,6 +54,9 @@ most processor and memory. A virtual machine has no temperature sensors, and say
 - The pages do not ask while they are hidden, nor while the live updates are paused.
 - In a cluster, it is the node that answers the pages - the one holding the VIP address (its name is
   in the answer as `node`).
+- A page loaded again (F5), or opened beside another, goes on from the last two minutes read: the
+  daemon keeps the readings it made because a page asked (`?hist=1` with the first one) - nothing
+  is read for that.
 - The choices are kept with the account (`prefs`: `hload`, `hpanel`), on every device it signs in from.
 
 Code: `acmelib/engine/468_how_busy_the_server_is.py` (the daemon), `web/assets/hload.js` and

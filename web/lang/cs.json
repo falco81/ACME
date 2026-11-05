@@ -5178,7 +5178,7 @@
   },
   "s1293": {
    "source": "Leap status",
-   "text": "Leap status"
+   "text": "Stav přestupné sekundy"
   },
   "s1294": {
    "source": "Leave it",
@@ -21502,7 +21502,7 @@
   },
   "sc0393": {
    "source": "Common name",
-   "text": "Common name"
+   "text": "Common name (CN)"
   },
   "sc0394": {
    "source": "A new root authority",
@@ -53787,6 +53787,42 @@
   "hl_44": {
    "source": "How busy this node is - the processor, the memory, the disks and the network - in the header, every 3 s while the page is shown. Off unless chosen here; nothing is read on the server while it is off.",
    "text": "Jak je tento uzel vytížený – procesor, paměť, disky a síť – v záhlaví, každé 3 s, dokud je stránka vidět. Vypnuté, dokud ho tu nezapnete; když je vypnuté, server nic nečte."
+  },
+  "b2u_1": {
+   "source": "Customer",
+   "text": "Zákazník"
+  },
+  "b2u_2": {
+   "source": "Application",
+   "text": "Aplikace"
+  },
+  "b2u_3": {
+   "source": "Environment",
+   "text": "Prostředí"
+  },
+  "b2u_4": {
+   "source": "A renewal",
+   "text": "Obnova"
+  },
+  "b2u_5": {
+   "source": "FTP password",
+   "text": "Heslo FTP"
+  },
+  "b2u_6": {
+   "source": "Consumer key",
+   "text": "Consumer key (klíč spotřebitele)"
+  },
+  "b2u_7": {
+   "source": "no free name for the certificate - try again",
+   "text": "pro certifikát není volné jméno – zkuste to znovu"
+  },
+  "b2u_8": {
+   "source": "- the one-time code to type",
+   "text": "– zbývá zadat jednorázový kód"
+  },
+  "b2u_9": {
+   "source": "- the second step to set up",
+   "text": "– zbývá nastavit druhý krok"
   }
  },
  "patterns": {
@@ -73485,6 +73521,70 @@
   "phl_4": {
    "source": "hpanel is one of {0}",
    "text": "hpanel je jedno z: {0}"
+  },
+  "pb2u_1": {
+   "source": "{0} signed in to the portal with the password: a one-time code went by SMS to {1}",
+   "text": "{0} se přihlásil(a) k portálu heslem: jednorázový kód odešel SMS na {1}"
+  },
+  "pb2u_2": {
+   "source": "{0} signed in to the portal with the password: a one-time code went by mail to {1}",
+   "text": "{0} se přihlásil(a) k portálu heslem: jednorázový kód odešel e-mailem na {1}"
+  },
+  "pb2u_3": {
+   "source": "{0} signed in to the portal from {1}, with the one-time code by SMS",
+   "text": "{0} se přihlásil(a) k portálu z {1}, s jednorázovým kódem z SMS"
+  },
+  "pb2u_4": {
+   "source": "{0} signed in to the portal from {1}, with the one-time code by mail",
+   "text": "{0} se přihlásil(a) k portálu z {1}, s jednorázovým kódem z e-mailu"
+  },
+  "pb2u_5": {
+   "source": "{0} typed a wrong one-time code on the portal",
+   "text": "{0} zadal(a) na portálu špatný jednorázový kód"
+  },
+  "pb2u_6": {
+   "source": "{0} typed a wrong one-time code on the portal - the last try",
+   "text": "{0} zadal(a) na portálu špatný jednorázový kód – poslední pokus"
+  },
+  "pb2u_7": {
+   "source": "the one-time code for {0} to sign in to the portal could not be sent to {1}: {2}",
+   "text": "jednorázový kód pro přihlášení {0} k portálu se nepodařilo poslat na {1}: {2}"
+  },
+  "pb2u_8": {
+   "source": "trying check {0} ({1})",
+   "text": "zkouším test {0} ({1})"
+  },
+  "pb2u_9": {
+   "source": "dry run: {0}",
+   "text": "zkouška naostro bez změn: {0}"
+  },
+  "pb2u_10": {
+   "source": "the script written here ({0}) said:",
+   "text": "skript napsaný tady ({0}) řekl:"
+  },
+  "pb2u_11": {
+   "source": "{0} key-pem, {1} B",
+   "text": "{0} key-pem, {1} B"
+  },
+  "pb2u_12": {
+   "source": "asked for on the portal by {0} (request profile {1}, with a CSR). {2}",
+   "text": "vyžádáno na portálu uživatelem {0} (profil žádosti {1}, s CSR). {2}"
+  },
+  "pb2u_13": {
+   "source": "asked for on the portal by {0} (request profile {1}, with a CSR).",
+   "text": "vyžádáno na portálu uživatelem {0} (profil žádosti {1}, s CSR)."
+  },
+  "pb2u_14": {
+   "source": "asked for on the portal by {0} (request profile {1}).",
+   "text": "vyžádáno na portálu uživatelem {0} (profil žádosti {1})."
+  },
+  "pb2u_15": {
+   "source": "asked for on the portal by {0}.",
+   "text": "vyžádáno na portálu uživatelem {0}."
+  },
+  "pb2u_16": {
+   "source": "{0} · Own certificate authority",
+   "text": "{0} · Vlastní certifikační autorita"
   }
  },
  "rich": {
