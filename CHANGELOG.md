@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.49 - not released
+
 ## 1.0.48 - 2026-11-05
 
 - **The performance meter: switched on in Settings → About, and every node of a cluster.** Off by
