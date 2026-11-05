@@ -732,6 +732,13 @@ def db_move_work(store, c, by, overwrite=False, progress=None, restart=None):
     far = None
     held = False
     try:
+        # Nothing of the work here meanwhile (renewals, deployments) - from before the copy
+        # (1.0.45): what was written while it was made (minutes, on a big one) was in the old
+        # database only, and lost with the switch.
+        if DAEMON_DB[0] is not None:
+            RESTORE_WHY[0] = 'the database is being moved'
+            RESTORE_RUNNING.set()
+            held = True
         _mv_step('backup', 'run', 'making a copy of what is here')
         progress(0, MOVE['whole'], 'making a copy of what is here')
         copy = make_backup(store, 'before moving to %s, by %s' % (
@@ -739,12 +746,6 @@ def db_move_work(store, c, by, overwrite=False, progress=None, restart=None):
         MOVE['backup'] = str(copy)
         _mv_step('backup', 'ok', '%s (with its key beside it)' % copy)
         stop_if_asked()
-        # Nothing of the work here meanwhile (renewals, deployments): what it
-        # wrote here would not be there.
-        if DAEMON_DB[0] is not None:
-            RESTORE_WHY[0] = 'the database is being moved'
-            RESTORE_RUNNING.set()
-            held = True
         _mv_step('schema', 'run')
         if overwrite:
             gone = db_empty(c)

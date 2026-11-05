@@ -14,6 +14,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     ten minutes: a *Back up now* asked by the node still on 1.0.43 (unsigned) was refused for
     good on the upgraded one. Such asks are checked only once every node runs 1.0.44 (as the
     other rows newly guarded), and a node takes its asks away once they are over.
+- **Round 4 (backups, the cluster):**
+  - Moving the database: the work was held only after the copy was made - what was written
+    meanwhile (minutes on a big database: a renewal with its new key, a change on the pages)
+    stayed in the old database and was lost with the switch. Held before the copy now.
+  - A copy made by a newer acme is not put back into an older one (what the older one has no
+    column for was dropped without a word): install that version or newer first.
+  - A scheduled backup to another machine that failed (every destination away) is tried again
+    each hour that day, three times - it waited a day, or a whole week.
+  - How each destination went last is each node's own row: both nodes rewrote the one shared
+    list after a run and kept each other's (an administrator's change could be undone); the
+    history of backups is forgotten by each node for its own lines only.
 - **Round 2 (the certificates, the modules, the flows end to end):**
   - Revoked with a new one at once, a dual certificate's twin was issued again with the
     revoked key; it was shown as still good after the revocation; and it was renewed and

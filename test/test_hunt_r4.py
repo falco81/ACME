@@ -146,8 +146,10 @@ class BackupRuns(unittest.TestCase):
         E.rb_history_add(store, {'at': 20, 'node': E.node_name(), 'file': 'b'})
         self.assertEqual([r['file'] for r in E.rb_history(store)], ['c', 'b', 'a'])
         self.assertIsNotNone(store.get_meta(E.node_key('rbackup', 'runs')))
-        self.assertEqual(E.rb_history_forget(store, 30, 'c'), 1)
-        self.assertEqual([r['file'] for r in E.rb_history(store)], ['b', 'a'])
+        # this node forgets its own lines (and those of before), never the other node's row
+        self.assertEqual(E.rb_history_forget(store, 30, 'c'), 0)
+        self.assertEqual(E.rb_history_forget(store, 20, 'b'), 1)
+        self.assertEqual([r['file'] for r in E.rb_history(store)], ['c', 'a'])
 
 
 class SecondStepGone(unittest.TestCase):

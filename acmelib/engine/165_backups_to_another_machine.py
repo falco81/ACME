@@ -59,7 +59,32 @@ def rb_targets(store):
         got = json.loads(store.get_meta('rbackup:targets') or '[]')
     except ValueError:
         got = []
-    return [t for t in got if isinstance(t, dict) and t.get('id')]
+    out = [t for t in got if isinstance(t, dict) and t.get('id')]
+    # How each went last: each node's own row (1.0.45), the newest of them shown - the job wrote
+    # it into the one list both nodes share, both at once after a scheduled run, and the two
+    # kept each other's lists (an administrator's change on one could be undone by the other).
+    try:
+        lasts = {}
+        for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'rbackup:last:%'"):
+            tid = node_key_name('rbackup:last', r['k'])
+            try:
+                v = json.loads(r['v'] or '{}')
+            except ValueError:
+                continue
+            if isinstance(v, dict) and float(v.get('at') or 0) > float((lasts.get(tid) or {}).get('at') or 0):
+                lasts[tid] = v
+        for t in out:
+            if t['id'] in lasts and float(lasts[t['id']].get('at') or 0) > \
+                    float((t.get('last') or {}).get('at') or 0):
+                t['last'] = lasts[t['id']]
+    except Exception:                                   # noqa: BLE001
+        pass
+    return out
+
+
+def rb_last_set(store, tid, last):
+    """How a destination went, in this node's own row (1.0.45)."""
+    store.set_meta(node_key('rbackup:last', str(tid)), json.dumps(dict(last, node=node_name())))
 
 
 def rb_put_targets(store, targets):

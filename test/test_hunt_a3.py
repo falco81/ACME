@@ -68,5 +68,39 @@ class FromTheField(unittest.TestCase):
             self.assertIn('425_', E.where_it_broke())
 
 
+class Backups(unittest.TestCase):
+    def setUp(self):
+        self.store = E.Storage(E.open_db())
+
+    def test_a_copy_of_a_newer_acme_refused(self):
+        import gzip
+        p = os.path.join(TMP, 'newer.json.gz')
+        with gzip.open(p, 'wt') as f:
+            f.write(json.dumps({'acme': '9.9.9', 'engine': 'sqlite'}) + '\n')
+            f.write(json.dumps({'table': 'accounts'}) + '\n')
+            f.write(json.dumps({'id': 1, 'name': 'a', 'role': 'fulladmin'}) + '\n')
+        said, why = E.db_file_peek(p, 'sqlite', need_admin=False)
+        self.assertIsNone(said)
+        self.assertIn('newer than this one', why)
+
+    def test_how_a_destination_went_is_each_nodes_own(self):
+        self.store.set_meta('rbackup:targets', json.dumps([{'id': 'ab12', 'name': 'nas', 'kind': 'folder'}]))
+        E.rb_last_set(self.store, 'ab12', {'at': time.time(), 'ok': True})
+        self.assertTrue(self.store.get_meta(E.node_key('rbackup:last', 'ab12')))
+        t = E.rb_targets(self.store)[0]
+        self.assertTrue(t['last']['ok'])
+        self.assertNotIn('last', json.loads(self.store.get_meta('rbackup:targets'))[0])
+
+    def test_the_move_holds_before_the_copy(self):
+        src = open(os.path.join(ROOT, 'acmelib', 'engine', [n for n in os.listdir(
+            os.path.join(ROOT, 'acmelib', 'engine')) if n.startswith('137_')][0])).read()
+        self.assertLess(src.index("RESTORE_RUNNING.set()"), src.index("copy = make_backup(store, 'before moving"))
+
+    def test_a_failed_scheduled_backup_tried_again(self):
+        src = open(os.path.join(ROOT, 'acmelib', 'engine', [n for n in os.listdir(
+            os.path.join(ROOT, 'acmelib', 'engine')) if n.startswith('175_')][0])).read()
+        self.assertIn("'acme (scheduled, again: the one before failed)'", src)
+
+
 if __name__ == '__main__':
     unittest.main()

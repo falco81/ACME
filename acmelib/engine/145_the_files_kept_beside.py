@@ -620,6 +620,12 @@ def db_file_peek(path, engine, need_admin=True):
         return None, 'that file could not be read: %s' % str(e).split('\n')[0][:200]
     if said is None:
         return None, why
+    # Not one made by a newer acme (1.0.45): put back here, what this version has no column for
+    # was dropped without a word, and the older code ran on rows a newer one wrote.
+    made_by = str(said.get('version') or '')
+    if made_by and _ver_tuple(made_by) > _ver_tuple(__version__):
+        return None, ('that was made by acme %s, newer than this one (%s): install %s or newer '
+                      'first, then put it back' % (made_by, __version__, made_by))
     kind = said['kind']
     if kind not in ('copy', 'sqlite') and kind != engine:
         return None, ('that is %s, and this installation is on %s: a dump goes back only into '

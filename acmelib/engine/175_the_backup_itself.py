@@ -403,7 +403,7 @@ def rb_run(store, by, only=None, progress=None):
                 tr.close()
             one['secs'] = round(time.time() - t0, 1)
             run['targets'].append(one)
-            rb_set_fields(store, t['id'], '', '', last={
+            rb_last_set(store, t['id'], {
                 'at': time.time(), 'ok': one['ok'], 'error': one.get('error') or '',
                 'file': m['file'], 'bytes': m['bytes']})
         run['ok'] = all(x['ok'] for x in run['targets'])
@@ -469,6 +469,10 @@ def rb_history_forget(store, at=None, file=None):
     with RB_LOCK:
         rows = _rb_runs_rows(store)
         gone = 0
+        # This node's own row and the one of before only (1.0.45): one writer a row - the
+        # other node's rewritten here crossed its own write of a new run.
+        mine = node_key('rbackup', 'runs')
+        rows = {k: v for k, v in rows.items() if k in (mine, RB_RUNS_OLD)}
         for k, runs in rows.items():
             if at is None:
                 left = []
@@ -623,6 +627,22 @@ def rb_tick(daemon):
             rb_verify_start(store, 'acme (weekly)')
         except ValueError:
             pass
+    # The scheduled one failed (every destination away - a NAS restarting): tried again each
+    # hour that day, three times (1.0.45) - it waited for the next day, or a whole week.
+    today = datetime.now().strftime('%Y-%m-%d')
+    if getattr(daemon, '_rb_day', '') == today and not RB_JOB['running'] and \
+            getattr(daemon, '_rb_again', 0) < 3 and \
+            time.time() - float(getattr(daemon, '_rb_tried', 0) or 0) > 3600:
+        mine = [r for r in rb_history(store) if r.get('node') == node_name()]
+        if mine and not mine[0].get('ok') and \
+                datetime.fromtimestamp(float(mine[0].get('at') or 0)).strftime('%Y-%m-%d') == today:
+            daemon._rb_again = getattr(daemon, '_rb_again', 0) + 1
+            daemon._rb_tried = time.time()
+            try:
+                rb_job_start(store, 'acme (scheduled, again: the one before failed)')
+            except ValueError:
+                pass
+            return
     day = rb_due(store, getattr(daemon, '_rb_day', ''))
     if not day or RB_JOB['running']:
         return
@@ -634,6 +654,7 @@ def rb_tick(daemon):
         return
     if not any(t.get('enabled') for t in rb_targets(store)):
         return
+    daemon._rb_again, daemon._rb_tried = 0, time.time()
     rb_job_start(store, 'acme (scheduled)')
 
 
