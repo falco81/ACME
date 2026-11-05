@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.46 - not released
+## 1.0.46 - 2026-11-05
 
 - **A hunt, round 6 (rows of another shape, the cluster's upgrade, what 1.0.45 changed):**
   - Where "'str' object has no attribute 'get'" came from: 1.0.42 kept the password policy of
