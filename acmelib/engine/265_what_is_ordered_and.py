@@ -25,7 +25,7 @@ def acme_name_of(store, target):
     elif not name and target != 'vip':
         # Another node's own name, as that node publishes it (1.0.170): its
         # card said "for -" and Try port 80 asked http://?/.
-        name = str((_meta_json(store, 'acme:host:' + target) or {}).get('fqdn') or '').strip()
+        name = str((_meta_obj(store, 'acme:host:' + target)).get('fqdn') or '').strip()
     return name
 
 
@@ -56,7 +56,7 @@ def fqdn_cached():
 def acme_before(store, target):
     """The certificate a target had before ACME replaced it, as the page may
     see it (no key)."""
-    got = _meta_json(store, 'acme:before:' + target) or {}
+    got = _meta_obj(store, 'acme:before:' + target)
     if not got.get('cert'):
         return None
     info = got.get('info') or {}
@@ -68,7 +68,7 @@ def acme_before(store, target):
 def acme_put_back(store, target, by):
     """The certificate from before ACME back in place, ACME no longer renewing
     it; its TLS settings (protocols, ciphers, DH, HSTS) stay as they are now."""
-    got = _meta_json(store, 'acme:before:' + target) or {}
+    got = _meta_obj(store, 'acme:before:' + target)
     if not got.get('cert'):
         raise ValueError('there is no certificate from before ACME for this one')
     info = got.get('info') or {}
@@ -156,7 +156,7 @@ def acme_wanted(store):
 
 
 def acme_state(store, target):
-    return _meta_json(store, 'acme:state:' + target) or {}
+    return _meta_obj(store, 'acme:state:' + target)
 
 
 def acme_due(store, target, name):
@@ -173,7 +173,7 @@ def acme_due(store, target, name):
     # a moment picked in it - early too, where the CA says so (a revocation).
     # Earlier only, never later than acme's own measure below: a window gone
     # wrong (a CA's mistake, a clock) does not let a certificate run out.
-    ari = _meta_json(store, 'acme:ari:' + target) or {}
+    ari = _meta_obj(store, 'acme:ari:' + target)
     if ari.get('pick') and ari.get('cert') == (info.get('fingerprint') or '') and \
             time.time() - float(ari.get('at') or 0) < 2 * 86400 and time.time() >= float(ari['pick']):
         return 'the CA\'s renewal window (%s - %s)' % (stamp(ari['start']), stamp(ari['end']))
@@ -330,7 +330,7 @@ def acme_ari_refresh(store):
             if not w:
                 continue
             fp = (prof.get('info') or {}).get('fingerprint') or ''
-            was = _meta_json(store, 'acme:ari:' + t) or {}
+            was = _meta_obj(store, 'acme:ari:' + t)
             pick = was.get('pick') if (was.get('start'), was.get('end'), was.get('cert')) == \
                 (w['start'], w['end'], fp) else None
             if not pick:
@@ -486,7 +486,7 @@ def acme_challenge(store, token):
     """The answer for the CA, or None: what acme.php gives on port 80."""
     if not re.match(r'^[A-Za-z0-9_-]{8,256}\Z', str(token or '')):
         return None
-    got = _meta_json(store, 'acme:chal:' + token) or {}
+    got = _meta_obj(store, 'acme:chal:' + token)
     if not got.get('auth') or time.time() - float(got.get('at') or 0) > 3600:
         return None
     return got['auth']
@@ -502,7 +502,7 @@ def acme_file(store, host, path):
             not re.match(r'^/\.well-known/pki-validation/[A-Za-z0-9_.-]{1,128}\Z', path):
         return None
     k = 'acme:file:' + hashlib.sha256(('%s|%s' % (host, path)).encode('utf-8')).hexdigest()[:48]
-    got = _meta_json(store, k) or {}
+    got = _meta_obj(store, k)
     if not isinstance(got.get('content'), str) or time.time() > float(got.get('until') or 0):
         return None
     return got['content']
@@ -535,7 +535,7 @@ def acme_view(store):
                     'named': bool(str(store.settings_saved().get('acme_node_name@' + t) or '')
                                   .strip()) if t != 'vip' else bool(vip_conf(store).get('fqdn'))})
     mine = [t for t, _ in acme_targets(store)]
-    acc = _meta_json(store, 'acme:account') or {}
+    acc = _meta_obj(store, 'acme:account')
     return {'on': bool(CONFIG.get('acme')), 'targets': out, 'mine': mine,
             'directory': acme_directory_url(), 'account': {
                 'kid': acc.get('kid'), 'email': acc.get('email'), 'at': acc.get('at'),
@@ -543,7 +543,7 @@ def acme_view(store):
             'work': acme_work_view(), 'node': node_name(),
             'challenge': CONFIG.get('acme_challenge') or 'http-01',
             'dns_guide': acme_dns_guide(store),
-            'manual': {k: v for k, v in (_meta_json(store, 'acme:manual') or {}).items()
+            'manual': {k: v for k, v in (_meta_obj(store, 'acme:manual')).items()
                        if k in ('rr', 'txt', 'at', 'done')} or None}
 
 

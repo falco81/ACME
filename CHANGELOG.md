@@ -6,6 +6,29 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.46 - not released
 
+- **A hunt, round 6 (rows of another shape, the cluster's upgrade, what 1.0.45 changed):**
+  - Where "'str' object has no attribute 'get'" came from: 1.0.42 kept the password policy of
+    the local users as its signature (a text) where 1.0.43 keeps the policy itself. Every row of
+    that kind is now read as an object or as nothing (122 places), so a row of another shape -
+    an older version's - is written anew instead of breaking each look for good; setting a local
+    user's password no longer fails on such a row either. What the root helper says, the
+    backups' lists and the nodes' heartbeats likewise.
+  - Rows newly under the guard are taken under it, and accounts signed with their e-mail, mobile
+    and second step, only once every node of the last day runs the new version - not only the
+    ones alive just then: a node of 1.0.43 restarting during the upgrade came back to rows and
+    accounts refused. Until then an account is signed as before.
+  - Asks written for a node since forgotten (the users' with their sealed password hashes, SSH
+    keys, system updates, the console, SELinux, the network) are taken away; Back up now asks of
+    a node renamed or forgotten too, and of a node with a name over 63 characters.
+  - A scheduled backup tried again goes only to the destinations that failed (one NAS away sent
+    it to all of them, and each kept only so many). A line of the backups forgotten stays so.
+  - A job of no certificate (a target's test) - or of one deleted - is looked at, stopped and its
+    test read only by those who see every certificate and by the one who started it.
+  - A download that fails comes back to the pane it was started from; no mbstring needed; a
+    daemon away or a session over is said as such.
+  - A setting, an account or a directory taken away stays refused on the lights (only rows of
+    meta that are gone leave the list).
+
 - **"1 refused" by the guard against writes that stayed:** a refused row was taken off the list
   only when it was found good again - an old unsigned *Back up now* of a node still on 1.0.43,
   taken away by that node after its upgrade, stayed "on - 1 refused" on the lights until the

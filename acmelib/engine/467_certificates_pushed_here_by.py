@@ -384,7 +384,7 @@ def push_identity(store):
     """This acme's own Ed25519 key (the sender's): {'seed', 'public', 'id', 'text'},
     made the first time it is asked for and kept sealed."""
     with PUSH_LOCK:
-        got = _meta_json(store, 'acme_push:identity') or {}
+        got = _meta_obj(store, 'acme_push:identity')
         seed = None
         if got.get('seed'):
             plain = unseal_secret(got['seed'], 'acme_push:identity')
@@ -414,7 +414,7 @@ def push_pin(store, url, pin=None):
 def push_box(store):
     """This server's own keys (the receiver's): app_id and the X25519 pair."""
     with PUSH_LOCK:
-        got = _meta_json(store, 'acme_push:box') or {}
+        got = _meta_obj(store, 'acme_push:box')
         priv = None
         if got.get('priv') and got.get('app_id'):
             plain = unseal_secret(got['priv'], 'acme_push:box')
@@ -429,7 +429,7 @@ def push_box(store):
 
 
 def push_conf(store):
-    got = _meta_json(store, 'acme_push:conf') or {}
+    got = _meta_obj(store, 'acme_push:conf')
     keys = [k for k in (got.get('keys') or []) if isinstance(k, dict) and k.get('public')]
     return {'on': bool(got.get('on')), 'keys': keys[:PUSH_KEYS_MOST],
             'other_names': bool(got.get('other_names')),
@@ -451,7 +451,7 @@ def push_nonce_take(store, key_id, nonce, ts):
     if not once_take(store, 'push', str(key_id), str(nonce)):
         return False
     with PUSH_LOCK:
-        seen = _meta_json(store, 'acme_push:nonces') or {}
+        seen = _meta_obj(store, 'acme_push:nonces')
         t = time.time()
         seen = {k: v for k, v in seen.items() if t - float(v) < PUSH_NONCE_S}
         k = '%s:%s' % (key_id, nonce)

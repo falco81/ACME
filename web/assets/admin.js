@@ -2870,7 +2870,8 @@ function fileGet(url) {
   api('dl-ticket', {what: what ? what[1] : ''}).then(function (t) {
     toast('downloading…', '');
     var a = document.createElement('a');
-    a.href = url + (url.indexOf('?') < 0 ? '?' : '&') + 'dl=' + encodeURIComponent(t.dl);
+    a.href = url + (url.indexOf('?') < 0 ? '?' : '&') + 'dl=' + encodeURIComponent(t.dl)
+      + '&back=' + encodeURIComponent(location.hash.replace(/^#/, ''));
     a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();

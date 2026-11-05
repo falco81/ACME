@@ -845,7 +845,7 @@ def snmp_view(store):
     """Each node's agent, as its health row says, and the settings' state."""
     nodes = []
     for n in host_nodes(store):
-        row = _meta_json(store, 'host:health:' + n) or {}
+        row = _meta_obj(store, 'host:health:' + n)
         nodes.append({'node': n, 'me': n == node_name(), 'at': row.get('at'),
                       'snmp': row.get('snmp') or {}})
     c = snmp_conf()

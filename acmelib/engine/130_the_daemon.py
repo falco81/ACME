@@ -418,7 +418,7 @@ class Daemon(object):
             # The command line asks (1.0.45): the daemon's start, from its heartbeat - not the
             # command's own (an uptime of 0.0004 s).
             try:
-                started = float((_meta_json(self.store, 'node:' + node_name()) or {}).get('started')
+                started = float((_meta_obj(self.store, 'node:' + node_name())).get('started')
                                 or 0) or None
             except (TypeError, ValueError):
                 started = None
@@ -890,6 +890,10 @@ class Daemon(object):
                     % str(e).split('\n')[0][:200], 'info')
         try:
             dbguard_tidy(self.store)                    # signatures of sign-ins over (1.0.231)
+        except Exception:                               # noqa: BLE001
+            pass
+        try:
+            node_asks_of_gone_tidy(self.store)          # asks for nodes forgotten (1.0.46)
         except Exception:                               # noqa: BLE001
             pass
         try:

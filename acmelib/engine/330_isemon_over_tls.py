@@ -51,7 +51,7 @@ def isemon_client_cert(store, force=False):
     authority, renewed 60 days before it ends, kept sealed in the database and
     as two files only acme reads. Returns its end."""
     k = 'isemon:client:' + node_name()
-    got = _meta_json(store, k) or {}
+    got = _meta_obj(store, k)
     end = float(got.get('end') or 0)
     fresh = end - time.time() > ISEMON_CLIENT_RENEW_DAYS * 86400
     if not force and fresh and ISEMON_CLIENT_CRT.exists() and ISEMON_CLIENT_KEY.exists() and \
@@ -110,7 +110,7 @@ def isemon_tls_tick(daemon):
                     sh.tcp.pop(key).close()
                 except (OSError, KeyError):
                     pass
-    srv = _meta_json(store, 'isemon:server') or {}
+    srv = _meta_obj(store, 'isemon:server')
     left = (float(srv.get('end') or 0) - now) / 86400 if srv else None
     if left is not None and left < 60 and now - ISEMON_TLS_WORK['said'] > 86400 and \
             alerts_lead(store):
@@ -298,9 +298,9 @@ def isemon_tls_view(store):
     targets = syslog_targets(CONFIG.get('isemon_targets'))
     nodes = {}
     for n in host_nodes(store):
-        c = _meta_json(store, 'isemon:client:' + n) or {}
+        c = _meta_obj(store, 'isemon:client:' + n)
         nodes[n] = {'client_end': c.get('end')}
-    srv = _meta_json(store, 'isemon:server') or {}
+    srv = _meta_obj(store, 'isemon:server')
     return {'on': bool(CONFIG.get('isemon')),
             'targets': [{'host': h, 'port': p, 'proto': pr} for h, p, pr in targets],
             'tls': any(pr == 'tls' for _h, _p, pr in targets),

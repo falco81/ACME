@@ -106,8 +106,8 @@ def net_trial_tick(daemon, job):
     """A job on trial: kept, asked to go back, or out of time."""
     store = daemon.store
     me = node_name()
-    keep = _meta_json(store, 'net:keep:' + me) or {}
-    back = _meta_json(store, 'net:back:' + me) or {}
+    keep = _meta_obj(store, 'net:keep:' + me)
+    back = _meta_obj(store, 'net:back:' + me)
     if keep.get('id') == job.get('id'):
         job['kept'] = keep.get('by')
         _job_put(store, job, 'kept by %s' % keep.get('by'), 100, state='done')
@@ -129,7 +129,7 @@ def net_trial_tick(daemon, job):
 
 def net_trial_answer(store, node, act, by):
     """The pages (of either node) or the command line: keep it, or go back."""
-    job = _meta_json(store, 'net:job:' + node) or {}
+    job = _meta_obj(store, 'net:job:' + node)
     if job.get('state') != 'trial':
         raise ValueError('the network of %s is not waiting to be kept' % node)
     store.set_meta('net:%s:%s' % ('keep' if act == 'keep' else 'back', node),

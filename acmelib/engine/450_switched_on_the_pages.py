@@ -12,8 +12,8 @@ def console_login_view(store):
     nodes = [node_name()] + [n['name'] for n in ha_nodes(store) if n['name'] != node_name()]
     out = []
     for n in nodes:
-        now = _meta_json(store, 'console:now:' + n) or {}
-        want = _meta_json(store, 'console:want:' + n) or {}
+        now = _meta_obj(store, 'console:now:' + n)
+        want = _meta_obj(store, 'console:want:' + n)
         out.append({'name': n, 'me': n == node_name(), 'on': now.get('on'),
                     'users': now.get('users') or [],
                     'at': now.get('at'), 'error': now.get('error') or '',
@@ -41,8 +41,8 @@ def console_login_tick(daemon):
     """Every few seconds: a switch asked for this node done; how it is, said."""
     store = daemon.store
     me = node_name()
-    want = _meta_json(store, 'console:want:' + me) or {}
-    now = _meta_json(store, 'console:now:' + me) or {}
+    want = _meta_obj(store, 'console:want:' + me)
+    now = _meta_obj(store, 'console:now:' + me)
     if want and want.get('id') != now.get('done') and not CONSOLE_WORK['busy']:
         CONSOLE_WORK['busy'] = True
 

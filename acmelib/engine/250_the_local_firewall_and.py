@@ -406,7 +406,7 @@ def fw_auto(store, node):
                 FW_AUTO_OPTIONAL.append(item['key'])
             out.append(item)
     # Time served to the networks set in Settings → Time (1.0.120).
-    nc = _meta_json(store, 'ntp:conf') or {}
+    nc = _meta_obj(store, 'ntp:conf')
     if nc.get('manage') and nc.get('allow'):
         out.append({'key': 'ntp', 'title': 'NTP (time served)', 'why': 'this node serves the '
                     'time to the networks set under Settings → Time',

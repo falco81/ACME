@@ -226,6 +226,8 @@ def ha_nodes(store):
             beat = json.loads(r['v'] or '{}')
         except ValueError:
             continue
+        if not isinstance(beat, dict):
+            continue
         name = r['k'][5:]
         # With clock_beat (1.0.21) judged by the measured difference of the clocks.
         age = clock_beat_age(store, name, float(beat.get('at') or 0), now)

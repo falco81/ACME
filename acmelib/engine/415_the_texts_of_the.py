@@ -232,13 +232,8 @@ def mfa_mark(store, name, on):
 def mfa_marks_adopt(store):
     """The accounts with a second step set up before 1.0.44 noted as such - once every
     node runs 1.0.44 (an older one checks the account's signature without it)."""
-    if CONFIG.get('ha_mode'):
-        try:
-            if any(_ver_tuple(n.get('version')) < _ver_tuple('1.0.44') for n in ha_nodes(store)
-                   if n.get('alive') or n.get('me')):
-                return 0
-        except Exception:                               # noqa: BLE001
-            return 0
+    if not cluster_runs_at_least(store, '1.0.44'):
+        return 0
     n = 0
     for name, rec in mfa_all(store).items():
         if rec and rec.get('kind') in ('app', 'mail', 'sms'):

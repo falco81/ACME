@@ -200,7 +200,7 @@ def alert_problems(store, lang='en'):
             beats[node_name()] = json.loads(store.get_meta('node:' + node_name()) or '{}')
         except ValueError:
             beats[node_name()] = {}
-    health = {n: _meta_json(store, 'host:health:' + n) or {} for n in names}
+    health = {n: _meta_obj(store, 'host:health:' + n) for n in names}
     # The nodes, the replication, the database.
     if CONFIG.get('alerts_nodes', 1):
         for n in nodes:
@@ -285,7 +285,7 @@ def alert_problems(store, lang='en'):
                            ('This node answers, but leaves the renewals and deployments to '
                             'the preferred node.' if held else
                             'This node renews, deploys and answers DNS alone.'))), 'ha')
-        rep = _meta_json(store, 'split:report') or {}
+        rep = _meta_obj(store, 'split:report')
         if rep.get('twice_n') and now - float(rep.get('at') or 0) < 86400:
             add('split:twice', 'warn', '',
                 _al(lang, 'Během rozpojení se totéž udělalo na obou uzlech',
@@ -461,7 +461,7 @@ def alert_problems(store, lang='en'):
     # The clocks: the certificates' dates and the app's codes are worked out from them.
     if CONFIG.get('alerts_time', 1):
         for n in names:
-            data = ((_meta_json(store, 'ntp:now:' + n) or {}).get('data') or {})
+            data = ((_meta_obj(store, 'ntp:now:' + n)).get('data') or {})
             tr = data.get('tracking') or {}
             if not data.get('chrony') or not tr:
                 # Without chrony (as otp 1.0.242): what timedatectl says, as the node told it.
@@ -484,7 +484,7 @@ def alert_problems(store, lang='en'):
     # The updates of the system.
     if CONFIG.get('alerts_updates', 1):
         for n in names:
-            ck = _meta_json(store, 'host:osup:check:' + n) or {}
+            ck = _meta_obj(store, 'host:osup:check:' + n)
             if ck.get('state') != 'done':
                 continue
             if int(ck.get('security') or 0):
@@ -611,7 +611,7 @@ def alert_problems_more(store, lang, add, names, health, beats, cluster, quiet, 
         for n in names:
             for what, key, words in (('pg', 'dbtls:server:', _al(lang, 'PostgreSQL (TLS)', 'PostgreSQL (TLS)')),
                                      ('link', 'hatls:node:', _al(lang, 'spojení uzlů (TLS)', 'the link between the nodes (TLS)'))):
-                row = _meta_json(store, key + n) or {}
+                row = _meta_obj(store, key + n)
                 end = float(row.get('cert_end') or 0)
                 if not end:
                     continue
@@ -626,15 +626,15 @@ def alert_problems_more(store, lang, add, names, health, beats, cluster, quiet, 
                            else _al(lang, 'Vysoká dostupnost', 'High availability')), 'db' if what == 'pg' else 'ha')
     # The update of the system that failed, or could not even look.
     if CONFIG.get('alerts_updates', 1):
-        plan = _meta_json(store, 'host:osup:plan') or {}
+        plan = _meta_obj(store, 'host:osup:plan')
         if plan.get('state') == 'failed' and now - float(plan.get('ended') or 0) < 3 * 86400:
             n = plan.get('failed_on') or ''
             add('osup:failed', 'bad', n,
                 _al(lang, 'Aktualizace systému se nepovedla%s' % (' na ' + n if n else ''),
                     'The update of the system failed%s' % (' on ' + n if n else '')),
-                str(((_meta_json(store, 'host:osup:node:' + n) or {}).get('said') if n else '') or '')[:300], 'osup')
+                str(((_meta_obj(store, 'host:osup:node:' + n)).get('said') if n else '') or '')[:300], 'osup')
         for n in names:
-            ck = _meta_json(store, 'host:osup:check:' + n) or {}
+            ck = _meta_obj(store, 'host:osup:check:' + n)
             if ck.get('state') == 'failed' and now - float(ck.get('at') or 0) < 3 * 86400:
                 add('osup:check:' + n, 'warn', n,
                     _al(lang, '%s se nemůže podívat po aktualizacích' % n, '%s cannot look for updates' % n),
@@ -885,7 +885,7 @@ def alert_mail(new, still, gone, events, to, lang, test=False, left=0):
 
 
 def _alert_state(store):
-    st = _meta_json(store, 'alerts:state') or {}
+    st = _meta_obj(store, 'alerts:state')
     st.setdefault('problems', {})
     st.setdefault('log', [])
     return st
@@ -1230,9 +1230,9 @@ def report_build(store, since, until, lang='cs'):
     srows = []
     cluster = ha_nodes(store) if CONFIG.get('ha_mode') else []
     for n in [x['name'] for x in cluster] or [node_name()]:
-        h = _meta_json(store, 'host:health:' + n) or {}
-        ck = _meta_json(store, 'host:osup:check:' + n) or {}
-        tr = (((_meta_json(store, 'ntp:now:' + n) or {}).get('data') or {}).get('tracking') or {})
+        h = _meta_obj(store, 'host:health:' + n)
+        ck = _meta_obj(store, 'host:osup:check:' + n)
+        tr = (((_meta_obj(store, 'ntp:now:' + n)).get('data') or {}).get('tracking') or {})
         disk = max([d.get('pct') or 0 for d in h.get('disks') or []] or [0])
         srows.append([_h(n), '%s %%' % disk, ('%.3f s' % float(tr['offset'])) if tr else '–',
                       ('%s / %s' % (ck.get('count', '–'), ck.get('security', '–'))) if ck else '–',
@@ -1357,7 +1357,7 @@ def alerts_view(store):
                               sent=bool((st['problems'].get(k) or {}).get('sent')))
                          for k, p in sorted(now.items(), key=lambda kv: (kv[1]['level'] != 'bad', kv[0]))],
             'log': st['log'][:30], 'checked': st.get('checked'),
-            'health': {n: _meta_json(store, 'host:health:' + n) or {} for n in nodes},
+            'health': {n: _meta_obj(store, 'host:health:' + n) for n in nodes},
             'to': _alerts_to(), 'report_to': _alerts_to('report_to'),
             'mail': (CONFIG.get('mail_mode') or 'off') != 'off', 'lead': alerts_lead(store),
             'report': {'since': since, 'until': until, 'sent': store.get_meta('report:sent') == pid},

@@ -171,7 +171,7 @@ def split_preferred_unable(store, now=None):
     # Its clock "aside" only while its row is fresh (otp 1.0.227): kept aside for as long as
     # the nodes were apart, with the other node dead nobody answered.
     try:
-        c = _meta_json(store, 'clock:state:' + pref) or {}
+        c = _meta_obj(store, 'clock:state:' + pref)
         if c.get('role') == 'aside' and clock_row_age(store, pref, c, now) < 32:
             return 'the preferred node stepped aside for its clock'
     except Exception:                                   # noqa: BLE001
@@ -392,7 +392,7 @@ def split_state_of(store, name):
     """A node's state: this node's own live where the watch runs here, else its row."""
     if name == node_name() and split_watching():
         return split_state_here()
-    return _meta_json(store, 'split:state:' + name) or {}
+    return _meta_obj(store, 'split:state:' + name)
 
 
 def split_apart():
@@ -527,7 +527,7 @@ def split_peer_caught_up(store, now=None):
     for n in ha_nodes(store):
         if n.get('me'):
             continue
-        row = _meta_json(store, 'split:state:' + n['name']) or {}
+        row = _meta_obj(store, 'split:state:' + n['name'])
         if not row or row.get('apart'):
             continue
         try:

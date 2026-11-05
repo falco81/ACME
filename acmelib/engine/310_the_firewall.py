@@ -31,7 +31,7 @@ def fw_trial_begin(store, by):
     if not n:
         return None
     t = time.time()
-    trial = _meta_json(store, 'fw:trial') or {}
+    trial = _meta_obj(store, 'fw:trial')
     if not trial or trial.get('done'):
         trial = {'id': secrets.token_hex(6), 'was': fw_conf(store),
                  'access': access_conf(store) or access_in_nginx(), 'at': t, 'by': by}
@@ -46,7 +46,7 @@ def fw_trial_begin(store, by):
 
 
 def fw_trial_answer(store, act, by):
-    trial = _meta_json(store, 'fw:trial') or {}
+    trial = _meta_obj(store, 'fw:trial')
     if not trial or trial.get('done'):
         raise ValueError('no change of the firewall waits to be kept')
     if act == 'keep':
@@ -81,7 +81,7 @@ def fw_put_back(store, trial, why):
 
 
 def fw_trial_tick(store):
-    trial = _meta_json(store, 'fw:trial') or {}
+    trial = _meta_obj(store, 'fw:trial')
     if not trial or trial.get('done') or time.time() <= float(trial.get('until') or 0):
         return
     # One node puts it back (both would write the same rows at once).
@@ -105,7 +105,7 @@ def trials_view(store):
                         'words': 'the new network of %s (%s)' % (
                             job.get('node') or r['k'][8:], w.get('new_ip') or '?'),
                         'back': (w.get('old_ip') or '')})
-    trial = _meta_json(store, 'fw:trial') or {}
+    trial = _meta_obj(store, 'fw:trial')
     if trial and not trial.get('done') and float(trial.get('until') or 0) > t - 60:
         out.append({'kind': 'fw', 'node': '', 'until': float(trial.get('until') or 0),
                     'by': trial.get('last_by') or trial.get('by'),
@@ -149,7 +149,8 @@ def root_ask(ask_name, answer_name, data, wait=60):
         if isinstance(got, dict) and got.get('id') == ask_id:
             if not got.get('ok'):
                 raise ValueError(got.get('said') or 'the root helper said no')
-            return got.get('data') or {}
+            data = got.get('data')
+            return data if isinstance(data, (dict, list)) else {}
         time.sleep(0.4)
     raise ValueError('the root helper of this node did not answer in %d s - is acme-web.path '
                      'running?  systemctl status acme-web.path' % wait)
@@ -157,7 +158,7 @@ def root_ask(ask_name, answer_name, data, wait=60):
 
 def ntp_conf(store):
     c = dict(NTP_DEFAULT)
-    c.update(_meta_json(store, 'ntp:conf') or {})
+    c.update(_meta_obj(store, 'ntp:conf'))
     return c
 
 
@@ -308,7 +309,7 @@ def ntp_tick(daemon):
     if conf:
         want = ntp_desired(store)
         h = hashlib.sha256(json.dumps(want, sort_keys=True).encode()).hexdigest()[:24]
-        done = _meta_json(store, 'ntp:applied:' + me) or {}
+        done = _meta_obj(store, 'ntp:applied:' + me)
         # Tried again when it failed (1.0.207), every ten minutes: written down under
         # the hash wanted, a failure was never tried again once the helper was back.
         if (done.get('hash') != h and time.time() - float(done.get('at') or 0) > 30) or \
@@ -353,8 +354,8 @@ def ntp_view(store):
     for n in names:
         nodes.append({'name': n, 'me': n == node_name(),
                       'alive': True if n == node_name() else bool((hb.get(n) or {}).get('alive')),
-                      'now': _meta_json(store, 'ntp:now:' + n) or {},
-                      'applied': _meta_json(store, 'ntp:applied:' + n) or {}})
+                      'now': _meta_obj(store, 'ntp:now:' + n),
+                      'applied': _meta_obj(store, 'ntp:applied:' + n)})
     try:
         zones = json.loads(store.get_meta('ntp:zones') or '[]')
     except ValueError:

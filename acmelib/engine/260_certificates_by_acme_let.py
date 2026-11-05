@@ -277,7 +277,7 @@ class Acme(object):
 
     # -- the account -----------------------------------------------------------------
     def _account(self, fresh=False):
-        row = {} if fresh else (_meta_json(self.store, 'acme:account') or {})
+        row = {} if fresh else (_meta_obj(self.store, 'acme:account'))
         pem = unseal_secret(row.get('key') or '', 'acme') if row.get('key') else ''
         # The kind of key asked for (1.0.196): another one than the account has
         # makes a new account with a key of that kind.

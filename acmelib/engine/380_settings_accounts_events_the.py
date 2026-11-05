@@ -222,7 +222,7 @@ def _isemon(h):
     nodes = [n['name'] for n in ha_nodes(h.store)] if CONFIG.get('ha_mode') else [node_name()]
     out = []
     for n in sorted(set(nodes) | {node_name()}):
-        row = _meta_json(h.store, 'host:health:' + n) or {}
+        row = _meta_obj(h.store, 'host:health:' + n)
         st = (h.d.shipper.state() if h.d.shipper else {}) if n == node_name() else \
             (row.get('isemon') or {})
         out.append(dict(st, node=n, me=n == node_name(),

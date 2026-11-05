@@ -72,7 +72,7 @@ def _siem_view(h):
     me = h.d.siem.state() if getattr(h.d, 'siem', None) else {}
     out = []
     for n in nodes:
-        row = _meta_json(h.store, 'host:health:' + n) or {}
+        row = _meta_obj(h.store, 'host:health:' + n)
         st = me if n == node_name() else (row.get('siem') or {})
         out.append(dict(st, node=n, me=n == node_name(), at=time.time() if n == node_name()
                         else row.get('at')))
@@ -260,7 +260,7 @@ def _acme_do(h):
             return acme_view(h.store)
         if act in ('manual_done', 'manual_drop'):
             # The TXT record put in by hand (1.0.169) - or the order given up.
-            got = _meta_json(h.store, 'acme:manual') or {}
+            got = _meta_obj(h.store, 'acme:manual')
             if not got.get('id'):
                 raise ValueError('no order waits for a TXT record now')
             if act == 'manual_done':

@@ -67,7 +67,7 @@ def _logs_tick(daemon, force):
     h = logs_hash(want)
     again = store.get_meta('host:logs:again') or ''
     k = 'host:logs:' + node_name()
-    row = _meta_json(store, k) or {}
+    row = _meta_obj(store, k)
     age = time.time() - float(row.get('at') or 0)
     if force or again != LOGS_WORK['again'] or row.get('hash') != h:
         pass
@@ -94,8 +94,8 @@ def logs_view(store):
     h = logs_hash(want)
     out = []
     for n in nodes:
-        row = _meta_json(store, 'host:logs:' + n) or {}
-        health = _meta_json(store, 'host:health:' + n) or {}
+        row = _meta_obj(store, 'host:logs:' + n)
+        health = _meta_obj(store, 'host:health:' + n)
         out.append({'node': n, 'me': n == node_name(), 'disks': health.get('disks') or [],
                     'health_at': health.get('at'), 'at': row.get('at'), 'ok': row.get('ok'),
                     'said': row.get('said') or '', 'current': row.get('hash') == h,
@@ -131,7 +131,7 @@ def sshkeys_view(store):
     alive = host_alive(store)
     nodes = []
     for n in host_nodes(store):
-        now = _meta_json(store, 'host:sshkeys:now:' + n) or {}
+        now = _meta_obj(store, 'host:sshkeys:now:' + n)
         done = set(now.get('done') or [])
         pending = late = 0
         for r in node_key_rows(store, 'host:sshkeys:want', n):
@@ -154,7 +154,7 @@ def sshkeys_view(store):
                       'users': now.get('users') or [], 'keys_of': now.get('keys_of') or {},
                       'file': now.get('file') or '', 'at': now.get('at'),
                       # The keys of root its machine had before it was built again (1.0.43).
-                      'before': (_meta_json(store, 'host:sshkeys:before:' + n) or {}).get('keys') or [],
+                      'before': (_meta_obj(store, 'host:sshkeys:before:' + n)).get('keys') or [],
                       'error': now.get('error') or ('%d change(s) asked of it more than five minutes ago '
                                                     'are not written - is acme-web.path running there?' % late
                                                     if late else ''),
@@ -217,7 +217,7 @@ def sshkeys_tick(daemon):
                         'warn', every=600)
     if HOST_WORK['ssh'] and time.time() - HOST_WORK.get('ssh_since', 0) < 900:
         return
-    now = _meta_json(store, 'host:sshkeys:now:' + me) or {}
+    now = _meta_obj(store, 'host:sshkeys:now:' + me)
     done = list(now.get('done') or [])
     todo = []
     for r in node_key_rows(store, 'host:sshkeys:want', me):
@@ -262,8 +262,10 @@ def sshkeys_tick(daemon):
                 done.extend(x['id'] for x in lists if x.get('id') and x['id'] not in done)
                 if user != 'root':
                     # A normal user's (1.0.240): kept apart, root's as they are; the last 30 read.
-                    of = dict(row.get('keys_of') or {})
-                    mine = dict(of.get(user) or {})
+                    of = row.get('keys_of')
+                    of = dict(of) if isinstance(of, dict) else {}
+                    mine = of.get(user)
+                    mine = dict(mine) if isinstance(mine, dict) else {}
                     mine.update(at=time.time(), error=err)
                     if got:
                         mine.update(keys=got.get('keys') or [], file=got.get('file') or '')
@@ -338,7 +340,7 @@ def rootkey_nodes(store, scope):
 
 
 def rootkey_row(store, scope):
-    return _meta_json(store, 'host:rootkey:' + scope) or {}
+    return _meta_obj(store, 'host:rootkey:' + scope)
 
 
 def _rootkey_scope(store, scope):
@@ -409,11 +411,11 @@ OSUP_STATES = ('waiting', 'draining', 'updating', 'rebooting', 'done', 'failed',
 
 
 def osup_plan(store):
-    return _meta_json(store, 'host:osup:plan') or {}
+    return _meta_obj(store, 'host:osup:plan')
 
 
 def osup_row(store, name):
-    return _meta_json(store, 'host:osup:node:' + name) or {}
+    return _meta_obj(store, 'host:osup:node:' + name)
 
 
 def osup_put(store, row, **kw):
@@ -429,12 +431,12 @@ def osup_view(store):
     nodes = []
     for n in host_nodes(store):
         row = osup_row(store, n)
-        chk = _meta_json(store, 'host:osup:check:' + n) or {}
+        chk = _meta_obj(store, 'host:osup:check:' + n)
         nodes.append({'name': n, 'me': n == node_name(), 'alive': alive.get(n, False),
                       'row': row if row.get('plan') == plan.get('id') else {},
                       'check': chk, 'reboot': bool(row.get('reboot') and not row.get('rebooted')) or
                       bool(chk.get('reboot_now') and chk.get('state') == 'done'),
-                      'started': (_meta_json(store, 'node:' + n) or {}).get('started')})
+                      'started': (_meta_obj(store, 'node:' + n)).get('started')})
     _osup_cleared(store, nodes)
     hidden = bool(plan) and seen == plan.get('id') and plan.get('state') != 'running'
     return {'plan': {} if hidden else plan, 'nodes': nodes, 'now': time.time(),
@@ -451,7 +453,7 @@ def _osup_cleared(store, nodes):
     """The lines cleared from the window (1.0.159) left out: of the run they
     were cleared in, only what came after the last line then shown. Kept in
     the database, so for every page and after a reload."""
-    cl = _meta_json(store, 'host:osup:cleared') or {}
+    cl = _meta_obj(store, 'host:osup:cleared')
     for n in nodes:
         for part in ('row', 'check'):
             p = n.get(part) or {}
@@ -471,7 +473,7 @@ def osup_clear(store, by):
     for n in host_nodes(store):
         row = osup_row(store, n)
         parts = {'row': row if row.get('plan') == plan.get('id') else {},
-                 'check': _meta_json(store, 'host:osup:check:' + n) or {}}
+                 'check': _meta_obj(store, 'host:osup:check:' + n)}
         cl[n] = {k: {'mark': _osup_mark(p), 'last': (p.get('lines') or [''])[-1]}
                  for k, p in parts.items() if p.get('lines')}
     store.set_meta('host:osup:cleared', json.dumps(cl))
@@ -580,7 +582,7 @@ def osup_tick(daemon):
                 row['maint'] = False
         osup_put(store, row)
     # A look for updates, asked.
-    chk = _meta_json(store, 'host:osup:check:' + me) or {}
+    chk = _meta_obj(store, 'host:osup:check:' + me)
     # It said a restart was waiting and the node has restarted since: looked
     # at again, not left saying so (1.0.159).
     if chk.get('reboot_now') and chk.get('state') == 'done' and not chk.get('relook') and \
@@ -594,6 +596,8 @@ def osup_tick(daemon):
         try:
             a = json.loads(r['v'] or '{}')
         except ValueError:
+            continue
+        if not isinstance(a, dict):
             continue
         if a.get('id') and a['id'] not in (chk.get('asked') or []) and \
                 time.time() - float(a.get('at') or 0) < 900:
@@ -638,7 +642,7 @@ def _osup_go(daemon, what, ctx):
         by = 'acme (system update)'
         try:
             if what == 'check':
-                chk = _meta_json(store, 'host:osup:check:' + me) or {}
+                chk = _meta_obj(store, 'host:osup:check:' + me)
                 asked = (list(chk.get('asked') or []) + [ctx['id']])[-20:]
                 try:
                     _osup_job('check')
@@ -780,7 +784,7 @@ SSHD_FMT = '191'           # how this version writes sshd's files (see sshd_tick
 
 def sshd_conf(store):
     c = dict(SSHD_DEFAULT)
-    c.update(_meta_json(store, 'host:sshd:conf') or {})
+    c.update(_meta_obj(store, 'host:sshd:conf'))
     return c
 
 
@@ -879,7 +883,7 @@ def sshd_save(store, b, by):
 
 
 def sshd_now(store, n):
-    return _meta_json(store, 'host:sshd:now:' + n) or {}
+    return _meta_obj(store, 'host:sshd:now:' + n)
 
 
 def sshd_view(store):
@@ -888,7 +892,7 @@ def sshd_view(store):
     nodes = []
     for n in host_nodes(store):
         now = sshd_now(store, n)
-        keys = len((_meta_json(store, 'host:sshkeys:now:' + n) or {}).get('keys') or [])
+        keys = len((_meta_obj(store, 'host:sshkeys:now:' + n)).get('keys') or [])
         # What pam_radius of the node is (asked, not asked, not there) - on the node's row too:
         # the page reads it there (otp 1.0.243 left it in "now" only, and showed "-" always).
         nodes.append({'name': n, 'me': n == node_name(), 'alive': alive.get(n, False),
@@ -926,8 +930,8 @@ def sshd_tick(daemon):
         return
     c = sshd_conf(store)
     now = sshd_now(store, me)
-    keep = _meta_json(store, 'host:sshd:keep') or {}
-    back = _meta_json(store, 'host:sshd:back') or {}
+    keep = _meta_obj(store, 'host:sshd:keep')
+    back = _meta_obj(store, 'host:sshd:back')
     try:
         gone = json.loads((WEB_DIR / 'sshd-back.json').read_text())
     except (OSError, ValueError):
@@ -1063,7 +1067,7 @@ def osup_settling(store):
     if osup_plan(store).get('state') == 'running':
         return True
     for n in host_nodes(store):
-        chk = _meta_json(store, 'host:osup:check:' + n) or {}
+        chk = _meta_obj(store, 'host:osup:check:' + n)
         if chk.get('state') == 'running':
             return True
         for r in node_key_rows(store, 'host:osup:checkwant', n):

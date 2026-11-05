@@ -5,7 +5,7 @@ POWER_LIVE_S = 1800
 
 
 def power_plan(store):
-    return _meta_json(store, 'power:plan') or {}
+    return _meta_obj(store, 'power:plan')
 
 
 def power_busy(store):
@@ -13,7 +13,7 @@ def power_busy(store):
     if not p or time.time() - float(p.get('at') or 0) > POWER_LIVE_S:
         return False
     for n in p.get('targets') or []:
-        row = _meta_json(store, 'power:node:' + n) or {}
+        row = _meta_obj(store, 'power:node:' + n)
         if row.get('id') != p.get('id') or row.get('state') in ('asked', 'going'):
             if p.get('how') == 'poweroff' and row.get('state') == 'going':
                 continue
@@ -116,7 +116,7 @@ def power_tick(daemon):
     store = daemon.store
     me = node_name()
     plan = power_plan(store)
-    row = _meta_json(store, 'power:node:' + me) or {}
+    row = _meta_obj(store, 'power:node:' + me)
     if row.get('state') == 'going' and row.get('how') == 'reboot':
         if boot_time() > float(row.get('boot') or 0) + 1:
             _net_thread(power_back, daemon, row)
@@ -132,7 +132,7 @@ def power_tick(daemon):
         for t in plan['targets']:
             if t == me:
                 break
-            other = _meta_json(store, 'power:node:' + t) or {}
+            other = _meta_obj(store, 'power:node:' + t)
             if other.get('id') != plan['id'] or other.get('state') not in ('back', 'failed'):
                 return False                # not my turn yet
             if other.get('state') == 'failed' and plan.get('keep_service'):
@@ -154,7 +154,7 @@ def power_view(store):
     names = [node_name()] + [n for n in hb if n != node_name()]
     for n in names:
         b = hb.get(n) or {}
-        row = _meta_json(store, 'power:node:' + n) or {}
+        row = _meta_obj(store, 'power:node:' + n)
         nodes.append({'name': n, 'me': n == node_name(), 'alive': bool(b.get('alive', True)
                                                                       if n == node_name() else
                                                                       b.get('alive')),
@@ -196,7 +196,7 @@ def net_view(store):
     out = []
     for n in names:
         b = hb.get(n) or {}
-        job = _meta_json(store, 'net:job:' + n) or {}
+        job = _meta_obj(store, 'net:job:' + n)
         # A finished change is shown until somebody hides it (1.0.120), or for
         # 6 hours when it went through, a day when it did not.
         if job and job.get('state') in ('done', 'failed'):

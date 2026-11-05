@@ -243,6 +243,22 @@ def need_cert(store, s, ref, right, what=''):
     return row
 
 
+def need_job(store, s, ident, right, what):
+    """A job: as its certificate - and one of no certificate (a target's test, a module's
+    action), or of a certificate deleted since, only for those who hold the right on every
+    certificate and for the one who started it (1.0.46: looked at, stopped and its test read
+    by any scoped session before; its steps say what another team's target did)."""
+    row = need_cert(store, s, _cert_of_job(store, ident), right, what)
+    if row is not None or unscoped(s, right):
+        return
+    try:
+        by = store.db.value('SELECT by_who FROM cert_jobs WHERE id = ?', (int(ident),))
+    except (TypeError, ValueError, OverflowError):
+        by = None
+    if not by or str(by).lower() != str(s.get('name') or '').lower():
+        deny(store, s, '%s no certificate' % what, right)
+
+
 def need_owner(store, s, owner, what):
     """A new certificate (or a new owner) given to `owner`: the session needs
     request (or manage) on that team; scoped, an empty owner is refused."""
@@ -294,21 +310,9 @@ def guard(h, s, method, path):
         if path == '/api/certs/one':
             need_cert(store, s, h.arg('id') or h.arg('name'), 'view', 'look at')
         elif path == '/api/certs/job':
-            cid = _cert_of_job(store, h.arg('id'))
-            if cid is None and not unscoped(s, 'view'):
-                # A job of no certificate (a target's test, a module's action) - its steps say
-                # what another team's target did (1.0.45): for those who see all, and for the
-                # one who started it (an import from a source, polled by its own dialog).
-                try:
-                    by = store.db.value('SELECT by_who FROM cert_jobs WHERE id = ?',
-                                        (int(h.arg('id')),))
-                except (TypeError, ValueError):
-                    by = None
-                if str(by or '').lower() != str(s.get('name') or '').lower():
-                    deny(store, s, 'look at a job of no certificate', 'view')
-            need_cert(store, s, cid, 'view', 'look at a job of')
+            need_job(store, s, h.arg('id'), 'view', 'look at a job of')
         elif path == '/api/certs/dry_run_result':
-            need_cert(store, s, _cert_of_job(store, h.arg('job')), 'view', 'look at a test of')
+            need_job(store, s, h.arg('job'), 'view', 'look at a test of')
         elif path == '/api/certs/jobs' and h.arg('cert_id'):
             need_cert(store, s, h.arg('cert_id'), 'view', 'look at the jobs of')
         elif path == '/api/certs/run_plan':
@@ -325,7 +329,7 @@ def guard(h, s, method, path):
     if path in MANAGE_ROUTES:
         need_cert(store, s, _ref(b, 'id', 'cert_id', 'name'), 'manage', path.rsplit('/', 1)[-1])
     elif path == '/api/certs/job_stop':
-        need_cert(store, s, _cert_of_job(store, b.get('id')), 'manage', 'stop a job of')
+        need_job(store, s, b.get('id'), 'manage', 'stop a job of')
     elif path in ('/api/certs/save', '/api/certs/import', '/api/certs/csr'):
         ref = _ref(b, 'id')
         if ref is None:

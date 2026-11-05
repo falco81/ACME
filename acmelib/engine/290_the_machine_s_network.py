@@ -103,7 +103,7 @@ def _net_list(v, most=4):
 
 
 def net_node_now(store, node):
-    return _meta_json(store, 'net:now:' + node) or {}
+    return _meta_obj(store, 'net:now:' + node)
 
 
 def net_current_ip(now):

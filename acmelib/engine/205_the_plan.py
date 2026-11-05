@@ -17,7 +17,7 @@ def upgrade_plan(store):
     plan['steps'] = []
     plan['drain_s'] = UPGRADE_DRAIN_S
     for name in plan.get('order') or []:
-        row = _meta_json(store, 'upgrade:node:' + name) or {}
+        row = _meta_obj(store, 'upgrade:node:' + name)
         if row.get('id') != plan.get('id'):
             row = {'state': 'waiting'}
         row['name'] = name
@@ -111,7 +111,7 @@ def upgrade_cancel(store, by):
 
 def _my_step(store, plan, **fields):
     k = 'upgrade:node:' + node_name()
-    row = _meta_json(store, k) or {}
+    row = _meta_obj(store, k)
     if row.get('id') != plan['id']:
         row = {'id': plan['id']}
     row.update(fields)
@@ -218,7 +218,7 @@ def upgrade_tick(daemon):
     if state == 'draining':
         if len(steps) > 1 and now - float(turn.get('at') or 0) < UPGRADE_DRAIN_S:
             return
-        meta = _meta_json(store, 'upgrade:pkg') or {}
+        meta = _meta_obj(store, 'upgrade:pkg')
         try:
             if meta.get('sha') != plan['sha']:
                 raise ValueError('the package in the database is not the one this upgrade '
@@ -377,7 +377,7 @@ def _back_after_marked(store, plan):
     its old version (1.0.61): taken out of the maintenance the upgrade put
     it in, once - nothing else would."""
     me = node_name()
-    row = _meta_json(store, 'upgrade:node:' + me) or {}
+    row = _meta_obj(store, 'upgrade:node:' + me)
     if row.get('id') != plan.get('id') or row.get('state') != 'failed' or \
             not row.get('marked_by') or row.get('back') or __version__ == plan.get('version'):
         return

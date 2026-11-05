@@ -59,7 +59,7 @@ def rb_targets(store):
         got = json.loads(store.get_meta('rbackup:targets') or '[]')
     except ValueError:
         got = []
-    out = [t for t in got if isinstance(t, dict) and t.get('id')]
+    out = [t for t in (got if isinstance(got, list) else []) if isinstance(t, dict) and t.get('id')]
     # How each went last: each node's own row (1.0.45), the newest of them shown - the job wrote
     # it into the one list both nodes share, both at once after a scheduled run, and the two
     # kept each other's lists (an administrator's change on one could be undone by the other).

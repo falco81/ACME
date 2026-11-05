@@ -312,7 +312,7 @@ def clock_skew_of(store, name):
     def mine():
         if CLOCK['skew'] is not None and time.time() - CLOCK['skew_at'] < CLOCK_FRESH_S:
             return CLOCK['skew_of'], CLOCK['skew']
-        row = _meta_json(store, 'clock:state:' + node_name()) or {}
+        row = _meta_obj(store, 'clock:state:' + node_name())
         if row.get('skew') is not None and time.time() - float(row.get('at') or 0) < CLOCK_FRESH_S:
             return row.get('skew_of'), float(row['skew'])
         return None, None
@@ -322,7 +322,7 @@ def clock_skew_of(store, name):
     if of == name:
         return sk
     if of == CLOCK_DB_SERVER:
-        row = _meta_json(store, 'clock:state:' + name) or {}
+        row = _meta_obj(store, 'clock:state:' + name)
         if row.get('skew_of') == CLOCK_DB_SERVER and row.get('skew') is not None:
             return sk - float(row['skew'])
     return None
@@ -395,7 +395,7 @@ def clock_peer_row(store, now=None):
     for n in ha_nodes(store):
         if n.get('me'):
             continue
-        row = _meta_json(store, 'clock:state:' + n['name']) or {}
+        row = _meta_obj(store, 'clock:state:' + n['name'])
         if not row:
             return None
         row['fresh'] = clock_row_age(store, n['name'], row, now) < 25 and bool(n.get('alive'))
@@ -519,7 +519,7 @@ def clock_state_here(now=None):
 def clock_state_of(store, name):
     if name == node_name() and (clock_watching() or CLOCK['ref_at'] > 0):
         return clock_state_here()                       # measured in this process
-    return _meta_json(store, 'clock:state:' + name) or {}
+    return _meta_obj(store, 'clock:state:' + name)
 
 
 def _clock_event(store, level, words):

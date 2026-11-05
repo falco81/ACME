@@ -448,7 +448,7 @@ def _rb_runs_rows(store):
             got = json.loads(r.get('v') or '[]')
         except ValueError:
             got = []
-        out[r['k']] = [x for x in got if isinstance(x, dict)]
+        out[r['k']] = [x for x in (got if isinstance(got, list) else []) if isinstance(x, dict)]
     return out
 
 
@@ -459,13 +459,15 @@ def rb_forgotten(store):
     for r in store.db.rows("SELECT v FROM meta WHERE k LIKE 'rbackup:forgot%'"):
         try:
             got = json.loads(r['v'] or '{}')
-        except ValueError:
+            if not isinstance(got, dict):
+                continue
+            for x in got.get('lines') or []:
+                if isinstance(x, list) and len(x) == 2:
+                    out.add((round(float(x[0] or 0), 3), str(x[1] or '')))
+            if got.get('all_before'):
+                out.add(('all_before', float(got['all_before'])))
+        except (ValueError, TypeError, AttributeError):
             continue
-        for x in got.get('lines') or []:
-            if isinstance(x, list) and len(x) == 2:
-                out.add((round(float(x[0] or 0), 3), str(x[1] or '')))
-        if got.get('all_before'):
-            out.add(('all_before', float(got['all_before'])))
     return out
 
 
@@ -502,6 +504,8 @@ def rb_history_forget(store, at=None, file=None):
             fg = json.loads(store.get_meta(fk) or '{}')
         except ValueError:
             fg = {}
+        if not isinstance(fg, dict) or not isinstance(fg.get('lines') or [], list):
+            fg = {}
         if at is None:
             fg['all_before'] = time.time()
             gone += len(others)
@@ -509,7 +513,9 @@ def rb_history_forget(store, at=None, file=None):
             hit = [r for r in others if abs(float(r.get('at') or 0) - float(at)) < 0.001 and
                    str(r.get('file') or '') == str(file or '')]
             if hit:
-                fg['lines'] = (fg.get('lines') or [])[-500:] + [[round(float(at), 3), str(file or '')]]
+                # the line's own time, as rb_history compares it - not the one sent
+                fg['lines'] = (fg.get('lines') or [])[-500:] + [
+                    [round(float(x.get('at') or 0), 3), str(file or '')] for x in hit]
                 gone += len(hit)
         store.set_meta(fk, json.dumps(fg))
         for k, runs in rows.items():
@@ -613,9 +619,17 @@ def rb_now_tidy(store):
     """This node's asks of Back up now that are over (1.0.45): never taken away, an ask of
     an older version (unsigned) was refused by the other node for good, at every look."""
     t = time.time()
-    me = NODE_KEY_SEP + node_name()
+    me = NODE_KEY_SEP + node_name()[:63]            # as node_key() writes it
+    # ...and those of a node forgotten or renamed since (1.0.46), whoever tidies: nobody else
+    # would ever take them away.
+    try:
+        known = {str(n.get('name') or '')[:63] for n in ha_nodes(store)}
+    except Exception:                                   # noqa: BLE001
+        known = set()
     for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'rbackup:now:%'"):
-        if not str(r['k']).endswith(me):
+        asker = str(r['k']).rsplit(NODE_KEY_SEP, 1)[-1] if NODE_KEY_SEP in str(r['k']) else ''
+        if not str(r['k']).endswith(me) and not (known and node_name()[:63] in known
+                                                 and asker and asker not in known):
             continue
         try:
             at = float((json.loads(r['v'] or '{}') or {}).get('at') or 0)
@@ -630,13 +644,15 @@ def rb_now_asked(daemon):
     store = daemon.store
     done_k = 'rbackup:nowdone:' + node_name()
     try:
-        done = set(json.loads(store.get_meta(done_k) or '[]'))
-    except ValueError:
+        done = set(str(x) for x in json.loads(store.get_meta(done_k) or '[]'))
+    except (ValueError, TypeError):
         done = set()
     for r in node_key_rows(store, 'rbackup:now', node_name()):
         try:
             ask = json.loads(r['v'] or '{}')
         except ValueError:
+            continue
+        if not isinstance(ask, dict):
             continue
         ident = str(ask.get('id') or '')
         if not ident or ident in done or time.time() - float(ask.get('at') or 0) > RB_NOW_LIVE_S:
@@ -681,8 +697,14 @@ def rb_tick(daemon):
                 datetime.fromtimestamp(float(mine[0].get('at') or 0)).strftime('%Y-%m-%d') == today:
             daemon._rb_again = getattr(daemon, '_rb_again', 0) + 1
             daemon._rb_tried = time.time()
+            # Only to the destinations that failed (1.0.46): one NAS away sent the backup again
+            # to all of them, and each kept only so many - a week of S3 became two days.
+            on = {t['id'] for t in rb_targets(store) if t.get('enabled')}
+            failed = [x.get('id') for x in (mine[0].get('targets') or [])
+                      if isinstance(x, dict) and not x.get('ok') and x.get('id') in on]
             try:
-                rb_job_start(store, 'acme (scheduled, again: the one before failed)')
+                rb_job_start(store, 'acme (scheduled, again: the one before failed)',
+                             only=failed or None)
             except ValueError:
                 pass
             return

@@ -30,7 +30,7 @@ def selinux_want(store):
     except Exception:                                   # noqa: BLE001
         pass
     try:
-        now = _meta_json(store, 'host:sshd:now:' + node_name()) or {}
+        now = _meta_obj(store, 'host:sshd:now:' + node_name())
         sp = int((now.get('values') or {}).get('port') or 22)
         if sp != 22:
             ports.append({'port': sp, 'proto': 'tcp', 'type': 'ssh_port_t',
@@ -83,8 +83,8 @@ def selinux_view(store):
     nodes = [node_name()] + [n['name'] for n in ha_nodes(store) if n['name'] != node_name()]
     out = []
     for n in nodes:
-        now = _meta_json(store, 'host:selinux:now:' + n) or {}
-        want = _meta_json(store, 'host:selinux:want:' + n) or {}
+        now = _meta_obj(store, 'host:selinux:now:' + n)
+        want = _meta_obj(store, 'host:selinux:want:' + n)
         out.append({'name': n, 'me': n == node_name(), 'state': now.get('data') or {},
                     'at': now.get('at'), 'error': now.get('error') or '',
                     'said': now.get('said') or [], 'action': now.get('action') or '',
@@ -117,8 +117,8 @@ def selinux_tick(daemon):
         selinux_report_tidy(store)
     except Exception:                                   # noqa: BLE001
         pass
-    want = _meta_json(store, 'host:selinux:want:' + me) or {}
-    now = _meta_json(store, 'host:selinux:now:' + me) or {}
+    want = _meta_obj(store, 'host:selinux:want:' + me)
+    now = _meta_obj(store, 'host:selinux:now:' + me)
     # A step tried is not tried again: with its answer not written (the database away), it
     # ran again every 5 s - "enforce" and "prepare" over and over.
     asked = bool(want) and want.get('id') != now.get('done') and want.get('id') != SE_WORK['tried']
@@ -181,7 +181,7 @@ def selinux_tick(daemon):
 def selinux_problems(store, node=None):
     """For the security check: what keeps SELinux from protecting a node as it should -
     nothing at all where it is disabled (as until now) or not on the machine."""
-    now = _meta_json(store, 'host:selinux:now:' + (node or node_name())) or {}
+    now = _meta_obj(store, 'host:selinux:now:' + (node or node_name()))
     d = now.get('data') or {}
     if d.get('mode') not in ('Enforcing', 'Permissive'):
         return []
@@ -194,7 +194,7 @@ def selinux_problems(store, node=None):
 def selinux_report_tidy(store):
     """This node's report taken out of the database once it is an hour old."""
     k = 'host:selinux:report:' + node_name()
-    rep = _meta_json(store, k) or {}
+    rep = _meta_obj(store, k)
     if rep and time.time() - float(rep.get('at') or 0) > SE_REPORT_KEEP_S:
         store.db.run('DELETE FROM meta WHERE k = ?', (k,))
 
@@ -218,7 +218,7 @@ def selinux_report_bundle(store):
     nodes = [node_name()] + [n['name'] for n in ha_nodes(store) if n['name'] != node_name()]
     with tarfile.open(fileobj=buf, mode='w:gz') as tf:
         for n in nodes:
-            rep = _meta_json(store, 'host:selinux:report:' + n) or {}
+            rep = _meta_obj(store, 'host:selinux:report:' + n)
             raw = None
             if rep.get('data'):
                 got = unseal_secret(rep['data'], 'selinux:report')

@@ -324,6 +324,11 @@ def account_signed_cols(row):
     either (1.0.44) - the portal's code goes there, and an address written past acme would
     take it; an account without them is signed as before, so the signatures there hold."""
     cols = ACCOUNT_SIGNED
+    # Not before every node signs the same (1.0.46): while a node of 1.0.43 is in the cluster,
+    # an account signed with more here was refused there - and one it changed, refused here
+    # for good after the upgrade. Signed with more from the adoption on (dbguard_adopt).
+    if dbguard_on() and dbguard_key() and not dbguard_adopted_ok('m', 'rbackup:targets'):
+        return cols
     if row and (row.get('mail') or row.get('mobile')):
         cols = cols + ('mail', 'mobile')
     # ...and that it has a second step set up (1.0.44): its row in meta deleted, the next
@@ -473,6 +478,20 @@ def dbguard_adopted_ok(kind, ident):
     return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT_MARK))
 
 
+def cluster_runs_at_least(store, version):
+    """Whether every node of the cluster runs `version` or newer (1.0.46): every node with a
+    heartbeat in the last day - not only those alive just then. A node of 1.0.43 restarting,
+    or put back from a failed upgrade, came back to rows it refused."""
+    if not CONFIG.get('ha_mode'):
+        return True
+    try:
+        nodes = ha_nodes(store)
+    except Exception:                                   # noqa: BLE001
+        return False
+    return not any(_ver_tuple(n.get('version')) < _ver_tuple(version) for n in nodes
+                   if n.get('me') or float(n.get('age') or 0) < 86400)
+
+
 def dbguard_adopt(store):
     """Rows taken under the guard by this version (1.0.44), signed once as they are now - and
     from then on checked. Not before every node runs this version: a 1.0.43 node saving them
@@ -484,15 +503,12 @@ def dbguard_adopt(store):
     _dbguard_load()
     if (DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT_MARK):
         return 0
-    if CONFIG.get('ha_mode'):
-        try:
-            nodes = ha_nodes(store)
-        except Exception:                               # noqa: BLE001
-            return 0
-        if any(_ver_tuple(n.get('version')) < _ver_tuple('1.0.44') for n in nodes
-               if n.get('alive') or n.get('me')):
-            return 0                                    # tried again at the next tick
+    if not cluster_runs_at_least(store, '1.0.44'):
+        return 0                                        # tried again at the next tick
     db, n = store.db, 0
+    # The accounts as they are, signed with their contact and second step too - those that
+    # hold as they were signed so far only (none written past acme is taken in this way).
+    good = [r for r in db.rows('SELECT * FROM accounts') if dbguard_account_ok(db, r)]
     for kind, keys in DBGUARD_ADOPT.items():
         for k in keys:
             table = 'meta' if kind == 'm' else 'settings'
@@ -503,6 +519,10 @@ def dbguard_adopt(store):
         DBGUARD.setdefault('adopted', {})[DBGUARD_ADOPT_MARK] = time.time()
         DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
     dbguard_flush(force=True)
+    for r in good:
+        if account_signed_cols(r) != ACCOUNT_SIGNED:
+            n += bool(dbguard_sign(db, 'a', str(r['name']).lower(),
+                                   dbguard_row_text(r, account_signed_cols(r))))
     if n:
         log('the guard against writes now signs %d row(s) more, as they were (upgrade)' % n)
     return n
@@ -527,8 +547,9 @@ def dbguard_tidy(store):
     dbguard_flush()
 
 
-DBGUARD_ROW_OF = {'m': ('meta', 'k'), 's': ('settings', 'k'), 'a': ('accounts', 'name'),
-                  'd': ('directories', 'name'), 'x': ('sessions', 'token_hash')}
+# Only rows of meta (1.0.46): a guarded setting, account or directory taken away is itself a
+# refusal - its last good value is kept, and the light must stay on.
+DBGUARD_ROW_OF = {'m': ('meta', 'k')}
 
 
 def dbguard_refused_prune(store):

@@ -181,7 +181,7 @@ def online_look(store, by=''):
         row['newest'] = newest
         row['newer'] = bool(newest and _ver_tuple(newest['version']) > _ver_tuple(__version__))
         if row['newer']:
-            was = _meta_json(store, 'upgrade:online') or {}
+            was = _meta_obj(store, 'upgrade:online')
             if ((was.get('newest') or {}).get('version') != newest['version']):
                 store.add_event('starting and stopping', 'acme %s is out (%s) - Settings → '
                                 'Upgrades' % (newest['version'], url), 'info')
@@ -199,7 +199,7 @@ def online_tick(daemon):
         return
     ONLINE_WORK['at'] = time.time()
     store = daemon.store
-    last = _meta_json(store, 'upgrade:online') or {}
+    last = _meta_obj(store, 'upgrade:online')
     # Asked again once the address changed, or a day after the last look.
     if last.get('url') == online_url() and \
             time.time() - float(last.get('at') or 0) < ONLINE_EVERY_S:
@@ -220,7 +220,7 @@ def online_tick(daemon):
 
 
 def online_view(store):
-    row = _meta_json(store, 'upgrade:online') or {}
+    row = _meta_obj(store, 'upgrade:online')
     if row:
         n = row.get('newest') or {}
         row['newer'] = bool(n and _ver_tuple(n.get('version')) > _ver_tuple(__version__))

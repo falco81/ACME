@@ -681,7 +681,7 @@ def ssh_gate_fp(secret, port):
 
 
 def ssh_gate_wanted(store):
-    c = _meta_json(store, 'host:sshd:conf') or {}
+    c = _meta_obj(store, 'host:sshd:conf')
     return bool(c.get('manage') and c.get('radius'))
 
 

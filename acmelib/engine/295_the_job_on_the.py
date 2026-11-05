@@ -89,7 +89,7 @@ def net_undo_keep(store, snap):
 
 
 def net_undo_get(store, snap):
-    got = _meta_json(store, 'net:undo:' + node_name()) or {}
+    got = _meta_obj(store, 'net:undo:' + node_name())
     return got if snap and got.get('snap') == snap else None
 
 
@@ -171,7 +171,7 @@ def net_job_run(daemon, ask):
             end = time.time() + (0 if job.get('tell_after') else 90)
             done = None
             while time.time() < end:
-                a = _meta_json(store, 'readdress:ask') or {}
+                a = _meta_obj(store, 'readdress:ask')
                 # This job's request, not one answered before (1.0.146).
                 if a.get('from') == me and a.get('done') and \
                         float(a.get('at') or 0) >= asked_at - 1:
@@ -477,8 +477,8 @@ def net_tick(daemon):
         return
     store = daemon.store
     me = node_name()
-    job = _meta_json(store, 'net:job:' + me)
-    ask = _meta_json(store, 'net:want:' + me)
+    job = _meta_obj(store, 'net:job:' + me) or None
+    ask = _meta_obj(store, 'net:want:' + me) or None
     if job and job.get('state') == 'trial':
         net_trial_tick(daemon, job)
         return

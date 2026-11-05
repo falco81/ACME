@@ -22,6 +22,37 @@ def node_key(prefix, name):
     return '%s:%s%s%s' % (prefix, nk_name(prefix, name), NODE_KEY_SEP, node_name()[:63])
 
 
+# Asks one node writes for another (1.0.46): taken away by their writer once the node they are
+# for is forgotten - an ask of the users kept its sealed password hashes there for good.
+NODE_ASK_PREFIXES = ('host:users:want', 'host:sshkeys:want', 'host:osup:checkwant',
+                     'console:want', 'host:selinux:want', 'net:want', 'readdress:dropold',
+                     'rbackup:now')
+
+
+def node_asks_of_gone_tidy(store):
+    """This node's asks for a node no longer in the cluster, deleted. Only in a cluster, and
+    only while this node's own heartbeat is there (the list of nodes is the real one)."""
+    if not CONFIG.get('ha_mode'):
+        return 0
+    try:
+        known = {str(n.get('name') or '')[:63] for n in ha_nodes(store)}
+    except Exception:                                   # noqa: BLE001
+        return 0
+    me = node_name()[:63]
+    if me not in known:
+        return 0
+    n = 0
+    for prefix in NODE_ASK_PREFIXES:
+        for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE ? ESCAPE '!'",
+                               (prefix.replace('!', '!!').replace('%', '!%').replace('_', '!_')
+                                + ':%' + NODE_KEY_SEP + me,)):
+            k = str(r['k'])
+            target = k[len(prefix) + 1:-len(NODE_KEY_SEP + me)]
+            if target and target not in {nk_name(prefix, x) for x in known}:
+                n += bool(store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (k, r['v'])))
+    return n
+
+
 def node_key_rows(store, prefix, name):
     """Every node's row for `name` (and one written before 1.0.146)."""
     n = nk_name(prefix, name)

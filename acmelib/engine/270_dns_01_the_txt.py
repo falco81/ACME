@@ -310,7 +310,7 @@ def _dns_manual(store, rr, txt, say):
     # One at a time in the cluster (otp 1.0.234): the other node's order, waiting on its own
     # record, was given up the moment this one wrote over the one row the page shows.
     while True:
-        cur = _meta_json(store, 'acme:manual') or {}
+        cur = _meta_obj(store, 'acme:manual')
         mine = cur.get('node') in (None, node_name())
         stale = time.time() - float(cur.get('at') or 0) > ACME_MANUAL_WAIT + 60
         if not cur or mine or cur.get('done') or stale:
@@ -324,7 +324,7 @@ def _dns_manual(store, rr, txt, say):
     say('waiting: put %s TXT "%s" in DNS, then say so on the page' % (rr, txt))
     try:
         while time.time() < end:
-            got = _meta_json(store, 'acme:manual') or {}
+            got = _meta_obj(store, 'acme:manual')
             if got.get('id') != ident:
                 raise AcmeError('the manual DNS step was given up')
             if got.get('done'):
@@ -332,7 +332,7 @@ def _dns_manual(store, rr, txt, say):
             time.sleep(2)
         raise AcmeError('nobody said the TXT record was in DNS within an hour')
     finally:
-        got = _meta_json(store, 'acme:manual') or {}
+        got = _meta_obj(store, 'acme:manual')
         if got.get('id') == ident:
             store.db.run("DELETE FROM meta WHERE k = 'acme:manual'")
 

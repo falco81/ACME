@@ -51,9 +51,13 @@ function acme_dl_fail(string $body, int $status): void
     if ($msg === '') {
         $msg = $status ? 'the download failed (HTTP ' . $status . ')' : 'the daemon is not answering';
     }
-    $msg = mb_substr($msg, 0, 300);
+    /* mbstring is not always there (php-mbstring is a package of its own): whole characters */
+    $msg = preg_match('/^.{0,300}/us', $msg, $cut) ? $cut[0] : substr(preg_replace('/[^\x20-\x7e]/', '?', $msg), 0, 300);
+    /* ...and back to the pane it was started from */
+    $back = preg_replace('~[^A-Za-z0-9/_.-]~', '', (string) ($_GET['back'] ?? ''));
     $mac = hash_hmac('sha256', acme_session() . '|dlerr|' . $msg, (string) acme_token());
-    header('Location: /admin/?dlerr=' . rawurlencode($msg) . '&dls=' . $mac);
+    header('Location: /admin/?dlerr=' . rawurlencode($msg) . '&dls=' . $mac
+           . ($back !== '' ? '#' . substr($back, 0, 120) : ''));
     exit;
 }
 
@@ -172,10 +176,19 @@ if (isset($_GET['api'])) {
         header('Cache-Control: no-store');
         $sent = sent_body();
         $for = (string) ($sent['what'] ?? '');
-        if (!in_array($for, ['db-download', 'rbackup-download'], true) || acme_session() === ''
-                || acme_whoami() === null) {
-            http_response_code(acme_session() === '' ? 401 : 400);
+        if (!in_array($for, ['db-download', 'rbackup-download'], true)) {
+            http_response_code(400);
             echo json_encode(['ok' => false, 'error' => 'no such download']);
+            exit;
+        }
+        if (acme_token() === null) {
+            http_response_code(503);
+            echo json_encode(['ok' => false, 'error' => 'the daemon is not answering — is acme.service running?']);
+            exit;
+        }
+        if (acme_session() === '' || acme_whoami() === null) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => 'signed out']);
             exit;
         }
         echo json_encode(['ok' => true, 'dl' => acme_dl_ticket($for, time())]);

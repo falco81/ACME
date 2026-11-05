@@ -27,7 +27,7 @@ def downgrade_floor_note(store):
     """This node's floor in the database: the highest of what it had and what
     this version says."""
     k = 'downgrade:floor:' + node_name()
-    had = _meta_json(store, k) or {}
+    had = _meta_obj(store, k)
     if had and _ver_tuple(had.get('floor')) >= _ver_tuple(DOWNGRADE_FLOOR):
         return
     store.set_meta(k, json.dumps({'floor': DOWNGRADE_FLOOR, 'version': __version__,

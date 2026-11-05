@@ -28,7 +28,8 @@ def _node_ask_run(daemon, kind, want):
         # fresh within NODE_ASK_FRESH is offered again, and done again it only
         # writes this node's answer over itself.
         NODE_ASK['done'].clear()
-    only = (want.get('args') or {}).get('only')
+    args = want.get('args')
+    only = (args if isinstance(args, dict) else {}).get('only')
     if only and only != node_name():
         NODE_ASK['done'].add(key)
         return
@@ -62,7 +63,7 @@ def node_ask(daemon, kind, args, by):
 def node_ask_tick(daemon):
     NODE_ASK['daemon'][0] = daemon
     for kind in list(NODE_ASK['do']):
-        want = _meta_json(daemon.store, 'ask:want:' + kind) or {}
+        want = _meta_obj(daemon.store, 'ask:want:' + kind)
         if want.get('id') and time.time() - float(want.get('at') or 0) < NODE_ASK_FRESH:
             _node_ask_run(daemon, kind, want)
 
@@ -70,7 +71,7 @@ def node_ask_tick(daemon):
 def node_ask_results(store, kind, ident):
     out = {}
     for n in host_nodes(store):
-        got = _meta_json(store, 'ask:got:%s:%s' % (kind, n)) or {}
+        got = _meta_obj(store, 'ask:got:%s:%s' % (kind, n))
         out[n] = got if got.get('id') == ident else None
     return out
 
@@ -339,7 +340,7 @@ def _dbtls_server_cert(store, by):
 
 
 def _dbtls_rows(store):
-    return {n: _meta_json(store, 'dbtls:node:' + n) or {} for n in host_nodes(store)}
+    return {n: _meta_obj(store, 'dbtls:node:' + n) for n in host_nodes(store)}
 
 
 def _dbtls_ca_for(store, kind, mode, args):
@@ -407,7 +408,7 @@ def dbtls_apply(daemon, args):
                 'remote': 'its database server is elsewhere',
                 'sqlite': 'its database is a file on this machine',
                 'socket': 'it reaches its database over a Unix socket'}.get(kind, ''))
-        srv = _meta_json(store, 'dbtls:server:' + node_name()) or {}
+        srv = _meta_obj(store, 'dbtls:server:' + node_name())
         if srv and not args.get('renew') and \
                 float(srv.get('cert_end') or 0) - time.time() > DBTLS_RENEW_DAYS * 86400 and \
                 set(srv.get('names') or []) == set(hatls_names()) and HA_CA_FILE.exists():
@@ -454,7 +455,7 @@ def dbtls_apply(daemon, args):
                                 got.get('changed') is False else ''))
     if phase == 'server_off':
         if kind not in ('local', 'replicated') or \
-                not (_meta_json(store, 'dbtls:server:' + node_name()) or {}):
+                not (_meta_obj(store, 'dbtls:server:' + node_name())):
             return dict(base, ok=True, skip=True, said='nothing of acme\'s in its PostgreSQL')
         if CONFIG.get('db_tls'):
             raise ValueError('this node\'s connection still uses TLS - it moves back first')
@@ -507,7 +508,7 @@ def dbtls_publish(daemon, force=False):
         row['ssl'], row['version'], row['cipher'] = _dbtls_ssl(store.db)
     except Exception as e:                              # noqa: BLE001
         row['said'] = scrub_secret(str(e))[:200]
-    srv = _meta_json(store, 'dbtls:server:' + node_name()) or {}
+    srv = _meta_obj(store, 'dbtls:server:' + node_name())
     link = row['kind'] == 'replicated' and _dbtls_link_has(store)
     if link:
         row['cert_end'] = hatls_state(store).get('cert_end')
@@ -596,7 +597,7 @@ def dbtls_tick(daemon):
     dbtls_publish(daemon)
     if dbtls_kind() not in ('local', 'replicated'):
         return
-    srv = _meta_json(daemon.store, 'dbtls:server:' + node_name()) or {}
+    srv = _meta_obj(daemon.store, 'dbtls:server:' + node_name())
     if not srv or _dbtls_link_has(daemon.store):
         return                          # none of its own, or the link renews it
     t = DBTLS_WORK.get('renew')
@@ -627,7 +628,7 @@ def dbtls_view(store):
     nodes = []
     alive = host_alive(store)
     for n in host_nodes(store):
-        row = _meta_json(store, 'dbtls:node:' + n) or {}
+        row = _meta_obj(store, 'dbtls:node:' + n)
         row.pop('ca', None)
         nodes.append(dict(row, name=n, me=n == node_name(), alive=bool(alive.get(n))))
     link_done = False

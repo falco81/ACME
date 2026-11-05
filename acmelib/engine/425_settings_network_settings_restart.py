@@ -30,7 +30,7 @@ def _net_do(h):
             got = net_check(h.store, node, b.get('want') or {})
             return {'plan': got['plan'], 'want': got}
         if act == 'hide':
-            job = _meta_json(h.store, 'net:job:' + node) or {}
+            job = _meta_obj(h.store, 'net:job:' + node)
             if not job:
                 raise ApiError(409, 'there is nothing on %s to hide' % node)
             if job.get('state') not in ('done', 'failed'):
@@ -393,7 +393,7 @@ def osu_view(store):
         nodes.append({'name': n, 'me': n == node_name(), 'alive': alive.get(n, False),
                       'users': now.get('users') or [], 'at': now.get('at'),
                       # Who its machine had before it was built again (1.0.43).
-                      'before': (_meta_json(store, 'host:users:before:' + n) or {}).get('users') or [],
+                      'before': (_meta_obj(store, 'host:users:before:' + n)).get('users') or [],
                       'admin_group': now.get('admin_group') or '', 'shells': now.get('shells') or [],
                       'uid_min': now.get('uid_min'), 'uid_max': now.get('uid_max'),
                       'today': now.get('today'), 'said': now.get('said') or [],
@@ -453,7 +453,7 @@ def pwp_conf(store):
     """The password policy of the local users as set for the cluster; not managed - the system's
     own, untouched - until set."""
     c = dict(PWP_DEFAULT)
-    c.update({k: v for k, v in (_meta_json(store, 'host:pwpolicy:conf') or {}).items() if k in PWP_DEFAULT})
+    c.update({k: v for k, v in (_meta_obj(store, 'host:pwpolicy:conf')).items() if k in PWP_DEFAULT})
     return c
 
 
@@ -509,7 +509,9 @@ def pwp_password_check(store, password, name):
     c = pwp_conf(store)
     if pwp_refused(store):
         # Its row not acme's: checked by what this node has put in, as its files say.
-        q = ((osu_now(store, node_name()).get('policy') or {}).get('pwquality') or {})
+        p = osu_now(store, node_name()).get('policy')     # a text in a row of 1.0.42
+        q = (p if isinstance(p, dict) else {}).get('pwquality') or {}
+        q = q if isinstance(q, dict) else {}
         c = dict(c, managed=True, minlen=int(q.get('minlen') or 8), minclass=int(q.get('minclass') or 0),
                  maxrepeat=int(q.get('maxrepeat') or 0), usercheck=int(q.get('usercheck') or 0))
     if not c['managed']:
@@ -745,7 +747,7 @@ def osu_remake(store, node, names, by, forget=False):
     if node not in host_nodes(store):
         raise ValueError('which node?')
     k = 'host:users:before:' + node
-    had = _meta_json(store, k) or {}
+    had = _meta_obj(store, k)
     users = had.get('users') or []
     if forget:
         store.db.run('DELETE FROM meta WHERE k = ?', (k,))

@@ -42,6 +42,14 @@ def _meta_json(store, k):
         return None
 
 
+def _meta_obj(store, k):
+    """A row of meta that holds an object - {} when it holds anything else (1.0.46): a row of
+    another shape (one an older version wrote) made each look fail where .get() was asked of
+    it, and the row was never written anew."""
+    got = _meta_json(store, k)
+    return got if isinstance(got, dict) else {}
+
+
 def _peer_update(k, v):
     """The same row changed in the other node's database too - UPDATE only."""
     if CONFIG.get('ha_mode') != 'replicated' or not CONFIG.get('ha_peer'):
@@ -164,7 +172,7 @@ def upgrade_store_package(store, path, info, by):
     sha = hashlib.sha256(raw).hexdigest()
     text = base64.b64encode(raw).decode('ascii')
     pieces = [text[i:i + UPGRADE_PIECE] for i in range(0, len(text), UPGRADE_PIECE)]
-    old = _meta_json(store, 'upgrade:pkg') or {}
+    old = _meta_obj(store, 'upgrade:pkg')
     # Every other package's pieces out, not only the last one's (1.0.44).
     store.db.run("DELETE FROM meta WHERE k LIKE 'upgrade:piece:%' AND k NOT LIKE ?",
                  ('upgrade:piece:%s:%%' % sha[:16],))
