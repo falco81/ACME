@@ -1139,10 +1139,13 @@ class Cli(object):
         try:
             # never through a link, and the mode set on a file that was there already (1.0.51):
             # a key written over a 0644 file stayed readable by anyone
+            special = str(path).startswith('/dev/')     # /dev/stdout, /dev/fd/N, /dev/null
             fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC |
-                         getattr(os, 'O_NOFOLLOW', 0), mode)
+                         (0 if special else getattr(os, 'O_NOFOLLOW', 0)), mode)
             try:
-                os.fchmod(fd, mode)
+                import stat as _st
+                if _st.S_ISREG(os.fstat(fd).st_mode):
+                    os.fchmod(fd, mode)
             except OSError:
                 pass
             with os.fdopen(fd, 'wb') as f:

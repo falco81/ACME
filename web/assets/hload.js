@@ -808,7 +808,7 @@ function hloadTick(now) {
   /* The first reading of a page asks the last two minutes too (1.0.48): loaded again (F5), the
      graphs go on from where they were, not drawn from nothing. And the other nodes of a cluster,
      the details of the one whose panel is open. */
-  var withHist = !HLOAD.hist;
+  var withHist = !HLOAD.hist || !!HLOAD.wantHist;
   api('load&nodes=1' + (withDetail ? '&detail=1' : '') + (withHist ? '&hist=1' : '')
       + (HLOAD.open && HLOAD.pnode ? '&detail_of=' + encodeURIComponent(HLOAD.pnode) : '')).then(function (d) {
     if (d.off) {                    /* switched off in Settings → About meanwhile */
@@ -824,6 +824,7 @@ function hloadTick(now) {
         (est !== null && HL_OFF.length && Math.abs(est - HLOAD.off) > 5)) {
       HL_OFF.length = 0;
       HLOAD.hist = null;
+      HLOAD.wantHist = true;          /* its last two minutes asked with the next reading */
     }
     if (d.node) HLOAD.lastNode = d.node;
     if (est !== null) {
@@ -842,7 +843,8 @@ function hloadTick(now) {
       x.hist.live = true; x.hist.D = HL_PEER_D; x.hist.top = tops[x.node];
     });
     if (d.detail) { HLOAD.detail = d.detail; HLOAD.detailAt = Date.now(); }
-    if (withHist && !HLOAD.hist && d.hist && Array.isArray(d.hist.cpu)) {
+    if (withHist && (!HLOAD.hist || HLOAD.wantHist) && d.hist && Array.isArray(d.hist.cpu)) {
+      HLOAD.wantHist = false;
       var seed = {live: true, D: HL_OWN_D};
       var ok = Array.isArray(d.hist.t) && d.hist.t.length === d.hist.cpu.length;
       ['cpu', 'mem', 'disk', 'net', 't'].forEach(function (k) { seed[k] = ok ? (d.hist[k] || []).slice() : []; });

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import urllib.parse
 import re
 import time
 
@@ -265,7 +266,7 @@ class AcmeIssuer(Issuer):
                 raise PluginError('ZeroSSL needs a contact e-mail (or EAB credentials from its '
                                   'dashboard) to make an account', retry=False)
             self._say('ZeroSSL: EAB credentials asked for %s' % mails[0])
-            body = ('email=' + mails[0]).encode()
+            body = urllib.parse.urlencode({'email': mails[0]}).encode()   # pki+acme@ (1.0.51)
             status, _h, data = self.ctx.http('POST', 'https://api.zerossl.com/acme/eab-credentials-email',
                                              body, {'Content-Type': 'application/x-www-form-urlencoded'},
                                              30, True, None)

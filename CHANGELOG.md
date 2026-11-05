@@ -5,15 +5,34 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.51 - not released
+- A home-screen icon: Safari on an iPad or iPhone ("Add to Home Screen") and Android take acme's
+  shield (apple-touch-icon, PNG icons, a manifest for the admin pages and the portal) instead of a
+  picture of the page.
+- Round 3: delete with revoke keeps a dual certificate whose twin was not revoked; a request a CA
+  holds is kept for the main certificate and its twin apart; a file whose key is of no
+  certificate in it is refused, not imported without its key; an ACME rate limit's Retry-After
+  is waited for; the CSR given out for issuing by hand has the profile's e-mail and URI names;
+  ZeroSSL's address for EAB is encoded; badSignatureAlgorithm is not tried again for ever.
+- Signing in: the portal checks that an account row is acme's own as the admin pages do; a
+  directory administrator's session ends when the name belongs to another person now; a
+  password that must be changed cannot be "changed" to itself; how long a wrong sign-in takes no
+  longer tells which names exist.
+- Remote backups: a failed upload no longer leaves its hidden part behind (folder, FTP).
+- Round-2 fixes put right: names cut short are as they were (a mark of the whole renamed the files
+  of existing deployments - left out); a certificate of a CSR revoked can be issued again for a
+  new CSR; --out /dev/stdout and /dev/null work, and /dev/null keeps its mode; a CSR's subject is
+  not checked for an ACME source; a signed DNS update's refusal says the server's words; Caddy
+  takes a numeric owner; a network change put back restores its DNS setting and the host name;
+  the performance meter asks its last two minutes again after a reset.
 - Deployments, for a certificate administrator (round 2): Caddy's files and owner, Kubernetes'
   namespace and secret, Vault's mount, path and namespace, strongSwan's folder and file, Traefik's
   folder, the Docker services given the key and the names in an Azure key vault are where the key
   goes - a full administrator's. A haproxy deployment (its file required) or one with Windows'
   store of shared certificates is now made by a full administrator. Caddy refuses a file name or
   owner with a space or a line break in it.
-- pfSense, FortiGate and NGINX Unit no longer take another certificate's objects for this one's
-  (a name only starting the same, a label cut short - now with a mark of the whole); FortiGate
-  keeps a profile's or a VIP's other certificates when it sets its own.
+- pfSense and NGINX Unit no longer take another certificate's objects for this one's (a name
+  only starting the same); FortiGate keeps a profile's or a VIP's other certificates when it sets
+  its own.
 - TrueNAS: the private key is no longer on a command line while it is imported.
 - MikroTik: the key's file is taken off the router whatever the import came to; an old certificate
   still bound to SSTP or OpenVPN is kept.

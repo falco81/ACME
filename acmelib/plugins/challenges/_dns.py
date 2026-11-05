@@ -775,7 +775,7 @@ def send_update(server, msg, port=53, keyname=None, secret=None, alg='hmac-sha25
     data = exchange(server, wire, port=port, timeout=timeout, tcp=tcp)
     ans = parse(data)
     t = tsig_read(data) if ans.additional and ans.additional[-1].rtype == 250 else None
-    if keyname and t is None:
+    if keyname and t is None and getattr(ans, 'rcode', 0) == 0:
         # signed, it must come back signed (1.0.51): an answer without a signature was taken
         raise DnsError('the answer to the signed update is not signed (TSIG %s) - not taken'
                        % keyname)

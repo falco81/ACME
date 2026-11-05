@@ -592,7 +592,15 @@ def csr_review(store, r, info):
         checks.append({'what': 'subject', 'ok': False, 'said': sub_err})
     irow_kind = (S.plugin_row(store, 'issuer', cfg.get('issuer')) or {}).get('kind') \
         if cfg.get('issuer') else ''
-    if irow_kind != 'internal_ca':
+    # ...not for an ACME source (it writes only the names, whatever the CSR's subject says)
+    acme_like = 'acme' in irow_kind
+    try:
+        from acmelib.plugins.issuers import acme as _acme_mod
+        icls = S.row_class('issuer', S.plugin_row(store, 'issuer', cfg.get('issuer')) or {})
+        acme_like = acme_like or bool(icls and issubclass(icls, _acme_mod.AcmeIssuer))
+    except Exception:                                   # noqa: BLE001
+        pass
+    if irow_kind != 'internal_ca' and not acme_like:
         # A source that takes the CSR as it is (1.0.51): its subject is what the certificate
         # says - a CN not among the names allowed, or a field other than the profile's, went
         # to the CA unchecked.
@@ -602,7 +610,7 @@ def csr_review(store, r, info):
                                    'as it is' % info.get('cn')})
         for k, _w in SUBJECT_FIELDS:
             got_v = str(csr_subj.get(k) or '').strip()
-            if got_v and got_v != str(will.get(k) or '').strip():
+            if got_v and got_v.lower() != str(will.get(k) or '').strip().lower():
                 checks.append({'what': 'subject', 'ok': False,
                                'said': '%s=%s is not what the profile gives (%s) - the source '
                                        'takes the CSR as it is' % (k, got_v, will.get(k) or 'none')})

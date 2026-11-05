@@ -121,9 +121,17 @@ class RbFolder(object):
 
     def put(self, local, name):
         part = os.path.join(self.dir, '.%s.part' % name)
-        shutil.copyfile(local, part)
-        os.chmod(part, 0o640)
-        os.replace(part, os.path.join(self.dir, name))
+        try:
+            shutil.copyfile(local, part)
+            os.chmod(part, 0o640)
+            os.replace(part, os.path.join(self.dir, name))
+        except BaseException:
+            # not left behind (1.0.51): a hidden part of each failed night filled the folder
+            try:
+                os.unlink(part)
+            except OSError:
+                pass
+            raise
 
     def get(self, name, local):
         shutil.copyfile(os.path.join(self.dir, rb_safe_name(name)), local)
@@ -264,8 +272,15 @@ class RbFtp(object):
                 self.ftp.cwd(part)
 
     def put(self, local, name):
-        with open(local, 'rb') as f:
-            self.ftp.storbinary('STOR .%s.part' % name, f, blocksize=262144)
+        try:
+            with open(local, 'rb') as f:
+                self.ftp.storbinary('STOR .%s.part' % name, f, blocksize=262144)
+        except BaseException:
+            try:
+                self.ftp.delete('.%s.part' % name)      # not left behind (1.0.51)
+            except Exception:                           # noqa: BLE001
+                pass
+            raise
         try:
             self.ftp.delete(name)
         except ftplib.error_perm:

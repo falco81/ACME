@@ -746,7 +746,13 @@ def _cert_delete(h, s):
 
     def fn(job):
         try:
-            renewer.revoke_cert(job.store, job, row['id'], reason, by)
+            ok, said = renewer.revoke_cert(job.store, job, row['id'], reason, by)
+            if not ok:
+                # its twin not revoked (1.0.51): deleted, it stayed valid at its CA and acme
+                # could not revoke it any more - kept, revoked itself, the twin to try again
+                job.store.add_event('certificates', '%s: its twin was not revoked - it is kept, '
+                                    'not deleted' % row['name'], 'warn', who=by)
+                return False, '%s - nothing was deleted; revoke it again, then delete it' % said
         except Exception as e:
             job.store.db.update('certs', row['id'], {
                 'state': 'revoke-failed', 'state_at': time.time(),
@@ -1066,6 +1072,10 @@ def cert_import(store, b, by):
     if not leaf:
         raise ValueError('there is no certificate in that file')
     key = got.get('key')
+    if not key and got.get('keys') and not b.get('key_b64'):
+        # a key in the file, of no certificate in it (1.0.51): imported "without its key" -
+        # said, as a key given apart is
+        raise ValueError('the key in the file does not belong to the certificate')
     if b.get('key_b64'):
         formats = _lib('formats')
         kg = formats.read_any(_b64(b.get('key_b64'), 'key_b64'), _text(b, 'key_filename', 300) or
@@ -1324,7 +1334,7 @@ def _cert_csr(h, s):
         raise ValueError('%s has no names' % row['name'])
     prof = S.jload(row.get('profile'), {}) or {}
     key = pki.make_key(row.get('key_type') or 'ec-256')
-    csr = pki.make_csr(key, names, subject=prof.get('subject') or None,
+    csr = pki.make_csr(key, S.sans_of(names, prof), subject=prof.get('subject') or None,
                        must_staple=bool(prof.get('must_staple')), eku=prof.get('eku'))
     csr_pem = csr[0] if isinstance(csr, (tuple, list)) else csr
     t = time.time()
@@ -2088,7 +2098,7 @@ def family_test(store, family, b, by, echo=None):
     saved_cfg = S.plugin_config(family, row) if row and row.get('kind') == kind else {}
     secrets_t = set(S.secret_fields(cls))
     fdef = {f.get('key'): f for f in (cls.fields or []) if f.get('key')}
-    tried_other = not row or any(
+    tried_other = not row or row.get('kind') != kind or any(
         not (k in secrets_t and (v in (None, '') or E.is_masked(v))) and
         not _same_value(fdef.get(k) or {}, v, saved_cfg.get(k, (fdef.get(k) or {}).get('default')))
         for k, v in (_dict(b.get('config'), 'config') or {}).items())

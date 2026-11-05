@@ -202,7 +202,7 @@ def portal_local_ok(h, s):
     data = s.get('data') if isinstance(s.get('data'), dict) else {}
     if data.get('kind') != 'local':
         return True
-    acc = h.store.account(s['name'])
+    acc = h.store.account(s["name"], checked=True)
     if not acc or acc.get('disabled') or acc.get('source') == 'directory':
         return False
     if not portal_local_may(acc):
@@ -538,7 +538,7 @@ def _portal_login(h):
         # acme's own accounts first (portal_local; those of the enrolment pages
         # only with portal_enrolers): the name as it is written in Accounts,
         # its password as the administration checks it.
-        acc = h.store.account(name)
+        acc = h.store.account(name, checked=True)
         if acc and acc.get('source') != 'directory' and portal_local_may(acc):
             if acc.get('pw') and password_ok(password, acc['pw']):
                 return portal_local_login(h, key, name, acc)
@@ -971,12 +971,14 @@ def _portal_password(h):
     if (s.get('data') or {}).get('kind') != 'local':
         raise ApiError(400, 'this account signs in with its directory password, which is '
                             'changed in the directory')
-    acc = h.store.account(s['name'])
+    acc = h.store.account(s["name"], checked=True)
     b = h.body()
     key = h.throttle('password', split_limit('login_tries', 5), 5, name=acc['name'])
     if not password_ok(str(b.get('old') or ''), acc.get('pw')):
         h.failed(key)
         raise ApiError(400, 'the password you have now is not right')
+    if password_ok(str(b.get('new') or ''), acc.get('pw')):
+        raise ApiError(400, 'the new password is the one you have now - choose another')
     try:
         h.store.set_account(acc['name'], password=str(b.get('new') or ''), must_change=0)
     except ValueError as e:

@@ -2643,7 +2643,7 @@ def net_apply(n):
     said = []
     before = nm_fields(n['con'], ['ipv4.method', 'ipv4.addresses', 'ipv4.gateway', 'ipv4.dns',
                                   'ipv4.dns-search', 'ipv6.method', 'ipv6.addresses',
-                                  'ipv6.gateway', 'ipv6.dns'])
+                                  'ipv6.gateway', 'ipv6.dns', 'ipv4.ignore-auto-dns'])
     # The old addresses and name taken out of /etc/hosts only as this machine has
     # them now (1.0.209): taken as the request said, any line of it - the
     # directory's, the repository's - could be taken away.
@@ -2656,6 +2656,7 @@ def net_apply(n):
         host_was = run([HOSTNAMECTL, '--static'], 'hostnamectl').strip().lower()
     except Exception:                                   # noqa: BLE001
         host_was = ''
+    n['_host_was'] = host_was
     if n['old_hostname'] and n['old_hostname'] not in (host_was, host_was.split('.')[0]):
         n['old_hostname'] = ''
     if n.get('snapshot'):
@@ -2681,7 +2682,8 @@ def net_apply(n):
         # node up on it, the change marked failed. The profile as it was put back.
         back = [NMCLI, 'connection', 'modify', n['con']]
         for k in ('ipv4.method', 'ipv4.addresses', 'ipv4.gateway', 'ipv4.dns', 'ipv4.dns-search',
-                  'ipv6.method', 'ipv6.addresses', 'ipv6.gateway', 'ipv6.dns'):
+                  'ipv6.method', 'ipv6.addresses', 'ipv6.gateway', 'ipv6.dns',
+                  'ipv4.ignore-auto-dns'):
             if k in before:
                 v = before.get(k) or ''
                 back += [k, '' if v == '--' else v]
@@ -2689,6 +2691,11 @@ def net_apply(n):
             run(back, 'nmcli connection modify (put back)')
         except Exception:                               # noqa: BLE001
             pass
+        if n.get('hostname') and n.get('_host_was') and n['_host_was'] != n['hostname']:
+            try:
+                run([HOSTNAMECTL, 'set-hostname', n['_host_was']], 'hostnamectl (put back)')
+            except Exception:                           # noqa: BLE001
+                pass
         raise
 
 

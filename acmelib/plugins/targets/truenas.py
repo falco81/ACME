@@ -122,7 +122,8 @@ class TrueNasTarget(SshMixin, Base):
                             'json.load(open(sys.argv[1])), job=True)))\n')
                     rc, out, err = self.sh(s, 'python3 -c %s %s' % (quote(code), quote(tmp)),
                                            timeout=300, check=False)
-                    if rc != 0 and re.search(r'ImportError|ModuleNotFoundError|not found',
+                    if rc != 0 and re.search(r'ImportError|ModuleNotFoundError|python3: not '
+                                             r'found|command not found',
                                              text(err) + text(out)):
                         self.ctx.step('no client of the middleware for python here - imported '
                                       'with midclt', 'warn')

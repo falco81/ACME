@@ -798,12 +798,13 @@ def _login(h):
         # As long as for a name that is there (1.0.33): how long the answer
         # took told which names exist.
         password_ok(password, DUMMY_PW_HASH)
+    elif CONFIG.get('admin_directory') and not password:
+        password_ok('x', DUMMY_PW_HASH)    # an empty password as long as a local one's (1.0.51)
     elif CONFIG.get('admin_directory') and password:
-        if not acc:
-            # The time of a password hash spent here too (1.0.101): a wrong
-            # password of a local account took a hash longer than a name that
-            # is not there, which went straight to the directory.
-            password_ok(password, DUMMY_PW_HASH)
+        # The time of a password hash spent here, for a name that is not here and for a
+        # directory account alike (1.0.101, 1.0.51): which directory people are administrators
+        # here was told by how long the answer took.
+        password_ok(password, DUMMY_PW_HASH)
         try:
             ok = admin_from_directory(h, name, password)
         except ApiError as e:

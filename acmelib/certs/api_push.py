@@ -4,7 +4,7 @@ Discovery for acme push (targets/acme_push.py, docs/acme-push-protocol.md):
 which certificates an application of ours has and needs, and the
 certificates and deployments made for them in one go.
 
-    POST /api/targets/discover   {name}  -> {app, cluster, slots: [slot + covered_by]}
+    POST /api/targets/push_discover {name}  -> {app, cluster, slots: [slot + covered_by]}
                                  the application asked (inventory), changes nothing
     POST /api/targets/adopt      {name, slots: [ids], plan: each | together,
                                   issuer, challenge, key_type, key_type_alt}

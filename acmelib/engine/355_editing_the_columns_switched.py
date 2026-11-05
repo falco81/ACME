@@ -171,6 +171,9 @@ def _password(h):
     if not password_ok(str(b.get('old') or ''), acc.get('pw')):
         h.failed(key)
         raise ApiError(400, 'the password you have now is not right')
+    if password_ok(str(b.get('new') or ''), acc.get('pw')):
+        # a change asked (must change) kept by "changing" it to itself (1.0.51)
+        raise ApiError(400, 'the new password is the one you have now - choose another')
     h.store.set_account(acc['name'], password=str(b.get('new') or ''), must_change=0)
     # Every other sign-in with the old password ends (1.0.33).
     h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ? AND token_hash <> ?',

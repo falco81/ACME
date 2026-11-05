@@ -401,7 +401,9 @@ class AcmeClient(object):
         retry = short not in ('badCSR', 'badPublicKey', 'rejectedIdentifier',
                               'unsupportedIdentifier', 'externalAccountRequired', 'caa',
                               'invalidContact', 'unsupportedContact', 'userActionRequired',
-                              'alreadyRevoked', 'badRevocationReason')
+                              'alreadyRevoked', 'badRevocationReason',
+                              'badSignatureAlgorithm')     # the account key's type (1.0.51)
+        wait = None
         if short == 'rateLimited':
             wait = http_date(hdrs.get('retry-after'))
             if wait:
@@ -420,6 +422,8 @@ class AcmeClient(object):
                           retry=retry)
         err.acme_type = short
         err.status = status
+        if wait:
+            err.retry_after = wait          # the renewer waits as long (1.0.51)
         raise err
 
     def post(self, url, payload, use_jwk=False, key=None, accept='application/json'):

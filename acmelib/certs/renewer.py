@@ -488,6 +488,11 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         # not 'revoked' any more - the key it holds is the revoked one all the same.
         key_out = bool(store.db.value('SELECT revoked FROM cert_versions WHERE cert_id = ? AND '
                                       'version = ?', (cert['id'], cert.get('version') or 0)))
+        if key_out and cert.get('csr_given') and cert.get('cert_pem'):
+            # a new CSR sent since (a new key): the revoked one's key is not this one
+            from acmelib.certs import pki as _pk
+            key_out = _pk.csr_info(cert['csr_given']).get('pub_sha256') == \
+                _pk.cert_info(cert['cert_pem']).get('pub_sha256')
     except Exception:                                   # noqa: BLE001
         key_out = False
     if (was == 'revoked' or key_out) and cert.get('csr_given'):
@@ -653,6 +658,12 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             why = str(e) if isinstance(e, base.PluginError) else '%s: %s' % (type(e).__name__, e)
             fails = int(cert.get('fails') or 0) + 1
             wait = S.backoff(fails)
+            try:
+                # as long as the CA says (1.0.51): a rate limit for a week was asked every
+                # few hours, each time refused
+                wait = max(wait, min(float(getattr(e, 'retry_after', 0) or 0), 30 * 86400))
+            except (TypeError, ValueError):
+                pass
             store.db.update('certs', cert['id'], {
                 'state': 'failed', 'state_at': time.time(), 'fails': fails,
                 'last_error': why[:2000], 'next_try': time.time() + wait})

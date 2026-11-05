@@ -311,6 +311,11 @@ def pending_slot(kind, where, req):
     """'<kind>-pending:<hash of the CA>:<the certificate>' (at most 120 characters)."""
     who = str(req.cert_id) if getattr(req, 'cert_id', None) else \
         hashlib.sha256(','.join(sorted(req.names or [])).encode()).hexdigest()[:24]
+    # ...and its key type (1.0.51): the twin's request held, the main one went on with the
+    # twin's CSR and key - an RSA certificate kept as the EC one
+    kt = str(getattr(req, 'key_type', '') or '')
+    if kt:
+        who += ':' + kt
     return ('%s-pending:%s:%s' % (kind, hashlib.sha256(str(where).encode()).hexdigest()[:12],
                                   who))[:120]
 

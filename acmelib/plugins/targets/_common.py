@@ -204,12 +204,6 @@ def label_of(bundle, options=None, maxlen=40):
         (list(getattr(bundle, 'names', None) or ['cert'])[0])
     raw = text(raw).strip().lower().replace('*.', 'wildcard.').replace('*', 'wildcard')
     s = re.sub(r'[^a-z0-9._-]+', '-', raw).strip('-.') or 'cert'
-    if len(s) > maxlen >= 10:
-        # Cut short, with a mark of the whole (1.0.51): www.example.com and www.example.co.uk
-        # were both "www.example.co" on a FortiGate - and each one's old ones taken away
-        # with the other's.
-        import hashlib
-        return s[:maxlen - 5].rstrip('-.') + '-' + hashlib.sha1(s.encode()).hexdigest()[:4]
     return s[:maxlen].rstrip('-.')
 
 

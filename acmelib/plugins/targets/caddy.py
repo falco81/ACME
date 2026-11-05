@@ -158,7 +158,8 @@ class CaddyTarget(SshMixin, Base):
         for what, v in (('certificate file', cert), ('key file', key), ('owner', owner)):
             if re.search(r'\s', v):
                 raise PluginError('the %s has a space or a line break in it' % what, retry=False)
-        if owner and not re.match(r'^[A-Za-z_][A-Za-z0-9_.-]*(:[A-Za-z_][A-Za-z0-9_.-]*)?$', owner):
+        if owner and (not re.match(r'^[A-Za-z0-9_][A-Za-z0-9_.-]*(:[A-Za-z0-9_][A-Za-z0-9_.-]*)?$',
+                                   owner) or re.match(r'^0[0-7]{3}$', owner)):
             raise PluginError('%r is not an owner (user or user:group)' % owner, retry=False)
         spec = 'fullchain-pem %s 0644 %s\nkey-pem %s 0640 %s' % (cert, owner, key, owner)
         outs = parse_outputs(spec, {'name': label_of(bundle, options)})

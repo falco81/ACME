@@ -53895,6 +53895,14 @@
   "huntc2_9": {
    "source": "no client of the middleware for python here - imported with midclt",
    "text": "klient middlewaru pro python tu není – importováno přes midclt"
+  },
+  "huntc3_1": {
+   "source": "the key in the file does not belong to the certificate",
+   "text": "klíč v souboru nepatří k certifikátu"
+  },
+  "huntc3_2": {
+   "source": "the new password is the one you have now - choose another",
+   "text": "nové heslo je stejné jako to současné – zvolte jiné"
   }
  },
  "patterns": {
@@ -73713,6 +73721,14 @@
   "phuntc2_10": {
    "source": "{0} could not be taken off the router: {1}",
    "text": "{0} se nepodařilo z routeru odstranit: {1}"
+  },
+  "phuntc3_1": {
+   "source": "{0} - nothing was deleted; revoke it again, then delete it",
+   "text": "{0} – nic nebylo smazáno; odvolejte ho znovu a pak smažte"
+  },
+  "phuntc3_2": {
+   "source": "{0}: its twin was not revoked - it is kept, not deleted",
+   "text": "{0}: jeho dvojče nebylo odvoláno – certifikát zůstává, nebyl smazán"
   }
  },
  "rich": {

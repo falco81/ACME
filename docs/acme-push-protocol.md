@@ -578,7 +578,7 @@ the target's last `inventory`.
 - **Discover** (the target's button): the slots, what each has, and whether
   a certificate of acme's covers it already; *Make the certificates* makes one
   for each slot chosen, or one for all of them, each with a deployment naming
-  its slots (`POST /api/targets/discover`, `POST /api/targets/adopt`,
+  its slots (`POST /api/targets/push_discover`, `POST /api/targets/adopt`,
   acmelib/certs/api_push.py). Discover again later says what is new (a new
   node) and what is not covered. A `follows:` slot needs nothing; one that is
   not installable is left, and said.

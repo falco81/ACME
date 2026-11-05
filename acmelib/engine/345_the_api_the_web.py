@@ -392,7 +392,11 @@ class ApiHandler(BaseHTTPRequestHandler):
             who, how = admin_name_parts(name)
             entry = ad.find_user(who, how)
             role = None
-            if entry and not entry.get('many') and not entry_unusable(entry, locked=False):
+            # ...and the same person (1.0.51): a name given again to somebody else in the
+            # directory kept the open session of the one before
+            same = not acc.get('dn') or not (entry or {}).get('dn') or \
+                str(entry.get('dn')).lower() == str(acc.get('dn')).lower()
+            if entry and same and not entry.get('many') and not entry_unusable(entry, locked=False):
                 role = admin_role_for(ad.groups_of(entry, True), ad)
         except Exception as e:                          # noqa: BLE001
             # Asked again in a minute, not on every click: a directory that
