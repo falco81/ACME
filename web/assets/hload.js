@@ -23,11 +23,17 @@ function hlLive() { return typeof LIVE === 'object' && LIVE ? LIVE.on !== false 
    is shown and live, nothing while it is hidden; the daemon reads /proc only
    when asked. CPU, memory, the disks, the network. */
 var HLOAD = {timer: null, busy: false};
+/* a number with the page's decimal mark (1.0.51: "2.3 kB/s" beside "1,2 GB" in Czech) */
+function hlDec(x, d) {
+  var t = Number(x).toFixed(d);
+  return (window.ACME_LANG && window.ACME_LANG !== 'en') ? t.replace('.', ',') : t;
+}
+function hlLoads(l) { return (l || []).map(function (x) { return hlDec(x, 2); }).join(' / '); }
 function hloadRate(n) {
   if (n === null || n === undefined) return '–';
   if (n < 1024) return Math.round(n) + ' B/s';
-  if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' kB/s';
-  return (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB/s';
+  if (n < 1024 * 1024) return hlDec(n / 1024, n < 10240 ? 1 : 0) + ' kB/s';
+  return hlDec(n / 1048576, n < 10485760 ? 1 : 0) + ' MB/s';
 }
 /* Four looks to choose from (1.0.72): pills with a bar, one plain line,
    small graphs of the last two minutes, rings. */
@@ -138,7 +144,7 @@ function hloadDraw(d, into, asLook, opt) {
     host.appendChild(nn);
   }
   var tips = {
-    cpu: 'The processor, busy over the last ' + (d.over_s || 3) + ' s, all ' + d.cores + ' core(s) together' + (d.load ? ' · load ' + d.load.join(' / ') : ''),
+    cpu: 'The processor, busy over the last ' + (d.over_s || 3) + ' s, all ' + d.cores + ' core(s) together' + (d.load ? ' · load ' + hlLoads(d.load) : ''),
     mem: 'Memory in use (without what the kernel keeps as cache and gives back)' + (d.swap_used ? ' · swap in use ' + bytes(d.swap_used) : ''),
     disk: 'The disks: read ↓ and written ↑, every disk together',
     net: 'The network cards: down ↓ (in) and up ↑ (out), every card together - not the loopback nor the bridges of containers'
@@ -510,7 +516,7 @@ function hpTable(p, k) {
              disk: '↓' + hloadRate(d.disk_rd) + ' ↑' + hloadRate(d.disk_wr), net: '↓' + hloadRate(d.net_rx) + ' ↑' + hloadRate(d.net_tx)}[k];
   var ex = el('span', 'muted small');
   ex.appendChild(noI18n(el('b', 'hp-sum', sum)));
-  if (k === 'cpu' && x) { ex.appendChild(noI18n(el('span', '', ' · load ' + (d.load || []).join(' / ')))); var ct = hpCpuTemp(x); if (ct !== null) { ex.appendChild(noI18n(el('span', '', ' · '))); ex.appendChild(hlTemp(ct)); } }
+  if (k === 'cpu' && x) { ex.appendChild(noI18n(el('span', '', ' · load ' + hlLoads(d.load)))); var ct = hpCpuTemp(x); if (ct !== null) { ex.appendChild(noI18n(el('span', '', ' · '))); ex.appendChild(hlTemp(ct)); } }
   hpHead(p, k, ex);
   p.appendChild(hpArea(k, 38));
   if (!x) return hpWait(p);
@@ -558,7 +564,7 @@ function hpMap(p, k) {
     if (ct !== null) top.appendChild(hpRing(ct, Math.round(ct) + '°', hpTempCls(ct) === 'ok' ? '' : hpTempCls(ct)));
     if (x) {
       if (x.model) info.appendChild(noI18n(el('div', 'muted small', x.model)));
-      info.appendChild(noI18n(el('div', 'muted small', 'load ' + (d.load || []).join(' / ') + ' · ' + hlUp(x.uptime))));
+      info.appendChild(noI18n(el('div', 'muted small', 'load ' + hlLoads(d.load) + ' · ' + hlUp(x.uptime))));
     }
   } else if (k === 'mem') {
     var mp = d.mem_total ? 100 * d.mem_used / d.mem_total : 0;
@@ -657,7 +663,7 @@ function hpWide(p) {
       });
       col.appendChild(t);
       if (x.model) col.appendChild(noI18n(el('div', 'muted small hp-ell', x.model)));
-      col.appendChild(noI18n(el('div', 'muted small', 'load ' + (d.load || []).join(' / ') + ' · ' + hlUp(x.uptime))));
+      col.appendChild(noI18n(el('div', 'muted small', 'load ' + hlLoads(d.load) + ' · ' + hlUp(x.uptime))));
     } else if (k === 'mem') {
       hpMemRows(col, x);
       hpProcs(hpSec(col, 'Taking most memory'), (x.top_mem || []).slice(0, 4), 'mem');
@@ -719,7 +725,7 @@ function hpTiles(p, k) {
   var tps = x.temps || {};
   if (k === 'cpu') {
     var s1 = sec('');
-    row(s1, [el('span', 'muted', 'Now'), noI18n(el('b', '', d.cpu === undefined ? '…' : Math.round(d.cpu) + ' %')), el('span', 'muted', 'load'), noI18n(el('span', '', (d.load || []).join(' / ')))]).classList.add('hp-kv');
+    row(s1, [el('span', 'muted', 'Now'), noI18n(el('b', '', d.cpu === undefined ? '…' : Math.round(d.cpu) + ' %')), el('span', 'muted', 'load'), noI18n(el('span', '', hlLoads(d.load)))]).classList.add('hp-kv');
     if (x.model) row(s1, [noI18n(el('span', 'hp-wide muted small', x.model))]);
     row(s1, [el('span', 'muted', 'Up for'), noI18n(el('span', '', hlUp(x.uptime))), el('span', 'muted', 'processes'), noI18n(el('span', '', String(x.procs || '')))]).classList.add('hp-kv');
     (tps.cpu || []).forEach(function (t) { row(s1, [noI18n(el('span', 'muted', t[0])), hlTemp(t[1])]).classList.add('hp-kv'); });
@@ -784,7 +790,10 @@ function hpTiles(p, k) {
     (x.nics || []).forEach(function (n) {
       row(s1n, [noI18n(el('b', 'mono', n.name)), noI18n(el('span', 'muted small', (n.state || '') + (n.speed ? ' · ' + (n.speed >= 1000 ? n.speed / 1000 + ' Gb/s' : n.speed + ' Mb/s') : ''))),
         noI18n(el('span', 'num', '↓' + hloadRate(n.rx) + ' ↑' + hloadRate(n.tx)))]).classList.add('hp-nic');
-      row(s1n, [el('span', ''), noI18n(el('span', 'muted small', 'since start ↓' + bytes(n.rx_all) + ' ↑' + bytes(n.tx_all)))]).classList.add('hp-nic2');
+      var since = el('span', 'muted small');
+      since.appendChild(el('span', '', 'since start'));
+      since.appendChild(noI18n(el('span', '', ' ↓' + bytes(n.rx_all) + ' ↑' + bytes(n.tx_all))));
+      row(s1n, [el('span', ''), since]).classList.add('hp-nic2');
     });
     if (!(x.nics || []).length) s1n.appendChild(el('p', 'muted small', 'no card'));
   }

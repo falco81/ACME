@@ -262,6 +262,9 @@ function acme_head(string $title, string $lang, bool $load, string $nonce, strin
     echo '<link rel="manifest" href="' . h($base) . 'assets/app-' . ($portal ? 'portal' : 'admin')
        . '.webmanifest">' . "\n";
     echo '<meta name="apple-mobile-web-app-title" content="acme">' . "\n";
+    echo '<meta name="apple-mobile-web-app-capable" content="yes">' . "\n";
+    echo '<meta name="mobile-web-app-capable" content="yes">' . "\n";
+    echo '<meta name="apple-mobile-web-app-status-bar-style" content="black">' . "\n";
     echo '<meta name="theme-color" content="#161b22">' . "\n";
     if ($load) {
         echo '<script nonce="' . h($nonce) . '" src="?api=lang&amp;code=' . h(rawurlencode($lang))

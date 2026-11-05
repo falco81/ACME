@@ -173,7 +173,8 @@ def mfa_reset(store, name, by):
 
 
 MFA_KIND_WORDS = {'app': 'an authenticator app', 'mail': 'a code by e-mail',
-                  'sms': 'a code by SMS'}
+                  'sms': 'a code by SMS', 'passkey': 'a passkey (Face ID, Touch ID)'}
+MFA_KINDS = ('app', 'mail', 'sms', 'passkey')
 
 
 def mfa_lang(h):
@@ -186,8 +187,9 @@ def mfa_lang(h):
     return got if got in CODE_TEXTS else None
 
 
-def mfa_methods():
-    """The ways offered when an account sets up its second step."""
+def mfa_methods(kind='admin'):
+    """The ways offered when an account sets up its second step - a passkey (1.0.51) on the
+    administration only, and only where it is switched on."""
     out = []
     ch = code_channels()
     if CONFIG.get('admin_2fa_app', 1):
@@ -196,12 +198,14 @@ def mfa_methods():
         out.append('mail')
     if CONFIG.get('admin_2fa_sms', 1) and 'sms' in ch:
         out.append('sms')
+    if kind == 'admin' and CONFIG.get('admin_2fa_passkey'):
+        out.append('passkey')
     return out or ['app']
 
 
 def mfa_stage(store, name):
     rec = mfa_get(store, name)
-    if rec and rec.get('kind') in ('app', 'mail', 'sms'):
+    if rec and rec.get('kind') in MFA_KINDS:
         # A way switched off since is still the account's, and the only one
         # (1.0.136): mail or SMS that can no longer be sent was set up anew
         # - by whoever had the password. Now that waits for a reset (the
@@ -236,7 +240,7 @@ def mfa_marks_adopt(store):
         return 0
     n = 0
     for name, rec in mfa_all(store).items():
-        if rec and rec.get('kind') in ('app', 'mail', 'sms'):
+        if rec and rec.get('kind') in MFA_KINDS:
             acc = store.account(name)
             if acc and not acc.get('mfa_on'):
                 mfa_mark(store, name, True)
@@ -341,7 +345,7 @@ def _mfa_done(h, s, how, kind='admin'):
     one the password alone opened is ended, not made whole: whoever had seen
     its cookie had the pages once the code was given."""
     data = {k: v for k, v in (s.get('data') or {}).items()
-            if k not in ('mfa', 'mfa_new', 'mfa_code', 'mfa_sent_at', 'mfa_sent')}
+            if k not in ('mfa', 'mfa_new', 'mfa_code', 'mfa_sent_at', 'mfa_sent', 'mfa_pk')}
     hours = max(0.05, (float(s.get('expires') or 0) - time.time()) / 3600.0)
     token = h.store.session_new(kind, s['name'], s['role'], h.client_ip(), hours, data=data)
     h.store.session_drop(s['id'])
@@ -374,7 +378,9 @@ def _mfa_view(h, kind):
     rec = mfa_get(h.store, s['name']) or {}
     new = (s.get('data') or {}).get('mfa_new') or {}
     return {'name': acc['name'], 'display': acc.get('display') or '', 'stage': stage,
-            'methods': mfa_methods(), 'kind': rec.get('kind') if stage == 'check' else '',
+            'methods': mfa_methods(kind), 'kind': rec.get('kind') if stage == 'check' else '',
+            'passkey_hosts': sorted({str(k.get('host')) for k in rec.get('keys') or []})
+            if stage == 'check' and rec.get('kind') == 'passkey' else [],
             'dest': dest_masked(rec.get('kind'), rec.get('dest')) if stage == 'check' else '',
             'started': {'kind': new.get('kind'),
                         'dest': dest_masked(new.get('kind'), new.get('dest'))} if new else None,
@@ -396,6 +402,7 @@ def _mfa_act(h, kind):
     act = b.get('action')
     name = acc['name']
     data = s.get('data') or {}
+    sk = kind                           # the sign-in's kind (admin, portal) - `kind` is reused
     # The account as it is now, not as it was at this sign-in (1.0.139): a
     # sign-in kept waiting from before the second step was set up could set
     # up its own, over the one in use.
@@ -406,8 +413,11 @@ def _mfa_act(h, kind):
         if stage != 'enrol':
             raise ApiError(409, 'this account has its second step set up already')
         kind = str(b.get('kind') or '')
-        if kind not in mfa_methods():
+        if kind not in mfa_methods(sk):
             raise ApiError(400, 'that way is not offered here')
+        if kind == 'passkey':
+            # the device makes it (Face ID...): what it is asked, then enrol_confirm with its answer
+            return dict(pk_create_options(h, s, acc, pk_rp_id(h)), kind='passkey')
         if kind == 'app':
             secret = b32_new(20)
             h.store.session_merge(s['id'], {'mfa_new': {
@@ -424,6 +434,26 @@ def _mfa_act(h, kind):
     if act == 'enrol_confirm':
         if stage != 'enrol':
             raise ApiError(409, 'this account has its second step set up already')
+        if str(b.get('kind') or '') == 'passkey':
+            if 'passkey' not in mfa_methods(sk):
+                raise ApiError(400, 'that way is not offered here')
+            key = _mfa_throttle(h, sk, name)
+            try:
+                pk = pk_enrol_finish(h, s, acc, b, pk_rp_id(h))
+            except ApiError:
+                h.failed(key)
+                raise
+            rec = {'kind': 'passkey', 'keys': [pk], 'at': time.time(), 'by': name}
+            with MFA_LOCK:
+                if mfa_stage(h.store, name) != 'enrol':
+                    raise ApiError(409, 'this account has its second step set up already - sign '
+                                        'in again')
+                h.store.set_meta(mfa_key(name), json.dumps(rec))
+            mfa_mark(h.store, name, True)
+            token = _mfa_done(h, s, 'set up now: %s' % MFA_KIND_WORDS['passkey'], sk)
+            h.store.add_event('accounts', '%s set up the second step of signing in: a passkey '
+                              '(%s) for %s' % (name, pk['name'], pk['host']), who=name)
+            return {'message': 'the second step is set up', 'done': True, 'token': token}
         new = data.get('mfa_new') or {}
         if not new.get('kind'):
             raise ApiError(400, 'choose a way first')
@@ -457,6 +487,14 @@ def _mfa_act(h, kind):
             ' (%s)' % dest_masked(rec['kind'], rec.get('dest')) if rec.get('dest') else ''),
             who=name)
         return {'message': 'the second step is set up', 'done': True, 'token': token}
+    if act == 'pk_begin':
+        # the question for the passkey of this account (1.0.51)
+        if stage != 'check':
+            raise ApiError(409, 'set the second step up first')
+        rec = mfa_get(h.store, name) or {}
+        if rec.get('kind') != 'passkey':
+            raise ApiError(400, 'this account gives its second step another way')
+        return pk_get_options(h, s, acc, pk_rp_id(h))
     if act == 'send':
         if stage != 'check':
             raise ApiError(409, 'set the second step up first')
@@ -475,6 +513,18 @@ def _mfa_act(h, kind):
         rec = mfa_get(h.store, name) or {}
         key = _mfa_throttle(h, kind, name)
         code = code_typed(b.get('code') or '')     # "821 275", the Czech row (otp 1.0.225)
+        if rec.get('kind') == 'passkey':
+            # set up on the administration only; an account of acme's own that set it up there
+            # gives it on the enrolment pages too (the same name, the same passkey)
+            with MFA_LOCK:
+                try:
+                    rec, used = pk_check(h, s, acc, b, pk_rp_id(h))
+                except ApiError:
+                    h.failed(key)
+                    raise
+                h.store.set_meta(mfa_key(name), json.dumps(rec))
+            token = _mfa_done(h, s, 'a passkey (%s)' % used.get('name'), kind)
+            return {'message': 'signed in', 'done': True, 'token': token}
         if rec.get('kind') == 'app':
             # Read, checked and written under one lock (1.0.136): two requests
             # with the same code at once both passed the check.

@@ -5,6 +5,15 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.51 - not released
+- **Face ID, Touch ID and passkeys as the second step of the administration**
+  (`admin_2fa_passkey`, off by default; Settings → Accounts): after the password, never instead
+  of it - one more way beside the app, the code by e-mail and the code by SMS, chosen by the
+  account when it sets its second step up at the first sign-in, reset as the others are
+  (Accounts, `acme --reset-2fa NAME`). WebAuthn checked by the server itself (the name, the face
+  or finger - UV - every time, the signature by openssl, the counter, each question once);
+  only on the pages opened by their name over HTTPS (docs/admin-second-step.md).
+- The home screen of an iPad: the pages open in a window of their own (apple-mobile-web-app-
+  capable), turning with the iPad.
 - A home-screen icon: Safari on an iPad or iPhone ("Add to Home Screen") and Android take acme's
   shield (apple-touch-icon, PNG icons, a manifest for the admin pages and the portal) instead of a
   picture of the page.

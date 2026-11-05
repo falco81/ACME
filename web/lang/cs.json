@@ -53903,6 +53903,138 @@
   "huntc3_2": {
    "source": "the new password is the one you have now - choose another",
    "text": "nové heslo je stejné jako to současné – zvolte jiné"
+  },
+  "passkey_1": {
+   "source": "...with Face ID or Touch ID (a passkey)",
+   "text": "…přes Face ID nebo Touch ID (passkey)"
+  },
+  "passkey_2": {
+   "source": "The face, the finger or the PIN of the device - Face ID, Touch ID, Windows Hello, a security key - after the password, never instead of it. Chosen when the second step is set up; reset as the others are (Accounts). Only on the pages opened by their name over HTTPS with a certificate the browser trusts - and on that name only: a passkey set up on acme.example.cz does not work on acme1.example.cz or on an address.",
+   "text": "Obličej, prst nebo PIN zařízení – Face ID, Touch ID, Windows Hello, bezpečnostní klíč – po hesle, nikdy místo něj. Volí se při nastavení druhého kroku; resetuje se stejně jako ostatní (Účty). Jen na stránkách otevřených přes jméno přes HTTPS s certifikátem, kterému prohlížeč věří – a jen na tom jméně: passkey nastavená na acme.example.cz nefunguje na acme1.example.cz ani na adrese."
+  },
+  "passkey_3": {
+   "source": "Face ID / Touch ID",
+   "text": "Face ID / Touch ID"
+  },
+  "passkey_4": {
+   "source": "Use Face ID / Touch ID",
+   "text": "Použít Face ID / Touch ID"
+  },
+  "passkey_5": {
+   "source": "Set it up with this device",
+   "text": "Nastavit tímto zařízením"
+  },
+  "passkey_6": {
+   "source": "Your face, your finger or the PIN of the device that keeps the passkey of these pages.",
+   "text": "Váš obličej, prst nebo PIN zařízení, které má passkey těchto stránek."
+  },
+  "passkey_7": {
+   "source": "A passkey works on the pages opened by their name over HTTPS (https://name/), with a certificate this browser trusts - not by an address.",
+   "text": "Passkey funguje na stránkách otevřených přes jméno přes HTTPS (https://jméno/) s certifikátem, kterému tento prohlížeč věří – ne přes adresu."
+  },
+  "passkey_8": {
+   "source": "This device has a passkey of this account already.",
+   "text": "Toto zařízení už passkey tohoto účtu má."
+  },
+  "passkey_9": {
+   "source": "a passkey works on the pages opened by their name over HTTPS (https://name/), not by an address",
+   "text": "passkey funguje na stránkách otevřených přes jméno přes HTTPS (https://jméno/), ne přes adresu"
+  },
+  "passkey_10": {
+   "source": "that is not a name a passkey can be made for",
+   "text": "pro toto jméno passkey vytvořit nejde"
+  },
+  "passkey_11": {
+   "source": "the passkey's answer is cut short",
+   "text": "odpověď passkey je useknutá"
+  },
+  "passkey_12": {
+   "source": "the passkey says nobody was there",
+   "text": "passkey hlásí, že u zařízení nikdo nebyl"
+  },
+  "passkey_13": {
+   "source": "the passkey did not ask for the face, the finger or the PIN - that is no second step",
+   "text": "passkey se nezeptala na obličej, prst ani PIN – to není druhý krok"
+  },
+  "passkey_14": {
+   "source": "the passkey gave no key",
+   "text": "passkey nepředala klíč"
+  },
+  "passkey_15": {
+   "source": "the passkey's id is not of a size taken",
+   "text": "ID passkey nemá povolenou délku"
+  },
+  "passkey_16": {
+   "source": "the passkey's answer is not one",
+   "text": "odpověď passkey není platná"
+  },
+  "passkey_17": {
+   "source": "the passkey's answer is of another kind",
+   "text": "odpověď passkey je jiného druhu"
+  },
+  "passkey_18": {
+   "source": "the passkey answered another question - try again",
+   "text": "passkey odpověděla na jinou otázku – zkuste to znovu"
+  },
+  "passkey_19": {
+   "source": "the question for the passkey was answered already, or never asked - try again",
+   "text": "otázka pro passkey už byla zodpovězena, nebo nebyla položena – zkuste to znovu"
+  },
+  "passkey_20": {
+   "source": "the question for the passkey ran out, or was for another page - try again",
+   "text": "otázka pro passkey vypršela, nebo byla pro jinou stránku – zkuste to znovu"
+  },
+  "passkey_21": {
+   "source": "the passkey's answer has no authenticator data",
+   "text": "odpověď passkey nemá data autentizátoru"
+  },
+  "passkey_22": {
+   "source": "that passkey is not known here (taken away, or of another server)",
+   "text": "tato passkey tu není známá (odebraná, nebo z jiného serveru)"
+  },
+  "passkey_23": {
+   "source": "the passkey's signature does not hold",
+   "text": "podpis passkey nesedí"
+  },
+  "passkey_24": {
+   "source": "the counter of the passkey went back - it may have been copied",
+   "text": "čítač passkey šel zpět – mohla být zkopírovaná"
+  },
+  "passkey_25": {
+   "source": "openssl is not on this machine - a passkey cannot be checked",
+   "text": "na tomto stroji není openssl – passkey nejde ověřit"
+  },
+  "passkey_26": {
+   "source": "this account gives its second step another way",
+   "text": "tento účet dává druhý krok jiným způsobem"
+  },
+  "passkey_27": {
+   "source": "a passkey (Face ID, Touch ID)",
+   "text": "passkey (Face ID, Touch ID)"
+  },
+  "passkey_28": {
+   "source": "a passkey",
+   "text": "passkey"
+  },
+  "ui3_1": {
+   "source": "only a full administrator may change where a deployment writes the private key, or its password",
+   "text": "kam nasazení zapisuje privátní klíč a jeho heslo, smí měnit jen plný administrátor"
+  },
+  "ui3_2": {
+   "source": "made on the first start",
+   "text": "vytvořen při prvním spuštění"
+  },
+  "ui3_3": {
+   "source": "Generic",
+   "text": "Obecné"
+  },
+  "ui3_4": {
+   "source": "Standards",
+   "text": "Standardy"
+  },
+  "ui3_5": {
+   "source": "since start",
+   "text": "od spuštění"
   }
  },
  "patterns": {
@@ -66732,11 +66864,11 @@
   },
   "px3041": {
    "source": "{0} file in {1}{2}{3}",
-   "text": "souborů v {1}: {0}{2}{3}"
+   "text": "{0} soubor v {1}{2}{3}"
   },
   "px3042": {
    "source": "{0} files in {1}{2}{3}",
-   "text": "souborů v {1}: {0}{2}{3}"
+   "text": "{0} souborů v {1}{2}{3}"
   },
   "px3043": {
    "source": "{0} could not be put back: {1}",
@@ -73729,6 +73861,30 @@
   "phuntc3_2": {
    "source": "{0}: its twin was not revoked - it is kept, not deleted",
    "text": "{0}: jeho dvojče nebylo odvoláno – certifikát zůstává, nebyl smazán"
+  },
+  "ppasskey_1": {
+   "source": "This device asks for your face, your finger or its PIN, and keeps a passkey for these pages (on an iPad or iPhone in the iCloud Keychain, so your other Apple devices have it too). The server keeps only its public part. It works on this name only: {0}.",
+   "text": "Toto zařízení se zeptá na váš obličej, prst nebo svůj PIN a uloží si passkey těchto stránek (na iPadu a iPhonu v Klíčence na iCloudu, takže ji mají i vaše další zařízení Apple). Server má jen její veřejnou část. Funguje jen na tomto jméně: {0}."
+  },
+  "ppasskey_2": {
+   "source": "the passkey is for another name than {0}",
+   "text": "passkey je pro jiné jméno než {0}"
+  },
+  "ppasskey_3": {
+   "source": "the passkey's key: {0}",
+   "text": "klíč passkey: {0}"
+  },
+  "ppasskey_4": {
+   "source": "the passkey was asked from another page ({0})",
+   "text": "passkey byla vyžádána z jiné stránky ({0})"
+  },
+  "ppasskey_5": {
+   "source": "the passkey of this account is for {0} - open the pages by that name",
+   "text": "passkey tohoto účtu je pro {0} – otevřete stránky přes toto jméno"
+  },
+  "ppasskey_6": {
+   "source": "the passkey's answer: {0}",
+   "text": "odpověď passkey: {0}"
   }
  },
  "rich": {

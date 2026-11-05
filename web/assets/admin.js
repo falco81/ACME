@@ -1226,6 +1226,9 @@ function pinRail(on) {
     clearTimeout(RAIL.shut);
     RAIL.open = setTimeout(function () { nav.classList.add('open'); }, 60);
   });
+  /* open by the keys too (1.0.51): the find box took focus in a closed rail - 0 px wide,
+     what was typed came out in another order */
+  nav.addEventListener('focusin', function () { clearTimeout(RAIL.shut); nav.classList.add('open'); });
   nav.addEventListener('mouseleave', function () {
     clearTimeout(RAIL.open);
     RAIL.shut = setTimeout(function () {
@@ -2972,7 +2975,7 @@ function loadUsers() {
       /* The second step of signing in (1.0.125): how it is given, or not yet. */
       var mf = el('td', 'small');
       if (u.mfa) {
-        mf.appendChild(el('span', 'tag ok', {app: 'an app', mail: 'e-mail', sms: 'SMS'}[u.mfa.kind] || u.mfa.kind));
+        mf.appendChild(el('span', 'tag ok', {app: 'an app', mail: 'e-mail', sms: 'SMS', passkey: 'a passkey'}[u.mfa.kind] || u.mfa.kind));
         if (u.mfa.dest) mf.appendChild(noI18n(el('span', 'sub mono', u.mfa.dest)));
       } else {
         mf.appendChild(el('span', d.mfa_on ? 'muted' : 'muted', d.mfa_on ? 'set up at the next sign-in' : '–'));

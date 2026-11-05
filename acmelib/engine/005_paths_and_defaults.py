@@ -96,6 +96,7 @@ DEFAULTS = {
     'admin_2fa_app': 1,
     'admin_2fa_mail': 1,
     'admin_2fa_sms': 1,
+    'admin_2fa_passkey': 0,         # 1.0.51: Face ID, Touch ID... as the second step
     # --- isemon ---------------------------------------------------------------
     'isemon': 0,
     'isemon_targets': '',
@@ -405,6 +406,7 @@ TUNABLE = {
     'login_guard_window_min': (1, 1440), 'login_guard_block_min': (1, 10080),
     'dir_pw_tries': (0, 100), 'dir_pw_window_min': (1, 1440),
     'admin_2fa': (0, 1), 'admin_2fa_app': (0, 1), 'admin_2fa_mail': (0, 1), 'admin_2fa_sms': (0, 1),
+    'admin_2fa_passkey': (0, 1),
     'isemon': (0, 1), 'isemon_events': (0, 1), 'isemon_detail': (0, 1),
     'isemon_verify': (0, 1), 'isemon_mtls': (0, 1), 'metrics': (0, 1),
     'ssh_gate_port': (18129, 18199),
@@ -654,6 +656,7 @@ NAMES = {
     'admin_2fa_app': '...with an authenticator app',
     'admin_2fa_mail': '...with a code by e-mail',
     'admin_2fa_sms': '...with a code by SMS',
+    'admin_2fa_passkey': '...with Face ID or Touch ID (a passkey)',
     'isemon': 'Send the logs to isemon',
     'isemon_targets': 'isemon’s syslog receivers',
     'isemon_hostname': 'The name this machine is written under',
@@ -1146,6 +1149,12 @@ SAYS = {
     'admin_2fa_mail': 'Offered only while mail is set up (Settings → Mail).',
     'admin_2fa_sms': 'Offered only while sending SMS is set up (Settings → Codes by e-mail and '
                      'SMS).',
+    'admin_2fa_passkey': 'The face, the finger or the PIN of the device - Face ID, Touch ID, Windows '
+                         'Hello, a security key - after the password, never instead of it. Chosen '
+                         'when the second step is set up; reset as the others are (Accounts). '
+                         'Only on the pages opened by their name over HTTPS with a certificate the '
+                         'browser trusts - and on that name only: a passkey set up on '
+                         'acme.example.cz does not work on acme1.example.cz or on an address.',
     'isemon': 'Send what happens to the certificates - a renewal, a deployment, a failure, '
               'one running out - to isemon, as syslog lines of the program '
               '<code>acme-certs</code>, one event a line with key=value fields (and with '
@@ -1505,7 +1514,7 @@ PANES = {
               'login_guard_block_min', 'login_guard_trusted', 'dir_pw_tries', 'dir_pw_window_min'],
     'people': ['session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
                'admin_2fa', 'admin_2fa_app', 'admin_2fa_mail', 'admin_2fa_sms',
-               'admin_directory', 'admin_group_full', 'admin_group_cert',
+               'admin_2fa_passkey', 'admin_directory', 'admin_group_full', 'admin_group_cert',
                'admin_group_readonly', 'admin_group_portal', 'totp_window', 'names_czsk_letters',
                'names_any_letters'],
     'db': ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
@@ -1602,7 +1611,7 @@ ONLY_WHEN = {
     'admin_group_readonly': ['admin_directory', '*'],
     'admin_group_portal': ['admin_directory', '*'],
     'admin_2fa_app': ['admin_2fa', '1'], 'admin_2fa_mail': ['admin_2fa', '1'],
-    'admin_2fa_sms': ['admin_2fa', '1'],
+    'admin_2fa_sms': ['admin_2fa', '1'], 'admin_2fa_passkey': ['admin_2fa', '1'],
     'db_host': ['db_engine', 'sqlite-not'], 'db_port': ['db_engine', 'sqlite-not'],
     'db_name': ['db_engine', 'sqlite-not'], 'db_user': ['db_engine', 'sqlite-not'],
     'db_password': ['db_engine', 'sqlite-not'], 'db_timeout_s': ['db_engine', 'sqlite-not'],

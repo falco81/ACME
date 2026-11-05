@@ -2775,7 +2775,98 @@ function mfaStep() {
     box.appendChild(mfaOut());
   });
 }
-var MFA_WORDS = {app: 'App', mail: 'E-mail', sms: 'SMS'};
+var MFA_WORDS = {app: 'App', mail: 'E-mail', sms: 'SMS', passkey: 'Face ID / Touch ID'};
+/* A passkey as the second step (1.0.51): the device's face, finger or PIN after the password -
+   WebAuthn, binary as base64url both ways. Only on the pages opened by their name over HTTPS. */
+function pkBytes(s) {
+  s = String(s || '').replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  var bin = atob(s), out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+function pkText(buf) {
+  var b = new Uint8Array(buf), bin = '';
+  for (var i = 0; i < b.length; i++) bin += String.fromCharCode(b[i]);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function pkCan() {
+  return !!(window.PublicKeyCredential && navigator.credentials && location.protocol === 'https:'
+    && !/^[0-9.]+$|^\[/.test(location.hostname));
+}
+function pkDevice() {
+  var ua = navigator.userAgent || '';
+  if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iPad';
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/Mac/.test(ua)) return 'Mac';
+  if (/Windows/.test(ua)) return 'Windows';
+  if (/Android/.test(ua)) return 'Android';
+  return 'this device';
+}
+function pkCantSay(box) {
+  box.appendChild(el('p', 'said bad', 'A passkey works on the pages opened by their name over HTTPS (https://name/), with a certificate this browser trusts - not by an address.'));
+}
+/* Cancelled by the person: nothing said; "has one already": said so. */
+function pkFailed(said, e) {
+  if (e && (e.name === 'NotAllowedError' || e.name === 'AbortError')) { said.className = 'said'; said.textContent = ''; return; }
+  said.className = 'said bad';
+  said.textContent = e && e.name === 'InvalidStateError' ? 'This device has a passkey of this account already.' : String((e && e.message) || e);
+}
+function pkCheckForm(box, d) {
+  if (!pkCan()) { pkCantSay(box); return; }
+  var go = cmdButton('Use Face ID / Touch ID', 'key', 'primary');
+  go.type = 'button';
+  var said = el('div', 'said');
+  go.onclick = function () {
+    go.disabled = true;
+    said.className = 'said';
+    said.textContent = '';
+    api('mfa', {action: 'pk_begin'}).then(function (r) {
+      var o = r.publicKey;
+      o.challenge = pkBytes(o.challenge);
+      o.allowCredentials = (o.allowCredentials || []).map(function (c) { return {type: c.type, id: pkBytes(c.id)}; });
+      return navigator.credentials.get({publicKey: o});
+    }).then(function (cr) {
+      return api('mfa', {action: 'check', id: cr.id, clientDataJSON: pkText(cr.response.clientDataJSON),
+        authenticatorData: pkText(cr.response.authenticatorData), signature: pkText(cr.response.signature)});
+    }).then(function (r) {
+      said.className = 'said good';
+      said.textContent = r.message || 'Welcome back.';
+      setTimeout(function () { location.reload(); }, 400);
+    }).catch(function (e) { go.disabled = false; pkFailed(said, e); });
+  };
+  box.appendChild(go);
+  box.appendChild(said);
+  setTimeout(function () { go.focus(); }, 30);
+}
+function pkEnrolForm(body, d) {
+  body.appendChild(el('p', 'small muted', 'This device asks for your face, your finger or its PIN, and keeps a passkey for these pages (on an iPad or iPhone in the iCloud Keychain, so your other Apple devices have it too). The server keeps only its public part. It works on this name only: ' + location.hostname + '.'));
+  if (!pkCan()) { pkCantSay(body); return; }
+  var go = cmdButton('Set it up with this device', 'key', 'primary');
+  go.type = 'button';
+  var said = el('div', 'said');
+  go.onclick = function () {
+    go.disabled = true;
+    said.className = 'said';
+    said.textContent = '';
+    api('mfa', {action: 'enrol_start', kind: 'passkey'}).then(function (r) {
+      var o = r.publicKey;
+      o.challenge = pkBytes(o.challenge);
+      o.user.id = pkBytes(o.user.id);
+      o.excludeCredentials = (o.excludeCredentials || []).map(function (c) { return {type: c.type, id: pkBytes(c.id)}; });
+      return navigator.credentials.create({publicKey: o});
+    }).then(function (cr) {
+      return api('mfa', {action: 'enrol_confirm', kind: 'passkey', name: pkDevice() + ' · ' + new Date().toLocaleDateString(),
+        clientDataJSON: pkText(cr.response.clientDataJSON), attestationObject: pkText(cr.response.attestationObject)});
+    }).then(function (r) {
+      said.className = 'said good';
+      said.textContent = r.message || 'Done.';
+      setTimeout(function () { location.reload(); }, 400);
+    }).catch(function (e) { go.disabled = false; pkFailed(said, e); });
+  };
+  body.appendChild(go);
+  body.appendChild(said);
+}
 function mfaOut() {
   var b = cmdButton('Sign out', 'out', 'ghost');
   b.type = 'button';
@@ -2826,7 +2917,10 @@ function mfaDraw(box, d) {
   head.appendChild(noI18n(el('span', 'muted small mono', ' ' + (d.name || ''))));
   box.appendChild(head);
   if (d.stage === 'check') {
-    if (d.kind === 'app') {
+    if (d.kind === 'passkey') {
+      box.appendChild(el('p', 'lede', 'Your face, your finger or the PIN of the device that keeps the passkey of these pages.'));
+      pkCheckForm(box, d);
+    } else if (d.kind === 'app') {
       box.appendChild(el('p', 'lede', 'The code your authenticator app shows for these pages now.'));
       mfaCodeForm(box, d, 'check', 'Sign in');
     } else {
@@ -2876,6 +2970,7 @@ function mfaDraw(box, d) {
 }
 function mfaWay(body, d, kind) {
   clear(body);
+  if (kind === 'passkey') { pkEnrolForm(body, d); return; }
   if (kind === 'app') {
     body.appendChild(el('p', 'small muted', 'Scan it with the app (Google or Microsoft Authenticator…) and write the six digits it shows.'));
     var pic = el('div', 'mfa-qr');

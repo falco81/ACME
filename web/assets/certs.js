@@ -347,6 +347,11 @@ function cssVar(name, fallback) {
 /* ---- little pieces --------------------------------------------------------- */
 function mono(text, cls) { return noI18n(el('span', 'mono' + (cls ? ' ' + cls : ''), text)); }
 function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
+/* A module's vendor: a word (Public CA, Generic) translated, a name (ACME, Microsoft) as it is (1.0.51) */
+var VENDOR_WORDS = ['Public CA', 'Protocol', 'Generic', 'Standards', 'Other', 'Own'];
+function vendorEl(tag, cls, v) {
+  return VENDOR_WORDS.indexOf(v) >= 0 ? el(tag, cls, v) : data(tag, cls, v);
+}
 function namesChips(names, most) {
   var box = el('div', 'ct-names');
   names = arr(names);
@@ -1103,7 +1108,7 @@ function kindPicker(family, go, filter) {
   var tiles = [];
   order.forEach(function (v) {
     var g = el('div', 'ct-kind-group');
-    if (v) g.appendChild(el('div', 'ct-vendor', v));     /* a word (Public CA) translated, a name left as it is */
+    if (v) g.appendChild(vendorEl('div', 'ct-vendor', v));
     var grid = el('div', 'ct-kind-grid');
     groups[v].forEach(function (p) {
       var t = el('button', 'ct-kind-tile');
@@ -1122,7 +1127,7 @@ function kindPicker(family, go, filter) {
       /* its vendor and kind, then its tags in a row of their own, at the bottom left
          of the tile, whatever the length of the words above (1.0.33) */
       var foot = el('span', 'ct-kind-foot');
-      if (flat && p.vendor) foot.appendChild(el('span', 'ct-kind-v', p.vendor));
+      if (flat && p.vendor) foot.appendChild(vendorEl('span', 'ct-kind-v', p.vendor));
       foot.appendChild(mono(p.kind, 'ct-kind-k'));
       w.appendChild(foot);
       var tl = modTags(family, p, null, {count: true});
@@ -1173,7 +1178,7 @@ function plugHead(p, family, row) {
   var w = el('div', 'ct-plughead-w');
   var t = el('div', 'ct-plughead-t');
   t.appendChild(el('b', '', p.title || p.kind));
-  if (p.vendor) t.appendChild(el('span', 'tag dim', p.vendor));
+  if (p.vendor) t.appendChild(vendorEl('span', 'tag dim', p.vendor));
   t.appendChild(mono(p.kind, 'muted small'));
   tagsInto(t, modTags(family, p, row || null));
   w.appendChild(t);

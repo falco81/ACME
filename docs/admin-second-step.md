@@ -12,6 +12,10 @@ the account's own, set up for these pages.
 | `admin_2fa_app` | a code from an authenticator app (Google or Microsoft Authenticator, FreeOTP…) - offered anyway when nothing else is |
 | `admin_2fa_mail` | a code by e-mail - only while mail is set up (Settings → Mail) |
 | `admin_2fa_sms` | a code by SMS - only while sending SMS is set up (Settings → Codes by e-mail and SMS) |
+| `admin_2fa_passkey` | **Face ID, Touch ID, Windows Hello or a security key** (a passkey, WebAuthn) - off by default; see [Face ID and passkeys](#face-id-and-passkeys) |
+
+When more than one way is offered, the account chooses the one it wants when it sets the step
+up - the first time it signs in after the second step was switched on.
 
 ## Signing in
 
@@ -74,3 +78,45 @@ you know who asks.
 `meta` row `adm2fa:<name>`, in the database (and so on both nodes of a
 cluster): the way, the app's key sealed with the installation's key, or the
 address / number. In copies, dumps and backups like everything else.
+
+## Face ID and passkeys
+
+`admin_2fa_passkey` (1.0.51) adds one more way of giving the second step: the face, the finger
+or the PIN of the device - Face ID or Touch ID on an iPad, iPhone or Mac, Windows Hello, an
+Android phone, a security key. **It is a second step only, never the sign-in itself**: the name
+and the password are asked first, always, and the passkey is asked after them in place of a code.
+
+- **Setting it up:** the first sign-in after the second step was switched on offers *Face ID /
+  Touch ID* beside the other ways. *Set it up with this device* asks the device for the face (or
+  the finger, the PIN); on an iPad or iPhone the passkey goes into the iCloud Keychain, so the
+  person's other Apple devices have it too. The server keeps only its public part, its id and
+  its counter - nothing secret.
+- **Signing in:** after the password, *Use Face ID / Touch ID* - one look.
+- **Reset:** as for the other ways - *Accounts → Reset the second step*, or
+  `acme --reset-2fa NAME` as root. The passkey on the device is left there (Settings → Passwords
+  on an iPad) and no longer opens anything.
+
+What it takes:
+
+| | |
+|---|---|
+| HTTPS with a certificate the browser trusts | WebAuthn is not there at all otherwise |
+| the pages opened by their **name**, not by an address | a passkey is bound to the name (its RP ID) |
+| the same name each time | one set up on `acme.example.cz` (the VIP's name) does not work on `acme1.example.cz` - open the pages by the name you use every day |
+| on an iPad, the iCloud Keychain on | without it the iPad offers a security key or another device's QR code only |
+
+What the server checks, every time: the question is its own, once, within five minutes and for
+this name; the page asking is `https://` that name; the device saw the person (UP) **and knew
+them by face, finger or PIN (UV)** - without UV it is refused, as it would be no second step;
+the signature over the device's data, with the key kept (ES256, RS256 or Ed25519, checked by
+openssl); the counter going on (a passkey whose counter goes back may have been copied - refused,
+and said in the events as *bad*). Wrong answers count as wrong codes do (Sign-in protection).
+
+A passkey of 1Password or another password manager works too - the manager opens instead of
+Face ID and is unlocked by it.
+
+## The home screen of an iPad
+
+The pages carry an icon (`apple-touch-icon`) and a manifest: Safari → *Share → Add to Home
+Screen* puts acme's shield on the home screen; opened from there it runs in a window of its own,
+without Safari's bars. Its cookies are its own: sign in there once more.
