@@ -527,7 +527,7 @@ class Daemon(unittest.TestCase):
                                [(':', 'One-Pass-123'), ('again:', 'Two-Pass-456')])
         self.assertEqual(rc, 1, out)
         self.assertIn('not the same', out)
-        rc, out = self.pty_cli(['--local-user', 'drop-home', f], [('yes:', 'yes')])
+        rc, out = self.pty_cli(['--local-user', 'drop-home', f], [('go on:', 'yes')])
         self.assertEqual(rc, 0, out)
         with self.assertRaises(KeyError):
             pwd.getpwnam(f)
