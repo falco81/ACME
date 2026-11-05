@@ -51,6 +51,15 @@ function portalDoor() {
     e.preventDefault();
     said.className = 'said';
     said.textContent = '';
+    /* Both asked for before anything is sent (1.0.48): empty, they were answered "wrong
+       password". */
+    var noName = !$('in-name').value.trim();
+    if (noName || !$('in-pass').value) {
+      said.className = 'said bad';
+      said.textContent = noName ? 'type your name' : 'type your password';
+      (noName ? $('in-name') : $('in-pass')).focus();
+      return;
+    }
     go.disabled = true;
     var words = go.querySelector('span');
     words.textContent = 'Signing in…';
@@ -72,6 +81,14 @@ function portalDoor() {
   });
   if (window.PORTAL_GATE) { gateForm(window.PORTAL_GATE); return; }
   if ($('mfa-box') && $('mfa-box').dataset.stage) { form.hidden = true; mfaStep(); } else $('in-name').focus();
+  /* Sent back here because the sign-in ran out (1.0.48): said, not a page that just changed. */
+  try {
+    if (sessionStorage.getItem('acme-signed-out')) {
+      sessionStorage.removeItem('acme-signed-out');
+      said.className = 'said';
+      said.textContent = 'your sign-in has run out - sign in again';
+    }
+  } catch (e) { }
 }
 
 /* The one-time code at every sign-in (1.0.40, as otp's before the first token, 1.0.228):

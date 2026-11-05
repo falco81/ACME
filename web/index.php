@@ -260,9 +260,9 @@ if ($title_ours) {
       <?php endif; ?>
       <div id="mfa-box" data-stage="<?= h($mfa) ?>" hidden></div>
       <form id="signin-form" autocomplete="on"<?= $mfa !== '' ? ' hidden' : '' ?>>
-        <input type="text" id="in-name" name="username" placeholder="name" autocomplete="username"
+        <input type="text" id="in-name" name="username" placeholder="name" aria-label="Name" autocomplete="username"
                autocapitalize="none" spellcheck="false" required>
-        <input type="password" id="in-pass" name="password" placeholder="password"
+        <input type="password" id="in-pass" name="password" placeholder="password" aria-label="Password"
                autocomplete="current-password" required>
         <?php if (!empty($info['hint'])): ?>
           <p class="muted small" style="margin:-4px 0 10px">Your name is written as <b class="mono" data-no-i18n><?= h($info['hint']) ?></b></p>

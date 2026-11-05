@@ -223,6 +223,19 @@ var MODAL_GEN = 0;
 function modalTicket() { return MODAL_GEN; }
 function modalStill(ticket) { return ticket === MODAL_GEN && !$('modal').hidden; }
 
+/* A box with only a placeholder is named by it for a screen reader (1.0.48): the search boxes,
+   the passwords of a download, the pickers had no name of their own. */
+function labelsFromPlaceholders(root) {
+  try {
+    Array.prototype.forEach.call((root || document).querySelectorAll('input[placeholder], textarea[placeholder]'), function (x) {
+      if (x.getAttribute('aria-label') || x.getAttribute('aria-labelledby')) return;
+      if (x.id && document.querySelector('label[for="' + x.id + '"]')) return;
+      if (x.closest && x.closest('label')) return;
+      x.setAttribute('aria-label', x.getAttribute('placeholder'));
+    });
+  } catch (e) { }
+}
+document.addEventListener('DOMContentLoaded', function () { labelsFromPlaceholders(document); });
 function modal(title, build, buttons, narrow) {
   if (MODAL_OVER_WANTED) modalOverNow();
   MODAL_GEN += 1;
@@ -233,6 +246,7 @@ function modal(title, build, buttons, narrow) {
   var body = $('modal-body');
   clear(body);
   if (typeof build === 'function') build(body); else if (build) body.appendChild(build);
+  labelsFromPlaceholders(body);
   var keep = modalKeepOn(body);
   var foot = $('modal-foot');
   clear(foot);
@@ -1307,7 +1321,17 @@ function signedOutNow() {
      page?" every five seconds, for good (1.0.57). */
   var unsaved = (typeof DIRTY === 'object' && DIRTY && Object.keys(DIRTY).length) ||
                 (typeof PENDING === 'object' && PENDING && Object.keys(PENDING).length);
-  if (!unsaved) location.reload();
+  /* ...and what is typed in a popup open (1.0.48): the portal's request form was lost with the
+     reload, without a word. */
+  var m = document.getElementById('modal');
+  if (!unsaved && m && !m.hidden) {
+    unsaved = Array.prototype.some.call(m.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea'),
+                                        function (x) { return String(x.value || '').trim() !== ''; });
+  }
+  if (!unsaved) {
+    try { if (!/\/admin\//.test(location.pathname)) sessionStorage.setItem('acme-signed-out', '1'); } catch (e) { }
+    location.reload();
+  }
   else if (!window.SIGNED_OUT_SAID) {
     window.SIGNED_OUT_SAID = true;
     toast('signed out - the changes not saved are lost; reload the page to sign in again', 'bad');

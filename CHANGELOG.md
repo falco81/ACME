@@ -32,6 +32,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     one saved, as it is saved.
   - A certificate administrator of a team no longer sees other teams' certificates in a
     validation's setup, nor the result of another's import from a source.
+- **A hunt, round 2 (the pages, in Czech, on a phone):**
+  - Czech for what was left: the forms of several sources and validations, the portal's sign-in
+    events, steps of jobs, "changed: …" and "The owner …" with a name of their own (a weak
+    pattern refused a name with a digit or an underscore as a sentence).
+  - The portal: an empty name or password is asked for, not answered "wrong password"; a form's
+    error is scrolled to; a sign-in run out keeps what was typed in a popup and says so, and the
+    sign-in page says why it is shown.
+  - On a phone, a table's row buttons stay at its right edge as it scrolls sideways; what is
+    pressed is 36 px at least on a touch screen; the focus is seen on every control; a box with
+    only a placeholder is named by it for a screen reader.
 - **A hunt, round 2 (the certificates):**
   - A renewal stopped after its new version was saved (in the twin, the deployments, a
     restart) no longer puts the old state back over it: "failed" over a new version had it

@@ -48,6 +48,13 @@ function arr(v) {
   if (v === undefined || v === null || v === '') return [];
   return String(v).split(/[\s,;]+/).filter(Boolean);
 }
+/* What is wrong with a form, said where it is seen (1.0.48): below "What this profile gives", on a
+   phone it was under the fold, and pressing Ask seemed to do nothing. */
+function sayBad(said, words) {
+  said.className = 'said bad';
+  said.textContent = words;
+  try { said.scrollIntoView({block: 'nearest', behavior: 'smooth'}); } catch (e) { }
+}
 function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
 function stateTag(st) {
   var s = STATE[st] || [st || '–', 'dim'];
@@ -616,9 +623,9 @@ function askDialog() {
     var names = check();
     said.className = 'said';
     said.textContent = '';
-    if (!names.length) { said.className = 'said bad'; said.textContent = 'Which names? One a line.'; namesBox.focus(); return; }
+    if (!names.length) { sayBad(said, 'Which names? One a line.'); namesBox.focus(); return; }
     var bad = names.filter(function (n) { return !underSuffix(n, sufs); });
-    if (bad.length) { said.className = 'said bad'; said.textContent = 'Only names under ' + sufs.join(', ') + ' may be asked for here.'; namesBox.focus(); return; }
+    if (bad.length) { sayBad(said, 'Only names under ' + sufs.join(', ') + ' may be asked for here.'); namesBox.focus(); return; }
     busy(b, true);
     api('cert-request', {names: names, issuer: issuerSel.value, key_type: keySel.value, note: noteBox.value,
                          team: teamSel ? teamSel.value : ''}).then(function (got) {
@@ -1118,27 +1125,27 @@ function profileDialog(p, fromPicker) {
         said.textContent = String(e.message || e);
       }).then(function () { busy(b, false); });
     };
-    if (p.owner === 'team' && !bodyOut.team) { said.className = 'said bad'; said.textContent = 'Choose the team it belongs to.'; return; }
+    if (p.owner === 'team' && !bodyOut.team) { sayBad(said, 'Choose the team it belongs to.'); return; }
     if (how === 'csr') {
       var got = f.csr._read();
-      if (!got) { said.className = 'said bad'; said.textContent = 'Paste the CSR, or choose its file.'; return; }
+      if (!got) { sayBad(said, 'Paste the CSR, or choose its file.'); return; }
       Object.assign(bodyOut, got);
       /* Decoded and shown first - only then asked for. */
       if (reviewKey !== JSON.stringify(got)) {
         decode(null).then(function (rv) {
-          if (rv && !rv.fits) { said.className = 'said bad'; said.textContent = 'The CSR does not fit this profile - see what is marked ✗ above.'; }
+          if (rv && !rv.fits) { sayBad(said, 'The CSR does not fit this profile - see what is marked ✗ above.'); }
           else if (rv) { said.className = 'said'; said.textContent = 'Look at what the CSR says above, then ask again.'; }
         });
         return;
       }
-      if (!f.fits) { said.className = 'said bad'; said.textContent = 'The CSR does not fit this profile - see what is marked ✗ above.'; return; }
+      if (!f.fits) { sayBad(said, 'The CSR does not fit this profile - see what is marked ✗ above.'); return; }
       go();
       return;
     }
     var names = drawChips();
-    if (!names.length) { said.className = 'said bad'; said.textContent = 'Which names? One a line.'; f.names.focus(); return; }
-    if (namesOk(names).length) { said.className = 'said bad'; said.textContent = 'Only names under ' + p.suffixes.join(', ') + ' may be asked for here.'; f.names.focus(); return; }
-    if (names.length > p.max_names) { said.className = 'said bad'; said.textContent = 'At most ' + p.max_names + ' name(s) in one certificate of this profile.'; return; }
+    if (!names.length) { sayBad(said, 'Which names? One a line.'); f.names.focus(); return; }
+    if (namesOk(names).length) { sayBad(said, 'Only names under ' + p.suffixes.join(', ') + ' may be asked for here.'); f.names.focus(); return; }
+    if (names.length > p.max_names) { sayBad(said, 'At most ' + p.max_names + ' name(s) in one certificate of this profile.'); return; }
     bodyOut.names = names;
     bodyOut.key_type = f.key.value;
     bodyOut.subject = {};

@@ -3779,3 +3779,23 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .pwp-now > summary { cursor: pointer; font-size: 13px; margin-bottom: 8px; }
 .pwp-aging { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0 16px; }
 .pwp-how{margin:4px 0 10px}.pwp-how>summary{cursor:pointer;font-size:13px;color:var(--tx-dim)}.pwp-how p{margin:6px 0 0}
+
+/* Keyboard focus seen on every control (1.0.48): the search's filter, the (i), the time picker,
+   the preview switches had none. */
+.qs-funnel:focus-visible, .iinfo:focus-visible, .tp-main:focus-visible, button:focus-visible,
+[role="button"]:focus-visible, select:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--info); outline-offset: 2px;
+}
+/* Fingers (1.0.48): what is pressed is 36 px at least on a touch screen. */
+@media (pointer: coarse) {
+  #modal-x, .qs-funnel, .pager button, .langpick button, .tp-main, .btn.small {
+    min-height: 36px; min-width: 36px;
+  }
+  .iinfo { width: 24px; height: 24px; }
+}
+/* A table wider than a phone (1.0.48): its row's buttons stay at the right edge as it scrolls
+   sideways - Edit and Remove were off the screen. */
+@media (max-width: 900px) {
+  td.rowtools, th.rowtools { position: sticky; right: 0; background: var(--panel); z-index: 1;
+    box-shadow: -6px 0 6px -6px rgba(0,0,0,.5); }
+}
