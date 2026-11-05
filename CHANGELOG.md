@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.47 - not released
+## 1.0.47 - 2026-11-05
 
 - **The password policy of the local users explained as on otp:** every rule has its (i) - and
   its name the same words: what it does and in which file or module (pam_pwquality,
