@@ -269,7 +269,9 @@ def _alive_far(name):
     if was and time.monotonic() - was[0] < (15 if was[1] else 60):
         return was[1]
     if not LEAD_FAR_LOCK.acquire(blocking=False):
-        return bool(was and was[1])
+        # Being asked by another thread: not known yet is alive (1.0.48) - "dead" had this
+        # node lead beside the other for that moment.
+        return bool(was[1]) if was else True
     try:
         alive = bool(_peer_alive_there(name))
     except Exception:                                   # noqa: BLE001
@@ -305,8 +307,10 @@ def claim_once(store, key, value):
     took the day too. A key of both nodes (not one of this node's own,
     'NAME:NODE') is claimed by one node alone since 1.0.147 - see ha_lead -
     so only that one ever writes its row."""
-    if CONFIG.get('ha_mode') == 'replicated' and not key.endswith(':' + node_name()) and \
-            not ha_lead(store):
+    # This node's own: the day's copies, named by the node (1.0.48: not any key that merely
+    # ends like the node's name - a node called "day" took osup:check:day as its own).
+    own = key in ('backup_day:' + node_name(), 'rbackup_day:' + node_name())
+    if CONFIG.get('ha_mode') == 'replicated' and not own and not ha_lead(store):
         return False
     if store.get_meta(key) is None:
         try:

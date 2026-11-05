@@ -199,7 +199,10 @@ def upgrade_tick(daemon):
             if n['name'] == me or n['name'] not in [x['name'] for x in steps]:
                 continue
             alive = n.get('alive') or _peer_alive_there(n['name'])
-            if not alive or maintenance_row(store, n['name']).get('on'):
+            # ...and not stepped aside either (1.0.48): for its clock, a split, a rebuild or a
+            # restore it is out with its row saying nothing - its heartbeat says it.
+            beat_out = isinstance(n.get('maintenance'), dict) and n['maintenance'].get('on')
+            if not alive or beat_out or maintenance_row(store, n['name']).get('on'):
                 if turn.get('said') != 'waiting for %s to be in service' % n['name']:
                     _my_step(store, plan, state='waiting',
                              said='waiting for %s to be in service' % n['name'])

@@ -207,9 +207,19 @@ def node_carry(store, old, new, by='the daemon'):
         said.append('its place as the preferred node when the nodes lose each other')
     if str(CONFIG.get('split_prefer') or '') == old:
         CONFIG['split_prefer'] = new
+    # The day's copies claimed under the old name carried over (1.0.48): the new name took the
+    # night's dump and the remote backup again, both made twice.
+    for k in ('backup_day:', 'rbackup_day:'):
+        was = store.get_meta(k + old)
+        if was is not None and store.get_meta(k + new) is None:
+            store.set_meta(k + new, was)
     for k in ('node:', 'maint:', 'upgrade:node:', 'web:tls:', 'web:retry:', 'db_job:', 'fw:now:',
-              'db_sizes:', 'hatls:node:', 'split:state:'):
+              'db_sizes:', 'hatls:node:', 'split:state:', 'backup_day:', 'rbackup_day:',
+              'clock:state:', 'power:node:', 'host:health:') + tuple(MACHINE_ROWS):
         store.db.run('DELETE FROM meta WHERE k = ?', (k + old,))
+    # ...and what it wrote for the others under its old name: nobody else takes it away.
+    store.db.run("DELETE FROM meta WHERE k LIKE ? ESCAPE '!'",
+                 ('%' + NODE_KEY_SEP + old[:63].replace('!', '!!').replace('%', '!%').replace('_', '!_'),))
     store.add_event('settings', 'the node %s is called %s now; carried over: %s' % (
         old, new, ', '.join(said) or 'nothing (it had nothing of its own)'), 'warn', who=by)
     dbguard_resign(store, 'the node %s is called %s now' % (old, new))      # 1.0.231

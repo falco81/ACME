@@ -6,6 +6,22 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.48 - not released
 
+- **A hunt, round 1 (the cluster):**
+  - A rebuild from the other node that fails half way on the command line (`--ha-resync`,
+    `--ha-join`) leaves the node in maintenance, as from the pages - it started again answering
+    with emptied tables.
+  - A rolling upgrade, and a rolling restart, wait for the other node to be in service - not
+    only alive with its maintenance row off: stepped aside for its clock or a split, rebuilt or
+    restored, it was out too, and both were.
+  - The renewer reads the lease again right before it looks for due certificates: after the VIP
+    address went to the other node, both renewed for up to half a minute.
+  - While another thread is asking whether the other node is alive, the answer is "alive" -
+    "dead" had this node take the lead beside it for that moment.
+  - Only the day's own copies are a node's own claims: a node called "day" took the system
+    updates' daily claim as its own, and both nodes ran them.
+  - A node renamed carries its day's copies over (made twice before) and takes away what it had
+    written under its old name.
+
 ## 1.0.47 - 2026-11-05
 
 - **The password policy of the local users explained as on otp:** every rule has its (i) - and

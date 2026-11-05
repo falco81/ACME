@@ -937,7 +937,13 @@ class Renewer(object):
                 if self.leading and time.monotonic() < self.lead_until and \
                         time.monotonic() - self.last_scan >= every:
                     self.last_scan = time.monotonic()
-                    scan(self.store)
+                    # The lease read again right before (1.0.48): the VIP gone to the other
+                    # node, it took the lease meanwhile - both scanned until the next look.
+                    now_lead = leader(self.store) if E.CONFIG.get('ha_mode') else {'me': True}
+                    if now_lead and now_lead.get('me'):
+                        scan(self.store)
+                    else:
+                        self.leading = False
             except Exception as e:                      # noqa: BLE001
                 E.log_sparing('certs-renewer', 'the renewer: %s\n%s' % (
                     e, traceback.format_exc()), 'warn', every=600)

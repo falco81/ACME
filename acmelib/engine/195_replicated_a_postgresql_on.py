@@ -462,6 +462,13 @@ def _ha_rebuild(local, remote, my_slot, peer_slot, my_host, my_port, peer_host, 
         # service, not back answering with empty tables and nothing
         # replicating - until a rebuild goes through.
         store = HA_STORE.get('store')
+        if store is None:
+            # On the command line (--ha-resync, --ha-join: 1.0.48) there is no daemon's store -
+            # the mark was never written, and acme started again on emptied tables.
+            try:
+                store = Storage(local)
+            except Exception:                           # noqa: BLE001
+                store = None
         if store is not None:
             try:
                 row = maintenance_row(store)

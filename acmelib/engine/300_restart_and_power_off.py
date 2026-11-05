@@ -72,8 +72,12 @@ def power_go(daemon, plan):
     row = {'id': plan['id'], 'how': plan['how'], 'at': time.time(), 'boot': boot_time()}
     try:
         many = bool(CONFIG.get('ha_mode'))
+        # Another node in service (1.0.48): alive, and not in maintenance or stepped aside.
         if many and plan.get('keep_service') and plan['how'] == 'reboot' and \
-                not any(n.get('alive') and not n.get('me') for n in ha_nodes(store)):
+                not any(n.get('alive') and not n.get('me') and not (
+                    isinstance(n.get('maintenance'), dict) and n['maintenance'].get('on'))
+                    and not maintenance_row(store, n['name']).get('on')
+                    for n in ha_nodes(store)):
             # Its turn come, nobody else answers (1.0.165): it stays up.
             raise ValueError('no other node answers now - not restarted, the service goes on here')
         if many and plan.get('order') != 'together' and not (maintenance_row(store) or {}).get('on'):
