@@ -141,8 +141,12 @@ class History(unittest.TestCase):
         for i in range(60):
             E.LOAD_HIST.append((t - 200 + i * 3, float(i), 50.0, 1000, 2000))
         got = E.load_history()
-        self.assertTrue(0 < len(got['cpu']) <= 40)
+        self.assertTrue(0 < len(got['cpu']) <= 50)
         self.assertEqual(len(got['cpu']), len(got['mem']))
+        # with their times, the last reading always in (1.0.50)
+        self.assertEqual(len(got['t']), len(got['cpu']))
+        self.assertEqual(got['t'][-1], round(E.LOAD_HIST[-1][0], 2))
+        self.assertEqual(got['t'], sorted(got['t']))
         self.assertTrue(all(v >= 19 for v in got['cpu']))      # only the last 125 s
         self.assertIn('hist', E.api_load(hist=True))
 
@@ -190,6 +194,8 @@ class Cluster(unittest.TestCase):
             self.store.set_meta('load:now:peer', json.dumps(dict(got, at=time.time())))
             peers = E.load_peers(self.store)
         self.assertEqual([p['node'] for p in peers], ['peer'])
+        self.assertIn('shift', peers[0])        # its times put on this node's clock (1.0.50)
+        self.assertLess(abs(peers[0]['shift']), 5)
 
     def test_a_watch_noted_at_most_every_15_s(self):
         from unittest import mock

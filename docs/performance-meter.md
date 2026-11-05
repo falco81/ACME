@@ -64,6 +64,11 @@ What plexmon 2.7.1-2.7.4 found, here too:
   its processes are said. `?detail=1` adds the details, asked **only while a panel is open**.
 - It reads `/proc` and `/sys` when asked; **nothing runs in the background**. Asks within the same
   second share one reading (ten pages open are one reading).
+- The graphs are drawn on a line of time and move on smoothly between the readings (one SVG
+  animation each, nothing redrawn by a timer), a few seconds behind: this node's readings come
+  every 3 s, another node's every 5 s, so a new one is always added beyond the right edge and
+  nothing jumps. Their scale follows the highest reading shown and goes back down slowly. Paused,
+  they stand still; with *reduce motion* set in the system they step with each reading instead.
 - The pages do not ask while they are hidden, nor while the live updates are paused.
 - **In a cluster every node is shown**, a row of numbers each under its name, and each with its
   panel. Through the database, and only while a page watches: the node the page is on notes so in a

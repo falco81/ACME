@@ -32,15 +32,59 @@ function hloadRate(n) {
 /* Four looks to choose from (1.0.72): pills with a bar, one plain line,
    small graphs of the last two minutes, rings. */
 var HLOAD_KEEP = 40;
-function hloadSpark(vals, max, cls) {
-  var w = 56, h = 18, n = vals.length;
+/* The graphs on a line of time (1.0.50): each reading where its time puts it, the whole moving on
+   smoothly to the left between the readings (one SVG animation each, nothing redrawn by a
+   timer), shown a few seconds behind - this node's readings come every 3 s, another node's
+   every 5 s through the database - so a new one is always added beyond the right edge, never
+   seen jumping in. Their scale follows the highest reading shown, slowly back down. */
+var HL_WIN = 120, HL_OWN_D = 5, HL_PEER_D = 10, HL_OFF = [];
+function hlNow() {
+  var t = Date.now() / 1000 + (HLOAD.off || 0);
+  if (!hlLive()) { if (!HLOAD.frozen) HLOAD.frozen = t; return HLOAD.frozen; }
+  HLOAD.frozen = 0;
+  return t;
+}
+function hlCalm() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+function hlGeom(hist, k, w, h, top, edge) {
+  var vals = (hist || {})[k] || [], ts = hist && hist.t;
+  var y = function (v) { return (h - 1 - (h - edge) * Math.min(1, (v || 0) / top)).toFixed(1); };
+  if (!hist || !hist.live || !Array.isArray(ts) || ts.length !== vals.length) {
+    return {pts: vals.map(function (v, i) { return [(i * w / (HLOAD_KEEP - 1)).toFixed(1), y(v)]; }), anim: ''};
+  }
+  var R = hlNow() - (hist.D || HL_OWN_D), L = R - HL_WIN, pts = [];
+  for (var i = 0; i < vals.length; i++) {
+    if (ts[i] < L && i + 1 < vals.length && ts[i + 1] <= L) continue;     /* one kept left of the edge */
+    pts.push([(w * (ts[i] - L) / HL_WIN).toFixed(2), y(vals[i])]);
+  }
+  var anim = (hlCalm() || !hlLive()) ? '' : '<animateTransform attributeName="transform" type="translate" from="0 0" to="-' + w + ' 0" dur="' + HL_WIN + 's" fill="freeze"/>';
+  return {pts: pts, anim: anim};
+}
+function hlTop(hist, k) {
+  if (k === 'cpu' || k === 'mem') return 100;
+  var vals = (hist || {})[k] || [], ts = hist && hist.t, m = 1024;
+  var timed = !!(hist && hist.live && Array.isArray(ts) && ts.length === vals.length);
+  var L = timed ? hlNow() - (hist.D || HL_OWN_D) - HL_WIN : -Infinity;
+  for (var i = 0; i < vals.length; i++) if (!timed || ts[i] >= L) m = Math.max(m, vals[i] || 0);
+  if (!timed) return m;
+  var tp = hist.top || (hist.top = {}), was = tp[k], t = Date.now() / 1000;
+  if (was && t - was.at < 1) return Math.max(was.v, m);
+  var v = was ? Math.max(m, was.v * Math.pow(0.5, (t - was.at) / 15)) : m;
+  tp[k] = {v: v, at: t};
+  return v;
+}
+function hlJoin(pts) { return pts.map(function (p) { return p[0] + ',' + p[1]; }).join(' '); }
+function hloadSpark(hist, k, max, cls) {
+  var w = 56, h = 18;
   var svg = '<svg class="hl-spark ' + (cls || '') + '" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" preserveAspectRatio="none" aria-hidden="true">';
-  if (n > 1) {
-    var top = Math.max(max || 0, 1);
-    var pts = vals.map(function (v, i) { return (i * w / (HLOAD_KEEP - 1)).toFixed(1) + ',' + (h - 1 - (h - 2) * Math.min(1, (v || 0) / top)).toFixed(1); });
-    svg += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>';
+  var g = hlGeom(hist, k, w, h, Math.max(max || 0, 1), 2);
+  if (g.pts.length > 1) {
+    svg += '<g>' + g.anim + '<polyline points="' + hlJoin(g.pts) + '" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>';
   }
   return svg + '</svg>';
+}
+/* paused (the live updates) or the page away: the graphs stop where they are */
+function hlFreeze() {
+  document.querySelectorAll('.hload svg, #hload-panel svg').forEach(function (v) { if (v.pauseAnimations) v.pauseAnimations(); });
 }
 function hlVal(v) {
   var s = noI18n(el('span', 'hl-v'));
@@ -73,9 +117,15 @@ function hloadDraw(d, into, asLook, opt) {
   else if (preview) hist = hpSample().hist;
   else {
     HLOAD.last = d;
-    hist = HLOAD.hist || (HLOAD.hist = {cpu: [], mem: [], disk: [], net: []});
-    var push = function (k, v) { hist[k].push(v || 0); if (hist[k].length > HLOAD_KEEP) hist[k].shift(); };
-    if (d.cpu !== undefined) { push('cpu', d.cpu); push('mem', mp); push('disk', (d.disk_rd || 0) + (d.disk_wr || 0)); push('net', (d.net_rx || 0) + (d.net_tx || 0)); }
+    hist = HLOAD.hist || (HLOAD.hist = {cpu: [], mem: [], disk: [], net: [], t: [], live: true, D: HL_OWN_D});
+    var tl = hist.t || [];
+    /* each reading once, with its time (1.0.50); what is older than the graphs show let go */
+    if (d.cpu !== undefined && d.at && !(tl.length && d.at <= tl[tl.length - 1] + 0.5)) {
+      hist.cpu.push(d.cpu || 0); hist.mem.push(mp || 0);
+      hist.disk.push((d.disk_rd || 0) + (d.disk_wr || 0)); hist.net.push((d.net_rx || 0) + (d.net_tx || 0));
+      tl.push(d.at); hist.t = tl;
+      while (tl.length > 2 && tl[1] < d.at - HL_WIN - 30) ['cpu', 'mem', 'disk', 'net', 't'].forEach(function (k) { hist[k].shift(); });
+    }
   }
   var look = asLook || HLOAD.look || 'off';
   host.className = 'hload look-' + look + (preview ? ' hl-preview' : '') + (opt.node ? ' hl-peer' : '')
@@ -132,8 +182,7 @@ function hloadDraw(d, into, asLook, opt) {
       }
       if (look === 'graphs') {
         var g = el('span', 'hl-g');
-        var vals = hist[x[2]], max = x[4] || Math.max.apply(null, vals.concat([1024]));
-        g.innerHTML = hloadSpark(vals, max);
+        g.innerHTML = hloadSpark(hist, x[2], x[4] || hlTop(hist, x[2]));
         c.appendChild(g);
       }
       heat(c, x[3]);
@@ -369,21 +418,18 @@ function hloadPanelDraw() {
   }
 }
 var HP_TITLE = {cpu: 'The processor', mem: 'Memory', disk: 'The disks', net: 'The network'};
-function hpMax(k) {
-  var vals = (HLOAD.hist || {})[k] || [];
-  return (k === 'cpu' || k === 'mem') ? 100 : Math.max.apply(null, vals.concat([1024]));
-}
+function hpMax(k) { return hlTop(HLOAD.hist, k); }
 /* a filled graph of the last two minutes, as wide as its box */
 function hpArea(k, h, grid) {
-  var vals = (HLOAD.hist || {})[k] || [], w = 400, top = Math.max(hpMax(k), 1);
+  var w = 400, top = Math.max(hpMax(k), 1);
   var box = el('div', 'hp-area hl-' + k);
   var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" width="100%" height="' + h + '" preserveAspectRatio="none" aria-hidden="true">';
   if (grid) [0.25, 0.5, 0.75].forEach(function (g) { svg += '<line x1="0" x2="' + w + '" y1="' + h * g + '" y2="' + h * g + '" class="hp-grid" vector-effect="non-scaling-stroke"/>'; });
-  if (vals.length > 1) {
-    var pts = vals.map(function (v, i) { return (i * w / (HLOAD_KEEP - 1)).toFixed(1) + ',' + (h - 1 - (h - 3) * Math.min(1, (v || 0) / top)).toFixed(1); });
-    var last = ((vals.length - 1) * w / (HLOAD_KEEP - 1)).toFixed(1);
-    svg += '<polygon points="0,' + h + ' ' + pts.join(' ') + ' ' + last + ',' + h + '" fill="currentColor" opacity=".16"/>';
-    svg += '<polyline points="' + pts.join(' ') + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>';
+  var g = hlGeom(HLOAD.hist, k, w, h, top, 3);
+  if (g.pts.length > 1) {
+    var pts = hlJoin(g.pts);
+    svg += '<g>' + g.anim + '<polygon points="' + g.pts[0][0] + ',' + h + ' ' + pts + ' ' + g.pts[g.pts.length - 1][0] + ',' + h + '" fill="currentColor" opacity=".16"/>';
+    svg += '<polyline points="' + pts + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>';
   }
   box.innerHTML = svg + '</svg>';
   return box;
@@ -659,9 +705,8 @@ function hpTiles(p, k) {
   var head = el('div', 'hp-head');
   head.appendChild(el('b', '', {cpu: 'The processor', mem: 'Memory', disk: 'The disks', net: 'The network'}[k]));
   var big = el('div', 'hp-graph');
-  var vals = (HLOAD.hist || {})[k] || [];
-  var max = (k === 'cpu' || k === 'mem') ? 100 : Math.max.apply(null, vals.concat([1024]));
-  big.innerHTML = hloadSpark(vals, max).replace('width="56" height="18"', 'width="100%" height="54"');
+  var max = hpMax(k);
+  big.innerHTML = hloadSpark(HLOAD.hist, k, max).replace('width="56" height="18"', 'width="100%" height="54"');
   big.classList.add('hl-' + k);
   var scale = el('span', 'hp-scale muted small', k === 'cpu' || k === 'mem' ? '100 %' : hloadRate(max));
   head.appendChild(scale);
@@ -750,6 +795,7 @@ function hpTiles(p, k) {
   }
 }
 function hloadTick(now) {
+  if ($('hload') && !hlLive()) { hlNow(); hlFreeze(); }
   if (!$('hload') || (HLOAD.busy && !now) || document.hidden || !hlLive()) return;
   HLOAD.look = prefs().hload || 'graphs';        /* switched on in Settings → About (1.0.48) */
   if (HLOAD.look === 'off') {
@@ -770,16 +816,28 @@ function hloadTick(now) {
       document.querySelectorAll('.hload.hl-peer').forEach(function (b) { b.remove(); });
       return;
     }
+    /* the page's clock against the server's: the least late of the last answers (1.0.50) */
+    if (d.now) {
+      HL_OFF.push(d.now - Date.now() / 1000);
+      if (HL_OFF.length > 20) HL_OFF.shift();
+      HLOAD.off = Math.max.apply(null, HL_OFF);
+    }
+    /* another node's readings on this node's clock, drawn further behind (they come every 5 s) */
+    var tops = {};
+    (HLOAD.peers || []).forEach(function (x) { if (x.hist && x.hist.top) tops[x.node] = x.hist.top; });
     HLOAD.peers = Array.isArray(d.peers) ? d.peers : [];
+    HLOAD.peers.forEach(function (x) {
+      if (!x.hist || !Array.isArray(x.hist.t)) return;
+      var sh = Number(x.shift) || 0;
+      x.hist.t = x.hist.t.map(function (t) { return t + sh; });
+      x.hist.live = true; x.hist.D = HL_PEER_D; x.hist.top = tops[x.node];
+    });
     if (d.detail) { HLOAD.detail = d.detail; HLOAD.detailAt = Date.now(); }
     if (withHist && !HLOAD.hist && d.hist && Array.isArray(d.hist.cpu)) {
-      var seed = {};
-      ['cpu', 'mem', 'disk', 'net'].forEach(function (k) {
-        var v = (d.hist[k] || []).slice(-HLOAD_KEEP);
-        if (d.cpu !== undefined && v.length) v.pop();      /* this reading is drawn below */
-        seed[k] = v;
-      });
-      HLOAD.hist = seed;
+      var seed = {live: true, D: HL_OWN_D};
+      var ok = Array.isArray(d.hist.t) && d.hist.t.length === d.hist.cpu.length;
+      ['cpu', 'mem', 'disk', 'net', 't'].forEach(function (k) { seed[k] = ok ? (d.hist[k] || []).slice() : []; });
+      HLOAD.hist = seed;          /* this reading, the last of them, is not added twice below */
     }
     hloadDraw(d);
     hloadPeersDraw();

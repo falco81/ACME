@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.50 - not released
 
+- The graphs of the performance meter move on smoothly, of this node and of the other node of a
+  cluster alike: drawn on a line of time a few seconds behind, each reading where its time puts
+  it, so neither the line jumping ahead when another node's readings come (every 5 s, two at
+  once) nor a step when a reading comes is seen any more; their scale no longer jumps when a
+  peak leaves the graph but goes back down slowly. Nothing more is read or written for it.
+
 ## 1.0.49 - 2026-11-05
 
 - The performance meter sits on the row of the name and the state of the node, in a cluster too

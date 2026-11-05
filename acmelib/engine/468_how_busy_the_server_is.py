@@ -418,9 +418,15 @@ def load_history(span=125):
         if r[0] - last >= 2.5:
             picked.append(r)
             last = r[0]
-    picked = picked[-40:]
+    if rows and picked[-1] is not rows[-1]:
+        # the last reading always in (1.0.50): the graphs end at what was read last
+        picked[-1] = rows[-1]
+    picked = picked[-50:]
+    # each reading's time too (1.0.50): the graphs are drawn on a line of time, moving on
+    # smoothly between the readings, whenever these came
     return {'cpu': [r[1] for r in picked], 'mem': [round(r[2], 1) for r in picked],
             'disk': [r[3] for r in picked], 'net': [r[4] for r in picked],
+            't': [round(r[0], 2) for r in picked],
             'from': picked[0][0] if picked else None}
 
 
@@ -515,7 +521,8 @@ def load_peers(store):
             age = time.time() - float(v.get('at') or 0)
         if age > 120:
             continue                    # not watched lately, or gone: not shown as now
-        v.update(node=name, age=round(age, 1))
+        # its times put on this node's clock (1.0.50), the difference of the clocks measured
+        v.update(node=name, age=round(age, 1), shift=round(time.time() - age - float(v.get('at') or 0), 3))
         out.append(v)
     out.sort(key=lambda x: x['node'])
     return out
@@ -530,6 +537,7 @@ def _load(h):
     out = api_load(detail=h.arg('detail') in ('1', 'true', 'yes'),
                    hist=h.arg('hist') in ('1', 'true', 'yes'))
     out['node'] = node_name()
+    out['now'] = round(time.time(), 3)     # the times of the readings put against the page's clock
     if CONFIG.get('ha_mode') and h.arg('nodes') in ('1', 'true', 'yes'):
         load_watch_note(h.store, [x for x in str(h.arg('detail_of') or '').split(',') if x])
         out['peers'] = load_peers(h.store)
