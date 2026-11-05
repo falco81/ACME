@@ -140,6 +140,12 @@ def _deploys_dry_run(h, s):
                                          for k in A.DEPLOY_COMMANDS):
         raise E.ApiError(403, 'only a full administrator may test commands other than the ones '
                               'saved')
+    if not A.may(s, 'fulladmin'):
+        # where the key goes and how it is kept (1.0.51), as a save checks it: the script tried
+        # was handed the key and the password of the certificate administrator's choosing
+        diff = {k: opts.get(k) for k in A.DEPLOY_KEY_OPTIONS
+                if k not in A.KEY_SECRETS and k in opts and opts.get(k) != saved.get(k)}
+        A._deploy_key_check(cls, diff, saved)
     by = A.who(s)
     run_script = A._flag(b.get('run_script'), 1)
     if opts.get('pfx_password_mode') == 'generate' and not opts.get('pfx_password'):

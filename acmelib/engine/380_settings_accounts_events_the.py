@@ -244,6 +244,11 @@ def _users(h):
     users = h.store.accounts()
     for u in users:
         u['mfa'] = mfa.get(str(u.get('name') or '').lower())
+        if s['role'] != 'fulladmin':
+            # A person's own data a full administrator's to see (1.0.51): any read-only
+            # account was shown every account's mail, phone, groups, note and last address.
+            for k in ('mail', 'mobile', 'last_from', 'note', 'group_list', 'dn'):
+                u.pop(k, None)
     return {'users': users, 'may_change': s['role'] == 'fulladmin',
             'mfa_on': bool(CONFIG.get('admin_2fa')),
             # The portal's code for acme's own accounts (1.0.44): which ways, so the list can say

@@ -182,9 +182,11 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
                 "if (Get-Module -ListAvailable WebAdministration) { Import-Module WebAdministration;"
                 " $used += (Get-ChildItem IIS:\\SslBindings -ErrorAction SilentlyContinue | "
                 "ForEach-Object { $_.Thumbprint }) }",
-                "$old = Get-ChildItem $store | Where-Object { $_.FriendlyName -like %s -and "
+                # only this certificate's own (1.0.51): "acme-vpn-*" took vpn-2's too
+                "$old = Get-ChildItem $store | Where-Object { $_.FriendlyName -match ('^' + "
+                "[regex]::Escape(%s) + '\\d{8}-[0-9a-f]+$') -and "
                 "$_.Thumbprint -ne $thumb } | Sort-Object NotBefore -Descending | "
-                "Select-Object -Skip %d" % (ps_str(prefix + '*'), keep),
+                "Select-Object -Skip %d" % (ps_str(prefix), keep),
                 "foreach ($o in $old) { if ($used -contains $o.Thumbprint) { Write-Output "
                 "('INUSE ' + $o.Thumbprint) } else { Remove-Item -LiteralPath $o.PSPath; "
                 "Write-Output ('REMOVED ' + $o.Thumbprint) } }",

@@ -108,6 +108,31 @@ def url_shown(url):
     return urllib.parse.urlunsplit((u.scheme, net, u.path, q, ''))
 
 
+def scope_hostkey_keeper(store, scope):
+    """fn(known_hosts, field) writing the first host key seen into the row the scope names
+    ('target:web1', 'challenge:ssh-dns', 'check:relay'), if that field is empty there."""
+    fam, _, name = str(scope or '').partition(':')
+    table = S.TABLE_OF.get(fam)
+    if not table or not name or store is None:
+        return None
+
+    def keep(text, field='hostkey'):
+        field = str(field or 'hostkey')
+        if not re.match(r'^[a-z_]{1,40}hostkey$', field):
+            return
+        row = store.db.row('SELECT id, config FROM %s WHERE name = ?' % table, (name,))
+        if not row:
+            return
+        cfg = S.jload(row.get('config'), {}) or {}
+        if cfg.get(field):
+            return
+        cfg[field] = str(text).strip()
+        store.db.update(table, row['id'], {'config': json.dumps(cfg), 'updated': time.time()})
+        store.add_event('certificates', 'the host key of %s %s was taken as the first one seen '
+                        '(trust_first)' % (fam, name), 'warn')
+    return keep
+
+
 class RunContext(base.Context):
     """The Context of acmelib/plugins/base.py, for one job (or a test).
 
@@ -121,7 +146,11 @@ class RunContext(base.Context):
         self.store = store
         self.job = job
         self.scope = scope or 'any'
-        self.on_hostkey = on_hostkey
+        # The first host key seen kept wherever the connection is set (1.0.51): only a target's
+        # deployment kept it - a test, a validation over SSH and every run after took any key
+        # that answered. False: kept nowhere (settings tried before they are saved).
+        self.on_hostkey = scope_hostkey_keeper(store, self.scope) if on_hostkey is None \
+            else (on_hostkey or None)
         self.steps = []
         self.node = E.node_name()
         self.settings = S.settings_view()
@@ -642,7 +671,9 @@ def hostkey_lines(text):
             continue
         parts = line.split()
         if parts[0].startswith('@'):
-            parts = parts[1:]           # @cert-authority / @revoked: not for this
+            # @revoked says the key is NOT to be trusted, @cert-authority that it signs the
+            # host's keys - neither is the host's key itself (1.0.51: both were taken for it)
+            continue
         if len(parts) >= 2 and re.match(r'^(ssh-|ecdsa-|sk-)', parts[0]):
             typ, key = parts[0], parts[1]
         elif len(parts) >= 3:
@@ -760,7 +791,10 @@ class SshSession(base.SshSession):
                           % (self.host, prints), 'warn')
             if self.ctx.on_hostkey:
                 try:
-                    self.ctx.on_hostkey(scanned)
+                    try:
+                        self.ctx.on_hostkey(scanned, c.get('hostkey_field') or 'hostkey')
+                    except TypeError:
+                        self.ctx.on_hostkey(scanned)
                 except Exception as e:                  # noqa: BLE001
                     self.ctx.step('the host key could not be kept: %s' % e, 'warn')
         self.d = tempfile.mkdtemp(prefix='acme-ssh-')

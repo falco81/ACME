@@ -116,7 +116,10 @@ def backups():
 
 
 STALE_WORK = ('acme-rbackup-', 'acme-putback-', 'acme-download-', 'acme-dl-', 'acme-peek-',
-              'acme-fetch-')
+              'acme-fetch-',
+              # (1.0.51) the weekly try of a backup (all of it unpacked, secrets.key with it), a
+              # copy unlocked to be put back, a MariaDB dump unpacked, a copy uploaded
+              'acme-verify-', 'acme-restore-', 'acme-sql-', 'acme-upload-')
 
 
 def stale_work_away(older=6 * 3600):

@@ -53839,6 +53839,26 @@
   "pm_4": {
    "source": "not read lately - the node may be away",
    "text": "dlouho nepřečteno – uzel možná není dostupný"
+  },
+  "huntc1_1": {
+   "source": "this deployment runs commands or writes the key where a full administrator set: only one may move it to another target",
+   "text": "toto nasazení spouští příkazy nebo zapisuje klíč tam, kam určil plný administrátor: na jiný cíl ho smí přesunout jen on"
+  },
+  "huntc1_2": {
+   "source": "the CA had revoked it already",
+   "text": "certifikační autorita ho už odvolala"
+  },
+  "huntc1_3": {
+   "source": "the backup put back was made while it was renewed",
+   "text": "obnovená kopie vznikla během obnovy certifikátu"
+  },
+  "huntc1_4": {
+   "source": "the backup put back was made while it was deployed",
+   "text": "obnovená kopie vznikla během nasazování"
+  },
+  "huntc1_5": {
+   "source": "the backup put back was made while it ran",
+   "text": "obnovená kopie vznikla během běhu úlohy"
   }
  },
  "patterns": {
@@ -73601,6 +73621,22 @@
   "pb2u_16": {
    "source": "{0} · Own certificate authority",
    "text": "{0} · Vlastní certifikační autorita"
+  },
+  "phuntc1_1": {
+   "source": "'{0}': ß, ς and the joiners are written two ways in DNS - give the name in its xn-- form",
+   "text": "'{0}': ß, ς a spojovače se v DNS zapisují dvojím způsobem – zadejte jméno v podobě xn--"
+  },
+  "phuntc1_2": {
+   "source": "ß, ς and the joiners are written two ways in DNS - give {0} in its xn-- form",
+   "text": "ß, ς a spojovače se v DNS zapisují dvojím způsobem – zadejte {0} v podobě xn--"
+  },
+  "phuntc1_3": {
+   "source": "job {0} is told to stop (it runs at the command line)",
+   "text": "úloze {0} bylo řečeno, ať skončí (běží v příkazové řádce)"
+  },
+  "phuntc1_4": {
+   "source": "the host key of {0} {1} was taken as the first one seen (trust_first)",
+   "text": "klíč serveru {0} {1} byl přijat jako první viděný (trust_first)"
   }
  },
  "rich": {

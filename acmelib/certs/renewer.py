@@ -381,7 +381,8 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
                  % (what, ref, irow['name']))
     job.check()
     issued = issuer.issue(req)
-    job.check()
+    # no stop asked between the CA's answer and the version saved (1.0.51): stopped there, the
+    # certificate issued was thrown away
     if not issued or not getattr(issued, 'cert_pem', None):
         raise base.PluginError('%s gave no certificate' % irow['name'])
     key_out = None if given else (issued.key_pem or key_pem)
@@ -487,7 +488,14 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         raise base.PluginError('%s was revoked and is issued for a CSR sent in: send a new CSR '
                                '(a new key) - the same one is not used again' % cert['name'],
                                retry=False)
-    if was == 'revoked':
+    try:
+        # Its version revoked (1.0.51): a renewal after a revoke that failed once is 'failed',
+        # not 'revoked' any more - the key it holds is the revoked one all the same.
+        key_out = bool(store.db.value('SELECT revoked FROM cert_versions WHERE cert_id = ? AND '
+                                      'version = ?', (cert['id'], cert.get('version') or 0)))
+    except Exception:                                   # noqa: BLE001
+        key_out = False
+    if was == 'revoked' or key_out:
         # The one revoked may have gone because its key got out: never that key again.
         cert = dict(cert, reuse_key=0)
         job.step('it was revoked: a new key, whatever "keep the key" says')
@@ -687,14 +695,26 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
     issuer = S.plugin_instance(store, 'issuer', irow, ctx, S.cert_over(cert, 'issuer'))
     job.step('revoking %s (serial %s) at %s, reason %s' % (cert['name'], cert.get('serial'),
                                                           irow['name'], reason))
-    said = issuer.revoke(cert['cert_pem'], reason, S.cert_key(cert))
+    def _revoke(pem, key):
+        # Revoked already (1.0.51): an answer lost on the way, or the twin's revoke tried again
+        # after it failed - taken for done, so what follows (the twin, the state) is done too.
+        try:
+            return issuer.revoke(pem, reason, key)
+        except base.PluginError as e:
+            if getattr(e, 'acme_type', '') == 'alreadyRevoked' or 'alreadyRevoked' in str(e):
+                job.step('the CA had revoked it already', 'ok')
+                return 'revoked already'
+            raise
+    said = _revoke(cert['cert_pem'], S.cert_key(cert))
     twin_ok = True
-    if cert.get('alt_cert_pem'):
+    if cert.get('alt_cert_pem') and cert.get('alt_state') == 'revoked':
+        pass                            # revoked with the version before: not asked again
+    elif cert.get('alt_cert_pem'):
         # The twin of a dual certificate: the same names, revoked with it.
         job.step('revoking its twin (%s, serial %s) too' % (cert.get('key_type_alt') or '?',
                                                            cert.get('alt_serial')))
         try:
-            issuer.revoke(cert['alt_cert_pem'], reason, S.cert_key(cert, 'alt'))
+            _revoke(cert['alt_cert_pem'], S.cert_key(cert, 'alt'))
             store.db.run('UPDATE cert_versions SET revoked = ? WHERE cert_id = ? AND version = ?',
                          (time.time(), cert['id'], cert.get('alt_version') or 0))
         except base.PluginError as e:
@@ -716,7 +736,7 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
                 if _pki.cert_info(v['cert_pem']).get('pub_sha256') != mine:
                     continue
                 try:
-                    issuer.revoke(v['cert_pem'], reason, S.cert_key(cert))
+                    _revoke(v['cert_pem'], S.cert_key(cert))
                     store.db.run('UPDATE cert_versions SET revoked = ? WHERE cert_id = ? AND '
                                  'version = ?', (time.time(), cert['id'], v['version']))
                     job.step('version %s, with the same key, revoked too' % v['version'], 'ok')
@@ -879,6 +899,12 @@ def scan(store, by='the renewer'):
                 fresh = False
             if not r.get('cert_pem') and r.get('created_by') and fresh:
                 who = str(r['created_by'])
+            if E.CONFIG.get('ha_mode'):
+                # A long scan (a CA slow to answer ARI) may outlive this node's lead (1.0.51): the
+                # other node taking it over scans too - no more started from here then.
+                cur = leader(store)
+                if cur and not cur.get('me'):
+                    break
             jobs.submit(store, 'renew', renew_job(r['id'], by=who, only=only), cert_id=r['id'],
                         by=who, said=why)
             started += 1

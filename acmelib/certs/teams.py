@@ -332,11 +332,14 @@ def guard(h, s, method, path):
         need_job(store, s, b.get('id'), 'manage', 'stop a job of')
     elif path in ('/api/certs/save', '/api/certs/import', '/api/certs/csr'):
         ref = _ref(b, 'id')
-        if ref is None:
+        # 0, false, an id of nothing (1.0.51): the route makes a new one of it - the owner
+        # sent was taken unchecked (any team, or none)
+        row = need_cert(store, s, ref, 'manage', 'change') if ref not in (None, 0, False, '0') \
+            else None
+        if row is None:
             need_owner(store, s, b.get('owner'), 'a new certificate')
         else:
-            row = need_cert(store, s, ref, 'manage', 'change')
-            if row is not None and 'owner' in b and _low(b.get('owner')) != _low(row.get('owner')):
+            if 'owner' in b and _low(b.get('owner')) != _low(row.get('owner')):
                 need_owner(store, s, b.get('owner'), 'the owner of %s' % row['name'])
     elif path == '/api/certs/online_import':
         # Import from a source: each certificate is a new one, for a team they may ask for.

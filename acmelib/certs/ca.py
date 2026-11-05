@@ -36,6 +36,7 @@ import io
 import ipaddress
 import json
 import os
+import threading
 import re
 import time
 import zipfile
@@ -880,9 +881,28 @@ def _dn_index(dn):
     return '/' + re.sub(r'[\t\n\r]', ' ', str(dn or 'unknown'))
 
 
+CRL_LOCK = threading.Lock()
+
+
 def ca_crl(store, ca_id):
     """A new CRL of the authority (openssl ca -gencrl, the index made from
     cert_ca_issued), its number one higher; kept in cert_cas -> crl_pem."""
+    # One at a time, and kept only if no other was kept meanwhile (1.0.51): a refresh reading
+    # the revoked ones before a revoke wrote over the revoke's CRL - the revoked certificate
+    # missing from it for days, two CRLs of one number. Lost to another (the other node):
+    # made again from what is there now.
+    with CRL_LOCK:
+        for _ in range(3):
+            crl, number, was, rid = _ca_crl_make(store, ca_id)
+            store.db.run('UPDATE cert_cas SET crl_pem = ?, crl_at = ?, crl_number = ? WHERE id = ? '
+                         'AND COALESCE(crl_number, 0) = ?', (crl, _now(), number, rid, was))
+            if (store.db.value('SELECT crl_pem FROM cert_cas WHERE id = ?', (rid,))
+                    or '') == crl:
+                return crl
+        return store.db.value('SELECT crl_pem FROM cert_cas WHERE id = ?', (rid,)) or crl
+
+
+def _ca_crl_make(store, ca_id):
     # Never on both halves of a split cluster (1.0.44), from wherever it is asked - the
     # public /api/pki/crl and an export signed a new one without asking: two CRLs of the
     # same number. The one there is served meanwhile.
@@ -917,9 +937,7 @@ def ca_crl(store, ca_id):
                      '-out', os.path.join(d, 'crl.pem')])
         crl = pki.rfile(d, 'crl.pem').decode('ascii')
     crl = [p for lab, p in pki.split_pem(crl) if lab == 'X509 CRL'][0]
-    store.db.run('UPDATE cert_cas SET crl_pem = ?, crl_at = ?, crl_number = ? WHERE id = ?',
-                 (crl, _now(), number, int(row['id'])))
-    return crl
+    return crl, number, number - 1, int(row['id'])
 
 
 def crl_due(store, ca_id, margin_s=None):

@@ -159,7 +159,9 @@ def rb_verify(store, by, tid=None, name=None, progress=None):
     def say(n, t):
         if progress:
             progress(n, 4, t)
-    targets = [t for t in rb_targets(store) if t.get('enabled') and (not tid or t['id'] == tid)]
+    # one named: tried switched off too (1.0.51) - "back up now" sends to one switched off,
+    # and its "try it after" failed a good backup with "no such destination"
+    targets = [t for t in rb_targets(store) if (t['id'] == tid if tid else t.get('enabled'))]
     if tid and not targets:
         raise RbError('no such destination')
     if not targets:
@@ -248,31 +250,65 @@ def rb_verify(store, by, tid=None, name=None, progress=None):
     return res
 
 
+def _rb_vforgot(store):
+    """(all before, {times}) of the tries forgotten, every node's word together."""
+    before, ats = 0.0, set()
+    for r in store.db.rows("SELECT v FROM meta WHERE k LIKE 'rbackup:vforgot:%'"):
+        try:
+            v = json.loads(r['v'] or '{}')
+        except ValueError:
+            continue
+        if isinstance(v, dict):
+            before = max(before, float(v.get('all_before') or 0))
+            ats |= {round(float(x), 3) for x in (v.get('ats') or []) if isinstance(x, (int, float))}
+    return before, ats
+
+
 def rb_verified(store):
-    """Every node's tries, newest first."""
+    """Every node's tries, newest first - less those forgotten."""
     out = []
+    before, ats = _rb_vforgot(store)
     for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'rbackup:verified:%'"):
         try:
             rows = json.loads(r['v'] or '[]')
         except ValueError:
             continue
-        out += [x for x in rows if isinstance(x, dict)]
+        out += [x for x in rows if isinstance(x, dict) and float(x.get('at') or 0) > before
+                and round(float(x.get('at') or 0), 3) not in ats]
     out.sort(key=lambda x: -float(x.get('at') or 0))
     return out
 
 
 def rb_verified_forget(store, at=None):
-    """Taken off the list - one try (by its time) or all; the backups stay."""
-    n = 0
+    """Taken off the list - one try (by its time) or all; the backups stay. This node's own row
+    rewritten, the other nodes' tries noted as forgotten in a row of this node's (1.0.51): one
+    writer a row - the other node's rewritten here crossed its own write of a new try."""
+    n, hits = 0, []
+    mine = 'rbackup:verified:' + node_name()
     for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'rbackup:verified:%'"):
         try:
             rows = json.loads(r['v'] or '[]')
         except ValueError:
             rows = []
-        keep = [] if at is None else [x for x in rows if abs(float(x.get('at') or 0) - at) > 0.001]
-        if len(keep) != len(rows):
-            n += len(rows) - len(keep)
-            store.set_meta(r['k'], json.dumps(keep))
+        rows = [x for x in rows if isinstance(x, dict)]
+        hit = rows if at is None else [x for x in rows
+                                       if abs(float(x.get('at') or 0) - float(at)) <= 0.001]
+        if not hit:
+            continue
+        n += len(hit)
+        hits += hit
+        if r['k'] == mine:
+            store.set_meta(mine, json.dumps([x for x in rows if x not in hit]))
+    fk = 'rbackup:vforgot:' + node_name()
+    fg = _meta_json(store, fk) or {}
+    if not isinstance(fg, dict):
+        fg = {}
+    if at is None:
+        fg['all_before'] = time.time()
+    else:
+        fg['ats'] = ([x for x in (fg.get('ats') or []) if isinstance(x, (int, float))])[-500:] + \
+            [round(float(x.get('at') or 0), 3) for x in hits]
+    store.set_meta(fk, json.dumps(fg))
     return n
 
 

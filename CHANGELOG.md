@@ -6,6 +6,48 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.51 - not released
 
+- Revoking a certificate the CA had revoked already (an answer lost on the way, or a twin's
+  revoke tried again) is done, not a failure that never ends: its twin and its state follow.
+- A renewal after a revoke that failed once never takes the revoked key again (keep the key on).
+- A certificate the CA issued is never thrown away by a stop or a restart of the daemon between
+  the CA's answer and the version kept (a paid order, a rate limit).
+- The CRL of acme's own authority is made one at a time: a revoke no longer goes missing from it
+  when a refresh crosses it, nor two CRLs carry one number.
+- Names with ß, ς or the joiners are refused (give the xn-- form): written the old way (IDNA 2003)
+  faß.de became fass.de - a certificate for another domain.
+- In a cluster a long scan no longer starts renewals once the other node has taken over.
+- A renewal running at the command line is no longer marked failed by the daemon starting, nor
+  taken for left behind by a stop from the pages.
+- An import or a CSR's answer no longer keeps the renewal window of the version before (renewed
+  at once).
+- Deployments, for a certificate administrator: the Windows Admin Center installer is a command
+  (a full administrator's), the Windows store of shared certificates (its folder and password),
+  who may read the key, the key exportable and haproxy's file and crt-list are where the key
+  goes (a full administrator's); a deployment that runs commands or writes the key where a full
+  administrator set is no longer moved to another target by them; a dry run checks where the key
+  goes as a save does.
+- The first host key seen ("trust the first key") is kept for tests, validations over SSH and
+  OPNsense too (its ssh_hostkey) - those took any key on every run; settings tried before they
+  are saved keep no key; @revoked and @cert-authority lines are no longer trusted as the host's.
+- Windows: the old certificates taken away are only this certificate's own ("vpn" took "vpn-2"'s).
+- The local target puts the files back when one of them, or its command, fails.
+- Validations: the certificates using one are only those the account sees; no secret setting in
+  the open.
+- A certificate administrator of some teams no longer makes a certificate for any team (or none)
+  by sending an id of 0.
+- Read-only accounts no longer see the mail, phone, groups, note and last address of every account.
+- A request from a request profile keeps to the most one person may ask for when two come at once.
+- Cluster: a node stepped aside (by its heartbeat) is seen as out by the rolling upgrade and the
+  rolling restart - both went on and took the last node in service out.
+- The nightly portable copy (where pg_dump or mariadb-dump is missing) is kept for as many nights
+  as the others, not for ever.
+- A copy put back from the pages or acme --restore no longer leaves certificates "renewing" and
+  jobs "running" for good.
+- What an interrupted try of a backup, restore or upload left in the state folder (a copy
+  unlocked, secrets.key) is taken away as the rest is.
+- Forgetting a try of a backup no longer rewrites the other node's row; "try it after" works for
+  a destination switched off.
+
 ## 1.0.50 - 2026-11-05
 
 - The graphs of the performance meter move on smoothly, of this node and of the other node of a

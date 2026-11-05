@@ -855,9 +855,10 @@ def cleanup_script(prefix, keep):
         "'\\CertificateThumbprint')).Value }) } catch { }",
         "$used = @($used | Where-Object { $_ } | ForEach-Object { ([string]$_).ToUpperInvariant() "
         "})",
-        "$old = Get-ChildItem $store | Where-Object { $_.FriendlyName -like %s -and $_.Thumbprint "
+        "$old = Get-ChildItem $store | Where-Object { $_.FriendlyName -match ('^' + "
+        "[regex]::Escape(%s) + '\\d{8}-[0-9a-f]+$') -and $_.Thumbprint "
         "-ne $thumb } | Sort-Object NotBefore -Descending | Select-Object -Skip %d"
-        % (ps_str(prefix + '*'), keep),
+        % (ps_str(prefix), keep),
         "foreach ($x in $old) { if ($used -contains $x.Thumbprint) { Say warn ('the old ' + "
         "$x.Thumbprint + ' is still used: kept') } else { Remove-Item -LiteralPath $x.PSPath; "
         "Say info ('removed the old ' + $x.Thumbprint) } }",

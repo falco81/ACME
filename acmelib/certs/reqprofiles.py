@@ -731,6 +731,11 @@ def request(h, s, b):
             who, r['name'], ', with a CSR' if csr_pem else '', note)).strip(),
         'owner': owner[:190], 'created': t, 'created_by': 'portal:' + who[:180], 'enabled': 1,
         'ari': '{}', 'csr_given': csr_pem or None})
+    if P.used(store, who) > P.most():
+        # two asked at once both passed the count before (1.0.51, as the portal's own form)
+        store.db.run('DELETE FROM certs WHERE id = ?', (cid,))
+        raise E.ApiError(403, 'you have asked for as many certificates as one person may (%d)'
+                         % P.most())
     data = s.get('data') or {}
     store.set_meta(P.META + str(cid), json.dumps({
         'who': who, 'display': data.get('display') or '', 'mail': data.get('mail') or '',

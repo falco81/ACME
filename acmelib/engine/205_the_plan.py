@@ -201,7 +201,7 @@ def upgrade_tick(daemon):
             alive = n.get('alive') or _peer_alive_there(n['name'])
             # ...and not stepped aside either (1.0.48): for its clock, a split, a rebuild or a
             # restore it is out with its row saying nothing - its heartbeat says it.
-            beat_out = isinstance(n.get('maintenance'), dict) and n['maintenance'].get('on')
+            beat_out = beat_aside(n)
             if not alive or beat_out or maintenance_row(store, n['name']).get('on'):
                 if turn.get('said') != 'waiting for %s to be in service' % n['name']:
                     _my_step(store, plan, state='waiting',
@@ -312,6 +312,13 @@ def upgrade_tick(daemon):
 
 
 PEER_THERE = {}                   # name: (when asked, alive)
+
+
+def beat_aside(n):
+    """A node stepped aside, by its heartbeat: `maintenance` is a bool there (1.0.51 - read as
+    a dict, it never was, and a node out was taken for one in service)."""
+    m = n.get('maintenance')
+    return bool(m.get('on')) if isinstance(m, dict) else bool(m)
 
 
 def _peer_alive_there(name):

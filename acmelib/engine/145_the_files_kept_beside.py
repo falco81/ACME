@@ -402,7 +402,9 @@ def make_dump(store, label='daily', folder=None):
     if folder == DUMP_DIR:
         # The nightly ones only, of each engine apart (1.0.48): one made by hand, before a
         # move or for a download counted too, and went first.
-        for eng in ('sqlite', 'postgres', 'mariadb'):
+        # ...and the portable copy made where pg_dump or mariadb-dump is missing (1.0.51): never
+        # let go, one more every night until the disk was full.
+        for eng in ('sqlite', 'postgres', 'mariadb', 'copy'):
             _prune(DUMP_DIR, 'acme-%s-*-daily.*' % eng, int(CONFIG.get('backup_keep') or 14))
     store.add_event('backups', 'made %s (%s): %s' % (
         DUMP_WORDS[kind], {'daily': 'every night', 'by-hand': 'by hand',
@@ -657,6 +659,23 @@ def _sqlite_to_copy(path, out):
     return out
 
 
+def restore_jobs_tidy(store, got=None):
+    began = time.time()
+    store.db.run("UPDATE certs SET state = 'failed', last_error = ?, next_try = ? WHERE state = "
+                 "'renewing' AND id IN (SELECT cert_id FROM cert_jobs WHERE state IN "
+                 "('queued', 'running') AND ts < ?)",
+                 ('the backup put back was made while it was renewed', began + 60, began))
+    store.db.run("UPDATE cert_deploys SET state = 'failed', last_error = ?, next_try = ? WHERE "
+                 "state = 'deploying'", ('the backup put back was made while it was deployed',
+                                          began + 60))
+    n = store.db.run("UPDATE cert_jobs SET state = 'failed', ok = 0, finished = ?, said = ? "
+                     "WHERE state IN ('queued', 'running') AND ts < ?",
+                     (began, 'the backup put back was made while it ran', began))
+    if n and isinstance(got, dict):
+        got['jobs_tidied'] = n
+    return n
+
+
 def db_file_restore(store, path, by, key_file=None, from_name='', need_admin=True):
     """Put a copy or a dump back over everything. A copy of what is replaced
     is made first and kept with the others."""
@@ -696,6 +715,13 @@ def db_file_restore(store, path, by, key_file=None, from_name='', need_admin=Tru
         RESTORE_RUNNING.set()
         try:
             got = _db_file_restore(store, path, by, key_file, from_name, kind)
+            # A copy made while a job ran (1.0.51 - only the remote backup's restore tidied it):
+            # put back from the pages or acme --restore its certificate stayed "renewing" for
+            # good, its job "running" on this node, and nothing renewed it again.
+            try:
+                restore_jobs_tidy(store, got)
+            except Exception as e:                      # noqa: BLE001
+                log('the jobs of the copy put back could not be tidied: %s' % e, 'warn')
             # What the copy holds signed as this node's word now (1.0.231): put back on
             # purpose, its rows are newer than any seen before it.
             try:

@@ -846,6 +846,10 @@ def _idna(name):
         if lab == '*' or all(ord(c) < 128 for c in lab):
             labels.append(lab)
         else:
+            if any(c in lab for c in '\u00df\u03c2\u200c\u200d'):
+                # written otherwise by IDNA 2003 (here) and 2008 (CAs, browsers) - 1.0.51
+                raise PkiError('ß, ς and the joiners are written two ways in DNS - give %s in '
+                               'its xn-- form' % name)
             try:
                 labels.append(lab.encode('idna').decode('ascii'))
             except UnicodeError:

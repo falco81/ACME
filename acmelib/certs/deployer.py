@@ -29,14 +29,17 @@ from acmelib.certs.jobs import JobStopped
 
 def hostkey_keeper(store, target_row):
     """fn(known_hosts) that writes the first host key seen into the target's config."""
-    def keep(text):
+    def keep(text, field='hostkey'):
+        # the field the connection reads (1.0.51): OPNsense's is ssh_hostkey - its key was
+        # written as hostkey, never read, and any key taken on every run
+        field = str(field or 'hostkey') if str(field or '').endswith('hostkey') else 'hostkey'
         row = store.db.row('SELECT id, config FROM cert_targets WHERE id = ?', (target_row['id'],))
         if not row:
             return
         cfg = S.jload(row.get('config'), {}) or {}
-        if cfg.get('hostkey'):
+        if cfg.get(field):
             return
-        cfg['hostkey'] = str(text).strip()
+        cfg[field] = str(text).strip()
         store.db.update('cert_targets', row['id'], {'config': json.dumps(cfg), 'updated': time.time()})
         store.add_event('certificates', 'the host key of target %s was taken as the first one '
                         'seen (trust_first)' % target_row['name'], 'warn')

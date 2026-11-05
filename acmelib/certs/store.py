@@ -617,6 +617,11 @@ def clean_names(names):
             if any(ord(c) > 127 for c in n):
                 # an international name, in its ASCII form (IDNA): žluťoučký.cz -> xn--...
                 star = '*.' if n.startswith('*.') else ''
+                if any(c in n for c in '\u00df\u03c2\u200c\u200d'):
+                    # ß, ς and the joiners (1.0.51): Python's IDNA (2003) writes faß.de as
+                    # fass.de, a CA and a browser (2008) as xn--fa-hia.de - another domain.
+                    raise ValueError('%r: ß, ς and the joiners are written two ways in DNS - '
+                                     'give the name in its xn-- form' % n)
                 try:
                     n = star + (n[len(star):]).encode('idna').decode('ascii')
                 except UnicodeError:
@@ -977,6 +982,9 @@ def save_version(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=No
         'issuer_dn': info.get('issuer_dn') or '', 'subject_dn': info.get('subject_dn') or '',
         'version': version, 'state': 'ok' if (info.get('not_after') or 0) > t else 'expired',
         'state_at': t, 'last_ok': t, 'last_error': '', 'fails': 0, 'next_try': None,
+        # the window its CA suggested was the version before's (1.0.51): an import or a CSR's
+        # answer kept it, and was renewed at once
+        'ari': '{}',
         'updated': t, 'updated_by': str(by or '')[:190]}
     if info.get('cn') and not row.get('cn'):
         fields['cn'] = str(info['cn'])[:190]
@@ -1018,6 +1026,7 @@ def save_alt(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=None, 
         'alt_not_before': info.get('not_before'), 'alt_not_after': info.get('not_after'),
         'alt_issuer_dn': info.get('issuer_dn') or '', 'alt_version': version,
         'alt_state': 'ok', 'alt_error': '', 'alt_fails': 0, 'alt_next_try': None,
+        'alt_ari': '{}',
         'updated': t, 'updated_by': str(by or '')[:190]}
     if extra:
         fields.update(extra)

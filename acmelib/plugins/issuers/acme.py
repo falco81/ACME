@@ -437,8 +437,10 @@ class AcmeIssuer(Issuer):
             self._say('the order is finalized with the request')
             o, _ = cl.post_json(o.get('finalize') or order['finalize'], {'csr': ac.b64u(req.csr_der)})
         if o.get('status') != 'valid':
+            # Finalized, it is the CA's to give (1.0.51): no stop asked from here on - a restart
+            # of the daemon would throw away a certificate issued (a paid order, a rate limit).
             o = cl.poll(order_url, ('valid',), 'the certificate', self._num('wait_order', 300),
-                        self._num('poll_every', 5), self.ctx.cancelled)
+                        self._num('poll_every', 5), lambda: False)
         if not o.get('certificate'):
             raise PluginError('the order is valid but has no certificate URL',
                               detail=json.dumps(o))

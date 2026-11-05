@@ -680,6 +680,7 @@ def ssh_conn(plugin, prefix=''):
         'key': c(p + 'key') if auth == 'key' else None,
         'key_pass': c(p + 'key_pass') if auth == 'key' else None,
         'hostkey': c(p + 'hostkey') or None,
+        'hostkey_field': p + 'hostkey',        # where the first one seen is kept (1.0.51)
         'trust_first': as_bool(c(p + 'trust_first', True), True),
         'timeout': as_int(c('timeout', 30), 30),
     }

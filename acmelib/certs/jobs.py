@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import os
 import threading
 import time
 import traceback
@@ -323,6 +324,42 @@ def _unclaim(cert_id):
             BUSY_CERTS.discard(cert_id)
 
 
+# The command line's jobs carry this node's name as the daemon's do (1.0.51): a file of their own
+# beside the state, the process running it in it - the daemon starting (recover) or a stop asked
+# from the pages took a renewal still running at the command line for left behind, and the scan
+# sent a second order for it.
+def _cli_mark(ident):
+    return E.STATE_DIR / 'cli-jobs' / ('%d.pid' % int(ident))
+
+
+def cli_alive(ident):
+    try:
+        pid = int(_cli_mark(ident).read_text().strip() or 0)
+    except (OSError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _cli_alive_ids(store):
+    try:
+        ids = [int(r['id']) for r in store.db.rows(
+            "SELECT id FROM cert_jobs WHERE node = ? AND state IN ('queued', 'running')",
+            (E.node_name(),))]
+    except Exception:                                   # noqa: BLE001
+        return []
+    return [i for i in ids if cli_alive(i)]
+
+
 def run_now(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', said='',
             echo=None):
     """A job run here and now (the command line): the Job when it is done."""
@@ -332,7 +369,20 @@ def run_now(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', s
     except BaseException:
         _unclaim(cert_id)
         raise
-    return _work(job, fn)
+    mark = _cli_mark(job.id)
+    try:
+        mark.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        mark.write_text('%d\n' % os.getpid())
+    except OSError:
+        mark = None
+    try:
+        return _work(job, fn)
+    finally:
+        if mark is not None:
+            try:
+                mark.unlink()
+            except OSError:
+                pass
 
 
 def cert_busy(store, cert_id):
@@ -370,6 +420,8 @@ def stop(store, ident):
     if row['state'] not in ('queued', 'running'):
         return 'job %d is not running (%s)' % (ident, row['state'])
     store.set_meta(STOP_PREFIX + str(ident), '1')
+    if row['node'] == E.node_name() and cli_alive(ident):
+        return 'job %d is told to stop (it runs at the command line)' % ident
     if row['node'] == E.node_name() or not _node_alive(store, row['node']):
         # Ours, but this process does not run it: left by a daemon that is gone - or
         # by another node that is gone (1.0.19): asked, it never answered, and the
@@ -405,18 +457,21 @@ def recover(store):
     """At the start of the daemon: the jobs this node left running are over."""
     try:
         # Only this node's own: a certificate the other node is renewing right
-        # now is that node's to finish (shared database).
-        store.db.run("UPDATE certs SET state = 'failed', last_error = ? WHERE state = 'renewing' "
-                     "AND id IN (SELECT cert_id FROM cert_jobs WHERE node = ? AND "
-                     "state IN ('queued', 'running'))",
-                     ('acme stopped while it was renewed', E.node_name()))
+        # now is that node's to finish (shared database) - nor one the command line of this
+        # node is still at (1.0.51).
+        live = _cli_alive_ids(store)
+        nl = (' AND id NOT IN (%s)' % ','.join(str(i) for i in live)) if live else ''
+        store.db.run("UPDATE certs SET state = 'failed', last_error = ?, next_try = ? WHERE "
+                     "state = 'renewing' AND id IN (SELECT cert_id FROM cert_jobs WHERE node = ? "
+                     "AND state IN ('queued', 'running')" + nl + ")",
+                     ('acme stopped while it was renewed', time.time() + 300, E.node_name()))
         # Its deployments half done too (1.0.44): "deploying" was passed over for good.
         store.db.run("UPDATE cert_deploys SET state = 'failed', last_error = ?, next_try = ? "
                      "WHERE state = 'deploying' AND cert_id IN (SELECT cert_id FROM cert_jobs "
-                     "WHERE node = ? AND state IN ('queued', 'running'))",
+                     "WHERE node = ? AND state IN ('queued', 'running')" + nl + ")",
                      ('acme stopped while it was deployed', time.time() + 60, E.node_name()))
         n = store.db.run("UPDATE cert_jobs SET state = 'failed', ok = 0, finished = ?, "
-                         "said = ? WHERE node = ? AND state IN ('queued', 'running')",
+                         "said = ? WHERE node = ? AND state IN ('queued', 'running')" + nl,
                          (time.time(), 'acme stopped while it ran', E.node_name()))
         if n:
             store.add_event('certificates', '%s job(s) left running when acme stopped are marked '

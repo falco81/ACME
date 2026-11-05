@@ -156,16 +156,22 @@ class LocalTarget(Base):
         datas = self._render(pairs, options, vars)
         before = []                 # (path, the bytes there before or None)
         written = []
-        for (o, b), data in zip(pairs, datas):
-            full = self._place(base, o['path'])
-            try:
-                with open(full, 'rb') as fh:
-                    before.append((full, fh.read()))
-            except OSError:
-                before.append((full, None))
-            self._write(full, data, o['mode'])
-            written.append((o, full))
-            self.ctx.step('wrote %s' % full)
+        try:
+            for (o, b), data in zip(pairs, datas):
+                full = self._place(base, o['path'])
+                try:
+                    with open(full, 'rb') as fh:
+                        before.append((full, fh.read()))
+                except OSError:
+                    before.append((full, None))
+                self._write(full, data, o['mode'])
+                written.append((o, full))
+                self.ctx.step('wrote %s' % full)
+        except Exception:
+            # One file refused (outside the folder, a link, the disk full) - 1.0.51: those
+            # written before it stayed new, the new chain beside the old key.
+            self._put_back(before)
+            raise
         if sc:
             env = SC.env_for(self, bundle, [(dict(o, path=full), b) for (o, full), (_o, b)
                                             in zip(written, pairs)], vars, SC.password_of(options))
@@ -177,7 +183,11 @@ class LocalTarget(Base):
                     SC._what(sc), rc, (': ' + said.splitlines()[-1][-200:]) if said else ''),
                     retry=False)
         if cmd:
-            self._run(subst(cmd, vars))
+            try:
+                self._run(subst(cmd, vars))
+            except Exception:
+                self._put_back(before)          # as when the script fails (1.0.51)
+                raise
         self.remember(bundle, options)
         return '%d file%s in %s%s%s' % (len(outs), '' if len(outs) == 1 else 's', base,
                                          ', the script ran' if sc else '',

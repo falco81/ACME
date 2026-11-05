@@ -858,14 +858,20 @@ def _cert_deploy(h, s):
 
 DEPLOY_COMMANDS = ('pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd', 'script_path',
                    'script_args', 'script_mode', 'script_interp',
-                   'post_ps')       # Windows' PowerShell after (1.0.45): run as Administrator
+                   'post_ps',       # Windows' PowerShell after (1.0.45): run as Administrator
+                   'wac_msi')       # an installer run as Administrator (1.0.51)
 
 
 # Where the private key goes, and its password (1.0.48): a full administrator's, as the commands.
 # Of `outputs` only the lines that carry the key; the others, and a module's presets, stay a
 # certificate administrator's.
 DEPLOY_KEY_OPTIONS = ('outputs', 'pfx_password', 'pfx_password_mode', 'include_key', 'key_file',
-                      'key_target')
+                      'key_target',
+                      # and (1.0.51) Windows' store of shared certificates (a PFX in a folder or
+                      # share, with its password), who may read the key, the key exportable,
+                      # haproxy's file (the key in it) and its crt-list
+                      'ccs_path', 'ccs_password', 'key_read', 'exportable', 'cert_path', 'crt_list')
+KEY_SECRETS = ('pfx_password', 'ccs_password')
 KEY_FORMATS = ('key-pem', 'key-rsa', 'key-der', 'key-traditional', 'combined-pem', 'pfx', 'p12',
                'p12-legacy', 'jks', 'pkcs12')
 
@@ -897,7 +903,7 @@ def _deploy_key_check(cls, given, old):
                 allowed |= _key_lines(fill.get('outputs'))
         if not new_keys <= allowed:
             raise refused
-    for k in ('pfx_password', 'pfx_password_mode', 'include_key', 'key_file', 'key_target'):
+    for k in DEPLOY_KEY_OPTIONS[1:]:
         if k not in given:
             continue
         nv, ov = given.get(k), old.get(k)
@@ -905,12 +911,13 @@ def _deploy_key_check(cls, given, old):
         if E.is_masked(nv) if isinstance(nv, str) else False:
             continue                                    # the dots: the one kept
         norm = lambda v: '' if v in (None, '', [], False, 0, '0') else str(v)  # noqa: E731
-        if k == 'pfx_password':
+        if k in KEY_SECRETS:
             if nv in (None, '') or (old.get(k) and nv == old.get(k)):
                 continue                                # unchanged or sealed as kept
             raise refused
         # the safe ways stay theirs: a password nobody knows, the key not sent
-        if (k == 'pfx_password_mode' and nv == 'generate') or (k == 'include_key' and not norm(nv)):
+        if (k == 'pfx_password_mode' and nv == 'generate') or \
+                (k in ('include_key', 'exportable') and not norm(nv)):
             continue
         if norm(nv) != norm(ov if k in old else dv) and norm(nv) != norm(dv):
             raise refused
@@ -2053,11 +2060,16 @@ def family_test(store, family, b, by, echo=None):
         cfg[k] = v
     name = (row or {}).get('name') or str(b.get('name') or 'unsaved')
 
+    tried_other = bool(_dict(b.get('config'), 'config'))
+
     def fn(job):
-        if family == 'target' and row:
+        # Settings tried before they are saved (1.0.51): the key of a host only tried is not
+        # written into the one saved - a deployment then trusted it, or failed for good.
+        if family == 'target' and row and not tried_other:
             ctx = deployer.target_context(store, job, row)
         else:
-            ctx = runtime.RunContext(store, job, scope='%s:%s' % (family, name))
+            ctx = runtime.RunContext(store, job, scope='%s:%s' % (family, name),
+                                     on_hostkey=None if (row and not tried_other) else False)
         try:
             job.step('trying %s %s (%s)' % (family, name, kind))
             said = cls(cfg, ctx).test()
@@ -2190,7 +2202,22 @@ def _validation_info(h, s):
     row = S.plugin_row(h.store, 'challenge', h.arg('id') or h.arg('name'))
     if not row:
         raise LookupError('there is no such validation')
-    return _lib('httpinfo').info(h.store, row)
+    got = _lib('httpinfo').info(h.store, row)
+    # Of the certificates using it only those this account sees (1.0.51), and no secret
+    # setting of the validation in the open.
+    T = _lib('teams')
+    sc = T.scope(h.store, s, 'view')
+    if sc is not None and got.get('names'):
+        seen = {r['name'] for r in h.store.db.rows('SELECT name, owner FROM certs')
+                if T.owner_in(sc, r.get('owner'))}
+        got['names'] = [n for n in got['names'] if n.get('cert') in seen]
+        got['names_more'] = 0
+    cls = S.row_class('challenge', row)
+    secret = set(S.secret_fields(cls)) if cls else set()
+    for f in got.get('fields') or []:
+        if f.get('key') in secret and f.get('value'):
+            f['value'] = '••••••••'
+    return got
 
 
 @api('POST', '/api/validations/check', 'certadmin')
@@ -2278,6 +2305,18 @@ def _deploy_save_in(store, b, by, full, made):
     if not trow:
         raise ValueError('there is no target %s' % target)
     cls = S.row_class('target', trow)
+    if row is not None and not full and row.get('target') != trow['name'] and 'options' not in b:
+        # Moved to another target with its options (1.0.51): the commands, the script and where
+        # the key goes, written by a full administrator for one server, ran on the one a
+        # certificate administrator picked.
+        kept = S.jload(row.get('options'), {}) or {}
+        has = lambda k: kept.get(k) not in (None, '', False, 0, '0', [], 'false')  # noqa: E731
+        if any(has(k) for k in DEPLOY_COMMANDS + ('script_body',)) or \
+                _key_lines(kept.get('outputs')) or \
+                any(has(k) for k in DEPLOY_KEY_OPTIONS[1:] if k not in (
+                    'pfx_password_mode', 'include_key', 'pfx_password')):
+            raise E.ApiError(403, 'this deployment runs commands or writes the key where a full '
+                                  'administrator set: only one may move it to another target')
     fields = {'cert_id': cert['id'], 'target': trow['name']}
     if 'enabled' in b or not row:
         fields['enabled'] = _flag(b.get('enabled'), 1)
