@@ -137,8 +137,9 @@ def root_ask(ask_name, answer_name, data, wait=60):
     data = dict(data, id=ask_id)
     tmp = WEB_DIR / ('.%s.%d.%d' % (ask_name, os.getpid(), threading.get_ident() % 100000))
     if not WEB_DIR.is_dir():
-        # Said as such (1.0.46), not as a Python error with a path in it.
-        raise ValueError('the root helper is not set up on this node (no %s) - install.sh puts '
+        # Said as such (1.0.46), not as a Python error with a path in it - still an OSError, so
+        # that what is asked is asked again once it is set up (a ValueError is an answer).
+        raise FileNotFoundError('the root helper is not set up on this node (no %s) - install.sh puts '
                          'it in' % WEB_DIR)
     fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, 'w') as f:
