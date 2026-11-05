@@ -193,8 +193,20 @@ def facts_of(cls, cfg, secrets_set=(), attr='fields'):
                     break
         elif isinstance(v, list):
             v = '\n'.join(str(x) for x in v)
+        # header lines with a secret in them (1.0.52): "Authorization: Bearer ..." of a webhook
+        # or an HTTPS test was shown to read-only accounts
+        v = '\n'.join(_header_masked(x) for x in str(v).split('\n'))
         out.append([f.get('label') or k, str(v)[:2000]])
     return out
+
+
+def _header_masked(line):
+    name, sep, _val = str(line).partition(':')
+    if sep and re.match(r'^\s*(authorization|proxy-authorization|cookie|x-api-key|x-auth-token|'
+                        r'api-key|x-api-token|[a-z-]*(token|secret|key|password)[a-z-]*)\s*$',
+                        name, re.I):
+        return '%s: %s' % (name.strip(), DOTS)
+    return line
 
 
 # ---------------------------------------------------------------------------

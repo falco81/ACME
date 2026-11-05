@@ -5,6 +5,27 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.52 - not released
+- Passkeys: Ed25519 is offered only where this machine's openssl checks it (a FIPS one has
+  none - a key of it locked the account out); a counter back to 0 after one above it is refused;
+  odd answers are refused as wrong tries, not errors; each question is checked as it was taken;
+  the signature is checked outside the lock; the question is asked when the form is drawn, so
+  the tap calls Face ID at once (Safari); a cancel or a time-out says so.
+- "What happens": header lines with a token (a webhook's, an HTTPS test's) are not shown.
+- A server serving an expired certificate (or one not valid yet) fails its test; a name with
+  accents is matched; a test of a text protocol ends after 2 minutes and 2000 lines whatever the
+  server does; a file nested too deep is refused, not a 500.
+- Alerts: what was not mailed (the mail server down) is kept and said with the next mail; only
+  the lead node checks and mails, one look at a time; SNMP traps keep what the mails hold while
+  the cluster is worked on; Integer32 dates after 2038 and DisplayStrings over 255 octets are
+  kept in their range; an empty OID is answered; a notice's mail failing no longer stops its SMS.
+- Upgrades: the trees before are taken away only once the upgrade has run, and previous is put
+  back by a rescue (it pointed at the current one, the one before deleted); the same version
+  put in again and failing no longer leaves a working node in maintenance.
+- The command line: the console's Delete of an account, a directory and an SSH token works (they
+  were refused for want of --yes); --sso-key and --ha-forget ask as every step that cannot be taken
+  back; --job --json exits 1 for a failed job; a CA's key never goes to stdout; the TLS and isemon
+  exports keep their mode over a file that was there and follow no link; --export-config empties
+  the file only when the export is there to write.
 
 ## 1.0.51 - 2026-11-05
 - **Face ID, Touch ID and passkeys as the second step of the administration**

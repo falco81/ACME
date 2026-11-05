@@ -182,14 +182,21 @@ def send_plain(store, key, subject, words, force=False, mail_to=None):
             return went
         store.set_meta(mk, str(time.time()))
         to = list(mail_to) if mail_to is not None else _split(E.CONFIG.get('certs_notify_mail'))
+        # each way on its own (1.0.52): a mail that failed stopped the SMS too
         if to:
-            E.mail_deliver(store, _mail(to, {'subject': subject, 'text': '%s\n\n%s\n\n-- acme on '
-                                                                         '%s\n' % (
-                subject, words, E.node_name())}), to, kind='certs', purpose='certificates')
-            went['mail'] = to
+            try:
+                E.mail_deliver(store, _mail(to, {'subject': subject, 'text': '%s\n\n%s\n\n-- acme '
+                                                                             'on %s\n' % (
+                    subject, words, E.node_name())}), to, kind='certs', purpose='certificates')
+                went['mail'] = to
+            except Exception as e:                      # noqa: BLE001
+                E.log('mailing about %s: %s' % (subject, e), 'warn')
         for tel in _split(E.CONFIG.get('certs_notify_sms')):
-            E.sms_send(tel, E.sms_plain('acme: %s - %s' % (subject, words))[:300])
-            went['sms'].append(tel)
+            try:
+                E.sms_send(tel, E.sms_plain('acme: %s - %s' % (subject, words))[:300])
+                went['sms'].append(tel)
+            except Exception as e:                      # noqa: BLE001
+                E.log('an SMS about %s: %s' % (subject, e), 'warn')
     except Exception as e:                              # noqa: BLE001
         E.log('telling about %s: %s' % (subject, e), 'warn')
     return went

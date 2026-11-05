@@ -21,6 +21,7 @@ ones give the leaf only (then the chain is said not to be known).
 from __future__ import annotations
 
 import socket
+import time
 import ssl
 import threading
 
@@ -243,12 +244,24 @@ def tls(sock, sni, verify, timeout, keep=False):
 
 class Lines(object):
     """A text protocol line by line, CRLF, with the socket's time limit."""
+    # The whole exchange in time, and not without end (1.0.52): the limit was each recv's - a
+    # server dripping a byte at a time, or "250-x" for ever, held the test job for days.
+    WHOLE_S = 120
+    LINES_MOST = 2000
+
     def __init__(self, sock, what=''):
         self.sock, self.buf, self.what = sock, b'', what or 'the server'
         self.said = []
+        self.until = time.monotonic() + self.WHOLE_S
+        self.n = 0
 
     def line(self):
+        self.n += 1
+        if self.n > self.LINES_MOST:
+            raise PluginError('%s sent more than %d lines' % (self.what, self.LINES_MOST))
         while b'\n' not in self.buf:
+            if time.monotonic() > self.until:
+                raise PluginError('%s took more than %d s' % (self.what, self.WHOLE_S))
             try:
                 got = self.sock.recv(4096)
             except socket.timeout:

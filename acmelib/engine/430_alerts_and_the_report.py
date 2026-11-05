@@ -23,7 +23,10 @@ def _alerts_do(h):
     lang = alerts_lang()
     try:
         if act == 'check':
-            alerts_evaluate(h.store)
+            # looked at and sent by the lead node only (1.0.52): the other one's pages mailed
+            # too, and wrote its own older copy of what was said over the lead's
+            if alerts_lead(h.store):
+                alerts_evaluate(h.store)
             return alerts_view(h.store)
         if act == 'test':
             to = _alerts_to()

@@ -278,6 +278,13 @@ def target_host(trow):
 
 def _covers(names, host):
     host = str(host or '').lower().rstrip('.')
+    if any(ord(c) > 127 for c in host):
+        # the names of a certificate are A-labels (1.0.52): bücher.de as typed matched none
+        try:
+            host = '.'.join(x.encode('idna').decode('ascii') if any(ord(c) > 127 for c in x)
+                            else x for x in host.split('.'))
+        except UnicodeError:
+            pass
     for n in names or []:
         n = str(n).lower().rstrip('.')
         if n == host:
@@ -354,7 +361,13 @@ def judge(exp, served, host, sni, require_trusted=False, trusted=None, why_untru
             warns.append('%s is not one of its names' % name)
         days = int(E.CONFIG.get('certs_checks_warn_days') or 0)
         left = (leaf.get('not_after') or 0) - t
-        if days and left < days * 86400:
+        if left <= 0 or float(leaf.get('not_before') or 0) > t:
+            # not good now (1.0.52): an expired one served passed with a warning - and its
+            # test alerted nobody while renewals failed
+            state = 'other'
+            words = ('serves the current certificate, but it has run out' if left <= 0 else
+                     'serves the current certificate, but it is not valid yet')
+        elif days and left < days * 86400:
             warns.append('it ends in %s' % E.human_span(max(0, left)))
         if served.get('whole_chain') and exp['chain'] and len(chain) < 2 and \
                 not leaf.get('self_signed'):

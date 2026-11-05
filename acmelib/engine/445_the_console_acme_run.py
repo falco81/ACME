@@ -1125,7 +1125,7 @@ class Console(object):
         elif what == 'delete':
             if self.confirm('Delete', 'The account %s is deleted. This cannot be undone.' % name,
                             'Delete it', danger=True):
-                self.act('--del-user', name)
+                self.act('--del-user', name, '--yes')   # asked above (1.0.52)
 
     def account_new(self):
         got = self.form('Make an account', [
@@ -1272,7 +1272,7 @@ class Console(object):
         elif what == 'delete' and self.confirm(
                 'Delete', 'The directory %s is deleted; nobody signs in from it any more.'
                 % r['name'], 'Delete it', danger=True):
-            self.act('--del-directory', r['name'])
+            self.act('--del-directory', r['name'], '--yes')
 
     # ---- 6 cluster --------------------------------------------------------------
     def _nodes(self):
@@ -2518,7 +2518,7 @@ class Console(object):
             which = self.choose('Take an SSH token away', [(r['name'], r['name']) for r in rows])
             if which is not None and self.confirm('Take it away', 'The SSH token of %s stops '
                                                   'working now.' % which, 'Take it away', danger=True):
-                self.act('--ssh-token-del', which)
+                self.act('--ssh-token-del', which, '--yes')
 
         def lockout_clear():
             rows = [r for r in (self.out('--lockouts') or []) if isinstance(r, dict)]

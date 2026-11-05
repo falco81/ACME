@@ -831,6 +831,24 @@ class Storage(object):
                 return True
         return False
 
+    def session_take_value(self, ident, field):
+        """As session_take, the value taken returned (None: nothing taken) - 1.0.52."""
+        for _round in range(8):
+            raw = self.db.value('SELECT data FROM sessions WHERE id = ?', (ident,))
+            if raw is None:
+                return None
+            try:
+                data = json.loads(raw or '{}')
+            except ValueError:
+                return None
+            if field not in data:
+                return None
+            got = data.pop(field, None)
+            if self.db.run('UPDATE sessions SET data = ? WHERE id = ? AND data = ?',
+                           (json.dumps(data), ident, raw)):
+                return got
+        return None
+
     def session_merge(self, ident, changes, expect=None):
         """Only the keys given changed in a session's data, over what the
         database holds now (1.0.101): the whole of a copy read at the start of

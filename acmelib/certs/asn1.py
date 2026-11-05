@@ -236,7 +236,10 @@ def _read_header(data, pos, limit):
     return cls, constructed, tag, length, pos
 
 
-def _parse_one(data, pos, limit):
+def _parse_one(data, pos, limit, depth=0):
+    if depth > 64:
+        # (1.0.52) 10 KB of nested indefinite lengths went past Python's stack - a 500
+        raise Asn1Error('nested more than 64 deep')
     start = pos
     cls, constructed, tag, length, cstart = _read_header(data, pos, limit)
     if length is None:
@@ -247,7 +250,7 @@ def _parse_one(data, pos, limit):
                 raise Asn1Error('an indefinite length without its end')
             if data[p] == 0 and data[p + 1] == 0:
                 break
-            ch = _parse_one(data, p, limit)
+            ch = _parse_one(data, p, limit, depth + 1)
             children.append(ch)
             p = ch.end
         return Node(data, start, cstart, p, p + 2, cls, constructed, tag, children)

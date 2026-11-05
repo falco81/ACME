@@ -921,7 +921,17 @@ def report_lang():
     return CONFIG.get('report_lang') or alerts_lang()
 
 
+ALERTS_LOCK = threading.Lock()
+
+
 def alerts_evaluate(store, force=False):
+    """One look at a time (1.0.52): the pages' Check now beside the loop's tick both read "not
+    sent" and both mailed."""
+    with ALERTS_LOCK:
+        return _alerts_evaluate(store, force)
+
+
+def _alerts_evaluate(store, force=False):
     """The alerts' turn: what is wrong compared with what was said, mailed."""
     lang = alerts_lang()
     now = time.time()
@@ -1011,8 +1021,18 @@ def alerts_evaluate(store, force=False):
         st['event_seen'] = {str(k): v for k, v in sorted(seen.items())[-6000:]}
     st['problems'] = known
     st['checked'] = now
-    store.set_meta('alerts:state', json.dumps(st))
     to = _alerts_to()
+    # What was not mailed yet kept for the next turn (1.0.52): the events read and the "over"
+    # ones were dropped when the mail did not go (the server down, the 15 minutes after a
+    # failure) - and never said.
+    if to and CONFIG.get('alerts'):
+        events = (st.get('pend_events') or [])[-30:] + events
+        gone = [g for g in (st.get('pend_gone') or [])[-30:]
+                if g.get('key') not in {p.get('key') for p in gone} and g.get('key') not in cur] + gone
+        st['pend_events'], st['pend_gone'] = events[-50:], gone[-50:]
+    else:
+        st['pend_events'], st['pend_gone'] = [], []
+    store.set_meta('alerts:state', json.dumps(st))
     if (new or still or gone or events) and to and CONFIG.get('alerts') and \
             now - float(st.get('fail_at') or 0) > 900:
         said = {p['key'] for p in new + still}
@@ -1025,6 +1045,7 @@ def alerts_evaluate(store, force=False):
                            ['over:' + str(p.get('key') or '') for p in gone])
         if entry['ok'] or entry.get('queued') == 'waiting':
             st = _alert_state(store)
+            st['pend_events'], st['pend_gone'] = [], []
             for k in said | {p['key'] for p in others}:
                 if k in st['problems']:
                     one = st['problems'][k]

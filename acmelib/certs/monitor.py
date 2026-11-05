@@ -163,7 +163,7 @@ def snmp_rows(store):
         T = SNMP_TABLE
         out += [(T + (1, i), 'int', i), (T + (2, i), 'str', str(r['name'])[:255]),
                 (T + (3, i), 'str', str(r.get('cn') or '')[:255]),
-                (T + (4, i), 'int', na),
+                (T + (4, i), 'int', min(int(na or 0), 2147483647)),   # Integer32 (1.0.52)
                 (T + (5, i), 'int', int((na - t) // 86400) if na else 0),
                 (T + (6, i), 'str', st), (T + (7, i), 'str', str(r.get('issuer') or '')[:255]),
                 (T + (8, i), 'int', STATE_NUM.get(st, 0)),

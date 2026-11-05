@@ -1262,7 +1262,7 @@ class Cli(object):
             raise SystemExit('acme: %s' % e)
         if self.json:
             self.out({'job': v})
-            return 0
+            return 0 if v.get('ok') or v.get('state') in ('queued', 'running') else 1   # (1.0.52)
         p = self.pal
         print('%s %d  %s %s  %s on %s, by %s' % (p.head('job'), v['id'], v['kind'],
                                                  v.get('cert_name') or v.get('target') or '',
@@ -2154,7 +2154,7 @@ class Cli(object):
         if what in ('p12', 'pfx') or a.password:
             pw = self.E.ask_password('the file\'s password', twice=True,
                                      env='ACME_FILE_PASSWORD')
-        if what in ('key', 'p12', 'pfx') and not a.out:
+        if what in ('key', 'p12', 'pfx') and (not a.out or a.out == '-'):   # not stdout (1.0.52)
             raise SystemExit('acme: the key goes into a file only: --out FILE')
         got = self.api('POST', '/api/cas/export', body={'id': r['id'], 'format': what,
                                                         'password': pw})

@@ -247,6 +247,14 @@ def upgrade_tick(daemon):
         log('the upgrade to %s is handed to acme-upgrade.service' % plan['version'])
         return
     if state == 'installing':
+        # Its own version tried again (1.0.52): restarted by install.sh's rescue after a
+        # failure it ran the old code unchanged, and was taken for the new one broken - left in
+        # maintenance. The helper's word first.
+        hs = _helper_status() if __version__ == plan['version'] else {}
+        if hs.get('id') == plan['id'] and hs.get('state') == 'failed':
+            _upgrade_failed(store, plan, turn, hs.get('said') or
+                            'install.sh ended with %s' % hs.get('rc'), tail=hs.get('tail'))
+            return
         if __version__ == plan['version'] and float(daemon.started or 0) > \
                 float(turn.get('asked') or 0):
             _my_step(store, plan, state='checking', said='restarted as %s' % __version__)

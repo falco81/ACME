@@ -54035,6 +54035,22 @@
   "ui3_5": {
    "source": "since start",
    "text": "od spuštění"
+  },
+  "huntd1_1": {
+   "source": "Cancelled or timed out - try again.",
+   "text": "Zrušeno nebo vypršel čas – zkuste to znovu."
+  },
+  "huntd1_2": {
+   "source": "the passkey was asked from another page",
+   "text": "passkey byla vyžádána z jiné stránky"
+  },
+  "huntd1_3": {
+   "source": "serves the current certificate, but it has run out",
+   "text": "posílá současný certifikát, ale ten už vypršel"
+  },
+  "huntd1_4": {
+   "source": "serves the current certificate, but it is not valid yet",
+   "text": "posílá současný certifikát, ale ten ještě neplatí"
   }
  },
  "patterns": {
@@ -73885,6 +73901,14 @@
   "ppasskey_6": {
    "source": "the passkey's answer: {0}",
    "text": "odpověď passkey: {0}"
+  },
+  "phuntd1_1": {
+   "source": "{0} took more than {1} s",
+   "text": "{0} trvalo déle než {1} s"
+  },
+  "phuntd1_2": {
+   "source": "{0} sent more than {1} lines",
+   "text": "{0} poslal víc než {1} řádků"
   }
  },
  "rich": {

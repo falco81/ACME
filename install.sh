@@ -1328,6 +1328,8 @@ install_tree() {
     ROLLBACK_TREE="$cur"
     [[ "$cur" == "$NEW_TREE" ]] && ROLLBACK_TREE=""
     rm -f -- "$NEW_TREE/.failed"
+    # previous as it was, for a rescue to put back (1.0.52)
+    PREV_LINK_BEFORE="$(readlink "$LIB_DIR/previous" 2>/dev/null || true)"
     swap_link "$LIB_DIR/current" "versions/$(basename "$NEW_TREE")"
     TREE_SWITCHED=yes
     # A tree that failed to run is never previous (1.0.44): a second try after a failed
@@ -1339,7 +1341,17 @@ install_tree() {
                CHANGELOG.md README.md INSTALL.md LICENSE.md; do
         swap_link "$LIB_DIR/$one" "current/$one"
     done
-    # Only current and previous are kept (and whatever runs this script).
+    # Only current and previous are kept - an upgrade's old trees only once it has run
+    # (1.0.52): taken away at the switch, a failed upgrade's rescue left previous == current
+    # and the version before that gone.
+    [[ "${UPGRADE_STAGE:-}" == started ]] || trees_prune
+    prev="$(readlink -e "$LIB_DIR/previous" 2>/dev/null || true)"
+    good "$LIB_DIR/current -> versions/$(basename "$NEW_TREE")${prev:+ (previous: $(basename "$prev"))}"
+}
+
+trees_prune() {
+    local cur prev old src_real
+    src_real="$(readlink -f "$SOURCE_DIR")"
     cur="$(readlink -e "$LIB_DIR/current")"
     prev="$(readlink -e "$LIB_DIR/previous" 2>/dev/null || true)"
     for old in "$TREES_DIR"/* "$TREES_DIR"/.new-*; do
@@ -1348,7 +1360,6 @@ install_tree() {
         [[ "$old" == "$cur" || "$old" == "$prev" || "$old" == "$src_real" ]] && continue
         rm -rf -- "$old"
     done
-    good "$LIB_DIR/current -> versions/$(basename "$NEW_TREE")${prev:+ (previous: $(basename "$prev"))}"
 }
 
 install_program() {
@@ -1952,7 +1963,7 @@ except Exception:
     # of it done. The tree is switched in one step, so what runs is always one
     # whole version - the old one until the switch, the new one after it.
     UPGRADE_STAGE=started
-    TREE_SWITCHED="" PAGES_SWITCHED="" ROLLBACK_TREE=""
+    TREE_SWITCHED="" PAGES_SWITCHED="" ROLLBACK_TREE="" PREV_LINK_BEFORE=""
     upgrade_rescue() {
         local rc=$?
         [[ "${UPGRADE_STAGE:-}" == started && $rc -ne 0 && -z "$DRY_RUN" ]] || return 0
@@ -1962,6 +1973,9 @@ except Exception:
             warn "the upgrade stopped after the switch (exit $rc): back to $(basename "$ROLLBACK_TREE")"
             touch "$NEW_TREE/.failed" 2>/dev/null || true
             swap_link "$LIB_DIR/current" "versions/$(basename "$ROLLBACK_TREE")" || true
+            if [[ -n "${PREV_LINK_BEFORE:-}" ]]; then
+                swap_link "$LIB_DIR/previous" "$PREV_LINK_BEFORE" || true    # as it was (1.0.52)
+            fi
             if [[ -n "${PAGES_SWITCHED:-}" && -d "$ROLLBACK_TREE/web" ]]; then
                 pages_from "$ROLLBACK_TREE/web" || warn "the pages of $(basename "$ROLLBACK_TREE") could not be put back"
             fi
@@ -1996,6 +2010,7 @@ except Exception:
     fi
     restart_daemon
     UPGRADE_STAGE="done"
+    trees_prune
     if [[ -n "$MAINT_BY_US" ]]; then
         sleep 3
         if as_acme --status >/dev/null 2>&1; then

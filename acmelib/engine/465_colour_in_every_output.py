@@ -1919,8 +1919,9 @@ def cli_stage_files(args):
             args.ca = stage(args.ca)
         if getattr(args, 'export_config', None) and args.export_config != '-':
             mode = 0o600 if getattr(args, 'with_secrets', False) else 0o640
-            fd = os.open(args.export_config, os.O_WRONLY | os.O_CREAT | os.O_TRUNC |
-                         os.O_NOFOLLOW, mode)
+            # emptied only when the export is there to write (1.0.52): a passphrase too short
+            # left the export made before at 0 bytes
+            fd = os.open(args.export_config, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, mode)
             os.fchmod(fd, mode)
             args.export_fd = fd
     except OSError as e:
@@ -2437,11 +2438,8 @@ def cli_dir_caps(args, pal, store, who):
 def cli_sso(args, pal, store):
     """acme --sso-status, --sso-key (otp 1.0.239): the sign-in by a load balancer or WAF."""
     if args.sso_key:
-        if not args.yes and sys.stdin.isatty():
-            got = input('a new key: the one the balancer sends now is no longer taken. Go on? [y/N] ')
-            if got.strip().lower() not in ('y', 'yes'):
-                print('nothing changed')
-                return 1
+        # as every step that cannot be taken back (1.0.52): without a terminal it went on
+        cli_sure(args, 'a new key: the one the balancer sends now is no longer taken')
         tok = secrets.token_urlsafe(32)
         d = Daemon(store, serve=False)
         try:
@@ -2724,6 +2722,7 @@ def cli_main(argv=None):
             raise SystemExit('acme: that is this node')
         if not store.get_meta('node:' + args.ha_forget):
             raise SystemExit('acme: there is no node called %s in the list' % args.ha_forget)
+        cli_sure(args, '%s is taken out of the cluster\'s list, its rows with it' % args.ha_forget)
         ha_forget(store, args.ha_forget)
         store.db.run('DELETE FROM meta WHERE k IN (?, ?)',
                      ('maint:' + args.ha_forget, 'upgrade:node:' + args.ha_forget))
@@ -3255,6 +3254,7 @@ def cli_main(argv=None):
             # The mode of a file there already too (1.0.94): O_CREAT's mode is
             # only a new file's, and secrets went into a 0644 one.
             os.fchmod(fd, 0o600 if args.with_secrets else 0o640)
+            os.ftruncate(fd, 0)
             with os.fdopen(fd, 'w') as f:
                 f.write(text + '\n')
             print(pal.ok_line('%s: the configuration%s' % (
@@ -4009,7 +4009,9 @@ def cli_main(argv=None):
             'a passphrase to lock the zip with (12 characters or more)', twice=True, env=None)
         got = api('POST', '/api/isemon', {'action': 'tls_bundle', 'port': 6514, 'mtls': args.mtls,
                                           'names': args.names or '', 'passphrase': phrase})
-        fd = os.open(args.isemon_tls_bundle, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        fd = os.open(args.isemon_tls_bundle, os.O_WRONLY | os.O_CREAT | os.O_TRUNC |
+                     getattr(os, 'O_NOFOLLOW', 0), 0o600)
+        os.fchmod(fd, 0o600)            # the mode on a file that was there too (1.0.52)
         with os.fdopen(fd, 'wb') as f:
             f.write(base64.b64decode(got['file']))
         print(pal.ok_line('%s: isemon\'s certificate and key, locked with the passphrase given'
@@ -4039,7 +4041,12 @@ def cli_main(argv=None):
             body['passphrase'] = os.environ.get('ACME_PASSPHRASE') or ask_password(
                 'a password for the file (10 characters or more)', twice=True, env=None)
         got = api('POST', '/api/web', body)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600 if TLS_EXPORT_KINDS[kind][2] else 0o644)
+        mode = 0o600 if TLS_EXPORT_KINDS[kind][2] else 0o644
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC |
+                     (0 if str(path).startswith('/dev/') else getattr(os, 'O_NOFOLLOW', 0)), mode)
+        import stat as _st
+        if _st.S_ISREG(os.fstat(fd).st_mode):
+            os.fchmod(fd, mode)         # the mode on a file that was there too (1.0.52)
         with os.fdopen(fd, 'wb') as f:
             f.write(base64.b64decode(got['file']))
         print(pal.ok_line('%s: %s' % (path, TLS_EXPORT_KINDS[kind][0])))

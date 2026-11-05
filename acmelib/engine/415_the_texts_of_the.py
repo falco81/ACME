@@ -516,13 +516,15 @@ def _mfa_act(h, kind):
         if rec.get('kind') == 'passkey':
             # set up on the administration only; an account of acme's own that set it up there
             # gives it on the enrolment pages too (the same name, the same passkey)
-            with MFA_LOCK:
-                try:
-                    rec, used = pk_check(h, s, acc, b, pk_rp_id(h))
-                except ApiError:
-                    h.failed(key)
-                    raise
-                h.store.set_meta(mfa_key(name), json.dumps(rec))
+            rp = pk_rp_id(h)
+            try:
+                kid, count = pk_check(h, s, acc, b, rp)
+                with MFA_LOCK:
+                    rec, used = pk_counter_keep(h, acc, kid, count, rp)
+                    h.store.set_meta(mfa_key(name), json.dumps(rec))
+            except ApiError:
+                h.failed(key)
+                raise
             token = _mfa_done(h, s, 'a passkey (%s)' % used.get('name'), kind)
             return {'message': 'signed in', 'done': True, 'token': token}
         if rec.get('kind') == 'app':

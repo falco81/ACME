@@ -11,9 +11,25 @@
 # were reached by (the RP ID: the Host header, never an address) - set up on acme.example.cz, it
 # works there only. Nothing secret is kept: the public key, its id, its counter.
 
-PASSKEY_MOST = 10                   # an account's passkeys
 PASSKEY_CHALLENGE_S = 300
 PASSKEY_ALGS = (-7, -257, -8)       # ES256, RS256, EdDSA
+PK_ED25519 = {}
+
+
+def pk_algs():
+    """The algorithms this machine's openssl checks: Ed25519 only where it can (1.0.52) - a FIPS
+    openssl has none, and a key of it set up (nothing is signed then) locked the account out."""
+    if 'ok' not in PK_ED25519:
+        ok = False
+        exe = shutil.which('openssl')
+        if exe:
+            try:
+                ok = subprocess.run([exe, 'genpkey', '-algorithm', 'ed25519'], capture_output=True,
+                                    timeout=20).returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                ok = False
+        PK_ED25519['ok'] = ok
+    return tuple(a for a in PASSKEY_ALGS if a != -8 or PK_ED25519['ok'])
 
 
 def pk_b64u(data):
@@ -85,6 +101,8 @@ def pk_cbor(data, at=0, depth=0):
         out = {}
         for _ in range(val):
             k, at = pk_cbor(data, at, depth + 1)
+            if not isinstance(k, (int, str)):
+                raise ValueError('a CBOR map key of a kind not taken')
             v, at = pk_cbor(data, at, depth + 1)
             out[k] = v
         return out, at
@@ -116,7 +134,7 @@ def pk_cose_pem(cose):
     if not isinstance(cose, dict):
         raise ValueError('the key is not a COSE key')
     kty, alg = cose.get(1), cose.get(3)
-    if alg not in PASSKEY_ALGS:
+    if alg not in pk_algs():
         raise ValueError('a key of an algorithm not taken (%s)' % alg)
     if kty == 2 and alg == -7 and cose.get(-1) == 1:
         x, y = cose.get(-2), cose.get(-3)
@@ -189,7 +207,7 @@ def pk_auth_data(raw, rp_id, attested=False):
         try:
             cose, _end = pk_cbor(raw, 55 + n)
             out['pem'], out['alg'] = pk_cose_pem(cose)
-        except ValueError as e:
+        except (ValueError, TypeError, RecursionError) as e:
             raise ApiError(400, 'the passkey\'s key: %s' % e)
     return out
 
@@ -197,8 +215,10 @@ def pk_auth_data(raw, rp_id, attested=False):
 def pk_client_data(b64, want_type, challenge, rp_id):
     try:
         raw = pk_unb64u(b64)
+        if len(raw) > 8192:
+            raise ValueError('too long')
         cd = json.loads(raw.decode('utf-8'))
-    except (ValueError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError, RecursionError, TypeError):
         raise ApiError(400, 'the passkey\'s answer is not one')
     if not isinstance(cd, dict) or cd.get('type') != want_type:
         raise ApiError(400, 'the passkey\'s answer is of another kind')
@@ -210,7 +230,7 @@ def pk_client_data(b64, want_type, challenge, rp_id):
     except ValueError:
         o_ok = False
     if not o_ok or cd.get('crossOrigin'):
-        raise ApiError(400, 'the passkey was asked from another page (%s)' % cd.get('origin'))
+        raise ApiError(400, 'the passkey was asked from another page')
     return raw
 
 
@@ -223,8 +243,9 @@ def pk_challenge(h, s, purpose, rp_id):
 
 
 def pk_challenge_take(h, s, purpose, rp_id):
-    got = ((s.get('data') or {}).get('mfa_pk')) or {}
-    if not h.store.session_take(s['id'], 'mfa_pk'):
+    # the question as it was taken, not as this request read the sign-in at its start (1.0.52)
+    got = h.store.session_take_value(s['id'], 'mfa_pk')
+    if not isinstance(got, dict):
         raise ApiError(400, 'the question for the passkey was answered already, or never asked - '
                             'try again')
     if got.get('p') != purpose or got.get('host') != rp_id or \
@@ -246,7 +267,7 @@ def pk_create_options(h, s, acc, rp_id):
         'rp': {'id': rp_id, 'name': '%s · %s' % (site, rp_id)},
         'user': {'id': pk_user_id(acc['name']), 'name': acc['name'],
                  'displayName': acc.get('display') or acc['name']},
-        'pubKeyCredParams': [{'type': 'public-key', 'alg': a} for a in PASSKEY_ALGS],
+        'pubKeyCredParams': [{'type': 'public-key', 'alg': a} for a in pk_algs()],
         'authenticatorSelection': {'residentKey': 'preferred', 'requireResidentKey': False,
                                    'userVerification': 'required'},
         'excludeCredentials': [{'type': 'public-key', 'id': k['id']}
@@ -272,7 +293,7 @@ def pk_enrol_finish(h, s, acc, b, rp_id):
     pk_client_data(b.get('clientDataJSON'), 'webauthn.create', challenge, rp_id)
     try:
         att, _end = pk_cbor(pk_unb64u(b.get('attestationObject')))
-    except ValueError as e:
+    except (ValueError, TypeError, RecursionError) as e:
         raise ApiError(400, 'the passkey\'s answer: %s' % e)
     if not isinstance(att, dict) or not isinstance(att.get('authData'), bytes):
         raise ApiError(400, 'the passkey\'s answer has no authenticator data')
@@ -284,8 +305,8 @@ def pk_enrol_finish(h, s, acc, b, rp_id):
 
 
 def pk_check(h, s, acc, b, rp_id):
-    """The passkey's answer at a sign-in: the second step given, or ApiError. The counter and
-    the time it was used kept (under MFA_LOCK, by the caller)."""
+    """The passkey's answer at a sign-in, checked (its signature by openssl, outside any lock):
+    (its id, its counter) - or ApiError. The counter is kept by pk_counter_keep."""
     challenge = pk_challenge_take(h, s, 'check', rp_id)
     rec = mfa_get(h.store, acc['name']) or {}
     kid = str(b.get('id') or '')
@@ -305,13 +326,25 @@ def pk_check(h, s, acc, b, rp_id):
         h.store.add_event('sign-ins', '%s: a passkey\'s signature did not hold, from %s' % (
             acc['name'], h.client_ip()), 'bad', who=acc['name'])
         raise ApiError(400, 'the passkey\'s signature does not hold')
+    return key['id'], ad['count']
+
+
+def pk_counter_keep(h, acc, kid, count, rp_id):
+    """Under MFA_LOCK (the caller): the counter going on, kept with the time it was used. A
+    counter back to 0 after one above it is refused too (1.0.52): it cleared the check of a
+    copied passkey. Passkeys that always say 0 (the iCloud Keychain's) stay 0 and pass."""
+    rec = mfa_get(h.store, acc['name']) or {}
+    key = [k for k in (rec.get('keys') or []) if k.get('id') == kid and k.get('host') == rp_id]
+    if not key:
+        raise ApiError(400, 'that passkey is not known here (taken away, or of another server)')
+    key = key[0]
     was = int(key.get('count') or 0)
-    if was and ad['count'] and ad['count'] <= was:
+    if was and count <= was:
         h.store.add_event('sign-ins', '%s: the counter of the passkey %s went back (%d after %d) '
-                          '- it may have been copied' % (acc['name'], key.get('name'), ad['count'],
+                          '- it may have been copied' % (acc['name'], key.get('name'), count,
                                                          was), 'bad', who=acc['name'])
         raise ApiError(400, 'the counter of the passkey went back - it may have been copied')
-    key['count'] = ad['count']
+    key['count'] = count
     key['last_used'] = time.time()
     return rec, key
 

@@ -2808,7 +2808,8 @@ function pkCantSay(box) {
 }
 /* Cancelled by the person: nothing said; "has one already": said so. */
 function pkFailed(said, e) {
-  if (e && (e.name === 'NotAllowedError' || e.name === 'AbortError')) { said.className = 'said'; said.textContent = ''; return; }
+  if (e && e.name === 'AbortError') { said.className = 'said'; said.textContent = ''; return; }
+  if (e && e.name === 'NotAllowedError') { said.className = 'said'; said.textContent = 'Cancelled or timed out - try again.'; return; }
   said.className = 'said bad';
   said.textContent = e && e.name === 'InvalidStateError' ? 'This device has a passkey of this account already.' : String((e && e.message) || e);
 }
@@ -2817,23 +2818,33 @@ function pkCheckForm(box, d) {
   var go = cmdButton('Use Face ID / Touch ID', 'key', 'primary');
   go.type = 'button';
   var said = el('div', 'said');
+  /* The question asked when the form is drawn (1.0.52): the tap then calls Face ID at once - a
+     fetch between them used up Safari's allowance on a slow line. */
+  var ready = null;
+  var ask = function () {
+    return api('mfa', {action: 'pk_begin'}).then(function (r) {
+      var o = r.publicKey;
+      o.challenge = pkBytes(o.challenge);
+      o.allowCredentials = (o.allowCredentials || []).map(function (c) { return {type: c.type, id: pkBytes(c.id)}; });
+      return o;
+    });
+  };
+  var prepare = function () { ask().then(function (o) { ready = o; }).catch(function (e) { said.className = 'said bad'; said.textContent = String(e.message || e); }); };
+  prepare();
   go.onclick = function () {
     go.disabled = true;
     said.className = 'said';
     said.textContent = '';
-    api('mfa', {action: 'pk_begin'}).then(function (r) {
-      var o = r.publicKey;
-      o.challenge = pkBytes(o.challenge);
-      o.allowCredentials = (o.allowCredentials || []).map(function (c) { return {type: c.type, id: pkBytes(c.id)}; });
-      return navigator.credentials.get({publicKey: o});
-    }).then(function (cr) {
+    var o = ready;
+    ready = null;
+    (o ? navigator.credentials.get({publicKey: o}) : ask().then(function (x) { return navigator.credentials.get({publicKey: x}); })).then(function (cr) {
       return api('mfa', {action: 'check', id: cr.id, clientDataJSON: pkText(cr.response.clientDataJSON),
         authenticatorData: pkText(cr.response.authenticatorData), signature: pkText(cr.response.signature)});
     }).then(function (r) {
       said.className = 'said good';
       said.textContent = r.message || 'Welcome back.';
       setTimeout(function () { location.reload(); }, 400);
-    }).catch(function (e) { go.disabled = false; pkFailed(said, e); });
+    }).catch(function (e) { go.disabled = false; pkFailed(said, e); prepare(); });
   };
   box.appendChild(go);
   box.appendChild(said);
@@ -2845,24 +2856,32 @@ function pkEnrolForm(body, d) {
   var go = cmdButton('Set it up with this device', 'key', 'primary');
   go.type = 'button';
   var said = el('div', 'said');
-  go.onclick = function () {
-    go.disabled = true;
-    said.className = 'said';
-    said.textContent = '';
-    api('mfa', {action: 'enrol_start', kind: 'passkey'}).then(function (r) {
+  var ready = null;      /* asked ahead, so the tap calls the device at once (1.0.52) */
+  var ask = function () {
+    return api('mfa', {action: 'enrol_start', kind: 'passkey'}).then(function (r) {
       var o = r.publicKey;
       o.challenge = pkBytes(o.challenge);
       o.user.id = pkBytes(o.user.id);
       o.excludeCredentials = (o.excludeCredentials || []).map(function (c) { return {type: c.type, id: pkBytes(c.id)}; });
-      return navigator.credentials.create({publicKey: o});
-    }).then(function (cr) {
+      return o;
+    });
+  };
+  var prepare = function () { ask().then(function (o) { ready = o; }).catch(function (e) { said.className = 'said bad'; said.textContent = String(e.message || e); }); };
+  prepare();
+  go.onclick = function () {
+    go.disabled = true;
+    said.className = 'said';
+    said.textContent = '';
+    var o = ready;
+    ready = null;
+    (o ? navigator.credentials.create({publicKey: o}) : ask().then(function (x) { return navigator.credentials.create({publicKey: x}); })).then(function (cr) {
       return api('mfa', {action: 'enrol_confirm', kind: 'passkey', name: pkDevice() + ' · ' + new Date().toLocaleDateString(),
         clientDataJSON: pkText(cr.response.clientDataJSON), attestationObject: pkText(cr.response.attestationObject)});
     }).then(function (r) {
       said.className = 'said good';
       said.textContent = r.message || 'Done.';
       setTimeout(function () { location.reload(); }, 400);
-    }).catch(function (e) { go.disabled = false; pkFailed(said, e); });
+    }).catch(function (e) { go.disabled = false; pkFailed(said, e); prepare(); });
   };
   body.appendChild(go);
   body.appendChild(said);

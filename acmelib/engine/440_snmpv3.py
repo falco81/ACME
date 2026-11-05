@@ -46,11 +46,17 @@ def ber_int(v, tag=2):
 
 
 def ber_str(v):
-    return ber(4, v if isinstance(v, bytes) else str(v).encode('utf-8'))
+    # a DisplayString is 255 octets at most (1.0.52) - cut on bytes, a UTF-8 letter kept whole
+    b = v if isinstance(v, bytes) else str(v).encode('utf-8')[:255]
+    if not isinstance(v, bytes):
+        b = b.decode('utf-8', 'ignore').encode('utf-8')
+    return ber(4, b)
 
 
 def ber_oid(oid):
     oid = tuple(int(x) for x in oid)
+    if len(oid) < 2:
+        oid = (oid + (0, 0))[:2]        # an empty OID asked answered, not dropped (1.0.52)
     out = bytearray([40 * oid[0] + oid[1]])
     for n in oid[2:]:
         part = [n & 0x7F]
@@ -358,7 +364,7 @@ def snmp_mib(daemon, agent):
             info = (tls_profile(store, t) or {}).get('info') or {}
             if info.get('not_after'):
                 i += 1
-                end = int(float(info['not_after']))
+                end = min(int(float(info['not_after'])), 2147483647)   # Integer32
                 rows += [(B + (6, 1, 1, 1, i), 'int', i), (B + (6, 1, 1, 2, i), 'str', t),
                          (B + (6, 1, 1, 3, i), 'str', info.get('cn') or ''),
                          (B + (6, 1, 1, 4, i), 'int', int((end - time.time()) // 86400)),
@@ -831,7 +837,11 @@ def snmp_traps_tick(daemon, cur):
                               ('str', str(p.get('said') or '')[:255]), ('str', node_name())])
             was.update(sent=any(v == 'sent' for v in got.values()), level=p.get('level'))
             changed = True
-    for k in [k for k in known if k not in cur]:
+    # held while the cluster is worked on, as the mails hold them (1.0.52): a maintenance sent
+    # "right again" and then the same trap once more
+    quiet = alerts_quiet_until(store) > now
+    for k in [k for k in known if k not in cur and not (quiet and k.startswith(('repl', 'db:',
+                                                                                  'vip:')))]:
         p = known.pop(k)
         changed = True
         if p.get('sent'):
