@@ -6,6 +6,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.47 - not released
 
+- **The password policy of the local users explained as on otp:** every rule has its (i) - and
+  its name the same words: what it does and in which file or module (pam_pwquality,
+  pam_pwhistory, pam_faillock, login.defs), the command line's name of it
+  (`acme --local-policy-set KEY=…`) and its built-in default. A click on the (i) by a switch
+  does not turn the switch.
+- `acme --local-policy-set dictcheck=off` (or `usercheck=no`) switched the check on - a word was
+  taken as on. The switches are on/off, yes/no, 1/0 now; another word is refused.
+
 ## 1.0.46 - 2026-11-05
 
 - **A hunt, round 6 (rows of another shape, the cluster's upgrade, what 1.0.45 changed):**

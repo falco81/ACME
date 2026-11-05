@@ -14155,9 +14155,56 @@ var PWP_OPEN = false;
 function pwpNum(v, min, max) {
   var i = el('input', 'mono pwp-num'); i.type = 'number'; i.min = min; i.max = max; i.value = v; return i;
 }
-function pwpField(label, input, says) {
+/* What each setting of the policy does, in its (i) - and on its name (1.0.47, as otp 1.0.251). */
+var PWP_HELP = {
+  managed: 'On: acme writes the values below into the files of every node of the cluster - /etc/security/pwquality.conf.d/50-acme.conf, its lines in pwhistory.conf and faillock.conf, the aging lines of /etc/login.defs - and puts them in again on a node that has other ones. With authselect, the features with-pwhistory and with-faillock are switched on only when they are needed. Off: what acme wrote is taken out again, and each node has the policy its system has.',
+  minlen: 'The fewest characters a new password may have (pam_pwquality: minlen). Only a new password is checked - one set before stays until it is changed.',
+  minclass: 'How many of the four kinds of characters a new password must have at least: small letters, capitals, digits, the others (pam_pwquality: minclass). Any: no kinds asked for.',
+  maxrepeat: 'The most times one character may come in a row - with 3, "aaa" is taken and "aaaa" is not (pam_pwquality: maxrepeat). 0: as many as wanted.',
+  difok: 'How many characters of the new password must not be in the old one (pam_pwquality: difok). Checked only where the old password is typed too - passwd by the user, a password run out at sign-in; not when root or these pages set it.',
+  dictcheck: 'A new password that is a word of the dictionary (cracklib\'s), also turned around or with little changed, is refused (pam_pwquality: dictcheck).',
+  usercheck: 'A new password with the user\'s name in it, also turned around, is refused (pam_pwquality: usercheck).',
+  runs: 'On: a password is good for the days set here; after them the user must change it at the next sign-in - over SSH with a key or acme\'s code too (login.defs: PASS_MAX_DAYS; chage -M). Off: a password never runs out.',
+  max_days: 'How many days a password is good after it was set (login.defs: PASS_MAX_DAYS; chage -M). Then it must be changed at the next sign-in.',
+  warn_days: 'How many days before a password runs out the user is told so at sign-in (login.defs: PASS_WARN_AGE; chage -W).',
+  min_days: 'How many days after a change the password may not be changed again - so that the last passwords cannot be gone through at once to come back to the old one (login.defs: PASS_MIN_DAYS; chage -m). 0: changed again at once.',
+  remember: 'How many of a user\'s last passwords cannot be taken again (pam_pwhistory: remember; they are kept hashed in /etc/security/opasswd). 0: any. With authselect, its feature with-pwhistory is switched on for it.',
+  existing: 'login.defs holds the days only for the users made after it. On: the days set here are put on every local user there now too, on every node (chage) - never on root, nor on a user with no password (a key only), who could never give a new one. Off: the users there now keep their own days; each user\'s are in their popup.',
+  deny: 'After so many wrong passwords - counted within the time set here - the user is locked (pam_faillock: deny). 0: never locked. root is never locked. A key or acme\'s code for SSH never counts and is never kept out: the lock keeps out the password (at the console, for sudo). With authselect, its feature with-faillock is switched on for it.',
+  unlock_time: 'How long a locked user stays locked, in seconds (pam_faillock: unlock_time). 0: until root unlocks them - faillock --user NAME --reset.',
+  fail_interval: 'Wrong passwords are counted within so many seconds (pam_faillock: fail_interval) - those before do not count towards the lock.'
+};
+var PWP_DEFAULTS = {managed: 'off', minlen: 12, minclass: 3, maxrepeat: 3, difok: 5, dictcheck: 'on', usercheck: 'on',
+  runs: 'off', max_days: 99999, warn_days: 7, min_days: 0, remember: 5, existing: 'off', deny: 0, unlock_time: 900, fail_interval: 900};
+function pwpInfo(key, also) {
+  var words = PWP_HELP[key];
+  if (!words) return null;
+  var cmd = key === 'runs' ? 'max_days' : key;
+  var story = '<span class="k">on the command line this one is <b>acme --local-policy-set ' + richText(cmd) + '=…</b>'
+    + (PWP_DEFAULTS[key] !== undefined ? '<br><span class="same">the built-in default is ' + richText(String(PWP_DEFAULTS[key])) + '</span>' : '')
+    + '</span>';
+  var i = el('span', 'iinfo', 'i');
+  i.setAttribute('role', 'button');
+  i.tabIndex = 0;
+  /* A click on it is no click on the switch beside it. */
+  i.addEventListener('click', function (ev) { ev.stopPropagation(); ev.preventDefault(); });
+  explain(i, words, story);
+  (also || []).forEach(function (x) { explain(x, words, story); });
+  return i;
+}
+function pwpInfoOn(box, key) {
+  /* The (i) after a switch's words, the words explained too. */
+  var w = box.querySelector('.osu-sw-w, .osu-chk-w');
+  var i = pwpInfo(key, w ? [w] : []);
+  if (i && w) { w.appendChild(document.createTextNode(' ')); w.appendChild(i); }
+  return box;
+}
+function pwpField(label, input, says, key) {
   var f = formField(label, input, says);
   f.classList.add('pwp-f');
+  var l = f.querySelector('label');
+  var i = key && pwpInfo(key, l ? [l] : []);
+  if (i && l) l.appendChild(i);
   return f;
 }
 function pwpCard(d) {
@@ -14189,7 +14236,7 @@ function pwpCard(d) {
   card.appendChild(how);
   var on = osuCheck('Set by acme on every node', e.managed, e.managed ? '' : 'Off: as each node\'s system has it - what acme wrote before is taken out again.');
   on.input.onchange = function () { e.managed = on.input.checked; drawOsUsers(); };
-  card.appendChild(on.box);
+  card.appendChild(pwpInfoOn(on.box, 'managed'));
   if (e.managed) {
     var grid = el('div', 'pwp-grid');
     var col = function (title) { var c1 = el('div', 'pwp-col'); c1.appendChild(el('h3', '', title)); grid.appendChild(c1); return c1; };
@@ -14197,33 +14244,33 @@ function pwpCard(d) {
     var flag = function (box, words, key, says) {
       var s1 = osuCheck(words, !!e[key], says);
       s1.input.onchange = function () { e[key] = s1.input.checked ? 1 : 0; };
-      box.appendChild(s1.box);
+      box.appendChild(pwpInfoOn(s1.box, key));
     };
     var a = col('The password');
-    a.appendChild(pwpField('Characters at least', bind(pwpNum(e.minlen, 6, 128), 'minlen')));
+    a.appendChild(pwpField('Characters at least', bind(pwpNum(e.minlen, 6, 128), 'minlen'), '', 'minlen'));
     var kinds = selectBox([['0', 'any'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', 'all 4']], String(e.minclass));
     kinds.onchange = function () { e.minclass = parseInt(kinds.value, 10); };
-    a.appendChild(pwpField('Kinds of characters at least', kinds, 'small letters, capitals, digits, the others'));
-    a.appendChild(pwpField('The same character in a row at most', bind(pwpNum(e.maxrepeat, 0, 20), 'maxrepeat'), '0: as many as wanted'));
-    a.appendChild(pwpField('Characters not in the old one', bind(pwpNum(e.difok, 0, 20), 'difok')));
+    a.appendChild(pwpField('Kinds of characters at least', kinds, 'small letters, capitals, digits, the others', 'minclass'));
+    a.appendChild(pwpField('The same character in a row at most', bind(pwpNum(e.maxrepeat, 0, 20), 'maxrepeat'), '0: as many as wanted', 'maxrepeat'));
+    a.appendChild(pwpField('Characters not in the old one', bind(pwpNum(e.difok, 0, 20), 'difok'), '', 'difok'));
     flag(a, 'No word of the dictionary', 'dictcheck');
     flag(a, 'Not the user\'s name', 'usercheck');
     var b = col('How long it is good');
     var runs = osuCheck('A password runs out', e.max_days < 99999);
-    b.appendChild(runs.box);
+    b.appendChild(pwpInfoOn(runs.box, 'runs'));
     var maxI = bind(pwpNum(e.max_days < 99999 ? e.max_days : 90, 1, 99998), 'max_days');
-    var maxF = pwpField('Good for (days)', maxI);
+    var maxF = pwpField('Good for (days)', maxI, '', 'max_days');
     maxF.hidden = !(e.max_days < 99999);
     runs.input.onchange = function () { maxF.hidden = !runs.input.checked; e.max_days = runs.input.checked ? (parseInt(maxI.value, 10) || 90) : 99999; };
     b.appendChild(maxF);
-    b.appendChild(pwpField('Warned so many days before', bind(pwpNum(e.warn_days, 0, 365), 'warn_days')));
-    b.appendChild(pwpField('The least days between two changes', bind(pwpNum(e.min_days, 0, 365), 'min_days'), '0: changed again at once'));
-    b.appendChild(pwpField('The last passwords not taken again', bind(pwpNum(e.remember, 0, 50), 'remember'), '0: any; needs pam_pwhistory'));
+    b.appendChild(pwpField('Warned so many days before', bind(pwpNum(e.warn_days, 0, 365), 'warn_days'), '', 'warn_days'));
+    b.appendChild(pwpField('The least days between two changes', bind(pwpNum(e.min_days, 0, 365), 'min_days'), '0: changed again at once', 'min_days'));
+    b.appendChild(pwpField('The last passwords not taken again', bind(pwpNum(e.remember, 0, 50), 'remember'), '0: any; needs pam_pwhistory', 'remember'));
     flag(b, 'Also for the users there now', 'existing', 'Without it, the days are for users made from now on (login.defs); a user\'s own are in their popup.');
     var g = col('Wrong passwords');
-    g.appendChild(pwpField('Locked after so many wrong (faillock)', bind(pwpNum(e.deny, 0, 100), 'deny'), '0: never locked; root never'));
-    g.appendChild(pwpField('...for (seconds)', bind(pwpNum(e.unlock_time, 0, 86400), 'unlock_time'), '0: until unlocked by root (faillock --reset)'));
-    g.appendChild(pwpField('...counted within (seconds)', bind(pwpNum(e.fail_interval, 60, 86400), 'fail_interval')));
+    g.appendChild(pwpField('Locked after so many wrong (faillock)', bind(pwpNum(e.deny, 0, 100), 'deny'), '0: never locked; root never', 'deny'));
+    g.appendChild(pwpField('...for (seconds)', bind(pwpNum(e.unlock_time, 0, 86400), 'unlock_time'), '0: until unlocked by root (faillock --reset)', 'unlock_time'));
+    g.appendChild(pwpField('...counted within (seconds)', bind(pwpNum(e.fail_interval, 60, 86400), 'fail_interval'), '', 'fail_interval'));
     card.appendChild(grid);
   }
   var row = el('div', 'btnrow');

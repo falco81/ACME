@@ -1973,7 +1973,12 @@ def cli_local_policy(args, pal):
             if k not in PWP_DEFAULT:
                 print('no such rule: %s (the rules: %s)' % (k, ', '.join(sorted(PWP_DEFAULT))))
                 return 2
-            b[k] = v.strip().lower() in ('1', 'yes', 'on', 'true') if k in ('managed', 'existing') else v.strip()
+            # The switches as words too (1.0.47): dictcheck=off, a text, was taken as on.
+            flags = ('managed', 'existing', 'dictcheck', 'usercheck')
+            if k in flags and v.strip().lower() not in ('1', 'yes', 'on', 'true', '0', 'no', 'off', 'false'):
+                print('%s is on or off' % k)
+                return 2
+            b[k] = v.strip().lower() in ('1', 'yes', 'on', 'true') if k in flags else v.strip()
         try:
             c = pwp_checked_api(b)
         except ValueError as e:
