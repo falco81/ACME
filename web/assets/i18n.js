@@ -301,6 +301,13 @@ function i18nWork(s, depth) {
    the page put there out of its own texts are translated too. */
 function i18nSlot(got, depth) {
   if (!got || depth >= I18N_DEEP || !/[A-Za-z]{2}/.test(got)) return got;
+  /* A setting's name in quotes (1.0.48): "“Wrong sign-ins from one place…” must be between 2
+     and 10000" kept its name in English - the quotes were part of what was looked up. */
+  var q = /^(\s*[\u201c"\u201e])([^\u201c\u201d"]+)([\u201d"]\s*)$/.exec(got);
+  if (q && /\S\s+\S/.test(q[2])) {
+    var inner = i18nText(q[2], depth + 1);
+    if (inner !== null && inner !== q[2]) return q[1] + inner + q[3];
+  }
   /* One word in a slot is a name - an account, a host, a list, a group -
      and a name is never translated: "Account “settings”" is somebody's
      account called settings. Words the page put there are several.

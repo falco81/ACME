@@ -5450,7 +5450,7 @@
   },
   "s1361": {
    "source": "Made",
-   "text": "Vytvořena"
+   "text": "Vytvořeno"
   },
   "s1362": {
    "source": "Made a token",
@@ -53579,6 +53579,34 @@
   "pwh_16": {
    "source": "Wrong passwords are counted within so many seconds (pam_faillock: fail_interval) - those before do not count towards the lock.",
    "text": "Špatná hesla se počítají v rámci tolika sekund (pam_faillock: fail_interval) – starší se do zámku nepočítají."
+  },
+  "b1_1": {
+   "source": "action",
+   "text": "akce"
+  },
+  "b1_2": {
+   "source": "portal",
+   "text": "portál"
+  },
+  "b1_3": {
+   "source": "look at a job of no certificate",
+   "text": "podívat se na úlohu bez certifikátu"
+  },
+  "b1_4": {
+   "source": "stop a job of no certificate",
+   "text": "zastavit úlohu bez certifikátu"
+  },
+  "b1_5": {
+   "source": "look at a test of no certificate",
+   "text": "podívat se na test bez certifikátu"
+  },
+  "b1_6": {
+   "source": "look at an import of no certificate",
+   "text": "podívat se na import bez certifikátu"
+  },
+  "b1_7": {
+   "source": "By hand",
+   "text": "Ručně"
   }
  },
  "patterns": {
@@ -69372,11 +69400,11 @@
   },
   "prp001": {
    "source": "at most {0} name(s)",
-   "text": "nejvýše {0} jmen(a)"
+   "text": "počet jmen nejvýše {0}"
   },
   "prp002": {
    "source": "At most {0} name(s) in one certificate of this profile.",
-   "text": "Nejvýše {0} jmen(a) v jednom certifikátu tohoto profilu."
+   "text": "Jeden certifikát tohoto profilu může mít nejvýše tolik jmen: {0}."
   },
   "prp003": {
    "source": "A new CSR for {0}",
@@ -69488,7 +69516,7 @@
   },
   "prp030": {
    "source": "this profile gives at most {0} name(s) in one certificate",
-   "text": "tento profil dává nejvýše {0} jmen(a) v jednom certifikátu"
+   "text": "tento profil dává do jednoho certifikátu nejvýše tolik jmen: {0}"
   },
   "prp031": {
    "source": "not a name you may ask for here: {0}",
@@ -73185,6 +73213,58 @@
   "pa6_8": {
    "source": "the root helper is not set up on this node (no {0}) - install.sh puts it in",
    "text": "root helper na tomto uzlu není nastavený (chybí {0}) - doplní ho install.sh"
+  },
+  "pb1_1": {
+   "source": "EC {0} ({1} bits)",
+   "text": "EC {0} ({1} bitů)"
+  },
+  "pb1_2": {
+   "source": "{0} set the e-mail address ({1}) and the mobile number ({2}) of {3}",
+   "text": "{0} nastavil(a) e-mailovou adresu ({1}) a mobilní číslo ({2}) účtu {3}"
+  },
+  "pb1_3": {
+   "source": "asked for on the portal by {0}. {1}",
+   "text": "vyžádáno na portálu uživatelem {0}. {1}"
+  },
+  "pb1_4": {
+   "source": "asked for on the portal by {0} (request profile {1}). {2}",
+   "text": "vyžádáno na portálu uživatelem {0} (profil žádosti {1}). {2}"
+  },
+  "pb1_5": {
+   "source": "{0} was refused: {1}",
+   "text": "{0} byl(a) odmítnut(a): {1}"
+  },
+  "pb1_6": {
+   "source": "look at a job of {0}",
+   "text": "podívat se na úlohu {0}"
+  },
+  "pb1_7": {
+   "source": "{0} file written on {1}",
+   "text": "{0} soubor zapsán na {1}"
+  },
+  "pb1_8": {
+   "source": "{0} files written on {1}",
+   "text": "souborů zapsáno na {1}: {0}"
+  },
+  "pb1_9": {
+   "source": "It is issued now from {0} and renewed by itself after.",
+   "text": "Vystaví se teď z {0} a pak se bude obnovovat sám."
+  },
+  "pb1_10": {
+   "source": "It is issued now from {0} and renewed only when asked.",
+   "text": "Vystaví se teď z {0} a obnoví se jen na požádání."
+  },
+  "pb1_11": {
+   "source": "{0} is told by mail, if their account has an e-mail address.",
+   "text": "{0} dostane e-mail, pokud má jeho účet e-mailovou adresu."
+  },
+  "pb1_12": {
+   "source": "{0} is told by mail, if the directory has their mail.",
+   "text": "{0} dostane e-mail, pokud má v adresáři adresu."
+  },
+  "pb1_13": {
+   "source": "for an RSA key only - this one is {0}",
+   "text": "jen pro klíč RSA – tento je {0}"
   }
  },
  "rich": {

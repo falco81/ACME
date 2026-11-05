@@ -258,6 +258,12 @@ function tick() {
       extraDraw(TAB, {live: true, moved: moved, status: s});
     }
   }).catch(function (e) {
+    /* The password to change first (1.0.48): no daemon away - its dialog again, closed by
+       Escape, and nothing else said. */
+    if (typeof ME === 'object' && ME && ME.must_change && e && e.status === 403) {
+      if ($('modal').hidden) mustChange();
+      return;
+    }
     var o = $('offline');
     o.hidden = false;
     o.textContent = 'The daemon is not answering: ' + (e.message || e);

@@ -41,7 +41,7 @@ SAYS = [
     ('cn', 'its common name', 'cn:www.example.cz'),
     ('by', 'who added it', 'by:admin'),
 ]
-WORDS = ('name', 'cn', 'names', 'note', 'serial')
+WORDS = ('name', 'cn', 'names', 'note', 'serial', 'tags', 'owner')   # its tags and owner too (1.0.48)
 # Offered as one types: what these hold, counted over the certificates one sees.
 OFFERED = ('state', 'source', 'issuer', 'validation', 'key', 'tag', 'owner', 'dns', 'names',
            'name', 'by', 'renew')

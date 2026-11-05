@@ -820,10 +820,19 @@ def start_deploy(store, ref, deploy_id, by):
     while True:
         try:
             return jobs.submit(store, 'deploy', deployer.deploy_job(row['id'], only, force=True),
-                               cert_id=row['id'], deploy_id=only[0] if only else None, by=by,
+                               cert_id=row['id'], deploy_id=only[0] if only else None,
+                               target=d['target'] if only else None, by=by,
                                said='asked by %s' % by)
         except ValueError as e:
             running = jobs.cert_job(store, row['id'])
+            # The look already deploying it (1.0.48): "Save and deploy now" saved the deployment,
+            # the look started on it at once - and this ran it a second time after; the files
+            # were written twice. That job is this one.
+            if only and running is not None:
+                rj = store.db.row('SELECT kind, deploy_id, state FROM cert_jobs WHERE id = ?',
+                                  (running,)) or {}
+                if rj.get('kind') == 'deploy' and rj.get('deploy_id') in (None, only[0]):
+                    return running
             # One deployment asked for while a job works on the certificate (the look
             # that deploys a deployment just saved): it is run once that job is done -
             # waited for a little (1.0.19); that job's result is not this one's.
@@ -849,8 +858,7 @@ DEPLOY_COMMANDS = ('pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd', 'script_path
 
 # Where the private key goes, and its password (1.0.48): a full administrator's, as the commands.
 DEPLOY_KEY_OPTIONS = ('outputs', 'pfx_password', 'pfx_password_mode', 'include_key', 'key_file',
-                      'key_target', 'key_format', 'pfx_format', 'p12_format', 'pfx_kind',
-                      'jks_alias')
+                      'key_target')
 
 
 REVOKE_REASONS = ('unspecified', 'keyCompromise', 'cACompromise', 'affiliationChanged',

@@ -398,14 +398,41 @@ def time_span(h, lq):
 
 @route('GET', '/api/events')
 def _events(h):
-    h.me()
+    s = h.me()
     lq, bad = list_query('events', h.arg('q'))
     if bad:
         return {'rows': [], 'total': 0, 'q_error': bad, 'kinds': h.reader.event_kinds()}
     time_span(h, lq)
     rows, total = h.reader.events(h.num('limit', 100, 1, 1000), h.num('offset', 0),
                                  lq.words, h.arg('kind'), extra=(lq.sql, lq.args))
+    hidden = events_hidden_of(h.store, s)
+    if hidden is not None:
+        keep = [r for r in rows if not hidden.search(str(r.get('words') or ''))]
+        total -= len(rows) - len(keep)
+        rows = keep
     return {'rows': rows, 'total': total, 'kinds': h.reader.event_kinds()}
+
+
+def events_hidden_of(store, s):
+    """For a session kept to its teams' certificates (1.0.48): what names the certificates it
+    may not look at - their events are not shown to it (they said another team's deployments,
+    refusals, renewals). None when it sees every certificate."""
+    try:
+        from acmelib.certs import teams as T
+        if T.unscoped(s, 'view'):
+            return None
+        mine = {r['id'] for r in store.db.rows('SELECT id FROM certs WHERE 1 = 1' +
+                                                T.where(store, s, 'view', 'owner')[0],
+                                                T.where(store, s, 'view', 'owner')[1])}
+        names = [str(r['name']) for r in store.db.rows('SELECT id, name FROM certs')
+                 if r['id'] not in mine and r.get('name')]
+    except Exception:                                   # noqa: BLE001
+        return None
+    if not names:
+        return None
+    names.sort(key=len, reverse=True)
+    return re.compile(r'(?<![\w.-])(?:%s)(?![\w-]|\.[\w])' % '|'.join(re.escape(n) for n in names[:5000]),
+                      re.I)
 
 
 def mailq_said(e):

@@ -862,8 +862,12 @@ def scan(store, by='the renewer'):
         if jobs.cert_busy(store, cert_id):
             continue
         try:
+            # One deployment: its target named in the job (1.0.48 - Jobs showed "–").
+            one = ids[0] if len(ids) == 1 else None
+            tgt = store.db.value('SELECT target FROM cert_deploys WHERE id = ?', (one,)) if one else None
             jobs.submit(store, 'deploy', deployer.deploy_job(cert_id, ids), cert_id=cert_id,
-                        by=by, said='deployments to (re)try: %d' % len(ids))
+                        deploy_id=one, target=tgt, by=by,
+                        said='deployments to (re)try: %d' % len(ids))
             started += 1
         except Exception as e:                          # noqa: BLE001
             E.log_sparing('certs-deploy:%s' % cert_id, 'deploying: %s' % e, 'warn', every=3600)

@@ -444,7 +444,7 @@ function byWho(who, cls) {
 function whoWhen(by, ts) {
   var c = el('td', 'muted small ct-whowhen');
   c.appendChild(byWho(by || '–'));
-  if (ts) c.appendChild(el('span', '', ago(ts)));
+  if (ts) { c.appendChild(document.createTextNode(' ')); c.appendChild(el('span', '', ago(ts))); }
   return c;
 }
 function emptyNote(words) { return el('p', 'muted ct-empty', words); }
@@ -2211,6 +2211,7 @@ function persistHere(row, p) {
       said.className = 'said ' + (good ? 'good' : 'bad');
       said.appendChild(el('span', '', String(d.said || d.message || d.error || (good ? 'done' : 'it did not work')).split('\n')[0]));
       if (d.job_id) {
+        said.appendChild(document.createTextNode(' '));
         var st = el('button', 'btn small ct-steps-btn', 'every step');
         st.type = 'button';
         st.onclick = function () { over(function () { jobPeek(d.job_id); }); };
@@ -2326,6 +2327,7 @@ function modForm(key, row, p, fromPick, keep) {
       testSaid.className = 'said ' + (x.ok ? 'good' : 'bad');
       testSaid.appendChild(el('span', '', x.words));   /* the words translated (1.0.46) */
       if (x.job_id) {
+        testSaid.appendChild(document.createTextNode(' '));
         var st = el('button', 'btn small ct-steps-btn', 'every step');
         st.type = 'button';
         st.onclick = function () { over(function () { jobPeek(x.job_id); }); };
@@ -2359,7 +2361,7 @@ function modForm(key, row, p, fromPick, keep) {
     if (p.missing) body.appendChild(el('p', 'ct-bad', 'The module of this kind is not installed (or would not load): its settings are shown as they are kept.'));
     var g = el('div', 'formgrid ct-basic');
     var others = arr(LISTS[key]).filter(function (x) { return !row || x.id !== row.id; }).map(function (x) { return x.name; });
-    name = textBox(keep && keep.name !== undefined ? keep.name : (row ? row.name : safeName(p.default_name || p.title || p.kind, others)), tr('a name of its own'), '');
+    name = textBox(keep && keep.name !== undefined ? keep.name : (row ? row.name : safeName(tr(p.default_name || p.title || p.kind), others)   /* in the page's language (1.0.48) */), tr('a name of its own'), '');
     noI18n(name);
     if (FULL) guardName(name, true, others);
     g.appendChild(formField('Name', name, 'What it is called here, in the certificates and the jobs.'));
@@ -2565,7 +2567,13 @@ function deployTable(rows, o) {
     tr.appendChild(td('num', d.deployed_version ? 'v' + d.deployed_version : '–'));
     tr.appendChild(d.last_ok ? stampCell(d.last_ok) : td('muted', d.last_try ? 'last tried ' + ago(d.last_try) : 'never'));
     var opt = obj(d.options);
-    var keys = Object.keys(opt).filter(function (k) { return opt[k] !== '' && opt[k] !== null && typeof opt[k] !== 'object'; }).slice(0, 2);
+    /* What says where it goes - not the module's inner switches (1.0.48: "pfx_password_mode
+       fixed / script_interp bash" for a deployment of PEM files) */
+    var INNER = {pfx_password_mode: 1, pfx_password: 1, script_interp: 1, script_mode: 1, backup: 1,
+                 preset: opt.preset === 'custom' ? 1 : 0, pfx_password_new: 1};
+    var keys = Object.keys(opt).filter(function (k) {
+      return !INNER[k] && opt[k] !== '' && opt[k] !== null && opt[k] !== false && typeof opt[k] !== 'object';
+    }).slice(0, 2);
     var oc = el('td', 'ct-sum');
     keys.forEach(function (k) {
       var l = el('div', 'ct-sum-l');
@@ -2848,7 +2856,13 @@ function approveDialog(c, ok, back) {
       build: function (body) {
         body.appendChild(namesChips(c.names));
         body.appendChild(el('p', 'note', ok
-          ? 'It is issued now from ' + (c.issuer || '?') + ' and renewed by itself after; ' + (c.owner || 'the person') + ' is told by mail, if the directory has their mail.'
+          /* as it is (1.0.48): "renewed by itself" for one renewed only when asked, "the directory's
+             mail" for an account of acme's own */
+          ? (truthy(c.auto_renew) ? 'It is issued now from ' + (c.issuer || '?') + ' and renewed by itself after.'
+                                  : 'It is issued now from ' + (c.issuer || '?') + ' and renewed only when asked.')
+            + ' ' + (String(c.owner || '').indexOf('local:') === 0
+              ? (c.owner.slice(6) || 'the person') + ' is told by mail, if their account has an e-mail address.'
+              : (c.owner || 'the person') + ' is told by mail, if the directory has their mail.')
           : 'It is not issued. ' + (c.owner || 'The person') + ' sees it declined on the portal, with what you write, and is told by mail.'));
         body.appendChild(wideField(ok ? 'A word to them' : 'Why', why, ''));
         body.appendChild(s);
@@ -3527,6 +3541,12 @@ function exportDialog(c, versions, version) {
       r.name = 'ct-fmt';
       r.value = f[0];
       if (f[4] && !FULL) r.disabled = true;
+      /* PKCS#1 is RSA's only (1.0.48): offered for an EC key, it was refused after the click */
+      if (f[0] === 'key-rsa' && !/^rsa/i.test(String(c.key_type || '')) && !/^rsa/i.test(String(c.key_type_alt || ''))) {
+        r.disabled = true;
+        lab.classList.add('off');
+        lab.title = 'for an RSA key only - this one is ' + (c.key_type || '?');
+      }
       lab.appendChild(r);
       var w = el('span', 'ct-fmt-w');
       var top = el('span', 'ct-fmt-t');
@@ -6879,7 +6899,7 @@ function jobTable(rows, o) {
     if (j.said) s.title = j.said;          /* cut short in the cell: the whole on hover (1.0.45) */
     tr.appendChild(s);
     return rowOpens(tr, function () { over(function () { jobPeek(j.id); }); });
-  }, 'plain ct-jobs|No job yet');
+  }, 'plain ct-jobs|No job yet', o.paged ? {own: true} : undefined);
 }
 function jobFilters() {
   var ok = $('jb-ok') ? $('jb-ok').value : '';
@@ -6918,7 +6938,9 @@ function loadJobs(live) {
     var running = rows.filter(jobRunning).length;
     $('jb-said').textContent = num(JL.total) + ' job(s)' + (running ? ' · ' + running + ' running' : '');
     tabCount('tabn-jobs', running, false);
-    liveFill(host, function (box) { box.appendChild(jobTable(rows)); }, live);
+    /* paged by the daemon (1.0.48): paged again here, 100 a page showed 50 and the rest of
+       the page was out of reach */
+    liveFill(host, function (box) { box.appendChild(jobTable(rows, {paged: true})); }, live);
     pager('jb-pager', JL.page, f.per, JL.total, function (p) { JL.page = p; loadJobs(); });
     explainWhatWasDrawn(host);
     clearTimeout(JL.timer);

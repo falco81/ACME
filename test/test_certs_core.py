@@ -1009,6 +1009,13 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         # ...but may change the rest, the script kept as it is
         self.ok('POST', '/api/deploys/save', {'id': did, 'options': dict(opts, jks_alias='x')},
                 session=self.cert_admin)
+        # ...but not where the key goes, nor its password (1.0.48): the key taken that way
+        st, refused = self.call('POST', '/api/deploys/save', {'id': did, 'options': dict(
+            opts, jks_alias='x', outputs=['key-pem /tmp/taken.pem 0644'])}, self.cert_admin)
+        self.assertEqual(st, 403, refused)
+        st, refused = self.call('POST', '/api/deploys/save', {'id': did, 'options': dict(
+            opts, jks_alias='x', pfx_password_mode='fixed', pfx_password='mine-1234')}, self.cert_admin)
+        self.assertEqual(st, 403, refused)
         # the test: the script told ACME_DRY_RUN=1, nothing in place
         t = self.ok('POST', '/api/deploys/dry_run', {'id': did})
         self.assertTrue(t['ok'], t)

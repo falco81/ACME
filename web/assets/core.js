@@ -283,8 +283,10 @@ function modal(title, build, buttons, narrow) {
   /* A popup opened afresh opens at its top: the hidden one it is drawn in
      kept where the last one was scrolled to. */
   if (!opened && !keep) body.scrollTop = 0;
-  var first = body.querySelector('input:not([type=hidden]):not([disabled]), select:not([disabled]), '
-                                 + 'textarea:not([disabled])')
+  /* A box to type in - never a switch or a box to tick (1.0.48): the certificate's popup
+     opened on "renew automatically", and a stray Space turned it off. */
+  var first = body.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]):not([disabled]), '
+                                 + 'select:not([disabled]), textarea:not([disabled])')
     /* ...never a button that destroys something: a second Enter would
        press it. In a popup asking "erase all this?" it is the way out. */
     || foot.querySelector('.btn.primary:not(.danger)')

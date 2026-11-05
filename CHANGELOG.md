@@ -23,6 +23,25 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     one saved, as it is saved.
   - A certificate administrator of a team no longer sees other teams' certificates in a
     validation's setup, nor the result of another's import from a source.
+- **A hunt, round 1 (the pages):**
+  - Jobs at 100 a page showed 50, and the rest of the page was out of reach (paged twice).
+  - "Save and deploy now" deployed twice - the look had started on the deployment just saved,
+    and the button ran it again after; it gets that job now. A deployment's job names its
+    target.
+  - A certificate administrator kept to a team no longer sees other teams' certificates in
+    Events.
+  - An account that must change its password first is asked for it again, not told "the daemon
+    is not answering".
+  - The export no longer offers PKCS#1 for an EC key (refused after the click).
+  - Words alone in the certificates' search find their tags and owner too.
+  - A setting's name in an error ("“Wrong sign-ins from one place…” must be between…") is in
+    the page's language; a new module's suggested name too.
+  - The approval of a portal request says whether it renews by itself, and where a local
+    account is told.
+  - A popup opens on its first box to type in - never on a switch (the certificate's opened on
+    "renew automatically", and a Space turned it off) nor on a hidden file box (Import).
+  - The deployments of a target show where they go, not the module's inner switches; a space
+    between who and when; Czech words and forms.
 - **A hunt, round 1 (the cluster):**
   - A rebuild from the other node that fails half way on the command line (`--ha-resync`,
     `--ha-join`) leaves the node in maintenance, as from the pages - it started again answering
