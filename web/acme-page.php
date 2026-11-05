@@ -254,6 +254,15 @@ function acme_head(string $title, string $lang, bool $load, string $nonce, strin
     echo "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n";
     echo '<title>' . h($title) . "</title>\n";
     echo '<link rel="icon" href="' . h($base) . 'assets/favicon.svg" type="image/svg+xml">' . "\n";
+    // On a home screen (1.0.51): Safari on an iPad or iPhone takes a PNG only - without it the
+    // shortcut was a picture of the page; Android and Chrome read the manifest.
+    $portal = strpos((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/admin/') === false;
+    echo '<link rel="apple-touch-icon" sizes="180x180" href="' . h($base) . 'assets/icon-180.png">' . "\n";
+    echo '<link rel="icon" type="image/png" sizes="192x192" href="' . h($base) . 'assets/icon-192.png">' . "\n";
+    echo '<link rel="manifest" href="' . h($base) . 'assets/app-' . ($portal ? 'portal' : 'admin')
+       . '.webmanifest">' . "\n";
+    echo '<meta name="apple-mobile-web-app-title" content="acme">' . "\n";
+    echo '<meta name="theme-color" content="#161b22">' . "\n";
     if ($load) {
         echo '<script nonce="' . h($nonce) . '" src="?api=lang&amp;code=' . h(rawurlencode($lang))
            . '&amp;v=' . (int) ($langs[$lang]['mtime'] ?? 0) . '"></script>' . "\n";
