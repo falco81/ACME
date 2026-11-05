@@ -1032,7 +1032,10 @@ def alt_failed(store, cert_id, why):
     row = cert_need(store, cert_id)
     fails = int(row.get('alt_fails') or 0) + 1
     wait = backoff(fails)
-    store.db.update('certs', row['id'], {'alt_state': 'failed', 'alt_error': str(why)[:2000],
+    # A revoked twin stays revoked (1.0.48): "failed" over it made is_dual true again, and the
+    # revoked twin went out with the new main one.
+    state = 'revoked' if row.get('alt_state') == 'revoked' else 'failed'
+    store.db.update('certs', row['id'], {'alt_state': state, 'alt_error': str(why)[:2000],
                                          'alt_fails': fails, 'alt_next_try': now() + wait})
     return wait
 

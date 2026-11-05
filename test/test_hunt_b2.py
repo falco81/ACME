@@ -38,6 +38,18 @@ class Certificates(unittest.TestCase):
         self.assertTrue(S.is_dual({'key_type_alt': 'rsa-2048', 'alt_cert_pem': 'x', 'alt_state': 'ok'}))
         self.assertFalse(S.is_dual({'key_type_alt': 'rsa-2048', 'alt_cert_pem': 'x', 'alt_state': 'revoked'}))
 
+    def test_a_revoked_twin_stays_revoked_when_its_renewal_fails(self):
+        st = E.Storage(E.open_db())
+        cid = st.db.insert('certs', {'name': 'twr', 'cn': 'twr', 'names': '[]', 'state': 'ok',
+                                     'key_type_alt': 'rsa-2048', 'alt_cert_pem': 'x', 'alt_state': 'revoked'})
+        S.alt_failed(st, cid, 'the source said no')
+        row = S.cert_get(st, cid)
+        self.assertEqual(row['alt_state'], 'revoked')
+        self.assertFalse(S.is_dual(row))
+        from acmelib.certs import renewer as R
+        self.assertIn('was revoked', R.alt_due(dict(row, auto_renew=1, issuer='x', cert_pem='y',
+                                                    alt_next_try=0)))
+
     def test_a_stopped_renewal_keeps_the_new_version(self):
         self.assertIn("str(now.get('version') or '') != str(cert.get('version') or '')",
                       read('acmelib', 'certs', 'renewer.py'))

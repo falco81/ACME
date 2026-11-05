@@ -67,7 +67,7 @@ class Cluster(unittest.TestCase):
     def test_a_rename_carries_the_days_and_takes_the_old_asks(self):
         src = engine('245')
         self.assertIn("for k in ('backup_day:', 'rbackup_day:'):", src)
-        self.assertIn("'%' + NODE_KEY_SEP + old[:63]", src)
+        self.assertIn("for pre in NODE_ASK_PREFIXES:", src)        # its asks only (its counters stay)
 
 
 class Security(unittest.TestCase):
@@ -107,7 +107,7 @@ class Security(unittest.TestCase):
                       read('acmelib', 'certs', 'api_checks.py'))
 
     def test_other_teams_not_in_the_setup_nor_the_import(self):
-        self.assertIn("T.cert_may(h.store, s, c, 'view')", read('acmelib', 'certs', 'api_readiness.py'))
+        self.assertIn("T.owner_in(sc, c.get('owner'))", read('acmelib', 'certs', 'api_readiness.py'))
         self.assertIn("T.need_job(h.store, s, h.arg('job')", read('acmelib', 'certs', 'api_onlineimport.py'))
 
 

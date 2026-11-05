@@ -734,7 +734,7 @@ def _db_file_restore(store, path, by, key_file, from_name, kind):
                              'not open its secrets')
     # The key that comes with it written in the end - checked first that it can be (1.0.48):
     # the tables were put back and then the key not written, every secret unreadable.
-    if re.match(r'^[0-9a-f]{64}\Z', key_hex):
+    if re.match(r'^[0-9a-f]{64}\Z', key_hex) and (sealing_key() or b'').hex() != key_hex:
         kp = Path(str(sealing_key_path()))
         if not os.access(str(kp.parent), os.W_OK) or (kp.exists() and not os.access(str(kp), os.W_OK)):
             raise ValueError('the key that came with it cannot be written to %s - nothing was '

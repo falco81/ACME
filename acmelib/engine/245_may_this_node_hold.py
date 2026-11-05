@@ -218,8 +218,12 @@ def node_carry(store, old, new, by='the daemon'):
               'clock:state:', 'power:node:', 'host:health:') + tuple(MACHINE_ROWS):
         store.db.run('DELETE FROM meta WHERE k = ?', (k + old,))
     # ...and what it wrote for the others under its old name: nobody else takes it away.
-    store.db.run("DELETE FROM meta WHERE k LIKE ? ESCAPE '!'",
-                 ('%' + NODE_KEY_SEP + old[:63].replace('!', '!!').replace('%', '!%').replace('_', '!_'),))
+    # (its asks only - its counters of sign-ins and codes sent stay where they are)
+    esc = old[:63].replace('!', '!!').replace('%', '!%').replace('_', '!_')
+    for pre in NODE_ASK_PREFIXES:
+        store.db.run("DELETE FROM meta WHERE k LIKE ? ESCAPE '!'",
+                     (pre.replace('!', '!!').replace('%', '!%').replace('_', '!_') + ':%'
+                      + NODE_KEY_SEP + esc,))
     store.add_event('settings', 'the node %s is called %s now; carried over: %s' % (
         old, new, ', '.join(said) or 'nothing (it had nothing of its own)'), 'warn', who=by)
     dbguard_resign(store, 'the node %s is called %s now' % (old, new))      # 1.0.231

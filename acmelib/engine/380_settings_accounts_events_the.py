@@ -409,36 +409,63 @@ def _events(h):
     if bad:
         return {'rows': [], 'total': 0, 'q_error': bad, 'kinds': h.reader.event_kinds()}
     time_span(h, lq)
-    rows, total = h.reader.events(h.num('limit', 100, 1, 1000), h.num('offset', 0),
-                                 lq.words, h.arg('kind'), extra=(lq.sql, lq.args))
+    limit, offset = h.num('limit', 100, 1, 1000), h.num('offset', 0)
     hidden = events_hidden_of(h.store, s)
-    if hidden is not None:
-        keep = [r for r in rows if not hidden.search(str(r.get('words') or ''))]
-        total -= len(rows) - len(keep)
-        rows = keep
-    return {'rows': rows, 'total': total, 'kinds': h.reader.event_kinds()}
+    if hidden is None:
+        rows, total = h.reader.events(limit, offset, lq.words, h.arg('kind'), extra=(lq.sql, lq.args))
+        return {'rows': rows, 'total': total, 'kinds': h.reader.event_kinds()}
+    # Kept to its teams (1.0.48): read on in chunks until the page is whole, and counted as kept -
+    # filtering one page after the database paged it gave short pages and a wrong count.
+    kept, at, total_raw, seen_all = [], 0, None, False
+    while len(kept) < offset + limit:
+        rows, total_raw = h.reader.events(500, at, lq.words, h.arg('kind'), extra=(lq.sql, lq.args))
+        if not rows:
+            seen_all = True
+            break
+        kept += [r for r in rows if not hidden(r)]
+        at += len(rows)
+        if at >= (total_raw or 0):
+            seen_all = True
+            break
+    total = len(kept) if seen_all else len(kept) + max(0, int(total_raw or 0) - at)
+    return {'rows': kept[offset:offset + limit], 'total': total, 'kinds': h.reader.event_kinds()}
 
 
 def events_hidden_of(store, s):
-    """For a session kept to its teams' certificates (1.0.48): what names the certificates it
-    may not look at - their events are not shown to it (they said another team's deployments,
-    refusals, renewals). None when it sees every certificate."""
+    """For a session kept to its teams' certificates (1.0.48): a test of whether an event names a
+    certificate it may not look at - another team's deployments, refusals, renewals. None when it
+    sees every certificate. Fails closed: any trouble, every certificate's event is hidden."""
     try:
         from acmelib.certs import teams as T
         if T.unscoped(s, 'view'):
             return None
-        mine = {r['id'] for r in store.db.rows('SELECT id FROM certs WHERE 1 = 1' +
-                                                T.where(store, s, 'view', 'owner')[0],
-                                                T.where(store, s, 'view', 'owner')[1])}
+    except Exception:                                   # noqa: BLE001
+        pass
+    try:
+        sw, sa = T.where(store, s, 'view', 'owner')
+        mine = {r['id'] for r in store.db.rows('SELECT id FROM certs WHERE 1 = 1' + sw, sa)}
         names = [str(r['name']) for r in store.db.rows('SELECT id, name FROM certs')
                  if r['id'] not in mine and r.get('name')]
     except Exception:                                   # noqa: BLE001
-        return None
+        return lambda r: str(r.get('kind') or '') in ('certificates', 'portal')
     if not names:
         return None
-    names.sort(key=len, reverse=True)
-    return re.compile(r'(?<![\w.-])(?:%s)(?![\w-]|\.[\w])' % '|'.join(re.escape(n) for n in names[:5000]),
-                      re.I)
+    # A name like a host (a dot, a dash, a digit) anywhere; a plain word ("web", "mail") only where
+    # an event names a certificate by it - not every event with the word in it.
+    hosty = sorted((n for n in names if re.search(r'[.\-_0-9]', n)), key=len, reverse=True)
+    plain = sorted((n for n in names if not re.search(r'[.\-_0-9]', n)), key=len, reverse=True)
+    pats = []
+    for chunk in range(0, len(hosty), 2000):
+        pats.append(re.compile(r'(?<![\w.-])(?:%s)(?![\w-]|\.[\w])' % '|'.join(
+            re.escape(n) for n in hosty[chunk:chunk + 2000]), re.I))
+    for chunk in range(0, len(plain), 2000):
+        pats.append(re.compile(r'(?:^|(?:certificate|deployment of|deploying|renewing|revoking|of|for) )(?:%s)(?:\s+\(|\b(?!\.))'
+                               % '|'.join(re.escape(n) for n in plain[chunk:chunk + 2000]), re.I))
+
+    def hidden(r):
+        w = str(r.get('words') or '')
+        return any(p.search(w) for p in pats)
+    return hidden
 
 
 def mailq_said(e):

@@ -210,7 +210,8 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
         # Escaped as LIKE wants it on every engine (1.0.48): MariaDB took the \\ of a \\u escape
         # for its own escape, and a tag of other letters was never found there.
         where.append("tags LIKE ? ESCAPE '!'")
-        args.append('%' + E.like_pattern(json.dumps(tag)) + '%')
+        # (a `*` in a tag is the tag's own, not a wildcard)
+        args.append('%' + ''.join('!' + c if c in '%_!' else c for c in json.dumps(tag)) + '%')
     if owner:
         where.append('LOWER(owner) = ?')
         args.append(owner.lower())
@@ -833,7 +834,9 @@ def start_deploy(store, ref, deploy_id, by):
             if only and running is not None:
                 rj = store.db.row('SELECT kind, deploy_id, state FROM cert_jobs WHERE id = ?',
                                   (running,)) or {}
-                if rj.get('kind') == 'deploy' and rj.get('deploy_id') in (None, only[0]):
+                # ...that very deployment's job - not the look's of others (deploy_id empty): this
+                # one would never be run then
+                if rj.get('kind') == 'deploy' and rj.get('deploy_id') == only[0]:
                     return running
             # One deployment asked for while a job works on the certificate (the look
             # that deploys a deployment just saved): it is run once that job is done -
@@ -859,8 +862,58 @@ DEPLOY_COMMANDS = ('pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd', 'script_path
 
 
 # Where the private key goes, and its password (1.0.48): a full administrator's, as the commands.
+# Of `outputs` only the lines that carry the key; the others, and a module's presets, stay a
+# certificate administrator's.
 DEPLOY_KEY_OPTIONS = ('outputs', 'pfx_password', 'pfx_password_mode', 'include_key', 'key_file',
                       'key_target')
+KEY_FORMATS = ('key-pem', 'key-rsa', 'key-der', 'key-traditional', 'combined-pem', 'pfx', 'p12',
+               'p12-legacy', 'jks', 'pkcs12')
+
+
+def _key_lines(v):
+    """The lines of `outputs` that write the private key, as (format, path, mode, owner)."""
+    from acmelib.plugins.targets._common import lines
+    out = set()
+    for ln in lines(v):
+        w = ln.split()
+        fmt = w[0].lower().split('@', 1)[0] if w else ''
+        if fmt in KEY_FORMATS or 'key' in fmt:
+            out.add(tuple(w[:4]))
+    return out
+
+
+def _deploy_key_check(cls, given, old):
+    """A certificate administrator's save of a deployment: where the key goes and its password as
+    they were - or as one of the module's presets puts them. Only what was sent is looked at."""
+    fields = {f['key']: f for f in ((cls.deploy_fields if cls else None) or [])}
+    refused = E.ApiError(403, 'only a full administrator may change where a deployment writes '
+                              'the private key, or its password')
+    if 'outputs' in given:
+        new_keys = _key_lines(given.get('outputs'))
+        allowed = _key_lines(old.get('outputs'))
+        fills = (fields.get('preset') or {}).get('fills') or {}
+        for fill in (fills.values() if isinstance(fills, dict) else []):
+            if isinstance(fill, dict):
+                allowed |= _key_lines(fill.get('outputs'))
+        if not new_keys <= allowed:
+            raise refused
+    for k in ('pfx_password', 'pfx_password_mode', 'include_key', 'key_file', 'key_target'):
+        if k not in given:
+            continue
+        nv, ov = given.get(k), old.get(k)
+        dv = (fields.get(k) or {}).get('default')
+        if E.is_masked(nv) if isinstance(nv, str) else False:
+            continue                                    # the dots: the one kept
+        norm = lambda v: '' if v in (None, '', [], False, 0, '0') else str(v)  # noqa: E731
+        if k == 'pfx_password':
+            if nv in (None, '') or (old.get(k) and nv == old.get(k)):
+                continue                                # unchanged or sealed as kept
+            raise refused
+        # the safe ways stay theirs: a password nobody knows, the key not sent
+        if (k == 'pfx_password_mode' and nv == 'generate') or (k == 'include_key' and not norm(nv)):
+            continue
+        if norm(nv) != norm(ov if k in old else dv) and norm(nv) != norm(dv):
+            raise refused
 
 
 REVOKE_REASONS = ('unspecified', 'keyCompromise', 'cACompromise', 'affiliationChanged',
@@ -2266,16 +2319,7 @@ def _deploy_save_in(store, b, by, full, made):
         # password they chose - and took it, past the export that is a full administrator's.
         # The module's own defaults (its presets) stay theirs to pick.
         if not full:
-            defaults = {f['key']: f.get('default') for f in (cls.deploy_fields or [])} if cls else {}
-
-            def _same(a, b):
-                return json.dumps(a if a not in (None, '', []) else '', sort_keys=True) == \
-                    json.dumps(b if b not in (None, '', []) else '', sort_keys=True)
-            for k in DEPLOY_KEY_OPTIONS:
-                nv, ov = opts.get(k), old.get(k, defaults.get(k))
-                if not _same(nv, ov) and not _same(nv, defaults.get(k)):
-                    raise E.ApiError(403, 'only a full administrator may change where a '
-                                          'deployment writes the private key, or its password')
+            _deploy_key_check(cls, given, old)
             sv = str(opts.get('service') or '')
             if sv != str(old.get('service') or '') and re.search(r'[/\\]|\.\.', sv):
                 raise E.ApiError(403, 'a service name with a path in it is set by a full '

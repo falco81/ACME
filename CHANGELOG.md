@@ -42,6 +42,18 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     one saved, as it is saved.
   - A certificate administrator of a team no longer sees other teams' certificates in a
     validation's setup, nor the result of another's import from a source.
+- **A hunt, round 3 (what rounds 1 and 2 changed, looked at again):**
+  - A certificate administrator may again pick a module's preset and change what does not carry
+    the key: only the lines of the files that carry the key, the PKCS#12's password, its key file
+    are a full administrator's (round 1 refused a preset, a layout, even a note); switching to a
+    generated password or not sending the key stays theirs.
+  - "Deploy now" of one deployment is no longer answered with the job of others.
+  - A revoked twin whose renewal failed stays revoked, and is due again.
+  - Events kept to a team are paged and counted as kept, never shown all on a fault, and a
+    certificate called "web" no longer hides every event with the word.
+  - A node renamed takes away only its asks, not its counters of sign-ins; a copy whose key is
+    the one in use is put back where the key's folder cannot be written; a tag with `*` is
+    found as it is.
 - **A hunt, round 2 (the pages, in Czech, on a phone):**
   - Czech for what was left: the forms of several sources and validations, the portal's sign-in
     events, steps of jobs, "changed: …" and "The owner …" with a name of their own (a weak

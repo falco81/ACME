@@ -1326,7 +1326,7 @@ function signedOutNow() {
   var m = document.getElementById('modal');
   if (!unsaved && m && !m.hidden) {
     unsaved = Array.prototype.some.call(m.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea'),
-                                        function (x) { return String(x.value || '').trim() !== ''; });
+                                        function (x) { return String(x.value || '') !== String(x.defaultValue || '') && String(x.value || '').trim() !== ''; });
   }
   if (!unsaved) {
     try { if (!/\/admin\//.test(location.pathname)) sessionStorage.setItem('acme-signed-out', '1'); } catch (e) { }

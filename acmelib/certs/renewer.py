@@ -234,6 +234,9 @@ def alt_due(row, t=None):
                             'pending-approval', 'declined', 'deleting', 'revoke-failed', 'held'):
         return ''
     what = 'the twin (%s)' % row['key_type_alt']
+    if row.get('alt_state') == 'revoked':
+        # revoked with the main one, the main one issued again since (1.0.48): a new twin is due
+        return '%s was revoked' % what if float(row.get('alt_next_try') or 0) <= t else ''
     if row.get('alt_state') == 'failed':
         return '%s failed last time; the wait is over' % what \
             if float(row.get('alt_next_try') or 0) <= t else ''

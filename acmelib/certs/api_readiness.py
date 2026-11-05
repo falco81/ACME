@@ -134,8 +134,9 @@ def _setup(h, s):
     from acmelib.certs import teams as T
     # Only the certificates the session may look at (1.0.48): a scoped certificate
     # administrator got every team's names and plans here.
+    sc = T.scope(h.store, s, 'view')              # once, not for every certificate
     certs = [c for c in h.store.db.rows('SELECT * FROM certs ORDER BY name')
-             if T.cert_may(h.store, s, c, 'view') and row['name'] in set(R.resolve(h.store, S.jload(c.get('names'), []) or [],
+             if T.owner_in(sc, c.get('owner')) and row['name'] in set(R.resolve(h.store, S.jload(c.get('names'), []) or [],
                                              cert=c).values())]
     out = []
     for c in certs[:SETUP_MOST]:
