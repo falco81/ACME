@@ -29,8 +29,9 @@ Four numbers in the header, in the look chosen:
   counted and not its members).
 
 From 70 % the number is yellow, from 90 % red. Each number keeps its place, so nothing moves as it
-changes. On a narrower window the meter goes to a row of its own under the header, then the disks and
-the network leave it; on a phone it is not shown.
+changes. It sits on the row of the name and the state of the node, a cluster's nodes one under the
+other there; when it would push the account's buttons off that row, it goes to a row of its own under
+it, then on a narrower window the disks and the network leave it; on a phone it is not shown.
 
 Pointing at a number (tapping it on a tablet) opens its details, in the style chosen:
 

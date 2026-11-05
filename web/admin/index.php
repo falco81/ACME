@@ -678,7 +678,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   <span id="state-pill" class="pill unknown"><span class="dot"></span><span>…</span></span>
 <?php if (($me['role'] ?? '') === 'fulladmin' && !empty($me['perf_meter'])): ?>
   <!-- the performance meter (1.0.48): a full administrator's, when switched on in Settings → About -->
-  <div class="hload" id="hload" hidden aria-live="off"></div>
+  <div class="hloads"><div class="hload" id="hload" hidden aria-live="off"></div></div>
 <?php endif; ?>
   <div class="spacer"></div>
   <div class="btnrow">

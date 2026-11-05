@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.49 - not released
 
+- The performance meter sits on the row of the name and the state of the node, in a cluster too
+  (each node's numbers one under the other there); only when it would push the account's buttons
+  off that row does it go to a row of its own under it.
+
 ## 1.0.48 - 2026-11-05
 
 - **The performance meter: switched on in Settings → About, and every node of a cluster.** Off by

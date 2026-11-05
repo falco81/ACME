@@ -171,7 +171,24 @@ function hloadPeersDraw() {
     hloadDraw(pr, box, HLOAD.look, {live: true, hist: pr.hist, node: pr.node, stale: (pr.age || 0) > 20});
   });
   document.querySelectorAll('.hload.hl-peer').forEach(function (b) { if (!have[b.id]) b.remove(); });
+  hloadFit();
 }
+/* On the row of the name and its state while it fits there with the account's buttons
+   (1.0.49), on a row of its own under them when it does not - measured, as the name of the
+   site, the look and the number of nodes make the room it needs; in one go, never painted
+   in between. */
+function hloadFit() {
+  var head = document.querySelector('header'), box = document.querySelector('header .hloads');
+  var btn = $('me-btn');
+  if (!head || !box || !btn) return;
+  head.classList.remove('hl-below');
+  var b = box.getBoundingClientRect(), r = btn.getBoundingClientRect();
+  if (b.height && r.top >= b.bottom - 2) head.classList.add('hl-below');
+}
+window.addEventListener('resize', function () {
+  clearTimeout(HLOAD.fitT);
+  HLOAD.fitT = setTimeout(hloadFit, 120);
+});
 /* Sample numbers for the previews in My account: a server with sensors, so
    every part shows (1.0.75). */
 function hpSample() {
