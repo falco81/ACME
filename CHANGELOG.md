@@ -6,6 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.46 - not released
 
+- **"1 refused" by the guard against writes that stayed:** a refused row was taken off the list
+  only when it was found good again - an old unsigned *Back up now* of a node still on 1.0.43,
+  taken away by that node after its upgrade, stayed "on - 1 refused" on the lights until the
+  daemon restarted. Rows that are gone now leave the list within the hour.
+
 ## 1.0.45 - 2026-11-05
 
 - **Seen on a cluster upgraded from 1.0.43 to 1.0.44:**

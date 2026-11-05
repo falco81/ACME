@@ -523,7 +523,41 @@ def dbguard_tidy(store):
                 store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (r['k'], r['v']))
     except Exception:                                   # noqa: BLE001
         pass
+    dbguard_refused_prune(store)
     dbguard_flush()
+
+
+DBGUARD_ROW_OF = {'m': ('meta', 'k'), 's': ('settings', 'k'), 'a': ('accounts', 'name'),
+                  'd': ('directories', 'name'), 'x': ('sessions', 'token_hash')}
+
+
+def dbguard_refused_prune(store):
+    """Refused rows that are gone, off the list (1.0.46): an entry went only when its row was
+    found good again - an old ask taken away by the node that wrote it (an unsigned Back up now
+    of 1.0.43) stayed "1 refused" on the lights until the daemon restarted."""
+    with DBGUARD['lock']:
+        items = list(DBGUARD['refused'].items())
+    gone = []
+    for sid, r in items:
+        what = str(r.get('what') or '')
+        table = DBGUARD_ROW_OF.get(r.get('kind'))
+        if not table or not what or len(what) >= 120:
+            continue
+        try:
+            col = table[1]
+            if col == 'name':
+                there = store.db.value('SELECT 1 FROM %s WHERE lower(name) = ?' % table[0], (what.lower(),))
+            else:
+                there = store.db.value('SELECT 1 FROM %s WHERE %s = ?' % table, (what,))
+        except Exception:                               # noqa: BLE001
+            continue
+        if there is None:
+            gone.append(sid)
+    if gone:
+        with DBGUARD['lock']:
+            for sid in gone:
+                DBGUARD['refused'].pop(sid, None)
+    return len(gone)
 
 
 def dbguard_view():

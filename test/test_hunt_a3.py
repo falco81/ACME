@@ -61,6 +61,21 @@ class FromTheField(unittest.TestCase):
         self.assertIsNotNone(self.store.db.value('SELECT v FROM meta WHERE k = ?', (new,)))
         self.assertIsNotNone(self.store.db.value('SELECT v FROM meta WHERE k = ?', (other,)))
 
+    def test_a_refused_row_gone_is_off_the_list(self):
+        k = 'rbackup:now:peer' + E.NODE_KEY_SEP + 'old'
+        self.store.set_meta(k, json.dumps({'id': 'a', 'at': time.time()}))
+        E._dbguard_load()
+        with mock.patch.object(E, 'dbguard_on', return_value=True), \
+                mock.patch.object(E, 'dbguard_key', return_value=b'k' * 32):
+            E.DBGUARD['adopted'] = {E.DBGUARD_ADOPT_MARK: 1}
+            self.assertFalse(E.dbguard_ok(self.store.db, 'm', k, '{}'))
+            E.DBGUARD['adopted'] = {}
+        self.assertTrue(any(r['what'] == k for r in E.dbguard_view()['refused']))
+        self.assertEqual(E.dbguard_refused_prune(self.store), 0)       # still there: kept
+        self.store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+        self.assertEqual(E.dbguard_refused_prune(self.store), 1)
+        self.assertFalse(any(r['what'] == k for r in E.dbguard_view()['refused']))
+
     def test_where_it_broke(self):
         try:
             E.osu_keep({}, 'x')
