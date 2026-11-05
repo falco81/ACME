@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.51 - not released
+## 1.0.51 - 2026-11-05
 - **Face ID, Touch ID and passkeys as the second step of the administration**
   (`admin_2fa_passkey`, off by default; Settings → Accounts): after the password, never instead
   of it - one more way beside the app, the code by e-mail and the code by SMS, chosen by the
