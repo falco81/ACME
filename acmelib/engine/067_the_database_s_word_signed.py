@@ -319,7 +319,12 @@ def dbguard_row_text(row, cols):
     return json.dumps([None if row.get(c) is None else str(row.get(c)) for c in cols])
 
 
-def account_signed_cols(row):
+def account_signed_early():
+    """Whether this node has not taken the newer signing under the guard yet (1.0.46)."""
+    return bool(dbguard_on() and dbguard_key() and not dbguard_adopted_ok('m', 'rbackup:targets'))
+
+
+def account_signed_cols(row, wide=False):
     """What of an account is signed: its e-mail address and mobile number too once it has
     either (1.0.44) - the portal's code goes there, and an address written past acme would
     take it; an account without them is signed as before, so the signatures there hold."""
@@ -327,7 +332,7 @@ def account_signed_cols(row):
     # Not before every node signs the same (1.0.46): while a node of 1.0.43 is in the cluster,
     # an account signed with more here was refused there - and one it changed, refused here
     # for good after the upgrade. Signed with more from the adoption on (dbguard_adopt).
-    if dbguard_on() and dbguard_key() and not dbguard_adopted_ok('m', 'rbackup:targets'):
+    if not wide and account_signed_early():
         return cols
     if row and (row.get('mail') or row.get('mobile')):
         cols = cols + ('mail', 'mobile')
@@ -347,8 +352,14 @@ def dbguard_account_sign(db, name):
 def dbguard_account_ok(db, row):
     if not row or not dbguard_on():
         return True
-    return dbguard_ok(db, 'a', str(row.get('name') or '').lower(),
-                      dbguard_row_text(row, account_signed_cols(row)))
+    ident = str(row.get('name') or '').lower()
+    if account_signed_early():
+        # ...and until then either way holds: an account signed with more by a node that has
+        # (a copy put back, the other node of a cluster upgraded) is no account refused here.
+        wide = account_signed_cols(row, wide=True)
+        if wide != ACCOUNT_SIGNED and dbguard_ok(db, 'a', ident, dbguard_row_text(row, wide), quiet=True):
+            return True
+    return dbguard_ok(db, 'a', ident, dbguard_row_text(row, account_signed_cols(row)))
 
 
 def dbguard_directory_sign(db, name):
