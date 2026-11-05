@@ -413,10 +413,19 @@ class Daemon(object):
             trials = trials_view(self.store)
         except Exception:                               # noqa: BLE001
             trials = []
+        started = self.started
+        if not self.serving:
+            # The command line asks (1.0.45): the daemon's start, from its heartbeat - not the
+            # command's own (an uptime of 0.0004 s).
+            try:
+                started = float((_meta_json(self.store, 'node:' + node_name()) or {}).get('started')
+                                or 0) or None
+            except (TypeError, ValueError):
+                started = None
         return {
             'ok': True, 'version': __version__, 'site': CONFIG.get('site_name') or short_host(),
-            'host': socket.gethostname(), 'started': self.started,
-            'uptime': time.time() - self.started, 'now': time.time(),
+            'host': socket.gethostname(), 'started': started,
+            'uptime': (time.time() - started) if started else None, 'now': time.time(),
             'isemon': sh, 'directories': len(self.dirs),
             'serial': '%s' % ev, 'problems': problems,
             'database': {'engine': self.store.db.engine, 'where': self.store.db.where()},

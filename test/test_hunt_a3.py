@@ -102,5 +102,32 @@ class Backups(unittest.TestCase):
         self.assertIn("'acme (scheduled, again: the one before failed)'", src)
 
 
+class CommandLine(unittest.TestCase):
+    def run_cli(self, *args, env=None):
+        import subprocess
+        e = dict(os.environ, ACME_STAY_ROOT='1', NO_COLOR='1', **(env or {}))
+        return subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py')] + list(args),
+                              capture_output=True, text=True, timeout=120, env=e, stdin=subprocess.DEVNULL)
+
+    def test_a_modifier_alone_runs_no_daemon(self):
+        got = self.run_cli('--role', 'readonly')
+        self.assertNotEqual(got.returncode, 0)
+        self.assertIn('alone asks for nothing', got.stderr)
+
+    def test_days_has_no_marker_value(self):
+        import inspect
+        from acmelib.certs import cli
+        self.assertNotIn('!= 825', inspect.getsource(cli))
+
+    def test_restore_bundle_not_a_tar(self):
+        import gzip
+        p = os.path.join(TMP, 'copy.json.gz')
+        with gzip.open(p, 'wt') as f:
+            f.write('{}\n')
+        w = tempfile.mkdtemp(dir=TMP)
+        with self.assertRaises(E.RbError):
+            E.rb_open(p, '', w)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -883,7 +883,11 @@ class Cli(object):
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
         if self.json:
-            self.out({'job_id': job.id, 'ok': job.ok, 'said': job.said, 'steps': job.steps})
+            one = {'job_id': job.id, 'ok': job.ok, 'said': job.said, 'steps': job.steps}
+            if getattr(self, '_jobs_json', None) is not None:
+                self._jobs_json.append(one)     # one document for them all (1.0.45)
+            else:
+                self.out(one)
         else:
             line = 'job %d: %s' % (job.id, job.said or job.state)
             print(self.pal.ok_line(line) if job.ok else self.pal.bad_line(line))
@@ -917,6 +921,7 @@ class Cli(object):
                     print('nothing is due (--force renews every one)')
                 return 0
             bad = 0
+            self._jobs_json = [] if self.json else None
             for r in todo:
                 only = 'alt' if not a.force and not renewer.main_due(r) else None
                 job = self._run_job('renew', renewer.renew_job(r['id'], a.force, self.WHO,
@@ -924,6 +929,9 @@ class Cli(object):
                                     r['id'], '%s: %s' % (r['name'], renewer.due_why(r) or
                                                          'forced'))
                 bad += 0 if job.ok else 1
+            if self._jobs_json is not None:
+                self.out({'jobs': self._jobs_json})
+                self._jobs_json = None
             return 1 if bad else 0
         row = self.cert_ref(a.renew)
         if not row.get('issuer'):
@@ -1179,8 +1187,17 @@ class Cli(object):
         body = {'name': a.selfsigned, 'names': names, 'issuer': iss['name'], 'challenge': '',
                 'key_type': a.key_type or 'ec-256', 'auto_renew': 1}
         if row:
+            # Asked first (1.0.45): a certificate of that name - one of Let's Encrypt's - was
+            # made self-signed, issued and deployed without a word.
+            if row.get('issuer') != iss['name'] or json.dumps(sorted(S.jload(row.get('names'), []) or [])) \
+                    != json.dumps(sorted(names)):
+                self.sure('%s is there already (from %s): it becomes a self-signed certificate '
+                          'for %s, issued and deployed now' % (row['name'], row.get('issuer') or '-',
+                                                                ', '.join(names)))
             body['id'] = row['id']
-        if a.days != 825:
+        if a.days is not None:
+            if a.days < 1 or a.days > 36500:
+                raise SystemExit('acme: --days is 1 to 36500')
             body['profile'] = {'days': a.days}
         got = self.api('POST', '/api/certs/save', body=body)
         job = self._run_job('renew', renewer.renew_job(got['id'], True, self.WHO), got['id'],
@@ -2052,7 +2069,7 @@ class Cli(object):
                 subj[k.strip()] = v.strip()
         body = {'name': name, 'subject': subj,
                 'key_type': a.key_type or ('ec-384' if a.ca_create else 'ec-256'),
-                'days': a.days if a.days != 825 else (3650 if a.ca_create else 1825)}
+                'days': a.days if a.days is not None else (3650 if a.ca_create else 1825)}
         if a.ca_sub:
             if not a.parent:
                 raise SystemExit('acme: --ca-sub needs --parent CA (the authority that signs it)')
@@ -2130,7 +2147,7 @@ class Cli(object):
             raise SystemExit('acme: --ca-sign needs --csr FILE (the request to sign)')
         csr = self.files[a.csr].decode('ascii', 'replace')
         body = {'id': r['id'], 'csr_pem': csr}
-        if a.days != 825:
+        if a.days is not None:
             body['days'] = a.days
         for k, op, v in self.sets():
             if k != 'eku':

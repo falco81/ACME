@@ -34,8 +34,14 @@ def rb_open(path, password, work):
                       'made by acme; not put in')
     out = os.path.join(work, 'x')
     os.makedirs(out, mode=0o700)
-    with tarfile.open(src, 'r:gz') as tf:
+    try:
+        tf = tarfile.open(src, 'r:gz')
         members = tf.getmembers()
+    except (tarfile.TarError, OSError, EOFError) as e:
+        # A gzip file that is no archive (a copy of the database, 1.0.45): said, not a traceback.
+        raise RbError('that is not a backup of acme (no archive in it: %s) - a copy of the '
+                      'database is put back with acme --restore' % str(e)[:80])
+    with tf:
         tops = set()
         for mb in members:
             parts = mb.name.split('/')

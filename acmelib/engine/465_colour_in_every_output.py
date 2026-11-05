@@ -823,7 +823,9 @@ def build_parser():
                    '(--names; --days [825])')
     g.add_argument('--org', metavar='TEXT', default='', help='with --tls-csr, --tls-selfsigned: the '
                    'organisation')
-    g.add_argument('--days', type=int, default=825, help='with --tls-selfsigned: how long [825]')
+    g.add_argument('--days', type=int, default=None,
+                   help='how many days: --tls-selfsigned [825], --selfsigned [365], --ca-create '
+                        '[3650], an intermediate [1825], --ca-sign [the profile\'s]')
     g.add_argument('--tls-export', nargs=2, metavar=('FORMAT', 'FILE'), help='the certificate of '
                    '--tls-for into FILE: pem, fullchain, der, p7b, pfx or pemkey (the last two with '
                    'its private key, locked with a password asked for; --legacy: a PFX older Windows '
@@ -2537,6 +2539,14 @@ def cli_main(argv=None):
         # the daemon in the foreground because stdin is not a terminal.
         args.status = True
         acted = True
+    mods = [k for k in ('limit', 'hours', 'search', 'role', 'note', 'yes', 'replace', 'invert',
+                        'pending', 'no_qr', 'suffix')
+            if k in vars(args) and getattr(args, k) not in (parser.get_default(k), [])]
+    if not acted and mods:
+        # A modifier alone (1.0.45): "acme --role readonly" from cron or ssh ran the daemon in
+        # the foreground, as "nothing asked".
+        raise SystemExit('acme: --%s alone asks for nothing - it goes with another option '
+                         '(acme --help)' % mods[0].replace('_', '-'))
     if not acted:
         # Nothing asked for. Under systemd (or anything else that is not a
         # person at a terminal) that is the daemon, as it always was; typed by
@@ -3907,8 +3917,11 @@ def cli_main(argv=None):
 
     def asked(kind, got, secs=90):
         if args.json:
-            out(cli_ask_wait(store, kind, got, secs))
-            return 0
+            answers = cli_ask_wait(store, kind, got, secs)
+            out(answers)
+            # The same exit as the words (1.0.45): 0 with any node failed broke scripts.
+            return 1 if any(not g or not g.get('ok', not g.get('error'))
+                            for g in (answers or {}).values()) else 0
         print(pal.dim('  asked of %s - each answers within seconds' % ', '.join(got['nodes'])))
         return cli_ask_said(pal, cli_ask_wait(store, kind, got, secs))
 
@@ -3996,7 +4009,7 @@ def cli_main(argv=None):
         cli_sure(args, 'a certificate of its own, made here, for %s - in place of the one it has' % target)
         return shown(api('POST', '/api/web', {'action': 'tls_selfsigned', 'target': target,
                                               'cn': args.tls_selfsigned, 'names': args.names or '',
-                                              'days': args.days, 'org': args.org}))
+                                              'days': args.days or 825, 'org': args.org}))
     if args.tls_export:
         kind, path = args.tls_export
         if kind not in TLS_EXPORT_KINDS:

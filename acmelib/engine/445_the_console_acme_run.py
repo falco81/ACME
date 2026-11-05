@@ -1715,6 +1715,7 @@ class Console(object):
             win.erase()
             self._box(win, wh, ww)
             title = ' %s ' % (st.get('name') or key)
+            y = 2               # before the try (1.0.45): a terminal of 3 rows raised before it
             try:
                 win.addnstr(0, 2, title, ww - 4, A['title'])
                 win.addnstr(1, 2, key, ww - 4, A['dim'])
