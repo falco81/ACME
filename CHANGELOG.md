@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.51 - not released
+
 ## 1.0.50 - 2026-11-05
 
 - The graphs of the performance meter move on smoothly, of this node and of the other node of a
