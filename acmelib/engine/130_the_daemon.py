@@ -690,7 +690,8 @@ class Daemon(object):
                 try:
                     osu_tick(self)              # the local users of the machines (1.0.243)
                 except Exception as e:          # noqa: BLE001
-                    log_sparing('osu-tick', 'the local users: %s' % e, 'warn', every=600)
+                    log_sparing('osu-tick', 'the local users: %s (%s)' % (e, where_it_broke()),
+                                'warn', every=600)
                 try:
                     osup_sched_tick(self)      # updates and restarts on a schedule (1.0.164)
                 except Exception as e:          # noqa: BLE001

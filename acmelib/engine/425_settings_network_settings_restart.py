@@ -355,7 +355,11 @@ OSU_PW_MIN = 8
 
 
 def osu_now(store, n):
-    return _meta_json(store, 'host:users:now:' + n) or {}
+    # Only an object (1.0.45): a row of another shape made every look fail - "'str' object has
+    # no attribute 'get'" every few seconds - and was never written anew. Taken as none: the
+    # node writes it again at its next look.
+    got = _meta_json(store, 'host:users:now:' + n)
+    return got if isinstance(got, dict) else {}
 
 
 def osu_asks(store, n):
@@ -801,6 +805,8 @@ def osu_forget_hashes(store):
 
 
 def osu_keep(row, got):
+    if not isinstance(got, dict):
+        raise ValueError('the root helper said no list of users (%s)' % type(got).__name__)
     row.update({k: got.get(k) for k in ('users', 'uid_min', 'uid_max', 'used', 'admin_group',
                                         'shells', 'today', 'policy')})
     row['at'] = time.time()
@@ -853,7 +859,7 @@ def osu_tick(daemon):
         now.get('policy_tried') != want or time.time() - float(now.get('policy_at') or 0) > 600) and \
         not pwp_refused(store)
     if not pol['managed'] and not now.get('policy_hash') and not now.get('policy_tried') and \
-            not (now.get('policy') or {}).get('managed'):
+            not (now.get('policy') if isinstance(now.get('policy'), dict) else {}).get('managed'):
         # Never set, and nothing of acme's on the machine: nothing to put in or take out - in
         # effect as set (the system's own) without asking the helper.
         policy_due = False

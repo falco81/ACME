@@ -63,6 +63,7 @@ DBGUARD_ADOPT = {'m': ('rbackup:targets',),
                        'acme_dns_server', 'acme_dns_tsig_name', 'acme_dns_tsig_alg',
                        'acme_dns_tsig_secret', 'acme_dns_token', 'acme_dns_url', 'acme_dns_user',
                        'acme_dns_key', 'acme_desec_token', 'acme_ca', 'acme_url')}
+DBGUARD_ADOPT_PREFIXES = {'m': ('rbackup:now:',)}     # rows of these taken under it too
 DBGUARD_ADOPT_MARK = 'dbguard:adopted:1.0.44'
 DBGUARD_FILE = STATE_DIR / 'guard.json'
 DBGUARD = {'seen': None, 'good': None, 'seen_h': None, 'adopted': None, 'dirty': 0.0,
@@ -461,8 +462,12 @@ def dbguard_resign(store, why=''):
 def dbguard_adopted_ok(kind, ident):
     """Whether a row this version took under the guard is checked yet: only once this node
     has signed it as it was (dbguard_adopt) - until then it is as unguarded as before."""
-    keys = DBGUARD_ADOPT.get(kind)
-    if not keys or str(ident).split('@', 1)[0] not in keys:
+    keys = DBGUARD_ADOPT.get(kind) or ()
+    ident = str(ident)
+    # ...and the rows named by a prefix (1.0.45): a Back up now asked by a node still on 1.0.43
+    # was refused for good on the upgraded one, an error every ten minutes.
+    if ident.split('@', 1)[0] not in keys and \
+            not ident.startswith(DBGUARD_ADOPT_PREFIXES.get(kind) or ()):
         return True
     _dbguard_load()
     return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT_MARK))

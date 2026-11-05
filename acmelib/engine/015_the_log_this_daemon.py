@@ -66,6 +66,20 @@ _LOG_SPARING = {}
 _LOG_CHECKED = [0.0]
 
 
+def where_it_broke():
+    """The file and line of acme's own where the exception being handled was raised (1.0.45):
+    a warning that says what but not where could not be followed."""
+    try:
+        import traceback as _tb
+        frames = [f for f in _tb.extract_tb(sys.exc_info()[2]) if 'acmelib' in f.filename]
+        if frames:
+            f = frames[-1]
+            return '%s:%d' % (os.path.basename(f.filename), f.lineno)
+    except Exception:                                   # noqa: BLE001
+        pass
+    return '?'
+
+
 def log_sparing(key, words, level='warn', every=30):
     """A line that can come thousands of times a second (a database gone,
     a flood): written once per `every` seconds a key, with how many were left

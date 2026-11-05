@@ -553,6 +553,7 @@ def rb_now_ask_others(store, by):
     asked - 'rbackup:now:NODE@@ASKER' - so only one node ever writes it."""
     if not CONFIG.get('ha_mode'):
         return []
+    rb_now_tidy(store)
     asked = []
     ident = secrets.token_hex(6)
     for n in ha_nodes(store):
@@ -563,6 +564,22 @@ def rb_now_ask_others(store, by):
                                    'from': node_name()}))
         asked.append(n['name'])
     return asked
+
+
+def rb_now_tidy(store):
+    """This node's asks of Back up now that are over (1.0.45): never taken away, an ask of
+    an older version (unsigned) was refused by the other node for good, at every look."""
+    t = time.time()
+    me = NODE_KEY_SEP + node_name()
+    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'rbackup:now:%'"):
+        if not str(r['k']).endswith(me):
+            continue
+        try:
+            at = float((json.loads(r['v'] or '{}') or {}).get('at') or 0)
+        except (ValueError, TypeError, AttributeError):
+            at = 0
+        if t - at > RB_NOW_LIVE_S:
+            store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (r['k'], r['v']))
 
 
 def rb_now_asked(daemon):
@@ -594,6 +611,7 @@ def rb_tick(daemon):
     store = daemon.store
     if CONFIG.get('ha_mode'):
         try:
+            rb_now_tidy(store)
             rb_now_asked(daemon)
         except Exception as e:                          # noqa: BLE001
             log_sparing('rb-now:' + str(e)[:60], 'Back up now asked by the other node: %s'

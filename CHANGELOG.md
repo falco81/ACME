@@ -6,6 +6,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.45 - not released
 
+- **Seen on a cluster upgraded from 1.0.43 to 1.0.44:**
+  - "the local users: 'str' object has no attribute 'get'" every few seconds: a row of the
+    local users of a shape not expected stopped every look, and was never written anew - taken
+    as none now, so the node writes it again. Such a warning now says where it broke.
+  - "a row of the database not written by acme is not acted on: meta rbackup:now:..." every
+    ten minutes: a *Back up now* asked by the node still on 1.0.43 (unsigned) was refused for
+    good on the upgraded one. Such asks are checked only once every node runs 1.0.44 (as the
+    other rows newly guarded), and a node takes its asks away once they are over.
 - **Round 2 (the certificates, the modules, the flows end to end):**
   - Revoked with a new one at once, a dual certificate's twin was issued again with the
     revoked key; it was shown as still good after the revocation; and it was renewed and
