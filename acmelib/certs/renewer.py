@@ -818,8 +818,17 @@ def scan(store, by='the renewer'):
                 why, only = alt_due(r, t), 'alt'
             if not why or jobs.cert_busy(store, r['id']):
                 continue
-            jobs.submit(store, 'renew', renew_job(r['id'], by=by, only=only), cert_id=r['id'],
-                        by=by, said=why)
+            # The first issue of one just added is the one who added it (1.0.46): "Add and issue
+            # now" showed its job and version 1 as by the renewer.
+            who = by
+            try:
+                fresh = time.time() - float(r.get('created') or 0) < 3600
+            except (TypeError, ValueError):
+                fresh = False
+            if not r.get('cert_pem') and r.get('created_by') and fresh:
+                who = str(r['created_by'])
+            jobs.submit(store, 'renew', renew_job(r['id'], by=who, only=only), cert_id=r['id'],
+                        by=who, said=why)
             started += 1
         except Exception as e:                          # noqa: BLE001
             E.log_sparing('certs-scan:%s' % r.get('id'), 'looking at %s: %s' % (r.get('name'), e),

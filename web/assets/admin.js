@@ -2861,14 +2861,14 @@ function drawIsemonGuide() {
    when it is a file - an answer that is not one (the copy gone, a destination not reached,
    a 403) is said as a toast; before, it replaced the page with its JSON, and what was not
    saved was lost. */
-function fileGet(url) {
+function fileGet(url, said) {
   /* Streamed by the browser itself (1.0.45): a short ticket asked by this page's own POST,
      then the file fetched as a download of the browser's - a fetch held the whole backup in
      the page's memory first. When no file comes, the server sends the page back here with
      why (dlSaid). */
   var what = /[?&]api=([a-z-]+)/.exec(url);
   api('dl-ticket', {what: what ? what[1] : ''}).then(function (t) {
-    toast('downloading…', '');
+    toast(said || 'downloading…', said ? 'good' : '');
     var a = document.createElement('a');
     a.href = url + (url.indexOf('?') < 0 ? '?' : '&') + 'dl=' + encodeURIComponent(t.dl)
       + '&back=' + encodeURIComponent(location.hash.replace(/^#/, ''));
@@ -4675,8 +4675,9 @@ function dbDownloadAsk(o) {
       if (o.now) toast('it is being made; the download starts when it is ready', 'good');
       api('db', {action: 'download_ticket', name: o.name || '', kind: o.kind || '', passphrase: a}).then(function (t) {
         closeModal();
-        fileGet('?api=db-download&ticket=' + encodeURIComponent(t.ticket));
-        toast(t.name + ' - keep the passphrase apart from the file', 'good');
+        /* the reminder stays: said by the download itself, not over it at once (1.0.46) */
+        fileGet('?api=db-download&ticket=' + encodeURIComponent(t.ticket),
+                t.name + ' - keep the passphrase apart from the file');
       }).catch(oops).then(function () { busy(button, false); });
     }}]);
 }

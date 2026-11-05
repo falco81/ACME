@@ -2324,7 +2324,7 @@ function modForm(key, row, p, fromPick, keep) {
     modTest(key, row, b, g).then(function (x) {
       clear(testSaid);
       testSaid.className = 'said ' + (x.ok ? 'good' : 'bad');
-      testSaid.appendChild(data('span', '', x.words));
+      testSaid.appendChild(el('span', '', x.words));   /* the words translated (1.0.46) */
       if (x.job_id) {
         var st = el('button', 'btn small ct-steps-btn', 'every step');
         st.type = 'button';
@@ -3157,7 +3157,7 @@ function detailsSection(c, back) {
       ['Owner', c.owner ? (window.ACME_TEAMS ? ACME_TEAMS.ownerChip(c.owner) : data('span', '', c.owner)) : 'nobody'],
       ['Tags', arr(c.tags).length ? tagChips(c.tags) : '–'],
       ['Note', c.note ? data('span', '', c.note) : '–'],
-      ['Renews', autoCan(c) ? (truthy(c.auto_renew) ? 'by itself' : 'only when asked') : 'by importing a new one'],
+      ['Renews', autoCan(c) ? (truthy(c.auto_renew) ? 'automatically' : 'only when asked') : 'by importing a new one'],
       ['Days before the end', c.renew_days ? String(c.renew_days) : 'as Renewal and notices says'],
       ['Key on renewal', truthy(c.reuse_key) ? 'kept' : 'a new one each time'],
       c.issuer_ref ? ['Its id at the source', explain(copyable(String(c.issuer_ref), 'copied'), 'Imported from its source: each renewal reissues this order (or certificate) there.')] : null,
@@ -5101,7 +5101,12 @@ function certWizard(cert, detail, opts) {
       wn.appendChild(data('b', '', t.name));
       if (t.is_default) { wn.appendChild(document.createTextNode(' ')); wn.appendChild(el('span', 'tag ok small', 'default')); }
       w.appendChild(wn);
-      w.appendChild(data('span', 'muted small', (p ? p.title : t.kind) + (t.config && (t.config.host || t.config.address) ? ' · ' + (t.config.host || t.config.address) : '')));
+      /* the kind translated, its host as it is (1.0.46) */
+      var wk = el('span', 'muted small', p ? p.title : t.kind);
+      w.appendChild(wk);
+      if (t.config && (t.config.host || t.config.address)) {
+        w.appendChild(data('span', 'muted small', ' · ' + (t.config.host || t.config.address)));
+      }
       top.appendChild(w);
       row.appendChild(top);
       var fh = el('div', 'ct-dep-form');

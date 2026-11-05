@@ -6994,7 +6994,7 @@
   },
   "s1747": {
    "source": "Passphrase",
-   "text": "Heslo"
+   "text": "Heslová fráze"
   },
   "s1748": {
    "source": "Password",
@@ -10942,7 +10942,7 @@
   },
   "s2734": {
    "source": "The passphrase again",
-   "text": "Heslo znovu"
+   "text": "Heslová fráze znovu"
   },
   "s2735": {
    "source": "The passphrase of the file",
@@ -53507,6 +53507,14 @@
   "sui3_2": {
    "source": "this account has no e-mail address to send the code to - ask the administrator",
    "text": "tento účet nemá e-mailovou adresu, kam poslat kód - obraťte se na správce"
+  },
+  "a6_1": {
+   "source": "downloading…",
+   "text": "stahuje se…"
+  },
+  "a6_2": {
+   "source": "automatically",
+   "text": "automaticky"
   }
  },
  "patterns": {
@@ -73081,6 +73089,38 @@
   "pui3_1": {
    "source": "kept in {0} - a database cannot hold its own address",
    "text": "uloženo v {0} – databáze nemůže obsahovat vlastní adresu"
+  },
+  "pa6_1": {
+   "source": "a wrong password for {0} (an account here) on the enrolment pages from {1}",
+   "text": "špatné heslo pro {0} (zdejší účet) na stránkách pro žádosti z {1}"
+  },
+  "pa6_2": {
+   "source": "{0} cannot sign in: a one-time code is needed, and neither the mail nor the SMS is set up",
+   "text": "{0} se nemůže přihlásit: je potřeba jednorázový kód a není nastavený e-mail ani SMS"
+  },
+  "pa6_3": {
+   "source": "{0} (an account here) cannot sign in to the portal: a one-time code is needed, and the account has no mobile number (Accounts)",
+   "text": "{0} (zdejší účet) se nemůže přihlásit k portálu: je potřeba jednorázový kód a účet nemá mobilní číslo (Účty)"
+  },
+  "pa6_4": {
+   "source": "{0} (an account here) cannot sign in to the portal: a one-time code is needed, and the account has no e-mail address (Accounts)",
+   "text": "{0} (zdejší účet) se nemůže přihlásit k portálu: je potřeba jednorázový kód a účet nemá e-mailovou adresu (Účty)"
+  },
+  "pa6_5": {
+   "source": "{0} (an account here) cannot sign in to the portal: a one-time code is needed, and the account has no e-mail address; no mobile number (Accounts)",
+   "text": "{0} (zdejší účet) se nemůže přihlásit k portálu: je potřeba jednorázový kód a účet nemá e-mailovou adresu ani mobilní číslo (Účty)"
+  },
+  "pa6_6": {
+   "source": "{0} (an account here) cannot sign in to the portal: a one-time code is needed, and the account has no mobile number; no e-mail address (Accounts)",
+   "text": "{0} (zdejší účet) se nemůže přihlásit k portálu: je potřeba jednorázový kód a účet nemá mobilní číslo ani e-mailovou adresu (Účty)"
+  },
+  "pa6_7": {
+   "source": "{0} (an account here) cannot sign in to the portal: a one-time code is needed, and the account has {1} (Accounts)",
+   "text": "{0} (zdejší účet) se nemůže přihlásit k portálu: je potřeba jednorázový kód, ale: {1} (Účty)"
+  },
+  "pa6_8": {
+   "source": "the root helper is not set up on this node (no {0}) - install.sh puts it in",
+   "text": "root helper na tomto uzlu není nastavený (chybí {0}) - doplní ho install.sh"
   }
  },
  "rich": {

@@ -28,6 +28,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     daemon away or a session over is said as such.
   - A setting, an account or a directory taken away stays refused on the lights (only rows of
     meta that are gone leave the list).
+  - In Czech: the line under *Test* in a module's form, the kinds of destination in the
+    wizard's deployment step, "downloading…", and the portal's sign-in events are translated;
+    *Renews: automatically*; *Passphrase* in the download of a copy. The reminder to keep the
+    passphrase apart is no longer covered at once by "downloading…".
+  - The first issue of a certificate just added is by the one who added it, not by the renewer.
+  - A node without its root helper set up says so, not a Python error with a path in it.
 
 - **"1 refused" by the guard against writes that stayed:** a refused row was taken off the list
   only when it was found good again - an old unsigned *Back up now* of a node still on 1.0.43,
