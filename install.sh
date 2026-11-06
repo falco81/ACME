@@ -1352,7 +1352,8 @@ install_tree() {
 trees_prune() {
     local cur prev old src_real
     src_real="$(readlink -f "$SOURCE_DIR")"
-    cur="$(readlink -e "$LIB_DIR/current")"
+    cur="$(readlink -e "$LIB_DIR/current" 2>/dev/null || true)"
+    [[ -n "$cur" ]] || return 0
     prev="$(readlink -e "$LIB_DIR/previous" 2>/dev/null || true)"
     for old in "$TREES_DIR"/* "$TREES_DIR"/.new-*; do
         [[ -e "$old" ]] || continue
@@ -1975,6 +1976,8 @@ except Exception:
             swap_link "$LIB_DIR/current" "versions/$(basename "$ROLLBACK_TREE")" || true
             if [[ -n "${PREV_LINK_BEFORE:-}" ]]; then
                 swap_link "$LIB_DIR/previous" "$PREV_LINK_BEFORE" || true    # as it was (1.0.52)
+            else
+                rm -f -- "$LIB_DIR/previous"     # none before: not the one running again
             fi
             if [[ -n "${PAGES_SWITCHED:-}" && -d "$ROLLBACK_TREE/web" ]]; then
                 pages_from "$ROLLBACK_TREE/web" || warn "the pages of $(basename "$ROLLBACK_TREE") could not be put back"
@@ -2010,7 +2013,7 @@ except Exception:
     fi
     restart_daemon
     UPGRADE_STAGE="done"
-    trees_prune
+    [[ -z "$DRY_RUN" ]] && trees_prune
     if [[ -n "$MAINT_BY_US" ]]; then
         sleep 3
         if as_acme --status >/dev/null 2>&1; then

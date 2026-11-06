@@ -2829,15 +2829,25 @@ function pkCheckForm(box, d) {
       return o;
     });
   };
-  var prepare = function () { ask().then(function (o) { ready = o; }).catch(function (e) { said.className = 'said bad'; said.textContent = String(e.message || e); }); };
+  /* kept 4 minutes at most (the server's question lasts 5), one asking at a time (1.0.52) */
+  var readyAt = 0, pending = null;
+  var prepare = function () {
+    pending = ask().then(function (o) { ready = o; readyAt = Date.now(); return o; })
+      .catch(function (e) { said.className = 'said bad'; said.textContent = String(e.message || e); return null; })
+      .then(function (o) { pending = null; return o; });
+  };
   prepare();
   go.onclick = function () {
     go.disabled = true;
     said.className = 'said';
     said.textContent = '';
-    var o = ready;
+    var o = (ready && Date.now() - readyAt < 240000) ? ready : null;
     ready = null;
-    (o ? navigator.credentials.get({publicKey: o}) : ask().then(function (x) { return navigator.credentials.get({publicKey: x}); })).then(function (cr) {
+    var later = function () {
+      return (pending || Promise.resolve(null)).then(function (x) { return x && Date.now() - readyAt < 240000 ? x : ask(); })
+        .then(function (x) { ready = null; return navigator.credentials.get({publicKey: x}); });
+    };
+    (o ? navigator.credentials.get({publicKey: o}) : later()).then(function (cr) {
       return api('mfa', {action: 'check', id: cr.id, clientDataJSON: pkText(cr.response.clientDataJSON),
         authenticatorData: pkText(cr.response.authenticatorData), signature: pkText(cr.response.signature)});
     }).then(function (r) {
@@ -2866,15 +2876,25 @@ function pkEnrolForm(body, d) {
       return o;
     });
   };
-  var prepare = function () { ask().then(function (o) { ready = o; }).catch(function (e) { said.className = 'said bad'; said.textContent = String(e.message || e); }); };
+  /* kept 4 minutes at most (the server's question lasts 5), one asking at a time (1.0.52) */
+  var readyAt = 0, pending = null;
+  var prepare = function () {
+    pending = ask().then(function (o) { ready = o; readyAt = Date.now(); return o; })
+      .catch(function (e) { said.className = 'said bad'; said.textContent = String(e.message || e); return null; })
+      .then(function (o) { pending = null; return o; });
+  };
   prepare();
   go.onclick = function () {
     go.disabled = true;
     said.className = 'said';
     said.textContent = '';
-    var o = ready;
+    var o = (ready && Date.now() - readyAt < 240000) ? ready : null;
     ready = null;
-    (o ? navigator.credentials.create({publicKey: o}) : ask().then(function (x) { return navigator.credentials.create({publicKey: x}); })).then(function (cr) {
+    var later = function () {
+      return (pending || Promise.resolve(null)).then(function (x) { return x && Date.now() - readyAt < 240000 ? x : ask(); })
+        .then(function (x) { ready = null; return navigator.credentials.create({publicKey: x}); });
+    };
+    (o ? navigator.credentials.create({publicKey: o}) : later()).then(function (cr) {
       return api('mfa', {action: 'enrol_confirm', kind: 'passkey', name: pkDevice() + ' · ' + new Date().toLocaleDateString(),
         clientDataJSON: pkText(cr.response.clientDataJSON), attestationObject: pkText(cr.response.attestationObject)});
     }).then(function (r) {

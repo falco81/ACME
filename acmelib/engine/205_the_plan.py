@@ -242,7 +242,7 @@ def upgrade_tick(daemon):
         except Exception as e:                          # noqa: BLE001
             _upgrade_failed(store, plan, turn, 'the package could not be handed over: %s' % e)
             return
-        _my_step(store, plan, state='installing', asked=now,
+        _my_step(store, plan, state='installing', asked=now, from_version=__version__,
                  said='handed to root (acme-upgrade.service)')
         log('the upgrade to %s is handed to acme-upgrade.service' % plan['version'])
         return
@@ -426,7 +426,10 @@ def _upgrade_failed(store, plan, turn, said, tail=None):
     # Only once it has started again as that version (1.0.61): the same
     # version put in again, failing before anything was installed, left a
     # working node out.
-    broken_new = __version__ == plan.get('version') and turn.get('state') == 'checking'
+    # ...and only where the tree changed (1.0.52): its own version put in again and failing, the
+    # rescue's restart ran the same code - it was taken for the new one broken
+    broken_new = __version__ == plan.get('version') and turn.get('state') == 'checking' and \
+        turn.get('from_version') != plan.get('version')
     if broken_new:
         said = '%s - left in maintenance: it runs %s, which did not pass its checks' % (
             said, __version__)

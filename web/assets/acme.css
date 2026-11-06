@@ -911,6 +911,9 @@
     /* the find box kept on a phone (1.0.52): it was gone with the rail's top */
     .ctl-nav .ctl-navtop{display:flex;flex:0 0 auto;min-width:160px}
     .ctl-nav .ctl-navtop .ctl-pin{display:none}
+    /* its list out of the sideways scroller, where it was cut to the row's height */
+    .ctl-nav .ctl-found{position:fixed;left:12px;right:12px;top:auto;width:auto;max-height:60vh;
+      overflow-y:auto;z-index:60}
     .ctl-nav .ctl-group{display:none}
     .ctl-nav button[data-pane]{width:auto;flex:none;white-space:nowrap;padding:7px 11px}
     .ctl-nav button[data-pane].on::before{display:none}
