@@ -199,7 +199,7 @@ $alive = is_array($info);
 // Sign in through the balancer again, after Sign out held it (otp 1.0.239).
 $sso_from = (string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '');
 // only from this page (1.0.52): a link of another site undid a Sign out
-if (isset($_GET['sso']) && in_array($sso_from, ['', 'same-origin', 'none'], true)) {
+if (isset($_GET['sso']) && in_array($sso_from, ['', 'same-origin', 'same-site', 'none'], true)) {
     acme_sso_hold(false);
     header('Location: /', true, 303);
     exit;

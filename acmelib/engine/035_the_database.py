@@ -676,20 +676,21 @@ class Db(object):
         if self.engine == 'sqlite' or not self.statement_s:
             yield
             return
-        # Once for the outermost only (1.0.52): add_missing_columns inside make_tables put the
-        # limit back on before the indexes were made - an index on a large log failed the start.
-        if getattr(self, '_unl_depth', 0):
-            self._unl_depth += 1
-            try:
-                yield
-            finally:
-                self._unl_depth -= 1
-            return
         off, on = (('SET statement_timeout = 0', 'SET statement_timeout = %d' % (
             self.statement_s * 1000)) if self.engine == 'postgres' else (
             'SET SESSION max_statement_time = 0',
             'SET SESSION max_statement_time = %d' % self.statement_s))
         with self.lock:
+            # Once for the outermost only (1.0.52), counted under the lock (the same thread
+            # only gets here twice): add_missing_columns inside make_tables put the limit back on
+            # before the indexes were made - an index on a large log failed the start.
+            if getattr(self, '_unl_depth', 0):
+                self._unl_depth += 1
+                try:
+                    yield
+                finally:
+                    self._unl_depth -= 1
+                return
             try:
                 # A connection the server dropped is made again first (1.0.208):
                 # the SET went to the dead one, and the job ran limited after all.

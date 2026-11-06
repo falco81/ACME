@@ -147,7 +147,10 @@ def clock_peer_skew(store):
     to ask. Asked in a thread of its own, 3.5 s at most. Raises RuntimeError."""
     if CONFIG.get('ha_mode') == 'replicated' and CONFIG.get('ha_peer'):
         conf = ha_peer_conf(timeout=2)
-        name = next((n['name'] for n in ha_nodes(store) if not n.get('me')), 'the other node')
+        # the one alive first (1.0.52): a row of a node gone, sorted first, was taken for the peer
+        others = sorted((n for n in ha_nodes(store) if not n.get('me')),
+                        key=lambda n: not n.get('alive'))
+        name = others[0]['name'] if others else 'the other node'
     elif CONFIG.get('ha_mode') and store.db.engine in ('postgres', 'mariadb'):
         conf = {k: CONFIG.get(k) for k in DB_KEYS}
         name = CLOCK_DB_SERVER
@@ -392,7 +395,7 @@ def clock_peer_row(store, now=None):
     """The other node's row, with 'fresh' worked out by the measured difference of the clocks
     (younger than 25 s, and its heartbeat alive) and its maintenance as written."""
     now = time.time() if now is None else now
-    for n in ha_nodes(store):
+    for n in sorted(ha_nodes(store), key=lambda n: not n.get('alive')):   # alive first (1.0.52)
         if n.get('me'):
             continue
         row = _meta_obj(store, 'clock:state:' + n['name'])

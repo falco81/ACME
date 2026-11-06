@@ -114,6 +114,12 @@ def _cert_csr(h):
         if not prof.get('enabled', 1):
             raise E.ApiError(403, 'its request profile is switched off - other names are not taken')
         pcfg = R.config_of(prof)
+        if (pcfg.get('approval') or P.held_by_others(h.store, names, row.get('owner'))) and \
+                row.get('cert_pem'):
+            # one issued already is not put to approval (it would stop renewing, and declined it
+            # would run out): other names are a new request
+            raise E.ApiError(409, 'other names need approval: ask for a new certificate with them '
+                                  '- this one is renewed as it is')
         if pcfg.get('approval') or P.held_by_others(h.store, names, row.get('owner')):
             fields.update(state=P.WAITING, state_at=t, auto_renew=0)
             h.store.db.update('certs', row['id'], fields)

@@ -72,7 +72,7 @@ def split_preferred_name(store=None):
     if int(CONFIG.get('ha_slot') or 1) == 1:
         return node_name()
     if store is not None:
-        for n in ha_nodes(store):
+        for n in sorted(ha_nodes(store), key=lambda n: not n.get('alive')):   # alive first (1.0.52)
             if not n.get('me'):
                 return n['name']
     return ''
@@ -406,7 +406,20 @@ def split_aside():
 def split_step(store, now=None, peer=None, arbiter=None):
     """One look: the other node's database, the arbiter, what this node does. `peer` and
     `arbiter` given only by the tests."""
+    live = now is None
     now = time.time() if now is None else now
+    if live:
+        # The wall clock stepped since the last look (1.0.52: chrony's step of 25 s read as 25 s
+        # without the other node - apart at once): the times kept moved with it.
+        mono = time.monotonic()
+        lw, lm = SPLIT.get('wall_last'), SPLIT.get('mono_last')
+        if lw and lm:
+            step = (now - lw) - (mono - lm)
+            if abs(step) > 5:
+                for k in ('peer_ok_at', 'apart_since'):
+                    if SPLIT.get(k):
+                        SPLIT[k] += step
+        SPLIT['wall_last'], SPLIT['mono_last'] = now, mono
     if not split_engaged():
         if SPLIT['apart_since'] or SPLIT['role'] != 'serve':
             SPLIT.update(apart_since=0.0, role='serve', why='')

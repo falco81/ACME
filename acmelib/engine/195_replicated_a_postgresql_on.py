@@ -320,10 +320,13 @@ def ha_wait_copied(db, sub, say, seconds=3600):
         left = db.rows("SELECT c.relname AS t, r.srsubstate AS s FROM pg_subscription_rel r "
                        "JOIN pg_subscription s ON s.oid = r.srsubid "
                        "JOIN pg_class c ON c.oid = r.srrelid WHERE s.subname = ? "
-                       "AND r.srsubstate <> 'r'", (sub,))
+                       "AND s.subdbid = (SELECT oid FROM pg_database WHERE datname = "
+                       "current_database()) AND r.srsubstate <> 'r'", (sub,))
+        # this database's subscription (1.0.52), not another one's of the same name
         if not left and db.value('SELECT COUNT(*) FROM pg_subscription_rel r JOIN '
-                                 'pg_subscription s ON s.oid = r.srsubid WHERE s.subname = ?',
-                                 (sub,)):
+                                 'pg_subscription s ON s.oid = r.srsubid WHERE s.subname = ? '
+                                 'AND s.subdbid = (SELECT oid FROM pg_database WHERE datname = '
+                                 'current_database())', (sub,)):
             return True
         say('copying: %s still to come' % ', '.join(sorted(x['t'] for x in left)[:6]))
         time.sleep(2)
@@ -404,6 +407,22 @@ def ha_rebuild(local, remote, *args):
             if not db.value('SELECT pg_try_advisory_lock(?)', (HA_REBUILD_LOCK,)):
                 raise ValueError('a rebuild is running already (on this node or the other one)')
             held.append(db)
+        # Never from a node whose own rebuild failed half way (1.0.52): its tables are part
+        # empty - copied here, both nodes had lost their rows.
+        try:
+            rows = [r for r in remote.rows("SELECT k, v FROM meta WHERE k LIKE 'maint:%'")
+                    if r['k'] != 'maint:' + node_name()]
+        except Exception:                               # noqa: BLE001
+            rows = []
+        for r in rows:
+            try:
+                m = json.loads(r['v'] or '{}')
+            except ValueError:
+                continue
+            if isinstance(m, dict) and m.get('on') and str(m.get('why') or '') == HA_REBUILD_FAILED_WHY:
+                raise ValueError('the other node\'s own rebuild failed half way - its tables are '
+                                 'not whole: it is rebuilt from this node first, never this one '
+                                 'from it')
         return _ha_rebuild(local, remote, *args)
     finally:
         for db in held:

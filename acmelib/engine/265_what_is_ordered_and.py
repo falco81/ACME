@@ -420,8 +420,9 @@ def acme_start(store, which, by):
             # One node orders a certificate at a time (1.0.209): ordered from the
             # other node's pages while this one renewed it, both spent the CA's
             # limit and the last one saved won. Held half an hour at most.
+            raw = store.get_meta(lease)
             try:
-                held = json.loads(store.get_meta(lease) or '{}')
+                held = json.loads(raw or '{}')
             except ValueError:
                 held = {}
             if held.get('node') and held['node'] != node_name() and \
@@ -429,7 +430,22 @@ def acme_start(store, which, by):
                 log('ACME: %s is being ordered on %s already - not ordered here too'
                     % (n, held['node']), 'warn')
                 return
-            store.set_meta(lease, json.dumps({'node': node_name(), 'until': time.time() + 1800}))
+            # taken in one conditional write (1.0.52): read, then written, both nodes saw it free
+            # at once on one shared database and both ordered
+            new = json.dumps({'node': node_name(), 'until': time.time() + 1800})
+            if raw is None:
+                try:
+                    store.db.run('INSERT INTO meta (k, v) VALUES (?, ?)', (lease, new))
+                    took = True
+                except Exception:                       # noqa: BLE001
+                    took = False
+            else:
+                took = bool(store.db.run('UPDATE meta SET v = ? WHERE k = ? AND v = ?',
+                                         (new, lease, raw)))
+            if not took:
+                log('ACME: %s is being ordered on the other node already - not ordered here too'
+                    % n, 'warn')
+                return
             acme_order(store, t, n, by, acme_progress)
         except AcmeError as e:
             log('ACME: %s' % e, 'warn')

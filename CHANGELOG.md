@@ -5,6 +5,16 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.52 - not released
+- Round 3: "no time limit" counted under the database's lock (two threads at once left it off
+  for good); a portal CSR with other names for a certificate issued already is a new request,
+  not put to approval (declined, the certificate in use stopped renewing); the portal's way back
+  through the balancer is taken from the same site too.
+- Cluster: a rebuild never copies from a node whose own rebuild failed half way (both had lost
+  their rows); a step of the wall clock is no longer taken for the other node gone (apart at
+  once, the VIP moved); the copy's end is read from this database's subscription only; a row of a
+  node gone no longer stands for the other node in the clock guard and the split watch; the
+  order of acme's own web certificate is taken in one conditional write, not by both nodes at
+  once.
 - The pages' PHP: a session cookie with a newline at its end no longer ends the request to the
   daemon early (the administrator could not sign in until the cookie was cleared); an Origin of
   another port or scheme of the same host is another site; a name cut in the middle of a letter is
