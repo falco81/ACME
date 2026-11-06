@@ -153,6 +153,7 @@ def _whoami(h):
                         acc.get('must_change')), 'prefs': prefs,
                     # the performance meter switched on (Settings → About, 1.0.48)
                     'perf_meter': bool(CONFIG.get('perf_meter')),
+                    'passkeys_on': bool(CONFIG.get('admin_2fa') and CONFIG.get('admin_2fa_passkey')),
                     'cols': h.store.user_cols(acc['name']),
                     'cols_edit': cols_editing(h.headers.get('X-Acme-Session') or '')}}
 

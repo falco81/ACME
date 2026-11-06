@@ -222,6 +222,48 @@ class Passkeys(unittest.TestCase):
         opts = self.call({'action': 'pk_begin'})
         self.assertIn('not known', self.err(dict(Device().get(opts), action='check'))[1])
 
+    def test_your_account(self):
+        """Your account (1.0.53): listed, a second added, renamed, taken away - not the last."""
+        dev = Device()
+        self.enrol(dev)
+        token = STORE.session_new('admin', 'boss', 'fulladmin', '127.0.0.1', 1, data={})
+
+        def acc(method, body=None):
+            class H(E.CliApiHandler):
+                def session(self, kind='admin'):
+                    return STORE.session_get(token, 'admin', 3600, touch=False)
+            h = H(DAEMON, 'boss', body or {}, {}, '/api/auth/passkeys')
+            h.headers['X-Acme-Host'] = HOST
+            return E.ROUTES[(method, '/api/auth/passkeys')](h)
+        got = acc('GET')
+        self.assertTrue(got['on'])
+        self.assertEqual(len(got['keys']), 1)
+        self.assertNotIn('pem', got['keys'][0])
+        two = Device()
+        opts = acc('POST', {'action': 'add_begin'})
+        self.assertEqual(len(opts['publicKey']['excludeCredentials']), 1)
+        got = acc('POST', dict(two.create(opts), action='add_finish', name='Mac'))
+        self.assertEqual([k['name'] for k in got['keys']], ['iPad · test', 'Mac'])
+        kid = got['keys'][0]['id']
+        got = acc('POST', {'action': 'rename', 'id': kid, 'name': 'iPad pracovní'})
+        self.assertEqual(got['keys'][0]['name'], 'iPad pracovní')
+        got = acc('POST', {'action': 'delete', 'id': kid})
+        self.assertEqual([k['name'] for k in got['keys']], ['Mac'])
+        with self.assertRaises(E.ApiError) as cm:
+            acc('POST', {'action': 'delete', 'id': got['keys'][0]['id']})
+        self.assertEqual(cm.exception.status, 409)              # the last one stays
+        # the second one signs in
+        self.token = STORE.session_new('admin', 'boss', 'fulladmin', '127.0.0.1', 1,
+                                       data={'mfa': 'check'})
+        opts = self.call({'action': 'pk_begin'})
+        self.assertTrue(self.call(dict(two.get(opts), action='check'))['done'])
+        # switched off: nothing of it
+        E.CONFIG['admin_2fa_passkey'] = 0
+        with self.assertRaises(E.ApiError) as cm:
+            acc('POST', {'action': 'add_begin'})
+        self.assertEqual(cm.exception.status, 403)
+        self.assertFalse(acc('GET')['on'])
+
     def test_reset_as_the_others(self):
         self.enrol(Device())
         self.assertTrue(E.mfa_reset(STORE, 'boss', 'admin'))

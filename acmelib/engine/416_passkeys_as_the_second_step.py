@@ -259,11 +259,11 @@ def pk_user_id(name):
     return pk_b64u(hashlib.sha256(('acme-user:' + str(name).lower()).encode()).digest()[:16])
 
 
-def pk_create_options(h, s, acc, rp_id):
+def pk_create_options(h, s, acc, rp_id, purpose='enrol'):
     site = str(CONFIG.get('site_name') or 'acme')
     rec = mfa_get(h.store, acc['name']) or {}
     return {'publicKey': {
-        'challenge': pk_challenge(h, s, 'enrol', rp_id),
+        'challenge': pk_challenge(h, s, purpose, rp_id),
         'rp': {'id': rp_id, 'name': '%s · %s' % (site, rp_id)},
         'user': {'id': pk_user_id(acc['name']), 'name': acc['name'],
                  'displayName': acc.get('display') or acc['name']},
@@ -287,9 +287,9 @@ def pk_get_options(h, s, acc, rp_id):
                           'allowCredentials': [{'type': 'public-key', 'id': k['id']} for k in keys]}}
 
 
-def pk_enrol_finish(h, s, acc, b, rp_id):
+def pk_enrol_finish(h, s, acc, b, rp_id, purpose='enrol'):
     """The passkey made on the device, checked: the key kept for the account."""
-    challenge = pk_challenge_take(h, s, 'enrol', rp_id)
+    challenge = pk_challenge_take(h, s, purpose, rp_id)
     pk_client_data(b.get('clientDataJSON'), 'webauthn.create', challenge, rp_id)
     try:
         att, _end = pk_cbor(pk_unb64u(b.get('attestationObject')))
@@ -354,3 +354,96 @@ def pk_keys_view(rec):
     return [{'id': k.get('id'), 'name': k.get('name'), 'host': k.get('host'),
              'created': k.get('created'), 'last_used': k.get('last_used'),
              'backed_up': k.get('backed_up')} for k in (rec or {}).get('keys') or []]
+
+
+PASSKEY_MOST = 20                   # an account's passkeys
+
+
+def pk_name_clean(v):
+    return re.sub(r'[\x00-\x1f<>]', '', str(v or ''))[:60].strip()
+
+
+# ---- Your account: the passkeys of the account signed in (1.0.53) ------------------------------
+# Only while the second step is asked and a passkey is one of its ways: listed, added from this
+# device, renamed, taken away. The account signed in whole (its own second step given) only.
+def pk_mine_on():
+    return bool(CONFIG.get('admin_2fa') and CONFIG.get('admin_2fa_passkey'))
+
+
+def _pk_mine(h):
+    s = h.session('admin')
+    if not s:
+        raise ApiError(401, 'not signed in, or the sign-in has run out')
+    if mfa_pending(s):
+        raise ApiError(403, 'the second step of signing in is not done yet')
+    acc = h.store.account(s['name'], checked=True)
+    if not acc or acc.get('disabled'):
+        raise ApiError(401, 'that account may no longer sign in')
+    if not pk_mine_on():
+        raise ApiError(403, 'a passkey as the second step is switched off on this server')
+    return s, acc
+
+
+@route('GET', '/api/auth/passkeys')
+def _pk_list(h):
+    s = h.session('admin')
+    if not s:
+        raise ApiError(401, 'not signed in, or the sign-in has run out')
+    rec = mfa_get(h.store, s['name']) or {}
+    host = str(h.headers.get('X-Acme-Host') or '').split(':')[0].lower()
+    return {'on': pk_mine_on(), 'kind': rec.get('kind') or '',
+            'keys': pk_keys_view(rec) if rec.get('kind') == 'passkey' else [], 'here': host}
+
+
+@route('POST', '/api/auth/passkeys')
+def _pk_do(h):
+    s, acc = _pk_mine(h)
+    b = h.body()
+    act = str(b.get('action') or '')
+    name = acc['name']
+    if act == 'add_begin':
+        rec = mfa_get(h.store, name) or {}
+        if rec.get('kind') == 'passkey' and len(rec.get('keys') or []) >= PASSKEY_MOST:
+            raise ApiError(400, 'that is %d passkeys - take one away first' % PASSKEY_MOST)
+        return pk_create_options(h, s, acc, pk_rp_id(h), 'add')
+    if act == 'add_finish':
+        pk = pk_enrol_finish(h, s, acc, b, pk_rp_id(h), 'add')
+        with MFA_LOCK:
+            rec = mfa_get(h.store, name) or {}
+            was = rec.get('kind')
+            if was != 'passkey':
+                # the way of the second step becomes the passkey (the one before is let go)
+                rec = {'kind': 'passkey', 'keys': [], 'at': time.time(), 'by': name}
+            if any(k.get('id') == pk['id'] for k in rec['keys']):
+                raise ApiError(409, 'this device has a passkey of this account already')
+            rec['keys'] = (rec.get('keys') or []) + [pk]
+            h.store.set_meta(mfa_key(name), json.dumps(rec))
+        mfa_mark(h.store, name, True)
+        h.store.add_event('accounts', '%s added a passkey (%s) for %s%s' % (
+            name, pk['name'], pk['host'], (' - in place of %s' % MFA_KIND_WORDS.get(was, was))
+            if was and was != 'passkey' else ''), who=name)
+        return {'message': 'the passkey is added', 'keys': pk_keys_view(rec)}
+    kid = str(b.get('id') or '')
+    with MFA_LOCK:
+        rec = mfa_get(h.store, name) or {}
+        keys = (rec.get('keys') or []) if rec.get('kind') == 'passkey' else []
+        one = [k for k in keys if k.get('id') == kid]
+        if not one:
+            raise ApiError(404, 'there is no such passkey')
+        if act == 'rename':
+            new = pk_name_clean(b.get('name'))
+            if not new:
+                raise ApiError(400, 'give it a name')
+            one[0]['name'] = new
+            h.store.set_meta(mfa_key(name), json.dumps(rec))
+            return {'message': 'renamed', 'keys': pk_keys_view(rec)}
+        if act == 'delete':
+            if len(keys) == 1:
+                raise ApiError(409, 'that is the only one - the second step would be gone: add '
+                                    'another first, or an administrator resets the second step')
+            rec['keys'] = [k for k in keys if k.get('id') != kid]
+            h.store.set_meta(mfa_key(name), json.dumps(rec))
+            h.store.add_event('accounts', '%s took a passkey away (%s)' % (name, one[0].get('name')),
+                              'warn', who=name)
+            return {'message': 'the passkey is taken away', 'keys': pk_keys_view(rec)}
+    raise ApiError(400, 'no such thing to do')

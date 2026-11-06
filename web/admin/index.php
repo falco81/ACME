@@ -459,6 +459,7 @@ if (isset($_GET['api'])) {
         'split' => '/api/split', 'clock' => '/api/clock',
         'settings-nodes' => '/api/settings/nodes',
         'load' => '/api/load',                      /* the performance meter (1.0.48) */
+        'passkeys' => '/api/auth/passkeys',         /* Your account's passkeys (1.0.53) */
     ];
     $writes = [
         'directories' => '/api/directories',
@@ -471,7 +472,7 @@ if (isset($_GET['api'])) {
         'rbackup' => '/api/rbackup', 'lockouts' => '/api/lockouts', 'trial' => '/api/trial', 'net' => '/api/net', 'power' => '/api/power', 'ntp' => '/api/ntp',
         'console-login' => '/api/console-login',
         'selinux' => '/api/selinux',
-        'mfa' => '/api/auth/mfa',
+        'mfa' => '/api/auth/mfa', 'passkeys' => '/api/auth/passkeys',
         'sshkeys' => '/api/sshkeys', 'osusers' => '/api/osusers', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
         'portal-sso' => '/api/portal-sso',
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',

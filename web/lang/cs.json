@@ -54063,6 +54063,82 @@
   "huntd3d_1": {
    "source": "set the password of the backups first - a backup is never downloaded unlocked",
    "text": "nejdřív nastavte heslo záloh – záloha se nikdy nestahuje nezamčená"
+  },
+  "pkacc_1": {
+   "source": "Passkeys - Face ID, Touch ID",
+   "text": "Passkeys – Face ID, Touch ID"
+  },
+  "pkacc_2": {
+   "source": "A passkey gives the second step of signing in with the face, a finger or the PIN of this device - after the password, never instead of it. It is kept in the device (on an iPad and an iPhone in the iCloud Keychain, so on your other Apple devices too); the server has only its public half.",
+   "text": "Passkey dá druhý krok přihlášení obličejem, prstem nebo PINem tohoto zařízení – po hesle, nikdy místo něj. Je uložená v zařízení (na iPadu a iPhonu v Klíčence na iCloudu, takže i na vašich dalších zařízeních Apple); server má jen její veřejnou část."
+  },
+  "pkacc_3": {
+   "source": "Your second step is given another way now; a passkey added here takes its place.",
+   "text": "Druhý krok teď dáváte jiným způsobem; passkey přidaná zde ho nahradí."
+  },
+  "pkacc_4": {
+   "source": "Passkey",
+   "text": "Passkey"
+  },
+  "pkacc_5": {
+   "source": "Added",
+   "text": "Přidáno"
+  },
+  "pkacc_6": {
+   "source": "Rename it",
+   "text": "Přejmenovat"
+  },
+  "pkacc_7": {
+   "source": "Take it away? ",
+   "text": "Odebrat? "
+  },
+  "pkacc_8": {
+   "source": "Take away",
+   "text": "Odebrat"
+  },
+  "pkacc_9": {
+   "source": "No passkey yet.",
+   "text": "Zatím žádná passkey."
+  },
+  "pkacc_10": {
+   "source": "Add a passkey of this device",
+   "text": "Přidat passkey tohoto zařízení"
+  },
+  "pkacc_11": {
+   "source": "A passkey is added on the pages opened by their name over HTTPS (https://name/), not by an address.",
+   "text": "Passkey se přidává na stránkách otevřených přes jméno přes HTTPS (https://jméno/), ne přes adresu."
+  },
+  "pkacc_12": {
+   "source": "renamed",
+   "text": "přejmenováno"
+  },
+  "pkacc_13": {
+   "source": "the passkey is taken away",
+   "text": "passkey je odebraná"
+  },
+  "pkacc_14": {
+   "source": "the passkey is added",
+   "text": "passkey je přidaná"
+  },
+  "pkacc_15": {
+   "source": "give it a name",
+   "text": "dejte jí jméno"
+  },
+  "pkacc_16": {
+   "source": "there is no such passkey",
+   "text": "taková passkey tu není"
+  },
+  "pkacc_17": {
+   "source": "this device has a passkey of this account already",
+   "text": "toto zařízení už passkey tohoto účtu má"
+  },
+  "pkacc_18": {
+   "source": "that is the only one - the second step would be gone: add another first, or an administrator resets the second step",
+   "text": "je to jediná – druhý krok by zmizel: nejdřív přidejte jinou, nebo druhý krok resetuje administrátor"
+  },
+  "pkacc_19": {
+   "source": "a passkey as the second step is switched off on this server",
+   "text": "passkey jako druhý krok je na tomto serveru vypnutá"
   }
  },
  "patterns": {
@@ -73929,6 +74005,10 @@
   "phuntd3c_2": {
    "source": "a passkey ({0})",
    "text": "passkey ({0})"
+  },
+  "ppkacc_1": {
+   "source": "that is {0} passkeys - take one away first",
+   "text": "to je {0} passkeys – nejdřív jednu odeberte"
   }
  },
  "rich": {

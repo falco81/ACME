@@ -92,6 +92,12 @@ and the password are asked first, always, and the passkey is asked after them in
   person's other Apple devices have it too. The server keeps only its public part, its id and
   its counter - nothing secret.
 - **Signing in:** after the password, *Use Face ID / Touch ID* - one look.
+- **Your account → Passkeys - Face ID, Touch ID** (while `admin_2fa` and `admin_2fa_passkey` are
+  on): the account's passkeys - the name, the name of the pages it is for, when it was added and
+  last used; renamed in place (the pencil, Enter), taken away (the bin, asked in the row; the last
+  one stays - an administrator resets the second step instead), and *Add a passkey of this
+  device* for one more (an iPad and a Windows PC, say). An account giving its second step another
+  way may add one here too: the passkey then takes the place of that way. At most 20.
 - **Reset:** as for the other ways - *Accounts → Reset the second step*, or
   `acme --reset-2fa NAME` as root. The passkey on the device is left there (Settings → Passwords
   on an iPad) and no longer opens anything.

@@ -5,6 +5,9 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.53 - not released
+- **Your account → Passkeys - Face ID, Touch ID** (while a passkey is a way of the second step):
+  the account's passkeys - for which name, added, last used - renamed in place, taken away (never
+  the last one), and one of this device added; on the administration only.
 
 ## 1.0.52 - 2026-11-06
 - Pages: Backups → Download one here says to set the password first when there is none (an

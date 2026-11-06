@@ -280,6 +280,123 @@ $('signout').onclick = function () {
 };
 
 /* ---- the account signed in --------------------------------------------- */
+function meSecPasskeys() {
+  var sec = el('div', 'me-sec');
+  sec.appendChild(el('h3', '', 'Passkeys - Face ID, Touch ID'));
+  sec.appendChild(el('p', 'muted small', 'A passkey gives the second step of signing in with the face, a finger or the PIN of this device - after the password, never instead of it. It is kept in the device (on an iPad and an iPhone in the iCloud Keychain, so on your other Apple devices too); the server has only its public half.'));
+  var box = el('div', '');
+  var said = el('div', 'said');
+  sec.appendChild(box);
+  var draw = function (d) {
+    clear(box);
+    var keys = d.keys || [];
+    if (d.kind && d.kind !== 'passkey') {
+      box.appendChild(el('p', 'note small', 'Your second step is given another way now; a passkey added here takes its place.'));
+    }
+    if (keys.length) {
+      var t = el('table', 'rows pk-table');
+      var hr = el('tr');
+      ['Passkey', 'For', 'Added', 'Last used', ''].forEach(function (h) { hr.appendChild(el('th', h ? '' : 'rowtools', h)); });
+      var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+      var tb = el('tbody');
+      keys.forEach(function (k) {
+        var tr = el('tr');
+        var nc = el('td', '');
+        var nameSpan = noI18n(el('span', '', k.name || 'passkey'));
+        nc.appendChild(nameSpan);
+        tr.appendChild(nc);
+        tr.appendChild(noI18n(el('td', 'mono', k.host || '')));
+        tr.appendChild(stampCell(k.created));
+        tr.appendChild(stampCell(k.last_used));
+        var tools = el('td', 'rowtools');
+        var ed = iconButton('edit', 'Rename it');
+        ed.onclick = function () {
+          var inp = textBox(k.name || '', '', '');
+          inp.maxLength = 60;
+          clear(nc);
+          nc.appendChild(inp);
+          inp.focus();
+          inp.select();
+          var done = false;
+          var save = function () {
+            if (done) return;
+            done = true;
+            var v = inp.value.trim();
+            if (!v || v === k.name) { draw(d); return; }
+            api('passkeys', {action: 'rename', id: k.id, name: v}).then(function (r) { draw(r); toast('renamed', 'good'); })
+              .catch(function (e) { draw(d); oops(e); });
+          };
+          inp.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); save(); }
+            else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done = true; draw(d); }
+          });
+          inp.addEventListener('blur', save);
+        };
+        tools.appendChild(ed);
+        var del = iconButton('trash', 'Take it away');
+        del.onclick = function () {
+          /* asked in the row itself - the dialog of the account stays */
+          clear(tools);
+          tools.appendChild(el('span', 'small', 'Take it away? '));
+          var yes = cmdButton('Take away', 'trash', 'small danger');
+          var no = cmdButton('No', 'close', 'small');
+          yes.onclick = function () {
+            api('passkeys', {action: 'delete', id: k.id}).then(function (r) { draw(r); toast('the passkey is taken away', 'good'); })
+              .catch(function (e) { draw(d); oops(e); });
+          };
+          no.onclick = function () { draw(d); };
+          tools.appendChild(yes);
+          tools.appendChild(no);
+        };
+        tools.appendChild(del);
+        tr.appendChild(tools);
+        tb.appendChild(tr);
+      });
+      t.appendChild(tb);
+      box.appendChild(t);
+    } else if (!d.kind || d.kind === 'passkey') {
+      box.appendChild(el('p', 'muted small', 'No passkey yet.'));
+    }
+    var add = cmdButton('Add a passkey of this device', 'key', 'primary');
+    add.type = 'button';
+    if (!pkCan()) {
+      add.disabled = true;
+      box.appendChild(add);
+      box.appendChild(el('p', 'muted small', 'A passkey is added on the pages opened by their name over HTTPS (https://name/), not by an address.'));
+      box.appendChild(said);
+      return;
+    }
+    /* asked ahead, so the tap calls the device at once (Safari) */
+    var ready = null, readyAt = 0;
+    var ask = function () {
+      return api('passkeys', {action: 'add_begin'}).then(function (r) {
+        var o = r.publicKey;
+        o.challenge = pkBytes(o.challenge);
+        o.user.id = pkBytes(o.user.id);
+        o.excludeCredentials = (o.excludeCredentials || []).map(function (c) { return {type: c.type, id: pkBytes(c.id)}; });
+        return o;
+      });
+    };
+    ask().then(function (o) { ready = o; readyAt = Date.now(); }).catch(function () { });
+    add.onclick = function () {
+      add.disabled = true;
+      said.className = 'said';
+      said.textContent = '';
+      var o = (ready && Date.now() - readyAt < 240000) ? ready : null;
+      ready = null;
+      (o ? navigator.credentials.create({publicKey: o}) : ask().then(function (x) { return navigator.credentials.create({publicKey: x}); })).then(function (cr) {
+        return api('passkeys', {action: 'add_finish', name: pkDevice() + ' · ' + new Date().toLocaleDateString(),
+          clientDataJSON: pkText(cr.response.clientDataJSON), attestationObject: pkText(cr.response.attestationObject)});
+      }).then(function (r) { toast(r.message || 'the passkey is added', 'good'); draw(r); })
+        .catch(function (e) { add.disabled = false; pkFailed(said, e); });
+    };
+    box.appendChild(add);
+    box.appendChild(said);
+  };
+  box.appendChild(el('p', 'muted small', 'Reading…'));
+  api('passkeys').then(draw).catch(function (e) { clear(box); box.appendChild(el('p', 'said bad', String(e.message || e))); });
+  return sec;
+}
 function showMe() {
   modal('Your account', function (body) {
     /* Who, as isemon draws it: the initials, the name, the role and where
@@ -339,6 +456,10 @@ function showMe() {
       api('prefs', {lang: lang.value}).then(function () { location.reload(); }).catch(oops);
     };
     lsec.appendChild(formField('The language of these pages', lang));
+
+    /* Passkeys - Face ID, Touch ID (1.0.53): while a passkey is a way of the second step, the
+       account's own - listed, renamed, taken away, one of this device added. */
+    if (ME.passkeys_on) body.appendChild(meSecPasskeys());
 
     /* The performance meter in the header (1.0.48): a full administrator's, off unless chosen -
        its look and the style of its details, each card drawn from sample numbers. */
