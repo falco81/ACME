@@ -295,6 +295,10 @@ def _overview(h, s):
                          'ca_id': int(dca['id']) if dca else None},
             'contact_missing': DF.contact_missing(store),
             'by_state': by_state, 'total': sum(by_state.values()), 'soonest': soon,
+            # how many renew by themselves (1.0.52): Settings → Certificates said 0 always
+            'auto_renew': int(store.db.value("SELECT COUNT(*) FROM certs WHERE COALESCE(auto_renew, "
+                                             "0) <> 0 AND state NOT IN ('revoked', 'disabled')"
+                                             + sw, tuple(sa), 0) or 0),
             'expiring': int(store.db.value('SELECT COUNT(*) FROM certs WHERE not_after > ? AND '
                                            'not_after < ?' + sw, (t, t + days * 86400) + tuple(sa),
                                            0) or 0),

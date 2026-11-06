@@ -348,7 +348,7 @@ function cssVar(name, fallback) {
 function mono(text, cls) { return noI18n(el('span', 'mono' + (cls ? ' ' + cls : ''), text)); }
 function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
 /* A module's vendor: a word (Public CA, Generic) translated, a name (ACME, Microsoft) as it is (1.0.51) */
-var VENDOR_WORDS = ['Public CA', 'Protocol', 'Generic', 'Standards', 'Other', 'Own'];
+var VENDOR_WORDS = ['Public CA', 'Protocol', 'Generic', 'Standards', 'Other', 'Own', 'Connector'];
 function vendorEl(tag, cls, v) {
   return VENDOR_WORDS.indexOf(v) >= 0 ? el(tag, cls, v) : data(tag, cls, v);
 }

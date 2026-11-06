@@ -649,7 +649,9 @@ def _osup_go(daemon, what, ctx):
                     store.set_meta('host:osup:check:' + me, json.dumps(
                         dict(chk, state='running', asked=asked, began=time.time(), at=time.time(),
                              error='', lines=[])))
-                except ValueError as e:
+                except (ValueError, OSError) as e:
+                    # the root helper not there an answer too (1.0.52): asked again every 5 s for
+                    # a quarter of an hour, a line in the log each time
                     store.set_meta('host:osup:check:' + me, json.dumps(
                         dict(chk, state='failed', asked=asked, at=time.time(), error=str(e)[:300])))
                 return
@@ -671,7 +673,7 @@ def _osup_go(daemon, what, ctx):
             except ValueError as e:
                 _osup_end(store, plan, row, False, str(e))
         except Exception as e:                          # noqa: BLE001
-            log('the update of the system: %s' % e, 'warn')
+            log_sparing('osup-go', 'the update of the system: %s' % e, 'warn', every=600)
         finally:
             HOST_WORK['osup'] = False
     threading.Thread(target=go, name='acme-osup', daemon=True).start()

@@ -5,6 +5,13 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.52 - not released
+- Pages: Settings' find box is there on a phone too; Settings → Certificates says how many renew
+  by themselves (it said 0); a module's Connector group, the GHz of the cores and the API port's
+  help are in the page's language; a select in a dialog's row stays within it; row buttons wrap
+  in a column of their own only where there are five or more.
+- A look for system updates on a node without the root helper is said once, not asked again
+  every 5 s for a quarter of an hour (a line in the log each time); Network → Read it again says
+  the helper is not set up instead of a 500.
 - Passkeys: Ed25519 is offered only where this machine's openssl checks it (a FIPS one has
   none - a key of it locked the account out); a counter back to 0 after one above it is refused;
   odd answers are refused as wrong tries, not errors; each question is checked as it was taken;

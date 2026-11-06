@@ -454,7 +454,7 @@ function hpRing(pct, label, cls, size) {
 function hpTempCls(t) { return t >= 85 ? 'hot' : (t >= 70 ? 'warm' : 'ok'); }
 function hpSec(p, title) { var s = el('div', 'hp-sec'); if (title) s.appendChild(el('div', 'hp-h', title)); p.appendChild(s); return s; }
 function hpTd(tr, v, cls) { var td = el('td', cls || ''); if (v && v.nodeType) td.appendChild(v); else if (v !== null && v !== undefined) td.appendChild(noI18n(el('span', '', String(v)))); tr.appendChild(td); return td; }
-function hpGHz(m) { return m ? (m >= 1000 ? (m / 1000).toFixed(1) + ' GHz' : m + ' MHz') : ''; }
+function hpGHz(m) { return m ? (m >= 1000 ? hlDec(m / 1000, 1) + ' GHz' : m + ' MHz') : ''; }
 function hpPct(v) { return v === null || v === undefined ? '…' : Math.round(v) + ' %'; }
 function hpCpuTemp(x) { var t = ((x.temps || {}).cpu || [])[0]; return t ? t[1] : null; }
 function hpNoTemp(host, x) {
@@ -739,7 +739,7 @@ function hpTiles(p, k) {
       one.appendChild(top);
       one.appendChild(hlBar(c.busy));
       var bot = el('div', 'hp-core-bot muted small');
-      bot.appendChild(noI18n(el('span', '', c.mhz ? (c.mhz >= 1000 ? (c.mhz / 1000).toFixed(1) + ' GHz' : c.mhz + ' MHz') : '')));
+      bot.appendChild(noI18n(el('span', '', c.mhz ? (c.mhz >= 1000 ? hlDec(c.mhz / 1000, 1) + ' GHz' : c.mhz + ' MHz') : '')));
       var t = hlTemp(c.temp);
       if (t) bot.appendChild(t);
       one.appendChild(bot);

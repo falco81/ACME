@@ -59,6 +59,10 @@ def net_root(data, wait=60):
     """One request to the root helper (acme_web.py) and its answer - one at a
     time (1.0.146): "Read it again" on the pages during a job wrote over the
     job's request, or took its answer, and the job waited for nothing."""
+    if not WEB_DIR.is_dir():
+        # said as root_ask says it (1.0.52), not a 500 from os.open
+        raise FileNotFoundError('the root helper is not set up on this node (no %s) - install.sh '
+                                'puts it in' % WEB_DIR)
     with NET_ROOT_LOCK:
         ask_id = secrets.token_hex(8)
         data = dict(data, id=ask_id)

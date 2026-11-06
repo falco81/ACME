@@ -908,7 +908,9 @@
     .ctl-nav{position:static;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;
       overflow-y:hidden;max-height:none;padding:8px;gap:4px;margin-bottom:14px;
       -webkit-overflow-scrolling:touch}
-    .ctl-nav .ctl-navtop{display:none}
+    /* the find box kept on a phone (1.0.52): it was gone with the rail's top */
+    .ctl-nav .ctl-navtop{display:flex;flex:0 0 auto;min-width:160px}
+    .ctl-nav .ctl-navtop .ctl-pin{display:none}
     .ctl-nav .ctl-group{display:none}
     .ctl-nav button[data-pane]{width:auto;flex:none;white-space:nowrap;padding:7px 11px}
     .ctl-nav button[data-pane].on::before{display:none}
@@ -3801,7 +3803,7 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
   /* many buttons (1.0.51): wrapped in a narrow column, not over the row's name - seven of them
      made a cell as wide as the phone, and the names showed a letter each */
   td.rowtools { white-space: normal; min-width: 0; max-width: 44vw; }
-  td.rowtools:has(> :nth-child(4)) { min-width: min(44vw, 170px); }
+  td.rowtools:has(> :nth-child(5)) { min-width: min(44vw, 170px); }
   td.rowtools > .btn, td.rowtools > button { margin: 2px 0 2px 4px; }
 }
 /* A phone (1.0.51): a dialog's many buttons on one row that scrolls sideways - eight of them
@@ -3814,3 +3816,6 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
   .modal .foot .left { margin-right: 0; }
   .modal .body .card, .modal .body .ct-card { max-width: 100%; box-sizing: border-box; }
 }
+
+/* selects in a row of a dialog no wider than it (1.0.52): the DH select ran past the edge */
+.arow-c select, .arow-c .select { max-width: 100%; }

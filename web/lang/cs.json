@@ -1034,11 +1034,11 @@
   },
   "s0257": {
    "source": "A self-signed certificate for the VIP address",
-   "text": "Self-signed certifikát pro VIP adresu"
+   "text": "Certifikát podepsaný sám sebou pro VIP adresu"
   },
   "s0258": {
    "source": "A self-signed certificate for the web address",
-   "text": "Self-signed certifikát pro webovou adresu"
+   "text": "Certifikát podepsaný sám sebou pro webovou adresu"
   },
   "s0259": {
    "source": "A sent code is good for (seconds)",
@@ -11025,12 +11025,12 @@
    "text": "Textová verze tohoto mailu se skládá z textů výše."
   },
   "s2755": {
-   "source": "The port on 127.0.0.1 the web pages ask this daemon on. It has to be the same in",
-   "text": "Port na 127.0.0.1, na kterém se webové stránky ptají tohoto démona. Musí být stejný i v"
+   "source": "The port on 127.0.0.1 the web pages ask this daemon on. The pages read it from <code>/run/acme/api-port</code>, written when the daemon starts - a new one takes effect after <code>systemctl restart acme</code>.",
+   "text": "Port na 127.0.0.1, na kterém se webové stránky ptají tohoto démona. Stránky ho čtou z <code>/run/acme/api-port</code>, který démon zapíše při startu – nový platí až po <code>systemctl restart acme</code>."
   },
   "s2756": {
-   "source": "The port on 127.0.0.1 the web pages ask this daemon on. It has to be the same in acme-api.php.",
-   "text": "Port na 127.0.0.1, na kterém se webové stránky ptají tohoto démona. Musí být stejný i v acme-api.php."
+   "source": "The port on 127.0.0.1 the web pages ask this daemon on. The pages read it from <code>/run/acme/api-port</code>, written when the daemon starts - a new one takes effect after <code>systemctl restart acme</code>.",
+   "text": "Port na 127.0.0.1, na kterém se webové stránky ptají tohoto démona. Stránky ho čtou z <code>/run/acme/api-port</code>, který démon zapíše při startu – nový platí až po <code>systemctl restart acme</code>."
   },
   "s2757": {
    "source": "The private half as a file, for keeping somewhere safe. That it was downloaded, and by whom, is written into Events.",
@@ -19986,7 +19986,7 @@
   },
   "sc0014": {
    "source": "A self-signed certificate in one step: its names, its key and how long it lasts.",
-   "text": "Self-signed certifikát jedním krokem: jména, klíč a doba platnosti."
+   "text": "Certifikát podepsaný sám sebou jedním krokem: jména, klíč a doba platnosti."
   },
   "sc0015": {
    "source": "A key made here and a CSR for an authority acme does not speak to; the certificate it sends back is uploaded later.",
@@ -21310,7 +21310,7 @@
   },
   "sc0345": {
    "source": "A self-signed certificate",
-   "text": "Self-signed certifikát"
+   "text": "Certifikát podepsaný sám sebou"
   },
   "sc0346": {
    "source": "Signed by its own key: encrypted, but trusted by nobody until its certificate is put in their trust store. For tests, internal tools and devices that only want something.",
@@ -54176,7 +54176,7 @@
   },
   "p0031": {
    "source": "A self-signed certificate for {0}",
-   "text": "Self-signed certifikát pro {0}"
+   "text": "Certifikát podepsaný sám sebou pro {0}"
   },
   "p0032": {
    "source": "A test line went from {0} to {1}",
