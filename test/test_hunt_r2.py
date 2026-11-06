@@ -258,7 +258,7 @@ class Clocks(unittest.TestCase):
 class Alerts(unittest.TestCase):
     def test_kinds_and_late_rows(self):
         import inspect
-        src = inspect.getsource(E.alerts_evaluate)
+        src = inspect.getsource(E._alerts_evaluate)   # the body under its lock (1.0.52)
         self.assertIn('kind IN (%s) AND id > ?', src)
         self.assertIn('id <= ?', src)
         self.assertIn("event_seen", src)
