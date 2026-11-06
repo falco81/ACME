@@ -3816,6 +3816,7 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
     justify-content: flex-start;    /* overflowing to the left could not be scrolled to */
     -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
   .modal .foot > .btn, .modal .foot > button { flex: 0 0 auto; }
+  .modal .foot { flex-shrink: 0; }   /* not squeezed by the dialog's column (1.0.52) */
   .modal .foot .left { margin-right: 0; }
   .modal .body .card, .modal .body .ct-card { max-width: 100%; box-sizing: border-box; }
 }

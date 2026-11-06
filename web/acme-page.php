@@ -228,7 +228,9 @@ function acme_guard_post(): void
        an Origin of another site (1.0.101): refused as a cross-site one. */
     $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
     $foreign = false;
-    if ($from === '' && $origin !== '' && $origin !== 'null') {
+    if ($from === '' && $origin === 'null') {
+        $foreign = true;            // a sandboxed or data: page of an old browser (1.0.52)
+    } elseif ($from === '' && $origin !== '') {
         $oh = strtolower((string) parse_url($origin, PHP_URL_HOST));
         $op = parse_url($origin, PHP_URL_PORT);
         $hh = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));

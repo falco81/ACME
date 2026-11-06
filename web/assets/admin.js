@@ -1245,6 +1245,9 @@ $('ctl-find').addEventListener('input', function () {
   var box = $('ctl-found');
   clear(box);
   if (!want || !SETTINGS) { box.hidden = true; return; }
+  /* on a phone the list is fixed below the box, wherever the page has scrolled (1.0.52) */
+  if (window.innerWidth <= 980) box.style.top = Math.round($('ctl-find').getBoundingClientRect().bottom + 4) + 'px';
+  else box.style.top = '';
   // In the page's language as well (1.0.61): a word seen on screen in Czech
   // found nothing.
   var tr = function (x) {
@@ -1300,6 +1303,7 @@ $('ctl-find').addEventListener('keydown', function (e) {
   else if (e.key === 'Enter' && hits.length) { e.preventDefault(); hits[0].click(); }
   else if (e.key === 'Escape') { $('ctl-find').value = ''; $('ctl-found').hidden = true; }
 });
+window.addEventListener('scroll', function () { if (window.innerWidth <= 980 && $('ctl-found')) $('ctl-found').hidden = true; }, {passive: true});
 $('ctl-found').addEventListener('keydown', function (e) {
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
   var hits = Array.prototype.slice.call($('ctl-found').querySelectorAll('.ctl-hit'));
@@ -11593,7 +11597,8 @@ function drawRbTop() {
   explain(dl, 'A backup made now, saved on the computer you are sitting at - locked with the password as the others.');
   dl.onclick = function () {
     if (!d.locked) {
-      confirmThen('Download a backup that is not locked?', 'No password of the backups is set: the file will hold <b>every private key</b> readable. Set the password first unless you know where the file goes.', 'Download it', function () { fileGet('?api=rbackup-download'); }, false);
+      /* never given unlocked (the daemon refuses it since 1.0.136): said here, not offered (1.0.52) */
+      toast('set the password of the backups first - a backup is never downloaded unlocked', 'bad');
       return;
     }
     toast('the backup is being made - the download starts when it is ready', 'good');

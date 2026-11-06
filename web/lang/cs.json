@@ -11024,14 +11024,6 @@
    "source": "The plain text version of this mail is made from the texts above.",
    "text": "Textová verze tohoto mailu se skládá z textů výše."
   },
-  "s2755": {
-   "source": "The port on 127.0.0.1 the web pages ask this daemon on. The pages read it from <code>/run/acme/api-port</code>, written when the daemon starts - a new one takes effect after <code>systemctl restart acme</code>.",
-   "text": "Port na 127.0.0.1, na kterém se webové stránky ptají tohoto démona. Stránky ho čtou z <code>/run/acme/api-port</code>, který démon zapíše při startu – nový platí až po <code>systemctl restart acme</code>."
-  },
-  "s2756": {
-   "source": "The port on 127.0.0.1 the web pages ask this daemon on. The pages read it from <code>/run/acme/api-port</code>, written when the daemon starts - a new one takes effect after <code>systemctl restart acme</code>.",
-   "text": "Port na 127.0.0.1, na kterém se webové stránky ptají tohoto démona. Stránky ho čtou z <code>/run/acme/api-port</code>, který démon zapíše při startu – nový platí až po <code>systemctl restart acme</code>."
-  },
   "s2757": {
    "source": "The private half as a file, for keeping somewhere safe. That it was downloaded, and by whom, is written into Events.",
    "text": "Soukromá polovina jako soubor k bezpečnému uložení. Že byl stažen a kým, se zapíše do Událostí."
@@ -54067,6 +54059,10 @@
   "huntd3_1": {
    "source": "other names need approval: ask for a new certificate with them - this one is renewed as it is",
    "text": "jiná jména potřebují schválení: požádejte o nový certifikát s nimi – tento se obnovuje tak, jak je"
+  },
+  "huntd3d_1": {
+   "source": "set the password of the backups first - a backup is never downloaded unlocked",
+   "text": "nejdřív nastavte heslo záloh – záloha se nikdy nestahuje nezamčená"
   }
  },
  "patterns": {
@@ -73925,6 +73921,14 @@
   "phuntd1_2": {
    "source": "{0} sent more than {1} lines",
    "text": "{0} poslal víc než {1} řádků"
+  },
+  "phuntd3c_1": {
+   "source": "{0} cannot look for updates",
+   "text": "{0} nemůže hledat aktualizace"
+  },
+  "phuntd3c_2": {
+   "source": "a passkey ({0})",
+   "text": "passkey ({0})"
   }
  },
  "rich": {
@@ -74373,8 +74377,8 @@
    "text": "Port na 127.0.0.1, na kterém se webové stránky ptají tohoto démona. Musí být stejný i v <code>acme-api.php</code>."
   },
   "r0112": {
-   "source": "The port on 127.0.0.1 the web pages ask this daemon on. The pages read it from <code>/run/acme/api-port</code>, written when the daemon starts.",
-   "text": "Port na 127.0.0.1, na kterém se webové stránky ptají tohoto démona. Stránky ho čtou z <code>/run/acme/api-port</code>, který démon zapíše při startu."
+   "source": "The port on 127.0.0.1 the web pages ask this daemon on. The pages read it from <code>/run/acme/api-port</code>, written when the daemon starts - a new one takes effect after <code>systemctl restart acme</code>.",
+   "text": "Port na 127.0.0.1, na kterém se webové stránky ptají tohoto démona. Stránky ho čtou z <code>/run/acme/api-port</code>, který démon zapíše při startu – nový platí až po <code>systemctl restart acme</code>."
   },
   "r0113": {
    "source": "The primary DNS server of the zone, <code>ns1.example.cz</code> or with a port <code>10.0.0.53:53</code>.",

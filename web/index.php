@@ -89,6 +89,16 @@ function acme_sso_sign_in(array $info): string
 if (isset($_GET['api'])) {
     $what = (string) $_GET['api'];
     $post = $_SERVER['REQUEST_METHOD'] === 'POST';
+    // the reads from another page refused, as the admin pages' (1.0.52)
+    if (!$post) {
+        $gf = (string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '');
+        if ($gf !== '' && $gf !== 'same-origin' && $gf !== 'none') {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'that request did not come from this page']);
+            exit;
+        }
+    }
     if ($what === 'lang' && !$post) {
         acme_serve_lang();
     }
