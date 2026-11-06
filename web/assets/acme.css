@@ -2949,7 +2949,7 @@ body.mfa-on .signin{padding-top:24px}
 /* A change on trial (1.0.137). */
 .trials { margin: 8px 16px 0; display: flex; flex-direction: column; gap: 8px; }
 /* What waits for a person (1.0.54): on every page until it is done - as isemon's band. */
-.attention { margin: 10px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.attention { margin: 0 0 16px; display: flex; flex-direction: column; gap: 10px; }
 .att { display: flex; gap: 14px; align-items: flex-start; border: 1px solid var(--warn);
   border-left: 4px solid var(--warn); border-radius: 10px; padding: 14px 16px 14px 18px;
   background: linear-gradient(90deg, rgba(210,153,34,.14), rgba(210,153,34,.04) 70%); }

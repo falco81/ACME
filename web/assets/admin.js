@@ -159,6 +159,7 @@ function paintHeader(s) {
   pill.lastChild.textContent = inMaint ? 'in maintenance' : (probs ? 'running, with trouble' : 'running');
   pill.title = inMaint ? 'This node is in maintenance: it renews and puts in place nothing until it is back in service.'
     : (probs ? num(probs) + ' problem(s), listed under the header.' : 'The daemon answers and has nothing to complain about.');
+  if ((s.attention || []).length) pill.title += ' ' + num(s.attention.length) + ' step(s) wait for a person: Settings → Upgrades and maintenance.';
   explainWhatWasDrawn(pill.parentNode);
   var pr = $('problems');
   clear(pr);
@@ -184,6 +185,14 @@ function drawAttention(s) {
   var host = $('attention');
   if (!host) return;
   host._s = s;
+  /* In Settings -> Upgrades and maintenance; its menu item counts them
+     (every one, "Not now" or not) so it is seen from anywhere. */
+  var badge = $('att-badge'), all = (s && s.attention) || [];
+  if (badge) {
+    badge.textContent = all.length ? String(all.length) : '';
+    badge.hidden = !all.length;
+    badge.classList.toggle('bad', all.some(function (i) { return i.level === 'bad'; }));
+  }
   /* "Not now" hides one for this browser for a day - it comes back while not done. */
   var later = attLater(), now = Date.now();
   var list = ((s && s.attention) || []).filter(function (i) {

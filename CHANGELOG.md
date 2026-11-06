@@ -7,8 +7,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 ## 1.0.54 - not released
 - **What waits for a person**: what acme cannot do by itself - a command to run as root after an
   update, SELinux switched off (seen enforcing, now permissive or disabled), the root helper not
-  set up, nginx's file older than the pages - is shown at the top of every page of every node's
-  until it is done, red or yellow, with the command to copy, a way to its part of Settings and "Not now" (a day, in this browser) - as isemon's band;
+  set up, nginx's file older than the pages - is shown in Settings → Upgrades and maintenance (a red count on
+  its menu item, the header's pill) for every node until it is done, red or yellow, with the command to copy, a way to its part of Settings and "Not now" (a day, in this browser) - as isemon's band;
   also in `acme status`, the console, the events and the alerts (mail, SNMP; Settings → Alerts →
   A step waiting for a person, on). A release that needs a step by hand adds one check
   (docs/things-to-do-by-hand.md).

@@ -706,7 +706,6 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <div id="offline" class="offline" hidden></div>
 <div id="phpsafety" class="offline" hidden></div>
 <div id="problems" class="offline warnish" hidden></div>
-<div id="attention" class="attention" hidden role="alert"></div>
 <div id="trials" class="trials" hidden></div>
 
 <div class="tabs" role="tablist">
@@ -815,7 +814,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <button type="button" data-pane="isemon" data-icon="pulse" title="Sending the events of this server to isemon, in the shape isemon already reads.">isemon</button>
     <button type="button" class="fulladmin-only" data-pane="siem" data-icon="log" title="Every event and every sign-in to a syslog server or a SIEM - UDP, TCP or TLS; JSON, CEF or RFC 5424.">Syslog and SIEM</button>
     <button type="button" class="fulladmin-only" data-pane="osup" data-icon="download" title="The operating system's packages updated, one node at a time, the VIP address moved out of the way first; a restart offered when one is needed.">System updates</button>
-    <button type="button" class="fulladmin-only" data-pane="upgrade" data-icon="up" title="A new version, put in from here; nodes in and out of service.">Upgrades and maintenance</button>
+    <button type="button" class="fulladmin-only" data-pane="upgrade" data-icon="up" title="A new version, put in from here; nodes in and out of service.">Upgrades and maintenance <span class="nav-badge bad" id="att-badge" hidden title="Steps waiting for a person - listed at the top of this part"></span></button>
     <button type="button" data-pane="about" data-icon="info" title="Version, what is running, the language, the debug log.">About</button>
   </nav>
 
@@ -1643,6 +1642,7 @@ acme --ha-join /root/acme-join-acme1.json --node-name acme2</pre>
         upgraded one at a time - each taken out of service first, so the load balancer and the
         VIP address go to the other, and brought back only once it answers again. The command
         line (install.sh --upgrade) works as it always has.</p></div>
+    <div id="attention" class="attention" hidden role="alert"></div>
     <div class="card full">
       <h2>The nodes</h2>
       <p class="note">A node in maintenance renews and deploys nothing and its /healthz says

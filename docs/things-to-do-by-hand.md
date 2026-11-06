@@ -6,14 +6,15 @@ Since 1.0.54 each of these is said in one place, the same way, until it is done.
 
 ## Where it is said
 
-- **At the top of every page** of the administration, under the header: a red
+- **Settings → Upgrades and maintenance**, at the top of that part: a red
   band (something is off) or a yellow one (something is older than it should
   be), one per thing and node - what it is, on which node, why it matters, and
   the command to run as root with a **Copy the command** button. **Open it**
   goes to the part of Settings it belongs to; **Not now** hides it in this
   browser for a day (it comes back while it is not done). The band looks as
-  isemon's. The state pill in the header says "running, with trouble" while
-  one is there.
+  isemon's. The menu item *Upgrades and maintenance* carries a red count of
+  them, and the state pill in the header says "running, with trouble" while
+  one is there (its tooltip says where to look).
 - **`acme status`** on the command line and the **console** (`acme run`) list
   them too, with the command.
 - **Alerts and reports** (Settings → Alerts and reports → *A step waiting for a

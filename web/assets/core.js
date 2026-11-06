@@ -1719,7 +1719,7 @@ function dressButtons(where) {
       if (b.dataset.dressed) return;
       b.dataset.dressed = '1';
       /* A count chip inside a tab goes back on after the icon rewrote it. */
-      var keep = Array.prototype.slice.call(b.querySelectorAll('.count, .me-name'));
+      var keep = Array.prototype.slice.call(b.querySelectorAll('.count, .me-name, .nav-badge'));
       keep.forEach(function (k) { k.remove(); });
       var words = b.textContent.trim();
       if (keep.length && keep[0].classList.contains('me-name')) {

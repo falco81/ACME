@@ -1289,7 +1289,7 @@ SAYS = {
     'alerts_repl_behind_mb': 'The replication running, but the other node this many MB behind. 0: never (only a replication that stopped is mailed).',
     'alerts_selinux': 'A node where the SELinux card finds something not as acme needs it - a refusal, a label, a boolean, the module.',
     'alerts_hisec': 'What Settings → High security finds less safe than it could be - said once a day while it stays so.',
-    'alerts_hand': 'What acme cannot do by itself and waits for a person - a command to run as root after an update, SELinux switched off, the root helper not there. Also shown at the top of every page.',
+    'alerts_hand': 'What acme cannot do by itself and waits for a person - a command to run as root after an update, SELinux switched off, the root helper not there. Also shown in Settings → Upgrades and maintenance.',
     'alerts_sso': 'Each sign-in by the load balancer or WAF the enrolment pages refuse, as it is refused - wrong key, not from a balancer, a name the directory does not know.',
     'alerts_url': 'Where the links in the mails lead, <code>https://acme.example.cz/admin/</code>. '
                   'Empty: this machine’s name.',

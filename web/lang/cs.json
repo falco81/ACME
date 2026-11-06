@@ -54177,8 +54177,8 @@
    "text": "Krok, který čeká na člověka"
   },
   "hand_10": {
-   "source": "What acme cannot do by itself and waits for a person - a command to run as root after an update, SELinux switched off, the root helper not there. Also shown at the top of every page.",
-   "text": "Co acme nezvládne samo a čeká na člověka - příkaz, který je po aktualizaci třeba spustit jako root, vypnutý SELinux, chybějící pomocník roota. Ukazuje se i nahoře na každé stránce."
+   "source": "What acme cannot do by itself and waits for a person - a command to run as root after an update, SELinux switched off, the root helper not there. Also shown in Settings → Upgrades and maintenance.",
+   "text": "Co acme nezvládne samo a čeká na člověka - příkaz, který je po aktualizaci třeba spustit jako root, vypnutý SELinux, chybějící pomocník roota. Ukazuje se i v Nastavení → Aktualizace a údržba."
   },
   "hand2_1": {
    "source": "This band goes by itself within a minute once it is done.",
@@ -54187,6 +54187,10 @@
   "hand2_2": {
    "source": "Hidden in this browser for a day; it comes back while it is not done.",
    "text": "Skryto v tomto prohlížeči na den; vrátí se, dokud to nebude hotové."
+  },
+  "hand3_1": {
+   "source": "Steps waiting for a person - listed at the top of this part",
+   "text": "Kroky, které čekají na člověka - jsou nahoře v této části"
   }
  },
  "patterns": {
@@ -74065,6 +74069,10 @@
   "phand2_1": {
    "source": "As root, on {0}:",
    "text": "Jako root na uzlu {0}:"
+  },
+  "phand3_1": {
+   "source": "{0} step(s) wait for a person: Settings → Upgrades and maintenance.",
+   "text": "{0} krok(ů) čeká na člověka: Nastavení → Aktualizace a údržba."
   }
  },
  "rich": {

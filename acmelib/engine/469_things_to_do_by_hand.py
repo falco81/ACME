@@ -2,7 +2,7 @@
 # itself - a command to run as root on a node after an update, SELinux switched off behind its
 # back, nginx's file older than the pages it serves, the root helper not there. Each node looks
 # once a minute with the checks below (cheap ones: files and /sys, no program run), keeps what
-# it found in a row of its own ('attention:NODE'), and every page shows every node's at the top
+# it found in a row of its own ('attention:NODE'), and Settings → Upgrades and maintenance shows every node's at the top
 # in a band that does not go away until the thing is done - with the command to run, to copy.
 # The same go into the alerts (mail, SNMP) as problems of their own.
 #
