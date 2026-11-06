@@ -54063,6 +54063,10 @@
   "huntd3b_1": {
    "source": "the other node's own rebuild failed half way - its tables are not whole: it is rebuilt from this node first, never this one from it",
    "text": "vlastní obnova druhého uzlu selhala v půlce – jeho tabulky nejsou celé: nejdřív se obnoví on z tohoto uzlu, nikdy tento z něj"
+  },
+  "huntd3_1": {
+   "source": "other names need approval: ask for a new certificate with them - this one is renewed as it is",
+   "text": "jiná jména potřebují schválení: požádejte o nový certifikát s nimi – tento se obnovuje tak, jak je"
   }
  },
  "patterns": {
