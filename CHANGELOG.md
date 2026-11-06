@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.56 - not released
+
 ## 1.0.55 - 2026-11-06
 - To be done by hand → Done lately: **Clear** at the right of its heading - exactly the rows shown
   are taken (one come meanwhile stays), never what is still to be done; said in the events. On the
