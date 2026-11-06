@@ -5,13 +5,15 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.54 - not released
-- **What waits for a person**: what acme cannot do by itself - a command to run as root after an
-  update, SELinux switched off (seen enforcing, now permissive or disabled), the root helper not
-  set up, nginx's file older than the pages - is shown in Settings → Upgrades and maintenance (a red count on
-  its menu item, the header's pill) for every node until it is done, red or yellow, with the command to copy, a way to its part of Settings and "Not now" (a day, in this browser) - as isemon's band;
-  also in `acme status`, the console, the events and the alerts (mail, SNMP; Settings → Alerts →
-  A step waiting for a person, on). A release that needs a step by hand adds one check
-  (docs/things-to-do-by-hand.md).
+- **To be done by hand** (Settings → Upgrades and maintenance, as upsmon's): what acme cannot do
+  by itself - a command to run as root after an update, SELinux switched off (seen enforcing, now
+  permissive or disabled), the root helper not set up, nginx's file older than the pages - one band
+  per thing and node with the command to copy and since when it waits; Look again (every node at
+  once) for what is checked, Done (who, when) for a step that cannot be; Done lately under them. A
+  count on Upgrades in the menu (a red ring on its icon), the header's pill, `acme --status`, the
+  console, the events and the alerts (mail, SNMP; Settings → Alerts → A step waiting for a person,
+  on). The problems under the header stay as they were. A release that needs a step by hand adds
+  one check (docs/things-to-do-by-hand.md).
 
 ## 1.0.53 - 2026-11-06
 - The performance meter in a cluster: the graphs of every node drawn with one delay, so they move

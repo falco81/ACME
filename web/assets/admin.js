@@ -177,36 +177,69 @@ function paintHeader(s) {
    acme cannot take by itself - a command as root after an update, SELinux
    switched off, the root helper not there. Every node's, on every page,
    until it is done; the command to copy. */
-var ATT_LATER = 'acme.att.later';
-function attLater() {
-  try { return JSON.parse(localStorage.getItem(ATT_LATER) || '{}') || {}; } catch (e) { return {}; }
-}
+var ATT = {done: null, s: null};
 function drawAttention(s) {
   var host = $('attention');
   if (!host) return;
-  host._s = s;
-  /* In Settings -> Upgrades and maintenance; its menu item counts them
-     (every one, "Not now" or not) so it is seen from anywhere. */
-  var badge = $('att-badge'), all = (s && s.attention) || [];
+  ATT.s = s;
+  var list = (s && s.attention) || [];
+  /* Counted beside Upgrades in the menu, red when one is red. */
+  var badge = $('att-badge');
   if (badge) {
-    badge.textContent = all.length ? String(all.length) : '';
-    badge.hidden = !all.length;
-    badge.classList.toggle('bad', all.some(function (i) { return i.level === 'bad'; }));
+    badge.textContent = list.length ? String(list.length) : '';
+    badge.hidden = !list.length;
+    badge.classList.toggle('bad', list.some(function (i) { return i.level === 'bad'; }));
   }
-  /* "Not now" hides one for this browser for a day - it comes back while not done. */
-  var later = attLater(), now = Date.now();
-  var list = ((s && s.attention) || []).filter(function (i) {
-    return !(later[i.id + '@' + i.node] > now);
-  });
-  var sig = JSON.stringify(list.map(function (i) { return [i.id, i.node, i.title, i.words, i.cmd]; }));
-  if (host._sig === sig) return;
-  host._sig = sig;
+  var sig = JSON.stringify(list.map(function (i) { return [i.id, i.node, i.title, i.words, i.cmd, i.since]; }));
+  if (host._sig !== sig) {
+    var first = host._sig === undefined;
+    host._sig = sig;
+    drawAttItems(host, list);
+    if (!first && !ATT.quiet && paneLive('upgrade')) attLoad();   /* what went is in Done lately */
+  }
+  attCard();
+}
+function attCard() {
+  var card = $('att-card');
+  if (!card) return;
+  var list = (ATT.s && ATT.s.attention) || [];
+  card.hidden = false;
+  card.classList.toggle('bad', list.some(function (i) { return i.level === 'bad'; }));
+  card.classList.toggle('warn', !!list.length);
+}
+function attLoad() {
+  if (!ADMIN) return;
+  api('attention').then(attGot).catch(function () { });
+}
+function attGot(d) {
+  if (!d) return;
+  ATT.done = d.done || [];
+  if (ATT.s && d.items) { ATT.s.attention = d.items; ATT.quiet = true; drawAttention(ATT.s); ATT.quiet = false; }
+  var box = $('att-done');
+  if (box) {
+    clear(box);
+    if (ATT.done.length) {
+      box.appendChild(el('div', 'att-done-h', 'Done lately'));
+      box.appendChild(listTable(['What', 'Node', 'How', 'Who', {words: 'When', cls: 'r'}], ATT.done, function (x) {
+        var tr = el('tr');
+        tr.appendChild(el('td', '', x.what || ''));
+        var n = el('td', 'mono', x.node || ''); n.setAttribute('data-no-i18n', ''); tr.appendChild(n);
+        tr.appendChild(el('td', '', x.how === 'done' ? 'done' : 'gone by itself'));
+        var w = el('td', '', x.who || '\u2013'); w.setAttribute('data-no-i18n', ''); tr.appendChild(w);
+        tr.appendChild(stampCell(x.at, 'r'));
+        return tr;
+      }, 'rows'));
+    }
+  }
+  attCard();
+}
+function drawAttItems(host, list) {
   clear(host);
-  host.hidden = !list.length;
+  if (!list.length) { host.appendChild(el('div', 'att-none', 'Nothing is to be done by hand.')); return; }
   list.forEach(function (i) {
     var row = el('div', 'att' + (i.level === 'bad' ? ' bad' : ''));
     var mark = el('div', 'att-mark');
-    mark.innerHTML = iconMarkup(i.level === 'bad' ? 'close' : 'bell');
+    mark.innerHTML = iconMarkup(i.level === 'bad' ? 'close' : 'flag');
     row.appendChild(mark);
     var body = el('div', 'att-body');
     var head = el('div', 'att-title', i.title || '');
@@ -226,25 +259,37 @@ function drawAttention(s) {
       line.appendChild(cp);
       body.appendChild(line);
     }
-    body.appendChild(el('div', 'att-foot', 'This band goes by itself within a minute once it is done.'));
+    body.appendChild(el('div', 'att-foot', i.kind === 'manual' ? 'Once it is done, press Done.'
+      : 'This band goes by itself within a minute once it is done.'));
+    if (i.since) body.appendChild(el('div', 'att-when', 'waits since ' + stamp(i.since)));
     row.appendChild(body);
     var tools = el('div', 'att-tools');
-    if (i.pane && $('pane-' + i.pane)) {
+    if (i.kind === 'manual') {
+      var dn = cmdButton('Done', 'check', 'small');
+      dn.onclick = function () {
+        dn.disabled = true;
+        api('attention', {action: 'done', id: i.id, node: i.node}).then(function (d) { attGot(d); toast('written down as done', 'good'); })
+          .catch(function (e) { dn.disabled = false; oops(e); });
+      };
+      tools.appendChild(dn);
+    } else {
+      var lk = cmdButton('Look again', 'refresh', 'small');
+      lk.onclick = function () {
+        lk.disabled = true;
+        api('attention', {action: 'look'}).then(function (d) {
+          /* the other nodes look within their next turn (5 s) */
+          attGot(d);
+          setTimeout(attLoad, 6000);
+          toast('looked again', 'good');
+        }).catch(function (e) { lk.disabled = false; oops(e); });
+      };
+      tools.appendChild(lk);
+    }
+    if (i.pane && i.pane !== 'upgrade' && $('pane-' + i.pane)) {
       var go = cmdButton('Open it', 'gear', 'small');
       go.onclick = function () { showTab('settings'); showPane(i.pane); };
       tools.appendChild(go);
     }
-    var nn = cmdButton('Not now', 'close', 'small');
-    nn.title = 'Hidden in this browser for a day; it comes back while it is not done.';
-    nn.onclick = function () {
-      var l = attLater();
-      Object.keys(l).forEach(function (k) { if (!(l[k] > Date.now())) delete l[k]; });
-      l[i.id + '@' + i.node] = Date.now() + 86400000;
-      try { localStorage.setItem(ATT_LATER, JSON.stringify(l)); } catch (e) { }
-      host._sig = null;
-      drawAttention(host._s);
-    };
-    tools.appendChild(nn);
     row.appendChild(tools);
     host.appendChild(row);
   });
@@ -1394,7 +1439,7 @@ function showPane(name) {
   if (name === 'texts') loadTexts();
   if (name === 'isemon') loadIsemon();
   if (name === 'about') drawAbout();
-  if (name === 'upgrade') loadUpgrade();
+  if (name === 'upgrade') { loadUpgrade(); attLoad(); }
   if (name === 'web') loadWeb();
   if (name === 'fw') loadFw();
   if (name === 'portal') { $('portal-url').textContent = location.protocol + '//' + location.host + '/'; loadArt(); }

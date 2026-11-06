@@ -445,7 +445,7 @@ if (isset($_GET['api'])) {
         'suggest' => '/api/suggest', 'mail' => '/api/mail',
         'log' => '/api/log', 'db' => '/api/db', 'whoami' => '/api/auth/whoami',
         'export' => '/api/export', 'my-settings' => '/api/auth/settings', 'ha' => '/api/ha',
-        'upgrade' => '/api/upgrade', 'web' => '/api/web',
+        'upgrade' => '/api/upgrade', 'web' => '/api/web', 'attention' => '/api/attention',
         'firewall' => '/api/firewall', 'ha-history' => '/api/ha/history',
         'art' => '/api/portal/art', 'mailq' => '/api/mailq', 'texts' => '/api/texts', 'mailq-one' => '/api/mailq/one', 'software' => '/api/software',
         'rbackup' => '/api/rbackup', 'lockouts' => '/api/lockouts', 'net' => '/api/net', 'power' => '/api/power', 'ntp' => '/api/ntp',
@@ -467,7 +467,7 @@ if (isset($_GET['api'])) {
         'sessions' => '/api/sessions', 'db' => '/api/db', 'import' => '/api/import',
         'password' => '/api/auth/password', 'prefs' => '/api/auth/prefs',
         'columns' => '/api/auth/columns', 'my-settings' => '/api/auth/settings',
-        'ha' => '/api/ha', 'mail' => '/api/mail', 'upgrade' => '/api/upgrade', 'web' => '/api/web', 'firewall' => '/api/firewall',
+        'ha' => '/api/ha', 'mail' => '/api/mail', 'upgrade' => '/api/upgrade', 'attention' => '/api/attention', 'web' => '/api/web', 'firewall' => '/api/firewall',
         'art' => '/api/portal/art', 'mailq' => '/api/mailq', 'texts' => '/api/texts',
         'rbackup' => '/api/rbackup', 'lockouts' => '/api/lockouts', 'trial' => '/api/trial', 'net' => '/api/net', 'power' => '/api/power', 'ntp' => '/api/ntp',
         'console-login' => '/api/console-login',
@@ -1642,7 +1642,16 @@ acme --ha-join /root/acme-join-acme1.json --node-name acme2</pre>
         upgraded one at a time - each taken out of service first, so the load balancer and the
         VIP address go to the other, and brought back only once it answers again. The command
         line (install.sh --upgrade) works as it always has.</p></div>
-    <div id="attention" class="attention" hidden role="alert"></div>
+    <div class="card full att-card" id="att-card">
+      <h2>To be done by hand</h2>
+      <p class="note">What acme cannot do by itself and somebody has to - a step a new version
+        needs on the command line, what was switched off behind its back (SELinux), the root
+        helper not set up. Kept here, counted beside Upgrades in the menu, said in the header,
+        on the command line (acme --status), in the console and by the alerts until it is done.
+        One that can be checked goes by itself once it is so.</p>
+      <div id="attention" class="attention" role="alert"></div>
+      <div id="att-done"></div>
+    </div>
     <div class="card full">
       <h2>The nodes</h2>
       <p class="note">A node in maintenance renews and deploys nothing and its /healthz says

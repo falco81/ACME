@@ -6,29 +6,33 @@ Since 1.0.54 each of these is said in one place, the same way, until it is done.
 
 ## Where it is said
 
-- **Settings → Upgrades and maintenance**, at the top of that part: a red
-  band (something is off) or a yellow one (something is older than it should
-  be), one per thing and node - what it is, on which node, why it matters, and
-  the command to run as root with a **Copy the command** button. **Open it**
-  goes to the part of Settings it belongs to; **Not now** hides it in this
-  browser for a day (it comes back while it is not done). The band looks as
-  isemon's. The menu item *Upgrades and maintenance* carries a red count of
-  them, and the state pill in the header says "running, with trouble" while
-  one is there (its tooltip says where to look).
-- **`acme status`** on the command line and the **console** (`acme run`) list
-  them too, with the command.
+- **Settings → Upgrades and maintenance → To be done by hand** (the card is
+  always there; green "Nothing is to be done by hand." when nothing is): one
+  band per thing and node, red (something is off) or yellow - what it is, on
+  which node, why it matters, the command to run as root with **Copy**, and
+  since when it waits. A band that can be checked has **Look again** (every
+  node looks at once - this one now, the others within 5 s) and goes by itself;
+  a step that cannot be checked has **Done** (who pressed it and when are
+  kept). **Open it** goes to the part of Settings it belongs to.
+  **Done lately** under them: what went away, on which node, how (done, or
+  gone by itself), who, when.
+- **The menu**: a count on *Upgrades and maintenance* - a red ring on its icon
+  while the menu is shut. The header's pill says "running, with trouble" and
+  its tooltip says where to look. The other problems stay under the header as
+  before.
+- **`acme --status`** on the command line and the **console** (`acme run`)
+  list them too, with the command.
 - **Alerts and reports** (Settings → Alerts and reports → *A step waiting for a
   person*, on by default): a mail and an SNMP trap, as any other problem, and a
   mail again when it is done.
-- **Events**: when one appears, a line "waits for a person on NODE: …".
-
-It goes away by itself: the check finds the thing done the next time it looks
-(within a minute) - nothing is clicked away.
+- **Events**: "waits for a person on NODE: …", and "done" / "gone by itself"
+  when it goes.
 
 ## What is checked
 
 Each node checks itself once a minute - only files and `/sys`, no program run -
-and keeps what it found in its own row of the database (`attention:NODE`), so
+and keeps what it found in its own row of the database (`attention:NODE`; what
+went away in `handlog:NODE`), so
 every node's is seen from any node's pages. A node gone for two days says
 nothing any more.
 
@@ -56,6 +60,20 @@ has not taken it yet.
 ```
 
 It is wanted while `file` is there and does not contain `has`.
+
+**A step no check can see** (somebody must say it was done): `'manual': True`
+and no `file` - shown until **Done** is pressed (kept in `handdone:ID:NODE`),
+on a node where `if_file` is there when it is given (an install, not a test):
+
+```python
+{'id': 'run-new-step', 'manual': True, 'if_file': '/etc/systemd/system/acme.service',
+ 'level': 'bad', 'pane': 'upgrade', 'title': 'Run the new step of the installer',
+ 'words': '…', 'cmd': 'sudo bash /usr/local/lib/acme/current/install.sh --upgrade',
+ 'cs': {'title': '…', 'words': '…'}},
+```
+
+Prefer a check whenever one can be written: a manual step pressed Done by
+mistake says nothing again.
 
 **Anything else** is a function with `@hand_check`: it gets the store and
 returns a list of `{id, level ('bad'|'warn'), title, words, cmd, pane, cs}` -

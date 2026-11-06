@@ -54191,6 +54191,46 @@
   "hand3_1": {
    "source": "Steps waiting for a person - listed at the top of this part",
    "text": "Kroky, které čekají na člověka - jsou nahoře v této části"
+  },
+  "hand4_1": {
+   "source": "To be done by hand",
+   "text": "Udělat ručně"
+  },
+  "hand4_2": {
+   "source": "What acme cannot do by itself and somebody has to - a step a new version needs on the command line, what was switched off behind its back (SELinux), the root helper not set up. Kept here, counted beside Upgrades in the menu, said in the header, on the command line (acme --status), in the console and by the alerts until it is done. One that can be checked goes by itself once it is so.",
+   "text": "Co acme nezvládne samo a musí to udělat někdo jiný - krok, který nová verze potřebuje na příkazové řádce, co bylo vypnuto bez jeho vědomí (SELinux), nenastavený pomocník roota. Drží se tady, počítá se vedle Aktualizací v menu, hlásí se v hlavičce, na příkazové řádce (acme --status), v konzoli a alerty, dokud to není hotové. Co lze zkontrolovat, zmizí samo, jakmile to tak je."
+  },
+  "hand4_3": {
+   "source": "Done lately",
+   "text": "Nedávno hotové"
+  },
+  "hand4_4": {
+   "source": "gone by itself",
+   "text": "zmizelo samo"
+  },
+  "hand4_5": {
+   "source": "Once it is done, press Done.",
+   "text": "Až to bude hotové, stiskněte Hotovo."
+  },
+  "hand4_6": {
+   "source": "looked again",
+   "text": "zkontrolováno znovu"
+  },
+  "hand4_7": {
+   "source": "written down as done",
+   "text": "zapsáno jako hotové"
+  },
+  "hand4_8": {
+   "source": "that is not waiting any more",
+   "text": "to už nečeká"
+  },
+  "hand4_9": {
+   "source": "this one is checked - it goes by itself once it is done (Look again)",
+   "text": "tohle se kontroluje - zmizí samo, až to bude hotové (Zkontrolovat znovu)"
+  },
+  "hand5_1": {
+   "source": "Nothing is to be done by hand.",
+   "text": "Nic není potřeba udělat ručně."
   }
  },
  "patterns": {
@@ -74073,6 +74113,10 @@
   "phand3_1": {
    "source": "{0} step(s) wait for a person: Settings → Upgrades and maintenance.",
    "text": "{0} krok(ů) čeká na člověka: Nastavení → Aktualizace a údržba."
+  },
+  "phand4_1": {
+   "source": "waits since {0}",
+   "text": "čeká od {0}"
   }
  },
  "rich": {

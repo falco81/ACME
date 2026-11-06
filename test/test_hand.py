@@ -43,7 +43,7 @@ class Hand(unittest.TestCase):
         FILES.clear()
         E._hand_read = fake_read
         E.HAND.update(at=0.0, cache_at=0.0, cache=[])
-        for r in STORE.db.rows("SELECT k FROM meta WHERE k LIKE 'attention:%' OR k LIKE 'handseen:%'"):
+        for r in STORE.db.rows("SELECT k FROM meta WHERE k LIKE 'attention:%' OR k LIKE 'hand%'"):
             STORE.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
 
     def tearDown(self):
@@ -138,12 +138,64 @@ class Hand(unittest.TestCase):
         finally:
             E.CONFIG['alerts_hand'] = 1
 
+    def api(self, method, body=None):
+        h = E.CliApiHandler(DAEMON, 'boss', body or {}, {}, '/api/attention')
+        return E.ROUTES[(method, '/api/attention')](h)
+
+    def test_a_manual_step_done_and_written_down(self):
+        step = {'id': 'x-manual', 'manual': True, 'level': 'bad', 'pane': 'upgrade',
+                'title': 'Run the step by hand', 'words': 'w', 'cmd': 'sudo true'}
+        E.HAND_STEPS.append(step)
+        try:
+            E.hand_tick(STORE, force=True)
+            got = self.api('GET')
+            it = [i for i in got['items'] if i['id'] == 'x-manual'][0]
+            self.assertEqual(it['kind'], 'manual')
+            since = it['since']
+            self.assertTrue(since)
+            E.HAND['at'] = 0
+            E.hand_tick(STORE, force=True)          # the time it waits since is kept
+            self.assertEqual([i for i in self.api('GET')['items'] if i['id'] == 'x-manual'][0]['since'], since)
+            with self.assertRaises(E.ApiError):     # a checked one is not pressed away
+                FILES['/etc/nginx/conf.d/acme.conf'] = 'old'
+                E.hand_tick(STORE, force=True)
+                self.api('POST', {'action': 'done', 'id': 'nginx-manifest', 'node': E.node_name()})
+            got = self.api('POST', {'action': 'done', 'id': 'x-manual', 'node': E.node_name()})
+            self.assertNotIn('x-manual', [i['id'] for i in got['items']])
+            d = [x for x in got['done'] if x['what'] == 'Run the step by hand'][0]
+            self.assertEqual((d['how'], d['who']), ('done', 'boss'))
+            with self.assertRaises(E.ApiError):
+                self.api('POST', {'action': 'done', 'id': 'x-manual', 'node': E.node_name()})
+            # a checked one gone: "gone by itself"
+            FILES['/etc/nginx/conf.d/acme.conf'] = 'webmanifest'
+            got = self.api('POST', {'action': 'look'})
+            self.assertNotIn('nginx-manifest', [i['id'] for i in got['items']])
+            self.assertEqual(got['done'][0]['how'], 'gone by itself')
+            self.assertTrue(STORE.get_meta('handlook'))
+        finally:
+            E.HAND_STEPS.remove(step)
+
+    def test_look_asked_elsewhere(self):
+        E.hand_tick(STORE, force=True)
+        calls = []
+        E.HAND_CHECKS.append(lambda st: calls.append(1) or [])
+        try:
+            E.hand_tick(STORE)
+            self.assertEqual(calls, [])             # within the minute
+            STORE.set_meta('handlook', '%.3f' % (time.time() + 1))
+            E.hand_tick(STORE)
+            self.assertEqual(calls, [1])            # Look again pressed on another node
+        finally:
+            E.HAND_CHECKS.pop()
+
     def test_pages(self):
         js = open(os.path.join(ROOT, 'web/assets/admin.js')).read()
         self.assertIn('function drawAttention(s)', js)
         self.assertIn('drawAttention(s);', js)
         php = open(os.path.join(ROOT, 'web/admin/index.php')).read()
         self.assertIn('id="attention"', php)
+        self.assertIn('id="att-card"', php)
+        self.assertIn("'attention' => '/api/attention'", php)
         cs = json.load(open(os.path.join(ROOT, 'web/lang/cs.json')))
         flat = json.dumps(cs, ensure_ascii=False)
         for st in E.HAND_STEPS:

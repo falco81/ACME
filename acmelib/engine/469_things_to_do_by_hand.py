@@ -45,14 +45,27 @@ def _hand_read(path, most=2000000):
         return None
 
 
+# A step that cannot be checked from here ('manual': True, no 'file'): wanted until somebody
+# presses Done on the pages (who and when are kept) - on a node where `if_file` is there, if given
+# (an install, not a test). Use it only where no check can be written.
+HAND_FIELDS = ('id', 'level', 'title', 'words', 'cmd', 'pane', 'cs')
+
+
 @hand_check
 def hand_steps(store):
     out = []
     for st in HAND_STEPS:
+        if st.get('manual'):
+            if st.get('if_file') and _hand_read(st['if_file'], 1) is None:
+                continue
+            if store.get_meta('handdone:%s:%s' % (st['id'], node_name())):
+                continue
+            out.append(dict({k: st.get(k, '') for k in HAND_FIELDS}, kind='manual'))
+            continue
         text = _hand_read(st['file'])
         if text is None or st['has'] in text:
             continue
-        out.append({k: st.get(k, '') for k in ('id', 'level', 'title', 'words', 'cmd', 'pane', 'cs')})
+        out.append({k: st.get(k, '') for k in HAND_FIELDS})
     return out
 
 
@@ -106,31 +119,66 @@ def hand_helper(store):
                              'nelze ze stránek spravovat, dokud nebude.'}}]
 
 
+HAND_LOG_MOST = 20
+
+
 def hand_tick(store, force=False):
-    """From the daemon's loop: the checks once a minute, the row written when it changed."""
+    """From the daemon's loop: the checks once a minute (at once when Look again was pressed),
+    the row written when it changed; what went away written down with how and who."""
     t = time.time()
-    if not force and t - HAND['at'] < HAND_EVERY_S:
+    try:
+        look = float(store.get_meta('handlook') or 0)
+    except (TypeError, ValueError):
+        look = 0.0
+    if not force and t - HAND['at'] < HAND_EVERY_S and look <= HAND['at']:
         return
     HAND['at'] = t
+    me = node_name()
     items = []
     for fn in HAND_CHECKS:
         try:
-            items += [dict(x, node=node_name()) for x in (fn(store) or []) if isinstance(x, dict)]
+            items += [dict(x, node=me, kind=x.get('kind') or 'check')
+                      for x in (fn(store) or []) if isinstance(x, dict) and x.get('id')]
         except Exception as e:                          # noqa: BLE001
             log_sparing('hand-' + fn.__name__, 'a check of what waits for a person (%s): %s'
                         % (fn.__name__, e), 'warn', every=3600)
-    k = 'attention:' + node_name()
+    k = 'attention:' + me
     was = _meta_obj(store, k)
-    same = [{x: i.get(x) for x in ('id', 'title', 'words', 'cmd')} for i in was.get('items') or []] == \
-        [{x: i.get(x) for x in ('id', 'title', 'words', 'cmd')} for i in items]
+    before = {x.get('id'): x for x in was.get('items') or [] if isinstance(x, dict)}
+    for i in items:                                     # since when it waits
+        i['since'] = float((before.get(i['id']) or {}).get('since') or t)
+
+    def sig(lst):
+        return [{x: i.get(x) for x in ('id', 'title', 'words', 'cmd')} for i in lst]
+    same = sig(was.get('items') or []) == sig(items)
     if not same or t - float(was.get('at') or 0) > 3600:
         store.set_meta(k, json.dumps({'at': t, 'items': items}))
-        if not same:
-            HAND['cache_at'] = 0.0      # the pages see it at once, not in 20 s
-            for i in items:
-                if i['id'] not in {x.get('id') for x in was.get('items') or []}:
-                    store.add_event('settings', 'waits for a person on %s: %s' % (
-                        node_name(), i['title']), 'bad' if i.get('level') == 'bad' else 'warn')
+    if not same:
+        HAND['cache_at'] = 0.0      # the pages see it at once, not in 20 s
+        now_ids = {i['id'] for i in items}
+        log = []
+        for i in items:
+            if i['id'] not in before:
+                store.add_event('settings', 'waits for a person on %s: %s' % (me, i['title']),
+                                'bad' if i.get('level') == 'bad' else 'warn')
+        for bid, b in before.items():
+            if bid in now_ids:
+                continue
+            done = _meta_obj(store, 'handdone:%s:%s' % (bid, me)) if b.get('kind') == 'manual' else {}
+            how = 'done' if done else 'gone by itself'
+            log.append({'what': b.get('title') or bid, 'cs': (b.get('cs') or {}).get('title') or '',
+                        'how': how, 'who': str(done.get('who') or ''), 'at': float(done.get('at') or t),
+                        'node': me})
+            store.add_event('settings', '%s on %s: %s' % (how, me, b.get('title') or bid), 'info',
+                            str(done.get('who') or ''))
+        if log:
+            lk = 'handlog:' + me
+            old = store.get_meta(lk)
+            try:
+                old = json.loads(old) if old else []
+            except ValueError:
+                old = []
+            store.set_meta(lk, json.dumps((log + [x for x in old if isinstance(x, dict)])[:HAND_LOG_MOST]))
     HAND['items'] = items
 
 
@@ -155,3 +203,53 @@ def hand_all(store):
     out.sort(key=lambda i: (i.get('level') != 'bad', str(i.get('node')), str(i.get('id'))))
     HAND['cache_at'], HAND['cache'] = t, out
     return out
+
+
+def hand_done_lately(store, most=10):
+    """What went away, every node's, newest first: [{what, how, who, at, node}]."""
+    out = []
+    try:
+        rows = store.db.rows("SELECT v FROM meta WHERE k LIKE 'handlog:%'")
+    except Exception:                                   # noqa: BLE001
+        rows = []
+    for r in rows:
+        try:
+            v = json.loads(r['v'] or '[]')
+        except ValueError:
+            continue
+        out += [x for x in v if isinstance(x, dict)] if isinstance(v, list) else []
+    out.sort(key=lambda x: -float(x.get('at') or 0))
+    return out[:most]
+
+
+@route('GET', '/api/attention')
+def _hand_get(h):
+    h.me('fulladmin')
+    return {'items': hand_all(h.store), 'done': hand_done_lately(h.store)}
+
+
+@route('POST', '/api/attention')
+def _hand_do(h):
+    s = h.me('fulladmin')
+    b = h.body()
+    act = str(b.get('action') or '')
+    if act == 'look':
+        # Every node looks again within its next turn (5 s); this one at once.
+        h.store.set_meta('handlook', '%.3f' % time.time())
+        hand_tick(h.store, force=True)
+        HAND['cache_at'] = 0.0
+    elif act == 'done':
+        iid, node = str(b.get('id') or ''), str(b.get('node') or '')
+        it = [i for i in hand_all(h.store) if i.get('id') == iid and i.get('node') == node]
+        if not it:
+            raise ApiError(404, 'that is not waiting any more')
+        if it[0].get('kind') != 'manual':
+            raise ApiError(409, 'this one is checked - it goes by itself once it is done (Look again)')
+        h.store.set_meta('handdone:%s:%s' % (iid, node), json.dumps({'who': s['name'], 'at': time.time()}))
+        h.store.set_meta('handlook', '%.3f' % time.time())
+        if node == node_name():
+            hand_tick(h.store, force=True)
+        HAND['cache_at'] = 0.0
+    else:
+        raise ApiError(400, 'no such action')
+    return {'ok': True, 'items': hand_all(h.store), 'done': hand_done_lately(h.store)}
