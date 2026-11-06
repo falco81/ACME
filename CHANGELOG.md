@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.55 - not released
+
 ## 1.0.54 - 2026-11-06
 - **To be done by hand** (Settings → Upgrades and maintenance, as upsmon's): what acme cannot do
   by itself - a command to run as root after an update, SELinux switched off (seen enforcing, now
