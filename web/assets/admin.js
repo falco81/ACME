@@ -152,7 +152,7 @@ function paintHeader(s) {
   }
   mailqBadge(s.mailq);
   var pill = $('state-pill');
-  var probs = (s.problems || []).length;
+  var probs = (s.problems || []).length + (s.attention || []).length;
   var inMaint = !!(s.maintenance && s.maintenance.on);
   var kind = probs || inMaint ? 'warn' : 'ok';
   pill.className = 'pill ' + kind;
@@ -168,7 +168,77 @@ function paintHeader(s) {
   });
   pr.hidden = !(s.problems && s.problems.length);
   drawTrials(s);
+  drawAttention(s);
   $('updated-at').textContent = clockWords(new Date());
+}
+
+/* What waits for a person (1.0.54, docs/things-to-do-by-hand.md): a step
+   acme cannot take by itself - a command as root after an update, SELinux
+   switched off, the root helper not there. Every node's, on every page,
+   until it is done; the command to copy. */
+var ATT_LATER = 'acme.att.later';
+function attLater() {
+  try { return JSON.parse(localStorage.getItem(ATT_LATER) || '{}') || {}; } catch (e) { return {}; }
+}
+function drawAttention(s) {
+  var host = $('attention');
+  if (!host) return;
+  host._s = s;
+  /* "Not now" hides one for this browser for a day - it comes back while not done. */
+  var later = attLater(), now = Date.now();
+  var list = ((s && s.attention) || []).filter(function (i) {
+    return !(later[i.id + '@' + i.node] > now);
+  });
+  var sig = JSON.stringify(list.map(function (i) { return [i.id, i.node, i.title, i.words, i.cmd]; }));
+  if (host._sig === sig) return;
+  host._sig = sig;
+  clear(host);
+  host.hidden = !list.length;
+  list.forEach(function (i) {
+    var row = el('div', 'att' + (i.level === 'bad' ? ' bad' : ''));
+    var mark = el('div', 'att-mark');
+    mark.innerHTML = iconMarkup(i.level === 'bad' ? 'close' : 'bell');
+    row.appendChild(mark);
+    var body = el('div', 'att-body');
+    var head = el('div', 'att-title', i.title || '');
+    var nd = el('span', 'att-node mono', i.node || '');
+    nd.setAttribute('data-no-i18n', '');
+    head.appendChild(nd);
+    body.appendChild(head);
+    if (i.words) body.appendChild(el('div', 'att-words', i.words));
+    if (i.cmd) {
+      body.appendChild(el('div', 'att-as', 'As root, on ' + i.node + ':'));
+      var line = el('div', 'att-cmd');
+      var code = el('code', 'mono', i.cmd);
+      code.setAttribute('data-no-i18n', '');
+      line.appendChild(code);
+      var cp = cmdButton('Copy', 'copy', 'small');
+      cp.onclick = function () { copyText(i.cmd, line, 'the command copied - run it as root on ' + i.node); };
+      line.appendChild(cp);
+      body.appendChild(line);
+    }
+    body.appendChild(el('div', 'att-foot', 'This band goes by itself within a minute once it is done.'));
+    row.appendChild(body);
+    var tools = el('div', 'att-tools');
+    if (i.pane && $('pane-' + i.pane)) {
+      var go = cmdButton('Open it', 'gear', 'small');
+      go.onclick = function () { showTab('settings'); showPane(i.pane); };
+      tools.appendChild(go);
+    }
+    var nn = cmdButton('Not now', 'close', 'small');
+    nn.title = 'Hidden in this browser for a day; it comes back while it is not done.';
+    nn.onclick = function () {
+      var l = attLater();
+      Object.keys(l).forEach(function (k) { if (!(l[k] > Date.now())) delete l[k]; });
+      l[i.id + '@' + i.node] = Date.now() + 86400000;
+      try { localStorage.setItem(ATT_LATER, JSON.stringify(l)); } catch (e) { }
+      host._sig = null;
+      drawAttention(host._s);
+    };
+    tools.appendChild(nn);
+    row.appendChild(tools);
+    host.appendChild(row);
+  });
 }
 
 /* A change on trial (1.0.137): a node's new network, or the firewall - kept

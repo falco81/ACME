@@ -709,6 +709,21 @@ def alert_problems_more(store, lang, add, names, health, beats, cluster, quiet, 
                 add('selinux:' + n, 'warn', n,
                     _al(lang, 'SELinux na %s: něco není, jak acme potřebuje' % n, 'SELinux on %s: something is not as acme needs it' % n),
                     '; '.join(probs)[:300], 'hisec')
+    # What waits for a person (1.0.54): a command after an update, SELinux switched off.
+    if CONFIG.get('alerts_hand', 1):
+        try:
+            hand = hand_all(store)
+        except Exception:                               # noqa: BLE001
+            hand = []
+        for i in hand:
+            cs = i.get('cs') if isinstance(i.get('cs'), dict) else {}
+            n = str(i.get('node') or '')
+            words = _al(lang, cs.get('words') or i.get('words') or '', i.get('words') or '')
+            if i.get('cmd'):
+                words += _al(lang, ' Příkaz (jako root): ', ' The command (as root): ') + str(i['cmd'])
+            add('hand:%s:%s' % (i.get('id'), n), 'bad' if i.get('level') == 'bad' else 'warn', n,
+                _al(lang, '%s: %s' % (n, cs.get('title') or i.get('title')), '%s: %s' % (n, i.get('title'))),
+                words[:500], i.get('pane') or '')
     # The security check (off by default).
     if CONFIG.get('alerts_hisec'):
         try:

@@ -77,6 +77,7 @@ clone as it does from `acme-X.Y.Z.tar.gz` (only the release is signed).
 - [docs/backup-and-recovery.md](docs/backup-and-recovery.md), [docs/remote-backups.md](docs/remote-backups.md) - backups
 - [docs/monitoring.md](docs/monitoring.md) - Prometheus and SNMPv3
 - [docs/performance-meter.md](docs/performance-meter.md) - how busy the node is, in the header of the pages (off unless chosen)
+- [docs/things-to-do-by-hand.md](docs/things-to-do-by-hand.md) - what waits for a person (a command after an update, SELinux switched off): on every page until done, and how a release adds one
 - [docs/php2shell.md](docs/php2shell.md) - PHP and php2shell (CVE-2026-109618 / CVE-2026-109619)
 - [CHANGELOG.md](CHANGELOG.md) - what changed, version by version
 

@@ -706,6 +706,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <div id="offline" class="offline" hidden></div>
 <div id="phpsafety" class="offline" hidden></div>
 <div id="problems" class="offline warnish" hidden></div>
+<div id="attention" class="attention" hidden role="alert"></div>
 <div id="trials" class="trials" hidden></div>
 
 <div class="tabs" role="tablist">

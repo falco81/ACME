@@ -2948,6 +2948,28 @@ body.mfa-on .signin{padding-top:24px}
 
 /* A change on trial (1.0.137). */
 .trials { margin: 8px 16px 0; display: flex; flex-direction: column; gap: 8px; }
+/* What waits for a person (1.0.54): on every page until it is done - as isemon's band. */
+.attention { margin: 10px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.att { display: flex; gap: 14px; align-items: flex-start; border: 1px solid var(--warn);
+  border-left: 4px solid var(--warn); border-radius: 10px; padding: 14px 16px 14px 18px;
+  background: linear-gradient(90deg, rgba(210,153,34,.14), rgba(210,153,34,.04) 70%); }
+.att.bad { border-color: var(--crit); background: linear-gradient(90deg, rgba(248,81,73,.16), rgba(248,81,73,.05) 70%); }
+.att-mark { flex: 0 0 auto; color: var(--warn); line-height: 0; padding-top: 3px; }
+.att-mark svg { width: 16px; height: 16px; }
+.att.bad .att-mark { color: var(--crit); }
+.att-body { flex: 1 1 0; min-width: 0; }
+.att-title { font-weight: 700; font-size: 15px; }
+.att-node { font-weight: 400; color: var(--tx-dim); margin-left: 6px; font-size: 13px; }
+.att-words { color: var(--tx-dim); font-size: 13.5px; margin-top: 4px; }
+.att-as { font-size: 13px; color: var(--tx-dim); margin-top: 10px; }
+.att-cmd { display: flex; gap: 10px; align-items: center; margin-top: 6px; max-width: 760px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px 6px 12px; }
+.att-cmd .btn { flex: 0 0 auto; }
+.att-cmd code { flex: 1 1 auto; min-width: 0; overflow-x: auto; white-space: pre; font-size: 13px; padding: 4px 0; }
+.att-cmd.copied { border-color: var(--ok); }
+.att-foot { font-size: 12.5px; color: var(--tx-mut); margin-top: 10px; }
+.att-tools { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+@media (max-width: 640px) { .att { flex-wrap: wrap; } .att-tools { flex-direction: row; flex-basis: 100%; } }
 .trial { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
   border: 1px solid var(--warn); background: var(--warn-bg); border-radius: 10px; padding: 10px 14px; }
 .trial-words { flex: 1 1 360px; }

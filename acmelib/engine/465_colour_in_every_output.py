@@ -3049,6 +3049,11 @@ def cli_main(argv=None):
             print(pal.bad_line(p))
         for p in trial_problem_words(s.get('trials') or []):
             print(pal.warn_line(p))
+        for i in s.get('attention') or []:          # what waits for a person (1.0.54)
+            print((pal.bad_line if i.get('level') == 'bad' else pal.warn_line)(
+                'waits for you on %s: %s' % (i.get('node'), i.get('title'))))
+            if i.get('cmd'):
+                print('      run as root: %s' % i['cmd'])
         bad = 0
         if args.check:
             print(pal.head('checking every part of it'))

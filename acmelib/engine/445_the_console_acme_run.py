@@ -349,6 +349,10 @@ class Console(object):
         if st and st.get('daemon_alive') is False:
             self._put(y, 1, 'the daemon is not answering', A['bad'])
             y += 1
+        for i in (st.get('attention') or [])[:max(0, min(3, h - 14))]:
+            self._put(y, 1, '! waits for you on %s: %s' % (i.get('node'), i.get('title')),
+                      A['bad'] if i.get('level') == 'bad' else A['warn'])
+            y += 1
         for one in (st.get('problems') or [])[:max(0, min(4, h - 12))]:
             self._put(y, 1, '! ' + str(one), A['warn'])
             y += 1

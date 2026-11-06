@@ -5,6 +5,13 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.54 - not released
+- **What waits for a person**: what acme cannot do by itself - a command to run as root after an
+  update, SELinux switched off (seen enforcing, now permissive or disabled), the root helper not
+  set up, nginx's file older than the pages - is shown at the top of every page of every node's
+  until it is done, red or yellow, with the command to copy, a way to its part of Settings and "Not now" (a day, in this browser) - as isemon's band;
+  also in `acme status`, the console, the events and the alerts (mail, SNMP; Settings → Alerts →
+  A step waiting for a person, on). A release that needs a step by hand adds one check
+  (docs/things-to-do-by-hand.md).
 
 ## 1.0.53 - 2026-11-06
 - The performance meter in a cluster: the graphs of every node drawn with one delay, so they move

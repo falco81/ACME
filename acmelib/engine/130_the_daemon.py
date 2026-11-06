@@ -413,6 +413,10 @@ class Daemon(object):
             trials = trials_view(self.store)
         except Exception:                               # noqa: BLE001
             trials = []
+        try:
+            attention = hand_all(self.store)
+        except Exception:                               # noqa: BLE001
+            attention = []
         started = self.started
         if not self.serving:
             # The command line asks (1.0.45): the daemon's start, from its heartbeat - not the
@@ -428,6 +432,7 @@ class Daemon(object):
             'uptime': (time.time() - started) if started else None, 'now': time.time(),
             'isemon': sh, 'directories': len(self.dirs),
             'serial': '%s' % ev, 'problems': problems,
+            'attention': attention,
             'database': {'engine': self.store.db.engine, 'where': self.store.db.where()},
             'lang': CONFIG.get('ui_lang') or 'cs', 'php': php_state(),
             'high_security': bool(CONFIG.get('high_security')),
@@ -631,6 +636,12 @@ class Daemon(object):
                         raise
                     except Exception as e:              # noqa: BLE001
                         log_sparing('load-peer', 'the performance meter: %s' % e, 'warn', every=3600)
+                    try:
+                        hand_tick(self.store)           # what waits for a person (1.0.54)
+                    except DbError:
+                        raise
+                    except Exception as e:              # noqa: BLE001
+                        log_sparing('hand-tick', 'what waits for a person: %s' % e, 'warn', every=3600)
                     if asked != self.beat_asked_seen:
                         # Asked from a card of Settings (its refresh): what this node has, now.
                         self.beat_asked_seen = asked

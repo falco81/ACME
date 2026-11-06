@@ -54139,6 +54139,54 @@
   "pkacc_19": {
    "source": "a passkey as the second step is switched off on this server",
    "text": "passkey jako druhý krok je na tomto serveru vypnutá"
+  },
+  "hand_1": {
+   "source": "nginx's file for acme is older than the pages",
+   "text": "Soubor nginx pro acme je starší než stránky"
+  },
+  "hand_2": {
+   "source": "The home screen's manifest (the icon on an iPad) is served without its type. The upgrade of the command line brings the file up to date (a copy of it is kept).",
+   "text": "Manifest pro plochu (ikona na iPadu) se posílá bez svého typu. Upgrade z příkazové řádky soubor obnoví (jeho kopie se ponechá)."
+  },
+  "hand_3": {
+   "source": "SELinux was switched off",
+   "text": "SELinux byl vypnut"
+  },
+  "hand_4": {
+   "source": "SELinux was enforcing on this node and is off now (disabled) - nothing it kept from happening is kept from happening. Switch it on in /etc/selinux/config (SELINUX=enforcing) and restart the machine.",
+   "text": "SELinux byl na tomto uzlu vynucující a teď je vypnutý (disabled) - nic z toho, čemu bránil, se už nebrání. Zapněte ho v /etc/selinux/config (SELINUX=enforcing) a restartujte stroj."
+  },
+  "hand_5": {
+   "source": "SELinux was enforcing on this node and is only permissive now: nothing is refused, only written down.",
+   "text": "SELinux byl na tomto uzlu vynucující a teď je jen permissive: nic se neodmítá, jen zapisuje."
+  },
+  "hand_6": {
+   "source": "The root helper is not set up on this node",
+   "text": "Pomocník roota není na tomto uzlu nastaven"
+  },
+  "hand_7": {
+   "source": "The network, the firewall, the users, the updates and the rest of the machine cannot be looked after from the pages until it is.",
+   "text": "Síť, firewall, uživatele, aktualizace ani nic dalšího ze stroje nelze ze stránek spravovat, dokud nebude."
+  },
+  "hand_8": {
+   "source": "Copy the command",
+   "text": "Zkopírovat příkaz"
+  },
+  "hand_9": {
+   "source": "A step waiting for a person",
+   "text": "Krok, který čeká na člověka"
+  },
+  "hand_10": {
+   "source": "What acme cannot do by itself and waits for a person - a command to run as root after an update, SELinux switched off, the root helper not there. Also shown at the top of every page.",
+   "text": "Co acme nezvládne samo a čeká na člověka - příkaz, který je po aktualizaci třeba spustit jako root, vypnutý SELinux, chybějící pomocník roota. Ukazuje se i nahoře na každé stránce."
+  },
+  "hand2_1": {
+   "source": "This band goes by itself within a minute once it is done.",
+   "text": "Tento pruh zmizí sám do minuty od chvíle, kdy je to hotové."
+  },
+  "hand2_2": {
+   "source": "Hidden in this browser for a day; it comes back while it is not done.",
+   "text": "Skryto v tomto prohlížeči na den; vrátí se, dokud to nebude hotové."
   }
  },
  "patterns": {
@@ -74009,6 +74057,14 @@
   "ppkacc_1": {
    "source": "that is {0} passkeys - take one away first",
    "text": "to je {0} passkeys – nejdřív jednu odeberte"
+  },
+  "phand_1": {
+   "source": "the command copied - run it as root on {0}",
+   "text": "příkaz zkopírován - spusťte ho jako root na {0}"
+  },
+  "phand2_1": {
+   "source": "As root, on {0}:",
+   "text": "Jako root na uzlu {0}:"
   }
  },
  "rich": {
