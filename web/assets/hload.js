@@ -43,7 +43,8 @@ var HLOAD_KEEP = 40;
    timer), shown a few seconds behind - this node's readings come every 3 s, another node's
    every 5 s through the database - so a new one is always added beyond the right edge, never
    seen jumping in. Their scale follows the highest reading shown, slowly back down. */
-var HL_WIN = 120, HL_OWN_D = 5, HL_PEER_D = 10, HL_OFF = [];
+/* one delay for every node (1.0.53): the graphs of both nodes move together, side by side */
+var HL_WIN = 120, HL_OWN_D = 10, HL_PEER_D = 10, HL_OFF = [];
 function hlNow() {
   var t = Date.now() / 1000 + (HLOAD.off || 0);
   if (!hlLive()) { if (!HLOAD.frozen) HLOAD.frozen = t; return HLOAD.frozen; }
@@ -850,6 +851,11 @@ function hloadTick(now) {
       var sh = Number(x.shift) || 0;
       x.hist.t = x.hist.t.map(function (t) { return t + sh; });
       x.hist.live = true; x.hist.D = HL_PEER_D; x.hist.top = tops[x.node];
+    });
+    /* the last details of each node kept, shown at once when its panel is opened (1.0.53) */
+    HLOAD.pdetail = HLOAD.pdetail || {};
+    HLOAD.peers.forEach(function (x) {
+      if (x.detail) HLOAD.pdetail[x.node] = x.detail; else if (HLOAD.pdetail[x.node]) x.detail = HLOAD.pdetail[x.node];
     });
     if (d.detail) { HLOAD.detail = d.detail; HLOAD.detailAt = Date.now(); }
     if (withHist && (!HLOAD.hist || HLOAD.wantHist) && d.hist && Array.isArray(d.hist.cpu)) {

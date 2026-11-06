@@ -5,6 +5,10 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.53 - not released
+- The performance meter in a cluster: the graphs of every node drawn with one delay, so they move
+  together; the other node's details are kept in its row (written every 30 s while watched), so
+  its panel shows them at once instead of "reading..."; back on the page, the other node's last
+  reading is shown at once (dimmed while it is old) and taken anew as it writes again.
 - **Your account → Passkeys - Face ID, Touch ID** (while a passkey is a way of the second step):
   the account's passkeys - for which name, added, last used - renamed in place, taken away (never
   the last one), and one of this device added; on the administration only.

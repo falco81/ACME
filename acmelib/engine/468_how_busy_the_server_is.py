@@ -495,8 +495,19 @@ def load_peer_tick(store):
         return
     LOAD_WATCH['wrote'] = t
     out = dict(server_load())
-    if any(me[:63] in (v.get('detail') or []) for v in watching):
+    # its details while a panel of it is open - and every 30 s anyway while it is watched
+    # (1.0.53): a panel opened showed "reading..." until the other node had written them
+    if any(me[:63] in (v.get('detail') or []) for v in watching) or \
+            t - float(LOAD_WATCH.get('detail_at') or 0) >= 30:
         out['detail'] = load_detail()
+        LOAD_WATCH['detail_at'] = t
+    else:
+        try:
+            was = json.loads(store.get_meta('load:now:' + me) or '{}')
+            if isinstance(was, dict) and was.get('detail'):
+                out['detail'] = was['detail']       # the last ones kept in the row
+        except ValueError:
+            pass
     out['hist'] = load_history()
     store.set_meta('load:now:' + me, json.dumps(out, default=str))
 
@@ -519,7 +530,9 @@ def load_peers(store):
             age = clock_beat_age(store, name, float(v.get('at') or 0), time.time())
         except Exception:                               # noqa: BLE001
             age = time.time() - float(v.get('at') or 0)
-        if age > 120:
+        if age > 3600:
+            # not watched for an hour, or gone; until then its last reading is shown at once -
+            # dimmed while it is old - and taken anew as the node writes again (1.0.53)
             continue                    # not watched lately, or gone: not shown as now
         # its times put on this node's clock (1.0.50), the difference of the clocks measured
         v.update(node=name, age=round(age, 1), shift=round(time.time() - age - float(v.get('at') or 0), 3))
