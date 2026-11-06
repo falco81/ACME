@@ -6,6 +6,8 @@ def _status(h):
     s = h.me()
     out = h.d.status()
     out['role'] = s['role']
+    if s['role'] != 'fulladmin':
+        out['attention'] = []          # what waits for a person: the full administrators' (1.0.55)
     # The outgoing mail at a glance (1.0.95): what waits and what failed,
     # for the badge beside Mail. Counted at most every 10 s.
     now = time.time()

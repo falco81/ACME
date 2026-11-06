@@ -54231,6 +54231,14 @@
   "hand5_1": {
    "source": "Nothing is to be done by hand.",
    "text": "Nic není potřeba udělat ručně."
+  },
+  "hand6_1": {
+   "source": "Empty this list - what is still to be done stays",
+   "text": "Vyprázdnit tento seznam - co ještě čeká, zůstane"
+  },
+  "hand7_1": {
+   "source": "Clear list",
+   "text": "Vymazat"
   }
  },
  "patterns": {
@@ -74117,6 +74125,10 @@
   "phand4_1": {
    "source": "waits since {0}",
    "text": "čeká od {0}"
+  },
+  "phand6_1": {
+   "source": "done lately cleared ({0})",
+   "text": "nedávno hotové vymazáno ({0})"
   }
  },
  "rich": {

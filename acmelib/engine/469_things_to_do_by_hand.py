@@ -166,7 +166,7 @@ def hand_tick(store, force=False):
                 continue
             done = _meta_obj(store, 'handdone:%s:%s' % (bid, me)) if b.get('kind') == 'manual' else {}
             how = 'done' if done else 'gone by itself'
-            log.append({'what': b.get('title') or bid, 'cs': (b.get('cs') or {}).get('title') or '',
+            log.append({'key': bid, 'what': b.get('title') or bid, 'cs': (b.get('cs') or {}).get('title') or '',
                         'how': how, 'who': str(done.get('who') or ''), 'at': float(done.get('at') or t),
                         'node': me})
             store.add_event('settings', '%s on %s: %s' % (how, me, b.get('title') or bid), 'info',
@@ -205,8 +205,7 @@ def hand_all(store):
     return out
 
 
-def hand_done_lately(store, most=10):
-    """What went away, every node's, newest first: [{what, how, who, at, node}]."""
+def _hand_done_rows(store):
     out = []
     try:
         rows = store.db.rows("SELECT v FROM meta WHERE k LIKE 'handlog:%'")
@@ -218,8 +217,54 @@ def hand_done_lately(store, most=10):
         except ValueError:
             continue
         out += [x for x in v if isinstance(x, dict)] if isinstance(v, list) else []
+    return out
+
+
+def _hand_done_id(x):
+    """One entry of Done lately, the same on every node: its node, what, and when."""
+    return '%s|%s|%.3f' % (str(x.get('node') or ''), str(x.get('key') or x.get('what') or ''),
+                           float(x.get('at') or 0))
+
+
+def _hand_cleared(store):
+    try:
+        v = json.loads(store.get_meta('handclear') or '[]')
+    except ValueError:
+        v = []
+    return set(str(x) for x in v) if isinstance(v, list) else set()
+
+
+def hand_done_lately(store, most=10):
+    """What went away, every node's, newest first: [{key, what, how, who, at, node}] - without
+    what Clear took away (each node's own row is written by that node alone, so Clear keeps a row
+    of its own of what it took, rather than writing in another node's)."""
+    gone = _hand_cleared(store)
+    out = [x for x in _hand_done_rows(store) if _hand_done_id(x) not in gone]
     out.sort(key=lambda x: -float(x.get('at') or 0))
     return out[:most]
+
+
+def hand_done_clear(store, items=None, who=''):
+    """Done lately emptied (1.0.55): the entries the page shows ([node, key, at] each), or all
+    of it when none are named (the command line). What is still to be done is not touched."""
+    rows = _hand_done_rows(store)
+    now = {_hand_done_id(x) for x in rows}
+    gone = _hand_cleared(store) & now               # what no node keeps any more is forgotten
+    if items is None:
+        want = now - gone
+    else:
+        want = set()
+        for one in list(items)[:200]:
+            if isinstance(one, (list, tuple)) and len(one) == 3:
+                try:
+                    want.add('%s|%s|%.3f' % (str(one[0])[:80], str(one[1])[:120], float(one[2])))
+                except (TypeError, ValueError):
+                    continue
+        want = (want & now) - gone
+    store.set_meta('handclear', json.dumps(sorted(gone | want)))
+    store.add_event('settings', '"done lately" cleared by %s (%d)' % (who or 'the command line',
+                                                                       len(want)), 'info', who)
+    return len(want)
 
 
 @route('GET', '/api/attention')
@@ -250,6 +295,11 @@ def _hand_do(h):
         if node == node_name():
             hand_tick(h.store, force=True)
         HAND['cache_at'] = 0.0
+    elif act == 'clear_done':
+        items = b.get('items') if isinstance(b.get('items'), list) else None
+        n = hand_done_clear(h.store, items, s['name'])
+        return {'ok': True, 'items': hand_all(h.store), 'done': hand_done_lately(h.store),
+                'message': 'done lately cleared (%d)' % n}
     else:
         raise ApiError(400, 'no such action')
     return {'ok': True, 'items': hand_all(h.store), 'done': hand_done_lately(h.store)}

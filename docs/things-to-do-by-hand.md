@@ -15,13 +15,21 @@ Since 1.0.54 each of these is said in one place, the same way, until it is done.
   a step that cannot be checked has **Done** (who pressed it and when are
   kept). **Open it** goes to the part of Settings it belongs to.
   **Done lately** under them: what went away, on which node, how (done, or
-  gone by itself), who, when.
+  gone by itself), who, when - the 10 newest, each node keeping its last 20.
+  **Clear** at the right of its heading empties it: exactly the rows the page
+  shows (one come meanwhile stays), and never what is still to be done; the
+  events say who cleared how many. With nothing done lately there is no table
+  and no Clear.
+- **Only the full administrators** are told: `/api/status` carries none of it
+  for another role, and `/api/attention` is theirs alone.
 - **The menu**: a count on *Upgrades and maintenance* - a red ring on its icon
   while the menu is shut. The header's pill says "running, with trouble" and
   its tooltip says where to look. The other problems stay under the header as
   before.
 - **`acme --status`** on the command line and the **console** (`acme run`)
-  list them too, with the command.
+  list them too, with the command. `acme --hand` lists them with their ids and
+  Done lately (`--json` too), `acme --hand-done ID@NODE` presses Done (who: the
+  command line), `acme --hand-clear` empties Done lately.
 - **Alerts and reports** (Settings → Alerts and reports → *A step waiting for a
   person*, on by default): a mail and an SNMP trap, as any other problem, and a
   mail again when it is done.
@@ -32,7 +40,8 @@ Since 1.0.54 each of these is said in one place, the same way, until it is done.
 
 Each node checks itself once a minute - only files and `/sys`, no program run -
 and keeps what it found in its own row of the database (`attention:NODE`; what
-went away in `handlog:NODE`), so
+went away in `handlog:NODE`; what Clear took in `handclear`, as no node writes
+another node's row), so
 every node's is seen from any node's pages. A node gone for two days says
 nothing any more.
 

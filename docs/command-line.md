@@ -62,6 +62,9 @@ other setting as it is.
 | `acme --job-stop ID` | stop a job that runs (on either node) |
 | `acme --acme-contact MAIL [--force]` | the contact e-mail of the ACME sources that have none (with `--force`: of every one). The CA mails about expiry and policy changes there; certificates are issued without one too |
 | `acme --status` | includes the certificates, which node renews them, and the DNS server |
+| `acme --hand` | what waits for a person on every node (To be done by hand) with its id, and Done lately |
+| `acme --hand-done ID@NODE` | a step that cannot be checked written down as done |
+| `acme --hand-clear` | Done lately emptied - what is still to be done stays |
 
 ## Sources, validations, targets
 

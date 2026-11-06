@@ -5,6 +5,11 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.55 - not released
+- To be done by hand → Done lately: **Clear** at the right of its heading - exactly the rows shown
+  are taken (one come meanwhile stays), never what is still to be done; said in the events. On the
+  command line: `acme --hand` (what waits, with ids, and Done lately), `acme --hand-done ID@NODE`,
+  `acme --hand-clear`. What waits is told to the full administrators only (the status of another
+  role carries none of it).
 
 ## 1.0.54 - 2026-11-06
 - **To be done by hand** (Settings → Upgrades and maintenance, as upsmon's): what acme cannot do

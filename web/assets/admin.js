@@ -219,7 +219,22 @@ function attGot(d) {
   if (box) {
     clear(box);
     if (ATT.done.length) {
-      box.appendChild(el('div', 'att-done-h', 'Done lately'));
+      /* its heading with Clear at its right (1.0.55): exactly the rows shown are taken -
+         one come meanwhile stays; what is still to be done is never touched */
+      var head = el('div', 'att-done-head');
+      head.appendChild(el('div', 'att-done-h', 'Done lately'));
+      var clr = cmdButton('Clear list', 'trash', 'small');
+      clr.title = 'Empty this list - what is still to be done stays';
+      var shown = ATT.done.map(function (x) { return [x.node || '', x.key || x.what || '', x.at || 0]; });
+      clr.onclick = function () {
+        clr.disabled = true;
+        api('attention', {action: 'clear_done', items: shown}).then(function (d) {
+          attGot(d);
+          toast(d.message || 'cleared', 'good');
+        }).catch(function (e) { clr.disabled = false; oops(e); });
+      };
+      head.appendChild(clr);
+      box.appendChild(head);
       box.appendChild(listTable(['What', 'Node', 'How', 'Who', {words: 'When', cls: 'r'}], ATT.done, function (x) {
         var tr = el('tr');
         tr.appendChild(el('td', '', x.what || ''));

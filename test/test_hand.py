@@ -175,6 +175,42 @@ class Hand(unittest.TestCase):
         finally:
             E.HAND_STEPS.remove(step)
 
+    def test_clear_done_lately(self):
+        t = time.time()
+        STORE.set_meta('handlog:acme2', json.dumps([
+            {'key': 'a', 'what': 'A', 'how': 'done', 'who': 'x', 'at': t - 10, 'node': 'acme2'},
+            {'key': 'b', 'what': 'B', 'how': 'gone by itself', 'who': '', 'at': t - 20, 'node': 'acme2'}]))
+        STORE.set_meta('attention:acme2', json.dumps({'at': t, 'items': [
+            {'id': 'p', 'level': 'warn', 'title': 'P', 'node': 'acme2', 'kind': 'check'}]}))
+        E.HAND['cache_at'] = 0.0
+        got = self.api('GET')
+        self.assertEqual([x['key'] for x in got['done']], ['a', 'b'])
+        # exactly what the page shows: a row come meanwhile stays
+        shown = [[x['node'], x['key'], x['at']] for x in got['done']]
+        log = json.loads(STORE.get_meta('handlog:acme2'))
+        STORE.set_meta('handlog:acme2', json.dumps(
+            [{'key': 'c', 'what': 'C', 'how': 'done', 'who': 'y', 'at': t - 1, 'node': 'acme2'}] + log))
+        got = self.api('POST', {'action': 'clear_done', 'items': shown})
+        self.assertEqual([x['key'] for x in got['done']], ['c'])
+        self.assertIn('(2)', got['message'])
+        self.assertEqual([i['id'] for i in got['items']], ['p'])     # what waits is not touched
+        # the other node's own row is not written by Clear
+        self.assertEqual(len(json.loads(STORE.get_meta('handlog:acme2'))), 3)
+        # without a list (the command line): all of it
+        self.assertEqual(E.hand_done_clear(STORE, None, 'root'), 1)
+        self.assertEqual(E.hand_done_lately(STORE), [])
+        # a viewer is not told what waits
+        acc = {'name': 'v', 'role': 'viewer', 'kind': 'admin'}
+
+        class V(E.CliApiHandler):
+            def me(self, need=None):
+                if need == 'fulladmin':
+                    raise E.ApiError(403, 'no')
+                return dict(acc, id=0, account=acc)
+        self.assertEqual(E.ROUTES[('GET', '/api/status')](V(DAEMON, 'v', {}, {}, '/api/status'))['attention'], [])
+        with self.assertRaises(E.ApiError):
+            E.ROUTES[('GET', '/api/attention')](V(DAEMON, 'v', {}, {}, '/api/attention'))
+
     def test_look_asked_elsewhere(self):
         E.hand_tick(STORE, force=True)
         calls = []
@@ -196,6 +232,7 @@ class Hand(unittest.TestCase):
         self.assertIn('id="attention"', php)
         self.assertIn('id="att-card"', php)
         self.assertIn("'attention' => '/api/attention'", php)
+        self.assertIn("action: 'clear_done'", js)
         cs = json.load(open(os.path.join(ROOT, 'web/lang/cs.json')))
         flat = json.dumps(cs, ensure_ascii=False)
         for st in E.HAND_STEPS:

@@ -465,6 +465,12 @@ def build_parser():
     g.add_argument('--status', action='store_true', help='what it is doing, in one screen')
     g.add_argument('--check', action='store_true', help='a health check, every part of it')
     g.add_argument('--events', action='store_true', help='this daemon’s own events')
+    g.add_argument('--hand', action='store_true',
+                   help='what waits for a person on every node (To be done by hand), and what was done lately')
+    g.add_argument('--hand-done', metavar='ID@NODE',
+                   help='a step that cannot be checked written down as done (the command line as who)')
+    g.add_argument('--hand-clear', action='store_true',
+                   help='empty Done lately - what is still to be done stays')
     g.add_argument('--limit', type=int, default=40, metavar='N', help='how many rows [40]')
     g.add_argument('--hours', type=float, default=24, metavar='N', help='the last N hours [24]')
     g.add_argument('--search', metavar='TEXT', default='', help='only rows holding this')
@@ -2979,6 +2985,44 @@ def cli_main(argv=None):
         return 0
     out = lambda data: print(json.dumps(data, indent=2, default=str, ensure_ascii=False))
     who = cli_who()
+
+    if args.hand or args.hand_done or args.hand_clear:       # To be done by hand (1.0.55)
+        d = Daemon(store, serve=False)
+        if args.hand_clear:
+            n = hand_done_clear(store, None, who)
+            print(pal.ok_line('done lately cleared (%d) - what is still to be done stays' % n))
+            return 0
+        if args.hand_done:
+            iid, _, node = args.hand_done.partition('@')
+            try:
+                cli_api(d, who, 'POST', '/api/attention',
+                        {'action': 'done', 'id': iid, 'node': node or node_name()})
+            except ApiError as e:
+                print(pal.bad_line(str(e)))
+                return 1
+            print(pal.ok_line('written down as done: %s on %s' % (iid, node or node_name())))
+            return 0
+        HAND['cache_at'] = 0.0
+        got = {'items': hand_all(store), 'done': hand_done_lately(store)}
+        if args.json:
+            out(got)
+            return 0
+        print(pal.head('to be done by hand'))
+        if not got['items']:
+            print(pal.ok_line('nothing is to be done by hand'))
+        for i in got['items']:
+            print((pal.bad_line if i.get('level') == 'bad' else pal.warn_line)(
+                '%s on %s: %s' % (i.get('id'), i.get('node'), i.get('title'))))
+            if i.get('cmd'):
+                print('      run as root: %s' % i['cmd'])
+            if i.get('kind') == 'manual':
+                print('      once done: acme --hand-done %s@%s' % (i.get('id'), i.get('node')))
+        if got['done']:
+            print(pal.head('done lately'))
+            for x in got['done']:
+                print('  %s  %-14s %-12s %s  %s' % (time.strftime('%d.%m.%Y %H:%M', time.localtime(
+                    float(x.get('at') or 0))), x.get('how'), x.get('node'), x.get('who') or '-', x.get('what')))
+        return 0
 
     if args.status or args.check:
         d = Daemon(store, serve=False)
