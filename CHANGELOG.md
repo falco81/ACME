@@ -5,6 +5,11 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.52 - not released
+- Pages: Backups → Download one here says to set the password first when there is none (an
+  unlocked backup is never given, the page offered it); a phone's dialog keeps its row of buttons
+  whole and the Settings find list follows its box; the API port's help, "cannot look for
+  updates", "a passkey (…)" and the meter's "load" are in Czech; the portal's reads refuse
+  another site as the admin pages' do; a POST with Origin null is another site's.
 - Round 3: "no time limit" counted under the database's lock (two threads at once left it off
   for good); a portal CSR with other names for a certificate issued already is a new request,
   not put to approval (declined, the certificate in use stopped renewing); the portal's way back
