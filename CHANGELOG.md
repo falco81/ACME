@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.53 - not released
+## 1.0.53 - 2026-11-06
 - The performance meter in a cluster: the graphs of every node drawn with one delay, so they move
   together; the other node's details are kept in its row (written every 30 s while watched), so
   its panel shows them at once instead of "reading..."; back on the page, the other node's last
