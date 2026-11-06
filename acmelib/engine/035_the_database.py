@@ -437,6 +437,7 @@ class Db(object):
                 try:
                     import pymysql
                     import pymysql.cursors
+                    import pymysql.constants.CLIENT
                 except ImportError:
                     raise DbError('MariaDB is chosen and its Python driver is not installed: '
                                   'dnf install python3-PyMySQL (or pip install PyMySQL)')
@@ -451,6 +452,9 @@ class Db(object):
                         read_timeout=(stmt_s + 4) if quick else (
                             max(30, self.statement_s + 10) if self.statement_s else 300),
                         write_timeout=60,
+                        # rows matched, as SQLite and PostgreSQL count them (1.0.52): an UPDATE
+                        # to the values there already said 0 here only
+                        client_flag=pymysql.constants.CLIENT.FOUND_ROWS,
                         cursorclass=pymysql.cursors.DictCursor,
                         **db_tls_args('mariadb', self.tls, self.tls_ca))
                 except Exception as e:
@@ -672,6 +676,15 @@ class Db(object):
         if self.engine == 'sqlite' or not self.statement_s:
             yield
             return
+        # Once for the outermost only (1.0.52): add_missing_columns inside make_tables put the
+        # limit back on before the indexes were made - an index on a large log failed the start.
+        if getattr(self, '_unl_depth', 0):
+            self._unl_depth += 1
+            try:
+                yield
+            finally:
+                self._unl_depth -= 1
+            return
         off, on = (('SET statement_timeout = 0', 'SET statement_timeout = %d' % (
             self.statement_s * 1000)) if self.engine == 'postgres' else (
             'SET SESSION max_statement_time = 0',
@@ -687,9 +700,21 @@ class Db(object):
                 self.run(RawSql(off))
             except Exception:                           # noqa: BLE001
                 pass
+            # MariaDB's socket waits as long too (1.0.52): pymysql's read_timeout cut a long
+            # restore off whatever max_statement_time said
+            rt = getattr(self.conn, '_read_timeout', None) if self.engine == 'mariadb' else None
+            if rt is not None:
+                self.conn._read_timeout = None
+            self._unl_depth = 1
             try:
                 yield
             finally:
+                self._unl_depth = 0
+                if rt is not None and self.conn is not None:
+                    try:
+                        self.conn._read_timeout = rt
+                    except Exception:                   # noqa: BLE001
+                        pass
                 try:
                     self.run(RawSql(on))
                 except Exception:                       # noqa: BLE001

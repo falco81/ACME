@@ -233,7 +233,10 @@ function acme_guard_post(): void
         $op = parse_url($origin, PHP_URL_PORT);
         $hh = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
         $want = $oh . ($op ? ':' . $op : '');
-        $foreign = $oh === '' || ($hh !== $want && $hh !== $oh);
+        // the scheme and the port too (1.0.52): another service of the same host counted as this
+        $scheme = strtolower((string) parse_url($origin, PHP_URL_SCHEME));
+        $tls = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+        $foreign = $oh === '' || $hh !== $want || $scheme !== ($tls ? 'https' : 'http');
     }
     if ((strpos($kind, 'application/json') !== 0 && !$restore)
             || ($from !== '' && $from !== 'same-origin' && $from !== 'none') || $foreign) {

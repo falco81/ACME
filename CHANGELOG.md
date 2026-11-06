@@ -5,6 +5,20 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.52 - not released
+- The pages' PHP: a session cookie with a newline at its end no longer ends the request to the
+  daemon early (the administrator could not sign in until the cookie was cleared); an Origin of
+  another port or scheme of the same host is another site; a name cut in the middle of a letter is
+  no longer "a number too big"; the reads of the pages refuse another site first; the portal's
+  "sign in through the balancer again" is taken from its own page only; an upgraded nginx gets the
+  manifest's type.
+- The database: "no time limit" for long work stays off for the whole of it (the indexes made at
+  start ran limited again) and on MariaDB lifts the socket's wait too (a long restore was cut);
+  a COMMIT is sent inside its transaction (a failed one could be sent again on a new connection,
+  the whole lost); MariaDB counts the rows an UPDATE matched as the others do; a target, source or
+  validation named with digits only is found by its name, not taken for the one of that id.
+- Teams and request profiles: a profile whose only team is deleted is switched off, not opened
+  to everybody; a new CSR with other names from the portal waits for approval where its profile
+  asks it or another owner's certificate holds a name; a fixed country is kept in capitals.
 - Pages: Settings' find box is there on a phone too; Settings → Certificates says how many renew
   by themselves (it said 0); a module's Connector group, the GHz of the cores and the API port's
   help are in the page's language; a select in a dialog's row stays within it; row buttons wrap

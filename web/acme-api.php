@@ -77,7 +77,8 @@ function acme_token(): ?string
 function acme_session(): string
 {
     $got = (string) ($_COOKIE[ACME_COOKIE] ?? '');
-    return preg_match('/^[A-Za-z0-9_-]{16,128}$/', $got) === 1 ? $got : '';
+    // \z, not $ (1.0.52): $ let a newline at the end through - it ended the request's headers
+    return preg_match('/^[A-Za-z0-9_-]{16,128}\z/', $got) === 1 ? $got : '';
 }
 
 /** Start one. Same-site and HttpOnly, and Secure whenever the page is on TLS. */
@@ -115,7 +116,7 @@ function acme_call(string $path, string $method = 'GET', array|object|null $payl
        one line each, nothing that could start another header. */
     foreach ($extra as $line) {
         $line = (string) $line;
-        if (preg_match('/^X-Acme-[A-Za-z-]{1,40}: [\x21-\x7e]{1,300}$/', $line)) {
+        if (preg_match('/^X-Acme-[A-Za-z-]{1,40}: [\x21-\x7e]{1,300}\z/', $line)) {
             $headers[] = $line;
         }
     }
@@ -124,7 +125,7 @@ function acme_call(string $path, string $method = 'GET', array|object|null $payl
     // The name the pages were reached by, for the link in a token's mail
     // (1.0.33) - built by the daemon from this, never taken from the page.
     $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
-    if (preg_match('/^([A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:.]{2,45}\])(:[0-9]{1,5})?$/', $host)) {
+    if (preg_match('/^([A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:.]{2,45}\])(:[0-9]{1,5})?\z/', $host)) {
         $headers[] = 'X-Acme-Host: ' . $host;
     }
     $session = acme_session();
@@ -144,7 +145,7 @@ function acme_call(string $path, string $method = 'GET', array|object|null $payl
 
     $body = null;
     if ($payload !== null) {
-        $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        $body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         if ($body === false) {
             /* A number JSON cannot hold (1e400 is INF to PHP) - the request's
                fault, said so, not a 500 with an empty body (1.0.103). */

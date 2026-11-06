@@ -79,15 +79,19 @@ class _Tx(object):
 
     def __exit__(self, kind, value, tb):
         try:
-            self.db.in_tx = False
             if kind is None:
+                # COMMIT inside the transaction still (1.0.52): marked out of it first, a failed
+                # COMMIT was sent again on a new connection - "done", the whole lost
                 self.db.run('COMMIT')
+                self.db.in_tx = False
             else:
+                self.db.in_tx = False
                 try:
                     self.db.run('ROLLBACK')
                 except Exception:                       # noqa: BLE001
                     pass
         finally:
+            self.db.in_tx = False
             self.lock.release()
         return False
 

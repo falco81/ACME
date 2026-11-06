@@ -107,6 +107,22 @@ def _cert_csr(h):
               'updated_by': P.portal_by(s)[:190]}
     if row.get('state') == 'revoked':
         fields.update(state='due', state_at=t)      # a new key: it may be issued again
+    # Other names as a new request (1.0.52): the profile's approval, a name another owner's
+    # certificate holds - issued at once before, past both.
+    changed = sorted(names) != sorted(S.jload(row.get('names'), []) or [])
+    if changed and prof:
+        if not prof.get('enabled', 1):
+            raise E.ApiError(403, 'its request profile is switched off - other names are not taken')
+        pcfg = R.config_of(prof)
+        if pcfg.get('approval') or P.held_by_others(h.store, names, row.get('owner')):
+            fields.update(state=P.WAITING, state_at=t, auto_renew=0)
+            h.store.db.update('certs', row['id'], fields)
+            h.store.add_event('certificates', '%s sent a new CSR for %s from the portal with other '
+                              'names (%s) - it waits for approval' % (s['name'], row['name'],
+                                                                     ', '.join(names)),
+                              'warn', who=s['name'])
+            return {'waits': True, 'message': 'the new CSR was taken - with other names it waits '
+                                              'for approval'}
     h.store.db.update('certs', row['id'], fields)
     h.store.add_event('certificates', '%s sent a new CSR for %s from the portal (%s) - it is '
                       'issued again' % (s['name'], row['name'], kt), 'warn', who=s['name'])

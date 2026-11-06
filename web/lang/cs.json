@@ -54051,6 +54051,14 @@
   "huntd1_4": {
    "source": "serves the current certificate, but it is not valid yet",
    "text": "posílá současný certifikát, ale ten ještě neplatí"
+  },
+  "huntd2_1": {
+   "source": "its request profile is switched off - other names are not taken",
+   "text": "jeho profil žádostí je vypnutý – jiná jména se nepřijímají"
+  },
+  "huntd2_2": {
+   "source": "the new CSR was taken - with other names it waits for approval",
+   "text": "nový CSR byl přijat – s jinými jmény čeká na schválení"
   }
  },
  "patterns": {

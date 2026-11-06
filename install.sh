@@ -889,6 +889,15 @@ if 'location ^~ /pki/' not in text:
         text = text[:ma.start()] + pki_block(ma.group(1), True) + '\n' + text[ma.start():]
     if m80 or ma:
         said.append('/pki/ serves the CRLs of acme\'s own authorities (port 80 and 443)')
+# The home screen's manifest of its own type (1.0.52), where mime.types has none for it.
+if 'webmanifest' not in text:
+    ma = re.search(r'(?m)^([ \t]*)location /assets/', text)
+    if ma:
+        pad = ma.group(1)
+        text = text[:ma.start()] + ''.join(pad + ln + '\n' for ln in [
+            'location ~ ^/assets/[a-z-]+\\.webmanifest$ {', '    default_type application/manifest+json;',
+            '    expires 1d;', '    access_log off;', '    try_files $uri =404;', '}']) + text[ma.start():]
+        said.append('the manifest of the home screen has its type')
 # the health check rate-limited like everything else (the zone is
 # whichever one the conf keeps for everybody; acme_all, as shipped).
 # Looked for in the whole block: the access lists put in front of

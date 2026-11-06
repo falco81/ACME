@@ -316,11 +316,14 @@ def plugin_row(store, family, ref):
     table = TABLE_OF[family]
     if ref in (None, ''):
         return None
-    if isinstance(ref, int) or (isinstance(ref, str) and ref.isdigit()):
+    if isinstance(ref, int) and not isinstance(ref, bool):
+        return store.db.row('SELECT * FROM %s WHERE id = ?' % table, (int(ref),))
+    # by its name first (1.0.52): a target named "1" was taken for the one of id 1 - and the
+    # certificate and its key went to that one's server
+    got = store.db.row('SELECT * FROM %s WHERE name = ?' % table, (str(ref),))
+    if got is None and isinstance(ref, str) and ref.isdigit():
         got = store.db.row('SELECT * FROM %s WHERE id = ?' % table, (int(ref),))
-        if got:
-            return got
-    return store.db.row('SELECT * FROM %s WHERE name = ?' % table, (str(ref),))
+    return got
 
 
 def plugin_config(family, row):

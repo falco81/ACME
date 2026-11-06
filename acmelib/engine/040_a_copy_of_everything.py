@@ -123,8 +123,8 @@ def _load_tables_held(db, src, keep_logs, say, gzip):
         db.in_tx = True
         try:
             counts = _load_tables(db, src, keep_logs, say, gzip)
+            db.run('COMMIT')                    # in the transaction still (1.0.52)
             db.in_tx = False
-            db.run('COMMIT')
         except BaseException:
             db.in_tx = False
             try:

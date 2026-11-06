@@ -79,6 +79,18 @@ if (isset($_GET['api'])) {
        these pages - Settings → Certificates and TLS → Certificates from acme. No
        sign-in: the daemon checks acme's signature over the body as it came, so the
        body (as base64) and the X-Acme-Push-* headers go to it untouched, in its JSON. */
+    /* The reads of the pages themselves, from another page refused before anything (1.0.52):
+       software, lang and logo were answered ahead of the check below. acme push is another
+       acme's, not a browser's. */
+    if (!$post && !preg_match('/^acme-push-/', $what)) {
+        $from0 = (string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '');
+        if ($from0 !== '' && $from0 !== 'same-origin' && $from0 !== 'none') {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'that request did not come from this page']);
+            exit;
+        }
+    }
     if (preg_match('/^acme-push-(hello|pair|inventory|install)$/', $what, $push)) {
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store');

@@ -122,7 +122,7 @@ def clean_subject(v):
             raise ValueError('a subject field is off, fixed or person, not %r' % mode)
         value = str(one.get('value') or '').strip()
         if value:
-            check_value(k, value)
+            value = check_value(k, value) or value     # as it is written (C upper) - 1.0.52
         if mode == 'fixed' and not value:
             raise ValueError('the subject field %s is fixed by the profile: give its value' % k)
         out[k] = {'mode': mode, 'value': value if mode != 'off' else ''}
@@ -306,11 +306,17 @@ def rename_ref(store, kind, old, new):
             if any(_low(x) == _low(old) for x in have):
                 cfg[k] = [x for x in ((new if _low(x) == _low(old) else x) for x in have) if x]
                 hit = True
+                if k == 'teams' and have and not cfg[k]:
+                    # its only team deleted (1.0.52): no teams means anybody - it is switched
+                    # off instead, for an administrator to say who may use it now
+                    r['enabled'] = 0
         if kind == 'team' and _low(cfg.get('owner_team')) == _low(old):
             cfg['owner_team'] = new or ''       # deleted (1.0.45): no longer one that is not
             hit = True
         if hit:
-            store.db.update('cert_req_profiles', r['id'], {'config': json.dumps(cfg)})
+            store.db.update('cert_req_profiles', r['id'], {'config': json.dumps(cfg),
+                                                           'enabled': 1 if r.get('enabled', 1)
+                                                           else 0})
 
 
 def rename_source(store, family, old, new):
