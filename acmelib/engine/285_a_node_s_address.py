@@ -14,6 +14,20 @@ from __future__ import annotations
 # new address and tell it; the other cannot reach it yet. When both changed,
 # do it on both (each says what it could not do).
 READDRESS_LOCK = threading.Lock()
+# A tell that failed after going back, tried again (1.0.56): when this
+# process last tried it.
+READDRESS_TELL_TRIED = {'at': 0.0}
+
+
+def _addr_key(a):
+    """An address in one form to compare (1.0.56): ip_address's canonical one,
+    anything else (a host name) in lower case. Compared as text, 10.0.0.1 was
+    "in" 10.0.0.12 and FD99::1 was not fd99::1."""
+    a = str(a or '').strip()
+    try:
+        return str(ipaddress.ip_address(a.strip('[]')))
+    except ValueError:
+        return a.lower()
 
 
 def _readdress_ip(text, what):
@@ -71,10 +85,10 @@ def ha_readdress(store, mine='', peer='', by='', root_now=False, tell=True, daem
     peer = _readdress_ip(peer, 'the other node\'s address')
     had_mine = str(CONFIG.get('ha_address') or node_address() or '')
     had_peer = str(CONFIG.get('ha_peer') or '')
-    if mine == had_mine:
+    if _addr_key(mine) == _addr_key(had_mine):
         mine = ''
     sub_again = False
-    if peer == had_peer:
+    if _addr_key(peer) == _addr_key(had_peer):
         peer = ''
         # The subscription still on another address (a move that failed half
         # way before 1.0.209): put where ha_peer says.
@@ -83,7 +97,9 @@ def ha_readdress(store, mine='', peer='', by='', root_now=False, tell=True, daem
     if not mine and not peer:
         return {'message': 'nothing to change: both addresses are as this node has them',
                 'done': [], 'left': []}
-    if peer and peer in (mine or had_mine):
+    # One address compared with the other (1.0.56), not a substring of a
+    # string: 10.0.0.1 beside 10.0.0.12 was refused.
+    if peer and _addr_key(peer) == _addr_key(mine or had_mine):
         raise ValueError('the two nodes cannot have one address')
     done, left = [], []
     with READDRESS_LOCK:
@@ -119,6 +135,8 @@ def ha_readdress(store, mine='', peer='', by='', root_now=False, tell=True, daem
             d2, l2 = readdress_tell(peer or had_peer, mine or had_mine, by, keep_old)
             done += d2
             left += l2
+            _readdress_tell_keep(store, peer or had_peer, mine or had_mine, by, keep_old,
+                                 bool(l2))
     hatls_check_soon()
     store.add_event('settings', '%s: the addresses of the cluster changed on %s - %s%s' % (
         by or 'command line', node_name(), '; '.join(done),
@@ -183,8 +201,65 @@ def readdress_tell(peer, mine, by, keep_old=False):
     return done, left
 
 
+def _readdress_tell_keep(store, peer, mine, by, keep_old, failed):
+    """A tell that failed while this node goes back to its old network (1.0.56,
+    as otp 1.0.262 R3-5): kept in 'readdress:tell:NODE' and tried again by
+    readdress_tick - it was tried once after the restart, and the other node
+    went on pointing at the address given up. Told, the row goes."""
+    k = 'readdress:tell:' + node_name()
+    try:
+        if not failed:
+            if store.get_meta(k):
+                store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+            return
+        job = _meta_obj(store, 'net:job:' + node_name())
+        if not job.get('rollback') or job.get('state') != 'running':
+            return
+        store.set_meta(k, json.dumps({'peer': peer, 'mine': mine, 'by': by,
+                                      'keep_old': bool(keep_old), 'at': time.time()}))
+    except Exception as e:                              # noqa: BLE001
+        log('the other node to be told again later: %s' % e, 'warn')
+
+
+def readdress_tell_again(store):
+    """The kept tell (1.0.56) tried again: every minute while the other node's
+    heartbeat is fresh, every 5 min otherwise, not while this node's network
+    job is still under way; dropped once told, or once ha_address moved on."""
+    k = 'readdress:tell:' + node_name()
+    try:
+        row = json.loads(store.get_meta(k) or 'null')
+    except ValueError:
+        row = None
+    if not isinstance(row, dict):
+        return
+    if _addr_key(row.get('mine')) != _addr_key(CONFIG.get('ha_address') or node_address()):
+        store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+        log('the other node is no longer told %s: ha_address moved on' % row.get('mine'), 'info')
+        return
+    if net_job_active(_meta_obj(store, 'net:job:' + node_name())):
+        return
+    alive = any(n.get('alive') for n in ha_nodes(store) if not n.get('me'))
+    if time.time() - READDRESS_TELL_TRIED['at'] < (60 if alive else 300):
+        return
+    READDRESS_TELL_TRIED['at'] = time.time()
+    done, left = readdress_tell(str(CONFIG.get('ha_peer') or row.get('peer') or ''),
+                                row.get('mine') or '', row.get('by') or 'acme',
+                                bool(row.get('keep_old')))
+    if done and not left:
+        store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+        log('the other node told %s at last' % row.get('mine'), 'info')
+        store.add_event('settings', 'the other node was told %s is at %s again' % (
+            node_name(), row.get('mine')), 'info', who=row.get('by') or 'acme')
+
+
 def readdress_tick(store, daemon=None):
     """A request the other node wrote into this database: this node's part."""
+    # A tell that failed after going back, tried again (1.0.56).
+    try:
+        readdress_tell_again(store)
+    except Exception as e:                              # noqa: BLE001
+        log_sparing('readdress-tell-again', 'telling the other node again: %s' % e, 'warn',
+                    every=600)
     raw = store.get_meta('readdress:ask')
     if not raw:
         return

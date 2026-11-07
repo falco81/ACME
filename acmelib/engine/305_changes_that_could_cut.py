@@ -114,7 +114,12 @@ def net_trial_tick(daemon, job):
         store.add_event('settings', '%s kept the new network of %s' % (keep.get('by'), me),
                         who=keep.get('by'))
         w = job.get('want') or {}
-        if job.get('keep_old') and w.get('old_ip') and w.get('new_ip'):
+        # Only where the other node was told a new address (1.0.56, as otp
+        # 1.0.262 R3-1): a trial of a gateway, DNS or host name kept, the
+        # other node dropped "the old" line - the one this node still uses.
+        if job.get('keep_old') and job.get('told') and w.get('ip_changed') and \
+                w.get('old_ip') and w.get('new_ip') and \
+                _addr_key(w['old_ip']) != _addr_key(w['new_ip']):
             # The other node may let only the new address in again.
             store.set_meta('readdress:dropold:' + me, json.dumps({
                 'id': job.get('id'), 'from': me, 'old': w['old_ip'], 'new': w['new_ip'],
@@ -150,6 +155,11 @@ def readdress_dropold_tick(store):
             continue
         done_key = 'readdress:dropold:done:' + me
         if (store.get_meta(done_key) or '') == str(ask.get('id')):
+            continue
+        if _addr_key(ask.get('old')) == _addr_key(ask.get('new')):
+            # Nothing to drop (1.0.56): "the old" line is the one in use
+            # (a row of an older version, written for a trial that kept the address).
+            store.set_meta(done_key, str(ask.get('id')))
             continue
         try:
             said = _readdress_hba(ask['old'], ask['new'], False, drop_old=True)
