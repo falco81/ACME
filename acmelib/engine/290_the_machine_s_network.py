@@ -158,10 +158,22 @@ def net_check(store, node, want, rollback=False):
         try:
             g = ipaddress.ip_address(gw)
         except ValueError:
-            raise ValueError('the gateway is one IPv4 address')
-        if g.version != 4 or g not in a4.network or g == a4.ip:
+            g = None
+            if not rollback:
+                raise ValueError('the gateway is one IPv4 address')
+        if g is None or g.version != 4:
+            # Going back is never refused for its gateway (1.0.56): what the
+            # node had is put back as it was - an on-link gateway outside the
+            # subnet too; one that is no IPv4 address at all is left out.
+            if not rollback:
+                raise ValueError('the gateway %s is not another address in %s' % (g, a4.network))
+            gw = ''
+        elif not rollback and (g not in a4.network or g == a4.ip):
             raise ValueError('the gateway %s is not another address in %s' % (g, a4.network))
     dns = _net_list(v4.get('dns'))
+    if rollback:
+        # Nor for a DNS server (1.0.56): one that is no IPv4 address left out.
+        dns = [x for x in dns if _net_ip(x, 4)]
     for x in dns:
         try:
             d4 = ipaddress.ip_address(x)
@@ -188,13 +200,13 @@ def net_check(store, node, want, rollback=False):
                 raise ValueError('the IPv6 address is a global one with its prefix: '
                                  '2001:db8::10/64')
         g6 = str(v6.get('gw') or '').strip()
-        if g6:
-            try:
-                if ipaddress.ip_address(g6).version != 6:
-                    raise ValueError
-            except ValueError:
+        if g6 and not _net_ip(g6, 6):
+            if not rollback:
                 raise ValueError('the IPv6 gateway is one IPv6 address')
+            g6 = ''                     # going back: left out (1.0.56)
     dns6 = _net_list(v6.get('dns')) if on6 else []
+    if rollback:
+        dns6 = [x for x in dns6 if _net_ip(x)]
     for x in dns6:
         try:
             ipaddress.ip_address(x)
@@ -212,7 +224,26 @@ def net_check(store, node, want, rollback=False):
         raise ValueError('the host name is the whole name: acme1.example.cz')
     old_ip = net_current_ip(now).split('/')[0]
     new_ip = str(a4.ip)
+    conf = d.get('conf') or {}
+    # The IPv6 addresses set by hand now, without prefix (1.0.56): the node's
+    # own certificate names them, and they go when the change takes them away.
+    old_ip6 = []
+    if conf.get('ipv6_method') == 'manual':
+        for x in conf.get('ipv6_addresses') or []:
+            k = _cert_name_key(str(x).split('/')[0])
+            if k and k not in old_ip6:
+                old_ip6.append(k)
     many = bool(CONFIG.get('ha_mode'))
+    if not rollback and CONFIG.get('ha_mode') == 'replicated':
+        # Replication over IPv6 (1.0.56): the other node is told only the new
+        # IPv4 address - an IPv6 change that takes away the address the nodes
+        # replicate over would cut them apart.
+        rep6 = str(CONFIG.get('ha_address' if node == node_name() else 'ha_peer') or '')
+        k6 = _cert_name_key(rep6)
+        if ':' in k6 and k6 in old_ip6 and not (a6 and _cert_name_key(str(a6.ip)) == k6):
+            raise ValueError('the nodes replicate over %s, which this change takes away from %s: '
+                             'change the addresses of the two nodes first (Settings → High '
+                             'availability → The addresses of the two nodes)' % (rep6, node))
     others = [n for n in ha_nodes(store) if n['name'] != node]
     for n in others:
         if str(n.get('address') or '') == new_ip:
@@ -232,9 +263,10 @@ def net_check(store, node, want, rollback=False):
     plan = []
     ip_changed = bool(old_ip) and old_ip != new_ip
     host_old = str(d.get('hostname') or '')
-    conf = d.get('conf') or {}
     was6 = conf.get('ipv6_method') not in (None, '', 'disabled', 'ignore')
-    if ip_changed and many and CONFIG.get('ha_mode') == 'replicated':
+    if ip_changed and many and CONFIG.get('ha_mode') == 'replicated' and \
+            net_ha_on_old(old_ip, None if node == node_name() else
+                          str(now.get('ha_address') or '')):
         plan.append('the other node is told %s: its pg_hba.conf, its subscription and its '
                     'ha_peer move to it' % new_ip)
     if ip_changed:
@@ -257,9 +289,56 @@ def net_check(store, node, want, rollback=False):
                                      if x.get('con') == con), ''),
             'ipv4': {'addr': str(a4), 'gw': gw, 'dns': dns, 'search': search},
             'ipv6': {'on': on6, 'mode': mode6, 'addr': str(a6) if a6 else '',
-                     'gw': str(v6.get('gw') or '').strip() if on6 else '', 'dns': dns6},
+                     'gw': g6 if on6 else '', 'dns': dns6},
             'hostname': host, 'old_ip': old_ip, 'new_ip': new_ip, 'old_hostname': host_old,
+            'old_ip6': old_ip6,
             'ip_changed': ip_changed, 'was6': was6, 'plan': plan}
+
+
+def _net_ip(text, version=None):
+    """`text` one address (of that IP version) - True/False."""
+    try:
+        a = ipaddress.ip_address(str(text or '').strip())
+    except ValueError:
+        return False
+    return version is None or a.version == version
+
+
+def net_ha_on_old(old_ip, had=None):
+    """Replication on the address the change takes away (1.0.56): this
+    node's ha_address empty (the address it has) or that very address. On a
+    second address (one kept by the change), the other node is not told the
+    new primary one - nor is ha_address moved to it. `had`: another node's
+    ha_address as it says it; None: this node's."""
+    had = str((CONFIG.get('ha_address') if had is None else had) or '').strip()
+    return not had or (bool(old_ip) and _cert_name_key(had) == _cert_name_key(old_ip))
+
+
+def net_others_held(store, node):
+    """Why `node` may not go out of service now (1.0.56) - [] when it may: a
+    network change in a cluster puts it in maintenance and restarts it, and it
+    was asked while the other node was in maintenance or stepped aside, so the
+    whole service stopped. Held only by another node heard from (a fresh
+    heartbeat) but out of service, or by another node's network being changed
+    or on trial (as a restart is) - a dead or absent node never holds it:
+    re-addressing is how a node whose partner died is put right."""
+    if not CONFIG.get('ha_mode'):
+        return []
+    out = []
+    for n in ha_nodes(store):
+        name = n['name']
+        if name == node:
+            continue
+        job = _meta_json(store, 'net:job:' + name) or {}
+        if net_job_active(job) or (job.get('state') == 'trial' and (
+                n.get('alive') or
+                time.time() < float(job.get('trial_until') or 0) + NET_JOB_LIVE_S)):
+            out.append('the network of %s is being changed or is on trial - keep it (or let it '
+                       'go back) first' % name)
+        elif n.get('alive') and (beat_aside(n) or maintenance_row(store, name).get('on')):
+            out.append('%s answers but is out of service (maintenance, or stepped aside): '
+                       'the VIP address would have nowhere to go' % name)
+    return out
 
 
 def net_job_active(job):
@@ -275,6 +354,11 @@ def net_ask(store, node, want, by, rollback=False, maint=False, snap=''):
     if power_busy(store):
         raise ValueError('a restart or a power-off is under way')
     checked = net_check(store, node, want, rollback=rollback)
+    if not rollback:
+        # Going back is never refused (1.0.56).
+        held = net_others_held(store, node)
+        if held:
+            raise ValueError('not now: %s' % '; '.join(held))
     ask = {'id': secrets.token_hex(6), 'node': node, 'want': checked, 'by': by,
            'at': time.time(), 'from': node_name(), 'rollback': bool(rollback),
            'maint': bool(maint), 'snap': str(snap or '')}
