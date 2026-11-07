@@ -199,6 +199,10 @@ def online_tick(daemon):
         return
     ONLINE_WORK['at'] = time.time()
     store = daemon.store
+    # One node of a replicated pair looks (1.0.56): both nodes' first look INSERTed the one
+    # row and replication stopped. The other takes over when it hears no other (ha_lead).
+    if CONFIG.get('ha_mode') == 'replicated' and not ha_lead(store):
+        return
     last = _meta_obj(store, 'upgrade:online')
     # Asked again once the address changed, or a day after the last look.
     if last.get('url') == online_url() and \

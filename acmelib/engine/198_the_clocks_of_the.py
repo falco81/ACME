@@ -261,7 +261,11 @@ def clock_decide(mode, ref, aside_s, codes_fixed, dir_ok, health_dir, peer, asid
             return 'aside', 'this node\'s clock is %+.1f s off the time servers - the other node answers' % (-ref)
         return 'serve', 'this node\'s clock is off, but the other node cannot take over - it answers'
     if health_dir and dir_ok is False:
-        if peer_well and (peer or {}).get('dir_ok') is True:
+        # Only for a peer whose clock is good too (1.0.56): one serving only because this node
+        # could not take over for its clock was stepped aside for. Not measured: as before.
+        pr = (peer or {}).get('ref')
+        if peer_well and (peer or {}).get('dir_ok') is True and \
+                (pr is None or abs(pr) <= aside_s):
             return 'aside', 'this node cannot reach the directory - the other node answers'
         return 'serve', 'the directory cannot be reached, but neither can the other node take over'
     return 'serve', ''

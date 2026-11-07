@@ -599,6 +599,16 @@ def hatls_check(store):
             wrong.append('%s does not hold the newest authority' % HA_CA_FILE)
     except OSError:
         wrong.append('%s is not there' % HA_CA_FILE)
+    if not wrong and st.get('step') == 'failed' and st.get('failed_step') == 'link':
+        # Failed only waiting for the other node to pass (1.0.56), nothing wrong here: it
+        # waited an hour. Back to the link, its 15 minutes counted anew - it finishes once
+        # the other node passes.
+        st.update(step='link', link_since=now, retry_at=0, error=None,
+                  said='the other node\'s database is waited for again')
+        hatls_put(store, st)
+        log('the link between the databases: waiting again for the other node to pass '
+            'verify-full')
+        return
     if not wrong:
         if stuck:
             log('the link between the databases waits for the other node: this node\'s own '

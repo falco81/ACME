@@ -20,6 +20,36 @@ def _ha_change(store, key, now, words, level='warn'):
     return True
 
 
+def ha_planned_away(store):
+    """{node: why} of the other nodes away on purpose now (1.0.56): a network job of theirs
+    under way (asked, running, rebooting - its row, last come over, still names it; a job not
+    moving for NET_JOB_LIVE_S is not), or a restart of a power plan going. A re-addressing
+    stops replication from the node for a minute or two and restarts it - asked for, not a
+    failure."""
+    out = {}
+    try:
+        me = node_name()
+        plan = power_plan(store)
+        for n in ha_nodes(store):
+            name = n['name']
+            if name == me:
+                continue
+            if net_job_active(_meta_json(store, 'net:job:' + name)):
+                out[name] = '%s is changing its network' % name
+                continue
+            row = _meta_obj(store, 'power:node:' + name)
+            try:
+                moved = float(row.get('moved') or row.get('at') or 0)
+            except (TypeError, ValueError):
+                moved = 0.0
+            if plan and row.get('id') == plan.get('id') and row.get('state') == 'going' and \
+                    time.time() - moved < 900:
+                out[name] = '%s is restarting' % name
+    except Exception:                                   # noqa: BLE001
+        return {}
+    return out
+
+
 def ha_watch_tick(store):
     me = node_name()
     if not CONFIG.get('ha_mode'):
@@ -43,18 +73,24 @@ def ha_watch_tick(store):
             _ha_change(store, 'health', 'ok' if ok else 'bad',
                        ('%s is healthy again: the VIP address may come back to it' % me) if ok
                        else ('%s is not healthy - %s: the VIP address leaves it' % (me, why or '?')),
-                       'info' if ok else 'bad')
+                       # Maintenance asked for is not a failure (1.0.56): warn, not bad.
+                       'info' if ok else ('warn' if why == 'in maintenance' else 'bad'))
     else:
         HA_SEEN.pop('vip', None)
         HA_SEEN.pop('health', None)
+    # The other nodes away on purpose (1.0.56): a re-addressing or a restart asked for said
+    # as expected (warn), not as a failure (bad) - the alerts mailed every one of them.
+    planned = ha_planned_away(store)
     for n in ha_nodes(store):
         if n['me']:
             continue
         _ha_change(store, 'node:' + n['name'], 'alive' if n.get('alive') else 'gone',
                    ('%s answers again (seen from %s)' % (n['name'], me)) if n.get('alive')
-                   else ('%s stopped answering (seen from %s, last heard %d s ago)'
-                         % (n['name'], me, int(n.get('age') or 0))),
-                   'info' if n.get('alive') else 'bad')
+                   else ('%s stopped answering (seen from %s, last heard %d s ago)%s'
+                         % (n['name'], me, int(n.get('age') or 0),
+                            (' - expected: %s' % planned[n['name']]) if n['name'] in planned
+                            else '')),
+                   'info' if n.get('alive') else ('warn' if n['name'] in planned else 'bad'))
         m = bool((n.get('maintenance')))
         _ha_change(store, 'maint:' + n['name'], 'on' if m else 'off',
                    '%s %s maintenance' % (n['name'], 'went into' if m else 'came out of'), 'info')
@@ -63,15 +99,19 @@ def ha_watch_tick(store):
     r = ha_repl_state(store)
     if r.get('trouble'):
         return
+    why_planned = '; '.join(planned[k] for k in sorted(planned))
     for x in r.get('incoming') or []:
         name = x.get('name')
         state = 'running' if x.get('running') else ('paused' if not x.get('enabled') else 'stopped')
         _ha_change(store, 'in:' + name, state,
                    'replication coming in (%s): %s' % (name, {
                        'running': 'running again', 'paused': 'paused',
-                       'stopped': 'stopped - the other node or its PostgreSQL is not reached, or '
-                                  'an error stops it'}[state]),
-                   {'running': 'info', 'paused': 'warn'}.get(state, 'bad'))
+                       'stopped': ('stopped - expected while %s; it starts again by itself once '
+                                   'that is over' % why_planned) if why_planned else
+                                  ('stopped - the other node or its PostgreSQL is not reached, '
+                                   'or an error stops it')}[state]),
+                   {'running': 'info', 'paused': 'warn'}.get(
+                       state, 'warn' if why_planned else 'bad'))
         errs = int(x.get('apply_errors') or 0) + int(x.get('sync_errors') or 0)
         was = HA_SEEN.get('err:' + name)
         HA_SEEN['err:' + name] = errs

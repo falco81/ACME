@@ -128,6 +128,93 @@ def vip_peer_seen(store):
     return ''
 
 
+def _ip_fam(addr):
+    """4 or 6 for an address (no prefix), 0 for anything else."""
+    try:
+        return ipaddress.ip_address(str(addr or '').split('%')[0]).version
+    except ValueError:
+        return 0
+
+
+VIP_PUBLISHED_S = 600           # the other node's published network: this fresh, or not taken
+
+
+def vip_peer_published(store, like):
+    """The other node's ha_address as it publishes it in 'net:now:NAME' (1.0.56), as an
+    address of the VIP's family - '' when there is none fresh. Only with one shared database:
+    there ha_peer is written once, at the join, and after the other node's address changed
+    keepalived kept unicasting to the old one - both nodes could hold the VIP address. A
+    replicated pair has ha_peer moved by ha_readdress; a node that publishes no ha_address
+    keeps ha_peer."""
+    if CONFIG.get('ha_mode') == 'replicated':
+        return ''
+    me = node_name()
+    for n in ha_nodes(store):
+        if n['name'] == me:
+            continue
+        row = _meta_obj(store, 'net:now:' + n['name'])
+        try:
+            fresh = abs(time.time() - float(row.get('at') or 0)) < VIP_PUBLISHED_S
+        except (TypeError, ValueError):
+            fresh = False
+        got = vip_plain(row.get('ha_address'), like) if fresh else ''
+        if got and _ip_fam(got) == (_fam(like) or 4):
+            return got
+    return ''
+
+
+def vip_family_fix(store, like, own, peer):
+    """(own, peer) of the VIP address's family (1.0.56): an address of the other family (an
+    IPv6 cluster with an IPv4 VIP address, or the other way round) made root refuse the whole
+    web request, for good. This machine's own address of that family is taken - the other
+    node's from ha_peer, its heartbeat or the live addresses it publishes - those in the VIP
+    address's subnet first; '' when there is none (the VIP waits), never a mismatched pair."""
+    fam = _fam(like)
+    if not fam:
+        return own, peer
+    try:
+        net = ipaddress.ip_interface(str(like)).network
+    except ValueError:
+        net = None
+    v = vip_conf(store)
+    skip = set()
+    for a in (v.get('address'), v.get('address6')):
+        try:
+            skip.add(str(ipaddress.ip_interface(str(a)).ip))
+        except ValueError:
+            pass
+
+    def pick(cands, also_skip=()):
+        good = []
+        for a in cands:
+            a = str(a or '').strip().split('/')[0].split('%')[0]
+            try:
+                ip = ipaddress.ip_address(a)
+            except ValueError:
+                continue
+            if ip.version != fam or ip.is_loopback or ip.is_link_local or ip.is_unspecified or \
+                    str(ip) in skip or str(ip) in also_skip or str(ip) in good:
+                continue
+            good.append(str(ip))
+        inside = [a for a in good if net is not None and ipaddress.ip_address(a) in net]
+        return (inside or good or [''])[0]
+    if peer and _ip_fam(peer) != fam:
+        me = node_name()
+        cands = [vip_plain(CONFIG.get('ha_peer'), like)]
+        for n in ha_nodes(store):
+            if n['name'] == me:
+                continue
+            if n.get('address') and dbguard_node_ok(store, n['name']):
+                cands.append(vip_plain(n['address'], like))
+            live = (_meta_obj(store, 'net:now:' + n['name']).get('data') or {}).get('live') or {}
+            for k in ('addrs4', 'addrs6'):
+                cands += [x.get('addr') for x in live.get(k) or [] if isinstance(x, dict)]
+        peer = pick(cands)
+    if own and _ip_fam(own) != fam:
+        own = pick(sorted(local_addresses()), (peer,))
+    return own, peer
+
+
 VIP_LAST_FILE = STATE_DIR / 'vip-last.json'
 
 
@@ -217,7 +304,16 @@ def web_desired(store):
                'own': vip_plain(CONFIG.get('ha_address') or node_address(), v.get('address')),
                'peer': vip_plain(CONFIG.get('ha_peer') or vip_peer_seen(store), v.get('address')),
                'iface': (v.get('ifaces') or {}).get(me, '')}
+        # One shared database (1.0.56): the other node's address as it publishes it now wins
+        # over ha_peer, written once at the join - see vip_peer_published.
+        published = vip_peer_published(store, v.get('address'))
+        if published and published != vip['peer']:
+            vip['peer'] = published
+        vip['own'], vip['peer'] = vip_family_fix(store, v.get('address'), vip['own'], vip['peer'])
         last = vip_last(v.get('address'))
+        if last and (_ip_fam(last.get('own')) != _ip_fam(last.get('peer')) or
+                     _ip_fam(last.get('own')) != (_fam(v.get('address')) or 4)):
+            last = None                 # a pair of the other family, remembered (1.0.56)
         if vip['own'] and vip['peer']:
             vip_last_keep(v.get('address'), vip['own'], vip['peer'])
         elif last:
@@ -371,7 +467,12 @@ def web_tick(store):
 
 WEB_ASKED = {'hash': '', 'at': 0.0}
 WEB_DRIFT = {'at': 0.0}
-NGINX_CERT_FILES = {'node': '/etc/nginx/certs/acme.pem', 'vip': '/etc/nginx/certs/acme-vip.pem'}
+# The folder root writes them into (1.0.56): ACME_VIP_CERT_DIR moves it (two nodes on one
+# machine) - read from the fixed /etc/nginx/certs, the check compared another installation's
+# certificate and said "not the one saved" after every certificate made again.
+_NGINX_CERT_DIR = os.environ.get('ACME_VIP_CERT_DIR') or '/etc/nginx/certs'
+NGINX_CERT_FILES = {'node': os.path.join(_NGINX_CERT_DIR, 'acme.pem'),
+                    'vip': os.path.join(_NGINX_CERT_DIR, 'acme-vip.pem')}
 
 
 def _first_pem(text):
@@ -428,8 +529,9 @@ def web_state(store):
     except (OSError, IndexError):
         pass
     v = vip_conf(store)
-    return {'cert_now': cert_now('/etc/nginx/certs/acme.pem'),
-            'vip_cert_now': cert_now('/etc/nginx/certs/acme-vip.pem'),
+    # The files root writes and web_drift reads (1.0.56), not always /etc/nginx/certs.
+    return {'cert_now': cert_now(NGINX_CERT_FILES['node']),
+            'vip_cert_now': cert_now(NGINX_CERT_FILES['vip']),
             'state': st.get('state') or '', 'said': (st.get('said') or [])[-6:],
             'at': st.get('at'), 'current': bool(st) and st.get('hash') == desired_hash,
             'waiting': (WEB_DIR / 'request.json').exists(),

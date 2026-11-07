@@ -167,6 +167,17 @@ def alerts_quiet(store, names):
             why = 'the system\'s updates'
         if not why and power_busy(store):
             why = 'a restart'
+        if not why:
+            # A node being re-addressed (1.0.56): told the new address and rebooting, it
+            # raised failure alerts before its maintenance row came over.
+            for n in names:
+                if net_job_active(_meta_json(store, 'net:job:' + n)):
+                    why = '%s changing its network' % n
+                    break
+        if not why:
+            away = ha_planned_away(store) if CONFIG.get('ha_mode') else {}
+            if away:
+                why = away[sorted(away)[0]]
     except Exception:                                   # noqa: BLE001
         why = ''
     now = time.time()

@@ -2729,9 +2729,7 @@ def cli_main(argv=None):
         if not store.get_meta('node:' + args.ha_forget):
             raise SystemExit('acme: there is no node called %s in the list' % args.ha_forget)
         cli_sure(args, '%s is taken out of the cluster\'s list, its rows with it' % args.ha_forget)
-        ha_forget(store, args.ha_forget)
-        store.db.run('DELETE FROM meta WHERE k IN (?, ?)',
-                     ('maint:' + args.ha_forget, 'upgrade:node:' + args.ha_forget))
+        ha_forget(store, args.ha_forget)        # maint:/upgrade:node: rows if gone (1.0.56)
         store.add_event('settings', '%s was taken off the list of nodes on the command line'
                         % args.ha_forget, 'warn', who='command line')
         print(pal.ok_line('%s is off the list (if it still runs, it writes itself back within '
