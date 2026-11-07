@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.56 - not released
+## 1.0.56 - 2026-11-07
 - **Re-addressing a node of a cluster** (Settings → Network → Change it and restart), the findings
   of otp's test matrix gone through in acme:
   - a node whose host name is short (`acme1`) could not be re-addressed at all: root refused the
