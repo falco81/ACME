@@ -168,6 +168,16 @@ def split_preferred_unable(store, now=None):
             return 'the preferred node is in maintenance'
     except Exception:                                   # noqa: BLE001
         pass
+    # Being re-addressed (1.0.56): told the new address, then rebooting, it is silent too -
+    # with priority neither node answered. Its network job (as last come over) or a restart
+    # of it under way.
+    try:
+        if net_job_active(_meta_json(store, 'net:job:' + pref)):
+            return 'the preferred node is changing its network'
+        if pref in ha_planned_away(store):
+            return 'the preferred node is restarting'
+    except Exception:                                   # noqa: BLE001
+        pass
     # Its clock "aside" only while its row is fresh (otp 1.0.227): kept aside for as long as
     # the nodes were apart, with the other node dead nobody answered.
     try:

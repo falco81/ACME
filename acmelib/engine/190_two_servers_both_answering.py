@@ -241,7 +241,14 @@ def ha_nodes(store):
 def ha_forget(store, name):
     if name == node_name():
         raise ValueError('this is the node answering: it would write itself back at once')
+    alive = any(n['name'] == name and n.get('alive') for n in ha_nodes(store))
     store.db.run('DELETE FROM meta WHERE k = ?', ('node:' + name,))
+    if not alive:
+        # Its maintenance and upgrade rows with it, only when it no longer answers (1.0.56):
+        # --ha-forget took them always - a node still answering lost its maintenance - and the
+        # pages never, a dead node's maintenance left quieting the alerts.
+        store.db.run('DELETE FROM meta WHERE k IN (?, ?)',
+                     ('maint:' + name, 'upgrade:node:' + name))
 
 
 def ha_lead(store):

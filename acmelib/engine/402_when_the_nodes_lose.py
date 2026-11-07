@@ -59,6 +59,15 @@ def _split_post(h):
             b.get('checked') is not True:
         raise ApiError(409, 'try the arbiter from every node first (Try it): a node that cannot '
                             'reach its arbiter would step aside the moment the other is away')
+    # The preferred node not changed while the nodes are apart (1.0.56): each half keeps its
+    # own change, and one changed on one side only made each take the other for it - both
+    # stepped aside. The card sends it always: only one that differs counts. A mode or an
+    # arbiter set on each half is still taken - that is how the halves are run while apart.
+    if 'split_prefer' in want and split_apart() and \
+            str(want['split_prefer'] or '').strip() != \
+            str(CONFIG.get('split_prefer') or '').strip():
+        raise ApiError(409, 'the nodes cannot reach each other now: the preferred node is changed '
+                            'once they are together again (each half would keep its own)')
     many = len(names) > 1
     if want:
         h.d.save_settings(want, by=s['name'], node='*' if many else None)

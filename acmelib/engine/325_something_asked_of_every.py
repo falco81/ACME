@@ -328,7 +328,17 @@ def _dbtls_server_cert(store, by):
         ca = hatls_ca(store)
         if not ca['cas'] or float(ca['cas'][0].get('end') or 0) - time.time() < \
                 HATLS_CA_ROLL_DAYS * 86400:
-            hatls_ca_make(store, by)
+            if CONFIG.get('ha_mode') != 'replicated' or ha_lead(store):
+                hatls_ca_make(store, by)
+    # Made by one node alone (1.0.56): both nodes in this phase made one - two INSERTs of the
+    # one row, and replication stopped for good. The other waits for it to come over; a roll
+    # due only keeps the one still good.
+    end = time.time() + 60
+    while not hatls_ca(store)['cas'] and time.time() < end:
+        time.sleep(1)
+    if not hatls_ca(store)['cas']:
+        raise ValueError('the cluster\'s authority has not come over from the other node in '
+                         '60 s - try again in a moment')
     names = hatls_names()
     key, crt = hatls_issue(store, names)
     got = _dbtls_helper({'do': 'server', 'cert': crt, 'key': key,
