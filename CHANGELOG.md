@@ -5,6 +5,36 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.56 - not released
+- **Re-addressing a node of a cluster** (Settings → Network → Change it and restart), the findings
+  of otp's test matrix gone through in acme:
+  - a node whose host name is short (`acme1`) could not be re-addressed at all: root refused the
+    name the machine has (a new short name is still refused);
+  - the other node's address compared as text: 10.0.0.1 was "in" 10.0.0.12 and refused, an IPv6
+    address in another form taken for another; the node's own certificate kept naming its old IPv6
+    address;
+  - Keep dropped the other node's pg_hba line in use after a change of the gateway, the DNS or the
+    name (old address = new one); root also leaves such a line alone;
+  - a second IPv4 address of the profile is kept (it vanished), and the other node is told the new
+    address only when the nodes replicate over the one changed; an IPv6 change taking away the
+    address the nodes replicate over is refused; the SNMP agent's own address moves with the change,
+    saved once root has taken it;
+  - the order: maintenance and the VIP address leaving first, then the other node told; a change is
+    refused while the other node answers but is out of service or its own network is on trial, and
+    going back after a trial waits (up to 30 min) while nobody else serves; going back is never
+    refused for its gateway (an on-link one outside the subnet);
+  - a failure half way, a restart of the service in the middle or the one-hour give-up put back the
+    settings, config.json and the certificate as they were (they stayed on the new address); a
+    failed tell after going back is tried again until the other node is told.
+- Cluster: a planned change (a node changing its network, a restart) is said as expected (warn) in
+  the history and quiets the alerts, not reported as failures; the preferred node of the split rule
+  being re-addressed lets the other serve; in a shared-database cluster keepalived follows the other
+  node's published address; a VIP of another address family than the nodes' no longer leaves the
+  web part refused for good; the cluster's authority for the database's TLS is made by one node
+  only (both made it, replication stopped); the link's TLS waiting only for the other node finishes
+  once it passes (it waited an hour); the preferred node is not changed while the nodes are apart;
+  `acme --ha-forget` keeps the maintenance rows of a node still answering; a node steps aside for
+  the directory only toward a node whose clock is right too; only the lead looks for new versions
+  in a replicated cluster; nginx's certificates read where root puts them.
 
 ## 1.0.55 - 2026-11-06
 - To be done by hand → Done lately: **Clear** at the right of its heading - exactly the rows shown
