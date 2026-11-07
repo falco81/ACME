@@ -5,6 +5,12 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.57 - not released
+- The database's encryption and the link's: one certificate, renewed by the link alone - a
+  certificate of Settings → The database made before the link's TLS was switched on was renewed
+  beside it at each of the link's renewals, from another list of names. A connection to the
+  database on the same machine moved back to no TLS (its certificate not good for a while) goes
+  encrypted again by itself once it works - every 10 minutes it is tried; it stayed without TLS
+  for good. The card says so after a restart too.
 
 ## 1.0.56 - 2026-11-07
 - **Re-addressing a node of a cluster** (Settings → Network → Change it and restart), the findings

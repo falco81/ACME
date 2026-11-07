@@ -51,6 +51,14 @@ certificates out of the PostgreSQLs (`ALTER SYSTEM RESET`, ssl as
   back to no TLS within seconds, said in the events and on the card, so the daemon
   goes on. It never leaves the machine. Under high security (`db:tls` not an
   exception) it is not moved back, only said.
+- Moved back so, it goes encrypted again **by itself** (1.0.57): every 10 minutes
+  the mode it had is tried apart, and once that goes (the link's certificate
+  renewed, the file of authorities put right) the connection moves back to it the
+  same way the wizard moves it - said in the events. Not when the encryption was
+  set by hand since; remembered across a restart (`dbtls:rescued:NODE`).
+- While the link's TLS is on, only the link renews the certificate - also while
+  its renewal is under way; a certificate of this page's own made before the link
+  took it over is not renewed beside it (1.0.57).
 - In a cluster, the link's TLS (*High availability → Switch TLS off*) cannot be
   switched off while the daemons' connections check with its certificate - switch
   this off first.

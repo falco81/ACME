@@ -295,6 +295,10 @@ def dbtls_switch(daemon, mode, ca, by):
             raise ValueError('the daemon\'s connection did not go with it, so it is as it was: %s'
                              % scrub_secret(str(e).split('\n')[0])[:300])
         DBTLS_WORK.pop('rescued', None)
+        try:
+            daemon.store.db.run('DELETE FROM meta WHERE k = ?', ('dbtls:rescued:' + node_name(),))
+        except Exception:                               # noqa: BLE001
+            pass
         daemon.store.add_event('settings', '%s: the connection of %s to its database %s' % (
             by, node_name(), ('is encrypted (%s, %s)' % (mode, ver or 'TLS')) if mode else
             'is no longer encrypted'), 'warn' if not mode else 'info', who=by)
@@ -527,8 +531,9 @@ def dbtls_publish(daemon, force=False):
         row['cert_end'] = srv.get('cert_end')
         row['server'] = True
         row['server_by'] = 'here'
-    if DBTLS_WORK.get('rescued'):
-        row['rescued'] = DBTLS_WORK['rescued']
+    resc = DBTLS_WORK.get('rescued') or _meta_obj(store, 'dbtls:rescued:' + node_name())
+    if resc:
+        row['rescued'] = {x: resc.get(x) for x in ('at', 'was', 'why')}   # after a restart too
     try:
         store.set_meta('dbtls:node:' + node_name(), json.dumps(row))
     except Exception:                                   # noqa: BLE001
@@ -567,6 +572,14 @@ def _dbtls_rescue(daemon):
         CONFIG['db_tls'], CONFIG['db_tls_ca'] = '', ''
         _dbtls_reconnect(daemon, '', '')
     DBTLS_WORK['rescued'] = {'at': now, 'was': mode, 'why': why[:200]}
+    try:
+        # Kept (1.0.57): what it was moved back from, so that it goes encrypted again by
+        # itself once that works - it stayed without TLS for good, the link's certificate
+        # renewed or not.
+        daemon.store.set_meta('dbtls:rescued:' + node_name(), json.dumps(
+            {'at': now, 'was': mode, 'ca': ca, 'why': why[:200]}))
+    except Exception:                                   # noqa: BLE001
+        pass
     log('the connection to the database on this machine stopped with TLS (%s): it goes without '
         'TLS now - it never leaves the machine. Settings → The database → Encryption to put it '
         'back' % why, 'error')
@@ -600,6 +613,42 @@ def dbtls_watch(daemon):
                             'warn', every=600)
 
 
+DBTLS_AGAIN_S = 600
+
+
+def _dbtls_link_on(store):
+    """The link between the databases is set to verify-full and not being switched off: it
+    gives this node's PostgreSQL its certificate and renews it."""
+    return CONFIG.get('ha_mode') == 'replicated' and CONFIG.get('ha_tls') == 'verify-full' and \
+        not (hatls_want(store) or {}).get('off')
+
+
+def _dbtls_again(daemon):
+    """A connection moved back to no TLS by the rescue goes encrypted again by itself (1.0.57)
+    once that works - every 10 minutes it is tried apart; the move itself is dbtls_switch's,
+    put back as it was if it does not go."""
+    store = daemon.store
+    k = 'dbtls:rescued:' + node_name()
+    r = _meta_obj(store, k)
+    if not r:
+        return
+    if CONFIG.get('db_tls') or not r.get('was') or dbtls_kind() not in ('local', 'replicated'):
+        store.db.run('DELETE FROM meta WHERE k = ?', (k,))     # set by hand since: as it is
+        return
+    now = time.time()
+    if now - float(r.get('tried') or r.get('at') or 0) < DBTLS_AGAIN_S:
+        return
+    r['tried'] = now
+    store.set_meta(k, json.dumps(r))
+    if not dbtls_probe(r['was'], str(r.get('ca') or ''))['ok']:
+        return
+    try:
+        dbtls_switch(daemon, r['was'], str(r.get('ca') or ''), 'acme (it works with TLS again)')
+    except ValueError as e:
+        log_sparing('dbtls-again', 'the connection to the database: going back to TLS did not '
+                    'go: %s' % e, 'warn', every=3600)
+
+
 def dbtls_tick(daemon):
     """Every few minutes the row for the page; the own certificate
     (kind local) made again 45 days before it ends or when the machine's
@@ -607,9 +656,13 @@ def dbtls_tick(daemon):
     dbtls_publish(daemon)
     if dbtls_kind() not in ('local', 'replicated'):
         return
+    _dbtls_again(daemon)
     srv = _meta_obj(daemon.store, 'dbtls:server:' + node_name())
-    if not srv or _dbtls_link_has(daemon.store):
-        return                          # none of its own, or the link renews it
+    if not srv or _dbtls_link_has(daemon.store) or _dbtls_link_on(daemon.store):
+        # None of its own, or the link renews it - also while the link's own renewal is
+        # under way (1.0.57): a row of its own kept from before the link took it renewed the
+        # certificate at the same moment, from another list of names.
+        return
     t = DBTLS_WORK.get('renew')
     if t is not None and t.is_alive():
         return
