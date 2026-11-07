@@ -2009,7 +2009,8 @@ def pgtls_peer(r):
     def ours(f):
         return len(f) >= 5 and f[0] in ('host', 'hostssl') and f[1] == r['db'] and \
             f[2] == r['user']
-    olds = bool(old) and not old.startswith('127.') and old != '::1/128'
+    # The old address the new one (1.0.56): nothing to drop - its line is the one in use.
+    olds = bool(old) and not old.startswith('127.') and old != '::1/128' and old != net
     there = any(ours(line.split()) and line.split()[3] == net for line in lines)
     if r.get('keep_old'):
         # On trial (1.0.137): the new address let in beside the old one.
@@ -2506,6 +2507,29 @@ def net_read():
     return out
 
 
+def net_static_hostname():
+    """The machine's static host name as it is now, lower case, no dot at the end (1.0.56):
+    with hostnamectl saying nothing, the kernel's name - as net_read says it."""
+    try:
+        host = run([HOSTNAMECTL, '--static'], 'hostnamectl').strip()
+    except (Refused, OSError):
+        host = ''
+    return (host or os.uname().nodename).strip().rstrip('.').lower()
+
+
+def net_addrs4_after(before, addr4):
+    """ipv4.addresses after the change (1.0.56): the first manual address (the old primary)
+    replaced by the new one, the others kept - a second address, one replication runs over,
+    vanished. From DHCP, the new address alone."""
+    out = [addr4]
+    if (before.get('ipv4.method') or '') == 'manual':
+        new_ip = addr4.split('/')[0]
+        for a in nm_list(before.get('ipv4.addresses'))[1:]:
+            if a.split('/')[0] != new_ip and a not in out:
+                out.append(a)
+    return out
+
+
 def net_checked(r):
     """An apply request, every value in its one shape."""
     out = {'con': str(r.get('con') or ''), 'reboot_in': 0}
@@ -2525,7 +2549,9 @@ def net_checked(r):
             g = plain(gw, 'address')
         except ValueError:
             raise Refused('the gateway is one IPv4 address')
-        if g.version != 4 or g not in a4.network:
+        # Going back is not checked for the subnet (1.0.56): the gateway the machine had - an
+        # on-link one outside it too - would refuse the rollback and keep the untested network.
+        if g.version != 4 or (g not in a4.network and not r.get('rollback')):
             raise Refused('the gateway %s is not in %s' % (g, a4.network))
         out['gw4'] = str(g)
     else:
@@ -2569,8 +2595,11 @@ def net_checked(r):
         else:
             out['gw6'] = ''
     host = str(r.get('hostname') or '').strip().rstrip('.').lower()
-    # Going back may ask for a short name again - the one the machine had.
-    if host and (not NAME_RE.match(host) or ('.' not in host and not r.get('rollback'))):
+    # Going back may ask for a short name again - the one the machine had. So may a change
+    # that keeps the name the machine has now (1.0.56): the daemon takes it, and root refused
+    # the change after the other node had been told.
+    if host and (not NAME_RE.match(host) or ('.' not in host and not r.get('rollback') and
+                                             host != net_static_hostname())):
         raise Refused('the host name is the whole name: acme1.example.cz')
     if len(host) > 64:
         # what hostnamectl takes (1.0.51): longer, it refused it half way through the change
@@ -2661,8 +2690,9 @@ def net_apply(n):
         n['old_hostname'] = ''
     if n.get('snapshot'):
         said.append(net_snapshot(n['con'], n['snapshot']))
+    n['_addrs4'] = net_addrs4_after(before, n['addr4'])
     args = [NMCLI, 'connection', 'modify', n['con'],
-            'ipv4.method', 'manual', 'ipv4.addresses', n['addr4'],
+            'ipv4.method', 'manual', 'ipv4.addresses', ','.join(n['_addrs4']),
             'ipv4.gateway', n['gw4'], 'ipv4.dns', ','.join(n['dns4']),
             'ipv4.dns-search', ','.join(n['search']), 'ipv4.ignore-auto-dns', 'yes']
     if n['mode6'] == 'off':
@@ -2701,7 +2731,7 @@ def net_apply(n):
 
 def _net_apply_rest(n, said, before):
     said.append('NetworkManager: %s - %s via %s, DNS %s%s' % (
-        n['con'], n['addr4'], n['gw4'] or 'no gateway', ', '.join(n['dns4']) or 'none',
+        n['con'], ', '.join(n.get('_addrs4') or [n['addr4']]), n['gw4'] or 'no gateway', ', '.join(n['dns4']) or 'none',
         {'off': ', IPv6 off', 'auto': ', IPv6 automatic',
          'manual': ', IPv6 %s' % n.get('addr6'), 'keep': ''}[n['mode6']]))
     if n['mode6'] in ('auto', 'manual'):
