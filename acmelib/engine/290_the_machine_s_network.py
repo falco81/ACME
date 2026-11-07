@@ -329,7 +329,7 @@ def net_others_held(store, node):
         name = n['name']
         if name == node:
             continue
-        job = _meta_json(store, 'net:job:' + name) or {}
+        job = _meta_obj(store, 'net:job:' + name)
         if net_job_active(job) or (job.get('state') == 'trial' and (
                 n.get('alive') or
                 time.time() < float(job.get('trial_until') or 0) + NET_JOB_LIVE_S)):
