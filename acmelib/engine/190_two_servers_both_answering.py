@@ -343,6 +343,17 @@ def sub_connection_set(store, sub, conninfo):
     except Exception as e:                              # noqa: BLE001
         raise ValueError('the subscription %s could not be changed: %s'
                          % (sub, scrub_secret(str(e).split('\n')[0][:300])))
+    else:
+        # The host it reaches the other at, kept where acme can read it again (1.0.58):
+        # pg_subscription.subconninfo is the superuser's alone, and the acme account is not
+        # one - the repair of a move that failed half way never saw a subscription left on
+        # the old address.
+        got = re.search(r'(?:^|\s)host=(\S+)', conninfo)
+        try:
+            store.set_meta('ha:subhost:' + node_name(), json.dumps(
+                {'sub': sub, 'host': got.group(1).strip("'") if got else '', 'at': time.time()}))
+        except Exception:                               # noqa: BLE001
+            pass
     finally:
         for back in ('RESET log_statement', 'RESET log_min_error_statement'):
             try:

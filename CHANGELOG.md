@@ -5,6 +5,15 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.58 - not released
+- Cluster: a subscription left on the other node's old address (a move that failed half way) is
+  put right by "Change the addresses" again - acme read the address from PostgreSQL where its
+  account may not (only the superuser may), and always found "nothing to change"; it keeps the
+  address it set now. In the split rule's priority mode the preferred node is taken for down only
+  when its own /healthz says its database (or its daemon) is down - a connection to 443 alone was
+  enough, and with 5432 refused by a firewall (a node re-addressed, its old address let in only)
+  both nodes served. acme 1.0.42's password policy is taken over by one node of a replicated
+  cluster only (both upgraded at once wrote the one row twice and replication stopped). A signed
+  row deleted goes with its signatures.
 - The certificate manager's jobs are a log: forgotten with the events and logs older than N days
   (Settings → The database) - never one queued or running - and a copy put back without its logs
   keeps the jobs here as they are, dropping a queued one (it named a certificate of the data

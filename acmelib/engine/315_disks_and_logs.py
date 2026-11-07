@@ -211,7 +211,7 @@ def sshkeys_tick(daemon):
                 r = rootkey_row(store, sc)
                 if r.get('pub') and me in rootkey_nodes(store, sc):
                     sshkeys_ask(store, [me], 'add', 'acme (the machine built again)', line=r['pub'])
-            store.db.run('DELETE FROM meta WHERE k = ?', ('host:rootkey:again:' + me,))
+            meta_drop(store, 'host:rootkey:again:' + me)       # and its signatures (1.0.58)
         except Exception as e:                          # noqa: BLE001
             log_sparing('rootkey-again', 'the keys of root could not be put on again: %s' % e,
                         'warn', every=600)

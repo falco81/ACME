@@ -670,9 +670,13 @@ class PreferredUnable(unittest.TestCase):
         self.there = False
         sys.modules['acmelib.engine'].__dict__['split_machine_there'] = \
             lambda host, *a, **k: self.there
+        self._says = E.split_peer_says
+        self.says = 'down'
+        sys.modules['acmelib.engine'].__dict__['split_peer_says'] = lambda host, *a, **k: self.says
 
     def tearDown(self):
         sys.modules['acmelib.engine'].__dict__['split_machine_there'] = self._there
+        sys.modules['acmelib.engine'].__dict__['split_peer_says'] = self._says
         STORE.db.run("DELETE FROM meta WHERE k LIKE 'clock:state:%' OR k = 'maint:acme2'")
         E.CLOCK.update(skew=None, skew_at=0.0, skew_of='')
         reset()
@@ -696,6 +700,16 @@ class PreferredUnable(unittest.TestCase):
         self.there = True
         self.go('connection to server at "192.0.2.250", port 5432 failed: Connection refused')
         self.assertFalse(E.split_aside())
+
+    def test_a_bare_refusal_while_its_health_says_ok(self):
+        # Only 5432 refused - a firewall letting it in from an old address only (1.0.58): its
+        # machine answers 443 and its own /healthz says ok, so it serves - this one steps aside.
+        self.there, self.says = True, 'up'
+        self.go('connection to server at "192.0.2.250", port 5432 failed: Connection refused')
+        self.assertTrue(E.split_aside())
+        self.there, self.says = True, ''        # its health not to be had: not taken for down
+        self.go('connection to server at "192.0.2.250", port 5432 failed: Connection refused')
+        self.assertTrue(E.split_aside())
 
     def test_a_bare_refusal_alone_is_a_firewall(self):
         self.there = False

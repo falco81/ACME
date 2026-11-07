@@ -92,7 +92,8 @@ def ha_readdress(store, mine='', peer='', by='', root_now=False, tell=True, daem
         peer = ''
         # The subscription still on another address (a move that failed half
         # way before 1.0.209): put where ha_peer says.
-        if had_peer and _sub_host(store) not in ('', had_peer):
+        sh = _sub_host(store)
+        if had_peer and sh and _addr_key(sh) != _addr_key(had_peer):
             peer, sub_again = had_peer, True
     if not mine and not peer:
         return {'message': 'nothing to change: both addresses are as this node has them',
@@ -151,14 +152,24 @@ def ha_readdress(store, mine='', peer='', by='', root_now=False, tell=True, daem
 
 
 def _sub_host(store):
-    """The host this node's subscription reaches the other at ('' unknown)."""
+    """The host this node's subscription reaches the other at ('' unknown): as PostgreSQL has
+    it where acme may read it (a superuser), else as acme last set it (1.0.58) - the acme
+    account may not read subconninfo, and this always said "unknown"."""
     try:
         sub = ha_sub_here(store.db, 3 - int(CONFIG.get('ha_slot') or 1))
-        conn = store.db.value('SELECT subconninfo FROM pg_subscription WHERE subname = ?', (sub,))
-        got = re.search(r'(?:^|\s)host=(\S+)', str(conn or ''))
-        return got.group(1).strip("'") if got else ''
     except Exception:                                   # noqa: BLE001
         return ''
+    try:
+        conn = store.db.value('SELECT subconninfo FROM pg_subscription WHERE subname = ? AND '
+                              'subdbid = (SELECT oid FROM pg_database WHERE datname = '
+                              'current_database())', (sub,))
+        got = re.search(r'(?:^|\s)host=(\S+)', str(conn or ''))
+        if got:
+            return got.group(1).strip("'")
+    except Exception:                                   # noqa: BLE001
+        pass
+    kept = _meta_obj(store, 'ha:subhost:' + node_name())
+    return str(kept.get('host') or '') if kept.get('sub') == sub else ''
 
 
 def readdress_tell(peer, mine, by, keep_old=False):

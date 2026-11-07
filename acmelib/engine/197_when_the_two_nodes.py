@@ -143,6 +143,29 @@ def split_machine_there(host, ports=SPLIT_THERE_PORTS, timeout=1.0):
     return False
 
 
+def split_peer_says(host, timeout=2.0):
+    """What the other node's own /healthz says (1.0.58): 'up' (200, ok), 'down' (503: its
+    daemon or its database does not answer), '' (not asked, refused, anything else). Over
+    HTTPS unchecked - only whether to go on serving is taken from it, never data."""
+    try:
+        import urllib.request
+        import urllib.error
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        h = host if ':' not in host or host.startswith('[') else '[%s]' % host
+        req = urllib.request.Request('https://%s/healthz' % h, headers={'User-Agent': 'acme-split'})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+                body = r.read(200).decode('utf-8', 'replace')
+                return 'up' if r.status == 200 and body.startswith('ok') else ''
+        except urllib.error.HTTPError as e:
+            body = e.read(200).decode('utf-8', 'replace') if e.fp else ''
+            return 'down' if e.code == 503 and body.startswith('down') else ''
+    except Exception:                                   # noqa: BLE001
+        return ''
+
+
 def split_preferred_unable(store, now=None):
     """Why the preferred node cannot answer while the nodes are apart, or '' - only then the
     other node goes on in priority mode."""
@@ -152,14 +175,18 @@ def split_preferred_unable(store, now=None):
         return 'the preferred node\'s database refuses (%s) - its machine is there' % (
             SPLIT['peer_err'][:120])
     if kind == 'refused':
+        # Its machine there AND its own /healthz saying its database (or its daemon) is down
+        # (1.0.58): a TCP connection to 443/22/80 alone was taken for it - a firewall that
+        # let 5432 in from an old address only (a node re-addressed) cut replication, and
+        # both nodes served and led.
         was = SPLIT.get('there')
         if not was or now - was[0] > 10 or now < was[0]:
             host = str(CONFIG.get('ha_peer') or '')
-            got = split_machine_there(host) if host else False
+            got = bool(host) and split_machine_there(host) and split_peer_says(host) == 'down'
             SPLIT['there'] = was = (now, got)
         if was[1]:
-            return ('the preferred node\'s database refuses connections while its machine '
-                    'answers')
+            return ('the preferred node\'s database refuses connections and its own health '
+                    'check says it is down')
     pref = split_preferred_name(store)
     if not pref or pref == node_name():
         return ''

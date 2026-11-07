@@ -425,6 +425,18 @@ class SimpleStore(object):
         return None
 
 
+def meta_drop(store, k):
+    """A row of meta deleted with every node's signature of it (1.0.58): the signatures were
+    left behind for good."""
+    n = store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+    if dbguard_meta_signed(k):
+        head = 'sig:m:%s:' % _dbguard_hash(k)
+        for r in _dbguard_head_rows(store.db, head):
+            if r['k'].startswith(head):
+                store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
+    return n
+
+
 def dbguard_forget_seen(why=''):
     """The newest signatures seen of each row forgotten, nothing signed (1.0.234): after this
     node's database was taken from the other node, its rows are as old as they are there."""

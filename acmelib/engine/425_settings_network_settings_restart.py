@@ -545,6 +545,11 @@ def pwp_migrate(store):
     # a policy of only the days between changes was never taken over where it had run.
     if store.get_meta('host:pwpolicy:conf') is not None or store.get_meta('pwpolicy:migrated:2'):
         return False
+    # By the lead alone in a replicated cluster (1.0.58): both nodes upgraded at once inserted
+    # the one mark and the one policy - a duplicate key, and replication stopped for good. The
+    # other gets both by replication.
+    if CONFIG.get('ha_mode') == 'replicated' and not ha_lead(store):
+        return False
     try:
         saved = store.settings_saved()
     except Exception:                                   # noqa: BLE001
