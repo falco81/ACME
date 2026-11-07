@@ -54239,6 +54239,26 @@
   "hand7_1": {
    "source": "Clear list",
    "text": "Vymazat"
+  },
+  "rd_1": {
+   "source": "the preferred node is changing its network",
+   "text": "preferovaný uzel mění svou síť"
+  },
+  "rd_2": {
+   "source": "the preferred node is restarting",
+   "text": "preferovaný uzel se restartuje"
+  },
+  "rd_3": {
+   "source": "the nodes cannot reach each other now: the preferred node is changed once they are together again (each half would keep its own)",
+   "text": "uzly se teď nevidí: preferovaný uzel lze změnit, až budou opět spolu (každá polovina by si nechala svůj)"
+  },
+  "rd_4": {
+   "source": "the cluster's authority has not come over from the other node in 60 s - try again in a moment",
+   "text": "autorita clusteru nepřišla z druhého uzlu do 60 s - zkuste to za chvíli znovu"
+  },
+  "rd_5": {
+   "source": "the other node's database is waited for again",
+   "text": "znovu se čeká na databázi druhého uzlu"
   }
  },
  "patterns": {
@@ -74129,6 +74149,38 @@
   "phand6_1": {
    "source": "done lately cleared ({0})",
    "text": "nedávno hotové vymazáno ({0})"
+  },
+  "prd_1": {
+   "source": "expected: {0}",
+   "text": "očekávané: {0}"
+  },
+  "prd_2": {
+   "source": "{0} is restarting",
+   "text": "{0} se restartuje"
+  },
+  "prd_3": {
+   "source": "stopped - expected while {0}; it starts again by itself once that is over",
+   "text": "zastavena - očekávané, protože {0}; po skončení se rozběhne sama"
+  },
+  "prd_4": {
+   "source": "{0} changing its network",
+   "text": "{0} mění svou síť"
+  },
+  "prd2_1": {
+   "source": "not now: {0}",
+   "text": "teď ne: {0}"
+  },
+  "prd2_2": {
+   "source": "the network of {0} is being changed or is on trial - keep it (or let it go back) first",
+   "text": "síť uzlu {0} se právě mění nebo je na zkoušku - nejdřív ji ponechte (nebo nechte vrátit)"
+  },
+  "prd2_3": {
+   "source": "{0} answers but is out of service (maintenance, or stepped aside): the VIP address would have nowhere to go",
+   "text": "{0} odpovídá, ale je mimo provoz (údržba nebo ustoupil): adresa VIP by neměla kam přejít"
+  },
+  "prd2_4": {
+   "source": "the nodes replicate over {0}, which this change takes away from {1}: change the addresses of the two nodes first (Settings → High availability → The addresses of the two nodes)",
+   "text": "uzly replikují přes {0}, kterou tato změna uzlu {1} bere: nejdřív změňte adresy obou uzlů (Nastavení → Vysoká dostupnost → Adresy obou uzlů)"
   }
  },
  "rich": {
