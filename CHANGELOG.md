@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.59 - not released
+
 ## 1.0.58 - 2026-11-07
 - Cluster: a subscription left on the other node's old address (a move that failed half way) is
   put right by "Change the addresses" again - acme read the address from PostgreSQL where its
