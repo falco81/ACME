@@ -164,6 +164,10 @@ META_TRANSIENT = ('db_job:', 'node:', 'maint:', 'upgrade:', 'hatls:node:')
 # here when a copy is put back without its logs. A module appends its own
 # (the certificate manager its jobs, say).
 LOG_TABLES = []
+# The rows of a log that are not yet a log (1.0.58): a job queued or running is work, not its
+# history - never forgotten with the old lines, and not left behind by a copy put back
+# without its logs (it named a certificate of the data replaced).
+LOG_LIVE = {}
 
 
 def _load_tables(db, src, keep_logs, say, gzip):
@@ -226,6 +230,10 @@ def _load_tables(db, src, keep_logs, say, gzip):
             if len(batch) >= 1000:
                 flush()
         flush()
+    if not keep_logs:
+        for t, live in LOG_LIVE.items():
+            if t in TABLES:
+                db.run('DELETE FROM %s WHERE %s' % (t, live.replace('NOT IN', 'IN')))
     return counts
 
 

@@ -265,6 +265,13 @@ for _ct_k, _ct_v in _cert_texts.SAMPLES.items():
 del _ct_m, _ct_k, _ct_v
 
 
+# Its jobs are a log (1.0.58): forgotten with the events after "how long things are kept", and
+# left as they are here when a copy is put back without its logs - a queued or running one
+# never (LOG_LIVE).
+LOG_TABLES.append('cert_jobs')
+LOG_LIVE['cert_jobs'] = "state NOT IN ('queued', 'running')"
+
+
 def certs_mod(name):
     """acmelib.certs.<name>, imported the first time it is asked for."""
     return _importlib.import_module('acmelib.certs.' + name)

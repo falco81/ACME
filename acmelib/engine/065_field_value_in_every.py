@@ -1128,8 +1128,11 @@ class Storage(object):
             ids = [int(i) for i in ids][:5000]
             if not ids:
                 return 0
-            return self.db.run('DELETE FROM %s WHERE id IN (%s)'
-                               % (table, ', '.join('?' for _ in ids)), ids)
+            keep = (' AND %s' % LOG_LIVE[table]) if table in LOG_LIVE else ''
+            return self.db.run('DELETE FROM %s WHERE id IN (%s)%s'
+                               % (table, ', '.join('?' for _ in ids), keep), ids)
+        if table in LOG_LIVE:
+            where_sql = (where_sql + ' AND ' if where_sql else ' WHERE ') + LOG_LIVE[table]
         return self.db.run('DELETE FROM %s%s' % (table, where_sql), list(args))
 
     _OVERVIEW = {}
@@ -1230,11 +1233,13 @@ class Storage(object):
         # 0.02 s left the rest a quarter of its pace for the whole of it.
         gone, batch = 0, 1000
         for _ in range(1000000):
+            keep = (' AND %s' % LOG_LIVE[table]) if table in LOG_LIVE else ''
             if self.db.engine == 'mariadb':
-                n = self.db.run('DELETE FROM %s WHERE ts < ? LIMIT %d' % (table, batch), (cut,))
+                n = self.db.run('DELETE FROM %s WHERE ts < ?%s LIMIT %d' % (table, keep, batch),
+                                (cut,))
             else:
                 n = self.db.run('DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE '
-                                'ts < ? LIMIT %d)' % (table, table, batch), (cut,))
+                                'ts < ?%s LIMIT %d)' % (table, table, keep, batch), (cut,))
             gone += int(n or 0)
             if not n or n < batch:
                 break

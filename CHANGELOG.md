@@ -5,6 +5,10 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.58 - not released
+- The certificate manager's jobs are a log: forgotten with the events and logs older than N days
+  (Settings → The database) - never one queued or running - and a copy put back without its logs
+  keeps the jobs here as they are, dropping a queued one (it named a certificate of the data
+  replaced). They were only ever forgotten after "Jobs kept (days)".
 
 ## 1.0.57 - 2026-11-07
 - The database's encryption and the link's: one certificate, renewed by the link alone - a
