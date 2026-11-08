@@ -54259,6 +54259,42 @@
   "rd_5": {
    "source": "the other node's database is waited for again",
    "text": "znovu se čeká na databázi druhého uzlu"
+  },
+  "se59_1": {
+   "source": "PostgreSQL of this node replicates from the other node's on it",
+   "text": "PostgreSQL tohoto uzlu na něm replikuje z PostgreSQL druhého uzlu"
+  },
+  "se59_2": {
+   "source": "high security is on: SELinux is not switched to permissive - switch high security off first",
+   "text": "vysoké zabezpečení je zapnuté: SELinux se na permissive nepřepíná – nejdřív vysoké zabezpečení vypněte"
+  },
+  "se59_3": {
+   "source": "acme: high security is on: SELinux is not switched to permissive - switch high security off first",
+   "text": "acme: vysoké zabezpečení je zapnuté: SELinux se na permissive nepřepíná – nejdřív vysoké zabezpečení vypněte"
+  },
+  "se59_4": {
+   "source": "After the upgrade these are counted since the machine started again - also what was put right before it: when acme's needs were last put in is kept in root's folder now, the old note is not read. Not new refusals: they go at the next restart of the machine, or when \"Put in what acme needs\" changes something.",
+   "text": "Po aktualizaci se tato odepření počítají znovu od startu stroje – i to, co bylo napraveno už před ní: kdy bylo naposledy doplněno, co acme potřebuje, se teď uchovává ve složce roota a stará poznámka se nečte. Nejde o nová odepření: zmizí při příštím restartu stroje, nebo až „Doplnit, co acme potřebuje“ něco změní."
+  },
+  "se59_5": {
+   "source": "(after the upgrade counted since the start again - also what was put right before it)",
+   "text": "(po aktualizaci počítáno znovu od startu – i to, co bylo napraveno už před ní)"
+  },
+  "se59_6": {
+   "source": "SELinux: Security check counts again what SELinux refused since the machine started -",
+   "text": "SELinux: Kontrola zabezpečení znovu počítá, co SELinux odepřel od startu stroje –"
+  },
+  "se59_7": {
+   "source": "  also what was put right before this upgrade (when acme's needs were put in is kept in",
+   "text": "  i to, co bylo napraveno už před touto aktualizací (kdy bylo doplněno, co acme potřebuje, se uchovává"
+  },
+  "se59_8": {
+   "source": "  root's folder now; the old note is not read). Not new refusals: they go at the next",
+   "text": "  teď ve složce roota; stará poznámka se nečte). Nejde o nová odepření: zmizí při příštím"
+  },
+  "se59_9": {
+   "source": "  restart of the machine, or when \"Put in what acme needs\" changes something.",
+   "text": "  restartu stroje, nebo až „Doplnit, co acme potřebuje“ něco změní."
   }
  },
  "patterns": {
@@ -74181,6 +74217,22 @@
   "prd2_4": {
    "source": "the nodes replicate over {0}, which this change takes away from {1}: change the addresses of the two nodes first (Settings → High availability → The addresses of the two nodes)",
    "text": "uzly replikují přes {0}, kterou tato změna uzlu {1} bere: nejdřív změňte adresy obou uzlů (Nastavení → Vysoká dostupnost → Adresy obou uzlů)"
+  },
+  "pse59_1": {
+   "source": "{0} has not done the step asked of it yet ({1}) - ask for the report after it",
+   "text": "{0} ještě neudělal krok, o který byl požádán ({1}) – o report požádejte až po něm"
+  },
+  "pse59_2": {
+   "source": "asked - not {0}: a step asked of it is not done yet",
+   "text": "vyžádáno – kromě {0}: krok, o který byl požádán, ještě není hotový"
+  },
+  "pse59_3": {
+   "source": "port {0}/{1} ({2}) left out: this helper does not set {3} - install.sh of the daemon's version puts in one that does",
+   "text": "port {0}/{1} ({2}) vynechán: tento pomocník roota {3} nenastavuje – install.sh ve verzi démona nainstaluje takového, který to umí"
+  },
+  "pse59_4": {
+   "source": "SELinux refused {0} thing(s) since the machine started - after the upgrade also what was put right before it (the old note of when acme's needs were put in is not read any more): they go at the next restart of the machine",
+   "text": "SELinux od startu stroje odepřel {0}× – po aktualizaci včetně toho, co bylo napraveno už před ní (stará poznámka o tom, kdy bylo doplněno, co acme potřebuje, se už nečte): zmizí při příštím restartu stroje"
   }
  },
  "rich": {
