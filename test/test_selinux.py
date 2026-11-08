@@ -313,6 +313,31 @@ class TestHelper(unittest.TestCase):
         finally:
             os.unlink(os.path.join(TMP, 'web', W.SE_APPLIED))
 
+    def test_report_lists_the_processes(self):
+        # 1.0.60: `ps -eZo label,...` is refused by procps; the part came out empty.
+        self.machine()
+        real = W._se_out
+
+        def fake(cmd, timeout=120, data=None, light=True):
+            if cmd[0] == 'ps':
+                if '-eZo' in cmd:
+                    return '\n--- stderr ---\nerror: can not use output modifiers with user-defined output\n'
+                return ('LABEL USER PID COMMAND\nsystem_u:system_r:httpd_t:s0 nginx 10 nginx\n'
+                        'system_u:system_r:unconfined_service_t:s0 acme 11 python3\n'
+                        'system_u:system_r:kernel_t:s0 root 2 kthreadd\n')
+            return real(cmd, timeout, data, light)
+        with mock.patch.object(W, '_se_out', side_effect=fake):
+            parts = W.se_report_parts({'facts': {}})
+        self.assertIn('httpd_t', parts['processes.txt'])
+        self.assertIn('unconfined_service_t', parts['processes.txt'])
+        self.assertNotIn('kthreadd', parts['processes.txt'])
+
+        def none(cmd, timeout=120, data=None, light=True):
+            return 'error: something else\n' if cmd[0] == 'ps' else real(cmd, timeout, data, light)
+        with mock.patch.object(W, '_se_out', side_effect=none):
+            parts = W.se_report_parts({'facts': {}})
+        self.assertIn('something else', parts['processes.txt'])    # never empty without a word
+
     def test_report_is_a_tar_with_its_parts(self):
         self.machine()
         data = W.se_report_bytes({'facts': {'acme': '1'}}, 'node1')

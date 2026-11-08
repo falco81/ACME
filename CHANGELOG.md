@@ -5,6 +5,8 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.60 - not released
+- SELinux → the report: the domains the programs run in (processes.txt) were empty - `ps -eZo`
+  is refused by procps; now listed, and what ps said is written if none of acme's programs is.
 
 ## 1.0.59 - 2026-11-08
 - **Settings → Certificates and TLS → Trusted roots of the system**: your company's root and

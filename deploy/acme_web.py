@@ -6651,9 +6651,13 @@ def se_report_parts(r):
                 lab.append(_se_out(['ls', '-Za', p], 20, light=False).rstrip())
             lab.append('  policy says: ' + _se_out(['matchpathcon', p], 20, light=False).strip())
     parts['labels.txt'] = '\n'.join(lab) + '\n'
-    ps = _se_out(['ps', '-eZo', 'label,user,pid,comm'], 60, light=False)
+    # -o label alone (1.0.60): -Z beside -o is refused by procps ("can not use output
+    # modifiers with user-defined output") - the part came out empty, the error left out.
+    ps = _se_out(['ps', '-eo', 'label,user,pid,comm'], 60, light=False)
     keep = [x for x in ps.splitlines() if x.startswith('LABEL') or
             any(c in x for c in SE_REPORT_COMMS)]
+    if len(keep) <= 1:
+        keep = ['(none of acme\'s programs found - what ps said:)'] + ps.splitlines()[:40]
     # Arguments cut to 200: what runs, not every word it was given.
     parts['processes.txt'] = '\n'.join(x[:200] for x in keep) + '\n'
     ports = _se_out(['semanage', 'port', '-l'], 300)
