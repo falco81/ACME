@@ -4346,6 +4346,16 @@ def cli_selinux(args, pal):
         got = _selinux_helper(['--selinux-check', '--want-stdin'] + (['--json'] if args.json else []),
                               want)
     else:
+        if step == 'permissive':
+            # Refused under high security from here too (1.0.59, as otp 1.0.252), as on the pages:
+            # the service's own reading of it, given with what acme needs, or this one's.
+            try:
+                hs = bool((json.loads(want or '{}').get('facts') or {}).get('high_security'))
+            except (ValueError, AttributeError):
+                hs = False
+            if hs or _hs_on():
+                raise SystemExit('acme: high security is on: SELinux is not switched to permissive - '
+                                 'switch high security off first')
         words = {'prepare': 'SELinux permissive at the next start of this machine, every file '
                             'labelled then (the machine is not restarted now)',
                  'apply': 'acme\'s module, the labels of its files, the booleans and ports it needs '

@@ -407,7 +407,7 @@ if [[ -n "$DO_UNINSTALL" ]]; then
     if [[ -f "$SOURCE_DIR/deploy/acme_web.py" ]]; then
         run python3 -I "$SOURCE_DIR/deploy/acme_web.py" --pam-off || warn "sshd's PAM could not be put back: take acme's block out of /etc/pam.d/sshd by hand"
     fi
-    # acme's SELinux module (as otp 1.0.233): only labels, gone with it. The mode SELinux is in,
+    # acme's SELinux module (as otp 1.0.233): its labels and rules gone with it. The mode SELinux is in,
     # its booleans and the ports labelled are the machine's, left as they are.
     if command -v semodule >/dev/null 2>&1 && semodule -l 2>/dev/null | awk '$1=="acme_server"{f=1} END{exit !f}'; then
         run semodule -r acme_server 2>/dev/null || warn "SELinux: semodule -r acme_server did not go"
@@ -991,10 +991,13 @@ PY
     fi
 }
 
-# acme's SELinux module (as otp 1.0.233): only labels - /run/acme as the web server's own run
-# files, so the pages may read the API token under enforcing. Kept beside the program always;
-# put into the policy where SELinux is on, and only when it changed (semodule takes its time).
-# Where SELinux is disabled nothing is done: "Make it ready" on the pages puts it in.
+# acme's SELinux module (as otp 1.0.233): /run/acme as the web server's own run files, so the
+# pages may read the API token under enforcing, and two narrow rules (systemd in /run/acme;
+# 1.0.59: PostgreSQL reading /etc/pki for the encrypted link between the nodes). Kept beside the
+# program always; put into the policy where SELinux is on, and only when it changed (semodule
+# takes its time) - on a node without the pages (--no-web) too (1.0.59, as otp 1.0.265): the
+# PostgreSQL rule is needed there as well. Where SELinux is disabled nothing is done: "Make it
+# ready" on the pages puts it in.
 # The tools SELinux is looked after with (as otp 1.0.236), where the system has them in its own
 # repositories (RHEL, Rocky, AlmaLinux): put in when missing, at every install and upgrade, with
 # SELinux disabled too - "Make it ready" and acme --selinux-check need them; the mode is not
@@ -1044,6 +1047,20 @@ selinux_module() {
         fi
     fi
     [[ -d /run/acme ]] && command -v restorecon >/dev/null 2>&1 && run restorecon -R /run/acme 2>/dev/null || true
+    # Upgraded from a version before 1.0.44 (1.0.59, as otp 1.0.249): when acme's needs were last
+    # put in is kept in root's folder now, the one in acme's own is not read - said, so that
+    # refusals put right long ago, shown again, are not taken for new ones. Once, at the upgrade
+    # that lost it - with the machine's start then noted, after which what is counted is new.
+    if [[ -f "$STATE_DIR/web/selinux-applied" && ! -f /var/lib/acme-net/selinux-applied &&
+          ! -f /var/lib/acme-net/selinux-upgrade-boot && -z "$DRY_RUN" ]]; then
+        install -d -m 0700 /var/lib/acme-net 2>/dev/null || true
+        cat /proc/sys/kernel/random/boot_id > /var/lib/acme-net/selinux-upgrade-boot 2>/dev/null || true
+        chmod 0600 /var/lib/acme-net/selinux-upgrade-boot 2>/dev/null || true
+        warn "SELinux: Security check counts again what SELinux refused since the machine started -"
+        warn "  also what was put right before this upgrade (when acme's needs were put in is kept in"
+        warn "  root's folder now; the old note is not read). Not new refusals: they go at the next"
+        warn "  restart of the machine, or when \"Put in what acme needs\" changes something."
+    fi
     # Said when the policy does not label it (as otp 1.0.234): the pages could not read the API
     # token under enforcing - Settings - High security - SELinux says what else is missing.
     if command -v matchpathcon >/dev/null 2>&1 && [[ -z "$DRY_RUN" ]]; then
@@ -2020,6 +2037,7 @@ except Exception:
         ensure_php
         install_pages
     fi
+    [[ -n "$WITH_WEB" ]] || selinux_module      # SELinux without the pages too (1.0.59)
     restart_daemon
     UPGRADE_STAGE="done"
     [[ -z "$DRY_RUN" ]] && trees_prune
@@ -2192,6 +2210,7 @@ step "The service"
 restart_daemon
 
 if [[ -n "$WITH_WEB" ]]; then install_pages; fi
+[[ -n "$WITH_WEB" ]] || selinux_module          # SELinux without the pages too (1.0.59)
 open_firewall
 
 step "Does it work"

@@ -145,9 +145,15 @@ def _selinux_do(h):
                 'missing': missing}
     try:
         if action == 'report' and node == '*':
+            busy = []
             for n in [node_name()] + [x['name'] for x in ha_nodes(h.store) if x['name'] != node_name()]:
-                selinux_ask(h.store, n, 'report', s['name'])
-            return {'message': 'asked: every node makes its report within a minute'}
+                try:
+                    selinux_ask(h.store, n, 'report', s['name'])
+                except ValueError:
+                    busy.append(n)      # a step asked of it not done yet (1.0.59): the others asked
+            return {'message': 'asked: every node makes its report within a minute' if not busy else
+                    'asked - not %s: a step asked of it is not done yet' % ', '.join(busy),
+                    'busy': busy}
         selinux_ask(h.store, node, action, s['name'])
     except ValueError as e:
         raise ApiError(400, str(e))

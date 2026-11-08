@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# SELinux (as otp 1.0.233 - 1.0.238)
+# SELinux (as otp 1.0.233 - 1.0.238; 1.0.59: as otp 1.0.265)
 # ---------------------------------------------------------------------------
 # Settings → High security, a card per node. The page writes 'host:selinux:want:NODE'
 # (check, prepare, enforce, permissive, report); that node's daemon has its root helper do it
@@ -50,7 +50,29 @@ def selinux_want(store):
     if eng == 'mariadb' and host in ('', '127.0.0.1', 'localhost', '::1') and dp not in (0, 3306):
         ports.append({'port': dp, 'proto': 'tcp', 'type': 'mysqld_port_t',
                       'why': 'MariaDB of this node listens on it'})
+    # acme's own listeners - the API (api_port), the DNS server (dns_port), the SNMP agent
+    # (snmp_port), the gate for SSH - are the daemon's, unconfined_service_t: SELinux does not
+    # hold them to a port type, nothing to label. nginx listens on 80 and 443 only (no port of a
+    # balancer of its own), which http_port_t has already.
+    # The other node's PostgreSQL (1.0.59, as otp 1.0.265): this node's subscription is
+    # PostgreSQL's own worker (postgresql_t), which may connect only to a port labelled
+    # postgresql_port_t here - the other node on a port other than 5432 stops replication under
+    # enforcing ("postgresql_t -> unreserved_port_t tcp_socket { name_connect }"). Asked last: a
+    # port of another service is refused and stops the ports after it.
+    pp = _se_int(CONFIG.get('ha_peer_port') or 5432)
+    if eng == 'postgres' and CONFIG.get('ha_mode') == 'replicated' and CONFIG.get('ha_peer') and \
+            pp != 5432 and 1 <= pp <= 65535 and \
+            not any(p['port'] == pp and p['proto'] == 'tcp' for p in ports):
+        ports.append({'port': pp, 'proto': 'tcp', 'type': 'postgresql_port_t',
+                      'why': 'PostgreSQL of this node replicates from the other node\'s on it'})
     return {'booleans': bools, 'ports': ports, 'node': node_name(), 'facts': selinux_facts(store)}
+
+
+def _se_int(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return 0
 
 
 def selinux_facts(store):
@@ -69,7 +91,18 @@ def selinux_facts(store):
             'snmp': on('snmp'), 'tls_by_acme': on('acme'), 'acme_challenge': CONFIG.get('acme_challenge') or '',
             'mail_mode': CONFIG.get('mail_mode') or '', 'sms_mode': CONFIG.get('sms_mode') or '',
             'proxy': on('proxy'), 'remote_backups': kinds, 'db_guard': on('db_guard'),
-            'high_security': on('high_security'), 'ssh_with_a_code': _se_gate(store)}
+            'high_security': on('high_security'), 'ssh_with_a_code': _se_gate(store),
+            # acme's own listeners and the link to the other node (1.0.59): ports only.
+            'dns_server': on('dns_server'), 'dns_port': CONFIG.get('dns_port') or 53,
+            'snmp_port': CONFIG.get('snmp_port') or 161, 'ssh_gate_port': _se_gate_port(store),
+            'ha_peer_port': CONFIG.get('ha_peer_port') or 0, 'ha_tls': CONFIG.get('ha_tls') or ''}
+
+
+def _se_gate_port(store):
+    try:
+        return ssh_gate_port(store) if ssh_gate_wanted(store) else 0
+    except Exception:                                   # noqa: BLE001
+        return 0
 
 
 def _se_gate(store):
@@ -99,6 +132,25 @@ def selinux_ask(store, node, action, by):
         raise ValueError('there is no node %s' % node)
     if action not in SE_ACTIONS:
         raise ValueError('check, prepare, enforce or permissive')
+    if action == 'permissive' and _hs_on():
+        # A step down (1.0.59, as otp 1.0.249): refused while high security is on - from the
+        # pages, the API and the command line alike.
+        raise ValueError('high security is on: SELinux is not switched to permissive - switch high '
+                         'security off first')
+    # A step asked and not done yet is not put aside by a look or a report (1.0.59, as otp
+    # 1.0.248): its one row was written over, and "enforcing" never happened - said nowhere.
+    was = _meta_obj(store, 'host:selinux:want:' + node)
+    now = _meta_obj(store, 'host:selinux:now:' + node)
+    try:
+        was_at = float(was.get('at') or 0)
+    except (TypeError, ValueError):
+        was_at = 0.0
+    if action in ('check', 'report') and was.get('do') in ('prepare', 'enforce', 'permissive') and \
+            was.get('id') != now.get('done') and time.time() - was_at < 3600:
+        if action == 'check':
+            return          # the step looks again when it is done
+        raise ValueError('%s has not done the step asked of it yet (%s) - ask for the report after it'
+                         % (node, was.get('do')))
     store.set_meta('host:selinux:want:' + node, json.dumps({
         'id': secrets.token_hex(6), 'do': action, 'by': by, 'at': time.time()}))
     if action == 'report':

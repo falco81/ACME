@@ -5589,7 +5589,7 @@ def osup_job(ident, kind, security=False):
     return 0
 
 
-# ---- SELinux (as otp 1.0.233) -------------------------------------------------------------------
+# ---- SELinux (as otp 1.0.233; 1.0.59: as otp 1.0.265) -------------------------------------------------------------------
 # Asked in selinux.ask by the daemon of this node, from the pages (Settings - High security)
 # or `acme --selinux-check`: how it is - the mode, acme's module, the labels acme's files have,
 # the booleans and ports acme needs, what SELinux refused since the machine started - and,
@@ -5650,6 +5650,49 @@ def se_applied_at():
         return min(at, time.time())
     except (OSError, TypeError, ValueError, AttributeError):
         return 0.0
+
+
+# Upgraded from a version before 1.0.44 (1.0.59, as otp 1.0.249): when acme's needs were put in
+# was kept in the acme account's folder then, not read any more - what was refused since the
+# machine started counts again, put right or not. Said once, until the machine starts again:
+# the start it was seen in is kept in root's folder.
+SE_UPGRADE_BOOT = 'selinux-upgrade-boot'
+SE_BOOT_ID = os.environ.get('ACME_SELINUX_BOOT_ID', '/proc/sys/kernel/random/boot_id')
+
+
+def se_upgrade_boot_same():
+    """Whether the machine has not started again since the upgrade that lost the note of when
+    acme's needs were put in: after a restart what is counted since then is new."""
+    try:
+        with open(SE_BOOT_ID) as f:
+            now = f.read(100).strip()
+    except OSError:
+        return False
+    path = os.path.join(NET_SNAP_DIR, SE_UPGRADE_BOOT)
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd) as f:
+            was = f.read(100).strip()
+    except OSError:
+        try:
+            os.makedirs(NET_SNAP_DIR, mode=0o700, exist_ok=True)
+            write_root(path, now + '\n', 0o600)
+        except OSError:
+            pass
+        return True
+    return was == now
+
+
+def se_since_lost(since):
+    """Nothing in root's note, the old one in the acme account's folder, the same start."""
+    if since:
+        return False
+    try:
+        st = os.stat(SE_APPLIED, dir_fd=web_fd(), follow_symlinks=False)
+    except (OSError, NotImplementedError):
+        return False
+    import stat as _st
+    return _st.S_ISREG(st.st_mode) and se_upgrade_boot_same()
 
 
 def se_auditd():
@@ -5833,8 +5876,11 @@ def se_allowed_now(lines):
     return sorted(now)
 
 
-def se_want_checked(r):
-    """What the daemon says acme needs here: booleans and ports, checked against what may be."""
+def se_want_checked(r, left_out=None):
+    """What the daemon says acme needs here: booleans and ports, checked against what may be.
+    left_out (1.0.59, as otp 1.0.262): a list - a port of a type this helper does not set is said
+    in it and left out; a newer daemon's need (mid-upgrade) refused the whole request, the
+    booleans and the other ports too."""
     bools = []
     for b in (r.get('booleans') or [])[:8]:
         if not isinstance(b, dict) or b.get('name') not in SE_BOOLEANS:
@@ -5842,6 +5888,14 @@ def se_want_checked(r):
         bools.append({'name': b['name'], 'why': str(b.get('why') or '')[:120]})
     ports = []
     for p in (r.get('ports') or [])[:16]:
+        if left_out is not None and isinstance(p, dict) and p.get('proto') in ('tcp', 'udp') and \
+                p.get('type') not in SE_PORT_TYPES and \
+                re.match(r'^[a-z][a-z0-9_]{0,40}_port_t\Z', str(p.get('type') or '')):
+            left_out.append('port %s/%s (%s) left out: this helper does not set %s - install.sh of '
+                            'the daemon\'s version puts in one that does'
+                            % (re.sub(r'[^0-9]', '', str(p.get('port')))[:5] or '?', p['proto'],
+                               str(p.get('why') or '')[:80], p['type']))
+            continue
         if not isinstance(p, dict) or p.get('type') not in SE_PORT_TYPES or \
                 p.get('proto') not in ('tcp', 'udp'):
             raise Refused('a port type acme does not set')
@@ -5861,7 +5915,8 @@ def se_want_checked(r):
 
 
 def se_check(r):
-    bools, ports = se_want_checked(r)
+    left = []
+    bools, ports = se_want_checked(r, left)
     mode = se_mode()
     conf = se_config()
     out = {'mode': mode, 'config': conf['mode'], 'policy': conf['type'],
@@ -5870,7 +5925,8 @@ def se_check(r):
                      'ausearch': bool(shutil.which('ausearch')),
                      'semodule': bool(shutil.which('semodule'))},
            'module': None, 'labels': [], 'booleans': [], 'ports': [],
-           'denials': {'tool': False, 'total': 0, 'groups': []}, 'problems': []}
+           'denials': {'tool': False, 'total': 0, 'groups': []}, 'problems': [],
+           'left_out': left}
     if mode == 'absent':
         out['ready'] = False
         return out
@@ -5891,6 +5947,7 @@ def se_check(r):
                                              if known is not None else None)))
     if on:
         out['denials'] = se_denials(se_applied_at())
+        out['denials']['since_lost'] = se_since_lost(out['denials'].get('since'))
         out['auditd'] = se_auditd()
     probs = out['problems']
     if on:
@@ -5911,7 +5968,11 @@ def se_check(r):
             probs.append(('SELinux refused %d thing(s) since acme\'s needs were put in'
                           if out['denials'].get('since') else
                           'SELinux refused %d thing(s) since the machine started')
-                         % out['denials']['total'])
+                         % out['denials']['total'] + (
+                             ' - after the upgrade also what was put right before it (the old note '
+                             'of when acme\'s needs were put in is not read any more): they go at '
+                             'the next restart of the machine'
+                             if out['denials'].get('since_lost') else ''))
         if not out.get('auditd', True):
             # Nothing written down, nothing counted (otp 1.0.234): enforcing let through on no word.
             probs.append('auditd does not run - what SELinux refuses is not written down '
@@ -5980,16 +6041,17 @@ def se_apply(bools, ports, said, mark=True):
     # this put right - a second restart was needed before enforcing could be switched on.
     # Only when something was changed, and never on the way to enforcing: what was refused
     # before that still counts there.
+    # In root's folder alone (1.0.59): the copy in the acme account's was never read.
     if mark and changed:
-        write_here(SE_APPLIED, json.dumps({'at': time.time()}))
         os.makedirs(NET_SNAP_DIR, mode=0o700, exist_ok=True)
         write_root(SE_APPLIED_ROOT, json.dumps({'at': time.time()}), 0o600)
 
 
 def se_do(r):
     do = r.get('do')
-    bools, ports = se_want_checked(r)
-    said = []
+    left = []
+    bools, ports = se_want_checked(r, left)
+    said = list(left)
     if do == 'check':
         return se_check(r)
     if do == 'report':
@@ -6288,6 +6350,10 @@ def se_report(c):
                                                     '? (ausearch is not there)'))
     if d.get('settled'):
         lines.append('  refused before, allowed now (not counted): %d' % d['settled'])
+    if d.get('since_lost'):
+        lines.append('  (after the upgrade counted since the start again - also what was put right before it)')
+    for x in c.get('left_out') or []:
+        lines.append('  ' + x)
     for g in d['groups'][:15]:
         lines.append('    %4dx %s -> %s %s { %s } %s' % (g['count'], g['source'], g['target'],
                                                          g['class'], g['perms'], g['what']))
