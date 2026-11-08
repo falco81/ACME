@@ -564,6 +564,16 @@ def build_parser():
                    help='with --local-user aging: the least days between two changes')
     g.add_argument('--local-warn-days', metavar='N', type=int, default=None,
                    help='with --local-user aging: warned so many days before it runs out')
+    # The system's trusted roots (1.0.59, as otp 1.0.265): Settings -> Certificates and TLS.
+    g.add_argument('--os-roots', action='store_true',
+                   help='the system\'s trusted roots: the certificate authorities acme added to the '
+                        'trust of every node\'s system, and how each node stands')
+    g.add_argument('--os-roots-add', metavar='FILE',
+                   help='add the certificate authorities of a file (PEM - one or a chain - or DER) to '
+                        'the trust of every node\'s system; asked first unless --yes')
+    g.add_argument('--os-roots-remove', metavar='FINGERPRINT',
+                   help='take one acme added out of the trust of every node\'s system: its SHA-256 '
+                        'fingerprint (12 characters of it at least); asked first unless --yes')
     g.add_argument('--local-policy', action='store_true',
                    help='the password policy of the local users: as set, and as in effect on each node')
     g.add_argument('--local-policy-set', nargs='+', metavar='KEY=VALUE',
@@ -1923,6 +1933,9 @@ def cli_stage_files(args):
             args.downgrade = stage(args.downgrade)
         if getattr(args, 'ca', None):
             args.ca = stage(args.ca)
+        # A certificate authority to trust (1.0.59): in /root, as such files are.
+        if getattr(args, 'os_roots_add', None):
+            args.os_roots_add = stage(args.os_roots_add)
         if getattr(args, 'export_config', None) and args.export_config != '-':
             mode = 0o600 if getattr(args, 'with_secrets', False) else 0o640
             # emptied only when the export is there to write (1.0.52): a passphrase too short
@@ -2620,6 +2633,8 @@ def cli_main(argv=None):
 
     cli_stage_files(args)
     store = cli_store()
+    if args.os_roots or args.os_roots_add or args.os_roots_remove:
+        return cli_os_roots(args, pal, store)
     if args.ha_compare:
         return cli_ha_compare(store, pal, args.json)
     if args.sso_status or args.sso_key:
@@ -4362,6 +4377,103 @@ def cli_selinux(args, pal):
     sys.stdout.write(got.stdout)
     sys.stderr.write(got.stderr)
     return got.returncode
+
+
+def cli_os_roots(args, pal, store):
+    """acme --os-roots, --os-roots-add FILE, --os-roots-remove FINGERPRINT (1.0.59, as otp
+    1.0.265): Settings -> Certificates and TLS -> Trusted roots of the system, on the command
+    line - asked as the pages ask it; each node's daemon has its root helper put it in. The file
+    is read by whoever typed it, before the service's account took over (cli_stage_files)."""
+    who = cli_who()
+
+    def api(method, path, body=None):
+        return cli_api(Daemon(store, serve=False), who, method, path, body)
+
+    def out(v):
+        print(json.dumps(v, indent=2, default=str))
+    if args.os_roots_add:
+        try:
+            with open(args.os_roots_add, 'rb') as f:
+                raw = f.read(OSR_MAX * OSR_PEM_MAX + 1)
+        except OSError as e:
+            raise SystemExit('acme: %s' % e)
+        try:
+            text = osr_text(raw)
+        except ValueError as e:
+            raise SystemExit('acme: %s: %s' % (args.os_roots_add, e))
+        got = api('POST', '/api/osroots', {'action': 'check', 'text': text})['certs']
+        if not args.json:
+            for c in got:
+                print('  %s  %s  %s' % (pal.head(c['cn'] or '?'), c['kind'], pal.dim('SHA-256 ' + c['fp'])))
+                print(pal.dim('    issued by %s; valid %s - %s; %s' % (
+                    c['issuer'], stamp(c['not_before']) if c['not_before'] else '?',
+                    stamp(c['not_after']) if c['not_after'] else '?', c['key'])))
+                for w in c['refused']:
+                    print(pal.bad_line('    not taken: %s' % w))
+                for w in c['warn']:
+                    print(pal.warn_line('    %s' % w))
+                if c['already']:
+                    print(pal.dim('    there already'))
+        if not any(not c['refused'] and not c['already'] for c in got):
+            raise SystemExit('acme: nothing to add')
+        cli_sure(args, 'every program of every node will trust what these sign')
+        r = api('POST', '/api/osroots', {'action': 'add', 'text': text})
+        if args.json:
+            out(r)
+        else:
+            print(pal.ok_line(r['message']))
+        return 0
+    if args.os_roots_remove:
+        cli_sure(args, 'what %s signs is no longer trusted by the system of any node' % args.os_roots_remove)
+        r = api('POST', '/api/osroots', {'action': 'remove', 'fp': args.os_roots_remove})
+        if args.json:
+            out(r)
+        else:
+            print(pal.ok_line(r['message']))
+        return 0
+    v = api('GET', '/api/osroots')
+    if args.json:
+        out(v)
+        return 0
+    print(pal.head('the system\'s trusted roots - acme\'s additions (%d of %d at most)' % (len(v['certs']), v['max'])))
+    names = [n['name'] for n in v['nodes']]
+    many = len(names) > 1
+    if v['certs']:
+        print(table([[c['cn'] or '?', c['kind'] or '?', c['fp'][:16],
+                      stamp(c['not_after']) if c.get('not_after') else '?', c.get('key') or '?'] +
+                     (['yes' if c['on'].get(n) else 'no' for n in names] if many else [])
+                     for c in v['certs']],
+                    ['name', 'kind', 'sha-256', 'valid until', 'key'] + (names if many else [])))
+    else:
+        print('  acme has added none - every node trusts its system\'s own list alone')
+    for c in v['certs']:
+        for w in c.get('warn') or []:
+            print(pal.warn_line('  %s: %s' % (c['cn'], w)))
+    for n in v['nodes']:
+        s = n['system'] or {}
+        print(pal.head('%s%s' % (n['name'], ' (this one)' if n['me'] else '')))
+        say = {'applied': pal.ok_line, 'failed': pal.bad_line}.get(n['status'], pal.warn_line)
+        print(say('  %s%s' % ({'applied': 'as wanted', 'waiting': 'waiting', 'failed': 'failed',
+                               'none': 'nothing added by acme'}.get(n['status'], n['status']),
+                              (': ' + n['why']) if n['why'] else '')))
+        if n.get('dir'):
+            print(pal.dim('  local additions in %s, made into the system\'s list by %s' % (n['dir'], n['tool'])))
+        if s:
+            print(pal.dim('  the system\'s own list: %s certificates in %s%s' % (
+                s.get('count', '?'), s.get('path', '?'),
+                ('; package %s' % s['package']) if s.get('package') else '')))
+        others = list(n.get('others') or [])
+        if others:
+            print(pal.dim('  added by somebody else (acme leaves them as they are):'))
+            for o in others:
+                cs = o.get('certs') or []
+                print('    %s  %s' % (o.get('file'), ', '.join('%s (%s)' % (c.get('cn'), c.get('kind')) for c in cs)
+                                      or ('a link to %s' % o['link'] if o.get('link') else 'no certificate read')))
+        py = n.get('python') or {}
+        if py and not py.get('system'):
+            print(pal.warn_line('  acme\'s own connections trust %s - not the system\'s list' % (
+                py.get('cafile') or py.get('capath') or '?')))
+    return 0
 
 
 def acme_argv(here=None):

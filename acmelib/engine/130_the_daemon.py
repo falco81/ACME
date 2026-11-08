@@ -714,6 +714,11 @@ class Daemon(object):
                 except Exception as e:          # noqa: BLE001
                     log_sparing('sshkeys-tick', 'root\'s SSH keys: %s' % e, 'warn', every=600)
                 try:
+                    osroots_tick(self)          # the system's trusted roots (1.0.59)
+                except Exception as e:          # noqa: BLE001
+                    log_sparing('osroots-tick', 'the system\'s trusted roots: %s' % e, 'warn',
+                                every=600)
+                try:
                     osu_tick(self)              # the local users of the machines (1.0.243)
                 except Exception as e:          # noqa: BLE001
                     log_sparing('osu-tick', 'the local users: %s (%s)' % (e, where_it_broke()),

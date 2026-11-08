@@ -2913,6 +2913,19 @@ button.mebtn { cursor: pointer; }
 /* On a phone (1.0.19): a column of 520 px (360 for the others) made Settings → Time
    scroll sideways at 390 px, and a node's last facts were off the screen. */
 .pw-grid{grid-template-columns:repeat(auto-fill,minmax(min(360px,100%),1fr))}
+/* The system's trusted roots (1.0.59): Settings -> Certificates and TLS, a card of the whole width. */
+#osr-host .osr-tools{margin:0 0 12px}
+#osr-host .osr-grid{margin-top:16px}
+#osr-host .osr-warn,.osr-seen .osr-warn{color:var(--warn)}
+#osr-host td.osr-act{white-space:nowrap}
+#osr-host td.osr-act .btn + .btn{margin-left:8px}
+#osr-host td.nowrap{white-space:nowrap}
+#osr-host .osr-others-h{margin-top:12px}
+#osr-host .osr-others{margin:4px 0 0 18px;padding:0}
+#osr-host .osr-others li{margin:2px 0;overflow-wrap:anywhere}
+.osr-pem{width:100%;box-sizing:border-box;min-height:150px}
+.osr-file{margin:8px 0 4px}
+.osr-seen .osr-one{margin:12px 0 0;overflow-wrap:anywhere}
 @media (max-width:520px){.ntp-node .net-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
 #ntp-form .formgrid > .set-item:only-child{max-width:460px}
 /* 1.0.123: Hide this, and the settings under From the web */

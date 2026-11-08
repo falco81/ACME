@@ -32,7 +32,8 @@ DBGUARD_META_PREFIXES = (
     'net:back:', 'readdress:dropold:', 'hatls:node:', 'dbtls:server:', 'ask:want:',
     'host:sshkeys:want:', 'host:rootkey:', 'host:osup:checkwant:',
     'console:want:', 'acme_push:key:', 'adm2fa:', 'host:selinux:want:',
-    'host:users:want:', 'sshotp:u:', 'sshotp:port:', 'rbackup:now:')
+    'host:users:want:', 'sshotp:u:', 'sshotp:port:', 'rbackup:now:',
+    'oscerts:want:')      # the system's trusted roots (1.0.59): root writes them
 # Settings whose word reaches root, or who may sign in to these pages.
 DBGUARD_SETTINGS = frozenset((
     'acme', 'acme_challenge', 'acme_for', 'acme_node_name', 'pki_publish', 'snmp', 'snmp_from', 'snmp_port', 'net_confirm_min', 'fw_confirm_min',

@@ -456,6 +456,7 @@ if (isset($_GET['api'])) {
         'portal-sso' => '/api/portal-sso',
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
+        'osroots' => '/api/osroots',                /* the system's trusted roots (1.0.59) */
         'split' => '/api/split', 'clock' => '/api/clock',
         'settings-nodes' => '/api/settings/nodes',
         'load' => '/api/load',                      /* the performance meter (1.0.48) */
@@ -477,6 +478,7 @@ if (isset($_GET['api'])) {
         'portal-sso' => '/api/portal-sso',
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
+        'osroots' => '/api/osroots',                /* the system's trusted roots (1.0.59) */
         'split' => '/api/split', 'clock' => '/api/clock',
         'settings-nodes' => '/api/settings/nodes',
     ];
@@ -1610,6 +1612,19 @@ acme --ha-join /root/acme-join-acme1.json --node-name acme2</pre>
         an upload above keeps it, and the Automatic certificates leave it alone from then on. Off until switched
         on; acme's address must be among those that may reach these pages.</p>
       <div id="web-push"></div>
+    </div>
+    <!-- The system's trusted roots (1.0.59, as otp 1.0.265): certificate authorities of one's own
+         put into the trust of the operating system of every node, beside the distribution's list. -->
+    <div class="card full" id="osr-card">
+      <h2>Trusted roots of the system</h2>
+      <p class="note">Certificate authorities of your own - your company's root, an intermediate -
+        trusted by the operating system of every node as a whole: curl, dnf, LDAPS to a domain
+        controller, SMTP, syslog over TLS, acme's own connections - every program that uses the
+        system's trust. The distribution's own list stays as it is and keeps coming with the
+        system's updates; these are added beside it, the way the system itself takes local
+        additions (update-ca-trust on RHEL, AlmaLinux and Rocky, update-ca-certificates on Debian
+        and Ubuntu), and stay there through those updates.</p>
+      <div id="osr-host"></div>
     </div>
 
   </div>
