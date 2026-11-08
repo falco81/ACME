@@ -17348,18 +17348,24 @@ function loadSelinux() {
   });
 }
 function seReport(btn) {
-  var asked = Date.now() / 1000 - 5, end = Date.now() + 180000;
+  /* Newer than the one each node had before, by that node's own clock (1.0.59): a node whose clock
+     is behind the browser's was waited for to the end. */
+  var end = Date.now() + 180000, before = {};
+  var had = (SE.d && SE.d.reports) || {};
+  Object.keys(had).forEach(function (n) { before[n] = (had[n] && had[n].at) || 0; });
   busy(btn, true);
   SE.rep = {words: 'asking every node for its report…'};
   drawSelinux();
-  api('selinux', {action: 'report', node: '*'}).then(function () {
+  api('selinux', {action: 'report', node: '*'}).then(function (r) {
+    /* A node with a step asked and not done yet is not asked (1.0.59): not waited for either. */
+    var skip = (r && r.busy) || [];
     return new Promise(function (done) {
       (function tick() {
         api('selinux').then(function (d) {
           SE.d = d;
-          var nodes = (d.nodes || []).map(function (n) { return n.name; });
+          var nodes = (d.nodes || []).map(function (n) { return n.name; }).filter(function (n) { return skip.indexOf(n) < 0; });
           var reps = d.reports || {};
-          var ready = nodes.filter(function (n) { return reps[n] && reps[n].at >= asked; });
+          var ready = nodes.filter(function (n) { return reps[n] && (reps[n].at || 0) > (before[n] || 0); });
           SE.rep = {words: 'reports made: ' + ready.length + ' of ' + nodes.length + (ready.length < nodes.length ? ' - waiting for ' + nodes.filter(function (n) { return ready.indexOf(n) < 0; }).join(', ') : '')};
           drawSelinux();
           if (ready.length >= nodes.length || Date.now() > end) return done();
@@ -17497,7 +17503,13 @@ function seNode(n) {
       : d.since ? (d.total ? 'SELinux refused ' + num(d.total) + ' thing(s) since acme\'s needs were put in' : 'Nothing refused since acme\'s needs were put in')
       : d.total ? 'SELinux refused ' + num(d.total) + ' thing(s) since the machine started' : 'Nothing refused since the machine started');
     /* Refused once, allowed by the policy loaded now (as otp 1.0.238) - a newer module, a boolean: not counted. */
+    /* Upgraded from before 1.0.44 (1.0.59, as otp 1.0.249): the old note of when acme's needs were
+       put in is not read any more - what was refused since the start counts again, put right or not. */
+    if (d.tool && d.since_lost && d.total) list.appendChild(el('p', 'note small', 'After the upgrade these are counted since the machine started again - also what was put right before it: when acme\'s needs were last put in is kept in root\'s folder now, the old note is not read. Not new refusals: they go at the next restart of the machine, or when "Put in what acme needs" changes something.'));
     if (d.tool && d.settled) seRow(list, true, num(d.settled) + ' refused before, allowed now - by a newer acme_server or a boolean put in since; not counted');
+    /* A port of a type this node's root helper does not set yet (1.0.59, as otp 1.0.262): left out
+       with a word - the rest is looked at and put in as always. */
+    (s.left_out || []).forEach(function (x) { seRow(list, null, x); });
     if (s.auditd === false) seRow(list, false, 'auditd does not run - what SELinux refuses is not written down (systemctl enable --now auditd)');
     box.appendChild(list);
     if ((d.groups || []).length) {

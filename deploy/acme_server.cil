@@ -1,7 +1,8 @@
 ; acme - what SELinux needs for acme that the system's policy does not say (as otp 1.0.233).
 ; Installed by install.sh and by every upgrade (semodule -i acme_server.cil), taken away with
-; semodule -r acme_server. It only labels: no rule of its own, nothing allowed beyond what the
-; policy already allows the web server.
+; semodule -r acme_server. Labels first; a narrow rule only where no label or boolean does it
+; (systemd's /run/acme; 1.0.59: PostgreSQL reading the certificates' folder), each in a block
+; of its own.
 ;
 ; /run/acme holds the daemon's API token and port. The pages (php-fpm, httpd_t) read them;
 ; made by systemd as var_run_t, httpd_t may not read it. Labelled as the web server's own
@@ -23,3 +24,16 @@
 (optional acme_server_systemd_runtime
     (allow init_t httpd_var_run_t (dir (getattr setattr search open read)))
     (allow init_t httpd_var_run_t (file (getattr setattr))))
+
+; The link between the databases of a cluster encrypted (1.0.59, as otp 1.0.265): the
+; subscription's worker is PostgreSQL itself (postgresql_t), and libpq there reads the
+; authorities named by sslrootcert - /etc/pki/acme/ha-ca.pem (or the system's bundle), cert_t.
+; The targeted policy lets postgresql_t read cert_t only with authlogin_nsswitch_use_ldap on:
+; under enforcing the worker fails with "could not read root certificate file ... Permission
+; denied" and replication stops - "postgresql_t -> cert_t dir { search } / file { read open }".
+; Read only: what miscfiles_read_generic_certs() gives other services. A key in /etc/pki stays
+; root's 0600. Put in on a node without the pages (install.sh --no-web) too.
+(optional acme_server_postgresql_certs
+    (allow postgresql_t cert_t (dir (getattr search open read)))
+    (allow postgresql_t cert_t (file (getattr open read ioctl lock)))
+    (allow postgresql_t cert_t (lnk_file (getattr read))))
