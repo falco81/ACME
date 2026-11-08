@@ -5,6 +5,24 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.59 - not released
+- **Settings → Certificates and TLS → Trusted roots of the system**: your company's root and
+  intermediate authorities trusted by the whole operating system of every node - curl, dnf, LDAPS
+  to a domain controller, mail, syslog over TLS and acme's own connections. Added beside the
+  distribution's list by the system's own way of local additions (update-ca-trust on RHEL, Alma,
+  Rocky; update-ca-certificates on Debian, Ubuntu), which goes on coming with the system's
+  updates; only acme's own files (`acme-<fingerprint>`) are ever written or taken away, what
+  somebody else put there is shown and left. Checked as it is pasted (a server's own certificate
+  or a private key refused; ran out, SHA-1, a short key, an intermediate without its root said);
+  in a cluster the set is the cluster's and each node says whether it has it. Also `acme
+  --os-roots`, `--os-roots-add FILE`, `--os-roots-remove FINGERPRINT` and the console
+  (docs/trusted-roots.md).
+- SELinux, as otp 1.0.265 has it: the other node's PostgreSQL port labelled (asked last, so one
+  refused stops nothing else) and PostgreSQL allowed to read the authority of the link's TLS - under
+  enforcing, replication between the nodes stopped; the module put in on a node without the pages
+  too; a port type the root helper does not know yet (a newer daemon mid-upgrade) left out with a
+  word instead of refusing everything; Back to permissive refused under high security; a look or a
+  report never takes the place of a step not done yet; "applied at" kept in root's folder alone;
+  the report says the ports of the DNS server, SNMP and the SSH gate.
 
 ## 1.0.58 - 2026-11-07
 - Cluster: a subscription left on the other node's old address (a move that failed half way) is

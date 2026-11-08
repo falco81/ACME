@@ -649,14 +649,10 @@ class TestApiAndPages(unittest.TestCase):
             self.assertIn(piece, doc)
 
     def test_every_text_has_its_czech(self):
-        """The texts of the card, with their Czech, handed over beside the change."""
-        scratch = os.environ.get('ACME_OSROOTS_CS')
-        if not scratch or not os.path.exists(scratch):
-            self.skipTest('ACME_OSROOTS_CS not given')
-        cs = json.loads(text(scratch))
-        rich = scratch.replace('.json', '-rich.json')
-        if os.path.exists(rich):
-            cs.update(json.loads(text(rich)))
+        """Every text of the card has its Czech in web/lang/cs.json."""
+        lang = json.loads(self.read('web', 'lang', 'cs.json'))
+        cs = {v['source']: v['text'] for sec in ('strings', 'patterns', 'rich')
+              for v in lang[sec].values()}
         js = self.read('web', 'assets', 'admin.js')
         block = js[js.index('var OSR = {'):js.index('/* The VIP address lives on the High availability pane')]
         missing = []

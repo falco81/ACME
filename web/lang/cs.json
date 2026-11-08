@@ -54295,6 +54295,278 @@
   "se59_9": {
    "source": "  restart of the machine, or when \"Put in what acme needs\" changes something.",
    "text": "  restartu stroje, nebo až „Doplnit, co acme potřebuje“ něco změní."
+  },
+  "osr_1": {
+   "source": "Trusted roots of the system",
+   "text": "Důvěryhodné kořeny systému"
+  },
+  "osr_2": {
+   "source": "Certificate authorities of your own - your company's root, an intermediate - trusted by the operating system of every node as a whole: curl, dnf, LDAPS to a domain controller, SMTP, syslog over TLS, acme's own connections - every program that uses the system's trust. The distribution's own list stays as it is and keeps coming with the system's updates; these are added beside it, the way the system itself takes local additions (update-ca-trust on RHEL, AlmaLinux and Rocky, update-ca-certificates on Debian and Ubuntu), and stay there through those updates.",
+   "text": "Vlastní certifikační autority - kořenová autorita vaší firmy, mezilehlá autorita - kterým důvěřuje celý operační systém každého uzlu: curl, dnf, LDAPS k řadiči domény, SMTP, syslog přes TLS, vlastní spojení acme - každý program, který používá důvěru systému. Seznam distribuce zůstává, jak je, a dál přichází s aktualizacemi systému; tyto se přidávají vedle něj, tak jak systém sám přijímá místní doplňky (update-ca-trust na RHEL, AlmaLinuxu a Rocky, update-ca-certificates na Debianu a Ubuntu), a zůstávají tam i po těchto aktualizacích."
+  },
+  "osr_3": {
+   "source": "Add an authority",
+   "text": "Přidat autoritu"
+  },
+  "osr_4": {
+   "source": "A root or an intermediate certificate authority of your own - pasted as PEM, or a .pem, .crt or .cer file; a file with a chain adds each authority in it.",
+   "text": "Vlastní kořenová nebo mezilehlá certifikační autorita - vložená jako PEM, nebo soubor .pem, .crt či .cer; soubor s řetězcem přidá každou autoritu, která je v něm."
+  },
+  "osr_5": {
+   "source": "Read it again on every node",
+   "text": "Načíst znovu na každém uzlu"
+  },
+  "osr_6": {
+   "source": "acme has added none - every node trusts its system's own list alone.",
+   "text": "acme nepřidalo žádnou - každý uzel důvěřuje jen vlastnímu seznamu svého systému."
+  },
+  "osr_7": {
+   "source": "the SHA-256 fingerprint is copied",
+   "text": "otisk SHA-256 je zkopírován"
+  },
+  "osr_8": {
+   "source": "Download it (PEM)",
+   "text": "Stáhnout (PEM)"
+  },
+  "osr_9": {
+   "source": "Take it out of the system's trust",
+   "text": "Vyjmout z důvěry systému"
+  },
+  "osr_10": {
+   "source": "acme's own connections (the directory, mail, syslog, SMS, ACME, the database with the system's authorities) use the system's list too - what is added here reaches them at their next connection.",
+   "text": "Vlastní spojení acme (adresář, pošta, syslog, SMS, ACME, databáze s autoritami systému) používají také seznam systému - co se přidá zde, k nim dorazí při jejich příštím spojení."
+  },
+  "osr_11": {
+   "source": "as wanted",
+   "text": "jak má být"
+  },
+  "osr_12": {
+   "source": "nothing added by acme",
+   "text": "acme nic nepřidalo"
+  },
+  "osr_13": {
+   "source": "The system's own list",
+   "text": "Vlastní seznam systému"
+  },
+  "osr_14": {
+   "source": "Its package",
+   "text": "Jeho balíček"
+  },
+  "osr_15": {
+   "source": "Made last",
+   "text": "Naposledy sestaven"
+  },
+  "osr_16": {
+   "source": "Local additions in",
+   "text": "Místní doplňky v"
+  },
+  "osr_17": {
+   "source": "acme's additions there",
+   "text": "Doplňky acme tam"
+  },
+  "osr_18": {
+   "source": "Added by somebody else - acme leaves them as they are:",
+   "text": "Přidal někdo jiný - acme je nechává, jak jsou:"
+  },
+  "osr_19": {
+   "source": "not an authority",
+   "text": "není autorita"
+  },
+  "osr_20": {
+   "source": "- a link",
+   "text": "- odkaz"
+  },
+  "osr_21": {
+   "source": "- no certificate read",
+   "text": "- žádný certifikát nenačten"
+  },
+  "osr_22": {
+   "source": "Add to the system's trust",
+   "text": "Přidat do důvěry systému"
+  },
+  "osr_23": {
+   "source": "Every program of both nodes trusts what they sign from then on.",
+   "text": "Každý program obou uzlů od té chvíle důvěřuje tomu, co podepíší."
+  },
+  "osr_24": {
+   "source": "Every program of this server trusts what they sign from then on.",
+   "text": "Každý program tohoto serveru od té chvíle důvěřuje tomu, co podepíší."
+  },
+  "osr_25": {
+   "source": "that file is far bigger than certificates are",
+   "text": "ten soubor je mnohem větší, než certifikáty bývají"
+  },
+  "osr_26": {
+   "source": "there already",
+   "text": "už tam je"
+  },
+  "osr_27": {
+   "source": "Add them",
+   "text": "Přidat je"
+  },
+  "osr_28": {
+   "source": "asked more than five minutes ago and not done - is it of this version, and is acme-web.path running there?",
+   "text": "požádáno před více než pěti minutami a neprovedeno - je uzel této verze a běží na něm acme-web.path?"
+  },
+  "osr_29": {
+   "source": "its root is not among these - trusted by itself only where a partial chain is taken (curl, Python 3.13 on), unless the system's list has the root",
+   "text": "jeho kořenová autorita mezi nimi není - sama o sobě je důvěryhodná jen tam, kde se přijímá neúplný řetězec (curl, Python od 3.13), pokud kořen nemá seznam systému"
+  },
+  "osr_30": {
+   "source": "an intermediate without its root here: programs that take a partial chain (curl, Python 3.13 on) trust it by itself, others want its root too - add the root as well, unless the system's list has it",
+   "text": "mezilehlá autorita bez své kořenové: programy, které přijímají neúplný řetězec (curl, Python od 3.13), jí důvěřují samotné, ostatní chtějí i kořen - přidejte i kořenovou autoritu, pokud ji nemá seznam systému"
+  },
+  "osr_31": {
+   "source": "it says nothing of being an authority (no basicConstraints CA:TRUE) - only a certificate authority goes here",
+   "text": "neříká o sobě, že je autorita (chybí basicConstraints CA:TRUE) - sem patří jen certifikační autorita"
+  },
+  "osr_32": {
+   "source": "it is not a certificate authority (CA:FALSE) - a server's own certificate does not go here",
+   "text": "není certifikační autorita (CA:FALSE) - vlastní certifikát serveru sem nepatří"
+  },
+  "osr_33": {
+   "source": "its key usage does not let it sign certificates (no keyCertSign)",
+   "text": "použití jejího klíče jí nedovoluje podepisovat certifikáty (chybí keyCertSign)"
+  },
+  "osr_34": {
+   "source": "no private key and nothing but certificates (-----BEGIN CERTIFICATE-----)",
+   "text": "žádný soukromý klíč a nic než certifikáty (-----BEGIN CERTIFICATE-----)"
+  },
+  "osr_35": {
+   "source": "a certificate that is not base64",
+   "text": "certifikát, který není v base64"
+  },
+  "osr_36": {
+   "source": "no certificate in it (-----BEGIN CERTIFICATE-----)",
+   "text": "není v tom žádný certifikát (-----BEGIN CERTIFICATE-----)"
+  },
+  "osr_37": {
+   "source": "neither PEM (-----BEGIN CERTIFICATE-----) nor one certificate in DER",
+   "text": "ani PEM (-----BEGIN CERTIFICATE-----), ani jeden certifikát v DER"
+  },
+  "osr_38": {
+   "source": "the certificates: PEM text, or a file",
+   "text": "certifikáty: text PEM, nebo soubor"
+  },
+  "osr_39": {
+   "source": "nothing added: every certificate in it is there already",
+   "text": "nic nepřidáno: každý certifikát v tom už tam je"
+  },
+  "osr_40": {
+   "source": "added 1 - every node puts it into its system's trust within a minute",
+   "text": "přidán 1 - každý uzel ho do minuty vloží do důvěry svého systému"
+  },
+  "osr_41": {
+   "source": "the SHA-256 fingerprint - 12 characters of it at least",
+   "text": "otisk SHA-256 - aspoň 12 jeho znaků"
+  },
+  "osr_42": {
+   "source": "acme has added no certificate with that fingerprint",
+   "text": "acme nepřidalo žádný certifikát s tímto otiskem"
+  },
+  "osr_43": {
+   "source": "more than one certificate begins with that - give more of it",
+   "text": "tímto začíná víc než jeden certifikát - zadejte víc znaků"
+  },
+  "osr_44": {
+   "source": "taken away - every node takes it out of its system's trust within a minute",
+   "text": "odebráno - každý uzel ho do minuty vyjme z důvěry svého systému"
+  },
+  "osr_45": {
+   "source": "asked: every node reads its trusted roots again within a minute",
+   "text": "požádáno: každý uzel do minuty znovu načte své důvěryhodné kořeny"
+  },
+  "osr_46": {
+   "source": "check, add, remove or refresh",
+   "text": "check, add, remove nebo refresh"
+  },
+  "osr_47": {
+   "source": "the root helper of this node answered osroots.ask with no object - is it of the same version as acme?",
+   "text": "pomocník roota tohoto uzlu odpověděl na osroots.ask bez objektu - je stejné verze jako acme?"
+  },
+  "osr_48": {
+   "source": "this system has neither update-ca-trust (RHEL, AlmaLinux, Rocky) nor update-ca-certificates (Debian, Ubuntu)",
+   "text": "tento systém nemá ani update-ca-trust (RHEL, AlmaLinux, Rocky), ani update-ca-certificates (Debian, Ubuntu)"
+  },
+  "osr_49": {
+   "source": "one certificate in each",
+   "text": "v každém jeden certifikát"
+  },
+  "osr_50": {
+   "source": "the certificates as PEM text",
+   "text": "certifikáty jako text PEM"
+  },
+  "osr_51": {
+   "source": "list, check or sync",
+   "text": "list, check nebo sync"
+  },
+  "osr_52": {
+   "source": "the request is not an object",
+   "text": "požadavek není objekt"
+  },
+  "osr_53": {
+   "source": "the system's trusted roots: the certificate authorities acme added to the trust of every node's system, and how each node stands",
+   "text": "důvěryhodné kořeny systému: certifikační autority, které acme přidalo do důvěry systému každého uzlu, a jak je na tom každý uzel"
+  },
+  "osr_54": {
+   "source": "add the certificate authorities of a file (PEM - one or a chain - or DER) to the trust of every node's system; asked first unless --yes",
+   "text": "přidat certifikační autority ze souboru (PEM - jedna nebo řetězec - nebo DER) do důvěry systému každého uzlu; nejdřív se zeptá, není-li --yes"
+  },
+  "osr_55": {
+   "source": "take one acme added out of the trust of every node's system: its SHA-256 fingerprint (12 characters of it at least); asked first unless --yes",
+   "text": "vyjmout jednu, kterou přidalo acme, z důvěry systému každého uzlu: její otisk SHA-256 (aspoň 12 znaků); nejdřív se zeptá, není-li --yes"
+  },
+  "osr_56": {
+   "source": "acme: nothing to add",
+   "text": "acme: není co přidat"
+  },
+  "osr_57": {
+   "source": "every program of every node will trust what these sign",
+   "text": "každý program každého uzlu bude důvěřovat tomu, co tyto podepíší"
+  },
+  "osr_58": {
+   "source": "acme has added none - every node trusts its system's own list alone",
+   "text": "acme nepřidalo žádnou - každý uzel důvěřuje jen vlastnímu seznamu svého systému"
+  },
+  "osr_59": {
+   "source": "added by somebody else (acme leaves them as they are):",
+   "text": "přidal někdo jiný (acme je nechává, jak jsou):"
+  },
+  "osr_60": {
+   "source": "no certificate read",
+   "text": "žádný certifikát nenačten"
+  },
+  "osr_61": {
+   "source": "The system's trusted roots: what acme added, each node",
+   "text": "Důvěryhodné kořeny systému: co acme přidalo, každý uzel"
+  },
+  "osr_62": {
+   "source": "The system's trusted roots: add a certificate authority (a file)",
+   "text": "Důvěryhodné kořeny systému: přidat certifikační autoritu (soubor)"
+  },
+  "osr_63": {
+   "source": "The system's trusted roots: take one away",
+   "text": "Důvěryhodné kořeny systému: jednu odebrat"
+  },
+  "osr_64": {
+   "source": "PEM (one, or a chain) or DER: /root/company-root.pem",
+   "text": "PEM (jeden, nebo řetězec) nebo DER: /root/company-root.pem"
+  },
+  "osr_65": {
+   "source": "The system's trusted roots",
+   "text": "Důvěryhodné kořeny systému"
+  },
+  "osr_66": {
+   "source": "acme has added none.",
+   "text": "acme nepřidalo žádnou."
+  },
+  "osr_67": {
+   "source": "What it signs is no longer trusted by the system of any node - unless the system's own list has it.",
+   "text": "Tomu, co podepisuje, už systém žádného uzlu nebude důvěřovat - pokud ji nemá vlastní seznam systému."
+  },
+  "osr_68": {
+   "source": "the system's trusted roots of every node",
+   "text": "důvěryhodné kořeny systému každého uzlu"
   }
  },
  "patterns": {
@@ -74233,6 +74505,170 @@
   "pse59_4": {
    "source": "SELinux refused {0} thing(s) since the machine started - after the upgrade also what was put right before it (the old note of when acme's needs were put in is not read any more): they go at the next restart of the machine",
    "text": "SELinux od startu stroje odepřel {0}× – po aktualizaci včetně toho, co bylo napraveno už před ní (stará poznámka o tom, kdy bylo doplněno, co acme potřebuje, se už nečte): zmizí při příštím restartu stroje"
+  },
+  "posr_1": {
+   "source": "acme's own connections do not use the system's list here ({0}) - what is added here does not reach them.",
+   "text": "Vlastní spojení acme zde nepoužívají seznam systému ({0}) - co se přidá zde, k nim nedorazí."
+  },
+  "posr_2": {
+   "source": "{0} authorities",
+   "text": "{0:autorita|autority|autorit}"
+  },
+  "posr_3": {
+   "source": "{0} (not on this machine)",
+   "text": "{0} (na tomto stroji není)"
+  },
+  "posr_4": {
+   "source": "valid {0} – {1} · {2}",
+   "text": "platnost {0} – {1} · {2}"
+  },
+  "posr_5": {
+   "source": "asked more than five minutes ago and not done - is it of this version, and is acme-web.path running there? (last: {0})",
+   "text": "požádáno před více než pěti minutami a neprovedeno - je uzel této verze a běží na něm acme-web.path? (naposledy: {0})"
+  },
+  "posr_6": {
+   "source": "it ran out on {0} - nothing it signed is trusted",
+   "text": "vypršela {0} - ničemu, co podepsala, se nedůvěřuje"
+  },
+  "posr_7": {
+   "source": "it is valid only from {0}",
+   "text": "platí až od {0}"
+  },
+  "posr_8": {
+   "source": "it is signed with {0} - the system's crypto policy (DEFAULT) refuses it, and every chain through it",
+   "text": "je podepsaná algoritmem {0} - kryptografická politika systému (DEFAULT) ji odmítá, i každý řetězec přes ni"
+  },
+  "posr_9": {
+   "source": "its key has {0} bits - the system's crypto policy (DEFAULT) refuses fewer than 2048",
+   "text": "její klíč má {0} bitů - kryptografická politika systému (DEFAULT) odmítá méně než 2048"
+  },
+  "posr_10": {
+   "source": "a certificate of {0} bytes - one is a few kB at most",
+   "text": "certifikát o {0} bajtech - jeden má nanejvýš pár kB"
+  },
+  "posr_11": {
+   "source": "that is far more than {0} certificates",
+   "text": "to je mnohem víc než {0} certifikátů"
+  },
+  "posr_12": {
+   "source": "{0} certificates in it - {1} at most",
+   "text": "je v tom {0} certifikátů - nejvýš {1}"
+  },
+  "posr_13": {
+   "source": "nothing added: {0}",
+   "text": "nic nepřidáno: {0}"
+  },
+  "posr_14": {
+   "source": "{0} certificates at most - {1} are there, {2} more asked",
+   "text": "nejvýš {0} certifikátů - {1} už tam je, žádáno o {2} další"
+  },
+  "posr_15": {
+   "source": "added {0} - every node puts them into its system's trust within a minute",
+   "text": "přidáno {0} - každý uzel je do minuty vloží do důvěry svého systému"
+  },
+  "posr_16": {
+   "source": "{0} added {1} - the system's trusted roots of every node",
+   "text": "{0} přidal {1} - důvěryhodné kořeny systému každého uzlu"
+  },
+  "posr_17": {
+   "source": "{0} took away {1} - the system's trusted roots of every node",
+   "text": "{0} odebral {1} - důvěryhodné kořeny systému každého uzlu"
+  },
+  "posr_18": {
+   "source": "{0} asked every node to read the system's trusted roots again",
+   "text": "{0} požádal každý uzel, aby znovu načetl důvěryhodné kořeny systému"
+  },
+  "posr_19": {
+   "source": "{0}: the system's trusted roots - {1}",
+   "text": "{0}: důvěryhodné kořeny systému - {1}"
+  },
+  "posr_20": {
+   "source": "{0}: the system's trusted roots - not taken: {1}",
+   "text": "{0}: důvěryhodné kořeny systému - nepřijato: {1}"
+  },
+  "posr_21": {
+   "source": "the system's trusted roots: {0}",
+   "text": "důvěryhodné kořeny systému: {0}"
+  },
+  "posr_22": {
+   "source": "added {0}",
+   "text": "přidán {0}"
+  },
+  "posr_23": {
+   "source": "removed {0}",
+   "text": "odebrán {0}"
+  },
+  "posr_24": {
+   "source": "{0} run",
+   "text": "spuštěn {0}"
+  },
+  "posr_25": {
+   "source": "the certificates wanted: a list of {0} at most",
+   "text": "požadované certifikáty: seznam nejvýš {0}"
+  },
+  "posr_26": {
+   "source": "each certificate as PEM text of {0} bytes at most",
+   "text": "každý certifikát jako text PEM o nejvýš {0} bajtech"
+  },
+  "posr_27": {
+   "source": "{0} is not a folder (a link?) - nothing is written there",
+   "text": "{0} není složka (odkaz?) - nic se tam nezapisuje"
+  },
+  "posr_28": {
+   "source": "{0} is not root's alone (owner {1}, mode {2}) - nothing is written there",
+   "text": "{0} nepatří jen rootovi (vlastník {1}, práva {2}) - nic se tam nezapisuje"
+  },
+  "posr_29": {
+   "source": "{0} is a folder - acme takes away only files of its own",
+   "text": "{0} je složka - acme odebírá jen vlastní soubory"
+  },
+  "posr_30": {
+   "source": "{0} is not on this machine - the files are in {1}, the system's list is not made again until it runs",
+   "text": "{0} na tomto stroji není - soubory jsou v {1}, seznam systému se znovu nesestaví, dokud se nespustí"
+  },
+  "posr_31": {
+   "source": "{0} ended with {1}: {2}",
+   "text": "{0} skončil s {1}: {2}"
+  },
+  "posr_32": {
+   "source": "what {0} signs is no longer trusted by the system of any node",
+   "text": "tomu, co podepisuje {0}, už systém žádného uzlu nebude důvěřovat"
+  },
+  "posr_33": {
+   "source": "issued by {0}; valid {1} - {2}; {3}",
+   "text": "vydal {0}; platnost {1} - {2}; {3}"
+  },
+  "posr_34": {
+   "source": "the system's trusted roots - acme's additions ({0} of {1} at most)",
+   "text": "důvěryhodné kořeny systému - doplňky acme ({0} z nejvýš {1})"
+  },
+  "posr_35": {
+   "source": "local additions in {0}, made into the system's list by {1}",
+   "text": "místní doplňky v {0}, do seznamu systému je převádí {1}"
+  },
+  "posr_36": {
+   "source": "the system's own list: {0} certificates in {1}{2}",
+   "text": "vlastní seznam systému: {0} certifikátů v {1}{2}"
+  },
+  "posr_37": {
+   "source": "; package {0}",
+   "text": "; balíček {0}"
+  },
+  "posr_38": {
+   "source": "a link to {0}",
+   "text": "odkaz na {0}"
+  },
+  "posr_39": {
+   "source": "acme's own connections trust {0} - not the system's list",
+   "text": "vlastní spojení acme důvěřují {0} - ne seznamu systému"
+  },
+  "posr_40": {
+   "source": "Every program of every node trusts what the authorities in {0} sign from then on.",
+   "text": "Každý program každého uzlu od té chvíle důvěřuje tomu, co podepíší autority v {0}."
+  },
+  "posr_41": {
+   "source": "{0} ({1}) - SHA-256 {2}",
+   "text": "{0} ({1}) - SHA-256 {2}"
   }
  },
  "rich": {
@@ -75087,6 +75523,18 @@
   "ridet_1": {
    "source": "Every job of the certificates step by step - an order, a renewal and its validation, a deployment, the tests, an import from a source, a revocation, a dry run: its start, each step with the module that said it, each HTTPS request of a module (host, path, answer, time), its end - and the result of every test, as <code>acme-jobs</code> lines with fields of their own, for isemon's analytics. Nothing secret is ever sent: keys, passwords, tokens, a URL's user and its secret parameters are taken out of every line. Also into <code>/var/log/acme/acme-jobs.log</code> with the files on.",
    "text": "Každá úloha certifikátů krok za krokem – objednávka, obnova a její validace, nasazení, testy, import ze zdroje, odvolání, zkušební běh: její začátek, každý krok s modulem, který ho ohlásil, každý HTTPS požadavek modulu (server, cesta, odpověď, čas), její konec – a výsledek každého testu, jako řádky <code>acme-jobs</code> s vlastními poli, pro analytiku isemonu. Nikdy se neposílá nic citlivého: klíče, hesla, tokeny, uživatel v URL a jeho tajné parametry se z každého řádku odstraní. Se zapnutými soubory také do <code>/var/log/acme/acme-jobs.log</code>."
+  },
+  "osr_r1": {
+   "source": "A certificate authority of your own - a root, or an intermediate - as PEM (<code>-----BEGIN CERTIFICATE-----</code>), or a <code>.pem</code>, <code>.crt</code> or <code>.cer</code> file. A chain adds every authority in it. Only authorities are taken (CA:TRUE), never a private key.",
+   "text": "Vlastní certifikační autorita - kořenová nebo mezilehlá - jako PEM (<code>-----BEGIN CERTIFICATE-----</code>), nebo soubor <code>.pem</code>, <code>.crt</code> či <code>.cer</code>. Řetězec přidá každou autoritu, která je v něm. Přijímají se jen autority (CA:TRUE), nikdy soukromý klíč."
+  },
+  "osr_r2": {
+   "source": "What <b>{0}</b> (SHA-256 <code>{1}…</code>) signs is no longer trusted by either node - unless the system's own list has it. Connections that rely on it (LDAPS, mail, syslog…) fail from their next start.",
+   "text": "Tomu, co podepisuje <b>{0}</b> (SHA-256 <code>{1}…</code>), už nebude důvěřovat žádný z uzlů - pokud ji nemá vlastní seznam systému. Spojení, která na ní závisí (LDAPS, pošta, syslog…), selžou od svého příštího startu."
+  },
+  "osr_r3": {
+   "source": "What <b>{0}</b> (SHA-256 <code>{1}…</code>) signs is no longer trusted by this server - unless the system's own list has it. Connections that rely on it (LDAPS, mail, syslog…) fail from their next start.",
+   "text": "Tomu, co podepisuje <b>{0}</b> (SHA-256 <code>{1}…</code>), už tento server nebude důvěřovat - pokud ji nemá vlastní seznam systému. Spojení, která na ní závisí (LDAPS, pošta, syslog…), selžou od svého příštího startu."
   }
  }
 }
