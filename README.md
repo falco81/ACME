@@ -73,6 +73,7 @@ clone as it does from `acme-X.Y.Z.tar.gz` (only the release is signed).
 - [docs/dns-sets.md](docs/dns-sets.md) - Settings → DNS: named sets of DNS servers, and which one each function asks
 - [docs/teams.md](docs/teams.md) - Settings → Owners and teams: who certificates belong to, what each member may do, the tags; who sees what
 - [docs/tls-and-vip.md](docs/tls-and-vip.md) - the pages' own certificate, TLS, the VIP address
+- [docs/trusted-roots.md](docs/trusted-roots.md) - the system's trusted roots: certificate authorities of your own added to the trust of every node's operating system, beside the distribution's list
 - [docs/acme-push-protocol.md](docs/acme-push-protocol.md) - acme push: how acme puts certificates on our other applications (the protocol, for their side), and Certificates from acme here
 - [docs/backup-and-recovery.md](docs/backup-and-recovery.md), [docs/remote-backups.md](docs/remote-backups.md) - backups
 - [docs/monitoring.md](docs/monitoring.md) - Prometheus and SNMPv3

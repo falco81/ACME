@@ -12,6 +12,7 @@ PathExists=/var/lib/acme/web/ntp.ask
 PathExists=/var/lib/acme/web/console.ask
 PathExists=/var/lib/acme/web/sshkeys.ask
 PathExists=/var/lib/acme/web/users.ask
+PathExists=/var/lib/acme/web/osroots.ask
 PathExists=/var/lib/acme/web/osup.ask
 PathExists=/var/lib/acme/web/sshd.ask
 PathExists=/var/lib/acme/web/logs.ask

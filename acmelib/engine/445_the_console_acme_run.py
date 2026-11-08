@@ -2621,6 +2621,30 @@ class Console(object):
             else:
                 osu_do(r, name)
 
+        def os_roots_add():
+            # The system's trusted roots (1.0.59): a file of the machine this console runs on.
+            got = self.form('Add to the system\'s trust', [
+                {'key': 'file', 'label': 'the file', 'need': True,
+                 'help': 'PEM (one, or a chain) or DER: /root/company-root.pem'}])
+            if got and self.confirm('Add to the system\'s trust', 'Every program of every node trusts '
+                                    'what the authorities in %s sign from then on.' % got['file'],
+                                    'Add them'):
+                self.act('--os-roots-add', got['file'], '--yes')
+
+        def os_roots_remove():
+            got = self.out('--os-roots') or {}
+            rows = [c for c in (got.get('certs') or []) if isinstance(c, dict)]
+            if not rows:
+                self.note('The system\'s trusted roots', 'acme has added none.')
+                return
+            fp = self.choose('Take it out of the system\'s trust', [
+                (c['fp'], '%s (%s) - SHA-256 %s' % (c.get('cn') or '?', c.get('kind') or '?', c['fp'][:16]))
+                for c in rows])
+            if fp and self.confirm('Take it out of the system\'s trust', 'What it signs is no longer '
+                                   'trusted by the system of any node - unless the system\'s own list '
+                                   'has it.', 'Take it away', danger=True):
+                self.act('--os-roots-remove', fp, '--yes')
+
         def osu_policy_set():
             # The password policy of the local users (1.0.43, as otp 1.0.245): a form, the values
             # as they are saved.
@@ -2675,6 +2699,10 @@ class Console(object):
             ('19', 'Lock, unlock, sudo or take away a local user', osu_change),
             ('20', 'The password policy of local users: how it stands', lambda: self.act('--local-policy')),
             ('21', 'Set the password policy of local users', osu_policy_set),
+            # The system's trusted roots (1.0.59, as otp 1.0.265).
+            ('22', 'The system\'s trusted roots: what acme added, each node', lambda: self.act('--os-roots')),
+            ('23', 'The system\'s trusted roots: add a certificate authority (a file)', os_roots_add),
+            ('24', 'The system\'s trusted roots: take one away', os_roots_remove),
         ])
 
     def m_more(self):
