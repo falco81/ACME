@@ -5,6 +5,12 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.61 - not released
+- Active Directory on Windows Server 2025 (docs/active-directory-2025.md): a sign-in refused for
+  want of LDAP signing (result 8, strongerAuthRequired - a plain-LDAP directory) is said in words
+  with what to do; a controller given by its address whose certificate names it by name is told
+  to be given by its FQDN; the directory's "Check it" warns of what will not work once the
+  controllers are new - plain LDAP, an address, the server's own certificate kept as the
+  authority, "Take old, weak certificates" still on.
 
 ## 1.0.60 - 2026-11-08
 - SELinux → the report: the domains the programs run in (processes.txt) were empty - `ps -eZo`

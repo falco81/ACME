@@ -2937,6 +2937,8 @@ function checkDir(name) {
       } else {
         fresh.appendChild(netFacts([['How', c.tls === 'none' ? 'plain LDAP' : c.tls], ['Certificate', c.tls === 'none' ? 'not used' : (c.verify ? 'checked' : 'NOT checked') + (c.weak ? ' · weak taken' : '')],
                                     ['Took', num(c.took_ms) + ' ms']]));
+        /* What will not work with new domain controllers (Windows Server 2025, 1.0.61). */
+        (c.warnings || []).forEach(function (w) { fresh.appendChild(el('p', 'note warnish', w)); });
         (c.servers || []).forEach(function (sv) {
           fresh.appendChild(noI18n(el('h3', 'peek-h', sv.host + ':' + sv.port)));
           fresh.appendChild(stepsList(sv.steps));

@@ -671,7 +671,37 @@ class Directory(object):
                 one.close()
         return {'name': self.name, 'servers': out, 'ok': bool(out) and all(s['ok'] for s in out),
                 'took_ms': int((time.time() - began) * 1000), 'tls': self.tls,
-                'verify': self.verify, 'weak': self.weak}
+                'verify': self.verify, 'weak': self.weak, 'warnings': self.ahead()}
+
+    def ahead(self):
+        """What works now but will not once the domain controllers are new (Windows Server 2025,
+        1.0.61): LDAP signing required, a new certificate on each one, TLS 1.2 at least."""
+        out = []
+        if self.tls == 'none':
+            out.append('Plain LDAP: a domain controller that requires LDAP signing - Windows '
+                       'Server 2025 does by default - refuses this sign-in '
+                       '(strongerAuthRequired). Switch to LDAPS (636) or STARTTLS.')
+        if self.tls != 'none' and self.verify:
+            for host in self.hosts:
+                h = self._hostport(host)[0]
+                try:
+                    ipaddress.ip_address(h)
+                except ValueError:
+                    continue
+                out.append('%s is an address: a domain controller\'s certificate names it by its '
+                           'name - give its FQDN (dc1.example.com).' % h)
+        if self.tls != 'none' and self.verify and self.ca:
+            for c in split_certificates(self.ca):
+                if certificate_is_ca(c) is False:
+                    d = describe_certificate(c) or {}
+                    out.append('"%s" is kept as an authority but is a server\'s own certificate: '
+                               'a domain controller replaced has a new one and is not '
+                               'trusted any more - keep the authority that signed it instead.'
+                               % (d.get('subject') or '?'))
+        if self.weak:
+            out.append('"Take old, weak certificates" is on: Windows Server 2025 speaks TLS 1.2 '
+                       'and 1.3 only - switch it off once the domain controllers are new.')
+        return out
 
 
 def entry_unusable(entry, locked=True):

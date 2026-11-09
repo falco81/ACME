@@ -54567,6 +54567,18 @@
   "osr_68": {
    "source": "the system's trusted roots of every node",
    "text": "důvěryhodné kořeny systému každého uzlu"
+  },
+  "ad25_1": {
+   "source": "Plain LDAP: a domain controller that requires LDAP signing - Windows Server 2025 does by default - refuses this sign-in (strongerAuthRequired). Switch to LDAPS (636) or STARTTLS.",
+   "text": "Nešifrovaný LDAP: řadič domény, který vyžaduje podepisování LDAP - Windows Server 2025 ve výchozím stavu ano - toto přihlášení odmítne (strongerAuthRequired). Přepněte na LDAPS (636) nebo STARTTLS."
+  },
+  "ad25_2": {
+   "source": "\"Take old, weak certificates\" is on: Windows Server 2025 speaks TLS 1.2 and 1.3 only - switch it off once the domain controllers are new.",
+   "text": "„Přijímat staré, slabé certifikáty“ je zapnuté: Windows Server 2025 mluví jen TLS 1.2 a 1.3 - vypněte to, až budou řadiče domény nové."
+  },
+  "ad25_3": {
+   "source": "the directory wants a signed or encrypted connection (strongerAuthRequired) - a domain controller that requires LDAP signing (Windows Server 2025 does by default) refuses a sign-in over plain LDAP: switch this directory to LDAPS (636) or STARTTLS",
+   "text": "adresář chce podepsané nebo šifrované spojení (strongerAuthRequired) - řadič domény, který vyžaduje podepisování LDAP (Windows Server 2025 ve výchozím stavu ano), odmítne přihlášení přes nešifrovaný LDAP: přepněte tento adresář na LDAPS (636) nebo STARTTLS"
   }
  },
  "patterns": {
@@ -74669,6 +74681,18 @@
   "posr_41": {
    "source": "{0} ({1}) - SHA-256 {2}",
    "text": "{0} ({1}) - SHA-256 {2}"
+  },
+  "pad25_1": {
+   "source": "{0} is an address: a domain controller's certificate names it by its name - give its FQDN (dc1.example.com).",
+   "text": "{0} je adresa: certifikát řadiče domény uvádí jeho jméno - zadejte jeho FQDN (dc1.example.com)."
+  },
+  "pad25_2": {
+   "source": "\"{0}\" is kept as an authority but is a server's own certificate: a domain controller replaced has a new one and is not trusted any more - keep the authority that signed it instead.",
+   "text": "„{0}“ je uložen jako autorita, ale je to vlastní certifikát serveru: vyměněný řadič domény bude mít nový a přestane se mu důvěřovat - uložte místo něj autoritu, která ho podepsala."
+  },
+  "pad25_3": {
+   "source": "the server’s certificate does not name the address {0}: give the domain controller by its name (its FQDN, as in dc1.example.com) - its certificate names that, not its address",
+   "text": "certifikát serveru neuvádí adresu {0}: zadejte řadič domény jeho jménem (FQDN, např. dc1.example.com) - certifikát uvádí jméno, ne adresu"
   }
  },
  "rich": {

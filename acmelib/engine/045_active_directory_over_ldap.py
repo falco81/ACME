@@ -19,6 +19,11 @@ LDAP_TRY_ANOTHER = (51, 52, 80)
 LDAP_SAYS = {
     0: 'success',
     1: 'the directory had an operations error',
+    # Windows Server 2025 domain controllers require LDAP signing by default (1.0.61): a simple
+    # bind over plain LDAP is refused with this code.
+    8: 'the directory wants a signed or encrypted connection (strongerAuthRequired) - a domain '
+       'controller that requires LDAP signing (Windows Server 2025 does by default) refuses a '
+       'sign-in over plain LDAP: switch this directory to LDAPS (636) or STARTTLS',
     32: 'there is no such object under that base',
     34: 'the distinguished name is not well formed',
     48: 'that server will not take this kind of authentication',
@@ -397,6 +402,22 @@ def describe_certificate(pem):
 PEM_BLOCK = re.compile(r'-----BEGIN CERTIFICATE-----\s+[A-Za-z0-9+/=\s]+?-----END CERTIFICATE-----')
 
 
+def certificate_is_ca(pem):
+    """True when the certificate says it is an authority (basicConstraints CA:TRUE), False when
+    it says it is not or says nothing, None when it cannot be read (no openssl)."""
+    exe = shutil.which('openssl')
+    if not exe:
+        return None
+    try:
+        got = subprocess.run([exe, 'x509', '-noout', '-text'], input=str(pem), capture_output=True,
+                             text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if got.returncode != 0:
+        return None
+    return bool(re.search(r'CA:\s*TRUE', got.stdout))
+
+
 def split_certificates(pem):
     """Each certificate of a bundle, as its own PEM block, in order."""
     return [m.group(0).strip() for m in PEM_BLOCK.finditer(str(pem or ''))]
@@ -552,6 +573,20 @@ class Ldap(object):
                                 'key, SHA-1): switch on "Take old, weak certificates" for this '
                                 'directory - or better, give the server a new certificate.'
                                 % said)
+            if 'mismatch' in said.lower():
+                try:
+                    ipaddress.ip_address(self.host.strip('[]'))
+                    is_ip = True
+                except ValueError:
+                    is_ip = False
+                if is_ip:
+                    # A domain controller's certificate names it, not its address (1.0.61).
+                    raise LdapError('the server’s certificate does not name the address %s: give '
+                                    'the domain controller by its name (its FQDN, as in '
+                                    'dc1.example.com) - its certificate names that, not its '
+                                    'address' % self.host)
+                raise LdapError('the server’s certificate does not name %s: %s. Give the server '
+                                'by a name its certificate has' % (self.host, said))
             raise LdapError('the server’s certificate was not accepted: %s. Import the '
                             'certificate authority that signed it, or switch the check off '
                             'if this is a test.' % said)
