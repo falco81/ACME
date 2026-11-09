@@ -101,10 +101,10 @@ class Edges(unittest.TestCase):
         saved = E.CONFIG.get('ha_mode')
         E.CONFIG['ha_mode'] = 'replicated'
         try:
-            with mock.patch.dict(N, {'ha_lead': lambda st: False}):
+            with mock.patch.dict(N, {'ha_lead': lambda st: False, 'ha_lead_heard': lambda st: False}):
                 self.assertFalse(E.pwp_migrate(STORE))
                 self.assertIsNone(STORE.get_meta('pwpolicy:migrated:2'))
-            with mock.patch.dict(N, {'ha_lead': lambda st: True}):
+            with mock.patch.dict(N, {'ha_lead': lambda st: True, 'ha_lead_heard': lambda st: True}):
                 E.pwp_migrate(STORE)
                 self.assertTrue(STORE.get_meta('pwpolicy:migrated:2'))
         finally:
