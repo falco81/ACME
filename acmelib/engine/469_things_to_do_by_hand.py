@@ -81,6 +81,13 @@ def hand_selinux(store):
         return []
     if not seen:
         return []                       # never seen enforcing here: as it was set up
+    # Back to permissive asked on these pages, the command line or the console (1.0.62): a step
+    # of acme's own, not SELinux switched off behind its back - forgotten, said again only once
+    # it has been enforcing since.
+    if enforce is not None and (_meta_obj(store, 'host:selinux:want:' + node_name()).get('do')
+                                == 'permissive'):
+        store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+        return []
     if enforce is None:
         cs = 'SELinux byl na tomto uzlu vynucující a teď je vypnutý (disabled) - nic z toho, čemu ' \
              'bránil, se už nebrání. Zapněte ho v /etc/selinux/config (SELINUX=enforcing) a ' \

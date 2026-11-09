@@ -373,21 +373,27 @@ def osroots_tick(daemon):
     if want is not None and h != OSR['done_hash'] and \
             not (h == OSR['fail_hash'] and now - OSR['fail_at'] < OSR_RETRY_S):
         due = True
+    asked_again = False
     if again != OSR['again_seen']:
         first = OSR['again_seen'] is None
         OSR['again_seen'] = again
         if again and not first:
-            due = True
+            due = asked_again = True
     if not due:
         return
     with OSR_LOCK:
         if OSR['busy'] and time.time() - OSR['since'] < OSR_STALE_S:
             return
         OSR['busy'], OSR['since'] = True, time.time()
-    threading.Thread(target=osroots_run, args=(store, want), name='acme-osroots', daemon=True).start()
+    # The system's tool run again (1.0.62) after it failed for this set, or when "Read it again"
+    # was asked: the files were in place already, nothing "changed", and a set whose tool had
+    # failed - a removed authority still in the system's list - read as applied for good.
+    force = want is not None and (h == OSR['fail_hash'] or asked_again)
+    threading.Thread(target=osroots_run, args=(store, want, force), name='acme-osroots',
+                     daemon=True).start()
 
 
-def osroots_run(store, want):
+def osroots_run(store, want, force=False):
     """This node's root helper asked: the set put in (or the machine only read) - and how it
     went written to this node's own row."""
     me = node_name()
@@ -395,13 +401,18 @@ def osroots_run(store, want):
     row = {'at': time.time(), 'v': want['v'] if want else 0, 'hash': h or '', 'ok': False,
            'error': '', 'said': [], 'refused': [], 'python': osr_python_trust()}
     old = _meta_obj(store, 'oscerts:node:' + me)
+    if want is not None and old.get('hash') == h and (not old.get('ok') or any(
+            isinstance(x, dict) and x.get('in_bundle') is False
+            for x in (old.get('state') or {}).get('ours') or [])):
+        force = True        # failed before, or not in the system's list: the tool run again
     try:
         try:
             if want is None:
                 data = root_ask('osroots.ask', 'osroots.json', {'do': 'list'}, 120)
             else:
                 data = root_ask('osroots.ask', 'osroots.json',
-                                {'do': 'sync', 'certs': [c['pem'] for c in want['certs']]}, 300)
+                                {'do': 'sync', 'certs': [c['pem'] for c in want['certs']],
+                                 'force': bool(force)}, 300)
             if not isinstance(data, dict):
                 raise ValueError('the root helper of this node answered osroots.ask with no object - '
                                  'is it of the same version as acme?')
@@ -448,6 +459,13 @@ def osr_node_status(want, row, alive):
         if row.get('refused'):
             return 'failed', '; '.join('%s - %s' % (r.get('cn') or '?', r.get('why') or '?')
                                        for r in row['refused'])
+        # In the system's list itself (1.0.62), not only a file in its folder.
+        ours = (row.get('state') or {}).get('ours') or []
+        missing = [x.get('cn') or x.get('fp') or '?' for x in ours
+                   if isinstance(x, dict) and x.get('in_bundle') is False]
+        if missing:
+            return 'failed', ('in the folder but not in the system\'s list: %s - Read it again on '
+                              'every node' % ', '.join(str(m) for m in missing[:5]))
         return 'applied', ''
     if not alive:
         return 'waiting', 'not answering'

@@ -16,7 +16,7 @@ from __future__ import annotations
 READDRESS_LOCK = threading.Lock()
 # A tell that failed after going back, tried again (1.0.56): when this
 # process last tried it.
-READDRESS_TELL_TRIED = {'at': 0.0}
+READDRESS_TELL_TRIED = {'at': None}     # time.monotonic() (1.0.62: a step of the clock back held it)
 
 
 def _addr_key(a):
@@ -250,9 +250,10 @@ def readdress_tell_again(store):
     if net_job_active(_meta_obj(store, 'net:job:' + node_name())):
         return
     alive = any(n.get('alive') for n in ha_nodes(store) if not n.get('me'))
-    if time.time() - READDRESS_TELL_TRIED['at'] < (60 if alive else 300):
+    if READDRESS_TELL_TRIED['at'] is not None and \
+            time.monotonic() - READDRESS_TELL_TRIED['at'] < (60 if alive else 300):
         return
-    READDRESS_TELL_TRIED['at'] = time.time()
+    READDRESS_TELL_TRIED['at'] = time.monotonic()
     done, left = readdress_tell(str(CONFIG.get('ha_peer') or row.get('peer') or ''),
                                 row.get('mine') or '', row.get('by') or 'acme',
                                 bool(row.get('keep_old')))

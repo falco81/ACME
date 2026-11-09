@@ -543,6 +543,7 @@ class Daemon(object):
         HA_STORE['store'] = self.store
         node_name_check(self.store)             # renamed since the last start? (1.0.48)
         try:
+            self._pwp_at = time.time()
             pwp_migrate(self.store)             # acme 1.0.42's password policy taken over (1.0.43)
         except Exception as e:                  # noqa: BLE001
             log('the password policy of acme 1.0.42 could not be taken over: %s' % e, 'warn')
@@ -638,6 +639,11 @@ class Daemon(object):
                         log_sparing('load-peer', 'the performance meter: %s' % e, 'warn', every=3600)
                     try:
                         hand_tick(self.store)           # what waits for a person (1.0.54)
+                        if time.time() - getattr(self, '_pwp_at', 0) > 600:
+                            # Not at the start alone (1.0.62): in a replicated pair one node
+                            # takes it over, once it hears the other (ha_lead_heard).
+                            self._pwp_at = time.time()
+                            pwp_migrate(self.store)
                     except DbError:
                         raise
                     except Exception as e:              # noqa: BLE001

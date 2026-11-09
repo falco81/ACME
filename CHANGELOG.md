@@ -5,6 +5,22 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.62 - not released
+- Bug hunt over what came since 1.0.53:
+  - Trusted roots of the system: the system's tool is run again after it failed (a removed
+    authority stayed trusted while every node said "applied"), and a node is "applied" only when
+    every authority is in the system's list itself; one large authority no longer stops the whole
+    set at root.
+  - Cluster: a row only one node may make (the cluster's authority for isemon's TLS too, the
+    1.0.42 password policy taken over, the daily look for new versions) is made by the lead once
+    the other node is heard - both upgraded at once took each other for gone and both made it,
+    stopping replication; a setting not saved after root took a new network no longer sends the
+    job back to the old address while the machine restarts onto the new one; the split rule waits
+    long enough for the other node's /healthz; tries again after a step of the clock back.
+  - To be done by hand: Back to permissive asked on these pages is not "SELinux was switched off";
+    a forgotten node takes its bands with it; Look again and Done stay usable; the header's
+    tooltip counts problems and steps apart; the events' words in Czech.
+  - Smaller: the AD 2025 warnings drawn as warnings, an old (v1) root not taken for a server's own
+    certificate, "120 authorities" in Czech with its number.
 
 ## 1.0.61 - 2026-11-09
 - Active Directory on Windows Server 2025 (docs/active-directory-2025.md): a sign-in refused for

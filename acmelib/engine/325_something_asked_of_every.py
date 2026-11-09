@@ -328,21 +328,7 @@ def _dbtls_server_cert(store, by):
     """This machine's PostgreSQL given a certificate from acme's authority
     (kind local): for localhost, 127.0.0.1 and its names; ssl switched on with
     a reload, no restart."""
-    with HATLS_LOCK:
-        ca = hatls_ca(store)
-        if not ca['cas'] or float(ca['cas'][0].get('end') or 0) - time.time() < \
-                HATLS_CA_ROLL_DAYS * 86400:
-            if CONFIG.get('ha_mode') != 'replicated' or ha_lead(store):
-                hatls_ca_make(store, by)
-    # Made by one node alone (1.0.56): both nodes in this phase made one - two INSERTs of the
-    # one row, and replication stopped for good. The other waits for it to come over; a roll
-    # due only keeps the one still good.
-    end = time.time() + 60
-    while not hatls_ca(store)['cas'] and time.time() < end:
-        time.sleep(1)
-    if not hatls_ca(store)['cas']:
-        raise ValueError('the cluster\'s authority has not come over from the other node in '
-                         '60 s - try again in a moment')
+    hatls_ca_ensure(store, by)          # one node makes it (1.0.56, 1.0.62)
     names = hatls_names()
     key, crt = hatls_issue(store, names)
     got = _dbtls_helper({'do': 'server', 'cert': crt, 'key': key,
@@ -636,7 +622,8 @@ def _dbtls_again(daemon):
         store.db.run('DELETE FROM meta WHERE k = ?', (k,))     # set by hand since: as it is
         return
     now = time.time()
-    if now - float(r.get('tried') or r.get('at') or 0) < DBTLS_AGAIN_S:
+    last = float(r.get('tried') or r.get('at') or 0)
+    if 0 <= now - last < DBTLS_AGAIN_S:       # a step of the clock back: tried now (1.0.62)
         return
     r['tried'] = now
     store.set_meta(k, json.dumps(r))

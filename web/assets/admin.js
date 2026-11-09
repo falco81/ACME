@@ -152,14 +152,15 @@ function paintHeader(s) {
   }
   mailqBadge(s.mailq);
   var pill = $('state-pill');
-  var probs = (s.problems || []).length + (s.attention || []).length;
+  var nprob = (s.problems || []).length;
+  var probs = nprob + (s.attention || []).length;
   var inMaint = !!(s.maintenance && s.maintenance.on);
   var kind = probs || inMaint ? 'warn' : 'ok';
   pill.className = 'pill ' + kind;
   pill.lastChild.textContent = inMaint ? 'in maintenance' : (probs ? 'running, with trouble' : 'running');
   pill.title = inMaint ? 'This node is in maintenance: it renews and puts in place nothing until it is back in service.'
-    : (probs ? num(probs) + ' problem(s), listed under the header.' : 'The daemon answers and has nothing to complain about.');
-  if ((s.attention || []).length) pill.title += ' ' + num(s.attention.length) + ' step(s) wait for a person: Settings → Upgrades and maintenance.';
+    : (nprob ? num(nprob) + ' problem(s), listed under the header.' : (probs ? '' : 'The daemon answers and has nothing to complain about.'));
+  if ((s.attention || []).length && !inMaint) pill.title = (pill.title ? pill.title + ' ' : '') + num(s.attention.length) + ' step(s) wait for a person: Settings → Upgrades and maintenance.';
   explainWhatWasDrawn(pill.parentNode);
   var pr = $('problems');
   clear(pr);
@@ -283,7 +284,7 @@ function drawAttItems(host, list) {
       var dn = cmdButton('Done', 'check', 'small');
       dn.onclick = function () {
         dn.disabled = true;
-        api('attention', {action: 'done', id: i.id, node: i.node}).then(function (d) { attGot(d); toast('written down as done', 'good'); })
+        api('attention', {action: 'done', id: i.id, node: i.node}).then(function (d) { dn.disabled = false; attGot(d); toast('written down as done', 'good'); })
           .catch(function (e) { dn.disabled = false; oops(e); });
       };
       tools.appendChild(dn);
@@ -293,6 +294,7 @@ function drawAttItems(host, list) {
         lk.disabled = true;
         api('attention', {action: 'look'}).then(function (d) {
           /* the other nodes look within their next turn (5 s) */
+          lk.disabled = false;      /* nothing new found: the band stays, so does its button */
           attGot(d);
           setTimeout(attLoad, 6000);
           toast('looked again', 'good');
@@ -2938,7 +2940,7 @@ function checkDir(name) {
         fresh.appendChild(netFacts([['How', c.tls === 'none' ? 'plain LDAP' : c.tls], ['Certificate', c.tls === 'none' ? 'not used' : (c.verify ? 'checked' : 'NOT checked') + (c.weak ? ' · weak taken' : '')],
                                     ['Took', num(c.took_ms) + ' ms']]));
         /* What will not work with new domain controllers (Windows Server 2025, 1.0.61). */
-        (c.warnings || []).forEach(function (w) { fresh.appendChild(el('p', 'note warnish', w)); });
+        (c.warnings || []).forEach(function (w) { fresh.appendChild(el('p', 'note warn', w)); });
         (c.servers || []).forEach(function (sv) {
           fresh.appendChild(noI18n(el('h3', 'peek-h', sv.host + ':' + sv.port)));
           fresh.appendChild(stepsList(sv.steps));
@@ -9742,7 +9744,7 @@ function drawOsRoots() {
         ['Its package', s.package || '–', true],
         ['Made last', s.at ? ago(s.at) : '–'],
         ['Local additions in', n.dir || '–', true],
-        ['Made by', n.tool ? n.tool + (n.tool_there === false ? ' (not on this machine)' : '') : '–', true],
+        ['Made by', n.tool ? (n.tool_there === false ? n.tool + ' (not on this machine)' : n.tool) : '–', n.tool_there !== false],
         ['acme\'s additions there', String((n.ours || []).length)],
         ['Read', n.at ? ago(n.at) : 'not yet']
       ]));

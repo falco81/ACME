@@ -554,7 +554,7 @@ def pwp_migrate(store):
     # By the lead alone in a replicated cluster (1.0.58): both nodes upgraded at once inserted
     # the one mark and the one policy - a duplicate key, and replication stopped for good. The
     # other gets both by replication.
-    if CONFIG.get('ha_mode') == 'replicated' and not ha_lead(store):
+    if CONFIG.get('ha_mode') == 'replicated' and not ha_lead_heard(store):
         return False
     try:
         saved = store.settings_saved()

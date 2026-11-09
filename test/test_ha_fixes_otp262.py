@@ -300,12 +300,12 @@ class ClusterAuthority(unittest.TestCase):
                      hatls_ca=lambda store: cas, hatls_issue=lambda store, n: ('k', 'c'),
                      hatls_trust=lambda ca: '', hatls_names=lambda *a: ['x'],
                      _dbtls_helper=lambda *a, **k: {'ok': True, 'cert_end': 1})
-        with Patched(ha_lead=lambda store: True, **stubs):
+        with Patched(ha_lead=lambda store: True, ha_lead_heard=lambda store: True, **stubs):
             E._dbtls_server_cert(STORE, 't')
         self.assertEqual(made, ['t'])
         made.clear()
         cas['cas'] = [{'cert': 'c', 'end': time.time() + 86400}]          # a roll due
-        with Patched(ha_lead=lambda store: False, **stubs):
+        with Patched(ha_lead=lambda store: False, ha_lead_heard=lambda store: False, **stubs):
             E._dbtls_server_cert(STORE, 't')
         self.assertEqual(made, [])
         seen = []
@@ -313,7 +313,7 @@ class ClusterAuthority(unittest.TestCase):
         def comes_over(store):
             seen.append(1)
             return {'cas': [{'cert': 'c', 'end': 0}]} if len(seen) > 2 else {'cas': []}
-        with Patched(ha_lead=lambda store: False, **dict(stubs, hatls_ca=comes_over)):
+        with Patched(ha_lead=lambda store: False, ha_lead_heard=lambda store: False, **dict(stubs, hatls_ca=comes_over)):
             E._dbtls_server_cert(STORE, 't')
         self.assertEqual(made, [])
         self.assertGreater(len(seen), 2)
@@ -381,13 +381,13 @@ class OnlineLook(unittest.TestCase):
         class D:
             store = STORE
         try:
-            with Patched(online_url=lambda: 'https://example.test/', ha_lead=lambda s: False,
+            with Patched(online_url=lambda: 'https://example.test/', ha_lead=lambda s: False, ha_lead_heard=lambda s: False,
                          online_look=lambda store, by='': looked.append(1)):
                 E.ONLINE_WORK.update(at=0.0, busy=False)
                 E.online_tick(D())
                 time.sleep(0.2)
                 self.assertEqual(looked, [])
-            with Patched(online_url=lambda: 'https://example.test/', ha_lead=lambda s: True,
+            with Patched(online_url=lambda: 'https://example.test/', ha_lead=lambda s: True, ha_lead_heard=lambda s: True,
                          online_look=lambda store, by='': looked.append(1)):
                 E.ONLINE_WORK.update(at=0.0, busy=False)
                 E.online_tick(D())

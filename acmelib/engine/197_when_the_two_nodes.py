@@ -143,8 +143,9 @@ def split_machine_there(host, ports=SPLIT_THERE_PORTS, timeout=1.0):
     return False
 
 
-def split_peer_says(host, timeout=2.0):
-    """What the other node's own /healthz says (1.0.58): 'up' (200, ok), 'down' (503: its
+def split_peer_says(host, timeout=5.0):
+    """What the other node's own /healthz says (1.0.58; 5 s since 1.0.62 - it waits 3 s for its
+    daemon before it says "down: the daemon is not answering", and 2 s never heard that): 'up' (200, ok), 'down' (503: its
     daemon or its database does not answer), '' (not asked, refused, anything else). Over
     HTTPS unchecked - only whether to go on serving is taken from it, never data."""
     try:

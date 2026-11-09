@@ -131,7 +131,7 @@ class TestTellAgain(unittest.TestCase):
     def setUp(self):
         _del(self.K)
         _del('net:job:nodea')
-        N.READDRESS_TELL_TRIED['at'] = 0
+        N.READDRESS_TELL_TRIED['at'] = None
         self.cfg = mock.patch.dict(N.CONFIG, {'ha_mode': 'replicated', 'ha_address': '10.0.0.1',
                                               'ha_peer': '10.0.0.2'})
         self.cfg.start()
@@ -162,7 +162,7 @@ class TestTellAgain(unittest.TestCase):
             N.readdress_tell_again(STORE)          # within the minute: not again
             self.assertEqual(tell.call_count, 1)
         self.assertTrue(STORE.get_meta(self.K))
-        N.READDRESS_TELL_TRIED['at'] = 0
+        N.READDRESS_TELL_TRIED['at'] = None
         with mock.patch.object(N, 'readdress_tell', return_value=(['told'], [])) as tell:
             N.readdress_tell_again(STORE)
         tell.assert_called_once_with('10.0.0.2', '10.0.0.1', 'x', False)

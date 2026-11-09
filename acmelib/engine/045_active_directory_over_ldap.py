@@ -415,6 +415,8 @@ def certificate_is_ca(pem):
         return None
     if got.returncode != 0:
         return None
+    if 'Basic Constraints' not in got.stdout:
+        return None         # an old (v1) root says nothing: not taken for a server's (1.0.62)
     return bool(re.search(r'CA:\s*TRUE', got.stdout))
 
 

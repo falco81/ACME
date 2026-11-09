@@ -74524,7 +74524,7 @@
   },
   "posr_2": {
    "source": "{0} authorities",
-   "text": "{0:autorita|autority|autorit}"
+   "text": "{0} {0:autorita|autority|autorit}"
   },
   "posr_3": {
    "source": "{0} (not on this machine)",
@@ -74693,6 +74693,26 @@
   "pad25_3": {
    "source": "the server’s certificate does not name the address {0}: give the domain controller by its name (its FQDN, as in dc1.example.com) - its certificate names that, not its address",
    "text": "certifikát serveru neuvádí adresu {0}: zadejte řadič domény jeho jménem (FQDN, např. dc1.example.com) - certifikát uvádí jméno, ne adresu"
+  },
+  "ph62_1": {
+   "source": "waits for a person on {0}: {1}",
+   "text": "čeká na člověka na {0}: {1}"
+  },
+  "ph62_2": {
+   "source": "done on {0}: {1}",
+   "text": "hotovo na {0}: {1}"
+  },
+  "ph62_3": {
+   "source": "gone by itself on {0}: {1}",
+   "text": "zmizelo samo na {0}: {1}"
+  },
+  "ph62_4": {
+   "source": "\"done lately\" cleared by {0} ({1})",
+   "text": "„nedávno hotové“ vymazal {0} ({1})"
+  },
+  "ph62_5": {
+   "source": "the server’s certificate does not name {0}: {1}. Give the server by a name its certificate has",
+   "text": "certifikát serveru neuvádí {0}: {1}. Zadejte server jménem, které jeho certifikát má"
   }
  },
  "rich": {

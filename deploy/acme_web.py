@@ -5641,7 +5641,9 @@ def osroots_sync(w, certs, force=False):
         raise Refused('the certificates wanted: a list of %d at most' % OSROOTS_MAX)
     want, refused = {}, []
     for c in certs:
-        if not isinstance(c, str) or len(c) > OSROOTS_PEM_MAX:
+        # Room for the armour and the line breaks (1.0.62): the daemon limits the certificate
+        # itself, and one of its largest refused the whole set here, on every node.
+        if not isinstance(c, str) or len(c) > OSROOTS_PEM_MAX + 1024:
             raise Refused('each certificate as PEM text of %d bytes at most' % OSROOTS_PEM_MAX)
         blocks = osroots_blocks(c)
         if len(blocks) != 1:

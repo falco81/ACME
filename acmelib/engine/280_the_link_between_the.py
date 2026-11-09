@@ -105,6 +105,25 @@ def hatls_ca_make(store, by):
     return cas[0]
 
 
+def hatls_ca_ensure(store, by, wait=60):
+    """The cluster's authority there, made or rolled by one node alone (1.0.56 for the database's
+    TLS, 1.0.62 for isemon's too): both nodes making it inserted the one row twice and stopped
+    replication for good. The other node waits for it to come over; a roll due only keeps the
+    one still good. ValueError when none came."""
+    with HATLS_LOCK:
+        ca = hatls_ca(store)
+        if not ca['cas'] or float(ca['cas'][0].get('end') or 0) - time.time() < \
+                HATLS_CA_ROLL_DAYS * 86400:
+            if CONFIG.get('ha_mode') != 'replicated' or ha_lead_heard(store):
+                hatls_ca_make(store, by)
+    end = time.time() + wait
+    while not hatls_ca(store)['cas'] and time.time() < end:
+        time.sleep(1)
+    if not hatls_ca(store)['cas']:
+        raise ValueError('the cluster\'s authority has not come over from the other node in '
+                         '%d s - try again in a moment' % wait)
+
+
 def hatls_trust(ca):
     """Every authority still good, the newest first - one file."""
     now = time.time()

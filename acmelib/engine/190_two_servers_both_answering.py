@@ -249,6 +249,9 @@ def ha_forget(store, name):
         # pages never, a dead node's maintenance left quieting the alerts.
         store.db.run('DELETE FROM meta WHERE k IN (?, ?)',
                      ('maint:' + name, 'upgrade:node:' + name))
+        # What waited for a person there, too (1.0.62): a forgotten node's red band stayed for
+        # two days, in the header and the alerts, with nothing that could take it away.
+        store.db.run('DELETE FROM meta WHERE k IN (?, ?)', ('attention:' + name, 'handlog:' + name))
 
 
 def ha_lead(store):
@@ -257,6 +260,26 @@ def ha_lead(store):
     this one when it hears no other."""
     if CONFIG.get('ha_mode') != 'replicated':
         return True
+    return lead_of(store)
+
+
+LEAD_HEARD = {'since': None}
+LEAD_HEARD_S = 600
+
+
+def ha_lead_heard(store):
+    """ha_lead() for a row only one node may make (1.0.62): with the other node heard from - or
+    not heard from for ten minutes since this daemon started. Right after both were upgraded at
+    once each took the other's heartbeat for stale, both led, and both inserted the row."""
+    if CONFIG.get('ha_mode') != 'replicated':
+        return True
+    if LEAD_HEARD['since'] is None:
+        LEAD_HEARD['since'] = time.monotonic()
+    me = node_name()
+    others = [n for n in ha_nodes(store) if n['name'] != me]
+    heard = any(n.get('alive') for n in others)
+    if not heard and time.monotonic() - LEAD_HEARD['since'] < LEAD_HEARD_S:
+        return False
     return lead_of(store)
 
 

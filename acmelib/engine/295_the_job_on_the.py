@@ -258,7 +258,7 @@ def net_job_run(daemon, ask):
     job['keep_old'] = bool(job.get('trial_min')) and CONFIG.get('ha_mode') == 'replicated'
     try:
         net_before_keep(store, job)
-    except OSError as e:
+    except Exception as e:                              # noqa: BLE001 - the database away too (1.0.62)
         log('network: what this node has now could not be kept: %s' % e, 'warn')
     try:
         _job_put(store, job, 'started - %s' % '; '.join(w['plan'][:2]), 3)
@@ -405,7 +405,16 @@ def net_job_run(daemon, ask):
         job['before'] = got.get('before') or {}
         job['down_at'] = time.time() + 8
         _job_put(store, job, '; '.join(got.get('said') or []) or 'set', 80)
-        net_bind_later(daemon, job, by)
+        try:
+            net_bind_later(daemon, job, by)
+        except Exception as e:                          # noqa: BLE001
+            # Root has taken the network and the machine restarts onto it (1.0.62): a setting
+            # not saved here must not send the job down the path that puts everything back to
+            # the old address - the node came up on the new one with the old settings. Tried
+            # again once it is back (net_job_after).
+            job['bind_saved'] = False
+            _job_put(daemon.store, job, 'snmp_bind could not be saved yet: %s' % e, job.get('pct'),
+                     ok=False)
         _job_put(store, job, 'restarting %s - back in a minute or two at %s' % (
             me, w['new_ip']), 85)
     except Exception as e:                              # noqa: BLE001

@@ -61,11 +61,7 @@ def isemon_client_cert(store, force=False):
         key = unseal_secret(got['key'], bind=k)       # files gone: written again
         crt = got['cert']
     else:
-        with HATLS_LOCK:
-            ca = hatls_ca(store)
-            if not ca['cas'] or float(ca['cas'][0].get('end') or 0) - time.time() < \
-                    HATLS_CA_ROLL_DAYS * 86400:
-                hatls_ca_make(store, 'acme (isemon)')
+        hatls_ca_ensure(store, 'acme (isemon)', wait=5)   # by one node alone (1.0.62)
         name = re.sub(r'[^A-Za-z0-9.-]', '', node_name())[:64] or 'acme'
         key, crt = hatls_issue(store, [name], eku='clientAuth', days=ISEMON_CLIENT_DAYS, cn=name)
         end = _cert_end(crt)
@@ -156,11 +152,7 @@ def isemon_tls_bundle(store, names, port, mtls, passphrase, by):
     if len(str(passphrase or '')) < 12:
         raise ValueError('the passphrase is 12 characters at least - the key of isemon\'s '
                          'certificate is in the file')
-    with HATLS_LOCK:
-        ca = hatls_ca(store)
-        if not ca['cas'] or float(ca['cas'][0].get('end') or 0) - time.time() < \
-                HATLS_CA_ROLL_DAYS * 86400:
-            hatls_ca_make(store, by)
+    hatls_ca_ensure(store, by)                       # by one node alone (1.0.62)
     key, crt = hatls_issue(store, names, eku='serverAuth', days=ISEMON_SERVER_DAYS,
                            cn=names[0][:64])
     trust = hatls_trust(hatls_ca(store))
