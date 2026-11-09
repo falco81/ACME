@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.62 - not released
+## 1.0.62 - 2026-11-09
 - Bug hunt over what came since 1.0.53:
   - Trusted roots of the system: the system's tool is run again after it failed (a removed
     authority stayed trusted while every node said "applied"), and a node is "applied" only when
