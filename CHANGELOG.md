@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.61 - not released
+## 1.0.61 - 2026-11-09
 - Active Directory on Windows Server 2025 (docs/active-directory-2025.md): a sign-in refused for
   want of LDAP signing (result 8, strongerAuthRequired - a plain-LDAP directory) is said in words
   with what to do; a controller given by its address whose certificate names it by name is told
