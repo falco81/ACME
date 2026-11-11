@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.78 - not released
+
 ## 1.0.77 - 2026-11-11
 - **Check what is served is a test now**: a deployment's window has *What it serves - tests*
   and *Add a test of what it serves* (the protocol - TLS, HTTPS, SMTP, IMAP, LDAP...; the
