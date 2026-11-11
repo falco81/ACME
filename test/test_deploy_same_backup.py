@@ -111,16 +111,30 @@ class Ssh(unittest.TestCase):
             with open(p, 'w') as fh:
                 fh.write(d)
         n = len(self.ssh.puts)
-        # Not deployed here by acme before: nothing written, the reload done all the same.
+        # Nothing to replace (1.0.78): nothing run either - no test, no reload - and fine.
         words = self.t.deploy(b, self.opts)
-        self.assertTrue(words.startswith('0 files written'), words)
+        self.assertTrue(words.startswith('unchanged'), words)
+        self.assertIn('nothing run', words)
         self.assertEqual(len(self.ssh.puts), n)
-        self.assertEqual(self.reloads(), 1)
-        self.assertTrue(any('none replaced' in w for lv, w in self.ctx.steps if lv == 'ok'))
+        self.assertEqual(self.reloads(), 0)
+        self.assertTrue(any('nothing replaced' in w for lv, w in self.ctx.steps if lv == 'ok'))
+        self.assertTrue(any('the same SHA-256' in w and self.crt in w for lv, w in self.ctx.steps))
         self.assertFalse(any(lv == 'bad' for lv, w in self.ctx.steps))
-        # Now it was: unchanged, nothing run.
-        self.assertTrue(self.t.deploy(b, self.opts).startswith('unchanged'))
+        # "Deploy now" (force) as well: the SHA-256 compared, nothing replaced, nothing run.
+        words = self.t.deploy(b, dict(self.opts, force=True))
+        self.assertTrue(words.startswith('unchanged'), words)
+        self.assertEqual(self.reloads(), 0)
+
+    def test_one_changed_runs_the_commands_on_force(self):
+        b = FakeBundle()
+        with open(self.key, 'w') as fh:
+            fh.write(b.key_pem)
+        with open(self.crt, 'w') as fh:
+            fh.write('OLD\n')
+        words = self.t.deploy(b, dict(self.opts, force=True))
+        self.assertIn('1 file written', words)
         self.assertEqual(self.reloads(), 1)
+        self.assertTrue(any('SHA-256 there' in w and 'replaced' in w for lv, w in self.ctx.steps))
 
     def test_switched_off_every_file_written(self):
         b = FakeBundle()
@@ -221,7 +235,7 @@ class Local(unittest.TestCase):
         words = self.t.deploy(b, dict(self.opts, skip_same=False))
         self.assertIn('2 files written', words)
         words = self.t.deploy(b, dict(self.opts, force=True))
-        self.assertIn('2 files written', words)
+        self.assertTrue(words.startswith('unchanged'), words)       # 1.0.78: force compares too
 
 
 class SharedFiles(unittest.TestCase):

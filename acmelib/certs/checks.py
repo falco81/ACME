@@ -142,6 +142,9 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
     for k, v in (('host', host), ('sni', str(sni or '').strip()), ('via', str(via or '').strip())):
         if v:
             cfg[k] = v
+    # the certificate must be deployed there - checked before a test is made (1.0.78: a test
+    # was left behind, attached to nothing)
+    _after_checked(store, cert_id, [target])
     # the same test already there (the same kind, place and way): taken as it is
     name = None
     for r in store.db.rows('SELECT name, config FROM cert_tests WHERE kind = ?', (kind,)):
@@ -180,17 +183,28 @@ def verify_to_tests(store, dep, opts, by):
         [str(x).strip() for x in opts['verify'] if str(x).strip()]
     sni = str(opts.get('verify_sni') or '').strip()
     made = []
+    from acmelib.plugins.targets._common import split_hostport
+    trow = S.plugin_row(store, 'target', dep['target'])
+    tcls = S.row_class('target', trow) if trow else None
+    dport = int(getattr(tcls, 'default_verify_port', 443) or 443)
+    left = []
     for hp in lines[:10]:
-        host, _, port = hp.rpartition(':') if re.match(r'^.+:\d+$', hp) else (hp, '', '')
-        host = host.strip('[]')
+        # as the old check read it (1.0.78): [v6]:port, a bare IPv6 address, the target's own
+        # default port (Proxmox 8006, Synology 5001...) - not "2001:db8::1" as host "2001:db8:"
         try:
+            host, port = split_hostport(hp, dport)
             made.append(for_target(store, dep['cert_id'], dep['target'], by, 'tls', host,
-                                   int(port) if port else None, sni))
+                                   int(port), sni))
         except (LookupError, ValueError) as e:
+            left.append(hp)
             E.log('the check of what %s serves (%s) was not made a test: %s' % (
                 dep['target'], hp, e), 'warn')
     for k in ('verify', 'verify_sni', 'verify_tries', 'verify_wait'):
         opts.pop(k, None)
+    if left:                                    # kept, not lost: made the next time (1.0.78)
+        opts['verify'] = '\n'.join(left)
+        if sni:
+            opts['verify_sni'] = sni
     return made
 
 
@@ -205,6 +219,22 @@ def verify_migrate(store, by='acme 1.0.77'):
         store.db.update('cert_deploys', dep['id'], {'options': json.dumps(opts)})
         n += len(made)
     return n
+
+
+def target_gone(store, cert_id, target):
+    """The certificate no longer goes to `target` (its deployment taken away or moved, 1.0.78):
+    its tests that ran after a deployment there name it no more - they named it and never ran
+    again, and changing them said "not deployed on ...". One left with no target runs on its
+    schedule only (not after every deployment: it was tied to that one)."""
+    if store.db.row('SELECT 1 AS x FROM cert_deploys WHERE cert_id = ? AND target = ?',
+                    (int(cert_id), target)):
+        return
+    for r in store.db.rows('SELECT id, after_target FROM cert_checks WHERE cert_id = ?',
+                           (int(cert_id),)):
+        have = after_list(r.get('after_target'))
+        if target in have:
+            rest = [x for x in have if x != target]
+            store.db.update('cert_checks', r['id'], {'after_target': '\n'.join(rest) or AFTER_NONE})
 
 
 def detach(store, ident):
@@ -891,7 +921,8 @@ def after_deploy(store, job, cert_id, targets=None, failed=None):
         record(store, chk, got, job.step)
         worst = worst and got['ok']
         if not got['ok'] and failed is not None:
-            for tg in after_list(chk.get('after_target')):
+            # tied to targets, or (1.0.78) to every deployment: each target deployed on now
+            for tg in (after_list(chk.get('after_target')) or sorted(targets or [])):
                 if targets is None or tg in targets:
                     failed.setdefault(tg, 'the test %s after deploying here: %s' % (
                         chk['test'], got['said']))

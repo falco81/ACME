@@ -132,6 +132,7 @@ def _route(family, path):
     def _discover(h, s):
         b = h.body()
         A.kept_secrets_guard(h.store, family, b, s)
+        b = A.saved_only(s, b, 'look up with')
         got = discover(h.store, family, b, A.who(s))
         # The request was answered either way: `worked` says whether the account told
         # anything; `ok: false` would make the page show "HTTP 200" instead of the words.

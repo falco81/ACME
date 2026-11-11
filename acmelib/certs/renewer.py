@@ -1177,6 +1177,18 @@ def alerts(store):
         out.append({'key': 'cert-deploy:%s' % d['id'], 'level': 'bad',
                     'words': 'deploying %s to %s failed: %s' % (d['name'], d['target'],
                                                                 (d.get('last_error') or '')[:200])})
+    # A test that fails (1.0.78): among what is wrong - the overview, the SNMP traps, the
+    # Prometheus alerts. Not mailed by the alerts: the test says so itself (cert_check_failed,
+    # Settings → Renewal and notices), once.
+    for k in store.db.rows("SELECT k.id, k.cert_id, k.test, k.last_state, k.last_said, c.name "
+                           "FROM cert_checks k JOIN certs c ON c.id = k.cert_id LEFT JOIN "
+                           "cert_tests t ON t.name = k.test WHERE k.last_state IN ('old', 'other', "
+                           "'answer', 'unreachable') AND COALESCE(k.enabled, 1) <> 0 AND "
+                           "COALESCE(t.enabled, 1) <> 0 AND COALESCE(c.enabled, 1) <> 0"):
+        out.append({'key': 'cert-test:%s' % k['id'], 'level': 'bad', 'cert_id': k['cert_id'],
+                    'no_mail': True,
+                    'words': 'the test %s of %s fails: %s' % (k['test'], k['name'],
+                                                             (k.get('last_said') or k['last_state'])[:200])})
     return out
 
 

@@ -80,30 +80,6 @@ def _list(h, s):
                        'mail': (E.CONFIG.get('mail_mode') or 'off') != 'off'}}
 
 
-@A.api('POST', '/api/checks/for_target', 'certadmin')
-def _for_target(h, s):
-    """A test of what a target serves, for a deployment (1.0.77, in place of its "Check what
-    is served"): made or found, attached, run after a deployment there - a failing one fails
-    that deployment."""
-    b = h.body()
-    by = A.who(s)
-    cid = _int(b.get('cert_id'), 'cert_id')
-    _cert_need(h, s, cid, 'manage', 'add a test to')
-    target = str(b.get('target') or '').strip()
-    port = b.get('port')
-    try:
-        port = int(port) if port not in (None, '') else None
-        name = C.for_target(h.store, cid, target, by, str(b.get('kind') or 'tls'),
-                            str(b.get('host') or ''), port, str(b.get('sni') or ''),
-                            None if b.get('via') is None else str(b.get('via') or ''))
-    except (ValueError, TypeError) as e:
-        raise E.ApiError(400, str(e))
-    cert = S.cert_get(h.store, cid) or {}
-    h.store.add_event('certificates', 'test %s of %s runs after a deployment on %s by %s' % (
-        name, cert.get('name', '?'), target, by), who=by)
-    return {'ok': True, 'test': name}
-
-
 @A.api('POST', '/api/checks/attach', 'certadmin')
 def _attach(h, s):
     b = h.body()

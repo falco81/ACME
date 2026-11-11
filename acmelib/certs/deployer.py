@@ -251,6 +251,7 @@ def run_deploys(store, job, cert_id, only=None, force=False):
         job.step('no deployment to run')
         return True, 'nothing to deploy'
     good, bad, done_on, skipped = 0, [], set(), 0
+    ok_ids = set()
     for dep in rows:
         job.check()
         from acmelib.certs import dnssets       # a target's own connections: Settings → DNS
@@ -262,6 +263,7 @@ def run_deploys(store, job, cert_id, only=None, force=False):
             skipped += 1
         elif ok:
             good += 1
+            ok_ids.add(dep['id'])
             done_on.add(str(dep.get('target') or ''))
         else:
             bad.append('%s: %s' % (dep['target'], said))
@@ -281,12 +283,24 @@ def run_deploys(store, job, cert_id, only=None, force=False):
     # deployment there failed - tried again later, and said in the alerts.
     for dep in rows:
         why = failed_by_test.get(str(dep.get('target') or ''))
-        if why and str(dep.get('target') or '') in done_on:
+        # only those that went through in this run (1.0.78: one failed by itself was failed
+        # twice - its backoff doubled - and counted twice)
+        if why and dep['id'] in ok_ids:
             cur = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (dep['id'],)) or dep
             _failed(store, cur, why)
             job.step('%s: %s' % (dep['target'], why), 'bad')
             good -= 1
             bad.append('%s: %s' % (dep['target'], why))
+            # said as a failed deployment is (1.0.78): its event, its notice
+            try:
+                trow = S.plugin_row(store, 'target', dep['target']) or {'name': dep['target']}
+                with E.event_with(**_fields(store, cert, trow, 'deploy', 'failed')):
+                    store.add_event('certificates', 'deploying %s to %s failed: %s' % (
+                        cert['name'], dep['target'], why), 'bad')
+                _tell(store, 'cert_deploy_failed', 'deploy-one:%s' % dep['id'], cert, trow,
+                      error=why[:500])
+            except Exception as e:                      # noqa: BLE001
+                job.step('the failure could not be told: %s' % e, 'warn')
     if bad:
         return False, '%d of %d deployment(s) failed - %s' % (len(bad), len(rows), '; '.join(bad))
     off = ' (%d left out: target switched off)' % skipped if skipped else ''

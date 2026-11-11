@@ -963,13 +963,16 @@ KEY_FORMATS = ('key-pem', 'key-rsa', 'key-der', 'key-traditional', 'combined-pem
 
 def _key_lines(v):
     """The lines of `outputs` that write the private key, as (format, path, mode, owner)."""
-    from acmelib.plugins.targets._common import lines
+    from acmelib.plugins.targets._common import lines, FORMAT_ALIASES
     out = set()
     for ln in lines(v):
         w = ln.split()
         fmt = w[0].lower().split('@', 1)[0] if w else ''
-        if fmt in KEY_FORMATS or 'key' in fmt:
-            out.add(tuple(w[:4]))
+        # the words a module takes for a format too (1.0.78: "haproxy", "combined", "rsa" wrote
+        # the key where a certificate administrator said, not seen as the key)
+        fmt = FORMAT_ALIASES.get(fmt, fmt)
+        if fmt in KEY_FORMATS or 'key' in fmt or 'keystore' in fmt:
+            out.add(tuple([fmt] + w[1:4]))
     return out
 
 
@@ -1996,6 +1999,13 @@ def family_save(store, family, b, by):
         b['config'][S.VERSION_KEY] = v
     secrets_ = S.secret_fields(cls)
     given = _dict(b.get('config'), 'config') if 'config' in b else None
+    if cls is None and given is not None and row is not None and \
+            given != (S.jload(row.get('config'), {}) or {}):
+        # Its module did not load (1.0.78): which settings are secrets is not known, so the
+        # dots of a kept one were saved over it, and a secret typed in was kept unsealed.
+        raise ValueError('the module %s of %s is missing (taken away, or it did not load): its '
+                         'settings cannot be changed until it is back - its name, its note and '
+                         'switching it on or off can' % (kind, row['name']))
     fields = {'name': name, 'kind': kind, 'updated': t}
     if 'enabled' in b or not row:
         fields['enabled'] = _flag(b.get('enabled'), 1)
@@ -2081,6 +2091,7 @@ def _renamed(store, family, old, new):
                 db.update('cert_checks', r['id'], {'after_target': '\n'.join(got)})
     else:
         db.run('UPDATE certs SET challenge = ? WHERE challenge = ?', (new, old))
+        S.over_validation_renamed(store, old, new)
         for r in db.rows('SELECT id, challenge_map FROM certs WHERE challenge_map LIKE ?',
                          ('%' + json.dumps(old) + '%',)):
             cmap = S.jload(r['challenge_map'], {}) or {}
@@ -2171,6 +2182,22 @@ def _same_value(f, a, b):
     if isinstance(a, (list, dict)) or isinstance(b, (list, dict)):
         return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
     return str('' if a is None else a).strip() == str('' if b is None else b).strip()
+
+
+def saved_only(s, b, what='try'):
+    """Settings nobody saved, tried - a full administrator's (1.0.48 for Test; 1.0.78 for
+    discovery, catalogs and the SSH key's Try too: any kind with any host made acme connect
+    anywhere for a certificate administrator, and what answered was said back). Theirs: the
+    module as it is saved - the settings given are dropped."""
+    if str(s.get('role') or '') == 'fulladmin' or s.get('cli'):
+        return b
+    if b.get('id') in (None, '', 0):
+        raise E.ApiError(403, 'only a full administrator may %s settings that are not saved - '
+                              'save them first, or use the one saved' % what)
+    b = dict(b)
+    b.pop('config', None)
+    b.pop('kind', None)
+    return b
 
 
 def kept_secrets_guard(store, family, b, s, kind=None):
@@ -2515,6 +2542,7 @@ def _deploy_save_in(store, b, by, full, made):
         made.append(ident)
         row = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (ident,))
         fields = {}
+    verify_later = False
     if 'options' in b:
         old = S.jload(row.get('options'), {}) or {}
         if row.get('target') != trow['name']:
@@ -2578,15 +2606,29 @@ def _deploy_save_in(store, b, by, full, made):
                     raise ValueError('%s is text' % what)
                 if len(json.dumps(v)) > 64000:
                     raise ValueError('%s is too long' % what)
-        if opts.get('verify') or 'verify_sni' in opts:
-            # "Check what is served" (as before 1.0.77, the command line's --set verify=...): a
-            # test of the target now, as the page's "Add a test of this target" makes
-            from acmelib.certs import checks as C
-            C.verify_to_tests(store, dict(row, cert_id=cert['id'], target=trow['name']), opts, by)
+        verify_later = bool(opts.get('verify') or 'verify_sni' in opts)
+        if verify_later and not full:
+            # a test - a host and port acme connects to - is a full administrator's (1.0.78)
+            raise E.ApiError(403, 'only a full administrator may set what is checked after a '
+                                  'deployment (it becomes a test: Certificates → Tests)')
         fields['options'] = json.dumps(opts)
         fields['state'] = 'new' if row.get('state') != 'ok' else 'changed'
+    moved_from = (row.get('cert_id'), row.get('target')) if row is not None and (
+        int(row.get('cert_id') or 0) != int(cert['id']) or row.get('target') != trow['name']) else None
     if fields:
         store.db.update('cert_deploys', row['id'], fields)
+    if moved_from and moved_from[0]:
+        from acmelib.certs import checks as C
+        C.target_gone(store, moved_from[0], moved_from[1])
+    if 'options' in b and verify_later:
+        # "Check what is served" (as before 1.0.77, the command line's --set verify=...): a
+        # test of the target now - made once the deployment is saved where it is (1.0.78: it
+        # was made before, against the old target, and lost); what could not be made is kept
+        from acmelib.certs import checks as C
+        cur = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (row['id'],))
+        opts = S.jload(cur.get('options'), {}) or {}
+        C.verify_to_tests(store, cur, opts, by)
+        store.db.update('cert_deploys', row['id'], {'options': json.dumps(opts)})
     store.add_event('certificates', 'deployment of %s to %s saved by %s' % (
         cert['name'], trow['name'], by), who=by)
     _wake()
@@ -2652,6 +2694,8 @@ def _deploy_delete(h, s):
         # Not under a job deploying it (1.0.45): it ended "done" for a row no longer there.
         raise ValueError('a job is working on %s - wait for it to end' % row['target'])
     h.store.db.run('DELETE FROM cert_deploys WHERE id = ?', (row['id'],))
+    from acmelib.certs import checks as C
+    C.target_gone(h.store, row['cert_id'], row['target'])
     h.store.add_event('certificates', 'a deployment to %s deleted by %s' % (row['target'], who(s)),
                       who=who(s))
     return {'message': 'deleted'}

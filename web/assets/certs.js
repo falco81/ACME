@@ -2768,9 +2768,6 @@ function targetTestsPart(certId, t, saved, pending) {
   box.appendChild(list);
   var actions = el('div', 'tt-actions');
   box.appendChild(actions);
-  var formBox = el('div', 'tt-form');
-  formBox.hidden = true;
-  box.appendChild(formBox);
   var depTargets = [];
   var runsHere = function (after) {
     var l = afterList(after);
@@ -2884,59 +2881,15 @@ function targetTestsPart(certId, t, saved, pending) {
       over(function () { attachTests(c, arr((x || {}).checks), draw, depTargets.length ? depTargets : [t.name], t.name); }, draw);
     }).catch(fail);
   };
-  var make = el('button', 'btn cmd small');
-  make.type = 'button';
-  make.innerHTML = iconMarkup('pulse', 15);
-  make.appendChild(el('span', '', 'A new test of this target…'));
   actions.appendChild(attach);
-  actions.appendChild(make);
-  make.onclick = function () {
-    clear(formBox);
-    formBox.hidden = false;
-    var kinds = arr((PLUG || {}).check).filter(function (p) { return !p.connector && p.kind !== 'ssh_relay'; });
-    var kSel = selectBox(kinds.map(function (p) { return [p.kind, tr(p.title || p.kind)]; }), 'tls');
-    noI18n(kSel);
-    var tcfg = obj(t.config);
-    var host = el('input'); host.type = 'text';
-    host.value = String(tcfg.host || '').replace(/:\d+$/, '');
-    host.placeholder = tr('empty: the certificate\'s first name');
-    var port = el('input'); port.type = 'number'; port.min = 1; port.max = 65535;
-    var setPort = function () { var p = plugOf('check', kSel.value); port.value = (p && p.default_port) || 443; };
-    setPort();
-    kSel.onchange = setPort;
-    var sni = el('input'); sni.type = 'text'; sni.placeholder = tr('empty: the certificate\'s first name');
-    var tvia = String(tcfg.via || '');
-    var viaF = (arr((plugOf('check', 'tls') || {}).fields).filter(function (f) { return f.key === 'via'; })[0]) || {};
-    var vopts = [['', tr('directly from acme')]].concat(arr(viaF.options));
-    if (tvia && !vopts.some(function (o) { return o[0] === tvia; })) vopts.push([tvia, tvia]);
-    var vSel = selectBox(vopts, tvia);
-    noI18n(vSel);
-    formBox.appendChild(el('p', 'muted small', 'A test of Certificates → Tests, attached to this certificate and run after a deployment here - the same one is found rather than made twice.'));
-    var g = el('div', 'formgrid');
-    g.appendChild(formField('Protocol', kSel));
-    g.appendChild(formField('Connect to', host, 'The server the target is - its address, or a node behind a load balancer.'));
-    g.appendChild(formField('Port', port));
-    g.appendChild(formField('Name asked for (SNI)', sni));
-    g.appendChild(formField('Through a connector', vSel, tvia ? 'As the target is reached.' : ''));
-    formBox.appendChild(g);
-    var row = el('div', 'btnrow');
-    var ok = el('button', 'btn primary small'); ok.type = 'button'; ok.textContent = saved ? 'Make the test' : 'Make it when saved';
-    var no = el('button', 'btn small'); no.type = 'button'; no.textContent = 'Cancel';
-    no.onclick = function () { formBox.hidden = true; };
-    ok.onclick = function () {
-      var want = {kind: kSel.value, host: host.value.trim(), port: Number(port.value) || null, sni: sni.value.trim(), via: vSel.value};
-      if (!saved) { pending.push(want); formBox.hidden = true; draw(); return; }
-      busy(ok, true);
-      capi('checks/for_target', Object.assign({cert_id: certId, target: t.name}, want)).then(function (x) {
-        toast(tr('The test') + ' ' + (x.test || '') + ': ' + tr('runs after a deployment here'), 'good');
-        formBox.hidden = true;
-        delete LISTS.tests;
-        draw();
-      }).catch(fail).then(function () { busy(ok, false); });
-    };
-    row.appendChild(no); row.appendChild(ok);
-    formBox.appendChild(row);
-  };
+  /* A test is made in Certificates → Tests (1.0.78), with every setting it has - here only
+     attached and bound to this target. */
+  var mk = el('a', 'btn cmd small');
+  mk.href = '#tests';
+  mk.innerHTML = iconMarkup('pulse', 15);
+  mk.appendChild(el('span', '', 'Make a test in Tests…'));
+  mk.onclick = function (ev) { ev.preventDefault(); closeModal(); closeModal(); showTab('tests'); setTimeout(function () { if (typeof modPick === 'function') modPick('tests'); }, 300); };
+  actions.appendChild(mk);
   return box;
 }
 function deployable(t) {
@@ -3027,11 +2980,7 @@ function deployEdit(o) {
         /* Saved: pressed again (the deployment run after it refused - not issued
            yet), it is this one saved again, not a second one made. (1.0.19) */
         d.id = id;
-        /* The tests asked for before it was saved (1.0.77): made now that it is there. */
-        var made = pendingTests.splice(0).reduce(function (pr, pt) {
-          return pr.then(function () { return capi('checks/for_target', Object.assign({cert_id: isNaN(Number(cid)) ? cid : Number(cid), target: t.name}, pt)); });
-        }, Promise.resolve());
-        return made.then(function () {
+        return Promise.resolve().then(function () {
           if (!run) { toast(said(x, 'saved'), 'good'); closeModal(); CT.refresh(); return; }
           return capi('deploys/run', {id: id}).then(function (y) { closeModal(); jobStarted(y, 'deploying'); });
         });
@@ -7817,10 +7766,11 @@ function drawOverviewCerts(box, d, counts, total) {
       var rr = el('div', 'ct-ovrow-r');
       var kind = m ? m[1] : '';
       rr.appendChild(el('span', 'tag ' + (a.level === 'bad' ? 'crit' : 'warn'),
-        {failed: 'renewal', expired: 'has expired', expiring: 'by hand', deploy: 'deployment'}[kind] || (a.level === 'bad' ? 'failing' : 'warning')));
+        {failed: 'renewal', expired: 'has expired', expiring: 'by hand', deploy: 'deployment', test: 'test'}[kind] || (a.level === 'bad' ? 'failing' : 'warning')));
       row.appendChild(rr);
       var open = function () {
-        if (m && kind !== 'deploy') certPeek(Number(m[2]));
+        if (kind === 'test' && a.cert_id) certPeek(Number(a.cert_id));
+        else if (m && kind !== 'deploy' && kind !== 'test') certPeek(Number(m[2]));
         else openJobs({kind: 'deploy', ok: '0'});
       };
       row.onclick = open;

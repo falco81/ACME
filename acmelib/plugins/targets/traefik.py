@@ -98,8 +98,8 @@ class TraefikTarget(SshMixin, Base):
                  {'path': conf, 'data': ('\n'.join(yml) + '\n').encode(), 'mode': 0o644,
                   'owner': None}]
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and F.skip_same(options) and \
-                    F.all_same(self, s, files):
+            if F.skip_same(options) and \
+                    F.all_same_said(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s' % conf)
             # the certificate first, the configuration naming it last

@@ -280,6 +280,9 @@ class Shipper(object):
             for k in list(held):
                 if not str(k).startswith('file:') and k not in keys:
                     held.pop(k, None)
+                # the files no longer written (1.0.78): their trouble of before is over too
+                elif str(k).startswith('file:') and not CONFIG.get('ship_files'):
+                    held.pop(k, None)
         for key, sock in list(self.tcp.items()):
             if again or key not in self.targets:
                 try:

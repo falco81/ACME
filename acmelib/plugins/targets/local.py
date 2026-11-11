@@ -7,6 +7,7 @@ or a script written in the deployment, only where the target allows scripts
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import shlex
 import shutil
@@ -151,7 +152,7 @@ class LocalTarget(Base):
         sc = self._script(options, vars)
         # Where each file is written (1.0.19): a path already under the folder is
         # the folder's, as _place() takes it - joined again it was never there.
-        skip = F.skip_same(options) and not as_bool(options.get('force'))
+        skip = F.skip_same(options)         # also on "Deploy now" (1.0.78)
         if skip and self.unchanged(bundle, options, present=lambda: all(
                 os.path.exists(self._where(base, o['path'])) for o in outs)):
             return self.same(bundle, 'in %s' % base)
@@ -159,6 +160,9 @@ class LocalTarget(Base):
         datas = self._render(pairs, options, vars)
         mode = F.backup_mode(options)
         stamp = time.time()
+        # PKCS#12 and keystores are new bytes every time: the same when this certificate was put
+        # here as it is now, whatever "Deploy now" says (1.0.78)
+        remembered = skip and self.unchanged(bundle, dict(options, force=False))
         before = []                 # (path, the bytes there before or None)
         written = []
         left = []
@@ -173,10 +177,17 @@ class LocalTarget(Base):
                 written.append((o, full))
                 # The same bytes there (1.0.77): PEM and DER only - PKCS#12 and keystores
                 # are new bytes every time, and are written when the certificate is not.
-                if skip and had is not None and had == data and \
-                        o['format'] not in PFX_FORMATS and o['format'] != 'p7b':
+                made_anew = o['format'] in PFX_FORMATS or o['format'] == 'p7b'
+                if skip and had is not None and (remembered if made_anew else had == data):
                     left.append(full)
+                    self.ctx.step('%s: made anew each time (%s) - this certificate was put there '
+                                  'already: left as it is' % (full, o['format']) if made_anew else
+                                  F.said_sha(full, hashlib.sha256(had).hexdigest(),
+                                             hashlib.sha256(data).hexdigest()), 'ok')
                     continue
+                if skip and not made_anew:
+                    self.ctx.step(F.said_sha(full, hashlib.sha256(had).hexdigest() if had is not None
+                                             else None, hashlib.sha256(data).hexdigest()))
                 before.append((full, had))
                 if had is not None and mode != 'none':
                     self._keep(full, had, F.backup_path(full, mode, stamp))
@@ -189,9 +200,13 @@ class LocalTarget(Base):
             # written before it stayed new, the new chain beside the old key.
             self._put_back(before)
             raise
-        F.describe_same(self, left)
         if not before:
-            self.ctx.step('every file holds it already (the same SHA-256) - none replaced', 'ok')
+            # Nothing replaced (1.0.78): nothing run - no script, no command. Fine.
+            self.ctx.step('nothing replaced: every file holds this certificate already (the same '
+                          'SHA-256) - no script or command run', 'ok')
+            self.remember(bundle, options)
+            return 'unchanged: every file in %s holds it already (the same SHA-256) - nothing ' \
+                   'replaced, nothing run' % base
         if sc:
             env = SC.env_for(self, bundle, [(dict(o, path=full), b) for (o, full), (_o, b)
                                             in zip(written, pairs)], vars, SC.password_of(options))
@@ -228,7 +243,6 @@ class LocalTarget(Base):
         if os.path.islink(d) or os.path.islink(dest):
             if os.path.islink(d):
                 raise PluginError('%s is a link: no copy kept there' % d, retry=False)
-            os.unlink(dest)
             os.unlink(dest)
         self._write(dest, had, os.stat(full).st_mode & 0o777)
 

@@ -429,6 +429,8 @@ class SnmpAgent(object):
         self.thread.start()
 
     def configure(self):
+        if not (CONFIG.get('snmp') and CONFIG.get('snmp_traps')):
+            SNMP_STATE['trap_error'] = ''          # no traps, no trouble of them (1.0.78)
         want = bool(CONFIG.get('snmp'))
         try:
             port = int(CONFIG.get('snmp_port') or 161)
@@ -624,7 +626,7 @@ class SnmpAgent(object):
         body = ber_int(rid) + ber_int(err) + ber_int(idx) + \
             ber(0x30, b''.join(ber(0x30, ber_oid(o) + v) for o, v in vbs))
         scoped = ber(0x30, ber_str(self.engine) + ber_str(ctx_name) + ber(0xA2, body))
-        if len(scoped) > most and pdu_tag != 0xA5:
+        if len(scoped) > most and (pdu_tag != 0xA5 or len(scoped) > 65507 - 200):
             body = ber_int(rid) + ber_int(1) + ber_int(0) + ber(0x30, b'')      # tooBig
             scoped = ber(0x30, ber_str(self.engine) + ber_str(ctx_name) + ber(0xA2, body))
         return self.wrap(msg_id, scoped, c, 3)
@@ -659,9 +661,15 @@ class SnmpAgent(object):
             n = max(0, min(a, len(oids)))
             reps = max(0, min(b, 200))
             size = 0
+            # Within the manager's size, and UDP's (1.0.78): the non-repeaters counted too and
+            # no row past it - 2000 varbinds made 152 kB nobody could be sent.
             for o in oids[:n]:
                 x = nxt(o)
-                out.append((x[0], snmp_value(x[1], x[2])) if x else (o, ber(0x82, b'')))
+                vb = (x[0], snmp_value(x[1], x[2])) if x else (o, ber(0x82, b''))
+                size += len(ber_oid(vb[0])) + len(vb[1]) + 4
+                out.append(vb)
+            if size > most:
+                return [], 1, 0                     # tooBig: not even the non-repeaters fit
             cur = list(oids[n:])
             for _ in range(reps):
                 if not cur:
@@ -676,7 +684,7 @@ class SnmpAgent(object):
                     else:
                         row.append((o, ber(0x82, b'')))
                 size += sum(len(ber_oid(o)) + len(v) + 4 for o, v in row)
-                if size > most and out:
+                if size > most:
                     break
                 out += row
                 if ended:
@@ -760,6 +768,10 @@ class SnmpAgent(object):
             except OSError as e:
                 out[key] = str(e)
                 SNMP_STATE['trap_error'] = '%s: %s' % (key, e)
+        # every receiver took it (1.0.78): the trouble of before is over - one failure kept the
+        # alert "traps do not go" open until the daemon restarted
+        if out and all(v == 'sent' for v in out.values()):
+            SNMP_STATE['trap_error'] = ''
         return out
 
 

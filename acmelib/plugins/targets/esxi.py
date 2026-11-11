@@ -57,8 +57,8 @@ class EsxiTarget(SshMixin, Base):
                  {'path': SSL + '/rui.key', 'data': bundle.as_format('key-rsa'),
                   'mode': 0o400, 'owner': None}]
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and F.skip_same(options) and \
-                    F.all_same(self, s, files):
+            if F.skip_same(options) and \
+                    F.all_same_said(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in rui.crt / rui.key')
             existed = F.write_files(self, s, files, options=options)

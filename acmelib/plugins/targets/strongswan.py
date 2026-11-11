@@ -77,8 +77,8 @@ class StrongswanTarget(SshMixin, Base):
                           'data': pem.encode(), 'mode': 0o644, 'owner': None})
         cmd = 'swanctl --load-creds' if mode != 'stroke' else 'ipsec rereadall'
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and F.skip_same(options) and \
-                    F.all_same(self, s, files):
+            if F.skip_same(options) and \
+                    F.all_same_said(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s' % files[0]['path'])
             existed = F.write_files(self, s, files, options=options, fmt='folder')

@@ -47,6 +47,12 @@ def _node_ask_run(daemon, kind, want):
 
 
 def node_ask(daemon, kind, args, by):
+    only = (args or {}).get('only')
+    if only and only != node_name() and only not in set(host_nodes(daemon.store)):
+        # a node not heard of (1.0.78): said at once - it waited 90 s and said "no answer - is
+        # acme running there?", as of a node down, for a name mistyped
+        raise ValueError('there is no node %s (the nodes: %s)' % (
+            only, ', '.join(sorted(set(host_nodes(daemon.store)) | {node_name()}))))
     want = {'id': secrets.token_hex(6), 'args': args or {}, 'at': time.time(), 'by': by}
     daemon.store.set_meta('ask:want:' + kind, json.dumps(want))
     # Asked from the command line (1.0.188), this node's daemon does it too, as

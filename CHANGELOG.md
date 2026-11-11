@@ -5,6 +5,54 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.78 - not released
+- **Deployments that write files: nothing replaced, nothing run.** Each file is compared by
+  SHA-256 also on *Deploy now* (before, it wrote every file again; only *Leave a file alone…*
+  switched off does now), and each file is said in the job - *the same SHA-256 (…) - left as it
+  is*, *SHA-256 there …, new … - replaced*, *not there yet - written*. When no file is replaced,
+  no command, test, script or reload runs and the deployment is fine (*unchanged … nothing
+  replaced, nothing run*); when at least one is, they all run. Linux/Unix over SSH, this
+  machine, Caddy, ESXi, strongSwan, Traefik, Zimbra (Windows: the files; its store import as
+  before).
+- A deployment's *What it serves* attaches the tests of Certificates → Tests and binds them to
+  the target; a test is made there only (*Make a test in Tests…*), with every setting it has -
+  the quick form with five of them is gone.
+- **Monitoring (SNMP, Prometheus)**: each deployment (`acmeDeployTable`,
+  `acme_cert_deploy_state`), each test of a certificate (`acmeTestTable`,
+  `acme_cert_test_state`, `acme_cert_tests_failing`), each source, validation, target and test
+  (`acmeModuleTable`, `acme_module_failing`), each authority of acme's own with its CRL
+  (`acmeCaTable`, `acme_ca_*`), the key and the twin of a dual certificate and its failing tests
+  in `acmeManagedCertTable`, more counts (tests, failing, jobs running, modules failing,
+  authorities ending, deployments), and this node's disks, newest backup and clock
+  (`acme_disk_used_ratio`, `acme_backup_last_timestamp_seconds`, `acme_clock_*`) - all in
+  `acmeMetricTable` too. A **failing test is among what the alerts see**: an SNMP trap, the
+  overview, `acme_alert` - not mailed a second time (its own notice says it). ACME-MIB updated;
+  `acmeManagedCertStateNum` has a number for revoke-failed, deleting, pending-approval,
+  declined and held (they were 0, "new").
+- Hunt F, fixed:
+  - a certificate administrator could make a test with any host, port and connector (*A new
+    test of this target*: the route is gone; `verify` in a deployment's options is a full
+    administrator's), and could try settings nobody saved through discovery, a module's
+    catalog and the SSH key's *Try* - acme connected anywhere and said back what answered
+    (refused, as *Test* is);
+  - a certificate administrator could write the private key where they chose with the format
+    words `haproxy`, `combined` or `rsa` (seen as the key now);
+  - a validation renamed: the certificates' own settings of it were lost, and saving their
+    profile refused;
+  - a module that did not load: saving its form wrote the dots over a kept secret, and a new
+    one unsealed (refused now - its name, note and switch can be changed);
+  - a deployment taken away or moved: its tests still named the old target and never ran
+    again;
+  - "Check what is served" made into tests: a bare IPv6 address was split wrong, a target's
+    own port (Proxmox 8006, Synology 5001...) became 443, a deployment moved lost it, a test was
+    left attached to nothing, and a test run after every deployment did not fail the
+    deployment; a deployment failed by a test is said (event, notice) and not failed twice;
+  - importing a configuration with `split_mode=arbiter` stopped the import;
+  - SNMP: one failed trap kept the alert "traps do not go" open until a restart; GETBULK
+    answers past the manager's size (or UDP's) are cut or *tooBig*;
+  - a log file that could not be written stayed "in trouble" after writing files was switched
+    off;
+  - `--node` with a node not heard of waited 90 s and said "no answer" (said at once now);
+  - the local target failed every deployment when the place of its copy was a link.
 
 ## 1.0.77 - 2026-11-11
 - **Check what is served is a test now**: a deployment's window has *What it serves - tests*

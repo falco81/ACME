@@ -62,6 +62,13 @@ now*.
 | `acme_isemon_sent_total{target}`, `acme_isemon_trouble{target}`, `acme_isemon_dropped_total` | isemon |
 | `acme_siem_sent_total{target}`, `acme_siem_trouble{target}`, `acme_siem_dropped_total` | syslog / SIEM |
 | `acme_alerts_open{level}`, `acme_alert{key,level}` | what the alerts see wrong now |
+| `acme_cert_alt_not_after_timestamp_seconds{name}` | when the twin of each dual certificate ends (1.0.78) |
+| `acme_cert_deploy_state{cert,target,state,enabled}`, `acme_cert_deploy_last_ok_timestamp_seconds{cert,target}` | each deployment: its state (1), when it last went through (1.0.78) |
+| `acme_cert_test_state{cert,test,kind,state,enabled}`, `acme_cert_test_last_timestamp_seconds{cert,test}`, `acme_cert_tests_failing` | each test of a certificate: how it went last (`none`: not run yet), when it ran; how many fail (1.0.78) |
+| `acme_module_failing{family,name,kind,enabled}` | each source, validation, target and test: 1 when its last use failed (1.0.78) |
+| `acme_ca_not_after_timestamp_seconds{name}`, `acme_ca_crl_next_timestamp_seconds{name}` | acme's own authorities: when each ends, when its CRL is due again (1.0.78) |
+| `acme_cert_jobs_running` | certificate jobs queued or running (1.0.78) |
+| `acme_disk_used_ratio{path}`, `acme_backup_last_timestamp_seconds`, `acme_clock_skew_seconds{of}`, `acme_clock_reference_offset_seconds{ref}` | this node: how full its disks are, its newest backup, its clock (1.0.78) |
 | `acme_high_security` | high security on |
 | `acme_scrape_seconds` | how long the answer took |
 
@@ -123,7 +130,7 @@ own - no snmpd, nothing in the renewals' way. *Settings → Monitoring → SNMPv
 | `1.3.6.1.2.1.1` | the system group: sysDescr (acme, the version, the node), sysObjectID, sysUpTime, sysContact, sysName, sysLocation |
 | `1.3.6.1.6.3.10.2.1` | the engine: its ID, boots, time |
 | `1.3.6.1.6.3.15.1.1` | usmStats: unknown users, wrong digests, not in the time window... |
-| `1.3.6.1.4.1.8072.9999.9999.7` | **ACME-MIB** (`deploy/ACME-MIB.txt`): the version, node, database engine, high security, in a cluster or not, uptime; the database (up, latency); the alerts (how many bad and warn, and a table of each); the pages' certificates (days left); the certificates the manager keeps (`acmeManagedCertTable`: index = the certificate's id, name, CN, notAfter, daysLeft, state, issuer, state as a number, renewed by itself, deployments failed; and `acmeManagedCounts`: total, ok, failed, expired, expiring, deployments failed, this node leads, jobs failed in 24 h, DNS queries, waiting); the nodes of the cluster; and `acmeMetricTable` - every sample of `/metrics`, name, labels and value |
+| `1.3.6.1.4.1.8072.9999.9999.7` | **ACME-MIB** (`deploy/ACME-MIB.txt`): the version, node, database engine, high security, in a cluster or not, uptime; the database (up, latency); the alerts (how many bad and warn, and a table of each); the pages' certificates (days left); the certificates the manager keeps (`acmeManagedCertTable`: index = the certificate's id, name, CN, notAfter, daysLeft, state, issuer, state as a number, renewed by itself, deployments failed; its key, the twin's key, notAfter and days left of a dual one, tests failing; and `acmeManagedCounts`: total, ok, failed, expired, expiring, deployments failed, this node leads, jobs failed in 24 h, DNS queries, waiting, tests, tests failing, jobs running, modules failing, authorities ending within 90 days, deployments); since 1.0.78 also **`acmeDeployTable`** (`.6.4`: each deployment - certificate, target, state, in use, version deployed, last OK, last try, failures, last error), **`acmeTestTable`** (`.6.5`: each test of a certificate - its kind, state, in use, after which deployments, last run, last pass, failures, what it said), **`acmeModuleTable`** (`.6.6`: each source, validation, target and test - in use, last OK, last error; index = family × 1000000 + id) and **`acmeCaTable`** (`.6.7`: each authority of acme's own - subject, notAfter, days left, in use, signs here, CRL due); the nodes of the cluster; and `acmeMetricTable` - every sample of `/metrics`, name, labels and value |
 
 acme has no enterprise number of its own: its objects are under net-snmp's
 `netSnmpPlaypen` (`.1.3.6.1.4.1.8072.9999.9999`), `.7`. Load `ACME-MIB.txt` into
@@ -150,6 +157,10 @@ receiver in *Where traps go* (`host` or `host:port`, 162 by default):
   (*Alerts and reports*), after their delay - and again when a warning becomes
   bad;
 - `acmeAlertCleared` (`.7.0.2`) when it is right again;
+- a **test that fails** (what a server serves is not the certificate, or it
+  cannot be reached) is among what the alerts see since 1.0.78 - a trap, the
+  overview, `acme_alert` - but not mailed by the alerts: the test's own notice
+  (*Renewal and notices*) says it, once;
 - `acmeTestTrap` (`.7.0.3`) from *Send a test trap*.
 
 Each carries `acmeTrapKey`, `acmeTrapLevel`, `acmeTrapTitle`, `acmeTrapSaid` and

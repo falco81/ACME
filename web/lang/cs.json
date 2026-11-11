@@ -55639,6 +55639,10 @@
   "rm_3": {
    "source": "Runs after a deployment here. Off: not here - it stays on the certificate (its schedule, its other targets).",
    "text": "Běží po nasazení sem. Vypnuto: sem ne – na certifikátu zůstává (jeho plán, jeho ostatní cíle)."
+  },
+  "vt_12": {
+   "source": "Make a test in Tests…",
+   "text": "Vytvořit test v Testech…"
   }
  },
  "patterns": {

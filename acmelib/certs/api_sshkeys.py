@@ -915,6 +915,7 @@ def _try(h, s):
     fam = FAMILY_NAMES.get(str(b.get('family') or 'target').strip().lower())
     if fam:
         A.kept_secrets_guard(h.store, fam, b, s)
+    b = A.saved_only(s, b, 'try')
     return do_try(h.store, b, A.who(s))
 
 

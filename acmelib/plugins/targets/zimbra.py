@@ -78,8 +78,8 @@ class ZimbraTarget(SshMixin, Base):
         key = [{'path': COMM + '/commercial.key', 'data': bundle.as_format('key-rsa'),
                 'mode': 0o640, 'owner': 'zimbra:zimbra'}]
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and F.skip_same(options) and \
-                    F.all_same(self, s, key + [{'path': COMM + '/commercial.crt',
+            if F.skip_same(options) and \
+                    F.all_same_said(self, s, key + [{'path': COMM + '/commercial.crt',
                                                 'data': bundle.as_format('cert-pem')}]):
                 self.remember(bundle, options)
                 return self.same(bundle, 'deployed in Zimbra')

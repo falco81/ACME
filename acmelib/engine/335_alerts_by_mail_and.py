@@ -546,6 +546,10 @@ def alert_problems(store, lang='en'):
             add('mod:%s' % a['key'], 'bad' if a.get('level') == 'bad' else 'warn',
                 str(a.get('node') or ''), str(a.get('title') or words)[:300],
                 words if a.get('title') else '', str(a.get('pane') or 'certs'))
+            if a.get('no_mail'):
+                # said by the module itself (1.0.78: a failing test's own notice) - seen here,
+                # in the traps and the metrics, not mailed a second time
+                out['mod:%s' % a['key']]['no_mail'] = True
     return out
 
 
@@ -976,6 +980,9 @@ def _alerts_evaluate(store, force=False):
         # The worst level mailed so far (1.0.205): a disk at 95 % going between
         # warn and bad mailed "worse than said" at every turn back to bad.
         p['mailed'] = was.get('mailed') or (was.get('level') if was.get('sent') else None)
+        if p.get('no_mail'):
+            known[k] = dict(p)                          # never mailed, nor "over" (1.0.78)
+            continue
         if not p['sent'] and now - p['since'] >= delay:
             new.append(p)
         elif p['sent'] and repeat and now - float(was.get('sent_at') or 0) >= repeat:

@@ -163,6 +163,15 @@ def prune_posix(path, mode, keep=None):
             'done' % (quote(d or '.'), quote(n), DATED_GLOB, int(keep) + 1))
 
 
+def said_sha(path, there, new):
+    """One file compared, in words for the job (1.0.78)."""
+    if there is None:
+        return '%s: not there yet - written' % path
+    if there == new:
+        return '%s: the same SHA-256 (%s…) - left as it is' % (path, new[:16])
+    return '%s: SHA-256 there %s…, new %s… - replaced' % (path, there[:16], new[:16])
+
+
 def describe_same(t, paths):
     """The step of the files left as they were."""
     if paths:
@@ -182,6 +191,23 @@ def hashes(t, s, paths):
     return have
 
 
+def all_same_said(t, s, files, where=None):
+    """Every file there holds exactly this already - each said in the job (1.0.78), and when so
+    that nothing is replaced and nothing run."""
+    have = hashes(t, s, [f['path'] for f in files])
+    ok = bool(files)
+    for f in files:
+        new = hashlib.sha256(f['data']).hexdigest()
+        t.ctx.step(said_sha(f['path'], have.get(f['path']), new),
+                   'ok' if have.get(f['path']) == new else 'info')
+        f['_said'] = True
+        ok = ok and have.get(f['path']) == new
+    if ok:
+        t.ctx.step('nothing replaced: every file holds this certificate already (the same '
+                   'SHA-256) - nothing run', 'ok')
+    return ok
+
+
 def all_same(t, s, files):
     have = hashes(t, s, [f['path'] for f in files])
     return bool(files) and all(have.get(f['path']) == hashlib.sha256(f['data']).hexdigest()
@@ -198,11 +224,14 @@ def write_files(t, s, files, tmp_dir='/tmp', options=None, fmt=None):
         f['_bak'] = backup_path(f['path'], mode, stamp)
         f['_bmode'] = mode
         f['_same'] = False
-    if options is not None and skip_same(options) and not as_bool(options.get('force')):
+    if options is not None and skip_same(options):
+        # also on "Deploy now" (1.0.78): only the switch off writes every file
         have = hashes(t, s, [f['path'] for f in files])
         for f in files:
-            f['_same'] = have.get(f['path']) == hashlib.sha256(f['data']).hexdigest()
-        describe_same(t, [f['path'] for f in files if f['_same']])
+            new = hashlib.sha256(f['data']).hexdigest()
+            f['_same'] = have.get(f['path']) == new
+            if not f.get('_said'):
+                t.ctx.step(said_sha(f['path'], have.get(f['path']), new), 'ok' if f['_same'] else 'info')
     todo = [i for i, f in enumerate(files) if not f['_same']]
     existed = [None] * len(files)
     if not todo:

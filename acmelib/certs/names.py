@@ -164,6 +164,7 @@ def _references(store, fam, old, new):
         db.run('UPDATE certs SET issuer = ? WHERE issuer = ?', (new, old))
     elif fam == 'challenge':
         db.run('UPDATE certs SET challenge = ? WHERE challenge = ?', (new, old))
+        S.over_validation_renamed(store, old, new)
         for r in db.rows('SELECT id, challenge_map FROM certs WHERE challenge_map LIKE ?',
                          ('%' + json.dumps(old)[1:-1] + '%',)):
             cmap = S.jload(r['challenge_map'], {}) or {}

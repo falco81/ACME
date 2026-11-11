@@ -77,8 +77,8 @@ class Certificates(unittest.TestCase):
     def test_same_files_without_the_reload_are_deployed_again(self):
         src = read('acmelib', 'plugins', 'targets', 'ssh.py')
         i = src.index('if all(same) and not stale:')
-        self.assertIn('if self.unchanged(bundle, options):', src[i:i + 200])
-        self.assertIn('the commands run all the same', src[i:i + 800])
+        # 1.0.78: nothing replaced, nothing run - not even the reload (the user's wish)
+        self.assertIn('no command, script or reload run', src[i:i + 800])
 
     def test_acme_reasons_not_downgraded(self):
         self.assertIn('does not take the reason', read('acmelib', 'plugins', 'issuers', 'acme.py'))

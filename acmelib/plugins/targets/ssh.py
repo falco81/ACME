@@ -333,7 +333,6 @@ class SshTarget(SshMixin, Base):
         r = self.resolved(bundle, options)
         datas = self.render(bundle, r)
         files = r['files']
-        force = as_bool(options.get('force'))
         tmpdir = (self.c('tmp_dir') or '/tmp').rstrip('/')
         token = secrets.token_hex(6)
         mode = r['backup']
@@ -345,18 +344,21 @@ class SshTarget(SshMixin, Base):
         before = self._written(options)
         stale = [p for p in before if p not in {f['path'] for f in files}]
         with self.ssh() as s:
-            # Each file compared with the one there (1.0.77): the same one left alone.
+            # Each file compared with the one there (1.0.77) - also on "Deploy now" (1.0.78: force
+            # wrote every file all the same; only the switch off writes them all): the same one
+            # left alone, each said in the job with its SHA-256.
             same = self._same_files(s, files, datas, bundle, options) \
-                if r['skip_same'] and not force else [False] * len(files)
+                if r['skip_same'] else [False] * len(files)
             if all(same) and not stale:
-                if self.unchanged(bundle, options):
-                    return self.same(bundle, 'in every file')
-                # The files are there but this deployment did not get through to its reload
-                # (or its commands changed): nothing written, the rest done.
-                self.ctx.step('every file holds it already (the same SHA-256) - none replaced; '
-                              'the commands run all the same', 'ok')
+                # Nothing to replace (1.0.78): nothing run either - no commands before, no test,
+                # no script, no reload. The deployment is fine.
+                self.ctx.step('nothing replaced: every file holds this certificate already (the '
+                              'same SHA-256) - no command, script or reload run', 'ok')
+                self.remember(bundle, options)
+                self._written(options, [f['path'] for f in files])
+                return 'unchanged: every file on %s holds it already (the same SHA-256) - nothing ' \
+                       'replaced, nothing run' % self.c('host')
             todo = [i for i, x in enumerate(same) if not x]
-            F.describe_same(self, [f['path'] for f, x in zip(files, same) if x])
             wfiles = [files[i] for i in todo]
             wdatas = [datas[i] for i in todo]
             for c in r['pre_cmd']:
@@ -421,20 +423,29 @@ class SshTarget(SshMixin, Base):
             ', the script ran' if r['script'] else '', ', reloaded' if r['reload_cmd'] else '')
 
     def _same_files(self, s, files, datas, bundle, options):
-        """[True: the file there holds exactly this already], one a file. PEM and DER are
-        compared by SHA-256; PKCS#12, keystores and p7b differ every time they are made, so
-        they are the same only when this certificate was deployed here as it is now."""
+        """[True: the file there holds exactly this already], one a file - each said in the job
+        (1.0.78). PEM and DER are compared by SHA-256; PKCS#12, keystores and p7b differ every
+        time they are made, so they are the same only when this certificate was deployed here
+        as it is now (the memory of the deployment, whatever "Deploy now" says)."""
         want = {f['path']: hashlib.sha256(d).hexdigest() for f, d in zip(files, datas)}
         have = F.hashes(self, s, list(want))
         remembered = None
         out = []
         for f in files:
+            p = f['path']
             if f['format'] in PFX_FORMATS or f['format'] == 'p7b':
                 if remembered is None:
-                    remembered = self.unchanged(bundle, options)
-                out.append(bool(remembered) and f['path'] in have)
+                    remembered = self.unchanged(bundle, dict(options, force=False))
+                ok = bool(remembered) and p in have
+                self.ctx.step('%s: %s' % (p, 'made anew each time (%s) - this certificate was put '
+                                             'there already: left as it is' % f['format'] if ok else
+                                             'made anew each time (%s) - written' % f['format']
+                                             if p in have else 'not there yet - written'),
+                              'ok' if ok else 'info')
             else:
-                out.append(have.get(f['path']) == want[f['path']])
+                ok = have.get(p) == want[p]
+                self.ctx.step(F.said_sha(p, have.get(p), want[p]), 'ok' if ok else 'info')
+            out.append(ok)
         return out
 
     def _after_backup(self, s, files, existed, mode, bak, keep):

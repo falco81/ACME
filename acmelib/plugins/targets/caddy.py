@@ -166,8 +166,8 @@ class CaddyTarget(SshMixin, Base):
         files = [dict(o, data=bundle.as_format(o['format'])) for o in outs]
         cmd = text(self.opt(options, 'reload_cmd', '')).strip()
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and F.skip_same(options) and \
-                    F.all_same(self, s, files):
+            if F.skip_same(options) and \
+                    F.all_same_said(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s' % files[0]['path'])
             existed = F.write_files(self, s, files, options=options)

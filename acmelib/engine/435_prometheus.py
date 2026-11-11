@@ -143,6 +143,31 @@ def metrics_text(daemon):
         except Exception as e:                          # noqa: BLE001
             log_sparing('metrics-hook', 'Prometheus, a module: %s: %s'
                         % (getattr(fn, '__qualname__', fn), e), 'warn', every=600)
+    # This node's own (1.0.78): its disks, its last backup, its clock - what Settings shows.
+    try:
+        m.put('acme_disk_used_ratio', 'gauge', 'How full each file system acme lives on is (0-1).',
+              [({'path': d.get('path') or ''}, round(float(d.get('used') or 0) / float(d.get('total') or 1), 4))
+               for d in disks_now() if d.get('total')])
+    except Exception:                                   # noqa: BLE001
+        pass
+    try:
+        h = _meta_obj(store, 'host:health:' + node_name()) if store is not None else {}
+        if h.get('last_backup'):
+            m.put('acme_backup_last_timestamp_seconds', 'gauge', 'When the newest backup on this '
+                  'node was made (unix time).', [({}, float(h['last_backup']))])
+    except Exception:                                   # noqa: BLE001
+        pass
+    try:
+        if CLOCK.get('skew') is not None:
+            m.put('acme_clock_skew_seconds', 'gauge', 'How far this node\'s clock is from the one it '
+                  'is compared with (the other node, or the reference; seconds).',
+                  [({'of': str(CLOCK.get('skew_of') or '')}, round(float(CLOCK['skew']), 3))])
+        if CLOCK.get('ref') is not None:
+            m.put('acme_clock_reference_offset_seconds', 'gauge', 'This node\'s clock against its '
+                  'time reference (NTP), seconds.', [({'ref': str(CLOCK.get('ref_src') or '')},
+                                                       round(float(CLOCK['ref']), 3))])
+    except Exception:                                   # noqa: BLE001
+        pass
     m.put('acme_high_security', 'gauge', 'Whether high security is on.',
           [({}, 1 if CONFIG.get('high_security') else 0)])
     m.put('acme_scrape_seconds', 'gauge', 'How long this answer took.',

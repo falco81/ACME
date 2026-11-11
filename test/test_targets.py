@@ -358,7 +358,7 @@ class SshDeployTest(unittest.TestCase):
         n = len(self.ssh.puts)
         self.assertTrue(self.t.deploy(b, self.opts).startswith('unchanged'))
         self.assertEqual(len(self.ssh.puts), n)
-        self.t.deploy(b, dict(self.opts, force=True))
+        self.t.deploy(b, dict(self.opts, skip_same=False))            # 1.0.78: force compares too
         self.assertGreater(len(self.ssh.puts), n)
 
     def test_rollback_when_test_fails(self):

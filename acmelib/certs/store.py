@@ -396,6 +396,20 @@ def plugin_public(store, family, row, full=False):
     return out
 
 
+def over_validation_renamed(store, old, new):
+    """A validation renamed (1.0.78): each certificate's own settings of it (profile.over.
+    validation[name]) follow - they were kept under the old name, not used any more, and every
+    later save of the profile refused "there is no validation <old>"."""
+    for r in store.db.rows('SELECT id, profile FROM certs WHERE profile LIKE ?',
+                           ('%' + json.dumps(old)[1:-1] + '%',)):
+        prof = jload(r.get('profile'), {}) or {}
+        over = prof.get('over') if isinstance(prof, dict) else None
+        vals = over.get('validation') if isinstance(over, dict) else None
+        if isinstance(vals, dict) and old in vals:
+            vals[new] = vals.pop(old)
+            store.db.update('certs', r['id'], {'profile': json.dumps(prof)})
+
+
 def via_users(store, name, family):
     """How many targets and tests go through the connector `name` (1.0.77: a connector in use
     was deleted - "used by 0" - and every one of them failed after). A target's "via" names

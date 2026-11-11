@@ -298,6 +298,11 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
                 if len(parts) == 3 and parts[0] == 'SHA':
                     have[parts[2]] = parts[1].upper()
         hashes = dict(want)
+        for o, _b in pairs:
+            if o['path'] in hashes:
+                self.ctx.step(F.said_sha(o['path'], (have.get(o['path']) or '').lower() or None,
+                                         hashes[o['path']].lower()),
+                              'ok' if have.get(o['path']) == hashes[o['path']] else 'info')
         return [o['path'] in hashes and have.get(o['path']) == hashes[o['path']] for o, _b in pairs]
 
     def _after_backup(self, s, pairs, had, mode, bak, keep):
@@ -325,7 +330,7 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
         datas = self._render(pairs, options, vars)
         every = pairs
         left = []
-        if pairs and F.skip_same(options) and not as_bool(options.get('force')):
+        if pairs and F.skip_same(options):           # also on "Deploy now" (1.0.78)
             same = self._same_files(s, pairs, datas)
             left = [o['path'] for (o, _b), x in zip(pairs, same) if x]
             F.describe_same(self, left)

@@ -73,6 +73,7 @@ def _route(family, path):
     def _catalog(h, s):
         b = h.body()
         A.kept_secrets_guard(h.store, family, b, s)
+        b = A.saved_only(s, b, 'ask with')
         try:
             return catalog(h.store, family, b)
         except PluginError as e:
