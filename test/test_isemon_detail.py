@@ -105,7 +105,7 @@ class Lines(unittest.TestCase):
         self.assertEqual(events[-1], 'end')
         self.assertIn('step', events)
         first = got[0]
-        for k, v in (('kind', 'job'), ('job_kind', 'renew'), ('cert', 'web'),
+        for k, v in (('kind', 'job'), ('job_kind', 'issue'), ('cert', 'web'),   # the first one an issue (1.0.79)
                      ('issuer', 'self'), ('issuer_kind', 'selfsigned'), ('node', 'testnode'),
                      ('key_type', 'ec-256')):
             self.assertEqual(first.get(k), v, (k, first))
