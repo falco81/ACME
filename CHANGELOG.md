@@ -5,6 +5,13 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.70 - not released
+- A new target: **Omnissa Unified Access Gateway (UAG)** (`omnissa_uag`). It replaces the
+  certificate of its Internet-facing services (END_USER - Horizon, Web Reverse Proxy, Tunnel),
+  of its admin interface (ADMIN), or both (admin last), through the UAG admin REST API on 9443
+  (`PUT /rest/v1/config/certs/ssl/{end_user|admin}`, the key and full chain as PEM). It signs in
+  by a JWT token (`/rest/v1/jwt/login`) or HTTP basic for an older UAG. The same certificate is
+  sent again only when the UAG no longer has it. Test says the UAG's name. Built from the UAG's
+  OpenAPI document and VMware's documentation (docs/targets.md).
 
 ## 1.0.69 - 2026-11-11
 - A certificate's window → **Change the source…**: a wizard that moves a certificate in use to

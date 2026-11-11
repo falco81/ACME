@@ -54879,6 +54879,58 @@
   "move_29": {
    "source": "It is now renewed by hand",
    "text": "Certifikát se teď spravuje ručně"
+  },
+  "uag_1": {
+   "source": "Omnissa Unified Access Gateway (UAG)",
+   "text": "Omnissa Unified Access Gateway (UAG)"
+  },
+  "uag_2": {
+   "source": "Replaces the TLS certificate of an Omnissa (VMware) Unified Access Gateway - its Internet-facing services (Horizon, Web Reverse Proxy, Tunnel), its admin interface, or both - through the UAG admin REST API (port 9443).",
+   "text": "Vymění TLS certifikát Omnissa (VMware) Unified Access Gateway – jejích služeb do internetu (Horizon, Web Reverse Proxy, Tunnel), jejího administračního rozhraní, nebo obojího – přes administrační REST API UAG (port 9443)."
+  },
+  "uag_3": {
+   "source": "Admin user",
+   "text": "Administrátor"
+  },
+  "uag_4": {
+   "source": "basic works on every UAG; a token where basic sign-in to the API is off",
+   "text": "basic funguje na každé UAG; token tam, kde je přihlášení basic do API vypnuté"
+  },
+  "uag_5": {
+   "source": "HTTP basic (user and password)",
+   "text": "HTTP basic (uživatel a heslo)"
+  },
+  "uag_6": {
+   "source": "A token (POST /rest/v1/jwt/login)",
+   "text": "Token (POST /rest/v1/jwt/login)"
+  },
+  "uag_7": {
+   "source": "Internet-facing: what Horizon clients and browsers see on 443. The admin interface (9443) is replaced last: its connector restarts with it",
+   "text": "Do internetu: co vidí klienti Horizonu a prohlížeče na portu 443. Administrační rozhraní (9443) se mění jako poslední: jeho konektor se s ním restartuje"
+  },
+  "uag_8": {
+   "source": "Internet-facing (END_USER)",
+   "text": "Do internetu (END_USER)"
+  },
+  "uag_9": {
+   "source": "Admin interface (ADMIN)",
+   "text": "Administrační rozhraní (ADMIN)"
+  },
+  "uag_10": {
+   "source": "the UAG documentation and its scripts send \"BEGIN RSA PRIVATE KEY\"",
+   "text": "dokumentace UAG a její skripty posílají „BEGIN RSA PRIVATE KEY“"
+  },
+  "uag_11": {
+   "source": "RSA / EC private key (PKCS#1, SEC1)",
+   "text": "Soukromý klíč RSA / EC (PKCS#1, SEC1)"
+  },
+  "uag_12": {
+   "source": "PKCS#8 (BEGIN PRIVATE KEY)",
+   "text": "PKCS#8 (BEGIN PRIVATE KEY)"
+  },
+  "uag_13": {
+   "source": "a token, as the API of current versions asks; HTTP basic for an older UAG",
+   "text": "token, jak to chce API současných verzí; HTTP basic pro starší UAG"
   }
  },
  "patterns": {

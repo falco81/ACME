@@ -82,6 +82,7 @@ Every module here works the same way:
 | `bunny` | bunny.net CDN (pull zone hostnames) | bunny.net |
 | `fastly` | Fastly TLS (your own certificate) | Fastly |
 | `nutanix` | Nutanix cluster (Prism Central v4 API) | Nutanix |
+| `omnissa_uag` | Omnissa Unified Access Gateway (UAG) | Omnissa |
 | `checkpoint` | Check Point (Management API) | Check Point |
 | `nsx` | VMware NSX load balancer (Policy API) | VMware |
 | `barracuda_waf` | Barracuda Web Application Firewall | Barracuda |
@@ -1626,6 +1627,60 @@ Sources (Nutanix's official v4 Go client and Terraform provider):
 <https://github.com/nutanix/terraform-provider-nutanix/blob/dadc2b20bd0a96f6358104a555f89a3e0b3638ca/website/docs/r/ssl_certificate_v2.html.markdown>.
 **Uncertain**: the older v4 versions (`v4.0`-`v4.2`) were not checked for
 the ssl-certificate call; the key goes as PKCS#8 PEM (`BEGIN PRIVATE KEY`).
+
+
+## `omnissa_uag` - Omnissa Unified Access Gateway (UAG)
+
+Replaces the TLS certificate of an Omnissa (formerly VMware) Unified Access Gateway through its
+admin REST API on port 9443. *Which certificate* chooses:
+
+* **Internet-facing (`END_USER`)**, the default: the HTTPS proxy and the PCoIP and Blast
+  Secure Gateway, which is what Horizon clients and browsers see on 443.
+* **Admin interface (`ADMIN`)**: the certificate of the admin interface on 9443.
+* **Both.** The admin one is sent last, because its connector restarts with it.
+
+For each one, the key and the certificate with its intermediates go as PEM in one JSON
+request: `PUT /rest/v1/config/certs/ssl/end_user` (or `/admin`) with
+`{"privateKeyPem": ..., "certChainPem": ...}`. The chain is the leaf first, then the
+intermediates, with LF line ends.
+
+* **Key format:** the key goes as `BEGIN RSA PRIVATE KEY` (or `BEGIN EC PRIVATE KEY`) by
+  default, because that is what the UAG documentation and its scripts send. *Key format →
+  PKCS#8* sends `BEGIN PRIVATE KEY` instead.
+* **Sign-in:** by a token, as the API of current versions asks. `POST /rest/v1/jwt/login`
+  with `{"username", "password", "refreshTokenExpiryInHours": 3}` answers with
+  `accessToken`, which then goes as a bearer token. *Sign-in → HTTP basic* is for an older
+  UAG.
+* **Same certificate again:** it is sent again only if the UAG no longer has it. acme looks
+  for it in `GET /rest/v1/config/certs/ssl/{end_user|admin}`, so a certificate replaced by
+  hand in the meantime is put back.
+* **Test** reads `GET /rest/v1/config/system` and says the UAG's name (`uagName`).
+* **Check what is served** (port 443 by default) checks the Internet-facing certificate
+  afterwards.
+* **Several UAGs** (a pair behind a load balancer) are one target each.
+* **The UAG's own certificate:** until its admin interface has a trusted certificate, switch
+  *Check the device's certificate* off or give its CA. Once *Both* has put this certificate on
+  the admin interface too, the check passes.
+
+Sources: the UAG REST API's OpenAPI 3.0.1 document (`rest-api-swagger.json`, *Unified Access
+Gateway REST API*, servers `/rest`). It gives the paths above, `CertificateChainAndKeyWrapper`
+(both fields required; the chain "in the order target cert, intermediate certs, root cert if
+present"), `JwtTokenCreationRequest` (`refreshTokenExpiryInHours` 3-48),
+`JWTAuthenticationResponse`, `SystemSettings` and the security scheme `bearerAuth` (JWT):
+<https://developer.omnissa.com/uag-rest-apis/api-docs/>. VMware, "Replace the Default TLS/SSL
+Server Certificate" (Access Point 2.8), the same PUT with basic authentication as admin:
+<https://docs.vmware.com/en/Unified-Access-Gateway/2.8/com.vmware.access-point-28-deploy-config/GUID-EDC244DD-07AB-4841-A893-84ADF8D59838.html>.
+Community scripts: <https://github.com/numerate64/omnissa-uag-cert-automation> and
+<https://github.com/askaresh/scripts/blob/master/vmwareuagcertreplace>.
+
+**Less certain:**
+
+* the body of `GET …/certs/ssl/{entity}`, which the document does not describe (the
+  certificate is looked for in it, whatever its form);
+* HTTP basic sign-in on versions whose API takes only the token;
+* whether every version takes an ECDSA key, and a PKCS#8 one;
+* the PFX variant (`PUT …/certs/ssl/pfx/{entity}`, `pfxKeystore` base64, `password`, `alias`),
+  which is not used here.
 
 ## `azure_appservice` - Azure App Service
 

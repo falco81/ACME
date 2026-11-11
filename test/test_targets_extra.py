@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The target modules of gateways, CDNs, cloud load balancers and appliances
 added last - Kong, Hetzner Cloud, DigitalOcean, Avi, bunny.net, Fastly, Nginx
-Proxy Manager, A10 Thunder, Nutanix, Azure App Service - without a network.
+Proxy Manager, A10 Thunder, Nutanix, Azure App Service, Omnissa UAG - without a network.
 
     python3 -m unittest test/test_targets_extra.py
 
@@ -30,7 +30,7 @@ from acmelib.plugins.base import PluginError, Registry, FIELD_TYPES  # noqa: E40
 from acmelib.plugins.targets import _common as C  # noqa: E402
 
 KINDS = ('kong', 'hetzner_lb', 'digitalocean_lb', 'avi', 'bunny', 'fastly',
-         'nginx_proxy_manager', 'a10', 'nutanix', 'azure_appservice')
+         'nginx_proxy_manager', 'a10', 'nutanix', 'azure_appservice', 'omnissa_uag')
 
 
 def setUpModule():
@@ -851,6 +851,67 @@ class AzureAppServiceTest(unittest.TestCase):
         self.assertIn('no web app "nope"', str(e.exception))
         self.t.deploy(self.a, {'site': 'app-www', 'hostnames': 'other.test', 'force': True})
         self.assertEqual(self.binds['other.test']['sslState'], 'SniEnabled')
+
+
+class OmnisaUagTest(unittest.TestCase):
+    def setUp(self):
+        self.held = {'end_user': '', 'admin': ''}
+
+        def put(c):
+            self.held[c['url'].rsplit('/', 1)[1]] = body(c)['certChainPem']
+            return (200, {})
+        self.ctx = FakeCtx([
+            ('POST', r'^https://uag\.test:9443/rest/v1/jwt/login$', (200, {'accessToken': 'tok-1'})),
+            ('GET', r'^https://uag\.test:9443/rest/v1/config/system$', (200, {'uagName': 'uag01'})),
+            ('GET', r'^https://uag\.test:9443/rest/v1/config/certs/ssl/(end_user|admin)$',
+             lambda c: (200, json.dumps({'certChainPem': self.held[c['url'].rsplit('/', 1)[1]]}).encode())),
+            ('PUT', r'^https://uag\.test:9443/rest/v1/config/certs/ssl/(end_user|admin)$', put),
+        ])
+
+    def target(self, **cfg):
+        c = {'host': 'uag.test', 'user': 'admin', 'password': 'pw'}
+        c.update(cfg)
+        return make('omnissa_uag', c, self.ctx)
+
+    def test_end_user_token_noop(self):
+        t = self.target()
+        a = FakeBundle()
+        self.assertIn('end_user', t.deploy(a, {'key_format': 'pkcs8'}))
+        put = self.ctx.find('PUT', r'certs/ssl/end_user$')
+        self.assertEqual(len(put), 1)
+        self.assertEqual(self.ctx.find('PUT', r'certs/ssl/admin$'), [])
+        login = self.ctx.find('POST', r'jwt/login$')
+        self.assertEqual(len(login), 1)
+        self.assertEqual(body(login[0]), {'username': 'admin', 'password': 'pw',
+                                          'refreshTokenExpiryInHours': 3})
+        self.assertNotIn('Authorization', login[0]['headers'])
+        self.assertEqual(put[0]['headers']['Authorization'], 'Bearer tok-1')
+        b = body(put[0])
+        self.assertEqual(b['certChainPem'], a.fullchain_pem)          # the leaf, then the chain
+        self.assertEqual(b['privateKeyPem'], a.key_pem)
+        self.assertTrue(t.deploy(a, {'key_format': 'pkcs8'}).startswith('unchanged'))
+        self.held['end_user'] = ''                                     # replaced by hand meanwhile
+        self.assertFalse(t.deploy(a, {'key_format': 'pkcs8'}).startswith('unchanged'))
+        self.assertIn('uag01', t.test())
+
+    def test_both_admin_last_basic_traditional_key(self):
+        t = self.target(auth='basic')
+        a = FakeBundle()
+        a.key_type = 'rsa-2048'
+        trad = '-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----\n'
+        a.as_format = (lambda f, *x, **k: trad.encode() if f == 'key-traditional'
+                       else FakeBundle.as_format(a, f, *x, **k))
+        t.deploy(a, {'scope': 'both'})
+        puts = [c['url'].rsplit('/', 1)[1] for c in self.ctx.calls if c['method'] == 'PUT']
+        self.assertEqual(puts, ['end_user', 'admin'])                  # the admin one last
+        self.assertEqual(self.ctx.find('POST', r'jwt/login$'), [])
+        put = self.ctx.find('PUT', r'admin$')[0]
+        self.assertEqual(put['headers']['Authorization'],
+                         'Basic ' + base64.b64encode(b'admin:pw').decode())
+        self.assertEqual(body(put)['privateKeyPem'], trad)
+        with self.assertRaises(PluginError) as e:
+            t.deploy(a, {'scope': 'nope', 'force': True})
+        self.assertFalse(e.exception.retry)
 
 
 # ---------------------------------------------------------------------------
