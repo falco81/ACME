@@ -57,7 +57,7 @@ class TraefikTarget(SshMixin, Base):
         field('default_cert', 'Also the default certificate', 'bool', default=False,
               help='tls.stores.default.defaultCertificate: served when no other one matches'),
         keep_field(1),
-    ] + verify_fields()
+    ] + F.file_fields() + verify_fields()
 
     def folder(self, options, key):
         p = text(self.opt(options, key)).strip().rstrip('/') or '/'
@@ -98,13 +98,14 @@ class TraefikTarget(SshMixin, Base):
                  {'path': conf, 'data': ('\n'.join(yml) + '\n').encode(), 'mode': 0o644,
                   'owner': None}]
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and F.all_same(self, s, files):
+            if not as_bool(options.get('force')) and F.skip_same(options) and \
+                    F.all_same(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s' % conf)
             # the certificate first, the configuration naming it last
-            F.write_files(self, s, files[:2])
-            F.write_files(self, s, files[2:])
-            F.drop_previous(self, s, files)
+            F.write_files(self, s, files[:2], options=options)
+            F.write_files(self, s, files[2:], options=options)
+            F.drop_previous(self, s, files, options)
             self.ctx.step('wrote %s.crt/.key and %s' % (name, conf), 'ok')
             self.cleanup(s, cdir, prefix, name, self.keep(options))
         self.remember(bundle, options)

@@ -42,8 +42,7 @@ class EsxiTarget(SshMixin, Base):
               options=[['hostd_vpxa', 'hostd and vpxa'], ['services', 'every service '
                                                                        '(services.sh restart)'],
                        ['none', 'nothing (done by hand)']]),
-        field('backup', 'Keep the previous files as .acme-prev', 'bool', default=True),
-    ] + verify_fields()
+    ] + F.file_fields() + verify_fields()
 
     def test(self):
         with self.ssh() as s:
@@ -58,10 +57,11 @@ class EsxiTarget(SshMixin, Base):
                  {'path': SSL + '/rui.key', 'data': bundle.as_format('key-rsa'),
                   'mode': 0o400, 'owner': None}]
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and F.all_same(self, s, files):
+            if not as_bool(options.get('force')) and F.skip_same(options) and \
+                    F.all_same(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in rui.crt / rui.key')
-            existed = F.write_files(self, s, files)
+            existed = F.write_files(self, s, files, options=options)
             self.ctx.step('wrote %s/rui.crt and rui.key' % SSL, 'ok')
             how = self.opt(options, 'restart', 'hostd_vpxa')
             cmd = {'hostd_vpxa': '/etc/init.d/hostd restart && /etc/init.d/vpxa restart',
@@ -74,8 +74,7 @@ class EsxiTarget(SshMixin, Base):
                     raise PluginError('"%s" failed, the previous certificate is back: %s'
                                       % (cmd, (text(err).strip() or text(out).strip())[-300:]))
                 self.ctx.step('ran %s' % cmd, 'ok')
-            if not as_bool(self.opt(options, 'backup', True), True):
-                F.drop_previous(self, s, files)
+            F.drop_previous(self, s, files, options)
         self.remember(bundle, options)
         return 'rui.crt / rui.key written on %s%s' % (self.c('host'),
                                                      ', hostd restarted' if cmd else '')

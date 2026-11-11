@@ -5,22 +5,26 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.77 - not released
-- Deployments that write files (Linux/Unix over SSH, this machine, Windows over SSH): **a
-  file that already holds the same is left alone** - each one compared with the new one by
-  its SHA-256 first (*Leave a file alone when it is the same (SHA-256)*, on by default, can be
-  switched off to write every file each time). Only the files that differ are replaced; the
-  job says which were left (*left as they are, the same SHA-256 there already*), and the
-  deployment is fine (green) - when every file is the same and acme had deployed it there,
-  nothing is done at all; when the files are the same but the last deployment did not get
-  to its reload, nothing is written and the commands run. Before, one changed file had all of
-  them written again.
-- The same deployments: **Before replacing a file** - *keep it as .bak* (the last one, as
-  before), *keep it with the date and time* (`file.20261111-153000.bak`), *keep it with the
-  date* (`file.2026-11-11.bak`) or *just overwrite it*; *Dated copies kept* (5) deletes the
-  older dated copies. A failing test or reload still puts the previous files back, whichever
-  is chosen. The old switch *Keep the previous files as .bak* is read as the first or the last
-  choice. A temporary `.acme-prev` copy is no longer left behind after the files were put
-  back.
+- **Every target that writes files** on the machine it reaches - Linux/Unix over SSH, this
+  machine, Windows over SSH, Caddy (files), ESXi, HAProxy, strongSwan, Traefik, Zimbra - has
+  the same two choices, both on by default and each can be switched off:
+  - **Leave a file alone when it is the same (SHA-256)**: each file compared with the one
+    there by its SHA-256 first (`sha256sum`, `Get-FileHash`); only those that differ are
+    replaced. The job says which were left (*left as they are, the same SHA-256 there
+    already*) and the deployment is fine (green), never failed - when every file is the same
+    and acme had deployed it there, nothing is done at all; when the files are the same but
+    the last deployment did not get to its reload, nothing is written and the commands run.
+    Before, one changed file had all of them written again.
+  - **Keep a copy of a file replaced**, with **Name of the copy** to choose:
+    `name.20261111-153000.bak` (the default: its original name, the date and time, `.bak`),
+    `name.2026-11-11.bak` (one a day), `.acme-backup/name.20261111-153000.bak` (in a folder
+    beside it - the default of HAProxy and strongSwan, which load their folders whole, and of
+    the HAProxy preset) or `name.bak` (the last one only); *Copies kept* (5) deletes the older
+    dated copies. A failing test or reload still puts the previous files back either way. The
+    old switch *Keep the previous files as .bak* is read as this switch. A temporary
+    `.acme-prev` copy is no longer left behind after the files were put back.
+- Settings → Accounts: *Czech and Slovak letters in names* and *Letters of other languages in
+  names* side by side (one stood before the groups, the other after them).
 - Console (`acme --console`) - what the pages do, also there: **Tests** (add, change, try, run,
   the SSH key), a certificate's tests (attach, run, after which deployment, switched off for
   that certificate, take off), **Run the tests** with a report by mail / SMS, import a

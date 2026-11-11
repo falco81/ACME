@@ -46,7 +46,7 @@ class StrongswanTarget(SshMixin, Base):
                    'ipsec.d) for stroke'),
         field('file_name', 'File name', 'text', advanced=True,
               help='<this>.crt and <this>.key; empty: the certificate\'s name'),
-    ]
+    ] + F.file_fields('folder')     # swanctl --load-creds reads its folders whole
 
     def test(self):
         with self.ssh() as s:
@@ -77,10 +77,11 @@ class StrongswanTarget(SshMixin, Base):
                           'data': pem.encode(), 'mode': 0o644, 'owner': None})
         cmd = 'swanctl --load-creds' if mode != 'stroke' else 'ipsec rereadall'
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and F.all_same(self, s, files):
+            if not as_bool(options.get('force')) and F.skip_same(options) and \
+                    F.all_same(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s' % files[0]['path'])
-            existed = F.write_files(self, s, files)
+            existed = F.write_files(self, s, files, options=options, fmt='folder')
             self.ctx.step('wrote %s and its key' % files[0]['path'], 'ok')
             rc, out, err = self.sh(s, cmd, check=False)
             if rc != 0:
@@ -89,6 +90,6 @@ class StrongswanTarget(SshMixin, Base):
                 raise PluginError('"%s" failed, the previous files are back: %s'
                                   % (cmd, (text(err) or text(out)).strip()[-300:]))
             self.ctx.step('ran %s' % cmd, 'ok')
-            F.drop_previous(self, s, files)
+            F.drop_previous(self, s, files, options)
         self.remember(bundle, options)
         return '%s written, %s' % (files[0]['path'], cmd)

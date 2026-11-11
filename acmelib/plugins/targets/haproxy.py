@@ -57,7 +57,7 @@ class HaproxyTarget(SshMixin, Base):
         field('reload_cmd', 'Reload when the Runtime API cannot', 'text', advanced=True,
               placeholder='systemctl reload haproxy',
               help='run instead when the socket is not there or refuses; empty: fail'),
-    ] + verify_fields()
+    ] + F.file_fields('folder') + verify_fields()   # a crt folder is read whole: the copies apart
 
     def path(self, options):
         p = text((options or {}).get('cert_path')).strip()
@@ -104,12 +104,13 @@ class HaproxyTarget(SshMixin, Base):
         files = [{'path': path, 'data': pem, 'mode': 0o600, 'owner': None}]
         want = norm_fp(bundle.serial).lstrip('0')
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and F.all_same(self, s, files) and \
+            if not as_bool(options.get('force')) and F.skip_same(options) and \
+                    F.all_same(self, s, files) and \
                     (self.served_serial(s, path) or '').lstrip('0') == want:
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s and served' % path)
-            existed = F.write_files(self, s, files)
-            F.drop_previous(self, s, files)
+            existed = F.write_files(self, s, files, options=options, fmt='folder')
+            F.drop_previous(self, s, files, options)
             self.ctx.step('wrote %s' % path, 'ok')
             try:
                 how = self.swap(s, path, pem, options, known=existed[0])

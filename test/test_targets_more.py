@@ -399,7 +399,8 @@ class EsxiTest(unittest.TestCase):
         with self.assertRaises(PluginError) as e:
             t3.deploy(a, {})
         self.assertIn('previous certificate is back', str(e.exception))
-        self.assertTrue(any('rui.crt.acme-prev' in c and 'cp -p' in c and 'mv' not in c
+        # put back from the copy kept (1.0.77: rui.crt.<date>-<time>.bak by default)
+        self.assertTrue(any(re.search(r'rui\.crt\.\d{8}-\d{6}\.bak', c) and 'cp -p' in c and 'mv' not in c
                             for c, _ in ssh3.runs))
 
 

@@ -64,6 +64,8 @@ PRESETS = {
     'haproxy': {
         'title': 'HAProxy (key + chain in one PEM)',
         'outputs': ['combined-pem /etc/haproxy/certs/{name}.pem 0600 root:root'],
+        # HAProxy reads its crt folder whole: a copy beside the file would be loaded too
+        'backup_format': 'folder',
         # a dual certificate: two files, "crt /etc/haproxy/certs/" (the folder) or a
         # crt-list loads both - not the bundle (site.pem.ecdsa), gone since HAProxy 2.3
         'dual_outputs': ['combined-pem@ec /etc/haproxy/certs/{name}.ecdsa.pem 0600 root:root',
@@ -123,7 +125,7 @@ PRESETS = {
             'kubectl create secret tls {service} --cert=/run/acme-k8s/{name}.crt '
             '--key=/run/acme-k8s/{name}.key --dry-run=client -o yaml | kubectl apply -f -',
             'rm -f /run/acme-k8s/{name}.crt /run/acme-k8s/{name}.key'],
-        'service': 'web-tls', 'backup': 'none'},
+        'service': 'web-tls', 'backup': False},
     'webmin': {
         'title': 'Webmin',
         'outputs': ['combined-pem /etc/webmin/miniserv.pem 0600 root:root',
@@ -173,7 +175,7 @@ def _preset_fills():
         for key in ('outputs', 'test_cmd', 'reload_cmd'):
             if p.get(key):
                 d[key] = '\n'.join(p[key])
-        for key in ('service', 'jks_alias', 'backup'):
+        for key in ('service', 'jks_alias', 'backup', 'backup_format'):
             if key in p:
                 d[key] = p[key]
         if p.get('port'):
@@ -223,8 +225,7 @@ class SshTarget(SshMixin, Base):
     ] + SC.password_fields() + [
         field('service', 'Service / container / secret name', 'text', advanced=True,
               help='{service} in the paths and commands'),
-        F.same_field(),
-    ] + F.backup_fields() + [
+    ] + F.file_fields() + [
     ] + SC.script_fields(INTERPS) + [
         field('pre_cmd', 'Before writing', 'list', advanced=True,
               help='commands run first; one failing stops the deployment'),
@@ -260,7 +261,7 @@ class SshTarget(SshMixin, Base):
         preset = PRESETS.get(options.get('preset') or 'custom') or PRESETS['custom']
         out = {}
         for key in ('outputs', 'test_cmd', 'reload_cmd', 'service', 'jks_alias', 'pfx_password',
-                    'backup', 'skip_same', 'backup_keep'):
+                    'backup', 'backup_format', 'skip_same', 'backup_keep'):
             v = options.get(key)
             if key == 'outputs' and preset.get('outputs') and \
                     lines(v) in ([], lines(preset['outputs'])):
@@ -272,7 +273,8 @@ class SshTarget(SshMixin, Base):
             out[key] = v
         for key in ('pre_cmd', 'post_cmd'):
             out[key] = options.get(key)
-        out['backup'] = F.backup_mode({'backup': out['backup']})
+        out['backup'] = F.backup_mode({'backup': out['backup'],
+                                       'backup_format': out['backup_format']})
         out['skip_same'] = F.skip_same({'skip_same': out['skip_same']})
         out['backup_keep'] = F.backup_keep({'backup_keep': out['backup_keep']})
         name = label_of(bundle, options)
@@ -335,7 +337,10 @@ class SshTarget(SshMixin, Base):
         tmpdir = (self.c('tmp_dir') or '/tmp').rstrip('/')
         token = secrets.token_hex(6)
         mode = r['backup']
-        suffix = F.backup_suffix(mode)
+        stamp = time.time()
+
+        def bak(f):
+            return F.backup_path(f['path'], mode, stamp)
 
         before = self._written(options)
         stale = [p for p in before if p not in {f['path'] for f in files}]
@@ -363,14 +368,16 @@ class SshTarget(SshMixin, Base):
                     tmp = '%s/.acme-%s-%d' % (tmpdir, token, i)
                     s.put(data, tmp, 0o600)
                     tmps.append(tmp)
-                existed = self._install(s, wfiles, tmps, suffix) if wfiles else []
+                existed = self._install(s, wfiles, tmps, bak) if wfiles else []
                 if wfiles:
-                    self.ctx.step('wrote %s%s' % (', '.join(f['path'] for f in wfiles), '' if mode == 'none'
-                                                  else ' (the previous kept as *%s)' % suffix), 'ok')
+                    self.ctx.step('wrote %s' % ', '.join(f['path'] for f in wfiles), 'ok')
+                    if mode != 'none' and any(existed):
+                        self.ctx.step('the files replaced kept as %s' % ', '.join(
+                            bak(f) for f, was in zip(wfiles, existed) if was))
                 moved = self._stale_aside(s, stale)
                 failed = self._commands(s, r['test_cmd'], 'test')
                 if failed:
-                    self._rollback(s, wfiles, existed, suffix)
+                    self._rollback(s, wfiles, existed, bak)
                     self._stale_back(s, moved)
                     raise PluginError('the test "%s" failed, the previous files are back: %s'
                                       % failed, retry=False)
@@ -379,7 +386,7 @@ class SshTarget(SshMixin, Base):
                     rc, out, err = SC.run_posix(self, s, r['script'], env, tmpdir)
                     said = SC.tell(self, r['script'], rc, out, err)
                     if rc != 0:
-                        self._rollback(s, wfiles, existed, suffix)
+                        self._rollback(s, wfiles, existed, bak)
                         self._stale_back(s, moved)
                         raise PluginError('%s failed (exit %s), the previous files are back%s'
                                           % (SC._what(r['script']), rc,
@@ -387,12 +394,12 @@ class SshTarget(SshMixin, Base):
                                              else ''), retry=False)
                 failed = self._commands(s, r['reload_cmd'], 'reload')
                 if failed:
-                    self._rollback(s, wfiles, existed, suffix)
+                    self._rollback(s, wfiles, existed, bak)
                     self._stale_back(s, moved)
                     self._commands(s, r['reload_cmd'], 'reload with the previous files')
                     raise PluginError('"%s" failed, the previous files are back: %s' % failed)
                 self._stale_gone(s, moved)
-                self._after_backup(s, wfiles, existed, mode, suffix, r['backup_keep'])
+                self._after_backup(s, wfiles, existed, mode, bak, r['backup_keep'])
                 for c in r['post_cmd']:
                     rc, out, err = self.sh(s, c, check=False)
                     self.ctx.step('ran %s%s' % (c, '' if rc == 0 else ' - failed: %s'
@@ -430,15 +437,15 @@ class SshTarget(SshMixin, Base):
                 out.append(have.get(f['path']) == want[f['path']])
         return out
 
-    def _after_backup(self, s, files, existed, mode, suffix, keep):
+    def _after_backup(self, s, files, existed, mode, bak, keep):
         """After a deployment that went through: the copies only for putting back removed;
         of dated ones, the older beyond `keep` deleted."""
         if not files:
             return
         if mode == 'none':
-            self.sh(s, 'rm -f ' + ' '.join(quote(f['path'] + suffix) for f in files), check=False)
-        elif mode in ('dated', 'daily') and keep:
-            script = [F.prune_posix(f['path'], keep) for f, was in zip(files, existed) if was]
+            self.sh(s, 'rm -f ' + ' '.join(quote(bak(f)) for f in files), check=False)
+        elif mode in ('dated', 'daily', 'folder') and keep:
+            script = [F.prune_posix(f['path'], mode, keep) for f, was in zip(files, existed) if was]
             if script:
                 self.sh(s, '\n'.join(script), check=False)
 
@@ -597,7 +604,7 @@ class SshTarget(SshMixin, Base):
                                            for x in ('.acme-stale', '.bak', '.acme-prev')),
                     check=False)
 
-    def _install(self, s, files, tmps, suffix):
+    def _install(self, s, files, tmps, bak):
         """mkdir -p, the old file copied aside, the new one copied next to its
         place, its mode and owner set, then moved over (rename: atomic).
         -> [True/False: was there one before], one a file."""
@@ -607,8 +614,8 @@ class SshTarget(SshMixin, Base):
             new = quote(f['path'] + '.acme-new')
             script += [
                 'mkdir -p "$(dirname %s)"' % p,
-                'if [ -e %s ]; then cp -p %s %s; echo "EXISTED %d"; fi' % (
-                    p, p, quote(f['path'] + suffix), i),
+                'if [ -e %s ]; then mkdir -p "$(dirname %s)"; cp -p %s %s; echo "EXISTED %d"; fi'
+                % (p, quote(bak(f)), p, quote(bak(f)), i),
                 'cp %s %s' % (quote(tmp), new),
                 'chmod %o %s' % (f['mode'], new),
             ]
@@ -627,13 +634,13 @@ class SshTarget(SshMixin, Base):
         if rc != 0:
             # Only the files put in place are put back (1.0.48): the ones after the failure
             # were never touched - "not there before" had them deleted, live ones too.
-            self._rollback(s, files, existed, suffix, placed)
+            self._rollback(s, files, existed, bak, placed)
             raise PluginError('the files could not be written, the previous ones are back: %s'
                               % (err.strip() or out.strip())[-300:],
                               detail='\n'.join(script) + '\n' + out + err)
         return existed
 
-    def _rollback(self, s, files, existed, suffix, placed=None):
+    def _rollback(self, s, files, existed, bak, placed=None):
         script = []
         for i, (f, was) in enumerate(zip(files, existed)):
             p = quote(f['path'])
@@ -641,9 +648,9 @@ class SshTarget(SshMixin, Base):
                 script.append('rm -f %s' % quote(f['path'] + '.acme-new'))
                 continue
             if was:
-                script.append('cp -p %s %s' % (quote(f['path'] + suffix), p))
-                if suffix == '.acme-prev':      # only for putting back: done with (1.0.77)
-                    script.append('rm -f %s' % quote(f['path'] + suffix))
+                script.append('cp -p %s %s' % (quote(bak(f)), p))
+                if bak(f).endswith(F.PREV):     # only for putting back: done with (1.0.77)
+                    script.append('rm -f %s' % quote(bak(f)))
             else:
                 script.append('rm -f %s' % p)
             script.append('rm -f %s' % quote(f['path'] + '.acme-new'))

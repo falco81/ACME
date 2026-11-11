@@ -51,7 +51,7 @@ class ZimbraTarget(SshMixin, Base):
               options=[['zmcontrol', 'every Zimbra service (zmcontrol restart)'],
                        ['proxy_mailbox', 'proxy, mailbox and MTA only'],
                        ['none', 'nothing (done by hand)']]),
-    ] + verify_fields()
+    ] + F.file_fields() + verify_fields()
 
     def zm(self, s, cmd, what, timeout=600, check=True):
         return self.sh(s, 'su - zimbra -c %s' % quote(cmd), timeout=timeout, check=check,
@@ -78,13 +78,13 @@ class ZimbraTarget(SshMixin, Base):
         key = [{'path': COMM + '/commercial.key', 'data': bundle.as_format('key-rsa'),
                 'mode': 0o640, 'owner': 'zimbra:zimbra'}]
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and \
+            if not as_bool(options.get('force')) and F.skip_same(options) and \
                     F.all_same(self, s, key + [{'path': COMM + '/commercial.crt',
                                                 'data': bundle.as_format('cert-pem')}]):
                 self.remember(bundle, options)
                 return self.same(bundle, 'deployed in Zimbra')
             F.write_files(self, s, work)
-            existed = F.write_files(self, s, key)
+            existed = F.write_files(self, s, key, options=options)
             try:
                 rc, out, err = self.zm(s, 'zmcertmgr verifycrt comm %s %s %s' % (
                     COMM + '/commercial.key', WORK + '/cert.pem', WORK + '/chain.pem'),
@@ -104,7 +104,7 @@ class ZimbraTarget(SshMixin, Base):
                 self.ctx.step('zmcertmgr deploycrt comm: deployed', 'ok')
             finally:
                 self.sh(s, 'rm -f %s/cert.pem %s/chain.pem' % (WORK, WORK), check=False)
-            F.drop_previous(self, s, key)
+            F.drop_previous(self, s, key, options)
             how = self.opt(options, 'restart', 'zmcontrol')
             cmd = {'zmcontrol': 'zmcontrol restart',
                    'proxy_mailbox': 'zmproxyctl restart; zmmailboxdctl restart; zmmtactl restart'

@@ -348,7 +348,10 @@ class SshDeployTest(unittest.TestCase):
         self.assertEqual(read(self.crt), b.fullchain_pem)
         self.assertEqual(read(self.key), b.key_pem)
         self.assertEqual(os.stat(self.key).st_mode & 0o777, 0o600)
-        self.assertEqual(read(self.crt + '.bak'), 'OLD CERT\n')
+        kept = [x for x in os.listdir(os.path.dirname(self.crt)) if x.startswith('site.crt.')
+                and x.endswith('.bak')]                       # name.<date>-<time>.bak (1.0.77)
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(read(os.path.join(os.path.dirname(self.crt), kept[0])), 'OLD CERT\n')
         self.assertFalse([f for f in os.listdir(self.d) if f.startswith('.acme-')])  # temp gone
         self.assertTrue(any(c.startswith('sh -c') and 'echo reloaded' in c
                             for c, _ in self.ssh.runs))

@@ -172,7 +172,7 @@ pfx            /opt/app/keystore.p12       0640  app:app
 
 **How it is written**: each file is uploaded to `/tmp` (*Folder for uploads*)
 first; then in one script, through sudo when asked: `mkdir -p` the folder,
-the old file copied aside (see *Before replacing a file* below), the new one copied to `<path>.acme-new`
+the old file copied aside (see *Keep a copy of a file replaced* below), the new one copied to `<path>.acme-new`
 beside it, `chmod`, `chown`, and `mv -f` over the old one (a rename: atomic,
 nothing ever reads half a file). Then:
 
@@ -187,10 +187,17 @@ nothing ever reads half a file). Then:
 
 ### The files already there (1.0.77)
 
-**Leave a file alone when it is the same (SHA-256)** - on unless switched off.
-Before anything is written, each file there is compared with the new one by its
-SHA-256 (`sha256sum` on the server, `Get-FileHash` on Windows, read directly by
-the `local` target):
+Every target that writes files on the machine it reaches works the same way:
+`ssh`, `local`, `windows_ssh`, `caddy` (files), `esxi`, `haproxy`,
+`strongswan`, `traefik` and `zimbra`. (The others hand the certificate to a
+device's API or a command - a temporary upload at most, nothing kept there to
+compare or to copy.) Two choices of the deployment, both **on** by default and
+both can be switched off:
+
+**Leave a file alone when it is the same (SHA-256)**. Before anything is
+written, each file there is compared with the new one by its SHA-256
+(`sha256sum` on the server, `Get-FileHash` on Windows, read directly by the
+`local` target):
 
 - a file that already holds exactly the new bytes is **not replaced** and not
   copied aside; the job says which ones: *left as they are, the same SHA-256
@@ -207,28 +214,34 @@ the `local` target):
 - PKCS#12, keystores and `p7b` come out different every time they are made
   (a random salt), so they count as the same only when acme deployed this
   certificate here as it is now.
-- *Deploy again* (force) writes every file whatever this says.
+- *Deploy again* (force) writes every file whatever this says. Off: every file
+  is written each time.
 
-Off: every file is written each time.
+**Keep a copy of a file replaced** - the file there copied before the new one
+replaces it; off, it is just overwritten. **Name of the copy** (a choice):
 
-**Before replacing a file** - what happens to the one there:
-
-| Choice | The file kept | |
+| Name of the copy | e.g. for `/etc/nginx/ssl/site.crt` | |
 |---|---|---|
-| keep it as .bak (the last one only) | `<path>.bak` | the default of `ssh` (as before 1.0.77) |
-| keep it with the date and time | `<path>.20261111-153000.bak` | one per deployment |
-| keep it with the date | `<path>.2026-11-11.bak` | one per day, the day's first replaced by a later one |
-| just overwrite it | none | the default of `local` and `windows_ssh` |
+| name.20261111-153000.bak (**default**) | `/etc/nginx/ssl/site.crt.20261111-153000.bak` | its original name, the date and time, `.bak` - one per deployment |
+| name.2026-11-11.bak | `/etc/nginx/ssl/site.crt.2026-11-11.bak` | one per day, a later one that day replaces it |
+| .acme-backup/name.20261111-153000.bak | `/etc/nginx/ssl/.acme-backup/site.crt.20261111-153000.bak` | in a folder beside it (made when needed) - the default of `haproxy`, `strongswan` and the *HAProxy* preset |
+| name.bak | `/etc/nginx/ssl/site.crt.bak` | the last one only |
 
-*Dated copies kept* (5): of each file, the newest so many dated copies stay and
-the older are deleted after a deployment that went through (0: all kept). Only
-copies named `<path>.<digits and dashes>.bak` are counted.
+**Copies kept** (5, under More): of each file, the newest so many dated copies
+stay and the older are deleted after a deployment that went through (0: all
+kept). Only copies named `<name>.<digits and dashes>.bak` are counted - nothing
+else in the folder is touched.
+
+A program that reads a **whole folder** - HAProxy's `crt /etc/haproxy/certs/`,
+strongSwan's `x509/` and `private/` - would load a copy beside the file as one
+more certificate. That is why those take the folder `.acme-backup` beside it
+(they do not read the folders inside); choose it too for any other such folder.
 
 Whichever is chosen, a failing test, script or reload puts the previous files
-back: from the copy kept, or with *just overwrite it* from a temporary
-`<path>.acme-prev` that is removed once the deployment went through (or after
-it was put back). A deployment saved before 1.0.77 with *Keep the previous files
-as .bak* on is *keep it as .bak*, off is *just overwrite it*.
+back: from the copy kept, or - with no copy wanted - from a temporary
+`<path>.acme-prev` removed once the deployment went through (or after it was
+put back). A deployment saved before 1.0.77: *Keep the previous files as .bak*
+on is *Keep a copy* on (now named with the date and time), off is off.
 
 **Service presets** fill whatever you leave empty (what you set wins); the
 field carries the values in `fills` so the page can show them:
@@ -467,9 +480,10 @@ volume). The *Files* lines are as for `ssh` but the paths are inside that
 folder (`fullchain-pem {name}/fullchain.pem`); a path leading outside it -
 `..`, an absolute path elsewhere, or a link - is refused. Each file is
 written to a temporary file in the same folder and renamed into place.
-*Leave a file alone when it is the same (SHA-256)* and *Before replacing a
-file* work as for `ssh` (see *The files already there*); here the default is
-*just overwrite it*, so nothing else appears in the folder unless asked.
+*Leave a file alone when it is the same (SHA-256)* and *Keep a copy of a file
+replaced* work as for `ssh` (see *The files already there*): the copies go
+beside the files in the folder - choose *.acme-backup/...* or switch the copy
+off when whatever picks the folder up must see only the certificates.
 
 *Then run* runs one command - only one listed, exactly, in the target's
 *Commands allowed* (set by a full admin); it is run without a shell, as the
@@ -606,8 +620,7 @@ that import). After it:
    instance, or a WinRM listener. When a role is on, the import itself removes nothing;
 4. the files and the script after them (see above), then the TLS checks of *verify*.
    The files: *Leave a file alone when it is the same (SHA-256)* (`Get-FileHash`) and
-   *Before replacing a file* as for `ssh` (*The files already there*); the default here is
-   *just overwrite it*.
+   *Keep a copy of a file replaced* as for `ssh` (*The files already there*).
 
 The roles that need a PFX (RDS, SharePoint) get a second upload with a one-time password.
 CCS gets one locked with the store's password. Both are deleted at the end, whatever
@@ -1166,6 +1179,8 @@ documents have only the SOAP `HostCertificateManager` (an own key only from
 `NotifyAffectedServices`); the SSH way here is not in them - nothing
 changed.
 
+`rui.crt` / `rui.key`: *Leave a file alone when it is the same (SHA-256)* and *Keep a copy of a file replaced* (name.<date>-<time>.bak by default; the old switch *Keep the previous files as .acme-prev* is read as it) - see `ssh`, *The files already there* (1.0.77).
+
 ## `redfish` - server management controllers (iDRAC, iLO, XCC, BMC)
 
 Standard Redfish: signs in with a session (`X-Auth-Token`; or basic auth),
@@ -1330,6 +1345,8 @@ disk"), the PEM without empty lines (acme's PEMs have none). Not used: the
 <name>` replaces the file and tries the same runtime swap, else a reload) -
 a different way in, for a later target.
 
+The PEM: *Leave a file alone when it is the same (SHA-256)* and *Keep a copy of a file replaced* - by default in `.acme-backup/` beside it, since a `crt` folder is loaded whole and a copy beside it would be served too - see `ssh`, *The files already there* (1.0.77).
+
 ## `traefik` - Traefik Proxy (file provider)
 
 Over SSH: `acme-<name>-<date>-<serial>.crt/.key` in *Folder for the
@@ -1343,6 +1360,8 @@ Older certificate files beyond *keep* are deleted.
 `--providers.file.directory=/etc/traefik/dynamic --providers.file.watch=true`.
 
 Source: <https://doc.traefik.io/traefik/https/tls/#user-defined>.
+
+The certificate, key and the file provider's file: *Leave a file alone when it is the same (SHA-256)* and *Keep a copy of a file replaced* (name.<date>-<time>.bak; Traefik reads only `.yml`/`.toml` there) - see `ssh`, *The files already there* (1.0.77).
 
 ## `caddy` - Caddy
 
@@ -1358,6 +1377,8 @@ the reload fails.
 
 Source: <https://caddyserver.com/docs/api>,
 <https://caddyserver.com/docs/json/apps/tls/certificates/load_pem/>.
+
+In the *files* way, the files: *Leave a file alone when it is the same (SHA-256)* and *Keep a copy of a file replaced* (name.<date>-<time>.bak by default) - see `ssh`, *The files already there* (1.0.77).
 
 ## `nginx_unit` - NGINX Unit
 
@@ -1382,6 +1403,8 @@ has no root: give *Root CA certificate* (ISRG Root X1 / X2).
 **Rights**: root (or sudo) on every Zimbra server - one target each.
 
 Source: <https://wiki.zimbra.com/wiki/Installing_a_LetsEncrypt_SSL_Certificate>.
+
+`commercial.key`: *Leave a file alone when it is the same (SHA-256)* and *Keep a copy of a file replaced* (name.<date>-<time>.bak by default) - see `ssh`, *The files already there* (1.0.77).
 
 ## `truenas` - TrueNAS
 
@@ -1433,6 +1456,8 @@ files are put back when that fails.
 **Rights**: root or sudo.
 
 Source: <https://docs.strongswan.org/docs/latest/swanctl/swanctlDir.html>.
+
+The files: *Leave a file alone when it is the same (SHA-256)* and *Keep a copy of a file replaced* - by default in `.acme-backup/` beside them, since `swanctl --load-creds` loads its folders whole - see `ssh`, *The files already there* (1.0.77).
 
 ## `fritzbox` - AVM FRITZ!Box
 

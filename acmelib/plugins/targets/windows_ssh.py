@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import secrets
+import time
 
 from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, lines, as_bool, as_int, object_name, name_prefix,
@@ -74,8 +75,7 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
     ] + SC.password_fields() + [
         field('service', 'Service name', 'text', advanced=True,
               help='{service} in the paths, ACME_SERVICE for the script'),
-        F.same_field(),
-    ] + F.backup_fields('none') + SC.script_fields(INTERPS, default='powershell') + WR.role_fields() + verify_fields()
+    ] + F.file_fields() + SC.script_fields(INTERPS, default='powershell') + WR.role_fields() + verify_fields()
     files_ui = SC.files_ui('windows', INTERPS, SC.layouts('C:/certs', 'windows'),
                            owners=False)
 
@@ -225,9 +225,14 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
     def _tmp(self):
         return (self.c('tmp_dir') or 'C:/Windows/Temp').rstrip('/\\')
 
-    def _write_files(self, s, pairs, datas, suffix='.acme-prev'):
-        """Each uploaded, then moved into place, the one there kept as <path><suffix>
-        (.acme-prev, .bak or dated). -> the paths that were there before."""
+    @staticmethod
+    def _prev(path):
+        return path + F.PREV
+
+    def _write_files(self, s, pairs, datas, bak=None):
+        """Each uploaded, then moved into place, the one there kept as bak(path) (beside it
+        dated, .bak, in .acme-backup, or .acme-prev). -> the paths that were there before."""
+        bak = bak or self._prev
         token = secrets.token_hex(6)
         tmps = []
         for i, data in enumerate(datas):
@@ -237,13 +242,15 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
         for (o, _b), tmp in zip(pairs, tmps):
             p = ps_str(o['path'])
             sc += ["New-Item -ItemType Directory -Force -Path (Split-Path -Parent %s) | Out-Null" % p,
-                   "if (Test-Path -LiteralPath %s) { Copy-Item -LiteralPath %s -Destination %s "
-                   "-Force; Write-Output ('HAD ' + %s) }" % (p, p, ps_str(o['path'] + suffix), p),
+                   "if (Test-Path -LiteralPath %s) { New-Item -ItemType Directory -Force -Path "
+                   "(Split-Path -Parent %s) | Out-Null; Copy-Item -LiteralPath %s -Destination %s "
+                   "-Force; Write-Output ('HAD ' + %s) }" % (p, ps_str(bak(o['path'])), p,
+                                                           ps_str(bak(o['path'])), p),
                    "Move-Item -LiteralPath %s -Destination %s -Force" % (ps_str(tmp), p)]
         rc, out, err = self.run_ps(s, '\n'.join(sc), 'writing the files', check=False)
         had = [x[4:].strip() for x in out.splitlines() if x.startswith('HAD ')]
         if rc != 0:
-            self._put_back(s, pairs, had, suffix)
+            self._put_back(s, pairs, had, bak)
             self.run_ps(s, '; '.join("Remove-Item -LiteralPath %s -Force -ErrorAction "
                                      "SilentlyContinue" % ps_str(t) for t in tmps),
                         'cleaning up', check=False)
@@ -253,13 +260,14 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
         self.ctx.step('wrote %s' % ', '.join(o['path'] for o, _b in pairs), 'ok')
         return had
 
-    def _put_back(self, s, pairs, had, suffix='.acme-prev'):
+    def _put_back(self, s, pairs, had, bak=None):
+        bak = bak or self._prev
         sc = []
         for o, _b in pairs:
             p = ps_str(o['path'])
             if o['path'] in had:
                 sc.append("Copy-Item -LiteralPath %s -Destination %s -Force"
-                          % (ps_str(o['path'] + suffix), p))
+                          % (ps_str(bak(o['path'])), p))
             else:
                 sc.append("Remove-Item -LiteralPath %s -Force -ErrorAction SilentlyContinue" % p)
         if sc:
@@ -268,9 +276,10 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
                           'putting the previous files back failed: %s' % (err or out)[-200:],
                           'warn' if rc == 0 else 'bad')
 
-    def _drop_previous(self, s, pairs, suffix='.acme-prev'):
+    def _drop_previous(self, s, pairs, bak=None):
+        bak = bak or self._prev
         self.run_ps(s, '; '.join("Remove-Item -LiteralPath %s -Force -ErrorAction "
-                                 "SilentlyContinue" % ps_str(o['path'] + suffix)
+                                 "SilentlyContinue" % ps_str(bak(o['path']))
                                  for o, _b in pairs), 'cleaning up', check=False)
 
     def _same_files(self, s, pairs, datas):
@@ -291,20 +300,19 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
         hashes = dict(want)
         return [o['path'] in hashes and have.get(o['path']) == hashes[o['path']] for o, _b in pairs]
 
-    def _after_backup(self, s, pairs, had, mode, suffix, keep):
+    def _after_backup(self, s, pairs, had, mode, bak, keep):
         if mode == 'none':
-            self._drop_previous(s, pairs, suffix)
-        elif mode in ('dated', 'daily') and keep:
+            self._drop_previous(s, pairs, bak)
+        elif mode in ('dated', 'daily', 'folder') and keep:
             sc = []
             for o, _b in pairs:
                 if o['path'] not in had:
                     continue
-                name = o['path'].replace('\\', '/').rstrip('/').split('/')[-1]
-                sc.append("Get-ChildItem -LiteralPath (Split-Path -Parent %s) -File | Where-Object "
-                          "{ $_.Name -match %s } | Sort-Object LastWriteTime -Descending | "
-                          "Select-Object -Skip %d | Remove-Item -Force -ErrorAction SilentlyContinue"
-                          % (ps_str(o['path']), ps_str('^' + re.escape(name) + r'\.\d{4}[\d-]*\.bak$'),
-                             int(keep)))
+                folder, prefix = F.dated_pattern(o['path'], mode)
+                sc.append("Get-ChildItem -LiteralPath %s -File -ErrorAction SilentlyContinue | "
+                          "Where-Object { $_.Name -match %s } | Sort-Object LastWriteTime -Descending "
+                          "| Select-Object -Skip %d | Remove-Item -Force -ErrorAction SilentlyContinue"
+                          % (ps_str(folder), ps_str(F.dated_regex(prefix[:-1])), int(keep)))
             if sc:
                 self.run_ps(s, '\n'.join(sc), 'the older copies', check=False)
 
@@ -323,9 +331,12 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
             F.describe_same(self, left)
             keep = [(p, d) for p, d, x in zip(pairs, datas, same) if not x]
             pairs, datas = [p for p, _d in keep], [d for _p, d in keep]
-        mode = F.backup_mode(options, 'none')
-        suffix = F.backup_suffix(mode)
-        had = self._write_files(s, pairs, datas, suffix) if pairs else []
+        mode = F.backup_mode(options)
+        stamp = time.time()
+
+        def bak(path):
+            return F.backup_path(path, mode, stamp)
+        had = self._write_files(s, pairs, datas, bak) if pairs else []
         if sc:
             env = SC.env_for(self, bundle, every, vars, SC.password_of(options),
                              extra={'ACME_THUMBPRINT': sha1_thumb(bundle)})
@@ -333,12 +344,12 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
             said = SC.tell(self, sc, rc, out, err)
             if rc != 0:
                 if pairs:
-                    self._put_back(s, pairs, had, suffix)
+                    self._put_back(s, pairs, had, bak)
                 raise PluginError('%s failed (exit %s)%s%s' % (
                     SC._what(sc), rc, ', the previous files are back' if pairs else '',
                     (': ' + said.splitlines()[-1][-200:]) if said else ''), retry=False)
         if pairs:
-            self._after_backup(s, pairs, had, mode, suffix, F.backup_keep(options))
+            self._after_backup(s, pairs, had, mode, bak, F.backup_keep(options))
         return ', '.join(x for x in ('%d file%s' % (len(pairs), '' if len(pairs) == 1 else 's')
                                      if pairs else '',
                                      '%d the same left as %s' % (len(left), 'it was' if len(left) == 1

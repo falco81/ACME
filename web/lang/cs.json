@@ -55395,6 +55395,46 @@
   "ui77_1": {
    "source": "not attached",
    "text": "nepřipojen"
+  },
+  "dsb_15": {
+   "source": "Keep a copy of a file replaced",
+   "text": "Zálohovat nahrazovaný soubor"
+  },
+  "dsb_16": {
+   "source": "the file there kept before the new one replaces it. Off: just overwritten. Either way a failing test or reload puts the previous files back",
+   "text": "soubor, který tam je, se před nahrazením novým zazálohuje. Vypnuto: jen se přepíše. Tak či tak selhaný test nebo reload vrátí předchozí soubory zpět"
+  },
+  "dsb_17": {
+   "source": "Name of the copy",
+   "text": "Název zálohy"
+  },
+  "dsb_18": {
+   "source": "name.20261111-153000.bak - beside it, the date and time",
+   "text": "název.20261111-153000.bak – vedle něj, s datem a časem"
+  },
+  "dsb_19": {
+   "source": "name.2026-11-11.bak - beside it, one a day",
+   "text": "název.2026-11-11.bak – vedle něj, jedna za den"
+  },
+  "dsb_20": {
+   "source": ".acme-backup/name.20261111-153000.bak - in a folder beside it",
+   "text": ".acme-backup/název.20261111-153000.bak – ve složce vedle něj"
+  },
+  "dsb_21": {
+   "source": "name.bak - beside it, the last one only",
+   "text": "název.bak – vedle něj, jen poslední"
+  },
+  "dsb_22": {
+   "source": "its original name, the time, .bak. In a folder a program reads whole (a HAProxy crt folder) choose the folder beside it",
+   "text": "původní název, čas, .bak. Ve složce, kterou program načítá celou (složka crt HAProxy), zvolte složku vedle něj"
+  },
+  "dsb_23": {
+   "source": "of each file, the newest so many dated copies; the older ones are deleted (0: all kept)",
+   "text": "od každého souboru tolik nejnovějších záloh s datem; starší se smažou (0: ponechat všechny)"
+  },
+  "dsb_24": {
+   "source": "each file is compared with the one there by its SHA-256 fingerprint: the same one is not replaced (nor copied aside) and the deployment is still fine - the job says why. Off: every file is written each time",
+   "text": "každý soubor se porovná s tím, který tam už je, podle otisku SHA-256: stejný se nenahrazuje (ani nezálohuje) a nasazení je přesto v pořádku – úloha uvede proč. Vypnuto: každý soubor se zapíše pokaždé"
   }
  },
  "patterns": {
@@ -75785,6 +75825,22 @@
   "pui77_20": {
    "source": "Attached to no certificate, so not run. The last time it ran: {0}",
    "text": "Není připojen k žádnému certifikátu, takže se nespouští. Když běžel naposledy: {0}"
+  },
+  "pdsb_24": {
+   "source": "the files replaced kept as {0}",
+   "text": "nahrazené soubory zazálohovány jako {0}"
+  },
+  "pdsb_25": {
+   "source": "wrote {0} (the previous kept as {1})",
+   "text": "zapsáno {0} (předchozí zazálohován jako {1})"
+  },
+  "pui77_21": {
+   "source": "{0} - tried again in {1} s, {2} line(s) held for it ({3})",
+   "text": "{0} – další pokus za {1} s, {2} {2:řádek čeká|řádky čekají|řádků čeká} ({3})"
+  },
+  "pui77_22": {
+   "source": "{0} - tried again in {1} s, {2} line(s) held for it, {3} given up ({4})",
+   "text": "{0} – další pokus za {1} s, {2} {2:řádek čeká|řádky čekají|řádků čeká}, {3} vzdáno ({4})"
   }
  },
  "rich": {

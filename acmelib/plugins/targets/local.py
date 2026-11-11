@@ -12,6 +12,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import time
 
 from acmelib.plugins.targets._common import (
     Base, PluginError, field, lines, label_of, stamp, parse_outputs, subst, PFX_FORMATS,
@@ -52,8 +53,7 @@ class LocalTarget(Base):
     ] + SC.password_fields() + [
         field('command', 'Then run', 'text', advanced=True,
               help='one of the commands the target allows'),
-        F.same_field(),
-    ] + F.backup_fields('none') + SC.script_fields(INTERPS) + verify_fields()
+    ] + F.file_fields() + SC.script_fields(INTERPS) + verify_fields()
     files_ui = SC.files_ui('local', INTERPS, SC.layouts('', 'posix'), owners=False,
                            base='/etc/acme/out')
 
@@ -157,8 +157,8 @@ class LocalTarget(Base):
             return self.same(bundle, 'in %s' % base)
         os.makedirs(base, mode=0o750, exist_ok=True)
         datas = self._render(pairs, options, vars)
-        mode = F.backup_mode(options, 'none')
-        suffix = F.backup_suffix(mode)
+        mode = F.backup_mode(options)
+        stamp = time.time()
         before = []                 # (path, the bytes there before or None)
         written = []
         left = []
@@ -179,10 +179,11 @@ class LocalTarget(Base):
                     continue
                 before.append((full, had))
                 if had is not None and mode != 'none':
-                    self._keep(full, had, suffix)
+                    self._keep(full, had, F.backup_path(full, mode, stamp))
                 self._write(full, data, o['mode'])
                 self.ctx.step('wrote %s%s' % (full, '' if had is None or mode == 'none'
-                                              else ' (the previous kept as *%s)' % suffix))
+                                              else ' (the previous kept as %s)'
+                                              % F.backup_path(full, mode, stamp)))
         except Exception:
             # One file refused (outside the folder, a link, the disk full) - 1.0.51: those
             # written before it stayed new, the new chain beside the old key.
@@ -207,10 +208,10 @@ class LocalTarget(Base):
             except Exception:
                 self._put_back(before)          # as when the script fails (1.0.51)
                 raise
-        if mode in ('dated', 'daily'):
+        if mode in ('dated', 'daily', 'folder'):
             for full, had in before:
                 if had is not None:
-                    self._prune(full, F.backup_keep(options))
+                    self._prune(full, mode, F.backup_keep(options))
         self.remember(bundle, options)
         n = len(before)
         return '%d file%s written in %s%s%s%s' % (
@@ -218,17 +219,26 @@ class LocalTarget(Base):
             (', %d the same left as %s' % (len(left), 'it was' if len(left) == 1 else 'they were'))
             if left else '', ', the script ran' if sc else '', ', ran %s' % cmd if cmd else '')
 
-    def _keep(self, full, had, suffix):
-        """The file there kept beside it before it is replaced (not through a link)."""
-        dest = full + suffix
-        if os.path.islink(dest):
+    def _keep(self, full, had, dest):
+        """The file there kept beside it (or in .acme-backup beside it) before it is replaced
+        - not through a link."""
+        d = os.path.dirname(dest)
+        if not os.path.isdir(d):
+            os.makedirs(d, mode=0o750, exist_ok=True)
+        if os.path.islink(d) or os.path.islink(dest):
+            if os.path.islink(d):
+                raise PluginError('%s is a link: no copy kept there' % d, retry=False)
+            os.unlink(dest)
             os.unlink(dest)
         self._write(dest, had, os.stat(full).st_mode & 0o777)
 
-    def _prune(self, full, keep):
-        if not keep:
+    def _prune(self, full, mode, keep):
+        pat = F.dated_pattern(full, mode)
+        if not keep or not pat:
             return
-        folder, name = os.path.split(full)
+        folder, name = pat[0], pat[1][:-1]
+        if not os.path.isdir(folder):
+            return
         got = []
         for x in os.listdir(folder):
             rest = x[len(name) + 1:] if x.startswith(name + '.') else ''

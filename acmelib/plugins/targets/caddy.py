@@ -62,7 +62,7 @@ class CaddyTarget(SshMixin, Base):
               show_if={'mode': ['files']}),
         field('reload_cmd', 'Reload', 'text', default='caddy reload --config /etc/caddy/Caddyfile',
               show_if={'mode': ['files']}),
-    ] + verify_fields()
+    ] + F.file_fields(show_if={'mode': ['files']}) + verify_fields()
 
     def admin(self):
         a = text(self.c('admin') or 'localhost:2019').strip()
@@ -166,10 +166,11 @@ class CaddyTarget(SshMixin, Base):
         files = [dict(o, data=bundle.as_format(o['format'])) for o in outs]
         cmd = text(self.opt(options, 'reload_cmd', '')).strip()
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and F.all_same(self, s, files):
+            if not as_bool(options.get('force')) and F.skip_same(options) and \
+                    F.all_same(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s' % files[0]['path'])
-            existed = F.write_files(self, s, files)
+            existed = F.write_files(self, s, files, options=options)
             self.ctx.step('wrote %s and %s' % (files[0]['path'], files[1]['path']), 'ok')
             if cmd:
                 rc, out, err = self.sh(s, cmd, check=False, timeout=120)
@@ -179,6 +180,6 @@ class CaddyTarget(SshMixin, Base):
                     raise PluginError('"%s" failed, the previous files are back: %s'
                                       % (cmd, (text(err) or text(out)).strip()[-300:]))
                 self.ctx.step('ran %s' % cmd, 'ok')
-            F.drop_previous(self, s, files)
+            F.drop_previous(self, s, files, options)
         self.remember(bundle, options)
         return 'files written%s' % (', Caddy reloaded' if cmd else '')

@@ -323,7 +323,7 @@ class WindowsScriptTest(unittest.TestCase):
             x = base64.b64decode(cmd.split('-EncodedCommand ')[1]).decode('utf-16-le')
             if "-File '" in x:
                 return 5, 'it broke\n', ''
-            if 'Copy-Item' in x and 'acme-prev' in x and 'Move-Item' in x:
+            if 'Copy-Item' in x and '.bak' in x and 'Move-Item' in x:
                 return 0, 'HAD C:/certs/www.example.test.pfx\n', ''
             return 0, 'IMPORTED X\n', ''
         ssh = FakeSsh([(r'EncodedCommand', answer)])
@@ -334,8 +334,9 @@ class WindowsScriptTest(unittest.TestCase):
                                     'script_mode': 'inline', 'script_body': 'exit 5'})
         self.assertIn('exit 5', str(e.exception))
         back = [self.ps(c) for c, _i in ssh.runs if 'EncodedCommand' in c]
-        self.assertTrue(any("Copy-Item -LiteralPath 'C:/certs/www.example.test.pfx.acme-prev' "
-                            "-Destination 'C:/certs/www.example.test.pfx'" in x for x in back))
+        # from its dated copy (1.0.77)
+        self.assertTrue(any(re.search(r"Copy-Item -LiteralPath 'C:/certs/www\.example\.test\.pfx\.\d{8}-\d{6}\.bak' "
+                                      r"-Destination 'C:/certs/www\.example\.test\.pfx'", x) for x in back))
 
     def test_no_files_no_script_as_before(self):
         ssh = FakeSsh([(r'EncodedCommand', (0, 'IMPORTED X\n', ''))])

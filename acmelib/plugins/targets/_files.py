@@ -5,25 +5,36 @@ tell a program to read them (not a module: the registry skips "_" files).
 
     hashes(t, s, paths)              {path: sha256} of the files there
     all_same(t, s, files)            every file there holds exactly this already
-    write_files(t, s, files)         each uploaded, then put in place by a rename,
-                                     the old one copied to <path>.acme-prev
+    write_files(t, s, files, tmp_dir, options)
+                                     each uploaded, then put in place by a rename; with the
+                                     deployment's options (1.0.77): a file that holds the same
+                                     already left alone, the one replaced kept as they say
     put_back(t, s, files, existed)   the previous files back (after a failure)
-    drop_previous(t, s, files)       the .acme-prev copies removed (after success)
+    drop_previous(t, s, files, options)
+                                     after success: the copies only for putting back removed,
+                                     the older dated copies beyond "keep" deleted
     ls(t, s, folder)                 the names in a folder
 
-The deployment's two choices of the files (1.0.77), for every target that writes them:
-    same_field() / backup_fields()   "Leave a file that is the same" and "Before replacing"
+The deployment's choices of the files (1.0.77), the same for every target that writes them
+(ssh, local, windows_ssh, caddy, esxi, haproxy, strongswan, traefik, zimbra):
+
+    file_fields(fmt)                 the fields: Leave a file alone when it is the same (on),
+                                     Keep a copy of a file replaced (on), Name of the copy
+                                     (a choice, `fmt` the default), Copies kept
     skip_same(options)               on unless switched off
-    backup_mode(options)             'none' | 'bak' | 'dated' | 'daily' (the old bool kept)
-    backup_suffix(mode, when)        what is put after the path of the copy kept
-    prune_posix(path, keep)          the shell that keeps only the newest dated copies
+    backup_mode(options, fmt)        'none', or the name of the copy: 'dated' | 'daily' | 'bak'
+                                     | 'folder' (the old on/off switch and choice read too)
+    backup_path(path, mode, when)    where the copy of this file goes
+    prune_posix(path, mode, keep)    the shell that keeps only the newest dated copies
 
 `files` is [{'path', 'data' (bytes), 'mode' (int), 'owner' (or None)}];
-`t` a target with SshMixin (t.sh: through sudo when it says so).
+`t` a target with SshMixin (t.sh: through sudo when it says so). write_files marks each
+file: '_same' (left alone), '_was' (True / False: was there before), '_bak' (its copy).
 """
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 import time
 
@@ -31,10 +42,14 @@ from acmelib.plugins.base import field
 from acmelib.plugins.targets._common import PluginError, as_bool, as_int, quote, text
 
 PREV = '.acme-prev'
-BACKUP_MODES = [['bak', 'keep it as .bak (the last one only)'],
-                ['dated', 'keep it with the date and time: file.20261111-153000.bak'],
-                ['daily', 'keep it with the date: file.2026-11-11.bak'],
-                ['none', 'just overwrite it']]
+FOLDER = '.acme-backup'
+BACKUP_FORMATS = [
+    ['dated', 'name.20261111-153000.bak - beside it, the date and time'],
+    ['daily', 'name.2026-11-11.bak - beside it, one a day'],
+    ['folder', '.acme-backup/name.20261111-153000.bak - in a folder beside it'],
+    ['bak', 'name.bak - beside it, the last one only'],
+]
+FORMAT_KEYS = [f[0] for f in BACKUP_FORMATS]
 
 
 def same_field():
@@ -42,60 +57,110 @@ def same_field():
                  default=True,
                  help='each file is compared with the one there by its SHA-256 fingerprint: '
                       'the same one is not replaced (nor copied aside) and the deployment is '
-                      'still fine. Off: every file is written each time')
+                      'still fine - the job says why. Off: every file is written each time')
 
 
-def backup_fields(default='bak'):
+def backup_fields(fmt='dated'):
     return [
-        field('backup', 'Before replacing a file', 'select', default=default,
-              options=BACKUP_MODES, from_bool=['bak', 'none'],
-              help='the one there kept beside it, or just overwritten. Whichever, a failing '
-                   'test or reload puts the previous files back'),
-        field('backup_keep', 'Dated copies kept', 'number', default=5, min=0, advanced=True,
-              help='of each file, the newest so many copies with a date; the older ones are '
+        field('backup', 'Keep a copy of a file replaced', 'bool', default=True,
+              help='the file there kept before the new one replaces it. Off: just '
+                   'overwritten. Either way a failing test or reload puts the previous files '
+                   'back'),
+        field('backup_format', 'Name of the copy', 'select', default=fmt,
+              options=BACKUP_FORMATS, show_if={'backup': [True, 1, '1', 'true', 'on']},
+              help='its original name, the time, .bak. In a folder a program reads whole (a '
+                   'HAProxy crt folder) choose the folder beside it'),
+        field('backup_keep', 'Copies kept', 'number', default=5, min=0, advanced=True,
+              help='of each file, the newest so many dated copies; the older ones are '
                    'deleted (0: all kept)'),
     ]
+
+
+def file_fields(fmt='dated', show_if=None):
+    """`show_if`: when the target writes files only in one of its ways (Caddy: files)."""
+    out = [same_field()] + backup_fields(fmt)
+    if show_if:
+        out = [dict(f, show_if=dict(f.get('show_if') or {}, **show_if)) for f in out]
+    return out
 
 
 def skip_same(options):
     return as_bool((options or {}).get('skip_same'), True)
 
 
-def backup_mode(options, default='bak'):
-    v = (options or {}).get('backup')
-    if v is None or v == '':
-        return default
-    if isinstance(v, bool) or str(v).strip().lower() in (
-            '0', '1', 'true', 'false', 'yes', 'no', 'on', 'off'):
-        return 'bak' if as_bool(v, True) else 'none'
-    v = str(v).strip().lower()
-    return v if v in ('bak', 'dated', 'daily', 'none') else default
+def backup_mode(options, fmt='dated'):
+    """'none', or the copy's name. `backup` is the on/off switch (as before 1.0.77); a value
+    of the choice in it (a deployment saved while 1.0.77 was made) is read as on + that."""
+    o = options or {}
+    v = o.get('backup')
+    f = str(o.get('backup_format') or '').strip().lower()
+    if isinstance(v, str) and v.strip().lower() in FORMAT_KEYS + ['none']:
+        if v.strip().lower() == 'none':
+            return 'none'
+        f = f or v.strip().lower()
+        v = True
+    if not as_bool(v, True):
+        return 'none'
+    return f if f in FORMAT_KEYS else fmt
 
 
 def backup_keep(options):
     return max(0, as_int((options or {}).get('backup_keep'), 5))
 
 
-def backup_suffix(mode, when=None):
-    """After the path of the copy kept: .bak, .20261111-153000.bak, .2026-11-11.bak - or the
-    copy only for putting it back, removed when the deployment went through."""
+def _split(path):
+    i = max(path.rfind('/'), path.rfind('\\'))
+    return (path[:i], path[i + 1:]) if i >= 0 else ('', path)
+
+
+def backup_path(path, mode, when=None):
+    """Where the copy of the file at `path` goes: beside it with the time, the day, .bak; in
+    the folder .acme-backup beside it; or (no copy wanted) <path>.acme-prev, only for putting
+    it back and removed after."""
     when = time.localtime(when if when is not None else time.time())
     if mode == 'dated':
-        return '.' + time.strftime('%Y%m%d-%H%M%S', when) + '.bak'
+        return path + '.' + time.strftime('%Y%m%d-%H%M%S', when) + '.bak'
     if mode == 'daily':
-        return '.' + time.strftime('%Y-%m-%d', when) + '.bak'
-    return '.bak' if mode == 'bak' else PREV
+        return path + '.' + time.strftime('%Y-%m-%d', when) + '.bak'
+    if mode == 'bak':
+        return path + '.bak'
+    if mode == 'folder':
+        d, n = _split(path)
+        sep = '\\' if '\\' in path and '/' not in path else '/'
+        return '%s%s%s%s%s.%s.bak' % (d, sep, FOLDER, sep, n, time.strftime('%Y%m%d-%H%M%S', when))
+    return path + PREV
+
+
+def backup_suffix(mode, when=None):
+    """What follows a file's path in its copy (beside it): kept for those that ask so."""
+    return backup_path('', mode, when) if mode != 'folder' else backup_path('', 'dated', when)
 
 
 DATED_GLOB = '[0-9][0-9][0-9][0-9][0-9-]*.bak'
+DATED_RE = r'\.\d{4}[\d-]*\.bak'
 
 
-def prune_posix(path, keep):
+def dated_pattern(path, mode):
+    """(folder, name prefix) of the dated copies of this file, or None when they are not dated."""
+    if mode not in ('dated', 'daily', 'folder'):
+        return None
+    d, n = _split(path)
+    if mode == 'folder':
+        sep = '\\' if '\\' in path and '/' not in path else '/'
+        d = '%s%s%s' % (d, sep, FOLDER)
+    return d, n + '.'
+
+
+def prune_posix(path, mode, keep=None):
     """The shell that deletes the older dated copies of this file, the newest `keep` left."""
-    if not keep:
+    if keep is None:                    # prune_posix(path, keep): beside it, dated
+        mode, keep = 'dated', mode
+    pat = dated_pattern(path, mode)
+    if not keep or not pat:
         return ''
-    return ('ls -1t -- %s.%s 2>/dev/null | tail -n +%d | while IFS= read -r f; do rm -f -- "$f"; '
-            'done' % (quote(path), DATED_GLOB, int(keep) + 1))
+    d, n = pat
+    return ('ls -1t -- %s/%s%s 2>/dev/null | tail -n +%d | while IFS= read -r f; do rm -f -- "$f"; '
+            'done' % (quote(d or '.'), quote(n), DATED_GLOB, int(keep) + 1))
 
 
 def describe_same(t, paths):
@@ -123,48 +188,73 @@ def all_same(t, s, files):
                                for f in files)
 
 
-def write_files(t, s, files, tmp_dir='/tmp'):
-    """-> [True/False: was there one before], one a file. On a failure the
-    previous files are put back and PluginError raised."""
+def write_files(t, s, files, tmp_dir='/tmp', options=None, fmt=None):
+    """-> [True/False: was there one before, None: left alone - the same], one a file. On a
+    failure the previous files are put back and PluginError raised. Without `options` as
+    before 1.0.77: every file written, the old one as <path>.acme-prev."""
+    mode = backup_mode(options, fmt or 'dated') if options is not None else 'none'
+    stamp = time.time()
+    for f in files:
+        f['_bak'] = backup_path(f['path'], mode, stamp)
+        f['_bmode'] = mode
+        f['_same'] = False
+    if options is not None and skip_same(options) and not as_bool(options.get('force')):
+        have = hashes(t, s, [f['path'] for f in files])
+        for f in files:
+            f['_same'] = have.get(f['path']) == hashlib.sha256(f['data']).hexdigest()
+        describe_same(t, [f['path'] for f in files if f['_same']])
+    todo = [i for i, f in enumerate(files) if not f['_same']]
+    existed = [None] * len(files)
+    if not todo:
+        for f in files:
+            f['_was'] = None
+        return existed
     token = secrets.token_hex(6)
-    tmps = []
+    tmps = {}
     tmp_dir = (tmp_dir or '/tmp').rstrip('/')
     try:
-        for i, f in enumerate(files):
+        for i in todo:
             tmp = '%s/.acme-%s-%d' % (tmp_dir, token, i)
-            s.put(f['data'], tmp, 0o600)
-            tmps.append(tmp)
+            s.put(files[i]['data'], tmp, 0o600)
+            tmps[i] = tmp
         script = ['set -e']
-        for i, (f, tmp) in enumerate(zip(files, tmps)):
+        for i in todo:
+            f = files[i]
             p = quote(f['path'])
             new = quote(f['path'] + '.acme-new')
             script += ['mkdir -p "$(dirname %s)"' % p,
-                       'if [ -e %s ]; then cp -p %s %s; echo "EXISTED %d"; fi'
-                       % (p, p, quote(f['path'] + PREV), i),
-                       'cp %s %s' % (quote(tmp), new),
+                       'if [ -e %s ]; then mkdir -p "$(dirname %s)"; cp -p %s %s; '
+                       'echo "EXISTED %d"; fi' % (p, quote(f['_bak']), p, quote(f['_bak']), i),
+                       'cp %s %s' % (quote(tmps[i]), new),
                        'chmod %o %s' % (f.get('mode') or 0o600, new)]
             if f.get('owner'):
                 script.append('chown %s %s' % (quote(f['owner']), new))
             script.append('mv -f %s %s' % (new, p))
             script.append('echo "PLACED %d"' % i)
         rc, out, err = t.sh(s, '\n'.join(script), check=False)
-        existed = [False] * len(files)
         placed = [False] * len(files)
+        for i in todo:
+            existed[i] = False
         for line in text(out).splitlines():
             if line.startswith('EXISTED '):
                 existed[int(line.split()[1])] = True
             elif line.startswith('PLACED '):
                 placed[int(line.split()[1])] = True
+        for f, was in zip(files, existed):
+            f['_was'] = was
         if rc != 0:
             # only what was put in place (1.0.48), as targets/ssh.py
             put_back(t, s, files, existed, placed)
             raise PluginError('the files could not be written, the previous ones are back: %s'
                               % (text(err).strip() or text(out).strip())[-300:])
+        if mode != 'none' and any(existed):
+            t.ctx.step('the files replaced kept as %s' % ', '.join(
+                f['_bak'] for f, was in zip(files, existed) if was))
         return existed
     finally:
         if tmps:
             try:
-                s.run('rm -f ' + ' '.join(quote(x) for x in tmps), check=False)
+                s.run('rm -f ' + ' '.join(quote(x) for x in tmps.values()), check=False)
             except Exception:                           # noqa: BLE001
                 pass
 
@@ -172,22 +262,56 @@ def write_files(t, s, files, tmp_dir='/tmp'):
 def put_back(t, s, files, existed, placed=None):
     script = []
     for i, (f, was) in enumerate(zip(files, existed)):
+        if was is None:                                 # left alone: the same
+            continue
         p = quote(f['path'])
+        bak = f.get('_bak') or f['path'] + PREV
         if placed is not None and not placed[i]:
             script.append('rm -f %s' % quote(f['path'] + '.acme-new'))
             continue
-        script.append(('cp -p %s %s' % (quote(f['path'] + PREV), p)) if was else 'rm -f %s' % p)
+        if was:
+            script.append('cp -p %s %s' % (quote(bak), p))
+            if bak.endswith(PREV):
+                script.append('rm -f %s' % quote(bak))
+        else:
+            script.append('rm -f %s' % p)
         script.append('rm -f %s' % quote(f['path'] + '.acme-new'))
+    if not script:
+        return
     rc, out, err = t.sh(s, '\n'.join(script), check=False)
     t.ctx.step('the previous files are back' if rc == 0 else
                'putting the previous files back failed: %s' % text(err).strip()[-200:],
                'warn' if rc == 0 else 'bad')
 
 
-def drop_previous(t, s, files):
-    t.sh(s, 'rm -f ' + ' '.join(quote(f['path'] + PREV) for f in files), check=False)
+def drop_previous(t, s, files, options=None):
+    """After a deployment that went through. Without `options`: the .acme-prev copies removed
+    (as before). With them: the copies only for putting back removed, of the dated ones the
+    older beyond "Copies kept" deleted."""
+    if options is None:
+        t.sh(s, 'rm -f ' + ' '.join(quote(f['path'] + PREV) for f in files), check=False)
+        return
+    keep = backup_keep(options)
+    script = []
+    for f in files:
+        if f.get('_was') is not True:
+            continue
+        mode = f.get('_bmode') or 'none'
+        if mode == 'none':
+            script.append('rm -f %s' % quote(f.get('_bak') or f['path'] + PREV))
+        elif keep:
+            line = prune_posix(f['path'], mode, keep)
+            if line:
+                script.append(line)
+    if script:
+        t.sh(s, '\n'.join(script), check=False)
 
 
 def ls(t, s, folder):
     rc, out, err = t.sh(s, 'ls -1 %s 2>/dev/null; true' % quote(folder), check=False)
     return [x.strip() for x in text(out).splitlines() if x.strip()]
+
+
+def dated_regex(name):
+    """A regular expression of the dated copies of the file called `name` (for PowerShell)."""
+    return '^' + re.escape(name) + DATED_RE + '$'

@@ -32,18 +32,23 @@ def tearDownModule():
 
 class Choices(unittest.TestCase):
     def test_backup_mode_keeps_the_old_switch(self):
-        for v, want in ((True, 'bak'), ('1', 'bak'), ('true', 'bak'), (False, 'none'), ('0', 'none'),
-                        (None, 'bak'), ('', 'bak'), ('dated', 'dated'), ('daily', 'daily'),
-                        ('none', 'none'), ('weird', 'bak')):
+        for v, want in ((True, 'dated'), ('1', 'dated'), ('true', 'dated'), (False, 'none'),
+                        ('0', 'none'), (None, 'dated'), ('', 'dated'), ('daily', 'daily'),
+                        ('none', 'none')):
             self.assertEqual(F.backup_mode({'backup': v}), want, v)
-        self.assertEqual(F.backup_mode({}, 'none'), 'none')
+        self.assertEqual(F.backup_mode({'backup': True, 'backup_format': 'bak'}), 'bak')
+        self.assertEqual(F.backup_mode({'backup': False, 'backup_format': 'bak'}), 'none')
+        self.assertEqual(F.backup_mode({'backup_format': 'nonsense'}, 'folder'), 'folder')
+        self.assertEqual(F.backup_mode({}), 'dated')
 
-    def test_suffixes(self):
+    def test_paths(self):
         when = time.mktime((2026, 11, 11, 15, 30, 0, 0, 0, -1))
-        self.assertEqual(F.backup_suffix('dated', when), '.20261111-153000.bak')
-        self.assertEqual(F.backup_suffix('daily', when), '.2026-11-11.bak')
-        self.assertEqual(F.backup_suffix('bak'), '.bak')
-        self.assertEqual(F.backup_suffix('none'), F.PREV)
+        self.assertEqual(F.backup_path('/a/b.pem', 'dated', when), '/a/b.pem.20261111-153000.bak')
+        self.assertEqual(F.backup_path('/a/b.pem', 'daily', when), '/a/b.pem.2026-11-11.bak')
+        self.assertEqual(F.backup_path('/a/b.pem', 'bak'), '/a/b.pem.bak')
+        self.assertEqual(F.backup_path('/a/b.pem', 'folder', when), '/a/.acme-backup/b.pem.20261111-153000.bak')
+        self.assertEqual(F.backup_path('C:\\c\\b.pfx', 'folder', when), 'C:\\c\\.acme-backup\\b.pfx.20261111-153000.bak')
+        self.assertEqual(F.backup_path('/a/b.pem', 'none'), '/a/b.pem' + F.PREV)
 
     def test_skip_same_on_unless_off(self):
         self.assertTrue(F.skip_same({}))
@@ -52,12 +57,16 @@ class Choices(unittest.TestCase):
 
     def test_the_fields_on_the_file_targets(self):
         for kind, conf in (('ssh', {'host': 'h'}), ('local', {'base': '/tmp/x'}),
-                           ('windows_ssh', {'host': 'h'})):
+                           ('windows_ssh', {'host': 'h'}), ('caddy', {'host': 'h'}),
+                           ('esxi', {'host': 'h'}), ('haproxy', {'host': 'h'}),
+                           ('strongswan', {'host': 'h'}), ('traefik', {'host': 'h'}),
+                           ('zimbra', {'host': 'h'})):
             t = make(kind, conf, FakeCtx())
             keys = {f['key']: f for f in t.deploy_fields}
             self.assertTrue(keys['skip_same']['default'], kind)
-            self.assertEqual(keys['backup']['type'], 'select', kind)
-            self.assertEqual(keys['backup']['from_bool'], ['bak', 'none'])
+            self.assertEqual(keys['backup']['type'], 'bool', kind)
+            self.assertTrue(keys['backup']['default'], kind)
+            self.assertEqual(keys['backup_format']['type'], 'select', kind)
             self.assertIn('backup_keep', keys)
 
 
@@ -86,8 +95,11 @@ class Ssh(unittest.TestCase):
         self.assertIn('1 file written', words)
         self.assertIn('1 the same left as it was', words)
         self.assertEqual(os.stat(self.key).st_mtime, 1000)        # not touched
-        self.assertFalse(os.path.exists(self.key + '.bak'))        # nor copied aside
-        self.assertEqual(read(self.crt + '.bak'), 'OLD\n')
+        self.assertFalse([x for x in os.listdir(self.d) if x.startswith('site.key.')])  # nor copied
+        dated = [x for x in os.listdir(self.d) if x.startswith('site.crt.') and x.endswith('.bak')]
+        self.assertEqual(len(dated), 1)                              # name.YYYYMMDD-HHMMSS.bak
+        self.assertRegex(dated[0], r'^site\.crt\.\d{8}-\d{6}\.bak$')
+        self.assertEqual(read(os.path.join(self.d, dated[0])), 'OLD\n')
         self.assertEqual(read(self.crt), b.fullchain_pem)
         self.assertTrue(any(lv == 'ok' and 'the same SHA-256' in w and self.key in w
                             for lv, w in self.ctx.steps))
@@ -121,14 +133,23 @@ class Ssh(unittest.TestCase):
     def test_just_overwrite(self):
         with open(self.crt, 'w') as fh:
             fh.write('OLD\n')
-        self.t.deploy(FakeBundle(), dict(self.opts, backup='none'))
+        self.t.deploy(FakeBundle(), dict(self.opts, backup=False))
         self.assertEqual([x for x in os.listdir(self.d) if x.startswith('site.crt.')], [])
 
     def test_old_switch_off_is_overwrite(self):
         with open(self.crt, 'w') as fh:
             fh.write('OLD\n')
-        self.t.deploy(FakeBundle(), dict(self.opts, backup=False))
-        self.assertFalse(os.path.exists(self.crt + '.bak'))
+        self.t.deploy(FakeBundle(), dict(self.opts, backup=True, backup_format='bak'))
+        self.assertEqual(read(self.crt + '.bak'), 'OLD\n')
+
+    def test_folder(self):
+        with open(self.crt, 'w') as fh:
+            fh.write('OLD\n')
+        self.t.deploy(FakeBundle(), dict(self.opts, backup_format='folder'))
+        got = os.listdir(os.path.join(self.d, '.acme-backup'))
+        self.assertEqual(len(got), 1)
+        self.assertEqual(read(os.path.join(self.d, '.acme-backup', got[0])), 'OLD\n')
+        self.assertEqual([x for x in os.listdir(self.d) if x.startswith('site.crt.')], [])
 
     def test_dated_copies_pruned(self):
         for i in range(4):
@@ -138,7 +159,7 @@ class Ssh(unittest.TestCase):
             os.utime(p, (1000 + i, 1000 + i))
         with open(self.crt, 'w') as fh:
             fh.write('OLD\n')
-        self.t.deploy(FakeBundle(), dict(self.opts, backup='dated', backup_keep=3))
+        self.t.deploy(FakeBundle(), dict(self.opts, backup_keep=3))
         kept = sorted(x for x in os.listdir(self.d) if x.startswith('site.crt.') and x.endswith('.bak'))
         self.assertEqual(len(kept), 3, kept)
         newest = [x for x in kept if not x.startswith('site.crt.2025')]
@@ -151,9 +172,9 @@ class Ssh(unittest.TestCase):
         with open(self.crt, 'w') as fh:
             fh.write('OLD\n')
         with self.assertRaises(PluginError):
-            self.t.deploy(FakeBundle(), dict(self.opts, backup='daily', reload_cmd='false'))
+            self.t.deploy(FakeBundle(), dict(self.opts, backup_format='daily', reload_cmd='false'))
         self.assertEqual(read(self.crt), 'OLD\n')
-        self.assertEqual(read(self.crt + F.backup_suffix('daily')), 'OLD\n')
+        self.assertEqual(read(F.backup_path(self.crt, 'daily')), 'OLD\n')
 
     def test_rollback_with_overwrite_and_a_file_left(self):
         b = FakeBundle()
@@ -162,7 +183,7 @@ class Ssh(unittest.TestCase):
         with open(self.crt, 'w') as fh:
             fh.write('OLD\n')
         with self.assertRaises(PluginError):
-            self.t.deploy(b, dict(self.opts, backup='none', test_cmd='false'))
+            self.t.deploy(b, dict(self.opts, backup=False, test_cmd='false'))
         self.assertEqual(read(self.crt), 'OLD\n')
         self.assertEqual(read(self.key), b.key_pem)
         self.assertFalse(os.path.exists(self.crt + F.PREV))
@@ -185,7 +206,7 @@ class Local(unittest.TestCase):
         os.utime(self.key, (1000, 1000))
         with open(self.full, 'w') as fh:
             fh.write('OLD\n')
-        words = self.t.deploy(b, dict(self.opts, backup='dated'))
+        words = self.t.deploy(b, self.opts)
         self.assertIn('1 file written', words)
         self.assertEqual(os.stat(self.key).st_mtime, 1000)
         kept = [x for x in os.listdir(os.path.dirname(self.full)) if x.startswith('full.pem.')]
@@ -194,13 +215,65 @@ class Local(unittest.TestCase):
 
     def test_default_overwrites_and_off_writes_all(self):
         b = FakeBundle()
-        self.t.deploy(b, self.opts)
+        self.t.deploy(b, dict(self.opts, backup=False))
         self.assertEqual(sorted(os.listdir(os.path.dirname(self.full))), ['full.pem', 'key.pem'])
-        self.assertTrue(self.t.deploy(b, self.opts).startswith('unchanged'))
+        self.assertTrue(self.t.deploy(b, dict(self.opts, backup=False)).startswith('unchanged'))
         words = self.t.deploy(b, dict(self.opts, skip_same=False))
         self.assertIn('2 files written', words)
         words = self.t.deploy(b, dict(self.opts, force=True))
         self.assertIn('2 files written', words)
+
+
+class SharedFiles(unittest.TestCase):
+    """_files.write_files for caddy, esxi, haproxy, strongswan, traefik, zimbra."""
+    def setUp(self):
+        self.d = tempfile.mkdtemp(dir=TT.TMP)
+        self.ssh = FakeSsh(local=True)
+        self.ctx = FakeCtx(ssh=self.ssh)
+        self.t = make('strongswan', {'host': 'srv'}, self.ctx)
+        self.p = os.path.join(self.d, 'a.pem')
+        self.q = os.path.join(self.d, 'b.pem')
+
+    def files(self, a=b'A', b=b'B'):
+        return [{'path': self.p, 'data': a, 'mode': 0o600, 'owner': None},
+                {'path': self.q, 'data': b, 'mode': 0o600, 'owner': None}]
+
+    def test_same_left_backup_dated_then_pruned(self):
+        with self.ssh as s:
+            with open(self.p, 'wb') as fh:
+                fh.write(b'A')
+            with open(self.q, 'wb') as fh:
+                fh.write(b'old')
+            fs = self.files()
+            existed = F.write_files(self.t, s, fs, self.d, options={})
+            self.assertEqual(existed, [None, True])
+            self.assertEqual(read(self.q), 'B')
+            baks = [x for x in os.listdir(self.d) if x.startswith('b.pem.') and x.endswith('.bak')]
+            self.assertEqual(len(baks), 1)
+            F.drop_previous(self.t, s, fs, {})
+            self.assertTrue(any('the same SHA-256' in w for lv, w in self.ctx.steps))
+
+    def test_off_and_put_back(self):
+        with self.ssh as s:
+            with open(self.p, 'wb') as fh:
+                fh.write(b'A')
+            fs = self.files()
+            o = {'skip_same': False, 'backup': False}
+            existed = F.write_files(self.t, s, fs, self.d, options=o)
+            self.assertEqual(existed, [True, False])
+            F.put_back(self.t, s, fs, existed)
+            self.assertEqual(read(self.p), 'A')
+            self.assertFalse(os.path.exists(self.q))
+            self.assertFalse(os.path.exists(self.p + F.PREV))
+
+    def test_folder_kept(self):
+        with self.ssh as s:
+            with open(self.p, 'wb') as fh:
+                fh.write(b'old')
+            fs = self.files()
+            F.write_files(self.t, s, fs, self.d, options={'backup_format': 'folder'})
+            F.drop_previous(self.t, s, fs, {'backup_format': 'folder'})
+            self.assertEqual(len(os.listdir(os.path.join(self.d, F.FOLDER))), 1)
 
 
 if __name__ == '__main__':
