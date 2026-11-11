@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.66 - not released
+
 ## 1.0.65 - 2026-11-11
 - The files on a target: the mode of a file chosen in a popup of tick boxes as chmod's (read,
   write, run for the owner, the group and the others; set user/group ID, sticky) with its octal
