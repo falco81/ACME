@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.77 - not released
+
 ## 1.0.76 - 2026-11-11
 - Tests: a test switched off on Tests (for every certificate) no longer runs after a
   deployment. Before, only its switch on the certificate was looked at there; the tests run by
