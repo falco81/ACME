@@ -222,6 +222,7 @@ def _ssh_dns_discover(h, s):
     b = h.body()
     by = A.who(s)
     A.kept_secrets_guard(h.store, 'challenge', b, s, kind='ssh_dns')
+    b = A.saved_only(s, b, 'look up with')        # as discovery (1.0.79)
     row = S.plugin_row(h.store, 'challenge', A._id(b['id'])) \
         if b.get('id') not in (None, '', 0) else None
     if b.get('id') not in (None, '', 0) and not row:

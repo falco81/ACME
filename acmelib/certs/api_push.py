@@ -168,9 +168,18 @@ def adopt(store, b, by):
 @A.api('POST', '/api/targets/push_discover', 'certadmin')
 def _discover(h, s):
     try:
-        return discover(h.store, h.body())
+        got = discover(h.store, h.body())
     except PluginError as e:
         raise ValueError(str(e))
+    # the certificates of other owners not named to a scoped account (1.0.79)
+    mine = A.visible_cert_ids(h.store, s)
+    if mine is not None:
+        for sl in got.get('slots') or []:
+            sl['covered_by'] = [c if int(c.get('cert_id') or 0) in mine else
+                                {'cert': '(another owner\'s certificate)', 'cert_id': None,
+                                 'deploy_id': None, 'enabled': c.get('enabled')}
+                                for c in sl.get('covered_by') or []]
+    return got
 
 
 @A.api('POST', '/api/targets/adopt', 'fulladmin')

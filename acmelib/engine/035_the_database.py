@@ -201,6 +201,14 @@ def db_tls_args(engine, mode=None, ca=None):
     got = {'ssl': {'check_hostname': mode == 'verify-full', 'verify_mode': True}}
     if ca:
         got['ssl']['ca'] = ca
+    else:
+        # The system's authorities named (1.0.79): PyMySQL drops check_hostname when it is given
+        # no authority - verify-full then took any trusted certificate for any name.
+        paths = _ssl.get_default_verify_paths()
+        if paths.cafile and os.path.exists(paths.cafile):
+            got['ssl']['ca'] = paths.cafile
+        elif paths.capath and os.path.isdir(paths.capath):
+            got['ssl']['capath'] = paths.capath
     return got
 
 

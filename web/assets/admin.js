@@ -428,8 +428,10 @@ function meSecPasskeys() {
   var box = el('div', '');
   var said = el('div', 'said');
   sec.appendChild(box);
+  var lastKind = '';
   var draw = function (d) {
     clear(box);
+    if (d.kind === undefined) d.kind = lastKind; else lastKind = d.kind;
     var keys = d.keys || [];
     if (d.kind && d.kind !== 'passkey') {
       box.appendChild(el('p', 'note small', 'Your second step is given another way now; a passkey added here takes its place.'));
@@ -507,6 +509,18 @@ function meSecPasskeys() {
       box.appendChild(said);
       return;
     }
+    /* the password again once a second step is there (1.0.79) */
+    var pw = null;
+    if (d.kind) {
+      pw = el('input');
+      pw.type = 'password';
+      pw.autocomplete = 'current-password';
+      pw.placeholder = 'Your password';
+      var pwRow = el('div', 'field');
+      pwRow.appendChild(el('label', '', 'Your password, to add a passkey'));
+      pwRow.appendChild(pw);
+      box.appendChild(pwRow);
+    }
     /* asked ahead, so the tap calls the device at once (Safari) */
     var ready = null, readyAt = 0;
     var ask = function () {
@@ -520,15 +534,17 @@ function meSecPasskeys() {
     };
     ask().then(function (o) { ready = o; readyAt = Date.now(); }).catch(function () { });
     add.onclick = function () {
-      add.disabled = true;
       said.className = 'said';
       said.textContent = '';
+      if (pw && !pw.value) { said.className = 'said bad'; said.textContent = 'Type your password first.'; pw.focus(); return; }
+      add.disabled = true;
       var o = (ready && Date.now() - readyAt < 240000) ? ready : null;
       ready = null;
       (o ? navigator.credentials.create({publicKey: o}) : ask().then(function (x) { return navigator.credentials.create({publicKey: x}); })).then(function (cr) {
         return api('passkeys', {action: 'add_finish', name: pkDevice() + ' · ' + new Date().toLocaleDateString(),
-          clientDataJSON: pkText(cr.response.clientDataJSON), attestationObject: pkText(cr.response.attestationObject)});
-      }).then(function (r) { toast(r.message || 'the passkey is added', 'good'); draw(r); })
+          clientDataJSON: pkText(cr.response.clientDataJSON), attestationObject: pkText(cr.response.attestationObject),
+          password: pw ? pw.value : ''});
+      }).then(function (r) { toast(r.message || 'the passkey is added', 'good'); r.kind = 'passkey'; draw(r); })
         .catch(function (e) { add.disabled = false; pkFailed(said, e); });
     };
     box.appendChild(add);

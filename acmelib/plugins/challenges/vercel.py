@@ -56,15 +56,28 @@ class Vercel(RecordApiDns):
                        missing_ok=missing_ok)
         return got or {}
 
+    def _all(self, path, key):
+        """Every item of a list, page after page (pagination.next as `until`) - 1.0.79: the
+        first 100 only, so a domain or our record past them was not found."""
+        out, until = [], None
+        for _ in range(100):
+            q = {'limit': 100}
+            if until:
+                q['until'] = until
+            got = self._call('GET', path, query=q)
+            out += got.get(key) or []
+            until = (got.get('pagination') or {}).get('next')
+            if not until:
+                break
+        return out
+
     def zone_names(self):
-        return [d.get('name') for d in self._call('GET', '/v5/domains',
-                                                  query={'limit': 100}).get('domains') or []]
+        return [d.get('name') for d in self._all('/v5/domains', 'domains')]
 
     def txt_records(self, zone, fqdn):
         name = rel_name(fqdn, zone, apex='')
-        got = self._call('GET', '/v4/domains/%s/records' % urllib.parse.quote(zone),
-                         query={'limit': 100})
-        return [(r.get('id'), r.get('value')) for r in got.get('records') or []
+        got = self._all('/v4/domains/%s/records' % urllib.parse.quote(zone), 'records')
+        return [(r.get('id'), r.get('value')) for r in got
                 if str(r.get('type')).upper() == 'TXT' and (r.get('name') or '') == name]
 
     def create_txt(self, zone, fqdn, value):

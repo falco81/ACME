@@ -76,18 +76,22 @@ class KubernetesTarget(HttpTarget):
         st, hd, cur = self.req('GET', url, ok=(200, 404), what='reading %s/%s' % (ns, name))
         if st == 200:
             have = (cur or {}).get('data') or {}
+            # a restart cut off last time (1.0.79): the secret holds it, the pods do not yet
             if all(have.get(k) == v for k, v in data.items() if k.endswith('.crt')) and \
-                    not as_bool(options.get('force')):
+                    not as_bool(options.get('force')) and \
+                    not (self.pending() and lines(options.get('restart'))):
                 return self.same(bundle, 'in %s/%s' % (ns, name))
             if (cur or {}).get('type') not in (None, 'kubernetes.io/tls'):
                 raise PluginError('%s/%s is a secret of another type (%s)' % (
                     ns, name, cur.get('type')), retry=False)
+            self.mark_pending(bundle)
             self.req('PATCH', url, {'data': data, 'metadata': {'annotations': {
                 'acme/fingerprint': dual_fp(bundle)}}},
                 {'Content-Type': 'application/merge-patch+json'},
                 what='updating %s/%s' % (ns, name))
             words = ['updated %s/%s' % (ns, name)]
         else:
+            self.mark_pending(bundle)
             self.req('POST', '/api/v1/namespaces/%s/secrets' % urllib.parse.quote(ns), {
                 'apiVersion': 'v1', 'kind': 'Secret', 'type': 'kubernetes.io/tls',
                 'metadata': {'name': name, 'namespace': ns, 'labels': {
@@ -107,4 +111,5 @@ class KubernetesTarget(HttpTarget):
             self.ctx.step('restarting deployment %s' % dep, 'ok')
             words.append('restarted %s' % dep)
         self.remember(bundle, options)
+        self.done_pending()
         return ', '.join(words)

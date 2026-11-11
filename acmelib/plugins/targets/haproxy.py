@@ -25,6 +25,7 @@ Sources:
 from __future__ import annotations
 
 import re
+import secrets
 
 from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, as_bool, ssh_fields, verify_fields, quote, text,
@@ -137,7 +138,9 @@ class HaproxyTarget(SshMixin, Base):
             rc, out = self.runtime(s, 'new ssl cert %s' % path)
             if 'New empty' not in out:
                 raise PluginError('new ssl cert %s: %s' % (path, out.strip()[-200:]))
-        tmp = '/tmp/.acme-haproxy-%s' % re.sub(r'[^a-z0-9]', '', path.lower())[-24:]
+        # a name nobody can guess and lay a link at before us (1.0.79)
+        tmp = '/tmp/.acme-haproxy-%s-%s' % (re.sub(r'[^a-z0-9]', '', path.lower())[-24:],
+                                            secrets.token_hex(8))
         s.put(pem, tmp, 0o600)
         try:
             script = ('{ printf %%s\\\\n %s; cat %s; printf \\\\n; } | socat stdio %s'

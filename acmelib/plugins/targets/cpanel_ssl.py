@@ -15,7 +15,7 @@ are deleted from the account's SSL storage (UAPI).
     GET  /execute/SSL/delete_cert?id=<id>
     WHM (port 2087), Authorization: whm <user>:<API token>
     GET  /json-api/fetch_ssl_vhosts?api.version=1      the virtual hosts and their certificates
-    GET  /json-api/installssl?api.version=1&domain=&crt=&key=&cab=
+    POST /json-api/installssl   api.version=1, domain, crt, key, cab (form; 1.0.79 - was a GET)
          -> metadata.result 1, data.status 1
 
 Checked against (the user's collection of the vendor's documents, api-docs/cpanel_ssl/ and
@@ -32,8 +32,9 @@ api-docs/cpanel/notes.md for the sign-in):
     whm-api1-ssl-install.openapi.json - WHM API 1 /installssl, /fetch_ssl_vhosts
 
 Less certain:
-    - WHM installssl is documented as a GET with the certificate in the address; a long
-      chain may make the address too long (Send the CA bundle off: WHM picks the bundle);
+    - WHM installssl is documented as a GET with the certificate in the address; it is sent
+      as a POST form (1.0.79), which WHM API 1 takes for every function, so the private key
+      stays out of the access log and a long chain is no longer too long an address;
     - WHM tells no certificate text of a virtual host: "the same one is there" is judged by
       its not_after and its key's modulus / ECDSA point, read with fetch_ssl_vhosts;
     - SSL storage is pruned only of certificates acme installed itself (remembered by
@@ -131,11 +132,17 @@ class CpanelSslTarget(HttpTarget):
                               detail=text(d)[:4000], retry=False)
         return r.get('data')
 
-    def whmapi(self, func, params=None, what=None):
+    def whmapi(self, func, params=None, what=None, post=False):
         p = {'api.version': '1'}
         p.update(params or {})
-        st, hd, d = self.req('GET', '/json-api/%s?%s' % (func, urllib.parse.urlencode(p)),
-                             what=what or func)
+        if post:
+            # the key in a form, not in the address that WHM's access log keeps (1.0.79)
+            st, hd, d = self.req('POST', '/json-api/%s' % func, form(p),
+                                 {'Content-Type': 'application/x-www-form-urlencoded'},
+                                 what=what or func)
+        else:
+            st, hd, d = self.req('GET', '/json-api/%s?%s' % (func, urllib.parse.urlencode(p)),
+                                 what=what or func)
         d = d if isinstance(d, dict) else {}
         meta = d.get('metadata') or {}
         if as_int(meta.get('result'), 0) != 1:
@@ -237,7 +244,7 @@ class CpanelSslTarget(HttpTarget):
                 p = {'domain': dom, 'crt': cert, 'key': key}
                 if chain:
                     p['cab'] = chain
-                data = self.whmapi('installssl', p, what='installing on %s' % dom)
+                data = self.whmapi('installssl', p, what='installing on %s' % dom, post=True)
                 if as_int(data.get('status'), 1) != 1:
                     raise PluginError('installing on %s: WHM said %s' % (
                         dom, data.get('statusmsg') or data.get('message') or 'it failed'),

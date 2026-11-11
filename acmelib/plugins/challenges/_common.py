@@ -72,6 +72,12 @@ SAFE_NAME = re.compile(r'^[A-Za-z0-9_*.-]{1,253}$')
 SAFE_TXT = re.compile(r'^[A-Za-z0-9_.+/=-]{1,255}$')
 
 
+def url_host(n):
+    """A name or address as the host of a URL: an IPv6 address in brackets (1.0.79)."""
+    n = str(n or '')
+    return '[%s]' % n if ':' in n and not n.startswith('[') else n
+
+
 def as_list(v):
     if v in (None, ''):
         return []
@@ -967,6 +973,13 @@ class HttpChallenge(Challenge):
         return as_bool(self.c(key, False))
 
     def check_name(self, name):
+        # an IP address (1.0.79: IPv6 was refused - no ":" in a name - though IP certificates
+        # are proved by HTTP-01)
+        try:
+            import ipaddress
+            return ipaddress.ip_address(str(name or '').strip().strip('[]')).compressed
+        except ValueError:
+            pass
         n = D.norm(name)
         if n.startswith('*.'):
             raise PluginError('%s: a wildcard can only be proved by DNS-01 - choose a DNS '

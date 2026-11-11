@@ -109,6 +109,10 @@ class NutanixTarget(HttpTarget):
             sets[ext] = {'cluster': ext}
         return {'options': opts, 'sets': sets, 'said': '%d clusters' % len(opts)}
 
+    def ident(self):
+        # one Prism Central, many clusters (1.0.79): what was deployed is kept per cluster
+        return "%s:%s" % (HttpTarget.ident(self), text(self.c("cluster")).strip())
+
     def path(self, cid):
         return '/api/clustermgmt/%s/config/clusters/%s/ssl-certificate' % (
             self.v(), urllib.parse.quote(cid, safe=''))

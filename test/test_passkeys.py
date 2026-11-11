@@ -242,7 +242,15 @@ class Passkeys(unittest.TestCase):
         two = Device()
         opts = acc('POST', {'action': 'add_begin'})
         self.assertEqual(len(opts['publicKey']['excludeCredentials']), 1)
-        got = acc('POST', dict(two.create(opts), action='add_finish', name='Mac'))
+        # the password again (1.0.79): without it, or a wrong one, nothing is added
+        for pw in ('', 'wrong'):
+            with self.assertRaises(E.ApiError) as cm:
+                acc('POST', dict(two.create(opts), action='add_finish', name='Mac', password=pw))
+            self.assertEqual(cm.exception.status, 400)
+            DAEMON.login_fails.clear()
+        opts = acc('POST', {'action': 'add_begin'})
+        got = acc('POST', dict(two.create(opts), action='add_finish', name='Mac',
+                               password='A-Long-Password-1!'))
         self.assertEqual([k['name'] for k in got['keys']], ['iPad · test', 'Mac'])
         kid = got['keys'][0]['id']
         got = acc('POST', {'action': 'rename', 'id': kid, 'name': 'iPad pracovní'})
@@ -263,6 +271,12 @@ class Passkeys(unittest.TestCase):
             acc('POST', {'action': 'add_begin'})
         self.assertEqual(cm.exception.status, 403)
         self.assertFalse(acc('GET')['on'])
+        # the list is not told before the second step (1.0.79)
+        token = STORE.session_new('admin', 'boss', 'fulladmin', '127.0.0.1', 1,
+                                  data={'mfa': 'check'})
+        with self.assertRaises(E.ApiError) as cm:
+            acc('GET')
+        self.assertEqual(cm.exception.status, 403)
 
     def test_reset_as_the_others(self):
         self.enrol(Device())

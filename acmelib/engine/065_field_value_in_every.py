@@ -648,6 +648,10 @@ class Storage(object):
             dbguard_account_sign(self.db, one['name'])
         self.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                     ('admin', one['name'].lower()))
+        # ...and its sign-ins on the enrolment pages (1.0.79): a new account of the same name
+        # was the old person's open portal sign-in, with the new one's role
+        if one.get('source') != 'directory':
+            account_portal_end(self, one['name'])
         # Its second step with it (1.0.146): a new account of the same name
         # took it over - the old owner's authenticator signing it in.
         self.db.run('DELETE FROM meta WHERE k = ?', ('adm2fa:' + one['name'].lower(),))

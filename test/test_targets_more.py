@@ -294,7 +294,7 @@ class CloudflareSslTest(unittest.TestCase):
         self.ctx = FakeCtx([
             ('GET', B + r'/zones\?name=example\.test$',
              (200, {'success': True, 'result': [{'id': 'a' * 32}]})),
-            ('GET', B + r'/zones/a{32}/custom_certificates\?per_page=50$',
+            ('GET', B + r'/zones/a{32}/custom_certificates\?per_page=50&page=1$',
              lambda c: (200, {'success': True, 'result': self.listed})),
             ('POST', B + r'/zones/a{32}/custom_certificates$', post),
             ('PATCH', B + r'/zones/a{32}/custom_certificates/cc1$',
@@ -1281,7 +1281,7 @@ class CloudflareNewIdTest(unittest.TestCase):
             listed[:] = [{'id': new, 'hosts': ['www.example.test', 'example.test']}]
             return 200, {'success': True, 'result': {'id': new}}
         ctx = FakeCtx([
-            ('GET', B + r'/zones/a{32}/custom_certificates\?per_page=50$',
+            ('GET', B + r'/zones/a{32}/custom_certificates\?per_page=50&page=1$',
              lambda c: (200, {'success': True, 'result': listed})),
             ('PATCH', B + r'/zones/a{32}/custom_certificates/cc[0-9]$', patch),
         ])

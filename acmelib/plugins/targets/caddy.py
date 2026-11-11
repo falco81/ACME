@@ -166,10 +166,11 @@ class CaddyTarget(SshMixin, Base):
         files = [dict(o, data=bundle.as_format(o['format'])) for o in outs]
         cmd = text(self.opt(options, 'reload_cmd', '')).strip()
         with self.ssh() as s:
-            if F.skip_same(options) and \
+            if F.skip_same(options) and not self.pending() and \
                     F.all_same_said(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s' % files[0]['path'])
+            self.mark_pending(bundle)       # done_pending() once through (1.0.79)
             existed = F.write_files(self, s, files, options=options)
             self.ctx.step('wrote %s and %s' % (files[0]['path'], files[1]['path']), 'ok')
             if cmd:
@@ -182,4 +183,5 @@ class CaddyTarget(SshMixin, Base):
                 self.ctx.step('ran %s' % cmd, 'ok')
             F.drop_previous(self, s, files, options)
         self.remember(bundle, options)
+        self.done_pending()
         return 'files written%s' % (', Caddy reloaded' if cmd else '')

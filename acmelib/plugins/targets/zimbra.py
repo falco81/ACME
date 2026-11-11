@@ -78,11 +78,12 @@ class ZimbraTarget(SshMixin, Base):
         key = [{'path': COMM + '/commercial.key', 'data': bundle.as_format('key-rsa'),
                 'mode': 0o640, 'owner': 'zimbra:zimbra'}]
         with self.ssh() as s:
-            if F.skip_same(options) and \
+            if F.skip_same(options) and not self.pending() and \
                     F.all_same_said(self, s, key + [{'path': COMM + '/commercial.crt',
                                                 'data': bundle.as_format('cert-pem')}]):
                 self.remember(bundle, options)
                 return self.same(bundle, 'deployed in Zimbra')
+            self.mark_pending(bundle)       # done_pending() once through (1.0.79)
             F.write_files(self, s, work)
             existed = F.write_files(self, s, key, options=options)
             try:
@@ -115,4 +116,5 @@ class ZimbraTarget(SshMixin, Base):
                                             % (text(err) or text(out)).strip()[-200:]),
                               'ok' if rc == 0 else 'warn')
         self.remember(bundle, options)
+        self.done_pending()
         return 'deployed as Zimbra\'s commercial certificate%s' % (', restarted' if cmd else '')

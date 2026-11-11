@@ -126,8 +126,11 @@ class VaultTarget(HttpTarget):
         if not as_bool(options.get('force')):
             st, hd, d = self.req('GET', url, ok=(200, 404), what='reading %s' % path)
             have = (((d or {}).get('data') or {}).get('data') or {}) if st == 200 else {}
+            # the key asked for and not there (or the other way round) is not "the same" (1.0.79)
             if have.get('fingerprint') == fp and (have.get('alt_fingerprint') or '') == \
-                    (fp_of(alt) if alt is not None else ''):
+                    (fp_of(alt) if alt is not None else '') and \
+                    bool(have.get('private_key')) == as_bool(
+                        self.opt(options, 'include_key', True), True):
                 return self.same(bundle, 'at %s' % path)
         data = {'certificate': bundle.cert_pem, 'chain': ''.join(bundle.chain_pems or []),
                 'fullchain': bundle.fullchain_pem, 'fingerprint': fp, 'serial': bundle.serial,

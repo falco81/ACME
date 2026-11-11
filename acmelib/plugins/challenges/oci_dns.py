@@ -115,10 +115,25 @@ class OciDns(RecordApiDns):
         return None if st == 404 and missing_ok else got
 
     def zone_names(self):
+        """Every primary zone - page after page (1.0.79: the first 100 only, and a domain on
+        another page had "no zone", never tried again)."""
         comp = str(self.c('compartment', '') or self.c('tenancy', ''))
-        got = self._call('GET', '/zones?' + urllib.parse.urlencode(
-            {'compartmentId': comp, 'zoneType': 'PRIMARY', 'limit': 100})) or []
-        return [z.get('name') for z in got if isinstance(z, dict)]
+        out, page = [], None
+        for _ in range(100):
+            q = {'compartmentId': comp, 'zoneType': 'PRIMARY', 'limit': 100}
+            if page:
+                q['page'] = page
+            url = self._base() + '/zones?' + urllib.parse.urlencode(q)
+            key_id = '%s/%s/%s' % (self.c('tenancy', ''), self.c('user', ''),
+                                   self.c('fingerprint', ''))
+            h = sign_headers(self.ctx, 'GET', url, None, key_id, self.c('key', ''))
+            got = api(self.ctx, 'GET', url, headers=h, who='OCI DNS', with_headers=True)
+            body, hdrs = (got[1], got[2]) if len(got) > 2 else (got[1], {})
+            out += [z.get('name') for z in body or [] if isinstance(z, dict)]
+            page = {str(k).lower(): v for k, v in (hdrs or {}).items()}.get('opc-next-page')
+            if not page:
+                break
+        return out
 
     def _path(self, zone, fqdn):
         return '/zones/%s/records/%s' % (urllib.parse.quote(zone), urllib.parse.quote(fqdn))

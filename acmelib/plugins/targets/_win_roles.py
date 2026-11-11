@@ -483,8 +483,9 @@ def role_script(key, options, env):
             "$cur = @(Get-WebApplicationProxySslCertificate -ErrorAction Stop)",
             "$olds = @($cur | ForEach-Object { [string]$_.CertificateHash } | Where-Object { $_ "
             "-and $_ -ne $thumb })",
-            "$olds += @(Get-ChildItem $store | Where-Object { $_.FriendlyName -like ($prefix + "
-            "'*') -and $_.Thumbprint -ne $thumb } | ForEach-Object { $_.Thumbprint })",
+            "$olds += @(Get-ChildItem $store | Where-Object { $_.FriendlyName -match ('^' + "
+            "[regex]::Escape($prefix) + '\\d{8}-[0-9a-f]+$') -and $_.Thumbprint -ne $thumb } | "
+            "ForEach-Object { $_.Thumbprint })",
             "if ($cur.Count -and -not @($cur | Where-Object { [string]$_.CertificateHash -ne "
             "$thumb }).Count) { Say ok 'Web Application Proxy already uses it' } else {",
             "  Set-WebApplicationProxySslCertificate -Thumbprint $thumb -ErrorAction Stop; Say "
@@ -565,8 +566,9 @@ def role_script(key, options, env):
                 "if (Test-Path -LiteralPath (Join-Path $dst $thumb)) { Say ok 'LDAPS: already in "
                 "NTDS\\Personal' } else { Copy-Item -LiteralPath $src -Destination $dst -Recurse "
                 "-ErrorAction Stop; Say ok 'LDAPS: put into NTDS\\Personal' }",
-                "$olds = @(Get-ChildItem $store | Where-Object { $_.FriendlyName -like ($prefix + "
-                "'*') -and $_.Thumbprint -ne $thumb } | ForEach-Object { $_.Thumbprint })",
+                "$olds = @(Get-ChildItem $store | Where-Object { $_.FriendlyName -match ('^' + "
+                "[regex]::Escape($prefix) + '\\d{8}-[0-9a-f]+$') -and $_.Thumbprint -ne $thumb } | "
+            "ForEach-Object { $_.Thumbprint })",
                 "foreach ($x in @(Get-ChildItem -LiteralPath $dst)) { if ($olds -contains "
                 "$x.PSChildName) { Remove-Item -LiteralPath $x.PSPath -Recurse -Force; Say info "
                 "('LDAPS: the old ' + $x.PSChildName + ' left NTDS\\Personal') } }",
@@ -715,7 +717,8 @@ def role_script(key, options, env):
         if o.on('ex_remove_old'):
             sc += [
                 "foreach ($x in @(Get-ExchangeCertificate | Where-Object { $_.Thumbprint -ne "
-                "$thumb -and $_.FriendlyName -like ($prefix + '*') })) {",
+                "$thumb -and $_.FriendlyName -match ('^' + [regex]::Escape($prefix) + "
+                "'\\d{8}-[0-9a-f]+$') })) {",
                 "  if ([string]$x.Services -eq 'None') { Remove-ExchangeCertificate -Thumbprint "
                 "$x.Thumbprint -Confirm:$false -ErrorAction Stop; Say ok ('Exchange: removed the "
                 "old ' + $x.Thumbprint) }",

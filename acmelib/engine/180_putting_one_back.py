@@ -165,11 +165,19 @@ def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True)
         try:
             eng = str(store.get_meta('snmp:engine:' + node_name(), '') or '')
             if re.match(r'^[0-9a-f]{18,64}\Z', eng):
-                (STATE_DIR / 'snmp-engine').write_text(eng + '\n')
                 try:
-                    (STATE_DIR / 'snmp-boots').unlink()
+                    had = (STATE_DIR / 'snmp-engine').read_text().strip()
                 except OSError:
-                    pass
+                    had = ''
+                (STATE_DIR / 'snmp-engine').write_text(eng + '\n')
+                # The count of starts kept when the engine is the same (1.0.79): the backup's
+                # older count came back - engineBoots went from 13 to 4 under the same ID, and
+                # the receivers refused the traps (RFC 3414) - the larger of the two is taken.
+                if had != eng:
+                    try:
+                        (STATE_DIR / 'snmp-boots').unlink()
+                    except OSError:
+                        pass
         except Exception as e:                          # noqa: BLE001
             log('the SNMP engine of the backup could not be put in place: %s' % e, 'warn')
         # (After the name: its rows are signed as the node it is now.)

@@ -110,7 +110,12 @@ class RecordApiDns(ApiDns):
     def del_txt(self, fqdn, value, handle):
         h = handle or {}
         zone = h.get('zone') or self.zone_for(fqdn)
-        for rid in self._ours(zone, fqdn, value):
+        ours = self._ours(zone, fqdn, value)
+        # the one made, by its id, too (1.0.79): a listing that does not show it (past a page,
+        # not yet visible) left it behind
+        if h.get('id') and h['id'] not in ours:
+            ours.append(h['id'])
+        for rid in ours:
             try:
                 self.delete_txt(zone, D.norm(fqdn), rid, value)
             except PluginError as e:

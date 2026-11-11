@@ -384,11 +384,34 @@ def _pk_mine(h):
     return s, acc
 
 
+def pk_password_again(h, acc, password):
+    """The account's password, asked again before its second step is added to (1.0.79)."""
+    password = str(password or '')
+    key = h.throttle('password', split_limit('login_tries', 5), 5, name=acc['name'])
+    if not password:
+        raise ApiError(400, 'type your password to add a passkey')
+    if acc.get('source') == 'directory':
+        got = admin_from_directory(h, acc['name'], password) if CONFIG.get(
+            'admin_directory') else None
+        ok = bool(got) and str(got.get('name') or '').lower() == str(acc['name']).lower()
+    else:
+        ok = bool(acc.get('pw')) and password_ok(password, acc['pw'])
+    if not ok:
+        h.failed(key)
+        raise ApiError(400, 'the password is not right')
+
+
 @route('GET', '/api/auth/passkeys')
 def _pk_list(h):
+    # the account signed in whole (1.0.79): not before its second step, nor once switched off
     s = h.session('admin')
     if not s:
         raise ApiError(401, 'not signed in, or the sign-in has run out')
+    if mfa_pending(s):
+        raise ApiError(403, 'the second step of signing in is not done yet')
+    acc = h.store.account(s['name'], checked=True)
+    if not acc or acc.get('disabled'):
+        raise ApiError(401, 'that account may no longer sign in')
     rec = mfa_get(h.store, s['name']) or {}
     host = str(h.headers.get('X-Acme-Host') or '').split(':')[0].lower()
     return {'on': pk_mine_on(), 'kind': rec.get('kind') or '',
@@ -407,6 +430,10 @@ def _pk_do(h):
             raise ApiError(400, 'that is %d passkeys - take one away first' % PASSKEY_MOST)
         return pk_create_options(h, s, acc, pk_rp_id(h), 'add')
     if act == 'add_finish':
+        # the password again (1.0.79): a session left open, or its cookie taken, gave a second
+        # step of its own that put the owner's app (or code by mail) away
+        if (mfa_get(h.store, name) or {}).get('kind'):
+            pk_password_again(h, acc, b.get('password'))
         pk = pk_enrol_finish(h, s, acc, b, pk_rp_id(h), 'add')
         with MFA_LOCK:
             rec = mfa_get(h.store, name) or {}

@@ -349,7 +349,8 @@ class SshTarget(SshMixin, Base):
             # left alone, each said in the job with its SHA-256.
             same = self._same_files(s, files, datas, bundle, options) \
                 if r['skip_same'] else [False] * len(files)
-            if all(same) and not stale:
+            unfinished = self.pending()
+            if all(same) and not stale and not unfinished:
                 # Nothing to replace (1.0.78): nothing run either - no commands before, no test,
                 # no script, no reload. The deployment is fine.
                 self.ctx.step('nothing replaced: every file holds this certificate already (the '
@@ -358,6 +359,10 @@ class SshTarget(SshMixin, Base):
                 self._written(options, [f['path'] for f in files])
                 return 'unchanged: every file on %s holds it already (the same SHA-256) - nothing ' \
                        'replaced, nothing run' % self.c('host')
+            if all(same) and unfinished:
+                self.ctx.step('every file holds it already, but the last deployment here did not '
+                              'finish - the commands run all the same', 'warn')
+            self.mark_pending(bundle)
             todo = [i for i, x in enumerate(same) if not x]
             wfiles = [files[i] for i in todo]
             wdatas = [datas[i] for i in todo]
@@ -414,6 +419,7 @@ class SshTarget(SshMixin, Base):
                     except Exception:                       # noqa: BLE001
                         pass
         self.remember(bundle, options)
+        self.done_pending()
         self._written(options, [f['path'] for f in files])
         kept = len(files) - len(wfiles)
         return '%d file%s written on %s%s%s%s' % (

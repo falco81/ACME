@@ -98,17 +98,19 @@ class TraefikTarget(SshMixin, Base):
                  {'path': conf, 'data': ('\n'.join(yml) + '\n').encode(), 'mode': 0o644,
                   'owner': None}]
         with self.ssh() as s:
-            if F.skip_same(options) and \
+            if F.skip_same(options) and not self.pending() and \
                     F.all_same_said(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s' % conf)
             # the certificate first, the configuration naming it last
+            self.mark_pending(bundle)       # done_pending() once through (1.0.79)
             F.write_files(self, s, files[:2], options=options)
             F.write_files(self, s, files[2:], options=options)
             F.drop_previous(self, s, files, options)
             self.ctx.step('wrote %s.crt/.key and %s' % (name, conf), 'ok')
             self.cleanup(s, cdir, prefix, name, self.keep(options))
         self.remember(bundle, options)
+        self.done_pending()
         return 'Traefik\'s %s points at %s' % (conf, name)
 
     def cleanup(self, s, cdir, prefix, current, keep):

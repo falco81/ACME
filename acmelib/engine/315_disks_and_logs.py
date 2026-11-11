@@ -560,6 +560,28 @@ def osup_tick(daemon):
         return
     # Back up after a restart the update asked for: done, and back in service.
     row = osup_row(store, me)
+    # ...or the restart refused or not done (1.0.79: "rebooting" for ever, the node in
+    # maintenance with no work and no VIP, and every later update refused)
+    if row.get('state') == 'rebooting' and not row.get('rebooted'):
+        pw = _meta_obj(store, 'power:node:' + me)
+        if pw.get('state') == 'failed' and float(pw.get('at') or 0) >= float(row.get('done_at') or 0) - 5:
+            row['state'] = 'done'
+            row['said'] = 'updated; the restart did not happen: %s - restart it by hand' % (
+                pw.get('said') or pw.get('words') or 'refused')
+            plan = osup_plan(store)
+            if plan.get('state') == 'running' and (plan.get('order') or [None])[-1] == me and \
+                    row.get('plan') == plan.get('id'):
+                plan.update(state='done', ended=time.time())
+                store.set_meta('host:osup:plan', json.dumps(plan))
+            if row.get('maint'):
+                try:
+                    maintenance_set(store, False, '', 'acme (system update)')
+                except Exception:                       # noqa: BLE001
+                    pass
+                row['maint'] = False
+            osup_put(store, row)
+            store.add_event('settings', 'the system of %s was updated, but the restart it needs '
+                            'did not happen: %s' % (me, row['said']), 'warn', who='acme (system update)')
     if row.get('reboot') and not row.get('rebooted') and \
             boot_time() > float(row.get('done_at') or row.get('at') or 0) + 1:
         row['rebooted'] = True

@@ -597,7 +597,9 @@ def _portal_request(h):
     # once, with its key to take, it covered every host under the name.
     auto = bool(E.CONFIG.get('portal_cert_auto')) and not any(n.startswith('*.') for n in names) \
         and not held_by_others(store, names, owner)
-    base_name = re.sub(r'[^A-Za-z0-9._@+-]+', '-', names[0].replace('*.', 'wildcard.'))[:80]
+    # a name the rules take (1.0.79: "_svc.example.test" stayed as it was, and every save of the
+    # certificate by an administrator was refused until it was renamed)
+    base_name = S.safe_name(names[0].replace('*.', 'wildcard.'), most=80)
     name = base_name
     n = 1
     while store.db.row('SELECT id FROM certs WHERE name = ?', (name,)):
@@ -705,6 +707,10 @@ def _portal_revoke(h):
     def fn(job):
         got = renewer.revoke_cert(job.store, job, row['id'], reason, by)
         if not again:
+            return got
+        # Not renewed over a revocation not done in full (1.0.79: the twin not revoked was
+        # replaced and forgotten - its compromised key still valid at the CA)
+        if isinstance(got, tuple) and got and got[0] is False:
             return got
         job.step('issuing a new one in its place')
         job.store.db.update('certs', row['id'], {'auto_renew': 1})

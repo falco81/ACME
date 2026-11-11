@@ -117,11 +117,13 @@ def portal_gate_send(h, name, kind, dest, display='', lang=''):
         code_send(h.store, kind, dest, code, 'portal', name=name, lang=lang, display=display or '')
     except (MailError, SmsError) as e:
         h.store.add_event('portal', 'the one-time code for %s to sign in to the portal '
-                          'could not be sent to %s: %s' % (name, dest, e), 'warn', who=name)
+                          'could not be sent to %s: %s' % (name, dest_masked(kind, dest), e),
+                          'warn', who=name)
         # The mail or SMS server's own words in Events only (as otp 1.0.234), not on the portal.
         raise ApiError(502, 'the code could not be sent - try again later, or ask the administrator')
     h.store.add_event('portal', '%s signed in to the portal with the password: a one-time code went '
-                      'by %s to %s' % (name, 'mail' if kind == 'mail' else 'SMS', dest), who=name)
+                      'by %s to %s' % (name, 'mail' if kind == 'mail' else 'SMS',
+                                       dest_masked(kind, dest)), who=name)   # masked (1.0.79)
     return {'kind': kind, 'dest': dest, 'code': code_hash(name, code),
             'exp': time.time() + int(CONFIG.get('code_ttl_s') or 300), 'tries': 0,
             'lang': lang or ''}

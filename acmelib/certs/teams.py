@@ -223,6 +223,18 @@ def cert_of_ref(store, ref):
     took for a name, found none, and let the route act unchecked (1.0.19)."""
     if ref in (None, '') or isinstance(ref, (dict, list)):
         return None
+    # A number - 5, 5.0, " 5", "5.0"? - is an id, as the route reads it (1.0.79: 1.0 was looked
+    # up by name first - a certificate of one's own team called "1.0" - and the route then acted
+    # on the id 1 of another team's)
+    if not isinstance(ref, bool):
+        try:
+            n = int(ref) if not isinstance(ref, str) else int(ref.strip())
+        except (TypeError, ValueError, OverflowError):
+            n = None
+        if n is None and isinstance(ref, (int, float)):
+            n = 0
+        if n is not None:
+            return S.cert_get(store, n) if n > 0 else None
     row = S.cert_get(store, ref)
     if row is None and not isinstance(ref, bool):
         try:

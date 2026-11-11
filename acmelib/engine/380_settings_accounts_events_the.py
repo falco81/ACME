@@ -333,6 +333,7 @@ def _users_do(h):
         if act == 'disable':
             h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
                            ('admin', name.lower()))
+            account_portal_end(h.store, name)       # the enrolment pages too (1.0.79)
         h.store.add_event('accounts', '%s switched %s %s' % (who, name, 'off' if
                                                             act == 'disable' else 'on'), who=who)
         return {'message': 'saved'}

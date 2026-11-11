@@ -8,7 +8,7 @@ import os
 
 from acmelib.plugins.base import PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import HttpChallenge, as_list
+from acmelib.plugins.challenges._common import HttpChallenge, as_list, url_host
 
 
 class HttpLocal(HttpChallenge):
@@ -71,7 +71,7 @@ class HttpLocal(HttpChallenge):
         n = self.check_name(name)
         self.check_token(token)
         self.ctx.http_token_put(token, key_authorization)
-        self.ctx.step('http://%s/.well-known/acme-challenge/%s is answered by acme' % (n, token))
+        self.ctx.step('http://%s/.well-known/acme-challenge/%s is answered by acme' % (url_host(n), token))
         return {'token': token, 'ka': key_authorization, 'name': n}
 
     def ready(self, name, handle):
@@ -79,7 +79,7 @@ class HttpLocal(HttpChallenge):
         if not self.flag('self_check'):
             return True
         ok, words = self.fetch('http://%s/.well-known/acme-challenge/%s' % (
-            handle.get('name') or name, handle.get('token')), handle.get('ka'))
+            url_host(handle.get('name') or name), handle.get('token')), handle.get('ka'))
         self.ctx.step(words, 'ok' if ok else 'info')
         return ok
 

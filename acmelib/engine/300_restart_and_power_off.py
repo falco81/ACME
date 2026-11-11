@@ -126,6 +126,12 @@ def power_tick(daemon):
             return True
         if time.time() - float(row.get('moved') or 0) > 900:
             _power_put(store, row, 'failed', 'it did not restart in 15 minutes')
+            # back in service (1.0.79): it stayed in maintenance - no work, no VIP - for good
+            if row.get('maint'):
+                try:
+                    maintenance_set(store, False, '', 'acme (the restart did not happen)')
+                except Exception:                       # noqa: BLE001
+                    pass
         return False
     if not plan or me not in (plan.get('targets') or []) or row.get('id') == plan.get('id'):
         return False

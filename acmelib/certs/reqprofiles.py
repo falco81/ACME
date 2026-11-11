@@ -740,7 +740,9 @@ def request(h, s, b):
         owner = got[0]
     waits = bool(cfg.get('approval')) or P.held_by_others(store, names, owner)   # (1.0.51)
     auto = bool(cfg.get('auto_renew', True))
-    base_name = re.sub(r'[^A-Za-z0-9._@+-]+', '-', names[0].replace('*.', 'wildcard.'))[:80]
+    # a name the rules take (1.0.79: "_svc.example.test" stayed as it was, and every save of the
+    # certificate by an administrator was refused until it was renamed)
+    base_name = S.safe_name(names[0].replace('*.', 'wildcard.'), most=80)
     name, n = base_name, 1
     while store.db.row('SELECT id FROM certs WHERE name = ?', (name,)):
         n += 1

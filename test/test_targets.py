@@ -897,8 +897,10 @@ class OthersTest(unittest.TestCase):
         self.assertEqual(post['headers']['X-Vault-Token'], 'VT')
         self.assertEqual(ctx.json(post)['data']['fingerprint'], b.fingerprint)
         ctx.routes.insert(0, ('GET', r'/v1/secret/data/', (200, {'data': {'data': {
-            'fingerprint': b.fingerprint}}})))
+            'fingerprint': b.fingerprint, 'private_key': 'K'}}})))
         self.assertTrue(t.deploy(b, {}).startswith('unchanged'))
+        # without the key asked for (1.0.79): written again
+        self.assertIn('version 3', t.deploy(b, {'include_key': False}))
 
     def test_kubernetes(self):
         b = FakeBundle()

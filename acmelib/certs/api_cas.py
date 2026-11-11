@@ -88,7 +88,12 @@ def dependents(store, ref):
 
 @A.api('GET', '/api/cas/dependents')
 def _ca_dependents(h, s):
-    return dependents(h.store, h.arg('id') or h.arg('name'))
+    got = dependents(h.store, h.arg('id') or h.arg('name'))
+    seen = A.visible_cert_ids(h.store, s)
+    if seen is not None:                    # its own team's only (1.0.79)
+        mine = {r['name'] for r in h.store.db.rows('SELECT id, name FROM certs') if r['id'] in seen}
+        got['certs'] = [n for n in got['certs'] if n in mine]
+    return got
 
 
 # ---------------------------------------------------------------------------

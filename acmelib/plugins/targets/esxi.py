@@ -57,10 +57,11 @@ class EsxiTarget(SshMixin, Base):
                  {'path': SSL + '/rui.key', 'data': bundle.as_format('key-rsa'),
                   'mode': 0o400, 'owner': None}]
         with self.ssh() as s:
-            if F.skip_same(options) and \
+            if F.skip_same(options) and not self.pending() and \
                     F.all_same_said(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in rui.crt / rui.key')
+            self.mark_pending(bundle)       # done_pending() once through (1.0.79)
             existed = F.write_files(self, s, files, options=options)
             self.ctx.step('wrote %s/rui.crt and rui.key' % SSL, 'ok')
             how = self.opt(options, 'restart', 'hostd_vpxa')
@@ -76,6 +77,7 @@ class EsxiTarget(SshMixin, Base):
                 self.ctx.step('ran %s' % cmd, 'ok')
             F.drop_previous(self, s, files, options)
         self.remember(bundle, options)
+        self.done_pending()
         return 'rui.crt / rui.key written on %s%s' % (self.c('host'),
                                                      ', hostd restarted' if cmd else '')
 

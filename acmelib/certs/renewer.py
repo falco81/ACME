@@ -470,6 +470,11 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
     if not cert.get('issuer'):
         raise base.PluginError('%s has no issuer: it was imported, or is answered by a CSR - '
                                'nothing to renew it with' % cert['name'], retry=False)
+    if cert.get('enabled') == 0:
+        # Switched off (1.0.79): refused here, whatever asks - revoke with a new one at once and
+        # the command line issued and deployed it, and left it "ok", switched off
+        raise base.PluginError('%s is switched off: switch it on to renew it' % cert['name'],
+                               retry=False)
     held = E.split_issue_refused()
     if held:
         # Not on both halves of a split cluster (1.0.14): two versions, a paid one twice.

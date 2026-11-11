@@ -245,6 +245,10 @@ def deploys_of(store, cert_id, only=None, enabled=True):
 def run_deploys(store, job, cert_id, only=None, force=False):
     """Every enabled deployment of the certificate (or those asked). (all_ok, words)."""
     cert = S.cert_need(store, cert_id)
+    if cert.get('enabled') == 0:
+        # switched off (1.0.79): not deployed, whoever asks (the command line did)
+        job.step('%s is switched off: nothing deployed' % cert['name'], 'warn')
+        return True, 'nothing deployed: the certificate is switched off'
     told_renewed(store, job, cert_id)
     rows = deploys_of(store, cert_id, only)
     if not rows:

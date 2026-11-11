@@ -117,9 +117,18 @@ class CloudflareSslTarget(CloudTarget):
         return 'cloudflare-ssl:%s:%s' % (self.c('zone'), label_of(bundle, options))
 
     def listed(self):
-        st, hd, d = self.req('GET', '%s/zones/%s/custom_certificates?per_page=50'
-                             % (BASE, self.zone_id()), what='listing the custom certificates')
-        return (d or {}).get('result') or [] if isinstance(d, dict) else []
+        out = []
+        for page in range(1, 41):           # page by page (1.0.79), not only the first 50
+            st, hd, d = self.req('GET', '%s/zones/%s/custom_certificates?per_page=50&page=%d'
+                                 % (BASE, self.zone_id(), page),
+                                 what='listing the custom certificates')
+            got = ((d or {}).get('result') or []) if isinstance(d, dict) else []
+            out.extend(got)
+            info = (d or {}).get('result_info') or {} if isinstance(d, dict) else {}
+            total = info.get('total_pages')
+            if not got or (total and page >= int(total)) or (not total and len(got) < 50):
+                break
+        return out
 
     def test(self):
         st, hd, d = self.req('GET', '%s/zones/%s' % (BASE, self.zone_id()),

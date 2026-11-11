@@ -22,7 +22,7 @@ import posixpath
 
 from acmelib.plugins.base import PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
-from acmelib.plugins.challenges._common import HttpChallenge
+from acmelib.plugins.challenges._common import HttpChallenge, url_host
 
 WELL_KNOWN = '.well-known/acme-challenge/'
 
@@ -78,7 +78,7 @@ class UploadHttp(HttpChallenge):
     def check_base(self, name):
         if self.c('check', 'name') == 'url' and str(self.c('check_url', '') or '').strip():
             return str(self.c('check_url')).strip().rstrip('/') + '/'
-        return 'http://%s/' % D.norm(name)
+        return 'http://%s/' % url_host(D.norm(name) if ':' not in str(name) else str(name).strip('[]'))
 
     # -- a commercial CA's DCV file, anywhere under /.well-known/ ---------------------
     proofs = ('http-file-any',)

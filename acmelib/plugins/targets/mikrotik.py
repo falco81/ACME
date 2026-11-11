@@ -251,6 +251,21 @@ class MikroTikTarget(SshMixin, HttpTarget):
                        check=False)
         return [x.strip() for x in out.splitlines() if x.strip()]
 
+    def _used_ssh(self, s):
+        """The certificates the IP services and the SSTP/OpenVPN servers are bound to."""
+        cmds = [':foreach i in=[/ip service find] do={:put ("USED " . [/ip service get $i '
+                'certificate])}']
+        for path in SINGLETONS.values():
+            cli = '/' + ' '.join(path.strip('/').split('/'))
+            cmds.append(':do {:put ("USED " . [%s get certificate])} on-error={}' % cli)
+        used = set()
+        for c in cmds:
+            for ln in self.ros(s, c, check=False).splitlines():
+                ln = ln.strip()
+                if ln.startswith('USED ') and ln[5:].strip() not in ('', 'none', '*0'):
+                    used.add(ln[5:].strip())
+        return used
+
     def _deploy_ssh(self, bundle, options, name, prefix, services):
         with self.ssh() as s:
             have = self._names(s, prefix)
@@ -284,7 +299,11 @@ class MikroTikTarget(SshMixin, HttpTarget):
                 self.ctx.step('%s uses %s' % (svc, name), 'ok')
             keep = self.keep(options)
             if keep >= 0:
+                used = self._used_ssh(s)
                 for old in prune(self._names(s, prefix), prefix, keep, name):
+                    if old in used:             # as over REST (1.0.79): one in use stays
+                        self.ctx.step('the old %s is still used: kept' % old, 'warn')
+                        continue
                     self.ros(s, '/certificate remove [find where name=%s]' % ros_str(old),
                              check=False)
                     self.ctx.step('removed the old %s' % old)

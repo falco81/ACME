@@ -449,7 +449,10 @@ class BuiltinDns(DnsChallenge):
                 seen = False
                 for srv in pub:
                     try:
-                        if val in D.txt_at(srv, label, rd=True):
+                        # the way the set asks it (1.0.79): host:port, DoT, TCP - txt_at took
+                        # "1.1.1.1:5353" for a name and said "not seen"
+                        m = D.ask_server(pub, srv, label, 16, rd=True)
+                        if val in [r.text for r in m.answer if r.rtype == 16]:
                             seen = True
                             out.append('a test record was seen through %s: the internet '
                                        'reaches acme\'s DNS server' % srv)

@@ -147,6 +147,9 @@ def alerts_quiet_until(store):
     return float(alerts_quiet_row(store).get('until') or 0)
 
 
+MAINT_QUIET_S = 6 * 3600
+
+
 def alerts_quiet(store, names):
     """Why the cluster is being worked on now, or '' (1.0.194): a node in
     maintenance, an upgrade, the system's updates or a restart under way - and
@@ -155,12 +158,17 @@ def alerts_quiet(store, names):
     why = ''
     try:
         for n in names:
-            if (maintenance_row(store, n) or {}).get('on'):
+            m = maintenance_row(store, n) or {}
+            # Maintenance of today, not a forgotten one nor a rebuild that failed half way
+            # (1.0.79: any of them silenced the database, replication and VIP alerts for good)
+            if m.get('on') and m.get('why') != HA_REBUILD_FAILED_WHY and \
+                    time.time() - float(m.get('at') or 0) < MAINT_QUIET_S:
                 why = '%s in maintenance' % n
                 break
         if not why:
             up = upgrade_plan(store) or {}
-            if up.get('id') and up.get('state') not in ('done', 'failed') and \
+            # running - not a cancelled one (1.0.79: six hours of silence for nothing)
+            if up.get('id') and up.get('state') not in ('done', 'failed', 'cancelled') and \
                     time.time() - float(up.get('at') or 0) < 6 * 3600:
                 why = 'an upgrade'
         if not why and (osup_plan(store) or {}).get('state') == 'running':
@@ -205,6 +213,20 @@ def alert_problems(store, lang='en'):
     cluster = bool(CONFIG.get('ha_mode'))
     nodes = ha_nodes(store) if cluster else []
     names = [n['name'] for n in nodes] or [node_name()]
+    # A node in maintenance for long, or after a rebuild that failed half way (1.0.79: never
+    # said - and it silenced the cluster's alerts)
+    for n in names:
+        m = maintenance_row(store, n) or {}
+        if not m.get('on'):
+            continue
+        if m.get('why') == HA_REBUILD_FAILED_WHY:
+            add('maint:' + n, 'bad', n, _al(lang, 'Uzel %s: obnova z druhého uzlu selhala' % n,
+                                             '%s: a rebuild from the other node failed' % n),
+                str(m.get('why'))[:300], 'ha')
+        elif now - float(m.get('at') or now) > MAINT_QUIET_S:
+            add('maint:' + n, 'warn', n, _al(lang, 'Uzel %s je v údržbě už %s' % (n, _al_ago(now - float(m['at']), lang)),
+                                              '%s has been in maintenance for %s' % (n, _al_ago(now - float(m['at']), lang))),
+                str(m.get('why') or '')[:300], 'maintenance')
     beats = {n['name']: n for n in nodes}
     if not beats:
         try:
@@ -1039,9 +1061,14 @@ def _alerts_evaluate(store, force=False):
             for r in rows:                              # those before: not said
                 seen[int(r['id'])] = float(r.get('ts') or now)
             rows = []
+        # Not older than the last look (1.0.79): switched back on after weeks, the events of
+        # then were mailed as happening now - read past, not said.
+        since = max(float(st.get('checked') or 0) - 900, now - 86400)
         for r in rows:
             st['event_id'] = max(int(st.get('event_id') or 0), int(r['id']))
             seen[int(r['id'])] = float(r.get('ts') or now)
+            if float(r.get('ts') or now) < since:
+                continue
             words = str(r.get('words') or '')
             for _key, kind, bits, cs, en, pane, level in rules:
                 if r.get('kind') == kind and any(b in words for b in bits):

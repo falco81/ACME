@@ -289,6 +289,8 @@ def _overview(h, s):
         deps = {r['id']: r['cert_id'] for r in store.db.rows('SELECT id, cert_id FROM cert_deploys')}
 
         def _mine(a):
+            if a.get('cert_id') is not None:            # a test's: its certificate (1.0.79)
+                return int(a['cert_id']) in mine
             kind, _, ident = str(a.get('key') or '').partition(':')
             try:
                 ident = int(ident)
@@ -1038,6 +1040,10 @@ def _cert_revoke(h, s):
         got = renewer.revoke_cert(job.store, job, row['id'], reason, by)
         if not again:
             return got
+        # Not renewed over a revocation not done in full (1.0.79: the twin not revoked was
+        # replaced and forgotten - its compromised key still valid at the CA)
+        if isinstance(got, tuple) and got and got[0] is False:
+            return got
         # A new one at once (the key got out: a new key too, whatever reuse_key says),
         # deployed where the revoked one is - and renewed by itself again.
         job.step('issuing a new one in its place')
@@ -1577,9 +1583,29 @@ def _ca_one(h, s):
         pki_view = _lib('publish').view(h.store, r['id'])
     except Exception as e:                              # noqa: BLE001
         pki_view = {'error': str(e)}
-    return {'ca': one, 'pki': pki_view, 'issued': ca.ca_issued(h.store, r['id'], limit=h.num('per', 500, 1, 5000),
-                                              offset=h.num('offset', 0, 0)),
+    issued = ca.ca_issued(h.store, r['id'], limit=h.num('per', 500, 1, 5000),
+                          offset=h.num('offset', 0, 0))
+    seen = visible_cert_ids(h.store, s)
+    if seen is not None:
+        # a reader of one team sees its own team's certificates only (1.0.79: every one the
+        # CA signed, other teams' names with them)
+        rows = issued.get('rows') if isinstance(issued, dict) else issued
+        kept = [x for x in rows or [] if x.get('cert_id') in seen]
+        if isinstance(issued, dict):
+            issued = dict(issued, rows=kept, total=len(kept))
+        else:
+            issued = kept
+    return {'ca': one, 'pki': pki_view, 'issued': issued,
             'children': [ca_row(h.store, c)['name'] for c in one.get('children') or []]}
+
+
+def visible_cert_ids(store, s):
+    """The ids of the certificates a session may see - None when it sees every one (1.0.79)."""
+    T = _lib('teams')
+    if T.scope(store, s, 'view') is None:
+        return None
+    sw, sa = T.where(store, s, 'view')
+    return {int(r['id']) for r in store.db.rows('SELECT id FROM certs WHERE 1 = 1' + sw, sa)}
 
 
 def _subject_of(v):
@@ -2127,6 +2153,13 @@ def family_delete(store, family, b, by):
     if used:
         raise ValueError('%s is in use (%d): change those first' % (row['name'], used))
     if family in ('issuer', 'challenge'):
+        # named by the portal's settings (1.0.79: deleted, and every free-form request failed)
+        key = 'portal_cert_issuers' if family == 'issuer' else 'portal_cert_challenge'
+        have = E.CONFIG.get(key) or ''
+        have = have if isinstance(have, list) else re.split(r'[\s,;]+', str(have))
+        if row['name'] in [str(x).strip() for x in have]:
+            raise ValueError('%s is the one the portal uses (Settings → the enrolment pages): '
+                             'choose another there first' % row['name'])
         from acmelib.certs import reqprofiles as RP
         prof = RP.using_source(store, family, row['name'])
         if prof:

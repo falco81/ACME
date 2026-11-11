@@ -108,6 +108,8 @@ def backups():
     for f in sorted(list(BACKUP_DIR.glob('acme-*.json.gz')) + list(BACKUP_DIR.glob('opt-*.json.gz')),
                    key=lambda f: f.stat().st_mtime, reverse=True):
         st = f.stat()
+        if not st.st_size:
+            continue        # a name taken by a copy cut short (1.0.79): no copy - kept nothing
         out.append({'name': f.name, 'size': st.st_size, 'at': st.st_mtime,
                     'key': f.with_name(f.name.replace('.json.gz', '.key')).exists()})
     return out
@@ -131,6 +133,24 @@ def stale_work_away(older=6 * 3600):
         items = list(STATE_DIR.iterdir())
     except OSError:
         return
+    # ...and in the backups' folder (1.0.79): a copy killed half way left its hidden part (a dump
+    # not locked) and the empty name it took - the empty one counted as a copy, pushed good ones
+    # out and said "the last backup" was then
+    try:
+        for p in list(BACKUP_DIR.iterdir()) if BACKUP_DIR.is_dir() else []:
+            try:
+                st = p.lstat()
+                if time.time() - st.st_mtime < min(older, 3600):
+                    continue
+                if (p.name.startswith('.acme-') and p.name.endswith('.part')) or \
+                        (p.name.startswith('acme-') and p.name.endswith('.json.gz') and
+                         not st.st_size and p.is_file()):
+                    p.unlink()
+                    log('left from a copy cut short, taken away: %s' % p.name, 'info')
+            except OSError:
+                pass
+    except OSError:
+        pass
     for p in items:
         if not p.name.startswith(STALE_WORK):
             continue

@@ -302,9 +302,10 @@ def expected(store, cert):
     """{current: {fp: (variant, version)}, old: {fp: version}, names, chain: [fp],
     not_after}."""
     cur = {}
-    if cert.get('fingerprint'):
+    # A revoked one is not the current one (1.0.79: a server serving it was "ok")
+    if cert.get('fingerprint') and cert.get('state') != 'revoked':
         cur[str(cert['fingerprint']).upper()] = ('main', cert.get('version'))
-    if cert.get('alt_fingerprint'):
+    if cert.get('alt_fingerprint') and cert.get('alt_state') != 'revoked':
         cur[str(cert['alt_fingerprint']).upper()] = ('alt', cert.get('alt_version'))
     old = {}
     for r in store.db.rows('SELECT version, fingerprint FROM cert_versions WHERE cert_id = ?',

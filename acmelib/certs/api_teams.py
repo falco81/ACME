@@ -33,7 +33,12 @@ def summary(store, s):
         teams = [t if T.owner_in(seen, t['name']) else
                  dict(t, members=[], contact_mail='', contact_phone='', note='')
                  for t in teams]
-    return {'teams': teams, 'tags': T.tags(store), 'legacy': T.legacy(store),
+    legacy = T.legacy(store)
+    if seen is not None:
+        # the free-text owners of the others' certificates not told (1.0.79); adopting them
+        # is a full administrator's alone anyway
+        legacy = {'owners': [], 'tags': legacy.get('tags') or []}
+    return {'teams': teams, 'tags': T.tags(store), 'legacy': legacy,
             'rights': list(T.RIGHTS), 'kinds': list(T.KINDS), 'colours': list(T.COLOURS),
             'can_change': s.get('role') == 'fulladmin',
             # The owners a new certificate (or a new owner) may be given by this account.

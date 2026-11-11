@@ -113,13 +113,30 @@ class AzureKeyVaultTarget(CloudTarget):
             return None
         return d.get('x5t')
 
+    def current_type(self, name):
+        """The content type the current version went in as ('' when not said)."""
+        try:
+            st, hd, d = self.req('GET', self.url('/certificates/%s' % name), ok=(200, 404),
+                                 what='reading %s' % name)
+        except PluginError:
+            return ''
+        if st != 200 or not isinstance(d, dict):
+            return ''
+        return text(((d.get('policy') or {}).get('secret_props') or {}).get('contentType') or '')
+
+    def content_type(self, options):
+        return 'application/x-pkcs12' if self.opt(options, 'secret_format', 'pem') == 'pfx' \
+            else 'application/x-pem-file'
+
     def deploy(self, bundle, options):
         options = options or {}
         name = kv_name(bundle, options)
         want = base64.urlsafe_b64encode(bytes.fromhex(sha1_thumb(bundle))).rstrip(b'=').decode()
         if not as_bool(options.get('force')):
             have = self.current_x5t(name)
-            if have and have.rstrip('=') == want:
+            # the same thumbprint, imported in another form (PEM/PFX) - not the same (1.0.79)
+            if have and have.rstrip('=') == want and \
+                    self.current_type(name) in ('', self.content_type(options)):
                 self.remember(bundle, options)
                 return self.same(bundle, 'the current version of %s' % name)
         if self.opt(options, 'secret_format', 'pem') == 'pfx':

@@ -110,16 +110,27 @@ class DockerSwarmTarget(SshMixin, Base):
                 args = []
                 for ext, new in (('crt', crt), ('key', key)):
                     tgt = targets[ext]
+                    # ours by the whole name (1.0.79): acme-www- is not acme-www-api-...
+                    ours = re.compile(r'^%s\d{8}-[0-9a-f]+\.%s$' % (re.escape(prefix), ext))
+                    was = {}
                     for m in ms:
                         file_name = (m.get('File') or {}).get('Name')
-                        if (file_name == tgt or m.get('SecretName', '').startswith(prefix)
-                                and m.get('SecretName', '').endswith('.' + ext)) \
+                        if (file_name == tgt or ours.match(m.get('SecretName') or '')) \
                                 and m.get('SecretName') != new:
                             args.append('--secret-rm %s' % quote(m['SecretName']))
+                            if file_name == tgt:
+                                was = m.get('File') or {}
                     if not any(m.get('SecretName') == new for m in ms):
-                        args.append('--secret-add %s' % quote(
-                            'source=%s,target=%s,mode=0%s' % (new, tgt, '444' if ext == 'crt'
-                                                              else '400')))
+                        # the owner and mode the service had for the file stay (1.0.79)
+                        spec = 'source=%s,target=%s' % (new, tgt)
+                        for k, w in (('UID', 'uid'), ('GID', 'gid')):
+                            if re.match(r'^\d+$', text(was.get(k) or '')):
+                                spec += ',%s=%s' % (w, was[k])
+                        mode = was.get('Mode')
+                        spec += ',mode=0%s' % (('%o' % int(mode)) if isinstance(mode, int)
+                                               and 0 < mode < 0o1000 else
+                                               '444' if ext == 'crt' else '400')
+                        args.append('--secret-add %s' % quote(spec))
                 if not args:
                     continue
                 self.sh(s, '%s service update --quiet --detach=false %s %s'

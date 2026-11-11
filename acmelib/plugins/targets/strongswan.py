@@ -77,10 +77,11 @@ class StrongswanTarget(SshMixin, Base):
                           'data': pem.encode(), 'mode': 0o644, 'owner': None})
         cmd = 'swanctl --load-creds' if mode != 'stroke' else 'ipsec rereadall'
         with self.ssh() as s:
-            if F.skip_same(options) and \
+            if F.skip_same(options) and not self.pending() and \
                     F.all_same_said(self, s, files):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s' % files[0]['path'])
+            self.mark_pending(bundle)       # done_pending() once through (1.0.79)
             existed = F.write_files(self, s, files, options=options, fmt='folder')
             self.ctx.step('wrote %s and its key' % files[0]['path'], 'ok')
             rc, out, err = self.sh(s, cmd, check=False)
@@ -92,4 +93,5 @@ class StrongswanTarget(SshMixin, Base):
             self.ctx.step('ran %s' % cmd, 'ok')
             F.drop_previous(self, s, files, options)
         self.remember(bundle, options)
+        self.done_pending()
         return '%s written, %s' % (files[0]['path'], cmd)

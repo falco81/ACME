@@ -745,6 +745,32 @@ class Base(Target):
         except Exception as e:                          # noqa: BLE001
             self.ctx.debug('cannot remember the deployment: %s' % e)
 
+    # A deployment begun and not finished (1.0.79): the files written, the reload cut off (the
+    # SSH session dropped, the job stopped) - the next one found every file the same and ran
+    # nothing, and the service kept the old certificate. Marked before the files are written,
+    # taken off when it went through; while marked, "nothing to replace" still runs the commands.
+    def _pending_key(self):
+        return 'pending:%s:%s' % (self.kind, self.ident())
+
+    def mark_pending(self, bundle):
+        try:
+            self.ctx.kv_set(self._pending_key(), {'fp': dual_fp(bundle), 'at': int(time.time())})
+        except Exception:                               # noqa: BLE001
+            pass
+
+    def pending(self):
+        try:
+            v = self.ctx.kv_get(self._pending_key())
+        except Exception:                               # noqa: BLE001
+            v = None
+        return bool(v)
+
+    def done_pending(self):
+        try:
+            self.ctx.kv_set(self._pending_key(), '')
+        except Exception:                               # noqa: BLE001
+            pass
+
     def same(self, bundle, words='already there'):
         self.ctx.step('%s %s - nothing to do (force to do it again)' % (fp_of(bundle)[:16],
                                                                          words), 'ok')

@@ -534,7 +534,10 @@ def ha_repl_state(store):
         out['trouble'] = str(e).split('\n')[0][:300]
     healthy = bool(out['incoming']) and all(x['enabled'] and x['running'] for x in
                                             out['incoming']) and bool(out['outgoing']) and \
-        all(x['wal_status'] not in ('lost',) for x in out['outgoing'])
+        all(x['wal_status'] not in ('lost',) for x in out['outgoing']) and \
+        all(x.get('active') for x in out['outgoing'])
+    # ...and the other node taking our changes (1.0.79): its subscription stopped, the slot here
+    # inactive and gigabytes behind, said "healthy" until the slot was lost - days later
     out['healthy'] = healthy
     out['lost'] = any(x.get('wal_status') == 'lost' for x in out['outgoing'])
     return out

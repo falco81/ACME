@@ -215,6 +215,44 @@ def nc_normalize(items):
     return out
 
 
+def _nc_inside(child, parent, who='it'):
+    """A child authority's name constraints inside its parent's (1.0.79: its own were taken as
+    they were - a leaf it signed outside the parent's was refused by every client)."""
+    if not parent:
+        return
+    for item in child or []:
+        which, rest = item.split(';', 1)
+        if which != 'permitted':
+            continue
+        t, v = rest.split(':', 1)
+        if t == 'IP':
+            net = ipaddress.ip_network(v, strict=False)
+            probes = [(t, str(net.network_address)), (t, str(net.broadcast_address))]
+        else:
+            probes = [(t, v.lstrip('.') if t == 'DNS' else v)]
+        for pr in probes:
+            if not _nc_allows(parent, pr):
+                raise PkiError('%s may sign for %s, which its parent may not (the parent\'s '
+                               'name constraints) - a certificate it signed there would be '
+                               'refused by every client' % (who, v), retry=False)
+
+
+def _ancestors_allow(store, row, typed):
+    """The authorities above `row` may sign for this name too (1.0.79)."""
+    seen = set()
+    cur = row
+    while cur and cur.get('parent_id') and int(cur['parent_id']) not in seen:
+        seen.add(int(cur['parent_id']))
+        try:
+            cur = _row(store, cur['parent_id'])
+        except PkiError:
+            return
+        nc = _j(cur.get('name_constraints'), [])
+        if nc and not _nc_allows(nc, typed):
+            raise PkiError('"%s" is outside what the authority "%s" above it may sign for (its '
+                           'name constraints)' % (typed[1], cur['name']), retry=False)
+
+
 def _nc_allows(nc, typed):
     """Whether (type, value) passes name constraints [which;T:v] (RFC 5280 §4.2.1.10, simply)."""
     t, v = typed
@@ -450,6 +488,7 @@ def ca_create(store, name, subject, key_type='ec-384', days=3650, parent_id=None
         nc = nc or []
         if pnc and not nc:
             nc = list(pnc)
+        _nc_inside(nc, pnc, name)
     csr = _csr_for_ca(key, pairs, path_len)
     lines = _ca_lines(path_len, nc)
     if parent:
@@ -782,7 +821,9 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
         if nc and not _nc_allows(nc, t):
             raise PkiError('"%s" is outside what the authority "%s" may sign for (its name '
                            'constraints)' % (t[1], row['name']), retry=False)
+        _ancestors_allow(store, row, t)
     if is_ca:
+        _nc_inside(nc_normalize(prof.get('name_constraints')), nc, 'the authority asked for')
         pl = _child_path_len(row, prof.get('path_len'))
         lines = _ca_lines(pl, nc_normalize(prof.get('name_constraints')) or nc,
                           ski=prof.get('ski'), key_usage=prof.get('ca_key_usage'))
@@ -1295,6 +1336,17 @@ def ca_renew(store, ca_id, days=None, path_len=KEEP, name_constraints=None, by='
         nc = _j(row.get('name_constraints'), [])
     else:
         nc = nc_normalize(name_constraints)
+        # inside its parent's, and its authorities' inside the new ones (1.0.79)
+        if row.get('parent_id'):
+            try:
+                _nc_inside(nc, _j(_row(store, row['parent_id']).get('name_constraints'), []),
+                           row['name'])
+            except PkiError as e:
+                if 'may sign for' in str(e):
+                    raise
+        for ch in store.db.rows('SELECT name, name_constraints FROM cert_cas WHERE parent_id = ?',
+                                (int(row['id']),)):
+            _nc_inside(_j(ch.get('name_constraints'), []), nc, ch['name'])
     ku = [k for k in (info['key_usage'] or []) if k in pki.KEY_USAGE_BITS] or None
     self_signed = bool(info['self_signed'])
     parent = None
