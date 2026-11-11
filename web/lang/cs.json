@@ -55391,6 +55391,10 @@
   "dsb_14": {
    "source": "the older copies",
    "text": "starší zálohy"
+  },
+  "ui77_1": {
+   "source": "not attached",
+   "text": "nepřipojen"
   }
  },
  "patterns": {
@@ -75701,6 +75705,86 @@
   "pdsb_23": {
    "source": "{0} file written on {1}, reloaded",
    "text": "{0} soubor zapsán na {1}, znovu načteno"
+  },
+  "pui77_1": {
+   "source": "{0} test(s) of this certificate",
+   "text": "{0} {0:test|testy|testů} tohoto certifikátu"
+  },
+  "pui77_2": {
+   "source": "{0} test(s) of {1} certificate(s)",
+   "text": "{0} {0:test|testy|testů} {1:z|ze|z} {1} {1:certifikátu|certifikátů|certifikátů}"
+  },
+  "pui77_3": {
+   "source": "{0} problem(s), listed under the header.",
+   "text": "{0} {0:problém|problémy|problémů}, vypsáno pod záhlavím."
+  },
+  "pui77_4": {
+   "source": "{0} - tried again in {1} s, {2} line(s) held for it",
+   "text": "{0} – další pokus za {1} s, {2} {2:řádek čeká|řádky čekají|řádků čeká}"
+  },
+  "pui77_5": {
+   "source": "{0} - tried again in {1} s, {2} line(s) held for it, {3} given up",
+   "text": "{0} – další pokus za {1} s, {2} {2:řádek čeká|řádky čekají|řádků čeká}, {3} vzdáno"
+  },
+  "pui77_6": {
+   "source": "The logs of {0} do not reach isemon",
+   "text": "Logy z {0} nedochází do isemon"
+  },
+  "pui77_7": {
+   "source": "The logs of {0} do not reach syslog (SIEM)",
+   "text": "Logy z {0} nedochází do syslogu (SIEM)"
+  },
+  "pui77_8": {
+   "source": "certificate {0} moved from {1} to {2} by {3}",
+   "text": "certifikát {0} převeden ze zdroje {1} na {2}, provedl {3}"
+  },
+  "pui77_9": {
+   "source": "{0}: the full sync to isemon starts (history of {1} days)",
+   "text": "{0}: úplná synchronizace do isemon začíná (historie {1} {1:den|dny|dní})"
+  },
+  "pui77_10": {
+   "source": "{0}: the full sync to isemon is done - {1} lines ({2} events, {3} jobs)",
+   "text": "{0}: úplná synchronizace do isemon je hotová – {1} {1:řádek|řádky|řádků} ({2} {2:událost|události|událostí}, {3} {3:úloha|úlohy|úloh})"
+  },
+  "pui77_11": {
+   "source": "{0}: the full sync to isemon failed: {1}",
+   "text": "{0}: úplná synchronizace do isemon selhala: {1}"
+  },
+  "pui77_12": {
+   "source": "test {0} of {1} runs after a deployment on {2} by {3}",
+   "text": "test {0} certifikátu {1} běží po nasazení na {2}, nastavil {3}"
+  },
+  "pui77_13": {
+   "source": "test {0} of {1} runs after any deployment by {2}",
+   "text": "test {0} certifikátu {1} běží po každém nasazení, nastavil {2}"
+  },
+  "pui77_14": {
+   "source": "test {0} of {1} runs after no deployment (by its schedule only) by {2}",
+   "text": "test {0} certifikátu {1} neběží po žádném nasazení (jen podle svého plánu), nastavil {2}"
+  },
+  "pui77_15": {
+   "source": "{0}: the report of {1} - {2}",
+   "text": "{0}: report – {1} – {2}"
+  },
+  "pui77_16": {
+   "source": "the report did not go: {0}",
+   "text": "report neodešel: {0}"
+  },
+  "pui77_17": {
+   "source": "the SMS went to {0}",
+   "text": "SMS odešla na {0}"
+  },
+  "pui77_18": {
+   "source": "test {0} of {1} switched off by {2}",
+   "text": "test {0} certifikátu {1} vypnul {2}"
+  },
+  "pui77_19": {
+   "source": "test {0} of {1} switched on by {2}",
+   "text": "test {0} certifikátu {1} zapnul {2}"
+  },
+  "pui77_20": {
+   "source": "Attached to no certificate, so not run. The last time it ran: {0}",
+   "text": "Není připojen k žádnému certifikátu, takže se nespouští. Když běžel naposledy: {0}"
   }
  },
  "rich": {

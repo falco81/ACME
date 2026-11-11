@@ -499,6 +499,9 @@ def build_parser():
     g.add_argument('--tls', choices=('ldaps', 'starttls', 'none'), help='how it is reached')
     g.add_argument('--port', type=int, metavar='N', help='its port')
     g.add_argument('--no-verify', action='store_true', help='do not check its certificate')
+    g.add_argument('--verify-cert', dest='verify_cert', choices=('on', 'off'),
+                   help='a directory: check its certificate (on) or not (off) - --no-verify '
+                        'could only switch it off')
     g.add_argument('--weak-certs', choices=('on', 'off'), help='take old, weak certificates '
                    '(a 1024-bit key, SHA-1, TLS 1.0) - still checked against the authority')
     g.add_argument('--ca', metavar='FILE', help='the certificate authority (PEM) that signed it')
@@ -3233,7 +3236,8 @@ def cli_main(argv=None):
                 'bind_pw': pw if pw is not None else (None if old else ''),
                 'tls': args.tls or old.get('tls') or 'ldaps',
                 'port': args.port or (old.get('port') if not args.tls else None),
-                'verify': 0 if args.no_verify else old.get('verify', 1),
+                'verify': 0 if args.no_verify else ((args.verify_cert == 'on') if args.verify_cert
+                                                    else old.get('verify', 1)),
                 'weak': (args.weak_certs == 'on') if args.weak_certs else old.get('weak', 0),
                 'nested': old.get('nested', 1), 'enabled': old.get('enabled', 1),
                 'timeout_s': old.get('timeout_s') or 10,

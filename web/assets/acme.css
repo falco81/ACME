@@ -3863,10 +3863,14 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 /* A phone (1.0.51): a dialog's many buttons on one row that scrolls sideways - eight of them
    wrapped into five rows and left two lines of the dialog to read. */
 @media (max-width: 640px) {
-  .modal .foot { flex-wrap: nowrap; overflow-x: auto; padding: 10px 12px; gap: 6px;
-    justify-content: flex-start;    /* overflowing to the left could not be scrolled to */
+  /* Two a row, every one in sight (1.0.77): the row that scrolled sideways opened scrolled to
+     its end when a button there took the focus - Delete and Close out of sight to the left. */
+  .modal .foot { flex-wrap: wrap; overflow-x: hidden; overflow-y: auto; max-height: 34vh;
+    padding: 10px 12px; gap: 6px; justify-content: flex-start;
     -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
-  .modal .foot > .btn, .modal .foot > button { flex: 0 0 auto; }
+  .modal .foot > .btn, .modal .foot > button { flex: 1 1 calc(50% - 6px); min-width: 0;
+    justify-content: center; white-space: normal; padding-left: 8px; padding-right: 8px; }
+  .modal .foot > .btn:only-child, .modal .foot > button:only-child { flex-basis: 100%; }
   .modal .foot { flex-shrink: 0; }   /* not squeezed by the dialog's column (1.0.52) */
   .modal .foot .left { margin-right: 0; }
   .modal .body .card, .modal .body .ct-card { max-width: 100%; box-sizing: border-box; }

@@ -44,7 +44,7 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'ca_create', 'ca_sub', 'ca_import', 'ca_revoke', 'ca_crl', 'ca_export', 'ca_sign',
         'ca_del', 'sources', 'validations', 'targets', 'target_test', 'jobs', 'job', 'job_stop',
         'plugins', 'plugin', 'plugins_sync', 'module_mark', 'module_marks_export', 'checks',
-        'check_run', 'check_attach', 'check_detach', 'tests', 'check_show', 'check_add',
+        'check_run', 'check_attach', 'check_detach', 'check_after', 'check_switch', 'tests', 'check_show', 'check_add',
         'check_edit', 'check_del', 'check_test', 'check_action', 'check_discover',
         'check_default', 'check_key', 'dns_records', 'dns_add', 'dns_del', 'deploys', 'deploy_add',
         'deploy_edit', 'deploy_del', 'deploy_run', 'acme_contact',
@@ -213,7 +213,19 @@ def add_args(p):
                    help='the tests attached to the certificates (to one): how each went last')
     g.add_argument('--check-run', dest='check_run', metavar='WHAT',
                    help='run attached tests now: an ID, cert:NAME, test:NAME or all - each '
-                        'result said')
+                        'result said (a test switched off, or of a certificate switched off, '
+                        'only when named by its ID); --report-to ADDR[,ADDR] / --sms-to NUM '
+                        'send the report of them as Run the tests does')
+    g.add_argument('--report-to', dest='report_to', metavar='ADDR',
+                   help='with --check-run: mail the report to these addresses ("alerts": to '
+                        'those of the alerts)')
+    g.add_argument('--sms-to', dest='sms_to', metavar='NUM',
+                   help='with --check-run: one line of the report by SMS to these numbers')
+    g.add_argument('--check-after', dest='check_after', nargs=2, metavar=('ID', 'TARGETS'),
+                   help='after which deployments an attached test runs: any, - (none: by its '
+                        'schedule only), or targets of its certificate, comma separated')
+    g.add_argument('--check-switch', dest='check_switch', nargs=2, metavar=('ID', 'on|off'),
+                   help='switch an attached test off (or on) for its certificate only')
     g.add_argument('--check-attach', dest='check_attach', nargs='+', metavar=('CERT', 'TEST'),
                    help='attach tests (Certificates → Tests) to a certificate')
     g.add_argument('--check-detach', dest='check_detach', metavar='ID',
@@ -654,6 +666,7 @@ class Cli(object):
                  ('plugins', self.plugins), ('plugins_sync', self.plugins_sync),
                  ('module_mark', self.module_mark), ('check_run', self.check_run),
                  ('check_attach', self.check_attach), ('check_detach', self.check_detach),
+                 ('check_after', self.check_after), ('check_switch', self.check_switch),
                  ('module_marks_export', self.module_marks_export), ('dns_add', self.dns_add), ('dns_del', self.dns_del),
                  ('dns_records', self.dns), ('acme_contact', self.acme_contact),
                  ('check_names', self.check_names), ('cert_check', self.cert_check),
@@ -1716,17 +1729,23 @@ class Cli(object):
         what = str(self.args.check_run or '').strip()
         if what.isdigit():
             ids = [int(what)]
+            label = 'test %s' % what
         elif what.startswith('test:'):
-            ids = [r['id'] for r in C.rows(self.store, test=what[5:])]
+            ids = C.runnable(self.store, [r['id'] for r in C.rows(self.store, test=what[5:])])
+            label = 'the test %s on its certificates' % what[5:]
         elif what.startswith('cert:'):
             cert = self.cert_ref(what[5:])
-            ids = [r['id'] for r in C.rows(self.store, cert_id=cert['id'])]
+            ids = C.runnable(self.store, [r['id'] for r in C.rows(self.store, cert_id=cert['id'])])
+            label = 'the tests of %s' % cert['name']
         elif what == 'all':
-            ids = [r['id'] for r in C.rows(self.store)]
+            # As Run the tests on the page (1.0.77): those switched off are not run.
+            ids = C.runnable(self.store, [r['id'] for r in C.rows(self.store)])
+            label = 'every test'
         else:
             raise SystemExit('acme: --check-run ID, cert:NAME, test:NAME or all')
         if not ids:
-            raise SystemExit('acme: there is no test to run')
+            raise SystemExit('acme: there is no test to run (or every one is switched off)')
+        to, sms_to = self._report_to()
         bad, out = 0, []
         for i in ids:
             got = C.run(self.store, i)
@@ -1736,9 +1755,49 @@ class Cli(object):
             if not self.json:
                 line = '%s  %s' % (i, got['said'])
                 print(self.pal.ok_line(line) if got['ok'] else self.pal.bad_line(line))
+        sent = ''
+        if to or sms_to:
+            from acmelib.certs import checkreport as R
+            sent = R.send(self.store, ids, label, to, sms_to, self.WHO)
+            if not self.json:
+                print('  ' + sent)
         if self.json:
-            self.out({'results': out})
+            self.out({'results': out, 'report': sent})
         return 1 if bad else 0
+
+    def _report_to(self):
+        from acmelib.certs import checkreport as R
+        a = self.args
+        to, sms_to = [], []
+        try:
+            if a.report_to:
+                to = R.addresses(self.E._alerts_to('report_to') if a.report_to == 'alerts'
+                                 else a.report_to)
+                if not to:
+                    raise ValueError('no address to send the report to')
+            if a.sms_to:
+                sms_to = R.phones(a.sms_to)
+                if (self.E.CONFIG.get('sms_mode') or 'off') == 'off':
+                    raise ValueError('sending SMS is switched off - Settings → Codes by mail '
+                                     'and SMS')
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        return to, sms_to
+
+    def check_after(self):
+        ident, targets = self.args.check_after
+        t = '' if targets.strip().lower() in ('any', '*', '') else targets
+        got = self.api('POST', '/api/checks/after', body={'id': ident, 'target': t})
+        return self.done('it runs after %s' % ('no deployment (by its schedule only)' if t == '-'
+                                               else ('a deployment on ' + t) if t
+                                               else 'any deployment'), got)
+
+    def check_switch(self):
+        ident, state = self.args.check_switch
+        if state not in ('on', 'off'):
+            raise SystemExit('acme: --check-switch ID on|off')
+        got = self.api('POST', '/api/checks/switch', body={'id': ident, 'enabled': state == 'on'})
+        return self.done('switched %s' % state, got)
 
     def check_attach(self):
         args = self.args.check_attach
@@ -1821,9 +1880,11 @@ class Cli(object):
             fam_want, want = want.split('/', 1)
             fam_want = {'source': 'issuer', 'sources': 'issuer', 'issuers': 'issuer',
                         'validation': 'challenge', 'validations': 'challenge',
-                        'challenges': 'challenge', 'targets': 'target'}.get(fam_want, fam_want)
+                        'challenges': 'challenge', 'targets': 'target', 'test': 'check',
+                        'tests': 'check', 'checks': 'check'}.get(fam_want, fam_want)
         got = api.plugins_view(self.store)
-        found = [(fam, d) for fam in ('issuer', 'challenge', 'target') for d in got.get(fam, [])
+        found = [(fam, d) for fam in ('issuer', 'challenge', 'target', 'check')
+                 for d in got.get(fam, [])
                  if d['kind'] == want and (not fam_want or fam == fam_want)]
         if not found:
             raise SystemExit('acme: there is no module %s (acme --plugins)' % self.args.plugin)

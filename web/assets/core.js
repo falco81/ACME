@@ -12,6 +12,19 @@ function noI18n(node) {
   return node;
 }
 
+/** A value that may be words acme itself wrote (a note "made on the first start", "command
+    line" as who did it, the description of a seeded source): in the page's language when the
+    language has exactly these words, else as it is - a name never matches. (1.0.77) */
+function known(v) {
+  try {
+    if (v && typeof I18N !== 'undefined' && I18N.exact && typeof i18nFold === 'function') {
+      var t = I18N.exact.get(i18nFold(String(v)));
+      if (t) return t;
+    }
+  } catch (e) { /* as it is */ }
+  return v;
+}
+
 function el(kind, cls, text) {
   var node = document.createElement(kind);
   if (cls) node.className = cls;

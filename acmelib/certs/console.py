@@ -14,6 +14,8 @@ and what the pages can do, it can do.
          6 Sources        7 Validations    8 Targets
                           (Enter: show, edit, test, its actions, delete; + add one)
          9 Deployments (Enter: run, edit, switch, delete)
+         t Tests (Enter: show, edit, try, delete; + add one) - and on a certificate:
+           its tests (attach, run, after which deployment, switch, take off)
          a Authorities (show, CRL, export, sign a CSR, revoke, delete; new root,
                         new intermediate, import)
          d acme's DNS server (its records: add, delete)
@@ -32,7 +34,9 @@ import time
 
 FAMS = {'issuer': ('source', 'sources', 'Sources: where certificates come from'),
         'challenge': ('validation', 'validations', 'Validations: how names are proved'),
-        'target': ('target', 'targets', 'Targets: where certificates go')}
+        'target': ('target', 'targets', 'Targets: where certificates go'),
+        'check': ('check', 'tests', 'Tests: is each certificate served where it should be')}
+CONNECTOR = 'ssh_connector'
 
 
 def main_items(con):
@@ -73,6 +77,8 @@ def menu(con):
         ('1', 'Browse them (Enter: what to do with one)',
          lambda: con.pick('Certificates', load, cols, lambda r: cert_do(con, r),
                           'no certificate yet')),
+        ('i', 'Import one (or a new version of one): a file', lambda: cert_import(con)),
+        ('s', 'A self-signed certificate', lambda: cert_selfsigned(con)),
         ('2', 'Add one', lambda: cert_add(con)),
         ('k', 'Check names before a certificate: what to set up where', lambda: check_names(con)),
         ('3', 'Renew every one that is due, now', lambda: con.act('--renew', 'all')),
@@ -82,10 +88,13 @@ def menu(con):
         ('7', FAMS['challenge'][2], lambda: family(con, 'challenge')),
         ('8', FAMS['target'][2], lambda: family(con, 'target')),
         ('9', 'Deployments: which certificate goes where', lambda: deploys(con)),
+        ('t', FAMS['check'][2], lambda: family(con, 'check')),
+        ('r', 'Run the tests of every certificate (a report by mail or SMS if wanted)',
+         lambda: run_tests(con, 'all', 'every test')),
         ('a', 'Authorities of acme\'s own', lambda: cas(con)),
         ('d', 'acme\'s own DNS server', lambda: dns(con)),
         ('n', 'DNS sets: which DNS servers each function asks (Settings → DNS)',
-         lambda: con.show('--dns-sets')),
+         lambda: con.act('--dns-sets')),
         ('0', 'Modules (Enter: what one takes)', lambda: modules(con)),
     ])
 
@@ -117,6 +126,9 @@ def _shown(f, vals):
     return True
 
 
+NL = ' \u23ce '            # a line's end, as one line of a form shows it (1.0.77)
+
+
 def _text_of(f, v):
     if v is None:
         return ''
@@ -124,21 +136,34 @@ def _text_of(f, v):
         return ', '.join(str(x) for x in v)
     if f.get('type') == 'bool':
         return _norm(v)
-    return str(v)
+    if f.get('type') == 'list' and '\n' in str(v):
+        return ', '.join(x.strip() for x in str(v).splitlines() if x.strip())
+    return str(v).replace('\r', '').replace('\n', NL)
 
 
-def _form_fields(fields, cur, secret_set):
+def _form_fields(fields, cur, secret_set, base=None):
+    """`base`: the values of the form before this one ("More" after the main one), which a
+    field's show_if may name (1.0.77: those were never shown under More)."""
     out = []
     for f in fields:
         t = f.get('type') or 'text'
+        if f.get('secret') and t not in ('pem', 'secret'):
+            t = 'secret'            # an SSH key (sshkey) and others kept secret: typed unseen
         have = cur.get(f['key'], f.get('default'))
         one = {'key': f['key'], 'label': (f.get('label') or f['key'])[:28],
                'help': f.get('help') or ''}
         if t == 'select' and f.get('options'):
-            opts = [(str(o[0]), str(o[1] if len(o) > 1 else o[0])) for o in f['options']]
+            opts = [(str(o[0]), str(o[1] if len(o) > 1 else o[0])) for o in f.get('options') or []]
+            if f.get('from_bool') and _norm(have) in ('1', '0'):
+                have = f['from_bool'][0] if _norm(have) == '1' else f['from_bool'][1]
             if not f.get('required'):
                 opts = [('', '–')] + [o for o in opts if o[0] != '']
-            one.update(kind='choice', options=opts, value=_text_of(f, have))
+            now = _text_of(f, have)
+            # What is set now and not offered (a CA switched off, a value of before): kept
+            # as a choice of its own - it was taken as the first one and saved (1.0.77).
+            if now and now not in [o[0] for o in opts]:
+                opts.insert(0, (now, '%s (as it is - not offered now)' % now))
+            one.update(kind='choice', options=opts, value=now)
         elif t == 'bool':
             one.update(kind='choice', options=[('1', 'yes'), ('0', 'no')],
                        value=_norm(have if have not in (None, '') else False))
@@ -164,7 +189,7 @@ def _form_fields(fields, cur, secret_set):
                 f.get('default') in (None, '', []):
             one['need'] = True
         if f.get('show_if'):
-            one['when'] = (lambda vals, _f=f: _shown(_f, vals))
+            one['when'] = (lambda vals, _f=f: _shown(_f, dict(base or {}, **vals)))
         out.append(one)
     return out
 
@@ -183,7 +208,9 @@ def module_form(con, title, fields, cur=None, secret_set=(), words=''):
         got.update(g)
     if more and con.confirm('More', 'Change the settings under "More" too (%s)?' % ', '.join(
             f['key'] for f in more)[:300], 'Yes', 'No'):
-        g = con.form(title + ' - more', _form_fields(more, dict(cur, **got), secret_set))
+        g = con.form(title + ' - more', _form_fields(more, dict(cur, **got), secret_set,
+                                                     base=dict({k: _text_of({}, v) for k, v
+                                                                in cur.items()}, **got)))
         if g is None:
             return None
         got.update(g)
@@ -192,6 +219,8 @@ def module_form(con, title, fields, cur=None, secret_set=(), words=''):
     for k, v in got.items():
         f = by_key[k]
         t = f.get('type') or 'text'
+        if f.get('secret') and t not in ('pem', 'secret'):
+            t = 'secret'
         if t == 'secret':
             if v:
                 env['ACME_VALUE_' + re.sub(r'[^A-Za-z0-9]', '_', k).upper()] = v
@@ -209,6 +238,8 @@ def module_form(con, title, fields, cur=None, secret_set=(), words=''):
             continue
         if t == 'list':
             v = '\n'.join(x.strip() for x in v.split(',') if x.strip())
+        else:
+            v = v.replace(NL, '\n')
         argv += ['--set', '%s=%s' % (k, v)]
     return argv, env
 
@@ -226,10 +257,12 @@ def family(con, fam):
     word, path, title = FAMS[fam]
 
     def load():
-        return [{'name': '+ add a %s' % word, 'kind': '', '_add': True}] + \
+        return [{'name': '+ add a %s' % ('test' if fam == 'check' else word), 'kind': '',
+                 '_add': True}] + \
             con._rows(con.out('--' + path), 'rows')
 
-    cols = [(word, lambda r: r.get('name') + (' *' if r.get('is_default') else ''), 28,
+    cols = [('test' if fam == 'check' else word,
+             lambda r: r.get('name') + (' *' if r.get('is_default') else ''), 28,
              lambda r: 'ok' if r.get('_add') else None),
             ('kind', lambda r: r.get('kind'), 14, None),
             ('', lambda r: '' if r.get('_add') else ('on' if r.get('enabled', 1) else 'off'), 3,
@@ -242,7 +275,7 @@ def family(con, fam):
         if r.get('_add'):
             return fam_add(con, fam)
         return fam_do(con, fam, r)
-    con.pick(title, load, cols, do, 'none yet',
+    return con.pick(title, load, cols, do, 'none yet',
              '* the default: what a new certificate takes when none is said' if fam != 'target'
              else '* the default: offered first for a new deployment')
 
@@ -290,8 +323,13 @@ def fam_do(con, fam, r):
         opts.append(('discover', 'Find the settings from the account'))
     for a in r.get('actions') or []:
         opts.append(('act:' + a['key'], a.get('label') or a['key']))
-    if fam == 'target':
+    if fam == 'target' and r.get('kind') != CONNECTOR:
         opts.append(('deploys', 'Its deployments'))
+    if fam == 'check':
+        opts.append(('run', 'Run it now on every certificate it is attached to'))
+    if any(f.get('type') == 'sshkey' for f in (_plugin(con, fam, r.get('kind')) or {}).get(
+            'fields') or []):
+        opts.append(('key', 'Its SSH key (make, public half, your own, forget, try)'))
     opts.append(('del', 'Delete it'))
     what = con.choose(name, opts, '%s, used by %s' % (r.get('kind'), r.get('used_by') or 0))
     if what == 'show':
@@ -338,7 +376,11 @@ def fam_do(con, fam, r):
                        'Run %s on %s?' % (key, name), 'Run it'):
             con.live(lambda: (con.cmd('--%s-action' % word, name, key, '--yes'), con.pause()))
     elif what == 'deploys':
-        deploy_list(con, target=name)
+        return deploy_list(con, target=name)
+    elif what == 'run':
+        run_tests(con, 'test:' + name, 'the test %s on its certificates' % name)
+    elif what == 'key':
+        ssh_key(con, word, name)
     elif what == 'del':
         if con.confirm('Delete %s' % name, 'Delete the %s %s with its settings and secrets?'
                        % (word, name), 'Delete it', danger=True):
@@ -351,14 +393,22 @@ def fam_do(con, fam, r):
 # ---------------------------------------------------------------------------
 def cert_do(con, r):
     name = r['name']
-    opts = [('show', 'Show it all'), ('renew', 'Renew it now'), ('deploy', 'Deploy it now'),
+    by_hand = not r.get('issuer')
+    # By hand (imported, a CSR): nothing to renew it from, nothing to validate (1.0.75 on the
+    # page, 1.0.77 here).
+    opts = [('show', 'Show it all')] + ([] if by_hand else [('renew', 'Renew it now')]) + [
+        ('deploy', 'Deploy it now')] + ([] if by_hand else [
             ('check', 'Check its validation: what to set up where'),
-            ('dry', 'A dry run of its validation (no CA asked)'),
-            ('deploys', 'Its deployments (add, run, change, take away)'),
-            ('edit', 'Change it (names, issuer, validation, renewing)'),
-            ('export', 'Export it into a file'), ('csr', 'A CSR for an outside authority'),
-            ('answer', 'The answer to its CSR (a file)'), ('revoke', 'Revoke it'),
-            ('del', 'Delete it')]
+            ('dry', 'A dry run of its validation (no CA asked)')]) + [
+        ('deploys', 'Its deployments (add, run, change, take away)'),
+        ('tests', 'Its tests (attach, run, after which deployment, switch, take off)'),
+        ('edit', 'Change it (names, issuer, validation, renewing)'),
+        ('source', 'Change the source (imported, an authority, by hand) - keeping the rest'),
+        ('switch', 'Switch it %s' % ('off' if r.get('enabled', 1) else 'on')),
+        ('import', 'A new version of it from a file'),
+        ('export', 'Export it into a file'), ('csr', 'A CSR for an outside authority'),
+        ('answer', 'The answer to its CSR (a file)'), ('revoke', 'Revoke it'),
+        ('del', 'Delete it')]
     what = con.choose(name, opts, '%s, %s, ends %s' % (r.get('state'), r.get('issuer') or
                                                         'imported', _when(r.get('not_after'))))
     if what == 'show':
@@ -370,9 +420,17 @@ def cert_do(con, r):
     elif what in ('renew', 'deploy'):
         con.live(lambda: (con.cmd('--' + what, name), con.pause()))
     elif what == 'deploys':
-        deploy_list(con, cert=name)
+        return deploy_list(con, cert=name)
+    elif what == 'tests':
+        return cert_tests(con, name)
     elif what == 'edit':
         cert_edit(con, r)
+    elif what == 'source':
+        cert_source(con, r)
+    elif what == 'switch':
+        con.act('--cert-edit', name, '--enabled', 'off' if r.get('enabled', 1) else 'on')
+    elif what == 'import':
+        cert_import(con, name)
     elif what == 'export':
         got = con.form('Export ' + name, [
             {'key': 'format', 'label': 'format', 'kind': 'choice', 'options': [
@@ -434,7 +492,10 @@ def check_names(con):
     args = ['--check-names', got['names']]
     if got.get('challenge'):
         args += ['--challenge', got['challenge']]
-    con.live(lambda: (con.cmd(*args), con.pause()))
+    rc = []
+    con.live(lambda: (rc.append(con.cmd(*args)), con.pause()))
+    if rc and rc[0] != 0:
+        return              # the names could not be checked: no dry run offered (1.0.77)
     if con.confirm('A dry run', 'Try the validation for real now - a test record or file put '
                    'in place, looked for from outside and taken away (no CA asked)?',
                    'Dry run', 'Not now'):
@@ -572,8 +633,8 @@ def deploy_list(con, cert=None, target=None):
         if r.get('_add'):
             return deploy_add(con, cert, target)
         return deploy_do(con, r)
-    con.pick('Deployments' + (' of %s' % cert if cert else ' to %s' % target if target else ''),
-             load, cols, do, 'none yet')
+    return con.pick('Deployments' + (' of %s' % cert if cert else ' to %s' % target if target
+                                     else ''), load, cols, do, 'none yet')
 
 
 def deploy_add(con, cert=None, target=None):
@@ -584,8 +645,9 @@ def deploy_add(con, cert=None, target=None):
         if not cert:
             return
     if not target:
+        # A connector is not a place to deploy to (1.0.77): only a way to the others.
         ts = [(r['name'], '%s  (%s)' % (r['name'], r.get('kind')))
-              for r in con._rows(con.out('--targets'), 'rows')]
+              for r in con._rows(con.out('--targets'), 'rows') if r.get('kind') != CONNECTOR]
         if not ts:
             con.note('No target', 'There is no target yet: Targets → add one.', 'bad')
             return
@@ -601,7 +663,14 @@ def deploy_add(con, cert=None, target=None):
     if con.act('--deploy-add', cert, target, *argv, env=env) == 0 and \
             con.confirm('Deploy it', 'Put %s on %s now?' % (cert, target), 'Deploy it now',
                         'Later'):
-        con.live(lambda: (con.cmd('--deploy', cert), con.pause()))
+        # Only this one (1.0.77: --deploy CERT ran every deployment of the certificate).
+        new = [d for d in con._rows(con.out('--deploys', cert), 'rows')
+               if d.get('target') == target]
+        if new:
+            ident = str(max(int(d['id']) for d in new))
+            con.live(lambda: (con.cmd('--deploy-run', ident), con.pause()))
+        else:
+            con.live(lambda: (con.cmd('--deploy', cert), con.pause()))
 
 
 def deploy_do(con, r):
@@ -829,7 +898,7 @@ def modules(con):
     def load():
         got = con.out('--plugins') or {}
         rows = []
-        for fam in ('issuer', 'challenge', 'target'):
+        for fam in ('issuer', 'challenge', 'target', 'check'):
             for d in got.get(fam) or []:
                 rows.append(dict(d, family=fam))
         return rows
@@ -839,5 +908,175 @@ def modules(con):
             ('vendor', lambda r: r.get('vendor') or '', 18, lambda r: 'dim'),
             ('actions', lambda r: ', '.join(a['key'] for a in r.get('actions') or []), 12,
              None)]
-    con.pick('Modules', load, cols,
+    return con.pick('Modules', load, cols,
              lambda r: con.act('--plugin', '%s/%s' % (r['family'], r['kind'])), 'none')
+
+
+# ---------------------------------------------------------------------------
+# Tests of a certificate, running them, the SSH key, import, self-signed, the source (1.0.77)
+# ---------------------------------------------------------------------------
+def run_tests(con, what, label):
+    """Run the tests (Run the tests… of the page): only run, or with a report by mail / SMS."""
+    how = con.choose('Run %s' % label, [('run', 'Only run them'),
+                                        ('mail', 'Run them and mail the report'),
+                                        ('sms', 'Run them and send the report by SMS'),
+                                        ('both', 'Run them, mail and SMS')],
+                     'Those switched off are not run.')
+    if not how:
+        return
+    args = ['--check-run', what]
+    if how in ('mail', 'both'):
+        to = con.ask_one('The report by mail', 'to', 'alerts', 'Addresses separated by commas; '
+                         '"alerts": those the alerts go to (Settings → Alerts).')
+        if not to:
+            return
+        args += ['--report-to', to]
+    if how in ('sms', 'both'):
+        num = con.ask_one('The report by SMS', 'to the numbers', '', '+420..., separated by '
+                          'commas.')
+        if not num:
+            return
+        args += ['--sms-to', num]
+    con.live(lambda: (con.cmd(*args), con.pause()))
+
+
+def cert_tests(con, cert):
+    def load():
+        return [{'id': '+', 'test': '+ attach tests', '_add': True}] + \
+            con._rows(con.out('--checks', cert), 'checks')
+
+    cols = [('id', lambda r: r.get('id'), 5, lambda r: 'ok' if r.get('_add') else None),
+            ('test', lambda r: r.get('test') or '', 22, None),
+            ('', lambda r: '' if r.get('_add') else ('on' if r.get('enabled', 1) else 'off'), 3,
+             lambda r: '' if r.get('enabled', 1) else 'dim'),
+            ('after', lambda r: '' if r.get('_add') else (
+                'none' if r.get('after_target') == '-' else (r.get('after_target') or 'any')
+                .replace('\n', ',')), 14, lambda r: 'dim'),
+            ('last', lambda r: r.get('last_state') or '', 11,
+             lambda r: {'ok': 'ok', 'warn': 'warn'}.get(r.get('last_state'), 'bad')
+             if r.get('last_state') else 'dim'),
+            ('said', lambda r: r.get('last_said') or '', 50, lambda r: 'dim')]
+
+    def do(r):
+        if r.get('_add'):
+            have = {x.get('test') for x in con._rows(con.out('--checks', cert), 'checks')}
+            tests = [(t['name'], '%s  (%s)' % (t['name'], t.get('kind')))
+                     for t in con._rows(con.out('--tests'), 'rows')
+                     if t['name'] not in have and t.get('kind') != 'ssh_relay']
+            if not tests:
+                con.note('No test', 'Every test is attached already, or there is none: '
+                         'Certificates → Tests → add one.', 'bad')
+                return
+            t = con.choose('Attach which test to %s' % cert, tests)
+            if t:
+                con.act('--check-attach', cert, t)
+            return
+        ident = str(r['id'])
+        what = con.choose('Test %s on %s' % (r.get('test'), cert), [
+            ('run', 'Run it now'),
+            ('after', 'After which deployment it runs'),
+            ('switch', 'Switch it %s for this certificate' % ('off' if r.get('enabled', 1)
+                                                               else 'on')),
+            ('del', 'Take it off this certificate')], r.get('last_said') or '')
+        if what == 'run':
+            con.live(lambda: (con.cmd('--check-run', ident), con.pause()))
+        elif what == 'after':
+            targets = [d.get('target') for d in con._rows(con.out('--deploys', cert), 'rows')]
+            pick = con.choose('After which deployment', [
+                ('any', 'Any deployment of the certificate'),
+                ('-', 'No deployment - by its schedule only')] +
+                [(t, 'A deployment on %s' % t) for t in targets if t])
+            if pick:
+                con.act('--check-after', ident, pick)
+        elif what == 'switch':
+            con.act('--check-switch', ident, 'off' if r.get('enabled', 1) else 'on')
+        elif what == 'del':
+            if con.confirm('Take it off', 'Take the test %s off %s?' % (r.get('test'), cert),
+                           'Take it off', danger=True):
+                con.act('--check-detach', ident)
+    got = con.pick('Tests of %s' % cert, load, cols, do, 'none yet')
+    if got != 'quit' and con.confirm('Run them', 'Run the tests of %s now?' % cert, 'Run them',
+                                     'Not now'):
+        run_tests(con, 'cert:' + cert, 'the tests of %s' % cert)
+    return got
+
+
+def ssh_key(con, word, name):
+    what = con.choose('The SSH key of %s' % name, [
+        ('show', 'How it stands'), ('make', 'Make a new one here (ed25519)'),
+        ('make-rsa', 'Make a new one here (RSA 4096)'), ('public', 'Its public half'),
+        ('own', 'Your own private key (a file)'), ('try', 'Try to sign in with it'),
+        ('forget', 'Forget it')])
+    if not what:
+        return
+    flag = '--%s-key' % word
+    if what == 'make-rsa':
+        con.act(flag, name, 'make', 'rsa4096')
+    elif what == 'own':
+        f = con.ask_one('Your own key for %s' % name, 'the file', '', 'A private key '
+                        '(OpenSSH or PEM); its passphrase from ACME_KEY_PASSWORD.')
+        if f:
+            con.act(flag, name, 'own', os.path.expanduser(f))
+    elif what == 'forget':
+        if con.confirm('Forget the key', 'Forget the SSH key of %s?' % name, 'Forget it',
+                       danger=True):
+            con.act(flag, name, 'forget', '--yes')
+    elif what == 'try':
+        con.live(lambda: (con.cmd(flag, name, 'try'), con.pause()))
+    else:
+        con.act(flag, name, what)
+
+
+def cert_import(con, name=None):
+    got = con.form('A new version of %s' % name if name else 'Import a certificate', [
+        {'key': 'file', 'label': 'the file', 'need': True,
+         'help': 'PEM (with its key), DER, PFX / P12, P7B, JKS.'}] + ([] if name else [
+            {'key': 'name', 'label': 'its name in acme',
+             'help': 'Empty: its common name. The name of one kept: a new version of it.'}]) + [
+        {'key': 'pw', 'label': 'locked with a password', 'kind': 'choice',
+         'options': [('0', 'no'), ('1', 'yes')]}])
+    if not got:
+        return
+    args = ['--import', os.path.expanduser(got['file'].strip())]
+    if name or got.get('name'):
+        args += ['--name', name or got['name']]
+    if got.get('pw') == '1':
+        con.live(lambda: (con.cmd(*(args + ['--password'])), con.pause()))
+    else:
+        con.act(*args)
+
+
+def cert_selfsigned(con):
+    got = con.form('A self-signed certificate', [
+        {'key': 'name', 'label': 'its name', 'need': True},
+        {'key': 'names', 'label': 'names (comma)', 'need': True},
+        {'key': 'key_type', 'label': 'key', 'kind': 'choice', 'options': KEYS}],
+        'Made now, by acme itself - trusted by nobody until told to.')
+    if got:
+        con.act('--selfsigned', got['name'], '--names', got['names'], '--key-type',
+                got['key_type'])
+
+
+def cert_source(con, r):
+    """Change the source (the page's wizard, 1.0.69): its deployments and tests stay."""
+    name = r['name']
+    sources = _names_of(con, '--sources')
+    vals = _names_of(con, '--validations')
+    got = con.form('Change the source of %s' % name, [
+        {'key': 'issuer', 'label': 'from now on', 'kind': 'choice',
+         'value': r.get('issuer') or '',
+         'options': [('', 'by hand - imported, renewed by importing')] + sources},
+        {'key': 'challenge', 'label': 'validation', 'kind': 'choice',
+         'value': r.get('challenge') or '', 'options': [('', '– (not an ACME CA)')] + vals},
+        {'key': 'key_type', 'label': 'key', 'kind': 'choice',
+         'value': r.get('key_type') or 'ec-256', 'options': KEYS}],
+        'What stays: its names, deployments, tests, owner, tags. The certificate in use stays '
+        'until the new source issues one.')
+    if not got:
+        return
+    if con.act('--cert-edit', name, '--issuer', got['issuer'], '--challenge',
+               got['challenge'], '--key-type', got['key_type']) != 0 or not got['issuer']:
+        return
+    if con.confirm('The first one', 'Issue the first certificate from the new source now? '
+                   '(Otherwise at the next renewal.)', 'Issue it now', 'At the next renewal'):
+        con.live(lambda: (con.cmd('--renew', name, '--force'), con.pause()))

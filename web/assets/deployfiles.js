@@ -207,9 +207,12 @@
             var b = el('button', 'df-tpl-app' + (st.app === a ? ' on' : ''));
             b.type = 'button';
             var ic = el('span', 'df-tpl-ic');
-            ic.textContent = a[1].replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+            /* The two words that are not a name (1.0.77): in the page's language, the icon by
+               the application - DK, SD - not by the English words. */
+            var said = a[0] === 'docker' || a[0] === 'any' ? tr(a[1]) : a[1];
+            ic.textContent = a[0] === 'docker' ? 'DK' : (a[0] === 'any' ? 'SD' : a[1].replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase());
             b.appendChild(noI18n(ic));
-            b.appendChild(noI18n(el('span', 'df-tpl-n', a[1])));
+            b.appendChild(noI18n(el('span', 'df-tpl-n', said)));
             b.onclick = function () {
               st.app = a;
               st.unit = a[0] === 'docker' ? 'web' : a[3];
@@ -227,7 +230,7 @@
           clear(right);
           var a = st.app;
           if (!a) { right.appendChild(el('p', 'muted df-tpl-empty', 'Choose an application on the left.')); return; }
-          right.appendChild(noI18n(el('h4', 'df-tpl-h', a[1])));
+          right.appendChild(noI18n(el('h4', 'df-tpl-h', a[0] === 'docker' || a[0] === 'any' ? tr(a[1]) : a[1])));
           if (a[7]) right.appendChild(el('p', 'note small', a[7]));
           var seg = el('div', 'df-tpl-how');
           SVC_HOW.forEach(function (h) {

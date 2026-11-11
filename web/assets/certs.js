@@ -348,6 +348,12 @@ function cssVar(name, fallback) {
 /* ---- little pieces --------------------------------------------------------- */
 function mono(text, cls) { return noI18n(el('span', 'mono' + (cls ? ' ' + cls : ''), text)); }
 function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
+/* The two letters of a module's icon: of its title - a connector's "SSH" (1.0.77: "Connector
+   over SSH" gave "CO" in every language). */
+function kindLetters(p, kind) {
+  if (p && (p.connector || p.kind === 'ssh_relay' || p.kind === 'ssh_connector')) return 'SSH';
+  return String((p && p.title) || kind || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+}
 /* A module's vendor: a word (Public CA, Generic) translated, a name (ACME, Microsoft) as it is (1.0.51) */
 var VENDOR_WORDS = ['Public CA', 'Protocol', 'Generic', 'Standards', 'Other', 'Own', 'Connector', 'Where certificates go', 'Modules'];
 function vendorEl(tag, cls, v) {
@@ -1125,7 +1131,7 @@ function kindPicker(family, go, filter) {
       var t = el('button', 'ct-kind-tile');
       t.type = 'button';
       var ic = el('span', 'ct-kind-ic v-' + String(p.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-      ic.appendChild(document.createTextNode(String(p.title || p.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?'));
+      ic.appendChild(document.createTextNode(kindLetters(p, p.kind) || '?'));
       noI18n(ic);
       t.appendChild(ic);
       var w = el('span', 'ct-kind-w');
@@ -1183,7 +1189,7 @@ function kindPicker(family, go, filter) {
 function plugHead(p, family, row) {
   var h = el('div', 'ct-plughead');
   var ic = el('span', 'ct-kind-ic big v-' + String(p.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-  ic.textContent = String(p.title || p.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+  ic.textContent = kindLetters(p, p.kind);
   noI18n(ic);
   h.appendChild(ic);
   var w = el('div', 'ct-plughead-w');
@@ -1319,7 +1325,13 @@ function modStateCell(r, key) {
     };
     c.appendChild(sw);
   } else c.appendChild(el('span', 'tag ' + (on ? 'ok' : 'dim'), on ? 'on' : 'off'));
-  if (r.last_error) {
+  /* A test attached to nothing (1.0.77): its last failure is of before - not "failing". */
+  var idle = isTest && usedCount(r) === 0 && r.kind !== 'ssh_relay';
+  if (idle && r.last_error) {
+    var bi = el('span', 'tag dim', 'not attached');
+    explain(bi, 'Attached to no certificate, so not run. The last time it ran: ' + String(r.last_error));
+    c.appendChild(bi);
+  } else if (r.last_error) {
     var b = el('span', 'tag crit', 'failing');
     explain(b, String(r.last_error));
     c.appendChild(b);
@@ -1442,7 +1454,11 @@ function drawModTab(key, live) {
       rows = rows.filter(function (r) { return isConnectorRow(m, r) === wantConn; });
     }
     var s = $(m.said);
-    if (s) s.textContent = LISTS[key].length ? num(LISTS[key].length) + ' in all' : '';
+    /* Of what the switch shows (1.0.77: "13 in all" beside "Targets 12 / Connectors 1"). */
+    var inView = (key === 'targets' || key === 'tests')
+      ? LISTS[key].filter(function (r) { return isConnectorRow(m, r) === (MOD_VIEW[key] === 'conn'); }).length
+      : LISTS[key].length;
+    if (s) s.textContent = inView ? num(inView) + ' in all' : '';
     if (key === 'sources' && b) {
       var miss = LISTS[key].filter(function (r) {
         return r.kind === 'acme' && !arr(Array.isArray((r.config || {}).contacts) ? r.config.contacts : String((r.config || {}).contacts || '').split(/[\s,;]+/)).filter(Boolean).length;
@@ -1472,7 +1488,7 @@ function drawModTab(key, live) {
         var nc = el('td', 'ct-modname');
         nc.appendChild(data('b', '', r.name));
         if (r.is_default) nc.appendChild(el('span', 'tag ok small', 'default'));
-        if (r.note) nc.appendChild(data('div', 'muted small', r.note));
+        if (r.note) nc.appendChild(data('div', 'muted small', known(r.note)));
         if (r.tags) nc.appendChild(tagChips(r.tags));
         tr.appendChild(nc);
         var kc = el('td');
@@ -1480,7 +1496,7 @@ function drawModTab(key, live) {
         var missingMod = r.module_missing || (PLUG && !p);
         var pv = p ? plugVersion(p, r.version) : null;
         kc.appendChild(el('div', '', p ? p.title : (r.title || r.kind)));
-        kc.appendChild(data('div', missingMod ? 'small ct-badtext' : 'muted small', missingMod ? 'module missing: ' + r.kind : (p ? (p.vendor || r.kind) : r.kind)));
+        kc.appendChild(missingMod ? data('div', 'small ct-badtext', 'module missing: ' + r.kind) : vendorEl('div', 'muted small', p ? (p.vendor || r.kind) : r.kind));
         if (pv) {
           var kt = modTags(m.family, pv, r);
           if (kt.length) kc.appendChild(tagsInto(el('div', 'md-rowtags'), kt));
@@ -2587,7 +2603,7 @@ function targetPeek(r) {
         grid.appendChild(st);
         var ab = section('About it');
         ab._body.appendChild(kvTable([
-          ['Made', r.created ? stamp(r.created) + (r.created_by ? ' · ' + r.created_by : '') : '–'],
+          ['Made', r.created ? stamp(r.created) + (r.created_by ? ' · ' + known(r.created_by) : '') : '–'],
           ['Changed', r.updated ? stamp(r.updated) : '–'],
           ['Tags', arr(r.tags).length ? tagChips(r.tags) : '–'],
           ['Note', r.note || '–'],
@@ -2843,7 +2859,7 @@ function deployEdit(o) {
       } else {
         /* The default target offered first (preselected). */
         var dtg = defaultOf(targets);
-        tSel = selectBox([['', tr('choose one…')]].concat(targets.filter(deployable).map(function (t) { return [t.name, t.name + ' · ' + plugTitle('target', t.kind) + (t.is_default ? ' · ' + tr('default') : '')]; })), tName || (dtg ? dtg.name : ''));
+        tSel = selectBox([['', tr('choose one…')]].concat(targets.filter(deployable).map(function (t) { return [t.name, t.name + ' · ' + tr(plugTitle('target', t.kind)) + (t.is_default ? ' · ' + tr('default') : '')]; })), tName || (dtg ? dtg.name : ''));
         noI18n(tSel);
         tSel.onchange = drawFields;
         g.appendChild(formField('Target', tSel, targets.length ? '' : 'No target yet - a full administrator adds them under Targets.'));
@@ -3278,7 +3294,7 @@ function detailsSection(c, back) {
     sec._body.appendChild(kvTable([
       ['Owner', c.owner ? (window.ACME_TEAMS ? ACME_TEAMS.ownerChip(c.owner) : data('span', '', c.owner)) : 'nobody'],
       ['Tags', arr(c.tags).length ? tagChips(c.tags) : '–'],
-      ['Note', c.note ? data('span', '', c.note) : '–'],
+      ['Note', c.note ? data('span', '', known(c.note)) : '–'],
       ['Renews', autoCan(c) ? (truthy(c.auto_renew) ? 'automatically' : 'only when asked') : 'by importing a new one'],
       ['Days before the end', c.renew_days ? String(c.renew_days) : 'as Renewal and notices says'],
       ['Key on renewal', truthy(c.reuse_key) ? 'kept' : 'a new one each time'],
@@ -3486,7 +3502,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
     arr(prof.eku).length ? ['Used for', arr(prof.eku).join(', ')] : null,
     c.ari && obj(c.ari).start ? ['CA suggests', stamp(obj(c.ari).start) + ' – ' + stamp(obj(c.ari).end)] : null,
     ['Note', c.note || '–'],
-    ['Made', c.created ? stamp(c.created) + (c.created_by ? ' · ' + c.created_by : '') : '–']
+    ['Made', c.created ? stamp(c.created) + (c.created_by ? ' · ' + known(c.created_by) : '') : '–']
   ]));
   if (Object.keys(cmap).length) {
     var mt = kvTable(Object.keys(cmap).map(function (n) { return [n, cmap[n]]; }));
@@ -4792,7 +4808,7 @@ function certWizard(cert, detail, opts) {
       return bad.length === list.length ? (obj(f.names)[bad[0]] || f.why) : '';
     };
     var label = function (v) {
-      return v.name + ' · ' + plugTitle('challenge', v.kind) + ' (' + challengeTypes(v.kind).join(', ') + ')' + (v.is_default ? ' · ' + tr('default') : '');
+      return v.name + ' · ' + tr(plugTitle('challenge', v.kind)) + ' (' + challengeTypes(v.kind).join(', ') + ')' + (v.is_default ? ' · ' + tr('default') : '');
     };
     var pairs = W.vals.map(function (v) { return [v.name, label(v)]; });
     var good = W.vals.filter(function (v) { return !fitsNone(v.name); });
@@ -5047,7 +5063,7 @@ function certWizard(cert, detail, opts) {
       var sec = el('section', 'ct-tune-mod');
       var h = el('div', 'ct-tune-mh');
       var ic = el('span', 'ct-kind-ic v-' + String(m.plug.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-      ic.textContent = String(m.plug.title || m.row.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+      ic.textContent = kindLetters(m.plug, m.row.kind);
       noI18n(ic);
       h.appendChild(ic);
       var ht = el('div', 'ct-tune-mt');
@@ -5248,7 +5264,7 @@ function certWizard(cert, detail, opts) {
       cb.checked = !!W.deploys[t.name];
       top.appendChild(cb);
       var ic = el('span', 'ct-kind-ic v-' + String((p && p.vendor) || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-      ic.textContent = String((p && p.title) || t.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+      ic.textContent = kindLetters(p, t.kind);
       noI18n(ic);
       top.appendChild(ic);
       var w = el('span', 'ct-dep-w');
@@ -6630,7 +6646,7 @@ function caPeek(id) {
           ['Name constraints', nc.length ? data('span', 'mono small', nc.join('\n')) : 'none'],
           ['Issues for', c.days_default ? c.days_default + ' days unless asked' : '–'],
           ['Next serial', c.serial_next ? String(c.serial_next) : '–'],
-          ['Made', c.created ? stamp(c.created) + (c.created_by ? ' · ' + c.created_by : '') : '–']
+          ['Made', c.created ? stamp(c.created) + (c.created_by ? ' · ' + known(c.created_by) : '') : '–']
         ]));
         grid.appendChild(s1);
         var s2 = section('Revocation and where it is published');
@@ -6680,8 +6696,10 @@ function caPeek(id) {
           clear(tableHost);
           tableHost.appendChild(listTable(['Serial', 'Subject', 'Names', 'Valid', 'State', 'By', ''], rows, function (r) {
             var tr = el('tr');
-            tr.appendChild(td('', data('span', 'mono small', r.serial)));
-            tr.appendChild(td('', data('span', 'mono small', r.subject_dn || '')));
+            var serEl = data('span', 'mono small ct-iss-serial', r.serial);
+            serEl.title = r.serial;
+            tr.appendChild(td('', serEl));
+            tr.appendChild(td('', data('span', 'mono small ct-iss-subj', r.subject_dn || '')));
             tr.appendChild(td('', namesChips(r.names, 3)));
             tr.appendChild(td('small', dayOnly(r.not_before) + ' – ' + dayOnly(r.not_after)));
             var st = el('td');
@@ -6708,7 +6726,7 @@ function caPeek(id) {
         s3._body.appendChild(tableHost);
         drawIssued();
         grid.appendChild(s3);
-        if (c.note) { var s4 = section('Note'); s4._body.appendChild(data('p', '', c.note)); grid.appendChild(s4); }
+        if (c.note) { var s4 = section('Note'); s4._body.appendChild(data('p', '', known(c.note))); grid.appendChild(s4); }
         caExtra('sections', c, d, back, grid);
         body.appendChild(grid);
       },
@@ -7842,7 +7860,7 @@ function drawDnsRecords(live) {
       tr.appendChild(td('muted small', ex));
       var by = td('muted small', '');
       by.appendChild(data('span', '', String(r.owner || (r.expires ? 'a job' : 'by hand')).replace(/^admin:/, '')));
-      if (r.note) by.appendChild(data('div', '', r.note));
+      if (r.note) by.appendChild(data('div', '', known(r.note)));
       tr.appendChild(by);
       var tools = el('td', 'rowtools');
       if (FULL) {
@@ -8178,14 +8196,14 @@ function drawModules(live) {
       var p = r.p, tr_ = el('tr', r.custom ? 'md-row-own' : '');
       var c = el('td', 'md-name');
       var ic = el('span', 'ct-kind-ic v-' + String(p.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-      ic.textContent = String(p.title || p.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+      ic.textContent = kindLetters(p, p.kind);
       noI18n(ic);
       c.appendChild(ic);
       var w = el('div');
       w.appendChild(el('b', '', p.title || p.kind));
       var sub = el('div', 'muted small');
       sub.appendChild(mono(p.kind));
-      if (p.vendor) { sub.appendChild(document.createTextNode(' · ')); sub.appendChild(data('span', '', p.vendor)); }
+      if (p.vendor) { sub.appendChild(document.createTextNode(' · ')); sub.appendChild(vendorEl('span', '', p.vendor)); }
       w.appendChild(sub);
       c.appendChild(w);
       tr_.appendChild(c);
@@ -9216,7 +9234,7 @@ function attachTests(c, have, back, targets) {
           cb.onchange = function () { if (cb.checked) picks[r.name] = 1; else delete picks[r.name]; lab.classList.toggle('on', cb.checked); };
           lab.appendChild(cb);
           var ic = el('span', 'ct-kind-ic v-' + String(p.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-          ic.textContent = String(p.title || r.kind).replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+          ic.textContent = kindLetters(p, r.kind);
           noI18n(ic);
           lab.appendChild(ic);
           var w = el('span', 'ck-attach-w');
@@ -9520,7 +9538,11 @@ function runTestsDialog(c) {
         var head = el('div', 'rt-head');
         var big = el('div', 'rt-big');
         big.appendChild(el('b', '', num(rows.length)));
-        big.appendChild(el('span', 'muted small', c ? 'test(s) of this certificate' : 'test(s) of ' + num(Object.keys(rows.reduce(function (m, x) { m[x.cert_id] = 1; return m; }, {})).length) + ' certificate(s)'));
+        /* Said with the number of the tests (1.0.77: "4 testů z 2 certifikátů" - the words
+           took no count of the tests), the number itself shown big before them. */
+        var nCerts = Object.keys(rows.reduce(function (m, x) { m[x.cert_id] = 1; return m; }, {})).length;
+        var rtWords = tr(c ? rows.length + ' test(s) of this certificate' : rows.length + ' test(s) of ' + nCerts + ' certificate(s)').replace(/^\S+\s+/, '');
+        big.appendChild(noI18n(el('span', 'muted small', rtWords)));
         head.appendChild(big);
         var sum = el('div', 'rt-sum');
         ['ok', 'warn', 'bad', ''].forEach(function (k) {

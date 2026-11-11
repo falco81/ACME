@@ -94,7 +94,10 @@ from, `cert_issuers`), **validation** (how names are proved, `cert_challenges`),
 | `acme --tests` · `--check-add NAME --kind KIND --set ...` · `--check-edit` · `--check-show` · `--check-del` · `--check-test` | the tests of what the servers serve, defined as targets are ([checks.md](checks.md)); `--check-key` the SSH key of a connector |
 | `acme --check-attach CERT TEST...` · `--check-detach ID` | attach tests to a certificate, take one off |
 | `acme --checks [CERT]` | the tests attached to the certificates (to one): each with its last result |
-| `acme --check-run ID\|cert:NAME\|test:NAME\|all` | run attached tests now, each result said; exit code 1 when one fails |
+| `acme --check-run ID\|cert:NAME\|test:NAME\|all` | run attached tests now, each result said; exit code 1 when one fails. A test switched off (on Tests or for its certificate) or of a certificate switched off is run only when named by its ID (1.0.77) |
+| `... --report-to ADDR[,ADDR]\|alerts` · `--sms-to NUM[,NUM]` | with `--check-run`: the report of them by mail (`alerts`: to the alerts' addresses) and / or one line by SMS, as *Run the tests…* of the page (1.0.77) |
+| `acme --check-after ID any\|-\|TARGET[,TARGET]` | after which deployments an attached test runs: any, none (`-`, by its schedule only), or these targets of its certificate (1.0.77) |
+| `acme --check-switch ID on\|off` | an attached test switched off (or on) for its certificate only (1.0.77) |
 | `acme --module-marks-export` | the marks set here as `acmelib/plugins/verified.json` takes them - what a release ships as checked |
 | `acme --plugin KIND` | one module: its description, every field (`--set` takes), a target's deployment options, its actions. `source/KIND`, `validation/KIND` or `target/KIND` where two families have the kind |
 

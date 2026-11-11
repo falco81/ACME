@@ -47,8 +47,12 @@ class Console(object):
         try:
             got = subprocess.run(acme_argv(self.me) + [str(a) for a in args] + ['--json'],
                                  capture_output=True, text=True, timeout=60)
+            # What went wrong kept (1.0.77): a list whose command failed said "none yet".
+            self.out_err = '' if got.returncode == 0 else (
+                (got.stderr or got.stdout or '').strip().splitlines() or ['exit %s' % got.returncode])[-1][:300]
             return json.loads(got.stdout or 'null')
-        except Exception:                               # noqa: BLE001
+        except Exception as e:                          # noqa: BLE001
+            self.out_err = getattr(self, 'out_err', '') or str(e)[:300]
             return None
 
     @staticmethod
@@ -402,7 +406,10 @@ class Console(object):
             seen = self.st_gen
             self.scr.timeout(500)
             while True:
-                k = self.scr.getch()
+                try:
+                    k = self.scr.getch()
+                except KeyboardInterrupt:           # Ctrl+C: back, as Esc (1.0.77)
+                    k = 27
                 if k != -1 or self.st_gen != seen:
                     break
                 # The window's size looked at too (PuTTY and others whose
@@ -442,6 +449,12 @@ class Console(object):
                     pass
                 self.scr.clear()
                 continue
+            # An item's own letter chosen at once (1.0.77: only digits were - "c
+            # Certificates", "k Check names" could not be chosen by their keys).
+            if 0 < k < 256 and chr(k).isalpha() and chr(k) not in 'qQ' and \
+                    any(it[0] == chr(k) for it in items):
+                sel = next(i for i, it in enumerate(items) if it[0] == chr(k))
+                k = 10
             if k in (c.KEY_UP, ord('k')):
                 sel = (sel - 1) % len(items)
             elif k in (c.KEY_DOWN, ord('j'), 9):
@@ -477,7 +490,7 @@ class Console(object):
                 else:
                     try:
                         r = it[2]()
-                    except ConsoleBack:
+                    except (ConsoleBack, KeyboardInterrupt):
                         r = None
                 if r == 'quit':
                     return 'quit'
@@ -1244,11 +1257,27 @@ class Console(object):
              'help': 'Empty: the one it has is kept.' if r.get('name') else ''},
             {'key': 'tls', 'label': 'reached by', 'kind': 'choice', 'value': r.get('tls') or 'ldaps',
              'options': [('ldaps', 'LDAPS (636)'), ('starttls', 'StartTLS (389)'), ('none', 'plain (389) - not encrypted')]},
-            {'key': 'port', 'label': 'port', 'value': str(r.get('port') or ''), 'help': 'Empty: as reached by says.'}])
+            {'key': 'port', 'label': 'port', 'value': str(r.get('port') or ''),
+             'help': 'Empty: as reached by says (also when "reached by" is changed and this is not).'},
+            {'key': 'verify', 'label': 'check its certificate', 'kind': 'choice',
+             'value': '0' if r.get('name') and not r.get('verify', 1) else '1',
+             'options': [('1', 'yes'), ('0', 'no - anything it shows is taken')]},
+            {'key': 'weak', 'label': 'old, weak certificates', 'kind': 'choice',
+             'value': '1' if r.get('weak') else '0',
+             'options': [('0', 'refused'), ('1', 'taken (1024-bit, SHA-1, TLS 1.0)')]},
+            {'key': 'ca', 'label': 'its authority (a file)',
+             'help': 'A PEM file of the CA that signed its certificate; empty: as it is.'}])
         if not got:
             return
+        # The port only when it was changed, or the way is the same (1.0.77): from ldaps to
+        # starttls the old 636 stayed.
+        port = got['port'] if got['port'] and (got['port'] != str(r.get('port') or '')
+                                               or got['tls'] == (r.get('tls') or 'ldaps')) else ''
         args = ['--add-directory', got.get('name') or r['name'], '--hosts', got['hosts'], '--base', got['base'],
-                '--bind-dn', got['bind_dn'], '--tls', got['tls']] + (['--port', got['port']] if got['port'] else [])
+                '--bind-dn', got['bind_dn'], '--tls', got['tls'],
+                '--verify-cert', 'on' if got['verify'] == '1' else 'off',
+                '--weak-certs', 'on' if got['weak'] == '1' else 'off'] + (['--port', port] if port else []) + \
+            (['--ca', os.path.expanduser(got['ca'].strip())] if got.get('ca', '').strip() else [])
         env = None
         if got.get('bind_pw'):
             args += ['--bind-pw', '-']
@@ -1522,7 +1551,10 @@ class Console(object):
         """A key on the text screen, by name: 'up', 'enter', 'esc', or the character."""
         c = self.curses
         src = win or self.scr
-        k = src.getch()
+        try:
+            k = src.getch()
+        except KeyboardInterrupt:                       # Ctrl+C: as Esc (1.0.77)
+            return 'esc'
         if k == -1:
             # The window's size looked at, as the menus do.
             try:
@@ -2218,8 +2250,11 @@ class Console(object):
         width, tone fn(row) or None)]. Enter calls `act(row)`; / finds. Esc
         back, q leaves the console."""
         c, A = self.curses, self.A
+        self.out_err = ''
         rows = load() or []
         sel, top, find, said, said_bad = 0, 0, '', '', False
+        if not rows and getattr(self, 'out_err', ''):
+            said, said_bad = 'could not be read: ' + self.out_err, True
         while True:
             self._fresh()
             h, w = self.scr.getmaxyx()
@@ -2729,6 +2764,17 @@ class Console(object):
                     'Do it', danger=True):
                 self.act('--db-tls-apply', ph, '--db-tls-mode', 'verify-full', '--yes')
 
+        def isemon_sync():
+            # Settings → isemon → First full sync… of the page (1.0.71), here too (1.0.77).
+            got = self.form('isemon: the first full sync', [
+                {'key': 'days', 'label': 'history of (days)', 'kind': 'number', 'value': '365',
+                 'range': (0, 3650), 'help': '0: only what there is now (the certificates, '
+                 'deployments, tests, modules), no events and jobs.'}],
+                'Everything acme holds of its certificates sent to isemon at once, as acme-jobs '
+                'lines kind=sync (docs/isemon.md, The first full sync).')
+            if got:
+                self.act('--isemon-sync', got['days'])
+
         def isemon_probe():
             got = self.form('Try isemon over TLS from every node', [
                 {'key': 'at', 'label': 'isemon at', 'need': True, 'help': 'HOST or HOST:PORT (6514).'}])
@@ -2802,6 +2848,7 @@ class Console(object):
              lambda: self.act('--sso-key', '--yes') if self.confirm(
                  'A new key for the balancer', 'The one the balancer sends now is no longer taken '
                  '- put the new one into the balancer.', yes='Make it', no='Cancel') else None),
+            ('22', 'isemon: the first full sync (every certificate, its history)', isemon_sync),
         ])
 
     def m_upgrades(self):
@@ -2996,8 +3043,11 @@ class Console(object):
                 return
             try:
                 if r == 'these':
-                    got = console_users_parse(self.ask('The users, separated by spaces',
-                                                       ' '.join(users) if isinstance(users, list) else ''))
+                    typed = self.ask_one('The console at login', 'the users', ' '.join(users) if isinstance(
+                        users, list) else '', 'Separated by spaces.')
+                    if typed is None:
+                        return
+                    got = console_users_parse(typed)
                 else:
                     got = '*' if r == 'all' else []
                 self.note('The console at login', console_at_login_set(console_at_login(), got), 'ok')

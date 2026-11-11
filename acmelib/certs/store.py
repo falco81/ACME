@@ -383,7 +383,7 @@ def plugin_public(store, family, row, full=False):
         n = int(store.db.value('SELECT COUNT(*) FROM cert_checks WHERE test = ?',
                                (row['name'],), 0) or 0)
         for r in store.db.rows("SELECT config FROM cert_tests WHERE kind = 'ssh_relay'"):
-            if row['name'] in (jload(r.get('config'), {}) or {}).get('tests') or []:
+            if row['name'] in ((jload(r.get('config'), {}) or {}).get('tests') or []):
                 n += 1
         if row.get('kind') == 'ssh_relay':
             n += via_users(store, row['name'], 'check')

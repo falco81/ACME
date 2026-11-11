@@ -21,6 +21,64 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   is chosen. The old switch *Keep the previous files as .bak* is read as the first or the last
   choice. A temporary `.acme-prev` copy is no longer left behind after the files were put
   back.
+- Console (`acme --console`) - what the pages do, also there: **Tests** (add, change, try, run,
+  the SSH key), a certificate's tests (attach, run, after which deployment, switched off for
+  that certificate, take off), **Run the tests** with a report by mail / SMS, import a
+  certificate or a new version, a self-signed one, a certificate switched off and on, **Change
+  the source** (keeping its deployments and tests), the SSH key of a target / validation / test,
+  isemon's first full sync, and a directory's certificate check, weak certificates and CA.
+- Console, fixed: a choice whose value is not offered now (a CA switched off) was changed to
+  the first one and saved on any edit - it is kept, marked so; fields under *More* that
+  depend on a main one (a DNS server's flavour: rndc, named.conf, the serial...) were never
+  shown; an SSH key field was a plain text box (the key on the command line, refused there); a
+  value of several lines broke the form; a connector was offered as a place to deploy to;
+  *Deploy it now* after adding one deployment ran every deployment of the certificate; *DNS
+  sets* drew over the menu; *These users…* asked over the screen; Ctrl+C ended the whole
+  console (now: back, as Esc); the items' letters (`c`, `k`...) did not choose them; a list
+  whose command failed said "none yet"; *Check names* offered a dry run after a failure; a
+  directory changed from LDAPS to StartTLS kept port 636; `q` went back in some lists and left
+  the console in others (now it leaves everywhere); a by-hand certificate offered *Renew it
+  now*.
+- Command line: `--check-after ID any|-|TARGETS`, `--check-switch ID on|off`, `--check-run ...
+  --report-to ADDR|alerts --sms-to NUM` (the report of *Run the tests*), `--plugin
+  check/KIND` (the tests' modules), `--verify-cert on|off` for a directory (`--no-verify`
+  could only switch it off). `--check-run all|cert:|test:` no longer runs a test switched off.
+- Tests: a test connector without its old list of tests broke every list of tests (`acme
+  --tests`, the page's Tests) - `(x in None) or []`.
+- Hunt E, fixed:
+  - a certificate stuck in *deleting* when its job was cancelled, stopped or the daemon
+    restarted: it goes to *revoke-failed*, to be deleted again;
+  - a deployment moved to another certificate or target kept the old one's "deployed" state;
+    a connector could be saved as a deployment's target;
+  - a certificate switched off could still be renewed or deployed by hand; one switched on
+    again after its end said *ok* instead of *expired*;
+  - revoking a certificate imported, made from a CSR, or of an earlier source than the one it
+    was moved to, asked the wrong authority;
+  - a target renamed: the tests that run after a deployment on it, and the targets going
+    through it as a connector, kept the old name;
+  - the SSH session to a target through a connector left the connector's session (and its
+    key in a temporary file) open when the target refused; the key scan of a target behind a
+    connector tried it directly;
+  - Settings: a change that ended the two-factor sign-ins was made before the settings were
+    in force; the split choices of the High availability card could be set from elsewhere
+    while the nodes were apart;
+  - sending the logs: a target removed from the list stayed "in trouble" (isemon, syslog), a
+    log file written again stayed in trouble, and the last lines could be cut at a stop;
+  - `acme --isemon-test` / `--isemon-sync` said done when nothing was sent (exit 1 now);
+    `--ha-renamed` checked nothing; a few options took an empty value; the 2FA message of the
+    command line was wrong.
+- The page: a module's vendor (*Public CA*, *Connector*, *Protocol*, *Standards*), the targets
+  and validations in the deployment and *Change the source* windows, the templates *A Docker
+  container* / *Any systemd service*, notes acme writes itself (*made on the first start*,
+  *command line*, the seeded sources' descriptions), the SSH banner's example and the root
+  helper's message are in the page's language; Czech for the events of the moves, the isemon
+  sync, the tests' "after", the report, the isemon trouble ("lines held for it") and the header's
+  problems; *4 testy ze 2 certifikátů* in Run the tests; the count over Targets / Tests is of
+  the view shown (a connector is not counted among the targets); a test attached to nothing
+  says *not attached* instead of *failing*; a connector's icon says SSH; a CA's *What it
+  signed* fits its window (the names went a letter a line); the files of a deployment have
+  more room; on a phone the buttons of a window are two a row, all in sight (the row that
+  scrolled sideways opened with Delete and Close out of sight).
 
 ## 1.0.76 - 2026-11-11
 - Tests: a test switched off on Tests (for every certificate) no longer runs after a

@@ -82,13 +82,32 @@ It opens on the **live log** (every line); Esc goes to the main menu.
   deployments (add, run, change, switch off, take away), acme's own
   authorities (show, new root, new intermediate, import, CRL, export, sign a
   CSR, revoke, delete), acme's own DNS server (its records) and the modules
-  (what each takes). A module's form is drawn from its fields: a choice for a
-  select or an on/off, a secret as stars - handed over in the environment,
-  never on a command line - and a PEM read from a file. Each item runs the
-  `acme` option of [command-line.md](command-line.md) it says.
+  (what each takes). Since 1.0.77 also: **Tests** (`t`: add, change, try, run,
+  its SSH key, delete), a certificate's **tests** (attach, run, after which
+  deployment, switched off for that certificate, take off), **Run the tests**
+  (`r`) with a report by mail and / or SMS, **import** (`i`) a certificate or a
+  new version of one, a **self-signed** one (`s`), a certificate switched off
+  and on, **Change the source** (by hand ↔ an authority, keeping its
+  deployments and tests; the first certificate then or at the next renewal),
+  and **the SSH key** of a target, validation or test (make, the public half,
+  your own, try, forget). A connector is not offered as a place to deploy to;
+  *Renew it now* and the validation's checks are not offered for a certificate
+  by hand. A module's form is drawn from its fields: a choice for a select or
+  an on/off (a value set that is not offered now - a CA switched off - stays
+  as it is, marked so), a secret and an SSH key as stars - handed over in the
+  environment, never on a command line - a PEM read from a file, and a value
+  of several lines shown on one line with ⏎ between them. The fields under
+  *More* that depend on a main one (a DNS server's flavour) are asked too.
+  Each item runs the `acme` option of [command-line.md](command-line.md) it
+  says.
 - **Directories**: a directory added or changed in a form (its servers, where
   to look, the account it reads with, LDAPS / StartTLS; its password asked,
-  shown as stars).
+  shown as stars; whether its certificate is checked, old weak certificates,
+  its CA from a file). The port is kept only when it was changed: from LDAPS
+  to StartTLS it becomes 389 by itself.
+- **Keys**: an item's own letter chooses it (`c`, `k`, `t`...), as a number
+  does; Ctrl+C anywhere goes back, as Esc - it no longer ends the console. A
+  list whose command failed says what went wrong instead of "none yet".
 - **The pages' certificates, updates, restarts, tests** (1.0.187) - what the
   pages do, for a server without them (installed `--no-web`) or with them
   down: the pages' own certificates by ACME and one ordered now, followed; the
@@ -98,7 +117,7 @@ It opens on the **live log** (every line); Esc goes to the main menu.
 - **Encryption, sending out, time, network, high security** (1.0.188): the
   encryption to the database server and to isemon looked at and tried, a
   test line to isemon and to the syslog servers, the proxy tried, SNMPv3
-  asked, and the rest of those pages.
+  asked, and the rest of those pages; isemon's **first full sync** (1.0.77).
 
 ## The live views
 

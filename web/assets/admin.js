@@ -3337,7 +3337,7 @@ function loadUsers() {
       tr.appendChild(u.last_in ? stampCell(u.last_in) : el('td', 'muted', 'never'));
       tr.appendChild(noI18n(el('td', 'mono small', u.last_from || '')));
       tr.appendChild(el('td', 'muted small', u.cols_tables ? num(u.cols_tables) + ' table(s) laid out' : 'as they come'));
-      tr.appendChild(noI18n(el('td', 'muted small', u.note || '')));
+      tr.appendChild(noI18n(el('td', 'muted small', known(u.note || ''))));
       var tools = el('td', 'rowtools');
       /* Every row has the same buttons in the same places (1.0.18): one
          that does not apply to this account is there, dimmed, and says why -
@@ -10418,7 +10418,7 @@ function drawFwBody(d) {
     tr.appendChild(noI18n(el('td', 'mono', fwWhat(r))));
     tr.appendChild(r.source ? noI18n(el('td', 'mono', r.source)) : el('td', 'muted', 'anywhere'));
     var sc = el('td'); sc.appendChild(r.scope === 'all' ? el('span', 'tag dim', 'all nodes') : noI18n(el('span', 'tag', r.scope))); tr.appendChild(sc);
-    tr.appendChild(noI18n(el('td', 'muted', r.note || '')));
+    tr.appendChild(noI18n(el('td', 'muted', known(r.note || ''))));
     var tools = el('td', 'acts');
     if (d.may) {
       var up = iconButton('up', 'Earlier'); up.disabled = i === 0;
@@ -16224,7 +16224,7 @@ function drawSshd(live) {
     var nc = el('div', 'card full');
     nc.appendChild(el('h2', '', 'The notice'));
     var ta = noI18n(el('textarea', 'mono sd-notice'));
-    ta.rows = 6; ta.value = dr.notice || ''; ta.placeholder = 'Authorised use only. Every connection is logged.';
+    ta.rows = 6; ta.value = dr.notice || ''; ta.placeholder = known('Authorised use only. Every connection is logged.');
     ta.oninput = function () { dr.notice = ta.value; sdDirty(); };
     nc.appendChild(formField('Its words', ta, 'Plain text, as many lines as needed - often what the security policy wants said.'));
     var wh = el('div', 'sd-where');
@@ -16495,7 +16495,7 @@ function drawLogs() {
         ['acme’s data', n.state == null ? '' : bytes(n.state)],
         ['Asked', n.at ? ago(n.at) : '']
       ]));
-      if (n.said && !n.ok) c.appendChild(noI18n(el('div', 'si-said small', n.said)));
+      if (n.said && !n.ok) c.appendChild(el('div', 'si-said small', n.said));     /* acme's words: translated (1.0.77) */
       var row2 = el('div', 'btnrow');
       var again = cmdButton('Put in and look again', 'refresh', 'small');
       explain(again, 'Every node puts the settings below in again and says how much its journal and logs take - the one this page is on at once, the other within a minute.');
