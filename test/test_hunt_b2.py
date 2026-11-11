@@ -71,8 +71,9 @@ class Certificates(unittest.TestCase):
         self.assertTrue(any(a['key'].startswith('cert-alt-expired:') for a in R.alerts(st)))
 
     def test_rollback_only_of_what_was_placed(self):
-        for p in (('acmelib', 'plugins', 'targets', 'ssh.py'), ('acmelib', 'plugins', 'targets', '_files.py')):
-            self.assertIn("'echo \"PLACED %d\"' % i", read(*p))
+        # one place for both since 1.0.80 (_files.place_lines)
+        self.assertIn("'echo \"PLACED %d\"' % i", read('acmelib', 'plugins', 'targets', '_files.py'))
+        self.assertIn('F.place_lines(', read('acmelib', 'plugins', 'targets', 'ssh.py'))
 
     def test_same_files_without_the_reload_are_deployed_again(self):
         src = read('acmelib', 'plugins', 'targets', 'ssh.py')

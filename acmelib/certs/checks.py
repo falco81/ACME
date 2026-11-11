@@ -302,10 +302,14 @@ def expected(store, cert):
     """{current: {fp: (variant, version)}, old: {fp: version}, names, chain: [fp],
     not_after}."""
     cur = {}
-    # A revoked one is not the current one (1.0.79: a server serving it was "ok")
-    if cert.get('fingerprint') and cert.get('state') != 'revoked':
+    # A revoked one is not the current one (1.0.79: a server serving it was "ok") - also when a
+    # new one could not be issued after it and it says "failed" (1.0.80)
+    gone = S.revoked_fps(store, cert['id']) if cert.get('id') else set()
+    if cert.get('fingerprint') and cert.get('state') != 'revoked' and \
+            str(cert['fingerprint']).upper() not in gone:
         cur[str(cert['fingerprint']).upper()] = ('main', cert.get('version'))
-    if cert.get('alt_fingerprint') and cert.get('alt_state') != 'revoked':
+    if cert.get('alt_fingerprint') and cert.get('alt_state') != 'revoked' and \
+            str(cert['alt_fingerprint']).upper() not in gone:
         cur[str(cert['alt_fingerprint']).upper()] = ('alt', cert.get('alt_version'))
     old = {}
     for r in store.db.rows('SELECT version, fingerprint FROM cert_versions WHERE cert_id = ?',

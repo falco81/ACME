@@ -67,6 +67,15 @@ def upgrade_checks(store, meta, pages=False):
     plan = upgrade_plan(store)
     if plan and plan['state'] == 'running':
         why.append('an upgrade is going on already')
+    # ...nor an update of the system or a restart (1.0.80): the other way round was refused,
+    # this way the two went on over each other on one node
+    try:
+        if (osup_plan(store) or {}).get('state') == 'running':
+            why.append('the system is being updated - wait for it to end')
+        if power_busy(store):
+            why.append('a restart or power-off is going on - wait for it to end')
+    except NameError:
+        pass
     return not why, why
 
 

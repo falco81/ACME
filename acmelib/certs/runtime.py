@@ -352,7 +352,12 @@ class RunContext(base.Context):
 
     # ---- a little state of the module's own ---------------------------------------------
     def _kv_key(self, key):
-        return '%s%s:%s' % (KV_PREFIX, self.scope, str(key)[:120])
+        # a long one not cut short (1.0.80): the end that told two apart was cut away - two
+        # deployments to one Azure target shared one record; the cut kept for the short ones
+        key = str(key)
+        if len(key) > 120:
+            key = key[:56] + '~' + hashlib.sha256(key.encode()).hexdigest()
+        return '%s%s:%s' % (KV_PREFIX, self.scope, key)
 
     def kv_get(self, key, default=None):
         got = S.jload(self.store.get_meta(self._kv_key(key)), None)

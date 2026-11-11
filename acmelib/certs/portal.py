@@ -353,18 +353,35 @@ MAIL_WORDS = {
 }
 
 
+def _covers(pattern, host):
+    """A name, or a wildcard of one label, holding the host."""
+    pattern, host = str(pattern).lower().rstrip('.'), str(host).lower().rstrip('.')
+    if pattern == host:
+        return True
+    if pattern.startswith('*.'):
+        return '.' in host and host.split('.', 1)[1] == pattern[2:]
+    return False
+
+
 def held_by_others(store, names, who):
     """Whether a certificate of another owner names one of these (1.0.51): asked for on the
     portal and issued at once, mail.corp.example of the IT team's - and its key taken. It waits
-    for approval then."""
+    for approval then. Under a wildcard of theirs, or a wildcard asked over a name of theirs,
+    too (1.0.80): only the very same name was looked for."""
     me = str(who or '').lower()
-    for n in names or []:
-        for r in store.db.rows("SELECT owner, names FROM certs WHERE names LIKE ? AND "
-                               "state NOT IN ('revoked', 'declined')",
-                               ('%' + json.dumps(str(n).lower())[1:-1] + '%',)):
-            if str(n).lower() in [str(x).lower() for x in (S.jload(r.get('names'), []) or [])] \
-                    and str(r.get('owner') or '').lower() != me:
-                return True
+    want = [str(n).lower() for n in names or [] if n]
+    if not want:
+        return False
+    for r in store.db.rows("SELECT owner, names FROM certs WHERE "
+                           "state NOT IN ('revoked', 'declined')"):
+        if str(r.get('owner') or '').lower() == me:
+            continue
+        theirs = [str(x).lower() for x in (S.jload(r.get('names'), []) or [])]
+        for n in want:
+            for t in theirs:
+                if _covers(t, n) or _covers(n, t) or \
+                        (n.startswith('*.') and t.startswith('*.') and n == t):
+                    return True
     return False
 
 
@@ -690,7 +707,8 @@ def _portal_revoke(h):
     s = portal_session(h)
     b = h.body()
     row = need_right(h, s, b.get('id'), 'manage', 'revoking')
-    if not row.get('cert_pem') or row.get('state') == 'revoked':
+    if not row.get('cert_pem') or (row.get('state') == 'revoked' and
+                                   row.get('alt_state') != 'revoke-failed'):
         raise E.ApiError(409, '%s is not a certificate that can be revoked' % row['name'])
     reason = str(b.get('reason') or 'unspecified')
     if reason not in A.REVOKE_REASONS:

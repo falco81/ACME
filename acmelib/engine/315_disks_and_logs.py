@@ -629,6 +629,23 @@ def osup_tick(daemon):
         _osup_follow_check(store, chk)
         return
     plan = osup_plan(store)
+    if plan.get('state') != 'running' and me in (plan.get('order') or []):
+        # Stopped (or failed elsewhere) while this node was in it (1.0.80): the update going
+        # on here is followed to its end, a node only drained comes back into service - it
+        # stayed "updating", in maintenance, for good.
+        row = osup_row(store, me)
+        if row.get('plan') == plan.get('id'):
+            if row.get('state') == 'updating':
+                _osup_follow(daemon, plan, row)
+            elif row.get('state') == 'draining':
+                if row.get('maint'):
+                    try:
+                        maintenance_set(store, False, '', 'acme (system update stopped)')
+                    except Exception:                   # noqa: BLE001
+                        pass
+                osup_put(store, row, state='cancelled', maint=False,
+                         said='not updated: the update was stopped')
+        return
     if plan.get('state') != 'running' or me not in (plan.get('order') or []):
         return
     row = osup_row(store, me)
@@ -643,6 +660,24 @@ def osup_tick(daemon):
                rows[n].get('state') == 'failed']
         if bad:
             return
+        # One before gone silent in the middle of it (1.0.80): the plan stayed "running" for
+        # good - every alert of the cluster quiet, every later update refused.
+        try:
+            alive = {n['name']: n for n in ha_nodes(store)}
+        except Exception:                               # noqa: BLE001
+            alive = {}
+        for n in before:
+            r = rows[n]
+            if r.get('plan') == plan['id'] and r.get('state') in ('updating', 'draining',
+                                                                  'rebooting') and \
+                    n in alive and not alive[n].get('alive') and \
+                    float(alive[n].get('age') or 0) > OSUP_SILENT_S:
+                plan.update(state='failed', ended=time.time(), failed_on=n)
+                store.set_meta('host:osup:plan', json.dumps(plan))
+                store.add_event('settings', 'the update of the system stopped: %s has not been '
+                                'heard from in the middle of it' % n, 'bad',
+                                who='acme (system update)')
+                return
         if all(rows[n].get('plan') == plan['id'] and rows[n].get('state') in ('done', 'skipped')
                for n in before):
             _osup_go(daemon, 'upgrade', {'plan': plan, 'row': row})
@@ -683,8 +718,12 @@ def _osup_go(daemon, what, ctx):
                 # the VIP address moves to it, the work is done there.
                 many = any(n.get('alive') and not n.get('me') for n in ha_nodes(store))
                 if many:
-                    maintenance_set(store, True, 'the system is being updated', by)
-                    osup_put(store, row, state='draining', drain_at=time.time(), maint=True,
+                    # in maintenance already, set by a person (1.0.80): kept, not taken away
+                    # when the update ends
+                    had = bool((maintenance_row(store, me) or {}).get('on'))
+                    if not had:
+                        maintenance_set(store, True, 'the system is being updated', by)
+                    osup_put(store, row, state='draining', drain_at=time.time(), maint=not had,
                              said='out of service - the other node answers', pct=0, lines=[])
                     return
                 row['maint'] = False
@@ -762,8 +801,9 @@ def _osup_end(store, plan, row, ok, said='', reboot=False):
             maintenance_set(store, False, '', by)
             row['maint'] = False
             osup_put(store, row)
-        plan.update(state='failed', ended=time.time(), failed_on=me)
-        store.set_meta('host:osup:plan', json.dumps(plan))
+        if (osup_plan(store) or {}).get('state') in (None, '', 'running'):  # stopped stays so
+            plan.update(state='failed', ended=time.time(), failed_on=me)
+            store.set_meta('host:osup:plan', json.dumps(plan))
         store.add_event('settings', 'the update of the system failed on %s: %s' % (me, said),
                         'bad', who=by)
         return
@@ -785,7 +825,7 @@ def _osup_end(store, plan, row, ok, said='', reboot=False):
     store.add_event('settings', 'the system of %s is updated%s' % (
         me, ' - it needs a restart' if reboot else ''), 'warn' if reboot else 'info', who=by)
     order = plan.get('order') or []
-    if order and order[-1] == me:
+    if order and order[-1] == me and (osup_plan(store) or {}).get('state') == 'running':
         plan.update(state='done', ended=time.time())
         store.set_meta('host:osup:plan', json.dumps(plan))
 

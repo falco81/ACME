@@ -1066,7 +1066,11 @@ class Storage(object):
         elif old and old.get('bind_pw') and (
                 str(old.get('hosts') or '') != row['hosts'] or int(old.get('port') or 0) != port or
                 str(old.get('tls') or '') != tls or int(old.get('verify') or 0) != row['verify'] or
-                str(old.get('bind_dn') or '') != row['bind_dn']):
+                str(old.get('bind_dn') or '') != row['bind_dn'] or
+                # ...or the authority it is trusted by, or weak TLS let in (1.0.80): a CA of
+                # one's own named, the password went to whoever showed a certificate of it
+                ('ca' in row and str(old.get('ca') or '') != str(row.get('ca') or '')) or
+                ('weak' in row and int(old.get('weak') or 0) != int(row.get('weak') or 0))):
             # The password kept goes to the server it was given for only (1.0.207):
             # another host typed in, it was sent there - in clear with TLS off -
             # while the page never showed it.

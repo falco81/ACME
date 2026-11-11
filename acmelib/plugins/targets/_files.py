@@ -34,6 +34,7 @@ file: '_same' (left alone), '_was' (True / False: was there before), '_bak' (its
 from __future__ import annotations
 
 import hashlib
+import posixpath
 import re
 import secrets
 import time
@@ -163,8 +164,12 @@ def prune_posix(path, mode, keep=None):
     if not keep or not pat:
         return ''
     d, n = pat
-    return ('ls -1t -- %s/%s%s 2>/dev/null | tail -n +%d | while IFS= read -r f; do rm -f -- "$f"; '
-            'done' % (quote(d or '.'), quote(n), DATED_GLOB, int(keep) + 1))
+    # only a line that is a path in that folder (1.0.80): a name with a line break in it made
+    # its second half a path of its own, relative to the SSH user's home
+    dq = quote((d or '.').rstrip('/') or '/')
+    return ('ls -1t -- %s/%s%s 2>/dev/null | tail -n +%d | while IFS= read -r f; do '
+            'case "$f" in %s/*) [ -f "$f" ] && [ ! -L "$f" ] && rm -f -- "$f";; esac; done'
+            % (quote(d or '.'), quote(n), DATED_GLOB, int(keep) + 1, dq))
 
 
 def said_sha(path, there, new):
@@ -218,6 +223,28 @@ def all_same(t, s, files):
                                for f in files)
 
 
+def place_lines(path, bak, tmp, mode, owner, i):
+    """The shell lines that put one file in place (1.0.80): the copy of the old one and the
+    new one made under names nobody can guess (random, made with noclobber - never through a
+    link), in the folder itself, and moved over - "<path>.acme-new" and the copy's name were
+    fixed, and a link laid there by whoever may write the folder had root write the key
+    through it, its mode and owner too."""
+    p = quote(path)
+    out = ['mkdir -p "$(dirname %s)"' % p]
+    if bak:
+        b = quote(bak)
+        tb = quote('%s/.acme-bak.%s' % (posixpath.dirname(bak) or '.', secrets.token_hex(8)))
+        out.append('if [ -e %s ]; then mkdir -p "$(dirname %s)"; (set -C; : > %s); '
+                   'cp -p %s %s; mv -f %s %s; echo "EXISTED %d"; fi'
+                   % (p, b, tb, p, tb, tb, b, i))
+    tn = quote('%s/.acme-new.%s' % (posixpath.dirname(path) or '.', secrets.token_hex(8)))
+    out += ['(set -C; : > %s)' % tn, 'cp %s %s' % (quote(tmp), tn), 'chmod %o %s' % (mode, tn)]
+    if owner:
+        out.append('chown -h %s %s' % (quote(owner), tn))
+    out += ['mv -f %s %s' % (tn, p), 'echo "PLACED %d"' % i]
+    return out
+
+
 def write_files(t, s, files, tmp_dir='/tmp', options=None, fmt=None):
     """-> [True/False: was there one before, None: left alone - the same], one a file. On a
     failure the previous files are put back and PluginError raised. Without `options` as
@@ -253,17 +280,8 @@ def write_files(t, s, files, tmp_dir='/tmp', options=None, fmt=None):
         script = ['set -e']
         for i in todo:
             f = files[i]
-            p = quote(f['path'])
-            new = quote(f['path'] + '.acme-new')
-            script += ['mkdir -p "$(dirname %s)"' % p,
-                       'if [ -e %s ]; then mkdir -p "$(dirname %s)"; cp -p %s %s; '
-                       'echo "EXISTED %d"; fi' % (p, quote(f['_bak']), p, quote(f['_bak']), i),
-                       'cp %s %s' % (quote(tmps[i]), new),
-                       'chmod %o %s' % (f.get('mode') or 0o600, new)]
-            if f.get('owner'):
-                script.append('chown %s %s' % (quote(f['owner']), new))
-            script.append('mv -f %s %s' % (new, p))
-            script.append('echo "PLACED %d"' % i)
+            script += place_lines(f['path'], f['_bak'], tmps[i], f.get('mode') or 0o600,
+                                  f.get('owner'), i)
         rc, out, err = t.sh(s, '\n'.join(script), check=False)
         placed = [False] * len(files)
         for i in todo:
@@ -300,7 +318,7 @@ def put_back(t, s, files, existed, placed=None):
         p = quote(f['path'])
         bak = f.get('_bak') or f['path'] + PREV
         if placed is not None and not placed[i]:
-            script.append('rm -f %s' % quote(f['path'] + '.acme-new'))
+            script.append('rm -f "$(dirname %s)"/.acme-new.*' % quote(f['path']))
             continue
         if was:
             script.append('cp -p %s %s' % (quote(bak), p))
@@ -308,7 +326,7 @@ def put_back(t, s, files, existed, placed=None):
                 script.append('rm -f %s' % quote(bak))
         else:
             script.append('rm -f %s' % p)
-        script.append('rm -f %s' % quote(f['path'] + '.acme-new'))
+        script.append('rm -f "$(dirname %s)"/.acme-new.*' % quote(f['path']))
     if not script:
         return
     rc, out, err = t.sh(s, '\n'.join(script), check=False)

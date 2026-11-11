@@ -249,6 +249,10 @@ def run_deploys(store, job, cert_id, only=None, force=False):
         # switched off (1.0.79): not deployed, whoever asks (the command line did)
         job.step('%s is switched off: nothing deployed' % cert['name'], 'warn')
         return True, 'nothing deployed: the certificate is switched off'
+    if S.current_revoked(store, cert):
+        job.step('the certificate %s holds now is revoked: nothing deployed - a new one is '
+                 'issued first' % cert['name'], 'bad')
+        return False, 'nothing deployed: the certificate it holds is revoked'
     told_renewed(store, job, cert_id)
     rows = deploys_of(store, cert_id, only)
     if not rows:

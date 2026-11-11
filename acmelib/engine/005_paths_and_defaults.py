@@ -1800,6 +1800,17 @@ def check_setting(key, value):
                 pass
         if int(got) in taken:
             raise BadSetting('api_port: %s is the port of another service here' % got)
+    if key in ('dns_port', 'snmp_port'):
+        # the other way round too (1.0.80): the API took the port first and the DNS server
+        # (or SNMP) could not listen on it
+        try:
+            api = int(CONFIG.get('api_port') or 9861)
+        except (TypeError, ValueError):
+            api = 9861
+        if int(got or 0) == api:
+            raise BadSetting('%s: %s is the port of acme\'s own API here' % (key, got))
+        if key == 'dns_port' and int(got or 0) in (80, 443):
+            raise BadSetting('dns_port: %s is the port of the pages' % got)
     if key == 'alerts_url' and str(got).strip() and \
             not re.match(r'^https?://[^\s"<>]+\Z', str(got).strip()):
         raise BadSetting('alerts_url: an address starting https://')

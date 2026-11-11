@@ -925,6 +925,20 @@ def cert_need(store, ref):
     return got
 
 
+def revoked_fps(store, cert_id):
+    """The fingerprints (upper case) of a certificate's versions revoked at the CA."""
+    return {str(r['fingerprint']).upper() for r in store.db.rows(
+        'SELECT fingerprint FROM cert_versions WHERE cert_id = ? AND revoked IS NOT NULL AND '
+        'fingerprint IS NOT NULL', (cert_id,))}
+
+
+def current_revoked(store, cert):
+    """Whether the certificate it holds now was revoked (1.0.80): "revoke and issue a new one"
+    whose new one failed left it "failed" over the revoked one - deployed and tested as good."""
+    fp = str(cert.get('fingerprint') or '').upper()
+    return cert.get('state') == 'revoked' or bool(fp and fp in revoked_fps(store, cert['id']))
+
+
 def cert_key(row, variant=''):
     """The certificate's private key (PEM), or None; `variant` 'alt': its twin's."""
     if variant == 'alt':

@@ -742,6 +742,10 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
         try:
             from acmelib.certs import pki as _pki
             mine = _pki.cert_info(cert['cert_pem']).get('pub_sha256')
+            # ...and the twin's versions with the twin's key (1.0.80): only the main key's
+            # were looked for - an older RSA twin with the same key stayed valid at the CA
+            twin = _pki.cert_info(cert['alt_cert_pem']).get('pub_sha256') \
+                if cert.get('alt_cert_pem') else None
             for v in store.db.rows('SELECT version, cert_pem, not_after FROM cert_versions WHERE '
                                    'cert_id = ? AND (revoked IS NULL OR revoked = 0) AND version <> ?',
                                    (cert['id'], cert.get('version') or 0)):
@@ -749,10 +753,15 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
                     continue
                 if v.get('version') == cert.get('alt_version'):
                     continue
-                if _pki.cert_info(v['cert_pem']).get('pub_sha256') != mine:
+                pub = _pki.cert_info(v['cert_pem']).get('pub_sha256')
+                if pub == mine:
+                    vkey = S.cert_key(cert)
+                elif twin and pub == twin:
+                    vkey = S.cert_key(cert, 'alt')
+                else:
                     continue
                 try:
-                    _revoke(v['cert_pem'], S.cert_key(cert))
+                    _revoke(v['cert_pem'], vkey)
                     store.db.run('UPDATE cert_versions SET revoked = ? WHERE cert_id = ? AND '
                                  'version = ?', (time.time(), cert['id'], v['version']))
                     job.step('version %s, with the same key, revoked too' % v['version'], 'ok')
@@ -940,7 +949,15 @@ def scan(store, by='the renewer'):
         "COALESCE(t.enabled, 1) = 0) AND "
         "c.cert_pem IS NOT NULL AND c.state IN ('ok', 'due', 'failed')")
     todo = {}
+    revoked_now = {}
     for d in deps:
+        # holding a revoked one (1.0.80): not deployed until a new one is issued
+        if d['cert_id'] not in revoked_now:
+            crow = store.db.row('SELECT id, state, fingerprint FROM certs WHERE id = ?',
+                                (d['cert_id'],)) or {}
+            revoked_now[d['cert_id']] = bool(crow) and S.current_revoked(store, crow)
+        if revoked_now[d['cert_id']]:
+            continue
         # just made, never tried (1.0.79): "Save and deploy now" follows in a moment as the
         # person's own - the scan took it first, as "renewed by itself", and ran it twice
         if not d.get('last_try') and float(d.get('created') or 0) > t - 30:

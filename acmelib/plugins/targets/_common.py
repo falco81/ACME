@@ -750,7 +750,10 @@ class Base(Target):
     # nothing, and the service kept the old certificate. Marked before the files are written,
     # taken off when it went through; while marked, "nothing to replace" still runs the commands.
     def _pending_key(self):
-        return 'pending:%s:%s' % (self.kind, self.ident())
+        # per deployment (1.0.80): another certificate's deployment to the same server took
+        # the mark away, and the first one's reload was never run
+        dep = getattr(self.ctx, 'deploy_id', None)
+        return 'pending:%s:%s:%s' % (self.kind, self.ident(), dep if dep else '-')
 
     def mark_pending(self, bundle):
         try:

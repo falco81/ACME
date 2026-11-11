@@ -133,6 +133,12 @@ def power_tick(daemon):
                 except Exception:                       # noqa: BLE001
                     pass
         return False
+    if row.get('state') == 'going' and row.get('how') == 'poweroff' and \
+            boot_time() > float(row.get('boot') or 0) + 1:
+        # switched on again after a power-off (1.0.80): as a restart come back - it stayed
+        # "going" and in maintenance for good
+        _net_thread(power_back, daemon, row)
+        return True
     if not plan or me not in (plan.get('targets') or []) or row.get('id') == plan.get('id'):
         return False
     if time.time() - float(plan.get('at') or 0) > POWER_LIVE_S:

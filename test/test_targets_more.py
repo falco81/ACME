@@ -382,7 +382,7 @@ class EsxiTest(unittest.TestCase):
         self.assertEqual(len(ssh.puts), 2)
         self.assertEqual(ssh.puts[0][1], a.fullchain_pem.encode())
         script = [c for c, _ in ssh.runs if 'mv -f' in c][0]
-        self.assertIn('/etc/vmware/ssl/rui.crt.acme-new', script)
+        self.assertIn('/etc/vmware/ssl/.acme-new.', script)
         self.assertIn('chmod 400', script)
         self.assertTrue(any('/etc/init.d/hostd restart' in c for c, _ in ssh.runs))
         # the files there are these: nothing written
@@ -748,8 +748,8 @@ class CaddyTest(unittest.TestCase):
         t.deploy(FakeBundle(), {'mode': 'files', 'cert_file': '/etc/caddy/certs/{name}.crt',
                                 'key_file': '/etc/caddy/certs/{name}.key'})
         script = [c for c, _ in ssh.runs if 'mv -f' in c][0]
-        self.assertIn('/etc/caddy/certs/www.example.test.key.acme-new', script)
-        self.assertIn('chown caddy:caddy', script)
+        self.assertIn('/etc/caddy/certs/.acme-new.', script)
+        self.assertIn('chown -h caddy:caddy', script)
         self.assertTrue(any('caddy reload --config /etc/caddy/Caddyfile' in c
                             for c, _ in ssh.runs))
 

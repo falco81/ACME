@@ -627,19 +627,7 @@ class SshTarget(SshMixin, Base):
         -> [True/False: was there one before], one a file."""
         script = ['set -e']
         for i, (f, tmp) in enumerate(zip(files, tmps)):
-            p = quote(f['path'])
-            new = quote(f['path'] + '.acme-new')
-            script += [
-                'mkdir -p "$(dirname %s)"' % p,
-                'if [ -e %s ]; then mkdir -p "$(dirname %s)"; cp -p %s %s; echo "EXISTED %d"; fi'
-                % (p, quote(bak(f)), p, quote(bak(f)), i),
-                'cp %s %s' % (quote(tmp), new),
-                'chmod %o %s' % (f['mode'], new),
-            ]
-            if f['owner']:
-                script.append('chown %s %s' % (quote(f['owner']), new))
-            script.append('mv -f %s %s' % (new, p))
-            script.append('echo "PLACED %d"' % i)
+            script += F.place_lines(f['path'], bak(f), tmp, f['mode'], f['owner'], i)
         rc, out, err = self.sh(s, '\n'.join(script), check=False)
         existed = [False] * len(files)
         placed = [False] * len(files)
@@ -662,7 +650,7 @@ class SshTarget(SshMixin, Base):
         for i, (f, was) in enumerate(zip(files, existed)):
             p = quote(f['path'])
             if placed is not None and not placed[i]:
-                script.append('rm -f %s' % quote(f['path'] + '.acme-new'))
+                script.append('rm -f "$(dirname %s)"/.acme-new.*' % quote(f['path']))
                 continue
             if was:
                 script.append('cp -p %s %s' % (quote(bak(f)), p))
@@ -670,7 +658,7 @@ class SshTarget(SshMixin, Base):
                     script.append('rm -f %s' % quote(bak(f)))
             else:
                 script.append('rm -f %s' % p)
-            script.append('rm -f %s' % quote(f['path'] + '.acme-new'))
+            script.append('rm -f "$(dirname %s)"/.acme-new.*' % quote(f['path']))
         rc, out, err = self.sh(s, '\n'.join(script), check=False)
         self.ctx.step('the previous files are back' if rc == 0 else
                       'putting the previous files back failed: %s' % err.strip()[-200:],

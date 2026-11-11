@@ -171,7 +171,11 @@ def alerts_quiet(store, names):
             if up.get('id') and up.get('state') not in ('done', 'failed', 'cancelled') and \
                     time.time() - float(up.get('at') or 0) < 6 * 3600:
                 why = 'an upgrade'
-        if not why and (osup_plan(store) or {}).get('state') == 'running':
+        osp = osup_plan(store) or {}
+        # for six hours at most, as an upgrade (1.0.80): a plan whose node never came back kept
+        # the cluster's alerts quiet for good
+        if not why and osp.get('state') == 'running' and \
+                time.time() - float(osp.get('at') or 0) < 6 * 3600:
             why = 'the system\'s updates'
         if not why and power_busy(store):
             why = 'a restart'
@@ -224,8 +228,8 @@ def alert_problems(store, lang='en'):
                                              '%s: a rebuild from the other node failed' % n),
                 str(m.get('why'))[:300], 'ha')
         elif now - float(m.get('at') or now) > MAINT_QUIET_S:
-            add('maint:' + n, 'warn', n, _al(lang, 'Uzel %s je v údržbě už %s' % (n, _al_ago(now - float(m['at']), lang)),
-                                              '%s has been in maintenance for %s' % (n, _al_ago(now - float(m['at']), lang))),
+            add('maint:' + n, 'warn', n, _al(lang, 'Uzel %s je v údržbě už %s' % (n, _al_ago(float(m['at']), lang)),
+                                              '%s has been in maintenance for %s' % (n, _al_ago(float(m['at']), lang))),
                 str(m.get('why') or '')[:300], 'maintenance')
     beats = {n['name']: n for n in nodes}
     if not beats:

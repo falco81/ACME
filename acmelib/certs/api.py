@@ -745,7 +745,8 @@ def revocable(store, row):
     """'' when acme can revoke the certificate at its CA, else why not (1.0.21)."""
     if not row.get('cert_pem'):
         return 'it has not been issued'
-    if row.get('state') == 'revoked':
+    # ...but not its twin (1.0.80): its revoke failed and could not be asked again here
+    if row.get('state') == 'revoked' and row.get('alt_state') != 'revoke-failed':
         return 'it is revoked already'
     if row.get('state') == 'deleting':
         return 'it is being revoked now'
@@ -885,6 +886,9 @@ def start_deploy(store, ref, deploy_id, by):
         raise ValueError('%s has not been issued yet' % row['name'])
     if row.get('enabled') == 0:
         raise ValueError('%s is switched off - switch it on first' % row['name'])
+    if S.current_revoked(store, row):
+        raise ValueError('the certificate %s holds is revoked - issue a new one first'
+                         % row['name'])
     only = None
     if deploy_id not in (None, '', 0):
         d = store.db.row('SELECT * FROM cert_deploys WHERE id = ? AND cert_id = ?',

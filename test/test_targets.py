@@ -385,8 +385,8 @@ class SshDeployTest(unittest.TestCase):
         self.assertTrue(all(i == 'pw\n' for c, i in ssh.runs if c.startswith('sudo')))
         self.assertTrue(all(p.startswith('/tmp/.acme-') for p, _, _ in ssh.puts))
         install = [c for c, _ in ssh.runs if 'mv -f' in c][0]
-        self.assertIn('chown root:root', install)
-        self.assertIn('/etc/nginx/ssl/www.example.test.key.acme-new', install)
+        self.assertIn('chown -h root:root', install)
+        self.assertIn('/etc/nginx/ssl/.acme-new.', install)
 
 
 class LocalTest(unittest.TestCase):
