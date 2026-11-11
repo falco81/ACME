@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.65 - not released
+
 ## 1.0.64 - 2026-11-11
 - The files on a target: a quick layout **Full chain, chain, key** - the certificate with its
   intermediates where the server sends it from (nginx's ssl_certificate, Apache 2.4.8+'s
