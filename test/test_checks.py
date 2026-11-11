@@ -359,6 +359,8 @@ class TestRuns(Base):
         with self.assertRaises(ValueError):
             C.after(STORE, i, 'rpki2', 'test')           # not a target of the certificate
         C.after(STORE, i, 'rpki1', 'test')
+        with self.assertRaises(ValueError):
+            C.attach(STORE, self.cid, ['x'], 'test', 'rpki2')
         C.AFTER_DEPLOY_TRIES, old = (0, 0), C.AFTER_DEPLOY_TRIES
         try:
             job = Job()
@@ -367,6 +369,12 @@ class TestRuns(Base):
             self.assertEqual(job.steps, [])
             self.assertTrue(C.after_deploy(STORE, job, self.cid, {'rpki1'}))
             self.assertTrue(job.steps)
+            STORE.db.insert('cert_deploys', {'cert_id': self.cid, 'target': 'rpki3', 'enabled': 1})
+            C.after(STORE, i, ['rpki1', 'rpki3'], 'test')   # several targets
+            job.steps = []
+            self.assertTrue(C.after_deploy(STORE, job, self.cid, {'rpki3'}))
+            self.assertIsNone(C.after_deploy(STORE, job, self.cid, {'rpki9'}))
+            self.assertEqual(C.after_list('rpki1\nrpki3'), ['rpki1', 'rpki3'])
             C.after(STORE, i, '', 'test')                 # any again
             job.steps = []
             self.assertTrue(C.after_deploy(STORE, job, self.cid, {'rpki3'}))

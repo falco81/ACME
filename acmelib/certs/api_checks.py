@@ -5,7 +5,7 @@ themselves are defined as targets are: /api/tests (api.py's family routes,
 family 'check', table cert_tests).
 
     GET  /api/checks?cert_id=&test=        {checks, settings}
-    POST /api/checks/attach   {cert_id, tests: [name...]}
+    POST /api/checks/attach   {cert_id, tests: [name...], after_target}
     POST /api/checks/detach   {id}
     POST /api/checks/switch   {id, enabled}
     POST /api/checks/after    {id, target}   (1.0.65: '' - after any deployment)
@@ -81,7 +81,10 @@ def _attach(h, s):
     names = b.get('tests') if isinstance(b.get('tests'), list) else [b.get('test')]
     cid = _int(b.get('cert_id'), 'cert_id')
     _cert_need(h, s, cid, 'manage', 'attach tests to')
-    made = C.attach(h.store, cid, [n for n in names if n], by)
+    try:
+        made = C.attach(h.store, cid, [n for n in names if n], by, b.get('after_target') or '')
+    except ValueError as e:
+        raise E.ApiError(400, str(e))
     cert = S.cert_get(h.store, cid) or {}
     if made:
         h.store.add_event('certificates', 'test(s) %s attached to %s by %s' % (
@@ -124,7 +127,7 @@ def _after(h, s):
     except ValueError as e:
         raise E.ApiError(400, str(e))
     cert = S.cert_get(h.store, chk['cert_id']) or {}
-    t = str(b.get('target') or '').strip()
+    t = ', '.join(C.after_list(b.get('target')))
     h.store.add_event('certificates', 'test %s of %s runs after %s by %s' % (
         chk['test'], cert.get('name', '?'), ('a deployment on %s' % t) if t else 'any deployment',
         A.who(s)), who=A.who(s))

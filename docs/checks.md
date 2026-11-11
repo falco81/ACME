@@ -47,10 +47,12 @@ where it connected and the HTTP answer.
   certificate's tests, once its deployments are done, tried three times over
   half a minute while the services restart. A failed test makes the job say so;
   the deployments themselves went as they say.
-  A test tied to a target (the certificate's window → Tests → **After deploying on**,
-  1.0.65) runs only after a deployment on that target - deploying on rpki1 tests rpki1,
-  not rpki2; one left at **any target** runs after any of the certificate's deployments,
-  as before.
+  Which deployments run a test is chosen when it is attached, as a deployment's
+  options are (the certificate's window → Tests → **Attach a test** → *Options on this
+  certificate*, or the gear of an attached one; 1.0.65): **The targets chosen** - one
+  target, the default (a test is mostly of one server), or several - or **Every
+  deployment**, as every test attached before 1.0.65 is. Deploying on rpki1 then tests
+  rpki1, not rpki2.
 - **By themselves** (`certs_checks_auto`, off; `certs_checks_every_min`, 360):
   every test, on the node that leads.
 - **Asked**: the certificate's window, or the command line.

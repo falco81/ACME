@@ -76,11 +76,13 @@ def rows(store, cert_id=None, test=None):
     return [row_public(store, r) for r in store.db.rows(q, tuple(args))]
 
 
-def attach(store, cert_id, names, by):
-    """Tests attached to a certificate (those attached already stay) -> the ids made."""
+def attach(store, cert_id, names, by, after_target=''):
+    """Tests attached to a certificate (those attached already stay) -> the ids made; with
+    after_target (1.0.65) they run after a deployment on that target only."""
     t = time.time()
     if not store.db.row('SELECT id FROM certs WHERE id = ?', (int(cert_id),)):
         raise LookupError('there is no such certificate')
+    after_target = _after_checked(store, cert_id, after_list(after_target))
     have = {r['test'] for r in store.db.rows('SELECT test FROM cert_checks WHERE cert_id = ?',
                                              (int(cert_id),))}
     made = []
@@ -94,7 +96,7 @@ def attach(store, cert_id, names, by):
         made.append(store.db.insert('cert_checks', {
             'cert_id': int(cert_id), 'test': n, 'enabled': 1, 'position': pos, 'fails': 0,
             'created': t, 'created_by': str(by)[:190], 'updated': t,
-            'updated_by': str(by)[:190]}))
+            'updated_by': str(by)[:190], 'after_target': after_target}))
         have.add(n)
         pos += 1
     return made
@@ -106,15 +108,35 @@ def detach(store, ident):
     store.db.run('DELETE FROM cert_checks WHERE id = ?', (int(ident),))
 
 
+def after_list(v):
+    """The targets a test runs after (1.0.65): '' - any; one name, or several, one a line."""
+    if isinstance(v, (list, tuple)):
+        items = v
+    else:
+        items = str(v or '').replace(',', '\n').split('\n')
+    out = []
+    for x in items:
+        x = str(x or '').strip()
+        if x and x not in out:
+            out.append(x[:190])
+    return out[:50]
+
+
+def _after_checked(store, cert_id, targets):
+    have = {r['target'] for r in store.db.rows('SELECT target FROM cert_deploys WHERE cert_id = ?',
+                                               (int(cert_id),))}
+    for t in targets:
+        if t not in have:
+            raise ValueError('the certificate is not deployed on %s' % t)
+    return '\n'.join(targets)
+
+
 def after(store, ident, target, by):
-    """The target after whose deployment the test runs ('' - after any) (1.0.65)."""
+    """The targets after whose deployment the test runs ('' - after any) (1.0.65)."""
     chk = store.db.row('SELECT * FROM cert_checks WHERE id = ?', (int(ident),))
     if not chk:
         raise LookupError('there is no such test of a certificate')
-    target = str(target or '').strip()
-    if target and not store.db.row('SELECT id FROM cert_deploys WHERE cert_id = ? AND target = ?',
-                                   (chk['cert_id'], target)):
-        raise ValueError('the certificate is not deployed on %s' % target)
+    target = _after_checked(store, chk['cert_id'], after_list(target))
     store.db.update('cert_checks', int(ident), {'after_target': target, 'updated': time.time(),
                                                  'updated_by': str(by)[:190]})
     return chk
@@ -679,8 +701,8 @@ def after_deploy(store, job, cert_id, targets=None):
     tests = store.db.rows('SELECT * FROM cert_checks WHERE cert_id = ? AND '
                           'COALESCE(enabled, 1) <> 0 ORDER BY position, id', (int(cert_id),))
     if targets is not None:
-        tests = [t for t in tests if not (t.get('after_target') or '') or
-                 t['after_target'] in targets]
+        tests = [t for t in tests if not after_list(t.get('after_target')) or
+                 set(after_list(t.get('after_target'))) & set(targets)]
         if not tests:
             return None
     if not tests:

@@ -8718,6 +8718,12 @@ function certTests(c, back, deploys) {
   var add = cmdButton('Attach a test', 'add', 'small');
   var runAll = cmdButton('Run them now', 'play', 'small');
   if (MANAGE) { bar.appendChild(add); bar.appendChild(runAll); box.appendChild(bar); }
+  /* The certificate's targets: what a test may run after (1.0.65). */
+  var deployTargets = function () {
+    var out = [];
+    arr(deploys).forEach(function (dp) { if (dp && dp.target && out.indexOf(dp.target) < 0) out.push(dp.target); });
+    return out;
+  };
   var D = {};
   var load = function () {
     return capi('checks' + qs({cert_id: c.id})).then(function (d) { D = d || {}; draw(); })
@@ -8753,29 +8759,13 @@ function certTests(c, back, deploys) {
     }
     runAll.hidden = !rows.length;
     /* After which deployment each test runs (1.0.65): one of the certificate's targets, or any. */
-    var targets = [];
-    arr(deploys).forEach(function (dp) { if (dp && dp.target && targets.indexOf(dp.target) < 0) targets.push(dp.target); });
+    var targets = deployTargets();
     var afterCell = function (x) {
       var cell = el('td', 'small');
-      var have = String(x.after_target || '');
-      if (!MANAGE) {
-        cell.appendChild(have ? data('span', '', have) : el('span', 'muted', 'any target'));
-        return cell;
-      }
-      var pairs = [['', tr('any target')]].concat(targets.map(function (t) { return [t, t]; }));
-      if (have && targets.indexOf(have) < 0) pairs.push([have, have + ' - ' + tr('not deployed there any more')]);
-      var sel = selectBox(pairs, have);
-      sel.classList.add('ck-after');
-      sel.setAttribute('data-no-i18n', '');
-      explain(sel, 'A deployment on this target runs the test; any: a deployment on any of the certificate\'s targets does.');
-      sel.onclick = function (ev) { ev.stopPropagation(); };
-      sel.onchange = function () {
-        capi('checks/after', {id: x.id, target: sel.value}).then(function () {
-          x.after_target = sel.value;
-          toast(sel.value ? tr('runs after a deployment on') + ' ' + sel.value : tr('runs after any deployment'), 'good');
-        }).catch(function (e) { sel.value = have; fail(e); });
-      };
-      cell.appendChild(sel);
+      var have = afterList(x.after_target);
+      if (!have.length) { cell.appendChild(el('span', 'muted', 'every deployment')); return cell; }
+      cell.appendChild(data('span', '', have.join(', ')));
+      if (have.some(function (t) { return targets.indexOf(t) < 0; })) cell.appendChild(el('div', 'ct-rowerr', 'not deployed there any more'));
       return cell;
     };
     host.appendChild(listTable(['Test', 'State', 'Where', 'After deploying on', 'Last run', ''], rows, function (x) {
@@ -8823,6 +8813,25 @@ function certTests(c, back, deploys) {
           capi('checks/switch', {id: x.id, enabled: x.enabled === 0}).then(load).catch(fail);
         };
         tools.appendChild(sw);
+        var opt = iconButton('gear', 'Its options on this certificate');
+        opt.onclick = function (ev) {
+          ev.stopPropagation();
+          var pick = testAfterPick(targets, afterList(x.after_target));
+          over(function () {
+            modal(tr('The test') + ' ' + x.test + ' · ' + c.name, function (body) {
+              body.appendChild(el('p', 'note', 'How this test runs for this certificate.'));
+              body.appendChild(pick.node);
+            }, [{words: 'Cancel', close: true}, {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
+              busy(b, true);
+              capi('checks/after', {id: x.id, target: pick.get()}).then(function () {
+                toast(pick.get().length ? tr('runs after a deployment on') + ' ' + pick.get().join(', ') : tr('runs after any deployment'), 'good');
+                closeModal();
+                load();
+              }).catch(fail).then(function () { busy(b, false); });
+            }}]);
+          }, back);
+        };
+        tools.appendChild(opt);
         var ed = iconButton('edit', 'Edit the test');
         ed.onclick = function (ev) {
           ev.stopPropagation();
@@ -8843,7 +8852,7 @@ function certTests(c, back, deploys) {
       return x.last_at ? rowOpens(r, function () { served(x); }) : r;
     }, 'plain ct-deptable|No test attached yet'));
   };
-  add.onclick = function () { over(function () { attachTests(c, arr(D.checks), back); }, back); };
+  add.onclick = function () { over(function () { attachTests(c, arr(D.checks), back, deployTargets()); }, back); };
   runAll.onclick = function () {
     busy(runAll, true);
     capi('checks/run', {cert_id: c.id}).then(function (d) { jobStarted(d, 'the tests started', back); })
@@ -8854,10 +8863,11 @@ function certTests(c, back, deploys) {
 }
 /** "Attach a test": the tests defined (Certificates → Tests), ticked to attach - as
     "Deploy it on a target" offers the targets. */
-function attachTests(c, have, back) {
+function attachTests(c, have, back, targets) {
   var had = {};
   arr(have).forEach(function (x) { had[x.test] = 1; });
   var picks = {};
+  var after = testAfterPick(arr(targets), null, true);
   popup(tr('Attach a test to') + ' ' + c.name, function () {
     return Promise.all([loadRows('tests', true), plugins().catch(function () { return null; })]).then(function (x) { return x[0]; });
   }, function (rows) {
@@ -8923,6 +8933,9 @@ function attachTests(c, have, back) {
           items.forEach(function (x, i) { x.hidden = keep.indexOf(rows[i]) < 0; });
         };
         body.appendChild(list);
+        /* Its options here, as a deployment's (1.0.65): after which deployment it runs. */
+        body.appendChild(el('h4', 'ct-formh', 'Options on this certificate'));
+        body.appendChild(after.node);
         if (FULL) {
           var mk = cmdButton('Define a new test', 'add', 'small');
           mk.onclick = function () { closeModal(); showTab('tests'); setTimeout(function () { modPick('tests'); }, 300); };
@@ -8935,13 +8948,62 @@ function attachTests(c, have, back) {
         var names = Object.keys(picks);
         if (!names.length) { toast('Tick a test first', 'bad'); return; }
         busy(b, true);
-        capi('checks/attach', {cert_id: c.id, tests: names}).then(function (d) {
+        capi('checks/attach', {cert_id: c.id, tests: names, after_target: after.get()}).then(function (d) {
           toast(said(d, 'attached'), 'good');
           closeModal();
         }).catch(fail).then(function () { busy(b, false); });
       }}]
     };
   }, 'medium');
+}
+/** After which deployments a test of a certificate runs (1.0.65): after every one, or after
+    those on the targets ticked - one (the default, as a test is mostly of one server) or more.
+    Chosen as a deployment's options are, a button each. {node, get} - get(): [] for every. */
+function afterList(v) {
+  return String(v || '').split(/[\n,]/).map(function (x) { return x.trim(); }).filter(Boolean);
+}
+function testAfterPick(targets, have, guess) {
+  targets = arr(targets);
+  var chosen = Array.isArray(have) ? have.slice() : afterList(have);
+  var every = !chosen.length && have !== undefined && have !== null && !guess;
+  if (!chosen.length && !every && targets.length) chosen = [guess && targets.indexOf(guess) >= 0 ? guess : targets[0]];
+  if (!targets.length) every = true;
+  var box = el('div', 'set-item');
+  box.appendChild(el('label', 'k', 'After deploying on'));
+  var mode = el('div', 'seg');
+  var tg = el('div', 'seg ck-after-targets');
+  var says = el('p', 'says');
+  var paint = function () {
+    Array.prototype.forEach.call(mode.children, function (b, i) { b.classList.toggle('on', (i === 0) === every); });
+    tg.hidden = every;
+    Array.prototype.forEach.call(tg.children, function (b) { b.classList.toggle('on', chosen.indexOf(b._t) >= 0); });
+    says.textContent = every ? tr('Every deployment of the certificate runs it - on any of its targets.')
+      : (chosen.length === 1 ? tr('Only a deployment on this target runs it.') : tr('A deployment on any of these targets runs it.'));
+  };
+  [['every', 'Every deployment'], ['some', 'The targets chosen']].forEach(function (o, i) {
+    var b = el('button', '', o[1]);
+    b.type = 'button';
+    b.disabled = i === 1 && !targets.length;
+    b.onclick = function () { every = i === 0; if (!every && !chosen.length && targets.length) chosen = [targets[0]]; paint(); };
+    mode.appendChild(b);
+  });
+  targets.concat(chosen.filter(function (t) { return targets.indexOf(t) < 0; })).forEach(function (t) {
+    var b = noI18n(el('button', '', t + (targets.indexOf(t) < 0 ? ' - ' + tr('not deployed there any more') : '')));
+    b.type = 'button';
+    b._t = t;
+    b.onclick = function () {
+      var at = chosen.indexOf(t);
+      if (at >= 0) { if (chosen.length > 1) chosen.splice(at, 1); } else chosen.push(t);
+      paint();
+    };
+    tg.appendChild(b);
+  });
+  box.appendChild(mode);
+  box.appendChild(tg);
+  box.appendChild(says);
+  box.appendChild(el('p', 'says', 'Run now and by themselves: every test.'));
+  paint();
+  return {node: box, get: function () { return every ? [] : chosen.slice(); }};
 }
 /** In a test's form: tried against a certificate before it is kept (POST checks/try). */
 function testTryHere(form, row, p) {

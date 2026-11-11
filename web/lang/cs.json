@@ -54611,6 +54611,50 @@
   "ck65_6": {
    "source": "runs after any deployment",
    "text": "spustí se po každém nasazení"
+  },
+  "ck65b_1": {
+   "source": "Options on this certificate",
+   "text": "Volby na tomto certifikátu"
+  },
+  "ck65b_2": {
+   "source": "Its options on this certificate",
+   "text": "Jeho volby na tomto certifikátu"
+  },
+  "ck65b_3": {
+   "source": "How this test runs for this certificate.",
+   "text": "Jak tento test běží pro tento certifikát."
+  },
+  "ck65b_4": {
+   "source": "A test of one server runs only after a deployment on its target; any target: after any of the certificate's deployments. Run now and by themselves: every test.",
+   "text": "Test jednoho serveru se spustí jen po nasazení na jeho cíl; kterýkoli cíl: po kterémkoli nasazení certifikátu. Spustit teď a samy: každý test."
+  },
+  "ck65c_1": {
+   "source": "Every deployment",
+   "text": "Každé nasazení"
+  },
+  "ck65c_2": {
+   "source": "The targets chosen",
+   "text": "Vybrané cíle"
+  },
+  "ck65c_3": {
+   "source": "Every deployment of the certificate runs it - on any of its targets.",
+   "text": "Spustí ho každé nasazení certifikátu - na kterýkoli jeho cíl."
+  },
+  "ck65c_4": {
+   "source": "Only a deployment on this target runs it.",
+   "text": "Spustí ho jen nasazení na tento cíl."
+  },
+  "ck65c_5": {
+   "source": "A deployment on any of these targets runs it.",
+   "text": "Spustí ho nasazení na kterýkoli z těchto cílů."
+  },
+  "ck65c_6": {
+   "source": "Run now and by themselves: every test.",
+   "text": "Spustit teď a samy: každý test."
+  },
+  "ck65c_7": {
+   "source": "every deployment",
+   "text": "každé nasazení"
   }
  },
  "patterns": {
