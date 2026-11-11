@@ -54763,6 +54763,122 @@
   "_7": {
    "source": "The regular runs are off now: Settings → Certificates → Test the servers by themselves.",
    "text": "Pravidelné spouštění je teď vypnuté: Nastavení → Certifikáty → Testovat servery automaticky."
+  },
+  "move_1": {
+   "source": "Change the source…",
+   "text": "Změnit zdroj…"
+  },
+  "move_2": {
+   "source": "Another source for it - an imported one to Let’s Encrypt or an authority, an issued one to another source or to by hand. Its deployments, tests and everything else stay.",
+   "text": "Jiný zdroj certifikátu – importovaný na Let’s Encrypt nebo autoritu, vydávaný na jiný zdroj nebo na ruční správu. Nasazení, testy a vše ostatní zůstane."
+  },
+  "move_3": {
+   "source": "Change the source of",
+   "text": "Změnit zdroj certifikátu"
+  },
+  "move_4": {
+   "source": "The new source",
+   "text": "Nový zdroj"
+  },
+  "move_5": {
+   "source": "choose where it comes from from now on",
+   "text": "vyberte, odkud bude certifikát nově pocházet"
+  },
+  "move_6": {
+   "source": "that is where it comes from now - choose another",
+   "text": "odsud pochází už teď – vyberte jiný zdroj"
+  },
+  "move_7": {
+   "source": "Move to by hand",
+   "text": "Přejít na ruční správu"
+  },
+  "move_8": {
+   "source": "Move and issue now",
+   "text": "Přesunout a vydat hned"
+  },
+  "move_9": {
+   "source": "a source",
+   "text": "zdroj"
+  },
+  "move_10": {
+   "source": "Where the certificate comes from from now on. Everything else stays: its name and names, its deployments and their files, its tests, its versions, owner, tags and note - and the certificate in use stays in use until the new source gives it a new one.",
+   "text": "Odkud bude certifikát nově pocházet. Vše ostatní zůstane: název a jména, nasazení i jejich soubory, testy, verze, vlastník, štítky a poznámka – a používaný certifikát se používá dál, dokud nový zdroj nevydá nový."
+  },
+  "move_11": {
+   "source": "From now on",
+   "text": "Nově"
+  },
+  "move_12": {
+   "source": "no source",
+   "text": "bez zdroje"
+  },
+  "move_13": {
+   "source": "Not renewed by itself any more: before it ends, import a new one in its window (Import a new one) - its deployments and tests take it as now.",
+   "text": "Už se nebude obnovovat sám: před koncem platnosti naimportujte nový v okně certifikátu (Importovat nový) – nasazení a testy ho převezmou jako teď."
+  },
+  "move_14": {
+   "source": "No source is set up yet - a full administrator adds them under Sources.",
+   "text": "Zatím není nastaven žádný zdroj – přidá ho plný administrátor v sekci Zdroje."
+  },
+  "move_15": {
+   "source": "Stays as it is",
+   "text": "Zůstává, jak je"
+  },
+  "move_16": {
+   "source": "The certificate in use",
+   "text": "Používaný certifikát"
+  },
+  "move_17": {
+   "source": "No deployment yet",
+   "text": "Zatím žádné nasazení"
+  },
+  "move_18": {
+   "source": "Its name, names, versions, owner, tags and note",
+   "text": "Název, jména, verze, vlastník, štítky a poznámka"
+  },
+  "move_19": {
+   "source": "Changes",
+   "text": "Změní se"
+  },
+  "move_20": {
+   "source": "Not renewed by itself any more",
+   "text": "Už se nebude obnovovat sám"
+  },
+  "move_21": {
+   "source": "Renewed by importing a new one: its window → Import a new one",
+   "text": "Obnovuje se importem nového: okno certifikátu → Importovat nový"
+  },
+  "move_22": {
+   "source": "Its end is still watched and said, as of every certificate",
+   "text": "Konec platnosti se dál hlídá a hlásí jako u každého certifikátu"
+  },
+  "move_23": {
+   "source": "Renewed only when asked",
+   "text": "Obnovuje se jen na vyžádání"
+  },
+  "move_24": {
+   "source": "The first certificate from it",
+   "text": "První certifikát z nového zdroje"
+  },
+  "move_25": {
+   "source": "At its next renewal",
+   "text": "Při příštím obnovení"
+  },
+  "move_26": {
+   "source": "A new certificate is asked for at once, in a job you can watch, and deployed where this one is - the tests then run as after every deployment. If it fails, the one in use stays.",
+   "text": "Nový certifikát se vyžádá hned, v úloze, kterou můžete sledovat, a nasadí se tam, kde je tento – testy pak proběhnou jako po každém nasazení. Když se to nepovede, zůstane používaný certifikát."
+  },
+  "move_27": {
+   "source": "Nothing is asked now: at its next renewal it comes from the new source.",
+   "text": "Teď se nic nežádá: při příštím obnovení přijde z nového zdroje."
+  },
+  "move_28": {
+   "source": "This does not fit yet - it cannot be moved so",
+   "text": "Takhle to zatím nesedí – přesunout nejde"
+  },
+  "move_29": {
+   "source": "It is now renewed by hand",
+   "text": "Certifikát se teď spravuje ručně"
   }
  },
  "patterns": {
@@ -74901,6 +75017,50 @@
   "pck65_1": {
    "source": "the certificate is not deployed on {0}",
    "text": "certifikát se na {0} nenasazuje"
+  },
+  "pmove_1": {
+   "source": "Change the source of {0}",
+   "text": "Změnit zdroj certifikátu {0}"
+  },
+  "pmove_2": {
+   "source": "The certificate in use, valid until {0}",
+   "text": "Používaný certifikát, platný do {0}"
+  },
+  "pmove_3": {
+   "source": "{0} deployment(s), with their files and commands",
+   "text": "{0} {0:nasazení|nasazení|nasazení} i se soubory a příkazy"
+  },
+  "pmove_4": {
+   "source": "{0} test(s), with after which deployments they run",
+   "text": "{0} {0:test|testy|testů} i s tím, po kterých nasazeních běží"
+  },
+  "pmove_5": {
+   "source": "Renewed from {0}",
+   "text": "Obnovuje se ze zdroje {0}"
+  },
+  "pmove_6": {
+   "source": "Its names proved by {0}",
+   "text": "Jména prokazuje {0}"
+  },
+  "pmove_7": {
+   "source": "Its names proved by {0}, {1} of them otherwise",
+   "text": "Jména prokazuje {0}, {1} z nich jinak"
+  },
+  "pmove_8": {
+   "source": "A new key: {0}",
+   "text": "Nový klíč: {0}"
+  },
+  "pmove_9": {
+   "source": "Renewed by itself, {0} days before its end",
+   "text": "Obnovuje se sám, {0} {0:den|dny|dní} před koncem platnosti"
+  },
+  "pmove_10": {
+   "source": "Nothing is asked now: the certificate in use stays until its renewal, about {0} - then it comes from the new source.",
+   "text": "Teď se nic nežádá: používaný certifikát zůstane do svého obnovení, zhruba {0} – pak už přijde z nového zdroje."
+  },
+  "pmove_11": {
+   "source": "It now comes from {0}",
+   "text": "Certifikát teď pochází ze zdroje {0}"
   }
  },
  "rich": {

@@ -233,6 +233,7 @@ if (typeof ICONS === 'object') {
   ICONS.ca = '<path d="M12 3l8.5 4.2V9h-17V7.2z"/><path d="M6 11.5v6M10 11.5v6M14 11.5v6M18 11.5v6"/><path d="M3 20.5h18"/>';
   ICONS.source = '<path d="M12 3.5v10"/><path d="M8 10l4 4 4-4"/><path d="M4 15.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3.5"/>';
   ICONS.proof = '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.6 12.2l2.4 2.4 4.4-4.8"/>';
+  ICONS.swap = '<path d="M4 8h13"/><path d="M14 4.5L17.5 8 14 11.5"/><path d="M20 16H7"/><path d="M10 12.5L6.5 16l3.5 3.5"/>';
   ICONS.target = '<rect x="3" y="4" width="18" height="6.5" rx="1.6"/><rect x="3" y="13.5" width="18" height="6.5" rx="1.6"/>'
     + '<path d="M7 7.25h.01M7 16.75h.01M11 7.25h6M11 16.75h6"/>';
   ICONS.job = '<path d="M4 6h10M4 12h7M4 18h10"/><path d="M16.5 9.5l4.5 3-4.5 3z"/>';
@@ -3152,6 +3153,10 @@ function certPeek(id) {
     if (MANAGE && c.issuer) buttons.push({words: c.not_after ? 'Change names, key, source…' : 'Edit', icon: 'edit',
       says: c.not_after ? 'The whole set-up, step by step. What is in the certificate itself (names, key, source, profile) takes a new certificate - you choose: now, or at its next renewal. Owner, tags, note and renewal are changed at once in Details above.' : '',
       go: function () { certWizard(c, d); }});
+    if (MANAGE && c.not_after && ['revoked', 'deleting', 'pending', 'pending-approval', 'declined'].indexOf(c.state) < 0 && !waiting)
+      buttons.push({words: 'Change the source…', icon: 'swap',
+        says: 'Another source for it - an imported one to Let\u2019s Encrypt or an authority, an issued one to another source or to by hand. Its deployments, tests and everything else stay.',
+        go: function () { certWizard(c, d, {move: true}); }});
     if (MANAGE && (c.not_after || versions.length)) buttons.push({words: 'Export', icon: 'download', go: function () { over(function () { exportDialog(c, versions); }, back); }});
     if (MANAGE && waiting) buttons.push({words: 'Upload the answer', cls: 'primary', icon: 'upload', go: function () { over(function () { csrAnswer(c); }, back); }});
     if (MANAGE && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
@@ -4042,7 +4047,13 @@ function certWizard(cert, detail, opts) {
   opts = opts || {};
   var editing = !!(cert && cert.id);
   var SETUP = editing && !!opts.setup;
-  var W = {step: 0, seen: {0: true}, sources: [], vals: [], targets: [], deploys: {}};
+  /* opts.move (1.0.69): another source for a certificate in use - an imported one to an
+     ACME CA or an authority, an issued one to another source or to by hand (renewed by
+     importing). Its name, names, deployments, tests, versions, owner and tags stay. */
+  var MOVE = editing && !!opts.move;
+  var FROM = (cert && cert.issuer) || '';
+  var HAND = '-';               /* W.d.issuer in MOVE: by hand */
+  var W = {step: 0, seen: {0: true}, sources: [], vals: [], targets: [], deploys: {}, tests: null};
   var c = cert || {};
   var prof = obj(c.profile);
   var subj = obj(prof.subject);
@@ -4068,6 +4079,12 @@ function certWizard(cert, detail, opts) {
     W.d.over.validation[k] = Object.assign({}, obj(obj(prof.over).validation[k]));
   });
   var PROF0 = prof;
+  if (MOVE) {
+    W.d.issuer = '';
+    W.when = 'now';
+    if (!FROM) { W.d.auto_renew = true; W.d.renew_days = c.renew_days || 30; }
+  }
+  var hand = function () { return MOVE && W.d.issuer === HAND; };
   if (!W.d.sans.length) W.d.sans = [{type: 'dns', value: ''}];
   W.d.cn_san = !W.d.cn || arr(c.names).indexOf(String(W.d.cn).toLowerCase()) >= 0;
   var src = function () { return W.sources.filter(function (s) { return s.name === W.d.issuer; })[0] || null; };
@@ -4160,7 +4177,17 @@ function certWizard(cert, detail, opts) {
     {key: 'deploy', title: 'Deployments', draw: drawDeploy, show: function () { return !editing || SETUP; }},
     {key: 'review', title: 'Review', draw: drawReview}
   ];
-  var steps = function () { return STEPS.filter(function (s) { return !s.show || s.show(); }); };
+  var MOVE_STEPS = [
+    {key: 'source', title: 'The new source', draw: drawMoveSource, check: function () {
+      return !W.d.issuer ? 'choose where it comes from from now on' : (W.d.issuer === (FROM || HAND) ? 'that is where it comes from now - choose another' : ''); }},
+    {key: 'key', title: 'Key', draw: drawKey, show: function () { return !hand(); }},
+    {key: 'validation', title: 'Validation', draw: drawValidation, show: function () { return !hand() && can().challenge; },
+     check: function () { return W.d.challenge || Object.keys(W.d.challenge_map).length === names().length ? '' : 'choose how the names are proved'; }},
+    {key: 'tune', title: 'Settings', draw: drawTune, show: function () { return !hand() && tuneMods().length > 0; }},
+    {key: 'renewal', title: 'Renewal', draw: drawRenewal, show: function () { return !hand(); }},
+    {key: 'review', title: 'Review', draw: drawMoveReview}
+  ];
+  var steps = function () { return (MOVE ? MOVE_STEPS : STEPS).filter(function (s) { return !s.show || s.show(); }); };
   var read = null;          /* what the step on screen reads back into W.d */
 
   function go(to) {
@@ -4178,9 +4205,13 @@ function certWizard(cert, detail, opts) {
     var buttons = [];
     if (W.step > 0) buttons.push({words: 'Back', icon: 'prev', left: true, go: function () { go(W.step - 1); }});
     buttons.push({words: 'Close', close: true});
-    if (editing && !SETUP && st.key !== 'review') buttons.push({words: 'Save', icon: 'save', go: function (b) { if (read) read(); finish(b, false); }});
-    var unfit = st.key === 'review' ? compatProblems() : [];
-    if (unfit.length) {
+    if (editing && !SETUP && !MOVE && st.key !== 'review') buttons.push({words: 'Save', icon: 'save', go: function (b) { if (read) read(); finish(b, false); }});
+    var unfit = st.key === 'review' && !hand() ? compatProblems() : [];
+    if (MOVE && st.key === 'review' && !unfit.length) {
+      if (window.ACME_RUNPLAN && !hand()) buttons.push({words: 'What happens', icon: 'list', go: function () { planOpen(); }});
+      buttons.push({words: hand() ? 'Move to by hand' : (W.when === 'now' ? 'Move and issue now' : 'Move'), cls: 'primary',
+        icon: hand() ? 'upload' : (W.when === 'now' ? 'play' : 'save'), go: function (b) { finishMove(b); }});
+    } else if (unfit.length) {
       var at = list.map(function (x) { return x.key; }).indexOf(unfit[0].step);
       if (at >= 0 && at !== W.step) buttons.push({words: 'Back to ' + tr(list[at].title), cls: 'primary', icon: 'prev', go: function () { go(at); }});
       buttons.push({words: editing ? 'Save' : 'Create', icon: 'save', cls: 'ct-blocked', go: function () { toast(tr('This does not fit yet - it cannot be created so') + ': ' + unfit[0].what, 'bad'); }});
@@ -4205,7 +4236,7 @@ function certWizard(cert, detail, opts) {
         go(W.step + 1);
       }});
     }
-    modal(SETUP ? 'Set up ' + c.name : (editing ? 'Edit ' + c.name : 'Add a certificate'), function (body) {
+    modal(MOVE ? 'Change the source of ' + c.name : (SETUP ? 'Set up ' + c.name : (editing ? 'Edit ' + c.name : 'Add a certificate')), function (body) {
       var strip = el('ol', 'ct-wsteps');
       list.forEach(function (s, i) {
         var li = el('li', (i === W.step ? 'on' : '') + (i < W.step || W.seen[i] ? ' done' : ''));
@@ -4215,15 +4246,15 @@ function certWizard(cert, detail, opts) {
         b.appendChild(el('span', 'w', s.title));
         /* Editing one already issued: which steps are in the certificate itself
            (a change waits for a new one) and which are acme's alone. */
-        if (editing && !SETUP && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(s.key) >= 0) {
+        if (editing && !SETUP && !MOVE && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(s.key) >= 0) {
           var mk = el('span', 'ct-wstep-cert');
           mk.innerHTML = iconMarkup('refresh', 12);
           b.appendChild(mk);
           explain(b, 'In the certificate itself: a change here takes a new certificate (now, or at its next renewal).');
         }
-        b.disabled = !(editing || W.seen[i] || i <= W.step);
+        b.disabled = !((editing && !MOVE) || W.seen[i] || i <= W.step);
         b.onclick = function () {
-          if (i > W.step && !editing) {
+          if (i > W.step && (!editing || MOVE)) {
             if (read) read();
             var bad = st.check ? st.check() : '';
             if (bad) { toast(bad, 'bad'); return; }
@@ -4235,7 +4266,8 @@ function certWizard(cert, detail, opts) {
       });
       body.appendChild(strip);
       /* What is in the certificate itself changes with its next renewal - never by saving. */
-      if (SETUP && st.key !== 'review')
+      if (MOVE) { /* its own words, in each step */ }
+      else if (SETUP && st.key !== 'review')
         body.appendChild(el('p', 'note tm-setup', 'Imported from ' + (c.issuer || 'its source') + ': this is read from the certificate itself and what the import set. Set it as for a new certificate - the certificate imported stays in use as it is, and its next renewal is made so.'));
       else if (editing && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(st.key) >= 0)
         body.appendChild(el('p', 'note tm-next-renewal', 'In the certificate itself: what is changed here goes into a new certificate - saving issues nothing; after Save you choose: renew now, or at its next renewal.'));
@@ -4245,7 +4277,7 @@ function certWizard(cert, detail, opts) {
       body.appendChild(host);
       st.draw(host);
     }, buttons, 'large');
-    if (editing) nameInTitle(SETUP ? 'Set up' : 'Edit', c.name);
+    if (editing) nameInTitle(MOVE ? 'Change the source of' : (SETUP ? 'Set up' : 'Edit'), c.name);
     explainWhatWasDrawn($('modal-body'));
   }
 
@@ -5223,7 +5255,10 @@ function certWizard(cert, detail, opts) {
     }
     /* Before the first certificate: what the validation needs, checked at once.
        While something is missing the CA is not asked (certs_precheck). */
-    if (can().challenge && !bad) {
+    if (can().challenge && !bad) readyCheck(host);
+  }
+  function readyCheck(host) {
+    {
       var rh = el('div', 'ct-rd-review');
       host.appendChild(rh);
       rh.appendChild(saidLine('', 'Checking what the validation needs…'));
@@ -5247,6 +5282,192 @@ function certWizard(cert, detail, opts) {
         rh.appendChild(box);
       }).catch(function (e) { if (modalStill(tick)) { clear(rh); rh.appendChild(failedBox(e, 'the check of the validation')); } });
     }
+  }
+
+  /* -- Change the source (opts.move, 1.0.69) -- */
+  /* A source as a card: its icon, name, kind and what it can. */
+  function moveCard(cls, icon, title, sub, chips) {
+    var t = el('button', 'ct-src ' + cls);
+    t.type = 'button';
+    var ic = el('span', 'ct-src-ic');
+    ic.innerHTML = iconMarkup(icon, 22);
+    t.appendChild(ic);
+    var w = el('span', 'ct-src-w');
+    w.appendChild(data('b', '', title));
+    w.appendChild(el('span', 'muted small', sub));
+    if (chips && chips.length) {
+      var cw = el('span', 'ct-src-chips');
+      chips.forEach(function (x) { cw.appendChild(el('span', 'tag ' + x[0], x[1])); });
+      w.appendChild(cw);
+    }
+    t.appendChild(w);
+    return t;
+  }
+  function fromCard() {
+    var s = W.sources.filter(function (x) { return x.name === FROM; })[0];
+    return FROM ? moveCard('ct-move-now', sourceIcon(s ? s.kind : ''), FROM, s ? plugTitle('issuer', s.kind) : tr('a source'), [])
+      : moveCard('ct-move-now', 'upload', tr('By hand'), c.source === 'csr' ? tr('an outside CA, by a CSR') : tr('imported - renewed by importing again'), []);
+  }
+  function drawMoveSource(host) {
+    host.appendChild(el('p', 'note', 'Where the certificate comes from from now on. Everything else stays: its name and names, its deployments and their files, its tests, its versions, owner, tags and note - and the certificate in use stays in use until the new source gives it a new one.'));
+    var now = el('div', 'ct-move-cur');
+    now.appendChild(el('span', 'ct-move-lab', 'Now'));
+    var fc = fromCard();
+    fc.disabled = true;
+    now.appendChild(fc);
+    host.appendChild(now);
+    host.appendChild(el('div', 'ct-move-lab', 'From now on'));
+    var grid = el('div', 'ct-srcs');
+    var said = el('div', 'ct-srcsaid');
+    var pick = function (t, name) {
+      var was = W.d.issuer;
+      W.d.issuer = name;
+      Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove('on'); });
+      t.classList.add('on');
+      clear(said);
+      if (name !== HAND && was !== name) sourceChanged(said);
+      if (name === HAND) said.appendChild(saidLine('', 'Not renewed by itself any more: before it ends, import a new one in its window (Import a new one) - its deployments and tests take it as now.'));
+    };
+    W.sources.forEach(function (s) {
+      var on = s.enabled === undefined || truthy(s.enabled);
+      var cn = issuerCan(s.kind);
+      var chips = [];
+      if (s.name === FROM) chips.push(['info', 'now']);
+      if (cn.challenge) chips.push(['info', 'proves names']);
+      if (cn.wildcards) chips.push(['dim', 'wildcards']);
+      if (!on) chips.push(['warn', 'off']);
+      if (s.is_default) chips.push(['ok', 'default']);
+      var t = moveCard((W.d.issuer === s.name ? 'on' : '') + (on ? '' : ' off'), sourceIcon(s.kind), s.name,
+                       plugTitle('issuer', s.kind), chips);
+      if (s.name === FROM) { t.disabled = true; t.classList.add('ct-move-same'); }
+      t.onclick = function () { pick(t, s.name); };
+      t.ondblclick = function () { pick(t, s.name); go(W.step + 1); };
+      grid.appendChild(t);
+    });
+    if (FROM) {
+      var h = moveCard(W.d.issuer === HAND ? 'on' : '', 'upload', tr('By hand'),
+                       tr('imported - renewed by importing again'), [['dim', 'no source']]);
+      h.onclick = function () { pick(h, HAND); };
+      h.ondblclick = function () { pick(h, HAND); go(W.step + 1); };
+      grid.appendChild(h);
+    }
+    host.appendChild(grid);
+    if (!W.sources.length) host.appendChild(el('p', 'muted small', 'No source is set up yet - a full administrator adds them under Sources.'));
+    host.appendChild(said);
+  }
+  function drawMoveReview(host) {
+    var s = src();
+    /* from -> to */
+    var ft = el('div', 'ct-move-ft');
+    var a = fromCard();
+    a.disabled = true;
+    ft.appendChild(a);
+    var arrow = el('span', 'ct-move-arrow');
+    arrow.innerHTML = iconMarkup('next', 22);
+    ft.appendChild(arrow);
+    var b = hand() ? moveCard('on', 'upload', tr('By hand'), tr('imported - renewed by importing again'), [])
+      : moveCard('on', sourceIcon(s ? s.kind : ''), W.d.issuer, s ? plugTitle('issuer', s.kind) : '', []);
+    b.disabled = true;
+    ft.appendChild(b);
+    host.appendChild(ft);
+    var cols = el('div', 'ct-move-cols');
+    /* what stays */
+    var keep = el('div', 'ct-move-box ok');
+    keep.appendChild(el('h4', '', 'Stays as it is'));
+    var ul = el('ul', 'ct-move-list');
+    var li = function (list, icon, words, more) {
+      var x = el('li', '');
+      var i = el('span', 'ct-move-i');
+      i.innerHTML = iconMarkup(icon, 15);
+      x.appendChild(i);
+      var w = el('span', '');
+      w.appendChild(el('span', '', words));
+      if (more) w.appendChild(more);
+      x.appendChild(w);
+      list.appendChild(x);
+    };
+    var deps = rowsOf(obj(detail).deploys);
+    li(ul, 'check', c.not_after ? 'The certificate in use, valid until ' + dayOnly(c.not_after) : 'The certificate in use');
+    li(ul, 'check', deps.length ? num(deps.length) + ' deployment(s), with their files and commands' : 'No deployment yet',
+       deps.length ? data('div', 'muted small', deps.map(function (d) { return d.target; }).join(', ')) : null);
+    if (W.tests !== null) li(ul, 'check', W.tests.length ? num(W.tests.length) + ' test(s), with after which deployments they run' : 'No test yet',
+       W.tests.length ? data('div', 'muted small', W.tests.map(function (x) { return x.test; }).join(', ')) : null);
+    li(ul, 'check', 'Its name, names, versions, owner, tags and note');
+    keep.appendChild(ul);
+    cols.appendChild(keep);
+    /* what changes */
+    var chg = el('div', 'ct-move-box info');
+    chg.appendChild(el('h4', '', 'Changes'));
+    var ul2 = el('ul', 'ct-move-list');
+    if (hand()) {
+      li(ul2, 'refresh', 'Not renewed by itself any more');
+      li(ul2, 'upload', 'Renewed by importing a new one: its window → Import a new one');
+      li(ul2, 'bell', 'Its end is still watched and said, as of every certificate');
+    } else {
+      li(ul2, 'globe', 'Renewed from ' + W.d.issuer);
+      if (can().challenge) li(ul2, 'shield', Object.keys(W.d.challenge_map).length
+        ? 'Its names proved by ' + (W.d.challenge || '–') + ', ' + Object.keys(W.d.challenge_map).length + ' of them otherwise'
+        : 'Its names proved by ' + (W.d.challenge || '–'));
+      li(ul2, 'key', 'A new key: ' + keyWords(W.d.key_type) + (W.d.key_type_alt ? ' + ' + keyWords(W.d.key_type_alt) : ''));
+      li(ul2, 'clock', W.d.auto_renew ? 'Renewed by itself, ' + W.d.renew_days + ' days before its end' : 'Renewed only when asked');
+    }
+    chg.appendChild(ul2);
+    cols.appendChild(chg);
+    host.appendChild(cols);
+    if (!hand()) {
+      /* when */
+      var when = el('div', 'set-item ct-move-when');
+      when.appendChild(el('label', 'k', 'The first certificate from it'));
+      var seg = el('div', 'seg');
+      var says = el('p', 'says');
+      var opts2 = [['now', 'Now'], ['next', 'At its next renewal']];
+      var paintWhen = function () {
+        Array.prototype.forEach.call(seg.children, function (x, i) { x.classList.toggle('on', opts2[i][0] === W.when); });
+        says.textContent = W.when === 'now'
+          ? 'A new certificate is asked for at once, in a job you can watch, and deployed where this one is - the tests then run as after every deployment. If it fails, the one in use stays.'
+          : (c.not_after ? 'Nothing is asked now: the certificate in use stays until its renewal, about ' + dayOnly(c.not_after - (Number(W.d.renew_days) || 30) * 86400) + ' - then it comes from the new source.'
+            : 'Nothing is asked now: at its next renewal it comes from the new source.');
+      };
+      opts2.forEach(function (o) {
+        var bt = el('button', '', o[1]);
+        bt.type = 'button';
+        bt.onclick = function () { W.when = o[0]; paintWhen(); paint(); };
+        seg.appendChild(bt);
+      });
+      when.appendChild(seg);
+      when.appendChild(says);
+      paintWhen();
+      host.appendChild(when);
+      if (!compatThen(host, steps()[W.step])) return;
+      var left = compatProblems();
+      if (left.length) { host.appendChild(problemBox('This does not fit yet - it cannot be moved so', left)); return; }
+      if (can().challenge) readyCheck(host);
+    }
+  }
+  function finishMove(b) {
+    var sent;
+    if (hand()) {
+      sent = {id: c.id, issuer: '', challenge: '', challenge_map: {}, auto_renew: false};
+    } else {
+      var bad = (compatProblems()[0] || {}).what || '';
+      if (bad) { toast(bad, 'bad'); return; }
+      var full = body();
+      /* the names, the profile and the rest stay as they are: only what the source makes */
+      sent = {id: c.id, issuer: full.issuer, challenge: full.challenge, challenge_map: full.challenge_map,
+              key_type: full.key_type, key_type_alt: full.key_type_alt, auto_renew: full.auto_renew,
+              renew_days: full.renew_days, reuse_key: full.reuse_key};
+      if (obj(full.profile).over || obj(PROF0).over) sent.profile = Object.assign({}, PROF0, {over: obj(full.profile).over});
+      if (!obj(sent.profile).over && sent.profile) delete sent.profile.over;
+    }
+    busy(b, true);
+    capi('certs/save', sent).then(function () {
+      toast(hand() ? 'It is now renewed by hand' : 'It now comes from ' + W.d.issuer, 'good');
+      CT.refresh();
+      if (!hand() && W.when === 'now') return capi('certs/renew', {id: c.id, force: true}).then(function (x) { closeModal(); jobStarted(x, 'issuing'); },
+        function (e) { closeModal(); fail(e); certPeek(c.id); });
+      closeModal();
+      certPeek(c.id);
+    }).catch(fail).then(function () { busy(b, false); });
   }
 
   function body() {
@@ -5334,13 +5555,14 @@ function certWizard(cert, detail, opts) {
     }).catch(fail).then(function () { busy(b, false); });
   }
 
-  modal(SETUP ? 'Set up ' + c.name : (editing ? 'Edit ' + c.name : 'Add a certificate'), function (bd) { bd.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], 'large');
-  if (editing) nameInTitle(SETUP ? 'Set up' : 'Edit', c.name);
+  modal(MOVE ? 'Change the source of ' + c.name : (SETUP ? 'Set up ' + c.name : (editing ? 'Edit ' + c.name : 'Add a certificate')), function (bd) { bd.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], 'large');
+  if (editing) nameInTitle(MOVE ? 'Change the source of' : (SETUP ? 'Set up' : 'Edit'), c.name);
   var ticket = modalTicket();
   /* Asked anew each time it opens: what was made a moment ago in another tab
      (or on the other node) is offered at once. */
   var fresh = function (key) { return loadRows(key, true).catch(function () { return []; }); };
-  Promise.all([fresh('sources'), fresh('validation'), fresh('targets'), plugins(true).catch(function () { return null; })])
+  Promise.all([fresh('sources'), fresh('validation'), fresh('targets'), plugins(true).catch(function () { return null; }),
+               MOVE ? capi('checks' + qs({cert_id: c.id})).catch(function () { return {}; }) : null])
     .then(function (got) {
       if (!modalStill(ticket)) return;
       W.sources = got[0];
@@ -5349,10 +5571,11 @@ function certWizard(cert, detail, opts) {
       var dt = defaultOf(got[2]);
       W.targets = dt ? [dt].concat(got[2].filter(function (t) { return t !== dt; })) : got[2];
       if (dt && !editing && (dt.enabled === undefined || truthy(dt.enabled))) W.deploys[dt.name] = {};
-      if (!W.d.issuer && W.sources.length === 1) W.d.issuer = W.sources[0].name;
+      if (!MOVE && !W.d.issuer && W.sources.length === 1) W.d.issuer = W.sources[0].name;
       /* Let's Encrypt first: the default source and validation (is_default). */
-      if (!W.d.issuer) W.d.issuer = (W.sources.filter(function (x) { return x.is_default; })[0] || {}).name || '';
-      if (!W.d.challenge && !editing) W.d.challenge = (W.vals.filter(function (x) { return x.is_default; })[0] || {}).name || '';
+      if (!MOVE && !W.d.issuer) W.d.issuer = (W.sources.filter(function (x) { return x.is_default; })[0] || {}).name || '';
+      if (!W.d.challenge && (!editing || MOVE)) W.d.challenge = (W.vals.filter(function (x) { return x.is_default; })[0] || {}).name || '';
+      if (MOVE) W.tests = rowsOf(obj(got[4]).checks);
       paint();
     });
 }

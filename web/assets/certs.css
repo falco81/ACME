@@ -1068,3 +1068,29 @@ td.acc-role{white-space:nowrap}
 .df-chmod-octrow{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:13.5px}
 .df-chmod-oct{width:90px}
 .df-chmod-oct.df-bad{border-color:var(--crit)}
+/* Change the source (1.0.69): now -> from now on, what stays and what changes */
+.ct-move-lab{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px}
+.ct-move-cur{max-width:420px}
+.ct-move-cur .ct-move-lab{margin-top:4px}
+.ct-src.ct-move-now,.ct-src.ct-move-same{cursor:default;opacity:.85}
+.ct-src.ct-move-same{opacity:.45}
+.ct-src[disabled]:active{transform:none}
+.ct-move-ft{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:14px;align-items:center;margin-bottom:16px}
+.ct-move-ft .ct-src{cursor:default}
+.ct-move-arrow{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--info-bg);color:var(--info);box-shadow:0 0 0 1px var(--info) inset}
+.ct-move-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ct-move-box{border:1px solid var(--line);border-radius:12px;background:var(--panel2);padding:13px 15px}
+.ct-move-box h4{margin:0 0 10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.ct-move-box.ok h4{color:var(--ok)}
+.ct-move-box.info h4{color:var(--info)}
+.ct-move-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.ct-move-list li{display:flex;gap:9px;align-items:flex-start;font-size:13px}
+.ct-move-i{flex:none;width:22px;height:22px;border-radius:7px;display:grid;place-items:center}
+.ct-move-box.ok .ct-move-i{background:var(--ok-bg,rgba(63,185,80,.14));color:var(--ok)}
+.ct-move-box.info .ct-move-i{background:var(--info-bg);color:var(--info)}
+.ct-move-when{margin-top:14px}
+@media (max-width:760px){
+  .ct-move-ft{grid-template-columns:1fr}
+  .ct-move-arrow{transform:rotate(90deg);justify-self:center}
+  .ct-move-cols{grid-template-columns:1fr}
+}

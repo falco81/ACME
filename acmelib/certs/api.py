@@ -570,10 +570,25 @@ def cert_save(store, b, by, full=False):
             probs = compat.check_cert(store, cur)
             if probs:
                 raise E.ApiError(400, compat.words(probs), detail=json.dumps(probs)[:20000])
+    moved = row is not None and 'issuer' in fields and \
+        (fields['issuer'] or '') != (row.get('issuer') or '')
+    if moved and not fields['issuer']:
+        # Moved to by hand (1.0.69): renewed by importing a new one - nothing asks a source,
+        # nothing proves its names. Its deployments, tests and versions stay as they are.
+        fields.update({'auto_renew': 0, 'challenge': '', 'challenge_map': '{}', 'source': 'import',
+                       'next_try': None, 'fails': 0, 'last_error': None, 'issuer_ref': None})
+        if row.get('state') in ('failed', 'held'):
+            fields['state'] = 'ok' if row.get('cert_pem') else 'new'
+    elif moved:
+        fields['source'] = 'issuer'
     fields['updated'], fields['updated_by'] = t, str(by)[:190]
     if row:
         store.db.update('certs', row['id'], fields)
-        store.add_event('certificates', 'certificate %s changed by %s' % (name, by), who=by)
+        if moved:
+            store.add_event('certificates', 'certificate %s moved from %s to %s by %s' % (
+                name, row.get('issuer') or 'by hand', fields['issuer'] or 'by hand', by), who=by)
+        else:
+            store.add_event('certificates', 'certificate %s changed by %s' % (name, by), who=by)
         ident = row['id']
     else:
         # "Add only" (1.0.26): kept, not issued by itself - Issue now issues it.
@@ -715,6 +730,12 @@ def revocable(store, row):
     irow = S.plugin_row(store, 'issuer', row.get('issuer')) if row.get('issuer') else None
     if not irow:
         return 'it has no source acme speaks to'
+    cur = store.db.row("SELECT why FROM cert_versions WHERE cert_id = ? AND version = ? AND "
+                       "COALESCE(variant, '') = ''", (row['id'], int(row.get('version') or 0)))
+    if cur and cur.get('why') in ('import', 'csr') and not row.get('issuer_ref'):
+        # Imported (or from a CSR) and moved to a source since (1.0.69): not issued by it.
+        return 'the one in use was imported, not issued by %s - only its own CA could revoke it' \
+            % row.get('issuer')
     if str(irow.get('kind') or '') == 'selfsigned':
         return 'a self-signed certificate has no CA to revoke it at'
     # a source that cannot revoke at all (1.0.51): Revoke was offered and its job failed

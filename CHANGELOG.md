@@ -5,6 +5,14 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.69 - not released
+- A certificate's window → **Change the source…**: a wizard that moves a certificate in use to
+  another source. An imported one goes to Let's Encrypt or an authority, an issued one to
+  another source or to by hand (renewed by importing). It shows the source now → the source
+  from now on, what stays (the certificate in use, its deployments, tests, versions, owner,
+  tags) and what changes. It asks for the key, the validation (checked as when adding), the
+  source's settings and the renewal, then whether the first certificate comes now or at the
+  next renewal. The move is an event of its own. A certificate the new source never issued is
+  not offered for revoking at it.
 
 ## 1.0.68 - 2026-11-11
 - The files on a target: the owner[:group] field wider (at least 150 px), so www-data:www-data

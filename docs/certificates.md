@@ -280,6 +280,27 @@ A dual certificate (a twin with another kind of key, `key_type_alt`) is
 renewed with its twin in the same job - see *Dual certificates* below.
 
 
+## Changing the source of a certificate in use
+
+A certificate's window → **Change the source…** (1.0.69) moves it to another source without
+losing anything set around it. Its name and names, its deployments with their files and
+commands, its tests (and after which deployments they run), its versions, owner, tags and note
+all stay. The certificate in use stays in use until the new source gives it a new one.
+
+* **An imported one to a source**, for example Let's Encrypt or acme's own authority. The
+  wizard asks what a source needs: the key, how its names are proved (with the same checks as
+  Add a certificate), the source's own settings and the renewal. Then you choose when the
+  first certificate comes from it. **Now** asks for one at once and deploys it where this one
+  is. **At its next renewal** asks for nothing until the renewal is due.
+* **One from a source to another source**, the same steps.
+* **To by hand**: nothing renews it by itself any more and nothing proves its names. Renew it
+  by importing a new one (its window → Import a new one). Its deployments and tests take
+  that one as they took this one. Its end is still watched and told.
+
+The move is an event of its own ("certificate X moved from A to B by …"). The one in use was
+imported and never issued by the new source, so that source is not offered to revoke it
+(`revocable`). It can be revoked once the source has issued its own.
+
 ## Dual certificates (ECDSA + RSA)
 
 One certificate in acme can hold **two variants of the same names**: the main
