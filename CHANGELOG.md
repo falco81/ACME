@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.79 - not released
+
 ## 1.0.78 - 2026-11-11
 - **Deployments that write files: nothing replaced, nothing run.** Each file is compared by
   SHA-256 also on *Deploy now* (before, it wrote every file again; only *Leave a file alone…*
