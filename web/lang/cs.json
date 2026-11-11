@@ -54663,6 +54663,78 @@
   "md65_2": {
    "source": "the mode is three or four octal digits, as 0644 or 0755",
    "text": "režim jsou tři nebo čtyři osmičkové číslice, např. 0644 nebo 0755"
+  },
+  "chm65_1": {
+   "source": "set user ID on execution",
+   "text": "nastavit ID uživatele při spuštění"
+  },
+  "chm65_2": {
+   "source": "set group ID on execution",
+   "text": "nastavit ID skupiny při spuštění"
+  },
+  "chm65_3": {
+   "source": "sticky bit",
+   "text": "sticky bit"
+  },
+  "chm65_4": {
+   "source": "read by owner",
+   "text": "čtení vlastníkem"
+  },
+  "chm65_5": {
+   "source": "write by owner",
+   "text": "zápis vlastníkem"
+  },
+  "chm65_6": {
+   "source": "execute/search by owner",
+   "text": "spuštění/procházení vlastníkem"
+  },
+  "chm65_7": {
+   "source": "read by group",
+   "text": "čtení skupinou"
+  },
+  "chm65_8": {
+   "source": "write by group",
+   "text": "zápis skupinou"
+  },
+  "chm65_9": {
+   "source": "execute/search by group",
+   "text": "spuštění/procházení skupinou"
+  },
+  "chm65_10": {
+   "source": "read by others",
+   "text": "čtení ostatními"
+  },
+  "chm65_11": {
+   "source": "write by others",
+   "text": "zápis ostatními"
+  },
+  "chm65_12": {
+   "source": "execute/search by others",
+   "text": "spuštění/procházení ostatními"
+  },
+  "chm65_13": {
+   "source": "The mode of",
+   "text": "Práva souboru"
+  },
+  "chm65_14": {
+   "source": "Permissions (octal)",
+   "text": "Práva (osmičkově)"
+  },
+  "chm65_15": {
+   "source": "Special",
+   "text": "Zvláštní"
+  },
+  "chm65_16": {
+   "source": "Set",
+   "text": "Nastavit"
+  },
+  "chm65_17": {
+   "source": "the file's mode, as chmod takes it - empty: 0600 for a key, 0644 for the rest",
+   "text": "práva souboru, jak je bere chmod - prázdné: 0600 pro klíč, 0644 pro ostatní"
+  },
+  "chm65b_1": {
+   "source": "sticky bit (restricted deletion)",
+   "text": "sticky bit (omezené mazání)"
   }
  },
  "patterns": {

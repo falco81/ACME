@@ -37,6 +37,90 @@
   /* Offered; any other mode of three or four octal digits is typed (1.0.65: 0700, 0750,
      0755... were not to be had). */
   var MODES = ['0600', '0640', '0644', '0400', '0440', '0444', '0700', '0750', '0755', '0660', '0664'];
+  /* chmod as a popup of tick boxes (1.0.65), as mc's Chmod command: the special bits, then
+     read / write / run for the owner, the group and the others; the octal number typed or
+     worked out from the boxes, both ways. done(mode) - '' for the default. */
+  var CHMOD_BITS = [
+    [0o4000, 'set user ID on execution'], [0o2000, 'set group ID on execution'], [0o1000, 'sticky bit (restricted deletion)'],
+    [0o400, 'read by owner'], [0o200, 'write by owner'], [0o100, 'execute/search by owner'],
+    [0o40, 'read by group'], [0o20, 'write by group'], [0o10, 'execute/search by group'],
+    [0o4, 'read by others'], [0o2, 'write by others'], [0o1, 'execute/search by others']];
+  function chmodPopup(value, deflt, name, done) {
+    var start = /^[0-7]{3,4}$/.test(String(value || '')) ? parseInt(value, 8) : parseInt(deflt, 8);
+    var useDefault = !value;
+    modalOver(function () {
+      modal(tr('The mode of') + ' ' + (name || tr('the file')), function (body) {
+        var grid = el('div', 'df-chmod');
+        var boxes = [];
+        var octal = textBox('', '0644', 'mono df-chmod-oct');
+        octal.maxLength = 4;
+        noI18n(octal);
+        var dflt = el('label', 'df-chmod-dflt');
+        var dcb = el('input');
+        dcb.type = 'checkbox';
+        dcb.checked = useDefault;
+        dflt.appendChild(dcb);
+        dflt.appendChild(el('span', '', tr('the default') + ' (' + deflt + ')'));
+        var fromBits = function () {
+          var v = 0;
+          boxes.forEach(function (b) { if (b.cb.checked) v |= b.bit; });
+          return v;
+        };
+        var paint = function (v) {
+          boxes.forEach(function (b) { b.cb.checked = !!(v & b.bit); b.cb.disabled = dcb.checked; });
+          octal.value = ('000' + v.toString(8)).slice(-4);
+          octal.disabled = dcb.checked;
+          octal.classList.remove('df-bad');
+        };
+        var groups = [['Special', 0, 3], ['Owner', 3, 6], ['Group', 6, 9], ['Others', 9, 12]];
+        groups.forEach(function (g) {
+          var col = el('fieldset', 'df-chmod-g');
+          col.appendChild(el('legend', '', g[0]));
+          CHMOD_BITS.slice(g[1], g[2]).forEach(function (bt) {
+            var lab = el('label', 'df-chmod-row');
+            var cb = el('input');
+            cb.type = 'checkbox';
+            cb.onchange = function () { paint(fromBits()); };
+            lab.appendChild(cb);
+            lab.appendChild(el('span', '', bt[1]));
+            col.appendChild(lab);
+            boxes.push({bit: bt[0], cb: cb});
+          });
+          grid.appendChild(col);
+        });
+        octal.oninput = function () {
+          var t = octal.value.trim();
+          if (/^[0-7]{3,4}$/.test(t)) {
+            var v = parseInt(t, 8);
+            boxes.forEach(function (b) { b.cb.checked = !!(v & b.bit); });
+            octal.classList.remove('df-bad');
+          } else {
+            octal.classList.add('df-bad');
+          }
+        };
+        dcb.onchange = function () { paint(dcb.checked ? parseInt(deflt, 8) : fromBits()); };
+        body.appendChild(dflt);
+        body.appendChild(grid);
+        var row = el('div', 'df-chmod-octrow');
+        row.appendChild(el('span', '', tr('Permissions (octal)')));
+        row.appendChild(octal);
+        body.appendChild(row);
+        body._get = function () {
+          if (dcb.checked) return '';
+          var t = octal.value.trim();
+          return /^[0-7]{3,4}$/.test(t) ? ('0' + t).slice(-4) : null;
+        };
+        paint(start);
+        CHMOD_LAST = body;
+      }, [{words: 'Cancel', close: true}, {words: 'Set', cls: 'primary', icon: 'check', go: function () {
+        var v = CHMOD_LAST && CHMOD_LAST._get();
+        if (v === null) { toast(tr('the mode is three or four octal digits, as 0644 or 0755'), 'bad'); return; }
+        closeModal();
+        done(v);
+      }}], true);
+    });
+  }
+  var CHMOD_LAST = null;
   /* Words in the page's language where i18n.js does not reach: the hint of a
      box marked as data (data-no-i18n) is never translated by it. (1.0.19) */
   function tr(s) {
@@ -206,20 +290,25 @@
       line.appendChild(pcell);
       var msel = null, owner = null;
       if (withMode) {
-        /* Typed, with the usual ones offered (a datalist): empty is the default
-           (0600 for a key, 0644 for the rest). */
-        msel = textBox(r.mode || '', tr('default'), 'mono df-mode');
-        msel.setAttribute('list', 'df-modes');
-        msel.setAttribute('inputmode', 'numeric');
-        msel.maxLength = 4;
-        msel.title = tr('the file\'s mode, as chmod takes it (0600, 0640, 0755...) - empty: 0600 for a key, 0644 for the rest');
+        /* The mode chosen in a popup of tick boxes as chmod's dialog has them (1.0.65): read,
+           write, run for the owner, the group and the others, and the special bits; the
+           octal number beside them. Empty is the default (0600 for a key, 0644 for the rest). */
+        msel = el('button', 'btn mono df-mode df-modebtn');
+        msel.type = 'button';
+        msel.value = r.mode || '';
+        var paintMode = function () { msel.textContent = msel.value || tr('default'); };
+        paintMode();
+        msel.title = tr('the file\'s mode, as chmod takes it - empty: 0600 for a key, 0644 for the rest');
         noI18n(msel);
-        if (!document.getElementById('df-modes')) {
-          var dl = el('datalist');
-          dl.id = 'df-modes';
-          MODES.forEach(function (m) { var o = document.createElement('option'); o.value = m; dl.appendChild(o); });
-          document.body.appendChild(dl);
-        }
+        msel.onclick = function () {
+          var isKey = KEYS.indexOf(fsel.value) >= 0;
+          chmodPopup(msel.value, isKey ? '0600' : '0644', path.value.trim(), function (v) {
+            msel.value = v;
+            paintMode();
+            line.dispatchEvent(new Event('change', {bubbles: true}));
+            changed();
+          });
+        };
         line.appendChild(msel);
       }
       if (withOwner) {
@@ -258,14 +347,14 @@
         else if (/['"`$;&|<>]/.test(p)) bad = 'quotes, $ ; & | < > are not allowed in a path';
         else if (/[\\/]$/.test(p)) bad = 'that is a folder: give the file a name';
         else if (/\{(?!(name|cn|service|date|alt)\})[a-z_]+\}/.test(p)) bad = 'not a placeholder there is: ' + p.match(/\{[a-z_]+\}/)[0];
-        if (msel && msel.value.trim() && !/^0?[0-7]{3}$/.test(msel.value.trim())) bad = bad || 'the mode is three or four octal digits, as 0644 or 0755';
+        if (msel && msel.value.trim() && !/^[0-7]{3,4}$/.test(msel.value.trim())) bad = bad || 'the mode is three or four octal digits, as 0644 or 0755';
         var m = msel && (msel.value.trim() || (KEYS.indexOf(fsel.value) >= 0 ? '0600' : '0644'));
         if (!bad && m && KEYS.indexOf(fsel.value) >= 0 && (parseInt(m, 8) & 4)) warn = 'anybody on the machine may read the key: 0600 or 0640';
         if (owner && owner.value.trim() && !/^[A-Za-z0-9_][A-Za-z0-9_.-]*(:[A-Za-z0-9_][A-Za-z0-9_.-]*)?$/.test(owner.value.trim())) bad = bad || 'the owner is user or user:group';
         path.classList.toggle('df-bad', !!bad && !!p);
         if (msel) {
           msel.classList.toggle('df-warn', !!warn);
-          msel.classList.toggle('df-bad', !!msel.value.trim() && !/^0?[0-7]{3}$/.test(msel.value.trim()));
+          msel.classList.toggle('df-bad', !!msel.value.trim() && !/^[0-7]{3,4}$/.test(msel.value.trim()));
         }
         pnote.textContent = bad && p ? bad : warn;
         pnote.className = 'df-pnote ' + (bad && p ? 'bad' : (warn ? 'warn' : ''));
