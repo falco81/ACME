@@ -461,6 +461,7 @@ if (isset($_GET['api'])) {
         'settings-nodes' => '/api/settings/nodes',
         'load' => '/api/load',                      /* the performance meter (1.0.48) */
         'passkeys' => '/api/auth/passkeys',         /* Your account's passkeys (1.0.53) */
+        'isemon-sync' => '/api/isemon/sync',        /* the first full sync to isemon (1.0.71) */
     ];
     $writes = [
         'directories' => '/api/directories',
@@ -481,6 +482,7 @@ if (isset($_GET['api'])) {
         'osroots' => '/api/osroots',                /* the system's trusted roots (1.0.59) */
         'split' => '/api/split', 'clock' => '/api/clock',
         'settings-nodes' => '/api/settings/nodes',
+        'isemon-sync' => '/api/isemon/sync',        /* the first full sync to isemon (1.0.71) */
     ];
     /* The certificate manager's API (docs/architecture.md), relayed under its
        own name - certs, certs-one (or certs/one), cas-create, targets-test...

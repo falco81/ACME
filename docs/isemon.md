@@ -67,6 +67,45 @@ secret query parameters, a JWS, and any long mixed-case blob. The same lines go
 to `/var/log/acme/acme-jobs.log` with `ship_files`. The rule on the isemon side
 (`deploy/isemon/11-acme.conf`) files them as `acme-jobs.log`.
 
+### The first full sync (1.0.71)
+
+Settings → isemon → **First full sync…**, or `acme --isemon-sync [DAYS]`, sends isemon
+everything acme holds of its certificates once, so isemon starts from what is here and not
+only from what happens next. The lines are program `acme-jobs`, `kind=sync`, so isemon's
+rule files them as `acme-jobs.log`. Every line carries `sync=<id>`, which is the same for one
+sync and new for each:
+
+- `event=begin` - how many of each there are (`certificates deployments checks targets
+  sources days`).
+- `event=object` - one object a line, as it is now:
+  - `object=certificate`: `cert cert_id names cn cert_state enabled issuer` (`by hand` when
+    it has no source) `source challenge key_type key_type_alt version serial fingerprint
+    issuer_dn not_before not_after days_left auto_renew renew_days last_ok last_try
+    next_try fails last_error owner tags note eku alt_not_after alt_state created
+    created_by`;
+  - `object=deployment`: `cert cert_id deploy_id target deploy_state enabled
+    deployed_version deployed_fp last_ok last_try fails last_error`;
+  - `object=check`, a test attached: `cert check_id test enabled state last_at last_ok
+    fails after` (the targets whose deployment runs it: `any`, or `-` for none). Its last
+    result is in `msg`;
+  - `object=source | validation | target | test`: `name module_kind enabled last_ok
+    last_error note tags`;
+  - `object=authority`: `name subject key_type not_before not_after fingerprint external
+    enabled crl_at`.
+- `event=history` - the certificates' events of the last DAYS days, oldest first, each with
+  its own time (the syslog stamp, and `at` in ISO 8601 UTC), `by`, `event_node`, and the event
+  in `msg`.
+- `event=job` - each job of those days: `job job_kind cert cert_id deploy_id target at state
+  ok finished took_ms by job_node version steps`, its result in `msg`. After it,
+  `event=job_step` - each step it kept: `job seq at` and the level and words of the step.
+- `event=end` - `lines events jobs took_ms`.
+
+History is 365 days by default; 0 sends only what there is now, 3650 all that is kept. Never a
+module's settings or a key, and every value goes through `detail_redact()`, as the live
+lines do. The sending is paced: the shipper's queue is never filled past half, so no live line
+is dropped for the sync. Only one sync runs at a time, from the node it was pressed on. The
+pages show how far it got.
+
 ## On the acme server
 
 Settings → isemon, or:
@@ -86,6 +125,7 @@ acme --isemon-test
   needs nothing changed there. Empty: the machine's own short name.
 - `isemon_events` — every other event of acme as well, as `acme` lines.
 - `isemon_max_bytes` — a longer line is cut with `...TRUNCATED`.
+- `acme --isemon-sync [DAYS]` — the first full sync (above) from the command line.
 
 ## On the isemon server
 

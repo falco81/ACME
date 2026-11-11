@@ -2658,3 +2658,4 @@ from acmelib.certs import api_checks  # noqa: E402,F401  (tests of what the serv
 from acmelib.certs import api_onlineimport  # noqa: E402,F401  (Import from a source; a key added later)
 from acmelib.certs import api_certview  # noqa: E402,F401  (show a certificate: any file read and described)
 from acmelib.certs import listsearch  # noqa: E402,F401  (the search box over the certificates)
+from acmelib.certs import isemonsync  # noqa: E402,F401  (Settings → isemon: the first full sync)

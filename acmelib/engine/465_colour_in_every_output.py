@@ -626,6 +626,9 @@ def build_parser():
     g.add_argument('--tidy', action='store_true', help='delete what has been kept long enough')
     g.add_argument('--isemon-test', action='store_true', help='send one line to isemon’s '
                    'receivers and say what happened')
+    g.add_argument('--isemon-sync', metavar='DAYS', type=int, nargs='?', const=365,
+                   help='the first full sync to isemon: every certificate, deployment, test, '
+                   'target and source as it is now, and the history of DAYS days (365; 0 none)')
     g = p.add_argument_group('WHAT THE PAGES DO, HERE TOO', 'For a server without its pages '
                              '(installed --no-web) or with them down (1.0.187).')
     g.add_argument('--acme', action='store_true', help='the certificates of the pages by ACME: '
@@ -4188,6 +4191,30 @@ def cli_main(argv=None):
         except (OSError, ValueError):
             return False
 
+    if getattr(args, 'isemon_sync', None) is not None:
+        # The first full sync (1.0.71, acmelib/certs/isemonsync.py), sent from here.
+        if not CONFIG.get('isemon') or not CONFIG.get('isemon_targets'):
+            raise SystemExit('sending to isemon is off: acme --set isemon=1 --set isemon_targets=HOST:514/tcp')
+        if not 0 <= args.isemon_sync <= 3650:
+            raise SystemExit('--isemon-sync: 0 to 3650 days')
+        from acmelib.certs import isemonsync as _isy
+        sh = Shipper()
+        sh.configure()
+        job = _isy.Sync(store, cli_who(), args.isemon_sync, sh)
+        _isy.STATE.update(running=True, id=job.id)
+        job.run()
+        sh.flush(120)
+        time.sleep(0.5)
+        st = sh.state()
+        print(pal.ok_line('full sync %s: %d line(s) - %d event(s), %d job(s) of history' % (
+            job.id, job.lines, _isy.STATE.get('events') or 0, _isy.STATE.get('jobs') or 0))
+              if _isy.STATE.get('phase') == 'done' else pal.bad_line('the full sync failed: %s' % _isy.STATE.get('error')))
+        for t in st['targets']:
+            if t in st['trouble']:
+                print(pal.bad_line('%s: %s' % (t, st['trouble'][t])))
+            else:
+                print(pal.ok_line('%s: sent (%d)' % (t, st['sent'].get(t, 0))))
+        return 1 if st['trouble'] or _isy.STATE.get('phase') != 'done' else 0
     if args.isemon_test and CONFIG.get('isemon') and daemon_here():
         # From every node, by each daemon's own sender (1.0.188), as the pages do.
         return asked('isemon', api('POST', '/api/isemon', {'action': 'test', 'node': only}), 60)

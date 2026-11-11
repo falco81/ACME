@@ -54931,6 +54931,74 @@
   "uag_13": {
    "source": "a token, as the API of current versions asks; HTTP basic for an older UAG",
    "text": "token, jak to chce API současných verzí; HTTP basic pro starší UAG"
+  },
+  "isy_1": {
+   "source": "First full sync…",
+   "text": "První úplná synchronizace…"
+  },
+  "isy_2": {
+   "source": "Everything acme holds of its certificates sent to isemon once - every certificate, deployment, test, target, source and authority as it is now, and the history of the events and jobs - so isemon starts from what is here.",
+   "text": "Vše, co acme o svých certifikátech drží, se jednou pošle do isemon – každý certifikát, nasazení, test, cíl, zdroj a autorita, jak jsou teď, a historie událostí a úloh – aby isemon začínal z toho, co tu je."
+  },
+  "isy_3": {
+   "source": "The full sync failed",
+   "text": "Úplná synchronizace selhala"
+  },
+  "isy_4": {
+   "source": "now the history of events and jobs",
+   "text": "teď historie událostí a úloh"
+  },
+  "isy_5": {
+   "source": "now the certificates and what is around them",
+   "text": "teď certifikáty a vše kolem nich"
+  },
+  "isy_6": {
+   "source": "The first full sync to isemon",
+   "text": "První úplná synchronizace do isemon"
+  },
+  "isy_7": {
+   "source": "Everything acme holds of its certificates goes to isemon once, from this node, as acme-jobs lines (kind=sync) - isemon files them beside the job lines. Nothing secret: no module's settings, no key.",
+   "text": "Vše, co acme o svých certifikátech drží, jde jednou do isemon, z tohoto uzlu, jako řádky acme-jobs (kind=sync) – isemon je uloží vedle řádků úloh. Nic tajného: žádné nastavení modulů, žádný klíč."
+  },
+  "isy_8": {
+   "source": "Every certificate as it is now - names, state, source, validity, renewal, owner, tags",
+   "text": "Každý certifikát, jak je teď – jména, stav, zdroj, platnost, obnovování, vlastník, štítky"
+  },
+  "isy_9": {
+   "source": "Every deployment, attached test, target, source, validation and authority, with its last state",
+   "text": "Každé nasazení, připojený test, cíl, zdroj, validace a autorita, s posledním stavem"
+  },
+  "isy_10": {
+   "source": "The history: the certificates' events and every job step by step, each with its own time",
+   "text": "Historie: události certifikátů a každá úloha krok za krokem, každý se svým časem"
+  },
+  "isy_11": {
+   "source": "none - only what there is now",
+   "text": "žádná – jen to, co je teď"
+  },
+  "isy_12": {
+   "source": "the last 30 days",
+   "text": "posledních 30 dní"
+  },
+  "isy_13": {
+   "source": "the last 90 days",
+   "text": "posledních 90 dní"
+  },
+  "isy_14": {
+   "source": "the last year",
+   "text": "poslední rok"
+  },
+  "isy_15": {
+   "source": "all that is kept",
+   "text": "vše, co je uchováno"
+  },
+  "isy_16": {
+   "source": "Paced: the live lines go first, nothing of them is dropped for it. Pressed again later, isemon gets everything again - each line carries sync=<id>, so it can tell.",
+   "text": "Odesílá se postupně: živé řádky mají přednost a žádný se kvůli tomu nezahodí. Při dalším spuštění dostane isemon vše znovu – každý řádek nese sync=<id>, takže to rozliší."
+  },
+  "isy_17": {
+   "source": "Start the sync",
+   "text": "Spustit synchronizaci"
   }
  },
  "patterns": {
@@ -75113,6 +75181,18 @@
   "pmove_11": {
    "source": "It now comes from {0}",
    "text": "Certifikát teď pochází ze zdroje {0}"
+  },
+  "pisy_1": {
+   "source": "The full sync is running: {0} line(s) sent",
+   "text": "Úplná synchronizace běží: odesláno {0} {0:řádek|řádky|řádků}"
+  },
+  "pisy_2": {
+   "source": "The full sync is done: {0} line(s) sent",
+   "text": "Úplná synchronizace je hotová: odesláno {0} {0:řádek|řádky|řádků}"
+  },
+  "pisy_3": {
+   "source": "{0} event(s) and {1} job(s) of history",
+   "text": "historie: {0} {0:událost|události|událostí} a {1} {1:úloha|úlohy|úloh}"
   }
  },
  "rich": {

@@ -3068,6 +3068,7 @@ function askNodes(what, body, onEach, onDone) {
 var IS = {d: null, said: {}};
 function loadIsemon() {
   api('isemon').then(function (d) { IS.d = d; drawIsemon(); drawIsemonTls(); }).catch(oops);
+  if (ADMIN) api('isemon-sync').then(function (st) { IS.sync = st; drawIsemon(); if (st.running) isemonSyncWatch(); }).catch(function () { });
   drawIsemonGuide();
 }
 function drawIsemon() {
@@ -3146,12 +3147,75 @@ function drawIsemon() {
           }}], 'medium');
         };
         row2.appendChild(ts);
+        /* The first full sync (1.0.71): everything of the certificates, once, from this node. */
+        if (n.me) {
+          var fs = cmdButton('First full sync…', 'refresh', 'small');
+          fs.disabled = !IS.d.on || !fresh;
+          explain(fs, 'Everything acme holds of its certificates sent to isemon once - every certificate, deployment, test, target, source and authority as it is now, and the history of the events and jobs - so isemon starts from what is here.');
+          fs.onclick = function () { isemonSync(); };
+          row2.appendChild(fs);
+        }
         c.appendChild(row2);
+        if (n.me && IS.sync && (IS.sync.running || IS.sync.phase)) c.appendChild(isemonSyncSaid(IS.sync));
       }
       grid.appendChild(c);
     });
     host.appendChild(grid);
   });
+}
+/* The first full sync to isemon (1.0.71, acmelib/certs/isemonsync.py): how far it is. */
+function isemonSyncSaid(st) {
+  var ok = !st.running && st.phase === 'done', bad = st.phase === 'failed';
+  var p = el('div', 'node-said ' + (bad ? 'bad' : (ok ? 'ok' : 'busy')));
+  p.appendChild(el('span', 'dot ' + (bad ? 'bad' : (ok ? 'ok' : 'warn'))));
+  var t = el('div');
+  t.appendChild(el('b', '', st.running ? 'The full sync is running: ' + num(st.sent || 0) + ' line(s) sent'
+    : (ok ? 'The full sync is done: ' + num(st.sent || 0) + ' line(s) sent' : 'The full sync failed')));
+  var more = st.running ? (st.phase === 'history' ? 'now the history of events and jobs' : 'now the certificates and what is around them')
+    : (ok ? num(st.events || 0) + ' event(s) and ' + num(st.jobs || 0) + ' job(s) of history' : (st.error || ''));
+  if (more) t.appendChild(el('div', 'muted small', more));
+  if (!st.running && st.done_at) t.appendChild(el('div', 'muted small', ago(st.done_at)));
+  p.appendChild(t);
+  return p;
+}
+function isemonSyncWatch() {
+  clearInterval(IS.syncTimer);
+  IS.syncTimer = setInterval(function () {
+    api('isemon-sync').then(function (st) {
+      IS.sync = st;
+      drawIsemon();
+      if (!st.running) {
+        clearInterval(IS.syncTimer);
+        api('isemon').then(function (d) { IS.d = d; drawIsemon(); }).catch(function () { });
+      }
+    }).catch(function () { clearInterval(IS.syncTimer); });
+  }, 1000);
+}
+function isemonSync() {
+  var days;
+  modal('The first full sync to isemon', function (body) {
+    body.appendChild(el('p', 'note', 'Everything acme holds of its certificates goes to isemon once, from this node, as acme-jobs lines (kind=sync) - isemon files them beside the job lines. Nothing secret: no module\'s settings, no key.'));
+    var ul = el('ul', 'note small');
+    ['Every certificate as it is now - names, state, source, validity, renewal, owner, tags',
+     'Every deployment, attached test, target, source, validation and authority, with its last state',
+     'The history: the certificates\' events and every job step by step, each with its own time']
+      .forEach(function (w) { ul.appendChild(el('li', '', w)); });
+    body.appendChild(ul);
+    var g = el('div', 'formgrid');
+    days = selectBox([['0', 'none - only what there is now'], ['30', 'the last 30 days'], ['90', 'the last 90 days'],
+                      ['365', 'the last year'], ['3650', 'all that is kept']], '365');
+    g.appendChild(formField('History', days));
+    body.appendChild(g);
+    body.appendChild(el('p', 'note small', 'Paced: the live lines go first, nothing of them is dropped for it. Pressed again later, isemon gets everything again - each line carries sync=<id>, so it can tell.'));
+  }, [{words: 'Close', close: true}, {words: 'Start the sync', cls: 'primary', icon: 'refresh', go: function (b) {
+    busy(b, true);
+    api('isemon-sync', {days: Number(days.value)}).then(function (st) {
+      IS.sync = st;
+      closeModal();
+      drawIsemon();
+      isemonSyncWatch();
+    }).catch(function (e) { busy(b, false); oops(e); });
+  }}], 'medium');
 }
 /* What a test found, in a node's card. */
 function nodeSaid(got, words) {

@@ -5,6 +5,13 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.71 - not released
+- isemon: **First full sync** (Settings → isemon, or `acme --isemon-sync [DAYS]`). It sends
+  everything acme holds of its certificates once: every certificate, deployment, attached
+  test, target, source, validation and authority as it is now, then the history of the
+  certificates' events and every job step by step, each with its own time (365 days by
+  default, 0-3650). The lines are `acme-jobs`, `kind=sync`, each with `sync=<id>`. Nothing
+  secret goes, and the sending is paced so no live line is dropped. The pages show how far it
+  got. docs/isemon.md describes every field.
 
 ## 1.0.70 - 2026-11-11
 - A new target: **Omnissa Unified Access Gateway (UAG)** (`omnissa_uag`). It replaces the
