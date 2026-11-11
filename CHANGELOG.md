@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.73 - not released
+
 ## 1.0.72 - 2026-11-11
 - The files on a Linux target: **After the files → From a template…**, a picker of 28
   applications (nginx, Apache RHEL/Debian, HAProxy, Caddy, Postfix, Dovecot, Exim, OpenLDAP,
