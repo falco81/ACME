@@ -51,6 +51,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     `--tls-hsts` and `--hours` out of range refused; *The pages (nginx, PHP)* in the console
     finds `php8.x-fpm`; the console's *Change it* of a certificate sends only what changed;
     after new names, `--cert-edit` says `--renew` issues it now.
+  - **Pages**: *Clear* in Events puts back the page's own window (all history), not the last
+    24 hours; Jobs filtered to *running now* counts and pages only those, and says *No job
+    matches the filter*; *Save and deploy now* is the person's job, not "renewed by itself" as
+    well; the first issue of a new certificate is an *issue* job, not a renewal; the Options of
+    a deployment show its files, not `skip_same true / backup_format dated`; *Try it* of a test,
+    the isemon/SIEM trouble lines, *This would do:*, a key's bits, the name and monogram of a
+    new module, "Connection refused" and the like, and a name of capitalised words before
+    *deleted* are in Czech; the end of a time window is *Do*, not *Komu*; one name for a job of
+    tests (*test run*); the placeholders of a new intermediate authority; *Nothing matches* in
+    the module picker; Enter sets the octal mode of a file.
 
 ## 1.0.78 - 2026-11-11
 - **Deployments that write files: nothing replaced, nothing run.** Each file is compared by
